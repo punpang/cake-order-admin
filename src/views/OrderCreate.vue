@@ -2,9 +2,9 @@
 import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { db, can, addCustomer, findCustomer, createOrder, countPickups } from '../data/store'
+import { db, can, addCustomer, findCustomer, createOrder, countPickups, pickupSlots, nearbyOrders } from '../data/store'
 import { orderTotals } from '../lib/pricing'
-import { money, dateTime, toDateStr } from '../lib/format'
+import { money, dateTime, timeOnly, toDateStr } from '../lib/format'
 import ItemEditor from '../components/ItemEditor.vue'
 import ItemCard from '../components/ItemCard.vue'
 import AppIcon from '../components/AppIcon.vue'
@@ -17,7 +17,7 @@ const error = ref('')
 const form = reactive({
   customerId: null,
   date: toDateStr(new Date()),
-  time: '14:00',
+  time: '',
   fulfillment: 'pickup',
   address: '',
   shippingFee: 0,
@@ -54,6 +54,13 @@ function saveNewCustomer() {
 // ---------- ขั้น 2 นัดรับ ----------
 const pickupAt = computed(() => (form.date && form.time ? `${form.date}T${form.time}` : ''))
 const load = computed(() => countPickups(pickupAt.value))
+// เวลานัดเป็นปุ่มตามช่วงเวลาที่ตั้งไว้
+const slots = computed(() => pickupSlots(form.date))
+// ออร์เดอร์ก่อน/หลังเวลาที่เลือก
+const nearHours = ref(db.shop.nearbyHours)
+const NEAR_OPTIONS = [1, 2, 3, 6, 0]
+const near = computed(() => nearbyOrders(pickupAt.value, nearHours.value))
+const itemsText = (o) => o.items.map((i) => `${i.name} × ${i.qty}`).join(', ')
 
 // ---------- ขั้น 3 สินค้า ----------
 async function removeItem(i) {
@@ -200,8 +207,21 @@ function submit(asDraft) {
       <div class="card">
         <div class="card-title"><AppIcon name="calendar" class="text-brand-600" /> วันเวลานัดรับ</div>
         <div class="grid grid-cols-2 gap-3">
-          <div class="min-w-0"><label class="label">วันที่</label><input v-model="form.date" type="date" :min="toDateStr(new Date())" class="input" /></div>
-          <div class="min-w-0"><label class="label">เวลา</label><input v-model="form.time" type="time" step="900" class="input" /></div>
+          <div class="col-span-2 min-w-0"><label class="label">วันที่</label><input v-model="form.date" type="date" :min="toDateStr(new Date())" class="input" @change="form.time = slots.includes(form.time) ? form.time : ''" /></div>
+        </div>
+        <div class="mt-3">
+          <div class="label">เวลา <span class="font-normal text-stone-400">(ทุก {{ db.shop.slotMinutes }} นาที)</span></div>
+          <p v-if="!slots.length" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-500">ไม่มีเวลาว่างในวันนี้ เลือกวันอื่น</p>
+          <div v-else class="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
+            <button
+              v-for="t in slots"
+              :key="t"
+              type="button"
+              class="h-10 rounded-xl border text-sm font-medium transition"
+              :class="form.time === t ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : 'border-stone-200 text-stone-700 hover:border-brand-300'"
+              @click="form.time = t"
+            >{{ t }}</button>
+          </div>
         </div>
         <div
           v-if="pickupAt"
@@ -210,6 +230,29 @@ function submit(asDraft) {
         >
           <AppIcon :name="load.day ? 'alert' : 'check'" :size="18" class="mt-0.5" />
           <span>วันนั้นมีแล้ว <b>{{ load.day }}</b> ออร์เดอร์ · ช่วง {{ form.time.slice(0, 2) }}:00 น. มี <b>{{ load.hour }}</b> ออร์เดอร์</span>
+        </div>
+      </div>
+
+      <!-- ออร์เดอร์ก่อน/หลังเวลาที่เลือก -->
+      <div v-if="pickupAt" class="card">
+        <div class="card-title"><AppIcon name="clock" class="text-brand-600" /> ออร์เดอร์ใกล้เวลานี้</div>
+        <div class="mb-3 flex flex-wrap gap-2">
+          <button v-for="h in NEAR_OPTIONS" :key="h" type="button" class="chip" :class="nearHours === h ? 'chip-on' : 'chip-off'" @click="nearHours = h">{{ h ? `±${h} ชม.` : 'ทั้งวัน' }}</button>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div v-for="side in [{ k: 'before', t: 'ก่อนหน้า' }, { k: 'after', t: 'ถัดไป' }]" :key="side.k">
+            <div class="mb-1.5 text-sm font-semibold text-stone-700">{{ side.t }} <span class="font-normal text-stone-500">{{ near[side.k].length }} ออร์เดอร์</span></div>
+            <p v-if="!near[side.k].length" class="rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-400">ไม่มี</p>
+            <ul v-else class="space-y-1.5">
+              <li v-for="o in near[side.k]" :key="o.id" class="rounded-xl border border-stone-200/70 p-2.5 text-sm">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-semibold text-stone-900">{{ timeOnly(o.pickupAt) }}<span v-if="o.pickupAt.slice(0, 10) !== form.date" class="font-normal text-stone-400"> ({{ o.pickupAt.slice(5, 10) }})</span></span>
+                  <span class="truncate text-xs text-stone-500">{{ findCustomer(o.customerId)?.name }}</span>
+                </div>
+                <div class="mt-0.5 text-xs break-words text-stone-600">{{ itemsText(o) }}</div>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
 

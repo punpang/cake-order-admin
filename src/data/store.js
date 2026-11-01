@@ -34,6 +34,9 @@ export const db = reactive({
     { id: 'c3', name: 'บริษัท ขนมหวาน จำกัด', phone: '021234567', line: 'sweetco', note: 'ขอใบกำกับภาษี' },
   ],
 
+  // ตั้งค่าร้าน: เวลานัดรับ ทุก slotMinutes นาที ระหว่าง open–close, nearbyHours = ค่าเริ่มต้นช่วงดูออร์เดอร์ก่อน/หลัง (0 = ทั้งวัน)
+  shop: { slotMinutes: 30, open: '09:00', close: '20:00', nearbyHours: 2 },
+
   // ---------- คะแนนสะสม / แลกของ / กาชา ----------
   // earnPer = ทุกกี่บาทได้ 1 คะแนน, pointValue = 1 คะแนนลดได้กี่บาท, spinCost = คะแนนต่อการหมุน 1 ครั้ง, spinPer = ทุกกี่บาทได้สิทธิ์หมุน 1 ครั้ง
   loyalty: { earnPer: 100, pointValue: 1, pointExpireDays: 365, couponExpireDays: 30, spinCost: 50, spinPer: 500 },
@@ -361,6 +364,40 @@ export function countPickups(pickupAt, excludeId) {
   return {
     day: list.filter((o) => o.pickupAt.slice(0, 10) === day).length,
     hour: list.filter((o) => o.pickupAt.slice(0, 13) === hour).length,
+  }
+}
+
+export function saveShopSettings(d) {
+  db.shop.slotMinutes = Math.max(5, Number(d.slotMinutes) || 30)
+  db.shop.open = d.open || '09:00'
+  db.shop.close = d.close || '20:00'
+  db.shop.nearbyHours = Math.max(0, Number(d.nearbyHours) || 0)
+}
+
+// เวลานัดที่เลือกได้ของวัน (HH:MM) ตามช่วงเวลา และตัดเวลาที่ผ่านไปแล้ว
+export function pickupSlots(dateStr) {
+  const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
+  const out = []
+  const now = new Date()
+  for (let m = toMin(db.shop.open); m <= toMin(db.shop.close); m += db.shop.slotMinutes) {
+    const t = `${pad(Math.floor(m / 60))}:${pad(m % 60)}`
+    if (new Date(`${dateStr}T${t}`) > now) out.push(t)
+  }
+  return out
+}
+
+// ออร์เดอร์ (ไม่นับยกเลิก) ก่อน/หลังเวลานัด ภายใน hours ชั่วโมง (0 = ทั้งวัน)
+export function nearbyOrders(pickupAt, hours, excludeId) {
+  if (!pickupAt) return { before: [], after: [] }
+  const at = new Date(pickupAt).getTime()
+  const day = pickupAt.slice(0, 10)
+  const list = db.orders
+    .filter((o) => o.status !== 'cancelled' && o.id !== excludeId)
+    .filter((o) => (hours ? Math.abs(new Date(o.pickupAt).getTime() - at) <= hours * 3600000 : o.pickupAt.slice(0, 10) === day))
+    .sort((a, b) => a.pickupAt.localeCompare(b.pickupAt))
+  return {
+    before: list.filter((o) => new Date(o.pickupAt).getTime() < at),
+    after: list.filter((o) => new Date(o.pickupAt).getTime() >= at),
   }
 }
 
