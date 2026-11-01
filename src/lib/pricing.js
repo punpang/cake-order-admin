@@ -26,6 +26,16 @@ function useP(entity, active, used) {
   return r.price
 }
 
+// ---------- ตัวเลือกหลักที่หน้าเค้กอนุญาต ----------
+// ตัวเลือกของหน้าเค้กมี allow = { [groupId]: [optionId] } ไม่มี key = เลือกได้ทุกตัว
+export function allowedBy(groups, selections) {
+  const face = groups.find((g) => g.key === 'face')
+  const sel = face ? selections?.[face.id] : null
+  const ids = sel == null ? [] : Array.isArray(sel) ? sel : [sel]
+  const faces = ids.map((id) => face.options.find((o) => o.id === id)).filter(Boolean)
+  return (g, o) => faces.every((f) => !f.allow?.[g.id] || f.allow[g.id].includes(o.id))
+}
+
 // ---------- ชั้นของเค้ก ----------
 // สั่งทำ: tiers = [{ selections }] กลุ่มที่เปิด perTier เลือกแยกในแต่ละชั้น กลุ่มอื่นอยู่ใน item.selections
 // รายการที่ไม่มี tiers (หรือเค้กสำเร็จ) ถือเป็น 1 ชั้นที่ใช้ item.selections

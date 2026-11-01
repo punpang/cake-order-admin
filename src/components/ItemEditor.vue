@@ -1,8 +1,8 @@
 <script setup>
 import { askConfirm } from '../lib/confirm'
-import { computed, reactive, ref, toRaw } from 'vue'
+import { computed, reactive, ref, toRaw, watch } from 'vue'
 import { db, activeListsAt } from '../data/store'
-import { priceDetail, effectivePrice } from '../lib/pricing'
+import { priceDetail, effectivePrice, allowedBy } from '../lib/pricing'
 import { money } from '../lib/format'
 import { MAIN_KEYS } from '../lib/constants'
 import AppModal from './AppModal.vue'
@@ -34,6 +34,29 @@ const errors = ref({})
 const groups = computed(() => db.optionGroups.filter((g) => g.active !== false && g.appliesTo.includes(form.kind)))
 const tierGroups = computed(() => (form.kind === 'custom' ? groups.value.filter((g) => g.perTier) : []))
 const wholeGroups = computed(() => groups.value.filter((g) => !tierGroups.value.includes(g)))
+
+// ตัวเลือกหลักที่หน้าเค้กอนุญาต (หน้าเค้กอยู่ในชั้นหรือทั้งก้อนก็ได้)
+const faceGroup = computed(() => groups.value.find((g) => g.key === 'face'))
+const faceSels = (t) => (faceGroup.value && tierGroups.value.includes(faceGroup.value) && t ? t.selections : form.selections)
+const allowFor = (t) => allowedBy(db.optionGroups, faceSels(t))
+// เปลี่ยนหน้าเค้กแล้ว ตัดตัวเลือกที่ไม่มีออก
+function prune(sels, allow, list) {
+  for (const g of list) {
+    const v = sels[g.id]
+    if (v == null || g.type === 'text') continue
+    const ok = (id) => { const o = g.options.find((x) => x.id === id); return !o || allow(g, o) }
+    if (Array.isArray(v)) sels[g.id] = v.filter(ok)
+    else if (!ok(v)) delete sels[g.id]
+  }
+}
+watch(
+  () => JSON.stringify([form.selections, form.tiers]),
+  () => {
+    if (form.kind !== 'custom') return
+    if (form.tiers.length) form.tiers.forEach((t) => prune(t.selections, allowFor(t), tierGroups.value))
+    prune(form.selections, allowFor(form.tiers[0]), wholeGroups.value)
+  },
+)
 const products = computed(() => db.products.filter((p) => p.active || p.id === form.productId))
 const active = computed(() => activeListsAt(props.priceDate))
 const detail = computed(() => priceDetail(form, db.optionGroups, db.products, active.value))
@@ -161,13 +184,13 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
           <span class="font-semibold text-brand-800">ชั้นที่ {{ i + 1 }}</span>
           <button v-if="form.tiers.length > 1" type="button" class="btn-danger h-8 px-2.5 text-sm" @click="removeTier(i)"><AppIcon name="trash" :size="14" /> ลบชั้น</button>
         </div>
-        <OptionPicker v-model="tier.selections" :groups="tierGroups" :errors="errors['t' + i] || {}" :active="active" />
+        <OptionPicker v-model="tier.selections" :groups="tierGroups" :errors="errors['t' + i] || {}" :active="active" :allow="allowFor(tier)" />
       </div>
       <button type="button" class="btn-soft mb-3 w-full" @click="form.tiers.push({ selections: {} })"><AppIcon name="plus" :size="16" /> เพิ่มชั้น</button>
     </template>
 
     <div v-if="form.kind === 'custom' && wholeGroups.length" class="mb-2 text-sm font-semibold text-stone-500">ตัวเลือกเพิ่มเติม</div>
-    <OptionPicker v-model="form.selections" :groups="wholeGroups" :errors="errors" :active="active" />
+    <OptionPicker v-model="form.selections" :groups="wholeGroups" :errors="errors" :active="active" :allow="form.kind === 'custom' ? allowFor(form.tiers[0]) : null" />
 
     <!-- รูป + หมายเหตุ -->
     <div class="mt-3 rounded-2xl border border-stone-200/70 bg-white p-3.5">

@@ -7,6 +7,7 @@ const props = defineProps({
   groups: { type: Array, required: true },
   errors: { type: Object, default: () => ({}) },
   active: { type: Array, default: () => [] }, // แบบราคาพิเศษที่ใช้งาน
+  allow: { type: Function, default: null }, // (group, option) => เลือกได้ไหม (ตามหน้าเค้ก)
 })
 const selections = defineModel({ type: Object, required: true })
 
@@ -66,7 +67,7 @@ const isOn = (g, o) =>
 
       <div v-else class="flex flex-wrap gap-2">
         <button
-          v-for="o in g.options.filter((x) => x.active !== false || isOn(g, x))"
+          v-for="o in g.options.filter((x) => (x.active !== false || isOn(g, x)) && (!allow || allow(g, x)))"
           :key="o.id"
           type="button"
           class="inline-flex max-w-full items-center gap-1.5 rounded-xl border px-3 py-2 text-left text-sm transition active:scale-[0.98]"

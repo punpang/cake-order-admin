@@ -91,7 +91,7 @@ export const db = reactive({
   optionGroups: [
     // ---- กลุ่มหลัก: หน้าเค้ก > เนื้อเค้ก > ขนาด (ราคาบวกกัน) ----
     { id: 'g_frosting', key: 'face', name: 'หน้าเค้ก', prepList: true, perTier: true, type: 'single', required: true, appliesTo: ['custom'], options: [
-      opt('fc1', 'เค้กแยมมะพร้าวอ่อน', 100), opt('fc2', 'เค้กหน้านิ่ม', 50),
+      opt('fc1', 'เค้กแยมมะพร้าวอ่อน', 100), opt('fc2', 'เค้กหน้านิ่ม', 50, 'fixed', { allow: { g_sponge: ['sp2', 'sp3', 'sp4', 'sp5'] } }),
       opt('fr1', 'วิปครีม', 0, 'fixed', { recipe: [r('m5', 200), r('m2', 20)] }), opt('fr2', 'บัตเตอร์ครีม', 50, 'per_pound'), opt('fr3', 'ฟองดองท์', 200, 'per_pound'),
       opt('fr4', 'ช็อกโกแลตกานาช', 80, 'per_pound'), opt('fr5', 'ครีมชีส', 80, 'per_pound'),
     ] },

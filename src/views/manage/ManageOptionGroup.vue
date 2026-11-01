@@ -14,6 +14,9 @@ import SpecialPriceEditor from '../../components/SpecialPriceEditor.vue'
 const props = defineProps({ id: { type: String, required: true } })
 const group = computed(() => findGroup(props.id))
 const isSize = computed(() => group.value?.key === 'size')
+const isFace = computed(() => group.value?.key === 'face')
+// หน้าเค้ก: เลือกเนื้อเค้ก/ขนาดที่มี
+const limitGroups = computed(() => db.optionGroups.filter((x) => x.key === 'flavor' || x.key === 'size'))
 
 const q = ref('')
 const inactive = ref(false)
@@ -55,13 +58,23 @@ async function saveG() {
 
 // ---------- ตัวเลือก ----------
 const oOpen = ref(false)
-const blank = () => ({ id: null, name: '', price: 0, priceType: 'fixed', pounds: 1, active: true, recipe: [], special: {} })
+const blank = () => ({ id: null, name: '', price: 0, priceType: 'fixed', pounds: 1, active: true, recipe: [], special: {}, allow: {} })
 const o = reactive(blank())
 const oError = ref('')
 function editOption(opt) {
-  Object.assign(o, opt ? { ...blank(), ...opt, recipe: (opt.recipe || []).map((x) => ({ ...x })), special: { ...(opt.special || {}) } } : blank())
+  Object.assign(o, opt ? { ...blank(), ...opt, recipe: (opt.recipe || []).map((x) => ({ ...x })), special: { ...(opt.special || {}) }, allow: JSON.parse(JSON.stringify(opt.allow || {})) } : blank())
   oError.value = ''
   oOpen.value = true
+}
+const allowOn = (lg, oid) => !o.allow[lg.id] || o.allow[lg.id].includes(oid)
+function toggleAllow(lg, oid) {
+  const cur = o.allow[lg.id] ? [...o.allow[lg.id]] : lg.options.map((x) => x.id)
+  const i = cur.indexOf(oid)
+  if (i >= 0) cur.splice(i, 1)
+  else cur.push(oid)
+  // เลือกครบทุกตัว = ไม่จำกัด
+  if (lg.options.every((x) => cur.includes(x.id))) delete o.allow[lg.id]
+  else o.allow[lg.id] = cur
 }
 async function saveO() {
   if (!o.name.trim()) return (oError.value = 'กรอกชื่อตัวเลือก')
@@ -69,6 +82,8 @@ async function saveO() {
   if (isSize.value && !(o.pounds > 0)) return (oError.value = 'ขนาดต้องมากกว่า 0')
   const data = { ...o }
   if (isSize.value) data.priceType = 'fixed'
+  if (!isFace.value) delete data.allow
+  else for (const lg of limitGroups.value) if (data.allow[lg.id] && !data.allow[lg.id].length) return (oError.value = `เลือก${lg.name}อย่างน้อย 1 อย่าง`)
   else delete data.pounds
   if (!(await confirmDeactivate(group.value.options, o, o.name))) return
   saveOption(group.value.id, data)
@@ -202,6 +217,15 @@ async function saveO() {
           </div>
         </template>
 
+        <div v-if="isFace" class="space-y-3">
+          <div v-for="lg in limitGroups" :key="lg.id">
+            <div class="label">{{ lg.name }}ที่มีสำหรับหน้านี้</div>
+            <div class="flex flex-wrap gap-2">
+              <button v-for="x in lg.options.filter((y) => y.active !== false || allowOn(lg, y.id))" :key="x.id" type="button" class="chip" :class="allowOn(lg, x.id) ? 'chip-on' : 'chip-off'" @click="toggleAllow(lg, x.id)">{{ x.name }}</button>
+            </div>
+          </div>
+          <p class="text-xs text-stone-400">ที่ไม่เลือกจะไม่แสดงตอนสั่ง</p>
+        </div>
         <SpecialPriceEditor v-model="o.special" :unit="!isSize && o.priceType === 'per_pound' ? 'บาท/ปอนด์' : 'บาท'" />
         <RecipeEditor v-model="o.recipe" />
         <AppSwitch v-model="o.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" class="flex" />
