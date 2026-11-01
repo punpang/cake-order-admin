@@ -10,6 +10,8 @@ import ManageOptionGroup from './views/manage/ManageOptionGroup.vue'
 import ManageUsers from './views/manage/ManageUsers.vue'
 import ManageIngredients from './views/manage/ManageIngredients.vue'
 import ManagePriceLists from './views/manage/ManagePriceLists.vue'
+import ManageLoyalty from './views/manage/ManageLoyalty.vue'
+import Member from './views/Member.vue'
 import Materials from './views/Materials.vue'
 
 // meta.focus = หน้าที่มีแถบปุ่มของตัวเอง ซ่อนแถบเมนูล่างบนมือถือ
@@ -29,6 +31,9 @@ export default createRouter({
     { path: '/manage/users', component: ManageUsers },
     { path: '/manage/ingredients', component: ManageIngredients },
     { path: '/manage/pricing', component: ManagePriceLists },
+    { path: '/manage/loyalty', component: ManageLoyalty },
+    // หน้าลูกค้า (จำลอง ยังไม่มีล็อกอินลูกค้า)
+    { path: '/member', component: Member, meta: { member: true } },
   ],
   scrollBehavior: () => ({ top: 0 }),
 })

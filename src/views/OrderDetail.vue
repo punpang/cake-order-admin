@@ -3,6 +3,7 @@ import { computed, reactive, ref } from 'vue'
 import {
   can, findOrder, findCustomer, setStatus, reportPayment, confirmPayment, setAdjustment, cancelOrder, countPickups,
   saveOrderItem, removeOrderItem, orderDate,
+  db, customerPoints, usableDiscountCoupons, applyPoints, removePoints, applyCoupon, removeCoupon,
 } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime, toDateStr, pad } from '../lib/format'
@@ -86,6 +87,27 @@ const editing = ref(null) // null = ปิด, {} = เพิ่มใหม่,
 function onSaveItem(item) {
   saveOrderItem(order.value, item)
   editing.value = null
+}
+
+// ---------- คะแนน / คูปอง (พนักงาน) ----------
+const canLoyalty = computed(() => can('useLoyalty') && !closed.value && !!customer.value)
+const points = computed(() => customerPoints(customer.value))
+const coupons = computed(() => usableDiscountCoupons(customer.value))
+const ptOpen = ref(false)
+const ptUse = ref(0)
+const ptError = ref('')
+// ใช้ได้ไม่เกินคะแนนที่มี และไม่เกินยอดที่ต้องจ่าย
+const ptMax = computed(() => Math.min(points.value, Math.floor(Math.max(t.value.total, 0) / (db.loyalty.pointValue || 1))))
+function openPoints() {
+  ptUse.value = ptMax.value
+  ptError.value = ''
+  ptOpen.value = true
+}
+function savePoints() {
+  const n = Math.floor(Number(ptUse.value) || 0)
+  if (n <= 0 || n > ptMax.value) return (ptError.value = `ใช้ได้ 1 – ${ptMax.value} คะแนน`)
+  applyPoints(order.value, n)
+  ptOpen.value = false
 }
 
 // ---------- ยกเลิก ----------
@@ -232,8 +254,36 @@ function saveCancel() {
               <dt class="min-w-0 text-stone-500">ปรับราคา <span class="break-words text-stone-400">({{ order.adjustment.reason }})</span></dt>
               <dd class="shrink-0">{{ money(t.adjustment) }}</dd>
             </div>
+            <div v-if="t.pointsDiscount" class="flex justify-between gap-2"><dt class="text-stone-500">ใช้ {{ order.pointsUsed.points }} คะแนน</dt><dd class="text-rose-600">−{{ money(t.pointsDiscount) }}</dd></div>
+            <div v-for="u in order.couponsUsed" :key="u.couponId" class="flex justify-between gap-2"><dt class="min-w-0 break-words text-stone-500">คูปอง {{ u.name }}</dt><dd class="shrink-0 text-rose-600">−{{ money(u.amount) }}</dd></div>
           </dl>
           <button v-if="can('adjustPrice') && !closed" class="btn-soft mt-3 w-full" @click="openAdj"><AppIcon name="tag" :size="16" /> ปรับราคา / ส่วนลด</button>
+        </section>
+
+        <!-- คะแนน / คูปอง -->
+        <section v-if="customer" class="card">
+          <div class="card-title"><AppIcon name="tag" class="text-brand-600" /> คะแนน / คูปอง</div>
+          <div class="text-sm text-stone-600">คะแนนของลูกค้า <b class="text-stone-900">{{ points.toLocaleString('th-TH') }}</b> คะแนน</div>
+          <div v-if="order.loyalty" class="mt-1 text-sm text-emerald-700">ได้จากออร์เดอร์นี้ {{ order.loyalty.points }} คะแนน<span v-if="order.loyalty.spins"> + หมุน {{ order.loyalty.spins }} ครั้ง</span></div>
+
+          <div v-if="order.pointsUsed" class="mt-3 flex items-center justify-between gap-2 rounded-xl bg-brand-50 p-2.5 text-sm">
+            <span>ใช้ {{ order.pointsUsed.points }} คะแนน (−{{ money(order.pointsUsed.amount) }})</span>
+            <button v-if="canLoyalty" class="text-rose-600 underline" @click="removePoints(order)">ยกเลิก</button>
+          </div>
+          <button v-else-if="canLoyalty && ptMax > 0" class="btn-soft mt-3 w-full" @click="openPoints"><AppIcon name="tag" :size="16" /> ใช้คะแนนเป็นส่วนลด</button>
+
+          <div v-for="u in order.couponsUsed" :key="u.couponId" class="mt-2 flex items-center justify-between gap-2 rounded-xl bg-brand-50 p-2.5 text-sm">
+            <span class="min-w-0 break-words">คูปอง {{ u.name }} (−{{ money(u.amount) }})</span>
+            <button v-if="canLoyalty" class="shrink-0 text-rose-600 underline" @click="removeCoupon(order, u.couponId)">ยกเลิก</button>
+          </div>
+          <div v-if="canLoyalty && coupons.length" class="mt-3">
+            <div class="label">คูปองส่วนลดที่ใช้ได้</div>
+            <div class="flex flex-wrap gap-2">
+              <button v-for="c in coupons" :key="c.id" type="button" class="chip chip-off" @click="applyCoupon(order, c.id)">
+                <AppIcon name="plus" :size="14" /> {{ c.name }}
+              </button>
+            </div>
+          </div>
         </section>
 
         <!-- การชำระเงิน -->
@@ -308,6 +358,20 @@ function saveCancel() {
         ><AppIcon name="check" :size="18" /> ส่งมอบแล้ว</button>
       </div>
     </div>
+
+    <!-- modal ใช้คะแนน -->
+    <AppModal v-if="ptOpen" title="ใช้คะแนนเป็นส่วนลด" @close="ptOpen = false">
+      <div class="space-y-4">
+        <div class="rounded-xl bg-brand-50 p-3 text-sm text-brand-800">มี {{ points }} คะแนน · 1 คะแนน = {{ money(db.loyalty.pointValue) }} · ใช้ได้สูงสุด {{ ptMax }} คะแนน</div>
+        <div><label class="label">จำนวนคะแนน</label><input v-model.number="ptUse" type="number" inputmode="numeric" min="1" :max="ptMax" class="input text-lg font-semibold" /></div>
+        <div class="text-sm text-stone-600">ลด {{ money((Number(ptUse) || 0) * db.loyalty.pointValue) }}</div>
+        <p v-if="ptError" class="text-sm text-rose-600">{{ ptError }}</p>
+      </div>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="ptOpen = false">ยกเลิก</button>
+        <button class="btn-primary flex-1 sm:flex-none" @click="savePoints">ใช้คะแนน</button>
+      </template>
+    </AppModal>
 
     <!-- modal แจ้งชำระ -->
     <AppModal v-if="payOpen" title="แจ้งชำระเงิน" @close="payOpen = false">

@@ -29,6 +29,7 @@ export const PERMISSIONS = {
   manage: ['admin'],
   viewMaterials: ['admin', 'baker'],
   editItems: ['admin'],
+  useLoyalty: ['admin', 'sales'], // ใช้คะแนน/คูปองเป็นส่วนลดในออร์เดอร์
 }
 
 // สถานะที่แต่ละบทบาทเห็นในรายการ (null = เห็นทั้งหมด)

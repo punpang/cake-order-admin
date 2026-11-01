@@ -2,7 +2,8 @@
 // ขั้นต่อไปจะเปลี่ยนฟังก์ชันในไฟล์นี้ให้เรียก Supabase แทน
 import { reactive } from 'vue'
 import { PERMISSIONS } from '../lib/constants'
-import { activeLists, priceDetail } from '../lib/pricing'
+import { activeLists, priceDetail, orderTotals } from '../lib/pricing'
+import { addDays, pointBalance, takePoints, returnPoints, couponUsable, pickPrize } from '../lib/loyalty'
 import { pad, toDateStr } from '../lib/format'
 
 let seq = 1000
@@ -30,6 +31,26 @@ export const db = reactive({
     { id: 'c2', name: 'คุณสมชาย รักเค้ก', phone: '0899998888', line: '', note: 'ชอบหวานน้อย' },
     { id: 'c3', name: 'บริษัท ขนมหวาน จำกัด', phone: '021234567', line: 'sweetco', note: 'ขอใบกำกับภาษี' },
   ],
+
+  // ---------- คะแนนสะสม / แลกของ / กาชา ----------
+  // earnPer = ทุกกี่บาทได้ 1 คะแนน, pointValue = 1 คะแนนลดได้กี่บาท, spinCost = คะแนนต่อการหมุน 1 ครั้ง, spinPer = ทุกกี่บาทได้สิทธิ์หมุน 1 ครั้ง
+  loyalty: { earnPer: 100, pointValue: 1, pointExpireDays: 365, couponExpireDays: 30, spinCost: 50, spinPer: 500 },
+  rewards: [
+    { id: 'rw1', name: 'เทียนวันเกิดเซ็ต', points: 30, active: true },
+    { id: 'rw2', name: 'คัพเค้ก 1 ชิ้น', points: 80, active: true },
+    { id: 'rw3', name: 'เค้ก 1 ปอนด์', points: 500, active: true },
+  ],
+  // type = points | reward | discount | none
+  gachaPrizes: [
+    { id: 'gp1', name: '10 คะแนน', type: 'points', value: 10, chance: 30, active: true },
+    { id: 'gp2', name: '50 คะแนน', type: 'points', value: 50, chance: 10, active: true },
+    { id: 'gp3', name: 'คัพเค้ก 1 ชิ้น', type: 'reward', rewardId: 'rw2', chance: 10, active: true },
+    { id: 'gp4', name: 'ส่วนลด 50 บาท', type: 'discount', value: 50, chance: 15, active: true },
+    { id: 'gp5', name: 'เสียใจด้วย', type: 'none', chance: 35, active: true },
+  ],
+  // คูปอง: type = reward (รอรับที่ร้าน) | discount (ใช้ลดในออร์เดอร์), status = pending | used | delivered
+  coupons: [],
+  spinLog: [],
 
   // ราคาพิเศษ (ตัวอย่าง): scheduled = กำหนดช่วงวัน (เทียบวันที่สร้างออร์เดอร์)
   // ราคาของแต่ละแบบเก็บใน special: { [priceListId]: ราคา } ของสินค้า/ตัวเลือก
@@ -113,8 +134,8 @@ export const db = reactive({
   orders: [],
 })
 
-// ทุกรายการเริ่มต้นเป็น "ใช้งาน"
-for (const c of db.customers) c.active = true
+// ทุกรายการเริ่มต้นเป็น "ใช้งาน" + สมุดคะแนน / สิทธิ์หมุน
+for (const c of db.customers) Object.assign(c, { active: true, ledger: [], spins: 0 })
 for (const g of db.optionGroups) g.active = true
 
 // ---------- ฟังก์ชัน ----------
@@ -125,7 +146,7 @@ export const findOrder = (id) => db.orders.find((o) => o.id === id)
 export const findCustomer = (id) => db.customers.find((c) => c.id === id)
 
 export function addCustomer(data) {
-  const c = { id: uid('c'), name: data.name.trim(), phone: data.phone?.trim() || '', line: data.line?.trim() || '', note: data.note?.trim() || '', active: true }
+  const c = { id: uid('c'), name: data.name.trim(), phone: data.phone?.trim() || '', line: data.line?.trim() || '', note: data.note?.trim() || '', active: true, ledger: [], spins: 0 }
   db.customers.push(c)
   return c
 }
@@ -156,7 +177,11 @@ const cleanRecipe = (list) =>
 const cleanSpecial = (obj) =>
   Object.fromEntries(Object.entries(obj || {}).filter(([, v]) => v !== '' && v != null && Number(v) >= 0).map(([k, v]) => [k, Number(v)]))
 
-export const saveCustomer = (d) => upsert(db.customers, 'c', d)
+export function saveCustomer(d) {
+  const c = upsert(db.customers, 'c', d)
+  if (!c.ledger) Object.assign(c, { ledger: [], spins: 0 })
+  return c
+}
 export const savePriceList = (d) => upsert(db.priceLists, 'pl', d)
 export const saveIngredient = (d) => upsert(db.ingredients, 'm', d)
 export const saveProduct = (d) => upsert(db.products, 'p', { ...d, price: Number(d.price) || 0, pounds: Number(d.pounds) || 1, recipe: cleanRecipe(d.recipe), special: cleanSpecial(d.special) })
@@ -203,6 +228,9 @@ export function createOrder(payload, asDraft = false) {
     shippingFee: payload.fulfillment === 'delivery' ? Number(payload.shippingFee) || 0 : 0,
     items: payload.items.map((i) => priceItem(i)),
     adjustment: { amount: 0, reason: '' },
+    pointsUsed: null, // { points, amount, entryId }
+    couponsUsed: [], // [{ couponId, name, amount }]
+    loyalty: null, // คะแนน/สิทธิ์หมุนที่ได้ตอนส่งมอบ { points, spins, lotId }
     status: asDraft ? 'draft' : 'awaiting_payment',
     payments: [],
     cancel: null,
@@ -217,6 +245,7 @@ export function createOrder(payload, asDraft = false) {
 export function setStatus(order, status, text) {
   order.status = status
   log(order, text)
+  if (status === 'delivered') awardOrder(order)
 }
 
 export function reportPayment(order, p) {
@@ -272,6 +301,7 @@ export function setAdjustment(order, amount, reason) {
 }
 
 export function cancelOrder(order, c) {
+  undoLoyalty(order)
   order.cancel = { reason: c.reason, refundAmount: Number(c.refundAmount) || 0, refundMethod: c.refundMethod, refundNote: c.refundNote || '', at: now() }
   setStatus(order, 'cancelled', `ยกเลิก: ${c.reason}${order.cancel.refundAmount ? ` / คืนเงิน ${order.cancel.refundAmount.toLocaleString('th-TH')} ฿` : ''}`)
 }
@@ -286,6 +316,145 @@ export function countPickups(pickupAt, excludeId) {
     day: list.filter((o) => o.pickupAt.slice(0, 10) === day).length,
     hour: list.filter((o) => o.pickupAt.slice(0, 13) === hour).length,
   }
+}
+
+// ---------- คะแนนสะสม ----------
+const today = () => toDateStr(new Date())
+export const customerPoints = (c) => pointBalance(c?.ledger, today())
+
+function earnPoints(c, points, reason, orderId = null) {
+  if (!(points > 0)) return null
+  const lot = { id: uid('pt'), at: now(), delta: points, reason, orderId, expiresAt: addDays(today(), db.loyalty.pointExpireDays), remaining: points }
+  c.ledger.push(lot)
+  return lot
+}
+
+function spendPoints(c, points, reason, orderId = null) {
+  const takes = takePoints(c.ledger, points, today())
+  if (!takes) return null
+  const e = { id: uid('pt'), at: now(), delta: -points, reason, orderId, takes }
+  c.ledger.push(e)
+  return e
+}
+
+function refundPoints(c, entryId, reason) {
+  const e = c.ledger.find((x) => x.id === entryId)
+  if (!e || e.refunded) return
+  returnPoints(c.ledger, e.takes)
+  e.refunded = true
+  c.ledger.push({ id: uid('pt'), at: now(), delta: -e.delta, reason, orderId: e.orderId, refund: true })
+}
+
+function newCoupon(c, data) {
+  const cp = { id: uid('cp'), customerId: c.id, status: 'pending', createdAt: now(), expiresAt: addDays(today(), db.loyalty.couponExpireDays), ...data }
+  db.coupons.unshift(cp)
+  return cp
+}
+
+export const customerCoupons = (c) => db.coupons.filter((x) => x.customerId === c?.id)
+export const usableDiscountCoupons = (c) => customerCoupons(c).filter((x) => x.type === 'discount' && couponUsable(x, today()))
+
+// ใช้คะแนน / คูปองเป็นส่วนลดในออร์เดอร์ (พนักงาน)
+export function applyPoints(order, points) {
+  const c = findCustomer(order.customerId)
+  if (!c || order.pointsUsed) return false
+  const e = spendPoints(c, points, `ใช้เป็นส่วนลด ${order.code}`, order.id)
+  if (!e) return false
+  order.pointsUsed = { points, amount: points * db.loyalty.pointValue, entryId: e.id }
+  log(order, `ใช้ ${points} คะแนน ลด ${order.pointsUsed.amount.toLocaleString('th-TH')} ฿`)
+  return true
+}
+
+export function removePoints(order) {
+  const c = findCustomer(order.customerId)
+  if (!c || !order.pointsUsed) return
+  refundPoints(c, order.pointsUsed.entryId, `คืนคะแนน ${order.code}`)
+  log(order, `ยกเลิกการใช้ ${order.pointsUsed.points} คะแนน`)
+  order.pointsUsed = null
+}
+
+export function applyCoupon(order, couponId) {
+  const cp = db.coupons.find((x) => x.id === couponId)
+  if (!cp || cp.type !== 'discount' || !couponUsable(cp, today())) return false
+  Object.assign(cp, { status: 'used', orderId: order.id, usedAt: now() })
+  order.couponsUsed.push({ couponId, name: cp.name, amount: cp.amount })
+  log(order, `ใช้คูปอง ${cp.name}`)
+  return true
+}
+
+export function removeCoupon(order, couponId) {
+  const cp = db.coupons.find((x) => x.id === couponId)
+  if (cp) Object.assign(cp, { status: 'pending', orderId: null, usedAt: null })
+  order.couponsUsed = order.couponsUsed.filter((x) => x.couponId !== couponId)
+  log(order, `ยกเลิกการใช้คูปอง ${cp?.name || ''}`)
+}
+
+// ส่งมอบ: ได้คะแนน + สิทธิ์หมุน ตามยอดรวม
+function awardOrder(order) {
+  const c = findCustomer(order.customerId)
+  if (!c || order.loyalty) return
+  const total = Math.max(orderTotals(order).total, 0)
+  const points = Math.floor(total / db.loyalty.earnPer)
+  const spins = Math.floor(total / db.loyalty.spinPer)
+  const lot = earnPoints(c, points, `ออร์เดอร์ ${order.code}`, order.id)
+  c.spins += spins
+  order.loyalty = { points, spins, lotId: lot?.id || null }
+  if (points || spins) log(order, `ได้ ${points} คะแนน${spins ? ` + สิทธิ์หมุน ${spins} ครั้ง` : ''}`)
+}
+
+// ยกเลิก: คืนคะแนน/คูปองที่ใช้ และตัดคะแนน/สิทธิ์หมุนที่ได้
+function undoLoyalty(order) {
+  if (order.pointsUsed) removePoints(order)
+  for (const u of [...order.couponsUsed]) removeCoupon(order, u.couponId)
+  const c = findCustomer(order.customerId)
+  if (c && order.loyalty) {
+    const lot = c.ledger.find((x) => x.id === order.loyalty.lotId)
+    if (lot) {
+      const cut = lot.remaining
+      lot.remaining = 0
+      if (cut) c.ledger.push({ id: uid('pt'), at: now(), delta: -cut, reason: `ตัดคะแนน ${order.code} (ยกเลิก)`, orderId: order.id })
+    }
+    c.spins = Math.max(0, c.spins - order.loyalty.spins)
+    order.loyalty = null
+  }
+}
+
+// ---------- ฝั่งลูกค้า: แลกของ / หมุนกาชา ----------
+export function redeemReward(c, rewardId) {
+  const rw = db.rewards.find((x) => x.id === rewardId && x.active !== false)
+  if (!rw || !spendPoints(c, rw.points, `แลก ${rw.name}`)) return null
+  return newCoupon(c, { type: 'reward', rewardId: rw.id, name: rw.name, source: 'redeem' })
+}
+
+// usePoints = true ใช้คะแนนหมุน, false ใช้สิทธิ์หมุน
+export function spinGacha(c, usePoints) {
+  if (usePoints) {
+    if (!spendPoints(c, db.loyalty.spinCost, 'หมุนกาชา')) return null
+  } else {
+    if (!(c.spins > 0)) return null
+    c.spins -= 1
+  }
+  const prize = pickPrize(db.gachaPrizes)
+  if (!prize) return null
+  if (prize.type === 'points') earnPoints(c, Number(prize.value) || 0, `กาชา: ${prize.name}`)
+  if (prize.type === 'reward') {
+    const rw = db.rewards.find((x) => x.id === prize.rewardId)
+    newCoupon(c, { type: 'reward', rewardId: prize.rewardId, name: rw?.name || prize.name, source: 'gacha' })
+  }
+  if (prize.type === 'discount') newCoupon(c, { type: 'discount', amount: Number(prize.value) || 0, name: prize.name, source: 'gacha' })
+  db.spinLog.unshift({ id: uid('sp'), customerId: c.id, at: now(), prizeId: prize.id, prizeName: prize.name, via: usePoints ? 'points' : 'spin' })
+  return prize
+}
+
+// หลังบ้าน: มอบของรางวัลแล้ว
+export function markCouponDelivered(cp) {
+  Object.assign(cp, { status: 'delivered', deliveredAt: now(), deliveredBy: session.role })
+}
+
+export const saveReward = (d) => upsert(db.rewards, 'rw', { ...d, points: Number(d.points) || 0 })
+export const savePrize = (d) => upsert(db.gachaPrizes, 'gp', { ...d, chance: Number(d.chance) || 0, value: Number(d.value) || 0 })
+export function saveLoyaltySettings(d) {
+  for (const k of Object.keys(db.loyalty)) db.loyalty[k] = Math.max(Number(d[k]) || 0, 0)
 }
 
 // ---------- ออร์เดอร์ตัวอย่าง ----------
@@ -324,3 +493,9 @@ function seed() {
   }, true)
 }
 seed()
+
+// คะแนนตัวอย่าง
+earnPoints(db.customers[0], 120, 'คะแนนตัวอย่าง')
+db.customers[0].spins = 2
+const nearLot = earnPoints(db.customers[1], 40, 'คะแนนตัวอย่าง')
+nearLot.expiresAt = addDays(today(), 10)

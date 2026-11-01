@@ -13,21 +13,22 @@ const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('viewMat
   <!-- แถบบน -->
   <header class="sticky top-0 z-20 border-b border-stone-200/60 bg-cream/85 backdrop-blur-xl">
     <div class="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
-      <RouterLink to="/orders" class="flex min-w-0 items-center gap-2.5">
+      <RouterLink :to="$route.meta.member ? '/member' : '/orders'" class="flex min-w-0 items-center gap-2.5">
         <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm shadow-brand-600/30">
           <AppIcon name="cake" :size="20" />
         </span>
-        <span class="truncate font-semibold text-stone-900">ร้านเค้ก <span class="font-normal text-stone-500">· หลังบ้าน</span></span>
+        <span class="truncate font-semibold text-stone-900">ร้านเค้ก <span class="font-normal text-stone-500">· {{ $route.meta.member ? 'สมาชิก' : 'หลังบ้าน' }}</span></span>
       </RouterLink>
 
-      <nav class="ml-4 hidden gap-1 md:flex">
+      <nav v-if="!$route.meta.member" class="ml-4 hidden gap-1 md:flex">
         <RouterLink to="/orders" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ออร์เดอร์</RouterLink>
         <RouterLink v-if="can('createOrder')" to="/orders/new" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">สร้างออร์เดอร์</RouterLink>
         <RouterLink v-if="can('viewMaterials')" to="/materials" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">วัตถุดิบ</RouterLink>
         <RouterLink v-if="can('manage')" to="/manage" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">จัดการ</RouterLink>
       </nav>
 
-      <button class="ml-auto hidden items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-sm md:inline-flex" @click="roleOpen = true">
+      <RouterLink v-if="$route.meta.member" to="/manage" class="ml-auto text-sm text-stone-500 underline">กลับหลังบ้าน</RouterLink>
+      <button v-else class="ml-auto hidden items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-sm md:inline-flex" @click="roleOpen = true">
         <AppIcon name="user" :size="16" class="text-stone-500" />
         {{ ROLES[session.role] }}
       </button>
@@ -36,14 +37,14 @@ const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('viewMat
 
   <main
     class="mx-auto max-w-6xl px-4 pt-5"
-    :class="$route.meta.focus ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10'"
+    :class="$route.meta.focus || $route.meta.member ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10'"
   >
     <RouterView :key="$route.fullPath" />
   </main>
 
   <!-- แถบเมนูล่าง (มือถือ) -->
   <nav
-    v-if="!$route.meta.focus"
+    v-if="!$route.meta.focus && !$route.meta.member"
     class="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200/70 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
   >
     <div class="mx-auto grid h-16 max-w-md items-center" :style="{ gridTemplateColumns: `repeat(${tabCount}, minmax(0, 1fr))` }">

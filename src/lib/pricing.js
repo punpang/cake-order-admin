@@ -94,11 +94,14 @@ export function orderTotals(order) {
   const subtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
   const shipping = order.fulfillment === 'delivery' ? Number(order.shippingFee) || 0 : 0
   const adjustment = Number(order.adjustment?.amount) || 0
-  const total = subtotal + shipping + adjustment
+  // ส่วนลดจากคะแนน / คูปอง
+  const pointsDiscount = Number(order.pointsUsed?.amount) || 0
+  const couponDiscount = (order.couponsUsed || []).reduce((s, c) => s + (Number(c.amount) || 0), 0)
+  const total = subtotal + shipping + adjustment - pointsDiscount - couponDiscount
   const paid = order.payments.filter((p) => p.status === 'confirmed').reduce((s, p) => s + p.amount, 0)
   const reported = order.payments.filter((p) => p.status === 'reported').reduce((s, p) => s + p.amount, 0)
   const refunded = Number(order.cancel?.refundAmount) || 0
-  return { subtotal, shipping, adjustment, total, paid, reported, refunded, balance: total - paid }
+  return { subtotal, shipping, adjustment, pointsDiscount, couponDiscount, total, paid, reported, refunded, balance: total - paid }
 }
 
 // แปลงตัวเลือกเป็นข้อความอ่านง่าย (หลายชั้นขึ้นต้นด้วย "ชั้น n")
