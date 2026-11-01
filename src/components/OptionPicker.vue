@@ -52,7 +52,7 @@ const isOn = (g, o) =>
 
       <div v-else class="flex flex-wrap gap-2">
         <button
-          v-for="o in g.options"
+          v-for="o in g.options.filter((x) => x.active !== false || isOn(g, x))"
           :key="o.id"
           type="button"
           class="inline-flex max-w-full items-center gap-1.5 rounded-xl border px-3 py-2 text-left text-sm transition active:scale-[0.98]"

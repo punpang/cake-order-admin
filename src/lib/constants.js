@@ -26,6 +26,7 @@ export const PERMISSIONS = {
   startPreparing: ['admin', 'baker'],
   deliverPickup: ['admin', 'sales'],
   deliverShipping: ['admin', 'driver'],
+  manage: ['admin'],
 }
 
 // สถานะที่แต่ละบทบาทเห็นในรายการ (null = เห็นทั้งหมด)
@@ -37,3 +38,8 @@ export const VISIBLE = {
 }
 
 export const PAYMENT_METHODS = ['โอนเงิน', 'เงินสด', 'บัตร']
+
+// กลุ่มตัวเลือก
+export const GROUP_TYPES = { single: 'เลือกได้ 1 อย่าง', multi: 'เลือกได้หลายอย่าง', text: 'พิมพ์ข้อความ' }
+export const APPLIES_TO = { custom: 'สั่งทำ', ready: 'เค้กสำเร็จ' }
+export const PRICE_TYPES = { fixed: 'บวกคงที่', per_pound: 'บวกต่อปอนด์' }

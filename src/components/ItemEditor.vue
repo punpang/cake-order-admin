@@ -14,8 +14,8 @@ const blank = () => ({ id: `i${Date.now()}`, kind: 'ready', productId: null, nam
 const form = reactive(props.item ? JSON.parse(JSON.stringify(toRaw(props.item))) : blank())
 const errors = ref({})
 
-const groups = computed(() => db.optionGroups.filter((g) => g.appliesTo.includes(form.kind)))
-const products = computed(() => db.products.filter((p) => p.active))
+const groups = computed(() => db.optionGroups.filter((g) => g.active !== false && g.appliesTo.includes(form.kind)))
+const products = computed(() => db.products.filter((p) => p.active || p.id === form.productId))
 const unitPrice = computed(() => calcUnitPrice(form, db.optionGroups, db.products))
 
 function setKind(k) {

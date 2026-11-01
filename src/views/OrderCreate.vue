@@ -30,7 +30,8 @@ const newCus = reactive({ name: '', phone: '', line: '', note: '' })
 const customer = computed(() => findCustomer(form.customerId))
 const matches = computed(() => {
   const s = q.value.trim().toLowerCase()
-  const list = s ? db.customers.filter((c) => [c.name, c.phone, c.line].some((v) => v?.toLowerCase().includes(s))) : db.customers
+  const active = db.customers.filter((c) => c.active !== false)
+  const list = s ? active.filter((c) => [c.name, c.phone, c.line].some((v) => v?.toLowerCase().includes(s))) : active
   return list.slice(0, 8)
 })
 const initial = (n) => (n || '').replace(/^คุณ/, '').trim().charAt(0)

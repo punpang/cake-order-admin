@@ -2,6 +2,12 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import OrderList from './views/OrderList.vue'
 import OrderCreate from './views/OrderCreate.vue'
 import OrderDetail from './views/OrderDetail.vue'
+import ManageHome from './views/manage/ManageHome.vue'
+import ManageCustomers from './views/manage/ManageCustomers.vue'
+import ManageProducts from './views/manage/ManageProducts.vue'
+import ManageOptions from './views/manage/ManageOptions.vue'
+import ManageOptionGroup from './views/manage/ManageOptionGroup.vue'
+import ManageUsers from './views/manage/ManageUsers.vue'
 
 // meta.focus = หน้าที่มีแถบปุ่มของตัวเอง ซ่อนแถบเมนูล่างบนมือถือ
 export default createRouter({
@@ -11,6 +17,12 @@ export default createRouter({
     { path: '/orders', component: OrderList },
     { path: '/orders/new', component: OrderCreate, meta: { focus: true } },
     { path: '/orders/:id', component: OrderDetail, props: true, meta: { focus: true } },
+    { path: '/manage', component: ManageHome },
+    { path: '/manage/customers', component: ManageCustomers },
+    { path: '/manage/products', component: ManageProducts },
+    { path: '/manage/options', component: ManageOptions },
+    { path: '/manage/options/:id', component: ManageOptionGroup, props: true },
+    { path: '/manage/users', component: ManageUsers },
   ],
   scrollBehavior: () => ({ top: 0 }),
 })

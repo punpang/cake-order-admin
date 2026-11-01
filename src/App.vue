@@ -1,11 +1,12 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { session, can } from './data/store'
 import { ROLES } from './lib/constants'
 import AppIcon from './components/AppIcon.vue'
 import AppModal from './components/AppModal.vue'
 
 const roleOpen = ref(false)
+const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('manage') ? 1 : 0))
 </script>
 
 <template>
@@ -22,6 +23,7 @@ const roleOpen = ref(false)
       <nav class="ml-4 hidden gap-1 md:flex">
         <RouterLink to="/orders" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ออร์เดอร์</RouterLink>
         <RouterLink v-if="can('createOrder')" to="/orders/new" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">สร้างออร์เดอร์</RouterLink>
+        <RouterLink v-if="can('manage')" to="/manage" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">จัดการ</RouterLink>
       </nav>
 
       <button class="ml-auto hidden items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-sm md:inline-flex" @click="roleOpen = true">
@@ -43,22 +45,20 @@ const roleOpen = ref(false)
     v-if="!$route.meta.focus"
     class="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200/70 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
   >
-    <div class="mx-auto grid h-16 max-w-md grid-cols-3 items-center">
+    <div class="mx-auto grid h-16 max-w-md items-center" :style="{ gridTemplateColumns: `repeat(${tabCount}, minmax(0, 1fr))` }">
       <RouterLink to="/orders" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" exact-active-class="text-brand-700!">
         <AppIcon name="list" :size="22" />
         ออร์เดอร์
       </RouterLink>
-      <div class="flex justify-center">
-        <RouterLink
-          v-if="can('createOrder')"
-          to="/orders/new"
-          class="-mt-7 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/40 ring-4 ring-cream active:scale-95"
-          aria-label="สร้างออร์เดอร์"
-        >
-          <AppIcon name="plus" :size="26" />
-        </RouterLink>
-      </div>
-      <button class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" @click="roleOpen = true">
+      <RouterLink v-if="can('createOrder')" to="/orders/new" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-brand-700" aria-label="สร้างออร์เดอร์">
+        <span class="flex h-8 w-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-md shadow-brand-600/30"><AppIcon name="plus" :size="20" /></span>
+        สร้าง
+      </RouterLink>
+      <RouterLink v-if="can('manage')" to="/manage" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
+        <AppIcon name="grid" :size="22" />
+        จัดการ
+      </RouterLink>
+      <button class="flex min-w-0 flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" @click="roleOpen = true">
         <AppIcon name="user" :size="22" />
         <span class="max-w-full truncate px-1">{{ ROLES[session.role] }}</span>
       </button>

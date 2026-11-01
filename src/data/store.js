@@ -20,7 +20,7 @@ export const session = reactive({ role: 'admin' })
 export const can = (action) => PERMISSIONS[action]?.includes(session.role)
 
 // ---------- ข้อมูลหลัก ----------
-const opt = (id, name, price = 0, priceType = 'fixed', extra = {}) => ({ id, name, price, priceType, ...extra })
+const opt = (id, name, price = 0, priceType = 'fixed', extra = {}) => ({ id, name, price, priceType, active: true, ...extra })
 
 export const db = reactive({
   customers: [
@@ -35,6 +35,14 @@ export const db = reactive({
     { id: 'p2', name: 'เค้กส้ม', pounds: 1, price: 390, active: true },
     { id: 'p3', name: 'เค้กใบเตยมะพร้าวอ่อน', pounds: 2, price: 690, active: true },
     { id: 'p4', name: 'เรดเวลเวท', pounds: 1, price: 450, active: true },
+  ],
+
+  // ผู้ใช้ระบบ (email ใช้ล็อกอินเมื่อต่อ Supabase)
+  users: [
+    { id: 'u1', name: 'แอดมิน', email: 'admin@example.com', role: 'admin', active: true },
+    { id: 'u2', name: 'พนักงานขาย', email: 'sales@example.com', role: 'sales', active: true },
+    { id: 'u3', name: 'คนทำเค้ก', email: 'baker@example.com', role: 'baker', active: true },
+    { id: 'u4', name: 'คนส่งของ', email: 'driver@example.com', role: 'driver', active: true },
   ],
 
   // กลุ่มตัวเลือก: type = single | multi | text, appliesTo = custom/ready
@@ -86,6 +94,10 @@ export const db = reactive({
   orders: [],
 })
 
+// ทุกรายการเริ่มต้นเป็น "ใช้งาน"
+for (const c of db.customers) c.active = true
+for (const g of db.optionGroups) g.active = true
+
 // ---------- ฟังก์ชัน ----------
 let orderNo = 0
 const nextCode = () => `OR-${String(++orderNo).padStart(4, '0')}`
@@ -94,10 +106,48 @@ export const findOrder = (id) => db.orders.find((o) => o.id === id)
 export const findCustomer = (id) => db.customers.find((c) => c.id === id)
 
 export function addCustomer(data) {
-  const c = { id: uid('c'), name: data.name.trim(), phone: data.phone?.trim() || '', line: data.line?.trim() || '', note: data.note?.trim() || '' }
+  const c = { id: uid('c'), name: data.name.trim(), phone: data.phone?.trim() || '', line: data.line?.trim() || '', note: data.note?.trim() || '', active: true }
   db.customers.push(c)
   return c
 }
+
+// ---------- หน้าจัดการ (บันทึก = เพิ่มใหม่ถ้าไม่มี id, แก้ไขถ้ามี id) ----------
+const trim = (v) => (typeof v === 'string' ? v.trim() : v)
+const cleanObj = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, trim(v)]))
+
+function upsert(list, prefix, data) {
+  const d = cleanObj(data)
+  if (d.id) {
+    const cur = list.find((x) => x.id === d.id)
+    if (cur) Object.assign(cur, d)
+    return cur
+  }
+  const item = { ...d, id: uid(prefix), active: d.active ?? true }
+  list.push(item)
+  return item
+}
+
+export const saveCustomer = (d) => upsert(db.customers, 'c', d)
+export const saveProduct = (d) => upsert(db.products, 'p', { ...d, price: Number(d.price) || 0, pounds: Number(d.pounds) || 1 })
+export const saveUser = (d) => upsert(db.users, 'u', d)
+export const findGroup = (id) => db.optionGroups.find((g) => g.id === id)
+
+export function saveGroup(d) {
+  const g = upsert(db.optionGroups, 'g', d)
+  if (!g.options) g.options = []
+  return g
+}
+
+export function saveOption(groupId, d) {
+  const g = findGroup(groupId)
+  if (!g) return null
+  const data = { ...d, price: Number(d.price) || 0 }
+  if (g.key === 'size') data.pounds = Number(d.pounds) || 1
+  return upsert(g.options, 'o', data)
+}
+
+// จำนวนออร์เดอร์ของลูกค้า
+export const customerOrderCount = (id) => db.orders.filter((o) => o.customerId === id).length
 
 export function priceItem(item) {
   return { ...item, unitPrice: calcUnitPrice(item, db.optionGroups, db.products) }
