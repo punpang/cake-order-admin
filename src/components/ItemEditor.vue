@@ -4,6 +4,7 @@ import { computed, reactive, ref, toRaw } from 'vue'
 import { db, activeListsAt } from '../data/store'
 import { priceDetail, effectivePrice } from '../lib/pricing'
 import { money } from '../lib/format'
+import { MAIN_KEYS } from '../lib/constants'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
 import OptionPicker from './OptionPicker.vue'
@@ -79,18 +80,22 @@ function save() {
   if (form.kind === 'ready') {
     form.name = db.products.find((p) => p.id === form.productId)?.name || ''
   } else {
-    const size = db.optionGroups.find((g) => g.key === 'size')
-    const sizeNames = (sels) => {
-      const sel = size ? sels?.[size.id] : null
+    // ชื่อ = หน้าเค้ก · เนื้อเค้ก · ขนาด (หลายชั้นคั่นด้วย /)
+    const namesOf = (g, sels) => {
+      const sel = sels?.[g.id]
       const ids = sel == null ? [] : Array.isArray(sel) ? sel : [sel]
-      return ids.map((id) => size.options.find((o) => o.id === id)?.name).filter(Boolean).join(', ')
+      return ids.map((id) => g.options.find((o) => o.id === id)?.name).filter(Boolean).join(' + ')
     }
-    if (form.tiers.length > 1 && size?.perTier) {
-      form.name = `เค้กสั่งทำ ${form.tiers.length} ชั้น (${form.tiers.map((t) => sizeNames(t.selections) || '-').join(' / ')})`
-    } else {
-      const names = size?.perTier && form.tiers.length ? sizeNames(form.tiers[0].selections) : sizeNames(form.selections)
-      form.name = `${form.tiers.length > 1 ? `เค้กสั่งทำ ${form.tiers.length} ชั้น` : 'เค้กสั่งทำ'} ${names}`.trim()
-    }
+    const mainOf = (t) =>
+      MAIN_KEYS.map((k) => db.optionGroups.find((g) => g.key === k))
+        .filter(Boolean)
+        .map((g) => namesOf(g, g.perTier && form.tiers.length ? t.selections : form.selections))
+        .filter(Boolean)
+        .join(' · ')
+    const tiers = form.tiers.length ? form.tiers : [{ selections: form.selections }]
+    form.name = tiers.length > 1
+      ? `เค้กสั่งทำ ${tiers.length} ชั้น (${tiers.map((t) => mainOf(t) || '-').join(' / ')})`
+      : mainOf(tiers[0]) || 'เค้กสั่งทำ'
   }
   emit('save', { ...JSON.parse(JSON.stringify(toRaw(form))), ...detail.value })
 }
@@ -161,6 +166,7 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
       <button type="button" class="btn-soft mb-3 w-full" @click="form.tiers.push({ selections: {} })"><AppIcon name="plus" :size="16" /> เพิ่มชั้น</button>
     </template>
 
+    <div v-if="form.kind === 'custom' && wholeGroups.length" class="mb-2 text-sm font-semibold text-stone-500">ตัวเลือกเพิ่มเติม</div>
     <OptionPicker v-model="form.selections" :groups="wholeGroups" :errors="errors" :active="active" />
 
     <!-- รูป + หมายเหตุ -->

@@ -43,6 +43,9 @@ export const VISIBLE = {
 export const PAYMENT_METHODS = ['โอนเงิน', 'เงินสด', 'บัตร']
 
 // กลุ่มตัวเลือก
+// กลุ่มหลักของเค้กสั่งทำ (เรียงตามลำดับเลือก): หน้าเค้ก > เนื้อเค้ก > ขนาด ราคาบวกกัน
+export const MAIN_KEYS = ['face', 'flavor', 'size']
+
 export const GROUP_TYPES = { single: 'เลือกได้ 1 อย่าง', multi: 'เลือกได้หลายอย่าง', text: 'พิมพ์ข้อความ' }
 export const APPLIES_TO = { custom: 'สั่งทำ', ready: 'เค้กสำเร็จ' }
 export const PRICE_TYPES = { fixed: 'บวกคงที่', per_pound: 'บวกต่อปอนด์' }

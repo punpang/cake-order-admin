@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { db, saveGroup } from '../../data/store'
-import { GROUP_TYPES, APPLIES_TO } from '../../lib/constants'
+import { GROUP_TYPES, APPLIES_TO, MAIN_KEYS } from '../../lib/constants'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
@@ -68,6 +68,7 @@ function save() {
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
               <span class="font-semibold text-stone-900">{{ g.name }}</span>
+              <span v-if="MAIN_KEYS.includes(g.key)" class="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-800">หลัก {{ MAIN_KEYS.indexOf(g.key) + 1 }}</span>
               <span v-if="g.required" class="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-600">จำเป็น</span>
               <span v-if="g.active === false" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
             </div>
