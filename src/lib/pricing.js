@@ -102,22 +102,23 @@ export function calcUnitPrice(item, groups, products, active = [], used = null, 
   const tierSizes = tiers.map((t) => (sizeTier ? sizeIds(t.selections) : sizeIds(item.selections)))
   const allSizes = sizeTier ? tierSizes.flat() : sizeIds(item.selections)
   let extra = 0
-  const add = (g, sel, lb, sids) => {
+  // share = สัดส่วนของชั้น: ขนาดเลือกทั้งก้อน (ไม่แยกชั้น) แต่กลุ่มเลือกแยกชั้น → ราคาตามขนาดแบ่งเท่ากันทุกชั้น (เหมือนปอนด์)
+  const add = (g, sel, lb, sids, share = 1) => {
     const ids = idsOf(sel)
     for (const id of ids) {
       const o = g.options.find((x) => x.id === id)
       if (!o) continue
-      if (o.priceType === 'per_size') extra += sizePriceOf(o, sids)
+      if (o.priceType === 'per_size') extra += sizePriceOf(o, sids) * share
       else {
         const price = useP(o, active, used)
         extra += o.priceType === 'per_pound' ? price * lb : price
       }
     }
-    if (g.type === 'multi' && ids.length > 1) extra -= bundleDiscount(g, ids, sids, usedBundles)
+    if (g.type === 'multi' && ids.length > 1) extra -= bundleDiscount(g, ids, sids, usedBundles) * share
   }
   for (const g of groups) {
     if (g.key === 'size' || g.type === 'text') continue
-    if (isTierGroup(g, item)) tiers.forEach((t, i) => add(g, t.selections?.[g.id], tierPounds[i], tierSizes[i]))
+    if (isTierGroup(g, item)) tiers.forEach((t, i) => add(g, t.selections?.[g.id], tierPounds[i], tierSizes[i], sizeTier ? 1 : 1 / tiers.length))
     else add(g, item.selections?.[g.id], pounds, allSizes)
   }
   return base + extra
