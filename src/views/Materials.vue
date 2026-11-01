@@ -56,7 +56,7 @@ function setFrom(v) {
 
   <div v-else class="mx-auto max-w-4xl">
     <KitchenTabs />
-    <h1 class="mb-4 text-xl font-bold tracking-tight text-stone-900">วัตถุดิบที่ต้องเตรียม</h1>
+    <h1 class="mb-4 text-xl font-semibold tracking-tight text-stone-900">วัตถุดิบที่ต้องเตรียม</h1>
 
     <section class="card mb-4 space-y-3">
       <div class="grid grid-cols-2 gap-3">

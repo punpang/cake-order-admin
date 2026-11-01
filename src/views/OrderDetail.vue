@@ -212,7 +212,7 @@ async function saveCancel() {
         <AppIcon name="back" :size="20" />
       </RouterLink>
       <div class="min-w-0 flex-1">
-        <h1 class="truncate text-xl font-bold tracking-tight text-stone-900">{{ order.code }}</h1>
+        <h1 class="truncate text-xl font-semibold tracking-tight text-stone-900">{{ order.code }}</h1>
       </div>
       <StatusBadge :status="order.status" />
     </div>
@@ -223,7 +223,7 @@ async function saveCancel() {
         <!-- ลูกค้า + นัดรับ -->
         <section class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div class="card flex min-w-0 gap-3">
-            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-600 text-lg font-bold text-white">{{ initial(customer?.name) }}</span>
+            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-600 text-lg font-semibold text-white">{{ initial(customer?.name) }}</span>
             <div class="min-w-0 flex-1">
               <div class="text-xs text-stone-500">ลูกค้า</div>
               <div class="truncate font-semibold text-stone-900">{{ customer?.name }}</div>
@@ -302,7 +302,7 @@ async function saveCancel() {
         <!-- ยอดเงิน -->
         <section class="card">
           <div class="text-xs text-stone-500">ยอดรวม</div>
-          <div class="text-3xl font-bold tracking-tight text-stone-900">{{ money(t.total) }}</div>
+          <div class="text-3xl font-semibold tracking-tight text-stone-900">{{ money(t.total) }}</div>
 
           <template v-if="order.status !== 'cancelled'">
             <div class="mt-3 h-2 overflow-hidden rounded-full bg-stone-100">

@@ -35,7 +35,7 @@ function redeem() {
 // ---------- กาชา ----------
 const prizes = computed(() => db.gachaPrizes.filter((p) => p.active !== false && p.chance > 0))
 const ready = computed(() => chanceTotal(db.gachaPrizes) === 100)
-const COLORS = ['#f6e3c8', '#e9c79c', '#fbf3e6', '#d9a86c', '#f1d5ae', '#c8894a']
+const COLORS = ['#e3efea', '#c5ddd3', '#f1f7f4', '#9cc3b3', '#eff1f0', '#6ba48e']
 const wheelBg = computed(() => {
   let acc = 0
   const parts = prizes.value.map((p, i) => {
@@ -98,10 +98,10 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
 
     <template v-if="me">
       <!-- คะแนน -->
-      <section class="mb-4 rounded-3xl bg-linear-to-br from-brand-600 to-brand-800 p-5 text-white shadow-lg shadow-brand-700/30">
+      <section class="mb-4 rounded-3xl bg-linear-to-br from-brand-600 to-brand-800 p-5 text-white">
         <div class="text-sm opacity-80">สวัสดี {{ me.name }}</div>
         <div class="mt-2 flex items-end gap-2">
-          <span class="text-4xl font-bold tracking-tight">{{ points.toLocaleString('th-TH') }}</span>
+          <span class="text-4xl font-semibold tracking-tight">{{ points.toLocaleString('th-TH') }}</span>
           <span class="pb-1 text-sm opacity-80">คะแนน</span>
         </div>
         <div v-if="soon" class="mt-1 text-xs opacity-80">{{ soon.points }} คะแนนจะหมดอายุ {{ dateOnly(soon.date) }}</div>

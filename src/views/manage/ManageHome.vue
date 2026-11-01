@@ -28,7 +28,7 @@ const items = computed(() => [
         v-for="it in items"
         :key="it.to"
         :to="it.to"
-        class="card flex items-center gap-4 transition hover:-translate-y-0.5 hover:shadow-[0_12px_32px_-16px_rgb(120_80_40/0.35)] active:scale-[0.99]"
+        class="card flex items-center gap-4 transition hover:border-brand-300 focus-visible:ring-4 focus-visible:ring-brand-200 focus-visible:outline-none active:scale-[0.99]"
       >
         <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><AppIcon :name="it.icon" :size="24" /></span>
         <span class="min-w-0 flex-1">

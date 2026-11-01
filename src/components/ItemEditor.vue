@@ -264,7 +264,7 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
         <div class="min-w-0 flex-1 text-right leading-tight">
           <div class="text-xs text-stone-500">{{ form.qty > 1 ? `${money(unitPrice)} × ${form.qty}` : 'ราคา' }}</div>
           <div v-if="detail.specials.length && detail.regularPrice !== unitPrice" class="text-xs text-stone-400 line-through">{{ money(detail.regularPrice * (form.qty || 0)) }}</div>
-          <div class="text-lg font-bold text-stone-900">{{ money(unitPrice * (form.qty || 0)) }}</div>
+          <div class="text-lg font-semibold text-stone-900">{{ money(unitPrice * (form.qty || 0)) }}</div>
           <div v-if="detail.specials.length" class="text-xs font-medium text-rose-600">{{ detail.specials.join(', ') }}</div>
           <div v-if="detail.bundles.length" class="text-xs font-medium text-emerald-700">บันเดิ้ล: {{ detail.bundles.join(', ') }}</div>
         </div>

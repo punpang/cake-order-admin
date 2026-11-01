@@ -25,11 +25,11 @@ const showInactive = defineModel('inactive', { type: Boolean, default: false })
 
   <div v-else class="mx-auto max-w-4xl">
     <div class="mb-4 flex items-center gap-2">
-      <RouterLink :to="back" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
+      <RouterLink :to="back" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 hover:bg-stone-50" aria-label="กลับ">
         <AppIcon name="back" :size="20" />
       </RouterLink>
       <div class="min-w-0 flex-1">
-        <h1 class="truncate text-xl font-bold tracking-tight text-stone-900">{{ title }}</h1>
+        <h1 class="truncate text-xl font-semibold tracking-tight text-stone-900">{{ title }}</h1>
         <p v-if="subtitle" class="truncate text-sm text-stone-500">{{ subtitle }}</p>
       </div>
       <button v-if="addLabel" class="btn-primary px-3 sm:px-4" @click="emit('add')">
@@ -37,10 +37,11 @@ const showInactive = defineModel('inactive', { type: Boolean, default: false })
       </button>
     </div>
 
-    <div v-if="toolbar" class="card mb-4 flex flex-col gap-3 p-3 sm:flex-row sm:items-center">
+    <div v-if="toolbar" class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
       <label class="relative block min-w-0 flex-1">
+        <span class="sr-only">{{ searchPlaceholder }}</span>
         <AppIcon name="search" class="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-stone-400" />
-        <input v-model="q" class="input pl-10" :placeholder="searchPlaceholder" />
+        <input v-model="q" type="search" class="input bg-white pl-10" :placeholder="searchPlaceholder" />
       </label>
       <AppSwitch v-model="showInactive" label="แสดงที่ปิดใช้งาน" class="shrink-0 px-1" />
     </div>

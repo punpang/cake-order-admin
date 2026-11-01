@@ -73,7 +73,7 @@ async function save() {
         :class="c.active === false ? 'opacity-60' : ''"
         @click="edit(c)"
       >
-        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50 font-bold text-brand-700">{{ initial(c.name) }}</span>
+        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50 font-semibold text-brand-700">{{ initial(c.name) }}</span>
         <span class="min-w-0 flex-1">
           <span class="flex items-center gap-2">
             <span class="truncate font-semibold text-stone-900">{{ c.name }}</span>

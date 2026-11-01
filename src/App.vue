@@ -15,7 +15,7 @@ const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('viewMat
   <header class="sticky top-0 z-20 border-b border-stone-200/60 bg-cream/85 backdrop-blur-xl">
     <div class="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
       <RouterLink :to="$route.meta.member ? '/member' : '/orders'" class="flex min-w-0 items-center gap-2.5">
-        <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white shadow-sm shadow-brand-600/30">
+        <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white">
           <AppIcon name="cake" :size="20" />
         </span>
         <span class="truncate font-semibold text-stone-900">ร้านเค้ก <span class="font-normal text-stone-500">· {{ $route.meta.member ? 'สมาชิก' : 'หลังบ้าน' }}</span></span>
@@ -55,7 +55,7 @@ const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('viewMat
         ออร์เดอร์
       </RouterLink>
       <RouterLink v-if="can('createOrder')" to="/orders/new" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-brand-700" aria-label="สร้างออร์เดอร์">
-        <span class="flex h-8 w-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-md shadow-brand-600/30"><AppIcon name="plus" :size="20" /></span>
+        <span class="flex h-8 w-12 items-center justify-center rounded-full bg-brand-600 text-white"><AppIcon name="plus" :size="20" /></span>
         สร้าง
       </RouterLink>
       <RouterLink

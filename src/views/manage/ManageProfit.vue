@@ -135,10 +135,10 @@ const due = computed(() => {
     </section>
 
     <div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <div class="card p-3.5"><div class="text-xs text-stone-500">ออร์เดอร์</div><div class="text-xl font-bold text-stone-900">{{ rows.length }}</div></div>
-      <div class="card p-3.5"><div class="text-xs text-stone-500">ยอดขาย</div><div class="text-xl font-bold text-stone-900">{{ money(sum.total) }}</div></div>
-      <div class="card p-3.5"><div class="text-xs text-stone-500">ต้นทุนวัตถุดิบ</div><div class="text-xl font-bold text-stone-900">{{ money(sum.cost) }}</div></div>
-      <div class="card p-3.5"><div class="text-xs text-stone-500">กำไร ({{ margin }}%)</div><div class="text-xl font-bold" :class="sum.profit >= 0 ? 'text-emerald-700' : 'text-rose-600'">{{ money(sum.profit) }}</div></div>
+      <div class="card p-3.5"><div class="text-xs text-stone-500">ออร์เดอร์</div><div class="text-xl font-semibold text-stone-900">{{ rows.length }}</div></div>
+      <div class="card p-3.5"><div class="text-xs text-stone-500">ยอดขาย</div><div class="text-xl font-semibold text-stone-900">{{ money(sum.total) }}</div></div>
+      <div class="card p-3.5"><div class="text-xs text-stone-500">ต้นทุนวัตถุดิบ</div><div class="text-xl font-semibold text-stone-900">{{ money(sum.cost) }}</div></div>
+      <div class="card p-3.5"><div class="text-xs text-stone-500">กำไร ({{ margin }}%)</div><div class="text-xl font-semibold" :class="sum.profit >= 0 ? 'text-emerald-700' : 'text-rose-600'">{{ money(sum.profit) }}</div></div>
     </div>
 
     <!-- กราฟ -->

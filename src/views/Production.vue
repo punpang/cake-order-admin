@@ -67,7 +67,7 @@ const details = (it) => describeSelections(it, db.optionGroups)
 
   <div v-else class="mx-auto max-w-4xl">
     <KitchenTabs />
-    <h1 class="mb-4 text-xl font-bold tracking-tight text-stone-900">ตารางผลิต</h1>
+    <h1 class="mb-4 text-xl font-semibold tracking-tight text-stone-900">ตารางผลิต</h1>
 
     <section class="card mb-4 space-y-3">
       <div class="grid grid-cols-2 gap-3">
@@ -89,8 +89,8 @@ const details = (it) => describeSelections(it, db.optionGroups)
     <p v-if="!rows.length" class="card py-10 text-center text-stone-500">ไม่มีงานในช่วงนี้</p>
 
     <template v-for="(g, gi) in groups" :key="g.key">
-      <h2 v-if="showDay(g, gi)" class="mt-5 mb-2 flex items-baseline gap-2 px-1 first:mt-0">
-        <span class="text-base font-bold text-stone-900">{{ dayLabel(g.day) }}</span>
+      <h2 v-if="showDay(g, gi)" class="sticky top-14 z-10 -mx-4 mt-5 mb-2 flex items-baseline gap-2 bg-cream/90 px-5 py-2 backdrop-blur first:mt-0">
+        <span class="text-base font-semibold text-stone-900">{{ dayLabel(g.day) }}</span>
         <span v-if="dayLabel(g.day) !== dateOnly(g.day)" class="text-sm text-stone-500">{{ dateOnly(g.day) }}</span>
       </h2>
       <section class="mb-4">
@@ -98,12 +98,12 @@ const details = (it) => describeSelections(it, db.optionGroups)
           <AppIcon name="clock" :size="16" /> ต้องเสร็จช่วง {{ g.hour }} น.
           <span class="ml-auto text-xs font-medium text-stone-400">{{ g.rows.length }} ออร์เดอร์</span>
         </div>
-        <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          <RouterLink v-for="r in g.rows" :key="r.o.id" :to="`/orders/${r.o.id}`" class="card block transition hover:border-brand-300 active:scale-[0.99]" :class="r.late ? 'border-rose-300' : ''">
+        <div class="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
+          <RouterLink v-for="r in g.rows" :key="r.o.id" :to="`/orders/${r.o.id}`" class="card block p-3.5 transition hover:border-brand-300 focus-visible:ring-4 focus-visible:ring-brand-200 focus-visible:outline-none active:scale-[0.99]" :class="r.late ? 'border-rose-300' : ''">
             <div class="flex items-start gap-3">
               <div class="flex w-16 shrink-0 flex-col items-center rounded-xl py-2" :class="r.late ? 'bg-rose-50 text-rose-700' : 'bg-brand-50 text-brand-800'">
                 <span class="text-[10px] font-medium">เสร็จก่อน</span>
-                <span class="text-base leading-tight font-bold">{{ hm(r.due) }}</span>
+                <span class="text-base leading-tight font-semibold tabular-nums">{{ hm(r.due) }}</span>
               </div>
               <div class="min-w-0 flex-1">
                 <div class="flex items-start justify-between gap-2">

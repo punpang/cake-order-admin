@@ -67,7 +67,7 @@ async function save() {
           </span>
           <span class="block text-sm text-stone-500">{{ p.pounds }} ปอนด์</span>
         </span>
-        <span class="shrink-0 text-lg font-bold text-stone-900">{{ money(p.price) }}</span>
+        <span class="shrink-0 text-lg font-semibold text-stone-900">{{ money(p.price) }}</span>
       </button>
     </div>
 

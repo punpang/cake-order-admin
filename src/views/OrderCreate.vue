@@ -136,7 +136,7 @@ function submit(asDraft) {
       <RouterLink to="/orders" class="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
         <AppIcon name="back" :size="20" />
       </RouterLink>
-      <h1 class="text-xl font-bold tracking-tight text-stone-900">สร้างออร์เดอร์</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-stone-900">สร้างออร์เดอร์</h1>
     </div>
 
     <!-- ขั้นตอน -->
@@ -144,7 +144,7 @@ function submit(asDraft) {
       <li v-for="(s, i) in steps" :key="s" class="flex min-w-0 flex-1 items-center">
         <button class="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl py-1.5 sm:flex-row sm:justify-center sm:gap-2" @click="goTo(i)">
           <span
-            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition"
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition"
             :class="i < step ? 'bg-brand-600 text-white' : i === step ? 'bg-brand-600 text-white ring-4 ring-brand-100' : 'bg-stone-100 text-stone-400'"
           >
             <AppIcon v-if="i < step" name="check" :size="14" />
@@ -161,7 +161,7 @@ function submit(asDraft) {
       <div class="card-title"><AppIcon name="user" class="text-brand-600" /> ลูกค้า</div>
 
       <div v-if="customer" class="flex items-center gap-3 rounded-2xl bg-brand-50 p-3.5">
-        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-600 text-lg font-bold text-white">{{ initial(customer.name) }}</span>
+        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-600 text-lg font-semibold text-white">{{ initial(customer.name) }}</span>
         <div class="min-w-0 flex-1">
           <div class="truncate font-semibold text-stone-900">{{ customer.name }}</div>
           <div class="truncate text-sm text-stone-600">{{ customer.phone || '-' }}<span v-if="customer.line"> · LINE {{ customer.line }}</span></div>
@@ -338,7 +338,7 @@ function submit(asDraft) {
         <div v-if="form.fulfillment === 'delivery'" class="flex justify-between"><span class="text-stone-500">ค่าส่ง</span><span>{{ money(totals.shipping) }}</span></div>
         <div class="flex items-center justify-between border-t border-stone-100 pt-2">
           <span class="font-semibold">ยอดรวม</span>
-          <span class="text-xl font-bold text-stone-900">{{ money(totals.total) }}</span>
+          <span class="text-xl font-semibold text-stone-900">{{ money(totals.total) }}</span>
         </div>
       </div>
     </section>
