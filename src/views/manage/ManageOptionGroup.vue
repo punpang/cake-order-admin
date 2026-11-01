@@ -1,7 +1,7 @@
 <script setup>
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
-import { db, findGroup, saveGroup, saveOption } from '../../data/store'
+import { db, findGroup, saveGroup, saveOption, saveBundle } from '../../data/store'
 import { GROUP_TYPES, APPLIES_TO, PRICE_TYPES } from '../../lib/constants'
 import { money } from '../../lib/format'
 import ManageShell from '../../components/ManageShell.vue'
@@ -27,8 +27,11 @@ const options = computed(() => {
     .filter((o) => !s || o.name.toLowerCase().includes(s))
 })
 
+// ขนาดทั้งหมด (ใช้ตั้งราคาตามขนาด / ส่วนลดบันเดิ้ล)
+const sizeOpts = computed(() => (db.optionGroups.find((x) => x.key === 'size')?.options || []).filter((x) => x.active !== false))
 const priceText = (o) => {
   if (isSize.value) return money(o.price)
+  if (o.priceType === 'per_size') return 'ตามขนาด'
   if (!o.price) return 'ไม่บวกเพิ่ม'
   return o.priceType === 'per_pound' ? `+${money(o.price)} / ปอนด์` : `+${money(o.price)}`
 }
@@ -58,14 +61,37 @@ async function saveG() {
 
 // ---------- ตัวเลือก ----------
 const oOpen = ref(false)
-const blank = () => ({ id: null, name: '', price: 0, priceType: 'fixed', pounds: 1, active: true, recipe: [], special: {}, allow: {} })
+const blank = () => ({ id: null, name: '', price: 0, priceType: 'fixed', pounds: 1, active: true, recipe: [], special: {}, allow: {}, sizePrices: {} })
 const o = reactive(blank())
 const oError = ref('')
 function editOption(opt) {
-  Object.assign(o, opt ? { ...blank(), ...opt, recipe: (opt.recipe || []).map((x) => ({ ...x })), special: { ...(opt.special || {}) }, allow: JSON.parse(JSON.stringify(opt.allow || {})) } : blank())
+  Object.assign(o, opt ? { ...blank(), ...opt, recipe: (opt.recipe || []).map((x) => ({ ...x })), special: { ...(opt.special || {}) }, allow: JSON.parse(JSON.stringify(opt.allow || {})), sizePrices: { ...(opt.sizePrices || {}) } } : blank())
   oError.value = ''
   oOpen.value = true
 }
+// ---------- บันเดิ้ล ----------
+const bOpen = ref(false)
+const bd = reactive({ id: null, name: '', options: [], discount: {}, active: true })
+const bError = ref('')
+const bundleAutoName = computed(() => bd.options.map((id) => group.value.options.find((x) => x.id === id)?.name).filter(Boolean).join(' + '))
+function editBundle(b) {
+  Object.assign(bd, b ? { ...b, options: [...b.options], discount: { ...(b.discount || {}) } } : { id: null, name: '', options: [], discount: {}, active: true })
+  bError.value = ''
+  bOpen.value = true
+}
+function toggleBundleOpt(id) {
+  const i = bd.options.indexOf(id)
+  if (i >= 0) bd.options.splice(i, 1)
+  else bd.options.push(id)
+}
+async function saveB() {
+  if (bd.options.length < 2) return (bError.value = 'เลือกอย่างน้อย 2 ตัวเลือก')
+  const data = { ...bd, name: bd.name.trim() || bundleAutoName.value }
+  if (!(await confirmDeactivate(group.value.bundles || [], data, data.name))) return
+  saveBundle(group.value.id, data)
+  bOpen.value = false
+}
+
 const allowOn = (lg, oid) => !o.allow[lg.id] || o.allow[lg.id].includes(oid)
 function toggleAllow(lg, oid) {
   const cur = o.allow[lg.id] ? [...o.allow[lg.id]] : lg.options.map((x) => x.id)
@@ -143,9 +169,30 @@ async function saveO() {
             </span>
             <span v-if="isSize" class="block text-xs text-stone-500">{{ opt.pounds }} ปอนด์</span>
           </span>
-          <span class="shrink-0 text-sm font-semibold" :class="opt.price ? 'text-stone-900' : 'text-stone-400'">{{ priceText(opt) }}</span>
+          <span class="shrink-0 text-sm font-semibold" :class="opt.price || opt.priceType === 'per_size' ? 'text-stone-900' : 'text-stone-400'">{{ priceText(opt) }}</span>
         </button>
       </div>
+
+      <!-- บันเดิ้ล (กลุ่มเลือกได้หลายอย่าง) -->
+      <section v-if="group.type === 'multi'" class="card mt-4">
+        <div class="mb-3 flex items-center justify-between gap-2">
+          <div class="text-[15px] font-semibold text-stone-900">บันเดิ้ล <span class="text-xs font-normal text-stone-400">เลือกครบคู่ ลดราคาตามขนาด</span></div>
+          <button class="btn-soft h-9 px-3" @click="editBundle(null)"><AppIcon name="plus" :size="16" /> เพิ่ม</button>
+        </div>
+        <p v-if="!(group.bundles || []).length" class="text-sm text-stone-500">ยังไม่มีบันเดิ้ล</p>
+        <div class="space-y-2">
+          <button
+            v-for="b in group.bundles || []"
+            :key="b.id"
+            class="flex w-full items-center gap-3 rounded-xl border border-stone-200/70 p-3 text-left hover:border-brand-300"
+            :class="b.active === false ? 'opacity-60' : ''"
+            @click="editBundle(b)"
+          >
+            <span class="min-w-0 flex-1 font-medium break-words text-stone-900">{{ b.name }}</span>
+            <span class="shrink-0 text-xs text-stone-500">{{ sizeOpts.map((sz) => `${sz.name} −${b.discount?.[sz.id] || 0}`).join(' · ') }}</span>
+          </button>
+        </div>
+      </section>
     </template>
 
     <!-- modal กลุ่ม -->
@@ -184,6 +231,34 @@ async function saveO() {
       </template>
     </AppModal>
 
+    <!-- modal บันเดิ้ล -->
+    <AppModal v-if="bOpen" :title="bd.id ? 'แก้ไขบันเดิ้ล' : 'เพิ่มบันเดิ้ล'" @close="bOpen = false">
+      <div class="space-y-4">
+        <div>
+          <div class="label">ตัวเลือกในบันเดิ้ล (อย่างน้อย 2)</div>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="x in group.options.filter((y) => y.active !== false || bd.options.includes(y.id))" :key="x.id" type="button" class="chip" :class="bd.options.includes(x.id) ? 'chip-on' : 'chip-off'" @click="toggleBundleOpt(x.id)">{{ x.name }}</button>
+          </div>
+        </div>
+        <div><label class="label">ชื่อ</label><input v-model="bd.name" class="input" :placeholder="bundleAutoName || 'เช่น สตรอว์เบอร์รี + บลูเบอร์รี'" /></div>
+        <div>
+          <div class="label">ลดจากราคารวม (บาท) แต่ละขนาด</div>
+          <div class="space-y-2">
+            <div v-for="sz in sizeOpts" :key="sz.id" class="flex items-center gap-3">
+              <span class="min-w-0 flex-1 text-sm text-stone-700">{{ sz.name }}</span>
+              <input v-model="bd.discount[sz.id]" type="number" inputmode="numeric" min="0" class="input w-32 shrink-0" placeholder="0" />
+            </div>
+          </div>
+        </div>
+        <AppSwitch v-model="bd.active" label="ใช้งาน" class="flex" />
+        <p v-if="bError" class="text-sm text-rose-600">{{ bError }}</p>
+      </div>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="bOpen = false">ยกเลิก</button>
+        <button class="btn-primary flex-1 sm:flex-none" @click="saveB">บันทึก</button>
+      </template>
+    </AppModal>
+
     <!-- modal ตัวเลือก -->
     <AppModal v-if="oOpen" :title="o.id ? 'แก้ไขตัวเลือก' : 'เพิ่มตัวเลือก'" @close="oOpen = false">
       <div class="space-y-4">
@@ -199,7 +274,7 @@ async function saveO() {
         <template v-else>
           <div>
             <div class="label">วิธีคิดราคา</div>
-            <div class="grid grid-cols-2 gap-2">
+            <div class="grid grid-cols-3 gap-2">
               <button
                 v-for="(label, key) in PRICE_TYPES"
                 :key="key"
@@ -210,7 +285,16 @@ async function saveO() {
               >{{ label }}</button>
             </div>
           </div>
-          <div>
+          <div v-if="o.priceType === 'per_size'">
+            <div class="label">ราคาแต่ละขนาด (บาท)</div>
+            <div class="space-y-2">
+              <div v-for="sz in sizeOpts" :key="sz.id" class="flex items-center gap-3">
+                <span class="min-w-0 flex-1 text-sm text-stone-700">{{ sz.name }}</span>
+                <input v-model="o.sizePrices[sz.id]" type="number" inputmode="numeric" min="0" class="input w-32 shrink-0" placeholder="0" />
+              </div>
+            </div>
+          </div>
+          <div v-else>
             <label class="label">ราคาบวกเพิ่ม (บาท{{ o.priceType === 'per_pound' ? ' / ปอนด์' : '' }})</label>
             <input v-model.number="o.price" type="number" inputmode="numeric" min="0" class="input" />
             <p class="mt-1 text-xs text-stone-400">ใส่ 0 ถ้าไม่บวกเพิ่ม</p>
@@ -226,7 +310,7 @@ async function saveO() {
           </div>
           <p class="text-xs text-stone-400">ที่ไม่เลือกจะไม่แสดงตอนสั่ง</p>
         </div>
-        <SpecialPriceEditor v-model="o.special" :unit="!isSize && o.priceType === 'per_pound' ? 'บาท/ปอนด์' : 'บาท'" />
+        <SpecialPriceEditor v-if="o.priceType !== 'per_size' || isSize" v-model="o.special" :unit="!isSize && o.priceType === 'per_pound' ? 'บาท/ปอนด์' : 'บาท'" />
         <RecipeEditor v-model="o.recipe" />
         <AppSwitch v-model="o.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" class="flex" />
         <p v-if="oError" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ oError }}</p>

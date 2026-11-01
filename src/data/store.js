@@ -24,6 +24,8 @@ export const can = (action) => PERMISSIONS[action]?.includes(session.role)
 const opt = (id, name, price = 0, priceType = 'fixed', extra = {}) => ({ id, name, price, priceType, active: true, recipe: [], ...extra })
 // บรรทัดสูตร: วัตถุดิบ, ปริมาณ, ต่อปอนด์ (pound) หรือ ต่อชิ้น (piece)
 const r = (ingredientId, qty, per = 'pound') => ({ ingredientId, qty, per })
+// ราคาตามขนาด 1 / 2 / 3 / 5 ปอนด์ (s1–s4)
+const sp = (a, b, c, d) => ({ s1: a, s2: b, s3: c, s4: d })
 
 export const db = reactive({
   customers: [
@@ -107,19 +109,27 @@ export const db = reactive({
       opt('s4', '5 ปอนด์', 2000, 'fixed', { pounds: 5, recipe: [r('m8', 1, 'piece')] }),
     ] },
     // ---- ตัวเลือกรอง ----
-    { id: 'g_shape', name: 'รูปทรง', type: 'single', required: true, appliesTo: ['custom'], options: [
+    { id: 'g_shape', name: 'รูปทรง', perTier: true, type: 'single', required: true, appliesTo: ['custom'], options: [
       opt('sh1', 'กลม'), opt('sh2', 'สี่เหลี่ยม'), opt('sh3', 'หัวใจ', 100), opt('sh4', 'ตัวเลข/ตัวอักษร', 300),
     ] },
     { id: 'g_filling', name: 'สอดไส้', prepList: true, perTier: true, type: 'multi', required: false, appliesTo: ['custom'], options: [
-      opt('f1', 'ครีมสด', 0, 'fixed', { recipe: [r('m5', 100)] }), opt('f2', 'สตรอว์เบอร์รี', 60, 'per_pound', { recipe: [r('m7', 80)] }), opt('f3', 'บลูเบอร์รี', 60, 'per_pound'),
-      opt('f4', 'คัสตาร์ด', 40, 'per_pound'), opt('f5', 'ช็อกโกแลตกานาช', 50, 'per_pound'),
+      opt('f1', 'ครีมสด', 0, 'fixed', { recipe: [r('m5', 100)] }),
+      opt('f2', 'สตรอว์เบอร์รี', 0, 'per_size', { sizePrices: sp(60, 110, 160, 250), recipe: [r('m7', 80)] }),
+      opt('f3', 'บลูเบอร์รี', 0, 'per_size', { sizePrices: sp(60, 110, 160, 250) }),
+      opt('f4', 'คัสตาร์ด', 0, 'per_size', { sizePrices: sp(40, 70, 100, 160) }),
+      opt('f5', 'ช็อกโกแลตกานาช', 0, 'per_size', { sizePrices: sp(50, 90, 130, 200) }),
+    ], bundles: [
+      { id: 'b1', name: 'สตรอว์เบอร์รี + บลูเบอร์รี', options: ['f2', 'f3'], discount: sp(20, 30, 40, 60), active: true },
     ] },
-    { id: 'g_color', name: 'สีธีม', type: 'text', required: false, appliesTo: ['custom'], placeholder: 'เช่น ชมพูพาสเทล + ขาว' },
-    { id: 'g_topping', name: 'On top / ท็อปปิ้ง', prepList: true, type: 'multi', required: false, appliesTo: ['custom'], options: [
-      opt('tp1', 'ผลไม้รวม', 150), opt('tp2', 'สตรอว์เบอร์รีสด', 180, 'fixed', { recipe: [r('m7', 150, 'piece')] }), opt('tp3', 'มาการอง', 200),
-      opt('tp4', 'ช็อกโกแลตแท่ง/ตกแต่ง', 120), opt('tp5', 'เม็ดมุกน้ำตาล', 50),
+    { id: 'g_color', name: 'สีธีม', perTier: true, type: 'text', required: false, appliesTo: ['custom'], placeholder: 'เช่น ชมพูพาสเทล + ขาว' },
+    { id: 'g_topping', name: 'On top / ท็อปปิ้ง', prepList: true, perTier: true, type: 'multi', required: false, appliesTo: ['custom'], options: [
+      opt('tp1', 'ผลไม้รวม', 0, 'per_size', { sizePrices: sp(150, 250, 350, 500) }),
+      opt('tp2', 'สตรอว์เบอร์รีสด', 0, 'per_size', { sizePrices: sp(180, 300, 420, 600), recipe: [r('m7', 150, 'piece')] }),
+      opt('tp3', 'มาการอง', 0, 'per_size', { sizePrices: sp(200, 300, 400, 550) }),
+      opt('tp4', 'ช็อกโกแลตแท่ง/ตกแต่ง', 0, 'per_size', { sizePrices: sp(120, 180, 240, 350) }),
+      opt('tp5', 'เม็ดมุกน้ำตาล', 0, 'per_size', { sizePrices: sp(50, 80, 110, 160) }),
     ] },
-    { id: 'g_deco', name: 'ตกแต่ง', prepList: true, type: 'multi', required: false, appliesTo: ['custom'], options: [
+    { id: 'g_deco', name: 'ตกแต่ง', prepList: true, perTier: true, type: 'multi', required: false, appliesTo: ['custom'], options: [
       opt('d1', 'ดอกไม้ครีม', 150), opt('d2', 'ดอกไม้สด', 350), opt('d3', 'ฟิกเกอร์', 500),
       opt('d4', 'ภาพพิมพ์ทานได้', 250), opt('d5', 'โบว์/ริบบิ้น', 80),
     ] },
@@ -202,7 +212,17 @@ export function saveOption(groupId, d) {
   if (!g) return null
   const data = { ...d, price: Number(d.price) || 0, recipe: cleanRecipe(d.recipe), special: cleanSpecial(d.special) }
   if (g.key === 'size') data.pounds = Number(d.pounds) || 1
+  if (data.priceType === 'per_size') data.sizePrices = cleanSpecial(d.sizePrices)
+  else delete data.sizePrices
   return upsert(g.options, 'o', data)
+}
+
+// บันเดิ้ล (คู่ตัวเลือกในกลุ่มเดียวกัน ลดราคาตามขนาด)
+export function saveBundle(groupId, d) {
+  const g = findGroup(groupId)
+  if (!g) return null
+  if (!g.bundles) g.bundles = []
+  return upsert(g.bundles, 'b', { ...d, options: [...d.options], discount: cleanSpecial(d.discount) })
 }
 
 // จำนวนออร์เดอร์ของลูกค้า
@@ -487,8 +507,8 @@ function seed() {
   const o1 = createOrder({
     customerId: 'c1', pickupAt: at(1, 14), fulfillment: 'pickup',
     items: [{ id: uid('i'), kind: 'custom', name: 'วิปครีม · ช็อกโกแลต · 2 ปอนด์', qty: 1, note: 'ตามรูปตัวอย่าง', images: [],
-      tiers: [{ selections: { g_size: 's2', g_sponge: 'sp2', g_filling: ['f2'], g_frosting: 'fr1' } }],
-      selections: { g_shape: 'sh3', g_color: 'ชมพูพาสเทล', g_topping: ['tp2'], g_message: 'HBD แม่ 60 ปี', g_extra: ['x2'] } }],
+      tiers: [{ selections: { g_size: 's2', g_sponge: 'sp2', g_filling: ['f2'], g_frosting: 'fr1', g_shape: 'sh3', g_color: 'ชมพูพาสเทล', g_topping: ['tp2'] } }],
+      selections: { g_message: 'HBD แม่ 60 ปี', g_extra: ['x2'] } }],
   })
   reportPayment(o1, { amount: 600, method: 'โอนเงิน', paidAt: at(0, 9) })
   confirmPayment(o1, o1.payments[0].id)

@@ -48,7 +48,7 @@ export const MAIN_KEYS = ['face', 'flavor', 'size']
 
 export const GROUP_TYPES = { single: 'เลือกได้ 1 อย่าง', multi: 'เลือกได้หลายอย่าง', text: 'พิมพ์ข้อความ' }
 export const APPLIES_TO = { custom: 'สั่งทำ', ready: 'เค้กสำเร็จ' }
-export const PRICE_TYPES = { fixed: 'บวกคงที่', per_pound: 'บวกต่อปอนด์' }
+export const PRICE_TYPES = { fixed: 'บวกคงที่', per_pound: 'บวกต่อปอนด์', per_size: 'ตามขนาด' }
 
 // สูตรวัตถุดิบ
 export const RECIPE_PER = { pound: 'ต่อปอนด์', piece: 'ต่อชิ้น' }

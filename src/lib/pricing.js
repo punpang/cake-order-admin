@@ -72,22 +72,53 @@ export function itemBase(item, groups, products, active = [], used = null) {
   return { base: size.price, pounds, tierPounds: tiers.map(() => pounds / tiers.length) }
 }
 
-export function calcUnitPrice(item, groups, products, active = [], used = null) {
+// ราคาตัวเลือกแบบ "ตามขนาด": รวมราคาของขนาดที่เลือก (sizePrices = { [sizeOptionId]: ราคา })
+export const sizePriceOf = (o, sizeIds) => sizeIds.reduce((s, id) => s + (Number(o.sizePrices?.[id]) || 0), 0)
+
+// บันเดิ้ล: เลือกครบทุกตัวในคู่ (กลุ่มเดียวกัน) ลดตามขนาด discount = { [sizeOptionId]: บาท }
+// ถ้าซ้อนกัน ใช้คู่ที่ลดมากสุดก่อน ตัวเลือกหนึ่งใช้ได้กับบันเดิ้ลเดียว
+export function bundleDiscount(g, ids, sizeIds, usedBundles = null) {
+  const cands = (g.bundles || [])
+    .filter((b) => b.active !== false && b.options?.length > 1 && b.options.every((id) => ids.includes(id)))
+    .map((b) => ({ b, d: sizeIds.reduce((s, id) => s + (Number(b.discount?.[id]) || 0), 0) }))
+    .sort((a, b) => b.d - a.d)
+  const taken = new Set()
+  let total = 0
+  for (const c of cands) {
+    if (c.b.options.some((id) => taken.has(id))) continue
+    c.b.options.forEach((id) => taken.add(id))
+    total += c.d
+    if (usedBundles && c.d) usedBundles.add(c.b.name)
+  }
+  return total
+}
+
+export function calcUnitPrice(item, groups, products, active = [], used = null, usedBundles = null) {
   const { base, pounds, tierPounds } = itemBase(item, groups, products, active, used)
   const tiers = tiersOf(item)
+  const sizeGroup = groups.find((g) => g.key === 'size')
+  const sizeIds = (sels) => (sizeGroup ? idsOf(sels?.[sizeGroup.id]) : [])
+  const sizeTier = sizeGroup && isTierGroup(sizeGroup, item)
+  const tierSizes = tiers.map((t) => (sizeTier ? sizeIds(t.selections) : sizeIds(item.selections)))
+  const allSizes = sizeTier ? tierSizes.flat() : sizeIds(item.selections)
   let extra = 0
-  const add = (g, sel, lb) => {
-    for (const id of idsOf(sel)) {
+  const add = (g, sel, lb, sids) => {
+    const ids = idsOf(sel)
+    for (const id of ids) {
       const o = g.options.find((x) => x.id === id)
       if (!o) continue
-      const price = useP(o, active, used)
-      extra += o.priceType === 'per_pound' ? price * lb : price
+      if (o.priceType === 'per_size') extra += sizePriceOf(o, sids)
+      else {
+        const price = useP(o, active, used)
+        extra += o.priceType === 'per_pound' ? price * lb : price
+      }
     }
+    if (g.type === 'multi' && ids.length > 1) extra -= bundleDiscount(g, ids, sids, usedBundles)
   }
   for (const g of groups) {
     if (g.key === 'size' || g.type === 'text') continue
-    if (isTierGroup(g, item)) tiers.forEach((t, i) => add(g, t.selections?.[g.id], tierPounds[i]))
-    else add(g, item.selections?.[g.id], pounds)
+    if (isTierGroup(g, item)) tiers.forEach((t, i) => add(g, t.selections?.[g.id], tierPounds[i], tierSizes[i]))
+    else add(g, item.selections?.[g.id], pounds, allSizes)
   }
   return base + extra
 }
@@ -95,9 +126,10 @@ export function calcUnitPrice(item, groups, products, active = [], used = null) 
 // ราคาที่ใช้ + ราคาปกติ + ชื่อแบบราคาพิเศษที่ใช้
 export function priceDetail(item, groups, products, active = []) {
   const used = new Set()
-  const unitPrice = calcUnitPrice(item, groups, products, active, used)
+  const bundles = new Set()
+  const unitPrice = calcUnitPrice(item, groups, products, active, used, bundles)
   const regularPrice = calcUnitPrice(item, groups, products)
-  return { unitPrice, regularPrice, specials: [...used] }
+  return { unitPrice, regularPrice, specials: [...used], bundles: [...bundles] }
 }
 
 export function orderTotals(order) {

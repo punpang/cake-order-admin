@@ -1,6 +1,6 @@
 <script setup>
 import { money } from '../lib/format'
-import { effectivePrice } from '../lib/pricing'
+import { effectivePrice, sizePriceOf } from '../lib/pricing'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
@@ -8,6 +8,7 @@ const props = defineProps({
   errors: { type: Object, default: () => ({}) },
   active: { type: Array, default: () => [] }, // แบบราคาพิเศษที่ใช้งาน
   allow: { type: Function, default: null }, // (group, option) => เลือกได้ไหม (ตามหน้าเค้ก)
+  sizeIds: { type: Array, default: () => [] }, // ขนาดที่เลือก (ราคาตัวเลือกแบบตามขนาด)
 })
 const selections = defineModel({ type: Object, required: true })
 
@@ -16,12 +17,14 @@ function fmt(o, price) {
   return o.priceType === 'per_pound' ? `+${money(price)}/ปอนด์` : `+${money(price)}`
 }
 function priceText(o) {
+  if (o.priceType === 'per_size') return props.sizeIds.length ? `+${money(sizePriceOf(o, props.sizeIds))}` : 'ตามขนาด'
   const price = effectivePrice(o, props.active).price
   if (!price) return ''
   return fmt(o, price)
 }
 // ราคาปกติ (แสดงขีดฆ่า) เมื่อใช้ราคาพิเศษ
 function regularText(o) {
+  if (o.priceType === 'per_size') return ''
   const r = effectivePrice(o, props.active)
   return r.list && r.price !== (o.price || 0) && o.price ? fmt(o, o.price) : ''
 }

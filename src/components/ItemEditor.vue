@@ -30,6 +30,27 @@ if (form.kind === 'custom' && !form.tiers.length) {
   form.tiers = [{ selections: first }]
 }
 const errors = ref({})
+// เค้กชั้น: ต้องเลือกก่อน ปุ่มเพิ่ม/ลบชั้นถึงขึ้น
+const layered = ref(form.tiers.length > 1)
+async function setLayered(v) {
+  if (v === layered.value) return
+  if (v) {
+    if (form.tiers.length < 2) form.tiers.push({ selections: {} })
+  } else if (form.tiers.length > 1) {
+    if (!(await askConfirm({ title: 'เปลี่ยนเป็นเค้กปกติ', message: 'เก็บไว้เฉพาะชั้นที่ 1 ชั้นอื่นจะถูกลบ', okText: 'เปลี่ยน', danger: true }))) return
+    form.tiers.splice(1)
+  }
+  layered.value = v
+}
+// ขนาดที่เลือกของชั้น (ใช้แสดงราคาตัวเลือกแบบตามขนาด)
+const sizeGroup = computed(() => db.optionGroups.find((g) => g.key === 'size'))
+function sizeIdsOf(t) {
+  const sg = sizeGroup.value
+  if (!sg) return []
+  const v = (sg.perTier && t ? t.selections : form.selections)[sg.id]
+  return v == null ? [] : Array.isArray(v) ? v : [v]
+}
+const allSizeIds = computed(() => (sizeGroup.value?.perTier ? form.tiers.flatMap((t) => sizeIdsOf(t)) : sizeIdsOf(null)))
 
 const groups = computed(() => db.optionGroups.filter((g) => g.active !== false && g.appliesTo.includes(form.kind)))
 const tierGroups = computed(() => (form.kind === 'custom' ? groups.value.filter((g) => g.perTier) : []))
@@ -69,6 +90,7 @@ function setKind(k) {
   form.productId = null
   form.selections = {}
   form.tiers = k === 'custom' ? [{ selections: {} }] : []
+  layered.value = false
   errors.value = {}
 }
 
@@ -179,18 +201,35 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
 
     <!-- ชั้นของเค้ก (สั่งทำ) -->
     <template v-if="tierGroups.length">
-      <div v-for="(tier, i) in form.tiers" :key="i" class="mb-3 rounded-2xl border border-brand-200 bg-brand-50/40 p-3">
-        <div class="mb-2.5 flex items-center justify-between gap-2">
-          <span class="font-semibold text-brand-800">ชั้นที่ {{ i + 1 }}</span>
-          <button v-if="form.tiers.length > 1" type="button" class="btn-danger h-8 px-2.5 text-sm" @click="removeTier(i)"><AppIcon name="trash" :size="14" /> ลบชั้น</button>
-        </div>
-        <OptionPicker v-model="tier.selections" :groups="tierGroups" :errors="errors['t' + i] || {}" :active="active" :allow="allowFor(tier)" />
+      <!-- เค้กปกติ / เค้กชั้น -->
+      <div class="mb-3 grid grid-cols-2 gap-1 rounded-2xl bg-stone-100 p-1">
+        <button
+          v-for="k in [{ v: false, t: 'เค้กปกติ' }, { v: true, t: 'เค้กชั้น' }]"
+          :key="k.t"
+          type="button"
+          class="h-10 rounded-xl text-sm font-semibold transition"
+          :class="layered === k.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'"
+          @click="setLayered(k.v)"
+        >{{ k.t }}</button>
       </div>
-      <button type="button" class="btn-soft mb-3 w-full" @click="form.tiers.push({ selections: {} })"><AppIcon name="plus" :size="16" /> เพิ่มชั้น</button>
+
+      <template v-if="layered">
+        <div v-for="(tier, i) in form.tiers" :key="i" class="mb-3 rounded-2xl border border-brand-200 bg-brand-50/40 p-3">
+          <div class="mb-2.5 flex items-center justify-between gap-2">
+            <span class="font-semibold text-brand-800">ชั้นที่ {{ i + 1 }}</span>
+            <button v-if="form.tiers.length > 1" type="button" class="btn-danger h-8 px-2.5 text-sm" @click="removeTier(i)"><AppIcon name="trash" :size="14" /> ลบชั้น</button>
+          </div>
+          <OptionPicker v-model="tier.selections" :groups="tierGroups" :errors="errors['t' + i] || {}" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" />
+        </div>
+        <button type="button" class="btn-soft mb-3 w-full" @click="form.tiers.push({ selections: {} })"><AppIcon name="plus" :size="16" /> เพิ่มชั้น</button>
+      </template>
+      <div v-else class="mb-3">
+        <OptionPicker v-model="form.tiers[0].selections" :groups="tierGroups" :errors="errors.t0 || {}" :active="active" :allow="allowFor(form.tiers[0])" :size-ids="sizeIdsOf(form.tiers[0])" />
+      </div>
     </template>
 
     <div v-if="form.kind === 'custom' && wholeGroups.length" class="mb-2 text-sm font-semibold text-stone-500">ตัวเลือกเพิ่มเติม</div>
-    <OptionPicker v-model="form.selections" :groups="wholeGroups" :errors="errors" :active="active" :allow="form.kind === 'custom' ? allowFor(form.tiers[0]) : null" />
+    <OptionPicker v-model="form.selections" :groups="wholeGroups" :errors="errors" :active="active" :allow="form.kind === 'custom' ? allowFor(form.tiers[0]) : null" :size-ids="allSizeIds" />
 
     <!-- รูป + หมายเหตุ -->
     <div class="mt-3 rounded-2xl border border-stone-200/70 bg-white p-3.5">
@@ -227,6 +266,7 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
           <div v-if="detail.specials.length && detail.regularPrice !== unitPrice" class="text-xs text-stone-400 line-through">{{ money(detail.regularPrice * (form.qty || 0)) }}</div>
           <div class="text-lg font-bold text-stone-900">{{ money(unitPrice * (form.qty || 0)) }}</div>
           <div v-if="detail.specials.length" class="text-xs font-medium text-rose-600">{{ detail.specials.join(', ') }}</div>
+          <div v-if="detail.bundles.length" class="text-xs font-medium text-emerald-700">บันเดิ้ล: {{ detail.bundles.join(', ') }}</div>
         </div>
         <button class="btn-primary w-full sm:w-auto" @click="save">
           <AppIcon name="check" :size="18" /> บันทึกสินค้า
