@@ -231,6 +231,28 @@ export function confirmPayment(order, paymentId) {
   if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
 }
 
+// แก้รายการสินค้าหลังสร้าง: คิดราคาใหม่ทุกรายการตามราคาปัจจุบัน
+function repriceAll(order) {
+  order.items = order.items.map(priceItem)
+}
+
+export function saveOrderItem(order, item) {
+  const i = order.items.findIndex((x) => x.id === item.id)
+  if (i >= 0) order.items[i] = item
+  else order.items.push(item)
+  repriceAll(order)
+  log(order, `${i >= 0 ? 'แก้ไข' : 'เพิ่ม'}สินค้า: ${item.name} × ${item.qty}`)
+}
+
+export function removeOrderItem(order, itemId) {
+  const it = order.items.find((x) => x.id === itemId)
+  if (!it || order.items.length <= 1) return false
+  order.items = order.items.filter((x) => x.id !== itemId)
+  repriceAll(order)
+  log(order, `ลบสินค้า: ${it.name}`)
+  return true
+}
+
 export function setAdjustment(order, amount, reason) {
   order.adjustment = { amount: Number(amount) || 0, reason }
   log(order, `ปรับราคา ${Number(amount).toLocaleString('th-TH')} ฿ (${reason})`)

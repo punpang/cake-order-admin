@@ -154,6 +154,7 @@ const paidPct = (t) => (t.total > 0 ? Math.min(100, Math.round((t.paid / t.total
               <span class="text-stone-500">รวม <b class="text-base text-stone-900">{{ money(t.total) }}</b></span>
               <span v-if="o.status === 'cancelled'" class="text-stone-400">ยกเลิกแล้ว</span>
               <span v-else-if="t.balance > 0" class="font-medium text-amber-700">ค้าง {{ money(t.balance) }}</span>
+              <span v-else-if="t.balance < 0" class="font-medium text-rose-600">ชำระเกิน {{ money(-t.balance) }}</span>
               <span v-else class="inline-flex items-center gap-1 font-medium text-emerald-700"><AppIcon name="check" :size="15" /> ชำระครบ</span>
             </div>
             <div v-if="o.status !== 'cancelled'" class="mt-2 h-1.5 overflow-hidden rounded-full bg-stone-100">

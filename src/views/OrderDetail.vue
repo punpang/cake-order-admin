@@ -2,12 +2,14 @@
 import { computed, reactive, ref } from 'vue'
 import {
   can, findOrder, findCustomer, setStatus, reportPayment, confirmPayment, setAdjustment, cancelOrder, countPickups,
+  saveOrderItem, removeOrderItem,
 } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime, toDateStr, pad } from '../lib/format'
 import { PAYMENT_METHODS, ROLES } from '../lib/constants'
 import StatusBadge from '../components/StatusBadge.vue'
 import ItemCard from '../components/ItemCard.vue'
+import ItemEditor from '../components/ItemEditor.vue'
 import AppModal from '../components/AppModal.vue'
 import AppIcon from '../components/AppIcon.vue'
 
@@ -77,6 +79,13 @@ function saveAdj() {
   if (!adj.reason.trim()) return (adjError.value = 'ใส่เหตุผล')
   setAdjustment(order.value, adj.amount, adj.reason.trim())
   adjOpen.value = false
+}
+
+// ---------- แก้รายการสินค้า (แอดมิน) ----------
+const editing = ref(null) // null = ปิด, {} = เพิ่มใหม่, { item } = แก้ไข
+function onSaveItem(item) {
+  saveOrderItem(order.value, item)
+  editing.value = null
 }
 
 // ---------- ยกเลิก ----------
@@ -155,8 +164,14 @@ function saveCancel() {
         <section class="card">
           <div class="card-title"><AppIcon name="cake" class="text-brand-600" /> สินค้า <span class="font-normal text-stone-400">{{ order.items.length }}</span></div>
           <div class="space-y-2.5">
-            <ItemCard v-for="it in order.items" :key="it.id" :item="it" class="bg-stone-50/50" />
+            <ItemCard v-for="it in order.items" :key="it.id" :item="it" class="bg-stone-50/50">
+              <template v-if="can('editItems')">
+                <button class="btn-outline h-9 px-3" @click="editing = { item: it }"><AppIcon name="edit" :size="16" /> แก้ไข</button>
+                <button v-if="order.items.length > 1" class="btn-danger h-9 px-3" @click="removeOrderItem(order, it.id)"><AppIcon name="trash" :size="16" /> ลบ</button>
+              </template>
+            </ItemCard>
           </div>
+          <button v-if="can('editItems')" class="btn-soft mt-3 w-full" @click="editing = {}"><AppIcon name="plus" :size="16" /> เพิ่มสินค้า</button>
         </section>
 
         <!-- ยกเลิก -->
@@ -198,7 +213,11 @@ function saveCancel() {
                 <div class="text-xs text-emerald-700">ยืนยันแล้ว</div>
                 <div class="font-semibold text-emerald-800">{{ money(t.paid) }}</div>
               </div>
-              <div class="rounded-xl p-2.5" :class="t.balance > 0 ? 'bg-amber-50' : 'bg-stone-50'">
+              <div v-if="t.balance < 0" class="rounded-xl bg-rose-50 p-2.5">
+                <div class="text-xs text-rose-600">ชำระเกิน</div>
+                <div class="font-semibold text-rose-700">{{ money(-t.balance) }}</div>
+              </div>
+              <div v-else class="rounded-xl p-2.5" :class="t.balance > 0 ? 'bg-amber-50' : 'bg-stone-50'">
                 <div class="text-xs" :class="t.balance > 0 ? 'text-amber-700' : 'text-stone-500'">คงค้าง</div>
                 <div class="font-semibold" :class="t.balance > 0 ? 'text-amber-800' : 'text-stone-700'">{{ money(t.balance) }}</div>
               </div>
@@ -359,4 +378,6 @@ function saveCancel() {
       </template>
     </AppModal>
   </div>
+
+  <ItemEditor v-if="editing" :item="editing.item || null" @save="onSaveItem" @close="editing = null" />
 </template>

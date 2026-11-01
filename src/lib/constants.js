@@ -28,6 +28,7 @@ export const PERMISSIONS = {
   deliverShipping: ['admin', 'driver'],
   manage: ['admin'],
   viewMaterials: ['admin', 'baker'],
+  editItems: ['admin'],
 }
 
 // สถานะที่แต่ละบทบาทเห็นในรายการ (null = เห็นทั้งหมด)
