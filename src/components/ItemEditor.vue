@@ -87,10 +87,10 @@ watch(
 )
 const products = computed(() => db.products.filter((p) => p.active || p.id === form.productId))
 const active = computed(() => activeListsAt(props.priceDate))
-const detail = computed(() => priceDetail(form, db.optionGroups, db.products, active.value, db.priceLevels))
+const detail = computed(() => priceDetail(form, db.optionGroups, db.products, active.value))
 const unitPrice = computed(() => detail.value.unitPrice)
-// ราคาเค้กสำเร็จ (ขนาด + ระดับ) ราคาปกติแสดงขีดฆ่าเมื่อมีราคาพิเศษ
-const priceOf = (p) => ({ price: productPrice(p, db.optionGroups, db.priceLevels, active.value), regular: productPrice(p, db.optionGroups, db.priceLevels) })
+// ราคาเค้กสำเร็จ (หน้าเค้ก + เนื้อเค้ก + ขนาด) ราคาปกติแสดงขีดฆ่าเมื่อมีราคาพิเศษ
+const priceOf = (p) => ({ price: productPrice(p, db.optionGroups, active.value), regular: productPrice(p, db.optionGroups) })
 
 function setKind(k) {
   if (form.kind === k) return

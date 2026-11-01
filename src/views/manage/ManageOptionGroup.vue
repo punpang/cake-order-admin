@@ -15,10 +15,9 @@ const props = defineProps({ id: { type: String, required: true } })
 const group = computed(() => findGroup(props.id))
 const isSize = computed(() => group.value?.key === 'size')
 const isFace = computed(() => group.value?.key === 'face')
-// หน้าเค้ก/เนื้อเค้ก ใช้ระดับราคา (ตั้งตัวเลขที่หน้าการกำหนดราคา)
-const isLevel = computed(() => ['face', 'flavor'].includes(group.value?.key))
-const levelOpts = computed(() => db.priceLevels.filter((l) => l.active !== false || l.id === o.level))
-const levelName = (id) => db.priceLevels.find((l) => l.id === id)?.name || 'ยังไม่เลือกระดับ'
+// หน้าเค้ก (ตามขนาด) / เนื้อเค้ก (บวกคงที่): ราคาตั้งที่หน้าการกำหนดราคา
+const isMainPrice = computed(() => ['face', 'flavor'].includes(group.value?.key))
+const faceSizesText = (opt) => sizeOpts.value.map((sz) => `${sz.name} +${money(opt.sizePrices?.[sz.id] || 0)}`).join(' · ')
 // หน้าเค้ก: เลือกเนื้อเค้ก/ขนาดที่มี
 const limitGroups = computed(() => db.optionGroups.filter((x) => x.key === 'flavor' || x.key === 'size'))
 
@@ -35,7 +34,8 @@ const options = computed(() => {
 const sizeOpts = computed(() => (db.optionGroups.find((x) => x.key === 'size')?.options || []).filter((x) => x.active !== false))
 const priceText = (o) => {
   if (isSize.value) return money(o.price)
-  if (isLevel.value) return levelName(o.level)
+  if (isFace.value) return 'ตามขนาด'
+  if (group.value?.key === 'flavor') return o.price ? `+${money(o.price)}` : 'ไม่บวกเพิ่ม'
   if (o.priceType === 'per_size') return 'ตามขนาด'
   if (!o.price) return 'ไม่บวกเพิ่ม'
   return o.priceType === 'per_pound' ? `+${money(o.price)} / ปอนด์` : `+${money(o.price)}`
@@ -68,7 +68,7 @@ async function saveG() {
 
 // ---------- ตัวเลือก ----------
 const oOpen = ref(false)
-const blank = () => ({ id: null, name: '', price: 0, priceType: 'fixed', pounds: 1, level: null, active: true, recipe: [], special: {}, allow: {}, sizePrices: {} })
+const blank = () => ({ id: null, name: '', price: 0, priceType: 'fixed', pounds: 1, active: true, recipe: [], special: {}, allow: {}, sizePrices: {} })
 const o = reactive(blank())
 const oError = ref('')
 function editOption(opt) {
@@ -112,8 +112,7 @@ function toggleAllow(lg, oid) {
 async function saveO() {
   if (!o.name.trim()) return (oError.value = 'กรอกชื่อตัวเลือก')
   if (isSize.value && !(o.pounds > 0)) return (oError.value = 'ขนาดต้องมากกว่า 0')
-  if (isLevel.value && !o.level) return (oError.value = 'เลือกระดับราคา')
-  if (!isSize.value && !isLevel.value && !(o.price >= 0)) return (oError.value = 'ราคาไม่ถูกต้อง')
+  if (!isSize.value && !isMainPrice.value && !(o.price >= 0)) return (oError.value = 'ราคาไม่ถูกต้อง')
   const data = { ...o }
   if (!isFace.value) delete data.allow
   else {
@@ -152,8 +151,8 @@ async function saveO() {
             <span v-if="group.active === false" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
           </div>
           <div class="text-sm text-stone-500">{{ GROUP_TYPES[group.type] }} · {{ group.appliesTo.map((a) => APPLIES_TO[a]).join(', ') }}</div>
-          <div v-if="isSize || isLevel" class="mt-1 text-xs text-stone-400">
-            {{ isSize ? 'ราคาขนาดเป็นราคาเริ่มต้นของเค้ก' : 'บวกเพิ่มตามระดับราคาและขนาด' }} · ตั้งตัวเลขที่ <RouterLink to="/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink>
+          <div v-if="isSize || isMainPrice" class="mt-1 text-xs text-stone-400">
+            {{ isSize ? 'ราคาขนาดเป็นราคาเริ่มต้นของเค้ก' : isFace ? 'บวกเพิ่มตามขนาด' : 'บวกเพิ่มเท่ากันทุกขนาด' }} · ตั้งตัวเลขที่ <RouterLink to="/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink>
           </div>
         </div>
         <button class="btn-outline h-9 px-3" @click="editGroup"><AppIcon name="edit" :size="16" /> แก้ไข</button>
@@ -179,7 +178,7 @@ async function saveO() {
             </span>
             <span v-if="isSize" class="block text-xs text-stone-500">{{ opt.pounds }} ปอนด์</span>
           </span>
-          <span class="shrink-0 text-sm font-semibold" :class="opt.price || opt.priceType === 'per_size' || (isLevel && opt.level) ? 'text-stone-900' : 'text-stone-400'">{{ priceText(opt) }}</span>
+          <span class="shrink-0 text-sm font-semibold" :class="opt.price || opt.priceType === 'per_size' || isFace ? 'text-stone-900' : 'text-stone-400'">{{ priceText(opt) }}</span>
         </button>
       </div>
 
@@ -282,15 +281,9 @@ async function saveO() {
           </p>
         </template>
 
-        <div v-else-if="isLevel">
-          <div class="label">ระดับราคา <span class="text-rose-500">*</span></div>
-          <div class="flex flex-wrap gap-2">
-            <button v-for="lv in levelOpts" :key="lv.id" type="button" class="chip" :class="o.level === lv.id ? 'chip-on' : 'chip-off'" @click="o.level = lv.id">{{ lv.name }}</button>
-          </div>
-          <p v-if="o.level" class="mt-2 text-xs text-stone-500">
-            บวกเพิ่ม: {{ sizeOpts.map((sz) => `${sz.name} +${money(db.priceLevels.find((l) => l.id === o.level)?.prices?.[sz.id] || 0)}`).join(' · ') }}
-          </p>
-          <p class="mt-1 text-xs text-stone-400">แก้ตัวเลขของระดับที่ <RouterLink to="/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink> (มีผลทุกตัวเลือกในระดับนั้น)</p>
+        <div v-else-if="isMainPrice" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">
+          <template v-if="o.id">ราคา: {{ isFace ? faceSizesText(o) : o.price ? `+${money(o.price)} ทุกขนาด` : 'ไม่บวกเพิ่ม' }}<br /></template>
+          <span class="text-xs text-stone-500">ตั้ง/แก้ราคาที่ <RouterLink to="/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></span>
         </div>
 
         <template v-else>
@@ -332,7 +325,7 @@ async function saveO() {
           </div>
           <p class="text-xs text-stone-400">ที่ไม่เลือกจะไม่แสดงตอนสั่ง</p>
         </div>
-        <SpecialPriceEditor v-if="!isSize && !isLevel && o.priceType !== 'per_size'" v-model="o.special" :unit="o.priceType === 'per_pound' ? 'บาท/ปอนด์' : 'บาท'" />
+        <SpecialPriceEditor v-if="!isSize && !isMainPrice && o.priceType !== 'per_size'" v-model="o.special" :unit="o.priceType === 'per_pound' ? 'บาท/ปอนด์' : 'บาท'" />
         <RecipeEditor v-model="o.recipe" />
         <AppSwitch v-model="o.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" class="flex" />
         <p v-if="oError" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ oError }}</p>

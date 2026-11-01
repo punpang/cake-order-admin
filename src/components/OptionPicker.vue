@@ -1,7 +1,6 @@
 <script setup>
 import { money } from '../lib/format'
-import { db } from '../data/store'
-import { effectivePrice, sizePriceOf, sizePrice, levelPrice } from '../lib/pricing'
+import { effectivePrice, sizePriceOf, sizePrice, facePrice, flavorPrice } from '../lib/pricing'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
@@ -16,16 +15,18 @@ const selections = defineModel({ type: Object, required: true })
 function fmt(o, price) {
   return o.priceType === 'per_pound' ? `+${money(price)}/ปอนด์` : `+${money(price)}`
 }
-const levelName = (id) => db.priceLevels.find((l) => l.id === id)?.name || ''
-// ราคาเค้กหลัก: ขนาด = ราคาขนาด, หน้าเค้ก/เนื้อเค้ก = ระดับราคาตามขนาดของชั้น (ยังไม่เลือกขนาด แสดงชื่อระดับ)
+// ราคาเค้กหลัก: ขนาด = ราคาขนาด, หน้าเค้ก = ราคาตามขนาดของชั้น, เนื้อเค้ก = บวกคงที่
+const isMain = (g) => ['size', 'face', 'flavor'].includes(g.key)
+const faceNoSize = (g) => g.key === 'face' && !props.sizeIds.length
 function mainPrice(g, o, active) {
   if (g.key === 'size') return sizePrice(o, active)
-  return levelPrice(db.priceLevels, o.level, props.sizeIds[0], active)
+  if (g.key === 'face') return facePrice(o, props.sizeIds[0], active)
+  return flavorPrice(o, active)
 }
 function priceText(g, o) {
   if (g.key === 'size') return money(mainPrice(g, o, props.active))
-  if (g.key === 'face' || g.key === 'flavor') {
-    if (!props.sizeIds.length) return levelName(o.level)
+  if (faceNoSize(g)) return 'ตามขนาด'
+  if (isMain(g)) {
     const v = mainPrice(g, o, props.active)
     return v ? `+${money(v)}` : ''
   }
@@ -36,12 +37,13 @@ function priceText(g, o) {
 }
 // ราคาปกติ (แสดงขีดฆ่า) เมื่อใช้ราคาพิเศษ
 function regularText(g, o) {
-  if (g.key === 'size' || ((g.key === 'face' || g.key === 'flavor') && props.sizeIds.length)) {
+  if (isMain(g)) {
+    if (faceNoSize(g)) return ''
     const reg = mainPrice(g, o, [])
     if (reg === mainPrice(g, o, props.active)) return ''
     return g.key === 'size' ? money(reg) : `+${money(reg)}`
   }
-  if (g.key === 'face' || g.key === 'flavor' || o.priceType === 'per_size') return ''
+  if (o.priceType === 'per_size') return ''
   const r = effectivePrice(o, props.active)
   return r.list && r.price !== (o.price || 0) && o.price ? fmt(o, o.price) : ''
 }
