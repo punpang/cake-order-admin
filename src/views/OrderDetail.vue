@@ -8,6 +8,7 @@ import {
 } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { askConfirm } from '../lib/confirm'
+import { orderCost } from '../lib/materials'
 import { money, dateTime, toDateStr, pad } from '../lib/format'
 import { PAYMENT_METHODS, ROLES } from '../lib/constants'
 import StatusBadge from '../components/StatusBadge.vue'
@@ -20,6 +21,8 @@ const props = defineProps({ id: { type: String, required: true } })
 const order = computed(() => findOrder(props.id))
 const customer = computed(() => order.value && findCustomer(order.value.customerId))
 const t = computed(() => orderTotals(order.value))
+// ต้นทุนวัตถุดิบ / กำไร (แอดมิน)
+const cost = computed(() => orderCost(order.value, db.optionGroups, db.products, db.ingredients))
 const load = computed(() => countPickups(order.value.pickupAt, order.value.id))
 const closed = computed(() => ['delivered', 'cancelled'].includes(order.value.status))
 
@@ -295,6 +298,10 @@ async function saveCancel() {
             </div>
             <div v-if="t.pointsDiscount" class="flex justify-between gap-2"><dt class="text-stone-500">ใช้ {{ order.pointsUsed.points }} คะแนน</dt><dd class="text-rose-600">−{{ money(t.pointsDiscount) }}</dd></div>
             <div v-for="u in order.couponsUsed" :key="u.couponId" class="flex justify-between gap-2"><dt class="min-w-0 break-words text-stone-500">คูปอง {{ u.name }}</dt><dd class="shrink-0 text-rose-600">−{{ money(u.amount) }}</dd></div>
+          </dl>
+          <dl v-if="can('viewProfit')" class="mt-3 space-y-1.5 border-t border-stone-100 pt-3 text-sm">
+            <div class="flex justify-between gap-2"><dt class="text-stone-500">ต้นทุนวัตถุดิบ</dt><dd>{{ money(cost) }}</dd></div>
+            <div class="flex justify-between gap-2 font-semibold"><dt>กำไร</dt><dd :class="t.total - cost >= 0 ? 'text-emerald-700' : 'text-rose-600'">{{ money(t.total - cost) }}</dd></div>
           </dl>
           <button v-if="can('adjustPrice') && !closed" class="btn-soft mt-3 w-full" @click="openAdj"><AppIcon name="tag" :size="16" /> ปรับราคา / ส่วนลด</button>
         </section>

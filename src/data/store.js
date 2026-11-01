@@ -63,14 +63,15 @@ export const db = reactive({
 
   // วัตถุดิบ (ตัวอย่าง)
   ingredients: [
-    { id: 'm1', name: 'แป้งเค้ก', unit: 'g', active: true },
-    { id: 'm2', name: 'น้ำตาลทราย', unit: 'g', active: true },
-    { id: 'm3', name: 'ไข่ไก่', unit: 'ฟอง', active: true },
-    { id: 'm4', name: 'เนยจืด', unit: 'g', active: true },
-    { id: 'm5', name: 'วิปปิ้งครีม', unit: 'ml', active: true },
-    { id: 'm6', name: 'ผงโกโก้', unit: 'g', active: true },
-    { id: 'm7', name: 'สตรอว์เบอร์รีสด', unit: 'g', active: true },
-    { id: 'm8', name: 'กล่องเค้ก', unit: 'ใบ', active: true },
+    // ต้นทุน: packSize = ขนาดแพ็ก (หน่วยเดียวกับ unit), packPrice = ราคาต่อแพ็ก
+    { id: 'm1', name: 'แป้งเค้ก', unit: 'g', packSize: 1000, packPrice: 45, active: true },
+    { id: 'm2', name: 'น้ำตาลทราย', unit: 'g', packSize: 1000, packPrice: 28, active: true },
+    { id: 'm3', name: 'ไข่ไก่', unit: 'ฟอง', packSize: 30, packPrice: 120, active: true },
+    { id: 'm4', name: 'เนยจืด', unit: 'g', packSize: 454, packPrice: 135, active: true },
+    { id: 'm5', name: 'วิปปิ้งครีม', unit: 'ml', packSize: 1000, packPrice: 190, active: true },
+    { id: 'm6', name: 'ผงโกโก้', unit: 'g', packSize: 500, packPrice: 160, active: true },
+    { id: 'm7', name: 'สตรอว์เบอร์รีสด', unit: 'g', packSize: 1000, packPrice: 250, active: true },
+    { id: 'm8', name: 'กล่องเค้ก', unit: 'ใบ', packSize: 50, packPrice: 500, active: true },
   ],
 
   // เค้กสำเร็จ (recipe = สูตรวัตถุดิบ ตัวเลขตัวอย่าง)
@@ -196,7 +197,7 @@ export function saveCustomer(d) {
   return c
 }
 export const savePriceList = (d) => upsert(db.priceLists, 'pl', d)
-export const saveIngredient = (d) => upsert(db.ingredients, 'm', d)
+export const saveIngredient = (d) => upsert(db.ingredients, 'm', { ...d, packSize: Number(d.packSize) || 0, packPrice: Number(d.packPrice) || 0 })
 export const saveProduct = (d) => upsert(db.products, 'p', { ...d, price: Number(d.price) || 0, pounds: Number(d.pounds) || 1, recipe: cleanRecipe(d.recipe), special: cleanSpecial(d.special) })
 export const saveUser = (d) => upsert(db.users, 'u', d)
 export const findGroup = (id) => db.optionGroups.find((g) => g.id === id)

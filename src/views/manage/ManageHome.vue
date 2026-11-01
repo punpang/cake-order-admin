@@ -11,6 +11,7 @@ const items = computed(() => [
   { to: '/manage/products', icon: 'cake', title: 'สินค้า (เค้กสำเร็จ)', desc: `${activeCount(db.products)} รายการที่ใช้งาน` },
   { to: '/manage/options', icon: 'tag', title: 'ตัวเลือก + ราคา', desc: `${activeCount(db.optionGroups)} กลุ่มที่ใช้งาน` },
   { to: '/manage/pricing', icon: 'wallet', title: 'การกำหนดราคา', desc: `${activeCount(db.priceLists)} แบบราคาพิเศษที่ใช้งาน` },
+  { to: '/manage/profit', icon: 'wallet', title: 'สรุปกำไร', desc: 'ยอดขาย − ต้นทุนวัตถุดิบ ตามช่วงวัน' },
   { to: '/manage/loyalty', icon: 'tag', title: 'คะแนน & รางวัล', desc: `${activeCount(db.rewards)} ของแลก · ${activeCount(db.gachaPrizes)} รางวัลกาชา` },
   { to: '/member', icon: 'user', title: 'หน้าลูกค้า (จำลอง)', desc: 'คะแนน แลกของ หมุนกาชา' },
   { to: '/manage/ingredients', icon: 'basket', title: 'วัตถุดิบ', desc: `${activeCount(db.ingredients)} รายการที่ใช้งาน` },

@@ -79,7 +79,7 @@ async function save() {
           <div><label class="label">ราคา (บาท)</label><input v-model.number="form.price" type="number" inputmode="numeric" min="0" class="input" /></div>
         </div>
         <SpecialPriceEditor v-model="form.special" />
-        <RecipeEditor v-model="form.recipe" />
+        <RecipeEditor v-model="form.recipe" :pounds="Number(form.pounds) || 0" :price="Number(form.price) || 0" />
         <AppSwitch v-model="form.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" />
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </div>

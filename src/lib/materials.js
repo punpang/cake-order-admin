@@ -97,3 +97,26 @@ export function prepList(orders, groups, products) {
     groups: prepGroups.filter((g) => sets[g.id]).map((g) => ({ id: g.id, name: g.name, rows: sort(Object.values(sets[g.id])) })),
   }
 }
+
+// ---------- ต้นทุน ----------
+// ต้นทุนต่อ 1 หน่วยของวัตถุดิบ = ราคาต่อแพ็ก / ขนาดแพ็ก
+export const unitCost = (m) => (m && m.packSize > 0 ? (Number(m.packPrice) || 0) / m.packSize : 0)
+
+// ต้นทุนของปริมาณวัตถุดิบ { ingredientId: ปริมาณ }
+export const costOf = (amounts, ingredients) =>
+  Object.entries(amounts).reduce((s, [id, n]) => s + n * unitCost(ingredients.find((m) => m.id === id)), 0)
+
+// ต้นทุนวัตถุดิบของออร์เดอร์
+export const orderCost = (order, groups, products, ingredients) => costOf(ordersMaterials([order], groups, products), ingredients)
+
+// ต้นทุนของสูตร แยก ต่อปอนด์ / ต่อชิ้น
+export function recipeCost(recipe, ingredients) {
+  let perPound = 0
+  let perPiece = 0
+  for (const l of recipe || []) {
+    const c = (Number(l.qty) || 0) * unitCost(ingredients.find((m) => m.id === l.ingredientId))
+    if (l.per === 'piece') perPiece += c
+    else perPound += c
+  }
+  return { perPound, perPiece }
+}

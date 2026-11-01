@@ -4,9 +4,14 @@ import { db } from '../data/store'
 import { RECIPE_PER } from '../lib/constants'
 import AppIcon from './AppIcon.vue'
 import { askConfirm } from '../lib/confirm'
+import { recipeCost } from '../lib/materials'
+import { money } from '../lib/format'
 
 // v-model = [{ ingredientId, qty, per: 'pound' | 'piece' }]
 const recipe = defineModel({ type: Array, default: () => [] })
+const props = defineProps({ pounds: { type: Number, default: 0 }, price: { type: Number, default: null } }) // ใส่เมื่อเป็นเค้กสำเร็จ
+const cost = computed(() => recipeCost(recipe.value, db.ingredients))
+const total = computed(() => cost.value.perPound * props.pounds + cost.value.perPiece)
 
 const choices = computed(() => db.ingredients.filter((m) => m.active !== false || recipe.value.some((x) => x.ingredientId === m.id)))
 const unitOf = (id) => db.ingredients.find((m) => m.id === id)?.unit || ''
@@ -54,6 +59,11 @@ async function remove(i) {
       </div>
       <button type="button" class="btn-soft mt-2 w-full" @click="add"><AppIcon name="plus" :size="16" /> เพิ่มวัตถุดิบ</button>
       <p class="mt-1 text-xs text-stone-400">ต่อปอนด์ = คูณขนาดเค้ก · ต่อชิ้น = ใช้เท่าเดิมทุกขนาด</p>
+      <div v-if="recipe.length" class="mt-2 rounded-xl bg-stone-50 p-2.5 text-sm text-stone-700">
+        ต้นทุน {{ money(cost.perPound) }}/ปอนด์ + {{ money(cost.perPiece) }}/ชิ้น
+        <template v-if="pounds"> = <b>{{ money(total) }}</b> ({{ pounds }} ปอนด์)</template>
+        <template v-if="pounds && price != null"> · กำไร <b :class="price - total >= 0 ? 'text-emerald-700' : 'text-rose-600'">{{ money(price - total) }}</b></template>
+      </div>
     </template>
   </div>
 </template>

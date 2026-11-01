@@ -75,6 +75,7 @@ function validate(i) {
   if (i === 0 && !form.customerId) return 'เลือกลูกค้า'
   if (i === 1) {
     if (!form.date || !form.time) return 'เลือกวันและเวลานัดรับ'
+    if (new Date(pickupAt.value) <= new Date()) return 'เวลานัดต้องมากกว่าเวลาปัจจุบัน'
     if (form.fulfillment === 'delivery' && !form.address.trim()) return 'กรอกที่อยู่จัดส่ง'
   }
   if (i === 2 && !form.items.length) return 'เพิ่มสินค้าอย่างน้อย 1 รายการ'
@@ -101,6 +102,13 @@ function goTo(i) {
   step.value = i
 }
 function submit(asDraft) {
+  // เวลาอาจผ่านไประหว่างกรอก ตรวจซ้ำก่อนบันทึก
+  const e = validate(1)
+  if (e) {
+    step.value = 1
+    error.value = e
+    return
+  }
   const o = createOrder({ ...form, pickupAt: pickupAt.value }, asDraft)
   router.replace(`/orders/${o.id}`)
 }
@@ -192,7 +200,7 @@ function submit(asDraft) {
       <div class="card">
         <div class="card-title"><AppIcon name="calendar" class="text-brand-600" /> วันเวลานัดรับ</div>
         <div class="grid grid-cols-2 gap-3">
-          <div class="min-w-0"><label class="label">วันที่</label><input v-model="form.date" type="date" class="input" /></div>
+          <div class="min-w-0"><label class="label">วันที่</label><input v-model="form.date" type="date" :min="toDateStr(new Date())" class="input" /></div>
           <div class="min-w-0"><label class="label">เวลา</label><input v-model="form.time" type="time" step="900" class="input" /></div>
         </div>
         <div

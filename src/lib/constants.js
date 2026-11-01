@@ -29,6 +29,7 @@ export const PERMISSIONS = {
   manage: ['admin'],
   viewMaterials: ['admin', 'baker'],
   editItems: ['admin'],
+  viewProfit: ['admin'], // ต้นทุน / กำไร
   useLoyalty: ['admin', 'sales'], // ใช้คะแนน/คูปองเป็นส่วนลดในออร์เดอร์
 }
 

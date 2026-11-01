@@ -11,6 +11,7 @@ import ManageUsers from './views/manage/ManageUsers.vue'
 import ManageIngredients from './views/manage/ManageIngredients.vue'
 import ManagePriceLists from './views/manage/ManagePriceLists.vue'
 import ManageLoyalty from './views/manage/ManageLoyalty.vue'
+import ManageProfit from './views/manage/ManageProfit.vue'
 import Member from './views/Member.vue'
 import Materials from './views/Materials.vue'
 
@@ -32,6 +33,7 @@ export default createRouter({
     { path: '/manage/ingredients', component: ManageIngredients },
     { path: '/manage/pricing', component: ManagePriceLists },
     { path: '/manage/loyalty', component: ManageLoyalty },
+    { path: '/manage/profit', component: ManageProfit },
     // หน้าลูกค้า (จำลอง ยังไม่มีล็อกอินลูกค้า)
     { path: '/member', component: Member, meta: { member: true } },
   ],

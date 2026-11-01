@@ -6,6 +6,7 @@ import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
+import { unitCost } from '../../lib/materials'
 
 const q = ref('')
 const inactive = ref(false)
@@ -20,11 +21,12 @@ const list = computed(() => {
 const UNITS = ['g', 'kg', 'ml', 'l', 'ฟอง', 'ชิ้น', 'ใบ']
 
 const open = ref(false)
-const blank = () => ({ id: null, name: '', unit: 'g', active: true })
+const blank = () => ({ id: null, name: '', unit: 'g', packSize: 0, packPrice: 0, active: true })
+const costText = (m) => (m.packSize > 0 ? `${unitCost(m).toLocaleString('th-TH', { maximumFractionDigits: 4 })} ฿/${m.unit}` : 'ยังไม่ตั้งต้นทุน')
 const form = reactive(blank())
 const error = ref('')
 function edit(m) {
-  Object.assign(form, m ? { ...m } : blank())
+  Object.assign(form, m ? { ...blank(), ...m } : blank())
   error.value = ''
   open.value = true
 }
@@ -61,7 +63,10 @@ async function save() {
           <span class="truncate font-medium text-stone-900">{{ m.name }}</span>
           <span v-if="m.active === false" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
         </span>
-        <span class="shrink-0 text-sm text-stone-500">{{ m.unit }}</span>
+        <span class="shrink-0 text-right text-sm leading-tight">
+          <span class="block text-stone-500">{{ m.unit }}</span>
+          <span class="block text-xs" :class="m.packSize > 0 ? 'text-stone-400' : 'text-amber-600'">{{ costText(m) }}</span>
+        </span>
       </button>
     </div>
 
@@ -72,6 +77,14 @@ async function save() {
           <label class="label">หน่วย <span class="text-rose-500">*</span></label>
           <input v-model="form.unit" class="input" list="unit-list" />
           <datalist id="unit-list"><option v-for="u in UNITS" :key="u" :value="u" /></datalist>
+        </div>
+        <div>
+          <div class="label">ต้นทุน (ราคาต่อแพ็ก)</div>
+          <div class="grid grid-cols-2 gap-3">
+            <div><label class="text-xs text-stone-500">ขนาดแพ็ก ({{ form.unit || 'หน่วย' }})</label><input v-model.number="form.packSize" type="number" inputmode="decimal" min="0" step="any" class="input" /></div>
+            <div><label class="text-xs text-stone-500">ราคาต่อแพ็ก (บาท)</label><input v-model.number="form.packPrice" type="number" inputmode="decimal" min="0" step="any" class="input" /></div>
+          </div>
+          <p class="mt-1 text-xs text-stone-500">= {{ costText(form) }}</p>
         </div>
         <AppSwitch v-model="form.active" label="ใช้งาน (เลือกใส่สูตรได้)" />
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
