@@ -5,6 +5,7 @@ import { PERMISSIONS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals } from '../lib/pricing'
 import { addDays, pointBalance, takePoints, returnPoints, couponUsable, pickPrize } from '../lib/loyalty'
 import { pad, toDateStr } from '../lib/format'
+import { nextBirthday, daysBetween } from '../lib/birthday'
 
 let seq = 1000
 const uid = (p) => `${p}${++seq}`
@@ -35,7 +36,10 @@ export const db = reactive({
   ],
 
   // ตั้งค่าร้าน: เวลานัดรับ ทุก slotMinutes นาที ระหว่าง open–close, nearbyHours = ค่าเริ่มต้นช่วงดูออร์เดอร์ก่อน/หลัง (0 = ทั้งวัน)
-  shop: { slotMinutes: 30, open: '09:00', close: '20:00', nearbyHours: 2 },
+  // leadPickup / leadDelivery = ต้องเสร็จก่อนนัดกี่นาที (ตารางผลิต), depositPercent = มัดจำขั้นต่ำ % (0 = ไม่ใช้), birthdayDays = เตือนวันเกิดล่วงหน้ากี่วัน
+  shop: { slotMinutes: 30, open: '09:00', close: '20:00', nearbyHours: 2, leadPickup: 60, leadDelivery: 120, depositPercent: 50, birthdayDays: 14 },
+  // เตือนวันเกิด: key ที่กด "ทักแล้ว" (ลูกค้า|ชื่อ|MM-DD|ปี)
+  birthdayGreeted: [],
 
   // ---------- คะแนนสะสม / แลกของ / กาชา ----------
   // earnPer = ทุกกี่บาทได้ 1 คะแนน, pointValue = 1 คะแนนลดได้กี่บาท, spinCost = คะแนนต่อการหมุน 1 ครั้ง, spinPer = ทุกกี่บาทได้สิทธิ์หมุน 1 ครั้ง
@@ -251,6 +255,7 @@ export function createOrder(payload, asDraft = false) {
     customerId: payload.customerId,
     pickupAt: payload.pickupAt,
     fulfillment: payload.fulfillment,
+    birthday: payload.birthday?.md ? { name: payload.birthday.name || '', md: payload.birthday.md } : null, // { name, md: 'MM-DD' }
     address: payload.fulfillment === 'delivery' ? payload.address : '',
     shippingFee: payload.fulfillment === 'delivery' ? Number(payload.shippingFee) || 0 : 0,
     items: payload.items.map((i) => priceItem(i)),
@@ -372,6 +377,72 @@ export function saveShopSettings(d) {
   db.shop.open = d.open || '09:00'
   db.shop.close = d.close || '20:00'
   db.shop.nearbyHours = Math.max(0, Number(d.nearbyHours) || 0)
+  db.shop.leadPickup = Math.max(0, Number(d.leadPickup) || 0)
+  db.shop.leadDelivery = Math.max(0, Number(d.leadDelivery) || 0)
+  db.shop.depositPercent = Math.min(100, Math.max(0, Number(d.depositPercent) || 0))
+  db.shop.birthdayDays = Math.max(0, Number(d.birthdayDays) || 0)
+}
+
+// แก้วันเวลานัด (หน้ารายละเอียด)
+export function setPickup(order, pickupAt) {
+  if (order.pickupAt === pickupAt) return
+  const fmt = (s) => s.replace('T', ' ')
+  log(order, `เปลี่ยนวันนัด ${fmt(order.pickupAt)} → ${fmt(pickupAt)}`)
+  order.pickupAt = pickupAt
+}
+
+// วันเกิดในออร์เดอร์ (null = ไม่มี)
+export function setBirthday(order, b) {
+  order.birthday = b?.md ? { name: b.name || '', md: b.md } : null
+  log(order, order.birthday ? `บันทึกวันเกิด ${order.birthday.name || ''} ${order.birthday.md}`.replace('  ', ' ') : 'ลบวันเกิด')
+}
+
+// เวลาที่ต้องทำเสร็จ = เวลานัด − เวลาเผื่อ (รับที่ร้าน / จัดส่ง)
+export function dueAt(order) {
+  const lead = order.fulfillment === 'delivery' ? db.shop.leadDelivery : db.shop.leadPickup
+  const d = new Date(order.pickupAt)
+  d.setMinutes(d.getMinutes() - (Number(lead) || 0))
+  return d
+}
+
+// มัดจำขั้นต่ำของออร์เดอร์ (ปัดขึ้นเป็นบาท)
+export const depositOf = (total) => Math.ceil((Math.max(total, 0) * (Number(db.shop.depositPercent) || 0)) / 100)
+
+// ---------- วันเกิด ----------
+const bdKey = (b, year) => `${b.customerId}|${b.name}|${b.md}|${year}`
+
+// วันเกิดจากออร์เดอร์ (ไม่นับยกเลิก) ไม่ซ้ำตาม ลูกค้า + ชื่อ + วัน ใช้ออร์เดอร์ล่าสุด
+export function birthdayList(customerId = null) {
+  const map = new Map()
+  for (const o of db.orders) {
+    if (!o.birthday?.md || o.status === 'cancelled') continue
+    if (customerId && o.customerId !== customerId) continue
+    const name = (o.birthday.name || '').trim()
+    const k = `${o.customerId}|${name}|${o.birthday.md}`
+    const cur = map.get(k)
+    if (!cur || cur.order.pickupAt < o.pickupAt) map.set(k, { customerId: o.customerId, name, md: o.birthday.md, order: o })
+  }
+  return [...map.values()]
+}
+
+// วันเกิดที่จะถึงภายใน days วัน (วันนี้ = 0) เรียงใกล้สุดก่อน
+export function upcomingBirthdays(days = db.shop.birthdayDays) {
+  const today = toDateStr(new Date())
+  return birthdayList()
+    .map((b) => {
+      const date = nextBirthday(b.md)
+      const year = Number(date.slice(0, 4))
+      return { ...b, date, inDays: daysBetween(today, date), greeted: db.birthdayGreeted.includes(bdKey(b, year)), year }
+    })
+    .filter((b) => b.inDays <= days)
+    .sort((a, b) => a.inDays - b.inDays)
+}
+
+export function setGreeted(b, on) {
+  const k = bdKey(b, b.year)
+  const i = db.birthdayGreeted.indexOf(k)
+  if (on && i < 0) db.birthdayGreeted.push(k)
+  if (!on && i >= 0) db.birthdayGreeted.splice(i, 1)
 }
 
 // เวลานัดที่เลือกได้ของวัน (HH:MM) ตามช่วงเวลา และตัดเวลาที่ผ่านไปแล้ว
@@ -543,7 +614,7 @@ export function saveLoyaltySettings(d) {
 // ---------- ออร์เดอร์ตัวอย่าง ----------
 function seed() {
   const o1 = createOrder({
-    customerId: 'c1', pickupAt: at(1, 14), fulfillment: 'pickup',
+    customerId: 'c1', pickupAt: at(1, 14), fulfillment: 'pickup', birthday: { name: 'แม่', md: at(5, 0).slice(5, 10) },
     items: [{ id: uid('i'), kind: 'custom', name: 'วิปครีม · ช็อกโกแลต · 2 ปอนด์', qty: 1, note: 'ตามรูปตัวอย่าง', images: [],
       tiers: [{ selections: { g_size: 's2', g_sponge: 'sp2', g_filling: ['f2'], g_frosting: 'fr1', g_shape: 'sh3', g_color: 'ชมพูพาสเทล', g_topping: ['tp2'] } }],
       selections: { g_message: 'HBD แม่ 60 ปี', g_extra: ['x2'] } }],

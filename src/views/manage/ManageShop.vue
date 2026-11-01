@@ -10,10 +10,13 @@ const error = ref('')
 const saved = ref(false)
 const STEPS = [15, 30, 60]
 const NEAR = [1, 2, 3, 6, 0]
+const num = (v) => Number(v) >= 0 && v !== ''
 
 function save() {
   if (!st.open || !st.close || st.close <= st.open) return (error.value = 'เวลาปิดต้องหลังเวลาเปิด')
   if (!(Number(st.slotMinutes) >= 5)) return (error.value = 'ช่วงเวลาต้องอย่างน้อย 5 นาที')
+  if (![st.leadPickup, st.leadDelivery, st.birthdayDays].every(num)) return (error.value = 'กรอกตัวเลขตั้งแต่ 0 ขึ้นไป')
+  if (!num(st.depositPercent) || Number(st.depositPercent) > 100) return (error.value = 'มัดจำต้องอยู่ระหว่าง 0–100%')
   error.value = ''
   saveShopSettings(st)
   Object.assign(st, db.shop)
@@ -43,6 +46,20 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         <div class="label">ค่าเริ่มต้น ช่วงดูออร์เดอร์ก่อน/หลัง ตอนเลือกเวลา</div>
         <div class="flex flex-wrap gap-2">
           <button v-for="h in NEAR" :key="h" type="button" class="chip" :class="Number(st.nearbyHours) === h ? 'chip-on' : 'chip-off'" @click="st.nearbyHours = h">{{ h ? `±${h} ชม.` : 'ทั้งวัน' }}</button>
+        </div>
+      </div>
+      <div class="border-t border-stone-100 pt-4">
+        <div class="card-title mb-3"><AppIcon name="cake" class="text-brand-600" /> ตารางผลิต · ต้องเสร็จก่อนนัด (นาที)</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="label">รับที่ร้าน</label><input v-model.number="st.leadPickup" type="number" inputmode="numeric" min="0" step="5" class="input" /></div>
+          <div><label class="label">จัดส่ง</label><input v-model.number="st.leadDelivery" type="number" inputmode="numeric" min="0" step="5" class="input" /></div>
+        </div>
+      </div>
+      <div class="border-t border-stone-100 pt-4">
+        <div class="card-title mb-3"><AppIcon name="wallet" class="text-brand-600" /> มัดจำ / วันเกิด</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="label">มัดจำขั้นต่ำ (%) <span class="font-normal text-stone-400">0 = ไม่ใช้</span></label><input v-model.number="st.depositPercent" type="number" inputmode="numeric" min="0" max="100" class="input" /></div>
+          <div><label class="label">เตือนวันเกิดล่วงหน้า (วัน)</label><input v-model.number="st.birthdayDays" type="number" inputmode="numeric" min="0" class="input" /></div>
         </div>
       </div>
       <p v-if="error" class="text-sm text-rose-600">{{ error }}</p>

@@ -5,6 +5,7 @@ import { MATERIAL_STATUSES, STATUS } from '../lib/constants'
 import { ordersMaterials, prepList } from '../lib/materials'
 import { qty, toDateStr } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
+import KitchenTabs from '../components/KitchenTabs.vue'
 
 const tab = ref('prep')
 const today = toDateStr(new Date())
@@ -54,6 +55,7 @@ function setFrom(v) {
   </div>
 
   <div v-else class="mx-auto max-w-4xl">
+    <KitchenTabs />
     <h1 class="mb-4 text-xl font-bold tracking-tight text-stone-900">วัตถุดิบที่ต้องเตรียม</h1>
 
     <section class="card mb-4 space-y-3">

@@ -15,6 +15,8 @@ import ManageProfit from './views/manage/ManageProfit.vue'
 import ManageShop from './views/manage/ManageShop.vue'
 import Member from './views/Member.vue'
 import Materials from './views/Materials.vue'
+import Production from './views/Production.vue'
+import ManageBirthdays from './views/manage/ManageBirthdays.vue'
 
 // meta.focus = หน้าที่มีแถบปุ่มของตัวเอง ซ่อนแถบเมนูล่างบนมือถือ
 export default createRouter({
@@ -25,6 +27,7 @@ export default createRouter({
     { path: '/orders/new', component: OrderCreate, meta: { focus: true } },
     { path: '/orders/:id', component: OrderDetail, props: true, meta: { focus: true } },
     { path: '/materials', component: Materials },
+    { path: '/production', component: Production },
     { path: '/manage', component: ManageHome },
     { path: '/manage/customers', component: ManageCustomers },
     { path: '/manage/products', component: ManageProducts },
@@ -36,6 +39,7 @@ export default createRouter({
     { path: '/manage/loyalty', component: ManageLoyalty },
     { path: '/manage/profit', component: ManageProfit },
     { path: '/manage/shop', component: ManageShop },
+    { path: '/manage/birthdays', component: ManageBirthdays },
     // หน้าลูกค้า (จำลอง ยังไม่มีล็อกอินลูกค้า)
     { path: '/member', component: Member, meta: { member: true } },
   ],

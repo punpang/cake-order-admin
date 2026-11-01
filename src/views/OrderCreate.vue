@@ -8,6 +8,8 @@ import { money, dateTime, timeOnly, toDateStr } from '../lib/format'
 import ItemEditor from '../components/ItemEditor.vue'
 import ItemCard from '../components/ItemCard.vue'
 import AppIcon from '../components/AppIcon.vue'
+import BirthdayFields from '../components/BirthdayFields.vue'
+import { parseBirthday, mdLabel } from '../lib/birthday'
 
 const router = useRouter()
 const steps = ['ลูกค้า', 'นัดรับ', 'สินค้า', 'สรุป']
@@ -22,7 +24,9 @@ const form = reactive({
   address: '',
   shippingFee: 0,
   items: [],
+  birthday: { name: '', day: '', month: '' }, // วันเกิด (ไม่บังคับ)
 })
+const birthday = computed(() => parseBirthday(form.birthday).value)
 
 // ---------- ขั้น 1 ลูกค้า ----------
 const q = ref('')
@@ -84,6 +88,8 @@ function validate(i) {
     if (!form.date || !form.time) return 'เลือกวันและเวลานัดรับ'
     if (new Date(pickupAt.value) <= new Date()) return 'เวลานัดต้องมากกว่าเวลาปัจจุบัน'
     if (form.fulfillment === 'delivery' && !form.address.trim()) return 'กรอกที่อยู่จัดส่ง'
+    const bd = parseBirthday(form.birthday)
+    if (bd.error) return bd.error
   }
   if (i === 2 && !form.items.length) return 'เพิ่มสินค้าอย่างน้อย 1 รายการ'
   return ''
@@ -116,7 +122,7 @@ function submit(asDraft) {
     error.value = e
     return
   }
-  const o = createOrder({ ...form, pickupAt: pickupAt.value }, asDraft)
+  const o = createOrder({ ...form, pickupAt: pickupAt.value, birthday: birthday.value }, asDraft)
   router.replace(`/orders/${o.id}`)
 }
 </script>
@@ -275,6 +281,11 @@ function submit(asDraft) {
           <div class="max-w-[12rem]"><label class="label">ค่าส่ง (บาท)</label><input v-model.number="form.shippingFee" type="number" inputmode="numeric" min="0" class="input" /></div>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-title"><AppIcon name="cake" class="text-brand-600" /> วันเกิด <span class="font-normal text-stone-400">(ไม่บังคับ ใช้เตือนปีถัดไป)</span></div>
+        <BirthdayFields v-model="form.birthday" />
+      </div>
     </section>
 
     <!-- 3 สินค้า -->
@@ -317,6 +328,7 @@ function submit(asDraft) {
             <div v-if="form.fulfillment === 'delivery'" class="text-sm break-words text-stone-500">{{ form.address }}</div>
           </div>
         </div>
+        <div v-if="birthday" class="text-sm text-stone-600 sm:col-span-2">วันเกิด {{ birthday.name }} · {{ mdLabel(birthday.md) }}</div>
       </div>
 
       <ItemCard v-for="it in form.items" :key="it.id" :item="it" />

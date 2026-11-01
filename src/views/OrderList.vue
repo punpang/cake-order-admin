@@ -1,15 +1,47 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { db, session, can, findCustomer } from '../data/store'
+import { db, session, can, findCustomer, upcomingBirthdays } from '../data/store'
 import { STATUS, VISIBLE } from '../lib/constants'
-import { orderTotals } from '../lib/pricing'
+import { orderTotals, describeSelections } from '../lib/pricing'
 import { money, timeOnly, dayLabel, dateOnly } from '../lib/format'
 import StatusBadge from '../components/StatusBadge.vue'
 import AppIcon from '../components/AppIcon.vue'
+import AppModal from '../components/AppModal.vue'
+import BirthdayList from '../components/BirthdayList.vue'
 
 const status = ref('')
-const date = ref('')
+const from = ref('')
+const to = ref('')
 const q = ref('')
+const fulfill = ref('') // '' | pickup | delivery
+const payState = ref('') // '' | due | paid | over
+const PAY_FILTERS = [{ v: 'due', l: 'ค้างชำระ' }, { v: 'paid', l: 'ชำระครบ' }, { v: 'over', l: 'ชำระเกิน' }]
+function setFrom(v) {
+  from.value = v
+  if (v && to.value && to.value < v) to.value = v
+}
+const hasDate = computed(() => from.value || to.value)
+
+// ข้อความที่ค้นหาได้: เลขออร์เดอร์, ชื่อ, เบอร์, LINE, ชื่อเค้ก, ตัวเลือก/ข้อความบนเค้ก, เจ้าของวันเกิด
+function searchText(o) {
+  const c = findCustomer(o.customerId)
+  const parts = [o.code, c?.name, c?.phone, c?.line, o.birthday?.name]
+  for (const i of o.items) {
+    parts.push(i.name, i.note)
+    for (const d of describeSelections(i, db.optionGroups)) parts.push(d.value)
+  }
+  return parts.filter(Boolean).join(' ').toLowerCase()
+}
+function payMatch(o) {
+  if (!payState.value) return true
+  if (o.status === 'cancelled') return false
+  const b = orderTotals(o).balance
+  return payState.value === 'due' ? b > 0 : payState.value === 'paid' ? b === 0 : b < 0
+}
+
+// เตือนวันเกิด (แอดมิน + ขาย)
+const birthdays = computed(() => (can('birthdays') ? upcomingBirthdays().filter((b) => !b.greeted) : []))
+const bdOpen = ref(false)
 
 const visible = computed(() => {
   const f = VISIBLE[session.role]
@@ -26,12 +58,11 @@ const list = computed(() => {
   const s = q.value.trim().toLowerCase()
   return visible.value
     .filter((o) => !status.value || o.status === status.value)
-    .filter((o) => !date.value || o.pickupAt.startsWith(date.value))
-    .filter((o) => {
-      if (!s) return true
-      const c = findCustomer(o.customerId)
-      return [o.code, c?.name, c?.phone].some((v) => v?.toLowerCase().includes(s))
-    })
+    .filter((o) => !from.value || o.pickupAt.slice(0, 10) >= from.value)
+    .filter((o) => !to.value || o.pickupAt.slice(0, 10) <= to.value)
+    .filter((o) => !fulfill.value || o.fulfillment === fulfill.value)
+    .filter(payMatch)
+    .filter((o) => !s || searchText(o).includes(s))
     .slice()
     .sort((a, b) => a.pickupAt.localeCompare(b.pickupAt))
 })
@@ -70,15 +101,35 @@ const paidPct = (t) => (t.total > 0 ? Math.min(100, Math.round((t.paid / t.total
       </RouterLink>
     </div>
 
-    <!-- ค้นหา + วันที่ -->
-    <div class="card mb-3 grid grid-cols-1 gap-2 p-3 sm:grid-cols-[1fr_auto]">
+    <!-- เตือนวันเกิด -->
+    <button v-if="birthdays.length" class="card mb-3 flex w-full items-center gap-3 p-3 text-left transition hover:border-brand-300 active:scale-[0.99]" @click="bdOpen = true">
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600"><AppIcon name="cake" :size="20" /></span>
+      <span class="min-w-0 flex-1">
+        <span class="block font-semibold text-stone-900">วันเกิดใกล้ถึง {{ birthdays.length }} คน</span>
+        <span class="block truncate text-sm text-stone-500">ภายใน {{ db.shop.birthdayDays }} วัน · {{ birthdays.map((b) => b.name || findCustomer(b.customerId)?.name).join(', ') }}</span>
+      </span>
+      <AppIcon name="next" class="text-stone-300" />
+    </button>
+
+    <!-- ค้นหา + ตัวกรอง -->
+    <div class="card mb-3 space-y-2 p-3">
       <label class="relative block min-w-0">
         <AppIcon name="search" class="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-stone-400" />
-        <input v-model="q" class="input pl-10" placeholder="ค้นหา เลขออร์เดอร์ / ชื่อ / เบอร์" />
+        <input v-model="q" class="input pl-10" placeholder="ค้นหา เลขออร์เดอร์ / ชื่อ / เบอร์ / LINE / เค้ก / ข้อความ" />
       </label>
-      <div class="flex min-w-0 gap-2">
-        <input v-model="date" type="date" class="input sm:w-44" aria-label="วันนัดรับ" />
-        <button v-if="date" class="btn-outline px-3" aria-label="ล้างวันที่" @click="date = ''"><AppIcon name="x" /></button>
+      <div class="flex min-w-0 items-end gap-2">
+        <div class="grid min-w-0 flex-1 grid-cols-2 gap-2">
+          <div class="min-w-0"><label class="mb-0.5 block text-xs text-stone-500">นัดรับตั้งแต่</label><input :value="from" type="date" class="input" @input="setFrom($event.target.value)" /></div>
+          <div class="min-w-0"><label class="mb-0.5 block text-xs text-stone-500">ถึง</label><input v-model="to" type="date" :min="from" class="input" /></div>
+        </div>
+        <button v-if="hasDate" class="btn-outline shrink-0 px-3" aria-label="ล้างวันที่" @click="from = ''; to = ''"><AppIcon name="x" /></button>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button v-for="f in [{ v: '', l: 'ส่งมอบทั้งหมด' }, { v: 'pickup', l: 'รับที่ร้าน' }, { v: 'delivery', l: 'จัดส่ง' }]" :key="f.v" type="button" class="chip" :class="fulfill === f.v ? 'chip-on' : 'chip-off'" @click="fulfill = f.v">{{ f.l }}</button>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" class="chip" :class="!payState ? 'chip-on' : 'chip-off'" @click="payState = ''">ชำระทั้งหมด</button>
+        <button v-for="f in PAY_FILTERS" :key="f.v" type="button" class="chip" :class="payState === f.v ? 'chip-on' : 'chip-off'" @click="payState = f.v">{{ f.l }}</button>
       </div>
     </div>
 
@@ -164,5 +215,9 @@ const paidPct = (t) => (t.total > 0 ? Math.min(100, Math.round((t.paid / t.total
         </RouterLink>
       </div>
     </section>
+
+    <AppModal v-if="bdOpen" title="เตือนวันเกิด" @close="bdOpen = false">
+      <BirthdayList />
+    </AppModal>
   </div>
 </template>

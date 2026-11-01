@@ -31,6 +31,8 @@ export const PERMISSIONS = {
   editItems: ['admin'],
   viewProfit: ['admin'], // ต้นทุน / กำไร
   useLoyalty: ['admin', 'sales'], // ใช้คะแนน/คูปองเป็นส่วนลดในออร์เดอร์
+  editPickup: ['admin', 'sales'], // แก้วันเวลานัด (ก่อนส่งมอบ) / วันเกิดในออร์เดอร์
+  birthdays: ['admin', 'sales'], // ดูรายชื่อเตือนวันเกิด
 }
 
 // สถานะที่แต่ละบทบาทเห็นในรายการ (null = เห็นทั้งหมด)

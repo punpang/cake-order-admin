@@ -25,6 +25,7 @@ const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('viewMat
         <RouterLink to="/orders" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ออร์เดอร์</RouterLink>
         <RouterLink v-if="can('createOrder')" to="/orders/new" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">สร้างออร์เดอร์</RouterLink>
         <RouterLink v-if="can('viewMaterials')" to="/materials" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">วัตถุดิบ</RouterLink>
+        <RouterLink v-if="can('viewMaterials')" to="/production" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ตารางผลิต</RouterLink>
         <RouterLink v-if="can('manage')" to="/manage" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">จัดการ</RouterLink>
       </nav>
 
@@ -57,9 +58,14 @@ const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('viewMat
         <span class="flex h-8 w-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-md shadow-brand-600/30"><AppIcon name="plus" :size="20" /></span>
         สร้าง
       </RouterLink>
-      <RouterLink v-if="can('viewMaterials')" to="/materials" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" exact-active-class="text-brand-700!">
+      <RouterLink
+        v-if="can('viewMaterials')"
+        to="/materials"
+        class="flex flex-col items-center gap-0.5 text-[11px] font-medium"
+        :class="['/materials', '/production'].includes($route.path) ? 'text-brand-700' : 'text-stone-500'"
+      >
         <AppIcon name="basket" :size="22" />
-        วัตถุดิบ
+        ครัว
       </RouterLink>
       <RouterLink v-if="can('manage')" to="/manage" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
         <AppIcon name="grid" :size="22" />

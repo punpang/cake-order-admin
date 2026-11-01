@@ -5,6 +5,7 @@ import {
   updatePaymentRequest, cancelPaymentRequest,
   saveOrderItem, removeOrderItem, orderDate,
   db, customerPoints, usableDiscountCoupons, applyPoints, removePoints, applyCoupon, removeCoupon,
+  setBirthday, depositOf,
 } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { askConfirm } from '../lib/confirm'
@@ -16,6 +17,9 @@ import ItemCard from '../components/ItemCard.vue'
 import ItemEditor from '../components/ItemEditor.vue'
 import AppModal from '../components/AppModal.vue'
 import AppIcon from '../components/AppIcon.vue'
+import PickupModal from '../components/PickupModal.vue'
+import BirthdayFields from '../components/BirthdayFields.vue'
+import { parseBirthday, toForm, mdLabel } from '../lib/birthday'
 
 const props = defineProps({ id: { type: String, required: true } })
 const order = computed(() => findOrder(props.id))
@@ -60,12 +64,19 @@ const payTarget = ref(null)
 const pay = reactive({ amount: 0, method: PAYMENT_METHODS[0], paidAt: '', slip: '', note: '' })
 const payError = ref('')
 const PAY_TITLE = { new: 'แจ้งยอดชำระ', edit: 'แก้ยอดที่แจ้ง', confirm: 'ยืนยันยอดชำระ' }
+// มัดจำ: แจ้งยอดงวดแรก (ยังไม่มีงวดที่แจ้ง/ยืนยัน) เติมยอดมัดจำให้ แก้ได้
+const fullAmount = computed(() => Math.max(t.value.balance - t.value.reported, 0))
+const depositAmount = computed(() => Math.min(depositOf(t.value.total), fullAmount.value))
+const showDeposit = computed(() =>
+  payMode.value === 'new' && db.shop.depositPercent > 0 && !order.value.payments.some((x) => x.status !== 'cancelled') && depositAmount.value < fullAmount.value,
+)
 function openPay(mode = 'new', p = null) {
   payMode.value = mode
   payTarget.value = p
   Object.assign(pay, p
     ? { amount: p.requested ?? p.amount, method: p.method, paidAt: p.paidAt, slip: p.slip, note: p.note }
-    : { amount: Math.max(t.value.balance - t.value.reported, 0), method: PAYMENT_METHODS[0], paidAt: nowLocal(), slip: '', note: '' })
+    : { amount: fullAmount.value, method: PAYMENT_METHODS[0], paidAt: nowLocal(), slip: '', note: '' })
+  if (showDeposit.value) pay.amount = depositAmount.value
   payError.value = ''
   payOpen.value = true
 }
@@ -85,6 +96,25 @@ const PAY_BADGE = {
   reported: { t: 'รอลูกค้าชำระ', cls: 'bg-sky-50 text-sky-700' },
   confirmed: { t: 'ยืนยันแล้ว', cls: 'bg-emerald-50 text-emerald-700' },
   cancelled: { t: 'ยกเลิกแล้ว', cls: 'bg-stone-100 text-stone-500' },
+}
+
+// ---------- แก้วันเวลานัด / วันเกิด ----------
+const pickupOpen = ref(false)
+const canEditPickup = computed(() => can('editPickup') && !closed.value)
+const canEditBirthday = computed(() => can('editPickup') && order.value.status !== 'cancelled')
+const bdOpen = ref(false)
+const bd = ref({ name: '', day: '', month: '' })
+const bdError = ref('')
+function openBirthday() {
+  bd.value = toForm(order.value.birthday)
+  bdError.value = ''
+  bdOpen.value = true
+}
+function saveBirthday() {
+  const r = parseBirthday(bd.value)
+  if (r.error) return (bdError.value = r.error)
+  setBirthday(order.value, r.value)
+  bdOpen.value = false
 }
 
 // ---------- ปรับราคา ----------
@@ -199,6 +229,11 @@ async function saveCancel() {
               <div class="truncate font-semibold text-stone-900">{{ customer?.name }}</div>
               <div v-if="customer?.line" class="truncate text-sm text-stone-500">LINE {{ customer.line }}</div>
               <div v-if="customer?.note" class="mt-1 text-sm break-words text-stone-500">{{ customer.note }}</div>
+              <div v-if="order.birthday" class="mt-1 text-sm break-words text-stone-600">
+                วันเกิด {{ order.birthday.name }} · {{ mdLabel(order.birthday.md) }}
+                <button v-if="canEditBirthday" class="ml-1 text-brand-700 underline" @click="openBirthday">แก้</button>
+              </div>
+              <button v-else-if="canEditBirthday" class="mt-1 text-sm text-brand-700 underline" @click="openBirthday">+ เพิ่มวันเกิด</button>
             </div>
             <a
               v-if="customer?.phone"
@@ -221,6 +256,7 @@ async function saveCancel() {
               </div>
               <div class="mt-1.5 text-xs text-stone-400">วันเดียวกันมีอีก {{ load.day }} · ชั่วโมงเดียวกัน {{ load.hour }}</div>
             </div>
+            <button v-if="canEditPickup" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700" aria-label="แก้วันเวลานัด" @click="pickupOpen = true"><AppIcon name="edit" /></button>
           </div>
         </section>
 
@@ -427,6 +463,10 @@ async function saveCancel() {
           คงค้าง <b>{{ money(t.balance) }}</b><span v-if="t.reported"> · แจ้งยอดแล้ว {{ money(t.reported) }}</span>
         </div>
         <div><label class="label">{{ payMode === 'confirm' ? 'ยอดที่ได้รับจริง (บาท)' : 'ยอดที่แจ้งลูกค้า (บาท)' }}</label><input v-model.number="pay.amount" type="number" inputmode="decimal" min="0" class="input text-lg font-semibold" /></div>
+        <div v-if="showDeposit" class="flex flex-wrap gap-2">
+          <button type="button" class="chip" :class="pay.amount === depositAmount ? 'chip-on' : 'chip-off'" @click="pay.amount = depositAmount">มัดจำ {{ db.shop.depositPercent }}% · {{ money(depositAmount) }}</button>
+          <button type="button" class="chip" :class="pay.amount === fullAmount ? 'chip-on' : 'chip-off'" @click="pay.amount = fullAmount">เต็มจำนวน · {{ money(fullAmount) }}</button>
+        </div>
         <div>
           <div class="label">ช่องทาง</div>
           <div class="flex flex-wrap gap-2">
@@ -491,4 +531,14 @@ async function saveCancel() {
   </div>
 
   <ItemEditor v-if="editing" :item="editing.item || null" :price-date="orderDate(order)" @save="onSaveItem" @close="editing = null" />
+  <PickupModal v-if="pickupOpen && order" :order="order" @close="pickupOpen = false" />
+  <AppModal v-if="bdOpen" title="วันเกิด" @close="bdOpen = false">
+    <BirthdayFields v-model="bd" />
+    <p v-if="bdError" class="mt-3 text-sm text-rose-600">{{ bdError }}</p>
+    <template #footer>
+      <button v-if="order.birthday" class="btn-danger flex-1 sm:mr-auto sm:flex-none" @click="setBirthday(order, null); bdOpen = false">ลบ</button>
+      <button class="btn-outline flex-1 sm:flex-none" @click="bdOpen = false">ยกเลิก</button>
+      <button class="btn-primary flex-1 sm:flex-none" @click="saveBirthday">บันทึก</button>
+    </template>
+  </AppModal>
 </template>
