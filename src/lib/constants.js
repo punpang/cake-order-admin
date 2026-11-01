@@ -27,6 +27,7 @@ export const PERMISSIONS = {
   deliverPickup: ['admin', 'sales'],
   deliverShipping: ['admin', 'driver'],
   manage: ['admin'],
+  viewMaterials: ['admin', 'baker'],
 }
 
 // สถานะที่แต่ละบทบาทเห็นในรายการ (null = เห็นทั้งหมด)
@@ -43,3 +44,8 @@ export const PAYMENT_METHODS = ['โอนเงิน', 'เงินสด', '
 export const GROUP_TYPES = { single: 'เลือกได้ 1 อย่าง', multi: 'เลือกได้หลายอย่าง', text: 'พิมพ์ข้อความ' }
 export const APPLIES_TO = { custom: 'สั่งทำ', ready: 'เค้กสำเร็จ' }
 export const PRICE_TYPES = { fixed: 'บวกคงที่', per_pound: 'บวกต่อปอนด์' }
+
+// สูตรวัตถุดิบ
+export const RECIPE_PER = { pound: 'ต่อปอนด์', piece: 'ต่อชิ้น' }
+// สถานะที่นับรวมในหน้าสรุปวัตถุดิบ
+export const MATERIAL_STATUSES = ['draft', 'awaiting_payment', 'payment_reported', 'payment_confirmed', 'preparing']

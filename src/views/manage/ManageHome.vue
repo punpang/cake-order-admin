@@ -10,6 +10,7 @@ const items = computed(() => [
   { to: '/manage/customers', icon: 'users', title: 'ลูกค้า', desc: `${activeCount(db.customers)} รายการที่ใช้งาน` },
   { to: '/manage/products', icon: 'cake', title: 'สินค้า (เค้กสำเร็จ)', desc: `${activeCount(db.products)} รายการที่ใช้งาน` },
   { to: '/manage/options', icon: 'tag', title: 'ตัวเลือก + ราคา', desc: `${activeCount(db.optionGroups)} กลุ่มที่ใช้งาน` },
+  { to: '/manage/ingredients', icon: 'basket', title: 'วัตถุดิบ', desc: `${activeCount(db.ingredients)} รายการที่ใช้งาน` },
   { to: '/manage/users', icon: 'shield', title: 'ผู้ใช้', desc: `${activeCount(db.users)} คนที่ใช้งาน` },
 ])
 </script>

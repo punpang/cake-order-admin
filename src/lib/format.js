@@ -1,5 +1,8 @@
 const nf = new Intl.NumberFormat('th-TH')
 
+const qf = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 })
+export const qty = (n) => qf.format(Number(n) || 0)
+
 export const money = (n) => `${nf.format(Math.round(Number(n) || 0))} ฿`
 
 export const dateTime = (s) =>

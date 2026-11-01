@@ -20,7 +20,9 @@ export const session = reactive({ role: 'admin' })
 export const can = (action) => PERMISSIONS[action]?.includes(session.role)
 
 // ---------- ข้อมูลหลัก ----------
-const opt = (id, name, price = 0, priceType = 'fixed', extra = {}) => ({ id, name, price, priceType, active: true, ...extra })
+const opt = (id, name, price = 0, priceType = 'fixed', extra = {}) => ({ id, name, price, priceType, active: true, recipe: [], ...extra })
+// บรรทัดสูตร: วัตถุดิบ, ปริมาณ, ต่อปอนด์ (pound) หรือ ต่อชิ้น (piece)
+const r = (ingredientId, qty, per = 'pound') => ({ ingredientId, qty, per })
 
 export const db = reactive({
   customers: [
@@ -29,12 +31,24 @@ export const db = reactive({
     { id: 'c3', name: 'บริษัท ขนมหวาน จำกัด', phone: '021234567', line: 'sweetco', note: 'ขอใบกำกับภาษี' },
   ],
 
-  // เค้กสำเร็จ
+  // วัตถุดิบ (ตัวอย่าง)
+  ingredients: [
+    { id: 'm1', name: 'แป้งเค้ก', unit: 'g', active: true },
+    { id: 'm2', name: 'น้ำตาลทราย', unit: 'g', active: true },
+    { id: 'm3', name: 'ไข่ไก่', unit: 'ฟอง', active: true },
+    { id: 'm4', name: 'เนยจืด', unit: 'g', active: true },
+    { id: 'm5', name: 'วิปปิ้งครีม', unit: 'ml', active: true },
+    { id: 'm6', name: 'ผงโกโก้', unit: 'g', active: true },
+    { id: 'm7', name: 'สตรอว์เบอร์รีสด', unit: 'g', active: true },
+    { id: 'm8', name: 'กล่องเค้ก', unit: 'ใบ', active: true },
+  ],
+
+  // เค้กสำเร็จ (recipe = สูตรวัตถุดิบ ตัวเลขตัวอย่าง)
   products: [
-    { id: 'p1', name: 'เค้กช็อกโกแลตฟัดจ์', pounds: 1, price: 420, active: true },
-    { id: 'p2', name: 'เค้กส้ม', pounds: 1, price: 390, active: true },
-    { id: 'p3', name: 'เค้กใบเตยมะพร้าวอ่อน', pounds: 2, price: 690, active: true },
-    { id: 'p4', name: 'เรดเวลเวท', pounds: 1, price: 450, active: true },
+    { id: 'p1', name: 'เค้กช็อกโกแลตฟัดจ์', pounds: 1, price: 420, active: true, recipe: [r('m1', 150), r('m2', 120), r('m3', 3), r('m4', 80), r('m6', 40), r('m8', 1, 'piece')] },
+    { id: 'p2', name: 'เค้กส้ม', pounds: 1, price: 390, active: true, recipe: [r('m1', 160), r('m2', 130), r('m3', 3), r('m4', 70), r('m8', 1, 'piece')] },
+    { id: 'p3', name: 'เค้กใบเตยมะพร้าวอ่อน', pounds: 2, price: 690, active: true, recipe: [r('m1', 150), r('m2', 110), r('m3', 3), r('m5', 150), r('m8', 1, 'piece')] },
+    { id: 'p4', name: 'เรดเวลเวท', pounds: 1, price: 450, active: true, recipe: [r('m1', 150), r('m2', 130), r('m3', 3), r('m4', 80), r('m6', 10), r('m8', 1, 'piece')] },
   ],
 
   // ผู้ใช้ระบบ (email ใช้ล็อกอินเมื่อต่อ Supabase)
@@ -48,10 +62,10 @@ export const db = reactive({
   // กลุ่มตัวเลือก: type = single | multi | text, appliesTo = custom/ready
   optionGroups: [
     { id: 'g_size', key: 'size', name: 'ขนาด', type: 'single', required: true, appliesTo: ['custom'], options: [
-      opt('s1', '1 ปอนด์', 450, 'fixed', { pounds: 1 }),
-      opt('s2', '2 ปอนด์', 850, 'fixed', { pounds: 2 }),
-      opt('s3', '3 ปอนด์', 1250, 'fixed', { pounds: 3 }),
-      opt('s4', '5 ปอนด์', 2000, 'fixed', { pounds: 5 }),
+      opt('s1', '1 ปอนด์', 450, 'fixed', { pounds: 1, recipe: [r('m8', 1, 'piece')] }),
+      opt('s2', '2 ปอนด์', 850, 'fixed', { pounds: 2, recipe: [r('m8', 1, 'piece')] }),
+      opt('s3', '3 ปอนด์', 1250, 'fixed', { pounds: 3, recipe: [r('m8', 1, 'piece')] }),
+      opt('s4', '5 ปอนด์', 2000, 'fixed', { pounds: 5, recipe: [r('m8', 1, 'piece')] }),
     ] },
     { id: 'g_shape', name: 'รูปทรง', type: 'single', required: true, appliesTo: ['custom'], options: [
       opt('sh1', 'กลม'), opt('sh2', 'สี่เหลี่ยม'), opt('sh3', 'หัวใจ', 100), opt('sh4', 'ตัวเลข/ตัวอักษร', 300),
@@ -60,20 +74,21 @@ export const db = reactive({
       opt('t1', '1 ชั้น'), opt('t2', '2 ชั้น', 600), opt('t3', '3 ชั้น', 1200),
     ] },
     { id: 'g_sponge', name: 'เนื้อเค้ก', type: 'single', required: true, appliesTo: ['custom'], options: [
-      opt('sp1', 'วานิลลา'), opt('sp2', 'ช็อกโกแลต', 30, 'per_pound'), opt('sp3', 'ใบเตย'),
+      opt('sp1', 'วานิลลา', 0, 'fixed', { recipe: [r('m1', 150), r('m2', 120), r('m3', 3), r('m4', 70)] }),
+      opt('sp2', 'ช็อกโกแลต', 30, 'per_pound', { recipe: [r('m1', 140), r('m2', 120), r('m3', 3), r('m4', 70), r('m6', 30)] }), opt('sp3', 'ใบเตย'),
       opt('sp4', 'เรดเวลเวท', 50, 'per_pound'), opt('sp5', 'ชาไทย', 30, 'per_pound'),
     ] },
     { id: 'g_filling', name: 'สอดไส้', type: 'multi', required: false, appliesTo: ['custom'], options: [
-      opt('f1', 'ครีมสด'), opt('f2', 'สตรอว์เบอร์รี', 60, 'per_pound'), opt('f3', 'บลูเบอร์รี', 60, 'per_pound'),
+      opt('f1', 'ครีมสด', 0, 'fixed', { recipe: [r('m5', 100)] }), opt('f2', 'สตรอว์เบอร์รี', 60, 'per_pound', { recipe: [r('m7', 80)] }), opt('f3', 'บลูเบอร์รี', 60, 'per_pound'),
       opt('f4', 'คัสตาร์ด', 40, 'per_pound'), opt('f5', 'ช็อกโกแลตกานาช', 50, 'per_pound'),
     ] },
     { id: 'g_frosting', name: 'หน้าเค้ก/ครีม', type: 'single', required: true, appliesTo: ['custom'], options: [
-      opt('fr1', 'วิปครีม'), opt('fr2', 'บัตเตอร์ครีม', 50, 'per_pound'), opt('fr3', 'ฟองดองท์', 200, 'per_pound'),
+      opt('fr1', 'วิปครีม', 0, 'fixed', { recipe: [r('m5', 200), r('m2', 20)] }), opt('fr2', 'บัตเตอร์ครีม', 50, 'per_pound'), opt('fr3', 'ฟองดองท์', 200, 'per_pound'),
       opt('fr4', 'ช็อกโกแลตกานาช', 80, 'per_pound'), opt('fr5', 'ครีมชีส', 80, 'per_pound'),
     ] },
     { id: 'g_color', name: 'สีธีม', type: 'text', required: false, appliesTo: ['custom'], placeholder: 'เช่น ชมพูพาสเทล + ขาว' },
     { id: 'g_topping', name: 'On top / ท็อปปิ้ง', type: 'multi', required: false, appliesTo: ['custom'], options: [
-      opt('tp1', 'ผลไม้รวม', 150), opt('tp2', 'สตรอว์เบอร์รีสด', 180), opt('tp3', 'มาการอง', 200),
+      opt('tp1', 'ผลไม้รวม', 150), opt('tp2', 'สตรอว์เบอร์รีสด', 180, 'fixed', { recipe: [r('m7', 150, 'piece')] }), opt('tp3', 'มาการอง', 200),
       opt('tp4', 'ช็อกโกแลตแท่ง/ตกแต่ง', 120), opt('tp5', 'เม็ดมุกน้ำตาล', 50),
     ] },
     { id: 'g_deco', name: 'ตกแต่ง', type: 'multi', required: false, appliesTo: ['custom'], options: [
@@ -127,8 +142,15 @@ function upsert(list, prefix, data) {
   return item
 }
 
+// ตัดบรรทัดสูตรที่ไม่ครบ และคัดลอกใหม่ไม่ให้ผูกกับฟอร์ม
+const cleanRecipe = (list) =>
+  (list || [])
+    .filter((x) => x.ingredientId && Number(x.qty) > 0)
+    .map((x) => ({ ingredientId: x.ingredientId, qty: Number(x.qty), per: x.per === 'piece' ? 'piece' : 'pound' }))
+
 export const saveCustomer = (d) => upsert(db.customers, 'c', d)
-export const saveProduct = (d) => upsert(db.products, 'p', { ...d, price: Number(d.price) || 0, pounds: Number(d.pounds) || 1 })
+export const saveIngredient = (d) => upsert(db.ingredients, 'm', d)
+export const saveProduct = (d) => upsert(db.products, 'p', { ...d, price: Number(d.price) || 0, pounds: Number(d.pounds) || 1, recipe: cleanRecipe(d.recipe) })
 export const saveUser = (d) => upsert(db.users, 'u', d)
 export const findGroup = (id) => db.optionGroups.find((g) => g.id === id)
 
@@ -141,7 +163,7 @@ export function saveGroup(d) {
 export function saveOption(groupId, d) {
   const g = findGroup(groupId)
   if (!g) return null
-  const data = { ...d, price: Number(d.price) || 0 }
+  const data = { ...d, price: Number(d.price) || 0, recipe: cleanRecipe(d.recipe) }
   if (g.key === 'size') data.pounds = Number(d.pounds) || 1
   return upsert(g.options, 'o', data)
 }

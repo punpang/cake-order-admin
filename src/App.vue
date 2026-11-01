@@ -6,7 +6,7 @@ import AppIcon from './components/AppIcon.vue'
 import AppModal from './components/AppModal.vue'
 
 const roleOpen = ref(false)
-const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('manage') ? 1 : 0))
+const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('viewMaterials') ? 1 : 0) + (can('manage') ? 1 : 0))
 </script>
 
 <template>
@@ -23,6 +23,7 @@ const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('manage'
       <nav class="ml-4 hidden gap-1 md:flex">
         <RouterLink to="/orders" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ออร์เดอร์</RouterLink>
         <RouterLink v-if="can('createOrder')" to="/orders/new" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">สร้างออร์เดอร์</RouterLink>
+        <RouterLink v-if="can('viewMaterials')" to="/materials" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">วัตถุดิบ</RouterLink>
         <RouterLink v-if="can('manage')" to="/manage" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">จัดการ</RouterLink>
       </nav>
 
@@ -53,6 +54,10 @@ const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('manage'
       <RouterLink v-if="can('createOrder')" to="/orders/new" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-brand-700" aria-label="สร้างออร์เดอร์">
         <span class="flex h-8 w-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-md shadow-brand-600/30"><AppIcon name="plus" :size="20" /></span>
         สร้าง
+      </RouterLink>
+      <RouterLink v-if="can('viewMaterials')" to="/materials" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" exact-active-class="text-brand-700!">
+        <AppIcon name="basket" :size="22" />
+        วัตถุดิบ
       </RouterLink>
       <RouterLink v-if="can('manage')" to="/manage" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
         <AppIcon name="grid" :size="22" />

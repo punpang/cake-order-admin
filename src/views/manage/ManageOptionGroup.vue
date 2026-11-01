@@ -7,6 +7,7 @@ import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
+import RecipeEditor from '../../components/RecipeEditor.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const group = computed(() => findGroup(props.id))
@@ -51,11 +52,11 @@ function saveG() {
 
 // ---------- ตัวเลือก ----------
 const oOpen = ref(false)
-const blank = () => ({ id: null, name: '', price: 0, priceType: 'fixed', pounds: 1, active: true })
+const blank = () => ({ id: null, name: '', price: 0, priceType: 'fixed', pounds: 1, active: true, recipe: [] })
 const o = reactive(blank())
 const oError = ref('')
 function editOption(opt) {
-  Object.assign(o, opt ? { ...blank(), ...opt } : blank())
+  Object.assign(o, opt ? { ...blank(), ...opt, recipe: (opt.recipe || []).map((x) => ({ ...x })) } : blank())
   oError.value = ''
   oOpen.value = true
 }
@@ -195,6 +196,7 @@ function saveO() {
           </div>
         </template>
 
+        <RecipeEditor v-model="o.recipe" />
         <AppSwitch v-model="o.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" class="flex" />
         <p v-if="oError" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ oError }}</p>
       </div>
