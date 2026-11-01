@@ -1,13 +1,16 @@
 <script setup>
 import { computed, reactive, ref, toRaw } from 'vue'
-import { db } from '../data/store'
-import { calcUnitPrice } from '../lib/pricing'
+import { db, activeListsAt } from '../data/store'
+import { priceDetail, effectivePrice } from '../lib/pricing'
 import { money } from '../lib/format'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
 import OptionPicker from './OptionPicker.vue'
 
-const props = defineProps({ item: { type: Object, default: null } })
+const props = defineProps({
+  item: { type: Object, default: null },
+  priceDate: { type: String, default: '' }, // วันที่ใช้เลือกราคาพิเศษ (วันที่สร้างออร์เดอร์) ว่าง = วันนี้
+})
 const emit = defineEmits(['save', 'close'])
 
 const blank = () => ({ id: `i${Date.now()}`, kind: 'ready', productId: null, name: '', qty: 1, note: '', images: [], selections: {}, tiers: [] })
@@ -30,7 +33,10 @@ const groups = computed(() => db.optionGroups.filter((g) => g.active !== false &
 const tierGroups = computed(() => (form.kind === 'custom' ? groups.value.filter((g) => g.perTier) : []))
 const wholeGroups = computed(() => groups.value.filter((g) => !tierGroups.value.includes(g)))
 const products = computed(() => db.products.filter((p) => p.active || p.id === form.productId))
-const unitPrice = computed(() => calcUnitPrice(form, db.optionGroups, db.products))
+const active = computed(() => activeListsAt(props.priceDate))
+const detail = computed(() => priceDetail(form, db.optionGroups, db.products, active.value))
+const unitPrice = computed(() => detail.value.unitPrice)
+const productPrice = (p) => effectivePrice(p, active.value)
 
 function setKind(k) {
   if (form.kind === k) return
@@ -85,7 +91,7 @@ function save() {
       form.name = `${form.tiers.length > 1 ? `เค้กสั่งทำ ${form.tiers.length} ชั้น` : 'เค้กสั่งทำ'} ${names}`.trim()
     }
   }
-  emit('save', { ...JSON.parse(JSON.stringify(toRaw(form))), unitPrice: unitPrice.value })
+  emit('save', { ...JSON.parse(JSON.stringify(toRaw(form))), ...detail.value })
 }
 
 const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
@@ -129,7 +135,10 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
             <span class="block truncate font-medium text-stone-900">{{ p.name }}</span>
             <span class="block text-xs text-stone-500">{{ p.pounds }} ปอนด์</span>
           </span>
-          <span class="shrink-0 font-semibold text-stone-900">{{ money(p.price) }}</span>
+          <span class="shrink-0 text-right leading-tight">
+            <span v-if="productPrice(p).list" class="block text-xs text-stone-400 line-through">{{ money(p.price) }}</span>
+            <span class="block font-semibold" :class="productPrice(p).list ? 'text-rose-600' : 'text-stone-900'">{{ money(productPrice(p).price) }}</span>
+          </span>
         </button>
       </div>
       <p v-if="errors.product" class="mt-2 text-sm text-rose-600">{{ errors.product }}</p>
@@ -142,12 +151,12 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
           <span class="font-semibold text-brand-800">ชั้นที่ {{ i + 1 }}</span>
           <button v-if="form.tiers.length > 1" type="button" class="btn-danger h-8 px-2.5 text-sm" @click="form.tiers.splice(i, 1)"><AppIcon name="trash" :size="14" /> ลบชั้น</button>
         </div>
-        <OptionPicker v-model="tier.selections" :groups="tierGroups" :errors="errors['t' + i] || {}" />
+        <OptionPicker v-model="tier.selections" :groups="tierGroups" :errors="errors['t' + i] || {}" :active="active" />
       </div>
       <button type="button" class="btn-soft mb-3 w-full" @click="form.tiers.push({ selections: {} })"><AppIcon name="plus" :size="16" /> เพิ่มชั้น</button>
     </template>
 
-    <OptionPicker v-model="form.selections" :groups="wholeGroups" :errors="errors" />
+    <OptionPicker v-model="form.selections" :groups="wholeGroups" :errors="errors" :active="active" />
 
     <!-- รูป + หมายเหตุ -->
     <div class="mt-3 rounded-2xl border border-stone-200/70 bg-white p-3.5">
@@ -181,7 +190,9 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
         </div>
         <div class="min-w-0 flex-1 text-right leading-tight">
           <div class="text-xs text-stone-500">{{ form.qty > 1 ? `${money(unitPrice)} × ${form.qty}` : 'ราคา' }}</div>
+          <div v-if="detail.specials.length && detail.regularPrice !== unitPrice" class="text-xs text-stone-400 line-through">{{ money(detail.regularPrice * (form.qty || 0)) }}</div>
           <div class="text-lg font-bold text-stone-900">{{ money(unitPrice * (form.qty || 0)) }}</div>
+          <div v-if="detail.specials.length" class="text-xs font-medium text-rose-600">{{ detail.specials.join(', ') }}</div>
         </div>
         <button class="btn-primary w-full sm:w-auto" @click="save">
           <AppIcon name="check" :size="18" /> บันทึกสินค้า

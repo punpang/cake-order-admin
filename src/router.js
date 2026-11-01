@@ -9,6 +9,7 @@ import ManageOptions from './views/manage/ManageOptions.vue'
 import ManageOptionGroup from './views/manage/ManageOptionGroup.vue'
 import ManageUsers from './views/manage/ManageUsers.vue'
 import ManageIngredients from './views/manage/ManageIngredients.vue'
+import ManagePriceLists from './views/manage/ManagePriceLists.vue'
 import Materials from './views/Materials.vue'
 
 // meta.focus = หน้าที่มีแถบปุ่มของตัวเอง ซ่อนแถบเมนูล่างบนมือถือ
@@ -27,6 +28,7 @@ export default createRouter({
     { path: '/manage/options/:id', component: ManageOptionGroup, props: true },
     { path: '/manage/users', component: ManageUsers },
     { path: '/manage/ingredients', component: ManageIngredients },
+    { path: '/manage/pricing', component: ManagePriceLists },
   ],
   scrollBehavior: () => ({ top: 0 }),
 })

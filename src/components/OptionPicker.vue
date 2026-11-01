@@ -1,14 +1,28 @@
 <script setup>
 import { money } from '../lib/format'
+import { effectivePrice } from '../lib/pricing'
 import AppIcon from './AppIcon.vue'
 
-defineProps({ groups: { type: Array, required: true }, errors: { type: Object, default: () => ({}) } })
+const props = defineProps({
+  groups: { type: Array, required: true },
+  errors: { type: Object, default: () => ({}) },
+  active: { type: Array, default: () => [] }, // แบบราคาพิเศษที่ใช้งาน
+})
 const selections = defineModel({ type: Object, required: true })
 
+function fmt(o, price) {
+  if (o.pounds) return money(price)
+  return o.priceType === 'per_pound' ? `+${money(price)}/ปอนด์` : `+${money(price)}`
+}
 function priceText(o) {
-  if (!o.price) return ''
-  if (o.pounds) return money(o.price)
-  return o.priceType === 'per_pound' ? `+${money(o.price)}/ปอนด์` : `+${money(o.price)}`
+  const price = effectivePrice(o, props.active).price
+  if (!price) return ''
+  return fmt(o, price)
+}
+// ราคาปกติ (แสดงขีดฆ่า) เมื่อใช้ราคาพิเศษ
+function regularText(o) {
+  const r = effectivePrice(o, props.active)
+  return r.list && r.price !== (o.price || 0) && o.price ? fmt(o, o.price) : ''
 }
 
 function toggle(groupId, optionId) {
@@ -61,7 +75,8 @@ const isOn = (g, o) =>
         >
           <AppIcon v-if="isOn(g, o)" name="check" :size="14" class="text-brand-600" />
           <span class="min-w-0 break-words">{{ o.name }}</span>
-          <span v-if="priceText(o)" class="text-xs whitespace-nowrap text-stone-500">{{ priceText(o) }}</span>
+          <span v-if="regularText(o)" class="text-xs whitespace-nowrap text-stone-400 line-through">{{ regularText(o) }}</span>
+          <span v-if="priceText(o)" class="text-xs whitespace-nowrap" :class="regularText(o) ? 'font-medium text-rose-600' : 'text-stone-500'">{{ priceText(o) }}</span>
         </button>
       </div>
       <p v-if="errors[g.id]" class="mt-2 text-sm text-rose-600">{{ errors[g.id] }}</p>

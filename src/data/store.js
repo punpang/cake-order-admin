@@ -2,7 +2,7 @@
 // ขั้นต่อไปจะเปลี่ยนฟังก์ชันในไฟล์นี้ให้เรียก Supabase แทน
 import { reactive } from 'vue'
 import { PERMISSIONS } from '../lib/constants'
-import { calcUnitPrice } from '../lib/pricing'
+import { activeLists, priceDetail } from '../lib/pricing'
 import { pad, toDateStr } from '../lib/format'
 
 let seq = 1000
@@ -31,6 +31,13 @@ export const db = reactive({
     { id: 'c3', name: 'บริษัท ขนมหวาน จำกัด', phone: '021234567', line: 'sweetco', note: 'ขอใบกำกับภาษี' },
   ],
 
+  // ราคาพิเศษ (ตัวอย่าง): scheduled = กำหนดช่วงวัน (เทียบวันที่สร้างออร์เดอร์)
+  // ราคาของแต่ละแบบเก็บใน special: { [priceListId]: ราคา } ของสินค้า/ตัวเลือก
+  priceLists: [
+    { id: 'pl1', name: 'โปรเปิดร้าน', active: true, scheduled: true, from: at(-1, 0).slice(0, 10), to: at(7, 0).slice(0, 10) },
+    { id: 'pl2', name: 'ราคาสมาชิก', active: false, scheduled: false, from: '', to: '' },
+  ],
+
   // วัตถุดิบ (ตัวอย่าง)
   ingredients: [
     { id: 'm1', name: 'แป้งเค้ก', unit: 'g', active: true },
@@ -46,7 +53,7 @@ export const db = reactive({
   // เค้กสำเร็จ (recipe = สูตรวัตถุดิบ ตัวเลขตัวอย่าง)
   products: [
     { id: 'p1', name: 'เค้กช็อกโกแลตฟัดจ์', pounds: 1, price: 420, active: true, recipe: [r('m1', 150), r('m2', 120), r('m3', 3), r('m4', 80), r('m6', 40), r('m8', 1, 'piece')] },
-    { id: 'p2', name: 'เค้กส้ม', pounds: 1, price: 390, active: true, recipe: [r('m1', 160), r('m2', 130), r('m3', 3), r('m4', 70), r('m8', 1, 'piece')] },
+    { id: 'p2', name: 'เค้กส้ม', pounds: 1, price: 390, special: { pl1: 350 }, active: true, recipe: [r('m1', 160), r('m2', 130), r('m3', 3), r('m4', 70), r('m8', 1, 'piece')] },
     { id: 'p3', name: 'เค้กใบเตยมะพร้าวอ่อน', pounds: 2, price: 690, active: true, recipe: [r('m1', 150), r('m2', 110), r('m3', 3), r('m5', 150), r('m8', 1, 'piece')] },
     { id: 'p4', name: 'เรดเวลเวท', pounds: 1, price: 450, active: true, recipe: [r('m1', 150), r('m2', 130), r('m3', 3), r('m4', 80), r('m6', 10), r('m8', 1, 'piece')] },
   ],
@@ -145,9 +152,14 @@ const cleanRecipe = (list) =>
     .filter((x) => x.ingredientId && Number(x.qty) > 0)
     .map((x) => ({ ingredientId: x.ingredientId, qty: Number(x.qty), per: x.per === 'piece' ? 'piece' : 'pound' }))
 
+// ราคาพิเศษ: ตัดช่องว่างออก เก็บเป็นตัวเลข
+const cleanSpecial = (obj) =>
+  Object.fromEntries(Object.entries(obj || {}).filter(([, v]) => v !== '' && v != null && Number(v) >= 0).map(([k, v]) => [k, Number(v)]))
+
 export const saveCustomer = (d) => upsert(db.customers, 'c', d)
+export const savePriceList = (d) => upsert(db.priceLists, 'pl', d)
 export const saveIngredient = (d) => upsert(db.ingredients, 'm', d)
-export const saveProduct = (d) => upsert(db.products, 'p', { ...d, price: Number(d.price) || 0, pounds: Number(d.pounds) || 1, recipe: cleanRecipe(d.recipe) })
+export const saveProduct = (d) => upsert(db.products, 'p', { ...d, price: Number(d.price) || 0, pounds: Number(d.pounds) || 1, recipe: cleanRecipe(d.recipe), special: cleanSpecial(d.special) })
 export const saveUser = (d) => upsert(db.users, 'u', d)
 export const findGroup = (id) => db.optionGroups.find((g) => g.id === id)
 
@@ -160,7 +172,7 @@ export function saveGroup(d) {
 export function saveOption(groupId, d) {
   const g = findGroup(groupId)
   if (!g) return null
-  const data = { ...d, price: Number(d.price) || 0, recipe: cleanRecipe(d.recipe) }
+  const data = { ...d, price: Number(d.price) || 0, recipe: cleanRecipe(d.recipe), special: cleanSpecial(d.special) }
   if (g.key === 'size') data.pounds = Number(d.pounds) || 1
   return upsert(g.options, 'o', data)
 }
@@ -168,8 +180,12 @@ export function saveOption(groupId, d) {
 // จำนวนออร์เดอร์ของลูกค้า
 export const customerOrderCount = (id) => db.orders.filter((o) => o.customerId === id).length
 
-export function priceItem(item) {
-  return { ...item, unitPrice: calcUnitPrice(item, db.optionGroups, db.products) }
+// คิดราคาตามราคาพิเศษที่ใช้งาน ณ วันที่สร้างออร์เดอร์ (ค่าเริ่มต้น = วันนี้)
+export const activeListsAt = (dateStr) => activeLists(db.priceLists, dateStr || toDateStr(new Date()))
+export const orderDate = (order) => toDateStr(new Date(order.createdAt))
+
+export function priceItem(item, dateStr) {
+  return { ...item, ...priceDetail(item, db.optionGroups, db.products, activeListsAt(dateStr)) }
 }
 
 function log(order, text) {
@@ -185,7 +201,7 @@ export function createOrder(payload, asDraft = false) {
     fulfillment: payload.fulfillment,
     address: payload.fulfillment === 'delivery' ? payload.address : '',
     shippingFee: payload.fulfillment === 'delivery' ? Number(payload.shippingFee) || 0 : 0,
-    items: payload.items.map(priceItem),
+    items: payload.items.map((i) => priceItem(i)),
     adjustment: { amount: 0, reason: '' },
     status: asDraft ? 'draft' : 'awaiting_payment',
     payments: [],
@@ -230,7 +246,7 @@ export function confirmPayment(order, paymentId) {
 
 // แก้รายการสินค้าหลังสร้าง: คิดราคาใหม่ทุกรายการตามราคาปัจจุบัน
 function repriceAll(order) {
-  order.items = order.items.map(priceItem)
+  order.items = order.items.map((i) => priceItem(i, orderDate(order)))
 }
 
 export function saveOrderItem(order, item) {

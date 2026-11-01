@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import {
   can, findOrder, findCustomer, setStatus, reportPayment, confirmPayment, setAdjustment, cancelOrder, countPickups,
-  saveOrderItem, removeOrderItem,
+  saveOrderItem, removeOrderItem, orderDate,
 } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime, toDateStr, pad } from '../lib/format'
@@ -379,5 +379,5 @@ function saveCancel() {
     </AppModal>
   </div>
 
-  <ItemEditor v-if="editing" :item="editing.item || null" @save="onSaveItem" @close="editing = null" />
+  <ItemEditor v-if="editing" :item="editing.item || null" :price-date="orderDate(order)" @save="onSaveItem" @close="editing = null" />
 </template>

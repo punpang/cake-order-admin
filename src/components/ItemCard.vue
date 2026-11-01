@@ -22,6 +22,8 @@ const details = computed(() => describeSelections(props.item, db.optionGroups))
             <div class="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-stone-500">
               <span class="rounded-md bg-stone-100 px-1.5 py-0.5 text-xs font-medium text-stone-600">{{ item.kind === 'custom' ? 'สั่งทำ' : 'สำเร็จ' }}</span>
               <span>{{ item.qty }} × {{ money(item.unitPrice) }}</span>
+              <span v-if="item.specials?.length && item.regularPrice !== item.unitPrice" class="text-xs text-stone-400 line-through">{{ money(item.regularPrice) }}</span>
+              <span v-if="item.specials?.length" class="rounded-md bg-rose-50 px-1.5 py-0.5 text-xs font-medium text-rose-600">{{ item.specials.join(', ') }}</span>
             </div>
           </div>
           <div class="shrink-0 font-semibold text-stone-900">{{ money(item.unitPrice * item.qty) }}</div>

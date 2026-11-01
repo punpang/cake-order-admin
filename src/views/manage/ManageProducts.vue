@@ -7,6 +7,7 @@ import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
 import RecipeEditor from '../../components/RecipeEditor.vue'
+import SpecialPriceEditor from '../../components/SpecialPriceEditor.vue'
 
 const q = ref('')
 const inactive = ref(false)
@@ -19,11 +20,11 @@ const list = computed(() => {
 })
 
 const open = ref(false)
-const blank = () => ({ id: null, name: '', pounds: 1, price: 0, active: true, recipe: [] })
+const blank = () => ({ id: null, name: '', pounds: 1, price: 0, active: true, recipe: [], special: {} })
 const form = reactive(blank())
 const error = ref('')
 function edit(p) {
-  Object.assign(form, p ? { ...blank(), ...p, recipe: (p.recipe || []).map((x) => ({ ...x })) } : blank())
+  Object.assign(form, p ? { ...blank(), ...p, recipe: (p.recipe || []).map((x) => ({ ...x })), special: { ...(p.special || {}) } } : blank())
   error.value = ''
   open.value = true
 }
@@ -75,6 +76,7 @@ function save() {
           <div><label class="label">ขนาด (ปอนด์)</label><input v-model.number="form.pounds" type="number" inputmode="decimal" min="0.5" step="0.5" class="input" /></div>
           <div><label class="label">ราคา (บาท)</label><input v-model.number="form.price" type="number" inputmode="numeric" min="0" class="input" /></div>
         </div>
+        <SpecialPriceEditor v-model="form.special" />
         <RecipeEditor v-model="form.recipe" />
         <AppSwitch v-model="form.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" />
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
