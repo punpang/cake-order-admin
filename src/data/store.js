@@ -248,9 +248,12 @@ export function setStatus(order, status, text) {
   if (status === 'delivered') awardOrder(order)
 }
 
+// แจ้งยอดชำระ = ส่งยอดไปให้ลูกค้า (ยังไม่ใช่ยอดที่จ่ายจริง) ยอดจริงใส่ตอนแอดมินยืนยัน
+// payment.status = reported (รอลูกค้าชำระ) | confirmed | cancelled, requested = ยอดที่แจ้ง, amount = ยอดจริง (ตอนยืนยัน)
 export function reportPayment(order, p) {
   order.payments.push({
     id: uid('pay'),
+    requested: Number(p.amount),
     amount: Number(p.amount),
     method: p.method,
     paidAt: p.paidAt,
@@ -260,16 +263,35 @@ export function reportPayment(order, p) {
     reportedBy: session.role,
     confirmedBy: null,
   })
-  log(order, `แจ้งชำระ ${Number(p.amount).toLocaleString('th-TH')} ฿ (${p.method})`)
+  log(order, `แจ้งยอดชำระ ${Number(p.amount).toLocaleString('th-TH')} ฿ (${p.method})`)
   if (order.status === 'awaiting_payment') order.status = 'payment_reported'
 }
 
-export function confirmPayment(order, paymentId) {
+const payFields = (p) => ({ method: p.method, paidAt: p.paidAt, slip: p.slip || '', note: p.note || '' })
+
+export function updatePaymentRequest(order, paymentId, p) {
+  const pay = order.payments.find((x) => x.id === paymentId)
+  if (!pay || pay.status !== 'reported') return
+  Object.assign(pay, { requested: Number(p.amount), amount: Number(p.amount), ...payFields(p) })
+  log(order, `แก้ยอดที่แจ้งเป็น ${Number(p.amount).toLocaleString('th-TH')} ฿`)
+}
+
+export function cancelPaymentRequest(order, paymentId) {
+  const pay = order.payments.find((x) => x.id === paymentId)
+  if (!pay || pay.status !== 'reported') return
+  pay.status = 'cancelled'
+  log(order, `ยกเลิกยอดที่แจ้ง ${pay.requested.toLocaleString('th-TH')} ฿`)
+  if (order.status === 'payment_reported' && !order.payments.some((x) => x.status === 'reported')) order.status = 'awaiting_payment'
+}
+
+// data = ยอดที่ได้รับจริง + รายละเอียด (ไม่ส่ง = ใช้ตามที่แจ้ง)
+export function confirmPayment(order, paymentId, data = null) {
   const p = order.payments.find((x) => x.id === paymentId)
-  if (!p) return
+  if (!p || p.status !== 'reported') return
+  if (data) Object.assign(p, { amount: Number(data.amount), ...payFields(data) })
   p.status = 'confirmed'
   p.confirmedBy = session.role
-  log(order, `ยืนยันชำระ ${p.amount.toLocaleString('th-TH')} ฿`)
+  log(order, `ยืนยันชำระ ${p.amount.toLocaleString('th-TH')} ฿${p.amount !== p.requested ? ` (แจ้ง ${p.requested.toLocaleString('th-TH')} ฿)` : ''}`)
   if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
 }
 

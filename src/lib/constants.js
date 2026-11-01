@@ -1,7 +1,7 @@
 export const STATUS = {
   draft: { label: 'ร่าง', cls: 'bg-stone-100 text-stone-600', dot: 'bg-stone-400', bar: 'bg-stone-300' },
   awaiting_payment: { label: 'รอชำระ', cls: 'bg-amber-50 text-amber-700', dot: 'bg-amber-500', bar: 'bg-amber-400' },
-  payment_reported: { label: 'แจ้งชำระแล้ว', cls: 'bg-sky-50 text-sky-700', dot: 'bg-sky-500', bar: 'bg-sky-400' },
+  payment_reported: { label: 'แจ้งยอดแล้ว', cls: 'bg-sky-50 text-sky-700', dot: 'bg-sky-500', bar: 'bg-sky-400' },
   payment_confirmed: { label: 'ยืนยันชำระ', cls: 'bg-violet-50 text-violet-700', dot: 'bg-violet-500', bar: 'bg-violet-400' },
   preparing: { label: 'กำลังเตรียม', cls: 'bg-orange-50 text-orange-700', dot: 'bg-orange-500', bar: 'bg-orange-400' },
   delivered: { label: 'ส่งมอบแล้ว', cls: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500', bar: 'bg-emerald-400' },

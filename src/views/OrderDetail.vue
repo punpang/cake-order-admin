@@ -2,6 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import {
   can, findOrder, findCustomer, setStatus, reportPayment, confirmPayment, setAdjustment, cancelOrder, countPickups,
+  updatePaymentRequest, cancelPaymentRequest,
   saveOrderItem, removeOrderItem, orderDate,
   db, customerPoints, usableDiscountCoupons, applyPoints, removePoints, applyCoupon, removeCoupon,
 } from '../data/store'
@@ -48,12 +49,19 @@ const nowLocal = () => {
   return `${toDateStr(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-// ---------- แจ้งชำระ ----------
+// ---------- แจ้งยอดชำระ / แก้ยอดที่แจ้ง / ยืนยันยอดจริง ----------
 const payOpen = ref(false)
+const payMode = ref('new') // new | edit | confirm
+const payTarget = ref(null)
 const pay = reactive({ amount: 0, method: PAYMENT_METHODS[0], paidAt: '', slip: '', note: '' })
 const payError = ref('')
-function openPay() {
-  Object.assign(pay, { amount: Math.max(t.value.balance - t.value.reported, 0), method: PAYMENT_METHODS[0], paidAt: nowLocal(), slip: '', note: '' })
+const PAY_TITLE = { new: 'แจ้งยอดชำระ', edit: 'แก้ยอดที่แจ้ง', confirm: 'ยืนยันยอดชำระ' }
+function openPay(mode = 'new', p = null) {
+  payMode.value = mode
+  payTarget.value = p
+  Object.assign(pay, p
+    ? { amount: p.requested ?? p.amount, method: p.method, paidAt: p.paidAt, slip: p.slip, note: p.note }
+    : { amount: Math.max(t.value.balance - t.value.reported, 0), method: PAYMENT_METHODS[0], paidAt: nowLocal(), slip: '', note: '' })
   payError.value = ''
   payOpen.value = true
 }
@@ -63,8 +71,15 @@ function onSlip(e) {
 }
 function savePay() {
   if (!(pay.amount > 0)) return (payError.value = 'กรอกยอดเงิน')
-  reportPayment(order.value, pay)
+  if (payMode.value === 'confirm') confirmPayment(order.value, payTarget.value.id, { ...pay })
+  else if (payMode.value === 'edit') updatePaymentRequest(order.value, payTarget.value.id, { ...pay })
+  else reportPayment(order.value, { ...pay })
   payOpen.value = false
+}
+const PAY_BADGE = {
+  reported: { t: 'รอลูกค้าชำระ', cls: 'bg-sky-50 text-sky-700' },
+  confirmed: { t: 'ยืนยันแล้ว', cls: 'bg-emerald-50 text-emerald-700' },
+  cancelled: { t: 'ยกเลิกแล้ว', cls: 'bg-stone-100 text-stone-500' },
 }
 
 // ---------- ปรับราคา ----------
@@ -244,7 +259,7 @@ function saveCancel() {
                 <div class="font-semibold" :class="t.balance > 0 ? 'text-amber-800' : 'text-stone-700'">{{ money(t.balance) }}</div>
               </div>
             </div>
-            <div v-if="t.reported" class="mt-2 rounded-xl bg-sky-50 p-2.5 text-sm text-sky-800">รอยืนยัน {{ money(t.reported) }}</div>
+            <div v-if="t.reported" class="mt-2 rounded-xl bg-sky-50 p-2.5 text-sm text-sky-800">แจ้งยอดแล้ว รอลูกค้าชำระ {{ money(t.reported) }}</div>
           </template>
 
           <dl class="mt-3 space-y-1.5 border-t border-stone-100 pt-3 text-sm">
@@ -293,30 +308,28 @@ function saveCancel() {
             <button
               v-if="can('reportPayment') && order.status !== 'draft' && order.status !== 'cancelled' && t.balance > 0"
               class="btn-soft h-9 px-3"
-              @click="openPay"
-            ><AppIcon name="plus" :size="16" /> แจ้งชำระ</button>
+              @click="openPay('new')"
+            ><AppIcon name="plus" :size="16" /> แจ้งยอดชำระ</button>
           </div>
           <p v-if="!order.payments.length" class="rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-500">ยังไม่มีการชำระ</p>
           <ul class="space-y-2">
-            <li v-for="(p, i) in order.payments" :key="p.id" class="rounded-xl border border-stone-200/70 p-3">
+            <li v-for="(p, i) in order.payments" :key="p.id" class="rounded-xl border border-stone-200/70 p-3" :class="p.status === 'cancelled' ? 'opacity-60' : ''">
               <div class="flex items-center justify-between gap-2">
-                <span class="font-semibold text-stone-900">งวด {{ i + 1 }} · {{ money(p.amount) }}</span>
-                <span
-                  class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold"
-                  :class="p.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700' : 'bg-sky-50 text-sky-700'"
-                >
+                <span class="font-semibold text-stone-900">งวด {{ i + 1 }} · {{ money(p.status === 'confirmed' ? p.amount : (p.requested ?? p.amount)) }}</span>
+                <span class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="PAY_BADGE[p.status]?.cls">
                   <AppIcon v-if="p.status === 'confirmed'" name="check" :size="12" />
-                  {{ p.status === 'confirmed' ? 'ยืนยันแล้ว' : 'รอยืนยัน' }}
+                  {{ PAY_BADGE[p.status]?.t }}
                 </span>
               </div>
+              <div v-if="p.status === 'confirmed' && p.requested != null && p.requested !== p.amount" class="text-xs text-stone-500">แจ้งไป {{ money(p.requested) }} · ได้รับจริง {{ money(p.amount) }}</div>
               <div class="mt-0.5 text-sm text-stone-500">{{ p.method }} · {{ dateTime(p.paidAt) }}</div>
               <div v-if="p.note" class="text-sm break-words text-stone-500">{{ p.note }}</div>
               <a v-if="p.slip" :href="p.slip" target="_blank" class="mt-2 block"><img :src="p.slip" class="h-24 w-auto rounded-lg object-cover" /></a>
-              <button
-                v-if="p.status === 'reported' && can('confirmPayment') && order.status !== 'cancelled'"
-                class="btn-primary mt-2.5 h-10 w-full"
-                @click="confirmPayment(order, p.id)"
-              ><AppIcon name="check" :size="16" /> ยืนยันชำระ</button>
+              <div v-if="p.status === 'reported' && order.status !== 'cancelled'" class="mt-2.5 flex flex-wrap gap-2">
+                <button v-if="can('reportPayment')" class="btn-outline h-9 px-3" @click="openPay('edit', p)"><AppIcon name="edit" :size="16" /> แก้ยอด</button>
+                <button v-if="can('reportPayment')" class="btn-danger h-9 px-3" @click="cancelPaymentRequest(order, p.id)"><AppIcon name="x" :size="16" /> ยกเลิก</button>
+                <button v-if="can('confirmPayment')" class="btn-primary h-9 flex-1 px-3" @click="openPay('confirm', p)"><AppIcon name="check" :size="16" /> ยืนยันยอดชำระ</button>
+              </div>
             </li>
           </ul>
         </section>
@@ -373,13 +386,16 @@ function saveCancel() {
       </template>
     </AppModal>
 
-    <!-- modal แจ้งชำระ -->
-    <AppModal v-if="payOpen" title="แจ้งชำระเงิน" @close="payOpen = false">
+    <!-- modal แจ้งยอด / แก้ยอด / ยืนยันยอดจริง -->
+    <AppModal v-if="payOpen" :title="PAY_TITLE[payMode]" @close="payOpen = false">
       <div class="space-y-4">
-        <div class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
-          คงค้าง <b>{{ money(t.balance) }}</b><span v-if="t.reported"> · รอยืนยัน {{ money(t.reported) }}</span>
+        <div v-if="payMode === 'confirm'" class="rounded-xl bg-sky-50 p-3 text-sm text-sky-800">
+          ยอดที่แจ้งไป <b>{{ money(payTarget.requested ?? payTarget.amount) }}</b> · ใส่ยอดที่ได้รับจริง
         </div>
-        <div><label class="label">ยอดเงิน (บาท)</label><input v-model.number="pay.amount" type="number" inputmode="decimal" min="0" class="input text-lg font-semibold" /></div>
+        <div v-else class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+          คงค้าง <b>{{ money(t.balance) }}</b><span v-if="t.reported"> · แจ้งยอดแล้ว {{ money(t.reported) }}</span>
+        </div>
+        <div><label class="label">{{ payMode === 'confirm' ? 'ยอดที่ได้รับจริง (บาท)' : 'ยอดที่แจ้งลูกค้า (บาท)' }}</label><input v-model.number="pay.amount" type="number" inputmode="decimal" min="0" class="input text-lg font-semibold" /></div>
         <div>
           <div class="label">ช่องทาง</div>
           <div class="flex flex-wrap gap-2">
@@ -401,7 +417,7 @@ function saveCancel() {
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="payOpen = false">ยกเลิก</button>
-        <button class="btn-primary flex-1 sm:flex-none" @click="savePay">บันทึก</button>
+        <button class="btn-primary flex-1 sm:flex-none" @click="savePay">{{ payMode === 'confirm' ? 'ยืนยัน' : 'บันทึก' }}</button>
       </template>
     </AppModal>
 
