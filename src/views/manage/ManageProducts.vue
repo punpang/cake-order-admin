@@ -8,7 +8,7 @@ import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
 import RecipeEditor from '../../components/RecipeEditor.vue'
-import SpecialPriceEditor from '../../components/SpecialPriceEditor.vue'
+import { productPrice, productPounds } from '../../lib/pricing'
 
 const q = ref('')
 const inactive = ref(false)
@@ -20,19 +20,26 @@ const list = computed(() => {
     .filter((p) => !s || p.name.toLowerCase().includes(s))
 })
 
+// ราคา = ราคาขนาด + ระดับราคา (ตั้งตัวเลขที่หน้าการกำหนดราคา)
+const sizes = computed(() => db.optionGroups.find((g) => g.key === 'size')?.options || [])
+const priceOf = (p) => productPrice(p, db.optionGroups, db.priceLevels)
+const poundsOf = (p) => productPounds(p, db.optionGroups)
+const sizeName = (id) => sizes.value.find((s) => s.id === id)?.name || '-'
+const levelName = (id) => db.priceLevels.find((l) => l.id === id)?.name || '-'
+
 const open = ref(false)
-const blank = () => ({ id: null, name: '', pounds: 1, price: 0, active: true, recipe: [], special: {} })
+const blank = () => ({ id: null, name: '', sizeId: null, level: null, active: true, recipe: [] })
 const form = reactive(blank())
 const error = ref('')
 function edit(p) {
-  Object.assign(form, p ? { ...blank(), ...p, recipe: (p.recipe || []).map((x) => ({ ...x })), special: { ...(p.special || {}) } } : blank())
+  Object.assign(form, p ? { ...blank(), ...p, recipe: (p.recipe || []).map((x) => ({ ...x })) } : blank())
   error.value = ''
   open.value = true
 }
 async function save() {
   if (!form.name.trim()) return (error.value = 'กรอกชื่อสินค้า')
-  if (!(form.pounds > 0)) return (error.value = 'ขนาดต้องมากกว่า 0')
-  if (!(form.price >= 0)) return (error.value = 'ราคาไม่ถูกต้อง')
+  if (!form.sizeId) return (error.value = 'เลือกขนาด')
+  if (!form.level) return (error.value = 'เลือกระดับราคา')
   if (!(await confirmDeactivate(db.products, form, form.name))) return
   saveProduct({ ...form })
   open.value = false
@@ -65,21 +72,33 @@ async function save() {
             <span class="truncate font-semibold text-stone-900">{{ p.name }}</span>
             <span v-if="p.active === false" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
           </span>
-          <span class="block text-sm text-stone-500">{{ p.pounds }} ปอนด์</span>
+          <span class="block text-sm text-stone-500">{{ sizeName(p.sizeId) }} · {{ levelName(p.level) }}</span>
         </span>
-        <span class="shrink-0 text-lg font-semibold text-stone-900">{{ money(p.price) }}</span>
+        <span class="shrink-0 text-lg font-semibold text-stone-900">{{ money(priceOf(p)) }}</span>
       </button>
     </div>
 
     <AppModal v-if="open" :title="form.id ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'" @close="open = false">
       <div class="space-y-4">
         <div><label class="label">ชื่อสินค้า <span class="text-rose-500">*</span></label><input v-model="form.name" class="input" /></div>
-        <div class="grid grid-cols-2 gap-4">
-          <div><label class="label">ขนาด (ปอนด์)</label><input v-model.number="form.pounds" type="number" inputmode="decimal" min="0.5" step="0.5" class="input" /></div>
-          <div><label class="label">ราคา (บาท)</label><input v-model.number="form.price" type="number" inputmode="numeric" min="0" class="input" /></div>
+        <div>
+          <div class="label">ขนาด <span class="text-rose-500">*</span></div>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="sz in sizes.filter((x) => x.active !== false || x.id === form.sizeId)" :key="sz.id" type="button" class="chip" :class="form.sizeId === sz.id ? 'chip-on' : 'chip-off'" @click="form.sizeId = sz.id">{{ sz.name }}</button>
+          </div>
         </div>
-        <SpecialPriceEditor v-model="form.special" />
-        <RecipeEditor v-model="form.recipe" :pounds="Number(form.pounds) || 0" :price="Number(form.price) || 0" />
+        <div>
+          <div class="label">ระดับราคา <span class="text-rose-500">*</span></div>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="lv in db.priceLevels.filter((x) => x.active !== false || x.id === form.level)" :key="lv.id" type="button" class="chip" :class="form.level === lv.id ? 'chip-on' : 'chip-off'" @click="form.level = lv.id">{{ lv.name }}</button>
+          </div>
+        </div>
+        <div class="flex items-center justify-between rounded-xl bg-stone-50 p-3 text-sm">
+          <span class="text-stone-500">ราคา (ขนาด + ระดับ)</span>
+          <b class="text-base text-stone-900">{{ form.sizeId ? money(priceOf(form)) : '-' }}</b>
+        </div>
+        <p class="text-xs text-stone-400">แก้ตัวเลขราคาขนาด/ระดับที่ <RouterLink to="/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></p>
+        <RecipeEditor v-model="form.recipe" :pounds="form.sizeId ? poundsOf(form) : 0" :price="priceOf(form)" />
         <AppSwitch v-model="form.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" />
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </div>

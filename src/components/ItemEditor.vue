@@ -2,7 +2,7 @@
 import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRaw, watch } from 'vue'
 import { db, activeListsAt } from '../data/store'
-import { priceDetail, effectivePrice, allowedBy } from '../lib/pricing'
+import { priceDetail, productPrice, productPounds, allowedBy } from '../lib/pricing'
 import { money } from '../lib/format'
 import { MAIN_KEYS } from '../lib/constants'
 import AppModal from './AppModal.vue'
@@ -50,9 +50,16 @@ function sizeIdsOf(t) {
   const v = (sg.perTier && t ? t.selections : form.selections)[sg.id]
   return v == null ? [] : Array.isArray(v) ? v : [v]
 }
-const allSizeIds = computed(() => (sizeGroup.value?.perTier ? form.tiers.flatMap((t) => sizeIdsOf(t)) : sizeIdsOf(null)))
+const allSizeIds = computed(() => {
+  if (form.kind === 'ready') {
+    const p = db.products.find((x) => x.id === form.productId)
+    return p?.sizeId ? [p.sizeId] : []
+  }
+  return sizeGroup.value?.perTier ? form.tiers.flatMap((t) => sizeIdsOf(t)) : sizeIdsOf(null)
+})
 
-const groups = computed(() => db.optionGroups.filter((g) => g.active !== false && g.appliesTo.includes(form.kind)))
+// เค้กสำเร็จมีขนาดตายตัว ไม่แสดงกลุ่มขนาด
+const groups = computed(() => db.optionGroups.filter((g) => g.active !== false && g.appliesTo.includes(form.kind) && !(form.kind === 'ready' && g.key === 'size')))
 const tierGroups = computed(() => (form.kind === 'custom' ? groups.value.filter((g) => g.perTier) : []))
 const wholeGroups = computed(() => groups.value.filter((g) => !tierGroups.value.includes(g)))
 
@@ -80,9 +87,10 @@ watch(
 )
 const products = computed(() => db.products.filter((p) => p.active || p.id === form.productId))
 const active = computed(() => activeListsAt(props.priceDate))
-const detail = computed(() => priceDetail(form, db.optionGroups, db.products, active.value))
+const detail = computed(() => priceDetail(form, db.optionGroups, db.products, active.value, db.priceLevels))
 const unitPrice = computed(() => detail.value.unitPrice)
-const productPrice = (p) => effectivePrice(p, active.value)
+// ราคาเค้กสำเร็จ (ขนาด + ระดับ) ราคาปกติแสดงขีดฆ่าเมื่อมีราคาพิเศษ
+const priceOf = (p) => ({ price: productPrice(p, db.optionGroups, db.priceLevels, active.value), regular: productPrice(p, db.optionGroups, db.priceLevels) })
 
 function setKind(k) {
   if (form.kind === k) return
@@ -188,11 +196,11 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
           </span>
           <span class="min-w-0 flex-1">
             <span class="block truncate font-medium text-stone-900">{{ p.name }}</span>
-            <span class="block text-xs text-stone-500">{{ p.pounds }} ปอนด์</span>
+            <span class="block text-xs text-stone-500">{{ productPounds(p, db.optionGroups) }} ปอนด์</span>
           </span>
           <span class="shrink-0 text-right leading-tight">
-            <span v-if="productPrice(p).list" class="block text-xs text-stone-400 line-through">{{ money(p.price) }}</span>
-            <span class="block font-semibold" :class="productPrice(p).list ? 'text-rose-600' : 'text-stone-900'">{{ money(productPrice(p).price) }}</span>
+            <span v-if="priceOf(p).price !== priceOf(p).regular" class="block text-xs text-stone-400 line-through">{{ money(priceOf(p).regular) }}</span>
+            <span class="block font-semibold" :class="priceOf(p).price !== priceOf(p).regular ? 'text-rose-600' : 'text-stone-900'">{{ money(priceOf(p).price) }}</span>
           </span>
         </button>
       </div>

@@ -1,4 +1,4 @@
-// ราคาต่อชิ้น = ราคาฐาน (ตามขนาด หรือราคาเค้กสำเร็จ) + ตัวเลือก (คงที่ หรือ ต่อปอนด์)
+// ราคาต่อชิ้น = ราคาเค้กหลัก (ขนาด + ระดับราคา) + ตัวเลือกรอง (คงที่ / ต่อปอนด์ / ตามขนาด) − บันเดิ้ล
 
 // ---------- ราคาพิเศษ ----------
 // แบบที่ใช้งานอยู่ ณ วันที่ (YYYY-MM-DD) = เปิดใช้งาน และ (ไม่กำหนดเวลา หรืออยู่ในช่วง from–to)
@@ -43,33 +43,63 @@ export const tiersOf = (item) => (item.kind === 'custom' && item.tiers?.length ?
 export const isTierGroup = (g, item) => item.kind === 'custom' && !!g.perTier
 const idsOf = (sel) => (sel == null ? [] : Array.isArray(sel) ? sel : [sel])
 
-// ราคาและปอนด์รวมของขนาดที่เลือก (รองรับเลือกหลายขนาด)
-function sizeIn(sizeGroup, selections, active, used) {
-  const opts = sizeGroup ? idsOf(selections?.[sizeGroup.id]).map((id) => sizeGroup.options.find((o) => o.id === id)).filter(Boolean) : []
-  return {
-    price: opts.reduce((s, o) => s + useP(o, active, used), 0),
-    pounds: opts.reduce((s, o) => s + (o.pounds || 0), 0),
+// ---------- ราคาเค้กหลัก: ขนาด + ระดับราคา ----------
+// ราคาขนาด = sizeOption.price, ระดับราคา db.priceLevels = [{ id, name, prices: { [sizeId]: บาทที่บวกเพิ่ม } }]
+// หน้าเค้ก/เนื้อเค้ก (option.level) และเค้กสำเร็จ (product.level + product.sizeId) บวกตามระดับในขนาดนั้น
+// ราคาพิเศษ: priceList.sizes = { [sizeId]: บาท }, priceList.levels = { [levelId]: { [sizeId]: บาท } } ช่องว่าง = ใช้ราคาปกติ
+// หลายแบบพร้อมกัน ใช้ราคาต่ำสุดแยกทีละช่อง
+function pickSpecial(regular, active, get, used) {
+  let best = null
+  for (const l of active) {
+    const v = get(l)
+    if (v == null || v === '') continue
+    if (!best || Number(v) < best.price) best = { price: Number(v), list: l }
   }
+  if (best && used) used.add(best.list.name)
+  return best ? best.price : regular
 }
+export const sizePrice = (size, active = [], used = null) => (size ? pickSpecial(Number(size.price) || 0, active, (l) => l.sizes?.[size.id], used) : 0)
+export function levelPrice(levels, levelId, sizeId, active = [], used = null) {
+  const lv = (levels || []).find((x) => x.id === levelId)
+  if (!lv || !sizeId) return 0
+  return pickSpecial(Number(lv.prices?.[sizeId]) || 0, active, (l) => l.levels?.[levelId]?.[sizeId], used)
+}
+// ราคาเค้กสำเร็จ (ขนาด + ระดับ)
+export function productPrice(p, groups, levels, active = [], used = null) {
+  const s = groups.find((g) => g.key === 'size')?.options.find((o) => o.id === p?.sizeId)
+  return p ? sizePrice(s, active, used) + levelPrice(levels, p.level, p.sizeId, active, used) : 0
+}
+export const productPounds = (p, groups) => groups.find((g) => g.key === 'size')?.options.find((o) => o.id === p?.sizeId)?.pounds || 1
 
-// base = ราคาฐาน, pounds = ปอนด์รวม, tierPounds = ปอนด์ของแต่ละชั้น
-export function itemBase(item, groups, products, active = [], used = null) {
+// base = ราคาเค้กหลัก (รวมทุกชั้น), pounds = ปอนด์รวม, tierPounds / tierSizes = ปอนด์และขนาดของแต่ละชั้น
+// สั่งทำ: แต่ละชั้น = ราคาขนาดของชั้น + ระดับหน้าเค้ก + ระดับเนื้อเค้ก (ตามขนาดของชั้น) แล้วรวมทุกชั้น
+export function itemBase(item, groups, products, active = [], used = null, levels = []) {
   const sizeGroup = groups.find((g) => g.key === 'size')
+  const sizeOpt = (id) => sizeGroup?.options.find((o) => o.id === id)
   if (item.kind === 'ready') {
     const p = products.find((x) => x.id === item.productId)
-    const size = sizeIn(sizeGroup, item.selections, active, used)
-    const pounds = p?.pounds || 1
-    return { base: (p ? useP(p, active, used) : 0) + size.price, pounds, tierPounds: [pounds] }
+    const pounds = productPounds(p, groups)
+    return { base: productPrice(p, groups, levels, active, used), pounds, tierPounds: [pounds], tierSizes: [p?.sizeId ? [p.sizeId] : []] }
   }
-  const tiers = tiersOf(item)
-  if (sizeGroup && isTierGroup(sizeGroup, item)) {
-    const sizes = tiers.map((t) => sizeIn(sizeGroup, t.selections, active, used))
-    const tierPounds = sizes.map((x) => x.pounds || 1)
-    return { base: sizes.reduce((s, x) => s + x.price, 0), pounds: tierPounds.reduce((s, x) => s + x, 0), tierPounds }
+  const mains = groups.filter((g) => g.key === 'face' || g.key === 'flavor')
+  let base = 0
+  const tierPounds = []
+  const tierSizes = []
+  for (const t of tiersOf(item)) {
+    const sel = (g) => (isTierGroup(g, item) ? t.selections : item.selections)?.[g.id]
+    const sid = sizeGroup ? idsOf(sel(sizeGroup))[0] : null // 1 ขนาดต่อชั้น (รายการเก่าที่เลือกหลายขนาดใช้ขนาดแรก)
+    const s = sizeOpt(sid)
+    tierPounds.push(s?.pounds || 1)
+    tierSizes.push(sid ? [sid] : [])
+    base += sizePrice(s, active, used)
+    for (const g of mains) {
+      for (const id of idsOf(sel(g))) {
+        const o = g.options.find((x) => x.id === id)
+        if (o) base += levelPrice(levels, o.level, sid, active, used)
+      }
+    }
   }
-  const size = sizeIn(sizeGroup, item.selections, active, used)
-  const pounds = size.pounds || 1
-  return { base: size.price, pounds, tierPounds: tiers.map(() => pounds / tiers.length) }
+  return { base, pounds: tierPounds.reduce((a, b) => a + b, 0), tierPounds, tierSizes }
 }
 
 // ราคาตัวเลือกแบบ "ตามขนาด": รวมราคาของขนาดที่เลือก (sizePrices = { [sizeOptionId]: ราคา })
@@ -93,43 +123,39 @@ export function bundleDiscount(g, ids, sizeIds, usedBundles = null) {
   return total
 }
 
-export function calcUnitPrice(item, groups, products, active = [], used = null, usedBundles = null) {
-  const { base, pounds, tierPounds } = itemBase(item, groups, products, active, used)
+// ราคา/ชิ้น = ราคาเค้กหลัก + ตัวเลือกรอง (คงที่ / ต่อปอนด์ / ตามขนาด) − บันเดิ้ล
+export function calcUnitPrice(item, groups, products, active = [], used = null, usedBundles = null, levels = []) {
+  const { base, pounds, tierPounds, tierSizes } = itemBase(item, groups, products, active, used, levels)
   const tiers = tiersOf(item)
-  const sizeGroup = groups.find((g) => g.key === 'size')
-  const sizeIds = (sels) => (sizeGroup ? idsOf(sels?.[sizeGroup.id]) : [])
-  const sizeTier = sizeGroup && isTierGroup(sizeGroup, item)
-  const tierSizes = tiers.map((t) => (sizeTier ? sizeIds(t.selections) : sizeIds(item.selections)))
-  const allSizes = sizeTier ? tierSizes.flat() : sizeIds(item.selections)
+  const allSizes = tierSizes.flat()
   let extra = 0
-  // share = สัดส่วนของชั้น: ขนาดเลือกทั้งก้อน (ไม่แยกชั้น) แต่กลุ่มเลือกแยกชั้น → ราคาตามขนาดแบ่งเท่ากันทุกชั้น (เหมือนปอนด์)
-  const add = (g, sel, lb, sids, share = 1) => {
+  const add = (g, sel, lb, sids) => {
     const ids = idsOf(sel)
     for (const id of ids) {
       const o = g.options.find((x) => x.id === id)
       if (!o) continue
-      if (o.priceType === 'per_size') extra += sizePriceOf(o, sids) * share
+      if (o.priceType === 'per_size') extra += sizePriceOf(o, sids)
       else {
         const price = useP(o, active, used)
         extra += o.priceType === 'per_pound' ? price * lb : price
       }
     }
-    if (g.type === 'multi' && ids.length > 1) extra -= bundleDiscount(g, ids, sids, usedBundles) * share
+    if (g.type === 'multi' && ids.length > 1) extra -= bundleDiscount(g, ids, sids, usedBundles)
   }
   for (const g of groups) {
-    if (g.key === 'size' || g.type === 'text') continue
-    if (isTierGroup(g, item)) tiers.forEach((t, i) => add(g, t.selections?.[g.id], tierPounds[i], tierSizes[i], sizeTier ? 1 : 1 / tiers.length))
+    if (['face', 'flavor', 'size'].includes(g.key) || g.type === 'text') continue
+    if (isTierGroup(g, item)) tiers.forEach((t, i) => add(g, t.selections?.[g.id], tierPounds[i], tierSizes[i]))
     else add(g, item.selections?.[g.id], pounds, allSizes)
   }
   return base + extra
 }
 
 // ราคาที่ใช้ + ราคาปกติ + ชื่อแบบราคาพิเศษที่ใช้
-export function priceDetail(item, groups, products, active = []) {
+export function priceDetail(item, groups, products, active = [], levels = []) {
   const used = new Set()
   const bundles = new Set()
-  const unitPrice = calcUnitPrice(item, groups, products, active, used, bundles)
-  const regularPrice = calcUnitPrice(item, groups, products)
+  const unitPrice = calcUnitPrice(item, groups, products, active, used, bundles, levels)
+  const regularPrice = calcUnitPrice(item, groups, products, [], null, null, levels)
   return { unitPrice, regularPrice, specials: [...used], bundles: [...bundles] }
 }
 

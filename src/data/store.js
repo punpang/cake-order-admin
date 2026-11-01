@@ -27,6 +27,8 @@ const opt = (id, name, price = 0, priceType = 'fixed', extra = {}) => ({ id, nam
 const r = (ingredientId, qty, per = 'pound') => ({ ingredientId, qty, per })
 // ราคาตามขนาด 1 / 2 / 3 / 5 ปอนด์ (s1–s4)
 const sp = (a, b, c, d) => ({ s1: a, s2: b, s3: c, s4: d })
+// หน้าเค้ก/เนื้อเค้ก: ใช้ระดับราคา (level) แทนราคา
+const lvOpt = (id, name, level, extra = {}) => ({ id, name, level, active: true, recipe: [], ...extra })
 
 export const db = reactive({
   customers: [
@@ -63,9 +65,18 @@ export const db = reactive({
 
   // ราคาพิเศษ (ตัวอย่าง): scheduled = กำหนดช่วงวัน (เทียบวันที่สร้างออร์เดอร์)
   // ราคาของแต่ละแบบเก็บใน special: { [priceListId]: ราคา } ของสินค้า/ตัวเลือก
+  // ตารางราคาพิเศษ: sizes = { [sizeId]: ราคาขนาด }, levels = { [levelId]: { [sizeId]: บาทที่บวก } } ช่องว่าง = ใช้ราคาปกติ
   priceLists: [
-    { id: 'pl1', name: 'โปรเปิดร้าน', active: true, scheduled: true, from: at(-1, 0).slice(0, 10), to: at(7, 0).slice(0, 10) },
-    { id: 'pl2', name: 'ราคาสมาชิก', active: false, scheduled: false, from: '', to: '' },
+    { id: 'pl1', name: 'โปรเปิดร้าน', active: true, scheduled: true, from: at(-1, 0).slice(0, 10), to: at(7, 0).slice(0, 10), sizes: { s1: 400 }, levels: {} },
+    { id: 'pl2', name: 'ราคาสมาชิก', active: false, scheduled: false, from: '', to: '', sizes: {}, levels: {} },
+  ],
+
+  // ระดับราคา (ตัวอย่าง): บวกเพิ่มจากราคาขนาด แยกตามขนาด ใช้กับหน้าเค้ก เนื้อเค้ก และเค้กสำเร็จ
+  // แก้ตัวเลขที่นี่ที่เดียว ทุกหน้าเค้ก/เนื้อเค้ก/เค้กสำเร็จที่อยู่ในระดับนี้เปลี่ยนตาม
+  priceLevels: [
+    { id: 'lv1', name: 'ปกติ', active: true, prices: sp(0, 0, 0, 0) },
+    { id: 'lv2', name: 'พรีเมียม', active: true, prices: sp(50, 100, 150, 250) },
+    { id: 'lv3', name: 'พิเศษ', active: true, prices: sp(100, 200, 300, 500) },
   ],
 
   // วัตถุดิบ (ตัวอย่าง)
@@ -81,12 +92,12 @@ export const db = reactive({
     { id: 'm8', name: 'กล่องเค้ก', unit: 'ใบ', packSize: 50, packPrice: 500, active: true },
   ],
 
-  // เค้กสำเร็จ (recipe = สูตรวัตถุดิบ ตัวเลขตัวอย่าง)
+  // เค้กสำเร็จ: ราคา = ราคาขนาด (sizeId) + ระดับราคา (level) · recipe = สูตรวัตถุดิบ (ตัวเลขตัวอย่าง)
   products: [
-    { id: 'p1', name: 'เค้กช็อกโกแลตฟัดจ์', pounds: 1, price: 420, active: true, recipe: [r('m1', 150), r('m2', 120), r('m3', 3), r('m4', 80), r('m6', 40), r('m8', 1, 'piece')] },
-    { id: 'p2', name: 'เค้กส้ม', pounds: 1, price: 390, special: { pl1: 350 }, active: true, recipe: [r('m1', 160), r('m2', 130), r('m3', 3), r('m4', 70), r('m8', 1, 'piece')] },
-    { id: 'p3', name: 'เค้กใบเตยมะพร้าวอ่อน', pounds: 2, price: 690, active: true, recipe: [r('m1', 150), r('m2', 110), r('m3', 3), r('m5', 150), r('m8', 1, 'piece')] },
-    { id: 'p4', name: 'เรดเวลเวท', pounds: 1, price: 450, active: true, recipe: [r('m1', 150), r('m2', 130), r('m3', 3), r('m4', 80), r('m6', 10), r('m8', 1, 'piece')] },
+    { id: 'p1', name: 'เค้กช็อกโกแลตฟัดจ์', sizeId: 's1', level: 'lv1', active: true, recipe: [r('m1', 150), r('m2', 120), r('m3', 3), r('m4', 80), r('m6', 40), r('m8', 1, 'piece')] },
+    { id: 'p2', name: 'เค้กส้ม', sizeId: 's1', level: 'lv1', active: true, recipe: [r('m1', 160), r('m2', 130), r('m3', 3), r('m4', 70), r('m8', 1, 'piece')] },
+    { id: 'p3', name: 'เค้กใบเตยมะพร้าวอ่อน', sizeId: 's2', level: 'lv2', active: true, recipe: [r('m1', 150), r('m2', 110), r('m3', 3), r('m5', 150), r('m8', 1, 'piece')] },
+    { id: 'p4', name: 'เรดเวลเวท', sizeId: 's1', level: 'lv2', active: true, recipe: [r('m1', 150), r('m2', 130), r('m3', 3), r('m4', 80), r('m6', 10), r('m8', 1, 'piece')] },
   ],
 
   // ผู้ใช้ระบบ (email ใช้ล็อกอินเมื่อต่อ Supabase)
@@ -99,16 +110,17 @@ export const db = reactive({
 
   // กลุ่มตัวเลือก: type = single | multi | text, appliesTo = custom/ready, perTier = เลือกแยกแต่ละชั้น (สั่งทำ)
   optionGroups: [
-    // ---- กลุ่มหลัก: หน้าเค้ก > เนื้อเค้ก > ขนาด (ราคาบวกกัน) ----
+    // ---- กลุ่มหลัก: หน้าเค้ก > เนื้อเค้ก > ขนาด ----
+    // ราคาเค้กหลัก = ราคาขนาด + ระดับราคาของหน้าเค้ก + ระดับราคาของเนื้อเค้ก (ตามขนาด) ดู priceLevels
     { id: 'g_frosting', key: 'face', name: 'หน้าเค้ก', prepList: true, perTier: true, type: 'single', required: true, appliesTo: ['custom'], options: [
-      opt('fc1', 'เค้กแยมมะพร้าวอ่อน', 100), opt('fc2', 'เค้กหน้านิ่ม', 50, 'fixed', { allow: { g_sponge: ['sp2', 'sp3', 'sp4', 'sp5'] } }),
-      opt('fr1', 'วิปครีม', 0, 'fixed', { recipe: [r('m5', 200), r('m2', 20)] }), opt('fr2', 'บัตเตอร์ครีม', 50, 'per_pound'), opt('fr3', 'ฟองดองท์', 200, 'per_pound'),
-      opt('fr4', 'ช็อกโกแลตกานาช', 80, 'per_pound'), opt('fr5', 'ครีมชีส', 80, 'per_pound'),
+      lvOpt('fc1', 'เค้กแยมมะพร้าวอ่อน', 'lv3'), lvOpt('fc2', 'เค้กหน้านิ่ม', 'lv2', { allow: { g_sponge: ['sp2', 'sp3', 'sp4', 'sp5'] } }),
+      lvOpt('fr1', 'วิปครีม', 'lv1', { recipe: [r('m5', 200), r('m2', 20)] }), lvOpt('fr2', 'บัตเตอร์ครีม', 'lv2'), lvOpt('fr3', 'ฟองดองท์', 'lv3'),
+      lvOpt('fr4', 'ช็อกโกแลตกานาช', 'lv2'), lvOpt('fr5', 'ครีมชีส', 'lv2'),
     ] },
     { id: 'g_sponge', key: 'flavor', name: 'เนื้อเค้ก', perTier: true, type: 'single', required: true, appliesTo: ['custom'], options: [
-      opt('sp1', 'วานิลลา', 0, 'fixed', { recipe: [r('m1', 150), r('m2', 120), r('m3', 3), r('m4', 70)] }),
-      opt('sp2', 'ช็อกโกแลต', 30, 'per_pound', { recipe: [r('m1', 140), r('m2', 120), r('m3', 3), r('m4', 70), r('m6', 30)] }), opt('sp3', 'ใบเตย'),
-      opt('sp4', 'เรดเวลเวท', 50, 'per_pound'), opt('sp5', 'ชาไทย', 30, 'per_pound'),
+      lvOpt('sp1', 'วานิลลา', 'lv1', { recipe: [r('m1', 150), r('m2', 120), r('m3', 3), r('m4', 70)] }),
+      lvOpt('sp2', 'ช็อกโกแลต', 'lv1', { recipe: [r('m1', 140), r('m2', 120), r('m3', 3), r('m4', 70), r('m6', 30)] }), lvOpt('sp3', 'ใบเตย', 'lv1'),
+      lvOpt('sp4', 'เรดเวลเวท', 'lv2'), lvOpt('sp5', 'ชาไทย', 'lv1'),
     ] },
     { id: 'g_size', key: 'size', name: 'ขนาด', perTier: true, type: 'single', required: true, appliesTo: ['custom'], options: [
       opt('s1', '1 ปอนด์', 450, 'fixed', { pounds: 1, recipe: [r('m8', 1, 'piece')] }),
@@ -203,9 +215,17 @@ export function saveCustomer(d) {
   if (!c.ledger) Object.assign(c, { ledger: [], spins: 0 })
   return c
 }
-export const savePriceList = (d) => upsert(db.priceLists, 'pl', d)
+// ตารางราคา { [k]: { [sizeId]: ราคา } } ตัดช่องว่าง
+const cleanTable = (obj) => Object.fromEntries(Object.entries(obj || {}).map(([k, v]) => [k, cleanSpecial(v)]))
+export const savePriceList = (d) => upsert(db.priceLists, 'pl', { ...d, sizes: cleanSpecial(d.sizes), levels: cleanTable(d.levels) })
+export const savePriceLevel = (d) => upsert(db.priceLevels, 'lv', { ...d, prices: cleanSpecial(d.prices) })
+// ราคาขนาด (ตั้งในหน้าการกำหนดราคา) prices = { [sizeId]: ราคา }
+export function saveSizePrices(prices) {
+  const g = db.optionGroups.find((x) => x.key === 'size')
+  for (const o of g?.options || []) if (prices[o.id] !== undefined) o.price = Number(prices[o.id]) || 0
+}
 export const saveIngredient = (d) => upsert(db.ingredients, 'm', { ...d, packSize: Number(d.packSize) || 0, packPrice: Number(d.packPrice) || 0 })
-export const saveProduct = (d) => upsert(db.products, 'p', { ...d, price: Number(d.price) || 0, pounds: Number(d.pounds) || 1, recipe: cleanRecipe(d.recipe), special: cleanSpecial(d.special) })
+export const saveProduct = (d) => upsert(db.products, 'p', { ...d, recipe: cleanRecipe(d.recipe) })
 export const saveUser = (d) => upsert(db.users, 'u', d)
 export const findGroup = (id) => db.optionGroups.find((g) => g.id === id)
 
@@ -218,10 +238,17 @@ export function saveGroup(d) {
 export function saveOption(groupId, d) {
   const g = findGroup(groupId)
   if (!g) return null
-  const data = { ...d, price: Number(d.price) || 0, recipe: cleanRecipe(d.recipe), special: cleanSpecial(d.special) }
-  if (g.key === 'size') data.pounds = Number(d.pounds) || 1
-  if (data.priceType === 'per_size') data.sizePrices = cleanSpecial(d.sizePrices)
-  else delete data.sizePrices
+  const data = { ...d, recipe: cleanRecipe(d.recipe) }
+  // ขนาด: ชื่อ + ปอนด์ (ราคาตั้งในหน้าการกำหนดราคา) · หน้าเค้ก/เนื้อเค้ก: ระดับราคา · ตัวเลือกรอง: ราคาแบบเดิม
+  for (const k of ['price', 'priceType', 'special', 'sizePrices', 'level', 'pounds']) delete data[k]
+  if (g.key === 'size') {
+    data.pounds = Number(d.pounds) || 1
+    if (!d.id) data.price = 0
+  } else if (g.key === 'face' || g.key === 'flavor') data.level = d.level || null
+  else {
+    Object.assign(data, { price: Number(d.price) || 0, priceType: d.priceType || 'fixed', special: cleanSpecial(d.special) })
+    if (data.priceType === 'per_size') data.sizePrices = cleanSpecial(d.sizePrices)
+  }
   return upsert(g.options, 'o', data)
 }
 
@@ -241,7 +268,7 @@ export const activeListsAt = (dateStr) => activeLists(db.priceLists, dateStr || 
 export const orderDate = (order) => toDateStr(new Date(order.createdAt))
 
 export function priceItem(item, dateStr) {
-  return { ...item, ...priceDetail(item, db.optionGroups, db.products, activeListsAt(dateStr)) }
+  return { ...item, ...priceDetail(item, db.optionGroups, db.products, activeListsAt(dateStr), db.priceLevels) }
 }
 
 function log(order, text) {

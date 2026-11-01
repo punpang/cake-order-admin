@@ -1,6 +1,7 @@
 <script setup>
 import { money } from '../lib/format'
-import { effectivePrice, sizePriceOf } from '../lib/pricing'
+import { db } from '../data/store'
+import { effectivePrice, sizePriceOf, sizePrice, levelPrice } from '../lib/pricing'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
@@ -13,18 +14,34 @@ const props = defineProps({
 const selections = defineModel({ type: Object, required: true })
 
 function fmt(o, price) {
-  if (o.pounds) return money(price)
   return o.priceType === 'per_pound' ? `+${money(price)}/ปอนด์` : `+${money(price)}`
 }
-function priceText(o) {
+const levelName = (id) => db.priceLevels.find((l) => l.id === id)?.name || ''
+// ราคาเค้กหลัก: ขนาด = ราคาขนาด, หน้าเค้ก/เนื้อเค้ก = ระดับราคาตามขนาดของชั้น (ยังไม่เลือกขนาด แสดงชื่อระดับ)
+function mainPrice(g, o, active) {
+  if (g.key === 'size') return sizePrice(o, active)
+  return levelPrice(db.priceLevels, o.level, props.sizeIds[0], active)
+}
+function priceText(g, o) {
+  if (g.key === 'size') return money(mainPrice(g, o, props.active))
+  if (g.key === 'face' || g.key === 'flavor') {
+    if (!props.sizeIds.length) return levelName(o.level)
+    const v = mainPrice(g, o, props.active)
+    return v ? `+${money(v)}` : ''
+  }
   if (o.priceType === 'per_size') return props.sizeIds.length ? `+${money(sizePriceOf(o, props.sizeIds))}` : 'ตามขนาด'
   const price = effectivePrice(o, props.active).price
   if (!price) return ''
   return fmt(o, price)
 }
 // ราคาปกติ (แสดงขีดฆ่า) เมื่อใช้ราคาพิเศษ
-function regularText(o) {
-  if (o.priceType === 'per_size') return ''
+function regularText(g, o) {
+  if (g.key === 'size' || ((g.key === 'face' || g.key === 'flavor') && props.sizeIds.length)) {
+    const reg = mainPrice(g, o, [])
+    if (reg === mainPrice(g, o, props.active)) return ''
+    return g.key === 'size' ? money(reg) : `+${money(reg)}`
+  }
+  if (g.key === 'face' || g.key === 'flavor' || o.priceType === 'per_size') return ''
   const r = effectivePrice(o, props.active)
   return r.list && r.price !== (o.price || 0) && o.price ? fmt(o, o.price) : ''
 }
@@ -79,8 +96,8 @@ const isOn = (g, o) =>
         >
           <AppIcon v-if="isOn(g, o)" name="check" :size="14" class="text-brand-600" />
           <span class="min-w-0 break-words">{{ o.name }}</span>
-          <span v-if="regularText(o)" class="text-xs whitespace-nowrap text-stone-400 line-through">{{ regularText(o) }}</span>
-          <span v-if="priceText(o)" class="text-xs whitespace-nowrap" :class="regularText(o) ? 'font-medium text-rose-600' : 'text-stone-500'">{{ priceText(o) }}</span>
+          <span v-if="regularText(g, o)" class="text-xs whitespace-nowrap text-stone-400 line-through">{{ regularText(g, o) }}</span>
+          <span v-if="priceText(g, o)" class="text-xs whitespace-nowrap" :class="regularText(g, o) ? 'font-medium text-rose-600' : 'text-stone-500'">{{ priceText(g, o) }}</span>
         </button>
       </div>
       <p v-if="errors[g.id]" class="mt-2 text-sm text-rose-600">{{ errors[g.id] }}</p>
