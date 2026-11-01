@@ -30,11 +30,11 @@ const priceText = (o) => {
 
 // ---------- ตั้งค่ากลุ่ม ----------
 const gOpen = ref(false)
-const g = reactive({ id: null, name: '', type: 'single', required: false, appliesTo: [], placeholder: '', active: true, prepList: false })
+const g = reactive({ id: null, name: '', type: 'single', required: false, appliesTo: [], placeholder: '', active: true, prepList: false, perTier: false })
 const gError = ref('')
 function editGroup() {
   const cur = group.value
-  Object.assign(g, { id: cur.id, name: cur.name, type: cur.type, required: !!cur.required, appliesTo: [...cur.appliesTo], placeholder: cur.placeholder || '', active: cur.active !== false, prepList: !!cur.prepList })
+  Object.assign(g, { id: cur.id, name: cur.name, type: cur.type, required: !!cur.required, appliesTo: [...cur.appliesTo], placeholder: cur.placeholder || '', active: cur.active !== false, prepList: !!cur.prepList, perTier: !!cur.perTier })
   gError.value = ''
   gOpen.value = true
 }
@@ -155,6 +155,7 @@ function saveO() {
         <div v-if="g.type === 'text'"><label class="label">ข้อความตัวอย่างในช่อง</label><input v-model="g.placeholder" class="input" /></div>
         <AppSwitch v-model="g.required" label="จำเป็นต้องเลือก/กรอก" class="flex" />
         <AppSwitch v-model="g.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" class="flex" />
+        <AppSwitch v-if="g.appliesTo.includes('custom')" v-model="g.perTier" label="เลือกแยกแต่ละชั้น (เค้กสั่งทำ)" class="flex" />
         <AppSwitch v-if="g.type !== 'text' && !isSize && group.key !== 'flavor'" v-model="g.prepList" label="แสดงในรายการเตรียม (นับเป็นชุด แยกตามขนาด)" class="flex" />
         <p v-if="gError" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ gError }}</p>
       </div>

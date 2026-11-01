@@ -10,11 +10,25 @@ import OptionPicker from './OptionPicker.vue'
 const props = defineProps({ item: { type: Object, default: null } })
 const emit = defineEmits(['save', 'close'])
 
-const blank = () => ({ id: `i${Date.now()}`, kind: 'ready', productId: null, name: '', qty: 1, note: '', images: [], selections: {} })
-const form = reactive(props.item ? JSON.parse(JSON.stringify(toRaw(props.item))) : blank())
+const blank = () => ({ id: `i${Date.now()}`, kind: 'ready', productId: null, name: '', qty: 1, note: '', images: [], selections: {}, tiers: [] })
+const form = reactive(props.item ? { tiers: [], ...JSON.parse(JSON.stringify(toRaw(props.item))) } : blank())
+
+// รายการสั่งทำเก่าที่ยังไม่มีชั้น: ย้ายตัวเลือกของกลุ่มแยกชั้นไปไว้ชั้นที่ 1
+if (form.kind === 'custom' && !form.tiers.length) {
+  const first = {}
+  for (const g of db.optionGroups) {
+    if (g.perTier && form.selections[g.id] != null) {
+      first[g.id] = form.selections[g.id]
+      delete form.selections[g.id]
+    }
+  }
+  form.tiers = [{ selections: first }]
+}
 const errors = ref({})
 
 const groups = computed(() => db.optionGroups.filter((g) => g.active !== false && g.appliesTo.includes(form.kind)))
+const tierGroups = computed(() => (form.kind === 'custom' ? groups.value.filter((g) => g.perTier) : []))
+const wholeGroups = computed(() => groups.value.filter((g) => !tierGroups.value.includes(g)))
 const products = computed(() => db.products.filter((p) => p.active || p.id === form.productId))
 const unitPrice = computed(() => calcUnitPrice(form, db.optionGroups, db.products))
 
@@ -23,6 +37,7 @@ function setKind(k) {
   form.kind = k
   form.productId = null
   form.selections = {}
+  form.tiers = k === 'custom' ? [{ selections: {} }] : []
   errors.value = {}
 }
 
@@ -34,25 +49,41 @@ function onImages(e) {
 function save() {
   const err = {}
   if (form.kind === 'ready' && !form.productId) err.product = 'เลือกเค้ก'
-  for (const g of groups.value) {
-    if (g.required && (form.selections[g.id] == null || form.selections[g.id] === '')) err[g.id] = `เลือก${g.name}`
+  const empty = (v) => v == null || v === ''
+  for (const g of wholeGroups.value) {
+    if (g.required && empty(form.selections[g.id])) err[g.id] = `เลือก${g.name}`
   }
+  form.tiers.forEach((t, i) => {
+    const e = {}
+    for (const g of tierGroups.value) if (g.required && empty(t.selections[g.id])) e[g.id] = `เลือก${g.name}`
+    if (Object.keys(e).length) err[`t${i}`] = e
+  })
   if (!(form.qty >= 1)) err.qty = 'จำนวนอย่างน้อย 1'
   errors.value = err
   if (Object.keys(err).length) return
 
   // ตัดตัวเลือกของอีกประเภทออก
-  const allowed = new Set(groups.value.map((g) => g.id))
+  const allowed = new Set(wholeGroups.value.map((g) => g.id))
   for (const k of Object.keys(form.selections)) if (!allowed.has(k)) delete form.selections[k]
+  const tierAllowed = new Set(tierGroups.value.map((g) => g.id))
+  for (const t of form.tiers) for (const k of Object.keys(t.selections)) if (!tierAllowed.has(k)) delete t.selections[k]
+  if (form.kind !== 'custom' || !tierGroups.value.length) form.tiers = []
 
   if (form.kind === 'ready') {
     form.name = db.products.find((p) => p.id === form.productId)?.name || ''
   } else {
     const size = db.optionGroups.find((g) => g.key === 'size')
-    const sel = size ? form.selections[size.id] : null
-    const ids = sel == null ? [] : Array.isArray(sel) ? sel : [sel]
-    const names = ids.map((id) => size.options.find((o) => o.id === id)?.name).filter(Boolean)
-    form.name = `เค้กสั่งทำ ${names.join(', ')}`.trim()
+    const sizeNames = (sels) => {
+      const sel = size ? sels?.[size.id] : null
+      const ids = sel == null ? [] : Array.isArray(sel) ? sel : [sel]
+      return ids.map((id) => size.options.find((o) => o.id === id)?.name).filter(Boolean).join(', ')
+    }
+    if (form.tiers.length > 1 && size?.perTier) {
+      form.name = `เค้กสั่งทำ ${form.tiers.length} ชั้น (${form.tiers.map((t) => sizeNames(t.selections) || '-').join(' / ')})`
+    } else {
+      const names = size?.perTier && form.tiers.length ? sizeNames(form.tiers[0].selections) : sizeNames(form.selections)
+      form.name = `${form.tiers.length > 1 ? `เค้กสั่งทำ ${form.tiers.length} ชั้น` : 'เค้กสั่งทำ'} ${names}`.trim()
+    }
   }
   emit('save', { ...JSON.parse(JSON.stringify(toRaw(form))), unitPrice: unitPrice.value })
 }
@@ -104,7 +135,19 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
       <p v-if="errors.product" class="mt-2 text-sm text-rose-600">{{ errors.product }}</p>
     </div>
 
-    <OptionPicker v-model="form.selections" :groups="groups" :errors="errors" />
+    <!-- ชั้นของเค้ก (สั่งทำ) -->
+    <template v-if="tierGroups.length">
+      <div v-for="(tier, i) in form.tiers" :key="i" class="mb-3 rounded-2xl border border-brand-200 bg-brand-50/40 p-3">
+        <div class="mb-2.5 flex items-center justify-between gap-2">
+          <span class="font-semibold text-brand-800">ชั้นที่ {{ i + 1 }}</span>
+          <button v-if="form.tiers.length > 1" type="button" class="btn-danger h-8 px-2.5 text-sm" @click="form.tiers.splice(i, 1)"><AppIcon name="trash" :size="14" /> ลบชั้น</button>
+        </div>
+        <OptionPicker v-model="tier.selections" :groups="tierGroups" :errors="errors['t' + i] || {}" />
+      </div>
+      <button type="button" class="btn-soft mb-3 w-full" @click="form.tiers.push({ selections: {} })"><AppIcon name="plus" :size="16" /> เพิ่มชั้น</button>
+    </template>
+
+    <OptionPicker v-model="form.selections" :groups="wholeGroups" :errors="errors" />
 
     <!-- รูป + หมายเหตุ -->
     <div class="mt-3 rounded-2xl border border-stone-200/70 bg-white p-3.5">

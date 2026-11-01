@@ -1,6 +1,6 @@
 // คำนวณวัตถุดิบที่ต้องใช้
 // ต่อปอนด์ = ปริมาณ × ปอนด์ของสินค้า, ต่อชิ้น = ปริมาณคงที่ แล้วคูณจำนวนชิ้นของรายการ
-import { itemBase } from './pricing'
+import { itemBase, tiersOf, isTierGroup } from './pricing'
 
 function addRecipe(into, recipe, pounds, qty) {
   for (const line of recipe || []) {
@@ -10,22 +10,26 @@ function addRecipe(into, recipe, pounds, qty) {
 }
 
 // วัตถุดิบของสินค้า 1 รายการ (รวมจำนวนชิ้นแล้ว) → { ingredientId: ปริมาณ }
+// กลุ่มแยกชั้นคิดตามปอนด์ของชั้นนั้น กลุ่มอื่นคิดตามปอนด์รวม
 export function itemMaterials(item, groups, products, into = {}) {
-  const { pounds } = itemBase(item, groups, products)
+  const { pounds, tierPounds } = itemBase(item, groups, products)
   const qty = Number(item.qty) || 1
+  const tiers = tiersOf(item)
   if (item.kind === 'ready') {
     const p = products.find((x) => x.id === item.productId)
     addRecipe(into, p?.recipe, pounds, qty)
   }
+  const addSel = (g, sel, lb) => {
+    if (sel == null) return
+    for (const id of Array.isArray(sel) ? sel : [sel]) {
+      const o = g.options.find((x) => x.id === id)
+      if (o) addRecipe(into, o.recipe, lb, qty)
+    }
+  }
   for (const g of groups) {
     if (g.type === 'text') continue
-    const sel = item.selections?.[g.id]
-    if (sel == null) continue
-    const ids = Array.isArray(sel) ? sel : [sel]
-    for (const id of ids) {
-      const o = g.options.find((x) => x.id === id)
-      if (o) addRecipe(into, o.recipe, pounds, qty)
-    }
+    if (isTierGroup(g, item)) tiers.forEach((t, i) => addSel(g, t.selections?.[g.id], tierPounds[i]))
+    else addSel(g, item.selections?.[g.id], pounds)
   }
   return into
 }
@@ -58,22 +62,31 @@ export function prepList(orders, groups, products) {
 
   for (const o of orders) {
     for (const it of o.items) {
-      const { pounds } = itemBase(it, groups, products)
+      const { pounds, tierPounds } = itemBase(it, groups, products)
+      const tiers = tiersOf(it)
       const n = Number(it.qty) || 1
       if (it.kind === 'ready') {
         const p = products.find((x) => x.id === it.productId)
         const name = p?.name || it.name
         bump(cakes, `r|${name}|${pounds}`, { name, pounds }, n)
       } else {
-        const names = flavor ? optNames(flavor, it.selections?.[flavor.id]).map((x) => x.name) : []
-        const name = `สั่งทำ · ${names.length ? names.join(' + ') : 'ไม่ระบุเนื้อเค้ก'}`
-        bump(cakes, `c|${name}|${pounds}`, { name, pounds }, n)
+        // แต่ละชั้น = 1 ก้อน
+        tiers.forEach((t, i) => {
+          const sel = flavor ? (isTierGroup(flavor, it) ? t.selections : it.selections)?.[flavor.id] : null
+          const names = flavor ? optNames(flavor, sel).map((x) => x.name) : []
+          const name = `สั่งทำ · ${names.length ? names.join(' + ') : 'ไม่ระบุเนื้อเค้ก'}`
+          bump(cakes, `c|${name}|${tierPounds[i]}`, { name, pounds: tierPounds[i] }, n)
+        })
+      }
+      const addSet = (g, sel, lb) => {
+        for (const opt of optNames(g, sel)) {
+          if (!sets[g.id]) sets[g.id] = {}
+          bump(sets[g.id], `${opt.id}|${lb}`, { name: opt.name, pounds: lb }, n)
+        }
       }
       for (const g of prepGroups) {
-        for (const opt of optNames(g, it.selections?.[g.id])) {
-          if (!sets[g.id]) sets[g.id] = {}
-          bump(sets[g.id], `${opt.id}|${pounds}`, { name: opt.name, pounds }, n)
-        }
+        if (isTierGroup(g, it)) tiers.forEach((t, i) => addSet(g, t.selections?.[g.id], tierPounds[i]))
+        else addSet(g, it.selections?.[g.id], pounds)
       }
     }
   }

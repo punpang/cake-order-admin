@@ -1,39 +1,55 @@
 // ราคาต่อชิ้น = ราคาฐาน (ตามขนาด หรือราคาเค้กสำเร็จ) + ตัวเลือก (คงที่ หรือ ต่อปอนด์)
 
-// ขนาดที่เลือก (รองรับทั้งเลือกอันเดียวและหลายอัน) รวมราคาและปอนด์
-function selectedSizes(item, groups) {
-  const sizeGroup = groups.find((g) => g.key === 'size')
-  const sel = sizeGroup ? item.selections[sizeGroup.id] : null
-  const ids = sel == null ? [] : Array.isArray(sel) ? sel : [sel]
-  const opts = ids.map((id) => sizeGroup.options.find((o) => o.id === id)).filter(Boolean)
+// ---------- ชั้นของเค้ก ----------
+// สั่งทำ: tiers = [{ selections }] กลุ่มที่เปิด perTier เลือกแยกในแต่ละชั้น กลุ่มอื่นอยู่ใน item.selections
+// รายการที่ไม่มี tiers (หรือเค้กสำเร็จ) ถือเป็น 1 ชั้นที่ใช้ item.selections
+export const tiersOf = (item) => (item.kind === 'custom' && item.tiers?.length ? item.tiers : [{ selections: item.selections || {} }])
+export const isTierGroup = (g, item) => item.kind === 'custom' && !!g.perTier
+const idsOf = (sel) => (sel == null ? [] : Array.isArray(sel) ? sel : [sel])
+
+// ราคาและปอนด์รวมของขนาดที่เลือก (รองรับเลือกหลายขนาด)
+function sizeIn(sizeGroup, selections) {
+  const opts = sizeGroup ? idsOf(selections?.[sizeGroup.id]).map((id) => sizeGroup.options.find((o) => o.id === id)).filter(Boolean) : []
   return {
     price: opts.reduce((s, o) => s + (o.price || 0), 0),
     pounds: opts.reduce((s, o) => s + (o.pounds || 0), 0),
   }
 }
 
+// base = ราคาฐาน, pounds = ปอนด์รวม, tierPounds = ปอนด์ของแต่ละชั้น
 export function itemBase(item, groups, products) {
-  const size = selectedSizes(item, groups)
+  const sizeGroup = groups.find((g) => g.key === 'size')
   if (item.kind === 'ready') {
     const p = products.find((x) => x.id === item.productId)
-    return { base: (p?.price || 0) + size.price, pounds: p?.pounds || 1 }
+    const size = sizeIn(sizeGroup, item.selections)
+    const pounds = p?.pounds || 1
+    return { base: (p?.price || 0) + size.price, pounds, tierPounds: [pounds] }
   }
-  return { base: size.price, pounds: size.pounds || 1 }
+  const tiers = tiersOf(item)
+  if (sizeGroup && isTierGroup(sizeGroup, item)) {
+    const sizes = tiers.map((t) => sizeIn(sizeGroup, t.selections))
+    const tierPounds = sizes.map((x) => x.pounds || 1)
+    return { base: sizes.reduce((s, x) => s + x.price, 0), pounds: tierPounds.reduce((s, x) => s + x, 0), tierPounds }
+  }
+  const size = sizeIn(sizeGroup, item.selections)
+  const pounds = size.pounds || 1
+  return { base: size.price, pounds, tierPounds: tiers.map(() => pounds / tiers.length) }
 }
 
 export function calcUnitPrice(item, groups, products) {
-  const { base, pounds } = itemBase(item, groups, products)
+  const { base, pounds, tierPounds } = itemBase(item, groups, products)
+  const tiers = tiersOf(item)
   let extra = 0
+  const add = (g, sel, lb) => {
+    for (const id of idsOf(sel)) {
+      const o = g.options.find((x) => x.id === id)
+      if (o) extra += o.priceType === 'per_pound' ? o.price * lb : o.price
+    }
+  }
   for (const g of groups) {
     if (g.key === 'size' || g.type === 'text') continue
-    const sel = item.selections[g.id]
-    if (sel == null) continue
-    const ids = Array.isArray(sel) ? sel : [sel]
-    for (const id of ids) {
-      const o = g.options.find((x) => x.id === id)
-      if (!o) continue
-      extra += o.priceType === 'per_pound' ? o.price * pounds : o.price
-    }
+    if (isTierGroup(g, item)) tiers.forEach((t, i) => add(g, t.selections?.[g.id], tierPounds[i]))
+    else add(g, item.selections?.[g.id], pounds)
   }
   return base + extra
 }
@@ -49,19 +65,20 @@ export function orderTotals(order) {
   return { subtotal, shipping, adjustment, total, paid, reported, refunded, balance: total - paid }
 }
 
-// แปลงตัวเลือกเป็นข้อความอ่านง่าย
+// แปลงตัวเลือกเป็นข้อความอ่านง่าย (หลายชั้นขึ้นต้นด้วย "ชั้น n")
 export function describeSelections(item, groups) {
   const out = []
-  for (const g of groups) {
-    const sel = item.selections[g.id]
-    if (sel == null || sel === '' || (Array.isArray(sel) && !sel.length)) continue
-    if (g.type === 'text') {
-      out.push({ group: g.name, value: sel })
-      continue
-    }
-    const ids = Array.isArray(sel) ? sel : [sel]
-    const names = ids.map((id) => g.options.find((o) => o.id === id)?.name).filter(Boolean)
-    if (names.length) out.push({ group: g.name, value: names.join(', ') })
+  const push = (g, sel, label) => {
+    if (sel == null || sel === '' || (Array.isArray(sel) && !sel.length)) return
+    if (g.type === 'text') return out.push({ group: label, value: sel })
+    const names = idsOf(sel).map((id) => g.options.find((o) => o.id === id)?.name).filter(Boolean)
+    if (names.length) out.push({ group: label, value: names.join(', ') })
   }
+  const tiers = tiersOf(item)
+  const tierGroups = groups.filter((g) => isTierGroup(g, item))
+  tiers.forEach((t, i) => {
+    for (const g of tierGroups) push(g, t.selections?.[g.id], tiers.length > 1 ? `ชั้น ${i + 1} · ${g.name}` : g.name)
+  })
+  for (const g of groups) if (!isTierGroup(g, item)) push(g, item.selections?.[g.id], g.name)
   return out
 }

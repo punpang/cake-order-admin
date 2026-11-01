@@ -59,9 +59,9 @@ export const db = reactive({
     { id: 'u4', name: 'คนส่งของ', email: 'driver@example.com', role: 'driver', active: true },
   ],
 
-  // กลุ่มตัวเลือก: type = single | multi | text, appliesTo = custom/ready
+  // กลุ่มตัวเลือก: type = single | multi | text, appliesTo = custom/ready, perTier = เลือกแยกแต่ละชั้น (สั่งทำ)
   optionGroups: [
-    { id: 'g_size', key: 'size', name: 'ขนาด', type: 'single', required: true, appliesTo: ['custom'], options: [
+    { id: 'g_size', key: 'size', name: 'ขนาด', perTier: true, type: 'single', required: true, appliesTo: ['custom'], options: [
       opt('s1', '1 ปอนด์', 450, 'fixed', { pounds: 1, recipe: [r('m8', 1, 'piece')] }),
       opt('s2', '2 ปอนด์', 850, 'fixed', { pounds: 2, recipe: [r('m8', 1, 'piece')] }),
       opt('s3', '3 ปอนด์', 1250, 'fixed', { pounds: 3, recipe: [r('m8', 1, 'piece')] }),
@@ -70,19 +70,16 @@ export const db = reactive({
     { id: 'g_shape', name: 'รูปทรง', type: 'single', required: true, appliesTo: ['custom'], options: [
       opt('sh1', 'กลม'), opt('sh2', 'สี่เหลี่ยม'), opt('sh3', 'หัวใจ', 100), opt('sh4', 'ตัวเลข/ตัวอักษร', 300),
     ] },
-    { id: 'g_tier', name: 'จำนวนชั้น', type: 'single', required: false, appliesTo: ['custom'], options: [
-      opt('t1', '1 ชั้น'), opt('t2', '2 ชั้น', 600), opt('t3', '3 ชั้น', 1200),
-    ] },
-    { id: 'g_sponge', key: 'flavor', name: 'เนื้อเค้ก', type: 'single', required: true, appliesTo: ['custom'], options: [
+    { id: 'g_sponge', key: 'flavor', name: 'เนื้อเค้ก', perTier: true, type: 'single', required: true, appliesTo: ['custom'], options: [
       opt('sp1', 'วานิลลา', 0, 'fixed', { recipe: [r('m1', 150), r('m2', 120), r('m3', 3), r('m4', 70)] }),
       opt('sp2', 'ช็อกโกแลต', 30, 'per_pound', { recipe: [r('m1', 140), r('m2', 120), r('m3', 3), r('m4', 70), r('m6', 30)] }), opt('sp3', 'ใบเตย'),
       opt('sp4', 'เรดเวลเวท', 50, 'per_pound'), opt('sp5', 'ชาไทย', 30, 'per_pound'),
     ] },
-    { id: 'g_filling', name: 'สอดไส้', prepList: true, type: 'multi', required: false, appliesTo: ['custom'], options: [
+    { id: 'g_filling', name: 'สอดไส้', prepList: true, perTier: true, type: 'multi', required: false, appliesTo: ['custom'], options: [
       opt('f1', 'ครีมสด', 0, 'fixed', { recipe: [r('m5', 100)] }), opt('f2', 'สตรอว์เบอร์รี', 60, 'per_pound', { recipe: [r('m7', 80)] }), opt('f3', 'บลูเบอร์รี', 60, 'per_pound'),
       opt('f4', 'คัสตาร์ด', 40, 'per_pound'), opt('f5', 'ช็อกโกแลตกานาช', 50, 'per_pound'),
     ] },
-    { id: 'g_frosting', name: 'หน้าเค้ก/ครีม', prepList: true, type: 'single', required: true, appliesTo: ['custom'], options: [
+    { id: 'g_frosting', name: 'หน้าเค้ก/ครีม', prepList: true, perTier: true, type: 'single', required: true, appliesTo: ['custom'], options: [
       opt('fr1', 'วิปครีม', 0, 'fixed', { recipe: [r('m5', 200), r('m2', 20)] }), opt('fr2', 'บัตเตอร์ครีม', 50, 'per_pound'), opt('fr3', 'ฟองดองท์', 200, 'per_pound'),
       opt('fr4', 'ช็อกโกแลตกานาช', 80, 'per_pound'), opt('fr5', 'ครีมชีส', 80, 'per_pound'),
     ] },
@@ -280,7 +277,8 @@ function seed() {
   const o1 = createOrder({
     customerId: 'c1', pickupAt: at(1, 14), fulfillment: 'pickup',
     items: [{ id: uid('i'), kind: 'custom', name: 'เค้กสั่งทำ 2 ปอนด์', qty: 1, note: 'ตามรูปตัวอย่าง', images: [],
-      selections: { g_size: 's2', g_shape: 'sh3', g_sponge: 'sp2', g_filling: ['f2'], g_frosting: 'fr1', g_color: 'ชมพูพาสเทล', g_topping: ['tp2'], g_message: 'HBD แม่ 60 ปี', g_extra: ['x2'] } }],
+      tiers: [{ selections: { g_size: 's2', g_sponge: 'sp2', g_filling: ['f2'], g_frosting: 'fr1' } }],
+      selections: { g_shape: 'sh3', g_color: 'ชมพูพาสเทล', g_topping: ['tp2'], g_message: 'HBD แม่ 60 ปี', g_extra: ['x2'] } }],
   })
   reportPayment(o1, { amount: 600, method: 'โอนเงิน', paidAt: at(0, 9) })
   confirmPayment(o1, o1.payments[0].id)
