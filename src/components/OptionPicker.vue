@@ -1,12 +1,14 @@
 <script setup>
 import { money } from '../lib/format'
+import AppIcon from './AppIcon.vue'
 
 defineProps({ groups: { type: Array, required: true }, errors: { type: Object, default: () => ({}) } })
 const selections = defineModel({ type: Object, required: true })
 
 function priceText(o) {
   if (!o.price) return ''
-  return o.priceType === 'per_pound' ? `+${money(o.price)}/ปอนด์` : (o.pounds ? money(o.price) : `+${money(o.price)}`)
+  if (o.pounds) return money(o.price)
+  return o.priceType === 'per_pound' ? `+${money(o.price)}/ปอนด์` : `+${money(o.price)}`
 }
 
 function toggle(groupId, optionId) {
@@ -28,12 +30,17 @@ const isOn = (g, o) =>
 </script>
 
 <template>
-  <div class="space-y-4">
-    <div v-for="g in groups" :key="g.id">
-      <div class="label">
-        {{ g.name }}
-        <span v-if="g.required" class="text-rose-500">*</span>
-        <span v-if="g.type === 'multi'" class="font-normal text-stone-400">(เลือกได้หลายอย่าง)</span>
+  <div class="space-y-3">
+    <div
+      v-for="g in groups"
+      :key="g.id"
+      class="rounded-2xl border bg-white p-3.5"
+      :class="errors[g.id] ? 'border-rose-300 ring-4 ring-rose-50' : 'border-stone-200/70'"
+    >
+      <div class="mb-2.5 flex flex-wrap items-baseline gap-x-2">
+        <span class="text-sm font-semibold text-stone-800">{{ g.name }}</span>
+        <span v-if="g.required" class="text-xs font-medium text-rose-500">จำเป็น</span>
+        <span v-else-if="g.type === 'multi'" class="text-xs text-stone-400">เลือกได้หลายอย่าง</span>
       </div>
 
       <input
@@ -48,15 +55,16 @@ const isOn = (g, o) =>
           v-for="o in g.options"
           :key="o.id"
           type="button"
-          class="rounded-lg border px-3 py-1.5 text-sm transition"
-          :class="isOn(g, o) ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-stone-300 bg-white hover:bg-stone-50'"
+          class="inline-flex max-w-full items-center gap-1.5 rounded-xl border px-3 py-2 text-left text-sm transition active:scale-[0.98]"
+          :class="isOn(g, o) ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : 'border-stone-200 bg-white text-stone-700 hover:border-brand-300'"
           @click="g.type === 'multi' ? toggle(g.id, o.id) : pick(g.id, o.id, g.required)"
         >
-          {{ o.name }}
-          <span v-if="priceText(o)" class="ml-1 text-xs text-stone-500">{{ priceText(o) }}</span>
+          <AppIcon v-if="isOn(g, o)" name="check" :size="14" class="text-brand-600" />
+          <span class="min-w-0 break-words">{{ o.name }}</span>
+          <span v-if="priceText(o)" class="text-xs whitespace-nowrap text-stone-500">{{ priceText(o) }}</span>
         </button>
       </div>
-      <p v-if="errors[g.id]" class="mt-1 text-sm text-rose-600">{{ errors[g.id] }}</p>
+      <p v-if="errors[g.id]" class="mt-2 text-sm text-rose-600">{{ errors[g.id] }}</p>
     </div>
   </div>
 </template>

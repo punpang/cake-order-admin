@@ -6,6 +6,7 @@ import { orderTotals } from '../lib/pricing'
 import { money, dateTime, toDateStr } from '../lib/format'
 import ItemEditor from '../components/ItemEditor.vue'
 import ItemCard from '../components/ItemCard.vue'
+import AppIcon from '../components/AppIcon.vue'
 
 const router = useRouter()
 const steps = ['ลูกค้า', 'นัดรับ', 'สินค้า', 'สรุป']
@@ -32,6 +33,13 @@ const matches = computed(() => {
   const list = s ? db.customers.filter((c) => [c.name, c.phone, c.line].some((v) => v?.toLowerCase().includes(s))) : db.customers
   return list.slice(0, 8)
 })
+const initial = (n) => (n || '').replace(/^คุณ/, '').trim().charAt(0)
+
+function openNew() {
+  newCus.name = q.value
+  showNew.value = true
+  error.value = ''
+}
 function saveNewCustomer() {
   if (!newCus.name.trim()) return (error.value = 'กรอกชื่อลูกค้า')
   const c = addCustomer(newCus)
@@ -51,6 +59,7 @@ function onSaveItem(item) {
   if (editing.value.index != null) form.items[editing.value.index] = item
   else form.items.push(item)
   editing.value = null
+  error.value = ''
 }
 
 // ---------- สรุป ----------
@@ -69,10 +78,18 @@ function next() {
   error.value = validate(step.value)
   if (!error.value) step.value++
 }
+function back() {
+  error.value = ''
+  step.value--
+}
 function goTo(i) {
   for (let k = 0; k < i; k++) {
     const e = validate(k)
-    if (e) return (error.value = e)
+    if (e) {
+      step.value = k
+      error.value = e
+      return
+    }
   }
   error.value = ''
   step.value = i
@@ -84,148 +101,194 @@ function submit(asDraft) {
 </script>
 
 <template>
-  <div v-if="!can('createOrder')" class="card text-center text-stone-500">บทบาทนี้สร้างออร์เดอร์ไม่ได้</div>
+  <div v-if="!can('createOrder')" class="card py-10 text-center text-stone-500">บทบาทนี้สร้างออร์เดอร์ไม่ได้</div>
 
-  <div v-else class="mx-auto max-w-2xl pb-24">
+  <div v-else class="mx-auto max-w-2xl pb-[calc(env(safe-area-inset-bottom)+6rem)]">
+    <!-- หัว -->
     <div class="mb-4 flex items-center gap-2">
-      <RouterLink to="/orders" class="rounded-lg px-2 py-1 text-xl hover:bg-stone-200">‹</RouterLink>
-      <h1 class="text-xl font-semibold">สร้างออร์เดอร์</h1>
+      <RouterLink to="/orders" class="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
+        <AppIcon name="back" :size="20" />
+      </RouterLink>
+      <h1 class="text-xl font-bold tracking-tight text-stone-900">สร้างออร์เดอร์</h1>
     </div>
 
     <!-- ขั้นตอน -->
-    <ol class="mb-5 grid grid-cols-4 gap-1">
-      <li v-for="(s, i) in steps" :key="s">
-        <button class="w-full text-left" @click="goTo(i)">
-          <div class="h-1.5 rounded-full" :class="i <= step ? 'bg-rose-500' : 'bg-stone-200'" />
-          <div class="mt-1 text-xs sm:text-sm" :class="i === step ? 'font-semibold text-rose-600' : 'text-stone-500'">
-            {{ i + 1 }}. {{ s }}
-          </div>
+    <ol class="card mb-4 flex items-center gap-1 p-2.5">
+      <li v-for="(s, i) in steps" :key="s" class="flex min-w-0 flex-1 items-center">
+        <button class="flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl py-1.5 sm:flex-row sm:justify-center sm:gap-2" @click="goTo(i)">
+          <span
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition"
+            :class="i < step ? 'bg-brand-600 text-white' : i === step ? 'bg-brand-600 text-white ring-4 ring-brand-100' : 'bg-stone-100 text-stone-400'"
+          >
+            <AppIcon v-if="i < step" name="check" :size="14" />
+            <template v-else>{{ i + 1 }}</template>
+          </span>
+          <span class="truncate text-xs font-medium sm:text-sm" :class="i === step ? 'text-brand-700' : 'text-stone-500'">{{ s }}</span>
         </button>
+        <span v-if="i < steps.length - 1" class="hidden h-px w-4 shrink-0 bg-stone-200 sm:block" />
       </li>
     </ol>
 
     <!-- 1 ลูกค้า -->
-    <section v-if="step === 0" class="card space-y-3">
-      <div v-if="customer" class="flex items-center justify-between rounded-lg bg-rose-50 p-3">
-        <div>
-          <div class="font-semibold">{{ customer.name }}</div>
-          <div class="text-sm text-stone-600">{{ customer.phone }} <span v-if="customer.line">· LINE {{ customer.line }}</span></div>
-          <div v-if="customer.note" class="text-sm text-stone-500">{{ customer.note }}</div>
+    <section v-if="step === 0" class="card">
+      <div class="card-title"><AppIcon name="user" class="text-brand-600" /> ลูกค้า</div>
+
+      <div v-if="customer" class="flex items-center gap-3 rounded-2xl bg-brand-50 p-3.5">
+        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-600 text-lg font-bold text-white">{{ initial(customer.name) }}</span>
+        <div class="min-w-0 flex-1">
+          <div class="truncate font-semibold text-stone-900">{{ customer.name }}</div>
+          <div class="truncate text-sm text-stone-600">{{ customer.phone || '-' }}<span v-if="customer.line"> · LINE {{ customer.line }}</span></div>
+          <div v-if="customer.note" class="truncate text-sm text-stone-500">{{ customer.note }}</div>
         </div>
-        <button class="btn-outline" @click="form.customerId = null">เปลี่ยน</button>
+        <button class="btn-outline h-9 px-3" @click="form.customerId = null">เปลี่ยน</button>
       </div>
 
-      <template v-else>
-        <template v-if="!showNew">
-          <input v-model="q" class="input" placeholder="ค้นหา ชื่อ / เบอร์ / LINE" />
-          <div class="divide-y divide-stone-100 rounded-lg border border-stone-200">
-            <button
-              v-for="c in matches"
-              :key="c.id"
-              class="block w-full px-3 py-2 text-left hover:bg-stone-50"
-              @click="form.customerId = c.id"
-            >
-              <div class="font-medium">{{ c.name }}</div>
-              <div class="text-sm text-stone-500">{{ c.phone }}</div>
-            </button>
-            <p v-if="!matches.length" class="px-3 py-2 text-sm text-stone-500">ไม่พบลูกค้า</p>
-          </div>
-          <button class="btn-outline w-full" @click="showNew = true; newCus.name = q">+ ลูกค้าใหม่</button>
-        </template>
-
-        <div v-else class="space-y-3">
-          <h2 class="font-semibold">ลูกค้าใหม่</h2>
-          <div><label class="label">ชื่อ <span class="text-rose-500">*</span></label><input v-model="newCus.name" class="input" /></div>
-          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div><label class="label">เบอร์โทร</label><input v-model="newCus.phone" type="tel" class="input" /></div>
-            <div><label class="label">LINE</label><input v-model="newCus.line" class="input" /></div>
-          </div>
-          <div><label class="label">หมายเหตุ</label><input v-model="newCus.note" class="input" /></div>
-          <div class="flex justify-end gap-2">
-            <button class="btn-outline" @click="showNew = false">ยกเลิก</button>
-            <button class="btn-primary" @click="saveNewCustomer">บันทึกลูกค้า</button>
-          </div>
+      <template v-else-if="!showNew">
+        <label class="relative mb-3 block">
+          <AppIcon name="search" class="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-stone-400" />
+          <input v-model="q" class="input pl-10" placeholder="ค้นหา ชื่อ / เบอร์ / LINE" />
+        </label>
+        <div class="space-y-2">
+          <button
+            v-for="c in matches"
+            :key="c.id"
+            class="flex w-full items-center gap-3 rounded-xl border border-stone-200/70 p-3 text-left transition hover:border-brand-300 hover:bg-brand-50/40 active:scale-[0.99]"
+            @click="form.customerId = c.id; error = ''"
+          >
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-stone-100 font-semibold text-stone-600">{{ initial(c.name) }}</span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate font-medium text-stone-900">{{ c.name }}</span>
+              <span class="block truncate text-sm text-stone-500">{{ c.phone || '-' }}</span>
+            </span>
+            <AppIcon name="next" class="text-stone-300" />
+          </button>
+          <p v-if="!matches.length" class="rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-500">ไม่พบลูกค้า</p>
         </div>
+        <button class="btn-soft mt-3 w-full" @click="openNew"><AppIcon name="plus" /> ลูกค้าใหม่</button>
       </template>
+
+      <div v-else class="space-y-3">
+        <div><label class="label">ชื่อ <span class="text-rose-500">*</span></label><input v-model="newCus.name" class="input" /></div>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div><label class="label">เบอร์โทร</label><input v-model="newCus.phone" type="tel" inputmode="tel" class="input" /></div>
+          <div><label class="label">LINE</label><input v-model="newCus.line" class="input" /></div>
+        </div>
+        <div><label class="label">หมายเหตุ</label><input v-model="newCus.note" class="input" /></div>
+        <div class="flex justify-end gap-2 pt-1">
+          <button class="btn-outline" @click="showNew = false; error = ''">ยกเลิก</button>
+          <button class="btn-primary" @click="saveNewCustomer">บันทึกลูกค้า</button>
+        </div>
+      </div>
     </section>
 
     <!-- 2 นัดรับ -->
-    <section v-if="step === 1" class="card space-y-4">
-      <div class="grid grid-cols-2 gap-3">
-        <div><label class="label">วันนัดรับ</label><input v-model="form.date" type="date" class="input" /></div>
-        <div><label class="label">เวลา</label><input v-model="form.time" type="time" step="900" class="input" /></div>
-      </div>
-
-      <div v-if="pickupAt" class="rounded-lg p-3 text-sm" :class="load.day ? 'bg-amber-50 text-amber-800' : 'bg-stone-50 text-stone-600'">
-        วันนั้นมีแล้ว <b>{{ load.day }}</b> ออร์เดอร์ · ช่วง {{ form.time.slice(0, 2) }}:00 น. มี <b>{{ load.hour }}</b> ออร์เดอร์
-      </div>
-
-      <div>
-        <div class="label">การส่งมอบ</div>
-        <div class="grid grid-cols-2 gap-2">
-          <button
-            v-for="f in [{ v: 'pickup', t: '🏪 รับที่ร้าน' }, { v: 'delivery', t: '🚚 จัดส่ง' }]"
-            :key="f.v"
-            class="rounded-lg border py-2.5 text-sm"
-            :class="form.fulfillment === f.v ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-stone-300'"
-            @click="form.fulfillment = f.v"
-          >
-            {{ f.t }}
-          </button>
+    <section v-if="step === 1" class="space-y-3">
+      <div class="card">
+        <div class="card-title"><AppIcon name="calendar" class="text-brand-600" /> วันเวลานัดรับ</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="min-w-0"><label class="label">วันที่</label><input v-model="form.date" type="date" class="input" /></div>
+          <div class="min-w-0"><label class="label">เวลา</label><input v-model="form.time" type="time" step="900" class="input" /></div>
+        </div>
+        <div
+          v-if="pickupAt"
+          class="mt-3 flex items-start gap-2.5 rounded-xl p-3 text-sm"
+          :class="load.day ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'"
+        >
+          <AppIcon :name="load.day ? 'alert' : 'check'" :size="18" class="mt-0.5" />
+          <span>วันนั้นมีแล้ว <b>{{ load.day }}</b> ออร์เดอร์ · ช่วง {{ form.time.slice(0, 2) }}:00 น. มี <b>{{ load.hour }}</b> ออร์เดอร์</span>
         </div>
       </div>
 
-      <template v-if="form.fulfillment === 'delivery'">
-        <div><label class="label">ที่อยู่จัดส่ง <span class="text-rose-500">*</span></label><textarea v-model="form.address" rows="2" class="input" /></div>
-        <div class="w-40"><label class="label">ค่าส่ง (บาท)</label><input v-model.number="form.shippingFee" type="number" min="0" class="input" /></div>
-      </template>
+      <div class="card">
+        <div class="card-title"><AppIcon name="truck" class="text-brand-600" /> การส่งมอบ</div>
+        <div class="grid grid-cols-2 gap-2">
+          <button
+            v-for="f in [{ v: 'pickup', t: 'รับที่ร้าน', i: 'store' }, { v: 'delivery', t: 'จัดส่ง', i: 'truck' }]"
+            :key="f.v"
+            class="flex flex-col items-center gap-1.5 rounded-2xl border p-4 text-sm font-semibold transition active:scale-[0.98]"
+            :class="form.fulfillment === f.v ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : 'border-stone-200 text-stone-600 hover:border-brand-300'"
+            @click="form.fulfillment = f.v"
+          >
+            <AppIcon :name="f.i" :size="24" />
+            {{ f.t }}
+          </button>
+        </div>
+        <div v-if="form.fulfillment === 'delivery'" class="mt-4 space-y-3">
+          <div><label class="label">ที่อยู่จัดส่ง <span class="text-rose-500">*</span></label><textarea v-model="form.address" rows="2" class="input" /></div>
+          <div class="max-w-[12rem]"><label class="label">ค่าส่ง (บาท)</label><input v-model.number="form.shippingFee" type="number" inputmode="numeric" min="0" class="input" /></div>
+        </div>
+      </div>
     </section>
 
     <!-- 3 สินค้า -->
     <section v-if="step === 2" class="space-y-3">
-      <ItemCard v-for="(it, i) in form.items" :key="it.id" :item="it" class="bg-white">
-        <button class="btn-outline" @click="editing = { item: it, index: i }">แก้ไข</button>
-        <button class="btn-danger" @click="form.items.splice(i, 1)">ลบ</button>
+      <ItemCard v-for="(it, i) in form.items" :key="it.id" :item="it">
+        <button class="btn-outline h-9 px-3" @click="editing = { item: it, index: i }"><AppIcon name="edit" :size="16" /> แก้ไข</button>
+        <button class="btn-danger h-9 px-3" @click="form.items.splice(i, 1)"><AppIcon name="trash" :size="16" /> ลบ</button>
       </ItemCard>
-      <button class="btn-outline w-full border-dashed py-3" @click="editing = {}">+ เพิ่มสินค้า</button>
-      <div v-if="form.items.length" class="text-right">ค่าสินค้า <b>{{ money(totals.subtotal) }}</b></div>
+
+      <button
+        class="flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-brand-200 bg-white/60 p-6 text-brand-700 transition hover:border-brand-400 hover:bg-white active:scale-[0.99]"
+        @click="editing = {}"
+      >
+        <span class="flex h-11 w-11 items-center justify-center rounded-full bg-brand-50"><AppIcon name="plus" :size="22" /></span>
+        <span class="font-semibold">เพิ่มสินค้า</span>
+      </button>
+
+      <div v-if="form.items.length" class="card flex items-center justify-between">
+        <span class="text-stone-500">ค่าสินค้า</span>
+        <b class="text-lg text-stone-900">{{ money(totals.subtotal) }}</b>
+      </div>
     </section>
 
     <!-- 4 สรุป -->
-    <section v-if="step === 3" class="card space-y-4">
-      <div>
-        <div class="text-sm text-stone-500">ลูกค้า</div>
-        <div class="font-semibold">{{ customer?.name }} <span class="font-normal text-stone-500">{{ customer?.phone }}</span></div>
+    <section v-if="step === 3" class="space-y-3">
+      <div class="card grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div class="flex min-w-0 gap-3">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><AppIcon name="user" /></span>
+          <div class="min-w-0">
+            <div class="text-xs text-stone-500">ลูกค้า</div>
+            <div class="truncate font-semibold text-stone-900">{{ customer?.name }}</div>
+            <div class="truncate text-sm text-stone-500">{{ customer?.phone }}</div>
+          </div>
+        </div>
+        <div class="flex min-w-0 gap-3">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><AppIcon :name="form.fulfillment === 'delivery' ? 'truck' : 'store'" /></span>
+          <div class="min-w-0">
+            <div class="text-xs text-stone-500">นัดรับ · {{ form.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }}</div>
+            <div class="font-semibold text-stone-900">{{ dateTime(pickupAt) }}</div>
+            <div v-if="form.fulfillment === 'delivery'" class="text-sm break-words text-stone-500">{{ form.address }}</div>
+          </div>
+        </div>
       </div>
-      <div>
-        <div class="text-sm text-stone-500">นัดรับ</div>
-        <div>{{ dateTime(pickupAt) }} · {{ form.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }}</div>
-        <div v-if="form.fulfillment === 'delivery'" class="text-sm text-stone-600">{{ form.address }}</div>
-      </div>
-      <div class="space-y-2">
-        <div class="text-sm text-stone-500">สินค้า</div>
-        <ItemCard v-for="it in form.items" :key="it.id" :item="it" />
-      </div>
-      <div class="space-y-1 border-t border-stone-200 pt-3 text-sm">
-        <div class="flex justify-between"><span>ค่าสินค้า</span><span>{{ money(totals.subtotal) }}</span></div>
-        <div v-if="form.fulfillment === 'delivery'" class="flex justify-between"><span>ค่าส่ง</span><span>{{ money(totals.shipping) }}</span></div>
-        <div class="flex justify-between text-base font-semibold"><span>รวม</span><span>{{ money(totals.total) }}</span></div>
+
+      <ItemCard v-for="it in form.items" :key="it.id" :item="it" />
+
+      <div class="card space-y-2 text-sm">
+        <div class="flex justify-between"><span class="text-stone-500">ค่าสินค้า</span><span>{{ money(totals.subtotal) }}</span></div>
+        <div v-if="form.fulfillment === 'delivery'" class="flex justify-between"><span class="text-stone-500">ค่าส่ง</span><span>{{ money(totals.shipping) }}</span></div>
+        <div class="flex items-center justify-between border-t border-stone-100 pt-2">
+          <span class="font-semibold">ยอดรวม</span>
+          <span class="text-xl font-bold text-stone-900">{{ money(totals.total) }}</span>
+        </div>
       </div>
     </section>
 
-    <p v-if="error" class="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">{{ error }}</p>
+    <!-- error -->
+    <div v-if="error" class="mt-3 flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
+      <AppIcon name="alert" :size="18" /> {{ error }}
+    </div>
 
     <!-- ปุ่มล่าง -->
-    <div class="fixed inset-x-0 bottom-0 z-10 border-t border-stone-200 bg-white/95 p-3 backdrop-blur">
+    <div class="action-bar">
       <div class="mx-auto flex max-w-2xl gap-2">
-        <button v-if="step > 0" class="btn-outline" @click="step--; error = ''">ย้อนกลับ</button>
-        <div class="flex-1" />
+        <button v-if="step > 0" class="btn-outline px-3 sm:px-4" @click="back"><AppIcon name="back" /> <span class="hidden sm:inline">ย้อนกลับ</span></button>
         <template v-if="step < 3">
-          <button class="btn-primary min-w-28" @click="next">ถัดไป</button>
+          <button class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8" @click="next">ถัดไป <AppIcon name="next" /></button>
         </template>
         <template v-else>
-          <button class="btn-outline" @click="submit(true)">บันทึกร่าง</button>
-          <button class="btn-primary" @click="submit(false)">บันทึก → รอชำระ</button>
+          <button class="btn-outline flex-1 sm:ml-auto sm:flex-none" @click="submit(true)">บันทึกร่าง</button>
+          <button class="btn-primary flex-[1.4] sm:flex-none" @click="submit(false)">บันทึก · รอชำระ</button>
         </template>
       </div>
     </div>
