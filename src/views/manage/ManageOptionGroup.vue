@@ -132,7 +132,7 @@ function saveO() {
     <AppModal v-if="gOpen" title="ตั้งค่ากลุ่ม" @close="gOpen = false">
       <div class="space-y-4">
         <div><label class="label">ชื่อกลุ่ม <span class="text-rose-500">*</span></label><input v-model="g.name" class="input" /></div>
-        <div v-if="g.type !== 'text' && !isSize">
+        <div v-if="g.type !== 'text'">
           <div class="label">รูปแบบ</div>
           <div class="grid grid-cols-2 gap-2">
             <button
@@ -145,17 +145,15 @@ function saveO() {
             >{{ GROUP_TYPES[key] }}</button>
           </div>
         </div>
-        <div v-if="!isSize">
+        <div>
           <div class="label">ใช้กับ</div>
           <div class="flex flex-wrap gap-2">
             <button v-for="(label, key) in APPLIES_TO" :key="key" type="button" class="chip" :class="g.appliesTo.includes(key) ? 'chip-on' : 'chip-off'" @click="toggleApplies(key)">{{ label }}</button>
           </div>
         </div>
         <div v-if="g.type === 'text'"><label class="label">ข้อความตัวอย่างในช่อง</label><input v-model="g.placeholder" class="input" /></div>
-        <template v-if="!isSize">
-          <AppSwitch v-model="g.required" label="จำเป็นต้องเลือก/กรอก" class="flex" />
-          <AppSwitch v-model="g.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" class="flex" />
-        </template>
+        <AppSwitch v-model="g.required" label="จำเป็นต้องเลือก/กรอก" class="flex" />
+        <AppSwitch v-model="g.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" class="flex" />
         <p v-if="gError" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ gError }}</p>
       </div>
       <template #footer>

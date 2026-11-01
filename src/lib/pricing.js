@@ -1,13 +1,24 @@
 // ราคาต่อชิ้น = ราคาฐาน (ตามขนาด หรือราคาเค้กสำเร็จ) + ตัวเลือก (คงที่ หรือ ต่อปอนด์)
 
+// ขนาดที่เลือก (รองรับทั้งเลือกอันเดียวและหลายอัน) รวมราคาและปอนด์
+function selectedSizes(item, groups) {
+  const sizeGroup = groups.find((g) => g.key === 'size')
+  const sel = sizeGroup ? item.selections[sizeGroup.id] : null
+  const ids = sel == null ? [] : Array.isArray(sel) ? sel : [sel]
+  const opts = ids.map((id) => sizeGroup.options.find((o) => o.id === id)).filter(Boolean)
+  return {
+    price: opts.reduce((s, o) => s + (o.price || 0), 0),
+    pounds: opts.reduce((s, o) => s + (o.pounds || 0), 0),
+  }
+}
+
 export function itemBase(item, groups, products) {
+  const size = selectedSizes(item, groups)
   if (item.kind === 'ready') {
     const p = products.find((x) => x.id === item.productId)
-    return { base: p?.price || 0, pounds: p?.pounds || 1 }
+    return { base: (p?.price || 0) + size.price, pounds: p?.pounds || 1 }
   }
-  const sizeGroup = groups.find((g) => g.key === 'size')
-  const opt = sizeGroup?.options.find((o) => o.id === item.selections[sizeGroup.id])
-  return { base: opt?.price || 0, pounds: opt?.pounds || 1 }
+  return { base: size.price, pounds: size.pounds || 1 }
 }
 
 export function calcUnitPrice(item, groups, products) {

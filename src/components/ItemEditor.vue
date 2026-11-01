@@ -49,8 +49,10 @@ function save() {
     form.name = db.products.find((p) => p.id === form.productId)?.name || ''
   } else {
     const size = db.optionGroups.find((g) => g.key === 'size')
-    const s = size?.options.find((o) => o.id === form.selections[size.id])
-    form.name = `เค้กสั่งทำ ${s?.name || ''}`.trim()
+    const sel = size ? form.selections[size.id] : null
+    const ids = sel == null ? [] : Array.isArray(sel) ? sel : [sel]
+    const names = ids.map((id) => size.options.find((o) => o.id === id)?.name).filter(Boolean)
+    form.name = `เค้กสั่งทำ ${names.join(', ')}`.trim()
   }
   emit('save', { ...JSON.parse(JSON.stringify(toRaw(form))), unitPrice: unitPrice.value })
 }
