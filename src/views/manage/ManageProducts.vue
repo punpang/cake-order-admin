@@ -20,10 +20,10 @@ const list = computed(() => {
     .filter((p) => !s || p.name.toLowerCase().includes(s))
 })
 
-// ราคา = หน้าเค้ก (ตามขนาด) + เนื้อเค้ก + ขนาด (ตั้งตัวเลขที่หน้าการกำหนดราคา) · สูตรวัตถุดิบใช้ของสินค้าเอง
+// ราคา = ประเภท + เนื้อเค้ก + ราคาขนาดของประเภท (ตั้งตัวเลขที่หน้าการกำหนดราคา) · สูตรวัตถุดิบใช้ของสินค้าเอง
 const groupOf = (k) => db.optionGroups.find((g) => g.key === k)
 const MAIN = [
-  { k: 'face', f: 'faceId' },
+  { k: 'type', f: 'typeId' },
   { k: 'flavor', f: 'flavorId' },
   { k: 'size', f: 'sizeId' },
 ]
@@ -32,7 +32,7 @@ const poundsOf = (p) => productPounds(p, db.optionGroups)
 const nameOf = (k, id) => groupOf(k)?.options.find((o) => o.id === id)?.name || '-'
 
 const open = ref(false)
-const blank = () => ({ id: null, name: '', faceId: null, flavorId: null, sizeId: null, active: true, recipe: [] })
+const blank = () => ({ id: null, name: '', typeId: null, flavorId: null, sizeId: null, active: true, recipe: [] })
 const form = reactive(blank())
 const error = ref('')
 function edit(p) {
@@ -48,11 +48,11 @@ async function save() {
   open.value = false
 }
 
-// เนื้อเค้ก/ขนาดที่หน้าเค้กอนุญาต (เปลี่ยนหน้าเค้กแล้วตัดตัวที่ไม่มีออก)
-const allow = computed(() => allowedBy(db.optionGroups, groupOf('face') ? { [groupOf('face').id]: form.faceId } : {}))
-const optsOf = (m) => (groupOf(m.k)?.options || []).filter((o) => (o.active !== false || o.id === form[m.f]) && (m.k === 'face' || allow.value(groupOf(m.k), o)))
+// เนื้อเค้ก/ขนาดที่ประเภทอนุญาต (เปลี่ยนประเภทแล้วตัดตัวที่ไม่มีออก)
+const allow = computed(() => allowedBy(db.optionGroups, groupOf('type') ? { [groupOf('type').id]: form.typeId } : {}))
+const optsOf = (m) => (groupOf(m.k)?.options || []).filter((o) => (o.active !== false || o.id === form[m.f]) && (m.k === 'type' || allow.value(groupOf(m.k), o)))
 watch(
-  () => form.faceId,
+  () => form.typeId,
   () => {
     for (const m of MAIN.slice(1)) {
       const o = groupOf(m.k)?.options.find((x) => x.id === form[m.f])
@@ -88,7 +88,7 @@ watch(
             <span class="truncate font-semibold text-stone-900">{{ p.name }}</span>
             <span v-if="p.active === false" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
           </span>
-          <span class="block truncate text-sm text-stone-500">{{ nameOf('face', p.faceId) }} · {{ nameOf('flavor', p.flavorId) }} · {{ nameOf('size', p.sizeId) }}</span>
+          <span class="block truncate text-sm text-stone-500">{{ nameOf('type', p.typeId) }} · {{ nameOf('flavor', p.flavorId) }} · {{ nameOf('size', p.sizeId) }}</span>
         </span>
         <span class="shrink-0 text-lg font-semibold text-stone-900">{{ money(priceOf(p)) }}</span>
       </button>
@@ -106,7 +106,7 @@ watch(
           </div>
         </template>
         <div class="flex items-center justify-between rounded-xl bg-stone-50 p-3 text-sm">
-          <span class="text-stone-500">ราคา (หน้าเค้ก + เนื้อเค้ก + ขนาด)</span>
+          <span class="text-stone-500">ราคา (ประเภท + เนื้อเค้ก + ขนาด)</span>
           <b class="text-base text-stone-900">{{ form.sizeId ? money(priceOf(form)) : '-' }}</b>
         </div>
         <p class="text-xs text-stone-400">แก้ตัวเลขราคาที่ <RouterLink to="/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink> · สูตรวัตถุดิบด้านล่างใช้คิดต้นทุนของสินค้านี้</p>

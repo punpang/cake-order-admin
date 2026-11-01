@@ -1,51 +1,41 @@
 <script setup>
 import { money } from '../lib/format'
-import { effectivePrice, sizePriceOf, sizePrice, facePrice, flavorPrice } from '../lib/pricing'
+import { sizePriceOf, typePrice, typeSizePrice, flavorPrice } from '../lib/pricing'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
   groups: { type: Array, required: true },
   errors: { type: Object, default: () => ({}) },
   active: { type: Array, default: () => [] }, // แบบราคาพิเศษที่ใช้งาน
-  allow: { type: Function, default: null }, // (group, option) => เลือกได้ไหม (ตามหน้าเค้ก)
-  sizeIds: { type: Array, default: () => [] }, // ขนาดที่เลือก (ราคาตัวเลือกแบบตามขนาด)
+  allow: { type: Function, default: null }, // (group, option) => เลือกได้ไหม (ตามประเภท)
+  sizeIds: { type: Array, default: () => [] }, // ขนาดที่เลือก (ราคาตามขนาด)
+  typeOpt: { type: Object, default: null }, // ประเภทที่เลือกในชั้นนี้ (ราคาขนาดขึ้นกับประเภท)
 })
 const selections = defineModel({ type: Object, required: true })
 
-function fmt(o, price) {
-  return o.priceType === 'per_pound' ? `+${money(price)}/ปอนด์` : `+${money(price)}`
-}
-// ราคาเค้กหลัก: ขนาด = ราคาขนาด, หน้าเค้ก = ราคาตามขนาดของชั้น, เนื้อเค้ก = บวกคงที่
-const isMain = (g) => ['size', 'face', 'flavor'].includes(g.key)
-const faceNoSize = (g) => g.key === 'face' && !props.sizeIds.length
+// ราคาเค้กหลัก: ประเภท = ราคาคงที่ (+ ราคาขนาดถ้าเลือกขนาดแล้ว), เนื้อเค้ก = คงที่, ขนาด = ราคาขนาดของประเภทที่เลือก
+const isMain = (g) => ['type', 'flavor', 'size'].includes(g.key)
 function mainPrice(g, o, active) {
-  if (g.key === 'size') return sizePrice(o, active)
-  if (g.key === 'face') return facePrice(o, props.sizeIds[0], active)
+  if (g.key === 'type') return typePrice(o, active) + typeSizePrice(o, props.sizeIds[0], active)
+  if (g.key === 'size') return props.typeOpt ? typeSizePrice(props.typeOpt, o.id, active) : null
   return flavorPrice(o, active)
 }
 function priceText(g, o) {
-  if (g.key === 'size') return money(mainPrice(g, o, props.active))
-  if (faceNoSize(g)) return 'ตามขนาด'
   if (isMain(g)) {
     const v = mainPrice(g, o, props.active)
+    if (v == null) return ''
+    if (g.key === 'size') return money(v)
     return v ? `+${money(v)}` : ''
   }
-  if (o.priceType === 'per_size') return props.sizeIds.length ? `+${money(sizePriceOf(o, props.sizeIds))}` : 'ตามขนาด'
-  const price = effectivePrice(o, props.active).price
-  if (!price) return ''
-  return fmt(o, price)
+  if (!o.sizePrices || !Object.values(o.sizePrices).some((v) => Number(v))) return ''
+  return props.sizeIds.length ? `+${money(sizePriceOf(o, props.sizeIds))}` : 'ตามขนาด'
 }
 // ราคาปกติ (แสดงขีดฆ่า) เมื่อใช้ราคาพิเศษ
 function regularText(g, o) {
-  if (isMain(g)) {
-    if (faceNoSize(g)) return ''
-    const reg = mainPrice(g, o, [])
-    if (reg === mainPrice(g, o, props.active)) return ''
-    return g.key === 'size' ? money(reg) : `+${money(reg)}`
-  }
-  if (o.priceType === 'per_size') return ''
-  const r = effectivePrice(o, props.active)
-  return r.list && r.price !== (o.price || 0) && o.price ? fmt(o, o.price) : ''
+  if (!isMain(g)) return ''
+  const reg = mainPrice(g, o, [])
+  if (reg == null || reg === mainPrice(g, o, props.active)) return ''
+  return g.key === 'size' ? money(reg) : `+${money(reg)}`
 }
 
 function toggle(groupId, optionId) {

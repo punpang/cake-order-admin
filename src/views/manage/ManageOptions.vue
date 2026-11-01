@@ -1,7 +1,9 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { db, saveGroup } from '../../data/store'
+import { db, saveGroup, saveBundle } from '../../data/store'
+import { confirmDeactivate } from '../../lib/confirm'
+import { money } from '../../lib/format'
 import { GROUP_TYPES, APPLIES_TO, MAIN_KEYS } from '../../lib/constants'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
@@ -41,6 +43,37 @@ function save() {
   const g = saveGroup({ ...form, appliesTo: [...form.appliesTo], options: [] })
   open.value = false
   if (g.type !== 'text') router.push(`/manage/options/${g.id}`)
+}
+
+// ---------- บันเดิ้ล: ตัวเลือกรอง ในกลุ่มเดียวกันหรือข้ามกลุ่ม ลดราคาตามขนาด ----------
+const sizeOpts = computed(() => (db.optionGroups.find((x) => x.key === 'size')?.options || []).filter((x) => x.active !== false))
+const bundleGroups = computed(() => db.optionGroups.filter((g) => !MAIN_KEYS.includes(g.key) && g.type !== 'text' && g.active !== false))
+const bundleList = computed(() => db.bundles.filter((b) => inactive.value || b.active !== false))
+const itemName = (x) => {
+  const g = db.optionGroups.find((y) => y.id === x.groupId)
+  return `${g?.name || '?'}: ${g?.options.find((o) => o.id === x.optionId)?.name || '?'}`
+}
+const bOpen = ref(false)
+const bd = reactive({ id: null, name: '', items: [], discount: {}, active: true })
+const bError = ref('')
+const bundleAutoName = computed(() => bd.items.map((x) => db.optionGroups.find((g) => g.id === x.groupId)?.options.find((o) => o.id === x.optionId)?.name).filter(Boolean).join(' + '))
+function editBundle(b) {
+  Object.assign(bd, b ? { ...b, items: b.items.map((x) => ({ ...x })), discount: { ...(b.discount || {}) } } : { id: null, name: '', items: [], discount: {}, active: true })
+  bError.value = ''
+  bOpen.value = true
+}
+const inBundle = (g, o) => bd.items.some((x) => x.groupId === g.id && x.optionId === o.id)
+function toggleItem(g, o) {
+  const i = bd.items.findIndex((x) => x.groupId === g.id && x.optionId === o.id)
+  if (i >= 0) bd.items.splice(i, 1)
+  else bd.items.push({ groupId: g.id, optionId: o.id })
+}
+async function saveB() {
+  if (bd.items.length < 2) return (bError.value = 'เลือกอย่างน้อย 2 ตัวเลือก')
+  const data = { ...bd, name: bd.name.trim() || bundleAutoName.value }
+  if (!(await confirmDeactivate(db.bundles, data, data.name))) return
+  saveBundle(data)
+  bOpen.value = false
 }
 </script>
 
@@ -85,6 +118,64 @@ function save() {
         </div>
       </RouterLink>
     </div>
+
+    <!-- บันเดิ้ล -->
+    <section class="card mt-4">
+      <div class="mb-3 flex items-center justify-between gap-2">
+        <div class="text-[15px] font-semibold text-stone-900">บันเดิ้ล <span class="text-xs font-normal text-stone-400">เลือกครบชุด ลดราคาตามขนาด (ในกลุ่มหรือข้ามกลุ่ม)</span></div>
+        <button class="btn-soft h-9 px-3" @click="editBundle(null)"><AppIcon name="plus" :size="16" /> เพิ่ม</button>
+      </div>
+      <p v-if="!bundleList.length" class="text-sm text-stone-500">ยังไม่มีบันเดิ้ล</p>
+      <div class="space-y-2">
+        <button
+          v-for="b in bundleList"
+          :key="b.id"
+          class="block w-full rounded-xl border border-stone-200 p-3 text-left hover:border-brand-300"
+          :class="b.active === false ? 'opacity-60' : ''"
+          @click="editBundle(b)"
+        >
+          <span class="flex items-center gap-2">
+            <span class="min-w-0 flex-1 font-medium break-words text-stone-900">{{ b.name }}</span>
+            <span v-if="b.active === false" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
+          </span>
+          <span class="mt-0.5 block text-xs break-words text-stone-500">{{ b.items.map(itemName).join(' + ') }}</span>
+          <span class="mt-0.5 block text-xs text-emerald-700">{{ sizeOpts.map((sz) => `${sz.name} −${money(b.discount?.[sz.id] || 0)}`).join(' · ') }}</span>
+        </button>
+      </div>
+    </section>
+
+    <AppModal v-if="bOpen" :title="bd.id ? 'แก้ไขบันเดิ้ล' : 'เพิ่มบันเดิ้ล'" @close="bOpen = false">
+      <div class="space-y-4">
+        <div>
+          <div class="label">ตัวเลือกในบันเดิ้ล (อย่างน้อย 2 · เลือกจากกลุ่มเดียวกันหรือต่างกลุ่มได้)</div>
+          <div class="space-y-3">
+            <div v-for="g in bundleGroups" :key="g.id">
+              <div class="mb-1 text-xs font-semibold text-stone-500">{{ g.name }}</div>
+              <div class="flex flex-wrap gap-2">
+                <button v-for="x in g.options.filter((y) => y.active !== false || inBundle(g, y))" :key="x.id" type="button" class="chip" :class="inBundle(g, x) ? 'chip-on' : 'chip-off'" @click="toggleItem(g, x)">{{ x.name }}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div><label class="label">ชื่อ</label><input v-model="bd.name" class="input" :placeholder="bundleAutoName || 'เช่น สตรอว์เบอร์รี + บลูเบอร์รี'" /></div>
+        <div>
+          <div class="label">ลดจากราคารวม (บาท) แต่ละขนาด</div>
+          <div class="space-y-2">
+            <div v-for="sz in sizeOpts" :key="sz.id" class="flex items-center gap-3">
+              <span class="min-w-0 flex-1 text-sm text-stone-700">{{ sz.name }}</span>
+              <input v-model="bd.discount[sz.id]" type="number" inputmode="numeric" min="0" class="input w-32 shrink-0" placeholder="0" />
+            </div>
+          </div>
+          <p class="mt-1 text-xs text-stone-400">เค้กชั้น: ลดตามขนาดของแต่ละชั้นที่เลือกครบชุด</p>
+        </div>
+        <AppSwitch v-model="bd.active" label="ใช้งาน" class="flex" />
+        <p v-if="bError" class="text-sm text-rose-600">{{ bError }}</p>
+      </div>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="bOpen = false">ยกเลิก</button>
+        <button class="btn-primary flex-1 sm:flex-none" @click="saveB">บันทึก</button>
+      </template>
+    </AppModal>
 
     <AppModal v-if="open" title="เพิ่มกลุ่มตัวเลือก" @close="open = false">
       <div class="space-y-4">

@@ -50,6 +50,13 @@ function sizeIdsOf(t) {
   const v = (sg.perTier && t ? t.selections : form.selections)[sg.id]
   return v == null ? [] : Array.isArray(v) ? v : [v]
 }
+// ประเภทที่เลือกของชั้น (ราคาขนาดขึ้นกับประเภท)
+function typeOptOf(t) {
+  const tg = typeGroup.value
+  const v = tg ? typeSels(t)?.[tg.id] : null
+  const id = Array.isArray(v) ? v[0] : v
+  return tg?.options.find((o) => o.id === id) || null
+}
 const allSizeIds = computed(() => {
   if (form.kind === 'ready') {
     const p = db.products.find((x) => x.id === form.productId)
@@ -63,11 +70,11 @@ const groups = computed(() => db.optionGroups.filter((g) => g.active !== false &
 const tierGroups = computed(() => (form.kind === 'custom' ? groups.value.filter((g) => g.perTier) : []))
 const wholeGroups = computed(() => groups.value.filter((g) => !tierGroups.value.includes(g)))
 
-// ตัวเลือกหลักที่หน้าเค้กอนุญาต (หน้าเค้กอยู่ในชั้นหรือทั้งก้อนก็ได้)
-const faceGroup = computed(() => groups.value.find((g) => g.key === 'face'))
-const faceSels = (t) => (faceGroup.value && tierGroups.value.includes(faceGroup.value) && t ? t.selections : form.selections)
-const allowFor = (t) => allowedBy(db.optionGroups, faceSels(t))
-// เปลี่ยนหน้าเค้กแล้ว ตัดตัวเลือกที่ไม่มีออก
+// เนื้อเค้ก/ขนาดที่ประเภทอนุญาต (ประเภทอยู่ในชั้นหรือทั้งก้อนก็ได้)
+const typeGroup = computed(() => groups.value.find((g) => g.key === 'type'))
+const typeSels = (t) => (typeGroup.value && tierGroups.value.includes(typeGroup.value) && t ? t.selections : form.selections)
+const allowFor = (t) => allowedBy(db.optionGroups, typeSels(t))
+// เปลี่ยนประเภทแล้ว ตัดตัวเลือกที่ไม่มีออก
 function prune(sels, allow, list) {
   for (const g of list) {
     const v = sels[g.id]
@@ -87,9 +94,9 @@ watch(
 )
 const products = computed(() => db.products.filter((p) => p.active || p.id === form.productId))
 const active = computed(() => activeListsAt(props.priceDate))
-const detail = computed(() => priceDetail(form, db.optionGroups, db.products, active.value))
+const detail = computed(() => priceDetail(form, db.optionGroups, db.products, active.value, db.bundles))
 const unitPrice = computed(() => detail.value.unitPrice)
-// ราคาเค้กสำเร็จ (หน้าเค้ก + เนื้อเค้ก + ขนาด) ราคาปกติแสดงขีดฆ่าเมื่อมีราคาพิเศษ
+// ราคาเค้กสำเร็จ (ประเภท + เนื้อเค้ก + ขนาด) ราคาปกติแสดงขีดฆ่าเมื่อมีราคาพิเศษ
 const priceOf = (p) => ({ price: productPrice(p, db.optionGroups, active.value), regular: productPrice(p, db.optionGroups) })
 
 function setKind(k) {
@@ -133,7 +140,7 @@ function save() {
   if (form.kind === 'ready') {
     form.name = db.products.find((p) => p.id === form.productId)?.name || ''
   } else {
-    // ชื่อ = หน้าเค้ก · เนื้อเค้ก · ขนาด (หลายชั้นคั่นด้วย /)
+    // ชื่อ = ประเภท · เนื้อเค้ก · ขนาด (หลายชั้นคั่นด้วย /)
     const namesOf = (g, sels) => {
       const sel = sels?.[g.id]
       const ids = sel == null ? [] : Array.isArray(sel) ? sel : [sel]
@@ -227,17 +234,17 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
             <span class="font-semibold text-brand-800">ชั้นที่ {{ i + 1 }}</span>
             <button v-if="form.tiers.length > 1" type="button" class="btn-danger h-8 px-2.5 text-sm" @click="removeTier(i)"><AppIcon name="trash" :size="14" /> ลบชั้น</button>
           </div>
-          <OptionPicker v-model="tier.selections" :groups="tierGroups" :errors="errors['t' + i] || {}" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" />
+          <OptionPicker v-model="tier.selections" :groups="tierGroups" :errors="errors['t' + i] || {}" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" :type-opt="typeOptOf(tier)" />
         </div>
         <button type="button" class="btn-soft mb-3 w-full" @click="form.tiers.push({ selections: {} })"><AppIcon name="plus" :size="16" /> เพิ่มชั้น</button>
       </template>
       <div v-else class="mb-3">
-        <OptionPicker v-model="form.tiers[0].selections" :groups="tierGroups" :errors="errors.t0 || {}" :active="active" :allow="allowFor(form.tiers[0])" :size-ids="sizeIdsOf(form.tiers[0])" />
+        <OptionPicker v-model="form.tiers[0].selections" :groups="tierGroups" :errors="errors.t0 || {}" :active="active" :allow="allowFor(form.tiers[0])" :size-ids="sizeIdsOf(form.tiers[0])" :type-opt="typeOptOf(form.tiers[0])" />
       </div>
     </template>
 
     <div v-if="form.kind === 'custom' && wholeGroups.length" class="mb-2 text-sm font-semibold text-stone-500">ตัวเลือกเพิ่มเติม</div>
-    <OptionPicker v-model="form.selections" :groups="wholeGroups" :errors="errors" :active="active" :allow="form.kind === 'custom' ? allowFor(form.tiers[0]) : null" :size-ids="allSizeIds" />
+    <OptionPicker v-model="form.selections" :groups="wholeGroups" :errors="errors" :active="active" :allow="form.kind === 'custom' ? allowFor(form.tiers[0]) : null" :size-ids="allSizeIds" :type-opt="form.kind === 'custom' ? typeOptOf(form.tiers[0]) : null" />
 
     <!-- รูป + หมายเหตุ -->
     <div class="mt-3 rounded-2xl border border-stone-200/70 bg-white p-3.5">
