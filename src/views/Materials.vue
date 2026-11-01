@@ -2,10 +2,11 @@
 import { computed, ref } from 'vue'
 import { db, can } from '../data/store'
 import { MATERIAL_STATUSES, STATUS } from '../lib/constants'
-import { ordersMaterials } from '../lib/materials'
+import { ordersMaterials, prepList } from '../lib/materials'
 import { qty, toDateStr } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
 
+const tab = ref('prep')
 const today = toDateStr(new Date())
 const from = ref(today)
 const to = ref(today)
@@ -36,6 +37,8 @@ const rows = computed(() => {
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'th'))
 })
+
+const prep = computed(() => prepList(orders.value, db.optionGroups, db.products))
 
 function setFrom(v) {
   from.value = v
@@ -72,7 +75,50 @@ function setFrom(v) {
 
     <div class="mb-3 text-sm text-stone-600">ออร์เดอร์ที่นับ {{ orders.length }} รายการ</div>
 
-    <p v-if="!rows.length" class="card py-10 text-center text-stone-500">ไม่มีวัตถุดิบที่ต้องเตรียมในช่วงนี้</p>
+    <div class="mb-4 grid grid-cols-2 gap-1 rounded-2xl bg-stone-100 p-1">
+      <button
+        v-for="t in [{ v: 'prep', l: 'รายการเตรียม' }, { v: 'raw', l: 'วัตถุดิบ' }]"
+        :key="t.v"
+        type="button"
+        class="h-10 rounded-xl text-sm font-semibold transition"
+        :class="tab === t.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'"
+        @click="tab = t.v"
+      >{{ t.l }}</button>
+    </div>
+
+    <template v-if="tab === 'prep'">
+      <p v-if="!prep.cakes.length" class="card py-10 text-center text-stone-500">ไม่มีรายการที่ต้องเตรียมในช่วงนี้</p>
+      <template v-else>
+        <section class="card mb-3 p-0">
+          <div class="card-title mb-0 border-b border-stone-100 px-4 py-3"><AppIcon name="cake" :size="18" class="text-brand-600" /> ตัวเค้ก</div>
+          <div class="divide-y divide-stone-100">
+            <div v-for="row in prep.cakes" :key="row.name + row.pounds" class="flex items-center gap-3 px-4 py-3">
+              <span class="min-w-0 flex-1">
+                <span class="block truncate font-medium text-stone-900">{{ row.name }}</span>
+                <span class="block text-xs text-stone-500">{{ qty(row.pounds) }} ปอนด์</span>
+              </span>
+              <span class="shrink-0 font-semibold text-stone-900">{{ row.count }}</span>
+              <span class="w-10 shrink-0 text-sm text-stone-500">ก้อน</span>
+            </div>
+          </div>
+        </section>
+        <section v-for="g in prep.groups" :key="g.id" class="card mb-3 p-0">
+          <div class="card-title mb-0 border-b border-stone-100 px-4 py-3"><AppIcon name="tag" :size="18" class="text-brand-600" /> {{ g.name }}</div>
+          <div class="divide-y divide-stone-100">
+            <div v-for="row in g.rows" :key="row.name + row.pounds" class="flex items-center gap-3 px-4 py-3">
+              <span class="min-w-0 flex-1">
+                <span class="block truncate font-medium text-stone-900">{{ row.name }}</span>
+                <span class="block text-xs text-stone-500">{{ qty(row.pounds) }} ปอนด์</span>
+              </span>
+              <span class="shrink-0 font-semibold text-stone-900">{{ row.count }}</span>
+              <span class="w-10 shrink-0 text-sm text-stone-500">ชุด</span>
+            </div>
+          </div>
+        </section>
+      </template>
+    </template>
+
+    <p v-else-if="!rows.length" class="card py-10 text-center text-stone-500">ไม่มีวัตถุดิบที่ต้องเตรียมในช่วงนี้</p>
 
     <div v-else class="card divide-y divide-stone-100 p-0">
       <div v-for="row in rows" :key="row.id" class="flex items-center gap-3 px-4 py-3">
