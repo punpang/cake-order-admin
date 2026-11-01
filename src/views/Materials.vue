@@ -10,12 +10,22 @@ const today = toDateStr(new Date())
 const from = ref(today)
 const to = ref(today)
 
-const orders = computed(() =>
+const picked = ref([...MATERIAL_STATUSES])
+function toggle(s) {
+  const i = picked.value.indexOf(s)
+  if (i >= 0) picked.value.splice(i, 1)
+  else picked.value.push(s)
+}
+
+// ออร์เดอร์ในช่วงวัน (ทุกสถานะที่นับได้)
+const inRange = computed(() =>
   db.orders.filter((o) => {
     const day = o.pickupAt.slice(0, 10)
     return MATERIAL_STATUSES.includes(o.status) && day >= from.value && day <= to.value
   }),
 )
+const countOf = (s) => inRange.value.filter((o) => o.status === s).length
+const orders = computed(() => inRange.value.filter((o) => picked.value.includes(o.status)))
 
 const rows = computed(() => {
   const total = ordersMaterials(orders.value, db.optionGroups, db.products)
@@ -48,9 +58,16 @@ function setFrom(v) {
         <div><label class="label">ตั้งแต่วันที่</label><input :value="from" type="date" class="input" @input="setFrom($event.target.value)" /></div>
         <div><label class="label">ถึงวันที่</label><input v-model="to" type="date" :min="from" class="input" /></div>
       </div>
-      <p class="text-xs text-stone-500">
-        นับจากวันนัดรับ · สถานะ {{ MATERIAL_STATUSES.map((s) => STATUS[s].label).join(', ') }}
-      </p>
+      <div>
+        <div class="label">สถานะออร์เดอร์</div>
+        <div class="flex flex-wrap gap-2">
+          <button v-for="s in MATERIAL_STATUSES" :key="s" type="button" class="chip" :class="picked.includes(s) ? 'chip-on' : 'chip-off'" @click="toggle(s)">
+            <span class="h-2 w-2 rounded-full" :class="STATUS[s].dot"></span>
+            {{ STATUS[s].label }} ({{ countOf(s) }})
+          </button>
+        </div>
+      </div>
+      <p class="text-xs text-stone-500">นับจากวันนัดรับ</p>
     </section>
 
     <div class="mb-3 text-sm text-stone-600">ออร์เดอร์ที่นับ {{ orders.length }} รายการ</div>
