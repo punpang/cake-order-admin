@@ -27,6 +27,7 @@ const PATHS = {
   grid: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
   shield: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
   basket: 'M2 11h20M5 11l1.6 9h10.8L19 11M9 11l3-7M15 11l-3-7',
+  filter: 'M4 6h16M7 12h10M10 18h4',
   tag: 'M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82zM7 7h.01',
 }
 </script>
