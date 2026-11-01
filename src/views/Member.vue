@@ -5,6 +5,7 @@ import { expiringSoon, couponUsable, chanceTotal } from '../lib/loyalty'
 import { money, dateOnly, dateTime, toDateStr } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
+import { askConfirm } from '../lib/confirm'
 
 // หน้าลูกค้า (จำลอง): เลือกลูกค้าแทนการล็อกอิน จนกว่าจะต่อ Supabase
 const customerId = ref(db.customers[0]?.id || '')
@@ -55,8 +56,9 @@ const labels = computed(() => {
 const rotation = ref(0)
 const spinning = ref(false)
 const result = ref(null)
-function spin(usePoints) {
+async function spin(usePoints) {
   if (spinning.value) return
+  if (usePoints && !(await askConfirm({ title: 'หมุนกาชา', message: `ใช้ ${db.loyalty.spinCost} คะแนน`, okText: 'หมุนเลย' }))) return
   const prize = spinGacha(me.value, usePoints)
   if (!prize) return (msg.value = usePoints ? 'คะแนนไม่พอ' : 'ไม่มีสิทธิ์หมุน')
   const l = labels.value.find((x) => x.id === prize.id)

@@ -7,6 +7,7 @@ import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
+import { askConfirm, confirmDeactivate } from '../../lib/confirm'
 
 const tab = ref('settings')
 const tabs = [
@@ -44,9 +45,10 @@ function editRw(r) {
   rwError.value = ''
   rwOpen.value = true
 }
-function saveRw() {
+async function saveRw() {
   if (!rw.name.trim()) return (rwError.value = 'กรอกชื่อของ')
   if (!(rw.points > 0)) return (rwError.value = 'คะแนนต้องมากกว่า 0')
+  if (!(await confirmDeactivate(db.rewards, rw, rw.name))) return
   saveReward({ ...rw })
   rwOpen.value = false
 }
@@ -62,11 +64,12 @@ function editGp(p) {
   gpError.value = ''
   gpOpen.value = true
 }
-function saveGp() {
+async function saveGp() {
   if (!gp.name.trim()) return (gpError.value = 'กรอกชื่อรางวัล')
   if (['points', 'discount'].includes(gp.type) && !(gp.value > 0)) return (gpError.value = 'ใส่จำนวน')
   if (gp.type === 'reward' && !gp.rewardId) return (gpError.value = 'เลือกของรางวัล')
   if (!(gp.chance >= 0)) return (gpError.value = 'โอกาสไม่ถูกต้อง')
+  if (!(await confirmDeactivate(db.gachaPrizes, gp, gp.name))) return
   savePrize({ ...gp })
   gpOpen.value = false
 }
@@ -86,6 +89,9 @@ const rewardCoupons = computed(() => {
     .filter((c) => showAll.value || couponUsable(c, today))
     .filter((c) => !s || (findCustomer(c.customerId)?.name || '').toLowerCase().includes(s) || c.name.toLowerCase().includes(s))
 })
+async function deliver(c) {
+  if (await askConfirm({ title: 'มอบของรางวัล', message: `${c.name} ให้ ${findCustomer(c.customerId)?.name || ''}`, okText: 'มอบแล้ว' })) markCouponDelivered(c)
+}
 const couponState = (c) =>
   c.status === 'delivered' ? 'มอบแล้ว' : !couponUsable(c, today) ? 'หมดอายุ' : 'รอรับ'
 </script>
@@ -174,7 +180,7 @@ const couponState = (c) =>
               <template v-if="c.expiresAt"> · หมดอายุ {{ dateOnly(c.expiresAt) }}</template>
             </span>
           </span>
-          <button v-if="couponState(c) === 'รอรับ'" class="btn-primary h-9 shrink-0 px-3" @click="markCouponDelivered(c)"><AppIcon name="check" :size="16" /> มอบแล้ว</button>
+          <button v-if="couponState(c) === 'รอรับ'" class="btn-primary h-9 shrink-0 px-3" @click="deliver(c)"><AppIcon name="check" :size="16" /> มอบแล้ว</button>
           <span v-else class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{{ couponState(c) }}</span>
         </div>
       </div>

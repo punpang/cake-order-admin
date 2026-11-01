@@ -1,4 +1,5 @@
 <script setup>
+import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import { db, saveUser } from '../../data/store'
 import { ROLES } from '../../lib/constants'
@@ -33,11 +34,12 @@ function edit(u) {
   error.value = ''
   open.value = true
 }
-function save() {
+async function save() {
   if (!form.name.trim()) return (error.value = 'กรอกชื่อ')
   if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) return (error.value = 'อีเมลไม่ถูกต้อง')
   const dup = db.users.find((u) => u.id !== form.id && u.email.toLowerCase() === form.email.trim().toLowerCase())
   if (dup) return (error.value = 'อีเมลนี้มีผู้ใช้อยู่แล้ว')
+  if (!(await confirmDeactivate(db.users, form, form.name))) return
   saveUser({ ...form })
   open.value = false
 }

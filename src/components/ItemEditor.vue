@@ -1,4 +1,5 @@
 <script setup>
+import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRaw } from 'vue'
 import { db, activeListsAt } from '../data/store'
 import { priceDetail, effectivePrice } from '../lib/pricing'
@@ -94,6 +95,10 @@ function save() {
   emit('save', { ...JSON.parse(JSON.stringify(toRaw(form))), ...detail.value })
 }
 
+async function removeTier(i) {
+  if (await askConfirm({ title: 'ลบชั้น', message: `ชั้นที่ ${i + 1}`, okText: 'ลบชั้น', danger: true })) form.tiers.splice(i, 1)
+}
+
 const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
 </script>
 
@@ -149,7 +154,7 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
       <div v-for="(tier, i) in form.tiers" :key="i" class="mb-3 rounded-2xl border border-brand-200 bg-brand-50/40 p-3">
         <div class="mb-2.5 flex items-center justify-between gap-2">
           <span class="font-semibold text-brand-800">ชั้นที่ {{ i + 1 }}</span>
-          <button v-if="form.tiers.length > 1" type="button" class="btn-danger h-8 px-2.5 text-sm" @click="form.tiers.splice(i, 1)"><AppIcon name="trash" :size="14" /> ลบชั้น</button>
+          <button v-if="form.tiers.length > 1" type="button" class="btn-danger h-8 px-2.5 text-sm" @click="removeTier(i)"><AppIcon name="trash" :size="14" /> ลบชั้น</button>
         </div>
         <OptionPicker v-model="tier.selections" :groups="tierGroups" :errors="errors['t' + i] || {}" :active="active" />
       </div>

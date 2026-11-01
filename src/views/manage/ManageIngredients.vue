@@ -1,4 +1,5 @@
 <script setup>
+import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import { db, saveIngredient } from '../../data/store'
 import ManageShell from '../../components/ManageShell.vue'
@@ -27,9 +28,10 @@ function edit(m) {
   error.value = ''
   open.value = true
 }
-function save() {
+async function save() {
   if (!form.name.trim()) return (error.value = 'กรอกชื่อวัตถุดิบ')
   if (!form.unit.trim()) return (error.value = 'กรอกหน่วย')
+  if (!(await confirmDeactivate(db.ingredients, form, form.name))) return
   saveIngredient({ ...form })
   open.value = false
 }

@@ -1,4 +1,5 @@
 <script setup>
+import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import { db, saveProduct } from '../../data/store'
 import { money } from '../../lib/format'
@@ -28,10 +29,11 @@ function edit(p) {
   error.value = ''
   open.value = true
 }
-function save() {
+async function save() {
   if (!form.name.trim()) return (error.value = 'กรอกชื่อสินค้า')
   if (!(form.pounds > 0)) return (error.value = 'ขนาดต้องมากกว่า 0')
   if (!(form.price >= 0)) return (error.value = 'ราคาไม่ถูกต้อง')
+  if (!(await confirmDeactivate(db.products, form, form.name))) return
   saveProduct({ ...form })
   open.value = false
 }

@@ -4,6 +4,7 @@ import { session, can } from './data/store'
 import { ROLES } from './lib/constants'
 import AppIcon from './components/AppIcon.vue'
 import AppModal from './components/AppModal.vue'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 
 const roleOpen = ref(false)
 const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('viewMaterials') ? 1 : 0) + (can('manage') ? 1 : 0))
@@ -86,4 +87,6 @@ const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('viewMat
       </button>
     </div>
   </AppModal>
+
+  <ConfirmDialog />
 </template>

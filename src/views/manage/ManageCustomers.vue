@@ -1,4 +1,5 @@
 <script setup>
+import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import { db, saveCustomer, customerOrderCount } from '../../data/store'
 import ManageShell from '../../components/ManageShell.vue'
@@ -28,8 +29,9 @@ function edit(c) {
   error.value = ''
   open.value = true
 }
-function save() {
+async function save() {
   if (!form.name.trim()) return (error.value = 'กรอกชื่อลูกค้า')
+  if (!(await confirmDeactivate(db.customers, form, form.name))) return
   saveCustomer({ ...form })
   open.value = false
 }

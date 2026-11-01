@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { db } from '../data/store'
 import { RECIPE_PER } from '../lib/constants'
 import AppIcon from './AppIcon.vue'
+import { askConfirm } from '../lib/confirm'
 
 // v-model = [{ ingredientId, qty, per: 'pound' | 'piece' }]
 const recipe = defineModel({ type: Array, default: () => [] })
@@ -11,7 +12,10 @@ const choices = computed(() => db.ingredients.filter((m) => m.active !== false |
 const unitOf = (id) => db.ingredients.find((m) => m.id === id)?.unit || ''
 
 const add = () => recipe.value.push({ ingredientId: '', qty: 0, per: 'pound' })
-const remove = (i) => recipe.value.splice(i, 1)
+async function remove(i) {
+  const name = db.ingredients.find((m) => m.id === recipe.value[i].ingredientId)?.name || 'บรรทัดนี้'
+  if (await askConfirm({ title: 'ลบบรรทัดสูตร', message: name, okText: 'ลบ', danger: true })) recipe.value.splice(i, 1)
+}
 </script>
 
 <template>

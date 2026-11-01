@@ -1,4 +1,5 @@
 <script setup>
+import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { db, can, addCustomer, findCustomer, createOrder, countPickups } from '../data/store'
@@ -55,6 +56,10 @@ const pickupAt = computed(() => (form.date && form.time ? `${form.date}T${form.t
 const load = computed(() => countPickups(pickupAt.value))
 
 // ---------- ขั้น 3 สินค้า ----------
+async function removeItem(i) {
+  const it = form.items[i]
+  if (await askConfirm({ title: 'ลบสินค้า', message: `${it.name} × ${it.qty}`, okText: 'ลบ', danger: true })) form.items.splice(i, 1)
+}
 const editing = ref(null) // null = ปิด, {} = เพิ่มใหม่, {item, index} = แก้ไข
 function onSaveItem(item) {
   if (editing.value.index != null) form.items[editing.value.index] = item
@@ -225,7 +230,7 @@ function submit(asDraft) {
     <section v-if="step === 2" class="space-y-3">
       <ItemCard v-for="(it, i) in form.items" :key="it.id" :item="it">
         <button class="btn-outline h-9 px-3" @click="editing = { item: it, index: i }"><AppIcon name="edit" :size="16" /> แก้ไข</button>
-        <button class="btn-danger h-9 px-3" @click="form.items.splice(i, 1)"><AppIcon name="trash" :size="16" /> ลบ</button>
+        <button class="btn-danger h-9 px-3" @click="removeItem(i)"><AppIcon name="trash" :size="16" /> ลบ</button>
       </ItemCard>
 
       <button

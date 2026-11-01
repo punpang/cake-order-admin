@@ -7,6 +7,7 @@ import {
   db, customerPoints, usableDiscountCoupons, applyPoints, removePoints, applyCoupon, removeCoupon,
 } from '../data/store'
 import { orderTotals } from '../lib/pricing'
+import { askConfirm } from '../lib/confirm'
 import { money, dateTime, toDateStr, pad } from '../lib/format'
 import { PAYMENT_METHODS, ROLES } from '../lib/constants'
 import StatusBadge from '../components/StatusBadge.vue'
@@ -69,8 +70,9 @@ function onSlip(e) {
   const f = e.target.files[0]
   if (f) pay.slip = URL.createObjectURL(f)
 }
-function savePay() {
+async function savePay() {
   if (!(pay.amount > 0)) return (payError.value = 'กรอกยอดเงิน')
+  if (payMode.value === 'confirm' && !(await askConfirm({ title: 'ยืนยันยอดชำระ', message: `ได้รับจริง ${money(pay.amount)}`, okText: 'ยืนยัน' }))) return
   if (payMode.value === 'confirm') confirmPayment(order.value, payTarget.value.id, { ...pay })
   else if (payMode.value === 'edit') updatePaymentRequest(order.value, payTarget.value.id, { ...pay })
   else reportPayment(order.value, { ...pay })
@@ -97,6 +99,26 @@ function saveAdj() {
   adjOpen.value = false
 }
 
+// ---------- popup ยืนยัน ----------
+async function doStatus(status, text, title) {
+  if (await askConfirm({ title, message: `ออร์เดอร์ ${order.value.code}`, okText: title })) setStatus(order.value, status, text)
+}
+async function doRemoveItem(it) {
+  if (await askConfirm({ title: 'ลบสินค้า', message: `${it.name} × ${it.qty}`, okText: 'ลบ', danger: true })) removeOrderItem(order.value, it.id)
+}
+async function doCancelRequest(p) {
+  if (await askConfirm({ title: 'ยกเลิกยอดที่แจ้ง', message: money(p.requested ?? p.amount), okText: 'ยกเลิกยอด', danger: true })) cancelPaymentRequest(order.value, p.id)
+}
+async function doRemovePoints() {
+  if (await askConfirm({ title: 'ยกเลิกการใช้คะแนน', message: `คืน ${order.value.pointsUsed.points} คะแนนให้ลูกค้า`, okText: 'ยกเลิกการใช้', danger: true })) removePoints(order.value)
+}
+async function doApplyCoupon(c) {
+  if (await askConfirm({ title: 'ใช้คูปอง', message: `${c.name} (−${money(c.amount)})`, okText: 'ใช้คูปอง' })) applyCoupon(order.value, c.id)
+}
+async function doRemoveCoupon(u) {
+  if (await askConfirm({ title: 'ยกเลิกการใช้คูปอง', message: u.name, okText: 'ยกเลิกการใช้', danger: true })) removeCoupon(order.value, u.couponId)
+}
+
 // ---------- แก้รายการสินค้า (แอดมิน) ----------
 const editing = ref(null) // null = ปิด, {} = เพิ่มใหม่, { item } = แก้ไข
 function onSaveItem(item) {
@@ -118,9 +140,10 @@ function openPoints() {
   ptError.value = ''
   ptOpen.value = true
 }
-function savePoints() {
+async function savePoints() {
   const n = Math.floor(Number(ptUse.value) || 0)
   if (n <= 0 || n > ptMax.value) return (ptError.value = `ใช้ได้ 1 – ${ptMax.value} คะแนน`)
+  if (!(await askConfirm({ title: 'ใช้คะแนน', message: `ใช้ ${n} คะแนน ลด ${money(n * db.loyalty.pointValue)}`, okText: 'ใช้คะแนน' }))) return
   applyPoints(order.value, n)
   ptOpen.value = false
 }
@@ -134,9 +157,10 @@ function openCancel() {
   cxlError.value = ''
   cancelOpen.value = true
 }
-function saveCancel() {
+async function saveCancel() {
   if (!cxl.reason.trim()) return (cxlError.value = 'ใส่เหตุผลการยกเลิก')
   if (cxl.refundAmount < 0 || cxl.refundAmount > t.value.paid) return (cxlError.value = `คืนเงินได้ 0 – ${money(t.value.paid)}`)
+  if (!(await askConfirm({ title: 'ยกเลิกออร์เดอร์', message: `ออร์เดอร์ ${order.value.code}\nเหตุผล: ${cxl.reason}`, okText: 'ยกเลิกออร์เดอร์', danger: true }))) return
   cancelOrder(order.value, cxl)
   cancelOpen.value = false
 }
@@ -204,7 +228,7 @@ function saveCancel() {
             <ItemCard v-for="it in order.items" :key="it.id" :item="it" class="bg-stone-50/50">
               <template v-if="can('editItems')">
                 <button class="btn-outline h-9 px-3" @click="editing = { item: it }"><AppIcon name="edit" :size="16" /> แก้ไข</button>
-                <button v-if="order.items.length > 1" class="btn-danger h-9 px-3" @click="removeOrderItem(order, it.id)"><AppIcon name="trash" :size="16" /> ลบ</button>
+                <button v-if="order.items.length > 1" class="btn-danger h-9 px-3" @click="doRemoveItem(it)"><AppIcon name="trash" :size="16" /> ลบ</button>
               </template>
             </ItemCard>
           </div>
@@ -283,18 +307,18 @@ function saveCancel() {
 
           <div v-if="order.pointsUsed" class="mt-3 flex items-center justify-between gap-2 rounded-xl bg-brand-50 p-2.5 text-sm">
             <span>ใช้ {{ order.pointsUsed.points }} คะแนน (−{{ money(order.pointsUsed.amount) }})</span>
-            <button v-if="canLoyalty" class="text-rose-600 underline" @click="removePoints(order)">ยกเลิก</button>
+            <button v-if="canLoyalty" class="text-rose-600 underline" @click="doRemovePoints">ยกเลิก</button>
           </div>
           <button v-else-if="canLoyalty && ptMax > 0" class="btn-soft mt-3 w-full" @click="openPoints"><AppIcon name="tag" :size="16" /> ใช้คะแนนเป็นส่วนลด</button>
 
           <div v-for="u in order.couponsUsed" :key="u.couponId" class="mt-2 flex items-center justify-between gap-2 rounded-xl bg-brand-50 p-2.5 text-sm">
             <span class="min-w-0 break-words">คูปอง {{ u.name }} (−{{ money(u.amount) }})</span>
-            <button v-if="canLoyalty" class="shrink-0 text-rose-600 underline" @click="removeCoupon(order, u.couponId)">ยกเลิก</button>
+            <button v-if="canLoyalty" class="shrink-0 text-rose-600 underline" @click="doRemoveCoupon(u)">ยกเลิก</button>
           </div>
           <div v-if="canLoyalty && coupons.length" class="mt-3">
             <div class="label">คูปองส่วนลดที่ใช้ได้</div>
             <div class="flex flex-wrap gap-2">
-              <button v-for="c in coupons" :key="c.id" type="button" class="chip chip-off" @click="applyCoupon(order, c.id)">
+              <button v-for="c in coupons" :key="c.id" type="button" class="chip chip-off" @click="doApplyCoupon(c)">
                 <AppIcon name="plus" :size="14" /> {{ c.name }}
               </button>
             </div>
@@ -327,7 +351,7 @@ function saveCancel() {
               <a v-if="p.slip" :href="p.slip" target="_blank" class="mt-2 block"><img :src="p.slip" class="h-24 w-auto rounded-lg object-cover" /></a>
               <div v-if="p.status === 'reported' && order.status !== 'cancelled'" class="mt-2.5 flex flex-wrap gap-2">
                 <button v-if="can('reportPayment')" class="btn-outline h-9 px-3" @click="openPay('edit', p)"><AppIcon name="edit" :size="16" /> แก้ยอด</button>
-                <button v-if="can('reportPayment')" class="btn-danger h-9 px-3" @click="cancelPaymentRequest(order, p.id)"><AppIcon name="x" :size="16" /> ยกเลิก</button>
+                <button v-if="can('reportPayment')" class="btn-danger h-9 px-3" @click="doCancelRequest(p)"><AppIcon name="x" :size="16" /> ยกเลิก</button>
                 <button v-if="can('confirmPayment')" class="btn-primary h-9 flex-1 px-3" @click="openPay('confirm', p)"><AppIcon name="check" :size="16" /> ยืนยันยอดชำระ</button>
               </div>
             </li>
@@ -357,17 +381,17 @@ function saveCancel() {
         <button
           v-if="order.status === 'draft' && can('sendToPayment')"
           class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8"
-          @click="setStatus(order, 'awaiting_payment', 'ส่งไปรอชำระ')"
+          @click="doStatus('awaiting_payment', 'ส่งไปรอชำระ', 'ส่งไปรอชำระ')"
         >ส่งไปรอชำระ</button>
         <button
           v-if="order.status === 'payment_confirmed' && can('startPreparing')"
           class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8"
-          @click="setStatus(order, 'preparing', 'เริ่มเตรียมสินค้า')"
+          @click="doStatus('preparing', 'เริ่มเตรียมสินค้า', 'เริ่มเตรียมสินค้า')"
         >เริ่มเตรียมสินค้า</button>
         <button
           v-if="order.status === 'preparing' && canDeliver"
           class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8"
-          @click="setStatus(order, 'delivered', 'ส่งมอบแล้ว')"
+          @click="doStatus('delivered', 'ส่งมอบแล้ว', 'ส่งมอบแล้ว')"
         ><AppIcon name="check" :size="18" /> ส่งมอบแล้ว</button>
       </div>
     </div>

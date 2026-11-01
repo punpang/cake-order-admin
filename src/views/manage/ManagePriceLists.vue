@@ -1,4 +1,5 @@
 <script setup>
+import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import { db, savePriceList } from '../../data/store'
 import { activeLists } from '../../lib/pricing'
@@ -31,10 +32,11 @@ function edit(l) {
   error.value = ''
   open.value = true
 }
-function save() {
+async function save() {
   if (!form.name.trim()) return (error.value = 'กรอกชื่อราคาพิเศษ')
   if (form.scheduled && (!form.from || !form.to)) return (error.value = 'เลือกวันเริ่มและวันสิ้นสุด')
   if (form.scheduled && form.to < form.from) return (error.value = 'วันสิ้นสุดต้องไม่ก่อนวันเริ่ม')
+  if (!(await confirmDeactivate(db.priceLists, form, form.name))) return
   savePriceList({ ...form })
   open.value = false
 }

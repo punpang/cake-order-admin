@@ -1,6 +1,7 @@
 <script setup>
+import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
-import { findGroup, saveGroup, saveOption } from '../../data/store'
+import { db, findGroup, saveGroup, saveOption } from '../../data/store'
 import { GROUP_TYPES, APPLIES_TO, PRICE_TYPES } from '../../lib/constants'
 import { money } from '../../lib/format'
 import ManageShell from '../../components/ManageShell.vue'
@@ -44,9 +45,10 @@ function toggleApplies(k) {
   if (i >= 0) g.appliesTo.splice(i, 1)
   else g.appliesTo.push(k)
 }
-function saveG() {
+async function saveG() {
   if (!g.name.trim()) return (gError.value = 'กรอกชื่อกลุ่ม')
   if (!g.appliesTo.length) return (gError.value = 'เลือกอย่างน้อย 1 ประเภทสินค้า')
+  if (!(await confirmDeactivate(db.optionGroups, g, g.name))) return
   saveGroup({ ...g, appliesTo: [...g.appliesTo] })
   gOpen.value = false
 }
@@ -61,13 +63,14 @@ function editOption(opt) {
   oError.value = ''
   oOpen.value = true
 }
-function saveO() {
+async function saveO() {
   if (!o.name.trim()) return (oError.value = 'กรอกชื่อตัวเลือก')
   if (!(o.price >= 0)) return (oError.value = 'ราคาไม่ถูกต้อง')
   if (isSize.value && !(o.pounds > 0)) return (oError.value = 'ขนาดต้องมากกว่า 0')
   const data = { ...o }
   if (isSize.value) data.priceType = 'fixed'
   else delete data.pounds
+  if (!(await confirmDeactivate(group.value.options, o, o.name))) return
   saveOption(group.value.id, data)
   oOpen.value = false
 }
