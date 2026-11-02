@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { db, customerPoints, customerCoupons, redeemReward, spinGacha } from '../data/store'
 import { expiringSoon, couponUsable, chanceTotal } from '../lib/loyalty'
-import { money, dateOnly, dateTime, toDateStr } from '../lib/format'
+import { money, dateOnly, dateTime, toDateStr, num } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
 import { askConfirm } from '../lib/confirm'
@@ -91,7 +91,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
     <div class="mb-3 flex items-center gap-2 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">
       <AppIcon name="user" :size="16" />
       <span class="shrink-0">จำลองเป็น</span>
-      <select v-model="customerId" class="input h-9 min-w-0 flex-1 py-0 text-sm" @change="msg = ''; result = null">
+      <select v-model="customerId" class="input h-9 min-w-0 flex-1 py-0" @change="msg = ''; result = null">
         <option v-for="c in db.customers" :key="c.id" :value="c.id">{{ c.name }}</option>
       </select>
     </div>
@@ -101,7 +101,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
       <section class="mb-4 rounded-3xl bg-linear-to-br from-brand-600 to-brand-800 p-5 text-white">
         <div class="text-sm opacity-80">สวัสดี {{ me.name }}</div>
         <div class="mt-2 flex items-end gap-2">
-          <span class="text-4xl font-semibold tracking-tight">{{ points.toLocaleString('th-TH') }}</span>
+          <span class="text-4xl font-semibold tracking-tight">{{ num(points) }}</span>
           <span class="pb-1 text-sm opacity-80">คะแนน</span>
         </div>
         <div v-if="soon" class="mt-1 text-xs opacity-80">{{ soon.points }} คะแนนจะหมดอายุ {{ dateOnly(soon.date) }}</div>
@@ -128,7 +128,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
           <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><AppIcon name="cake" :size="24" /></span>
           <span class="min-w-0 flex-1">
             <span class="block truncate font-semibold text-stone-900">{{ r.name }}</span>
-            <span class="block text-sm text-stone-500">{{ r.points.toLocaleString('th-TH') }} คะแนน</span>
+            <span class="block text-sm text-stone-500">{{ num(r.points) }} คะแนน</span>
           </span>
           <button class="btn-primary h-9 px-4" :disabled="points < r.points" :class="points < r.points ? 'opacity-40' : ''" @click="confirmRw = r">แลก</button>
         </div>

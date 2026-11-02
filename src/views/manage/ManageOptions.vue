@@ -193,11 +193,11 @@ async function saveB() {
               <tbody>
                 <tr class="border-t border-stone-100">
                   <td class="py-1.5 pr-3 font-semibold whitespace-nowrap text-stone-900">ทุกประเภท</td>
-                  <td v-for="sz in sizeOpts" :key="sz.id" class="px-1 py-1.5"><input v-model="bd.discount[sz.id]" type="number" inputmode="numeric" min="0" class="input h-10 w-24" placeholder="0" /></td>
+                  <td v-for="sz in sizeOpts" :key="sz.id" class="px-1 py-1.5"><input v-model="bd.discount[sz.id]" type="text" v-num.dec min="0" class="input h-10 w-24" placeholder="0" /></td>
                 </tr>
                 <tr v-for="t in typeOpts.filter((x) => !bd.types.length || bd.types.includes(x.id))" :key="t.id" class="border-t border-stone-100">
                   <td class="py-1.5 pr-3 whitespace-nowrap text-stone-700">{{ t.name }}</td>
-                  <td v-for="sz in sizeOpts" :key="sz.id" class="px-1 py-1.5"><input v-model="bd.typeDiscount[t.id][sz.id]" type="number" inputmode="numeric" min="0" class="input h-10 w-24" :placeholder="String(bd.discount[sz.id] || 0)" /></td>
+                  <td v-for="sz in sizeOpts" :key="sz.id" class="px-1 py-1.5"><input v-model="bd.typeDiscount[t.id][sz.id]" type="text" v-num.dec min="0" class="input h-10 w-24" :placeholder="String(bd.discount[sz.id] || 0)" /></td>
                 </tr>
               </tbody>
             </table>

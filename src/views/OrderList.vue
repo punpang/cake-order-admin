@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { db, session, can, findCustomer, upcomingBirthdays } from '../data/store'
 import { STATUS, VISIBLE } from '../lib/constants'
 import { orderTotals, describeSelections } from '../lib/pricing'
-import { money, timeOnly, dayLabel, dateOnly } from '../lib/format'
+import { money, timeOnly, dayLabel, formatPhone } from '../lib/format'
 import StatusBadge from '../components/StatusBadge.vue'
 import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
@@ -25,7 +25,7 @@ const hasDate = computed(() => from.value || to.value)
 // ข้อความที่ค้นหาได้: เลขออร์เดอร์, ชื่อ, เบอร์, LINE, ชื่อเค้ก, ตัวเลือก/ข้อความบนเค้ก, เจ้าของวันเกิด
 function searchText(o) {
   const c = findCustomer(o.customerId)
-  const parts = [o.code, c?.name, c?.phone, c?.line, o.birthday?.name]
+  const parts = [o.code, c?.name, c?.phone, c?.phone && formatPhone(c.phone), c?.line, o.birthday?.name]
   for (const i of o.items) {
     parts.push(i.name, i.note)
     for (const d of describeSelections(i, db.optionGroups)) parts.push(d.value)
@@ -237,7 +237,6 @@ function clearAll() {
     <section v-for="g in rows" :key="g.day" class="mb-6">
       <h2 class="sticky top-14 z-10 -mx-4 mb-2 flex items-baseline gap-2 bg-cream/90 px-5 py-2 backdrop-blur">
         <span class="text-base font-semibold text-stone-900">{{ dayLabel(g.day) }}</span>
-        <span v-if="dayLabel(g.day) !== dateOnly(g.day)" class="text-sm text-stone-500">{{ dateOnly(g.day) }}</span>
         <span class="ml-auto text-xs font-medium text-stone-500">{{ g.orders.length }} ออร์เดอร์</span>
       </h2>
 

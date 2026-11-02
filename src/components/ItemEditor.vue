@@ -284,7 +284,7 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
         <!-- จำนวน -->
         <div class="flex h-11 items-center rounded-xl border border-stone-200">
           <button type="button" class="h-full w-10 text-lg text-stone-600" aria-label="ลด" @click="step(-1)">−</button>
-          <input v-model.number="form.qty" type="number" min="1" class="h-full w-10 border-0 bg-transparent text-center text-base font-semibold outline-none" aria-label="จำนวน" />
+          <input v-model.number="form.qty" type="text" v-num min="1" class="h-full w-10 border-0 bg-transparent text-center text-base font-semibold outline-none" aria-label="จำนวน" />
           <button type="button" class="h-full w-10 text-lg text-stone-600" aria-label="เพิ่ม" @click="step(1)">+</button>
         </div>
         <div class="min-w-0 flex-1 text-right leading-tight">

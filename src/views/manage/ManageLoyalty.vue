@@ -114,7 +114,7 @@ const couponState = (c) =>
       <div v-for="f in FIELDS" :key="f.k">
         <label class="label">{{ f.l }}</label>
         <div class="flex items-center gap-2">
-          <input v-model.number="st[f.k]" type="number" inputmode="decimal" min="0" class="input" />
+          <input v-model.number="st[f.k]" type="text" v-num.dec min="0" class="input" />
           <span class="w-14 shrink-0 text-sm text-stone-500">{{ f.u }}</span>
         </div>
       </div>
@@ -190,7 +190,7 @@ const couponState = (c) =>
     <AppModal v-if="rwOpen" :title="rw.id ? 'แก้ไขของแลก' : 'เพิ่มของแลก'" @close="rwOpen = false">
       <div class="space-y-4">
         <div><label class="label">ชื่อของ <span class="text-rose-500">*</span></label><input v-model="rw.name" class="input" /></div>
-        <div><label class="label">ใช้คะแนน</label><input v-model.number="rw.points" type="number" inputmode="numeric" min="1" class="input" /></div>
+        <div><label class="label">ใช้คะแนน</label><input v-model.number="rw.points" type="text" v-num min="1" class="input" /></div>
         <AppSwitch v-model="rw.active" label="ใช้งาน (แสดงให้ลูกค้าแลก)" class="flex" />
         <p v-if="rwError" class="text-sm text-rose-600">{{ rwError }}</p>
       </div>
@@ -212,7 +212,7 @@ const couponState = (c) =>
         </div>
         <div v-if="gp.type === 'points' || gp.type === 'discount'">
           <label class="label">{{ gp.type === 'points' ? 'จำนวนคะแนน' : 'ส่วนลด (บาท)' }}</label>
-          <input v-model.number="gp.value" type="number" inputmode="numeric" min="1" class="input" />
+          <input v-model.number="gp.value" type="text" v-num min="1" class="input" />
         </div>
         <div v-if="gp.type === 'reward'">
           <label class="label">ของรางวัล</label>
@@ -221,7 +221,7 @@ const couponState = (c) =>
             <option v-for="r in db.rewards" :key="r.id" :value="r.id">{{ r.name }}</option>
           </select>
         </div>
-        <div><label class="label">โอกาส (%)</label><input v-model.number="gp.chance" type="number" inputmode="decimal" min="0" max="100" step="any" class="input" /></div>
+        <div><label class="label">โอกาส (%)</label><input v-model.number="gp.chance" type="text" v-num.dec min="0" max="100" class="input" /></div>
         <AppSwitch v-model="gp.active" label="ใช้งาน" class="flex" />
         <p v-if="gpError" class="text-sm text-rose-600">{{ gpError }}</p>
       </div>

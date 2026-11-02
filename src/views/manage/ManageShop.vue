@@ -39,7 +39,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         <div class="label">ห่างกันทุก (นาที)</div>
         <div class="flex flex-wrap items-center gap-2">
           <button v-for="m in STEPS" :key="m" type="button" class="chip" :class="Number(st.slotMinutes) === m ? 'chip-on' : 'chip-off'" @click="st.slotMinutes = m">{{ m }}</button>
-          <input v-model.number="st.slotMinutes" type="number" inputmode="numeric" min="5" step="5" class="input w-24" />
+          <input v-model.number="st.slotMinutes" type="text" v-num min="5" class="input w-24" />
         </div>
       </div>
       <div>
@@ -51,15 +51,15 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
       <div class="border-t border-stone-100 pt-4">
         <div class="card-title mb-3"><AppIcon name="cake" class="text-brand-600" /> ตารางผลิต · ต้องเสร็จก่อนนัด (นาที)</div>
         <div class="grid grid-cols-2 gap-3">
-          <div><label class="label">รับที่ร้าน</label><input v-model.number="st.leadPickup" type="number" inputmode="numeric" min="0" step="5" class="input" /></div>
-          <div><label class="label">จัดส่ง</label><input v-model.number="st.leadDelivery" type="number" inputmode="numeric" min="0" step="5" class="input" /></div>
+          <div><label class="label">รับที่ร้าน</label><input v-model.number="st.leadPickup" type="text" v-num min="0" class="input" /></div>
+          <div><label class="label">จัดส่ง</label><input v-model.number="st.leadDelivery" type="text" v-num min="0" class="input" /></div>
         </div>
       </div>
       <div class="border-t border-stone-100 pt-4">
         <div class="card-title mb-3"><AppIcon name="wallet" class="text-brand-600" /> มัดจำ / วันเกิด</div>
         <div class="grid grid-cols-2 gap-3">
-          <div><label class="label">มัดจำขั้นต่ำ (%) <span class="font-normal text-stone-400">0 = ไม่ใช้</span></label><input v-model.number="st.depositPercent" type="number" inputmode="numeric" min="0" max="100" class="input" /></div>
-          <div><label class="label">เตือนวันเกิดล่วงหน้า (วัน)</label><input v-model.number="st.birthdayDays" type="number" inputmode="numeric" min="0" class="input" /></div>
+          <div><label class="label">มัดจำขั้นต่ำ (%) <span class="font-normal text-stone-400">0 = ไม่ใช้</span></label><input v-model.number="st.depositPercent" type="text" v-num min="0" max="100" class="input" /></div>
+          <div><label class="label">เตือนวันเกิดล่วงหน้า (วัน)</label><input v-model.number="st.birthdayDays" type="text" v-num min="0" class="input" /></div>
         </div>
       </div>
       <p v-if="error" class="text-sm text-rose-600">{{ error }}</p>

@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { db, can, findCustomer, dueAt } from '../data/store'
 import { MATERIAL_STATUSES, STATUS } from '../lib/constants'
 import { describeSelections } from '../lib/pricing'
-import { toDateStr, pad, dayLabel, dateOnly } from '../lib/format'
+import { toDateStr, pad, dayLabel } from '../lib/format'
 import StatusBadge from '../components/StatusBadge.vue'
 import KitchenTabs from '../components/KitchenTabs.vue'
 import AppIcon from '../components/AppIcon.vue'
@@ -91,7 +91,6 @@ const details = (it) => describeSelections(it, db.optionGroups)
     <template v-for="(g, gi) in groups" :key="g.key">
       <h2 v-if="showDay(g, gi)" class="sticky top-14 z-10 -mx-4 mt-5 mb-2 flex items-baseline gap-2 bg-cream/90 px-5 py-2 backdrop-blur first:mt-0">
         <span class="text-base font-semibold text-stone-900">{{ dayLabel(g.day) }}</span>
-        <span v-if="dayLabel(g.day) !== dateOnly(g.day)" class="text-sm text-stone-500">{{ dateOnly(g.day) }}</span>
       </h2>
       <section class="mb-4">
         <div class="mb-2 flex items-center gap-2 px-1 text-sm font-semibold text-brand-800">

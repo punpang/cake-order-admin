@@ -1,25 +1,37 @@
-const nf = new Intl.NumberFormat('th-TH')
-
+// ตัวเลข: หลักพันมีจุลภาค · เงินทศนิยม 2 ตำแหน่งเสมอ (1,410.00 ฿)
+const mf = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const qf = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 })
 export const qty = (n) => qf.format(Number(n) || 0)
+export const num = qty
+export const money = (n) => `${mf.format(Number(n) || 0)} ฿`
 
-export const money = (n) => `${nf.format(Math.round(Number(n) || 0))} ฿`
+// เบอร์โทร: เก็บตัวเลขล้วน (สูงสุด 10 หลัก) แสดง xxx-xxx-xxxx · เบอร์บ้านกรุงเทพ 02 (9 หลัก) = 02-xxx-xxxx
+export const phoneDigits = (s) => String(s ?? '').replace(/\D/g, '').slice(0, 10)
+export function formatPhone(s) {
+  const d = phoneDigits(s)
+  const a = d.length === 9 && d.startsWith('02') ? 2 : 3
+  if (d.length <= a) return d
+  if (d.length <= a + 3) return `${d.slice(0, a)}-${d.slice(a)}`
+  return `${d.slice(0, a)}-${d.slice(a, a + 3)}-${d.slice(a + 3)}`
+}
 
-export const dateTime = (s) =>
-  s ? new Date(s).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }) : '-'
+// วันที่ dd-mm-yyyy (ปี พ.ศ.) · เวลา HH:MM
+const DOW = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']
+// 'YYYY-MM-DD' (ไม่มีเวลา) ถือเป็นวันที่ตามเครื่อง ไม่ใช่ UTC
+const toDate = (s) => (typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00`) : new Date(s))
+const dmy = (d) => `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear() + 543}`
+const hm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 
-export const dateOnly = (s) =>
-  s ? new Date(s).toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' }) : '-'
-
-export const timeOnly = (s) =>
-  s ? new Date(s).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-'
+export const dateOnly = (s) => (s ? dmy(toDate(s)) : '-')
+export const dateTime = (s) => (s ? `${dmy(toDate(s))} ${hm(toDate(s))}` : '-')
+export const timeOnly = (s) => (s ? hm(toDate(s)) : '-')
 
 export const pad = (n) => String(n).padStart(2, '0')
 
 // 'YYYY-MM-DD' ตามเวลาเครื่อง
 export const toDateStr = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
-// วันนี้ / พรุ่งนี้ / เมื่อวาน / วันที่
+// หัววัน: "วันนี้ 02-11-2569" / "พรุ่งนี้ …" / "เมื่อวาน …" / อื่น ๆ "พ. 04-11-2569"
 export function dayLabel(s) {
   if (!s) return '-'
   const day = s.slice(0, 10)
@@ -29,8 +41,6 @@ export function dayLabel(s) {
   const tomorrow = toDateStr(d)
   d.setDate(d.getDate() - 2)
   const yesterday = toDateStr(d)
-  if (day === today) return 'วันนี้'
-  if (day === tomorrow) return 'พรุ่งนี้'
-  if (day === yesterday) return 'เมื่อวาน'
-  return dateOnly(s)
+  const label = day === today ? 'วันนี้' : day === tomorrow ? 'พรุ่งนี้' : day === yesterday ? 'เมื่อวาน' : DOW[toDate(day).getDay()]
+  return `${label} ${dateOnly(day)}`
 }

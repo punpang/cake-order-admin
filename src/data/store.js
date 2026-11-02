@@ -4,7 +4,7 @@ import { reactive } from 'vue'
 import { PERMISSIONS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals } from '../lib/pricing'
 import { addDays, pointBalance, takePoints, returnPoints, couponUsable, pickPrize } from '../lib/loyalty'
-import { pad, toDateStr } from '../lib/format'
+import { pad, toDateStr, money, phoneDigits } from '../lib/format'
 import { nextBirthday, daysBetween } from '../lib/birthday'
 
 let seq = 1000
@@ -179,7 +179,7 @@ export const findOrder = (id) => db.orders.find((o) => o.id === id)
 export const findCustomer = (id) => db.customers.find((c) => c.id === id)
 
 export function addCustomer(data) {
-  const c = { id: uid('c'), name: data.name.trim(), phone: data.phone?.trim() || '', line: data.line?.trim() || '', note: data.note?.trim() || '', active: true, ledger: [], spins: 0 }
+  const c = { id: uid('c'), name: data.name.trim(), phone: phoneDigits(data.phone), line: data.line?.trim() || '', note: data.note?.trim() || '', active: true, ledger: [], spins: 0 }
   db.customers.push(c)
   return c
 }
@@ -211,7 +211,7 @@ const cleanSpecial = (obj) =>
   Object.fromEntries(Object.entries(obj || {}).filter(([, v]) => v !== '' && v != null && Number(v) >= 0).map(([k, v]) => [k, Number(v)]))
 
 export function saveCustomer(d) {
-  const c = upsert(db.customers, 'c', d)
+  const c = upsert(db.customers, 'c', { ...d, phone: phoneDigits(d.phone) })
   if (!c.ledger) Object.assign(c, { ledger: [], spins: 0 })
   return c
 }
@@ -339,7 +339,7 @@ export function reportPayment(order, p) {
     reportedBy: session.role,
     confirmedBy: null,
   })
-  log(order, `แจ้งยอดชำระ ${Number(p.amount).toLocaleString('th-TH')} ฿ (${p.method})`)
+  log(order, `แจ้งยอดชำระ ${money(Number(p.amount))} (${p.method})`)
   if (order.status === 'awaiting_payment') order.status = 'payment_reported'
 }
 
@@ -349,14 +349,14 @@ export function updatePaymentRequest(order, paymentId, p) {
   const pay = order.payments.find((x) => x.id === paymentId)
   if (!pay || pay.status !== 'reported') return
   Object.assign(pay, { requested: Number(p.amount), amount: Number(p.amount), ...payFields(p) })
-  log(order, `แก้ยอดที่แจ้งเป็น ${Number(p.amount).toLocaleString('th-TH')} ฿`)
+  log(order, `แก้ยอดที่แจ้งเป็น ${money(Number(p.amount))}`)
 }
 
 export function cancelPaymentRequest(order, paymentId) {
   const pay = order.payments.find((x) => x.id === paymentId)
   if (!pay || pay.status !== 'reported') return
   pay.status = 'cancelled'
-  log(order, `ยกเลิกยอดที่แจ้ง ${pay.requested.toLocaleString('th-TH')} ฿`)
+  log(order, `ยกเลิกยอดที่แจ้ง ${money(pay.requested)}`)
   if (order.status === 'payment_reported' && !order.payments.some((x) => x.status === 'reported')) order.status = 'awaiting_payment'
 }
 
@@ -365,7 +365,7 @@ export function cancelConfirmedPayment(order, paymentId) {
   const p = order.payments.find((x) => x.id === paymentId)
   if (!p || p.status !== 'confirmed' || ['delivered', 'cancelled'].includes(order.status)) return
   Object.assign(p, { status: 'cancelled', cancelledAt: now(), cancelledBy: session.role })
-  log(order, `ยกเลิกยอดที่ยืนยันแล้ว ${p.amount.toLocaleString('th-TH')} ฿`)
+  log(order, `ยกเลิกยอดที่ยืนยันแล้ว ${money(p.amount)}`)
   if (!order.payments.some((x) => x.status === 'confirmed') && ['payment_confirmed', 'preparing'].includes(order.status)) {
     order.status = order.payments.some((x) => x.status === 'reported') ? 'payment_reported' : 'awaiting_payment'
   }
@@ -378,7 +378,7 @@ export function confirmPayment(order, paymentId, data = null) {
   if (data) Object.assign(p, { amount: Number(data.amount), ...payFields(data) })
   p.status = 'confirmed'
   p.confirmedBy = session.role
-  log(order, `ยืนยันชำระ ${p.amount.toLocaleString('th-TH')} ฿${p.amount !== p.requested ? ` (แจ้ง ${p.requested.toLocaleString('th-TH')} ฿)` : ''}`)
+  log(order, `ยืนยันชำระ ${money(p.amount)}${p.amount !== p.requested ? ` (แจ้ง ${money(p.requested)})` : ''}`)
   if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
 }
 
@@ -406,13 +406,13 @@ export function removeOrderItem(order, itemId) {
 
 export function setAdjustment(order, amount, reason) {
   order.adjustment = { amount: Number(amount) || 0, reason }
-  log(order, `ปรับราคา ${Number(amount).toLocaleString('th-TH')} ฿ (${reason})`)
+  log(order, `ปรับราคา ${money(Number(amount))} (${reason})`)
 }
 
 export function cancelOrder(order, c) {
   undoLoyalty(order)
   order.cancel = { reason: c.reason, refundAmount: Number(c.refundAmount) || 0, refundMethod: c.refundMethod, refundNote: c.refundNote || '', at: now() }
-  setStatus(order, 'cancelled', `ยกเลิก: ${c.reason}${order.cancel.refundAmount ? ` / คืนเงิน ${order.cancel.refundAmount.toLocaleString('th-TH')} ฿` : ''}`)
+  setStatus(order, 'cancelled', `ยกเลิก: ${c.reason}${order.cancel.refundAmount ? ` / คืนเงิน ${money(order.cancel.refundAmount)}` : ''}`)
 }
 
 // จำนวนออร์เดอร์ (ไม่นับยกเลิก) ในวันเดียวกัน และในชั่วโมงเดียวกัน
@@ -570,7 +570,7 @@ export function applyPoints(order, points) {
   const e = spendPoints(c, points, `ใช้เป็นส่วนลด ${order.code}`, order.id)
   if (!e) return false
   order.pointsUsed = { points, amount: points * db.loyalty.pointValue, entryId: e.id }
-  log(order, `ใช้ ${points} คะแนน ลด ${order.pointsUsed.amount.toLocaleString('th-TH')} ฿`)
+  log(order, `ใช้ ${points} คะแนน ลด ${money(order.pointsUsed.amount)}`)
   return true
 }
 

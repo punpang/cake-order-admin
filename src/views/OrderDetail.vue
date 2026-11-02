@@ -10,7 +10,7 @@ import {
 import { orderTotals } from '../lib/pricing'
 import { askConfirm } from '../lib/confirm'
 import { orderCost } from '../lib/materials'
-import { money, dateTime, toDateStr, pad } from '../lib/format'
+import { money, dateTime, toDateStr, pad, num, formatPhone, phoneDigits } from '../lib/format'
 import { PAYMENT_METHODS, ROLES } from '../lib/constants'
 import StatusBadge from '../components/StatusBadge.vue'
 import DiscountDetail from '../components/DiscountDetail.vue'
@@ -120,16 +120,18 @@ function saveBirthday() {
 
 // ---------- ปรับราคา ----------
 const adjOpen = ref(false)
-const adj = reactive({ amount: 0, reason: '' })
+// sign: -1 = ส่วนลด, 1 = เพิ่มราคา · amount = จำนวนเงิน (บวก) กรอกด้วยแป้นตัวเลข
+const adj = reactive({ amount: 0, sign: -1, reason: '' })
 const adjError = ref('')
 function openAdj() {
-  Object.assign(adj, { amount: order.value.adjustment.amount, reason: order.value.adjustment.reason })
+  const a = Number(order.value.adjustment.amount) || 0
+  Object.assign(adj, { amount: Math.abs(a) || '', sign: a > 0 ? 1 : -1, reason: order.value.adjustment.reason })
   adjError.value = ''
   adjOpen.value = true
 }
 function saveAdj() {
   if (!adj.reason.trim()) return (adjError.value = 'ใส่เหตุผล')
-  setAdjustment(order.value, adj.amount, adj.reason.trim())
+  setAdjustment(order.value, adj.sign * (Number(adj.amount) || 0), adj.reason.trim())
   adjOpen.value = false
 }
 
@@ -242,9 +244,9 @@ async function saveCancel() {
             </div>
             <a
               v-if="customer?.phone"
-              :href="`tel:${customer.phone}`"
+              :href="`tel:${phoneDigits(customer.phone)}`"
               class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700"
-              :aria-label="`โทร ${customer.phone}`"
+              :aria-label="`โทร ${formatPhone(customer.phone)}`"
             ><AppIcon name="phone" /></a>
           </div>
 
@@ -354,7 +356,7 @@ async function saveCancel() {
         <!-- คะแนน / คูปอง -->
         <section v-if="customer" class="card">
           <div class="card-title"><AppIcon name="tag" class="text-brand-600" /> คะแนน / คูปอง</div>
-          <div class="text-sm text-stone-600">คะแนนของลูกค้า <b class="text-stone-900">{{ points.toLocaleString('th-TH') }}</b> คะแนน</div>
+          <div class="text-sm text-stone-600">คะแนนของลูกค้า <b class="text-stone-900">{{ num(points) }}</b> คะแนน</div>
           <div v-if="order.loyalty" class="mt-1 text-sm text-emerald-700">ได้จากออร์เดอร์นี้ {{ order.loyalty.points }} คะแนน<span v-if="order.loyalty.spins"> + หมุน {{ order.loyalty.spins }} ครั้ง</span></div>
 
           <div v-if="order.pointsUsed" class="mt-3 flex items-center justify-between gap-2 rounded-xl bg-brand-50 p-2.5 text-sm">
@@ -459,7 +461,7 @@ async function saveCancel() {
     <AppModal v-if="ptOpen" title="ใช้คะแนนเป็นส่วนลด" @close="ptOpen = false">
       <div class="space-y-4">
         <div class="rounded-xl bg-brand-50 p-3 text-sm text-brand-800">มี {{ points }} คะแนน · 1 คะแนน = {{ money(db.loyalty.pointValue) }} · ใช้ได้สูงสุด {{ ptMax }} คะแนน</div>
-        <div><label class="label">จำนวนคะแนน</label><input v-model.number="ptUse" type="number" inputmode="numeric" min="1" :max="ptMax" class="input text-lg font-semibold" /></div>
+        <div><label class="label">จำนวนคะแนน</label><input v-model.number="ptUse" type="text" v-num min="1" :max="ptMax" class="input text-lg font-semibold" /></div>
         <div class="text-sm text-stone-600">ลด {{ money((Number(ptUse) || 0) * db.loyalty.pointValue) }}</div>
         <p v-if="ptError" class="text-sm text-rose-600">{{ ptError }}</p>
       </div>
@@ -478,7 +480,7 @@ async function saveCancel() {
         <div v-else class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
           คงค้าง <b>{{ money(t.balance) }}</b><span v-if="t.reported"> · แจ้งยอดแล้ว {{ money(t.reported) }}</span>
         </div>
-        <div><label class="label">{{ payMode === 'confirm' ? 'ยอดที่ได้รับจริง (บาท)' : 'ยอดที่แจ้งลูกค้า (บาท)' }}</label><input v-model.number="pay.amount" type="number" inputmode="decimal" min="0" class="input text-lg font-semibold" /></div>
+        <div><label class="label">{{ payMode === 'confirm' ? 'ยอดที่ได้รับจริง (บาท)' : 'ยอดที่แจ้งลูกค้า (บาท)' }}</label><input v-model.number="pay.amount" type="text" v-num.dec min="0" class="input text-lg font-semibold" /></div>
         <div v-if="showDeposit" class="flex flex-wrap gap-2">
           <button type="button" class="chip" :class="pay.amount === depositAmount ? 'chip-on' : 'chip-off'" @click="pay.amount = depositAmount">มัดจำ {{ db.shop.depositPercent }}% · {{ money(depositAmount) }}</button>
           <button type="button" class="chip" :class="pay.amount === fullAmount ? 'chip-on' : 'chip-off'" @click="pay.amount = fullAmount">เต็มจำนวน · {{ money(fullAmount) }}</button>
@@ -512,8 +514,18 @@ async function saveCancel() {
     <AppModal v-if="adjOpen" title="ปรับราคา / ส่วนลด" @close="adjOpen = false">
       <div class="space-y-4">
         <div>
-          <label class="label">จำนวนเงิน <span class="font-normal text-stone-400">(ติดลบ = ส่วนลด)</span></label>
-          <input v-model.number="adj.amount" type="number" inputmode="numeric" class="input text-lg font-semibold" />
+          <div class="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1">
+            <button
+              v-for="k in [{ v: -1, l: 'ส่วนลด' }, { v: 1, l: 'เพิ่มราคา' }]"
+              :key="k.v"
+              type="button"
+              class="h-9 rounded-lg text-sm font-medium transition"
+              :class="adj.sign === k.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'"
+              @click="adj.sign = k.v"
+            >{{ k.l }}</button>
+          </div>
+          <label class="label">จำนวนเงิน (บาท)</label>
+          <input v-model.number="adj.amount" type="text" v-num.dec class="input text-lg font-semibold" />
         </div>
         <div><label class="label">เหตุผล <span class="text-rose-500">*</span></label><input v-model="adj.reason" class="input" /></div>
         <p v-if="adjError" class="text-sm text-rose-600">{{ adjError }}</p>
@@ -529,7 +541,7 @@ async function saveCancel() {
       <div class="space-y-4">
         <div><label class="label">เหตุผล <span class="text-rose-500">*</span></label><textarea v-model="cxl.reason" rows="2" class="input" /></div>
         <div class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">ชำระแล้ว <b>{{ money(t.paid) }}</b></div>
-        <div><label class="label">ยอดคืนเงิน (บาท)</label><input v-model.number="cxl.refundAmount" type="number" inputmode="decimal" min="0" class="input" /></div>
+        <div><label class="label">ยอดคืนเงิน (บาท)</label><input v-model.number="cxl.refundAmount" type="text" v-num.dec min="0" class="input" /></div>
         <div>
           <div class="label">ช่องทางคืนเงิน</div>
           <div class="flex flex-wrap gap-2">

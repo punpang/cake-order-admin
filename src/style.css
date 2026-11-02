@@ -34,19 +34,19 @@
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
+    /* กันซูม: แตะสองครั้ง / ปรับขนาดตัวอักษรอัตโนมัติ */
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  /* ช่องกรอกอย่างน้อย 16px กัน iOS ซูมตอนแตะช่อง (ห้ามใส่ text-sm/text-xs กับช่องกรอก) */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
   }
   body {
     @apply min-h-dvh bg-cream text-stone-800 antialiased;
-  }
-  /* ซ่อนปุ่มลูกศรของช่องตัวเลข */
-  input[type='number'] {
-    -moz-appearance: textfield;
-    appearance: textfield;
-  }
-  input[type='number']::-webkit-inner-spin-button,
-  input[type='number']::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
   }
   /* ช่องวันที่บน iOS ไม่ให้ล้นกรอบ */
   input[type='date'],

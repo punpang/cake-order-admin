@@ -42,7 +42,7 @@ async function remove(i) {
             </button>
           </div>
           <div class="mt-2 flex items-center gap-2">
-            <input v-model.number="line.qty" type="number" inputmode="decimal" min="0" step="any" class="input w-28 shrink-0" />
+            <input v-model.number="line.qty" type="text" v-num.dec min="0" class="input w-28 shrink-0" />
             <span class="w-10 shrink-0 text-sm text-stone-500">{{ unitOf(line.ingredientId) }}</span>
             <div class="grid flex-1 grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1">
               <button

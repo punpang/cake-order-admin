@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { db, findCustomer, upcomingBirthdays, setGreeted } from '../data/store'
 import { mdLabel } from '../lib/birthday'
+import { formatPhone, phoneDigits } from '../lib/format'
 import AppIcon from './AppIcon.vue'
 
 // รายชื่อวันเกิดที่จะถึง (จากวันเกิดที่กรอกในออร์เดอร์) กด "ทักแล้ว" เพื่อซ่อน
@@ -32,13 +33,13 @@ async function copyLine(b) {
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0">
             <div class="font-semibold break-words text-stone-900">{{ b.name || 'ไม่ระบุชื่อ' }} <span class="font-normal text-stone-500">· {{ mdLabel(b.md) }}</span></div>
-            <div class="text-sm break-words text-stone-600">ลูกค้า {{ b.c?.name }}<span v-if="b.c?.phone"> · {{ b.c.phone }}</span></div>
+            <div class="text-sm break-words text-stone-600">ลูกค้า {{ b.c?.name }}<span v-if="b.c?.phone"> · {{ formatPhone(b.c.phone) }}</span></div>
             <RouterLink :to="`/orders/${b.order.id}`" class="text-xs text-brand-700 underline">ล่าสุด {{ b.order.code }}</RouterLink>
           </div>
           <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold" :class="b.inDays <= 3 ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-700'">{{ when(b.inDays) }}</span>
         </div>
         <div class="mt-2.5 flex flex-wrap gap-2">
-          <a v-if="b.c?.phone" :href="`tel:${b.c.phone}`" class="btn-outline h-9 px-3"><AppIcon name="phone" :size="16" /> โทร</a>
+          <a v-if="b.c?.phone" :href="`tel:${phoneDigits(b.c.phone)}`" class="btn-outline h-9 px-3"><AppIcon name="phone" :size="16" /> โทร</a>
           <button v-if="b.c?.line" type="button" class="btn-outline h-9 px-3" @click="copyLine(b)">{{ copied === b.c.line ? 'คัดลอกแล้ว' : `คัดลอก LINE ${b.c.line}` }}</button>
           <button type="button" class="h-9 px-3" :class="b.greeted ? 'btn-outline' : 'btn-soft'" @click="setGreeted(b, !b.greeted)">
             <AppIcon :name="b.greeted ? 'x' : 'check'" :size="16" /> {{ b.greeted ? 'ยังไม่ได้ทัก' : 'ทักแล้ว' }}

@@ -4,7 +4,8 @@ import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { db, can, addCustomer, findCustomer, createOrder, countPickups, pickupSlots, nearbyOrders } from '../data/store'
 import { orderTotals } from '../lib/pricing'
-import { money, dateTime, timeOnly, toDateStr } from '../lib/format'
+import { money, dateTime, timeOnly, toDateStr, formatPhone, phoneDigits } from '../lib/format'
+import PhoneInput from '../components/PhoneInput.vue'
 import ItemEditor from '../components/ItemEditor.vue'
 import DiscountDetail from '../components/DiscountDetail.vue'
 import ItemCard from '../components/ItemCard.vue'
@@ -37,7 +38,7 @@ const customer = computed(() => findCustomer(form.customerId))
 const matches = computed(() => {
   const s = q.value.trim().toLowerCase()
   const active = db.customers.filter((c) => c.active !== false)
-  const list = s ? active.filter((c) => [c.name, c.phone, c.line].some((v) => v?.toLowerCase().includes(s))) : active
+  const list = s ? active.filter((c) => [c.name, c.phone, c.line].some((v) => v?.toLowerCase().includes(s)) || (phoneDigits(s) && c.phone?.includes(phoneDigits(s)))) : active
   return list.slice(0, 8)
 })
 const initial = (n) => (n || '').replace(/^คุณ/, '').trim().charAt(0)
@@ -165,7 +166,7 @@ function submit(asDraft) {
         <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-600 text-lg font-semibold text-white">{{ initial(customer.name) }}</span>
         <div class="min-w-0 flex-1">
           <div class="truncate font-semibold text-stone-900">{{ customer.name }}</div>
-          <div class="truncate text-sm text-stone-600">{{ customer.phone || '-' }}<span v-if="customer.line"> · LINE {{ customer.line }}</span></div>
+          <div class="truncate text-sm text-stone-600">{{ customer.phone ? formatPhone(customer.phone) : '-' }}<span v-if="customer.line"> · LINE {{ customer.line }}</span></div>
           <div v-if="customer.note" class="truncate text-sm text-stone-500">{{ customer.note }}</div>
         </div>
         <button class="btn-outline h-9 px-3" @click="form.customerId = null">เปลี่ยน</button>
@@ -186,7 +187,7 @@ function submit(asDraft) {
             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-stone-100 font-semibold text-stone-600">{{ initial(c.name) }}</span>
             <span class="min-w-0 flex-1">
               <span class="block truncate font-medium text-stone-900">{{ c.name }}</span>
-              <span class="block truncate text-sm text-stone-500">{{ c.phone || '-' }}</span>
+              <span class="block truncate text-sm text-stone-500">{{ c.phone ? formatPhone(c.phone) : '-' }}</span>
             </span>
             <AppIcon name="next" class="text-stone-300" />
           </button>
@@ -198,7 +199,7 @@ function submit(asDraft) {
       <div v-else class="space-y-3">
         <div><label class="label">ชื่อ <span class="text-rose-500">*</span></label><input v-model="newCus.name" class="input" /></div>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div><label class="label">เบอร์โทร</label><input v-model="newCus.phone" type="tel" inputmode="tel" class="input" /></div>
+          <div><label class="label">เบอร์โทร</label><PhoneInput v-model="newCus.phone" /></div>
           <div><label class="label">LINE</label><input v-model="newCus.line" class="input" /></div>
         </div>
         <div><label class="label">หมายเหตุ</label><input v-model="newCus.note" class="input" /></div>
@@ -279,7 +280,7 @@ function submit(asDraft) {
         </div>
         <div v-if="form.fulfillment === 'delivery'" class="mt-4 space-y-3">
           <div><label class="label">ที่อยู่จัดส่ง <span class="text-rose-500">*</span></label><textarea v-model="form.address" rows="2" class="input" /></div>
-          <div class="max-w-[12rem]"><label class="label">ค่าส่ง (บาท)</label><input v-model.number="form.shippingFee" type="number" inputmode="numeric" min="0" class="input" /></div>
+          <div class="max-w-[12rem]"><label class="label">ค่าส่ง (บาท)</label><input v-model.number="form.shippingFee" type="text" v-num.dec min="0" class="input" /></div>
         </div>
       </div>
 
@@ -318,7 +319,7 @@ function submit(asDraft) {
           <div class="min-w-0">
             <div class="text-xs text-stone-500">ลูกค้า</div>
             <div class="truncate font-semibold text-stone-900">{{ customer?.name }}</div>
-            <div class="truncate text-sm text-stone-500">{{ customer?.phone }}</div>
+            <div class="truncate text-sm text-stone-500">{{ formatPhone(customer?.phone) }}</div>
           </div>
         </div>
         <div class="flex min-w-0 gap-3">

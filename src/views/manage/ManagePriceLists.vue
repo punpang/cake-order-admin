@@ -95,8 +95,8 @@ async function save() {
           <tbody>
             <tr v-for="t in types" :key="t.id" class="border-t border-stone-100" :class="t.active === false ? 'opacity-60' : ''">
               <td class="py-1.5 pr-3 whitespace-nowrap text-stone-800">{{ t.name }}<span v-if="t.active === false" class="ml-1 text-xs text-stone-400">(ปิด)</span></td>
-              <td class="px-1 py-1.5"><input v-model="table.types[t.id]" type="number" inputmode="numeric" min="0" class="input h-10 w-24" :aria-label="`ราคา ${t.name}`" /></td>
-              <td v-for="sz in sizes" :key="sz.id" class="px-1 py-1.5"><input v-model="table.typeSizes[t.id][sz.id]" type="number" inputmode="numeric" min="0" class="input h-10 w-24" :class="sizeOff(t, sz) ? 'opacity-40' : ''" :aria-label="`${t.name} ${sz.name}`" /></td>
+              <td class="px-1 py-1.5"><input v-model="table.types[t.id]" type="text" v-num.dec min="0" class="input h-10 w-24" :aria-label="`ราคา ${t.name}`" /></td>
+              <td v-for="sz in sizes" :key="sz.id" class="px-1 py-1.5"><input v-model="table.typeSizes[t.id][sz.id]" type="text" v-num.dec min="0" class="input h-10 w-24" :class="sizeOff(t, sz) ? 'opacity-40' : ''" :aria-label="`${t.name} ${sz.name}`" /></td>
             </tr>
           </tbody>
         </table>
@@ -105,7 +105,7 @@ async function save() {
       <div class="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
         <label v-for="f in flavors" :key="f.id" class="flex items-center gap-3" :class="f.active === false ? 'opacity-60' : ''">
           <span class="min-w-0 flex-1 truncate text-sm text-stone-800">{{ f.name }}<span v-if="f.active === false" class="ml-1 text-xs text-stone-400">(ปิด)</span></span>
-          <input v-model="table.flavors[f.id]" type="number" inputmode="numeric" min="0" class="input h-10 w-24 shrink-0" />
+          <input v-model="table.flavors[f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" />
         </label>
       </div>
       <div class="mt-3 flex items-center justify-end gap-3">
@@ -160,8 +160,8 @@ async function save() {
               <tbody>
                 <tr v-for="t in optsOf('type', true).filter((x) => x.active !== false)" :key="t.id" class="border-t border-stone-100">
                   <td class="py-1.5 pr-3 whitespace-nowrap text-stone-800">{{ t.name }}</td>
-                  <td class="px-1 py-1.5"><input v-model="form.types[t.id]" type="number" inputmode="numeric" min="0" class="input h-10 w-24" :placeholder="money(t.price || 0)" /></td>
-                  <td v-for="sz in sizes" :key="sz.id" class="px-1 py-1.5"><input v-model="form.typeSizes[t.id][sz.id]" type="number" inputmode="numeric" min="0" class="input h-10 w-24" :placeholder="money(t.sizePrices?.[sz.id] || 0)" /></td>
+                  <td class="px-1 py-1.5"><input v-model="form.types[t.id]" type="text" v-num.dec min="0" class="input h-10 w-24" :placeholder="money(t.price || 0)" /></td>
+                  <td v-for="sz in sizes" :key="sz.id" class="px-1 py-1.5"><input v-model="form.typeSizes[t.id][sz.id]" type="text" v-num.dec min="0" class="input h-10 w-24" :placeholder="money(t.sizePrices?.[sz.id] || 0)" /></td>
                 </tr>
               </tbody>
             </table>
@@ -170,7 +170,7 @@ async function save() {
           <div class="space-y-1.5">
             <label v-for="f in optsOf('flavor', true).filter((x) => x.active !== false)" :key="f.id" class="flex items-center gap-3">
               <span class="min-w-0 flex-1 truncate text-sm text-stone-800">{{ f.name }}</span>
-              <input v-model="form.flavors[f.id]" type="number" inputmode="numeric" min="0" class="input h-10 w-24 shrink-0" :placeholder="money(f.price || 0)" />
+              <input v-model="form.flavors[f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" :placeholder="money(f.price || 0)" />
             </label>
           </div>
           <p class="mt-1 text-xs text-stone-400">เว้นว่าง = ใช้ราคาปกติ (ตัวเลขจาง)</p>
