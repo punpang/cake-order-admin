@@ -1,7 +1,8 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { db, can, findCustomer, findChat, chatOf } from '../data/store'
+import { db, can, findCustomer, findChat, chatOf, draftOf, hasDraft, clearDraft } from '../data/store'
+import OrderCreate from './OrderCreate.vue'
 import { formatPhone, phoneDigits, timeOnly, dateOnly, toDateStr } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
@@ -26,7 +27,7 @@ const list = computed(() => {
 const last = (c) => {
   const m = c.messages[c.messages.length - 1]
   if (!m) return { text: 'ยังไม่มีข้อความ', at: c.updatedAt }
-  return { text: m.kind === 'order' ? 'สรุปออร์เดอร์' : `${m.from === 'staff' ? 'คุณ: ' : ''}${m.text}`, at: m.at }
+  return { text: m.kind === 'order' ? 'สรุปออร์เดอร์' : m.kind === 'quote' ? 'ใบเสนอ' : `${m.from === 'staff' ? 'คุณ: ' : ''}${m.text}`, at: m.at }
 }
 const whenText = (at) => (at.slice(0, 10) === toDateStr(new Date()) ? timeOnly(at) : dateOnly(at))
 
@@ -35,6 +36,24 @@ const openOrders = computed(() =>
   customer.value ? db.orders.filter((o) => o.customerId === customer.value.id && o.channel !== 'pos' && !['delivered', 'cancelled'].includes(o.status)) : [],
 )
 const ordersOpen = ref(false)
+
+// แผงลงออร์เดอร์ในแชท: คอม = แผงขวาคู่กับแชท · มือถือ = แท็บ แชท | ออร์เดอร์ · ร่างเก็บต่อแชทใน store (สลับไปมาไม่หาย)
+const panelOpen = ref(false)
+const mtab = ref('chat')
+function openPanel() {
+  panelOpen.value = true
+  mtab.value = 'order'
+}
+function togglePanel() {
+  if (window.matchMedia('(min-width: 1024px)').matches) panelOpen.value = !panelOpen.value
+  else mtab.value = mtab.value === 'order' ? 'chat' : 'order'
+}
+function onCreated() {
+  clearDraft(current.value.id)
+  panelOpen.value = false
+  mtab.value = 'chat'
+}
+const onQuoted = () => (mtab.value = 'chat')
 
 // เริ่มแชทกับลูกค้า
 const pickOpen = ref(false)
@@ -53,11 +72,11 @@ function startWith(c) {
 <template>
   <div v-if="!can('chat')" class="card py-10 text-center text-stone-500">บทบาทนี้ใช้แชทไม่ได้</div>
 
-  <div v-else class="mx-auto max-w-5xl">
-    <div class="grid min-h-[420px] grid-cols-1 overflow-hidden rounded-2xl border border-stone-200 bg-white md:h-[calc(100dvh-9rem)] md:grid-cols-[300px_1fr]"
-      :class="current ? 'h-[calc(100dvh-9rem)]' : 'h-[calc(100dvh-12.5rem)]'">
+  <div v-else class="mx-auto" :class="panelOpen ? 'max-w-none' : 'max-w-5xl'">
+    <div class="grid min-h-[420px] grid-cols-1 overflow-hidden rounded-2xl border border-stone-200 bg-white md:h-[calc(100dvh-9rem)]"
+      :class="[current ? 'h-[calc(100dvh-9rem)]' : 'h-[calc(100dvh-12.5rem)]', panelOpen ? 'md:grid-cols-[300px_1fr] lg:grid-cols-1 xl:grid-cols-[280px_1fr]' : 'md:grid-cols-[300px_1fr]']">
       <!-- รายการแชท -->
-      <aside class="flex min-h-0 flex-col border-stone-200 md:border-r" :class="current ? 'hidden md:flex' : 'flex'">
+      <aside class="flex min-h-0 flex-col border-stone-200 md:border-r" :class="[current ? 'hidden md:flex' : 'flex', panelOpen ? 'lg:hidden xl:flex' : '']">
         <div class="flex items-center gap-2 border-b border-stone-200 p-3">
           <h1 class="flex-1 text-lg font-semibold text-stone-900">แชท</h1>
           <button type="button" class="btn-soft h-9 px-3" @click="pickOpen = true; pq = ''"><AppIcon name="plus" :size="16" /> เริ่มแชท</button>
@@ -98,9 +117,28 @@ function startWith(c) {
             <div class="truncate text-xs text-stone-500">{{ customer?.phone ? formatPhone(customer.phone) : '' }}<template v-if="customer?.line"> · LINE {{ customer.line }}</template></div>
           </div>
           <button v-if="openOrders.length" type="button" class="btn-outline h-9 px-3 text-sm" @click="ordersOpen = true">ออร์เดอร์ {{ openOrders.length }}</button>
-          <RouterLink v-if="can('createOrder')" :to="`/orders/new?customer=${current.customerId}&chat=${current.id}`" class="btn-primary h-9 px-3 text-sm"><AppIcon name="plus" :size="16" /> <span class="hidden sm:inline">สร้างออร์เดอร์</span><span class="sm:hidden">ออร์เดอร์</span></RouterLink>
+          <button v-if="can('createOrder')" type="button" class="relative hidden h-9 px-3 text-sm lg:inline-flex" :class="panelOpen ? 'btn-outline' : 'btn-primary'" @click="togglePanel">
+            <AppIcon :name="panelOpen ? 'x' : 'plus'" :size="16" /> {{ panelOpen ? 'ปิดแผงออร์เดอร์' : 'ลงออร์เดอร์' }}
+            <span v-if="hasDraft(current.id) && !panelOpen" class="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-400 ring-2 ring-white" />
+          </button>
         </div>
-        <ChatThread :key="current.id" :chat="current" side="staff" class="min-h-0 flex-1" />
+        <!-- มือถือ: แท็บ แชท | ออร์เดอร์ -->
+        <div v-if="can('createOrder')" class="grid grid-cols-2 gap-1 border-b border-stone-200 bg-white p-1.5 lg:hidden">
+          <button type="button" class="h-9 rounded-lg text-sm font-medium" :class="mtab === 'chat' ? 'bg-brand-50 text-brand-800' : 'text-stone-500'" @click="mtab = 'chat'">แชท</button>
+          <button type="button" class="relative h-9 rounded-lg text-sm font-medium" :class="mtab === 'order' ? 'bg-brand-50 text-brand-800' : 'text-stone-500'" @click="mtab = 'order'">
+            ลงออร์เดอร์<span v-if="hasDraft(current.id)" class="ml-1 text-amber-600">(ร่าง)</span>
+          </button>
+        </div>
+        <div class="flex min-h-0 flex-1">
+          <ChatThread :key="current.id" :chat="current" side="staff" class="min-h-0 min-w-0 flex-1" :class="mtab === 'order' ? 'hidden lg:flex' : 'flex'" @edit-draft="openPanel" />
+          <div
+            v-if="can('createOrder') && (panelOpen || mtab === 'order')"
+            class="min-h-0 w-full overflow-y-auto bg-stone-50 px-3 pt-3 lg:w-[440px] lg:shrink-0 lg:border-l lg:border-stone-200"
+            :class="mtab === 'order' ? 'block' : 'hidden lg:block'"
+          >
+            <OrderCreate :key="current.id" embedded :draft="draftOf(current.id)" :chat-id="current.id" @created="onCreated" @quoted="onQuoted" />
+          </div>
+        </div>
       </section>
       <section v-else class="hidden items-center justify-center bg-stone-50 text-sm text-stone-400 md:flex">เลือกแชททางซ้าย</section>
     </div>

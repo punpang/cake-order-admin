@@ -1,8 +1,8 @@
 <script setup>
 import { askConfirm } from '../lib/confirm'
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, toRef } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { db, can, addCustomer, findCustomer, createOrder, countPickups, pickupSlots, nearbyOrders } from '../data/store'
+import { db, can, addCustomer, findCustomer, createOrder, countPickups, pickupSlots, nearbyOrders, sendQuote } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime, timeOnly, toDateStr, formatPhone, phoneDigits } from '../lib/format'
 import PhoneInput from '../components/PhoneInput.vue'
@@ -13,15 +13,21 @@ import AppIcon from '../components/AppIcon.vue'
 import BirthdayFields from '../components/BirthdayFields.vue'
 import { parseBirthday, mdLabel } from '../lib/birthday'
 
+// ใช้ได้ 2 แบบ: หน้าเต็ม (/orders/new) หรือแผงในแชท (embedded + draft ของแชทจาก store → สลับไปมาข้อมูลไม่หาย)
+const props = defineProps({
+  draft: { type: Object, default: null },
+  embedded: { type: Boolean, default: false },
+  chatId: { type: String, default: null },
+})
+const emit = defineEmits(['created', 'quoted'])
 const router = useRouter()
 const route = useRoute()
 const steps = ['ลูกค้า', 'นัดรับ', 'สินค้า', 'สรุป']
-const step = ref(0)
 // สร้างจากแชท: /orders/new?customer=<id>&chat=<chatId> → เติมลูกค้าและข้ามขั้นเลือกลูกค้า
-const fromChat = typeof route.query.chat === 'string' ? route.query.chat : null
+const fromChat = props.chatId || (typeof route.query.chat === 'string' ? route.query.chat : null)
 const error = ref('')
 
-const form = reactive({
+const form = props.draft || reactive({
   customerId: null,
   date: toDateStr(new Date()),
   time: '',
@@ -30,8 +36,10 @@ const form = reactive({
   shippingFee: 0,
   items: [],
   birthday: { name: '', day: '', month: '' }, // วันเกิด (ไม่บังคับ)
+  step: 0,
 })
-if (typeof route.query.customer === 'string' && findCustomer(route.query.customer)) {
+const step = toRef(form, 'step')
+if (!props.draft && typeof route.query.customer === 'string' && findCustomer(route.query.customer)) {
   form.customerId = route.query.customer
   step.value = 1
 }
@@ -132,16 +140,30 @@ function submit(asDraft) {
     return
   }
   const o = createOrder({ ...form, pickupAt: pickupAt.value, birthday: birthday.value, chatId: fromChat }, asDraft)
-  router.replace(`/orders/${o.id}`)
+  if (props.embedded) emit('created', o)
+  else router.replace(`/orders/${o.id}`)
+}
+// ส่งใบเสนอเข้าแชท (ลูกค้ากดยืนยัน = เป็นออร์เดอร์)
+function quote() {
+  for (let k = 0; k < 3; k++) {
+    const e = validate(k)
+    if (e) {
+      step.value = k
+      error.value = e
+      return
+    }
+  }
+  const q = sendQuote(fromChat, { ...form, pickupAt: pickupAt.value, birthday: birthday.value })
+  if (q) emit('quoted', q)
 }
 </script>
 
 <template>
   <div v-if="!can('createOrder')" class="card py-10 text-center text-stone-500">บทบาทนี้สร้างออร์เดอร์ไม่ได้</div>
 
-  <div v-else class="mx-auto max-w-2xl pb-[calc(env(safe-area-inset-bottom)+6rem)]">
+  <div v-else :class="embedded ? 'pb-2' : 'mx-auto max-w-2xl pb-[calc(env(safe-area-inset-bottom)+6rem)]'">
     <!-- หัว -->
-    <div class="mb-4 flex items-center gap-2">
+    <div v-if="!embedded" class="mb-4 flex items-center gap-2">
       <RouterLink to="/orders" class="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
         <AppIcon name="back" :size="20" />
       </RouterLink>
@@ -362,15 +384,21 @@ function submit(asDraft) {
     </div>
 
     <!-- ปุ่มล่าง -->
-    <div class="action-bar">
-      <div class="mx-auto flex max-w-2xl gap-2">
+    <div :class="embedded ? 'sticky bottom-0 z-10 -mx-3 mt-3 border-t border-stone-200 bg-white/95 p-3 backdrop-blur' : 'action-bar'">
+      <div class="mx-auto flex max-w-2xl flex-wrap gap-2">
         <button v-if="step > 0" class="btn-outline px-3 sm:px-4" @click="back"><AppIcon name="back" /> <span class="hidden sm:inline">ย้อนกลับ</span></button>
         <template v-if="step < 3">
           <button class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8" @click="next">ถัดไป <AppIcon name="next" /></button>
         </template>
         <template v-else>
-          <button class="btn-outline flex-1 sm:ml-auto sm:flex-none" @click="submit(true)">บันทึกร่าง</button>
-          <button class="btn-primary flex-[1.4] sm:flex-none" @click="submit(false)">บันทึก · รอชำระ</button>
+          <template v-if="embedded && fromChat">
+            <button class="btn-soft flex-1" @click="quote">ส่งใบเสนอ</button>
+            <button class="btn-primary flex-1" @click="submit(false)">บันทึก · รอชำระ</button>
+          </template>
+          <template v-else>
+            <button class="btn-outline flex-1 sm:ml-auto sm:flex-none" @click="submit(true)">บันทึกร่าง</button>
+            <button class="btn-primary flex-[1.4] sm:flex-none" @click="submit(false)">บันทึก · รอชำระ</button>
+          </template>
         </template>
       </div>
     </div>

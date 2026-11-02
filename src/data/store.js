@@ -191,6 +191,8 @@ export const db = reactive({
   // ---------- แชทในเว็บ (จำลองในเครื่อง) ----------
   // messages: { from: 'customer' | 'staff', kind: 'text' | 'order', text, orderId, at, by }
   chats: [],
+  chatDrafts: {}, // ร่างออร์เดอร์ต่อแชท { [chatId]: form } สลับไปมาข้อมูลไม่หาย
+  quotes: [], // ใบเสนอในแชท status: pending | accepted | revise | superseded
 
   // ---------- POS หน้าร้าน ----------
   // สินค้าหน้าร้าน (ตัวอย่าง) stock = คงเหลือ (null = ไม่นับสต็อก)
@@ -199,9 +201,15 @@ export const db = reactive({
     { id: 'rt2', name: 'เค้กส้ม (ชิ้น)', category: 'เค้กชิ้น', price: 70, stock: 8, active: true },
     { id: 'rt3', name: 'คัพเค้กวานิลลา', category: 'คัพเค้ก', price: 45, stock: 20, active: true },
     { id: 'rt4', name: 'คัพเค้กเรดเวลเวท', category: 'คัพเค้ก', price: 55, stock: 0, active: true },
-    { id: 'rt5', name: 'อเมริกาโน่เย็น', category: 'เครื่องดื่ม', price: 60, stock: null, active: true },
-    { id: 'rt6', name: 'ชาไทยเย็น', category: 'เครื่องดื่ม', price: 55, stock: null, active: true },
+    { id: 'rt5', name: 'อเมริกาโน่เย็น', category: 'เครื่องดื่ม', price: 60, stock: null, active: true, modifierIds: ['md1', 'md2', 'md3'] },
+    { id: 'rt6', name: 'ชาไทยเย็น', category: 'เครื่องดื่ม', price: 55, stock: null, active: true, modifierIds: ['md1', 'md2'] },
     { id: 'rt7', name: 'เทียนวันเกิด (แพ็ก)', category: 'ของเสริม', price: 20, stock: 50, active: true },
+  ],
+  // ตัวเลือกสินค้าหน้าร้าน (กลุ่มกลาง ผูกกับสินค้าด้วย retailItems[].modifierIds) price = บาทที่บวกเพิ่ม
+  posModifiers: [
+    { id: 'md1', name: 'ความหวาน', type: 'single', required: true, active: true, options: [{ id: 'o1', name: 'ปกติ', price: 0 }, { id: 'o2', name: 'หวานน้อย', price: 0 }, { id: 'o3', name: 'ไม่หวาน', price: 0 }] },
+    { id: 'md2', name: 'น้ำแข็ง', type: 'single', required: true, active: true, options: [{ id: 'o4', name: 'ปกติ', price: 0 }, { id: 'o5', name: 'แยกน้ำแข็ง', price: 0 }, { id: 'o6', name: 'ไม่ใส่น้ำแข็ง', price: 0 }] },
+    { id: 'md3', name: 'เพิ่ม', type: 'multi', required: false, active: true, options: [{ id: 'o7', name: 'เพิ่มช็อต', price: 15 }, { id: 'o8', name: 'วิปครีม', price: 10 }] },
   ],
   // กะขาย: float = เงินทอนตั้งต้น, counted = เงินสดที่นับได้ตอนปิด
   shifts: [],
@@ -211,6 +219,7 @@ export const db = reactive({
 
 // ทุกรายการเริ่มต้นเป็น "ใช้งาน" + สมุดคะแนน / สิทธิ์หมุน
 for (const p of db.products) p.stock = p.stock ?? null
+for (const r of db.retailItems) r.modifierIds = r.modifierIds || []
 for (const c of db.customers) Object.assign(c, { active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: true })
 // ตัวอย่าง: ลูกค้าคนแรกผูก LINE แล้ว (จำลอง)
 db.customers[0].lineUserId = 'U-demo-mali'
@@ -346,7 +355,7 @@ export function createOrder(payload, asDraft = false) {
     birthday: payload.birthday?.md ? { name: payload.birthday.name || '', md: payload.birthday.md } : null, // { name, md: 'MM-DD' }
     address: payload.fulfillment === 'delivery' ? payload.address : '',
     shippingFee: payload.fulfillment === 'delivery' ? Number(payload.shippingFee) || 0 : 0,
-    items: payload.items.map((i) => priceItem(i)),
+    items: payload.quoteItems ? payload.items : payload.items.map((i) => priceItem(i)), // จากใบเสนอ = ราคาตามใบเสนอ
     adjustment: { amount: 0, reason: '' },
     pointsUsed: null, // { points, amount, entryId }
     couponsUsed: [], // [{ couponId, name, amount }]
@@ -866,8 +875,8 @@ export function chatOf(customerId) {
 export function sendChat(chatId, from, text, extra = {}) {
   const c = findChat(chatId)
   const t = (text || '').trim()
-  if (!c || (!t && extra.kind !== 'order')) return null
-  const m = { id: uid('cm'), from, kind: extra.kind || 'text', text: t, orderId: extra.orderId || null, at: now(), by: extra.by || (from === 'staff' ? session.role : 'ลูกค้า') }
+  if (!c || (!t && !['order', 'quote'].includes(extra.kind))) return null
+  const m = { id: uid('cm'), from, kind: extra.kind || 'text', text: t, orderId: extra.orderId || null, quoteId: extra.quoteId || null, at: now(), by: extra.by || (from === 'staff' ? session.role : 'ลูกค้า') }
   c.messages.push(m)
   c.updatedAt = m.at
   if (from === 'customer') c.unreadStaff++
@@ -888,6 +897,58 @@ export function postOrderCard(order) {
   if (!order.chatId) order.chatId = c.id
   sendChat(c.id, 'staff', '', { kind: 'order', orderId: order.id, by: 'ระบบ' })
 }
+// ---------- ร่างออร์เดอร์ต่อแชท ----------
+export function draftOf(chatId) {
+  if (!db.chatDrafts[chatId]) {
+    const c = findChat(chatId)
+    db.chatDrafts[chatId] = {
+      customerId: c?.customerId || null, date: toDateStr(new Date()), time: '', fulfillment: 'pickup', address: '', shippingFee: 0,
+      items: [], birthday: { name: '', day: '', month: '' }, step: 1,
+    }
+  }
+  return db.chatDrafts[chatId]
+}
+export const hasDraft = (chatId) => !!db.chatDrafts[chatId] && (db.chatDrafts[chatId].items.length > 0 || !!db.chatDrafts[chatId].time)
+export function clearDraft(chatId) {
+  delete db.chatDrafts[chatId]
+}
+
+// ---------- ใบเสนอในแชท ----------
+let quoteNo = 0
+export const findQuote = (id) => db.quotes.find((q) => q.id === id)
+// ส่งใบเสนอจากร่าง: ราคาล็อก ณ ตอนส่ง · ใบเดิมที่ยังรออยู่ในแชทเดียวกัน → superseded
+export function sendQuote(chatId, draft) {
+  const c = findChat(chatId)
+  if (!c) return null
+  for (const old of db.quotes) if (old.chatId === chatId && old.status === 'pending') old.status = 'superseded'
+  const payload = JSON.parse(JSON.stringify({
+    customerId: c.customerId, pickupAt: draft.pickupAt, fulfillment: draft.fulfillment,
+    address: draft.fulfillment === 'delivery' ? draft.address : '', shippingFee: draft.fulfillment === 'delivery' ? Number(draft.shippingFee) || 0 : 0,
+    birthday: draft.birthday || null, items: draft.items.map((i) => priceItem(i)),
+  }))
+  const q = { id: uid('qt'), code: `QT-${String(++quoteNo).padStart(4, '0')}`, chatId, customerId: c.customerId, payload, status: 'pending', orderId: null, createdAt: now(), respondedAt: null }
+  db.quotes.unshift(q)
+  sendChat(chatId, 'staff', '', { kind: 'quote', quoteId: q.id })
+  return q
+}
+// ลูกค้ายืนยัน → สร้างออร์เดอร์ (รอชำระ) จากใบเสนอ
+export function acceptQuote(quoteId) {
+  const q = findQuote(quoteId)
+  if (!q || q.status !== 'pending') return { error: 'ใบเสนอนี้ใช้ไม่ได้แล้ว' }
+  if (new Date(q.payload.pickupAt) <= new Date()) return { error: 'เวลานัดผ่านแล้ว กรุณาขอใบเสนอใหม่' }
+  sendChat(q.chatId, 'customer', `ยืนยันใบเสนอ ${q.code}`)
+  const o = createOrder({ ...JSON.parse(JSON.stringify(q.payload)), chatId: q.chatId, quoteItems: true })
+  Object.assign(q, { status: 'accepted', orderId: o.id, respondedAt: now() })
+  clearDraft(q.chatId)
+  return { order: o }
+}
+export function reviseQuote(quoteId, note = '') {
+  const q = findQuote(quoteId)
+  if (!q || q.status !== 'pending') return
+  Object.assign(q, { status: 'revise', respondedAt: now(), note })
+  sendChat(q.chatId, 'customer', `ขอแก้ไขใบเสนอ ${q.code}${note ? `: ${note}` : ''}`)
+}
+
 export const unreadChats = () => db.chats.filter((c) => c.unreadStaff > 0).length
 
 // ---------- POS หน้าร้าน ----------
@@ -915,12 +976,30 @@ export function closeShift(counted, note = '') {
   Object.assign(s, { closedAt: now(), closedBy: session.role, counted: Number(counted) || 0, note, summary: shiftSummary(s) })
   return s
 }
+// ตัวเลือกที่เลือก [{ groupId, optionId }] → สำเนา { group, name, price } (เก็บในรายการ ไม่เปลี่ยนตามการแก้ภายหลัง)
+export function modsOf(sel = []) {
+  return sel
+    .map((x) => {
+      const g = db.posModifiers.find((m) => m.id === x.groupId)
+      const o = g?.options.find((y) => y.id === x.optionId)
+      return o ? { groupId: g.id, optionId: o.id, group: g.name, name: o.name, price: Number(o.price) || 0 } : null
+    })
+    .filter(Boolean)
+}
+export const modsText = (mods) => (mods || []).map((m) => m.name).join(' · ')
+// key ของบรรทัดตะกร้า: สินค้า + ชุดตัวเลือก
+export const lineKey = (l) => `${l.kind}|${l.refId}|${(l.mods || []).map((m) => `${m.groupId}:${m.optionId}`).sort().join(',')}`
+export const saveModifier = (d) =>
+  upsert(db.posModifiers, 'md', { ...d, options: (d.options || []).filter((o) => o.name?.trim()).map((o) => ({ id: o.id || uid('mo'), name: o.name.trim(), price: Number(o.price) || 0 })) })
+
 // ตะกร้า → รายการออร์เดอร์ (ราคาตามปัจจุบัน)
 export function posItems(cart) {
   return cart.map((l) => {
     if (l.kind === 'retail') {
       const r = db.retailItems.find((x) => x.id === l.refId)
-      return priceItem({ id: uid('i'), kind: 'retail', retailId: l.refId, retailPrice: r?.price || 0, name: r?.name || '', qty: l.qty, selections: {}, note: '', images: [] })
+      const mods = modsOf(l.mods)
+      const price = (r?.price || 0) + mods.reduce((s, m) => s + m.price, 0)
+      return priceItem({ id: uid('i'), kind: 'retail', retailId: l.refId, retailPrice: price, mods, name: r?.name || '', qty: l.qty, selections: {}, note: '', images: [] })
     }
     const p = db.products.find((x) => x.id === l.refId)
     return priceItem({ id: uid('i'), kind: 'ready', productId: l.refId, name: p?.name || '', qty: l.qty, selections: {}, note: '', images: [] })
@@ -964,7 +1043,7 @@ export function voidPosSale(order, reason = 'ยกเลิกบิล') {
   const pay = order.payments.find((p) => p.status === 'confirmed')
   cancelOrder(order, { reason, refundAmount: pay?.amount || 0, refundMethod: pay?.method || '', refundNote: '' })
 }
-export const saveRetailItem = (d) => upsert(db.retailItems, 'rt', { ...d, price: Number(d.price) || 0, stock: d.stock === '' || d.stock == null ? null : Math.max(0, Number(d.stock) || 0) })
+export const saveRetailItem = (d) => upsert(db.retailItems, 'rt', { ...d, modifierIds: [...(d.modifierIds || [])], price: Number(d.price) || 0, stock: d.stock === '' || d.stock == null ? null : Math.max(0, Number(d.stock) || 0) })
 export function addStock(item, n) {
   item.stock = Math.max(0, (Number(item.stock) || 0) + (Number(n) || 0))
 }

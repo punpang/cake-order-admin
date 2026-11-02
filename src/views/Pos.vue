@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import {
   db, can, activeListsAt, currentShift, openShift, closeShift, shiftSummary, shiftBills, posItems, posSale, voidPosSale,
-  customerPoints, usableDiscountCoupons, findCustomer,
+  customerPoints, usableDiscountCoupons, findCustomer, modsOf, modsText, lineKey,
 } from '../data/store'
 import { orderTotals, productPrice } from '../lib/pricing'
 import { POS_METHODS, ROLES } from '../lib/constants'
@@ -28,7 +28,7 @@ function doOpen() {
 const active = computed(() => activeListsAt())
 const catalog = computed(() => [
   ...db.products.filter((p) => p.active !== false).map((p) => ({ kind: 'ready', id: p.id, name: p.name, category: 'เค้กสำเร็จ', price: productPrice(p, db.optionGroups, active.value), stock: p.stock ?? null })),
-  ...db.retailItems.filter((r) => r.active !== false).map((r) => ({ kind: 'retail', id: r.id, name: r.name, category: r.category || 'อื่น ๆ', price: r.price, stock: r.stock ?? null })),
+  ...db.retailItems.filter((r) => r.active !== false).map((r) => ({ kind: 'retail', id: r.id, name: r.name, category: r.category || 'อื่น ๆ', price: r.price, stock: r.stock ?? null, modifierIds: r.modifierIds || [] })),
 ])
 const categories = computed(() => [...new Set(catalog.value.map((x) => x.category))])
 const cat = ref('')
@@ -39,21 +39,59 @@ const shown = computed(() => {
 })
 
 // ---------- ตะกร้า ----------
-const cart = ref([]) // [{ kind, refId, qty }]
-const lineOf = (x) => cart.value.find((l) => l.kind === x.kind && l.refId === x.id)
-const inCart = (x) => lineOf(x)?.qty || 0
-const canAdd = (x) => x.stock == null || inCart(x) < x.stock
+const cart = ref([]) // [{ kind, refId, qty, mods: [{ groupId, optionId }] }] แยกบรรทัดตามชุดตัวเลือก
+// จำนวนในตะกร้าของสินค้า (รวมทุกบรรทัด ใช้ตรวจสต็อก)
+const inCart = (x) => cart.value.filter((l) => l.kind === x.kind && l.refId === x.id).reduce((s, l) => s + l.qty, 0)
+const canAdd = (x, n = 1) => x.stock == null || inCart(x) + n <= x.stock
+const itemOf = (l) => catalog.value.find((c) => c.kind === l.kind && c.id === l.refId)
+const groupsOf = (x) => (x.modifierIds || []).map((id) => db.posModifiers.find((m) => m.id === id)).filter((g) => g && g.active !== false && g.options.length)
+const linePrice = (l) => (itemOf(l)?.price || 0) + modsOf(l.mods).reduce((s, m) => s + m.price, 0)
+function addLine(x, mods, qty) {
+  const key = lineKey({ kind: x.kind, refId: x.id, mods })
+  const l = cart.value.find((y) => lineKey(y) === key)
+  if (l) l.qty += qty
+  else cart.value.push({ kind: x.kind, refId: x.id, qty, mods })
+}
 function add(x) {
   if (!canAdd(x)) return
-  const l = lineOf(x)
-  if (l) l.qty++
-  else cart.value.push({ kind: x.kind, refId: x.id, qty: 1 })
+  if (groupsOf(x).length) return openMods(x)
+  addLine(x, [], 1)
 }
 function step(l, d) {
-  const x = catalog.value.find((c) => c.kind === l.kind && c.id === l.refId)
+  const x = itemOf(l)
   if (d > 0 && x && !canAdd(x)) return
   l.qty += d
   if (l.qty <= 0) cart.value.splice(cart.value.indexOf(l), 1)
+}
+
+// ---------- เลือกตัวเลือกสินค้า (เช่น หวานน้อย แยกน้ำแข็ง) ----------
+const modFor = ref(null) // { x, line (แก้บรรทัดเดิม), sel: { [groupId]: optionId | [optionId] }, qty }
+function openMods(x, line = null) {
+  const sel = {}
+  for (const g of groupsOf(x)) {
+    const cur = (line?.mods || []).filter((m) => m.groupId === g.id).map((m) => m.optionId)
+    sel[g.id] = g.type === 'multi' ? cur : cur[0] || (g.required ? g.options[0].id : null)
+  }
+  modFor.value = { x, line, sel, qty: line?.qty || 1 }
+}
+function pickMod(g, o) {
+  const s = modFor.value.sel
+  if (g.type === 'multi') s[g.id] = s[g.id].includes(o.id) ? s[g.id].filter((v) => v !== o.id) : [...s[g.id], o.id]
+  else s[g.id] = s[g.id] === o.id && !g.required ? null : o.id
+}
+const isPicked = (g, o) => (g.type === 'multi' ? modFor.value.sel[g.id].includes(o.id) : modFor.value.sel[g.id] === o.id)
+const modSel = computed(() =>
+  modFor.value ? Object.entries(modFor.value.sel).flatMap(([gid, v]) => (Array.isArray(v) ? v : v ? [v] : []).map((oid) => ({ groupId: gid, optionId: oid }))) : [],
+)
+const modPrice = computed(() => (modFor.value ? (modFor.value.x.price + modsOf(modSel.value).reduce((s, m) => s + m.price, 0)) * modFor.value.qty : 0))
+const modMissing = computed(() => (modFor.value ? groupsOf(modFor.value.x).filter((g) => g.required && !modFor.value.sel[g.id]).map((g) => g.name) : []))
+const modQtyMax = computed(() => (modFor.value?.x.stock == null ? 99 : modFor.value.x.stock - inCart(modFor.value.x) + (modFor.value.line?.qty || 0)))
+function saveMods() {
+  const f = modFor.value
+  if (modMissing.value.length || f.qty < 1 || f.qty > modQtyMax.value) return
+  if (f.line) cart.value.splice(cart.value.indexOf(f.line), 1)
+  addLine(f.x, modSel.value, f.qty)
+  modFor.value = null
 }
 const count = computed(() => cart.value.reduce((s, l) => s + l.qty, 0))
 const cartOpen = ref(false) // มือถือ: แผงตะกร้าแบบ bottom sheet
@@ -204,6 +242,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             @click="add(x)"
           >
             <span class="line-clamp-2 text-sm font-medium break-words text-stone-900">{{ x.name }}</span>
+            <span v-if="groupsOf(x).length" class="mt-0.5 text-[11px] text-brand-700">มีตัวเลือก</span>
             <span class="mt-2 flex items-end justify-between gap-1">
               <span class="text-base font-semibold text-stone-900">{{ money(x.price) }}</span>
               <span v-if="x.stock != null" class="text-[11px]" :class="x.stock - inCart(x) <= 0 ? 'font-semibold text-rose-600' : 'text-stone-400'">{{ x.stock - inCart(x) <= 0 ? 'หมด' : `เหลือ ${x.stock - inCart(x)}` }}</span>
@@ -227,11 +266,12 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
           <p v-if="!cart.length" class="py-6 text-center text-sm text-stone-400">แตะสินค้าเพื่อเพิ่ม</p>
           <ul class="space-y-2">
-            <li v-for="l in cart" :key="l.kind + l.refId" class="flex items-center gap-2">
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-sm font-medium text-stone-900">{{ catalog.find((c) => c.kind === l.kind && c.id === l.refId)?.name }}</span>
-                <span class="block text-xs text-stone-500">{{ money(catalog.find((c) => c.kind === l.kind && c.id === l.refId)?.price) }}</span>
-              </span>
+            <li v-for="l in cart" :key="lineKey(l)" class="flex items-center gap-2">
+              <button type="button" class="min-w-0 flex-1 text-left" :disabled="!groupsOf(itemOf(l) || {}).length" @click="openMods(itemOf(l), l)">
+                <span class="block truncate text-sm font-medium text-stone-900">{{ itemOf(l)?.name }}</span>
+                <span v-if="l.mods?.length" class="block truncate text-xs text-brand-700">{{ modsText(modsOf(l.mods)) }}</span>
+                <span class="block text-xs text-stone-500">{{ money(linePrice(l)) }}</span>
+              </button>
               <span class="flex h-9 items-center rounded-xl border border-stone-200">
                 <button type="button" class="h-full w-9 text-stone-600" aria-label="ลด" @click="step(l, -1)"><AppIcon name="minus" :size="16" class="mx-auto" /></button>
                 <span class="w-7 text-center text-sm font-semibold">{{ l.qty }}</span>
@@ -299,7 +339,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <li v-for="o in bills" :key="o.id" class="flex items-center gap-3 py-3" :class="o.status === 'cancelled' ? 'opacity-60' : ''">
           <button type="button" class="min-w-0 flex-1 text-left" @click="receipt = o">
             <span class="block font-medium text-stone-900">{{ o.code }} <span class="text-xs font-normal text-stone-500">{{ timeOnly(o.createdAt) }}</span></span>
-            <span class="block truncate text-xs text-stone-500">{{ o.items.map((i) => `${i.name} ×${i.qty}`).join(', ') }}<template v-if="o.customerId"> · {{ findCustomer(o.customerId)?.name }}</template></span>
+            <span class="block truncate text-xs text-stone-500">{{ o.items.map((i) => `${i.name}${i.mods?.length ? ` (${modsText(i.mods)})` : ''} ×${i.qty}`).join(', ') }}<template v-if="o.customerId"> · {{ findCustomer(o.customerId)?.name }}</template></span>
           </button>
           <span class="shrink-0 text-right text-sm">
             <b class="block text-stone-900">{{ money(orderTotals(o).total) }}</b>
@@ -326,6 +366,40 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <p v-if="counted !== ''" class="mt-1 text-sm" :class="Number(counted) - summary.expectedCash === 0 ? 'text-emerald-700' : 'text-amber-700'">ส่วนต่าง {{ money(Number(counted) - summary.expectedCash) }}</p>
       <button type="button" class="btn-primary mt-3 w-full" :disabled="counted === ''" @click="doClose">ปิดกะ</button>
     </section>
+
+    <!-- ตัวเลือกสินค้า -->
+    <AppModal v-if="modFor" :title="modFor.x.name" @close="modFor = null">
+      <div class="space-y-4">
+        <div v-for="g in groupsOf(modFor.x)" :key="g.id">
+          <div class="label">{{ g.name }} <span v-if="g.required" class="text-rose-500">*</span><span v-else-if="g.type === 'multi'" class="font-normal text-stone-400">(เลือกได้หลายอย่าง)</span></div>
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <button
+              v-for="o in g.options"
+              :key="o.id"
+              type="button"
+              class="flex min-h-12 flex-col items-center justify-center rounded-xl border px-2 py-1.5 text-sm font-medium"
+              :class="isPicked(g, o) ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : 'border-stone-200 text-stone-700'"
+              @click="pickMod(g, o)"
+            >
+              {{ o.name }}<span v-if="o.price" class="text-xs font-normal text-stone-500">+{{ money(o.price) }}</span>
+            </button>
+          </div>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="label mb-0">จำนวน</span>
+          <span class="flex h-11 items-center rounded-xl border border-stone-200">
+            <button type="button" class="h-full w-11" aria-label="ลด" @click="modFor.qty = Math.max(1, modFor.qty - 1)"><AppIcon name="minus" :size="18" class="mx-auto" /></button>
+            <span class="w-10 text-center text-lg font-semibold">{{ modFor.qty }}</span>
+            <button type="button" class="h-full w-11" aria-label="เพิ่ม" :disabled="modFor.qty >= modQtyMax" @click="modFor.qty++"><AppIcon name="plus" :size="18" class="mx-auto" /></button>
+          </span>
+        </div>
+        <p v-if="modMissing.length" class="text-sm text-rose-600">เลือก {{ modMissing.join(', ') }}</p>
+      </div>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="modFor = null">ยกเลิก</button>
+        <button class="btn-primary flex-[1.6] sm:flex-none" :disabled="!!modMissing.length" @click="saveMods">{{ modFor.line ? 'บันทึก' : 'ใส่ตะกร้า' }} · {{ money(modPrice) }}</button>
+      </template>
+    </AppModal>
 
     <!-- ชำระเงิน -->
     <AppModal v-if="payOpen" title="ชำระเงิน" @close="payOpen = false">

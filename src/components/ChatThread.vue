@@ -1,16 +1,18 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { findOrder, sendChat, markRead } from '../data/store'
-import { orderTotals } from '../lib/pricing'
+import { findOrder, sendChat, markRead, findQuote, acceptQuote, reviseQuote } from '../data/store'
+import { orderTotals, discountLines } from '../lib/pricing'
 import { STATUS } from '../lib/constants'
 import { money, dateTime, timeOnly, dateOnly } from '../lib/format'
 import AppIcon from './AppIcon.vue'
+import DiscountDetail from './DiscountDetail.vue'
 
 // เธรดแชท ใช้ทั้งฝั่งพนักงาน (side = staff) และลูกค้า (side = customer)
 const props = defineProps({
   chat: { type: Object, required: true },
   side: { type: String, default: 'staff' },
 })
+const emit = defineEmits(['edit-draft'])
 const text = ref('')
 const box = ref(null)
 const mine = (m) => m.from === props.side
@@ -49,6 +51,32 @@ const card = (m) => {
   const t = orderTotals(o)
   return { o, t, first: o.items[0]?.name || '', more: o.items.length - 1 }
 }
+// ใบเสนอ
+const QUOTE_STATUS = {
+  pending: { t: 'รอลูกค้ายืนยัน', cls: 'bg-amber-50 text-amber-700' },
+  accepted: { t: 'ยืนยันแล้ว', cls: 'bg-emerald-50 text-emerald-700' },
+  revise: { t: 'ลูกค้าขอแก้', cls: 'bg-rose-50 text-rose-600' },
+  superseded: { t: 'มีใบใหม่แล้ว', cls: 'bg-stone-100 text-stone-500' },
+}
+function quoteView(m) {
+  const q = findQuote(m.quoteId)
+  if (!q) return null
+  const t = orderTotals({ ...q.payload, payments: [], adjustment: null, couponsUsed: [] })
+  const lines = q.payload.items.flatMap((i) => discountLines(i.discounts, i.qty))
+  return { q, t, lines }
+}
+const reviseFor = ref(null)
+const reviseText = ref('')
+const quoteError = ref('')
+function accept(q) {
+  const r = acceptQuote(q.id)
+  quoteError.value = r.error || ''
+}
+function sendRevise(q) {
+  reviseQuote(q.id, reviseText.value.trim())
+  reviseFor.value = null
+  reviseText.value = ''
+}
 // แสดงวันที่คั่นเมื่อเปลี่ยนวัน
 const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !== props.chat.messages[i].at.slice(0, 10)
 </script>
@@ -73,6 +101,44 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
               <span class="text-right text-xs" :class="card(m).t.balance > 0 ? 'text-amber-700' : 'text-brand-700'">{{ card(m).t.balance > 0 ? `ค้าง ${money(card(m).t.balance)}` : 'ชำระครบ' }}</span>
             </div>
             <RouterLink v-if="side === 'staff'" :to="`/orders/${card(m).o.id}`" class="btn-soft mt-2 h-9 w-full text-sm">เปิดออร์เดอร์</RouterLink>
+          </div>
+          <!-- ใบเสนอ -->
+          <div v-else-if="m.kind === 'quote' && quoteView(m)" class="w-80 max-w-[90%] rounded-2xl border-2 border-brand-200 bg-white p-3 shadow-sm" :class="quoteView(m).q.status === 'superseded' ? 'opacity-60' : ''">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs font-semibold text-brand-700">ใบเสนอ {{ quoteView(m).q.code }}</span>
+              <span class="rounded-full px-2 py-0.5 text-[11px] font-medium" :class="QUOTE_STATUS[quoteView(m).q.status].cls">{{ QUOTE_STATUS[quoteView(m).q.status].t }}</span>
+            </div>
+            <ul class="mt-2 space-y-1 text-sm">
+              <li v-for="it in quoteView(m).q.payload.items" :key="it.id" class="flex justify-between gap-2">
+                <span class="min-w-0 break-words text-stone-900">{{ it.name }}<span v-if="it.qty > 1" class="text-stone-500"> × {{ it.qty }}</span></span>
+                <span class="shrink-0 text-stone-700">{{ money(it.unitPrice * it.qty) }}</span>
+              </li>
+            </ul>
+            <div class="mt-1.5 text-xs text-stone-500">{{ quoteView(m).q.payload.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }} · {{ dateTime(quoteView(m).q.payload.pickupAt) }}<template v-if="quoteView(m).q.payload.shippingFee"> · ค่าส่ง {{ money(quoteView(m).q.payload.shippingFee) }}</template></div>
+            <div class="mt-2 flex items-start justify-between gap-2 border-t border-stone-100 pt-2">
+              <span class="text-xs text-stone-500">ยอดรวม</span>
+              <DiscountDetail :full="quoteView(m).t.full + quoteView(m).t.shipping" :final="quoteView(m).t.total" :lines="quoteView(m).lines" />
+            </div>
+            <!-- ลูกค้า: ยืนยัน / ขอแก้ -->
+            <template v-if="side === 'customer' && quoteView(m).q.status === 'pending'">
+              <div v-if="reviseFor === quoteView(m).q.id" class="mt-2 space-y-2">
+                <input v-model="reviseText" class="input h-10" placeholder="อยากแก้อะไร (ไม่บังคับ)" />
+                <div class="flex gap-2">
+                  <button type="button" class="btn-outline h-9 flex-1" @click="reviseFor = null">ยกเลิก</button>
+                  <button type="button" class="btn-primary h-9 flex-1" @click="sendRevise(quoteView(m).q)">ส่งคำขอแก้</button>
+                </div>
+              </div>
+              <div v-else class="mt-2 flex gap-2">
+                <button type="button" class="btn-outline h-10 flex-1" @click="reviseFor = quoteView(m).q.id; reviseText = ''">ขอแก้</button>
+                <button type="button" class="btn-primary h-10 flex-[1.4]" @click="accept(quoteView(m).q)"><AppIcon name="check" :size="16" /> ยืนยันสั่ง</button>
+              </div>
+              <p v-if="quoteError" class="mt-1 text-xs text-rose-600">{{ quoteError }}</p>
+            </template>
+            <!-- พนักงาน -->
+            <template v-if="side === 'staff'">
+              <RouterLink v-if="quoteView(m).q.orderId" :to="`/orders/${quoteView(m).q.orderId}`" class="btn-soft mt-2 h-9 w-full text-sm">เปิดออร์เดอร์</RouterLink>
+              <button v-else-if="['pending', 'revise'].includes(quoteView(m).q.status)" type="button" class="btn-outline mt-2 h-9 w-full text-sm" @click="emit('edit-draft')">แก้ร่างแล้วส่งใหม่</button>
+            </template>
           </div>
           <!-- ข้อความ -->
           <div v-else class="max-w-[80%]">

@@ -21,7 +21,7 @@ const customer = computed(() => findCustomer(props.order.customerId))
     </div>
     <div class="my-2 border-t border-dashed border-black" />
     <div v-for="it in order.items" :key="it.id" class="flex justify-between gap-2">
-      <span class="min-w-0 break-words">{{ it.qty }} × {{ it.name }}</span>
+      <span class="min-w-0 break-words">{{ it.qty }} × {{ it.name }}<span v-if="it.mods?.length" class="block pl-4 text-xs">{{ it.mods.map((m) => m.name + (m.price ? ` +${m.price}` : '')).join(' · ') }}</span></span>
       <span class="shrink-0">{{ money((it.fullPrice ?? it.unitPrice) * it.qty) }}</span>
     </div>
     <div class="my-2 border-t border-dashed border-black" />

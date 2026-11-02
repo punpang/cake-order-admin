@@ -54,6 +54,7 @@ const lines = computed(() => discountLines(props.item.discounts, props.item.qty)
         <div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-stone-500">
           <span class="rounded-md bg-stone-100 px-1.5 py-0.5 text-xs font-medium text-stone-600">{{ item.kind === 'custom' ? 'สั่งทำ' : item.kind === 'retail' ? 'หน้าร้าน' : 'สำเร็จ' }}</span>
           <span v-if="item.qty > 1">{{ item.qty }} ชิ้น × {{ money(item.unitPrice) }}</span>
+          <span v-if="item.mods?.length" class="text-brand-700">{{ item.mods.map((m) => m.name).join(' · ') }}</span>
         </div>
       </div>
       <DiscountDetail class="shrink-0" :full="full" :final="item.unitPrice * item.qty" :lines="lines" />
