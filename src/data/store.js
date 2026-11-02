@@ -317,6 +317,8 @@ export function createOrder(payload, asDraft = false) {
 }
 
 export function setStatus(order, status, text) {
+  // ส่งมอบไม่ได้ถ้ายังชำระไม่ครบ
+  if (status === 'delivered' && orderTotals(order).balance > 0) return
   order.status = status
   log(order, text)
   if (status === 'delivered') awardOrder(order)
@@ -356,6 +358,17 @@ export function cancelPaymentRequest(order, paymentId) {
   pay.status = 'cancelled'
   log(order, `ยกเลิกยอดที่แจ้ง ${pay.requested.toLocaleString('th-TH')} ฿`)
   if (order.status === 'payment_reported' && !order.payments.some((x) => x.status === 'reported')) order.status = 'awaiting_payment'
+}
+
+// ยกเลิกยอดที่ยืนยันแล้ว (แอดมิน) · ไม่เหลือยอดที่ยืนยัน → ถอยสถานะเป็น แจ้งยอดแล้ว (ถ้ามีงวดที่แจ้งค้าง) หรือ รอชำระ
+export function cancelConfirmedPayment(order, paymentId) {
+  const p = order.payments.find((x) => x.id === paymentId)
+  if (!p || p.status !== 'confirmed' || ['delivered', 'cancelled'].includes(order.status)) return
+  Object.assign(p, { status: 'cancelled', cancelledAt: now(), cancelledBy: session.role })
+  log(order, `ยกเลิกยอดที่ยืนยันแล้ว ${p.amount.toLocaleString('th-TH')} ฿`)
+  if (!order.payments.some((x) => x.status === 'confirmed') && ['payment_confirmed', 'preparing'].includes(order.status)) {
+    order.status = order.payments.some((x) => x.status === 'reported') ? 'payment_reported' : 'awaiting_payment'
+  }
 }
 
 // data = ยอดที่ได้รับจริง + รายละเอียด (ไม่ส่ง = ใช้ตามที่แจ้ง)

@@ -21,6 +21,7 @@ export const PERMISSIONS = {
   sendToPayment: ['admin', 'sales'],
   reportPayment: ['admin', 'sales'],
   confirmPayment: ['admin'],
+  cancelConfirmedPayment: ['admin'], // ยกเลิกยอดที่ยืนยันแล้ว
   adjustPrice: ['admin'],
   cancel: ['admin'],
   startPreparing: ['admin', 'baker'],

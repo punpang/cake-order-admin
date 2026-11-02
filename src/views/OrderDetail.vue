@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import {
   can, findOrder, findCustomer, setStatus, reportPayment, confirmPayment, setAdjustment, cancelOrder, countPickups,
-  updatePaymentRequest, cancelPaymentRequest,
+  updatePaymentRequest, cancelPaymentRequest, cancelConfirmedPayment,
   saveOrderItem, removeOrderItem, orderDate,
   db, customerPoints, usableDiscountCoupons, applyPoints, removePoints, applyCoupon, removeCoupon,
   setBirthday, depositOf,
@@ -135,7 +135,11 @@ function saveAdj() {
 
 // ---------- popup ยืนยัน ----------
 async function doStatus(status, text, title) {
+  if (status === 'delivered' && t.value.balance > 0) return
   if (await askConfirm({ title, message: `ออร์เดอร์ ${order.value.code}`, okText: title })) setStatus(order.value, status, text)
+}
+async function doCancelConfirmed(p) {
+  if (await askConfirm({ title: 'ยกเลิกยอดที่ยืนยันแล้ว', message: `${money(p.amount)} (${p.method})`, okText: 'ยกเลิกยอด', danger: true })) cancelConfirmedPayment(order.value, p.id)
 }
 async function doRemoveItem(it) {
   if (await askConfirm({ title: 'ลบสินค้า', message: `${it.name} × ${it.qty}`, okText: 'ลบ', danger: true })) removeOrderItem(order.value, it.id)
@@ -397,6 +401,9 @@ async function saveCancel() {
               <div class="mt-0.5 text-sm text-stone-500">{{ p.method }} · {{ dateTime(p.paidAt) }}</div>
               <div v-if="p.note" class="text-sm break-words text-stone-500">{{ p.note }}</div>
               <a v-if="p.slip" :href="p.slip" target="_blank" class="mt-2 block"><img :src="p.slip" class="h-24 w-auto rounded-lg object-cover" /></a>
+              <div v-if="p.status === 'confirmed' && !closed && can('cancelConfirmedPayment')" class="mt-2.5 flex justify-end">
+                <button class="btn-danger h-9 px-3" @click="doCancelConfirmed(p)"><AppIcon name="x" :size="16" /> ยกเลิกยอด</button>
+              </div>
               <div v-if="p.status === 'reported' && order.status !== 'cancelled'" class="mt-2.5 flex flex-wrap gap-2">
                 <button v-if="can('reportPayment')" class="btn-outline h-9 px-3" @click="openPay('edit', p)"><AppIcon name="edit" :size="16" /> แก้ยอด</button>
                 <button v-if="can('reportPayment')" class="btn-danger h-9 px-3" @click="doCancelRequest(p)"><AppIcon name="x" :size="16" /> ยกเลิก</button>
@@ -422,6 +429,9 @@ async function saveCancel() {
 
     <!-- ปุ่มเปลี่ยนสถานะ: มือถือติดล่าง / คอมอยู่ท้ายหน้า -->
     <div v-if="hasActions" class="action-bar lg:static lg:mt-4 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
+      <p v-if="order.status === 'preparing' && canDeliver && t.balance > 0" class="mx-auto mb-2 flex max-w-5xl items-center gap-1.5 text-sm font-medium text-amber-700">
+        <AppIcon name="alert" :size="16" /> ยังค้างชำระ {{ money(t.balance) }} ส่งมอบไม่ได้
+      </p>
       <div class="mx-auto flex max-w-5xl gap-2">
         <button v-if="can('cancel') && !closed" class="btn-danger px-3 sm:px-4" @click="openCancel">
           <AppIcon name="x" :size="16" /> <span :class="primaryAction ? 'hidden sm:inline' : ''">ยกเลิกออร์เดอร์</span>
@@ -439,6 +449,7 @@ async function saveCancel() {
         <button
           v-if="order.status === 'preparing' && canDeliver"
           class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8"
+          :disabled="t.balance > 0"
           @click="doStatus('delivered', 'ส่งมอบแล้ว', 'ส่งมอบแล้ว')"
         ><AppIcon name="check" :size="18" /> ส่งมอบแล้ว</button>
       </div>
