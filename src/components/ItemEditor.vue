@@ -2,12 +2,13 @@
 import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRaw, watch } from 'vue'
 import { db, activeListsAt } from '../data/store'
-import { priceDetail, productPrice, productPounds, allowedBy, forType } from '../lib/pricing'
+import { priceDetail, productPrice, productPounds, allowedBy, forType, discountLines } from '../lib/pricing'
 import { money } from '../lib/format'
 import { MAIN_KEYS } from '../lib/constants'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
 import OptionPicker from './OptionPicker.vue'
+import DiscountDetail from './DiscountDetail.vue'
 
 const props = defineProps({
   item: { type: Object, default: null },
@@ -288,10 +289,7 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
         </div>
         <div class="min-w-0 flex-1 text-right leading-tight">
           <div class="text-xs text-stone-500">{{ form.qty > 1 ? `${money(unitPrice)} × ${form.qty}` : 'ราคา' }}</div>
-          <div v-if="detail.specials.length && detail.regularPrice !== unitPrice" class="text-xs text-stone-400 line-through">{{ money(detail.regularPrice * (form.qty || 0)) }}</div>
-          <div class="text-lg font-semibold text-stone-900">{{ money(unitPrice * (form.qty || 0)) }}</div>
-          <div v-if="detail.specials.length" class="text-xs font-medium text-rose-600">{{ detail.specials.join(', ') }}</div>
-          <div v-if="detail.bundles.length" class="text-xs font-medium text-emerald-700">บันเดิ้ล: {{ detail.bundles.join(', ') }}</div>
+          <DiscountDetail :full="detail.fullPrice * (form.qty || 0)" :final="unitPrice * (form.qty || 0)" :lines="discountLines(detail.discounts, form.qty || 0)" size="lg" />
         </div>
         <button class="btn-primary w-full sm:w-auto" @click="save">
           <AppIcon name="check" :size="18" /> บันทึกสินค้า

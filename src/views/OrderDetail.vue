@@ -13,6 +13,7 @@ import { orderCost } from '../lib/materials'
 import { money, dateTime, toDateStr, pad } from '../lib/format'
 import { PAYMENT_METHODS, ROLES } from '../lib/constants'
 import StatusBadge from '../components/StatusBadge.vue'
+import DiscountDetail from '../components/DiscountDetail.vue'
 import ItemCard from '../components/ItemCard.vue'
 import ItemEditor from '../components/ItemEditor.vue'
 import AppModal from '../components/AppModal.vue'
@@ -326,6 +327,10 @@ async function saveCancel() {
           </template>
 
           <dl class="mt-3 space-y-1.5 border-t border-stone-100 pt-3 text-sm">
+            <div v-if="t.discountTotal" class="flex items-start justify-between gap-2 rounded-xl bg-emerald-50/60 p-2.5">
+              <dt class="text-stone-600">ราคาเต็ม → ยอดสุทธิ</dt>
+              <dd><DiscountDetail :full="t.full + t.shipping + Math.max(t.adjustment, 0)" :final="t.total" :lines="t.discountLines" /></dd>
+            </div>
             <div class="flex justify-between gap-2"><dt class="text-stone-500">ค่าสินค้า</dt><dd>{{ money(t.subtotal) }}</dd></div>
             <div v-if="order.fulfillment === 'delivery'" class="flex justify-between gap-2"><dt class="text-stone-500">ค่าส่ง</dt><dd>{{ money(t.shipping) }}</dd></div>
             <div v-if="t.adjustment" class="flex justify-between gap-2">

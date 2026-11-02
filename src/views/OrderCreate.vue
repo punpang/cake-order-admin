@@ -6,6 +6,7 @@ import { db, can, addCustomer, findCustomer, createOrder, countPickups, pickupSl
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime, timeOnly, toDateStr } from '../lib/format'
 import ItemEditor from '../components/ItemEditor.vue'
+import DiscountDetail from '../components/DiscountDetail.vue'
 import ItemCard from '../components/ItemCard.vue'
 import AppIcon from '../components/AppIcon.vue'
 import BirthdayFields from '../components/BirthdayFields.vue'
@@ -334,6 +335,10 @@ function submit(asDraft) {
       <ItemCard v-for="it in form.items" :key="it.id" :item="it" />
 
       <div class="card space-y-2 text-sm">
+        <div v-if="totals.discountTotal" class="flex items-start justify-between gap-2 rounded-xl bg-emerald-50/60 p-2.5">
+          <span class="text-stone-600">ราคาเต็ม → ยอดสุทธิ</span>
+          <span><DiscountDetail :full="totals.full + totals.shipping + Math.max(totals.adjustment, 0)" :final="totals.total" :lines="totals.discountLines" /></span>
+        </div>
         <div class="flex justify-between"><span class="text-stone-500">ค่าสินค้า</span><span>{{ money(totals.subtotal) }}</span></div>
         <div v-if="form.fulfillment === 'delivery'" class="flex justify-between"><span class="text-stone-500">ค่าส่ง</span><span>{{ money(totals.shipping) }}</span></div>
         <div class="flex items-center justify-between border-t border-stone-100 pt-2">

@@ -30,6 +30,11 @@ const MAIN = ['type', 'flavor', 'size']
 // ประเภท: option.price + option.sizePrices[sizeId] · เนื้อเค้ก: option.price
 // ราคาพิเศษ: priceList.types = { [typeId] }, typeSizes = { [typeId]: { [sizeId] } }, flavors = { [flavorId] } ช่องว่าง = ใช้ราคาปกติ
 // หลายแบบพร้อมกัน ใช้ราคาต่ำสุดแยกทีละช่อง
+// จดชื่อ (Set) หรือชื่อ + ยอดที่ลด (Map) ของราคาพิเศษ/บันเดิ้ลที่ใช้
+function note(store, name, amount) {
+  if (store instanceof Map) store.set(name, (store.get(name) || 0) + amount)
+  else store.add(name)
+}
 function pickSpecial(regular, active, get, used) {
   let best = null
   for (const l of active) {
@@ -37,7 +42,7 @@ function pickSpecial(regular, active, get, used) {
     if (v == null || v === '') continue
     if (!best || Number(v) < best.price) best = { price: Number(v), list: l }
   }
-  if (best && used) used.add(best.list.name)
+  if (best && used) note(used, best.list.name, regular - best.price)
   return best ? best.price : regular
 }
 export const typePrice = (t, active = [], used = null) => (t ? pickSpecial(Number(t.price) || 0, active, (l) => l.types?.[t.id], used) : 0)
@@ -118,7 +123,7 @@ export function bundleDiscount(bundles, picked, sizeIds, usedBundles = null, typ
     if (keys.some((k) => taken.has(k))) continue
     keys.forEach((k) => taken.add(k))
     total += c.d
-    if (usedBundles && c.d) usedBundles.add(c.b.name)
+    if (usedBundles && c.d) note(usedBundles, c.b.name, c.d)
   }
   return total
 }
@@ -154,13 +159,22 @@ export function calcUnitPrice(item, groups, products, active = [], used = null, 
 }
 
 // ราคาที่ใช้ + ราคาปกติ + ชื่อแบบราคาพิเศษ/บันเดิ้ลที่ใช้
+// fullPrice = ราคาเต็ม (ไม่ใช้ราคาพิเศษและบันเดิ้ล), discounts = ส่วนลดต่อชิ้นแยกตามแหล่ง (fullPrice − Σamount = unitPrice)
 export function priceDetail(item, groups, products, active = [], bundles = []) {
-  const used = new Set()
-  const usedB = new Set()
+  const used = new Map()
+  const usedB = new Map()
   const unitPrice = calcUnitPrice(item, groups, products, active, used, usedB, bundles)
   const regularPrice = calcUnitPrice(item, groups, products, [], null, null, bundles)
-  return { unitPrice, regularPrice, specials: [...used], bundles: [...usedB] }
+  const fullPrice = calcUnitPrice(item, groups, products, [], null, null, [])
+  const discounts = [
+    ...[...used].filter(([, a]) => a).map(([name, amount]) => ({ kind: 'special', name, amount })),
+    ...[...usedB].filter(([, a]) => a).map(([name, amount]) => ({ kind: 'bundle', name, amount })),
+  ]
+  return { unitPrice, regularPrice, fullPrice, discounts, specials: [...used.keys()], bundles: [...usedB.keys()] }
 }
+// บรรทัดส่วนลดสำหรับแสดงผล (คูณจำนวน)
+export const discountLines = (discounts, qty = 1) =>
+  (discounts || []).map((d) => ({ label: `${d.kind === 'bundle' ? 'บันเดิ้ล' : 'ราคาพิเศษ'}: ${d.name}`, amount: d.amount * qty }))
 
 export function orderTotals(order) {
   const subtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
@@ -173,7 +187,19 @@ export function orderTotals(order) {
   const paid = order.payments.filter((p) => p.status === 'confirmed').reduce((s, p) => s + p.amount, 0)
   const reported = order.payments.filter((p) => p.status === 'reported').reduce((s, p) => s + p.amount, 0)
   const refunded = Number(order.cancel?.refundAmount) || 0
-  return { subtotal, shipping, adjustment, pointsDiscount, couponDiscount, total, paid, reported, refunded, balance: total - paid }
+  // ราคาเต็ม + ส่วนลดทุกแหล่ง (ราคาพิเศษ/บันเดิ้ลรวมตามชื่อ, ปรับราคาที่ติดลบ, คะแนน, คูปอง)
+  const full = order.items.reduce((s, i) => s + (i.fullPrice ?? i.unitPrice) * i.qty, 0)
+  const byName = new Map()
+  for (const i of order.items) for (const l of discountLines(i.discounts, i.qty)) byName.set(l.label, (byName.get(l.label) || 0) + l.amount)
+  const itemDiscounts = [...byName].map(([label, amount]) => ({ label, amount }))
+  const discountLinesAll = [
+    ...itemDiscounts,
+    ...(adjustment < 0 ? [{ label: `ปรับราคา${order.adjustment?.reason ? ` (${order.adjustment.reason})` : ''}`, amount: -adjustment }] : []),
+    ...(pointsDiscount ? [{ label: `ใช้ ${order.pointsUsed.points} คะแนน`, amount: pointsDiscount }] : []),
+    ...(order.couponsUsed || []).filter((c) => Number(c.amount)).map((c) => ({ label: `คูปอง: ${c.name}`, amount: Number(c.amount) })),
+  ]
+  const discountTotal = discountLinesAll.reduce((s, l) => s + l.amount, 0) + (full - subtotal - itemDiscounts.reduce((s, l) => s + l.amount, 0))
+  return { subtotal, shipping, adjustment, pointsDiscount, couponDiscount, total, paid, reported, refunded, balance: total - paid, full, itemDiscounts, discountLines: discountLinesAll, discountTotal }
 }
 
 // แปลงตัวเลือกเป็นข้อความอ่านง่าย (หลายชั้นขึ้นต้นด้วย "ชั้น n")
