@@ -4,7 +4,7 @@ import { reactive } from 'vue'
 import { PERMISSIONS, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals } from '../lib/pricing'
 import { addDays, pointBalance, takePoints, returnPoints, couponUsable, pickPrize, expiringSoon } from '../lib/loyalty'
-import { pad, toDateStr, money, phoneDigits, formatPhone, dateOnly, timeOnly } from '../lib/format'
+import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, timeOnly } from '../lib/format'
 import { nextBirthday, daysBetween } from '../lib/birthday'
 
 let seq = 1000
@@ -917,10 +917,11 @@ export function linkChat(chatId, customerId) {
   const d = db.chatDrafts[c.id]
   if (d) d.customerId = cu.id
 }
-export function createCustomerFromChat(chatId) {
+// ลูกค้าทุกคนต้องมีเบอร์โทร
+export function createCustomerFromChat(chatId, phone, name = '') {
   const c = findChat(chatId)
-  if (!c) return null
-  const cu = addCustomer({ name: c.profileName, line: '', note: `จาก ${c.channel === 'line' ? 'LINE OA' : 'Facebook'}` })
+  if (!c || !phoneValid(phone)) return null
+  const cu = addCustomer({ name: (name || c.profileName).trim(), phone, line: '', note: `จาก ${c.channel === 'line' ? 'LINE OA' : 'Facebook'}` })
   linkChat(chatId, cu.id)
   return cu
 }
@@ -966,15 +967,43 @@ export function sendQuote(chatId, draft) {
   return q
 }
 // ลูกค้ายืนยัน → สร้างออร์เดอร์ (รอชำระ) จากใบเสนอ
+// แชทพร้อมสร้างออร์เดอร์ไหม: ผูกลูกค้าแล้ว + ลูกค้ามีเบอร์ (คืนเหตุผลถ้ายังไม่พร้อม)
+export function chatOrderBlock(chatId) {
+  const c = findChat(chatId)
+  const cu = c ? findCustomer(c.customerId) : null
+  if (!cu) return 'ยังไม่ได้ผูกบัญชีลูกค้า'
+  if (!phoneValid(cu.phone)) return 'ลูกค้ายังไม่มีเบอร์โทร'
+  return ''
+}
+function quoteToOrder(q) {
+  const c = findChat(q.chatId)
+  const o = createOrder({ ...JSON.parse(JSON.stringify(q.payload)), customerId: c.customerId, chatId: q.chatId, quoteItems: true })
+  Object.assign(q, { status: 'accepted', orderId: o.id })
+  clearDraft(q.chatId)
+  return o
+}
+// ลูกค้ากดยืนยัน (postback) · ถ้ายังไม่ผูก/ไม่มีเบอร์ → ขอเบอร์ และรอพนักงานสร้างออร์เดอร์
 export function acceptQuote(quoteId) {
   const q = findQuote(quoteId)
   if (!q || q.status !== 'pending') return { error: 'ใบเสนอนี้ใช้ไม่ได้แล้ว' }
   if (new Date(q.payload.pickupAt) <= new Date()) return { error: 'เวลานัดผ่านแล้ว กรุณาขอใบเสนอใหม่' }
   sendChat(q.chatId, 'customer', `ยืนยันใบเสนอ ${q.code}`)
-  const o = createOrder({ ...JSON.parse(JSON.stringify(q.payload)), chatId: q.chatId, quoteItems: true })
-  Object.assign(q, { status: 'accepted', orderId: o.id, respondedAt: now() })
-  clearDraft(q.chatId)
-  return { order: o }
+  q.respondedAt = now()
+  if (chatOrderBlock(q.chatId)) {
+    q.status = 'need_phone'
+    sendChat(q.chatId, 'staff', 'ขอบคุณค่ะ รบกวนแจ้งชื่อและเบอร์โทรเพื่อยืนยันออร์เดอร์นะคะ', { by: 'ระบบ' })
+    return { needPhone: true }
+  }
+  return { order: quoteToOrder(q) }
+}
+// พนักงานสร้างออร์เดอร์จากใบเสนอที่ลูกค้ายืนยันแล้ว (หลังผูก/ได้เบอร์)
+export function convertQuote(quoteId) {
+  const q = findQuote(quoteId)
+  if (!q || q.status !== 'need_phone') return { error: 'ใบเสนอนี้ใช้ไม่ได้แล้ว' }
+  const block = chatOrderBlock(q.chatId)
+  if (block) return { error: block }
+  if (new Date(q.payload.pickupAt) <= new Date()) return { error: 'เวลานัดผ่านแล้ว ส่งใบเสนอใหม่' }
+  return { order: quoteToOrder(q) }
 }
 export function reviseQuote(quoteId, note = '') {
   const q = findQuote(quoteId)

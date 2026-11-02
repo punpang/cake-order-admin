@@ -2,9 +2,9 @@
 import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRef } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { db, can, addCustomer, findCustomer, createOrder, countPickups, pickupSlots, nearbyOrders, sendQuote } from '../data/store'
+import { db, can, addCustomer, saveCustomer, findCustomer, createOrder, countPickups, pickupSlots, nearbyOrders, sendQuote, findChat, linkChat, createCustomerFromChat, chatOrderBlock } from '../data/store'
 import { orderTotals } from '../lib/pricing'
-import { money, dateTime, timeOnly, toDateStr, formatPhone, phoneDigits } from '../lib/format'
+import { money, dateTime, timeOnly, toDateStr, formatPhone, phoneDigits, phoneValid } from '../lib/format'
 import PhoneInput from '../components/PhoneInput.vue'
 import ItemEditor from '../components/ItemEditor.vue'
 import DiscountDetail from '../components/DiscountDetail.vue'
@@ -58,19 +58,38 @@ const matches = computed(() => {
 })
 const initial = (n) => (n || '').replace(/^คุณ/, '').trim().charAt(0)
 
+// ในแชท: เลือก/สร้างลูกค้า = ผูกแชทกับลูกค้าด้วย (ลูกค้าทุกคนต้องมีเบอร์โทร)
+const chat = computed(() => (props.chatId ? findChat(props.chatId) : null))
+function pickCustomer(c) {
+  if (props.embedded && chat.value) linkChat(chat.value.id, c.id)
+  form.customerId = c.id
+  error.value = ''
+}
 function openNew() {
-  newCus.name = q.value
+  newCus.name = q.value || (props.embedded ? chat.value?.profileName || '' : '')
   showNew.value = true
   error.value = ''
 }
 function saveNewCustomer() {
   if (!newCus.name.trim()) return (error.value = 'กรอกชื่อลูกค้า')
-  const c = addCustomer(newCus)
+  if (!phoneValid(newCus.phone)) return (error.value = 'กรอกเบอร์โทรให้ถูกต้อง (บังคับ)')
+  const c = props.embedded && chat.value ? createCustomerFromChat(chat.value.id, newCus.phone, newCus.name) : addCustomer(newCus)
+  if (newCus.line || newCus.note) saveCustomer({ ...c, line: newCus.line || c.line, note: newCus.note || c.note })
   form.customerId = c.id
   Object.assign(newCus, { name: '', phone: '', line: '', note: '' })
   showNew.value = false
   error.value = ''
 }
+// ลูกค้าที่ยังไม่มีเบอร์: ใส่เบอร์ในขั้นนี้ได้
+const addPhone = ref('')
+function savePhone() {
+  if (!phoneValid(addPhone.value)) return (error.value = 'กรอกเบอร์โทรให้ถูกต้อง')
+  saveCustomer({ ...customer.value, phone: addPhone.value })
+  addPhone.value = ''
+  error.value = ''
+}
+// ในแชท: บันทึกได้เมื่อผูกบัญชีแล้วและลูกค้ามีเบอร์ (ร่าง/ใบเสนอทำได้ก่อน)
+const saveBlock = computed(() => (props.embedded && props.chatId ? chatOrderBlock(props.chatId) : ''))
 
 // ---------- ขั้น 2 นัดรับ ----------
 const pickupAt = computed(() => (form.date && form.time ? `${form.date}T${form.time}` : ''))
@@ -100,7 +119,9 @@ function onSaveItem(item) {
 const totals = computed(() => orderTotals({ ...form, payments: [], adjustment: null, cancel: null }))
 
 function validate(i) {
-  if (i === 0 && !form.customerId) return 'เลือกลูกค้า'
+  // ในแชทข้ามขั้นลูกค้าได้ (ได้เบอร์ทีหลัง) แต่บันทึกต้องผูก + มีเบอร์
+  if (i === 0 && !props.embedded && !form.customerId) return 'เลือกลูกค้า'
+  if (i === 0 && !props.embedded && !phoneValid(customer.value?.phone)) return 'ลูกค้ายังไม่มีเบอร์โทร ใส่เบอร์ก่อน'
   if (i === 1) {
     if (!form.date || !form.time) return 'เลือกวันและเวลานัดรับ'
     if (new Date(pickupAt.value) <= new Date()) return 'เวลานัดต้องมากกว่าเวลาปัจจุบัน'
@@ -132,8 +153,9 @@ function goTo(i) {
   step.value = i
 }
 function submit(asDraft) {
+  if (saveBlock.value) return (error.value = `${saveBlock.value} · ไปขั้นลูกค้าเพื่อค้นหา/สร้างลูกค้า`)
   // เวลาอาจผ่านไประหว่างกรอก ตรวจซ้ำก่อนบันทึก
-  const e = validate(1)
+  const e = validate(1) || validate(0)
   if (e) {
     step.value = 1
     error.value = e
@@ -200,6 +222,14 @@ function quote() {
         </div>
         <button class="btn-outline h-9 px-3" @click="form.customerId = null">เปลี่ยน</button>
       </div>
+      <div v-if="customer && !phoneValid(customer.phone)" class="mt-3 rounded-xl bg-amber-50 p-3">
+        <div class="mb-2 text-sm font-medium text-amber-800">ลูกค้ายังไม่มีเบอร์โทร (บังคับก่อนบันทึกออร์เดอร์)</div>
+        <div class="flex gap-2">
+          <PhoneInput v-model="addPhone" class="min-w-0 flex-1 bg-white" />
+          <button type="button" class="btn-primary shrink-0" @click="savePhone">บันทึกเบอร์</button>
+        </div>
+      </div>
+      <p v-if="embedded && !customer" class="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">แชทนี้ยังไม่ได้ผูกบัญชีลูกค้า ค้นหาลูกค้าเดิมหรือสร้างใหม่ (ข้ามไปก่อนได้ แต่ต้องผูกและมีเบอร์ก่อนบันทึก)</p>
 
       <template v-else-if="!showNew">
         <label class="relative mb-3 block">
@@ -211,7 +241,7 @@ function quote() {
             v-for="c in matches"
             :key="c.id"
             class="flex w-full items-center gap-3 rounded-xl border border-stone-200/70 p-3 text-left transition hover:border-brand-300 hover:bg-brand-50/40 active:scale-[0.99]"
-            @click="form.customerId = c.id; error = ''"
+            @click="pickCustomer(c)"
           >
             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-stone-100 font-semibold text-stone-600">{{ initial(c.name) }}</span>
             <span class="min-w-0 flex-1">
@@ -228,7 +258,7 @@ function quote() {
       <div v-else class="space-y-3">
         <div><label class="label">ชื่อ <span class="text-rose-500">*</span></label><input v-model="newCus.name" class="input" /></div>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div><label class="label">เบอร์โทร</label><PhoneInput v-model="newCus.phone" /></div>
+          <div><label class="label">เบอร์โทร <span class="text-rose-500">*</span></label><PhoneInput v-model="newCus.phone" /></div>
           <div><label class="label">LINE</label><input v-model="newCus.line" class="input" /></div>
         </div>
         <div><label class="label">หมายเหตุ</label><input v-model="newCus.note" class="input" /></div>
@@ -392,8 +422,11 @@ function quote() {
         </template>
         <template v-else>
           <template v-if="embedded && fromChat">
+            <p v-if="saveBlock" class="w-full text-xs text-amber-700">
+              บันทึกไม่ได้: {{ saveBlock }} · <button type="button" class="font-medium underline" @click="step = 0; error = ''">ไปขั้นลูกค้า</button> (ส่งใบเสนอได้ก่อน)
+            </p>
             <button class="btn-soft flex-1" @click="quote">ส่งใบเสนอ</button>
-            <button class="btn-primary flex-1" @click="submit(false)">บันทึก · รอชำระ</button>
+            <button class="btn-primary flex-1" :disabled="!!saveBlock" @click="submit(false)">บันทึก · รอชำระ</button>
           </template>
           <template v-else>
             <button class="btn-outline flex-1 sm:ml-auto sm:flex-none" @click="submit(true)">บันทึกร่าง</button>

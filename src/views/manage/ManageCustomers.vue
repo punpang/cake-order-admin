@@ -4,7 +4,7 @@ import { computed, reactive, ref } from 'vue'
 import { db, saveCustomer, customerOrderCount, birthdayList } from '../../data/store'
 import { orderTotals } from '../../lib/pricing'
 import { STATUS } from '../../lib/constants'
-import { money, dateTime, formatPhone, phoneDigits } from '../../lib/format'
+import { money, dateTime, formatPhone, phoneDigits, phoneValid } from '../../lib/format'
 import PhoneInput from '../../components/PhoneInput.vue'
 import { mdLabel } from '../../lib/birthday'
 import ManageShell from '../../components/ManageShell.vue'
@@ -48,6 +48,7 @@ const history = computed(() => {
 
 async function save() {
   if (!form.name.trim()) return (error.value = 'กรอกชื่อลูกค้า')
+  if (!phoneValid(form.phone)) return (error.value = 'กรอกเบอร์โทรให้ถูกต้อง (บังคับ)')
   if (!(await confirmDeactivate(db.customers, form, form.name))) return
   saveCustomer({ ...form })
   open.value = false
@@ -80,7 +81,7 @@ async function save() {
             <span class="truncate font-semibold text-stone-900">{{ c.name }}</span>
             <span v-if="c.active === false" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
           </span>
-          <span class="block truncate text-sm text-stone-500">{{ c.phone ? formatPhone(c.phone) : '-' }}<template v-if="c.line"> · LINE {{ c.line }}</template></span>
+          <span class="block truncate text-sm text-stone-500"><template v-if="c.phone">{{ formatPhone(c.phone) }}</template><span v-else class="rounded bg-amber-50 px-1 text-xs text-amber-700">ไม่มีเบอร์</span><template v-if="c.line"> · LINE {{ c.line }}</template></span>
           <span v-if="c.note" class="block truncate text-sm text-stone-400">{{ c.note }}</span>
         </span>
         <span class="shrink-0 rounded-lg bg-stone-50 px-2 py-1 text-xs text-stone-500">{{ customerOrderCount(c.id) }} ออร์เดอร์</span>
@@ -91,7 +92,7 @@ async function save() {
       <div class="space-y-4">
         <div><label class="label">ชื่อ <span class="text-rose-500">*</span></label><input v-model="form.name" class="input" /></div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div><label class="label">เบอร์โทร</label><PhoneInput v-model="form.phone" /></div>
+          <div><label class="label">เบอร์โทร <span class="text-rose-500">*</span></label><PhoneInput v-model="form.phone" /></div>
           <div><label class="label">LINE</label><input v-model="form.line" class="input" /></div>
         </div>
         <div><label class="label">หมายเหตุ</label><textarea v-model="form.note" rows="2" class="input" /></div>

@@ -7,6 +7,8 @@ export const money = (n) => `${mf.format(Number(n) || 0)} ฿`
 
 // เบอร์โทร: เก็บตัวเลขล้วน (สูงสุด 10 หลัก) แสดง xxx-xxx-xxxx · เบอร์บ้านกรุงเทพ 02 (9 หลัก) = 02-xxx-xxxx
 export const phoneDigits = (s) => String(s ?? '').replace(/\D/g, '').slice(0, 10)
+// เบอร์ที่ใช้ได้ (บังคับของลูกค้า): ขึ้นต้น 0 ยาว 9–10 หลัก
+export const phoneValid = (s) => /^0\d{8,9}$/.test(phoneDigits(s))
 export function formatPhone(s) {
   const d = phoneDigits(s)
   const a = d.length === 9 && d.startsWith('02') ? 2 : 3

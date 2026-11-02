@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { findOrder, sendChat, markRead, findQuote, acceptQuote, reviseQuote, fbWindowOpen } from '../data/store'
+import { findOrder, sendChat, markRead, findQuote, acceptQuote, reviseQuote, fbWindowOpen, convertQuote, chatOrderBlock } from '../data/store'
 import { orderTotals, discountLines } from '../lib/pricing'
 import { STATUS } from '../lib/constants'
 import { money, dateTime, timeOnly, dateOnly } from '../lib/format'
@@ -9,7 +9,7 @@ import DiscountDetail from './DiscountDetail.vue'
 
 // เธรดแชทของศูนย์รวมแชท (ฝั่งพนักงาน) · ข้อความจากลูกค้ามาจาก LINE OA / Facebook (จำลอง)
 const props = defineProps({ chat: { type: Object, required: true } })
-const emit = defineEmits(['edit-draft'])
+const emit = defineEmits(['edit-draft', 'link'])
 const text = ref('')
 const box = ref(null)
 const mine = (m) => m.from === 'staff'
@@ -56,6 +56,7 @@ const QUOTE_STATUS = {
   pending: { t: 'รอลูกค้ายืนยัน', cls: 'bg-amber-50 text-amber-700' },
   accepted: { t: 'ยืนยันแล้ว', cls: 'bg-emerald-50 text-emerald-700' },
   revise: { t: 'ลูกค้าขอแก้', cls: 'bg-rose-50 text-rose-600' },
+  need_phone: { t: 'ลูกค้ายืนยัน · รอเบอร์โทร', cls: 'bg-orange-50 text-orange-700' },
   superseded: { t: 'มีใบใหม่แล้ว', cls: 'bg-stone-100 text-stone-500' },
 }
 function quoteView(m) {
@@ -71,6 +72,13 @@ const quoteError = ref('')
 function accept(q) {
   const r = acceptQuote(q.id)
   quoteError.value = r.error || ''
+}
+// ลูกค้ายืนยันแล้วแต่ยังไม่ผูก/ไม่มีเบอร์ → พนักงานผูก/ใส่เบอร์แล้วสร้างออร์เดอร์
+const block = computed(() => chatOrderBlock(props.chat.id))
+const convertError = ref('')
+function convert(q) {
+  const r = convertQuote(q.id)
+  convertError.value = r.error || ''
 }
 function sendRevise(q) {
   reviseQuote(q.id, reviseText.value.trim())
@@ -144,6 +152,11 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
             <!-- พนักงาน -->
             <template v-if="true">
               <RouterLink v-if="quoteView(m).q.orderId" :to="`/orders/${quoteView(m).q.orderId}`" class="btn-soft mt-2 h-9 w-full text-sm">เปิดออร์เดอร์</RouterLink>
+              <template v-else-if="quoteView(m).q.status === 'need_phone'">
+                <p v-if="block" class="mt-2 text-xs text-orange-700">{{ block }} · <button type="button" class="font-medium underline" @click="emit('link')">ผูก/สร้างลูกค้า</button></p>
+                <button type="button" class="btn-primary mt-2 h-9 w-full text-sm" :disabled="!!block" @click="convert(quoteView(m).q)">สร้างออร์เดอร์</button>
+                <p v-if="convertError" class="mt-1 text-xs text-rose-600">{{ convertError }}</p>
+              </template>
               <button v-else-if="['pending', 'revise'].includes(quoteView(m).q.status)" type="button" class="btn-outline mt-2 h-9 w-full text-sm" @click="emit('edit-draft')">แก้ร่างแล้วส่งใหม่</button>
             </template>
           </div>

@@ -3,7 +3,8 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { db, can, findCustomer, findChat, draftOf, hasDraft, clearDraft, linkChat, createCustomerFromChat, receiveMessage, fbWindowLeft } from '../data/store'
 import OrderCreate from './OrderCreate.vue'
-import { formatPhone, phoneDigits, timeOnly, dateOnly, toDateStr } from '../lib/format'
+import { formatPhone, phoneDigits, phoneValid, timeOnly, dateOnly, toDateStr } from '../lib/format'
+import PhoneInput from '../components/PhoneInput.vue'
 import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
 import ChatThread from '../components/ChatThread.vue'
@@ -72,16 +73,25 @@ const linkList = computed(() => {
   const d = phoneDigits(s)
   return db.customers.filter((c) => c.active !== false && (!s || c.name.toLowerCase().includes(s) || (d && c.phone?.includes(d)))).slice(0, 30)
 })
+const newName = ref('')
+const newPhone = ref('')
+const linkError = ref('')
 function openLink() {
   lq.value = ''
+  newName.value = current.value?.profileName || ''
+  newPhone.value = ''
+  linkError.value = ''
   linkOpen.value = true
 }
 function doLink(c) {
   linkChat(current.value.id, c.id)
   linkOpen.value = false
 }
+// สร้างลูกค้าใหม่จากแชท: เบอร์โทรบังคับ
 function doCreate() {
-  createCustomerFromChat(current.value.id)
+  if (!newName.value.trim()) return (linkError.value = 'กรอกชื่อ')
+  if (!phoneValid(newPhone.value)) return (linkError.value = 'กรอกเบอร์โทรให้ถูกต้อง (บังคับ)')
+  createCustomerFromChat(current.value.id, newPhone.value, newName.value)
   linkOpen.value = false
 }
 
@@ -177,17 +187,13 @@ function doSim() {
           </button>
         </div>
         <div class="flex min-h-0 flex-1">
-          <ChatThread :key="current.id" :chat="current" class="min-h-0 min-w-0 flex-1" :class="mtab === 'order' ? 'hidden lg:flex' : 'flex'" @edit-draft="openPanel" />
+          <ChatThread :key="current.id" :chat="current" @link="openLink" class="min-h-0 min-w-0 flex-1" :class="mtab === 'order' ? 'hidden lg:flex' : 'flex'" @edit-draft="openPanel" />
           <div
             v-if="can('createOrder') && (panelOpen || mtab === 'order')"
             class="min-h-0 w-full overflow-y-auto bg-stone-50 px-3 pt-3 lg:w-[440px] lg:shrink-0 lg:border-l lg:border-stone-200"
             :class="mtab === 'order' ? 'block' : 'hidden lg:block'"
           >
-            <div v-if="!customer" class="card text-center">
-              <p class="mb-3 text-sm text-stone-600">ผูกแชทนี้กับลูกค้าก่อนลงออร์เดอร์ / ส่งใบเสนอ</p>
-              <button type="button" class="btn-primary w-full" @click="openLink">ผูกลูกค้า</button>
-            </div>
-            <OrderCreate v-else :key="current.id + customer.id" embedded :draft="draftOf(current.id)" :chat-id="current.id" @created="onCreated" @quoted="onQuoted" />
+            <OrderCreate :key="current.id" embedded :draft="draftOf(current.id)" :chat-id="current.id" @created="onCreated" @quoted="onQuoted" />
           </div>
         </div>
       </section>
@@ -211,7 +217,15 @@ function doSim() {
     <!-- ผูกลูกค้า -->
     <AppModal v-if="linkOpen && current" :title="`ผูกแชท ${current.profileName}`" @close="linkOpen = false">
       <p class="mb-3 text-sm text-stone-500">เลือกลูกค้าที่เป็นเจ้าของ {{ CH[current.channel].l }} นี้ ระบบจะจำไว้และผูกอัตโนมัติครั้งต่อไป</p>
-      <button type="button" class="btn-soft mb-3 w-full" @click="doCreate"><AppIcon name="plus" :size="16" /> สร้างลูกค้าใหม่ "{{ current.profileName }}"</button>
+      <div class="mb-3 space-y-2 rounded-xl border border-stone-200 p-3">
+        <div class="text-sm font-semibold text-stone-800">สร้างลูกค้าใหม่</div>
+        <input v-model="newName" class="input" placeholder="ชื่อ" />
+        <PhoneInput v-model="newPhone" />
+        <p v-if="linkError" class="text-sm text-rose-600">{{ linkError }}</p>
+        <button type="button" class="btn-soft w-full" @click="doCreate"><AppIcon name="plus" :size="16" /> สร้างและผูก</button>
+        <p class="text-xs text-stone-400">ยังไม่มีเบอร์? ปิดไว้ก่อนได้ ลงออร์เดอร์/ส่งใบเสนอในแชทได้ แต่บันทึกออร์เดอร์ต้องมีเบอร์</p>
+      </div>
+      <div class="mb-1.5 text-sm font-semibold text-stone-800">หรือเลือกลูกค้าเดิม</div>
       <input v-model="lq" type="search" class="input mb-3" placeholder="ค้นหาลูกค้าเดิม ชื่อ / เบอร์" />
       <div class="space-y-1.5">
         <button v-for="c in linkList" :key="c.id" type="button" class="flex w-full items-center justify-between gap-2 rounded-xl border p-3 text-left hover:border-brand-300" :class="current.customerId === c.id ? 'border-brand-500 bg-brand-50' : 'border-stone-200'" @click="doLink(c)">
