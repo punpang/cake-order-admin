@@ -57,3 +57,29 @@ export const APPLIES_TO = { custom: 'สั่งทำ', ready: 'เค้ก�
 export const RECIPE_PER = { pound: 'ต่อปอนด์', piece: 'ต่อชิ้น' }
 // สถานะที่นับรวมในหน้าสรุปวัตถุดิบ
 export const MATERIAL_STATUSES = ['draft', 'awaiting_payment', 'payment_reported', 'payment_confirmed', 'preparing']
+
+// ---------- การเชื่อมต่อ & แจ้งเตือน (จำลอง ยังไม่ส่งจริง) ----------
+export const CHANNELS = {
+  telegram: { label: 'Telegram', audience: 'team', prep: 'สร้างบอทกับ @BotFather → token + chat_id ของกลุ่มทีม · ฟรี' },
+  line: { label: 'LINE OA', audience: 'customer', prep: 'Messaging API channel → channel access token + secret · ผูกลูกค้าด้วย userId (เพิ่มเพื่อน/LINE Login) · push เกินโควตาคิดเงิน' },
+  sms: { label: 'SMS', audience: 'customer', prep: 'ผู้ให้บริการ SMS ไทย + ชื่อผู้ส่ง (sender name) · คิดเงินต่อข้อความ (ไทย 70 ตัวอักษร/ข้อความ)' },
+  facebook: { label: 'Facebook Page', audience: 'customer', prep: 'Meta App + Page access token · ต้องผ่าน App Review · ส่งได้ภายใน 24 ชม. หลังลูกค้าทักล่าสุด' },
+}
+// ลำดับเลือกช่องทางถึงลูกค้า
+export const CUSTOMER_CHANNEL_ORDER = ['line', 'facebook', 'sms']
+// เหตุการณ์: audience = customer (ส่งลูกค้า) | team (แจ้งทีมผ่าน Telegram), scheduled = ตรวจตามเวลา (ของจริงใช้ cron), marketing = ต้องให้ลูกค้ายินยอมรับข่าว
+export const NOTIFY_EVENTS = {
+  order_created: { label: 'สร้างออร์เดอร์ (สรุป)', audience: 'customer' },
+  payment_requested: { label: 'แจ้งยอดชำระ', audience: 'customer' },
+  payment_confirmed: { label: 'ยืนยันชำระแล้ว', audience: 'customer' },
+  pickup_reminder: { label: 'เตือนก่อนนัดรับ (24 ชม.)', audience: 'customer', scheduled: true },
+  delivered: { label: 'ส่งมอบแล้ว', audience: 'customer' },
+  cancelled: { label: 'ยกเลิกออร์เดอร์', audience: 'customer' },
+  birthday: { label: 'อวยพรวันเกิด', audience: 'customer', scheduled: true, marketing: true },
+  points_expiring: { label: 'คะแนนใกล้หมดอายุ', audience: 'customer', scheduled: true, marketing: true },
+  team_new_order: { label: 'ออร์เดอร์ใหม่', audience: 'team' },
+  team_payment_confirmed: { label: 'ยืนยันชำระแล้ว', audience: 'team' },
+  team_due_soon: { label: 'งานใกล้เวลาต้องเสร็จ (2 ชม.)', audience: 'team', scheduled: true },
+  team_cancelled: { label: 'ยกเลิกออร์เดอร์', audience: 'team' },
+}
+export const NOTIFY_VARS = ['{ชื่อลูกค้า}', '{เลขออร์เดอร์}', '{ยอดรวม}', '{คงค้าง}', '{ยอดที่แจ้ง}', '{วันนัด}', '{เวลานัด}', '{ส่งมอบ}', '{ชื่อวันเกิด}', '{คะแนน}']

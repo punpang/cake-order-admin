@@ -27,10 +27,10 @@ const list = computed(() => {
 const initial = (n) => (n || '').replace(/^คุณ/, '').trim().charAt(0)
 
 const open = ref(false)
-const form = reactive({ id: null, name: '', phone: '', line: '', note: '', active: true })
+const form = reactive({ id: null, name: '', phone: '', line: '', note: '', active: true, promoOptIn: true })
 const error = ref('')
 function edit(c) {
-  Object.assign(form, c ? { ...c } : { id: null, name: '', phone: '', line: '', note: '', active: true })
+  Object.assign(form, c ? { promoOptIn: true, ...c } : { id: null, name: '', phone: '', line: '', note: '', active: true, promoOptIn: true, lineUserId: '', fbPsid: '' })
   error.value = ''
   open.value = true
 }
@@ -95,6 +95,16 @@ async function save() {
           <div><label class="label">LINE</label><input v-model="form.line" class="input" /></div>
         </div>
         <div><label class="label">หมายเหตุ</label><textarea v-model="form.note" rows="2" class="input" /></div>
+        <div>
+          <div class="label">ช่องทางแจ้งเตือน</div>
+          <div class="flex flex-wrap gap-1.5 text-xs">
+            <span class="rounded-full px-2 py-0.5" :class="form.lineUserId ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'">LINE OA: {{ form.lineUserId ? 'ผูกแล้ว' : 'ยังไม่ผูก' }}</span>
+            <span class="rounded-full px-2 py-0.5" :class="form.fbPsid ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'">Facebook: {{ form.fbPsid ? 'ผูกแล้ว' : 'ยังไม่ผูก' }}</span>
+            <span class="rounded-full px-2 py-0.5" :class="form.phone ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'">SMS: {{ form.phone ? 'มีเบอร์' : 'ไม่มีเบอร์' }}</span>
+          </div>
+          <p class="mt-1 text-xs text-stone-400">ผูก LINE/Facebook ได้เมื่อต่อระบบจริง (ลูกค้าเพิ่มเพื่อน/ทักแชท)</p>
+        </div>
+        <AppSwitch v-model="form.promoOptIn" label="รับข่าวโปร / อวยพรวันเกิด" />
         <AppSwitch v-model="form.active" label="ใช้งาน" />
         <div v-if="history" class="space-y-3 border-t border-stone-100 pt-4">
           <div class="grid grid-cols-2 gap-2 text-sm">

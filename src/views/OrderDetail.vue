@@ -8,6 +8,7 @@ import {
   setBirthday, depositOf,
 } from '../data/store'
 import { orderTotals } from '../lib/pricing'
+import { CHANNELS, NOTIFY_EVENTS } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
 import { orderCost } from '../lib/materials'
 import { money, dateTime, toDateStr, pad, num, formatPhone, phoneDigits } from '../lib/format'
@@ -26,6 +27,8 @@ const props = defineProps({ id: { type: String, required: true } })
 const order = computed(() => findOrder(props.id))
 const customer = computed(() => order.value && findCustomer(order.value.customerId))
 const t = computed(() => orderTotals(order.value))
+// ข้อความแจ้งเตือนของออร์เดอร์นี้ (จำลอง)
+const messages = computed(() => db.outbox.filter((m) => m.orderId === order.value.id))
 // ต้นทุนวัตถุดิบ / กำไร (แอดมิน)
 const cost = computed(() => orderCost(order.value, db.optionGroups, db.products, db.ingredients))
 const load = computed(() => countPickups(order.value.pickupAt, order.value.id))
@@ -411,6 +414,21 @@ async function saveCancel() {
                 <button v-if="can('reportPayment')" class="btn-danger h-9 px-3" @click="doCancelRequest(p)"><AppIcon name="x" :size="16" /> ยกเลิก</button>
                 <button v-if="can('confirmPayment')" class="btn-primary h-9 flex-1 px-3" @click="openPay('confirm', p)"><AppIcon name="check" :size="16" /> ยืนยันยอดชำระ</button>
               </div>
+            </li>
+          </ul>
+        </section>
+
+        <!-- ข้อความที่ส่ง (จำลอง) -->
+        <section v-if="messages.length && can('manage')" class="card">
+          <div class="card-title"><AppIcon name="phone" class="text-brand-600" /> ข้อความแจ้งเตือน <span class="text-xs font-normal text-stone-400">จำลอง · ยังไม่ส่งจริง</span></div>
+          <ul class="space-y-2">
+            <li v-for="m in messages" :key="m.id" class="rounded-xl bg-stone-50 p-2.5">
+              <div class="flex flex-wrap items-center gap-1.5 text-xs">
+                <span class="rounded-full px-2 py-0.5 font-semibold" :class="m.channel ? 'bg-brand-50 text-brand-800' : 'bg-rose-50 text-rose-600'">{{ m.channel ? CHANNELS[m.channel].label : 'ไม่มีช่องทาง' }}</span>
+                <span class="text-stone-600">{{ NOTIFY_EVENTS[m.event]?.label }}</span>
+                <span class="ml-auto text-stone-400">{{ dateTime(m.at) }}</span>
+              </div>
+              <div class="mt-1 text-sm break-words text-stone-800">{{ m.text }}</div>
             </li>
           </ul>
         </section>

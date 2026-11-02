@@ -17,6 +17,7 @@ import Member from './views/Member.vue'
 import Materials from './views/Materials.vue'
 import Production from './views/Production.vue'
 import ManageBirthdays from './views/manage/ManageBirthdays.vue'
+import ManageIntegrations from './views/manage/ManageIntegrations.vue'
 
 // meta.focus = หน้าที่มีแถบปุ่มของตัวเอง ซ่อนแถบเมนูล่างบนมือถือ
 export default createRouter({
@@ -40,6 +41,7 @@ export default createRouter({
     { path: '/manage/profit', component: ManageProfit },
     { path: '/manage/shop', component: ManageShop },
     { path: '/manage/birthdays', component: ManageBirthdays },
+    { path: '/manage/integrations', component: ManageIntegrations },
     // หน้าลูกค้า (จำลอง ยังไม่มีล็อกอินลูกค้า)
     { path: '/member', component: Member, meta: { member: true } },
   ],

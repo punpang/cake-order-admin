@@ -1,10 +1,10 @@
 // ข้อมูลตัวอย่าง (เก็บในหน่วยความจำ รีเฟรชแล้วหาย)
 // ขั้นต่อไปจะเปลี่ยนฟังก์ชันในไฟล์นี้ให้เรียก Supabase แทน
 import { reactive } from 'vue'
-import { PERMISSIONS } from '../lib/constants'
+import { PERMISSIONS, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals } from '../lib/pricing'
-import { addDays, pointBalance, takePoints, returnPoints, couponUsable, pickPrize } from '../lib/loyalty'
-import { pad, toDateStr, money, phoneDigits } from '../lib/format'
+import { addDays, pointBalance, takePoints, returnPoints, couponUsable, pickPrize, expiringSoon } from '../lib/loyalty'
+import { pad, toDateStr, money, phoneDigits, formatPhone, dateOnly, timeOnly } from '../lib/format'
 import { nextBirthday, daysBetween } from '../lib/birthday'
 
 let seq = 1000
@@ -30,6 +30,8 @@ const fix = (id, name, price = 0, extra = {}) => ({ id, name, priceType: 'fixed'
 const r = (ingredientId, qty, per = 'pound') => ({ ingredientId, qty, per })
 // ราคาตามขนาด 1 / 2 / 3 / 5 ปอนด์ (s1–s4)
 const sp = (a, b, c, d) => ({ s1: a, s2: b, s3: c, s4: d })
+// กฎแจ้งเตือน (จำลอง)
+const rule = (event, channels, template) => ({ event, channels, template, enabled: true })
 // ประเภท: ราคาคงที่ (price) + ราคาขนาดของประเภท (sizePrices) · เนื้อเค้ก: บวกคงที่ (price) · ขนาด: ชื่อ + ปอนด์
 const typeOpt = (id, name, price, sizePrices, extra = {}) => ({ id, name, price, sizePrices, active: true, recipe: [], ...extra })
 const sizeOpt = (id, name, pounds) => ({ id, name, pounds, active: true, recipe: [r('m8', 1, 'piece')] })
@@ -164,11 +166,35 @@ export const db = reactive({
     { id: 'b2', name: 'ไส้สตรอว์เบอร์รี + สตรอว์เบอร์รีสด', items: [{ groupId: 'g_filling', optionId: 'f2' }, { groupId: 'g_topping', optionId: 'tp2' }], discount: sp(30, 50, 70, 100), types: [], typeDiscount: { t4: sp(40, 60, 90, 130) }, active: true },
   ],
 
+  // ---------- การเชื่อมต่อ & แจ้งเตือน (จำลอง: ยังไม่ส่งจริง บันทึกลงคิวข้อความ) ----------
+  // token จริงจะเก็บที่เซิร์ฟเวอร์ (Supabase secrets) ตอนต่อจริง ดู docs/integrations.md
+  integrations: Object.fromEntries(Object.keys(CHANNELS).map((k) => [k, { enabled: true, status: 'not_connected' }])),
+  // กฎแจ้งเตือน: event → ช่องทาง + ข้อความ (ตัวอย่าง)
+  notifyRules: [
+    rule('order_created', ['line', 'facebook', 'sms'], 'สวัสดีค่ะ {ชื่อลูกค้า} รับออร์เดอร์ {เลขออร์เดอร์} แล้ว ยอดรวม {ยอดรวม} นัด{ส่งมอบ} {วันนัด} {เวลานัด}'),
+    rule('payment_requested', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง})'),
+    rule('payment_confirmed', ['line', 'facebook', 'sms'], 'ได้รับชำระออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ คงค้าง {คงค้าง}'),
+    rule('pickup_reminder', ['line', 'facebook', 'sms'], 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
+    rule('delivered', ['line', 'facebook'], 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ'),
+    rule('cancelled', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว หากมีข้อสงสัยติดต่อร้านได้เลยค่ะ'),
+    rule('birthday', ['line', 'facebook'], 'สุขสันต์วันเกิดล่วงหน้า {ชื่อวันเกิด} สั่งเค้กกับเราได้เลยค่ะ'),
+    rule('points_expiring', ['line', 'facebook'], '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ ใช้ก่อนหมดนะคะ'),
+    rule('team_new_order', ['telegram'], '[ออร์เดอร์ใหม่] {เลขออร์เดอร์} {ชื่อลูกค้า} {ยอดรวม} นัด {วันนัด} {เวลานัด}'),
+    rule('team_payment_confirmed', ['telegram'], '[ชำระแล้ว] {เลขออร์เดอร์} คงค้าง {คงค้าง}'),
+    rule('team_due_soon', ['telegram'], '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน 2 ชม. (นัด {เวลานัด})'),
+    rule('team_cancelled', ['telegram'], '[ยกเลิก] {เลขออร์เดอร์} {ชื่อลูกค้า}'),
+  ],
+  // คิวข้อความ (จำลอง) ล่าสุดอยู่หน้า · notifySent = key ที่ส่งแล้ว (กันส่งซ้ำของเหตุการณ์ตามเวลา)
+  outbox: [],
+  notifySent: [],
+
   orders: [],
 })
 
 // ทุกรายการเริ่มต้นเป็น "ใช้งาน" + สมุดคะแนน / สิทธิ์หมุน
-for (const c of db.customers) Object.assign(c, { active: true, ledger: [], spins: 0 })
+for (const c of db.customers) Object.assign(c, { active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: true })
+// ตัวอย่าง: ลูกค้าคนแรกผูก LINE แล้ว (จำลอง)
+db.customers[0].lineUserId = 'U-demo-mali'
 for (const g of db.optionGroups) g.active = true
 
 // ---------- ฟังก์ชัน ----------
@@ -179,7 +205,7 @@ export const findOrder = (id) => db.orders.find((o) => o.id === id)
 export const findCustomer = (id) => db.customers.find((c) => c.id === id)
 
 export function addCustomer(data) {
-  const c = { id: uid('c'), name: data.name.trim(), phone: phoneDigits(data.phone), line: data.line?.trim() || '', note: data.note?.trim() || '', active: true, ledger: [], spins: 0 }
+  const c = { id: uid('c'), name: data.name.trim(), phone: phoneDigits(data.phone), line: data.line?.trim() || '', note: data.note?.trim() || '', active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: true }
   db.customers.push(c)
   return c
 }
@@ -313,15 +339,21 @@ export function createOrder(payload, asDraft = false) {
   }
   log(o, asDraft ? 'สร้างออร์เดอร์ (ร่าง)' : 'สร้างออร์เดอร์ → รอชำระ')
   db.orders.unshift(o)
+  if (!asDraft) notifyOrder('order_created', o)
   return o
 }
 
 export function setStatus(order, status, text) {
   // ส่งมอบไม่ได้ถ้ายังชำระไม่ครบ
   if (status === 'delivered' && orderTotals(order).balance > 0) return
+  const prev = order.status
   order.status = status
   log(order, text)
   if (status === 'delivered') awardOrder(order)
+  if (status === 'delivered') notifyOrder('delivered', order)
+  if (status === 'cancelled') notifyOrder('cancelled', order)
+  // ร่าง → ส่งไปรอชำระ = เริ่มเป็นออร์เดอร์จริง
+  if (prev === 'draft' && status === 'awaiting_payment') notifyOrder('order_created', order)
 }
 
 // แจ้งยอดชำระ = ส่งยอดไปให้ลูกค้า (ยังไม่ใช่ยอดที่จ่ายจริง) ยอดจริงใส่ตอนแอดมินยืนยัน
@@ -340,6 +372,7 @@ export function reportPayment(order, p) {
     confirmedBy: null,
   })
   log(order, `แจ้งยอดชำระ ${money(Number(p.amount))} (${p.method})`)
+  notifyOrder('payment_requested', order, { requested: Number(p.amount) })
   if (order.status === 'awaiting_payment') order.status = 'payment_reported'
 }
 
@@ -380,6 +413,7 @@ export function confirmPayment(order, paymentId, data = null) {
   p.confirmedBy = session.role
   log(order, `ยืนยันชำระ ${money(p.amount)}${p.amount !== p.requested ? ` (แจ้ง ${money(p.requested)})` : ''}`)
   if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
+  notifyOrder('payment_confirmed', order)
 }
 
 // แก้รายการสินค้าหลังสร้าง: คิดราคาใหม่ทุกรายการตามราคาปัจจุบัน
@@ -701,10 +735,95 @@ function seed() {
     items: [{ id: uid('i'), kind: 'ready', productId: 'p2', name: 'เค้กส้ม', qty: 1, note: '', images: [], selections: {} }],
   }, true)
 }
-seed()
 
 // คะแนนตัวอย่าง
 earnPoints(db.customers[0], 120, 'คะแนนตัวอย่าง')
 db.customers[0].spins = 2
 const nearLot = earnPoints(db.customers[1], 40, 'คะแนนตัวอย่าง')
 nearLot.expiresAt = addDays(today(), 10)
+
+// ---------- การเชื่อมต่อ & แจ้งเตือน (จำลอง) ----------
+// ทีม = Telegram · ลูกค้า = ช่องทางแรกตามลำดับ LINE → Facebook → SMS ที่ (เปิดในกฎ + เปิดใช้ช่องทาง + ลูกค้ามีข้อมูล)
+const TEAM_OF = { order_created: 'team_new_order', payment_confirmed: 'team_payment_confirmed', cancelled: 'team_cancelled' }
+const customerAddr = (c, ch) => (ch === 'line' ? c?.lineUserId : ch === 'facebook' ? c?.fbPsid : ch === 'sms' ? c?.phone : '')
+export function fillTemplate(tpl, vars) {
+  return Object.entries(vars).reduce((s, [k, v]) => s.split(`{${k}}`).join(v ?? ''), tpl || '')
+}
+function orderVars(order, extra = {}) {
+  const c = findCustomer(order.customerId)
+  const t = orderTotals(order)
+  return {
+    ชื่อลูกค้า: c?.name || '',
+    เลขออร์เดอร์: order.code,
+    ยอดรวม: money(t.total),
+    คงค้าง: money(Math.max(t.balance, 0)),
+    ยอดที่แจ้ง: extra.requested != null ? money(extra.requested) : '',
+    วันนัด: dateOnly(order.pickupAt),
+    เวลานัด: timeOnly(order.pickupAt),
+    ส่งมอบ: order.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับ',
+    ชื่อวันเกิด: order.birthday?.name || c?.name || '',
+    คะแนน: '',
+  }
+}
+function pushOut(event, channel, to, text, orderId = null) {
+  db.outbox.unshift({ id: uid('msg'), at: now(), event, channel, to, text, orderId, status: channel ? 'simulated' : 'no_channel' })
+}
+// ส่งตามกฎของ event (คืนจำนวนข้อความที่เข้าคิว)
+export function notify(event, { customer = null, vars = {}, orderId = null } = {}) {
+  const r = db.notifyRules.find((x) => x.event === event)
+  const ev = NOTIFY_EVENTS[event]
+  if (!r || !r.enabled || !ev) return 0
+  const text = fillTemplate(r.template, vars)
+  if (ev.audience === 'team') {
+    if (!r.channels.includes('telegram') || !db.integrations.telegram.enabled) return 0
+    pushOut(event, 'telegram', 'กลุ่มทีม', text, orderId)
+    return 1
+  }
+  if (ev.marketing && customer && customer.promoOptIn === false) return 0
+  const ch = CUSTOMER_CHANNEL_ORDER.find((k) => r.channels.includes(k) && db.integrations[k]?.enabled && customerAddr(customer, k))
+  const to = ch ? `${CHANNELS[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}` : customer?.name || '-'
+  pushOut(event, ch || null, to, text, orderId)
+  return 1
+}
+// เหตุการณ์ของออร์เดอร์ → ลูกค้า + ทีม (ถ้ามีคู่ของทีม)
+export function notifyOrder(event, order, extra = {}) {
+  const vars = orderVars(order, extra)
+  const customer = findCustomer(order.customerId)
+  notify(event, { customer, vars, orderId: order.id })
+  if (TEAM_OF[event]) notify(TEAM_OF[event], { vars, orderId: order.id })
+}
+// จำลองรอบตรวจตามเวลา (ของจริงใช้ cron): เตือนนัดรับ 24 ชม., งานใกล้เวลา 2 ชม., วันเกิด, คะแนนใกล้หมดอายุ · ส่งครั้งเดียวต่อ key
+export function runScheduledChecks() {
+  let n = 0
+  const nowMs = Date.now()
+  const once = (key, fn) => {
+    if (db.notifySent.includes(key)) return
+    db.notifySent.push(key)
+    n += fn()
+  }
+  for (const o of db.orders) {
+    if (['draft', 'delivered', 'cancelled'].includes(o.status)) continue
+    const toPickup = new Date(o.pickupAt).getTime() - nowMs
+    if (toPickup > 0 && toPickup <= 24 * 3600e3) once(`pickup|${o.id}`, () => notify('pickup_reminder', { customer: findCustomer(o.customerId), vars: orderVars(o), orderId: o.id }))
+    const toDue = dueAt(o).getTime() - nowMs
+    if (toDue <= 2 * 3600e3) once(`due|${o.id}`, () => notify('team_due_soon', { vars: orderVars(o), orderId: o.id }))
+  }
+  for (const b of upcomingBirthdays()) {
+    const c = findCustomer(b.customerId)
+    once(`bd|${b.customerId}|${b.name}|${b.md}|${b.year}`, () => notify('birthday', { customer: c, vars: { ...orderVars(b.order), ชื่อวันเกิด: b.name || c?.name || '' }, orderId: b.order.id }))
+  }
+  const today = toDateStr(new Date())
+  for (const c of db.customers) {
+    const soon = expiringSoon(c.ledger || [], today)
+    if (soon?.points > 0) once(`pts|${c.id}|${soon.date}`, () => notify('points_expiring', { customer: c, vars: { ชื่อลูกค้า: c.name, คะแนน: String(soon.points) } }))
+  }
+  return n
+}
+export const saveNotifyRule = (event, d) => {
+  const r = db.notifyRules.find((x) => x.event === event)
+  if (r) Object.assign(r, { channels: [...d.channels], template: d.template.trim(), enabled: d.enabled !== false })
+}
+export const clearOutbox = () => db.outbox.splice(0)
+
+// ข้อมูลตัวอย่าง (เรียกท้ายไฟล์ หลังประกาศฟังก์ชันทั้งหมด)
+seed()
