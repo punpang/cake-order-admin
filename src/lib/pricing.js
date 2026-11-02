@@ -68,6 +68,8 @@ export const productPounds = (p, groups) => groups.find((g) => g.key === 'size')
 // base = ราคาเค้กหลัก (รวมทุกชั้น), pounds = ปอนด์รวม, tierPounds / tierSizes / tierTypes = ปอนด์ ขนาด และประเภทของแต่ละชั้น
 export function itemBase(item, groups, products, active = [], used = null) {
   const sizeGroup = groups.find((g) => g.key === 'size')
+  // สินค้าหน้าร้าน (POS): ราคาคงที่ที่บันทึกไว้ในรายการ
+  if (item.kind === 'retail') return { base: Number(item.retailPrice) || 0, pounds: 1, tierPounds: [1], tierSizes: [[]], tierTypes: [null] }
   if (item.kind === 'ready') {
     const p = products.find((x) => x.id === item.productId)
     const pounds = productPounds(p, groups)

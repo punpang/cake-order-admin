@@ -14,6 +14,7 @@ const items = computed(() => [
   { to: '/manage/shop', icon: 'clock', title: 'ตั้งค่าร้าน', desc: `นัดรับ ${db.shop.open}–${db.shop.close} ทุก ${db.shop.slotMinutes} นาที` },
   { to: '/manage/profit', icon: 'wallet', title: 'ยอดขาย & กำไร', desc: 'กราฟ ขายดี รับเงิน ลูกค้า ตามช่วงวัน' },
   { to: '/manage/birthdays', icon: 'cake', title: 'เตือนวันเกิด', desc: `${upcomingBirthdays().filter((b) => !b.greeted).length} คน ภายใน ${db.shop.birthdayDays} วัน` },
+  { to: '/manage/retail', icon: 'pos', title: 'สินค้าหน้าร้าน (POS)', desc: `${activeCount(db.retailItems)} รายการ · สต็อกหมด ${db.retailItems.filter((x) => x.active !== false && x.stock === 0).length}` },
   { to: '/manage/integrations', icon: 'phone', title: 'การเชื่อมต่อ & แจ้งเตือน', desc: `LINE OA · Facebook · SMS · Telegram (จำลอง) · คิว ${db.outbox.length} ข้อความ` },
   { to: '/manage/loyalty', icon: 'tag', title: 'คะแนน & รางวัล', desc: `${activeCount(db.rewards)} ของแลก · ${activeCount(db.gachaPrizes)} รางวัลกาชา` },
   { to: '/member', icon: 'user', title: 'หน้าลูกค้า (จำลอง)', desc: 'คะแนน แลกของ หมุนกาชา' },

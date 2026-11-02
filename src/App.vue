@@ -1,13 +1,15 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { session, can } from './data/store'
+import { session, can, unreadChats } from './data/store'
 import { ROLES } from './lib/constants'
 import AppIcon from './components/AppIcon.vue'
 import AppModal from './components/AppModal.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 
 const roleOpen = ref(false)
-const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('viewMaterials') ? 1 : 0) + (can('manage') ? 1 : 0))
+// เมนูล่างมือถือ: ออร์เดอร์ / แชท / POS / ครัว / จัดการ (เฉพาะที่มีสิทธิ์)
+const tabCount = computed(() => 1 + (can('chat') ? 1 : 0) + (can('pos') ? 1 : 0) + (can('viewMaterials') ? 1 : 0) + (can('manage') ? 1 : 0))
+const unread = computed(() => unreadChats())
 </script>
 
 <template>
@@ -24,13 +26,17 @@ const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('viewMat
       <nav v-if="!$route.meta.member" class="ml-4 hidden gap-1 md:flex">
         <RouterLink to="/orders" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ออร์เดอร์</RouterLink>
         <RouterLink v-if="can('createOrder')" to="/orders/new" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">สร้างออร์เดอร์</RouterLink>
+        <RouterLink v-if="can('chat')" to="/chat" class="relative rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">
+          แชท<span v-if="unread" class="ml-1 rounded-full bg-rose-500 px-1.5 text-[11px] font-semibold text-white">{{ unread }}</span>
+        </RouterLink>
+        <RouterLink v-if="can('pos')" to="/pos" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">POS</RouterLink>
         <RouterLink v-if="can('viewMaterials')" to="/materials" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">วัตถุดิบ</RouterLink>
         <RouterLink v-if="can('viewMaterials')" to="/production" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ตารางผลิต</RouterLink>
         <RouterLink v-if="can('manage')" to="/manage" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">จัดการ</RouterLink>
       </nav>
 
       <RouterLink v-if="$route.meta.member" to="/manage" class="ml-auto text-sm text-stone-500 underline">กลับหลังบ้าน</RouterLink>
-      <button v-else class="ml-auto hidden items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-sm md:inline-flex" @click="roleOpen = true">
+      <button v-else class="ml-auto inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-sm" :aria-label="`บทบาท ${ROLES[session.role]}`" @click="roleOpen = true">
         <AppIcon name="user" :size="16" class="text-stone-500" />
         {{ ROLES[session.role] }}
       </button>
@@ -54,9 +60,14 @@ const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('viewMat
         <AppIcon name="list" :size="22" />
         ออร์เดอร์
       </RouterLink>
-      <RouterLink v-if="can('createOrder')" to="/orders/new" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-brand-700" aria-label="สร้างออร์เดอร์">
-        <span class="flex h-8 w-12 items-center justify-center rounded-full bg-brand-600 text-white"><AppIcon name="plus" :size="20" /></span>
-        สร้าง
+      <RouterLink v-if="can('chat')" to="/chat" class="relative flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
+        <AppIcon name="chat" :size="22" />
+        แชท
+        <span v-if="unread" class="absolute -top-1 left-1/2 ml-2 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[10px] leading-4 font-semibold text-white">{{ unread }}</span>
+      </RouterLink>
+      <RouterLink v-if="can('pos')" to="/pos" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
+        <AppIcon name="pos" :size="22" />
+        POS
       </RouterLink>
       <RouterLink
         v-if="can('viewMaterials')"
@@ -71,10 +82,6 @@ const tabCount = computed(() => 2 + (can('createOrder') ? 1 : 0) + (can('viewMat
         <AppIcon name="grid" :size="22" />
         จัดการ
       </RouterLink>
-      <button class="flex min-w-0 flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" @click="roleOpen = true">
-        <AppIcon name="user" :size="22" />
-        <span class="max-w-full truncate px-1">{{ ROLES[session.role] }}</span>
-      </button>
     </div>
   </nav>
 

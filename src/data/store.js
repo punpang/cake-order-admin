@@ -1,7 +1,7 @@
 // ข้อมูลตัวอย่าง (เก็บในหน่วยความจำ รีเฟรชแล้วหาย)
 // ขั้นต่อไปจะเปลี่ยนฟังก์ชันในไฟล์นี้ให้เรียก Supabase แทน
 import { reactive } from 'vue'
-import { PERMISSIONS, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS } from '../lib/constants'
+import { PERMISSIONS, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals } from '../lib/pricing'
 import { addDays, pointBalance, takePoints, returnPoints, couponUsable, pickPrize, expiringSoon } from '../lib/loyalty'
 import { pad, toDateStr, money, phoneDigits, formatPhone, dateOnly, timeOnly } from '../lib/format'
@@ -46,7 +46,7 @@ export const db = reactive({
 
   // ตั้งค่าร้าน: เวลานัดรับ ทุก slotMinutes นาที ระหว่าง open–close, nearbyHours = ค่าเริ่มต้นช่วงดูออร์เดอร์ก่อน/หลัง (0 = ทั้งวัน)
   // leadPickup / leadDelivery = ต้องเสร็จก่อนนัดกี่นาที (ตารางผลิต), depositPercent = มัดจำขั้นต่ำ % (0 = ไม่ใช้), birthdayDays = เตือนวันเกิดล่วงหน้ากี่วัน
-  shop: { slotMinutes: 30, open: '09:00', close: '20:00', nearbyHours: 2, leadPickup: 60, leadDelivery: 120, depositPercent: 50, birthdayDays: 14 },
+  shop: { name: 'ร้านเค้กตัวอย่าง', slotMinutes: 30, open: '09:00', close: '20:00', nearbyHours: 2, leadPickup: 60, leadDelivery: 120, depositPercent: 50, birthdayDays: 14 },
   // เตือนวันเกิด: key ที่กด "ทักแล้ว" (ลูกค้า|ชื่อ|MM-DD|ปี)
   birthdayGreeted: [],
 
@@ -92,7 +92,7 @@ export const db = reactive({
 
   // เค้กสำเร็จ: ราคา = ประเภท (typeId) + เนื้อเค้ก (flavorId) + ขนาดของประเภท (sizeId) · recipe = สูตรวัตถุดิบของสินค้า (ตัวเลขตัวอย่าง)
   products: [
-    { id: 'p1', name: 'เค้กช็อกโกแลตฟัดจ์', typeId: 't1', flavorId: 'sp2', sizeId: 's1', active: true, recipe: [r('m1', 150), r('m2', 120), r('m3', 3), r('m4', 80), r('m6', 40), r('m8', 1, 'piece')] },
+    { id: 'p1', stock: 3, name: 'เค้กช็อกโกแลตฟัดจ์', typeId: 't1', flavorId: 'sp2', sizeId: 's1', active: true, recipe: [r('m1', 150), r('m2', 120), r('m3', 3), r('m4', 80), r('m6', 40), r('m8', 1, 'piece')] },
     { id: 'p2', name: 'เค้กส้ม', typeId: 't1', flavorId: 'sp1', sizeId: 's1', active: true, recipe: [r('m1', 160), r('m2', 130), r('m3', 3), r('m4', 70), r('m8', 1, 'piece')] },
     { id: 'p3', name: 'เค้กใบเตยมะพร้าวอ่อน', typeId: 't3', flavorId: 'sp3', sizeId: 's2', active: true, recipe: [r('m1', 150), r('m2', 110), r('m3', 3), r('m5', 150), r('m8', 1, 'piece')] },
     { id: 'p4', name: 'เรดเวลเวท', typeId: 't2', flavorId: 'sp4', sizeId: 's1', active: true, recipe: [r('m1', 150), r('m2', 130), r('m3', 3), r('m4', 80), r('m6', 10), r('m8', 1, 'piece')] },
@@ -171,14 +171,14 @@ export const db = reactive({
   integrations: Object.fromEntries(Object.keys(CHANNELS).map((k) => [k, { enabled: true, status: 'not_connected' }])),
   // กฎแจ้งเตือน: event → ช่องทาง + ข้อความ (ตัวอย่าง)
   notifyRules: [
-    rule('order_created', ['line', 'facebook', 'sms'], 'สวัสดีค่ะ {ชื่อลูกค้า} รับออร์เดอร์ {เลขออร์เดอร์} แล้ว ยอดรวม {ยอดรวม} นัด{ส่งมอบ} {วันนัด} {เวลานัด}'),
-    rule('payment_requested', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง})'),
-    rule('payment_confirmed', ['line', 'facebook', 'sms'], 'ได้รับชำระออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ คงค้าง {คงค้าง}'),
-    rule('pickup_reminder', ['line', 'facebook', 'sms'], 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
-    rule('delivered', ['line', 'facebook'], 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ'),
-    rule('cancelled', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว หากมีข้อสงสัยติดต่อร้านได้เลยค่ะ'),
-    rule('birthday', ['line', 'facebook'], 'สุขสันต์วันเกิดล่วงหน้า {ชื่อวันเกิด} สั่งเค้กกับเราได้เลยค่ะ'),
-    rule('points_expiring', ['line', 'facebook'], '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ ใช้ก่อนหมดนะคะ'),
+    rule('order_created', ['webchat', 'line', 'facebook', 'sms'], 'สวัสดีค่ะ {ชื่อลูกค้า} รับออร์เดอร์ {เลขออร์เดอร์} แล้ว ยอดรวม {ยอดรวม} นัด{ส่งมอบ} {วันนัด} {เวลานัด}'),
+    rule('payment_requested', ['webchat', 'line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง})'),
+    rule('payment_confirmed', ['webchat', 'line', 'facebook', 'sms'], 'ได้รับชำระออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ คงค้าง {คงค้าง}'),
+    rule('pickup_reminder', ['webchat', 'line', 'facebook', 'sms'], 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
+    rule('delivered', ['webchat', 'line', 'facebook'], 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ'),
+    rule('cancelled', ['webchat', 'line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว หากมีข้อสงสัยติดต่อร้านได้เลยค่ะ'),
+    rule('birthday', ['webchat', 'line', 'facebook'], 'สุขสันต์วันเกิดล่วงหน้า {ชื่อวันเกิด} สั่งเค้กกับเราได้เลยค่ะ'),
+    rule('points_expiring', ['webchat', 'line', 'facebook'], '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ ใช้ก่อนหมดนะคะ'),
     rule('team_new_order', ['telegram'], '[ออร์เดอร์ใหม่] {เลขออร์เดอร์} {ชื่อลูกค้า} {ยอดรวม} นัด {วันนัด} {เวลานัด}'),
     rule('team_payment_confirmed', ['telegram'], '[ชำระแล้ว] {เลขออร์เดอร์} คงค้าง {คงค้าง}'),
     rule('team_due_soon', ['telegram'], '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน 2 ชม. (นัด {เวลานัด})'),
@@ -188,10 +188,29 @@ export const db = reactive({
   outbox: [],
   notifySent: [],
 
+  // ---------- แชทในเว็บ (จำลองในเครื่อง) ----------
+  // messages: { from: 'customer' | 'staff', kind: 'text' | 'order', text, orderId, at, by }
+  chats: [],
+
+  // ---------- POS หน้าร้าน ----------
+  // สินค้าหน้าร้าน (ตัวอย่าง) stock = คงเหลือ (null = ไม่นับสต็อก)
+  retailItems: [
+    { id: 'rt1', name: 'เค้กช็อกโกแลต (ชิ้น)', category: 'เค้กชิ้น', price: 75, stock: 12, active: true },
+    { id: 'rt2', name: 'เค้กส้ม (ชิ้น)', category: 'เค้กชิ้น', price: 70, stock: 8, active: true },
+    { id: 'rt3', name: 'คัพเค้กวานิลลา', category: 'คัพเค้ก', price: 45, stock: 20, active: true },
+    { id: 'rt4', name: 'คัพเค้กเรดเวลเวท', category: 'คัพเค้ก', price: 55, stock: 0, active: true },
+    { id: 'rt5', name: 'อเมริกาโน่เย็น', category: 'เครื่องดื่ม', price: 60, stock: null, active: true },
+    { id: 'rt6', name: 'ชาไทยเย็น', category: 'เครื่องดื่ม', price: 55, stock: null, active: true },
+    { id: 'rt7', name: 'เทียนวันเกิด (แพ็ก)', category: 'ของเสริม', price: 20, stock: 50, active: true },
+  ],
+  // กะขาย: float = เงินทอนตั้งต้น, counted = เงินสดที่นับได้ตอนปิด
+  shifts: [],
+
   orders: [],
 })
 
 // ทุกรายการเริ่มต้นเป็น "ใช้งาน" + สมุดคะแนน / สิทธิ์หมุน
+for (const p of db.products) p.stock = p.stock ?? null
 for (const c of db.customers) Object.assign(c, { active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: true })
 // ตัวอย่าง: ลูกค้าคนแรกผูก LINE แล้ว (จำลอง)
 db.customers[0].lineUserId = 'U-demo-mali'
@@ -254,7 +273,7 @@ export function saveMainPrices({ types = {}, typeSizes = {}, flavors = {} }) {
   for (const o of byKey('flavor')) if (flavors[o.id] !== undefined) o.price = Number(flavors[o.id]) || 0
 }
 export const saveIngredient = (d) => upsert(db.ingredients, 'm', { ...d, packSize: Number(d.packSize) || 0, packPrice: Number(d.packPrice) || 0 })
-export const saveProduct = (d) => upsert(db.products, 'p', { ...d, recipe: cleanRecipe(d.recipe) })
+export const saveProduct = (d) => upsert(db.products, 'p', { ...d, recipe: cleanRecipe(d.recipe), stock: d.stock === '' || d.stock == null ? null : Math.max(0, Number(d.stock) || 0) })
 export const saveUser = (d) => upsert(db.users, 'u', d)
 export const findGroup = (id) => db.optionGroups.find((g) => g.id === id)
 
@@ -323,6 +342,7 @@ export function createOrder(payload, asDraft = false) {
     customerId: payload.customerId,
     pickupAt: payload.pickupAt,
     fulfillment: payload.fulfillment,
+    chatId: payload.chatId || null, // สร้างจากแชท
     birthday: payload.birthday?.md ? { name: payload.birthday.name || '', md: payload.birthday.md } : null, // { name, md: 'MM-DD' }
     address: payload.fulfillment === 'delivery' ? payload.address : '',
     shippingFee: payload.fulfillment === 'delivery' ? Number(payload.shippingFee) || 0 : 0,
@@ -462,6 +482,7 @@ export function countPickups(pickupAt, excludeId) {
 }
 
 export function saveShopSettings(d) {
+  db.shop.name = (d.name || '').trim() || db.shop.name
   db.shop.slotMinutes = Math.max(5, Number(d.slotMinutes) || 30)
   db.shop.open = d.open || '09:00'
   db.shop.close = d.close || '20:00'
@@ -745,7 +766,7 @@ nearLot.expiresAt = addDays(today(), 10)
 // ---------- การเชื่อมต่อ & แจ้งเตือน (จำลอง) ----------
 // ทีม = Telegram · ลูกค้า = ช่องทางแรกตามลำดับ LINE → Facebook → SMS ที่ (เปิดในกฎ + เปิดใช้ช่องทาง + ลูกค้ามีข้อมูล)
 const TEAM_OF = { order_created: 'team_new_order', payment_confirmed: 'team_payment_confirmed', cancelled: 'team_cancelled' }
-const customerAddr = (c, ch) => (ch === 'line' ? c?.lineUserId : ch === 'facebook' ? c?.fbPsid : ch === 'sms' ? c?.phone : '')
+const customerAddr = (c, ch) => (ch === 'webchat' ? (c && db.chats.some((x) => x.customerId === c.id) ? c.id : '') : ch === 'line' ? c?.lineUserId : ch === 'facebook' ? c?.fbPsid : ch === 'sms' ? c?.phone : '')
 export function fillTemplate(tpl, vars) {
   return Object.entries(vars).reduce((s, [k, v]) => s.split(`{${k}}`).join(v ?? ''), tpl || '')
 }
@@ -765,7 +786,13 @@ function orderVars(order, extra = {}) {
     คะแนน: '',
   }
 }
-function pushOut(event, channel, to, text, orderId = null) {
+function pushOut(event, channel, to, text, orderId = null, customer = null) {
+  // แชทในเว็บ: ส่งเข้าแชทจริง (สร้างออร์เดอร์ = การ์ดสรุป)
+  if (channel === 'webchat' && customer) {
+    const order = orderId ? findOrder(orderId) : null
+    if (event === 'order_created' && order) postOrderCard(order)
+    else sendChat(chatOf(customer.id).id, 'staff', text, { orderId, by: 'ระบบ' })
+  }
   db.outbox.unshift({ id: uid('msg'), at: now(), event, channel, to, text, orderId, status: channel ? 'simulated' : 'no_channel' })
 }
 // ส่งตามกฎของ event (คืนจำนวนข้อความที่เข้าคิว)
@@ -782,11 +809,12 @@ export function notify(event, { customer = null, vars = {}, orderId = null } = {
   if (ev.marketing && customer && customer.promoOptIn === false) return 0
   const ch = CUSTOMER_CHANNEL_ORDER.find((k) => r.channels.includes(k) && db.integrations[k]?.enabled && customerAddr(customer, k))
   const to = ch ? `${CHANNELS[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}` : customer?.name || '-'
-  pushOut(event, ch || null, to, text, orderId)
+  pushOut(event, ch || null, to, text, orderId, customer)
   return 1
 }
 // เหตุการณ์ของออร์เดอร์ → ลูกค้า + ทีม (ถ้ามีคู่ของทีม)
 export function notifyOrder(event, order, extra = {}) {
+  if (order.channel === 'pos') return // บิลหน้าร้านไม่แจ้งเตือน
   const vars = orderVars(order, extra)
   const customer = findCustomer(order.customerId)
   notify(event, { customer, vars, orderId: order.id })
@@ -825,5 +853,134 @@ export const saveNotifyRule = (event, d) => {
 }
 export const clearOutbox = () => db.outbox.splice(0)
 
+// ---------- แชทในเว็บ (จำลองในเครื่อง) ----------
+export const findChat = (id) => db.chats.find((c) => c.id === id)
+export function chatOf(customerId) {
+  let c = db.chats.find((x) => x.customerId === customerId)
+  if (!c) {
+    c = { id: uid('ch'), customerId, messages: [], unreadStaff: 0, unreadCustomer: 0, updatedAt: now() }
+    db.chats.unshift(c)
+  }
+  return c
+}
+export function sendChat(chatId, from, text, extra = {}) {
+  const c = findChat(chatId)
+  const t = (text || '').trim()
+  if (!c || (!t && extra.kind !== 'order')) return null
+  const m = { id: uid('cm'), from, kind: extra.kind || 'text', text: t, orderId: extra.orderId || null, at: now(), by: extra.by || (from === 'staff' ? session.role : 'ลูกค้า') }
+  c.messages.push(m)
+  c.updatedAt = m.at
+  if (from === 'customer') c.unreadStaff++
+  else c.unreadCustomer++
+  // แชทล่าสุดขึ้นบนสุด
+  db.chats.splice(db.chats.indexOf(c), 1)
+  db.chats.unshift(c)
+  return m
+}
+export function markRead(chatId, side) {
+  const c = findChat(chatId)
+  if (c) c[side === 'staff' ? 'unreadStaff' : 'unreadCustomer'] = 0
+}
+// การ์ดสรุปออร์เดอร์ในแชท
+export function postOrderCard(order) {
+  const c = order.chatId ? findChat(order.chatId) : chatOf(order.customerId)
+  if (!c) return
+  if (!order.chatId) order.chatId = c.id
+  sendChat(c.id, 'staff', '', { kind: 'order', orderId: order.id, by: 'ระบบ' })
+}
+export const unreadChats = () => db.chats.filter((c) => c.unreadStaff > 0).length
+
+// ---------- POS หน้าร้าน ----------
+let posNo = 0
+export const currentShift = () => db.shifts.find((s) => !s.closedAt) || null
+export function openShift(float) {
+  if (currentShift()) return currentShift()
+  const s = { id: uid('sh'), openedAt: now(), openedBy: session.role, float: Number(float) || 0, closedAt: null, counted: null, note: '' }
+  db.shifts.unshift(s)
+  return s
+}
+export const shiftBills = (shiftId) => db.orders.filter((o) => o.channel === 'pos' && o.shiftId === shiftId)
+// สรุปกะ: ยอดตามช่องทาง (ไม่นับบิลยกเลิก) · เงินสดที่ควรมี = ตั้งต้น + ขายเงินสด
+export function shiftSummary(shift) {
+  const bills = shiftBills(shift.id)
+  const live = bills.filter((o) => o.status !== 'cancelled')
+  const byMethod = {}
+  for (const o of live) for (const p of o.payments) if (p.status === 'confirmed') byMethod[p.posMethod || 'cash'] = (byMethod[p.posMethod || 'cash'] || 0) + p.amount
+  const total = Object.values(byMethod).reduce((a, b) => a + b, 0)
+  return { bills: bills.length, cancelled: bills.length - live.length, byMethod, total, expectedCash: shift.float + (byMethod.cash || 0) }
+}
+export function closeShift(counted, note = '') {
+  const s = currentShift()
+  if (!s) return null
+  Object.assign(s, { closedAt: now(), closedBy: session.role, counted: Number(counted) || 0, note, summary: shiftSummary(s) })
+  return s
+}
+// ตะกร้า → รายการออร์เดอร์ (ราคาตามปัจจุบัน)
+export function posItems(cart) {
+  return cart.map((l) => {
+    if (l.kind === 'retail') {
+      const r = db.retailItems.find((x) => x.id === l.refId)
+      return priceItem({ id: uid('i'), kind: 'retail', retailId: l.refId, retailPrice: r?.price || 0, name: r?.name || '', qty: l.qty, selections: {}, note: '', images: [] })
+    }
+    const p = db.products.find((x) => x.id === l.refId)
+    return priceItem({ id: uid('i'), kind: 'ready', productId: l.refId, name: p?.name || '', qty: l.qty, selections: {}, note: '', images: [] })
+  })
+}
+const stockOf = (l) => (l.kind === 'retail' ? db.retailItems : db.products).find((x) => x.id === l.refId)
+// ขาย: สร้างบิล (ออร์เดอร์ channel 'pos') ส่งมอบทันที + ตัดสต็อก + คะแนน
+export function posSale({ cart, customerId = null, points = 0, couponIds = [], discount = 0, method = 'cash', received = null }) {
+  const shift = currentShift()
+  if (!shift || !cart.length) return null
+  const ts = now()
+  const o = {
+    id: uid('o'), code: `POS-${String(++posNo).padStart(4, '0')}`, channel: 'pos', shiftId: shift.id, chatId: null,
+    customerId, pickupAt: ts.slice(0, 16), fulfillment: 'pickup', birthday: null, address: '', shippingFee: 0,
+    items: posItems(cart), adjustment: { amount: discount ? -Math.abs(Number(discount)) : 0, reason: discount ? 'ส่วนลดหน้าร้าน' : '' },
+    pointsUsed: null, couponsUsed: [], loyalty: null, status: 'payment_confirmed', payments: [], cancel: null, history: [], createdAt: ts,
+  }
+  db.orders.unshift(o)
+  log(o, 'ขายหน้าร้าน (POS)')
+  if (customerId && points > 0) applyPoints(o, points)
+  if (customerId) for (const id of couponIds) applyCoupon(o, id)
+  const total = Math.max(orderTotals(o).total, 0)
+  const got = method === 'cash' ? Math.max(Number(received) || 0, total) : total
+  o.payments.push({ id: uid('pay'), requested: total, amount: total, method: POS_METHODS[method], posMethod: method, received: got, change: got - total, paidAt: ts.slice(0, 16), slip: '', note: '', status: 'confirmed', reportedBy: session.role, confirmedBy: session.role })
+  for (const l of cart) {
+    const it = stockOf(l)
+    if (it && it.stock != null) it.stock = Math.max(0, it.stock - l.qty)
+  }
+  o.status = 'delivered'
+  log(o, `รับชำระ ${money(total)} (${POS_METHODS[method]}) · ส่งมอบ`)
+  awardOrder(o)
+  return o
+}
+// ยกเลิกบิล (แอดมิน): คืนสต็อก + คืนคะแนน/คูปอง + ตัดคะแนนที่ได้
+export function voidPosSale(order, reason = 'ยกเลิกบิล') {
+  if (order.channel !== 'pos' || order.status === 'cancelled') return
+  for (const it of order.items) {
+    const src = it.kind === 'retail' ? db.retailItems.find((x) => x.id === it.retailId) : db.products.find((x) => x.id === it.productId)
+    if (src && src.stock != null) src.stock += it.qty
+  }
+  const pay = order.payments.find((p) => p.status === 'confirmed')
+  cancelOrder(order, { reason, refundAmount: pay?.amount || 0, refundMethod: pay?.method || '', refundNote: '' })
+}
+export const saveRetailItem = (d) => upsert(db.retailItems, 'rt', { ...d, price: Number(d.price) || 0, stock: d.stock === '' || d.stock == null ? null : Math.max(0, Number(d.stock) || 0) })
+export function addStock(item, n) {
+  item.stock = Math.max(0, (Number(item.stock) || 0) + (Number(n) || 0))
+}
+
+// ตัวอย่างแชท
+function seedChats() {
+  const c1 = chatOf('c1')
+  sendChat(c1.id, 'customer', 'สวัสดีค่ะ อยากสั่งเค้กวันเกิดคุณแม่ 2 ปอนด์ค่ะ')
+  sendChat(c1.id, 'staff', 'ได้เลยค่ะ ต้องการรับวันไหน เวลากี่โมงคะ', { by: 'sales' })
+  const o1 = db.orders.find((o) => o.customerId === 'c1' && o.code === 'OR-0001')
+  if (o1) postOrderCard(o1)
+  sendChat(c1.id, 'customer', 'ขอบคุณค่ะ เดี๋ยวโอนให้นะคะ')
+  const c2 = chatOf('c3')
+  sendChat(c2.id, 'customer', 'สอบถามเค้กสำหรับงานบริษัท 5 ปอนด์ ราคาเท่าไหร่คะ')
+}
+
 // ข้อมูลตัวอย่าง (เรียกท้ายไฟล์ หลังประกาศฟังก์ชันทั้งหมด)
 seed()
+seedChats()

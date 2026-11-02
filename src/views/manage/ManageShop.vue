@@ -29,6 +29,10 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
 
 <template>
   <ManageShell title="ตั้งค่าร้าน" :toolbar="false">
+    <section class="card mb-4">
+      <label class="label">ชื่อร้าน (แสดงบนใบเสร็จ)</label>
+      <input v-model="st.name" class="input" />
+    </section>
     <section class="card space-y-4">
       <div class="card-title mb-0"><AppIcon name="clock" class="text-brand-600" /> เวลานัดรับ</div>
       <div class="grid grid-cols-2 gap-3">

@@ -110,3 +110,25 @@
     @apply fixed inset-x-0 bottom-0 z-30 border-t border-stone-200/70 bg-white/90 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur-xl;
   }
 }
+
+/* พิมพ์ใบเสร็จหน้าร้าน (POS): พิมพ์เฉพาะ .receipt-print กว้าง 80mm */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  .receipt-print,
+  .receipt-print * {
+    visibility: visible !important;
+  }
+  .receipt-print {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 80mm;
+    max-width: 80mm;
+  }
+}

@@ -52,7 +52,7 @@ const lines = computed(() => discountLines(props.item.discounts, props.item.qty)
       <div class="min-w-0">
         <div class="text-[15px] font-semibold break-words text-stone-900">{{ item.name }}</div>
         <div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-stone-500">
-          <span class="rounded-md bg-stone-100 px-1.5 py-0.5 text-xs font-medium text-stone-600">{{ item.kind === 'custom' ? 'สั่งทำ' : 'สำเร็จ' }}</span>
+          <span class="rounded-md bg-stone-100 px-1.5 py-0.5 text-xs font-medium text-stone-600">{{ item.kind === 'custom' ? 'สั่งทำ' : item.kind === 'retail' ? 'หน้าร้าน' : 'สำเร็จ' }}</span>
           <span v-if="item.qty > 1">{{ item.qty }} ชิ้น × {{ money(item.unitPrice) }}</span>
         </div>
       </div>

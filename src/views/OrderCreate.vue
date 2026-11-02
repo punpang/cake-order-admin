@@ -1,7 +1,7 @@
 <script setup>
 import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { db, can, addCustomer, findCustomer, createOrder, countPickups, pickupSlots, nearbyOrders } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime, timeOnly, toDateStr, formatPhone, phoneDigits } from '../lib/format'
@@ -14,8 +14,11 @@ import BirthdayFields from '../components/BirthdayFields.vue'
 import { parseBirthday, mdLabel } from '../lib/birthday'
 
 const router = useRouter()
+const route = useRoute()
 const steps = ['ลูกค้า', 'นัดรับ', 'สินค้า', 'สรุป']
 const step = ref(0)
+// สร้างจากแชท: /orders/new?customer=<id>&chat=<chatId> → เติมลูกค้าและข้ามขั้นเลือกลูกค้า
+const fromChat = typeof route.query.chat === 'string' ? route.query.chat : null
 const error = ref('')
 
 const form = reactive({
@@ -28,6 +31,10 @@ const form = reactive({
   items: [],
   birthday: { name: '', day: '', month: '' }, // วันเกิด (ไม่บังคับ)
 })
+if (typeof route.query.customer === 'string' && findCustomer(route.query.customer)) {
+  form.customerId = route.query.customer
+  step.value = 1
+}
 const birthday = computed(() => parseBirthday(form.birthday).value)
 
 // ---------- ขั้น 1 ลูกค้า ----------
@@ -124,7 +131,7 @@ function submit(asDraft) {
     error.value = e
     return
   }
-  const o = createOrder({ ...form, pickupAt: pickupAt.value, birthday: birthday.value }, asDraft)
+  const o = createOrder({ ...form, pickupAt: pickupAt.value, birthday: birthday.value, chatId: fromChat }, asDraft)
   router.replace(`/orders/${o.id}`)
 }
 </script>

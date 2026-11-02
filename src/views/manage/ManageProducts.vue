@@ -32,11 +32,11 @@ const poundsOf = (p) => productPounds(p, db.optionGroups)
 const nameOf = (k, id) => groupOf(k)?.options.find((o) => o.id === id)?.name || '-'
 
 const open = ref(false)
-const blank = () => ({ id: null, name: '', typeId: null, flavorId: null, sizeId: null, active: true, recipe: [] })
+const blank = () => ({ id: null, name: '', typeId: null, flavorId: null, sizeId: null, active: true, recipe: [], stock: '' })
 const form = reactive(blank())
 const error = ref('')
 function edit(p) {
-  Object.assign(form, p ? { ...blank(), ...p, recipe: (p.recipe || []).map((x) => ({ ...x })) } : blank())
+  Object.assign(form, p ? { ...blank(), ...p, recipe: (p.recipe || []).map((x) => ({ ...x })), stock: p.stock == null ? '' : String(p.stock) } : blank())
   error.value = ''
   open.value = true
 }
@@ -110,6 +110,11 @@ watch(
           <b class="text-base text-stone-900">{{ form.sizeId ? money(priceOf(form)) : '-' }}</b>
         </div>
         <p class="text-xs text-stone-400">แก้ตัวเลขราคาที่ <RouterLink to="/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink> · สูตรวัตถุดิบด้านล่างใช้คิดต้นทุนของสินค้านี้</p>
+        <div>
+          <label class="label">สต็อกหน้าร้าน (POS)</label>
+          <input v-model="form.stock" type="text" v-num class="input" placeholder="ไม่นับ" />
+          <p class="mt-1 text-xs text-stone-400">เว้นว่าง = ไม่นับสต็อก · ขายใน POS แล้วตัดสต็อกอัตโนมัติ</p>
+        </div>
         <RecipeEditor v-model="form.recipe" :pounds="form.sizeId ? poundsOf(form) : 0" :price="priceOf(form)" />
         <AppSwitch v-model="form.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" />
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>

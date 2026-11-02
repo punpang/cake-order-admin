@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { db, customerPoints, customerCoupons, redeemReward, spinGacha } from '../data/store'
+import { db, customerPoints, customerCoupons, redeemReward, spinGacha, chatOf } from '../data/store'
+import ChatThread from '../components/ChatThread.vue'
 import { expiringSoon, couponUsable, chanceTotal } from '../lib/loyalty'
 import { money, dateOnly, dateTime, toDateStr, num } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
@@ -20,6 +21,7 @@ const tabs = [
   { v: 'gacha', l: 'หมุนกาชา' },
   { v: 'coupons', l: 'คูปอง' },
   { v: 'history', l: 'ประวัติ' },
+  { v: 'chat', l: 'แชท' },
 ]
 
 // ---------- แลกของ ----------
@@ -83,6 +85,9 @@ const couponState = (c) => {
   return c.type === 'reward' ? { t: 'รอรับที่ร้าน', cls: 'bg-amber-50 text-amber-700' } : { t: 'ใช้ได้', cls: 'bg-emerald-50 text-emerald-700' }
 }
 const history = computed(() => (me.value?.ledger || []).slice().reverse())
+// แชท: แชทของลูกค้าคนนี้ (สร้างเมื่อเปิดแท็บแชท)
+const myChat = computed(() => db.chats.find((c) => c.customerId === me.value?.id) || null)
+const chatForMe = computed(() => (tab.value === 'chat' && me.value ? chatOf(me.value.id) : myChat.value))
 </script>
 
 <template>
@@ -108,7 +113,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
         <div class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-sm">สิทธิ์หมุนกาชา {{ me.spins }} ครั้ง</div>
       </section>
 
-      <div class="mb-4 grid grid-cols-4 gap-1 rounded-2xl bg-stone-100 p-1">
+      <div class="mb-4 grid grid-cols-5 gap-1 rounded-2xl bg-stone-100 p-1">
         <button
           v-for="t in tabs"
           :key="t.v"
@@ -116,13 +121,20 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
           class="h-10 rounded-xl text-sm font-semibold transition"
           :class="tab === t.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'"
           @click="tab = t.v; msg = ''"
-        >{{ t.l }}</button>
+        >
+          {{ t.l }}<span v-if="t.v === 'chat' && myChat?.unreadCustomer" class="ml-0.5 rounded-full bg-rose-500 px-1 text-[10px] text-white">{{ myChat.unreadCustomer }}</span>
+        </button>
       </div>
 
       <p v-if="msg" class="mb-3 rounded-xl bg-brand-50 p-3 text-sm text-brand-800">{{ msg }}</p>
 
+      <!-- แชทกับร้าน (จำลองในเครื่อง) -->
+      <div v-if="tab === 'chat'" class="h-[60dvh] overflow-hidden rounded-2xl border border-stone-200 bg-stone-50">
+        <ChatThread :key="chatForMe.id" :chat="chatForMe" side="customer" class="h-full" />
+      </div>
+
       <!-- แลกของ -->
-      <div v-if="tab === 'rewards'" class="space-y-2.5">
+      <div v-else-if="tab === 'rewards'" class="space-y-2.5">
         <p v-if="!rewards.length" class="card py-10 text-center text-stone-500">ยังไม่มีของให้แลก</p>
         <div v-for="r in rewards" :key="r.id" class="card flex items-center gap-3">
           <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><AppIcon name="cake" :size="24" /></span>

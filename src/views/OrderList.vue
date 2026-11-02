@@ -43,9 +43,13 @@ function payMatch(o) {
 const birthdays = computed(() => (can('birthdays') ? upcomingBirthdays().filter((b) => !b.greeted) : []))
 const bdOpen = ref(false)
 
+// บิลหน้าร้าน (POS) ซ่อนไว้ก่อน กดชิปเพื่อแสดง
+const showPos = ref(false)
+const posCount = computed(() => db.orders.filter((o) => o.channel === 'pos').length)
 const visible = computed(() => {
   const f = VISIBLE[session.role]
-  return f ? db.orders.filter(f) : db.orders
+  const base = db.orders.filter((o) => showPos.value || o.channel !== 'pos')
+  return f ? base.filter(f) : base
 })
 
 const counts = computed(() => {
@@ -200,6 +204,9 @@ function clearAll() {
 
     <!-- สถานะ -->
     <div class="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="group" aria-label="กรองตามสถานะ">
+      <button v-if="posCount && can('pos')" class="chip" :class="showPos ? 'chip-on' : 'chip-off'" :aria-pressed="showPos" @click="showPos = !showPos">
+        บิลหน้าร้าน <span class="opacity-75">{{ posCount }}</span>
+      </button>
       <button class="chip" :class="!status ? 'chip-on' : 'chip-off'" :aria-pressed="!status" @click="status = ''">
         ทั้งหมด <span class="opacity-75">{{ visible.length }}</span>
       </button>
@@ -288,6 +295,14 @@ function clearAll() {
         </RouterLink>
       </div>
     </section>
+
+    <!-- ปุ่มลอยสร้างออร์เดอร์ (มือถือ) -->
+    <RouterLink
+      v-if="can('createOrder')"
+      to="/orders/new"
+      class="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg hover:bg-brand-700 md:hidden"
+      aria-label="สร้างออร์เดอร์"
+    ><AppIcon name="plus" :size="26" /></RouterLink>
 
     <AppModal v-if="bdOpen" title="เตือนวันเกิด" @close="bdOpen = false">
       <BirthdayList />

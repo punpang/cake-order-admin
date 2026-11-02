@@ -12,6 +12,7 @@ function addRecipe(into, recipe, pounds, qty) {
 // วัตถุดิบของสินค้า 1 รายการ (รวมจำนวนชิ้นแล้ว) → { ingredientId: ปริมาณ }
 // กลุ่มแยกชั้นคิดตามปอนด์ของชั้นนั้น กลุ่มอื่นคิดตามปอนด์รวม
 export function itemMaterials(item, groups, products, into = {}) {
+  if (item.kind === 'retail') return into // สินค้าหน้าร้านไม่มีสูตร
   const { pounds, tierPounds } = itemBase(item, groups, products)
   const qty = Number(item.qty) || 1
   const tiers = tiersOf(item)
@@ -62,6 +63,7 @@ export function prepList(orders, groups, products) {
 
   for (const o of orders) {
     for (const it of o.items) {
+      if (it.kind === 'retail') continue
       const { pounds, tierPounds } = itemBase(it, groups, products)
       const tiers = tiersOf(it)
       const n = Number(it.qty) || 1
