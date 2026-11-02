@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { db, saveGroup, saveBundle } from '../../data/store'
+import { db, saveGroup, saveBundle, moveItem } from '../../data/store'
 import { confirmDeactivate } from '../../lib/confirm'
 import { money } from '../../lib/format'
 import { GROUP_TYPES, APPLIES_TO, MAIN_KEYS } from '../../lib/constants'
@@ -22,6 +22,9 @@ const list = computed(() => {
 })
 
 const activeOptions = (g) => (g.options || []).filter((o) => o.active !== false)
+// จัดลำดับกลุ่ม / บันเดิ้ล (ลำดับนี้ใช้ตอนสร้างออร์เดอร์ด้วย)
+const moveGroup = (g, dir) => moveItem(db.optionGroups, db.optionGroups.indexOf(g), dir)
+const moveBundle = (b, dir) => moveItem(db.bundles, db.bundles.indexOf(b), dir)
 
 // เพิ่มกลุ่มใหม่
 const open = ref(false)
@@ -54,11 +57,22 @@ const itemName = (x) => {
   return `${g?.name || '?'}: ${g?.options.find((o) => o.id === x.optionId)?.name || '?'}`
 }
 const bOpen = ref(false)
-const bd = reactive({ id: null, name: '', items: [], discount: {}, active: true })
+const bd = reactive({ id: null, name: '', items: [], discount: {}, types: [], typeDiscount: {}, active: true })
+// บันเดิ้ลแปรผันตามประเภท: ใช้กับประเภทไหน + ส่วนลดแยกประเภท (ว่าง = ส่วนลดกลาง)
+const typeOpts = computed(() => (db.optionGroups.find((x) => x.key === 'type')?.options || []).filter((t) => t.active !== false || bd.types.includes(t.id)))
+const typeName = (id) => db.optionGroups.find((x) => x.key === 'type')?.options.find((t) => t.id === id)?.name || ''
+function toggleType(id) {
+  const i = bd.types.indexOf(id)
+  if (i >= 0) bd.types.splice(i, 1)
+  else bd.types.push(id)
+}
 const bError = ref('')
 const bundleAutoName = computed(() => bd.items.map((x) => db.optionGroups.find((g) => g.id === x.groupId)?.options.find((o) => o.id === x.optionId)?.name).filter(Boolean).join(' + '))
 function editBundle(b) {
-  Object.assign(bd, b ? { ...b, items: b.items.map((x) => ({ ...x })), discount: { ...(b.discount || {}) } } : { id: null, name: '', items: [], discount: {}, active: true })
+  Object.assign(bd, b
+    ? { ...b, items: b.items.map((x) => ({ ...x })), discount: { ...(b.discount || {}) }, types: [...(b.types || [])], typeDiscount: JSON.parse(JSON.stringify(b.typeDiscount || {})) }
+    : { id: null, name: '', items: [], discount: {}, types: [], typeDiscount: {}, active: true })
+  for (const t of db.optionGroups.find((x) => x.key === 'type')?.options || []) if (!bd.typeDiscount[t.id]) bd.typeDiscount[t.id] = {}
   bError.value = ''
   bOpen.value = true
 }
@@ -90,13 +104,8 @@ async function saveB() {
     <p v-if="!list.length" class="card py-10 text-center text-stone-500">ไม่พบกลุ่มตัวเลือก</p>
 
     <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-      <RouterLink
-        v-for="g in list"
-        :key="g.id"
-        :to="`/manage/options/${g.id}`"
-        class="card block transition hover:border-brand-300 active:scale-[0.99]"
-        :class="g.active === false ? 'opacity-60' : ''"
-      >
+      <div v-for="g in list" :key="g.id" class="card flex gap-2 p-2 transition hover:border-brand-300" :class="g.active === false ? 'opacity-60' : ''">
+      <RouterLink :to="`/manage/options/${g.id}`" class="block min-w-0 flex-1 rounded-xl p-2 active:scale-[0.99]">
         <div class="flex items-start gap-3">
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
@@ -117,6 +126,11 @@ async function saveB() {
           <span v-if="!activeOptions(g).length" class="text-xs text-stone-400">ยังไม่มีตัวเลือก</span>
         </div>
       </RouterLink>
+      <span class="flex shrink-0 flex-col justify-center">
+        <button type="button" class="flex h-7 w-7 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.optionGroups.indexOf(g) === 0" aria-label="เลื่อนขึ้น" @click="moveGroup(g, -1)">▲</button>
+        <button type="button" class="flex h-7 w-7 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.optionGroups.indexOf(g) === db.optionGroups.length - 1" aria-label="เลื่อนลง" @click="moveGroup(g, 1)">▼</button>
+      </span>
+      </div>
     </div>
 
     <!-- บันเดิ้ล -->
@@ -127,20 +141,21 @@ async function saveB() {
       </div>
       <p v-if="!bundleList.length" class="text-sm text-stone-500">ยังไม่มีบันเดิ้ล</p>
       <div class="space-y-2">
-        <button
-          v-for="b in bundleList"
-          :key="b.id"
-          class="block w-full rounded-xl border border-stone-200 p-3 text-left hover:border-brand-300"
-          :class="b.active === false ? 'opacity-60' : ''"
-          @click="editBundle(b)"
-        >
-          <span class="flex items-center gap-2">
-            <span class="min-w-0 flex-1 font-medium break-words text-stone-900">{{ b.name }}</span>
-            <span v-if="b.active === false" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
+        <div v-for="b in bundleList" :key="b.id" class="flex gap-1 rounded-xl border border-stone-200 p-1 hover:border-brand-300" :class="b.active === false ? 'opacity-60' : ''">
+          <button type="button" class="block min-w-0 flex-1 rounded-lg p-2 text-left" @click="editBundle(b)">
+            <span class="flex items-center gap-2">
+              <span class="min-w-0 flex-1 font-medium break-words text-stone-900">{{ b.name }}</span>
+              <span v-if="b.types?.length" class="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">บางประเภท</span>
+              <span v-if="b.active === false" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
+            </span>
+            <span class="mt-0.5 block text-xs break-words text-stone-500">{{ b.items.map(itemName).join(' + ') }}</span>
+            <span class="mt-0.5 block text-xs text-emerald-700">{{ sizeOpts.map((sz) => `${sz.name} −${money(b.discount?.[sz.id] || 0)}`).join(' · ') }}</span>
+          </button>
+          <span class="flex shrink-0 flex-col justify-center">
+            <button type="button" class="flex h-6 w-7 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.bundles.indexOf(b) === 0" aria-label="เลื่อนขึ้น" @click="moveBundle(b, -1)">▲</button>
+            <button type="button" class="flex h-6 w-7 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.bundles.indexOf(b) === db.bundles.length - 1" aria-label="เลื่อนลง" @click="moveBundle(b, 1)">▼</button>
           </span>
-          <span class="mt-0.5 block text-xs break-words text-stone-500">{{ b.items.map(itemName).join(' + ') }}</span>
-          <span class="mt-0.5 block text-xs text-emerald-700">{{ sizeOpts.map((sz) => `${sz.name} −${money(b.discount?.[sz.id] || 0)}`).join(' · ') }}</span>
-        </button>
+        </div>
       </div>
     </section>
 
@@ -159,14 +174,35 @@ async function saveB() {
         </div>
         <div><label class="label">ชื่อ</label><input v-model="bd.name" class="input" :placeholder="bundleAutoName || 'เช่น สตรอว์เบอร์รี + บลูเบอร์รี'" /></div>
         <div>
-          <div class="label">ลดจากราคารวม (บาท) แต่ละขนาด</div>
-          <div class="space-y-2">
-            <div v-for="sz in sizeOpts" :key="sz.id" class="flex items-center gap-3">
-              <span class="min-w-0 flex-1 text-sm text-stone-700">{{ sz.name }}</span>
-              <input v-model="bd.discount[sz.id]" type="number" inputmode="numeric" min="0" class="input w-32 shrink-0" placeholder="0" />
-            </div>
+          <div class="label">ใช้กับประเภท</div>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="t in typeOpts" :key="t.id" type="button" class="chip" :class="bd.types.includes(t.id) ? 'chip-on' : 'chip-off'" @click="toggleType(t.id)">{{ t.name }}</button>
           </div>
-          <p class="mt-1 text-xs text-stone-400">เค้กชั้น: ลดตามขนาดของแต่ละชั้นที่เลือกครบชุด</p>
+          <p class="mt-1 text-xs text-stone-400">{{ bd.types.length ? `ใช้ได้เฉพาะ ${bd.types.map(typeName).join(', ')}` : 'ไม่เลือก = ใช้ได้ทุกประเภท' }}</p>
+        </div>
+        <div>
+          <div class="label">ลดจากราคารวม (บาท) แต่ละขนาด</div>
+          <div class="-mx-5 overflow-x-auto px-5">
+            <table class="w-full min-w-max text-sm">
+              <thead>
+                <tr class="text-left text-xs text-stone-500">
+                  <th class="py-2 pr-3 font-medium"></th>
+                  <th v-for="sz in sizeOpts" :key="sz.id" class="px-1 py-2 font-medium">{{ sz.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="border-t border-stone-100">
+                  <td class="py-1.5 pr-3 font-semibold whitespace-nowrap text-stone-900">ทุกประเภท</td>
+                  <td v-for="sz in sizeOpts" :key="sz.id" class="px-1 py-1.5"><input v-model="bd.discount[sz.id]" type="number" inputmode="numeric" min="0" class="input h-10 w-24" placeholder="0" /></td>
+                </tr>
+                <tr v-for="t in typeOpts.filter((x) => !bd.types.length || bd.types.includes(x.id))" :key="t.id" class="border-t border-stone-100">
+                  <td class="py-1.5 pr-3 whitespace-nowrap text-stone-700">{{ t.name }}</td>
+                  <td v-for="sz in sizeOpts" :key="sz.id" class="px-1 py-1.5"><input v-model="bd.typeDiscount[t.id][sz.id]" type="number" inputmode="numeric" min="0" class="input h-10 w-24" :placeholder="String(bd.discount[sz.id] || 0)" /></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="mt-1 text-xs text-stone-400">แถวประเภทเว้นว่าง = ใช้ส่วนลด "ทุกประเภท" · เค้กชั้น: ลดตามขนาดและประเภทของแต่ละชั้นที่เลือกครบชุด</p>
         </div>
         <AppSwitch v-model="bd.active" label="ใช้งาน" class="flex" />
         <p v-if="bError" class="text-sm text-rose-600">{{ bError }}</p>

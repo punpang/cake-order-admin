@@ -1,6 +1,6 @@
 <script setup>
 import { money } from '../lib/format'
-import { sizePriceOf, typePrice, typeSizePrice, flavorPrice } from '../lib/pricing'
+import { typePrice, typeSizePrice, flavorPrice, optionPrice, isFixed, forType } from '../lib/pricing'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
@@ -27,8 +27,17 @@ function priceText(g, o) {
     if (g.key === 'size') return money(v)
     return v ? `+${money(v)}` : ''
   }
-  if (!o.sizePrices || !Object.values(o.sizePrices).some((v) => Number(v))) return ''
-  return props.sizeIds.length ? `+${money(sizePriceOf(o, props.sizeIds))}` : 'ตามขนาด'
+  // ตัวเลือกรอง: ราคาตามประเภทของชั้น (คงที่ หรือ ตามขนาด)
+  const tid = props.typeOpt?.id
+  if (isFixed(o)) {
+    const v = optionPrice(o, tid, [])
+    return v ? `+${money(v)}` : ''
+  }
+  const any = [o.sizePrices, ...Object.values(o.typePrices || {})].some((m) => Object.values(m || {}).some((v) => Number(v)))
+  if (!any) return ''
+  if (!props.sizeIds.length) return 'ตามขนาด'
+  const v = optionPrice(o, tid, props.sizeIds)
+  return v ? `+${money(v)}` : ''
 }
 // ราคาปกติ (แสดงขีดฆ่า) เมื่อใช้ราคาพิเศษ
 function regularText(g, o) {
@@ -79,7 +88,7 @@ const isOn = (g, o) =>
 
       <div v-else class="flex flex-wrap gap-2">
         <button
-          v-for="o in g.options.filter((x) => (x.active !== false || isOn(g, x)) && (!allow || allow(g, x)))"
+          v-for="o in g.options.filter((x) => (x.active !== false || isOn(g, x)) && (!allow || allow(g, x)) && (isMain(g) || forType(x, typeOpt?.id)))"
           :key="o.id"
           type="button"
           class="inline-flex max-w-full items-center gap-1.5 rounded-xl border px-3 py-2 text-left text-sm transition active:scale-[0.98]"

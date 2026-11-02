@@ -22,14 +22,14 @@ export const session = reactive({ role: 'admin' })
 export const can = (action) => PERMISSIONS[action]?.includes(session.role)
 
 // ---------- ข้อมูลหลัก ----------
-// ตัวเลือกรอง: ราคาตามขนาด (sizePrices = { [sizeId]: บาท })
-const opt = (id, name, sizePrices = {}, extra = {}) => ({ id, name, sizePrices, active: true, recipe: [], ...extra })
+// ตัวเลือกรอง: ตามขนาด (sizePrices = { [sizeId]: บาท }) หรือ คงที่ (price)
+// types = ใช้ได้กับประเภทไหน (ว่าง = ทุกประเภท), typePrices / typePrice = ราคาแยกประเภท (ว่าง = ราคากลาง)
+const opt = (id, name, sizePrices = {}, extra = {}) => ({ id, name, priceType: 'size', sizePrices, price: 0, types: [], typePrices: {}, typePrice: {}, active: true, recipe: [], ...extra })
+const fix = (id, name, price = 0, extra = {}) => ({ id, name, priceType: 'fixed', sizePrices: {}, price, types: [], typePrices: {}, typePrice: {}, active: true, recipe: [], ...extra })
 // บรรทัดสูตร: วัตถุดิบ, ปริมาณ, ต่อปอนด์ (pound) หรือ ต่อชิ้น (piece)
 const r = (ingredientId, qty, per = 'pound') => ({ ingredientId, qty, per })
 // ราคาตามขนาด 1 / 2 / 3 / 5 ปอนด์ (s1–s4)
 const sp = (a, b, c, d) => ({ s1: a, s2: b, s3: c, s4: d })
-// ทุกขนาดราคาเท่ากัน
-const fx = (v) => sp(v, v, v, v)
 // ประเภท: ราคาคงที่ (price) + ราคาขนาดของประเภท (sizePrices) · เนื้อเค้ก: บวกคงที่ (price) · ขนาด: ชื่อ + ปอนด์
 const typeOpt = (id, name, price, sizePrices, extra = {}) => ({ id, name, price, sizePrices, active: true, recipe: [], ...extra })
 const sizeOpt = (id, name, pounds) => ({ id, name, pounds, active: true, recipe: [r('m8', 1, 'piece')] })
@@ -125,11 +125,11 @@ export const db = reactive({
     ] },
     // ---- ตัวเลือกรอง: ราคาตามขนาด ----
     { id: 'g_shape', name: 'รูปทรง', perTier: true, type: 'single', required: true, appliesTo: ['custom'], options: [
-      opt('sh1', 'กลม'), opt('sh2', 'สี่เหลี่ยม'), opt('sh3', 'หัวใจ', sp(100, 150, 200, 300)), opt('sh4', 'ตัวเลข/ตัวอักษร', sp(300, 400, 500, 700)),
+      fix('sh1', 'กลม'), fix('sh2', 'สี่เหลี่ยม'), opt('sh3', 'หัวใจ', sp(100, 150, 200, 300)), opt('sh4', 'ตัวเลข/ตัวอักษร', sp(300, 400, 500, 700)),
     ] },
     { id: 'g_filling', name: 'สอดไส้', prepList: true, perTier: true, type: 'multi', required: false, appliesTo: ['custom'], options: [
-      opt('f1', 'ครีมสด', {}, { recipe: [r('m5', 100)] }),
-      opt('f2', 'สตรอว์เบอร์รี', sp(60, 110, 160, 250), { recipe: [r('m7', 80)] }),
+      fix('f1', 'ครีมสด', 0, { recipe: [r('m5', 100)] }),
+      opt('f2', 'สตรอว์เบอร์รี', sp(60, 110, 160, 250), { recipe: [r('m7', 80)], typePrices: { t4: sp(80, 140, 200, 320) } }),
       opt('f3', 'บลูเบอร์รี', sp(60, 110, 160, 250)),
       opt('f4', 'คัสตาร์ด', sp(40, 70, 100, 160)),
       opt('f5', 'ช็อกโกแลตกานาช', sp(50, 90, 130, 200)),
@@ -138,29 +138,30 @@ export const db = reactive({
     { id: 'g_topping', name: 'On top / ท็อปปิ้ง', prepList: true, perTier: true, type: 'multi', required: false, appliesTo: ['custom'], options: [
       opt('tp1', 'ผลไม้รวม', sp(150, 250, 350, 500)),
       opt('tp2', 'สตรอว์เบอร์รีสด', sp(180, 300, 420, 600), { recipe: [r('m7', 150, 'piece')] }),
-      opt('tp3', 'มาการอง', sp(200, 300, 400, 550)),
+      opt('tp3', 'มาการอง', sp(200, 300, 400, 550), { types: ['t1', 't4'] }),
       opt('tp4', 'ช็อกโกแลตแท่ง/ตกแต่ง', sp(120, 180, 240, 350)),
       opt('tp5', 'เม็ดมุกน้ำตาล', sp(50, 80, 110, 160)),
     ] },
     { id: 'g_deco', name: 'ตกแต่ง', prepList: true, perTier: true, type: 'multi', required: false, appliesTo: ['custom'], options: [
-      opt('d1', 'ดอกไม้ครีม', sp(150, 200, 250, 350)), opt('d2', 'ดอกไม้สด', sp(350, 450, 550, 750)), opt('d3', 'ฟิกเกอร์', fx(500)),
-      opt('d4', 'ภาพพิมพ์ทานได้', fx(250)), opt('d5', 'โบว์/ริบบิ้น', fx(80)),
+      opt('d1', 'ดอกไม้ครีม', sp(150, 200, 250, 350)), opt('d2', 'ดอกไม้สด', sp(350, 450, 550, 750)), fix('d3', 'ฟิกเกอร์', 500, { typePrice: { t4: 400 } }),
+      fix('d4', 'ภาพพิมพ์ทานได้', 250), fix('d5', 'โบว์/ริบบิ้น', 80),
     ] },
     { id: 'g_message', name: 'ข้อความบนเค้ก', type: 'text', required: false, appliesTo: ['custom', 'ready'], placeholder: 'เช่น HBD แม่ 60 ปี' },
     { id: 'g_extra', name: 'ของเสริม', type: 'multi', required: false, appliesTo: ['custom', 'ready'], options: [
-      opt('x1', 'เทียนวันเกิด'), opt('x2', 'เทียนตัวเลข', fx(20)), opt('x3', 'ป้ายข้อความ', fx(60)),
-      opt('x4', 'การ์ดอวยพร', fx(30)), opt('x5', 'กล่องพิเศษ', sp(80, 100, 120, 160)), opt('x6', 'มีด + จาน'),
+      fix('x1', 'เทียนวันเกิด'), fix('x2', 'เทียนตัวเลข', 20), fix('x3', 'ป้ายข้อความ', 60),
+      fix('x4', 'การ์ดอวยพร', 30), opt('x5', 'กล่องพิเศษ', sp(80, 100, 120, 160)), fix('x6', 'มีด + จาน'),
     ] },
     { id: 'g_diet', name: 'ข้อจำกัดอาหาร', type: 'multi', required: false, appliesTo: ['custom', 'ready'], options: [
-      opt('dt1', 'หวานน้อย'), opt('dt2', 'ไม่ใส่ถั่ว'), opt('dt3', 'ไม่มีแอลกอฮอล์'), opt('dt4', 'ไม่ใส่นม'),
+      fix('dt1', 'หวานน้อย'), fix('dt2', 'ไม่ใส่ถั่ว'), fix('dt3', 'ไม่มีแอลกอฮอล์'), fix('dt4', 'ไม่ใส่นม'),
     ] },
     { id: 'g_allergy', name: 'แพ้อาหาร (ระบุ)', type: 'text', required: false, appliesTo: ['custom', 'ready'], placeholder: 'ถ้ามี' },
   ],
 
   // บันเดิ้ล (ตัวเลือกรอง ในกลุ่มเดียวกันหรือข้ามกลุ่ม): items = [{ groupId, optionId }] ≥ 2, discount = { [sizeId]: บาท }
+  // types = ใช้ได้กับประเภทไหน (ว่าง = ทุกประเภท), typeDiscount = { [typeId]: { [sizeId] } } ส่วนลดแยกประเภท (ว่าง = ส่วนลดกลาง)
   bundles: [
-    { id: 'b1', name: 'สตรอว์เบอร์รี + บลูเบอร์รี', items: [{ groupId: 'g_filling', optionId: 'f2' }, { groupId: 'g_filling', optionId: 'f3' }], discount: sp(20, 30, 40, 60), active: true },
-    { id: 'b2', name: 'ไส้สตรอว์เบอร์รี + สตรอว์เบอร์รีสด', items: [{ groupId: 'g_filling', optionId: 'f2' }, { groupId: 'g_topping', optionId: 'tp2' }], discount: sp(30, 50, 70, 100), active: true },
+    { id: 'b1', name: 'สตรอว์เบอร์รี + บลูเบอร์รี', items: [{ groupId: 'g_filling', optionId: 'f2' }, { groupId: 'g_filling', optionId: 'f3' }], discount: sp(20, 30, 40, 60), types: [], typeDiscount: {}, active: true },
+    { id: 'b2', name: 'ไส้สตรอว์เบอร์รี + สตรอว์เบอร์รีสด', items: [{ groupId: 'g_filling', optionId: 'f2' }, { groupId: 'g_topping', optionId: 'tp2' }], discount: sp(30, 50, 70, 100), types: [], typeDiscount: { t4: sp(40, 60, 90, 130) }, active: true },
   ],
 
   orders: [],
@@ -242,18 +243,37 @@ export function saveOption(groupId, d) {
   if (!g) return null
   const data = { ...d, recipe: cleanRecipe(d.recipe) }
   // ประเภท/เนื้อเค้ก: ราคาตั้งในหน้าการกำหนดราคา (ไม่แตะราคาที่นี่) · ขนาด: ปอนด์ · ตัวเลือกรอง: ราคาตามขนาด
-  for (const k of ['price', 'priceType', 'special', 'sizePrices', 'pounds']) delete data[k]
+  for (const k of ['price', 'priceType', 'special', 'sizePrices', 'pounds', 'types', 'typePrices', 'typePrice']) delete data[k]
   if (g.key === 'size') data.pounds = Number(d.pounds) || 1
   else if (g.key === 'type') {
     if (!d.id) Object.assign(data, { price: 0, sizePrices: {} })
   } else if (g.key === 'flavor') {
     if (!d.id) data.price = 0
-  } else data.sizePrices = cleanSpecial(d.sizePrices)
+  } else {
+    const fixed = d.priceType === 'fixed'
+    Object.assign(data, {
+      priceType: fixed ? 'fixed' : 'size',
+      price: fixed ? Number(d.price) || 0 : 0,
+      sizePrices: fixed ? {} : cleanSpecial(d.sizePrices),
+      typePrice: fixed ? cleanSpecial(d.typePrice) : {},
+      typePrices: fixed ? {} : cleanTable(d.typePrices),
+      types: [...(d.types || [])],
+    })
+  }
   return upsert(g.options, 'o', data)
 }
 
 // บันเดิ้ล (ตัวเลือกรอง ในกลุ่มเดียวกันหรือข้ามกลุ่ม ลดราคาตามขนาด)
-export const saveBundle = (d) => upsert(db.bundles, 'b', { ...d, items: d.items.map((x) => ({ groupId: x.groupId, optionId: x.optionId })), discount: cleanSpecial(d.discount) })
+export const saveBundle = (d) =>
+  upsert(db.bundles, 'b', { ...d, items: d.items.map((x) => ({ groupId: x.groupId, optionId: x.optionId })), discount: cleanSpecial(d.discount), types: [...(d.types || [])], typeDiscount: cleanTable(d.typeDiscount) })
+
+// จัดลำดับ: สลับกับตัวข้างเคียง (dir = -1 ขึ้น / 1 ลง)
+export function moveItem(list, index, dir) {
+  const j = index + dir
+  if (j < 0 || j >= list.length) return
+  const [x] = list.splice(index, 1)
+  list.splice(j, 0, x)
+}
 
 // จำนวนออร์เดอร์ของลูกค้า
 export const customerOrderCount = (id) => db.orders.filter((o) => o.customerId === id).length

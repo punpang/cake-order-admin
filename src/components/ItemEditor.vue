@@ -2,7 +2,7 @@
 import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRaw, watch } from 'vue'
 import { db, activeListsAt } from '../data/store'
-import { priceDetail, productPrice, productPounds, allowedBy } from '../lib/pricing'
+import { priceDetail, productPrice, productPounds, allowedBy, forType } from '../lib/pricing'
 import { money } from '../lib/format'
 import { MAIN_KEYS } from '../lib/constants'
 import AppModal from './AppModal.vue'
@@ -73,7 +73,17 @@ const wholeGroups = computed(() => groups.value.filter((g) => !tierGroups.value.
 // เนื้อเค้ก/ขนาดที่ประเภทอนุญาต (ประเภทอยู่ในชั้นหรือทั้งก้อนก็ได้)
 const typeGroup = computed(() => groups.value.find((g) => g.key === 'type'))
 const typeSels = (t) => (typeGroup.value && tierGroups.value.includes(typeGroup.value) && t ? t.selections : form.selections)
-const allowFor = (t) => allowedBy(db.optionGroups, typeSels(t))
+// ตัวเลือกรองที่ประเภทของชั้นใช้ได้ (ตัวเลือกรองแปรผันตามประเภท)
+const allowFor = (t) => {
+  const a = allowedBy(db.optionGroups, typeSels(t))
+  const tid = typeOptOf(t)?.id
+  return (g, o) => a(g, o) && (MAIN_KEYS.includes(g.key) || forType(o, tid))
+}
+// เค้กสำเร็จ: ประเภทของสินค้า (ราคา/ตัวเลือกรองตามประเภท)
+const readyTypeOpt = computed(() => {
+  const p = db.products.find((x) => x.id === form.productId)
+  return db.optionGroups.find((g) => g.key === 'type')?.options.find((o) => o.id === p?.typeId) || null
+})
 // เปลี่ยนประเภทแล้ว ตัดตัวเลือกที่ไม่มีออก
 function prune(sels, allow, list) {
   for (const g of list) {
@@ -244,7 +254,7 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
     </template>
 
     <div v-if="form.kind === 'custom' && wholeGroups.length" class="mb-2 text-sm font-semibold text-stone-500">ตัวเลือกเพิ่มเติม</div>
-    <OptionPicker v-model="form.selections" :groups="wholeGroups" :errors="errors" :active="active" :allow="form.kind === 'custom' ? allowFor(form.tiers[0]) : null" :size-ids="allSizeIds" :type-opt="form.kind === 'custom' ? typeOptOf(form.tiers[0]) : null" />
+    <OptionPicker v-model="form.selections" :groups="wholeGroups" :errors="errors" :active="active" :allow="form.kind === 'custom' ? allowFor(form.tiers[0]) : null" :size-ids="allSizeIds" :type-opt="form.kind === 'custom' ? typeOptOf(form.tiers[0]) : readyTypeOpt" />
 
     <!-- รูป + หมายเหตุ -->
     <div class="mt-3 rounded-2xl border border-stone-200/70 bg-white p-3.5">

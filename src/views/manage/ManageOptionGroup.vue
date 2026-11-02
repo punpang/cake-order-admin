@@ -1,7 +1,7 @@
 <script setup>
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
-import { db, findGroup, saveGroup, saveOption } from '../../data/store'
+import { db, findGroup, saveGroup, saveOption, moveItem } from '../../data/store'
 import { GROUP_TYPES, APPLIES_TO, MAIN_KEYS } from '../../lib/constants'
 import { money } from '../../lib/format'
 import ManageShell from '../../components/ManageShell.vue'
@@ -32,13 +32,27 @@ const options = computed(() => {
 // ขนาดทั้งหมด (ใช้ตั้งราคาตามขนาด)
 const sizeOpts = computed(() => (db.optionGroups.find((x) => x.key === 'size')?.options || []).filter((x) => x.active !== false))
 const sizesText = (prices, plus = '+') => sizeOpts.value.map((sz) => `${sz.name} ${plus}${money(prices?.[sz.id] || 0)}`).join(' · ')
-const hasPrice = (o) => Object.values(o.sizePrices || {}).some((v) => Number(v))
+const hasPrice = (o) =>
+  o.priceType === 'fixed'
+    ? !!Number(o.price) || Object.values(o.typePrice || {}).some((v) => Number(v))
+    : [o.sizePrices, ...Object.values(o.typePrices || {})].some((m) => Object.values(m || {}).some((v) => Number(v)))
 const priceText = (o) => {
   if (isSize.value) return `${o.pounds} ปอนด์`
   if (isType.value) return `${money(o.price || 0)} + ตามขนาด`
   if (isFlavor.value) return o.price ? `+${money(o.price)}` : 'ไม่บวกเพิ่ม'
-  return hasPrice(o) ? 'ตามขนาด' : 'ไม่บวกเพิ่ม'
+  if (!hasPrice(o)) return 'ไม่บวกเพิ่ม'
+  return o.priceType === 'fixed' ? `+${money(o.price || 0)}` : 'ตามขนาด'
 }
+// ตัวเลือกรองแปรผันตามประเภท
+const types = computed(() => (db.optionGroups.find((x) => x.key === 'type')?.options || []).filter((t) => t.active !== false || o.types?.includes(t.id)))
+const typeName = (id) => db.optionGroups.find((x) => x.key === 'type')?.options.find((t) => t.id === id)?.name || ''
+function toggleType(id) {
+  const i = o.types.indexOf(id)
+  if (i >= 0) o.types.splice(i, 1)
+  else o.types.push(id)
+}
+// จัดลำดับตัวเลือก
+const move = (opt, dir) => moveItem(group.value.options, group.value.options.indexOf(opt), dir)
 
 // ---------- ตั้งค่ากลุ่ม ----------
 const gOpen = ref(false)
@@ -67,11 +81,12 @@ async function saveG() {
 
 // ---------- ตัวเลือก ----------
 const oOpen = ref(false)
-const blank = () => ({ id: null, name: '', price: 0, pounds: 1, active: true, recipe: [], allow: {}, sizePrices: {} })
+const blank = () => ({ id: null, name: '', price: 0, pounds: 1, active: true, recipe: [], allow: {}, sizePrices: {}, priceType: 'size', types: [], typePrices: {}, typePrice: {} })
 const o = reactive(blank())
 const oError = ref('')
 function editOption(opt) {
-  Object.assign(o, opt ? { ...blank(), ...opt, recipe: (opt.recipe || []).map((x) => ({ ...x })), allow: JSON.parse(JSON.stringify(opt.allow || {})), sizePrices: { ...(opt.sizePrices || {}) } } : blank())
+  Object.assign(o, opt ? { ...blank(), ...opt, recipe: (opt.recipe || []).map((x) => ({ ...x })), allow: JSON.parse(JSON.stringify(opt.allow || {})), sizePrices: { ...(opt.sizePrices || {}) }, types: [...(opt.types || [])], typePrices: JSON.parse(JSON.stringify(opt.typePrices || {})), typePrice: { ...(opt.typePrice || {}) } } : blank())
+  for (const t of db.optionGroups.find((x) => x.key === 'type')?.options || []) if (!o.typePrices[t.id]) o.typePrices[t.id] = {}
   oError.value = ''
   oOpen.value = true
 }
@@ -89,7 +104,8 @@ function toggleAllow(lg, oid) {
 async function saveO() {
   if (!o.name.trim()) return (oError.value = 'กรอกชื่อตัวเลือก')
   if (isSize.value && !(o.pounds > 0)) return (oError.value = 'ขนาดต้องมากกว่า 0')
-  if (!isMain.value && Object.values(o.sizePrices).some((v) => v !== '' && v != null && !(Number(v) >= 0))) return (oError.value = 'ราคาไม่ถูกต้อง')
+  const vals = [o.price, ...Object.values(o.sizePrices), ...Object.values(o.typePrice), ...Object.values(o.typePrices).flatMap((r) => Object.values(r))]
+  if (!isMain.value && vals.some((v) => v !== '' && v != null && !(Number(v) >= 0))) return (oError.value = 'ราคาไม่ถูกต้อง')
   const data = { ...o }
   if (!isType.value) delete data.allow
   else {
@@ -144,21 +160,27 @@ async function saveO() {
     <template v-else>
       <p v-if="!options.length" class="card py-10 text-center text-stone-500">ยังไม่มีตัวเลือก</p>
       <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        <button
+        <div
           v-for="opt in options"
           :key="opt.id"
-          class="card flex items-center gap-3 p-3.5 text-left transition hover:border-brand-300 active:scale-[0.99]"
+          class="card flex items-center gap-2 p-2 transition hover:border-brand-300"
           :class="opt.active === false ? 'opacity-60' : ''"
-          @click="editOption(opt)"
         >
-          <span class="min-w-0 flex-1">
-            <span class="flex items-center gap-2">
-              <span class="truncate font-medium text-stone-900">{{ opt.name }}</span>
-              <span v-if="opt.active === false" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
+          <button type="button" class="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1.5 text-left active:scale-[0.99]" @click="editOption(opt)">
+            <span class="min-w-0 flex-1">
+              <span class="flex items-center gap-2">
+                <span class="truncate font-medium text-stone-900">{{ opt.name }}</span>
+                <span v-if="opt.active === false" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
+                <span v-if="!isMain && opt.types?.length" class="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">บางประเภท</span>
+              </span>
             </span>
+            <span class="shrink-0 text-sm font-semibold" :class="isSize || isType || opt.price || hasPrice(opt) ? 'text-stone-900' : 'text-stone-400'">{{ priceText(opt) }}</span>
+          </button>
+          <span class="flex shrink-0 flex-col">
+            <button type="button" class="flex h-6 w-7 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="group.options.indexOf(opt) === 0" aria-label="เลื่อนขึ้น" @click="move(opt, -1)">▲</button>
+            <button type="button" class="flex h-6 w-7 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="group.options.indexOf(opt) === group.options.length - 1" aria-label="เลื่อนลง" @click="move(opt, 1)">▼</button>
           </span>
-          <span class="shrink-0 text-sm font-semibold" :class="isSize || isType || opt.price || hasPrice(opt) ? 'text-stone-900' : 'text-stone-400'">{{ priceText(opt) }}</span>
-        </button>
+        </div>
       </div>
 
     </template>
@@ -218,16 +240,58 @@ async function saveO() {
           <span class="text-xs text-stone-500">ตั้ง/แก้ราคาที่ <RouterLink to="/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></span>
         </div>
 
-        <div v-else>
-          <div class="label">ราคาแต่ละขนาด (บาท)</div>
-          <div class="space-y-2">
-            <div v-for="sz in sizeOpts" :key="sz.id" class="flex items-center gap-3">
-              <span class="min-w-0 flex-1 text-sm text-stone-700">{{ sz.name }}</span>
-              <input v-model="o.sizePrices[sz.id]" type="number" inputmode="numeric" min="0" class="input w-32 shrink-0" placeholder="0" />
+        <template v-else>
+          <div>
+            <div class="label">รูปแบบราคา</div>
+            <div class="grid grid-cols-2 gap-2">
+              <button
+                v-for="pt in [{ v: 'size', l: 'ตามขนาด' }, { v: 'fixed', l: 'คงที่' }]"
+                :key="pt.v"
+                type="button"
+                class="flex h-11 items-center justify-center rounded-xl border text-sm font-medium"
+                :class="o.priceType === pt.v ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : 'border-stone-200 text-stone-600'"
+                @click="o.priceType = pt.v"
+              >{{ pt.l }}</button>
             </div>
           </div>
-          <p class="mt-1 text-xs text-stone-400">เว้นว่าง/0 = ไม่บวกเพิ่ม · เค้กชั้นคิดตามขนาดของแต่ละชั้น</p>
-        </div>
+          <div>
+            <div class="label">ใช้กับประเภท</div>
+            <div class="flex flex-wrap gap-2">
+              <button v-for="t in types" :key="t.id" type="button" class="chip" :class="o.types.includes(t.id) ? 'chip-on' : 'chip-off'" @click="toggleType(t.id)">{{ t.name }}</button>
+            </div>
+            <p class="mt-1 text-xs text-stone-400">{{ o.types.length ? `ใช้ได้เฉพาะ ${o.types.map(typeName).join(', ')}` : 'ไม่เลือก = ใช้ได้ทุกประเภท' }}</p>
+          </div>
+          <div>
+            <div class="label">ราคา (บาท)</div>
+            <div class="-mx-5 overflow-x-auto px-5">
+              <table class="w-full min-w-max text-sm">
+                <thead>
+                  <tr class="text-left text-xs text-stone-500">
+                    <th class="py-2 pr-3 font-medium"></th>
+                    <template v-if="o.priceType === 'fixed'"><th class="px-1 py-2 font-medium">ราคา</th></template>
+                    <th v-for="sz in o.priceType === 'fixed' ? [] : sizeOpts" :key="sz.id" class="px-1 py-2 font-medium">{{ sz.name }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="border-t border-stone-100">
+                    <td class="py-1.5 pr-3 font-semibold whitespace-nowrap text-stone-900">ทุกประเภท</td>
+                    <td v-if="o.priceType === 'fixed'" class="px-1 py-1.5"><input v-model="o.price" type="number" inputmode="numeric" min="0" class="input h-10 w-24" placeholder="0" /></td>
+                    <td v-for="sz in o.priceType === 'fixed' ? [] : sizeOpts" :key="sz.id" class="px-1 py-1.5"><input v-model="o.sizePrices[sz.id]" type="number" inputmode="numeric" min="0" class="input h-10 w-24" placeholder="0" /></td>
+                  </tr>
+                  <tr v-for="t in types.filter((x) => !o.types.length || o.types.includes(x.id))" :key="t.id" class="border-t border-stone-100">
+                    <td class="py-1.5 pr-3 whitespace-nowrap text-stone-700">{{ t.name }}</td>
+                    <td v-if="o.priceType === 'fixed'" class="px-1 py-1.5"><input v-model="o.typePrice[t.id]" type="number" inputmode="numeric" min="0" class="input h-10 w-24" :placeholder="String(o.price || 0)" /></td>
+                    <td v-for="sz in o.priceType === 'fixed' ? [] : sizeOpts" :key="sz.id" class="px-1 py-1.5"><input v-model="o.typePrices[t.id][sz.id]" type="number" inputmode="numeric" min="0" class="input h-10 w-24" :placeholder="String(o.sizePrices[sz.id] || 0)" /></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="mt-1 text-xs text-stone-400">
+              แถวประเภทเว้นว่าง = ใช้ราคา "ทุกประเภท" (ตัวเลขจาง) ·
+              {{ o.priceType === 'fixed' ? 'คงที่: บวกครั้งเดียวต่อที่เลือก (กลุ่มแยกชั้นบวกชั้นละครั้ง)' : 'ตามขนาด: เค้กชั้นคิดตามขนาดของแต่ละชั้น' }}
+            </p>
+          </div>
+        </template>
 
         <div v-if="isType" class="space-y-3">
           <div v-for="lg in limitGroups" :key="lg.id">
