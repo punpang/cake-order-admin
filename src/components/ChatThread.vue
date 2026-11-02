@@ -1,15 +1,17 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { findOrder, sendChat, markRead, findQuote, acceptQuote, reviseQuote, fbWindowOpen, convertQuote, chatOrderBlock } from '../data/store'
+import { db, findOrder, sendChat, markRead, findQuote, acceptQuote, reviseQuote, fbWindowOpen, convertQuote, chatOrderBlock, findCustomer, linkChat, askCustomer, cancelAsk, applyToDraft, ASK_FIELDS, saveCanned, removeCanned } from '../data/store'
+import { detectEntities } from '../lib/chatParse'
 import { orderTotals, discountLines } from '../lib/pricing'
 import { STATUS } from '../lib/constants'
-import { money, dateTime, timeOnly, dateOnly } from '../lib/format'
+import { money, dateTime, timeOnly, dateOnly, formatPhone } from '../lib/format'
 import AppIcon from './AppIcon.vue'
 import DiscountDetail from './DiscountDetail.vue'
+import AppModal from './AppModal.vue'
 
 // เธรดแชทของศูนย์รวมแชท (ฝั่งพนักงาน) · ข้อความจากลูกค้ามาจาก LINE OA / Facebook (จำลอง)
 const props = defineProps({ chat: { type: Object, required: true } })
-const emit = defineEmits(['edit-draft', 'link'])
+const emit = defineEmits(['edit-draft', 'link', 'open-panel'])
 const text = ref('')
 const box = ref(null)
 const mine = (m) => m.from === 'staff'
@@ -24,8 +26,9 @@ function scrollEnd() {
 }
 function send() {
   if (!text.value.trim() || !canType.value) return
-  sendChat(props.chat.id, 'staff', text.value)
+  sendChat(props.chat.id, 'staff', text.value, { replyTo: replyTo.value?.id })
   text.value = ''
+  replyTo.value = null
 }
 function onKey(e) {
   // Enter ส่ง · Shift+Enter ขึ้นบรรทัด
@@ -85,6 +88,48 @@ function sendRevise(q) {
   reviseFor.value = null
   reviseText.value = ''
 }
+// ---------- จับข้อมูลในข้อความลูกค้า (เบอร์ / วันที่ / เวลา) → กดกรอกลงร่าง ----------
+const ENT = { phone: { icon: 'phone', label: 'เบอร์' }, date: { icon: 'calendar', label: 'วันนัด' }, time: { icon: 'clock', label: 'เวลา' } }
+const entities = (m) => (m.from === 'customer' && m.kind === 'text' && !m.answerFor ? detectEntities(m.text) : [])
+const entText = (e) => (e.type === 'phone' ? formatPhone(e.value) : e.type === 'date' ? dateOnly(e.value) : e.value)
+const notice = ref(null) // { done, suggest }
+function fill(e) {
+  notice.value = applyToDraft(props.chat.id, { [e.type]: e.value })
+}
+const suggestName = computed(() => (notice.value?.suggest ? findCustomer(notice.value.suggest)?.name : ''))
+function linkSuggest() {
+  linkChat(props.chat.id, notice.value.suggest)
+  notice.value = null
+}
+// ข้อความที่ถูกอ้างอิง (ตอบกลับ / คำถาม)
+const byId = (id) => props.chat.messages.find((x) => x.id === id)
+const snippet = (m) => (!m ? '' : m.kind === 'order' ? 'สรุปออร์เดอร์' : m.kind === 'quote' ? 'ใบเสนอ' : m.text.length > 60 ? `${m.text.slice(0, 60)}…` : m.text)
+
+// ---------- ตอบกลับข้อความ ----------
+const replyTo = ref(null)
+const input = ref(null)
+function startReply(m) {
+  replyTo.value = m
+  nextTick(() => input.value?.focus())
+}
+
+// ---------- ปุ่มถาม (คำตอบถัดไปกรอกลงร่างอัตโนมัติ) ----------
+const ask = (field) => askCustomer(props.chat.id, field)
+
+// ---------- ข้อความสำเร็จรูป ----------
+const cannedOpen = ref(false)
+const cannedEdit = ref(null) // { id, title, text }
+function useCanned(c) {
+  text.value = text.value ? `${text.value}\n${c.text}` : c.text
+  cannedOpen.value = false
+  nextTick(() => input.value?.focus())
+}
+function saveC() {
+  if (!cannedEdit.value.title.trim() || !cannedEdit.value.text.trim()) return
+  saveCanned(cannedEdit.value)
+  cannedEdit.value = null
+}
+
 // แสดงวันที่คั่นเมื่อเปลี่ยนวัน
 const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !== props.chat.messages[i].at.slice(0, 10)
 </script>
@@ -161,19 +206,84 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
             </template>
           </div>
           <!-- ข้อความ -->
-          <div v-else class="max-w-[80%]">
-            <div class="rounded-2xl px-3.5 py-2 text-[15px] break-words whitespace-pre-line" :class="mine(m) ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md bg-white text-stone-900 ring-1 ring-stone-200'">{{ m.text }}</div>
-            <div class="mt-0.5 px-1 text-[11px] text-stone-400" :class="mine(m) ? 'text-right' : ''">{{ timeOnly(m.at) }}<template v-if="m.from === 'staff'"> · ส่งทาง {{ channelLabel }} (จำลอง)<template v-if="m.by === 'ระบบ'"> · อัตโนมัติ</template></template></div>
+          <div v-else class="group max-w-[80%]">
+            <div class="rounded-2xl px-3.5 py-2 text-[15px] break-words whitespace-pre-line" :class="mine(m) ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md bg-white text-stone-900 ring-1 ring-stone-200'">
+              <!-- อ้างอิงข้อความที่ตอบ -->
+              <div v-if="m.replyTo && byId(m.replyTo)" class="mb-1.5 rounded-lg border-l-2 px-2 py-1 text-xs" :class="mine(m) ? 'border-white/60 bg-white/15 text-white/90' : 'border-brand-400 bg-stone-50 text-stone-500'">{{ snippet(byId(m.replyTo)) }}</div>
+              {{ m.text }}
+            </div>
+            <!-- คำตอบของปุ่มถาม -->
+            <div v-if="m.answerFor" class="mt-1 flex flex-wrap items-center gap-1 text-[11px]">
+              <span class="rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-800">ตอบ: {{ ASK_FIELDS[m.answerFor]?.label }}</span>
+              <span v-if="m.filled?.done?.length" class="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">กรอกแล้ว: {{ m.filled.done.map((d) => d.label).join(', ') }}</span>
+              <span v-else class="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">อ่านค่าไม่ได้ กรอกเอง</span>
+            </div>
+            <!-- ข้อมูลที่จับได้ → กดกรอก -->
+            <div v-if="entities(m).length" class="mt-1 flex flex-wrap gap-1">
+              <button v-for="e in entities(m)" :key="e.type + e.value" type="button" class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-white px-2 py-0.5 text-[11px] font-medium text-brand-800 hover:bg-brand-50" :title="`กรอก${ENT[e.type].label}ลงร่าง`" @click="fill(e)">
+                <AppIcon :name="ENT[e.type].icon" :size="12" /> {{ entText(e) }} <span class="text-brand-500">กรอก</span>
+              </button>
+            </div>
+            <div class="mt-0.5 flex items-center gap-2 px-1 text-[11px] text-stone-400" :class="mine(m) ? 'justify-end' : ''">
+              <span>{{ timeOnly(m.at) }}<template v-if="m.from === 'staff'"> · ส่งทาง {{ channelLabel }} (จำลอง)<template v-if="m.by === 'ระบบ'"> · อัตโนมัติ</template></template><template v-if="m.ask"> · ถาม{{ ASK_FIELDS[m.ask]?.label.replace('ขอ', '') }}</template></span>
+              <button v-if="canType" type="button" class="font-medium text-stone-500 hover:text-brand-700 sm:opacity-0 sm:group-hover:opacity-100" @click="startReply(m)">ตอบกลับ</button>
+            </div>
           </div>
         </div>
       </template>
     </div>
 
+    <!-- แจ้งผลการกรอก -->
+    <div v-if="notice" class="flex flex-wrap items-center gap-2 border-t border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+      <AppIcon name="check" :size="16" />
+      <span class="min-w-0 flex-1">กรอกลงร่างแล้ว: {{ notice.done.map((d) => `${d.label} ${d.value}`).join(' · ') }}</span>
+      <button v-if="notice.suggest" type="button" class="btn-soft h-8 px-2.5 text-xs" @click="linkSuggest">ผูกกับ {{ suggestName }}</button>
+      <button type="button" class="btn-outline h-8 px-2.5 text-xs" @click="emit('open-panel'); notice = null">เปิดแผงออร์เดอร์</button>
+      <button type="button" class="text-emerald-700" aria-label="ปิด" @click="notice = null"><AppIcon name="x" :size="16" /></button>
+    </div>
+
+    <!-- ปุ่มถาม + ข้อความสำเร็จรูป -->
+    <div v-if="canType" class="flex items-center gap-1.5 overflow-x-auto border-t border-stone-200 bg-white px-2 py-1.5 [scrollbar-width:none]">
+      <span v-if="chat.pendingAsk" class="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
+        รอลูกค้าตอบ: {{ ASK_FIELDS[chat.pendingAsk.field]?.label }}
+        <button type="button" aria-label="ยกเลิกคำถาม" @click="cancelAsk(chat.id)"><AppIcon name="x" :size="12" /></button>
+      </span>
+      <button v-for="(f, k) in ASK_FIELDS" :key="k" type="button" class="chip chip-off shrink-0 px-2.5 py-1 text-xs whitespace-nowrap" @click="ask(k)">{{ f.label }}</button>
+      <button type="button" class="chip chip-off shrink-0 px-2.5 py-1 text-xs whitespace-nowrap" @click="cannedOpen = true">ข้อความสำเร็จรูป</button>
+    </div>
+
     <!-- ช่องพิมพ์ -->
+    <div v-if="replyTo && canType" class="flex items-center gap-2 border-t border-stone-200 bg-stone-50 px-3 py-1.5 text-xs text-stone-600">
+      <span class="min-w-0 flex-1 truncate">ตอบกลับ: {{ snippet(replyTo) }}</span>
+      <button type="button" aria-label="ยกเลิกตอบกลับ" @click="replyTo = null"><AppIcon name="x" :size="14" /></button>
+    </div>
     <p v-if="!canType" class="border-t border-stone-200 bg-amber-50 p-3 text-center text-sm text-amber-800">เกิน 24 ชม. หลังลูกค้าทักล่าสุด Facebook ไม่ให้ตอบข้อความทั่วไป (การ์ดออร์เดอร์/ยอดชำระยังส่งได้) รอให้ลูกค้าทักกลับ</p>
     <form v-else class="flex items-end gap-2 border-t border-stone-200 bg-white p-2" @submit.prevent="send">
-      <textarea v-model="text" rows="1" class="input max-h-32 min-h-11 flex-1 resize-none py-2.5" :placeholder="`ตอบทาง ${channelLabel}`" @keydown="onKey" />
+      <textarea ref="input" v-model="text" rows="1" class="input max-h-32 min-h-11 flex-1 resize-none py-2.5" :placeholder="`ตอบทาง ${channelLabel}`" @keydown="onKey" />
       <button type="submit" class="btn-primary h-11 w-11 shrink-0 px-0" :disabled="!text.trim()" aria-label="ส่ง"><AppIcon name="send" :size="18" /></button>
     </form>
+
+    <!-- ข้อความสำเร็จรูป -->
+    <AppModal v-if="cannedOpen" title="ข้อความสำเร็จรูป" @close="cannedOpen = false; cannedEdit = null">
+      <div v-if="cannedEdit" class="space-y-3">
+        <div><label class="label">ชื่อ</label><input v-model="cannedEdit.title" class="input" placeholder="เช่น เลขบัญชีโอน" /></div>
+        <div><label class="label">ข้อความ</label><textarea v-model="cannedEdit.text" rows="4" class="input" /></div>
+        <div class="flex gap-2">
+          <button type="button" class="btn-outline flex-1" @click="cannedEdit = null">ยกเลิก</button>
+          <button type="button" class="btn-primary flex-1" @click="saveC">บันทึก</button>
+        </div>
+      </div>
+      <div v-else class="space-y-2">
+        <div v-for="c in db.cannedReplies" :key="c.id" class="flex gap-1 rounded-xl border border-stone-200 p-1">
+          <button type="button" class="min-w-0 flex-1 rounded-lg p-2 text-left hover:bg-stone-50" @click="useCanned(c)">
+            <span class="block font-medium text-stone-900">{{ c.title }}</span>
+            <span class="block truncate text-xs text-stone-500">{{ c.text }}</span>
+          </button>
+          <button type="button" class="flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-lg text-stone-400 hover:bg-stone-100" aria-label="แก้ไข" @click="cannedEdit = { ...c }"><AppIcon name="edit" :size="16" /></button>
+          <button type="button" class="flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-lg text-stone-400 hover:bg-rose-50 hover:text-rose-600" aria-label="ลบ" @click="removeCanned(c.id)"><AppIcon name="trash" :size="16" /></button>
+        </div>
+        <button type="button" class="btn-soft w-full" @click="cannedEdit = { id: null, title: '', text: '' }"><AppIcon name="plus" :size="16" /> เพิ่มข้อความ</button>
+      </div>
+    </AppModal>
   </div>
 </template>

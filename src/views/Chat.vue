@@ -187,7 +187,7 @@ function doSim() {
           </button>
         </div>
         <div class="flex min-h-0 flex-1">
-          <ChatThread :key="current.id" :chat="current" @link="openLink" class="min-h-0 min-w-0 flex-1" :class="mtab === 'order' ? 'hidden lg:flex' : 'flex'" @edit-draft="openPanel" />
+          <ChatThread :key="current.id" :chat="current" @link="openLink" @open-panel="openPanel" class="min-h-0 min-w-0 flex-1" :class="mtab === 'order' ? 'hidden lg:flex' : 'flex'" @edit-draft="openPanel" />
           <div
             v-if="can('createOrder') && (panelOpen || mtab === 'order')"
             class="min-h-0 w-full overflow-y-auto bg-stone-50 px-3 pt-3 lg:w-[440px] lg:shrink-0 lg:border-l lg:border-stone-200"
@@ -199,7 +199,11 @@ function doSim() {
       </section>
       <section v-else class="hidden items-center justify-center bg-stone-50 text-sm text-stone-400 md:flex">เลือกแชททางซ้าย</section>
     </div>
-    <p class="mt-2 text-center text-xs text-stone-400">จำลอง · ยังไม่ต่อ LINE OA / Facebook จริง (ทดสอบด้วยปุ่ม "จำลองข้อความเข้า")</p>
+    <p class="mt-2 text-center text-xs text-stone-400">
+      <template v-if="db.integrations.line.status !== 'connected' && db.integrations.facebook.status !== 'connected'">ยังไม่ได้เชื่อม LINE OA / Facebook · <RouterLink v-if="can('manage')" to="/manage/integrations" class="text-brand-700 underline">ไปเชื่อม</RouterLink> · </template>
+      <template v-else>เชื่อมแล้ว: {{ [db.integrations.line.status === 'connected' ? `LINE ${db.integrations.line.accountName}` : '', db.integrations.facebook.status === 'connected' ? `Facebook ${db.integrations.facebook.accountName}` : ''].filter(Boolean).join(' · ') }} · </template>
+      จำลอง (ทดสอบด้วยปุ่ม "จำลองข้อความเข้า")
+    </p>
 
     <!-- ออร์เดอร์ของลูกค้า -->
     <AppModal v-if="ordersOpen" title="ออร์เดอร์ที่ยังไม่ปิด" @close="ordersOpen = false">

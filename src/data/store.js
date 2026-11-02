@@ -6,6 +6,7 @@ import { activeLists, priceDetail, orderTotals } from '../lib/pricing'
 import { addDays, pointBalance, takePoints, returnPoints, couponUsable, pickPrize, expiringSoon } from '../lib/loyalty'
 import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, timeOnly } from '../lib/format'
 import { nextBirthday, daysBetween } from '../lib/birthday'
+import { parseAnswer } from '../lib/chatParse'
 
 let seq = 1000
 const uid = (p) => `${p}${++seq}`
@@ -168,7 +169,14 @@ export const db = reactive({
 
   // ---------- การเชื่อมต่อ & แจ้งเตือน (จำลอง: ยังไม่ส่งจริง บันทึกลงคิวข้อความ) ----------
   // token จริงจะเก็บที่เซิร์ฟเวอร์ (Supabase secrets) ตอนต่อจริง ดู docs/integrations.md
-  integrations: Object.fromEntries(Object.keys(CHANNELS).map((k) => [k, { enabled: true, status: 'not_connected' }])),
+  // status: not_connected | connected · accountName/accountId = เพจ/บอทที่เชื่อม · tokenHint = 4 ตัวท้าย (ไม่เก็บ token จริงในหน้าเว็บ)
+  integrations: Object.fromEntries(Object.keys(CHANNELS).map((k) => [k, { enabled: true, status: 'not_connected', accountName: '', accountId: '', connectedAt: null, tokenHint: '' }])),
+  // ข้อความสำเร็จรูปในแชท (ตัวอย่าง)
+  cannedReplies: [
+    { id: 'cr1', title: 'เลขบัญชีโอน', text: 'โอนเข้าบัญชี กสิกรไทย 123-4-56789-0 ชื่อบัญชี ร้านเค้กตัวอย่าง แล้วส่งสลิปในแชทได้เลยค่ะ' },
+    { id: 'cr2', title: 'เวลาเปิดร้าน', text: 'ร้านเปิดทุกวัน 09:00–20:00 น. ค่ะ' },
+    { id: 'cr3', title: 'ราคาเริ่มต้น', text: 'เค้กครีม 1 ปอนด์ เริ่มต้น 450 บาท สั่งล่วงหน้าอย่างน้อย 1 วันค่ะ' },
+  ],
   // กฎแจ้งเตือน: event → ช่องทาง + ข้อความ (ตัวอย่าง)
   notifyRules: [
     rule('order_created', ['line', 'facebook', 'sms'], 'สวัสดีค่ะ {ชื่อลูกค้า} รับออร์เดอร์ {เลขออร์เดอร์} แล้ว ยอดรวม {ยอดรวม} นัด{ส่งมอบ} {วันนัด} {เวลานัด}'),
@@ -875,7 +883,7 @@ export const fbWindowLeft = (chat) => (chat?.lastInboundAt ? 24 * 3600e3 - (Date
 export const fbWindowOpen = (chat) => chat?.channel !== 'facebook' || fbWindowLeft(chat) > 0
 function newChat(channel, externalId, profileName) {
   const owner = db.customers.find((c) => c[idField(channel)] && c[idField(channel)] === externalId)
-  const c = { id: uid('ch'), channel, externalId, profileName: profileName || 'ไม่ทราบชื่อ', customerId: owner?.id || null, messages: [], unreadStaff: 0, lastInboundAt: null, updatedAt: now() }
+  const c = { id: uid('ch'), channel, externalId, profileName: profileName || 'ไม่ทราบชื่อ', customerId: owner?.id || null, messages: [], unreadStaff: 0, lastInboundAt: null, updatedAt: now(), pendingAsk: null }
   db.chats.unshift(c)
   return c
 }
@@ -884,7 +892,7 @@ export function sendChat(chatId, from, text, extra = {}) {
   const t = (text || '').trim()
   if (!c || (!t && !['order', 'quote'].includes(extra.kind))) return null
   const at = extra.at || now()
-  const m = { id: uid('cm'), from, kind: extra.kind || 'text', text: t, orderId: extra.orderId || null, quoteId: extra.quoteId || null, at, by: extra.by || (from === 'staff' ? session.role : 'ลูกค้า'), delivery: from === 'staff' ? 'simulated' : null }
+  const m = { id: uid('cm'), from, kind: extra.kind || 'text', text: t, orderId: extra.orderId || null, quoteId: extra.quoteId || null, replyTo: extra.replyTo || null, ask: extra.ask || null, answerFor: extra.answerFor || null, filled: extra.filled || null, at, by: extra.by || (from === 'staff' ? session.role : 'ลูกค้า'), delivery: from === 'staff' ? 'simulated' : null }
   c.messages.push(m)
   c.updatedAt = at
   if (from === 'customer') {
@@ -897,11 +905,95 @@ export function sendChat(chatId, from, text, extra = {}) {
   return m
 }
 // ข้อความเข้าจาก LINE/Facebook (ของจริงมาจาก webhook) · ผูกอัตโนมัติถ้า userId/PSID ตรงกับลูกค้า
+// ถ้ามีคำถามค้าง (ปุ่มถาม) ข้อความนี้ = คำตอบ → ผูกกับคำถามและกรอกลงร่างอัตโนมัติ
 export function receiveMessage(channel, externalId, profileName, text, at = null) {
   const c = db.chats.find((x) => x.channel === channel && x.externalId === externalId) || newChat(channel, externalId, profileName)
   if (profileName) c.profileName = profileName
-  sendChat(c.id, 'customer', text, { at })
+  const ask = c.pendingAsk
+  const parsed = ask ? parseAnswer(ask.field, text) : null
+  const m = sendChat(c.id, 'customer', text, { at, ...(ask ? { replyTo: ask.messageId, answerFor: ask.field } : {}) })
+  if (ask && parsed) {
+    m.filled = applyToDraft(c.id, parsed)
+    c.pendingAsk = null
+  }
   return c
+}
+
+// ---------- ถามลูกค้า / กรอกร่างจากแชท ----------
+export const ASK_FIELDS = {
+  phone: { label: 'ขอเบอร์', text: 'รบกวนขอเบอร์โทรติดต่อด้วยค่ะ' },
+  datetime: { label: 'ขอวันเวลารับ', text: 'ต้องการรับเค้กวันไหน เวลากี่โมงคะ' },
+  address: { label: 'ขอที่อยู่', text: 'รบกวนขอที่อยู่จัดส่งด้วยค่ะ' },
+  message: { label: 'ขอข้อความบนเค้ก', text: 'ต้องการเขียนข้อความบนเค้กว่าอะไรคะ' },
+  name: { label: 'ขอชื่อ', text: 'รบกวนขอชื่อผู้สั่งด้วยค่ะ' },
+}
+export function askCustomer(chatId, field) {
+  const c = findChat(chatId)
+  if (!c || !ASK_FIELDS[field]) return null
+  const m = sendChat(chatId, 'staff', ASK_FIELDS[field].text, { ask: field })
+  c.pendingAsk = { field, messageId: m.id }
+  return m
+}
+export function cancelAsk(chatId) {
+  const c = findChat(chatId)
+  if (c) c.pendingAsk = null
+}
+// กรอกข้อมูลลงร่างของแชท (หรือเบอร์ลูกค้าที่ผูกแล้ว) → คืนรายการที่กรอก [{ label, value }] + suggest (ลูกค้าที่เบอร์ตรง)
+export function applyToDraft(chatId, data) {
+  const c = findChat(chatId)
+  if (!c) return null
+  const d = draftOf(chatId)
+  const done = []
+  let suggest = null
+  if (data.phone) {
+    const cu = findCustomer(c.customerId)
+    if (cu && !phoneValid(cu.phone)) {
+      cu.phone = data.phone
+      done.push({ label: 'เบอร์ลูกค้า', value: formatPhone(data.phone) })
+    } else if (!cu) {
+      d.contactPhone = data.phone
+      done.push({ label: 'เบอร์ (ร่าง)', value: formatPhone(data.phone) })
+      const match = db.customers.find((x) => x.phone === data.phone)
+      if (match) suggest = match.id
+    } else done.push({ label: 'เบอร์', value: `${formatPhone(data.phone)} (ลูกค้ามีเบอร์แล้ว ไม่เปลี่ยน)` })
+  }
+  if (data.date) {
+    d.date = data.date
+    done.push({ label: 'วันนัด', value: dateOnly(data.date) })
+  }
+  if (data.time) {
+    d.time = data.time
+    done.push({ label: 'เวลา', value: data.time })
+  }
+  if (data.address) {
+    d.address = data.address
+    d.fulfillment = 'delivery'
+    done.push({ label: 'ที่อยู่จัดส่ง', value: data.address })
+  }
+  if (data.message) {
+    d.cakeMessage = data.message
+    const g = db.optionGroups.find((x) => x.type === 'text' && x.name.includes('ข้อความ'))
+    if (g) for (const it of d.items) if (!it.selections?.[g.id]) it.selections = { ...(it.selections || {}), [g.id]: data.message }
+    done.push({ label: 'ข้อความบนเค้ก', value: data.message })
+  }
+  if (data.name) {
+    d.contactName = data.name
+    done.push({ label: 'ชื่อ (ร่าง)', value: data.name })
+  }
+  return { done, suggest }
+}
+export const saveCanned = (d) => upsert(db.cannedReplies, 'cr', { ...d, title: d.title.trim(), text: d.text.trim() })
+export function removeCanned(id) {
+  const i = db.cannedReplies.findIndex((x) => x.id === id)
+  if (i >= 0) db.cannedReplies.splice(i, 1)
+}
+
+// ---------- เชื่อมบัญชี LINE OA / Facebook (จำลอง: ของจริง Facebook OAuth / LINE วาง token แล้วตั้ง webhook อัตโนมัติ) ----------
+export function connectIntegration(key, info) {
+  Object.assign(db.integrations[key], { status: 'connected', enabled: true, connectedAt: now(), accountName: info.accountName || '', accountId: info.accountId || '', tokenHint: info.tokenHint || '' })
+}
+export function disconnectIntegration(key) {
+  Object.assign(db.integrations[key], { status: 'not_connected', accountName: '', accountId: '', connectedAt: null, tokenHint: '' })
 }
 export function markRead(chatId) {
   const c = findChat(chatId)

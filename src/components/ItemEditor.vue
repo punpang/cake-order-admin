@@ -13,10 +13,11 @@ import DiscountDetail from './DiscountDetail.vue'
 const props = defineProps({
   item: { type: Object, default: null },
   priceDate: { type: String, default: '' }, // วันที่ใช้เลือกราคาพิเศษ (วันที่สร้างออร์เดอร์) ว่าง = วันนี้
+  defaults: { type: Object, default: null }, // ค่าเริ่มต้นของรายการใหม่ (เช่น ข้อความบนเค้กจากแชท) { [groupId]: value }
 })
 const emit = defineEmits(['save', 'close'])
 
-const blank = () => ({ id: `i${Date.now()}`, kind: 'ready', productId: null, name: '', qty: 1, note: '', images: [], selections: {}, tiers: [] })
+const blank = () => ({ id: `i${Date.now()}`, kind: 'ready', productId: null, name: '', qty: 1, note: '', images: [], selections: { ...(props.defaults || {}) }, tiers: [] })
 const form = reactive(props.item ? { tiers: [], ...JSON.parse(JSON.stringify(toRaw(props.item))) } : blank())
 
 // รายการสั่งทำเก่าที่ยังไม่มีชั้น: ย้ายตัวเลือกของกลุ่มแยกชั้นไปไว้ชั้นที่ 1
@@ -114,7 +115,7 @@ function setKind(k) {
   if (form.kind === k) return
   form.kind = k
   form.productId = null
-  form.selections = {}
+  form.selections = { ...(props.defaults || {}) }
   form.tiers = k === 'custom' ? [{ selections: {} }] : []
   layered.value = false
   errors.value = {}

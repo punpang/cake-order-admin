@@ -65,8 +65,15 @@ function pickCustomer(c) {
   form.customerId = c.id
   error.value = ''
 }
+// ข้อมูลที่ได้จากแชท (ปุ่มถาม/ชิป): ชื่อ เบอร์ ข้อความบนเค้ก
+const contactMatch = computed(() => (form.contactPhone && !customer.value ? db.customers.find((c) => c.phone === form.contactPhone) : null))
+const itemDefaults = computed(() => {
+  const g = db.optionGroups.find((x) => x.type === 'text' && x.name.includes('ข้อความ'))
+  return g && form.cakeMessage ? { [g.id]: form.cakeMessage } : null
+})
 function openNew() {
-  newCus.name = q.value || (props.embedded ? chat.value?.profileName || '' : '')
+  if (props.embedded && form.contactPhone) newCus.phone = form.contactPhone
+  newCus.name = q.value || (props.embedded ? form.contactName || chat.value?.profileName || '' : '')
   showNew.value = true
   error.value = ''
 }
@@ -230,6 +237,13 @@ function quote() {
         </div>
       </div>
       <p v-if="embedded && !customer" class="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">แชทนี้ยังไม่ได้ผูกบัญชีลูกค้า ค้นหาลูกค้าเดิมหรือสร้างใหม่ (ข้ามไปก่อนได้ แต่ต้องผูกและมีเบอร์ก่อนบันทึก)</p>
+      <div v-if="embedded && !customer && (form.contactPhone || form.contactName)" class="mb-3 rounded-xl border border-brand-200 bg-brand-50 p-3 text-sm">
+        <div class="text-brand-900">ได้จากแชท: <b>{{ form.contactName || '-' }}</b> · {{ form.contactPhone ? formatPhone(form.contactPhone) : 'ยังไม่มีเบอร์' }}</div>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <button v-if="contactMatch" type="button" class="btn-primary h-9 px-3 text-sm" @click="pickCustomer(contactMatch)">ผูกกับ {{ contactMatch.name }} (เบอร์ตรง)</button>
+          <button v-else type="button" class="btn-soft h-9 px-3 text-sm" @click="openNew">สร้างลูกค้าจากข้อมูลนี้</button>
+        </div>
+      </div>
 
       <template v-else-if="!showNew">
         <label class="relative mb-3 block">
@@ -436,6 +450,6 @@ function quote() {
       </div>
     </div>
 
-    <ItemEditor v-if="editing" :item="editing.item || null" @save="onSaveItem" @close="editing = null" />
+    <ItemEditor v-if="editing" :item="editing.item || null" :defaults="itemDefaults" @save="onSaveItem" @close="editing = null" />
   </div>
 </template>

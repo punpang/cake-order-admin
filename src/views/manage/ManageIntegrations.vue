@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { db, findOrder, saveNotifyRule, runScheduledChecks, clearOutbox, fillTemplate } from '../../data/store'
+import { db, findOrder, saveNotifyRule, runScheduledChecks, clearOutbox, fillTemplate, connectIntegration, disconnectIntegration } from '../../data/store'
 import { CHANNELS, NOTIFY_EVENTS, NOTIFY_VARS } from '../../lib/constants'
 import { askConfirm } from '../../lib/confirm'
 import { dateTime } from '../../lib/format'
@@ -55,6 +55,55 @@ async function clear() {
 }
 const showAll = ref(false)
 const outbox = computed(() => (showAll.value ? db.outbox : db.outbox.slice(0, 20)))
+
+// ---------- เชื่อมบัญชี (จำลอง) ----------
+// Facebook: คลิกเดียว (Login → เลือกเพจ) · LINE OA: วาง token ครั้งเดียว แล้วระบบตั้ง webhook + ทดสอบให้
+// ไม่เก็บ token จริงในหน้าเว็บ เก็บแค่ 4 ตัวท้ายไว้แสดง (ของจริงส่งไปเก็บที่เซิร์ฟเวอร์)
+const CONNECTABLE = ['facebook', 'line']
+const SAMPLE_PAGES = [
+  { id: '104512345678901', name: db.shop.name },
+  { id: '104598765432109', name: `${db.shop.name} สาขา 2` },
+]
+const FB_STEPS = ['ขอสิทธิ์รับ-ส่งข้อความของเพจ', 'สมัครรับ webhook ของเพจ', 'ทดสอบรับข้อความ']
+const LINE_STEPS = ['ตรวจ Channel access token', 'ตั้ง Webhook URL อัตโนมัติ', 'ทดสอบ webhook']
+const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+
+const conn = reactive({ key: '', stage: 'start', pageId: '', token: '', secret: '', done: 0, error: '' })
+function openConnect(k) {
+  Object.assign(conn, { key: k, stage: 'start', pageId: SAMPLE_PAGES[0].id, token: '', secret: '', done: 0, error: '' })
+}
+const closeConnect = () => (conn.key = '')
+const connSteps = computed(() => (conn.key === 'facebook' ? FB_STEPS : LINE_STEPS))
+async function fbLogin() {
+  conn.stage = 'login'
+  await wait(700)
+  conn.stage = 'pick'
+}
+async function runConnect() {
+  conn.error = ''
+  if (conn.key === 'line' && conn.token.trim().length < 20) return (conn.error = 'Channel access token สั้นเกินไป ตรวจสอบอีกครั้ง')
+  if (conn.key === 'line' && !conn.secret.trim()) return (conn.error = 'กรอก Channel secret')
+  conn.stage = 'steps'
+  conn.done = 0
+  for (let i = 0; i < connSteps.value.length; i++) {
+    await wait(600)
+    conn.done = i + 1
+  }
+  const info =
+    conn.key === 'facebook'
+      ? (() => {
+          const pg = SAMPLE_PAGES.find((x) => x.id === conn.pageId)
+          return { accountName: pg.name, accountId: pg.id, tokenHint: '' }
+        })()
+      : { accountName: '@bannkhanom', accountId: 'U' + conn.token.trim().slice(-8), tokenHint: conn.token.trim().slice(-4) }
+  connectIntegration(conn.key, info)
+  conn.token = ''
+  conn.secret = ''
+  conn.stage = 'done'
+}
+async function disconnect(k) {
+  if (await askConfirm({ title: `ยกเลิกการเชื่อม ${CHANNELS[k].label}`, message: `${db.integrations[k].accountName} · แชทใหม่จากช่องทางนี้จะไม่เข้ามา`, okText: 'ยกเลิกการเชื่อม', danger: true })) disconnectIntegration(k)
+}
 </script>
 
 <template>
@@ -72,10 +121,18 @@ const outbox = computed(() => (showAll.value ? db.outbox : db.outbox.slice(0, 20
           <AppSwitch v-model="db.integrations[k].enabled" />
         </div>
         <div class="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
-          <span class="rounded-full bg-stone-100 px-2 py-0.5 text-stone-600">ยังไม่เชื่อมต่อ (รอต่อเซิร์ฟเวอร์)</span>
+          <span v-if="db.integrations[k].status === 'connected'" class="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">เชื่อมแล้ว · {{ db.integrations[k].accountName }}</span>
+          <span v-else class="rounded-full bg-stone-100 px-2 py-0.5 text-stone-600">{{ CONNECTABLE.includes(k) ? 'ยังไม่เชื่อม' : 'ยังไม่เชื่อมต่อ (รอต่อเซิร์ฟเวอร์)' }}</span>
           <span class="rounded-full bg-brand-50 px-2 py-0.5 text-brand-800">{{ c.audience === 'team' ? 'แจ้งทีมภายใน' : 'ส่งลูกค้า' }}</span>
         </div>
         <p class="text-xs text-stone-500">{{ c.prep }}</p>
+        <template v-if="CONNECTABLE.includes(k)">
+          <div v-if="db.integrations[k].status === 'connected'" class="mt-3 flex flex-wrap items-center gap-2">
+            <span class="text-xs text-stone-500">เมื่อ {{ dateTime(db.integrations[k].connectedAt) }}<template v-if="db.integrations[k].tokenHint"> · token ••••{{ db.integrations[k].tokenHint }}</template></span>
+            <button type="button" class="btn-outline ml-auto h-9 px-3 text-sm" @click="disconnect(k)">ยกเลิกการเชื่อม</button>
+          </div>
+          <button v-else type="button" class="btn-primary mt-3 h-10 w-full" @click="openConnect(k)">{{ k === 'facebook' ? 'เชื่อม Facebook' : 'เชื่อม LINE OA' }}</button>
+        </template>
       </section>
     </div>
 
@@ -172,6 +229,54 @@ const outbox = computed(() => (showAll.value ? db.outbox : db.outbox.slice(0, 20
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>
         <button class="btn-primary flex-1 sm:flex-none" :disabled="!form.template.trim()" @click="saveTpl">บันทึก</button>
+      </template>
+    </AppModal>
+
+    <!-- modal เชื่อมบัญชี -->
+    <AppModal v-if="conn.key" :title="conn.key === 'facebook' ? 'เชื่อม Facebook Page' : 'เชื่อม LINE OA'" @close="closeConnect">
+      <p class="mb-3 rounded-xl bg-amber-50 p-2 text-xs text-amber-800">จำลองขั้นตอน · ต่อจริงเมื่อมีเซิร์ฟเวอร์ (Supabase)</p>
+      <!-- Facebook -->
+      <template v-if="conn.key === 'facebook'">
+        <div v-if="conn.stage === 'start' || conn.stage === 'login'" class="space-y-3 text-sm text-stone-600">
+          <p>เข้าสู่ระบบด้วยบัญชีที่เป็นแอดมินเพจ แล้วเลือกเพจที่ต้องการให้แชทเข้ามาที่ศูนย์รวมแชท</p>
+          <button type="button" class="btn-primary h-11 w-full" :disabled="conn.stage === 'login'" @click="fbLogin">{{ conn.stage === 'login' ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบด้วย Facebook' }}</button>
+        </div>
+        <div v-else-if="conn.stage === 'pick'" class="space-y-2">
+          <div class="label">เลือกเพจ</div>
+          <label v-for="pg in SAMPLE_PAGES" :key="pg.id" class="flex cursor-pointer items-center gap-3 rounded-xl border p-3" :class="conn.pageId === pg.id ? 'border-brand-400 bg-brand-50' : 'border-stone-200'">
+            <input v-model="conn.pageId" type="radio" :value="pg.id" />
+            <span class="font-medium text-stone-900">{{ pg.name }}</span>
+          </label>
+        </div>
+      </template>
+      <!-- LINE -->
+      <div v-else-if="conn.stage === 'start'" class="space-y-3">
+        <p class="text-sm text-stone-600">
+          คัดลอกจาก <a href="https://developers.line.biz/console/" target="_blank" rel="noopener" class="text-brand-700 underline">LINE Developers Console</a> → เลือก Channel (Messaging API) · วางครั้งเดียว ระบบตั้ง Webhook และทดสอบให้อัตโนมัติ
+        </p>
+        <div>
+          <label class="label">Channel access token (long-lived)</label>
+          <input v-model="conn.token" type="password" class="input" autocomplete="off" />
+        </div>
+        <div>
+          <label class="label">Channel secret</label>
+          <input v-model="conn.secret" type="password" class="input" autocomplete="off" />
+        </div>
+        <p v-if="conn.error" class="text-sm text-rose-600">{{ conn.error }}</p>
+      </div>
+      <!-- ขั้นตอนเชื่อม -->
+      <ul v-if="conn.stage === 'steps' || conn.stage === 'done'" class="space-y-2">
+        <li v-for="(t, i) in connSteps" :key="t" class="flex items-center gap-2 text-sm" :class="i < conn.done ? 'text-emerald-700' : 'text-stone-400'">
+          <AppIcon :name="i < conn.done ? 'check' : 'clock'" :size="16" /> {{ t }}
+        </li>
+      </ul>
+      <p v-if="conn.stage === 'done'" class="mt-3 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">เชื่อมแล้ว · {{ db.integrations[conn.key].accountName }}</p>
+      <template #footer>
+        <button v-if="conn.stage === 'done'" class="btn-primary flex-1 sm:flex-none" @click="closeConnect">เสร็จ</button>
+        <template v-else>
+          <button class="btn-outline flex-1 sm:flex-none" :disabled="conn.stage === 'steps'" @click="closeConnect">ยกเลิก</button>
+          <button v-if="conn.key === 'facebook' ? conn.stage === 'pick' : conn.stage === 'start'" class="btn-primary flex-1 sm:flex-none" @click="runConnect">เชื่อมต่อ</button>
+        </template>
       </template>
     </AppModal>
   </ManageShell>

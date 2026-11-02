@@ -57,6 +57,7 @@ pg_cron (ทุก 15 นาที) ──▶ Edge Function: scheduled (เต�
 - **API:** push message `POST /v2/bot/message/push` (ตอบกลับภายในแชทใช้ reply ฟรี)
 - **ค่าใช้จ่าย:** push นับโควตาตามแพ็กเกจ OA เกินโควตาคิดเงิน
 - **รับแชท:** webhook `message` → ตาราง messages
+- **ปุ่ม "เชื่อม LINE OA" (วาง token ครั้งเดียว):** หน้าเว็บส่ง token + secret ไป Edge Function `connect-line` (เก็บใน DB ฝั่งเซิร์ฟเวอร์ หน้าเว็บเก็บแค่ 4 ตัวท้าย) → `GET /v2/bot/info` ตรวจ token + ได้ชื่อบอท → `PUT /v2/bot/channel/webhook/endpoint` ตั้ง Webhook URL → `POST /v2/bot/channel/webhook/test` ทดสอบ · LINE ไม่มีปุ่มคลิกเดียวสำหรับร้านทั่วไป (ต้องเป็นพาร์ทเนอร์ LINE)
 
 ### 3. SMS (ลูกค้า สำรอง)
 - **เตรียม:** สมัครผู้ให้บริการ SMS ไทย (เช่น ThaiBulkSMS, SMSMKT) → API key + ขอชื่อผู้ส่ง (sender name ต้องรออนุมัติ)
@@ -68,6 +69,7 @@ pg_cron (ทุก 15 นาที) ──▶ Edge Function: scheduled (เต�
 - **ผูกลูกค้า:** ได้ `PSID` เมื่อลูกค้าทักเพจ → ผูกในหน้าแชท
 - **ข้อจำกัด:** ส่งได้ภายใน 24 ชม. หลังลูกค้าทักล่าสุด นอกช่วงต้องใช้ message tag ที่อนุญาต (เช่น `POST_PURCHASE_UPDATE` สำหรับแจ้งสถานะออร์เดอร์) ห้ามใช้ส่งโปร
 - **API:** Send API `POST /me/messages`
+- **ปุ่ม "เชื่อม Facebook" (คลิกเดียว):** Facebook Login for Business ขอสิทธิ์ `pages_show_list`, `pages_messaging`, `pages_manage_metadata` → Edge Function แลก long-lived user token → `GET /me/accounts` ให้เลือกเพจ → เก็บ Page Access Token ฝั่งเซิร์ฟเวอร์ → `POST /{page-id}/subscribed_apps` (fields=messages,messaging_postbacks) สมัครรับ webhook
 
 ## เหตุการณ์ → ช่องทาง (ค่าเริ่มต้น)
 
@@ -99,6 +101,7 @@ pg_cron (ทุก 15 นาที) ──▶ Edge Function: scheduled (เต�
 - ผูกแชทกับลูกค้า (ค้นชื่อ/เบอร์) → เก็บ `line_user_id` / `fb_psid`
 - ตอบกลับจากหลังบ้าน (LINE reply/push, Facebook ภายใน 24 ชม.)
 - ปุ่ม "สร้างออร์เดอร์จากแชท" เติมลูกค้าให้อัตโนมัติ
+- **แชทอัจฉริยะ (ทำแล้วในหน้าเว็บ `src/lib/chatParse.js`):** จับเบอร์ / วันที่ / เวลาในข้อความลูกค้าเป็นชิป กดเพื่อกรอกลงร่างออร์เดอร์ · ปุ่มถาม (ขอเบอร์ / วันเวลารับ / ที่อยู่ / ข้อความบนเค้ก / ชื่อ) คำตอบถัดไปของลูกค้าผูกกับคำถามและกรอกลงร่างอัตโนมัติ · ตอบกลับอ้างข้อความ · ข้อความสำเร็จรูป
 
 ## Checklist เปิดใช้งานจริง
 1. ต่อ Supabase (ตาราง + RLS + Edge Functions `dispatch`, `scheduled`) และย้าย `notify()` จาก `src/data/store.js` ไปเขียนแถว outbox
