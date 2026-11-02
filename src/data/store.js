@@ -171,14 +171,14 @@ export const db = reactive({
   integrations: Object.fromEntries(Object.keys(CHANNELS).map((k) => [k, { enabled: true, status: 'not_connected' }])),
   // กฎแจ้งเตือน: event → ช่องทาง + ข้อความ (ตัวอย่าง)
   notifyRules: [
-    rule('order_created', ['webchat', 'line', 'facebook', 'sms'], 'สวัสดีค่ะ {ชื่อลูกค้า} รับออร์เดอร์ {เลขออร์เดอร์} แล้ว ยอดรวม {ยอดรวม} นัด{ส่งมอบ} {วันนัด} {เวลานัด}'),
-    rule('payment_requested', ['webchat', 'line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง})'),
-    rule('payment_confirmed', ['webchat', 'line', 'facebook', 'sms'], 'ได้รับชำระออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ คงค้าง {คงค้าง}'),
-    rule('pickup_reminder', ['webchat', 'line', 'facebook', 'sms'], 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
-    rule('delivered', ['webchat', 'line', 'facebook'], 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ'),
-    rule('cancelled', ['webchat', 'line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว หากมีข้อสงสัยติดต่อร้านได้เลยค่ะ'),
-    rule('birthday', ['webchat', 'line', 'facebook'], 'สุขสันต์วันเกิดล่วงหน้า {ชื่อวันเกิด} สั่งเค้กกับเราได้เลยค่ะ'),
-    rule('points_expiring', ['webchat', 'line', 'facebook'], '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ ใช้ก่อนหมดนะคะ'),
+    rule('order_created', ['line', 'facebook', 'sms'], 'สวัสดีค่ะ {ชื่อลูกค้า} รับออร์เดอร์ {เลขออร์เดอร์} แล้ว ยอดรวม {ยอดรวม} นัด{ส่งมอบ} {วันนัด} {เวลานัด}'),
+    rule('payment_requested', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง})'),
+    rule('payment_confirmed', ['line', 'facebook', 'sms'], 'ได้รับชำระออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ คงค้าง {คงค้าง}'),
+    rule('pickup_reminder', ['line', 'facebook', 'sms'], 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
+    rule('delivered', ['line', 'facebook'], 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ'),
+    rule('cancelled', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว หากมีข้อสงสัยติดต่อร้านได้เลยค่ะ'),
+    rule('birthday', ['line', 'facebook'], 'สุขสันต์วันเกิดล่วงหน้า {ชื่อวันเกิด} สั่งเค้กกับเราได้เลยค่ะ'),
+    rule('points_expiring', ['line', 'facebook'], '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ ใช้ก่อนหมดนะคะ'),
     rule('team_new_order', ['telegram'], '[ออร์เดอร์ใหม่] {เลขออร์เดอร์} {ชื่อลูกค้า} {ยอดรวม} นัด {วันนัด} {เวลานัด}'),
     rule('team_payment_confirmed', ['telegram'], '[ชำระแล้ว] {เลขออร์เดอร์} คงค้าง {คงค้าง}'),
     rule('team_due_soon', ['telegram'], '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน 2 ชม. (นัด {เวลานัด})'),
@@ -188,7 +188,7 @@ export const db = reactive({
   outbox: [],
   notifySent: [],
 
-  // ---------- แชทในเว็บ (จำลองในเครื่อง) ----------
+  // ---------- ศูนย์รวมแชท LINE OA + Facebook (จำลอง) ----------
   // messages: { from: 'customer' | 'staff', kind: 'text' | 'order', text, orderId, at, by }
   chats: [],
   chatDrafts: {}, // ร่างออร์เดอร์ต่อแชท { [chatId]: form } สลับไปมาข้อมูลไม่หาย
@@ -775,7 +775,7 @@ nearLot.expiresAt = addDays(today(), 10)
 // ---------- การเชื่อมต่อ & แจ้งเตือน (จำลอง) ----------
 // ทีม = Telegram · ลูกค้า = ช่องทางแรกตามลำดับ LINE → Facebook → SMS ที่ (เปิดในกฎ + เปิดใช้ช่องทาง + ลูกค้ามีข้อมูล)
 const TEAM_OF = { order_created: 'team_new_order', payment_confirmed: 'team_payment_confirmed', cancelled: 'team_cancelled' }
-const customerAddr = (c, ch) => (ch === 'webchat' ? (c && db.chats.some((x) => x.customerId === c.id) ? c.id : '') : ch === 'line' ? c?.lineUserId : ch === 'facebook' ? c?.fbPsid : ch === 'sms' ? c?.phone : '')
+const customerAddr = (c, ch) => (ch === 'line' ? c?.lineUserId : ch === 'facebook' ? c?.fbPsid : ch === 'sms' ? c?.phone : '')
 export function fillTemplate(tpl, vars) {
   return Object.entries(vars).reduce((s, [k, v]) => s.split(`{${k}}`).join(v ?? ''), tpl || '')
 }
@@ -796,11 +796,12 @@ function orderVars(order, extra = {}) {
   }
 }
 function pushOut(event, channel, to, text, orderId = null, customer = null) {
-  // แชทในเว็บ: ส่งเข้าแชทจริง (สร้างออร์เดอร์ = การ์ดสรุป)
-  if (channel === 'webchat' && customer) {
+  // ส่งทาง LINE/Facebook: ลงเธรดของช่องทางนั้นในศูนย์รวมแชทด้วย (สร้างออร์เดอร์ = การ์ดสรุป)
+  const chat = customer && (channel === 'line' || channel === 'facebook') ? chatFor(customer.id, channel) : null
+  if (chat) {
     const order = orderId ? findOrder(orderId) : null
-    if (event === 'order_created' && order) postOrderCard(order)
-    else sendChat(chatOf(customer.id).id, 'staff', text, { orderId, by: 'ระบบ' })
+    if (event === 'order_created' && order) postOrderCard(order, chat)
+    else sendChat(chat.id, 'staff', text, { orderId, by: 'ระบบ' })
   }
   db.outbox.unshift({ id: uid('msg'), at: now(), event, channel, to, text, orderId, status: channel ? 'simulated' : 'no_channel' })
 }
@@ -862,37 +863,70 @@ export const saveNotifyRule = (event, d) => {
 }
 export const clearOutbox = () => db.outbox.splice(0)
 
-// ---------- แชทในเว็บ (จำลองในเครื่อง) ----------
+// ---------- ศูนย์รวมแชท LINE OA + Facebook (จำลอง: ของจริงรับผ่าน webhook ส่งผ่าน Reply/Push/Send API) ----------
+// chat: { channel: 'line' | 'facebook', externalId (LINE userId / FB PSID), profileName, customerId (null = ยังไม่ผูก), lastInboundAt }
 export const findChat = (id) => db.chats.find((c) => c.id === id)
-export function chatOf(customerId) {
-  let c = db.chats.find((x) => x.customerId === customerId)
-  if (!c) {
-    c = { id: uid('ch'), customerId, messages: [], unreadStaff: 0, unreadCustomer: 0, updatedAt: now() }
-    db.chats.unshift(c)
-  }
+const idField = (channel) => (channel === 'line' ? 'lineUserId' : 'fbPsid')
+export const chatsOfCustomer = (customerId) => db.chats.filter((c) => c.customerId === customerId)
+// แชทของลูกค้าในช่องทางนั้น (หรือแชทล่าสุดถ้าไม่ระบุช่องทาง)
+export const chatFor = (customerId, channel = null) => db.chats.find((c) => c.customerId === customerId && (!channel || c.channel === channel)) || null
+// Facebook ตอบข้อความทั่วไปได้ภายใน 24 ชม. หลังลูกค้าทักล่าสุด
+export const fbWindowLeft = (chat) => (chat?.lastInboundAt ? 24 * 3600e3 - (Date.now() - new Date(chat.lastInboundAt).getTime()) : 0)
+export const fbWindowOpen = (chat) => chat?.channel !== 'facebook' || fbWindowLeft(chat) > 0
+function newChat(channel, externalId, profileName) {
+  const owner = db.customers.find((c) => c[idField(channel)] && c[idField(channel)] === externalId)
+  const c = { id: uid('ch'), channel, externalId, profileName: profileName || 'ไม่ทราบชื่อ', customerId: owner?.id || null, messages: [], unreadStaff: 0, lastInboundAt: null, updatedAt: now() }
+  db.chats.unshift(c)
   return c
 }
 export function sendChat(chatId, from, text, extra = {}) {
   const c = findChat(chatId)
   const t = (text || '').trim()
   if (!c || (!t && !['order', 'quote'].includes(extra.kind))) return null
-  const m = { id: uid('cm'), from, kind: extra.kind || 'text', text: t, orderId: extra.orderId || null, quoteId: extra.quoteId || null, at: now(), by: extra.by || (from === 'staff' ? session.role : 'ลูกค้า') }
+  const at = extra.at || now()
+  const m = { id: uid('cm'), from, kind: extra.kind || 'text', text: t, orderId: extra.orderId || null, quoteId: extra.quoteId || null, at, by: extra.by || (from === 'staff' ? session.role : 'ลูกค้า'), delivery: from === 'staff' ? 'simulated' : null }
   c.messages.push(m)
-  c.updatedAt = m.at
-  if (from === 'customer') c.unreadStaff++
-  else c.unreadCustomer++
+  c.updatedAt = at
+  if (from === 'customer') {
+    c.unreadStaff++
+    c.lastInboundAt = at
+  }
   // แชทล่าสุดขึ้นบนสุด
   db.chats.splice(db.chats.indexOf(c), 1)
   db.chats.unshift(c)
   return m
 }
-export function markRead(chatId, side) {
-  const c = findChat(chatId)
-  if (c) c[side === 'staff' ? 'unreadStaff' : 'unreadCustomer'] = 0
+// ข้อความเข้าจาก LINE/Facebook (ของจริงมาจาก webhook) · ผูกอัตโนมัติถ้า userId/PSID ตรงกับลูกค้า
+export function receiveMessage(channel, externalId, profileName, text, at = null) {
+  const c = db.chats.find((x) => x.channel === channel && x.externalId === externalId) || newChat(channel, externalId, profileName)
+  if (profileName) c.profileName = profileName
+  sendChat(c.id, 'customer', text, { at })
+  return c
 }
-// การ์ดสรุปออร์เดอร์ในแชท
-export function postOrderCard(order) {
-  const c = order.chatId ? findChat(order.chatId) : chatOf(order.customerId)
+export function markRead(chatId) {
+  const c = findChat(chatId)
+  if (c) c.unreadStaff = 0
+}
+// ผูกแชทกับลูกค้า (จำ LINE userId / FB PSID ไว้กับลูกค้า)
+export function linkChat(chatId, customerId) {
+  const c = findChat(chatId)
+  const cu = findCustomer(customerId)
+  if (!c || !cu) return
+  c.customerId = cu.id
+  cu[idField(c.channel)] = c.externalId
+  const d = db.chatDrafts[c.id]
+  if (d) d.customerId = cu.id
+}
+export function createCustomerFromChat(chatId) {
+  const c = findChat(chatId)
+  if (!c) return null
+  const cu = addCustomer({ name: c.profileName, line: '', note: `จาก ${c.channel === 'line' ? 'LINE OA' : 'Facebook'}` })
+  linkChat(chatId, cu.id)
+  return cu
+}
+// การ์ดสรุปออร์เดอร์ในแชท (แชทของออร์เดอร์ ถ้าไม่มีใช้แชทล่าสุดของลูกค้า)
+export function postOrderCard(order, chat = null) {
+  const c = chat || (order.chatId ? findChat(order.chatId) : chatFor(order.customerId))
   if (!c) return
   if (!order.chatId) order.chatId = c.id
   sendChat(c.id, 'staff', '', { kind: 'order', orderId: order.id, by: 'ระบบ' })
@@ -1048,16 +1082,19 @@ export function addStock(item, n) {
   item.stock = Math.max(0, (Number(item.stock) || 0) + (Number(n) || 0))
 }
 
-// ตัวอย่างแชท
+// ตัวอย่างแชท (LINE ผูกแล้ว / LINE ยังไม่ผูก / Facebook ผูกแล้ว / Facebook เกิน 24 ชม.)
 function seedChats() {
-  const c1 = chatOf('c1')
-  sendChat(c1.id, 'customer', 'สวัสดีค่ะ อยากสั่งเค้กวันเกิดคุณแม่ 2 ปอนด์ค่ะ')
-  sendChat(c1.id, 'staff', 'ได้เลยค่ะ ต้องการรับวันไหน เวลากี่โมงคะ', { by: 'sales' })
+  const ago = (h) => new Date(Date.now() - h * 3600e3).toISOString()
+  const c1 = receiveMessage('line', 'U-demo-mali', 'Mali', 'สวัสดีค่ะ อยากสั่งเค้กวันเกิดคุณแม่ 2 ปอนด์ค่ะ', ago(3))
+  sendChat(c1.id, 'staff', 'ได้เลยค่ะ ต้องการรับวันไหน เวลากี่โมงคะ', { by: 'sales', at: ago(2.9) })
   const o1 = db.orders.find((o) => o.customerId === 'c1' && o.code === 'OR-0001')
-  if (o1) postOrderCard(o1)
-  sendChat(c1.id, 'customer', 'ขอบคุณค่ะ เดี๋ยวโอนให้นะคะ')
-  const c2 = chatOf('c3')
-  sendChat(c2.id, 'customer', 'สอบถามเค้กสำหรับงานบริษัท 5 ปอนด์ ราคาเท่าไหร่คะ')
+  if (o1) postOrderCard(o1, c1)
+  receiveMessage('line', 'U-demo-mali', 'Mali', 'ขอบคุณค่ะ เดี๋ยวโอนให้นะคะ')
+  receiveMessage('line', 'U-demo-ploy', 'Ploy', 'มีเค้กหน้านิ่ม 1 ปอนด์ พรุ่งนี้ไหมคะ')
+  db.customers.find((c) => c.id === 'c3').fbPsid = 'PSID-sweetco'
+  receiveMessage('facebook', 'PSID-sweetco', 'Sweet Co.', 'สอบถามเค้กสำหรับงานบริษัท 5 ปอนด์ ราคาเท่าไหร่คะ', ago(1))
+  const old = receiveMessage('facebook', 'PSID-old', 'Nok Nok', 'ยังรับออร์เดอร์อยู่ไหมคะ', ago(30))
+  old.unreadStaff = 0
 }
 
 // ข้อมูลตัวอย่าง (เรียกท้ายไฟล์ หลังประกาศฟังก์ชันทั้งหมด)

@@ -1,21 +1,21 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { findOrder, sendChat, markRead, findQuote, acceptQuote, reviseQuote } from '../data/store'
+import { findOrder, sendChat, markRead, findQuote, acceptQuote, reviseQuote, fbWindowOpen } from '../data/store'
 import { orderTotals, discountLines } from '../lib/pricing'
 import { STATUS } from '../lib/constants'
 import { money, dateTime, timeOnly, dateOnly } from '../lib/format'
 import AppIcon from './AppIcon.vue'
 import DiscountDetail from './DiscountDetail.vue'
 
-// เธรดแชท ใช้ทั้งฝั่งพนักงาน (side = staff) และลูกค้า (side = customer)
-const props = defineProps({
-  chat: { type: Object, required: true },
-  side: { type: String, default: 'staff' },
-})
+// เธรดแชทของศูนย์รวมแชท (ฝั่งพนักงาน) · ข้อความจากลูกค้ามาจาก LINE OA / Facebook (จำลอง)
+const props = defineProps({ chat: { type: Object, required: true } })
 const emit = defineEmits(['edit-draft'])
 const text = ref('')
 const box = ref(null)
-const mine = (m) => m.from === props.side
+const mine = (m) => m.from === 'staff'
+const channelLabel = computed(() => (props.chat.channel === 'facebook' ? 'Facebook' : 'LINE'))
+// Facebook เกิน 24 ชม. หลังลูกค้าทักล่าสุด → พิมพ์ตอบไม่ได้ (การ์ดออร์เดอร์/ยอดชำระยังส่งได้)
+const canType = computed(() => fbWindowOpen(props.chat))
 
 function scrollEnd() {
   nextTick(() => {
@@ -23,8 +23,8 @@ function scrollEnd() {
   })
 }
 function send() {
-  if (!text.value.trim()) return
-  sendChat(props.chat.id, props.side, text.value)
+  if (!text.value.trim() || !canType.value) return
+  sendChat(props.chat.id, 'staff', text.value)
   text.value = ''
 }
 function onKey(e) {
@@ -36,11 +36,11 @@ function onKey(e) {
 }
 const count = computed(() => props.chat.messages.length)
 watch(count, () => {
-  markRead(props.chat.id, props.side)
+  markRead(props.chat.id)
   scrollEnd()
 })
 onMounted(() => {
-  markRead(props.chat.id, props.side)
+  markRead(props.chat.id)
   scrollEnd()
 })
 
@@ -100,7 +100,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
               <span class="text-xs text-stone-500">ยอดรวม <b class="block text-base text-stone-900">{{ money(card(m).t.total) }}</b></span>
               <span class="text-right text-xs" :class="card(m).t.balance > 0 ? 'text-amber-700' : 'text-brand-700'">{{ card(m).t.balance > 0 ? `ค้าง ${money(card(m).t.balance)}` : 'ชำระครบ' }}</span>
             </div>
-            <RouterLink v-if="side === 'staff'" :to="`/orders/${card(m).o.id}`" class="btn-soft mt-2 h-9 w-full text-sm">เปิดออร์เดอร์</RouterLink>
+            <RouterLink :to="`/orders/${card(m).o.id}`" class="btn-soft mt-2 h-9 w-full text-sm">เปิดออร์เดอร์</RouterLink>
           </div>
           <!-- ใบเสนอ -->
           <div v-else-if="m.kind === 'quote' && quoteView(m)" class="w-80 max-w-[90%] rounded-2xl border-2 border-brand-200 bg-white p-3 shadow-sm" :class="quoteView(m).q.status === 'superseded' ? 'opacity-60' : ''">
@@ -119,8 +119,14 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
               <span class="text-xs text-stone-500">ยอดรวม</span>
               <DiscountDetail :full="quoteView(m).t.full + quoteView(m).t.shipping" :final="quoteView(m).t.total" :lines="quoteView(m).lines" />
             </div>
-            <!-- ลูกค้า: ยืนยัน / ขอแก้ -->
-            <template v-if="side === 'customer' && quoteView(m).q.status === 'pending'">
+            <!-- ปุ่มที่ลูกค้าเห็นใน LINE/FB (ของจริงกดแล้วส่ง postback ผ่าน webhook) · ตอนนี้จำลองให้พนักงานกดแทน -->
+            <template v-if="quoteView(m).q.status === 'pending'">
+              <div class="mt-2 grid grid-cols-2 gap-2 opacity-70">
+                <span class="flex h-9 items-center justify-center rounded-lg border border-stone-200 text-sm text-stone-600">ขอแก้</span>
+                <span class="flex h-9 items-center justify-center rounded-lg bg-brand-600 text-sm font-semibold text-white">ยืนยันสั่ง</span>
+              </div>
+              <div class="mt-2 rounded-lg border border-dashed border-amber-300 bg-amber-50 p-2">
+              <div class="mb-1.5 text-[11px] font-semibold text-amber-700">จำลองลูกค้ากดใน {{ channelLabel }}</div>
               <div v-if="reviseFor === quoteView(m).q.id" class="mt-2 space-y-2">
                 <input v-model="reviseText" class="input h-10" placeholder="อยากแก้อะไร (ไม่บังคับ)" />
                 <div class="flex gap-2">
@@ -133,9 +139,10 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
                 <button type="button" class="btn-primary h-10 flex-[1.4]" @click="accept(quoteView(m).q)"><AppIcon name="check" :size="16" /> ยืนยันสั่ง</button>
               </div>
               <p v-if="quoteError" class="mt-1 text-xs text-rose-600">{{ quoteError }}</p>
+              </div>
             </template>
             <!-- พนักงาน -->
-            <template v-if="side === 'staff'">
+            <template v-if="true">
               <RouterLink v-if="quoteView(m).q.orderId" :to="`/orders/${quoteView(m).q.orderId}`" class="btn-soft mt-2 h-9 w-full text-sm">เปิดออร์เดอร์</RouterLink>
               <button v-else-if="['pending', 'revise'].includes(quoteView(m).q.status)" type="button" class="btn-outline mt-2 h-9 w-full text-sm" @click="emit('edit-draft')">แก้ร่างแล้วส่งใหม่</button>
             </template>
@@ -143,15 +150,16 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
           <!-- ข้อความ -->
           <div v-else class="max-w-[80%]">
             <div class="rounded-2xl px-3.5 py-2 text-[15px] break-words whitespace-pre-line" :class="mine(m) ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md bg-white text-stone-900 ring-1 ring-stone-200'">{{ m.text }}</div>
-            <div class="mt-0.5 px-1 text-[11px] text-stone-400" :class="mine(m) ? 'text-right' : ''">{{ timeOnly(m.at) }}<template v-if="side === 'staff' && m.from === 'staff' && m.by === 'ระบบ'"> · อัตโนมัติ</template></div>
+            <div class="mt-0.5 px-1 text-[11px] text-stone-400" :class="mine(m) ? 'text-right' : ''">{{ timeOnly(m.at) }}<template v-if="m.from === 'staff'"> · ส่งทาง {{ channelLabel }} (จำลอง)<template v-if="m.by === 'ระบบ'"> · อัตโนมัติ</template></template></div>
           </div>
         </div>
       </template>
     </div>
 
     <!-- ช่องพิมพ์ -->
-    <form class="flex items-end gap-2 border-t border-stone-200 bg-white p-2" @submit.prevent="send">
-      <textarea v-model="text" rows="1" class="input max-h-32 min-h-11 flex-1 resize-none py-2.5" placeholder="พิมพ์ข้อความ" @keydown="onKey" />
+    <p v-if="!canType" class="border-t border-stone-200 bg-amber-50 p-3 text-center text-sm text-amber-800">เกิน 24 ชม. หลังลูกค้าทักล่าสุด Facebook ไม่ให้ตอบข้อความทั่วไป (การ์ดออร์เดอร์/ยอดชำระยังส่งได้) รอให้ลูกค้าทักกลับ</p>
+    <form v-else class="flex items-end gap-2 border-t border-stone-200 bg-white p-2" @submit.prevent="send">
+      <textarea v-model="text" rows="1" class="input max-h-32 min-h-11 flex-1 resize-none py-2.5" :placeholder="`ตอบทาง ${channelLabel}`" @keydown="onKey" />
       <button type="submit" class="btn-primary h-11 w-11 shrink-0 px-0" :disabled="!text.trim()" aria-label="ส่ง"><AppIcon name="send" :size="18" /></button>
     </form>
   </div>

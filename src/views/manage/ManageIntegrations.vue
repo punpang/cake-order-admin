@@ -72,8 +72,7 @@ const outbox = computed(() => (showAll.value ? db.outbox : db.outbox.slice(0, 20
           <AppSwitch v-model="db.integrations[k].enabled" />
         </div>
         <div class="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
-          <span v-if="c.local" class="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">ใช้งานในเว็บ (จำลองในเครื่อง)</span>
-          <span v-else class="rounded-full bg-stone-100 px-2 py-0.5 text-stone-600">ยังไม่เชื่อมต่อ (รอต่อเซิร์ฟเวอร์)</span>
+          <span class="rounded-full bg-stone-100 px-2 py-0.5 text-stone-600">ยังไม่เชื่อมต่อ (รอต่อเซิร์ฟเวอร์)</span>
           <span class="rounded-full bg-brand-50 px-2 py-0.5 text-brand-800">{{ c.audience === 'team' ? 'แจ้งทีมภายใน' : 'ส่งลูกค้า' }}</span>
         </div>
         <p class="text-xs text-stone-500">{{ c.prep }}</p>
@@ -83,7 +82,7 @@ const outbox = computed(() => (showAll.value ? db.outbox : db.outbox.slice(0, 20
     <!-- กฎแจ้งเตือน -->
     <section class="card mb-4">
       <div class="card-title">แจ้งลูกค้า</div>
-      <p class="mb-3 text-xs text-stone-500">ส่งทางช่องทางแรกที่ลูกค้ามีข้อมูล ตามลำดับ แชทในเว็บ → LINE → Facebook → SMS (เลือกช่องทางที่อนุญาตในแต่ละเหตุการณ์)</p>
+      <p class="mb-3 text-xs text-stone-500">ส่งทางช่องทางแรกที่ลูกค้ามีข้อมูล ตามลำดับ LINE → Facebook → SMS · ข้อความทาง LINE/Facebook จะขึ้นในศูนย์รวมแชทด้วย (เลือกช่องทางที่อนุญาตในแต่ละเหตุการณ์)</p>
       <ul class="divide-y divide-stone-100">
         <li v-for="r in customerRules" :key="r.event" class="py-3" :class="r.enabled ? '' : 'opacity-60'">
           <div class="flex items-center gap-3">

@@ -102,7 +102,7 @@ async function save() {
             <span class="rounded-full px-2 py-0.5" :class="form.fbPsid ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'">Facebook: {{ form.fbPsid ? 'ผูกแล้ว' : 'ยังไม่ผูก' }}</span>
             <span class="rounded-full px-2 py-0.5" :class="form.phone ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'">SMS: {{ form.phone ? 'มีเบอร์' : 'ไม่มีเบอร์' }}</span>
           </div>
-          <p class="mt-1 text-xs text-stone-400">ผูก LINE/Facebook ได้เมื่อต่อระบบจริง (ลูกค้าเพิ่มเพื่อน/ทักแชท)</p>
+          <p class="mt-1 text-xs text-stone-400">ผูก LINE/Facebook ได้ในหน้าแชท (เมื่อลูกค้าทักมาทาง LINE OA / Facebook)</p>
         </div>
         <AppSwitch v-model="form.promoOptIn" label="รับข่าวโปร / อวยพรวันเกิด" />
         <AppSwitch v-model="form.active" label="ใช้งาน" />
