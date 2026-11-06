@@ -12,6 +12,8 @@ import { vatSummary, vatDue, vatStatus, prevMonth, nextMonth } from '../lib/acct
 import { validTaxId, validBranch } from '../lib/acct/taxid'
 import { bahtText } from '../lib/acct/thaiBaht'
 import { orderTotals } from '../lib/pricing'
+import { deprSchedule, deprAccum, taxDeprByYear, amortSchedule, loanSchedule, recurringDue, recurringState, addDays, ASSET_CATEGORIES } from '../lib/acct/plan'
+import { thisMonth, addMonths } from '../lib/acct/period'
 
 const A = () => db.acct
 let seq = 0
@@ -23,6 +25,7 @@ export const extraGenerators = []
 
 const ctx = () => ({
   customerOf: (o) => { const c = findCustomer(o.customerId); return c ? { name: c.tax?.name || c.name, taxId: c.tax?.taxId || '' } : null },
+  todayStr: today(),
   orders: db.orders, groups: db.optionGroups, retail: db.retailItems, ingredients: db.ingredients,
   coupons: db.coupons, rewards: db.rewards, pointValue: db.loyalty.pointValue, acct: db.acct, shop: db.shop,
 })
@@ -41,8 +44,9 @@ export function allEntries() {
 export const activeAccounts = () => A().accounts.filter((a) => a.active !== false)
 export const accountOf = (id) => accountMap(A().accounts).get(id)
 export const locked = (date) => !!A().closedThrough && date <= A().closedThrough
-export const sourceLabel = (e) => ({ manual: 'บันทึกเอง', 'order-pay': 'รับชำระออร์เดอร์', 'order-payx': 'ยกเลิกยอดชำระ', 'order-deliver': 'ส่งมอบ/รับรู้รายได้', 'order-cancel': 'ยกเลิก/คืนเงิน', 'order-cancel-rev': 'ยกเลิก/กลับรายการ', reward: 'ของรางวัล' }[e.source?.type] || e.source?.type || '')
+export const sourceLabel = (e) => ({ 'asset-depr': 'ค่าเสื่อมราคา', 'asset-dispose': 'จำหน่ายสินทรัพย์', deferral: 'ตัดจำหน่ายล่วงหน้า', manual: 'บันทึกเอง', 'order-pay': 'รับชำระออร์เดอร์', 'order-payx': 'ยกเลิกยอดชำระ', 'order-deliver': 'ส่งมอบ/รับรู้รายได้', 'order-cancel': 'ยกเลิก/คืนเงิน', 'order-cancel-rev': 'ยกเลิก/กลับรายการ', reward: 'ของรางวัล' }[e.source?.type] || e.source?.type || '')
 
+const LINKED = ['asset', 'deferral', 'loan', 'installment']
 function nextNo(prefix, date) {
   const key = `${prefix}-${date.slice(0, 4)}`
   A().seq[key] = (A().seq[key] || 0) + 1
@@ -84,6 +88,7 @@ function commit(entry, id, prefix) {
     const cur = A().entries.find((e) => e.id === id)
     if (!cur) return { error: 'ไม่พบรายการ' }
     if (locked(cur.date)) return { error: 'รายการอยู่ในงวดที่ปิดแล้ว แก้ไม่ได้ (กลับรายการแทน)' }
+    if (LINKED.includes(cur.source?.kind)) return { error: 'รายการนี้สร้างจากหน้าสินทรัพย์/ล่วงหน้า/ผ่อนชำระ แก้ที่หน้านั้น (หรือกลับรายการ)' }
     if (cur.reversedBy || cur.source?.reverses) return { error: 'รายการที่กลับรายการแล้ว/เป็นรายการกลับ แก้ไม่ได้' }
     if (cur.tax?.length && vatFiled(cur.date.slice(0, 7))) return { error: `เดือนภาษี ${cur.date.slice(0, 7)} ยื่น ภ.พ.30 แล้ว แก้ไม่ได้` }
     if (entry.tax?.length) cur.tax = entry.tax
@@ -103,6 +108,7 @@ export function deleteManual(id) {
   const e = A().entries[i]
   if (locked(e.date)) return { error: 'อยู่ในงวดที่ปิดแล้ว ลบไม่ได้ (กลับรายการแทน)' }
   if (e.tax?.length && vatFiled(e.date.slice(0, 7))) return { error: `เดือนภาษี ${e.date.slice(0, 7)} ยื่น ภ.พ.30 แล้ว ลบไม่ได้ (กลับรายการแทนในเดือนถัดไป)` }
+  if (LINKED.includes(e.source?.kind)) return { error: 'รายการนี้สร้างจากหน้าสินทรัพย์/ล่วงหน้า/ผ่อนชำระ ลบที่หน้านั้น (หรือกลับรายการ)' }
   if (e.reversedBy || e.source?.reverses) return { error: 'ลบรายการกลับรายการไม่ได้' }
   A().entries.splice(i, 1)
   return { ok: true }
@@ -351,6 +357,306 @@ export function markInvoiceCopy(id) {
   return inv?.copies || 0
 }
 
+// ---------- รอบ O: สินทรัพย์ถาวร · ล่วงหน้า · ค่าใช้จ่ายประจำ · ผ่อนชำระ ----------
+const lst = (k) => (A()[k] ||= [])
+const validDate = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d)) && !Number.isNaN(Date.parse(d)) && new Date(d).toISOString().slice(0, 10) === d
+const cashOf = (m) => (m === 'bank' ? '1020' : '1010')
+const lastOfMonth = (ym) => { const [y, m] = ym.split('-').map(Number); return toDateStr(new Date(y, m, 0)) }
+// สร้างรายการลงบัญชีที่ผูกกับเอกสารต้นทาง (ข้ามสิทธิ์ตามเจ้าของฟังก์ชันที่เรียก ซึ่งตรวจสิทธิ์ไปแล้ว)
+function book(date, memo, lines, source, tax) {
+  return commit({ date, memo, lines: lines.filter((l) => (l.dr || l.cr)), source: { type: 'manual', ...source }, ...(tax ? { tax } : {}) }, null, 'JV')
+}
+const removeBooking = (id) => {
+  const i = A().entries.findIndex((e) => e.id === id)
+  if (i < 0) return null
+  const e = A().entries[i]
+  if (locked(e.date)) return 'รายการซื้อ/บันทึกอยู่ในงวดที่ปิดแล้ว ลบไม่ได้ (กลับรายการแทน)'
+  A().entries.splice(i, 1)
+  return null
+}
+
+// --- สินทรัพย์ถาวร ---
+export const ASSET_CATS = ASSET_CATEGORIES
+export const assets = () => lst('assets')
+export const taxRateOf = (cat) => Number(A().settings.taxDeprRates?.[cat] ?? ASSET_CATEGORIES.find((c) => c.id === cat)?.taxRate ?? 20)
+export const assetSchedule = (a) => deprSchedule({ ...a, disposalDate: a.disposal?.date || '' })
+export const assetTaxDepr = (a) => taxDeprByYear({ ...a, disposalDate: a.disposal?.date || '' }, taxRateOf(a.category))
+const deprStarted = (a) => assetSchedule(a).some((r) => r.date <= today())
+export function saveAsset(d, id = null) {
+  const g = guard('acctAssets')
+  if (g) return g
+  const cur = id ? assets().find((x) => x.id === id) : null
+  if (id && !cur) return { error: 'ไม่พบสินทรัพย์' }
+  const name = String(d.name ?? '').trim().slice(0, 100)
+  if (!name) return { error: 'กรอกชื่อสินทรัพย์' }
+  const cat = ASSET_CATEGORIES.some((c) => c.id === d.category) ? d.category : 'other'
+  const note = String(d.note ?? '').trim().slice(0, 300)
+  if (cur && deprStarted(cur)) { Object.assign(cur, { name, category: cat, note }); return { ok: true, asset: cur } }
+  const cost = Number(d.cost), salvage = Number(d.salvage || 0), life = Number(d.lifeYears)
+  const min = Number(A().settings.assetMinCost ?? 500)
+  if (!(cost > 0)) return { error: 'ใส่ราคาทุนมากกว่า 0' }
+  if (cost < min) return { error: `ราคาต่ำกว่า ${min} บาท ให้บันทึกเป็นค่าใช้จ่ายทันที ไม่ต้องตั้งเป็นสินทรัพย์` }
+  if (!(salvage >= 0) || salvage >= cost) return { error: 'มูลค่าซากต้องไม่ติดลบและน้อยกว่าราคาทุน' }
+  if (!(life > 0) || life > 100) return { error: 'อายุใช้งาน (ปี) ต้องมากกว่า 0' }
+  const method = d.method === 'db' ? 'db' : 'sl'
+  const rate = Number(d.rate || 0)
+  if (method === 'db' && !(rate > 0 && rate <= 100)) return { error: 'ใส่อัตราค่าเสื่อม % ต่อปี (0–100) สำหรับวิธียอดลดลง' }
+  if (!validDate(d.buyDate) || !validDate(d.startDate)) return { error: 'วันที่ไม่ถูกต้อง' }
+  if (d.startDate < d.buyDate) return { error: 'วันที่เริ่มใช้ต้องไม่ก่อนวันที่ซื้อ' }
+  const acquire = ['cash', 'bank', 'payable', 'none'].includes(d.acquire) ? d.acquire : 'none'
+  const a = cur || { id: aid('as'), code: `AS-${String((A().seq.AS = (A().seq.AS || 0) + 1)).padStart(3, '0')}`, createdAt: new Date().toISOString(), disposal: null }
+  if (!cur) {
+    if (acquire !== 'none') {
+      const r = book(d.buyDate, `ซื้อสินทรัพย์ ${name}`, [{ account: '1500', dr: toB(toS(cost)) }, { account: acquire === 'payable' ? '2100' : cashOf(acquire), cr: toB(toS(cost)) }], { kind: 'asset', assetId: a.id, ...(acquire === 'payable' ? { settle: 'payable', total: toB(toS(cost)) } : {}) })
+      if (r.error) { A().seq.AS--; return r }
+      a.bookingId = r.entry.id
+    }
+    lst('assets').push(a)
+  }
+  Object.assign(a, { name, category: cat, note, buyDate: d.buyDate, startDate: d.startDate, cost: toB(toS(cost)), salvage: toB(toS(salvage)), lifeYears: life, method, rate: method === 'db' ? rate : 0, acquire })
+  return { ok: true, asset: a }
+}
+export function disposeAsset(id, { date, proceeds = 0, method = 'cash' } = {}) {
+  const g = guard('acctAssets')
+  if (g) return g
+  const a = assets().find((x) => x.id === id)
+  if (!a) return { error: 'ไม่พบสินทรัพย์' }
+  if (a.disposal) return { error: 'จำหน่ายไปแล้ว' }
+  if (!validDate(date)) return { error: 'วันที่ไม่ถูกต้อง' }
+  if (date < a.startDate) return { error: 'วันที่จำหน่ายต้องไม่ก่อนวันที่เริ่มใช้' }
+  if (date > today()) return { error: 'วันที่จำหน่ายเป็นอนาคตไม่ได้' }
+  if (locked(date)) return { error: `งวดถึง ${A().closedThrough} ปิดแล้ว จำหน่ายในวันนั้นไม่ได้` }
+  const p = Number(proceeds || 0)
+  if (!(p >= 0)) return { error: 'ยอดขายต้องไม่ติดลบ' }
+  a.disposal = { date, proceeds: toB(toS(p)), method: method === 'bank' ? 'bank' : 'cash', at: new Date().toISOString(), by: session.userId }
+  return { ok: true }
+}
+export function removeAsset(id) {
+  const g = guard('acctAssets')
+  if (g) return g
+  const a = assets().find((x) => x.id === id)
+  if (!a) return { error: 'ไม่พบสินทรัพย์' }
+  if (a.disposal || deprStarted(a)) return { error: 'เริ่มตัดค่าเสื่อม/จำหน่ายแล้ว ลบไม่ได้ (ใช้จำหน่ายแทน)' }
+  if (a.bookingId) { const e = removeBooking(a.bookingId); if (e) return { error: e } }
+  A().assets = assets().filter((x) => x.id !== id)
+  return { ok: true }
+}
+// ตัวสร้างรายการอัตโนมัติ: ค่าเสื่อมรายเดือน (ลงเมื่อสิ้นเดือนผ่านไปแล้ว) · จำหน่ายสินทรัพย์ · ตัดจำหน่ายล่วงหน้า
+function planEntries(c) {
+  const out = []
+  const t = c.todayStr
+  for (const a of c.acct.assets || []) {
+    const sch = deprSchedule({ ...a, disposalDate: a.disposal?.date || '' })
+    for (const r of sch) {
+      const isDisp = a.disposal && r.ym === a.disposal.date.slice(0, 7)
+      const date = isDisp ? a.disposal.date : r.date
+      if (date > t || r.amount <= 0) continue
+      out.push({ id: `depr:${a.id}:${r.ym}`, date, memo: `ค่าเสื่อมราคา ${a.name} ${r.ym}`, source: { type: 'asset-depr', assetId: a.id }, auto: true, lines: [{ account: '5800', dr: r.amount }, { account: '1590', cr: r.amount }] })
+    }
+    if (a.disposal && a.disposal.date <= t) {
+      const accum = sch.length ? sch.at(-1).accum : 0
+      const cost = toS(a.cost), ac = toS(accum), pr = toS(a.disposal.proceeds)
+      const diff = pr - (cost - ac)
+      const lines = [
+        { account: a.disposal.method === 'bank' ? '1020' : '1010', dr: toB(pr) }, { account: '1590', dr: toB(ac) },
+        { account: '5820', dr: toB(Math.max(0, -diff)) }, { account: '1500', cr: toB(cost) }, { account: '4810', cr: toB(Math.max(0, diff)) },
+      ].filter((l) => l.dr || l.cr)
+      out.push({ id: `dispose:${a.id}`, date: a.disposal.date, memo: `จำหน่ายสินทรัพย์ ${a.name}`, source: { type: 'asset-dispose', assetId: a.id }, auto: true, lines })
+    }
+  }
+  for (const d of c.acct.deferrals || []) {
+    for (const r of amortSchedule(d.total, d.months, d.startMonth)) {
+      if (r.date > t) continue
+      const lines = d.kind === 'unearned' ? [{ account: '2350', dr: r.amount }, { account: d.account, cr: r.amount }] : [{ account: d.account, dr: r.amount }, { account: '1300', cr: r.amount }]
+      out.push({ id: `defer:${d.id}:${r.ym}`, date: r.date, memo: `ตัดจำหน่าย${d.kind === 'unearned' ? 'รายได้รับล่วงหน้า' : 'ค่าใช้จ่ายล่วงหน้า'} ${d.name} งวด ${r.no}/${d.months}`, source: { type: 'deferral', deferralId: d.id }, auto: true, lines })
+    }
+  }
+  return out
+}
+extraGenerators.push(planEntries)
+
+// --- รายได้/ค่าใช้จ่ายล่วงหน้า ---
+export const deferrals = () => lst('deferrals')
+export function saveDeferral(d) {
+  const g = guard()
+  if (g) return g
+  const kind = d.kind === 'unearned' ? 'unearned' : 'prepaid'
+  const name = String(d.name ?? '').trim().slice(0, 100)
+  const total = Number(d.total), months = Math.round(Number(d.months))
+  if (!name) return { error: 'กรอกชื่อรายการ' }
+  if (!(total > 0)) return { error: 'ใส่จำนวนเงินมากกว่า 0' }
+  if (!(months >= 1 && months <= 120)) return { error: 'จำนวนเดือนต้อง 1–120' }
+  if (!/^\d{4}-\d{2}$/.test(String(d.startMonth))) return { error: 'เลือกเดือนที่เริ่มตัดจำหน่าย' }
+  if (!validDate(d.payDate)) return { error: 'วันที่รับ/จ่ายเงินไม่ถูกต้อง' }
+  const acc = accountOf(d.account)
+  if (!acc || acc.kind !== (kind === 'unearned' ? 'revenue' : 'expense')) return { error: kind === 'unearned' ? 'เลือกบัญชีรายได้ที่จะรับรู้' : 'เลือกบัญชีค่าใช้จ่ายที่จะตัด' }
+  const method = ['cash', 'bank', 'payable'].includes(d.method) ? d.method : 'cash'
+  if (kind === 'unearned' && method === 'payable') return { error: 'รายได้รับล่วงหน้าเลือกค้างจ่ายไม่ได้' }
+  const id = aid('df')
+  const amt = toB(toS(total))
+  const lines = kind === 'unearned' ? [{ account: cashOf(method), dr: amt }, { account: '2350', cr: amt }] : [{ account: '1300', dr: amt }, { account: method === 'payable' ? '2100' : cashOf(method), cr: amt }]
+  const r = book(d.payDate, `${kind === 'unearned' ? 'รับเงินล่วงหน้า' : 'จ่ายล่วงหน้า'} ${name}`, lines, { kind: 'deferral', deferralId: id, ...(method === 'payable' ? { settle: 'payable', total: amt } : {}) })
+  if (r.error) return r
+  const x = { id, kind, name, total: amt, months, startMonth: d.startMonth, account: d.account, payDate: d.payDate, method, bookingId: r.entry.id, createdAt: new Date().toISOString() }
+  lst('deferrals').push(x)
+  return { ok: true, deferral: x }
+}
+export const deferralRows = (d) => amortSchedule(d.total, d.months, d.startMonth).map((r) => ({ ...r, posted: r.date <= today() }))
+export function removeDeferral(id) {
+  const g = guard()
+  if (g) return g
+  const d = deferrals().find((x) => x.id === id)
+  if (!d) return { error: 'ไม่พบรายการ' }
+  if (deferralRows(d).some((r) => r.posted)) return { error: 'เริ่มตัดจำหน่ายแล้ว ลบไม่ได้' }
+  const e = removeBooking(d.bookingId)
+  if (e) return { error: e }
+  A().deferrals = deferrals().filter((x) => x.id !== id)
+  return { ok: true }
+}
+
+// --- ค่าใช้จ่ายประจำเดือน ---
+export const recurring = () => lst('recurring')
+const rForm = (t, ym, o = {}) => ({ kind: 'expense', date: o.date || recurringDue(t, ym), account: t.account, amount: o.amount ?? t.amount, vatMode: t.vatMode || 'none', vatRate: t.vatRate || 7, claimable: !!t.claimable, settle: t.settle || 'cash', payee: t.payee || '', memo: o.memo ?? `${t.name} ${ym}`, recurringId: t.id, recurringYm: ym })
+export function saveRecurring(d, id = null) {
+  const g = guard()
+  if (g) return g
+  const cur = id ? recurring().find((x) => x.id === id) : null
+  if (id && !cur) return { error: 'ไม่พบรายการ' }
+  const name = String(d.name ?? '').trim().slice(0, 100)
+  if (!name) return { error: 'กรอกชื่อรายการ' }
+  const acc = accountOf(d.account)
+  if (!acc || acc.kind !== 'expense') return { error: 'เลือกบัญชีค่าใช้จ่าย' }
+  const kind = d.kind === 'variable' ? 'variable' : 'fixed'
+  const amount = Number(d.amount || 0), estimate = Number(d.estimate || 0)
+  if (kind === 'fixed' && !(amount > 0)) return { error: 'ค่าใช้จ่ายคงที่ต้องใส่จำนวนเงินมากกว่า 0' }
+  if (kind === 'variable' && !(estimate >= 0)) return { error: 'ประมาณการต้องไม่ติดลบ' }
+  const dueDay = Math.round(Number(d.dueDay))
+  if (!(dueDay >= 1 && dueDay <= 31)) return { error: 'วันครบกำหนดต้อง 1–31' }
+  const grace = Math.round(Number(d.graceDays ?? 3))
+  if (!(grace >= 0 && grace <= 30)) return { error: 'วันผ่อนผันต้อง 0–30' }
+  const settle = ['cash', 'bank', 'payable'].includes(d.settle) ? d.settle : 'cash'
+  const t = {
+    name, account: d.account, kind, amount: kind === 'fixed' ? toB(toS(amount)) : 0, estimate: kind === 'variable' ? toB(toS(estimate)) : 0, dueDay, graceDays: grace,
+    vatMode: ['none', 'included', 'excluded'].includes(d.vatMode) ? d.vatMode : 'none', vatRate: Number(d.vatRate) || 7, claimable: !!d.claimable, payee: String(d.payee ?? '').trim().slice(0, 100), settle,
+    autoPost: kind === 'fixed' && !!d.autoPost, startMonth: /^\d{4}-\d{2}$/.test(String(d.startMonth)) ? d.startMonth : thisMonth(), active: d.active !== false,
+  }
+  if (cur) { Object.assign(cur, t); return { ok: true, item: cur } }
+  const x = { id: aid('rc'), createdAt: new Date().toISOString(), ...t }
+  lst('recurring').push(x)
+  return { ok: true, item: x }
+}
+export function removeRecurring(id) {
+  const g = guard()
+  if (g) return g
+  const t = recurring().find((x) => x.id === id)
+  if (!t) return { error: 'ไม่พบรายการ' }
+  // ไม่ลบประวัติ: ถ้าเคยบันทึกแล้วให้ปิดใช้งานแทน
+  if (A().entries.some((e) => e.source?.recurringId === id)) { t.active = false; return { ok: true, deactivated: true } }
+  A().recurring = recurring().filter((x) => x.id !== id)
+  return { ok: true }
+}
+const postedOf = (t, ym) => A().entries.find((e) => e.source?.recurringId === t.id && e.source?.recurringYm === ym && !e.reversedBy)
+const skipOf = (t, ym) => lst('recurringSkips').find((s) => s.recurringId === t.id && s.ym === ym)
+export function recurringStatus(ym = thisMonth(), todayStr = today()) {
+  return recurring().map((t) => ({ t, ym, due: recurringDue(t, ym), posted: postedOf(t, ym) || null, skip: skipOf(t, ym) || null, state: recurringState(t, ym, { posted: !!postedOf(t, ym), skipped: !!skipOf(t, ym), today: todayStr }) }))
+}
+export function postRecurring(id, ym, { amount, date, memo } = {}, system = false) {
+  if (!system) { const g = guard(); if (g) return g }
+  const t = recurring().find((x) => x.id === id)
+  if (!t) return { error: 'ไม่พบรายการ' }
+  if (postedOf(t, ym)) return { error: 'บันทึกเดือนนี้แล้ว' }
+  const amt = amount ?? t.amount
+  if (!(Number(amt) > 0)) return { error: 'ใส่จำนวนเงินของเดือนนี้' }
+  const r = buildManualEntry(rForm(t, ym, { amount: amt, date, memo }))
+  if (r.error) return r
+  const c = commit(r.entry, null, 'JV')
+  if (c.ok) { const s = lst('recurringSkips'); const i = s.findIndex((x) => x.recurringId === id && x.ym === ym); if (i >= 0) s.splice(i, 1); }
+  return c
+}
+export function skipRecurring(id, ym, reason) {
+  const g = guard()
+  if (g) return g
+  const t = recurring().find((x) => x.id === id)
+  if (!t) return { error: 'ไม่พบรายการ' }
+  if (postedOf(t, ym)) return { error: 'บันทึกเดือนนี้แล้ว' }
+  if (!String(reason || '').trim()) return { error: 'ระบุเหตุผลที่ข้ามเดือนนี้' }
+  lst('recurringSkips').push({ recurringId: id, ym, reason: String(reason).trim().slice(0, 200), by: session.userId, at: new Date().toISOString() })
+  return { ok: true }
+}
+
+// --- ผ่อนชำระ (เงินกู้ / ซื้อผ่อน) ---
+export const installments = () => lst('installments')
+export const installmentRows = (x) => loanSchedule(x).map((r) => ({ ...r, paid: x.payments.find((p) => p.no === r.no) || null }))
+export function saveInstallment(d) {
+  const g = guard()
+  if (g) return g
+  const kind = d.kind === 'purchase' ? 'purchase' : 'loan'
+  const name = String(d.name ?? '').trim().slice(0, 100)
+  const principal = Number(d.principal), rate = Number(d.ratePct || 0), n = Math.round(Number(d.n))
+  if (!name) return { error: 'กรอกชื่อรายการ' }
+  if (!(principal > 0)) return { error: 'ใส่ยอดเงินต้นมากกว่า 0' }
+  if (!(rate >= 0 && rate <= 100)) return { error: 'ดอกเบี้ยต้อง 0–100% ต่อปี' }
+  if (!(n >= 1 && n <= 360)) return { error: 'จำนวนงวดต้อง 1–360' }
+  if (!validDate(d.startDate) || !validDate(d.firstDue)) return { error: 'วันที่ไม่ถูกต้อง' }
+  if (d.firstDue < d.startDate) return { error: 'งวดแรกต้องไม่ก่อนวันที่เริ่ม' }
+  const method = d.method === 'flat' ? 'flat' : 'reducing'
+  const receive = d.receive === 'bank' ? 'bank' : 'cash'
+  let debit = cashOf(receive)
+  if (kind === 'purchase') {
+    const acc = accountOf(d.account)
+    if (!acc || !['asset', 'expense'].includes(acc.kind) || ['1010', '1020', '2400'].includes(d.account)) return { error: 'เลือกบัญชีสินทรัพย์/ค่าใช้จ่ายที่ซื้อมา' }
+    debit = d.account
+  }
+  const id = aid('in')
+  const amt = toB(toS(principal))
+  const r = book(d.startDate, kind === 'loan' ? `รับเงินกู้ ${name}` : `ซื้อผ่อน ${name}`, [{ account: debit, dr: amt }, { account: '2400', cr: amt }], { kind: 'loan', installmentId: id })
+  if (r.error) return r
+  const x = { id, kind, name, principal: amt, ratePct: rate, n, method, startDate: d.startDate, firstDue: d.firstDue, receive, account: debit, payments: [], bookingId: r.entry.id, createdAt: new Date().toISOString() }
+  lst('installments').push(x)
+  return { ok: true, installment: x }
+}
+// จ่ายงวดถัดไปตามลำดับ: Dr เงินต้น 2400 + ดอกเบี้ย 5810 / Cr เงินสด/ธนาคาร
+export function payInstallment(id, { date = today(), method = 'bank' } = {}) {
+  const g = guard()
+  if (g) return g
+  const x = installments().find((v) => v.id === id)
+  if (!x) return { error: 'ไม่พบรายการ' }
+  const row = installmentRows(x).find((r) => !r.paid)
+  if (!row) return { error: 'ชำระครบทุกงวดแล้ว' }
+  if (!validDate(date)) return { error: 'วันที่ไม่ถูกต้อง' }
+  const lines = [{ account: '2400', dr: row.principal }, { account: '5810', dr: row.interest }, { account: cashOf(method), cr: row.payment }]
+  const r = book(date, `ผ่อนชำระ ${x.name} งวด ${row.no}/${x.n}`, lines, { kind: 'installment', installmentId: id, no: row.no })
+  if (r.error) return r
+  x.payments.push({ no: row.no, date, entryId: r.entry.id, method: method === 'cash' ? 'cash' : 'bank' })
+  return { ok: true, entry: r.entry }
+}
+export function removeInstallment(id) {
+  const g = guard()
+  if (g) return g
+  const x = installments().find((v) => v.id === id)
+  if (!x) return { error: 'ไม่พบรายการ' }
+  if (x.payments.length) return { error: 'มีการชำระแล้ว ลบไม่ได้' }
+  const e = removeBooking(x.bookingId)
+  if (e) return { error: e }
+  A().installments = installments().filter((v) => v.id !== id)
+  return { ok: true }
+}
+// งวดใกล้ครบกำหนด (ภายใน days วัน) หรือเลยกำหนด ที่ยังไม่ชำระ
+export function installmentAlerts(todayStr = today(), days = 3) {
+  const out = []
+  for (const x of installments()) {
+    const row = installmentRows(x).find((r) => !r.paid)
+    if (row && row.due <= addDays(todayStr, days)) out.push({ x, row, overdue: row.due < todayStr })
+  }
+  return out
+}
+// สรุปเตือนสำหรับหน้าภาพรวม
+export function acctAlerts(todayStr = today()) {
+  const ym = todayStr.slice(0, 7)
+  const rec = [...recurringStatus(addMonths(ym, -1), todayStr), ...recurringStatus(ym, todayStr)].filter((r) => r.state === 'missing' || r.state === 'due')
+  return { recurring: rec, installments: installmentAlerts(todayStr) }
+}
+
 // ---------- ตรวจตามเวลา (เรียกจาก runScheduledChecks ของ store) ----------
 export function runAcctChecks(once, todayStr = today()) {
   let n = 0
@@ -362,6 +668,16 @@ export function runAcctChecks(once, todayStr = today()) {
     const due = vatDue(m)
     if (todayStr >= due.online) once(`vatdue|${m}`, () => (n += notify('team_vat_due', { vars: { เดือนภาษี: m, ชำระก่อน: due.online } }), 0))
   }
+  // ค่าใช้จ่ายประจำ: บันทึกอัตโนมัติ (คงที่ + autoPost) / เตือนที่ยังไม่บันทึก
+  for (const m of [addMonths(todayStr.slice(0, 7), -1), todayStr.slice(0, 7)]) {
+    for (const r of recurringStatus(m, todayStr)) {
+      if (r.state !== 'missing' && r.state !== 'due') continue
+      if (r.t.autoPost && r.t.kind === 'fixed' && !locked(r.due) && !(r.t.vatMode !== 'none' && vatFiled(r.due.slice(0, 7)))) { postRecurring(r.t.id, m, {}, true); continue }
+      if (r.state === 'missing') once(`expmiss|${r.t.id}|${m}`, () => (n += notify('team_expense_missing', { vars: { รายการ: r.t.name, เดือนภาษี: m, วันที่: r.due } }), 0))
+    }
+  }
+  for (const a of installmentAlerts(todayStr, 1)) once(`instdue|${a.x.id}|${a.row.no}`, () => (n += notify('team_installment_due', { vars: { รายการ: a.x.name, งวด: String(a.row.no), วันที่: a.row.due, ยอดรวม: String(a.row.payment) } }), 0))
   return n
 }
+
 scheduledHooks.push(runAcctChecks)

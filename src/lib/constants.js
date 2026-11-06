@@ -163,8 +163,10 @@ export const NOTIFY_EVENTS = {
   team_pay_overdue: { label: 'เกินกำหนดชำระ', audience: 'team', scheduled: true },
   team_customer_paid: { label: 'ลูกค้าแจ้งโอน (รอตรวจสลิป)', audience: 'team' },
   team_pay_extend_request: { label: 'ลูกค้าขอขยายเวลาชำระ', audience: 'team' },
+  team_expense_missing: { label: 'ค่าใช้จ่ายประจำเดือนที่ยังไม่ได้บันทึก', audience: 'team', scheduled: true },
+  team_installment_due: { label: 'งวดผ่อนชำระใกล้/เลยกำหนด', audience: 'team', scheduled: true },
   team_vat_due: { label: 'ครบกำหนดยื่น ภ.พ.30 (ยังไม่ยื่น)', audience: 'team', scheduled: true },
 }
-export const NOTIFY_VARS = ['{ชื่อลูกค้า}', '{เลขออร์เดอร์}', '{ยอดรวม}', '{คงค้าง}', '{ยอดที่แจ้ง}', '{วันนัด}', '{เวลานัด}', '{ส่งมอบ}', '{ชื่อวันเกิด}', '{คะแนน}', '{ลิงก์ออร์เดอร์}', '{ชำระก่อน}', '{เดือนภาษี}']
+export const NOTIFY_VARS = ['{ชื่อลูกค้า}', '{เลขออร์เดอร์}', '{ยอดรวม}', '{คงค้าง}', '{ยอดที่แจ้ง}', '{วันนัด}', '{เวลานัด}', '{ส่งมอบ}', '{ชื่อวันเกิด}', '{คะแนน}', '{ลิงก์ออร์เดอร์}', '{ชำระก่อน}', '{เดือนภาษี}', '{รายการ}', '{วันที่}', '{งวด}']
 
 export const POS_METHODS = { cash: 'เงินสด', transfer: 'โอนเงิน', card: 'บัตร' }

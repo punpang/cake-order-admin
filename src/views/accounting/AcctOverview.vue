@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { db } from '../../data/store'
-import { allEntries, reportIncome, cashPosition, sourceLabel, accountOf } from '../../data/acct'
+import { allEntries, reportIncome, cashPosition, sourceLabel, accountOf, acctAlerts } from '../../data/acct'
 import { thisMonth, monthRange, addMonths, monthLabel } from '../../lib/acct/period'
 import { entrySums } from '../../lib/acct/journal'
 import { money, dateOnly } from '../../lib/format'
@@ -20,6 +20,7 @@ const cards = computed(() => [
   { l: 'กำไร (ขาดทุน) สุทธิ', v: pl.value.netProfit, cls: pl.value.netProfit < 0 ? 'text-rose-600' : 'text-emerald-700' },
   { l: 'เงินสด + ธนาคาร (สิ้นเดือน)', v: cash.value.total, cls: 'text-stone-900' },
 ])
+const alerts = computed(() => acctAlerts())
 const total = (e) => entrySums(e).dr / 100
 </script>
 
@@ -33,6 +34,7 @@ const total = (e) => entrySums(e).dr / 100
     <div class="grid grid-cols-2 gap-3">
       <div v-for="c in cards" :key="c.l" class="card"><div class="text-xs text-stone-500">{{ c.l }}</div><div class="mt-1 text-lg font-semibold" :class="c.cls">{{ money(c.v) }}</div></div>
     </div>
+    <button v-if="alerts.recurring.length || alerts.installments.length" type="button" class="w-full rounded-2xl bg-amber-50 p-3 text-left text-sm text-amber-800" aria-label="แจ้งเตือนค่าใช้จ่ายประจำ" @click="$emit('go', 'plan')"><AppIcon name="alert" :size="14" class="mr-1 inline" /> <template v-if="alerts.recurring.length">ค่าใช้จ่ายประจำที่อาจยังไม่ได้บันทึก {{ alerts.recurring.length }} รายการ ({{ alerts.recurring.map((r) => r.t.name).join(', ') }}) </template><template v-if="alerts.installments.length">· งวดผ่อนใกล้/เลยกำหนด {{ alerts.installments.length }} รายการ</template></button>
     <div v-if="points" class="card text-sm text-stone-600">ค่าใช้จ่ายจากการใช้คะแนนสะสมเดือนนี้ <b class="text-stone-900">{{ money(points) }}</b></div>
     <div v-if="db.acct.closedThrough" class="rounded-2xl bg-indigo-50 p-3 text-sm text-indigo-800"><AppIcon name="lock" :size="14" class="mr-1 inline" /> ปิดงวดถึง {{ dateOnly(db.acct.closedThrough) }} · รายการถึงวันนั้นแก้ไม่ได้</div>
     <section class="card">

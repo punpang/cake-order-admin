@@ -153,7 +153,7 @@ export const db = reactive({
   ],
 
   // ระบบบัญชี: บันทึกเอง (entries) · รายการดึงอัตโนมัติที่ปิดงวดแล้วแช่แข็ง (frozen) · closedThrough = ปิดงวดถึงวันที่ (YYYY-MM-DD)
-  acct: { settings: { entityType: 'juristic', fiscalYearStartMonth: 1 }, accounts: DEFAULT_ACCOUNTS.map((a) => ({ ...a })), entries: [], frozen: [], closedThrough: '', seq: {}, taxInvoices: [], vatFilings: {} },
+  acct: { settings: { entityType: 'juristic', fiscalYearStartMonth: 1, assetMinCost: 500, taxDeprRates: { building: 5, equipment: 20, furniture: 20, vehicle: 20, computer: 33.33, other: 20 } }, accounts: DEFAULT_ACCOUNTS.map((a) => ({ ...a })), entries: [], frozen: [], closedThrough: '', seq: {}, taxInvoices: [], vatFilings: {}, recurring: [], recurringSkips: [], deferrals: [], assets: [], installments: [] },
   // ประวัติแก้สิทธิ์ผู้ใช้ [{ at, by (userId), userId, added, removed }]
   permLog: [],
 
@@ -247,6 +247,8 @@ export const db = reactive({
     rule('team_approval_request', ['telegram'], '[ขออนุมัติ] {เลขออร์เดอร์} {ชื่อลูกค้า} ยืนยันสั่งซื้อแบบยังไม่ชำระ คงค้าง {คงค้าง}'),
     rule('team_pay_overdue', ['telegram'], '[เกินกำหนดชำระ] {เลขออร์เดอร์} {ชื่อลูกค้า} ต้องชำระก่อน {ชำระก่อน} คงค้าง {คงค้าง}'),
     rule('team_customer_paid', ['telegram'], '[ลูกค้าแจ้งโอน] {เลขออร์เดอร์} {ชื่อลูกค้า} {ยอดที่แจ้ง} รอตรวจสลิป'),
+    rule('team_expense_missing', ['telegram'], '[ค่าใช้จ่ายประจำ] {รายการ} เดือน {เดือนภาษี} ยังไม่ได้บันทึก (ครบกำหนด {วันที่})'),
+    rule('team_installment_due', ['telegram'], '[ผ่อนชำระ] {รายการ} งวดที่ {งวด} ครบกำหนด {วันที่} ยอด {ยอดรวม}'),
     rule('team_vat_due', ['telegram'], '[ภ.พ.30] เดือนภาษี {เดือนภาษี} ครบกำหนดยื่น {ชำระก่อน} ยังไม่ได้บันทึกว่ายื่นแล้ว'),
     rule('team_pay_extend_request', ['telegram'], '[ขอขยายเวลาชำระ] {เลขออร์เดอร์} {ชื่อลูกค้า} เดิมกำหนด {ชำระก่อน}'),
   ],

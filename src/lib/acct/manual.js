@@ -55,6 +55,7 @@ export function buildManualEntry(form) {
         vat: toB(vat), net: toB(net), total: toB(total), claimable: kind === 'expense' && vat > 0 && !!form.claimable,
         taxInvoiceNo: String(form.taxInvoiceNo || '').trim().slice(0, 40), taxInvoiceDate: String(form.taxInvoiceDate || ''), payeeTaxId: String(form.payeeTaxId || '').replace(/\D/g, '').slice(0, 13),
         attachments: (form.attachments || []).slice(0, 5),
+        ...(form.recurringId ? { recurringId: String(form.recurringId), recurringYm: String(form.recurringYm || '') } : {}),
       },
     },
   }
