@@ -6,7 +6,8 @@ import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
 
-const st = reactive({ ...db.shop, vat: { ...db.shop.vat } })
+const hm = /^([01]\d|2[0-3]):[0-5]\d$/
+const st = reactive({ ...db.shop, vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule } })
 const error = ref('')
 const saved = ref(false)
 const STEPS = [15, 30, 60]
@@ -17,14 +18,16 @@ function save() {
   if (!st.open || !st.close || st.close <= st.open) return (error.value = 'เวลาปิดต้องหลังเวลาเปิด')
   if (!(Number(st.slotMinutes) >= 5)) return (error.value = 'ช่วงเวลาต้องอย่างน้อย 5 นาที')
   if (![st.leadPickup, st.leadDelivery, st.birthdayDays].every(num)) return (error.value = 'กรอกตัวเลขตั้งแต่ 0 ขึ้นไป')
-  if (!num(st.payDueMin) || Number(st.payDueMin) > 10080) return (error.value = 'กำหนดชำระต้องอยู่ระหว่าง 0–10080 นาที')
+  if (!(Number(st.payDueMin) >= 1) || Number(st.payDueMin) > 10080) return (error.value = 'กำหนดชำระเริ่มต้นต้องอยู่ระหว่าง 1–10080 นาที')
+  const pr = st.payDueRule
+  if (!(Number(pr.hoursBefore) >= 1 && Number(pr.hoursBefore) <= 720) || !(Number(pr.daysBefore) >= 0 && Number(pr.daysBefore) <= 30) || !hm.test(pr.atTime) || !hm.test(st.payReminderTime)) return (error.value = 'ตรวจค่ากำหนดชำระตามนัด / เวลาเตือน (ชม. 1–720, วัน 0–30, เวลา HH:mm)')
   if (!num(st.depositPercent) || Number(st.depositPercent) > 100) return (error.value = 'มัดจำต้องอยู่ระหว่าง 0–100%')
   const v = st.vat
   if (v.enabled && !(Number(v.rate) > 0 && Number(v.rate) <= 100)) return (error.value = 'อัตรา VAT ต้องอยู่ระหว่าง 0–100%')
   if (String(v.taxId || '').replace(/\D/g, '').length && String(v.taxId).replace(/\D/g, '').length !== 13) return (error.value = 'เลขประจำตัวผู้เสียภาษีต้องมี 13 หลัก')
   error.value = ''
   saveShopSettings(st)
-  Object.assign(st, db.shop, { vat: { ...db.shop.vat } })
+  Object.assign(st, db.shop, { vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule } })
   saved.value = true
   setTimeout(() => (saved.value = false), 1500)
 }
@@ -69,7 +72,11 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         <div class="grid grid-cols-2 gap-3">
           <div><label class="label">มัดจำขั้นต่ำ (%) <span class="font-normal text-stone-400">0 = ไม่ใช้</span></label><input v-model.number="st.depositPercent" type="text" v-num min="0" max="100" class="input" /></div>
           <div><label class="label">เตือนวันเกิดล่วงหน้า (วัน)</label><input v-model.number="st.birthdayDays" type="text" v-num min="0" class="input" /></div>
-          <div class="col-span-2"><label class="label">กำหนดชำระเริ่มต้นตอนแจ้งยอด (นาที) <span class="font-normal text-stone-400">0 = ไม่กำหนด</span></label><input v-model.number="st.payDueMin" type="text" v-num min="0" max="10080" class="input" /></div>
+          <div class="col-span-2"><label class="label">กำหนดชำระเริ่มต้นตอนแจ้งยอด (นาที)</label><input v-model.number="st.payDueMin" type="text" v-num min="1" max="10080" class="input" /></div>
+          <div><label class="label">ก่อนนัด (ชม.) เริ่มต้น</label><input v-model.number="st.payDueRule.hoursBefore" type="text" v-num min="1" max="720" class="input" /></div>
+          <div><label class="label">ล่วงหน้า (วัน) เริ่มต้น</label><input v-model.number="st.payDueRule.daysBefore" type="text" v-num min="0" max="30" class="input" /></div>
+          <div><label class="label">...ก่อนเวลา</label><input v-model="st.payDueRule.atTime" type="time" class="input" /></div>
+          <div><label class="label">เตือนชำระ (พรุ่งนี้มีนัด) เวลา</label><input v-model="st.payReminderTime" type="time" class="input" /></div>
         </div>
       </div>
       <div class="border-t border-stone-100 pt-4">

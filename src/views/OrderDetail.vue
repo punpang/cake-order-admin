@@ -9,7 +9,7 @@ import {
   setBirthday, depositOf,
 } from '../data/store'
 import { orderTotals } from '../lib/pricing'
-import { QUICK_DUE, quickDue, dueState, remainingText } from '../lib/payDue'
+import { QUICK_DUE, quickDue, dueState, remainingText, dueBeforePickup, dueDaysBefore, isHHmm } from '../lib/payDue'
 import { CHANNELS, NOTIFY_EVENTS } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
 import { orderCost } from '../lib/materials'
@@ -79,6 +79,17 @@ const payMode = ref('new') // new | edit | confirm
 const payTarget = ref(null)
 const pay = reactive({ amount: 0, method: PAYMENT_METHODS[0], paidAt: '', slip: '', note: '', dueAt: '' })
 const payError = ref('')
+// กำหนดชำระตามเวลานัด: ก่อนนัด N ชม. / ล่วงหน้า N วัน ก่อน HH:mm (ผ่านไปแล้ว = ปิดปุ่ม + เหตุผล)
+const HOURS_BEFORE = [1, 3, 6, 12, 24]
+const DAYS_BEFORE = [1, 2, 3]
+const dueHours = ref(db.shop.payDueRule.hoursBefore)
+const dueDays = ref(db.shop.payDueRule.daysBefore)
+const dueTime = ref(db.shop.payDueRule.atTime)
+const beforeOpts = computed(() => HOURS_BEFORE.map((h) => ({ h, ...dueBeforePickup(order.value.pickupAt, h) })))
+const beforeCustom = computed(() => dueBeforePickup(order.value.pickupAt, dueHours.value))
+const daysOpts = computed(() => DAYS_BEFORE.map((d) => ({ d, ...dueDaysBefore(order.value.pickupAt, d, isHHmm(dueTime.value) ? dueTime.value : '12:00') })))
+const daysCustom = computed(() => dueDaysBefore(order.value.pickupAt, dueDays.value, dueTime.value))
+const dueReasons = computed(() => [...beforeOpts.value.filter((x) => x.disabled).map((x) => `ก่อนนัด ${x.h} ชม.: ${x.reason}`), ...daysOpts.value.filter((x) => x.disabled).map((x) => `ล่วงหน้า ${x.d} วัน ก่อน ${dueTime.value}: ${x.reason}`)])
 const PAY_TITLE = { new: 'แจ้งยอดชำระ', edit: 'แก้ยอดที่แจ้ง', confirm: 'ยืนยันยอดชำระ' }
 // มัดจำ: แจ้งยอดงวดแรก (ยังไม่มีงวดที่แจ้ง/ยืนยัน) เติมยอดมัดจำให้ แก้ได้
 const fullAmount = computed(() => Math.max(t.value.balance - t.value.reported, 0))
@@ -93,6 +104,9 @@ function openPay(mode = 'new', p = null) {
     ? { amount: p.requested ?? p.amount, method: p.method, paidAt: p.paidAt, slip: p.slip, note: p.note, dueAt: p.dueAt || '' }
     : { amount: fullAmount.value, method: PAYMENT_METHODS[0], paidAt: nowLocal(), slip: '', note: '', dueAt: db.shop.payDueMin > 0 ? quickDue(db.shop.payDueMin) : '' })
   if (showDeposit.value) pay.amount = depositAmount.value
+  dueHours.value = db.shop.payDueRule.hoursBefore
+  dueDays.value = db.shop.payDueRule.daysBefore
+  dueTime.value = db.shop.payDueRule.atTime
   payError.value = ''
   payOpen.value = true
 }
@@ -102,7 +116,8 @@ function onSlip(e) {
 }
 async function savePay() {
   if (!(pay.amount > 0)) return (payError.value = 'กรอกยอดเงิน')
-  if (payMode.value !== 'confirm' && pay.dueAt && new Date(pay.dueAt).getTime() <= Date.now()) return (payError.value = 'กำหนดชำระต้องเป็นเวลาในอนาคต')
+  if (payMode.value !== 'confirm' && !pay.dueAt) return (payError.value = 'ต้องกำหนดชำระ เลือกเวลาก่อน')
+  if (payMode.value !== 'confirm' && new Date(pay.dueAt).getTime() <= Date.now()) return (payError.value = 'กำหนดชำระต้องเป็นเวลาในอนาคต')
   if (payMode.value === 'confirm' && !(await askConfirm({ title: 'ยืนยันยอดชำระ', message: `ได้รับจริง ${money(pay.amount)}`, okText: 'ยืนยัน' }))) return
   if (payMode.value === 'confirm') confirmPayment(order.value, payTarget.value.id, { ...pay })
   else if (payMode.value === 'edit') updatePaymentRequest(order.value, payTarget.value.id, { ...pay })
@@ -615,8 +630,26 @@ async function saveCancel() {
           <div class="label">ต้องชำระก่อน</div>
           <div class="mb-2 flex flex-wrap gap-2">
             <button v-for="q in QUICK_DUE" :key="q.m" type="button" class="chip chip-off" @click="pay.dueAt = quickDue(q.m)">{{ q.label }}</button>
-            <button type="button" class="chip" :class="!pay.dueAt ? 'chip-on' : 'chip-off'" @click="pay.dueAt = ''">ไม่กำหนด</button>
           </div>
+          <div class="mb-1 text-xs text-stone-500">ก่อนเวลานัด</div>
+          <div class="mb-2 flex flex-wrap items-center gap-2">
+            <button v-for="o in beforeOpts" :key="o.h" type="button" class="chip" :class="[o.disabled ? 'chip-off cursor-not-allowed opacity-40' : 'chip-off']" :disabled="o.disabled" :aria-label="`ก่อนนัด ${o.h} ชั่วโมง`" @click="pay.dueAt = o.dueAt">{{ o.h }} ชม.</button>
+            <span class="flex items-center gap-1">
+              <input v-model.number="dueHours" type="text" v-num min="1" max="720" class="input h-9 w-16 px-2 text-center" aria-label="ชั่วโมงก่อนนัด" />
+              <button type="button" class="chip chip-off" :class="beforeCustom.disabled ? 'cursor-not-allowed opacity-40' : ''" :disabled="beforeCustom.disabled" @click="pay.dueAt = beforeCustom.dueAt">ชม. ก่อนนัด</button>
+            </span>
+          </div>
+          <div class="mb-1 text-xs text-stone-500">ล่วงหน้า ก่อนเวลา</div>
+          <div class="mb-2 flex flex-wrap items-center gap-2">
+            <button v-for="o in daysOpts" :key="o.d" type="button" class="chip chip-off" :class="o.disabled ? 'cursor-not-allowed opacity-40' : ''" :disabled="o.disabled" :aria-label="`ล่วงหน้า ${o.d} วัน ก่อน ${dueTime}`" @click="pay.dueAt = o.dueAt">{{ o.d }} วัน ก่อน {{ dueTime }}</button>
+            <span class="flex items-center gap-1">
+              <input v-model.number="dueDays" type="text" v-num min="0" max="30" class="input h-9 w-14 px-2 text-center" aria-label="จำนวนวันล่วงหน้า" />
+              <span class="text-xs text-stone-500">วัน ก่อน</span>
+              <input v-model="dueTime" type="time" class="input h-9 w-28 px-2" aria-label="เวลาก่อน" />
+              <button type="button" class="chip chip-off" :class="daysCustom.disabled ? 'cursor-not-allowed opacity-40' : ''" :disabled="daysCustom.disabled" @click="pay.dueAt = daysCustom.dueAt">ตั้ง</button>
+            </span>
+          </div>
+          <p v-for="(r, i) in dueReasons" :key="i" class="mb-1 text-xs text-rose-600">{{ r }}</p>
           <input v-model="pay.dueAt" type="datetime-local" class="input" aria-label="กำหนดชำระ" />
         </div>
         <div><label class="label">วันเวลาที่ชำระ</label><input v-model="pay.paidAt" type="datetime-local" class="input" /></div>

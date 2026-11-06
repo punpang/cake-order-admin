@@ -1,6 +1,6 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { session, can, unreadChats } from './data/store'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { session, can, unreadChats, runScheduledChecks } from './data/store'
 import { ROLES } from './lib/constants'
 import AppIcon from './components/AppIcon.vue'
 import AppModal from './components/AppModal.vue'
@@ -11,6 +11,10 @@ const roleOpen = ref(false)
 // เมนูล่างมือถือ: ออร์เดอร์ / แชท / POS / ครัว / จัดการ (เฉพาะที่มีสิทธิ์)
 const tabCount = computed(() => 1 + (can('chat') ? 1 : 0) + (can('pos') ? 1 : 0) + (can('viewMaterials') ? 1 : 0) + (can('manage') ? 1 : 0))
 const unread = computed(() => unreadChats())
+// จำลอง cron: ตรวจแจ้งเตือนตามเวลาทุก 60 วินาทีขณะเปิดแอป (ของจริงใช้ cron ฝั่งเซิร์ฟเวอร์)
+let timer = null
+onMounted(() => { timer = setInterval(() => runScheduledChecks(), 60000) })
+onBeforeUnmount(() => clearInterval(timer))
 </script>
 
 <template>

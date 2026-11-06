@@ -13,7 +13,7 @@ import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEF
 import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX } from '../lib/chatBot'
 import { checkTelegram, checkSmsUrl, checkSmsSender } from '../lib/integrationCheck'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
-import { dueState, overduePayments, orderDue } from '../lib/payDue'
+import { dueState, overduePayments, orderDue, quickDue, isHHmm } from '../lib/payDue'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
 let seq = 1000
@@ -58,6 +58,9 @@ export const db = reactive({
   shop: { name: 'ร้านเค้กตัวอย่าง', slotMinutes: 30, open: '09:00', close: '20:00', nearbyHours: 2, leadPickup: 60, leadDelivery: 120, depositPercent: 50, birthdayDays: 14,
     // กำหนดชำระเริ่มต้นตอนแจ้งยอด (นาที) · 0 = ไม่กำหนด
     payDueMin: 30,
+    // ตัวเลือกกำหนดชำระตามนัด: ก่อนนัด hoursBefore ชม. · ล่วงหน้า daysBefore วัน ก่อน atTime · เตือนลูกค้าที่ยังไม่ชำระของพรุ่งนี้ตอน payReminderTime
+    payDueRule: { hoursBefore: 24, daysBefore: 1, atTime: '12:00' },
+    payReminderTime: '09:00',
     // VAT: ฐาน = สินค้า+ค่าส่ง หลังส่วนลด · mode inclusive (ราคารวม VAT แล้ว) | exclusive (บวกเพิ่มท้ายยอด) · เก็บ snapshot {rate, mode} ในแต่ละออร์เดอร์ (order.vat)
     vat: { enabled: false, rate: 7, mode: 'inclusive', taxId: '', legalName: '' },
     // ลิงก์ออร์เดอร์: หมดอายุ = เปิดล่าสุด + idleDays (เลื่อนทุกครั้งที่เปิด) · ไม่เคยเปิด = สร้าง + neverOpenedDays · linkAllowlist = โฮสต์ภายนอกที่ลิงก์ย่อชี้ไปได้ (https)
@@ -190,6 +193,7 @@ export const db = reactive({
     rule('order_created', ['line', 'facebook', 'sms'], 'สวัสดีค่ะ {ชื่อลูกค้า} รับออร์เดอร์ {เลขออร์เดอร์} แล้ว ยอดรวม {ยอดรวม} นัด{ส่งมอบ} {วันนัด} {เวลานัด}'),
     rule('payment_requested', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง}) ชำระก่อน {ชำระก่อน} ดู/ชำระที่ {ลิงก์ออร์เดอร์}'),
     rule('order_confirmed', ['line', 'facebook', 'sms'], 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ คงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า'),
+    rule('payment_reminder', ['line', 'facebook', 'sms'], 'พรุ่งนี้มีนัดออร์เดอร์ {เลขออร์เดอร์} ({วันนัด} {เวลานัด}) ยังไม่ได้ชำระ คงค้าง {คงค้าง} ชำระก่อน {ชำระก่อน} ชำระที่ {ลิงก์ออร์เดอร์}'),
     rule('prepared', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} เตรียมสินค้าเสร็จแล้วค่ะ นัด{ส่งมอบ} {วันนัด} {เวลานัด}'),
     rule('payment_confirmed', ['line', 'facebook', 'sms'], 'ได้รับชำระออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ คงค้าง {คงค้าง}'),
     rule('pickup_reminder', ['line', 'facebook', 'sms'], 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
@@ -490,14 +494,15 @@ export function reportPayment(order, p) {
     paidAt: p.paidAt,
     slip: p.slip || '',
     note: p.note || '',
-    dueAt: p.dueAt || '',
+    dueAt: p.dueAt || quickDue(db.shop.payDueMin || 30), // ทุกงวดต้องมีกำหนดชำระ
     extension: null,
     status: 'reported',
     reportedBy: session.role,
     confirmedBy: null,
   })
-  log(order, `แจ้งยอดชำระ ${money(Number(p.amount))} (${p.method})${p.dueAt ? ` ชำระก่อน ${dueText(p.dueAt)}` : ''}`)
-  notifyOrder('payment_requested', order, { requested: Number(p.amount), dueAt: p.dueAt || '' })
+  const due = order.payments[order.payments.length - 1].dueAt
+  log(order, `แจ้งยอดชำระ ${money(Number(p.amount))} (${p.method}) ชำระก่อน ${dueText(due)}`)
+  notifyOrder('payment_requested', order, { requested: Number(p.amount), dueAt: due })
   if (order.status === 'awaiting_payment') order.status = 'payment_reported'
 }
 
@@ -509,7 +514,7 @@ export function updatePaymentRequest(order, paymentId, p) {
   const pay = order.payments.find((x) => x.id === paymentId)
   if (!pay || pay.status !== 'reported') return
   Object.assign(pay, { requested: Number(p.amount), amount: Number(p.amount), ...payFields(p) })
-  if (p.dueAt !== undefined) pay.dueAt = p.dueAt || ''
+  if (p.dueAt) pay.dueAt = p.dueAt
   log(order, `แก้ยอดที่แจ้งเป็น ${money(Number(p.amount))}`)
 }
 
@@ -668,7 +673,20 @@ export function saveShopSettings(d) {
   db.shop.leadDelivery = Math.max(0, Number(d.leadDelivery) || 0)
   db.shop.depositPercent = Math.min(100, Math.max(0, Number(d.depositPercent) || 0))
   db.shop.birthdayDays = Math.max(0, Number(d.birthdayDays) || 0)
-  if (d.payDueMin !== undefined) db.shop.payDueMin = Math.min(10080, Math.max(0, Math.round(Number(d.payDueMin) || 0)))
+  if (d.payDueMin !== undefined) {
+    const m = Math.round(Number(d.payDueMin))
+    db.shop.payDueMin = m >= 1 ? Math.min(10080, m) : 30
+  }
+  if (d.payDueRule) {
+    const r = d.payDueRule
+    const h = Math.round(Number(r.hoursBefore)), dd = Math.round(Number(r.daysBefore))
+    db.shop.payDueRule = {
+      hoursBefore: h >= 1 && h <= 720 ? h : db.shop.payDueRule.hoursBefore,
+      daysBefore: dd >= 0 && dd <= 30 ? dd : db.shop.payDueRule.daysBefore,
+      atTime: isHHmm(r.atTime) ? r.atTime : db.shop.payDueRule.atTime,
+    }
+  }
+  if (d.payReminderTime !== undefined) db.shop.payReminderTime = isHHmm(d.payReminderTime) ? d.payReminderTime : db.shop.payReminderTime
   if (d.vat) {
     const rate = Math.round((Number(d.vat.rate) || 0) * 100) / 100
     db.shop.vat = {
@@ -1186,6 +1204,22 @@ export function notifyOrder(event, order, extra = {}) {
   notify(event, { customer, vars, orderId: order.id })
   if (TEAM_OF[event]) notify(TEAM_OF[event], { vars, orderId: order.id })
 }
+// เตือนลูกค้าที่เคยถูกแจ้งชำระแต่ยังไม่ชำระเลย เมื่อออร์เดอร์เป็นของพรุ่งนี้ ตั้งแต่เวลา payReminderTime (ครั้งเดียวต่อออร์เดอร์)
+function payReminder(o, nowD, once) {
+  if (['draft', 'cancelled', 'delivered', 'order_confirmed'].includes(o.status)) return
+  const hm = `${pad(nowD.getHours())}:${pad(nowD.getMinutes())}`
+  if (hm < db.shop.payReminderTime) return
+  const tmr = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate() + 1)
+  const tmrStr = toDateStr(tmr)
+  if (String(o.pickupAt).slice(0, 10) !== tmrStr) return
+  const asked = o.payments.filter((p) => p.source !== 'customer')
+  if (!asked.length) return // ไม่เคยแจ้งชำระ
+  if (o.payments.some((p) => p.status === 'confirmed')) return // มีชำระแล้ว
+  if (o.payments.some((p) => p.status === 'reported' && (p.slip || p.source === 'customer'))) return // ลูกค้าแจ้งโอนแล้ว รอตรวจ
+  if (orderTotals(o).balance <= 0) return
+  const open = asked.filter((p) => p.status === 'reported').sort((a, b) => String(a.dueAt).localeCompare(String(b.dueAt)))[0]
+  once(`payrem|${o.id}|${tmrStr}`, () => { notifyOrder('payment_reminder', o, { dueAt: open?.dueAt || '' }); return 1 })
+}
 // จำลองรอบตรวจตามเวลา (ของจริงใช้ cron): เตือนนัดรับ 24 ชม., งานใกล้เวลา 2 ชม., วันเกิด, คะแนนใกล้หมดอายุ · ส่งครั้งเดียวต่อ key
 export function runScheduledChecks() {
   let n = 0
@@ -1200,6 +1234,7 @@ export function runScheduledChecks() {
     const toPickup = new Date(o.pickupAt).getTime() - nowMs
     if (toPickup > 0 && toPickup <= 24 * 3600e3) once(`pickup|${o.id}`, () => notify('pickup_reminder', { customer: findCustomer(o.customerId), vars: orderVars(o), orderId: o.id }))
     for (const p of overduePayments(o, new Date(nowMs))) once(`overdue|${p.id}|${p.dueAt}`, () => notify('team_pay_overdue', { vars: { ...orderVars(o), ชำระก่อน: dueText(p.dueAt) }, orderId: o.id }))
+    payReminder(o, new Date(nowMs), once)
     const toDue = dueAt(o).getTime() - nowMs
     if (toDue <= 2 * 3600e3) once(`due|${o.id}`, () => notify('team_due_soon', { vars: orderVars(o), orderId: o.id }))
   }

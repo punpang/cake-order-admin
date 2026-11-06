@@ -50,3 +50,43 @@ export function orderDue(order, now = new Date()) {
   const first = rows.find((p) => dueState(p, now) === 'overdue') || rows[0]
   return first ? { dueAt: first.dueAt, state: dueState(first, now), text: remainingText(first, now) } : null
 }
+
+// ---------- ตัวเลือกกำหนดชำระตามเวลานัด ----------
+const p2 = (n) => String(n).padStart(2, '0')
+const toLocal = (d) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`
+export const isHHmm = (s) => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(s || ''))
+
+// คำเรียกวันของเวลา (วันนี้/เมื่อวาน/พรุ่งนี้/dd/mm) ใช้ในข้อความเหตุผล
+function dayWord(iso, now) {
+  const a = new Date(iso.slice(0, 10) + 'T00:00')
+  const b = new Date(toLocal(now).slice(0, 10) + 'T00:00')
+  const diff = Math.round((a - b) / 86400000)
+  if (diff === 0) return 'วันนี้'
+  if (diff === -1) return 'เมื่อวาน'
+  if (diff === 1) return 'พรุ่งนี้'
+  return `${p2(a.getDate())}/${p2(a.getMonth() + 1)}`
+}
+
+// ตรวจเวลาที่คำนวณได้: ต้องอยู่หลังตอนนี้ · คืน { dueAt, disabled, reason }
+export function dueCheck(dueAt, now = new Date()) {
+  if (!dueAt || Number.isNaN(new Date(dueAt).getTime())) return { dueAt: '', disabled: true, reason: 'คำนวณเวลาไม่ได้ (ไม่มีวันเวลานัด)' }
+  if (new Date(dueAt).getTime() <= now.getTime()) return { dueAt, disabled: true, reason: `${dueAt.slice(11, 16)} ${dayWord(dueAt, now)} ผ่านไปแล้ว` }
+  return { dueAt, disabled: false, reason: '' }
+}
+
+// ก่อนเวลานัด N ชั่วโมง
+export function dueBeforePickup(pickupAt, hours, now = new Date()) {
+  const h = Number(hours)
+  const t = new Date(pickupAt)
+  if (!(h > 0) || Number.isNaN(t.getTime())) return dueCheck('', now)
+  return dueCheck(toLocal(new Date(t.getTime() - h * 3600000)), now)
+}
+
+// ล่วงหน้า N วัน ก่อนเวลา HH:mm (นับจากวันนัด)
+export function dueDaysBefore(pickupAt, days, atTime = '12:00', now = new Date()) {
+  const d = Number(days)
+  const t = new Date(pickupAt)
+  if (!(d >= 0) || !isHHmm(atTime) || Number.isNaN(t.getTime())) return dueCheck('', now)
+  const x = new Date(t.getFullYear(), t.getMonth(), t.getDate() - d, Number(atTime.slice(0, 2)), Number(atTime.slice(3)))
+  return dueCheck(toLocal(x), now)
+}

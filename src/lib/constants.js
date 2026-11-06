@@ -83,6 +83,7 @@ export const NOTIFY_EVENTS = {
   payment_confirmed: { label: 'ยืนยันชำระแล้ว', audience: 'customer' },
   order_confirmed: { label: 'ยืนยันการสั่งซื้อ', audience: 'customer' },
   prepared: { label: 'เตรียมสินค้าเสร็จ (พร้อมรับ/ส่ง)', audience: 'customer' },
+  payment_reminder: { label: 'เตือนชำระ (ออร์เดอร์พรุ่งนี้ ยังไม่ชำระ)', audience: 'customer', scheduled: true },
   pickup_reminder: { label: 'เตือนก่อนนัดรับ (24 ชม.)', audience: 'customer', scheduled: true },
   prepared: { label: 'เตรียมสินค้าแล้ว', cls: 'bg-teal-50 text-teal-700', dot: 'bg-teal-500', bar: 'bg-teal-400' },
   delivered: { label: 'ส่งมอบแล้ว', audience: 'customer' },
