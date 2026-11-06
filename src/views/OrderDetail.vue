@@ -9,7 +9,7 @@ import {
   setBirthday, depositOf, setDelivery,
 } from '../data/store'
 import { orderTotals } from '../lib/pricing'
-import { QUICK_DUE, quickDue, dueState, remainingText, dueBeforePickup, dueDaysBefore, isHHmm } from '../lib/payDue'
+import { QUICK_DUE, quickDue, dueState, remainingText, dueBeforePickup, dueDaysBefore, isHHmm, customerPending } from '../lib/payDue'
 import { CHANNELS, NOTIFY_EVENTS } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
 import { orderCost } from '../lib/materials'
@@ -103,7 +103,7 @@ function openPay(mode = 'new', p = null) {
   payMode.value = mode
   payTarget.value = p
   Object.assign(pay, p
-    ? { amount: p.requested ?? p.amount, method: p.method, paidAt: p.paidAt, slip: p.slip, note: p.note, dueAt: p.dueAt || '' }
+    ? { amount: mode === 'confirm' && p.customerSubmitted ? p.amount : (p.requested ?? p.amount), method: p.method, paidAt: p.paidAt, slip: p.slip, note: p.note, dueAt: p.dueAt || '' }
     : { amount: fullAmount.value, method: PAYMENT_METHODS[0], paidAt: nowLocal(), slip: '', note: '', dueAt: db.shop.payDueMin > 0 ? quickDue(db.shop.payDueMin) : '' })
   if (showDeposit.value) pay.amount = depositAmount.value
   dueHours.value = db.shop.payDueRule.hoursBefore
@@ -300,6 +300,7 @@ async function saveCancel() {
       <div class="min-w-0 flex-1">
         <h1 class="truncate text-xl font-semibold tracking-tight text-stone-900">{{ order.code }}</h1>
       </div>
+      <span v-if="customerPending(order).length" class="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-sky-700">ลูกค้าแจ้งโอน รอตรวจสลิป</span>
       <PayDueBadge :order="order" />
       <StatusBadge :status="order.status" />
     </div>
@@ -507,6 +508,7 @@ async function saveCancel() {
                 </span>
               </div>
               <div v-if="p.status === 'confirmed' && p.requested != null && p.requested !== p.amount" class="text-xs text-stone-500">แจ้งไป {{ money(p.requested) }} · ได้รับจริง {{ money(p.amount) }}</div>
+              <div v-if="p.customerSubmitted && p.status === 'reported'" class="mt-1 inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-700">ลูกค้าแจ้งโอนเอง · รอตรวจสลิป{{ p.source === 'customer' ? '' : ' (ตามที่ร้านแจ้ง)' }}</div>
               <div v-if="dueState(p) !== 'none'" class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="dueState(p) === 'overdue' ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-700'">
                 <AppIcon name="alert" :size="12" /> ชำระก่อน {{ dateTime(p.dueAt) }} · {{ remainingText(p) }}
               </div>

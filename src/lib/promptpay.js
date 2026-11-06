@@ -1,0 +1,44 @@
+// PromptPay (Thai QR Payment / EMVCo) · ฟังก์ชันล้วน ไม่ต้องเชื่อมภายนอก
+// id: เบอร์มือถือ 10 หลัก (0xxxxxxxxx) | เลขบัตรประชาชน/ภาษี 13 หลัก | e-Wallet 15 หลัก
+
+export const digitsOf = (s) => String(s ?? '').replace(/\D/g, '')
+
+// ชนิดของ id (null = ใช้ไม่ได้)
+export function promptPayKind(id) {
+  const d = digitsOf(id)
+  if (/^0[689]\d{8}$/.test(d)) return 'phone'
+  if (/^\d{13}$/.test(d)) return 'national'
+  if (/^\d{15}$/.test(d)) return 'ewallet'
+  return null
+}
+
+// CRC16-CCITT-FALSE (poly 0x1021, init 0xFFFF)
+export function crc16(str) {
+  let crc = 0xffff
+  for (let i = 0; i < str.length; i++) {
+    crc ^= str.charCodeAt(i) << 8
+    for (let b = 0; b < 8; b++) crc = crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0')
+}
+
+const tlv = (tag, value) => `${tag}${String(value.length).padStart(2, '0')}${value}`
+
+// สร้าง payload สำหรับ QR · amount ไม่ใส่ = QR ใช้ซ้ำ (static) ไม่ล็อกยอด
+export function promptPayPayload(id, amount = null) {
+  const kind = promptPayKind(id)
+  if (!kind) return null
+  const d = digitsOf(id)
+  const target = kind === 'phone' ? tlv('01', `0066${d.slice(1)}`) : kind === 'national' ? tlv('02', d) : tlv('03', d)
+  const amt = amount == null || amount === '' ? null : Math.round(Number(amount) * 100) / 100
+  if (amt != null && (!Number.isFinite(amt) || amt <= 0 || amt > 9999999.99)) return null
+  const body =
+    tlv('00', '01') +
+    tlv('01', amt == null ? '11' : '12') +
+    tlv('29', tlv('00', 'A000000677010111') + target) +
+    tlv('58', 'TH') +
+    tlv('53', '764') +
+    (amt == null ? '' : tlv('54', amt.toFixed(2))) +
+    '6304'
+  return body + crc16(body)
+}

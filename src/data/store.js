@@ -13,8 +13,9 @@ import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEF
 import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX } from '../lib/chatBot'
 import { checkTelegram, checkSmsUrl, checkSmsSender } from '../lib/integrationCheck'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
+import { digitsOf, promptPayKind } from '../lib/promptpay'
 import { deliveryFee, cleanDelivery, cleanDeliveryConfig, rememberPlace, DEFAULT_DELIVERY } from '../lib/delivery'
-import { dueState, overduePayments, orderDue, quickDue, isHHmm } from '../lib/payDue'
+import { dueState, overduePayments, orderDue, quickDue, isHHmm, remainingText } from '../lib/payDue'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
 let seq = 1000
@@ -64,6 +65,8 @@ export const db = reactive({
     payReminderTime: '09:00',
     // ค่าส่งจากระยะทาง (กม.): ปิดอยู่จนกว่าร้านจะตั้งเรต
     delivery: { ...DEFAULT_DELIVERY },
+    // ช่องทางชำระเงินที่แสดงให้ลูกค้า (พร้อมเพย์ = เบอร์มือถือ/เลขบัตร/e-Wallet)
+    payment: { promptpayId: '', accountName: '', bank: '', accountNo: '', note: '' },
     // VAT: ฐาน = สินค้า+ค่าส่ง หลังส่วนลด · mode inclusive (ราคารวม VAT แล้ว) | exclusive (บวกเพิ่มท้ายยอด) · เก็บ snapshot {rate, mode} ในแต่ละออร์เดอร์ (order.vat)
     vat: { enabled: false, rate: 7, mode: 'inclusive', taxId: '', legalName: '' },
     // ลิงก์ออร์เดอร์: หมดอายุ = เปิดล่าสุด + idleDays (เลื่อนทุกครั้งที่เปิด) · ไม่เคยเปิด = สร้าง + neverOpenedDays · linkAllowlist = โฮสต์ภายนอกที่ลิงก์ย่อชี้ไปได้ (https)
@@ -210,6 +213,7 @@ export const db = reactive({
     rule('team_cancelled', ['telegram'], '[ยกเลิก] {เลขออร์เดอร์} {ชื่อลูกค้า}'),
     rule('team_approval_request', ['telegram'], '[ขออนุมัติ] {เลขออร์เดอร์} {ชื่อลูกค้า} ยืนยันสั่งซื้อแบบยังไม่ชำระ คงค้าง {คงค้าง}'),
     rule('team_pay_overdue', ['telegram'], '[เกินกำหนดชำระ] {เลขออร์เดอร์} {ชื่อลูกค้า} ต้องชำระก่อน {ชำระก่อน} คงค้าง {คงค้าง}'),
+    rule('team_customer_paid', ['telegram'], '[ลูกค้าแจ้งโอน] {เลขออร์เดอร์} {ชื่อลูกค้า} {ยอดที่แจ้ง} รอตรวจสลิป'),
     rule('team_pay_extend_request', ['telegram'], '[ขอขยายเวลาชำระ] {เลขออร์เดอร์} {ชื่อลูกค้า} เดิมกำหนด {ชำระก่อน}'),
   ],
   // คิวข้อความ (จำลอง) ล่าสุดอยู่หน้า · notifySent = key ที่ส่งแล้ว (กันส่งซ้ำของเหตุการณ์ตามเวลา)
@@ -518,6 +522,7 @@ export function reportPayment(order, p) {
     note: p.note || '',
     dueAt: p.dueAt || quickDue(db.shop.payDueMin || 30), // ทุกงวดต้องมีกำหนดชำระ
     extension: null,
+    createdAt: now(),
     status: 'reported',
     reportedBy: session.role,
     confirmedBy: null,
@@ -754,6 +759,14 @@ export function saveShopSettings(d) {
     }
   }
   if (d.delivery) db.shop.delivery = cleanDeliveryConfig(d.delivery)
+  if (d.payment) {
+    const t = (v, n) => String(v ?? '').trim().slice(0, n)
+    const pid = digitsOf(d.payment.promptpayId)
+    db.shop.payment = {
+      promptpayId: promptPayKind(pid) ? pid : '', accountName: t(d.payment.accountName, 80), bank: t(d.payment.bank, 60),
+      accountNo: digitsOf(d.payment.accountNo).slice(0, 20), note: t(d.payment.note, 200),
+    }
+  }
   if (d.payReminderTime !== undefined) db.shop.payReminderTime = isHHmm(d.payReminderTime) ? d.payReminderTime : db.shop.payReminderTime
   if (d.vat) {
     const rate = Math.round((Number(d.vat.rate) || 0) * 100) / 100
@@ -973,6 +986,118 @@ function undoLoyalty(order) {
 // token สุ่ม 192 บิต เก็บเฉพาะ hash · หมดอายุตาม shop.linkPolicy · เพิกถอน/หมดอายุ = ลบแถว · ข้อความผิดพลาดเดียวกันทุกกรณี
 // จำลอง: ข้อมูลอยู่ในหน่วยความจำของเบราว์เซอร์นี้ ลิงก์เปิดข้ามเครื่องไม่ได้จนกว่าจะต่อ Supabase
 const linkFails = []
+
+// ---------- มุมมองออร์เดอร์ของลูกค้า (หน้าลิงก์ + หน้าบัญชีที่ล็อกอิน ใช้ข้อมูลชุดเดียวกัน) ----------
+// owner=false (ลิงก์): ปิดบางส่วนเบอร์ ไม่ส่งที่อยู่/url/รายละเอียด · owner=true (ล็อกอินเป็นเจ้าของ): เห็นเต็มของตัวเอง · ไม่มีต้นทุน/กำไร/โน้ตภายใน/ประวัติภายใน
+export const CUSTOMER_PAY = { perHour: 5, slipMaxChars: 7000000, noteMax: 200 }
+const pendingCustomerSum = (o) => round2(o.payments.filter((p) => p.status === 'reported' && p.customerSubmitted).reduce((x, p) => x + (Number(p.amount) || 0), 0))
+const recentCustomerSubmits = (o) => o.payments.filter((p) => p.customerSubmitted && Date.now() - new Date(p.submittedAt || 0).getTime() < 3600e3).length
+// เหตุผลที่ลูกค้าชำระไม่ได้ ('' = ชำระได้)
+export function customerPayBlock(o) {
+  if (o.status === 'cancelled') return 'ออร์เดอร์นี้ถูกยกเลิกแล้ว'
+  if (o.status === 'draft') return 'ออร์เดอร์ยังไม่เปิดรับชำระ'
+  const t = orderTotals(o)
+  if (t.balance <= 0) return 'ชำระครบแล้ว'
+  if (overduePayments(o).length) return 'เกินกำหนดชำระ กรุณากดขอขยายเวลาก่อน'
+  if (t.balance - pendingCustomerSum(o) <= 0) return 'ร้านกำลังตรวจสอบสลิปที่ส่งแล้ว'
+  if (recentCustomerSubmits(o) >= CUSTOMER_PAY.perHour) return 'ส่งสลิปบ่อยเกินไป กรุณารอสักครู่'
+  return ''
+}
+export function publicOrderView(o, { owner = false } = {}) {
+  const t = orderTotals(o)
+  const cu = findCustomer(o.customerId)
+  const alive = cu && !cu.deleted
+  const rv = reviewOfOrder(o.id)
+  const dv = o.fulfillment === 'delivery'
+  const pays = o.payments.filter((p) => p.status !== 'cancelled').map((p) => ({
+    id: p.id, status: p.status, method: p.method, paidAt: p.paidAt,
+    amount: p.status === 'confirmed' ? p.amount : (p.requested ?? p.amount),
+    dueAt: p.status === 'reported' ? p.dueAt || '' : '', due: dueState(p), remaining: remainingText(p),
+    extension: p.status === 'reported' ? p.extension?.status || null : null,
+    submitted: !!p.customerSubmitted, shopRequested: p.source !== 'customer',
+  }))
+  const room = Math.max(0, round2(t.balance - pendingCustomerSum(o)))
+  return {
+    id: o.id, code: o.code, channel: o.channel || 'web', status: o.status, createdAt: o.createdAt, pickupAt: o.pickupAt, fulfillment: o.fulfillment,
+    customer: alive ? (owner ? { name: cu.name, phone: cu.phone } : { name: String(cu.name || '').trim().split(/\s+/)[0], phone: maskPhone(cu.phone) }) : null,
+    delivery: dv ? { placeName: o.placeName || '', distanceKm: o.distanceKm ?? null, shippingFee: Number(o.shippingFee) || 0, ...(owner ? { address: o.address || '', mapUrl: o.mapUrl || '', detail: o.detail || '' } : {}) } : null,
+    birthday: owner && o.birthday ? { ...o.birthday } : null,
+    items: o.items.map((i) => ({ id: i.id, name: i.name, qty: i.qty, unitPrice: i.unitPrice, lines: describeSelections(i, db.optionGroups), note: owner ? i.note || '' : '' })),
+    total: t.total, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal, vat: t.vat, vatRate: t.vatRate, vatMode: t.vatMode,
+    refunds: o.status === 'cancelled' ? refundList(o.cancel) : [],
+    payments: pays, payDue: orderDue(o), unpaidApproved: o.status === 'order_confirmed',
+    pay: { block: customerPayBlock(o), room, info: { ...db.shop.payment }, limitPerHour: CUSTOMER_PAY.perHour },
+    review: owner && rv ? { rating: rv.rating, status: rv.status } : null,
+  }
+}
+
+// ออร์เดอร์ตามสิทธิ์ลูกค้า: { token } (ลิงก์ที่ยังไม่หมดอายุ) หรือ { orderId } (ล็อกอินเป็นเจ้าของ) · ไม่เจอ/ไม่มีสิทธิ์ = null (ไม่บอกเหตุผล)
+function ctxOrder(ctx) {
+  if (ctx?.token != null) {
+    const at = Date.now()
+    while (linkFails.length && at - linkFails[0] >= 5 * 60e3) linkFails.shift()
+    if (failBlocked(linkFails, at)) return null
+    const token = String(ctx.token)
+    const link = isTokenShape(token) ? db.orderLinks.find((l) => l.tokenHash === hashToken(token)) : null
+    if (!link || link.revokedAt || !linkAlive(link, db.shop.linkPolicy, at)) { linkFails.push(at); return null }
+    return findOrder(link.orderId) || null
+  }
+  if (ctx?.orderId) {
+    const c = myCustomer()
+    const o = c ? findOrder(ctx.orderId) : null
+    return o && o.customerId === c.id && o.status !== 'draft' ? o : null
+  }
+  return null
+}
+const SLIP_OK = /^(data:image\/(png|jpe?g|webp|gif);base64,|blob:)/
+// ลูกค้าแจ้งชำระเอง (ไม่ต้องรอร้านแจ้งยอด) · แนบสลิป · แอดมินยืนยันเหมือนเดิม
+export function customerPay(ctx, { amount, slip, note = '', paymentId = null }) {
+  const o = ctxOrder(ctx)
+  if (!o) return { error: LINK_ERROR }
+  const block = customerPayBlock(o)
+  if (block) return { error: block }
+  const t = orderTotals(o)
+  const room = round2(t.balance - pendingCustomerSum(o))
+  const amt = round2(Number(amount))
+  if (!(amt > 0)) return { error: 'กรอกยอดที่โอน' }
+  if (amt > room + 1e-9) return { error: `ยอดเกินคงค้าง (ชำระได้ไม่เกิน ${money(room)})` }
+  if (typeof slip !== 'string' || !SLIP_OK.test(slip)) return { error: 'แนบสลิปเป็นรูปภาพ (PNG / JPG / WEBP)' }
+  if (slip.length > CUSTOMER_PAY.slipMaxChars) return { error: 'ไฟล์สลิปใหญ่เกินไป (ไม่เกิน 5 MB)' }
+  const nt = String(note).trim().slice(0, CUSTOMER_PAY.noteMax)
+  let p = null
+  if (paymentId) {
+    p = o.payments.find((x) => x.id === paymentId)
+    if (!p || p.status !== 'reported' || p.source === 'customer') return { error: 'ไม่พบยอดที่ร้านแจ้ง' }
+    if (p.customerSubmitted) return { error: 'ส่งสลิปของยอดนี้แล้ว รอร้านตรวจสอบ' }
+    if (dueState(p) === 'overdue') return { error: 'ยอดนี้เกินกำหนดชำระ กรุณากดขอขยายเวลาก่อน' }
+    Object.assign(p, { amount: amt, slip, note: nt, customerSubmitted: true, submittedAt: now(), paidAt: localNow() })
+  } else {
+    p = { id: uid('pay'), requested: amt, amount: amt, method: 'โอนเงิน', paidAt: localNow(), slip, note: nt, dueAt: '', extension: null, status: 'reported', source: 'customer', customerSubmitted: true, submittedAt: now(), createdAt: now(), reportedBy: 'customer', confirmedBy: null }
+    o.payments.push(p)
+  }
+  log(o, `ลูกค้าแจ้งชำระ ${money(amt)} ผ่านหน้าออร์เดอร์ (รอตรวจสลิป)`)
+  if (o.status === 'awaiting_payment') o.status = 'payment_reported'
+  notify('team_customer_paid', { vars: { ...orderVars(o), ยอดที่แจ้ง: money(amt) }, orderId: o.id })
+  return { ok: true, paymentId: p.id }
+}
+// ลูกค้าขอขยายเวลาชำระ (เมื่องวดเกินกำหนด)
+export function customerRequestExtension(ctx, paymentId, note = '') {
+  const o = ctxOrder(ctx)
+  if (!o) return { error: LINK_ERROR }
+  const p = o.payments.find((x) => x.id === paymentId)
+  if (!p || p.source === 'customer') return { error: 'ไม่พบยอดที่ร้านแจ้ง' }
+  if (!requestPayExtension(o, paymentId, note)) return { error: 'ขอขยายเวลาไม่ได้ (ยังไม่เกินกำหนด หรือมีคำขอรออยู่)' }
+  return { ok: true }
+}
+// มุมมองสำหรับหน้าลิงก์/บัญชี (รีเฟรชหลังทำรายการ)
+export function customerOrderView(ctx) {
+  const o = ctxOrder(ctx)
+  return o ? publicOrderView(o, { owner: !!ctx.orderId }) : null
+}
+const localNow = () => {
+  const d = new Date()
+  return `${toDateStr(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 export function orderLinkUrl(token) {
   const base = typeof location !== 'undefined' ? `${location.origin}${location.pathname}` : ''
   return `${base}#/o/${token}`
@@ -1026,20 +1151,7 @@ export function openOrderLink(token) {
   if (!o) return fail()
   link.lastOpenedAt = new Date(at).toISOString()
   link.openCount++
-  const t = orderTotals(o)
-  const cu = findCustomer(o.customerId)
-  return {
-    ok: true,
-    order: {
-      code: o.code, status: o.status, createdAt: o.createdAt, pickupAt: o.pickupAt, fulfillment: o.fulfillment,
-      delivery: o.fulfillment === 'delivery' ? { placeName: o.placeName || '', distanceKm: o.distanceKm ?? null, shippingFee: Number(o.shippingFee) || 0 } : null, // ไม่ส่งที่อยู่/url/รายละเอียดผ่านลิงก์
-      customer: cu && !cu.deleted ? { name: String(cu.name || '').trim().split(/\s+/)[0], phone: maskPhone(cu.phone) } : null,
-      items: o.items.map((i) => ({ name: i.name, qty: i.qty, unitPrice: i.unitPrice, lines: describeSelections(i, db.optionGroups) })),
-      total: t.total, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal, vat: t.vat, vatRate: t.vatRate, vatMode: t.vatMode,
-      refunds: o.status === 'cancelled' ? refundList(o.cancel) : [],
-    },
-    expiresAt: new Date(linkExpiresAt(link, db.shop.linkPolicy)).toISOString(),
-  }
+  return { ok: true, order: publicOrderView(o), expiresAt: new Date(linkExpiresAt(link, db.shop.linkPolicy)).toISOString() }
 }
 export function saveLinkSettings({ policy, allowlist }) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
@@ -2137,18 +2249,12 @@ export function myOrders() {
   if (!id || !myCustomer()) return []
   return db.orders
     .filter((o) => o.customerId === id && o.status !== 'draft')
-    .map((o) => {
-      const t = orderTotals(o)
-      return {
-        id: o.id, code: o.code, channel: o.channel || 'web', status: o.status, createdAt: o.createdAt, pickupAt: o.pickupAt, fulfillment: o.fulfillment,
-        address: o.address || '', placeName: o.placeName || '', mapUrl: o.mapUrl || '', detail: o.detail || '', distanceKm: o.distanceKm ?? null, shippingFee: Number(o.shippingFee) || 0, birthday: o.birthday ? { ...o.birthday } : null, items: o.items.map((i) => ({ ...i })),
-        total: t.total, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal, vat: t.vat, vatRate: t.vatRate, vatMode: t.vatMode, refunds: o.status === 'cancelled' ? refundList(o.cancel) : [],
-        payments: o.payments.filter((p) => p.status === 'confirmed').map((p) => ({ amount: p.amount, method: p.method, paidAt: p.paidAt })),
-        payDue: orderDue(o),
-        review: reviewOfOrder(o.id) ? { rating: reviewOfOrder(o.id).rating, status: reviewOfOrder(o.id).status } : null,
-      }
-    })
+    .map((o) => publicOrderView(o, { owner: true }))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+export function myOrder(orderId) {
+  const o = ctxOrder({ orderId })
+  return o ? publicOrderView(o, { owner: true }) : null
 }
 export const myBirthdays = () => (myCustomer() ? birthdayList(customerSession.customerId).map((b) => ({ name: b.name, md: b.md })) : [])
 // เขียนรีวิว: เฉพาะออร์เดอร์ของตัวเองที่ส่งมอบแล้ว 1 รีวิวต่อออร์เดอร์ → รอแอดมินอนุมัติ

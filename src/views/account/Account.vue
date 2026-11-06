@@ -44,16 +44,6 @@ const birthdays = computed(() => myBirthdays())
 // ---------- ออร์เดอร์ ----------
 const orders = computed(() => myOrders())
 const CHANNEL = { pos: 'หน้าร้าน' }
-const REVIEW = { pending: 'รอร้านตรวจสอบ', approved: 'แสดงบนหน้าร้านแล้ว', rejected: 'ไม่ได้แสดง' }
-const rv = reactive({ order: null, rating: 5, text: '', error: '' })
-function openReview(o) {
-  Object.assign(rv, { order: o, rating: 5, text: '', error: '' })
-}
-function sendReview() {
-  const r = submitReview({ orderId: rv.order.id, rating: rv.rating, text: rv.text })
-  if (r.ok) rv.order = null
-  else rv.error = r.error
-}
 
 // ---------- ขั้นตอนที่ต้องยืนยัน OTP (เปลี่ยน PIN / เปลี่ยนเบอร์ / ขอลบข้อมูล) ----------
 const flow = ref('') // '' | pin | phone | delete
@@ -156,42 +146,14 @@ function logout() {
     <!-- ออร์เดอร์ -->
     <div v-else-if="tab === 'orders'" class="space-y-3">
       <p v-if="!orders.length" class="card py-10 text-center text-stone-500">ยังไม่มีออร์เดอร์</p>
-      <details v-for="o in orders" :key="o.id" class="card p-0">
-        <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-3">
-          <span class="min-w-0 flex-1">
-            <span class="flex items-center gap-2"><b class="text-stone-900">{{ o.code }}</b><span v-if="CHANNEL[o.channel]" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{{ CHANNEL[o.channel] }}</span></span>
-            <span class="block text-xs text-stone-500">{{ o.channel === 'pos' ? dateTime(o.createdAt) : `นัดรับ ${dateTime(o.pickupAt)}` }}</span>
-          </span>
-          <span class="shrink-0 text-right"><StatusBadge :status="o.status" /><span class="mt-1 block"><PayDueBadge :due="o.payDue" short /></span><span class="mt-1 block text-sm font-semibold text-stone-900">{{ money(o.total) }}</span></span>
-        </summary>
-        <div class="space-y-3 border-t border-stone-100 px-4 py-3 text-sm">
-          <ul class="space-y-2">
-            <li v-for="it in o.items" :key="it.id">
-              <div class="flex justify-between gap-3"><span class="font-medium text-stone-800">{{ it.name }} × {{ it.qty }}</span><span class="shrink-0">{{ money(it.unitPrice * it.qty) }}</span></div>
-              <div v-for="(d, i) in describeSelections(it, db.optionGroups)" :key="i" class="text-xs text-stone-500">{{ d.group }}: {{ d.value }}</div>
-              <div v-if="it.note" class="text-xs text-stone-500">หมายเหตุ: {{ it.note }}</div>
-            </li>
-          </ul>
-          <div v-if="o.fulfillment === 'delivery' && o.address" class="space-y-0.5 text-xs text-stone-500">
-            <div>จัดส่ง: <b v-if="o.placeName" class="font-semibold text-stone-700">{{ o.placeName }} · </b>{{ o.address }}</div>
-            <div v-if="o.distanceKm != null">ระยะทาง {{ o.distanceKm }} กม. · ค่าส่ง {{ money(o.shippingFee) }}</div>
-            <div v-if="o.detail" class="break-words">รายละเอียด: {{ o.detail }}</div>
-            <a v-if="o.mapUrl" :href="o.mapUrl" target="_blank" rel="noopener noreferrer" class="text-brand-700 underline">เปิดแผนที่</a>
-          </div>
-          <div class="space-y-1 rounded-xl bg-stone-50 p-3">
-            <div class="flex justify-between"><span>ยอดรวม</span><b>{{ money(o.total) }}</b></div>
-            <div v-if="o.vatMode" class="flex justify-between text-xs text-stone-500"><span>{{ o.vatMode === 'exclusive' ? `รวม VAT ${o.vatRate}% (บวกเพิ่ม)` : `รวม VAT ${o.vatRate}% แล้ว` }}</span><span>{{ money(o.vat) }}</span></div>
-            <div v-for="(r, i) in o.refunds" :key="'rf' + i" class="flex justify-between text-xs text-rose-600"><span>คืนเงิน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span>{{ money(r.amount) }}</span></div>
-            <div class="flex justify-between"><span>ชำระแล้ว</span><span>{{ money(o.paid) }}</span></div>
-            <div v-if="o.status !== 'cancelled'" class="flex justify-between" :class="o.balance > 0 ? 'text-amber-700' : 'text-emerald-700'"><span>คงค้าง</span><b>{{ money(o.balance) }}</b></div>
-            <div v-for="(p, i) in o.payments" :key="i" class="flex justify-between text-xs text-stone-500"><span>{{ p.method }} · {{ dateOnly(p.paidAt) }}</span><span>{{ money(p.amount) }}</span></div>
-          </div>
-          <div v-if="o.status === 'delivered'">
-            <p v-if="o.review" class="text-xs text-stone-500">รีวิวของคุณ: {{ '★'.repeat(o.review.rating) }} · {{ REVIEW[o.review.status] }}</p>
-            <button v-else class="btn-soft h-9" @click="openReview(o)"><AppIcon name="star" :size="16" /> เขียนรีวิว</button>
-          </div>
-        </div>
-      </details>
+      <RouterLink v-for="o in orders" :key="o.id" :to="`/account/orders/${o.id}`" class="card flex items-center gap-3 px-4 py-3 transition hover:border-brand-300 active:scale-[0.99]">
+        <span class="min-w-0 flex-1">
+          <span class="flex items-center gap-2"><b class="text-stone-900">{{ o.code }}</b><span v-if="CHANNEL[o.channel]" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{{ CHANNEL[o.channel] }}</span></span>
+          <span class="block text-xs text-stone-500">{{ o.channel === 'pos' ? dateTime(o.createdAt) : `นัดรับ ${dateTime(o.pickupAt)}` }}</span>
+          <span class="block truncate text-xs text-stone-400">{{ o.items[0]?.name }}<template v-if="o.items.length > 1"> +{{ o.items.length - 1 }}</template></span>
+        </span>
+        <span class="shrink-0 text-right"><StatusBadge :status="o.status" /><span class="mt-1 block"><PayDueBadge :due="o.payDue" short /></span><span class="mt-1 block text-sm font-semibold text-stone-900">{{ money(o.total) }}</span><span v-if="o.balance > 0 && o.status !== 'cancelled'" class="block text-xs text-amber-700">ค้าง {{ money(o.balance) }}</span></span>
+      </RouterLink>
     </div>
 
     <!-- คะแนน / แลกของ / กาชา / คูปอง -->
@@ -215,22 +177,6 @@ function logout() {
       </section>
     </div>
   </div>
-
-  <!-- เขียนรีวิว -->
-  <AppModal v-if="rv.order" :title="`รีวิว ${rv.order.code}`" @close="rv.order = null">
-    <div class="space-y-3">
-      <div class="flex gap-1" role="radiogroup" aria-label="ให้คะแนน">
-        <button v-for="n in 5" :key="n" type="button" role="radio" :aria-checked="rv.rating === n" class="text-3xl leading-none" :class="n <= rv.rating ? 'text-amber-500' : 'text-stone-300'" :aria-label="`${n} ดาว`" @click="rv.rating = n">★</button>
-      </div>
-      <textarea v-model="rv.text" rows="4" maxlength="500" class="input" placeholder="เล่าให้ฟังหน่อยว่าเป็นอย่างไรบ้าง"></textarea>
-      <p class="text-xs text-stone-400">จะแสดงบนหน้าร้านหลังร้านตรวจสอบ โดยใช้ชื่อต้นของคุณเท่านั้น</p>
-      <p v-if="rv.error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ rv.error }}</p>
-    </div>
-    <template #footer>
-      <button class="btn-outline flex-1 sm:flex-none" @click="rv.order = null">ยกเลิก</button>
-      <button class="btn-primary flex-1 sm:flex-none" @click="sendReview">ส่งรีวิว</button>
-    </template>
-  </AppModal>
 
   <!-- ขั้นตอนยืนยัน OTP -->
   <AppModal v-if="flow" :title="{ pin: 'เปลี่ยน PIN', phone: 'เปลี่ยนเบอร์โทร', delete: 'ขอลบข้อมูล' }[flow]" @close="close">

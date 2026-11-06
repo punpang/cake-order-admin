@@ -3,12 +3,13 @@ import { computed, reactive, ref } from 'vue'
 import { db, saveShopSettings, pickupSlots } from '../../data/store'
 import { toDateStr, money } from '../../lib/format'
 import { deliveryFee } from '../../lib/delivery'
+import { promptPayKind } from '../../lib/promptpay'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
 
 const hm = /^([01]\d|2[0-3]):[0-5]\d$/
-const st = reactive({ ...db.shop, vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery } })
+const st = reactive({ ...db.shop, vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: { ...db.shop.payment } })
 const exampleFee = computed(() => deliveryFee(8, st.delivery))
 const error = ref('')
 const saved = ref(false)
@@ -27,9 +28,10 @@ function save() {
   const v = st.vat
   if (v.enabled && !(Number(v.rate) > 0 && Number(v.rate) <= 100)) return (error.value = 'อัตรา VAT ต้องอยู่ระหว่าง 0–100%')
   if (String(v.taxId || '').replace(/\D/g, '').length && String(v.taxId).replace(/\D/g, '').length !== 13) return (error.value = 'เลขประจำตัวผู้เสียภาษีต้องมี 13 หลัก')
+  if (st.payment.promptpayId && !promptPayKind(st.payment.promptpayId)) return (error.value = 'เลขพร้อมเพย์ไม่ถูกต้อง (เบอร์มือถือ 10 หลัก / เลข 13 หลัก / e-Wallet 15 หลัก)')
   error.value = ''
   saveShopSettings(st)
-  Object.assign(st, db.shop, { vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery } })
+  Object.assign(st, db.shop, { vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: { ...db.shop.payment } })
   saved.value = true
   setTimeout(() => (saved.value = false), 1500)
 }
@@ -79,6 +81,17 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
           <div><label class="label">ล่วงหน้า (วัน) เริ่มต้น</label><input v-model.number="st.payDueRule.daysBefore" type="text" v-num min="0" max="30" class="input" /></div>
           <div><label class="label">...ก่อนเวลา</label><input v-model="st.payDueRule.atTime" type="time" class="input" /></div>
           <div><label class="label">เตือนชำระ (พรุ่งนี้มีนัด) เวลา</label><input v-model="st.payReminderTime" type="time" class="input" /></div>
+        </div>
+      </div>
+      <div class="border-t border-stone-100 pt-4">
+        <div class="card-title mb-3"><AppIcon name="wallet" class="text-brand-600" /> ช่องทางรับชำระ (แสดงให้ลูกค้า)</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="col-span-2"><label class="label">พร้อมเพย์ (เบอร์มือถือ / เลขบัตร / e-Wallet)</label><input v-model="st.payment.promptpayId" inputmode="numeric" class="input" placeholder="0812345678" aria-label="เลขพร้อมเพย์" /></div>
+          <div class="col-span-2"><label class="label">ชื่อบัญชี</label><input v-model="st.payment.accountName" class="input" maxlength="80" /></div>
+          <div><label class="label">ธนาคาร</label><input v-model="st.payment.bank" class="input" maxlength="60" /></div>
+          <div><label class="label">เลขบัญชี</label><input v-model="st.payment.accountNo" inputmode="numeric" class="input" maxlength="24" /></div>
+          <div class="col-span-2"><label class="label">หมายเหตุให้ลูกค้า</label><input v-model="st.payment.note" class="input" maxlength="200" /></div>
+          <p class="col-span-2 text-xs text-stone-500">ลูกค้าจะเห็น QR พร้อมเพย์ตามยอดที่เลือก · ถ้าเลขพร้อมเพย์ไม่ถูกต้อง ระบบจะไม่เก็บ</p>
         </div>
       </div>
       <div class="border-t border-stone-100 pt-4">

@@ -31,6 +31,7 @@ import AccountRegister from './views/account/AccountRegister.vue'
 import AccountForgot from './views/account/AccountForgot.vue'
 import Account from './views/account/Account.vue'
 import AccountConsent from './views/account/AccountConsent.vue'
+import AccountOrder from './views/account/AccountOrder.vue'
 import LegalPage from './views/store/LegalPage.vue'
 import ManageLegal from './views/manage/ManageLegal.vue'
 import ManageLinks from './views/manage/ManageLinks.vue'
@@ -51,6 +52,7 @@ const router = createRouter({
     { path: '/account/register', component: AccountRegister, meta: { store: true } },
     { path: '/account/forgot', component: AccountForgot, meta: { store: true } },
     { path: '/account/consent', component: AccountConsent, meta: { store: true, needLogin: true } },
+    { path: '/account/orders/:id', component: AccountOrder, meta: { store: true, customer: true } },
     { path: '/account', component: Account, meta: { store: true, customer: true } },
     { path: '/legal/:kind(privacy|terms|cookie)', component: LegalPage, props: true, meta: { store: true } },
     { path: '/member', redirect: '/account' },

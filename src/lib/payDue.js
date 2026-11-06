@@ -90,3 +90,6 @@ export function dueDaysBefore(pickupAt, days, atTime = '12:00', now = new Date()
   const x = new Date(t.getFullYear(), t.getMonth(), t.getDate() - d, Number(atTime.slice(0, 2)), Number(atTime.slice(3)))
   return dueCheck(toLocal(x), now)
 }
+
+// งวดที่ลูกค้าแนบสลิปเองและรอร้านตรวจสอบ
+export const customerPending = (order) => (order.payments || []).filter((p) => p.status === 'reported' && p.customerSubmitted)

@@ -96,6 +96,7 @@ export const NOTIFY_EVENTS = {
   team_cancelled: { label: 'ยกเลิกออร์เดอร์', audience: 'team' },
   team_approval_request: { label: 'ขออนุมัติยืนยันสั่งซื้อ (ยังไม่ชำระ)', audience: 'team' },
   team_pay_overdue: { label: 'เกินกำหนดชำระ', audience: 'team', scheduled: true },
+  team_customer_paid: { label: 'ลูกค้าแจ้งโอน (รอตรวจสลิป)', audience: 'team' },
   team_pay_extend_request: { label: 'ลูกค้าขอขยายเวลาชำระ', audience: 'team' },
 }
 export const NOTIFY_VARS = ['{ชื่อลูกค้า}', '{เลขออร์เดอร์}', '{ยอดรวม}', '{คงค้าง}', '{ยอดที่แจ้ง}', '{วันนัด}', '{เวลานัด}', '{ส่งมอบ}', '{ชื่อวันเกิด}', '{คะแนน}', '{ลิงก์ออร์เดอร์}', '{ชำระก่อน}']
