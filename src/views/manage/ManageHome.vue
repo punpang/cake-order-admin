@@ -19,6 +19,7 @@ const items = computed(() => [
   { to: '/admin/manage/loyalty', icon: 'tag', title: 'คะแนน & รางวัล', desc: `${activeCount(db.rewards)} ของแลก · ${activeCount(db.gachaPrizes)} รางวัลกาชา` },
   { to: '/admin/manage/storefront', icon: 'store', title: 'หน้าร้าน (เว็บลูกค้า)', desc: `เมนู ${db.retailItems.filter((x) => x.active !== false && x.showOnStore).length} สินค้า · รีวิวรออนุมัติ ${db.reviews.filter((r) => r.status === 'pending').length}` },
   { to: '/admin/manage/legal', icon: 'shield', title: 'PDPA / คุกกี้ / เงื่อนไข', desc: `เวอร์ชัน ${db.legal.docs.privacy.version}/${db.legal.docs.terms.version}/${db.legal.docs.cookie.version} · ร่าง แก้ได้` },
+  { to: '/admin/manage/links', icon: 'link', title: 'ลิงก์ย่อ & ลิงก์ออร์เดอร์', desc: `ลิงก์ย่อ ${db.shortLinks.length} · ลิงก์ออร์เดอร์ที่ใช้อยู่ ${db.orderLinks.length}` },
   { to: '/admin/manage/deletion-requests', icon: 'shield', title: 'คำขอลบข้อมูลลูกค้า', desc: `${pendingDeletions()} รอตรวจสอบ` },
   { to: '/admin/manage/ingredients', icon: 'basket', title: 'วัตถุดิบ', desc: `${activeCount(db.ingredients)} รายการที่ใช้งาน` },
   { to: '/admin/manage/users', icon: 'shield', title: 'ผู้ใช้', desc: `${activeCount(db.users)} คนที่ใช้งาน` },

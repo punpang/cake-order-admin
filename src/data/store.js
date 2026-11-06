@@ -2,7 +2,7 @@
 // ขั้นต่อไปจะเปลี่ยนฟังก์ชันในไฟล์นี้ให้เรียก Supabase แทน
 import { reactive } from 'vue'
 import { PERMISSIONS, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
-import { activeLists, priceDetail, orderTotals, itemNets } from '../lib/pricing'
+import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList } from '../lib/refund'
 import { addDays, pointBalance, takePoints, returnPoints, couponUsable, pickPrize, expiringSoon } from '../lib/loyalty'
@@ -10,6 +10,7 @@ import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, 
 import { nextBirthday, daysBetween } from '../lib/birthday'
 import { parseAnswer } from '../lib/chatParse'
 import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEFAULT_COOKIE, DEFAULT_LEGAL_CONTACT } from '../lib/legalDefaults'
+import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
 let seq = 1000
@@ -53,7 +54,9 @@ export const db = reactive({
   // leadPickup / leadDelivery = ต้องเสร็จก่อนนัดกี่นาที (ตารางผลิต), depositPercent = มัดจำขั้นต่ำ % (0 = ไม่ใช้), birthdayDays = เตือนวันเกิดล่วงหน้ากี่วัน
   shop: { name: 'ร้านเค้กตัวอย่าง', slotMinutes: 30, open: '09:00', close: '20:00', nearbyHours: 2, leadPickup: 60, leadDelivery: 120, depositPercent: 50, birthdayDays: 14,
     // VAT: ฐาน = สินค้า+ค่าส่ง หลังส่วนลด · mode inclusive (ราคารวม VAT แล้ว) | exclusive (บวกเพิ่มท้ายยอด) · เก็บ snapshot {rate, mode} ในแต่ละออร์เดอร์ (order.vat)
-    vat: { enabled: false, rate: 7, mode: 'inclusive', taxId: '', legalName: '' } },
+    vat: { enabled: false, rate: 7, mode: 'inclusive', taxId: '', legalName: '' },
+    // ลิงก์ออร์เดอร์: หมดอายุ = เปิดล่าสุด + idleDays (เลื่อนทุกครั้งที่เปิด) · ไม่เคยเปิด = สร้าง + neverOpenedDays · linkAllowlist = โฮสต์ภายนอกที่ลิงก์ย่อชี้ไปได้ (https)
+    linkPolicy: { ...DEFAULT_LINK_POLICY }, linkAllowlist: ['lin.ee', 'line.me', 'facebook.com', 'fb.me', 'maps.app.goo.gl', 'maps.google.com'] },
   // เตือนวันเกิด: key ที่กด "ทักแล้ว" (ลูกค้า|ชื่อ|MM-DD|ปี)
   birthdayGreeted: [],
 
@@ -194,6 +197,10 @@ export const db = reactive({
   ],
   // คิวข้อความ (จำลอง) ล่าสุดอยู่หน้า · notifySent = key ที่ส่งแล้ว (กันส่งซ้ำของเหตุการณ์ตามเวลา)
   outbox: [],
+  // orderLinks: [{ id, orderId, tokenHash, createdAt, lastOpenedAt, openCount, revokedAt }] เก็บเฉพาะ hash ของ token (token เต็มเห็นได้ครั้งเดียวตอนสร้าง)
+  orderLinks: [],
+  // shortLinks: [{ id, code, target, kind: internal | external, clicks, createdAt, expiresAt, active, note }]
+  shortLinks: [],
   notifySent: [],
 
   // ---------- ศูนย์รวมแชท LINE OA + Facebook (จำลอง) ----------
@@ -805,6 +812,117 @@ function undoLoyalty(order) {
   }
 }
 
+// ---------- ลิงก์ออร์เดอร์ (ดูอย่างเดียว ไม่ต้องล็อกอิน) ----------
+// token สุ่ม 192 บิต เก็บเฉพาะ hash · หมดอายุตาม shop.linkPolicy · เพิกถอน/หมดอายุ = ลบแถว · ข้อความผิดพลาดเดียวกันทุกกรณี
+// จำลอง: ข้อมูลอยู่ในหน่วยความจำของเบราว์เซอร์นี้ ลิงก์เปิดข้ามเครื่องไม่ได้จนกว่าจะต่อ Supabase
+const linkFails = []
+export function orderLinkUrl(token) {
+  const base = typeof location !== 'undefined' ? `${location.origin}${location.pathname}` : ''
+  return `${base}#/o/${token}`
+}
+export function purgeOrderLinks() {
+  db.orderLinks = db.orderLinks.filter((l) => !l.revokedAt && linkAlive(l, db.shop.linkPolicy))
+}
+export function createOrderLink(order, { system = false } = {}) {
+  if (!system && !can('createOrder')) return { error: 'ไม่มีสิทธิ์สร้างลิงก์' }
+  if (!order || order.status === 'draft' || order.channel === 'pos') return { error: 'ออร์เดอร์นี้สร้างลิงก์ไม่ได้' }
+  purgeOrderLinks()
+  const token = genToken()
+  const link = { id: uid('ol'), orderId: order.id, tokenHash: hashToken(token), createdAt: now(), lastOpenedAt: null, openCount: 0, revokedAt: null }
+  db.orderLinks.push(link)
+  if (!system) log(order, 'สร้างลิงก์ออร์เดอร์ให้ลูกค้า')
+  return { ok: true, token, url: orderLinkUrl(token), link }
+}
+export function orderLinksOf(orderId) {
+  purgeOrderLinks()
+  return db.orderLinks.filter((l) => l.orderId === orderId).map((l) => ({ id: l.id, createdAt: l.createdAt, lastOpenedAt: l.lastOpenedAt, openCount: l.openCount, expiresAt: new Date(linkExpiresAt(l, db.shop.linkPolicy)).toISOString() }))
+}
+export function revokeOrderLinks(order) {
+  if (!can('createOrder')) return { error: 'ไม่มีสิทธิ์' }
+  const n = db.orderLinks.filter((l) => l.orderId === order.id).length
+  db.orderLinks = db.orderLinks.filter((l) => l.orderId !== order.id)
+  if (n) log(order, `เพิกถอนลิงก์ออร์เดอร์ ${n} ลิงก์`)
+  return { ok: true, count: n }
+}
+export function sendOrderLinkToChat(order, url) {
+  const chat = (order.chatId && findChat(order.chatId)) || chatFor(order.customerId)
+  if (!chat) return { error: 'ลูกค้าคนนี้ยังไม่มีแชท' }
+  sendChat(chat.id, 'staff', `ดูออร์เดอร์ ${order.code} ได้ที่ลิงก์นี้ค่ะ (ใช้ดูอย่างเดียว) ${url}`, { orderId: order.id, by: session.role })
+  return { ok: true }
+}
+const maskPhone = (p) => (phoneDigits(p).length >= 6 ? `xxx-xxx-${phoneDigits(p).slice(-3)}` : '')
+// เปิดลิงก์: ผ่าน → คืนข้อมูลที่ตัดแล้ว (ไม่มีต้นทุน/กำไร/บันทึกภายใน/ประวัติ/ที่อยู่/เบอร์เต็ม) และเลื่อนอายุ
+export function openOrderLink(token) {
+  const at = Date.now()
+  while (linkFails.length && at - linkFails[0] >= 5 * 60e3) linkFails.shift()
+  if (failBlocked(linkFails, at)) return { error: 'ลองบ่อยเกินไป กรุณารอสักครู่', blocked: true }
+  const fail = () => { linkFails.push(at); return { error: LINK_ERROR } }
+  if (!isTokenShape(token)) return fail()
+  const h = hashToken(token)
+  const link = db.orderLinks.find((l) => l.tokenHash === h)
+  if (!link) return fail()
+  if (link.revokedAt || !linkAlive(link, db.shop.linkPolicy, at)) {
+    db.orderLinks = db.orderLinks.filter((l) => l !== link)
+    return fail()
+  }
+  const o = findOrder(link.orderId)
+  if (!o) return fail()
+  link.lastOpenedAt = new Date(at).toISOString()
+  link.openCount++
+  const t = orderTotals(o)
+  const cu = findCustomer(o.customerId)
+  return {
+    ok: true,
+    order: {
+      code: o.code, status: o.status, createdAt: o.createdAt, pickupAt: o.pickupAt, fulfillment: o.fulfillment,
+      customer: cu && !cu.deleted ? { name: String(cu.name || '').trim().split(/\s+/)[0], phone: maskPhone(cu.phone) } : null,
+      items: o.items.map((i) => ({ name: i.name, qty: i.qty, unitPrice: i.unitPrice, lines: describeSelections(i, db.optionGroups) })),
+      total: t.total, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal, vat: t.vat, vatRate: t.vatRate, vatMode: t.vatMode,
+      refunds: o.status === 'cancelled' ? refundList(o.cancel) : [],
+    },
+    expiresAt: new Date(linkExpiresAt(link, db.shop.linkPolicy)).toISOString(),
+  }
+}
+export function saveLinkSettings({ policy, allowlist }) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  db.shop.linkPolicy = cleanPolicy(policy)
+  db.shop.linkAllowlist = cleanAllowlist(allowlist)
+  return { ok: true }
+}
+
+// ---------- ลิงก์ย่อ (#/s/:code) ----------
+// ภายใน = path ขึ้นต้น / · ภายนอก = https เฉพาะโฮสต์ใน linkAllowlist (ตรวจซ้ำตอนคลิก)
+export function saveShortLink(d) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const chk = checkTarget(d.target, db.shop.linkAllowlist)
+  if (chk.error) return chk
+  let code = String(d.code ?? '').trim().toLowerCase()
+  if (code && !isCodeShape(code)) return { error: 'รหัสใช้ได้เฉพาะ a-z 0-9 และ - (3–32 ตัว)' }
+  const cur = d.id ? db.shortLinks.find((x) => x.id === d.id) : null
+  if (!code) do code = genCode() 
+  while (db.shortLinks.some((x) => x.code === code))
+  if (db.shortLinks.some((x) => x.code === code && x !== cur)) return { error: 'รหัสนี้ถูกใช้แล้ว' }
+  const expiresAt = d.expiresAt ? new Date(`${d.expiresAt}T23:59:59`).toISOString() : null
+  const row = { code, target: chk.target, kind: chk.kind, expiresAt, active: d.active !== false, note: String(d.note ?? '').trim().slice(0, 120) }
+  if (cur) Object.assign(cur, row)
+  else db.shortLinks.unshift({ id: uid('sl'), clicks: 0, createdAt: now(), ...row })
+  return { ok: true, code }
+}
+export function removeShortLink(id) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  db.shortLinks = db.shortLinks.filter((x) => x.id !== id)
+  return { ok: true }
+}
+export const shortLinkUrl = (code) => orderLinkUrl('').replace('#/o/', `#/s/${code}`)
+export function resolveShortLink(code) {
+  const l = db.shortLinks.find((x) => x.code === String(code ?? '').toLowerCase())
+  if (!l || !l.active || (l.expiresAt && Date.now() > new Date(l.expiresAt).getTime())) return { error: 'ลิงก์ไม่ถูกต้องหรือหมดอายุ' }
+  const chk = checkTarget(l.target, db.shop.linkAllowlist) // allowlist อาจถูกเอาออกหลังสร้าง
+  if (chk.error) return { error: 'ลิงก์ไม่ถูกต้องหรือหมดอายุ' }
+  l.clicks++
+  return { ok: true, kind: chk.kind, target: chk.target }
+}
+
 // ---------- เปลี่ยนผู้ซื้อ ----------
 // ดูผลก่อนยืนยัน: ส่วนลดจากคะแนน/คูปองที่ใช้ในออร์เดอร์จะถูกนำออก (คืนผู้ซื้อเดิม) → ยอดรวมเพิ่ม · ส่งมอบแล้ว: คะแนน/สิทธิ์หมุนที่ได้โอนไปผู้ซื้อใหม่
 export function changeBuyerPreview(order, newId) {
@@ -956,6 +1074,7 @@ function orderVars(order, extra = {}) {
     ส่งมอบ: order.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับ',
     ชื่อวันเกิด: order.birthday?.name || c?.name || '',
     คะแนน: '',
+    ลิงก์ออร์เดอร์: '',
   }
 }
 function pushOut(event, channel, to, text, orderId = null, customer = null) {
@@ -989,6 +1108,8 @@ export function notify(event, { customer = null, vars = {}, orderId = null } = {
 export function notifyOrder(event, order, extra = {}) {
   if (order.channel === 'pos') return // บิลหน้าร้านไม่แจ้งเตือน
   const vars = orderVars(order, extra)
+  const rule = db.notifyRules.find((x) => x.event === event)
+  if (rule?.enabled && rule.template.includes('{ลิงก์ออร์เดอร์}')) vars.ลิงก์ออร์เดอร์ = createOrderLink(order, { system: true }).url || ''
   const customer = findCustomer(order.customerId)
   notify(event, { customer, vars, orderId: order.id })
   if (TEAM_OF[event]) notify(TEAM_OF[event], { vars, orderId: order.id })
@@ -1796,6 +1917,7 @@ function scrubCustomer(id) {
     for (const p of o.payments) Object.assign(p, { slip: '', note: '' })
     if (o.cancel) o.cancel.refundNote = ''
   }
+  db.orderLinks = db.orderLinks.filter((l) => !orderIds.has(l.orderId)) // ลิงก์ออร์เดอร์ของลูกค้านี้ใช้ไม่ได้อีก
   for (let i = db.chats.length - 1; i >= 0; i--) if (chatIds.has(db.chats[i].id)) db.chats.splice(i, 1)
   for (const k of chatIds) delete db.chatDrafts[k]
   for (let i = db.quotes.length - 1; i >= 0; i--) if (chatIds.has(db.quotes[i].chatId)) db.quotes.splice(i, 1)

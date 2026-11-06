@@ -22,6 +22,7 @@ import AppIcon from '../components/AppIcon.vue'
 import PickupModal from '../components/PickupModal.vue'
 import RefundEditor from '../components/RefundEditor.vue'
 import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
+import OrderLinkModal from '../components/OrderLinkModal.vue'
 import { defaultRefundMethod, refundList } from '../lib/refund'
 import BirthdayFields from '../components/BirthdayFields.vue'
 import { parseBirthday, toForm, mdLabel } from '../lib/birthday'
@@ -199,6 +200,7 @@ const cancelOpen = ref(false)
 const cxl = reactive({ reason: '', refunds: [], refundNote: '' })
 const cxlError = ref('')
 const buyerOpen = ref(false)
+const linkOpen = ref(false)
 function openCancel() {
   // คืนเต็มจำนวนตามช่องทางที่ลูกค้าจ่ายล่าสุดเป็นค่าตั้งต้น (เปลี่ยน/แบ่งช่องทางได้: เงินสด / ธนาคาร / คะแนนสะสม)
   const last = order.value.payments.filter((p) => p.status === 'confirmed').at(-1)
@@ -251,6 +253,7 @@ async function saveCancel() {
               </div>
               <button v-else-if="canEditBirthday" class="mt-1 text-sm text-brand-700 underline" @click="openBirthday">+ เพิ่มวันเกิด</button>
               <button v-if="can('changeBuyer') && order.status !== 'cancelled'" class="mt-1 block text-sm text-brand-700 underline" @click="buyerOpen = true">เปลี่ยนผู้ซื้อ</button>
+              <button v-if="can('createOrder') && order.status !== 'draft' && order.channel !== 'pos'" class="mt-1 block text-sm text-brand-700 underline" @click="linkOpen = true">ส่งลิงก์ให้ลูกค้า</button>
             </div>
             <a
               v-if="customer?.phone"
@@ -587,6 +590,7 @@ async function saveCancel() {
   </div>
 
   <ChangeBuyerModal v-if="buyerOpen && order" :order="order" @close="buyerOpen = false" />
+  <OrderLinkModal v-if="linkOpen && order" :order="order" @close="linkOpen = false" />
   <ItemEditor v-if="editing" :item="editing.item || null" :price-date="orderDate(order)" @save="onSaveItem" @close="editing = null" />
   <PickupModal v-if="pickupOpen && order" :order="order" @close="pickupOpen = false" />
   <AppModal v-if="bdOpen" title="วันเกิด" @close="bdOpen = false">

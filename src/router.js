@@ -33,6 +33,9 @@ import Account from './views/account/Account.vue'
 import AccountConsent from './views/account/AccountConsent.vue'
 import LegalPage from './views/store/LegalPage.vue'
 import ManageLegal from './views/manage/ManageLegal.vue'
+import ManageLinks from './views/manage/ManageLinks.vue'
+import OrderLink from './views/store/OrderLink.vue'
+import ShortRedirect from './views/store/ShortRedirect.vue'
 
 // meta.store = หน้าร้าน/ระบบลูกค้า (ใช้ StoreLayout) · meta.focus = หน้าหลังบ้านที่มีแถบปุ่มของตัวเอง ซ่อนแถบเมนูล่างบนมือถือ
 const router = createRouter({
@@ -50,6 +53,8 @@ const router = createRouter({
     { path: '/account', component: Account, meta: { store: true, customer: true } },
     { path: '/legal/:kind(privacy|terms|cookie)', component: LegalPage, props: true, meta: { store: true } },
     { path: '/member', redirect: '/account' },
+    { path: '/o/:token', component: OrderLink, meta: { store: true } },
+    { path: '/s/:code', component: ShortRedirect, meta: { store: true } },
     // ---------- หลังบ้าน ----------
     { path: '/admin', redirect: '/admin/orders' },
     { path: '/admin/orders', component: OrderList },
@@ -78,6 +83,7 @@ const router = createRouter({
     { path: '/admin/manage/storefront', component: ManageStorefront },
     { path: '/admin/manage/deletion-requests', component: ManageDeletionRequests },
     { path: '/admin/manage/legal', component: ManageLegal },
+    { path: '/admin/manage/links', component: ManageLinks },
     // ลิงก์หลังบ้านเดิม (ก่อนย้ายไป /admin)
     { path: '/:old(orders|manage|chat|pos|materials|production)/:rest(.*)*', redirect: (to) => `/admin${to.fullPath}` },
     { path: '/:pathMatch(.*)*', redirect: '/' },

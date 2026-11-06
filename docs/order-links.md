@@ -1,0 +1,29 @@
+# ลิงก์ออร์เดอร์ & ลิงก์ย่อ (รอบ D)
+
+> โหมดจำลอง: ข้อมูลอยู่ในหน่วยความจำของเบราว์เซอร์เดียวกัน เปิดจากเครื่องอื่นไม่เจอ — ใช้งานจริงต้องย้ายตาราง/ฟังก์ชันไป Supabase (ดูหัวข้อท้ายไฟล์)
+
+## ลิงก์ออร์เดอร์ `#/o/:token`
+- หน้าสาธารณะ ดูอย่างเดียว ไม่ต้องล็อกอิน (`views/store/OrderLink.vue`)
+- token สุ่ม 192 บิต (base64url 32 ตัวอักษร) · **เก็บเฉพาะ SHA-256 hash** (`db.orderLinks`) · token เต็มเห็นได้ครั้งเดียวตอนสร้าง
+- หมดอายุ: เปิดล่าสุด + `shop.linkPolicy.idleDays` (ค่าเริ่มต้น 7 · เลื่อนทุกครั้งที่เปิด) · ไม่เคยเปิด = สร้าง + `neverOpenedDays` (30) · ตั้งค่าที่ `/admin/manage/links`
+- ไม่มี/หมดอายุ/เพิกถอน → ข้อความเดียวกัน "ลิงก์ไม่ถูกต้องหรือหมดอายุ" (กันการเดา) · แถวที่หมดอายุ/เพิกถอนถูกลบ
+- ลองผิดเกิน 10 ครั้ง/5 นาที (ต่อเบราว์เซอร์) → บล็อกชั่วคราว (ของจริงทำที่เซิร์ฟเวอร์ตาม IP)
+- แสดง: สถานะ รายการ ยอด/ชำระ/คงค้าง วันนัด ชื่อจริงตัวแรก + เบอร์ซ่อน (xxx-xxx-123) · **ไม่แสดง**: ที่อยู่ เบอร์เต็ม ต้นทุน/กำไร โน้ตภายใน ประวัติ
+- `<meta name="referrer" content="no-referrer">` + `robots noindex` ขณะอยู่หน้านี้
+- สร้างได้เฉพาะออร์เดอร์ที่ไม่ใช่ร่าง/POS · สิทธิ์ `createOrder` · ปุ่ม "ส่งลิงก์ให้ลูกค้า" ใน OrderDetail (สร้าง/คัดลอก/ส่งเข้าแชท/เพิกถอน/ดูสถิติ)
+- ตัวแปรแจ้งเตือน `{ลิงก์ออร์เดอร์}`: สร้างลิงก์ให้อัตโนมัติ **เฉพาะ event ที่กฎมีตัวแปรนี้**
+- ลบข้อมูลลูกค้า (`scrubCustomer`) → ลบลิงก์ของออร์เดอร์ลูกค้าคนนั้น
+- ลิงก์ออร์เดอร์ **ไม่ผ่านลิงก์ย่อ** (ใช้ token เต็ม เพื่อกันเดา)
+
+## ลิงก์ย่อ `#/s/:code`
+- `db.shortLinks` · รหัส a-z0-9 (ตัดตัวสับสน) 7 ตัวสุ่ม หรือกำหนดเอง 3–32 ตัว · นับคลิก · วันหมดอายุ/ปิดใช้งานได้
+- ภายใน: path ขึ้นต้น `/` (ห้าม `//`, `\`, `/s/`) → ผ่าน router
+- ภายนอก: เฉพาะ `https` + โฮสต์ตรงเป๊ะใน `shop.linkAllowlist` · ห้าม userinfo (`user:pass@`) · `javascript:`/`data:`/`http:` ถูกปฏิเสธ · ตรวจซ้ำตอนคลิก (เอาโฮสต์ออกแล้วลิงก์เดิมใช้ไม่ได้)
+- จัดการเฉพาะแอดมิน
+
+## โค้ด
+`src/lib/orderLink.js` (ฟังก์ชันล้วน: sha256 sync, token, policy, expiry, ตรวจปลายทาง) · `src/data/store.js` (`createOrderLink/openOrderLink/revokeOrderLinks/orderLinksOf/sendOrderLinkToChat/saveLinkSettings/saveShortLink/removeShortLink/resolveShortLink`)
+
+## ตอนต่อ Supabase
+- ตาราง `order_links(token_hash pk, order_id, created_at, last_opened_at, open_count)` ไม่เปิด RLS ให้ anon อ่านตรง → ให้ Edge Function/RPC `open_order_link(token)` hash แล้วค้น คืนเฉพาะฟิลด์ที่ตัดแล้ว + rate limit ตาม IP
+- `short_links(code pk, target, kind, clicks, expires_at, active)` · RPC `resolve_short_link(code)` ตรวจ allowlist ฝั่งเซิร์ฟเวอร์
