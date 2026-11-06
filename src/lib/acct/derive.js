@@ -21,7 +21,7 @@ function pack(lines) {
   }
   return [...m.values()].filter((x) => x.s !== 0).map((x) => ({ account: x.account, [x.side]: toB(x.s), ...(x.poolable ? { poolable: true } : {}) }))
 }
-const entry = (id, date, memo, source, lines) => ({ id, date, memo, source, lines: pack(lines), auto: true })
+const entry = (id, date, memo, source, lines, tax = null) => ({ id, date, memo, source, lines: pack(lines), auto: true, ...(tax && tax.length ? { tax } : {}) })
 const swap = (lines) => lines.map((l) => ({ ...l, side: l.side === 'dr' ? 'cr' : 'dr' }))
 const dr = (account, s, extra = {}) => ({ account, side: 'dr', s, ...extra })
 const cr = (account, s, extra = {}) => ({ account, side: 'cr', s, ...extra })
@@ -40,6 +40,10 @@ export function orderEntries(o, ctx) {
   const vatS = total > 0 ? Math.min(Math.max(0, toS(t.vat)), total) : 0
   const out = []
   const code = o.code
+  const rate = Number(o.vat?.rate) || 0
+  const cust = ctx.customerOf?.(o) || null
+  const party = cust ? { party: cust.name || '', taxId: cust.taxId || '' } : {}
+  const tx = (kind, baseS, vatS2, ref) => (vatS2 !== 0 || baseS !== 0 ? [{ kind, base: toB(baseS), vat: toB(vatS2), rate, docNo: ref || code, orderId: o.id, ...party }] : [])
   // ---- รับชำระแต่ละงวด ----
   let vatBooked = 0
   const booked = [] // งวดที่ยังคงอยู่ (confirmed) { amtS, vatP, netP }
@@ -53,9 +57,9 @@ export function orderEntries(o, ctx) {
     const netP = amtS - vatP
     const date = (p.paidAt ? String(p.paidAt).slice(0, 10) : '') || dateOf(p.confirmedAt) || dateOf(o.createdAt)
     const lines = [dr(cashAcc(p), amtS), cr(DEPOSIT, netP), cr(OUTPUT_VAT, vatP)]
-    out.push(entry(`pay:${o.id}:${p.id}`, date, `รับชำระ ${code}`, { type: 'order-pay', orderId: o.id, paymentId: p.id }, lines))
+    out.push(entry(`pay:${o.id}:${p.id}`, date, `รับชำระ ${code}`, { type: 'order-pay', orderId: o.id, paymentId: p.id }, lines, vatP > 0 ? tx('output', netP, vatP) : null))
     if (p.status === 'cancelled') {
-      out.push(entry(`payx:${o.id}:${p.id}`, dateOf(p.cancelledAt) || date, `ยกเลิกยอดชำระ ${code}`, { type: 'order-payx', orderId: o.id, paymentId: p.id }, swap(lines)))
+      out.push(entry(`payx:${o.id}:${p.id}`, dateOf(p.cancelledAt) || date, `ยกเลิกยอดชำระ ${code}`, { type: 'order-payx', orderId: o.id, paymentId: p.id }, swap(lines), vatP > 0 ? tx('output', -netP, -vatP) : null))
     } else booked.push({ amtS, vatP, netP, p })
   }
   const sumAmt = booked.reduce((a, b) => a + b.amtS, 0)
@@ -66,6 +70,8 @@ export function orderEntries(o, ctx) {
   const dAt = (o.status === 'delivered' || o.status === 'cancelled') ? deliveredAtOf(o) : null
   const delivered = o.status === 'delivered' || (o.status === 'cancelled' && !!dAt && (o.deliveredAt || (o.history || []).some((x) => /ส่งมอบ/.test(x.text) && !/ไม่ได้/.test(x.text))))
   let deliveryLines = null
+  let restBase = 0
+  let restVat = 0
   let cogsLines = null
   if (delivered && dAt) {
     const X = toS(t.pointsDiscount)
@@ -82,13 +88,15 @@ export function orderEntries(o, ctx) {
     deliveryLines = [dr(DEPOSIT, sumNet), dr(AR, unpaid), dr('5410', X, { poolable: true }), dr('5420', Y), ...rev, cr(OUTPUT_VAT, vatS - sumVat)]
     const cost = toS(orderCost(o, ctx.groups, ctx.retail, ctx.ingredients))
     cogsLines = cost > 0 ? [dr('5100', cost), cr(INV, cost)] : []
-    out.push(entry(`dlv:${o.id}`, dateOf(dAt), `ส่งมอบ ${code} รับรู้รายได้`, { type: 'order-deliver', orderId: o.id }, [...deliveryLines, ...cogsLines]))
+    restBase = Math.max(0, netRev - sumNet)
+    restVat = vatS - sumVat
+    out.push(entry(`dlv:${o.id}`, dateOf(dAt), `ส่งมอบ ${code} รับรู้รายได้`, { type: 'order-deliver', orderId: o.id }, [...deliveryLines, ...cogsLines], restVat > 0 ? tx('output', restBase, restVat) : null))
   }
 
   // ---- ยกเลิก: กลับรายการส่งมอบ (ถ้าเคยส่งมอบ) + คืนเงิน + ริบมัดจำ ----
   if (o.status === 'cancelled') {
     const cDate = dateOf(o.cancel?.at) || dateOf(dAt) || dateOf(o.createdAt)
-    if (deliveryLines) out.push(entry(`dlvx:${o.id}`, cDate, `ยกเลิก ${code} กลับรายการรายได้`, { type: 'order-cancel-rev', orderId: o.id }, swap([...deliveryLines, ...cogsLines])))
+    if (deliveryLines) out.push(entry(`dlvx:${o.id}`, cDate, `ยกเลิก ${code} กลับรายการรายได้`, { type: 'order-cancel-rev', orderId: o.id }, swap([...deliveryLines, ...cogsLines]), restVat > 0 ? tx('output', -restBase, -restVat) : null))
     const refunds = (o.cancel?.refunds || []).filter((r) => Number(r.amount) > 0)
     const F = refunds.reduce((a, r) => a + toS(r.amount), 0)
     if (sumAmt > 0) {
@@ -98,7 +106,7 @@ export function orderEntries(o, ctx) {
       for (const r of refunds) lines.push(cr(r.method === 'points' ? POINTS_LIAB : r.method === 'cash' ? CASH : BANK, toS(r.amount)))
       const ret = sumNet - fn
       if (ret > 0) lines.push(dr(DEPOSIT, ret), cr('4900', ret))
-      out.push(entry(`cxl:${o.id}`, cDate, `ยกเลิก ${code} คืนเงิน/ริบมัดจำ`, { type: 'order-cancel', orderId: o.id }, lines))
+      out.push(entry(`cxl:${o.id}`, cDate, `ยกเลิก ${code} คืนเงิน/ริบมัดจำ`, { type: 'order-cancel', orderId: o.id }, lines, fv > 0 ? tx('output', -fn, -fv) : null))
     }
   }
   return out

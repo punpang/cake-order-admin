@@ -8,13 +8,14 @@ import AcctJournal from './AcctJournal.vue'
 import AcctChart from './AcctChart.vue'
 import AcctReports from './AcctReports.vue'
 import AcctSettings from './AcctSettings.vue'
+import AcctTax from './AcctTax.vue'
 
 // ระบบบัญชี (หลังบ้าน): ฐานสิทธิ ลงบัญชีคู่ · ข้อมูลรายได้ดึงจากออร์เดอร์/POS อัตโนมัติ + บันทึกเอง
 const TABS = [
-  { v: 'overview', l: 'ภาพรวม' }, { v: 'record', l: 'บันทึก' }, { v: 'journal', l: 'สมุดรายวัน' }, { v: 'reports', l: 'รายงาน' }, { v: 'chart', l: 'ผังบัญชี' }, { v: 'settings', l: 'ปิดงวด/ตั้งค่า' },
+  { v: 'overview', l: 'ภาพรวม' }, { v: 'record', l: 'บันทึก' }, { v: 'journal', l: 'สมุดรายวัน' }, { v: 'reports', l: 'รายงาน' }, { v: 'tax', l: 'ภาษี' }, { v: 'chart', l: 'ผังบัญชี' }, { v: 'settings', l: 'ปิดงวด/ตั้งค่า' },
 ]
 const tab = ref('overview')
-const comp = computed(() => ({ overview: AcctOverview, record: AcctRecord, journal: AcctJournal, reports: AcctReports, chart: AcctChart, settings: AcctSettings }[tab.value]))
+const comp = computed(() => ({ overview: AcctOverview, record: AcctRecord, journal: AcctJournal, reports: AcctReports, tax: AcctTax, chart: AcctChart, settings: AcctSettings }[tab.value]))
 </script>
 
 <template>

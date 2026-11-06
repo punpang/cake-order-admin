@@ -43,9 +43,11 @@ export function buildManualEntry(form) {
     lines.push({ account: form.account, cr: toB(net) })
     if (vat > 0) lines.push({ account: OUTPUT_VAT, cr: toB(vat) })
   }
+  const tax = vat > 0 ? [{ kind: kind === 'income' ? 'output' : form.claimable ? 'input' : null, base: toB(net), vat: toB(vat), rate: Number(form.vatRate) || 0, party: String(form.payee || '').trim().slice(0, 100), docNo: String(form.taxInvoiceNo || '').trim().slice(0, 40), taxId: String(form.payeeTaxId || '').replace(/\D/g, '').slice(0, 13), docDate: String(form.taxInvoiceDate || '') }].filter((t) => t.kind) : []
   return {
     entry: {
       date: form.date,
+      ...(tax.length ? { tax } : {}),
       memo: String(form.memo || '').trim().slice(0, 200),
       lines,
       source: {

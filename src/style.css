@@ -132,3 +132,24 @@
     max-width: 80mm;
   }
 }
+
+/* พิมพ์ใบกำกับภาษี A4: เปิดโดยใส่ class print-a4 ที่ body ก่อนสั่งพิมพ์ (ซ่อนทุกอย่างยกเว้น .a4-print-root) */
+@media print {
+  @page a4 {
+    size: A4;
+    margin: 12mm;
+  }
+  body.print-a4 > *:not(.a4-print-root) {
+    display: none !important;
+  }
+  body.print-a4 .a4-print-root {
+    display: block !important;
+    page: a4;
+    position: static !important;
+    width: 100%;
+  }
+  body.print-a4 .a4-print-root,
+  body.print-a4 .a4-print-root * {
+    visibility: visible !important;
+  }
+}

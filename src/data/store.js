@@ -96,7 +96,7 @@ export const db = reactive({
     // ช่องทางชำระเงินที่แสดงให้ลูกค้า (พร้อมเพย์ = เบอร์มือถือ/เลขบัตร/e-Wallet)
     payment: { promptpayId: '', accountName: '', bank: '', accountNo: '', note: '' },
     // VAT: ฐาน = สินค้า+ค่าส่ง หลังส่วนลด · mode inclusive (ราคารวม VAT แล้ว) | exclusive (บวกเพิ่มท้ายยอด) · เก็บ snapshot {rate, mode} ในแต่ละออร์เดอร์ (order.vat)
-    vat: { enabled: false, rate: 7, mode: 'inclusive', taxId: '', legalName: '' },
+    vat: { enabled: false, rate: 7, mode: 'inclusive', taxId: '', legalName: '', address: '', branch: '00000' },
     // ลิงก์ออร์เดอร์: หมดอายุ = เปิดล่าสุด + idleDays (เลื่อนทุกครั้งที่เปิด) · ไม่เคยเปิด = สร้าง + neverOpenedDays · linkAllowlist = โฮสต์ภายนอกที่ลิงก์ย่อชี้ไปได้ (https)
     linkPolicy: { ...DEFAULT_LINK_POLICY }, linkAllowlist: ['lin.ee', 'line.me', 'facebook.com', 'fb.me', 'maps.app.goo.gl', 'maps.google.com'] },
   // เตือนวันเกิด: key ที่กด "ทักแล้ว" (ลูกค้า|ชื่อ|MM-DD|ปี)
@@ -153,7 +153,7 @@ export const db = reactive({
   ],
 
   // ระบบบัญชี: บันทึกเอง (entries) · รายการดึงอัตโนมัติที่ปิดงวดแล้วแช่แข็ง (frozen) · closedThrough = ปิดงวดถึงวันที่ (YYYY-MM-DD)
-  acct: { settings: { entityType: 'juristic', fiscalYearStartMonth: 1 }, accounts: DEFAULT_ACCOUNTS.map((a) => ({ ...a })), entries: [], frozen: [], closedThrough: '', seq: {} },
+  acct: { settings: { entityType: 'juristic', fiscalYearStartMonth: 1 }, accounts: DEFAULT_ACCOUNTS.map((a) => ({ ...a })), entries: [], frozen: [], closedThrough: '', seq: {}, taxInvoices: [], vatFilings: {} },
   // ประวัติแก้สิทธิ์ผู้ใช้ [{ at, by (userId), userId, added, removed }]
   permLog: [],
 
@@ -247,6 +247,7 @@ export const db = reactive({
     rule('team_approval_request', ['telegram'], '[ขออนุมัติ] {เลขออร์เดอร์} {ชื่อลูกค้า} ยืนยันสั่งซื้อแบบยังไม่ชำระ คงค้าง {คงค้าง}'),
     rule('team_pay_overdue', ['telegram'], '[เกินกำหนดชำระ] {เลขออร์เดอร์} {ชื่อลูกค้า} ต้องชำระก่อน {ชำระก่อน} คงค้าง {คงค้าง}'),
     rule('team_customer_paid', ['telegram'], '[ลูกค้าแจ้งโอน] {เลขออร์เดอร์} {ชื่อลูกค้า} {ยอดที่แจ้ง} รอตรวจสลิป'),
+    rule('team_vat_due', ['telegram'], '[ภ.พ.30] เดือนภาษี {เดือนภาษี} ครบกำหนดยื่น {ชำระก่อน} ยังไม่ได้บันทึกว่ายื่นแล้ว'),
     rule('team_pay_extend_request', ['telegram'], '[ขอขยายเวลาชำระ] {เลขออร์เดอร์} {ชื่อลูกค้า} เดิมกำหนด {ชำระก่อน}'),
   ],
   // คิวข้อความ (จำลอง) ล่าสุดอยู่หน้า · notifySent = key ที่ส่งแล้ว (กันส่งซ้ำของเหตุการณ์ตามเวลา)
@@ -402,9 +403,15 @@ const cleanRecipe = (list) =>
 const cleanSpecial = (obj) =>
   Object.fromEntries(Object.entries(obj || {}).filter(([, v]) => v !== '' && v != null && Number(v) >= 0).map(([k, v]) => [k, Number(v)]))
 
+// ข้อมูลออกใบกำกับภาษีของลูกค้า (ไม่บังคับ · เก็บเท่าที่กรอก ตรวจเลขภาษีตอนออกใบ)
+const cleanTax = (t) => ({
+  name: String(t?.name ?? '').trim().slice(0, 120), taxId: String(t?.taxId ?? '').replace(/\D/g, '').slice(0, 13),
+  branch: String(t?.branch ?? '00000').replace(/\D/g, '').slice(0, 5) || '00000', address: String(t?.address ?? '').trim().slice(0, 300),
+})
 export function saveCustomer(d) {
   const { places, ...rest } = d // สถานที่จัดการผ่าน savePlace/removePlace เท่านั้น (กันฟอร์มเก่าเขียนทับ)
-  const c = upsert(db.customers, 'c', { ...rest, phone: phoneDigits(d.phone) })
+  const tax = d.tax === undefined ? {} : { tax: cleanTax(d.tax) }
+  const c = upsert(db.customers, 'c', { ...rest, ...tax, phone: phoneDigits(d.phone) })
   if (!c.ledger) Object.assign(c, { ledger: [], spins: 0 })
   if (!c.places) c.places = []
   return c
@@ -837,6 +844,7 @@ export function saveShopSettings(d) {
     db.shop.vat = {
       enabled: !!d.vat.enabled, rate: rate > 0 && rate <= 100 ? rate : db.shop.vat.rate, mode: d.vat.mode === 'exclusive' ? 'exclusive' : 'inclusive',
       taxId: String(d.vat.taxId ?? '').replace(/\D/g, '').slice(0, 13), legalName: String(d.vat.legalName ?? '').trim().slice(0, 120),
+      address: String(d.vat.address ?? '').trim().slice(0, 300), branch: /^\d{5}$/.test(String(d.vat.branch ?? '')) ? String(d.vat.branch) : '00000',
     }
   }
   return { ok: true }
@@ -1501,6 +1509,8 @@ function payReminder(o, nowD, once) {
   once(`payrem|${o.id}|${tmrStr}`, () => { notifyOrder('payment_reminder', o, { dueAt: open?.dueAt || '' }); return 1 })
 }
 // จำลองรอบตรวจตามเวลา (ของจริงใช้ cron): เตือนนัดรับ 24 ชม., งานใกล้เวลา 2 ชม., วันเกิด, คะแนนใกล้หมดอายุ · ส่งครั้งเดียวต่อ key
+// ตัวตรวจตามเวลาจากโมดูลอื่น (เช่นบัญชี) ลงทะเบียนที่นี่ — store ไม่ import โมดูลเหล่านั้นเพื่อกัน import วน
+export const scheduledHooks = []
 export function runScheduledChecks() {
   let n = 0
   const nowMs = Date.now()
@@ -1523,6 +1533,7 @@ export function runScheduledChecks() {
     once(`bd|${b.customerId}|${b.name}|${b.md}|${b.year}`, () => notify('birthday', { customer: c, vars: { ...orderVars(b.order), ชื่อวันเกิด: b.name || c?.name || '' }, orderId: b.order.id }))
   }
   const today = toDateStr(new Date())
+  for (const h of scheduledHooks) n += h(once, today) || 0
   for (const c of db.customers) {
     const soon = expiringSoon(c.ledger || [], today)
     if (soon?.points > 0) once(`pts|${c.id}|${soon.date}`, () => notify('points_expiring', { customer: c, vars: { ชื่อลูกค้า: c.name, คะแนน: String(soon.points) } }))

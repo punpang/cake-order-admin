@@ -10,6 +10,7 @@ import PhoneInput from '../../components/PhoneInput.vue'
 import { mdLabel } from '../../lib/birthday'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
+import { validTaxId, validBranch } from '../../lib/acct/taxid'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
 
@@ -28,10 +29,11 @@ const list = computed(() => {
 const initial = (n) => (n || '').replace(/^คุณ/, '').trim().charAt(0)
 
 const open = ref(false)
-const form = reactive({ id: null, name: '', phone: '', line: '', note: '', active: true, promoOptIn: true })
+const form = reactive({ id: null, name: '', phone: '', line: '', note: '', active: true, promoOptIn: true, tax: { name: '', taxId: '', branch: '00000', address: '' } })
 const error = ref('')
 function edit(c) {
   Object.assign(form, c ? { promoOptIn: true, ...c } : { id: null, name: '', phone: '', line: '', note: '', active: true, promoOptIn: true, lineUserId: '', fbPsid: '' })
+  form.tax = { name: '', taxId: '', branch: '00000', address: '', ...(c?.tax || {}) }
   error.value = ''
   open.value = true
 }
@@ -83,6 +85,8 @@ async function delPlace(p) {
 async function save() {
   if (!form.name.trim()) return (error.value = 'กรอกชื่อลูกค้า')
   if (!phoneValid(form.phone)) return (error.value = 'กรอกเบอร์โทรให้ถูกต้อง (บังคับ)')
+  if (form.tax.taxId && !validTaxId(form.tax.taxId)) return (error.value = 'เลขประจำตัวผู้เสียภาษีไม่ถูกต้อง (13 หลัก ตรวจตัวเลขท้าย)')
+  if (form.tax.taxId && !validBranch(form.tax.branch)) return (error.value = 'สาขาต้อง 5 หลัก (สำนักงานใหญ่ 00000)')
   if (!(await confirmDeactivate(db.customers, form, form.name))) return
   saveCustomer({ ...form })
   open.value = false
@@ -130,6 +134,17 @@ async function save() {
           <div><label class="label">LINE</label><input v-model="form.line" class="input" /></div>
         </div>
         <div><label class="label">หมายเหตุ</label><textarea v-model="form.note" rows="2" class="input" /></div>
+        <details class="rounded-2xl border border-stone-200 p-3" :open="!!form.tax.taxId">
+          <summary class="cursor-pointer text-sm font-semibold text-stone-800">ข้อมูลออกใบกำกับภาษี (ไม่บังคับ)</summary>
+          <div class="mt-3 space-y-3">
+            <div><label class="label">ชื่อตามใบกำกับ</label><input v-model="form.tax.name" class="input" maxlength="120" aria-label="ชื่อตามใบกำกับ" /></div>
+            <div class="grid grid-cols-3 gap-3">
+              <div class="col-span-2"><label class="label">เลขประจำตัวผู้เสียภาษี</label><input v-model="form.tax.taxId" inputmode="numeric" maxlength="13" class="input" aria-label="เลขผู้เสียภาษีลูกค้า" /></div>
+              <div><label class="label">สาขา</label><input v-model="form.tax.branch" inputmode="numeric" maxlength="5" class="input" aria-label="สาขาลูกค้า" /></div>
+            </div>
+            <div><label class="label">ที่อยู่ตามใบกำกับ</label><textarea v-model="form.tax.address" rows="2" maxlength="300" class="input" aria-label="ที่อยู่ใบกำกับลูกค้า" /></div>
+          </div>
+        </details>
         <div>
           <div class="label">ช่องทางแจ้งเตือน</div>
           <div class="flex flex-wrap gap-1.5 text-xs">

@@ -26,6 +26,7 @@ import PickupModal from '../components/PickupModal.vue'
 import RefundEditor from '../components/RefundEditor.vue'
 import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
 import OrderLinkModal from '../components/OrderLinkModal.vue'
+import TaxInvoiceModal from '../components/TaxInvoiceModal.vue'
 import { defaultRefundMethod, refundList } from '../lib/refund'
 import BirthdayFields from '../components/BirthdayFields.vue'
 import DeliveryFields from '../components/DeliveryFields.vue'
@@ -269,6 +270,7 @@ const cxl = reactive({ reason: '', refunds: [], refundNote: '' })
 const cxlError = ref('')
 const buyerOpen = ref(false)
 const linkOpen = ref(false)
+const taxOpen = ref(false)
 function openCancel() {
   // คืนเต็มจำนวนตามช่องทางที่ลูกค้าจ่ายล่าสุดเป็นค่าตั้งต้น (เปลี่ยน/แบ่งช่องทางได้: เงินสด / ธนาคาร / คะแนนสะสม)
   const last = order.value.payments.filter((p) => p.status === 'confirmed').at(-1)
@@ -336,6 +338,7 @@ async function saveCancel() {
               <button v-else-if="canEditBirthday" class="mt-1 text-sm text-brand-700 underline" @click="openBirthday">+ เพิ่มวันเกิด</button>
               <button v-if="can('changeBuyer') && order.status !== 'cancelled'" class="mt-1 block text-sm text-brand-700 underline" @click="buyerOpen = true">เปลี่ยนผู้ซื้อ</button>
               <button v-if="can('createOrder') && order.status !== 'draft' && order.channel !== 'pos'" class="mt-1 block text-sm text-brand-700 underline" @click="linkOpen = true">ส่งลิงก์ให้ลูกค้า</button>
+              <button v-if="can('taxInvoice') && t.vatMode && order.status !== 'draft' && order.status !== 'cancelled'" class="mt-1 block text-sm text-brand-700 underline" @click="taxOpen = true">ใบกำกับภาษีเต็มรูป</button>
             </div>
             <a
               v-if="customer?.phone"
@@ -754,6 +757,7 @@ async function saveCancel() {
 
   <ChangeBuyerModal v-if="buyerOpen && order" :order="order" @close="buyerOpen = false" />
   <OrderLinkModal v-if="linkOpen && order" :order="order" @close="linkOpen = false" />
+  <TaxInvoiceModal v-if="taxOpen && order" :order="order" @close="taxOpen = false" />
   <ItemEditor v-if="editing" :item="editing.item || null" :price-date="orderDate(order)" @save="onSaveItem" @close="editing = null" />
   <PickupModal v-if="pickupOpen && order" :order="order" @close="pickupOpen = false" />
   <AppModal v-if="bdOpen" title="วันเกิด" @close="bdOpen = false">

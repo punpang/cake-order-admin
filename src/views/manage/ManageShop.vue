@@ -1,4 +1,5 @@
 <script setup>
+import { validTaxId, validBranch } from '../../lib/acct/taxid'
 import { computed, reactive, ref } from 'vue'
 import { db, saveShopSettings, pickupSlots } from '../../data/store'
 import { toDateStr, money } from '../../lib/format'
@@ -35,7 +36,8 @@ function save() {
   if (!num(st.depositPercent) || Number(st.depositPercent) > 100) return (error.value = 'มัดจำต้องอยู่ระหว่าง 0–100%')
   const v = st.vat
   if (v.enabled && !(Number(v.rate) > 0 && Number(v.rate) <= 100)) return (error.value = 'อัตรา VAT ต้องอยู่ระหว่าง 0–100%')
-  if (String(v.taxId || '').replace(/\D/g, '').length && String(v.taxId).replace(/\D/g, '').length !== 13) return (error.value = 'เลขประจำตัวผู้เสียภาษีต้องมี 13 หลัก')
+  if (String(v.taxId || '').replace(/\D/g, '').length && !validTaxId(String(v.taxId).replace(/\D/g, ''))) return (error.value = 'เลขประจำตัวผู้เสียภาษีไม่ถูกต้อง (13 หลัก ตรวจตัวเลขท้าย)')
+  if (v.branch && !validBranch(v.branch)) return (error.value = 'สาขาต้อง 5 หลัก (สำนักงานใหญ่ 00000)')
   { const cr = cleanClosures(st.closures); if (cr.error) return (error.value = cr.error) }
   if (st.payment.promptpayId && !promptPayKind(st.payment.promptpayId)) return (error.value = 'เลขพร้อมเพย์ไม่ถูกต้อง (เบอร์มือถือ 10 หลัก / เลข 13 หลัก / e-Wallet 15 หลัก)')
   error.value = ''
@@ -157,8 +159,10 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
           <div class="mt-3 grid gap-3 sm:grid-cols-2">
             <div><label class="label">ชื่อผู้เสียภาษี (แสดงบนใบเสร็จ)</label><input v-model="st.vat.legalName" class="input" maxlength="120" /></div>
             <div><label class="label">เลขประจำตัวผู้เสียภาษี 13 หลัก</label><input v-model="st.vat.taxId" type="text" v-num maxlength="13" class="input" /></div>
+            <div><label class="label">สาขา (5 หลัก · สำนักงานใหญ่ 00000)</label><input v-model="st.vat.branch" inputmode="numeric" maxlength="5" class="input" aria-label="สาขาร้าน" /></div>
+            <div class="sm:col-span-2"><label class="label">ที่อยู่ผู้ประกอบการ (แสดงบนใบกำกับภาษี)</label><textarea v-model="st.vat.address" rows="2" maxlength="300" class="input" aria-label="ที่อยู่ผู้ประกอบการ" /></div>
           </div>
-          <p class="mt-2 text-xs text-amber-700">ใบเสร็จของระบบนี้ไม่ใช่ใบกำกับภาษีเต็มรูป (ไม่มีข้อมูลผู้ซื้อ/เลขที่ใบกำกับตามกฎหมาย) หากต้องออกใบกำกับภาษีให้ปรึกษานักบัญชี</p>
+          <p class="mt-2 text-xs text-amber-700">ใบเสร็จย่อของระบบนี้ไม่ใช่ใบกำกับภาษี · ออกใบกำกับภาษีเต็มรูปได้ที่หน้ารายละเอียดออร์เดอร์ (ต้องกรอกชื่อ ที่อยู่ เลขผู้เสียภาษีและสาขาของร้านให้ครบ) · ควรให้นักบัญชีตรวจก่อนใช้จริง</p>
         </template>
       </div>
       <p v-if="error" class="text-sm text-rose-600">{{ error }}</p>
