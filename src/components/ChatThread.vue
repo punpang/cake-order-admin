@@ -132,7 +132,7 @@ function editBotDraft() {
   props.chat.botDraft = { ...d, editing: true } // ซ่อนแถบร่าง · พอพนักงานกดส่ง staffReplied จะเทียบกับร่างเดิมแล้วนับเป็น "แก้"
   nextTick(() => input.value?.focus())
 }
-const SOURCE_LABEL = { rule: 'กฎ', faq: 'FAQ', hours: 'เวลาเปิด', price: 'ราคา/แนะนำสินค้า', learned: 'เรียนรู้จากพนักงาน', order: 'สถานะออร์เดอร์', ask: 'ขอข้อมูล', offhours: 'นอกเวลา', handoff: 'ส่งต่อพนักงาน', order_unverified: 'ยืนยันตัวตนไม่ได้' }
+const SOURCE_LABEL = { rule: 'กฎ', faq: 'FAQ', hours: 'เวลาเปิด', price: 'ราคา/แนะนำสินค้า', learned: 'เรียนรู้จากพนักงาน', order: 'สถานะออร์เดอร์', closed: 'แจ้งร้านปิด', ask: 'ขอข้อมูล', offhours: 'นอกเวลา', handoff: 'ส่งต่อพนักงาน', order_unverified: 'ยืนยันตัวตนไม่ได้' }
 
 // ---------- แนะนำสินค้าจากแชท ----------
 const recOpen = ref(false)
@@ -295,6 +295,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
         <span class="rounded-full bg-white px-2 py-0.5">{{ SOURCE_LABEL[botDraft.source] || botDraft.source }}<template v-if="botDraft.confidence"> · {{ Math.round(botDraft.confidence * 100) }}%</template></span>
         <span class="text-violet-600">{{ botDraft.reason }}</span>
       </div>
+      <p v-if="botDraft.prefix" class="mb-1 rounded-lg bg-white/70 px-2 py-1 text-xs whitespace-pre-line text-violet-800"><b>ส่งก่อน (แจ้งร้านปิด):</b> {{ botDraft.prefix }}</p>
       <p class="whitespace-pre-line text-stone-800">{{ botDraft.text }}</p>
       <div class="mt-2 flex gap-2">
         <button type="button" class="btn-primary h-8 px-3 text-xs" @click="sendBotDraft(chat.id)">ส่งเลย</button>

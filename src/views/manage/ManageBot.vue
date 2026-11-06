@@ -9,14 +9,14 @@ import AppModal from '../../components/AppModal.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
 
 // บอทตอบแชท (กฎคีย์เวิร์ด + เรียนรู้จากพนักงาน · ในเบราว์เซอร์ ไม่ส่งข้อความลูกค้าออกนอก) · ค่าเริ่มต้นปิด
-const st = reactive(JSON.parse(JSON.stringify({ enabled: db.bot.enabled, mode: db.bot.mode, channels: db.bot.channels, confidence: db.bot.confidence, delaySec: db.bot.delaySec, offHours: db.bot.offHours, handoff: db.bot.handoff })))
+const st = reactive(JSON.parse(JSON.stringify({ enabled: db.bot.enabled, mode: db.bot.mode, channels: db.bot.channels, confidence: db.bot.confidence, delaySec: db.bot.delaySec, offHours: db.bot.offHours, closedNotice: db.bot.closedNotice, handoff: db.bot.handoff })))
 const msg = ref('')
 const err = ref('')
 function save() {
   msg.value = err.value = ''
   const r = saveBotSettings(st)
   if (r.error) return (err.value = r.error)
-  Object.assign(st, JSON.parse(JSON.stringify({ enabled: db.bot.enabled, mode: db.bot.mode, channels: db.bot.channels, confidence: db.bot.confidence, delaySec: db.bot.delaySec, offHours: db.bot.offHours, handoff: db.bot.handoff })))
+  Object.assign(st, JSON.parse(JSON.stringify({ enabled: db.bot.enabled, mode: db.bot.mode, channels: db.bot.channels, confidence: db.bot.confidence, delaySec: db.bot.delaySec, offHours: db.bot.offHours, closedNotice: db.bot.closedNotice, handoff: db.bot.handoff })))
   msg.value = 'บันทึกแล้ว'
 }
 const pct = computed({ get: () => Math.round(st.confidence * 100), set: (v) => (st.confidence = (Number(v) || 60) / 100) })
@@ -76,6 +76,11 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
         <AppSwitch v-model="st.offHours.enabled" label="ตอบข้อความนอกเวลาทำการ" />
         <textarea v-model="st.offHours.text" rows="2" class="input mt-2" maxlength="300" />
         <p class="mt-1 text-xs text-stone-400">ใช้ {เวลาเปิด} {เวลาปิด} ได้ · เวลาทำการตามตั้งค่าร้าน ({{ db.shop.open }}–{{ db.shop.close }})</p>
+      </div>
+      <div>
+        <AppSwitch v-model="st.closedNotice.enabled" label="แจ้งร้านปิดเมื่อลูกค้าทักครั้งแรกของวัน (ตามวัน-เวลาปิดร้าน)" />
+        <textarea v-model="st.closedNotice.text" rows="2" class="input mt-2" maxlength="300" aria-label="ข้อความแจ้งร้านปิด" />
+        <p class="mt-1 text-xs text-stone-400">ใช้ {เหตุผล} {เปิดอีกครั้ง} ได้ · แจ้งครั้งเดียวต่อวันต่อแชท แล้วบอทตอบเรื่องอื่นต่อตามปกติ · ลูกค้ายังสั่งวัน-เวลาที่ร้านเปิดได้ · ตั้งวันปิดที่ จัดการ → ตั้งค่าร้าน</p>
       </div>
       <div>
         <label class="label">ข้อความตอนส่งต่อพนักงาน</label>

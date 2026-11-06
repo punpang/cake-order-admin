@@ -14,6 +14,7 @@ import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX } 
 import { checkTelegram, checkSmsUrl, checkSmsSender } from '../lib/integrationCheck'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
 import { digitsOf, promptPayKind } from '../lib/promptpay'
+import { cleanClosures, emptyClosures, slotClosed, pickupClosed, isClosedNow, nextOpen } from '../lib/shopHours'
 import { decodeCake, findCodes, CODE_RE } from '../lib/cakeCode'
 import { deliveryFee, cleanDelivery, cleanDeliveryConfig, rememberPlace, DEFAULT_DELIVERY } from '../lib/delivery'
 import { dueState, overduePayments, orderDue, quickDue, isHHmm, remainingText } from '../lib/payDue'
@@ -66,6 +67,8 @@ export const db = reactive({
     payReminderTime: '09:00',
     // ค่าส่งจากระยะทาง (กม.): ปิดอยู่จนกว่าร้านจะตั้งเรต
     delivery: { ...DEFAULT_DELIVERY },
+    // วัน-เวลาปิดร้าน: ประจำสัปดาห์ / ช่วงวัน / ช่วงเวลาในวัน · วัน-เวลานัดที่ตรงช่วงปิดเลือกไม่ได้
+    closures: emptyClosures(),
     // ช่องทางชำระเงินที่แสดงให้ลูกค้า (พร้อมเพย์ = เบอร์มือถือ/เลขบัตร/e-Wallet)
     payment: { promptpayId: '', accountName: '', bank: '', accountNo: '', note: '' },
     // VAT: ฐาน = สินค้า+ค่าส่ง หลังส่วนลด · mode inclusive (ราคารวม VAT แล้ว) | exclusive (บวกเพิ่มท้ายยอด) · เก็บ snapshot {rate, mode} ในแต่ละออร์เดอร์ (order.vat)
@@ -468,6 +471,8 @@ function rememberPlaceOf(customerId, d) {
 }
 
 export function createOrder(payload, asDraft = false) {
+  const closed = pickupClosed(db.shop, payload.pickupAt)
+  if (closed) return { error: closedMsg(closed) }
   const o = {
     id: uid('o'),
     code: nextCode(),
@@ -759,6 +764,11 @@ export function saveShopSettings(d) {
       atTime: isHHmm(r.atTime) ? r.atTime : db.shop.payDueRule.atTime,
     }
   }
+  if (d.closures) {
+    const r = cleanClosures(d.closures)
+    if (r.error) return { error: r.error }
+    db.shop.closures = r.value
+  }
   if (d.delivery) db.shop.delivery = cleanDeliveryConfig(d.delivery)
   if (d.payment) {
     const t = (v, n) => String(v ?? '').trim().slice(0, n)
@@ -776,16 +786,20 @@ export function saveShopSettings(d) {
       taxId: String(d.vat.taxId ?? '').replace(/\D/g, '').slice(0, 13), legalName: String(d.vat.legalName ?? '').trim().slice(0, 120),
     }
   }
+  return { ok: true }
 }
 // snapshot VAT ตอนสร้างออร์เดอร์ (ปิดอยู่ = null → ไม่คิด VAT) แก้ค่าตั้งภายหลังไม่กระทบออร์เดอร์เดิม
 export const vatNow = () => (db.shop.vat?.enabled && Number(db.shop.vat.rate) > 0 ? { rate: Number(db.shop.vat.rate), mode: db.shop.vat.mode === 'exclusive' ? 'exclusive' : 'inclusive' } : null)
 
 // แก้วันเวลานัด (หน้ารายละเอียด)
 export function setPickup(order, pickupAt) {
-  if (order.pickupAt === pickupAt) return
+  if (order.pickupAt === pickupAt) return { ok: true }
+  const closed = pickupClosed(db.shop, pickupAt)
+  if (closed) return { error: closedMsg(closed) }
   const fmt = (s) => s.replace('T', ' ')
   log(order, `เปลี่ยนวันนัด ${fmt(order.pickupAt)} → ${fmt(pickupAt)}`)
   order.pickupAt = pickupAt
+  return { ok: true }
 }
 
 // วันเกิดในออร์เดอร์ (null = ไม่มี)
@@ -843,16 +857,23 @@ export function setGreeted(b, on) {
 }
 
 // เวลานัดที่เลือกได้ของวัน (HH:MM) ตามช่วงเวลา และตัดเวลาที่ผ่านไปแล้ว
-export function pickupSlots(dateStr) {
+// pickupSlotsInfo = ทุกช่องที่ยังไม่ผ่านเวลา พร้อมสถานะปิดร้าน [{ t, closed, reason }] · pickupSlots = เฉพาะช่องที่เลือกได้
+export function pickupSlotsInfo(dateStr) {
   const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
   const out = []
   const now = new Date()
   for (let m = toMin(db.shop.open); m <= toMin(db.shop.close); m += db.shop.slotMinutes) {
     const t = `${pad(Math.floor(m / 60))}:${pad(m % 60)}`
-    if (new Date(`${dateStr}T${t}`) > now) out.push(t)
+    if (new Date(`${dateStr}T${t}`) > now) {
+      const c = slotClosed(db.shop, dateStr, t)
+      out.push({ t, closed: !!c, reason: c?.reason || '' })
+    }
   }
   return out
 }
+export const pickupSlots = (dateStr) => pickupSlotsInfo(dateStr).filter((s) => !s.closed).map((s) => s.t)
+export const pickupClosure = (pickupAt) => pickupClosed(db.shop, pickupAt)
+const closedMsg = (c) => `ร้านปิด (${c.reason}) เลือกวัน-เวลานัดอื่น`
 
 // ออร์เดอร์ (ไม่นับยกเลิก) ก่อน/หลังเวลานัด ภายใน hours ชั่วโมง (0 = ทั้งวัน)
 export function nearbyOrders(pickupAt, hours, excludeId) {
@@ -1514,12 +1535,38 @@ export function receiveMessage(channel, externalId, profileName, text, at = null
 // ไม่แน่ใจ/เรื่องเงิน/ร้องเรียน/ยืนยันตัวตนไม่ได้ → ส่งต่อพนักงาน + แจ้ง Telegram · ข้อความลูกค้าประมวลผลในเบราว์เซอร์เท่านั้น
 const botOn = (c) => db.bot.enabled && db.bot.mode !== 'off' && !!db.bot.channels[c.channel] && !c.botOff
 function botDeliver(c, res) {
+  if (res.prefix) sendChat(c.id, 'staff', res.prefix, { by: 'บอท' }) // ข้อความแจ้งร้านปิด (ส่งก่อนคำตอบ)
   if (res.askField) askCustomer(c.id, res.askField)
   else sendChat(c.id, 'staff', res.reply, { by: 'บอท' })
   db.bot.stats.answered++
 }
+// ข้อความแจ้งร้านปิด: เฉพาะข้อความแรกของวัน (ของแชทนี้) ที่ทักมาตอนร้านปิด · คืน null ถ้าไม่ต้องแจ้ง
+function closedNoticeFor(c, m, at = new Date()) {
+  const cn = db.bot.closedNotice
+  if (!cn?.enabled) return null
+  const closure = isClosedNow(db.shop, at)
+  if (!closure) return null
+  const day = toDateStr(at)
+  if (c.closedNoticeDay === day) return null
+  const earlier = c.messages.some((x) => x.from === 'customer' && x.id !== m.id && toDateStr(new Date(x.at)) === day)
+  if (earlier) return null
+  c.closedNoticeDay = day
+  const nx = nextOpen(db.shop, at)
+  return fillTemplate(cn.text, { เหตุผล: closure.reason || 'ตามเวลาทำการ', เปิดอีกครั้ง: nx ? `${dateOnly(nx)} ${pad(nx.getHours())}:${pad(nx.getMinutes())} น.` : 'ตามที่ร้านแจ้ง' })
+}
 export function runBot(c, m) {
   if (!m || m.kind !== 'text' || !botOn(c)) return null
+  const notice = closedNoticeFor(c, m)
+  const auto = db.bot.mode === 'auto' && fbWindowOpen(c)
+  let noticeDone = !notice
+  const sendNotice = () => { if (!noticeDone) { noticeDone = true; sendChat(c.id, 'staff', notice, { by: 'บอท' }) } }
+  const prefixOf = () => { if (!noticeDone && !auto) { noticeDone = true; return notice } return null }
+  // ไม่มีข้อความตอบ (ส่งต่อ/ความมั่นใจต่ำ) → ยังแจ้งร้านปิดให้ลูกค้า (ส่งเอง หรือเป็นร่างให้พนักงานกดส่ง)
+  const flushNotice = () => {
+    if (noticeDone) return
+    if (auto) sendNotice()
+    else { noticeDone = true; c.botDraft = c.botDraft || { text: notice, source: 'closed', confidence: 1, reason: 'ร้านปิด — แจ้งครั้งแรกของวัน', at: now() } }
+  }
   const res = botReply(String(m.text).replace(CODE_RE, ' '), { db, chat: c, draft: db.chatDrafts[c.id] || null })
   c.botDraft = null
   c.botHandoff = false
@@ -1528,14 +1575,16 @@ export function runBot(c, m) {
     c.botHandoff = true
     if (db.bot.handoff.notifyTelegram && db.integrations.telegram.enabled) pushOut('bot_handoff', 'telegram', 'กลุ่มทีม', `[บอทส่งต่อ] ${c.profileName || 'ลูกค้า'} (${c.channel}): "${String(m.text).slice(0, 80)}" · ${res.reason}`)
     if (res.source === 'order_unverified' || res.source === 'handoff') {
-      if (db.bot.mode === 'auto' && fbWindowOpen(c)) sendChat(c.id, 'staff', res.reply, { by: 'บอท' })
-      else c.botDraft = { text: res.reply, source: res.source, confidence: res.confidence, reason: res.reason, handoff: true, at: now() }
+      if (auto) { sendNotice(); sendChat(c.id, 'staff', res.reply, { by: 'บอท' }) }
+      else c.botDraft = { text: res.reply, source: res.source, confidence: res.confidence, reason: res.reason, handoff: true, prefix: prefixOf(), at: now() }
     }
+    flushNotice()
     return res
   }
   if (res.confidence < db.bot.confidence) {
     db.bot.stats.handoff++
     c.botHandoff = true
+    flushNotice()
     return { ...res, handoff: true, reason: `ความมั่นใจ ${Math.round(res.confidence * 100)}% ต่ำกว่าที่ตั้งไว้` }
   }
   if (res.ruleId) {
@@ -1546,12 +1595,13 @@ export function runBot(c, m) {
     const l = db.bot.learned.find((x) => x.id === res.learnedId)
     if (l) { l.uses++; l.lastAt = now() }
   }
-  if (db.bot.mode === 'auto' && fbWindowOpen(c)) {
+  if (auto) {
+    sendNotice()
     const fire = () => { if (botOn(c) && findChat(c.id)) botDeliver(c, res) }
     if (db.bot.delaySec > 0) setTimeout(fire, db.bot.delaySec * 1000)
     else fire()
   } else {
-    c.botDraft = { text: res.reply, source: res.source, confidence: res.confidence, reason: res.reason, askField: res.askField || null, at: now() }
+    c.botDraft = { text: res.reply, source: res.source, confidence: res.confidence, reason: res.reason, askField: res.askField || null, prefix: prefixOf(), at: now() }
     db.bot.stats.suggested++
   }
   return res
@@ -1575,7 +1625,7 @@ export function sendBotDraft(chatId) {
   const d = c.botDraft
   c.botDraft = null
   c.botHandoff = false
-  botDeliver(c, { reply: d.text, askField: d.askField })
+  botDeliver(c, { reply: d.text, askField: d.askField, prefix: d.prefix || null })
   return { ok: true }
 }
 export function dismissBotDraft(chatId) {
@@ -1627,6 +1677,7 @@ export function saveBotSettings(d) {
   b.confidence = Math.min(0.95, Math.max(0.3, Number(d.confidence) || 0.6))
   b.delaySec = Math.min(60, Math.max(0, Math.round(Number(d.delaySec) || 0)))
   b.offHours = { enabled: !!d.offHours?.enabled, text: String(d.offHours?.text ?? '').trim().slice(0, 300) || BOT_DEFAULTS.offHours.text }
+  b.closedNotice = { enabled: !!d.closedNotice?.enabled, text: String(d.closedNotice?.text ?? '').trim().slice(0, 300) || BOT_DEFAULTS.closedNotice.text }
   b.handoff = { notifyTelegram: !!d.handoff?.notifyTelegram, text: String(d.handoff?.text ?? '').trim().slice(0, 300) || BOT_DEFAULTS.handoff.text }
   return { ok: true }
 }
@@ -1852,6 +1903,7 @@ export const findQuote = (id) => db.quotes.find((q) => q.id === id)
 export function sendQuote(chatId, draft) {
   const c = findChat(chatId)
   if (!c) return null
+  if (pickupClosed(db.shop, draft.pickupAt)) return null // วัน-เวลานัดตรงช่วงปิดร้าน
   for (const old of db.quotes) if (old.chatId === chatId && old.status === 'pending') old.status = 'superseded'
   const payload = JSON.parse(JSON.stringify({
     customerId: c.customerId, pickupAt: draft.pickupAt, fulfillment: draft.fulfillment,
@@ -1875,6 +1927,7 @@ export function chatOrderBlock(chatId) {
 function quoteToOrder(q) {
   const c = findChat(q.chatId)
   const o = createOrder({ ...JSON.parse(JSON.stringify(q.payload)), customerId: c.customerId, chatId: q.chatId, quoteItems: true })
+  if (o.error) return o
   Object.assign(q, { status: 'accepted', orderId: o.id })
   clearDraft(q.chatId)
   return o
@@ -1891,7 +1944,8 @@ export function acceptQuote(quoteId) {
     sendChat(q.chatId, 'staff', 'ขอบคุณค่ะ รบกวนแจ้งชื่อและเบอร์โทรเพื่อยืนยันออร์เดอร์นะคะ', { by: 'ระบบ' })
     return { needPhone: true }
   }
-  return { order: quoteToOrder(q) }
+  const o = quoteToOrder(q)
+  return o.error ? { error: o.error } : { order: o }
 }
 // พนักงานสร้างออร์เดอร์จากใบเสนอที่ลูกค้ายืนยันแล้ว (หลังผูก/ได้เบอร์)
 export function convertQuote(quoteId) {
@@ -1900,7 +1954,8 @@ export function convertQuote(quoteId) {
   const block = chatOrderBlock(q.chatId)
   if (block) return { error: block }
   if (new Date(q.payload.pickupAt) <= new Date()) return { error: 'เวลานัดผ่านแล้ว ส่งใบเสนอใหม่' }
-  return { order: quoteToOrder(q) }
+  const o = quoteToOrder(q)
+  return o.error ? { error: o.error } : { order: o }
 }
 export function reviseQuote(quoteId, note = '') {
   const q = findQuote(quoteId)

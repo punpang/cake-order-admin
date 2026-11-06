@@ -4,12 +4,20 @@ import { db, saveShopSettings, pickupSlots } from '../../data/store'
 import { toDateStr, money } from '../../lib/format'
 import { deliveryFee } from '../../lib/delivery'
 import { promptPayKind } from '../../lib/promptpay'
+import { cleanClosures, describeClosures, DOW_NAMES, MAX_ROWS } from '../../lib/shopHours'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
 
 const hm = /^([01]\d|2[0-3]):[0-5]\d$/
-const st = reactive({ ...db.shop, vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: { ...db.shop.payment } })
+const st = reactive({ ...db.shop, vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: { ...db.shop.payment }, closures: JSON.parse(JSON.stringify(db.shop.closures)) })
+// ---- วัน-เวลาปิดร้าน ----
+const DOWS = [1, 2, 3, 4, 5, 6, 0] // จันทร์เริ่ม
+const flip = (arr, d) => (arr.includes(d) ? arr.splice(arr.indexOf(d), 1) : arr.push(d))
+const today = toDateStr(new Date())
+const addRange = () => st.closures.ranges.push({ id: `r${Date.now()}`, from: today, to: today, reason: '' })
+const addHours = () => st.closures.hours.push({ id: `h${Date.now()}`, days: [], from: '12:00', to: '13:00', reason: '' })
+const closureLines = computed(() => describeClosures(cleanClosures(st.closures).value || {}))
 const exampleFee = computed(() => deliveryFee(8, st.delivery))
 const error = ref('')
 const saved = ref(false)
@@ -28,10 +36,12 @@ function save() {
   const v = st.vat
   if (v.enabled && !(Number(v.rate) > 0 && Number(v.rate) <= 100)) return (error.value = 'อัตรา VAT ต้องอยู่ระหว่าง 0–100%')
   if (String(v.taxId || '').replace(/\D/g, '').length && String(v.taxId).replace(/\D/g, '').length !== 13) return (error.value = 'เลขประจำตัวผู้เสียภาษีต้องมี 13 หลัก')
+  { const cr = cleanClosures(st.closures); if (cr.error) return (error.value = cr.error) }
   if (st.payment.promptpayId && !promptPayKind(st.payment.promptpayId)) return (error.value = 'เลขพร้อมเพย์ไม่ถูกต้อง (เบอร์มือถือ 10 หลัก / เลข 13 หลัก / e-Wallet 15 หลัก)')
   error.value = ''
-  saveShopSettings(st)
-  Object.assign(st, db.shop, { vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: { ...db.shop.payment } })
+  const sr = saveShopSettings(st)
+  if (sr?.error) return (error.value = sr.error)
+  Object.assign(st, db.shop, { vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: { ...db.shop.payment }, closures: JSON.parse(JSON.stringify(db.shop.closures)) })
   saved.value = true
   setTimeout(() => (saved.value = false), 1500)
 }
@@ -82,6 +92,27 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
           <div><label class="label">...ก่อนเวลา</label><input v-model="st.payDueRule.atTime" type="time" class="input" /></div>
           <div><label class="label">เตือนชำระ (พรุ่งนี้มีนัด) เวลา</label><input v-model="st.payReminderTime" type="time" class="input" /></div>
         </div>
+      </div>
+      <div class="border-t border-stone-100 pt-4">
+        <div class="card-title mb-1"><AppIcon name="calendar" class="text-brand-600" /> วัน-เวลาปิดร้าน</div>
+        <p class="mb-3 text-xs text-stone-500">วัน-เวลานัดที่ตรงช่วงปิดจะเลือกไม่ได้ · ลูกค้ายังแชทและสั่งวัน-เวลาอื่นได้ · บอทแจ้งร้านปิดเมื่อลูกค้าทักครั้งแรกของวัน (ตั้งที่หน้าบอท)</p>
+        <div class="label">ปิดประจำสัปดาห์</div>
+        <div class="mb-4 flex flex-wrap gap-1.5">
+          <button v-for="d in DOWS" :key="d" type="button" class="chip" :class="st.closures.weekly.includes(d) ? 'chip-on' : 'chip-off'" :aria-pressed="st.closures.weekly.includes(d)" @click="flip(st.closures.weekly, d)">{{ DOW_NAMES[d] }}</button>
+        </div>
+        <div class="mb-1.5 flex items-center justify-between"><div class="label mb-0">ปิดวันที่เจาะจง / ช่วงวัน (หยุดยาว)</div><button type="button" class="text-sm text-brand-700 underline" :disabled="st.closures.ranges.length >= MAX_ROWS" @click="addRange">+ เพิ่ม</button></div>
+        <div v-for="(r, i) in st.closures.ranges" :key="r.id" class="mb-2 grid grid-cols-2 gap-2 rounded-xl border border-stone-200/70 p-2.5">
+          <div><label class="label">ตั้งแต่</label><input v-model="r.from" type="date" class="input h-10" :aria-label="`วันเริ่มปิด ${i + 1}`" /></div>
+          <div><label class="label">ถึง</label><input v-model="r.to" type="date" class="input h-10" :min="r.from" :aria-label="`วันสิ้นสุดปิด ${i + 1}`" /></div>
+          <div class="col-span-2 flex gap-2"><input v-model="r.reason" class="input h-10 min-w-0 flex-1" maxlength="80" placeholder="เหตุผล (เช่น สงกรานต์)" :aria-label="`เหตุผลปิด ${i + 1}`" /><button type="button" class="btn-danger h-10 px-3" :aria-label="`ลบช่วงวันปิด ${i + 1}`" @click="st.closures.ranges.splice(i, 1)"><AppIcon name="trash" :size="16" /></button></div>
+        </div>
+        <div class="mt-3 mb-1.5 flex items-center justify-between"><div class="label mb-0">ปิดบางช่วงเวลาในวัน (เช่น พักเที่ยง)</div><button type="button" class="text-sm text-brand-700 underline" :disabled="st.closures.hours.length >= MAX_ROWS" @click="addHours">+ เพิ่ม</button></div>
+        <div v-for="(h, i) in st.closures.hours" :key="h.id" class="mb-2 space-y-2 rounded-xl border border-stone-200/70 p-2.5">
+          <div class="flex flex-wrap gap-1"><button v-for="d in DOWS" :key="d" type="button" class="chip h-8 px-2.5 text-xs" :class="h.days.includes(d) ? 'chip-on' : 'chip-off'" @click="flip(h.days, d)">{{ DOW_NAMES[d].slice(0, 3) }}</button><span class="self-center text-xs text-stone-400">{{ h.days.length ? '' : 'ไม่เลือก = ทุกวัน' }}</span></div>
+          <div class="grid grid-cols-2 gap-2"><div><label class="label">เริ่มปิด</label><input v-model="h.from" type="time" class="input h-10" :aria-label="`เวลาเริ่มปิด ${i + 1}`" /></div><div><label class="label">เปิดอีกครั้ง</label><input v-model="h.to" type="time" class="input h-10" :aria-label="`เวลาเปิดอีกครั้ง ${i + 1}`" /></div></div>
+          <div class="flex gap-2"><input v-model="h.reason" class="input h-10 min-w-0 flex-1" maxlength="80" placeholder="เหตุผล (เช่น พักเที่ยง)" :aria-label="`เหตุผลปิดช่วงเวลา ${i + 1}`" /><button type="button" class="btn-danger h-10 px-3" :aria-label="`ลบช่วงเวลาปิด ${i + 1}`" @click="st.closures.hours.splice(i, 1)"><AppIcon name="trash" :size="16" /></button></div>
+        </div>
+        <ul v-if="closureLines.length" class="mt-3 space-y-0.5 rounded-xl bg-stone-50 p-3 text-xs text-stone-600" aria-label="สรุปวัน-เวลาปิดร้าน"><li v-for="(l, i) in closureLines" :key="i">• {{ l }}</li></ul>
       </div>
       <div class="border-t border-stone-100 pt-4">
         <div class="card-title mb-3"><AppIcon name="wallet" class="text-brand-600" /> ช่องทางรับชำระ (แสดงให้ลูกค้า)</div>

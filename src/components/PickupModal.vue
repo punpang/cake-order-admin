@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { db, countPickups, pickupSlots, setPickup } from '../data/store'
+import { db, countPickups, pickupSlots, pickupSlotsInfo, setPickup } from '../data/store'
+import { dayClosed } from '../lib/shopHours'
 import { toDateStr } from '../lib/format'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
@@ -11,6 +12,8 @@ const emit = defineEmits(['close'])
 
 const date = ref(props.order.pickupAt.slice(0, 10) < toDateStr(new Date()) ? toDateStr(new Date()) : props.order.pickupAt.slice(0, 10))
 const slots = computed(() => pickupSlots(date.value))
+const slotInfo = computed(() => pickupSlotsInfo(date.value))
+const dayClosure = computed(() => (date.value ? dayClosed(db.shop, date.value) : null))
 const time = ref(slots.value.includes(props.order.pickupAt.slice(11, 16)) ? props.order.pickupAt.slice(11, 16) : '')
 const pickupAt = computed(() => (date.value && time.value ? `${date.value}T${time.value}` : ''))
 const load = computed(() => countPickups(pickupAt.value, props.order.id))
@@ -22,7 +25,8 @@ function onDate() {
 function save() {
   if (!pickupAt.value) return (error.value = 'เลือกวันและเวลานัดรับ')
   if (new Date(pickupAt.value) <= new Date()) return (error.value = 'เวลานัดต้องมากกว่าเวลาปัจจุบัน')
-  setPickup(props.order, pickupAt.value)
+  const r = setPickup(props.order, pickupAt.value)
+  if (r.error) return (error.value = r.error)
   emit('close')
 }
 </script>
@@ -33,16 +37,20 @@ function save() {
       <div><label class="label">วันที่</label><input v-model="date" type="date" :min="toDateStr(new Date())" class="input" @change="onDate" /></div>
       <div>
         <div class="label">เวลา <span class="font-normal text-stone-400">(ทุก {{ db.shop.slotMinutes }} นาที)</span></div>
-        <p v-if="!slots.length" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-500">ไม่มีเวลาว่างในวันนี้ เลือกวันอื่น</p>
+        <p v-if="dayClosure" class="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700" role="alert">ร้านปิด: {{ dayClosure.reason }} · เลือกวันอื่น</p>
+        <p v-else-if="!slotInfo.length" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-500">ไม่มีเวลาว่างในวันนี้ เลือกวันอื่น</p>
         <div v-else class="grid grid-cols-4 gap-1.5">
           <button
-            v-for="s in slots"
-            :key="s"
+            v-for="s in slotInfo"
+            :key="s.t"
             type="button"
-            class="h-10 rounded-xl border text-sm font-medium transition"
-            :class="time === s ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : 'border-stone-200 text-stone-700 hover:border-brand-300'"
-            @click="time = s; error = ''"
-          >{{ s }}</button>
+            class="h-10 rounded-xl border text-sm font-medium transition disabled:cursor-not-allowed disabled:border-stone-100 disabled:bg-stone-50 disabled:text-stone-300 disabled:line-through"
+            :class="time === s.t ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : 'border-stone-200 text-stone-700 hover:border-brand-300'"
+            :disabled="s.closed"
+            :title="s.closed ? `ร้านปิด: ${s.reason}` : ''"
+            :aria-label="s.closed ? `${s.t} ร้านปิด ${s.reason}` : s.t"
+            @click="time = s.t; error = ''"
+          >{{ s.t }}</button>
         </div>
       </div>
       <div v-if="pickupAt" class="flex items-start gap-2.5 rounded-xl p-3 text-sm" :class="load.day ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'">

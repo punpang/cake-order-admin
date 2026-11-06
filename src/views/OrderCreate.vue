@@ -2,7 +2,7 @@
 import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRef } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { db, can, vatNow, addCustomer, saveCustomer, findCustomer, createOrder, countPickups, pickupSlots, nearbyOrders, sendQuote, findChat, linkChat, createCustomerFromChat, chatOrderBlock } from '../data/store'
+import { db, can, vatNow, addCustomer, saveCustomer, findCustomer, createOrder, countPickups, pickupSlots, pickupSlotsInfo, pickupClosure, nearbyOrders, sendQuote, findChat, linkChat, createCustomerFromChat, chatOrderBlock } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime, timeOnly, toDateStr, formatPhone, phoneDigits, phoneValid } from '../lib/format'
 import PhoneInput from '../components/PhoneInput.vue'
@@ -13,6 +13,7 @@ import AppIcon from '../components/AppIcon.vue'
 import BirthdayFields from '../components/BirthdayFields.vue'
 import DeliveryFields from '../components/DeliveryFields.vue'
 import { cleanDelivery } from '../lib/delivery'
+import { dayClosed } from '../lib/shopHours'
 import { parseBirthday, mdLabel } from '../lib/birthday'
 
 // ใช้ได้ 2 แบบ: หน้าเต็ม (/orders/new) หรือแผงในแชท (embedded + draft ของแชทจาก store → สลับไปมาข้อมูลไม่หาย)
@@ -110,6 +111,8 @@ const pickupAt = computed(() => (form.date && form.time ? `${form.date}T${form.t
 const load = computed(() => countPickups(pickupAt.value))
 // เวลานัดเป็นปุ่มตามช่วงเวลาที่ตั้งไว้
 const slots = computed(() => pickupSlots(form.date))
+const slotInfo = computed(() => pickupSlotsInfo(form.date))
+const dayClosure = computed(() => (form.date ? dayClosed(db.shop, form.date) : null))
 // ออร์เดอร์ก่อน/หลังเวลาที่เลือก
 const nearHours = ref(db.shop.nearbyHours)
 const NEAR_OPTIONS = [1, 2, 3, 6, 0]
@@ -138,6 +141,7 @@ function validate(i) {
   if (i === 0 && !props.embedded && !phoneValid(customer.value?.phone)) return 'ลูกค้ายังไม่มีเบอร์โทร ใส่เบอร์ก่อน'
   if (i === 1) {
     if (!form.date || !form.time) return 'เลือกวันและเวลานัดรับ'
+    { const cl = pickupClosure(pickupAt.value); if (cl) return `ร้านปิด (${cl.reason}) เลือกวัน-เวลานัดอื่น` }
     if (new Date(pickupAt.value) <= new Date()) return 'เวลานัดต้องมากกว่าเวลาปัจจุบัน'
     if (form.fulfillment === 'delivery') {
       if (!form.address.trim()) return 'กรอกที่อยู่จัดส่ง'
@@ -180,6 +184,11 @@ function submit(asDraft) {
     return
   }
   const o = createOrder({ ...form, pickupAt: pickupAt.value, birthday: birthday.value, chatId: fromChat }, asDraft)
+  if (o.error) {
+    step.value = 1
+    error.value = o.error
+    return
+  }
   if (props.embedded) emit('created', o)
   else router.replace(`/admin/orders/${o.id}`)
 }
@@ -303,17 +312,22 @@ function quote() {
         </div>
         <div class="mt-3">
           <div class="label">เวลา <span class="font-normal text-stone-400">(ทุก {{ db.shop.slotMinutes }} นาที)</span></div>
-          <p v-if="!slots.length" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-500">ไม่มีเวลาว่างในวันนี้ เลือกวันอื่น</p>
+          <p v-if="dayClosure" class="flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700" role="alert"><AppIcon name="alert" :size="16" /> ร้านปิด: {{ dayClosure.reason }} · เลือกวันอื่น (แชท/สั่งวัน-เวลาอื่นได้ปกติ)</p>
+          <p v-else-if="!slotInfo.length" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-500">ไม่มีเวลาว่างในวันนี้ เลือกวันอื่น</p>
           <div v-else class="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
             <button
-              v-for="t in slots"
-              :key="t"
+              v-for="s in slotInfo"
+              :key="s.t"
               type="button"
-              class="h-10 rounded-xl border text-sm font-medium transition"
-              :class="form.time === t ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : 'border-stone-200 text-stone-700 hover:border-brand-300'"
-              @click="form.time = t"
-            >{{ t }}</button>
+              class="h-10 rounded-xl border text-sm font-medium transition disabled:cursor-not-allowed disabled:border-stone-100 disabled:bg-stone-50 disabled:text-stone-300 disabled:line-through"
+              :class="form.time === s.t ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : 'border-stone-200 text-stone-700 hover:border-brand-300'"
+              :disabled="s.closed"
+              :title="s.closed ? `ร้านปิด: ${s.reason}` : ''"
+              :aria-label="s.closed ? `${s.t} ร้านปิด ${s.reason}` : s.t"
+              @click="form.time = s.t"
+            >{{ s.t }}</button>
           </div>
+          <p v-if="!dayClosure && slotInfo.some((s) => s.closed)" class="mt-1.5 text-xs text-rose-600">ช่องที่ขีดฆ่าร้านปิด: {{ [...new Set(slotInfo.filter((s) => s.closed).map((s) => s.reason))].join(', ') }}</p>
         </div>
         <div
           v-if="pickupAt"
