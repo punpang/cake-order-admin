@@ -3,6 +3,7 @@ import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRaw, watch } from 'vue'
 import { db, activeListsAt } from '../data/store'
 import { priceDetail, allowedBy, forType, discountLines } from '../lib/pricing'
+import { decodeCake, findCodes } from '../lib/cakeCode'
 import { money } from '../lib/format'
 import { MAIN_KEYS } from '../lib/constants'
 import AppModal from './AppModal.vue'
@@ -112,6 +113,28 @@ function pickProduct(p) {
   Object.assign(form, { retailId: p.id, retailPrice: Number(p.price) || 0, sizeId: p.sizeId || null, typeId: p.typeId || null, name: p.name })
 }
 
+// วางรหัสสินค้าที่ลูกค้าคัดลอกมาจากหน้าเว็บ (#CK1…) → เติมฟอร์มให้เหมือนที่ลูกค้าเลือก
+const pasteText = ref('')
+const pasteMsg = ref({ ok: '', warn: [], error: '' })
+function applyPaste() {
+  pasteMsg.value = { ok: '', warn: [], error: '' }
+  const codes = findCodes(pasteText.value)
+  if (!codes.length) return (pasteMsg.value.error = 'ไม่พบรหัสสินค้า (#CK1…) ในข้อความ')
+  if (codes.length > 1) pasteMsg.value.warn.push(`พบ ${codes.length} รหัส ใช้รหัสแรก (เพิ่มอีกรายการแล้ววางรหัสต่อไป)`)
+  const r = decodeCake(codes[0], { groups: db.optionGroups, products: db.retailItems, active: active.value, bundles: db.bundles })
+  if (r.error) return (pasteMsg.value.error = r.error)
+  const it = r.item
+  form.kind = 'custom'
+  Object.assign(form, { retailId: null, retailPrice: 0, sizeId: null, typeId: null, qty: it.qty, note: it.note })
+  form.selections = JSON.parse(JSON.stringify(it.selections))
+  form.tiers = it.tiers.length ? JSON.parse(JSON.stringify(it.tiers)) : []
+  layered.value = form.tiers.length > 1
+  errors.value = {}
+  pasteMsg.value.warn.push(...r.warnings.map((w) => w.text))
+  pasteMsg.value.ok = `วางแล้ว: ${it.name} × ${it.qty}`
+  pasteText.value = ''
+}
+
 function setKind(k) {
   if (form.kind === k) return
   form.kind = k
@@ -194,6 +217,18 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
       >
         {{ k.t }}
       </button>
+    </div>
+
+    <!-- วางรหัสจากลูกค้า -->
+    <div v-if="!item" class="mb-3 rounded-2xl border border-dashed border-brand-300 bg-brand-50/40 p-3">
+      <label class="label" for="paste-code">วางข้อความ/รหัสที่ลูกค้าคัดลอกมา <span class="font-normal text-stone-400">(สั่งทำ)</span></label>
+      <div class="flex gap-2">
+        <textarea id="paste-code" v-model="pasteText" rows="2" class="input min-w-0 flex-1 font-mono text-xs" placeholder="#CK1.…" @keydown.ctrl.enter="applyPaste" @keydown.meta.enter="applyPaste"></textarea>
+        <button type="button" class="btn-soft self-start" :disabled="!pasteText.trim()" @click="applyPaste">ใส่ในฟอร์ม</button>
+      </div>
+      <p v-if="pasteMsg.ok" class="mt-1.5 text-sm font-medium text-emerald-700" role="status">{{ pasteMsg.ok }}</p>
+      <p v-for="(w, i) in pasteMsg.warn" :key="i" class="mt-1 text-sm text-amber-700">⚠ {{ w }}</p>
+      <p v-if="pasteMsg.error" class="mt-1.5 text-sm text-rose-600" role="alert">{{ pasteMsg.error }}</p>
     </div>
 
     <!-- สินค้าสำเร็จ (สินค้า POS) -->

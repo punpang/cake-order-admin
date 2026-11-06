@@ -58,7 +58,6 @@ const active = 'bg-white text-brand-700 shadow-sm'
     </div>
     <div class="pb-3 text-center text-xs text-stone-400">
       <RouterLink to="/account" class="underline">บัญชีของฉัน</RouterLink>
-      · <RouterLink to="/admin" class="underline">หลังบ้าน</RouterLink>
     </div>
   </footer>
   <CookieBanner />

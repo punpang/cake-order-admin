@@ -14,6 +14,7 @@ import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX } 
 import { checkTelegram, checkSmsUrl, checkSmsSender } from '../lib/integrationCheck'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
 import { digitsOf, promptPayKind } from '../lib/promptpay'
+import { decodeCake, findCodes, CODE_RE } from '../lib/cakeCode'
 import { deliveryFee, cleanDelivery, cleanDeliveryConfig, rememberPlace, DEFAULT_DELIVERY } from '../lib/delivery'
 import { dueState, overduePayments, orderDue, quickDue, isHHmm, remainingText } from '../lib/payDue'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
@@ -1495,7 +1496,7 @@ function botDeliver(c, res) {
 }
 export function runBot(c, m) {
   if (!m || m.kind !== 'text' || !botOn(c)) return null
-  const res = botReply(m.text, { db, chat: c, draft: db.chatDrafts[c.id] || null })
+  const res = botReply(String(m.text).replace(CODE_RE, ' '), { db, chat: c, draft: db.chatDrafts[c.id] || null })
   c.botDraft = null
   c.botHandoff = false
   if (res.handoff) {
@@ -1661,6 +1662,23 @@ export function askCustomer(chatId, field) {
 export function cancelAsk(chatId) {
   const c = findChat(chatId)
   if (c) c.pendingAsk = null
+}
+// เพิ่มสินค้าสั่งทำจากรหัสที่ลูกค้าคัดลอกมา (#CK1…) ลงร่างออร์เดอร์ของแชท · คืน { added: [ชื่อ], warnings: [], errors: [] }
+export function addCakeCodesToDraft(chatId, rawText) {
+  const c = findChat(chatId)
+  const out = { added: [], warnings: [], errors: [] }
+  if (!c) return { ...out, errors: ['ไม่พบแชท'] }
+  const codes = findCodes(rawText)
+  if (!codes.length) return { ...out, errors: ['ไม่พบรหัสสินค้า (#CK1…) ในข้อความ'] }
+  const d = draftOf(chatId)
+  for (const code of codes) {
+    const r = decodeCake(code, { groups: db.optionGroups, products: db.retailItems, active: activeListsAt(''), bundles: db.bundles })
+    if (r.error) { out.errors.push(r.error); continue }
+    d.items.push(r.item)
+    out.added.push(`${r.item.name} × ${r.item.qty}`)
+    out.warnings.push(...r.warnings.map((w) => w.text))
+  }
+  return out
 }
 // กรอกข้อมูลลงร่างของแชท (หรือเบอร์ลูกค้าที่ผูกแล้ว) → คืนรายการที่กรอก [{ label, value }] + suggest (ลูกค้าที่เบอร์ตรง)
 export function applyToDraft(chatId, data) {

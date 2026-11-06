@@ -1,7 +1,8 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { db, findOrder, sendChat, markRead, findQuote, acceptQuote, reviseQuote, fbWindowOpen, convertQuote, chatOrderBlock, findCustomer, linkChat, askCustomer, cancelAsk, applyToDraft, ASK_FIELDS, saveCanned, removeCanned, sendBotDraft, dismissBotDraft, setChatBot, staffReplied, recommendText, addRecommendToDraft } from '../data/store'
+import { addCakeCodesToDraft, db, findOrder, sendChat, markRead, findQuote, acceptQuote, reviseQuote, fbWindowOpen, convertQuote, chatOrderBlock, findCustomer, linkChat, askCustomer, cancelAsk, applyToDraft, ASK_FIELDS, saveCanned, removeCanned, sendBotDraft, dismissBotDraft, setChatBot, staffReplied, recommendText, addRecommendToDraft } from '../data/store'
 import { detectEntities } from '../lib/chatParse'
+import { CODE_RE, findCodes } from '../lib/cakeCode'
 import { extractIntent, customerText, scoreProducts, intentSummary } from '../lib/chatIntent'
 import { orderTotals, discountLines } from '../lib/pricing'
 import { STATUS } from '../lib/constants'
@@ -94,7 +95,13 @@ function sendRevise(q) {
 }
 // ---------- จับข้อมูลในข้อความลูกค้า (เบอร์ / วันที่ / เวลา) → กดกรอกลงร่าง ----------
 const ENT = { phone: { icon: 'phone', label: 'เบอร์' }, date: { icon: 'calendar', label: 'วันนัด' }, time: { icon: 'clock', label: 'เวลา' } }
-const entities = (m) => (m.from === 'customer' && m.kind === 'text' && !m.answerFor ? detectEntities(m.text) : [])
+const entities = (m) => (m.from === 'customer' && m.kind === 'text' && !m.answerFor ? detectEntities(m.text.replace(CODE_RE, ' ')) : [])
+// รหัสเค้กสั่งทำที่ลูกค้าคัดลอกจากหน้าเว็บ → กดเพิ่มลงร่างออร์เดอร์
+const hasCode = (m) => m.from === 'customer' && m.kind === 'text' && findCodes(m.text).length > 0
+const codeResult = ref({})
+function addCode(m) {
+  codeResult.value = { ...codeResult.value, [m.id]: addCakeCodesToDraft(props.chat.id, m.text) }
+}
 const entText = (e) => (e.type === 'phone' ? formatPhone(e.value) : e.type === 'date' ? dateOnly(e.value) : e.value)
 const notice = ref(null) // { done, suggest }
 function fill(e) {
@@ -247,6 +254,15 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
               <span class="rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-800">ตอบ: {{ ASK_FIELDS[m.answerFor]?.label }}</span>
               <span v-if="m.filled?.done?.length" class="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">กรอกแล้ว: {{ m.filled.done.map((d) => d.label).join(', ') }}</span>
               <span v-else class="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">อ่านค่าไม่ได้ กรอกเอง</span>
+            </div>
+            <!-- รหัสเค้กสั่งทำจากหน้าเว็บ → เพิ่มลงร่าง -->
+            <div v-if="hasCode(m)" class="mt-1 space-y-1">
+              <button type="button" class="inline-flex items-center gap-1 rounded-full border border-brand-300 bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-800 hover:bg-brand-100" @click="addCode(m)"><AppIcon name="cake" :size="13" /> เพิ่มเค้กนี้ลงร่างออร์เดอร์</button>
+              <template v-if="codeResult[m.id]">
+                <p v-if="codeResult[m.id].added.length" class="text-[11px] font-medium text-emerald-700" role="status">เพิ่มแล้ว: {{ codeResult[m.id].added.join(', ') }}</p>
+                <p v-for="(w, k) in codeResult[m.id].warnings" :key="'w' + k" class="text-[11px] text-amber-700">⚠ {{ w }}</p>
+                <p v-for="(er, k) in codeResult[m.id].errors" :key="'e' + k" class="text-[11px] text-rose-600" role="alert">{{ er }}</p>
+              </template>
             </div>
             <!-- ข้อมูลที่จับได้ → กดกรอก -->
             <div v-if="entities(m).length" class="mt-1 flex flex-wrap gap-1">

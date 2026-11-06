@@ -9,6 +9,7 @@ import AppIcon from '../../components/AppIcon.vue'
 import CakeImage from '../../components/CakeImage.vue'
 import StorePrice from '../../components/StorePrice.vue'
 import StoreOrderButtons from '../../components/StoreOrderButtons.vue'
+import CakeConfigurator from '../../components/CakeConfigurator.vue'
 
 // รายละเอียดเค้ก (สาธารณะ) · kind = ready (เค้กสำเร็จ) | custom (ประเภทของเค้กสั่งทำ) · ไม่มีตะกร้า สั่งทางแชท
 const props = defineProps({ kind: { type: String, required: true }, id: { type: String, required: true } })
@@ -82,6 +83,8 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
             <div class="flex flex-wrap gap-2"><span v-for="o in g.options" :key="o.id" class="chip chip-off">{{ o.name }}</span></div>
           </div>
         </template>
+
+        <CakeConfigurator v-if="item.custom" :type-id="props.id" />
 
         <div class="mt-6 rounded-2xl border border-stone-200 bg-white p-4">
           <div class="mb-2 text-sm font-semibold text-stone-800">สนใจสั่ง?</div>
