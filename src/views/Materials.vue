@@ -30,7 +30,7 @@ const countOf = (s) => inRange.value.filter((o) => o.status === s).length
 const orders = computed(() => inRange.value.filter((o) => picked.value.includes(o.status)))
 
 const rows = computed(() => {
-  const total = ordersMaterials(orders.value, db.optionGroups, db.products)
+  const total = ordersMaterials(orders.value, db.optionGroups, db.retailItems)
   return Object.entries(total)
     .map(([id, amount]) => {
       const m = db.ingredients.find((x) => x.id === id)
@@ -39,7 +39,7 @@ const rows = computed(() => {
     .sort((a, b) => a.name.localeCompare(b.name, 'th'))
 })
 
-const prep = computed(() => prepList(orders.value, db.optionGroups, db.products))
+const prep = computed(() => prepList(orders.value, db.optionGroups, db.retailItems))
 
 function setFrom(v) {
   from.value = v

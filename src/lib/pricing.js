@@ -61,19 +61,14 @@ export function mainPrice(typeIds, flavorIds, sizeId, groups, active = [], used 
   for (const id of idsOf(flavorIds)) sum += flavorPrice(find('flavor', id), active, used)
   return sum
 }
-// เค้กสำเร็จ: กำหนด ประเภท + เนื้อเค้ก + ขนาด ในหน้าสินค้า
-export const productPrice = (p, groups, active = [], used = null) => (p ? mainPrice(p.typeId, p.flavorId, p.sizeId, groups, active, used) : 0)
-export const productPounds = (p, groups) => groups.find((g) => g.key === 'size')?.options.find((o) => o.id === p?.sizeId)?.pounds || 1
-
 // base = ราคาเค้กหลัก (รวมทุกชั้น), pounds = ปอนด์รวม, tierPounds / tierSizes / tierTypes = ปอนด์ ขนาด และประเภทของแต่ละชั้น
+// (พารามิเตอร์ products = รายการสินค้าหน้าร้านในระบบ ไม่ได้ใช้คิดราคา เก็บไว้ให้ลายเซ็นฟังก์ชันเดิม)
 export function itemBase(item, groups, products, active = [], used = null) {
   const sizeGroup = groups.find((g) => g.key === 'size')
-  // สินค้าหน้าร้าน (POS): ราคาคงที่ที่บันทึกไว้ในรายการ
-  if (item.kind === 'retail') return { base: Number(item.retailPrice) || 0, pounds: 1, tierPounds: [1], tierSizes: [[]], tierTypes: [null] }
-  if (item.kind === 'ready') {
-    const p = products.find((x) => x.id === item.productId)
-    const pounds = productPounds(p, groups)
-    return { base: productPrice(p, groups, active, used), pounds, tierPounds: [pounds], tierSizes: [p?.sizeId ? [p.sizeId] : []], tierTypes: [p?.typeId || null] }
+  // สินค้าสำเร็จ / สินค้าหน้าร้าน (POS): ราคาคงที่ที่บันทึกในรายการ · sizeId/typeId (ถ้ามี) ใช้คิดราคาตัวเลือกแบบตามขนาด/ประเภท
+  if (item.kind === 'retail') {
+    const pounds = sizeGroup?.options.find((o) => o.id === item.sizeId)?.pounds || 1
+    return { base: Number(item.retailPrice) || 0, pounds, tierPounds: [pounds], tierSizes: [item.sizeId ? [item.sizeId] : []], tierTypes: [item.typeId || null] }
   }
   const type = groups.find((g) => g.key === 'type')
   const flavor = groups.find((g) => g.key === 'flavor')
@@ -176,7 +171,19 @@ export function priceDetail(item, groups, products, active = [], bundles = []) {
 }
 // บรรทัดส่วนลดสำหรับแสดงผล (คูณจำนวน)
 export const discountLines = (discounts, qty = 1) =>
-  (discounts || []).map((d) => ({ label: `${d.kind === 'bundle' ? 'บันเดิ้ล' : 'ราคาพิเศษ'}: ${d.name}`, amount: d.amount * qty }))
+  (discounts || []).map((d) => ({ label: `${d.kind === 'bundle' ? 'บันเดิ้ล' : d.kind === 'promo' ? 'โปรส่วนลด' : 'ราคาพิเศษ'}: ${d.name}`, amount: d.amount * qty }))
+
+// ยอดสินค้าสุทธิรายรายการ (หลังส่วนลดรายการ + แบ่งส่วนลดระดับบิลตามสัดส่วน) ไม่รวมค่าส่ง/VAT ไม่ติดลบ → ใช้คิดคะแนน/สิทธิ์หมุน
+// ส่วนลดระดับบิล = ปรับราคาติดลบ + ส่วนลดจากคะแนน + คูปอง (ปรับราคาที่เป็นบวกไม่นับ)
+export function itemNets(order) {
+  const lines = order.items.map((i) => i.unitPrice * i.qty)
+  const sub = lines.reduce((a, b) => a + b, 0)
+  if (!(sub > 0)) return lines.map(() => 0)
+  const adj = Number(order.adjustment?.amount) || 0
+  const bill = (adj < 0 ? -adj : 0) + (Number(order.pointsUsed?.amount) || 0) + (order.couponsUsed || []).reduce((s, c) => s + (Number(c.amount) || 0), 0)
+  const k = Math.max(0, 1 - bill / sub)
+  return lines.map((l) => l * k)
+}
 
 export function orderTotals(order) {
   const subtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
@@ -201,7 +208,8 @@ export function orderTotals(order) {
     ...(order.couponsUsed || []).filter((c) => Number(c.amount)).map((c) => ({ label: `คูปอง: ${c.name}`, amount: Number(c.amount) })),
   ]
   const discountTotal = discountLinesAll.reduce((s, l) => s + l.amount, 0) + (full - subtotal - itemDiscounts.reduce((s, l) => s + l.amount, 0))
-  return { subtotal, shipping, adjustment, pointsDiscount, couponDiscount, total, paid, reported, refunded, balance: total - paid, full, itemDiscounts, discountLines: discountLinesAll, discountTotal }
+  const netGoods = itemNets(order).reduce((a, b) => a + b, 0)
+  return { netGoods, subtotal, shipping, adjustment, pointsDiscount, couponDiscount, total, paid, reported, refunded, balance: total - paid, full, itemDiscounts, discountLines: discountLinesAll, discountTotal }
 }
 
 // แปลงตัวเลือกเป็นข้อความอ่านง่าย (หลายชั้นขึ้นต้นด้วย "ชั้น n")

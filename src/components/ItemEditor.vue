@@ -2,7 +2,7 @@
 import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRaw, watch } from 'vue'
 import { db, activeListsAt } from '../data/store'
-import { priceDetail, productPrice, productPounds, allowedBy, forType, discountLines } from '../lib/pricing'
+import { priceDetail, allowedBy, forType, discountLines } from '../lib/pricing'
 import { money } from '../lib/format'
 import { MAIN_KEYS } from '../lib/constants'
 import AppModal from './AppModal.vue'
@@ -17,7 +17,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['save', 'close'])
 
-const blank = () => ({ id: `i${Date.now()}`, kind: 'ready', productId: null, name: '', qty: 1, note: '', images: [], selections: { ...(props.defaults || {}) }, tiers: [] })
+const blank = () => ({ id: `i${Date.now()}`, kind: 'retail', retailId: null, retailPrice: 0, sizeId: null, typeId: null, name: '', qty: 1, note: '', images: [], selections: { ...(props.defaults || {}) }, tiers: [] })
 const form = reactive(props.item ? { tiers: [], ...JSON.parse(JSON.stringify(toRaw(props.item))) } : blank())
 
 // รายการสั่งทำเก่าที่ยังไม่มีชั้น: ย้ายตัวเลือกของกลุ่มแยกชั้นไปไว้ชั้นที่ 1
@@ -60,15 +60,12 @@ function typeOptOf(t) {
   return tg?.options.find((o) => o.id === id) || null
 }
 const allSizeIds = computed(() => {
-  if (form.kind === 'ready') {
-    const p = db.products.find((x) => x.id === form.productId)
-    return p?.sizeId ? [p.sizeId] : []
-  }
+  if (form.kind === 'retail') return form.sizeId ? [form.sizeId] : []
   return sizeGroup.value?.perTier ? form.tiers.flatMap((t) => sizeIdsOf(t)) : sizeIdsOf(null)
 })
 
-// เค้กสำเร็จมีขนาดตายตัว ไม่แสดงกลุ่มขนาด
-const groups = computed(() => db.optionGroups.filter((g) => g.active !== false && g.appliesTo.includes(form.kind) && !(form.kind === 'ready' && g.key === 'size')))
+// สินค้าสำเร็จมีขนาดตายตัว ไม่แสดงกลุ่มขนาด · ตัวเลือกของสินค้าสำเร็จ = กลุ่มที่ใช้กับ 'ready'
+const groups = computed(() => db.optionGroups.filter((g) => g.active !== false && g.appliesTo.includes(form.kind === 'retail' ? 'ready' : form.kind) && !(form.kind === 'retail' && g.key === 'size')))
 const tierGroups = computed(() => (form.kind === 'custom' ? groups.value.filter((g) => g.perTier) : []))
 const wholeGroups = computed(() => groups.value.filter((g) => !tierGroups.value.includes(g)))
 
@@ -81,11 +78,8 @@ const allowFor = (t) => {
   const tid = typeOptOf(t)?.id
   return (g, o) => a(g, o) && (MAIN_KEYS.includes(g.key) || forType(o, tid))
 }
-// เค้กสำเร็จ: ประเภทของสินค้า (ราคา/ตัวเลือกรองตามประเภท)
-const readyTypeOpt = computed(() => {
-  const p = db.products.find((x) => x.id === form.productId)
-  return db.optionGroups.find((g) => g.key === 'type')?.options.find((o) => o.id === p?.typeId) || null
-})
+// สินค้าสำเร็จ: ประเภทของสินค้า (ตัวเลือกรองตามประเภท)
+const readyTypeOpt = computed(() => db.optionGroups.find((g) => g.key === 'type')?.options.find((o) => o.id === form.typeId) || null)
 // เปลี่ยนประเภทแล้ว ตัดตัวเลือกที่ไม่มีออก
 function prune(sels, allow, list) {
   for (const g of list) {
@@ -104,17 +98,24 @@ watch(
     prune(form.selections, allowFor(form.tiers[0]), wholeGroups.value)
   },
 )
-const products = computed(() => db.products.filter((p) => p.active || p.id === form.productId))
+// สินค้าที่เลือกได้ = สินค้า POS ที่เปิดใช้งาน/แสดงใน POS และไม่ต้องเลือกตัวเลือกหน้าร้าน (เช่น เครื่องดื่ม) · ค้นหา/กรองหมวดได้
+const q = ref('')
+const cat = ref('')
+const products = computed(() => db.retailItems.filter((p) => p.id === form.retailId || (p.active !== false && p.showInPos !== false && !(p.modifierIds || []).length)))
+const cats = computed(() => [...new Set(products.value.map((p) => p.category).filter(Boolean))])
+const shown = computed(() => products.value.filter((p) => (!cat.value || p.category === cat.value) && (!q.value.trim() || p.name.toLowerCase().includes(q.value.trim().toLowerCase()))))
 const active = computed(() => activeListsAt(props.priceDate))
-const detail = computed(() => priceDetail(form, db.optionGroups, db.products, active.value, db.bundles))
+const detail = computed(() => priceDetail(form, db.optionGroups, db.retailItems, active.value, db.bundles))
 const unitPrice = computed(() => detail.value.unitPrice)
-// ราคาเค้กสำเร็จ (ประเภท + เนื้อเค้ก + ขนาด) ราคาปกติแสดงขีดฆ่าเมื่อมีราคาพิเศษ
-const priceOf = (p) => ({ price: productPrice(p, db.optionGroups, active.value), regular: productPrice(p, db.optionGroups) })
+const poundsOf = (p) => db.optionGroups.find((g) => g.key === 'size')?.options.find((o) => o.id === p.sizeId)?.pounds
+function pickProduct(p) {
+  Object.assign(form, { retailId: p.id, retailPrice: Number(p.price) || 0, sizeId: p.sizeId || null, typeId: p.typeId || null, name: p.name })
+}
 
 function setKind(k) {
   if (form.kind === k) return
   form.kind = k
-  form.productId = null
+  Object.assign(form, { retailId: null, retailPrice: 0, sizeId: null, typeId: null })
   form.selections = { ...(props.defaults || {}) }
   form.tiers = k === 'custom' ? [{ selections: {} }] : []
   layered.value = false
@@ -128,7 +129,7 @@ function onImages(e) {
 
 function save() {
   const err = {}
-  if (form.kind === 'ready' && !form.productId) err.product = 'เลือกเค้ก'
+  if (form.kind === 'retail' && !form.retailId) err.product = 'เลือกสินค้า'
   const empty = (v) => v == null || v === ''
   for (const g of wholeGroups.value) {
     if (g.required && empty(form.selections[g.id])) err[g.id] = `เลือก${g.name}`
@@ -149,8 +150,8 @@ function save() {
   for (const t of form.tiers) for (const k of Object.keys(t.selections)) if (!tierAllowed.has(k)) delete t.selections[k]
   if (form.kind !== 'custom' || !tierGroups.value.length) form.tiers = []
 
-  if (form.kind === 'ready') {
-    form.name = db.products.find((p) => p.id === form.productId)?.name || ''
+  if (form.kind === 'retail') {
+    form.name = db.retailItems.find((p) => p.id === form.retailId)?.name || form.name
   } else {
     // ชื่อ = ประเภท · เนื้อเค้ก · ขนาด (หลายชั้นคั่นด้วย /)
     const namesOf = (g, sels) => {
@@ -184,7 +185,7 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
     <!-- ประเภท -->
     <div class="mb-4 grid grid-cols-2 gap-1 rounded-2xl bg-stone-100 p-1">
       <button
-        v-for="k in [{ v: 'ready', t: 'เค้กสำเร็จ' }, { v: 'custom', t: 'สั่งทำ' }]"
+        v-for="k in [{ v: 'retail', t: 'สินค้าสำเร็จ' }, { v: 'custom', t: 'สั่งทำ' }]"
         :key="k.v"
         type="button"
         class="h-10 rounded-xl text-sm font-semibold transition"
@@ -195,34 +196,40 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
       </button>
     </div>
 
-    <!-- เค้กสำเร็จ -->
-    <div v-if="form.kind === 'ready'" class="mb-3 rounded-2xl border bg-white p-3.5" :class="errors.product ? 'border-rose-300 ring-4 ring-rose-50' : 'border-stone-200/70'">
+    <!-- สินค้าสำเร็จ (สินค้า POS) -->
+    <div v-if="form.kind === 'retail'" class="mb-3 rounded-2xl border bg-white p-3.5" :class="errors.product ? 'border-rose-300 ring-4 ring-rose-50' : 'border-stone-200/70'">
       <div class="mb-2.5 flex items-baseline gap-2">
-        <span class="text-sm font-semibold text-stone-800">เลือกเค้ก</span>
+        <span class="text-sm font-semibold text-stone-800">เลือกสินค้า</span>
         <span class="text-xs font-medium text-rose-500">จำเป็น</span>
       </div>
-      <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div class="mb-2.5 flex flex-wrap gap-2">
+        <input v-model="q" type="search" class="input h-10 min-w-0 flex-1 basis-40" placeholder="ค้นหาสินค้า" />
+        <div v-if="cats.length > 1" class="flex flex-wrap gap-1.5">
+          <button type="button" class="chip" :class="!cat ? 'chip-on' : 'chip-off'" @click="cat = ''">ทั้งหมด</button>
+          <button v-for="c in cats" :key="c" type="button" class="chip" :class="cat === c ? 'chip-on' : 'chip-off'" @click="cat = c">{{ c }}</button>
+        </div>
+      </div>
+      <div class="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
         <button
-          v-for="p in products"
+          v-for="p in shown"
           :key="p.id"
           type="button"
           class="flex items-center gap-3 rounded-xl border p-3 text-left transition active:scale-[0.99]"
-          :class="form.productId === p.id ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-stone-200 hover:border-brand-300'"
-          @click="form.productId = p.id"
+          :class="form.retailId === p.id ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-stone-200 hover:border-brand-300'"
+          @click="pickProduct(p)"
         >
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" :class="form.productId === p.id ? 'bg-brand-600 text-white' : 'bg-brand-50 text-brand-600'">
-            <AppIcon :name="form.productId === p.id ? 'check' : 'cake'" :size="20" />
+          <img v-if="p.images?.length" :src="p.images[0]" alt="" class="h-10 w-10 shrink-0 rounded-lg object-cover" />
+          <span v-else class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" :class="form.retailId === p.id ? 'bg-brand-600 text-white' : 'bg-brand-50 text-brand-600'">
+            <AppIcon :name="form.retailId === p.id ? 'check' : 'cake'" :size="20" />
           </span>
           <span class="min-w-0 flex-1">
             <span class="block truncate font-medium text-stone-900">{{ p.name }}</span>
-            <span class="block text-xs text-stone-500">{{ productPounds(p, db.optionGroups) }} ปอนด์</span>
+            <span class="block truncate text-xs text-stone-500">{{ p.category || '-' }}<template v-if="poundsOf(p)"> · {{ poundsOf(p) }} ปอนด์</template><template v-if="p.stock != null"> · เหลือ {{ p.stock }}</template></span>
           </span>
-          <span class="shrink-0 text-right leading-tight">
-            <span v-if="priceOf(p).price !== priceOf(p).regular" class="block text-xs text-stone-400 line-through">{{ money(priceOf(p).regular) }}</span>
-            <span class="block font-semibold" :class="priceOf(p).price !== priceOf(p).regular ? 'text-rose-600' : 'text-stone-900'">{{ money(priceOf(p).price) }}</span>
-          </span>
+          <span class="shrink-0 font-semibold text-stone-900">{{ money(p.price) }}</span>
         </button>
       </div>
+      <p v-if="!shown.length" class="py-4 text-center text-sm text-stone-500">ไม่พบสินค้า</p>
       <p v-if="errors.product" class="mt-2 text-sm text-rose-600">{{ errors.product }}</p>
     </div>
 

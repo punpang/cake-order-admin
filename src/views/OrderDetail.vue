@@ -30,7 +30,7 @@ const t = computed(() => orderTotals(order.value))
 // ข้อความแจ้งเตือนของออร์เดอร์นี้ (จำลอง)
 const messages = computed(() => db.outbox.filter((m) => m.orderId === order.value.id))
 // ต้นทุนวัตถุดิบ / กำไร (แอดมิน)
-const cost = computed(() => orderCost(order.value, db.optionGroups, db.products, db.ingredients))
+const cost = computed(() => orderCost(order.value, db.optionGroups, db.retailItems, db.ingredients))
 const load = computed(() => countPickups(order.value.pickupAt, order.value.id))
 const closed = computed(() => ['delivered', 'cancelled'].includes(order.value.status))
 

@@ -2,7 +2,8 @@
 // ขั้นต่อไปจะเปลี่ยนฟังก์ชันในไฟล์นี้ให้เรียก Supabase แทน
 import { reactive } from 'vue'
 import { PERMISSIONS, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
-import { activeLists, priceDetail, orderTotals } from '../lib/pricing'
+import { activeLists, priceDetail, orderTotals, itemNets } from '../lib/pricing'
+import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { addDays, pointBalance, takePoints, returnPoints, couponUsable, pickPrize, expiringSoon } from '../lib/loyalty'
 import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, timeOnly } from '../lib/format'
 import { nextBirthday, daysBetween } from '../lib/birthday'
@@ -60,7 +61,9 @@ export const db = reactive({
     { id: 'rw1', name: 'เทียนวันเกิดเซ็ต', points: 30, active: true },
     { id: 'rw2', name: 'คัพเค้ก 1 ชิ้น', points: 80, active: true },
     { id: 'rw3', name: 'เค้ก 1 ปอนด์', points: 500, active: true },
+    { id: 'rw4', name: 'คูปองส่วนลด 50 บาท (ตัวอย่าง)', kind: 'coupon', points: 100, amount: 50, minSpend: 200, validDays: 30, active: true },
   ],
+  // rewards: kind = item (ของรางวัลรับที่ร้าน) | coupon (คูปองส่วนลด amount ฿ ขั้นต่ำ minSpend อายุ validDays วัน ใช้ที่ POS/ออร์เดอร์)
   // type = points | reward | discount | none
   gachaPrizes: [
     { id: 'gp1', name: '10 คะแนน', type: 'points', value: 10, chance: 30, active: true },
@@ -91,14 +94,6 @@ export const db = reactive({
     { id: 'm6', name: 'ผงโกโก้', unit: 'g', packSize: 500, packPrice: 160, active: true },
     { id: 'm7', name: 'สตรอว์เบอร์รีสด', unit: 'g', packSize: 1000, packPrice: 250, active: true },
     { id: 'm8', name: 'กล่องเค้ก', unit: 'ใบ', packSize: 50, packPrice: 500, active: true },
-  ],
-
-  // เค้กสำเร็จ: ราคา = ประเภท (typeId) + เนื้อเค้ก (flavorId) + ขนาดของประเภท (sizeId) · recipe = สูตรวัตถุดิบของสินค้า (ตัวเลขตัวอย่าง)
-  products: [
-    { id: 'p1', stock: 3, name: 'เค้กช็อกโกแลตฟัดจ์', typeId: 't1', flavorId: 'sp2', sizeId: 's1', active: true, recipe: [r('m1', 150), r('m2', 120), r('m3', 3), r('m4', 80), r('m6', 40), r('m8', 1, 'piece')] },
-    { id: 'p2', name: 'เค้กส้ม', typeId: 't1', flavorId: 'sp1', sizeId: 's1', active: true, recipe: [r('m1', 160), r('m2', 130), r('m3', 3), r('m4', 70), r('m8', 1, 'piece')] },
-    { id: 'p3', name: 'เค้กใบเตยมะพร้าวอ่อน', typeId: 't3', flavorId: 'sp3', sizeId: 's2', active: true, recipe: [r('m1', 150), r('m2', 110), r('m3', 3), r('m5', 150), r('m8', 1, 'piece')] },
-    { id: 'p4', name: 'เรดเวลเวท', typeId: 't2', flavorId: 'sp4', sizeId: 's1', active: true, recipe: [r('m1', 150), r('m2', 130), r('m3', 3), r('m4', 80), r('m6', 10), r('m8', 1, 'piece')] },
   ],
 
   // ผู้ใช้ระบบ (email ใช้ล็อกอินเมื่อต่อ Supabase)
@@ -205,7 +200,8 @@ export const db = reactive({
   quotes: [], // ใบเสนอในแชท status: pending | accepted | revise | superseded
 
   // ---------- POS หน้าร้าน ----------
-  // สินค้าหน้าร้าน (ตัวอย่าง) stock = คงเหลือ (null = ไม่นับสต็อก)
+  // สินค้าหน้าร้าน/สินค้าสำเร็จ (ตัวอย่าง) stock = คงเหลือ (null = ไม่นับสต็อก)
+  // ฟิลด์: images, recipe, pinned (ขายดีปักหมุด), showInPos (แสดงใน POS/สร้างออร์เดอร์), showOnStore (แสดงหน้าร้านเว็บ), description, typeId/flavorId/sizeId (ไม่บังคับ)
   retailItems: [
     { id: 'rt1', name: 'เค้กช็อกโกแลต (ชิ้น)', category: 'เค้กชิ้น', price: 75, stock: 12, active: true },
     { id: 'rt2', name: 'เค้กส้ม (ชิ้น)', category: 'เค้กชิ้น', price: 70, stock: 8, active: true },
@@ -214,6 +210,11 @@ export const db = reactive({
     { id: 'rt5', name: 'อเมริกาโน่เย็น', category: 'เครื่องดื่ม', price: 60, stock: null, active: true, modifierIds: ['md1', 'md2', 'md3'] },
     { id: 'rt6', name: 'ชาไทยเย็น', category: 'เครื่องดื่ม', price: 55, stock: null, active: true, modifierIds: ['md1', 'md2'] },
     { id: 'rt7', name: 'เทียนวันเกิด (แพ็ก)', category: 'ของเสริม', price: 20, stock: 50, active: true },
+    // สินค้าสำเร็จ (ย้ายมาจากสินค้า "เค้กสำเร็จ" เดิม) ราคาคงที่ · typeId/flavorId/sizeId = ข้อมูลประกอบ (ขนาดใช้คิดราคาตัวเลือกตามขนาดของออร์เดอร์) · recipe = สูตรวัตถุดิบ (ตัวเลขตัวอย่าง)
+    { id: 'rt8', name: 'เค้กช็อกโกแลตฟัดจ์', category: 'เค้กสำเร็จ', price: 480, stock: 3, active: true, showOnStore: true, typeId: 't1', flavorId: 'sp2', sizeId: 's1', recipe: [r('m1', 150), r('m2', 120), r('m3', 3), r('m4', 80), r('m6', 40), r('m8', 1, 'piece')] },
+    { id: 'rt9', name: 'เค้กส้ม', category: 'เค้กสำเร็จ', price: 450, stock: null, active: true, showOnStore: true, typeId: 't1', flavorId: 'sp1', sizeId: 's1', recipe: [r('m1', 160), r('m2', 130), r('m3', 3), r('m4', 70), r('m8', 1, 'piece')] },
+    { id: 'rt10', name: 'เค้กใบเตยมะพร้าวอ่อน', category: 'เค้กสำเร็จ', price: 1050, stock: null, active: true, showOnStore: true, typeId: 't3', flavorId: 'sp3', sizeId: 's2', recipe: [r('m1', 150), r('m2', 110), r('m3', 3), r('m5', 150), r('m8', 1, 'piece')] },
+    { id: 'rt11', name: 'เรดเวลเวท', category: 'เค้กสำเร็จ', price: 550, stock: null, active: true, showOnStore: true, typeId: 't2', flavorId: 'sp4', sizeId: 's1', recipe: [r('m1', 150), r('m2', 130), r('m3', 3), r('m4', 80), r('m6', 10), r('m8', 1, 'piece')] },
   ],
   // ตัวเลือกสินค้าหน้าร้าน (กลุ่มกลาง ผูกกับสินค้าด้วย retailItems[].modifierIds) price = บาทที่บวกเพิ่ม
   posModifiers: [
@@ -223,6 +224,17 @@ export const db = reactive({
   ],
   // กะขาย: float = เงินทอนตั้งต้น, counted = เงินสดที่นับได้ตอนปิด
   shifts: [],
+  // โปรโมชัน POS (ตัวอย่าง ปิดไว้ก่อน) schedule = { from, to, days[0-6], timeFrom, timeTo } ว่าง = ตลอดเวลา · ต่อสินค้า 1 ชิ้นใช้อันที่ลดมากสุด ไม่ซ้อนกัน (ท้ายบิลซ้อนได้)
+  posDiscounts: [
+    { id: 'pd1', name: 'เครื่องดื่มลด 10% (ตัวอย่าง)', type: 'percent', value: 10, scope: 'category', categories: ['เครื่องดื่ม'], itemIds: [], minSpend: 0, active: false, schedule: blankSchedule() },
+  ],
+  posBundles: [
+    { id: 'pb1', name: 'อเมริกาโน่เย็น + คัพเค้กวานิลลา (ตัวอย่าง)', items: [{ itemId: 'rt5', qty: 1 }, { itemId: 'rt3', qty: 1 }], price: 89, active: false, schedule: blankSchedule() },
+  ],
+  // โปรคะแนนพิเศษ: multiplier = ตัวคูณคะแนนของยอดสินค้านั้น (หลายโปรซ้อน = ใช้ตัวสูงสุด)
+  pointPromos: [
+    { id: 'pt1', name: 'คะแนน x2 เค้กสำเร็จ (ตัวอย่าง)', multiplier: 2, scope: 'category', categories: ['เค้กสำเร็จ'], itemIds: [], active: false, schedule: blankSchedule() },
+  ],
 
   // ---------- หน้าร้าน (สาธารณะ) · เนื้อหาตัวอย่าง แก้ได้ที่ /admin/manage/storefront ----------
   storefront: {
@@ -277,9 +289,8 @@ export const db = reactive({
 })
 
 // ทุกรายการเริ่มต้นเป็น "ใช้งาน" + สมุดคะแนน / สิทธิ์หมุน
-for (const p of db.products) Object.assign(p, { stock: p.stock ?? null, images: p.images || [], pinned: !!p.pinned })
 for (const o of db.optionGroups.find((g) => g.key === 'type')?.options || []) o.images = o.images || []
-for (const r of db.retailItems) r.modifierIds = r.modifierIds || []
+for (const r of db.retailItems) Object.assign(r, { modifierIds: r.modifierIds || [], images: r.images || [], recipe: r.recipe || [], pinned: !!r.pinned, showInPos: r.showInPos ?? true, showOnStore: r.showOnStore ?? false, description: r.description || '', typeId: r.typeId || null, flavorId: r.flavorId || null, sizeId: r.sizeId || null })
 for (const c of db.customers) Object.assign(c, { active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: true })
 // ตัวอย่าง: ลูกค้าคนแรกผูก LINE แล้ว (จำลอง)
 db.customers[0].lineUserId = 'U-demo-mali'
@@ -342,7 +353,6 @@ export function saveMainPrices({ types = {}, typeSizes = {}, flavors = {} }) {
   for (const o of byKey('flavor')) if (flavors[o.id] !== undefined) o.price = Number(flavors[o.id]) || 0
 }
 export const saveIngredient = (d) => upsert(db.ingredients, 'm', { ...d, packSize: Number(d.packSize) || 0, packPrice: Number(d.packPrice) || 0 })
-export const saveProduct = (d) => upsert(db.products, 'p', { ...d, recipe: cleanRecipe(d.recipe), stock: d.stock === '' || d.stock == null ? null : Math.max(0, Number(d.stock) || 0) })
 export const saveUser = (d) => upsert(db.users, 'u', d)
 export const findGroup = (id) => db.optionGroups.find((g) => g.id === id)
 
@@ -397,7 +407,7 @@ export const activeListsAt = (dateStr) => activeLists(db.priceLists, dateStr || 
 export const orderDate = (order) => toDateStr(new Date(order.createdAt))
 
 export function priceItem(item, dateStr) {
-  return { ...item, ...priceDetail(item, db.optionGroups, db.products, activeListsAt(dateStr), db.bundles) }
+  return { ...item, ...priceDetail(item, db.optionGroups, db.retailItems, activeListsAt(dateStr), db.bundles) }
 }
 
 function log(order, text) {
@@ -709,6 +719,7 @@ export function removePoints(order) {
 export function applyCoupon(order, couponId) {
   const cp = db.coupons.find((x) => x.id === couponId)
   if (!cp || cp.type !== 'discount' || !couponUsable(cp, today())) return false
+  if (Number(cp.minSpend) > 0 && orderTotals(order).subtotal < Number(cp.minSpend)) return false // ยอดสินค้าไม่ถึงขั้นต่ำของคูปอง
   Object.assign(cp, { status: 'used', orderId: order.id, usedAt: now() })
   order.couponsUsed.push({ couponId, name: cp.name, amount: cp.amount })
   log(order, `ใช้คูปอง ${cp.name}`)
@@ -722,17 +733,29 @@ export function removeCoupon(order, couponId) {
   log(order, `ยกเลิกการใช้คูปอง ${cp?.name || ''}`)
 }
 
-// ส่งมอบ: ได้คะแนน + สิทธิ์หมุน ตามยอดรวม
+// คะแนน + สิทธิ์หมุนที่ออร์เดอร์นี้จะได้ จาก "ยอดสินค้าสุทธิ" (หลังส่วนลดทุกประเภท ไม่รวมค่าส่ง/VAT)
+// โปรคะแนนพิเศษคูณรายสินค้า (ช่วงเวลานับตาม at = เวลาสร้างออร์เดอร์) · ใช้ทั้งตอนให้จริงและแสดงตัวอย่างใน POS
+export function pointsFor(order, at = new Date(order.createdAt || Date.now())) {
+  const nets = itemNets(order)
+  let base = 0
+  let weighted = 0
+  order.items.forEach((it, i) => {
+    const cat = it.kind === 'retail' ? db.retailItems.find((r) => r.id === it.retailId)?.category || '' : 'เค้กสั่งทำ'
+    base += nets[i]
+    weighted += nets[i] * pointMultiplier({ retailId: it.retailId, category: cat }, db.pointPromos, at)
+  })
+  const points = Math.floor(weighted / db.loyalty.earnPer + 1e-9)
+  return { points, bonus: points - Math.floor(base / db.loyalty.earnPer + 1e-9), spins: Math.floor(base / db.loyalty.spinPer + 1e-9), base: round2(base) }
+}
+// ส่งมอบ: ได้คะแนน + สิทธิ์หมุน (ดู pointsFor)
 function awardOrder(order) {
   const c = findCustomer(order.customerId)
   if (!c || order.loyalty) return
-  const total = Math.max(orderTotals(order).total, 0)
-  const points = Math.floor(total / db.loyalty.earnPer)
-  const spins = Math.floor(total / db.loyalty.spinPer)
-  const lot = earnPoints(c, points, `ออร์เดอร์ ${order.code}`, order.id)
+  const { points, bonus, spins, base } = pointsFor(order)
+  const lot = earnPoints(c, points, `ออร์เดอร์ ${order.code}${bonus > 0 ? ' (รวมโบนัสโปรคะแนน)' : ''}`, order.id)
   c.spins += spins
-  order.loyalty = { points, spins, lotId: lot?.id || null }
-  if (points || spins) log(order, `ได้ ${points} คะแนน${spins ? ` + สิทธิ์หมุน ${spins} ครั้ง` : ''}`)
+  order.loyalty = { points, bonus, spins, base, lotId: lot?.id || null }
+  if (points || spins) log(order, `ได้ ${points} คะแนน${bonus > 0 ? ` (โบนัสโปร +${bonus})` : ''}${spins ? ` + สิทธิ์หมุน ${spins} ครั้ง` : ''}`)
 }
 
 // ยกเลิก: คืนคะแนน/คูปองที่ใช้ และตัดคะแนน/สิทธิ์หมุนที่ได้
@@ -756,6 +779,10 @@ function undoLoyalty(order) {
 export function redeemReward(c, rewardId) {
   const rw = db.rewards.find((x) => x.id === rewardId && x.active !== false)
   if (!rw || !spendPoints(c, rw.points, `แลก ${rw.name}`)) return null
+  // คูปองส่วนลด: นำไปใช้ที่ POS/ออร์เดอร์ (มีขั้นต่ำ/อายุตามที่ตั้ง) · ของรางวัล: รับที่ร้าน
+  if (rw.kind === 'coupon') {
+    return newCoupon(c, { type: 'discount', rewardId: rw.id, name: rw.name, amount: Number(rw.amount) || 0, minSpend: Number(rw.minSpend) || 0, source: 'redeem', ...(Number(rw.validDays) > 0 ? { expiresAt: addDays(today(), Number(rw.validDays)) } : {}) })
+  }
   return newCoupon(c, { type: 'reward', rewardId: rw.id, name: rw.name, source: 'redeem' })
 }
 
@@ -784,7 +811,8 @@ export function markCouponDelivered(cp) {
   Object.assign(cp, { status: 'delivered', deliveredAt: now(), deliveredBy: session.role })
 }
 
-export const saveReward = (d) => upsert(db.rewards, 'rw', { ...d, points: Number(d.points) || 0 })
+export const saveReward = (d) =>
+  upsert(db.rewards, 'rw', { ...d, kind: d.kind === 'coupon' ? 'coupon' : 'item', points: Number(d.points) || 0, amount: Number(d.amount) || 0, minSpend: Number(d.minSpend) || 0, validDays: Number(d.validDays) || 0 })
 export const savePrize = (d) => upsert(db.gachaPrizes, 'gp', { ...d, chance: Number(d.chance) || 0, value: Number(d.value) || 0 })
 export function saveLoyaltySettings(d) {
   for (const k of Object.keys(db.loyalty)) db.loyalty[k] = Math.max(Number(d[k]) || 0, 0)
@@ -803,18 +831,18 @@ function seed() {
 
   const o2 = createOrder({
     customerId: 'c2', pickupAt: at(1, 14, 30), fulfillment: 'delivery', address: '99/9 ซ.สุขุมวิท 50 กรุงเทพฯ', shippingFee: 120,
-    items: [{ id: uid('i'), kind: 'ready', productId: 'p1', name: 'เค้กช็อกโกแลตฟัดจ์', qty: 1, note: '', images: [], selections: { g_message: 'Happy Birthday', g_diet: ['dt1'] } }],
+    items: [{ id: uid('i'), kind: 'retail', retailId: 'rt8', retailPrice: 430, sizeId: 's1', typeId: 't1', name: 'เค้กช็อกโกแลตฟัดจ์', qty: 1, note: '', images: [], selections: { g_message: 'Happy Birthday', g_diet: ['dt1'] } }],
   })
   reportPayment(o2, { amount: 540, method: 'โอนเงิน', paidAt: at(0, 10) })
 
   createOrder({
     customerId: 'c3', pickupAt: at(3, 10), fulfillment: 'pickup',
-    items: [{ id: uid('i'), kind: 'ready', productId: 'p3', name: 'เค้กใบเตยมะพร้าวอ่อน', qty: 3, note: '', images: [], selections: { g_extra: ['x6'] } }],
+    items: [{ id: uid('i'), kind: 'retail', retailId: 'rt10', retailPrice: 1050, sizeId: 's2', typeId: 't3', name: 'เค้กใบเตยมะพร้าวอ่อน', qty: 3, note: '', images: [], selections: { g_extra: ['x6'] } }],
   })
 
   const o4 = createOrder({
     customerId: 'c1', pickupAt: at(0, 17), fulfillment: 'delivery', address: '12 ถ.พระราม 9 กรุงเทพฯ', shippingFee: 80,
-    items: [{ id: uid('i'), kind: 'ready', productId: 'p4', name: 'เรดเวลเวท', qty: 1, note: '', images: [], selections: {} }],
+    items: [{ id: uid('i'), kind: 'retail', retailId: 'rt11', retailPrice: 550, sizeId: 's1', typeId: 't2', name: 'เรดเวลเวท', qty: 1, note: '', images: [], selections: {} }],
   })
   reportPayment(o4, { amount: 530, method: 'เงินสด', paidAt: at(-1, 15) })
   confirmPayment(o4, o4.payments[0].id)
@@ -822,7 +850,7 @@ function seed() {
 
   createOrder({
     customerId: 'c2', pickupAt: at(5, 13), fulfillment: 'pickup',
-    items: [{ id: uid('i'), kind: 'ready', productId: 'p2', name: 'เค้กส้ม', qty: 1, note: '', images: [], selections: {} }],
+    items: [{ id: uid('i'), kind: 'retail', retailId: 'rt9', retailPrice: 400, sizeId: 's1', typeId: 't1', name: 'เค้กส้ม', qty: 1, note: '', images: [], selections: {} }],
   }, true)
 }
 
@@ -1199,34 +1227,40 @@ export const lineKey = (l) => `${l.kind}|${l.refId}|${(l.mods || []).map((m) => 
 export const saveModifier = (d) =>
   upsert(db.posModifiers, 'md', { ...d, options: (d.options || []).filter((o) => o.name?.trim()).map((o) => ({ id: o.id || uid('mo'), name: o.name.trim(), price: Number(o.price) || 0 })) })
 
-// ตะกร้า → รายการออร์เดอร์ (ราคาตามปัจจุบัน)
-export function posItems(cart) {
-  return cart.map((l) => {
-    if (l.kind === 'retail') {
-      const r = db.retailItems.find((x) => x.id === l.refId)
-      const mods = modsOf(l.mods)
-      const price = (r?.price || 0) + mods.reduce((s, m) => s + m.price, 0)
-      return priceItem({ id: uid('i'), kind: 'retail', retailId: l.refId, retailPrice: price, mods, name: r?.name || '', qty: l.qty, selections: {}, note: '', images: [] })
-    }
-    const p = db.products.find((x) => x.id === l.refId)
-    return priceItem({ id: uid('i'), kind: 'ready', productId: l.refId, name: p?.name || '', qty: l.qty, selections: {}, note: '', images: [] })
+// ตะกร้า → รายการออร์เดอร์ (ราคาตามปัจจุบัน + โปรโมชัน POS ที่ใช้อยู่ ณ เวลานั้น)
+// บรรทัดเดียวอาจแตกเป็นหลายรายการ ถ้าชิ้นได้ส่วนลดไม่เท่ากัน (เช่น บันเดิ้ลใช้แค่ 1 ใน 3 ชิ้น) · ส่วนลดเก็บใน item.discounts (kind promo | bundle)
+export function posItems(cart, at = new Date()) {
+  const raws = cart.map((l) => {
+    const r = db.retailItems.find((x) => x.id === l.refId)
+    const mods = modsOf(l.mods)
+    return { l, r, mods, price: (r?.price || 0) + mods.reduce((s, m) => s + m.price, 0) }
   })
+  const res = applyPosPromos(
+    raws.map((x) => ({ retailId: x.l.refId, category: x.r?.category || '', price: x.price, qty: x.l.qty })),
+    { discounts: db.posDiscounts, bundles: db.posBundles, now: at },
+  )
+  return raws.flatMap((x, i) =>
+    res.lines[i].map((seg) => {
+      const it = priceItem({ id: uid('i'), kind: 'retail', retailId: x.l.refId, retailPrice: x.price, sizeId: x.r?.sizeId || null, typeId: x.r?.typeId || null, mods: x.mods, name: x.r?.name || '', qty: seg.qty, selections: {}, note: '', images: [] })
+      return seg.entries.length ? { ...it, unitPrice: round2(it.unitPrice - seg.perUnit), discounts: [...(it.discounts || []), ...seg.entries] } : it
+    }),
+  )
 }
-const stockOf = (l) => (l.kind === 'retail' ? db.retailItems : db.products).find((x) => x.id === l.refId)
+const stockOf = (l) => db.retailItems.find((x) => x.id === l.refId)
 // ขาย: สร้างบิล (ออร์เดอร์ channel 'pos') ส่งมอบทันที + ตัดสต็อก + คะแนน
-export function posSale({ cart, customerId = null, points = 0, couponIds = [], discount = 0, method = 'cash', received = null }) {
+export function posSale({ cart, customerId = null, couponIds = [], discount = 0, method = 'cash', received = null }) {
   const shift = currentShift()
   if (!shift || !cart.length) return null
   const ts = now()
   const o = {
     id: uid('o'), code: `POS-${String(++posNo).padStart(4, '0')}`, channel: 'pos', shiftId: shift.id, chatId: null,
     customerId, pickupAt: ts.slice(0, 16), fulfillment: 'pickup', birthday: null, address: '', shippingFee: 0,
-    items: posItems(cart), adjustment: { amount: discount ? -Math.abs(Number(discount)) : 0, reason: discount ? 'ส่วนลดหน้าร้าน' : '' },
+    items: posItems(cart, new Date(ts)), adjustment: { amount: discount ? -Math.abs(Number(discount)) : 0, reason: discount ? 'ส่วนลดหน้าร้าน' : '' },
     pointsUsed: null, couponsUsed: [], loyalty: null, status: 'payment_confirmed', payments: [], cancel: null, history: [], createdAt: ts,
   }
   db.orders.unshift(o)
   log(o, 'ขายหน้าร้าน (POS)')
-  if (customerId && points > 0) applyPoints(o, points)
+  // POS ไม่ใช้คะแนนตรง ๆ แล้ว: ลูกค้าแลกคะแนนเป็นคูปองส่วนลดที่หน้าเว็บ แล้วนำมาใช้ที่นี่
   if (customerId) for (const id of couponIds) applyCoupon(o, id)
   const total = Math.max(orderTotals(o).total, 0)
   const got = method === 'cash' ? Math.max(Number(received) || 0, total) : total
@@ -1244,13 +1278,64 @@ export function posSale({ cart, customerId = null, points = 0, couponIds = [], d
 export function voidPosSale(order, reason = 'ยกเลิกบิล') {
   if (order.channel !== 'pos' || order.status === 'cancelled') return
   for (const it of order.items) {
-    const src = it.kind === 'retail' ? db.retailItems.find((x) => x.id === it.retailId) : db.products.find((x) => x.id === it.productId)
+    const src = it.kind === 'retail' ? db.retailItems.find((x) => x.id === it.retailId) : null
     if (src && src.stock != null) src.stock += it.qty
   }
   const pay = order.payments.find((p) => p.status === 'confirmed')
   cancelOrder(order, { reason, refundAmount: pay?.amount || 0, refundMethod: pay?.method || '', refundNote: '' })
 }
-export const saveRetailItem = (d) => upsert(db.retailItems, 'rt', { ...d, modifierIds: [...(d.modifierIds || [])], price: Number(d.price) || 0, stock: d.stock === '' || d.stock == null ? null : Math.max(0, Number(d.stock) || 0) })
+export const saveRetailItem = (d) =>
+  upsert(db.retailItems, 'rt', {
+    ...d, modifierIds: [...(d.modifierIds || [])], price: Number(d.price) || 0, stock: d.stock === '' || d.stock == null ? null : Math.max(0, Number(d.stock) || 0),
+    images: [...(d.images || [])], recipe: cleanRecipe(d.recipe), pinned: !!d.pinned, showInPos: d.showInPos !== false, showOnStore: !!d.showOnStore,
+    description: String(d.description ?? '').trim().slice(0, 300), typeId: d.typeId || null, flavorId: d.flavorId || null, sizeId: d.sizeId || null,
+  })
+// ---------- โปรโมชัน POS (เฉพาะแอดมิน) ----------
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
+const cleanSchedule = (x) => ({
+  from: /^\d{4}-\d{2}-\d{2}$/.test(x?.from || '') ? x.from : '', to: /^\d{4}-\d{2}-\d{2}$/.test(x?.to || '') ? x.to : '',
+  days: [...new Set((x?.days || []).map(Number).filter((n) => n >= 0 && n <= 6))].sort(), timeFrom: HHMM.test(x?.timeFrom || '') ? x.timeFrom : '', timeTo: HHMM.test(x?.timeTo || '') ? x.timeTo : '',
+})
+const ids = (a) => [...new Set(a || [])]
+// คืน { error } ถ้าไม่ผ่าน · ผ่าน = { ok, item }
+export function savePosDiscount(d) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const type = d.type === 'amount' ? 'amount' : 'percent'
+  const value = Number(d.value)
+  if (!String(d.name ?? '').trim()) return { error: 'กรอกชื่อโปร' }
+  if (!(value > 0) || (type === 'percent' && value > 100)) return { error: type === 'percent' ? 'เปอร์เซ็นต์ต้องอยู่ระหว่าง 1–100' : 'จำนวนเงินต้องมากกว่า 0' }
+  const scope = ['items', 'category', 'all', 'bill'].includes(d.scope) ? d.scope : 'items'
+  if (scope === 'items' && !(d.itemIds || []).length) return { error: 'เลือกสินค้าอย่างน้อย 1 รายการ' }
+  if (scope === 'category' && !(d.categories || []).length) return { error: 'เลือกหมวดอย่างน้อย 1 หมวด' }
+  return { ok: true, item: upsert(db.posDiscounts, 'pd', { ...d, name: d.name.trim(), type, value, scope, itemIds: ids(d.itemIds), categories: ids(d.categories), minSpend: Math.max(0, Number(d.minSpend) || 0), schedule: cleanSchedule(d.schedule) }) }
+}
+export function savePosBundle(d) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const items = (d.items || []).filter((x) => x.itemId && Number(x.qty) >= 1).map((x) => ({ itemId: x.itemId, qty: Math.floor(Number(x.qty)) }))
+  if (!String(d.name ?? '').trim()) return { error: 'กรอกชื่อบันเดิ้ล' }
+  if (!items.length || items.reduce((n, x) => n + x.qty, 0) < 2) return { error: 'บันเดิ้ลต้องมีสินค้าอย่างน้อย 2 ชิ้น' }
+  const price = Number(d.price)
+  if (!(price >= 0) || d.price === '' || d.price == null) return { error: 'กรอกราคาชุด' }
+  const regular = items.reduce((sum, x) => sum + (db.retailItems.find((r) => r.id === x.itemId)?.price || 0) * x.qty, 0)
+  if (price >= regular) return { error: `ราคาชุดต้องต่ำกว่าราคาปกติรวม (${regular} บาท)` }
+  return { ok: true, item: upsert(db.posBundles, 'pb', { ...d, name: d.name.trim(), items, price, schedule: cleanSchedule(d.schedule) }) }
+}
+export function savePointPromo(d) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const multiplier = Number(d.multiplier)
+  if (!String(d.name ?? '').trim()) return { error: 'กรอกชื่อโปร' }
+  if (!(multiplier > 1) || multiplier > 100) return { error: 'ตัวคูณต้องมากกว่า 1 (เช่น 2 = คะแนนสองเท่า)' }
+  const scope = ['items', 'category', 'all'].includes(d.scope) ? d.scope : 'items'
+  if (scope === 'items' && !(d.itemIds || []).length) return { error: 'เลือกสินค้าอย่างน้อย 1 รายการ' }
+  if (scope === 'category' && !(d.categories || []).length) return { error: 'เลือกหมวดอย่างน้อย 1 หมวด' }
+  return { ok: true, item: upsert(db.pointPromos, 'pt', { ...d, name: d.name.trim(), multiplier, scope, itemIds: ids(d.itemIds), categories: ids(d.categories), schedule: cleanSchedule(d.schedule) }) }
+}
+export function removePromo(list, id) {
+  if (!can('manage')) return
+  const a = { discount: db.posDiscounts, bundle: db.posBundles, point: db.pointPromos }[list]
+  const i = a ? a.findIndex((x) => x.id === id) : -1
+  if (i >= 0) a.splice(i, 1)
+}
 export function addStock(item, n) {
   item.stock = Math.max(0, (Number(item.stock) || 0) + (Number(n) || 0))
 }
@@ -1502,6 +1587,23 @@ export function submitReview({ orderId, rating, text }) {
   if (!t) return { error: 'กรอกข้อความรีวิว' }
   db.reviews.unshift({ id: uid('rv'), customerId: c.id, orderId: o.id, source: 'customer', status: 'pending', name: c.name.trim().split(/\s+/)[0].slice(0, 60), rating: clampRating(rating), text: t.slice(0, 500), createdAt: now() })
   return { ok: true }
+}
+
+export const findCustomerByPhone = (phone) => liveCustomerByPhone(phoneDigits(phone))
+// POS: พนักงานสมัครสมาชิกให้ลูกค้าหน้าเคาน์เตอร์ (ชื่อ + เบอร์ ต้องยืนยันว่าลูกค้ารับทราบนโยบาย/เงื่อนไขคะแนน) · เบอร์ซ้ำ = ใช้ลูกค้าเดิม
+// ไม่ได้ตั้ง PIN (ลูกค้ายังสมัครเข้าเว็บทีหลังได้ด้วยเบอร์เดิม) · รับข่าว/โปร = ปิดไว้ก่อน
+export function quickMember({ name, phone, agreed }) {
+  const ph = phoneDigits(phone)
+  if (!phoneValid(ph)) return { error: 'กรอกเบอร์โทรให้ถูกต้อง' }
+  const old = findCustomerByPhone(ph)
+  if (old) return { ok: true, customer: old, existing: true }
+  const n = String(name ?? '').trim().slice(0, 100)
+  if (!n) return { error: 'กรอกชื่อ' }
+  if (!agreed) return { error: 'ต้องยืนยันว่าลูกค้ารับทราบนโยบายความเป็นส่วนตัวและเงื่อนไขคะแนนสะสม' }
+  const c = addCustomer({ name: n, phone: ph, line: '', note: 'สมัครที่หน้าร้าน (POS)' })
+  c.promoOptIn = false
+  addConsents(c.id, ACCOUNT_CONSENT_KINDS, 'pos')
+  return { ok: true, customer: c, existing: false }
 }
 
 // ---------- ข้อความกฎหมาย + การยินยอม ----------

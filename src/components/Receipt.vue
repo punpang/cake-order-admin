@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { db, findCustomer } from '../data/store'
+import { db, findCustomer, customerPoints } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime } from '../lib/format'
 
@@ -35,7 +35,8 @@ const customer = computed(() => findCustomer(props.order.customerId))
     <template v-if="customer">
       <div class="my-2 border-t border-dashed border-black" />
       <div>สมาชิก: {{ customer.name }}</div>
-      <div v-if="order.loyalty?.points">ได้รับ {{ order.loyalty.points }} คะแนน</div>
+      <div v-if="order.loyalty?.points">ได้รับ {{ order.loyalty.points }} คะแนน<template v-if="order.loyalty.bonus"> (โบนัสโปร +{{ order.loyalty.bonus }})</template></div>
+      <div v-if="order.status !== 'cancelled'">คะแนนคงเหลือ {{ customerPoints(customer) }}</div>
     </template>
     <div class="mt-3 text-center text-xs">ขอบคุณที่อุดหนุนค่ะ</div>
   </div>

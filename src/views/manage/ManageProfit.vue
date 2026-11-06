@@ -28,7 +28,7 @@ const rows = computed(() =>
     })
     .map((o) => {
       const total = orderTotals(o).total
-      const cost = orderCost(o, db.optionGroups, db.products, db.ingredients)
+      const cost = orderCost(o, db.optionGroups, db.retailItems, db.ingredients)
       return { o, total, cost, profit: total - cost, balance: orderTotals(o).balance }
     })
     .sort((a, b) => a.o.pickupAt.localeCompare(b.o.pickupAt)),
@@ -65,15 +65,15 @@ const labelEvery = computed(() => Math.max(1, Math.ceil(buckets.value.length / 1
 const hover = ref(-1)
 const hovered = computed(() => buckets.value[hover.value] || null)
 
-// ---------- ขายดี: เค้กสำเร็จ (ชิ้น) + กลุ่มหลักของสั่งทำ (ก้อน/ชั้น × จำนวน) ----------
+// ---------- ขายดี: สินค้าสำเร็จ/POS (ชิ้น) + กลุ่มหลักของสั่งทำ (ก้อน/ชั้น × จำนวน) ----------
 const best = computed(() => {
   const ready = new Map()
   const main = Object.fromEntries(MAIN_KEYS.map((k) => [k, new Map()]))
   const add = (m, name, n) => m.set(name, (m.get(name) || 0) + n)
   for (const { o } of rows.value) {
     for (const it of o.items) {
-      if (it.kind === 'ready') {
-        add(ready, db.products.find((p) => p.id === it.productId)?.name || it.name, it.qty)
+      if (it.kind === 'retail') {
+        add(ready, it.name, it.qty)
         continue
       }
       for (const t of tiersOf(it)) {
@@ -89,7 +89,7 @@ const best = computed(() => {
   }
   const top = (m) => [...m.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n).slice(0, 5)
   const title = (k) => db.optionGroups.find((g) => g.key === k)?.name || k
-  return [{ key: 'ready', title: 'เค้กสำเร็จ', unit: 'ชิ้น', rows: top(ready) }, ...MAIN_KEYS.map((k) => ({ key: k, title: title(k), unit: 'ครั้ง', rows: top(main[k]) }))]
+  return [{ key: 'ready', title: 'สินค้าสำเร็จ / POS', unit: 'ชิ้น', rows: top(ready) }, ...MAIN_KEYS.map((k) => ({ key: k, title: title(k), unit: 'ครั้ง', rows: top(main[k]) }))]
 })
 
 // ---------- รับเงินตามช่องทาง: งวดที่ยืนยันแล้ว ตามวันที่ชำระ (ไม่นับออร์เดอร์ยกเลิก) ----------

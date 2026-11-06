@@ -1,19 +1,22 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import {
-  db, can, activeListsAt, currentShift, openShift, closeShift, shiftSummary, shiftBills, posItems, posSale, voidPosSale,
+  db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posItems, posSale, voidPosSale, pointsFor, quickMember,
   customerPoints, usableDiscountCoupons, findCustomer, modsOf, modsText, lineKey,
 } from '../data/store'
-import { orderTotals, productPrice } from '../lib/pricing'
+import { orderTotals } from '../lib/pricing'
+import { pointPromoFor } from '../lib/posPromo'
 import { POS_METHODS, ROLES } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
-import { money, dateTime, timeOnly, phoneDigits, formatPhone } from '../lib/format'
+import { money, dateTime, timeOnly, phoneDigits, formatPhone, phoneValid } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
 import DiscountDetail from '../components/DiscountDetail.vue'
 import Receipt from '../components/Receipt.vue'
+import PhoneInput from '../components/PhoneInput.vue'
 
-// POS หน้าร้าน: เปิดกะ → ขาย (ตะกร้า สมาชิก คะแนน/คูปอง ส่วนลด) → ชำระ (เงินสด/โอน/บัตร + ทอน) → ใบเสร็จ · บิล · ปิดกะ
+// POS หน้าร้าน: เปิดกะ → ขาย (ตะกร้า สมาชิก คูปอง ส่วนลด + โปรโมชัน/บันเดิ้ลอัตโนมัติ) → ชำระ (เงินสด/โอน/บัตร + ทอน) → ใบเสร็จ · บิล · ปิดกะ
+// สะสมคะแนนจากยอดสุทธิ (โปรคะแนนพิเศษคูณได้) · ไม่ใช้คะแนนตรง ๆ: ลูกค้าแลกคะแนนเป็นคูปองที่หน้าเว็บ แล้วใช้คูปองที่นี่
 const shift = computed(() => currentShift())
 const tab = ref('sell')
 
@@ -25,11 +28,11 @@ function doOpen() {
 }
 
 // ---------- สินค้า ----------
-const active = computed(() => activeListsAt())
-const catalog = computed(() => [
-  ...db.products.filter((p) => p.active !== false).map((p) => ({ kind: 'ready', id: p.id, name: p.name, category: 'เค้กสำเร็จ', price: productPrice(p, db.optionGroups, active.value), stock: p.stock ?? null })),
-  ...db.retailItems.filter((r) => r.active !== false).map((r) => ({ kind: 'retail', id: r.id, name: r.name, category: r.category || 'อื่น ๆ', price: r.price, stock: r.stock ?? null, modifierIds: r.modifierIds || [] })),
-])
+// สินค้าที่แสดงใน POS = สินค้าที่เปิดใช้งาน + เปิด "แสดงใน POS" (สวิตช์แยกจากหน้าร้านเว็บ)
+const catalog = computed(() =>
+  db.retailItems.filter((r) => r.active !== false && r.showInPos !== false).map((r) => ({ kind: 'retail', id: r.id, name: r.name, category: r.category || 'อื่น ๆ', price: r.price, stock: r.stock ?? null, modifierIds: r.modifierIds || [], image: r.images?.[0] || '' })),
+)
+const pointTag = (x) => pointPromoFor({ retailId: x.id, category: x.category }, db.pointPromos)
 const categories = computed(() => [...new Set(catalog.value.map((x) => x.category))])
 const cat = ref('')
 const q = ref('')
@@ -105,39 +108,51 @@ const memberMatches = computed(() => {
   const d = phoneDigits(s)
   return db.customers.filter((c) => c.active !== false && (c.name.toLowerCase().includes(s) || (d.length >= 3 && c.phone?.includes(d)))).slice(0, 5)
 })
-const usePoints = ref('')
 const couponIds = ref([])
 const discount = ref('')
 function pickMember(c) {
   member.value = c
   memberQ.value = ''
-  usePoints.value = ''
   couponIds.value = []
 }
+// คูปองส่วนลดของสมาชิก (ได้จากการแลกคะแนนบนเว็บ/กาชา) · ใช้ได้เมื่อยอดสินค้าถึงขั้นต่ำ
 const coupons = computed(() => (member.value ? usableDiscountCoupons(member.value) : []))
 const toggleCoupon = (id) => (couponIds.value = couponIds.value.includes(id) ? couponIds.value.filter((x) => x !== id) : [...couponIds.value, id])
 
-// ราคา (ตัวอย่างก่อนบันทึก)
-const preview = computed(() => {
-  const items = posItems(cart.value)
-  const pts = member.value ? Math.max(0, Math.floor(Number(usePoints.value) || 0)) : 0
-  const cps = coupons.value.filter((c) => couponIds.value.includes(c.id))
-  return orderTotals({
-    items, fulfillment: 'pickup', payments: [],
-    adjustment: { amount: -(Number(discount.value) || 0), reason: 'ส่วนลดหน้าร้าน' },
-    pointsUsed: pts ? { points: pts, amount: pts * db.loyalty.pointValue } : null,
-    couponsUsed: cps.map((c) => ({ couponId: c.id, name: c.name, amount: c.amount })),
-  })
-})
+// รายการในตะกร้า + โปรโมชัน/บันเดิ้ลที่ใช้อยู่ (ตัวอย่างก่อนบันทึก)
+const lineItems = computed(() => posItems(cart.value))
+const goods = computed(() => lineItems.value.reduce((n, i) => n + i.unitPrice * i.qty, 0))
+const couponOk = (c) => !(Number(c.minSpend) > 0) || goods.value >= Number(c.minSpend)
+watch(goods, () => (couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id && couponOk(c)))))
+const usedPromos = computed(() => [...new Set(lineItems.value.flatMap((i) => (i.discounts || []).filter((d) => d.kind === 'promo' || d.kind === 'bundle').map((d) => d.name)))])
+const orderLike = computed(() => ({
+  items: lineItems.value, fulfillment: 'pickup', payments: [],
+  adjustment: { amount: -(Number(discount.value) || 0), reason: 'ส่วนลดหน้าร้าน' }, pointsUsed: null,
+  couponsUsed: coupons.value.filter((c) => couponIds.value.includes(c.id)).map((c) => ({ couponId: c.id, name: c.name, amount: c.amount })),
+}))
+const preview = computed(() => orderTotals(orderLike.value))
 const total = computed(() => Math.max(preview.value.total, 0))
-const maxPoints = computed(() => (member.value ? Math.min(customerPoints(member.value), Math.floor((preview.value.total + (preview.value.pointsDiscount || 0)) / db.loyalty.pointValue)) : 0))
-const pointsError = computed(() => (Number(usePoints.value) > maxPoints.value ? `ใช้ได้สูงสุด ${maxPoints.value} คะแนน` : ''))
+// คะแนนที่สมาชิกจะได้จากบิลนี้ (ยอดสุทธิ + โปรคะแนนพิเศษ)
+const earn = computed(() => (member.value && cart.value.length ? pointsFor(orderLike.value, new Date()) : null))
+
+// ---------- สมัครสมาชิกที่เคาน์เตอร์ ----------
+const signup = reactive({ open: false, name: '', phone: '', agreed: false, error: '' })
+function openSignup() {
+  Object.assign(signup, { open: true, name: '', phone: phoneValid(memberQ.value) ? memberQ.value : '', agreed: false, error: '' })
+}
+function doSignup() {
+  const r = quickMember({ name: signup.name, phone: signup.phone, agreed: signup.agreed })
+  if (r.ok) {
+    pickMember(r.customer)
+    signup.open = false
+  } else signup.error = r.error
+}
 
 // ---------- ชำระเงิน ----------
 const payOpen = ref(false)
 const pay = reactive({ method: 'cash', received: '' })
 function openPay() {
-  if (!cart.value.length || pointsError.value) return
+  if (!cart.value.length) return
   Object.assign(pay, { method: 'cash', received: '' })
   payOpen.value = true
 }
@@ -151,7 +166,7 @@ const receipt = ref(null)
 function confirmPay() {
   if (!canConfirm.value) return
   const o = posSale({
-    cart: cart.value, customerId: member.value?.id || null, points: Number(usePoints.value) || 0, couponIds: couponIds.value,
+    cart: cart.value, customerId: member.value?.id || null, couponIds: couponIds.value,
     discount: can('adjustPrice') ? Number(discount.value) || 0 : 0, method: pay.method, received: pay.method === 'cash' ? Number(pay.received) : null,
   })
   if (!o) return
@@ -160,7 +175,6 @@ function confirmPay() {
   receipt.value = o
   cart.value = []
   member.value = null
-  usePoints.value = ''
   couponIds.value = []
   discount.value = ''
 }
@@ -243,6 +257,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           >
             <span class="line-clamp-2 text-sm font-medium break-words text-stone-900">{{ x.name }}</span>
             <span v-if="groupsOf(x).length" class="mt-0.5 text-[11px] text-brand-700">มีตัวเลือก</span>
+            <span v-if="pointTag(x)" class="mt-0.5 text-[11px] font-medium text-amber-700">คะแนน ×{{ pointTag(x).multiplier }}</span>
             <span class="mt-2 flex items-end justify-between gap-1">
               <span class="text-base font-semibold text-stone-900">{{ money(x.price) }}</span>
               <span v-if="x.stock != null" class="text-[11px]" :class="x.stock - inCart(x) <= 0 ? 'font-semibold text-rose-600' : 'text-stone-400'">{{ x.stock - inCart(x) <= 0 ? 'หมด' : `เหลือ ${x.stock - inCart(x)}` }}</span>
@@ -291,13 +306,13 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                 </span>
                 <button type="button" class="text-xs text-stone-500 underline" @click="member = null">เอาออก</button>
               </div>
-              <div v-if="customerPoints(member) > 0" class="mt-2">
-                <label class="text-xs text-stone-600">ใช้คะแนน (1 คะแนน = {{ money(db.loyalty.pointValue) }})</label>
-                <input v-model="usePoints" type="text" v-num class="input mt-1 h-10 bg-white" :placeholder="`สูงสุด ${maxPoints}`" />
-                <p v-if="pointsError" class="mt-1 text-xs text-rose-600">{{ pointsError }}</p>
-              </div>
-              <div v-if="coupons.length" class="mt-2 flex flex-wrap gap-1.5">
-                <button v-for="c in coupons" :key="c.id" type="button" class="chip" :class="couponIds.includes(c.id) ? 'chip-on' : 'chip-off'" @click="toggleCoupon(c.id)">{{ c.name }} −{{ money(c.amount) }}</button>
+              <p v-if="earn" class="mt-1.5 text-xs text-brand-800">บิลนี้จะได้ <b>{{ earn.points }}</b> คะแนน<template v-if="earn.bonus > 0"> (โบนัสโปร +{{ earn.bonus }})</template></p>
+              <div class="mt-2">
+                <div class="text-xs text-stone-600">คูปองส่วนลด <span class="text-stone-400">(แลกคะแนนได้ที่หน้าเว็บของสมาชิก)</span></div>
+                <p v-if="!coupons.length" class="mt-0.5 text-xs text-stone-400">ไม่มีคูปองที่ใช้ได้</p>
+                <div v-else class="mt-1 flex flex-wrap gap-1.5">
+                  <button v-for="c in coupons" :key="c.id" type="button" class="chip" :class="[couponIds.includes(c.id) ? 'chip-on' : 'chip-off', couponOk(c) ? '' : 'opacity-50']" :disabled="!couponOk(c)" :title="couponOk(c) ? '' : `ขั้นต่ำ ${money(c.minSpend)}`" @click="toggleCoupon(c.id)">{{ c.name }} −{{ money(c.amount) }}<template v-if="c.minSpend"> · ขั้นต่ำ {{ money(c.minSpend) }}</template></button>
+                </div>
               </div>
             </div>
             <template v-else>
@@ -307,9 +322,11 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                   <span class="truncate">{{ c.name }}</span><span class="shrink-0 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
                 </button>
               </div>
+              <button type="button" class="btn-soft mt-1.5 h-9 w-full text-sm" @click="openSignup"><AppIcon name="plus" :size="14" /> สมัครสมาชิกใหม่ (สะสมคะแนน)</button>
             </template>
           </div>
 
+          <p v-if="usedPromos.length" class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">โปรที่ใช้: {{ usedPromos.join(' · ') }}</p>
           <div v-if="can('adjustPrice')">
             <label class="label">ส่วนลดบิล (บาท)</label>
             <input v-model="discount" type="text" v-num.dec class="input h-10" placeholder="0" />
@@ -320,7 +337,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <span class="text-sm text-stone-500">ยอดชำระ</span>
             <DiscountDetail :full="preview.full" :final="total" :lines="preview.discountLines" size="lg" />
           </div>
-          <button type="button" class="btn-primary h-12 w-full text-base" :disabled="!cart.length || !!pointsError" @click="openPay">ชำระเงิน</button>
+          <button type="button" class="btn-primary h-12 w-full text-base" :disabled="!cart.length" @click="openPay">ชำระเงิน</button>
         </div>
       </aside>
 
@@ -366,6 +383,24 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <p v-if="counted !== ''" class="mt-1 text-sm" :class="Number(counted) - summary.expectedCash === 0 ? 'text-emerald-700' : 'text-amber-700'">ส่วนต่าง {{ money(Number(counted) - summary.expectedCash) }}</p>
       <button type="button" class="btn-primary mt-3 w-full" :disabled="counted === ''" @click="doClose">ปิดกะ</button>
     </section>
+
+    <!-- สมัครสมาชิกที่เคาน์เตอร์ -->
+    <AppModal v-if="signup.open" title="สมัครสมาชิก (สะสมคะแนน)" @close="signup.open = false">
+      <div class="space-y-4">
+        <div><label class="label">เบอร์โทร <span class="text-rose-500">*</span></label><PhoneInput v-model="signup.phone" /></div>
+        <div><label class="label">ชื่อ <span class="text-rose-500">*</span></label><input v-model="signup.name" class="input" maxlength="100" autocomplete="off" /></div>
+        <p class="text-xs text-stone-500">เบอร์ที่มีในระบบแล้วจะใช้ข้อมูลเดิม · ลูกค้าตั้ง PIN เข้าเว็บทีหลังได้ด้วยเบอร์เดิม (ต้องยืนยัน OTP)</p>
+        <label class="flex items-start gap-2 text-sm text-stone-700">
+          <input v-model="signup.agreed" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" />
+          <span>ลูกค้ารับทราบ <RouterLink to="/legal/privacy" target="_blank" class="text-brand-700 underline">นโยบายความเป็นส่วนตัว</RouterLink> และ <RouterLink to="/legal/terms" target="_blank" class="text-brand-700 underline">เงื่อนไขคะแนนสะสม</RouterLink> แล้ว</span>
+        </label>
+        <p v-if="signup.error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ signup.error }}</p>
+      </div>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="signup.open = false">ยกเลิก</button>
+        <button class="btn-primary flex-1 sm:flex-none" @click="doSignup">สมัครและใช้เลย</button>
+      </template>
+    </AppModal>
 
     <!-- ตัวเลือกสินค้า -->
     <AppModal v-if="modFor" :title="modFor.x.name" @close="modFor = null">

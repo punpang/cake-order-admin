@@ -118,7 +118,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
           <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><AppIcon name="cake" :size="24" /></span>
           <span class="min-w-0 flex-1">
             <span class="block truncate font-semibold text-stone-900">{{ r.name }}</span>
-            <span class="block text-sm text-stone-500">{{ num(r.points) }} คะแนน</span>
+            <span class="block text-sm text-stone-500">{{ num(r.points) }} คะแนน<template v-if="r.kind === 'coupon'"> · คูปองลด {{ money(r.amount) }}<template v-if="r.minSpend"> (ขั้นต่ำ {{ money(r.minSpend) }})</template> ใช้ที่หน้าร้านหรือในออร์เดอร์</template></span>
           </span>
           <button class="btn-primary h-9 px-4" :disabled="points < r.points" :class="points < r.points ? 'opacity-40' : ''" @click="confirmRw = r">แลก</button>
         </div>
@@ -162,7 +162,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
           <span class="min-w-0 flex-1">
             <span class="block font-semibold break-words text-stone-900">{{ c.name }}</span>
             <span class="block text-xs text-stone-500">
-              {{ c.type === 'reward' ? 'ของรางวัล' : `ส่วนลด ${money(c.amount)}` }} · {{ c.source === 'gacha' ? 'จากกาชา' : 'แลกคะแนน' }}
+              {{ c.type === 'reward' ? 'ของรางวัล' : `ส่วนลด ${money(c.amount)}${c.minSpend ? ` (ขั้นต่ำ ${money(c.minSpend)})` : ''}` }} · {{ c.source === 'gacha' ? 'จากกาชา' : 'แลกคะแนน' }}
               <template v-if="c.expiresAt"> · หมดอายุ {{ dateOnly(c.expiresAt) }}</template>
             </span>
           </span>

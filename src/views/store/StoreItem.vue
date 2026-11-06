@@ -19,7 +19,7 @@ const item = computed(() => {
     const r = readyMenu(db).find((x) => x.product.id === props.id)
     if (!r) return null
     const p = r.product
-    return { title: p.name, images: p.images || [], sub: [nameOf('type', p.typeId), nameOf('flavor', p.flavorId), nameOf('size', p.sizeId)].filter(Boolean).join(' · '), price: r.price, regular: r.regular, text: `สนใจสั่ง ${p.name}` }
+    return { title: p.name, images: p.images || [], sub: [nameOf('type', p.typeId), nameOf('flavor', p.flavorId), nameOf('size', p.sizeId)].filter(Boolean).join(' · ') || p.category || '', desc: p.description || '', promo: r.promo, price: r.price, regular: r.regular, text: `สนใจสั่ง ${p.name}` }
   }
   const t = customMenu(db).find((x) => x.type.id === props.id)
   if (!t) return null
@@ -59,6 +59,8 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
         <h1 class="text-2xl font-semibold text-stone-900">{{ item.title }}</h1>
         <p class="text-sm text-stone-500">{{ item.sub }}</p>
         <div class="mt-3"><StorePrice :price="item.price" :regular="item.regular" :from="item.from" /></div>
+        <p v-if="item.promo" class="mt-1 inline-block rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-600">โปร: {{ item.promo }}</p>
+        <p v-if="item.desc" class="mt-3 text-sm break-words text-stone-600">{{ item.desc }}</p>
 
         <template v-if="item.custom">
           <div class="mt-5">

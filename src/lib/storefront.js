@@ -1,19 +1,23 @@
 // ข้อมูลหน้าร้าน (สาธารณะ) คำนวณจากข้อมูลหลังบ้าน · ฟังก์ชันล้วน รับ db เข้ามา
-import { activeLists, productPrice, typePrice, typeSizePrice, flavorPrice } from './pricing'
+import { activeLists, typePrice, typeSizePrice, flavorPrice } from './pricing'
+import { applyPosPromos, inSchedule, describeSchedule, round2 } from './posPromo'
 import { toDateStr } from './format'
 
 const today = () => toDateStr(new Date())
 const onlyActive = (list) => (list || []).filter((x) => x.active !== false)
 const groupOf = (db, key) => db.optionGroups.find((g) => g.key === key)
 
-// เค้กสำเร็จที่เปิดใช้งาน พร้อมราคาที่ใช้ + ราคาปกติ
-export function readyMenu(db) {
-  const active = activeLists(db.priceLists, today())
-  return onlyActive(db.products).map((p) => {
-    const price = productPrice(p, db.optionGroups, active)
-    const regular = productPrice(p, db.optionGroups, [])
-    return { product: p, price, regular, discounted: price < regular }
-  })
+// สินค้าที่แสดงหน้าร้าน = สินค้า POS ที่เปิดใช้งาน + เปิด "แสดงที่หน้าร้าน" · ราคาลดตามโปร POS ที่ใช้อยู่ตอนนี้ (ส่วนลดรายสินค้า/หมวด/บันเดิ้ลไม่นับ)
+// คืน { product (= สินค้า POS), price, regular, discounted, promo } (คงชื่อฟิลด์ product ไว้ให้หน้าเว็บเดิม)
+export function readyMenu(db, now = new Date()) {
+  return onlyActive(db.retailItems)
+    .filter((x) => x.showOnStore)
+    .map((p) => {
+      const res = applyPosPromos([{ retailId: p.id, category: p.category || '', price: Number(p.price) || 0, qty: 1 }], { discounts: db.posDiscounts.filter((d) => d.scope !== 'bill'), now })
+      const seg = res.lines[0][0]
+      const price = round2((Number(p.price) || 0) - seg.perUnit)
+      return { product: p, price, regular: Number(p.price) || 0, discounted: seg.perUnit > 0, promo: seg.entries[0]?.name || '' }
+    })
 }
 
 // เนื้อเค้ก/ขนาดที่ประเภทนั้นมีให้เลือก (ตาม allow)
@@ -54,7 +58,7 @@ export function bestSellers(db, days = 30, limit = 6) {
   for (const o of db.orders) {
     if (['draft', 'cancelled'].includes(o.status)) continue
     if (new Date(o.createdAt).getTime() < since) continue
-    for (const it of o.items) if (it.kind === 'ready' && it.productId) sold.set(it.productId, (sold.get(it.productId) || 0) + (Number(it.qty) || 0))
+    for (const it of o.items) if (it.kind === 'retail' && it.retailId) sold.set(it.retailId, (sold.get(it.retailId) || 0) + (Number(it.qty) || 0))
   }
   const rows = readyMenu(db).map((r) => ({ ...r, sold: sold.get(r.product.id) || 0, pinned: !!r.product.pinned }))
   const pinned = rows.filter((r) => r.pinned)
@@ -62,17 +66,30 @@ export function bestSellers(db, days = 30, limit = 6) {
   return [...pinned, ...auto].slice(0, limit)
 }
 
-// โปรโมชัน: แบบราคาพิเศษที่เปิดอยู่ตอนนี้ + เค้กสำเร็จที่ราคาถูกลง
-export function activePromotions(db) {
+// โปรโมชันที่เปิดอยู่ตอนนี้: แบบราคาพิเศษของเค้กสั่งทำ + ส่วนลด/บันเดิ้ล POS ที่เกี่ยวกับสินค้าที่แสดงหน้าร้าน
+// คืน [{ id, name, from, to, products: [{ product, price, regular }], custom, text }]
+export function activePromotions(db, now = new Date()) {
   const d = today()
-  return activeLists(db.priceLists, d).map((l) => {
-    const one = [l]
-    const products = onlyActive(db.products)
-      .map((p) => ({ product: p, price: productPrice(p, db.optionGroups, one), regular: productPrice(p, db.optionGroups, []) }))
-      .filter((x) => x.price < x.regular)
-    const custom = [l.types, l.typeSizes, l.flavors].some((o) => o && Object.keys(o).length)
-    return { id: l.id, name: l.name, from: l.scheduled ? l.from : '', to: l.scheduled ? l.to : '', products, custom }
-  })
+  const store = onlyActive(db.retailItems).filter((x) => x.showOnStore)
+  const out = activeLists(db.priceLists, d).map((l) => ({
+    id: l.id, name: l.name, from: l.scheduled ? l.from : '', to: l.scheduled ? l.to : '', products: [], text: '',
+    custom: [l.types, l.typeSizes, l.flavors].some((o) => o && Object.keys(o).length),
+  })).filter((p) => p.custom)
+  const names = (ids) => store.filter((x) => ids.includes(x.id)).map((x) => x.name)
+  for (const x of db.posDiscounts || []) {
+    if (x.active === false || !inSchedule(x.schedule, now) || x.scope === 'bill') continue
+    const hit = x.scope === 'all' ? store : x.scope === 'category' ? store.filter((i) => (x.categories || []).includes(i.category)) : store.filter((i) => (x.itemIds || []).includes(i.id))
+    if (!hit.length) continue
+    const off = x.type === 'percent' ? `ลด ${x.value}%` : `ลด ${x.value} บาท`
+    out.push({ id: x.id, name: x.name, from: x.schedule?.from || '', to: x.schedule?.to || '', custom: false, text: `${off} · ${describeSchedule(x.schedule)}`, products: hit.map((i) => ({ product: i, price: round2((Number(i.price) || 0) - (x.type === 'percent' ? ((Number(i.price) || 0) * Math.min(x.value, 100)) / 100 : Math.min(x.value, Number(i.price) || 0))), regular: Number(i.price) || 0 })) })
+  }
+  for (const b of db.posBundles || []) {
+    if (b.active === false || !inSchedule(b.schedule, now)) continue
+    const ns = names((b.items || []).map((x) => x.itemId))
+    if (ns.length !== (b.items || []).length) continue // ต้องแสดงหน้าร้านครบทุกชิ้นในชุด
+    out.push({ id: b.id, name: b.name, from: b.schedule?.from || '', to: b.schedule?.to || '', custom: false, products: [], text: `ชุด ${ns.join(' + ')} ราคา ${b.price} บาท · ${describeSchedule(b.schedule)}` })
+  }
+  return out
 }
 
 // รีวิวที่แสดงหน้าร้าน (อนุมัติแล้ว ใหม่สุดก่อน)

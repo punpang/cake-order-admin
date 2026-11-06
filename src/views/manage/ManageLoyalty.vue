@@ -38,16 +38,18 @@ const FIELDS = [
 
 // ---------- ของแลก ----------
 const rwOpen = ref(false)
-const rw = reactive({ id: null, name: '', points: 0, active: true })
+const blankRw = () => ({ id: null, name: '', kind: 'item', points: 0, amount: '', minSpend: '', validDays: '', active: true })
+const rw = reactive(blankRw())
 const rwError = ref('')
 function editRw(r) {
-  Object.assign(rw, r ? { ...r } : { id: null, name: '', points: 0, active: true })
+  Object.assign(rw, blankRw(), r ? { ...r, amount: r.amount ? String(r.amount) : '', minSpend: r.minSpend ? String(r.minSpend) : '', validDays: r.validDays ? String(r.validDays) : '' } : {})
   rwError.value = ''
   rwOpen.value = true
 }
 async function saveRw() {
   if (!rw.name.trim()) return (rwError.value = 'กรอกชื่อของ')
   if (!(rw.points > 0)) return (rwError.value = 'คะแนนต้องมากกว่า 0')
+  if (rw.kind === 'coupon' && !(Number(rw.amount) > 0)) return (rwError.value = 'กรอกมูลค่าส่วนลด (บาท)')
   if (!(await confirmDeactivate(db.rewards, rw, rw.name))) return
   saveReward({ ...rw })
   rwOpen.value = false
@@ -133,7 +135,10 @@ const couponState = (c) =>
           :class="r.active === false ? 'opacity-60' : ''"
           @click="editRw(r)"
         >
-          <span class="min-w-0 flex-1 truncate font-medium text-stone-900">{{ r.name }}</span>
+          <span class="min-w-0 flex-1">
+            <span class="block truncate font-medium text-stone-900">{{ r.name }}</span>
+            <span class="block text-xs text-stone-500">{{ r.kind === 'coupon' ? `คูปองส่วนลด ${r.amount} ฿${r.minSpend ? ` · ขั้นต่ำ ${r.minSpend}` : ''}${r.validDays ? ` · อายุ ${r.validDays} วัน` : ''}` : 'ของรางวัล (รับที่ร้าน)' }}</span>
+          </span>
           <span class="shrink-0 text-sm font-semibold text-stone-700">{{ r.points }} คะแนน</span>
         </button>
       </div>
@@ -190,6 +195,17 @@ const couponState = (c) =>
     <AppModal v-if="rwOpen" :title="rw.id ? 'แก้ไขของแลก' : 'เพิ่มของแลก'" @close="rwOpen = false">
       <div class="space-y-4">
         <div><label class="label">ชื่อของ <span class="text-rose-500">*</span></label><input v-model="rw.name" class="input" /></div>
+        <div class="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1">
+          <button v-for="k in [{ v: 'item', l: 'ของรางวัล (รับที่ร้าน)' }, { v: 'coupon', l: 'คูปองส่วนลด' }]" :key="k.v" type="button" class="h-9 rounded-lg px-1 text-sm font-medium" :class="rw.kind === k.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="rw.kind = k.v">{{ k.l }}</button>
+        </div>
+        <template v-if="rw.kind === 'coupon'">
+          <div class="grid grid-cols-3 gap-3">
+            <div><label class="label">ลด (บาท)</label><input v-model="rw.amount" type="text" v-num.dec class="input" /></div>
+            <div><label class="label">ยอดขั้นต่ำ</label><input v-model="rw.minSpend" type="text" v-num.dec class="input" placeholder="ไม่มี" /></div>
+            <div><label class="label">อายุ (วัน)</label><input v-model="rw.validDays" type="text" v-num class="input" :placeholder="String(db.loyalty.couponExpireDays)" /></div>
+          </div>
+          <p class="text-xs text-stone-400">ลูกค้าแลกบนเว็บ (บัญชีของฉัน → คะแนน) แล้วนำคูปองมาใช้ที่ POS/ออร์เดอร์ · คะแนนที่แลกแล้วไม่คืน</p>
+        </template>
         <div><label class="label">ใช้คะแนน</label><input v-model.number="rw.points" type="text" v-num min="1" class="input" /></div>
         <AppSwitch v-model="rw.active" label="ใช้งาน (แสดงให้ลูกค้าแลก)" class="flex" />
         <p v-if="rwError" class="text-sm text-rose-600">{{ rwError }}</p>
@@ -218,7 +234,7 @@ const couponState = (c) =>
           <label class="label">ของรางวัล</label>
           <select v-model="gp.rewardId" class="input">
             <option value="" disabled>เลือกของ</option>
-            <option v-for="r in db.rewards" :key="r.id" :value="r.id">{{ r.name }}</option>
+            <option v-for="r in db.rewards.filter((x) => x.kind !== 'coupon')" :key="r.id" :value="r.id">{{ r.name }}</option>
           </select>
         </div>
         <div><label class="label">โอกาส (%)</label><input v-model.number="gp.chance" type="text" v-num.dec min="0" max="100" class="input" /></div>

@@ -5,7 +5,7 @@ import OrderCreate from './views/OrderCreate.vue'
 import OrderDetail from './views/OrderDetail.vue'
 import ManageHome from './views/manage/ManageHome.vue'
 import ManageCustomers from './views/manage/ManageCustomers.vue'
-import ManageProducts from './views/manage/ManageProducts.vue'
+import ManagePromos from './views/manage/ManagePromos.vue'
 import ManageOptions from './views/manage/ManageOptions.vue'
 import ManageOptionGroup from './views/manage/ManageOptionGroup.vue'
 import ManageUsers from './views/manage/ManageUsers.vue'
@@ -62,7 +62,8 @@ const router = createRouter({
     { path: '/admin/production', component: Production },
     { path: '/admin/manage', component: ManageHome },
     { path: '/admin/manage/customers', component: ManageCustomers },
-    { path: '/admin/manage/products', component: ManageProducts },
+    { path: '/admin/manage/promos', component: ManagePromos },
+    { path: '/admin/manage/products', redirect: '/admin/manage/retail' },
     { path: '/admin/manage/options', component: ManageOptions },
     { path: '/admin/manage/options/:id', component: ManageOptionGroup, props: true },
     { path: '/admin/manage/users', component: ManageUsers },

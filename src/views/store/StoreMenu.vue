@@ -6,13 +6,16 @@ import CakeImage from '../../components/CakeImage.vue'
 import StorePrice from '../../components/StorePrice.vue'
 import StoreOrderButtons from '../../components/StoreOrderButtons.vue'
 
-// เมนูเค้ก (สาธารณะ): เค้กสำเร็จ + เค้กสั่งทำ แสดงเฉพาะที่เปิดใช้งานในหลังบ้าน · ดูอย่างเดียว สั่งทางแชท
+// เมนูเค้ก (สาธารณะ): สินค้าพร้อมขาย (สินค้า POS ที่เปิด "แสดงที่หน้าร้านเว็บ") + เค้กสั่งทำ · ดูอย่างเดียว สั่งทางแชท
 const tab = ref('ready')
-const ready = computed(() => readyMenu(db))
+const allReady = computed(() => readyMenu(db))
+const cats = computed(() => [...new Set(allReady.value.map((r) => r.product.category).filter(Boolean))])
+const cat = ref('')
+const ready = computed(() => allReady.value.filter((r) => !cat.value || r.product.category === cat.value))
 const custom = computed(() => customMenu(db))
 const promos = computed(() => activePromotions(db))
 const tabs = computed(() => [
-  { v: 'ready', l: 'เค้กสำเร็จ', n: ready.value.length },
+  { v: 'ready', l: 'สินค้าพร้อมขาย', n: allReady.value.length },
   { v: 'custom', l: 'เค้กสั่งทำ', n: custom.value.length },
 ])
 </script>
@@ -33,7 +36,11 @@ const tabs = computed(() => [
     </div>
 
     <div v-if="tab === 'ready'" class="mt-5">
-      <p v-if="!ready.length" class="card py-10 text-center text-stone-500">ยังไม่มีเค้กสำเร็จในเมนู</p>
+      <div v-if="cats.length > 1" class="mb-3 flex flex-wrap gap-1.5">
+        <button type="button" class="chip" :class="!cat ? 'chip-on' : 'chip-off'" @click="cat = ''">ทั้งหมด</button>
+        <button v-for="c in cats" :key="c" type="button" class="chip" :class="cat === c ? 'chip-on' : 'chip-off'" @click="cat = c">{{ c }}</button>
+      </div>
+      <p v-if="!ready.length" class="card py-10 text-center text-stone-500">ยังไม่มีสินค้าในเมนู</p>
       <div class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
         <RouterLink v-for="r in ready" :key="r.product.id" :to="`/menu/ready/${r.product.id}`" class="overflow-hidden rounded-2xl border border-stone-200 bg-white transition hover:shadow-md">
           <div class="relative aspect-square overflow-hidden"><CakeImage :src="r.product.images?.[0]" :alt="r.product.name" />

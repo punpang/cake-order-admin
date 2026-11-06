@@ -12,14 +12,11 @@ function addRecipe(into, recipe, pounds, qty) {
 // วัตถุดิบของสินค้า 1 รายการ (รวมจำนวนชิ้นแล้ว) → { ingredientId: ปริมาณ }
 // กลุ่มแยกชั้นคิดตามปอนด์ของชั้นนั้น กลุ่มอื่นคิดตามปอนด์รวม
 export function itemMaterials(item, groups, products, into = {}) {
-  if (item.kind === 'retail') return into // สินค้าหน้าร้านไม่มีสูตร
   const { pounds, tierPounds } = itemBase(item, groups, products)
   const qty = Number(item.qty) || 1
   const tiers = tiersOf(item)
-  if (item.kind === 'ready') {
-    const p = products.find((x) => x.id === item.productId)
-    addRecipe(into, p?.recipe, pounds, qty)
-  }
+  // สินค้าสำเร็จ/สินค้าหน้าร้าน: สูตรอยู่ที่ตัวสินค้า (products = รายการสินค้าหน้าร้าน) ไม่มีสูตร = ไม่คิดวัตถุดิบ
+  if (item.kind === 'retail') addRecipe(into, products.find((x) => x.id === item.retailId)?.recipe, pounds, qty)
   const addSel = (g, sel, lb) => {
     if (sel == null) return
     for (const id of Array.isArray(sel) ? sel : [sel]) {
@@ -63,13 +60,11 @@ export function prepList(orders, groups, products) {
 
   for (const o of orders) {
     for (const it of o.items) {
-      if (it.kind === 'retail') continue
       const { pounds, tierPounds } = itemBase(it, groups, products)
       const tiers = tiersOf(it)
       const n = Number(it.qty) || 1
-      if (it.kind === 'ready') {
-        const p = products.find((x) => x.id === it.productId)
-        const name = p?.name || it.name
+      if (it.kind === 'retail') {
+        const name = it.name
         bump(cakes, `r|${name}|${pounds}`, { name, pounds }, n)
       } else {
         // แต่ละชั้น = 1 ก้อน

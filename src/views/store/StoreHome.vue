@@ -47,6 +47,7 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
               <span class="shrink-0"><b class="text-stone-900">{{ money(x.price) }}</b> <s class="text-stone-400">{{ money(x.regular) }}</s></span>
             </li>
           </ul>
+          <p v-if="p.text" class="mt-1 text-sm text-stone-700">{{ p.text }}</p>
           <p v-if="p.custom" class="mt-2 text-sm text-stone-600">ราคาพิเศษใช้กับเค้กสั่งทำบางแบบ ดูราคาล่าสุดที่หน้า <RouterLink to="/menu" class="text-brand-700 underline">เมนู</RouterLink></p>
         </div>
       </div>

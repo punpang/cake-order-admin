@@ -54,7 +54,7 @@ export const PAYMENT_METHODS = ['โอนเงิน', 'เงินสด', '
 export const MAIN_KEYS = ['type', 'flavor', 'size']
 
 export const GROUP_TYPES = { single: 'เลือกได้ 1 อย่าง', multi: 'เลือกได้หลายอย่าง', text: 'พิมพ์ข้อความ' }
-export const APPLIES_TO = { custom: 'สั่งทำ', ready: 'เค้กสำเร็จ' }
+export const APPLIES_TO = { custom: 'สั่งทำ', ready: 'สินค้าสำเร็จ' }
 
 // สูตรวัตถุดิบ
 export const RECIPE_PER = { pound: 'ต่อปอนด์', piece: 'ต่อชิ้น' }

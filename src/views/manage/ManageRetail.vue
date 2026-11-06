@@ -7,8 +7,11 @@ import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
+import ImageUploader from '../../components/ImageUploader.vue'
+import RecipeEditor from '../../components/RecipeEditor.vue'
+import { allowedBy } from '../../lib/pricing'
 
-// สินค้าหน้าร้าน (POS): ชื่อ หมวด ราคา สต็อก (เว้นว่าง = ไม่นับสต็อก)
+// สินค้า (POS / สินค้าสำเร็จ): ชื่อ หมวด ราคา สต็อก (เว้นว่าง = ไม่นับสต็อก) · รูป สูตร ปักหมุดขายดี · สวิตช์ "แสดงใน POS" แยกจาก "แสดงที่หน้าร้านเว็บ"
 const q = ref('')
 const inactive = ref(false)
 const list = computed(() => {
@@ -18,11 +21,11 @@ const list = computed(() => {
 const categories = computed(() => [...new Set(db.retailItems.map((x) => x.category).filter(Boolean))])
 
 const open = ref(false)
-const blank = () => ({ id: null, name: '', category: '', price: '', stock: '', active: true, modifierIds: [] })
+const blank = () => ({ id: null, name: '', category: '', price: '', stock: '', active: true, modifierIds: [], images: [], recipe: [], pinned: false, showInPos: true, showOnStore: false, description: '', typeId: null, flavorId: null, sizeId: null })
 const form = reactive(blank())
 const error = ref('')
 function edit(x) {
-  Object.assign(form, x ? { ...blank(), ...x, price: String(x.price ?? ''), stock: x.stock == null ? '' : String(x.stock), modifierIds: [...(x.modifierIds || [])] } : blank())
+  Object.assign(form, x ? { ...blank(), ...x, price: String(x.price ?? ''), stock: x.stock == null ? '' : String(x.stock), modifierIds: [...(x.modifierIds || [])], images: [...(x.images || [])], recipe: (x.recipe || []).map((l) => ({ ...l })) } : blank())
   error.value = ''
   open.value = true
 }
@@ -34,6 +37,15 @@ async function save() {
   open.value = false
 }
 
+// ข้อมูลเค้ก (ไม่บังคับ): ประเภท/เนื้อ/ขนาด ใช้แสดงประกอบและคิดราคาตัวเลือกตามขนาดตอนสร้างออร์เดอร์ · ราคาสินค้าเป็นราคาคงที่ ไม่คำนวณจากโครงสร้างนี้
+const grp = (k) => db.optionGroups.find((g) => g.key === k)
+const allow = computed(() => allowedBy(db.optionGroups, form.typeId && grp('type') ? { [grp('type').id]: form.typeId } : {}))
+const optsOf = (k) => (grp(k)?.options || []).filter((o) => o.active !== false && (k === 'type' || allow.value(grp(k), o)))
+const poundsOf = computed(() => grp('size')?.options.find((o) => o.id === form.sizeId)?.pounds || 0)
+function pickCake(f, id) {
+  form[f] = form[f] === id ? null : id
+  if (f === 'typeId') for (const [ff, k] of [['flavorId', 'flavor'], ['sizeId', 'size']]) if (form[ff] && !optsOf(k).some((o) => o.id === form[ff])) form[ff] = null
+}
 const toggleMod = (id) => (form.modifierIds = form.modifierIds.includes(id) ? form.modifierIds.filter((x) => x !== id) : [...form.modifierIds, id])
 const modName = (id) => db.posModifiers.find((m) => m.id === id)?.name || ''
 
@@ -66,13 +78,19 @@ function doAdd() {
 </script>
 
 <template>
-  <ManageShell v-model:q="q" v-model:inactive="inactive" title="สินค้าหน้าร้าน (POS)" :subtitle="`${list.length} รายการ`" add-label="เพิ่มสินค้า" search-placeholder="ค้นหาชื่อ / หมวด" @add="edit(null)">
+  <ManageShell v-model:q="q" v-model:inactive="inactive" title="สินค้า (POS / สินค้าสำเร็จ)" :subtitle="`${list.length} รายการ`" add-label="เพิ่มสินค้า" search-placeholder="ค้นหาชื่อ / หมวด" @add="edit(null)">
     <p v-if="!list.length" class="card py-10 text-center text-stone-500">ไม่พบสินค้า</p>
     <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
       <div v-for="x in list" :key="x.id" class="card flex items-center gap-2 p-2" :class="x.active === false ? 'opacity-60' : ''">
         <button type="button" class="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1.5 text-left" @click="edit(x)">
+          <img v-if="x.images?.length" :src="x.images[0]" alt="" class="h-11 w-11 shrink-0 rounded-xl object-cover" />
           <span class="min-w-0 flex-1">
-            <span class="block truncate font-medium text-stone-900">{{ x.name }}</span>
+            <span class="flex flex-wrap items-center gap-1.5">
+              <span class="truncate font-medium text-stone-900">{{ x.name }}</span>
+              <span v-if="x.pinned" class="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-700">ปักหมุด</span>
+              <span v-if="x.showInPos === false" class="shrink-0 rounded-full bg-stone-100 px-1.5 py-0.5 text-[11px] text-stone-500">ซ่อนใน POS</span>
+              <span v-if="x.showOnStore" class="shrink-0 rounded-full bg-brand-50 px-1.5 py-0.5 text-[11px] text-brand-700">หน้าร้านเว็บ</span>
+            </span>
             <span class="block text-xs text-stone-500">{{ x.category || '-' }} · {{ x.stock == null ? 'ไม่นับสต็อก' : `คงเหลือ ${x.stock}` }}</span>
             <span v-if="x.modifierIds?.length" class="block truncate text-xs text-brand-700">ตัวเลือก: {{ x.modifierIds.map(modName).join(', ') }}</span>
           </span>
@@ -149,6 +167,21 @@ function doAdd() {
           <div><label class="label">สต็อก</label><input v-model="form.stock" type="text" v-num class="input" placeholder="ไม่นับ" /></div>
         </div>
         <p class="text-xs text-stone-400">สต็อกเว้นว่าง = ไม่นับสต็อก (เช่น เครื่องดื่มชงสด) · ขายใน POS แล้วตัดสต็อกอัตโนมัติ</p>
+        <div><label class="label">คำอธิบาย (แสดงหน้าร้านเว็บ)</label><textarea v-model="form.description" rows="2" maxlength="300" class="input"></textarea></div>
+        <div>
+          <div class="label">รูปสินค้า (แสดงหน้าร้านเว็บ)</div>
+          <ImageUploader v-model="form.images" :max="6" />
+        </div>
+        <details class="rounded-xl bg-stone-50 p-3">
+          <summary class="cursor-pointer text-sm font-medium text-stone-700">ข้อมูลเค้ก (ไม่บังคับ) — ประเภท / เนื้อ / ขนาด</summary>
+          <p class="mt-1 text-xs text-stone-400">ใช้แสดงประกอบ แนะนำสินค้า และคิดราคาตัวเลือกตามขนาด · ราคาสินค้าเป็นราคาคงที่ที่กรอกด้านบน</p>
+          <div v-for="m in [{ k: 'type', f: 'typeId' }, { k: 'flavor', f: 'flavorId' }, { k: 'size', f: 'sizeId' }]" :key="m.k" class="mt-2">
+            <div class="mb-1 text-xs font-medium text-stone-500">{{ grp(m.k)?.name }}</div>
+            <div class="flex flex-wrap gap-1.5">
+              <button v-for="o in optsOf(m.k)" :key="o.id" type="button" class="chip" :class="form[m.f] === o.id ? 'chip-on' : 'chip-off'" @click="pickCake(m.f, o.id)">{{ o.name }}</button>
+            </div>
+          </div>
+        </details>
         <div>
           <div class="label">ตัวเลือกสินค้า</div>
           <div v-if="db.posModifiers.length" class="flex flex-wrap gap-1.5">
@@ -156,7 +189,13 @@ function doAdd() {
           </div>
           <p v-else class="text-sm text-stone-500">ยังไม่มีกลุ่มตัวเลือก (เพิ่มได้ในการ์ด "ตัวเลือกสินค้า")</p>
         </div>
-        <AppSwitch v-model="form.active" label="ใช้งาน (แสดงใน POS)" />
+        <RecipeEditor v-model="form.recipe" :pounds="poundsOf" :price="Number(form.price) || 0" />
+        <div class="space-y-3 rounded-xl border border-stone-200 p-3">
+          <AppSwitch v-model="form.showInPos" label="แสดงใน POS และตอนสร้างออร์เดอร์/แชท" class="flex" />
+          <AppSwitch v-model="form.showOnStore" label="แสดงที่หน้าร้านเว็บ (ลูกค้าเห็น)" class="flex" />
+          <AppSwitch v-model="form.pinned" label="ปักหมุดในสินค้าขายดีของหน้าร้านเว็บ" class="flex" />
+        </div>
+        <AppSwitch v-model="form.active" label="ใช้งาน (ปิด = ไม่แสดงทุกที่)" />
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </div>
       <template #footer>
