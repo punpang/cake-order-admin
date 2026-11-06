@@ -17,6 +17,8 @@ import Receipt from '../components/Receipt.vue'
 import PhoneInput from '../components/PhoneInput.vue'
 import RefundEditor from '../components/RefundEditor.vue'
 import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
+import TaxInvoiceModal from '../components/TaxInvoiceModal.vue'
+import { invoiceOfOrder } from '../data/acct'
 import { defaultRefundMethod } from '../lib/refund'
 
 // POS หน้าร้าน: เปิดกะ → ขาย (ตะกร้า สมาชิก คูปอง ส่วนลด + โปรโมชัน/บันเดิ้ลอัตโนมัติ) → ชำระ (เงินสด/โอน/บัตร + ทอน) → ใบเสร็จ · บิล · ปิดกะ
@@ -190,6 +192,8 @@ const quick = computed(() => {
 const change = computed(() => (Number(pay.received) || 0) - total.value)
 const canConfirm = computed(() => pay.method !== 'cash' || change.value >= 0)
 const receipt = ref(null)
+const taxFor = ref(null) // บิลที่กำลังออกใบกำกับภาษีเต็มรูป
+const taxable = (o) => can('taxInvoice') && o.status !== 'cancelled' && orderTotals(o).vat > 0
 function confirmPay() {
   if (!canConfirm.value) return
   const o = posSale({
@@ -422,6 +426,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           </span>
           <button v-if="can('posVoid') && o.status !== 'cancelled'" type="button" class="btn-danger h-9 shrink-0 px-2.5" aria-label="ยกเลิกบิล" @click="openVoid(o)"><AppIcon name="x" :size="16" /></button>
           <button v-if="can('changeBuyer') && o.status !== 'cancelled'" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" @click="buyerFor = o">เปลี่ยนผู้ซื้อ</button>
+          <button v-if="taxable(o)" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" aria-label="ใบกำกับภาษี" @click="taxFor = o">ใบกำกับภาษี</button>
         </li>
       </ul>
     </section>
@@ -446,6 +451,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <!-- ยกเลิกบิล + คืนเงิน -->
     <AppModal v-if="voidFor" :title="`ยกเลิกบิล ${voidFor.code}`" @close="voidFor = null">
       <div class="space-y-4">
+        <p v-if="invoiceOfOrder(voidFor.id)" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ออร์เดอร์นี้ออกใบกำกับภาษีไว้แล้ว ({{ invoiceOfOrder(voidFor.id).no }}) · เมื่อยกเลิกระบบจะออกใบลดหนี้ให้อัตโนมัติ</p>
         <p class="text-sm text-stone-500">ยกเลิกแล้วจะคืนสต็อก คืนคูปองที่ใช้ และตัดคะแนนที่ได้จากบิลนี้</p>
         <div><label class="label">เหตุผล <span class="text-rose-500">*</span></label><input v-model="vd.reason" class="input" maxlength="120" /></div>
         <div>
@@ -549,8 +555,10 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <Receipt :order="receipt" />
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="print"><AppIcon name="printer" :size="18" /> พิมพ์</button>
+        <button v-if="taxable(receipt)" class="btn-outline flex-1 sm:flex-none" @click="taxFor = receipt">ใบกำกับภาษีเต็มรูป</button>
         <button class="btn-primary flex-1 sm:flex-none" @click="receipt = null">ขายต่อ</button>
       </template>
     </AppModal>
+    <TaxInvoiceModal v-if="taxFor" :order="taxFor" @close="taxFor = null" />
   </div>
 </template>

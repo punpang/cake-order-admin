@@ -88,6 +88,9 @@ export function orderEntries(o, ctx) {
     deliveryLines = [dr(DEPOSIT, sumNet), dr(AR, unpaid), dr('5410', X, { poolable: true }), dr('5420', Y), ...rev, cr(OUTPUT_VAT, vatS - sumVat)]
     const cost = toS(orderCost(o, ctx.groups, ctx.retail, ctx.ingredients))
     cogsLines = cost > 0 ? [dr('5100', cost), cr(INV, cost)] : []
+    // ค่าส่ง: รับรู้เป็นรายได้ (4300) และเป็นค่าใช้จ่ายค่าขนส่ง (5500) ยอดเดียวกัน — ต้องจ่ายคนส่งเต็มจำนวน (จ่ายเงินสดตอนส่งมอบ) · อยู่ในชุดเดียวกับต้นทุนเพื่อกลับรายการพร้อมกันตอนยกเลิก
+    const shipS = weights.reduce((a2, b2) => a2 + b2, 0) > 0 ? parts[o.items.length] : 0
+    if (shipS > 0) cogsLines.push(dr('5500', shipS), cr(CASH, shipS))
     restBase = Math.max(0, netRev - sumNet)
     restVat = vatS - sumVat
     out.push(entry(`dlv:${o.id}`, dateOf(dAt), `ส่งมอบ ${code} รับรู้รายได้`, { type: 'order-deliver', orderId: o.id }, [...deliveryLines, ...cogsLines], restVat > 0 ? tx('output', restBase, restVat) : null))

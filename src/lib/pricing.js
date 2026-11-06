@@ -185,6 +185,9 @@ export function itemNets(order) {
   return lines.map((l) => l * k)
 }
 
+// ค่าส่งก่อน VAT (ใช้คิดกำไร: ค่าส่งรับเป็นรายได้และจ่ายคนส่งเต็มจำนวน = ต้นทุนเท่ากัน กำไรจากค่าส่ง 0)
+export const shipNetOf = (t) => (t.shipping > 0 ? Math.round((t.vatMode === 'inclusive' ? (t.shipping * 100) / (100 + t.vatRate) : t.shipping) * 100) / 100 : 0)
+
 export function orderTotals(order) {
   const subtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
   const shipping = order.fulfillment === 'delivery' ? Number(order.shippingFee) || 0 : 0

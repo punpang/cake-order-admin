@@ -7,6 +7,7 @@ import { STATUS } from '../lib/constants'
 import StatusBadge from './StatusBadge.vue'
 import PayDueBadge from './PayDueBadge.vue'
 import AppIcon from './AppIcon.vue'
+import CustomerTaxInvoice from './CustomerTaxInvoice.vue'
 
 // หน้าออร์เดอร์ของลูกค้า (ใช้ร่วมกันทั้งลิงก์ #/o/:token และหน้าบัญชีที่ล็อกอิน)
 // order = มุมมองจาก customerOrderView/myOrder · ctx = { token } | { orderId } · emits: refresh (หลังทำรายการ) · review
@@ -15,8 +16,11 @@ const emit = defineEmits(['refresh', 'review'])
 const o = computed(() => props.order)
 
 // ---------- แถบขั้นตอน ----------
-const STEPS = ['รอชำระ', 'ยืนยันแล้ว', 'กำลังเตรียม', o.value.fulfillment === 'delivery' ? 'พร้อมส่ง' : 'พร้อมรับ', 'ส่งมอบแล้ว']
-const STEP_OF = { draft: 0, awaiting_payment: 0, payment_reported: 0, payment_confirmed: 1, order_confirmed: 1, preparing: 2, prepared: 3, delivered: 4 }
+const SHIP = o.value.fulfillment === 'delivery'
+const STEPS = SHIP ? ['รอชำระ', 'ยืนยันแล้ว', 'กำลังเตรียม', 'เตรียมแล้ว', 'พร้อมจัดส่ง', 'กำลังจัดส่ง', 'ส่งมอบแล้ว'] : ['รอชำระ', 'ยืนยันแล้ว', 'กำลังเตรียม', 'พร้อมรับ', 'ส่งมอบแล้ว']
+const STEP_OF = SHIP
+  ? { draft: 0, awaiting_payment: 0, payment_reported: 0, payment_confirmed: 1, order_confirmed: 1, preparing: 2, prepared: 3, ready_to_ship: 4, shipping: 5, delivered: 6 }
+  : { draft: 0, awaiting_payment: 0, payment_reported: 0, payment_confirmed: 1, order_confirmed: 1, preparing: 2, prepared: 3, delivered: 4 }
 const step = computed(() => STEP_OF[o.value.status] ?? 0)
 const cancelled = computed(() => o.value.status === 'cancelled')
 
@@ -112,7 +116,7 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
         </div>
         <div class="flex shrink-0 flex-col items-end gap-1.5"><StatusBadge :status="o.status" /><PayDueBadge :due="o.payDue" /></div>
       </div>
-      <ol v-if="!cancelled" class="mt-4 grid grid-cols-5 gap-1" aria-label="ขั้นตอนออร์เดอร์">
+      <ol v-if="!cancelled" class="mt-4 grid gap-1" :style="{ gridTemplateColumns: `repeat(${STEPS.length}, minmax(0, 1fr))` }" aria-label="ขั้นตอนออร์เดอร์">
         <li v-for="(label, i) in STEPS" :key="label" class="flex flex-col items-center gap-1 text-center" :aria-current="i === step ? 'step' : undefined">
           <span class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold" :class="i < step ? 'bg-brand-600 text-white' : i === step ? 'bg-brand-100 text-brand-800 ring-2 ring-brand-500' : 'bg-stone-100 text-stone-400'">
             <AppIcon v-if="i < step" name="check" :size="14" /><template v-else>{{ i + 1 }}</template>
@@ -236,6 +240,8 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
         </div>
       </template>
     </section>
+
+    <CustomerTaxInvoice v-if="ctx.orderId && o.vatRate > 0 && !cancelled" :order-id="ctx.orderId" />
 
     <section v-if="canReview || o.review" class="card">
       <p v-if="o.review" class="text-stone-500">รีวิวของคุณ: {{ '★'.repeat(o.review.rating) }}</p>

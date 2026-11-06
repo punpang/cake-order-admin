@@ -1,6 +1,7 @@
 // ระบบบัญชี (จำลองในหน่วยความจำ · จุดที่จะเปลี่ยนเป็น Supabase) · ตรรกะคำนวณอยู่ใน src/lib/acct (ฟังก์ชันล้วน)
 // หมายเหตุ: store.js ไม่ import ไฟล์นี้ (กัน import วน) — หน้าที่ต้องใช้ import จากไฟล์นี้โดยตรง
-import { db, session, can, scheduledHooks, notify, findCustomer } from './store'
+import { db, session, can, scheduledHooks, cancelHooks, notify, findCustomer, customerSession, myCustomer } from './store'
+import { invoiceDeadline, invoiceWindowOpen } from '../lib/acct/taxWindow'
 import { deriveAll } from '../lib/acct/derive'
 import { buildManualEntry } from '../lib/acct/manual'
 import { validateEntry, entryNo, entrySums } from '../lib/acct/journal'
@@ -301,13 +302,16 @@ export function invoiceBlock(order, buyer = null) {
   if (!(t.vat > 0)) return 'ไม่มี VAT ในออร์เดอร์นี้'
   const s = sellerOk()
   if (s) return s
-  const b = buyer || buyerOf(order)
+  return buyerError(buyer || buyerOf(order))
+}
+export function buyerError(b) {
   if (!String(b.name || '').trim()) return 'ไม่มีชื่อผู้ซื้อ'
   if (!validTaxId(b.taxId)) return 'เลขประจำตัวผู้เสียภาษีผู้ซื้อไม่ถูกต้อง (13 หลัก)'
   if (!validBranch(b.branch)) return 'รหัสสาขาผู้ซื้อต้อง 5 หลัก (สำนักงานใหญ่ = 00000)'
   if (!String(b.address || '').trim()) return 'ไม่มีที่อยู่ผู้ซื้อ'
   return ''
 }
+const cleanBuyer = (buyer) => ({ name: String(buyer.name || '').trim().slice(0, 120), taxId: String(buyer.taxId || '').replace(/\D/g, ''), branch: String(buyer.branch || '00000').replace(/\D/g, ''), address: String(buyer.address || '').trim().slice(0, 300) })
 export const buyerOf = (order) => {
   const c = findCustomer(order.customerId)
   return { name: c?.tax?.name || '', taxId: c?.tax?.taxId || '', branch: c?.tax?.branch || '00000', address: c?.tax?.address || '' }
@@ -318,7 +322,9 @@ export function issueTaxInvoice(orderId, buyer = null) {
   if (g) return g
   const order = db.orders.find((o) => o.id === orderId)
   if (!order) return { error: 'ไม่พบออร์เดอร์' }
-  const b = buyer ? { name: String(buyer.name || '').trim().slice(0, 120), taxId: String(buyer.taxId || '').replace(/\D/g, ''), branch: String(buyer.branch || '00000').replace(/\D/g, ''), address: String(buyer.address || '').trim().slice(0, 300) } : buyerOf(order)
+  return issueCore(order, buyer ? cleanBuyer(buyer) : buyerOf(order), session.userId)
+}
+function issueCore(order, b, by, rev = 0) {
   const err = invoiceBlock(order, b)
   if (err) return { error: err }
   const t = orderTotals(order)
@@ -333,7 +339,7 @@ export function issueTaxInvoice(orderId, buyer = null) {
     seller: { name: v.legalName, taxId: v.taxId, branch: v.branch || '00000', address: v.address },
     buyer: b, lines, discounts: t.discountLines.map((d) => ({ label: d.label, amount: d.amount })),
     rate: t.vatRate, mode: t.vatMode, beforeVat: toB(toS(t.total) - toS(t.vat)), vat: t.vat, total: t.total,
-    totalText: bahtText(t.total), copies: 0, by: session.userId, createdAt: new Date().toISOString(),
+    totalText: bahtText(t.total), copies: 0, by, rev, createdAt: new Date().toISOString(),
   }
   invs().push(inv)
   return { ok: true, invoice: inv }
@@ -342,17 +348,95 @@ export function issueTaxInvoice(orderId, buyer = null) {
 export function voidTaxInvoice(id, reason) {
   const g = guard('taxInvoice')
   if (g) return g
+  return voidCore(id, reason, session.userId)
+}
+function voidCore(id, reason, by) {
   const inv = invs().find((i) => i.id === id)
   if (!inv || inv.type !== 'invoice') return { error: 'ไม่พบใบกำกับภาษี' }
   if (inv.voidedBy) return { error: 'ยกเลิกแล้ว' }
   if (!String(reason || '').trim()) return { error: 'ระบุเหตุผล' }
   const date = today()
-  const cn = { ...inv, id: aid('ti'), no: nextDocNo('CN', date), type: 'credit', date, refNo: inv.no, refId: inv.id, reason: String(reason).trim().slice(0, 200), copies: 0, by: session.userId, createdAt: new Date().toISOString(), voidedBy: undefined }
+  const cn = { ...inv, id: aid('ti'), no: nextDocNo('CN', date), type: 'credit', date, refNo: inv.no, refId: inv.id, reason: String(reason).trim().slice(0, 200), copies: 0, by, createdAt: new Date().toISOString(), voidedBy: undefined }
   delete cn.voidedBy
   invs().push(cn)
   inv.voidedBy = cn.id
   return { ok: true, creditNote: cn }
 }
+// ยกเลิกออร์เดอร์/บิลที่ออกใบกำกับภาษีไว้แล้ว → ออกใบลดหนี้อัตโนมัติ (ระบบเป็นผู้ออก ไม่ตรวจสิทธิ์) · ลงทะเบียนเป็น hook ของ cancelOrder ใน store
+cancelHooks.push((order) => {
+  const inv = invoiceOfOrder(order.id)
+  if (inv) voidCore(inv.id, `ยกเลิกออร์เดอร์ ${order.code}`, 'system')
+})
+
+// ---------- ลูกค้าขอ/แก้ใบกำกับภาษีเอง (ต้องล็อกอิน · เห็น/ทำได้เฉพาะออร์เดอร์ของตัวเอง) ----------
+export const MAX_CUSTOMER_REVISIONS = 3
+const blankTax = () => ({ name: '', taxId: '', branch: '00000', address: '' })
+export const myTaxProfile = () => { const c = myCustomer(); return c ? { ...blankTax(), ...(c.tax || {}) } : null }
+// ข้อมูลสำหรับออกใบกำกับ จดจำได้ชุดเดียวต่อลูกค้า (บันทึกซ้ำ = ทับของเดิม)
+export function saveMyTaxProfile(t) {
+  const c = myCustomer()
+  if (!c) return { error: 'ต้องเข้าสู่ระบบ' }
+  const b = cleanBuyer(t || {})
+  const err = buyerError(b)
+  if (err) return { error: err }
+  c.tax = b
+  return { ok: true }
+}
+const myOrderOf = (orderId) => {
+  const c = myCustomer()
+  const o = db.orders.find((x) => x.id === orderId)
+  return c && o && o.customerId === c.id ? o : null
+}
+const paidDateOf = (o) => {
+  const ps = o.payments.filter((p) => p.status === 'confirmed')
+  const last = ps.map((p) => String(p.confirmedAt || p.paidAt || '').slice(0, 10)).filter(Boolean).sort().at(-1)
+  return last || ''
+}
+// สถานะการขอใบของลูกค้า: { eligible, reason, deadline, invoice, canEdit, revisionsLeft }
+export function myInvoiceState(orderId) {
+  const o = myOrderOf(orderId)
+  if (!o) return null
+  const inv = invoiceOfOrder(o.id)
+  const paid = paidDateOf(o)
+  const deadline = invoiceDeadline(paid)
+  const base = { deadline, invoice: inv, history: invs().filter((i) => i.orderId === o.id) }
+  if (!o.vat || !(Number(o.vat.rate) > 0)) return { ...base, eligible: false, reason: 'ออร์เดอร์นี้ไม่ได้คิดภาษีมูลค่าเพิ่ม' }
+  if (o.status === 'cancelled' || o.status === 'draft') return { ...base, eligible: false, reason: 'ออร์เดอร์นี้ออกใบกำกับภาษีไม่ได้' }
+  if (orderTotals(o).balance > 0.004) return { ...base, eligible: false, reason: 'ชำระยังไม่ครบ ขอใบกำกับภาษีได้เมื่อชำระครบ' }
+  const open = invoiceWindowOpen(paid, today())
+  const left = Math.max(0, MAX_CUSTOMER_REVISIONS - (inv?.rev || 0))
+  if (!open) return { ...base, eligible: false, reason: `เลยกำหนดขอ/แก้ใบกำกับภาษีเอง (ภายใน ${deadline}) กรุณาติดต่อร้าน` }
+  return { ...base, eligible: true, reason: '', canEdit: !!inv && left > 0, revisionsLeft: left }
+}
+export function requestMyTaxInvoice(orderId, buyer, remember = true) {
+  const o = myOrderOf(orderId)
+  const st = myInvoiceState(orderId)
+  if (!o || !st) return { error: 'ไม่พบออร์เดอร์' }
+  if (!st.eligible) return { error: st.reason }
+  const b = cleanBuyer(buyer || myTaxProfile() || {})
+  const r = issueCore(o, b, `customer:${customerSession.customerId}`)
+  if (r.ok && remember) myCustomer().tax = b
+  return r
+}
+// แก้ไข = ออกใบลดหนี้ใบเดิม แล้วออกใบใหม่ด้วยข้อมูลใหม่ (ภายในกรอบเวลาเดียวกัน จำกัดจำนวนครั้ง)
+export function editMyTaxInvoice(orderId, buyer, remember = true) {
+  const o = myOrderOf(orderId)
+  const st = myInvoiceState(orderId)
+  if (!o || !st) return { error: 'ไม่พบออร์เดอร์' }
+  if (!st.eligible) return { error: st.reason }
+  if (!st.invoice) return { error: 'ยังไม่มีใบกำกับภาษี' }
+  if (!st.canEdit) return { error: `แก้ไขได้ไม่เกิน ${MAX_CUSTOMER_REVISIONS} ครั้ง กรุณาติดต่อร้าน` }
+  const b = cleanBuyer(buyer || {})
+  const err = buyerError(b)
+  if (err) return { error: err }
+  const rev = (st.invoice.rev || 0) + 1
+  const v = voidCore(st.invoice.id, 'ลูกค้าแก้ไขข้อมูลผู้ซื้อ', `customer:${customerSession.customerId}`)
+  if (v.error) return v
+  const r = issueCore(o, b, `customer:${customerSession.customerId}`, rev)
+  if (r.ok && remember) myCustomer().tax = b
+  return r
+}
+
 export function markInvoiceCopy(id) {
   const inv = invs().find((i) => i.id === id)
   if (inv) inv.copies = (inv.copies || 0) + 1

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { db, findCustomer } from '../../data/store'
-import { orderTotals } from '../../lib/pricing'
+import { orderTotals, shipNetOf } from '../../lib/pricing'
 import { orderCost } from '../../lib/materials'
 import { STATUS, MAIN_KEYS } from '../../lib/constants'
 import { tiersOf } from '../../lib/pricing'
@@ -27,8 +27,9 @@ const rows = computed(() =>
       return day >= from.value && day <= to.value
     })
     .map((o) => {
-      const total = orderTotals(o).beforeVat // ยอดขายไม่รวม VAT
-      const cost = orderCost(o, db.optionGroups, db.retailItems, db.ingredients)
+      const tt = orderTotals(o)
+      const total = tt.beforeVat // ยอดขายไม่รวม VAT
+      const cost = orderCost(o, db.optionGroups, db.retailItems, db.ingredients) + shipNetOf(tt) // + ค่าส่งที่จ่ายคนส่ง
       return { o, total, cost, profit: total - cost, balance: orderTotals(o).balance }
     })
     .sort((a, b) => a.o.pickupAt.localeCompare(b.o.pickupAt)),

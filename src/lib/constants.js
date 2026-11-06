@@ -6,6 +6,8 @@ export const STATUS = {
   order_confirmed: { label: 'ยืนยันการสั่งซื้อ', cls: 'bg-indigo-50 text-indigo-700', dot: 'bg-indigo-500', bar: 'bg-indigo-400' },
   preparing: { label: 'กำลังเตรียม', cls: 'bg-orange-50 text-orange-700', dot: 'bg-orange-500', bar: 'bg-orange-400' },
   prepared: { label: 'เตรียมสินค้าแล้ว', cls: 'bg-teal-50 text-teal-700', dot: 'bg-teal-500', bar: 'bg-teal-400' },
+  ready_to_ship: { label: 'พร้อมจัดส่ง', cls: 'bg-cyan-50 text-cyan-700', dot: 'bg-cyan-500', bar: 'bg-cyan-400' },
+  shipping: { label: 'กำลังจัดส่ง', cls: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500', bar: 'bg-blue-400' },
   delivered: { label: 'ส่งมอบแล้ว', cls: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500', bar: 'bg-emerald-400' },
   cancelled: { label: 'ยกเลิก', cls: 'bg-rose-50 text-rose-600', dot: 'bg-rose-500', bar: 'bg-rose-300' },
 }
@@ -115,7 +117,7 @@ export const VISIBLE = {
   admin: null,
   sales: null,
   baker: (o) => ['payment_confirmed', 'order_confirmed', 'preparing', 'prepared'].includes(o.status),
-  driver: (o) => o.fulfillment === 'delivery' && ['preparing', 'prepared', 'delivered'].includes(o.status),
+  driver: (o) => o.fulfillment === 'delivery' && ['preparing', 'prepared', 'ready_to_ship', 'shipping', 'delivered'].includes(o.status),
 }
 
 export const PAYMENT_METHODS = ['โอนเงิน', 'เงินสด', 'บัตร']
@@ -150,7 +152,7 @@ export const NOTIFY_EVENTS = {
   prepared: { label: 'เตรียมสินค้าเสร็จ (พร้อมรับ/ส่ง)', audience: 'customer' },
   payment_reminder: { label: 'เตือนชำระ (ออร์เดอร์พรุ่งนี้ ยังไม่ชำระ)', audience: 'customer', scheduled: true },
   pickup_reminder: { label: 'เตือนก่อนนัดรับ (24 ชม.)', audience: 'customer', scheduled: true },
-  prepared: { label: 'เตรียมสินค้าแล้ว', cls: 'bg-teal-50 text-teal-700', dot: 'bg-teal-500', bar: 'bg-teal-400' },
+  shipping: { label: 'ออร์เดอร์ออกจัดส่งแล้ว', audience: 'customer' },
   delivered: { label: 'ส่งมอบแล้ว', audience: 'customer' },
   cancelled: { label: 'ยกเลิกออร์เดอร์', audience: 'customer' },
   birthday: { label: 'อวยพรวันเกิด', audience: 'customer', scheduled: true, marketing: true },

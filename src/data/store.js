@@ -54,7 +54,7 @@ const PREP_VISIBLE = ['payment_confirmed', 'order_confirmed', 'preparing', 'prep
 export function orderVisible(o) {
   if (can('viewAllOrders')) return true
   if (can('viewPrepOrders') && PREP_VISIBLE.includes(o.status)) return true
-  if (can('viewDeliveryOrders') && o.fulfillment === 'delivery' && ['preparing', 'prepared', 'delivered'].includes(o.status)) return true
+  if (can('viewDeliveryOrders') && o.fulfillment === 'delivery' && ['preparing', 'prepared', 'ready_to_ship', 'shipping', 'delivered'].includes(o.status)) return true
   return false
 }
 
@@ -236,6 +236,7 @@ export const db = reactive({
     rule('prepared', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} เตรียมสินค้าเสร็จแล้วค่ะ นัด{ส่งมอบ} {วันนัด} {เวลานัด}'),
     rule('payment_confirmed', ['line', 'facebook', 'sms'], 'ได้รับชำระออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ คงค้าง {คงค้าง}'),
     rule('pickup_reminder', ['line', 'facebook', 'sms'], 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
+    rule('shipping', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ กำหนดถึง {วันนัด} {เวลานัด}'),
     rule('delivered', ['line', 'facebook'], 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ'),
     rule('cancelled', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว หากมีข้อสงสัยติดต่อร้านได้เลยค่ะ'),
     rule('birthday', ['line', 'facebook'], 'สุขสันต์วันเกิดล่วงหน้า {ชื่อวันเกิด} สั่งเค้กกับเราได้เลยค่ะ'),
@@ -561,9 +562,14 @@ export function createOrder(payload, asDraft = false) {
   return o
 }
 
+// ลำดับจัดส่ง (เฉพาะ fulfillment = delivery): เตรียมแล้ว → พร้อมจัดส่ง → กำลังจัดส่ง → ส่งมอบแล้ว · ข้ามขั้นไม่ได้ · รับที่ร้านไม่มีสองขั้นกลาง
+const SHIP_FROM = { ready_to_ship: 'prepared', shipping: 'ready_to_ship', delivered: 'shipping' }
 export function setStatus(order, status, text) {
   // ส่งมอบไม่ได้ถ้ายังชำระไม่ครบ
   if (status === 'delivered' && orderTotals(order).balance > 0) return
+  const isShip = order.fulfillment === 'delivery'
+  if (['ready_to_ship', 'shipping'].includes(status) && !isShip) return
+  if (isShip && SHIP_FROM[status] && order.status !== SHIP_FROM[status]) return
   const prev = order.status
   order.status = status
   log(order, text)
@@ -571,6 +577,7 @@ export function setStatus(order, status, text) {
   if (status === 'delivered') awardOrder(order)
   if (status === 'delivered') notifyOrder('delivered', order)
   if (status === 'prepared') notifyOrder('prepared', order)
+  if (status === 'shipping') notifyOrder('shipping', order)
   if (status === 'cancelled') notifyOrder('cancelled', order)
   // ร่าง → ส่งไปรอชำระ = เริ่มเป็นออร์เดอร์จริง
   if (prev === 'draft' && status === 'awaiting_payment') notifyOrder('order_created', order)
@@ -626,7 +633,7 @@ export function cancelConfirmedPayment(order, paymentId) {
   if (!p || p.status !== 'confirmed' || ['delivered', 'cancelled'].includes(order.status)) return
   Object.assign(p, { status: 'cancelled', cancelledAt: now(), cancelledBy: session.role })
   log(order, `ยกเลิกยอดที่ยืนยันแล้ว ${money(p.amount)}`)
-  if (!order.payments.some((x) => x.status === 'confirmed') && ['payment_confirmed', 'preparing', 'prepared'].includes(order.status)) {
+  if (!order.payments.some((x) => x.status === 'confirmed') && ['payment_confirmed', 'preparing', 'prepared', 'ready_to_ship', 'shipping'].includes(order.status)) {
     order.status = order.payments.some((x) => x.status === 'reported') ? 'payment_reported' : 'awaiting_payment'
   }
 }
@@ -642,6 +649,23 @@ export function confirmPayment(order, paymentId, data = null) {
   log(order, `ยืนยันชำระ ${money(p.amount)}${p.amount !== p.requested ? ` (แจ้ง ${money(p.requested)})` : ''}`)
   if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
   notifyOrder('payment_confirmed', order)
+}
+
+// รับชำระทันที: ลูกค้าจ่ายแล้วที่หน้างาน ไม่ต้องแจ้งยอด/กำหนดชำระ → สร้างงวดที่ยืนยันแล้วเลย (สิทธิ์ confirmPayment) · คืน { ok } | { error }
+export function receivePaymentNow(order, p) {
+  if (!can('confirmPayment')) return { error: 'ไม่มีสิทธิ์ยืนยันรับชำระ' }
+  if (!order || ['draft', 'cancelled'].includes(order.status)) return { error: 'ออร์เดอร์นี้รับชำระไม่ได้' }
+  const amount = round2(Number(p.amount))
+  if (!(amount > 0)) return { error: 'กรอกยอดเงิน' }
+  if (amount > round2(orderTotals(order).balance) + 0.004) return { error: 'ยอดเกินยอดคงค้าง' }
+  order.payments.push({
+    id: uid('pay'), requested: amount, amount, method: p.method, paidAt: p.paidAt || now(), slip: p.slip || '', note: p.note || '',
+    dueAt: '', extension: null, createdAt: now(), status: 'confirmed', source: 'direct', reportedBy: session.role, confirmedBy: session.role, confirmedAt: now(),
+  })
+  log(order, `รับชำระทันที ${money(amount)} (${p.method})`)
+  if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
+  notifyOrder('payment_confirmed', order)
+  return { ok: true }
 }
 
 // ---------- ยืนยันการสั่งซื้อแบบยังไม่ชำระ (ต้องอนุมัติ) ----------
@@ -771,6 +795,8 @@ export function setAdjustment(order, amount, reason) {
 // ยกเลิกออร์เดอร์ + คืนเงิน: c = { reason, refunds: [{ method: cash | transfer | points, amount }], refundNote }
 // (รูปแบบเก่า { refundAmount, refundMethod } ยังใช้ได้) · คืนเป็นคะแนน = ยอด ÷ มูลค่าต่อคะแนน (ต้องหารลงตัว) อายุตามค่าตั้งต้น
 // ตรวจก่อนแก้ข้อมูลทุกอย่าง → คืน { ok } หรือ { error }
+// ตัวทำงานหลังยกเลิกออร์เดอร์ (เช่น บัญชีออกใบลดหนี้) ลงทะเบียนจากโมดูลอื่น — store ไม่ import โมดูลเหล่านั้น
+export const cancelHooks = []
 export function cancelOrder(order, c) {
   if (!order || order.status === 'cancelled') return { error: 'ออร์เดอร์นี้ยกเลิกแล้ว' }
   const paid = orderTotals(order).paid
@@ -788,6 +814,7 @@ export function cancelOrder(order, c) {
   const summary = refunds.map((x) => `${REFUND_METHODS[x.method]} ${money(x.amount)}${x.method === 'points' ? ` (${x.points} คะแนน)` : ''}`).join(' + ')
   order.cancel = { reason: c.reason, refunds, refundAmount, refundMethod: refunds.map((x) => REFUND_METHODS[x.method]).join(' + '), refundNote: c.refundNote || '', at: now() }
   setStatus(order, 'cancelled', `ยกเลิก: ${c.reason}${refundAmount ? ` / คืนเงิน ${summary}` : ''}`)
+  for (const h of cancelHooks) h(order)
   return { ok: true }
 }
 

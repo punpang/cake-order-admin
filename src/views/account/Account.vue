@@ -17,6 +17,7 @@ import PhoneInput from '../../components/PhoneInput.vue'
 import PinInput from '../../components/PinInput.vue'
 import OtpStep from '../../components/OtpStep.vue'
 import AccountRewards from '../../components/AccountRewards.vue'
+import { myTaxProfile, saveMyTaxProfile } from '../../data/acct'
 
 // บัญชีของฉัน: เห็นข้อมูลของตัวเองทั้งหมด แก้ได้เฉพาะ ชื่อ / LINE ID / รับข่าวโปร · เบอร์และ PIN ต้องยืนยัน OTP
 const router = useRouter()
@@ -40,6 +41,16 @@ function saveProfile() {
   else err.value = r.error
 }
 const birthdays = computed(() => myBirthdays())
+// ข้อมูลออกใบกำกับภาษี (เก็บได้ชุดเดียว)
+const tax = reactive({ name: '', taxId: '', branch: '00000', address: '', ...(myTaxProfile() || {}) })
+const taxMsg = ref('')
+const taxErr = ref('')
+function saveTax() {
+  taxMsg.value = taxErr.value = ''
+  const r = saveMyTaxProfile(tax)
+  if (r.ok) taxMsg.value = 'บันทึกแล้ว'
+  else taxErr.value = r.error
+}
 
 // ---------- ออร์เดอร์ ----------
 const orders = computed(() => myOrders())
@@ -132,6 +143,16 @@ function logout() {
         <p v-if="err" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ err }}</p>
         <button class="btn-primary w-full">บันทึก</button>
       </form>
+
+      <section class="card space-y-3" aria-label="ข้อมูลออกใบกำกับภาษี">
+        <div class="card-title">ข้อมูลออกใบกำกับภาษี <span class="text-xs font-normal text-stone-400">(จดจำได้ 1 ชุด)</span></div>
+        <div><label class="label">ชื่อผู้ซื้อ</label><input v-model="tax.name" class="input" maxlength="120" aria-label="ชื่อตามใบกำกับ" /></div>
+        <div class="grid grid-cols-3 gap-3"><div class="col-span-2"><label class="label">เลขประจำตัวผู้เสียภาษี</label><input v-model="tax.taxId" inputmode="numeric" maxlength="13" class="input" aria-label="เลขผู้เสียภาษีของฉัน" /></div><div><label class="label">สาขา</label><input v-model="tax.branch" inputmode="numeric" maxlength="5" class="input" aria-label="สาขาของฉัน" /></div></div>
+        <div><label class="label">ที่อยู่ตามใบกำกับ</label><textarea v-model="tax.address" rows="2" maxlength="300" class="input" aria-label="ที่อยู่ใบกำกับของฉัน" /></div>
+        <p v-if="taxErr" class="text-sm text-rose-600" role="alert">{{ taxErr }}</p>
+        <p v-if="taxMsg" class="text-sm text-emerald-700" role="status">{{ taxMsg }}</p>
+        <button type="button" class="btn-soft w-full" @click="saveTax">บันทึกข้อมูลใบกำกับภาษี</button>
+      </section>
 
       <section class="card">
         <div class="card-title">วันเกิดที่เคยสั่ง</div>
