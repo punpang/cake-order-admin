@@ -192,7 +192,17 @@ export function orderTotals(order) {
   // ส่วนลดจากคะแนน / คูปอง
   const pointsDiscount = Number(order.pointsUsed?.amount) || 0
   const couponDiscount = (order.couponsUsed || []).reduce((s, c) => s + (Number(c.amount) || 0), 0)
-  const total = subtotal + shipping + adjustment - pointsDiscount - couponDiscount
+  const gross = subtotal + shipping + adjustment - pointsDiscount - couponDiscount
+  // VAT: order.vat = { rate, mode: 'inclusive' | 'exclusive' } (snapshot ตอนสร้างออร์เดอร์ ไม่มี = ไม่คิด VAT)
+  // ฐานภาษี = สินค้า + ค่าส่ง หลังส่วนลดทุกประเภท · ใน = ราคารวม VAT แล้ว (แยกบรรทัดแสดง) · นอก = บวกเพิ่มท้ายยอด
+  const rate = Number(order.vat?.rate) || 0
+  const vatMode = rate > 0 ? (order.vat.mode === 'exclusive' ? 'exclusive' : 'inclusive') : null
+  const base = Math.max(gross, 0)
+  const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100
+  const vat = vatMode === 'exclusive' ? r2((base * rate) / 100) : vatMode === 'inclusive' ? r2((base * rate) / (100 + rate)) : 0
+  const vatAdd = vatMode === 'exclusive' ? vat : 0
+  const total = gross + vatAdd
+  const beforeVat = total - vat // ยอดก่อน VAT (ใช้เป็นรายได้/กำไร)
   const paid = order.payments.filter((p) => p.status === 'confirmed').reduce((s, p) => s + p.amount, 0)
   const reported = order.payments.filter((p) => p.status === 'reported').reduce((s, p) => s + p.amount, 0)
   const refunded = Number(order.cancel?.refundAmount) || 0
@@ -209,7 +219,8 @@ export function orderTotals(order) {
   ]
   const discountTotal = discountLinesAll.reduce((s, l) => s + l.amount, 0) + (full - subtotal - itemDiscounts.reduce((s, l) => s + l.amount, 0))
   const netGoods = itemNets(order).reduce((a, b) => a + b, 0)
-  return { netGoods, subtotal, shipping, adjustment, pointsDiscount, couponDiscount, total, paid, reported, refunded, balance: total - paid, full, itemDiscounts, discountLines: discountLinesAll, discountTotal }
+  const fullAll = full + shipping + Math.max(adjustment, 0) + vatAdd // ราคาเต็มรวมค่าส่ง/VAT (ใช้เทียบกับยอดสุทธิในป้ายส่วนลด)
+  return { vat, vatAdd, vatRate: vatMode ? rate : 0, vatMode, beforeVat, fullAll, netGoods, subtotal, shipping, adjustment, pointsDiscount, couponDiscount, total, paid, reported, refunded, balance: total - paid, full, itemDiscounts, discountLines: discountLinesAll, discountTotal }
 }
 
 // แปลงตัวเลือกเป็นข้อความอ่านง่าย (หลายชั้นขึ้นต้นด้วย "ชั้น n")

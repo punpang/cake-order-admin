@@ -37,6 +37,7 @@ export const PERMISSIONS = {
   chat: ['admin', 'sales'], // ศูนย์รวมแชท LINE OA + Facebook
   pos: ['admin', 'sales'], // ขายหน้าร้าน
   posVoid: ['admin'], // ยกเลิกบิลหน้าร้าน
+  changeBuyer: ['admin', 'sales'], // เปลี่ยนผู้ซื้อในออร์เดอร์/บิล
 }
 
 // สถานะที่แต่ละบทบาทเห็นในรายการ (null = เห็นทั้งหมด)

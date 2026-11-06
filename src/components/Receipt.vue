@@ -17,6 +17,8 @@ const customer = computed(() => findCustomer(props.order.customerId))
       <div class="text-base font-bold">{{ db.shop.name }}</div>
       <div>ใบเสร็จรับเงิน</div>
       <div class="text-xs">{{ order.code }} · {{ dateTime(order.createdAt) }}</div>
+      <div v-if="t.vatMode && db.shop.vat.legalName" class="text-xs">{{ db.shop.vat.legalName }}</div>
+      <div v-if="t.vatMode && db.shop.vat.taxId" class="text-xs">เลขประจำตัวผู้เสียภาษี {{ db.shop.vat.taxId }}</div>
       <div v-if="order.status === 'cancelled'" class="mt-1 font-bold">** ยกเลิกแล้ว **</div>
     </div>
     <div class="my-2 border-t border-dashed border-black" />
@@ -27,7 +29,9 @@ const customer = computed(() => findCustomer(props.order.customerId))
     <div class="my-2 border-t border-dashed border-black" />
     <div class="flex justify-between"><span>รวม</span><span>{{ money(t.full) }}</span></div>
     <div v-for="l in t.discountLines" :key="l.label" class="flex justify-between gap-2"><span class="min-w-0 break-words">{{ l.label }}</span><span class="shrink-0">−{{ money(l.amount) }}</span></div>
+    <div v-if="t.vatMode === 'exclusive'" class="flex justify-between"><span>VAT {{ t.vatRate }}% (บวกเพิ่ม)</span><span>{{ money(t.vat) }}</span></div>
     <div class="mt-1 flex justify-between text-base font-bold"><span>ยอดสุทธิ</span><span>{{ money(t.total) }}</span></div>
+    <div v-if="t.vatMode === 'inclusive'" class="flex justify-between text-xs"><span>รวม VAT {{ t.vatRate }}% แล้ว (ก่อน VAT {{ money(t.beforeVat) }})</span><span>{{ money(t.vat) }}</span></div>
     <template v-if="pay">
       <div class="flex justify-between"><span>{{ pay.method }}</span><span>{{ money(pay.received ?? pay.amount) }}</span></div>
       <div v-if="pay.change" class="flex justify-between"><span>เงินทอน</span><span>{{ money(pay.change) }}</span></div>

@@ -27,7 +27,7 @@ const rows = computed(() =>
       return day >= from.value && day <= to.value
     })
     .map((o) => {
-      const total = orderTotals(o).total
+      const total = orderTotals(o).beforeVat // ยอดขายไม่รวม VAT
       const cost = orderCost(o, db.optionGroups, db.retailItems, db.ingredients)
       return { o, total, cost, profit: total - cost, balance: orderTotals(o).balance }
     })

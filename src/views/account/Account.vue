@@ -174,6 +174,8 @@ function logout() {
           <div v-if="o.fulfillment === 'delivery' && o.address" class="text-xs text-stone-500">จัดส่ง: {{ o.address }}</div>
           <div class="space-y-1 rounded-xl bg-stone-50 p-3">
             <div class="flex justify-between"><span>ยอดรวม</span><b>{{ money(o.total) }}</b></div>
+            <div v-if="o.vatMode" class="flex justify-between text-xs text-stone-500"><span>{{ o.vatMode === 'exclusive' ? `รวม VAT ${o.vatRate}% (บวกเพิ่ม)` : `รวม VAT ${o.vatRate}% แล้ว` }}</span><span>{{ money(o.vat) }}</span></div>
+            <div v-for="(r, i) in o.refunds" :key="'rf' + i" class="flex justify-between text-xs text-rose-600"><span>คืนเงิน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span>{{ money(r.amount) }}</span></div>
             <div class="flex justify-between"><span>ชำระแล้ว</span><span>{{ money(o.paid) }}</span></div>
             <div v-if="o.status !== 'cancelled'" class="flex justify-between" :class="o.balance > 0 ? 'text-amber-700' : 'text-emerald-700'"><span>คงค้าง</span><b>{{ money(o.balance) }}</b></div>
             <div v-for="(p, i) in o.payments" :key="i" class="flex justify-between text-xs text-stone-500"><span>{{ p.method }} · {{ dateOnly(p.paidAt) }}</span><span>{{ money(p.amount) }}</span></div>

@@ -20,6 +20,9 @@ import ItemEditor from '../components/ItemEditor.vue'
 import AppModal from '../components/AppModal.vue'
 import AppIcon from '../components/AppIcon.vue'
 import PickupModal from '../components/PickupModal.vue'
+import RefundEditor from '../components/RefundEditor.vue'
+import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
+import { defaultRefundMethod, refundList } from '../lib/refund'
 import BirthdayFields from '../components/BirthdayFields.vue'
 import { parseBirthday, toForm, mdLabel } from '../lib/birthday'
 
@@ -193,18 +196,21 @@ async function savePoints() {
 
 // ---------- ยกเลิก ----------
 const cancelOpen = ref(false)
-const cxl = reactive({ reason: '', refundAmount: 0, refundMethod: PAYMENT_METHODS[0], refundNote: '' })
+const cxl = reactive({ reason: '', refunds: [], refundNote: '' })
 const cxlError = ref('')
+const buyerOpen = ref(false)
 function openCancel() {
-  Object.assign(cxl, { reason: '', refundAmount: t.value.paid, refundMethod: PAYMENT_METHODS[0], refundNote: '' })
+  // คืนเต็มจำนวนตามช่องทางที่ลูกค้าจ่ายล่าสุดเป็นค่าตั้งต้น (เปลี่ยน/แบ่งช่องทางได้: เงินสด / ธนาคาร / คะแนนสะสม)
+  const last = order.value.payments.filter((p) => p.status === 'confirmed').at(-1)
+  Object.assign(cxl, { reason: '', refunds: t.value.paid > 0 ? [{ method: defaultRefundMethod(last?.method), amount: t.value.paid }] : [], refundNote: '' })
   cxlError.value = ''
   cancelOpen.value = true
 }
 async function saveCancel() {
   if (!cxl.reason.trim()) return (cxlError.value = 'ใส่เหตุผลการยกเลิก')
-  if (cxl.refundAmount < 0 || cxl.refundAmount > t.value.paid) return (cxlError.value = `คืนเงินได้ 0 – ${money(t.value.paid)}`)
   if (!(await askConfirm({ title: 'ยกเลิกออร์เดอร์', message: `ออร์เดอร์ ${order.value.code}\nเหตุผล: ${cxl.reason}`, okText: 'ยกเลิกออร์เดอร์', danger: true }))) return
-  cancelOrder(order.value, cxl)
+  const r = cancelOrder(order.value, { reason: cxl.reason, refunds: cxl.refunds.map((x) => ({ method: x.method, amount: Number(x.amount) })), refundNote: cxl.refundNote })
+  if (r.error) return (cxlError.value = r.error)
   cancelOpen.value = false
 }
 </script>
@@ -244,6 +250,7 @@ async function saveCancel() {
                 <button v-if="canEditBirthday" class="ml-1 text-brand-700 underline" @click="openBirthday">แก้</button>
               </div>
               <button v-else-if="canEditBirthday" class="mt-1 text-sm text-brand-700 underline" @click="openBirthday">+ เพิ่มวันเกิด</button>
+              <button v-if="can('changeBuyer') && order.status !== 'cancelled'" class="mt-1 block text-sm text-brand-700 underline" @click="buyerOpen = true">เปลี่ยนผู้ซื้อ</button>
             </div>
             <a
               v-if="customer?.phone"
@@ -289,7 +296,12 @@ async function saveCancel() {
           <div class="card-title text-rose-700"><AppIcon name="x" /> ยกเลิกแล้ว</div>
           <dl class="space-y-1.5 text-sm">
             <div class="flex gap-3"><dt class="w-20 shrink-0 text-rose-500">เหตุผล</dt><dd class="min-w-0 break-words">{{ order.cancel.reason }}</dd></div>
-            <div class="flex gap-3"><dt class="w-20 shrink-0 text-rose-500">คืนเงิน</dt><dd>{{ money(order.cancel.refundAmount) }} · {{ order.cancel.refundMethod }}</dd></div>
+            <div class="flex gap-3"><dt class="w-20 shrink-0 text-rose-500">คืนเงิน</dt>
+              <dd class="min-w-0">
+                <template v-if="refundList(order.cancel).length"><div v-for="(x, i) in refundList(order.cancel)" :key="i">{{ x.label }} {{ money(x.amount) }}<template v-if="x.points != null"> ({{ x.points }} คะแนน)</template></div></template>
+                <template v-else>ไม่คืนเงิน</template>
+              </dd>
+            </div>
             <div v-if="order.cancel.refundNote" class="flex gap-3"><dt class="w-20 shrink-0 text-rose-500">หมายเหตุ</dt><dd class="min-w-0 break-words">{{ order.cancel.refundNote }}</dd></div>
           </dl>
         </section>
@@ -338,7 +350,7 @@ async function saveCancel() {
           <dl class="mt-3 space-y-1.5 border-t border-stone-100 pt-3 text-sm">
             <div v-if="t.discountTotal" class="flex items-start justify-between gap-2 rounded-xl bg-emerald-50/60 p-2.5">
               <dt class="text-stone-600">ราคาเต็ม → ยอดสุทธิ</dt>
-              <dd><DiscountDetail :full="t.full + t.shipping + Math.max(t.adjustment, 0)" :final="t.total" :lines="t.discountLines" /></dd>
+              <dd><DiscountDetail :full="t.fullAll" :final="t.total" :lines="t.discountLines" /></dd>
             </div>
             <div class="flex justify-between gap-2"><dt class="text-stone-500">ค่าสินค้า</dt><dd>{{ money(t.subtotal) }}</dd></div>
             <div v-if="order.fulfillment === 'delivery'" class="flex justify-between gap-2"><dt class="text-stone-500">ค่าส่ง</dt><dd>{{ money(t.shipping) }}</dd></div>
@@ -348,10 +360,12 @@ async function saveCancel() {
             </div>
             <div v-if="t.pointsDiscount" class="flex justify-between gap-2"><dt class="text-stone-500">ใช้ {{ order.pointsUsed.points }} คะแนน</dt><dd class="text-rose-600">−{{ money(t.pointsDiscount) }}</dd></div>
             <div v-for="u in order.couponsUsed" :key="u.couponId" class="flex justify-between gap-2"><dt class="min-w-0 break-words text-stone-500">คูปอง {{ u.name }}</dt><dd class="shrink-0 text-rose-600">−{{ money(u.amount) }}</dd></div>
+            <div v-if="t.vatMode === 'exclusive'" class="flex justify-between gap-2"><dt class="text-stone-500">VAT {{ t.vatRate }}% (บวกเพิ่ม)</dt><dd>+{{ money(t.vat) }}</dd></div>
+            <div v-else-if="t.vatMode === 'inclusive'" class="flex justify-between gap-2 text-xs text-stone-400"><dt>รวม VAT {{ t.vatRate }}% แล้ว (ก่อน VAT {{ money(t.beforeVat) }})</dt><dd>{{ money(t.vat) }}</dd></div>
           </dl>
           <dl v-if="can('viewProfit')" class="mt-3 space-y-1.5 border-t border-stone-100 pt-3 text-sm">
             <div class="flex justify-between gap-2"><dt class="text-stone-500">ต้นทุนวัตถุดิบ</dt><dd>{{ money(cost) }}</dd></div>
-            <div class="flex justify-between gap-2 font-semibold"><dt>กำไร</dt><dd :class="t.total - cost >= 0 ? 'text-emerald-700' : 'text-rose-600'">{{ money(t.total - cost) }}</dd></div>
+            <div class="flex justify-between gap-2 font-semibold"><dt>กำไร <span v-if="t.vatMode" class="text-xs font-normal text-stone-400">(ก่อน VAT)</span></dt><dd :class="t.beforeVat - cost >= 0 ? 'text-emerald-700' : 'text-rose-600'">{{ money(t.beforeVat - cost) }}</dd></div>
           </dl>
           <button v-if="can('adjustPrice') && !closed" class="btn-soft mt-3 w-full" @click="openAdj"><AppIcon name="tag" :size="16" /> ปรับราคา / ส่วนลด</button>
         </section>
@@ -558,13 +572,9 @@ async function saveCancel() {
     <AppModal v-if="cancelOpen" title="ยกเลิกออร์เดอร์" @close="cancelOpen = false">
       <div class="space-y-4">
         <div><label class="label">เหตุผล <span class="text-rose-500">*</span></label><textarea v-model="cxl.reason" rows="2" class="input" /></div>
-        <div class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">ชำระแล้ว <b>{{ money(t.paid) }}</b></div>
-        <div><label class="label">ยอดคืนเงิน (บาท)</label><input v-model.number="cxl.refundAmount" type="text" v-num.dec min="0" class="input" /></div>
         <div>
-          <div class="label">ช่องทางคืนเงิน</div>
-          <div class="flex flex-wrap gap-2">
-            <button v-for="m in PAYMENT_METHODS" :key="m" type="button" class="chip" :class="cxl.refundMethod === m ? 'chip-on' : 'chip-off'" @click="cxl.refundMethod = m">{{ m }}</button>
-          </div>
+          <div class="label">คืนเงินให้ลูกค้า</div>
+          <RefundEditor v-model="cxl.refunds" :paid="t.paid" :can-points="!!customer && !customer.deleted" :default-method="defaultRefundMethod(order.payments.filter((p) => p.status === 'confirmed').at(-1)?.method)" />
         </div>
         <div><label class="label">หมายเหตุการคืนเงิน</label><input v-model="cxl.refundNote" class="input" /></div>
         <p v-if="cxlError" class="text-sm text-rose-600">{{ cxlError }}</p>
@@ -576,6 +586,7 @@ async function saveCancel() {
     </AppModal>
   </div>
 
+  <ChangeBuyerModal v-if="buyerOpen && order" :order="order" @close="buyerOpen = false" />
   <ItemEditor v-if="editing" :item="editing.item || null" :price-date="orderDate(order)" @save="onSaveItem" @close="editing = null" />
   <PickupModal v-if="pickupOpen && order" :order="order" @close="pickupOpen = false" />
   <AppModal v-if="bdOpen" title="วันเกิด" @close="bdOpen = false">

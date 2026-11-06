@@ -170,8 +170,9 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
             <div class="mt-1.5 text-xs text-stone-500">{{ quoteView(m).q.payload.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }} · {{ dateTime(quoteView(m).q.payload.pickupAt) }}<template v-if="quoteView(m).q.payload.shippingFee"> · ค่าส่ง {{ money(quoteView(m).q.payload.shippingFee) }}</template></div>
             <div class="mt-2 flex items-start justify-between gap-2 border-t border-stone-100 pt-2">
               <span class="text-xs text-stone-500">ยอดรวม</span>
-              <DiscountDetail :full="quoteView(m).t.full + quoteView(m).t.shipping" :final="quoteView(m).t.total" :lines="quoteView(m).lines" />
+              <DiscountDetail :full="quoteView(m).t.fullAll" :final="quoteView(m).t.total" :lines="quoteView(m).lines" />
             </div>
+            <div v-if="quoteView(m).t.vatMode" class="mt-1 text-right text-[11px] text-stone-400">{{ quoteView(m).t.vatMode === 'exclusive' ? `ยอดรวม VAT ${quoteView(m).t.vatRate}% (บวกเพิ่ม ${money(quoteView(m).t.vat)}) แล้ว` : `ราคารวม VAT ${quoteView(m).t.vatRate}% แล้ว (${money(quoteView(m).t.vat)})` }}</div>
             <!-- ปุ่มที่ลูกค้าเห็นใน LINE/FB (ของจริงกดแล้วส่ง postback ผ่าน webhook) · ตอนนี้จำลองให้พนักงานกดแทน -->
             <template v-if="quoteView(m).q.status === 'pending'">
               <div class="mt-2 grid grid-cols-2 gap-2 opacity-70">

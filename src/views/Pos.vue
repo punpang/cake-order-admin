@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import {
-  db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posItems, posSale, voidPosSale, pointsFor, quickMember,
+  db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posItems, posSale, voidPosSale, pointsFor, quickMember, vatNow,
   customerPoints, usableDiscountCoupons, findCustomer, modsOf, modsText, lineKey,
 } from '../data/store'
 import { orderTotals } from '../lib/pricing'
@@ -14,6 +14,9 @@ import AppModal from '../components/AppModal.vue'
 import DiscountDetail from '../components/DiscountDetail.vue'
 import Receipt from '../components/Receipt.vue'
 import PhoneInput from '../components/PhoneInput.vue'
+import RefundEditor from '../components/RefundEditor.vue'
+import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
+import { defaultRefundMethod } from '../lib/refund'
 
 // POS หน้าร้าน: เปิดกะ → ขาย (ตะกร้า สมาชิก คูปอง ส่วนลด + โปรโมชัน/บันเดิ้ลอัตโนมัติ) → ชำระ (เงินสด/โอน/บัตร + ทอน) → ใบเสร็จ · บิล · ปิดกะ
 // สะสมคะแนนจากยอดสุทธิ (โปรคะแนนพิเศษคูณได้) · ไม่ใช้คะแนนตรง ๆ: ลูกค้าแลกคะแนนเป็นคูปองที่หน้าเว็บ แล้วใช้คูปองที่นี่
@@ -127,7 +130,7 @@ watch(goods, () => (couponIds.value = couponIds.value.filter((id) => coupons.val
 const usedPromos = computed(() => [...new Set(lineItems.value.flatMap((i) => (i.discounts || []).filter((d) => d.kind === 'promo' || d.kind === 'bundle').map((d) => d.name)))])
 const orderLike = computed(() => ({
   items: lineItems.value, fulfillment: 'pickup', payments: [],
-  adjustment: { amount: -(Number(discount.value) || 0), reason: 'ส่วนลดหน้าร้าน' }, pointsUsed: null,
+  adjustment: { amount: -(Number(discount.value) || 0), reason: 'ส่วนลดหน้าร้าน' }, pointsUsed: null, vat: vatNow(),
   couponsUsed: coupons.value.filter((c) => couponIds.value.includes(c.id)).map((c) => ({ couponId: c.id, name: c.name, amount: c.amount })),
 }))
 const preview = computed(() => orderTotals(orderLike.value))
@@ -182,9 +185,23 @@ const print = () => window.print()
 
 // ---------- บิลของกะ ----------
 const bills = computed(() => (shift.value ? shiftBills(shift.value.id) : []))
-async function doVoid(o) {
-  if (await askConfirm({ title: 'ยกเลิกบิล', message: `${o.code} · ${money(orderTotals(o).total)} (คืนสต็อก + คะแนน)`, okText: 'ยกเลิกบิล', danger: true })) voidPosSale(o)
+// ยกเลิกบิล: เลือกคืนเป็น เงินสด / ธนาคาร / คะแนนสะสม (แบ่งได้) · ค่าตั้งต้น = คืนเต็มตามช่องทางที่จ่ายมา
+const voidFor = ref(null)
+const vd = reactive({ reason: 'ยกเลิกบิล', refunds: [], note: '', error: '' })
+const voidPaid = computed(() => (voidFor.value ? orderTotals(voidFor.value).paid : 0))
+const voidDefault = computed(() => defaultRefundMethod(voidFor.value?.payments.find((p) => p.status === 'confirmed')?.posMethod))
+function openVoid(o) {
+  const paid = orderTotals(o).paid
+  Object.assign(vd, { reason: 'ยกเลิกบิล', refunds: paid > 0 ? [{ method: defaultRefundMethod(o.payments.find((p) => p.status === 'confirmed')?.posMethod), amount: paid }] : [], note: '', error: '' })
+  voidFor.value = o
 }
+function doVoid() {
+  if (!vd.reason.trim()) return (vd.error = 'ใส่เหตุผลการยกเลิก')
+  const r = voidPosSale(voidFor.value, vd.reason.trim(), vd.refunds.map((x) => ({ method: x.method, amount: Number(x.amount) })), vd.note)
+  if (r.error) return (vd.error = r.error)
+  voidFor.value = null
+}
+const buyerFor = ref(null)
 
 // ---------- ปิดกะ ----------
 const summary = computed(() => (shift.value ? shiftSummary(shift.value) : null))
@@ -334,8 +351,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         </div>
         <div class="border-t border-stone-100 p-4">
           <div class="mb-3 flex items-start justify-between gap-2">
-            <span class="text-sm text-stone-500">ยอดชำระ</span>
-            <DiscountDetail :full="preview.full" :final="total" :lines="preview.discountLines" size="lg" />
+            <span class="text-sm text-stone-500">ยอดชำระ<span v-if="preview.vatMode" class="block text-[11px] text-stone-400">{{ preview.vatMode === 'exclusive' ? `รวม VAT ${preview.vatRate}% บวกเพิ่ม ${money(preview.vat)}` : `รวม VAT ${preview.vatRate}% แล้ว ${money(preview.vat)}` }}</span></span>
+            <DiscountDetail :full="preview.fullAll" :final="total" :lines="preview.discountLines" size="lg" />
           </div>
           <button type="button" class="btn-primary h-12 w-full text-base" :disabled="!cart.length" @click="openPay">ชำระเงิน</button>
         </div>
@@ -362,7 +379,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <b class="block text-stone-900">{{ money(orderTotals(o).total) }}</b>
             <span class="text-xs text-stone-500">{{ o.status === 'cancelled' ? 'ยกเลิกแล้ว' : o.payments[0]?.method }}</span>
           </span>
-          <button v-if="can('posVoid') && o.status !== 'cancelled'" type="button" class="btn-danger h-9 shrink-0 px-2.5" aria-label="ยกเลิกบิล" @click="doVoid(o)"><AppIcon name="x" :size="16" /></button>
+          <button v-if="can('posVoid') && o.status !== 'cancelled'" type="button" class="btn-danger h-9 shrink-0 px-2.5" aria-label="ยกเลิกบิล" @click="openVoid(o)"><AppIcon name="x" :size="16" /></button>
+          <button v-if="can('changeBuyer') && o.status !== 'cancelled'" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" @click="buyerFor = o">เปลี่ยนผู้ซื้อ</button>
         </li>
       </ul>
     </section>
@@ -383,6 +401,25 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <p v-if="counted !== ''" class="mt-1 text-sm" :class="Number(counted) - summary.expectedCash === 0 ? 'text-emerald-700' : 'text-amber-700'">ส่วนต่าง {{ money(Number(counted) - summary.expectedCash) }}</p>
       <button type="button" class="btn-primary mt-3 w-full" :disabled="counted === ''" @click="doClose">ปิดกะ</button>
     </section>
+
+    <!-- ยกเลิกบิล + คืนเงิน -->
+    <AppModal v-if="voidFor" :title="`ยกเลิกบิล ${voidFor.code}`" @close="voidFor = null">
+      <div class="space-y-4">
+        <p class="text-sm text-stone-500">ยกเลิกแล้วจะคืนสต็อก คืนคูปองที่ใช้ และตัดคะแนนที่ได้จากบิลนี้</p>
+        <div><label class="label">เหตุผล <span class="text-rose-500">*</span></label><input v-model="vd.reason" class="input" maxlength="120" /></div>
+        <div>
+          <div class="label">คืนเงินให้ลูกค้า</div>
+          <RefundEditor v-model="vd.refunds" :paid="voidPaid" :can-points="!!voidFor.customerId && !!findCustomer(voidFor.customerId) && !findCustomer(voidFor.customerId).deleted" :default-method="voidDefault" />
+        </div>
+        <div><label class="label">หมายเหตุการคืนเงิน</label><input v-model="vd.note" class="input" maxlength="120" /></div>
+        <p v-if="vd.error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ vd.error }}</p>
+      </div>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="voidFor = null">ปิด</button>
+        <button class="btn-danger flex-1 sm:flex-none" @click="doVoid">ยืนยันยกเลิกบิล</button>
+      </template>
+    </AppModal>
+    <ChangeBuyerModal v-if="buyerFor" :order="buyerFor" @close="buyerFor = null" />
 
     <!-- สมัครสมาชิกที่เคาน์เตอร์ -->
     <AppModal v-if="signup.open" title="สมัครสมาชิก (สะสมคะแนน)" @close="signup.open = false">

@@ -2,7 +2,7 @@
 import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRef } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { db, can, addCustomer, saveCustomer, findCustomer, createOrder, countPickups, pickupSlots, nearbyOrders, sendQuote, findChat, linkChat, createCustomerFromChat, chatOrderBlock } from '../data/store'
+import { db, can, vatNow, addCustomer, saveCustomer, findCustomer, createOrder, countPickups, pickupSlots, nearbyOrders, sendQuote, findChat, linkChat, createCustomerFromChat, chatOrderBlock } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime, timeOnly, toDateStr, formatPhone, phoneDigits, phoneValid } from '../lib/format'
 import PhoneInput from '../components/PhoneInput.vue'
@@ -123,7 +123,7 @@ function onSaveItem(item) {
 }
 
 // ---------- สรุป ----------
-const totals = computed(() => orderTotals({ ...form, payments: [], adjustment: null, cancel: null }))
+const totals = computed(() => orderTotals({ ...form, payments: [], adjustment: null, cancel: null, vat: vatNow() }))
 
 function validate(i) {
   // ในแชทข้ามขั้นลูกค้าได้ (ได้เบอร์ทีหลัง) แต่บันทึกต้องผูก + มีเบอร์
@@ -411,10 +411,12 @@ function quote() {
       <div class="card space-y-2 text-sm">
         <div v-if="totals.discountTotal" class="flex items-start justify-between gap-2 rounded-xl bg-emerald-50/60 p-2.5">
           <span class="text-stone-600">ราคาเต็ม → ยอดสุทธิ</span>
-          <span><DiscountDetail :full="totals.full + totals.shipping + Math.max(totals.adjustment, 0)" :final="totals.total" :lines="totals.discountLines" /></span>
+          <span><DiscountDetail :full="totals.fullAll" :final="totals.total" :lines="totals.discountLines" /></span>
         </div>
         <div class="flex justify-between"><span class="text-stone-500">ค่าสินค้า</span><span>{{ money(totals.subtotal) }}</span></div>
         <div v-if="form.fulfillment === 'delivery'" class="flex justify-between"><span class="text-stone-500">ค่าส่ง</span><span>{{ money(totals.shipping) }}</span></div>
+        <div v-if="totals.vatMode === 'exclusive'" class="flex justify-between"><span class="text-stone-500">VAT {{ totals.vatRate }}% (บวกเพิ่ม)</span><span>+{{ money(totals.vat) }}</span></div>
+        <div v-else-if="totals.vatMode === 'inclusive'" class="flex justify-between text-xs text-stone-400"><span>รวม VAT {{ totals.vatRate }}% แล้ว</span><span>{{ money(totals.vat) }}</span></div>
         <div class="flex items-center justify-between border-t border-stone-100 pt-2">
           <span class="font-semibold">ยอดรวม</span>
           <span class="text-xl font-semibold text-stone-900">{{ money(totals.total) }}</span>

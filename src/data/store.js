@@ -4,6 +4,7 @@ import { reactive } from 'vue'
 import { PERMISSIONS, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals, itemNets } from '../lib/pricing'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
+import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList } from '../lib/refund'
 import { addDays, pointBalance, takePoints, returnPoints, couponUsable, pickPrize, expiringSoon } from '../lib/loyalty'
 import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, timeOnly } from '../lib/format'
 import { nextBirthday, daysBetween } from '../lib/birthday'
@@ -50,7 +51,9 @@ export const db = reactive({
 
   // ตั้งค่าร้าน: เวลานัดรับ ทุก slotMinutes นาที ระหว่าง open–close, nearbyHours = ค่าเริ่มต้นช่วงดูออร์เดอร์ก่อน/หลัง (0 = ทั้งวัน)
   // leadPickup / leadDelivery = ต้องเสร็จก่อนนัดกี่นาที (ตารางผลิต), depositPercent = มัดจำขั้นต่ำ % (0 = ไม่ใช้), birthdayDays = เตือนวันเกิดล่วงหน้ากี่วัน
-  shop: { name: 'ร้านเค้กตัวอย่าง', slotMinutes: 30, open: '09:00', close: '20:00', nearbyHours: 2, leadPickup: 60, leadDelivery: 120, depositPercent: 50, birthdayDays: 14 },
+  shop: { name: 'ร้านเค้กตัวอย่าง', slotMinutes: 30, open: '09:00', close: '20:00', nearbyHours: 2, leadPickup: 60, leadDelivery: 120, depositPercent: 50, birthdayDays: 14,
+    // VAT: ฐาน = สินค้า+ค่าส่ง หลังส่วนลด · mode inclusive (ราคารวม VAT แล้ว) | exclusive (บวกเพิ่มท้ายยอด) · เก็บ snapshot {rate, mode} ในแต่ละออร์เดอร์ (order.vat)
+    vat: { enabled: false, rate: 7, mode: 'inclusive', taxId: '', legalName: '' } },
   // เตือนวันเกิด: key ที่กด "ทักแล้ว" (ลูกค้า|ชื่อ|MM-DD|ปี)
   birthdayGreeted: [],
 
@@ -426,6 +429,7 @@ export function createOrder(payload, asDraft = false) {
     address: payload.fulfillment === 'delivery' ? payload.address : '',
     shippingFee: payload.fulfillment === 'delivery' ? Number(payload.shippingFee) || 0 : 0,
     items: payload.quoteItems ? payload.items : payload.items.map((i) => priceItem(i)), // จากใบเสนอ = ราคาตามใบเสนอ
+    vat: payload.vat !== undefined ? payload.vat : vatNow(), // จากใบเสนอ = VAT ตามใบเสนอ
     adjustment: { amount: 0, reason: '' },
     pointsUsed: null, // { points, amount, entryId }
     couponsUsed: [], // [{ couponId, name, amount }]
@@ -542,10 +546,27 @@ export function setAdjustment(order, amount, reason) {
   log(order, `ปรับราคา ${money(Number(amount))} (${reason})`)
 }
 
+// ยกเลิกออร์เดอร์ + คืนเงิน: c = { reason, refunds: [{ method: cash | transfer | points, amount }], refundNote }
+// (รูปแบบเก่า { refundAmount, refundMethod } ยังใช้ได้) · คืนเป็นคะแนน = ยอด ÷ มูลค่าต่อคะแนน (ต้องหารลงตัว) อายุตามค่าตั้งต้น
+// ตรวจก่อนแก้ข้อมูลทุกอย่าง → คืน { ok } หรือ { error }
 export function cancelOrder(order, c) {
+  if (!order || order.status === 'cancelled') return { error: 'ออร์เดอร์นี้ยกเลิกแล้ว' }
+  const paid = orderTotals(order).paid
+  const refunds = normalizeRefunds(c, paid)
+  const cu = findCustomer(order.customerId)
+  const err = refundErrors(refunds, { paid, canPoints: !!cu && !cu.deleted, pointValue: db.loyalty.pointValue })
+  if (err) return { error: err }
   undoLoyalty(order)
-  order.cancel = { reason: c.reason, refundAmount: Number(c.refundAmount) || 0, refundMethod: c.refundMethod, refundNote: c.refundNote || '', at: now() }
-  setStatus(order, 'cancelled', `ยกเลิก: ${c.reason}${order.cancel.refundAmount ? ` / คืนเงิน ${money(order.cancel.refundAmount)}` : ''}`)
+  for (const x of refunds) {
+    if (x.method !== 'points') continue
+    x.points = Math.round(x.amount / db.loyalty.pointValue)
+    earnPoints(cu, x.points, `คืนเงินจากการยกเลิก ${order.code}`, order.id)
+  }
+  const refundAmount = round2(refunds.reduce((n, x) => n + x.amount, 0))
+  const summary = refunds.map((x) => `${REFUND_METHODS[x.method]} ${money(x.amount)}${x.method === 'points' ? ` (${x.points} คะแนน)` : ''}`).join(' + ')
+  order.cancel = { reason: c.reason, refunds, refundAmount, refundMethod: refunds.map((x) => REFUND_METHODS[x.method]).join(' + '), refundNote: c.refundNote || '', at: now() }
+  setStatus(order, 'cancelled', `ยกเลิก: ${c.reason}${refundAmount ? ` / คืนเงิน ${summary}` : ''}`)
+  return { ok: true }
 }
 
 // จำนวนออร์เดอร์ (ไม่นับยกเลิก) ในวันเดียวกัน และในชั่วโมงเดียวกัน
@@ -570,7 +591,16 @@ export function saveShopSettings(d) {
   db.shop.leadDelivery = Math.max(0, Number(d.leadDelivery) || 0)
   db.shop.depositPercent = Math.min(100, Math.max(0, Number(d.depositPercent) || 0))
   db.shop.birthdayDays = Math.max(0, Number(d.birthdayDays) || 0)
+  if (d.vat) {
+    const rate = Math.round((Number(d.vat.rate) || 0) * 100) / 100
+    db.shop.vat = {
+      enabled: !!d.vat.enabled, rate: rate > 0 && rate <= 100 ? rate : db.shop.vat.rate, mode: d.vat.mode === 'exclusive' ? 'exclusive' : 'inclusive',
+      taxId: String(d.vat.taxId ?? '').replace(/\D/g, '').slice(0, 13), legalName: String(d.vat.legalName ?? '').trim().slice(0, 120),
+    }
+  }
 }
+// snapshot VAT ตอนสร้างออร์เดอร์ (ปิดอยู่ = null → ไม่คิด VAT) แก้ค่าตั้งภายหลังไม่กระทบออร์เดอร์เดิม
+export const vatNow = () => (db.shop.vat?.enabled && Number(db.shop.vat.rate) > 0 ? { rate: Number(db.shop.vat.rate), mode: db.shop.vat.mode === 'exclusive' ? 'exclusive' : 'inclusive' } : null)
 
 // แก้วันเวลานัด (หน้ารายละเอียด)
 export function setPickup(order, pickupAt) {
@@ -773,6 +803,51 @@ function undoLoyalty(order) {
     c.spins = Math.max(0, c.spins - order.loyalty.spins)
     order.loyalty = null
   }
+}
+
+// ---------- เปลี่ยนผู้ซื้อ ----------
+// ดูผลก่อนยืนยัน: ส่วนลดจากคะแนน/คูปองที่ใช้ในออร์เดอร์จะถูกนำออก (คืนผู้ซื้อเดิม) → ยอดรวมเพิ่ม · ส่งมอบแล้ว: คะแนน/สิทธิ์หมุนที่ได้โอนไปผู้ซื้อใหม่
+export function changeBuyerPreview(order, newId) {
+  if (!order || order.status === 'cancelled') return { error: 'ออร์เดอร์ที่ยกเลิกแล้วเปลี่ยนผู้ซื้อไม่ได้' }
+  const to = findCustomer(newId)
+  if (!to || to.deleted || to.active === false) return { error: 'ไม่พบลูกค้า' }
+  if (to.id === order.customerId) return { error: 'เป็นผู้ซื้อคนเดิมอยู่แล้ว' }
+  if (!phoneValid(to.phone)) return { error: 'ลูกค้าใหม่ต้องมีเบอร์โทร' }
+  const t = orderTotals(order)
+  const after = orderTotals({ ...order, pointsUsed: null, couponsUsed: [] })
+  return {
+    ok: true, from: findCustomer(order.customerId) || null, to,
+    removedPoints: order.pointsUsed?.points || 0, removedCoupons: (order.couponsUsed || []).map((x) => x.name), removedAmount: t.pointsDiscount + t.couponDiscount,
+    oldTotal: t.total, newTotal: after.total, newBalance: after.balance, transfer: order.loyalty ? { points: order.loyalty.points, spins: order.loyalty.spins } : null,
+  }
+}
+export function changeBuyer(order, newId, reason = '') {
+  if (!can('changeBuyer')) return { error: 'ไม่มีสิทธิ์เปลี่ยนผู้ซื้อ' }
+  const pv = changeBuyerPreview(order, newId)
+  if (pv.error) return pv
+  const { from, to } = pv
+  if (order.pointsUsed) removePoints(order)
+  for (const u of [...(order.couponsUsed || [])]) removeCoupon(order, u.couponId)
+  const l = order.loyalty
+  if (l && from) {
+    const lot = from.ledger.find((x) => x.id === l.lotId)
+    if (lot) {
+      const cut = lot.remaining
+      lot.remaining = 0
+      if (cut) from.ledger.push({ id: uid('pt'), at: now(), delta: -cut, reason: `โอนคะแนน ${order.code} ไปผู้ซื้อใหม่`, orderId: order.id })
+    }
+    from.spins = Math.max(0, from.spins - l.spins)
+    const lot2 = earnPoints(to, l.points, `โอนมาจากออร์เดอร์ ${order.code}`, order.id)
+    to.spins += l.spins
+    order.loyalty = { ...l, lotId: lot2?.id || null }
+  } else if (l) {
+    order.loyalty = null // ไม่มีผู้ซื้อเดิมให้โอนจาก → คำนวณให้ผู้ซื้อใหม่ด้านล่าง
+  }
+  order.customerId = to.id
+  if (order.chatId && findChat(order.chatId)?.customerId !== to.id) order.chatId = null
+  log(order, `เปลี่ยนผู้ซื้อ ${from?.name || 'ไม่ระบุ'} → ${to.name}${reason ? ` (${String(reason).trim()})` : ''}${pv.removedAmount ? ` · นำส่วนลดคะแนน/คูปอง ${money(pv.removedAmount)} ออก` : ''}`)
+  if (order.status === 'delivered' && !order.loyalty) awardOrder(order) // บิลที่ไม่เคยมีสมาชิก
+  return { ok: true, ...pv }
 }
 
 // ---------- ฝั่งลูกค้า: แลกของ / หมุนกาชา ----------
@@ -1131,7 +1206,7 @@ export function sendQuote(chatId, draft) {
   const payload = JSON.parse(JSON.stringify({
     customerId: c.customerId, pickupAt: draft.pickupAt, fulfillment: draft.fulfillment,
     address: draft.fulfillment === 'delivery' ? draft.address : '', shippingFee: draft.fulfillment === 'delivery' ? Number(draft.shippingFee) || 0 : 0,
-    birthday: draft.birthday || null, items: draft.items.map((i) => priceItem(i)),
+    birthday: draft.birthday || null, items: draft.items.map((i) => priceItem(i)), vat: vatNow(),
   }))
   const q = { id: uid('qt'), code: `QT-${String(++quoteNo).padStart(4, '0')}`, chatId, customerId: c.customerId, payload, status: 'pending', orderId: null, createdAt: now(), respondedAt: null }
   db.quotes.unshift(q)
@@ -1256,7 +1331,7 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
     id: uid('o'), code: `POS-${String(++posNo).padStart(4, '0')}`, channel: 'pos', shiftId: shift.id, chatId: null,
     customerId, pickupAt: ts.slice(0, 16), fulfillment: 'pickup', birthday: null, address: '', shippingFee: 0,
     items: posItems(cart, new Date(ts)), adjustment: { amount: discount ? -Math.abs(Number(discount)) : 0, reason: discount ? 'ส่วนลดหน้าร้าน' : '' },
-    pointsUsed: null, couponsUsed: [], loyalty: null, status: 'payment_confirmed', payments: [], cancel: null, history: [], createdAt: ts,
+    pointsUsed: null, couponsUsed: [], loyalty: null, vat: vatNow(), status: 'payment_confirmed', payments: [], cancel: null, history: [], createdAt: ts,
   }
   db.orders.unshift(o)
   log(o, 'ขายหน้าร้าน (POS)')
@@ -1274,15 +1349,18 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
   awardOrder(o)
   return o
 }
-// ยกเลิกบิล (แอดมิน): คืนสต็อก + คืนคะแนน/คูปอง + ตัดคะแนนที่ได้
-export function voidPosSale(order, reason = 'ยกเลิกบิล') {
-  if (order.channel !== 'pos' || order.status === 'cancelled') return
+// ยกเลิกบิล (แอดมิน): คืนสต็อก + คืนคะแนน/คูปองที่ใช้ + ตัดคะแนนที่ได้ + คืนเงินตาม refunds (ไม่ส่ง = คืนเต็มช่องทางที่จ่ายมา)
+export function voidPosSale(order, reason = 'ยกเลิกบิล', refunds = null, refundNote = '') {
+  if (order.channel !== 'pos' || order.status === 'cancelled') return { error: 'บิลนี้ยกเลิกแล้ว' }
+  const pay = order.payments.find((p) => p.status === 'confirmed')
+  const rows = refunds || (pay ? [{ method: defaultRefundMethod(pay.posMethod), amount: pay.amount }] : [])
+  const r = cancelOrder(order, { reason, refunds: rows, refundNote })
+  if (r.error) return r
   for (const it of order.items) {
     const src = it.kind === 'retail' ? db.retailItems.find((x) => x.id === it.retailId) : null
     if (src && src.stock != null) src.stock += it.qty
   }
-  const pay = order.payments.find((p) => p.status === 'confirmed')
-  cancelOrder(order, { reason, refundAmount: pay?.amount || 0, refundMethod: pay?.method || '', refundNote: '' })
+  return r
 }
 export const saveRetailItem = (d) =>
   upsert(db.retailItems, 'rt', {
@@ -1568,7 +1646,7 @@ export function myOrders() {
       return {
         id: o.id, code: o.code, channel: o.channel || 'web', status: o.status, createdAt: o.createdAt, pickupAt: o.pickupAt, fulfillment: o.fulfillment,
         address: o.address || '', birthday: o.birthday ? { ...o.birthday } : null, items: o.items.map((i) => ({ ...i })),
-        total: t.total, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal,
+        total: t.total, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal, vat: t.vat, vatRate: t.vatRate, vatMode: t.vatMode, refunds: o.status === 'cancelled' ? refundList(o.cancel) : [],
         payments: o.payments.filter((p) => p.status === 'confirmed').map((p) => ({ amount: p.amount, method: p.method, paidAt: p.paidAt })),
         review: reviewOfOrder(o.id) ? { rating: reviewOfOrder(o.id).rating, status: reviewOfOrder(o.id).status } : null,
       }
