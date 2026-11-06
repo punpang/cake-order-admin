@@ -42,9 +42,11 @@ export function rankSellers(orders, items, { days = REC.rankDays, stars = REC.st
 // ชุดบันเดิ้ลที่ลูกค้ามีบางชิ้นในตะกร้าแล้ว และชิ้นที่ขาดซื้อได้ (เปิดใช้/มีสต็อก)
 // cart = [{ retailId, qty }] · items = [{ id, name, price, stock, ... }] (สินค้าที่ขายได้ใน POS)
 // คืน [{ bundle, missing: [{ itemId, name, qty, price }], setRegular, saving, addCost }] เรียงตามประหยัดมาก สูงสุด limit
-export function suggestBundles(cart, bundles, items, { now = new Date(), limit = 3 } = {}) {
+// used = { [itemId]: จำนวนชิ้นที่ถูกจัดเข้าบันเดิ้ลอื่นไปแล้ว } (ไม่นับซ้ำ ชิ้นเดียวอยู่ได้ชุดเดียว)
+export function suggestBundles(cart, bundles, items, { now = new Date(), limit = 3, used = {} } = {}) {
   const have = new Map()
   for (const l of cart) have.set(l.retailId, (have.get(l.retailId) || 0) + (Number(l.qty) || 0))
+  for (const [id, n] of Object.entries(used)) if (have.has(id)) have.set(id, Math.max(0, have.get(id) - (Number(n) || 0)))
   const byId = new Map(items.map((x) => [x.id, x]))
   const out = []
   for (const b of bundles || []) {

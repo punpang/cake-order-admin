@@ -109,7 +109,9 @@ function saveMods() {
 const count = computed(() => cart.value.reduce((s, l) => s + l.qty, 0))
 // แนะนำขายต่อ: ชุดบันเดิ้ลที่ใกล้ครบ + สินค้าที่ลูกค้ามักซื้อคู่กัน
 const cartRetail = computed(() => cart.value.filter((l) => l.kind === 'retail').map((l) => ({ retailId: l.refId, qty: l.qty })))
-const bundleSug = computed(() => suggestBundles(cartRetail.value, db.posBundles, catalog.value, { now: new Date() }))
+// ชิ้นที่ถูกจัดเข้าบันเดิ้ลแล้ว (ตามผลคิดโปรจริง) ไม่นับซ้ำเวลาแนะนำชุดอื่น
+const bundleUsed = computed(() => { const u = {}; for (const i of lineItems.value) if ((i.discounts || []).some((d) => d.kind === 'bundle')) u[i.retailId] = (u[i.retailId] || 0) + i.qty; return u })
+const bundleSug = computed(() => suggestBundles(cartRetail.value, db.posBundles, catalog.value, { now: new Date(), used: bundleUsed.value }))
 const pairSug = computed(() => {
   const ok = new Set(catalog.value.filter((x) => canAdd(x)).map((x) => x.id))
   return coBought(db.orders, cartRetail.value.map((l) => l.retailId), { eligible: ok }).map((r) => ({ ...r, item: catalog.value.find((x) => x.id === r.retailId) })).filter((r) => r.item)
@@ -339,7 +341,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <!-- แนะนำขายต่อ -->
           <div v-if="bundleSug.length || pairSug.length" class="space-y-2 rounded-xl bg-amber-50/70 p-2.5" aria-label="แนะนำขายต่อ">
             <div v-for="s in bundleSug" :key="s.bundle.id" class="rounded-lg bg-white p-2 text-sm">
-              <div class="font-medium text-stone-900">ชุด {{ s.bundle.name }} · {{ money(s.bundle.price) }}</div>
+              <div class="font-medium text-stone-900">ชุด {{ s.bundle.name }} · {{ money(s.bundle.price) }} <s class="text-xs font-normal text-stone-400">ราคาเต็ม {{ money(s.setRegular) }}</s></div>
               <div class="text-xs text-stone-600">เพิ่ม {{ s.missing.map((m) => `${m.name} ×${m.qty}`).join(', ') }} ได้ราคาชุด · ประหยัด <b class="text-rose-600">{{ money(s.saving) }}</b></div>
               <button type="button" class="btn-soft mt-1.5 h-8 px-3 text-xs" @click="addMissing(s)"><AppIcon name="plus" :size="14" /> เพิ่มให้ครบชุด</button>
             </div>

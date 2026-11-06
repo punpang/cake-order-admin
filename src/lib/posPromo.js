@@ -78,36 +78,45 @@ export function applyPosPromos(lines, { discounts = [], bundles = [], now = new 
 
   // 2) บันเดิ้ล: เลือกชุดที่ประหยัดมากกว่าส่วนลดรายชิ้นของชิ้นเหล่านั้น
   const live = liveOf(bundles, now).filter((b) => (b.items || []).length && (Number(b.price) || 0) >= 0)
-  // ลำดับ: บันเดิ้ลที่ประหยัดต่อชุดมากสุดก่อน (คิดจากชิ้นที่ว่างตอนนี้)
-  const potential = (b) => {
+  // เลือกชุดบันเดิ้ลที่ "ประหยัดรวมมากสุด" (ลองทุกการจัดชุดที่เป็นไปได้ ไม่ใช่เลือกชุดแรกที่ประหยัดสุดแล้วจบ — กันกรณีชุดที่ใช้สินค้าซ้ำกันแย่งชิ้น)
+  // ประหยัดสุทธิของชุด = (ราคาปกติรวมของชิ้นในชุด − ราคาชุด) − ส่วนลดรายชิ้นที่ชิ้นเหล่านั้นได้อยู่แล้ว (ใช้ก็ต่อเมื่อ > 0)
+  const used = new Set()
+  const gain = (u) => u.price - (u.ind?.amount || 0)
+  const pickSet = (b) => {
     const set = []
     for (const req of b.items) {
-      const free = units.filter((u) => u.line.retailId === req.itemId && !set.includes(u))
-      if (free.length < (Number(req.qty) || 1)) return -Infinity
-      set.push(...free.slice(0, Number(req.qty) || 1))
+      const q = Number(req.qty) || 1
+      const free = units.filter((u) => !used.has(u) && u.line.retailId === req.itemId && !set.includes(u)).sort((x, y) => gain(y) - gain(x))
+      if (free.length < q) return null
+      set.push(...free.slice(0, q))
     }
-    return set.reduce((s, u) => s + u.price, 0) - (Number(b.price) || 0)
+    return set.length ? set : null
   }
-  for (const b of [...live].sort((x, y) => potential(y) - potential(x))) {
-    for (let guard = 0; guard < 500; guard++) {
-      const set = []
-      let ok = true
-      for (const req of b.items) {
-        const free = units.filter((u) => !u.bun && u.line.retailId === req.itemId && !set.includes(u))
-        if (free.length < (Number(req.qty) || 1)) {
-          ok = false
-          break
-        }
-        set.push(...free.slice(0, Number(req.qty) || 1))
-      }
-      if (!ok || !set.length) break
-      const regular = set.reduce((s, u) => s + u.price, 0)
-      const saving = round2(regular - (Number(b.price) || 0))
-      const indiv = set.reduce((s, u) => s + (u.ind?.amount || 0), 0)
-      if (!(saving > indiv + 0.004)) break
-      const parts = allocate(saving, set.map((u) => u.price))
-      set.forEach((u, i) => (u.bun = { kind: 'bundle', name: b.name, amount: parts[i] }))
+  const netOf = (b, set) => round2(set.reduce((s, u) => s + u.price, 0) - (Number(b.price) || 0) - set.reduce((s, u) => s + (u.ind?.amount || 0), 0))
+  // ลำดับลอง: ชุดที่ประหยัดมากก่อน (ให้คำตอบแรกใกล้เคียงที่สุด) · จำกัดจำนวนโหนดกันค้างเมื่อตะกร้าใหญ่มาก
+  const order = [...live].sort((x, y) => { const sx = pickSet(x), sy = pickSet(y); return (sy ? netOf(y, sy) : -Infinity) - (sx ? netOf(x, sx) : -Infinity) })
+  let best = { v: 0, plan: [] }
+  let nodes = 0
+  const dfs = (from, v, plan) => {
+    if (v > best.v + 1e-9) best = { v, plan: [...plan] }
+    if (++nodes > 20000) return
+    for (let i = from; i < order.length; i++) {
+      const set = pickSet(order[i])
+      if (!set) continue
+      const net = netOf(order[i], set)
+      if (!(net > 0.004)) continue
+      set.forEach((u) => used.add(u))
+      plan.push({ b: order[i], set })
+      dfs(i, v + net, plan)
+      plan.pop()
+      set.forEach((u) => used.delete(u))
     }
+  }
+  dfs(0, 0, [])
+  for (const { b, set } of best.plan) {
+    const saving = round2(set.reduce((s, u) => s + u.price, 0) - (Number(b.price) || 0))
+    const parts = allocate(saving, set.map((u) => u.price))
+    set.forEach((u, i) => (u.bun = { kind: 'bundle', name: b.name, amount: parts[i] }))
   }
 
   // 3) ส่วนลดท้ายบิล: คิดจากยอดหลังข้อ 1–2 เลือกอันที่ลดมากสุด แล้วแบ่งเข้าแต่ละชิ้น
@@ -137,7 +146,9 @@ export function applyPosPromos(lines, { discounts = [], bundles = [], now = new 
     else out[u.li].push({ qty: 1, perUnit, entries, sig })
   }
   for (const segs of out) for (const s of segs) delete s.sig
-  return { lines: out, saving: round2(saving) }
+  const bundleUsed = {}
+  for (const u of units) if (u.bun) bundleUsed[u.line.retailId] = (bundleUsed[u.line.retailId] || 0) + 1
+  return { lines: out, saving: round2(saving), bundleUsed }
 }
 
 // ตัวคูณคะแนนพิเศษของสินค้า 1 รายการ: ใช้ตัวที่สูงสุดที่ตรงเงื่อนไข (ไม่ซ้อนกัน) · ไม่มี = 1

@@ -19,12 +19,23 @@ const items = computed(() => db.retailItems.filter((x) => x.active !== false))
 const categories = computed(() => [...new Set(db.retailItems.map((x) => x.category).filter(Boolean))])
 const nameOf = (id) => db.retailItems.find((x) => x.id === id)?.name || '(สินค้าถูกลบ)'
 const priceOf = (id) => db.retailItems.find((x) => x.id === id)?.price || 0
+const regularOf = (b) => b.items.reduce((s, i) => s + priceOf(i.itemId) * (Number(i.qty) || 1), 0)
+// ตรวจชุดบันเดิ้ล: ราคาชุดไม่ต่ำกว่าราคาปกติแล้ว (ราคาสินค้าเปลี่ยน) · สินค้าถูกลบ · ชุดที่ใช้สินค้าซ้ำกัน (ระบบเลือกการจัดชุดที่ประหยัดรวมมากสุดให้ ชิ้นหนึ่งอยู่ได้ชุดเดียว)
+const warnings = (b) => {
+  const w = []
+  if (b.items.some((i) => !db.retailItems.some((x) => x.id === i.itemId))) w.push('มีสินค้าที่ถูกลบ')
+  else if (!(b.price < regularOf(b))) w.push('ราคาชุดไม่ต่ำกว่าราคาปกติแล้ว (ชุดนี้จะไม่ถูกใช้)')
+  const mine = new Set(b.items.map((i) => i.itemId))
+  const near = db.posBundles.filter((o) => o.id !== b.id && o.items.some((i) => mine.has(i.itemId)))
+  if (near.length) w.push(`ใช้สินค้าซ้ำกับ: ${near.map((o) => o.name).join(', ')}`)
+  return w
+}
 
 const lists = computed(() => ({ discount: db.posDiscounts, bundle: db.posBundles, point: db.pointPromos }))
 const scopeText = (x) => (x.scope === 'items' ? (x.itemIds || []).map(nameOf).join(', ') || '-' : x.scope === 'category' ? (x.categories || []).join(', ') || '-' : SCOPES[x.scope])
 const summary = (x) => {
   if (tab.value === 'discount') return `${x.type === 'percent' ? `ลด ${x.value}%` : `ลด ${money(x.value)}`} · ${SCOPES[x.scope]}${x.scope === 'items' || x.scope === 'category' ? `: ${scopeText(x)}` : ''}${x.minSpend ? ` · ขั้นต่ำ ${money(x.minSpend)}` : ''}`
-  if (tab.value === 'bundle') return `${x.items.map((i) => `${nameOf(i.itemId)}${i.qty > 1 ? ` ×${i.qty}` : ''}`).join(' + ')} = ${money(x.price)}`
+  if (tab.value === 'bundle') return `${x.items.map((i) => `${nameOf(i.itemId)}${i.qty > 1 ? ` ×${i.qty}` : ''}`).join(' + ')} = ${money(x.price)} · ราคาเต็ม ${money(regularOf(x))} · ประหยัด ${money(regularOf(x) - x.price)}`
   return `คะแนน ×${x.multiplier} · ${SCOPES[x.scope] || ''}${x.scope === 'all' ? '' : `: ${scopeText(x)}`}`
 }
 
@@ -82,6 +93,7 @@ async function flip(x) {
             <span v-else class="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">นอกช่วงเวลา</span>
           </span>
           <span class="mt-0.5 block text-sm text-stone-600">{{ summary(x) }}</span>
+          <span v-for="w in (tab === 'bundle' ? warnings(x) : [])" :key="w" class="mt-0.5 block text-xs text-amber-700">⚠ {{ w }}</span>
           <span class="block text-xs text-stone-400">{{ describeSchedule(x.schedule) }}</span>
         </button>
         <AppSwitch :model-value="x.active !== false" aria-label="เปิด/ปิด" @update:model-value="flip(x)" />
