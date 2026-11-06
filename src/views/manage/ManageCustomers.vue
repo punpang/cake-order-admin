@@ -1,7 +1,8 @@
 <script setup>
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
-import { db, saveCustomer, customerOrderCount, birthdayList } from '../../data/store'
+import { db, saveCustomer, customerOrderCount, birthdayList, savePlace, removePlace, placeFirst, findCustomer } from '../../data/store'
+import { askConfirm } from '../../lib/confirm'
 import { orderTotals } from '../../lib/pricing'
 import { STATUS } from '../../lib/constants'
 import { money, dateTime, formatPhone, phoneDigits, phoneValid } from '../../lib/format'
@@ -45,6 +46,21 @@ const history = computed(() => {
   const spent = orders.filter((r) => r.o.status !== 'cancelled').reduce((s, r) => s + r.total, 0)
   return { orders, spent, birthdays: birthdayList(form.id) }
 })
+
+// ---------- สถานที่จัดส่งที่จำไว้ ----------
+const places = computed(() => (form.id ? findCustomer(form.id)?.places || [] : []))
+const pl = reactive({ open: false, id: null, placeName: '', address: '', mapUrl: '', detail: '', distanceKm: '', error: '' })
+function editPlace(p) {
+  Object.assign(pl, { open: true, id: p?.id || null, placeName: p?.name || '', address: p?.address || '', mapUrl: p?.mapUrl || '', detail: p?.detail || '', distanceKm: p?.distanceKm ?? '', error: '' })
+}
+function savePl() {
+  const r = savePlace(form.id, { id: pl.id, placeName: pl.placeName, address: pl.address, mapUrl: pl.mapUrl, detail: pl.detail, distanceKm: pl.distanceKm })
+  if (r.error) return (pl.error = r.error)
+  pl.open = false
+}
+async function delPlace(p) {
+  if (await askConfirm({ title: 'ลบสถานที่', message: p.name || p.address, okText: 'ลบ', danger: true })) removePlace(form.id, p.id)
+}
 
 async function save() {
   if (!form.name.trim()) return (error.value = 'กรอกชื่อลูกค้า')
@@ -105,6 +121,22 @@ async function save() {
           </div>
           <p class="mt-1 text-xs text-stone-400">ผูก LINE/Facebook ได้ในหน้าแชท (เมื่อลูกค้าทักมาทาง LINE OA / Facebook)</p>
         </div>
+        <div v-if="form.id">
+          <div class="mb-1.5 flex items-center justify-between"><div class="label mb-0">สถานที่จัดส่งที่จำไว้ <span class="font-normal text-stone-400">({{ places.length }}/10)</span></div><button type="button" class="text-sm text-brand-700 underline" @click="editPlace(null)">+ เพิ่ม</button></div>
+          <p v-if="!places.length" class="rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-500">ยังไม่มี · ระบบจำให้อัตโนมัติเมื่อสร้างออร์เดอร์จัดส่ง</p>
+          <ul v-else class="divide-y divide-stone-100 rounded-xl border border-stone-200/70">
+            <li v-for="(p, i) in places" :key="p.id" class="flex items-start gap-2 px-3 py-2 text-sm">
+              <span class="min-w-0 flex-1">
+                <span class="block truncate font-medium text-stone-900">{{ p.name || p.address }}<span v-if="i === 0" class="ml-1.5 rounded-full bg-brand-50 px-1.5 text-[11px] text-brand-700">ล่าสุด</span></span>
+                <span v-if="p.name" class="block truncate text-xs text-stone-500">{{ p.address }}</span>
+                <span class="block text-xs text-stone-400">ใช้ {{ p.uses }} ครั้ง<template v-if="p.distanceKm != null"> · {{ p.distanceKm }} กม.</template></span>
+              </span>
+              <button v-if="i > 0" type="button" class="text-xs text-brand-700 underline" :aria-label="`ตั้ง ${p.name || p.address} เป็นแรก`" @click="placeFirst(form.id, p.id)">ขึ้นแรก</button>
+              <button type="button" class="text-xs text-brand-700 underline" @click="editPlace(p)">แก้</button>
+              <button type="button" class="text-xs text-rose-600 underline" @click="delPlace(p)">ลบ</button>
+            </li>
+          </ul>
+        </div>
         <AppSwitch v-model="form.promoOptIn" label="รับข่าวโปร / อวยพรวันเกิด" />
         <AppSwitch v-model="form.active" label="ใช้งาน" />
         <div v-if="history" class="space-y-3 border-t border-stone-100 pt-4">
@@ -137,6 +169,20 @@ async function save() {
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>
         <button class="btn-primary flex-1 sm:flex-none" @click="save">บันทึก</button>
+      </template>
+    </AppModal>
+    <AppModal v-if="pl.open" :title="pl.id ? 'แก้สถานที่' : 'เพิ่มสถานที่'" @close="pl.open = false">
+      <div class="space-y-3">
+        <div><label class="label">ชื่อสถานที่</label><input v-model="pl.placeName" class="input" maxlength="80" /></div>
+        <div><label class="label">ที่อยู่ <span class="text-rose-500">*</span></label><textarea v-model="pl.address" rows="2" class="input" maxlength="300" /></div>
+        <div><label class="label">url แผนที่ (https)</label><input v-model="pl.mapUrl" type="url" class="input" /></div>
+        <div><label class="label">รายละเอียด</label><textarea v-model="pl.detail" rows="2" class="input" maxlength="300" /></div>
+        <div class="max-w-[10rem]"><label class="label">ระยะทาง (กม.)</label><input v-model.number="pl.distanceKm" type="text" v-num.dec min="0" class="input" /></div>
+        <p v-if="pl.error" class="text-sm text-rose-600">{{ pl.error }}</p>
+      </div>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="pl.open = false">ยกเลิก</button>
+        <button class="btn-primary flex-1 sm:flex-none" @click="savePl">บันทึก</button>
       </template>
     </AppModal>
   </ManageShell>

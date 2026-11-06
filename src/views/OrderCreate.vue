@@ -11,6 +11,8 @@ import DiscountDetail from '../components/DiscountDetail.vue'
 import ItemCard from '../components/ItemCard.vue'
 import AppIcon from '../components/AppIcon.vue'
 import BirthdayFields from '../components/BirthdayFields.vue'
+import DeliveryFields from '../components/DeliveryFields.vue'
+import { cleanDelivery } from '../lib/delivery'
 import { parseBirthday, mdLabel } from '../lib/birthday'
 
 // ใช้ได้ 2 แบบ: หน้าเต็ม (/orders/new) หรือแผงในแชท (embedded + draft ของแชทจาก store → สลับไปมาข้อมูลไม่หาย)
@@ -34,6 +36,11 @@ const form = props.draft || reactive({
   fulfillment: 'pickup',
   address: '',
   shippingFee: 0,
+  placeName: '',
+  mapUrl: '',
+  detail: '',
+  distanceKm: '',
+  feeManual: false,
   items: [],
   birthday: { name: '', day: '', month: '' }, // วันเกิด (ไม่บังคับ)
   step: 0,
@@ -132,7 +139,11 @@ function validate(i) {
   if (i === 1) {
     if (!form.date || !form.time) return 'เลือกวันและเวลานัดรับ'
     if (new Date(pickupAt.value) <= new Date()) return 'เวลานัดต้องมากกว่าเวลาปัจจุบัน'
-    if (form.fulfillment === 'delivery' && !form.address.trim()) return 'กรอกที่อยู่จัดส่ง'
+    if (form.fulfillment === 'delivery') {
+      if (!form.address.trim()) return 'กรอกที่อยู่จัดส่ง'
+      const dv = cleanDelivery(form)
+      if (dv.error) return dv.error
+    }
     const bd = parseBirthday(form.birthday)
     if (bd.error) return bd.error
   }
@@ -351,9 +362,8 @@ function quote() {
             {{ f.t }}
           </button>
         </div>
-        <div v-if="form.fulfillment === 'delivery'" class="mt-4 space-y-3">
-          <div><label class="label">ที่อยู่จัดส่ง <span class="text-rose-500">*</span></label><textarea v-model="form.address" rows="2" class="input" /></div>
-          <div class="max-w-[12rem]"><label class="label">ค่าส่ง (บาท)</label><input v-model.number="form.shippingFee" type="text" v-num.dec min="0" class="input" /></div>
+        <div v-if="form.fulfillment === 'delivery'" class="mt-4">
+          <DeliveryFields :form="form" :customer-id="form.customerId" />
         </div>
       </div>
 
@@ -400,7 +410,7 @@ function quote() {
           <div class="min-w-0">
             <div class="text-xs text-stone-500">นัดรับ · {{ form.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }}</div>
             <div class="font-semibold text-stone-900">{{ dateTime(pickupAt) }}</div>
-            <div v-if="form.fulfillment === 'delivery'" class="text-sm break-words text-stone-500">{{ form.address }}</div>
+            <div v-if="form.fulfillment === 'delivery'" class="text-sm break-words text-stone-500"><b v-if="form.placeName" class="font-semibold text-stone-700">{{ form.placeName }} · </b>{{ form.address }}<span v-if="form.distanceKm !== '' && form.distanceKm != null"> · {{ form.distanceKm }} กม.</span></div>
           </div>
         </div>
         <div v-if="birthday" class="text-sm text-stone-600 sm:col-span-2">วันเกิด {{ birthday.name }} · {{ mdLabel(birthday.md) }}</div>

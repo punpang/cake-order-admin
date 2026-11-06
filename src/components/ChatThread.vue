@@ -177,7 +177,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
               <PayDueBadge :order="card(m).o" short />
             </div>
             <div class="mt-1 text-sm font-medium break-words text-stone-900">{{ card(m).first }}<span v-if="card(m).more > 0" class="text-stone-500"> +{{ card(m).more }} รายการ</span></div>
-            <div class="mt-0.5 text-xs text-stone-500">{{ card(m).o.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }} · {{ dateTime(card(m).o.pickupAt) }}</div>
+            <div class="mt-0.5 text-xs text-stone-500">{{ card(m).o.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }} · {{ dateTime(card(m).o.pickupAt) }}<template v-if="card(m).o.placeName"> · {{ card(m).o.placeName }}</template></div>
             <div class="mt-2 flex items-end justify-between gap-2 border-t border-stone-100 pt-2">
               <span class="text-xs text-stone-500">ยอดรวม <b class="block text-base text-stone-900">{{ money(card(m).t.total) }}</b></span>
               <span class="text-right text-xs" :class="card(m).t.balance > 0 ? 'text-amber-700' : 'text-brand-700'">{{ card(m).t.balance > 0 ? `ค้าง ${money(card(m).t.balance)}` : 'ชำระครบ' }}</span>
@@ -196,7 +196,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
                 <span class="shrink-0 text-stone-700">{{ money(it.unitPrice * it.qty) }}</span>
               </li>
             </ul>
-            <div class="mt-1.5 text-xs text-stone-500">{{ quoteView(m).q.payload.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }} · {{ dateTime(quoteView(m).q.payload.pickupAt) }}<template v-if="quoteView(m).q.payload.shippingFee"> · ค่าส่ง {{ money(quoteView(m).q.payload.shippingFee) }}</template></div>
+            <div class="mt-1.5 text-xs text-stone-500">{{ quoteView(m).q.payload.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }} · {{ dateTime(quoteView(m).q.payload.pickupAt) }}<template v-if="quoteView(m).q.payload.shippingFee"> · ค่าส่ง {{ money(quoteView(m).q.payload.shippingFee) }}</template><template v-if="quoteView(m).q.payload.placeName"> · {{ quoteView(m).q.payload.placeName }}</template><template v-if="quoteView(m).q.payload.distanceKm != null"> · {{ quoteView(m).q.payload.distanceKm }} กม.</template></div>
             <div class="mt-2 flex items-start justify-between gap-2 border-t border-stone-100 pt-2">
               <span class="text-xs text-stone-500">ยอดรวม</span>
               <DiscountDetail :full="quoteView(m).t.fullAll" :final="quoteView(m).t.total" :lines="quoteView(m).lines" />

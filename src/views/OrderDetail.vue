@@ -6,7 +6,7 @@ import {
   requestConfirmUnpaid, confirmUnpaid, rejectConfirmUnpaid, grantPayExtension, denyPayExtension,
   saveOrderItem, removeOrderItem, orderDate,
   db, customerPoints, usableDiscountCoupons, applyPoints, removePoints, applyCoupon, removeCoupon,
-  setBirthday, depositOf,
+  setBirthday, depositOf, setDelivery,
 } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { QUICK_DUE, quickDue, dueState, remainingText, dueBeforePickup, dueDaysBefore, isHHmm } from '../lib/payDue'
@@ -28,6 +28,8 @@ import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
 import OrderLinkModal from '../components/OrderLinkModal.vue'
 import { defaultRefundMethod, refundList } from '../lib/refund'
 import BirthdayFields from '../components/BirthdayFields.vue'
+import DeliveryFields from '../components/DeliveryFields.vue'
+import { checkMapUrl } from '../lib/delivery'
 import { parseBirthday, toForm, mdLabel } from '../lib/birthday'
 
 const props = defineProps({ id: { type: String, required: true } })
@@ -148,6 +150,24 @@ function saveBirthday() {
   setBirthday(order.value, r.value)
   bdOpen.value = false
 }
+
+// ---------- แก้ข้อมูลจัดส่ง ----------
+const dvOpen = ref(false)
+const dv = reactive({ placeName: '', address: '', mapUrl: '', detail: '', distanceKm: '', shippingFee: 0, feeManual: false })
+const dvError = ref('')
+const canEditDelivery = computed(() => can('editPickup') && !closed.value && order.value.fulfillment === 'delivery')
+function openDelivery() {
+  const o = order.value
+  Object.assign(dv, { placeName: o.placeName || '', address: o.address || '', mapUrl: o.mapUrl || '', detail: o.detail || '', distanceKm: o.distanceKm ?? '', shippingFee: o.shippingFee || 0, feeManual: !!o.feeManual })
+  dvError.value = ''
+  dvOpen.value = true
+}
+function saveDelivery() {
+  const r = setDelivery(order.value, { ...dv })
+  if (r.error) return (dvError.value = r.error)
+  dvOpen.value = false
+}
+const mapHref = computed(() => checkMapUrl(order.value.mapUrl).url || '')
 
 // ---------- ปรับราคา ----------
 const adjOpen = ref(false)
@@ -333,8 +353,14 @@ async function saveCancel() {
               <div class="font-semibold text-stone-900">{{ dateTime(order.pickupAt) }}</div>
               <div v-if="order.address" class="mt-1 flex gap-1 text-sm text-stone-600">
                 <AppIcon name="pin" :size="15" class="mt-0.5 text-stone-400" />
-                <span class="min-w-0 break-words">{{ order.address }}</span>
+                <span class="min-w-0 break-words"><b v-if="order.placeName" class="font-semibold text-stone-800">{{ order.placeName }} · </b>{{ order.address }}</span>
               </div>
+              <div v-if="order.fulfillment === 'delivery' && (order.distanceKm != null || mapHref || order.detail)" class="mt-1 space-y-0.5 text-sm text-stone-600">
+                <div v-if="order.distanceKm != null">ระยะทาง {{ order.distanceKm }} กม. · ค่าส่ง {{ money(order.shippingFee) }}</div>
+                <div v-if="order.detail" class="break-words">รายละเอียด: {{ order.detail }}</div>
+                <a v-if="mapHref" :href="mapHref" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-brand-700 underline"><AppIcon name="pin" :size="14" /> เปิดแผนที่</a>
+              </div>
+              <button v-if="canEditDelivery" class="mt-1 block text-sm text-brand-700 underline" @click="openDelivery">แก้ข้อมูลจัดส่ง</button>
               <div class="mt-1.5 text-xs text-stone-400">วันเดียวกันมีอีก {{ load.day }} · ชั่วโมงเดียวกัน {{ load.hour }}</div>
             </div>
             <button v-if="canEditPickup" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700" aria-label="แก้วันเวลานัด" @click="pickupOpen = true"><AppIcon name="edit" /></button>
@@ -594,6 +620,15 @@ async function saveCancel() {
     </AppModal>
 
     <!-- modal แจ้งยอด / แก้ยอด / ยืนยันยอดจริง -->
+    <AppModal v-if="dvOpen" title="ข้อมูลจัดส่ง" @close="dvOpen = false">
+      <DeliveryFields :form="dv" :customer-id="order.customerId" />
+      <p v-if="dvError" class="mt-3 text-sm text-rose-600">{{ dvError }}</p>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="dvOpen = false">ยกเลิก</button>
+        <button class="btn-primary flex-1 sm:flex-none" @click="saveDelivery">บันทึก</button>
+      </template>
+    </AppModal>
+
     <AppModal v-if="extFor" title="ขยายเวลาชำระ" @close="extFor = null">
       <div class="space-y-4">
         <div class="flex flex-wrap gap-2">

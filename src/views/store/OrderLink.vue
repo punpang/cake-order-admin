@@ -49,6 +49,7 @@ const o = computed(() => res.value?.order)
       <div class="card mb-3 text-sm">
         <div class="text-xs text-stone-500">นัด{{ o.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }}</div>
         <div class="font-semibold text-stone-900">{{ dateTime(o.pickupAt) }}</div>
+        <div v-if="o.delivery" class="mt-1 text-sm text-stone-600"><span v-if="o.delivery.placeName">{{ o.delivery.placeName }} · </span><span v-if="o.delivery.distanceKm != null">{{ o.delivery.distanceKm }} กม. · </span>ค่าส่ง {{ money(o.delivery.shippingFee) }}</div>
         <div class="mt-1 text-xs text-stone-400">สร้างเมื่อ {{ dateOnly(o.createdAt) }}</div>
       </div>
 

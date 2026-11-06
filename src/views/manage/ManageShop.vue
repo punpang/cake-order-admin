@@ -1,13 +1,15 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { db, saveShopSettings, pickupSlots } from '../../data/store'
-import { toDateStr } from '../../lib/format'
+import { toDateStr, money } from '../../lib/format'
+import { deliveryFee } from '../../lib/delivery'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
 
 const hm = /^([01]\d|2[0-3]):[0-5]\d$/
-const st = reactive({ ...db.shop, vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule } })
+const st = reactive({ ...db.shop, vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery } })
+const exampleFee = computed(() => deliveryFee(8, st.delivery))
 const error = ref('')
 const saved = ref(false)
 const STEPS = [15, 30, 60]
@@ -27,7 +29,7 @@ function save() {
   if (String(v.taxId || '').replace(/\D/g, '').length && String(v.taxId).replace(/\D/g, '').length !== 13) return (error.value = 'เลขประจำตัวผู้เสียภาษีต้องมี 13 หลัก')
   error.value = ''
   saveShopSettings(st)
-  Object.assign(st, db.shop, { vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule } })
+  Object.assign(st, db.shop, { vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery } })
   saved.value = true
   setTimeout(() => (saved.value = false), 1500)
 }
@@ -77,6 +79,17 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
           <div><label class="label">ล่วงหน้า (วัน) เริ่มต้น</label><input v-model.number="st.payDueRule.daysBefore" type="text" v-num min="0" max="30" class="input" /></div>
           <div><label class="label">...ก่อนเวลา</label><input v-model="st.payDueRule.atTime" type="time" class="input" /></div>
           <div><label class="label">เตือนชำระ (พรุ่งนี้มีนัด) เวลา</label><input v-model="st.payReminderTime" type="time" class="input" /></div>
+        </div>
+      </div>
+      <div class="border-t border-stone-100 pt-4">
+        <div class="card-title mb-3"><AppIcon name="truck" class="text-brand-600" /> ค่าจัดส่งจากระยะทาง</div>
+        <AppSwitch v-model="st.delivery.enabled" label="คิดค่าส่งแนะนำจากระยะทาง (พนักงานแก้ทับได้)" class="flex" />
+        <div v-if="st.delivery.enabled" class="mt-3 grid grid-cols-2 gap-3">
+          <div><label class="label">ฟรีในระยะ (กม.)</label><input v-model.number="st.delivery.freeKm" type="text" v-num.dec min="0" class="input" /></div>
+          <div><label class="label">เกินแล้วคิด (บาท/กม.)</label><input v-model.number="st.delivery.perKm" type="text" v-num.dec min="0" class="input" /></div>
+          <div><label class="label">ค่าส่งขั้นต่ำเมื่อเกินระยะฟรี (บาท)</label><input v-model.number="st.delivery.minFee" type="text" v-num.dec min="0" class="input" /></div>
+          <div><label class="label">ปัดขึ้นทีละ (บาท)</label><input v-model.number="st.delivery.roundTo" type="text" v-num min="1" class="input" /></div>
+          <p class="col-span-2 text-xs text-stone-500">ตัวอย่าง 8 กม.: {{ exampleFee == null ? 'ตั้งเรตต่อกม. ให้มากกว่า 0' : money(exampleFee) }}</p>
         </div>
       </div>
       <div class="border-t border-stone-100 pt-4">

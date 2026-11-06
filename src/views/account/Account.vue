@@ -172,7 +172,12 @@ function logout() {
               <div v-if="it.note" class="text-xs text-stone-500">หมายเหตุ: {{ it.note }}</div>
             </li>
           </ul>
-          <div v-if="o.fulfillment === 'delivery' && o.address" class="text-xs text-stone-500">จัดส่ง: {{ o.address }}</div>
+          <div v-if="o.fulfillment === 'delivery' && o.address" class="space-y-0.5 text-xs text-stone-500">
+            <div>จัดส่ง: <b v-if="o.placeName" class="font-semibold text-stone-700">{{ o.placeName }} · </b>{{ o.address }}</div>
+            <div v-if="o.distanceKm != null">ระยะทาง {{ o.distanceKm }} กม. · ค่าส่ง {{ money(o.shippingFee) }}</div>
+            <div v-if="o.detail" class="break-words">รายละเอียด: {{ o.detail }}</div>
+            <a v-if="o.mapUrl" :href="o.mapUrl" target="_blank" rel="noopener noreferrer" class="text-brand-700 underline">เปิดแผนที่</a>
+          </div>
           <div class="space-y-1 rounded-xl bg-stone-50 p-3">
             <div class="flex justify-between"><span>ยอดรวม</span><b>{{ money(o.total) }}</b></div>
             <div v-if="o.vatMode" class="flex justify-between text-xs text-stone-500"><span>{{ o.vatMode === 'exclusive' ? `รวม VAT ${o.vatRate}% (บวกเพิ่ม)` : `รวม VAT ${o.vatRate}% แล้ว` }}</span><span>{{ money(o.vat) }}</span></div>

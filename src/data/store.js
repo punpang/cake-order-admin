@@ -13,6 +13,7 @@ import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEF
 import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX } from '../lib/chatBot'
 import { checkTelegram, checkSmsUrl, checkSmsSender } from '../lib/integrationCheck'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
+import { deliveryFee, cleanDelivery, cleanDeliveryConfig, rememberPlace, DEFAULT_DELIVERY } from '../lib/delivery'
 import { dueState, overduePayments, orderDue, quickDue, isHHmm } from '../lib/payDue'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
@@ -61,6 +62,8 @@ export const db = reactive({
     // ตัวเลือกกำหนดชำระตามนัด: ก่อนนัด hoursBefore ชม. · ล่วงหน้า daysBefore วัน ก่อน atTime · เตือนลูกค้าที่ยังไม่ชำระของพรุ่งนี้ตอน payReminderTime
     payDueRule: { hoursBefore: 24, daysBefore: 1, atTime: '12:00' },
     payReminderTime: '09:00',
+    // ค่าส่งจากระยะทาง (กม.): ปิดอยู่จนกว่าร้านจะตั้งเรต
+    delivery: { ...DEFAULT_DELIVERY },
     // VAT: ฐาน = สินค้า+ค่าส่ง หลังส่วนลด · mode inclusive (ราคารวม VAT แล้ว) | exclusive (บวกเพิ่มท้ายยอด) · เก็บ snapshot {rate, mode} ในแต่ละออร์เดอร์ (order.vat)
     vat: { enabled: false, rate: 7, mode: 'inclusive', taxId: '', legalName: '' },
     // ลิงก์ออร์เดอร์: หมดอายุ = เปิดล่าสุด + idleDays (เลื่อนทุกครั้งที่เปิด) · ไม่เคยเปิด = สร้าง + neverOpenedDays · linkAllowlist = โฮสต์ภายนอกที่ลิงก์ย่อชี้ไปได้ (https)
@@ -317,7 +320,7 @@ export const db = reactive({
 // ทุกรายการเริ่มต้นเป็น "ใช้งาน" + สมุดคะแนน / สิทธิ์หมุน
 for (const o of db.optionGroups.find((g) => g.key === 'type')?.options || []) o.images = o.images || []
 for (const r of db.retailItems) Object.assign(r, { modifierIds: r.modifierIds || [], images: r.images || [], recipe: r.recipe || [], pinned: !!r.pinned, showInPos: r.showInPos ?? true, showOnStore: r.showOnStore ?? false, description: r.description || '', typeId: r.typeId || null, flavorId: r.flavorId || null, sizeId: r.sizeId || null })
-for (const c of db.customers) Object.assign(c, { active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: true })
+for (const c of db.customers) Object.assign(c, { active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: true, places: [] })
 // ตัวอย่าง: ลูกค้าคนแรกผูก LINE แล้ว (จำลอง)
 db.customers[0].lineUserId = 'U-demo-mali'
 for (const g of db.optionGroups) g.active = true
@@ -330,7 +333,7 @@ export const findOrder = (id) => db.orders.find((o) => o.id === id)
 export const findCustomer = (id) => db.customers.find((c) => c.id === id)
 
 export function addCustomer(data) {
-  const c = { id: uid('c'), name: data.name.trim(), phone: phoneDigits(data.phone), line: data.line?.trim() || '', note: data.note?.trim() || '', active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: true }
+  const c = { id: uid('c'), name: data.name.trim(), phone: phoneDigits(data.phone), line: data.line?.trim() || '', note: data.note?.trim() || '', active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: true, places: [] }
   db.customers.push(c)
   return c
 }
@@ -362,8 +365,10 @@ const cleanSpecial = (obj) =>
   Object.fromEntries(Object.entries(obj || {}).filter(([, v]) => v !== '' && v != null && Number(v) >= 0).map(([k, v]) => [k, Number(v)]))
 
 export function saveCustomer(d) {
-  const c = upsert(db.customers, 'c', { ...d, phone: phoneDigits(d.phone) })
+  const { places, ...rest } = d // สถานที่จัดการผ่าน savePlace/removePlace เท่านั้น (กันฟอร์มเก่าเขียนทับ)
+  const c = upsert(db.customers, 'c', { ...rest, phone: phoneDigits(d.phone) })
   if (!c.ledger) Object.assign(c, { ledger: [], spins: 0 })
+  if (!c.places) c.places = []
   return c
 }
 // ตารางราคา { [k]: { [sizeId]: ราคา } } ตัดช่องว่าง
@@ -440,6 +445,23 @@ function log(order, text) {
   order.history.push({ at: now(), text, by: session.role })
 }
 
+// ฟิลด์จัดส่งของออร์เดอร์ (รับหน้าร้าน = ว่างหมด) · url ที่ไม่ผ่านตรวจถูกตัดทิ้ง
+function deliveryFields(p) {
+  if (p.fulfillment !== 'delivery') return { address: '', shippingFee: 0, placeName: '', mapUrl: '', detail: '', distanceKm: null, feeManual: false }
+  const bad = (f) => cleanDelivery({ [f]: p[f] }).error
+  const v = cleanDelivery({
+    ...p, mapUrl: bad('mapUrl') ? '' : p.mapUrl, distanceKm: bad('distanceKm') ? '' : p.distanceKm, shippingFee: bad('shippingFee') ? 0 : p.shippingFee,
+  }).value
+  return { address: v.address, shippingFee: v.shippingFee, placeName: v.placeName, mapUrl: v.mapUrl, detail: v.detail, distanceKm: v.distanceKm, feeManual: v.feeManual }
+}
+
+// จำสถานที่จัดส่งไว้กับลูกค้า (อัตโนมัติ)
+function rememberPlaceOf(customerId, d) {
+  const c = findCustomer(customerId)
+  if (!c || c.deleted || !d?.address) return
+  c.places = rememberPlace(c.places, d, now(), () => uid('pl'))
+}
+
 export function createOrder(payload, asDraft = false) {
   const o = {
     id: uid('o'),
@@ -449,8 +471,7 @@ export function createOrder(payload, asDraft = false) {
     fulfillment: payload.fulfillment,
     chatId: payload.chatId || null, // สร้างจากแชท
     birthday: payload.birthday?.md ? { name: payload.birthday.name || '', md: payload.birthday.md } : null, // { name, md: 'MM-DD' }
-    address: payload.fulfillment === 'delivery' ? payload.address : '',
-    shippingFee: payload.fulfillment === 'delivery' ? Number(payload.shippingFee) || 0 : 0,
+    ...deliveryFields(payload),
     items: payload.quoteItems ? payload.items : payload.items.map((i) => priceItem(i)), // จากใบเสนอ = ราคาตามใบเสนอ
     vat: payload.vat !== undefined ? payload.vat : vatNow(), // จากใบเสนอ = VAT ตามใบเสนอ
     adjustment: { amount: 0, reason: '' },
@@ -465,6 +486,7 @@ export function createOrder(payload, asDraft = false) {
   }
   log(o, asDraft ? 'สร้างออร์เดอร์ (ร่าง)' : 'สร้างออร์เดอร์ → รอชำระ')
   db.orders.unshift(o)
+  if (o.fulfillment === 'delivery') rememberPlaceOf(o.customerId, o)
   if (!asDraft) notifyOrder('order_created', o)
   return o
 }
@@ -601,6 +623,51 @@ export function denyPayExtension(order, paymentId) {
   return true
 }
 
+// ---------- ข้อมูลจัดส่งของออร์เดอร์ (แก้ได้ก่อนส่งมอบ/ยกเลิก) ----------
+export function setDelivery(order, d) {
+  if (!can('editPickup') || order.fulfillment !== 'delivery' || ['delivered', 'cancelled'].includes(order.status)) return { error: 'แก้ข้อมูลจัดส่งไม่ได้' }
+  if (!String(d.address ?? '').trim()) return { error: 'กรอกที่อยู่จัดส่ง' }
+  const r = cleanDelivery(d)
+  if (r.error) return r
+  const v = r.value
+  const oldFee = Number(order.shippingFee) || 0
+  Object.assign(order, { address: v.address, placeName: v.placeName, mapUrl: v.mapUrl, detail: v.detail, distanceKm: v.distanceKm, shippingFee: v.shippingFee, feeManual: v.feeManual })
+  log(order, `แก้ข้อมูลจัดส่ง${v.placeName ? ` · ${v.placeName}` : ''}${v.distanceKm != null ? ` · ${v.distanceKm} กม.` : ''}${oldFee !== v.shippingFee ? ` · ค่าส่ง ${money(oldFee)} → ${money(v.shippingFee)}` : ''}`)
+  rememberPlaceOf(order.customerId, order)
+  return { ok: true }
+}
+// ค่าส่งที่แนะนำจากระยะทาง (null = ปิดใช้/ไม่มีเรต)
+export const suggestShipping = (km) => deliveryFee(km, db.shop.delivery)
+
+// ---------- สถานที่จัดส่งที่ลูกค้าเคยใช้ (พนักงานจัดการ) ----------
+export function savePlace(customerId, place) {
+  const c = findCustomer(customerId)
+  if (!c || !can('createOrder')) return { error: 'ไม่พบลูกค้า' }
+  const r = cleanDelivery({ ...place, shippingFee: 0 })
+  if (r.error) return r
+  if (!r.value.address) return { error: 'กรอกที่อยู่' }
+  const list = c.places || (c.places = [])
+  const cur = place.id ? list.find((x) => x.id === place.id) : null
+  const v = r.value
+  if (cur) Object.assign(cur, { name: v.placeName, address: v.address, mapUrl: v.mapUrl, detail: v.detail, distanceKm: v.distanceKm })
+  else list.unshift({ id: uid('pl'), name: v.placeName, address: v.address, mapUrl: v.mapUrl, detail: v.detail, distanceKm: v.distanceKm, uses: 0, lastUsedAt: now() })
+  if (list.length > 10) list.length = 10
+  return { ok: true }
+}
+export function removePlace(customerId, placeId) {
+  const c = findCustomer(customerId)
+  if (!c || !can('createOrder') || !c.places) return false
+  c.places = c.places.filter((x) => x.id !== placeId)
+  return true
+}
+export function placeFirst(customerId, placeId) {
+  const c = findCustomer(customerId)
+  const i = c?.places?.findIndex((x) => x.id === placeId) ?? -1
+  if (!c || i < 0 || !can('createOrder')) return false
+  c.places.unshift(c.places.splice(i, 1)[0])
+  return true
+}
+
 // แก้รายการสินค้าหลังสร้าง: คิดราคาใหม่ทุกรายการตามราคาปัจจุบัน
 function repriceAll(order) {
   order.items = order.items.map((i) => priceItem(i, orderDate(order)))
@@ -686,6 +753,7 @@ export function saveShopSettings(d) {
       atTime: isHHmm(r.atTime) ? r.atTime : db.shop.payDueRule.atTime,
     }
   }
+  if (d.delivery) db.shop.delivery = cleanDeliveryConfig(d.delivery)
   if (d.payReminderTime !== undefined) db.shop.payReminderTime = isHHmm(d.payReminderTime) ? d.payReminderTime : db.shop.payReminderTime
   if (d.vat) {
     const rate = Math.round((Number(d.vat.rate) || 0) * 100) / 100
@@ -964,6 +1032,7 @@ export function openOrderLink(token) {
     ok: true,
     order: {
       code: o.code, status: o.status, createdAt: o.createdAt, pickupAt: o.pickupAt, fulfillment: o.fulfillment,
+      delivery: o.fulfillment === 'delivery' ? { placeName: o.placeName || '', distanceKm: o.distanceKm ?? null, shippingFee: Number(o.shippingFee) || 0 } : null, // ไม่ส่งที่อยู่/url/รายละเอียดผ่านลิงก์
       customer: cu && !cu.deleted ? { name: String(cu.name || '').trim().split(/\s+/)[0], phone: maskPhone(cu.phone) } : null,
       items: o.items.map((i) => ({ name: i.name, qty: i.qty, unitPrice: i.unitPrice, lines: describeSelections(i, db.optionGroups) })),
       total: t.total, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal, vat: t.vat, vatRate: t.vatRate, vatMode: t.vatMode,
@@ -1611,7 +1680,7 @@ export function draftOf(chatId) {
   if (!db.chatDrafts[chatId]) {
     const c = findChat(chatId)
     db.chatDrafts[chatId] = {
-      customerId: c?.customerId || null, date: toDateStr(new Date()), time: '', fulfillment: 'pickup', address: '', shippingFee: 0,
+      customerId: c?.customerId || null, date: toDateStr(new Date()), time: '', fulfillment: 'pickup', address: '', shippingFee: 0, placeName: '', mapUrl: '', detail: '', distanceKm: '', feeManual: false,
       items: [], birthday: { name: '', day: '', month: '' }, step: 1,
     }
   }
@@ -1632,7 +1701,7 @@ export function sendQuote(chatId, draft) {
   for (const old of db.quotes) if (old.chatId === chatId && old.status === 'pending') old.status = 'superseded'
   const payload = JSON.parse(JSON.stringify({
     customerId: c.customerId, pickupAt: draft.pickupAt, fulfillment: draft.fulfillment,
-    address: draft.fulfillment === 'delivery' ? draft.address : '', shippingFee: draft.fulfillment === 'delivery' ? Number(draft.shippingFee) || 0 : 0,
+    ...deliveryFields(draft),
     birthday: draft.birthday || null, items: draft.items.map((i) => priceItem(i)), vat: vatNow(),
   }))
   const q = { id: uid('qt'), code: `QT-${String(++quoteNo).padStart(4, '0')}`, chatId, customerId: c.customerId, payload, status: 'pending', orderId: null, createdAt: now(), respondedAt: null }
@@ -2072,7 +2141,7 @@ export function myOrders() {
       const t = orderTotals(o)
       return {
         id: o.id, code: o.code, channel: o.channel || 'web', status: o.status, createdAt: o.createdAt, pickupAt: o.pickupAt, fulfillment: o.fulfillment,
-        address: o.address || '', birthday: o.birthday ? { ...o.birthday } : null, items: o.items.map((i) => ({ ...i })),
+        address: o.address || '', placeName: o.placeName || '', mapUrl: o.mapUrl || '', detail: o.detail || '', distanceKm: o.distanceKm ?? null, shippingFee: Number(o.shippingFee) || 0, birthday: o.birthday ? { ...o.birthday } : null, items: o.items.map((i) => ({ ...i })),
         total: t.total, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal, vat: t.vat, vatRate: t.vatRate, vatMode: t.vatMode, refunds: o.status === 'cancelled' ? refundList(o.cancel) : [],
         payments: o.payments.filter((p) => p.status === 'confirmed').map((p) => ({ amount: p.amount, method: p.method, paidAt: p.paidAt })),
         payDue: orderDue(o),
@@ -2210,11 +2279,12 @@ function scrubCustomer(id) {
   const cu = findCustomer(id)
   const orderIds = new Set(db.orders.filter((o) => o.customerId === id).map((o) => o.id))
   const addrs = new Set([cu.phone, cu.lineUserId, cu.fbPsid].filter(Boolean))
+  cu.places = []
   const chatIds = new Set(db.chats.filter((c) => c.customerId === id).map((c) => c.id))
   const textGroups = new Set(db.optionGroups.filter((g) => g.type === 'text').map((g) => g.id))
   for (const o of db.orders) {
     if (o.customerId !== id) continue
-    Object.assign(o, { birthday: null, address: '', chatId: null })
+    Object.assign(o, { birthday: null, address: '', chatId: null, placeName: '', mapUrl: '', detail: '' })
     for (const it of o.items) {
       it.note = ''
       it.images = []
