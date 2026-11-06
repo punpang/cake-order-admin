@@ -1,7 +1,8 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { db, findOrder, sendChat, markRead, findQuote, acceptQuote, reviseQuote, fbWindowOpen, convertQuote, chatOrderBlock, findCustomer, linkChat, askCustomer, cancelAsk, applyToDraft, ASK_FIELDS, saveCanned, removeCanned } from '../data/store'
+import { db, findOrder, sendChat, markRead, findQuote, acceptQuote, reviseQuote, fbWindowOpen, convertQuote, chatOrderBlock, findCustomer, linkChat, askCustomer, cancelAsk, applyToDraft, ASK_FIELDS, saveCanned, removeCanned, sendBotDraft, dismissBotDraft, setChatBot, staffReplied, recommendText, addRecommendToDraft } from '../data/store'
 import { detectEntities } from '../lib/chatParse'
+import { extractIntent, customerText, scoreProducts, intentSummary } from '../lib/chatIntent'
 import { orderTotals, discountLines } from '../lib/pricing'
 import { STATUS } from '../lib/constants'
 import { money, dateTime, timeOnly, dateOnly, formatPhone } from '../lib/format'
@@ -26,7 +27,9 @@ function scrollEnd() {
 }
 function send() {
   if (!text.value.trim() || !canType.value) return
-  sendChat(props.chat.id, 'staff', text.value, { replyTo: replyTo.value?.id })
+  const t = text.value
+  sendChat(props.chat.id, 'staff', t, { replyTo: replyTo.value?.id })
+  staffReplied(props.chat.id, t) // เรียนรู้คู่ ถาม→ตอบ + นับสถิติบอท
   text.value = ''
   replyTo.value = null
 }
@@ -111,6 +114,30 @@ const input = ref(null)
 function startReply(m) {
   replyTo.value = m
   nextTick(() => input.value?.focus())
+}
+
+// ---------- บอทตอบแชท: ร่างคำตอบ (โหมดแนะนำ) ----------
+const botDraft = computed(() => props.chat.botDraft || null)
+function editBotDraft() {
+  const d = { ...botDraft.value }
+  text.value = d.text
+  props.chat.botDraft = { ...d, editing: true } // ซ่อนแถบร่าง · พอพนักงานกดส่ง staffReplied จะเทียบกับร่างเดิมแล้วนับเป็น "แก้"
+  nextTick(() => input.value?.focus())
+}
+const SOURCE_LABEL = { rule: 'กฎ', faq: 'FAQ', hours: 'เวลาเปิด', price: 'ราคา/แนะนำสินค้า', learned: 'เรียนรู้จากพนักงาน', order: 'สถานะออร์เดอร์', ask: 'ขอข้อมูล', offhours: 'นอกเวลา', handoff: 'ส่งต่อพนักงาน', order_unverified: 'ยืนยันตัวตนไม่ได้' }
+
+// ---------- แนะนำสินค้าจากแชท ----------
+const recOpen = ref(false)
+const recIntent = computed(() => extractIntent(customerText(props.chat)))
+const recs = computed(() => scoreProducts(recIntent.value, db))
+const recNote = ref('')
+function sendRec() {
+  sendChat(props.chat.id, 'staff', recommendText(recs.value), {})
+  recNote.value = 'ส่งข้อความแนะนำแล้ว'
+}
+function addRec(r) {
+  const x = addRecommendToDraft(props.chat.id, r)
+  recNote.value = x.error || `เพิ่ม ${r.name} ลงร่างแล้ว`
 }
 
 // ---------- ปุ่มถาม (คำตอบถัดไปกรอกลงร่างอัตโนมัติ) ----------
@@ -243,6 +270,43 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
       <button type="button" class="text-emerald-700" aria-label="ปิด" @click="notice = null"><AppIcon name="x" :size="16" /></button>
     </div>
 
+    <!-- ร่างคำตอบจากบอท -->
+    <div v-if="botDraft && !botDraft.editing && canType" class="border-t border-violet-200 bg-violet-50 px-3 py-2 text-sm">
+      <div class="mb-1 flex flex-wrap items-center gap-1.5 text-xs text-violet-800">
+        <span class="font-semibold">{{ botDraft.handoff ? 'บอทส่งต่อให้พนักงาน' : 'ร่างคำตอบจากบอท' }}</span>
+        <span class="rounded-full bg-white px-2 py-0.5">{{ SOURCE_LABEL[botDraft.source] || botDraft.source }}<template v-if="botDraft.confidence"> · {{ Math.round(botDraft.confidence * 100) }}%</template></span>
+        <span class="text-violet-600">{{ botDraft.reason }}</span>
+      </div>
+      <p class="whitespace-pre-line text-stone-800">{{ botDraft.text }}</p>
+      <div class="mt-2 flex gap-2">
+        <button type="button" class="btn-primary h-8 px-3 text-xs" @click="sendBotDraft(chat.id)">ส่งเลย</button>
+        <button type="button" class="btn-outline h-8 px-3 text-xs" @click="editBotDraft">แก้ก่อนส่ง</button>
+        <button type="button" class="btn-outline h-8 px-3 text-xs" @click="dismissBotDraft(chat.id)">ทิ้ง</button>
+      </div>
+    </div>
+    <div v-else-if="chat.botHandoff && !botDraft" class="border-t border-violet-200 bg-violet-50 px-3 py-1.5 text-xs text-violet-800">บอทไม่แน่ใจ/ไม่ตอบเรื่องนี้ — ส่งต่อให้พนักงานตอบ</div>
+
+    <!-- แนะนำสินค้า -->
+    <div v-if="recs.length && canType" class="border-t border-stone-200 bg-white px-3 py-1.5 text-sm">
+      <button type="button" class="flex w-full items-center justify-between gap-2 text-left text-xs font-medium text-brand-700" @click="recOpen = !recOpen">
+        <span>แนะนำสินค้า ({{ recs.length }}) · {{ intentSummary(recIntent).join(' · ') }}</span>
+        <span>{{ recOpen ? 'ซ่อน' : 'ดู' }}</span>
+      </button>
+      <div v-if="recOpen" class="mt-2 space-y-1.5">
+        <div v-for="r in recs" :key="r.kind + r.id" class="flex items-center gap-2 rounded-xl border border-stone-200 p-2">
+          <div class="min-w-0 flex-1">
+            <div class="truncate font-medium text-stone-900">{{ r.name }} <span class="text-xs font-normal text-stone-500">{{ r.kind === 'ready' ? 'สำเร็จ' : 'สั่งทำ' }}</span></div>
+            <div class="truncate text-xs text-stone-500">{{ r.kind === 'custom' && r.from ? 'เริ่มต้น ' : '' }}{{ money(r.price) }} · {{ r.reasons.join(' · ') }}</div>
+          </div>
+          <button v-if="r.kind === 'ready'" type="button" class="btn-soft h-8 shrink-0 px-2.5 text-xs" @click="addRec(r)">เพิ่มลงร่าง</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" class="btn-outline h-8 px-3 text-xs" @click="sendRec">ส่งข้อความแนะนำ</button>
+          <span v-if="recNote" class="text-xs text-emerald-700">{{ recNote }}</span>
+        </div>
+      </div>
+    </div>
+
     <!-- ปุ่มถาม + ข้อความสำเร็จรูป -->
     <div v-if="canType" class="flex items-center gap-1.5 overflow-x-auto border-t border-stone-200 bg-white px-2 py-1.5 [scrollbar-width:none]">
       <span v-if="chat.pendingAsk" class="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
@@ -251,6 +315,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
       </span>
       <button v-for="(f, k) in ASK_FIELDS" :key="k" type="button" class="chip chip-off shrink-0 px-2.5 py-1 text-xs whitespace-nowrap" @click="ask(k)">{{ f.label }}</button>
       <button type="button" class="chip chip-off shrink-0 px-2.5 py-1 text-xs whitespace-nowrap" @click="cannedOpen = true">ข้อความสำเร็จรูป</button>
+      <button v-if="db.bot.enabled" type="button" class="chip shrink-0 px-2.5 py-1 text-xs whitespace-nowrap" :class="chat.botOff ? 'chip-off' : 'chip-on'" @click="setChatBot(chat.id, !!chat.botOff)">บอท: {{ chat.botOff ? 'ปิดในแชทนี้' : 'เปิด' }}</button>
     </div>
 
     <!-- ช่องพิมพ์ -->

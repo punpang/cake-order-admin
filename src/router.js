@@ -34,6 +34,7 @@ import AccountConsent from './views/account/AccountConsent.vue'
 import LegalPage from './views/store/LegalPage.vue'
 import ManageLegal from './views/manage/ManageLegal.vue'
 import ManageLinks from './views/manage/ManageLinks.vue'
+import ManageBot from './views/manage/ManageBot.vue'
 import OrderLink from './views/store/OrderLink.vue'
 import ShortRedirect from './views/store/ShortRedirect.vue'
 
@@ -84,6 +85,7 @@ const router = createRouter({
     { path: '/admin/manage/deletion-requests', component: ManageDeletionRequests },
     { path: '/admin/manage/legal', component: ManageLegal },
     { path: '/admin/manage/links', component: ManageLinks },
+    { path: '/admin/manage/bot', component: ManageBot },
     // ลิงก์หลังบ้านเดิม (ก่อนย้ายไป /admin)
     { path: '/:old(orders|manage|chat|pos|materials|production)/:rest(.*)*', redirect: (to) => `/admin${to.fullPath}` },
     { path: '/:pathMatch(.*)*', redirect: '/' },

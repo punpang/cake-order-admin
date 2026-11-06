@@ -149,6 +149,8 @@ function doSim() {
                 </span>
                 <span class="flex items-center gap-2">
                   <span class="min-w-0 flex-1 truncate text-sm" :class="c.unreadStaff ? 'font-medium text-stone-900' : 'text-stone-500'">{{ last(c).text }}</span>
+                  <span v-if="c.botHandoff" class="shrink-0 rounded bg-violet-50 px-1 text-[10px] font-medium text-violet-700">บอทส่งต่อ</span>
+                  <span v-else-if="c.botDraft && !c.botDraft.editing" class="shrink-0 rounded bg-violet-50 px-1 text-[10px] font-medium text-violet-700">มีร่างบอท</span>
                   <span v-if="c.unreadStaff" class="shrink-0 rounded-full bg-rose-500 px-1.5 text-[11px] font-semibold text-white">{{ c.unreadStaff }}</span>
                 </span>
               </span>

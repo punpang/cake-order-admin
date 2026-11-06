@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { db, findOrder, saveNotifyRule, runScheduledChecks, clearOutbox, fillTemplate, connectIntegration, disconnectIntegration } from '../../data/store'
+import { db, findOrder, saveNotifyRule, runScheduledChecks, clearOutbox, fillTemplate, connectIntegration, disconnectIntegration, connectTelegram, connectSms, sendIntegrationTest } from '../../data/store'
 import { CHANNELS, NOTIFY_EVENTS, NOTIFY_VARS } from '../../lib/constants'
 import { askConfirm } from '../../lib/confirm'
 import { dateTime } from '../../lib/format'
@@ -101,6 +101,24 @@ async function runConnect() {
   conn.secret = ''
   conn.stage = 'done'
 }
+// ---------- Telegram / SMS (จำลอง) ----------
+const SIMPLE = ['telegram', 'sms']
+const sf = reactive({ key: '', token: '', chatId: '', url: '', sender: '', apiKey: '', error: '' })
+function openSimple(k) {
+  Object.assign(sf, { key: k, token: '', chatId: db.integrations.telegram.accountId || '', url: db.integrations.sms.url || '', sender: db.integrations.sms.sender || '', apiKey: '', error: '' })
+}
+function submitSimple() {
+  const r = sf.key === 'telegram' ? connectTelegram({ token: sf.token, chatId: sf.chatId }) : connectSms({ url: sf.url, sender: sf.sender, key: sf.apiKey })
+  if (r.error) return (sf.error = r.error)
+  Object.assign(sf, { key: '', token: '', apiKey: '' }) // ไม่ค้าง token/คีย์ในหน้าจอ
+}
+const testPhone = ref('')
+const testRes = reactive({ key: '', text: '', error: '' })
+function runTest(k) {
+  const r = sendIntegrationTest(k, testPhone.value)
+  Object.assign(testRes, { key: k, text: r.ok ? `ส่งทดสอบแล้ว (จำลอง) → ${r.to}: ${r.text}` : '', error: r.error || '' })
+}
+const EXTRA_EVENT = { test: 'ข้อความทดสอบ', bot_handoff: 'บอทส่งต่อพนักงาน' }
 async function disconnect(k) {
   if (await askConfirm({ title: `ยกเลิกการเชื่อม ${CHANNELS[k].label}`, message: `${db.integrations[k].accountName} · แชทใหม่จากช่องทางนี้จะไม่เข้ามา`, okText: 'ยกเลิกการเชื่อม', danger: true })) disconnectIntegration(k)
 }
@@ -132,6 +150,24 @@ async function disconnect(k) {
             <button type="button" class="btn-outline ml-auto h-9 px-3 text-sm" @click="disconnect(k)">ยกเลิกการเชื่อม</button>
           </div>
           <button v-else type="button" class="btn-primary mt-3 h-10 w-full" @click="openConnect(k)">{{ k === 'facebook' ? 'เชื่อม Facebook' : 'เชื่อม LINE OA' }}</button>
+        </template>
+        <template v-else-if="SIMPLE.includes(k)">
+          <div v-if="db.integrations[k].status === 'connected'" class="mt-3 space-y-2">
+            <div class="text-xs text-stone-500">
+              <template v-if="k === 'telegram'">chat {{ db.integrations.telegram.accountId }}</template>
+              <template v-else>{{ db.integrations.sms.accountId }} · ผู้ส่ง {{ db.integrations.sms.sender }}</template>
+              · {{ k === 'sms' ? 'คีย์' : 'token' }} ••••{{ db.integrations[k].tokenHint }} · เมื่อ {{ dateTime(db.integrations[k].connectedAt) }}
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <input v-if="k === 'sms'" v-model="testPhone" type="tel" inputmode="numeric" maxlength="12" class="input h-9 w-36 text-sm" placeholder="เบอร์ทดสอบ" />
+              <button type="button" class="btn-soft h-9 px-3 text-sm" @click="runTest(k)">ส่งข้อความทดสอบ</button>
+              <button type="button" class="btn-outline h-9 px-3 text-sm" @click="openSimple(k)">แก้ค่า</button>
+              <button type="button" class="btn-outline ml-auto h-9 px-3 text-sm" @click="disconnect(k)">ยกเลิกการเชื่อม</button>
+            </div>
+            <p v-if="testRes.key === k && testRes.text" class="rounded-lg bg-emerald-50 p-2 text-xs text-emerald-800">{{ testRes.text }}</p>
+            <p v-if="testRes.key === k && testRes.error" class="text-xs text-rose-600">{{ testRes.error }}</p>
+          </div>
+          <button v-else type="button" class="btn-primary mt-3 h-10 w-full" @click="openSimple(k)">{{ k === 'telegram' ? 'เชื่อม Telegram' : 'เชื่อม SMS' }}</button>
         </template>
       </section>
     </div>
@@ -194,7 +230,7 @@ async function disconnect(k) {
         <li v-for="m in outbox" :key="m.id" class="rounded-xl border border-stone-200 p-3">
           <div class="flex flex-wrap items-center gap-1.5 text-xs">
             <span class="rounded-full px-2 py-0.5 font-semibold" :class="m.channel ? 'bg-brand-50 text-brand-800' : 'bg-rose-50 text-rose-600'">{{ m.channel ? CHANNELS[m.channel].label : 'ไม่มีช่องทาง' }}</span>
-            <span class="text-stone-600">{{ NOTIFY_EVENTS[m.event]?.label }}</span>
+            <span class="text-stone-600">{{ NOTIFY_EVENTS[m.event]?.label || EXTRA_EVENT[m.event] }}</span>
             <span class="ml-auto text-stone-400">{{ dateTime(m.at) }}</span>
           </div>
           <div class="mt-1 text-xs text-stone-500">
@@ -233,6 +269,24 @@ async function disconnect(k) {
     </AppModal>
 
     <!-- modal เชื่อมบัญชี -->
+    <AppModal v-if="sf.key" :title="sf.key === 'telegram' ? 'เชื่อม Telegram' : 'เชื่อม SMS'" @close="sf.key = ''">
+      <p class="mb-3 rounded-xl bg-amber-50 p-2 text-xs text-amber-800">จำลอง · ยังไม่ส่งจริง · ระบบเก็บเฉพาะ 4 ตัวท้ายของ{{ sf.key === 'sms' ? 'คีย์' : ' token' }} (ของจริงเก็บที่เซิร์ฟเวอร์เมื่อต่อ Supabase)</p>
+      <div v-if="sf.key === 'telegram'" class="space-y-3">
+        <div><label class="label">Bot token (จาก @BotFather)</label><input v-model="sf.token" type="password" autocomplete="off" class="input font-mono text-sm" placeholder="123456789:AAxxxxxxxx…" /></div>
+        <div><label class="label">Chat ID ของกลุ่มทีม</label><input v-model="sf.chatId" class="input" placeholder="-1001234567890 หรือ @ชื่อช่อง" /></div>
+      </div>
+      <div v-else class="space-y-3">
+        <div><label class="label">URL ของผู้ให้บริการ SMS (https)</label><input v-model="sf.url" class="input font-mono text-sm" placeholder="https://api.provider.co.th/v1/send" maxlength="500" /><p class="mt-1 text-xs text-stone-400">ต้องเป็นชื่อโดเมน https (ไม่รับ IP/localhost)</p></div>
+        <div><label class="label">ชื่อผู้ส่ง (Sender name)</label><input v-model="sf.sender" class="input" placeholder="CakeShop" maxlength="11" /></div>
+        <div><label class="label">API key</label><input v-model="sf.apiKey" type="password" autocomplete="off" class="input font-mono text-sm" /></div>
+      </div>
+      <p v-if="sf.error" class="mt-3 flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ sf.error }}</p>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="sf.key = ''">ปิด</button>
+        <button class="btn-primary flex-1 sm:flex-none" @click="submitSimple">เชื่อม</button>
+      </template>
+    </AppModal>
+
     <AppModal v-if="conn.key" :title="conn.key === 'facebook' ? 'เชื่อม Facebook Page' : 'เชื่อม LINE OA'" @close="closeConnect">
       <p class="mb-3 rounded-xl bg-amber-50 p-2 text-xs text-amber-800">จำลองขั้นตอน · ต่อจริงเมื่อมีเซิร์ฟเวอร์ (Supabase)</p>
       <!-- Facebook -->

@@ -10,6 +10,8 @@ import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, 
 import { nextBirthday, daysBetween } from '../lib/birthday'
 import { parseAnswer } from '../lib/chatParse'
 import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEFAULT_COOKIE, DEFAULT_LEGAL_CONTACT } from '../lib/legalDefaults'
+import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX } from '../lib/chatBot'
+import { checkTelegram, checkSmsUrl, checkSmsSender } from '../lib/integrationCheck'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
@@ -199,6 +201,8 @@ export const db = reactive({
   outbox: [],
   // orderLinks: [{ id, orderId, tokenHash, createdAt, lastOpenedAt, openCount, revokedAt }] เก็บเฉพาะ hash ของ token (token เต็มเห็นได้ครั้งเดียวตอนสร้าง)
   orderLinks: [],
+  // บอทตอบแชท (ค่าเริ่มต้นปิด): rules = กฎคีย์เวิร์ด · learned = คู่ ถาม→ตอบ ที่เรียนจากพนักงาน (ตัดข้อมูลส่วนบุคคลแล้ว) · stats
+  bot: JSON.parse(JSON.stringify(BOT_DEFAULTS)),
   // shortLinks: [{ id, code, target, kind: internal | external, clicks, createdAt, expiresAt, active, note }]
   shortLinks: [],
   notifySent: [],
@@ -1191,8 +1195,167 @@ export function receiveMessage(channel, externalId, profileName, text, at = null
   if (ask && parsed) {
     m.filled = applyToDraft(c.id, parsed)
     c.pendingAsk = null
-  }
+  } else runBot(c, m)
   return c
+}
+
+// ---------- บอทตอบแชท ----------
+// ทำงานเมื่อมีข้อความจากลูกค้า (LINE/Facebook): suggest = เก็บร่างให้พนักงานกดส่ง · auto = ส่งเองหลังหน่วงเวลา (Facebook ต้องอยู่ในหน้าต่าง 24 ชม.)
+// ไม่แน่ใจ/เรื่องเงิน/ร้องเรียน/ยืนยันตัวตนไม่ได้ → ส่งต่อพนักงาน + แจ้ง Telegram · ข้อความลูกค้าประมวลผลในเบราว์เซอร์เท่านั้น
+const botOn = (c) => db.bot.enabled && db.bot.mode !== 'off' && !!db.bot.channels[c.channel] && !c.botOff
+function botDeliver(c, res) {
+  if (res.askField) askCustomer(c.id, res.askField)
+  else sendChat(c.id, 'staff', res.reply, { by: 'บอท' })
+  db.bot.stats.answered++
+}
+export function runBot(c, m) {
+  if (!m || m.kind !== 'text' || !botOn(c)) return null
+  const res = botReply(m.text, { db, chat: c, draft: db.chatDrafts[c.id] || null })
+  c.botDraft = null
+  c.botHandoff = false
+  if (res.handoff) {
+    db.bot.stats.handoff++
+    c.botHandoff = true
+    if (db.bot.handoff.notifyTelegram && db.integrations.telegram.enabled) pushOut('bot_handoff', 'telegram', 'กลุ่มทีม', `[บอทส่งต่อ] ${c.profileName || 'ลูกค้า'} (${c.channel}): "${String(m.text).slice(0, 80)}" · ${res.reason}`)
+    if (res.source === 'order_unverified' || res.source === 'handoff') {
+      if (db.bot.mode === 'auto' && fbWindowOpen(c)) sendChat(c.id, 'staff', res.reply, { by: 'บอท' })
+      else c.botDraft = { text: res.reply, source: res.source, confidence: res.confidence, reason: res.reason, handoff: true, at: now() }
+    }
+    return res
+  }
+  if (res.confidence < db.bot.confidence) {
+    db.bot.stats.handoff++
+    c.botHandoff = true
+    return { ...res, handoff: true, reason: `ความมั่นใจ ${Math.round(res.confidence * 100)}% ต่ำกว่าที่ตั้งไว้` }
+  }
+  if (res.ruleId) {
+    const r = db.bot.rules.find((x) => x.id === res.ruleId)
+    if (r) r.hits = (r.hits || 0) + 1
+  }
+  if (res.learnedId) {
+    const l = db.bot.learned.find((x) => x.id === res.learnedId)
+    if (l) { l.uses++; l.lastAt = now() }
+  }
+  if (db.bot.mode === 'auto' && fbWindowOpen(c)) {
+    const fire = () => { if (botOn(c) && findChat(c.id)) botDeliver(c, res) }
+    if (db.bot.delaySec > 0) setTimeout(fire, db.bot.delaySec * 1000)
+    else fire()
+  } else {
+    c.botDraft = { text: res.reply, source: res.source, confidence: res.confidence, reason: res.reason, askField: res.askField || null, at: now() }
+    db.bot.stats.suggested++
+  }
+  return res
+}
+// แนะนำสินค้า: ส่งข้อความแนะนำเข้าแชท / เพิ่มสินค้าสำเร็จลงร่างออร์เดอร์ของแชท (เค้กสั่งทำต้องเลือกตัวเลือกเอง จึงเพิ่มลงร่างอัตโนมัติไม่ได้)
+export function recommendText(recs) {
+  const lines = recs.map((r) => `• ${r.name} ${r.kind === 'custom' && r.from ? 'เริ่มต้น ' : ''}${money(r.price)}`)
+  return `แนะนำสำหรับคุณลูกค้าค่ะ\n${lines.join('\n')}\nดูเมนูทั้งหมดได้ที่เว็บร้านนะคะ`
+}
+export function addRecommendToDraft(chatId, rec) {
+  if (!findChat(chatId) || rec.kind !== 'ready') return { error: 'เพิ่มลงร่างอัตโนมัติได้เฉพาะสินค้าสำเร็จ' }
+  const p = db.retailItems.find((x) => x.id === rec.id)
+  if (!p || p.active === false) return { error: 'ไม่พบสินค้า' }
+  const d = draftOf(chatId)
+  d.items.push(priceItem({ id: uid('i'), kind: 'retail', retailId: p.id, retailPrice: Number(p.price) || 0, sizeId: p.sizeId || null, typeId: p.typeId || null, name: p.name, qty: 1, note: '', images: [], selections: {}, tiers: [] }))
+  return { ok: true }
+}
+export function sendBotDraft(chatId) {
+  const c = findChat(chatId)
+  if (!c?.botDraft || !fbWindowOpen(c)) return { error: 'ส่งไม่ได้' }
+  const d = c.botDraft
+  c.botDraft = null
+  c.botHandoff = false
+  botDeliver(c, { reply: d.text, askField: d.askField })
+  return { ok: true }
+}
+export function dismissBotDraft(chatId) {
+  const c = findChat(chatId)
+  if (c) c.botDraft = null
+}
+export function setChatBot(chatId, on) {
+  const c = findChat(chatId)
+  if (c) { c.botOff = !on; if (!on) c.botDraft = null }
+}
+// เรียกหลังพนักงานพิมพ์ตอบเอง: เรียนรู้คู่ ถาม→ตอบ (ตัดข้อมูลส่วนบุคคล) · แก้ร่างบอท = เก็บคำตอบของพนักงานเป็นคำตอบที่ดีกว่า
+export function staffReplied(chatId, text) {
+  const c = findChat(chatId)
+  const a = String(text ?? '').trim()
+  if (!c || !a) return null
+  const draft = c.botDraft
+  c.botDraft = null
+  c.botHandoff = false
+  const msgs = c.messages.filter((x) => x.kind === 'text')
+  let q = ''
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].from === 'staff' && msgs[i].text === a) continue
+    if (msgs[i].from === 'customer') q = msgs[i].text
+    break
+  }
+  if (draft && !draft.handoff) {
+    if (similarity(a, draft.text) < 0.98) db.bot.stats.staffEdited++
+    else db.bot.stats.answered++
+  }
+  if (!q || isSensitive(q) || isSensitive(a) || a.length < 4) return null
+  const cu = findCustomer(c.customerId)
+  const names = [c.profileName, cu?.name, cu?.name?.split(/\s+/)[0]]
+  const qq = scrubPII(q, names).slice(0, 200)
+  const aa = scrubPII(a, names).slice(0, 500)
+  if (qq.replace(/\{[^}]+\}/g, '').trim().length < 4) return null
+  const ex = db.bot.learned.find((l) => similarity(l.q, qq) >= 0.85)
+  if (ex) { ex.a = aa; ex.lastAt = now(); return ex }
+  const row = { id: uid('bl'), q: qq, a: aa, uses: 0, createdAt: now(), lastAt: now() }
+  db.bot.learned.unshift(row)
+  if (db.bot.learned.length > LEARN_MAX) db.bot.learned.length = LEARN_MAX
+  return row
+}
+export function saveBotSettings(d) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const b = db.bot
+  b.enabled = !!d.enabled
+  b.mode = ['suggest', 'auto'].includes(d.mode) ? d.mode : 'suggest'
+  b.channels = { line: !!d.channels?.line, facebook: !!d.channels?.facebook }
+  b.confidence = Math.min(0.95, Math.max(0.3, Number(d.confidence) || 0.6))
+  b.delaySec = Math.min(60, Math.max(0, Math.round(Number(d.delaySec) || 0)))
+  b.offHours = { enabled: !!d.offHours?.enabled, text: String(d.offHours?.text ?? '').trim().slice(0, 300) || BOT_DEFAULTS.offHours.text }
+  b.handoff = { notifyTelegram: !!d.handoff?.notifyTelegram, text: String(d.handoff?.text ?? '').trim().slice(0, 300) || BOT_DEFAULTS.handoff.text }
+  return { ok: true }
+}
+export function saveBotRule(d) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const keywords = String(Array.isArray(d.keywords) ? d.keywords.join(',') : d.keywords ?? '').split(/[,\n]+/).map((x) => x.trim()).filter(Boolean).slice(0, 20)
+  const name = String(d.name ?? '').trim().slice(0, 60)
+  const reply = String(d.reply ?? '').trim().slice(0, 500)
+  if (!name || !keywords.length || !reply) return { error: 'กรอกชื่อ คีย์เวิร์ด และคำตอบ' }
+  if (keywords.some((k) => k.length < 2)) return { error: 'คีย์เวิร์ดสั้นเกินไป (อย่างน้อย 2 ตัวอักษร)' }
+  const cur = d.id ? db.bot.rules.find((x) => x.id === d.id) : null
+  if (cur) Object.assign(cur, { name, keywords, reply, active: d.active !== false })
+  else db.bot.rules.push({ id: uid('br'), name, keywords, reply, active: d.active !== false, hits: 0 })
+  return { ok: true }
+}
+export function removeBotRule(id) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  db.bot.rules = db.bot.rules.filter((x) => x.id !== id)
+  return { ok: true }
+}
+export function removeLearned(id) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  db.bot.learned = db.bot.learned.filter((x) => x.id !== id)
+  return { ok: true }
+}
+// ยืนยันคู่ที่เรียนมาเป็นกฎ (คีย์เวิร์ด = ข้อความคำถามเดิม) แล้วเอาออกจากรายการเรียนรู้
+export function promoteLearned(id, keywords) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const l = db.bot.learned.find((x) => x.id === id)
+  if (!l) return { error: 'ไม่พบรายการ' }
+  const r = saveBotRule({ name: `จากการเรียนรู้: ${l.q.slice(0, 30)}`, keywords: keywords || l.q, reply: l.a })
+  if (r.error) return r
+  db.bot.learned = db.bot.learned.filter((x) => x.id !== id)
+  return { ok: true }
+}
+// ทดสอบในหน้าตั้งค่า: ไม่ส่งจริง ไม่นับสถิติ · customerId = จำลองว่าแชทผูกกับลูกค้านี้
+export function testBot(text, { customerId = null, at = null } = {}) {
+  const chat = { channel: 'line', customerId, profileName: 'ลูกค้าทดสอบ', messages: [] }
+  return botReply(text, { db, chat, now: at || new Date() })
 }
 
 // ---------- ถามลูกค้า / กรอกร่างจากแชท ----------
@@ -1269,7 +1432,46 @@ export function connectIntegration(key, info) {
   Object.assign(db.integrations[key], { status: 'connected', enabled: true, connectedAt: now(), accountName: info.accountName || '', accountId: info.accountId || '', tokenHint: info.tokenHint || '' })
 }
 export function disconnectIntegration(key) {
-  Object.assign(db.integrations[key], { status: 'not_connected', accountName: '', accountId: '', connectedAt: null, tokenHint: '' })
+  Object.assign(db.integrations[key], { status: 'not_connected', accountName: '', accountId: '', connectedAt: null, tokenHint: '', url: '', sender: '' })
+}
+// Telegram: bot token + chat id (จำลอง ไม่ยิง API จริง · เก็บเฉพาะ 4 ตัวท้ายของ token) · SMS: URL (https) + ชื่อผู้ส่ง + คีย์ (เก็บ 4 ตัวท้าย)
+export function connectTelegram({ token, chatId }) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const c = checkTelegram(token, chatId)
+  if (c.error) return c
+  connectIntegration('telegram', { accountName: 'บอททีม', accountId: c.chatId, tokenHint: c.token.slice(-4) })
+  return { ok: true }
+}
+export function connectSms({ url, sender, key }) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const u = checkSmsUrl(url)
+  if (u.error) return u
+  const sd = checkSmsSender(sender)
+  if (sd.error) return sd
+  const k = String(key ?? '').trim()
+  if (k.length < 8) return { error: 'คีย์ (API key) สั้นเกินไป' }
+  connectIntegration('sms', { accountName: sd.sender, accountId: u.host, tokenHint: k.slice(-4) })
+  db.integrations.sms.url = u.url
+  db.integrations.sms.sender = sd.sender
+  return { ok: true }
+}
+// ส่งข้อความทดสอบ (จำลอง: ลงคิวข้อความ ไม่ส่งจริง)
+export function sendIntegrationTest(key, to = '') {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const it = db.integrations[key]
+  if (!it || it.status !== 'connected') return { error: 'ยังไม่ได้เชื่อม' }
+  let text
+  let toLabel
+  if (key === 'telegram') {
+    text = `[ทดสอบ] ข้อความทดสอบจาก ${db.shop.name} · ${dateOnly(now())} ${timeOnly(now())}`
+    toLabel = 'กลุ่มทีม'
+  } else if (key === 'sms') {
+    if (!phoneValid(to)) return { error: 'กรอกเบอร์โทร 9–10 หลัก' }
+    text = `[ทดสอบ] ข้อความทดสอบจาก ${it.sender || db.shop.name}`
+    toLabel = `SMS: ${formatPhone(to)}`
+  } else return { error: 'ช่องทางนี้ไม่มีปุ่มทดสอบ' }
+  db.outbox.unshift({ id: uid('msg'), at: now(), event: 'test', channel: key, to: toLabel, text, orderId: null, status: 'simulated' })
+  return { ok: true, text, to: toLabel }
 }
 export function markRead(chatId) {
   const c = findChat(chatId)
