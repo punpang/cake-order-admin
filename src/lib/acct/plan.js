@@ -45,8 +45,8 @@ export function deprSchedule(a) {
 }
 export const deprAccum = (a, ym) => { const r = deprSchedule(a).filter((x) => x.ym <= ym); return r.length ? r.at(-1).accum : 0 }
 
-// ค่าเสื่อมตามภาษี: อัตรา % ต่อปีของราคาทุน คิดเต็มเดือนเหมือนทางบัญชี หยุดเมื่อเหลือมูลค่า 1 บาท · คืน { [ปี]: จำนวนเงิน }
-export function taxDeprByYear(a, ratePct) {
+// ค่าเสื่อมตามภาษี: อัตรา % ต่อปีของราคาทุน คิดเต็มเดือนเหมือนทางบัญชี หยุดเมื่อเหลือมูลค่า 1 บาท · คืน { [YYYY-MM]: จำนวนเงิน }
+export function taxDeprByMonth(a, ratePct) {
   const cost = toS(a.cost)
   const cap = Math.max(0, cost - 100)
   const start = String(a.startDate).slice(0, 7)
@@ -60,9 +60,14 @@ export function taxDeprByYear(a, ratePct) {
     const d = Math.min(m, cap - acc)
     if (d <= 0) break
     acc += d
-    const y = ym.slice(0, 4)
-    out[y] = (out[y] || 0) + d
+    out[ym] = d
   }
+  return Object.fromEntries(Object.entries(out).map(([k, s]) => [k, toB(s)]))
+}
+// รวมเป็นรายปีปฏิทิน { [ปี]: จำนวนเงิน }
+export function taxDeprByYear(a, ratePct) {
+  const out = {}
+  for (const [ym, v] of Object.entries(taxDeprByMonth(a, ratePct))) out[ym.slice(0, 4)] = (out[ym.slice(0, 4)] || 0) + toS(v)
   return Object.fromEntries(Object.entries(out).map(([y, s]) => [y, toB(s)]))
 }
 

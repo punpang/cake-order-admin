@@ -1,13 +1,21 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { db, can } from '../../data/store'
-import { closePeriod, reopenPeriod } from '../../data/acct'
+import { closePeriod, reopenPeriod, saveAcctSettings } from '../../data/acct'
 import { askConfirm } from '../../lib/confirm'
 import { toDateStr, dateOnly } from '../../lib/format'
 
 // ปิดงวด: แช่แข็งรายการอัตโนมัติถึงวันที่ที่เลือก + ล็อกการแก้บันทึกเอง
 const f = reactive({ date: toDateStr(new Date(Date.now() - 864e5)), error: '', ok: '' })
 const reopenTo = ref('')
+const st = reactive({ entityType: db.acct.settings.entityType, fiscalYearStartMonth: db.acct.settings.fiscalYearStartMonth, paidInCapital: db.acct.settings.paidInCapital || 0, assetMinCost: db.acct.settings.assetMinCost ?? 500, error: '', ok: '' })
+function saveSt() {
+  st.error = st.ok = ''
+  const r = saveAcctSettings({ entityType: st.entityType, fiscalYearStartMonth: st.fiscalYearStartMonth, paidInCapital: st.paidInCapital, assetMinCost: st.assetMinCost })
+  if (r.error) return (st.error = r.error)
+  st.ok = 'บันทึกแล้ว'
+}
+const MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม']
 async function close() {
   f.error = f.ok = ''
   if (!(await askConfirm({ title: 'ปิดงวดบัญชี', message: `ปิดถึง ${dateOnly(f.date)} · หลังปิดแก้รายการถึงวันนั้นไม่ได้ (ต้องกลับรายการ)`, okText: 'ปิดงวด' }))) return
@@ -26,6 +34,15 @@ async function reopen() {
 
 <template>
   <div class="space-y-4">
+    <section v-if="can('acctSettings')" class="card space-y-3" aria-label="ตั้งค่าบัญชี">
+      <div class="card-title">ตั้งค่าบัญชี</div>
+      <div class="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1"><button v-for="m in [['juristic', 'นิติบุคคล'], ['individual', 'บุคคลธรรมดา']]" :key="m[0]" type="button" class="h-9 rounded-lg text-sm font-medium" :class="st.entityType === m[0] ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="st.entityType = m[0]">{{ m[1] }}</button></div>
+      <div class="grid grid-cols-2 gap-3"><div><label class="label">เริ่มปีบัญชีเดือน</label><select v-model="st.fiscalYearStartMonth" class="input" aria-label="เดือนเริ่มปีบัญชี"><option v-for="(m, i) in MONTHS" :key="i" :value="i + 1">{{ m }}</option></select></div><div><label class="label">ทุนชำระแล้ว (บาท)</label><input v-model="st.paidInCapital" v-num.dec class="input" aria-label="ทุนชำระแล้ว" /></div></div>
+      <div><label class="label">สินทรัพย์ต่ำกว่า (บาท) ตัดเป็นค่าใช้จ่ายทันที</label><input v-model="st.assetMinCost" v-num.dec class="input" aria-label="เกณฑ์สินทรัพย์" /></div>
+      <button class="btn-soft w-full" @click="saveSt">บันทึกตั้งค่า</button>
+      <p v-if="st.error" class="text-sm text-rose-600" role="alert">{{ st.error }}</p>
+      <p v-if="st.ok" class="text-sm text-emerald-700" role="status">{{ st.ok }}</p>
+    </section>
     <section class="card space-y-3">
       <div class="card-title">ปิดงวดบัญชี</div>
       <p class="text-sm text-stone-600">ปิดงวดถึง: <b>{{ db.acct.closedThrough ? dateOnly(db.acct.closedThrough) : 'ยังไม่เคยปิด' }}</b></p>

@@ -11,13 +11,14 @@ import AcctSettings from './AcctSettings.vue'
 import AcctTax from './AcctTax.vue'
 import AcctPlan from './AcctPlan.vue'
 import AcctAssets from './AcctAssets.vue'
+import AcctTaxYear from './AcctTaxYear.vue'
 
 // ระบบบัญชี (หลังบ้าน): ฐานสิทธิ ลงบัญชีคู่ · ข้อมูลรายได้ดึงจากออร์เดอร์/POS อัตโนมัติ + บันทึกเอง
 const TABS = [
-  { v: 'overview', l: 'ภาพรวม' }, { v: 'record', l: 'บันทึก' }, { v: 'journal', l: 'สมุดรายวัน' }, { v: 'reports', l: 'รายงาน' }, { v: 'tax', l: 'ภาษี' }, { v: 'plan', l: 'ประจำ/ล่วงหน้า/ผ่อน' }, { v: 'assets', l: 'สินทรัพย์' }, { v: 'chart', l: 'ผังบัญชี' }, { v: 'settings', l: 'ปิดงวด/ตั้งค่า' },
+  { v: 'overview', l: 'ภาพรวม' }, { v: 'record', l: 'บันทึก' }, { v: 'journal', l: 'สมุดรายวัน' }, { v: 'reports', l: 'รายงาน' }, { v: 'tax', l: 'ภาษี' }, { v: 'taxyear', l: 'ภาษีประจำปี' }, { v: 'plan', l: 'ประจำ/ล่วงหน้า/ผ่อน' }, { v: 'assets', l: 'สินทรัพย์' }, { v: 'chart', l: 'ผังบัญชี' }, { v: 'settings', l: 'ปิดงวด/ตั้งค่า' },
 ]
 const tab = ref('overview')
-const comp = computed(() => ({ overview: AcctOverview, record: AcctRecord, journal: AcctJournal, reports: AcctReports, tax: AcctTax, plan: AcctPlan, assets: AcctAssets, chart: AcctChart, settings: AcctSettings }[tab.value]))
+const comp = computed(() => ({ overview: AcctOverview, record: AcctRecord, journal: AcctJournal, reports: AcctReports, tax: AcctTax, taxyear: AcctTaxYear, plan: AcctPlan, assets: AcctAssets, chart: AcctChart, settings: AcctSettings }[tab.value]))
 </script>
 
 <template>

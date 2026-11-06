@@ -4,6 +4,9 @@ import { db } from '../../data/store'
 import { reportTrialBalance, reportIncome, reportLedger } from '../../data/acct'
 import { thisMonth, monthRange } from '../../lib/acct/period'
 import { money, dateOnly, toDateStr } from '../../lib/format'
+import AcctStatements from './AcctStatements.vue'
+
+const STMT = ['summary', 'compare', 'bs', 'cf', 'eq', 'notes']
 
 // รายงานแกน: งบทดลอง · งบกำไรขาดทุน · บัญชีแยกประเภท (งบอื่น/เปรียบเทียบ/ภาษี มาในรอบถัดไป)
 const kind = ref('income')
@@ -20,9 +23,10 @@ const pct = (n, d) => (d ? `${Math.round((n / d) * 1000) / 10}%` : '-')
 
 <template>
   <div class="space-y-3">
-    <div class="flex gap-2"><button v-for="x in [{ v: 'income', l: 'กำไรขาดทุน' }, { v: 'tb', l: 'งบทดลอง' }, { v: 'ledger', l: 'แยกประเภท' }]" :key="x.v" class="chip" :class="kind === x.v ? 'chip-on' : 'chip-off'" @click="kind = x.v">{{ x.l }}</button></div>
-    <div v-if="kind !== 'tb'" class="grid grid-cols-2 gap-2"><div><label class="label">ตั้งแต่</label><input v-model="from" type="date" class="input h-10" aria-label="รายงานจากวันที่" /></div><div><label class="label">ถึง</label><input v-model="to" type="date" class="input h-10" aria-label="รายงานถึงวันที่" /></div></div>
-    <div v-else><label class="label">ณ วันที่</label><input v-model="asOf" type="date" class="input h-10" aria-label="ณ วันที่" /></div>
+    <div class="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]"><button v-for="x in [{ v: 'summary', l: 'สรุปเดือน/ปี' }, { v: 'income', l: 'กำไรขาดทุน' }, { v: 'compare', l: 'เปรียบเทียบ' }, { v: 'bs', l: 'งบแสดงฐานะการเงิน' }, { v: 'cf', l: 'กระแสเงินสด' }, { v: 'eq', l: 'ส่วนของเจ้าของ' }, { v: 'notes', l: 'หมายเหตุ' }, { v: 'tb', l: 'งบทดลอง' }, { v: 'ledger', l: 'แยกประเภท' }]" :key="x.v" class="chip whitespace-nowrap" :class="kind === x.v ? 'chip-on' : 'chip-off'" @click="kind = x.v">{{ x.l }}</button></div>
+    <AcctStatements v-if="STMT.includes(kind)" :kind="kind" />
+    <div v-else-if="kind !== 'tb'" class="grid grid-cols-2 gap-2"><div><label class="label">ตั้งแต่</label><input v-model="from" type="date" class="input h-10" aria-label="รายงานจากวันที่" /></div><div><label class="label">ถึง</label><input v-model="to" type="date" class="input h-10" aria-label="รายงานถึงวันที่" /></div></div>
+    <div v-else-if="kind === 'tb'"><label class="label">ณ วันที่</label><input v-model="asOf" type="date" class="input h-10" aria-label="ณ วันที่" /></div>
 
     <section v-if="kind === 'income'" class="card text-sm" aria-label="งบกำไรขาดทุน">
       <div class="card-title">งบกำไรขาดทุน <span class="text-xs font-normal text-stone-400">{{ dateOnly(pl.from) }} – {{ dateOnly(pl.to) }}</span></div>
@@ -46,7 +50,7 @@ const pct = (n, d) => (d ? `${Math.round((n / d) * 1000) / 10}%` : '-')
       <p class="mt-2 text-xs" :class="tb.debit === tb.credit ? 'text-emerald-700' : 'text-rose-600'">{{ tb.debit === tb.credit ? 'งบทดลองสมดุล' : 'งบทดลองไม่สมดุล!' }}</p>
     </section>
 
-    <section v-else class="card text-sm" aria-label="บัญชีแยกประเภท">
+    <section v-else-if="kind === 'ledger'" class="card text-sm" aria-label="บัญชีแยกประเภท">
       <label class="label">บัญชี</label>
       <select v-model="acc" class="input mb-3" aria-label="เลือกบัญชี"><option v-for="a in db.acct.accounts" :key="a.id" :value="a.id">{{ a.id }} {{ a.name }}</option></select>
       <div v-if="lg">

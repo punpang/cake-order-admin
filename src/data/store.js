@@ -153,7 +153,7 @@ export const db = reactive({
   ],
 
   // ระบบบัญชี: บันทึกเอง (entries) · รายการดึงอัตโนมัติที่ปิดงวดแล้วแช่แข็ง (frozen) · closedThrough = ปิดงวดถึงวันที่ (YYYY-MM-DD)
-  acct: { settings: { entityType: 'juristic', fiscalYearStartMonth: 1, assetMinCost: 500, taxDeprRates: { building: 5, equipment: 20, furniture: 20, vehicle: 20, computer: 33.33, other: 20 } }, accounts: DEFAULT_ACCOUNTS.map((a) => ({ ...a })), entries: [], frozen: [], closedThrough: '', seq: {}, taxInvoices: [], vatFilings: {}, recurring: [], recurringSkips: [], deferrals: [], assets: [], installments: [] },
+  acct: { settings: { entityType: 'juristic', fiscalYearStartMonth: 1, assetMinCost: 500, paidInCapital: 0, taxDeprRates: { building: 5, equipment: 20, furniture: 20, vehicle: 20, computer: 33.33, other: 20 } }, accounts: DEFAULT_ACCOUNTS.map((a) => ({ ...a })), entries: [], frozen: [], closedThrough: '', seq: {}, taxInvoices: [], vatFilings: {}, recurring: [], recurringSkips: [], deferrals: [], assets: [], installments: [], taxYears: {}, taxTables: {}, taxFilings: {} },
   // ประวัติแก้สิทธิ์ผู้ใช้ [{ at, by (userId), userId, added, removed }]
   permLog: [],
 

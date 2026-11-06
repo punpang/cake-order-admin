@@ -12,8 +12,10 @@ import { vatSummary, vatDue, vatStatus, prevMonth, nextMonth } from '../lib/acct
 import { validTaxId, validBranch } from '../lib/acct/taxid'
 import { bahtText } from '../lib/acct/thaiBaht'
 import { orderTotals } from '../lib/pricing'
-import { deprSchedule, deprAccum, taxDeprByYear, amortSchedule, loanSchedule, recurringDue, recurringState, addDays, ASSET_CATEGORIES } from '../lib/acct/plan'
-import { thisMonth, addMonths } from '../lib/acct/period'
+import { deprSchedule, deprAccum, taxDeprByYear, taxDeprByMonth, amortSchedule, loanSchedule, recurringDue, recurringState, addDays, ASSET_CATEGORIES } from '../lib/acct/plan'
+import { thisMonth, addMonths, monthRange } from '../lib/acct/period'
+import { balanceSheet, cashFlow, equityStatement, comparePeriods, compareStatements } from '../lib/acct/statements'
+import { DEFAULT_TAX_TABLE, cloneTable, juristicAnnual, individualAnnual, compareMethods, pnd51, pnd94Estimate, entertainmentCap, smeEligible } from '../lib/acct/tax'
 
 const A = () => db.acct
 let seq = 0
@@ -655,6 +657,152 @@ export function acctAlerts(todayStr = today()) {
   const ym = todayStr.slice(0, 7)
   const rec = [...recurringStatus(addMonths(ym, -1), todayStr), ...recurringStatus(ym, todayStr)].filter((r) => r.state === 'missing' || r.state === 'due')
   return { recurring: rec, installments: installmentAlerts(todayStr) }
+}
+
+// ---------- รอบ P: รายงาน · งบการเงิน · ภาษีประจำปี ----------
+const pad2 = (n) => String(n).padStart(2, '0')
+// ปีบัญชีที่ "เริ่มในปี year" ตามเดือนเริ่มปีบัญชี
+export function fiscalRange(year) {
+  const sm = Number(A().settings.fiscalYearStartMonth) || 1
+  const from = `${year}-${pad2(sm)}-01`
+  const endYm = addMonths(`${year}-${pad2(sm)}`, 11)
+  return { year, from, to: monthRange(endYm).to, label: sm === 1 ? `ปี ${year}` : `ปีบัญชี ${year}/${Number(String(year).slice(2)) + 1}` }
+}
+// วันแรกของปีบัญชีที่ asOf อยู่
+export function fiscalStartOf(asOf) {
+  const sm = Number(A().settings.fiscalYearStartMonth) || 1
+  const y = Number(asOf.slice(0, 4)), m = Number(asOf.slice(5, 7))
+  return `${m >= sm ? y : y - 1}-${pad2(sm)}-01`
+}
+export function saveAcctSettings(d) {
+  const g = guard('acctSettings')
+  if (g) return g
+  const s = A().settings
+  if (d.entityType !== undefined) { if (!['juristic', 'individual'].includes(d.entityType)) return { error: 'ประเภทไม่ถูกต้อง' }; s.entityType = d.entityType }
+  if (d.fiscalYearStartMonth !== undefined) {
+    const m = Math.round(Number(d.fiscalYearStartMonth))
+    if (!(m >= 1 && m <= 12)) return { error: 'เดือนเริ่มปีบัญชีต้อง 1–12' }
+    if (m !== s.fiscalYearStartMonth && (A().closedThrough || Object.values(A().taxFilings || {}).some((f) => f.filedAt))) return { error: 'ปิดงวด/ยื่นภาษีแล้ว เปลี่ยนเดือนเริ่มปีบัญชีไม่ได้' }
+    s.fiscalYearStartMonth = m
+  }
+  if (d.paidInCapital !== undefined) { const v = Number(d.paidInCapital); if (!(v >= 0)) return { error: 'ทุนชำระแล้วต้องไม่ติดลบ' }; s.paidInCapital = toB(toS(v)) }
+  if (d.assetMinCost !== undefined) { const v = Number(d.assetMinCost); if (!(v >= 0)) return { error: 'เกณฑ์สินทรัพย์ต้องไม่ติดลบ' }; s.assetMinCost = v }
+  return { ok: true }
+}
+
+export const reportBalanceSheet = (asOf) => balanceSheet(allEntries(), A().accounts, asOf, fiscalStartOf(asOf))
+export const reportCashFlow = (from, to) => cashFlow(allEntries(), A().accounts, from, to)
+export const reportEquity = (from, to) => equityStatement(allEntries(), A().accounts, from, to)
+export const reportCompare = (kind, ref) => compareStatements(allEntries(), A().accounts, comparePeriods(kind, ref))
+// สรุปรายงานประจำเดือน/ปี
+export function periodSummary(from, to) {
+  const entries = allEntries()
+  const pl = reportIncome(from, to)
+  const m = sums(entries, from, to)
+  const dr = (id) => toB(m.get(id)?.dr || 0)
+  const asOf = sums(entries, '', to)
+  const bal = (id) => { const a = accountOf(id); return a ? balanceOf(a, asOf.get(id)) : 0 }
+  let outV = 0, inV = 0
+  for (const e of entries) {
+    if (!e.tax || e.date < from || e.date > to) continue
+    for (const t of e.tax) { if (t.kind === 'output') outV += toS(t.vat); else inV += toS(t.vat) }
+  }
+  return { from, to, pl, receipts: { cash: dr('1010'), bank: dr('1020') }, vat: { output: toB(outV), input: toB(inV) }, ar: bal('1100'), ap: bal('2100'), depreciation: pl.opex.find((r) => r.account.id === '5800')?.amount || 0, pointsCost: pl.opex.find((r) => r.account.id === '5410')?.amount || 0, couponCost: pl.opex.find((r) => r.account.id === '5420')?.amount || 0 }
+}
+
+// --- ภาษีเงินได้ประจำปี ---
+export const taxTableOf = (year) => A().taxTables?.[year] || cloneTable()
+const okBrackets = (b) => Array.isArray(b) && b.length >= 1 && b.every((x, i) => Number(x.rate) >= 0 && Number(x.rate) <= 100 && (i === b.length - 1 ? x.upTo == null || Number(x.upTo) > 0 : Number(x.upTo) > 0 && (i === 0 || Number(x.upTo) > Number(b[i - 1].upTo)))) && b.at(-1).upTo == null
+export function saveTaxTable(year, t) {
+  const g = guard('acctSettings')
+  if (g) return g
+  if (A().taxFilings?.[year]?.filedAt) return { error: 'ปีภาษีนี้ยื่นแล้ว แก้ตารางไม่ได้' }
+  const n = cloneTable({ ...DEFAULT_TAX_TABLE, ...t })
+  const clean = (b) => b.map((x) => ({ upTo: x.upTo == null || x.upTo === '' ? null : Number(x.upTo), rate: Number(x.rate) }))
+  n.progressive = clean(n.progressive); n.sme = clean(n.sme)
+  if (!okBrackets(n.progressive) || !okBrackets(n.sme)) return { error: 'ตารางอัตราไม่ถูกต้อง (ขั้นต้องเรียงเพิ่ม อัตรา 0–100 และขั้นสุดท้ายไม่จำกัด)' }
+  for (const k of ['corporateRate', 'smeMaxCapital', 'smeMaxRevenue', 'minTaxPct', 'minTaxThreshold', 'lumpPct', 'entertainmentPct', 'entertainmentMax', 'lossYears']) { n[k] = Number(n[k]); if (!(n[k] >= 0)) return { error: 'ค่าในตารางต้องไม่ติดลบ' } }
+  ;(A().taxTables ||= {})[year] = n
+  return { ok: true }
+}
+const blankYear = () => ({ adjustments: [], lossForward: 0, prepaid: 0, wht: 0, estimatedAnnual: '', allowances: { personal: 60000, spouse: 0, children: 0, insurance: 0, fund: 0, other: 0 }, method: 'best' })
+export const taxYearOf = (year) => ({ ...blankYear(), ...(A().taxYears?.[year] || {}), allowances: { ...blankYear().allowances, ...(A().taxYears?.[year]?.allowances || {}) } })
+export function saveTaxYear(year, d) {
+  const g = guard('acctTax')
+  if (g) return g
+  if (A().taxFilings?.[year]?.filedAt) return { error: 'ปีภาษีนี้ยื่นแล้ว แก้ไม่ได้ (ยกเลิกการยื่นก่อน)' }
+  const cur = taxYearOf(year)
+  const num = (v, k) => { const x = Number(v ?? 0); if (!(x >= 0) || !Number.isFinite(x)) throw new Error(k); return toB(toS(x)) }
+  try {
+    const out = { ...cur }
+    for (const k of ['lossForward', 'prepaid', 'wht']) if (d[k] !== undefined) out[k] = num(d[k], k)
+    if (d.estimatedAnnual !== undefined) out.estimatedAnnual = d.estimatedAnnual === '' || d.estimatedAnnual == null ? '' : Number(d.estimatedAnnual)
+    if (d.method !== undefined) out.method = ['best', 'actual', 'lump'].includes(d.method) ? d.method : 'best'
+    if (d.allowances) for (const k of Object.keys(cur.allowances)) if (d.allowances[k] !== undefined) out.allowances = { ...out.allowances, [k]: num(d.allowances[k], k) }
+    if (d.adjustments) out.adjustments = d.adjustments.map((x) => ({ label: String(x.label || '').trim().slice(0, 100), amount: Number(x.amount) })).filter((x) => x.label && Number.isFinite(x.amount) && x.amount !== 0).slice(0, 30)
+    ;(A().taxYears ||= {})[year] = out
+  } catch (e) { return { error: `ค่าไม่ถูกต้อง (${e.message}) ต้องเป็นตัวเลขไม่ติดลบ` } }
+  return { ok: true }
+}
+const sumRange = (obj, from, to) => toB(Object.entries(obj).filter(([ym]) => ym >= from.slice(0, 7) && ym <= to.slice(0, 7)).reduce((s, [, v]) => s + toS(v), 0))
+// รายงานภาษีประจำปีของปีบัญชี year (ตามประเภทร้านในตั้งค่า)
+export function annualTaxReport(year) {
+  const fy = fiscalRange(year)
+  const table = taxTableOf(year)
+  const ty = taxYearOf(year)
+  const st = A().settings
+  const pl = reportIncome(fy.from, fy.to)
+  const half = reportIncome(fy.from, monthRange(addMonths(fy.from.slice(0, 7), 5)).to)
+  const base = { year, fy, table, input: ty, entityType: st.entityType, filing: A().taxFilings?.[year] || null, revenue: pl.revenueTotal, netProfit: pl.netProfit }
+  if (st.entityType === 'individual') {
+    const allow = Object.values(ty.allowances).reduce((s, v) => s + toS(v), 0)
+    const actualExpense = toB(toS(pl.cogsTotal) + toS(pl.opexTotal))
+    const p = { income: pl.revenueTotal, actualExpense, allowances: toB(allow), prepaid: ty.prepaid, wht: ty.wht, table }
+    const cmp = compareMethods(p)
+    const method = ty.method === 'best' ? cmp.better : ty.method
+    const calc = individualAnnual({ ...p, method })
+    const halfExpense = toB(toS(half.cogsTotal) + toS(half.opexTotal))
+    return { ...base, kind: 'individual', actualExpense, allowancesTotal: toB(allow), compare: cmp, method, calc, pnd94: pnd94Estimate({ halfIncome: half.revenueTotal, halfExpense, method, allowances: toB(allow), wht: ty.wht, table }) }
+  }
+  // นิติบุคคล: รายการปรับปรุงอัตโนมัติ + กรอกเอง
+  const auto = []
+  const nonDed = pl.opex.concat(pl.cogs).filter((r) => r.account.taxDeductible === false && r.amount > 0)
+  for (const r of nonDed) auto.push({ label: `บวกกลับ: ${r.account.name} (ไม่ให้หักเป็นรายจ่าย)`, amount: r.amount, auto: true })
+  const ent = pl.opex.find((r) => r.account.id === '5910')?.amount || 0
+  const cap = entertainmentCap(pl.revenueTotal, st.paidInCapital || 0, table)
+  if (ent > cap) auto.push({ label: `บวกกลับ: ค่ารับรองส่วนที่เกินเพดาน (${cap.toLocaleString()} บาท)`, amount: toB(toS(ent) - toS(cap)), auto: true })
+  let taxDepr = 0
+  for (const a of assets()) taxDepr += toS(sumRange(taxDeprByMonth({ ...a, disposalDate: a.disposal?.date || '' }, taxRateOf(a.category)), fy.from, fy.to))
+  const bookDepr = toS(pl.opex.find((r) => r.account.id === '5800')?.amount || 0)
+  if (bookDepr !== taxDepr) auto.push({ label: bookDepr > taxDepr ? 'บวกกลับ: ค่าเสื่อมทางบัญชีส่วนที่เกินอัตราภาษี' : 'หัก: ค่าเสื่อมทางภาษีส่วนที่เกินทางบัญชี', amount: toB(bookDepr - taxDepr), auto: true })
+  const adjustments = [...auto, ...ty.adjustments.map((x) => ({ ...x, auto: false }))]
+  const capital = st.paidInCapital || 0
+  const calc = juristicAnnual({ accountingProfit: pl.netProfit, adjustments, lossForward: ty.lossForward, capital, revenue: pl.revenueTotal, prepaid: ty.prepaid, wht: ty.wht, table })
+  const p51 = pnd51({ halfProfit: half.netProfit, estimatedAnnual: ty.estimatedAnnual, capital, revenue: pl.revenueTotal, wht: ty.wht, table })
+  return { ...base, kind: 'juristic', adjustments, capital, entertainment: { spent: ent, cap }, bookDepr: toB(bookDepr), taxDepr: toB(taxDepr), calc, pnd51: p51, halfProfit: half.netProfit }
+}
+// บันทึกยื่นแล้ว: ต้องปิดงวดถึงสิ้นปีบัญชีก่อน (กันตัวเลขเปลี่ยนหลังยื่น) · เก็บ snapshot
+export function markTaxFiled(year, { filedAt = today(), ref = '', paid = 0 } = {}) {
+  const g = guard('acctTax')
+  if (g) return g
+  const fy = fiscalRange(year)
+  const f = (A().taxFilings ||= {})
+  if (f[year]?.filedAt) return { error: 'ยื่นแล้ว' }
+  if (!A().closedThrough || A().closedThrough < fy.to) return { error: `ต้องปิดงวดถึง ${fy.to} ก่อนบันทึกยื่นภาษีประจำปี (แท็บ ปิดงวด/ตั้งค่า)` }
+  const r = annualTaxReport(year)
+  const { fy: _f, table, input, filing, ...snap } = r
+  f[year] = { ...(f[year] || {}), filedAt, ref: String(ref).trim().slice(0, 60), paid: Math.max(0, Number(paid) || 0), by: session.userId, snapshot: JSON.parse(JSON.stringify(snap)), table: JSON.parse(JSON.stringify(table)) }
+  return { ok: true }
+}
+export function reopenTaxFiling(year, reason) {
+  const g = guard('acctTax')
+  if (g) return g
+  const x = A().taxFilings?.[year]
+  if (!x?.filedAt) return { error: 'ยังไม่ได้ยื่น' }
+  if (!String(reason || '').trim()) return { error: 'ระบุเหตุผล' }
+  ;(x.history ||= []).push({ at: new Date().toISOString(), by: session.userId, reason: String(reason).trim().slice(0, 200), filedAt: x.filedAt, ref: x.ref })
+  delete x.filedAt
+  return { ok: true }
 }
 
 // ---------- ตรวจตามเวลา (เรียกจาก runScheduledChecks ของ store) ----------
