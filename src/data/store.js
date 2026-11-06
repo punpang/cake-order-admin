@@ -7,6 +7,7 @@ import { addDays, pointBalance, takePoints, returnPoints, couponUsable, pickPriz
 import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, timeOnly } from '../lib/format'
 import { nextBirthday, daysBetween } from '../lib/birthday'
 import { parseAnswer } from '../lib/chatParse'
+import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEFAULT_COOKIE, DEFAULT_LEGAL_CONTACT } from '../lib/legalDefaults'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
 let seq = 1000
@@ -253,6 +254,18 @@ export const db = reactive({
   },
   // รีวิว: source = admin (แอดมินกรอก อนุมัติทันที) | customer (ลูกค้าเขียนหลังรับสินค้า รออนุมัติ) status = pending | approved | rejected
   reviews: [],
+
+  // ---------- ข้อความกฎหมาย (ร่าง แก้ได้ที่ /admin/manage/legal) + บันทึกการยินยอม ----------
+  // docs[kind] = { version, title, text, updatedAt } · consents = [{ id, customerId|null, kind, version, detail, at, via }] (หลักฐาน เก็บแบบนิรนามเมื่อลบลูกค้า)
+  legal: {
+    contact: { ...DEFAULT_LEGAL_CONTACT },
+    docs: {
+      privacy: { version: 1, title: LEGAL_KINDS.privacy.label, text: DEFAULT_PRIVACY, updatedAt: new Date().toISOString() },
+      terms: { version: 1, title: LEGAL_KINDS.terms.label, text: DEFAULT_TERMS, updatedAt: new Date().toISOString() },
+      cookie: { version: 1, title: LEGAL_KINDS.cookie.label, text: DEFAULT_COOKIE, updatedAt: new Date().toISOString() },
+    },
+  },
+  consents: [],
 
   // ---------- ระบบลูกค้า (จำลอง) ----------
   // customerAccounts: เบอร์ + PIN (เก็บเป็น hash + salt) · otps: รหัสยืนยัน (จำลองเก็บในหน่วยความจำ) · deletionRequests: คำขอลบข้อมูล
@@ -1363,10 +1376,11 @@ async function makeCredential(pin) {
   return { salt, pinHash: await hashPin(pin, salt) }
 }
 // สมัคร: เบอร์ที่มีลูกค้าอยู่แล้ว (พนักงานสร้างไว้) → ผูกกับลูกค้าเดิม · เบอร์ใหม่ → สร้างลูกค้า (ต้องมีชื่อ)
-export async function registerAccount({ token, phone: phoneRaw, name = '', pin }) {
+export async function registerAccount({ token, phone: phoneRaw, name = '', pin, consent = false }) {
   const phone = phoneDigits(phoneRaw)
   const o = findVerified(token, 'register', phone)
   if (!o) return NEED_OTP
+  if (!consent) return { error: 'ต้องยอมรับนโยบายความเป็นส่วนตัวและเงื่อนไขการใช้งานก่อนสมัคร' }
   const weak = weakPin(pin, phone)
   if (weak) return { error: weak }
   if (accountByPhone(phone)) return { error: 'เบอร์นี้สมัครแล้ว กรุณาเข้าสู่ระบบ' }
@@ -1381,6 +1395,7 @@ export async function registerAccount({ token, phone: phoneRaw, name = '', pin }
   }
   db.customerAccounts.push({ customerId: cu.id, phone, ...(await makeCredential(pin)), failed: 0, lockedUntil: 0, createdAt: now() })
   o.used = true
+  addConsents(cu.id, ACCOUNT_CONSENT_KINDS, 'register')
   customerSession.customerId = cu.id
   return { ok: true, linked }
 }
@@ -1487,6 +1502,75 @@ export function submitReview({ orderId, rating, text }) {
   if (!t) return { error: 'กรอกข้อความรีวิว' }
   db.reviews.unshift({ id: uid('rv'), customerId: c.id, orderId: o.id, source: 'customer', status: 'pending', name: c.name.trim().split(/\s+/)[0].slice(0, 60), rating: clampRating(rating), text: t.slice(0, 500), createdAt: now() })
   return { ok: true }
+}
+
+// ---------- ข้อความกฎหมาย + การยินยอม ----------
+export const legalDoc = (kind) => db.legal.docs[kind]
+// ค่าที่แทนตัวแปร {ชื่อ} ในข้อความ (ดู LEGAL_VARS ใน legalDefaults.js)
+export function legalVars() {
+  const c = db.legal.contact
+  const l = db.loyalty
+  return {
+    ชื่อร้าน: db.shop.name, ผู้ควบคุมข้อมูล: c.controller, ที่อยู่: c.address, อีเมลติดต่อ: c.email, เบอร์ติดต่อ: phoneDigits(c.phone) ? formatPhone(c.phone) : '',
+    ระยะเก็บบัญชี: c.retentionAccount, ระยะเก็บบัญชีภาษี: c.retentionAccounting, ระยะเก็บแชท: c.retentionChat,
+    อัตราสะสม: l.earnPer, มูลค่าคะแนน: l.pointValue, อายุคะแนน: l.pointExpireDays, อายุคูปอง: l.couponExpireDays,
+  }
+}
+// แก้ข้อความ (แอดมิน) · bump = ขึ้นเวอร์ชัน → ลูกค้าที่ล็อกอินอยู่ต้องกดยอมรับใหม่ · ไม่ bump = แก้คำผิดเฉพาะข้อความ
+export function saveLegal(kind, { title, text, bump = true }) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const d = db.legal.docs[kind]
+  if (!d) return { error: 'ไม่พบเอกสาร' }
+  const t = String(text ?? '').trim()
+  if (!t) return { error: 'ข้อความต้องไม่ว่าง' }
+  const changed = t !== d.text
+  Object.assign(d, { title: String(title ?? d.title).trim() || d.title, text: t })
+  if (changed && bump) Object.assign(d, { version: d.version + 1, updatedAt: now() })
+  else if (changed) d.updatedAt = now()
+  return { ok: true, version: d.version }
+}
+export function saveLegalContact(c) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const n = (v, def) => (Number(v) >= 0 && v !== '' && v != null ? Number(v) : def)
+  const cur = db.legal.contact
+  Object.assign(cur, {
+    controller: String(c.controller ?? '').trim(), address: String(c.address ?? '').trim(), email: String(c.email ?? '').trim(), phone: phoneDigits(c.phone),
+    retentionAccount: n(c.retentionAccount, cur.retentionAccount), retentionAccounting: n(c.retentionAccounting, cur.retentionAccounting), retentionChat: n(c.retentionChat, cur.retentionChat),
+  })
+  return { ok: true }
+}
+function addConsents(customerId, kinds, via) {
+  for (const kind of kinds) {
+    const version = db.legal.docs[kind].version
+    if (db.consents.some((x) => x.customerId === customerId && x.kind === kind && x.version === version)) continue
+    db.consents.push({ id: uid('cs'), customerId, kind, version, detail: null, at: now(), via })
+  }
+}
+// คุกกี้: บันทึกหลักฐานการเลือก (ไม่ระบุตัวตน) · ค่าจริงเก็บใน localStorage ของลูกค้า (lib/consent.js)
+export function recordCookieConsent({ analytics = false, marketing = false } = {}) {
+  const version = db.legal.docs.cookie.version
+  db.consents.push({ id: uid('cs'), customerId: null, kind: 'cookie', version, detail: { analytics: !!analytics, marketing: !!marketing }, at: now(), via: 'banner' })
+  return version
+}
+// เวอร์ชันล่าสุดที่ลูกค้ายอมรับ (0 = ยังไม่เคย)
+const consentedVersion = (customerId, kind) => db.consents.filter((x) => x.customerId === customerId && x.kind === kind).reduce((m, x) => Math.max(m, x.version), 0)
+// เอกสารที่ลูกค้าต้องยอมรับ (ยังไม่เคย หรือเวอร์ชันใหม่กว่า) · คืน [] = ใช้บัญชีได้
+export function needsConsent(customerId = customerSession.customerId) {
+  if (!customerId) return []
+  return ACCOUNT_CONSENT_KINDS.filter((k) => consentedVersion(customerId, k) < db.legal.docs[k].version)
+}
+// ลูกค้าที่ล็อกอินอยู่กดยอมรับเวอร์ชันปัจจุบัน
+export function acceptConsent(via = 'reconsent') {
+  const id = customerSession.customerId
+  if (!id || !myCustomer()) return { error: 'กรุณาเข้าสู่ระบบ' }
+  addConsents(id, ACCOUNT_CONSENT_KINDS, via)
+  return { ok: true }
+}
+// สถิติหน้าแอดมิน: บัญชีที่ยอมรับเวอร์ชันปัจจุบัน / ทั้งหมด
+export function consentStats(kind) {
+  const v = db.legal.docs[kind].version
+  if (kind === 'cookie') return { accepted: db.consents.filter((x) => x.kind === 'cookie' && x.version === v).length, total: null }
+  return { accepted: db.customerAccounts.filter((a) => consentedVersion(a.customerId, kind) >= v).length, total: db.customerAccounts.length }
 }
 
 // ---------- คำขอลบข้อมูล ----------

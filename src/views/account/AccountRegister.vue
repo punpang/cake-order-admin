@@ -18,6 +18,7 @@ const known = ref(false)
 const name = ref('')
 const pin = ref('')
 const pin2 = ref('')
+const agree = ref(false)
 const error = ref('')
 const busy = ref(false)
 
@@ -35,8 +36,9 @@ async function submit() {
   error.value = ''
   if (!known.value && !name.value.trim()) return (error.value = 'กรอกชื่อ')
   if (pin.value !== pin2.value) return (error.value = 'PIN ที่ยืนยันไม่ตรงกัน')
+  if (!agree.value) return (error.value = 'ต้องยอมรับนโยบายความเป็นส่วนตัวและเงื่อนไขการใช้งาน')
   busy.value = true
-  const r = await registerAccount({ token: token.value, phone: phoneDigits(phone.value), name: name.value, pin: pin.value })
+  const r = await registerAccount({ token: token.value, phone: phoneDigits(phone.value), name: name.value, pin: pin.value, consent: agree.value })
   busy.value = false
   if (r.ok) router.replace('/account')
   else error.value = r.error
@@ -63,6 +65,10 @@ async function submit() {
         <div><label class="label">ตั้ง PIN 6 หลัก</label><PinInput v-model="pin" autocomplete="new-password" /></div>
         <div><label class="label">ยืนยัน PIN</label><PinInput v-model="pin2" autocomplete="new-password" /></div>
         <p class="text-xs text-stone-400">ห้ามใช้ PIN ที่เดาง่าย เช่น 111111, 123456 หรือเลขท้ายเบอร์โทร</p>
+        <label class="flex items-start gap-2 text-sm text-stone-700">
+          <input v-model="agree" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" />
+          <span>ฉันได้อ่านและยอมรับ <RouterLink to="/legal/privacy" target="_blank" class="text-brand-700 underline">นโยบายความเป็นส่วนตัว (PDPA)</RouterLink> และ <RouterLink to="/legal/terms" target="_blank" class="text-brand-700 underline">เงื่อนไขการใช้งาน</RouterLink> (รวมกติกาคะแนนสะสม)</span>
+        </label>
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
         <button class="btn-primary w-full" :disabled="busy">สมัครสมาชิก</button>
       </form>

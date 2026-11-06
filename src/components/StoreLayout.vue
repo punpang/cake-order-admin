@@ -2,6 +2,8 @@
 import { db, customerSession } from '../data/store'
 import { formatPhone } from '../lib/format'
 import AppIcon from './AppIcon.vue'
+import CookieBanner from './CookieBanner.vue'
+import { openCookieSettings } from '../lib/consent'
 
 // โครงหน้าร้าน + ระบบลูกค้า (สาธารณะ) · ธีมเดียวกับหลังบ้าน
 const link = 'rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap text-stone-600 hover:bg-white'
@@ -49,8 +51,15 @@ const active = 'bg-white text-brand-700 shadow-sm'
       </div>
     </div>
     <div class="border-t border-stone-100 py-3 text-center text-xs text-stone-400">
+      <RouterLink to="/legal/privacy" class="underline">ความเป็นส่วนตัว (PDPA)</RouterLink>
+      · <RouterLink to="/legal/terms" class="underline">เงื่อนไขการใช้งาน</RouterLink>
+      · <RouterLink to="/legal/cookie" class="underline">คุกกี้</RouterLink>
+      · <button type="button" class="underline" @click="openCookieSettings">ตั้งค่าคุกกี้</button>
+    </div>
+    <div class="pb-3 text-center text-xs text-stone-400">
       <RouterLink to="/account" class="underline">บัญชีของฉัน</RouterLink>
       · <RouterLink to="/admin" class="underline">หลังบ้าน</RouterLink>
     </div>
   </footer>
+  <CookieBanner />
 </template>
