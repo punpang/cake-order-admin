@@ -888,6 +888,30 @@ function spendPoints(c, points, reason, orderId = null) {
   return e
 }
 
+// แอดมินปรับคะแนนลูกค้า (+เพิ่ม / −ลด) · ต้องมีเหตุผล · ลดได้ไม่เกินคะแนนที่ใช้ได้ (ตัดล็อตเก่าก่อน) · บันทึกผู้ทำใน ledger
+export function adjustPoints(customerId, delta, reason) {
+  if (!can('adjustPoints')) return { error: 'เฉพาะแอดมิน' }
+  const c = findCustomer(customerId)
+  if (!c || c.deleted) return { error: 'ไม่พบลูกค้า' }
+  const n = Number(delta)
+  if (!Number.isInteger(n) || n === 0 || Math.abs(n) > 1000000) return { error: 'ใส่จำนวนคะแนนเป็นจำนวนเต็ม (ไม่เกิน 1,000,000)' }
+  const why = String(reason ?? '').trim().slice(0, 120)
+  if (!why) return { error: 'ใส่เหตุผลในการปรับคะแนน' }
+  if (!c.ledger) c.ledger = []
+  const label = `${n > 0 ? 'เพิ่ม' : 'ลด'}คะแนนโดยแอดมิน: ${why}`
+  if (n > 0) {
+    const lot = earnPoints(c, n, label)
+    Object.assign(lot, { adjust: true, by: session.role })
+  } else {
+    const have = customerPoints(c)
+    if (-n > have) return { error: `ลดได้ไม่เกิน ${have} คะแนน (คงเหลือของลูกค้า)` }
+    const e = spendPoints(c, -n, label)
+    if (!e) return { error: 'ตัดคะแนนไม่ได้' }
+    Object.assign(e, { adjust: true, by: session.role })
+  }
+  return { ok: true, balance: customerPoints(c) }
+}
+
 function refundPoints(c, entryId, reason) {
   const e = c.ledger.find((x) => x.id === entryId)
   if (!e || e.refunded) return

@@ -1,7 +1,7 @@
 <script setup>
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
-import { db, saveCustomer, customerOrderCount, birthdayList, savePlace, removePlace, placeFirst, findCustomer } from '../../data/store'
+import { db, saveCustomer, customerOrderCount, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPoints, can } from '../../data/store'
 import { askConfirm } from '../../lib/confirm'
 import { orderTotals } from '../../lib/pricing'
 import { STATUS } from '../../lib/constants'
@@ -46,6 +46,24 @@ const history = computed(() => {
   const spent = orders.filter((r) => r.o.status !== 'cancelled').reduce((s, r) => s + r.total, 0)
   return { orders, spent, birthdays: birthdayList(form.id) }
 })
+
+// ---------- คะแนนของลูกค้า (แอดมินปรับได้) ----------
+const live = computed(() => (form.id ? findCustomer(form.id) : null))
+const balance = computed(() => (live.value ? customerPoints(live.value) : 0))
+const ledger = computed(() => (live.value?.ledger || []).filter((e) => !e.refunded || e.delta < 0).slice(-8).reverse())
+const adj = reactive({ open: false, sign: 1, amount: '', reason: '', error: '' })
+function openAdj() {
+  Object.assign(adj, { open: true, sign: 1, amount: '', reason: '', error: '' })
+}
+async function saveAdj() {
+  const n = Math.round(Number(adj.amount))
+  if (!(n > 0)) return (adj.error = 'ใส่จำนวนคะแนนมากกว่า 0')
+  if (!adj.reason.trim()) return (adj.error = 'ใส่เหตุผล')
+  if (!(await askConfirm({ title: adj.sign > 0 ? 'เพิ่มคะแนน' : 'ลดคะแนน', message: `${form.name}: ${adj.sign > 0 ? '+' : '−'}${n} คะแนน`, okText: 'ยืนยัน', danger: adj.sign < 0 }))) return
+  const r = adjustPoints(form.id, adj.sign * n, adj.reason)
+  if (r.error) return (adj.error = r.error)
+  adj.open = false
+}
 
 // ---------- สถานที่จัดส่งที่จำไว้ ----------
 const places = computed(() => (form.id ? findCustomer(form.id)?.places || [] : []))
@@ -121,6 +139,18 @@ async function save() {
           </div>
           <p class="mt-1 text-xs text-stone-400">ผูก LINE/Facebook ได้ในหน้าแชท (เมื่อลูกค้าทักมาทาง LINE OA / Facebook)</p>
         </div>
+        <div v-if="form.id && live" class="rounded-xl border border-stone-200/70 p-3">
+          <div class="flex items-center justify-between gap-2">
+            <div><div class="text-xs text-stone-500">คะแนนคงเหลือ</div><div class="text-xl font-semibold text-stone-900" aria-label="คะแนนคงเหลือ">{{ balance }}</div></div>
+            <button v-if="can('adjustPoints')" type="button" class="btn-soft h-9" @click="openAdj">ปรับคะแนน</button>
+          </div>
+          <ul v-if="ledger.length" class="mt-2 divide-y divide-stone-100 text-xs">
+            <li v-for="e in ledger" :key="e.id" class="flex items-start justify-between gap-2 py-1.5">
+              <span class="min-w-0 break-words text-stone-600">{{ e.reason }}<span v-if="e.adjust" class="ml-1 rounded-full bg-amber-50 px-1.5 text-[11px] text-amber-700">ปรับเอง · {{ e.by === 'admin' ? 'แอดมิน' : e.by }}</span><span class="block text-stone-400">{{ dateTime(e.at) }}</span></span>
+              <b class="shrink-0" :class="e.delta > 0 ? 'text-emerald-700' : 'text-rose-600'">{{ e.delta > 0 ? '+' : '' }}{{ e.delta }}</b>
+            </li>
+          </ul>
+        </div>
         <div v-if="form.id">
           <div class="mb-1.5 flex items-center justify-between"><div class="label mb-0">สถานที่จัดส่งที่จำไว้ <span class="font-normal text-stone-400">({{ places.length }}/10)</span></div><button type="button" class="text-sm text-brand-700 underline" @click="editPlace(null)">+ เพิ่ม</button></div>
           <p v-if="!places.length" class="rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-500">ยังไม่มี · ระบบจำให้อัตโนมัติเมื่อสร้างออร์เดอร์จัดส่ง</p>
@@ -169,6 +199,21 @@ async function save() {
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>
         <button class="btn-primary flex-1 sm:flex-none" @click="save">บันทึก</button>
+      </template>
+    </AppModal>
+    <AppModal v-if="adj.open" title="ปรับคะแนนลูกค้า" @close="adj.open = false">
+      <div class="space-y-3">
+        <div class="grid grid-cols-2 gap-1 rounded-2xl bg-stone-100 p-1">
+          <button v-for="k in [{ v: 1, t: 'เพิ่มคะแนน' }, { v: -1, t: 'ลดคะแนน' }]" :key="k.v" type="button" class="h-10 rounded-xl text-sm font-semibold transition" :class="adj.sign === k.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'" @click="adj.sign = k.v">{{ k.t }}</button>
+        </div>
+        <p class="text-sm text-stone-500">คงเหลือ {{ balance }} คะแนน</p>
+        <div><label class="label">จำนวนคะแนน</label><input v-model="adj.amount" type="text" inputmode="numeric" class="input text-lg font-semibold" aria-label="จำนวนคะแนน" /></div>
+        <div><label class="label">เหตุผล <span class="text-rose-500">*</span></label><input v-model="adj.reason" class="input" maxlength="120" aria-label="เหตุผลปรับคะแนน" /></div>
+        <p v-if="adj.error" class="text-sm text-rose-600" role="alert">{{ adj.error }}</p>
+      </div>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="adj.open = false">ยกเลิก</button>
+        <button class="btn-primary flex-1 sm:flex-none" @click="saveAdj">บันทึก</button>
       </template>
     </AppModal>
     <AppModal v-if="pl.open" :title="pl.id ? 'แก้สถานที่' : 'เพิ่มสถานที่'" @close="pl.open = false">

@@ -42,6 +42,7 @@ export const PERMISSIONS = {
   chat: ['admin', 'sales'], // ศูนย์รวมแชท LINE OA + Facebook
   pos: ['admin', 'sales'], // ขายหน้าร้าน
   posVoid: ['admin'], // ยกเลิกบิลหน้าร้าน
+  adjustPoints: ['admin'], // เพิ่ม/ลดคะแนนลูกค้าเอง (ต้องมีเหตุผล)
   changeBuyer: ['admin', 'sales'], // เปลี่ยนผู้ซื้อในออร์เดอร์/บิล
 }
 

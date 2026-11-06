@@ -6,6 +6,7 @@ import {
 } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { pointPromoFor } from '../lib/posPromo'
+import { coBought, rankSellers, suggestBundles } from '../lib/posRec'
 import { POS_METHODS, ROLES } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
 import { money, dateTime, timeOnly, phoneDigits, formatPhone, phoneValid } from '../lib/format'
@@ -39,9 +40,15 @@ const pointTag = (x) => pointPromoFor({ retailId: x.id, category: x.category }, 
 const categories = computed(() => [...new Set(catalog.value.map((x) => x.category))])
 const cat = ref('')
 const q = ref('')
+// อันดับขายดี 30 วัน (ติดดาว 5 อันดับแรก) · เรียงตามขายดีได้
+const ranks = computed(() => rankSellers(db.orders, db.retailItems))
+const sortBest = ref(false)
 const shown = computed(() => {
   const s = q.value.trim().toLowerCase()
-  return catalog.value.filter((x) => (!cat.value || x.category === cat.value) && (!s || x.name.toLowerCase().includes(s)))
+  const list = catalog.value.filter((x) => (!cat.value || x.category === cat.value) && (!s || x.name.toLowerCase().includes(s)))
+  if (!sortBest.value) return list
+  const r = (x) => ranks.value.get(x.id)?.rank ?? Infinity
+  return list.slice().sort((a, b) => r(a) - r(b))
 })
 
 // ---------- ตะกร้า ----------
@@ -100,6 +107,21 @@ function saveMods() {
   modFor.value = null
 }
 const count = computed(() => cart.value.reduce((s, l) => s + l.qty, 0))
+// แนะนำขายต่อ: ชุดบันเดิ้ลที่ใกล้ครบ + สินค้าที่ลูกค้ามักซื้อคู่กัน
+const cartRetail = computed(() => cart.value.filter((l) => l.kind === 'retail').map((l) => ({ retailId: l.refId, qty: l.qty })))
+const bundleSug = computed(() => suggestBundles(cartRetail.value, db.posBundles, catalog.value, { now: new Date() }))
+const pairSug = computed(() => {
+  const ok = new Set(catalog.value.filter((x) => canAdd(x)).map((x) => x.id))
+  return coBought(db.orders, cartRetail.value.map((l) => l.retailId), { eligible: ok }).map((r) => ({ ...r, item: catalog.value.find((x) => x.id === r.retailId) })).filter((r) => r.item)
+})
+function addMissing(sug) {
+  for (const m of sug.missing) {
+    const x = catalog.value.find((c) => c.id === m.itemId)
+    if (!x || !canAdd(x, m.qty)) continue
+    if (groupsOf(x).length) return openMods(x)
+    addLine(x, [], m.qty)
+  }
+}
 const cartOpen = ref(false) // มือถือ: แผงตะกร้าแบบ bottom sheet
 
 // สมาชิก / คะแนน / คูปอง / ส่วนลด
@@ -261,6 +283,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <div class="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
           <button type="button" class="chip" :class="!cat ? 'chip-on' : 'chip-off'" @click="cat = ''">ทั้งหมด</button>
           <button v-for="c in categories" :key="c" type="button" class="chip whitespace-nowrap" :class="cat === c ? 'chip-on' : 'chip-off'" @click="cat = c">{{ c }}</button>
+          <button type="button" class="chip ml-auto whitespace-nowrap" :class="sortBest ? 'chip-on' : 'chip-off'" :aria-pressed="sortBest" @click="sortBest = !sortBest"><AppIcon name="star" :size="13" /> เรียงขายดี</button>
         </div>
         <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
           <button
@@ -275,6 +298,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <span class="line-clamp-2 text-sm font-medium break-words text-stone-900">{{ x.name }}</span>
             <span v-if="groupsOf(x).length" class="mt-0.5 text-[11px] text-brand-700">มีตัวเลือก</span>
             <span v-if="pointTag(x)" class="mt-0.5 text-[11px] font-medium text-amber-700">คะแนน ×{{ pointTag(x).multiplier }}</span>
+            <span v-if="ranks.get(x.id)?.star" class="mt-0.5 inline-flex items-center gap-0.5 text-[11px] font-semibold text-amber-600" :aria-label="`ขายดีอันดับ ${ranks.get(x.id).rank}`"><AppIcon name="star" :size="12" /> ขายดี #{{ ranks.get(x.id).rank }}</span>
             <span class="mt-2 flex items-end justify-between gap-1">
               <span class="text-base font-semibold text-stone-900">{{ money(x.price) }}</span>
               <span v-if="x.stock != null" class="text-[11px]" :class="x.stock - inCart(x) <= 0 ? 'font-semibold text-rose-600' : 'text-stone-400'">{{ x.stock - inCart(x) <= 0 ? 'หมด' : `เหลือ ${x.stock - inCart(x)}` }}</span>
@@ -311,6 +335,21 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               </span>
             </li>
           </ul>
+
+          <!-- แนะนำขายต่อ -->
+          <div v-if="bundleSug.length || pairSug.length" class="space-y-2 rounded-xl bg-amber-50/70 p-2.5" aria-label="แนะนำขายต่อ">
+            <div v-for="s in bundleSug" :key="s.bundle.id" class="rounded-lg bg-white p-2 text-sm">
+              <div class="font-medium text-stone-900">ชุด {{ s.bundle.name }} · {{ money(s.bundle.price) }}</div>
+              <div class="text-xs text-stone-600">เพิ่ม {{ s.missing.map((m) => `${m.name} ×${m.qty}`).join(', ') }} ได้ราคาชุด · ประหยัด <b class="text-rose-600">{{ money(s.saving) }}</b></div>
+              <button type="button" class="btn-soft mt-1.5 h-8 px-3 text-xs" @click="addMissing(s)"><AppIcon name="plus" :size="14" /> เพิ่มให้ครบชุด</button>
+            </div>
+            <div v-if="pairSug.length">
+              <div class="mb-1 text-xs font-semibold text-amber-800">ลูกค้ามักซื้อคู่กัน</div>
+              <div class="flex flex-wrap gap-1.5">
+                <button v-for="r in pairSug" :key="r.retailId" type="button" class="chip chip-off max-w-full" :aria-label="`เพิ่ม ${r.item.name}`" @click="add(r.item)"><AppIcon name="plus" :size="13" /> <span class="truncate">{{ r.item.name }}</span> <span class="text-stone-400">{{ money(r.item.price) }}</span></button>
+              </div>
+            </div>
+          </div>
 
           <!-- สมาชิก -->
           <div class="border-t border-stone-100 pt-3">
