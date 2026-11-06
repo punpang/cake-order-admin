@@ -14,6 +14,7 @@ import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX } 
 import { checkTelegram, checkSmsUrl, checkSmsSender } from '../lib/integrationCheck'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
 import { digitsOf, promptPayKind } from '../lib/promptpay'
+import { DEFAULT_ACCOUNTS } from '../lib/acct/chart'
 import { cleanClosures, emptyClosures, slotClosed, pickupClosed, isClosedNow, nextOpen } from '../lib/shopHours'
 import { decodeCake, findCodes, CODE_RE } from '../lib/cakeCode'
 import { deliveryFee, cleanDelivery, cleanDeliveryConfig, rememberPlace, DEFAULT_DELIVERY } from '../lib/delivery'
@@ -151,6 +152,8 @@ export const db = reactive({
     { id: 'u4', name: 'คนส่งของ', email: 'driver@example.com', role: 'driver', active: true },
   ],
 
+  // ระบบบัญชี: บันทึกเอง (entries) · รายการดึงอัตโนมัติที่ปิดงวดแล้วแช่แข็ง (frozen) · closedThrough = ปิดงวดถึงวันที่ (YYYY-MM-DD)
+  acct: { settings: { entityType: 'juristic', fiscalYearStartMonth: 1 }, accounts: DEFAULT_ACCOUNTS.map((a) => ({ ...a })), entries: [], frozen: [], closedThrough: '', seq: {} },
   // ประวัติแก้สิทธิ์ผู้ใช้ [{ at, by (userId), userId, added, removed }]
   permLog: [],
 
@@ -555,6 +558,7 @@ export function setStatus(order, status, text) {
   const prev = order.status
   order.status = status
   log(order, text)
+  if (status === 'delivered') order.deliveredAt = now()
   if (status === 'delivered') awardOrder(order)
   if (status === 'delivered') notifyOrder('delivered', order)
   if (status === 'prepared') notifyOrder('prepared', order)
@@ -625,6 +629,7 @@ export function confirmPayment(order, paymentId, data = null) {
   if (data) Object.assign(p, { amount: Number(data.amount), ...payFields(data) })
   p.status = 'confirmed'
   p.confirmedBy = session.role
+  p.confirmedAt = now()
   log(order, `ยืนยันชำระ ${money(p.amount)}${p.amount !== p.requested ? ` (แจ้ง ${money(p.requested)})` : ''}`)
   if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
   notifyOrder('payment_confirmed', order)
@@ -2098,6 +2103,7 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
     if (it && it.stock != null) it.stock = Math.max(0, it.stock - l.qty)
   }
   o.status = 'delivered'
+  o.deliveredAt = ts
   log(o, `รับชำระ ${money(total)} (${POS_METHODS[method]}) · ส่งมอบ`)
   awardOrder(o)
   return o

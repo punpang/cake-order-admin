@@ -9,7 +9,7 @@ import StoreLayout from './components/StoreLayout.vue'
 
 const roleOpen = ref(false)
 // เมนูล่างมือถือ: ออร์เดอร์ / แชท / POS / ครัว / จัดการ (เฉพาะที่มีสิทธิ์)
-const tabCount = computed(() => 1 + (can('chat') ? 1 : 0) + (can('pos') ? 1 : 0) + (can('viewMaterials') ? 1 : 0) + (can('manage') ? 1 : 0))
+const tabCount = computed(() => 1 + (can('chat') ? 1 : 0) + (can('pos') ? 1 : 0) + (can('viewMaterials') ? 1 : 0) + (can('manage') ? 1 : 0) + (can('acctView') ? 1 : 0))
 const unread = computed(() => unreadChats())
 const me = computed(() => db.users.find((u) => u.id === session.userId))
 // จำลอง cron: ตรวจแจ้งเตือนตามเวลาทุก 60 วินาทีขณะเปิดแอป (ของจริงใช้ cron ฝั่งเซิร์ฟเวอร์)
@@ -42,6 +42,7 @@ onBeforeUnmount(() => clearInterval(timer))
         <RouterLink v-if="can('pos')" to="/admin/pos" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">POS</RouterLink>
         <RouterLink v-if="can('viewMaterials')" to="/admin/materials" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">วัตถุดิบ</RouterLink>
         <RouterLink v-if="can('viewMaterials')" to="/admin/production" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ตารางผลิต</RouterLink>
+        <RouterLink v-if="can('acctView')" to="/admin/accounting" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">บัญชี</RouterLink>
         <RouterLink v-if="can('manage')" to="/admin/manage" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">จัดการ</RouterLink>
       </nav>
 
@@ -87,6 +88,10 @@ onBeforeUnmount(() => clearInterval(timer))
       >
         <AppIcon name="basket" :size="22" />
         ครัว
+      </RouterLink>
+      <RouterLink v-if="can('acctView')" to="/admin/accounting" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
+        <AppIcon name="wallet" :size="22" />
+        บัญชี
       </RouterLink>
       <RouterLink v-if="can('manage')" to="/admin/manage" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
         <AppIcon name="grid" :size="22" />

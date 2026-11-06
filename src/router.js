@@ -33,6 +33,7 @@ import Account from './views/account/Account.vue'
 import AccountConsent from './views/account/AccountConsent.vue'
 import AccountOrder from './views/account/AccountOrder.vue'
 import NoAccess from './views/NoAccess.vue'
+import Accounting from './views/accounting/Accounting.vue'
 import LegalPage from './views/store/LegalPage.vue'
 import ManageLegal from './views/manage/ManageLegal.vue'
 import ManageLinks from './views/manage/ManageLinks.vue'
@@ -62,6 +63,7 @@ const router = createRouter({
     // ---------- หลังบ้าน ----------
     { path: '/admin', redirect: '/admin/orders' },
     { path: '/admin/no-access', component: NoAccess },
+    { path: '/admin/accounting', component: Accounting, meta: { perms: ['acctView'] } },
     { path: '/admin/orders', component: OrderList, meta: { perms: ['viewAllOrders', 'viewPrepOrders', 'viewDeliveryOrders'] } },
     { path: '/admin/orders/new', component: OrderCreate, meta: { focus: true, perms: ['createOrder'] } },
     { path: '/admin/orders/:id', component: OrderDetail, props: true, meta: { focus: true } },

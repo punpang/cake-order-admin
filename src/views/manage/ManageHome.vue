@@ -23,6 +23,7 @@ const items = computed(() => [
   { to: '/admin/manage/links', icon: 'link', title: 'ลิงก์ย่อ & ลิงก์ออร์เดอร์', desc: `ลิงก์ย่อ ${db.shortLinks.length} · ลิงก์ออร์เดอร์ที่ใช้อยู่ ${db.orderLinks.length}` },
   { to: '/admin/manage/deletion-requests', icon: 'shield', title: 'คำขอลบข้อมูลลูกค้า', desc: `${pendingDeletions()} รอตรวจสอบ` },
   { to: '/admin/manage/ingredients', icon: 'basket', title: 'วัตถุดิบ', desc: `${activeCount(db.ingredients)} รายการที่ใช้งาน` },
+  { to: '/admin/accounting', icon: 'wallet', title: 'บัญชี', desc: `สมุดรายวัน · บันทึกรายได้/ค่าใช้จ่าย · รายงาน · ปิดงวด`, perm: 'acctView' },
   { to: '/admin/manage/users', icon: 'shield', title: 'ผู้ใช้ & สิทธิ์', desc: `${activeCount(db.users)} คนที่ใช้งาน · ติ๊กสิทธิ์รายคน`, perm: 'manageUsers' },
 ].filter((x) => can(x.perm || 'manage')))
 </script>
