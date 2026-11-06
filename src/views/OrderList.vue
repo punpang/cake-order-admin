@@ -5,6 +5,7 @@ import { STATUS, VISIBLE } from '../lib/constants'
 import { orderTotals, describeSelections } from '../lib/pricing'
 import { money, timeOnly, dayLabel, formatPhone } from '../lib/format'
 import StatusBadge from '../components/StatusBadge.vue'
+import PayDueBadge from '../components/PayDueBadge.vue'
 import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
 import BirthdayList from '../components/BirthdayList.vue'
@@ -265,7 +266,7 @@ function clearAll() {
             <div class="min-w-0 flex-1">
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0 truncate font-semibold text-stone-900">{{ c?.name }}</div>
-                <StatusBadge :status="o.status" />
+                <span class="flex shrink-0 flex-col items-end gap-1"><StatusBadge :status="o.status" /><PayDueBadge :order="o" short /></span>
               </div>
               <div class="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm text-stone-500">
                 <AppIcon :name="o.fulfillment === 'delivery' ? 'truck' : 'store'" :size="14" class="shrink-0" />

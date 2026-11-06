@@ -3,7 +3,9 @@ export const STATUS = {
   awaiting_payment: { label: 'รอชำระ', cls: 'bg-amber-50 text-amber-700', dot: 'bg-amber-500', bar: 'bg-amber-400' },
   payment_reported: { label: 'แจ้งยอดแล้ว', cls: 'bg-sky-50 text-sky-700', dot: 'bg-sky-500', bar: 'bg-sky-400' },
   payment_confirmed: { label: 'ยืนยันชำระ', cls: 'bg-violet-50 text-violet-700', dot: 'bg-violet-500', bar: 'bg-violet-400' },
+  order_confirmed: { label: 'ยืนยันการสั่งซื้อ', cls: 'bg-indigo-50 text-indigo-700', dot: 'bg-indigo-500', bar: 'bg-indigo-400' },
   preparing: { label: 'กำลังเตรียม', cls: 'bg-orange-50 text-orange-700', dot: 'bg-orange-500', bar: 'bg-orange-400' },
+  prepared: { label: 'เตรียมสินค้าแล้ว', cls: 'bg-teal-50 text-teal-700', dot: 'bg-teal-500', bar: 'bg-teal-400' },
   delivered: { label: 'ส่งมอบแล้ว', cls: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500', bar: 'bg-emerald-400' },
   cancelled: { label: 'ยกเลิก', cls: 'bg-rose-50 text-rose-600', dot: 'bg-rose-500', bar: 'bg-rose-300' },
 }
@@ -25,6 +27,9 @@ export const PERMISSIONS = {
   adjustPrice: ['admin'],
   cancel: ['admin'],
   startPreparing: ['admin', 'baker'],
+  markPrepared: ['admin', 'baker'], // เตรียมสินค้าเสร็จ
+  confirmUnpaid: ['admin'], // ยืนยันการสั่งซื้อแบบยังไม่ชำระ / อนุมัติคำขอ
+  requestConfirmUnpaid: ['admin', 'sales'], // ขออนุมัติยืนยันแบบยังไม่ชำระ
   deliverPickup: ['admin', 'sales'],
   deliverShipping: ['admin', 'driver'],
   manage: ['admin'],
@@ -44,8 +49,8 @@ export const PERMISSIONS = {
 export const VISIBLE = {
   admin: null,
   sales: null,
-  baker: (o) => ['payment_confirmed', 'preparing'].includes(o.status),
-  driver: (o) => o.fulfillment === 'delivery' && ['preparing', 'delivered'].includes(o.status),
+  baker: (o) => ['payment_confirmed', 'order_confirmed', 'preparing', 'prepared'].includes(o.status),
+  driver: (o) => o.fulfillment === 'delivery' && ['preparing', 'prepared', 'delivered'].includes(o.status),
 }
 
 export const PAYMENT_METHODS = ['โอนเงิน', 'เงินสด', 'บัตร']
@@ -60,7 +65,7 @@ export const APPLIES_TO = { custom: 'สั่งทำ', ready: 'สินค�
 // สูตรวัตถุดิบ
 export const RECIPE_PER = { pound: 'ต่อปอนด์', piece: 'ต่อชิ้น' }
 // สถานะที่นับรวมในหน้าสรุปวัตถุดิบ
-export const MATERIAL_STATUSES = ['draft', 'awaiting_payment', 'payment_reported', 'payment_confirmed', 'preparing']
+export const MATERIAL_STATUSES = ['draft', 'awaiting_payment', 'payment_reported', 'payment_confirmed', 'order_confirmed', 'preparing', 'prepared']
 
 // ---------- การเชื่อมต่อ & แจ้งเตือน (จำลอง ยังไม่ส่งจริง) ----------
 export const CHANNELS = {
@@ -76,7 +81,10 @@ export const NOTIFY_EVENTS = {
   order_created: { label: 'สร้างออร์เดอร์ (สรุป)', audience: 'customer' },
   payment_requested: { label: 'แจ้งยอดชำระ', audience: 'customer' },
   payment_confirmed: { label: 'ยืนยันชำระแล้ว', audience: 'customer' },
+  order_confirmed: { label: 'ยืนยันการสั่งซื้อ', audience: 'customer' },
+  prepared: { label: 'เตรียมสินค้าเสร็จ (พร้อมรับ/ส่ง)', audience: 'customer' },
   pickup_reminder: { label: 'เตือนก่อนนัดรับ (24 ชม.)', audience: 'customer', scheduled: true },
+  prepared: { label: 'เตรียมสินค้าแล้ว', cls: 'bg-teal-50 text-teal-700', dot: 'bg-teal-500', bar: 'bg-teal-400' },
   delivered: { label: 'ส่งมอบแล้ว', audience: 'customer' },
   cancelled: { label: 'ยกเลิกออร์เดอร์', audience: 'customer' },
   birthday: { label: 'อวยพรวันเกิด', audience: 'customer', scheduled: true, marketing: true },
@@ -85,7 +93,10 @@ export const NOTIFY_EVENTS = {
   team_payment_confirmed: { label: 'ยืนยันชำระแล้ว', audience: 'team' },
   team_due_soon: { label: 'งานใกล้เวลาต้องเสร็จ (2 ชม.)', audience: 'team', scheduled: true },
   team_cancelled: { label: 'ยกเลิกออร์เดอร์', audience: 'team' },
+  team_approval_request: { label: 'ขออนุมัติยืนยันสั่งซื้อ (ยังไม่ชำระ)', audience: 'team' },
+  team_pay_overdue: { label: 'เกินกำหนดชำระ', audience: 'team', scheduled: true },
+  team_pay_extend_request: { label: 'ลูกค้าขอขยายเวลาชำระ', audience: 'team' },
 }
-export const NOTIFY_VARS = ['{ชื่อลูกค้า}', '{เลขออร์เดอร์}', '{ยอดรวม}', '{คงค้าง}', '{ยอดที่แจ้ง}', '{วันนัด}', '{เวลานัด}', '{ส่งมอบ}', '{ชื่อวันเกิด}', '{คะแนน}', '{ลิงก์ออร์เดอร์}']
+export const NOTIFY_VARS = ['{ชื่อลูกค้า}', '{เลขออร์เดอร์}', '{ยอดรวม}', '{คงค้าง}', '{ยอดที่แจ้ง}', '{วันนัด}', '{เวลานัด}', '{ส่งมอบ}', '{ชื่อวันเกิด}', '{คะแนน}', '{ลิงก์ออร์เดอร์}', '{ชำระก่อน}']
 
 export const POS_METHODS = { cash: 'เงินสด', transfer: 'โอนเงิน', card: 'บัตร' }

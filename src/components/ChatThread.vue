@@ -7,6 +7,7 @@ import { orderTotals, discountLines } from '../lib/pricing'
 import { STATUS } from '../lib/constants'
 import { money, dateTime, timeOnly, dateOnly, formatPhone } from '../lib/format'
 import AppIcon from './AppIcon.vue'
+import PayDueBadge from './PayDueBadge.vue'
 import DiscountDetail from './DiscountDetail.vue'
 import AppModal from './AppModal.vue'
 
@@ -173,6 +174,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-semibold text-brand-700">สรุปออร์เดอร์ {{ card(m).o.code }}</span>
               <span class="rounded-full px-2 py-0.5 text-[11px] font-medium" :class="STATUS[card(m).o.status]?.cls">{{ STATUS[card(m).o.status]?.label }}</span>
+              <PayDueBadge :order="card(m).o" short />
             </div>
             <div class="mt-1 text-sm font-medium break-words text-stone-900">{{ card(m).first }}<span v-if="card(m).more > 0" class="text-stone-500"> +{{ card(m).more }} รายการ</span></div>
             <div class="mt-0.5 text-xs text-stone-500">{{ card(m).o.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }} · {{ dateTime(card(m).o.pickupAt) }}</div>

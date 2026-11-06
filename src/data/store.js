@@ -13,6 +13,7 @@ import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEF
 import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX } from '../lib/chatBot'
 import { checkTelegram, checkSmsUrl, checkSmsSender } from '../lib/integrationCheck'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
+import { dueState, overduePayments, orderDue } from '../lib/payDue'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
 let seq = 1000
@@ -55,6 +56,8 @@ export const db = reactive({
   // ตั้งค่าร้าน: เวลานัดรับ ทุก slotMinutes นาที ระหว่าง open–close, nearbyHours = ค่าเริ่มต้นช่วงดูออร์เดอร์ก่อน/หลัง (0 = ทั้งวัน)
   // leadPickup / leadDelivery = ต้องเสร็จก่อนนัดกี่นาที (ตารางผลิต), depositPercent = มัดจำขั้นต่ำ % (0 = ไม่ใช้), birthdayDays = เตือนวันเกิดล่วงหน้ากี่วัน
   shop: { name: 'ร้านเค้กตัวอย่าง', slotMinutes: 30, open: '09:00', close: '20:00', nearbyHours: 2, leadPickup: 60, leadDelivery: 120, depositPercent: 50, birthdayDays: 14,
+    // กำหนดชำระเริ่มต้นตอนแจ้งยอด (นาที) · 0 = ไม่กำหนด
+    payDueMin: 30,
     // VAT: ฐาน = สินค้า+ค่าส่ง หลังส่วนลด · mode inclusive (ราคารวม VAT แล้ว) | exclusive (บวกเพิ่มท้ายยอด) · เก็บ snapshot {rate, mode} ในแต่ละออร์เดอร์ (order.vat)
     vat: { enabled: false, rate: 7, mode: 'inclusive', taxId: '', legalName: '' },
     // ลิงก์ออร์เดอร์: หมดอายุ = เปิดล่าสุด + idleDays (เลื่อนทุกครั้งที่เปิด) · ไม่เคยเปิด = สร้าง + neverOpenedDays · linkAllowlist = โฮสต์ภายนอกที่ลิงก์ย่อชี้ไปได้ (https)
@@ -185,7 +188,9 @@ export const db = reactive({
   // กฎแจ้งเตือน: event → ช่องทาง + ข้อความ (ตัวอย่าง)
   notifyRules: [
     rule('order_created', ['line', 'facebook', 'sms'], 'สวัสดีค่ะ {ชื่อลูกค้า} รับออร์เดอร์ {เลขออร์เดอร์} แล้ว ยอดรวม {ยอดรวม} นัด{ส่งมอบ} {วันนัด} {เวลานัด}'),
-    rule('payment_requested', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง})'),
+    rule('payment_requested', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง}) ชำระก่อน {ชำระก่อน} ดู/ชำระที่ {ลิงก์ออร์เดอร์}'),
+    rule('order_confirmed', ['line', 'facebook', 'sms'], 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ คงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า'),
+    rule('prepared', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} เตรียมสินค้าเสร็จแล้วค่ะ นัด{ส่งมอบ} {วันนัด} {เวลานัด}'),
     rule('payment_confirmed', ['line', 'facebook', 'sms'], 'ได้รับชำระออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ คงค้าง {คงค้าง}'),
     rule('pickup_reminder', ['line', 'facebook', 'sms'], 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
     rule('delivered', ['line', 'facebook'], 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ'),
@@ -196,6 +201,9 @@ export const db = reactive({
     rule('team_payment_confirmed', ['telegram'], '[ชำระแล้ว] {เลขออร์เดอร์} คงค้าง {คงค้าง}'),
     rule('team_due_soon', ['telegram'], '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน 2 ชม. (นัด {เวลานัด})'),
     rule('team_cancelled', ['telegram'], '[ยกเลิก] {เลขออร์เดอร์} {ชื่อลูกค้า}'),
+    rule('team_approval_request', ['telegram'], '[ขออนุมัติ] {เลขออร์เดอร์} {ชื่อลูกค้า} ยืนยันสั่งซื้อแบบยังไม่ชำระ คงค้าง {คงค้าง}'),
+    rule('team_pay_overdue', ['telegram'], '[เกินกำหนดชำระ] {เลขออร์เดอร์} {ชื่อลูกค้า} ต้องชำระก่อน {ชำระก่อน} คงค้าง {คงค้าง}'),
+    rule('team_pay_extend_request', ['telegram'], '[ขอขยายเวลาชำระ] {เลขออร์เดอร์} {ชื่อลูกค้า} เดิมกำหนด {ชำระก่อน}'),
   ],
   // คิวข้อความ (จำลอง) ล่าสุดอยู่หน้า · notifySent = key ที่ส่งแล้ว (กันส่งซ้ำของเหตุการณ์ตามเวลา)
   outbox: [],
@@ -465,6 +473,7 @@ export function setStatus(order, status, text) {
   log(order, text)
   if (status === 'delivered') awardOrder(order)
   if (status === 'delivered') notifyOrder('delivered', order)
+  if (status === 'prepared') notifyOrder('prepared', order)
   if (status === 'cancelled') notifyOrder('cancelled', order)
   // ร่าง → ส่งไปรอชำระ = เริ่มเป็นออร์เดอร์จริง
   if (prev === 'draft' && status === 'awaiting_payment') notifyOrder('order_created', order)
@@ -481,14 +490,18 @@ export function reportPayment(order, p) {
     paidAt: p.paidAt,
     slip: p.slip || '',
     note: p.note || '',
+    dueAt: p.dueAt || '',
+    extension: null,
     status: 'reported',
     reportedBy: session.role,
     confirmedBy: null,
   })
-  log(order, `แจ้งยอดชำระ ${money(Number(p.amount))} (${p.method})`)
-  notifyOrder('payment_requested', order, { requested: Number(p.amount) })
+  log(order, `แจ้งยอดชำระ ${money(Number(p.amount))} (${p.method})${p.dueAt ? ` ชำระก่อน ${dueText(p.dueAt)}` : ''}`)
+  notifyOrder('payment_requested', order, { requested: Number(p.amount), dueAt: p.dueAt || '' })
   if (order.status === 'awaiting_payment') order.status = 'payment_reported'
 }
+
+const dueText = (iso) => (iso ? `${dateOnly(iso)} ${timeOnly(iso)} น.` : '')
 
 const payFields = (p) => ({ method: p.method, paidAt: p.paidAt, slip: p.slip || '', note: p.note || '' })
 
@@ -496,6 +509,7 @@ export function updatePaymentRequest(order, paymentId, p) {
   const pay = order.payments.find((x) => x.id === paymentId)
   if (!pay || pay.status !== 'reported') return
   Object.assign(pay, { requested: Number(p.amount), amount: Number(p.amount), ...payFields(p) })
+  if (p.dueAt !== undefined) pay.dueAt = p.dueAt || ''
   log(order, `แก้ยอดที่แจ้งเป็น ${money(Number(p.amount))}`)
 }
 
@@ -513,7 +527,7 @@ export function cancelConfirmedPayment(order, paymentId) {
   if (!p || p.status !== 'confirmed' || ['delivered', 'cancelled'].includes(order.status)) return
   Object.assign(p, { status: 'cancelled', cancelledAt: now(), cancelledBy: session.role })
   log(order, `ยกเลิกยอดที่ยืนยันแล้ว ${money(p.amount)}`)
-  if (!order.payments.some((x) => x.status === 'confirmed') && ['payment_confirmed', 'preparing'].includes(order.status)) {
+  if (!order.payments.some((x) => x.status === 'confirmed') && ['payment_confirmed', 'preparing', 'prepared'].includes(order.status)) {
     order.status = order.payments.some((x) => x.status === 'reported') ? 'payment_reported' : 'awaiting_payment'
   }
 }
@@ -528,6 +542,58 @@ export function confirmPayment(order, paymentId, data = null) {
   log(order, `ยืนยันชำระ ${money(p.amount)}${p.amount !== p.requested ? ` (แจ้ง ${money(p.requested)})` : ''}`)
   if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
   notifyOrder('payment_confirmed', order)
+}
+
+// ---------- ยืนยันการสั่งซื้อแบบยังไม่ชำระ (ต้องอนุมัติ) ----------
+// พนักงานขายขออนุมัติ → แอดมินอนุมัติ/ปฏิเสธ · แอดมินกดยืนยันตรงได้ · ใช้ได้เฉพาะ รอชำระ/แจ้งยอดแล้ว
+const canConfirmUnpaid = (o) => ['awaiting_payment', 'payment_reported'].includes(o.status)
+export function requestConfirmUnpaid(order, note = '') {
+  if (!can('requestConfirmUnpaid') || !canConfirmUnpaid(order) || order.approval?.status === 'pending') return false
+  order.approval = { status: 'pending', by: session.role, at: now(), note: String(note).trim().slice(0, 200) }
+  log(order, `ขออนุมัติยืนยันการสั่งซื้อ (ยังไม่ชำระ)${order.approval.note ? ` · ${order.approval.note}` : ''}`)
+  notify('team_approval_request', { vars: orderVars(order), orderId: order.id })
+  return true
+}
+export function confirmUnpaid(order) {
+  if (!can('confirmUnpaid') || !canConfirmUnpaid(order)) return false
+  const pending = order.approval?.status === 'pending'
+  order.approval = { ...(order.approval || {}), status: 'approved', decidedBy: session.role, decidedAt: now() }
+  setStatus(order, 'order_confirmed', pending ? 'อนุมัติ · ยืนยันการสั่งซื้อ (ยังไม่ชำระ)' : 'ยืนยันการสั่งซื้อ (ยังไม่ชำระ)')
+  notifyOrder('order_confirmed', order)
+  return true
+}
+export function rejectConfirmUnpaid(order, note = '') {
+  if (!can('confirmUnpaid') || order.approval?.status !== 'pending') return false
+  order.approval = { ...order.approval, status: 'rejected', decidedBy: session.role, decidedAt: now(), decisionNote: String(note).trim().slice(0, 200) }
+  log(order, `ไม่อนุมัติยืนยันการสั่งซื้อ${order.approval.decisionNote ? ` · ${order.approval.decisionNote}` : ''}`)
+  return true
+}
+
+// ---------- ขยายเวลาชำระ ----------
+// ลูกค้าขอ (หน้าออร์เดอร์ลูกค้า) → พนักงานขยาย/ปฏิเสธ · ขอได้เมื่อเลยกำหนดและยังไม่มีคำขอรออยู่
+export function requestPayExtension(order, paymentId, note = '') {
+  const p = order.payments.find((x) => x.id === paymentId)
+  if (!p || p.status !== 'reported' || dueState(p) !== 'overdue' || p.extension?.status === 'pending') return false
+  p.extension = { status: 'pending', at: now(), note: String(note).trim().slice(0, 200) }
+  log(order, 'ลูกค้าขอขยายเวลาชำระ')
+  notify('team_pay_extend_request', { vars: { ...orderVars(order), ชำระก่อน: dueText(p.dueAt) }, orderId: order.id })
+  return true
+}
+export function grantPayExtension(order, paymentId, dueAt) {
+  const p = order.payments.find((x) => x.id === paymentId)
+  if (!can('reportPayment') || !p || p.status !== 'reported' || !dueAt || Number.isNaN(new Date(dueAt).getTime())) return false
+  const old = p.dueAt
+  p.dueAt = dueAt
+  p.extension = { ...(p.extension || {}), status: 'granted', decidedBy: session.role, decidedAt: now() }
+  log(order, `ขยายเวลาชำระเป็น ${dueText(dueAt)}${old ? ` (เดิม ${dueText(old)})` : ''}`)
+  return true
+}
+export function denyPayExtension(order, paymentId) {
+  const p = order.payments.find((x) => x.id === paymentId)
+  if (!can('reportPayment') || !p || p.extension?.status !== 'pending') return false
+  p.extension = { ...p.extension, status: 'denied', decidedBy: session.role, decidedAt: now() }
+  log(order, 'ไม่อนุมัติขยายเวลาชำระ')
+  return true
 }
 
 // แก้รายการสินค้าหลังสร้าง: คิดราคาใหม่ทุกรายการตามราคาปัจจุบัน
@@ -602,6 +668,7 @@ export function saveShopSettings(d) {
   db.shop.leadDelivery = Math.max(0, Number(d.leadDelivery) || 0)
   db.shop.depositPercent = Math.min(100, Math.max(0, Number(d.depositPercent) || 0))
   db.shop.birthdayDays = Math.max(0, Number(d.birthdayDays) || 0)
+  if (d.payDueMin !== undefined) db.shop.payDueMin = Math.min(10080, Math.max(0, Math.round(Number(d.payDueMin) || 0)))
   if (d.vat) {
     const rate = Math.round((Number(d.vat.rate) || 0) * 100) / 100
     db.shop.vat = {
@@ -1073,6 +1140,7 @@ function orderVars(order, extra = {}) {
     ยอดรวม: money(t.total),
     คงค้าง: money(Math.max(t.balance, 0)),
     ยอดที่แจ้ง: extra.requested != null ? money(extra.requested) : '',
+    ชำระก่อน: extra.dueAt ? dueText(extra.dueAt) : 'ไม่กำหนด',
     วันนัด: dateOnly(order.pickupAt),
     เวลานัด: timeOnly(order.pickupAt),
     ส่งมอบ: order.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับ',
@@ -1131,6 +1199,7 @@ export function runScheduledChecks() {
     if (['draft', 'delivered', 'cancelled'].includes(o.status)) continue
     const toPickup = new Date(o.pickupAt).getTime() - nowMs
     if (toPickup > 0 && toPickup <= 24 * 3600e3) once(`pickup|${o.id}`, () => notify('pickup_reminder', { customer: findCustomer(o.customerId), vars: orderVars(o), orderId: o.id }))
+    for (const p of overduePayments(o, new Date(nowMs))) once(`overdue|${p.id}|${p.dueAt}`, () => notify('team_pay_overdue', { vars: { ...orderVars(o), ชำระก่อน: dueText(p.dueAt) }, orderId: o.id }))
     const toDue = dueAt(o).getTime() - nowMs
     if (toDue <= 2 * 3600e3) once(`due|${o.id}`, () => notify('team_due_soon', { vars: orderVars(o), orderId: o.id }))
   }
@@ -1971,6 +2040,7 @@ export function myOrders() {
         address: o.address || '', birthday: o.birthday ? { ...o.birthday } : null, items: o.items.map((i) => ({ ...i })),
         total: t.total, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal, vat: t.vat, vatRate: t.vatRate, vatMode: t.vatMode, refunds: o.status === 'cancelled' ? refundList(o.cancel) : [],
         payments: o.payments.filter((p) => p.status === 'confirmed').map((p) => ({ amount: p.amount, method: p.method, paidAt: p.paidAt })),
+        payDue: orderDue(o),
         review: reviewOfOrder(o.id) ? { rating: reviewOfOrder(o.id).rating, status: reviewOfOrder(o.id).status } : null,
       }
     })

@@ -17,6 +17,7 @@ function save() {
   if (!st.open || !st.close || st.close <= st.open) return (error.value = 'เวลาปิดต้องหลังเวลาเปิด')
   if (!(Number(st.slotMinutes) >= 5)) return (error.value = 'ช่วงเวลาต้องอย่างน้อย 5 นาที')
   if (![st.leadPickup, st.leadDelivery, st.birthdayDays].every(num)) return (error.value = 'กรอกตัวเลขตั้งแต่ 0 ขึ้นไป')
+  if (!num(st.payDueMin) || Number(st.payDueMin) > 10080) return (error.value = 'กำหนดชำระต้องอยู่ระหว่าง 0–10080 นาที')
   if (!num(st.depositPercent) || Number(st.depositPercent) > 100) return (error.value = 'มัดจำต้องอยู่ระหว่าง 0–100%')
   const v = st.vat
   if (v.enabled && !(Number(v.rate) > 0 && Number(v.rate) <= 100)) return (error.value = 'อัตรา VAT ต้องอยู่ระหว่าง 0–100%')
@@ -68,6 +69,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         <div class="grid grid-cols-2 gap-3">
           <div><label class="label">มัดจำขั้นต่ำ (%) <span class="font-normal text-stone-400">0 = ไม่ใช้</span></label><input v-model.number="st.depositPercent" type="text" v-num min="0" max="100" class="input" /></div>
           <div><label class="label">เตือนวันเกิดล่วงหน้า (วัน)</label><input v-model.number="st.birthdayDays" type="text" v-num min="0" class="input" /></div>
+          <div class="col-span-2"><label class="label">กำหนดชำระเริ่มต้นตอนแจ้งยอด (นาที) <span class="font-normal text-stone-400">0 = ไม่กำหนด</span></label><input v-model.number="st.payDueMin" type="text" v-num min="0" max="10080" class="input" /></div>
         </div>
       </div>
       <div class="border-t border-stone-100 pt-4">

@@ -3,17 +3,20 @@ import { computed, reactive, ref } from 'vue'
 import {
   can, findOrder, findCustomer, setStatus, reportPayment, confirmPayment, setAdjustment, cancelOrder, countPickups,
   updatePaymentRequest, cancelPaymentRequest, cancelConfirmedPayment,
+  requestConfirmUnpaid, confirmUnpaid, rejectConfirmUnpaid, grantPayExtension, denyPayExtension,
   saveOrderItem, removeOrderItem, orderDate,
   db, customerPoints, usableDiscountCoupons, applyPoints, removePoints, applyCoupon, removeCoupon,
   setBirthday, depositOf,
 } from '../data/store'
 import { orderTotals } from '../lib/pricing'
+import { QUICK_DUE, quickDue, dueState, remainingText } from '../lib/payDue'
 import { CHANNELS, NOTIFY_EVENTS } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
 import { orderCost } from '../lib/materials'
 import { money, dateTime, toDateStr, pad, num, formatPhone, phoneDigits } from '../lib/format'
 import { PAYMENT_METHODS, ROLES } from '../lib/constants'
 import StatusBadge from '../components/StatusBadge.vue'
+import PayDueBadge from '../components/PayDueBadge.vue'
 import DiscountDetail from '../components/DiscountDetail.vue'
 import ItemCard from '../components/ItemCard.vue'
 import ItemEditor from '../components/ItemEditor.vue'
@@ -42,19 +45,24 @@ const canDeliver = computed(() =>
   order.value.fulfillment === 'delivery' ? can('deliverShipping') : can('deliverPickup'),
 )
 
+const startable = (s) => ['payment_confirmed', 'order_confirmed'].includes(s)
+const unpaidStage = (s) => ['awaiting_payment', 'payment_reported'].includes(s)
 const primaryAction = computed(() => {
   const s = order.value.status
   return (s === 'draft' && can('sendToPayment'))
-    || (s === 'payment_confirmed' && can('startPreparing'))
-    || (s === 'preparing' && canDeliver.value)
+    || (startable(s) && can('startPreparing'))
+    || (s === 'preparing' && can('markPrepared'))
+    || (s === 'prepared' && canDeliver.value)
 })
 
 const hasActions = computed(() => {
   const s = order.value.status
   return (can('cancel') && !closed.value)
     || (s === 'draft' && can('sendToPayment'))
-    || (s === 'payment_confirmed' && can('startPreparing'))
-    || (s === 'preparing' && canDeliver.value)
+    || (startable(s) && can('startPreparing'))
+    || (s === 'preparing' && can('markPrepared'))
+    || (s === 'prepared' && canDeliver.value)
+    || (unpaidStage(s) && (can('confirmUnpaid') || can('requestConfirmUnpaid')))
 })
 
 const paidPct = computed(() => (t.value.total > 0 ? Math.min(100, Math.round((t.value.paid / t.value.total) * 100)) : 0))
@@ -69,7 +77,7 @@ const nowLocal = () => {
 const payOpen = ref(false)
 const payMode = ref('new') // new | edit | confirm
 const payTarget = ref(null)
-const pay = reactive({ amount: 0, method: PAYMENT_METHODS[0], paidAt: '', slip: '', note: '' })
+const pay = reactive({ amount: 0, method: PAYMENT_METHODS[0], paidAt: '', slip: '', note: '', dueAt: '' })
 const payError = ref('')
 const PAY_TITLE = { new: 'แจ้งยอดชำระ', edit: 'แก้ยอดที่แจ้ง', confirm: 'ยืนยันยอดชำระ' }
 // มัดจำ: แจ้งยอดงวดแรก (ยังไม่มีงวดที่แจ้ง/ยืนยัน) เติมยอดมัดจำให้ แก้ได้
@@ -82,8 +90,8 @@ function openPay(mode = 'new', p = null) {
   payMode.value = mode
   payTarget.value = p
   Object.assign(pay, p
-    ? { amount: p.requested ?? p.amount, method: p.method, paidAt: p.paidAt, slip: p.slip, note: p.note }
-    : { amount: fullAmount.value, method: PAYMENT_METHODS[0], paidAt: nowLocal(), slip: '', note: '' })
+    ? { amount: p.requested ?? p.amount, method: p.method, paidAt: p.paidAt, slip: p.slip, note: p.note, dueAt: p.dueAt || '' }
+    : { amount: fullAmount.value, method: PAYMENT_METHODS[0], paidAt: nowLocal(), slip: '', note: '', dueAt: db.shop.payDueMin > 0 ? quickDue(db.shop.payDueMin) : '' })
   if (showDeposit.value) pay.amount = depositAmount.value
   payError.value = ''
   payOpen.value = true
@@ -94,6 +102,7 @@ function onSlip(e) {
 }
 async function savePay() {
   if (!(pay.amount > 0)) return (payError.value = 'กรอกยอดเงิน')
+  if (payMode.value !== 'confirm' && pay.dueAt && new Date(pay.dueAt).getTime() <= Date.now()) return (payError.value = 'กำหนดชำระต้องเป็นเวลาในอนาคต')
   if (payMode.value === 'confirm' && !(await askConfirm({ title: 'ยืนยันยอดชำระ', message: `ได้รับจริง ${money(pay.amount)}`, okText: 'ยืนยัน' }))) return
   if (payMode.value === 'confirm') confirmPayment(order.value, payTarget.value.id, { ...pay })
   else if (payMode.value === 'edit') updatePaymentRequest(order.value, payTarget.value.id, { ...pay })
@@ -146,6 +155,30 @@ function saveAdj() {
 async function doStatus(status, text, title) {
   if (status === 'delivered' && t.value.balance > 0) return
   if (await askConfirm({ title, message: `ออร์เดอร์ ${order.value.code}`, okText: title })) setStatus(order.value, status, text)
+}
+async function doConfirmUnpaid() {
+  if (await askConfirm({ title: 'ยืนยันการสั่งซื้อ (ยังไม่ชำระ)', message: `ออร์เดอร์ ${order.value.code} · คงค้าง ${money(t.value.balance)} ชำระได้ภายหลัง`, okText: 'ยืนยัน' })) confirmUnpaid(order.value)
+}
+async function doRequestUnpaid() {
+  if (await askConfirm({ title: 'ขออนุมัติยืนยันการสั่งซื้อ', message: 'ส่งคำขอให้แอดมินอนุมัติ (ยังไม่ชำระ)', okText: 'ส่งคำขอ' })) requestConfirmUnpaid(order.value)
+}
+async function doRejectUnpaid() {
+  if (await askConfirm({ title: 'ไม่อนุมัติ', message: `ปฏิเสธคำขอยืนยันของ ${order.value.code}`, okText: 'ไม่อนุมัติ', danger: true })) rejectConfirmUnpaid(order.value)
+}
+// ---------- ขยายเวลาชำระ ----------
+const extFor = ref(null) // งวดที่กำลังขยาย
+const extAt = ref('')
+function openExt(p) {
+  extFor.value = p
+  extAt.value = quickDue(db.shop.payDueMin || 30)
+}
+function saveExt() {
+  if (!extAt.value || new Date(extAt.value).getTime() <= Date.now()) return
+  grantPayExtension(order.value, extFor.value.id, extAt.value)
+  extFor.value = null
+}
+async function doDenyExt(p) {
+  if (await askConfirm({ title: 'ไม่อนุมัติขยายเวลา', message: 'ลูกค้าจะยังชำระเองไม่ได้', okText: 'ไม่อนุมัติ', danger: true })) denyPayExtension(order.value, p.id)
 }
 async function doCancelConfirmed(p) {
   if (await askConfirm({ title: 'ยกเลิกยอดที่ยืนยันแล้ว', message: `${money(p.amount)} (${p.method})`, okText: 'ยกเลิกยอด', danger: true })) cancelConfirmedPayment(order.value, p.id)
@@ -232,8 +265,21 @@ async function saveCancel() {
       <div class="min-w-0 flex-1">
         <h1 class="truncate text-xl font-semibold tracking-tight text-stone-900">{{ order.code }}</h1>
       </div>
+      <PayDueBadge :order="order" />
       <StatusBadge :status="order.status" />
     </div>
+
+    <!-- ขออนุมัติยืนยันการสั่งซื้อ (ยังไม่ชำระ) -->
+    <div v-if="order.approval?.status === 'pending' && unpaidStage(order.status)" class="mb-3 flex flex-wrap items-center gap-2 rounded-2xl bg-indigo-50 p-3 text-sm text-indigo-800">
+      <AppIcon name="alert" :size="16" />
+      <span class="min-w-0 flex-1">มีคำขออนุมัติยืนยันการสั่งซื้อ (ยังไม่ชำระ) · คงค้าง {{ money(t.balance) }}<span v-if="order.approval.note"> · {{ order.approval.note }}</span></span>
+      <template v-if="can('confirmUnpaid')">
+        <button class="btn-primary h-9 px-3" @click="doConfirmUnpaid">อนุมัติ</button>
+        <button class="btn-outline h-9 px-3" @click="doRejectUnpaid">ไม่อนุมัติ</button>
+      </template>
+      <span v-else class="text-xs">รอแอดมินอนุมัติ</span>
+    </div>
+    <div v-else-if="order.approval?.status === 'rejected' && unpaidStage(order.status)" class="mb-3 rounded-2xl bg-rose-50 p-3 text-sm text-rose-700">ไม่อนุมัติยืนยันแบบยังไม่ชำระ<span v-if="order.approval.decisionNote"> · {{ order.approval.decisionNote }}</span></div>
 
     <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-4">
       <!-- ซ้าย -->
@@ -420,6 +466,17 @@ async function saveCancel() {
                 </span>
               </div>
               <div v-if="p.status === 'confirmed' && p.requested != null && p.requested !== p.amount" class="text-xs text-stone-500">แจ้งไป {{ money(p.requested) }} · ได้รับจริง {{ money(p.amount) }}</div>
+              <div v-if="dueState(p) !== 'none'" class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="dueState(p) === 'overdue' ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-700'">
+                <AppIcon name="alert" :size="12" /> ชำระก่อน {{ dateTime(p.dueAt) }} · {{ remainingText(p) }}
+              </div>
+              <div v-if="p.extension?.status === 'pending' && p.status === 'reported'" class="mt-2 rounded-lg bg-amber-50 p-2.5 text-sm text-amber-800">
+                ลูกค้าขอขยายเวลา<span v-if="p.extension.note"> · {{ p.extension.note }}</span>
+                <div v-if="can('reportPayment')" class="mt-2 flex gap-2">
+                  <button class="btn-primary h-9 flex-1 px-3" @click="openExt(p)">ขยายเวลา</button>
+                  <button class="btn-outline h-9 px-3" @click="doDenyExt(p)">ไม่อนุมัติ</button>
+                </div>
+              </div>
+              <div v-else-if="p.status === 'reported' && p.dueAt && can('reportPayment') && order.status !== 'cancelled'" class="mt-1"><button class="text-xs text-brand-700 underline" @click="openExt(p)">เปลี่ยนกำหนดชำระ</button></div>
               <div class="mt-0.5 text-sm text-stone-500">{{ p.method }} · {{ dateTime(p.paidAt) }}</div>
               <div v-if="p.note" class="text-sm break-words text-stone-500">{{ p.note }}</div>
               <a v-if="p.slip" :href="p.slip" target="_blank" class="mt-2 block"><img :src="p.slip" class="h-24 w-auto rounded-lg object-cover" /></a>
@@ -466,7 +523,7 @@ async function saveCancel() {
 
     <!-- ปุ่มเปลี่ยนสถานะ: มือถือติดล่าง / คอมอยู่ท้ายหน้า -->
     <div v-if="hasActions" class="action-bar lg:static lg:mt-4 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
-      <p v-if="order.status === 'preparing' && canDeliver && t.balance > 0" class="mx-auto mb-2 flex max-w-5xl items-center gap-1.5 text-sm font-medium text-amber-700">
+      <p v-if="order.status === 'prepared' && canDeliver && t.balance > 0" class="mx-auto mb-2 flex max-w-5xl items-center gap-1.5 text-sm font-medium text-amber-700">
         <AppIcon name="alert" :size="16" /> ยังค้างชำระ {{ money(t.balance) }} ส่งมอบไม่ได้
       </p>
       <div class="mx-auto flex max-w-5xl gap-2">
@@ -479,12 +536,27 @@ async function saveCancel() {
           @click="doStatus('awaiting_payment', 'ส่งไปรอชำระ', 'ส่งไปรอชำระ')"
         >ส่งไปรอชำระ</button>
         <button
-          v-if="order.status === 'payment_confirmed' && can('startPreparing')"
+          v-if="unpaidStage(order.status) && can('confirmUnpaid')"
+          class="btn-outline flex-1 sm:ml-auto sm:flex-none sm:px-6"
+          @click="doConfirmUnpaid"
+        >ยืนยันสั่งซื้อ (ยังไม่ชำระ)</button>
+        <button
+          v-else-if="unpaidStage(order.status) && can('requestConfirmUnpaid') && order.approval?.status !== 'pending'"
+          class="btn-outline flex-1 sm:ml-auto sm:flex-none sm:px-6"
+          @click="doRequestUnpaid"
+        >ขออนุมัติยืนยัน (ยังไม่ชำระ)</button>
+        <button
+          v-if="startable(order.status) && can('startPreparing')"
           class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8"
           @click="doStatus('preparing', 'เริ่มเตรียมสินค้า', 'เริ่มเตรียมสินค้า')"
         >เริ่มเตรียมสินค้า</button>
         <button
-          v-if="order.status === 'preparing' && canDeliver"
+          v-if="order.status === 'preparing' && can('markPrepared')"
+          class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8"
+          @click="doStatus('prepared', 'เตรียมสินค้าเสร็จแล้ว', 'เตรียมสินค้าเสร็จแล้ว')"
+        ><AppIcon name="check" :size="18" /> เตรียมสินค้าเสร็จ</button>
+        <button
+          v-if="order.status === 'prepared' && canDeliver"
           class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8"
           :disabled="t.balance > 0"
           @click="doStatus('delivered', 'ส่งมอบแล้ว', 'ส่งมอบแล้ว')"
@@ -507,6 +579,19 @@ async function saveCancel() {
     </AppModal>
 
     <!-- modal แจ้งยอด / แก้ยอด / ยืนยันยอดจริง -->
+    <AppModal v-if="extFor" title="ขยายเวลาชำระ" @close="extFor = null">
+      <div class="space-y-4">
+        <div class="flex flex-wrap gap-2">
+          <button v-for="q in QUICK_DUE" :key="q.m" type="button" class="chip chip-off" @click="extAt = quickDue(q.m)">อีก {{ q.label }}</button>
+        </div>
+        <div><label class="label">ต้องชำระก่อน</label><input v-model="extAt" type="datetime-local" class="input" /></div>
+      </div>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="extFor = null">ยกเลิก</button>
+        <button class="btn-primary flex-1 sm:flex-none" @click="saveExt">ขยายเวลา</button>
+      </template>
+    </AppModal>
+
     <AppModal v-if="payOpen" :title="PAY_TITLE[payMode]" @close="payOpen = false">
       <div class="space-y-4">
         <div v-if="payMode === 'confirm'" class="rounded-xl bg-sky-50 p-3 text-sm text-sky-800">
@@ -525,6 +610,14 @@ async function saveCancel() {
           <div class="flex flex-wrap gap-2">
             <button v-for="m in PAYMENT_METHODS" :key="m" type="button" class="chip" :class="pay.method === m ? 'chip-on' : 'chip-off'" @click="pay.method = m">{{ m }}</button>
           </div>
+        </div>
+        <div v-if="payMode !== 'confirm'">
+          <div class="label">ต้องชำระก่อน</div>
+          <div class="mb-2 flex flex-wrap gap-2">
+            <button v-for="q in QUICK_DUE" :key="q.m" type="button" class="chip chip-off" @click="pay.dueAt = quickDue(q.m)">{{ q.label }}</button>
+            <button type="button" class="chip" :class="!pay.dueAt ? 'chip-on' : 'chip-off'" @click="pay.dueAt = ''">ไม่กำหนด</button>
+          </div>
+          <input v-model="pay.dueAt" type="datetime-local" class="input" aria-label="กำหนดชำระ" />
         </div>
         <div><label class="label">วันเวลาที่ชำระ</label><input v-model="pay.paidAt" type="datetime-local" class="input" /></div>
         <div>

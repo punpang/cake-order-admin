@@ -12,6 +12,7 @@ import AppIcon from '../../components/AppIcon.vue'
 import AppModal from '../../components/AppModal.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
 import StatusBadge from '../../components/StatusBadge.vue'
+import PayDueBadge from '../../components/PayDueBadge.vue'
 import PhoneInput from '../../components/PhoneInput.vue'
 import PinInput from '../../components/PinInput.vue'
 import OtpStep from '../../components/OtpStep.vue'
@@ -161,7 +162,7 @@ function logout() {
             <span class="flex items-center gap-2"><b class="text-stone-900">{{ o.code }}</b><span v-if="CHANNEL[o.channel]" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{{ CHANNEL[o.channel] }}</span></span>
             <span class="block text-xs text-stone-500">{{ o.channel === 'pos' ? dateTime(o.createdAt) : `นัดรับ ${dateTime(o.pickupAt)}` }}</span>
           </span>
-          <span class="shrink-0 text-right"><StatusBadge :status="o.status" /><span class="mt-1 block text-sm font-semibold text-stone-900">{{ money(o.total) }}</span></span>
+          <span class="shrink-0 text-right"><StatusBadge :status="o.status" /><span class="mt-1 block"><PayDueBadge :due="o.payDue" short /></span><span class="mt-1 block text-sm font-semibold text-stone-900">{{ money(o.total) }}</span></span>
         </summary>
         <div class="space-y-3 border-t border-stone-100 px-4 py-3 text-sm">
           <ul class="space-y-2">
