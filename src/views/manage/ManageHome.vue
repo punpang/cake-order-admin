@@ -1,30 +1,31 @@
 <script setup>
 import { computed } from 'vue'
-import { db, upcomingBirthdays } from '../../data/store'
+import { db, upcomingBirthdays, pendingDeletions } from '../../data/store'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 
 const activeCount = (list) => list.filter((x) => x.active !== false).length
 
 const items = computed(() => [
-  { to: '/manage/customers', icon: 'users', title: 'ลูกค้า', desc: `${activeCount(db.customers)} รายการที่ใช้งาน` },
-  { to: '/manage/products', icon: 'cake', title: 'สินค้า (เค้กสำเร็จ)', desc: `${activeCount(db.products)} รายการที่ใช้งาน` },
-  { to: '/manage/options', icon: 'tag', title: 'ตัวเลือก + ราคา', desc: `${activeCount(db.optionGroups)} กลุ่มที่ใช้งาน` },
-  { to: '/manage/pricing', icon: 'wallet', title: 'การกำหนดราคา', desc: `${activeCount(db.priceLists)} แบบราคาพิเศษที่ใช้งาน` },
-  { to: '/manage/shop', icon: 'clock', title: 'ตั้งค่าร้าน', desc: `นัดรับ ${db.shop.open}–${db.shop.close} ทุก ${db.shop.slotMinutes} นาที` },
-  { to: '/manage/profit', icon: 'wallet', title: 'ยอดขาย & กำไร', desc: 'กราฟ ขายดี รับเงิน ลูกค้า ตามช่วงวัน' },
-  { to: '/manage/birthdays', icon: 'cake', title: 'เตือนวันเกิด', desc: `${upcomingBirthdays().filter((b) => !b.greeted).length} คน ภายใน ${db.shop.birthdayDays} วัน` },
-  { to: '/manage/retail', icon: 'pos', title: 'สินค้าหน้าร้าน (POS)', desc: `${activeCount(db.retailItems)} รายการ · สต็อกหมด ${db.retailItems.filter((x) => x.active !== false && x.stock === 0).length}` },
-  { to: '/manage/integrations', icon: 'phone', title: 'การเชื่อมต่อ & แจ้งเตือน', desc: `LINE OA · Facebook · SMS · Telegram (จำลอง) · คิว ${db.outbox.length} ข้อความ` },
-  { to: '/manage/loyalty', icon: 'tag', title: 'คะแนน & รางวัล', desc: `${activeCount(db.rewards)} ของแลก · ${activeCount(db.gachaPrizes)} รางวัลกาชา` },
-  { to: '/member', icon: 'user', title: 'หน้าลูกค้า (จำลอง)', desc: 'คะแนน แลกของ หมุนกาชา' },
-  { to: '/manage/ingredients', icon: 'basket', title: 'วัตถุดิบ', desc: `${activeCount(db.ingredients)} รายการที่ใช้งาน` },
-  { to: '/manage/users', icon: 'shield', title: 'ผู้ใช้', desc: `${activeCount(db.users)} คนที่ใช้งาน` },
+  { to: '/admin/manage/customers', icon: 'users', title: 'ลูกค้า', desc: `${activeCount(db.customers)} รายการที่ใช้งาน` },
+  { to: '/admin/manage/products', icon: 'cake', title: 'สินค้า (เค้กสำเร็จ)', desc: `${activeCount(db.products)} รายการที่ใช้งาน` },
+  { to: '/admin/manage/options', icon: 'tag', title: 'ตัวเลือก + ราคา', desc: `${activeCount(db.optionGroups)} กลุ่มที่ใช้งาน` },
+  { to: '/admin/manage/pricing', icon: 'wallet', title: 'การกำหนดราคา', desc: `${activeCount(db.priceLists)} แบบราคาพิเศษที่ใช้งาน` },
+  { to: '/admin/manage/shop', icon: 'clock', title: 'ตั้งค่าร้าน', desc: `นัดรับ ${db.shop.open}–${db.shop.close} ทุก ${db.shop.slotMinutes} นาที` },
+  { to: '/admin/manage/profit', icon: 'wallet', title: 'ยอดขาย & กำไร', desc: 'กราฟ ขายดี รับเงิน ลูกค้า ตามช่วงวัน' },
+  { to: '/admin/manage/birthdays', icon: 'cake', title: 'เตือนวันเกิด', desc: `${upcomingBirthdays().filter((b) => !b.greeted).length} คน ภายใน ${db.shop.birthdayDays} วัน` },
+  { to: '/admin/manage/retail', icon: 'pos', title: 'สินค้าหน้าร้าน (POS)', desc: `${activeCount(db.retailItems)} รายการ · สต็อกหมด ${db.retailItems.filter((x) => x.active !== false && x.stock === 0).length}` },
+  { to: '/admin/manage/integrations', icon: 'phone', title: 'การเชื่อมต่อ & แจ้งเตือน', desc: `LINE OA · Facebook · SMS · Telegram (จำลอง) · คิว ${db.outbox.length} ข้อความ` },
+  { to: '/admin/manage/loyalty', icon: 'tag', title: 'คะแนน & รางวัล', desc: `${activeCount(db.rewards)} ของแลก · ${activeCount(db.gachaPrizes)} รางวัลกาชา` },
+  { to: '/admin/manage/storefront', icon: 'store', title: 'หน้าร้าน (เว็บลูกค้า)', desc: `เมนู ${activeCount(db.products)} สินค้า · รีวิวรออนุมัติ ${db.reviews.filter((r) => r.status === 'pending').length}` },
+  { to: '/admin/manage/deletion-requests', icon: 'shield', title: 'คำขอลบข้อมูลลูกค้า', desc: `${pendingDeletions()} รอตรวจสอบ` },
+  { to: '/admin/manage/ingredients', icon: 'basket', title: 'วัตถุดิบ', desc: `${activeCount(db.ingredients)} รายการที่ใช้งาน` },
+  { to: '/admin/manage/users', icon: 'shield', title: 'ผู้ใช้', desc: `${activeCount(db.users)} คนที่ใช้งาน` },
 ])
 </script>
 
 <template>
-  <ManageShell title="จัดการ" back="/orders" :toolbar="false">
+  <ManageShell title="จัดการ" back="/admin/orders" :toolbar="false">
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <RouterLink
         v-for="it in items"

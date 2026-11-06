@@ -170,7 +170,7 @@ function submit(asDraft) {
   }
   const o = createOrder({ ...form, pickupAt: pickupAt.value, birthday: birthday.value, chatId: fromChat }, asDraft)
   if (props.embedded) emit('created', o)
-  else router.replace(`/orders/${o.id}`)
+  else router.replace(`/admin/orders/${o.id}`)
 }
 // ส่งใบเสนอเข้าแชท (ลูกค้ากดยืนยัน = เป็นออร์เดอร์)
 function quote() {
@@ -193,7 +193,7 @@ function quote() {
   <div v-else :class="embedded ? 'pb-2' : 'mx-auto max-w-2xl pb-[calc(env(safe-area-inset-bottom)+6rem)]'">
     <!-- หัว -->
     <div v-if="!embedded" class="mb-4 flex items-center gap-2">
-      <RouterLink to="/orders" class="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
+      <RouterLink to="/admin/orders" class="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
         <AppIcon name="back" :size="20" />
       </RouterLink>
       <h1 class="text-xl font-semibold tracking-tight text-stone-900">สร้างออร์เดอร์</h1>

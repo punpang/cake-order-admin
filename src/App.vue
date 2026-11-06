@@ -5,6 +5,7 @@ import { ROLES } from './lib/constants'
 import AppIcon from './components/AppIcon.vue'
 import AppModal from './components/AppModal.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
+import StoreLayout from './components/StoreLayout.vue'
 
 const roleOpen = ref(false)
 // เมนูล่างมือถือ: ออร์เดอร์ / แชท / POS / ครัว / จัดการ (เฉพาะที่มีสิทธิ์)
@@ -13,30 +14,34 @@ const unread = computed(() => unreadChats())
 </script>
 
 <template>
+  <!-- หน้าร้าน + ระบบลูกค้า -->
+  <StoreLayout v-if="$route.meta.store" />
+
+  <template v-else>
   <!-- แถบบน -->
   <header class="sticky top-0 z-20 border-b border-stone-200/60 bg-cream/85 backdrop-blur-xl">
     <div class="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
-      <RouterLink :to="$route.meta.member ? '/member' : '/orders'" class="flex min-w-0 items-center gap-2.5">
+      <RouterLink to="/admin/orders" class="flex min-w-0 items-center gap-2.5">
         <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-white">
           <AppIcon name="cake" :size="20" />
         </span>
-        <span class="truncate font-semibold text-stone-900">ร้านเค้ก <span class="font-normal text-stone-500">· {{ $route.meta.member ? 'สมาชิก' : 'หลังบ้าน' }}</span></span>
+        <span class="truncate font-semibold text-stone-900">ร้านเค้ก <span class="font-normal text-stone-500">· หลังบ้าน</span></span>
       </RouterLink>
 
-      <nav v-if="!$route.meta.member" class="ml-4 hidden gap-1 md:flex">
-        <RouterLink to="/orders" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ออร์เดอร์</RouterLink>
-        <RouterLink v-if="can('createOrder')" to="/orders/new" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">สร้างออร์เดอร์</RouterLink>
-        <RouterLink v-if="can('chat')" to="/chat" class="relative rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">
+      <nav class="ml-4 hidden gap-1 md:flex">
+        <RouterLink to="/admin/orders" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ออร์เดอร์</RouterLink>
+        <RouterLink v-if="can('createOrder')" to="/admin/orders/new" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">สร้างออร์เดอร์</RouterLink>
+        <RouterLink v-if="can('chat')" to="/admin/chat" class="relative rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">
           แชท<span v-if="unread" class="ml-1 rounded-full bg-rose-500 px-1.5 text-[11px] font-semibold text-white">{{ unread }}</span>
         </RouterLink>
-        <RouterLink v-if="can('pos')" to="/pos" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">POS</RouterLink>
-        <RouterLink v-if="can('viewMaterials')" to="/materials" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">วัตถุดิบ</RouterLink>
-        <RouterLink v-if="can('viewMaterials')" to="/production" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ตารางผลิต</RouterLink>
-        <RouterLink v-if="can('manage')" to="/manage" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">จัดการ</RouterLink>
+        <RouterLink v-if="can('pos')" to="/admin/pos" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">POS</RouterLink>
+        <RouterLink v-if="can('viewMaterials')" to="/admin/materials" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">วัตถุดิบ</RouterLink>
+        <RouterLink v-if="can('viewMaterials')" to="/admin/production" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ตารางผลิต</RouterLink>
+        <RouterLink v-if="can('manage')" to="/admin/manage" class="rounded-lg px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">จัดการ</RouterLink>
       </nav>
 
-      <RouterLink v-if="$route.meta.member" to="/manage" class="ml-auto text-sm text-stone-500 underline">กลับหลังบ้าน</RouterLink>
-      <button v-else class="ml-auto inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-sm" :aria-label="`บทบาท ${ROLES[session.role]}`" @click="roleOpen = true">
+      <RouterLink to="/" class="ml-auto text-sm text-stone-500 underline">หน้าร้าน</RouterLink>
+      <button class="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-sm" :aria-label="`บทบาท ${ROLES[session.role]}`" @click="roleOpen = true">
         <AppIcon name="user" :size="16" class="text-stone-500" />
         {{ ROLES[session.role] }}
       </button>
@@ -45,40 +50,40 @@ const unread = computed(() => unreadChats())
 
   <main
     class="mx-auto max-w-6xl px-4 pt-5"
-    :class="$route.meta.focus || $route.meta.member ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10'"
+    :class="$route.meta.focus ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10'"
   >
     <RouterView :key="$route.fullPath" />
   </main>
 
   <!-- แถบเมนูล่าง (มือถือ) -->
   <nav
-    v-if="!$route.meta.focus && !$route.meta.member"
+    v-if="!$route.meta.focus"
     class="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200/70 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
   >
     <div class="mx-auto grid h-16 max-w-md items-center" :style="{ gridTemplateColumns: `repeat(${tabCount}, minmax(0, 1fr))` }">
-      <RouterLink to="/orders" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" exact-active-class="text-brand-700!">
+      <RouterLink to="/admin/orders" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" exact-active-class="text-brand-700!">
         <AppIcon name="list" :size="22" />
         ออร์เดอร์
       </RouterLink>
-      <RouterLink v-if="can('chat')" to="/chat" class="relative flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
+      <RouterLink v-if="can('chat')" to="/admin/chat" class="relative flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
         <AppIcon name="chat" :size="22" />
         แชท
         <span v-if="unread" class="absolute -top-1 left-1/2 ml-2 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[10px] leading-4 font-semibold text-white">{{ unread }}</span>
       </RouterLink>
-      <RouterLink v-if="can('pos')" to="/pos" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
+      <RouterLink v-if="can('pos')" to="/admin/pos" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
         <AppIcon name="pos" :size="22" />
         POS
       </RouterLink>
       <RouterLink
         v-if="can('viewMaterials')"
-        to="/materials"
+        to="/admin/materials"
         class="flex flex-col items-center gap-0.5 text-[11px] font-medium"
-        :class="['/materials', '/production'].includes($route.path) ? 'text-brand-700' : 'text-stone-500'"
+        :class="['/admin/materials', '/admin/production'].includes($route.path) ? 'text-brand-700' : 'text-stone-500'"
       >
         <AppIcon name="basket" :size="22" />
         ครัว
       </RouterLink>
-      <RouterLink v-if="can('manage')" to="/manage" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
+      <RouterLink v-if="can('manage')" to="/admin/manage" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
         <AppIcon name="grid" :size="22" />
         จัดการ
       </RouterLink>
@@ -100,6 +105,7 @@ const unread = computed(() => unreadChats())
       </button>
     </div>
   </AppModal>
+  </template>
 
   <ConfirmDialog />
 </template>

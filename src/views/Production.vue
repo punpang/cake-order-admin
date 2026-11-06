@@ -62,7 +62,7 @@ const details = (it) => describeSelections(it, db.optionGroups)
   <div v-if="!can('viewMaterials')" class="card flex flex-col items-center gap-3 py-12 text-center">
     <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-100 text-stone-400"><AppIcon name="user" :size="28" /></span>
     <div class="font-semibold text-stone-800">เฉพาะแอดมินและคนทำเค้ก</div>
-    <RouterLink to="/orders" class="btn-soft">กลับไปหน้าออร์เดอร์</RouterLink>
+    <RouterLink to="/admin/orders" class="btn-soft">กลับไปหน้าออร์เดอร์</RouterLink>
   </div>
 
   <div v-else class="mx-auto max-w-4xl">
@@ -98,7 +98,7 @@ const details = (it) => describeSelections(it, db.optionGroups)
           <span class="ml-auto text-xs font-medium text-stone-400">{{ g.rows.length }} ออร์เดอร์</span>
         </div>
         <div class="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
-          <RouterLink v-for="r in g.rows" :key="r.o.id" :to="`/orders/${r.o.id}`" class="card block p-3.5 transition hover:border-brand-300 focus-visible:ring-4 focus-visible:ring-brand-200 focus-visible:outline-none active:scale-[0.99]" :class="r.late ? 'border-rose-300' : ''">
+          <RouterLink v-for="r in g.rows" :key="r.o.id" :to="`/admin/orders/${r.o.id}`" class="card block p-3.5 transition hover:border-brand-300 focus-visible:ring-4 focus-visible:ring-brand-200 focus-visible:outline-none active:scale-[0.99]" :class="r.late ? 'border-rose-300' : ''">
             <div class="flex items-start gap-3">
               <div class="flex w-16 shrink-0 flex-col items-center rounded-xl py-2" :class="r.late ? 'bg-rose-50 text-rose-700' : 'bg-brand-50 text-brand-800'">
                 <span class="text-[10px] font-medium">เสร็จก่อน</span>

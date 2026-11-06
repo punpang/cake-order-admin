@@ -51,7 +51,7 @@ function setFrom(v) {
   <div v-if="!can('viewMaterials')" class="card flex flex-col items-center gap-3 py-12 text-center">
     <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-100 text-stone-400"><AppIcon name="user" :size="28" /></span>
     <div class="font-semibold text-stone-800">เฉพาะแอดมินและคนทำเค้ก</div>
-    <RouterLink to="/orders" class="btn-soft">กลับไปหน้าออร์เดอร์</RouterLink>
+    <RouterLink to="/admin/orders" class="btn-soft">กลับไปหน้าออร์เดอร์</RouterLink>
   </div>
 
   <div v-else class="mx-auto max-w-4xl">

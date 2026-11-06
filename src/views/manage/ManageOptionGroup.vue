@@ -9,6 +9,7 @@ import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
 import RecipeEditor from '../../components/RecipeEditor.vue'
+import ImageUploader from '../../components/ImageUploader.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const group = computed(() => findGroup(props.id))
@@ -81,11 +82,11 @@ async function saveG() {
 
 // ---------- ตัวเลือก ----------
 const oOpen = ref(false)
-const blank = () => ({ id: null, name: '', price: 0, pounds: 1, active: true, recipe: [], allow: {}, sizePrices: {}, priceType: 'size', types: [], typePrices: {}, typePrice: {} })
+const blank = () => ({ id: null, name: '', price: 0, pounds: 1, active: true, recipe: [], images: [], allow: {}, sizePrices: {}, priceType: 'size', types: [], typePrices: {}, typePrice: {} })
 const o = reactive(blank())
 const oError = ref('')
 function editOption(opt) {
-  Object.assign(o, opt ? { ...blank(), ...opt, recipe: (opt.recipe || []).map((x) => ({ ...x })), allow: JSON.parse(JSON.stringify(opt.allow || {})), sizePrices: { ...(opt.sizePrices || {}) }, types: [...(opt.types || [])], typePrices: JSON.parse(JSON.stringify(opt.typePrices || {})), typePrice: { ...(opt.typePrice || {}) } } : blank())
+  Object.assign(o, opt ? { ...blank(), ...opt, recipe: (opt.recipe || []).map((x) => ({ ...x })), images: [...(opt.images || [])], allow: JSON.parse(JSON.stringify(opt.allow || {})), sizePrices: { ...(opt.sizePrices || {}) }, types: [...(opt.types || [])], typePrices: JSON.parse(JSON.stringify(opt.typePrices || {})), typePrice: { ...(opt.typePrice || {}) } } : blank())
   for (const t of db.optionGroups.find((x) => x.key === 'type')?.options || []) if (!o.typePrices[t.id]) o.typePrices[t.id] = {}
   oError.value = ''
   oOpen.value = true
@@ -107,6 +108,7 @@ async function saveO() {
   const vals = [o.price, ...Object.values(o.sizePrices), ...Object.values(o.typePrice), ...Object.values(o.typePrices).flatMap((r) => Object.values(r))]
   if (!isMain.value && vals.some((v) => v !== '' && v != null && !(Number(v) >= 0))) return (oError.value = 'ราคาไม่ถูกต้อง')
   const data = { ...o }
+  if (!isType.value) delete data.images
   if (!isType.value) delete data.allow
   else {
     for (const lg of limitGroups.value) if (data.allow[lg.id] && !data.allow[lg.id].length) return (oError.value = `เลือก${lg.name}อย่างน้อย 1 อย่าง`)
@@ -119,7 +121,7 @@ async function saveO() {
 
 <template>
   <div v-if="!group" class="card py-10 text-center text-stone-500">
-    ไม่พบกลุ่มตัวเลือก <RouterLink to="/manage/options" class="text-brand-700 underline">กลับ</RouterLink>
+    ไม่พบกลุ่มตัวเลือก <RouterLink to="/admin/manage/options" class="text-brand-700 underline">กลับ</RouterLink>
   </div>
 
   <ManageShell
@@ -127,7 +129,7 @@ async function saveO() {
     v-model:q="q"
     v-model:inactive="inactive"
     :title="group.name"
-    back="/manage/options"
+    back="/admin/manage/options"
     :add-label="group.type !== 'text' ? 'เพิ่มตัวเลือก' : ''"
     :toolbar="group.type !== 'text'"
     search-placeholder="ค้นหาตัวเลือก"
@@ -146,9 +148,9 @@ async function saveO() {
           <div class="text-sm text-stone-500">{{ GROUP_TYPES[group.type] }} · {{ group.appliesTo.map((a) => APPLIES_TO[a]).join(', ') }}</div>
           <div class="mt-1 text-xs text-stone-400">
             <template v-if="isMain">
-              {{ isSize ? 'ราคาขนาดตั้งแยกตามประเภท' : isType ? 'ราคาประเภท + ราคาขนาดของประเภท' : 'บวกเพิ่มเท่ากันทุกขนาด' }} · ตั้งตัวเลขที่ <RouterLink to="/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink>
+              {{ isSize ? 'ราคาขนาดตั้งแยกตามประเภท' : isType ? 'ราคาประเภท + ราคาขนาดของประเภท' : 'บวกเพิ่มเท่ากันทุกขนาด' }} · ตั้งตัวเลขที่ <RouterLink to="/admin/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink>
             </template>
-            <template v-else-if="group.type !== 'text'">ราคาตามขนาด · บันเดิ้ลตั้งที่ <RouterLink to="/manage/options" class="text-brand-700 underline">ตัวเลือก + ราคา</RouterLink></template>
+            <template v-else-if="group.type !== 'text'">ราคาตามขนาด · บันเดิ้ลตั้งที่ <RouterLink to="/admin/manage/options" class="text-brand-700 underline">ตัวเลือก + ราคา</RouterLink></template>
           </div>
         </div>
         <button class="btn-outline h-9 px-3" @click="editGroup"><AppIcon name="edit" :size="16" /> แก้ไข</button>
@@ -229,7 +231,7 @@ async function saveO() {
 
         <template v-if="isSize">
           <div><label class="label">ขนาด (ปอนด์)</label><input v-model.number="o.pounds" type="text" v-num.dec min="0.5" class="input" /></div>
-          <p class="text-sm text-stone-500">ราคาของขนาดนี้ตั้งแยกตามประเภทที่ <RouterLink to="/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></p>
+          <p class="text-sm text-stone-500">ราคาของขนาดนี้ตั้งแยกตามประเภทที่ <RouterLink to="/admin/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></p>
         </template>
 
         <div v-else-if="isMain" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">
@@ -237,7 +239,7 @@ async function saveO() {
             <template v-if="isType">ราคาประเภท {{ money(o.price || 0) }}<br />ราคาขนาด: {{ sizesText(o.sizePrices, '') }}<br /></template>
             <template v-else>ราคา: {{ o.price ? `+${money(o.price)} ทุกขนาด` : 'ไม่บวกเพิ่ม' }}<br /></template>
           </template>
-          <span class="text-xs text-stone-500">ตั้ง/แก้ราคาที่ <RouterLink to="/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></span>
+          <span class="text-xs text-stone-500">ตั้ง/แก้ราคาที่ <RouterLink to="/admin/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></span>
         </div>
 
         <template v-else>
@@ -293,6 +295,11 @@ async function saveO() {
           </div>
         </template>
 
+        <div v-if="isType">
+          <div class="label">รูปเค้ก (แสดงที่หน้าร้าน)</div>
+          <ImageUploader v-model="o.images" :max="6" />
+          <p class="mt-1 text-xs text-stone-400">รูปแรกใช้เป็นรูปหน้าปกของประเภทนี้</p>
+        </div>
         <div v-if="isType" class="space-y-3">
           <div v-for="lg in limitGroups" :key="lg.id">
             <div class="label">{{ lg.name }}ที่มีสำหรับประเภทนี้</div>

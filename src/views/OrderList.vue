@@ -119,7 +119,7 @@ function clearAll() {
         <h1 class="text-2xl font-semibold tracking-tight text-stone-900">ออร์เดอร์</h1>
         <p class="text-sm text-stone-500">แสดง {{ list.length }} จาก {{ visible.length }} รายการ</p>
       </div>
-      <RouterLink v-if="can('createOrder')" to="/orders/new" class="btn-primary hidden md:inline-flex">
+      <RouterLink v-if="can('createOrder')" to="/admin/orders/new" class="btn-primary hidden md:inline-flex">
         <AppIcon name="plus" /> สร้างออร์เดอร์
       </RouterLink>
     </div>
@@ -251,7 +251,7 @@ function clearAll() {
         <RouterLink
           v-for="{ o, c, t } in g.orders"
           :key="o.id"
-          :to="`/orders/${o.id}`"
+          :to="`/admin/orders/${o.id}`"
           class="card block p-3.5 transition hover:border-brand-300 focus-visible:ring-4 focus-visible:ring-brand-200 focus-visible:outline-none active:scale-[0.99]"
           :class="o.status === 'cancelled' ? 'opacity-70' : ''"
         >
@@ -299,7 +299,7 @@ function clearAll() {
     <!-- ปุ่มลอยสร้างออร์เดอร์ (มือถือ) -->
     <RouterLink
       v-if="can('createOrder')"
-      to="/orders/new"
+      to="/admin/orders/new"
       class="fixed right-4 bottom-[calc(env(safe-area-inset-bottom)+5rem)] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg hover:bg-brand-700 md:hidden"
       aria-label="สร้างออร์เดอร์"
     ><AppIcon name="plus" :size="26" /></RouterLink>

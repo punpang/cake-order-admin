@@ -1,15 +1,14 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { db, customerPoints, customerCoupons, redeemReward, spinGacha } from '../data/store'
+import { db, customerPoints, customerCoupons, redeemReward, spinGacha, myCustomer } from '../data/store'
 import { expiringSoon, couponUsable, chanceTotal } from '../lib/loyalty'
 import { money, dateOnly, dateTime, toDateStr, num } from '../lib/format'
-import AppIcon from '../components/AppIcon.vue'
-import AppModal from '../components/AppModal.vue'
+import AppIcon from './AppIcon.vue'
+import AppModal from './AppModal.vue'
 import { askConfirm } from '../lib/confirm'
 
-// หน้าลูกค้า (จำลอง): เลือกลูกค้าแทนการล็อกอิน จนกว่าจะต่อ Supabase
-const customerId = ref(db.customers[0]?.id || '')
-const me = computed(() => db.customers.find((c) => c.id === customerId.value))
+// คะแนน / แลกของ / กาชา / คูปอง ของลูกค้าที่ล็อกอินอยู่ (ย้ายมาจากหน้าลูกค้าจำลองเดิม) ใช้ได้เฉพาะของตัวเอง
+const me = computed(() => myCustomer())
 const today = toDateStr(new Date())
 const points = computed(() => customerPoints(me.value))
 const soon = computed(() => expiringSoon(me.value?.ledger, today, 30))
@@ -86,16 +85,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
 </script>
 
 <template>
-  <div class="mx-auto max-w-lg">
-    <!-- เลือกลูกค้า (จำลองการล็อกอิน) -->
-    <div class="mb-3 flex items-center gap-2 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">
-      <AppIcon name="user" :size="16" />
-      <span class="shrink-0">จำลองเป็น</span>
-      <select v-model="customerId" class="input h-9 min-w-0 flex-1 py-0" @change="msg = ''; result = null">
-        <option v-for="c in db.customers" :key="c.id" :value="c.id">{{ c.name }}</option>
-      </select>
-    </div>
-
+  <div>
     <template v-if="me">
       <!-- คะแนน -->
       <section class="mb-4 rounded-3xl bg-linear-to-br from-brand-600 to-brand-800 p-5 text-white">

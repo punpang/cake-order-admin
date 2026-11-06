@@ -122,7 +122,7 @@ async function save() {
             <div class="label">ประวัติออร์เดอร์</div>
             <p v-if="!history.orders.length" class="rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-500">ยังไม่มีออร์เดอร์</p>
             <div v-else class="divide-y divide-stone-100 rounded-xl border border-stone-200/70">
-              <RouterLink v-for="r in history.orders" :key="r.o.id" :to="`/orders/${r.o.id}`" class="flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-stone-50">
+              <RouterLink v-for="r in history.orders" :key="r.o.id" :to="`/admin/orders/${r.o.id}`" class="flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-stone-50">
                 <span class="min-w-0 flex-1">
                   <span class="block truncate font-medium text-stone-900">{{ r.o.code }} · {{ r.o.items[0]?.name }}<template v-if="r.o.items.length > 1"> +{{ r.o.items.length - 1 }}</template></span>
                   <span class="block text-xs text-stone-500">{{ dateTime(r.o.pickupAt) }} · {{ STATUS[r.o.status].label }}</span>

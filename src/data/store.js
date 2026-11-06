@@ -7,6 +7,7 @@ import { addDays, pointBalance, takePoints, returnPoints, couponUsable, pickPriz
 import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, timeOnly } from '../lib/format'
 import { nextBirthday, daysBetween } from '../lib/birthday'
 import { parseAnswer } from '../lib/chatParse'
+import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
 let seq = 1000
 const uid = (p) => `${p}${++seq}`
@@ -222,11 +223,49 @@ export const db = reactive({
   // กะขาย: float = เงินทอนตั้งต้น, counted = เงินสดที่นับได้ตอนปิด
   shifts: [],
 
+  // ---------- หน้าร้าน (สาธารณะ) · เนื้อหาตัวอย่าง แก้ได้ที่ /admin/manage/storefront ----------
+  storefront: {
+    heroTitle: 'เค้กทำสดใหม่ ทุกโอกาสพิเศษ',
+    heroText: 'เค้กวันเกิดและเค้กสั่งทำ ออกแบบได้ตามใจ ทำสดใหม่ทุกออร์เดอร์',
+    heroImage: '',
+    about: 'ร้านเค้กทำสดใหม่ทุกวัน รับทำเค้กวันเกิด เค้กสั่งทำตามแบบ และเค้กสำเร็จรูป',
+    address: 'ที่อยู่ร้าน (ตัวอย่าง)',
+    mapUrl: '',
+    phone: '',
+    lineUrl: '',
+    facebookUrl: '',
+    hours: [{ days: 'ทุกวัน', time: '09:00–20:00' }],
+    howToOrder: [
+      { title: 'เลือกเค้ก', text: 'ดูเมนูในเว็บ เลือกเค้กสำเร็จหรือแบบที่อยากสั่งทำ' },
+      { title: 'ทักแชท', text: 'กดปุ่มสั่งทาง LINE หรือ Facebook แจ้งวันเวลารับ' },
+      { title: 'ยืนยัน + ชำระ', text: 'ร้านส่งใบเสนอราคาให้ยืนยัน แล้วชำระตามยอดที่แจ้ง' },
+      { title: 'รับเค้ก', text: 'รับที่ร้านหรือจัดส่งตามวันเวลาที่นัด' },
+    ],
+    faq: [
+      { q: 'สั่งล่วงหน้ากี่วัน?', a: 'แนะนำล่วงหน้าอย่างน้อย 2–3 วัน เค้กสั่งทำตามแบบควรแจ้งล่วงหน้ามากกว่านั้น' },
+      { q: 'ชำระเงินอย่างไร?', a: 'โอนเงิน เงินสด หรือบัตร ร้านจะแจ้งยอดและงวดชำระทางแชท' },
+    ],
+    policies: [
+      { title: 'การยกเลิก', text: 'แจ้งยกเลิกทางแชท เงื่อนไขการคืนเงินขึ้นกับสถานะการทำเค้ก' },
+      { title: 'ความเป็นส่วนตัว', text: 'ร้านเก็บชื่อ เบอร์โทร และข้อมูลออร์เดอร์เพื่อรับและจัดส่งเค้กเท่านั้น ขอลบข้อมูลได้ที่หน้าบัญชีของฉัน' },
+    ],
+    gallery: [],
+  },
+  // รีวิว: source = admin (แอดมินกรอก อนุมัติทันที) | customer (ลูกค้าเขียนหลังรับสินค้า รออนุมัติ) status = pending | approved | rejected
+  reviews: [],
+
+  // ---------- ระบบลูกค้า (จำลอง) ----------
+  // customerAccounts: เบอร์ + PIN (เก็บเป็น hash + salt) · otps: รหัสยืนยัน (จำลองเก็บในหน่วยความจำ) · deletionRequests: คำขอลบข้อมูล
+  customerAccounts: [],
+  otps: [],
+  deletionRequests: [],
+
   orders: [],
 })
 
 // ทุกรายการเริ่มต้นเป็น "ใช้งาน" + สมุดคะแนน / สิทธิ์หมุน
-for (const p of db.products) p.stock = p.stock ?? null
+for (const p of db.products) Object.assign(p, { stock: p.stock ?? null, images: p.images || [], pinned: !!p.pinned })
+for (const o of db.optionGroups.find((g) => g.key === 'type')?.options || []) o.images = o.images || []
 for (const r of db.retailItems) r.modifierIds = r.modifierIds || []
 for (const c of db.customers) Object.assign(c, { active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: true })
 // ตัวอย่าง: ลูกค้าคนแรกผูก LINE แล้ว (จำลอง)
@@ -1216,6 +1255,314 @@ function seedChats() {
   receiveMessage('facebook', 'PSID-sweetco', 'Sweet Co.', 'สอบถามเค้กสำหรับงานบริษัท 5 ปอนด์ ราคาเท่าไหร่คะ', ago(1))
   const old = receiveMessage('facebook', 'PSID-old', 'Nok Nok', 'ยังรับออร์เดอร์อยู่ไหมคะ', ago(30))
   old.unreadStaff = 0
+}
+
+// ---------- หน้าร้าน: เนื้อหา + รีวิว (หลังบ้านแก้ ที่ /admin/manage/storefront) ----------
+const pairs = (list, keys) =>
+  (list || []).map((x) => Object.fromEntries(keys.map((k) => [k, String(x[k] ?? '').trim()]))).filter((x) => keys.some((k) => x[k]))
+export function saveStorefront(d) {
+  Object.assign(db.storefront, {
+    heroTitle: String(d.heroTitle ?? '').trim(), heroText: String(d.heroText ?? '').trim(), heroImage: d.heroImage || '',
+    about: String(d.about ?? '').trim(), address: String(d.address ?? '').trim(), mapUrl: String(d.mapUrl ?? '').trim(),
+    phone: phoneDigits(d.phone), lineUrl: String(d.lineUrl ?? '').trim(), facebookUrl: String(d.facebookUrl ?? '').trim(),
+    hours: pairs(d.hours, ['days', 'time']), howToOrder: pairs(d.howToOrder, ['title', 'text']),
+    faq: pairs(d.faq, ['q', 'a']), policies: pairs(d.policies, ['title', 'text']),
+    gallery: (d.gallery || []).filter((g) => g.image).map((g) => ({ image: g.image, caption: String(g.caption ?? '').trim() })),
+  })
+}
+const clampRating = (v) => Math.min(5, Math.max(1, Math.round(Number(v) || 0)))
+// แอดมินกรอกรีวิวเอง (อนุมัติทันที) · มี id = แก้
+export function saveReview(d) {
+  const name = String(d.name ?? '').trim()
+  const text = String(d.text ?? '').trim()
+  if (!name || !text) return null
+  const data = { name: name.slice(0, 60), text: text.slice(0, 500), rating: clampRating(d.rating) }
+  const cur = d.id ? db.reviews.find((x) => x.id === d.id) : null
+  if (cur) return Object.assign(cur, data)
+  const r = { id: uid('rv'), customerId: null, orderId: null, source: 'admin', status: 'approved', createdAt: now(), ...data }
+  db.reviews.unshift(r)
+  return r
+}
+export function setReviewStatus(id, status) {
+  const r = db.reviews.find((x) => x.id === id)
+  if (r && ['pending', 'approved', 'rejected'].includes(status)) r.status = status
+}
+export function removeReview(id) {
+  const i = db.reviews.findIndex((x) => x.id === id)
+  if (i >= 0) db.reviews.splice(i, 1)
+}
+
+// ---------- ระบบลูกค้า (จำลอง) ----------
+// ทุกฟังก์ชันฝั่งลูกค้าอ่าน/เขียนผ่าน customerSession.customerId เท่านั้น (เลียน RLS: เห็น/แก้ได้เฉพาะของตัวเอง)
+// ของจริง: ตาราง customer_accounts / otps + Edge Function + RLS (ดู docs/customer-auth.md)
+export const customerSession = reactive({ customerId: null })
+const liveCustomerByPhone = (phone) => db.customers.find((c) => !c.deleted && phone && phoneDigits(c.phone) === phone) || null
+const accountByPhone = (phone) => db.customerAccounts.find((a) => a.phone === phone) || null
+const myAccount = () => db.customerAccounts.find((a) => a.customerId === customerSession.customerId) || null
+export const myCustomer = () => db.customers.find((c) => c.id === customerSession.customerId && !c.deleted) || null
+export const customerLogout = () => {
+  customerSession.customerId = null
+}
+const NEEDS_LOGIN = ['change_pin', 'change_phone', 'delete']
+
+// ขอ OTP (จำลอง: คืน simCode ให้แสดงบนจอ · ของจริงส่ง SMS ผ่านระบบ SMS ของร้านและไม่คืนรหัส)
+export function requestOtp(phoneRaw, purpose) {
+  if (!OTP_PURPOSE[purpose]) return { error: 'ไม่รู้จักประเภทรหัส' }
+  let phone = phoneDigits(phoneRaw)
+  const me = myAccount()
+  if (NEEDS_LOGIN.includes(purpose)) {
+    if (!me) return { error: 'กรุณาเข้าสู่ระบบก่อน' }
+    if (purpose !== 'change_phone') phone = me.phone // ส่งไปเบอร์ของบัญชีเสมอ
+  }
+  if (!phoneValid(phone)) return { error: 'กรอกเบอร์โทรให้ถูกต้อง' }
+  if (purpose === 'register' && accountByPhone(phone)) return { error: 'เบอร์นี้สมัครแล้ว กรุณาเข้าสู่ระบบ' }
+  if (purpose === 'reset' && !accountByPhone(phone)) return { error: 'ไม่พบบัญชีของเบอร์นี้' }
+  if (purpose === 'change_phone') {
+    if (phone === me.phone) return { error: 'เป็นเบอร์เดิมของคุณ' }
+    const owner = liveCustomerByPhone(phone)
+    if (accountByPhone(phone) || (owner && owner.id !== me.customerId)) return { error: 'เบอร์นี้ถูกใช้แล้ว' }
+  }
+  const last = db.otps.filter((o) => o.phone === phone && o.purpose === purpose).sort((a, b) => b.sentAt - a.sentAt)[0]
+  if (last && Date.now() - last.sentAt < OTP.resendMs) {
+    const wait = Math.ceil((OTP.resendMs - (Date.now() - last.sentAt)) / 1000)
+    return { error: `ขอรหัสใหม่ได้ในอีก ${wait} วินาที`, wait }
+  }
+  for (let i = db.otps.length - 1; i >= 0; i--) if (db.otps[i].phone === phone && db.otps[i].purpose === purpose) db.otps.splice(i, 1)
+  const o = { id: uid('otp'), phone, purpose, code: genOtp(), sentAt: Date.now(), expiresAt: Date.now() + OTP.ttlMs, attempts: 0, verifiedUntil: 0, used: false, accountId: NEEDS_LOGIN.includes(purpose) ? me.customerId : null }
+  db.otps.push(o)
+  return { ok: true, phone, simCode: o.code }
+}
+// ตรวจรหัส OTP → คืน token ไปใช้ในขั้นถัดไป (register: knownCustomer = เบอร์นี้มีลูกค้าในระบบแล้ว ไม่ต้องกรอกชื่อ)
+export function verifyOtp(phoneRaw, purpose, code) {
+  const me = myAccount()
+  const phone = NEEDS_LOGIN.includes(purpose) && purpose !== 'change_phone' ? me?.phone : phoneDigits(phoneRaw)
+  const o = db.otps.filter((x) => x.phone === phone && x.purpose === purpose && !x.used).sort((a, b) => b.sentAt - a.sentAt)[0]
+  if (!o) return { error: 'ยังไม่ได้ขอรหัส กรุณาขอรหัสก่อน', expired: true }
+  if (o.accountId && o.accountId !== customerSession.customerId) return { error: 'ไม่มีสิทธิ์ใช้รหัสนี้' }
+  if (Date.now() > o.expiresAt) return { error: 'รหัสหมดอายุ กรุณาขอรหัสใหม่', expired: true }
+  if (o.attempts >= OTP.maxTries) return { error: 'กรอกผิดเกินกำหนด กรุณาขอรหัสใหม่', expired: true }
+  if (!isOtpCode(code) || !safeEqual(code, o.code)) {
+    o.attempts++
+    const left = OTP.maxTries - o.attempts
+    return left > 0 ? { error: `รหัสไม่ถูกต้อง (เหลือ ${left} ครั้ง)` } : { error: 'กรอกผิดเกินกำหนด กรุณาขอรหัสใหม่', expired: true }
+  }
+  o.verifiedUntil = Date.now() + OTP.verifiedMs
+  return { ok: true, token: o.id, knownCustomer: purpose === 'register' ? !!liveCustomerByPhone(phone) : undefined }
+}
+// token ที่ยืนยันแล้วและยังไม่หมดเวลา/ยังไม่ถูกใช้ (ผูกกับ purpose, เบอร์ และเจ้าของบัญชี)
+function findVerified(token, purpose, phone = null) {
+  const o = db.otps.find((x) => x.id === token && x.purpose === purpose && !x.used && x.verifiedUntil > Date.now())
+  if (!o) return null
+  if (phone != null && o.phone !== phone) return null
+  if (o.accountId && o.accountId !== customerSession.customerId) return null
+  return o
+}
+const NEED_OTP = { error: 'กรุณายืนยัน OTP ก่อน (รหัสอาจหมดเวลา)' }
+async function makeCredential(pin) {
+  const salt = randomHex()
+  return { salt, pinHash: await hashPin(pin, salt) }
+}
+// สมัคร: เบอร์ที่มีลูกค้าอยู่แล้ว (พนักงานสร้างไว้) → ผูกกับลูกค้าเดิม · เบอร์ใหม่ → สร้างลูกค้า (ต้องมีชื่อ)
+export async function registerAccount({ token, phone: phoneRaw, name = '', pin }) {
+  const phone = phoneDigits(phoneRaw)
+  const o = findVerified(token, 'register', phone)
+  if (!o) return NEED_OTP
+  const weak = weakPin(pin, phone)
+  if (weak) return { error: weak }
+  if (accountByPhone(phone)) return { error: 'เบอร์นี้สมัครแล้ว กรุณาเข้าสู่ระบบ' }
+  let cu = liveCustomerByPhone(phone)
+  const linked = !!cu
+  if (cu && db.customerAccounts.some((a) => a.customerId === cu.id)) return { error: 'ลูกค้านี้มีบัญชีอยู่แล้ว' }
+  if (!cu) {
+    const n = String(name).trim().slice(0, 100)
+    if (!n) return { error: 'กรอกชื่อ' }
+    cu = addCustomer({ name: n, phone, line: '', note: 'สมัครเองจากหน้าร้าน' })
+    cu.promoOptIn = false
+  }
+  db.customerAccounts.push({ customerId: cu.id, phone, ...(await makeCredential(pin)), failed: 0, lockedUntil: 0, createdAt: now() })
+  o.used = true
+  customerSession.customerId = cu.id
+  return { ok: true, linked }
+}
+// เข้าสู่ระบบ: เบอร์ + PIN · ผิด 5 ครั้งล็อก 15 นาที (ข้อความผิดทั่วไปไม่บอกว่าเบอร์มีในระบบไหม)
+export async function loginPin(phoneRaw, pin) {
+  const phone = phoneDigits(phoneRaw)
+  const bad = { error: 'เบอร์โทรหรือ PIN ไม่ถูกต้อง' }
+  const a = accountByPhone(phone)
+  if (!a || !isPin(pin)) return bad
+  if (a.lockedUntil > Date.now()) return { error: `ลองผิดเกินกำหนด ล็อกอีก ${Math.ceil((a.lockedUntil - Date.now()) / 60e3)} นาที หรือใช้ "ลืม PIN"`, locked: true }
+  if (!safeEqual(await hashPin(pin, a.salt), a.pinHash)) {
+    a.failed++
+    if (a.failed >= PIN.maxFails) {
+      Object.assign(a, { failed: 0, lockedUntil: Date.now() + PIN.lockMs })
+      return { error: `ใส่ PIN ผิดครบ ${PIN.maxFails} ครั้ง ล็อก ${PIN.lockMs / 60e3} นาที หรือใช้ "ลืม PIN"`, locked: true }
+    }
+    return { error: `เบอร์โทรหรือ PIN ไม่ถูกต้อง (เหลือ ${PIN.maxFails - a.failed} ครั้ง)` }
+  }
+  a.failed = 0
+  customerSession.customerId = a.customerId
+  return { ok: true }
+}
+// ลืม PIN (ยังไม่ล็อกอิน): ยืนยัน OTP แล้วตั้ง PIN ใหม่ ปลดล็อกบัญชี
+export async function resetPin({ token, phone: phoneRaw, pin }) {
+  const phone = phoneDigits(phoneRaw)
+  const o = findVerified(token, 'reset', phone)
+  const a = accountByPhone(phone)
+  if (!o || !a) return NEED_OTP
+  const weak = weakPin(pin, phone)
+  if (weak) return { error: weak }
+  Object.assign(a, await makeCredential(pin), { failed: 0, lockedUntil: 0 })
+  o.used = true
+  return { ok: true }
+}
+// เปลี่ยน PIN (ล็อกอินอยู่): ต้องยืนยัน OTP ก่อน
+export async function changePin({ token, pin }) {
+  const a = myAccount()
+  const o = findVerified(token, 'change_pin', a?.phone)
+  if (!a || !o) return NEED_OTP
+  const weak = weakPin(pin, a.phone)
+  if (weak) return { error: weak }
+  Object.assign(a, await makeCredential(pin), { failed: 0, lockedUntil: 0 })
+  o.used = true
+  return { ok: true }
+}
+// เปลี่ยนเบอร์: OTP ส่งไปเบอร์ใหม่
+export function changePhone({ token, phone: phoneRaw }) {
+  const phone = phoneDigits(phoneRaw)
+  const a = myAccount()
+  const cu = myCustomer()
+  const o = findVerified(token, 'change_phone', phone)
+  if (!a || !cu || !o) return NEED_OTP
+  const owner = liveCustomerByPhone(phone)
+  if (accountByPhone(phone) || (owner && owner.id !== cu.id)) return { error: 'เบอร์นี้ถูกใช้แล้ว' }
+  a.phone = phone
+  cu.phone = phone
+  o.used = true
+  return { ok: true }
+}
+// ข้อมูลของฉัน (เฉพาะช่องที่ลูกค้าเห็นได้ ไม่รวมหมายเหตุของพนักงาน)
+export function myProfile() {
+  const c = myCustomer()
+  return c ? { id: c.id, name: c.name, phone: c.phone, line: c.line || '', promoOptIn: !!c.promoOptIn, spins: c.spins || 0, points: customerPoints(c) } : null
+}
+// แก้ได้เฉพาะ ชื่อ / LINE ID / รับข่าว-โปร (เบอร์แก้ผ่าน changePhone ที่ต้องยืนยัน OTP)
+export function updateMyProfile({ name, line, promoOptIn }) {
+  const c = myCustomer()
+  if (!c) return { error: 'กรุณาเข้าสู่ระบบ' }
+  const n = String(name ?? c.name).trim()
+  if (!n) return { error: 'กรอกชื่อ' }
+  c.name = n.slice(0, 100)
+  c.line = String(line ?? '').trim().slice(0, 50)
+  c.promoOptIn = !!promoOptIn
+  return { ok: true }
+}
+const reviewOfOrder = (id) => db.reviews.find((r) => r.orderId === id)
+// ออร์เดอร์ของฉัน (รวมบิลหน้าร้านที่ผูกสมาชิก) · ไม่รวมประวัติภายใน/ต้นทุน/กำไร
+export function myOrders() {
+  const id = customerSession.customerId
+  if (!id || !myCustomer()) return []
+  return db.orders
+    .filter((o) => o.customerId === id && o.status !== 'draft')
+    .map((o) => {
+      const t = orderTotals(o)
+      return {
+        id: o.id, code: o.code, channel: o.channel || 'web', status: o.status, createdAt: o.createdAt, pickupAt: o.pickupAt, fulfillment: o.fulfillment,
+        address: o.address || '', birthday: o.birthday ? { ...o.birthday } : null, items: o.items.map((i) => ({ ...i })),
+        total: t.total, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal,
+        payments: o.payments.filter((p) => p.status === 'confirmed').map((p) => ({ amount: p.amount, method: p.method, paidAt: p.paidAt })),
+        review: reviewOfOrder(o.id) ? { rating: reviewOfOrder(o.id).rating, status: reviewOfOrder(o.id).status } : null,
+      }
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+export const myBirthdays = () => (myCustomer() ? birthdayList(customerSession.customerId).map((b) => ({ name: b.name, md: b.md })) : [])
+// เขียนรีวิว: เฉพาะออร์เดอร์ของตัวเองที่ส่งมอบแล้ว 1 รีวิวต่อออร์เดอร์ → รอแอดมินอนุมัติ
+export function submitReview({ orderId, rating, text }) {
+  const c = myCustomer()
+  const o = db.orders.find((x) => x.id === orderId && x.customerId === c?.id)
+  if (!c || !o) return { error: 'ไม่พบออร์เดอร์' }
+  if (o.status !== 'delivered') return { error: 'รีวิวได้หลังรับสินค้าแล้ว' }
+  if (reviewOfOrder(o.id)) return { error: 'ออร์เดอร์นี้รีวิวแล้ว' }
+  const t = String(text ?? '').trim()
+  if (!t) return { error: 'กรอกข้อความรีวิว' }
+  db.reviews.unshift({ id: uid('rv'), customerId: c.id, orderId: o.id, source: 'customer', status: 'pending', name: c.name.trim().split(/\s+/)[0].slice(0, 60), rating: clampRating(rating), text: t.slice(0, 500), createdAt: now() })
+  return { ok: true }
+}
+
+// ---------- คำขอลบข้อมูล ----------
+// ลูกค้าส่งคำขอ (ต้องยืนยัน OTP) → แอดมินอนุมัติ/ปฏิเสธ · อนุมัติ = ลบตัวตน เก็บออร์เดอร์/การชำระแบบนิรนาม
+export const myDeletionRequest = () => db.deletionRequests.find((r) => r.customerId === customerSession.customerId && r.status === 'pending') || db.deletionRequests.filter((r) => r.customerId === customerSession.customerId)[0] || null
+export function requestDeletion({ token, note = '' }) {
+  const a = myAccount()
+  const o = findVerified(token, 'delete', a?.phone)
+  if (!a || !o) return NEED_OTP
+  if (db.deletionRequests.some((r) => r.customerId === a.customerId && r.status === 'pending')) return { error: 'มีคำขอที่รอตรวจสอบอยู่แล้ว' }
+  db.deletionRequests.unshift({ id: uid('dr'), customerId: a.customerId, status: 'pending', customerNote: String(note).trim().slice(0, 300), reason: '', createdAt: now(), decidedAt: null, decidedBy: '' })
+  o.used = true
+  return { ok: true }
+}
+// สิ่งที่ทำให้ยังอนุมัติลบไม่ได้: ออร์เดอร์ที่ยังไม่จบ / ยอดค้างชำระ
+export function deletionBlockers(customerId) {
+  const mine = db.orders.filter((o) => o.customerId === customerId && o.status !== 'cancelled')
+  const out = []
+  const open = mine.filter((o) => o.status !== 'delivered')
+  if (open.length) out.push(`มีออร์เดอร์ที่ยังไม่จบ ${open.length} รายการ (${open.map((o) => o.code).join(', ')})`)
+  const owing = mine.filter((o) => orderTotals(o).balance > 0)
+  if (owing.length) out.push(`มียอดค้างชำระ ${owing.length} ออร์เดอร์ (${owing.map((o) => o.code).join(', ')})`)
+  return out
+}
+export const pendingDeletions = () => db.deletionRequests.filter((r) => r.status === 'pending').length
+// ลบตัวตน: ข้อมูลส่วนตัว บัญชี/PIN แชท ใบเสนอ คะแนน/คูปอง รีวิว คิวข้อความ และรายละเอียดส่วนตัวในออร์เดอร์
+// เก็บ: ออร์เดอร์ รายการ ยอดเงินและการชำระ (ตัดชื่อ/ที่อยู่/วันเกิด/รูป/สลิป/ข้อความบนเค้ก) ผูกกับ "ลูกค้าที่ลบแล้ว"
+function scrubCustomer(id) {
+  const cu = findCustomer(id)
+  const orderIds = new Set(db.orders.filter((o) => o.customerId === id).map((o) => o.id))
+  const addrs = new Set([cu.phone, cu.lineUserId, cu.fbPsid].filter(Boolean))
+  const chatIds = new Set(db.chats.filter((c) => c.customerId === id).map((c) => c.id))
+  const textGroups = new Set(db.optionGroups.filter((g) => g.type === 'text').map((g) => g.id))
+  for (const o of db.orders) {
+    if (o.customerId !== id) continue
+    Object.assign(o, { birthday: null, address: '', chatId: null })
+    for (const it of o.items) {
+      it.note = ''
+      it.images = []
+      for (const k of Object.keys(it.selections || {})) if (textGroups.has(k)) delete it.selections[k]
+      for (const t of it.tiers || []) for (const k of Object.keys(t.selections || {})) if (textGroups.has(k)) delete t.selections[k]
+    }
+    for (const p of o.payments) Object.assign(p, { slip: '', note: '' })
+    if (o.cancel) o.cancel.refundNote = ''
+  }
+  for (let i = db.chats.length - 1; i >= 0; i--) if (chatIds.has(db.chats[i].id)) db.chats.splice(i, 1)
+  for (const k of chatIds) delete db.chatDrafts[k]
+  for (let i = db.quotes.length - 1; i >= 0; i--) if (chatIds.has(db.quotes[i].chatId)) db.quotes.splice(i, 1)
+  for (let i = db.coupons.length - 1; i >= 0; i--) if (db.coupons[i].customerId === id) db.coupons.splice(i, 1)
+  for (let i = db.reviews.length - 1; i >= 0; i--) if (db.reviews[i].customerId === id) db.reviews.splice(i, 1)
+  for (let i = db.outbox.length - 1; i >= 0; i--) if (orderIds.has(db.outbox[i].orderId) || addrs.has(db.outbox[i].to)) db.outbox.splice(i, 1)
+  db.birthdayGreeted = db.birthdayGreeted.filter((k) => !k.startsWith(`${id}|`))
+  db.notifySent = db.notifySent.filter((k) => !k.includes(`|${id}|`))
+  db.customerAccounts = db.customerAccounts.filter((a) => a.customerId !== id)
+  // OTP: ลบของเจ้าของบัญชีนี้ + ที่ใช้แล้ว/หมดอายุทั้งหมด (กันเบอร์เก่าตกค้างหลังเปลี่ยนเบอร์)
+  db.otps = db.otps.filter((o) => !addrs.has(o.phone) && o.accountId !== id && !o.used && o.expiresAt > Date.now())
+  Object.assign(cu, { name: 'ลูกค้าที่ลบแล้ว', phone: '', line: '', note: '', lineUserId: '', fbPsid: '', promoOptIn: false, active: false, deleted: true, deletedAt: now(), ledger: [], spins: 0 })
+  if (customerSession.customerId === id) customerSession.customerId = null
+}
+export function approveDeletion(requestId) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const r = db.deletionRequests.find((x) => x.id === requestId)
+  if (!r || r.status !== 'pending') return { error: 'คำขอนี้ดำเนินการแล้ว' }
+  const blockers = deletionBlockers(r.customerId)
+  if (blockers.length) return { error: blockers.join(' · '), blockers }
+  scrubCustomer(r.customerId)
+  Object.assign(r, { status: 'approved', decidedAt: now(), decidedBy: session.role })
+  return { ok: true }
+}
+export function rejectDeletion(requestId, reason) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const r = db.deletionRequests.find((x) => x.id === requestId)
+  if (!r || r.status !== 'pending') return { error: 'คำขอนี้ดำเนินการแล้ว' }
+  if (!String(reason ?? '').trim()) return { error: 'ใส่เหตุผลที่ปฏิเสธ' }
+  Object.assign(r, { status: 'rejected', reason: String(reason).trim().slice(0, 300), decidedAt: now(), decidedBy: session.role })
+  return { ok: true }
 }
 
 // ข้อมูลตัวอย่าง (เรียกท้ายไฟล์ หลังประกาศฟังก์ชันทั้งหมด)

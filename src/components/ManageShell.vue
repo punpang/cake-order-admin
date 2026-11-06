@@ -6,7 +6,7 @@ import AppSwitch from './AppSwitch.vue'
 defineProps({
   title: { type: String, required: true },
   subtitle: { type: String, default: '' },
-  back: { type: String, default: '/manage' },
+  back: { type: String, default: '/admin/manage' },
   addLabel: { type: String, default: '' },
   searchPlaceholder: { type: String, default: 'ค้นหา' },
   toolbar: { type: Boolean, default: true },
@@ -20,7 +20,7 @@ const showInactive = defineModel('inactive', { type: Boolean, default: false })
   <div v-if="!can('manage')" class="card flex flex-col items-center gap-3 py-12 text-center">
     <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-100 text-stone-400"><AppIcon name="user" :size="28" /></span>
     <div class="font-semibold text-stone-800">เฉพาะแอดมิน</div>
-    <RouterLink to="/orders" class="btn-soft">กลับไปหน้าออร์เดอร์</RouterLink>
+    <RouterLink to="/admin/orders" class="btn-soft">กลับไปหน้าออร์เดอร์</RouterLink>
   </div>
 
   <div v-else class="mx-auto max-w-4xl">

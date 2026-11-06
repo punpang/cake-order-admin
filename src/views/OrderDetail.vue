@@ -212,13 +212,13 @@ async function saveCancel() {
 <template>
   <div v-if="!order" class="card flex flex-col items-center gap-3 py-12 text-center">
     <div class="font-semibold text-stone-800">ไม่พบออร์เดอร์</div>
-    <RouterLink to="/orders" class="btn-soft">กลับไปหน้าออร์เดอร์</RouterLink>
+    <RouterLink to="/admin/orders" class="btn-soft">กลับไปหน้าออร์เดอร์</RouterLink>
   </div>
 
   <div v-else class="mx-auto max-w-5xl" :class="hasActions ? 'pb-[calc(env(safe-area-inset-bottom)+6rem)] lg:pb-0' : ''">
     <!-- หัว -->
     <div class="mb-4 flex items-center gap-2">
-      <RouterLink to="/orders" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
+      <RouterLink to="/admin/orders" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
         <AppIcon name="back" :size="20" />
       </RouterLink>
       <div class="min-w-0 flex-1">

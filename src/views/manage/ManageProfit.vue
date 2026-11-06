@@ -223,7 +223,7 @@ const due = computed(() => {
 
     <p v-if="!rows.length" class="card py-10 text-center text-stone-500">ไม่มีออร์เดอร์ในช่วงนี้</p>
     <div v-else class="card divide-y divide-stone-100 p-0">
-      <RouterLink v-for="r in rows" :key="r.o.id" :to="`/orders/${r.o.id}`" class="flex items-center gap-3 px-4 py-3 hover:bg-stone-50">
+      <RouterLink v-for="r in rows" :key="r.o.id" :to="`/admin/orders/${r.o.id}`" class="flex items-center gap-3 px-4 py-3 hover:bg-stone-50">
         <span class="min-w-0 flex-1">
           <span class="block truncate font-medium text-stone-900">{{ r.o.code }} · {{ findCustomer(r.o.customerId)?.name }}</span>
           <span class="block text-xs text-stone-500">{{ dateTime(r.o.pickupAt) }} · {{ STATUS[r.o.status].label }}</span>

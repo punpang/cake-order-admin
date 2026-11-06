@@ -8,6 +8,7 @@ import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
 import RecipeEditor from '../../components/RecipeEditor.vue'
+import ImageUploader from '../../components/ImageUploader.vue'
 import { productPrice, productPounds, allowedBy } from '../../lib/pricing'
 
 const q = ref('')
@@ -32,11 +33,11 @@ const poundsOf = (p) => productPounds(p, db.optionGroups)
 const nameOf = (k, id) => groupOf(k)?.options.find((o) => o.id === id)?.name || '-'
 
 const open = ref(false)
-const blank = () => ({ id: null, name: '', typeId: null, flavorId: null, sizeId: null, active: true, recipe: [], stock: '' })
+const blank = () => ({ id: null, name: '', typeId: null, flavorId: null, sizeId: null, active: true, recipe: [], stock: '', images: [], pinned: false })
 const form = reactive(blank())
 const error = ref('')
 function edit(p) {
-  Object.assign(form, p ? { ...blank(), ...p, recipe: (p.recipe || []).map((x) => ({ ...x })), stock: p.stock == null ? '' : String(p.stock) } : blank())
+  Object.assign(form, p ? { ...blank(), ...p, recipe: (p.recipe || []).map((x) => ({ ...x })), images: [...(p.images || [])], stock: p.stock == null ? '' : String(p.stock) } : blank())
   error.value = ''
   open.value = true
 }
@@ -82,10 +83,12 @@ watch(
         :class="p.active === false ? 'opacity-60' : ''"
         @click="edit(p)"
       >
-        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><AppIcon name="cake" :size="24" /></span>
+        <img v-if="p.images?.length" :src="p.images[0]" alt="" class="h-12 w-12 shrink-0 rounded-2xl object-cover" />
+        <span v-else class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><AppIcon name="cake" :size="24" /></span>
         <span class="min-w-0 flex-1">
           <span class="flex items-center gap-2">
             <span class="truncate font-semibold text-stone-900">{{ p.name }}</span>
+            <span v-if="p.pinned" class="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">ปักหมุดขายดี</span>
             <span v-if="p.active === false" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
           </span>
           <span class="block truncate text-sm text-stone-500">{{ nameOf('type', p.typeId) }} · {{ nameOf('flavor', p.flavorId) }} · {{ nameOf('size', p.sizeId) }}</span>
@@ -109,14 +112,19 @@ watch(
           <span class="text-stone-500">ราคา (ประเภท + เนื้อเค้ก + ขนาด)</span>
           <b class="text-base text-stone-900">{{ form.sizeId ? money(priceOf(form)) : '-' }}</b>
         </div>
-        <p class="text-xs text-stone-400">แก้ตัวเลขราคาที่ <RouterLink to="/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink> · สูตรวัตถุดิบด้านล่างใช้คิดต้นทุนของสินค้านี้</p>
+        <p class="text-xs text-stone-400">แก้ตัวเลขราคาที่ <RouterLink to="/admin/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink> · สูตรวัตถุดิบด้านล่างใช้คิดต้นทุนของสินค้านี้</p>
         <div>
           <label class="label">สต็อกหน้าร้าน (POS)</label>
           <input v-model="form.stock" type="text" v-num class="input" placeholder="ไม่นับ" />
           <p class="mt-1 text-xs text-stone-400">เว้นว่าง = ไม่นับสต็อก · ขายใน POS แล้วตัดสต็อกอัตโนมัติ</p>
         </div>
+        <div>
+          <div class="label">รูปสินค้า (แสดงที่หน้าร้าน)</div>
+          <ImageUploader v-model="form.images" :max="6" />
+        </div>
         <RecipeEditor v-model="form.recipe" :pounds="form.sizeId ? poundsOf(form) : 0" :price="priceOf(form)" />
-        <AppSwitch v-model="form.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" />
+        <AppSwitch v-model="form.pinned" label="ปักหมุดในสินค้าขายดี (หน้าร้าน แสดงก่อนอันดับอัตโนมัติ)" />
+        <AppSwitch v-model="form.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์ และหน้าร้าน)" />
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </div>
       <template #footer>

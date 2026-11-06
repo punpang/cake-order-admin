@@ -108,7 +108,7 @@ function doSim() {
   const ext = v.chat ? v.chat.externalId : `${v.channel === 'line' ? 'U' : 'PSID'}-sim-${Date.now()}`
   const c = receiveMessage(v.channel, ext, v.chat ? v.chat.profileName : v.name.trim() || 'ลูกค้าใหม่', v.text)
   simOpen.value = false
-  if (!v.chat) router.push(`/chat/${c.id}`)
+  if (!v.chat) router.push(`/admin/chat/${c.id}`)
 }
 </script>
 
@@ -137,7 +137,7 @@ function doSim() {
         <ul class="min-h-0 flex-1 overflow-y-auto">
           <li v-if="!list.length" class="p-6 text-center text-sm text-stone-400">ยังไม่มีแชท</li>
           <li v-for="c in list" :key="c.id">
-            <RouterLink :to="`/chat/${c.id}`" class="flex items-center gap-3 border-b border-stone-100 px-3 py-3 hover:bg-stone-50" :class="current?.id === c.id ? 'bg-brand-50' : ''">
+            <RouterLink :to="`/admin/chat/${c.id}`" class="flex items-center gap-3 border-b border-stone-100 px-3 py-3 hover:bg-stone-50" :class="current?.id === c.id ? 'bg-brand-50' : ''">
               <span class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-800">
                 {{ (nameOf(c) || '?').replace(/^คุณ/, '').trim().charAt(0) }}
                 <span class="absolute -right-1 -bottom-1 rounded px-1 text-[9px] leading-4 font-bold" :class="CH[c.channel].cls">{{ c.channel === 'line' ? 'L' : 'f' }}</span>
@@ -160,7 +160,7 @@ function doSim() {
       <!-- เธรด -->
       <section v-if="current" class="flex min-h-0 flex-col bg-stone-50">
         <div class="flex items-center gap-2 border-b border-stone-200 bg-white p-2.5">
-          <RouterLink to="/chat" class="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 md:hidden" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
+          <RouterLink to="/admin/chat" class="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 md:hidden" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
           <div class="min-w-0 flex-1">
             <div class="flex min-w-0 items-center gap-1.5">
               <span class="shrink-0 rounded px-1.5 text-[10px] leading-5 font-bold" :class="CH[current.channel].cls">{{ CH[current.channel].l }}</span>
@@ -200,7 +200,7 @@ function doSim() {
       <section v-else class="hidden items-center justify-center bg-stone-50 text-sm text-stone-400 md:flex">เลือกแชททางซ้าย</section>
     </div>
     <p class="mt-2 text-center text-xs text-stone-400">
-      <template v-if="db.integrations.line.status !== 'connected' && db.integrations.facebook.status !== 'connected'">ยังไม่ได้เชื่อม LINE OA / Facebook · <RouterLink v-if="can('manage')" to="/manage/integrations" class="text-brand-700 underline">ไปเชื่อม</RouterLink> · </template>
+      <template v-if="db.integrations.line.status !== 'connected' && db.integrations.facebook.status !== 'connected'">ยังไม่ได้เชื่อม LINE OA / Facebook · <RouterLink v-if="can('manage')" to="/admin/manage/integrations" class="text-brand-700 underline">ไปเชื่อม</RouterLink> · </template>
       <template v-else>เชื่อมแล้ว: {{ [db.integrations.line.status === 'connected' ? `LINE ${db.integrations.line.accountName}` : '', db.integrations.facebook.status === 'connected' ? `Facebook ${db.integrations.facebook.accountName}` : ''].filter(Boolean).join(' · ') }} · </template>
       จำลอง (ทดสอบด้วยปุ่ม "จำลองข้อความเข้า")
     </p>
@@ -208,7 +208,7 @@ function doSim() {
     <!-- ออร์เดอร์ของลูกค้า -->
     <AppModal v-if="ordersOpen" title="ออร์เดอร์ที่ยังไม่ปิด" @close="ordersOpen = false">
       <div class="space-y-2">
-        <RouterLink v-for="o in openOrders" :key="o.id" :to="`/orders/${o.id}`" class="flex items-center justify-between gap-2 rounded-xl border border-stone-200 p-3 hover:border-brand-300">
+        <RouterLink v-for="o in openOrders" :key="o.id" :to="`/admin/orders/${o.id}`" class="flex items-center justify-between gap-2 rounded-xl border border-stone-200 p-3 hover:border-brand-300">
           <span class="min-w-0">
             <span class="block font-medium text-stone-900">{{ o.code }}</span>
             <span class="block truncate text-xs text-stone-500">{{ o.items[0]?.name }}</span>

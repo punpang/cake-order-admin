@@ -192,7 +192,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
   <div v-else class="mx-auto max-w-6xl">
     <!-- หัว -->
     <div class="mb-3 flex flex-wrap items-center gap-2">
-      <RouterLink to="/orders" class="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 md:hidden" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
+      <RouterLink to="/admin/orders" class="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 md:hidden" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
       <h1 class="text-xl font-semibold text-stone-900">POS หน้าร้าน</h1>
       <span v-if="shift" class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">กะเปิด {{ timeOnly(shift.openedAt) }} · {{ ROLES[shift.openedBy] }}</span>
       <div v-if="shift" class="ml-auto grid grid-cols-3 gap-1 rounded-xl bg-stone-100 p-1">

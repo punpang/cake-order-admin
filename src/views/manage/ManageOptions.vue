@@ -45,7 +45,7 @@ function save() {
   if (!form.appliesTo.length) return (error.value = 'เลือกอย่างน้อย 1 ประเภทสินค้า')
   const g = saveGroup({ ...form, appliesTo: [...form.appliesTo], options: [] })
   open.value = false
-  if (g.type !== 'text') router.push(`/manage/options/${g.id}`)
+  if (g.type !== 'text') router.push(`/admin/manage/options/${g.id}`)
 }
 
 // ---------- บันเดิ้ล: ตัวเลือกรอง ในกลุ่มเดียวกันหรือข้ามกลุ่ม ลดราคาตามขนาด ----------
@@ -105,7 +105,7 @@ async function saveB() {
 
     <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
       <div v-for="g in list" :key="g.id" class="card flex gap-2 p-2 transition hover:border-brand-300" :class="g.active === false ? 'opacity-60' : ''">
-      <RouterLink :to="`/manage/options/${g.id}`" class="block min-w-0 flex-1 rounded-xl p-2 active:scale-[0.99]">
+      <RouterLink :to="`/admin/manage/options/${g.id}`" class="block min-w-0 flex-1 rounded-xl p-2 active:scale-[0.99]">
         <div class="flex items-start gap-3">
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">

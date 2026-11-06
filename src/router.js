@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { customerSession } from './data/store'
 import OrderList from './views/OrderList.vue'
 import OrderCreate from './views/OrderCreate.vue'
 import OrderDetail from './views/OrderDetail.vue'
@@ -13,7 +14,6 @@ import ManagePriceLists from './views/manage/ManagePriceLists.vue'
 import ManageLoyalty from './views/manage/ManageLoyalty.vue'
 import ManageProfit from './views/manage/ManageProfit.vue'
 import ManageShop from './views/manage/ManageShop.vue'
-import Member from './views/Member.vue'
 import Materials from './views/Materials.vue'
 import Production from './views/Production.vue'
 import ManageBirthdays from './views/manage/ManageBirthdays.vue'
@@ -21,36 +21,66 @@ import ManageIntegrations from './views/manage/ManageIntegrations.vue'
 import Chat from './views/Chat.vue'
 import Pos from './views/Pos.vue'
 import ManageRetail from './views/manage/ManageRetail.vue'
+import ManageStorefront from './views/manage/ManageStorefront.vue'
+import ManageDeletionRequests from './views/manage/ManageDeletionRequests.vue'
+import StoreHome from './views/store/StoreHome.vue'
+import StoreMenu from './views/store/StoreMenu.vue'
+import StoreItem from './views/store/StoreItem.vue'
+import AccountLogin from './views/account/AccountLogin.vue'
+import AccountRegister from './views/account/AccountRegister.vue'
+import AccountForgot from './views/account/AccountForgot.vue'
+import Account from './views/account/Account.vue'
 
-// meta.focus = หน้าที่มีแถบปุ่มของตัวเอง ซ่อนแถบเมนูล่างบนมือถือ
-export default createRouter({
+// meta.store = หน้าร้าน/ระบบลูกค้า (ใช้ StoreLayout) · meta.focus = หน้าหลังบ้านที่มีแถบปุ่มของตัวเอง ซ่อนแถบเมนูล่างบนมือถือ
+const router = createRouter({
   history: createWebHashHistory(),
   routes: [
-    { path: '/', redirect: '/orders' },
-    { path: '/orders', component: OrderList },
-    { path: '/orders/new', component: OrderCreate, meta: { focus: true } },
-    { path: '/orders/:id', component: OrderDetail, props: true, meta: { focus: true } },
-    { path: '/chat', component: Chat },
-    { path: '/chat/:id', component: Chat, props: true, meta: { focus: true } },
-    { path: '/pos', component: Pos, meta: { focus: true } },
-    { path: '/materials', component: Materials },
-    { path: '/production', component: Production },
-    { path: '/manage', component: ManageHome },
-    { path: '/manage/customers', component: ManageCustomers },
-    { path: '/manage/products', component: ManageProducts },
-    { path: '/manage/options', component: ManageOptions },
-    { path: '/manage/options/:id', component: ManageOptionGroup, props: true },
-    { path: '/manage/users', component: ManageUsers },
-    { path: '/manage/ingredients', component: ManageIngredients },
-    { path: '/manage/pricing', component: ManagePriceLists },
-    { path: '/manage/loyalty', component: ManageLoyalty },
-    { path: '/manage/profit', component: ManageProfit },
-    { path: '/manage/shop', component: ManageShop },
-    { path: '/manage/birthdays', component: ManageBirthdays },
-    { path: '/manage/integrations', component: ManageIntegrations },
-    { path: '/manage/retail', component: ManageRetail },
-    // หน้าลูกค้า (จำลอง ยังไม่มีล็อกอินลูกค้า)
-    { path: '/member', component: Member, meta: { member: true } },
+    // ---------- หน้าร้าน (ทุกคนดูได้ ไม่ต้องล็อกอิน) ----------
+    { path: '/', component: StoreHome, meta: { store: true } },
+    { path: '/menu', component: StoreMenu, meta: { store: true } },
+    { path: '/menu/:kind/:id', component: StoreItem, props: true, meta: { store: true } },
+    // ---------- ระบบลูกค้า (จำลอง จนกว่าจะต่อ Supabase) ----------
+    { path: '/account/login', component: AccountLogin, meta: { store: true } },
+    { path: '/account/register', component: AccountRegister, meta: { store: true } },
+    { path: '/account/forgot', component: AccountForgot, meta: { store: true } },
+    { path: '/account', component: Account, meta: { store: true, customer: true } },
+    { path: '/member', redirect: '/account' },
+    // ---------- หลังบ้าน ----------
+    { path: '/admin', redirect: '/admin/orders' },
+    { path: '/admin/orders', component: OrderList },
+    { path: '/admin/orders/new', component: OrderCreate, meta: { focus: true } },
+    { path: '/admin/orders/:id', component: OrderDetail, props: true, meta: { focus: true } },
+    { path: '/admin/chat', component: Chat },
+    { path: '/admin/chat/:id', component: Chat, props: true, meta: { focus: true } },
+    { path: '/admin/pos', component: Pos, meta: { focus: true } },
+    { path: '/admin/materials', component: Materials },
+    { path: '/admin/production', component: Production },
+    { path: '/admin/manage', component: ManageHome },
+    { path: '/admin/manage/customers', component: ManageCustomers },
+    { path: '/admin/manage/products', component: ManageProducts },
+    { path: '/admin/manage/options', component: ManageOptions },
+    { path: '/admin/manage/options/:id', component: ManageOptionGroup, props: true },
+    { path: '/admin/manage/users', component: ManageUsers },
+    { path: '/admin/manage/ingredients', component: ManageIngredients },
+    { path: '/admin/manage/pricing', component: ManagePriceLists },
+    { path: '/admin/manage/loyalty', component: ManageLoyalty },
+    { path: '/admin/manage/profit', component: ManageProfit },
+    { path: '/admin/manage/shop', component: ManageShop },
+    { path: '/admin/manage/birthdays', component: ManageBirthdays },
+    { path: '/admin/manage/integrations', component: ManageIntegrations },
+    { path: '/admin/manage/retail', component: ManageRetail },
+    { path: '/admin/manage/storefront', component: ManageStorefront },
+    { path: '/admin/manage/deletion-requests', component: ManageDeletionRequests },
+    // ลิงก์หลังบ้านเดิม (ก่อนย้ายไป /admin)
+    { path: '/:old(orders|manage|chat|pos|materials|production)/:rest(.*)*', redirect: (to) => `/admin${to.fullPath}` },
+    { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
   scrollBehavior: () => ({ top: 0 }),
 })
+
+// หน้าบัญชีลูกค้าต้องล็อกอินก่อน (จำลอง: รีเฟรชหน้าแล้วต้องเข้าสู่ระบบใหม่)
+router.beforeEach((to) => {
+  if (to.meta.customer && !customerSession.customerId) return '/account/login'
+})
+
+export default router
