@@ -1,7 +1,7 @@
 // ข้อมูลตัวอย่าง (เก็บในหน่วยความจำ รีเฟรชแล้วหาย)
 // ขั้นต่อไปจะเปลี่ยนฟังก์ชันในไฟล์นี้ให้เรียก Supabase แทน
 import { reactive } from 'vue'
-import { PERMISSIONS, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
+import { PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList } from '../lib/refund'
@@ -31,8 +31,31 @@ const at = (dayOffset, hh, mm = 0) => {
 }
 
 // ---------- ผู้ใช้ (จำลอง) ----------
-export const session = reactive({ role: 'admin' })
-export const can = (action) => PERMISSIONS[action]?.includes(session.role)
+// session.userId = ผู้ใช้ที่ทดลองใช้งานอยู่ · session.role = บทบาทของผู้ใช้ (ไว้บันทึกประวัติ/ป้าย)
+export const session = reactive({ role: 'admin', userId: 'u1' })
+// สิทธิ์จริง = รายการที่ติ๊กของผู้ใช้ (user.perms) · ถ้า session.role ถูกสลับตรง ๆ (ไม่ผ่าน switchUser เช่นในเทสต์) ใช้ค่าตั้งต้นของบทบาทนั้นแทน
+const permsOf = () => {
+  const u = db.users.find((x) => x.id === session.userId)
+  if (u && u.active !== false && u.role === session.role && Array.isArray(u.perms)) return u.perms
+  return u && u.active === false ? [] : rolePreset(session.role)
+}
+export const can = (action) => permsOf().includes(action)
+export const canAny = (actions) => (Array.isArray(actions) ? actions : [actions]).some(can)
+export function switchUser(userId) {
+  const u = db.users.find((x) => x.id === userId && x.active !== false)
+  if (!u) return false
+  session.userId = u.id
+  session.role = u.role
+  return true
+}
+// ออร์เดอร์ที่ผู้ใช้เห็นในรายการ (ตามสิทธิ์ viewAllOrders / viewPrepOrders / viewDeliveryOrders)
+const PREP_VISIBLE = ['payment_confirmed', 'order_confirmed', 'preparing', 'prepared']
+export function orderVisible(o) {
+  if (can('viewAllOrders')) return true
+  if (can('viewPrepOrders') && PREP_VISIBLE.includes(o.status)) return true
+  if (can('viewDeliveryOrders') && o.fulfillment === 'delivery' && ['preparing', 'prepared', 'delivered'].includes(o.status)) return true
+  return false
+}
 
 // ---------- ข้อมูลหลัก ----------
 // ตัวเลือกรอง: ตามขนาด (sizePrices = { [sizeId]: บาท }) หรือ คงที่ (price)
@@ -127,6 +150,9 @@ export const db = reactive({
     { id: 'u3', name: 'คนทำเค้ก', email: 'baker@example.com', role: 'baker', active: true },
     { id: 'u4', name: 'คนส่งของ', email: 'driver@example.com', role: 'driver', active: true },
   ],
+
+  // ประวัติแก้สิทธิ์ผู้ใช้ [{ at, by (userId), userId, added, removed }]
+  permLog: [],
 
   // กลุ่มตัวเลือก: type = single | multi | text, appliesTo = custom/ready, perTier = เลือกแยกแต่ละชั้น (สั่งทำ)
   optionGroups: [
@@ -328,6 +354,7 @@ export const db = reactive({
 // ทุกรายการเริ่มต้นเป็น "ใช้งาน" + สมุดคะแนน / สิทธิ์หมุน
 for (const o of db.optionGroups.find((g) => g.key === 'type')?.options || []) o.images = o.images || []
 for (const r of db.retailItems) Object.assign(r, { modifierIds: r.modifierIds || [], images: r.images || [], recipe: r.recipe || [], pinned: !!r.pinned, showInPos: r.showInPos ?? true, showOnStore: r.showOnStore ?? false, description: r.description || '', typeId: r.typeId || null, flavorId: r.flavorId || null, sizeId: r.sizeId || null })
+for (const u of db.users) u.perms = rolePreset(u.role) // ผู้ใช้ตัวอย่างเริ่มด้วยสิทธิ์ตามบทบาท
 for (const c of db.customers) Object.assign(c, { active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: true, places: [] })
 // ตัวอย่าง: ลูกค้าคนแรกผูก LINE แล้ว (จำลอง)
 db.customers[0].lineUserId = 'U-demo-mali'
@@ -392,7 +419,28 @@ export function saveMainPrices({ types = {}, typeSizes = {}, flavors = {} }) {
   for (const o of byKey('flavor')) if (flavors[o.id] !== undefined) o.price = Number(flavors[o.id]) || 0
 }
 export const saveIngredient = (d) => upsert(db.ingredients, 'm', { ...d, packSize: Number(d.packSize) || 0, packPrice: Number(d.packPrice) || 0 })
-export const saveUser = (d) => upsert(db.users, 'u', d)
+// ผู้ใช้ + สิทธิ์ที่ติ๊ก · คืน { ok, user } | { error } · ต้องมีอย่างน้อย 1 คนที่ใช้งานอยู่และมี manageUsers
+export function saveUser(d) {
+  if (!can('manageUsers')) return { error: 'ไม่มีสิทธิ์จัดการผู้ใช้' }
+  if (!ROLES_OK.includes(d.role)) return { error: 'บทบาทไม่ถูกต้อง' }
+  const cur = d.id ? db.users.find((x) => x.id === d.id) : null
+  const perms = [...new Set((Array.isArray(d.perms) ? d.perms : rolePreset(d.role)).filter((k) => ALL_PERMS.includes(k)))]
+  const next = { name: String(d.name ?? '').trim(), email: String(d.email ?? '').trim(), role: d.role, active: d.active !== false, perms }
+  if (!next.name || !/^\S+@\S+\.\S+$/.test(next.email)) return { error: 'กรอกชื่อและอีเมลให้ถูกต้อง' }
+  // กันล็อกตัวเอง: หลังบันทึกต้องเหลือผู้ใช้ที่ใช้งานอยู่ + มี manageUsers
+  const after = db.users.map((x) => (cur && x.id === cur.id ? { ...x, ...next } : x)).concat(cur ? [] : [next])
+  if (!after.some((x) => x.active !== false && x.perms?.includes('manageUsers'))) return { error: 'ต้องเหลือผู้ใช้ที่ใช้งานอยู่และมีสิทธิ์ "จัดการผู้ใช้และสิทธิ์" อย่างน้อย 1 คน' }
+  const before = cur?.perms || []
+  const added = perms.filter((k) => !before.includes(k))
+  const removed = before.filter((k) => !perms.includes(k))
+  const u = cur ? Object.assign(cur, next) : (db.users.push({ id: uid('u'), ...next }), db.users[db.users.length - 1])
+  if (!cur || added.length || removed.length || cur.role !== d.role) db.permLog.unshift({ id: uid('pl'), at: now(), by: session.userId, userId: u.id, added, removed, isNew: !cur })
+  if (db.permLog.length > 200) db.permLog.length = 200
+  // ถ้าแก้สิทธิ์ของผู้ใช้ที่กำลังใช้งานอยู่ ให้บทบาทใน session ตาม
+  if (u.id === session.userId) session.role = u.role
+  return { ok: true, user: u }
+}
+const ROLES_OK = ['admin', 'sales', 'baker', 'driver']
 export const findGroup = (id) => db.optionGroups.find((g) => g.id === id)
 
 export function saveGroup(d) {

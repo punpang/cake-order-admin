@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { db, session, can, findCustomer, upcomingBirthdays } from '../data/store'
-import { STATUS, VISIBLE } from '../lib/constants'
+import { db, can, orderVisible, findCustomer, upcomingBirthdays } from '../data/store'
+import { STATUS } from '../lib/constants'
 import { orderTotals, describeSelections } from '../lib/pricing'
 import { money, timeOnly, dayLabel, formatPhone } from '../lib/format'
 import StatusBadge from '../components/StatusBadge.vue'
@@ -49,9 +49,7 @@ const bdOpen = ref(false)
 const showPos = ref(false)
 const posCount = computed(() => db.orders.filter((o) => o.channel === 'pos').length)
 const visible = computed(() => {
-  const f = VISIBLE[session.role]
-  const base = db.orders.filter((o) => showPos.value || o.channel !== 'pos')
-  return f ? base.filter(f) : base
+  return db.orders.filter((o) => (showPos.value || o.channel !== 'pos') && orderVisible(o))
 })
 
 const counts = computed(() => {

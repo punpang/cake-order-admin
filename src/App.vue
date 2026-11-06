@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { session, can, unreadChats, runScheduledChecks } from './data/store'
+import { db, session, can, switchUser, unreadChats, runScheduledChecks } from './data/store'
 import { ROLES } from './lib/constants'
 import AppIcon from './components/AppIcon.vue'
 import AppModal from './components/AppModal.vue'
@@ -11,6 +11,7 @@ const roleOpen = ref(false)
 // เมนูล่างมือถือ: ออร์เดอร์ / แชท / POS / ครัว / จัดการ (เฉพาะที่มีสิทธิ์)
 const tabCount = computed(() => 1 + (can('chat') ? 1 : 0) + (can('pos') ? 1 : 0) + (can('viewMaterials') ? 1 : 0) + (can('manage') ? 1 : 0))
 const unread = computed(() => unreadChats())
+const me = computed(() => db.users.find((u) => u.id === session.userId))
 // จำลอง cron: ตรวจแจ้งเตือนตามเวลาทุก 60 วินาทีขณะเปิดแอป (ของจริงใช้ cron ฝั่งเซิร์ฟเวอร์)
 let timer = null
 onMounted(() => { timer = setInterval(() => runScheduledChecks(), 60000) })
@@ -45,9 +46,9 @@ onBeforeUnmount(() => clearInterval(timer))
       </nav>
 
       <RouterLink to="/" class="ml-auto text-sm text-stone-500 underline">หน้าร้าน</RouterLink>
-      <button class="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-sm" :aria-label="`บทบาท ${ROLES[session.role]}`" @click="roleOpen = true">
-        <AppIcon name="user" :size="16" class="text-stone-500" />
-        {{ ROLES[session.role] }}
+      <button class="inline-flex max-w-40 items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-1.5 text-sm" :aria-label="`ผู้ใช้ ${me?.name || ROLES[session.role]}`" @click="roleOpen = true">
+        <AppIcon name="user" :size="16" class="shrink-0 text-stone-500" />
+        <span class="truncate">{{ me?.name || ROLES[session.role] }}</span>
       </button>
     </div>
   </header>
@@ -95,19 +96,20 @@ onBeforeUnmount(() => clearInterval(timer))
   </nav>
 
   <!-- เลือกบทบาท (จำลอง) -->
-  <AppModal v-if="roleOpen" title="ทดลองใช้งานเป็น" @close="roleOpen = false">
+  <AppModal v-if="roleOpen" title="ทดลองใช้งานเป็นผู้ใช้" @close="roleOpen = false">
     <div class="grid gap-2">
       <button
-        v-for="(label, key) in ROLES"
-        :key="key"
-        class="flex items-center justify-between rounded-xl border px-4 py-3 text-left"
-        :class="session.role === key ? 'border-brand-500 bg-brand-50 text-brand-800' : 'border-stone-200 hover:bg-stone-50'"
-        @click="session.role = key; roleOpen = false"
+        v-for="u in db.users.filter((x) => x.active !== false)"
+        :key="u.id"
+        class="flex items-center justify-between gap-2 rounded-xl border px-4 py-3 text-left"
+        :class="session.userId === u.id ? 'border-brand-500 bg-brand-50 text-brand-800' : 'border-stone-200 hover:bg-stone-50'"
+        @click="switchUser(u.id); roleOpen = false"
       >
-        <span class="font-medium">{{ label }}</span>
-        <AppIcon v-if="session.role === key" name="check" class="text-brand-600" />
+        <span class="min-w-0"><span class="block truncate font-medium">{{ u.name }}</span><span class="block text-xs text-stone-500">{{ ROLES[u.role] }} · {{ u.perms?.length || 0 }} สิทธิ์</span></span>
+        <AppIcon v-if="session.userId === u.id" name="check" class="shrink-0 text-brand-600" />
       </button>
     </div>
+    <p class="mt-3 text-xs text-stone-400">ยังไม่มีล็อกอินจริง: สลับผู้ใช้เพื่อทดลองสิทธิ์ที่ติ๊กไว้</p>
   </AppModal>
   </template>
 

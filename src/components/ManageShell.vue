@@ -10,6 +10,7 @@ defineProps({
   addLabel: { type: String, default: '' },
   searchPlaceholder: { type: String, default: 'ค้นหา' },
   toolbar: { type: Boolean, default: true },
+  perm: { type: String, default: 'manage' }, // สิทธิ์ที่ต้องมีจึงเห็นหน้านี้
 })
 const emit = defineEmits(['add'])
 const q = defineModel('q', { type: String, default: '' })
@@ -17,9 +18,9 @@ const showInactive = defineModel('inactive', { type: Boolean, default: false })
 </script>
 
 <template>
-  <div v-if="!can('manage')" class="card flex flex-col items-center gap-3 py-12 text-center">
+  <div v-if="!can(perm)" class="card flex flex-col items-center gap-3 py-12 text-center">
     <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-100 text-stone-400"><AppIcon name="user" :size="28" /></span>
-    <div class="font-semibold text-stone-800">เฉพาะแอดมิน</div>
+    <div class="font-semibold text-stone-800">ไม่มีสิทธิ์ใช้งานหน้านี้</div>
     <RouterLink to="/admin/orders" class="btn-soft">กลับไปหน้าออร์เดอร์</RouterLink>
   </div>
 

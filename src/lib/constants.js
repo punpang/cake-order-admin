@@ -44,7 +44,71 @@ export const PERMISSIONS = {
   posVoid: ['admin'], // ยกเลิกบิลหน้าร้าน
   adjustPoints: ['admin'], // เพิ่ม/ลดคะแนนลูกค้าเอง (ต้องมีเหตุผล)
   changeBuyer: ['admin', 'sales'], // เปลี่ยนผู้ซื้อในออร์เดอร์/บิล
+  // การเห็นรายการออร์เดอร์ (แทน VISIBLE รายบทบาท): ทั้งหมด | งานที่ต้องทำ (ยืนยันแล้ว→เตรียมแล้ว) | งานจัดส่ง
+  viewAllOrders: ['admin', 'sales'],
+  viewPrepOrders: ['baker'],
+  viewDeliveryOrders: ['driver'],
+  manageUsers: ['admin'], // แก้สิทธิ์/ผู้ใช้
+  // ระบบบัญชี
+  acctView: ['admin'], acctRecord: ['admin'], acctClose: ['admin'], acctReports: ['admin'], acctTax: ['admin'], acctAssets: ['admin'], taxInvoice: ['admin'], acctSettings: ['admin'],
 }
+
+// PERMISSIONS ข้างบน = ค่าตั้งต้นของแต่ละบทบาท · สิทธิ์จริงของผู้ใช้เก็บเป็นรายการที่ติ๊ก (user.perms)
+export const ALL_PERMS = Object.keys(PERMISSIONS)
+export const rolePreset = (role) => ALL_PERMS.filter((k) => PERMISSIONS[k].includes(role))
+
+// รายการสิทธิ์สำหรับหน้าติ๊ก: กลุ่ม → [{ key, label, hint }]
+export const PERM_GROUPS = [
+  { title: 'ออร์เดอร์', items: [
+    { key: 'viewAllOrders', label: 'เห็นออร์เดอร์ทั้งหมด', hint: 'ถ้าไม่ติ๊ก จะเห็นเฉพาะงานตามสิทธิ์ด้านล่าง' },
+    { key: 'viewPrepOrders', label: 'เห็นงานที่ต้องทำ', hint: 'ยืนยันชำระ/ยืนยันสั่งซื้อ/กำลังเตรียม/เตรียมแล้ว' },
+    { key: 'viewDeliveryOrders', label: 'เห็นงานจัดส่ง', hint: 'ออร์เดอร์จัดส่งที่กำลังเตรียม/เตรียมแล้ว/ส่งมอบแล้ว' },
+    { key: 'createOrder', label: 'สร้างออร์เดอร์ / ส่งใบเสนอ / สร้างลูกค้า' },
+    { key: 'sendToPayment', label: 'ส่งร่างไปรอชำระ' },
+    { key: 'editPickup', label: 'แก้วันเวลานัด / วันเกิด / ข้อมูลจัดส่ง' },
+    { key: 'editItems', label: 'แก้รายการสินค้าหลังสร้างออร์เดอร์' },
+    { key: 'adjustPrice', label: 'ปรับราคา / ส่วนลดในออร์เดอร์' },
+    { key: 'cancel', label: 'ยกเลิกออร์เดอร์' },
+    { key: 'changeBuyer', label: 'เปลี่ยนผู้ซื้อ' },
+    { key: 'useLoyalty', label: 'ใช้คะแนน / คูปองเป็นส่วนลดในออร์เดอร์' },
+  ] },
+  { title: 'การชำระเงิน', items: [
+    { key: 'reportPayment', label: 'แจ้งยอด / แก้ / ยกเลิกยอดที่แจ้ง / ขยายเวลาชำระ' },
+    { key: 'confirmPayment', label: 'ยืนยันยอดชำระ' },
+    { key: 'cancelConfirmedPayment', label: 'ยกเลิกยอดที่ยืนยันแล้ว' },
+    { key: 'requestConfirmUnpaid', label: 'ขออนุมัติยืนยันสั่งซื้อ (ยังไม่ชำระ)' },
+    { key: 'confirmUnpaid', label: 'อนุมัติ/ยืนยันสั่งซื้อแบบยังไม่ชำระ' },
+  ] },
+  { title: 'ผลิต / ส่งมอบ', items: [
+    { key: 'startPreparing', label: 'เริ่มเตรียมสินค้า' },
+    { key: 'markPrepared', label: 'เตรียมสินค้าเสร็จ' },
+    { key: 'deliverPickup', label: 'ส่งมอบงานรับที่ร้าน' },
+    { key: 'deliverShipping', label: 'ส่งมอบงานจัดส่ง' },
+    { key: 'viewMaterials', label: 'ดูวัตถุดิบ / ตารางผลิต' },
+  ] },
+  { title: 'แชท / ลูกค้า / POS', items: [
+    { key: 'chat', label: 'ศูนย์รวมแชท' },
+    { key: 'birthdays', label: 'ดูเตือนวันเกิด' },
+    { key: 'pos', label: 'ขายหน้าร้าน (POS)' },
+    { key: 'posVoid', label: 'ยกเลิกบิลหน้าร้าน' },
+    { key: 'adjustPoints', label: 'เพิ่ม/ลดคะแนนลูกค้า' },
+  ] },
+  { title: 'ต้นทุน / ตั้งค่า / ผู้ใช้', items: [
+    { key: 'viewProfit', label: 'ดูต้นทุน / กำไร' },
+    { key: 'manage', label: 'หน้าจัดการ (สินค้า ราคา ตั้งค่าร้าน ฯลฯ)' },
+    { key: 'manageUsers', label: 'จัดการผู้ใช้และสิทธิ์', hint: 'ต้องมีอย่างน้อย 1 คนที่ใช้งานอยู่เสมอ' },
+  ] },
+  { title: 'บัญชี / ภาษี', items: [
+    { key: 'acctView', label: 'เข้าระบบบัญชี / ดูรายการและรายงาน' },
+    { key: 'acctRecord', label: 'บันทึก/แก้รายการบัญชี' },
+    { key: 'acctClose', label: 'ปิดงวด / เปิดงวดบัญชี' },
+    { key: 'acctReports', label: 'งบการเงิน / ส่งออกรายงาน' },
+    { key: 'acctTax', label: 'ภาษี: ภ.พ.30 / ภาษีประจำปี / บันทึกการยื่น' },
+    { key: 'acctAssets', label: 'สินทรัพย์ ค่าเสื่อม ผ่อนชำระ ค่าใช้จ่ายประจำ' },
+    { key: 'taxInvoice', label: 'ออก/ยกเลิกใบกำกับภาษีเต็มรูป' },
+    { key: 'acctSettings', label: 'ตั้งค่าบัญชี / ผังบัญชี' },
+  ] },
+]
 
 // สถานะที่แต่ละบทบาทเห็นในรายการ (null = เห็นทั้งหมด)
 export const VISIBLE = {
