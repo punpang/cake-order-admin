@@ -1,6 +1,7 @@
 // ข้อมูลตัวอย่าง (เก็บในหน่วยความจำ รีเฟรชแล้วหาย)
 // ขั้นต่อไปจะเปลี่ยนฟังก์ชันในไฟล์นี้ให้เรียก Supabase แทน
 import { reactive } from 'vue'
+import { BELL_MAX, BELL_STAFF, BELL_CUSTOMER, bellText, visibleToStaff, visibleToCustomer, unreadStaff, unreadCustomer, isReadStaff } from '../lib/bell'
 import { STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
@@ -267,6 +268,8 @@ export const db = reactive({
   ],
   // คิวข้อความ (จำลอง) ล่าสุดอยู่หน้า · notifySent = key ที่ส่งแล้ว (กันส่งซ้ำของเหตุการณ์ตามเวลา)
   outbox: [],
+  // กระดิ่งแจ้งเตือนในแอป (แยกจาก outbox) ล่าสุดอยู่หน้า ≤ BELL_MAX · staff: readBy = userId ที่อ่านแล้ว · customer: read
+  bell: [],
   // orderLinks: [{ id, orderId, tokenHash, createdAt, lastOpenedAt, openCount, revokedAt }] เก็บเฉพาะ hash ของ token (token เต็มเห็นได้ครั้งเดียวตอนสร้าง)
   orderLinks: [],
   // บอทตอบแชท (ค่าเริ่มต้นปิด): rules = กฎคีย์เวิร์ด · learned = คู่ ถาม→ตอบ ที่เรียนจากพนักงาน (ตัดข้อมูลส่วนบุคคลแล้ว) · stats
@@ -1896,8 +1899,68 @@ function pushOut(event, channel, to, text, orderId = null, customer = null) {
   }
   db.outbox.unshift({ id: uid('msg'), at: now(), event, channel, to, text, orderId, status: channel ? 'simulated' : 'no_channel' })
 }
+// ---------- กระดิ่งแจ้งเตือนในแอป ----------
+function bellPush(item) {
+  db.bell.unshift({ id: uid('bl'), at: now(), ...item })
+  if (db.bell.length > BELL_MAX) db.bell.length = BELL_MAX
+}
+// เรียกที่ต้น notify() — ไม่ขึ้นกับกฎ/ช่องทางเปิดปิด
+function emitBell(event, { customer = null, vars = {}, orderId = null } = {}) {
+  const ev = NOTIFY_EVENTS[event]
+  if (!ev) return
+  if (ev.audience === 'team') {
+    const d = BELL_STAFF[event]
+    if (!d) return
+    bellPush({ audience: 'staff', event, title: d.title, text: bellText(event, vars), orderId, readBy: [] })
+    return
+  }
+  const d = BELL_CUSTOMER[event]
+  if (!d || !customer || customer.deleted) return
+  if (d.marketing && customer.promoOptIn === false) return
+  bellPush({ audience: 'customer', customerId: customer.id, event, title: d.title, text: bellText(event, vars), orderId, read: false })
+}
+// แชท/คำขอระบบที่ไม่ผ่าน notify()
+function emitStaffBell(event, { text = '', chatId = null, orderId = null } = {}) {
+  const d = BELL_STAFF[event]
+  if (!d) return
+  bellPush({ audience: 'staff', event, title: d.title, text, chatId, orderId, readBy: [] })
+}
+// ข้อความแชทใหม่จากลูกค้า: ยุบรายการที่ยังไม่มีใครอ่านของแชทเดียวกันเป็นรายการเดียว
+function emitChatBell(chat, text) {
+  const t = `${chat.profileName || 'ลูกค้า'}: ${String(text).slice(0, 60)}`
+  const old = db.bell.find((i) => i.audience === 'staff' && i.event === 'chat_inbound' && i.chatId === chat.id && !i.readBy.length)
+  if (old) {
+    old.count = (old.count || 1) + 1
+    old.text = `${t}${old.count > 1 ? ` (+${old.count - 1})` : ''}`
+    old.at = now()
+    db.bell.splice(db.bell.indexOf(old), 1)
+    db.bell.unshift(old)
+    return
+  }
+  emitStaffBell('chat_inbound', { text: t, chatId: chat.id })
+}
+// รายการของผู้ใช้ปัจจุบัน: audience 'staff' = ตามสิทธิ์ของ session · 'customer' = ของลูกค้าที่ล็อกอิน
+export function bellFeed(audience = 'staff') {
+  if (audience === 'customer') return visibleToCustomer(db.bell, customerSession.customerId)
+  return visibleToStaff(db.bell, can)
+}
+export const bellIsRead = (item, audience = 'staff') => (audience === 'customer' ? !!item.read : isReadStaff(item, session.userId))
+export function bellUnreadCount(audience = 'staff') {
+  return audience === 'customer' ? unreadCustomer(db.bell, customerSession.customerId) : unreadStaff(db.bell, session.userId, can)
+}
+export function bellMarkRead(id, audience = 'staff') {
+  const i = db.bell.find((x) => x.id === id)
+  if (!i) return
+  if (audience === 'customer') {
+    if (i.audience === 'customer' && i.customerId === customerSession.customerId) i.read = true
+  } else if (i.audience === 'staff' && !i.readBy.includes(session.userId)) i.readBy.push(session.userId)
+}
+export function bellMarkAll(audience = 'staff') {
+  for (const i of bellFeed(audience)) bellMarkRead(i.id, audience)
+}
 // ส่งตามกฎของ event (คืนจำนวนข้อความที่เข้าคิว)
 export function notify(event, { customer = null, vars = {}, orderId = null } = {}) {
+  emitBell(event, { customer, vars, orderId })
   const r = db.notifyRules.find((x) => x.event === event)
   const ev = NOTIFY_EVENTS[event]
   if (!r || !r.enabled || !ev) return 0
@@ -2026,6 +2089,7 @@ export function receiveMessage(channel, externalId, profileName, text, at = null
   const ask = c.pendingAsk
   const parsed = ask ? parseAnswer(ask.field, text) : null
   const m = sendChat(c.id, 'customer', text, { at, ...(ask ? { replyTo: ask.messageId, answerFor: ask.field } : {}) })
+  if (m) emitChatBell(c, text)
   if (ask && parsed) {
     m.filled = applyToDraft(c.id, parsed)
     c.pendingAsk = null
@@ -2076,6 +2140,7 @@ export function runBot(c, m) {
   if (res.handoff) {
     db.bot.stats.handoff++
     c.botHandoff = true
+    emitStaffBell('bot_handoff', { text: `${c.profileName || 'ลูกค้า'}: ${res.reason || ''}`.trim(), chatId: c.id })
     if (db.bot.handoff.notifyTelegram && db.integrations.telegram.enabled) pushOut('bot_handoff', 'telegram', 'กลุ่มทีม', `[บอทส่งต่อ] ${c.profileName || 'ลูกค้า'} (${c.channel}): "${String(m.text).slice(0, 80)}" · ${res.reason}`)
     if (res.source === 'order_unverified' || res.source === 'handoff') {
       if (auto) { sendNotice(); sendChat(c.id, 'staff', res.reply, { by: 'บอท' }) }
@@ -2087,6 +2152,7 @@ export function runBot(c, m) {
   if (res.confidence < db.bot.confidence) {
     db.bot.stats.handoff++
     c.botHandoff = true
+    emitStaffBell('bot_handoff', { text: `${c.profileName || 'ลูกค้า'}: ความมั่นใจต่ำ`, chatId: c.id })
     flushNotice()
     return { ...res, handoff: true, reason: `ความมั่นใจ ${Math.round(res.confidence * 100)}% ต่ำกว่าที่ตั้งไว้` }
   }
@@ -3074,6 +3140,7 @@ export function requestDeletion({ token, note = '' }) {
   if (db.deletionRequests.some((r) => r.customerId === a.customerId && r.status === 'pending')) return { error: 'มีคำขอที่รอตรวจสอบอยู่แล้ว' }
   db.deletionRequests.unshift({ id: uid('dr'), customerId: a.customerId, status: 'pending', customerNote: String(note).trim().slice(0, 300), reason: '', createdAt: now(), decidedAt: null, decidedBy: '' })
   o.used = true
+  emitStaffBell('deletion_request', { text: findCustomer(a.customerId)?.name || '' })
   return { ok: true }
 }
 // สิ่งที่ทำให้ยังอนุมัติลบไม่ได้: ออร์เดอร์ที่ยังไม่จบ / ยอดค้างชำระ

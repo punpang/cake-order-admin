@@ -2,6 +2,7 @@
 import { db, customerSession } from '../data/store'
 import { formatPhone } from '../lib/format'
 import AppIcon from './AppIcon.vue'
+import BellMenu from './BellMenu.vue'
 import CookieBanner from './CookieBanner.vue'
 import { openCookieSettings } from '../lib/consent'
 
@@ -23,6 +24,7 @@ const active = 'bg-white text-brand-700 shadow-sm'
         <RouterLink to="/menu" :class="link" :active-class="active">เมนู</RouterLink>
         <RouterLink v-if="customerSession.customerId" to="/account" :class="link" :active-class="active">บัญชีของฉัน</RouterLink>
         <RouterLink v-else to="/account/login" class="btn-matcha h-10 px-4 whitespace-nowrap">เข้าสู่ระบบ</RouterLink>
+        <BellMenu v-if="customerSession.customerId" audience="customer" class="ml-1" />
       </nav>
     </div>
   </header>

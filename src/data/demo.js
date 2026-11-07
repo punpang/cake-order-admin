@@ -371,6 +371,13 @@ export function seedDemo() {
     Object.assign(session, savedSession)
     customerSession.customerId = savedCust
   }
+  // กระดิ่ง: ของเก่ากว่า 1 วันถือว่าอ่านแล้ว (เหลือที่เพิ่งเกิดให้เห็นป้ายตัวเลข)
+  const staffIds = db.users.map((u) => u.id)
+  for (const i of db.bell) {
+    if (Date.now() - new Date(i.at).getTime() <= 24 * 3600e3) continue
+    if (i.audience === 'staff') i.readBy = [...staffIds]
+    else i.read = true
+  }
   return { ms: Math.round(performance.now() - t0), orders: db.orders.length, customers: db.customers.length }
 
   function saveIngredientsExtra() {

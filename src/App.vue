@@ -5,6 +5,7 @@ import { paymentCounts } from './lib/paymentsQueue'
 import { ROLES } from './lib/constants'
 import AppIcon from './components/AppIcon.vue'
 import AppModal from './components/AppModal.vue'
+import BellMenu from './components/BellMenu.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import StoreLayout from './components/StoreLayout.vue'
 
@@ -52,6 +53,7 @@ onBeforeUnmount(() => clearInterval(timer))
       </nav>
 
       <RouterLink to="/" class="ml-auto text-sm text-stone-600 underline">หน้าร้าน</RouterLink>
+      <BellMenu audience="staff" />
       <button class="inline-flex max-w-40 items-center gap-2 rounded-full bg-white px-3.5 py-1.5 text-sm shadow-sm" :aria-label="`ผู้ใช้ ${me?.name || ROLES[session.role]}`" @click="roleOpen = true">
         <AppIcon name="user" :size="16" class="shrink-0 text-stone-500" />
         <span class="truncate">{{ me?.name || ROLES[session.role] }}</span>
