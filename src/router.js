@@ -25,6 +25,7 @@ import ManageStorefront from './views/manage/ManageStorefront.vue'
 import ManageDeletionRequests from './views/manage/ManageDeletionRequests.vue'
 import StoreHome from './views/store/StoreHome.vue'
 import StoreMenu from './views/store/StoreMenu.vue'
+import StoreCakeGallery from './views/store/StoreCakeGallery.vue'
 import StoreItem from './views/store/StoreItem.vue'
 import AccountLogin from './views/account/AccountLogin.vue'
 import AccountRegister from './views/account/AccountRegister.vue'
@@ -50,6 +51,7 @@ const router = createRouter({
     // ---------- หน้าร้าน (ทุกคนดูได้ ไม่ต้องล็อกอิน) ----------
     { path: '/', component: StoreHome, meta: { store: true } },
     { path: '/menu', component: StoreMenu, meta: { store: true } },
+    { path: '/menu/gallery', component: StoreCakeGallery, meta: { store: true } },
     { path: '/menu/custom', component: StoreItem, props: { kind: 'custom', id: '' }, meta: { store: true } },
     { path: '/menu/:kind/:id', component: StoreItem, props: true, meta: { store: true } },
     // ---------- ระบบลูกค้า (จำลอง จนกว่าจะต่อ Supabase) ----------

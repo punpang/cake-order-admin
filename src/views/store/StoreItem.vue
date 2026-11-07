@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { db } from '../../data/store'
 import { readyMenu, customMenu } from '../../lib/storefront'
 import { forType } from '../../lib/pricing'
@@ -48,6 +48,9 @@ const extras = computed(() =>
         .map((g) => ({ id: g.id, name: g.name, options: (g.options || []).filter((o) => o.active !== false && forType(o, typeId.value)) }))
         .filter((g) => g.options.length),
 )
+// รูปเค้กสั่งทำติดบน: เลื่อนโฟกัส/ปุ่มไม่ให้ไปอยู่ใต้รูป
+onMounted(() => document.documentElement.classList.add('has-sticky-photo'))
+onBeforeUnmount(() => document.documentElement.classList.remove('has-sticky-photo'))
 const cur = ref(0)
 watch(() => [props.kind, props.id], () => (cur.value = 0))
 </script>
@@ -59,11 +62,13 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
     <div v-if="!item" class="empty">ไม่พบเมนูนี้ (อาจปิดการขายแล้ว) <RouterLink to="/menu" class="text-brand-700 underline">กลับไปเมนู</RouterLink></div>
 
     <div v-else class="grid gap-6 md:grid-cols-2">
-      <div v-if="item.custom">
-        <div class="aspect-square overflow-hidden rounded-[2rem] shadow-md"><CakeImage :src="shown" :alt="item.title" /></div>
-        <p v-if="note" class="mt-2 rounded-2xl bg-[#fff1d6] p-2.5 text-xs text-stone-800" role="note" aria-label="หมายเหตุรูปตัวอย่าง">{{ note }}</p>
-        <div v-if="pick.alternatives.length > 1" class="mt-2 flex gap-2 overflow-x-auto">
-          <button v-for="(e, i) in pick.alternatives" :key="e.id" type="button" class="h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2" :class="i === altIdx ? 'border-brand-500' : 'border-transparent'" :aria-label="`รูปที่ ${i + 1}`" @click="altIdx = i"><img :src="e.image" alt="" class="h-full w-full object-cover" /></button>
+      <div v-if="item.custom" class="sticky top-14 z-10 -mx-4 bg-cream/95 px-4 pt-1 pb-2 shadow-[0_6px_10px_-8px_rgb(63_46_46/0.35)] backdrop-blur md:top-20 md:z-0 md:mx-0 md:self-start md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-none" aria-label="รูปตัวอย่างเค้ก">
+        <div class="mx-auto aspect-[16/10] max-h-[26dvh] overflow-hidden rounded-[1.75rem] shadow-md md:aspect-square md:max-h-none md:rounded-[2rem]">
+          <Transition name="cake-fade" mode="out-in"><div :key="shown || 'none'" class="h-full w-full"><CakeImage :src="shown" :alt="item.title" /></div></Transition>
+        </div>
+        <p v-if="note" class="mt-1.5 line-clamp-1 rounded-2xl bg-[#fff1d6] px-2.5 py-1.5 text-xs text-stone-800 md:mt-2 md:line-clamp-none md:p-2.5" role="note" aria-label="หมายเหตุรูปตัวอย่าง">{{ note }}</p>
+        <div v-if="pick.alternatives.length > 1" class="mt-1.5 flex gap-2 overflow-x-auto md:mt-2">
+          <button v-for="(e, i) in pick.alternatives" :key="e.id" type="button" class="h-10 w-10 shrink-0 overflow-hidden rounded-xl border-2 md:h-16 md:w-16" :class="i === altIdx ? 'border-brand-500' : 'border-transparent'" :aria-label="`รูปที่ ${i + 1}`" @click="altIdx = i"><img :src="e.image" alt="" class="h-full w-full object-cover" /></button>
         </div>
       </div>
       <div v-else>

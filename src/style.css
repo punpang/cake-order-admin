@@ -229,3 +229,29 @@
 .seg-grid > label {
   border-radius: 9999px;
 }
+
+/* รูปเค้กสั่งทำเปลี่ยนตามตัวเลือก: เฟดสั้นๆ ให้สังเกตเห็น */
+.cake-fade-enter-active,
+.cake-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.cake-fade-enter-from,
+.cake-fade-leave-to {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cake-fade-enter-active,
+  .cake-fade-leave-active {
+    transition: none;
+  }
+}
+
+/* หน้าเลือกเค้กสั่งทำ: รูปติดบน — กันองค์ประกอบที่ถูกเลื่อน/โฟกัสไปซ่อนใต้รูป */
+html.has-sticky-photo {
+  scroll-padding-top: 22rem;
+}
+@media (min-width: 768px) {
+  html.has-sticky-photo {
+    scroll-padding-top: 6rem;
+  }
+}

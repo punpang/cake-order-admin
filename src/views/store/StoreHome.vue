@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { db } from '../../data/store'
 import { bestSellers, activePromotions, customMenu, approvedReviews, avgRating } from '../../lib/storefront'
 import { dateOnly, money } from '../../lib/format'
+import { latestCustomPhotos } from '../../lib/cakeSearch'
 import AppIcon from '../../components/AppIcon.vue'
 import CakeImage from '../../components/CakeImage.vue'
 import StorePrice from '../../components/StorePrice.vue'
@@ -17,6 +18,7 @@ const s = computed(() => db.storefront)
 const best = computed(() => bestSellers(db, 30, 6))
 const promos = computed(() => activePromotions(db))
 const types = computed(() => customMenu(db))
+const recent = computed(() => latestCustomPhotos(db).slice(0, 4))
 const reviews = computed(() => approvedReviews(db, 6))
 const rating = computed(() => avgRating(db.reviews.filter((r) => r.status === 'approved')))
 const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
@@ -84,13 +86,24 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
       </div>
     </section>
 
-    <!-- เค้กสั่งทำ -->
-    <section v-if="types.length" class="relative">
+    <!-- เค้กสั่งทำ: รูปล่าสุดที่ส่งมอบแล้ว 4 รูป (ไม่มี → การ์ดประเภทเดิม) -->
+    <section v-if="types.length || recent.length" class="relative">
       <div class="mb-3 flex items-center justify-between gap-3">
         <h2 class="text-2xl text-stone-900">เค้กสั่งทำตามใจ</h2>
         <RouterLink to="/menu" class="btn-peach h-10 px-4" aria-label="ดูเมนูเค้กสั่งทำ">ออกแบบที่ต้องการ</RouterLink>
       </div>
-      <div class="grid grid-cols-4 gap-2 sm:gap-4">
+      <template v-if="recent.length">
+        <ul class="grid grid-cols-4 gap-2 sm:gap-4" aria-label="เค้กสั่งทำล่าสุด">
+          <li v-for="g in recent" :key="g.id">
+            <RouterLink to="/menu/gallery" class="block overflow-hidden rounded-2xl bg-white shadow-md transition hover:shadow-lg" :aria-label="`ดูผลงาน ${g.typeName || 'เค้กสั่งทำ'}`">
+              <div class="aspect-square overflow-hidden"><img :src="g.image" :alt="g.caption || g.typeName || 'เค้กสั่งทำ'" loading="lazy" class="h-full w-full object-cover" /></div>
+              <div class="line-clamp-2 min-h-[2.5em] px-1 py-1.5 text-center text-xs leading-tight font-semibold text-stone-900 sm:text-sm">{{ g.typeName || 'เค้กสั่งทำ' }}</div>
+            </RouterLink>
+          </li>
+        </ul>
+        <div class="mt-3 text-center"><RouterLink to="/menu/gallery" class="text-sm font-medium text-brand-700 underline">ดูผลงานเค้กสั่งทำทั้งหมด · ค้นหาแบบที่ชอบ</RouterLink></div>
+      </template>
+      <div v-else class="grid grid-cols-4 gap-2 sm:gap-4">
         <RouterLink v-for="t in types" :key="t.type.id" :to="`/menu/custom/${t.type.id}`" class="overflow-hidden rounded-2xl bg-white shadow-md transition hover:shadow-lg">
           <div class="aspect-[1/0.85] overflow-hidden"><CakeImage :src="t.type.images?.[0]" :alt="t.type.name" /></div>
           <div class="px-1 pt-1.5 pb-2 text-center sm:p-3">

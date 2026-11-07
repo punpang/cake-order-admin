@@ -16,7 +16,6 @@ const custom = computed(() => customMenu(db))
 const customFrom = computed(() => Math.min(...custom.value.map((t) => t.from)))
 const customRegular = computed(() => Math.min(...custom.value.map((t) => t.regularFrom)))
 const customDiscounted = computed(() => custom.value.some((t) => t.discounted))
-const coverImg = computed(() => custom.value.flatMap((t) => t.type.images || [])[0] || db.cakeGallery.find((g) => g.active !== false)?.image || '')
 function jump(k) { document.getElementById(`cat-${k}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
 const promos = computed(() => activePromotions(db))
 const tabs = computed(() => [
@@ -67,16 +66,17 @@ const tabs = computed(() => [
     <div v-else class="mt-5">
       <div v-if="!custom.length" class="empty"><div class="h-24 w-28 overflow-hidden rounded-2xl"><CakeArt kind="fondant" /></div>ยังไม่มีเค้กสั่งทำในเมนู</div>
       <RouterLink v-else to="/menu/custom" class="block overflow-hidden rounded-3xl bg-white shadow-md transition hover:shadow-lg sm:flex" aria-label="เค้กสั่งทำ">
-        <div class="relative aspect-4/3 overflow-hidden sm:w-1/2"><CakeImage :src="coverImg" alt="เค้กสั่งทำ" />
+        <div class="relative aspect-4/3 overflow-hidden sm:w-1/2"><CakeArt kind="fondant" />
           <span v-if="customDiscounted" class="absolute top-2 left-2 rounded-full bg-brand-600 px-2.5 py-0.5 text-xs font-semibold text-white">โปร</span>
         </div>
         <div class="space-y-1 p-4 sm:w-1/2">
           <div class="font-display text-xl text-stone-900">เค้กสั่งทำ</div>
           <StorePrice :price="customFrom" :regular="customRegular" from />
           <div class="text-sm text-stone-600">{{ custom.length }} ประเภท · เลือกเนื้อเค้ก ขนาด ตกแต่ง ได้ตามใจ</div>
-          <div class="text-xs text-stone-500">รูปตัวอย่างเปลี่ยนตามสิ่งที่เลือก · กดเพื่อเลือกแบบและดูราคา</div>
+          <div class="text-xs text-stone-600">รูปตัวอย่างเปลี่ยนตามสิ่งที่เลือก · กดเพื่อเลือกแบบและดูราคา</div>
         </div>
       </RouterLink>
+      <div v-if="custom.length" class="mt-3 text-center"><RouterLink to="/menu/gallery" class="text-sm font-medium text-brand-700 underline">ดูผลงานเค้กสั่งทำล่าสุด</RouterLink></div>
     </div>
 
     <section class="card relative mt-10 overflow-hidden pt-8"><Bunting /><h2 class="mb-2 text-xl text-stone-900">สั่งเค้ก</h2><StoreOrderButtons /></section>
