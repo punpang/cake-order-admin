@@ -104,6 +104,7 @@ const activeFilters = computed(() => {
   if (payState.value) out.push({ k: 'pay', l: PAY_FILTERS.find((f) => f.v === payState.value).l })
   return out
 })
+const chipFilters = computed(() => activeFilters.value.filter((f) => !(f.k === 'date' && isToday.value))) // วันนี้แสดงในแถบใหญ่แทน
 function clearFilter(k) {
   if (k === 'date') from.value = to.value = ''
   if (k === 'fulfill') fulfill.value = ''
@@ -193,10 +194,17 @@ function clearAll() {
       </div>
     </div>
 
+    <!-- ค่าเริ่มต้น "นัดรับวันนี้": แถบบอกสถานะใหญ่ + ปุ่มดูทั้งหมด -->
+    <div v-if="isToday && !filtersOpen" data-today-banner class="mb-3 flex items-center gap-3 rounded-2xl bg-brand-50 px-3.5 py-2">
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-brand-600"><AppIcon name="calendar" :size="18" /></span>
+      <span class="min-w-0 flex-1 text-sm text-brand-900"><b>แสดงเฉพาะนัดรับวันนี้</b> <span class="whitespace-nowrap">({{ list.length }} จาก {{ visible.length }})</span></span>
+      <button type="button" class="btn-outline h-11 shrink-0 px-4" aria-label="ลบตัวกรอง นัดรับ วันนี้" @click="clearFilter('date')">ดูทั้งหมด</button>
+    </div>
+
     <!-- ป้ายตัวกรองที่ใช้อยู่ -->
-    <div v-if="activeFilters.length && !filtersOpen" class="mb-3 flex flex-wrap gap-2">
+    <div v-if="chipFilters.length && !filtersOpen" class="mb-3 flex flex-wrap gap-2">
       <button
-        v-for="f in activeFilters"
+        v-for="f in chipFilters"
         :key="f.k"
         type="button"
         class="inline-flex h-8 items-center gap-1 rounded-full bg-brand-50 pr-2 pl-3 text-sm font-medium text-brand-800 hover:bg-brand-100"
@@ -208,15 +216,15 @@ function clearAll() {
     <!-- สถานะ -->
     <div class="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0" role="group" aria-label="กรองตามสถานะ">
       <button v-if="posCount && can('pos')" class="chip" :class="showPos ? 'chip-on' : 'chip-off'" :aria-pressed="showPos" @click="showPos = !showPos">
-        บิลหน้าร้าน <span class="opacity-75">{{ posCount }}</span>
+        บิลหน้าร้าน <span class="font-normal">{{ posCount }}</span>
       </button>
       <button class="chip" :class="!status ? 'chip-on' : 'chip-off'" :aria-pressed="!status" @click="status = ''">
-        ทั้งหมด <span class="opacity-75">{{ visible.length }}</span>
+        ทั้งหมด <span class="font-normal">{{ visible.length }}</span>
       </button>
       <template v-for="(s, key) in STATUS" :key="key">
         <button v-if="counts[key]" class="chip" :class="status === key ? 'chip-on' : 'chip-off'" :aria-pressed="status === key" @click="status = key">
           <span v-if="status !== key" class="h-2 w-2 rounded-full" :class="s.dot" />
-          {{ s.label }} <span class="opacity-75">{{ counts[key] }}</span>
+          {{ s.label }} <span class="font-normal">{{ counts[key] }}</span>
         </button>
       </template>
     </div>
@@ -256,7 +264,7 @@ function clearAll() {
           :key="o.id"
           :to="`/admin/orders/${o.id}`"
           class="card block rounded-3xl border-transparent p-3.5 shadow-md transition hover:shadow-lg focus-visible:ring-4 focus-visible:ring-brand-200 focus-visible:outline-none active:scale-[0.99]"
-          :class="o.status === 'cancelled' ? 'opacity-70' : ''"
+          :class="o.status === 'cancelled' ? 'grayscale' : ''"
         >
           <div class="flex items-start gap-3">
             <!-- เวลา -->

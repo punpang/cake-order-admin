@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { db, session, can, switchUser, unreadChats, runScheduledChecks, orderVisible } from './data/store'
 import { paymentCounts } from './lib/paymentsQueue'
 import { ROLES } from './lib/constants'
-import { firstHome, systemOf, systemByKey, visibleSystems, visibleItems } from './lib/adminSystems'
+import { firstHome, homeOf, systemOf, systemByKey, visibleSystems, visibleItems } from './lib/adminSystems'
 import AppIcon from './components/AppIcon.vue'
 import AppModal from './components/AppModal.vue'
 import BellMenu from './components/BellMenu.vue'
@@ -23,13 +23,20 @@ const paySlips = computed(() => paymentCounts(db.orders.filter(orderVisible)).sl
 const unread = computed(() => unreadChats())
 const badges = computed(() => ({ chat: unread.value, pay: paySlips.value }))
 // เมนูล่างมือถือ: เมนูย่อยของระบบปัจจุบัน (เฉพาะที่ติด mobile) เมื่อมี ≥ 2 รายการ
-const bottomItems = computed(() => (current.value === 'orders' ? items.value.filter((i) => i.mobile) : []))
-const showBottom = computed(() => !route.meta.focus && bottomItems.value.length >= 2)
+// ระบบอื่น (หน้าเดียว) แสดงชื่อระบบนั้น + ปุ่ม "ระบบ" สำหรับสลับ (ปุ่ม "ระบบ" มีเสมอเมื่อเห็นมากกว่า 1 ระบบ)
+const bottomItems = computed(() => (current.value === 'orders' ? items.value.filter((i) => i.mobile) : items.value))
+const hasSwitch = computed(() => systems.value.length > 1)
+const showBottom = computed(() => !route.meta.focus && bottomItems.value.length + (hasSwitch.value ? 1 : 0) >= 2)
+const sysOpen = ref(false)
+const bottomCols = computed(() => bottomItems.value.length + (hasSwitch.value ? 1 : 0))
+const curLabel = computed(() => systems.value.find((x) => x.key === current.value)?.label || 'ระบบ')
+function sysOutside(e) { if (sysOpen.value && !e.target.closest?.('[data-bottom-system]')) sysOpen.value = false }
+function sysEsc(e) { if (e.key === 'Escape') sysOpen.value = false }
 const me = computed(() => db.users.find((u) => u.id === session.userId))
 // จำลอง cron: ตรวจแจ้งเตือนตามเวลาทุก 60 วินาทีขณะเปิดแอป (ของจริงใช้ cron ฝั่งเซิร์ฟเวอร์)
 let timer = null
-onMounted(() => { timer = setInterval(() => runScheduledChecks(), 60000) })
-onBeforeUnmount(() => clearInterval(timer))
+onMounted(() => { timer = setInterval(() => runScheduledChecks(), 60000); document.addEventListener('pointerdown', sysOutside); document.addEventListener('keydown', sysEsc) })
+onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('pointerdown', sysOutside); document.removeEventListener('keydown', sysEsc) })
 </script>
 
 <template>
@@ -83,18 +90,28 @@ onBeforeUnmount(() => clearInterval(timer))
     class="fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_rgb(63_46_46/0.10)] backdrop-blur-xl md:hidden"
     aria-label="เมนูล่าง"
   >
-    <div class="mx-auto grid h-16 max-w-md items-center" :style="{ gridTemplateColumns: `repeat(${bottomItems.length}, minmax(0, 1fr))` }">
+    <div class="mx-auto grid h-16 max-w-md items-center" :style="{ gridTemplateColumns: `repeat(${bottomCols}, minmax(0, 1fr))` }">
       <RouterLink
         v-for="i in bottomItems"
         :key="i.to"
         :to="i.to"
-        class="relative flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500"
+        class="relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[12px] font-medium text-stone-600"
         :active-class="i.exact ? '' : 'text-brand-700!'"
         :exact-active-class="i.exact ? 'text-brand-700!' : ''"
       >
         <AppIcon :name="i.icon" :size="22" />
         {{ i.mobileLabel || i.label }}
         <span v-if="i.badge && badges[i.badge]" class="absolute -top-1 left-1/2 ml-2 min-w-4 rounded-full bg-brand-600 px-1 text-center text-[10px] leading-4 font-semibold text-white">{{ badges[i.badge] }}</span>
+      </RouterLink>
+      <button v-if="hasSwitch" type="button" data-bottom-system class="relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[12px] font-medium text-stone-600" aria-haspopup="menu" :aria-expanded="sysOpen" @click="sysOpen = !sysOpen">
+        <AppIcon name="grid" :size="22" />
+        ระบบ
+        <span class="sr-only">ปัจจุบัน {{ curLabel }}</span>
+      </button>
+    </div>
+    <div v-if="sysOpen" data-bottom-system data-system-sheet role="menu" class="absolute inset-x-3 bottom-[calc(100%+0.5rem)] overflow-hidden rounded-2xl bg-white p-1.5 shadow-xl ring-1 ring-stone-200">
+      <RouterLink v-for="sy in systems" :key="sy.key" :to="homeOf(sy, can)" role="menuitem" :data-system="sy.key" class="flex min-h-12 items-center gap-3 rounded-xl px-3 text-base font-medium" :class="sy.key === current ? 'bg-brand-50 text-brand-700' : 'text-stone-700 hover:bg-stone-50'" @click="sysOpen = false">
+        <AppIcon :name="sy.icon" :size="20" /> {{ sy.label }}<AppIcon v-if="sy.key === current" name="check" :size="16" class="ml-auto" />
       </RouterLink>
     </div>
   </nav>

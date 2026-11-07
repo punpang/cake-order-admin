@@ -185,7 +185,7 @@ function doSim() {
         <div v-if="can('createOrder')" class="grid grid-cols-2 gap-1 border-b border-stone-200 bg-white p-1.5 lg:hidden">
           <button type="button" class="h-9 rounded-lg text-sm font-medium" :class="mtab === 'chat' ? 'bg-brand-50 text-brand-800' : 'text-stone-500'" @click="mtab = 'chat'">แชท</button>
           <button type="button" class="relative h-9 rounded-lg text-sm font-medium" :class="mtab === 'order' ? 'bg-brand-50 text-brand-800' : 'text-stone-500'" @click="mtab = 'order'">
-            ลงออร์เดอร์<span v-if="hasDraft(current.id)" class="ml-1 text-amber-600">(ร่าง)</span>
+            ลงออร์เดอร์<span v-if="hasDraft(current.id)" class="ml-1 text-amber-700">(ร่าง)</span>
           </button>
         </div>
         <div class="flex min-h-0 flex-1">

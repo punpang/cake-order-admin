@@ -35,8 +35,8 @@
   --color-stone-100: #f3ebe4;
   --color-stone-200: #e8dcd3;
   --color-stone-300: #d3c3b8;
-  --color-stone-400: #9a887d;
-  --color-stone-500: #7d6a64;
+  --color-stone-400: #7a6a63;
+  --color-stone-500: #6c5b56;
   --color-stone-600: #5f4e4b;
   --color-stone-700: #4d3d3b;
   --color-stone-800: #3f2e2e;
@@ -62,6 +62,10 @@
   }
   body {
     @apply min-h-dvh bg-cream text-stone-800 antialiased;
+  }
+  /* ซูมด้วยสองนิ้วได้ แต่แตะสองครั้งไม่ซูม (ปุ่ม +/− ใน POS ไม่เด้ง) */
+  html {
+    touch-action: manipulation;
   }
   /* ช่องวันที่บน iOS ไม่ให้ล้นกรอบ */
   input[type='date'],

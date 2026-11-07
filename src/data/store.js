@@ -1990,6 +1990,13 @@ export function bellMarkRead(id, audience = 'staff') {
     if (i.audience === 'customer' && i.customerId === customerSession.customerId) i.read = true
   } else if (i.audience === 'staff' && !i.readBy.includes(session.userId)) i.readBy.push(session.userId)
 }
+export function bellMarkUnread(id, audience = 'staff') {
+  const i = db.bell.find((x) => x.id === id)
+  if (!i) return
+  if (audience === 'customer') {
+    if (i.audience === 'customer' && i.customerId === customerSession.customerId) i.read = false
+  } else if (i.audience === 'staff') i.readBy = i.readBy.filter((u) => u !== session.userId)
+}
 export function bellMarkAll(audience = 'staff') {
   for (const i of bellFeed(audience)) bellMarkRead(i.id, audience)
 }

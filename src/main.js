@@ -5,21 +5,6 @@ import { vNum } from './lib/numInput'
 import { seedDemo } from './data/demo'
 import './style.css'
 
-// ป้องกันการซูมบนมือถือ (iOS ไม่สนใจ user-scalable=no): ซูมสองนิ้ว / gesture / แตะสองครั้ง
-const stop = (e) => e.preventDefault()
-for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, stop, { passive: false })
-document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault() }, { passive: false })
-let lastTouch = 0
-document.addEventListener(
-  'touchend',
-  (e) => {
-    const now = Date.now()
-    if (now - lastTouch < 300) e.preventDefault()
-    lastTouch = now
-  },
-  { passive: false },
-)
-
 // ข้อมูลตัวอย่างสมจริง ~90 วัน (จำลองในหน่วยความจำ) — ตอนต่อ Supabase ลบบรรทัดนี้ + src/data/demo.js
 seedDemo()
 

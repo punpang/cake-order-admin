@@ -65,7 +65,7 @@ async function save() {
         </span>
         <span class="shrink-0 text-right text-sm leading-tight">
           <span class="block text-stone-500">{{ m.unit }}</span>
-          <span class="block text-xs" :class="m.packSize > 0 ? 'text-stone-400' : 'text-amber-600'">{{ costText(m) }}</span>
+          <span class="block text-xs" :class="m.packSize > 0 ? 'text-stone-400' : 'text-amber-700'">{{ costText(m) }}</span>
         </span>
       </button>
     </div>

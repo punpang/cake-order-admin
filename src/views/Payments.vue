@@ -53,7 +53,7 @@ const shortDay = (o) => dayLabel(o.pickupAt.slice(0, 10))
 
     <div class="mb-4 grid grid-cols-3 gap-1 seg-grid md:max-w-xl" role="group" aria-label="กรองการชำระเงิน">
       <button v-for="t in PAY_TABS" :key="t.v" type="button" class="seg-item h-auto min-h-10 px-1 py-1.5 text-center leading-tight" :class="tab === t.v ? 'seg-on' : ''" :aria-pressed="tab === t.v" @click="tab = t.v">
-        {{ t.l }} <span class="opacity-70">{{ counts[t.v] }}</span>
+        {{ t.l }} <span class="font-normal">{{ counts[t.v] }}</span>
       </button>
     </div>
 
