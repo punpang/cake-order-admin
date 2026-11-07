@@ -7,7 +7,7 @@ import { watch } from 'vue'
 // storefront/legal ใช้ collection ของตัวเอง เพื่อให้หน้าร้านสาธารณะอ่านได้ภายหลัง (นโยบาย kv_public_read)
 export const CONFIG_KEYS = [
   'shop', 'loyalty', 'rewards', 'gachaPrizes', 'priceLists', 'bundles', 'ingredients', 'optionGroups',
-  'cannedReplies', 'notifyRules', 'posModifiers', 'posDiscounts', 'posBundles', 'posDeals', 'pointPromos',
+  'cannedReplies', 'bot', 'notifyRules', 'posModifiers', 'posDiscounts', 'posBundles', 'posDeals', 'pointPromos',
   'storefront', 'legal',
 ]
 const COLLECTION_OF = { storefront: 'storefront', legal: 'legal', ingredients: 'materials' }

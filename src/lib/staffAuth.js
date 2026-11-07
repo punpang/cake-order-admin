@@ -9,7 +9,7 @@ let syncs = []
 async function startData(staff) {
   syncs.forEach((x) => x.stop())
   syncs = []
-  const [items, customers, config, orders, acct, store, client] = await Promise.all([import('./itemsSync'), import('./customersSync'), import('./configSync'), import('./ordersSync'), import('./acctSync'), import('../data/store'), getSupabase()])
+  const [items, customers, config, orders, acct, chats, store, client] = await Promise.all([import('./itemsSync'), import('./customersSync'), import('./configSync'), import('./ordersSync'), import('./acctSync'), import('./chatSync'), import('../data/store'), getSupabase()])
   const { db } = store
   const onError = (m) => showToast(m, 8000)
   const has = (p) => staff.perms.includes(p)
@@ -22,6 +22,9 @@ async function startData(staff) {
   store.numbering.prefetch()
   syncs.push(await customers.startCustomersSync({ client, db, canWrite: has('createOrder') || has('adjustPoints'), onError }))
   syncs.push(...(await acct.startAcctSync({ client, db, has, onError })))
+  // แชท/ใบเสนอ: เฉพาะผู้มีสิทธิ์ chat · คนอื่นล้างข้อมูลตัวอย่างออก (ไม่ให้เห็นแชทจำลองปนกับของจริง)
+  if (has('chat')) syncs.push(...(await chats.startChatSync({ client, db, canWrite: true, numbering: store.numbering, onError, onRecode: (q, c) => showToast(`เลขใบเสนอซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000) })))
+  else { db.chats.splice(0); db.quotes.splice(0) }
 }
 export async function initStaff() {
   if (!supabaseEnabled) return
