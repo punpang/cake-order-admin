@@ -2,21 +2,45 @@ import { watch } from 'vue'
 
 // ซิงก์ "ตั้งค่า/แคตตาล็อก" (ร้าน, คะแนน, ตัวเลือกเค้ก, ราคา, POS ฯลฯ) กับ punpang_kv — 1 แถวต่อ 1 คีย์ของ db
 // ไม่รวมความลับ/ข้อมูลรายคน (integrations, users, ลูกค้า, ออร์เดอร์ ฯลฯ) — ดู CONFIG_KEYS
-// ยังไม่รวม ingredients และ optionGroups: มีต้นทุน/สูตร (packPrice, recipe) ต้องแยกให้เฉพาะสิทธิ์ viewProfit/viewMaterials แบบเดียวกับ item_costs ก่อน
+// ต้นทุน/สูตรแยกเก็บ: ingredients → collection 'materials' · สูตรใน optionGroups → item_costs/_optionGroups
+// (อ่านได้เฉพาะ manage / viewProfit / viewMaterials) ส่วน optionGroups ที่เหลือ (ชื่อ/ราคาขาย) อยู่ 'config' ให้พนักงานขายอ่านได้
 // storefront/legal ใช้ collection ของตัวเอง เพื่อให้หน้าร้านสาธารณะอ่านได้ภายหลัง (นโยบาย kv_public_read)
 export const CONFIG_KEYS = [
-  'shop', 'loyalty', 'rewards', 'gachaPrizes', 'priceLists', 'bundles',
+  'shop', 'loyalty', 'rewards', 'gachaPrizes', 'priceLists', 'bundles', 'ingredients', 'optionGroups',
   'cannedReplies', 'notifyRules', 'posModifiers', 'posDiscounts', 'posBundles', 'posDeals', 'pointPromos',
   'storefront', 'legal',
 ]
-const PUBLIC_COLLECTIONS = ['storefront', 'legal']
-export const collectionOf = (key) => (PUBLIC_COLLECTIONS.includes(key) ? key : 'config')
+const COLLECTION_OF = { storefront: 'storefront', legal: 'legal', ingredients: 'materials' }
+export const collectionOf = (key) => COLLECTION_OF[key] || 'config'
+export const OPTION_COSTS_ID = '_optionGroups'
+
+// แยก/รวมสูตรของตัวเลือกเค้ก: คีย์ "groupId/optionId" → recipe
+export function stripRecipes(groups) {
+  const costs = {}
+  const clean = (groups || []).map((g) => ({
+    ...g,
+    options: (g.options || []).map((o) => {
+      const { recipe, ...rest } = o
+      costs[`${g.id}/${o.id}`] = Array.isArray(recipe) ? recipe : []
+      return rest
+    }),
+  }))
+  return { groups: clean, costs }
+}
+export function mergeRecipes(groups, costs) {
+  return (groups || []).map((g) => ({ ...g, options: (g.options || []).map((o) => ({ ...o, recipe: costs?.[`${g.id}/${o.id}`] || [] })) }))
+}
 
 export async function loadConfig(client, keys = CONFIG_KEYS) {
   const r = await client.from('punpang_kv').select('collection,id,data').in('collection', [...new Set(keys.map(collectionOf))])
   if (r.error) return { error: r.error.message }
   const map = {}
   for (const row of r.data || []) if (keys.includes(row.id) && row.collection === collectionOf(row.id)) map[row.id] = row.data?.v
+  if (keys.includes('optionGroups') && map.optionGroups != null) {
+    const c = await client.from('punpang_kv').select('id,data').eq('collection', 'item_costs').eq('id', OPTION_COSTS_ID)
+    if (c.error) return { error: c.error.message }
+    map.optionGroups = mergeRecipes(map.optionGroups, c.data?.[0]?.data?.v) // อ่านสูตรไม่ได้ (ไม่มีสิทธิ์) = สูตรว่าง
+  }
   return { map }
 }
 
@@ -31,7 +55,15 @@ export function applyValue(db, key, value) {
 }
 
 export async function pushConfig(client, db, keys) {
-  const rows = keys.map((k) => ({ collection: collectionOf(k), id: k, data: { v: JSON.parse(JSON.stringify(db[k] ?? null)) } }))
+  const rows = []
+  for (const k of keys) {
+    const v = JSON.parse(JSON.stringify(db[k] ?? null))
+    if (k === 'optionGroups') {
+      const { groups, costs } = stripRecipes(v)
+      rows.push({ collection: collectionOf(k), id: k, data: { v: groups } })
+      rows.push({ collection: 'item_costs', id: OPTION_COSTS_ID, data: { v: costs } })
+    } else rows.push({ collection: collectionOf(k), id: k, data: { v } })
+  }
   const r = await client.from('punpang_kv').upsert(rows)
   return r.error ? { error: r.error.message } : { ok: true }
 }
