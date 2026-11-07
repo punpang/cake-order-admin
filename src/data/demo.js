@@ -5,7 +5,7 @@ import {
   db, session, customerSession, createOrder, reportPayment, confirmPayment, receivePaymentNow, setStatus, cancelOrder, addWorkPhotos, publishWorkPhoto,
   customerRequestPhotoOptOut, saveGalleryImage, recordCakeClick, redeemReward, spinGacha, saveReview, submitReview, setReviewStatus, saveRetailItem, savePosDiscount, saveDeal,
   openShift, closeShift, posSale, shiftSummary, receiveMessage, sendChat, postOrderCard, sendQuote, acceptQuote, reviseQuote, saveIngredient, saveShopSettings,
-  createOrderLink, sendOrderLinkToChat, saveUser, findCustomer, currentShift, priceItem,
+  createOrderLink, sendOrderLinkToChat, saveUser, findCustomer, currentShift, priceItem, refundOrder, shiftBills,
 } from './store'
 import * as acct from './acct'
 import { orderTotals, describeSelections } from '../lib/pricing'
@@ -333,6 +333,19 @@ export function seedDemo() {
     clock = Math.max(T(0, 0, 5), real - 4 * H)
     openShift(1000)
     sell(8, clock, real - 5 * M)
+
+    // ---------- คืนเงินบางส่วน (ไม่ยกเลิก): ออร์เดอร์ที่ส่งมอบแล้ว 3 ใบ (เงินสด / โอน / คะแนน) + บิล POS กะวันนี้ 1 ใบ ----------
+    const refundable = db.orders.filter((o) => o.status === 'delivered' && !o.channel && o.customerId && orderTotals(o).paidNet >= 300)
+    const pv = Number(db.loyalty.pointValue) || 1
+    ;[['cash', 'ชดเชยส่งช้า'], ['transfer', 'ลูกค้าแจ้งของไม่ครบ ร้านคืนบางส่วน'], ['points', 'ชดเชยตกแต่งไม่ตรงแบบ']].forEach(([method, reason], k) => {
+      const o = refundable[k * 3]
+      if (!o) return
+      clock = Math.min(new RealDate(o.deliveredAt).getTime() + int(1, 2) * DAY, real - M)
+      const amount = method === 'points' ? pv * Math.max(1, Math.round(60 / pv)) : [50, 100, 40][k]
+      refundOrder(o, { reason, refunds: [{ method, amount }], notify: false })
+    })
+    const todayBill = shiftBills(currentShift().id).find((o) => o.status !== 'cancelled' && orderTotals(o).paidNet >= 60)
+    if (todayBill) { clock = real - 2 * M; refundOrder(todayBill, { reason: 'ลูกค้าคืนสินค้า 1 ชิ้น', refunds: [{ method: 'cash', amount: 20 }] }) }
 
     // ---------- สต็อกสุดท้าย (หลังขาย POS) ----------
     const finalStock = { rt1: 14, rt2: 7, rt3: 36, rt4: 0, rt7: 120 }

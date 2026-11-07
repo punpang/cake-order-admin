@@ -36,6 +36,16 @@ export function refundErrors(rows, { paid = 0, canPoints = false, pointValue = 1
   return ''
 }
 
+// คืนเงินบางส่วนโดยไม่ยกเลิก: order.returns = [{ id, at, by, reason, note, refunds, amount }]
+export const returnsOf = (order) => (Array.isArray(order?.returns) ? order.returns : [])
+export const returnedTotal = (order) => r2(returnsOf(order).reduce((s, x) => s + (Number(x.amount) || 0), 0))
+// ยอดคืนบางส่วนแยกช่องทาง { cash, transfer, points }
+export function returnedByMethod(order) {
+  const m = { cash: 0, transfer: 0, points: 0 }
+  for (const r of returnsOf(order)) for (const x of r.refunds || []) m[x.method] = r2((m[x.method] || 0) + (Number(x.amount) || 0))
+  return m
+}
+
 // รายการคืนสำหรับแสดงผล [{ label, amount, points }] (รองรับรูปแบบเก่า)
 export function refundList(cancel) {
   if (!cancel) return []

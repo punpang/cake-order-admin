@@ -17,6 +17,7 @@ import DiscountDetail from '../components/DiscountDetail.vue'
 import Receipt from '../components/Receipt.vue'
 import PhoneInput from '../components/PhoneInput.vue'
 import RefundEditor from '../components/RefundEditor.vue'
+import RefundPartialDialog from '../components/RefundPartialDialog.vue'
 import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
 import TaxInvoiceModal from '../components/TaxInvoiceModal.vue'
 import { invoiceOfOrder } from '../data/acct'
@@ -295,10 +296,11 @@ const bills = computed(() => (shift.value ? shiftBills(shift.value.id) : []))
 // ยกเลิกบิล: เลือกคืนเป็น เงินสด / ธนาคาร / คะแนนสะสม (แบ่งได้) · ค่าตั้งต้น = คืนเต็มตามช่องทางที่จ่ายมา
 const voidFor = ref(null)
 const vd = reactive({ reason: 'ยกเลิกบิล', refunds: [], note: '', error: '' })
-const voidPaid = computed(() => (voidFor.value ? orderTotals(voidFor.value).paid : 0))
+const voidPaid = computed(() => (voidFor.value ? orderTotals(voidFor.value).paidNet : 0))
+const refundFor = ref(null) // คืนเงินบางส่วนโดยไม่ยกเลิกบิล
 const voidDefault = computed(() => defaultRefundMethod(voidFor.value?.payments.find((p) => p.status === 'confirmed')?.posMethod))
 function openVoid(o) {
-  const paid = orderTotals(o).paid
+  const paid = orderTotals(o).paidNet
   Object.assign(vd, { reason: 'ยกเลิกบิล', refunds: paid > 0 ? [{ method: defaultRefundMethod(o.payments.find((p) => p.status === 'confirmed')?.posMethod), amount: paid }] : [], note: '', error: '' })
   voidFor.value = o
 }
@@ -511,8 +513,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <section v-else-if="tab === 'bills'" class="card">
       <p v-if="!bills.length" class="py-8 text-center text-sm text-stone-500">ยังไม่มีบิลในกะนี้</p>
       <ul class="divide-y divide-stone-100">
-        <li v-for="o in bills" :key="o.id" class="flex items-center gap-3 py-3" :class="o.status === 'cancelled' ? 'opacity-60' : ''">
-          <button type="button" class="min-w-0 flex-1 text-left" @click="receipt = o">
+        <li v-for="o in bills" :key="o.id" class="flex flex-wrap items-center gap-x-3 gap-y-2 py-3" :class="o.status === 'cancelled' ? 'opacity-60' : ''">
+          <button type="button" class="min-w-0 flex-1 basis-40 text-left" @click="receipt = o">
             <span class="block font-medium text-stone-900">{{ o.code }} <span class="text-xs font-normal text-stone-500">{{ timeOnly(o.createdAt) }}</span></span>
             <span class="block truncate text-xs text-stone-500">{{ o.items.map((i) => `${i.name}${i.mods?.length ? ` (${modsText(i.mods)})` : ''} ×${i.qty}`).join(', ') }}<template v-if="o.customerId"> · {{ findCustomer(o.customerId)?.name }}</template></span>
           </button>
@@ -520,6 +522,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <b class="block text-stone-900">{{ money(orderTotals(o).total) }}</b>
             <span class="text-xs text-stone-500">{{ o.status === 'cancelled' ? 'ยกเลิกแล้ว' : o.payments[0]?.method }}</span>
           </span>
+          <button v-if="can('posVoid') && o.status !== 'cancelled' && orderTotals(o).paidNet > 0" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" aria-label="คืนเงินบางส่วน" @click="refundFor = o">คืนเงิน</button>
           <button v-if="can('posVoid') && o.status !== 'cancelled'" type="button" class="btn-danger h-9 shrink-0 px-2.5" aria-label="ยกเลิกบิล" @click="openVoid(o)"><AppIcon name="x" :size="16" /></button>
           <button v-if="can('changeBuyer') && o.status !== 'cancelled'" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" @click="buyerFor = o">เปลี่ยนผู้ซื้อ</button>
           <button v-if="taxable(o)" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" aria-label="ใบกำกับภาษี" @click="taxFor = o">ใบกำกับภาษี</button>
@@ -562,6 +565,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <button class="btn-danger flex-1 sm:flex-none" @click="doVoid">ยืนยันยกเลิกบิล</button>
       </template>
     </AppModal>
+    <RefundPartialDialog v-if="refundFor" :order="refundFor" @close="refundFor = null" />
     <ChangeBuyerModal v-if="buyerFor" :order="buyerFor" @close="buyerFor = null" />
 
     <!-- สมัครสมาชิกที่เคาน์เตอร์ -->

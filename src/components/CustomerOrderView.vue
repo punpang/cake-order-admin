@@ -220,6 +220,7 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
       <div class="flex justify-between text-base"><span class="font-medium">ยอดรวม</span><b class="text-stone-900">{{ money(o.total) }}</b></div>
       <div v-if="o.vatMode" class="flex justify-between text-xs text-stone-500"><span>{{ o.vatMode === 'exclusive' ? `รวม VAT ${o.vatRate}% (บวกเพิ่ม)` : `รวม VAT ${o.vatRate}% แล้ว` }}</span><span>{{ money(o.vat) }}</span></div>
       <div v-for="(r, i) in o.refunds" :key="'rf' + i" class="flex justify-between text-xs text-rose-600"><span>คืนเงิน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span>{{ money(r.amount) }}</span></div>
+      <template v-for="rt in o.returns || []" :key="rt.id"><div v-for="(r, i) in rt.items" :key="rt.id + i" class="flex justify-between text-xs text-rose-600"><span>คืนเงินบางส่วน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span>{{ money(r.amount) }}</span></div></template>
       <div class="flex justify-between"><span>ชำระแล้ว</span><span>{{ money(o.paid) }}</span></div>
       <div v-if="!cancelled" class="flex justify-between text-base" :class="o.balance > 0 ? 'text-amber-700' : 'text-emerald-700'"><span class="font-medium">คงค้าง</span><b>{{ money(o.balance) }}</b></div>
     </section>

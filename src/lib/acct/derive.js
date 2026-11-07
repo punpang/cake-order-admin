@@ -66,6 +66,20 @@ export function orderEntries(o, ctx) {
   const sumVat = booked.reduce((a, b) => a + b.vatP, 0)
   const sumNet = booked.reduce((a, b) => a + b.netP, 0)
 
+  // ---- คืนเงินบางส่วน (ไม่ยกเลิก): Dr 4950 (หักรายได้) + Dr ภาษีขายส่วนที่คืน / Cr เงินสด|ธนาคาร|หนี้คะแนน · ใช้ได้ทั้งก่อน/หลังส่งมอบ ---
+  let retNet = 0 // ส่วนสุทธิ (ไม่รวม VAT) ที่คืนบางส่วนไปแล้วทั้งหมด
+  for (const r of o.returns || []) {
+    const rows = (r.refunds || []).filter((x) => Number(x.amount) > 0)
+    const F = rows.reduce((a, x) => a + toS(x.amount), 0)
+    if (!(F > 0) || !(sumAmt > 0)) continue
+    const fv = Math.round((F * sumVat) / sumAmt)
+    const fn = F - fv
+    retNet += fn
+    const lines = [dr('4950', fn), dr(OUTPUT_VAT, fv)]
+    for (const x of rows) lines.push(cr(x.method === 'points' ? POINTS_LIAB : x.method === 'cash' ? CASH : BANK, toS(x.amount)))
+    out.push(entry(`ret:${o.id}:${r.id}`, dateOf(r.at) || dateOf(o.createdAt), `คืนเงินบางส่วน ${code}`, { type: 'order-return', orderId: o.id, returnId: r.id }, lines, fv > 0 ? tx('output', -fn, -fv) : null))
+  }
+
   // ---- ส่งมอบ: รับรู้รายได้ + ต้นทุน + ค่าคะแนน/คูปอง ----
   const dAt = (o.status === 'delivered' || o.status === 'cancelled') ? deliveredAtOf(o) : null
   const delivered = o.status === 'delivered' || (o.status === 'cancelled' && !!dAt && (o.deliveredAt || (o.history || []).some((x) => /ส่งมอบ/.test(x.text) && !/ไม่ได้/.test(x.text))))
@@ -107,7 +121,9 @@ export function orderEntries(o, ctx) {
       const fn = F - fv
       const lines = [dr(DEPOSIT, fn), dr(OUTPUT_VAT, fv)]
       for (const r of refunds) lines.push(cr(r.method === 'points' ? POINTS_LIAB : r.method === 'cash' ? CASH : BANK, toS(r.amount)))
-      const ret = sumNet - fn
+      // ที่คืนบางส่วนไปก่อนแล้ว: กลับรายการ 4950 (ออร์เดอร์ถูกยกเลิก ไม่ใช่ส่วนลด) และไม่นับเป็นเงินมัดจำที่ริบ
+      if (retNet > 0) lines.push(dr(DEPOSIT, retNet), cr('4950', retNet))
+      const ret = sumNet - fn - retNet
       if (ret > 0) lines.push(dr(DEPOSIT, ret), cr('4900', ret))
       out.push(entry(`cxl:${o.id}`, cDate, `ยกเลิก ${code} คืนเงิน/ริบมัดจำ`, { type: 'order-cancel', orderId: o.id }, lines, fv > 0 ? tx('output', -fn, -fv) : null))
     }

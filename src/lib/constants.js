@@ -26,6 +26,7 @@ export const PERMISSIONS = {
   reportPayment: ['admin', 'sales'],
   confirmPayment: ['admin'],
   cancelConfirmedPayment: ['admin'], // ยกเลิกยอดที่ยืนยันแล้ว
+  refundPartial: ['admin'], // คืนเงินบางส่วนโดยไม่ยกเลิกออร์เดอร์ (POS ใช้ posVoid)
   workPhoto: ['admin', 'sales', 'baker'], // อัปโหลด/ลบรูปงานเสร็จในออร์เดอร์ (เผยแพร่ขึ้นเว็บใช้สิทธิ์ manage)
   revertStatus: ['admin'], // ย้อนสถานะออร์เดอร์ทีละขั้น (ต้องใส่เหตุผล)
   adjustPrice: ['admin'],
@@ -80,6 +81,7 @@ export const PERM_GROUPS = [
     { key: 'reportPayment', label: 'แจ้งยอด / แก้ / ยกเลิกยอดที่แจ้ง / ขยายเวลาชำระ' },
     { key: 'confirmPayment', label: 'ยืนยันยอดชำระ' },
     { key: 'cancelConfirmedPayment', label: 'ยกเลิกยอดที่ยืนยันแล้ว' },
+    { key: 'refundPartial', label: 'คืนเงินบางส่วน (ไม่ยกเลิกออร์เดอร์)' },
     { key: 'revertStatus', label: 'ย้อนสถานะออร์เดอร์ทีละขั้น' },
     { key: 'workPhoto', label: 'อัปโหลด/ลบรูปงานเสร็จในออร์เดอร์' },
     { key: 'requestConfirmUnpaid', label: 'ขออนุมัติยืนยันสั่งซื้อ (ยังไม่ชำระ)' },
@@ -159,6 +161,7 @@ export const NOTIFY_EVENTS = {
   shipping: { label: 'ออร์เดอร์ออกจัดส่งแล้ว', audience: 'customer' },
   delivered: { label: 'ส่งมอบแล้ว', audience: 'customer' },
   cancelled: { label: 'ยกเลิกออร์เดอร์', audience: 'customer' },
+  order_refunded: { label: 'คืนเงินบางส่วน', audience: 'customer' },
   birthday: { label: 'อวยพรวันเกิด', audience: 'customer', scheduled: true, marketing: true },
   points_expiring: { label: 'คะแนนใกล้หมดอายุ', audience: 'customer', scheduled: true, marketing: true },
   team_new_order: { label: 'ออร์เดอร์ใหม่', audience: 'team' },

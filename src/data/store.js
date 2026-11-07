@@ -5,7 +5,7 @@ import { STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_
 import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { prevStatus } from '../lib/orderFlow'
-import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList } from '../lib/refund'
+import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList, returnedByMethod } from '../lib/refund'
 import { addDays, pointBalance, takePoints, returnPoints, couponUsable, couponPhase, pickPrize, expiringSoon } from '../lib/loyalty'
 import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, timeOnly } from '../lib/format'
 import { nextBirthday, daysBetween } from '../lib/birthday'
@@ -244,6 +244,7 @@ export const db = reactive({
     rule('shipping', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ กำหนดถึง {วันนัด} {เวลานัด}'),
     rule('delivered', ['line', 'facebook'], 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ'),
     rule('cancelled', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว หากมีข้อสงสัยติดต่อร้านได้เลยค่ะ'),
+    rule('order_refunded', ['line', 'facebook', 'sms'], 'ร้านคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} แล้วค่ะ'),
     rule('birthday', ['line', 'facebook'], 'สุขสันต์วันเกิดล่วงหน้า {ชื่อวันเกิด} สั่งเค้กกับเราได้เลยค่ะ'),
     rule('points_expiring', ['line', 'facebook'], '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ ใช้ก่อนหมดนะคะ'),
     rule('team_new_order', ['telegram'], '[ออร์เดอร์ใหม่] {เลขออร์เดอร์} {ชื่อลูกค้า} {ยอดรวม} นัด {วันนัด} {เวลานัด}'),
@@ -853,6 +854,7 @@ export function cancelPaymentRequest(order, paymentId) {
 export function cancelConfirmedPayment(order, paymentId) {
   const p = order.payments.find((x) => x.id === paymentId)
   if (!p || p.status !== 'confirmed' || ['delivered', 'cancelled'].includes(order.status)) return
+  if (orderTotals(order).paidNet - p.amount < -0.004) return { error: 'ยกเลิกยอดนี้ไม่ได้ เพราะคืนเงินบางส่วนไปแล้ว' }
   Object.assign(p, { status: 'cancelled', cancelledAt: now(), cancelledBy: session.role })
   log(order, `ยกเลิกยอดที่ยืนยันแล้ว ${money(p.amount)}`)
   if (!order.payments.some((x) => x.status === 'confirmed') && ['payment_confirmed', 'preparing', 'prepared', 'ready_to_ship', 'shipping'].includes(order.status)) {
@@ -1025,7 +1027,7 @@ export function setAdjustment(order, amount, reason) {
 export const cancelHooks = []
 export function cancelOrder(order, c) {
   if (!order || order.status === 'cancelled') return { error: 'ออร์เดอร์นี้ยกเลิกแล้ว' }
-  const paid = orderTotals(order).paid
+  const paid = orderTotals(order).paidNet // หักยอดที่คืนบางส่วนไปแล้ว
   const refunds = normalizeRefunds(c, paid)
   const cu = findCustomer(order.customerId)
   const err = refundErrors(refunds, { paid, canPoints: !!cu && !cu.deleted, pointValue: db.loyalty.pointValue })
@@ -1045,6 +1047,35 @@ export function cancelOrder(order, c) {
   setStatus(order, 'cancelled', `ยกเลิก: ${c.reason}${refundAmount ? ` / คืนเงิน ${summary}` : ''}`, { notify: c.notify })
   for (const h of cancelHooks) h(order)
   return { ok: true }
+}
+
+// คืนเงินบางส่วนโดยไม่ยกเลิกออร์เดอร์/บิล (ออร์เดอร์: สิทธิ์ refundPartial · POS: posVoid)
+// c = { reason, refunds: [{ method: cash | transfer | points, amount }], note, notify } · รวมทุกครั้งต้องไม่เกินยอดที่ชำระแล้ว
+// คืนเป็นคะแนน = ยอด ÷ มูลค่าต่อคะแนน (ต้องหารลงตัว) · ไม่ย้อนสต็อก/คะแนนที่ได้จากการซื้อ (เป็นการชดเชยเงิน) · คืน { ok, entry } | { error }
+export function refundOrder(order, c) {
+  if (!order || ['draft', 'cancelled'].includes(order.status)) return { error: 'ออร์เดอร์นี้คืนเงินไม่ได้' }
+  if (!can(order.channel === 'pos' ? 'posVoid' : 'refundPartial')) return { error: 'ไม่มีสิทธิ์คืนเงิน' }
+  const reason = String(c?.reason || '').trim().slice(0, 200)
+  if (!reason) return { error: 'ระบุเหตุผลการคืนเงิน' }
+  const paidNet = orderTotals(order).paidNet
+  if (!(paidNet > 0)) return { error: 'ไม่มียอดที่ชำระแล้วให้คืน' }
+  const refunds = normalizeRefunds({ refunds: c?.refunds || [] }, paidNet)
+  if (!refunds.length) return { error: 'ระบุยอดคืนอย่างน้อย 1 ช่องทาง' }
+  const cu = findCustomer(order.customerId)
+  const err = refundErrors(refunds, { paid: paidNet, canPoints: !!cu && !cu.deleted, pointValue: db.loyalty.pointValue })
+  if (err) return { error: err }
+  for (const x of refunds) {
+    if (x.method !== 'points') continue
+    x.points = Math.round(x.amount / db.loyalty.pointValue)
+    earnPoints(cu, x.points, `คืนเงิน ${order.code}`, order.id)
+  }
+  const amount = round2(refunds.reduce((n, x) => n + x.amount, 0))
+  const entry = { id: uid('rf'), at: now(), by: session.role, reason, note: String(c?.note || '').trim().slice(0, 200), refunds, amount }
+  ;(order.returns ||= []).push(entry)
+  const summary = refunds.map((x) => `${REFUND_METHODS[x.method]} ${money(x.amount)}${x.method === 'points' ? ` (${x.points} คะแนน)` : ''}`).join(' + ')
+  log(order, `คืนเงินบางส่วน ${summary} · ${reason}`)
+  notifyOrder('order_refunded', order, { requested: amount, skip: c?.notify === false })
+  return { ok: true, entry }
 }
 
 // ---------- ย้อนสถานะทีละขั้น (สิทธิ์ revertStatus) ----------
@@ -1453,6 +1484,7 @@ export function publicOrderView(o, { owner = false } = {}) {
     photoConsent: photoStatusOf(o),
     total: t.total, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal, vat: t.vat, vatRate: t.vatRate, vatMode: t.vatMode,
     refunds: o.status === 'cancelled' ? refundList(o.cancel) : [],
+    returns: (o.returns || []).map((r) => ({ id: r.id, at: r.at, amount: r.amount, items: r.refunds.map((x) => ({ label: REFUND_METHODS[x.method] || x.method, amount: x.amount, points: x.points ?? null })) })),
     payments: pays, payDue: orderDue(o), unpaidApproved: o.status === 'order_confirmed',
     pay: { block: customerPayBlock(o), room, info: { ...db.shop.payment }, limitPerHour: CUSTOMER_PAY.perHour },
     review: owner && rv ? { rating: rv.rating, status: rv.status } : null,
@@ -2452,7 +2484,16 @@ export function shiftSummary(shift) {
   const bills = shiftBills(shift.id)
   const live = bills.filter((o) => o.status !== 'cancelled')
   const byMethod = {}
-  for (const o of live) for (const p of o.payments) if (p.status === 'confirmed') byMethod[p.posMethod || 'cash'] = (byMethod[p.posMethod || 'cash'] || 0) + p.amount
+  for (const o of live) {
+    for (const p of o.payments) if (p.status === 'confirmed') byMethod[p.posMethod || 'cash'] = (byMethod[p.posMethod || 'cash'] || 0) + p.amount
+    // คืนเงินบางส่วน: เงินสดหักจากเงินสด · โอนหักจากช่องทางไม่ใช่เงินสดของบิลนั้น (โอน/บัตร) · คืนเป็นคะแนนไม่กระทบยอดรับเงิน
+    const rb = returnedByMethod(o)
+    if (rb.cash) byMethod.cash = round2((byMethod.cash || 0) - rb.cash)
+    if (rb.transfer) {
+      const pm = o.payments.find((p) => p.status === 'confirmed' && (p.posMethod || 'cash') !== 'cash')?.posMethod || 'transfer'
+      byMethod[pm] = round2((byMethod[pm] || 0) - rb.transfer)
+    }
+  }
   const total = Object.values(byMethod).reduce((a, b) => a + b, 0)
   return { bills: bills.length, cancelled: bills.length - live.length, byMethod, total, expectedCash: shift.float + (byMethod.cash || 0) }
 }
@@ -2563,7 +2604,8 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
 export function voidPosSale(order, reason = 'ยกเลิกบิล', refunds = null, refundNote = '') {
   if (order.channel !== 'pos' || order.status === 'cancelled') return { error: 'บิลนี้ยกเลิกแล้ว' }
   const pay = order.payments.find((p) => p.status === 'confirmed')
-  const rows = refunds || (pay ? [{ method: defaultRefundMethod(pay.posMethod), amount: pay.amount }] : [])
+  const net = orderTotals(order).paidNet
+  const rows = refunds || (pay && net > 0 ? [{ method: defaultRefundMethod(pay.posMethod), amount: net }] : [])
   const r = cancelOrder(order, { reason, refunds: rows, refundNote })
   if (r.error) return r
   for (const it of order.items) {
