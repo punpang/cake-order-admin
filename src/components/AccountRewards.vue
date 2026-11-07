@@ -34,7 +34,7 @@ function redeem() {
 // ---------- กาชา ----------
 const prizes = computed(() => db.gachaPrizes.filter((p) => p.active !== false && p.chance > 0))
 const ready = computed(() => chanceTotal(db.gachaPrizes) === 100)
-const COLORS = ['#e3efea', '#c5ddd3', '#f1f7f4', '#9cc3b3', '#eff1f0', '#6ba48e']
+const COLORS = ['#ffe0e7', '#ffd9b8', '#fff0c2', '#cdebd8', '#ffc2d0', '#ffd05c']
 const wheelBg = computed(() => {
   let acc = 0
   const parts = prizes.value.map((p, i) => {
