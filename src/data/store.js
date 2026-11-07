@@ -26,7 +26,8 @@ import { staffState } from '../lib/staffAuth'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
 let seq = 1000
-const uid = (p) => `${p}${++seq}`
+// โหมด Supabase: ไอดีต้องไม่ซ้ำข้ามเซสชัน (ตัวนับเริ่มใหม่ทุกครั้งที่โหลดหน้า จะชนกับแถวที่เก็บไว้แล้วและเขียนทับ)
+const uid = (p) => (supabaseEnabled ? `${p}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}` : `${p}${++seq}`)
 const now = () => new Date().toISOString()
 
 const at = (dayOffset, hh, mm = 0) => {
