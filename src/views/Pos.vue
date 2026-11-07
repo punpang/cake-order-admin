@@ -376,7 +376,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <button
             type="button"
             class="relative flex min-h-24 w-full flex-col justify-between rounded-3xl border-2 bg-white p-3 text-left shadow-sm transition active:scale-[0.98] disabled:opacity-50"
-            :class="inCart(x) ? 'border-brand-500 bg-brand-50/60' : 'border-transparent hover:border-brand-300'"
+            :class="inCart(x) ? 'border-brand-500 bg-brand-50/60 pb-5' : 'border-transparent hover:border-brand-300'"
             :disabled="!canAdd(x)"
             @click="add(x)"
           >
@@ -390,7 +390,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </span>
             <span v-if="inCart(x)" class="absolute -top-2 -right-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand-600 px-1 text-xs font-semibold text-white">{{ inCart(x) }}</span>
           </button>
-          <button v-if="inCart(x)" type="button" class="absolute -bottom-2 -left-2 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-rose-600 shadow-md active:scale-95" :aria-label="`ลด ${x.name}`" @click="lessOf(x)"><AppIcon name="minus" :size="18" /></button>
+          <button v-if="inCart(x)" type="button" class="absolute -bottom-4 left-1/2 z-10 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-stone-200 bg-white text-rose-600 shadow-md active:scale-95" :aria-label="`ลด ${x.name}`" @click="lessOf(x)"><AppIcon name="minus" :size="18" /></button>
           </div>
         </div>
         <p v-if="!shown.length" class="empty py-8 text-sm">ไม่พบสินค้า</p>
