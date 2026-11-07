@@ -364,7 +364,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <input v-model="q" type="search" class="input bg-white pl-10" placeholder="ค้นหาสินค้า" />
           </label>
         </div>
-        <div class="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+        <div class="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0">
           <button type="button" class="chip" :class="!cat ? 'chip-on' : 'chip-off'" @click="cat = ''">ทั้งหมด</button>
           <button v-for="c in categories" :key="c" type="button" class="chip whitespace-nowrap" :class="cat === c ? 'chip-on' : 'chip-off'" @click="cat = c">{{ c }}</button>
           <button type="button" class="chip ml-auto whitespace-nowrap" :class="sortBest ? 'chip-on' : 'chip-off'" :aria-pressed="sortBest" @click="sortBest = !sortBest"><AppIcon name="star" :size="13" /> เรียงขายดี</button>

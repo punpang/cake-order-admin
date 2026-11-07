@@ -203,7 +203,7 @@ function clearAll() {
     </div>
 
     <!-- สถานะ -->
-    <div class="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="group" aria-label="กรองตามสถานะ">
+    <div class="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0" role="group" aria-label="กรองตามสถานะ">
       <button v-if="posCount && can('pos')" class="chip" :class="showPos ? 'chip-on' : 'chip-off'" :aria-pressed="showPos" @click="showPos = !showPos">
         บิลหน้าร้าน <span class="opacity-75">{{ posCount }}</span>
       </button>
