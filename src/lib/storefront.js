@@ -1,6 +1,7 @@
 // ข้อมูลหน้าร้าน (สาธารณะ) คำนวณจากข้อมูลหลังบ้าน · ฟังก์ชันล้วน รับ db เข้ามา
 import { activeLists, typePrice, typeSizePrice, flavorPrice } from './pricing'
 import { applyPosPromos, inSchedule, describeSchedule, round2 } from './posPromo'
+import { describeDeal } from './promoDeals'
 import { toDateStr } from './format'
 
 const today = () => toDateStr(new Date())
@@ -114,6 +115,18 @@ export function activePromotions(db, now = new Date()) {
     const ns = names((b.items || []).map((x) => x.itemId))
     if (ns.length !== (b.items || []).length) continue // ต้องแสดงหน้าร้านครบทุกชิ้นในชุด
     out.push({ id: b.id, name: b.name, from: b.schedule?.from || '', to: b.schedule?.to || '', custom: false, products: [], text: `ชุด ${ns.join(' + ')} ราคา ${b.price} บาท · ${describeSchedule(b.schedule)}` })
+  }
+  // ดีล: แสดงชื่อ + เงื่อนไข (เฉพาะที่สินค้าที่เกี่ยวข้องแสดงหน้าร้านอยู่ หรือดีลตามยอดทั้งบิล)
+  const nameOf = (id) => db.retailItems.find((x) => x.id === id)?.name || ''
+  for (const d of db.posDeals || []) {
+    if (d.active === false || !inSchedule(d.schedule, now)) continue
+    if (['spend_free', 'spend_addon'].includes(d.kind) && !store.some((i) => i.id === (d.giftItemId || d.itemId))) continue
+    if (d.kind === 'bogo' && d.giftItemId && !store.some((i) => i.id === d.giftItemId)) continue
+    if ((d.kind === 'bogo' || d.kind === 'nth') && d.scope !== 'all') {
+      const hit = d.scope === 'category' ? store.filter((i) => (d.categories || []).includes(i.category)) : store.filter((i) => (d.itemIds || []).includes(i.id))
+      if (!hit.length) continue
+    }
+    out.push({ id: d.id, name: d.name, from: d.schedule?.from || '', to: d.schedule?.to || '', custom: false, products: [], text: `${describeDeal(d, nameOf)} · ${describeSchedule(d.schedule)}` })
   }
   return out
 }

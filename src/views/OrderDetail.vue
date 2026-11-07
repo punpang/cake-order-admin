@@ -417,12 +417,12 @@ async function saveCancel() {
           <div class="space-y-2.5">
             <div v-for="it in order.items" :key="it.id">
             <ItemCard :item="it" class="bg-stone-50/50">
-              <template v-if="can('editItems')">
+              <template v-if="can('editItems') && !it.promoGift">
                 <button class="btn-outline h-9 px-3" @click="editing = { item: it }"><AppIcon name="edit" :size="16" /> แก้ไข</button>
-                <button v-if="order.items.length > 1" class="btn-danger h-9 px-3" @click="doRemoveItem(it)"><AppIcon name="trash" :size="16" /> ลบ</button>
+                <button v-if="order.items.filter((x) => !x.promoGift).length > 1" class="btn-danger h-9 px-3" @click="doRemoveItem(it)"><AppIcon name="trash" :size="16" /> ลบ</button>
               </template>
             </ItemCard>
-            <WorkPhotos :order="order" :item="it" />
+            <WorkPhotos v-if="!it.promoGift" :order="order" :item="it" />
             </div>
           </div>
           <button v-if="can('editItems')" class="btn-soft mt-3 w-full" @click="editing = {}"><AppIcon name="plus" :size="16" /> เพิ่มสินค้า</button>

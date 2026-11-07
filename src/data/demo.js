@@ -3,7 +3,7 @@
 // ตอนต่อ Supabase: ลบไฟล์นี้ + บรรทัด seedDemo() ใน src/main.js
 import {
   db, session, customerSession, createOrder, reportPayment, confirmPayment, receivePaymentNow, setStatus, cancelOrder, addWorkPhotos, publishWorkPhoto,
-  customerRequestPhotoOptOut, saveGalleryImage, recordCakeClick, redeemReward, spinGacha, saveReview, submitReview, setReviewStatus, saveRetailItem, savePosDiscount,
+  customerRequestPhotoOptOut, saveGalleryImage, recordCakeClick, redeemReward, spinGacha, saveReview, submitReview, setReviewStatus, saveRetailItem, savePosDiscount, saveDeal,
   openShift, closeShift, posSale, shiftSummary, receiveMessage, sendChat, postOrderCard, sendQuote, acceptQuote, reviseQuote, saveIngredient, saveShopSettings,
   createOrderLink, sendOrderLinkToChat, saveUser, findCustomer, currentShift, priceItem,
 } from './store'
@@ -343,6 +343,11 @@ export function seedDemo() {
     // ---------- โปรโมชัน ----------
     clock = real
     Object.assign(db.posDiscounts.find((d) => d.id === 'pd1'), { name: 'เครื่องดื่มลด 10%', active: true })
+    // ดีล (ซื้อแถม/ครบลด/ครบฟรี/ชิ้นที่ N/add-on/ส่งฟรี)
+    for (const id of ['dl1', 'dl2', 'dl3']) db.posDeals.find((d) => d.id === id).active = true
+    saveDeal({ kind: 'nth', name: 'ซื้อบราวนี่/คุกกี้ 3 จ่าย 2', scope: 'category', categories: ['ขนมอบ'], n: 3, percent: 100, active: true, schedule: blankSchedule() })
+    saveDeal({ kind: 'spend_addon', name: 'ครบ 500 ซื้อคัพเค้กวานิลลา 29 บาท', min: 500, itemId: 'rt3', price: 29, limit: 1, active: true, schedule: blankSchedule() })
+    saveDeal({ kind: 'free_ship', name: 'ส่งฟรีเมื่อซื้อครบ 1,500', min: 1500, active: true, schedule: blankSchedule() })
     savePosDiscount({ name: 'ขนมอบลด 15% ทั้งสัปดาห์', type: 'percent', value: 15, scope: 'category', categories: ['ขนมอบ'], itemIds: [], minSpend: 0, active: true, schedule: blankSchedule() })
 
     // ---------- บัญชี ----------

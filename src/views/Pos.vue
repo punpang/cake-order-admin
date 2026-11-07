@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
-  db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posItems, posSale, voidPosSale, pointsFor, quickMember, vatNow,
+  db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posPromoInfo, posSale, voidPosSale, pointsFor, quickMember, vatNow,
   customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons,
 } from '../data/store'
 import { activeSecondsLeft } from '../lib/loyalty'
@@ -222,11 +222,13 @@ const hiddenCoupons = computed(() => (member.value ? notShownCount(member.value,
 const toggleCoupon = (id) => (couponIds.value = couponIds.value.includes(id) ? couponIds.value.filter((x) => x !== id) : [...couponIds.value, id])
 
 // รายการในตะกร้า + โปรโมชัน/บันเดิ้ลที่ใช้อยู่ (ตัวอย่างก่อนบันทึก)
-const lineItems = computed(() => posItems(cart.value))
+const promoInfo = computed(() => posPromoInfo(cart.value))
+const lineItems = computed(() => promoInfo.value.items)
+const giftLines = computed(() => lineItems.value.filter((i) => i.promoGift))
 const goods = computed(() => lineItems.value.reduce((n, i) => n + i.unitPrice * i.qty, 0))
 const couponOk = (c) => !(Number(c.minSpend) > 0) || goods.value >= Number(c.minSpend)
 watch([goods, coupons], () => (couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id && couponOk(c)))))
-const usedPromos = computed(() => [...new Set(lineItems.value.flatMap((i) => (i.discounts || []).filter((d) => d.kind === 'promo' || d.kind === 'bundle').map((d) => d.name)))])
+const usedPromos = computed(() => [...new Set(lineItems.value.flatMap((i) => (i.discounts || []).filter((d) => d.kind === 'promo' || d.kind === 'bundle' || d.kind === 'gift').map((d) => d.name)))])
 const orderLike = computed(() => ({
   items: lineItems.value, fulfillment: 'pickup', payments: [],
   adjustment: { amount: -(Number(discount.value) || 0), reason: 'ส่วนลดหน้าร้าน' }, pointsUsed: null, vat: vatNow(),
@@ -420,6 +422,18 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               </span>
               <button type="button" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-rose-600 hover:bg-rose-50" :aria-label="`ลบ ${itemOf(l)?.name}`" @click="removeLine(l)"><AppIcon name="trash" :size="17" /></button>
             </li>
+          </ul>
+
+          <!-- ของแถมจากดีล + โปรที่ใกล้ถึง -->
+          <ul v-if="giftLines.length" class="space-y-1.5" aria-label="ของแถม">
+            <li v-for="g in giftLines" :key="g.id" class="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+              <span class="shrink-0 rounded-full bg-emerald-700 px-2 py-0.5 text-xs font-semibold text-white">แถม</span>
+              <span class="min-w-0 flex-1 truncate font-medium">{{ g.name }} × {{ g.qty }}</span>
+              <span class="max-w-[40%] shrink-0 truncate text-xs text-emerald-800">{{ g.promoGift.name }}</span>
+            </li>
+          </ul>
+          <ul v-if="promoInfo.hints.length" class="space-y-1 rounded-xl bg-sky-50 p-2.5 text-xs text-sky-900" aria-label="โปรที่ใกล้ถึง">
+            <li v-for="h in promoInfo.hints" :key="h.text">💡 {{ h.text }}</li>
           </ul>
 
           <!-- แนะนำขายต่อ -->

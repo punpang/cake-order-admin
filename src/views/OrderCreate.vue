@@ -2,7 +2,7 @@
 import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRef } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { db, can, vatNow, addCustomer, saveCustomer, findCustomer, createOrder, countPickups, pickupSlots, pickupSlotsInfo, pickupClosure, nearbyOrders, sendQuote, findChat, linkChat, createCustomerFromChat, chatOrderBlock } from '../data/store'
+import { db, can, vatNow, addCustomer, saveCustomer, findCustomer, createOrder, countPickups, pickupSlots, pickupSlotsInfo, pickupClosure, nearbyOrders, sendQuote, findChat, linkChat, createCustomerFromChat, chatOrderBlock, withPromos, priceItem } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime, timeOnly, toDateStr, formatPhone, phoneDigits, phoneValid } from '../lib/format'
 import PhoneInput from '../components/PhoneInput.vue'
@@ -135,7 +135,10 @@ function onSaveItem(item) {
 }
 
 // ---------- สรุป ----------
-const totals = computed(() => orderTotals({ ...form, payments: [], adjustment: null, cancel: null, vat: vatNow() }))
+// โปร/ดีลในออร์เดอร์: พรีวิวสด (สินค้าสำเร็จ + ยอดทั้งบิล) · ตอนบันทึก createOrder คิดซ้ำด้วยกติกาเดียวกัน
+const promoView = computed(() => withPromos(form.items.filter((i) => !i.promoGift).map((i) => priceItem(i))))
+const shownItems = computed(() => promoView.value.items)
+const totals = computed(() => orderTotals({ ...form, items: shownItems.value, shipPromo: promoView.value.shipPromo, payments: [], adjustment: null, cancel: null, vat: vatNow() }))
 
 function validate(i) {
   // ในแชทข้ามขั้นลูกค้าได้ (ได้เบอร์ทีหลัง) แต่บันทึกต้องผูก + มีเบอร์
@@ -394,10 +397,15 @@ function quote() {
 
     <!-- 3 สินค้า -->
     <section v-if="step === 2" class="space-y-3">
-      <ItemCard v-for="(it, i) in form.items" :key="it.id" :item="it">
-        <button class="btn-outline h-9 px-3" @click="editing = { item: it, index: i }"><AppIcon name="edit" :size="16" /> แก้ไข</button>
-        <button class="btn-danger h-9 px-3" @click="removeItem(i)"><AppIcon name="trash" :size="16" /> ลบ</button>
+      <ItemCard v-for="(it, i) in shownItems" :key="it.id" :item="it">
+        <template v-if="!it.promoGift">
+          <button class="btn-outline h-9 px-3" @click="editing = { item: form.items[i], index: i }"><AppIcon name="edit" :size="16" /> แก้ไข</button>
+          <button class="btn-danger h-9 px-3" @click="removeItem(i)"><AppIcon name="trash" :size="16" /> ลบ</button>
+        </template>
       </ItemCard>
+      <ul v-if="promoView.hints.length" class="space-y-1 rounded-2xl bg-sky-50 p-3 text-sm text-sky-900" aria-label="โปรที่ใกล้ถึง">
+        <li v-for="h in promoView.hints" :key="h.text">💡 {{ h.text }}</li>
+      </ul>
 
       <button
         class="flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-brand-200 bg-white/60 p-6 text-brand-700 transition hover:border-brand-400 hover:bg-white active:scale-[0.99]"
@@ -435,7 +443,7 @@ function quote() {
         <div v-if="birthday" class="text-sm text-stone-600 sm:col-span-2">วันเกิด {{ birthday.name }} · {{ mdLabel(birthday.md) }}</div>
       </div>
 
-      <ItemCard v-for="it in form.items" :key="it.id" :item="it" />
+      <ItemCard v-for="it in shownItems" :key="it.id" :item="it" />
 
       <div class="card space-y-2 text-sm">
         <div v-if="totals.discountTotal" class="flex items-start justify-between gap-2 rounded-xl bg-emerald-50/60 p-2.5">

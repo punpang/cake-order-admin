@@ -171,7 +171,7 @@ export function priceDetail(item, groups, products, active = [], bundles = []) {
 }
 // บรรทัดส่วนลดสำหรับแสดงผล (คูณจำนวน)
 export const discountLines = (discounts, qty = 1) =>
-  (discounts || []).map((d) => ({ label: `${d.kind === 'bundle' ? 'บันเดิ้ล' : d.kind === 'promo' ? 'โปรส่วนลด' : 'ราคาพิเศษ'}: ${d.name}`, amount: d.amount * qty }))
+  (discounts || []).map((d) => ({ label: `${d.kind === 'bundle' ? 'บันเดิ้ล' : d.kind === 'promo' ? 'โปรส่วนลด' : d.kind === 'gift' ? 'ของแถม' : 'ราคาพิเศษ'}: ${d.name}`, amount: d.amount * qty }))
 
 // ยอดสินค้าสุทธิรายรายการ (หลังส่วนลดรายการ + แบ่งส่วนลดระดับบิลตามสัดส่วน) ไม่รวมค่าส่ง/VAT ไม่ติดลบ → ใช้คิดคะแนน/สิทธิ์หมุน
 // ส่วนลดระดับบิล = ปรับราคาติดลบ + ส่วนลดจากคะแนน + คูปอง (ปรับราคาที่เป็นบวกไม่นับ)
@@ -190,7 +190,9 @@ export const shipNetOf = (t) => (t.shipping > 0 ? Math.round((t.vatMode === 'inc
 
 export function orderTotals(order) {
   const subtotal = order.items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
-  const shipping = order.fulfillment === 'delivery' ? Number(order.shippingFee) || 0 : 0
+  const shipFee = order.fulfillment === 'delivery' ? Number(order.shippingFee) || 0 : 0
+  const shipWaived = order.shipPromo?.free ? shipFee : 0 // ดีลส่งฟรี
+  const shipping = shipFee - shipWaived
   const adjustment = Number(order.adjustment?.amount) || 0
   // ส่วนลดจากคะแนน / คูปอง
   const pointsDiscount = Number(order.pointsUsed?.amount) || 0
@@ -216,13 +218,14 @@ export function orderTotals(order) {
   const itemDiscounts = [...byName].map(([label, amount]) => ({ label, amount }))
   const discountLinesAll = [
     ...itemDiscounts,
+    ...(shipWaived ? [{ label: `ส่งฟรี: ${order.shipPromo.name}`, amount: shipWaived }] : []),
     ...(adjustment < 0 ? [{ label: `ปรับราคา${order.adjustment?.reason ? ` (${order.adjustment.reason})` : ''}`, amount: -adjustment }] : []),
     ...(pointsDiscount ? [{ label: `ใช้ ${order.pointsUsed.points} คะแนน`, amount: pointsDiscount }] : []),
     ...(order.couponsUsed || []).filter((c) => Number(c.amount)).map((c) => ({ label: `คูปอง: ${c.name}`, amount: Number(c.amount) })),
   ]
   const discountTotal = discountLinesAll.reduce((s, l) => s + l.amount, 0) + (full - subtotal - itemDiscounts.reduce((s, l) => s + l.amount, 0))
   const netGoods = itemNets(order).reduce((a, b) => a + b, 0)
-  const fullAll = full + shipping + Math.max(adjustment, 0) + vatAdd // ราคาเต็มรวมค่าส่ง/VAT (ใช้เทียบกับยอดสุทธิในป้ายส่วนลด)
+  const fullAll = full + shipFee + Math.max(adjustment, 0) + vatAdd // ราคาเต็มรวมค่าส่ง/VAT (ใช้เทียบกับยอดสุทธิในป้ายส่วนลด)
   return { vat, vatAdd, vatRate: vatMode ? rate : 0, vatMode, beforeVat, fullAll, netGoods, subtotal, shipping, adjustment, pointsDiscount, couponDiscount, total, paid, reported, refunded, balance: total - paid, full, itemDiscounts, discountLines: discountLinesAll, discountTotal }
 }
 
