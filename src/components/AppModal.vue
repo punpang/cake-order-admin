@@ -1,9 +1,16 @@
 <script setup>
-import { onBeforeUnmount, onMounted } from 'vue'
+import { onBeforeUnmount, onMounted, ref, useId } from 'vue'
+import { useDialogA11y } from '../lib/dialogA11y'
 import AppIcon from './AppIcon.vue'
 
 defineProps({ title: { type: String, default: '' }, wide: { type: Boolean, default: false } })
 const emit = defineEmits(['close'])
+const box = ref(null)
+const titleId = `dlg-${useId()}`
+// กรอกข้อมูลค้างอยู่ → คลิกพื้นหลังไม่ปิด (กันข้อมูลหายโดยไม่ตั้งใจ) · ปุ่ม ✕ / Esc ยังปิดได้
+const dirty = ref(false)
+const backdrop = () => { if (!dirty.value) emit('close') }
+useDialogA11y(box, () => emit('close'))
 
 // ล็อกการเลื่อนหน้าข้างหลังขณะเปิด
 onMounted(() => document.body.classList.add('overflow-hidden'))
@@ -14,21 +21,27 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
   <Teleport to="body">
     <!-- ความสูงอ้างอิงจาก overlay (fixed inset-0) ไม่ใช้ dvh: กล่องไม่เกินจอทุกเบราว์เซอร์/สเกล · overlay เลื่อนได้เป็นทางหนี -->
     <div class="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-stone-900/45 backdrop-blur-[2px]">
-    <div class="flex h-full items-end justify-center pt-8 sm:items-center sm:p-6" @click.self="emit('close')">
+    <div class="flex h-full items-end justify-center pt-8 sm:items-center sm:p-6" @click.self="backdrop">
       <div
-        class="flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-t-[2rem] bg-cream shadow-2xl sm:rounded-[2rem]"
+        ref="box"
+        data-dialog
+        tabindex="-1"
+        :aria-labelledby="title ? titleId : undefined"
+        @input.capture="dirty = true"
+        @change.capture="dirty = true"
+        class="flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-t-[2rem] bg-cream shadow-2xl outline-none sm:rounded-[2rem]"
         :class="wide ? 'sm:max-w-2xl' : 'sm:max-w-md'"
         role="dialog"
         aria-modal="true"
       >
         <div class="mx-auto mt-2 h-1.5 w-10 shrink-0 rounded-full bg-stone-300 sm:hidden" />
         <div class="flex shrink-0 items-center justify-between gap-2 px-5 pt-3 pb-2 sm:pt-5">
-          <h2 class="min-w-0 truncate text-lg text-stone-900">{{ title }}</h2>
-          <button class="flex h-9 w-9 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100" aria-label="ปิด" @click="emit('close')">
+          <h2 :id="titleId" class="min-w-0 truncate text-lg text-stone-900">{{ title }}</h2>
+          <button type="button" class="flex h-9 w-9 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100" aria-label="ปิด" @click="emit('close')">
             <AppIcon name="x" :size="20" />
           </button>
         </div>
-        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-1 pb-5">
+        <div data-dialog-body class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-1 pb-5">
           <slot />
         </div>
         <div

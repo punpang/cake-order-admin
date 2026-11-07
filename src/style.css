@@ -67,6 +67,13 @@
   html {
     touch-action: manipulation;
   }
+  /* Tailwind v4 ตั้งปุ่มเป็นลูกศร → ให้เป็นรูปมือบนปุ่มที่กดได้ */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  summary,
+  select {
+    cursor: pointer;
+  }
   /* ช่องวันที่บน iOS ไม่ให้ล้นกรอบ */
   input[type='date'],
   input[type='time'],
