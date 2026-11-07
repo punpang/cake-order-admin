@@ -1,5 +1,6 @@
 // ระบบบัญชี (จำลองในหน่วยความจำ · จุดที่จะเปลี่ยนเป็น Supabase) · ตรรกะคำนวณอยู่ใน src/lib/acct (ฟังก์ชันล้วน)
 // หมายเหตุ: store.js ไม่ import ไฟล์นี้ (กัน import วน) — หน้าที่ต้องใช้ import จากไฟล์นี้โดยตรง
+import { supabaseEnabled } from '../lib/supabase'
 import { db, session, can, ctxOrder, scheduledHooks, cancelHooks, notify, findCustomer, customerSession, myCustomer } from './store'
 import { invoiceDeadline, invoiceWindowOpen } from '../lib/acct/taxWindow'
 import { deriveAll } from '../lib/acct/derive'
@@ -341,6 +342,7 @@ function issueCore(order, b, by, rev = 0) {
     buyer: b, lines, discounts: t.discountLines.map((d) => ({ label: d.label, amount: d.amount })),
     rate: t.vatRate, mode: t.vatMode, beforeVat: toB(toS(t.total) - toS(t.vat)), vat: t.vat, total: t.total,
     totalText: bahtText(t.total), copies: 0, by, rev, createdAt: new Date().toISOString(),
+    ...(supabaseEnabled ? { pending: true } : {}), // รอเลขที่จากฐานข้อมูล (ห้ามพิมพ์จนกว่าจะได้เลข)
   }
   invs().push(inv)
   return { ok: true, invoice: inv }
@@ -357,8 +359,9 @@ function voidCore(id, reason, by) {
   if (inv.voidedBy) return { error: 'ยกเลิกแล้ว' }
   if (!String(reason || '').trim()) return { error: 'ระบุเหตุผล' }
   const date = today()
-  const cn = { ...inv, id: aid('ti'), no: nextDocNo('CN', date), type: 'credit', date, refNo: inv.no, refId: inv.id, reason: String(reason).trim().slice(0, 200), copies: 0, by, createdAt: new Date().toISOString(), voidedBy: undefined }
+  const cn = { ...inv, id: aid('ti'), no: nextDocNo('CN', date), type: 'credit', date, refNo: inv.no, refId: inv.id, reason: String(reason).trim().slice(0, 200), copies: 0, by, createdAt: new Date().toISOString(), voidedBy: undefined, pending: supabaseEnabled ? true : undefined }
   delete cn.voidedBy
+  if (!supabaseEnabled) delete cn.pending
   invs().push(cn)
   inv.voidedBy = cn.id
   return { ok: true, creditNote: cn }

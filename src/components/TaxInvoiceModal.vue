@@ -69,6 +69,7 @@ function print(copy) {
         <p v-if="block" class="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800"><AppIcon name="alert" :size="16" class="mt-0.5 shrink-0" /> {{ block }}</p>
         <p class="text-xs text-stone-500">ออกแล้วแก้ไขไม่ได้ · ยกเลิกได้ด้วยใบลดหนี้ (ใบเดิมยังเก็บไว้) · ใบเสร็จย่อของระบบยังไม่ใช่ใบกำกับภาษี</p>
       </template>
+      <p v-if="shown?.pending" class="flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800"><AppIcon name="alert" :size="16" /> กำลังรับเลขที่จากฐานข้อมูล (รอสักครู่ แล้วเปิดใหม่) · ยังพิมพ์ไม่ได้</p>
       <div v-if="shown" class="overflow-x-auto rounded-2xl border border-stone-200"><TaxInvoiceDoc :invoice="shown" :label="copyLabel" /></div>
       <div v-if="voiding" class="space-y-2 rounded-2xl border border-rose-200 bg-rose-50 p-3">
         <label class="label">เหตุผลที่ยกเลิก (ออกใบลดหนี้เต็มจำนวน)</label>
@@ -80,8 +81,8 @@ function print(copy) {
     <template #footer>
       <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ปิด</button>
       <template v-if="shown">
-        <button class="btn-soft flex-1 sm:flex-none" @click="print(false)"><AppIcon name="printer" :size="16" /> พิมพ์</button>
-        <button class="btn-soft flex-1 sm:flex-none" @click="print(true)">พิมพ์สำเนา</button>
+        <button class="btn-soft flex-1 sm:flex-none" :disabled="!!shown.pending" @click="print(false)"><AppIcon name="printer" :size="16" /> พิมพ์</button>
+        <button class="btn-soft flex-1 sm:flex-none" :disabled="!!shown.pending" @click="print(true)">พิมพ์สำเนา</button>
         <button v-if="current && shown.id === current.id && can('taxInvoice') && !voiding" class="btn-outline flex-1 text-rose-600 sm:flex-none" @click="voiding = true">ยกเลิกใบ</button>
       </template>
       <button v-if="!current && can('taxInvoice')" class="btn-primary flex-1 sm:flex-none" :disabled="!!block" @click="issue">ออกใบกำกับภาษี</button>

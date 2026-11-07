@@ -9,7 +9,7 @@ let syncs = []
 async function startData(staff) {
   syncs.forEach((x) => x.stop())
   syncs = []
-  const [items, customers, config, orders, store, client] = await Promise.all([import('./itemsSync'), import('./customersSync'), import('./configSync'), import('./ordersSync'), import('../data/store'), getSupabase()])
+  const [items, customers, config, orders, acct, store, client] = await Promise.all([import('./itemsSync'), import('./customersSync'), import('./configSync'), import('./ordersSync'), import('./acctSync'), import('../data/store'), getSupabase()])
   const { db } = store
   const onError = (m) => showToast(m, 8000)
   const has = (p) => staff.perms.includes(p)
@@ -21,6 +21,7 @@ async function startData(staff) {
     canWrite: ['createOrder', 'pos', 'startPreparing', 'markPrepared', 'deliverPickup', 'deliverShipping', 'confirmPayment', 'reportPayment', 'cancel', 'editPickup', 'editItems', 'adjustPrice', 'changeBuyer', 'workPhoto'].some(has) }))
   store.numbering.prefetch()
   syncs.push(await customers.startCustomersSync({ client, db, canWrite: has('createOrder') || has('adjustPoints'), onError }))
+  syncs.push(...(await acct.startAcctSync({ client, db, has, onError })))
 }
 export async function initStaff() {
   if (!supabaseEnabled) return

@@ -31,11 +31,12 @@ export function mergeRecipes(groups, costs) {
   return (groups || []).map((g) => ({ ...g, options: (g.options || []).map((o) => ({ ...o, recipe: costs?.[`${g.id}/${o.id}`] || [] })) }))
 }
 
-export async function loadConfig(client, keys = CONFIG_KEYS) {
-  const r = await client.from('punpang_kv').select('collection,id,data').in('collection', [...new Set(keys.map(collectionOf))])
+export async function loadConfig(client, keys = CONFIG_KEYS, col = null) {
+  const colOf = col ? () => col : collectionOf // col = ใช้ collection เดียวทั้งชุด (เช่น 'acct')
+  const r = await client.from('punpang_kv').select('collection,id,data').in('collection', [...new Set(keys.map(colOf))])
   if (r.error) return { error: r.error.message }
   const map = {}
-  for (const row of r.data || []) if (keys.includes(row.id) && row.collection === collectionOf(row.id)) map[row.id] = row.data?.v
+  for (const row of r.data || []) if (keys.includes(row.id) && row.collection === colOf(row.id)) map[row.id] = row.data?.v
   if (keys.includes('optionGroups') && map.optionGroups != null) {
     const c = await client.from('punpang_kv').select('id,data').eq('collection', 'item_costs').eq('id', OPTION_COSTS_ID)
     if (c.error) return { error: c.error.message }
@@ -54,22 +55,23 @@ export function applyValue(db, key, value) {
   } else db[key] = value
 }
 
-export async function pushConfig(client, db, keys) {
+export async function pushConfig(client, db, keys, col = null) {
+  const colOf = col ? () => col : collectionOf
   const rows = []
   for (const k of keys) {
     const v = JSON.parse(JSON.stringify(db[k] ?? null))
     if (k === 'optionGroups') {
       const { groups, costs } = stripRecipes(v)
-      rows.push({ collection: collectionOf(k), id: k, data: { v: groups } })
+      rows.push({ collection: colOf(k), id: k, data: { v: groups } })
       rows.push({ collection: 'item_costs', id: OPTION_COSTS_ID, data: { v: costs } })
-    } else rows.push({ collection: collectionOf(k), id: k, data: { v } })
+    } else rows.push({ collection: colOf(k), id: k, data: { v } })
   }
   const r = await client.from('punpang_kv').upsert(rows)
   return r.error ? { error: r.error.message } : { ok: true }
 }
 
-export async function startConfigSync({ client, db, canWrite, onError = () => {}, keys = CONFIG_KEYS, debounceMs = 800 }) {
-  const loaded = await loadConfig(client, keys)
+export async function startConfigSync({ client, db, canWrite, onError = () => {}, keys = CONFIG_KEYS, debounceMs = 800, collection = null }) {
+  const loaded = await loadConfig(client, keys, collection)
   if (loaded.error) { onError('โหลดตั้งค่าจากฐานข้อมูลไม่สำเร็จ: ' + loaded.error); return { stop() {}, loaded: false } }
   for (const k of keys) if (k in loaded.map && loaded.map[k] != null) applyValue(db, k, loaded.map[k])
   // คีย์ที่ยังไม่มีในฐานข้อมูล = ใช้ค่าตั้งต้นในแอปต่อ และเขียนเมื่อมีการแก้ไขเท่านั้น
@@ -87,7 +89,7 @@ export async function startConfigSync({ client, db, canWrite, onError = () => {}
       return snap.get(k) === null ? now !== baseline.get(k) : now !== snap.get(k)
     })
     if (changed.length) {
-      const r = await pushConfig(client, db, changed)
+      const r = await pushConfig(client, db, changed, collection)
       if (r.error) onError('บันทึกตั้งค่าไม่สำเร็จ: ' + r.error)
       else for (const k of changed) snap.set(k, JSON.stringify(db[k]))
     }
