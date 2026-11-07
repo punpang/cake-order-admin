@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { customerPay, customerRequestExtension } from '../data/store'
+import { customerPay, customerRequestExtension, customerRequestPhotoOptOut, customerCancelPhotoOptOut } from '../data/store'
 import { promptPayPayload } from '../lib/promptpay'
 import { money, dateOnly, dateTime, formatPhone } from '../lib/format'
 import { STATUS } from '../lib/constants'
@@ -101,6 +101,26 @@ function askExtension(p) {
 const overdue = computed(() => o.value.payments.filter((p) => p.status === 'reported' && p.due === 'overdue'))
 const submitted = computed(() => o.value.payments.filter((p) => p.status === 'reported' && p.submitted))
 const PAY_LABEL = (p) => (p.status === 'confirmed' ? ['ชำระแล้ว', 'bg-emerald-50 text-emerald-700'] : p.submitted ? ['รอร้านตรวจสอบสลิป', 'bg-sky-50 text-sky-700'] : p.due === 'overdue' ? ['เกินกำหนด', 'bg-rose-50 text-rose-600'] : ['รอชำระ', 'bg-amber-50 text-amber-700'])
+// ---------- รูปงานเสร็จ + ขอไม่ให้ใช้รูปเผยแพร่ ----------
+const photos = computed(() => o.value.items.flatMap((i) => (i.workPhotos || []).map((p) => ({ ...p, name: i.name }))))
+const pc = reactive({ open: false, note: '', agree: false, error: '', ok: '' })
+const big = ref('')
+function askOptOut() {
+  pc.error = ''
+  if (!pc.agree) return (pc.error = 'ติ๊กยืนยันก่อนส่งคำขอ')
+  const r = customerRequestPhotoOptOut(props.ctx, pc.note)
+  if (r.error) return (pc.error = r.error)
+  pc.open = false
+  pc.note = ''
+  pc.agree = false
+  pc.ok = 'ส่งคำขอแล้ว ร้านจะตรวจสอบและลบรูปออกจากทุกที่ (ระหว่างนี้รูปจะไม่แสดงบนเว็บร้าน)'
+  emit('refresh')
+}
+function cancelOptOut() {
+  const r = customerCancelPhotoOptOut(props.ctx)
+  if (r.error) pc.error = r.error
+  else { pc.ok = 'ยกเลิกคำขอแล้ว'; emit('refresh') }
+}
 const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' && o.value.balance > 0)
 </script>
 
@@ -166,6 +186,31 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
         <div v-for="(d, j) in it.lines" :key="j" class="text-xs text-stone-500">{{ d.group }}: {{ d.value }}</div>
         <div v-if="it.note" class="text-xs break-words text-stone-500">หมายเหตุ: {{ it.note }}</div>
       </div>
+    </section>
+
+    <!-- รูปงานเสร็จ -->
+    <section v-if="photos.length || o.photoConsent === 'revoked'" class="card space-y-3" aria-label="รูปงานของคุณ">
+      <div class="flex items-center gap-2 text-[15px] font-semibold text-stone-900"><AppIcon name="image" class="text-brand-600" /> รูปงานของคุณ</div>
+      <div v-if="photos.length" class="grid grid-cols-2 gap-2">
+        <button v-for="p in photos" :key="p.id" type="button" class="overflow-hidden rounded-xl border border-stone-200 text-left" :aria-label="`ดูรูปใหญ่ ${p.name}`" @click="big = p.image"><img :src="p.image" :alt="`รูปงาน ${p.name}`" class="aspect-square w-full object-cover" /><span class="block truncate p-1.5 text-xs text-stone-500">{{ p.name }}</span></button>
+      </div>
+      <p v-else class="text-stone-500">ร้านลบรูปงานของออร์เดอร์นี้ตามที่คุณแจ้งแล้ว</p>
+      <div class="rounded-xl bg-stone-50 p-3 text-xs text-stone-600" role="note" aria-label="การนำรูปไปใช้">
+        <b class="text-stone-800">การนำรูปงานไปใช้:</b> ร้านอาจนำรูปงานนี้ไปใช้เป็นรูปตัวอย่างบนเว็บไซต์และโซเชียลของร้าน (ทุกช่องทาง) หากไม่ต้องการ แจ้งได้ ร้านจะตรวจสอบและลบรูปออกจากทุกที่ รวมถึงรูปในออร์เดอร์นี้
+      </div>
+      <p v-if="o.photoConsent === 'requested'" class="rounded-xl bg-amber-50 p-3 text-amber-800" role="status">ส่งคำขอไม่ให้ใช้รูปแล้ว รอร้านตรวจสอบ · ระหว่างนี้รูปจะไม่แสดงบนเว็บร้าน <button type="button" class="ml-1 underline" @click="cancelOptOut">ยกเลิกคำขอ</button></p>
+      <template v-else-if="o.photoConsent !== 'revoked' && photos.length">
+        <button v-if="!pc.open" type="button" class="btn-outline w-full" @click="pc.open = true; pc.error = ''; pc.ok = ''">ไม่อนุญาตให้ใช้รูปเผยแพร่</button>
+        <div v-else class="space-y-2 rounded-xl border border-stone-200 p-3">
+          <label class="label" for="pc-note">หมายเหตุถึงร้าน (ไม่บังคับ)</label>
+          <textarea id="pc-note" v-model="pc.note" rows="2" maxlength="300" class="input" aria-label="หมายเหตุขอไม่เผยแพร่รูป"></textarea>
+          <label class="flex items-start gap-2 text-stone-700"><input v-model="pc.agree" type="checkbox" class="mt-0.5 h-4 w-4" aria-label="ยืนยันไม่ให้ใช้รูป" /> ยืนยันไม่ให้ร้านนำรูปงานของออร์เดอร์นี้ไปเผยแพร่ในทุกช่องทาง และให้ลบรูปทิ้ง (ร้านจะตรวจสอบก่อนลบ)</label>
+          <p v-if="pc.error" class="text-rose-600" role="alert">{{ pc.error }}</p>
+          <div class="flex gap-2"><button type="button" class="btn-outline flex-1" @click="pc.open = false">ยกเลิก</button><button type="button" class="btn-primary flex-1" @click="askOptOut">ส่งคำขอ</button></div>
+        </div>
+      </template>
+      <p v-if="pc.ok" class="text-emerald-700" role="status">{{ pc.ok }}</p>
+      <div v-if="big" class="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/80 p-4" role="dialog" aria-modal="true" aria-label="รูปงาน" @click="big = ''"><img :src="big" alt="รูปงานขยาย" class="max-h-full max-w-full rounded-2xl" /></div>
     </section>
 
     <!-- ยอด -->

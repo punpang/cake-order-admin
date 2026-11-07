@@ -14,7 +14,8 @@ export function optionIndex(groups) {
 // รวมรูปทั้งหมดที่ใช้เลือก: คลังที่เปิดใช้ + รูปประเภทเดิม
 export function galleryOf(db) {
   const out = []
-  for (const g of db.cakeGallery || []) if (g.active !== false && g.image) out.push({ id: g.id, image: g.image, tags: [...(g.tags || [])], caption: g.caption || '' })
+  const okOrder = (src) => { if (!src?.orderId) return true; const o = (db.orders || []).find((x) => x.id === src.orderId); return !!o && (o.photoConsent?.status || 'ok') === 'ok' }
+  for (const g of db.cakeGallery || []) if (g.active !== false && g.image && okOrder(g.source)) out.push({ id: g.id, image: g.image, tags: [...(g.tags || [])], caption: g.caption || '' })
   const typeG = (db.optionGroups || []).find((x) => x.key === 'type')
   for (const t of typeG?.options || []) {
     if (t.active === false) continue

@@ -26,6 +26,7 @@ export const PERMISSIONS = {
   reportPayment: ['admin', 'sales'],
   confirmPayment: ['admin'],
   cancelConfirmedPayment: ['admin'], // ยกเลิกยอดที่ยืนยันแล้ว
+  workPhoto: ['admin', 'sales', 'baker'], // อัปโหลด/ลบรูปงานเสร็จในออร์เดอร์ (เผยแพร่ขึ้นเว็บใช้สิทธิ์ manage)
   revertStatus: ['admin'], // ย้อนสถานะออร์เดอร์ทีละขั้น (ต้องใส่เหตุผล)
   adjustPrice: ['admin'],
   cancel: ['admin'],
@@ -80,6 +81,7 @@ export const PERM_GROUPS = [
     { key: 'confirmPayment', label: 'ยืนยันยอดชำระ' },
     { key: 'cancelConfirmedPayment', label: 'ยกเลิกยอดที่ยืนยันแล้ว' },
     { key: 'revertStatus', label: 'ย้อนสถานะออร์เดอร์ทีละขั้น' },
+    { key: 'workPhoto', label: 'อัปโหลด/ลบรูปงานเสร็จในออร์เดอร์' },
     { key: 'requestConfirmUnpaid', label: 'ขออนุมัติยืนยันสั่งซื้อ (ยังไม่ชำระ)' },
     { key: 'confirmUnpaid', label: 'อนุมัติ/ยืนยันสั่งซื้อแบบยังไม่ชำระ' },
   ] },
@@ -166,6 +168,10 @@ export const NOTIFY_EVENTS = {
   team_approval_request: { label: 'ขออนุมัติยืนยันสั่งซื้อ (ยังไม่ชำระ)', audience: 'team' },
   team_pay_overdue: { label: 'เกินกำหนดชำระ', audience: 'team', scheduled: true },
   team_customer_paid: { label: 'ลูกค้าแจ้งโอน (รอตรวจสลิป)', audience: 'team' },
+  photo_ready: { label: 'มีรูปงานเสร็จให้ดู', audience: 'customer' },
+  photo_optout_done: { label: 'ลบรูปตามคำขอไม่เผยแพร่แล้ว', audience: 'customer' },
+  photo_optout_rejected: { label: 'ร้านไม่อนุมัติคำขอไม่เผยแพร่รูป', audience: 'customer' },
+  team_photo_optout: { label: 'ลูกค้าขอไม่ให้เผยแพร่รูป (รอตรวจสอบ)', audience: 'team' },
   team_pay_extend_request: { label: 'ลูกค้าขอขยายเวลาชำระ', audience: 'team' },
   team_expense_missing: { label: 'ค่าใช้จ่ายประจำเดือนที่ยังไม่ได้บันทึก', audience: 'team', scheduled: true },
   team_installment_due: { label: 'งวดผ่อนชำระใกล้/เลยกำหนด', audience: 'team', scheduled: true },

@@ -254,6 +254,10 @@ export const db = reactive({
     rule('team_expense_missing', ['telegram'], '[ค่าใช้จ่ายประจำ] {รายการ} เดือน {เดือนภาษี} ยังไม่ได้บันทึก (ครบกำหนด {วันที่})'),
     rule('team_installment_due', ['telegram'], '[ผ่อนชำระ] {รายการ} งวดที่ {งวด} ครบกำหนด {วันที่} ยอด {ยอดรวม}'),
     rule('team_vat_due', ['telegram'], '[ภ.พ.30] เดือนภาษี {เดือนภาษี} ครบกำหนดยื่น {ชำระก่อน} ยังไม่ได้บันทึกว่ายื่นแล้ว'),
+    rule('photo_ready', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} มีรูปงานเสร็จให้ดูแล้วค่ะ ดูได้ที่ {ลิงก์ออร์เดอร์}'),
+    rule('photo_optout_done', ['line', 'facebook', 'sms'], 'ร้านลบรูปงานของออร์เดอร์ {เลขออร์เดอร์} ออกจากทุกที่ตามที่แจ้งแล้วค่ะ'),
+    rule('photo_optout_rejected', ['line', 'facebook', 'sms'], 'ร้านขอคุยเรื่องการใช้รูปงานของออร์เดอร์ {เลขออร์เดอร์} เพิ่มเติม รายละเอียดดูที่ {ลิงก์ออร์เดอร์}'),
+    rule('team_photo_optout', ['telegram'], '[ขอไม่เผยแพร่รูป] {เลขออร์เดอร์} {ชื่อลูกค้า} รอร้านตรวจสอบ'),
     rule('team_pay_extend_request', ['telegram'], '[ขอขยายเวลาชำระ] {เลขออร์เดอร์} {ชื่อลูกค้า} เดิมกำหนด {ชำระก่อน}'),
   ],
   // คิวข้อความ (จำลอง) ล่าสุดอยู่หน้า · notifySent = key ที่ส่งแล้ว (กันส่งซ้ำของเหตุการณ์ตามเวลา)
@@ -357,6 +361,8 @@ export const db = reactive({
   customerAccounts: [],
   otps: [],
   deletionRequests: [],
+  // คำขอ "ไม่ให้ใช้รูปงานเผยแพร่" ของลูกค้า (ร้านอนุมัติก่อนลบ) { id, orderId, customerId, status: pending|approved|rejected|cancelled, note, createdAt, decidedAt, decidedBy, decisionNote }
+  photoRequests: [],
 
   orders: [],
 })
@@ -443,7 +449,7 @@ export function saveGalleryImage(d) {
   const ok = optionIdSet()
   const tags = [...new Set((d.tags || []).filter((t) => ok.has(t)))].slice(0, 12)
   if (!tags.length) return { error: 'ติ๊กตัวเลือกที่รูปนี้เป็นตัวแทนอย่างน้อย 1 อย่าง' }
-  const row = { image, tags, caption: String(d.caption ?? '').trim().slice(0, 120), active: d.active !== false }
+  const row = { image, tags, caption: String(d.caption ?? '').trim().slice(0, 120), active: d.active !== false, ...(d.source ? { source: d.source } : {}) }
   const cur = d.id ? db.cakeGallery.find((x) => x.id === d.id) : null
   if (d.id && !cur) return { error: 'ไม่พบรูป' }
   if (cur) { Object.assign(cur, row); return { ok: true, item: cur } }
@@ -458,6 +464,172 @@ export function removeGalleryImage(id) {
   db.cakeGallery.splice(i, 1)
   return { ok: true }
 }
+// ---------- รูปงานเสร็จ (ส่งให้ลูกค้าดู · เผยแพร่บนเว็บเมนูเมื่อลูกค้าไม่ปฏิเสธ) ----------
+// order.items[].workPhotos = [{ id, image, at, by, publish, galleryId }] · order.photoConsent = { status: ok | requested | revoked, ... }
+export const photoStatusOf = (o) => o?.photoConsent?.status || 'ok'
+export const photoAllowed = (o) => !!o && photoStatusOf(o) === 'ok'
+const MAX_WORK_PHOTOS = 10
+const photoBlock = (order) => {
+  if (!order) return 'ไม่พบออร์เดอร์'
+  if (order.channel === 'pos') return 'บิลหน้าร้าน (POS) ไม่มีรูปงานเสร็จ'
+  if (['draft', 'cancelled'].includes(order.status)) return 'ออร์เดอร์นี้อัปโหลดรูปงานไม่ได้'
+  if (photoStatusOf(order) !== 'ok') return photoStatusOf(order) === 'requested' ? 'ลูกค้าขอไม่ให้ใช้รูป (รอร้านตรวจสอบ) อัปโหลดรูปใหม่ไม่ได้' : 'ลูกค้าไม่อนุญาตให้ใช้รูปในออร์เดอร์นี้ อัปโหลดรูปใหม่ไม่ได้'
+  return ''
+}
+// แท็กตัวเลือกอัตโนมัติของรายการ (ประเภท/เนื้อ/ขนาด/ตกแต่ง — ไม่รวมกลุ่มข้อความ) ใช้เป็นค่าเริ่มต้นตอนเผยแพร่เข้าคลังรูป
+export function autoTagsOf(item) {
+  const ok = optionIdSet()
+  const textGroups = new Set(db.optionGroups.filter((g) => g.type === 'text').map((g) => g.id))
+  const ids = new Set()
+  const add = (sels) => { for (const [gid, v] of Object.entries(sels || {})) { if (textGroups.has(gid) || v == null || v === '') continue; for (const id of Array.isArray(v) ? v : [v]) if (ok.has(id)) ids.add(id) } }
+  add(item.selections)
+  for (const t of item.tiers || []) add(t.selections)
+  for (const k of ['typeId', 'flavorId', 'sizeId']) if (item[k] && ok.has(item[k])) ids.add(item[k])
+  return [...ids]
+}
+// ถอนรูปออกจากที่เผยแพร่ (คลังรูป/รูปสินค้า) — ไม่ลบรูปในออร์เดอร์
+function unpublishPhoto(order, item, photo) {
+  if (photo.galleryId) {
+    const gi = db.cakeGallery.findIndex((g) => g.id === photo.galleryId)
+    if (gi >= 0) db.cakeGallery.splice(gi, 1)
+  }
+  const p = item.retailId ? db.retailItems.find((r) => r.id === item.retailId) : null
+  if (p?.workImages) p.workImages = p.workImages.filter((w) => w.photoId !== photo.id)
+  photo.publish = false
+  photo.galleryId = null
+}
+const findItem = (order, itemId) => order?.items.find((i) => i.id === itemId)
+export function addWorkPhotos(order, itemId, images, opts = {}) {
+  if (!can('workPhoto')) return { error: 'ไม่มีสิทธิ์อัปโหลดรูปงาน' }
+  const b = photoBlock(order)
+  if (b) return { error: b }
+  const it = findItem(order, itemId)
+  if (!it) return { error: 'ไม่พบรายการสินค้า' }
+  const list = (images || []).filter((x) => typeof x === 'string' && x)
+  if (!list.length) return { error: 'ไม่มีรูป' }
+  it.workPhotos ||= []
+  if (it.workPhotos.length + list.length > MAX_WORK_PHOTOS) return { error: `รูปงานต่อรายการได้ไม่เกิน ${MAX_WORK_PHOTOS} รูป` }
+  const added = list.map((image) => ({ id: uid('wp'), image, at: now(), by: session.role, publish: false, galleryId: null }))
+  it.workPhotos.push(...added)
+  log(order, `อัปโหลดรูปงานเสร็จ ${added.length} รูป (${it.name})`)
+  notifyOrder('photo_ready', order, { skip: opts.notify === false })
+  return { ok: true, photos: added }
+}
+export function removeWorkPhoto(order, itemId, photoId) {
+  if (!can('workPhoto')) return { error: 'ไม่มีสิทธิ์' }
+  const it = findItem(order, itemId)
+  const p = it?.workPhotos?.find((x) => x.id === photoId)
+  if (!p) return { error: 'ไม่พบรูป' }
+  unpublishPhoto(order, it, p)
+  it.workPhotos = it.workPhotos.filter((x) => x.id !== photoId)
+  log(order, `ลบรูปงานเสร็จ (${it.name})`)
+  return { ok: true }
+}
+// เผยแพร่รูปขึ้นเว็บเมนู (ต้องสิทธิ์ manage · ลูกค้าไม่ได้ปฏิเสธ): เค้กสั่งทำ → คลังรูปตามแท็ก · สินค้าสำเร็จ → รูปของสินค้านั้น
+export function publishWorkPhoto(order, itemId, photoId, { tags = [], caption = '' } = {}) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const b = photoBlock(order)
+  if (b) return { error: b }
+  const it = findItem(order, itemId)
+  const p = it?.workPhotos?.find((x) => x.id === photoId)
+  if (!p) return { error: 'ไม่พบรูป' }
+  if (p.publish) return { error: 'เผยแพร่อยู่แล้ว' }
+  if (it.kind === 'retail' && it.retailId) {
+    const prod = db.retailItems.find((r) => r.id === it.retailId)
+    if (!prod) return { error: 'สินค้านี้ถูกลบแล้ว' }
+    ;(prod.workImages ||= []).push({ id: uid('wi'), photoId: p.id, image: p.image, orderId: order.id, itemId: it.id })
+    p.publish = true
+    log(order, `เผยแพร่รูปงานเป็นรูปสินค้า ${prod.name}`)
+    return { ok: true }
+  }
+  const r = saveGalleryImage({ image: p.image, tags, caption, source: { orderId: order.id, itemId: it.id, photoId: p.id } })
+  if (r.error) return r
+  p.publish = true
+  p.galleryId = r.item.id
+  log(order, 'เผยแพร่รูปงานเข้าคลังรูปเว็บเมนู')
+  return { ok: true, gallery: r.item }
+}
+export function unpublishWorkPhoto(order, itemId, photoId) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const it = findItem(order, itemId)
+  const p = it?.workPhotos?.find((x) => x.id === photoId)
+  if (!p) return { error: 'ไม่พบรูป' }
+  unpublishPhoto(order, it, p)
+  log(order, 'ถอนรูปงานออกจากเว็บเมนู')
+  return { ok: true }
+}
+// รูปสินค้าสำเร็จที่แสดงหน้าเว็บ = รูปเดิม + รูปงานที่เผยแพร่ (ตัดรูปของออร์เดอร์ที่ลูกค้าขอไม่เผยแพร่)
+export function productImages(p, d = db) {
+  const extra = (p.workImages || []).filter((w) => photoAllowed(d.orders.find((o) => o.id === w.orderId))).map((w) => w.image)
+  return [...(p.images || []), ...extra]
+}
+// ---- ลูกค้าขอไม่ให้ใช้รูปเผยแพร่ (ทั้งลิงก์และล็อกอิน ผ่าน ctxOrder) → ร้านอนุมัติก่อนลบ ----
+const hasPhotos = (o) => o.items.some((i) => (i.workPhotos || []).length)
+export function customerRequestPhotoOptOut(ctx, note = '') {
+  const o = ctxOrder(ctx)
+  if (!o) return { error: 'ไม่พบออร์เดอร์' }
+  if (!hasPhotos(o)) return { error: 'ยังไม่มีรูปงานในออร์เดอร์นี้' }
+  if (photoStatusOf(o) === 'requested') return { error: 'ส่งคำขอไว้แล้ว รอร้านตรวจสอบ' }
+  if (photoStatusOf(o) === 'revoked') return { error: 'ร้านลบรูปตามคำขอไว้แล้ว' }
+  const req = { id: uid('pr'), orderId: o.id, customerId: o.customerId, status: 'pending', note: String(note ?? '').trim().slice(0, 300), createdAt: now(), decidedAt: null, decidedBy: null, decisionNote: '' }
+  db.photoRequests.unshift(req)
+  o.photoConsent = { status: 'requested', requestedAt: req.createdAt, note: req.note, history: [...(o.photoConsent?.history || []), { at: req.createdAt, text: 'ลูกค้าขอไม่ให้ใช้รูปเผยแพร่' }] }
+  log(o, 'ลูกค้าขอไม่ให้ใช้รูปงานเผยแพร่ (รอร้านตรวจสอบ · ระงับการแสดงบนเว็บชั่วคราว)')
+  notify('team_photo_optout', { vars: orderVars(o), orderId: o.id })
+  return { ok: true, request: req }
+}
+export function customerCancelPhotoOptOut(ctx) {
+  const o = ctxOrder(ctx)
+  if (!o) return { error: 'ไม่พบออร์เดอร์' }
+  const req = db.photoRequests.find((r) => r.orderId === o.id && r.status === 'pending')
+  if (!req || photoStatusOf(o) !== 'requested') return { error: 'ไม่มีคำขอที่รอตรวจสอบ' }
+  Object.assign(req, { status: 'cancelled', decidedAt: now(), decidedBy: 'customer' })
+  o.photoConsent = { ...o.photoConsent, status: 'ok', history: [...(o.photoConsent.history || []), { at: now(), text: 'ลูกค้ายกเลิกคำขอ' }] }
+  log(o, 'ลูกค้ายกเลิกคำขอไม่ให้ใช้รูป')
+  return { ok: true }
+}
+export const pendingPhotoRequests = () => db.photoRequests.filter((r) => r.status === 'pending').length
+export function approvePhotoOptOut(id, opts = {}) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const r = db.photoRequests.find((x) => x.id === id)
+  if (!r || r.status !== 'pending') return { error: 'คำขอนี้ดำเนินการแล้ว' }
+  const o = findOrder(r.orderId)
+  if (o) {
+    for (const it of o.items) { for (const p of it.workPhotos || []) unpublishPhoto(o, it, p); it.workPhotos = [] }
+    // กันตกค้าง: รายการคลัง/รูปสินค้าที่อ้างออร์เดอร์นี้
+    db.cakeGallery = db.cakeGallery.filter((g) => g.source?.orderId !== o.id)
+    for (const p of db.retailItems) if (p.workImages) p.workImages = p.workImages.filter((w) => w.orderId !== o.id)
+    o.photoConsent = { ...o.photoConsent, status: 'revoked', decidedAt: now(), history: [...(o.photoConsent?.history || []), { at: now(), text: 'ร้านอนุมัติ ลบรูปทุกที่' }] }
+    log(o, 'อนุมัติคำขอไม่เผยแพร่: ลบรูปงานออกจากทุกที่')
+  }
+  Object.assign(r, { status: 'approved', decidedAt: now(), decidedBy: session.role })
+  if (o) notifyOrder('photo_optout_done', o, { skip: opts.notify === false })
+  return { ok: true }
+}
+export function rejectPhotoOptOut(id, reason, opts = {}) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const r = db.photoRequests.find((x) => x.id === id)
+  if (!r || r.status !== 'pending') return { error: 'คำขอนี้ดำเนินการแล้ว' }
+  if (!String(reason ?? '').trim()) return { error: 'ใส่เหตุผลที่ไม่อนุมัติ' }
+  const o = findOrder(r.orderId)
+  Object.assign(r, { status: 'rejected', decisionNote: String(reason).trim().slice(0, 300), decidedAt: now(), decidedBy: session.role })
+  if (o) {
+    o.photoConsent = { ...o.photoConsent, status: 'ok', history: [...(o.photoConsent?.history || []), { at: now(), text: `ร้านไม่อนุมัติ: ${r.decisionNote}` }] }
+    log(o, `ไม่อนุมัติคำขอไม่เผยแพร่รูป: ${r.decisionNote}`)
+    notifyOrder('photo_optout_rejected', o, { skip: opts.notify === false })
+  }
+  return { ok: true }
+}
+// ลูกค้าเปลี่ยนใจและแจ้งร้าน → เปิดให้อัปโหลด/ใช้รูปได้อีก
+export function allowPhotosAgain(orderId) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const o = findOrder(orderId)
+  if (!o || photoStatusOf(o) !== 'revoked') return { error: 'ไม่อยู่ในสถานะห้ามใช้รูป' }
+  o.photoConsent = { ...o.photoConsent, status: 'ok', history: [...(o.photoConsent.history || []), { at: now(), text: 'ร้านเปิดให้ใช้รูปได้อีก (ลูกค้าแจ้งเปลี่ยนใจ)' }] }
+  log(o, 'เปิดให้อัปโหลด/ใช้รูปงานได้อีก')
+  return { ok: true }
+}
+
 export const saveIngredient = (d) => upsert(db.ingredients, 'm', { ...d, packSize: Number(d.packSize) || 0, packPrice: Number(d.packPrice) || 0 })
 // ผู้ใช้ + สิทธิ์ที่ติ๊ก · คืน { ok, user } | { error } · ต้องมีอย่างน้อย 1 คนที่ใช้งานอยู่และมี manageUsers
 export function saveUser(d) {
@@ -1251,7 +1423,8 @@ export function publicOrderView(o, { owner = false } = {}) {
     customer: alive ? (owner ? { name: cu.name, phone: cu.phone } : { name: String(cu.name || '').trim().split(/\s+/)[0], phone: maskPhone(cu.phone) }) : null,
     delivery: dv ? { placeName: o.placeName || '', distanceKm: o.distanceKm ?? null, shippingFee: Number(o.shippingFee) || 0, ...(owner ? { address: o.address || '', mapUrl: o.mapUrl || '', detail: o.detail || '' } : {}) } : null,
     birthday: owner && o.birthday ? { ...o.birthday } : null,
-    items: o.items.map((i) => ({ id: i.id, name: i.name, qty: i.qty, unitPrice: i.unitPrice, lines: describeSelections(i, db.optionGroups), note: owner ? i.note || '' : '' })),
+    items: o.items.map((i) => ({ id: i.id, name: i.name, qty: i.qty, unitPrice: i.unitPrice, lines: describeSelections(i, db.optionGroups), note: owner ? i.note || '' : '', workPhotos: (i.workPhotos || []).map((p) => ({ id: p.id, image: p.image, at: p.at })) })),
+    photoConsent: photoStatusOf(o),
     total: t.total, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal, vat: t.vat, vatRate: t.vatRate, vatMode: t.vatMode,
     refunds: o.status === 'cancelled' ? refundList(o.cancel) : [],
     payments: pays, payDue: orderDue(o), unpaidApproved: o.status === 'order_confirmed',
@@ -2710,6 +2883,8 @@ function scrubCustomer(id) {
     if (o.customerId !== id) continue
     Object.assign(o, { birthday: null, address: '', chatId: null, placeName: '', mapUrl: '', detail: '' })
     for (const it of o.items) {
+      for (const p of it.workPhotos || []) unpublishPhoto(o, it, p)
+      it.workPhotos = []
       it.note = ''
       it.images = []
       for (const k of Object.keys(it.selections || {})) if (textGroups.has(k)) delete it.selections[k]

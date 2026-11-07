@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { db, upcomingBirthdays, pendingDeletions, can } from '../../data/store'
+import { db, upcomingBirthdays, pendingDeletions, pendingPhotoRequests, can } from '../../data/store'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 
@@ -18,6 +18,7 @@ const items = computed(() => [
   { to: '/admin/manage/integrations', icon: 'phone', title: 'การเชื่อมต่อ & แจ้งเตือน', desc: `LINE OA · Facebook · SMS · Telegram (จำลอง) · คิว ${db.outbox.length} ข้อความ` },
   { to: '/admin/manage/loyalty', icon: 'tag', title: 'คะแนน & รางวัล', desc: `${activeCount(db.rewards)} ของแลก · ${activeCount(db.gachaPrizes)} รางวัลกาชา` },
   { to: '/admin/manage/storefront', icon: 'store', title: 'หน้าร้าน (เว็บลูกค้า)', desc: `เมนู ${db.retailItems.filter((x) => x.active !== false && x.showOnStore).length} สินค้า · รีวิวรออนุมัติ ${db.reviews.filter((r) => r.status === 'pending').length}` },
+  { to: '/admin/manage/photo-requests', icon: 'shield', title: 'คำขอไม่เผยแพร่รูป', desc: `${pendingPhotoRequests()} รอตรวจสอบ · ลูกค้าแจ้งไม่ให้ใช้รูปงาน` },
   { to: '/admin/manage/gallery', icon: 'image', title: 'คลังรูปเค้กสั่งทำ', desc: `${db.cakeGallery.length} รูป · ติดแท็กตัวเลือก หน้าเว็บเปลี่ยนรูปตามที่ลูกค้าเลือก` },
   { to: '/admin/manage/legal', icon: 'shield', title: 'PDPA / คุกกี้ / เงื่อนไข', desc: `เวอร์ชัน ${db.legal.docs.privacy.version}/${db.legal.docs.terms.version}/${db.legal.docs.cookie.version} · ร่าง แก้ได้` },
   { to: '/admin/manage/bot', icon: 'chat', title: 'บอทตอบแชท', desc: `${db.bot.enabled ? (db.bot.mode === 'auto' ? 'เปิด · ตอบเอง' : 'เปิด · แนะนำให้กดส่ง') : 'ปิดอยู่'} · ที่เรียนรู้ ${db.bot.learned.length}` },

@@ -32,6 +32,7 @@ function saveQueue() {
   msg.value = `เพิ่ม ${n} รูปเข้าคลังแล้ว`
   queue.value = []
 }
+const codeOf = (id) => db.orders.find((o) => o.id === id)?.code || id
 const items = computed(() => db.cakeGallery.slice().reverse())
 const typeImgs = computed(() => galleryOf(db).filter((e) => e.id.startsWith('type:')))
 const cov = computed(() => galleryCoverage(db))
@@ -73,7 +74,7 @@ async function del() {
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <button v-for="it in items" :key="it.id" type="button" class="overflow-hidden rounded-2xl border border-stone-200 bg-white text-left" :class="it.active === false ? 'opacity-50' : ''" @click="edit(it)">
             <img :src="it.image" :alt="it.caption || 'รูปเค้ก'" class="aspect-square w-full object-cover" />
-            <div class="space-y-1 p-2"><div class="flex flex-wrap gap-1"><span v-for="t in it.tags" :key="t" class="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] text-brand-800">{{ nameOf(t) }}</span></div><div v-if="it.caption" class="truncate text-xs text-stone-500">{{ it.caption }}</div></div>
+            <div class="space-y-1 p-2"><RouterLink v-if="it.source" :to="`/admin/orders/${it.source.orderId}`" class="block text-[11px] text-brand-700 underline" @click.stop>จากออร์เดอร์ {{ codeOf(it.source.orderId) }}</RouterLink><div class="flex flex-wrap gap-1"><span v-for="t in it.tags" :key="t" class="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] text-brand-800">{{ nameOf(t) }}</span></div><div v-if="it.caption" class="truncate text-xs text-stone-500">{{ it.caption }}</div></div>
           </button>
         </div>
       </section>

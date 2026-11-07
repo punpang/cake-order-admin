@@ -38,6 +38,7 @@ import LegalPage from './views/store/LegalPage.vue'
 import ManageLegal from './views/manage/ManageLegal.vue'
 import ManageLinks from './views/manage/ManageLinks.vue'
 import ManageGallery from './views/manage/ManageGallery.vue'
+import ManagePhotoRequests from './views/manage/ManagePhotoRequests.vue'
 import ManageBot from './views/manage/ManageBot.vue'
 import OrderLink from './views/store/OrderLink.vue'
 import ShortRedirect from './views/store/ShortRedirect.vue'
@@ -91,6 +92,7 @@ const router = createRouter({
     { path: '/admin/manage/retail', component: ManageRetail },
     { path: '/admin/manage/storefront', component: ManageStorefront },
     { path: '/admin/manage/gallery', component: ManageGallery },
+    { path: '/admin/manage/photo-requests', component: ManagePhotoRequests },
     { path: '/admin/manage/deletion-requests', component: ManageDeletionRequests },
     { path: '/admin/manage/legal', component: ManageLegal },
     { path: '/admin/manage/links', component: ManageLinks },

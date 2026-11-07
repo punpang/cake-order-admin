@@ -12,7 +12,9 @@ const groupOf = (db, key) => db.optionGroups.find((g) => g.key === key)
 export function readyMenu(db, now = new Date()) {
   return onlyActive(db.retailItems)
     .filter((x) => x.showOnStore)
-    .map((p) => {
+    .map((p0) => {
+      // รูปสินค้า = รูปเดิม + รูปงานที่เผยแพร่ (ตัดรูปของออร์เดอร์ที่ลูกค้าขอไม่เผยแพร่)
+      const p = { ...p0, images: [...(p0.images || []), ...(p0.workImages || []).filter((w) => { const o = (db.orders || []).find((x) => x.id === w.orderId); return !!o && (o.photoConsent?.status || 'ok') === 'ok' }).map((w) => w.image)] }
       const res = applyPosPromos([{ retailId: p.id, category: p.category || '', price: Number(p.price) || 0, qty: 1 }], { discounts: db.posDiscounts.filter((d) => d.scope !== 'bill'), now })
       const seg = res.lines[0][0]
       const price = round2((Number(p.price) || 0) - seg.perUnit)

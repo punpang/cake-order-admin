@@ -29,6 +29,7 @@ import RefundEditor from '../components/RefundEditor.vue'
 import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
 import OrderLinkModal from '../components/OrderLinkModal.vue'
 import TaxInvoiceModal from '../components/TaxInvoiceModal.vue'
+import WorkPhotos from '../components/WorkPhotos.vue'
 import { invoiceOfOrder } from '../data/acct'
 import { defaultRefundMethod, refundList } from '../lib/refund'
 import BirthdayFields from '../components/BirthdayFields.vue'
@@ -414,12 +415,15 @@ async function saveCancel() {
         <section class="card">
           <div class="card-title"><AppIcon name="cake" class="text-brand-600" /> สินค้า <span class="font-normal text-stone-400">{{ order.items.length }}</span></div>
           <div class="space-y-2.5">
-            <ItemCard v-for="it in order.items" :key="it.id" :item="it" class="bg-stone-50/50">
+            <div v-for="it in order.items" :key="it.id">
+            <ItemCard :item="it" class="bg-stone-50/50">
               <template v-if="can('editItems')">
                 <button class="btn-outline h-9 px-3" @click="editing = { item: it }"><AppIcon name="edit" :size="16" /> แก้ไข</button>
                 <button v-if="order.items.length > 1" class="btn-danger h-9 px-3" @click="doRemoveItem(it)"><AppIcon name="trash" :size="16" /> ลบ</button>
               </template>
             </ItemCard>
+            <WorkPhotos :order="order" :item="it" />
+            </div>
           </div>
           <button v-if="can('editItems')" class="btn-soft mt-3 w-full" @click="editing = {}"><AppIcon name="plus" :size="16" /> เพิ่มสินค้า</button>
         </section>
