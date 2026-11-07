@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { db, can, orderVisible, findCustomer, upcomingBirthdays } from '../data/store'
 import { STATUS } from '../lib/constants'
 import { orderTotals, describeSelections } from '../lib/pricing'
-import { money, timeOnly, dayLabel, formatPhone } from '../lib/format'
+import { money, timeOnly, dayLabel, formatPhone, toDateStr } from '../lib/format'
 import StatusBadge from '../components/StatusBadge.vue'
 import PayDueBadge from '../components/PayDueBadge.vue'
 import { customerPending } from '../lib/payDue'
@@ -12,8 +12,11 @@ import AppModal from '../components/AppModal.vue'
 import BirthdayList from '../components/BirthdayList.vue'
 
 const status = ref('')
-const from = ref('')
-const to = ref('')
+// ค่าเริ่มต้น = ออร์เดอร์ที่นัดรับ/ส่งวันนี้ (ลบป้ายตัวกรองเพื่อดูทั้งหมด)
+const todayStr = toDateStr(new Date())
+const from = ref(todayStr)
+const to = ref(todayStr)
+const isToday = computed(() => from.value === todayStr && to.value === todayStr)
 const q = ref('')
 const fulfill = ref('') // '' | pickup | delivery
 const payState = ref('') // '' | due | paid | over
@@ -96,7 +99,7 @@ const filtersOpen = ref(false)
 const shortDate = (d) => `${Number(d.slice(8, 10))}/${Number(d.slice(5, 7))}`
 const activeFilters = computed(() => {
   const out = []
-  if (hasDate.value) out.push({ k: 'date', l: `นัดรับ ${from.value ? shortDate(from.value) : '…'}–${to.value ? shortDate(to.value) : '…'}` })
+  if (hasDate.value) out.push({ k: 'date', l: isToday.value ? 'นัดรับ วันนี้' : `นัดรับ ${from.value ? shortDate(from.value) : '…'}–${to.value ? shortDate(to.value) : '…'}` })
   if (fulfill.value) out.push({ k: 'fulfill', l: fulfill.value === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' })
   if (payState.value) out.push({ k: 'pay', l: PAY_FILTERS.find((f) => f.v === payState.value).l })
   return out
@@ -235,7 +238,7 @@ function clearAll() {
     <!-- ว่าง -->
     <div v-if="!list.length" class="empty py-12">
       <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><AppIcon name="cake" :size="28" /></span>
-      <div class="font-semibold text-stone-800">ไม่พบออร์เดอร์</div>
+      <div class="font-semibold text-stone-800">{{ isToday && !q.trim() && !status ? 'ไม่มีออร์เดอร์นัดรับวันนี้' : 'ไม่พบออร์เดอร์' }}</div>
       <div class="text-sm text-stone-500">ลองเปลี่ยนคำค้นหาหรือตัวกรอง</div>
       <button v-if="activeFilters.length || status || q" type="button" class="btn-soft" @click="clearAll(); status = ''; q = ''">ล้างตัวกรองทั้งหมด</button>
     </div>

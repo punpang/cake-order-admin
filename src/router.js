@@ -3,6 +3,7 @@ import { customerSession, needsConsent, canAny } from './data/store'
 import OrderList from './views/OrderList.vue'
 import OrderCreate from './views/OrderCreate.vue'
 import OrderDetail from './views/OrderDetail.vue'
+import Payments from './views/Payments.vue'
 import ManageHome from './views/manage/ManageHome.vue'
 import ManageCustomers from './views/manage/ManageCustomers.vue'
 import ManagePromos from './views/manage/ManagePromos.vue'
@@ -74,8 +75,9 @@ const router = createRouter({
     { path: '/admin/orders', component: OrderList, meta: { perms: ['viewAllOrders', 'viewPrepOrders', 'viewDeliveryOrders'] } },
     { path: '/admin/orders/new', component: OrderCreate, meta: { focus: true, perms: ['createOrder'] } },
     { path: '/admin/orders/:id', component: OrderDetail, props: true, meta: { focus: true } },
-    { path: '/admin/chat', component: Chat, meta: { perms: ['chat'] } },
-    { path: '/admin/chat/:id', component: Chat, props: true, meta: { focus: true, perms: ['chat'] } },
+    { path: '/admin/payments', component: Payments, meta: { perms: ['reportPayment', 'confirmPayment'] } },
+    { path: '/admin/chat', component: Chat, meta: { perms: ['chat'], lock: true } },
+    { path: '/admin/chat/:id', component: Chat, props: true, meta: { focus: true, perms: ['chat'], lock: true } },
     { path: '/admin/pos', component: Pos, meta: { focus: true, perms: ['pos'] } },
     { path: '/admin/materials', component: Materials, meta: { perms: ['viewMaterials'] } },
     { path: '/admin/production', component: Production, meta: { perms: ['viewMaterials'] } },

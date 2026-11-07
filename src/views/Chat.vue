@@ -115,9 +115,9 @@ function doSim() {
 <template>
   <div v-if="!can('chat')" class="card py-10 text-center text-stone-500">บทบาทนี้ใช้แชทไม่ได้</div>
 
-  <div v-else class="mx-auto" :class="panelOpen ? 'max-w-none' : 'max-w-none'">
-    <div class="grid min-h-[420px] grid-cols-1 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-2xl border border-stone-200 bg-white md:h-[calc(100dvh-9rem)]"
-      :class="[current ? 'h-[calc(100dvh-9rem)]' : 'h-[calc(100dvh-12.5rem)]', panelOpen ? 'md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)]' : 'md:grid-cols-[300px_minmax(0,1fr)]']">
+  <div v-else class="flex h-full min-h-0 flex-col">
+    <div class="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-2xl border border-stone-200 bg-white"
+      :class="[panelOpen ? 'md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)]' : 'md:grid-cols-[300px_minmax(0,1fr)]']">
       <!-- รายการแชท -->
       <aside class="flex min-h-0 flex-col border-stone-200 md:border-r" :class="[current ? 'hidden md:flex' : 'flex', panelOpen ? 'lg:hidden xl:flex' : '']">
         <div class="flex items-center gap-2 border-b border-stone-200 p-3">
@@ -201,7 +201,7 @@ function doSim() {
       </section>
       <section v-else class="hidden items-center justify-center bg-stone-50 text-sm text-stone-400 md:flex">เลือกแชททางซ้าย</section>
     </div>
-    <p class="mt-2 text-center text-xs text-stone-400">
+    <p class="mt-1.5 shrink-0 text-center text-xs text-stone-400">
       <template v-if="db.integrations.line.status !== 'connected' && db.integrations.facebook.status !== 'connected'">ยังไม่ได้เชื่อม LINE OA / Facebook · <RouterLink v-if="can('manage')" to="/admin/manage/integrations" class="text-brand-700 underline">ไปเชื่อม</RouterLink> · </template>
       <template v-else>เชื่อมแล้ว: {{ [db.integrations.line.status === 'connected' ? `LINE ${db.integrations.line.accountName}` : '', db.integrations.facebook.status === 'connected' ? `Facebook ${db.integrations.facebook.accountName}` : ''].filter(Boolean).join(' · ') }} · </template>
       จำลอง (ทดสอบด้วยปุ่ม "จำลองข้อความเข้า")

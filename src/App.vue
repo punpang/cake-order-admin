@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { db, session, can, switchUser, unreadChats, runScheduledChecks } from './data/store'
+import { db, session, can, canAny, switchUser, unreadChats, runScheduledChecks, orderVisible } from './data/store'
+import { paymentCounts } from './lib/paymentsQueue'
 import { ROLES } from './lib/constants'
 import AppIcon from './components/AppIcon.vue'
 import AppModal from './components/AppModal.vue'
@@ -9,7 +10,10 @@ import StoreLayout from './components/StoreLayout.vue'
 
 const roleOpen = ref(false)
 // เมนูล่างมือถือ: ออร์เดอร์ / แชท / POS / ครัว / จัดการ (เฉพาะที่มีสิทธิ์)
-const tabCount = computed(() => 1 + (can('chat') ? 1 : 0) + (can('pos') ? 1 : 0) + (can('viewMaterials') ? 1 : 0) + (can('manage') ? 1 : 0) + (can('acctView') ? 1 : 0))
+const canPayments = computed(() => canAny(['reportPayment', 'confirmPayment']))
+// ยอดที่ลูกค้าแจ้งโอนรอตรวจ (ป้ายที่เมนูชำระเงิน)
+const paySlips = computed(() => paymentCounts(db.orders.filter(orderVisible)).slips)
+const tabCount = computed(() => 1 + (canPayments.value ? 1 : 0) + (can('chat') ? 1 : 0) + (can('pos') ? 1 : 0) + (can('viewMaterials') ? 1 : 0) + (can('manage') ? 1 : 0) + (can('acctView') ? 1 : 0))
 const unread = computed(() => unreadChats())
 const me = computed(() => db.users.find((u) => u.id === session.userId))
 // จำลอง cron: ตรวจแจ้งเตือนตามเวลาทุก 60 วินาทีขณะเปิดแอป (ของจริงใช้ cron ฝั่งเซิร์ฟเวอร์)
@@ -28,20 +32,23 @@ onBeforeUnmount(() => clearInterval(timer))
     <div class="mx-auto flex h-14 max-w-page items-center gap-3 px-4 lg:px-8">
       <RouterLink to="/admin/orders" class="flex min-w-0 items-center gap-2.5">
         <svg viewBox="0 0 48 48" class="h-10 w-10 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2" stroke-linejoin="round"><ellipse cx="24" cy="40" rx="18" ry="4" fill="#fff" /><rect x="9" y="22" width="30" height="16" rx="4" fill="#ffd05c" /><path d="M8 22c0-7 7-10 16-10s16 3 16 10c-3 3-5 0-8 3s-5 0-8 3-5 0-8-3-5 0-8-3z" fill="#ff8fa6" /><circle cx="24" cy="9" r="4" fill="#e0314f" /></svg>
-        <span class="truncate font-display text-xl text-brand-600">ร้านเค้ก <span class="font-sans text-sm font-normal text-stone-600">· หลังบ้าน</span></span>
+        <span class="truncate font-display text-xl text-brand-600">ร้านเค้ก <span class="hidden font-sans text-sm font-normal text-stone-600 lg:inline">· หลังบ้าน</span></span>
       </RouterLink>
 
-      <nav class="ml-4 hidden gap-1 md:flex">
-        <RouterLink to="/admin/orders" class="rounded-full px-3.5 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ออร์เดอร์</RouterLink>
-        <RouterLink v-if="can('createOrder')" to="/admin/orders/new" class="rounded-full px-3.5 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">สร้างออร์เดอร์</RouterLink>
-        <RouterLink v-if="can('chat')" to="/admin/chat" class="relative rounded-full px-3.5 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">
+      <nav class="ml-2 hidden gap-0.5 md:flex lg:ml-4 lg:gap-1">
+        <RouterLink to="/admin/orders" class="rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ออร์เดอร์</RouterLink>
+        <RouterLink v-if="can('createOrder')" to="/admin/orders/new" class="rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">สร้างออร์เดอร์</RouterLink>
+        <RouterLink v-if="can('chat')" to="/admin/chat" class="relative rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">
           แชท<span v-if="unread" class="ml-1 rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{{ unread }}</span>
         </RouterLink>
-        <RouterLink v-if="can('pos')" to="/admin/pos" class="rounded-full px-3.5 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">POS</RouterLink>
-        <RouterLink v-if="can('viewMaterials')" to="/admin/materials" class="rounded-full px-3.5 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">วัตถุดิบ</RouterLink>
-        <RouterLink v-if="can('viewMaterials')" to="/admin/production" class="rounded-full px-3.5 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ตารางผลิต</RouterLink>
-        <RouterLink v-if="can('acctView')" to="/admin/accounting" class="rounded-full px-3.5 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">บัญชี</RouterLink>
-        <RouterLink v-if="can('manage')" to="/admin/manage" class="rounded-full px-3.5 py-1.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">จัดการ</RouterLink>
+        <RouterLink v-if="canPayments" to="/admin/payments" class="relative rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">
+          ชำระเงิน<span v-if="paySlips" class="ml-1 rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{{ paySlips }}</span>
+        </RouterLink>
+        <RouterLink v-if="can('pos')" to="/admin/pos" class="rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">POS</RouterLink>
+        <RouterLink v-if="can('viewMaterials')" to="/admin/materials" class="rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">วัตถุดิบ</RouterLink>
+        <RouterLink v-if="can('viewMaterials')" to="/admin/production" class="rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ตารางผลิต</RouterLink>
+        <RouterLink v-if="can('acctView')" to="/admin/accounting" class="rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">บัญชี</RouterLink>
+        <RouterLink v-if="can('manage')" to="/admin/manage" class="rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">จัดการ</RouterLink>
       </nav>
 
       <RouterLink to="/" class="ml-auto text-sm text-stone-600 underline">หน้าร้าน</RouterLink>
@@ -52,9 +59,10 @@ onBeforeUnmount(() => clearInterval(timer))
     </div>
   </header>
 
+  <!-- lock = ล็อกหน้า (เช่น แชท): main ตรึงใต้แถบบน ไม่ให้หน้าเว็บเลื่อน แต่ละกรอบข้างในเลื่อนเอง · ไม่พึ่ง dvh -->
   <main
-    class="mx-auto max-w-page px-4 pt-5 lg:px-8"
-    :class="$route.meta.focus ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10'"
+    class="mx-auto max-w-page px-4 lg:px-8"
+    :class="$route.meta.lock ? ['fixed inset-x-0 top-14 bottom-0 overflow-hidden pt-3', $route.meta.focus ? 'pb-[calc(env(safe-area-inset-bottom)+0.75rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-3'] : [$route.meta.focus ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10', 'pt-5']"
   >
     <RouterView :key="$route.fullPath" />
   </main>
@@ -73,6 +81,11 @@ onBeforeUnmount(() => clearInterval(timer))
         <AppIcon name="chat" :size="22" />
         แชท
         <span v-if="unread" class="absolute -top-1 left-1/2 ml-2 min-w-4 rounded-full bg-brand-600 px-1 text-center text-[10px] leading-4 font-semibold text-white">{{ unread }}</span>
+      </RouterLink>
+      <RouterLink v-if="canPayments" to="/admin/payments" class="relative flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
+        <AppIcon name="wallet" :size="22" />
+        ชำระเงิน
+        <span v-if="paySlips" class="absolute -top-1 left-1/2 ml-2 min-w-4 rounded-full bg-brand-600 px-1 text-center text-[10px] leading-4 font-semibold text-white">{{ paySlips }}</span>
       </RouterLink>
       <RouterLink v-if="can('pos')" to="/admin/pos" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
         <AppIcon name="pos" :size="22" />
