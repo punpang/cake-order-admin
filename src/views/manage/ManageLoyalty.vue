@@ -110,7 +110,7 @@ function doRefund() {
 </script>
 
 <template>
-  <ManageShell narrow title="คะแนน & รางวัล" :toolbar="false">
+  <ManageShell narrow guard title="คะแนน & รางวัล" :toolbar="false">
     <div class="mb-4 grid grid-cols-4 gap-1 seg-grid">
       <button
         v-for="t in tabs"

@@ -1,8 +1,9 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { can } from '../data/store'
 import { SETTINGS_PAGES } from '../lib/settingsPages'
+import { useLeaveGuard } from '../lib/leaveGuard'
 import AppIcon from './AppIcon.vue'
 import AppSwitch from './AppSwitch.vue'
 
@@ -15,8 +16,14 @@ defineProps({
   toolbar: { type: Boolean, default: true },
   narrow: { type: Boolean, default: false }, // หน้าฟอร์ม/ตั้งค่า: จำกัดความกว้างให้อ่านง่าย (หน้ารายการใช้เต็มพื้นที่)
   perm: { type: String, default: 'manage' }, // สิทธิ์ที่ต้องมีจึงเห็นหน้านี้
+  guard: { type: Boolean, default: false }, // หน้าฟอร์ม: เตือนก่อนออกถ้าแก้ไขแล้วยังไม่กด "บันทึก..."
 })
 const emit = defineEmits(['add'])
+// ตรวจการแก้ไขจากเหตุการณ์ของช่องกรอกในหน้า (ช่องค้นหาไม่นับ) · กดปุ่มที่ขึ้นต้นว่า "บันทึก" = ล้างสถานะ (ฟอร์มใน modal มีตัวป้องกันของตัวเอง)
+const edited = ref(false)
+const onEdit = (e) => { if (e.target?.type !== 'search') edited.value = true }
+const onClickCap = (e) => { if (e.target.closest?.('button')?.textContent.trim().startsWith('บันทึก')) edited.value = false }
+useLeaveGuard(() => edited.value)
 // PC: เมนูข้างรายการหน้าตั้งค่า (เฉพาะหน้าย่อย /admin/settings/*) สลับหน้าได้โดยไม่ต้องกลับหน้าการ์ด
 const route = useRoute()
 const side = computed(() => route.path.startsWith('/admin/settings/') ? SETTINGS_PAGES.filter((x) => can(x.perm || 'manage')) : [])
@@ -31,7 +38,7 @@ const showInactive = defineModel('inactive', { type: Boolean, default: false })
     <RouterLink to="/admin/orders" class="btn-soft">กลับไปหน้าออร์เดอร์</RouterLink>
   </div>
 
-  <div v-else :class="side.length ? 'lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:items-start lg:gap-6' : ''">
+  <div v-else :class="side.length ? 'lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:items-start lg:gap-6' : ''" @input.capture="guard && onEdit($event)" @change.capture="guard && onEdit($event)" @click.capture="guard && onClickCap($event)">
     <nav v-if="side.length" aria-label="เมนูตั้งค่า" class="sticky top-20 hidden max-h-[calc(100vh-6rem)] overflow-y-auto rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-stone-200 lg:block">
       <RouterLink
         v-for="p in side"

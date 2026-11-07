@@ -2,6 +2,7 @@
 import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRef } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useLeaveGuard } from '../lib/leaveGuard'
 import { db, can, vatNow, addCustomer, saveCustomer, findCustomer, createOrder, countPickups, pickupSlots, pickupSlotsInfo, pickupClosure, nearbyOrders, sendQuote, findChat, linkChat, createCustomerFromChat, chatOrderBlock, withPromos, priceItem } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime, timeOnly, toDateStr, formatPhone, phoneDigits, phoneValid } from '../lib/format'
@@ -180,6 +181,8 @@ function goTo(i) {
   step.value = i
 }
 let submitted = false
+// ออกจากหน้าสร้างออร์เดอร์ (หน้าเต็ม) ทั้งที่เลือกลูกค้า/เวลา/สินค้าไว้แล้วแต่ยังไม่บันทึก → เตือน
+if (!props.embedded) useLeaveGuard(() => !submitted && !!(form.customerId || form.time || form.items.length))
 function submit(asDraft) {
   if (submitted) return // กดซ้ำ/ดับเบิลคลิก
   if (saveBlock.value) return (error.value = `${saveBlock.value} · ไปขั้นลูกค้าเพื่อค้นหา/สร้างลูกค้า`)

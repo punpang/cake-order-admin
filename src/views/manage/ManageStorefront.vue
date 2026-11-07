@@ -49,7 +49,7 @@ async function del(r) {
 </script>
 
 <template>
-  <ManageShell narrow title="หน้าร้าน (เว็บลูกค้า)" subtitle="ข้อมูลร้าน วิธีสั่ง แกลเลอรี รีวิว" :toolbar="false">
+  <ManageShell narrow guard title="หน้าร้าน (เว็บลูกค้า)" subtitle="ข้อมูลร้าน วิธีสั่ง แกลเลอรี รีวิว" :toolbar="false">
     <div class="mb-4 grid grid-cols-4 gap-1 seg-grid">
       <button v-for="t in tabs" :key="t.v" type="button" class="h-10 rounded-xl text-xs font-semibold transition sm:text-sm" :class="tab === t.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'" @click="tab = t.v">{{ t.l }}</button>
     </div>

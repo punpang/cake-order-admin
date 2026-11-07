@@ -57,7 +57,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
 </script>
 
 <template>
-  <ManageShell narrow title="ตั้งค่าร้าน" :toolbar="false">
+  <ManageShell narrow guard title="ตั้งค่าร้าน" :toolbar="false">
     <section class="card mb-4">
       <label class="label">ชื่อร้าน (แสดงบนใบเสร็จ)</label>
       <input v-model="st.name" class="input" />

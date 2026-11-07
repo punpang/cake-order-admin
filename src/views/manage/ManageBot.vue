@@ -52,7 +52,7 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
 </script>
 
 <template>
-  <ManageShell narrow title="บอทตอบแชท" subtitle="กฎคีย์เวิร์ด + เรียนรู้จากพนักงาน · ในเบราว์เซอร์">
+  <ManageShell narrow guard title="บอทตอบแชท" subtitle="กฎคีย์เวิร์ด + เรียนรู้จากพนักงาน · ในเบราว์เซอร์">
     <div class="mb-3 flex gap-2 rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">
       <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0" />
       <p>บอทไม่ตอบเรื่องเงิน/คืนเงิน/ร้องเรียน (ส่งต่อพนักงานเสมอ) และบอกสถานะออร์เดอร์เฉพาะเมื่อแชทผูกลูกค้าและออร์เดอร์เป็นของลูกค้าคนนั้น · ข้อความลูกค้าประมวลผลในเบราว์เซอร์ ไม่ส่งออกภายนอก · ของจริงรับแชทผ่าน webhook ต้องต่อเซิร์ฟเวอร์</p>
