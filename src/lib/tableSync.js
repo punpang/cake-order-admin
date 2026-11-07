@@ -14,6 +14,19 @@ export function diffById(snapshot, items) {
   return { upserts, deletes }
 }
 
+// อ่านทั้งตารางทีละหน้า (PostgREST จำกัด 1000 แถวต่อคำขอ ถ้าไม่แบ่งหน้าข้อมูลที่เกินจะหายเงียบ ๆ)
+// make(from, to) ต้องคืน query ที่เรียงลำดับแบบคงที่ (ไม่ซ้ำ) และเรียก .range(from, to) แล้ว
+export const PAGE_SIZE = 1000
+export async function selectAll(make) {
+  const data = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const r = await make(from, from + PAGE_SIZE - 1)
+    if (r.error) return { error: r.error }
+    data.push(...(r.data || []))
+    if ((r.data || []).length < PAGE_SIZE) return { data }
+  }
+}
+
 export async function startSync({ list, replace, load, push, canWrite, onError = () => {}, label = '', debounceMs = 600 }) {
   const loaded = await load()
   if (loaded.error) { onError(`โหลด${label}จากฐานข้อมูลไม่สำเร็จ: ${loaded.error}`); return { stop() {}, loaded: false } }

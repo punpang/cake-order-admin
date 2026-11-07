@@ -1,4 +1,4 @@
-import { startSync } from './tableSync'
+import { startSync, selectAll } from './tableSync'
 
 // ซิงก์ลูกค้า (db.customers) กับ punpang_customers · ข้อมูลทั่วไป/คะแนน/ที่อยู่ ฯลฯ เก็บใน data (jsonb)
 // ลูกค้าไม่ถูกลบจริง (ใช้ธง deleted/active) — ตารางไม่มี policy ลบ จึงข้ามการลบ
@@ -11,7 +11,7 @@ export function rowToCustomer(r) {
   return { ...(r.data || {}), id: r.id, name: r.name, phone: r.phone || '', line: r.line || '', note: r.note || '' }
 }
 export async function loadCustomers(client) {
-  const a = await client.from('punpang_customers').select('id,name,phone,line,note,data').order('id')
+  const a = await selectAll((x, y) => client.from('punpang_customers').select('id,name,phone,line,note,data').order('id').range(x, y))
   if (a.error) return { error: a.error.message }
   return { items: (a.data || []).map(rowToCustomer) }
 }

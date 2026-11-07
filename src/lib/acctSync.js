@@ -1,5 +1,5 @@
 import { watch } from 'vue'
-import { startSync } from './tableSync'
+import { startSync, selectAll } from './tableSync'
 import { startConfigSync } from './configSync'
 
 // ซิงก์ระบบบัญชี (db.acct) กับ Supabase
@@ -11,7 +11,6 @@ import { startConfigSync } from './configSync'
 // ข้อควรระวัง: เลขที่ออกใน trigger ก่อนตรวจชนกัน ดังนั้นแถวใหม่ต้อง insert ตรง ๆ (ห้าม upsert ซ้ำ ไม่งั้นเลขหาย)
 export const ACCT_KV_KEYS = ['settings', 'accounts', 'vatFilings', 'recurring', 'recurringSkips', 'deferrals', 'assets', 'installments', 'taxYears', 'taxTables', 'taxFilings', 'seq']
 export const ACCT_VIEW_PERMS = ['acctView', 'acctRecord', 'acctClose', 'acctReports', 'acctTax', 'acctAssets', 'acctSettings']
-const PAGE = 1000
 
 export const entryToRow = (e) => ({ id: e.id, entry_date: e.date, no: e.no, data: e })
 export const rowToEntry = (r) => ({ ...r.data, id: r.id, no: r.no })
@@ -26,13 +25,8 @@ export const rowToInvoice = (r) => ({ ...r.data, id: r.id, no: r.no })
 
 // อ่านทีละหน้า (PostgREST จำกัด 1000 แถวต่อคำขอ)
 export async function loadAll(client, table, cols, orderBy) {
-  const out = []
-  for (let from = 0; ; from += PAGE) {
-    const r = await client.from(table).select(cols).order(orderBy).order('id').range(from, from + PAGE - 1)
-    if (r.error) return { error: r.error.message }
-    out.push(...(r.data || []))
-    if ((r.data || []).length < PAGE) return { rows: out }
-  }
+  const r = await selectAll((a, b) => client.from(table).select(cols).order(orderBy).order('id').range(a, b))
+  return r.error ? { error: r.error.message } : { rows: r.data }
 }
 const loader = (client, table, cols, orderBy, conv) => async () => {
   const r = await loadAll(client, table, cols, orderBy)

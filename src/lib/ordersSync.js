@@ -1,4 +1,4 @@
-import { startSync } from './tableSync'
+import { startSync, selectAll } from './tableSync'
 import { parseNo } from './docNo'
 
 // ซิงก์ออร์เดอร์ (db.orders) กับ punpang_orders · ชำระเงิน/รายการ/ประวัติ ฯลฯ อยู่ใน data (jsonb)
@@ -15,7 +15,7 @@ export function rowToOrder(r) {
 }
 
 export async function loadOrders(client) {
-  const a = await client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data').order('code')
+  const a = await selectAll((x, y) => client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data').order('code').order('id').range(x, y))
   if (a.error) return { error: a.error.message }
   return { items: (a.data || []).map(rowToOrder) }
 }
