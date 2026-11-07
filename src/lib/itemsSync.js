@@ -1,4 +1,5 @@
 import { startSync, selectAll } from './tableSync'
+import { externalizePublic } from './storage'
 
 // ซิงก์สินค้าหน้าร้าน (db.retailItems) กับ Supabase: โหลดตอนเริ่ม + เขียนกลับเมื่อแก้ (เฉพาะผู้มีสิทธิ์ editItems)
 // punpang_items = ชื่อ/ราคา/สถานะ/ข้อมูลทั่วไป (หน้าร้านอ่านได้)
@@ -30,6 +31,8 @@ export { diffById as diffItems } from './tableSync'
 
 export async function pushChanges(client, { upserts, deletes }) {
   if (upserts.length) {
+    // รูปที่เพิ่งเลือก (data:/blob:) → อัปโหลดไป Storage แล้วใช้ลิงก์ถาวร (ล้มเหลว = ไม่เขียนลงฐานข้อมูล)
+    try { for (const it of upserts) await externalizePublic(client, it, 'items') } catch (e) { return { error: `อัปโหลดรูปไม่สำเร็จ: ${e.message}` } }
     const rows = upserts.map(itemToRows)
     const r1 = await client.from('punpang_items').upsert(rows.map((x) => x.item))
     if (r1.error) return { error: r1.error.message }

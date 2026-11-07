@@ -1,4 +1,5 @@
 import { watch } from 'vue'
+import { externalizePublic } from './storage'
 
 // ซิงก์ "ตั้งค่า/แคตตาล็อก" (ร้าน, คะแนน, ตัวเลือกเค้ก, ราคา, POS ฯลฯ) กับ punpang_kv — 1 แถวต่อ 1 คีย์ของ db
 // ไม่รวมความลับ/ข้อมูลรายคน (integrations, users, ลูกค้า, ออร์เดอร์ ฯลฯ) — ดู CONFIG_KEYS
@@ -57,6 +58,11 @@ export function applyValue(db, key, value) {
 
 export async function pushConfig(client, db, keys, col = null) {
   const colOf = col ? () => col : collectionOf
+  // ตั้งค่าร้าน/ตัวเลือกเค้ก/หน้าร้าน: รูปที่เพิ่งเลือกอัปโหลดไป Storage สาธารณะก่อน (ชุด acct/audit ไม่มีรูป ข้าม)
+  if (!col) {
+    const cache = new Map() // รูปเดียวกันต่างคีย์ อัปโหลดครั้งเดียว
+    try { for (const k of keys) if (db[k] && typeof db[k] === 'object') await externalizePublic(client, db[k], 'config', cache) } catch (e) { return { error: `อัปโหลดรูปไม่สำเร็จ: ${e.message}` } }
+  }
   const rows = []
   for (const k of keys) {
     const v = JSON.parse(JSON.stringify(db[k] ?? null))
