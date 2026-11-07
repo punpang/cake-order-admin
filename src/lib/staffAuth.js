@@ -4,12 +4,16 @@ import { showToast } from './toast'
 
 // สถานะพนักงานที่ล็อกอินจริง (ใช้เมื่อเปิด Supabase เท่านั้น)
 export const staffState = reactive({ ready: !supabaseEnabled, staff: null })
-let itemsSync = null
-// หลังล็อกอินสำเร็จ: โหลดสินค้าจาก Supabase (และเขียนกลับเมื่อมีสิทธิ์ editItems)
+let syncs = []
+// หลังล็อกอินสำเร็จ: โหลดข้อมูลจาก Supabase (สินค้า/ลูกค้า) และเขียนกลับเมื่อมีสิทธิ์
 async function startData(staff) {
-  if (itemsSync) itemsSync.stop()
-  const [{ startItemsSync }, { db }, client] = await Promise.all([import('./itemsSync'), import('../data/store'), getSupabase()])
-  itemsSync = await startItemsSync({ client, db, canWrite: staff.perms.includes('editItems'), onError: (m) => showToast(m, 8000) })
+  syncs.forEach((x) => x.stop())
+  syncs = []
+  const [items, customers, { db }, client] = await Promise.all([import('./itemsSync'), import('./customersSync'), import('../data/store'), getSupabase()])
+  const onError = (m) => showToast(m, 8000)
+  const has = (p) => staff.perms.includes(p)
+  syncs.push(await items.startItemsSync({ client, db, canWrite: has('editItems'), onError }))
+  syncs.push(await customers.startCustomersSync({ client, db, canWrite: has('createOrder') || has('adjustPoints'), onError }))
 }
 export async function initStaff() {
   if (!supabaseEnabled) return
@@ -41,4 +45,4 @@ export async function currentStaff() {
   return { staff: data }
 }
 
-export async function staffSignOut() { staffState.staff = null; if (itemsSync) { itemsSync.stop(); itemsSync = null }; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
+export async function staffSignOut() { staffState.staff = null; syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }

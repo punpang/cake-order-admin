@@ -1,4 +1,4 @@
-import { watch } from 'vue'
+import { startSync } from './tableSync'
 
 // ซิงก์สินค้าหน้าร้าน (db.retailItems) กับ Supabase: โหลดตอนเริ่ม + เขียนกลับเมื่อแก้ (เฉพาะผู้มีสิทธิ์ editItems)
 // punpang_items = ชื่อ/ราคา/สถานะ/ข้อมูลทั่วไป (หน้าร้านอ่านได้)
@@ -26,17 +26,7 @@ export async function loadItems(client) {
   return { items: (a.data || []).map((r) => rowsToItem(r, costs.get(r.id))) }
 }
 
-// เทียบกับสแนปช็อตที่ซิงก์ล่าสุด → รายการที่ต้องเพิ่ม/แก้ และที่ถูกลบ
-export function diffItems(snapshot, items) {
-  const upserts = []
-  const seen = new Set()
-  for (const it of items) {
-    seen.add(it.id)
-    if (snapshot.get(it.id) !== JSON.stringify(it)) upserts.push(it)
-  }
-  const deletes = [...snapshot.keys()].filter((id) => !seen.has(id))
-  return { upserts, deletes }
-}
+export { diffById as diffItems } from './tableSync'
 
 export async function pushChanges(client, { upserts, deletes }) {
   if (upserts.length) {
@@ -55,31 +45,13 @@ export async function pushChanges(client, { upserts, deletes }) {
   return { ok: true }
 }
 
-// เริ่มซิงก์: โหลดไม่สำเร็จ = ไม่เริ่มตัวเขียนกลับ (กันเขียนทับข้อมูลจริงด้วยรายการว่าง/ตัวอย่าง)
-export async function startItemsSync({ client, db, canWrite, onError = () => {}, debounceMs = 600 }) {
-  const loaded = await loadItems(client)
-  if (loaded.error) { onError('โหลดสินค้าจากฐานข้อมูลไม่สำเร็จ: ' + loaded.error); return { stop() {}, loaded: false } }
-  db.retailItems.splice(0, db.retailItems.length, ...loaded.items)
-  const snapshot = new Map(db.retailItems.map((i) => [i.id, JSON.stringify(i)]))
-  if (!canWrite) return { stop() {}, loaded: true }
-  let timer = null
-  let busy = false
-  let again = false
-  const flush = async () => {
-    if (busy) { again = true; return }
-    busy = true
-    const changes = diffItems(snapshot, db.retailItems)
-    if (changes.upserts.length || changes.deletes.length) {
-      const r = await pushChanges(client, changes)
-      if (r.error) onError('บันทึกสินค้าไม่สำเร็จ: ' + r.error)
-      else {
-        for (const it of changes.upserts) snapshot.set(it.id, JSON.stringify(it))
-        for (const id of changes.deletes) snapshot.delete(id)
-      }
-    }
-    busy = false
-    if (again) { again = false; flush() }
-  }
-  const stopWatch = watch(() => JSON.stringify(db.retailItems), () => { clearTimeout(timer); timer = setTimeout(flush, debounceMs) })
-  return { stop() { stopWatch(); clearTimeout(timer) }, loaded: true, flush }
+// เริ่มซิงก์สินค้า (ใช้เครื่องยนต์กลาง tableSync)
+export function startItemsSync({ client, db, canWrite, onError, debounceMs }) {
+  return startSync({
+    list: () => db.retailItems,
+    replace: (items) => db.retailItems.splice(0, db.retailItems.length, ...items),
+    load: () => loadItems(client),
+    push: (changes) => pushChanges(client, changes),
+    canWrite, onError, debounceMs, label: 'สินค้า',
+  })
 }
