@@ -13,6 +13,7 @@ import AppIcon from './AppIcon.vue'
 // ตัวคำนวณราคาเค้กสั่งทำบนหน้าเว็บลูกค้า · ใช้ตัวคิดราคา/กติกาตัวเลือกเดียวกับหลังบ้าน (priceDetail/allowedBy/forType)
 // ประเภทถูกกำหนดจากหน้า (typeId) ลูกค้าเลือกส่วนที่เหลือ → คัดลอกรหัส+สรุปส่งแชท → หลังบ้านวางแล้วได้รายการเดียวกัน
 const props = defineProps({ typeId: { type: String, required: true } })
+const emit = defineEmits(['select'])
 
 const groups = computed(() => db.optionGroups.filter((g) => g.active !== false && g.appliesTo.includes('custom')))
 const typeG = computed(() => groups.value.find((g) => g.key === 'type'))
@@ -25,6 +26,15 @@ const showWhole = computed(() => wholeGroups.value.filter((g) => g.key !== 'type
 
 const form = reactive({ id: 'web', kind: 'custom', retailId: null, retailPrice: 0, sizeId: null, typeId: null, qty: 1, note: '', images: [], selections: {}, tiers: hasTiers.value ? [{ selections: {} }] : [] })
 const layered = ref(false)
+// ตัวเลือกทั้งหมดที่ลูกค้าเลือก (รวมประเภท) ส่งให้หน้าเว็บใช้เลือกรูปตัวอย่าง
+const selectedIds = computed(() => {
+  const ids = new Set([props.typeId])
+  const add = (sels) => { for (const g of groups.value) { if (g.type === 'text') continue; const v = sels?.[g.id]; if (v == null || v === '') continue; for (const id of Array.isArray(v) ? v : [v]) ids.add(id) } }
+  add(form.selections)
+  form.tiers.forEach((t) => add(t.selections))
+  return [...ids]
+})
+watch(selectedIds, (v) => emit('select', v), { immediate: true })
 function lockType() {
   const g = typeG.value
   if (!g) return

@@ -16,6 +16,7 @@ import AppIcon from './AppIcon.vue'
             <p v-if="confirmState.message" class="mt-1 text-sm break-words whitespace-pre-line text-stone-600">{{ confirmState.message }}</p>
           </div>
         </div>
+        <label v-if="confirmState.checkbox" class="mt-4 flex items-start gap-2 rounded-xl bg-stone-50 p-3 text-sm text-stone-700"><input v-model="confirmState.checked" type="checkbox" class="mt-0.5 h-4 w-4" :aria-label="confirmState.checkbox.label" /><span>{{ confirmState.checkbox.label }}<span v-if="confirmState.checkbox.hint" class="block text-xs text-stone-500">{{ confirmState.checkbox.hint }}</span></span></label>
         <div class="mt-5 flex gap-2">
           <button class="btn-outline flex-1" @click="closeConfirm(false)">ยกเลิก</button>
           <button class="flex-1" :class="confirmState.danger ? 'btn-danger' : 'btn-primary'" @click="closeConfirm(true)">{{ confirmState.okText }}</button>

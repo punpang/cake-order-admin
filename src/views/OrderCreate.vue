@@ -29,6 +29,7 @@ const steps = ['ลูกค้า', 'นัดรับ', 'สินค้า',
 // สร้างจากแชท: /orders/new?customer=<id>&chat=<chatId> → เติมลูกค้าและข้ามขั้นเลือกลูกค้า
 const fromChat = props.chatId || (typeof route.query.chat === 'string' ? route.query.chat : null)
 const error = ref('')
+const notifyCustomer = ref(true) // แจ้งลูกค้าตอนบันทึก·รอชำระ (ค่าเริ่มต้นส่ง)
 
 const form = props.draft || reactive({
   customerId: null,
@@ -183,7 +184,7 @@ function submit(asDraft) {
     error.value = e
     return
   }
-  const o = createOrder({ ...form, pickupAt: pickupAt.value, birthday: birthday.value, chatId: fromChat }, asDraft)
+  const o = createOrder({ ...form, pickupAt: pickupAt.value, birthday: birthday.value, chatId: fromChat, notify: notifyCustomer.value }, asDraft)
   if (o.error) {
     step.value = 1
     error.value = o.error
@@ -465,10 +466,12 @@ function quote() {
             <p v-if="saveBlock" class="w-full text-xs text-amber-700">
               บันทึกไม่ได้: {{ saveBlock }} · <button type="button" class="font-medium underline" @click="step = 0; error = ''">ไปขั้นลูกค้า</button> (ส่งใบเสนอได้ก่อน)
             </p>
+            <label class="flex w-full items-center gap-2 text-sm text-stone-700"><input v-model="notifyCustomer" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าเมื่อบันทึก·รอชำระ</label>
             <button class="btn-soft flex-1" @click="quote">ส่งใบเสนอ</button>
             <button class="btn-primary flex-1" :disabled="!!saveBlock" @click="submit(false)">บันทึก · รอชำระ</button>
           </template>
           <template v-else>
+            <label class="flex w-full items-center gap-2 text-sm text-stone-700 sm:w-auto"><input v-model="notifyCustomer" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าเมื่อบันทึก·รอชำระ</label>
             <button class="btn-outline flex-1 sm:ml-auto sm:flex-none" @click="submit(true)">บันทึกร่าง</button>
             <button class="btn-primary flex-[1.4] sm:flex-none" @click="submit(false)">บันทึก · รอชำระ</button>
           </template>

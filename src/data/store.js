@@ -1,9 +1,10 @@
 // ข้อมูลตัวอย่าง (เก็บในหน่วยความจำ รีเฟรชแล้วหาย)
 // ขั้นต่อไปจะเปลี่ยนฟังก์ชันในไฟล์นี้ให้เรียก Supabase แทน
 import { reactive } from 'vue'
-import { PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
+import { STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
+import { prevStatus } from '../lib/orderFlow'
 import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList } from '../lib/refund'
 import { addDays, pointBalance, takePoints, returnPoints, couponUsable, pickPrize, expiringSoon } from '../lib/loyalty'
 import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, timeOnly } from '../lib/format'
@@ -122,6 +123,8 @@ export const db = reactive({
   ],
   // คูปอง: type = reward (รอรับที่ร้าน) | discount (ใช้ลดในออร์เดอร์), status = pending | used | delivered
   coupons: [],
+  // คลังรูปเค้กสั่งทำ (หน้าเว็บ): รูปติดแท็กตัวเลือก (optionId) ใช้เลือกรูปตามที่ลูกค้าเลือก · { id, image, tags[], caption, active }
+  cakeGallery: [],
   spinLog: [],
 
   // ราคาพิเศษ (ตัวอย่าง): scheduled = กำหนดช่วงวัน (เทียบวันที่สร้างออร์เดอร์)
@@ -431,6 +434,30 @@ export function saveMainPrices({ types = {}, typeSizes = {}, flavors = {} }) {
   }
   for (const o of byKey('flavor')) if (flavors[o.id] !== undefined) o.price = Number(flavors[o.id]) || 0
 }
+// ---------- คลังรูปเค้กสั่งทำ (แอดมิน) ----------
+const optionIdSet = () => new Set(db.optionGroups.flatMap((g) => (g.options || []).map((o) => o.id)))
+export function saveGalleryImage(d) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const image = String(d.image || '')
+  if (!image) return { error: 'ไม่มีรูป' }
+  const ok = optionIdSet()
+  const tags = [...new Set((d.tags || []).filter((t) => ok.has(t)))].slice(0, 12)
+  if (!tags.length) return { error: 'ติ๊กตัวเลือกที่รูปนี้เป็นตัวแทนอย่างน้อย 1 อย่าง' }
+  const row = { image, tags, caption: String(d.caption ?? '').trim().slice(0, 120), active: d.active !== false }
+  const cur = d.id ? db.cakeGallery.find((x) => x.id === d.id) : null
+  if (d.id && !cur) return { error: 'ไม่พบรูป' }
+  if (cur) { Object.assign(cur, row); return { ok: true, item: cur } }
+  const it = { id: uid('cg'), createdAt: now(), ...row }
+  db.cakeGallery.push(it)
+  return { ok: true, item: it }
+}
+export function removeGalleryImage(id) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  const i = db.cakeGallery.findIndex((x) => x.id === id)
+  if (i < 0) return { error: 'ไม่พบรูป' }
+  db.cakeGallery.splice(i, 1)
+  return { ok: true }
+}
 export const saveIngredient = (d) => upsert(db.ingredients, 'm', { ...d, packSize: Number(d.packSize) || 0, packPrice: Number(d.packPrice) || 0 })
 // ผู้ใช้ + สิทธิ์ที่ติ๊ก · คืน { ok, user } | { error } · ต้องมีอย่างน้อย 1 คนที่ใช้งานอยู่และมี manageUsers
 export function saveUser(d) {
@@ -558,13 +585,13 @@ export function createOrder(payload, asDraft = false) {
   log(o, asDraft ? 'สร้างออร์เดอร์ (ร่าง)' : 'สร้างออร์เดอร์ → รอชำระ')
   db.orders.unshift(o)
   if (o.fulfillment === 'delivery') rememberPlaceOf(o.customerId, o)
-  if (!asDraft) notifyOrder('order_created', o)
+  if (!asDraft) notifyOrder('order_created', o, { skip: payload.notify === false })
   return o
 }
 
 // ลำดับจัดส่ง (เฉพาะ fulfillment = delivery): เตรียมแล้ว → พร้อมจัดส่ง → กำลังจัดส่ง → ส่งมอบแล้ว · ข้ามขั้นไม่ได้ · รับที่ร้านไม่มีสองขั้นกลาง
 const SHIP_FROM = { ready_to_ship: 'prepared', shipping: 'ready_to_ship', delivered: 'shipping' }
-export function setStatus(order, status, text) {
+export function setStatus(order, status, text, opts = {}) {
   // ส่งมอบไม่ได้ถ้ายังชำระไม่ครบ
   if (status === 'delivered' && orderTotals(order).balance > 0) return
   const isShip = order.fulfillment === 'delivery'
@@ -575,12 +602,13 @@ export function setStatus(order, status, text) {
   log(order, text)
   if (status === 'delivered') order.deliveredAt = now()
   if (status === 'delivered') awardOrder(order)
-  if (status === 'delivered') notifyOrder('delivered', order)
-  if (status === 'prepared') notifyOrder('prepared', order)
-  if (status === 'shipping') notifyOrder('shipping', order)
-  if (status === 'cancelled') notifyOrder('cancelled', order)
+  const skip = opts.notify === false
+  if (status === 'delivered') notifyOrder('delivered', order, { skip })
+  if (status === 'prepared') notifyOrder('prepared', order, { skip })
+  if (status === 'shipping') notifyOrder('shipping', order, { skip })
+  if (status === 'cancelled') notifyOrder('cancelled', order, { skip })
   // ร่าง → ส่งไปรอชำระ = เริ่มเป็นออร์เดอร์จริง
-  if (prev === 'draft' && status === 'awaiting_payment') notifyOrder('order_created', order)
+  if (prev === 'draft' && status === 'awaiting_payment') notifyOrder('order_created', order, { skip })
 }
 
 // แจ้งยอดชำระ = ส่งยอดไปให้ลูกค้า (ยังไม่ใช่ยอดที่จ่ายจริง) ยอดจริงใส่ตอนแอดมินยืนยัน
@@ -603,7 +631,7 @@ export function reportPayment(order, p) {
   })
   const due = order.payments[order.payments.length - 1].dueAt
   log(order, `แจ้งยอดชำระ ${money(Number(p.amount))} (${p.method}) ชำระก่อน ${dueText(due)}`)
-  notifyOrder('payment_requested', order, { requested: Number(p.amount), dueAt: due })
+  notifyOrder('payment_requested', order, { requested: Number(p.amount), dueAt: due, skip: p.notify === false })
   if (order.status === 'awaiting_payment') order.status = 'payment_reported'
 }
 
@@ -648,7 +676,7 @@ export function confirmPayment(order, paymentId, data = null) {
   p.confirmedAt = now()
   log(order, `ยืนยันชำระ ${money(p.amount)}${p.amount !== p.requested ? ` (แจ้ง ${money(p.requested)})` : ''}`)
   if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
-  notifyOrder('payment_confirmed', order)
+  notifyOrder('payment_confirmed', order, { skip: data?.notify === false })
 }
 
 // รับชำระทันที: ลูกค้าจ่ายแล้วที่หน้างาน ไม่ต้องแจ้งยอด/กำหนดชำระ → สร้างงวดที่ยืนยันแล้วเลย (สิทธิ์ confirmPayment) · คืน { ok } | { error }
@@ -664,7 +692,7 @@ export function receivePaymentNow(order, p) {
   })
   log(order, `รับชำระทันที ${money(amount)} (${p.method})`)
   if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
-  notifyOrder('payment_confirmed', order)
+  notifyOrder('payment_confirmed', order, { skip: p.notify === false })
   return { ok: true }
 }
 
@@ -678,12 +706,12 @@ export function requestConfirmUnpaid(order, note = '') {
   notify('team_approval_request', { vars: orderVars(order), orderId: order.id })
   return true
 }
-export function confirmUnpaid(order) {
+export function confirmUnpaid(order, opts = {}) {
   if (!can('confirmUnpaid') || !canConfirmUnpaid(order)) return false
   const pending = order.approval?.status === 'pending'
   order.approval = { ...(order.approval || {}), status: 'approved', decidedBy: session.role, decidedAt: now() }
   setStatus(order, 'order_confirmed', pending ? 'อนุมัติ · ยืนยันการสั่งซื้อ (ยังไม่ชำระ)' : 'ยืนยันการสั่งซื้อ (ยังไม่ชำระ)')
-  notifyOrder('order_confirmed', order)
+  notifyOrder('order_confirmed', order, { skip: opts.notify === false })
   return true
 }
 export function rejectConfirmUnpaid(order, note = '') {
@@ -804,6 +832,9 @@ export function cancelOrder(order, c) {
   const cu = findCustomer(order.customerId)
   const err = refundErrors(refunds, { paid, canPoints: !!cu && !cu.deleted, pointValue: db.loyalty.pointValue })
   if (err) return { error: err }
+  const prevSt = order.status
+  // ย้อนการยกเลิกได้เฉพาะ: ไม่มีเงินคืนจริง · ไม่เคยใช้คะแนน/คูปอง · ไม่ได้ยกเลิกจากสถานะส่งมอบแล้ว (undoLoyalty ถอนคะแนน/คูปองไปแล้ว)
+  const restorable = !refunds.length && !order.pointsUsed && !order.couponsUsed.length && !order.loyalty && prevSt !== 'delivered'
   undoLoyalty(order)
   for (const x of refunds) {
     if (x.method !== 'points') continue
@@ -812,11 +843,69 @@ export function cancelOrder(order, c) {
   }
   const refundAmount = round2(refunds.reduce((n, x) => n + x.amount, 0))
   const summary = refunds.map((x) => `${REFUND_METHODS[x.method]} ${money(x.amount)}${x.method === 'points' ? ` (${x.points} คะแนน)` : ''}`).join(' + ')
-  order.cancel = { reason: c.reason, refunds, refundAmount, refundMethod: refunds.map((x) => REFUND_METHODS[x.method]).join(' + '), refundNote: c.refundNote || '', at: now() }
-  setStatus(order, 'cancelled', `ยกเลิก: ${c.reason}${refundAmount ? ` / คืนเงิน ${summary}` : ''}`)
+  order.cancel = { reason: c.reason, refunds, refundAmount, refundMethod: refunds.map((x) => REFUND_METHODS[x.method]).join(' + '), refundNote: c.refundNote || '', at: now(), prevStatus: prevSt, restorable }
+  setStatus(order, 'cancelled', `ยกเลิก: ${c.reason}${refundAmount ? ` / คืนเงิน ${summary}` : ''}`, { notify: c.notify })
   for (const h of cancelHooks) h(order)
   return { ok: true }
 }
+
+// ---------- ย้อนสถานะทีละขั้น (สิทธิ์ revertStatus) ----------
+// คืน { ok, from, to } | { error } · ต้องมีเหตุผล · ไม่ทำกับบิล POS (ใช้ยกเลิกบิล) · ไม่แจ้งลูกค้า (opts.notify === true จึงแจ้งสถานะใหม่ในกรณีที่มีข้อความ)
+const dayOf = (iso) => String(iso || '').slice(0, 10)
+function revertBlock(order, from) {
+  const A = db.acct
+  const closed = A?.closedThrough || ''
+  const hasInv = (A?.taxInvoices || []).some((i) => i.orderId === order.id && i.type === 'invoice' && !i.voidedBy)
+  let date = ''
+  if (from === 'delivered') date = dayOf(order.deliveredAt)
+  else if (from === 'payment_confirmed') date = dayOf([...order.payments].reverse().find((p) => p.status === 'confirmed')?.confirmedAt)
+  else if (from === 'cancelled') date = dayOf(order.cancel?.at)
+  else return ''
+  if (date && closed && date <= closed) return `รายการบัญชีของขั้นนี้ (${date}) อยู่ในงวดที่ปิดแล้ว ย้อนไม่ได้`
+  if (date && A?.vatFilings?.[date.slice(0, 7)]?.filedAt && order.vat) return `เดือนภาษี ${date.slice(0, 7)} ยื่น ภ.พ.30 แล้ว ย้อนไม่ได้`
+  if (hasInv) return 'ออกใบกำกับภาษีไว้แล้ว ยกเลิกใบ (ออกใบลดหนี้) ก่อนจึงย้อนสถานะได้'
+  return ''
+}
+export function revertStatus(order, reason, opts = {}) {
+  if (!can('revertStatus')) return { error: 'ไม่มีสิทธิ์ย้อนสถานะ' }
+  if (!order) return { error: 'ไม่พบออร์เดอร์' }
+  if (order.channel === 'pos') return { error: 'บิลหน้าร้าน (POS) ย้อนสถานะไม่ได้ ใช้ยกเลิกบิลแทน' }
+  if (!String(reason ?? '').trim()) return { error: 'ระบุเหตุผลที่ย้อนสถานะ' }
+  const from = order.status
+  const to = prevStatus(order)
+  if (!to) return { error: from === 'cancelled' ? 'ออร์เดอร์ที่ยกเลิกนี้ย้อนไม่ได้ (มีการคืนเงิน/ใช้คะแนน-คูปอง/ยกเลิกหลังส่งมอบ หรือยกเลิกก่อนมีฟีเจอร์นี้)' : 'ไม่มีขั้นก่อนหน้า' }
+  const block = revertBlock(order, from)
+  if (block) return { error: block }
+  const why = String(reason).trim().slice(0, 200)
+  if (from === 'cancelled') {
+    order.cancel = null
+    order.status = to
+  } else if (from === 'payment_confirmed') {
+    const last = [...order.payments].reverse().find((p) => p.status === 'confirmed')
+    if (!last) return { error: 'ไม่พบยอดที่ยืนยัน' }
+    Object.assign(last, { status: 'cancelled', cancelledAt: now(), cancelledBy: session.role })
+    if (!order.payments.some((x) => x.status === 'confirmed')) order.status = to
+  } else if (from === 'payment_reported') {
+    for (const p of order.payments) if (p.status === 'reported') p.status = 'cancelled'
+    order.status = to
+  } else if (from === 'awaiting_payment') {
+    if (order.payments.some((p) => p.status !== 'cancelled')) return { error: 'มียอดชำระ/ยอดที่แจ้งอยู่ ยกเลิกยอดก่อน' }
+    order.status = to
+  } else if (from === 'order_confirmed') {
+    if (order.approval) order.approval = { ...order.approval, status: 'revoked' }
+    order.status = to
+  } else {
+    order.status = to
+    if (from === 'delivered') {
+      order.deliveredAt = null
+      undoAward(order)
+    }
+  }
+  log(order, `ย้อนสถานะ ${STATUS[from]?.label || from} → ${STATUS[order.status]?.label || order.status} · เหตุผล: ${why}`)
+  if (opts.notify === true && order.status === 'prepared') notifyOrder('prepared', order)
+  return { ok: true, from, to: order.status }
+}
+export const canRevert = (order) => can('revertStatus') && order?.channel !== 'pos' && !!prevStatus(order)
 
 // จำนวนออร์เดอร์ (ไม่นับยกเลิก) ในวันเดียวกัน และในชั่วโมงเดียวกัน
 export function countPickups(pickupAt, excludeId) {
@@ -1105,6 +1194,10 @@ function awardOrder(order) {
 function undoLoyalty(order) {
   if (order.pointsUsed) removePoints(order)
   for (const u of [...order.couponsUsed]) removeCoupon(order, u.couponId)
+  undoAward(order)
+}
+// ถอนคะแนน/สิทธิ์หมุนที่ให้ตอนส่งมอบ (ไม่แตะส่วนลดที่ใช้)
+function undoAward(order) {
   const c = findCustomer(order.customerId)
   if (c && order.loyalty) {
     const lot = c.ledger.find((x) => x.id === order.loyalty.lotId)
@@ -1405,6 +1498,33 @@ export function spinGacha(c, usePoints) {
   return prize
 }
 
+// ของรางวัลที่ลูกค้าแลก/ได้จากกาชาไว้แล้วและยังรอรับ (ไม่หมดอายุ)
+export const pendingRewards = (c) => customerCoupons(c).filter((x) => x.type === 'reward' && couponUsable(x, today()))
+// ของรางวัลที่แลกด้วยคะแนนได้ (ไม่รวมคูปองส่วนลด)
+export const itemRewards = () => db.rewards.filter((r) => r.active !== false && r.kind !== 'coupon')
+// POS: มอบของรางวัลที่รอรับ (ต้องเป็นของลูกค้าคนนั้น) · POS: แลกด้วยคะแนนแล้วมอบเลย
+export function posHandOver(customerId, couponId) {
+  if (!can('useLoyalty')) return { error: 'ไม่มีสิทธิ์' }
+  const c = findCustomer(customerId)
+  const cp = db.coupons.find((x) => x.id === couponId)
+  if (!c || !cp || cp.customerId !== c.id || cp.type !== 'reward') return { error: 'ไม่พบของรางวัล' }
+  if (!couponUsable(cp, today())) return { error: cp.status === 'delivered' ? 'มอบไปแล้ว' : 'หมดอายุแล้ว' }
+  markCouponDelivered(cp)
+  return { ok: true, coupon: cp }
+}
+export function posRedeemAndHandOver(customerId, rewardId) {
+  if (!can('useLoyalty')) return { error: 'ไม่มีสิทธิ์' }
+  const c = findCustomer(customerId)
+  if (!c || c.deleted || c.active === false) return { error: 'ไม่พบลูกค้า' }
+  const rw = db.rewards.find((x) => x.id === rewardId && x.active !== false && x.kind !== 'coupon')
+  if (!rw) return { error: 'ไม่พบของรางวัล' }
+  if (customerPoints(c) < rw.points) return { error: `คะแนนไม่พอ (ต้องใช้ ${rw.points} มี ${customerPoints(c)})` }
+  const cp = redeemReward(c, rw.id)
+  if (!cp) return { error: 'แลกไม่สำเร็จ' }
+  markCouponDelivered(cp)
+  return { ok: true, coupon: cp }
+}
+
 // หลังบ้าน: มอบของรางวัลแล้ว
 export function markCouponDelivered(cp) {
   Object.assign(cp, { status: 'delivered', deliveredAt: now(), deliveredBy: session.role })
@@ -1515,6 +1635,13 @@ export function notify(event, { customer = null, vars = {}, orderId = null } = {
 export function notifyOrder(event, order, extra = {}) {
   if (order.channel === 'pos') return // บิลหน้าร้านไม่แจ้งเตือน
   const vars = orderVars(order, extra)
+  // พนักงานติ๊ก "ไม่แจ้งลูกค้า": ไม่ส่งหาลูกค้า (ทีมยังได้รับตามปกติ) · บันทึกไว้ในคิวว่าถูกข้าม เพื่อไล่ตรวจย้อนหลังได้
+  if (extra.skip) {
+    const r0 = db.notifyRules.find((x) => x.event === event)
+    if (r0?.enabled && NOTIFY_EVENTS[event]?.audience === 'customer') db.outbox.unshift({ id: uid('msg'), at: now(), event, channel: null, to: findCustomer(order.customerId)?.name || '-', text: '(พนักงานเลือกไม่แจ้งลูกค้า)', orderId: order.id, status: 'skipped' })
+    if (TEAM_OF[event]) notify(TEAM_OF[event], { vars, orderId: order.id })
+    return
+  }
   const rule = db.notifyRules.find((x) => x.event === event)
   if (rule?.enabled && rule.template.includes('{ลิงก์ออร์เดอร์}')) vars.ลิงก์ออร์เดอร์ = createOrderLink(order, { system: true }).url || ''
   const customer = findCustomer(order.customerId)

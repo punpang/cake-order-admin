@@ -16,12 +16,12 @@ const emit = defineEmits(['refresh', 'review'])
 const o = computed(() => props.order)
 
 // ---------- แถบขั้นตอน ----------
-const SHIP = o.value.fulfillment === 'delivery'
-const STEPS = SHIP ? ['รอชำระ', 'ยืนยันแล้ว', 'กำลังเตรียม', 'เตรียมแล้ว', 'พร้อมจัดส่ง', 'กำลังจัดส่ง', 'ส่งมอบแล้ว'] : ['รอชำระ', 'ยืนยันแล้ว', 'กำลังเตรียม', 'พร้อมรับ', 'ส่งมอบแล้ว']
-const STEP_OF = SHIP
+const SHIP = computed(() => o.value.fulfillment === 'delivery')
+const STEPS = computed(() => SHIP.value ? ['รอชำระ', 'ยืนยันแล้ว', 'กำลังเตรียม', 'เตรียมแล้ว', 'พร้อมจัดส่ง', 'กำลังจัดส่ง', 'ส่งมอบแล้ว'] : ['รอชำระ', 'ยืนยันแล้ว', 'กำลังเตรียม', 'พร้อมรับ', 'ส่งมอบแล้ว'])
+const STEP_OF = computed(() => SHIP.value
   ? { draft: 0, awaiting_payment: 0, payment_reported: 0, payment_confirmed: 1, order_confirmed: 1, preparing: 2, prepared: 3, ready_to_ship: 4, shipping: 5, delivered: 6 }
-  : { draft: 0, awaiting_payment: 0, payment_reported: 0, payment_confirmed: 1, order_confirmed: 1, preparing: 2, prepared: 3, delivered: 4 }
-const step = computed(() => STEP_OF[o.value.status] ?? 0)
+  : { draft: 0, awaiting_payment: 0, payment_reported: 0, payment_confirmed: 1, order_confirmed: 1, preparing: 2, prepared: 3, delivered: 4 })
+const step = computed(() => STEP_OF.value[o.value.status] ?? 0)
 const cancelled = computed(() => o.value.status === 'cancelled')
 
 // ---------- ชำระเงิน ----------

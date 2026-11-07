@@ -20,6 +20,20 @@ export function readyMenu(db, now = new Date()) {
     })
 }
 
+// สินค้าหน้าร้านจัดกลุ่มตามหมวด (หมวดว่าง = "อื่น ๆ" อยู่ท้ายสุด) · ในหมวดปักหมุดก่อน · เงื่อนไขการแสดงเหมือน readyMenu (เปิดใช้งาน + แสดงที่หน้าร้าน)
+// แต่ละรายการเพิ่ม: stock, stockState ('out' | 'low' | ''), options = ชื่อกลุ่มตัวเลือกเสริมที่ผูกกับสินค้า (เหมือน POS)
+export function readyByCategory(db, now = new Date()) {
+  const mods = db.posModifiers || []
+  const rows = readyMenu(db, now).map((r) => {
+    const st = r.product.stock
+    return { ...r, stock: st, stockState: st == null ? '' : st <= 0 ? 'out' : st <= 5 ? 'low' : '', options: (r.product.modifierIds || []).map((id) => mods.find((m) => m.id === id)).filter((m) => m && m.active !== false).map((m) => ({ name: m.name, choices: (m.options || []).map((o) => o.name) })) }
+  })
+  const order = []
+  for (const r of rows) { const c = r.product.category || ''; if (!order.includes(c)) order.push(c) }
+  order.sort((a, b) => (a === '' ? 1 : b === '' ? -1 : 0))
+  return order.map((c) => ({ category: c || 'อื่น ๆ', key: c, items: rows.filter((r) => (r.product.category || '') === c).sort((a, b) => (b.product.pinned ? 1 : 0) - (a.product.pinned ? 1 : 0)) }))
+}
+
 // เนื้อเค้ก/ขนาดที่ประเภทนั้นมีให้เลือก (ตาม allow)
 export function typeChoices(db, type) {
   const flavor = groupOf(db, 'flavor')

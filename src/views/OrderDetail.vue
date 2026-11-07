@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import {
-  can, findOrder, findCustomer, setStatus, reportPayment, confirmPayment, receivePaymentNow, setAdjustment, cancelOrder, countPickups,
+  can, findOrder, findCustomer, setStatus, reportPayment, confirmPayment, receivePaymentNow, revertStatus, setAdjustment, cancelOrder, countPickups,
   updatePaymentRequest, cancelPaymentRequest, cancelConfirmedPayment,
   requestConfirmUnpaid, confirmUnpaid, rejectConfirmUnpaid, grantPayExtension, denyPayExtension,
   saveOrderItem, removeOrderItem, orderDate,
@@ -11,7 +11,9 @@ import {
 import { orderTotals, shipNetOf } from '../lib/pricing'
 import { QUICK_DUE, quickDue, dueState, remainingText, dueBeforePickup, dueDaysBefore, isHHmm, customerPending } from '../lib/payDue'
 import { CHANNELS, NOTIFY_EVENTS } from '../lib/constants'
-import { askConfirm } from '../lib/confirm'
+import { askConfirm, askConfirmEx } from '../lib/confirm'
+import { prevStatus } from '../lib/orderFlow'
+import { STATUS } from '../lib/constants'
 import { orderCost } from '../lib/materials'
 import { money, dateTime, toDateStr, pad, num, formatPhone, phoneDigits } from '../lib/format'
 import { PAYMENT_METHODS, ROLES } from '../lib/constants'
@@ -74,7 +76,8 @@ const primaryAction = computed(() => {
 
 const hasActions = computed(() => {
   const s = order.value.status
-  return (can('cancel') && !closed.value)
+  return canRevertUi.value
+    || (can('cancel') && !closed.value)
     || (s === 'draft' && can('sendToPayment'))
     || (startable(s) && can('startPreparing'))
     || (s === 'preparing' && can('markPrepared'))
@@ -94,7 +97,7 @@ const nowLocal = () => {
 const payOpen = ref(false)
 const payMode = ref('new') // new | edit | confirm | direct (รับชำระทันที ไม่ต้องแจ้งยอด)
 const payTarget = ref(null)
-const pay = reactive({ amount: 0, method: PAYMENT_METHODS[0], paidAt: '', slip: '', note: '', dueAt: '' })
+const pay = reactive({ amount: 0, method: PAYMENT_METHODS[0], paidAt: '', slip: '', note: '', dueAt: '', notify: true })
 const payError = ref('')
 // กำหนดชำระตามเวลานัด: ก่อนนัด N ชม. / ล่วงหน้า N วัน ก่อน HH:mm (ผ่านไปแล้ว = ปิดปุ่ม + เหตุผล)
 const HOURS_BEFORE = [1, 3, 6, 12, 24]
@@ -124,6 +127,7 @@ function openPay(mode = 'new', p = null) {
   dueHours.value = db.shop.payDueRule.hoursBefore
   dueDays.value = db.shop.payDueRule.daysBefore
   dueTime.value = db.shop.payDueRule.atTime
+  pay.notify = true
   payError.value = ''
   payOpen.value = true
 }
@@ -211,10 +215,14 @@ function saveAdj() {
 // ---------- popup ยืนยัน ----------
 async function doStatus(status, text, title) {
   if (status === 'delivered' && t.value.balance > 0) return
-  if (await askConfirm({ title, message: `ออร์เดอร์ ${order.value.code}`, okText: title })) setStatus(order.value, status, text)
+  // สถานะที่มีข้อความถึงลูกค้า: มีช่องติ๊ก "แจ้งลูกค้า" (ค่าเริ่มต้นติ๊ก)
+  const tells = ['awaiting_payment', 'prepared', 'shipping', 'delivered'].includes(status) && order.value.channel !== 'pos' && !!customer.value
+  const r = await askConfirmEx({ title, message: `ออร์เดอร์ ${order.value.code}`, okText: title, ...(tells ? { checkbox: { label: 'แจ้งลูกค้า', hint: 'ไม่ติ๊ก = ไม่ส่งข้อความถึงลูกค้า (ทีมยังได้รับตามปกติ)', value: true } } : {}) })
+  if (r.ok) setStatus(order.value, status, text, { notify: tells ? r.checked : true })
 }
 async function doConfirmUnpaid() {
-  if (await askConfirm({ title: 'ยืนยันการสั่งซื้อ (ยังไม่ชำระ)', message: `ออร์เดอร์ ${order.value.code} · คงค้าง ${money(t.value.balance)} ชำระได้ภายหลัง`, okText: 'ยืนยัน' })) confirmUnpaid(order.value)
+  const r = await askConfirmEx({ title: 'ยืนยันการสั่งซื้อ (ยังไม่ชำระ)', message: `ออร์เดอร์ ${order.value.code} · คงค้าง ${money(t.value.balance)} ชำระได้ภายหลัง`, okText: 'ยืนยัน', checkbox: { label: 'แจ้งลูกค้า', value: true } })
+  if (r.ok) confirmUnpaid(order.value, { notify: r.checked })
 }
 async function doRequestUnpaid() {
   if (await askConfirm({ title: 'ขออนุมัติยืนยันการสั่งซื้อ', message: 'ส่งคำขอให้แอดมินอนุมัติ (ยังไม่ชำระ)', okText: 'ส่งคำขอ' })) requestConfirmUnpaid(order.value)
@@ -287,22 +295,32 @@ async function savePoints() {
 
 // ---------- ยกเลิก ----------
 const cancelOpen = ref(false)
-const cxl = reactive({ reason: '', refunds: [], refundNote: '' })
+const cxl = reactive({ reason: '', refunds: [], refundNote: '', notify: true })
 const cxlError = ref('')
 const buyerOpen = ref(false)
 const linkOpen = ref(false)
 const taxOpen = ref(false)
+// ย้อนสถานะทีละขั้น
+const rv = reactive({ open: false, reason: '', error: '' })
+const revTo = computed(() => prevStatus(order.value))
+const canRevertUi = computed(() => can('revertStatus') && order.value.channel !== 'pos' && !!revTo.value)
+function openRevert() { Object.assign(rv, { open: true, reason: '', error: '' }) }
+function saveRevert() {
+  const r = revertStatus(order.value, rv.reason)
+  if (r.error) return (rv.error = r.error)
+  rv.open = false
+}
 function openCancel() {
   // คืนเต็มจำนวนตามช่องทางที่ลูกค้าจ่ายล่าสุดเป็นค่าตั้งต้น (เปลี่ยน/แบ่งช่องทางได้: เงินสด / ธนาคาร / คะแนนสะสม)
   const last = order.value.payments.filter((p) => p.status === 'confirmed').at(-1)
-  Object.assign(cxl, { reason: '', refunds: t.value.paid > 0 ? [{ method: defaultRefundMethod(last?.method), amount: t.value.paid }] : [], refundNote: '' })
+  Object.assign(cxl, { reason: '', refunds: t.value.paid > 0 ? [{ method: defaultRefundMethod(last?.method), amount: t.value.paid }] : [], refundNote: '', notify: true })
   cxlError.value = ''
   cancelOpen.value = true
 }
 async function saveCancel() {
   if (!cxl.reason.trim()) return (cxlError.value = 'ใส่เหตุผลการยกเลิก')
   if (!(await askConfirm({ title: 'ยกเลิกออร์เดอร์', message: `ออร์เดอร์ ${order.value.code}\nเหตุผล: ${cxl.reason}`, okText: 'ยกเลิกออร์เดอร์', danger: true }))) return
-  const r = cancelOrder(order.value, { reason: cxl.reason, refunds: cxl.refunds.map((x) => ({ method: x.method, amount: Number(x.amount) })), refundNote: cxl.refundNote })
+  const r = cancelOrder(order.value, { reason: cxl.reason, refunds: cxl.refunds.map((x) => ({ method: x.method, amount: Number(x.amount) })), refundNote: cxl.refundNote, notify: cxl.notify })
   if (r.error) return (cxlError.value = r.error)
   cancelOpen.value = false
 }
@@ -602,6 +620,7 @@ async function saveCancel() {
         <AppIcon name="alert" :size="16" /> ยังค้างชำระ {{ money(t.balance) }} ส่งมอบไม่ได้
       </p>
       <div class="mx-auto flex max-w-5xl gap-2">
+        <button v-if="canRevertUi" class="btn-outline px-3 sm:px-4" aria-label="ย้อนสถานะ" @click="openRevert"><AppIcon name="back" :size="16" /> <span class="hidden sm:inline">ย้อนสถานะ</span></button>
         <button v-if="can('cancel') && !closed" class="btn-danger px-3 sm:px-4" @click="openCancel">
           <AppIcon name="x" :size="16" /> <span :class="primaryAction ? 'hidden sm:inline' : ''">ยกเลิกออร์เดอร์</span>
         </button>
@@ -648,6 +667,25 @@ async function saveCancel() {
         ><AppIcon name="check" :size="18" /> ส่งมอบแล้ว</button>
       </div>
     </div>
+
+    <AppModal v-if="rv.open" title="ย้อนสถานะ" @close="rv.open = false">
+      <div class="space-y-3 text-sm">
+        <p class="rounded-xl bg-amber-50 p-3 text-amber-800">จะย้อนจาก <b>{{ STATUS[order.status]?.label }}</b> → <b>{{ STATUS[revTo]?.label }}</b></p>
+        <ul class="list-disc space-y-1 pl-5 text-xs text-stone-600">
+          <li v-if="order.status === 'delivered'">ถอนคะแนน/สิทธิ์หมุนที่ให้ตอนส่งมอบ และกลับรายการรับรู้รายได้ในบัญชี</li>
+          <li v-if="order.status === 'payment_confirmed'">ยกเลิกยอดที่ยืนยันล่าสุด</li>
+          <li v-if="order.status === 'payment_reported'">ยกเลิกยอดที่แจ้งลูกค้าไว้</li>
+          <li v-if="order.status === 'cancelled'">ยกเลิกการยกเลิก (เฉพาะที่ไม่มีเงินคืน/ไม่ใช้คะแนน-คูปอง)</li>
+          <li>ไม่ส่งข้อความถึงลูกค้า · บันทึกประวัติพร้อมเหตุผล</li>
+        </ul>
+        <div><label class="label">เหตุผล <span class="text-rose-500">*</span></label><input v-model="rv.reason" class="input" maxlength="200" aria-label="เหตุผลย้อนสถานะ" /></div>
+        <p v-if="rv.error" class="text-rose-600" role="alert">{{ rv.error }}</p>
+      </div>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="rv.open = false">ไม่ย้อน</button>
+        <button class="btn-primary flex-1 sm:flex-none" @click="saveRevert">ย้อนสถานะ</button>
+      </template>
+    </AppModal>
 
     <!-- modal ใช้คะแนน -->
     <AppModal v-if="ptOpen" title="ใช้คะแนนเป็นส่วนลด" @close="ptOpen = false">
@@ -705,6 +743,7 @@ async function saveCancel() {
             <button v-for="m in PAYMENT_METHODS" :key="m" type="button" class="chip" :class="pay.method === m ? 'chip-on' : 'chip-off'" @click="pay.method = m">{{ m }}</button>
           </div>
         </div>
+        <label v-if="customer && order.channel !== 'pos' && payMode !== 'edit'" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="pay.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> {{ payMode === 'new' ? 'แจ้งยอดชำระให้ลูกค้าทราบ' : 'แจ้งลูกค้าว่าได้รับชำระแล้ว' }}</label>
         <div v-if="payMode === 'new' || payMode === 'edit'">
           <div class="label">ต้องชำระก่อน</div>
           <div class="mb-2 flex flex-wrap gap-2">
@@ -786,6 +825,7 @@ async function saveCancel() {
           <RefundEditor v-model="cxl.refunds" :paid="t.paid" :can-points="!!customer && !customer.deleted" :default-method="defaultRefundMethod(order.payments.filter((p) => p.status === 'confirmed').at(-1)?.method)" />
         </div>
         <div><label class="label">หมายเหตุการคืนเงิน</label><input v-model="cxl.refundNote" class="input" /></div>
+        <label v-if="customer && order.channel !== 'pos'" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="cxl.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่ายกเลิก" /> แจ้งลูกค้าว่ายกเลิกออร์เดอร์</label>
         <p v-if="cxlError" class="text-sm text-rose-600">{{ cxlError }}</p>
       </div>
       <template #footer>

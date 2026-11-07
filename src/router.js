@@ -37,6 +37,7 @@ import Accounting from './views/accounting/Accounting.vue'
 import LegalPage from './views/store/LegalPage.vue'
 import ManageLegal from './views/manage/ManageLegal.vue'
 import ManageLinks from './views/manage/ManageLinks.vue'
+import ManageGallery from './views/manage/ManageGallery.vue'
 import ManageBot from './views/manage/ManageBot.vue'
 import OrderLink from './views/store/OrderLink.vue'
 import ShortRedirect from './views/store/ShortRedirect.vue'
@@ -48,6 +49,7 @@ const router = createRouter({
     // ---------- หน้าร้าน (ทุกคนดูได้ ไม่ต้องล็อกอิน) ----------
     { path: '/', component: StoreHome, meta: { store: true } },
     { path: '/menu', component: StoreMenu, meta: { store: true } },
+    { path: '/menu/custom', component: StoreItem, props: { kind: 'custom', id: '' }, meta: { store: true } },
     { path: '/menu/:kind/:id', component: StoreItem, props: true, meta: { store: true } },
     // ---------- ระบบลูกค้า (จำลอง จนกว่าจะต่อ Supabase) ----------
     { path: '/account/login', component: AccountLogin, meta: { store: true } },
@@ -88,6 +90,7 @@ const router = createRouter({
     { path: '/admin/manage/integrations', component: ManageIntegrations },
     { path: '/admin/manage/retail', component: ManageRetail },
     { path: '/admin/manage/storefront', component: ManageStorefront },
+    { path: '/admin/manage/gallery', component: ManageGallery },
     { path: '/admin/manage/deletion-requests', component: ManageDeletionRequests },
     { path: '/admin/manage/legal', component: ManageLegal },
     { path: '/admin/manage/links', component: ManageLinks },

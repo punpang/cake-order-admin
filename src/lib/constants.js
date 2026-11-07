@@ -26,6 +26,7 @@ export const PERMISSIONS = {
   reportPayment: ['admin', 'sales'],
   confirmPayment: ['admin'],
   cancelConfirmedPayment: ['admin'], // ยกเลิกยอดที่ยืนยันแล้ว
+  revertStatus: ['admin'], // ย้อนสถานะออร์เดอร์ทีละขั้น (ต้องใส่เหตุผล)
   adjustPrice: ['admin'],
   cancel: ['admin'],
   startPreparing: ['admin', 'baker'],
@@ -78,6 +79,7 @@ export const PERM_GROUPS = [
     { key: 'reportPayment', label: 'แจ้งยอด / แก้ / ยกเลิกยอดที่แจ้ง / ขยายเวลาชำระ' },
     { key: 'confirmPayment', label: 'ยืนยันยอดชำระ' },
     { key: 'cancelConfirmedPayment', label: 'ยกเลิกยอดที่ยืนยันแล้ว' },
+    { key: 'revertStatus', label: 'ย้อนสถานะออร์เดอร์ทีละขั้น' },
     { key: 'requestConfirmUnpaid', label: 'ขออนุมัติยืนยันสั่งซื้อ (ยังไม่ชำระ)' },
     { key: 'confirmUnpaid', label: 'อนุมัติ/ยืนยันสั่งซื้อแบบยังไม่ชำระ' },
   ] },

@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import {
   db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posItems, posSale, voidPosSale, pointsFor, quickMember, vatNow,
-  customerPoints, usableDiscountCoupons, findCustomer, modsOf, modsText, lineKey,
+  customerPoints, usableDiscountCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, itemRewards, posHandOver, posRedeemAndHandOver,
 } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { pointPromoFor } from '../lib/posPromo'
@@ -137,6 +137,33 @@ const memberMatches = computed(() => {
   const d = phoneDigits(s)
   return db.customers.filter((c) => c.active !== false && (c.name.toLowerCase().includes(s) || (d.length >= 3 && c.phone?.includes(d)))).slice(0, 5)
 })
+// ---------- แลกของรางวัล (ต้องค้นหาลูกค้าก่อนจึงแสดงรายการ) ----------
+const rd = reactive({ open: false, q: '', cust: null, msg: '', err: '' })
+const rdMatches = computed(() => {
+  const s = rd.q.trim().toLowerCase()
+  if (s.length < 2) return []
+  const d = phoneDigits(s)
+  return db.customers.filter((c) => c.active !== false && !c.deleted && (c.name.toLowerCase().includes(s) || (d.length >= 3 && c.phone?.includes(d)))).slice(0, 6)
+})
+const rdPending = computed(() => (rd.cust ? pendingRewards(rd.cust) : []))
+const rdCatalog = computed(() => (rd.cust ? itemRewards() : []))
+const rdPoints = computed(() => (rd.cust ? customerPoints(rd.cust) : 0))
+function openRedeem() { Object.assign(rd, { open: true, q: '', cust: null, msg: '', err: '' }) }
+function rdPick(c) { Object.assign(rd, { cust: c, q: '', msg: '', err: '' }) }
+async function rdHand(cp) {
+  rd.msg = rd.err = ''
+  if (!(await askConfirm({ title: 'มอบของรางวัล', message: `${cp.name} ให้ ${rd.cust.name}`, okText: 'มอบแล้ว' }))) return
+  const r = posHandOver(rd.cust.id, cp.id)
+  if (r.error) rd.err = r.error
+  else rd.msg = `มอบ ${cp.name} แล้ว`
+}
+async function rdRedeem(rw) {
+  rd.msg = rd.err = ''
+  if (!(await askConfirm({ title: 'แลกและมอบทันที', message: `${rw.name} · ตัด ${rw.points} คะแนนของ ${rd.cust.name}`, okText: 'แลกและมอบ' }))) return
+  const r = posRedeemAndHandOver(rd.cust.id, rw.id)
+  if (r.error) rd.err = r.error
+  else rd.msg = `แลก ${rw.name} แล้ว (ตัด ${rw.points} คะแนน) มอบของได้เลย`
+}
 const couponIds = ref([])
 const discount = ref('')
 function pickMember(c) {
@@ -254,7 +281,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <RouterLink to="/admin/orders" class="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 md:hidden" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
       <h1 class="text-xl font-semibold text-stone-900">POS หน้าร้าน</h1>
       <span v-if="shift" class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">กะเปิด {{ timeOnly(shift.openedAt) }} · {{ ROLES[shift.openedBy] }}</span>
-      <div v-if="shift" class="ml-auto grid grid-cols-3 gap-1 rounded-xl bg-stone-100 p-1">
+      <button v-if="shift && can('useLoyalty')" type="button" class="btn-soft ml-auto h-9 px-3 text-sm" aria-label="แลกของรางวัล" @click="openRedeem"><AppIcon name="star" :size="15" /> แลกของรางวัล</button>
+      <div v-if="shift" class="grid grid-cols-3 gap-1 rounded-xl bg-stone-100 p-1" :class="can('useLoyalty') ? '' : 'ml-auto'">
         <button v-for="t in [{ v: 'sell', l: 'ขาย' }, { v: 'bills', l: `บิล ${bills.length}` }, { v: 'shift', l: 'ปิดกะ' }]" :key="t.v" type="button" class="h-9 rounded-lg px-3 text-sm font-medium" :class="tab === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="tab = t.v">{{ t.l }}</button>
       </div>
     </div>
@@ -370,11 +398,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               </div>
               <p v-if="earn" class="mt-1.5 text-xs text-brand-800">บิลนี้จะได้ <b>{{ earn.points }}</b> คะแนน<template v-if="earn.bonus > 0"> (โบนัสโปร +{{ earn.bonus }})</template></p>
               <div class="mt-2">
-                <div class="text-xs text-stone-600">คูปองส่วนลด <span class="text-stone-400">(แลกคะแนนได้ที่หน้าเว็บของสมาชิก)</span></div>
-                <p v-if="!coupons.length" class="mt-0.5 text-xs text-stone-400">ไม่มีคูปองที่ใช้ได้</p>
-                <div v-else class="mt-1 flex flex-wrap gap-1.5">
-                  <button v-for="c in coupons" :key="c.id" type="button" class="chip" :class="[couponIds.includes(c.id) ? 'chip-on' : 'chip-off', couponOk(c) ? '' : 'opacity-50']" :disabled="!couponOk(c)" :title="couponOk(c) ? '' : `ขั้นต่ำ ${money(c.minSpend)}`" @click="toggleCoupon(c.id)">{{ c.name }} −{{ money(c.amount) }}<template v-if="c.minSpend"> · ขั้นต่ำ {{ money(c.minSpend) }}</template></button>
-                </div>
+                <p v-if="coupons.length" class="text-xs text-brand-800">มีคูปองส่วนลด <b>{{ coupons.length }}</b> ใบ · เลือกใช้ได้ในขั้นตอนชำระเงิน<template v-if="couponIds.length"> (เลือกแล้ว {{ couponIds.length }})</template></p>
+                <p v-else class="text-xs text-stone-400">ไม่มีคูปองที่ใช้ได้</p>
               </div>
             </div>
             <template v-else>
@@ -527,6 +552,14 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <div class="text-sm text-brand-800">ยอดชำระ</div>
           <div class="text-3xl font-semibold text-brand-900">{{ money(total) }}</div>
         </div>
+        <div v-if="member && coupons.length" class="rounded-2xl border border-stone-200 p-3" aria-label="คูปองส่วนลดในขั้นชำระเงิน">
+          <div class="mb-1.5 text-sm font-semibold text-stone-800">คูปองของ {{ member.name }} · กดเพื่อใช้แทนเงินสด</div>
+          <div class="flex flex-wrap gap-1.5">
+            <button v-for="c in coupons" :key="c.id" type="button" class="chip h-auto max-w-full py-1.5 text-left whitespace-normal" :class="[couponIds.includes(c.id) ? 'chip-on' : 'chip-off', couponOk(c) ? '' : 'opacity-50']" :disabled="!couponOk(c)" :aria-pressed="couponIds.includes(c.id)" @click="toggleCoupon(c.id)">{{ c.name }} −{{ money(c.amount) }}<template v-if="c.minSpend"> · ขั้นต่ำ {{ money(c.minSpend) }}</template></button>
+          </div>
+          <p v-for="c in coupons.filter((x) => !couponOk(x))" :key="'n' + c.id" class="mt-1 text-xs text-amber-700">{{ c.name }}: ยอดสินค้าต้องถึง {{ money(c.minSpend) }} (ตอนนี้ {{ money(goods) }})</p>
+          <p v-if="couponIds.length" class="mt-1.5 text-xs text-emerald-700">ใช้คูปองลดแล้ว {{ money(preview.couponDiscount) }}</p>
+        </div>
         <div class="grid grid-cols-3 gap-2">
           <button v-for="(label, k) in POS_METHODS" :key="k" type="button" class="h-12 rounded-xl border text-sm font-semibold" :class="pay.method === k ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : 'border-stone-200 text-stone-600'" @click="pay.method = k">{{ label }}</button>
         </div>
@@ -560,5 +593,33 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       </template>
     </AppModal>
     <TaxInvoiceModal v-if="taxFor" :order="taxFor" @close="taxFor = null" />
+    <AppModal v-if="rd.open" title="แลกของรางวัล" @close="rd.open = false">
+      <div class="space-y-3 text-sm">
+        <div v-if="!rd.cust">
+          <label class="label">ค้นหาลูกค้า (ชื่อ / เบอร์) ก่อน จึงจะแสดงของรางวัล</label>
+          <input v-model="rd.q" type="search" class="input h-11" placeholder="พิมพ์ชื่อหรือเบอร์อย่างน้อย 2 ตัวอักษร" aria-label="ค้นหาลูกค้าเพื่อแลกของ" />
+          <div v-if="rdMatches.length" class="mt-2 space-y-1">
+            <button v-for="c in rdMatches" :key="c.id" type="button" class="flex w-full justify-between gap-2 rounded-lg border border-stone-200 px-3 py-2 text-left hover:border-brand-300" @click="rdPick(c)"><span class="truncate">{{ c.name }}</span><span class="shrink-0 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span></button>
+          </div>
+          <p v-else-if="rd.q.trim().length >= 2" class="mt-2 text-xs text-stone-400">ไม่พบลูกค้า</p>
+        </div>
+        <template v-else>
+          <div class="flex items-center justify-between rounded-xl bg-brand-50 p-3"><div class="min-w-0"><div class="truncate font-semibold text-brand-900">{{ rd.cust.name }}</div><div class="text-xs text-brand-800">{{ rd.cust.phone ? formatPhone(rd.cust.phone) : '' }} · {{ rdPoints }} คะแนน</div></div><button type="button" class="text-xs text-stone-500 underline" @click="rd.cust = null; rd.msg = ''; rd.err = ''">เปลี่ยนลูกค้า</button></div>
+          <section aria-label="ของรางวัลที่รอรับ">
+            <div class="mb-1 font-semibold text-stone-800">ของที่แลก/ได้จากกาชาไว้แล้ว (รอรับ)</div>
+            <p v-if="!rdPending.length" class="text-xs text-stone-400">ไม่มีของรอรับ</p>
+            <ul class="space-y-1.5"><li v-for="cp in rdPending" :key="cp.id" class="flex items-center justify-between gap-2 rounded-xl border border-stone-200 p-2.5"><span class="min-w-0"><span class="block truncate font-medium">{{ cp.name }}</span><span class="block text-xs text-stone-500">{{ cp.source === 'gacha' ? 'ได้จากกาชา' : 'แลกด้วยคะแนน' }}<template v-if="cp.expiresAt"> · หมดอายุ {{ cp.expiresAt }}</template></span></span><button type="button" class="btn-primary h-9 shrink-0 px-3" @click="rdHand(cp)">มอบของ</button></li></ul>
+          </section>
+          <section aria-label="แลกด้วยคะแนน">
+            <div class="mb-1 font-semibold text-stone-800">แลกซื้อด้วยคะแนนแล้วมอบเลย</div>
+            <p v-if="!rdCatalog.length" class="text-xs text-stone-400">ยังไม่มีของรางวัลให้แลก</p>
+            <ul class="space-y-1.5"><li v-for="rw in rdCatalog" :key="rw.id" class="flex items-center justify-between gap-2 rounded-xl border border-stone-200 p-2.5"><span class="min-w-0"><span class="block truncate font-medium">{{ rw.name }}</span><span class="block text-xs" :class="rdPoints >= rw.points ? 'text-stone-500' : 'text-rose-600'">{{ rw.points }} คะแนน<template v-if="rdPoints < rw.points"> · คะแนนไม่พอ</template></span></span><button type="button" class="btn-soft h-9 shrink-0 px-3" :disabled="rdPoints < rw.points" @click="rdRedeem(rw)">แลกและมอบ</button></li></ul>
+          </section>
+        </template>
+        <p v-if="rd.err" class="text-rose-600" role="alert">{{ rd.err }}</p>
+        <p v-if="rd.msg" class="rounded-xl bg-emerald-50 p-2.5 text-emerald-800" role="status">{{ rd.msg }}</p>
+      </div>
+      <template #footer><button class="btn-primary flex-1 sm:flex-none" @click="rd.open = false">ปิด</button></template>
+    </AppModal>
   </div>
 </template>
