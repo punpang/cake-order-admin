@@ -56,17 +56,34 @@ export async function uploadPrivateImage(client, bucket, src, prefix) {
   return `sb://${bucket}/${path}`
 }
 
-// สลิปในรายการชำระของออร์เดอร์: รูปในเครื่อง → อัปโหลดแล้วแทนที่ด้วยอ้างอิง (แก้ในที่เดิม) · ล้มเหลว = โยน error
-export async function externalizeSlips(client, order, cache = new Map()) {
+// รูปส่วนตัวของออร์เดอร์: สลิป → punpang-slips · รูปงานเสร็จ (workPhotos) และรูปตัวอย่างของรายการ (images) → punpang-work
+// รูปในเครื่อง → อัปโหลดแล้วแทนที่ด้วยอ้างอิง (แก้ในที่เดิม · รูปเดียวกันอัปโหลดครั้งเดียว) · ล้มเหลว = โยน error
+export const WORK_BUCKET = 'punpang-work'
+export async function externalizeOrderImages(client, order, cache = new Map()) {
   let n = 0
-  for (const p of order.payments || []) {
-    if (!isLocalImage(p.slip)) continue
-    if (!cache.has(p.slip)) { cache.set(p.slip, await uploadPrivateImage(client, SLIP_BUCKET, p.slip, order.id)); n++ }
-    p.slip = cache.get(p.slip)
+  const one = async (src, bucket, prefix) => {
+    const k = bucket + '|' + prefix + '|' + src
+    if (!cache.has(k)) { cache.set(k, await uploadPrivateImage(client, bucket, src, prefix)); n++ }
+    return cache.get(k)
+  }
+  for (const p of order.payments || []) if (isLocalImage(p.slip)) p.slip = await one(p.slip, SLIP_BUCKET, order.id)
+  for (const it of order.items || []) {
+    for (const w of it.workPhotos || []) if (isLocalImage(w.image)) w.image = await one(w.image, WORK_BUCKET, `${order.id}/work`)
+    const im = it.images || []
+    for (let i = 0; i < im.length; i++) if (isLocalImage(im[i])) im[i] = await one(im[i], WORK_BUCKET, `${order.id}/ref`)
   }
   return n
 }
-export const slipRefsOf = (order) => new Set((order.payments || []).map((p) => p.slip).filter((v) => parseRef(v)))
+export const externalizeSlips = externalizeOrderImages
+// อ้างอิงรูปส่วนตัวทั้งหมดที่ออร์เดอร์ใช้อยู่
+export function privateRefsOf(order) {
+  const out = new Set()
+  const add = (v) => { if (parseRef(v)) out.add(v) }
+  for (const p of order.payments || []) add(p.slip)
+  for (const it of order.items || []) { for (const w of it.workPhotos || []) add(w.image); for (const v of it.images || []) add(v) }
+  return out
+}
+export const slipRefsOf = privateRefsOf
 
 // ลบไฟล์ที่ไม่มีข้อมูลอ้างถึงแล้ว (ทำได้ก็ดี ไม่ได้ก็ไม่กระทบข้อมูล)
 export async function removePrivate(client, refs) {
@@ -86,4 +103,23 @@ export async function signedUrlFor(client, ref, ttl = 3600) {
   if (r.error || !r.data?.signedUrl) return null
   signed.set(ref, { url: r.data.signedUrl, exp: Date.now() + ttl * 1000 })
   return r.data.signedUrl
+}
+
+// เผยแพร่: คัดลอกรูป (ส่วนตัว/ในเครื่อง) ไป bucket สาธารณะ → ลิงก์ถาวร · ลิงก์/ค่าอื่นคืนตามเดิม
+export const PUBLISHED_PREFIX = 'published'
+export async function toPublicUrl(client, src) {
+  if (isLocalImage(src)) return uploadPublicImage(client, src, PUBLISHED_PREFIX)
+  const x = parseRef(src)
+  if (!x) return src
+  const ext = (x.path.split('.').pop() || 'jpg').toLowerCase()
+  const path = `${PUBLISHED_PREFIX}/${rand()}.${ext}`
+  const r = await client.storage.from(x.bucket).copy(x.path, path, { destinationBucket: PUBLIC_BUCKET })
+  if (r.error) throw new Error(r.error.message || 'คัดลอกรูปไม่สำเร็จ')
+  return client.storage.from(PUBLIC_BUCKET).getPublicUrl(path).data.publicUrl
+}
+// ลบสำเนาสาธารณะที่เผยแพร่ไว้ (เฉพาะไฟล์ใต้ published/ ที่ระบบคัดลอกเอง · ไม่แตะรูปสินค้า)
+export async function removePublicCopy(client, url) {
+  const m = typeof url === 'string' ? /\/object\/public\/punpang-public\/(published\/[^?#]+)$/.exec(url) : null
+  if (!m) return false
+  try { const r = await client.storage.from(PUBLIC_BUCKET).remove([m[1]]); return !r?.error } catch { return false }
 }

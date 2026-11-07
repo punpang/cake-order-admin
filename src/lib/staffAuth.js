@@ -5,12 +5,19 @@ import { showToast } from './toast'
 // สถานะพนักงานที่ล็อกอินจริง (ใช้เมื่อเปิด Supabase เท่านั้น)
 export const staffState = reactive({ ready: !supabaseEnabled, staff: null })
 let syncs = []
+let trashHook = null
 // หลังล็อกอินสำเร็จ: โหลดข้อมูลจาก Supabase (สินค้า/ลูกค้า) และเขียนกลับเมื่อมีสิทธิ์
 async function startData(staff) {
   syncs.forEach((x) => x.stop())
   syncs = []
   const [items, customers, config, orders, acct, chats, shifts, users, store, client] = await Promise.all([import('./itemsSync'), import('./customersSync'), import('./configSync'), import('./ordersSync'), import('./acctSync'), import('./chatSync'), import('./shiftsSync'), import('./usersSync'), import('../data/store'), getSupabase()])
   const { db } = store
+  // สำเร็จรูปสาธารณะที่ถอนการเผยแพร่แล้ว → ลบไฟล์ (เฉพาะผู้มีสิทธิ์จัดการ)
+  const storage = await import('./storage')
+  const rmIdx = store.trashHooks.indexOf(trashHook)
+  if (rmIdx >= 0) store.trashHooks.splice(rmIdx, 1)
+  trashHook = (url) => { storage.removePublicCopy(client, url) }
+  if (staff.perms.includes('manage')) store.trashHooks.push(trashHook)
   const onError = (m) => showToast(m, 8000)
   const has = (p) => staff.perms.includes(p)
   // ขอเลขเอกสารเป็นชุดล่วงหน้าจากฐานข้อมูล (ไม่ซ้ำข้ามเครื่อง)
@@ -64,4 +71,4 @@ export async function currentStaff() {
   return { staff: data }
 }
 
-export async function staffSignOut() { staffState.staff = null; syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
+export async function staffSignOut() { staffState.staff = null; { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1) }; syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }

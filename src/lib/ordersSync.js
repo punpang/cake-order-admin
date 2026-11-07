@@ -1,6 +1,6 @@
 import { startSync, selectAll } from './tableSync'
 import { parseNo } from './docNo'
-import { externalizeSlips, slipRefsOf, removePrivate } from './storage'
+import { externalizeOrderImages, privateRefsOf, removePrivate } from './storage'
 
 // ซิงก์ออร์เดอร์ (db.orders) กับ punpang_orders · ชำระเงิน/รายการ/ประวัติ ฯลฯ อยู่ใน data (jsonb)
 // สิทธิ์ตรวจที่ฐานข้อมูลด้วย trigger (เปลี่ยนสถานะ/ยืนยันชำระ/ยกเลิกยอด/แจ้งยอด) — ดู punpang_guard_status
@@ -30,8 +30,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRecode = () => {}, numbering = null, known = new Set(), slips = new Map() } = {}) {
   const cache = new Map()
   for (const o of upserts) {
-    // สลิปในเครื่อง → อัปโหลดไป bucket ส่วนตัวก่อน (ล้มเหลว = ไม่เขียนออร์เดอร์นี้)
-    try { await externalizeSlips(client, o, cache) } catch (e) { return { error: `${o.code || o.id}: อัปโหลดสลิปไม่สำเร็จ: ${e.message}` } }
+    // รูปในเครื่อง (สลิป/รูปงาน/รูปตัวอย่าง) → อัปโหลดไป bucket ส่วนตัวก่อน (ล้มเหลว = ไม่เขียนออร์เดอร์นี้)
+    try { await externalizeOrderImages(client, o, cache) } catch (e) { return { error: `${o.code || o.id}: อัปโหลดรูปไม่สำเร็จ: ${e.message}` } }
     let tries = 0
     for (;;) {
       const row = orderToRow(o)
@@ -40,8 +40,8 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
         : await client.from('punpang_orders').insert(row)
       if (!r.error) {
         known.add(o.id)
-        // สลิปที่ไม่ถูกอ้างถึงแล้ว (เปลี่ยนรูป/ล้างข้อมูลลูกค้า) → ลบไฟล์
-        const cur = slipRefsOf(o), prev = slips.get(o.id)
+        // รูปที่ไม่ถูกอ้างถึงแล้ว (เปลี่ยนรูป/ลบรูป/ล้างข้อมูลลูกค้า) → ลบไฟล์
+        const cur = privateRefsOf(o), prev = slips.get(o.id)
         slips.set(o.id, cur)
         if (prev) { const gone = [...prev].filter((x) => !cur.has(x)); if (gone.length) await removePrivate(client, gone) }
         break
@@ -72,7 +72,7 @@ export function startOrdersSync({ client, db, canWrite, onError, onRecode, numbe
       db.orders.splice(0, db.orders.length, ...items)
       known.clear()
       slips.clear()
-      for (const i of items) { known.add(i.id); slips.set(i.id, slipRefsOf(i)) }
+      for (const i of items) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) }
       // ตัวนับเลข: ล้างเลขจากข้อมูลตัวอย่าง แล้วตั้งตามเลขที่มีอยู่จริง
       if (numbering) numbering.seen(items.map((i) => i.code), { reset: true })
     },

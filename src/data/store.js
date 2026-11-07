@@ -516,7 +516,9 @@ export function autoTagsOf(item) {
   return [...ids]
 }
 // ถอนรูปออกจากที่เผยแพร่ (คลังรูป/รูปสินค้า) — ไม่ลบรูปในออร์เดอร์
+export const trashHooks = [] // ฟังก์ชันที่ถูกเรียกเมื่อมีสำเนาสาธารณะที่ต้องลบไฟล์ (ตั้งโดยชั้นเชื่อม Supabase)
 function unpublishPhoto(order, item, photo) {
+  if (photo.publicImage) { for (const h of trashHooks) h(photo.publicImage); photo.publicImage = null }
   if (photo.galleryId) {
     const gi = db.cakeGallery.findIndex((g) => g.id === photo.galleryId)
     if (gi >= 0) db.cakeGallery.splice(gi, 1)
@@ -554,7 +556,7 @@ export function removeWorkPhoto(order, itemId, photoId) {
   return { ok: true }
 }
 // เผยแพร่รูปขึ้นเว็บเมนู (ต้องสิทธิ์ manage · ลูกค้าไม่ได้ปฏิเสธ): เค้กสั่งทำ → คลังรูปตามแท็ก · สินค้าสำเร็จ → รูปของสินค้านั้น
-export function publishWorkPhoto(order, itemId, photoId, { tags = [], caption = '' } = {}) {
+export function publishWorkPhoto(order, itemId, photoId, { tags = [], caption = '', image = null } = {}) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
   const b = photoBlock(order)
   if (b) return { error: b }
@@ -565,14 +567,16 @@ export function publishWorkPhoto(order, itemId, photoId, { tags = [], caption = 
   if (it.kind === 'retail' && it.retailId) {
     const prod = db.retailItems.find((r) => r.id === it.retailId)
     if (!prod) return { error: 'สินค้านี้ถูกลบแล้ว' }
-    ;(prod.workImages ||= []).push({ id: uid('wi'), photoId: p.id, image: p.image, orderId: order.id, itemId: it.id })
+    ;(prod.workImages ||= []).push({ id: uid('wi'), photoId: p.id, image: image || p.image, orderId: order.id, itemId: it.id })
     p.publish = true
+    if (image) p.publicImage = image
     log(order, `เผยแพร่รูปงานเป็นรูปสินค้า ${prod.name}`)
     return { ok: true }
   }
-  const r = saveGalleryImage({ image: p.image, tags, caption, source: { orderId: order.id, itemId: it.id, photoId: p.id } })
+  const r = saveGalleryImage({ image: image || p.image, tags, caption, source: { orderId: order.id, itemId: it.id, photoId: p.id } })
   if (r.error) return r
   p.publish = true
+  if (image) p.publicImage = image
   p.galleryId = r.item.id
   log(order, 'เผยแพร่รูปงานเข้าคลังรูปเว็บเมนู')
   return { ok: true, gallery: r.item }

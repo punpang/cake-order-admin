@@ -6,6 +6,7 @@ import { MAIN_KEYS } from '../lib/constants'
 import { money } from '../lib/format'
 import AppIcon from './AppIcon.vue'
 import DiscountDetail from './DiscountDetail.vue'
+import SecureImg from './SecureImg.vue'
 
 // index = เลขลำดับรายการ (แสดงวงกลม #N หน้าชื่อ) · bare = ไม่วาดการ์ดของตัวเอง (ให้กรอบภายนอกเป็นผู้วาด เช่น หน้ารายละเอียดออร์เดอร์)
 const props = defineProps({ item: { type: Object, required: true }, index: { type: Number, default: 0 }, bare: { type: Boolean, default: false } })
@@ -94,7 +95,7 @@ const lines = computed(() => discountLines(props.item.discounts, props.item.qty)
     </p>
 
     <div v-if="item.images?.length" class="mt-3 flex gap-2 overflow-x-auto">
-      <img v-for="src in item.images" :key="src" :src="src" class="h-16 w-16 shrink-0 rounded-xl object-cover" />
+      <SecureImg v-for="src in item.images" :key="src" :src="src" class="h-16 w-16 shrink-0 rounded-xl object-cover" />
     </div>
 
     <div v-if="$slots.default" class="mt-3 flex justify-end gap-2 border-t border-stone-100 pt-3">

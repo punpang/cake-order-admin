@@ -10,6 +10,7 @@ import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
 import OptionPicker from './OptionPicker.vue'
 import DiscountDetail from './DiscountDetail.vue'
+import SecureImg from './SecureImg.vue'
 
 const props = defineProps({
   item: { type: Object, default: null },
@@ -305,7 +306,7 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
       <div class="mb-2.5 text-sm font-semibold text-stone-800">รูปตัวอย่าง</div>
       <div class="flex flex-wrap gap-2">
         <div v-for="(src, i) in form.images" :key="src" class="relative">
-          <img :src="src" class="h-20 w-20 rounded-xl object-cover" />
+          <SecureImg :src="src" class="h-20 w-20 rounded-xl object-cover" />
           <button type="button" class="absolute -top-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-stone-900 text-white shadow" aria-label="ลบรูป" @click="form.images.splice(i, 1)">
             <AppIcon name="x" :size="14" />
           </button>
