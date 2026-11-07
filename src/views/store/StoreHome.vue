@@ -90,7 +90,10 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
     <section v-if="types.length || recent.length" class="relative">
       <div class="mb-3 flex items-center justify-between gap-3">
         <h2 class="text-2xl text-stone-900">เค้กสั่งทำตามใจ</h2>
-        <RouterLink to="/menu" class="btn-peach h-10 px-4" aria-label="ดูเมนูเค้กสั่งทำ">ออกแบบที่ต้องการ</RouterLink>
+        <div class="flex shrink-0 flex-wrap justify-end gap-2">
+          <RouterLink to="/menu/custom" class="btn-peach h-10 px-4" aria-label="ออกแบบเค้กสั่งทำที่ต้องการ">ออกแบบที่ต้องการ</RouterLink>
+          <RouterLink to="/menu/gallery" class="btn-peach h-10 px-4" aria-label="ดูผลงานเค้กสั่งทำทั้งหมด">ดูทั้งหมด</RouterLink>
+        </div>
       </div>
       <template v-if="recent.length">
         <ul class="grid grid-cols-4 gap-2 sm:gap-4" aria-label="เค้กสั่งทำล่าสุด">

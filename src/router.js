@@ -41,6 +41,7 @@ import ManageLinks from './views/manage/ManageLinks.vue'
 import ManageGallery from './views/manage/ManageGallery.vue'
 import ManagePhotoRequests from './views/manage/ManagePhotoRequests.vue'
 import ManageBot from './views/manage/ManageBot.vue'
+import StoreCakeDesign from './views/store/StoreCakeDesign.vue'
 import OrderLink from './views/store/OrderLink.vue'
 import ShortRedirect from './views/store/ShortRedirect.vue'
 
@@ -52,6 +53,7 @@ const router = createRouter({
     { path: '/', component: StoreHome, meta: { store: true } },
     { path: '/menu', component: StoreMenu, meta: { store: true } },
     { path: '/menu/gallery', component: StoreCakeGallery, meta: { store: true } },
+    { path: '/menu/design/:id', component: StoreCakeDesign, props: true, meta: { store: true } },
     { path: '/menu/custom', component: StoreItem, props: { kind: 'custom', id: '' }, meta: { store: true } },
     { path: '/menu/:kind/:id', component: StoreItem, props: true, meta: { store: true } },
     // ---------- ระบบลูกค้า (จำลอง จนกว่าจะต่อ Supabase) ----------

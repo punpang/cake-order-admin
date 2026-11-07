@@ -12,8 +12,8 @@ import AppIcon from './AppIcon.vue'
 
 // ตัวคำนวณราคาเค้กสั่งทำบนหน้าเว็บลูกค้า · ใช้ตัวคิดราคา/กติกาตัวเลือกเดียวกับหลังบ้าน (priceDetail/allowedBy/forType)
 // ประเภทถูกกำหนดจากหน้า (typeId) ลูกค้าเลือกส่วนที่เหลือ → คัดลอกรหัส+สรุปส่งแชท → หลังบ้านวางแล้วได้รายการเดียวกัน
-const props = defineProps({ typeId: { type: String, required: true } })
-const emit = defineEmits(['select'])
+const props = defineProps({ typeId: { type: String, default: '' }, preselect: { type: Array, default: () => [] } })
+const emit = defineEmits(['select', 'status'])
 
 const groups = computed(() => db.optionGroups.filter((g) => g.active !== false && g.appliesTo.includes('custom')))
 const typeG = computed(() => groups.value.find((g) => g.key === 'type'))
@@ -27,7 +27,7 @@ const showWhole = computed(() => wholeGroups.value.filter((g) => g.key !== 'type
 const form = reactive({ id: 'web', kind: 'custom', retailId: null, retailPrice: 0, sizeId: null, typeId: null, qty: 1, note: '', images: [], selections: {}, tiers: hasTiers.value ? [{ selections: {} }] : [] })
 // ตัวเลือกทั้งหมดที่ลูกค้าเลือก (รวมประเภท) ส่งให้หน้าเว็บใช้เลือกรูปตัวอย่าง
 const selectedIds = computed(() => {
-  const ids = new Set([props.typeId])
+  const ids = new Set(props.typeId ? [props.typeId] : [])
   const add = (sels) => { for (const g of groups.value) { if (g.type === 'text') continue; const v = sels?.[g.id]; if (v == null || v === '') continue; for (const id of Array.isArray(v) ? v : [v]) ids.add(id) } }
   add(form.selections)
   form.tiers.forEach((t) => add(t.selections))
@@ -36,12 +36,24 @@ const selectedIds = computed(() => {
 watch(selectedIds, (v) => emit('select', v), { immediate: true })
 function lockType() {
   const g = typeG.value
-  if (!g) return
+  if (!g || !props.typeId) return
   if (g.perTier) for (const t of form.tiers) t.selections[g.id] = props.typeId
   else form.selections[g.id] = props.typeId
 }
 lockType()
-watch(() => props.typeId, () => { reset(); lockType() })
+watch(() => props.typeId, (v, old) => { if (old) reset(); lockType() })
+// เติมตัวเลือกจากรูปแบบที่เลือก (ไม่รวมประเภท) · ตัวที่ไม่ได้ระบุปล่อยว่างให้ลูกค้าเลือก
+function applyPre(ids) {
+  for (const id of ids || []) {
+    const g = groups.value.find((x) => x.key !== 'type' && x.type !== 'text' && (x.options || []).some((o) => o.id === id))
+    if (!g) continue
+    const sels = g.perTier && form.tiers[0] ? form.tiers[0].selections : form.selections
+    if (g.type === 'multi') sels[g.id] = [...new Set([...(Array.isArray(sels[g.id]) ? sels[g.id] : []), id])]
+    else sels[g.id] = id
+  }
+}
+applyPre(props.preselect)
+watch(() => props.preselect, (v) => applyPre(v))
 function reset() {
   Object.assign(form, { qty: 1, note: '', selections: {}, tiers: hasTiers.value ? [{ selections: {} }] : [] })
 }
@@ -87,11 +99,15 @@ const step = (d) => { form.qty = Math.min(999, Math.max(1, (Number(form.qty) || 
 const empty = (v) => v == null || v === '' || (Array.isArray(v) && !v.length)
 const missing = computed(() => {
   const out = []
+  if (typeG.value?.required && !props.typeId) out.push(typeG.value.name)
   for (const g of wholeGroups.value) if (g.required && g.key !== 'type' && empty(form.selections[g.id])) out.push(g.name)
   form.tiers.forEach((t) => { for (const g of tierGroups.value) if (g.required && g.key !== 'type' && empty(t.selections[g.id])) out.push(g.name) })
   return out
 })
 const ready = computed(() => !missing.value.length)
+// จำนวนหัวข้อจำเป็นทั้งหมด (ตามที่ตั้งในหลังบ้าน) + ที่ยังขาด ส่งให้หน้าเว็บ
+const requiredTotal = computed(() => groups.value.filter((g) => g.required && g.type !== 'text').length)
+watch([missing, requiredTotal], () => emit('status', { missing: [...missing.value], total: requiredTotal.value }), { immediate: true })
 const out = computed(() => (ready.value ? encodeCake({ ...form, qty: qty.value, unitPrice: detail.value.unitPrice }, db.optionGroups) : null))
 const open = ref(true)
 const copied = ref(false)

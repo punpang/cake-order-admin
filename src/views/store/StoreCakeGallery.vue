@@ -2,9 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { db } from '../../data/store'
 import { latestCustomPhotos, searchCakePhotos } from '../../lib/cakeSearch'
-import { dateOnly } from '../../lib/format'
 import AppIcon from '../../components/AppIcon.vue'
-import AppModal from '../../components/AppModal.vue'
 import CakeArt from '../../components/art/CakeArt.vue'
 
 // ผลงานเค้กสั่งทำล่าสุด (สาธารณะ): 10 รูปแรก โหลดเพิ่มทีละ 10 · ค้นหาแบบใกล้เคียงที่สุด · เฉพาะรูปที่ร้านเผยแพร่และลูกค้าไม่ได้ขอไม่เผยแพร่
@@ -30,13 +28,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => { clearTimeout(timer); io?.disconnect() })
 
-const sel = ref(null)
 const altOf = (p) => p.caption || [p.typeName, ...p.tagNames.filter((t) => t.groupKey !== 'type').map((t) => t.name)].filter(Boolean).join(' ') || 'เค้กสั่งทำ'
-const copied = ref(false)
-async function copyRef(p) {
-  const text = `สนใจเค้กแบบนี้: ${p.tagNames.map((t) => t.name).join(' · ') || altOf(p)}`
-  try { await navigator.clipboard.writeText(text); copied.value = true; setTimeout(() => (copied.value = false), 2500) } catch { copied.value = false }
-}
 </script>
 
 <template>
@@ -63,13 +55,13 @@ async function copyRef(p) {
     <template v-else>
       <ul class="mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4" aria-label="รูปเค้กสั่งทำล่าสุด">
         <li v-for="p in visible" :key="p.id">
-          <button type="button" class="group block w-full overflow-hidden rounded-3xl bg-white text-left shadow-md transition hover:shadow-lg" :aria-label="`ดูรูป ${altOf(p)}`" @click="sel = p">
+          <RouterLink :to="`/menu/design/${p.id}`" class="group block w-full overflow-hidden rounded-3xl bg-white text-left shadow-md transition hover:shadow-lg" :aria-label="`ดูแบบ ${altOf(p)}`">
             <div class="aspect-square overflow-hidden"><img :src="p.image" :alt="altOf(p)" loading="lazy" class="h-full w-full object-cover transition group-hover:scale-105" /></div>
             <div class="p-2.5">
               <div class="line-clamp-1 text-sm font-semibold text-stone-900">{{ p.typeName || 'เค้กสั่งทำ' }}</div>
               <div class="line-clamp-1 text-xs text-stone-600">{{ p.tagNames.filter((t) => t.groupKey !== 'type').map((t) => t.name).join(' · ') || '—' }}</div>
             </div>
-          </button>
+          </RouterLink>
         </li>
       </ul>
       <div class="mt-5 text-center text-sm text-stone-600" aria-live="polite">
@@ -79,18 +71,5 @@ async function copyRef(p) {
         <div ref="sentinel" class="h-1" aria-hidden="true"></div>
       </div>
     </template>
-
-    <AppModal v-if="sel" :title="sel.typeName || 'เค้กสั่งทำ'" @close="sel = null">
-      <img :src="sel.image" :alt="altOf(sel)" class="w-full rounded-3xl object-cover" />
-      <div class="mt-3 flex flex-wrap gap-1.5">
-        <span v-for="t in sel.tagNames" :key="t.name + t.groupKey" class="chip chip-off h-8 px-3 text-xs">{{ t.name }}</span>
-      </div>
-      <p v-if="sel.caption" class="mt-2 text-sm text-stone-700">{{ sel.caption }}</p>
-      <p v-if="sel.deliveredAt" class="mt-1 text-xs text-stone-600">ส่งมอบ {{ dateOnly(sel.deliveredAt) }}</p>
-      <template #footer>
-        <button type="button" class="btn-outline" @click="copyRef(sel)">{{ copied ? 'คัดลอกแล้ว' : 'คัดลอกชื่อแบบ' }}</button>
-        <RouterLink to="/menu/custom" class="btn-primary">สั่งเค้กสั่งทำ</RouterLink>
-      </template>
-    </AppModal>
   </div>
 </template>

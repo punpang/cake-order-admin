@@ -125,6 +125,8 @@ export const db = reactive({
   coupons: [],
   // คลังรูปเค้กสั่งทำ (หน้าเว็บ): รูปติดแท็กตัวเลือก (optionId) ใช้เลือกรูปตามที่ลูกค้าเลือก · { id, image, tags[], caption, active }
   cakeGallery: [],
+  // การคลิกดูแบบเค้กสั่งทำ (นิรนาม ใช้แนะนำแบบ): { v: รหัสผู้เยี่ยมชม, photoId, at }
+  cakeClicks: [],
   spinLog: [],
 
   // ราคาพิเศษ (ตัวอย่าง): scheduled = กำหนดช่วงวัน (เทียบวันที่สร้างออร์เดอร์)
@@ -458,6 +460,12 @@ export function saveGalleryImage(d) {
   const it = { id: uid('cg'), createdAt: now(), ...row }
   db.cakeGallery.push(it)
   return { ok: true, item: it }
+}
+export function recordCakeClick(photoId, visitor) {
+  if (!photoId || !visitor) return
+  if (db.cakeClicks.some((c) => c.v === visitor && c.photoId === photoId)) return
+  db.cakeClicks.push({ v: String(visitor), photoId, at: now() })
+  if (db.cakeClicks.length > 5000) db.cakeClicks.splice(0, db.cakeClicks.length - 5000)
 }
 export function removeGalleryImage(id) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
