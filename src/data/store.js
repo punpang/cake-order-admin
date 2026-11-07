@@ -489,7 +489,8 @@ export function removeGalleryImage(id) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
   const i = db.cakeGallery.findIndex((x) => x.id === id)
   if (i < 0) return { error: 'ไม่พบรูป' }
-  db.cakeGallery.splice(i, 1)
+  const [gone] = db.cakeGallery.splice(i, 1)
+  for (const h of trashHooks) h(gone.image) // สำเนาสาธารณะที่ระบบคัดลอกไว้ (published/) → ลบไฟล์ · รูปอื่นไม่แตะ
   return { ok: true }
 }
 // ---------- รูปงานเสร็จ (ส่งให้ลูกค้าดู · เผยแพร่บนเว็บเมนูเมื่อลูกค้าไม่ปฏิเสธ) ----------

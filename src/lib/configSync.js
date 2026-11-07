@@ -9,9 +9,9 @@ import { externalizePublic } from './storage'
 export const CONFIG_KEYS = [
   'shop', 'loyalty', 'rewards', 'gachaPrizes', 'priceLists', 'bundles', 'ingredients', 'optionGroups',
   'cannedReplies', 'bot', 'notifyRules', 'posModifiers', 'posDiscounts', 'posBundles', 'posDeals', 'pointPromos',
-  'storefront', 'legal',
+  'storefront', 'legal', 'cakeGallery',
 ]
-const COLLECTION_OF = { storefront: 'storefront', legal: 'legal', ingredients: 'materials' }
+const COLLECTION_OF = { storefront: 'storefront', legal: 'legal', cakeGallery: 'storefront', ingredients: 'materials' } // cakeGallery: หน้าร้านสาธารณะอ่านได้
 export const collectionOf = (key) => COLLECTION_OF[key] || 'config'
 export const OPTION_COSTS_ID = '_optionGroups'
 
