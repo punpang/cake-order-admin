@@ -36,13 +36,15 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
   let timer = null
   let busy = false
   let again = false
+  // คืน true เมื่อไม่มีอะไรค้าง/เขียนสำเร็จ · false เมื่อเขียนล้มเหลวหรือกำลังเขียนอยู่ (ให้ผู้เรียกที่ต้องเรียงลำดับรอแล้วลองใหม่)
   const flush = async () => {
-    if (busy) { again = true; return }
+    if (busy) { again = true; return false }
     busy = true
+    let ok = true
     const changes = diffById(snapshot, list())
     if (changes.upserts.length || changes.deletes.length) {
       const r = await push(changes)
-      if (r.error) onError(`บันทึก${label}ไม่สำเร็จ: ${r.error}`)
+      if (r.error) { onError(`บันทึก${label}ไม่สำเร็จ: ${r.error}`); ok = false }
       else {
         for (const it of changes.upserts) snapshot.set(it.id, JSON.stringify(it))
         for (const id of changes.deletes) snapshot.delete(id)
@@ -50,6 +52,7 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
     }
     busy = false
     if (again) { again = false; flush() }
+    return ok
   }
   const stopWatch = watch(() => JSON.stringify(list()), () => { clearTimeout(timer); timer = setTimeout(flush, debounceMs) })
   return { stop() { stopWatch(); clearTimeout(timer) }, loaded: true, flush }

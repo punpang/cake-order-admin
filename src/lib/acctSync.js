@@ -70,7 +70,8 @@ function numberedSync({ client, A, field, table, cols, toRow, fromRow, assign, c
 
 async function pushFrozen(client, { upserts, deletes }) {
   for (let i = 0; i < upserts.length; i += 500) {
-    const r = await client.from('punpang_acct_frozen').upsert(upserts.slice(i, i + 500).map(frozenToRow))
+    // ไม่ทับของเดิม (do nothing) — ตารางนี้ไม่มี policy UPDATE การ upsert แบบ do update จะถูกปฏิเสธ
+    const r = await client.from('punpang_acct_frozen').upsert(upserts.slice(i, i + 500).map(frozenToRow), { onConflict: 'id', ignoreDuplicates: true })
     if (r.error) return { error: r.error.message }
   }
   for (let i = 0; i < deletes.length; i += 200) {
@@ -81,16 +82,23 @@ async function pushFrozen(client, { upserts, deletes }) {
 }
 
 // ปิดงวดถึงวันที่ (ค่าเดียว) · อ่านไม่ได้ = ไม่เริ่ม (ไม่เขียนทับ)
-async function startStateSync({ client, A, canWrite, onError, debounceMs = 400 }) {
+// before() = ต้องเสร็จก่อนเขียนสถานะ (เช่น เขียนรายการแช่แข็งให้ครบก่อนประกาศว่าปิดงวดแล้ว) · คืน false = ยังไม่เขียน แล้วลองใหม่
+async function startStateSync({ client, A, canWrite, onError, debounceMs = 400, before = null }) {
   const r = await client.from('punpang_acct_state').select('closed_through').eq('id', 1).maybeSingle()
   if (r.error || !r.data) { onError('โหลดสถานะปิดงวดไม่สำเร็จ: ' + (r.error?.message || 'ไม่พบ')); return { stop() {}, loaded: false } }
   A.closedThrough = r.data.closed_through || ''
   if (!canWrite) return { stop() {}, loaded: true }
   let last = A.closedThrough
   let timer = null
+  let retries = 0
   const flush = async () => {
     const now = A.closedThrough || ''
     if (now === last) return
+    if (before && !(await before())) {
+      if (retries++ < 5) { clearTimeout(timer); timer = setTimeout(flush, 1500) } else onError('ปิด/เปิดงวด: บันทึกรายการแช่แข็งไม่สำเร็จ จึงยังไม่บันทึกสถานะปิดงวด (ลองกดอีกครั้ง)')
+      return
+    }
+    retries = 0
     const u = await client.from('punpang_acct_state').update({ closed_through: now }).eq('id', 1)
     if (u.error) onError('บันทึกปิดงวดไม่สำเร็จ: ' + u.error.message)
     else last = now
@@ -105,8 +113,18 @@ export async function startAcctSync({ client, db, has, onError = () => {}, debou
   const anyView = ACCT_VIEW_PERMS.some(has)
   const canInv = has('taxInvoice') || has('cancel')
   const out = []
+  let frozenSync = null
+  if (anyView) {
+    frozenSync = await startSync({
+      list: () => A.frozen,
+      replace: (items) => A.frozen.splice(0, A.frozen.length, ...items),
+      load: loader(client, 'punpang_acct_frozen', 'id,data,created_at', 'created_at', rowToFrozen),
+      push: (c) => pushFrozen(client, c),
+      canWrite: has('acctClose'), onError, debounceMs, label: 'รายการแช่แข็ง',
+    })
+  }
   if (anyView || has('taxInvoice') || has('viewAllOrders')) {
-    out.push(await startStateSync({ client, A, canWrite: has('acctClose'), onError, debounceMs }))
+    out.push(await startStateSync({ client, A, canWrite: has('acctClose'), onError, debounceMs, before: frozenSync?.flush ? () => frozenSync.flush() : null }))
     // ใบกำกับ: คนที่ไม่มีสิทธิ์บัญชีก็อ่านได้ (ใช้ในหน้าออร์เดอร์) · เลขที่ใส่กลับเมื่อฐานข้อมูลออกให้
     out.push(await numberedSync({ client, A, field: 'taxInvoices', table: 'punpang_acct_invoices', cols: 'id,no,data,created_at', toRow: invoiceToRow, fromRow: rowToInvoice,
       assign: (inv, row) => { inv.no = row.no; delete inv.pending; for (const c of A.taxInvoices) if (c.refId === inv.id) c.refNo = row.no }, // ใบลดหนี้ที่อ้างใบนี้ได้เลขอ้างอิงจริง
@@ -115,13 +133,7 @@ export async function startAcctSync({ client, db, has, onError = () => {}, debou
   if (!anyView) return out
   out.push(await numberedSync({ client, A, field: 'entries', table: 'punpang_acct_entries', cols: 'id,no,data,created_at', toRow: entryToRow, fromRow: rowToEntry,
     assign: (e, row) => { e.no = row.no }, canWrite: ['acctRecord', 'acctAssets', 'acctTax'].some(has), onError, label: 'รายการบัญชี', allowDelete: has('acctRecord') || has('acctAssets'), debounceMs }))
-  out.push(await startSync({
-    list: () => A.frozen,
-    replace: (items) => A.frozen.splice(0, A.frozen.length, ...items),
-    load: loader(client, 'punpang_acct_frozen', 'id,data,created_at', 'created_at', rowToFrozen),
-    push: (c) => pushFrozen(client, c),
-    canWrite: has('acctClose'), onError, debounceMs, label: 'รายการแช่แข็ง',
-  }))
+  out.push(frozenSync)
   out.push(await startConfigSync({ client, db: A, canWrite: ['acctRecord', 'acctClose', 'acctTax', 'acctAssets', 'acctSettings'].some(has), onError, keys: ACCT_KV_KEYS, collection: 'acct', debounceMs }))
   return out
 }
