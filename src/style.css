@@ -74,6 +74,19 @@
   select {
     cursor: pointer;
   }
+  /* ลิงก์ข้ามไปเนื้อหาหลัก: ซ่อนจนกว่าจะโฟกัสด้วยแป้นพิมพ์ */
+  .skip-link {
+    @apply sr-only;
+  }
+  .skip-link:focus {
+    @apply not-sr-only fixed top-2 left-2 z-[70] rounded-full bg-brand-700 px-4 py-2 text-sm font-semibold text-white shadow-lg;
+  }
+  /* PC: ย่อหน้าคำอธิบายไม่ยาวเกิน ~75 ตัวอักษร (อ่านง่าย) · ข้อความกึ่งกลาง/ที่กำหนด max-w เอง ไม่ถูกแตะ */
+  @media (min-width: 1024px) {
+    main p:not(.text-center):not([class*='max-w-']):not([class*='w-full']) {
+      max-width: 75ch;
+    }
+  }
   /* ช่องวันที่บน iOS ไม่ให้ล้นกรอบ */
   input[type='date'],
   input[type='time'],

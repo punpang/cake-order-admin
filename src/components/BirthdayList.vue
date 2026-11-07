@@ -36,7 +36,7 @@ async function copyLine(b) {
             <div class="text-sm break-words text-stone-600">ลูกค้า {{ b.c?.name }}<span v-if="b.c?.phone"> · {{ formatPhone(b.c.phone) }}</span></div>
             <RouterLink :to="`/admin/orders/${b.order.id}`" class="text-xs text-brand-700 underline">ล่าสุด {{ b.order.code }}</RouterLink>
           </div>
-          <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold" :class="b.inDays <= 3 ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-700'">{{ when(b.inDays) }}</span>
+          <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold" :class="b.inDays <= 3 ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'">{{ when(b.inDays) }}</span>
         </div>
         <div class="mt-2.5 flex flex-wrap gap-2">
           <a v-if="b.c?.phone" :href="`tel:${phoneDigits(b.c.phone)}`" class="btn-outline h-9 px-3"><AppIcon name="phone" :size="16" /> โทร</a>

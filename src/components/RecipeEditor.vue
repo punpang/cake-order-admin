@@ -37,7 +37,7 @@ async function remove(i) {
               <option value="" disabled>เลือกวัตถุดิบ</option>
               <option v-for="m in choices" :key="m.id" :value="m.id">{{ m.name }}{{ m.active === false ? ' (ปิดใช้งาน)' : '' }}</option>
             </select>
-            <button type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-stone-400 hover:bg-rose-50 hover:text-rose-600" aria-label="ลบบรรทัด" @click="remove(i)">
+            <button type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-stone-400 hover:bg-rose-50 hover:text-rose-700" aria-label="ลบบรรทัด" @click="remove(i)">
               <AppIcon name="trash" :size="18" />
             </button>
           </div>

@@ -113,14 +113,14 @@ function doAdd() {
             <span class="flex flex-wrap items-center gap-1.5">
               <span class="font-medium text-stone-900">{{ m.name }}</span>
               <span class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{{ m.type === 'multi' ? 'หลายอย่าง' : 'เลือก 1' }}</span>
-              <span v-if="m.required" class="rounded-full bg-rose-50 px-2 py-0.5 text-xs text-rose-600">จำเป็น</span>
+              <span v-if="m.required" class="rounded-full bg-rose-50 px-2 py-0.5 text-xs text-rose-700">จำเป็น</span>
               <span class="text-xs text-stone-400">ใช้ {{ usedBy(m.id) }} สินค้า</span>
             </span>
             <span class="mt-0.5 block truncate text-xs text-stone-500">{{ m.options.map((o) => o.name + (o.price ? ` +${o.price}` : '')).join(' · ') }}</span>
           </button>
           <span class="flex shrink-0 flex-col justify-center">
-            <button type="button" class="flex h-6 w-7 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 disabled:opacity-30" :disabled="i === 0" aria-label="เลื่อนขึ้น" @click="moveItem(db.posModifiers, i, -1)">▲</button>
-            <button type="button" class="flex h-6 w-7 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 disabled:opacity-30" :disabled="i === db.posModifiers.length - 1" aria-label="เลื่อนลง" @click="moveItem(db.posModifiers, i, 1)">▼</button>
+            <button type="button" class="flex h-6 w-7 lg:h-8 lg:w-8 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 disabled:opacity-30" :disabled="i === 0" aria-label="เลื่อนขึ้น" @click="moveItem(db.posModifiers, i, -1)">▲</button>
+            <button type="button" class="flex h-6 w-7 lg:h-8 lg:w-8 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 disabled:opacity-30" :disabled="i === db.posModifiers.length - 1" aria-label="เลื่อนลง" @click="moveItem(db.posModifiers, i, 1)">▼</button>
           </span>
         </div>
       </div>

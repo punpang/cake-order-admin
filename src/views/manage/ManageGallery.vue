@@ -72,10 +72,13 @@ async function del() {
         <div class="card-title">รูปในคลัง ({{ items.length }})<span v-if="typeImgs.length" class="text-xs font-normal text-stone-400"> + รูปหน้าปกประเภท {{ typeImgs.length }} รูป</span></div>
         <p v-if="!items.length" class="py-6 text-center text-sm text-stone-400">ยังไม่มีรูปในคลัง</p>
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-6">
-          <button v-for="it in items" :key="it.id" type="button" class="overflow-hidden rounded-2xl border border-stone-200 bg-white text-left" :class="it.active === false ? 'opacity-50' : ''" @click="edit(it)">
-            <img :src="it.image" :alt="it.caption || 'รูปเค้ก'" class="aspect-square w-full object-cover" />
-            <div class="space-y-1 p-2"><RouterLink v-if="it.source" :to="`/admin/orders/${it.source.orderId}`" class="block text-[11px] text-brand-700 underline" @click.stop>จากออร์เดอร์ {{ codeOf(it.source.orderId) }}</RouterLink><div class="flex flex-wrap gap-1"><span v-for="t in it.tags" :key="t" class="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] text-brand-800">{{ nameOf(t) }}</span></div><div v-if="it.caption" class="truncate text-xs text-stone-500">{{ it.caption }}</div></div>
-          </button>
+          <div v-for="it in items" :key="it.id" class="overflow-hidden rounded-2xl border border-stone-200 bg-white text-left" :class="it.active === false ? 'opacity-50' : ''">
+            <button type="button" class="block w-full text-left" @click="edit(it)">
+              <img :src="it.image" :alt="it.caption || 'รูปเค้ก'" class="aspect-square w-full object-cover" />
+              <span class="block space-y-1 px-2 pt-2"><span class="flex flex-wrap gap-1"><span v-for="t in it.tags" :key="t" class="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] text-brand-800">{{ nameOf(t) }}</span></span><span v-if="it.caption" class="block truncate text-xs text-stone-500">{{ it.caption }}</span></span>
+            </button>
+            <div class="p-2 pt-1"><RouterLink v-if="it.source" :to="`/admin/orders/${it.source.orderId}`" class="block text-[11px] text-brand-700 underline">จากออร์เดอร์ {{ codeOf(it.source.orderId) }}</RouterLink></div>
+          </div>
         </div>
       </section>
 

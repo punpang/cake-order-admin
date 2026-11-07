@@ -17,7 +17,7 @@ const active = 'bg-white text-brand-700 shadow-sm'
     <div class="mx-auto flex h-14 max-w-page items-center gap-2 px-4 lg:px-8">
       <RouterLink to="/" class="flex min-w-0 items-center gap-2.5">
         <svg viewBox="0 0 48 48" class="h-10 w-10 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2" stroke-linejoin="round"><ellipse cx="24" cy="40" rx="18" ry="4" fill="#fff" /><rect x="9" y="22" width="30" height="16" rx="4" fill="#ffd05c" /><path d="M8 22c0-7 7-10 16-10s16 3 16 10c-3 3-5 0-8 3s-5 0-8 3-5 0-8-3-5 0-8-3z" fill="#ff8fa6" /><circle cx="24" cy="9" r="4" fill="#e0314f" /></svg>
-        <span class="truncate font-display text-xl text-brand-600">{{ db.shop.name || 'ร้านเค้ก' }}</span>
+        <span class="truncate font-display text-xl text-brand-700">{{ db.shop.name || 'ร้านเค้ก' }}</span>
       </RouterLink>
       <nav class="ml-auto flex items-center gap-1">
         <RouterLink to="/" :class="[link, 'max-sm:hidden']" exact-active-class="bg-white text-brand-700 shadow-sm">หน้าแรก</RouterLink>
@@ -29,7 +29,7 @@ const active = 'bg-white text-brand-700 shadow-sm'
     </div>
   </header>
 
-  <main class="min-h-[60vh]">
+  <main id="main-content" tabindex="-1" class="min-h-[60vh] outline-none">
     <RouterView :key="$route.fullPath" />
   </main>
 
@@ -54,13 +54,13 @@ const active = 'bg-white text-brand-700 shadow-sm'
       </div>
     </div>
     <div class="border-t border-cream/15 py-3 text-center text-xs text-cream/80">
-      <RouterLink to="/legal/privacy" class="underline">ความเป็นส่วนตัว (PDPA)</RouterLink>
-      · <RouterLink to="/legal/terms" class="underline">เงื่อนไขการใช้งาน</RouterLink>
-      · <RouterLink to="/legal/cookie" class="underline">คุกกี้</RouterLink>
-      · <button type="button" class="underline" @click="openCookieSettings">ตั้งค่าคุกกี้</button>
+      <RouterLink to="/legal/privacy" class="underline inline-block py-1.5">ความเป็นส่วนตัว (PDPA)</RouterLink>
+      · <RouterLink to="/legal/terms" class="underline inline-block py-1.5">เงื่อนไขการใช้งาน</RouterLink>
+      · <RouterLink to="/legal/cookie" class="underline inline-block py-1.5">คุกกี้</RouterLink>
+      · <button type="button" class="inline-block py-1.5 underline" @click="openCookieSettings">ตั้งค่าคุกกี้</button>
     </div>
     <div class="pb-3 text-center text-xs text-cream/80">
-      <RouterLink to="/account" class="underline">บัญชีของฉัน</RouterLink>
+      <RouterLink to="/account" class="inline-block py-1.5 underline">บัญชีของฉัน</RouterLink>
     </div>
   </footer>
   <CookieBanner />

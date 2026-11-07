@@ -86,7 +86,7 @@ const prizeDesc = (p) =>
 const q = ref('')
 const showAll = ref(false)
 // คูปอง/ของรางวัลของลูกค้าทั้งหมด: มอบ (หลังบ้าน ไม่ต้องรอลูกค้ากดแสดง) · คืนคะแนนตามที่ไม่ได้ใช้จริง
-const PHASE = { pending: ['ยังไม่ใช้', 'bg-amber-50 text-amber-700'], active: ['แสดงที่ร้านอยู่', 'bg-brand-50 text-brand-800'], lapsed: ['หมดเวลาแสดง (ถือว่าใช้แล้ว)', 'bg-stone-100 text-stone-600'], expired: ['หมดอายุ', 'bg-rose-50 text-rose-600'], delivered: ['มอบแล้ว', 'bg-stone-100 text-stone-500'], used: ['ใช้แล้ว', 'bg-stone-100 text-stone-500'], refunded: ['คืนคะแนนแล้ว', 'bg-emerald-50 text-emerald-700'] }
+const PHASE = { pending: ['ยังไม่ใช้', 'bg-amber-50 text-amber-700'], active: ['แสดงที่ร้านอยู่', 'bg-brand-50 text-brand-800'], lapsed: ['หมดเวลาแสดง (ถือว่าใช้แล้ว)', 'bg-stone-100 text-stone-600'], expired: ['หมดอายุ', 'bg-rose-50 text-rose-700'], delivered: ['มอบแล้ว', 'bg-stone-100 text-stone-500'], used: ['ใช้แล้ว', 'bg-stone-100 text-stone-500'], refunded: ['คืนคะแนนแล้ว', 'bg-emerald-50 text-emerald-700'] }
 const phaseOf = (c) => phaseOfCoupon(c)
 const DONE = ['delivered', 'used', 'refunded']
 const rewardCoupons = computed(() => {
@@ -159,7 +159,7 @@ function doRefund() {
     <template v-else-if="tab === 'gacha'">
       <div class="mb-3 flex flex-wrap items-center gap-3">
         <button class="btn-primary" @click="editGp(null)"><AppIcon name="plus" /> เพิ่มรางวัล</button>
-        <span class="rounded-full px-3 py-1 text-sm font-medium" :class="total === 100 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'">
+        <span class="rounded-full px-3 py-1 text-sm font-medium" :class="total === 100 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'">
           รวม {{ total }}% {{ total === 100 ? '' : '(ต้องเท่ากับ 100% จึงหมุนได้)' }}
         </span>
       </div>

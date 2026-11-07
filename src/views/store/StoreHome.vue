@@ -115,14 +115,14 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
       <div class="mb-3 flex items-center justify-between gap-3">
         <h2 class="text-2xl text-stone-900">เค้กสั่งทำตามใจ</h2>
         <div class="flex shrink-0 flex-wrap justify-end gap-2">
-          <RouterLink to="/menu/custom" class="btn-peach h-10 px-4" aria-label="ออกแบบเค้กสั่งทำที่ต้องการ">ออกแบบที่ต้องการ</RouterLink>
-          <RouterLink to="/menu/gallery" class="btn-peach h-10 px-4" aria-label="ดูผลงานเค้กสั่งทำทั้งหมด">ดูทั้งหมด</RouterLink>
+          <RouterLink to="/menu/custom" class="btn-peach h-10 px-4" aria-label="ออกแบบที่ต้องการ เค้กสั่งทำ">ออกแบบที่ต้องการ</RouterLink>
+          <RouterLink to="/menu/gallery" class="btn-peach h-10 px-4" aria-label="ดูทั้งหมด ผลงานเค้กสั่งทำ">ดูทั้งหมด</RouterLink>
         </div>
       </div>
       <template v-if="recent.length">
         <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6" aria-label="เค้กสั่งทำล่าสุด">
           <li v-for="g in recent" :key="g.id">
-            <RouterLink :to="`/menu/design/${g.id}`" class="group block w-full overflow-hidden rounded-3xl bg-white text-left shadow-md transition hover:shadow-lg" :aria-label="`ดูแบบ ${altOf(g)}`">
+            <RouterLink :to="`/menu/design/${g.id}`" class="group block w-full overflow-hidden rounded-3xl bg-white text-left shadow-md transition hover:shadow-lg">
               <div class="aspect-square overflow-hidden"><img :src="g.image" :alt="altOf(g)" loading="lazy" class="h-full w-full object-cover transition group-hover:scale-105" /></div>
               <div class="p-2.5">
                 <div class="line-clamp-1 text-sm font-semibold text-stone-900">{{ g.typeName || 'เค้กสั่งทำ' }}</div>

@@ -112,7 +112,7 @@ const contactMissing = computed(() => ['controller', 'address', 'email', 'phone'
             <label class="label !mb-0">ข้อความ</label>
             <button type="button" class="text-sm text-brand-700 underline" @click="preview = !preview">{{ preview ? 'กลับไปแก้ไข' : 'ดูตัวอย่าง' }}</button>
           </div>
-          <textarea v-if="!preview" v-model="form.text" rows="20" class="input font-mono !text-sm leading-relaxed"></textarea>
+          <textarea v-if="!preview" v-model="form.text" aria-label="ข้อความ" rows="20" class="input font-mono !text-sm leading-relaxed"></textarea>
           <div v-else class="max-h-[28rem] overflow-y-auto rounded-xl border border-stone-200 bg-white p-4"><LegalText :text="form.text" mark /></div>
           <p class="mt-1 text-xs text-stone-400">รูปแบบ: <code>## หัวข้อ</code> · <code>- รายการ</code> · เว้นบรรทัดเพื่อขึ้นย่อหน้าใหม่ · ตัวแปรแทนค่าอัตโนมัติ เช่น {ชื่อร้าน} {อัตราสะสม} {อายุคะแนน}</p>
         </div>

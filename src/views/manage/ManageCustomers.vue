@@ -180,7 +180,7 @@ async function save() {
               </span>
               <button v-if="i > 0" type="button" class="text-xs text-brand-700 underline" :aria-label="`ตั้ง ${p.name || p.address} เป็นแรก`" @click="placeFirst(form.id, p.id)">ขึ้นแรก</button>
               <button type="button" class="text-xs text-brand-700 underline" @click="editPlace(p)">แก้</button>
-              <button type="button" class="text-xs text-rose-600 underline" @click="delPlace(p)">ลบ</button>
+              <button type="button" class="text-xs text-rose-700 underline lg:py-1.5" @click="delPlace(p)">ลบ</button>
             </li>
           </ul>
         </div>

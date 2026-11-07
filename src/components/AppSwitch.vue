@@ -1,5 +1,5 @@
 <script setup>
-defineProps({ label: { type: String, default: '' } })
+defineProps({ label: { type: String, default: '' }, ariaLabel: { type: String, default: '' } })
 const on = defineModel({ type: Boolean, default: false })
 </script>
 
@@ -8,6 +8,7 @@ const on = defineModel({ type: Boolean, default: false })
     type="button"
     role="switch"
     :aria-checked="on"
+    :aria-label="label ? undefined : ariaLabel || undefined"
     class="inline-flex items-center gap-2.5 text-sm text-stone-700"
     @click="on = !on"
   >

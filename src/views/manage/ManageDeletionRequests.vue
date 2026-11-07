@@ -16,7 +16,7 @@ const FILTERS = [
   { v: 'rejected', l: 'ปฏิเสธ' },
   { v: '', l: 'ทั้งหมด' },
 ]
-const STATUS = { pending: ['รอตรวจสอบ', 'bg-amber-50 text-amber-700'], approved: ['อนุมัติแล้ว', 'bg-emerald-50 text-emerald-700'], rejected: ['ปฏิเสธ', 'bg-rose-50 text-rose-600'] }
+const STATUS = { pending: ['รอตรวจสอบ', 'bg-amber-50 text-amber-700'], approved: ['อนุมัติแล้ว', 'bg-emerald-50 text-emerald-700'], rejected: ['ปฏิเสธ', 'bg-rose-50 text-rose-700'] }
 const rows = computed(() =>
   db.deletionRequests
     .filter((r) => !filter.value || r.status === filter.value)

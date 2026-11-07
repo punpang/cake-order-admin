@@ -720,6 +720,13 @@ export function moveItem(list, index, dir) {
   list.splice(j, 0, x)
 }
 
+// ลากวางเรียงลำดับ: ย้ายรายการ from → ตำแหน่งของ to
+export function moveItemTo(list, from, to) {
+  if (from < 0 || to < 0 || from === to || from >= list.length || to >= list.length) return
+  const [x] = list.splice(from, 1)
+  list.splice(to, 0, x)
+}
+
 // จำนวนออร์เดอร์ของลูกค้า
 export const customerOrderCount = (id) => db.orders.filter((o) => o.customerId === id).length
 

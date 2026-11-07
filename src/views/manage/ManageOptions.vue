@@ -111,7 +111,7 @@ async function saveB() {
             <div class="flex flex-wrap items-center gap-2">
               <span class="font-semibold text-stone-900">{{ g.name }}</span>
               <span v-if="MAIN_KEYS.includes(g.key)" class="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-800">หลัก {{ MAIN_KEYS.indexOf(g.key) + 1 }}</span>
-              <span v-if="g.required" class="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-600">จำเป็น</span>
+              <span v-if="g.required" class="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">จำเป็น</span>
               <span v-if="g.active === false" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
             </div>
             <div class="mt-0.5 text-sm text-stone-500">
@@ -127,8 +127,8 @@ async function saveB() {
         </div>
       </RouterLink>
       <span class="flex shrink-0 flex-col justify-center">
-        <button type="button" class="flex h-7 w-7 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.optionGroups.indexOf(g) === 0" aria-label="เลื่อนขึ้น" @click="moveGroup(g, -1)">▲</button>
-        <button type="button" class="flex h-7 w-7 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.optionGroups.indexOf(g) === db.optionGroups.length - 1" aria-label="เลื่อนลง" @click="moveGroup(g, 1)">▼</button>
+        <button type="button" class="flex h-7 w-7 lg:h-8 lg:w-8 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.optionGroups.indexOf(g) === 0" aria-label="เลื่อนขึ้น" @click="moveGroup(g, -1)">▲</button>
+        <button type="button" class="flex h-7 w-7 lg:h-8 lg:w-8 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.optionGroups.indexOf(g) === db.optionGroups.length - 1" aria-label="เลื่อนลง" @click="moveGroup(g, 1)">▼</button>
       </span>
       </div>
     </div>
@@ -152,8 +152,8 @@ async function saveB() {
             <span class="mt-0.5 block text-xs text-emerald-700">{{ sizeOpts.map((sz) => `${sz.name} −${money(b.discount?.[sz.id] || 0)}`).join(' · ') }}</span>
           </button>
           <span class="flex shrink-0 flex-col justify-center">
-            <button type="button" class="flex h-6 w-7 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.bundles.indexOf(b) === 0" aria-label="เลื่อนขึ้น" @click="moveBundle(b, -1)">▲</button>
-            <button type="button" class="flex h-6 w-7 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.bundles.indexOf(b) === db.bundles.length - 1" aria-label="เลื่อนลง" @click="moveBundle(b, 1)">▼</button>
+            <button type="button" class="flex h-6 w-7 lg:h-8 lg:w-8 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.bundles.indexOf(b) === 0" aria-label="เลื่อนขึ้น" @click="moveBundle(b, -1)">▲</button>
+            <button type="button" class="flex h-6 w-7 lg:h-8 lg:w-8 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.bundles.indexOf(b) === db.bundles.length - 1" aria-label="เลื่อนลง" @click="moveBundle(b, 1)">▼</button>
           </span>
         </div>
       </div>

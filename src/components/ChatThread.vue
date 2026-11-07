@@ -63,7 +63,7 @@ const card = (m) => {
 const QUOTE_STATUS = {
   pending: { t: 'รอลูกค้ายืนยัน', cls: 'bg-amber-50 text-amber-700' },
   accepted: { t: 'ยืนยันแล้ว', cls: 'bg-emerald-50 text-emerald-700' },
-  revise: { t: 'ลูกค้าขอแก้', cls: 'bg-rose-50 text-rose-600' },
+  revise: { t: 'ลูกค้าขอแก้', cls: 'bg-rose-50 text-rose-700' },
   need_phone: { t: 'ลูกค้ายืนยัน · รอเบอร์โทร', cls: 'bg-orange-50 text-orange-700' },
   superseded: { t: 'มีใบใหม่แล้ว', cls: 'bg-stone-100 text-stone-500' },
 }
@@ -365,7 +365,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
             <span class="block truncate text-xs text-stone-500">{{ c.text }}</span>
           </button>
           <button type="button" class="flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-lg text-stone-400 hover:bg-stone-100" aria-label="แก้ไข" @click="cannedEdit = { ...c }"><AppIcon name="edit" :size="16" /></button>
-          <button type="button" class="flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-lg text-stone-400 hover:bg-rose-50 hover:text-rose-600" aria-label="ลบ" @click="removeCanned(c.id)"><AppIcon name="trash" :size="16" /></button>
+          <button type="button" class="flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-lg text-stone-400 hover:bg-rose-50 hover:text-rose-700" aria-label="ลบ" @click="removeCanned(c.id)"><AppIcon name="trash" :size="16" /></button>
         </div>
         <button type="button" class="btn-soft w-full" @click="cannedEdit = { id: null, title: '', text: '' }"><AppIcon name="plus" :size="16" /> เพิ่มข้อความ</button>
       </div>

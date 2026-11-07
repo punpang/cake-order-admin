@@ -74,7 +74,7 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
       </div>
       <div>
         <AppSwitch v-model="st.offHours.enabled" label="ตอบข้อความนอกเวลาทำการ" />
-        <textarea v-model="st.offHours.text" rows="2" class="input mt-2" maxlength="300" />
+        <textarea v-model="st.offHours.text" rows="2" class="input mt-2" maxlength="300" aria-label="ข้อความตอบนอกเวลาทำการ" />
         <p class="mt-1 text-xs text-stone-400">ใช้ {เวลาเปิด} {เวลาปิด} ได้ · เวลาทำการตามตั้งค่าร้าน ({{ db.shop.open }}–{{ db.shop.close }})</p>
       </div>
       <div>
@@ -84,7 +84,7 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
       </div>
       <div>
         <label class="label">ข้อความตอนส่งต่อพนักงาน</label>
-        <textarea v-model="st.handoff.text" rows="2" class="input" maxlength="300" />
+        <textarea v-model="st.handoff.text" rows="2" class="input" maxlength="300" aria-label="ข้อความตอนส่งต่อพนักงาน" />
         <div class="mt-2"><AppSwitch v-model="st.handoff.notifyTelegram" label="แจ้งทีมทาง Telegram เมื่อส่งต่อ" /></div>
       </div>
       <p v-if="err" class="text-sm text-rose-600">{{ err }}</p>
@@ -102,8 +102,8 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
     <section class="card mb-4">
       <h2 class="mb-2 font-semibold text-stone-900">ทดสอบ (ไม่ส่งจริง)</h2>
       <div class="space-y-2">
-        <input v-model="test.text" class="input" placeholder="พิมพ์ข้อความลูกค้า เช่น เปิดกี่โมง / ขอเช็คออร์เดอร์ OR-0004" @keyup.enter="runTest" />
-        <select v-model="test.customerId" class="input"><option value="">แชทที่ยังไม่ผูกลูกค้า</option><option v-for="c in customers" :key="c.id" :value="c.id">แชทผูกกับ {{ c.name }}</option></select>
+        <input v-model="test.text" class="input" aria-label="ข้อความลูกค้าที่ใช้ทดสอบ" placeholder="พิมพ์ข้อความลูกค้า เช่น เปิดกี่โมง / ขอเช็คออร์เดอร์ OR-0004" @keyup.enter="runTest" />
+        <select v-model="test.customerId" class="input" aria-label="ผูกกับลูกค้า (ทดสอบ)"><option value="">แชทที่ยังไม่ผูกลูกค้า</option><option v-for="c in customers" :key="c.id" :value="c.id">แชทผูกกับ {{ c.name }}</option></select>
         <button class="btn-outline h-10" @click="runTest">ทดสอบ</button>
       </div>
       <div v-if="test.res" class="mt-3 rounded-xl border p-3 text-sm" :class="test.res.handoff ? 'border-violet-200 bg-violet-50' : 'border-emerald-200 bg-emerald-50'">

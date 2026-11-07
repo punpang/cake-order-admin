@@ -1,0 +1,22 @@
+// รายการหน้าตั้งค่า (ใช้ทั้งหน้าการ์ดตั้งค่า และเมนูข้างของทุกหน้าย่อยบน PC) · perm = สิทธิ์ที่ต้องมี (ค่าเริ่มต้น manage)
+export const SETTINGS_PAGES = [
+  { to: '/admin/settings/customers', icon: 'users', title: 'ลูกค้า' },
+  { to: '/admin/settings/options', icon: 'tag', title: 'ตัวเลือก + ราคา' },
+  { to: '/admin/settings/pricing', icon: 'wallet', title: 'การกำหนดราคา' },
+  { to: '/admin/settings/shop', icon: 'clock', title: 'ตั้งค่าร้าน' },
+  { to: '/admin/settings/profit', icon: 'wallet', title: 'ยอดขาย & กำไร' },
+  { to: '/admin/settings/birthdays', icon: 'cake', title: 'เตือนวันเกิด' },
+  { to: '/admin/settings/retail', icon: 'pos', title: 'สินค้า (POS / สินค้าสำเร็จ)' },
+  { to: '/admin/settings/promos', icon: 'tag', title: 'โปรโมชัน POS / คะแนนพิเศษ' },
+  { to: '/admin/settings/integrations', icon: 'phone', title: 'การเชื่อมต่อ & แจ้งเตือน' },
+  { to: '/admin/settings/loyalty', icon: 'tag', title: 'คะแนน & รางวัล' },
+  { to: '/admin/settings/storefront', icon: 'store', title: 'หน้าร้าน (เว็บลูกค้า)' },
+  { to: '/admin/settings/photo-requests', icon: 'shield', title: 'คำขอไม่เผยแพร่รูป' },
+  { to: '/admin/settings/gallery', icon: 'image', title: 'คลังรูปเค้กสั่งทำ' },
+  { to: '/admin/settings/legal', icon: 'shield', title: 'PDPA / คุกกี้ / เงื่อนไข' },
+  { to: '/admin/settings/bot', icon: 'chat', title: 'บอทตอบแชท' },
+  { to: '/admin/settings/links', icon: 'link', title: 'ลิงก์ย่อ & ลิงก์ออร์เดอร์' },
+  { to: '/admin/settings/deletion-requests', icon: 'shield', title: 'คำขอลบข้อมูลลูกค้า' },
+  { to: '/admin/settings/ingredients', icon: 'basket', title: 'วัตถุดิบ' },
+  { to: '/admin/settings/users', icon: 'shield', title: 'ผู้ใช้ & สิทธิ์', perm: 'manageUsers' },
+]

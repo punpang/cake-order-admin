@@ -99,7 +99,7 @@ const couponState = (c) => {
   if (ph === 'delivered') return { t: 'รับแล้ว', cls: 'bg-stone-100 text-stone-500' }
   if (ph === 'lapsed') return { t: 'หมดเวลา (ถือว่าใช้แล้ว)', cls: 'bg-stone-100 text-stone-500' }
   if (ph === 'refunded') return { t: 'ร้านคืนคะแนนแล้ว', cls: 'bg-stone-100 text-stone-500' }
-  if (ph === 'expired') return { t: 'หมดอายุ', cls: 'bg-rose-50 text-rose-600' }
+  if (ph === 'expired') return { t: 'หมดอายุ', cls: 'bg-rose-50 text-rose-700' }
   if (ph === 'active') return { t: `แสดงที่ร้านอยู่ ${left(c)}`, cls: 'bg-brand-50 text-brand-800' }
   return c.type === 'reward' ? { t: 'รอรับที่ร้าน', cls: 'bg-amber-50 text-amber-700' } : { t: 'ใช้ได้', cls: 'bg-emerald-50 text-emerald-700' }
 }

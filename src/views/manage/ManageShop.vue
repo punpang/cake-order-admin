@@ -72,7 +72,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         <div class="label">ห่างกันทุก (นาที)</div>
         <div class="flex flex-wrap items-center gap-2">
           <button v-for="m in STEPS" :key="m" type="button" class="chip" :class="Number(st.slotMinutes) === m ? 'chip-on' : 'chip-off'" @click="st.slotMinutes = m">{{ m }}</button>
-          <input v-model.number="st.slotMinutes" type="text" v-num min="5" class="input w-24" />
+          <input v-model.number="st.slotMinutes" type="text" v-num min="5" class="input w-24" aria-label="ช่วงเวลานัดรับ (นาที) กำหนดเอง" />
         </div>
       </div>
       <div>

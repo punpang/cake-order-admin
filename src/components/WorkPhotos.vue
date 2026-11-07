@@ -61,7 +61,7 @@ const prodName = computed(() => db.retailItems.find((r) => r.id === props.item.r
         <div class="space-y-1 p-2">
           <label v-if="can('manage') && status === 'ok'" class="flex items-center gap-1.5 text-xs text-stone-700"><input type="checkbox" class="h-4 w-4" :checked="p.publish" :aria-label="`ใช้เป็นรูปตัวอย่างบนเว็บ`" @change="togglePublish(p)" /> ใช้เป็นรูปตัวอย่างบนเว็บ</label>
           <p v-else-if="p.publish" class="text-xs text-emerald-700">เผยแพร่บนเว็บ{{ status === 'requested' ? ' (ซ่อนชั่วคราว)' : '' }}</p>
-          <button v-if="can('workPhoto')" type="button" class="text-xs text-rose-600 underline" @click="del(p)">ลบรูป</button>
+          <button v-if="can('workPhoto')" type="button" class="text-xs text-rose-700 underline lg:py-1.5" @click="del(p)">ลบรูป</button>
         </div>
       </div>
     </div>

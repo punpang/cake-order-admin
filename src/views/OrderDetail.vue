@@ -327,10 +327,10 @@ async function saveCancel() {
                 วันเกิด {{ order.birthday.name }} · {{ mdLabel(order.birthday.md) }}
                 <button v-if="canEditBirthday" class="ml-1 text-brand-700 underline" @click="openBirthday">แก้</button>
               </div>
-              <button v-else-if="canEditBirthday" class="mt-1 text-sm text-brand-700 underline" @click="openBirthday">+ เพิ่มวันเกิด</button>
-              <button v-if="can('changeBuyer') && order.status !== 'cancelled'" class="mt-1 block text-sm text-brand-700 underline" @click="buyerOpen = true">เปลี่ยนผู้ซื้อ</button>
-              <button v-if="can('createOrder') && order.status !== 'draft' && order.channel !== 'pos'" class="mt-1 block text-sm text-brand-700 underline" @click="linkOpen = true">ส่งลิงก์ให้ลูกค้า</button>
-              <button v-if="can('taxInvoice') && t.vatMode && order.status !== 'draft' && order.status !== 'cancelled'" class="mt-1 block text-sm text-brand-700 underline" @click="taxOpen = true">ใบกำกับภาษีเต็มรูป</button>
+              <button v-else-if="canEditBirthday" class="mt-1 text-sm text-brand-700 underline lg:py-1.5" @click="openBirthday">+ เพิ่มวันเกิด</button>
+              <button v-if="can('changeBuyer') && order.status !== 'cancelled'" class="mt-1 block text-sm text-brand-700 underline lg:py-1.5" @click="buyerOpen = true">เปลี่ยนผู้ซื้อ</button>
+              <button v-if="can('createOrder') && order.status !== 'draft' && order.channel !== 'pos'" class="mt-1 block text-sm text-brand-700 underline lg:py-1.5" @click="linkOpen = true">ส่งลิงก์ให้ลูกค้า</button>
+              <button v-if="can('taxInvoice') && t.vatMode && order.status !== 'draft' && order.status !== 'cancelled'" class="mt-1 block text-sm text-brand-700 underline lg:py-1.5" @click="taxOpen = true">ใบกำกับภาษีเต็มรูป</button>
             </div>
             <a
               v-if="customer?.phone"
@@ -356,7 +356,7 @@ async function saveCancel() {
                 <div v-if="order.detail" class="break-words">รายละเอียด: {{ order.detail }}</div>
                 <a v-if="mapHref" :href="mapHref" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-brand-700 underline"><AppIcon name="pin" :size="14" /> เปิดแผนที่</a>
               </div>
-              <button v-if="canEditDelivery" class="mt-1 block text-sm text-brand-700 underline" @click="openDelivery">แก้ข้อมูลจัดส่ง</button>
+              <button v-if="canEditDelivery" class="mt-1 block text-sm text-brand-700 underline lg:py-1.5" @click="openDelivery">แก้ข้อมูลจัดส่ง</button>
               <div class="mt-1.5 text-xs text-stone-400">วันเดียวกันมีอีก {{ load.day }} · ชั่วโมงเดียวกัน {{ load.hour }}</div>
             </div>
             <button v-if="canEditPickup" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700" aria-label="แก้วันเวลานัด" @click="pickupOpen = true"><AppIcon name="edit" /></button>
@@ -518,7 +518,7 @@ async function saveCancel() {
               </div>
               <div v-if="p.status === 'confirmed' && p.requested != null && p.requested !== p.amount" class="text-xs text-stone-500">แจ้งไป {{ money(p.requested) }} · ได้รับจริง {{ money(p.amount) }}</div>
               <div v-if="p.customerSubmitted && p.status === 'reported'" class="mt-1 inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-700">ลูกค้าแจ้งโอนเอง · รอตรวจสลิป{{ p.source === 'customer' ? '' : ' (ตามที่ร้านแจ้ง)' }}</div>
-              <div v-if="dueState(p) !== 'none'" class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="dueState(p) === 'overdue' ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-700'">
+              <div v-if="dueState(p) !== 'none'" class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="dueState(p) === 'overdue' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'">
                 <AppIcon name="alert" :size="12" /> ชำระก่อน {{ dateTime(p.dueAt) }} · {{ remainingText(p) }}
               </div>
               <div v-if="p.extension?.status === 'pending' && p.status === 'reported'" class="mt-2 rounded-lg bg-amber-50 p-2.5 text-sm text-amber-800">
@@ -563,7 +563,7 @@ async function saveCancel() {
           <ul v-show="msgOpen" id="order-messages" class="mt-3 space-y-2">
             <li v-for="m in messages" :key="m.id" class="rounded-xl bg-stone-50 p-2.5">
               <div class="flex flex-wrap items-center gap-1.5 text-xs">
-                <span class="rounded-full px-2 py-0.5 font-semibold" :class="m.channel ? 'bg-brand-50 text-brand-800' : 'bg-rose-50 text-rose-600'">{{ m.channel ? CHANNELS[m.channel].label : 'ไม่มีช่องทาง' }}</span>
+                <span class="rounded-full px-2 py-0.5 font-semibold" :class="m.channel ? 'bg-brand-50 text-brand-800' : 'bg-rose-50 text-rose-700'">{{ m.channel ? CHANNELS[m.channel].label : 'ไม่มีช่องทาง' }}</span>
                 <span class="text-stone-600">{{ NOTIFY_EVENTS[m.event]?.label }}</span>
                 <span class="ml-auto text-stone-400">{{ dateTime(m.at) }}</span>
               </div>

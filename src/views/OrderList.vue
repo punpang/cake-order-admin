@@ -198,7 +198,7 @@ function clearAll() {
     <div v-if="isToday && !filtersOpen" data-today-banner class="mb-3 flex items-center gap-3 rounded-2xl bg-brand-50 px-3.5 py-2">
       <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-brand-600"><AppIcon name="calendar" :size="18" /></span>
       <span class="min-w-0 flex-1 text-sm text-brand-900"><b>แสดงเฉพาะนัดรับวันนี้</b> <span class="whitespace-nowrap">({{ list.length }} จาก {{ visible.length }})</span></span>
-      <button type="button" class="btn-outline h-11 shrink-0 px-4" aria-label="ลบตัวกรอง นัดรับ วันนี้" @click="clearFilter('date')">ดูทั้งหมด</button>
+      <button type="button" class="btn-outline h-11 shrink-0 px-4" aria-label="ดูทั้งหมด (ลบตัวกรอง นัดรับ วันนี้)" @click="clearFilter('date')">ดูทั้งหมด</button>
     </div>
 
     <!-- ป้ายตัวกรองที่ใช้อยู่ -->

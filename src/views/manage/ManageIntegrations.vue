@@ -136,7 +136,7 @@ async function disconnect(k) {
       <section v-for="(c, k) in CHANNELS" :key="k" class="card">
         <div class="mb-1 flex items-center justify-between gap-2">
           <span class="font-semibold text-stone-900">{{ c.label }}</span>
-          <AppSwitch v-model="db.integrations[k].enabled" />
+          <AppSwitch v-model="db.integrations[k].enabled" :aria-label="`เปิดใช้ช่องทาง ${c.label}`" />
         </div>
         <div class="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
           <span v-if="db.integrations[k].status === 'connected'" class="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">เชื่อมแล้ว · {{ db.integrations[k].accountName }}</span>
@@ -187,8 +187,8 @@ async function disconnect(k) {
               </div>
               <div class="mt-0.5 truncate text-xs text-stone-500">{{ r.template }}</div>
             </div>
-            <button type="button" class="btn-outline h-9 shrink-0 px-3" @click="edit(r)"><AppIcon name="edit" :size="14" /></button>
-            <AppSwitch :model-value="r.enabled" @update:model-value="setEnabled(r, $event)" />
+            <button type="button" class="btn-outline h-9 shrink-0 px-3" :aria-label="`แก้ข้อความ ${NOTIFY_EVENTS[r.event].label}`" @click="edit(r)"><AppIcon name="edit" :size="14" /></button>
+            <AppSwitch :model-value="r.enabled" :aria-label="`เปิดใช้กฎ ${NOTIFY_EVENTS[r.event].label || r.event}`" @update:model-value="setEnabled(r, $event)" />
           </div>
           <div class="mt-2 flex flex-wrap gap-1.5">
             <button v-for="ch in customerChannels" :key="ch" type="button" class="chip" :class="r.channels.includes(ch) ? 'chip-on' : 'chip-off'" @click="toggleChannel(r, ch)">{{ CHANNELS[ch].label }}</button>
@@ -208,8 +208,8 @@ async function disconnect(k) {
             </div>
             <div class="mt-0.5 truncate text-xs text-stone-500">{{ r.template }}</div>
           </div>
-          <button type="button" class="btn-outline h-9 shrink-0 px-3" @click="edit(r)"><AppIcon name="edit" :size="14" /></button>
-          <AppSwitch :model-value="r.enabled" @update:model-value="setEnabled(r, $event)" />
+          <button type="button" class="btn-outline h-9 shrink-0 px-3" :aria-label="`แก้ข้อความ ${NOTIFY_EVENTS[r.event].label}`" @click="edit(r)"><AppIcon name="edit" :size="14" /></button>
+          <AppSwitch :model-value="r.enabled" :aria-label="`เปิดใช้กฎ ${NOTIFY_EVENTS[r.event].label}`" @update:model-value="setEnabled(r, $event)" />
         </li>
       </ul>
     </section>
@@ -229,7 +229,7 @@ async function disconnect(k) {
       <ul class="space-y-2">
         <li v-for="m in outbox" :key="m.id" class="rounded-xl border border-stone-200 p-3">
           <div class="flex flex-wrap items-center gap-1.5 text-xs">
-            <span class="rounded-full px-2 py-0.5 font-semibold" :class="m.channel ? 'bg-brand-50 text-brand-800' : 'bg-rose-50 text-rose-600'">{{ m.channel ? CHANNELS[m.channel].label : 'ไม่มีช่องทาง' }}</span>
+            <span class="rounded-full px-2 py-0.5 font-semibold" :class="m.channel ? 'bg-brand-50 text-brand-800' : 'bg-rose-50 text-rose-700'">{{ m.channel ? CHANNELS[m.channel].label : 'ไม่มีช่องทาง' }}</span>
             <span class="text-stone-600">{{ NOTIFY_EVENTS[m.event]?.label || EXTRA_EVENT[m.event] }}</span>
             <span class="ml-auto text-stone-400">{{ dateTime(m.at) }}</span>
           </div>

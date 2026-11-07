@@ -1,8 +1,9 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { db, session, can, switchUser, unreadChats, runScheduledChecks, orderVisible } from './data/store'
 import { paymentCounts } from './lib/paymentsQueue'
+import { focusMain } from './lib/a11yNav'
 import { ROLES } from './lib/constants'
 import { firstHome, homeOf, systemOf, systemByKey, visibleSystems, visibleItems } from './lib/adminSystems'
 import AppIcon from './components/AppIcon.vue'
@@ -15,6 +16,9 @@ import StoreLayout from './components/StoreLayout.vue'
 const roleOpen = ref(false)
 // 4 ระบบหลังบ้าน (lib/adminSystems.js): ตัวสลับระบบ + เมนูย่อยของระบบปัจจุบัน
 const route = useRoute()
+// เปลี่ยนหน้า (SPA) → ย้ายโฟกัสไปเนื้อหา ให้ผู้ใช้แป้นพิมพ์/โปรแกรมอ่านหน้าจอเริ่มจากหน้าใหม่
+// (ข้ามการนำทางครั้งแรกตอนโหลดหน้า เพื่อไม่ให้ข้ามลิงก์ "ข้ามไปเนื้อหาหลัก")
+useRouter().isReady().then(() => watch(() => route.path, async () => { await nextTick(); focusMain(true) }))
 const systems = computed(() => visibleSystems(can))
 const current = computed(() => systemOf(route.path))
 const items = computed(() => { const s = systemByKey(current.value); return s ? visibleItems(s, can) : [] })
@@ -40,6 +44,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
 </script>
 
 <template>
+  <button type="button" class="skip-link" @click="focusMain()">ข้ามไปเนื้อหาหลัก</button>
   <!-- หน้าร้าน + ระบบลูกค้า -->
   <StoreLayout v-if="$route.meta.store" />
 
@@ -47,9 +52,9 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
   <!-- แถบบน -->
   <header class="sticky top-0 z-20 bg-cream/90 shadow-[0_1px_0_rgb(63_46_46/0.06)] backdrop-blur-xl">
     <div class="mx-auto flex h-14 max-w-page items-center gap-3 px-4 lg:px-8">
-      <RouterLink :to="firstHome(can)" class="flex min-w-0 items-center gap-2.5" aria-label="หน้าแรกหลังบ้าน">
+      <RouterLink :to="firstHome(can)" class="flex min-w-0 items-center gap-2.5" aria-label="ร้านเค้ก หน้าแรกหลังบ้าน">
         <svg viewBox="0 0 48 48" class="h-10 w-10 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2" stroke-linejoin="round"><ellipse cx="24" cy="40" rx="18" ry="4" fill="#fff" /><rect x="9" y="22" width="30" height="16" rx="4" fill="#ffd05c" /><path d="M8 22c0-7 7-10 16-10s16 3 16 10c-3 3-5 0-8 3s-5 0-8 3-5 0-8-3-5 0-8-3z" fill="#ff8fa6" /><circle cx="24" cy="9" r="4" fill="#e0314f" /></svg>
-        <span class="hidden truncate font-display text-xl text-brand-600 sm:inline">ร้านเค้ก</span>
+        <span class="hidden truncate font-display text-xl text-brand-700 sm:inline">ร้านเค้ก</span>
       </RouterLink>
 
       <SystemSwitcher :systems="systems" :current="current" />
@@ -67,7 +72,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
         </RouterLink>
       </nav>
 
-      <RouterLink to="/" class="ml-auto text-sm text-stone-600 underline">หน้าร้าน</RouterLink>
+      <RouterLink to="/" class="ml-auto inline-flex items-center text-sm text-stone-600 underline lg:min-h-8 lg:px-1">หน้าร้าน</RouterLink>
       <BellMenu audience="staff" />
       <button class="inline-flex h-10 max-w-40 items-center gap-2 rounded-full bg-white px-3 text-sm shadow-sm lg:px-3.5" :aria-label="`ผู้ใช้ ${me?.name || ROLES[session.role]}`" @click="roleOpen = true">
         <AppIcon name="user" :size="16" class="shrink-0 text-stone-500" />
@@ -78,7 +83,9 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
 
   <!-- lock = ล็อกหน้า (เช่น แชท): main ตรึงใต้แถบบน ไม่ให้หน้าเว็บเลื่อน แต่ละกรอบข้างในเลื่อนเอง · ไม่พึ่ง dvh -->
   <main
-    class="mx-auto max-w-page px-4 lg:px-8"
+    id="main-content"
+    tabindex="-1"
+    class="mx-auto max-w-page outline-none px-4 lg:px-8"
     :class="$route.meta.lock ? ['fixed inset-x-0 top-14 bottom-0 overflow-hidden pt-3', $route.meta.focus || !showBottom ? 'pb-[calc(env(safe-area-inset-bottom)+0.75rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-3'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10', 'pt-5']"
   >
     <RouterView :key="$route.fullPath" />

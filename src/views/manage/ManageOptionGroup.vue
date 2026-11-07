@@ -1,7 +1,7 @@
 <script setup>
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
-import { db, findGroup, saveGroup, saveOption, moveItem } from '../../data/store'
+import { db, findGroup, saveGroup, saveOption, moveItem, moveItemTo } from '../../data/store'
 import { GROUP_TYPES, APPLIES_TO, MAIN_KEYS } from '../../lib/constants'
 import { money } from '../../lib/format'
 import ManageShell from '../../components/ManageShell.vue'
@@ -53,6 +53,14 @@ function toggleType(id) {
   else o.types.push(id)
 }
 // จัดลำดับตัวเลือก
+// ลากวางเรียง (PC/เมาส์) · ปุ่ม ▲▼ ยังใช้ได้เสมอ (แป้นพิมพ์/มือถือ)
+const dragging = ref(null)
+const dropOn = ref(null)
+const dropped = (target) => {
+  const list = group.value.options
+  if (dragging.value) moveItemTo(list, list.indexOf(dragging.value), list.indexOf(target))
+  dragging.value = null; dropOn.value = null
+}
 const move = (opt, dir) => moveItem(group.value.options, group.value.options.indexOf(opt), dir)
 
 // ---------- ตั้งค่ากลุ่ม ----------
@@ -142,7 +150,7 @@ async function saveO() {
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
             <span class="font-semibold text-stone-900">{{ group.name }}</span>
-            <span v-if="group.required" class="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-600">จำเป็น</span>
+            <span v-if="group.required" class="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">จำเป็น</span>
             <span v-if="group.active === false" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
           </div>
           <div class="text-sm text-stone-500">{{ GROUP_TYPES[group.type] }} · {{ group.appliesTo.map((a) => APPLIES_TO[a]).join(', ') }}</div>
@@ -166,7 +174,13 @@ async function saveO() {
           v-for="opt in options"
           :key="opt.id"
           class="card flex items-center gap-2 p-2 transition hover:border-brand-300"
-          :class="opt.active === false ? 'opacity-60' : ''"
+          :class="[opt.active === false ? 'opacity-60' : '', dropOn === opt && dragging !== opt ? 'border-brand-500 ring-2 ring-brand-200' : '']"
+          draggable="true"
+          data-option-card
+          @dragstart="dragging = opt"
+          @dragend="dragging = null; dropOn = null"
+          @dragover.prevent="dropOn = opt"
+          @drop.prevent="dropped(opt)"
         >
           <button type="button" class="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1.5 text-left active:scale-[0.99]" @click="editOption(opt)">
             <span class="min-w-0 flex-1">
@@ -179,8 +193,8 @@ async function saveO() {
             <span class="shrink-0 text-sm font-semibold" :class="isSize || isType || opt.price || hasPrice(opt) ? 'text-stone-900' : 'text-stone-400'">{{ priceText(opt) }}</span>
           </button>
           <span class="flex shrink-0 flex-col">
-            <button type="button" class="flex h-6 w-7 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="group.options.indexOf(opt) === 0" aria-label="เลื่อนขึ้น" @click="move(opt, -1)">▲</button>
-            <button type="button" class="flex h-6 w-7 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="group.options.indexOf(opt) === group.options.length - 1" aria-label="เลื่อนลง" @click="move(opt, 1)">▼</button>
+            <button type="button" class="flex h-6 w-7 lg:h-8 lg:w-8 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="group.options.indexOf(opt) === 0" aria-label="เลื่อนขึ้น" @click="move(opt, -1)">▲</button>
+            <button type="button" class="flex h-6 w-7 lg:h-8 lg:w-8 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="group.options.indexOf(opt) === group.options.length - 1" aria-label="เลื่อนลง" @click="move(opt, 1)">▼</button>
           </span>
         </div>
       </div>

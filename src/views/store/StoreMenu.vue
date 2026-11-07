@@ -47,9 +47,9 @@ const tabs = computed(() => [
       <section v-for="s in sections" :id="`cat-${s.key}`" :key="s.key" class="mb-7" :aria-label="`หมวด ${s.category}`">
         <h2 class="mb-2.5 text-xl text-stone-900">{{ s.category }}</h2>
         <div class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-          <RouterLink v-for="r in s.items" :key="r.product.id" :to="`/menu/ready/${r.product.id}`" class="overflow-hidden rounded-3xl bg-white shadow-md transition hover:shadow-lg" :class="r.stockState === 'out' ? 'opacity-60' : ''">
+          <RouterLink v-for="r in s.items" :key="r.product.id" :to="`/menu/ready/${r.product.id}`" class="overflow-hidden rounded-3xl bg-white shadow-md transition hover:shadow-lg" :class="r.stockState === 'out' ? 'opacity-75' : ''">
             <div class="relative aspect-square overflow-hidden"><CakeImage :src="r.product.images?.[0]" :alt="r.product.name" />
-              <span v-if="r.discounted" class="absolute top-2 left-2 rounded-full bg-brand-600 px-2.5 py-0.5 text-xs font-semibold text-white">โปร</span>
+              <span v-if="r.discounted" class="absolute top-2 left-2 rounded-full bg-brand-700 px-2.5 py-0.5 text-xs font-semibold text-white">โปร</span>
               <span v-if="r.stockState === 'out'" class="absolute top-2 right-2 rounded-full bg-stone-800/80 px-2.5 py-0.5 text-xs font-medium text-white">หมด</span>
               <span v-else-if="r.stockState === 'low'" class="absolute top-2 right-2 rounded-full bg-honey px-2.5 py-0.5 text-xs font-semibold text-stone-900">เหลือ {{ r.stock }}</span>
             </div>
@@ -67,7 +67,7 @@ const tabs = computed(() => [
       <div v-if="!custom.length" class="empty"><div class="h-24 w-28 overflow-hidden rounded-2xl"><CakeArt kind="fondant" /></div>ยังไม่มีเค้กสั่งทำในเมนู</div>
       <RouterLink v-else to="/menu/custom" class="block overflow-hidden rounded-3xl bg-white shadow-md transition hover:shadow-lg sm:flex" aria-label="เค้กสั่งทำ">
         <div class="relative aspect-4/3 overflow-hidden sm:w-1/2"><CakeArt kind="fondant" />
-          <span v-if="customDiscounted" class="absolute top-2 left-2 rounded-full bg-brand-600 px-2.5 py-0.5 text-xs font-semibold text-white">โปร</span>
+          <span v-if="customDiscounted" class="absolute top-2 left-2 rounded-full bg-brand-700 px-2.5 py-0.5 text-xs font-semibold text-white">โปร</span>
         </div>
         <div class="space-y-1 p-4 sm:w-1/2">
           <div class="font-display text-xl text-stone-900">เค้กสั่งทำ</div>

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { bellFeed, bellIsRead, bellMarkAll, bellMarkRead, bellMarkUnread, bellUnreadCount } from '../data/store'
 import { BELL_STAFF, relTime } from '../lib/bell'
@@ -26,7 +26,9 @@ function go(i) {
   router.push(target(i))
 }
 function outside(e) { if (open.value && root.value && !root.value.contains(e.target)) open.value = false }
-function esc(e) { if (e.key === 'Escape' && open.value) open.value = false }
+function esc(e) { if (e.key === 'Escape' && open.value) { open.value = false; root.value?.querySelector('[data-bell]')?.focus() } }
+// เปิดแผงแล้วย้ายโฟกัสเข้าแผง (ปุ่มแท็บปัจจุบัน) · ปิดด้วย Esc คืนโฟกัสกระดิ่ง
+watch(open, async (o) => { if (!o) return; await nextTick(); root.value?.querySelector('[data-bell-tab][aria-pressed=true]')?.focus() })
 onMounted(() => { document.addEventListener('pointerdown', outside); document.addEventListener('keydown', esc) })
 onBeforeUnmount(() => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', esc) })
 </script>

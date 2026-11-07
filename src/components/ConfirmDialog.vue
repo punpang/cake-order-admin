@@ -40,7 +40,7 @@ const titleId = computed(() => 'confirm-title')
     <div class="flex h-full items-center justify-center p-6" @click.self="closeConfirm(false)">
       <div class="max-h-full w-full max-w-sm overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl" ref="box" data-dialog role="alertdialog" aria-modal="true" :aria-labelledby="titleId" :aria-describedby="confirmState.message ? 'confirm-desc' : undefined">
         <div class="flex items-start gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" :class="confirmState.danger ? 'bg-rose-50 text-rose-600' : 'bg-brand-50 text-brand-600'">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" :class="confirmState.danger ? 'bg-rose-50 text-rose-700' : 'bg-brand-50 text-brand-600'">
             <AppIcon name="alert" :size="20" />
           </span>
           <div class="min-w-0 flex-1">
