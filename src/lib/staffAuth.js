@@ -15,7 +15,7 @@ async function startData(staff) {
   const has = (p) => staff.perms.includes(p)
   syncs.push(await items.startItemsSync({ client, db, canWrite: has('editItems'), onError }))
   syncs.push(await config.startConfigSync({ client, db, canWrite: has('manage'), onError }))
-  syncs.push(await orders.startOrdersSync({ client, db, bumpOrderNo: store.bumpOrderNo, onError, onRecode: (o, c) => showToast(`เลขออร์เดอร์ซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000),
+  syncs.push(await orders.startOrdersSync({ client, db, bumpOrderNo: store.setOrderNo, onError, onRecode: (o, c) => showToast(`เลขออร์เดอร์ซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000),
     canWrite: ['createOrder', 'pos', 'startPreparing', 'markPrepared', 'deliverPickup', 'deliverShipping', 'confirmPayment', 'reportPayment', 'cancel', 'editPickup', 'editItems', 'adjustPrice', 'changeBuyer', 'workPhoto'].some(has) }))
   syncs.push(await customers.startCustomersSync({ client, db, canWrite: has('createOrder') || has('adjustPoints'), onError }))
 }

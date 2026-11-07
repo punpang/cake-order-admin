@@ -399,8 +399,8 @@ for (const g of db.optionGroups) g.active = true
 // ---------- ฟังก์ชัน ----------
 let orderNo = 0
 const nextCode = () => `OR-${String(++orderNo).padStart(4, '0')}`
-// โหมด Supabase: หลังโหลดออร์เดอร์จริง ตั้งตัวนับให้ต่อจากเลขสูงสุด (กันเลขซ้ำ)
-export const bumpOrderNo = (n) => { if (Number.isFinite(n) && n > orderNo) orderNo = n }
+// โหมด Supabase: หลังโหลดออร์เดอร์จริง ตั้งตัวนับให้เท่าเลขสูงสุดที่มีอยู่จริง (ไม่ใช่เลขที่ข้อมูลตัวอย่างนับไปแล้ว) → ออร์เดอร์ถัดไป = สูงสุด+1
+export const setOrderNo = (n) => { if (Number.isFinite(n) && n >= 0) orderNo = n }
 
 export const findOrder = (id) => db.orders.find((o) => o.id === id)
 export const findCustomer = (id) => db.customers.find((c) => c.id === id)
