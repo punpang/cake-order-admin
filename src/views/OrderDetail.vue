@@ -517,6 +517,7 @@ async function saveCancel() {
                   {{ PAY_BADGE[p.status]?.t }}
                 </span>
               </div>
+              <div v-if="p.code" class="text-xs text-stone-500">เลขที่ {{ p.code }}</div>
               <div v-if="p.status === 'confirmed' && p.requested != null && p.requested !== p.amount" class="text-xs text-stone-500">แจ้งไป {{ money(p.requested) }} · ได้รับจริง {{ money(p.amount) }}</div>
               <div v-if="p.customerSubmitted && p.status === 'reported'" class="mt-1 inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-700">ลูกค้าแจ้งโอนเอง · รอตรวจสลิป{{ p.source === 'customer' ? '' : ' (ตามที่ร้านแจ้ง)' }}</div>
               <div v-if="dueState(p) !== 'none'" class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="dueState(p) === 'overdue' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'">

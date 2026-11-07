@@ -45,7 +45,7 @@ export function similarity(a, b) {
 export function scrubPII(text, names = []) {
   let t = String(text ?? '')
   t = t.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '{อีเมล}')
-  t = t.replace(/\bOR-\d+\b/gi, '{เลขออร์เดอร์}')
+  t = t.replace(/\bOR-(?:\d{6}-)?\d+\b/gi, '{เลขออร์เดอร์}')
   t = t.replace(/(?:\+?66|0)[\d\s-]{8,12}\d/g, '{เบอร์}')
   t = t.replace(/\d[\d\s-]{7,}\d/g, '{เลข}')
   for (const n of names.map((x) => String(x || '').trim()).filter((x) => x.length >= 2).sort((a, b) => b.length - a.length)) t = t.split(n).join('{ชื่อ}')
@@ -97,7 +97,7 @@ export function botReply(text, ctx) {
   if (isSensitive(t)) return handoff('เรื่องเงิน/ร้องเรียน — ให้พนักงานตอบเสมอ')
 
   // 1) เลขออร์เดอร์
-  const code = String(text).match(/\bOR-\d{3,}\b/i)
+  const code = String(text).match(/\bOR-\d{6}-\d{6}\b|\bOR-\d{3,}\b/i)
   if (code) {
     const o = db.orders.find((x) => x.code.toLowerCase() === code[0].toLowerCase())
     if (o && chat.customerId && o.customerId === chat.customerId) return { reply: orderStatusText(o), source: 'order', confidence: 1, handoff: false, reason: `เลขออร์เดอร์ ${o.code} (แชทผูกลูกค้าและออร์เดอร์เป็นของลูกค้าคนนี้)` }

@@ -13,10 +13,13 @@ async function startData(staff) {
   const { db } = store
   const onError = (m) => showToast(m, 8000)
   const has = (p) => staff.perms.includes(p)
+  // ขอเลขเอกสารเป็นชุดล่วงหน้าจากฐานข้อมูล (ไม่ซ้ำข้ามเครื่อง)
+  store.numbering.setAlloc(async (p, d, n) => { const r = await client.rpc('punpang_alloc_numbers', { p_prefix: p, p_day: d, p_n: n }); return r.error ? null : r.data })
   syncs.push(await items.startItemsSync({ client, db, canWrite: has('editItems'), onError }))
   syncs.push(await config.startConfigSync({ client, db, canWrite: has('manage'), onError }))
-  syncs.push(await orders.startOrdersSync({ client, db, bumpOrderNo: store.setOrderNo, onError, onRecode: (o, c) => showToast(`เลขออร์เดอร์ซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000),
+  syncs.push(await orders.startOrdersSync({ client, db, numbering: store.numbering, onError, onRecode: (o, c) => showToast(`เลขออร์เดอร์ซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000),
     canWrite: ['createOrder', 'pos', 'startPreparing', 'markPrepared', 'deliverPickup', 'deliverShipping', 'confirmPayment', 'reportPayment', 'cancel', 'editPickup', 'editItems', 'adjustPrice', 'changeBuyer', 'workPhoto'].some(has) }))
+  store.numbering.prefetch()
   syncs.push(await customers.startCustomersSync({ client, db, canWrite: has('createOrder') || has('adjustPoints'), onError }))
 }
 export async function initStaff() {

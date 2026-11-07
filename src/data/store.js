@@ -22,6 +22,7 @@ import { decodeCake, findCodes, CODE_RE } from '../lib/cakeCode'
 import { deliveryFee, cleanDelivery, cleanDeliveryConfig, rememberPlace, DEFAULT_DELIVERY } from '../lib/delivery'
 import { dueState, overduePayments, orderDue, quickDue, isHHmm, remainingText } from '../lib/payDue'
 import { supabaseEnabled } from '../lib/supabase'
+import { createNumbering } from '../lib/docNo'
 import { staffState } from '../lib/staffAuth'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
@@ -397,10 +398,9 @@ db.customers[0].lineUserId = 'U-demo-mali'
 for (const g of db.optionGroups) g.active = true
 
 // ---------- ฟังก์ชัน ----------
-let orderNo = 0
-const nextCode = () => `OR-${String(++orderNo).padStart(4, '0')}`
-// โหมด Supabase: หลังโหลดออร์เดอร์จริง ตั้งตัวนับให้เท่าเลขสูงสุดที่มีอยู่จริง (ไม่ใช่เลขที่ข้อมูลตัวอย่างนับไปแล้ว) → ออร์เดอร์ถัดไป = สูงสุด+1
-export const setOrderNo = (n) => { if (Number.isFinite(n) && n >= 0) orderNo = n }
+// เลขที่เอกสาร: OR-ddmmyy-xxxxxx / POS-ddmmyy-xxxxx / QT-ddmmyy-xxxxx / PAY-ddmmyy-xxxxx (รันใหม่ทุกวัน) — ดู lib/docNo.js
+export const numbering = createNumbering()
+const nextCode = () => numbering.next('OR')
 
 export const findOrder = (id) => db.orders.find((o) => o.id === id)
 export const findCustomer = (id) => db.customers.find((c) => c.id === id)
@@ -827,7 +827,7 @@ export function setStatus(order, status, text, opts = {}) {
 // payment.status = reported (รอลูกค้าชำระ) | confirmed | cancelled, requested = ยอดที่แจ้ง, amount = ยอดจริง (ตอนยืนยัน)
 export function reportPayment(order, p) {
   order.payments.push({
-    id: uid('pay'),
+    id: uid('pay'), code: numbering.next('PAY'),
     requested: Number(p.amount),
     amount: Number(p.amount),
     method: p.method,
@@ -900,7 +900,7 @@ export function receivePaymentNow(order, p) {
   if (!(amount > 0)) return { error: 'กรอกยอดเงิน' }
   if (amount > round2(orderTotals(order).balance) + 0.004) return { error: 'ยอดเกินยอดคงค้าง' }
   order.payments.push({
-    id: uid('pay'), requested: amount, amount, method: p.method, paidAt: p.paidAt || now(), slip: p.slip || '', note: p.note || '',
+    id: uid('pay'), code: numbering.next('PAY'), requested: amount, amount, method: p.method, paidAt: p.paidAt || now(), slip: p.slip || '', note: p.note || '',
     dueAt: '', extension: null, createdAt: now(), status: 'confirmed', source: 'direct', reportedBy: session.role, confirmedBy: session.role, confirmedAt: now(),
   })
   log(order, `รับชำระทันที ${money(amount)} (${p.method})`)
@@ -1583,7 +1583,7 @@ export function customerPay(ctx, { amount, slip, note = '', paymentId = null }) 
     if (dueState(p) === 'overdue') return { error: 'ยอดนี้เกินกำหนดชำระ กรุณากดขอขยายเวลาก่อน' }
     Object.assign(p, { amount: amt, slip, note: nt, customerSubmitted: true, submittedAt: now(), paidAt: localNow() })
   } else {
-    p = { id: uid('pay'), requested: amt, amount: amt, method: 'โอนเงิน', paidAt: localNow(), slip, note: nt, dueAt: '', extension: null, status: 'reported', source: 'customer', customerSubmitted: true, submittedAt: now(), createdAt: now(), reportedBy: 'customer', confirmedBy: null }
+    p = { id: uid('pay'), code: numbering.next('PAY'), requested: amt, amount: amt, method: 'โอนเงิน', paidAt: localNow(), slip, note: nt, dueAt: '', extension: null, status: 'reported', source: 'customer', customerSubmitted: true, submittedAt: now(), createdAt: now(), reportedBy: 'customer', confirmedBy: null }
     o.payments.push(p)
   }
   log(o, `ลูกค้าแจ้งชำระ ${money(amt)} ผ่านหน้าออร์เดอร์ (รอตรวจสลิป)`)
@@ -2521,7 +2521,6 @@ export function clearDraft(chatId) {
 }
 
 // ---------- ใบเสนอในแชท ----------
-let quoteNo = 0
 export const findQuote = (id) => db.quotes.find((q) => q.id === id)
 // ส่งใบเสนอจากร่าง: ราคาล็อก ณ ตอนส่ง · ใบเดิมที่ยังรออยู่ในแชทเดียวกัน → superseded
 export function sendQuote(chatId, draft) {
@@ -2534,7 +2533,7 @@ export function sendQuote(chatId, draft) {
     ...deliveryFields(draft),
     birthday: draft.birthday || null, ...(() => { const w = withPromos(draft.items.filter((i) => !i.promoGift).map((i) => priceItem(i))); return { items: w.items, shipPromo: w.shipPromo, promoOn: true } })(), vat: vatNow(),
   }))
-  const q = { id: uid('qt'), code: `QT-${String(++quoteNo).padStart(4, '0')}`, chatId, customerId: c.customerId, payload, status: 'pending', orderId: null, createdAt: now(), respondedAt: null }
+  const q = { id: uid('qt'), code: numbering.next('QT'), chatId, customerId: c.customerId, payload, status: 'pending', orderId: null, createdAt: now(), respondedAt: null }
   db.quotes.unshift(q)
   sendChat(chatId, 'staff', '', { kind: 'quote', quoteId: q.id })
   return q
@@ -2591,7 +2590,6 @@ export function reviseQuote(quoteId, note = '') {
 export const unreadChats = () => db.chats.filter((c) => c.unreadStaff > 0).length
 
 // ---------- POS หน้าร้าน ----------
-let posNo = 0
 export const currentShift = () => db.shifts.find((s) => !s.closedAt) || null
 export function openShift(float) {
   if (currentShift()) return currentShift()
@@ -2699,7 +2697,7 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
   if (couponIds.length && (!customerId || posCouponProblem({ customerId, couponIds }))) return null // คูปองต้องที่ลูกค้ากดแสดงอยู่ (POS ตรวจก่อนด้วย posCouponProblem)
   const ts = now()
   const o = {
-    id: uid('o'), code: `POS-${String(++posNo).padStart(4, '0')}`, channel: 'pos', shiftId: shift.id, chatId: null,
+    id: uid('o'), code: numbering.next('POS'), channel: 'pos', shiftId: shift.id, chatId: null,
     customerId, pickupAt: ts.slice(0, 16), fulfillment: 'pickup', birthday: null, address: '', shippingFee: 0,
     items: posItems(cart, new Date(ts)), adjustment: { amount: discount ? -Math.abs(Number(discount)) : 0, reason: discount ? 'ส่วนลดหน้าร้าน' : '' },
     pointsUsed: null, couponsUsed: [], loyalty: null, vat: vatNow(), status: 'payment_confirmed', payments: [], cancel: null, history: [], createdAt: ts,
@@ -2710,7 +2708,7 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
   if (customerId) for (const id of couponIds) applyCoupon(o, id)
   const total = Math.max(orderTotals(o).total, 0)
   const got = method === 'cash' ? Math.max(Number(received) || 0, total) : total
-  o.payments.push({ id: uid('pay'), requested: total, amount: total, method: POS_METHODS[method], posMethod: method, received: got, change: got - total, paidAt: ts.slice(0, 16), slip: '', note: '', status: 'confirmed', reportedBy: session.role, confirmedBy: session.role })
+  o.payments.push({ id: uid('pay'), code: numbering.next('PAY'), requested: total, amount: total, method: POS_METHODS[method], posMethod: method, received: got, change: got - total, paidAt: ts.slice(0, 16), slip: '', note: '', status: 'confirmed', reportedBy: session.role, confirmedBy: session.role })
   for (const it of o.items) {
     const src = it.kind === 'retail' ? db.retailItems.find((x) => x.id === it.retailId) : null
     if (src && src.stock != null) src.stock = Math.max(0, src.stock - it.qty)

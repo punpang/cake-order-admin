@@ -1,4 +1,5 @@
 import { startSync } from './tableSync'
+import { parseNo } from './docNo'
 
 // ซิงก์ออร์เดอร์ (db.orders) กับ punpang_orders · ชำระเงิน/รายการ/ประวัติ ฯลฯ อยู่ใน data (jsonb)
 // สิทธิ์ตรวจที่ฐานข้อมูลด้วย trigger (เปลี่ยนสถานะ/ยืนยันชำระ/ยกเลิกยอด/แจ้งยอด) — ดู punpang_guard_status
@@ -12,7 +13,6 @@ export function rowToOrder(r) {
   const d = r.data || {}
   return { ...d, id: r.id, code: r.code, customerId: r.customer_id || '', status: r.status, fulfillment: r.fulfillment, ...(r.channel ? { channel: r.channel } : {}) }
 }
-export const codeNumber = (code) => { const m = /^OR-(\d+)$/.exec(String(code || '')); return m ? Number(m[1]) : 0 }
 
 export async function loadOrders(client) {
   const a = await client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data').order('code')
@@ -22,15 +22,8 @@ export async function loadOrders(client) {
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
-// หาเลขออร์เดอร์ที่ว่าง (กรณีสองเครื่องออกเลขพร้อมกัน)
-export async function nextFreeCode(client) {
-  const r = await client.from('punpang_orders').select('code').order('code', { ascending: false }).limit(200)
-  const max = Math.max(0, ...((r.data || []).map((x) => codeNumber(x.code))))
-  return `OR-${String(max + 1).padStart(4, '0')}`
-}
-
 // เขียนทีละรายการ: FK ลูกค้ายังไม่ถูกซิงก์ (23503) → รอแล้วลองใหม่ · เลขซ้ำ (23505) → ออกเลขใหม่
-export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRecode = () => {} } = {}) {
+export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRecode = () => {}, numbering = null } = {}) {
   for (const o of upserts) {
     let tries = 0
     for (;;) {
@@ -40,7 +33,8 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
       if (code === '23503' && tries < 3) { tries++; await wait(retryDelay); continue }
       if (code === '23505' && tries < 3) {
         tries++
-        const fresh = await nextFreeCode(client)
+        if (!numbering) return { error: `${o.code}: เลขซ้ำ` }
+        const fresh = numbering.next(parseNo(o.code)?.prefix || (o.channel === 'pos' ? 'POS' : 'OR'))
         o.code = fresh // reactive: ปรับเลขในแอปด้วย
         onRecode(o, fresh)
         continue
@@ -51,15 +45,16 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
   return { ok: true }
 }
 
-export function startOrdersSync({ client, db, canWrite, onError, onRecode, bumpOrderNo, debounceMs, retryDelay }) {
+export function startOrdersSync({ client, db, canWrite, onError, onRecode, numbering, debounceMs, retryDelay }) {
   return startSync({
     list: () => db.orders,
     replace: (items) => {
       db.orders.splice(0, db.orders.length, ...items)
-      if (bumpOrderNo) bumpOrderNo(Math.max(0, ...items.map((i) => codeNumber(i.code))))
+      // ตัวนับเลข: ล้างเลขจากข้อมูลตัวอย่าง แล้วตั้งตามเลขที่มีอยู่จริง
+      if (numbering) numbering.seen(items.map((i) => i.code), { reset: true })
     },
     load: () => loadOrders(client),
-    push: (changes) => pushOrders(client, changes, { onRecode, retryDelay }),
+    push: (changes) => pushOrders(client, changes, { onRecode, retryDelay, numbering }),
     canWrite, onError, debounceMs, label: 'ออร์เดอร์',
   })
 }
