@@ -22,6 +22,16 @@ export function readyMenu(db, now = new Date()) {
     })
 }
 
+// สินค้าที่กำลังมีโปรโมชั่น (หน้าแรก): สินค้าสำเร็จที่ราคาลดอยู่ตอนนี้ ไม่รวมที่หมดสต็อก · เรียง % ส่วนลดมากสุดก่อน (เท่ากัน → ราคาลดถูกกว่าก่อน)
+// คืน { items, total } · items ตัดตาม limit · total = จำนวนทั้งหมดที่เข้าเงื่อนไข
+export function promoProducts(db, limit = 6, now = new Date()) {
+  const all = readyMenu(db, now)
+    .filter((r) => r.discounted && (r.product.stock == null || r.product.stock > 0))
+    .map((r) => ({ ...r, pct: r.regular > 0 ? (r.regular - r.price) / r.regular : 0 }))
+    .sort((a, b) => b.pct - a.pct || a.price - b.price)
+  return { items: all.slice(0, limit), total: all.length }
+}
+
 // สินค้าหน้าร้านจัดกลุ่มตามหมวด (หมวดว่าง = "อื่น ๆ" อยู่ท้ายสุด) · ในหมวดปักหมุดก่อน · เงื่อนไขการแสดงเหมือน readyMenu (เปิดใช้งาน + แสดงที่หน้าร้าน)
 // แต่ละรายการเพิ่ม: stock, stockState ('out' | 'low' | ''), options = ชื่อกลุ่มตัวเลือกเสริมที่ผูกกับสินค้า (เหมือน POS)
 export function readyByCategory(db, now = new Date()) {
