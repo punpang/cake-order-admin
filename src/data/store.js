@@ -1436,7 +1436,7 @@ export function publicOrderView(o, { owner = false } = {}) {
 }
 
 // ออร์เดอร์ตามสิทธิ์ลูกค้า: { token } (ลิงก์ที่ยังไม่หมดอายุ) หรือ { orderId } (ล็อกอินเป็นเจ้าของ) · ไม่เจอ/ไม่มีสิทธิ์ = null (ไม่บอกเหตุผล)
-function ctxOrder(ctx) {
+export function ctxOrder(ctx) {
   if (ctx?.token != null) {
     const at = Date.now()
     while (linkFails.length && at - linkFails[0] >= 5 * 60e3) linkFails.shift()

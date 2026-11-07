@@ -27,3 +27,5 @@
 ## ตอนต่อ Supabase
 - ตาราง `order_links(token_hash pk, order_id, created_at, last_opened_at, open_count)` ไม่เปิด RLS ให้ anon อ่านตรง → ให้ Edge Function/RPC `open_order_link(token)` hash แล้วค้น คืนเฉพาะฟิลด์ที่ตัดแล้ว + rate limit ตาม IP
 - `short_links(code pk, target, kind, clicks, expires_at, active)` · RPC `resolve_short_link(code)` ตรวจ allowlist ฝั่งเซิร์ฟเวอร์
+
+> รอบ V: ถ้าออร์เดอร์มีใบกำกับภาษี/ใบลดหนี้ หน้าลิงก์แสดงให้ดู/ดาวน์โหลดได้ (ดูอย่างเดียว) — ใบมีเลขผู้เสียภาษีและที่อยู่ผู้ซื้อ ใครมีลิงก์เห็นได้

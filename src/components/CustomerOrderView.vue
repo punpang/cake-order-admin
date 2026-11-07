@@ -286,7 +286,7 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
       </template>
     </section>
 
-    <CustomerTaxInvoice v-if="ctx.orderId && o.vatRate > 0 && !cancelled" :order-id="ctx.orderId" />
+    <CustomerTaxInvoice v-if="o.vatRate > 0" :order-id="ctx.orderId || ''" :token="ctx.token || ''" :cancelled="cancelled" />
 
     <section v-if="canReview || o.review" class="card">
       <p v-if="o.review" class="text-stone-500">รีวิวของคุณ: {{ '★'.repeat(o.review.rating) }}</p>

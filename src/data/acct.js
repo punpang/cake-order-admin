@@ -1,6 +1,6 @@
 // ระบบบัญชี (จำลองในหน่วยความจำ · จุดที่จะเปลี่ยนเป็น Supabase) · ตรรกะคำนวณอยู่ใน src/lib/acct (ฟังก์ชันล้วน)
 // หมายเหตุ: store.js ไม่ import ไฟล์นี้ (กัน import วน) — หน้าที่ต้องใช้ import จากไฟล์นี้โดยตรง
-import { db, session, can, scheduledHooks, cancelHooks, notify, findCustomer, customerSession, myCustomer } from './store'
+import { db, session, can, ctxOrder, scheduledHooks, cancelHooks, notify, findCustomer, customerSession, myCustomer } from './store'
 import { invoiceDeadline, invoiceWindowOpen } from '../lib/acct/taxWindow'
 import { deriveAll } from '../lib/acct/derive'
 import { buildManualEntry } from '../lib/acct/manual'
@@ -393,6 +393,12 @@ const paidDateOf = (o) => {
   return last || ''
 }
 // สถานะการขอใบของลูกค้า: { eligible, reason, deadline, invoice, canEdit, revisionsLeft }
+// เอกสารใบกำกับ/ใบลดหนี้ของออร์เดอร์ ตามสิทธิ์ลูกค้า: { orderId } (ล็อกอินเจ้าของ) หรือ { token } (ลิงก์ ดูอย่างเดียว) · ไม่มีสิทธิ์/ไม่เจอ = []
+export function customerInvoiceDocs(ctx) {
+  const o = ctxOrder(ctx)
+  if (!o) return []
+  return invs().filter((i) => i.orderId === o.id).slice().sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')))
+}
 export function myInvoiceState(orderId) {
   const o = myOrderOf(orderId)
   if (!o) return null
