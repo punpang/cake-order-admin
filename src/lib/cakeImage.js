@@ -24,9 +24,13 @@ export function galleryOf(db) {
   return out
 }
 // selected = รายการ optionId ที่ลูกค้าเลือก (รวมประเภท) · คืน { image, exact, matched, missing, alternatives, caption }
-export function pickImage(selected, gallery, groups) {
+// opts.ignoreGroups = กลุ่ม (key) ที่ไม่ให้มีผลต่อรูป เช่น ['size']: ตัดทั้งตัวเลือกที่เลือกและแท็กบนรูป
+export function pickImage(selected, gallery, groups, opts = {}) {
   const idx = optionIndex(groups)
-  const sel = new Set(selected || [])
+  const skip = new Set(opts.ignoreGroups || [])
+  const keep = (id) => !skip.has(idx.get(id)?.groupKey)
+  gallery = skip.size ? gallery.map((e) => ({ ...e, tags: e.tags.filter(keep) })) : gallery
+  const sel = new Set((selected || []).filter(keep))
   const w = (id) => WEIGHT[idx.get(id)?.groupKey] ?? 1
   const nameOf = (id) => idx.get(id)?.name || id
   // กลุ่มที่ "มีรูปถ่ายไว้" อย่างน้อยหนึ่งแท็ก: ตัวเลือกในกลุ่มนั้นที่รูปที่เลือกไม่ครอบคลุม = "ยังไม่มีรูป" (กลุ่มที่ไม่เคยมีรูปเลยไม่นับว่าขาด)

@@ -21,7 +21,7 @@ watch(types, (l) => { if (props.kind === 'custom' && !l.some((x) => x.type.id ==
 watch(() => props.id, (v) => { if (v) typeId.value = v })
 const selIds = ref([])
 const altIdx = ref(0)
-const pick = computed(() => pickImage(selIds.value, galleryOf(db), db.optionGroups))
+const pick = computed(() => pickImage(selIds.value, galleryOf(db), db.optionGroups, { ignoreGroups: ['size'] }))
 const note = computed(() => imageNote(pick.value))
 const shown = computed(() => pick.value.alternatives[altIdx.value]?.image || pick.value.image || '')
 watch(() => pick.value.entry?.id, () => (altIdx.value = 0))
@@ -79,11 +79,14 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
         <p v-else-if="item.stock != null && item.stock <= 5" class="mt-2 inline-block rounded-full bg-honey px-3 py-0.5 text-xs font-semibold text-stone-900">เหลือ {{ item.stock }} ชิ้น</p>
         <div v-for="m in item.mods || []" :key="m.id" class="mt-4"><div class="mb-1.5 text-sm font-semibold text-stone-800">{{ m.name }}<span v-if="m.type === 'multi'" class="font-normal text-stone-400"> (เลือกได้หลายอย่าง)</span></div><div class="flex flex-wrap gap-2"><span v-for="o in m.options" :key="o.id" class="chip chip-off">{{ o.name }}<template v-if="o.price"> +{{ money(o.price) }}</template></span></div></div>
 
-        <div v-if="item.custom" class="mt-4" role="group" aria-label="เลือกประเภทเค้ก">
-          <div class="mb-1.5 text-sm font-semibold text-stone-800">เลือกประเภทเค้ก</div>
-          <div class="flex flex-wrap gap-2"><button v-for="t in types" :key="t.type.id" type="button" class="chip" :class="typeId === t.type.id ? 'chip-on' : 'chip-off'" :aria-pressed="typeId === t.type.id" @click="typeId = t.type.id">{{ t.type.name }}</button></div>
-        </div>
-        <CakeConfigurator v-if="item.custom" :type-id="typeId" @select="selIds = $event" />
+        <CakeConfigurator v-if="item.custom" :type-id="typeId" @select="selIds = $event">
+          <template #types>
+        <div role="group" aria-label="เลือกประเภทเค้ก">
+            <div class="mb-1.5 text-sm font-semibold text-stone-800">เลือกประเภทเค้ก</div>
+            <div class="flex flex-wrap gap-2"><button v-for="t in types" :key="t.type.id" type="button" class="chip" :class="typeId === t.type.id ? 'chip-on' : 'chip-off'" :aria-pressed="typeId === t.type.id" @click="typeId = t.type.id">{{ t.type.name }}</button></div>
+          </div>
+          </template>
+        </CakeConfigurator>
 
         <div class="mt-6 rounded-3xl bg-white p-4 shadow-md">
           <div class="mb-2 text-sm font-semibold text-stone-800">สนใจสั่ง?</div>

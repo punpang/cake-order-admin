@@ -93,6 +93,7 @@ const missing = computed(() => {
 })
 const ready = computed(() => !missing.value.length)
 const out = computed(() => (ready.value ? encodeCake({ ...form, qty: qty.value, unitPrice: detail.value.unitPrice }, db.optionGroups) : null))
+const open = ref(true)
 const copied = ref(false)
 const showText = ref(false)
 async function copy() {
@@ -110,11 +111,18 @@ async function copy() {
 
 <template>
   <section class="mt-6 space-y-3" aria-label="คำนวณราคาเค้กสั่งทำ">
-    <div>
-      <h2 class="text-xl text-stone-900">เลือกแบบ · ดูราคาเบื้องต้น</h2>
-      <p class="text-sm text-stone-600">ราคาตรงกับระบบของร้าน กดคัดลอกแล้ววางส่งในแชทได้เลย</p>
-      <p class="mt-0.5 text-sm font-medium text-stone-800">เค้กหลายชั้น สั่งโดยตรงกับร้านทางแชทเท่านั้น</p>
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <h2 class="text-xl text-stone-900">เลือกแบบ · ดูราคาเบื้องต้น</h2>
+        <p v-show="open" class="text-sm text-stone-600">ราคาตรงกับระบบของร้าน กดคัดลอกแล้ววางส่งในแชทได้เลย</p>
+        <p v-show="open" class="mt-0.5 text-sm font-medium text-stone-800">เค้กหลายชั้น สั่งโดยตรงกับร้านทางแชทเท่านั้น</p>
+      </div>
+      <button type="button" class="btn-soft h-9 shrink-0 px-3" :aria-expanded="open" aria-controls="cfg-body" aria-label="ซ่อน/แสดงส่วนเลือกแบบ" @click="open = !open">
+        {{ open ? 'ซ่อน' : 'แสดง' }} <AppIcon name="next" :size="14" class="transition" :class="open ? 'rotate-90' : ''" />
+      </button>
     </div>
+    <div v-show="open" id="cfg-body" class="space-y-3">
+      <slot name="types" />
 
     <template v-if="hasTiers">
       <div v-for="(tier, i) in form.tiers" :key="i">
@@ -153,6 +161,7 @@ async function copy() {
         <textarea id="cfg-text" :value="out.text" readonly rows="5" class="input font-mono text-xs" @focus="$event.target.select()"></textarea>
       </div>
       <StoreOrderButtons v-if="out" />
+    </div>
     </div>
   </section>
 </template>
