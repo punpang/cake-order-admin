@@ -111,7 +111,7 @@ function doRefund() {
 
 <template>
   <ManageShell title="คะแนน & รางวัล" :toolbar="false">
-    <div class="mb-4 grid grid-cols-4 gap-1 rounded-2xl bg-stone-100 p-1">
+    <div class="mb-4 grid grid-cols-4 gap-1 seg-grid">
       <button
         v-for="t in tabs"
         :key="t.v"
@@ -223,7 +223,7 @@ function doRefund() {
     <AppModal v-if="rwOpen" :title="rw.id ? 'แก้ไขของแลก' : 'เพิ่มของแลก'" @close="rwOpen = false">
       <div class="space-y-4">
         <div><label class="label">ชื่อของ <span class="text-rose-500">*</span></label><input v-model="rw.name" class="input" /></div>
-        <div class="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1">
+        <div class="grid grid-cols-2 gap-1 seg-grid">
           <button v-for="k in [{ v: 'item', l: 'ของรางวัล (รับที่ร้าน)' }, { v: 'coupon', l: 'คูปองส่วนลด' }]" :key="k.v" type="button" class="h-9 rounded-lg px-1 text-sm font-medium" :class="rw.kind === k.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="rw.kind = k.v">{{ k.l }}</button>
         </div>
         <template v-if="rw.kind === 'coupon'">

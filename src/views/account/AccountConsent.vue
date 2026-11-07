@@ -23,7 +23,7 @@ function decline() {
 
 <template>
   <div class="mx-auto max-w-lg px-4 pt-8">
-    <h1 class="text-xl font-semibold text-stone-900">ขอให้ทบทวนและยอมรับก่อนใช้งานต่อ</h1>
+    <h1 class="text-[22px] text-stone-900">ขอให้ทบทวนและยอมรับก่อนใช้งานต่อ</h1>
     <p class="mt-1 text-sm text-stone-500">ร้านปรับปรุงเอกสารด้านล่าง กรุณาอ่านและยอมรับเพื่อใช้บัญชีต่อ</p>
     <div class="mt-4 space-y-2">
       <div v-for="k in kinds" :key="k" class="card p-0">

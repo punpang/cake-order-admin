@@ -332,7 +332,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <h1 class="text-xl font-semibold text-stone-900">POS หน้าร้าน</h1>
       <span v-if="shift" class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">กะเปิด {{ timeOnly(shift.openedAt) }} · {{ ROLES[shift.openedBy] }}</span>
       <button v-if="shift && can('useLoyalty')" type="button" class="btn-soft ml-auto h-9 px-3 text-sm" aria-label="แลกของรางวัล" @click="openRedeem"><AppIcon name="star" :size="15" /> มอบของรางวัล</button>
-      <div v-if="shift" class="grid grid-cols-3 gap-1 rounded-xl bg-stone-100 p-1" :class="can('useLoyalty') ? '' : 'ml-auto'">
+      <div v-if="shift" class="grid grid-cols-3 gap-1 seg-grid" :class="can('useLoyalty') ? '' : 'ml-auto'">
         <button v-for="t in [{ v: 'sell', l: 'ขาย' }, { v: 'bills', l: `บิล ${bills.length}` }, { v: 'shift', l: 'ปิดกะ' }]" :key="t.v" type="button" class="h-9 rounded-lg px-3 text-sm font-medium" :class="tab === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="tab = t.v">{{ t.l }}</button>
       </div>
     </div>
@@ -373,8 +373,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <div v-for="x in shown" :key="x.kind + x.id" class="relative">
           <button
             type="button"
-            class="relative flex min-h-24 w-full flex-col justify-between rounded-2xl border bg-white p-3 text-left transition active:scale-[0.98] disabled:opacity-50"
-            :class="inCart(x) ? 'border-brand-500 ring-1 ring-brand-500' : 'border-stone-200 hover:border-brand-300'"
+            class="relative flex min-h-24 w-full flex-col justify-between rounded-3xl border-2 bg-white p-3 text-left shadow-sm transition active:scale-[0.98] disabled:opacity-50"
+            :class="inCart(x) ? 'border-brand-500 bg-brand-50/60' : 'border-transparent hover:border-brand-300'"
             :disabled="!canAdd(x)"
             @click="add(x)"
           >
@@ -384,14 +384,14 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <span v-if="ranks.get(x.id)?.star" class="mt-0.5 inline-flex items-center gap-0.5 text-[11px] font-semibold text-amber-600" :aria-label="`ขายดีอันดับ ${ranks.get(x.id).rank}`"><AppIcon name="star" :size="12" /> ขายดี #{{ ranks.get(x.id).rank }}</span>
             <span class="mt-2 flex items-end justify-between gap-1">
               <span class="text-base font-semibold text-stone-900">{{ money(x.price) }}</span>
-              <span v-if="x.stock != null" class="text-[11px]" :class="x.stock - inCart(x) <= 0 ? 'font-semibold text-rose-600' : 'text-stone-400'">{{ x.stock - inCart(x) <= 0 ? 'หมด' : `เหลือ ${x.stock - inCart(x)}` }}</span>
+              <span v-if="x.stock != null" class="text-[11px]" :class="x.stock - inCart(x) <= 0 ? 'font-semibold text-rose-700' : 'text-stone-500'">{{ x.stock - inCart(x) <= 0 ? 'หมด' : `เหลือ ${x.stock - inCart(x)}` }}</span>
             </span>
             <span v-if="inCart(x)" class="absolute -top-2 -right-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand-600 px-1 text-xs font-semibold text-white">{{ inCart(x) }}</span>
           </button>
           <button v-if="inCart(x)" type="button" class="absolute -bottom-2 -left-2 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-rose-600 shadow-md active:scale-95" :aria-label="`ลด ${x.name}`" @click="lessOf(x)"><AppIcon name="minus" :size="18" /></button>
           </div>
         </div>
-        <p v-if="!shown.length" class="card py-8 text-center text-sm text-stone-500">ไม่พบสินค้า</p>
+        <p v-if="!shown.length" class="empty py-8 text-sm">ไม่พบสินค้า</p>
       </section>
 
       <!-- ตะกร้า (คอม = แผงขวา · มือถือ = bottom sheet) -->

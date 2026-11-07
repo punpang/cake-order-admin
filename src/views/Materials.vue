@@ -77,7 +77,7 @@ function setFrom(v) {
 
     <div class="mb-3 text-sm text-stone-600">ออร์เดอร์ที่นับ {{ orders.length }} รายการ</div>
 
-    <div class="mb-4 grid grid-cols-2 gap-1 rounded-2xl bg-stone-100 p-1">
+    <div class="mb-4 grid grid-cols-2 gap-1 seg-grid">
       <button
         v-for="t in [{ v: 'prep', l: 'รายการเตรียม' }, { v: 'raw', l: 'วัตถุดิบ' }]"
         :key="t.v"

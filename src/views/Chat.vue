@@ -249,7 +249,7 @@ function doSim() {
       <div class="space-y-3">
         <p class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">ของจริงข้อความจะเข้ามาเองจาก LINE OA / Facebook (webhook)</p>
         <template v-if="!sim.chat">
-          <div class="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1">
+          <div class="grid grid-cols-2 gap-1 seg-grid">
             <button v-for="(c, k) in CH" :key="k" type="button" class="h-9 rounded-lg text-sm font-medium" :class="sim.channel === k ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="sim.channel = k">{{ c.l }}</button>
           </div>
           <div><label class="label">ชื่อโปรไฟล์</label><input v-model="sim.name" class="input" placeholder="เช่น Ploy" /></div>

@@ -206,7 +206,7 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
 <template>
   <AppModal :title="item ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'" wide @close="emit('close')">
     <!-- ประเภท -->
-    <div class="mb-4 grid grid-cols-2 gap-1 rounded-2xl bg-stone-100 p-1">
+    <div class="mb-4 grid grid-cols-2 gap-1 seg-grid">
       <button
         v-for="k in [{ v: 'retail', t: 'สินค้าสำเร็จ' }, { v: 'custom', t: 'สั่งทำ' }]"
         :key="k.v"
@@ -271,7 +271,7 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
     <!-- ชั้นของเค้ก (สั่งทำ) -->
     <template v-if="tierGroups.length">
       <!-- เค้กปกติ / เค้กชั้น -->
-      <div class="mb-3 grid grid-cols-2 gap-1 rounded-2xl bg-stone-100 p-1">
+      <div class="mb-3 grid grid-cols-2 gap-1 seg-grid">
         <button
           v-for="k in [{ v: false, t: 'เค้กปกติ' }, { v: true, t: 'เค้กชั้น' }]"
           :key="k.t"

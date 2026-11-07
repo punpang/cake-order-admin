@@ -7,6 +7,7 @@ import { isPin } from '../../lib/customerAuth'
 import PhoneInput from '../../components/PhoneInput.vue'
 import PinInput from '../../components/PinInput.vue'
 import AppIcon from '../../components/AppIcon.vue'
+import CakeArt from '../../components/art/CakeArt.vue'
 
 // เข้าสู่ระบบลูกค้า: เบอร์โทร + PIN 6 หลัก
 const router = useRouter()
@@ -30,9 +31,10 @@ async function submit() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-sm px-4 pt-10">
-    <h1 class="text-2xl font-semibold text-stone-900">เข้าสู่ระบบ</h1>
-    <p class="mt-1 text-sm text-stone-500">ดูออร์เดอร์ คะแนนสะสม และจัดการข้อมูลของคุณ</p>
+  <div class="mx-auto max-w-sm px-4 pt-8">
+    <div class="relative mx-auto mb-3 h-24 w-28 overflow-hidden rounded-[2rem] shadow-md" aria-hidden="true"><CakeArt kind="strawberry" /></div>
+    <h1 class="text-center text-[28px] text-stone-900">เข้าสู่ระบบ</h1>
+    <p class="mt-1 text-center text-sm text-stone-600">ดูออร์เดอร์ คะแนนสะสม และจัดการข้อมูลของคุณ</p>
     <form class="card mt-5 space-y-4" @submit.prevent="submit">
       <div><label class="label">เบอร์โทร</label><PhoneInput v-model="phone" /></div>
       <div><label class="label">PIN 6 หลัก</label><PinInput v-model="pin" /></div>

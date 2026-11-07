@@ -129,7 +129,7 @@ function doAdd() {
     <AppModal v-if="mOpen" :title="mf.id ? 'แก้ไขกลุ่มตัวเลือก' : 'เพิ่มกลุ่มตัวเลือก'" @close="mOpen = false">
       <div class="space-y-4">
         <div><label class="label">ชื่อกลุ่ม <span class="text-rose-500">*</span></label><input v-model="mf.name" class="input" placeholder="เช่น ความหวาน" /></div>
-        <div class="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1">
+        <div class="grid grid-cols-2 gap-1 seg-grid">
           <button v-for="t in [{ v: 'single', l: 'เลือกได้ 1 อย่าง' }, { v: 'multi', l: 'เลือกได้หลายอย่าง' }]" :key="t.v" type="button" class="h-9 rounded-lg text-sm font-medium" :class="mf.type === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="mf.type = t.v">{{ t.l }}</button>
         </div>
         <div>

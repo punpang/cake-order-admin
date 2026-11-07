@@ -46,7 +46,7 @@ const lines = computed(() => discountLines(props.item.discounts, props.item.qty)
 </script>
 
 <template>
-  <div class="rounded-2xl border border-stone-200 bg-white p-4">
+  <div class="rounded-3xl bg-white p-4 shadow-md">
     <!-- หัว: ชื่อ + ราคา -->
     <div class="flex items-start justify-between gap-3">
       <div class="min-w-0">

@@ -19,18 +19,18 @@ const showInactive = defineModel('inactive', { type: Boolean, default: false })
 
 <template>
   <div v-if="!can(perm)" class="card flex flex-col items-center gap-3 py-12 text-center">
-    <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-100 text-stone-400"><AppIcon name="user" :size="28" /></span>
+    <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-500"><AppIcon name="user" :size="28" /></span>
     <div class="font-semibold text-stone-800">ไม่มีสิทธิ์ใช้งานหน้านี้</div>
     <RouterLink to="/admin/orders" class="btn-soft">กลับไปหน้าออร์เดอร์</RouterLink>
   </div>
 
   <div v-else class="mx-auto max-w-4xl">
     <div class="mb-4 flex items-center gap-2">
-      <RouterLink :to="back" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 hover:bg-stone-50" aria-label="กลับ">
+      <RouterLink :to="back" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-stone-700 shadow-sm hover:bg-brand-50" aria-label="กลับ">
         <AppIcon name="back" :size="20" />
       </RouterLink>
       <div class="min-w-0 flex-1">
-        <h1 class="truncate text-xl font-semibold tracking-tight text-stone-900">{{ title }}</h1>
+        <h1 class="truncate text-[22px] text-stone-900">{{ title }}</h1>
         <p v-if="subtitle" class="truncate text-sm text-stone-500">{{ subtitle }}</p>
       </div>
       <button v-if="addLabel" class="btn-primary px-3 sm:px-4" @click="emit('add')">

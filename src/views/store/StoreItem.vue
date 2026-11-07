@@ -56,18 +56,18 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
   <div class="mx-auto max-w-5xl px-4 pt-6">
     <RouterLink to="/menu" class="mb-4 inline-flex items-center gap-1 text-sm text-stone-600 hover:text-brand-700"><AppIcon name="back" :size="16" /> กลับเมนู</RouterLink>
 
-    <div v-if="!item" class="card py-12 text-center text-stone-500">ไม่พบเมนูนี้ (อาจปิดการขายแล้ว) <RouterLink to="/menu" class="text-brand-700 underline">กลับไปเมนู</RouterLink></div>
+    <div v-if="!item" class="empty">ไม่พบเมนูนี้ (อาจปิดการขายแล้ว) <RouterLink to="/menu" class="text-brand-700 underline">กลับไปเมนู</RouterLink></div>
 
     <div v-else class="grid gap-6 md:grid-cols-2">
       <div v-if="item.custom">
-        <div class="aspect-square overflow-hidden rounded-3xl border border-stone-200"><CakeImage :src="shown" :alt="item.title" /></div>
-        <p v-if="note" class="mt-2 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800" role="note" aria-label="หมายเหตุรูปตัวอย่าง">{{ note }}</p>
+        <div class="aspect-square overflow-hidden rounded-[2rem] shadow-md"><CakeImage :src="shown" :alt="item.title" /></div>
+        <p v-if="note" class="mt-2 rounded-2xl bg-[#fff1d6] p-2.5 text-xs text-stone-800" role="note" aria-label="หมายเหตุรูปตัวอย่าง">{{ note }}</p>
         <div v-if="pick.alternatives.length > 1" class="mt-2 flex gap-2 overflow-x-auto">
           <button v-for="(e, i) in pick.alternatives" :key="e.id" type="button" class="h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2" :class="i === altIdx ? 'border-brand-500' : 'border-transparent'" :aria-label="`รูปที่ ${i + 1}`" @click="altIdx = i"><img :src="e.image" alt="" class="h-full w-full object-cover" /></button>
         </div>
       </div>
       <div v-else>
-        <div class="aspect-square overflow-hidden rounded-3xl border border-stone-200"><CakeImage :src="item.images[cur]" :alt="item.title" /></div>
+        <div class="aspect-square overflow-hidden rounded-[2rem] shadow-md"><CakeImage :src="item.images[cur]" :alt="item.title" /></div>
         <div v-if="item.images.length > 1" class="mt-2 flex gap-2 overflow-x-auto">
           <button v-for="(src, i) in item.images" :key="i" type="button" class="h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2" :class="i === cur ? 'border-brand-500' : 'border-transparent'" :aria-label="`รูปที่ ${i + 1}`" @click="cur = i">
             <img :src="src" alt="" class="h-full w-full object-cover" />
@@ -76,13 +76,13 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
       </div>
 
       <div>
-        <h1 class="text-2xl font-semibold text-stone-900">{{ item.title }}</h1>
-        <p class="text-sm text-stone-500">{{ item.sub }}</p>
+        <h1 class="text-[28px] leading-tight text-stone-900">{{ item.title }}</h1>
+        <p class="text-sm text-stone-600">{{ item.sub }}</p>
         <div class="mt-3"><StorePrice :price="item.price" :regular="item.regular" :from="item.from" /></div>
-        <p v-if="item.promo" class="mt-1 inline-block rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-600">โปร: {{ item.promo }}</p>
+        <p v-if="item.promo" class="mt-1 inline-block rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-semibold text-brand-700">โปร: {{ item.promo }}</p>
         <p v-if="item.desc" class="mt-3 text-sm break-words text-stone-600">{{ item.desc }}</p>
         <p v-if="item.stock != null && item.stock <= 0" class="mt-2 inline-block rounded-full bg-stone-800 px-3 py-0.5 text-xs font-medium text-white">สินค้าหมด</p>
-        <p v-else-if="item.stock != null && item.stock <= 5" class="mt-2 inline-block rounded-full bg-amber-500 px-3 py-0.5 text-xs font-medium text-white">เหลือ {{ item.stock }} ชิ้น</p>
+        <p v-else-if="item.stock != null && item.stock <= 5" class="mt-2 inline-block rounded-full bg-honey px-3 py-0.5 text-xs font-semibold text-stone-900">เหลือ {{ item.stock }} ชิ้น</p>
         <div v-for="m in item.mods || []" :key="m.id" class="mt-4"><div class="mb-1.5 text-sm font-semibold text-stone-800">{{ m.name }}<span v-if="m.type === 'multi'" class="font-normal text-stone-400"> (เลือกได้หลายอย่าง)</span></div><div class="flex flex-wrap gap-2"><span v-for="o in m.options" :key="o.id" class="chip chip-off">{{ o.name }}<template v-if="o.price"> +{{ money(o.price) }}</template></span></div></div>
 
         <div v-if="item.custom" class="mt-4" role="group" aria-label="เลือกประเภทเค้ก">
@@ -92,13 +92,13 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
         <template v-if="item.custom">
           <div class="mt-5">
             <div class="mb-1.5 text-sm font-semibold text-stone-800">ขนาดและราคา</div>
-            <ul class="divide-y divide-stone-100 rounded-2xl border border-stone-200 bg-white text-sm">
+            <ul class="divide-y divide-stone-100 overflow-hidden rounded-3xl bg-white text-sm shadow-md">
               <li v-for="r in item.custom.sizes" :key="r.size.id" class="flex justify-between gap-3 px-4 py-2.5">
                 <span>{{ r.size.name }}</span>
-                <span><b class="text-stone-900">{{ money(r.price) }}</b> <s v-if="r.regular > r.price" class="text-stone-400">{{ money(r.regular) }}</s></span>
+                <span><b class="text-stone-900">{{ money(r.price) }}</b> <s v-if="r.regular > r.price" class="text-stone-500">{{ money(r.regular) }}</s></span>
               </li>
             </ul>
-            <p class="mt-1 text-xs text-stone-400">ราคาเริ่มต้นยังไม่รวมเนื้อเค้กบางแบบและตัวเลือกเสริม ร้านจะแจ้งราคาสุดท้ายในใบเสนอ</p>
+            <p class="mt-1 text-xs text-stone-600">ราคาเริ่มต้นยังไม่รวมเนื้อเค้กบางแบบและตัวเลือกเสริม ร้านจะแจ้งราคาสุดท้ายในใบเสนอ</p>
           </div>
           <div class="mt-4">
             <div class="mb-1.5 text-sm font-semibold text-stone-800">{{ item.custom.flavorGroupName }}</div>
@@ -112,7 +112,7 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
 
         <CakeConfigurator v-if="item.custom" :type-id="typeId" @select="selIds = $event" />
 
-        <div class="mt-6 rounded-2xl border border-stone-200 bg-white p-4">
+        <div class="mt-6 rounded-3xl bg-white p-4 shadow-md">
           <div class="mb-2 text-sm font-semibold text-stone-800">สนใจสั่ง?</div>
           <p class="mb-3 text-sm text-stone-500">กดปุ่มเพื่อคุยกับร้านทางแชท บอกวันเวลารับ ร้านจะส่งใบเสนอราคาให้ยืนยัน</p>
           <StoreOrderButtons :text="item.text" />

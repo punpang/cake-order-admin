@@ -151,7 +151,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
             <div><label class="label">อัตรา (%)</label><input v-model="st.vat.rate" type="text" v-num.dec class="input" /></div>
             <div>
               <div class="label">รูปแบบ</div>
-              <div class="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1">
+              <div class="grid grid-cols-2 gap-1 seg-grid">
                 <button v-for="m in [{ v: 'inclusive', l: 'VAT ใน' }, { v: 'exclusive', l: 'VAT นอก' }]" :key="m.v" type="button" class="h-9 rounded-lg text-sm font-medium" :class="st.vat.mode === m.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="st.vat.mode = m.v">{{ m.l }}</button>
               </div>
             </div>

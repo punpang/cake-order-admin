@@ -148,7 +148,7 @@ const due = computed(() => {
         <div class="text-[15px] font-semibold text-stone-900">ยอดขาย / กำไร{{ monthly ? 'รายเดือน' : 'รายวัน' }}</div>
         <div class="flex items-center gap-3 text-xs text-stone-600">
           <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-brand-500"></span>ยอดขาย</span>
-          <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-emerald-500"></span>กำไร</span>
+          <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-[#4a9d73]"></span>กำไร</span>
         </div>
       </div>
       <div class="mb-2 h-5 text-sm text-stone-600">
@@ -168,11 +168,11 @@ const due = computed(() => {
             @click="hover = i"
           >
             <span class="w-1/2 max-w-3 rounded-t-[4px] bg-brand-500" :style="{ height: barH(b.sales) }"></span>
-            <span class="w-1/2 max-w-3 rounded-t-[4px] bg-emerald-500" :style="{ height: barH(b.profit) }"></span>
+            <span class="w-1/2 max-w-3 rounded-t-[4px] bg-[#4a9d73]" :style="{ height: barH(b.profit) }"></span>
           </button>
         </div>
         <div class="flex gap-0.5 pt-1" :style="{ minWidth: `${buckets.length * 14}px` }">
-          <span v-for="(b, i) in buckets" :key="b.key" class="min-w-0 flex-1 text-center text-[10px] whitespace-nowrap text-stone-400">{{ i % labelEvery === 0 ? bucketLabel(b.key) : '' }}</span>
+          <span v-for="(b, i) in buckets" :key="b.key" class="min-w-0 flex-1 text-center text-[10px] whitespace-nowrap text-stone-500">{{ i % labelEvery === 0 ? bucketLabel(b.key) : '' }}</span>
         </div>
       </div>
       <p class="mt-1 text-xs text-stone-400">กำไรติดลบไม่แสดงแท่ง ดูตัวเลขได้เมื่อแตะ</p>

@@ -220,7 +220,7 @@ async function save() {
     </AppModal>
     <AppModal v-if="adj.open" title="ปรับคะแนนลูกค้า" @close="adj.open = false">
       <div class="space-y-3">
-        <div class="grid grid-cols-2 gap-1 rounded-2xl bg-stone-100 p-1">
+        <div class="grid grid-cols-2 gap-1 seg-grid">
           <button v-for="k in [{ v: 1, t: 'เพิ่มคะแนน' }, { v: -1, t: 'ลดคะแนน' }]" :key="k.v" type="button" class="h-10 rounded-xl text-sm font-semibold transition" :class="adj.sign === k.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'" @click="adj.sign = k.v">{{ k.t }}</button>
         </div>
         <p class="text-sm text-stone-500">คงเหลือ {{ balance }} คะแนน</p>

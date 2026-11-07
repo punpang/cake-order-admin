@@ -1,6 +1,6 @@
 <template>
   <!-- สลับหน้าในครัว: วัตถุดิบ / ตารางผลิต -->
-  <nav class="mb-4 grid grid-cols-2 gap-1 rounded-2xl bg-stone-100 p-1">
+  <nav class="mb-4 grid grid-cols-2 gap-1 seg-grid">
     <RouterLink
       v-for="t in [{ to: '/admin/materials', l: 'วัตถุดิบ' }, { to: '/admin/production', l: 'ตารางผลิต' }]"
       :key="t.to"

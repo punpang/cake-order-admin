@@ -1,15 +1,15 @@
 export const STATUS = {
   draft: { label: 'ร่าง', cls: 'bg-stone-100 text-stone-600', dot: 'bg-stone-400', bar: 'bg-stone-300' },
-  awaiting_payment: { label: 'รอชำระ', cls: 'bg-amber-50 text-amber-700', dot: 'bg-amber-500', bar: 'bg-amber-400' },
-  payment_reported: { label: 'แจ้งยอดแล้ว', cls: 'bg-sky-50 text-sky-700', dot: 'bg-sky-500', bar: 'bg-sky-400' },
-  payment_confirmed: { label: 'ยืนยันชำระ', cls: 'bg-violet-50 text-violet-700', dot: 'bg-violet-500', bar: 'bg-violet-400' },
-  order_confirmed: { label: 'ยืนยันการสั่งซื้อ', cls: 'bg-indigo-50 text-indigo-700', dot: 'bg-indigo-500', bar: 'bg-indigo-400' },
-  preparing: { label: 'กำลังเตรียม', cls: 'bg-orange-50 text-orange-700', dot: 'bg-orange-500', bar: 'bg-orange-400' },
-  prepared: { label: 'เตรียมสินค้าแล้ว', cls: 'bg-teal-50 text-teal-700', dot: 'bg-teal-500', bar: 'bg-teal-400' },
-  ready_to_ship: { label: 'พร้อมจัดส่ง', cls: 'bg-cyan-50 text-cyan-700', dot: 'bg-cyan-500', bar: 'bg-cyan-400' },
-  shipping: { label: 'กำลังจัดส่ง', cls: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500', bar: 'bg-blue-400' },
-  delivered: { label: 'ส่งมอบแล้ว', cls: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500', bar: 'bg-emerald-400' },
-  cancelled: { label: 'ยกเลิก', cls: 'bg-rose-50 text-rose-600', dot: 'bg-rose-500', bar: 'bg-rose-300' },
+  awaiting_payment: { label: 'รอชำระ', cls: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500', bar: 'bg-amber-400' },
+  payment_reported: { label: 'แจ้งยอดแล้ว', cls: 'bg-orange-100 text-orange-800', dot: 'bg-orange-500', bar: 'bg-orange-400' },
+  payment_confirmed: { label: 'ยืนยันชำระ', cls: 'bg-brand-100 text-brand-700', dot: 'bg-brand-500', bar: 'bg-brand-400' },
+  order_confirmed: { label: 'ยืนยันการสั่งซื้อ', cls: 'bg-violet-100 text-violet-800', dot: 'bg-violet-500', bar: 'bg-violet-400' },
+  preparing: { label: 'กำลังเตรียม', cls: 'bg-lime-100 text-lime-800', dot: 'bg-lime-500', bar: 'bg-lime-400' },
+  prepared: { label: 'เตรียมสินค้าแล้ว', cls: 'bg-teal-100 text-teal-800', dot: 'bg-teal-500', bar: 'bg-teal-400' },
+  ready_to_ship: { label: 'พร้อมจัดส่ง', cls: 'bg-sky-100 text-sky-800', dot: 'bg-sky-500', bar: 'bg-sky-400' },
+  shipping: { label: 'กำลังจัดส่ง', cls: 'bg-blue-100 text-blue-800', dot: 'bg-blue-500', bar: 'bg-blue-400' },
+  delivered: { label: 'ส่งมอบแล้ว', cls: 'bg-emerald-100 text-emerald-800', dot: 'bg-emerald-500', bar: 'bg-emerald-400' },
+  cancelled: { label: 'ยกเลิก', cls: 'bg-rose-100 text-rose-700', dot: 'bg-rose-500', bar: 'bg-rose-300' },
 }
 
 export const ROLES = {

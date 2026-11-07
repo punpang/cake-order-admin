@@ -5,6 +5,8 @@ import { readyMenu, readyByCategory, customMenu, activePromotions } from '../../
 import CakeImage from '../../components/CakeImage.vue'
 import StorePrice from '../../components/StorePrice.vue'
 import StoreOrderButtons from '../../components/StoreOrderButtons.vue'
+import Bunting from '../../components/art/Bunting.vue'
+import CakeArt from '../../components/art/CakeArt.vue'
 
 // เมนูเค้ก (สาธารณะ): สินค้าพร้อมขาย (สินค้า POS ที่เปิด "แสดงที่หน้าร้านเว็บ") + เค้กสั่งทำ · ดูอย่างเดียว สั่งทางแชท
 const tab = ref('ready')
@@ -25,35 +27,35 @@ const tabs = computed(() => [
 
 <template>
   <div class="mx-auto max-w-6xl px-4 pt-6">
-    <h1 class="text-2xl font-semibold text-stone-900">เมนูเค้ก</h1>
-    <p class="mt-1 text-sm text-stone-500">เลือกดูแล้วกดสั่งทางแชท LINE / Facebook ร้านจะยืนยันราคาและวันเวลารับให้</p>
+    <h1 class="text-[28px] text-stone-900">เมนูเค้ก</h1>
+    <p class="mt-1 text-sm text-stone-600">เลือกดูแล้วกดสั่งทางแชท LINE / Facebook ร้านจะยืนยันราคาและวันเวลารับให้</p>
 
-    <div v-if="promos.length" class="mt-4 rounded-2xl border border-brand-200 bg-brand-50/60 p-3 text-sm text-brand-800">
+    <div v-if="promos.length" class="relative mt-4 overflow-hidden rounded-3xl border-2 border-[#f3e3c7] bg-white px-4 pt-7 pb-3 text-sm text-stone-800 shadow-md"><Bunting />
       โปรโมชันตอนนี้: <b>{{ promos.map((p) => p.name).join(' · ') }}</b> (ราคาที่แสดงรวมโปรแล้ว)
     </div>
 
-    <div class="mt-5 grid max-w-sm grid-cols-2 gap-1 rounded-2xl bg-stone-100 p-1">
-      <button v-for="t in tabs" :key="t.v" type="button" class="h-10 rounded-xl text-sm font-semibold transition" :class="tab === t.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'" @click="tab = t.v">
+    <div class="mt-5 grid max-w-sm grid-cols-2 seg-grid">
+      <button v-for="t in tabs" :key="t.v" type="button" class="seg-item" :class="tab === t.v ? 'seg-on' : ''" @click="tab = t.v">
         {{ t.l }} ({{ t.n }})
       </button>
     </div>
 
     <div v-if="tab === 'ready'" class="mt-5">
-      <p v-if="!sections.length" class="card py-10 text-center text-stone-500">ยังไม่มีสินค้าในเมนู</p>
+      <div v-if="!sections.length" class="empty"><div class="h-24 w-28 overflow-hidden rounded-2xl"><CakeArt kind="cream" /></div>ยังไม่มีสินค้าในเมนู</div>
       <nav v-if="sections.length > 1" class="mb-4 flex flex-wrap gap-1.5" aria-label="หมวดสินค้า">
         <a v-for="s in sections" :key="s.key" :href="`#cat-${s.key}`" class="chip chip-off" @click.prevent="jump(s.key)">{{ s.category }} <span class="opacity-60">{{ s.items.length }}</span></a>
       </nav>
       <section v-for="s in sections" :id="`cat-${s.key}`" :key="s.key" class="mb-7" :aria-label="`หมวด ${s.category}`">
-        <h2 class="mb-2 text-lg font-semibold text-stone-900">{{ s.category }}</h2>
+        <h2 class="mb-2.5 text-xl text-stone-900">{{ s.category }}</h2>
         <div class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
-          <RouterLink v-for="r in s.items" :key="r.product.id" :to="`/menu/ready/${r.product.id}`" class="overflow-hidden rounded-2xl border border-stone-200 bg-white transition hover:shadow-md" :class="r.stockState === 'out' ? 'opacity-60' : ''">
+          <RouterLink v-for="r in s.items" :key="r.product.id" :to="`/menu/ready/${r.product.id}`" class="overflow-hidden rounded-3xl bg-white shadow-md transition hover:shadow-lg" :class="r.stockState === 'out' ? 'opacity-60' : ''">
             <div class="relative aspect-square overflow-hidden"><CakeImage :src="r.product.images?.[0]" :alt="r.product.name" />
-              <span v-if="r.discounted" class="absolute top-2 left-2 rounded-full bg-rose-500 px-2.5 py-0.5 text-xs font-medium text-white">โปร</span>
+              <span v-if="r.discounted" class="absolute top-2 left-2 rounded-full bg-brand-600 px-2.5 py-0.5 text-xs font-semibold text-white">โปร</span>
               <span v-if="r.stockState === 'out'" class="absolute top-2 right-2 rounded-full bg-stone-800/80 px-2.5 py-0.5 text-xs font-medium text-white">หมด</span>
-              <span v-else-if="r.stockState === 'low'" class="absolute top-2 right-2 rounded-full bg-amber-500 px-2.5 py-0.5 text-xs font-medium text-white">เหลือ {{ r.stock }}</span>
+              <span v-else-if="r.stockState === 'low'" class="absolute top-2 right-2 rounded-full bg-honey px-2.5 py-0.5 text-xs font-semibold text-stone-900">เหลือ {{ r.stock }}</span>
             </div>
             <div class="p-3">
-              <div class="truncate font-medium text-stone-900">{{ r.product.name }}</div>
+              <div class="truncate font-semibold text-stone-900">{{ r.product.name }}</div>
               <StorePrice :price="r.price" :regular="r.regular" />
               <div v-if="r.options.length" class="mt-0.5 truncate text-xs text-stone-500">เลือกได้: {{ r.options.map((o) => o.name).join(' · ') }}</div>
             </div>
@@ -63,13 +65,13 @@ const tabs = computed(() => [
     </div>
 
     <div v-else class="mt-5">
-      <p v-if="!custom.length" class="card py-10 text-center text-stone-500">ยังไม่มีเค้กสั่งทำในเมนู</p>
-      <RouterLink v-else to="/menu/custom" class="block overflow-hidden rounded-2xl border border-stone-200 bg-white transition hover:shadow-md sm:flex" aria-label="เค้กสั่งทำ">
+      <div v-if="!custom.length" class="empty"><div class="h-24 w-28 overflow-hidden rounded-2xl"><CakeArt kind="fondant" /></div>ยังไม่มีเค้กสั่งทำในเมนู</div>
+      <RouterLink v-else to="/menu/custom" class="block overflow-hidden rounded-3xl bg-white shadow-md transition hover:shadow-lg sm:flex" aria-label="เค้กสั่งทำ">
         <div class="relative aspect-4/3 overflow-hidden sm:w-1/2"><CakeImage :src="coverImg" alt="เค้กสั่งทำ" />
-          <span v-if="customDiscounted" class="absolute top-2 left-2 rounded-full bg-rose-500 px-2.5 py-0.5 text-xs font-medium text-white">โปร</span>
+          <span v-if="customDiscounted" class="absolute top-2 left-2 rounded-full bg-brand-600 px-2.5 py-0.5 text-xs font-semibold text-white">โปร</span>
         </div>
         <div class="space-y-1 p-4 sm:w-1/2">
-          <div class="text-lg font-semibold text-stone-900">เค้กสั่งทำ</div>
+          <div class="font-display text-xl text-stone-900">เค้กสั่งทำ</div>
           <StorePrice :price="customFrom" :regular="customRegular" from />
           <div class="text-sm text-stone-600">{{ custom.length }} ประเภท · เลือกเนื้อเค้ก ขนาด ตกแต่ง ได้ตามใจ</div>
           <div class="text-xs text-stone-500">รูปตัวอย่างเปลี่ยนตามสิ่งที่เลือก · กดเพื่อเลือกแบบและดูราคา</div>
@@ -77,6 +79,6 @@ const tabs = computed(() => [
       </RouterLink>
     </div>
 
-    <section class="card mt-10"><h2 class="mb-2 font-semibold text-stone-900">สั่งเค้ก</h2><StoreOrderButtons /></section>
+    <section class="card relative mt-10 overflow-hidden pt-8"><Bunting /><h2 class="mb-2 text-xl text-stone-900">สั่งเค้ก</h2><StoreOrderButtons /></section>
   </div>
 </template>

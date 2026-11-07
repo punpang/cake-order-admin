@@ -67,8 +67,8 @@ const titleOf = computed(() => ({ summary: indiv.value ? 'สรุปราย�
   <div class="space-y-3">
     <!-- ตัวเลือกช่วง -->
     <div v-if="kind === 'summary' || kind === 'compare'" class="space-y-2">
-      <div v-if="kind === 'summary'" class="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1"><button v-for="m in [['month', 'รายเดือน'], ['year', 'รายปี']]" :key="m[0]" type="button" class="h-9 rounded-lg text-sm font-medium" :class="mode === m[0] ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="mode = m[0]">{{ m[1] }}</button></div>
-      <div v-else class="grid grid-cols-3 gap-1 rounded-xl bg-stone-100 p-1"><button v-for="m in [['month', 'เดือน'], ['quarter', 'ไตรมาส'], ['year', 'ปี']]" :key="m[0]" type="button" class="h-9 rounded-lg text-sm font-medium" :class="cmpKind === m[0] ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="cmpKind = m[0]">{{ m[1] }}</button></div>
+      <div v-if="kind === 'summary'" class="grid grid-cols-2 gap-1 seg-grid"><button v-for="m in [['month', 'รายเดือน'], ['year', 'รายปี']]" :key="m[0]" type="button" class="h-9 rounded-lg text-sm font-medium" :class="mode === m[0] ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="mode = m[0]">{{ m[1] }}</button></div>
+      <div v-else class="grid grid-cols-3 gap-1 seg-grid"><button v-for="m in [['month', 'เดือน'], ['quarter', 'ไตรมาส'], ['year', 'ปี']]" :key="m[0]" type="button" class="h-9 rounded-lg text-sm font-medium" :class="cmpKind === m[0] ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="cmpKind = m[0]">{{ m[1] }}</button></div>
       <div class="grid grid-cols-2 gap-2">
         <div v-if="(kind === 'summary' && mode === 'month') || (kind === 'compare' && cmpKind === 'month')"><label class="label">เดือน</label><input v-model="ym" type="month" class="input h-10" aria-label="เดือนรายงาน" /></div>
         <div v-else><label class="label">ปี (ค.ศ.)</label><input v-model="yr" type="number" class="input h-10" aria-label="ปีรายงาน" /></div>

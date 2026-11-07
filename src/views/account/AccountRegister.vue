@@ -7,6 +7,7 @@ import PhoneInput from '../../components/PhoneInput.vue'
 import PinInput from '../../components/PinInput.vue'
 import OtpStep from '../../components/OtpStep.vue'
 import AppIcon from '../../components/AppIcon.vue'
+import CakeArt from '../../components/art/CakeArt.vue'
 
 // สมัคร: กรอกเบอร์ → ยืนยัน OTP → (ชื่อ ถ้าเป็นเบอร์ใหม่) ตั้ง PIN
 // เบอร์ที่ร้านมีในระบบอยู่แล้ว จะผูกกับลูกค้าเดิมหลังยืนยัน OTP (เห็นออร์เดอร์/คะแนนเดิม)
@@ -46,9 +47,11 @@ async function submit() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-sm px-4 pt-10">
-    <h1 class="text-2xl font-semibold text-stone-900">สมัครสมาชิก</h1>
-    <p class="mt-1 text-sm text-stone-500">ขั้นตอน {{ step }} จาก 3</p>
+  <div class="mx-auto max-w-sm px-4 pt-8">
+    <div class="relative mx-auto mb-3 h-24 w-28 overflow-hidden rounded-[2rem] shadow-md" aria-hidden="true"><CakeArt kind="cream" /></div>
+    <h1 class="text-center text-[28px] text-stone-900">สมัครสมาชิก</h1>
+    <p class="mt-1 text-center text-sm text-stone-600">ขั้นตอน {{ step }} จาก 3</p>
+    <div class="mx-auto mt-2 flex max-w-48 gap-1.5" aria-hidden="true"><span v-for="n in 3" :key="n" class="h-2 flex-1 rounded-full" :class="n <= step ? 'bg-brand-500' : 'bg-stone-200'"></span></div>
     <div class="card mt-5">
       <form v-if="step === 1" class="space-y-4" @submit.prevent="toOtp">
         <div><label class="label">เบอร์โทร</label><PhoneInput v-model="phone" /></div>

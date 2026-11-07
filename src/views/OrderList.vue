@@ -158,7 +158,7 @@ function clearAll() {
       </div>
       <div>
         <div class="label">การส่งมอบ</div>
-        <div class="grid grid-cols-3 gap-1 rounded-xl bg-stone-100 p-1">
+        <div class="grid grid-cols-3 gap-1 seg-grid">
           <button
             v-for="f in [{ v: '', l: 'ทั้งหมด' }, { v: 'pickup', l: 'รับที่ร้าน' }, { v: 'delivery', l: 'จัดส่ง' }]"
             :key="f.v"
@@ -172,7 +172,7 @@ function clearAll() {
       </div>
       <div>
         <div class="label">การชำระ</div>
-        <div class="grid grid-cols-4 gap-1 rounded-xl bg-stone-100 p-1">
+        <div class="grid grid-cols-4 gap-1 seg-grid">
           <button
             v-for="f in [{ v: '', l: 'ทั้งหมด' }, ...PAY_FILTERS]"
             :key="f.v"
@@ -233,7 +233,7 @@ function clearAll() {
     </button>
 
     <!-- ว่าง -->
-    <div v-if="!list.length" class="card flex flex-col items-center gap-3 py-12 text-center">
+    <div v-if="!list.length" class="empty py-12">
       <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><AppIcon name="cake" :size="28" /></span>
       <div class="font-semibold text-stone-800">ไม่พบออร์เดอร์</div>
       <div class="text-sm text-stone-500">ลองเปลี่ยนคำค้นหาหรือตัวกรอง</div>
@@ -252,7 +252,7 @@ function clearAll() {
           v-for="{ o, c, t } in g.orders"
           :key="o.id"
           :to="`/admin/orders/${o.id}`"
-          class="card block p-3.5 transition hover:border-brand-300 focus-visible:ring-4 focus-visible:ring-brand-200 focus-visible:outline-none active:scale-[0.99]"
+          class="card block rounded-3xl border-transparent p-3.5 shadow-md transition hover:shadow-lg focus-visible:ring-4 focus-visible:ring-brand-200 focus-visible:outline-none active:scale-[0.99]"
           :class="o.status === 'cancelled' ? 'opacity-70' : ''"
         >
           <div class="flex items-start gap-3">

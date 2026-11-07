@@ -71,7 +71,7 @@ const contactMissing = computed(() => ['controller', 'address', 'email', 'phone'
       <p>ข้อความทั้งหมดเป็น <b>ร่างตั้งต้น</b> ไม่ใช่คำปรึกษาทางกฎหมาย กรุณาแก้ให้ตรงกับร้านและให้ที่ปรึกษากฎหมาย/ผู้เชี่ยวชาญ PDPA ตรวจก่อนใช้จริง · เมื่อต่อ Supabase / เปิดใช้ระบบวิเคราะห์ ต้องปรับข้อความให้ตรงกับระบบจริง</p>
     </div>
 
-    <div class="mb-4 grid grid-cols-4 gap-1 rounded-2xl bg-stone-100 p-1">
+    <div class="mb-4 grid grid-cols-4 gap-1 seg-grid">
       <button v-for="t in tabs" :key="t.v" type="button" class="h-10 rounded-xl text-xs font-semibold transition sm:text-sm" :class="tab === t.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'" @click="tab = t.v">{{ t.l }}</button>
     </div>
 

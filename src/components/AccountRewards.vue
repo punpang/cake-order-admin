@@ -110,23 +110,23 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
   <div>
     <template v-if="me">
       <!-- คะแนน -->
-      <section class="mb-4 rounded-3xl bg-linear-to-br from-brand-600 to-brand-800 p-5 text-white">
-        <div class="text-sm opacity-80">สวัสดี {{ me.name }}</div>
+      <section class="mb-4 rounded-[2rem] bg-linear-to-br from-hero-1 via-hero-2 to-hero-3 p-5 text-white shadow-lg">
+        <div class="text-sm">สวัสดี {{ me.name }}</div>
         <div class="mt-2 flex items-end gap-2">
-          <span class="text-4xl font-semibold tracking-tight">{{ num(points) }}</span>
-          <span class="pb-1 text-sm opacity-80">คะแนน</span>
+          <span class="font-display text-4xl">{{ num(points) }}</span>
+          <span class="pb-1 text-sm">คะแนน</span>
         </div>
-        <div v-if="soon" class="mt-1 text-xs opacity-80">{{ soon.points }} คะแนนจะหมดอายุ {{ dateOnly(soon.date) }}</div>
+        <div v-if="soon" class="mt-1 text-xs">{{ soon.points }} คะแนนจะหมดอายุ {{ dateOnly(soon.date) }}</div>
         <div class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-sm">สิทธิ์หมุนกาชา {{ me.spins }} ครั้ง</div>
       </section>
 
-      <div class="mb-4 grid grid-cols-4 gap-1 rounded-2xl bg-stone-100 p-1">
+      <div class="mb-4 grid grid-cols-4 gap-1 seg-grid">
         <button
           v-for="t in tabs"
           :key="t.v"
           type="button"
-          class="h-10 rounded-xl text-sm font-semibold transition"
-          :class="tab === t.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'"
+          class="seg-item"
+          :class="tab === t.v ? 'seg-on' : ''"
           @click="tab = t.v; msg = ''"
         >{{ t.l }}</button>
       </div>

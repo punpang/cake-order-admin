@@ -126,16 +126,16 @@ async function copy() {
 <template>
   <section class="mt-6 space-y-3" aria-label="คำนวณราคาเค้กสั่งทำ">
     <div>
-      <h2 class="text-lg font-semibold text-stone-900">เลือกแบบ · ดูราคาเบื้องต้น</h2>
-      <p class="text-sm text-stone-500">ราคาตรงกับระบบของร้าน กดคัดลอกแล้ววางส่งในแชทได้เลย</p>
+      <h2 class="text-xl text-stone-900">เลือกแบบ · ดูราคาเบื้องต้น</h2>
+      <p class="text-sm text-stone-600">ราคาตรงกับระบบของร้าน กดคัดลอกแล้ววางส่งในแชทได้เลย</p>
     </div>
 
-    <div v-if="hasTiers" class="grid grid-cols-2 gap-1 rounded-2xl bg-stone-100 p-1">
-      <button v-for="k in [{ v: false, t: 'เค้กปกติ' }, { v: true, t: 'เค้กชั้น' }]" :key="k.t" type="button" class="h-10 rounded-xl text-sm font-semibold transition" :class="layered === k.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'" @click="setLayered(k.v)">{{ k.t }}</button>
+    <div v-if="hasTiers" class="grid grid-cols-2 seg-grid">
+      <button v-for="k in [{ v: false, t: 'เค้กปกติ' }, { v: true, t: 'เค้กชั้น' }]" :key="k.t" type="button" class="seg-item" :class="layered === k.v ? 'seg-on' : ''" @click="setLayered(k.v)">{{ k.t }}</button>
     </div>
 
     <template v-if="hasTiers">
-      <div v-for="(tier, i) in form.tiers" :key="i" :class="layered ? 'rounded-2xl border border-brand-200 bg-brand-50/40 p-3' : ''">
+      <div v-for="(tier, i) in form.tiers" :key="i" :class="layered ? 'rounded-3xl border-2 border-brand-200 bg-brand-50/50 p-3' : ''">
         <div v-if="layered" class="mb-2.5 flex items-center justify-between gap-2">
           <span class="font-semibold text-brand-800">ชั้นที่ {{ i + 1 }}</span>
           <button v-if="form.tiers.length > 1" type="button" class="btn-danger h-8 px-2.5 text-sm" @click="removeTier(i)"><AppIcon name="trash" :size="14" /> ลบชั้น</button>
@@ -150,13 +150,13 @@ async function copy() {
       <OptionPicker v-model="form.selections" :groups="showWhole" :active="active" :allow="allowFor(form.tiers[0])" :size-ids="allSizeIds" :type-opt="typeOptOf(form.tiers[0])" />
     </template>
 
-    <div class="rounded-2xl border border-stone-200/70 bg-white p-3.5">
+    <div class="rounded-3xl bg-white p-3.5 shadow-md">
       <label class="label" for="cfg-note">หมายเหตุถึงร้าน <span class="font-normal text-stone-400">(ไม่บังคับ)</span></label>
       <textarea id="cfg-note" v-model="form.note" rows="2" maxlength="300" class="input" placeholder="รายละเอียดเพิ่มเติม"></textarea>
     </div>
 
     <!-- ราคา + ส่ง -->
-    <div class="sticky bottom-3 z-10 space-y-3 rounded-2xl border border-stone-200 bg-white p-4 shadow-lg">
+    <div class="sticky bottom-3 z-10 space-y-3 rounded-3xl bg-white p-4 shadow-xl ring-1 ring-stone-200/70">
       <div class="flex items-center justify-between gap-3">
         <div class="flex h-11 items-center rounded-xl border border-stone-200">
           <button type="button" class="h-full w-10 text-lg text-stone-600" aria-label="ลดจำนวน" @click="step(-1)">−</button>
@@ -168,7 +168,7 @@ async function copy() {
           <DiscountDetail :full="detail.fullPrice * qty" :final="detail.unitPrice * qty" :lines="discountLines(detail.discounts, qty)" size="lg" />
         </div>
       </div>
-      <p v-if="!ready" class="text-sm text-amber-700">เลือกให้ครบก่อนคัดลอก: {{ missing.join(', ') }}</p>
+      <p v-if="!ready" class="text-sm text-stone-800">เลือกให้ครบก่อนคัดลอก: {{ missing.join(', ') }}</p>
       <p class="text-xs text-stone-400">ราคาเบื้องต้น ร้านจะยืนยันราคาสุดท้ายในใบเสนอ</p>
       <button type="button" class="btn-primary w-full" :disabled="!ready" @click="copy"><AppIcon :name="copied ? 'check' : 'send'" :size="18" /> {{ copied ? 'คัดลอกแล้ว วางในแชทได้เลย' : 'คัดลอกส่งร้าน' }}</button>
       <div v-if="out && showText">

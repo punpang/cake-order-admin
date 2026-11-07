@@ -100,7 +100,7 @@ function askExtension(p) {
 }
 const overdue = computed(() => o.value.payments.filter((p) => p.status === 'reported' && p.due === 'overdue'))
 const submitted = computed(() => o.value.payments.filter((p) => p.status === 'reported' && p.submitted))
-const PAY_LABEL = (p) => (p.status === 'confirmed' ? ['ชำระแล้ว', 'bg-emerald-50 text-emerald-700'] : p.submitted ? ['รอร้านตรวจสอบสลิป', 'bg-sky-50 text-sky-700'] : p.due === 'overdue' ? ['เกินกำหนด', 'bg-rose-50 text-rose-600'] : ['รอชำระ', 'bg-amber-50 text-amber-700'])
+const PAY_LABEL = (p) => (p.status === 'confirmed' ? ['ชำระแล้ว', 'bg-emerald-100 text-emerald-800'] : p.submitted ? ['รอร้านตรวจสอบสลิป', 'bg-sky-100 text-sky-800'] : p.due === 'overdue' ? ['เกินกำหนด', 'bg-rose-100 text-rose-700'] : ['รอชำระ', 'bg-amber-100 text-amber-800'])
 // ---------- รูปงานเสร็จ + ขอไม่ให้ใช้รูปเผยแพร่ ----------
 const photos = computed(() => o.value.items.flatMap((i) => (i.workPhotos || []).map((p) => ({ ...p, name: i.name }))))
 const pc = reactive({ open: false, note: '', agree: false, error: '', ok: '' })
@@ -130,25 +130,25 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
     <section class="card">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <div class="text-xs text-stone-500">ออร์เดอร์</div>
-          <h1 class="text-2xl font-bold tracking-tight text-stone-900">{{ o.code }}</h1>
+          <div class="text-xs text-stone-600">ออร์เดอร์</div>
+          <h1 class="text-[26px] text-stone-900">{{ o.code }}</h1>
           <div v-if="o.customer" class="truncate text-stone-500">{{ o.customer.name }}<span v-if="o.customer.phone"> · {{ o.customer.phone.startsWith('xxx') ? o.customer.phone : formatPhone(o.customer.phone) }}</span></div>
         </div>
         <div class="flex shrink-0 flex-col items-end gap-1.5"><StatusBadge :status="o.status" /><PayDueBadge :due="o.payDue" /></div>
       </div>
       <ol v-if="!cancelled" class="mt-4 grid gap-1" :style="{ gridTemplateColumns: `repeat(${STEPS.length}, minmax(0, 1fr))` }" aria-label="ขั้นตอนออร์เดอร์">
         <li v-for="(label, i) in STEPS" :key="label" class="flex flex-col items-center gap-1 text-center" :aria-current="i === step ? 'step' : undefined">
-          <span class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold" :class="i < step ? 'bg-brand-600 text-white' : i === step ? 'bg-brand-100 text-brand-800 ring-2 ring-brand-500' : 'bg-stone-100 text-stone-400'">
+          <span class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold" :class="i < step ? 'bg-matcha text-stone-900' : i === step ? 'bg-brand-600 text-white ring-4 ring-brand-100' : 'bg-stone-100 text-stone-500'">
             <AppIcon v-if="i < step" name="check" :size="14" /><template v-else>{{ i + 1 }}</template>
           </span>
-          <span class="text-[11px] leading-tight" :class="i === step ? 'font-semibold text-stone-900' : 'text-stone-500'">{{ label }}</span>
+          <span class="text-[11px] leading-tight" :class="i === step ? 'font-semibold text-stone-900' : 'text-stone-600'">{{ label }}</span>
         </li>
       </ol>
       <p v-else class="mt-3 rounded-xl bg-rose-50 p-3 text-rose-700">ออร์เดอร์นี้ถูกยกเลิกแล้ว · หากมีข้อสงสัยติดต่อร้านได้เลย</p>
     </section>
 
     <!-- แจ้งสถานะสำคัญ -->
-    <section v-if="overdue.length" class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-800" role="alert">
+    <section v-if="overdue.length" class="rounded-3xl border-2 border-rose-200 bg-rose-50 p-4 text-rose-800" role="alert">
       <div class="flex items-center gap-2 font-semibold"><AppIcon name="alert" :size="18" /> เกินกำหนดชำระ</div>
       <p class="mt-1">ยอด {{ money(overdue[0].amount) }} ต้องชำระก่อน {{ dateTime(overdue[0].dueAt) }} · ตอนนี้แจ้งชำระเองไม่ได้ หากต้องการเวลาเพิ่มกดขอขยายเวลา</p>
       <template v-for="p in overdue" :key="p.id">
@@ -161,9 +161,9 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
       </template>
       <p v-if="extMsg" class="mt-2 text-sm text-rose-700">{{ extMsg }}</p>
     </section>
-    <section v-if="submitted.length" class="rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sky-800">ส่งสลิป {{ money(submitted.reduce((s, p) => s + p.amount, 0)) }} แล้ว · รอร้านตรวจสอบและยืนยัน</section>
-    <section v-if="o.unpaidApproved" class="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-indigo-800">ร้านยืนยันการสั่งซื้อแล้ว · ชำระยอดคงค้างได้ตอนรับสินค้า</section>
-    <p v-if="f.ok" class="rounded-2xl bg-emerald-50 p-3 text-emerald-700" role="status">{{ f.ok }}</p>
+    <section v-if="submitted.length" class="rounded-3xl border-2 border-sky-200 bg-sky-50 p-4 text-sky-800">ส่งสลิป {{ money(submitted.reduce((s, p) => s + p.amount, 0)) }} แล้ว · รอร้านตรวจสอบและยืนยัน</section>
+    <section v-if="o.unpaidApproved" class="rounded-3xl border-2 border-indigo-200 bg-indigo-50 p-4 text-indigo-800">ร้านยืนยันการสั่งซื้อแล้ว · ชำระยอดคงค้างได้ตอนรับสินค้า</section>
+    <p v-if="f.ok" class="rounded-3xl bg-emerald-50 p-3 text-emerald-800" role="status">{{ f.ok }}</p>
 
     <!-- นัดรับ/ส่ง -->
     <section class="card">

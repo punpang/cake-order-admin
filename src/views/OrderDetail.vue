@@ -154,8 +154,8 @@ async function savePay() {
   payOpen.value = false
 }
 const PAY_BADGE = {
-  reported: { t: 'รอลูกค้าชำระ', cls: 'bg-sky-50 text-sky-700' },
-  confirmed: { t: 'ยืนยันแล้ว', cls: 'bg-emerald-50 text-emerald-700' },
+  reported: { t: 'รอลูกค้าชำระ', cls: 'bg-sky-100 text-sky-800' },
+  confirmed: { t: 'ยืนยันแล้ว', cls: 'bg-emerald-100 text-emerald-800' },
   cancelled: { t: 'ยกเลิกแล้ว', cls: 'bg-stone-100 text-stone-500' },
 }
 
@@ -797,7 +797,7 @@ async function saveCancel() {
     <AppModal v-if="adjOpen" title="ปรับราคา / ส่วนลด" @close="adjOpen = false">
       <div class="space-y-4">
         <div>
-          <div class="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1">
+          <div class="mb-3 grid grid-cols-2 gap-1 seg-grid">
             <button
               v-for="k in [{ v: -1, l: 'ส่วนลด' }, { v: 1, l: 'เพิ่มราคา' }]"
               :key="k.v"

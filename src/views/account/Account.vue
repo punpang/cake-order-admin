@@ -115,16 +115,16 @@ function logout() {
   <div v-if="me" class="mx-auto max-w-2xl px-4 pt-6 pb-4">
     <div class="mb-4 flex items-center justify-between gap-3">
       <div class="min-w-0">
-        <h1 class="truncate text-2xl font-semibold text-stone-900">สวัสดี {{ me.name }}</h1>
-        <p class="text-sm text-stone-500">{{ formatPhone(me.phone) }} · {{ num(me.points) }} คะแนน</p>
+        <h1 class="truncate text-[26px] text-stone-900">สวัสดี {{ me.name }}</h1>
+        <p class="text-sm text-stone-600">{{ formatPhone(me.phone) }} · {{ num(me.points) }} คะแนน</p>
       </div>
       <button class="btn-outline h-10 px-3" @click="logout"><AppIcon name="logout" :size="16" /> ออก</button>
     </div>
 
-    <div class="mb-4 grid grid-cols-4 gap-1 rounded-2xl bg-stone-100 p-1">
-      <button v-for="t in tabs" :key="t.v" type="button" class="h-10 rounded-xl text-xs font-semibold transition sm:text-sm" :class="tab === t.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'" @click="tab = t.v; msg = err = ''">{{ t.l }}</button>
+    <div class="mb-4 grid grid-cols-4 gap-1 seg-grid">
+      <button v-for="t in tabs" :key="t.v" type="button" class="seg-item px-1 text-xs sm:text-sm" :class="tab === t.v ? 'seg-on' : ''" @click="tab = t.v; msg = err = ''">{{ t.l }}</button>
     </div>
-    <p v-if="msg" class="mb-3 rounded-xl bg-brand-50 p-3 text-sm text-brand-800">{{ msg }}</p>
+    <p v-if="msg" class="mb-3 rounded-2xl bg-brand-50 p-3 text-sm text-brand-800">{{ msg }}</p>
 
     <!-- ข้อมูล -->
     <div v-if="tab === 'profile'" class="space-y-4">

@@ -73,7 +73,7 @@ async function flip(x) {
 
 <template>
   <ManageShell title="โปรโมชัน POS / คะแนนพิเศษ" subtitle="ตั้งเวลาได้ · คำนวณอัตโนมัติใน POS" :toolbar="false" :add-label="tab === 'discount' ? 'เพิ่มส่วนลด' : tab === 'bundle' ? 'เพิ่มบันเดิ้ล' : 'เพิ่มโปรคะแนน'" @add="edit(null)">
-    <div class="mb-4 grid grid-cols-3 gap-1 rounded-2xl bg-stone-100 p-1">
+    <div class="mb-4 grid grid-cols-3 gap-1 seg-grid">
       <button v-for="t in tabs" :key="t.v" type="button" class="h-10 rounded-xl text-sm font-semibold transition" :class="tab === t.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'" @click="tab = t.v">{{ t.l }} ({{ lists[t.v].length }})</button>
     </div>
     <p class="mb-3 rounded-xl bg-stone-50 p-3 text-xs text-stone-600">
@@ -106,7 +106,7 @@ async function flip(x) {
 
         <!-- ส่วนลด -->
         <template v-if="tab === 'discount'">
-          <div class="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1">
+          <div class="grid grid-cols-2 gap-1 seg-grid">
             <button v-for="t in [{ v: 'percent', l: 'ลดเป็น %' }, { v: 'amount', l: 'ลดเป็นบาท' }]" :key="t.v" type="button" class="h-9 rounded-lg text-sm font-medium" :class="f.type === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="f.type = t.v">{{ t.l }}</button>
           </div>
           <div class="grid grid-cols-2 gap-3">

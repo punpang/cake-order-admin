@@ -44,7 +44,7 @@ async function remove(i) {
           <div class="mt-2 flex items-center gap-2">
             <input v-model.number="line.qty" type="text" v-num.dec min="0" class="input w-28 shrink-0" />
             <span class="w-10 shrink-0 text-sm text-stone-500">{{ unitOf(line.ingredientId) }}</span>
-            <div class="grid flex-1 grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1">
+            <div class="grid flex-1 grid-cols-2 gap-1 seg-grid">
               <button
                 v-for="(label, key) in RECIPE_PER"
                 :key="key"

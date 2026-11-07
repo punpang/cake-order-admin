@@ -7,6 +7,7 @@ import PhoneInput from '../../components/PhoneInput.vue'
 import PinInput from '../../components/PinInput.vue'
 import OtpStep from '../../components/OtpStep.vue'
 import AppIcon from '../../components/AppIcon.vue'
+import CakeArt from '../../components/art/CakeArt.vue'
 
 // ลืม PIN: กรอกเบอร์ → ยืนยัน OTP → ตั้ง PIN ใหม่ (ปลดล็อกบัญชีด้วย)
 const router = useRouter()
@@ -36,7 +37,8 @@ async function submit() {
 
 <template>
   <div class="mx-auto max-w-sm px-4 pt-10">
-    <h1 class="text-2xl font-semibold text-stone-900">ลืม PIN</h1>
+    <div class="relative mx-auto mb-3 h-24 w-28 overflow-hidden rounded-[2rem] shadow-md" aria-hidden="true"><CakeArt kind="piped" /></div>
+    <h1 class="text-center text-[28px] text-stone-900">ลืม PIN</h1>
     <div class="card mt-5">
       <form v-if="step === 1" class="space-y-4" @submit.prevent="toOtp">
         <div><label class="label">เบอร์โทรที่สมัครไว้</label><PhoneInput v-model="phone" /></div>

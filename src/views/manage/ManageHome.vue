@@ -4,6 +4,7 @@ import { db, upcomingBirthdays, pendingDeletions, pendingPhotoRequests, can } fr
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 
+const TONES = ['bg-brand-100 text-brand-700', 'bg-orange-100 text-orange-800', 'bg-amber-100 text-amber-800', 'bg-matcha-soft text-stone-800']
 const activeCount = (list) => list.filter((x) => x.active !== false).length
 
 const items = computed(() => [
@@ -34,15 +35,15 @@ const items = computed(() => [
   <ManageShell title="จัดการ" back="/admin/orders" :toolbar="false">
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <RouterLink
-        v-for="it in items"
+        v-for="(it, n) in items"
         :key="it.to"
         :to="it.to"
-        class="card flex items-center gap-4 transition hover:border-brand-300 focus-visible:ring-4 focus-visible:ring-brand-200 focus-visible:outline-none active:scale-[0.99]"
+        class="card flex items-center gap-4 rounded-3xl border-transparent shadow-md transition hover:shadow-lg focus-visible:ring-4 focus-visible:ring-brand-200 focus-visible:outline-none active:scale-[0.99]"
       >
-        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><AppIcon :name="it.icon" :size="24" /></span>
+        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full" :class="TONES[n % TONES.length]"><AppIcon :name="it.icon" :size="24" /></span>
         <span class="min-w-0 flex-1">
-          <span class="block font-semibold text-stone-900">{{ it.title }}</span>
-          <span class="block text-sm text-stone-500">{{ it.desc }}</span>
+          <span class="block font-display text-stone-900">{{ it.title }}</span>
+          <span class="block text-sm text-stone-600">{{ it.desc }}</span>
         </span>
         <AppIcon name="next" class="text-stone-300" />
       </RouterLink>

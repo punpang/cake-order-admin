@@ -62,7 +62,7 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
       <div class="flex items-center justify-between"><h2 class="font-semibold text-stone-900">ตั้งค่า</h2><AppSwitch v-model="st.enabled" label="เปิดบอท" /></div>
       <div>
         <div class="label">โหมด</div>
-        <div class="grid grid-cols-2 gap-1 rounded-2xl bg-stone-100 p-1">
+        <div class="grid grid-cols-2 gap-1 seg-grid">
           <button type="button" class="rounded-xl py-2 text-sm font-medium" :class="st.mode === 'suggest' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.mode = 'suggest'">แนะนำให้พนักงานกดส่ง</button>
           <button type="button" class="rounded-xl py-2 text-sm font-medium" :class="st.mode === 'auto' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.mode = 'auto'">ตอบเอง</button>
         </div>

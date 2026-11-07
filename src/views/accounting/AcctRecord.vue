@@ -117,7 +117,7 @@ function saveJ() {
 
     <AppModal v-if="open" :title="editId ? 'แก้ไขรายการ' : f.kind === 'income' ? 'บันทึกรายได้' : 'บันทึกค่าใช้จ่าย'" @close="open = false">
       <div class="space-y-3">
-        <div class="grid grid-cols-2 gap-1 rounded-2xl bg-stone-100 p-1">
+        <div class="grid grid-cols-2 gap-1 seg-grid">
           <button v-for="k in [{ v: 'expense', t: 'ค่าใช้จ่าย' }, { v: 'income', t: 'รายได้' }]" :key="k.v" type="button" class="h-10 rounded-xl text-sm font-semibold" :class="f.kind === k.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'" :disabled="!!editId" @click="setKind(k.v)">{{ k.t }}</button>
         </div>
         <div class="grid grid-cols-2 gap-3">

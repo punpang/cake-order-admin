@@ -12,16 +12,16 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
 
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 z-50 flex items-end justify-center bg-stone-900/40 backdrop-blur-[2px] sm:items-center sm:p-6" @click.self="emit('close')">
+    <div class="fixed inset-0 z-50 flex items-end justify-center bg-stone-900/45 backdrop-blur-[2px] sm:items-center sm:p-6" @click.self="emit('close')">
       <div
-        class="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[85dvh] sm:rounded-3xl"
+        class="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[2rem] bg-cream shadow-2xl sm:max-h-[85dvh] sm:rounded-[2rem]"
         :class="wide ? 'sm:max-w-2xl' : 'sm:max-w-md'"
         role="dialog"
         aria-modal="true"
       >
-        <div class="mx-auto mt-2 h-1.5 w-10 shrink-0 rounded-full bg-stone-200 sm:hidden" />
+        <div class="mx-auto mt-2 h-1.5 w-10 shrink-0 rounded-full bg-stone-300 sm:hidden" />
         <div class="flex shrink-0 items-center justify-between gap-2 px-5 pt-3 pb-2 sm:pt-5">
-          <h2 class="min-w-0 truncate text-lg font-semibold text-stone-900">{{ title }}</h2>
+          <h2 class="min-w-0 truncate text-lg text-stone-900">{{ title }}</h2>
           <button class="flex h-9 w-9 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100" aria-label="ปิด" @click="emit('close')">
             <AppIcon name="x" :size="20" />
           </button>
@@ -31,7 +31,7 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
         </div>
         <div
           v-if="$slots.footer"
-          class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-stone-100 bg-white px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:pb-4"
+          class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-stone-200/70 bg-cream px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:pb-4"
         >
           <slot name="footer" />
         </div>
