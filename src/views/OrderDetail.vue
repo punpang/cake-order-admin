@@ -495,12 +495,12 @@ async function saveCancel() {
             <div class="flex flex-wrap justify-end gap-2">
             <button
               v-if="can('reportPayment') && order.status !== 'draft' && order.status !== 'cancelled' && t.balance > 0"
-              class="btn-soft h-9 px-3"
+              class="btn-soft h-9 px-3" title="ส่งยอดให้ลูกค้าโอน (ยังไม่ได้รับเงิน)"
               @click="openPay('new')"
             ><AppIcon name="plus" :size="16" /> แจ้งยอดชำระ</button>
             <button
               v-if="can('confirmPayment') && order.status !== 'draft' && order.status !== 'cancelled' && t.balance > 0"
-              class="btn-primary h-9 px-3"
+              class="btn-primary h-9 px-3" title="ลูกค้าจ่ายแล้วที่ร้าน/โอนแล้ว บันทึกยอดที่ได้รับจริง"
               @click="openPay('direct')"
             ><AppIcon name="check" :size="16" /> รับชำระทันที</button>
             <button v-if="canRefund" class="btn-outline h-9 px-3" @click="refundOpen = true"><AppIcon name="wallet" :size="16" /> คืนเงิน</button>
@@ -592,7 +592,7 @@ async function saveCancel() {
         <AppIcon name="alert" :size="16" /> ยังค้างชำระ {{ money(t.balance) }} ส่งมอบไม่ได้
       </p>
       <div class="mx-auto flex max-w-page gap-2 lg:px-4">
-        <button v-if="canRevertUi" class="btn-outline px-3 sm:px-4" aria-label="ย้อนสถานะ" @click="openRevert"><AppIcon name="back" :size="16" /> <span class="hidden sm:inline">ย้อนสถานะ</span></button>
+        <button v-if="canRevertUi" class="btn-outline px-3 sm:px-4" aria-label="ย้อนสถานะ" title="กลับไปสถานะก่อนหน้า" @click="openRevert"><AppIcon name="back" :size="16" /> <span class="hidden sm:inline">ย้อนสถานะ</span></button>
         <button v-if="can('cancel') && !closed" class="btn-danger px-3 sm:px-4" @click="openCancel">
           <AppIcon name="x" :size="16" /> <span :class="primaryAction ? 'hidden sm:inline' : ''">ยกเลิกออร์เดอร์</span>
         </button>

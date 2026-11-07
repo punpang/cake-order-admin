@@ -34,7 +34,8 @@ const showInactive = defineModel('inactive', { type: Boolean, default: false })
 <template>
   <div v-if="!can(perm)" class="card flex flex-col items-center gap-3 py-12 text-center">
     <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-500"><AppIcon name="user" :size="28" /></span>
-    <h1 class="text-base font-semibold text-stone-800">ไม่มีสิทธิ์ใช้งานหน้านี้</h1>
+    <h1 class="text-base font-semibold text-stone-800">ไม่มีสิทธิ์เข้าหน้านี้</h1>
+    <p class="text-sm text-stone-600">ผู้ใช้นี้ยังไม่ได้รับสิทธิ์ ขอให้ผู้ดูแลติ๊กสิทธิ์ให้ที่ ตั้งค่า → ผู้ใช้ & สิทธิ์</p>
     <RouterLink to="/admin/orders" class="btn-soft">กลับไปหน้าออร์เดอร์</RouterLink>
   </div>
 

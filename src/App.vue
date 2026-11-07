@@ -11,6 +11,7 @@ import AppModal from './components/AppModal.vue'
 import BellMenu from './components/BellMenu.vue'
 import SystemSwitcher from './components/SystemSwitcher.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
+import ToastHost from './components/ToastHost.vue'
 import StoreLayout from './components/StoreLayout.vue'
 
 const roleOpen = ref(false)
@@ -142,4 +143,5 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
   </template>
 
   <ConfirmDialog />
+  <ToastHost />
 </template>

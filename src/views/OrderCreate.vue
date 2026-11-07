@@ -3,6 +3,7 @@ import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRef } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useLeaveGuard } from '../lib/leaveGuard'
+import { showToast } from '../lib/toast'
 import { db, can, vatNow, addCustomer, saveCustomer, findCustomer, createOrder, countPickups, pickupSlots, pickupSlotsInfo, pickupClosure, nearbyOrders, sendQuote, findChat, linkChat, createCustomerFromChat, chatOrderBlock, withPromos, priceItem } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime, timeOnly, toDateStr, formatPhone, phoneDigits, phoneValid } from '../lib/format'
@@ -74,6 +75,7 @@ function pickCustomer(c) {
   if (props.embedded && chat.value) linkChat(chat.value.id, c.id)
   form.customerId = c.id
   error.value = ''
+  if (!props.embedded && phoneValid(c.phone)) step.value = 1 // เลือกแล้วไปขั้นนัดรับต่อเลย (ลูกค้าที่ยังไม่มีเบอร์ต้องกรอกเบอร์ในขั้นนี้ก่อน)
 }
 // ข้อมูลที่ได้จากแชท (ปุ่มถาม/ชิป): ชื่อ เบอร์ ข้อความบนเค้ก
 const contactMatch = computed(() => (form.contactPhone && !customer.value ? db.customers.find((c) => c.phone === form.contactPhone) : null))
@@ -200,6 +202,7 @@ function submit(asDraft) {
     return
   }
   if (!props.embedded) submitted = true
+  showToast(asDraft ? `บันทึกร่าง ${o.code} แล้ว` : `สร้างออร์เดอร์ ${o.code} แล้ว · รอชำระ`)
   if (props.embedded) emit('created', o)
   else router.replace(`/admin/orders/${o.id}`)
 }
@@ -303,7 +306,7 @@ function quote() {
         <button class="btn-soft mt-3 w-full" @click="openNew"><AppIcon name="plus" /> ลูกค้าใหม่</button>
       </template>
 
-      <div v-else class="space-y-3">
+      <div v-else class="space-y-3" @keydown.esc.stop="showNew = false; error = ''">
         <div><label class="label">ชื่อ <span class="text-rose-500">*</span></label><input v-model="newCus.name" class="input" /></div>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div><label class="label">เบอร์โทร <span class="text-rose-500">*</span></label><PhoneInput v-model="newCus.phone" /></div>
@@ -490,6 +493,7 @@ function quote() {
           </template>
           <template v-else>
             <label class="flex w-full items-center gap-2 text-sm text-stone-700 sm:w-auto"><input v-model="notifyCustomer" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าเมื่อบันทึก·รอชำระ</label>
+            <p class="w-full text-xs text-stone-600"><b>บันทึกร่าง</b> = เก็บไว้ก่อน ยังไม่ส่งให้ลูกค้า · <b>บันทึก · รอชำระ</b> = เริ่มรับออร์เดอร์ รอลูกค้าชำระเงิน</p>
             <button class="btn-outline flex-1 sm:ml-auto sm:flex-none" @click="submit(true)">บันทึกร่าง</button>
             <button class="btn-primary flex-[1.4] sm:flex-none" @click="submit(false)">บันทึก · รอชำระ</button>
           </template>

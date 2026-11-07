@@ -272,7 +272,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
             </div>
             <div class="mt-0.5 flex items-center gap-2 px-1 text-[11px] text-stone-400" :class="mine(m) ? 'justify-end' : ''">
               <span>{{ timeOnly(m.at) }}<template v-if="m.from === 'staff'"> · ส่งทาง {{ channelLabel }} (จำลอง)<template v-if="m.by === 'ระบบ'"> · อัตโนมัติ</template></template><template v-if="m.ask"> · ถาม{{ ASK_FIELDS[m.ask]?.label.replace('ขอ', '') }}</template></span>
-              <button v-if="canType" type="button" class="font-medium text-stone-500 hover:text-brand-700 sm:opacity-0 sm:group-hover:opacity-100" @click="startReply(m)">ตอบกลับ</button>
+              <button v-if="canType" type="button" class="font-medium text-stone-500 hover:text-brand-700 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100" :aria-label="`ตอบกลับ: ${snippet(m)}`" @click="startReply(m)">ตอบกลับ</button>
             </div>
           </div>
         </div>
