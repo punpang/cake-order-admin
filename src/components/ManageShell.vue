@@ -58,7 +58,7 @@ const showInactive = defineModel('inactive', { type: Boolean, default: false })
         <h1 class="truncate text-[22px] text-stone-900">{{ title }}</h1>
         <p v-if="subtitle" class="truncate text-sm text-stone-500">{{ subtitle }}</p>
       </div>
-      <button v-if="addLabel" class="btn-primary px-3 sm:px-4" @click="emit('add')">
+      <button v-if="addLabel" class="btn-primary px-3 sm:px-4" :aria-label="addLabel" @click="emit('add')">
         <AppIcon name="plus" /> <span class="hidden sm:inline">{{ addLabel }}</span>
       </button>
     </div>

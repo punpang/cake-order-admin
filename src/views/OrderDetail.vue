@@ -594,7 +594,7 @@ async function saveCancel() {
       </p>
       <div class="mx-auto flex max-w-page gap-2 lg:px-4">
         <button v-if="canRevertUi" class="btn-outline px-3 sm:px-4" aria-label="ย้อนสถานะ" title="กลับไปสถานะก่อนหน้า" @click="openRevert"><AppIcon name="back" :size="16" /> <span class="hidden sm:inline">ย้อนสถานะ</span></button>
-        <button v-if="can('cancel') && !closed" class="btn-danger px-3 sm:px-4" @click="openCancel">
+        <button v-if="can('cancel') && !closed" class="btn-danger px-3 sm:px-4" aria-label="ยกเลิกออร์เดอร์" @click="openCancel">
           <AppIcon name="x" :size="16" /> <span :class="primaryAction ? 'hidden sm:inline' : ''">ยกเลิกออร์เดอร์</span>
         </button>
         <button
