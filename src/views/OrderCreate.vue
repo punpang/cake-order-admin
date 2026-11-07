@@ -455,7 +455,7 @@ function quote() {
     </div>
 
     <!-- ปุ่มล่าง -->
-    <div :class="embedded ? 'sticky bottom-0 z-10 -mx-3 mt-3 border-t border-stone-200 bg-white/95 p-3 backdrop-blur' : 'action-bar'">
+    <div :class="embedded ? 'sticky bottom-0 z-10 -mx-3 mt-3 border-t border-stone-200 bg-white/95 p-3 backdrop-blur' : 'action-bar md:static md:mt-4 md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none'">
       <div class="mx-auto flex max-w-2xl flex-wrap gap-2">
         <button v-if="step > 0" class="btn-outline px-3 sm:px-4" @click="back"><AppIcon name="back" /> <span class="hidden sm:inline">ย้อนกลับ</span></button>
         <template v-if="step < 3">

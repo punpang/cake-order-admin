@@ -116,8 +116,8 @@ function doSim() {
   <div v-if="!can('chat')" class="card py-10 text-center text-stone-500">บทบาทนี้ใช้แชทไม่ได้</div>
 
   <div v-else class="mx-auto" :class="panelOpen ? 'max-w-none' : 'max-w-5xl'">
-    <div class="grid min-h-[420px] grid-cols-1 overflow-hidden rounded-2xl border border-stone-200 bg-white md:h-[calc(100dvh-9rem)]"
-      :class="[current ? 'h-[calc(100dvh-9rem)]' : 'h-[calc(100dvh-12.5rem)]', panelOpen ? 'md:grid-cols-[300px_1fr] lg:grid-cols-1 xl:grid-cols-[280px_1fr]' : 'md:grid-cols-[300px_1fr]']">
+    <div class="grid min-h-[420px] grid-cols-1 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-2xl border border-stone-200 bg-white md:h-[calc(100dvh-9rem)]"
+      :class="[current ? 'h-[calc(100dvh-9rem)]' : 'h-[calc(100dvh-12.5rem)]', panelOpen ? 'md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)]' : 'md:grid-cols-[300px_minmax(0,1fr)]']">
       <!-- รายการแชท -->
       <aside class="flex min-h-0 flex-col border-stone-200 md:border-r" :class="[current ? 'hidden md:flex' : 'flex', panelOpen ? 'lg:hidden xl:flex' : '']">
         <div class="flex items-center gap-2 border-b border-stone-200 p-3">
@@ -160,7 +160,7 @@ function doSim() {
       </aside>
 
       <!-- เธรด -->
-      <section v-if="current" class="flex min-h-0 flex-col bg-stone-50">
+      <section v-if="current" class="flex min-h-0 min-w-0 flex-col bg-stone-50">
         <div class="flex items-center gap-2 border-b border-stone-200 bg-white p-2.5">
           <RouterLink to="/admin/chat" class="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 md:hidden" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
           <div class="min-w-0 flex-1">
