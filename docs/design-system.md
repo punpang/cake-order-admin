@@ -20,3 +20,8 @@
 - **แถบปุ่มล่าง `.action-bar`**: `fixed` ใช้เฉพาะมือถือ · md ขึ้นไปต้อง `md:static md:mt-4 md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none` ไม่ลอยทับเนื้อหา (สร้างออร์เดอร์ใช้ md, รายละเอียดออร์เดอร์ใช้ lg)
 - **แชท**: กล่อง grid สูงคงที่ต้องมี `grid-rows-[minmax(0,1fr)]` และคอลัมน์ `minmax(0,1fr)` + `min-w-0` เพื่อไม่ให้เนื้อหา (แถบปุ่ม/ข้อความยาว) ดันช่องพิมพ์/ปุ่มส่งออกนอกจอ
 - **ช่องวันที่/เวลาของโปร (ScheduleEditor)**: ใช้ `ThaiDateField` (วัน · เดือน · ปี พ.ศ.) และ `ThaiTimeField` (24 ชม.) แทน `input type=date/time` ที่แสดง mm/dd/yyyy ตามภาษาเบราว์เซอร์ · ค่าที่เก็บเหมือนเดิม (`YYYY-MM-DD`, `HH:MM`) · ช่องวันที่ native ที่อื่นยังไม่เปลี่ยน
+
+## ป๊อปอัป (รอบ AE)
+- **ห้ามใช้ `dvh`/`vh` กำหนดความสูงกล่องป๊อปอัป** (บางเครื่อง/สเกลจอคำนวณใหญ่กว่าพื้นที่จริง → กล่องเลยขอบ เลื่อนไม่ได้)
+- โครง: overlay `fixed inset-0 overflow-y-auto overscroll-contain` → ตัวห่อ `flex h-full items-end sm:items-center sm:p-6` (คลิกพื้นหลังปิด) → กล่อง `max-h-full min-h-0 flex flex-col overflow-hidden` · หัว/ปุ่มท้าย `shrink-0` ติดตลอด เนื้อหากลาง `min-h-0 flex-1 overflow-y-auto`
+- ใช้ใน `AppModal`, `ConfirmDialog`, ตารางอัตราภาษีใน `AcctTaxYear` · ป๊อปอัปใหม่ให้ใช้ `AppModal`

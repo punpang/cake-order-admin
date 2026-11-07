@@ -140,8 +140,9 @@ function csv() {
       </template>
     </section>
 
-    <div v-if="tbl.open" class="fixed inset-0 z-50 flex items-end justify-center bg-stone-900/40 sm:items-center sm:p-6" role="dialog" aria-modal="true" @click.self="tbl.open = false">
-      <div class="flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-white sm:max-w-md sm:rounded-3xl">
+    <div v-if="tbl.open" class="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-stone-900/40" role="dialog" aria-modal="true">
+    <div class="flex h-full items-end justify-center pt-8 sm:items-center sm:p-6" @click.self="tbl.open = false">
+      <div class="flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-t-3xl bg-white sm:max-w-md sm:rounded-3xl">
         <div class="shrink-0 px-5 pt-4 pb-2 text-lg font-semibold">ตารางอัตราภาษี ปี {{ year }}</div>
         <div class="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 pb-3 text-sm">
           <div v-for="g in [['progressive', 'บุคคลธรรมดา (เงินได้สุทธิ)'], ['sme', 'นิติบุคคล SME (กำไรสุทธิ)']]" :key="g[0]">
@@ -153,6 +154,7 @@ function csv() {
         </div>
         <div class="flex shrink-0 gap-2 border-t border-stone-100 px-5 py-3"><button class="btn-outline flex-1" @click="tbl.open = false; err = ''">ยกเลิก</button><button class="btn-primary flex-1" @click="saveTable">บันทึกตาราง</button></div>
       </div>
+    </div>
     </div>
   </div>
 </template>

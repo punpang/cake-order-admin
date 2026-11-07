@@ -12,9 +12,11 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
 
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 z-50 flex items-end justify-center bg-stone-900/45 backdrop-blur-[2px] sm:items-center sm:p-6" @click.self="emit('close')">
+    <!-- ความสูงอ้างอิงจาก overlay (fixed inset-0) ไม่ใช้ dvh: กล่องไม่เกินจอทุกเบราว์เซอร์/สเกล · overlay เลื่อนได้เป็นทางหนี -->
+    <div class="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-stone-900/45 backdrop-blur-[2px]">
+    <div class="flex h-full items-end justify-center pt-8 sm:items-center sm:p-6" @click.self="emit('close')">
       <div
-        class="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[2rem] bg-cream shadow-2xl sm:max-h-[85dvh] sm:rounded-[2rem]"
+        class="flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-t-[2rem] bg-cream shadow-2xl sm:rounded-[2rem]"
         :class="wide ? 'sm:max-w-2xl' : 'sm:max-w-md'"
         role="dialog"
         aria-modal="true"
@@ -36,6 +38,7 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
           <slot name="footer" />
         </div>
       </div>
+    </div>
     </div>
   </Teleport>
 </template>

@@ -5,8 +5,9 @@ import AppIcon from './AppIcon.vue'
 
 <template>
   <Teleport to="body">
-    <div v-if="confirmState.open" class="fixed inset-0 z-[60] flex items-center justify-center bg-stone-900/50 p-6" @click.self="closeConfirm(false)">
-      <div class="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl" role="alertdialog" aria-modal="true">
+    <div v-if="confirmState.open" class="fixed inset-0 z-[60] overflow-y-auto overscroll-contain bg-stone-900/50">
+    <div class="flex h-full items-center justify-center p-6" @click.self="closeConfirm(false)">
+      <div class="max-h-full w-full max-w-sm overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl" role="alertdialog" aria-modal="true">
         <div class="flex items-start gap-3">
           <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" :class="confirmState.danger ? 'bg-rose-50 text-rose-600' : 'bg-brand-50 text-brand-600'">
             <AppIcon name="alert" :size="20" />
@@ -22,6 +23,7 @@ import AppIcon from './AppIcon.vue'
           <button class="flex-1" :class="confirmState.danger ? 'btn-danger' : 'btn-primary'" @click="closeConfirm(true)">{{ confirmState.okText }}</button>
         </div>
       </div>
+    </div>
     </div>
   </Teleport>
 </template>
