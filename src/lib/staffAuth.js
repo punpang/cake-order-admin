@@ -9,10 +9,11 @@ let syncs = []
 async function startData(staff) {
   syncs.forEach((x) => x.stop())
   syncs = []
-  const [items, customers, { db }, client] = await Promise.all([import('./itemsSync'), import('./customersSync'), import('../data/store'), getSupabase()])
+  const [items, customers, config, { db }, client] = await Promise.all([import('./itemsSync'), import('./customersSync'), import('./configSync'), import('../data/store'), getSupabase()])
   const onError = (m) => showToast(m, 8000)
   const has = (p) => staff.perms.includes(p)
   syncs.push(await items.startItemsSync({ client, db, canWrite: has('editItems'), onError }))
+  syncs.push(await config.startConfigSync({ client, db, canWrite: has('manage'), onError }))
   syncs.push(await customers.startCustomersSync({ client, db, canWrite: has('createOrder') || has('adjustPoints'), onError }))
 }
 export async function initStaff() {
