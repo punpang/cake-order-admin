@@ -25,6 +25,7 @@ import ItemCard from '../components/ItemCard.vue'
 import ItemEditor from '../components/ItemEditor.vue'
 import AppModal from '../components/AppModal.vue'
 import AppIcon from '../components/AppIcon.vue'
+import SecureImg from '../components/SecureImg.vue'
 import PickupModal from '../components/PickupModal.vue'
 import RefundEditor from '../components/RefundEditor.vue'
 import RefundPartialDialog from '../components/RefundPartialDialog.vue'
@@ -533,7 +534,7 @@ async function saveCancel() {
               <div v-else-if="p.status === 'reported' && p.dueAt && can('reportPayment') && order.status !== 'cancelled'" class="mt-1"><button class="text-xs text-brand-700 underline" @click="openExt(p)">เปลี่ยนกำหนดชำระ</button></div>
               <div class="mt-0.5 text-sm text-stone-500">{{ p.method }} · {{ dateTime(p.paidAt) }}</div>
               <div v-if="p.note" class="text-sm break-words text-stone-500">{{ p.note }}</div>
-              <a v-if="p.slip" :href="p.slip" target="_blank" class="mt-2 block"><img :src="p.slip" class="h-24 w-auto rounded-lg object-cover" /></a>
+              <SecureImg v-if="p.slip" :src="p.slip" alt="สลิป" link class="mt-2 block" img-class="h-24 w-auto rounded-lg object-cover" />
               <div v-if="p.status === 'confirmed' && !closed && !t.returned && can('cancelConfirmedPayment')" class="mt-2.5 flex justify-end">
                 <button class="btn-danger h-9 px-3" @click="doCancelConfirmed(p)"><AppIcon name="x" :size="16" /> ยกเลิกยอด</button>
               </div>

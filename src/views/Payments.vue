@@ -7,6 +7,7 @@ import { money, dateTime, dayLabel, formatPhone } from '../lib/format'
 import PayDueBadge from '../components/PayDueBadge.vue'
 import StatusBadge from '../components/StatusBadge.vue'
 import AppIcon from '../components/AppIcon.vue'
+import SecureImg from '../components/SecureImg.vue'
 import OrderPayModal from '../components/OrderPayModal.vue'
 import PayExtendModal from '../components/PayExtendModal.vue'
 import RefundPartialDialog from '../components/RefundPartialDialog.vue'
@@ -91,7 +92,7 @@ const shortDay = (o) => dayLabel(o.pickupAt.slice(0, 10))
             <span class="font-semibold text-stone-900">งวด {{ x.n }} · {{ money(x.p.requested ?? x.p.amount) }}</span>
             <span class="text-xs text-stone-600">{{ x.p.method }}<template v-if="x.p.paidAt"> · {{ dateTime(x.p.paidAt) }}</template></span>
           </div>
-          <a v-if="x.p.slip" :href="x.p.slip" target="_blank" class="block w-fit"><img :src="x.p.slip" alt="สลิป" class="h-24 w-auto rounded-lg object-cover" /></a>
+          <SecureImg v-if="x.p.slip" :src="x.p.slip" alt="สลิป" link class="block w-fit" img-class="h-24 w-auto rounded-lg object-cover" />
           <p v-if="x.p.note" class="text-sm break-words text-stone-600">{{ x.p.note }}</p>
           <div v-if="x.p.extension?.status === 'pending'" class="rounded-lg bg-amber-50 p-2.5 text-sm text-amber-800">
             ลูกค้าขอขยายเวลา<span v-if="x.p.extension.note"> · {{ x.p.extension.note }}</span>

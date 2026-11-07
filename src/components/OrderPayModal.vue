@@ -9,6 +9,7 @@ import { askConfirm } from '../lib/confirm'
 import { money } from '../lib/format'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
+import SecureImg from './SecureImg.vue'
 
 // โมดัลแจ้งยอดชำระ / แก้ยอดที่แจ้ง / ยืนยันยอดจริง / รับชำระทันที (ใช้ร่วมกันที่หน้ารายละเอียดออร์เดอร์และหน้าชำระเงิน)
 // mode = new | edit | confirm | direct · target = งวดที่แก้/ยืนยัน (new/direct ไม่ต้องส่ง) · เปิดด้วย v-if ใหม่ทุกครั้ง
@@ -134,7 +135,7 @@ async function savePay() {
     <div>
       <div class="label">สลิป <span class="font-normal text-stone-400">(ไม่บังคับ)</span></div>
       <label class="flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-stone-200 p-3 text-sm text-stone-500 hover:border-brand-300">
-        <img v-if="pay.slip" :src="pay.slip" class="h-14 w-14 rounded-lg object-cover" />
+        <SecureImg v-if="pay.slip" :src="pay.slip" alt="สลิป" class="h-14 w-14 rounded-lg object-cover" />
         <AppIcon v-else name="image" :size="22" />
         <span>{{ pay.slip ? 'เปลี่ยนรูปสลิป' : 'แนบรูปสลิป' }}</span>
         <input type="file" accept="image/*" class="hidden" @change="onSlip" />
