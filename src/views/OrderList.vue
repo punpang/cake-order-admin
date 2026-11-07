@@ -26,6 +26,9 @@ function setFrom(v) {
   if (v && to.value && to.value < v) to.value = v
 }
 const hasDate = computed(() => from.value || to.value)
+// ค่าเริ่มต้น "วันนี้" ไม่ควรบังผลค้นหา: เมื่อพิมพ์ค้นหา ค้นทุกวัน (ถ้าผู้ใช้เลือกช่วงวันเอง ยังใช้ช่วงนั้น)
+const searching = computed(() => !!q.value.trim())
+const dateActive = computed(() => !(isToday.value && searching.value))
 
 // ข้อความที่ค้นหาได้: เลขออร์เดอร์, ชื่อ, เบอร์, LINE, ชื่อเค้ก, ตัวเลือก/ข้อความบนเค้ก, เจ้าของวันเกิด
 function searchText(o) {
@@ -65,8 +68,8 @@ const list = computed(() => {
   const s = q.value.trim().toLowerCase()
   return visible.value
     .filter((o) => !status.value || o.status === status.value)
-    .filter((o) => !from.value || o.pickupAt.slice(0, 10) >= from.value)
-    .filter((o) => !to.value || o.pickupAt.slice(0, 10) <= to.value)
+    .filter((o) => !dateActive.value || !from.value || o.pickupAt.slice(0, 10) >= from.value)
+    .filter((o) => !dateActive.value || !to.value || o.pickupAt.slice(0, 10) <= to.value)
     .filter((o) => !fulfill.value || o.fulfillment === fulfill.value)
     .filter(payMatch)
     .filter((o) => !s || searchText(o).includes(s))
@@ -195,7 +198,8 @@ function clearAll() {
     </div>
 
     <!-- ค่าเริ่มต้น "นัดรับวันนี้": แถบบอกสถานะใหญ่ + ปุ่มดูทั้งหมด -->
-    <div v-if="isToday && !filtersOpen" data-today-banner class="mb-3 flex items-center gap-3 rounded-2xl bg-brand-50 px-3.5 py-2">
+    <div v-if="isToday && searching && !filtersOpen" data-search-all class="mb-3 rounded-2xl bg-brand-50 px-3.5 py-2 text-sm text-brand-900"><b>ค้นหาในออร์เดอร์ทุกวัน</b> <span class="whitespace-nowrap">({{ list.length }} รายการ)</span></div>
+    <div v-else-if="isToday && !filtersOpen" data-today-banner class="mb-3 flex items-center gap-3 rounded-2xl bg-brand-50 px-3.5 py-2">
       <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-brand-600"><AppIcon name="calendar" :size="18" /></span>
       <span class="min-w-0 flex-1 text-sm text-brand-900"><b>แสดงเฉพาะนัดรับวันนี้</b> <span class="whitespace-nowrap">({{ list.length }} จาก {{ visible.length }})</span></span>
       <button type="button" class="btn-outline h-11 shrink-0 px-4" aria-label="ดูทั้งหมด (ลบตัวกรอง นัดรับ วันนี้)" @click="clearFilter('date')">ดูทั้งหมด</button>

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { confirmState, closeConfirm } from '../lib/confirm'
 import AppIcon from './AppIcon.vue'
 
@@ -32,6 +33,9 @@ watch(() => confirmState.open, async (o) => {
   }
 })
 const titleId = computed(() => 'confirm-title')
+// เปลี่ยนหน้าขณะกล่องยืนยันเปิดอยู่ → ถือว่ายกเลิก (กันกล่องค้างทับหน้าใหม่)
+const route = useRoute()
+watch(() => route.path, () => { if (confirmState.open) closeConfirm(false) })
 </script>
 
 <template>

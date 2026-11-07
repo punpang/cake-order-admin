@@ -208,7 +208,18 @@
   }
   /* แถบปุ่มติดล่าง (มือถือ) */
   .action-bar {
+    animation: action-bar-arm 0.45s steps(1, end);
     @apply fixed inset-x-0 bottom-0 z-30 border-t border-stone-200/70 bg-white/90 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur-xl;
+  }
+}
+
+/* แถบปุ่มล่างรับคลิกหลังเข้าหน้า ~0.45 วินาที (กันดับเบิลคลิกจากหน้าก่อนไปตกปุ่มตำแหน่งเดียวกัน) */
+@keyframes action-bar-arm {
+  from {
+    pointer-events: none;
+  }
+  to {
+    pointer-events: auto;
   }
 }
 

@@ -179,7 +179,9 @@ function goTo(i) {
   error.value = ''
   step.value = i
 }
+let submitted = false
 function submit(asDraft) {
+  if (submitted) return // กดซ้ำ/ดับเบิลคลิก
   if (saveBlock.value) return (error.value = `${saveBlock.value} · ไปขั้นลูกค้าเพื่อค้นหา/สร้างลูกค้า`)
   // เวลาอาจผ่านไประหว่างกรอก ตรวจซ้ำก่อนบันทึก
   const e = validate(1) || validate(0)
@@ -194,6 +196,7 @@ function submit(asDraft) {
     error.value = o.error
     return
   }
+  if (!props.embedded) submitted = true
   if (props.embedded) emit('created', o)
   else router.replace(`/admin/orders/${o.id}`)
 }
