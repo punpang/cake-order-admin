@@ -13,6 +13,8 @@ import AppModal from '../../components/AppModal.vue'
 import { validTaxId, validBranch } from '../../lib/acct/taxid'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
+import TaxAddressField from '../../components/TaxAddressField.vue'
+import { addressChoices } from '../../lib/thaiAddress'
 
 const q = ref('')
 const inactive = ref(false)
@@ -142,7 +144,7 @@ async function save() {
               <div class="col-span-2"><label class="label">เลขประจำตัวผู้เสียภาษี</label><input v-model="form.tax.taxId" inputmode="numeric" maxlength="13" class="input" aria-label="เลขผู้เสียภาษีลูกค้า" /></div>
               <div><label class="label">สาขา</label><input v-model="form.tax.branch" inputmode="numeric" maxlength="5" class="input" aria-label="สาขาลูกค้า" /></div>
             </div>
-            <div><label class="label">ที่อยู่ตามใบกำกับ</label><textarea v-model="form.tax.address" rows="2" maxlength="300" class="input" aria-label="ที่อยู่ใบกำกับลูกค้า" /></div>
+            <div><label class="label">ที่อยู่ตามใบกำกับ</label><TaxAddressField v-model="form.tax.address" label="ที่อยู่ใบกำกับลูกค้า" :suggestions="addressChoices(places)" /></div>
           </div>
         </details>
         <div>

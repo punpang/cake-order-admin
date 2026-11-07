@@ -5,11 +5,14 @@ import { taxInvoices, invoiceOfOrder, invoiceBlock, buyerOf, issueTaxInvoice, vo
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
 import TaxInvoiceDoc from './TaxInvoiceDoc.vue'
+import TaxAddressField from './TaxAddressField.vue'
+import { addressChoices } from '../lib/thaiAddress'
 
 // ออกใบกำกับภาษีเต็มรูปจากออร์เดอร์ · ดู/พิมพ์/ทำสำเนา · ยกเลิกด้วยใบลดหนี้
 const props = defineProps({ order: { type: Object, required: true } })
 const emit = defineEmits(['close'])
 const buyer = reactive({ ...buyerOf(props.order), save: true })
+const addrChoices = computed(() => addressChoices(findCustomer(props.order.customerId)?.places || [], props.order.fulfillment === 'delivery' ? props.order.address : ''))
 const error = ref('')
 const reason = ref('')
 const voiding = ref(false)
@@ -60,7 +63,7 @@ function print(copy) {
             <div class="col-span-2"><label class="label">เลขประจำตัวผู้เสียภาษี 13 หลัก</label><input v-model="buyer.taxId" inputmode="numeric" maxlength="13" class="input" aria-label="เลขผู้เสียภาษีผู้ซื้อ" /></div>
             <div><label class="label">สาขา (5 หลัก)</label><input v-model="buyer.branch" inputmode="numeric" maxlength="5" class="input" aria-label="สาขาผู้ซื้อ" /></div>
           </div>
-          <div><label class="label">ที่อยู่ตามใบกำกับ</label><textarea v-model="buyer.address" rows="2" maxlength="300" class="input" aria-label="ที่อยู่ผู้ซื้อ" /></div>
+          <div><label class="label">ที่อยู่ตามใบกำกับ</label><TaxAddressField v-model="buyer.address" label="ที่อยู่ผู้ซื้อ" :suggestions="addrChoices" /></div>
           <label v-if="findCustomer(order.customerId)" class="flex items-center gap-2 text-sm text-stone-600"><input v-model="buyer.save" type="checkbox" class="h-4 w-4" /> บันทึกข้อมูลนี้ไว้กับลูกค้า</label>
         </div>
         <p v-if="block" class="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800"><AppIcon name="alert" :size="16" class="mt-0.5 shrink-0" /> {{ block }}</p>

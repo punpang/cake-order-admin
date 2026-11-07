@@ -12,6 +12,7 @@ import { toS, toB } from '../lib/acct/money'
 import { vatSummary, vatDue, vatStatus, prevMonth, nextMonth } from '../lib/acct/vat'
 import { validTaxId, validBranch } from '../lib/acct/taxid'
 import { bahtText } from '../lib/acct/thaiBaht'
+import { addressChoices } from '../lib/thaiAddress'
 import { orderTotals } from '../lib/pricing'
 import { deprSchedule, deprAccum, taxDeprByYear, taxDeprByMonth, amortSchedule, loanSchedule, recurringDue, recurringState, addDays, ASSET_CATEGORIES } from '../lib/acct/plan'
 import { thisMonth, addMonths, monthRange } from '../lib/acct/period'
@@ -398,6 +399,13 @@ export function customerInvoiceDocs(ctx) {
   const o = ctxOrder(ctx)
   if (!o) return []
   return invs().filter((i) => i.orderId === o.id).slice().sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')))
+}
+// ชิปคัดลอกที่อยู่ให้ลูกค้าที่ล็อกอิน: ที่อยู่ออร์เดอร์ (ถ้าเป็นเจ้าของ) + สถานที่จัดส่งที่จำไว้
+export function myAddressChoices(orderId = '') {
+  const c = myCustomer()
+  if (!c) return []
+  const o = orderId ? myOrderOf(orderId) : null
+  return addressChoices(c.places || [], o?.fulfillment === 'delivery' ? o.address : '')
 }
 export function myInvoiceState(orderId) {
   const o = myOrderOf(orderId)

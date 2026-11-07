@@ -1,10 +1,11 @@
 <script setup>
 import { computed, nextTick, reactive, ref, onBeforeUnmount } from 'vue'
-import { customerInvoiceDocs, myInvoiceState, myTaxProfile, requestMyTaxInvoice, editMyTaxInvoice, MAX_CUSTOMER_REVISIONS } from '../data/acct'
+import { customerInvoiceDocs, myAddressChoices, myInvoiceState, myTaxProfile, requestMyTaxInvoice, editMyTaxInvoice, MAX_CUSTOMER_REVISIONS } from '../data/acct'
 import { dateOnly } from '../lib/format'
 import AppIcon from './AppIcon.vue'
 import A4Print from './A4Print.vue'
 import TaxInvoiceDoc from './TaxInvoiceDoc.vue'
+import TaxAddressField from './TaxAddressField.vue'
 
 // ลูกค้าขอ/แก้ใบกำกับภาษีเต็มรูปเอง (เฉพาะหน้าที่ล็อกอิน) · ภายใน 5 วันหลังชำระครบ และไม่เกินวันที่ 5 เดือนถัดไป · จดจำข้อมูลผู้ซื้อได้ชุดเดียว
 // ล็อกอิน: ส่ง orderId (ขอ/แก้/ดาวน์โหลดได้) · ลิงก์ออร์เดอร์: ส่ง token (ดูและดาวน์โหลดอย่างเดียว ขอ/แก้ไม่ได้) · ดาวน์โหลด = หน้าพิมพ์ A4 เลือก "บันทึกเป็น PDF"
@@ -64,7 +65,7 @@ function submit() {
       <p class="text-xs text-stone-500">ขอ/แก้ได้ภายใน <b>{{ dateOnly(st.deadline) }}</b> (5 วันหลังชำระ ไม่เกินวันที่ 5 เดือนถัดไป)</p>
       <div><label class="label">ชื่อผู้ซื้อ (บุคคล/นิติบุคคล)</label><input v-model="f.name" class="input" maxlength="120" aria-label="ชื่อผู้ซื้อ" /></div>
       <div class="grid grid-cols-3 gap-3"><div class="col-span-2"><label class="label">เลขประจำตัวผู้เสียภาษี 13 หลัก</label><input v-model="f.taxId" inputmode="numeric" maxlength="13" class="input" aria-label="เลขผู้เสียภาษี" /></div><div><label class="label">สาขา (5 หลัก)</label><input v-model="f.branch" inputmode="numeric" maxlength="5" class="input" aria-label="สาขา" /></div></div>
-      <div><label class="label">ที่อยู่ตามใบกำกับ</label><textarea v-model="f.address" rows="2" maxlength="300" class="input" aria-label="ที่อยู่ใบกำกับ" /></div>
+      <div><label class="label">ที่อยู่ตามใบกำกับ</label><TaxAddressField v-model="f.address" label="ที่อยู่ใบกำกับ" :suggestions="myAddressChoices(orderId)" /></div>
       <label class="flex items-center gap-2 text-stone-600"><input v-model="f.remember" type="checkbox" class="h-4 w-4" /> จดจำข้อมูลนี้ไว้ใช้ครั้งหน้า (เก็บได้ชุดเดียว ทับของเดิม)</label>
       <p v-if="err" class="text-rose-600" role="alert">{{ err }}</p>
       <div class="flex gap-2"><button v-if="editing" class="btn-outline flex-1" @click="editing = false">ยกเลิก</button><button class="btn-primary flex-1" @click="submit">{{ editing ? 'บันทึกการแก้ไข' : 'ขอใบกำกับภาษี' }}</button></div>

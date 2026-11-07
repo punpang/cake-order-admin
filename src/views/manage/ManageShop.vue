@@ -9,8 +9,13 @@ import { cleanClosures, describeClosures, DOW_NAMES, MAX_ROWS } from '../../lib/
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
+import TaxAddressField from '../../components/TaxAddressField.vue'
 
 const hm = /^([01]\d|2[0-3]):[0-5]\d$/
+const shopAddrChoices = computed(() => [
+  { label: 'ใช้ที่อยู่ร้านหน้าเว็บ', text: /ตัวอย่าง/.test(db.storefront?.address || '') ? '' : db.storefront?.address },
+  { label: 'ใช้ที่อยู่ตามข้อมูลกฎหมาย', text: db.legal?.contact?.address },
+])
 const st = reactive({ ...db.shop, vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: { ...db.shop.payment }, closures: JSON.parse(JSON.stringify(db.shop.closures)) })
 // ---- วัน-เวลาปิดร้าน ----
 const DOWS = [1, 2, 3, 4, 5, 6, 0] // จันทร์เริ่ม
@@ -160,7 +165,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
             <div><label class="label">ชื่อผู้เสียภาษี (แสดงบนใบเสร็จ)</label><input v-model="st.vat.legalName" class="input" maxlength="120" /></div>
             <div><label class="label">เลขประจำตัวผู้เสียภาษี 13 หลัก</label><input v-model="st.vat.taxId" type="text" v-num maxlength="13" class="input" /></div>
             <div><label class="label">สาขา (5 หลัก · สำนักงานใหญ่ 00000)</label><input v-model="st.vat.branch" inputmode="numeric" maxlength="5" class="input" aria-label="สาขาร้าน" /></div>
-            <div class="sm:col-span-2"><label class="label">ที่อยู่ผู้ประกอบการ (แสดงบนใบกำกับภาษี)</label><textarea v-model="st.vat.address" rows="2" maxlength="300" class="input" aria-label="ที่อยู่ผู้ประกอบการ" /></div>
+            <div class="sm:col-span-2"><label class="label">ที่อยู่ผู้ประกอบการ (แสดงบนใบกำกับภาษี)</label><TaxAddressField v-model="st.vat.address" label="ที่อยู่ผู้ประกอบการ" :suggestions="shopAddrChoices" /></div>
           </div>
           <p class="mt-2 text-xs text-amber-700">ใบเสร็จย่อของระบบนี้ไม่ใช่ใบกำกับภาษี · ออกใบกำกับภาษีเต็มรูปได้ที่หน้ารายละเอียดออร์เดอร์ (ต้องกรอกชื่อ ที่อยู่ เลขผู้เสียภาษีและสาขาของร้านให้ครบ) · ควรให้นักบัญชีตรวจก่อนใช้จริง</p>
         </template>
