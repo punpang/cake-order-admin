@@ -81,10 +81,26 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
 
         <CakeConfigurator v-if="item.custom" :type-id="typeId" @select="selIds = $event">
           <template #types>
-        <div role="group" aria-label="เลือกประเภทเค้ก">
-            <div class="mb-1.5 text-sm font-semibold text-stone-800">เลือกประเภทเค้ก</div>
-            <div class="flex flex-wrap gap-2"><button v-for="t in types" :key="t.type.id" type="button" class="chip" :class="typeId === t.type.id ? 'chip-on' : 'chip-off'" :aria-pressed="typeId === t.type.id" @click="typeId = t.type.id">{{ t.type.name }}</button></div>
-          </div>
+            <div role="group" aria-label="เลือกประเภทเค้ก" class="rounded-2xl border border-stone-200/70 bg-white p-3.5">
+              <div class="mb-2.5 flex flex-wrap items-baseline gap-x-2">
+                <span class="text-sm font-semibold text-stone-800">เลือกประเภทเค้ก</span>
+                <span class="text-xs font-medium text-rose-500">จำเป็น</span>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="t in types"
+                  :key="t.type.id"
+                  type="button"
+                  class="inline-flex max-w-full items-center gap-1.5 rounded-xl border px-3 py-2 text-left text-sm transition active:scale-[0.98]"
+                  :class="typeId === t.type.id ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : 'border-stone-200 bg-white text-stone-700 hover:border-brand-300'"
+                  :aria-pressed="typeId === t.type.id"
+                  @click="typeId = t.type.id"
+                >
+                  <AppIcon v-if="typeId === t.type.id" name="check" :size="14" class="text-brand-600" />
+                  <span class="min-w-0 break-words">{{ t.type.name }}</span>
+                </button>
+              </div>
+            </div>
           </template>
         </CakeConfigurator>
 
