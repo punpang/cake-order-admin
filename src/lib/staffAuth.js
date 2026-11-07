@@ -9,7 +9,7 @@ let syncs = []
 async function startData(staff) {
   syncs.forEach((x) => x.stop())
   syncs = []
-  const [items, customers, config, orders, acct, chats, store, client] = await Promise.all([import('./itemsSync'), import('./customersSync'), import('./configSync'), import('./ordersSync'), import('./acctSync'), import('./chatSync'), import('../data/store'), getSupabase()])
+  const [items, customers, config, orders, acct, chats, shifts, store, client] = await Promise.all([import('./itemsSync'), import('./customersSync'), import('./configSync'), import('./ordersSync'), import('./acctSync'), import('./chatSync'), import('./shiftsSync'), import('../data/store'), getSupabase()])
   const { db } = store
   const onError = (m) => showToast(m, 8000)
   const has = (p) => staff.perms.includes(p)
@@ -25,6 +25,9 @@ async function startData(staff) {
   // แชท/ใบเสนอ: เฉพาะผู้มีสิทธิ์ chat · คนอื่นล้างข้อมูลตัวอย่างออก (ไม่ให้เห็นแชทจำลองปนกับของจริง)
   if (has('chat')) syncs.push(...(await chats.startChatSync({ client, db, canWrite: true, numbering: store.numbering, onError, onRecode: (q, c) => showToast(`เลขใบเสนอซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000) })))
   else { db.chats.splice(0); db.quotes.splice(0) }
+  // กะ POS: อ่านได้เมื่อมี pos / viewAllOrders / manage · เขียนได้เมื่อมี pos
+  if (['pos', 'viewAllOrders', 'manage'].some(has)) syncs.push(await shifts.startShiftsSync({ client, db, canWrite: has('pos'), onError }))
+  else db.shifts.splice(0)
 }
 export async function initStaff() {
   if (!supabaseEnabled) return
