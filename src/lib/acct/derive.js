@@ -74,10 +74,12 @@ export function orderEntries(o, ctx) {
     if (!(F > 0) || !(sumAmt > 0)) continue
     const fv = Math.round((F * sumVat) / sumAmt)
     const fn = F - fv
-    retNet += fn
+    if (!r.cancelled) retNet += fn // ที่ยกเลิกแล้วหักล้างกันเอง (ret + retx) ไม่ต้องนับ
     const lines = [dr('4950', fn), dr(OUTPUT_VAT, fv)]
     for (const x of rows) lines.push(cr(x.method === 'points' ? POINTS_LIAB : x.method === 'cash' ? CASH : BANK, toS(x.amount)))
     out.push(entry(`ret:${o.id}:${r.id}`, dateOf(r.at) || dateOf(o.createdAt), `คืนเงินบางส่วน ${code}`, { type: 'order-return', orderId: o.id, returnId: r.id }, lines, fv > 0 ? tx('output', -fn, -fv) : null))
+    // ยกเลิกการคืน: กลับรายการ (ลงวันที่ยกเลิก)
+    if (r.cancelled) out.push(entry(`retx:${o.id}:${r.id}`, dateOf(r.cancelled.at) || dateOf(r.at), `ยกเลิกการคืนเงิน ${code}`, { type: 'order-return-void', orderId: o.id, returnId: r.id }, swap(lines), fv > 0 ? tx('output', fn, fv) : null))
   }
 
   // ---- ส่งมอบ: รับรู้รายได้ + ต้นทุน + ค่าคะแนน/คูปอง ----

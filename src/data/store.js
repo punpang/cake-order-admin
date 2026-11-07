@@ -245,6 +245,7 @@ export const db = reactive({
     rule('shipping', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ กำหนดถึง {วันนัด} {เวลานัด}'),
     rule('delivered', ['line', 'facebook'], 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ'),
     rule('cancelled', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว หากมีข้อสงสัยติดต่อร้านได้เลยค่ะ'),
+    rule('order_refund_cancelled', ['line', 'facebook', 'sms'], 'ร้านยกเลิกการคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} (ปรับรายการแล้ว) หากสงสัยติดต่อร้านได้เลยค่ะ'),
     rule('order_refunded', ['line', 'facebook', 'sms'], 'ร้านคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} แล้วค่ะ'),
     rule('birthday', ['line', 'facebook'], 'สุขสันต์วันเกิดล่วงหน้า {ชื่อวันเกิด} สั่งเค้กกับเราได้เลยค่ะ'),
     rule('points_expiring', ['line', 'facebook'], '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ ใช้ก่อนหมดนะคะ'),
@@ -1070,7 +1071,7 @@ export function refundOrder(order, c) {
   for (const x of refunds) {
     if (x.method !== 'points') continue
     x.points = Math.round(x.amount / db.loyalty.pointValue)
-    earnPoints(cu, x.points, `คืนเงิน ${order.code}`, order.id)
+    x.lotId = earnPoints(cu, x.points, `คืนเงิน ${order.code}`, order.id)?.id
   }
   const amount = round2(refunds.reduce((n, x) => n + x.amount, 0))
   const entry = { id: uid('rf'), at: now(), by: session.role, reason, note: String(c?.note || '').trim().slice(0, 200), refunds, amount }
@@ -1079,6 +1080,40 @@ export function refundOrder(order, c) {
   log(order, `คืนเงินบางส่วน ${summary} · ${reason}`)
   notifyOrder('order_refunded', order, { requested: amount, skip: c?.notify === false })
   return { ok: true, entry }
+}
+
+// ยกเลิกการคืนเงินบางส่วนรายการหนึ่ง (เก็บประวัติเป็น "ยกเลิกแล้ว" ไม่ลบ) · สิทธิ์เดียวกับการคืน
+// ปฏิเสธเมื่อ: ออร์เดอร์/บิลถูกยกเลิก · งวดบัญชีปิดแล้ว · เดือนภาษียื่นแล้ว (มี VAT) · คะแนนที่คืนให้ถูกใช้ไปแล้ว
+export function cancelRefund(order, returnId, c = {}) {
+  if (!order) return { error: 'ไม่พบออร์เดอร์' }
+  if (!can(order.channel === 'pos' ? 'posVoid' : 'refundPartial')) return { error: 'ไม่มีสิทธิ์ยกเลิกการคืนเงิน' }
+  const r = (order.returns || []).find((x) => x.id === returnId)
+  if (!r) return { error: 'ไม่พบรายการคืนเงิน' }
+  if (r.cancelled) return { error: 'รายการนี้ยกเลิกไปแล้ว' }
+  const reason = String(c.reason || '').trim().slice(0, 200)
+  if (!reason) return { error: 'ระบุเหตุผลที่ยกเลิกการคืนเงิน' }
+  if (order.status === 'cancelled') return { error: `${order.channel === 'pos' ? 'บิล' : 'ออร์เดอร์'}นี้ถูกยกเลิกแล้ว ยกเลิกการคืนเงินไม่ได้` }
+  const A = db.acct
+  const date = dayOf(r.at)
+  if (date && A?.closedThrough && date <= A.closedThrough) return { error: `รายการบัญชีของการคืนนี้ (${date}) อยู่ในงวดที่ปิดแล้ว ยกเลิกไม่ได้` }
+  if (date && order.vat && A?.vatFilings?.[date.slice(0, 7)]?.filedAt) return { error: `เดือนภาษี ${date.slice(0, 7)} ยื่น ภ.พ.30 แล้ว ยกเลิกการคืนไม่ได้` }
+  // คะแนนที่คืนให้ต้องยังไม่ถูกใช้ (ตรวจทุกก้อนก่อนแก้ข้อมูล)
+  const cu = findCustomer(order.customerId)
+  const lots = []
+  for (const x of r.refunds || []) {
+    if (x.method !== 'points') continue
+    const lot = cu?.ledger?.find((l) => (x.lotId ? l.id === x.lotId : l.orderId === order.id && l.reason === `คืนเงิน ${order.code}` && l.delta === x.points))
+    if (!lot || lot.remaining !== lot.delta) return { error: 'คะแนนที่คืนให้ลูกค้าถูกใช้ไปแล้ว ยกเลิกการคืนไม่ได้' }
+    lots.push({ lot, x })
+  }
+  for (const { lot, x } of lots) {
+    lot.remaining = 0
+    cu.ledger.push({ id: uid('pt'), at: now(), delta: -x.points, reason: `ยกเลิกการคืนเงิน ${order.code}`, orderId: order.id, takes: [{ lotId: lot.id, n: x.points }] })
+  }
+  r.cancelled = { at: now(), by: session.role, reason }
+  log(order, `ยกเลิกการคืนเงิน ${money(r.amount)} · ${reason}`)
+  if (order.channel !== 'pos') notifyOrder('order_refund_cancelled', order, { requested: r.amount, skip: c.notify !== true })
+  return { ok: true, entry: r }
 }
 
 // ---------- ย้อนสถานะทีละขั้น (สิทธิ์ revertStatus) ----------
@@ -1487,7 +1522,7 @@ export function publicOrderView(o, { owner = false } = {}) {
     photoConsent: photoStatusOf(o),
     total: t.total, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal, vat: t.vat, vatRate: t.vatRate, vatMode: t.vatMode,
     refunds: o.status === 'cancelled' ? refundList(o.cancel) : [],
-    returns: (o.returns || []).map((r) => ({ id: r.id, at: r.at, amount: r.amount, items: r.refunds.map((x) => ({ label: REFUND_METHODS[x.method] || x.method, amount: x.amount, points: x.points ?? null })) })),
+    returns: (o.returns || []).filter((r) => !r.cancelled).map((r) => ({ id: r.id, at: r.at, amount: r.amount, items: r.refunds.map((x) => ({ label: REFUND_METHODS[x.method] || x.method, amount: x.amount, points: x.points ?? null })) })),
     payments: pays, payDue: orderDue(o), unpaidApproved: o.status === 'order_confirmed',
     pay: { block: customerPayBlock(o), room, info: { ...db.shop.payment }, limitPerHour: CUSTOMER_PAY.perHour },
     review: owner && rv ? { rating: rv.rating, status: rv.status } : null,

@@ -210,7 +210,7 @@ export function orderTotals(order) {
   const beforeVat = total - vat // ยอดก่อน VAT (ใช้เป็นรายได้/กำไร)
   const paid = order.payments.filter((p) => p.status === 'confirmed').reduce((s, p) => s + p.amount, 0)
   const reported = order.payments.filter((p) => p.status === 'reported').reduce((s, p) => s + p.amount, 0)
-  const returned = r2((order.returns || []).reduce((s, x) => s + (Number(x.amount) || 0), 0)) // คืนเงินบางส่วนโดยไม่ยกเลิก
+  const returned = r2((order.returns || []).filter((x) => !x.cancelled).reduce((s, x) => s + (Number(x.amount) || 0), 0)) // คืนเงินบางส่วนโดยไม่ยกเลิก
   const refunded = r2((Number(order.cancel?.refundAmount) || 0) + returned)
   const paidNet = r2(paid - returned) // เงินที่ยังอยู่กับร้านหลังคืนบางส่วน (เพดานคืนเงินครั้งต่อไป/ตอนยกเลิก)
   // ราคาเต็ม + ส่วนลดทุกแหล่ง (ราคาพิเศษ/บันเดิ้ลรวมตามชื่อ, ปรับราคาที่ติดลบ, คะแนน, คูปอง)

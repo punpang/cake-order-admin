@@ -37,7 +37,9 @@ export function refundErrors(rows, { paid = 0, canPoints = false, pointValue = 1
 }
 
 // คืนเงินบางส่วนโดยไม่ยกเลิก: order.returns = [{ id, at, by, reason, note, refunds, amount }]
-export const returnsOf = (order) => (Array.isArray(order?.returns) ? order.returns : [])
+// returnsOf = เฉพาะรายการที่ยังไม่ยกเลิก (entry.cancelled = { at, by, reason }) · allReturnsOf = ทั้งหมด (ไว้แสดงประวัติ)
+export const allReturnsOf = (order) => (Array.isArray(order?.returns) ? order.returns : [])
+export const returnsOf = (order) => allReturnsOf(order).filter((x) => !x.cancelled)
 export const returnedTotal = (order) => r2(returnsOf(order).reduce((s, x) => s + (Number(x.amount) || 0), 0))
 // ยอดคืนบางส่วนแยกช่องทาง { cash, transfer, points }
 export function returnedByMethod(order) {

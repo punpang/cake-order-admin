@@ -522,7 +522,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <b class="block text-stone-900">{{ money(orderTotals(o).total) }}</b>
             <span class="text-xs text-stone-500">{{ o.status === 'cancelled' ? 'ยกเลิกแล้ว' : o.payments[0]?.method }}</span>
           </span>
-          <button v-if="can('posVoid') && o.status !== 'cancelled' && orderTotals(o).paidNet > 0" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" aria-label="คืนเงินบางส่วน" @click="refundFor = o">คืนเงิน</button>
+          <button v-if="can('posVoid') && o.status !== 'cancelled' && (orderTotals(o).paidNet > 0 || (o.returns || []).some((r) => !r.cancelled))" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" aria-label="คืนเงินบางส่วน" @click="refundFor = o">คืนเงิน</button>
           <button v-if="can('posVoid') && o.status !== 'cancelled'" type="button" class="btn-danger h-9 shrink-0 px-2.5" aria-label="ยกเลิกบิล" @click="openVoid(o)"><AppIcon name="x" :size="16" /></button>
           <button v-if="can('changeBuyer') && o.status !== 'cancelled'" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" @click="buyerFor = o">เปลี่ยนผู้ซื้อ</button>
           <button v-if="taxable(o)" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" aria-label="ใบกำกับภาษี" @click="taxFor = o">ใบกำกับภาษี</button>

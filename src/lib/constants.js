@@ -162,6 +162,7 @@ export const NOTIFY_EVENTS = {
   delivered: { label: 'ส่งมอบแล้ว', audience: 'customer' },
   cancelled: { label: 'ยกเลิกออร์เดอร์', audience: 'customer' },
   order_refunded: { label: 'คืนเงินบางส่วน', audience: 'customer' },
+  order_refund_cancelled: { label: 'ยกเลิกการคืนเงินบางส่วน', audience: 'customer' },
   birthday: { label: 'อวยพรวันเกิด', audience: 'customer', scheduled: true, marketing: true },
   points_expiring: { label: 'คะแนนใกล้หมดอายุ', audience: 'customer', scheduled: true, marketing: true },
   team_new_order: { label: 'ออร์เดอร์ใหม่', audience: 'team' },

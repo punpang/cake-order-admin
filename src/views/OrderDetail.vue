@@ -27,6 +27,7 @@ import AppIcon from '../components/AppIcon.vue'
 import PickupModal from '../components/PickupModal.vue'
 import RefundEditor from '../components/RefundEditor.vue'
 import RefundPartialDialog from '../components/RefundPartialDialog.vue'
+import RefundCancelDialog from '../components/RefundCancelDialog.vue'
 import OrderPayModal from '../components/OrderPayModal.vue'
 import PayExtendModal from '../components/PayExtendModal.vue'
 import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
@@ -243,6 +244,8 @@ async function savePoints() {
 const cancelOpen = ref(false)
 // คืนเงินบางส่วนโดยไม่ยกเลิก (ออร์เดอร์: refundPartial · บิล POS: posVoid)
 const refundOpen = ref(false)
+const rcFor = ref(null) // รายการคืนที่กำลังจะยกเลิก
+const canCancelRefund = computed(() => !!order.value && can(order.value.channel === 'pos' ? 'posVoid' : 'refundPartial') && order.value.status !== 'cancelled')
 const canRefund = computed(() => !!order.value && can(order.value.channel === 'pos' ? 'posVoid' : 'refundPartial') && !['draft', 'cancelled'].includes(order.value.status) && t.value.paidNet > 0)
 const returnedNet = computed(() => (t.value.total > 0 ? Math.round(t.value.returned * (1 - t.value.vat / t.value.total) * 100) / 100 : t.value.returned))
 const cxl = reactive({ reason: '', refunds: [], refundNote: '', notify: true })
@@ -541,10 +544,12 @@ async function saveCancel() {
           </ul>
           <div v-if="order.returns?.length" class="mt-3 space-y-2" aria-label="รายการคืนเงิน">
             <div class="text-xs font-semibold text-stone-500">คืนเงินแล้ว</div>
-            <div v-for="r in order.returns" :key="r.id" class="rounded-xl border border-rose-200 bg-rose-50/60 p-3 text-sm">
-              <div class="flex items-center justify-between gap-2"><span class="font-semibold text-rose-700">−{{ money(r.amount) }}</span><span class="text-xs text-stone-500">{{ dateTime(r.at) }} · {{ ROLES[r.by] }}</span></div>
+            <div v-for="r in order.returns" :key="r.id" class="rounded-xl border p-3 text-sm" :class="r.cancelled ? 'border-stone-200 bg-stone-50' : 'border-rose-200 bg-rose-50/60'" data-return>
+              <div class="flex items-center justify-between gap-2"><span class="font-semibold" :class="r.cancelled ? 'text-stone-400 line-through' : 'text-rose-700'">−{{ money(r.amount) }}</span><span class="text-xs text-stone-500">{{ dateTime(r.at) }} · {{ ROLES[r.by] }}</span></div>
               <div v-for="(x, i) in refundList({ refunds: r.refunds })" :key="i" class="text-stone-700">{{ x.label }} {{ money(x.amount) }}<template v-if="x.points != null"> ({{ x.points }} คะแนน)</template></div>
               <div class="break-words text-stone-600">เหตุผล: {{ r.reason }}<template v-if="r.note"> · {{ r.note }}</template></div>
+              <div v-if="r.cancelled" class="mt-1 break-words text-xs text-stone-500"><span class="rounded-full bg-stone-200 px-2 py-0.5 font-semibold text-stone-600">ยกเลิกแล้ว</span> {{ dateTime(r.cancelled.at) }} · {{ ROLES[r.cancelled.by] }} · {{ r.cancelled.reason }}</div>
+              <button v-else-if="canCancelRefund" type="button" class="btn-outline mt-2 h-9 px-3" @click="rcFor = r"><AppIcon name="x" :size="16" /> ยกเลิกการคืน</button>
             </div>
           </div>
         </section>
@@ -728,6 +733,7 @@ async function saveCancel() {
   </div>
 
   <RefundPartialDialog v-if="refundOpen && order" :order="order" @close="refundOpen = false" />
+  <RefundCancelDialog v-if="rcFor && order" :order="order" :entry="rcFor" @close="rcFor = null" />
   <ChangeBuyerModal v-if="buyerOpen && order" :order="order" @close="buyerOpen = false" />
   <OrderLinkModal v-if="linkOpen && order" :order="order" @close="linkOpen = false" />
   <TaxInvoiceModal v-if="taxOpen && order" :order="order" @close="taxOpen = false" />

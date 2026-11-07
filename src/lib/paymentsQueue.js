@@ -14,7 +14,7 @@ export function paymentTabsOf(o, t = orderTotals(o)) {
   if (!eligible(o)) return out
   if (live(o) && (o.payments || []).some((p) => p.status === 'reported')) out.push('review')
   if (live(o) && t.balance > 0) out.push('due')
-  if ((live(o) && t.balance <= 0 && t.paid > 0) || (o.returns || []).length) out.push('paid')
+  if ((live(o) && t.balance <= 0 && t.paid > 0) || (o.returns || []).some((x) => !x.cancelled)) out.push('paid')
   return out
 }
 

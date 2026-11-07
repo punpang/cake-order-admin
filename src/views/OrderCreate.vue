@@ -215,7 +215,7 @@ function quote() {
 <template>
   <div v-if="!can('createOrder')" class="card py-10 text-center text-stone-500">บทบาทนี้สร้างออร์เดอร์ไม่ได้</div>
 
-  <div v-else :class="embedded ? 'pb-2' : 'mx-auto max-w-2xl pb-[calc(env(safe-area-inset-bottom)+6rem)] md:max-w-none md:pb-10'">
+  <div v-else :class="embedded ? 'pb-2' : 'mx-auto max-w-2xl pb-[calc(env(safe-area-inset-bottom)+6rem)] md:max-w-none'">
     <!-- หัว -->
     <div v-if="!embedded" class="mb-4 flex items-center gap-2">
       <RouterLink to="/admin/orders" class="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
@@ -467,8 +467,8 @@ function quote() {
     </div>
 
     <!-- ปุ่มล่าง -->
-    <div :class="embedded ? 'sticky bottom-0 z-10 -mx-3 mt-3 border-t border-stone-200 bg-white/95 p-3 backdrop-blur' : 'action-bar md:static md:mt-4 md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none'">
-      <div class="mx-auto flex max-w-2xl flex-wrap gap-2">
+    <div :class="embedded ? 'sticky bottom-0 z-10 -mx-3 mt-3 border-t border-stone-200 bg-white/95 p-3 backdrop-blur' : 'action-bar'">
+      <div class="mx-auto flex flex-wrap gap-2" :class="embedded ? 'max-w-2xl' : 'max-w-page lg:px-4'">
         <button v-if="step > 0" class="btn-outline px-3 sm:px-4" @click="back"><AppIcon name="back" /> <span class="hidden sm:inline">ย้อนกลับ</span></button>
         <template v-if="step < 3">
           <button class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8" @click="next">ถัดไป <AppIcon name="next" /></button>
