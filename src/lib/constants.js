@@ -171,12 +171,14 @@ export const NOTIFY_EVENTS = {
   photo_ready: { label: 'มีรูปงานเสร็จให้ดู', audience: 'customer' },
   photo_optout_done: { label: 'ลบรูปตามคำขอไม่เผยแพร่แล้ว', audience: 'customer' },
   photo_optout_rejected: { label: 'ร้านไม่อนุมัติคำขอไม่เผยแพร่รูป', audience: 'customer' },
+  team_coupon_shown: { label: 'ลูกค้ากดแสดงคูปอง/ของรางวัลที่ร้าน', audience: 'team' },
+  coupon_refunded: { label: 'ร้านคืนคะแนนจากคูปอง', audience: 'customer' },
   team_photo_optout: { label: 'ลูกค้าขอไม่ให้เผยแพร่รูป (รอตรวจสอบ)', audience: 'team' },
   team_pay_extend_request: { label: 'ลูกค้าขอขยายเวลาชำระ', audience: 'team' },
   team_expense_missing: { label: 'ค่าใช้จ่ายประจำเดือนที่ยังไม่ได้บันทึก', audience: 'team', scheduled: true },
   team_installment_due: { label: 'งวดผ่อนชำระใกล้/เลยกำหนด', audience: 'team', scheduled: true },
   team_vat_due: { label: 'ครบกำหนดยื่น ภ.พ.30 (ยังไม่ยื่น)', audience: 'team', scheduled: true },
 }
-export const NOTIFY_VARS = ['{ชื่อลูกค้า}', '{เลขออร์เดอร์}', '{ยอดรวม}', '{คงค้าง}', '{ยอดที่แจ้ง}', '{วันนัด}', '{เวลานัด}', '{ส่งมอบ}', '{ชื่อวันเกิด}', '{คะแนน}', '{ลิงก์ออร์เดอร์}', '{ชำระก่อน}', '{เดือนภาษี}', '{รายการ}', '{วันที่}', '{งวด}']
+export const NOTIFY_VARS = ['{ชื่อลูกค้า}', '{เลขออร์เดอร์}', '{ยอดรวม}', '{คงค้าง}', '{ยอดที่แจ้ง}', '{วันนัด}', '{เวลานัด}', '{ส่งมอบ}', '{ชื่อวันเกิด}', '{คะแนน}', '{ลิงก์ออร์เดอร์}', '{ชำระก่อน}', '{เดือนภาษี}', '{รายการ}', '{วันที่}', '{งวด}', '{นาที}']
 
 export const POS_METHODS = { cash: 'เงินสด', transfer: 'โอนเงิน', card: 'บัตร' }

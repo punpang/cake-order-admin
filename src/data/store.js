@@ -6,7 +6,7 @@ import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } f
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { prevStatus } from '../lib/orderFlow'
 import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList } from '../lib/refund'
-import { addDays, pointBalance, takePoints, returnPoints, couponUsable, pickPrize, expiringSoon } from '../lib/loyalty'
+import { addDays, pointBalance, takePoints, returnPoints, couponUsable, couponPhase, pickPrize, expiringSoon } from '../lib/loyalty'
 import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, timeOnly } from '../lib/format'
 import { nextBirthday, daysBetween } from '../lib/birthday'
 import { parseAnswer } from '../lib/chatParse'
@@ -105,7 +105,7 @@ export const db = reactive({
 
   // ---------- คะแนนสะสม / แลกของ / กาชา ----------
   // earnPer = ทุกกี่บาทได้ 1 คะแนน, pointValue = 1 คะแนนลดได้กี่บาท, spinCost = คะแนนต่อการหมุน 1 ครั้ง, spinPer = ทุกกี่บาทได้สิทธิ์หมุน 1 ครั้ง
-  loyalty: { earnPer: 100, pointValue: 1, pointExpireDays: 365, couponExpireDays: 30, spinCost: 50, spinPer: 500 },
+  loyalty: { earnPer: 100, pointValue: 1, pointExpireDays: 365, couponExpireDays: 30, spinCost: 50, spinPer: 500, activationMin: 15 },
   rewards: [
     { id: 'rw1', name: 'เทียนวันเกิดเซ็ต', points: 30, active: true },
     { id: 'rw2', name: 'คัพเค้ก 1 ชิ้น', points: 80, active: true },
@@ -257,6 +257,8 @@ export const db = reactive({
     rule('photo_ready', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} มีรูปงานเสร็จให้ดูแล้วค่ะ ดูได้ที่ {ลิงก์ออร์เดอร์}'),
     rule('photo_optout_done', ['line', 'facebook', 'sms'], 'ร้านลบรูปงานของออร์เดอร์ {เลขออร์เดอร์} ออกจากทุกที่ตามที่แจ้งแล้วค่ะ'),
     rule('photo_optout_rejected', ['line', 'facebook', 'sms'], 'ร้านขอคุยเรื่องการใช้รูปงานของออร์เดอร์ {เลขออร์เดอร์} เพิ่มเติม รายละเอียดดูที่ {ลิงก์ออร์เดอร์}'),
+    rule('team_coupon_shown', ['telegram'], '[ลูกค้าแสดงคูปอง] {ชื่อลูกค้า} {รายการ} (ภายใน {นาที} นาที)'),
+    rule('coupon_refunded', ['line', 'facebook', 'sms'], '{ชื่อลูกค้า} ร้านคืน {คะแนน} คะแนนจาก {รายการ} ให้แล้วค่ะ'),
     rule('team_photo_optout', ['telegram'], '[ขอไม่เผยแพร่รูป] {เลขออร์เดอร์} {ชื่อลูกค้า} รอร้านตรวจสอบ'),
     rule('team_pay_extend_request', ['telegram'], '[ขอขยายเวลาชำระ] {เลขออร์เดอร์} {ชื่อลูกค้า} เดิมกำหนด {ชำระก่อน}'),
   ],
@@ -1324,7 +1326,7 @@ export function applyCoupon(order, couponId) {
   const cp = db.coupons.find((x) => x.id === couponId)
   if (!cp || cp.type !== 'discount' || !couponUsable(cp, today())) return false
   if (Number(cp.minSpend) > 0 && orderTotals(order).subtotal < Number(cp.minSpend)) return false // ยอดสินค้าไม่ถึงขั้นต่ำของคูปอง
-  Object.assign(cp, { status: 'used', orderId: order.id, usedAt: now() })
+  Object.assign(cp, { status: 'used', orderId: order.id, usedAt: now(), activatedAt: null, activatedUntil: null })
   order.couponsUsed.push({ couponId, name: cp.name, amount: cp.amount })
   log(order, `ใช้คูปอง ${cp.name}`)
   return true
@@ -1332,7 +1334,7 @@ export function applyCoupon(order, couponId) {
 
 export function removeCoupon(order, couponId) {
   const cp = db.coupons.find((x) => x.id === couponId)
-  if (cp) Object.assign(cp, { status: 'pending', orderId: null, usedAt: null })
+  if (cp) Object.assign(cp, { status: 'pending', orderId: null, usedAt: null, activatedAt: null, activatedUntil: null })
   order.couponsUsed = order.couponsUsed.filter((x) => x.couponId !== couponId)
   log(order, `ยกเลิกการใช้คูปอง ${cp?.name || ''}`)
 }
@@ -1646,9 +1648,9 @@ export function redeemReward(c, rewardId) {
   if (!rw || !spendPoints(c, rw.points, `แลก ${rw.name}`)) return null
   // คูปองส่วนลด: นำไปใช้ที่ POS/ออร์เดอร์ (มีขั้นต่ำ/อายุตามที่ตั้ง) · ของรางวัล: รับที่ร้าน
   if (rw.kind === 'coupon') {
-    return newCoupon(c, { type: 'discount', rewardId: rw.id, name: rw.name, amount: Number(rw.amount) || 0, minSpend: Number(rw.minSpend) || 0, source: 'redeem', ...(Number(rw.validDays) > 0 ? { expiresAt: addDays(today(), Number(rw.validDays)) } : {}) })
+    return newCoupon(c, { type: 'discount', rewardId: rw.id, points: rw.points, name: rw.name, amount: Number(rw.amount) || 0, minSpend: Number(rw.minSpend) || 0, source: 'redeem', ...(Number(rw.validDays) > 0 ? { expiresAt: addDays(today(), Number(rw.validDays)) } : {}) })
   }
-  return newCoupon(c, { type: 'reward', rewardId: rw.id, name: rw.name, source: 'redeem' })
+  return newCoupon(c, { type: 'reward', rewardId: rw.id, points: rw.points, name: rw.name, source: 'redeem' })
 }
 
 // usePoints = true ใช้คะแนนหมุน, false ใช้สิทธิ์หมุน
@@ -1671,31 +1673,80 @@ export function spinGacha(c, usePoints) {
   return prize
 }
 
-// ของรางวัลที่ลูกค้าแลก/ได้จากกาชาไว้แล้วและยังรอรับ (ไม่หมดอายุ)
-export const pendingRewards = (c) => customerCoupons(c).filter((x) => x.type === 'reward' && couponUsable(x, today()))
-// ของรางวัลที่แลกด้วยคะแนนได้ (ไม่รวมคูปองส่วนลด)
-export const itemRewards = () => db.rewards.filter((r) => r.active !== false && r.kind !== 'coupon')
-// POS: มอบของรางวัลที่รอรับ (ต้องเป็นของลูกค้าคนนั้น) · POS: แลกด้วยคะแนนแล้วมอบเลย
+// ---------- คูปอง/ของรางวัลที่ร้าน: ลูกค้าต้องกด "ใช้ที่ร้านตอนนี้" ในระบบลูกค้าก่อน จึงจะขึ้นบน POS (ยืนยันว่าลูกค้าทำรายการเอง) ----------
+// ครบเวลา (db.loyalty.activationMin นาที) โดยร้านยังไม่มอบ/ใช้ = ถือว่าใช้ไปแล้ว (lapsed ใช้ซ้ำไม่ได้)
+export const phaseOfCoupon = (cp, nowIso = now()) => couponPhase(cp, today(), nowIso)
+export function sweepCoupons(nowIso = now()) {
+  let n = 0
+  for (const cp of db.coupons) {
+    if (cp.status === 'pending' && cp.activatedUntil && cp.activatedUntil <= nowIso) { Object.assign(cp, { status: 'lapsed', lapsedAt: nowIso }); n++ }
+  }
+  return n
+}
+export const activeCouponsOf = (c, nowIso = now()) => customerCoupons(c).filter((x) => phaseOfCoupon(x, nowIso) === 'active')
+// POS เห็นเฉพาะที่ลูกค้ากดแสดงอยู่
+export const posCoupons = (c, nowIso = now()) => activeCouponsOf(c, nowIso).filter((x) => x.type === 'discount')
+export const pendingRewards = (c, nowIso = now()) => activeCouponsOf(c, nowIso).filter((x) => x.type === 'reward')
+// จำนวนที่ลูกค้ามีแต่ยังไม่ได้กดแสดง (ไว้บอกพนักงานให้ลูกค้ากดเอง)
+export const notShownCount = (c, nowIso = now()) => customerCoupons(c).filter((x) => phaseOfCoupon(x, nowIso) === 'pending').length
+// ฝั่งลูกค้า: กด "ใช้ที่ร้านตอนนี้" (ต้องล็อกอิน · เป็นเจ้าของ · ยกเลิกไม่ได้)
+export function activateCouponAtStore(couponId) {
+  sweepCoupons()
+  const c = myCustomer()
+  const cp = db.coupons.find((x) => x.id === couponId)
+  if (!c || !cp || cp.customerId !== c.id) return { error: 'ไม่พบคูปอง' }
+  const ph = phaseOfCoupon(cp)
+  const msg = { active: 'แสดงที่ร้านอยู่แล้ว', lapsed: 'หมดเวลาแล้ว (ถือว่าใช้ไปแล้ว)', delivered: 'ใช้/รับไปแล้ว', used: 'ใช้ไปแล้ว', refunded: 'ใช้ไม่ได้ (ร้านคืนคะแนนแล้ว)', expired: 'หมดอายุแล้ว' }[ph]
+  if (msg) return { error: msg }
+  const min = Math.min(120, Math.max(1, Math.round(Number(db.loyalty.activationMin) || 15)))
+  const at = now()
+  Object.assign(cp, { activatedAt: at, activatedUntil: new Date(Date.now() + min * 60e3).toISOString() })
+  notify('team_coupon_shown', { vars: { ชื่อลูกค้า: c.name, รายการ: cp.name, นาที: String(min) } })
+  return { ok: true, coupon: cp, minutes: min }
+}
+// POS: ตรวจก่อนขาย (กดช้าจนหมดเวลา/ไม่ใช่ของลูกค้า/ยังไม่ได้กดแสดง) · คืนข้อความผิดพลาด หรือ ''
+export function posCouponProblem({ customerId, couponIds = [] }) {
+  sweepCoupons()
+  for (const id of couponIds) {
+    const cp = db.coupons.find((x) => x.id === id)
+    if (!cp || cp.type !== 'discount' || cp.customerId !== customerId) return 'คูปองไม่ถูกต้อง'
+    if (phaseOfCoupon(cp) !== 'active') return `คูปอง ${cp.name} หมดเวลาแสดงแล้ว (ถือว่าใช้แล้ว) หรือลูกค้ายังไม่ได้กดใช้ที่ร้าน`
+  }
+  return ''
+}
+// POS: มอบของรางวัลที่ลูกค้ากดแสดงอยู่ (= ใช้แล้ว หายจากจอ)
 export function posHandOver(customerId, couponId) {
   if (!can('useLoyalty')) return { error: 'ไม่มีสิทธิ์' }
+  sweepCoupons()
   const c = findCustomer(customerId)
   const cp = db.coupons.find((x) => x.id === couponId)
   if (!c || !cp || cp.customerId !== c.id || cp.type !== 'reward') return { error: 'ไม่พบของรางวัล' }
-  if (!couponUsable(cp, today())) return { error: cp.status === 'delivered' ? 'มอบไปแล้ว' : 'หมดอายุแล้ว' }
+  const ph = phaseOfCoupon(cp)
+  if (ph !== 'active') return { error: { delivered: 'มอบไปแล้ว', lapsed: 'หมดเวลาแล้ว (ถือว่าใช้ไปแล้ว)', refunded: 'ร้านคืนคะแนนแล้ว', expired: 'หมดอายุแล้ว', pending: 'ลูกค้ายังไม่ได้กด "ใช้ที่ร้านตอนนี้" ในระบบลูกค้า' }[ph] || 'มอบไม่ได้' }
   markCouponDelivered(cp)
   return { ok: true, coupon: cp }
 }
-export function posRedeemAndHandOver(customerId, rewardId) {
-  if (!can('useLoyalty')) return { error: 'ไม่มีสิทธิ์' }
-  const c = findCustomer(customerId)
-  if (!c || c.deleted || c.active === false) return { error: 'ไม่พบลูกค้า' }
-  const rw = db.rewards.find((x) => x.id === rewardId && x.active !== false && x.kind !== 'coupon')
-  if (!rw) return { error: 'ไม่พบของรางวัล' }
-  if (customerPoints(c) < rw.points) return { error: `คะแนนไม่พอ (ต้องใช้ ${rw.points} มี ${customerPoints(c)})` }
-  const cp = redeemReward(c, rw.id)
-  if (!cp) return { error: 'แลกไม่สำเร็จ' }
-  markCouponDelivered(cp)
-  return { ok: true, coupon: cp }
+// หลังบ้าน: คืนคะแนนตามคูปอง/ของรางวัลที่ไม่ได้ใช้จริง (pending/active/lapsed/expired) · ต้องเหตุผล · สิทธิ์ adjustPoints
+export function refundCoupon(couponId, reason, opts = {}) {
+  if (!can('adjustPoints')) return { error: 'ไม่มีสิทธิ์' }
+  sweepCoupons()
+  const cp = db.coupons.find((x) => x.id === couponId)
+  if (!cp) return { error: 'ไม่พบคูปอง' }
+  const c = findCustomer(cp.customerId)
+  if (!c || c.deleted) return { error: 'ไม่พบลูกค้า' }
+  if (!String(reason ?? '').trim()) return { error: 'ใส่เหตุผลที่คืนคะแนน' }
+  const ph = phaseOfCoupon(cp)
+  if (['delivered', 'used'].includes(ph)) return { error: 'ใช้/มอบไปแล้ว คืนคะแนนไม่ได้' }
+  if (ph === 'refunded') return { error: 'คืนคะแนนไปแล้ว' }
+  const pts = Number(cp.points) || (cp.rewardId && cp.source !== 'gacha' ? Number(db.rewards.find((r) => r.id === cp.rewardId)?.points) || 0 : 0)
+  if (!(pts > 0)) return { error: 'ได้จากกาชา/ไม่มีคะแนนที่จ่าย ไม่มีคะแนนให้คืน' }
+  earnPoints(c, pts, `คืนคะแนน ${cp.name} (${String(reason).trim().slice(0, 80)})`)
+  Object.assign(cp, { status: 'refunded', refundedAt: now(), refundedBy: session.role, refundReason: String(reason).trim().slice(0, 200), activatedAt: null, activatedUntil: null })
+  if (opts.notify !== false) {
+    const rule = db.notifyRules.find((x) => x.event === 'coupon_refunded')
+    if (rule?.enabled) notify('coupon_refunded', { customer: c, vars: { ชื่อลูกค้า: c.name, รายการ: cp.name, คะแนน: String(pts) } })
+  } else db.outbox.unshift({ id: uid('msg'), at: now(), event: 'coupon_refunded', channel: null, to: c.name, text: '(พนักงานเลือกไม่แจ้งลูกค้า)', orderId: null, status: 'skipped' })
+  return { ok: true, points: pts }
 }
 
 // หลังบ้าน: มอบของรางวัลแล้ว
@@ -1708,6 +1759,8 @@ export const saveReward = (d) =>
 export const savePrize = (d) => upsert(db.gachaPrizes, 'gp', { ...d, chance: Number(d.chance) || 0, value: Number(d.value) || 0 })
 export function saveLoyaltySettings(d) {
   for (const k of Object.keys(db.loyalty)) db.loyalty[k] = Math.max(Number(d[k]) || 0, 0)
+  // เวลาที่คูปองแสดงที่ร้านหลังลูกค้ากด "ใช้ที่ร้านตอนนี้" (นาที) 1–120
+  db.loyalty.activationMin = Number.isFinite(Number(d.activationMin)) && d.activationMin !== '' && d.activationMin != null ? Math.min(120, Math.max(1, Math.round(Number(d.activationMin)))) : 15
 }
 
 // ---------- ออร์เดอร์ตัวอย่าง ----------
@@ -1862,6 +1915,7 @@ export function runScheduledChecks() {
     once(`bd|${b.customerId}|${b.name}|${b.md}|${b.year}`, () => notify('birthday', { customer: c, vars: { ...orderVars(b.order), ชื่อวันเกิด: b.name || c?.name || '' }, orderId: b.order.id }))
   }
   const today = toDateStr(new Date())
+  sweepCoupons()
   for (const h of scheduledHooks) n += h(once, today) || 0
   for (const c of db.customers) {
     const soon = expiringSoon(c.ledger || [], today)
@@ -2424,6 +2478,7 @@ const stockOf = (l) => db.retailItems.find((x) => x.id === l.refId)
 export function posSale({ cart, customerId = null, couponIds = [], discount = 0, method = 'cash', received = null }) {
   const shift = currentShift()
   if (!shift || !cart.length) return null
+  if (couponIds.length && (!customerId || posCouponProblem({ customerId, couponIds }))) return null // คูปองต้องที่ลูกค้ากดแสดงอยู่ (POS ตรวจก่อนด้วย posCouponProblem)
   const ts = now()
   const o = {
     id: uid('o'), code: `POS-${String(++posNo).padStart(4, '0')}`, channel: 'pos', shiftId: shift.id, chatId: null,

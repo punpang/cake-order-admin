@@ -47,8 +47,19 @@ export function returnPoints(ledger, takes) {
   }
 }
 
-// คูปองที่ใช้ได้
-export const couponUsable = (c, today) => c.status === 'pending' && (!c.expiresAt || c.expiresAt >= today)
+// ช่วงชีวิตของคูปอง/ของรางวัล (ฟังก์ชันล้วน ไม่แก้ข้อมูล · nowIso = เวลาปัจจุบัน ISO)
+// pending = ยังไม่ใช้ · active = ลูกค้ากด "ใช้ที่ร้านตอนนี้" และยังไม่ครบเวลา (POS เห็น) · lapsed = ครบเวลาโดยไม่ได้มอบ/ใช้ (ถือว่าใช้แล้ว)
+// delivered/used = มอบ/ใช้แล้ว · refunded = หลังบ้านคืนคะแนน · expired = เกินวันหมดอายุของคูปอง
+export function couponPhase(c, today, nowIso = new Date().toISOString()) {
+  if (['delivered', 'used', 'refunded', 'lapsed'].includes(c.status)) return c.status
+  if (c.expiresAt && c.expiresAt < today) return 'expired'
+  if (c.activatedUntil) return c.activatedUntil > nowIso ? 'active' : 'lapsed'
+  return 'pending'
+}
+// คูปองที่ใช้ได้ = pending หรือ active (lapsed/expired/ใช้แล้ว/คืนคะแนนแล้ว ใช้ไม่ได้)
+export const couponUsable = (c, today, nowIso) => ['pending', 'active'].includes(couponPhase(c, today, nowIso))
+// วินาทีที่เหลือของการแสดงที่ร้าน (0 = ไม่ได้แสดง/หมดแล้ว)
+export const activeSecondsLeft = (c, nowMs = Date.now()) => (c.activatedUntil ? Math.max(0, Math.ceil((new Date(c.activatedUntil).getTime() - nowMs) / 1000)) : 0)
 
 // สุ่มรางวัลตาม % (rand 0–1)
 export function pickPrize(prizes, rand = Math.random()) {

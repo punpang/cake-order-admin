@@ -1,9 +1,10 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posItems, posSale, voidPosSale, pointsFor, quickMember, vatNow,
-  customerPoints, usableDiscountCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, itemRewards, posHandOver, posRedeemAndHandOver,
+  customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons,
 } from '../data/store'
+import { activeSecondsLeft } from '../lib/loyalty'
 import { orderTotals } from '../lib/pricing'
 import { pointPromoFor } from '../lib/posPromo'
 import { coBought, rankSellers, suggestBundles } from '../lib/posRec'
@@ -75,8 +76,50 @@ function add(x) {
 function step(l, d) {
   const x = itemOf(l)
   if (d > 0 && x && !canAdd(x)) return
+  if (l.qty + d <= 0) return removeLine(l)
   l.qty += d
-  if (l.qty <= 0) cart.value.splice(cart.value.indexOf(l), 1)
+}
+
+// ---------- ลบรายการในตะกร้าแบบง่าย (ไม่ต้องเปิดตะกร้า) + เลิกทำ ----------
+const undo = reactive({ snap: null, text: '', timer: null })
+function remember(text) {
+  undo.snap = JSON.parse(JSON.stringify(cart.value))
+  undo.text = text
+  clearTimeout(undo.timer)
+  undo.timer = setTimeout(() => (undo.snap = null), 5000)
+}
+function undoRemove() {
+  if (!undo.snap) return
+  cart.value = undo.snap
+  undo.snap = null
+  clearTimeout(undo.timer)
+}
+const lineName = (l) => `${itemOf(l)?.name || 'รายการ'}${l.mods?.length ? ` (${modsText(modsOf(l.mods))})` : ''}`
+function removeLine(l) {
+  remember(`ลบ ${lineName(l)} แล้ว`)
+  cart.value.splice(cart.value.indexOf(l), 1)
+}
+// ปุ่ม − บนการ์ดสินค้า: ลด 1 ที่บรรทัดล่าสุดของสินค้านั้น (ไม่เปิดตะกร้า)
+function lessOf(x) {
+  const ls = cart.value.filter((l) => l.kind === x.kind && l.refId === x.id)
+  const l = ls[ls.length - 1]
+  if (!l) return
+  if (l.qty <= 1) return removeLine(l)
+  l.qty -= 1
+}
+async function clearCart() {
+  if (!cart.value.length) return
+  if (!(await askConfirm({ title: 'ล้างตะกร้า', message: `ลบทั้ง ${count.value} ชิ้น (เลิกทำได้ภายใน 5 วินาที)`, okText: 'ล้างตะกร้า', danger: true }))) return
+  remember('ล้างตะกร้าแล้ว')
+  cart.value = []
+  cartOpen.value = false
+}
+// ปัดซ้ายที่บรรทัดบนมือถือเพื่อลบ (ตัวเสริม · วิธีหลักคือปุ่มถังขยะ/✕)
+const swipe = { x: 0, y: 0 }
+const swipeStart = (e) => { swipe.x = e.touches[0].clientX; swipe.y = e.touches[0].clientY }
+const swipeEnd = (e, l) => {
+  const dx = e.changedTouches[0].clientX - swipe.x, dy = e.changedTouches[0].clientY - swipe.y
+  if (dx < -80 && Math.abs(dy) < 40) removeLine(l)
 }
 
 // ---------- เลือกตัวเลือกสินค้า (เช่น หวานน้อย แยกน้ำแข็ง) ----------
@@ -145,24 +188,25 @@ const rdMatches = computed(() => {
   const d = phoneDigits(s)
   return db.customers.filter((c) => c.active !== false && !c.deleted && (c.name.toLowerCase().includes(s) || (d.length >= 3 && c.phone?.includes(d)))).slice(0, 6)
 })
-const rdPending = computed(() => (rd.cust ? pendingRewards(rd.cust) : []))
-const rdCatalog = computed(() => (rd.cust ? itemRewards() : []))
-const rdPoints = computed(() => (rd.cust ? customerPoints(rd.cust) : 0))
+// เวลาปัจจุบันเดินทุกวินาที (นับถอยหลังของคูปองที่ลูกค้ากดแสดง · หมดเวลาแล้วหายเอง)
+const nowTick = ref(Date.now())
+let tickTimer = null
+onMounted(() => { tickTimer = setInterval(() => { nowTick.value = Date.now(); sweepCoupons() }, 1000) })
+onBeforeUnmount(() => clearInterval(tickTimer))
+const nowIso = computed(() => new Date(nowTick.value).toISOString())
+const mmss = (cp) => { const s = activeSecondsLeft(cp, nowTick.value); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` }
+// ของรางวัลที่ลูกค้ากด "ใช้ที่ร้านตอนนี้" แล้ว (ลูกค้าแลกเองในระบบลูกค้า · พนักงานแลกแทนไม่ได้)
+const rdPending = computed(() => (rd.cust ? pendingRewards(rd.cust, nowIso.value) : []))
+const rdCoupons = computed(() => (rd.cust ? posCoupons(rd.cust, nowIso.value) : []))
+const rdHidden = computed(() => (rd.cust ? notShownCount(rd.cust, nowIso.value) : 0))
 function openRedeem() { Object.assign(rd, { open: true, q: '', cust: null, msg: '', err: '' }) }
 function rdPick(c) { Object.assign(rd, { cust: c, q: '', msg: '', err: '' }) }
 async function rdHand(cp) {
   rd.msg = rd.err = ''
-  if (!(await askConfirm({ title: 'มอบของรางวัล', message: `${cp.name} ให้ ${rd.cust.name}`, okText: 'มอบแล้ว' }))) return
+  if (!(await askConfirm({ title: 'มอบของรางวัล', message: `${cp.name} ให้ ${rd.cust.name} · มอบแล้วถือว่าใช้แล้ว`, okText: 'มอบแล้ว' }))) return
   const r = posHandOver(rd.cust.id, cp.id)
   if (r.error) rd.err = r.error
   else rd.msg = `มอบ ${cp.name} แล้ว`
-}
-async function rdRedeem(rw) {
-  rd.msg = rd.err = ''
-  if (!(await askConfirm({ title: 'แลกและมอบทันที', message: `${rw.name} · ตัด ${rw.points} คะแนนของ ${rd.cust.name}`, okText: 'แลกและมอบ' }))) return
-  const r = posRedeemAndHandOver(rd.cust.id, rw.id)
-  if (r.error) rd.err = r.error
-  else rd.msg = `แลก ${rw.name} แล้ว (ตัด ${rw.points} คะแนน) มอบของได้เลย`
 }
 const couponIds = ref([])
 const discount = ref('')
@@ -172,14 +216,16 @@ function pickMember(c) {
   couponIds.value = []
 }
 // คูปองส่วนลดของสมาชิก (ได้จากการแลกคะแนนบนเว็บ/กาชา) · ใช้ได้เมื่อยอดสินค้าถึงขั้นต่ำ
-const coupons = computed(() => (member.value ? usableDiscountCoupons(member.value) : []))
+// POS เห็นเฉพาะคูปองที่ลูกค้ากดแสดงที่ร้านอยู่ (ยังไม่หมดเวลา) · ที่ยังไม่ได้กดแสดงลูกค้าต้องกดเองในบัญชีของตน
+const coupons = computed(() => (member.value ? posCoupons(member.value, nowIso.value) : []))
+const hiddenCoupons = computed(() => (member.value ? notShownCount(member.value, nowIso.value) : 0))
 const toggleCoupon = (id) => (couponIds.value = couponIds.value.includes(id) ? couponIds.value.filter((x) => x !== id) : [...couponIds.value, id])
 
 // รายการในตะกร้า + โปรโมชัน/บันเดิ้ลที่ใช้อยู่ (ตัวอย่างก่อนบันทึก)
 const lineItems = computed(() => posItems(cart.value))
 const goods = computed(() => lineItems.value.reduce((n, i) => n + i.unitPrice * i.qty, 0))
 const couponOk = (c) => !(Number(c.minSpend) > 0) || goods.value >= Number(c.minSpend)
-watch(goods, () => (couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id && couponOk(c)))))
+watch([goods, coupons], () => (couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id && couponOk(c)))))
 const usedPromos = computed(() => [...new Set(lineItems.value.flatMap((i) => (i.discounts || []).filter((d) => d.kind === 'promo' || d.kind === 'bundle').map((d) => d.name)))])
 const orderLike = computed(() => ({
   items: lineItems.value, fulfillment: 'pickup', payments: [],
@@ -210,6 +256,7 @@ const pay = reactive({ method: 'cash', received: '' })
 function openPay() {
   if (!cart.value.length) return
   Object.assign(pay, { method: 'cash', received: '' })
+  payErr.value = ''
   payOpen.value = true
 }
 const quick = computed(() => {
@@ -221,13 +268,16 @@ const canConfirm = computed(() => pay.method !== 'cash' || change.value >= 0)
 const receipt = ref(null)
 const taxFor = ref(null) // บิลที่กำลังออกใบกำกับภาษีเต็มรูป
 const taxable = (o) => can('taxInvoice') && o.status !== 'cancelled' && orderTotals(o).vat > 0
+const payErr = ref('')
 function confirmPay() {
   if (!canConfirm.value) return
+  payErr.value = member.value ? posCouponProblem({ customerId: member.value.id, couponIds: couponIds.value }) : ''
+  if (payErr.value) { couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id)); return }
   const o = posSale({
     cart: cart.value, customerId: member.value?.id || null, couponIds: couponIds.value,
     discount: can('adjustPrice') ? Number(discount.value) || 0 : 0, method: pay.method, received: pay.method === 'cash' ? Number(pay.received) : null,
   })
-  if (!o) return
+  if (!o) return (payErr.value = 'ขายไม่สำเร็จ ตรวจกะ/ตะกร้า/คูปองอีกครั้ง')
   payOpen.value = false
   cartOpen.value = false
   receipt.value = o
@@ -281,7 +331,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <RouterLink to="/admin/orders" class="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 md:hidden" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
       <h1 class="text-xl font-semibold text-stone-900">POS หน้าร้าน</h1>
       <span v-if="shift" class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">กะเปิด {{ timeOnly(shift.openedAt) }} · {{ ROLES[shift.openedBy] }}</span>
-      <button v-if="shift && can('useLoyalty')" type="button" class="btn-soft ml-auto h-9 px-3 text-sm" aria-label="แลกของรางวัล" @click="openRedeem"><AppIcon name="star" :size="15" /> แลกของรางวัล</button>
+      <button v-if="shift && can('useLoyalty')" type="button" class="btn-soft ml-auto h-9 px-3 text-sm" aria-label="แลกของรางวัล" @click="openRedeem"><AppIcon name="star" :size="15" /> มอบของรางวัล</button>
       <div v-if="shift" class="grid grid-cols-3 gap-1 rounded-xl bg-stone-100 p-1" :class="can('useLoyalty') ? '' : 'ml-auto'">
         <button v-for="t in [{ v: 'sell', l: 'ขาย' }, { v: 'bills', l: `บิล ${bills.length}` }, { v: 'shift', l: 'ปิดกะ' }]" :key="t.v" type="button" class="h-9 rounded-lg px-3 text-sm font-medium" :class="tab === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="tab = t.v">{{ t.l }}</button>
       </div>
@@ -320,11 +370,10 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <button type="button" class="chip ml-auto whitespace-nowrap" :class="sortBest ? 'chip-on' : 'chip-off'" :aria-pressed="sortBest" @click="sortBest = !sortBest"><AppIcon name="star" :size="13" /> เรียงขายดี</button>
         </div>
         <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          <div v-for="x in shown" :key="x.kind + x.id" class="relative">
           <button
-            v-for="x in shown"
-            :key="x.kind + x.id"
             type="button"
-            class="relative flex min-h-24 flex-col justify-between rounded-2xl border bg-white p-3 text-left transition active:scale-[0.98] disabled:opacity-50"
+            class="relative flex min-h-24 w-full flex-col justify-between rounded-2xl border bg-white p-3 text-left transition active:scale-[0.98] disabled:opacity-50"
             :class="inCart(x) ? 'border-brand-500 ring-1 ring-brand-500' : 'border-stone-200 hover:border-brand-300'"
             :disabled="!canAdd(x)"
             @click="add(x)"
@@ -339,6 +388,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </span>
             <span v-if="inCart(x)" class="absolute -top-2 -right-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand-600 px-1 text-xs font-semibold text-white">{{ inCart(x) }}</span>
           </button>
+          <button v-if="inCart(x)" type="button" class="absolute -bottom-2 -left-2 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-rose-600 shadow-md active:scale-95" :aria-label="`ลด ${x.name}`" @click="lessOf(x)"><AppIcon name="minus" :size="18" /></button>
+          </div>
         </div>
         <p v-if="!shown.length" class="card py-8 text-center text-sm text-stone-500">ไม่พบสินค้า</p>
       </section>
@@ -351,12 +402,12 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       >
         <div class="flex items-center justify-between border-b border-stone-100 px-4 py-3">
           <span class="font-semibold text-stone-900">ตะกร้า <span class="text-stone-400">{{ count }}</span></span>
-          <button type="button" class="text-sm text-stone-500 lg:hidden" @click="cartOpen = false">ปิด</button>
+          <span class="flex items-center gap-3"><button v-if="cart.length" type="button" class="text-sm text-rose-600 underline" aria-label="ล้างตะกร้า" @click="clearCart">ล้างตะกร้า</button><button type="button" class="text-sm text-stone-500 lg:hidden" @click="cartOpen = false">ปิด</button></span>
         </div>
         <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
           <p v-if="!cart.length" class="py-6 text-center text-sm text-stone-400">แตะสินค้าเพื่อเพิ่ม</p>
           <ul class="space-y-2">
-            <li v-for="l in cart" :key="lineKey(l)" class="flex items-center gap-2">
+            <li v-for="l in cart" :key="lineKey(l)" class="flex items-center gap-2" @touchstart.passive="swipeStart" @touchend.passive="swipeEnd($event, l)">
               <button type="button" class="min-w-0 flex-1 text-left" :disabled="!groupsOf(itemOf(l) || {}).length" @click="openMods(itemOf(l), l)">
                 <span class="block truncate text-sm font-medium text-stone-900">{{ itemOf(l)?.name }}</span>
                 <span v-if="l.mods?.length" class="block truncate text-xs text-brand-700">{{ modsText(modsOf(l.mods)) }}</span>
@@ -367,6 +418,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                 <span class="w-7 text-center text-sm font-semibold">{{ l.qty }}</span>
                 <button type="button" class="h-full w-9 text-stone-600" aria-label="เพิ่ม" @click="step(l, 1)"><AppIcon name="plus" :size="16" class="mx-auto" /></button>
               </span>
+              <button type="button" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-rose-600 hover:bg-rose-50" :aria-label="`ลบ ${itemOf(l)?.name}`" @click="removeLine(l)"><AppIcon name="trash" :size="17" /></button>
             </li>
           </ul>
 
@@ -398,8 +450,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               </div>
               <p v-if="earn" class="mt-1.5 text-xs text-brand-800">บิลนี้จะได้ <b>{{ earn.points }}</b> คะแนน<template v-if="earn.bonus > 0"> (โบนัสโปร +{{ earn.bonus }})</template></p>
               <div class="mt-2">
-                <p v-if="coupons.length" class="text-xs text-brand-800">มีคูปองส่วนลด <b>{{ coupons.length }}</b> ใบ · เลือกใช้ได้ในขั้นตอนชำระเงิน<template v-if="couponIds.length"> (เลือกแล้ว {{ couponIds.length }})</template></p>
-                <p v-else class="text-xs text-stone-400">ไม่มีคูปองที่ใช้ได้</p>
+                <p v-if="coupons.length" class="text-xs text-brand-800">ลูกค้ากดแสดงคูปองไว้ <b>{{ coupons.length }}</b> ใบ · เลือกใช้ได้ในขั้นตอนชำระเงิน<template v-if="couponIds.length"> (เลือกแล้ว {{ couponIds.length }})</template></p>
+                <p v-if="hiddenCoupons" class="text-xs text-amber-700">ลูกค้ามีคูปอง/ของรางวัลอีก {{ hiddenCoupons }} รายการ ที่ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" — ให้ลูกค้ากดเองในบัญชีของตน (ยืนยันว่าลูกค้าทำรายการเอง)</p>
+                <p v-if="!coupons.length && !hiddenCoupons" class="text-xs text-stone-400">ไม่มีคูปองที่ใช้ได้</p>
               </div>
             </div>
             <template v-else>
@@ -429,7 +482,11 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       </aside>
 
       <!-- แถบล่างมือถือ -->
+      <div v-if="undo.snap" class="fixed inset-x-3 bottom-28 z-50 flex items-center justify-between gap-3 rounded-2xl bg-stone-900 px-4 py-3 text-sm text-white shadow-xl lg:bottom-6 lg:left-auto lg:w-80" role="status"><span class="min-w-0 truncate">{{ undo.text }}</span><button type="button" class="shrink-0 font-semibold text-brand-200 underline" @click="undoRemove">เลิกทำ</button></div>
       <div v-if="!cartOpen" class="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur lg:hidden">
+        <div v-if="cart.length" class="-mx-1 mb-2 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]" aria-label="รายการในตะกร้า (แตะ ✕ เพื่อลบ)">
+          <span v-for="l in cart" :key="'q' + lineKey(l)" class="flex shrink-0 items-center gap-1 rounded-full border border-stone-200 bg-white py-1 pr-1 pl-3 text-xs text-stone-700"><span class="max-w-32 truncate">{{ lineName(l) }} ×{{ l.qty }}</span><button type="button" class="flex h-7 w-7 items-center justify-center rounded-full text-rose-600 hover:bg-rose-50" :aria-label="`ลบ ${itemOf(l)?.name} ออกจากตะกร้า`" @click="removeLine(l)">✕</button></span>
+        </div>
         <button type="button" class="btn-primary h-12 w-full justify-between px-5 text-base" @click="cartOpen = true">
           <span>ตะกร้า {{ count }} ชิ้น</span><span>{{ money(total) }}</span>
         </button>
@@ -552,10 +609,12 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <div class="text-sm text-brand-800">ยอดชำระ</div>
           <div class="text-3xl font-semibold text-brand-900">{{ money(total) }}</div>
         </div>
+        <p v-if="member && !coupons.length && hiddenCoupons" class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800" role="note">ลูกค้ามีคูปองที่ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" ({{ hiddenCoupons }} ใบ) — ให้ลูกค้ากดเองในบัญชีของตนก่อน คูปองจึงจะขึ้นที่นี่ (มีเวลาแสดง {{ db.loyalty.activationMin }} นาที)</p>
+        <p v-if="payErr" class="rounded-xl bg-rose-50 p-2.5 text-sm text-rose-700" role="alert">{{ payErr }}</p>
         <div v-if="member && coupons.length" class="rounded-2xl border border-stone-200 p-3" aria-label="คูปองส่วนลดในขั้นชำระเงิน">
-          <div class="mb-1.5 text-sm font-semibold text-stone-800">คูปองของ {{ member.name }} · กดเพื่อใช้แทนเงินสด</div>
+          <div class="mb-1.5 text-sm font-semibold text-stone-800">คูปองที่ {{ member.name }} กดแสดงไว้ · กดเพื่อใช้แทนเงินสด</div>
           <div class="flex flex-wrap gap-1.5">
-            <button v-for="c in coupons" :key="c.id" type="button" class="chip h-auto max-w-full py-1.5 text-left whitespace-normal" :class="[couponIds.includes(c.id) ? 'chip-on' : 'chip-off', couponOk(c) ? '' : 'opacity-50']" :disabled="!couponOk(c)" :aria-pressed="couponIds.includes(c.id)" @click="toggleCoupon(c.id)">{{ c.name }} −{{ money(c.amount) }}<template v-if="c.minSpend"> · ขั้นต่ำ {{ money(c.minSpend) }}</template></button>
+            <button v-for="c in coupons" :key="c.id" type="button" class="chip h-auto max-w-full py-1.5 text-left whitespace-normal" :class="[couponIds.includes(c.id) ? 'chip-on' : 'chip-off', couponOk(c) ? '' : 'opacity-50']" :disabled="!couponOk(c)" :aria-pressed="couponIds.includes(c.id)" @click="toggleCoupon(c.id)">{{ c.name }} −{{ money(c.amount) }}<template v-if="c.minSpend"> · ขั้นต่ำ {{ money(c.minSpend) }}</template> · เหลือ {{ mmss(c) }}</button>
           </div>
           <p v-for="c in coupons.filter((x) => !couponOk(x))" :key="'n' + c.id" class="mt-1 text-xs text-amber-700">{{ c.name }}: ยอดสินค้าต้องถึง {{ money(c.minSpend) }} (ตอนนี้ {{ money(goods) }})</p>
           <p v-if="couponIds.length" class="mt-1.5 text-xs text-emerald-700">ใช้คูปองลดแล้ว {{ money(preview.couponDiscount) }}</p>
@@ -593,7 +652,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       </template>
     </AppModal>
     <TaxInvoiceModal v-if="taxFor" :order="taxFor" @close="taxFor = null" />
-    <AppModal v-if="rd.open" title="แลกของรางวัล" @close="rd.open = false">
+    <AppModal v-if="rd.open" title="รับของรางวัลที่ร้าน (ลูกค้ากดแสดงแล้ว)" @close="rd.open = false">
       <div class="space-y-3 text-sm">
         <div v-if="!rd.cust">
           <label class="label">ค้นหาลูกค้า (ชื่อ / เบอร์) ก่อน จึงจะแสดงของรางวัล</label>
@@ -606,15 +665,12 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <template v-else>
           <div class="flex items-center justify-between rounded-xl bg-brand-50 p-3"><div class="min-w-0"><div class="truncate font-semibold text-brand-900">{{ rd.cust.name }}</div><div class="text-xs text-brand-800">{{ rd.cust.phone ? formatPhone(rd.cust.phone) : '' }} · {{ rdPoints }} คะแนน</div></div><button type="button" class="text-xs text-stone-500 underline" @click="rd.cust = null; rd.msg = ''; rd.err = ''">เปลี่ยนลูกค้า</button></div>
           <section aria-label="ของรางวัลที่รอรับ">
-            <div class="mb-1 font-semibold text-stone-800">ของที่แลก/ได้จากกาชาไว้แล้ว (รอรับ)</div>
-            <p v-if="!rdPending.length" class="text-xs text-stone-400">ไม่มีของรอรับ</p>
-            <ul class="space-y-1.5"><li v-for="cp in rdPending" :key="cp.id" class="flex items-center justify-between gap-2 rounded-xl border border-stone-200 p-2.5"><span class="min-w-0"><span class="block truncate font-medium">{{ cp.name }}</span><span class="block text-xs text-stone-500">{{ cp.source === 'gacha' ? 'ได้จากกาชา' : 'แลกด้วยคะแนน' }}<template v-if="cp.expiresAt"> · หมดอายุ {{ cp.expiresAt }}</template></span></span><button type="button" class="btn-primary h-9 shrink-0 px-3" @click="rdHand(cp)">มอบของ</button></li></ul>
+            <div class="mb-1 font-semibold text-stone-800">ของรางวัลที่ลูกค้ากด "ใช้ที่ร้านตอนนี้" แล้ว</div>
+            <p v-if="!rdPending.length" class="text-xs text-stone-400">ไม่มีของที่ลูกค้ากดแสดงอยู่</p>
+            <ul class="space-y-1.5"><li v-for="cp in rdPending" :key="cp.id" class="flex items-center justify-between gap-2 rounded-xl border border-stone-200 p-2.5"><span class="min-w-0"><span class="block truncate font-medium">{{ cp.name }}</span><span class="block text-xs text-amber-700">เหลือเวลา {{ mmss(cp) }} · หมดเวลา = ถือว่าใช้แล้ว</span></span><button type="button" class="btn-primary h-9 shrink-0 px-3" @click="rdHand(cp)">มอบของ</button></li></ul>
           </section>
-          <section aria-label="แลกด้วยคะแนน">
-            <div class="mb-1 font-semibold text-stone-800">แลกซื้อด้วยคะแนนแล้วมอบเลย</div>
-            <p v-if="!rdCatalog.length" class="text-xs text-stone-400">ยังไม่มีของรางวัลให้แลก</p>
-            <ul class="space-y-1.5"><li v-for="rw in rdCatalog" :key="rw.id" class="flex items-center justify-between gap-2 rounded-xl border border-stone-200 p-2.5"><span class="min-w-0"><span class="block truncate font-medium">{{ rw.name }}</span><span class="block text-xs" :class="rdPoints >= rw.points ? 'text-stone-500' : 'text-rose-600'">{{ rw.points }} คะแนน<template v-if="rdPoints < rw.points"> · คะแนนไม่พอ</template></span></span><button type="button" class="btn-soft h-9 shrink-0 px-3" :disabled="rdPoints < rw.points" @click="rdRedeem(rw)">แลกและมอบ</button></li></ul>
-          </section>
+          <p v-if="rdCoupons.length" class="rounded-xl bg-emerald-50 p-2.5 text-xs text-emerald-800" role="note">ลูกค้าแสดงคูปองส่วนลดอยู่ {{ rdCoupons.length }} ใบ — ใช้ได้ที่ขั้นตอนชำระเงินของการขาย (เลือกลูกค้าเป็นสมาชิกก่อน)</p>
+          <p v-if="rdHidden" class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800" role="note">ยังมีอีก {{ rdHidden }} รายการที่ลูกค้าไม่ได้กด "ใช้ที่ร้านตอนนี้" — ให้ลูกค้ากดในระบบลูกค้าของตนเอง (ยืนยันว่าลูกค้าทำรายการเอง) รายการจึงจะขึ้นที่นี่ · ร้านแลกแทนลูกค้าไม่ได้</p>
         </template>
         <p v-if="rd.err" class="text-rose-600" role="alert">{{ rd.err }}</p>
         <p v-if="rd.msg" class="rounded-xl bg-emerald-50 p-2.5 text-emerald-800" role="status">{{ rd.msg }}</p>

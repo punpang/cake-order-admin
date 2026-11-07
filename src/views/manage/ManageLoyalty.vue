@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { db, findCustomer, saveReward, savePrize, saveLoyaltySettings, markCouponDelivered } from '../../data/store'
-import { couponUsable, chanceTotal } from '../../lib/loyalty'
+import { db, can, findCustomer, saveReward, savePrize, saveLoyaltySettings, markCouponDelivered, phaseOfCoupon, refundCoupon } from '../../data/store'
+import { chanceTotal } from '../../lib/loyalty'
 import { money, dateOnly, toDateStr } from '../../lib/format'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
@@ -14,7 +14,7 @@ const tabs = [
   { v: 'settings', l: 'ตั้งค่า' },
   { v: 'rewards', l: 'ของแลก' },
   { v: 'gacha', l: 'กาชา' },
-  { v: 'coupons', l: 'มอบของ' },
+  { v: 'coupons', l: 'คูปอง & มอบของ' },
 ]
 const today = toDateStr(new Date())
 
@@ -34,6 +34,7 @@ const FIELDS = [
   { k: 'couponExpireDays', l: 'คูปองหมดอายุหลังได้รับ', u: 'วัน' },
   { k: 'spinPer', l: 'ทุกกี่บาท ได้สิทธิ์หมุน 1 ครั้ง (ตอนส่งมอบ)', u: 'บาท' },
   { k: 'spinCost', l: 'หมุน 1 ครั้งด้วยคะแนน ใช้', u: 'คะแนน' },
+  { k: 'activationMin', l: 'คูปอง/ของรางวัลขึ้นบน POS หลังลูกค้ากด "ใช้ที่ร้านตอนนี้" นาน (ครบเวลา = ถือว่าใช้แล้ว)', u: 'นาที' },
 ]
 
 // ---------- ของแลก ----------
@@ -84,18 +85,28 @@ const prizeDesc = (p) =>
 // ---------- มอบของ ----------
 const q = ref('')
 const showAll = ref(false)
+// คูปอง/ของรางวัลของลูกค้าทั้งหมด: มอบ (หลังบ้าน ไม่ต้องรอลูกค้ากดแสดง) · คืนคะแนนตามที่ไม่ได้ใช้จริง
+const PHASE = { pending: ['ยังไม่ใช้', 'bg-amber-50 text-amber-700'], active: ['แสดงที่ร้านอยู่', 'bg-brand-50 text-brand-800'], lapsed: ['หมดเวลาแสดง (ถือว่าใช้แล้ว)', 'bg-stone-100 text-stone-600'], expired: ['หมดอายุ', 'bg-rose-50 text-rose-600'], delivered: ['มอบแล้ว', 'bg-stone-100 text-stone-500'], used: ['ใช้แล้ว', 'bg-stone-100 text-stone-500'], refunded: ['คืนคะแนนแล้ว', 'bg-emerald-50 text-emerald-700'] }
+const phaseOf = (c) => phaseOfCoupon(c)
+const DONE = ['delivered', 'used', 'refunded']
 const rewardCoupons = computed(() => {
   const s = q.value.trim().toLowerCase()
   return db.coupons
-    .filter((c) => c.type === 'reward')
-    .filter((c) => showAll.value || couponUsable(c, today))
+    .filter((c) => showAll.value || !DONE.includes(phaseOf(c)))
     .filter((c) => !s || (findCustomer(c.customerId)?.name || '').toLowerCase().includes(s) || c.name.toLowerCase().includes(s))
 })
 async function deliver(c) {
-  if (await askConfirm({ title: 'มอบของรางวัล', message: `${c.name} ให้ ${findCustomer(c.customerId)?.name || ''}`, okText: 'มอบแล้ว' })) markCouponDelivered(c)
+  if (await askConfirm({ title: 'มอบของรางวัล', message: `${c.name} ให้ ${findCustomer(c.customerId)?.name || ''} · มอบแล้วถือว่าใช้แล้ว`, okText: 'มอบแล้ว' })) markCouponDelivered(c)
 }
-const couponState = (c) =>
-  c.status === 'delivered' ? 'มอบแล้ว' : !couponUsable(c, today) ? 'หมดอายุ' : 'รอรับ'
+const canRefund = (c) => !DONE.includes(phaseOf(c)) && (Number(c.points) > 0 || (c.rewardId && c.source !== 'gacha'))
+const rf = reactive({ open: false, c: null, reason: '', notify: true, error: '', ok: '' })
+function openRefund(c) { Object.assign(rf, { open: true, c, reason: '', notify: true, error: '' }) }
+function doRefund() {
+  const r = refundCoupon(rf.c.id, rf.reason, { notify: rf.notify })
+  if (r.error) return (rf.error = r.error)
+  rf.open = false
+  rf.ok = `คืน ${r.points} คะแนนแล้ว`
+}
 </script>
 
 <template>
@@ -175,21 +186,38 @@ const couponState = (c) =>
         <input v-model="q" class="input min-w-0 flex-1" placeholder="ค้นหาชื่อลูกค้า / ของ" />
         <AppSwitch v-model="showAll" label="แสดงที่มอบแล้ว/หมดอายุ" class="shrink-0 px-1" />
       </div>
-      <p v-if="!rewardCoupons.length" class="card py-10 text-center text-stone-500">ไม่มีของรอมอบ</p>
+      <p v-if="rf.ok" class="mb-2 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800" role="status">{{ rf.ok }}</p>
+      <p v-if="!rewardCoupons.length" class="card py-10 text-center text-stone-500">ไม่มีรายการ</p>
       <div class="space-y-2.5">
-        <div v-for="c in rewardCoupons" :key="c.id" class="card flex items-center gap-3 p-3.5">
-          <span class="min-w-0 flex-1">
-            <span class="block font-medium break-words text-stone-900">{{ c.name }}</span>
-            <span class="block text-xs text-stone-500">
-              {{ findCustomer(c.customerId)?.name }} · {{ c.source === 'gacha' ? 'กาชา' : 'แลกคะแนน' }}
-              <template v-if="c.expiresAt"> · หมดอายุ {{ dateOnly(c.expiresAt) }}</template>
+        <div v-for="c in rewardCoupons" :key="c.id" class="card space-y-2 p-3.5">
+          <div class="flex items-start gap-3">
+            <span class="min-w-0 flex-1">
+              <span class="block font-medium break-words text-stone-900">{{ c.name }} <span class="text-xs font-normal text-stone-400">{{ c.type === 'reward' ? 'ของรางวัล' : `ส่วนลด ${c.amount} ฿` }}</span></span>
+              <span class="block text-xs text-stone-500">
+                {{ findCustomer(c.customerId)?.name }} · {{ c.source === 'gacha' ? 'กาชา' : 'แลกคะแนน' }}<template v-if="c.points"> ({{ c.points }} คะแนน)</template>
+                <template v-if="c.expiresAt"> · หมดอายุ {{ dateOnly(c.expiresAt) }}</template>
+              </span>
             </span>
-          </span>
-          <button v-if="couponState(c) === 'รอรับ'" class="btn-primary h-9 shrink-0 px-3" @click="deliver(c)"><AppIcon name="check" :size="16" /> มอบแล้ว</button>
-          <span v-else class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{{ couponState(c) }}</span>
+            <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium" :class="PHASE[phaseOf(c)][1]">{{ PHASE[phaseOf(c)][0] }}</span>
+          </div>
+          <div v-if="c.type === 'reward' && ['pending', 'active'].includes(phaseOf(c)) || canRefund(c)" class="flex flex-wrap gap-2">
+            <button v-if="c.type === 'reward' && ['pending', 'active'].includes(phaseOf(c))" class="btn-primary h-9 px-3" @click="deliver(c)"><AppIcon name="check" :size="16" /> มอบแล้ว</button>
+            <button v-if="canRefund(c) && can('adjustPoints')" class="btn-outline h-9 px-3" @click="openRefund(c)">คืนคะแนน</button>
+          </div>
+          <p v-if="c.refundReason" class="text-xs text-stone-500">คืนคะแนน: {{ c.refundReason }}</p>
         </div>
       </div>
     </template>
+
+    <AppModal v-if="rf.open" title="คืนคะแนนตามคูปองที่ไม่ได้ใช้" @close="rf.open = false">
+      <div class="space-y-3 text-sm">
+        <p class="text-stone-600"><b>{{ rf.c.name }}</b> ของ {{ findCustomer(rf.c.customerId)?.name }} · คืน {{ rf.c.points || (db.rewards.find((r) => r.id === rf.c.rewardId)?.points ?? 0) }} คะแนน แล้วคูปองจะใช้ไม่ได้อีก</p>
+        <div><label class="label">เหตุผล <span class="text-rose-500">*</span></label><input v-model="rf.reason" class="input" maxlength="200" aria-label="เหตุผลคืนคะแนน" /></div>
+        <label class="flex items-center gap-2"><input v-model="rf.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าคืนคะแนน" /> แจ้งลูกค้า</label>
+        <p v-if="rf.error" class="text-rose-600" role="alert">{{ rf.error }}</p>
+      </div>
+      <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="rf.open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="doRefund">คืนคะแนน</button></template>
+    </AppModal>
 
     <!-- modal ของแลก -->
     <AppModal v-if="rwOpen" :title="rw.id ? 'แก้ไขของแลก' : 'เพิ่มของแลก'" @close="rwOpen = false">
