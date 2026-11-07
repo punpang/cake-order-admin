@@ -21,6 +21,8 @@ import { cleanClosures, emptyClosures, slotClosed, pickupClosed, isClosedNow, ne
 import { decodeCake, findCodes, CODE_RE } from '../lib/cakeCode'
 import { deliveryFee, cleanDelivery, cleanDeliveryConfig, rememberPlace, DEFAULT_DELIVERY } from '../lib/delivery'
 import { dueState, overduePayments, orderDue, quickDue, isHHmm, remainingText } from '../lib/payDue'
+import { supabaseEnabled } from '../lib/supabase'
+import { staffState } from '../lib/staffAuth'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
 let seq = 1000
@@ -38,6 +40,7 @@ const at = (dayOffset, hh, mm = 0) => {
 export const session = reactive({ role: 'admin', userId: 'u1' })
 // สิทธิ์จริง = รายการที่ติ๊กของผู้ใช้ (user.perms) · ถ้า session.role ถูกสลับตรง ๆ (ไม่ผ่าน switchUser เช่นในเทสต์) ใช้ค่าตั้งต้นของบทบาทนั้นแทน
 const permsOf = () => {
+  if (supabaseEnabled) return staffState.staff?.perms || [] // โหมด Supabase: สิทธิ์จริงจาก punpang_staff
   const u = db.users.find((x) => x.id === session.userId)
   if (u && u.active !== false && u.role === session.role && Array.isArray(u.perms)) return u.perms
   return u && u.active === false ? [] : rolePreset(session.role)

@@ -36,6 +36,9 @@ import Account from './views/account/Account.vue'
 import AccountConsent from './views/account/AccountConsent.vue'
 import AccountOrder from './views/account/AccountOrder.vue'
 import NoAccess from './views/NoAccess.vue'
+import StaffLogin from './views/StaffLogin.vue'
+import { supabaseEnabled } from './lib/supabase'
+import { staffState } from './lib/staffAuth'
 import Accounting from './views/accounting/Accounting.vue'
 import LegalPage from './views/store/LegalPage.vue'
 import ManageLegal from './views/manage/ManageLegal.vue'
@@ -73,6 +76,7 @@ const router = createRouter({
     { path: '/admin', redirect: () => firstHome(can) },
     // ลิงก์ตั้งค่าเดิม (/admin/manage*) → /admin/settings*
     { path: '/admin/manage/:rest(.*)*', redirect: (to) => to.fullPath.replace('/admin/manage', '/admin/settings') },
+    { path: '/admin/login', component: StaffLogin, meta: { bare: true } },
     { path: '/admin/no-access', component: NoAccess },
     { path: '/admin/accounting', component: Accounting, meta: { perms: ['acctView'] } },
     { path: '/admin/orders', component: OrderList, meta: { perms: ['viewAllOrders', 'viewPrepOrders', 'viewDeliveryOrders'] } },
@@ -116,6 +120,8 @@ const router = createRouter({
 // หน้าบัญชีลูกค้าต้องล็อกอินก่อน (จำลอง: รีเฟรชหน้าแล้วต้องเข้าสู่ระบบใหม่)
 // เอกสารเวอร์ชันใหม่ที่ยังไม่ยอมรับ → ไปหน้ายอมรับก่อน
 router.beforeEach((to) => {
+  // โหมด Supabase: หลังบ้านต้องล็อกอินพนักงานก่อน
+  if (supabaseEnabled && to.path.startsWith('/admin') && to.path !== '/admin/login' && !staffState.staff) return '/admin/login'
   // หลังบ้าน: ต้องมีสิทธิ์อย่างน้อยหนึ่งข้อของหน้านั้น (หน้าจัดการ /admin/settings* ตรวจต่อใน ManageShell)
   if (to.meta.perms && !canAny(to.meta.perms)) return '/admin/no-access'
   if ((to.meta.customer || to.meta.needLogin) && !customerSession.customerId) return '/account/login'

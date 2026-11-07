@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { db, session, can, switchUser, unreadChats, runScheduledChecks, orderVisible } from './data/store'
 import { paymentCounts } from './lib/paymentsQueue'
 import { focusMain } from './lib/a11yNav'
+import { supabaseEnabled } from './lib/supabase'
+import { staffState, staffSignOut } from './lib/staffAuth'
 import { ROLES } from './lib/constants'
 import { firstHome, homeOf, systemOf, systemByKey, visibleSystems, visibleItems } from './lib/adminSystems'
 import AppIcon from './components/AppIcon.vue'
@@ -19,7 +21,8 @@ const roleOpen = ref(false)
 const route = useRoute()
 // เปลี่ยนหน้า (SPA) → ย้ายโฟกัสไปเนื้อหา ให้ผู้ใช้แป้นพิมพ์/โปรแกรมอ่านหน้าจอเริ่มจากหน้าใหม่
 // (ข้ามการนำทางครั้งแรกตอนโหลดหน้า เพื่อไม่ให้ข้ามลิงก์ "ข้ามไปเนื้อหาหลัก")
-useRouter().isReady().then(() => watch(() => route.path, async () => { await nextTick(); focusMain(true) }))
+const appRouter = useRouter()
+appRouter.isReady().then(() => watch(() => route.path, async () => { await nextTick(); focusMain(true) }))
 const systems = computed(() => visibleSystems(can))
 const current = computed(() => systemOf(route.path))
 const items = computed(() => { const s = systemByKey(current.value); return s ? visibleItems(s, can) : [] })
@@ -37,7 +40,8 @@ const bottomCols = computed(() => bottomItems.value.length + (hasSwitch.value ? 
 const curLabel = computed(() => systems.value.find((x) => x.key === current.value)?.label || 'ระบบ')
 function sysOutside(e) { if (sysOpen.value && !e.target.closest?.('[data-bottom-system]')) sysOpen.value = false }
 function sysEsc(e) { if (e.key === 'Escape') sysOpen.value = false }
-const me = computed(() => db.users.find((u) => u.id === session.userId))
+const me = computed(() => (supabaseEnabled ? staffState.staff : db.users.find((u) => u.id === session.userId)))
+async function logout() { roleOpen.value = false; await staffSignOut(); appRouter.push('/admin/login') }
 // จำลอง cron: ตรวจแจ้งเตือนตามเวลาทุก 60 วินาทีขณะเปิดแอป (ของจริงใช้ cron ฝั่งเซิร์ฟเวอร์)
 let timer = null
 onMounted(() => { timer = setInterval(() => runScheduledChecks(), 60000); document.addEventListener('pointerdown', sysOutside); document.addEventListener('keydown', sysEsc) })
@@ -48,6 +52,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
   <button type="button" class="skip-link" @click="focusMain()">ข้ามไปเนื้อหาหลัก</button>
   <!-- หน้าร้าน + ระบบลูกค้า -->
   <StoreLayout v-if="$route.meta.store" />
+  <main v-else-if="$route.meta.bare" id="main-content" tabindex="-1" class="outline-none"><RouterView /></main>
 
   <template v-else>
   <!-- แถบบน -->
@@ -125,7 +130,11 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
   </nav>
 
   <!-- เลือกบทบาท (จำลอง) -->
-  <AppModal v-if="roleOpen" title="ทดลองใช้งานเป็นผู้ใช้" @close="roleOpen = false">
+  <AppModal v-if="roleOpen && supabaseEnabled" title="บัญชีผู้ใช้" @close="roleOpen = false">
+    <p class="text-sm text-stone-700">{{ me?.name }} · {{ ROLES[me?.role] }}</p>
+    <button type="button" class="btn-outline mt-4 w-full" @click="logout">ออกจากระบบ</button>
+  </AppModal>
+  <AppModal v-else-if="roleOpen" title="ทดลองใช้งานเป็นผู้ใช้" @close="roleOpen = false">
     <div class="grid gap-2">
       <button
         v-for="u in db.users.filter((x) => x.active !== false)"
