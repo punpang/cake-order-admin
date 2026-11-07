@@ -63,18 +63,24 @@ const recMore = computed(() => recAll.value.length > recLimit.value)
 const recLoad = () => { if (recMore.value) recLimit.value += REC }
 const recEnd = ref(null)
 let recIo
+let touched = false
+let armT
+const mark = () => { touched = true }
+const EVS = ['scroll', 'wheel', 'touchmove', 'keydown', 'pointerdown']
 onMounted(() => {
+  // เว้นช่วงแรก: การเลื่อนอัตโนมัติตอนเปลี่ยนหน้าไม่นับ
+  armT = setTimeout(() => EVS.forEach((e) => window.addEventListener(e, mark, { passive: true, once: true })), 700)
   if (typeof IntersectionObserver === 'undefined') return
-  recIo = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) recLoad() }, { rootMargin: '200px' })
+  recIo = new IntersectionObserver((es) => { if (touched && es.some((e) => e.isIntersecting)) recLoad() }, { rootMargin: '200px' })
   watch(recEnd, (el, old) => { if (old) recIo.unobserve(old); if (el) recIo.observe(el) }, { immediate: true, flush: 'post' })
 })
-onBeforeUnmount(() => recIo?.disconnect())
+onBeforeUnmount(() => { recIo?.disconnect(); clearTimeout(armT); EVS.forEach((e) => window.removeEventListener(e, mark)) })
 const cur = ref(0)
 watch(() => [props.kind, props.id], () => (cur.value = 0))
 </script>
 
 <template>
-  <div class="mx-auto max-w-5xl px-4 pt-6">
+  <div class="mx-auto max-w-6xl px-4 pt-6 lg:px-8">
     <RouterLink to="/menu" class="mb-4 inline-flex items-center gap-1 text-sm text-stone-600 hover:text-brand-700"><AppIcon name="back" :size="16" /> กลับเมนู</RouterLink>
 
     <div v-if="!item" class="empty">ไม่พบเมนูนี้ (อาจปิดการขายแล้ว) <RouterLink to="/menu" class="text-brand-700 underline">กลับไปเมนู</RouterLink></div>

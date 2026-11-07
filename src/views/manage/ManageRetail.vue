@@ -80,7 +80,7 @@ function doAdd() {
 <template>
   <ManageShell v-model:q="q" v-model:inactive="inactive" title="สินค้า (POS / สินค้าสำเร็จ)" :subtitle="`${list.length} รายการ`" add-label="เพิ่มสินค้า" search-placeholder="ค้นหาชื่อ / หมวด" @add="edit(null)">
     <p v-if="!list.length" class="card py-10 text-center text-stone-500">ไม่พบสินค้า</p>
-    <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+    <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
       <div v-for="x in list" :key="x.id" class="card flex items-center gap-2 p-2" :class="x.active === false ? 'opacity-60' : ''">
         <button type="button" class="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1.5 text-left" @click="edit(x)">
           <img v-if="x.images?.length" :src="x.images[0]" alt="" class="h-11 w-11 shrink-0 rounded-xl object-cover" />

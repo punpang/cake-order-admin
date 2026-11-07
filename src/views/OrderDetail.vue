@@ -333,7 +333,7 @@ async function saveCancel() {
     <RouterLink to="/admin/orders" class="btn-soft">กลับไปหน้าออร์เดอร์</RouterLink>
   </div>
 
-  <div v-else class="mx-auto max-w-5xl" :class="hasActions ? 'pb-[calc(env(safe-area-inset-bottom)+6rem)] lg:pb-0' : ''">
+  <div v-else :class="hasActions ? 'pb-[calc(env(safe-area-inset-bottom)+6rem)] lg:pb-0' : ''">
     <!-- หัว -->
     <div class="mb-4 flex items-center gap-2">
       <RouterLink to="/admin/orders" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
@@ -620,10 +620,10 @@ async function saveCancel() {
 
     <!-- ปุ่มเปลี่ยนสถานะ: มือถือติดล่าง / คอมอยู่ท้ายหน้า -->
     <div v-if="hasActions" class="action-bar lg:static lg:mt-4 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
-      <p v-if="shipAction === 'deliver' && t.balance > 0" class="mx-auto mb-2 flex max-w-5xl items-center gap-1.5 text-sm font-medium text-amber-700">
+      <p v-if="shipAction === 'deliver' && t.balance > 0" class="mx-auto mb-2 flex max-w-5xl items-center gap-1.5 lg:mx-0 lg:max-w-none text-sm font-medium text-amber-700">
         <AppIcon name="alert" :size="16" /> ยังค้างชำระ {{ money(t.balance) }} ส่งมอบไม่ได้
       </p>
-      <div class="mx-auto flex max-w-5xl gap-2">
+      <div class="mx-auto flex max-w-5xl gap-2 lg:mx-0 lg:max-w-none">
         <button v-if="canRevertUi" class="btn-outline px-3 sm:px-4" aria-label="ย้อนสถานะ" @click="openRevert"><AppIcon name="back" :size="16" /> <span class="hidden sm:inline">ย้อนสถานะ</span></button>
         <button v-if="can('cancel') && !closed" class="btn-danger px-3 sm:px-4" @click="openCancel">
           <AppIcon name="x" :size="16" /> <span :class="primaryAction ? 'hidden sm:inline' : ''">ยกเลิกออร์เดอร์</span>

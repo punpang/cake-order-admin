@@ -21,18 +21,25 @@ const loadMore = () => { if (more.value) limit.value += PAGE }
 
 const sentinel = ref(null)
 let io
+// โหลดเพิ่มอัตโนมัติเฉพาะหลังลูกค้าเลื่อน/กดแล้ว (จอกว้างจะไม่โหลดเกิน 10 รูปแรกเอง)
+let touched = false
+let armT
+const mark = () => { touched = true }
+const EVS = ['scroll', 'wheel', 'touchmove', 'keydown', 'pointerdown']
 onMounted(() => {
+  // เว้นช่วงแรก: การเลื่อนอัตโนมัติตอนเปลี่ยนหน้าไม่นับ
+  armT = setTimeout(() => EVS.forEach((e) => window.addEventListener(e, mark, { passive: true, once: true })), 700)
   if (typeof IntersectionObserver === 'undefined') return
-  io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) loadMore() }, { rootMargin: '300px' })
+  io = new IntersectionObserver((es) => { if (touched && es.some((e) => e.isIntersecting)) loadMore() }, { rootMargin: '300px' })
   watch(sentinel, (el, old) => { if (old) io.unobserve(old); if (el) io.observe(el) }, { immediate: true, flush: 'post' })
 })
-onBeforeUnmount(() => { clearTimeout(timer); io?.disconnect() })
+onBeforeUnmount(() => { clearTimeout(timer); io?.disconnect(); clearTimeout(armT); EVS.forEach((e) => window.removeEventListener(e, mark)) })
 
 const altOf = (p) => p.caption || [p.typeName, ...p.tagNames.filter((t) => t.groupKey !== 'type').map((t) => t.name)].filter(Boolean).join(' ') || 'เค้กสั่งทำ'
 </script>
 
 <template>
-  <div class="mx-auto max-w-6xl px-4 pt-6 pb-4">
+  <div class="mx-auto max-w-page px-4 pt-6 pb-4 lg:px-8">
     <RouterLink to="/menu" class="mb-3 inline-flex items-center gap-1 text-sm text-stone-600 hover:text-brand-700"><AppIcon name="back" :size="16" /> กลับเมนู</RouterLink>
     <h1 class="text-[28px] text-stone-900">เค้กสั่งทำล่าสุด</h1>
     <p class="mt-1 text-sm text-stone-600">ผลงานที่ส่งมอบแล้ว พิมพ์ค้นหาแบบที่ชอบ ระบบจะเสนอแบบที่ใกล้เคียงที่สุด</p>
@@ -53,7 +60,7 @@ const altOf = (p) => p.caption || [p.typeName, ...p.tagNames.filter((t) => t.gro
     </div>
 
     <template v-else>
-      <ul class="mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4" aria-label="รูปเค้กสั่งทำล่าสุด">
+      <ul class="mt-4 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6" aria-label="รูปเค้กสั่งทำล่าสุด">
         <li v-for="p in visible" :key="p.id">
           <RouterLink :to="`/menu/design/${p.id}`" class="group block w-full overflow-hidden rounded-3xl bg-white text-left shadow-md transition hover:shadow-lg" :aria-label="`ดูแบบ ${altOf(p)}`">
             <div class="aspect-square overflow-hidden"><img :src="p.image" :alt="altOf(p)" loading="lazy" class="h-full w-full object-cover transition group-hover:scale-105" /></div>

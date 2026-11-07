@@ -3,6 +3,8 @@
 @theme {
   --font-sans: "Prompt", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
   /* หัวข้อ/ปุ่มหน้าร้าน: ไทยไม่มีหัว โค้งมน */
+  /* ความกว้างเนื้อหาสูงสุดบน PC ทั้งหลังบ้านและหน้าร้าน (max-w-page) */
+  --container-page: 96rem;
   --font-display: "Mitr", "Prompt", ui-sans-serif, system-ui, sans-serif;
 
   /* ชมพูสตรอว์เบอร์รี (สีหลัก) — ชื่อ brand เดิม ใช้ได้ทุกหน้า · 600 = พื้นปุ่มหลัก (ขาวบน 600 ≥4.5:1) */
@@ -95,6 +97,12 @@
   }
   textarea.input {
     @apply h-auto py-2.5;
+  }
+  /* PC: ช่องค้นหาไม่ยืดสุดแถว */
+  @media (min-width: 1024px) {
+    input[type='search'].input {
+      max-width: 40rem;
+    }
   }
   .btn,
   .btn-primary,

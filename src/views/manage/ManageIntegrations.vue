@@ -125,7 +125,7 @@ async function disconnect(k) {
 </script>
 
 <template>
-  <ManageShell title="การเชื่อมต่อ & แจ้งเตือน" subtitle="จำลอง · ยังไม่ส่งข้อความจริง" :toolbar="false">
+  <ManageShell narrow title="การเชื่อมต่อ & แจ้งเตือน" subtitle="จำลอง · ยังไม่ส่งข้อความจริง" :toolbar="false">
     <p class="mb-4 flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
       <AppIcon name="alert" :size="16" class="mt-0.5 shrink-0" />
       ยังไม่ได้ต่อเซิร์ฟเวอร์ ข้อความทั้งหมดถูกบันทึกลง "คิวข้อความ" ด้านล่างเพื่อดูว่าจะส่งอะไรถึงใคร · ต่อจริงทีหลังพร้อม Supabase (token เก็บที่เซิร์ฟเวอร์ ไม่กรอกในหน้านี้)

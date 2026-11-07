@@ -107,7 +107,7 @@ async function save() {
   >
     <p v-if="!list.length" class="card py-10 text-center text-stone-500">ไม่พบลูกค้า</p>
 
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       <button
         v-for="c in list"
         :key="c.id"

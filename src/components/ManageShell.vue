@@ -10,6 +10,7 @@ defineProps({
   addLabel: { type: String, default: '' },
   searchPlaceholder: { type: String, default: 'ค้นหา' },
   toolbar: { type: Boolean, default: true },
+  narrow: { type: Boolean, default: false }, // หน้าฟอร์ม/ตั้งค่า: จำกัดความกว้างให้อ่านง่าย (หน้ารายการใช้เต็มพื้นที่)
   perm: { type: String, default: 'manage' }, // สิทธิ์ที่ต้องมีจึงเห็นหน้านี้
 })
 const emit = defineEmits(['add'])
@@ -24,7 +25,7 @@ const showInactive = defineModel('inactive', { type: Boolean, default: false })
     <RouterLink to="/admin/orders" class="btn-soft">กลับไปหน้าออร์เดอร์</RouterLink>
   </div>
 
-  <div v-else class="mx-auto max-w-4xl">
+  <div v-else :class="narrow ? 'mx-auto max-w-4xl' : ''">
     <div class="mb-4 flex items-center gap-2">
       <RouterLink :to="back" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-stone-700 shadow-sm hover:bg-brand-50" aria-label="กลับ">
         <AppIcon name="back" :size="20" />

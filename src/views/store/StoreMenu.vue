@@ -25,7 +25,7 @@ const tabs = computed(() => [
 </script>
 
 <template>
-  <div class="mx-auto max-w-6xl px-4 pt-6">
+  <div class="mx-auto max-w-page px-4 pt-6 lg:px-8">
     <h1 class="text-[28px] text-stone-900">เมนูเค้ก</h1>
     <p class="mt-1 text-sm text-stone-600">เลือกดูแล้วกดสั่งทางแชท LINE / Facebook ร้านจะยืนยันราคาและวันเวลารับให้</p>
 
@@ -46,7 +46,7 @@ const tabs = computed(() => [
       </nav>
       <section v-for="s in sections" :id="`cat-${s.key}`" :key="s.key" class="mb-7" :aria-label="`หมวด ${s.category}`">
         <h2 class="mb-2.5 text-xl text-stone-900">{{ s.category }}</h2>
-        <div class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
           <RouterLink v-for="r in s.items" :key="r.product.id" :to="`/menu/ready/${r.product.id}`" class="overflow-hidden rounded-3xl bg-white shadow-md transition hover:shadow-lg" :class="r.stockState === 'out' ? 'opacity-60' : ''">
             <div class="relative aspect-square overflow-hidden"><CakeImage :src="r.product.images?.[0]" :alt="r.product.name" />
               <span v-if="r.discounted" class="absolute top-2 left-2 rounded-full bg-brand-600 px-2.5 py-0.5 text-xs font-semibold text-white">โปร</span>

@@ -65,7 +65,7 @@ const details = (it) => describeSelections(it, db.optionGroups)
     <RouterLink to="/admin/orders" class="btn-soft">กลับไปหน้าออร์เดอร์</RouterLink>
   </div>
 
-  <div v-else class="mx-auto max-w-4xl">
+  <div v-else>
     <KitchenTabs />
     <h1 class="mb-4 text-xl font-semibold tracking-tight text-stone-900">ตารางผลิต</h1>
 

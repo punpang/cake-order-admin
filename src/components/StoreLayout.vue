@@ -13,7 +13,7 @@ const active = 'bg-white text-brand-700 shadow-sm'
 <template>
   <div class="store-theme">
   <header class="sticky top-0 z-20 bg-cream/90 backdrop-blur-xl">
-    <div class="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4">
+    <div class="mx-auto flex h-14 max-w-page items-center gap-2 px-4 lg:px-8">
       <RouterLink to="/" class="flex min-w-0 items-center gap-2.5">
         <svg viewBox="0 0 48 48" class="h-10 w-10 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2" stroke-linejoin="round"><ellipse cx="24" cy="40" rx="18" ry="4" fill="#fff" /><rect x="9" y="22" width="30" height="16" rx="4" fill="#ffd05c" /><path d="M8 22c0-7 7-10 16-10s16 3 16 10c-3 3-5 0-8 3s-5 0-8 3-5 0-8-3-5 0-8-3z" fill="#ff8fa6" /><circle cx="24" cy="9" r="4" fill="#e0314f" /></svg>
         <span class="truncate font-display text-xl text-brand-600">{{ db.shop.name || 'ร้านเค้ก' }}</span>
@@ -32,7 +32,7 @@ const active = 'bg-white text-brand-700 shadow-sm'
   </main>
 
   <footer class="mt-12 bg-choco text-cream">
-    <div class="mx-auto grid max-w-6xl gap-6 px-4 py-8 text-sm text-cream sm:grid-cols-3">
+    <div class="mx-auto grid max-w-page gap-6 px-4 py-8 text-sm text-cream sm:grid-cols-3 lg:px-8">
       <div>
         <div class="mb-2 flex items-center gap-2 font-display text-xl"><AppIcon name="cake" :size="18" /> {{ db.shop.name || 'ร้านเค้ก' }}</div>
         <p>{{ db.storefront.about }}</p>

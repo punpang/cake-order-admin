@@ -70,7 +70,7 @@ async function save() {
 </script>
 
 <template>
-  <ManageShell
+  <ManageShell narrow
     v-model:q="q"
     v-model:inactive="inactive"
     title="การกำหนดราคา"

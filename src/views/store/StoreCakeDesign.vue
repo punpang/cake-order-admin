@@ -25,7 +25,7 @@ async function copyRef() {
 </script>
 
 <template>
-  <div class="mx-auto max-w-5xl px-4 pt-6">
+  <div class="mx-auto max-w-6xl px-4 pt-6 lg:px-8">
     <RouterLink to="/menu/gallery" class="mb-4 inline-flex items-center gap-1 text-sm text-stone-600 hover:text-brand-700"><AppIcon name="back" :size="16" /> กลับผลงานทั้งหมด</RouterLink>
 
     <div v-if="!p" class="empty">

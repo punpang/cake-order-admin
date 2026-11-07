@@ -33,7 +33,7 @@ const items = computed(() => [
 
 <template>
   <ManageShell title="จัดการ" back="/admin/orders" :toolbar="false">
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
       <RouterLink
         v-for="(it, n) in items"
         :key="it.to"

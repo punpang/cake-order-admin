@@ -30,7 +30,7 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
     <img v-if="s.heroImage" :src="s.heroImage" alt="" class="absolute inset-0 -z-10 h-full w-full object-cover" />
     <div class="absolute inset-0 -z-10" :class="s.heroImage ? 'bg-linear-to-br from-hero-1/85 via-hero-2/80 to-hero-3/85' : 'bg-linear-to-br from-hero-1 via-hero-2 to-hero-3'"></div>
     <HeroCake class="pointer-events-none absolute -right-4 -bottom-2 -z-0 h-44 w-44 opacity-95 sm:right-10 sm:h-72 sm:w-72" />
-    <div class="relative mx-auto max-w-6xl px-5 py-9 sm:py-20">
+    <div class="relative mx-auto max-w-page px-5 py-9 sm:py-20 lg:px-8">
       <h1 class="max-w-[15rem] text-[2rem] leading-[1.22] sm:max-w-xl sm:text-5xl">{{ s.heroTitle }}</h1>
       <p class="mt-2.5 max-w-[15rem] text-base leading-snug font-medium sm:max-w-lg sm:text-lg">{{ s.heroText }}</p>
       <div class="mt-5 flex flex-wrap gap-2">
@@ -40,7 +40,7 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
     </div>
   </section>
 
-  <div class="mx-auto max-w-6xl space-y-9 px-4 pt-6 pb-2 sm:space-y-12">
+  <div class="mx-auto max-w-page space-y-9 px-4 pt-6 pb-2 sm:space-y-12 lg:px-8">
     <!-- โปรโมชั่น -->
     <section v-if="promos.length" aria-label="โปรโมชั่น">
       <h2 class="sr-only">โปรโมชั่น</h2>
@@ -73,7 +73,7 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
         <h2 class="text-2xl text-stone-900">สินค้าขายดี</h2>
         <RouterLink to="/menu" class="btn-peach h-10 px-4">ดูทั้งหมด</RouterLink>
       </div>
-      <div class="grid grid-cols-3 gap-2.5 sm:gap-4 md:grid-cols-6">
+      <div class="grid grid-cols-3 gap-2.5 sm:gap-4 md:grid-cols-6 2xl:grid-cols-8">
         <RouterLink v-for="b in best" :key="b.product.id" :to="`/menu/ready/${b.product.id}`" class="group overflow-hidden rounded-2xl bg-white shadow-md transition hover:shadow-lg">
           <div class="relative aspect-[1/0.95] overflow-hidden"><CakeImage :src="b.product.images?.[0]" :alt="b.product.name" />
             <span class="absolute top-1.5 left-1.5 rounded-full bg-brand-600 px-2 py-0.5 text-xs font-semibold text-white">ยอดฮิต</span>
@@ -120,7 +120,7 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
     <!-- แกลเลอรี -->
     <section v-if="s.gallery.length">
       <h2 class="mb-3 text-2xl text-stone-900">ผลงานของเรา</h2>
-      <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
         <figure v-for="(g, i) in s.gallery" :key="i" class="overflow-hidden rounded-2xl bg-white shadow-md">
           <div class="aspect-square overflow-hidden"><img :src="g.image" :alt="g.caption || 'ผลงาน'" loading="lazy" class="h-full w-full object-cover" /></div>
           <figcaption v-if="g.caption" class="px-3 py-2 text-xs text-stone-600">{{ g.caption }}</figcaption>

@@ -83,7 +83,7 @@ async function flip(x) {
     </p>
 
     <p v-if="!lists[tab].length" class="card py-10 text-center text-stone-500">ยังไม่มีรายการ กดปุ่มเพิ่มด้านบน</p>
-    <div class="space-y-2.5">
+    <div class="grid gap-2.5 lg:grid-cols-2 lg:items-start">
       <div v-for="x in lists[tab]" :key="x.id" class="card flex items-center gap-2 p-2.5" :class="x.active === false ? 'opacity-60' : ''">
         <button type="button" class="min-w-0 flex-1 rounded-xl p-1.5 text-left" @click="edit(x)">
           <span class="flex flex-wrap items-center gap-1.5">

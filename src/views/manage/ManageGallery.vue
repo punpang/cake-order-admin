@@ -53,7 +53,7 @@ async function del() {
 <template>
   <ManageShell title="คลังรูปเค้กสั่งทำ" subtitle="ติดแท็กตัวเลือก · หน้าเว็บเปลี่ยนรูปตามที่ลูกค้าเลือก" :toolbar="false">
     <div class="space-y-4">
-      <section class="card space-y-3" aria-label="อัปโหลดรูป">
+      <section class="card space-y-3 lg:max-w-3xl" aria-label="อัปโหลดรูป">
         <div class="card-title">เพิ่มรูป (อัปโหลดทีละหลายรูปได้)</div>
         <p class="text-sm text-stone-500">ติ๊กตัวเลือกที่รูปเหล่านี้เป็นตัวแทนก่อน แล้วเลือกรูปทีเดียวหลายรูป ระบบใช้แท็กเดียวกันกับทุกรูปในครั้งนั้น (ติ๊กน้อย = ใช้ได้กว้าง, ติ๊กหลายอย่าง = เจาะจง เช่น ช็อกโกแลต + 2 ปอนด์)</p>
         <div v-for="g in groups" :key="g.id">
@@ -71,7 +71,7 @@ async function del() {
       <section class="card" aria-label="รูปในคลัง">
         <div class="card-title">รูปในคลัง ({{ items.length }})<span v-if="typeImgs.length" class="text-xs font-normal text-stone-400"> + รูปหน้าปกประเภท {{ typeImgs.length }} รูป</span></div>
         <p v-if="!items.length" class="py-6 text-center text-sm text-stone-400">ยังไม่มีรูปในคลัง</p>
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-6">
           <button v-for="it in items" :key="it.id" type="button" class="overflow-hidden rounded-2xl border border-stone-200 bg-white text-left" :class="it.active === false ? 'opacity-50' : ''" @click="edit(it)">
             <img :src="it.image" :alt="it.caption || 'รูปเค้ก'" class="aspect-square w-full object-cover" />
             <div class="space-y-1 p-2"><RouterLink v-if="it.source" :to="`/admin/orders/${it.source.orderId}`" class="block text-[11px] text-brand-700 underline" @click.stop>จากออร์เดอร์ {{ codeOf(it.source.orderId) }}</RouterLink><div class="flex flex-wrap gap-1"><span v-for="t in it.tags" :key="t" class="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] text-brand-800">{{ nameOf(t) }}</span></div><div v-if="it.caption" class="truncate text-xs text-stone-500">{{ it.caption }}</div></div>

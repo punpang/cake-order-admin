@@ -325,7 +325,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 <template>
   <div v-if="!can('pos')" class="card py-10 text-center text-stone-500">บทบาทนี้ใช้ POS ไม่ได้</div>
 
-  <div v-else class="mx-auto max-w-6xl">
+  <div v-else class="mx-auto max-w-page">
     <!-- หัว -->
     <div class="mb-3 flex flex-wrap items-center gap-2">
       <RouterLink to="/admin/orders" class="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 md:hidden" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
@@ -355,7 +355,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     </section>
 
     <!-- ขาย -->
-    <div v-else-if="tab === 'sell'" class="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
+    <div v-else-if="tab === 'sell'" class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
       <section class="min-w-0 pb-24 lg:pb-0">
         <div class="mb-3 flex gap-2">
           <label class="relative min-w-0 flex-1">
@@ -369,7 +369,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <button v-for="c in categories" :key="c" type="button" class="chip whitespace-nowrap" :class="cat === c ? 'chip-on' : 'chip-off'" @click="cat = c">{{ c }}</button>
           <button type="button" class="chip ml-auto whitespace-nowrap" :class="sortBest ? 'chip-on' : 'chip-off'" :aria-pressed="sortBest" @click="sortBest = !sortBest"><AppIcon name="star" :size="13" /> เรียงขายดี</button>
         </div>
-        <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+        <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           <div v-for="x in shown" :key="x.kind + x.id" class="relative">
           <button
             type="button"

@@ -108,6 +108,7 @@ function savePhone() {
 const saveBlock = computed(() => (props.embedded && props.chatId ? chatOrderBlock(props.chatId) : ''))
 
 // ---------- ขั้น 2 นัดรับ ----------
+const sideSummary = computed(() => !props.embedded && step.value < 3)
 const pickupAt = computed(() => (form.date && form.time ? `${form.date}T${form.time}` : ''))
 const load = computed(() => countPickups(pickupAt.value))
 // เวลานัดเป็นปุ่มตามช่วงเวลาที่ตั้งไว้
@@ -211,7 +212,7 @@ function quote() {
 <template>
   <div v-if="!can('createOrder')" class="card py-10 text-center text-stone-500">บทบาทนี้สร้างออร์เดอร์ไม่ได้</div>
 
-  <div v-else :class="embedded ? 'pb-2' : 'mx-auto max-w-2xl pb-[calc(env(safe-area-inset-bottom)+6rem)]'">
+  <div v-else :class="embedded ? 'pb-2' : 'mx-auto max-w-2xl pb-[calc(env(safe-area-inset-bottom)+6rem)] md:max-w-none md:pb-10'">
     <!-- หัว -->
     <div v-if="!embedded" class="mb-4 flex items-center gap-2">
       <RouterLink to="/admin/orders" class="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
@@ -220,6 +221,9 @@ function quote() {
       <h1 class="text-xl font-semibold tracking-tight text-stone-900">สร้างออร์เดอร์</h1>
     </div>
 
+    <!-- PC: ฟอร์มซ้าย + แผงสรุปขวา (ขั้นสรุปมีรายละเอียดครบอยู่แล้ว จึงไม่แสดงแผง) -->
+    <div :class="sideSummary ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-6 xl:grid-cols-[minmax(0,1fr)_26rem]' : (embedded ? '' : 'lg:max-w-3xl')">
+    <div class="min-w-0" :class="embedded ? '' : 'lg:max-w-3xl'">
     <!-- ขั้นตอน -->
     <ol class="card mb-4 flex items-center gap-1 p-2.5">
       <li v-for="(s, i) in steps" :key="s" class="flex min-w-0 flex-1 items-center">
@@ -477,6 +481,23 @@ function quote() {
           </template>
         </template>
       </div>
+    </div>
+
+    </div>
+
+    <aside v-if="sideSummary" class="hidden lg:sticky lg:top-20 lg:block" aria-label="สรุปออร์เดอร์">
+      <div class="card space-y-3 text-sm">
+        <div class="card-title"><AppIcon name="list" class="text-brand-600" /> สรุปออร์เดอร์</div>
+        <div><div class="text-xs text-stone-500">ลูกค้า</div><div class="truncate font-semibold text-stone-900">{{ customer?.name || 'ยังไม่เลือก' }}</div><div v-if="customer?.phone" class="text-stone-500">{{ formatPhone(customer.phone) }}</div></div>
+        <div><div class="text-xs text-stone-500">นัดรับ · {{ form.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }}</div><div class="font-semibold text-stone-900">{{ pickupAt ? dateTime(pickupAt) : 'ยังไม่เลือก' }}</div></div>
+        <div><div class="text-xs text-stone-500">สินค้า</div><div class="font-semibold text-stone-900">{{ form.items.length }} รายการ</div></div>
+        <div class="space-y-2 border-t border-stone-100 pt-2">
+          <div class="flex justify-between"><span class="text-stone-500">ค่าสินค้า</span><span>{{ money(totals.subtotal) }}</span></div>
+          <div v-if="form.fulfillment === 'delivery'" class="flex justify-between"><span class="text-stone-500">ค่าส่ง</span><span>{{ money(totals.shipping) }}</span></div>
+          <div class="flex items-center justify-between border-t border-stone-100 pt-2"><span class="font-semibold">ยอดรวม</span><span class="text-xl font-semibold text-stone-900">{{ money(totals.total) }}</span></div>
+        </div>
+      </div>
+    </aside>
     </div>
 
     <ItemEditor v-if="editing" :item="editing.item || null" :defaults="itemDefaults" @save="onSaveItem" @close="editing = null" />

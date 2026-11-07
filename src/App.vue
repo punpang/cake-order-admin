@@ -25,7 +25,7 @@ onBeforeUnmount(() => clearInterval(timer))
   <template v-else>
   <!-- แถบบน -->
   <header class="sticky top-0 z-20 bg-cream/90 shadow-[0_1px_0_rgb(63_46_46/0.06)] backdrop-blur-xl">
-    <div class="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
+    <div class="mx-auto flex h-14 max-w-page items-center gap-3 px-4 lg:px-8">
       <RouterLink to="/admin/orders" class="flex min-w-0 items-center gap-2.5">
         <svg viewBox="0 0 48 48" class="h-10 w-10 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2" stroke-linejoin="round"><ellipse cx="24" cy="40" rx="18" ry="4" fill="#fff" /><rect x="9" y="22" width="30" height="16" rx="4" fill="#ffd05c" /><path d="M8 22c0-7 7-10 16-10s16 3 16 10c-3 3-5 0-8 3s-5 0-8 3-5 0-8-3-5 0-8-3z" fill="#ff8fa6" /><circle cx="24" cy="9" r="4" fill="#e0314f" /></svg>
         <span class="truncate font-display text-xl text-brand-600">ร้านเค้ก <span class="font-sans text-sm font-normal text-stone-600">· หลังบ้าน</span></span>
@@ -53,7 +53,7 @@ onBeforeUnmount(() => clearInterval(timer))
   </header>
 
   <main
-    class="mx-auto max-w-6xl px-4 pt-5"
+    class="mx-auto max-w-page px-4 pt-5 lg:px-8"
     :class="$route.meta.focus ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10'"
   >
     <RouterView :key="$route.fullPath" />

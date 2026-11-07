@@ -58,7 +58,7 @@ function reject() {
     <p v-if="err" class="mb-3 flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
 
     <p v-if="!rows.length" class="card py-10 text-center text-stone-500">ไม่มีคำขอ</p>
-    <div class="space-y-3">
+    <div class="grid gap-3 lg:grid-cols-2 lg:items-start">
       <div v-for="row in rows" :key="row.r.id" class="card space-y-2">
         <div class="flex items-center gap-2">
           <b class="min-w-0 flex-1 truncate text-stone-900">{{ row.c?.name || 'ลูกค้า' }}</b>

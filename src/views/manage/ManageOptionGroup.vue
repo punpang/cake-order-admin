@@ -124,7 +124,7 @@ async function saveO() {
     ไม่พบกลุ่มตัวเลือก <RouterLink to="/admin/manage/options" class="text-brand-700 underline">กลับ</RouterLink>
   </div>
 
-  <ManageShell
+  <ManageShell narrow
     v-else
     v-model:q="q"
     v-model:inactive="inactive"

@@ -247,7 +247,7 @@ function clearAll() {
         <span class="ml-auto text-xs font-medium text-stone-500">{{ g.orders.length }} ออร์เดอร์</span>
       </h2>
 
-      <div class="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
+      <div class="grid grid-cols-1 gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
         <RouterLink
           v-for="{ o, c, t } in g.orders"
           :key="o.id"

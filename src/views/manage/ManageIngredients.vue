@@ -51,7 +51,7 @@ async function save() {
   >
     <p v-if="!list.length" class="card py-10 text-center text-stone-500">ไม่พบวัตถุดิบ</p>
 
-    <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+    <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
       <button
         v-for="m in list"
         :key="m.id"

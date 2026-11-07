@@ -29,7 +29,7 @@ const comp = computed(() => ({ overview: AcctOverview, record: AcctRecord, journ
       <RouterLink to="/admin/orders" class="btn-soft">กลับ</RouterLink>
     </div>
   </div>
-  <div v-else class="mx-auto max-w-4xl pb-6">
+  <div v-else class="pb-6">
     <div class="mb-3 flex items-center gap-2">
       <RouterLink to="/admin/manage" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-stone-700 shadow-sm hover:bg-brand-50" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
       <div class="min-w-0 flex-1"><h1 class="truncate text-[22px] text-stone-900">บัญชี</h1><p class="truncate text-sm text-stone-500">ฐานสิทธิ · ลงบัญชีคู่ · รายได้ดึงจากออร์เดอร์/POS อัตโนมัติ</p></div>

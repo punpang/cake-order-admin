@@ -115,7 +115,7 @@ function doSim() {
 <template>
   <div v-if="!can('chat')" class="card py-10 text-center text-stone-500">บทบาทนี้ใช้แชทไม่ได้</div>
 
-  <div v-else class="mx-auto" :class="panelOpen ? 'max-w-none' : 'max-w-5xl'">
+  <div v-else class="mx-auto" :class="panelOpen ? 'max-w-none' : 'max-w-none'">
     <div class="grid min-h-[420px] grid-cols-1 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-2xl border border-stone-200 bg-white md:h-[calc(100dvh-9rem)]"
       :class="[current ? 'h-[calc(100dvh-9rem)]' : 'h-[calc(100dvh-12.5rem)]', panelOpen ? 'md:grid-cols-[300px_minmax(0,1fr)] lg:grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)]' : 'md:grid-cols-[300px_minmax(0,1fr)]']">
       <!-- รายการแชท -->

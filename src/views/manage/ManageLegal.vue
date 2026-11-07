@@ -65,7 +65,7 @@ const contactMissing = computed(() => ['controller', 'address', 'email', 'phone'
 </script>
 
 <template>
-  <ManageShell title="PDPA / คุกกี้ / เงื่อนไข" subtitle="ข้อความที่ลูกค้าต้องยินยอม · ร่างตั้งต้น" :toolbar="false">
+  <ManageShell narrow title="PDPA / คุกกี้ / เงื่อนไข" subtitle="ข้อความที่ลูกค้าต้องยินยอม · ร่างตั้งต้น" :toolbar="false">
     <div class="mb-3 flex gap-2 rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">
       <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0" />
       <p>ข้อความทั้งหมดเป็น <b>ร่างตั้งต้น</b> ไม่ใช่คำปรึกษาทางกฎหมาย กรุณาแก้ให้ตรงกับร้านและให้ที่ปรึกษากฎหมาย/ผู้เชี่ยวชาญ PDPA ตรวจก่อนใช้จริง · เมื่อต่อ Supabase / เปิดใช้ระบบวิเคราะห์ ต้องปรับข้อความให้ตรงกับระบบจริง</p>
