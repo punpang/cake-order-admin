@@ -333,7 +333,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <!-- หัว -->
     <div class="mb-3 flex flex-wrap items-center gap-2">
       <RouterLink to="/admin/orders" class="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 md:hidden" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
-      <h1 class="text-xl font-semibold text-stone-900">POS หน้าร้าน</h1>
+      <h1 class="page-title">POS หน้าร้าน</h1>
       <span v-if="shift" class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">กะเปิด {{ timeOnly(shift.openedAt) }} · {{ ROLES[shift.openedBy] }}</span>
       <button v-if="shift && can('useLoyalty')" type="button" class="btn-soft ml-auto h-9 px-3 text-sm" @click="openRedeem"><AppIcon name="star" :size="15" /> มอบของรางวัล</button>
       <div v-if="shift" class="grid grid-cols-3 gap-1 seg-grid" :class="can('useLoyalty') ? '' : 'ml-auto'">
@@ -383,12 +383,12 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             @click="add(x)"
           >
             <span class="line-clamp-2 text-sm font-medium break-words text-stone-900">{{ x.name }}</span>
-            <span v-if="groupsOf(x).length" class="mt-0.5 text-[11px] text-brand-700">มีตัวเลือก</span>
-            <span v-if="pointTag(x)" class="mt-0.5 text-[11px] font-medium text-amber-700">คะแนน ×{{ pointTag(x).multiplier }}</span>
-            <span v-if="ranks.get(x.id)?.star" class="mt-0.5 inline-flex items-center gap-0.5 text-[11px] font-semibold text-amber-700" :aria-label="`ขายดีอันดับ ${ranks.get(x.id).rank}`"><AppIcon name="star" :size="12" /> ขายดี #{{ ranks.get(x.id).rank }}</span>
+            <span v-if="groupsOf(x).length" class="mt-0.5 text-xs text-brand-700">มีตัวเลือก</span>
+            <span v-if="pointTag(x)" class="mt-0.5 text-xs font-medium text-amber-700">คะแนน ×{{ pointTag(x).multiplier }}</span>
+            <span v-if="ranks.get(x.id)?.star" class="mt-0.5 inline-flex items-center gap-0.5 text-xs font-semibold text-amber-700" :aria-label="`ขายดีอันดับ ${ranks.get(x.id).rank}`"><AppIcon name="star" :size="12" /> ขายดี #{{ ranks.get(x.id).rank }}</span>
             <span class="mt-2 flex items-end justify-between gap-1">
               <span class="text-base font-semibold text-stone-900">{{ money(x.price) }}</span>
-              <span v-if="x.stock != null" class="text-[11px]" :class="x.stock - inCart(x) <= 0 ? 'font-semibold text-rose-700' : 'text-stone-500'">{{ x.stock - inCart(x) <= 0 ? 'หมด' : `เหลือ ${x.stock - inCart(x)}` }}</span>
+              <span v-if="x.stock != null" class="text-xs" :class="x.stock - inCart(x) <= 0 ? 'font-semibold text-rose-700' : 'text-stone-500'">{{ x.stock - inCart(x) <= 0 ? 'หมด' : `เหลือ ${x.stock - inCart(x)}` }}</span>
             </span>
             <span v-if="inCart(x)" class="absolute -top-2 -right-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand-600 px-1 text-xs font-semibold text-white">{{ inCart(x) }}</span>
           </button>
@@ -490,7 +490,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         </div>
         <div class="border-t border-stone-100 p-4">
           <div class="mb-3 flex items-start justify-between gap-2">
-            <span class="text-sm text-stone-500">ยอดชำระ<span v-if="preview.vatMode" class="block text-[11px] text-stone-400">{{ preview.vatMode === 'exclusive' ? `รวม VAT ${preview.vatRate}% บวกเพิ่ม ${money(preview.vat)}` : `รวม VAT ${preview.vatRate}% แล้ว ${money(preview.vat)}` }}</span></span>
+            <span class="text-sm text-stone-500">ยอดชำระ<span v-if="preview.vatMode" class="block text-xs text-stone-400">{{ preview.vatMode === 'exclusive' ? `รวม VAT ${preview.vatRate}% บวกเพิ่ม ${money(preview.vat)}` : `รวม VAT ${preview.vatRate}% แล้ว ${money(preview.vat)}` }}</span></span>
             <DiscountDetail :full="preview.fullAll" :final="total" :lines="preview.discountLines" size="lg" />
           </div>
           <button type="button" class="btn-primary h-12 w-full text-base" :disabled="!cart.length" @click="openPay">ชำระเงิน</button>

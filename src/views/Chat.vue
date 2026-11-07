@@ -121,7 +121,7 @@ function doSim() {
       <!-- รายการแชท -->
       <aside class="flex min-h-0 flex-col border-stone-200 md:border-r" :class="[current ? 'hidden md:flex' : 'flex', panelOpen ? 'lg:hidden xl:flex' : '']">
         <div class="flex items-center gap-2 border-b border-stone-200 p-3">
-          <h1 class="flex-1 text-lg font-semibold text-stone-900">แชท <span class="text-xs font-normal text-stone-400">LINE OA · Facebook</span></h1>
+          <h1 class="page-title flex-1">แชท <span class="text-xs font-normal text-stone-400">LINE OA · Facebook</span></h1>
           <button type="button" class="h-9 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-2.5 text-xs font-medium text-amber-800" @click="openSim(false)">จำลองข้อความเข้า</button>
         </div>
         <div class="border-b border-stone-200 p-2">
@@ -140,18 +140,18 @@ function doSim() {
             <RouterLink :to="`/admin/chat/${c.id}`" class="flex items-center gap-3 border-b border-stone-100 px-3 py-3 hover:bg-stone-50" :class="current?.id === c.id ? 'bg-brand-50' : ''">
               <span class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-800">
                 {{ (nameOf(c) || '?').replace(/^คุณ/, '').trim().charAt(0) }}
-                <span class="absolute -right-1 -bottom-1 rounded px-1 text-[9px] leading-4 font-bold" :class="CH[c.channel].cls">{{ c.channel === 'line' ? 'L' : 'f' }}</span>
+                <span class="absolute -right-1 -bottom-1 rounded px-1 text-xs leading-4 font-bold" :class="CH[c.channel].cls">{{ c.channel === 'line' ? 'L' : 'f' }}</span>
               </span>
               <span class="min-w-0 flex-1">
                 <span class="flex items-baseline gap-2">
-                  <span class="min-w-0 flex-1 truncate font-medium text-stone-900">{{ nameOf(c) }}<span v-if="!c.customerId" class="ml-1 rounded bg-amber-50 px-1 text-[10px] font-medium text-amber-700">ยังไม่ผูก</span></span>
-                  <span class="shrink-0 text-[11px] text-stone-400">{{ whenText(last(c).at) }}</span>
+                  <span class="min-w-0 flex-1 truncate font-medium text-stone-900">{{ nameOf(c) }}<span v-if="!c.customerId" class="ml-1 rounded bg-amber-50 px-1 text-xs font-medium text-amber-700">ยังไม่ผูก</span></span>
+                  <span class="shrink-0 text-xs text-stone-400">{{ whenText(last(c).at) }}</span>
                 </span>
                 <span class="flex items-center gap-2">
                   <span class="min-w-0 flex-1 truncate text-sm" :class="c.unreadStaff ? 'font-medium text-stone-900' : 'text-stone-500'">{{ last(c).text }}</span>
-                  <span v-if="c.botHandoff" class="shrink-0 rounded bg-violet-50 px-1 text-[10px] font-medium text-violet-700">บอทส่งต่อ</span>
-                  <span v-else-if="c.botDraft && !c.botDraft.editing" class="shrink-0 rounded bg-violet-50 px-1 text-[10px] font-medium text-violet-700">มีร่างบอท</span>
-                  <span v-if="c.unreadStaff" class="shrink-0 rounded-full bg-rose-500 px-1.5 text-[11px] font-semibold text-white">{{ c.unreadStaff }}</span>
+                  <span v-if="c.botHandoff" class="shrink-0 rounded bg-violet-50 px-1 text-xs font-medium text-violet-700">บอทส่งต่อ</span>
+                  <span v-else-if="c.botDraft && !c.botDraft.editing" class="shrink-0 rounded bg-violet-50 px-1 text-xs font-medium text-violet-700">มีร่างบอท</span>
+                  <span v-if="c.unreadStaff" class="shrink-0 rounded-full bg-rose-500 px-1.5 text-xs font-semibold text-white">{{ c.unreadStaff }}</span>
                 </span>
               </span>
             </RouterLink>
@@ -165,7 +165,7 @@ function doSim() {
           <RouterLink to="/admin/chat" class="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 hover:bg-stone-100 md:hidden" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
           <div class="min-w-0 flex-1">
             <div class="flex min-w-0 items-center gap-1.5">
-              <span class="shrink-0 rounded px-1.5 text-[10px] leading-5 font-bold" :class="CH[current.channel].cls">{{ CH[current.channel].l }}</span>
+              <span class="shrink-0 rounded px-1.5 text-xs leading-5 font-bold" :class="CH[current.channel].cls">{{ CH[current.channel].l }}</span>
               <span class="truncate font-semibold text-stone-900">{{ customer?.name || current.profileName }}</span>
             </div>
             <div class="truncate text-xs text-stone-500">

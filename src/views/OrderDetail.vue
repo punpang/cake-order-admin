@@ -293,9 +293,9 @@ async function saveCancel() {
         <AppIcon name="back" :size="20" />
       </RouterLink>
       <div class="min-w-0 flex-1">
-        <h1 class="truncate text-xl font-semibold tracking-tight text-stone-900">{{ order.code }}</h1>
+        <h1 class="page-title truncate">{{ order.code }}</h1>
       </div>
-      <span v-if="customerPending(order).length" class="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-sky-700">ลูกค้าแจ้งโอน รอตรวจสลิป</span>
+      <span v-if="customerPending(order).length" class="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-sky-700">ลูกค้าแจ้งโอน รอตรวจสลิป</span>
       <PayDueBadge :order="order" />
       <StatusBadge :status="order.status" />
     </div>
@@ -312,7 +312,7 @@ async function saveCancel() {
     </div>
     <div v-else-if="order.approval?.status === 'rejected' && unpaidStage(order.status)" class="mb-3 rounded-2xl bg-rose-50 p-3 text-sm text-rose-700">ไม่อนุมัติยืนยันแบบยังไม่ชำระ<span v-if="order.approval.decisionNote"> · {{ order.approval.decisionNote }}</span></div>
 
-    <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-4">
+    <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-4 2xl:grid-cols-[minmax(0,1fr)_440px]">
       <!-- ซ้าย -->
       <div class="min-w-0 space-y-3 lg:space-y-4">
         <!-- ลูกค้า + นัดรับ -->

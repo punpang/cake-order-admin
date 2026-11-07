@@ -87,9 +87,9 @@ function doAdd() {
           <span class="min-w-0 flex-1">
             <span class="flex flex-wrap items-center gap-1.5">
               <span class="truncate font-medium text-stone-900">{{ x.name }}</span>
-              <span v-if="x.pinned" class="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-700">ปักหมุด</span>
-              <span v-if="x.showInPos === false" class="shrink-0 rounded-full bg-stone-100 px-1.5 py-0.5 text-[11px] text-stone-500">ซ่อนใน POS</span>
-              <span v-if="x.showOnStore" class="shrink-0 rounded-full bg-brand-50 px-1.5 py-0.5 text-[11px] text-brand-700">หน้าร้านเว็บ</span>
+              <span v-if="x.pinned" class="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700">ปักหมุด</span>
+              <span v-if="x.showInPos === false" class="shrink-0 rounded-full bg-stone-100 px-1.5 py-0.5 text-xs text-stone-500">ซ่อนใน POS</span>
+              <span v-if="x.showOnStore" class="shrink-0 rounded-full bg-brand-50 px-1.5 py-0.5 text-xs text-brand-700">หน้าร้านเว็บ</span>
             </span>
             <span class="block text-xs text-stone-500">{{ x.category || '-' }} · {{ x.stock == null ? 'ไม่นับสต็อก' : `คงเหลือ ${x.stock}` }}</span>
             <span v-if="x.modifierIds?.length" class="block truncate text-xs text-brand-700">ตัวเลือก: {{ x.modifierIds.map(modName).join(', ') }}</span>

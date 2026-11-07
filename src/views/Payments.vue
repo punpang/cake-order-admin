@@ -41,7 +41,7 @@ const shortDay = (o) => dayLabel(o.pickupAt.slice(0, 10))
 <template>
   <div>
     <div class="mb-4 min-w-0">
-      <h1 class="text-2xl font-semibold tracking-tight text-stone-900">ชำระเงิน</h1>
+      <h1 class="page-title">ชำระเงิน</h1>
       <p class="text-sm text-stone-500">ออร์เดอร์เท่านั้น (ไม่รวมบิล POS) · รอตรวจ {{ counts.review }} · ค้างชำระ {{ counts.due }}<template v-if="counts.overdue"> · เกินกำหนด {{ counts.overdue }}</template></p>
     </div>
 
@@ -70,7 +70,7 @@ const shortDay = (o) => dayLabel(o.pickupAt.slice(0, 10))
               <span class="font-semibold text-stone-900">{{ r.o.code }}</span>
               <StatusBadge :status="r.o.status" />
               <PayDueBadge :due="r.due" />
-              <span v-if="r.pending.length" class="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-sky-700">ลูกค้าแจ้งโอน</span>
+              <span v-if="r.pending.length" class="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-sky-700">ลูกค้าแจ้งโอน</span>
             </div>
             <div class="truncate text-sm text-stone-600">{{ findCustomer(r.o.customerId)?.name || 'ไม่ระบุลูกค้า' }}<template v-if="findCustomer(r.o.customerId)?.phone"> · {{ formatPhone(findCustomer(r.o.customerId).phone) }}</template></div>
             <div class="text-xs text-stone-500">นัด{{ r.o.fulfillment === 'delivery' ? 'ส่ง' : 'รับ' }} {{ shortDay(r.o) }} {{ r.o.pickupAt.slice(11, 16) }}</div>

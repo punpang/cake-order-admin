@@ -163,7 +163,7 @@ async function save() {
           </div>
           <ul v-if="ledger.length" class="mt-2 divide-y divide-stone-100 text-xs">
             <li v-for="e in ledger" :key="e.id" class="flex items-start justify-between gap-2 py-1.5">
-              <span class="min-w-0 break-words text-stone-600">{{ e.reason }}<span v-if="e.adjust" class="ml-1 rounded-full bg-amber-50 px-1.5 text-[11px] text-amber-700">ปรับเอง · {{ e.by === 'admin' ? 'แอดมิน' : e.by }}</span><span class="block text-stone-400">{{ dateTime(e.at) }}</span></span>
+              <span class="min-w-0 break-words text-stone-600">{{ e.reason }}<span v-if="e.adjust" class="ml-1 rounded-full bg-amber-50 px-1.5 text-xs text-amber-700">ปรับเอง · {{ e.by === 'admin' ? 'แอดมิน' : e.by }}</span><span class="block text-stone-400">{{ dateTime(e.at) }}</span></span>
               <b class="shrink-0" :class="e.delta > 0 ? 'text-emerald-700' : 'text-rose-600'">{{ e.delta > 0 ? '+' : '' }}{{ e.delta }}</b>
             </li>
           </ul>
@@ -174,7 +174,7 @@ async function save() {
           <ul v-else class="divide-y divide-stone-100 rounded-xl border border-stone-200/70">
             <li v-for="(p, i) in places" :key="p.id" class="flex items-start gap-2 px-3 py-2 text-sm">
               <span class="min-w-0 flex-1">
-                <span class="block truncate font-medium text-stone-900">{{ p.name || p.address }}<span v-if="i === 0" class="ml-1.5 rounded-full bg-brand-50 px-1.5 text-[11px] text-brand-700">ล่าสุด</span></span>
+                <span class="block truncate font-medium text-stone-900">{{ p.name || p.address }}<span v-if="i === 0" class="ml-1.5 rounded-full bg-brand-50 px-1.5 text-xs text-brand-700">ล่าสุด</span></span>
                 <span v-if="p.name" class="block truncate text-xs text-stone-500">{{ p.address }}</span>
                 <span class="block text-xs text-stone-400">ใช้ {{ p.uses }} ครั้ง<template v-if="p.distanceKm != null"> · {{ p.distanceKm }} กม.</template></span>
               </span>

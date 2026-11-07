@@ -230,11 +230,11 @@ function quote() {
       <RouterLink to="/admin/orders" class="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
         <AppIcon name="back" :size="20" />
       </RouterLink>
-      <h1 class="text-xl font-semibold tracking-tight text-stone-900">สร้างออร์เดอร์</h1>
+      <h1 class="page-title">สร้างออร์เดอร์</h1>
     </div>
 
     <!-- PC: ฟอร์มซ้าย + แผงสรุปขวา (ขั้นสรุปมีรายละเอียดครบอยู่แล้ว จึงไม่แสดงแผง) -->
-    <div :class="sideSummary ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-6 xl:grid-cols-[minmax(0,1fr)_26rem]' : (embedded ? '' : 'lg:max-w-3xl')">
+    <div :class="sideSummary ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-6 xl:grid-cols-[minmax(0,1fr)_26rem] 2xl:grid-cols-[minmax(0,1fr)_30rem]' : (embedded ? '' : 'lg:max-w-3xl')">
     <div class="min-w-0" :class="embedded ? '' : 'lg:max-w-3xl'">
     <!-- ขั้นตอน -->
     <ol class="card mb-4 flex items-center gap-1 p-2.5">

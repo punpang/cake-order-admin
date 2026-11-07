@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { db, can, orderVisible, findCustomer, upcomingBirthdays } from '../data/store'
 import { STATUS } from '../lib/constants'
 import { orderTotals, describeSelections } from '../lib/pricing'
@@ -12,6 +12,16 @@ import AppModal from '../components/AppModal.vue'
 import BirthdayList from '../components/BirthdayList.vue'
 
 const status = ref('')
+// PC (≥1024): สลับมุมมอง การ์ด ↔ แถวหนาแน่น · จำค่าที่เลือกไว้ในเบราว์เซอร์
+const wide = ref(false)
+let mq = null
+const onMq = () => { wide.value = !!mq?.matches }
+const readView = () => { try { return localStorage.getItem('orderListView') } catch { return null } }
+const view = ref(readView() === 'rows' ? 'rows' : 'cards')
+const dense = computed(() => wide.value && view.value === 'rows')
+function setView(v) { view.value = v; try { localStorage.setItem('orderListView', v) } catch { /* ignore */ } }
+onMounted(() => { mq = window.matchMedia('(min-width: 1024px)'); onMq(); mq.addEventListener('change', onMq) })
+onBeforeUnmount(() => mq?.removeEventListener('change', onMq))
 // ค่าเริ่มต้น = ออร์เดอร์ที่นัดรับ/ส่งวันนี้ (ลบป้ายตัวกรองเพื่อดูทั้งหมด)
 const todayStr = toDateStr(new Date())
 const from = ref(todayStr)
@@ -123,8 +133,12 @@ function clearAll() {
     <!-- หัวข้อ -->
     <div class="mb-4 flex items-end justify-between gap-3">
       <div class="min-w-0">
-        <h1 class="text-2xl font-semibold tracking-tight text-stone-900">ออร์เดอร์</h1>
+        <h1 class="page-title">ออร์เดอร์</h1>
         <p class="text-sm text-stone-500">แสดง {{ list.length }} จาก {{ visible.length }} รายการ</p>
+      </div>
+      <div class="ml-auto hidden items-center gap-1 rounded-xl bg-white p-1 ring-1 ring-stone-200 lg:flex" role="group" aria-label="มุมมองรายการ">
+        <button type="button" class="rounded-lg px-3 py-1.5 text-sm font-medium" :class="view === 'cards' ? 'bg-brand-600 text-white' : 'text-stone-600 hover:bg-stone-50'" :aria-pressed="view === 'cards'" @click="setView('cards')">การ์ด</button>
+        <button type="button" class="rounded-lg px-3 py-1.5 text-sm font-medium" :class="view === 'rows' ? 'bg-brand-600 text-white' : 'text-stone-600 hover:bg-stone-50'" :aria-pressed="view === 'rows'" data-view-rows @click="setView('rows')">แถว</button>
       </div>
       <RouterLink v-if="can('createOrder')" to="/admin/orders/new" class="btn-primary hidden md:inline-flex">
         <AppIcon name="plus" /> สร้างออร์เดอร์
@@ -262,7 +276,35 @@ function clearAll() {
         <span class="ml-auto text-xs font-medium text-stone-500">{{ g.orders.length }} ออร์เดอร์</span>
       </h2>
 
-      <div class="grid grid-cols-1 gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
+      <div v-if="dense" class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-200" data-order-rows>
+        <RouterLink
+          v-for="{ o, c, t } in g.orders"
+          :key="o.id"
+          :to="`/admin/orders/${o.id}`"
+          class="grid grid-cols-[3.5rem_minmax(8rem,1.2fr)_minmax(8rem,1.6fr)_auto_7rem_9rem] items-center gap-4 border-b border-stone-100 px-4 py-2.5 text-sm last:border-b-0 hover:bg-brand-50/50 focus-visible:bg-brand-50 focus-visible:outline-none"
+          :class="o.status === 'cancelled' ? 'grayscale' : ''"
+          data-order-row
+        >
+          <span class="font-semibold text-brand-800 tabular-nums">{{ timeOnly(o.pickupAt) }} น.</span>
+          <span class="min-w-0"><b class="block truncate font-semibold text-stone-900">{{ c?.name }}</b><span class="block text-xs text-stone-400">{{ o.code }}</span></span>
+          <span class="flex min-w-0 items-center gap-1.5 text-stone-500">
+            <AppIcon :name="o.fulfillment === 'delivery' ? 'truck' : 'store'" :size="14" class="shrink-0" />
+            <span class="shrink-0">{{ o.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }}</span><span aria-hidden="true">·</span>
+            <span class="truncate">{{ o.items[0]?.name }}<template v-if="o.items.length > 1"> +{{ o.items.length - 1 }}</template></span>
+          </span>
+          <span class="flex shrink-0 flex-wrap items-center justify-end gap-1"><StatusBadge :status="o.status" /><PayDueBadge :order="o" short /><span v-if="customerPending(o).length" class="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-sky-700">รอตรวจสลิป</span></span>
+          <span class="text-right font-semibold text-stone-900 tabular-nums">{{ money(t.total) }}</span>
+          <span class="text-right text-xs font-medium">
+            <template v-if="o.status === 'cancelled'"><span class="text-stone-500">ยกเลิกแล้ว</span></template>
+            <template v-else>
+              <span v-if="t.balance > 0" class="text-amber-700">ค้าง {{ money(t.balance) }}</span>
+              <span v-else-if="t.balance < 0" class="text-rose-600">ชำระเกิน {{ money(-t.balance) }}</span>
+              <span v-else class="text-brand-700">ชำระครบ</span>
+            </template>
+          </span>
+        </RouterLink>
+      </div>
+      <div v-else class="grid grid-cols-1 gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
         <RouterLink
           v-for="{ o, c, t } in g.orders"
           :key="o.id"
@@ -274,13 +316,13 @@ function clearAll() {
             <!-- เวลา -->
             <div class="flex w-14 shrink-0 flex-col items-center rounded-xl bg-brand-50 py-2 text-brand-800">
               <span class="text-base leading-none font-semibold tabular-nums">{{ timeOnly(o.pickupAt) }}</span>
-              <span class="mt-1 text-[11px] text-brand-700">น.</span>
+              <span class="mt-1 text-xs text-brand-700">น.</span>
             </div>
 
             <div class="min-w-0 flex-1">
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0 truncate font-semibold text-stone-900">{{ c?.name }}</div>
-                <span class="flex shrink-0 flex-col items-end gap-1"><StatusBadge :status="o.status" /><PayDueBadge :order="o" short /><span v-if="customerPending(o).length" class="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-sky-700">รอตรวจสลิป</span></span>
+                <span class="flex shrink-0 flex-col items-end gap-1"><StatusBadge :status="o.status" /><PayDueBadge :order="o" short /><span v-if="customerPending(o).length" class="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-sky-700">รอตรวจสลิป</span></span>
               </div>
               <div class="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm text-stone-500">
                 <AppIcon :name="o.fulfillment === 'delivery' ? 'truck' : 'store'" :size="14" class="shrink-0" />
@@ -304,7 +346,7 @@ function clearAll() {
                 <span v-else-if="t.balance < 0" class="text-xs font-medium text-rose-600">ชำระเกิน {{ money(-t.balance) }}</span>
                 <span v-else class="text-xs font-medium text-brand-700">ชำระครบ</span>
               </template>
-              <span class="block text-[11px] text-stone-400">{{ o.code }}</span>
+              <span class="block text-xs text-stone-400">{{ o.code }}</span>
             </span>
           </div>
         </RouterLink>

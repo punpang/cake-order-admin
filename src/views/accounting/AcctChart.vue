@@ -39,7 +39,7 @@ async function del() {
       <ul class="divide-y divide-stone-100 text-sm">
         <li v-for="a in g.list" :key="a.id" class="flex items-center gap-2 py-2" :class="a.active === false ? 'opacity-50' : ''">
           <span class="w-12 shrink-0 tabular-nums text-stone-500">{{ a.id }}</span>
-          <span class="min-w-0 flex-1 break-words">{{ a.name }}<span v-if="a.system" class="ml-1 rounded-full bg-stone-100 px-1.5 text-[11px] text-stone-500">ระบบใช้</span><span v-if="a.active === false" class="ml-1 text-xs text-stone-400">ปิดใช้งาน</span></span>
+          <span class="min-w-0 flex-1 break-words">{{ a.name }}<span v-if="a.system" class="ml-1 rounded-full bg-stone-100 px-1.5 text-xs text-stone-500">ระบบใช้</span><span v-if="a.active === false" class="ml-1 text-xs text-stone-400">ปิดใช้งาน</span></span>
           <button v-if="can('acctSettings')" class="text-xs text-brand-700 underline" :aria-label="`แก้ ${a.id}`" @click="edit(a)">แก้</button>
         </li>
       </ul>

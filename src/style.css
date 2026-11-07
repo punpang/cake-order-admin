@@ -128,6 +128,10 @@
       max-width: 40rem;
     }
   }
+  /* หัวข้อหน้าหลังบ้าน: ขนาดเดียวทั้งระบบ */
+  .page-title {
+    @apply text-xl font-semibold tracking-tight text-stone-900 lg:text-2xl;
+  }
   .btn,
   .btn-primary,
   .btn-soft,

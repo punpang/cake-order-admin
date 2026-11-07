@@ -67,7 +67,7 @@ const details = (it) => describeSelections(it, db.optionGroups)
 
   <div v-else>
     <KitchenTabs />
-    <h1 class="mb-4 text-xl font-semibold tracking-tight text-stone-900">ตารางผลิต</h1>
+    <h1 class="page-title mb-4">ตารางผลิต</h1>
 
     <section class="card mb-4 space-y-3">
       <div class="grid grid-cols-2 gap-3">
@@ -101,7 +101,7 @@ const details = (it) => describeSelections(it, db.optionGroups)
           <RouterLink v-for="r in g.rows" :key="r.o.id" :to="`/admin/orders/${r.o.id}`" class="card block p-3.5 transition hover:border-brand-300 focus-visible:ring-4 focus-visible:ring-brand-200 focus-visible:outline-none active:scale-[0.99]" :class="r.late ? 'border-rose-300' : ''">
             <div class="flex items-start gap-3">
               <div class="flex w-16 shrink-0 flex-col items-center rounded-xl py-2" :class="r.late ? 'bg-rose-50 text-rose-700' : 'bg-brand-50 text-brand-800'">
-                <span class="text-[10px] font-medium">เสร็จก่อน</span>
+                <span class="text-xs font-medium">เสร็จก่อน</span>
                 <span class="text-base leading-tight font-semibold tabular-nums">{{ hm(r.due) }}</span>
               </div>
               <div class="min-w-0 flex-1">

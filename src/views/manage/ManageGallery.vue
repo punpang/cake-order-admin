@@ -75,9 +75,9 @@ async function del() {
           <div v-for="it in items" :key="it.id" class="overflow-hidden rounded-2xl border border-stone-200 bg-white text-left" :class="it.active === false ? 'opacity-50' : ''">
             <button type="button" class="block w-full text-left" @click="edit(it)">
               <img :src="it.image" :alt="it.caption || 'รูปเค้ก'" class="aspect-square w-full object-cover" />
-              <span class="block space-y-1 px-2 pt-2"><span class="flex flex-wrap gap-1"><span v-for="t in it.tags" :key="t" class="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] text-brand-800">{{ nameOf(t) }}</span></span><span v-if="it.caption" class="block truncate text-xs text-stone-500">{{ it.caption }}</span></span>
+              <span class="block space-y-1 px-2 pt-2"><span class="flex flex-wrap gap-1"><span v-for="t in it.tags" :key="t" class="rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-800">{{ nameOf(t) }}</span></span><span v-if="it.caption" class="block truncate text-xs text-stone-500">{{ it.caption }}</span></span>
             </button>
-            <div class="p-2 pt-1"><RouterLink v-if="it.source" :to="`/admin/orders/${it.source.orderId}`" class="block text-[11px] text-brand-700 underline">จากออร์เดอร์ {{ codeOf(it.source.orderId) }}</RouterLink></div>
+            <div class="p-2 pt-1"><RouterLink v-if="it.source" :to="`/admin/orders/${it.source.orderId}`" class="block text-xs text-brand-700 underline">จากออร์เดอร์ {{ codeOf(it.source.orderId) }}</RouterLink></div>
           </div>
         </div>
       </section>

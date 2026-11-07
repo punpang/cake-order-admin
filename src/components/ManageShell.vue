@@ -55,7 +55,7 @@ const showInactive = defineModel('inactive', { type: Boolean, default: false })
         <AppIcon name="back" :size="20" />
       </RouterLink>
       <div class="min-w-0 flex-1">
-        <h1 class="truncate text-[22px] text-stone-900">{{ title }}</h1>
+        <h1 class="page-title truncate">{{ title }}</h1>
         <p v-if="subtitle" class="truncate text-sm text-stone-500">{{ subtitle }}</p>
       </div>
       <button v-if="addLabel" class="btn-primary px-3 sm:px-4" :aria-label="addLabel" @click="emit('add')">

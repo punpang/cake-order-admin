@@ -180,7 +180,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
           <div v-if="m.kind === 'order' && card(m)" class="w-72 max-w-[85%] rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-semibold text-brand-700">สรุปออร์เดอร์ {{ card(m).o.code }}</span>
-              <span class="rounded-full px-2 py-0.5 text-[11px] font-medium" :class="STATUS[card(m).o.status]?.cls">{{ STATUS[card(m).o.status]?.label }}</span>
+              <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="STATUS[card(m).o.status]?.cls">{{ STATUS[card(m).o.status]?.label }}</span>
               <PayDueBadge :order="card(m).o" short />
             </div>
             <div class="mt-1 text-sm font-medium break-words text-stone-900">{{ card(m).first }}<span v-if="card(m).more > 0" class="text-stone-500"> +{{ card(m).more }} รายการ</span></div>
@@ -195,7 +195,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
           <div v-else-if="m.kind === 'quote' && quoteView(m)" class="w-80 max-w-[90%] rounded-2xl border-2 border-brand-200 bg-white p-3 shadow-sm" :class="quoteView(m).q.status === 'superseded' ? 'opacity-60' : ''">
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-semibold text-brand-700">ใบเสนอ {{ quoteView(m).q.code }}</span>
-              <span class="rounded-full px-2 py-0.5 text-[11px] font-medium" :class="QUOTE_STATUS[quoteView(m).q.status].cls">{{ QUOTE_STATUS[quoteView(m).q.status].t }}</span>
+              <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="QUOTE_STATUS[quoteView(m).q.status].cls">{{ QUOTE_STATUS[quoteView(m).q.status].t }}</span>
             </div>
             <ul class="mt-2 space-y-1 text-sm">
               <li v-for="it in quoteView(m).q.payload.items" :key="it.id" class="flex justify-between gap-2">
@@ -208,7 +208,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
               <span class="text-xs text-stone-500">ยอดรวม</span>
               <DiscountDetail :full="quoteView(m).t.fullAll" :final="quoteView(m).t.total" :lines="quoteView(m).lines" />
             </div>
-            <div v-if="quoteView(m).t.vatMode" class="mt-1 text-right text-[11px] text-stone-400">{{ quoteView(m).t.vatMode === 'exclusive' ? `ยอดรวม VAT ${quoteView(m).t.vatRate}% (บวกเพิ่ม ${money(quoteView(m).t.vat)}) แล้ว` : `ราคารวม VAT ${quoteView(m).t.vatRate}% แล้ว (${money(quoteView(m).t.vat)})` }}</div>
+            <div v-if="quoteView(m).t.vatMode" class="mt-1 text-right text-xs text-stone-400">{{ quoteView(m).t.vatMode === 'exclusive' ? `ยอดรวม VAT ${quoteView(m).t.vatRate}% (บวกเพิ่ม ${money(quoteView(m).t.vat)}) แล้ว` : `ราคารวม VAT ${quoteView(m).t.vatRate}% แล้ว (${money(quoteView(m).t.vat)})` }}</div>
             <!-- ปุ่มที่ลูกค้าเห็นใน LINE/FB (ของจริงกดแล้วส่ง postback ผ่าน webhook) · ตอนนี้จำลองให้พนักงานกดแทน -->
             <template v-if="quoteView(m).q.status === 'pending'">
               <div class="mt-2 grid grid-cols-2 gap-2 opacity-70">
@@ -216,7 +216,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
                 <span class="flex h-9 items-center justify-center rounded-lg bg-brand-600 text-sm font-semibold text-white">ยืนยันสั่ง</span>
               </div>
               <div class="mt-2 rounded-lg border border-dashed border-amber-300 bg-amber-50 p-2">
-              <div class="mb-1.5 text-[11px] font-semibold text-amber-700">จำลองลูกค้ากดใน {{ channelLabel }}</div>
+              <div class="mb-1.5 text-xs font-semibold text-amber-700">จำลองลูกค้ากดใน {{ channelLabel }}</div>
               <div v-if="reviseFor === quoteView(m).q.id" class="mt-2 space-y-2">
                 <input v-model="reviseText" class="input h-10" placeholder="อยากแก้อะไร (ไม่บังคับ)" />
                 <div class="flex gap-2">
@@ -243,14 +243,14 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
             </template>
           </div>
           <!-- ข้อความ -->
-          <div v-else class="group max-w-[80%]">
+          <div v-else class="group max-w-[80%] lg:max-w-[min(80%,40rem)]">
             <div class="rounded-2xl px-3.5 py-2 text-[15px] break-words whitespace-pre-line" :class="mine(m) ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md bg-white text-stone-900 ring-1 ring-stone-200'">
               <!-- อ้างอิงข้อความที่ตอบ -->
               <div v-if="m.replyTo && byId(m.replyTo)" class="mb-1.5 rounded-lg border-l-2 px-2 py-1 text-xs" :class="mine(m) ? 'border-white/60 bg-white/15 text-white/90' : 'border-brand-400 bg-stone-50 text-stone-500'">{{ snippet(byId(m.replyTo)) }}</div>
               {{ m.text }}
             </div>
             <!-- คำตอบของปุ่มถาม -->
-            <div v-if="m.answerFor" class="mt-1 flex flex-wrap items-center gap-1 text-[11px]">
+            <div v-if="m.answerFor" class="mt-1 flex flex-wrap items-center gap-1 text-xs">
               <span class="rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-800">ตอบ: {{ ASK_FIELDS[m.answerFor]?.label }}</span>
               <span v-if="m.filled?.done?.length" class="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">กรอกแล้ว: {{ m.filled.done.map((d) => d.label).join(', ') }}</span>
               <span v-else class="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">อ่านค่าไม่ได้ กรอกเอง</span>
@@ -259,18 +259,18 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
             <div v-if="hasCode(m)" class="mt-1 space-y-1">
               <button type="button" class="inline-flex items-center gap-1 rounded-full border border-brand-300 bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-800 hover:bg-brand-100" @click="addCode(m)"><AppIcon name="cake" :size="13" /> เพิ่มเค้กนี้ลงร่างออร์เดอร์</button>
               <template v-if="codeResult[m.id]">
-                <p v-if="codeResult[m.id].added.length" class="text-[11px] font-medium text-emerald-700" role="status">เพิ่มแล้ว: {{ codeResult[m.id].added.join(', ') }}</p>
-                <p v-for="(w, k) in codeResult[m.id].warnings" :key="'w' + k" class="text-[11px] text-amber-700">⚠ {{ w }}</p>
-                <p v-for="(er, k) in codeResult[m.id].errors" :key="'e' + k" class="text-[11px] text-rose-600" role="alert">{{ er }}</p>
+                <p v-if="codeResult[m.id].added.length" class="text-xs font-medium text-emerald-700" role="status">เพิ่มแล้ว: {{ codeResult[m.id].added.join(', ') }}</p>
+                <p v-for="(w, k) in codeResult[m.id].warnings" :key="'w' + k" class="text-xs text-amber-700">⚠ {{ w }}</p>
+                <p v-for="(er, k) in codeResult[m.id].errors" :key="'e' + k" class="text-xs text-rose-600" role="alert">{{ er }}</p>
               </template>
             </div>
             <!-- ข้อมูลที่จับได้ → กดกรอก -->
             <div v-if="entities(m).length" class="mt-1 flex flex-wrap gap-1">
-              <button v-for="e in entities(m)" :key="e.type + e.value" type="button" class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-white px-2 py-0.5 text-[11px] font-medium text-brand-800 hover:bg-brand-50" :title="`กรอก${ENT[e.type].label}ลงร่าง`" @click="fill(e)">
+              <button v-for="e in entities(m)" :key="e.type + e.value" type="button" class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-white px-2 py-0.5 text-xs font-medium text-brand-800 hover:bg-brand-50" :title="`กรอก${ENT[e.type].label}ลงร่าง`" @click="fill(e)">
                 <AppIcon :name="ENT[e.type].icon" :size="12" /> {{ entText(e) }} <span class="text-brand-500">กรอก</span>
               </button>
             </div>
-            <div class="mt-0.5 flex items-center gap-2 px-1 text-[11px] text-stone-400" :class="mine(m) ? 'justify-end' : ''">
+            <div class="mt-0.5 flex items-center gap-2 px-1 text-xs text-stone-400" :class="mine(m) ? 'justify-end' : ''">
               <span>{{ timeOnly(m.at) }}<template v-if="m.from === 'staff'"> · ส่งทาง {{ channelLabel }} (จำลอง)<template v-if="m.by === 'ระบบ'"> · อัตโนมัติ</template></template><template v-if="m.ask"> · ถาม{{ ASK_FIELDS[m.ask]?.label.replace('ขอ', '') }}</template></span>
               <button v-if="canType" type="button" class="font-medium text-stone-500 hover:text-brand-700 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100" :aria-label="`ตอบกลับ: ${snippet(m)}`" @click="startReply(m)">ตอบกลับ</button>
             </div>

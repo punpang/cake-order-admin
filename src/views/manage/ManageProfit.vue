@@ -172,7 +172,7 @@ const due = computed(() => {
           </button>
         </div>
         <div class="flex gap-0.5 pt-1" :style="{ minWidth: `${buckets.length * 14}px` }">
-          <span v-for="(b, i) in buckets" :key="b.key" class="min-w-0 flex-1 text-center text-[10px] whitespace-nowrap text-stone-500">{{ i % labelEvery === 0 ? bucketLabel(b.key) : '' }}</span>
+          <span v-for="(b, i) in buckets" :key="b.key" class="min-w-0 flex-1 text-center text-xs whitespace-nowrap text-stone-500">{{ i % labelEvery === 0 ? bucketLabel(b.key) : '' }}</span>
         </div>
       </div>
       <p class="mt-1 text-xs text-stone-400">กำไรติดลบไม่แสดงแท่ง ดูตัวเลขได้เมื่อแตะ</p>

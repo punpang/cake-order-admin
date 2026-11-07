@@ -32,7 +32,7 @@ const comp = computed(() => ({ overview: AcctOverview, record: AcctRecord, journ
   <div v-else class="pb-6">
     <div class="mb-3 flex items-center gap-2">
       <RouterLink to="/admin/orders" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-stone-700 shadow-sm hover:bg-brand-50" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
-      <div class="min-w-0 flex-1"><h1 class="truncate text-[22px] text-stone-900">บัญชี</h1><p class="truncate text-sm text-stone-500">ฐานสิทธิ · ลงบัญชีคู่ · รายได้ดึงจากออร์เดอร์/POS อัตโนมัติ</p></div>
+      <div class="min-w-0 flex-1"><h1 class="page-title truncate">บัญชี</h1><p class="truncate text-sm text-stone-500">ฐานสิทธิ · ลงบัญชีคู่ · รายได้ดึงจากออร์เดอร์/POS อัตโนมัติ</p></div>
     </div>
     <div class="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0" role="tablist">
       <button v-for="t in TABS" :key="t.v" type="button" role="tab" :aria-selected="tab === t.v" class="chip whitespace-nowrap" :class="tab === t.v ? 'chip-on' : 'chip-off'" @click="tab = t.v">{{ t.l }}</button>
