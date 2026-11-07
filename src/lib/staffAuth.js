@@ -9,7 +9,7 @@ let syncs = []
 async function startData(staff) {
   syncs.forEach((x) => x.stop())
   syncs = []
-  const [items, customers, config, orders, acct, chats, shifts, store, client] = await Promise.all([import('./itemsSync'), import('./customersSync'), import('./configSync'), import('./ordersSync'), import('./acctSync'), import('./chatSync'), import('./shiftsSync'), import('../data/store'), getSupabase()])
+  const [items, customers, config, orders, acct, chats, shifts, users, store, client] = await Promise.all([import('./itemsSync'), import('./customersSync'), import('./configSync'), import('./ordersSync'), import('./acctSync'), import('./chatSync'), import('./shiftsSync'), import('./usersSync'), import('../data/store'), getSupabase()])
   const { db } = store
   const onError = (m) => showToast(m, 8000)
   const has = (p) => staff.perms.includes(p)
@@ -25,6 +25,11 @@ async function startData(staff) {
   // แชท/ใบเสนอ: เฉพาะผู้มีสิทธิ์ chat · คนอื่นล้างข้อมูลตัวอย่างออก (ไม่ให้เห็นแชทจำลองปนกับของจริง)
   if (has('chat')) syncs.push(...(await chats.startChatSync({ client, db, canWrite: true, numbering: store.numbering, onError, onRecode: (q, c) => showToast(`เลขใบเสนอซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000) })))
   else { db.chats.splice(0); db.quotes.splice(0) }
+  // ผู้ใช้/สิทธิ์: เฉพาะ manageUsers · คนอื่นเห็นแค่ตัวเอง · ผูกตัวตนปัจจุบัน (ไว้บันทึกประวัติ "ใครทำ")
+  store.session.userId = staff.user_id
+  store.session.role = staff.role
+  if (has('manageUsers')) syncs.push(...(await users.startUsersSync({ client, db, canWrite: true, onError })))
+  else users.selfOnly(db, staff)
   // กะ POS: อ่านได้เมื่อมี pos / viewAllOrders / manage · เขียนได้เมื่อมี pos
   if (['pos', 'viewAllOrders', 'manage'].some(has)) syncs.push(await shifts.startShiftsSync({ client, db, canWrite: has('pos'), onError }))
   else db.shifts.splice(0)
@@ -54,7 +59,7 @@ export async function currentStaff() {
   if (!supabase) return { error: 'ยังไม่ได้เปิดใช้ Supabase' }
   const { data: u } = await supabase.auth.getUser()
   if (!u?.user) return { error: 'ยังไม่ได้เข้าสู่ระบบ' }
-  const { data, error } = await supabase.from('punpang_staff').select('user_id,name,role,perms,active').eq('user_id', u.user.id).maybeSingle()
+  const { data, error } = await supabase.from('punpang_staff').select('user_id,name,role,perms,active,email').eq('user_id', u.user.id).maybeSingle()
   if (error || !data || !data.active) { await supabase.auth.signOut(); return { error: 'บัญชีนี้ไม่มีสิทธิ์ใช้งานหลังบ้าน' } }
   return { staff: data }
 }
