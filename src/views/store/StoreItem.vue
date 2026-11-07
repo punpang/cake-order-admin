@@ -2,8 +2,6 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { db } from '../../data/store'
 import { readyMenu, customMenu } from '../../lib/storefront'
-import { forType } from '../../lib/pricing'
-import { MAIN_KEYS } from '../../lib/constants'
 import { money } from '../../lib/format'
 import AppIcon from '../../components/AppIcon.vue'
 import CakeImage from '../../components/CakeImage.vue'
@@ -39,15 +37,6 @@ const item = computed(() => {
   return { title: 'เค้กสั่งทำ', images: [], sub: t.type.name, price: t.from, regular: t.regularFrom, from: true, custom: t, text: `สนใจสั่งเค้กสั่งทำ ${t.type.name}` }
 })
 
-// ตัวเลือกเสริมของเค้กสั่งทำ (ใช้ได้กับประเภทนี้)
-const extras = computed(() =>
-  props.kind !== 'custom'
-    ? []
-    : db.optionGroups
-        .filter((g) => g.active !== false && !MAIN_KEYS.includes(g.key) && g.type !== 'text' && g.appliesTo.includes('custom'))
-        .map((g) => ({ id: g.id, name: g.name, options: (g.options || []).filter((o) => o.active !== false && forType(o, typeId.value)) }))
-        .filter((g) => g.options.length),
-)
 // รูปเค้กสั่งทำติดบน: เลื่อนโฟกัส/ปุ่มไม่ให้ไปอยู่ใต้รูป
 onMounted(() => document.documentElement.classList.add('has-sticky-photo'))
 onBeforeUnmount(() => document.documentElement.classList.remove('has-sticky-photo'))
@@ -94,27 +83,6 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
           <div class="mb-1.5 text-sm font-semibold text-stone-800">เลือกประเภทเค้ก</div>
           <div class="flex flex-wrap gap-2"><button v-for="t in types" :key="t.type.id" type="button" class="chip" :class="typeId === t.type.id ? 'chip-on' : 'chip-off'" :aria-pressed="typeId === t.type.id" @click="typeId = t.type.id">{{ t.type.name }}</button></div>
         </div>
-        <template v-if="item.custom">
-          <div class="mt-5">
-            <div class="mb-1.5 text-sm font-semibold text-stone-800">ขนาดและราคา</div>
-            <ul class="divide-y divide-stone-100 overflow-hidden rounded-3xl bg-white text-sm shadow-md">
-              <li v-for="r in item.custom.sizes" :key="r.size.id" class="flex justify-between gap-3 px-4 py-2.5">
-                <span>{{ r.size.name }}</span>
-                <span><b class="text-stone-900">{{ money(r.price) }}</b> <s v-if="r.regular > r.price" class="text-stone-500">{{ money(r.regular) }}</s></span>
-              </li>
-            </ul>
-            <p class="mt-1 text-xs text-stone-600">ราคาเริ่มต้นยังไม่รวมเนื้อเค้กบางแบบและตัวเลือกเสริม ร้านจะแจ้งราคาสุดท้ายในใบเสนอ</p>
-          </div>
-          <div class="mt-4">
-            <div class="mb-1.5 text-sm font-semibold text-stone-800">{{ item.custom.flavorGroupName }}</div>
-            <div class="flex flex-wrap gap-2"><span v-for="f in item.custom.flavors" :key="f.id" class="chip chip-off">{{ f.name }}<template v-if="f.price"> +{{ money(f.price) }}</template></span></div>
-          </div>
-          <div v-for="g in extras" :key="g.id" class="mt-4">
-            <div class="mb-1.5 text-sm font-semibold text-stone-800">{{ g.name }}</div>
-            <div class="flex flex-wrap gap-2"><span v-for="o in g.options" :key="o.id" class="chip chip-off">{{ o.name }}</span></div>
-          </div>
-        </template>
-
         <CakeConfigurator v-if="item.custom" :type-id="typeId" @select="selIds = $event" />
 
         <div class="mt-6 rounded-3xl bg-white p-4 shadow-md">

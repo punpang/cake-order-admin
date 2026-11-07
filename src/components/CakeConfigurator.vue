@@ -25,7 +25,6 @@ const showTier = computed(() => tierGroups.value.filter((g) => g.key !== 'type')
 const showWhole = computed(() => wholeGroups.value.filter((g) => g.key !== 'type'))
 
 const form = reactive({ id: 'web', kind: 'custom', retailId: null, retailPrice: 0, sizeId: null, typeId: null, qty: 1, note: '', images: [], selections: {}, tiers: hasTiers.value ? [{ selections: {} }] : [] })
-const layered = ref(false)
 // ตัวเลือกทั้งหมดที่ลูกค้าเลือก (รวมประเภท) ส่งให้หน้าเว็บใช้เลือกรูปตัวอย่าง
 const selectedIds = computed(() => {
   const ids = new Set([props.typeId])
@@ -45,21 +44,7 @@ lockType()
 watch(() => props.typeId, () => { reset(); lockType() })
 function reset() {
   Object.assign(form, { qty: 1, note: '', selections: {}, tiers: hasTiers.value ? [{ selections: {} }] : [] })
-  layered.value = false
 }
-function setLayered(v) {
-  layered.value = v
-  if (v && form.tiers.length < 2) form.tiers.push({ selections: {} })
-  if (!v) form.tiers.splice(1)
-  lockType()
-}
-function addTier() {
-  if (form.tiers.length < 5) { form.tiers.push({ selections: {} }); lockType() }
-}
-function removeTier(i) {
-  if (form.tiers.length > 1) form.tiers.splice(i, 1)
-}
-
 // ---- กติกาตัวเลือกตามประเภท/ขนาด (เหมือน ItemEditor) ----
 const sizeGroup = computed(() => groups.value.find((g) => g.key === 'size'))
 function sizeIdsOf(t) {
@@ -103,7 +88,7 @@ const empty = (v) => v == null || v === '' || (Array.isArray(v) && !v.length)
 const missing = computed(() => {
   const out = []
   for (const g of wholeGroups.value) if (g.required && g.key !== 'type' && empty(form.selections[g.id])) out.push(g.name)
-  form.tiers.forEach((t, i) => { for (const g of tierGroups.value) if (g.required && g.key !== 'type' && empty(t.selections[g.id])) out.push(form.tiers.length > 1 ? `ชั้น ${i + 1} · ${g.name}` : g.name) })
+  form.tiers.forEach((t) => { for (const g of tierGroups.value) if (g.required && g.key !== 'type' && empty(t.selections[g.id])) out.push(g.name) })
   return out
 })
 const ready = computed(() => !missing.value.length)
@@ -128,21 +113,13 @@ async function copy() {
     <div>
       <h2 class="text-xl text-stone-900">เลือกแบบ · ดูราคาเบื้องต้น</h2>
       <p class="text-sm text-stone-600">ราคาตรงกับระบบของร้าน กดคัดลอกแล้ววางส่งในแชทได้เลย</p>
-    </div>
-
-    <div v-if="hasTiers" class="grid grid-cols-2 seg-grid">
-      <button v-for="k in [{ v: false, t: 'เค้กปกติ' }, { v: true, t: 'เค้กชั้น' }]" :key="k.t" type="button" class="seg-item" :class="layered === k.v ? 'seg-on' : ''" @click="setLayered(k.v)">{{ k.t }}</button>
+      <p class="mt-0.5 text-sm font-medium text-stone-800">เค้กหลายชั้น สั่งโดยตรงกับร้านทางแชทเท่านั้น</p>
     </div>
 
     <template v-if="hasTiers">
-      <div v-for="(tier, i) in form.tiers" :key="i" :class="layered ? 'rounded-3xl border-2 border-brand-200 bg-brand-50/50 p-3' : ''">
-        <div v-if="layered" class="mb-2.5 flex items-center justify-between gap-2">
-          <span class="font-semibold text-brand-800">ชั้นที่ {{ i + 1 }}</span>
-          <button v-if="form.tiers.length > 1" type="button" class="btn-danger h-8 px-2.5 text-sm" @click="removeTier(i)"><AppIcon name="trash" :size="14" /> ลบชั้น</button>
-        </div>
+      <div v-for="(tier, i) in form.tiers" :key="i">
         <OptionPicker v-model="tier.selections" :groups="showTier" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" :type-opt="typeOptOf(tier)" />
       </div>
-      <button v-if="layered && form.tiers.length < 5" type="button" class="btn-soft w-full" @click="addTier"><AppIcon name="plus" :size="16" /> เพิ่มชั้น</button>
     </template>
 
     <template v-if="showWhole.length">
