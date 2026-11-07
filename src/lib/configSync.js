@@ -1,5 +1,6 @@
 import { watch } from 'vue'
 import { externalizePublic } from './storage'
+import { mirrorRows, PUBLIC_KEYS } from './publicData'
 
 // ซิงก์ "ตั้งค่า/แคตตาล็อก" (ร้าน, คะแนน, ตัวเลือกเค้ก, ราคา, POS ฯลฯ) กับ punpang_kv — 1 แถวต่อ 1 คีย์ของ db
 // ไม่รวมความลับ/ข้อมูลรายคน (integrations, users, ลูกค้า, ออร์เดอร์ ฯลฯ) — ดู CONFIG_KEYS
@@ -71,6 +72,12 @@ export async function pushConfig(client, db, keys, col = null) {
       rows.push({ collection: colOf(k), id: k, data: { v: groups } })
       rows.push({ collection: 'item_costs', id: OPTION_COSTS_ID, data: { v: costs } })
     } else rows.push({ collection: colOf(k), id: k, data: { v } })
+  }
+  // สำเนาสำหรับหน้าร้านสาธารณะ (ราคา/ตัวเลือก/โปรโมชั่น/ข้อมูลร้านบางส่วน) เขียนไปพร้อมกัน — เฉพาะชุดหลัก (ไม่ใช่ acct/audit)
+  if (!col) {
+    const pub = {}
+    for (const k of keys) if (k === 'shop' || PUBLIC_KEYS.includes(k)) pub[k] = k === 'optionGroups' ? stripRecipes(JSON.parse(JSON.stringify(db[k] ?? null))).groups : JSON.parse(JSON.stringify(db[k] ?? null))
+    rows.push(...mirrorRows(pub))
   }
   const r = await client.from('punpang_kv').upsert(rows)
   return r.error ? { error: r.error.message } : { ok: true }

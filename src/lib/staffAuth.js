@@ -24,6 +24,12 @@ async function startData(staff) {
   store.numbering.setAlloc(async (p, d, n) => { const r = await client.rpc('punpang_alloc_numbers', { p_prefix: p, p_day: d, p_n: n }); return r.error ? null : r.data })
   syncs.push(await items.startItemsSync({ client, db, canWrite: has('editItems'), onError }))
   syncs.push(await config.startConfigSync({ client, db, canWrite: has('manage'), onError }))
+  // แอดมิน: สร้างสำเนาสาธารณะของราคา/ตัวเลือก/โปรโมชั่น/ข้อมูลร้านให้ครบ (ครั้งแรกหลังเปิดใช้) — ทำเมื่อโหลดตั้งค่าสำเร็จเท่านั้น
+  if (has('manage') && syncs.at(-1)?.loaded) {
+    const [pub, cfg] = await Promise.all([import('./publicSync'), import('./configSync')])
+    const m = await pub.ensureMirror(client, db, cfg.stripRecipes)
+    if (m.error) onError('เผยแพร่ข้อมูลหน้าร้านไม่สำเร็จ: ' + m.error)
+  }
   syncs.push(await orders.startOrdersSync({ client, db, numbering: store.numbering, onError, onRecode: (o, c) => showToast(`เลขออร์เดอร์ซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000),
     canWrite: ['createOrder', 'pos', 'startPreparing', 'markPrepared', 'deliverPickup', 'deliverShipping', 'confirmPayment', 'reportPayment', 'cancel', 'editPickup', 'editItems', 'adjustPrice', 'changeBuyer', 'workPhoto'].some(has) }))
   store.numbering.prefetch()
@@ -47,6 +53,14 @@ export async function initStaff() {
   staffState.staff = r.staff || null
   staffState.ready = true
   if (r.staff) await startData(r.staff)
+  else await loadForVisitor()
+}
+// ผู้เยี่ยมชมที่ไม่ได้ล็อกอิน: อ่านข้อมูลสาธารณะของหน้าร้านจาก Supabase (อ่านอย่างเดียว)
+async function loadForVisitor() {
+  try {
+    const [pub, store, client] = await Promise.all([import('./publicSync'), import('../data/store'), getSupabase()])
+    await pub.startPublicLoad({ client, db: store.db, onError: (m) => console.warn('โหลดข้อมูลหน้าร้านไม่สำเร็จ:', m) })
+  } catch (e) { console.warn('โหลดข้อมูลหน้าร้านไม่สำเร็จ:', e?.message) }
 }
 
 // เข้าสู่ระบบพนักงานด้วย Supabase Auth (อีเมล+รหัสผ่าน) แล้วอ่านบทบาท/สิทธิ์จาก punpang_staff
