@@ -328,7 +328,7 @@ export const db = reactive({
     { id: 'pt1', name: 'คะแนน x2 เค้กสำเร็จ (ตัวอย่าง)', multiplier: 2, scope: 'category', categories: ['เค้กสำเร็จ'], itemIds: [], active: false, schedule: blankSchedule() },
   ],
 
-  // ---------- หน้าร้าน (สาธารณะ) · เนื้อหาตัวอย่าง แก้ได้ที่ /admin/manage/storefront ----------
+  // ---------- หน้าร้าน (สาธารณะ) · เนื้อหาตัวอย่าง แก้ได้ที่ /admin/settings/storefront ----------
   storefront: {
     heroTitle: 'เค้กทำสดใหม่ ทุกโอกาสพิเศษ',
     heroText: 'เค้กวันเกิดและเค้กสั่งทำ ออกแบบได้ตามใจ ทำสดใหม่ทุกออร์เดอร์',
@@ -359,7 +359,7 @@ export const db = reactive({
   // รีวิว: source = admin (แอดมินกรอก อนุมัติทันที) | customer (ลูกค้าเขียนหลังรับสินค้า รออนุมัติ) status = pending | approved | rejected
   reviews: [],
 
-  // ---------- ข้อความกฎหมาย (ร่าง แก้ได้ที่ /admin/manage/legal) + บันทึกการยินยอม ----------
+  // ---------- ข้อความกฎหมาย (ร่าง แก้ได้ที่ /admin/settings/legal) + บันทึกการยินยอม ----------
   // docs[kind] = { version, title, text, updatedAt } · consents = [{ id, customerId|null, kind, version, detail, at, via }] (หลักฐาน เก็บแบบนิรนามเมื่อลบลูกค้า)
   legal: {
     contact: { ...DEFAULT_LEGAL_CONTACT },
@@ -2815,7 +2815,7 @@ function seedChats() {
   old.unreadStaff = 0
 }
 
-// ---------- หน้าร้าน: เนื้อหา + รีวิว (หลังบ้านแก้ ที่ /admin/manage/storefront) ----------
+// ---------- หน้าร้าน: เนื้อหา + รีวิว (หลังบ้านแก้ ที่ /admin/settings/storefront) ----------
 const pairs = (list, keys) =>
   (list || []).map((x) => Object.fromEntries(keys.map((k) => [k, String(x[k] ?? '').trim()]))).filter((x) => keys.some((k) => x[k]))
 export function saveStorefront(d) {

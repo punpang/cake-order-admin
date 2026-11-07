@@ -6,7 +6,7 @@ import AppSwitch from './AppSwitch.vue'
 defineProps({
   title: { type: String, required: true },
   subtitle: { type: String, default: '' },
-  back: { type: String, default: '/admin/manage' },
+  back: { type: String, default: '/admin/settings' },
   addLabel: { type: String, default: '' },
   searchPlaceholder: { type: String, default: 'ค้นหา' },
   toolbar: { type: Boolean, default: true },

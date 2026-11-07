@@ -121,7 +121,7 @@ async function saveO() {
 
 <template>
   <div v-if="!group" class="card py-10 text-center text-stone-500">
-    ไม่พบกลุ่มตัวเลือก <RouterLink to="/admin/manage/options" class="text-brand-700 underline">กลับ</RouterLink>
+    ไม่พบกลุ่มตัวเลือก <RouterLink to="/admin/settings/options" class="text-brand-700 underline">กลับ</RouterLink>
   </div>
 
   <ManageShell narrow
@@ -129,7 +129,7 @@ async function saveO() {
     v-model:q="q"
     v-model:inactive="inactive"
     :title="group.name"
-    back="/admin/manage/options"
+    back="/admin/settings/options"
     :add-label="group.type !== 'text' ? 'เพิ่มตัวเลือก' : ''"
     :toolbar="group.type !== 'text'"
     search-placeholder="ค้นหาตัวเลือก"
@@ -148,9 +148,9 @@ async function saveO() {
           <div class="text-sm text-stone-500">{{ GROUP_TYPES[group.type] }} · {{ group.appliesTo.map((a) => APPLIES_TO[a]).join(', ') }}</div>
           <div class="mt-1 text-xs text-stone-400">
             <template v-if="isMain">
-              {{ isSize ? 'ราคาขนาดตั้งแยกตามประเภท' : isType ? 'ราคาประเภท + ราคาขนาดของประเภท' : 'บวกเพิ่มเท่ากันทุกขนาด' }} · ตั้งตัวเลขที่ <RouterLink to="/admin/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink>
+              {{ isSize ? 'ราคาขนาดตั้งแยกตามประเภท' : isType ? 'ราคาประเภท + ราคาขนาดของประเภท' : 'บวกเพิ่มเท่ากันทุกขนาด' }} · ตั้งตัวเลขที่ <RouterLink to="/admin/settings/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink>
             </template>
-            <template v-else-if="group.type !== 'text'">ราคาตามขนาด · บันเดิ้ลตั้งที่ <RouterLink to="/admin/manage/options" class="text-brand-700 underline">ตัวเลือก + ราคา</RouterLink></template>
+            <template v-else-if="group.type !== 'text'">ราคาตามขนาด · บันเดิ้ลตั้งที่ <RouterLink to="/admin/settings/options" class="text-brand-700 underline">ตัวเลือก + ราคา</RouterLink></template>
           </div>
         </div>
         <button class="btn-outline h-9 px-3" @click="editGroup"><AppIcon name="edit" :size="16" /> แก้ไข</button>
@@ -231,7 +231,7 @@ async function saveO() {
 
         <template v-if="isSize">
           <div><label class="label">ขนาด (ปอนด์)</label><input v-model.number="o.pounds" type="text" v-num.dec min="0.5" class="input" /></div>
-          <p class="text-sm text-stone-500">ราคาของขนาดนี้ตั้งแยกตามประเภทที่ <RouterLink to="/admin/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></p>
+          <p class="text-sm text-stone-500">ราคาของขนาดนี้ตั้งแยกตามประเภทที่ <RouterLink to="/admin/settings/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></p>
         </template>
 
         <div v-else-if="isMain" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">
@@ -239,7 +239,7 @@ async function saveO() {
             <template v-if="isType">ราคาประเภท {{ money(o.price || 0) }}<br />ราคาขนาด: {{ sizesText(o.sizePrices, '') }}<br /></template>
             <template v-else>ราคา: {{ o.price ? `+${money(o.price)} ทุกขนาด` : 'ไม่บวกเพิ่ม' }}<br /></template>
           </template>
-          <span class="text-xs text-stone-500">ตั้ง/แก้ราคาที่ <RouterLink to="/admin/manage/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></span>
+          <span class="text-xs text-stone-500">ตั้ง/แก้ราคาที่ <RouterLink to="/admin/settings/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></span>
         </div>
 
         <template v-else>

@@ -1,21 +1,30 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { db, session, can, canAny, switchUser, unreadChats, runScheduledChecks, orderVisible } from './data/store'
+import { useRoute } from 'vue-router'
+import { db, session, can, switchUser, unreadChats, runScheduledChecks, orderVisible } from './data/store'
 import { paymentCounts } from './lib/paymentsQueue'
 import { ROLES } from './lib/constants'
+import { firstHome, systemOf, systemByKey, visibleSystems, visibleItems } from './lib/adminSystems'
 import AppIcon from './components/AppIcon.vue'
 import AppModal from './components/AppModal.vue'
 import BellMenu from './components/BellMenu.vue'
+import SystemSwitcher from './components/SystemSwitcher.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import StoreLayout from './components/StoreLayout.vue'
 
 const roleOpen = ref(false)
-// เมนูล่างมือถือ: ออร์เดอร์ / แชท / POS / ครัว / จัดการ (เฉพาะที่มีสิทธิ์)
-const canPayments = computed(() => canAny(['reportPayment', 'confirmPayment']))
+// 4 ระบบหลังบ้าน (lib/adminSystems.js): ตัวสลับระบบ + เมนูย่อยของระบบปัจจุบัน
+const route = useRoute()
+const systems = computed(() => visibleSystems(can))
+const current = computed(() => systemOf(route.path))
+const items = computed(() => { const s = systemByKey(current.value); return s ? visibleItems(s, can) : [] })
 // ยอดที่ลูกค้าแจ้งโอนรอตรวจ (ป้ายที่เมนูชำระเงิน)
 const paySlips = computed(() => paymentCounts(db.orders.filter(orderVisible)).slips)
-const tabCount = computed(() => 1 + (canPayments.value ? 1 : 0) + (can('chat') ? 1 : 0) + (can('pos') ? 1 : 0) + (can('viewMaterials') ? 1 : 0) + (can('manage') ? 1 : 0) + (can('acctView') ? 1 : 0))
 const unread = computed(() => unreadChats())
+const badges = computed(() => ({ chat: unread.value, pay: paySlips.value }))
+// เมนูล่างมือถือ: เมนูย่อยของระบบปัจจุบัน (เฉพาะที่ติด mobile) เมื่อมี ≥ 2 รายการ
+const bottomItems = computed(() => (current.value === 'orders' ? items.value.filter((i) => i.mobile) : []))
+const showBottom = computed(() => !route.meta.focus && bottomItems.value.length >= 2)
 const me = computed(() => db.users.find((u) => u.id === session.userId))
 // จำลอง cron: ตรวจแจ้งเตือนตามเวลาทุก 60 วินาทีขณะเปิดแอป (ของจริงใช้ cron ฝั่งเซิร์ฟเวอร์)
 let timer = null
@@ -31,32 +40,31 @@ onBeforeUnmount(() => clearInterval(timer))
   <!-- แถบบน -->
   <header class="sticky top-0 z-20 bg-cream/90 shadow-[0_1px_0_rgb(63_46_46/0.06)] backdrop-blur-xl">
     <div class="mx-auto flex h-14 max-w-page items-center gap-3 px-4 lg:px-8">
-      <RouterLink to="/admin/orders" class="flex min-w-0 items-center gap-2.5">
+      <RouterLink :to="firstHome(can)" class="flex min-w-0 items-center gap-2.5" aria-label="หน้าแรกหลังบ้าน">
         <svg viewBox="0 0 48 48" class="h-10 w-10 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2" stroke-linejoin="round"><ellipse cx="24" cy="40" rx="18" ry="4" fill="#fff" /><rect x="9" y="22" width="30" height="16" rx="4" fill="#ffd05c" /><path d="M8 22c0-7 7-10 16-10s16 3 16 10c-3 3-5 0-8 3s-5 0-8 3-5 0-8-3-5 0-8-3z" fill="#ff8fa6" /><circle cx="24" cy="9" r="4" fill="#e0314f" /></svg>
-        <span class="truncate font-display text-xl text-brand-600">ร้านเค้ก <span class="hidden font-sans text-sm font-normal text-stone-600 lg:inline">· หลังบ้าน</span></span>
+        <span class="hidden truncate font-display text-xl text-brand-600 sm:inline">ร้านเค้ก</span>
       </RouterLink>
 
-      <nav class="ml-2 hidden gap-0.5 md:flex lg:ml-4 lg:gap-1">
-        <RouterLink to="/admin/orders" class="rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ออร์เดอร์</RouterLink>
-        <RouterLink v-if="can('createOrder')" to="/admin/orders/new" class="rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">สร้างออร์เดอร์</RouterLink>
-        <RouterLink v-if="can('chat')" to="/admin/chat" class="relative rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">
-          แชท<span v-if="unread" class="ml-1 rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{{ unread }}</span>
+      <SystemSwitcher :systems="systems" :current="current" />
+
+      <nav v-if="items.length > 1" class="ml-1 hidden gap-0.5 md:flex lg:gap-1" aria-label="เมนูของระบบ">
+        <RouterLink
+          v-for="i in items"
+          :key="i.to"
+          :to="i.to"
+          class="relative rounded-full px-2 py-1.5 text-sm font-medium whitespace-nowrap text-stone-600 hover:bg-white lg:px-3.5"
+          :active-class="i.exact ? '' : 'bg-white text-brand-700 shadow-sm'"
+          :exact-active-class="i.exact ? 'bg-white text-brand-700 shadow-sm' : ''"
+        >
+          {{ i.label }}<span v-if="i.badge && badges[i.badge]" class="ml-1 rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{{ badges[i.badge] }}</span>
         </RouterLink>
-        <RouterLink v-if="canPayments" to="/admin/payments" class="relative rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">
-          ชำระเงิน<span v-if="paySlips" class="ml-1 rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{{ paySlips }}</span>
-        </RouterLink>
-        <RouterLink v-if="can('pos')" to="/admin/pos" class="rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">POS</RouterLink>
-        <RouterLink v-if="can('viewMaterials')" to="/admin/materials" class="rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">วัตถุดิบ</RouterLink>
-        <RouterLink v-if="can('viewMaterials')" to="/admin/production" class="rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" exact-active-class="bg-white text-brand-700 shadow-sm">ตารางผลิต</RouterLink>
-        <RouterLink v-if="can('acctView')" to="/admin/accounting" class="rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">บัญชี</RouterLink>
-        <RouterLink v-if="can('manage')" to="/admin/manage" class="rounded-full px-2.5 py-1.5 lg:px-3.5 text-sm font-medium text-stone-600 hover:bg-white" active-class="bg-white text-brand-700 shadow-sm">จัดการ</RouterLink>
       </nav>
 
       <RouterLink to="/" class="ml-auto text-sm text-stone-600 underline">หน้าร้าน</RouterLink>
       <BellMenu audience="staff" />
-      <button class="inline-flex max-w-40 items-center gap-2 rounded-full bg-white px-3.5 py-1.5 text-sm shadow-sm" :aria-label="`ผู้ใช้ ${me?.name || ROLES[session.role]}`" @click="roleOpen = true">
+      <button class="inline-flex h-10 max-w-40 items-center gap-2 rounded-full bg-white px-3 text-sm shadow-sm lg:px-3.5" :aria-label="`ผู้ใช้ ${me?.name || ROLES[session.role]}`" @click="roleOpen = true">
         <AppIcon name="user" :size="16" class="shrink-0 text-stone-500" />
-        <span class="truncate">{{ me?.name || ROLES[session.role] }}</span>
+        <span class="hidden truncate lg:inline">{{ me?.name || ROLES[session.role] }}</span>
       </button>
     </div>
   </header>
@@ -64,51 +72,29 @@ onBeforeUnmount(() => clearInterval(timer))
   <!-- lock = ล็อกหน้า (เช่น แชท): main ตรึงใต้แถบบน ไม่ให้หน้าเว็บเลื่อน แต่ละกรอบข้างในเลื่อนเอง · ไม่พึ่ง dvh -->
   <main
     class="mx-auto max-w-page px-4 lg:px-8"
-    :class="$route.meta.lock ? ['fixed inset-x-0 top-14 bottom-0 overflow-hidden pt-3', $route.meta.focus ? 'pb-[calc(env(safe-area-inset-bottom)+0.75rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-3'] : [$route.meta.focus ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10', 'pt-5']"
+    :class="$route.meta.lock ? ['fixed inset-x-0 top-14 bottom-0 overflow-hidden pt-3', $route.meta.focus || !showBottom ? 'pb-[calc(env(safe-area-inset-bottom)+0.75rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-3'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10', 'pt-5']"
   >
     <RouterView :key="$route.fullPath" />
   </main>
 
   <!-- แถบเมนูล่าง (มือถือ) -->
   <nav
-    v-if="!$route.meta.focus"
+    v-if="showBottom"
     class="fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_rgb(63_46_46/0.10)] backdrop-blur-xl md:hidden"
+    aria-label="เมนูล่าง"
   >
-    <div class="mx-auto grid h-16 max-w-md items-center" :style="{ gridTemplateColumns: `repeat(${tabCount}, minmax(0, 1fr))` }">
-      <RouterLink to="/admin/orders" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" exact-active-class="text-brand-700!">
-        <AppIcon name="list" :size="22" />
-        ออร์เดอร์
-      </RouterLink>
-      <RouterLink v-if="can('chat')" to="/admin/chat" class="relative flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
-        <AppIcon name="chat" :size="22" />
-        แชท
-        <span v-if="unread" class="absolute -top-1 left-1/2 ml-2 min-w-4 rounded-full bg-brand-600 px-1 text-center text-[10px] leading-4 font-semibold text-white">{{ unread }}</span>
-      </RouterLink>
-      <RouterLink v-if="canPayments" to="/admin/payments" class="relative flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
-        <AppIcon name="wallet" :size="22" />
-        ชำระเงิน
-        <span v-if="paySlips" class="absolute -top-1 left-1/2 ml-2 min-w-4 rounded-full bg-brand-600 px-1 text-center text-[10px] leading-4 font-semibold text-white">{{ paySlips }}</span>
-      </RouterLink>
-      <RouterLink v-if="can('pos')" to="/admin/pos" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
-        <AppIcon name="pos" :size="22" />
-        POS
-      </RouterLink>
+    <div class="mx-auto grid h-16 max-w-md items-center" :style="{ gridTemplateColumns: `repeat(${bottomItems.length}, minmax(0, 1fr))` }">
       <RouterLink
-        v-if="can('viewMaterials')"
-        to="/admin/materials"
-        class="flex flex-col items-center gap-0.5 text-[11px] font-medium"
-        :class="['/admin/materials', '/admin/production'].includes($route.path) ? 'text-brand-700' : 'text-stone-500'"
+        v-for="i in bottomItems"
+        :key="i.to"
+        :to="i.to"
+        class="relative flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500"
+        :active-class="i.exact ? '' : 'text-brand-700!'"
+        :exact-active-class="i.exact ? 'text-brand-700!' : ''"
       >
-        <AppIcon name="basket" :size="22" />
-        ครัว
-      </RouterLink>
-      <RouterLink v-if="can('acctView')" to="/admin/accounting" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
-        <AppIcon name="wallet" :size="22" />
-        บัญชี
-      </RouterLink>
-      <RouterLink v-if="can('manage')" to="/admin/manage" class="flex flex-col items-center gap-0.5 text-[11px] font-medium text-stone-500" active-class="text-brand-700!">
-        <AppIcon name="grid" :size="22" />
-        จัดการ
+        <AppIcon :name="i.icon" :size="22" />
+        {{ i.mobileLabel || i.label }}
+        <span v-if="i.badge && badges[i.badge]" class="absolute -top-1 left-1/2 ml-2 min-w-4 rounded-full bg-brand-600 px-1 text-center text-[10px] leading-4 font-semibold text-white">{{ badges[i.badge] }}</span>
       </RouterLink>
     </div>
   </nav>

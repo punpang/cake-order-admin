@@ -46,7 +46,7 @@ function confirm() {
             <span class="shrink-0 text-xs text-stone-500">{{ phoneValid(c.phone) ? formatPhone(c.phone) : 'ไม่มีเบอร์ (เลือกไม่ได้)' }}</span>
           </button>
         </div>
-        <p v-else-if="q.trim().length >= 2" class="mt-2 text-sm text-stone-500">ไม่พบลูกค้า · เพิ่มลูกค้าใหม่ได้ที่ <RouterLink to="/admin/manage/customers" class="text-brand-700 underline">จัดการลูกค้า</RouterLink> (ต้องมีเบอร์โทร)</p>
+        <p v-else-if="q.trim().length >= 2" class="mt-2 text-sm text-stone-500">ไม่พบลูกค้า · เพิ่มลูกค้าใหม่ได้ที่ <RouterLink to="/admin/settings/customers" class="text-brand-700 underline">จัดการลูกค้า</RouterLink> (ต้องมีเบอร์โทร)</p>
       </div>
       <template v-else>
         <div class="flex items-center justify-between gap-2 rounded-xl bg-brand-50 p-3">

@@ -27,7 +27,7 @@ async function remove(i) {
   <div>
     <div class="label">สูตรวัตถุดิบ</div>
     <p v-if="!db.ingredients.length" class="text-sm text-stone-500">
-      ยังไม่มีวัตถุดิบ <RouterLink to="/admin/manage/ingredients" class="text-brand-700 underline">เพิ่มวัตถุดิบ</RouterLink>
+      ยังไม่มีวัตถุดิบ <RouterLink to="/admin/settings/ingredients" class="text-brand-700 underline">เพิ่มวัตถุดิบ</RouterLink>
     </p>
     <template v-else>
       <div class="space-y-2">

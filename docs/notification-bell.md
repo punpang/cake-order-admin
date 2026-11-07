@@ -13,7 +13,7 @@
 | พนักงาน | ออร์เดอร์ใหม่ · งานใกล้เวลา | `viewAllOrders` (ใกล้เวลา + `viewPrepOrders`) | `/admin/orders/:id` |
 | พนักงาน | ขออนุมัติยืนยันสั่งซื้อ | `confirmUnpaid`/`requestConfirmUnpaid` | `/admin/orders/:id` |
 | พนักงาน | แชทใหม่ · บอทส่งต่อ | `chat` | `/admin/chat/:id` |
-| พนักงาน | ขอไม่เผยแพร่รูป · คำขอลบข้อมูล | `manage` | `/admin/manage/photo-requests`, `/deletion-requests` |
+| พนักงาน | ขอไม่เผยแพร่รูป · คำขอลบข้อมูล | `manage` | `/admin/settings/photo-requests`, `/deletion-requests` |
 | พนักงาน | ลูกค้าแสดงคูปอง | `pos` | `/admin/pos` |
 | พนักงาน | ภ.พ.30 ครบกำหนด · ค่าใช้จ่าย/งวดผ่อนค้าง | `acctView` | `/admin/accounting` |
 | ลูกค้า | รับออร์เดอร์/แจ้งยอด/ยืนยันชำระ/ยืนยันสั่งซื้อ/เตรียมเสร็จ/จัดส่ง/ส่งมอบ/ยกเลิก/คืนเงิน/เตือนชำระ/เตือนนัด/รูปงาน/ผลคำขอรูป/คืนคะแนนคูปอง | ของตนเอง | `/account/orders/:id` หรือ `/account` |

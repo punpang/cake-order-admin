@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { customerSession, needsConsent, canAny } from './data/store'
+import { customerSession, needsConsent, canAny, can } from './data/store'
+import { firstHome } from './lib/adminSystems'
 import OrderList from './views/OrderList.vue'
 import OrderCreate from './views/OrderCreate.vue'
 import OrderDetail from './views/OrderDetail.vue'
@@ -69,7 +70,9 @@ const router = createRouter({
     { path: '/o/:token', component: OrderLink, meta: { store: true } },
     { path: '/s/:code', component: ShortRedirect, meta: { store: true } },
     // ---------- หลังบ้าน ----------
-    { path: '/admin', redirect: '/admin/orders' },
+    { path: '/admin', redirect: () => firstHome(can) },
+    // ลิงก์ตั้งค่าเดิม (/admin/manage*) → /admin/settings*
+    { path: '/admin/manage/:rest(.*)*', redirect: (to) => to.fullPath.replace('/admin/manage', '/admin/settings') },
     { path: '/admin/no-access', component: NoAccess },
     { path: '/admin/accounting', component: Accounting, meta: { perms: ['acctView'] } },
     { path: '/admin/orders', component: OrderList, meta: { perms: ['viewAllOrders', 'viewPrepOrders', 'viewDeliveryOrders'] } },
@@ -81,28 +84,28 @@ const router = createRouter({
     { path: '/admin/pos', component: Pos, meta: { focus: true, perms: ['pos'] } },
     { path: '/admin/materials', component: Materials, meta: { perms: ['viewMaterials'] } },
     { path: '/admin/production', component: Production, meta: { perms: ['viewMaterials'] } },
-    { path: '/admin/manage', component: ManageHome },
-    { path: '/admin/manage/customers', component: ManageCustomers },
-    { path: '/admin/manage/promos', component: ManagePromos },
-    { path: '/admin/manage/products', redirect: '/admin/manage/retail' },
-    { path: '/admin/manage/options', component: ManageOptions },
-    { path: '/admin/manage/options/:id', component: ManageOptionGroup, props: true },
-    { path: '/admin/manage/users', component: ManageUsers },
-    { path: '/admin/manage/ingredients', component: ManageIngredients },
-    { path: '/admin/manage/pricing', component: ManagePriceLists },
-    { path: '/admin/manage/loyalty', component: ManageLoyalty },
-    { path: '/admin/manage/profit', component: ManageProfit },
-    { path: '/admin/manage/shop', component: ManageShop },
-    { path: '/admin/manage/birthdays', component: ManageBirthdays },
-    { path: '/admin/manage/integrations', component: ManageIntegrations },
-    { path: '/admin/manage/retail', component: ManageRetail },
-    { path: '/admin/manage/storefront', component: ManageStorefront },
-    { path: '/admin/manage/gallery', component: ManageGallery },
-    { path: '/admin/manage/photo-requests', component: ManagePhotoRequests },
-    { path: '/admin/manage/deletion-requests', component: ManageDeletionRequests },
-    { path: '/admin/manage/legal', component: ManageLegal },
-    { path: '/admin/manage/links', component: ManageLinks },
-    { path: '/admin/manage/bot', component: ManageBot },
+    { path: '/admin/settings', component: ManageHome },
+    { path: '/admin/settings/customers', component: ManageCustomers },
+    { path: '/admin/settings/promos', component: ManagePromos },
+    { path: '/admin/settings/products', redirect: '/admin/settings/retail' },
+    { path: '/admin/settings/options', component: ManageOptions },
+    { path: '/admin/settings/options/:id', component: ManageOptionGroup, props: true },
+    { path: '/admin/settings/users', component: ManageUsers },
+    { path: '/admin/settings/ingredients', component: ManageIngredients },
+    { path: '/admin/settings/pricing', component: ManagePriceLists },
+    { path: '/admin/settings/loyalty', component: ManageLoyalty },
+    { path: '/admin/settings/profit', component: ManageProfit },
+    { path: '/admin/settings/shop', component: ManageShop },
+    { path: '/admin/settings/birthdays', component: ManageBirthdays },
+    { path: '/admin/settings/integrations', component: ManageIntegrations },
+    { path: '/admin/settings/retail', component: ManageRetail },
+    { path: '/admin/settings/storefront', component: ManageStorefront },
+    { path: '/admin/settings/gallery', component: ManageGallery },
+    { path: '/admin/settings/photo-requests', component: ManagePhotoRequests },
+    { path: '/admin/settings/deletion-requests', component: ManageDeletionRequests },
+    { path: '/admin/settings/legal', component: ManageLegal },
+    { path: '/admin/settings/links', component: ManageLinks },
+    { path: '/admin/settings/bot', component: ManageBot },
     // ลิงก์หลังบ้านเดิม (ก่อนย้ายไป /admin)
     { path: '/:old(orders|manage|chat|pos|materials|production)/:rest(.*)*', redirect: (to) => `/admin${to.fullPath}` },
     { path: '/:pathMatch(.*)*', redirect: '/' },
@@ -113,7 +116,7 @@ const router = createRouter({
 // หน้าบัญชีลูกค้าต้องล็อกอินก่อน (จำลอง: รีเฟรชหน้าแล้วต้องเข้าสู่ระบบใหม่)
 // เอกสารเวอร์ชันใหม่ที่ยังไม่ยอมรับ → ไปหน้ายอมรับก่อน
 router.beforeEach((to) => {
-  // หลังบ้าน: ต้องมีสิทธิ์อย่างน้อยหนึ่งข้อของหน้านั้น (หน้าจัดการ /admin/manage* ตรวจต่อใน ManageShell)
+  // หลังบ้าน: ต้องมีสิทธิ์อย่างน้อยหนึ่งข้อของหน้านั้น (หน้าจัดการ /admin/settings* ตรวจต่อใน ManageShell)
   if (to.meta.perms && !canAny(to.meta.perms)) return '/admin/no-access'
   if ((to.meta.customer || to.meta.needLogin) && !customerSession.customerId) return '/account/login'
   if (to.meta.customer && needsConsent().length) return '/account/consent'

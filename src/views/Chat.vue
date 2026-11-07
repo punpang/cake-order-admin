@@ -202,7 +202,7 @@ function doSim() {
       <section v-else class="hidden items-center justify-center bg-stone-50 text-sm text-stone-400 md:flex">เลือกแชททางซ้าย</section>
     </div>
     <p class="mt-1.5 shrink-0 text-center text-xs text-stone-400">
-      <template v-if="db.integrations.line.status !== 'connected' && db.integrations.facebook.status !== 'connected'">ยังไม่ได้เชื่อม LINE OA / Facebook · <RouterLink v-if="can('manage')" to="/admin/manage/integrations" class="text-brand-700 underline">ไปเชื่อม</RouterLink> · </template>
+      <template v-if="db.integrations.line.status !== 'connected' && db.integrations.facebook.status !== 'connected'">ยังไม่ได้เชื่อม LINE OA / Facebook · <RouterLink v-if="can('manage')" to="/admin/settings/integrations" class="text-brand-700 underline">ไปเชื่อม</RouterLink> · </template>
       <template v-else>เชื่อมแล้ว: {{ [db.integrations.line.status === 'connected' ? `LINE ${db.integrations.line.accountName}` : '', db.integrations.facebook.status === 'connected' ? `Facebook ${db.integrations.facebook.accountName}` : ''].filter(Boolean).join(' · ') }} · </template>
       จำลอง (ทดสอบด้วยปุ่ม "จำลองข้อความเข้า")
     </p>
