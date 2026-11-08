@@ -177,7 +177,7 @@ export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = []
     const { typeId, sizeIds } = b.items?.length ? bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS }) : { typeId: dT, sizeIds: dS }
     if (b.active === false || !forType(b, typeId) || !(b.items?.length > 1) || doneHome.has(b.items[0].groupId)) continue
     const have = b.items.filter(has)
-    if (!have.length || have.length === b.items.length) continue
+    if (!have.length || have.length < b.items.length - 1 || have.length === b.items.length) continue
     const amount = bundleAmount(b, typeId, sizeIds)
     if (!(amount > 0)) continue
     const missing = []
@@ -203,7 +203,7 @@ export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = []
 // ป้ายบนตัวเลือกที่อยู่ในบันเดิ้ล: Map("groupId:optionId" → { state, amount, names })
 // state: 'done' = ครบชุดแล้ว (ได้ส่วนลด) · 'partner' = เลือกคู่ไว้แล้ว ตัวนี้เลือกแล้วครบชุดทันที · 'idle' = อยู่ในบันเดิ้ล ยังไม่ได้เลือกคู่
 // เฉพาะบันเดิ้ลที่ใช้ได้จริงตอนนี้ (ใช้งาน ตรงประเภท ส่วนลดตามขนาด > 0) · หลายบันเดิ้ล: done > partner > idle แล้ว "ส่วนลดน้อยสุด" (ตรงกติกาคิดราคา)
-// ป้ายแสดงเมื่อ: ชุดหลายตัวเลือก = เลือกตัวใดตัวหนึ่งในชุดแล้ว · บันเดิ้ลตัวเลือกเดียว = เลือกครบหัวข้อหลักทุกข้อ (single → "ลดพิเศษ")
+// ป้ายแสดงเมื่อ: ชุดหลายตัวเลือก (N ตัว) = เลือกแล้วอย่างน้อย N-1 ตัว · บันเดิ้ลตัวเลือกเดียว = เลือกครบหัวข้อหลักทุกข้อ (single → "ลดพิเศษ")
 const RANK = { idle: 0, partner: 1, done: 2 }
 export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: dS = [], allow = null, scopes = null } = {}) {
   const tags = new Map()
@@ -233,8 +233,9 @@ export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: 
   // ประตูแสดงป้าย: บันเดิ้ลตัวเลือกเดียว = เลือกครบหัวข้อหลักทุกข้อก่อน · ชุดหลายตัวเลือก = ต้องเลือกตัวใดตัวหนึ่งที่อยู่ในชุดบันเดิ้ลก่อน
   const mainGroups = groups.filter((g) => MAIN.includes(g.key) && g.active !== false && g.options?.some((o) => o.active !== false) && !(allow && !allow(g, null)))
   const mainDone = mainGroups.every((g) => idsOf(sels?.[g.id]).length > 0)
-  const setPicked = cands.some((c) => c.b.items.length > 1 && c.b.items.some(has))
-  for (let i = cands.length - 1; i >= 0; i--) if (cands[i].b.items.length > 1 ? !setPicked : !mainDone) cands.splice(i, 1)
+  // ชุดมี N ตัวเลือก: ต้องเลือกแล้วอย่างน้อย N-1 ตัวจึงขึ้นป้าย (ตัวที่เหลือ = ตัวสุดท้ายที่ทำให้ครบชุด)
+  const setReady = (c) => c.b.items.filter(has).length >= c.b.items.length - 1
+  for (let i = cands.length - 1; i >= 0; i--) if (cands[i].b.items.length > 1 ? !setReady(cands[i]) : !mainDone) cands.splice(i, 1)
   // 2) ให้ตรงตัวคิดราคา: 1 หัวข้อ = 1 ชุด (ลดน้อยสุด) และไม่ใช้ตัวเลือกซ้ำ
   //    หัวข้อที่ได้บันเดิ้ลแล้ว → ชุดอื่นในหัวข้อเดียวกันไม่ทำให้ส่วนลดเพิ่ม จึงไม่ติดป้าย (ป้ายเดียวที่เหลือคือชุดที่ใช้จริง)
   const bestDone = new Map()
