@@ -43,6 +43,6 @@ export function startCustomersSync({ client, db, canWrite, onError, debounceMs }
     replace: (items) => { db.customers.splice(0, db.customers.length, ...items); known.clear(); for (const i of items) known.add(i.id) },
     load: () => loadCustomers(client),
     push: (changes) => pushCustomers(client, changes, { known }),
-    canWrite, onError, debounceMs, label: 'ลูกค้า',
+    canWrite, onError, debounceMs, label: 'ลูกค้า', poll: true,
   })
 }

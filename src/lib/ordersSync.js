@@ -68,16 +68,16 @@ export function startOrdersSync({ client, db, canWrite, onError, onRecode, numbe
   const slips = new Map()
   return startSync({
     list: () => db.orders,
-    replace: (items) => {
+    replace: (items, { refresh = false } = {}) => {
       db.orders.splice(0, db.orders.length, ...items)
       known.clear()
       slips.clear()
       for (const i of items) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) }
       // ตัวนับเลข: ล้างเลขจากข้อมูลตัวอย่าง แล้วตั้งตามเลขที่มีอยู่จริง
-      if (numbering) numbering.seen(items.map((i) => i.code), { reset: true })
+      if (numbering) numbering.seen(items.map((i) => i.code), { reset: !refresh }) // รีเฟรชระหว่างใช้งาน: ห้ามล้างตัวนับ/ชุดเลขที่ขอไว้
     },
     load: () => loadOrders(client),
     push: (changes) => pushOrders(client, changes, { onRecode, retryDelay, numbering, known, slips }),
-    canWrite, onError, debounceMs, label: 'ออร์เดอร์',
+    canWrite, onError, debounceMs, label: 'ออร์เดอร์', poll: true,
   })
 }

@@ -69,7 +69,7 @@ export function startRecordsSync({ client, db, collection, canWrite, onError, de
     list: ad.list, replace: ad.replace,
     load: () => loadRecords(client, collection, spec),
     push: (c) => pushRecords(client, collection, spec, c),
-    canWrite, onError, debounceMs, label: collection,
+    canWrite, onError, debounceMs, label: collection, poll: true,
   })
 }
 

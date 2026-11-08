@@ -27,15 +27,29 @@ export async function selectAll(make) {
   }
 }
 
-export async function startSync({ list, replace, load, push, canWrite, onError = () => {}, label = '', debounceMs = 600 }) {
+export async function startSync({ list, replace, load, push, canWrite, onError = () => {}, label = '', debounceMs = 600, poll = false }) {
   const loaded = await load()
   if (loaded.error) { onError(`โหลด${label}จากฐานข้อมูลไม่สำเร็จ: ${loaded.error}`); return { stop() {}, loaded: false } }
   replace(loaded.items)
   const snapshot = new Map(list().map((i) => [i.id, JSON.stringify(i)]))
-  if (!canWrite) return { stop() {}, loaded: true }
   let timer = null
   let busy = false
   let again = false
+  // ดึงข้อมูลล่าสุดจากฐานข้อมูลมาแทนที่ (เมื่อคนอื่น/ลูกค้าแก้) — ทำเฉพาะเมื่อไม่มีการแก้ค้างอยู่ในเครื่อง (กันทับงานที่กำลังแก้)
+  // คืน true เมื่อมีการอัปเดตจริง
+  const refresh = async () => {
+    const dirty = () => { const d = diffById(snapshot, list()); return d.upserts.length || d.deletes.length }
+    if (busy || dirty()) return false
+    const r = await load()
+    if (r.error || busy || dirty()) return false // โหลดไม่สำเร็จ หรือระหว่างโหลดมีการแก้ในเครื่อง → รอบหน้า
+    const remote = diffById(snapshot, r.items)
+    if (!remote.upserts.length && !remote.deletes.length) return false
+    replace(r.items, { refresh: true })
+    snapshot.clear()
+    for (const i of list()) snapshot.set(i.id, JSON.stringify(i))
+    return true
+  }
+  if (!canWrite) return { stop() {}, loaded: true, refresh: poll ? refresh : undefined }
   // คืน true เมื่อไม่มีอะไรค้าง/เขียนสำเร็จ · false เมื่อเขียนล้มเหลวหรือกำลังเขียนอยู่ (ให้ผู้เรียกที่ต้องเรียงลำดับรอแล้วลองใหม่)
   const flush = async () => {
     if (busy) { again = true; return false }
@@ -55,5 +69,5 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
     return ok
   }
   const stopWatch = watch(() => JSON.stringify(list()), () => { clearTimeout(timer); timer = setTimeout(flush, debounceMs) })
-  return { stop() { stopWatch(); clearTimeout(timer) }, loaded: true, flush }
+  return { stop() { stopWatch(); clearTimeout(timer) }, loaded: true, flush, refresh: poll ? refresh : undefined }
 }

@@ -6,8 +6,30 @@ import { showToast } from './toast'
 export const staffState = reactive({ ready: !supabaseEnabled, staff: null })
 let syncs = []
 let trashHook = null
+// รีเฟรชข้อมูลที่คนอื่น/ลูกค้าแก้ (ออร์เดอร์ ลูกค้า ข้อมูลรายแถว) ทุก 45 วินาทีขณะเปิดหน้าอยู่ และเมื่อกลับมาที่แท็บ
+const POLL_MS = 45000
+let pollTimer = null
+let pollBusy = false
+async function pollOnce() {
+  if (pollBusy || (typeof document !== 'undefined' && document.hidden)) return
+  pollBusy = true
+  try { for (const x of syncs) if (x.refresh) await x.refresh() } catch (e) { console.warn('รีเฟรชข้อมูลไม่สำเร็จ:', e?.message) }
+  pollBusy = false
+}
+const onVisible = () => { if (typeof document !== 'undefined' && !document.hidden) pollOnce() }
+function startPolling() {
+  stopPolling()
+  pollTimer = setInterval(pollOnce, POLL_MS)
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible)
+}
+function stopPolling() {
+  clearInterval(pollTimer)
+  pollTimer = null
+  if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible)
+}
 // หลังล็อกอินสำเร็จ: โหลดข้อมูลจาก Supabase (สินค้า/ลูกค้า) และเขียนกลับเมื่อมีสิทธิ์
 async function startData(staff) {
+  stopPolling()
   syncs.forEach((x) => x.stop())
   syncs = []
   const [items, customers, config, orders, acct, chats, shifts, users, store, client] = await Promise.all([import('./itemsSync'), import('./customersSync'), import('./configSync'), import('./ordersSync'), import('./acctSync'), import('./chatSync'), import('./shiftsSync'), import('./usersSync'), import('../data/store'), getSupabase()])
@@ -61,6 +83,7 @@ async function startData(staff) {
     if (rec.specAllows(spec.read, has)) syncs.push(await rec.startRecordsSync({ client, db, collection: name, canWrite: rec.specAllows(spec.write, has), onError }))
     else rec.clearRecords(db, name)
   }
+  startPolling()
 }
 export async function initStaff() {
   if (!supabaseEnabled) return
@@ -102,4 +125,4 @@ export async function currentStaff() {
   return { staff: data }
 }
 
-export async function staffSignOut() { staffState.staff = null; { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1) }; syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
+export async function staffSignOut() { staffState.staff = null; { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1) }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
