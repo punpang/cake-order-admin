@@ -163,10 +163,17 @@ export const bundleScope = (b, groups, scopes, dflt) => {
 export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = [], allow = null, limit = 2, scopes = null } = {}) {
   const dT = typeId, dS = sizeIds
   const has = (x) => idsOf(sels?.[x.groupId]).includes(x.optionId)
+  // หัวข้อที่ได้บันเดิ้ลแล้ว: ชุดอื่นไม่ทำให้ส่วนลดเพิ่ม (คิดชุดที่ลดน้อยสุด) → ไม่แนะนำ
+  const doneHome = new Set()
+  for (const b of bundles || []) {
+    if (b.active === false || !(b.items?.length > 0) || !b.items.every(has)) continue
+    const sc = bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS })
+    if (forType(b, sc.typeId) && bundleAmount(b, sc.typeId, sc.sizeIds) > 0) doneHome.add(b.items[0].groupId)
+  }
   const out = []
   for (const b of bundles || []) {
     const { typeId, sizeIds } = b.items?.length ? bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS }) : { typeId: dT, sizeIds: dS }
-    if (b.active === false || !forType(b, typeId) || !(b.items?.length > 1)) continue
+    if (b.active === false || !forType(b, typeId) || !(b.items?.length > 1) || doneHome.has(b.items[0].groupId)) continue
     const have = b.items.filter(has)
     if (!have.length || have.length === b.items.length) continue
     const amount = bundleAmount(b, typeId, sizeIds)
@@ -207,6 +214,8 @@ export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: 
     if (!cur || RANK[state] > RANK[cur.state] || (state === cur.state && amount < cur.amount)) tags.set(k, { state, amount, names: [name], single })
     else if (state === cur.state && amount === cur.amount && !cur.names.includes(name)) cur.names.push(name)
   }
+  // 1) รวบรวมบันเดิ้ลที่ใช้ได้ + สถานะ
+  const cands = []
   for (const b of bundles || []) {
     if (b.active === false || !(b.items?.length > 0)) continue
     const { typeId, sizeIds } = bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS })
@@ -219,9 +228,25 @@ export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: 
       return !!g && g.active !== false && !!o && o.active !== false && forType(o, typeId) && !(allow && !(allow(g, null) && allow(g, o)))
     }
     if (!b.items.every(usable)) continue
-    const have = b.items.filter(has)
+    cands.push({ b, amount, home: b.items[0].groupId, done: b.items.every(has) })
+  }
+  // 2) ให้ตรงตัวคิดราคา: 1 หัวข้อ = 1 ชุด (ลดน้อยสุด) และไม่ใช้ตัวเลือกซ้ำ
+  //    หัวข้อที่ได้บันเดิ้ลแล้ว → ชุดอื่นในหัวข้อเดียวกันไม่ทำให้ส่วนลดเพิ่ม จึงไม่ติดป้าย (ป้ายเดียวที่เหลือคือชุดที่ใช้จริง)
+  const bestDone = new Map()
+  for (const c of cands) if (c.done && (!bestDone.has(c.home) || c.amount < bestDone.get(c.home).amount)) bestDone.set(c.home, c)
+  const taken = new Set()
+  const won = new Set()
+  for (const c of [...bestDone.values()].sort((x, y) => y.amount - x.amount)) {
+    const keys = c.b.items.map((x) => `${x.groupId}:${x.optionId}`)
+    if (keys.some((k) => taken.has(k))) continue
+    keys.forEach((k) => taken.add(k)); won.add(c)
+  }
+  for (const c of cands) {
+    const { b, amount } = c
     const single = b.items.length === 1
-    if (have.length === b.items.length) { for (const x of b.items) put(x, 'done', amount, b.name, single); continue }
+    if (c.done) { if (won.has(c)) for (const x of b.items) put(x, 'done', amount, b.name, single); continue }
+    if (bestDone.has(c.home)) continue
+    const have = b.items.filter(has)
     const missing = b.items.filter((x) => !has(x))
     // ตัวที่ขาดเพียงตัวเดียวและมีตัวอื่นเลือกอยู่ = "ตัวสุดท้ายที่ทำให้ครบชุด"
     const last = have.length > 0 && missing.length === 1

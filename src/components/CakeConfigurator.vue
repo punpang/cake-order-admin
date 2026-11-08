@@ -99,7 +99,6 @@ watch(() => JSON.stringify([form.selections, form.tiers]), () => {
 const active = computed(() => activeListsAt(''))
 const detail = computed(() => priceDetail(form, db.optionGroups, db.retailItems, active.value, db.bundles))
 const qty = computed(() => Math.min(999, Math.max(1, Math.round(Number(form.qty) || 1))))
-const step = (d) => { form.qty = Math.min(999, Math.max(1, (Number(form.qty) || 1) + d)) }
 const empty = (v) => v == null || v === '' || (Array.isArray(v) && !v.length)
 const missing = computed(() => {
   const out = []
@@ -167,11 +166,6 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, sizeIds: s
     <!-- ราคา + ส่ง -->
     <div class="sticky bottom-2 z-10 rounded-2xl bg-white p-2.5 shadow-xl ring-1 ring-stone-200/70">
       <div class="flex items-center gap-2">
-        <div class="flex h-10 shrink-0 items-center rounded-xl border border-stone-200">
-          <button type="button" class="h-full w-8 text-lg text-stone-600" aria-label="ลดจำนวน" @click="step(-1)">−</button>
-          <input v-model.number="form.qty" type="text" inputmode="numeric" class="h-full w-8 border-0 bg-transparent text-center text-base font-semibold outline-none" aria-label="จำนวน" />
-          <button type="button" class="h-full w-8 text-lg text-stone-600" aria-label="เพิ่มจำนวน" @click="step(1)">+</button>
-        </div>
         <div class="min-w-0 flex-1 text-right leading-tight" aria-live="polite">
           <div v-if="qty > 1" class="text-[11px] text-stone-500">{{ money(detail.unitPrice) }} × {{ qty }}</div>
           <DiscountDetail :full="detail.fullPrice * qty" :final="detail.unitPrice * qty" :lines="discountLines(detail.discounts, qty)" size="lg" />
