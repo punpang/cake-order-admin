@@ -41,7 +41,9 @@ const showBottom = computed(() => !route.meta.focus && bottomItems.value.length 
 let stopVv = () => {}
 watch(() => !!route.meta.lock, (on) => { stopVv(); stopVv = on ? watchViewport() : () => {} }, { immediate: true })
 onBeforeUnmount(() => stopVv())
-const lockStyle = computed(() => (route.meta.lock ? { top: 'calc(3.5rem + var(--vvt, 0px))', height: 'calc(var(--vvh, 100dvh) - 3.5rem)' } : null))
+// แป้นพิมพ์เปิดบนหน้าล็อก: ซ่อนแถบบน ใช้พื้นที่ทั้งหมดที่เหลือให้แชท
+const kbLock = computed(() => !!route.meta.lock && kb.open)
+const lockStyle = computed(() => (route.meta.lock ? (kbLock.value ? { top: 'var(--vvt, 0px)', height: 'var(--vvh, 100dvh)' } : { top: 'calc(3.5rem + var(--vvt, 0px))', height: 'calc(var(--vvh, 100dvh) - 3.5rem)' }) : null))
 const navShow = computed(() => showBottom.value && !(route.meta.lock && kb.open))
 const sysOpen = ref(false)
 const bottomCols = computed(() => bottomItems.value.length + (hasSwitch.value ? 1 : 0))
@@ -64,7 +66,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
 
   <template v-else>
   <!-- แถบบน -->
-  <header class="sticky top-0 z-20 bg-cream/90 shadow-[0_1px_0_rgb(63_46_46/0.06)] backdrop-blur-xl">
+  <header v-show="!kbLock" class="sticky top-0 z-20 bg-cream/90 shadow-[0_1px_0_rgb(63_46_46/0.06)] backdrop-blur-xl">
     <div class="mx-auto flex h-14 max-w-page items-center gap-3 px-4 lg:px-8">
       <RouterLink :to="firstHome(can)" class="flex min-w-0 items-center gap-2.5" aria-label="ร้านเค้ก หน้าแรกหลังบ้าน">
         <svg viewBox="0 0 48 48" class="h-10 w-10 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2" stroke-linejoin="round"><ellipse cx="24" cy="40" rx="18" ry="4" fill="#fff" /><rect x="9" y="22" width="30" height="16" rx="4" fill="#ffd05c" /><path d="M8 22c0-7 7-10 16-10s16 3 16 10c-3 3-5 0-8 3s-5 0-8 3-5 0-8-3-5 0-8-3z" fill="#ff8fa6" /><circle cx="24" cy="9" r="4" fill="#e0314f" /></svg>
@@ -102,7 +104,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     tabindex="-1"
     class="mx-auto max-w-page outline-none px-4 lg:px-8"
     :style="lockStyle"
-    :class="$route.meta.lock ? ['fixed inset-x-0 overflow-hidden pt-3', $route.meta.focus || !navShow ? 'pb-[calc(env(safe-area-inset-bottom)+0.75rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-3'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10', 'pt-5']"
+    :class="$route.meta.lock ? ['fixed inset-x-0 overflow-hidden', kbLock ? 'pt-1 pb-1' : 'pt-3', kbLock ? '' : $route.meta.focus || !navShow ? 'pb-[calc(env(safe-area-inset-bottom)+0.75rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-3'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10', 'pt-5']"
   >
     <RouterView :key="$route.fullPath" />
   </main>

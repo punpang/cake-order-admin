@@ -10,6 +10,7 @@ import AppModal from '../components/AppModal.vue'
 import ChatThread from '../components/ChatThread.vue'
 import { setChatFastPoll } from '../lib/staffAuth'
 import { messagePreview } from '../lib/chatMedia'
+import { kb } from '../lib/viewportFit'
 import { suggestCustomers, phonesInChat } from '../lib/chatLink'
 
 // ศูนย์รวมแชท LINE OA + Facebook (จำลอง: ของจริงรับ webhook / ส่งผ่าน API): ซ้าย = รายการแชท, ขวา = เธรด (มือถือแสดงทีละหน้า)
@@ -191,7 +192,7 @@ function doSim() {
           </button>
         </div>
         <!-- มือถือ: แท็บ แชท | ออร์เดอร์ -->
-        <div v-if="can('createOrder')" class="grid grid-cols-2 gap-1 border-b border-stone-200 bg-white p-1.5 lg:hidden">
+        <div v-if="can('createOrder') && !kb.open" class="grid grid-cols-2 gap-1 border-b border-stone-200 bg-white p-1.5 lg:hidden">
           <button type="button" class="h-9 rounded-lg text-sm font-medium" :class="mtab === 'chat' ? 'bg-brand-50 text-brand-800' : 'text-stone-500'" @click="mtab = 'chat'">แชท</button>
           <button type="button" class="relative h-9 rounded-lg text-sm font-medium" :class="mtab === 'order' ? 'bg-brand-50 text-brand-800' : 'text-stone-500'" @click="mtab = 'order'">
             ลงออร์เดอร์<span v-if="hasDraft(current.id)" class="ml-1 text-amber-700">(ร่าง)</span>
@@ -216,7 +217,7 @@ function doSim() {
       </section>
       <section v-else class="hidden items-center justify-center bg-stone-50 text-sm text-stone-400 md:flex">เลือกแชททางซ้าย</section>
     </div>
-    <p class="mt-1.5 shrink-0 text-center text-xs text-stone-400">
+    <p v-show="!kb.open" class="mt-1.5 shrink-0 text-center text-xs text-stone-400">
       <template v-if="db.integrations.line.status !== 'connected' && db.integrations.facebook.status !== 'connected'">ยังไม่ได้เชื่อม LINE OA / Facebook · <RouterLink v-if="can('manage')" to="/admin/settings/integrations" class="text-brand-700 underline">ไปเชื่อม</RouterLink> · </template>
       <template v-else>เชื่อมแล้ว: {{ [db.integrations.line.status === 'connected' ? `LINE ${db.integrations.line.accountName}` : '', db.integrations.facebook.status === 'connected' ? `Facebook ${db.integrations.facebook.accountName}` : ''].filter(Boolean).join(' · ') }} · </template>
       จำลอง (ทดสอบด้วยปุ่ม "จำลองข้อความเข้า")
