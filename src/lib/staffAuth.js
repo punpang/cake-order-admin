@@ -83,6 +83,7 @@ async function startData(staff) {
     if (rec.specAllows(spec.read, has)) syncs.push(await rec.startRecordsSync({ client, db, collection: name, canWrite: rec.specAllows(spec.write, has), onError }))
     else rec.clearRecords(db, name)
   }
+  import('./clicksSync').then((m) => m.applyClicks(client, db)).catch(() => {})
   startPolling()
 }
 export async function initStaff() {
@@ -100,6 +101,8 @@ async function loadForVisitor() {
     // ไม่ให้หน้าเว็บค้างถ้าเซิร์ฟเวอร์ช้า: รอไม่เกิน 6 วินาที (ข้อมูลที่โหลดเสร็จทีหลังยังถูกใส่ให้เอง)
     await Promise.race([pub.startPublicLoad({ client, db: store.db, onError: (m) => console.warn('โหลดข้อมูลหน้าร้านไม่สำเร็จ:', m) }), new Promise((r) => setTimeout(r, 6000))])
   } catch (e) { console.warn('โหลดข้อมูลหน้าร้านไม่สำเร็จ:', e?.message) }
+  // สถิติคลิกแบบเค้ก (รูปแนะนำ) — โหลดเบื้องหลัง ไม่รอ
+  import('./clicksSync').then(async (m) => m.applyClicks(await getSupabase(), (await import('../data/store')).db)).catch(() => {})
   try { await (await import('../data/store')).restoreCustomerSession() } catch (e) { console.warn('กลับเข้าบัญชีลูกค้าไม่สำเร็จ:', e?.message) }
 }
 

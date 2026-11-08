@@ -21,7 +21,8 @@ import { cleanClosures, emptyClosures, slotClosed, pickupClosed, isClosedNow, ne
 import { decodeCake, findCodes, CODE_RE } from '../lib/cakeCode'
 import { deliveryFee, cleanDelivery, cleanDeliveryConfig, rememberPlace, DEFAULT_DELIVERY } from '../lib/delivery'
 import { dueState, overduePayments, orderDue, quickDue, isHHmm, remainingText } from '../lib/payDue'
-import { supabaseEnabled } from '../lib/supabase'
+import { supabaseEnabled, getSupabase } from '../lib/supabase'
+import { sendClick } from '../lib/clicksSync'
 import { createNumbering } from '../lib/docNo'
 import { staffState } from '../lib/staffAuth'
 import { remoteOrderAction } from '../lib/customerOrderRemote'
@@ -486,6 +487,7 @@ export function recordCakeClick(photoId, visitor) {
   if (db.cakeClicks.some((c) => c.v === visitor && c.photoId === photoId)) return
   db.cakeClicks.push({ v: String(visitor), photoId, at: now() })
   if (db.cakeClicks.length > 5000) db.cakeClicks.splice(0, db.cakeClicks.length - 5000)
+  if (supabaseEnabled) getSupabase().then((c) => sendClick(c, photoId, visitor)).catch(() => {}) // เก็บที่เซิร์ฟเวอร์ด้วย (ล้มเหลวไม่กระทบหน้า)
 }
 export function removeGalleryImage(id) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
