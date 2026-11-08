@@ -22,3 +22,26 @@ export function quoteCardText(quote, totals, shopName = '') {
   lines.push('กดปุ่มด้านล่างเพื่อยืนยันสั่ง หรือขอแก้ไขได้เลยค่ะ')
   return lines.join('\n')
 }
+
+// ---------- การ์ด Messenger (generic template) ----------
+// หัวข้อ/บรรทัดรองของการ์ดยาวได้ไม่เกิน 80 ตัวอักษร → รายการสินค้าส่งเป็นข้อความนำหน้าการ์ด
+const clip = (s, n = 80) => { const v = String(s || '').replace(/\s+/g, ' ').trim(); return v.length > n ? `${v.slice(0, n - 1)}…` : v }
+const detailLines = (o, items) => {
+  const lines = itemLines(items)
+  if ((items || []).length > 15) lines.push(`… และอีก ${items.length - 15} รายการ`)
+  lines.push(`${where(o)} · ${dateTime(o.pickupAt)}`)
+  return lines.join('\n')
+}
+// → { text: ข้อความนำ, card: { kind, title, subtitle, url? } }
+export function orderCardMsg(order, totals, shopName = '') {
+  const sub = [`ยอดรวม ${money(totals.total)} บาท`, totals.balance > 0.004 ? `ค้างชำระ ${money(totals.balance)} บาท` : 'ชำระครบแล้ว'].join(' · ')
+  return { text: detailLines(order, order.items), card: { kind: 'order', title: clip(`${shopName ? shopName + ' · ' : ''}สรุปออร์เดอร์ ${order.code || ''}`), subtitle: clip(sub) } }
+}
+export function quoteCardMsg(quote, totals, shopName = '') {
+  const p = quote.payload || {}
+  const sub = [`ยอดรวม ${money(totals.total)} บาท`, p.shippingFee ? `รวมค่าส่ง ${money(p.shippingFee)}` : ''].filter(Boolean).join(' · ')
+  return { text: detailLines(p, p.items), card: { kind: 'quote', title: clip(`${shopName ? shopName + ' · ' : ''}ใบเสนอราคา ${quote.code || ''}`), subtitle: clip(sub) } }
+}
+export function linkCardMsg(order, url, shopName = '') {
+  return { text: '', card: { kind: 'link', title: clip(`${shopName ? shopName + ' · ' : ''}ออร์เดอร์ ${order.code || ''}`), subtitle: 'เปิดดูสถานะออร์เดอร์ (ดูอย่างเดียว)', url } }
+}

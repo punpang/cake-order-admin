@@ -4,7 +4,7 @@ import { reactive } from 'vue'
 import { BELL_MAX, BELL_STAFF, BELL_CUSTOMER, bellText, visibleToStaff, visibleToCustomer, unreadStaff, unreadCustomer, isReadStaff } from '../lib/bell'
 import { STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
-import { orderCardText, quoteCardText } from '../lib/chatCards'
+import { orderCardMsg, quoteCardMsg, linkCardMsg } from '../lib/chatCards'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { prevStatus } from '../lib/orderFlow'
 import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList, returnedByMethod } from '../lib/refund'
@@ -1655,7 +1655,7 @@ export function revokeOrderLinks(order) {
 export function sendOrderLinkToChat(order, url) {
   const chat = (order.chatId && findChat(order.chatId)) || chatFor(order.customerId)
   if (!chat) return { error: 'ลูกค้าคนนี้ยังไม่มีแชท' }
-  sendChat(chat.id, 'staff', `ดูออร์เดอร์ ${order.code} ได้ที่ลิงก์นี้ค่ะ (ใช้ดูอย่างเดียว) ${url}`, { orderId: order.id, by: session.role })
+  sendChat(chat.id, 'staff', `ดูออร์เดอร์ ${order.code} ได้ที่ลิงก์นี้ค่ะ (ใช้ดูอย่างเดียว) ${url}`, { orderId: order.id, by: session.role, fbCard: linkCardMsg(order, url, db.shop.name) })
   return { ok: true }
 }
 const maskPhone = (p) => (phoneDigits(p).length >= 6 ? `xxx-xxx-${phoneDigits(p).slice(-3)}` : '')
@@ -2170,9 +2170,11 @@ export function sendChat(chatId, from, text, extra = {}) {
   db.chats.splice(db.chats.indexOf(c), 1)
   db.chats.unshift(c)
   if (from === 'staff' && c.channel === 'facebook') {
-    if (m.kind === 'text') deliverFb(c, m, m.text, extra.row)
-    else if (m.kind === 'order') { const o = findOrder(m.orderId); if (o) deliverFb(c, m, orderCardText(o, orderTotals(o), db.shop.name), extra.row) }
-    else if (m.kind === 'quote') { const q = findQuote(m.quoteId); if (q) deliverFb(c, m, quoteCardText(q, orderTotals({ ...q.payload, payments: [], adjustment: null, couponsUsed: [] }), db.shop.name), extra.row, { quoteId: q.id }) }
+    if (m.kind === 'text') {
+      if (extra.fbCard) deliverFb(c, m, extra.fbCard.text, extra.row, { card: extra.fbCard.card })
+      else deliverFb(c, m, m.text, extra.row)
+    } else if (m.kind === 'order') { const o = findOrder(m.orderId); if (o) { const k = orderCardMsg(o, orderTotals(o), db.shop.name); deliverFb(c, m, k.text, extra.row, { card: k.card }) } }
+    else if (m.kind === 'quote') { const q = findQuote(m.quoteId); if (q) { const k = quoteCardMsg(q, orderTotals({ ...q.payload, payments: [], adjustment: null, couponsUsed: [] }), db.shop.name); deliverFb(c, m, k.text, extra.row, { quoteId: q.id, card: k.card }) } }
   }
   return m
 }

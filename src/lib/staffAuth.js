@@ -79,7 +79,7 @@ async function startData(staff) {
   // Facebook Messenger จริง: ตอบผ่าน fb-send · สถานะการเชื่อมเพจจาก fb-connect (token อยู่ฝั่งเซิร์ฟเวอร์เท่านั้น)
   const fbr = await import('./fbRemote')
   store.fbHook.send = async (psid, text, opts = {}) => {
-    const r = await fbr.fbSendCall(client, psid, text, opts.quoteId || '')
+    const r = await fbr.fbSendCall(client, psid, text, { quoteId: opts.quoteId || '', card: opts.card || null })
     return r.ok ? { ok: true } : { ok: false, error: r.error || '' }
   }
   fbr.fbConnectCall(client, 'status').then((r) => {
