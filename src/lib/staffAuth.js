@@ -49,6 +49,19 @@ async function startData(staff) {
       store.db.integrations.sms.enabled = was
     }
   }, () => {})
+  // Telegram จริงเข้ากลุ่มทีม (Edge Function telegram-send · secret อยู่ฝั่งเซิร์ฟเวอร์) · ตั้งค่าไว้ = ถือว่าเชื่อมช่องทาง Telegram แล้ว
+  store.tgHook.send = async (text, kind) => {
+    const r = await client.functions.invoke('telegram-send', { body: { text, kind } })
+    if (r.error) { let m = ''; try { m = (await r.error.context?.json?.())?.error || '' } catch { /* ข้าม */ } return { ok: false, error: m || 'ส่งไม่สำเร็จ' } }
+    return r.data?.ok ? { ok: true } : { ok: false, error: r.data?.error || '' }
+  }
+  client.functions.invoke('telegram-send', { body: { action: 'status' } }).then((r) => {
+    if (r.data?.configured) {
+      const was = store.db.integrations.telegram.enabled // คงสวิตช์เปิด/ปิดที่ร้านตั้งไว้ (บันทึกใน Supabase)
+      store.connectIntegration('telegram', { accountName: 'บอททีม', accountId: 'group' })
+      store.db.integrations.telegram.enabled = was
+    }
+  }, () => {})
   const rmIdx = store.trashHooks.indexOf(trashHook)
   if (rmIdx >= 0) store.trashHooks.splice(rmIdx, 1)
   trashHook = (url) => { storage.removePublicCopy(client, url) }

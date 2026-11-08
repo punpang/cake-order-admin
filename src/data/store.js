@@ -1961,6 +1961,7 @@ function pushOut(event, channel, to, text, orderId = null, customer = null) {
   }
   db.outbox.unshift({ id: uid('msg'), at: now(), event, channel, to, text, orderId, status: channel ? 'simulated' : 'no_channel' })
   if (channel === 'sms' && customer?.phone) deliverSms(db.outbox[0], customer.phone, text, 'notify')
+  if (channel === 'telegram') deliverTg(db.outbox[0], text, 'notify')
 }
 // ส่ง SMS จริงผ่านเกตเวย์ (ตั้งโดยชั้นเชื่อม Supabase) · ไม่มีตัวส่ง = คงสถานะจำลองไว้
 export const smsHook = { send: null }
@@ -1968,6 +1969,13 @@ function deliverSms(row, number, text, kind) {
   if (!smsHook.send) return
   row.status = 'sending'
   smsHook.send(number, text, kind).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
+}
+// ส่ง Telegram จริงเข้ากลุ่มทีม (Edge Function telegram-send · token/chat id เป็น secret ฝั่งเซิร์ฟเวอร์) · ไม่มีตัวส่ง = คงสถานะจำลองไว้
+export const tgHook = { send: null }
+function deliverTg(row, text, kind) {
+  if (!tgHook.send) return
+  row.status = 'sending'
+  tgHook.send(text, kind).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
 }
 // ---------- กระดิ่งแจ้งเตือนในแอป ----------
 function bellPush(item) {
@@ -2496,6 +2504,7 @@ export function sendIntegrationTest(key, to = '') {
   } else return { error: 'ช่องทางนี้ไม่มีปุ่มทดสอบ' }
   db.outbox.unshift({ id: uid('msg'), at: now(), event: 'test', channel: key, to: toLabel, text, orderId: null, status: 'simulated' })
   if (key === 'sms') deliverSms(db.outbox[0], phoneDigits(to), text, 'test')
+  if (key === 'telegram') deliverTg(db.outbox[0], text, 'test')
   return { ok: true, text, to: toLabel }
 }
 export function markRead(chatId) {
