@@ -71,12 +71,12 @@ const FB_STEPS = ['ขอสิทธิ์รับ-ส่งข้อควา
 const LINE_STEPS = ['ตรวจ Channel access token', 'ตั้ง Webhook URL อัตโนมัติ', 'ทดสอบ webhook']
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const conn = reactive({ key: '', stage: 'start', pageId: '', token: '', secret: '', done: 0, error: '', nonce: '', pages: [] })
+const conn = reactive({ key: '', stage: 'start', pageId: '', token: '', secret: '', done: 0, error: '', nonce: '', pages: [], note: '' })
 // โหมด Supabase: Facebook เชื่อมจริงด้วย OAuth (fb-connect) · token เก็บฝั่งเซิร์ฟเวอร์ ไม่ผ่านหน้าเว็บ
 const fbReal = supabaseEnabled
 const fbPages = computed(() => (fbReal ? conn.pages : SAMPLE_PAGES))
 function openConnect(k) {
-  Object.assign(conn, { key: k, stage: 'start', pageId: SAMPLE_PAGES[0].id, token: '', secret: '', done: 0, error: '', nonce: '', pages: [] })
+  Object.assign(conn, { key: k, stage: 'start', pageId: SAMPLE_PAGES[0].id, token: '', secret: '', done: 0, error: '', nonce: '', pages: [], note: '' })
   if (k === 'facebook' && fbReal) conn.pageId = ''
 }
 const closeConnect = () => (conn.key = '')
@@ -168,6 +168,11 @@ onMounted(async () => {
     conn.nonce = String(q.n)
     conn.pages = r.pages || []
     conn.pageId = conn.pages.length === 1 ? conn.pages[0].id : ''
+    try { // เพจที่อนุญาตแล้วแต่ดึงไม่ได้ (จากรหัสวินิจฉัย ไม่มี token)
+      const d = q.d ? JSON.parse(atob(String(q.d).replace(/-/g, '+').replace(/_/g, '/'))) : null
+      const x = Array.isArray(d?.x) ? d.x.slice(0, 10).map((v) => String(v).replace(/\D/g, '').slice(0, 30)) : []
+      if (x.length) conn.note = `อนุญาตแล้วแต่ดึงไม่ได้ ${x.length} เพจ (ID: ${x.join(', ')}${Array.isArray(d.e) && d.e.length ? ` · [สถานะ,code,sub]: ${d.e.slice(0, 8).map((v) => '[' + [].concat(v).slice(0, 3).map((n) => Number(n) || 0).join(',') + ']').join(' ')}` : ''}${d.m ? ` · ข้อความจาก Facebook: ${String(d.m).slice(0, 150)}` : ''})`
+    } catch { /* ไม่มีรหัสวินิจฉัย */ }
     conn.stage = 'pick'
   }
 })
@@ -363,6 +368,7 @@ async function disconnect(k) {
             <input v-model="conn.pageId" type="radio" :value="pg.id" />
             <span class="font-medium text-stone-900">{{ pg.name }}</span>
           </label>
+          <p v-if="conn.note" class="break-words text-xs text-stone-500">{{ conn.note }}</p>
         </div>
       </template>
       <!-- LINE -->
