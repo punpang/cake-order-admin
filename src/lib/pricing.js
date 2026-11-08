@@ -180,15 +180,15 @@ export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = []
   const dT = typeId, dS = sizeIds
   const has = (x) => idsOf(sels?.[x.groupId]).includes(x.optionId)
   // ชุดที่ครบแล้ว (ใช้จริง) → ชุดอื่นที่ใช้ตัวเลือกซ้ำกันไม่ทำให้ส่วนลดเพิ่ม → ไม่แนะนำ
-  const doneC = []
+  const allC = []
   for (const b of bundles || []) {
-    if (b.active === false || !(b.items?.length > 0) || !b.items.every(has)) continue
+    if (b.active === false || !(b.items?.length > 0)) continue
     const sc = bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS })
     const amount = forType(b, sc.typeId) ? bundleAmount(b, sc.typeId, sc.sizeIds) : 0
-    if (amount > 0) doneC.push({ b, amount })
+    if (amount > 0) allC.push({ b, amount })
   }
   const sum = (l) => l.reduce((t, x) => t + x.amount, 0)
-  const base = sum(bundleWinners(doneC))
+  const base = sum(bundleWinners(allC.filter((c) => c.b.items.every(has))))
   const out = []
   for (const b of bundles || []) {
     const { typeId, sizeIds } = b.items?.length ? bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS }) : { typeId: dT, sizeIds: dS }
@@ -206,7 +206,11 @@ export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = []
       if (g.type !== 'multi' && idsOf(sels?.[g.id]).length) { ok = false; break }
       missing.push({ groupId: g.id, optionId: o.id, name: o.name, groupName: g.name })
     }
-    if (ok && sum(bundleWinners([...doneC, { b, amount }])) > base) out.push({ bundle: b, missing, amount })
+    if (!ok) continue
+    // จำลองหลังเลือกตัวที่ขาด: ชุดนี้ต้องเป็นชุดที่ถูกใช้จริง (ตามลำดับความสำคัญ) และส่วนลดรวมเพิ่มขึ้น
+    const mk = new Set(missing.map((m) => `${m.groupId}:${m.optionId}`))
+    const sim = bundleWinners(allC.filter((c) => c.b.items.every((x) => has(x) || mk.has(keyOf(x)))))
+    if (sim.some((w) => w.b === b) && sum(sim) > base) out.push({ bundle: b, missing, amount })
   }
   return out.sort((a, b) => b.amount - a.amount).slice(0, limit)
 }
@@ -253,16 +257,24 @@ export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: 
   const sum = (l) => l.reduce((t, x) => t + x.amount, 0)
   const doneC = cands.filter((c) => c.done)
   const base = sum(bundleWinners(doneC))
+  // จำลองหลังเลือกตัวเลือก x: ชุดที่จะถูกใช้จริง (ตามลำดับความสำคัญ) ต้องมี x และส่วนลดรวมเพิ่ม → ป้ายแสดงส่วนลดของชุดนั้น
+  const ifPicked = (xk) => {
+    const sim = bundleWinners(cands.filter((c) => c.b.items.every((x) => has(x) || keyOf(x) === xk)))
+    return sum(sim) > base ? sim.find((w) => w.b.items.some((x) => keyOf(x) === xk)) || null : null
+  }
   for (const c of cands) {
     const { b, amount } = c
     const single = b.items.length === 1
     if (c.done) { if (winners.has(c)) for (const x of b.items) put(x, 'done', amount, b.name, single); continue }
-    if (!(sum(bundleWinners([...doneC, c])) > base)) continue // ครบชุดนี้แล้วส่วนลดรวมไม่เพิ่ม (ตัวเลือกซ้ำกับชุดอื่นที่ได้ไปแล้ว) → ไม่ติดป้าย
     const have = b.items.filter(has)
     const missing = b.items.filter((x) => !has(x))
     // ตัวที่ขาดเพียงตัวเดียวและมีตัวอื่นเลือกอยู่ = "ตัวสุดท้ายที่ทำให้ครบชุด"
     const last = have.length > 0 && missing.length === 1
-    for (const x of missing) put(x, last && !single ? 'partner' : 'idle', amount, b.name, single)
+    for (const x of missing) {
+      const w = ifPicked(keyOf(x)) // เลือกแล้วชุดนี้ (หรือชุดที่ใหญ่กว่า) ได้ใช้จริงไหม → แสดงส่วนลดของชุดที่ใช้จริง
+      if (w) put(x, last && w.b.items.length > 1 ? 'partner' : 'idle', w.amount, w.b.name, w.b.items.length === 1)
+    }
+    if (!(sum(bundleWinners([...doneC, c])) > base)) continue
     for (const x of have) put(x, 'idle', amount, b.name, single)
   }
   return tags
