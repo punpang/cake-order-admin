@@ -16,8 +16,8 @@ const refresh = () => tick.value++
 
 const rv = reactive({ order: null, rating: 5, text: '', error: '' })
 const openReview = (o) => Object.assign(rv, { order: o, rating: 5, text: '', error: '' })
-function sendReview() {
-  const r = submitReview({ orderId: rv.order.id, rating: rv.rating, text: rv.text })
+async function sendReview() {
+  const r = await submitReview({ orderId: rv.order.id, rating: rv.rating, text: rv.text })
   if (r.ok) { rv.order = null; refresh() } else rv.error = r.error
 }
 </script>

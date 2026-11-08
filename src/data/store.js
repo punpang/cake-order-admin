@@ -2946,6 +2946,15 @@ export const customerLogout = () => {
   }
   customerSession.customerId = null
 }
+// คำสั่งของลูกค้าที่ล็อกอิน (แนบเซสชัน) → เซิร์ฟเวอร์ตรวจสิทธิ์และคืนข้อมูลล่าสุดของลูกค้า
+async function remoteAct(action, body = {}) {
+  const t = readSessionToken()
+  if (!t || !customerSession.customerId) return { error: 'กรุณาเข้าสู่ระบบ' }
+  const r = await callAuth(action, { ...body, session: t })
+  if (r.ok && r.customer) { injectBundle(db, r); return { ok: true } }
+  if (r.status === 401) { clearSessionToken(); clearBundle(db, customerSession.customerId); customerSession.customerId = null }
+  return { error: r.error }
+}
 function enterRemote(r) {
   saveSessionToken(r.session.token)
   customerSession.customerId = injectBundle(db, r)
@@ -3127,7 +3136,7 @@ export function myProfile() {
 }
 // แก้ได้เฉพาะ ชื่อ / LINE ID / รับข่าว-โปร (เบอร์แก้ผ่าน changePhone ที่ต้องยืนยัน OTP)
 export function updateMyProfile({ name, line, promoOptIn }) {
-  if (remoteCust()) return { error: ACCT_BLOCK }
+  if (remoteCust()) return remoteAct('update_profile', { name, line, promoOptIn }) // Promise ในโหมดออนไลน์
   const c = myCustomer()
   if (!c) return { error: 'กรุณาเข้าสู่ระบบ' }
   const n = String(name ?? c.name).trim()
@@ -3154,7 +3163,11 @@ export function myOrder(orderId) {
 export const myBirthdays = () => (myCustomer() ? birthdayList(customerSession.customerId).map((b) => ({ name: b.name, md: b.md })) : [])
 // เขียนรีวิว: เฉพาะออร์เดอร์ของตัวเองที่ส่งมอบแล้ว 1 รีวิวต่อออร์เดอร์ → รอแอดมินอนุมัติ
 export function submitReview({ orderId, rating, text }) {
-  if (remoteCust()) return { error: ACCT_BLOCK }
+  if (remoteCust()) return remoteAct('submit_review', { orderId, rating, text }) // Promise ในโหมดออนไลน์
+  return submitReviewLocal({ orderId, rating, text })
+}
+// เวอร์ชันในเครื่อง (ข้อมูลตัวอย่าง/โหมดจำลอง) — ไม่เรียกเซิร์ฟเวอร์
+export function submitReviewLocal({ orderId, rating, text }) {
   const c = myCustomer()
   const o = db.orders.find((x) => x.id === orderId && x.customerId === c?.id)
   if (!c || !o) return { error: 'ไม่พบออร์เดอร์' }
@@ -3240,7 +3253,7 @@ export function needsConsent(customerId = customerSession.customerId) {
 }
 // ลูกค้าที่ล็อกอินอยู่กดยอมรับเวอร์ชันปัจจุบัน
 export function acceptConsent(via = 'reconsent') {
-  if (remoteCust()) return { error: ACCT_BLOCK }
+  if (remoteCust()) return remoteAct('accept_consent') // Promise ในโหมดออนไลน์
   const id = customerSession.customerId
   if (!id || !myCustomer()) return { error: 'กรุณาเข้าสู่ระบบ' }
   addConsents(id, ACCOUNT_CONSENT_KINDS, via)

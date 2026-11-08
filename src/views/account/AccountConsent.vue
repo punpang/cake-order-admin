@@ -11,9 +11,9 @@ const kinds = computed(() => needsConsent())
 const agree = ref(false)
 const open = ref(null)
 const err = ref('')
-function accept() {
+async function accept() {
   if (!agree.value) return
-  const r = acceptConsent('reconsent')
+  const r = await acceptConsent('reconsent')
   if (r.error) return (err.value = r.error)
   router.replace('/account')
 }

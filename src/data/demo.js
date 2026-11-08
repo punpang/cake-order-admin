@@ -3,7 +3,7 @@
 // ตอนต่อ Supabase: ลบไฟล์นี้ + บรรทัด seedDemo() ใน src/main.js
 import {
   db, session, customerSession, createOrder, reportPayment, confirmPayment, receivePaymentNow, setStatus, cancelOrder, addWorkPhotos, publishWorkPhoto,
-  customerRequestPhotoOptOut, saveGalleryImage, recordCakeClick, redeemReward, spinGacha, saveReview, submitReview, setReviewStatus, saveRetailItem, savePosDiscount, saveDeal,
+  customerRequestPhotoOptOut, saveGalleryImage, recordCakeClick, redeemReward, spinGacha, saveReview, submitReviewLocal, setReviewStatus, saveRetailItem, savePosDiscount, saveDeal,
   openShift, closeShift, posSale, shiftSummary, receiveMessage, sendChat, postOrderCard, sendQuote, acceptQuote, reviseQuote, saveIngredient, saveShopSettings,
   createOrderLink, sendOrderLinkToChat, saveUser, findCustomer, currentShift, priceItem, refundOrder, shiftBills,
 } from './store'
@@ -298,7 +298,7 @@ export function seedDemo() {
     doneOrders.slice(0, 16).forEach((o, k) => {
       clock = Math.min(new RealDate(o.deliveredAt).getTime() + int(1, 3) * DAY, real - M)
       customerSession.customerId = o.customerId
-      const r = submitReview({ orderId: o.id, rating: pick([5, 5, 5, 4, 4, 3]), text: REV[k % REV.length] })
+      const r = submitReviewLocal({ orderId: o.id, rating: pick([5, 5, 5, 4, 4, 3]), text: REV[k % REV.length] })
       customerSession.customerId = null
       const rv = db.reviews.find((x) => x.orderId === o.id)
       if (r.ok && rv) setReviewStatus(rv.id, k < 11 ? 'approved' : k < 13 ? 'rejected' : 'pending')

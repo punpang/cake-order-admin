@@ -35,9 +35,9 @@ const tabs = [
 const form = reactive({ name: me.value?.name || '', line: me.value?.line || '', promoOptIn: !!me.value?.promoOptIn })
 const msg = ref('')
 const err = ref('')
-function saveProfile() {
+async function saveProfile() {
   msg.value = err.value = ''
-  const r = updateMyProfile({ ...form })
+  const r = await updateMyProfile({ ...form })
   if (r.ok) msg.value = 'บันทึกแล้ว'
   else err.value = r.error
 }
