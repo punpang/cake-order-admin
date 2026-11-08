@@ -1652,10 +1652,20 @@ export function revokeOrderLinks(order) {
   if (n) log(order, `เพิกถอนลิงก์ออร์เดอร์ ${n} ลิงก์`)
   return { ok: true, count: n }
 }
+// รูปบนการ์ด Messenger: รูปสินค้าแรกของรายการ (https เท่านั้น) · ไม่มี = รูปหน้าร้าน (storefront) · ไม่มีอีก = ไม่ใส่รูป
+const isHttps = (u) => typeof u === 'string' && /^https:\/\//i.test(u)
+function cardImageOf(items) {
+  for (const i of items || []) {
+    const r = i.kind === 'retail' ? db.retailItems.find((x) => x.id === i.retailId) : null
+    const img = (r?.images || []).find(isHttps)
+    if (img) return img
+  }
+  return isHttps(db.storefront?.heroImage) ? db.storefront.heroImage : ''
+}
 export function sendOrderLinkToChat(order, url) {
   const chat = (order.chatId && findChat(order.chatId)) || chatFor(order.customerId)
   if (!chat) return { error: 'ลูกค้าคนนี้ยังไม่มีแชท' }
-  sendChat(chat.id, 'staff', `ดูออร์เดอร์ ${order.code} ได้ที่ลิงก์นี้ค่ะ (ใช้ดูอย่างเดียว) ${url}`, { orderId: order.id, by: session.role, fbCard: linkCardMsg(order, url, db.shop.name) })
+  sendChat(chat.id, 'staff', `ดูออร์เดอร์ ${order.code} ได้ที่ลิงก์นี้ค่ะ (ใช้ดูอย่างเดียว) ${url}`, { orderId: order.id, by: session.role, fbCard: linkCardMsg(order, url, db.shop.name, { image: cardImageOf(order.items) }) })
   return { ok: true }
 }
 const maskPhone = (p) => (phoneDigits(p).length >= 6 ? `xxx-xxx-${phoneDigits(p).slice(-3)}` : '')
@@ -2173,8 +2183,8 @@ export function sendChat(chatId, from, text, extra = {}) {
     if (m.kind === 'text') {
       if (extra.fbCard) deliverFb(c, m, extra.fbCard.text, extra.row, { card: extra.fbCard.card })
       else deliverFb(c, m, m.text, extra.row)
-    } else if (m.kind === 'order') { const o = findOrder(m.orderId); if (o) { const k = orderCardMsg(o, orderTotals(o), db.shop.name); deliverFb(c, m, k.text, extra.row, { card: k.card }) } }
-    else if (m.kind === 'quote') { const q = findQuote(m.quoteId); if (q) { const k = quoteCardMsg(q, orderTotals({ ...q.payload, payments: [], adjustment: null, couponsUsed: [] }), db.shop.name); deliverFb(c, m, k.text, extra.row, { quoteId: q.id, card: k.card }) } }
+    } else if (m.kind === 'order') { const o = findOrder(m.orderId); if (o) { const lk = o.status !== 'draft' && o.channel !== 'pos' ? createOrderLink(o, { system: true }) : null; const k = orderCardMsg(o, orderTotals(o), db.shop.name, { image: cardImageOf(o.items), url: lk?.url }); deliverFb(c, m, k.text, extra.row, { card: k.card }) } }
+    else if (m.kind === 'quote') { const q = findQuote(m.quoteId); if (q) { const k = quoteCardMsg(q, orderTotals({ ...q.payload, payments: [], adjustment: null, couponsUsed: [] }), db.shop.name, { image: cardImageOf(q.payload?.items) }); deliverFb(c, m, k.text, extra.row, { quoteId: q.id, card: k.card }) } }
   }
   return m
 }

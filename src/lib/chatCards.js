@@ -32,16 +32,20 @@ const detailLines = (o, items) => {
   lines.push(`${where(o)} · ${dateTime(o.pickupAt)}`)
   return lines.join('\n')
 }
-// → { text: ข้อความนำ, card: { kind, title, subtitle, url? } }
-export function orderCardMsg(order, totals, shopName = '') {
-  const sub = [`ยอดรวม ${money(totals.total)} บาท`, totals.balance > 0.004 ? `ค้างชำระ ${money(totals.balance)} บาท` : 'ชำระครบแล้ว'].join(' · ')
-  return { text: detailLines(order, order.items), card: { kind: 'order', title: clip(`${shopName ? shopName + ' · ' : ''}สรุปออร์เดอร์ ${order.code || ''}`), subtitle: clip(sub) } }
+// → { text: ข้อความนำ, card: { kind, title, subtitle, image?, url?, pay? } }
+// opts: { image: https ของรูปบนการ์ด (ไม่มี = ไม่ใส่รูป), url: ลิงก์ออร์เดอร์สำหรับปุ่ม "ดูออร์เดอร์" }
+const httpsOnly = (u) => (typeof u === 'string' && /^https:\/\/\S+$/i.test(u) && u.length <= 500 ? u : '')
+export function orderCardMsg(order, totals, shopName = '', opts = {}) {
+  const owe = totals.balance > 0.004
+  const sub = [`ยอดรวม ${money(totals.total)}`, owe ? `ค้างชำระ ${money(totals.balance)}` : 'ชำระครบแล้ว'].join(' · ')
+  const url = httpsOnly(opts.url)
+  return { text: detailLines(order, order.items), card: { kind: 'order', title: clip(`ออร์เดอร์ ${order.code || ''}`), subtitle: clip(sub), ...(httpsOnly(opts.image) ? { image: opts.image } : {}), ...(url ? { url, pay: owe } : {}) } }
 }
-export function quoteCardMsg(quote, totals, shopName = '') {
+export function quoteCardMsg(quote, totals, shopName = '', opts = {}) {
   const p = quote.payload || {}
-  const sub = [`ยอดรวม ${money(totals.total)} บาท`, p.shippingFee ? `รวมค่าส่ง ${money(p.shippingFee)}` : ''].filter(Boolean).join(' · ')
-  return { text: detailLines(p, p.items), card: { kind: 'quote', title: clip(`${shopName ? shopName + ' · ' : ''}ใบเสนอราคา ${quote.code || ''}`), subtitle: clip(sub) } }
+  const sub = [`ยอดรวม ${money(totals.total)}`, p.shippingFee ? `รวมค่าส่ง ${money(p.shippingFee)}` : ''].filter(Boolean).join(' · ')
+  return { text: detailLines(p, p.items), card: { kind: 'quote', title: clip(`ใบเสนอราคา ${quote.code || ''}`), subtitle: clip(sub), ...(httpsOnly(opts.image) ? { image: opts.image } : {}) } }
 }
-export function linkCardMsg(order, url, shopName = '') {
-  return { text: '', card: { kind: 'link', title: clip(`${shopName ? shopName + ' · ' : ''}ออร์เดอร์ ${order.code || ''}`), subtitle: 'เปิดดูสถานะออร์เดอร์ (ดูอย่างเดียว)', url } }
+export function linkCardMsg(order, url, shopName = '', opts = {}) {
+  return { text: '', card: { kind: 'link', title: clip(`ออร์เดอร์ ${order.code || ''}`), subtitle: 'เปิดดูสถานะออร์เดอร์ (ดูอย่างเดียว)', url, ...(httpsOnly(opts.image) ? { image: opts.image } : {}) } }
 }
