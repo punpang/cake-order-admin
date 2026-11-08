@@ -110,7 +110,7 @@ const keyOf = (x) => `${x.groupId}:${x.optionId}`
 export const bundleAmount = (b, typeId, sizeIds) => sizeIds.reduce((s, sid) => s + (num(b.typeDiscount?.[typeId]?.[sid]) ?? (Number(b.discount?.[sid]) || 0)), 0)
 export function bundleDiscount(bundles, picked, sizeIds, usedBundles = null, typeId = null) {
   const cands = bundles
-    .filter((b) => b.active !== false && forType(b, typeId) && b.items?.length > 1 && b.items.every((x) => picked.has(keyOf(x))))
+    .filter((b) => b.active !== false && forType(b, typeId) && b.items?.length > 0 && b.items.every((x) => picked.has(keyOf(x))))
     .map((b) => ({ b, d: bundleAmount(b, typeId, sizeIds) }))
     .sort((a, b) => b.d - a.d)
   const taken = new Set()

@@ -83,7 +83,7 @@ function toggleItem(g, o) {
   else bd.items.push({ groupId: g.id, optionId: o.id })
 }
 async function saveB() {
-  if (bd.items.length < 2) return (bError.value = 'เลือกอย่างน้อย 2 ตัวเลือก')
+  if (bd.items.length < 1) return (bError.value = 'เลือกอย่างน้อย 1 ตัวเลือก')
   const data = { ...bd, name: bd.name.trim() || bundleAutoName.value }
   if (!(await confirmDeactivate(db.bundles, data, data.name))) return
   saveBundle(data)
@@ -162,7 +162,7 @@ async function saveB() {
     <AppModal v-if="bOpen" :title="bd.id ? 'แก้ไขบันเดิ้ล' : 'เพิ่มบันเดิ้ล'" @close="bOpen = false">
       <div class="space-y-4">
         <div>
-          <div class="label">ตัวเลือกในบันเดิ้ล (อย่างน้อย 2 · เลือกจากกลุ่มเดียวกันหรือต่างกลุ่มได้)</div>
+          <div class="label">ตัวเลือกในบันเดิ้ล (อย่างน้อย 1 · เลือกจากกลุ่มเดียวกันหรือต่างกลุ่มได้)</div>
           <div class="space-y-3">
             <div v-for="g in bundleGroups" :key="g.id">
               <div class="mb-1 text-xs font-semibold text-stone-500">{{ g.name }}</div>
