@@ -1,7 +1,9 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { openOrderLink, customerOrderView } from '../../data/store'
+import { db, openOrderLink, customerOrderView } from '../../data/store'
+import { supabaseEnabled } from '../../lib/supabase'
+import { staffState } from '../../lib/staffAuth'
 import { LINK_ERROR } from '../../lib/orderLink'
 import CustomerOrderView from '../../components/CustomerOrderView.vue'
 import AppIcon from '../../components/AppIcon.vue'
@@ -17,10 +19,18 @@ function meta(name, content) {
   document.head.appendChild(m)
   metas.push(m)
 }
-onMounted(() => {
+onMounted(async () => {
   meta('referrer', 'no-referrer')
   meta('robots', 'noindex, nofollow')
-  res.value = openOrderLink(String(route.params.token || ''))
+  const token = String(route.params.token || '')
+  // โหมด Supabase + ไม่ใช่เบราว์เซอร์ของพนักงาน: ขอข้อมูลจากเซิร์ฟเวอร์ (ลิงก์เปิดข้ามเครื่องได้)
+  if (supabaseEnabled && !staffState.staff) {
+    const [{ fetchRemoteLink, injectRemoteLink }, { rowToOrder }] = await Promise.all([import('../../lib/remoteLink'), import('../../lib/ordersSync')])
+    const r = await fetchRemoteLink(token)
+    if (r?.blocked) return (res.value = { error: r.error, blocked: true })
+    if (r?.order) injectRemoteLink(db, r, rowToOrder)
+  }
+  res.value = openOrderLink(token)
 })
 onBeforeUnmount(() => metas.forEach((m) => m.remove()))
 const o = computed(() => res.value?.order)

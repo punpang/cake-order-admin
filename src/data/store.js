@@ -601,6 +601,7 @@ const hasPhotos = (o) => o.items.some((i) => (i.workPhotos || []).length)
 export function customerRequestPhotoOptOut(ctx, note = '') {
   const o = ctxOrder(ctx)
   if (!o) return { error: 'ไม่พบออร์เดอร์' }
+  if (o._remote) return { error: REMOTE_BLOCK }
   if (!hasPhotos(o)) return { error: 'ยังไม่มีรูปงานในออร์เดอร์นี้' }
   if (photoStatusOf(o) === 'requested') return { error: 'ส่งคำขอไว้แล้ว รอร้านตรวจสอบ' }
   if (photoStatusOf(o) === 'revoked') return { error: 'ร้านลบรูปตามคำขอไว้แล้ว' }
@@ -614,6 +615,7 @@ export function customerRequestPhotoOptOut(ctx, note = '') {
 export function customerCancelPhotoOptOut(ctx) {
   const o = ctxOrder(ctx)
   if (!o) return { error: 'ไม่พบออร์เดอร์' }
+  if (o._remote) return { error: REMOTE_BLOCK }
   const req = db.photoRequests.find((r) => r.orderId === o.id && r.status === 'pending')
   if (!req || photoStatusOf(o) !== 'requested') return { error: 'ไม่มีคำขอที่รอตรวจสอบ' }
   Object.assign(req, { status: 'cancelled', decidedAt: now(), decidedBy: 'customer' })
@@ -1508,6 +1510,7 @@ const pendingCustomerSum = (o) => round2(o.payments.filter((p) => p.status === '
 const recentCustomerSubmits = (o) => o.payments.filter((p) => p.customerSubmitted && Date.now() - new Date(p.submittedAt || 0).getTime() < 3600e3).length
 // เหตุผลที่ลูกค้าชำระไม่ได้ ('' = ชำระได้)
 export function customerPayBlock(o) {
+  if (o._remote) return REMOTE_BLOCK
   if (o.status === 'cancelled') return 'ออร์เดอร์นี้ถูกยกเลิกแล้ว'
   if (o.status === 'draft') return 'ออร์เดอร์ยังไม่เปิดรับชำระ'
   const t = orderTotals(o)
@@ -1565,11 +1568,14 @@ export function ctxOrder(ctx) {
   }
   return null
 }
+// ออร์เดอร์ที่มาจากลิงก์ข้ามเครื่อง (ดูอย่างเดียว) — ทำรายการฝั่งลูกค้าไม่ได้จนกว่าจะมีระบบบันทึกฝั่งเซิร์ฟเวอร์
+const REMOTE_BLOCK = 'ลิงก์นี้ใช้ดูออร์เดอร์ได้อย่างเดียวในตอนนี้ กรุณาแจ้งชำระ/แจ้งร้านทางแชท'
 const SLIP_OK = /^(data:image\/(png|jpe?g|webp|gif);base64,|blob:)/
 // ลูกค้าแจ้งชำระเอง (ไม่ต้องรอร้านแจ้งยอด) · แนบสลิป · แอดมินยืนยันเหมือนเดิม
 export function customerPay(ctx, { amount, slip, note = '', paymentId = null }) {
   const o = ctxOrder(ctx)
   if (!o) return { error: LINK_ERROR }
+  if (o._remote) return { error: REMOTE_BLOCK }
   const block = customerPayBlock(o)
   if (block) return { error: block }
   const t = orderTotals(o)
@@ -1600,6 +1606,7 @@ export function customerPay(ctx, { amount, slip, note = '', paymentId = null }) 
 export function customerRequestExtension(ctx, paymentId, note = '') {
   const o = ctxOrder(ctx)
   if (!o) return { error: LINK_ERROR }
+  if (o._remote) return { error: REMOTE_BLOCK }
   const p = o.payments.find((x) => x.id === paymentId)
   if (!p || p.source === 'customer') return { error: 'ไม่พบยอดที่ร้านแจ้ง' }
   if (!requestPayExtension(o, paymentId, note)) return { error: 'ขอขยายเวลาไม่ได้ (ยังไม่เกินกำหนด หรือมีคำขอรออยู่)' }

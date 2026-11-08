@@ -65,7 +65,8 @@ export async function initStaff() {
 async function loadForVisitor() {
   try {
     const [pub, store, client] = await Promise.all([import('./publicSync'), import('../data/store'), getSupabase()])
-    await pub.startPublicLoad({ client, db: store.db, onError: (m) => console.warn('โหลดข้อมูลหน้าร้านไม่สำเร็จ:', m) })
+    // ไม่ให้หน้าเว็บค้างถ้าเซิร์ฟเวอร์ช้า: รอไม่เกิน 6 วินาที (ข้อมูลที่โหลดเสร็จทีหลังยังถูกใส่ให้เอง)
+    await Promise.race([pub.startPublicLoad({ client, db: store.db, onError: (m) => console.warn('โหลดข้อมูลหน้าร้านไม่สำเร็จ:', m) }), new Promise((r) => setTimeout(r, 6000))])
   } catch (e) { console.warn('โหลดข้อมูลหน้าร้านไม่สำเร็จ:', e?.message) }
 }
 
