@@ -112,6 +112,9 @@ export function pendingBotMessages(chats, nowMs = Date.now(), maxAgeMs = 5 * 60 
   return out
 }
 
+// ใบเสนอที่ลูกค้ากดยืนยันทาง Messenger แล้วรอสร้างออร์เดอร์ (webhook ตั้ง customer_ok)
+export const pendingQuoteConfirms = (quotes) => (quotes || []).filter((q) => q.status === 'customer_ok').map((q) => q.id)
+
 // ใบเสนอ: เลข QT ซ้ำ (23505) → ออกเลขใหม่ (เหมือนออร์เดอร์)
 export async function pushQuotes(client, { upserts, deletes }, { numbering = null, onRecode = () => {} } = {}) {
   for (const q of upserts) {
@@ -135,7 +138,7 @@ export async function pushQuotes(client, { upserts, deletes }, { numbering = nul
   return { ok: true }
 }
 
-export async function startChatSync({ client, db, canWrite, numbering, onError, onRecode, debounceMs, onInbound = null }) {
+export async function startChatSync({ client, db, canWrite, numbering, onError, onRecode, debounceMs, onInbound = null, onQuoteConfirm = null }) {
   let lastVers = new Map() // จากการโหลดล่าสุด
   let vers = new Map() // version ของแถวที่ข้อมูลในเครื่องอิงอยู่ (เปลี่ยนเมื่อแทนที่ข้อมูลจริงเท่านั้น — ถ้าโหลดแล้วข้ามเพราะมีการแก้ค้าง ต้องไม่เลื่อน version)
   const a = await startSync({
@@ -155,11 +158,13 @@ export async function startChatSync({ client, db, canWrite, numbering, onError, 
     replace: (items) => {
       db.quotes.splice(0, db.quotes.length, ...items)
       if (numbering) numbering.seen(items.map((i) => i.code))
+      if (onQuoteConfirm) { const pend = pendingQuoteConfirms(items); if (pend.length) setTimeout(() => pend.forEach((id) => onQuoteConfirm(id)), 0) }
     },
     load: () => loadQuotes(client),
     push: (c) => pushQuotes(client, c, { numbering, onRecode }),
-    canWrite, onError, debounceMs, label: 'ใบเสนอ',
+    canWrite, onError, debounceMs, label: 'ใบเสนอ', poll: true, // ลูกค้ากดปุ่มบน Messenger เปลี่ยนสถานะที่เซิร์ฟเวอร์
   })
   a.kind = 'chats' // ให้ชั้นล็อกอินเลือกรีเฟรชเฉพาะแชทถี่ ๆ ตอนเปิดหน้าแชท
+  b.kind = 'chats'
   return [a, b]
 }

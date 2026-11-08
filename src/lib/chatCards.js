@@ -19,6 +19,6 @@ export function quoteCardText(quote, totals, shopName = '') {
   lines.push(`${where(p)} · ${dateTime(p.pickupAt)}`)
   if (p.shippingFee) lines.push(`ค่าส่ง ${money(p.shippingFee)} บาท`)
   lines.push(`ยอดรวม ${money(totals.total)} บาท`)
-  lines.push('หากต้องการสั่งตามนี้ ตอบ "ยืนยัน" ในแชทนี้ได้เลย หรือบอกสิ่งที่ต้องการแก้ไขค่ะ')
+  lines.push('กดปุ่มด้านล่างเพื่อยืนยันสั่ง หรือขอแก้ไขได้เลยค่ะ')
   return lines.join('\n')
 }

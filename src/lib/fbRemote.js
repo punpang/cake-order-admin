@@ -13,7 +13,7 @@ async function invoke(client, name, body) {
   }
 }
 export const fbConnectCall = (client, action, body = {}) => invoke(client, 'fb-connect', { action, ...body })
-export const fbSendCall = (client, psid, text) => invoke(client, 'fb-send', { psid, text })
+export const fbSendCall = (client, psid, text, quoteId = '') => invoke(client, 'fb-send', { psid, text, ...(quoteId ? { quoteId } : {}) })
 
 // ข้อความ error จากหน้า callback ของ Facebook (?fb=error&m=…)
 export const FB_ERRORS = {

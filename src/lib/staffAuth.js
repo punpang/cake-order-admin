@@ -78,8 +78,8 @@ async function startData(staff) {
   }, () => {})
   // Facebook Messenger จริง: ตอบผ่าน fb-send · สถานะการเชื่อมเพจจาก fb-connect (token อยู่ฝั่งเซิร์ฟเวอร์เท่านั้น)
   const fbr = await import('./fbRemote')
-  store.fbHook.send = async (psid, text) => {
-    const r = await fbr.fbSendCall(client, psid, text)
+  store.fbHook.send = async (psid, text, opts = {}) => {
+    const r = await fbr.fbSendCall(client, psid, text, opts.quoteId || '')
     return r.ok ? { ok: true } : { ok: false, error: r.error || '' }
   }
   fbr.fbConnectCall(client, 'status').then((r) => {
@@ -124,7 +124,16 @@ async function startData(staff) {
     if (r.error || r.data !== true) return // ไม่ได้สิทธิ์ (มีเครื่องอื่นจองแล้ว) หรือผิดพลาด
     store.processInbound(chatId, mid)
   }
-  if (has('chat')) syncs.push(...(await chats.startChatSync({ client, db, canWrite: true, numbering: store.numbering, onError, onInbound, onRecode: (q, c) => showToast(`เลขใบเสนอซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000) })))
+  // ลูกค้ากดยืนยันใบเสนอทาง Messenger (webhook ตั้งสถานะ customer_ok) → จองสิทธิ์ (atomic) แล้วสร้างออร์เดอร์/ขอเบอร์ต่อ · ต้องมีสิทธิ์สร้างออร์เดอร์
+  const quoteSeen = new Set()
+  const onQuoteConfirm = async (quoteId) => {
+    if (quoteSeen.has(quoteId)) return
+    quoteSeen.add(quoteId)
+    const r = await client.rpc('punpang_quote_claim', { p_quote: quoteId })
+    if (r.error || r.data !== true) { quoteSeen.delete(quoteId); return }
+    store.processQuoteConfirm(quoteId)
+  }
+  if (has('chat')) syncs.push(...(await chats.startChatSync({ client, db, canWrite: true, numbering: store.numbering, onError, onInbound, onQuoteConfirm: has('createOrder') ? onQuoteConfirm : null, onRecode: (q, c) => showToast(`เลขใบเสนอซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000) })))
   else { db.chats.splice(0); db.quotes.splice(0) }
   // ผู้ใช้/สิทธิ์: เฉพาะ manageUsers · คนอื่นเห็นแค่ตัวเอง · ผูกตัวตนปัจจุบัน (ไว้บันทึกประวัติ "ใครทำ")
   store.session.userId = staff.user_id

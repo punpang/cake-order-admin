@@ -2172,13 +2172,13 @@ export function sendChat(chatId, from, text, extra = {}) {
   if (from === 'staff' && c.channel === 'facebook') {
     if (m.kind === 'text') deliverFb(c, m, m.text, extra.row)
     else if (m.kind === 'order') { const o = findOrder(m.orderId); if (o) deliverFb(c, m, orderCardText(o, orderTotals(o), db.shop.name), extra.row) }
-    else if (m.kind === 'quote') { const q = findQuote(m.quoteId); if (q) deliverFb(c, m, quoteCardText(q, orderTotals({ ...q.payload, payments: [], adjustment: null, couponsUsed: [] }), db.shop.name), extra.row) }
+    else if (m.kind === 'quote') { const q = findQuote(m.quoteId); if (q) deliverFb(c, m, quoteCardText(q, orderTotals({ ...q.payload, payments: [], adjustment: null, couponsUsed: [] }), db.shop.name), extra.row, { quoteId: q.id }) }
   }
   return m
 }
 // ส่ง Messenger จริงเมื่อพนักงาน/บอท/ระบบตอบในแชท Facebook (ผ่าน Edge Function fb-send · ตั้งโดยชั้นเชื่อม Supabase) · ไม่มีตัวส่ง = คงสถานะจำลอง
 export const fbHook = { send: null }
-function deliverFb(chat, m, text = m.text, row = null) {
+function deliverFb(chat, m, text = m.text, row = null, opts = {}) {
   if (!fbHook.send || !m || !chat.externalId) return
   const fail = (err) => {
     m.delivery = 'failed'; m.deliveryError = err || ''
@@ -2189,7 +2189,7 @@ function deliverFb(chat, m, text = m.text, row = null) {
   if (!fbWindowOpen(chat)) return fail('เกิน 24 ชั่วโมงหลังลูกค้าทักล่าสุด ส่งทาง Messenger ไม่ได้')
   m.delivery = 'sending'
   if (row) row.status = 'sending'
-  fbHook.send(chat.externalId, text).then((r) => {
+  fbHook.send(chat.externalId, text, opts).then((r) => {
     if (!r.ok) return fail(r.error)
     m.delivery = 'sent'
     if (row) row.status = 'sent'
@@ -2651,12 +2651,31 @@ export function acceptQuote(quoteId) {
 // พนักงานสร้างออร์เดอร์จากใบเสนอที่ลูกค้ายืนยันแล้ว (หลังผูก/ได้เบอร์)
 export function convertQuote(quoteId) {
   const q = findQuote(quoteId)
-  if (!q || q.status !== 'need_phone') return { error: 'ใบเสนอนี้ใช้ไม่ได้แล้ว' }
+  if (!q || !['need_phone', 'customer_ok', 'converting'].includes(q.status)) return { error: 'ใบเสนอนี้ใช้ไม่ได้แล้ว' }
   const block = chatOrderBlock(q.chatId)
   if (block) return { error: block }
   if (new Date(q.payload.pickupAt) <= new Date()) return { error: 'เวลานัดผ่านแล้ว ส่งใบเสนอใหม่' }
   const o = quoteToOrder(q)
   return o.error ? { error: o.error } : { order: o }
+}
+// ลูกค้ากดยืนยันใบเสนอบน Messenger (webhook ตั้ง customer_ok · ผู้เรียกจองสิทธิ์ใน DB แล้ว = converting) → สร้างออร์เดอร์ ถ้ายังไม่ผูก/ไม่มีเบอร์ → ขอเบอร์ รอพนักงาน
+// (ข้อความ "ยืนยัน" และคำตอบลูกค้าลงแชทโดย webhook แล้ว ที่นี่ไม่ส่งซ้ำ)
+export function processQuoteConfirm(quoteId) {
+  const q = findQuote(quoteId)
+  if (!q || !['customer_ok', 'converting'].includes(q.status)) return null
+  if (new Date(q.payload.pickupAt) <= new Date()) {
+    q.status = 'revise'
+    sendChat(q.chatId, 'staff', 'ใบเสนอนี้เลยเวลานัดแล้วค่ะ รบกวนแจ้งวันเวลาใหม่ ร้านจะส่งใบเสนอให้ใหม่นะคะ', { by: 'ระบบ' })
+    return { expired: true }
+  }
+  if (chatOrderBlock(q.chatId)) {
+    q.status = 'need_phone'
+    sendChat(q.chatId, 'staff', 'ขอบคุณค่ะ รบกวนแจ้งชื่อและเบอร์โทรเพื่อยืนยันออร์เดอร์นะคะ', { by: 'ระบบ' })
+    return { needPhone: true }
+  }
+  const o = quoteToOrder(q)
+  if (o.error) { q.status = 'need_phone'; return { error: o.error } } // สร้างไม่ได้ → ให้พนักงานกดสร้างเอง
+  return { order: o }
 }
 export function reviseQuote(quoteId, note = '') {
   const q = findQuote(quoteId)

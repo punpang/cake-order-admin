@@ -77,6 +77,8 @@ const QUOTE_STATUS = {
   accepted: { t: 'ยืนยันแล้ว', cls: 'bg-emerald-50 text-emerald-700' },
   revise: { t: 'ลูกค้าขอแก้', cls: 'bg-rose-50 text-rose-700' },
   need_phone: { t: 'ลูกค้ายืนยัน · รอเบอร์โทร', cls: 'bg-orange-50 text-orange-700' },
+  customer_ok: { t: 'ลูกค้ากดยืนยัน · รอสร้างออร์เดอร์', cls: 'bg-orange-50 text-orange-700' },
+  converting: { t: 'กำลังสร้างออร์เดอร์', cls: 'bg-orange-50 text-orange-700' },
   superseded: { t: 'มีใบใหม่แล้ว', cls: 'bg-stone-100 text-stone-500' },
 }
 function quoteView(m) {
@@ -246,7 +248,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
             <!-- พนักงาน -->
             <template v-if="true">
               <RouterLink v-if="quoteView(m).q.orderId" :to="`/admin/orders/${quoteView(m).q.orderId}`" class="btn-soft mt-2 h-9 w-full text-sm">เปิดออร์เดอร์</RouterLink>
-              <template v-else-if="quoteView(m).q.status === 'need_phone'">
+              <template v-else-if="['need_phone', 'customer_ok', 'converting'].includes(quoteView(m).q.status)">
                 <p v-if="block" class="mt-2 text-xs text-orange-700">{{ block }} · <button type="button" class="font-medium underline" @click="emit('link')">ผูก/สร้างลูกค้า</button></p>
                 <button type="button" class="btn-primary mt-2 h-9 w-full text-sm" :disabled="!!block" @click="convert(quoteView(m).q)">สร้างออร์เดอร์</button>
                 <p v-if="convertError" class="mt-1 text-xs text-rose-600">{{ convertError }}</p>
