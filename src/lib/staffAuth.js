@@ -43,7 +43,11 @@ async function startData(staff) {
     return r.data?.ok ? { ok: true } : { ok: false, error: r.data?.error || '' }
   }
   client.functions.invoke('sms-send', { body: { action: 'status' } }).then((r) => {
-    if (r.data?.configured) store.connectIntegration('sms', { accountName: 'เกตเวย์ SMS ของร้าน', accountId: 'gateway' })
+    if (r.data?.configured) {
+      const was = store.db.integrations.sms.enabled // คงสวิตช์เปิด/ปิดที่ร้านตั้งไว้ (บันทึกใน Supabase)
+      store.connectIntegration('sms', { accountName: 'เกตเวย์ SMS ของร้าน', accountId: 'gateway' })
+      store.db.integrations.sms.enabled = was
+    }
   }, () => {})
   const rmIdx = store.trashHooks.indexOf(trashHook)
   if (rmIdx >= 0) store.trashHooks.splice(rmIdx, 1)
