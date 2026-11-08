@@ -147,14 +147,14 @@ async function copy() {
 
     <template v-if="hasTiers">
       <div v-for="(tier, i) in form.tiers" :key="i">
-        <OptionPicker v-model="tier.selections" :bundles="db.bundles" :context="form.selections" :groups="showTier" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" :type-opt="typeOptOf(tier)" />
+        <OptionPicker v-model="tier.selections" :bundles="db.bundles" :context="form.selections" :groups="showTier" :all-groups="groups" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" :type-opt="typeOptOf(tier)" />
         <BundleHint scope="tier" :bundles="db.bundles" :groups="groups" :tier-sels="tier.selections" :whole-sels="form.selections" :size-ids="sizeIdsOf(tier)" :type-id="typeOptOf(tier)?.id || null" :allow="allowFor(tier)" />
       </div>
     </template>
 
     <template v-if="showWhole.length">
       <div class="text-sm font-semibold text-stone-500">ตัวเลือกเพิ่มเติม</div>
-      <OptionPicker v-model="form.selections" :bundles="db.bundles" :context="form.tiers[0]?.selections || {}" :groups="showWhole" :active="active" :allow="allowFor(form.tiers[0])" :size-ids="allSizeIds" :type-opt="typeOptOf(form.tiers[0])" />
+      <OptionPicker v-model="form.selections" :bundles="db.bundles" :context="form.tiers[0]?.selections || {}" :groups="showWhole" :all-groups="groups" :active="active" :allow="allowFor(form.tiers[0])" :size-ids="allSizeIds" :type-opt="typeOptOf(form.tiers[0])" />
       <BundleHint scope="whole" :bundles="db.bundles" :groups="groups" :tier-sels="form.tiers[0]?.selections || null" :whole-sels="form.selections" :size-ids="allSizeIds" :type-id="typeOptOf(form.tiers[0])?.id || null" :allow="allowFor(form.tiers[0])" />
     </template>
 
