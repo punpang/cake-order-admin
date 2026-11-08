@@ -149,10 +149,20 @@ export function bundleDiscount(bundles, picked, sizeIds, usedBundles = null, typ
 // แนะนำบันเดิ้ล: เลือกตัวเลือกในบันเดิ้ลแล้วแต่ยังไม่ครบชุด → ตัวที่ขาด + ส่วนลดที่จะได้ (ตามขนาด/ประเภทตอนนี้)
 // sels = ตัวเลือกที่เลือกอยู่ (รวมของชั้น+ทั้งก้อน) · allow(g, o|null) = กติกาเดิมของตัวตั้งค่า (ประเภท/รูปแบบตกแต่ง)
 // เสนอเฉพาะเมื่อเพิ่มได้จริง: ตัวเลือกเปิดใช้งาน ใช้กับประเภทนี้ได้ และไม่ต้องทับค่าที่เลือกไว้ (กลุ่ม multi หรือกลุ่ม single ที่ยังว่าง)
-export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = [], allow = null, limit = 2 } = {}) {
+// ประเภท/ขนาดที่ใช้คิดบันเดิ้ลชุดหนึ่ง ให้ตรงตัวคิดราคา: มีกลุ่มแยกชั้น → ใช้ของชั้น · ไม่มี → ขนาดรวมทุกชั้น + ประเภทชั้นที่ 1
+// scopes = { tier: { typeId, sizeIds }, whole: { typeId, sizeIds } } (ไม่ส่ง = ใช้ typeId/sizeIds ตรง ๆ)
+export const bundleScope = (b, groups, scopes, dflt) => {
+  if (!scopes) return dflt
+  const isTier = b.items.some((x) => groups.find((g) => g.id === x.groupId)?.perTier)
+  return (isTier ? scopes.tier : scopes.whole) || dflt
+}
+
+export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = [], allow = null, limit = 2, scopes = null } = {}) {
+  const dT = typeId, dS = sizeIds
   const has = (x) => idsOf(sels?.[x.groupId]).includes(x.optionId)
   const out = []
   for (const b of bundles || []) {
+    const { typeId, sizeIds } = b.items?.length ? bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS }) : { typeId: dT, sizeIds: dS }
     if (b.active === false || !forType(b, typeId) || !(b.items?.length > 1)) continue
     const have = b.items.filter(has)
     if (!have.length || have.length === b.items.length) continue
@@ -183,7 +193,7 @@ export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = []
 // เฉพาะบันเดิ้ลที่ใช้ได้จริงตอนนี้ (ใช้งาน ตรงประเภท ส่วนลดตามขนาด > 0) · หลายบันเดิ้ล: done > partner > idle แล้ว "ส่วนลดน้อยสุด" (ตรงกติกาคิดราคา)
 // ยังไม่ได้เลือกตัวเลือกรองใดเลย → ไม่มีป้าย · single = บันเดิ้ลที่ตั้งไว้ตัวเลือกเดียว (ใช้คำว่า "ลดพิเศษ")
 const RANK = { idle: 0, partner: 1, done: 2 }
-export function bundleTags(bundles, groups, sels, { typeId = null, sizeIds = [], allow = null } = {}) {
+export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: dS = [], allow = null, scopes = null } = {}) {
   const tags = new Map()
   const anySecondary = groups.some((g) => !MAIN.includes(g.key) && g.type !== 'text' && idsOf(sels?.[g.id]).length)
   if (!anySecondary) return tags
@@ -195,7 +205,9 @@ export function bundleTags(bundles, groups, sels, { typeId = null, sizeIds = [],
     else if (state === cur.state && amount === cur.amount && !cur.names.includes(name)) cur.names.push(name)
   }
   for (const b of bundles || []) {
-    if (b.active === false || !forType(b, typeId) || !(b.items?.length > 0)) continue
+    if (b.active === false || !(b.items?.length > 0)) continue
+    const { typeId, sizeIds } = bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS })
+    if (!forType(b, typeId)) continue
     const amount = bundleAmount(b, typeId, sizeIds)
     if (!(amount > 0)) continue
     const usable = (x) => {

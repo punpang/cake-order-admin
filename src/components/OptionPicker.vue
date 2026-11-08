@@ -7,6 +7,7 @@ import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
   groups: { type: Array, required: true },
+  scopes: { type: Object, default: null }, // { tier:{typeId,sizeIds}, whole:{typeId,sizeIds} } ให้ป้ายใช้ขนาด/ประเภทตัวเดียวกับตัวคิดราคา
   allGroups: { type: Array, default: null }, // ทุกหัวข้อ (บันเดิ้ลข้ามหัวข้อ/ข้ามส่วนต้องรู้จักกลุ่มของอีกฝั่ง)
   errors: { type: Object, default: () => ({}) },
   active: { type: Array, default: () => [] }, // แบบราคาพิเศษที่ใช้งาน
@@ -67,7 +68,7 @@ function pick(groupId, optionId, required) {
   else selections.value[groupId] = optionId
 }
 
-const tags = computed(() => bundleTags(props.bundles, props.allGroups || props.groups, { ...props.context, ...selections.value }, { typeId: props.typeOpt?.id || null, sizeIds: props.sizeIds, allow: props.allow }))
+const tags = computed(() => bundleTags(props.bundles, props.allGroups || props.groups, { ...props.context, ...selections.value }, { typeId: props.typeOpt?.id || null, sizeIds: props.sizeIds, allow: props.allow, scopes: props.scopes }))
 const tagOf = (g, o) => tags.value.get(`${g.id}:${o.id}`) || null
 const TAG_TEXT = { idle: 'บันเดิ้ล', partner: 'เลือกตัวนี้', done: '✓ ได้บันเดิ้ล' }
 // บันเดิ้ลตัวเลือกเดียว = "ลดพิเศษ x บาท" · ที่เหลือ "<สถานะ> ลด ฿x"
