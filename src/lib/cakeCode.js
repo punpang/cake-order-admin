@@ -2,7 +2,7 @@
 // รูปแบบ: #CK1.<payload base64url>.<checksum 3 ตัว> · payload (ข้อความกระชับ) = 1|จำนวน|ราคา/ชิ้นที่ลูกค้าเห็น|ตัวเลือกทั้งก้อน|จำนวนชั้น|ตัวเลือกชั้น1~ชั้น2…|หมายเหตุ
 // ตัวเลือก = กลุ่ม:ค่า;กลุ่ม:ค่า1,ค่า2 · ตัวอักษรพิเศษ \ ; : , | ~ ใส่ \ นำหน้า
 // checksum ไว้จับข้อความที่ถูกตัด/พิมพ์ผิด (ไม่ใช่ความปลอดภัย) · ราคาในรหัสใช้แค่เตือนเมื่อราคาปัจจุบันต่างไป — หลังบ้านคิดราคาใหม่เสมอ
-import { priceDetail, allowedBy, forType, describeSelections } from './pricing'
+import { priceDetail, allowedBy, forType, describeSelections, groupOkFor } from './pricing'
 import { MAIN_KEYS } from './constants'
 import { money } from './format'
 
@@ -152,7 +152,8 @@ export function decodeCake(raw, ctx) {
     const a = allowedBy(groups, typeSelsOf(t))
     const v = typeSelsOf(t)?.[typeG?.id]
     const tid = Array.isArray(v) ? v[0] : v
-    return (g, o) => a(g, o) && (MAIN_KEYS.includes(g.key) || forType(o, tid))
+    const gok = groupOkFor(groups, { kind: 'custom', selections: sel, tiers: tierList }, t)
+    return (g, o) => gok(g) && (!o || (a(g, o) && (MAIN_KEYS.includes(g.key) || forType(o, tid))))
   }
   if (tierList.length && !cg.some((g) => g.perTier)) return { error: 'โครงสร้างตัวเลือกร้านเปลี่ยนไป (ไม่มีกลุ่มแยกชั้น)' }
   for (const [pi, p] of places.entries()) {
@@ -161,6 +162,7 @@ export function decodeCake(raw, ctx) {
     for (const [gid, v] of Object.entries(p.s)) {
       const g = cg.find((x) => x.id === gid)
       if (!g) return { error: `ไม่พบกลุ่มตัวเลือก (${gid}) อาจถูกลบหรือปิดใช้งาน` }
+      if (!allow(g, null)) { delete p.s[gid]; warnings.push({ kind: 'group', text: `"${g.name}" เลือกไม่ได้กับรูปแบบตกแต่งที่เลือก (ตัดออกแล้ว)` }); continue }
       if (!!g.perTier !== p.tierGroups) return { error: `กลุ่ม "${g.name}" อยู่ผิดตำแหน่ง โครงสร้างราคาร้านเปลี่ยนไป` }
       if (g.type === 'text') {
         if (typeof v !== 'string' || v.length > LIMITS.text) return { error: `ข้อความของ "${g.name}" ไม่ถูกต้อง` }
@@ -177,8 +179,8 @@ export function decodeCake(raw, ctx) {
   // กลุ่มที่จำเป็นแต่ไม่ได้เลือก → เตือน (ให้พนักงานเติม)
   const need = []
   for (const g of cg.filter((x) => x.required)) {
-    if (g.perTier) tierList.forEach((t, i) => emptyVal(t.selections[g.id]) && need.push(tierList.length > 1 ? `ชั้น ${i + 1} · ${g.name}` : g.name))
-    else if (emptyVal(sel[g.id])) need.push(g.name)
+    if (g.perTier) tierList.forEach((t, i) => allowFor(t)(g, null) && emptyVal(t.selections[g.id]) && need.push(tierList.length > 1 ? `ชั้น ${i + 1} · ${g.name}` : g.name))
+    else if (allowFor(tierList[0])(g, null) && emptyVal(sel[g.id])) need.push(g.name)
   }
   if (need.length) warnings.push({ kind: 'missing', text: `ยังไม่ได้เลือก: ${need.join(', ')}` })
 

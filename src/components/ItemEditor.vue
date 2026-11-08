@@ -2,7 +2,7 @@
 import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRaw, watch } from 'vue'
 import { db, activeListsAt, session } from '../data/store'
-import { priceDetail, allowedBy, forType, discountLines } from '../lib/pricing'
+import { priceDetail, allowedBy, forType, discountLines, groupOkFor } from '../lib/pricing'
 import { decodeCake, findCodes } from '../lib/cakeCode'
 import { money } from '../lib/format'
 import { resizeImage, imageErrorMessage } from '../lib/imageResize'
@@ -83,13 +83,16 @@ const typeSels = (t) => (typeGroup.value && tierGroups.value.includes(typeGroup.
 const allowFor = (t) => {
   const a = allowedBy(db.optionGroups, typeSels(t))
   const tid = typeOptOf(t)?.id
-  return (g, o) => a(g, o) && (MAIN_KEYS.includes(g.key) || forType(o, tid))
+  const gok = groupOkFor(db.optionGroups, form, t)
+  // o = null → ถามแค่ว่าหัวข้อนี้เลือกได้ไหม (ตามรูปแบบตกแต่ง)
+  return (g, o) => gok(g) && (!o || (a(g, o) && (MAIN_KEYS.includes(g.key) || forType(o, tid))))
 }
 // สินค้าสำเร็จ: ประเภทของสินค้า (ตัวเลือกรองตามประเภท)
 const readyTypeOpt = computed(() => db.optionGroups.find((g) => g.key === 'type')?.options.find((o) => o.id === form.typeId) || null)
 // เปลี่ยนประเภทแล้ว ตัดตัวเลือกที่ไม่มีออก
 function prune(sels, allow, list) {
   for (const g of list) {
+    if (!allow(g, null)) { delete sels[g.id]; continue } // หัวข้อที่รูปแบบตกแต่งไม่เปิดให้เลือก → ล้างค่า
     const v = sels[g.id]
     if (v == null || g.type === 'text') continue
     const ok = (id) => { const o = g.options.find((x) => x.id === id); return !o || allow(g, o) }
@@ -172,12 +175,14 @@ function save() {
   const err = {}
   if (form.kind === 'retail' && !form.retailId) err.product = 'เลือกสินค้า'
   const empty = (v) => v == null || v === ''
+  const allowW = allowFor(form.tiers[0])
   for (const g of wholeGroups.value) {
-    if (g.required && empty(form.selections[g.id])) err[g.id] = `เลือก${g.name}`
+    if (g.required && allowW(g, null) && empty(form.selections[g.id])) err[g.id] = `เลือก${g.name}`
   }
   form.tiers.forEach((t, i) => {
     const e = {}
-    for (const g of tierGroups.value) if (g.required && empty(t.selections[g.id])) e[g.id] = `เลือก${g.name}`
+    const allowT = allowFor(t)
+    for (const g of tierGroups.value) if (g.required && allowT(g, null) && empty(t.selections[g.id])) e[g.id] = `เลือก${g.name}`
     if (Object.keys(e).length) err[`t${i}`] = e
   })
   if (!(form.qty >= 1)) err.qty = 'จำนวนอย่างน้อย 1'

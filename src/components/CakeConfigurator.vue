@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { db, activeListsAt } from '../data/store'
-import { priceDetail, allowedBy, forType, discountLines } from '../lib/pricing'
+import { priceDetail, allowedBy, forType, discountLines, groupOkFor } from '../lib/pricing'
 import { MAIN_KEYS } from '../lib/constants'
 import { encodeCake } from '../lib/cakeCode'
 import { money } from '../lib/format'
@@ -74,11 +74,14 @@ const typeOptOf = (t) => {
 const allowFor = (t) => {
   const a = allowedBy(db.optionGroups, typeSels(t))
   const tid = typeOptOf(t)?.id
-  return (g, o) => a(g, o) && (MAIN_KEYS.includes(g.key) || forType(o, tid))
+  const gok = groupOkFor(db.optionGroups, form, t)
+  // o = null → ถามแค่ว่าหัวข้อนี้เลือกได้ไหม (ตามรูปแบบตกแต่ง)
+  return (g, o) => gok(g) && (!o || (a(g, o) && (MAIN_KEYS.includes(g.key) || forType(o, tid))))
 }
 const allSizeIds = computed(() => (sizeGroup.value?.perTier ? form.tiers.flatMap((t) => sizeIdsOf(t)) : sizeIdsOf(null)))
 function prune(sels, allow, list) {
   for (const g of list) {
+    if (!allow(g, null)) { delete sels[g.id]; continue } // หัวข้อที่รูปแบบตกแต่งไม่เปิดให้เลือก → ล้างค่า
     const v = sels[g.id]
     if (v == null || g.type === 'text') continue
     const ok = (id) => { const o = g.options.find((x) => x.id === id); return !o || allow(g, o) }
@@ -100,8 +103,9 @@ const empty = (v) => v == null || v === '' || (Array.isArray(v) && !v.length)
 const missing = computed(() => {
   const out = []
   if (typeG.value?.required && !props.typeId) out.push(typeG.value.name)
-  for (const g of wholeGroups.value) if (g.required && g.key !== 'type' && empty(form.selections[g.id])) out.push(g.name)
-  form.tiers.forEach((t) => { for (const g of tierGroups.value) if (g.required && g.key !== 'type' && empty(t.selections[g.id])) out.push(g.name) })
+  const aW = allowFor(form.tiers[0])
+  for (const g of wholeGroups.value) if (g.required && g.key !== 'type' && aW(g, null) && empty(form.selections[g.id])) out.push(g.name)
+  form.tiers.forEach((t) => { const aT = allowFor(t); for (const g of tierGroups.value) if (g.required && g.key !== 'type' && aT(g, null) && empty(t.selections[g.id])) out.push(g.name) })
   return out
 })
 const ready = computed(() => !missing.value.length)

@@ -70,7 +70,7 @@ const isOn = (g, o) =>
 <template>
   <div class="space-y-3">
     <div
-      v-for="g in groups.filter((x) => x.key !== 'style' || x.options.some((o) => o.active !== false))"
+      v-for="g in groups.filter((x) => (x.key !== 'style' || x.options.some((o) => o.active !== false)) && (!allow || allow(x, null)))"
       :key="g.id"
       class="rounded-2xl border bg-white p-3.5"
       :class="errors[g.id] ? 'border-rose-300 ring-4 ring-rose-50' : 'border-stone-200/70'"

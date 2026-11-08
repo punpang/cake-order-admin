@@ -18,6 +18,9 @@ const isType = computed(() => group.value?.key === 'type')
 const isFlavor = computed(() => group.value?.key === 'flavor' || group.value?.key === 'style') // รูปแบบตกแต่ง: ราคาบวกคงที่เหมือนเนื้อเค้ก
 // กลุ่มหลัก (ประเภท/เนื้อเค้ก/ขนาด): ราคาตั้งที่หน้าการกำหนดราคา · กลุ่มรอง: ราคาตามขนาด
 const isMain = computed(() => MAIN_KEYS.includes(group.value?.key))
+const isStyle = computed(() => group.value?.key === 'style')
+// รูปแบบตกแต่ง: หัวข้อรองที่เลือกได้ (ไม่ติ๊ก/ติ๊กครบ = ทุกหัวข้อ)
+const subGroups = computed(() => db.optionGroups.filter((x) => !MAIN_KEYS.includes(x.key) && x.active !== false))
 // ประเภท: เลือกเนื้อเค้ก/ขนาดที่มี
 const limitGroups = computed(() => db.optionGroups.filter((x) => x.key === 'flavor' || x.key === 'size' || (x.key === 'style' && x.options.length)))
 
@@ -90,16 +93,24 @@ async function saveG() {
 
 // ---------- ตัวเลือก ----------
 const oOpen = ref(false)
-const blank = () => ({ id: null, name: '', price: 0, pounds: 1, active: true, recipe: [], images: [], allow: {}, sizePrices: {}, priceType: 'size', types: [], typePrices: {}, typePrice: {} })
+const blank = () => ({ id: null, name: '', price: 0, pounds: 1, active: true, recipe: [], images: [], allow: {}, groups: [], sizePrices: {}, priceType: 'size', types: [], typePrices: {}, typePrice: {} })
 const o = reactive(blank())
 const oError = ref('')
 function editOption(opt) {
-  Object.assign(o, opt ? { ...blank(), ...opt, recipe: (opt.recipe || []).map((x) => ({ ...x })), images: [...(opt.images || [])], allow: JSON.parse(JSON.stringify(opt.allow || {})), sizePrices: { ...(opt.sizePrices || {}) }, types: [...(opt.types || [])], typePrices: JSON.parse(JSON.stringify(opt.typePrices || {})), typePrice: { ...(opt.typePrice || {}) } } : blank())
+  Object.assign(o, opt ? { ...blank(), ...opt, groups: [...(opt.groups || [])], recipe: (opt.recipe || []).map((x) => ({ ...x })), images: [...(opt.images || [])], allow: JSON.parse(JSON.stringify(opt.allow || {})), sizePrices: { ...(opt.sizePrices || {}) }, types: [...(opt.types || [])], typePrices: JSON.parse(JSON.stringify(opt.typePrices || {})), typePrice: { ...(opt.typePrice || {}) } } : blank())
   for (const t of db.optionGroups.find((x) => x.key === 'type')?.options || []) if (!o.typePrices[t.id]) o.typePrices[t.id] = {}
   oError.value = ''
   oOpen.value = true
 }
 
+const groupOn = (gid) => !o.groups?.length || o.groups.includes(gid)
+function toggleGroup(gid) {
+  const cur = o.groups?.length ? [...o.groups] : subGroups.value.map((x) => x.id)
+  const i = cur.indexOf(gid)
+  if (i >= 0) cur.splice(i, 1)
+  else cur.push(gid)
+  o.groups = subGroups.value.every((x) => cur.includes(x.id)) ? [] : cur // ครบทุกหัวข้อ = ไม่จำกัด
+}
 const allowOn = (lg, oid) => !o.allow[lg.id] || o.allow[lg.id].includes(oid)
 function toggleAllow(lg, oid) {
   const cur = o.allow[lg.id] ? [...o.allow[lg.id]] : lg.options.map((x) => x.id)
@@ -117,6 +128,7 @@ async function saveO() {
   if (!isMain.value && vals.some((v) => v !== '' && v != null && !(Number(v) >= 0))) return (oError.value = 'ราคาไม่ถูกต้อง')
   const data = { ...o }
   if (!isType.value) delete data.images
+  if (!isStyle.value) delete data.groups
   if (!isType.value) delete data.allow
   else {
     for (const lg of limitGroups.value) if (data.allow[lg.id] && !data.allow[lg.id].length) return (oError.value = `เลือก${lg.name}อย่างน้อย 1 อย่าง`)
@@ -322,6 +334,13 @@ async function saveO() {
             </div>
           </div>
           <p class="text-xs text-stone-400">ที่ไม่เลือกจะไม่แสดงตอนสั่ง</p>
+        </div>
+        <div v-if="isStyle && subGroups.length">
+          <div class="label">หัวข้อที่เลือกได้เมื่อเลือกรูปแบบนี้</div>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="x in subGroups" :key="x.id" type="button" class="chip" :class="groupOn(x.id) ? 'chip-on' : 'chip-off'" :aria-pressed="groupOn(x.id)" data-style-group @click="toggleGroup(x.id)">{{ x.name }}</button>
+          </div>
+          <p class="mt-1 text-xs text-stone-400">หัวข้อที่ไม่เลือกจะซ่อนตอนสั่ง และล้างค่าที่เลือกไว้ · เลือกครบทุกหัวข้อ = ไม่จำกัด</p>
         </div>
         <RecipeEditor v-model="o.recipe" />
         <AppSwitch v-model="o.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" class="flex" />

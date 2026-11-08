@@ -90,6 +90,18 @@ export function itemBase(item, groups, products, active = [], used = null) {
   return { base, pounds: tierPounds.reduce((a, b) => a + b, 0), tierPounds, tierSizes, tierTypes }
 }
 
+// ---------- รูปแบบตกแต่ง → หัวข้อรองที่เลือกได้ ----------
+// ตัวเลือกของกลุ่ม style มี groups = [groupId] (ว่าง/ไม่มี = ทุกหัวข้อ) · กลุ่มหลักไม่ถูกจำกัด
+// item/ชั้น t: รูปแบบอยู่ในชั้น (perTier) หรือทั้งก้อนก็ได้ · คืน (g) => เลือกหัวข้อนี้ได้ไหม
+export function groupOkFor(groups, item, t) {
+  const sg = groups.find((g) => g.key === 'style')
+  if (!sg) return () => true
+  const sels = (isTierGroup(sg, item) ? t?.selections : item.selections) || {}
+  const opt = sg.options.find((o) => o.id === idsOf(sels[sg.id])[0])
+  const only = opt?.groups
+  return (g) => MAIN.includes(g.key) || !only?.length || only.includes(g.id)
+}
+
 // ---------- ตัวเลือกรอง ----------
 // priceType: 'size' = ตามขนาด (sizePrices = { [sizeId] }) | 'fixed' = คงที่ (price)
 // แปรผันตามประเภท: types = [typeId] ใช้ได้กับประเภทไหน (ว่าง = ทุกประเภท)
@@ -150,13 +162,15 @@ export function calcUnitPrice(item, groups, products, active = [], used = null, 
     gs.flatMap((g) => idsOf(sels?.[g.id]).map((id) => ({ g, id, o: g.options.find((x) => x.id === id) }))).filter((x) => x.o && forType(x.o, typeId))
   const priceOf = (list, typeId, sids) => list.reduce((s, x) => s + optionPrice(x.o, typeId, sids), 0)
   const keys = (list) => new Set(list.map(({ g, id }) => `${g.id}:${id}`))
-  const wholePicked = pick(wholeG, item.selections, wholeType)
+  const okWhole = groupOkFor(groups, item, tiers[0])
+  const wholePicked = pick(wholeG.filter(okWhole), item.selections, wholeType)
   let extra = priceOf(wholePicked, wholeType, allSizes)
   const isTierB = (b) => b.items.some((x) => tierG.some((g) => g.id === x.groupId))
   const tierB = bundles.filter(isTierB)
   const wholeB = bundles.filter((b) => !isTierB(b))
   tiers.forEach((t, i) => {
-    const tp = pick(tierG, t.selections, tierTypes[i])
+    const okT = groupOkFor(groups, item, t)
+    const tp = pick(tierG.filter(okT), t.selections, tierTypes[i])
     extra += priceOf(tp, tierTypes[i], tierSizes[i])
     extra -= bundleDiscount(tierB, keys([...tp, ...wholePicked]), tierSizes[i], usedBundles, tierTypes[i])
   })
@@ -252,8 +266,10 @@ export function describeSelections(item, groups) {
   const tiers = tiersOf(item)
   const tierGroups = groups.filter((g) => isTierGroup(g, item))
   tiers.forEach((t, i) => {
-    for (const g of tierGroups) push(g, t.selections?.[g.id], tiers.length > 1 ? `ชั้น ${i + 1} · ${g.name}` : g.name)
+    const ok = groupOkFor(groups, item, t)
+    for (const g of tierGroups.filter(ok)) push(g, t.selections?.[g.id], tiers.length > 1 ? `ชั้น ${i + 1} · ${g.name}` : g.name)
   })
-  for (const g of groups) if (!isTierGroup(g, item)) push(g, item.selections?.[g.id], g.name)
+  const okW = groupOkFor(groups, item, tiers[0])
+  for (const g of groups) if (!isTierGroup(g, item) && okW(g)) push(g, item.selections?.[g.id], g.name)
   return out
 }
