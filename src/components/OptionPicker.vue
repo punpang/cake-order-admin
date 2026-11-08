@@ -71,9 +71,9 @@ function pick(groupId, optionId, required) {
 
 const tags = computed(() => bundleTags(props.bundles, props.allGroups || props.groups, { ...props.context, ...selections.value }, { typeId: props.typeOpt?.id || null, sizeIds: props.sizeIds, allow: props.allow, scopes: props.scopes }))
 const tagOf = (g, o) => tags.value.get(`${g.id}:${o.id}`) || null
-const TAG_TEXT = { idle: 'บันเดิ้ล', partner: 'เลือกตัวนี้', done: '✓ ได้บันเดิ้ล' }
-// บันเดิ้ลตัวเลือกเดียว = "ลดพิเศษ x บาท" · ที่เหลือ "<สถานะ> ลด ฿x"
-const tagText = (t) => (t.single ? `${t.state === 'done' ? '✓ ' : '🎁 '}ลดพิเศษ ${num(t.amount)} บาท` : `${t.state === 'idle' ? '🎁 ' : ''}${TAG_TEXT[t.state]} ลด ${money(t.amount)}`)
+// ข้อความป้ายสั้น ๆ ให้กว้างไม่เกินชิป · ชุด: 🎁/เลือกตัวนี้/✓ + "ลด x฿" · ตัวเลือกเดียว: "ลดพิเศษ x฿"
+const TAG_TEXT = { idle: '🎁', partner: 'ครบชุด', done: '✓' }
+const tagText = (t) => (t.single ? `${t.state === 'done' ? '✓ ' : '🎁 '}ลดพิเศษ ${num(t.amount)}฿` : `${TAG_TEXT[t.state]} ลด ${num(t.amount)}฿`)
 const isOn = (g, o) =>
   g.type === 'multi' ? (selections.value[g.id] || []).includes(o.id) : selections.value[g.id] === o.id
 </script>
@@ -111,7 +111,7 @@ const isOn = (g, o) =>
           @click="g.type === 'multi' ? toggle(g.id, o.id) : pick(g.id, o.id, g.required)"
         >
           <AppIcon v-if="isOn(g, o)" name="check" :size="14" class="text-brand-600" />
-          <span v-if="tagOf(g, o)" class="pointer-events-none absolute -top-2.5 right-2 rounded-full px-2 py-0.5 text-[11px] leading-tight font-bold whitespace-nowrap shadow-sm" :class="tagOf(g, o).state === 'partner' ? 'bg-amber-600 text-white' : tagOf(g, o).state === 'done' ? 'bg-emerald-700 text-white' : 'bg-emerald-600 text-white'">{{ tagText(tagOf(g, o)) }}</span>
+          <span v-if="tagOf(g, o)" class="pointer-events-none absolute -top-2.5 right-2 max-w-[calc(100%-0.75rem)] truncate rounded-full px-2 py-0.5 text-[11px] leading-tight font-bold whitespace-nowrap shadow-sm" :class="tagOf(g, o).state === 'partner' ? 'bg-amber-600 text-white' : tagOf(g, o).state === 'done' ? 'bg-emerald-700 text-white' : 'bg-emerald-600 text-white'">{{ tagText(tagOf(g, o)) }}</span>
           <span class="min-w-0 break-words">{{ o.name }}</span>
           <span v-if="regularText(g, o)" class="text-xs whitespace-nowrap text-stone-400 line-through">{{ regularText(g, o) }}</span>
           <span v-if="priceText(g, o)" class="text-xs whitespace-nowrap" :class="regularText(g, o) ? 'font-medium text-rose-600' : 'text-stone-500'">{{ priceText(g, o) }}</span>
