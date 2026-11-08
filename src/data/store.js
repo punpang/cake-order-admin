@@ -751,7 +751,7 @@ export function saveOption(groupId, d) {
 
 // บันเดิ้ล (ตัวเลือกรอง ในกลุ่มเดียวกันหรือข้ามกลุ่ม ลดราคาตามขนาด)
 export const saveBundle = (d) =>
-  upsert(db.bundles, 'b', { ...d, items: d.items.map((x) => ({ groupId: x.groupId, optionId: x.optionId })), discount: cleanSpecial(d.discount), types: [...(d.types || [])], typeDiscount: cleanTable(d.typeDiscount), styleDiscount: cleanTable(d.styleDiscount) })
+  upsert(db.bundles, 'b', { ...d, items: d.items.map((x) => ({ groupId: x.groupId, optionId: x.optionId })), discount: cleanSpecial(d.discount), types: [...(d.types || [])], typeDiscount: cleanTable(d.typeDiscount), styleDiscount: cleanTable(d.styleDiscount), styleMode: Object.fromEntries(Object.entries(d.styleMode || {}).filter(([, v]) => v === 'own')) })
 
 // จัดลำดับ: สลับกับตัวข้างเคียง (dir = -1 ขึ้น / 1 ลง)
 export function moveItem(list, index, dir) {

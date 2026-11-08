@@ -140,9 +140,16 @@ export const sizePriceOf = (o, sizeIds) => sizeIds.reduce((s, id) => s + (Number
 // bundles = [{ items: [{ groupId, optionId }], discount: { [sizeId] }, types: [typeId], typeDiscount: { [typeId]: { [sizeId] } } }]
 // ในกลุ่มเดียวกันหรือข้ามกลุ่ม (เฉพาะตัวเลือกรอง) · picked = Set ของ "groupId:optionId" ที่เลือก · เลือกครบทุกตัว → ลดตามขนาด (ส่วนลดของประเภทถ้ามี)
 const keyOf = (x) => `${x.groupId}:${x.optionId}`
-// ส่วนลดต่อขนาด: ตามรูปแบบตกแต่ง (styleDiscount) > ตามประเภท (typeDiscount) > ทุกประเภท (discount)
+// รูปแบบตกแต่งใช้ "ราคาประจำตัว" ของบันเดิ้ลนี้ไหม: styleMode[styleId] === 'own' (บันเดิ้ลเก่าที่มีตัวเลขใน styleDiscount โดยไม่มี styleMode ถือเป็น own)
+export const isOwnStyle = (b, styleId) => {
+  if (!styleId) return false
+  const m = b.styleMode?.[styleId]
+  if (m) return m === 'own'
+  return Object.values(b.styleDiscount?.[styleId] || {}).some((v) => num(v) != null)
+}
+// ส่วนลดต่อขนาด: ราคาประจำตัวของรูปแบบ (ช่องว่าง = 0) · ไม่งั้นราคากลาง: ตามประเภท (typeDiscount) > ทุกประเภท (discount)
 export const bundleAmount = (b, typeId, sizeIds, styleId = null) =>
-  sizeIds.reduce((s, sid) => s + (num(b.styleDiscount?.[styleId]?.[sid]) ?? num(b.typeDiscount?.[typeId]?.[sid]) ?? (Number(b.discount?.[sid]) || 0)), 0)
+  sizeIds.reduce((s, sid) => s + (isOwnStyle(b, styleId) ? num(b.styleDiscount?.[styleId]?.[sid]) ?? 0 : num(b.typeDiscount?.[typeId]?.[sid]) ?? (Number(b.discount?.[sid]) || 0)), 0)
 // 1 หัวข้อ (กลุ่มตัวเลือก) ได้ส่วนลดบันเดิ้ลสูงสุด 1 ชุด · หัวข้อของบันเดิ้ล = กลุ่มของตัวเลือกแรก (ข้ามกลุ่มนับเป็นของกลุ่มแรก)
 // ถ้าเข้าเงื่อนไขหลายชุดในหัวข้อเดียวกัน → ใช้ชุดที่ลดน้อยที่สุด (ชุดที่ส่วนลด 0 ไม่นับ) · ต่างหัวข้อใช้พร้อมกันได้ ถ้าไม่ใช้ตัวเลือกซ้ำกัน
 // ทุกชุดที่ครบ (ส่วนลด > 0) ใช้ได้พร้อมกัน ถ้าไม่ใช้ตัวเลือกซ้ำกัน · ซ้ำกัน: ชุดที่มีจำนวนตัวเลือกมากที่สุดมาก่อน แล้วส่วนลดมากกว่า

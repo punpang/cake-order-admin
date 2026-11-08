@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { db, saveGroup, saveBundle, moveItem } from '../../data/store'
 import { confirmDeactivate } from '../../lib/confirm'
 import { money } from '../../lib/format'
+import { isOwnStyle } from '../../lib/pricing'
 import { GROUP_TYPES, APPLIES_TO, MAIN_KEYS } from '../../lib/constants'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
@@ -58,7 +59,7 @@ const itemName = (x) => {
   return `${g?.name || '?'}: ${g?.options.find((o) => o.id === x.optionId)?.name || '?'}`
 }
 const bOpen = ref(false)
-const bd = reactive({ id: null, name: '', items: [], discount: {}, types: [], typeDiscount: {}, styleDiscount: {}, active: true })
+const bd = reactive({ id: null, name: '', items: [], discount: {}, types: [], typeDiscount: {}, styleDiscount: {}, styleMode: {}, active: true })
 // บันเดิ้ลแปรผันตามประเภท: ใช้กับประเภทไหน + ส่วนลดแยกประเภท (ว่าง = ส่วนลดกลาง)
 const typeOpts = computed(() => (db.optionGroups.find((x) => x.key === 'type')?.options || []).filter((t) => t.active !== false || bd.types.includes(t.id)))
 const typeName = (id) => db.optionGroups.find((x) => x.key === 'type')?.options.find((t) => t.id === id)?.name || ''
@@ -71,9 +72,12 @@ const bError = ref('')
 const bundleAutoName = computed(() => bd.items.map((x) => db.optionGroups.find((g) => g.id === x.groupId)?.options.find((o) => o.id === x.optionId)?.name).filter(Boolean).join(' + '))
 function editBundle(b) {
   Object.assign(bd, b
-    ? { ...b, items: b.items.map((x) => ({ ...x })), discount: { ...(b.discount || {}) }, types: [...(b.types || [])], typeDiscount: JSON.parse(JSON.stringify(b.typeDiscount || {})), styleDiscount: JSON.parse(JSON.stringify(b.styleDiscount || {})) }
-    : { id: null, name: '', items: [], discount: {}, types: [], typeDiscount: {}, styleDiscount: {}, active: true })
-  for (const st of styleOpts.value) if (!bd.styleDiscount[st.id]) bd.styleDiscount[st.id] = {}
+    ? { ...b, items: b.items.map((x) => ({ ...x })), discount: { ...(b.discount || {}) }, types: [...(b.types || [])], typeDiscount: JSON.parse(JSON.stringify(b.typeDiscount || {})), styleDiscount: JSON.parse(JSON.stringify(b.styleDiscount || {})), styleMode: {} }
+    : { id: null, name: '', items: [], discount: {}, types: [], typeDiscount: {}, styleDiscount: {}, styleMode: {}, active: true })
+  for (const st of styleOpts.value) {
+    if (!bd.styleDiscount[st.id]) bd.styleDiscount[st.id] = {}
+    bd.styleMode[st.id] = b && isOwnStyle(b, st.id) ? 'own' : 'central' // central = ราคากลางบันเดิ้ล · own = ราคาประจำตัว
+  }
   for (const t of db.optionGroups.find((x) => x.key === 'type')?.options || []) if (!bd.typeDiscount[t.id]) bd.typeDiscount[t.id] = {}
   bError.value = ''
   bOpen.value = true
@@ -207,24 +211,21 @@ async function saveB() {
           <p class="mt-1 text-xs text-stone-400">แถวประเภทเว้นว่าง = ใช้ส่วนลด "ทุกประเภท" · เค้กชั้น: ลดตามขนาดและประเภทของแต่ละชั้นที่เลือกครบชุด</p>
         </div>
         <div v-if="styleOpts.length">
-          <div class="label">ส่วนลดเฉพาะรูปแบบตกแต่ง (บาท) แต่ละขนาด</div>
-          <div class="-mx-5 overflow-x-auto px-5">
-            <table class="w-full min-w-max text-sm">
-              <thead>
-                <tr class="text-left text-xs text-stone-500">
-                  <th class="py-2 pr-3 font-medium"></th>
-                  <th v-for="sz in sizeOpts" :key="sz.id" class="px-1 py-2 font-medium">{{ sz.name }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="st in styleOpts" :key="st.id" class="border-t border-stone-100">
-                  <td class="py-1.5 pr-3 whitespace-nowrap text-stone-700">{{ st.name }}</td>
-                  <td v-for="sz in sizeOpts" :key="sz.id" class="px-1 py-1.5"><input v-model="bd.styleDiscount[st.id][sz.id]" type="text" v-num.dec min="0" class="input h-10 w-24" :data-style-disc="`${st.id}:${sz.id}`" placeholder="—" /></td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="label">รูปแบบตกแต่ง: ใช้ราคากลางบันเดิ้ล หรือราคาประจำตัว</div>
+          <div class="space-y-2">
+            <div v-for="st in styleOpts" :key="st.id" class="rounded-xl border border-stone-200 p-2.5">
+              <div class="flex items-center gap-2">
+                <span class="min-w-0 flex-1 truncate text-sm font-medium text-stone-800">{{ st.name }}</span>
+                <div class="grid shrink-0 grid-cols-2 gap-1">
+                  <button v-for="m in [{ v: 'central', l: 'ราคากลาง' }, { v: 'own', l: 'ราคาประจำตัว' }]" :key="m.v" type="button" class="chip" :class="bd.styleMode[st.id] === m.v ? 'chip-on' : 'chip-off'" :aria-pressed="bd.styleMode[st.id] === m.v" :data-style-mode="`${st.id}:${m.v}`" @click="bd.styleMode[st.id] = m.v">{{ m.l }}</button>
+                </div>
+              </div>
+              <div v-if="bd.styleMode[st.id] === 'own'" class="mt-2 flex flex-wrap gap-2">
+                <label v-for="sz in sizeOpts" :key="sz.id" class="text-xs text-stone-500">{{ sz.name }}<input v-model="bd.styleDiscount[st.id][sz.id]" type="text" v-num.dec min="0" class="input mt-0.5 h-10 w-24" :data-style-disc="`${st.id}:${sz.id}`" placeholder="0" /></label>
+              </div>
+            </div>
           </div>
-          <p class="mt-1 text-xs text-stone-400">เว้นว่าง = ใช้ส่วนลดตามประเภท/ทุกประเภทตามเดิม · ถ้ากรอก จะใช้ตัวเลขนี้แทนเมื่อลูกค้าเลือกรูปแบบตกแต่งนั้น</p>
+          <p class="mt-1 text-xs text-stone-400">ราคากลาง = ใช้ส่วนลดตามประเภท/ทุกประเภทด้านบน · ราคาประจำตัว = ใช้ส่วนลดต่อขนาดที่กรอกตรงนี้แทน (เว้นช่องว่าง = ไม่ลดในขนาดนั้น)</p>
         </div>
         <AppSwitch v-model="bd.active" label="ใช้งาน" class="flex" />
         <p v-if="bError" class="text-sm text-rose-600">{{ bError }}</p>
