@@ -73,9 +73,8 @@ function pick(groupId, optionId, required) {
 
 const tags = computed(() => bundleTags(props.bundles, props.allGroups || props.groups, { ...props.context, ...selections.value }, { typeId: props.typeOpt?.id || null, sizeIds: props.sizeIds, allow: props.allow, scopes: props.scopes }))
 const tagOf = (g, o) => tags.value.get(`${g.id}:${o.id}`) || null
-// ข้อความป้ายสั้น ๆ ให้กว้างไม่เกินชิป · ตัวเลือกเดียว/ตัวที่ทำให้ครบชุด: "ลดเพิ่ม x฿" · ชุดอื่น: 🎁/✓ + "ลด x฿"
-const TAG_TEXT = { idle: '🎁', partner: '', done: '✓' }
-const tagText = (t) => (t.single || t.state === 'partner' ? `${t.state === 'done' ? '✓ ' : t.single ? '🎁 ' : ''}ลดเพิ่ม ${num(t.amount)}฿` : `${TAG_TEXT[t.state]} ลด ${num(t.amount)}฿`)
+// ข้อความป้ายสั้น ๆ: "-x฿" (ส่วนลด) · 🎁 = ยังไม่ได้เลือกคู่ · ✓ = ได้ส่วนลดแล้ว
+const tagText = (t) => `${t.state === 'done' ? '✓ ' : t.state === 'idle' ? '🎁 ' : ''}-${num(t.amount)}฿`
 const isOn = (g, o) =>
   g.type === 'multi' ? (selections.value[g.id] || []).includes(o.id) : selections.value[g.id] === o.id
 </script>
