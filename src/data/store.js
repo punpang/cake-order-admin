@@ -2164,7 +2164,15 @@ export function sendChat(chatId, from, text, extra = {}) {
   // แชทล่าสุดขึ้นบนสุด
   db.chats.splice(db.chats.indexOf(c), 1)
   db.chats.unshift(c)
+  if (from === 'staff' && c.channel === 'facebook' && m.kind === 'text') deliverFb(c, c.messages[c.messages.length - 1])
   return m
+}
+// ส่ง Messenger จริงเมื่อพนักงาน/บอท/ระบบตอบในแชท Facebook (ผ่าน Edge Function fb-send · ตั้งโดยชั้นเชื่อม Supabase) · ไม่มีตัวส่ง = คงสถานะจำลอง
+export const fbHook = { send: null }
+function deliverFb(chat, m) {
+  if (!fbHook.send || !m || !chat.externalId) return
+  m.delivery = 'sending'
+  fbHook.send(chat.externalId, m.text).then((r) => { m.delivery = r.ok ? 'sent' : 'failed'; if (!r.ok) m.deliveryError = r.error || '' }, () => { m.delivery = 'failed' })
 }
 // ข้อความเข้าจาก LINE/Facebook (ของจริงมาจาก webhook) · ผูกอัตโนมัติถ้า userId/PSID ตรงกับลูกค้า
 // ถ้ามีคำถามค้าง (ปุ่มถาม) ข้อความนี้ = คำตอบ → ผูกกับคำถามและกรอกลงร่างอัตโนมัติ

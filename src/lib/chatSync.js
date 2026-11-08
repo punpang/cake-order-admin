@@ -73,7 +73,7 @@ export async function startChatSync({ client, db, canWrite, numbering, onError, 
     replace: (items) => db.chats.splice(0, db.chats.length, ...items),
     load: () => loadChats(client),
     push: (c) => pushChats(client, c),
-    canWrite, onError, debounceMs, label: 'แชท',
+    canWrite, onError, debounceMs, label: 'แชท', poll: true, // ข้อความจาก Facebook เข้าผ่าน webhook ระหว่างที่เปิดแอปอยู่
   })
   const b = await startSync({
     list: () => db.quotes,

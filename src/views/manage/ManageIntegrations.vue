@@ -1,5 +1,8 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { supabaseEnabled, getSupabase } from '../../lib/supabase'
+import { fbConnectCall, FB_ERRORS } from '../../lib/fbRemote'
 import { db, findOrder, saveNotifyRule, runScheduledChecks, clearOutbox, fillTemplate, connectIntegration, disconnectIntegration, connectTelegram, connectSms, sendIntegrationTest } from '../../data/store'
 import { CHANNELS, NOTIFY_EVENTS, NOTIFY_VARS } from '../../lib/constants'
 import { askConfirm } from '../../lib/confirm'
@@ -68,19 +71,42 @@ const FB_STEPS = ['ขอสิทธิ์รับ-ส่งข้อควา
 const LINE_STEPS = ['ตรวจ Channel access token', 'ตั้ง Webhook URL อัตโนมัติ', 'ทดสอบ webhook']
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const conn = reactive({ key: '', stage: 'start', pageId: '', token: '', secret: '', done: 0, error: '' })
+const conn = reactive({ key: '', stage: 'start', pageId: '', token: '', secret: '', done: 0, error: '', nonce: '', pages: [] })
+// โหมด Supabase: Facebook เชื่อมจริงด้วย OAuth (fb-connect) · token เก็บฝั่งเซิร์ฟเวอร์ ไม่ผ่านหน้าเว็บ
+const fbReal = supabaseEnabled
+const fbPages = computed(() => (fbReal ? conn.pages : SAMPLE_PAGES))
 function openConnect(k) {
-  Object.assign(conn, { key: k, stage: 'start', pageId: SAMPLE_PAGES[0].id, token: '', secret: '', done: 0, error: '' })
+  Object.assign(conn, { key: k, stage: 'start', pageId: SAMPLE_PAGES[0].id, token: '', secret: '', done: 0, error: '', nonce: '', pages: [] })
+  if (k === 'facebook' && fbReal) conn.pageId = ''
 }
 const closeConnect = () => (conn.key = '')
 const connSteps = computed(() => (conn.key === 'facebook' ? FB_STEPS : LINE_STEPS))
 async function fbLogin() {
+  if (fbReal) {
+    conn.error = ''
+    conn.stage = 'login'
+    const r = await fbConnectCall(await getSupabase(), 'start')
+    if (r.error || !r.url) { conn.stage = 'start'; return (conn.error = r.error || 'เริ่มเชื่อมไม่สำเร็จ') }
+    window.location.href = r.url // ไปหน้าอนุญาตของ Facebook แล้วกลับมาเลือกเพจ
+    return
+  }
   conn.stage = 'login'
   await wait(700)
   conn.stage = 'pick'
 }
 async function runConnect() {
   conn.error = ''
+  if (conn.key === 'facebook' && fbReal) {
+    if (!conn.pageId) return (conn.error = 'เลือกเพจก่อน')
+    conn.stage = 'steps'
+    conn.done = 0
+    const r = await fbConnectCall(await getSupabase(), 'select', { nonce: conn.nonce, pageId: conn.pageId })
+    if (r.error || !r.ok) { conn.stage = 'pick'; return (conn.error = r.error || 'เชื่อมไม่สำเร็จ') }
+    conn.done = FB_STEPS.length
+    connectIntegration('facebook', { accountName: r.page.name, accountId: r.page.id })
+    conn.stage = 'done'
+    return
+  }
   if (conn.key === 'line' && conn.token.trim().length < 20) return (conn.error = 'Channel access token สั้นเกินไป ตรวจสอบอีกครั้ง')
   if (conn.key === 'line' && !conn.secret.trim()) return (conn.error = 'กรอก Channel secret')
   conn.stage = 'steps'
@@ -119,7 +145,32 @@ function runTest(k) {
   Object.assign(testRes, { key: k, text: r.ok ? `ส่งทดสอบแล้ว (จำลอง) → ${r.to}: ${r.text}` : '', error: r.error || '' })
 }
 const EXTRA_EVENT = { test: 'ข้อความทดสอบ', bot_handoff: 'บอทส่งต่อพนักงาน' }
+// กลับจากหน้าอนุญาตของ Facebook (?fb=choose&n=… | ?fb=error&m=…)
+const route = useRoute()
+onMounted(async () => {
+  const q = route.query
+  if (!fbReal || !q.fb) return
+  // ล้างพารามิเตอร์ออกจาก URL โดยไม่ให้ router โหลดหน้าใหม่ (หน้านี้ผูก key กับ fullPath จะรีเซ็ตโมดัล)
+  window.history.replaceState(null, '', `${location.pathname}${location.search}#${route.path}`)
+  openConnect('facebook')
+  if (q.fb === 'error') return (conn.error = FB_ERRORS[q.m] || 'เชื่อม Facebook ไม่สำเร็จ')
+  if (q.fb === 'choose' && /^[0-9a-f]{48}$/.test(String(q.n || ''))) {
+    conn.stage = 'login'
+    const r = await fbConnectCall(await getSupabase(), 'pages', { nonce: String(q.n) })
+    if (r.error) { conn.stage = 'start'; return (conn.error = r.error) }
+    conn.nonce = String(q.n)
+    conn.pages = r.pages || []
+    conn.pageId = conn.pages.length === 1 ? conn.pages[0].id : ''
+    conn.stage = 'pick'
+  }
+})
 async function disconnect(k) {
+  if (k === 'facebook' && fbReal) {
+    if (!(await askConfirm({ title: 'ยกเลิกการเชื่อม Facebook Page', message: `${db.integrations[k].accountName} · แชทใหม่จากช่องทางนี้จะไม่เข้ามา`, okText: 'ยกเลิกการเชื่อม', danger: true }))) return
+    const r = await fbConnectCall(await getSupabase(), 'disconnect')
+    if (!r.ok) return Object.assign(testRes, { key: k, text: '', error: r.error || 'ยกเลิกการเชื่อมไม่สำเร็จ' })
+    return disconnectIntegration(k)
+  }
   if (await askConfirm({ title: `ยกเลิกการเชื่อม ${CHANNELS[k].label}`, message: `${db.integrations[k].accountName} · แชทใหม่จากช่องทางนี้จะไม่เข้ามา`, okText: 'ยกเลิกการเชื่อม', danger: true })) disconnectIntegration(k)
 }
 </script>
@@ -291,7 +342,8 @@ async function disconnect(k) {
     </AppModal>
 
     <AppModal v-if="conn.key" :title="conn.key === 'facebook' ? 'เชื่อม Facebook Page' : 'เชื่อม LINE OA'" @close="closeConnect">
-      <p class="mb-3 rounded-xl bg-amber-50 p-2 text-xs text-amber-800">จำลองขั้นตอน · ต่อจริงเมื่อมีเซิร์ฟเวอร์ (Supabase)</p>
+      <p v-if="!(fbReal && conn.key === 'facebook')" class="mb-3 rounded-xl bg-amber-50 p-2 text-xs text-amber-800">จำลองขั้นตอน · ต่อจริงเมื่อมีเซิร์ฟเวอร์ (Supabase)</p>
+      <p v-if="conn.error && conn.key === 'facebook'" class="mb-3 flex items-center gap-2 rounded-xl bg-rose-50 p-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ conn.error }}</p>
       <!-- Facebook -->
       <template v-if="conn.key === 'facebook'">
         <div v-if="conn.stage === 'start' || conn.stage === 'login'" class="space-y-3 text-sm text-stone-600">
@@ -300,7 +352,7 @@ async function disconnect(k) {
         </div>
         <div v-else-if="conn.stage === 'pick'" class="space-y-2">
           <div class="label">เลือกเพจ</div>
-          <label v-for="pg in SAMPLE_PAGES" :key="pg.id" class="flex cursor-pointer items-center gap-3 rounded-xl border p-3" :class="conn.pageId === pg.id ? 'border-brand-400 bg-brand-50' : 'border-stone-200'">
+          <label v-for="pg in fbPages" :key="pg.id" class="flex cursor-pointer items-center gap-3 rounded-xl border p-3" :class="conn.pageId === pg.id ? 'border-brand-400 bg-brand-50' : 'border-stone-200'">
             <input v-model="conn.pageId" type="radio" :value="pg.id" />
             <span class="font-medium text-stone-900">{{ pg.name }}</span>
           </label>

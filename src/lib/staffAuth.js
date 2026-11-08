@@ -62,6 +62,21 @@ async function startData(staff) {
       store.db.integrations.telegram.enabled = was
     }
   }, () => {})
+  // Facebook Messenger จริง: ตอบผ่าน fb-send · สถานะการเชื่อมเพจจาก fb-connect (token อยู่ฝั่งเซิร์ฟเวอร์เท่านั้น)
+  const fbr = await import('./fbRemote')
+  store.fbHook.send = async (psid, text) => {
+    const r = await fbr.fbSendCall(client, psid, text)
+    return r.ok ? { ok: true } : { ok: false, error: r.error || '' }
+  }
+  fbr.fbConnectCall(client, 'status').then((r) => {
+    if (r.error) return
+    const it = store.db.integrations.facebook
+    if (r.page) {
+      const was = it.enabled // คงสวิตช์เปิด/ปิดที่ร้านตั้งไว้ (บันทึกใน Supabase)
+      store.connectIntegration('facebook', { accountName: r.page.name, accountId: r.page.id })
+      it.enabled = was
+    } else if (it.status === 'connected') store.disconnectIntegration('facebook')
+  }, () => {})
   const rmIdx = store.trashHooks.indexOf(trashHook)
   if (rmIdx >= 0) store.trashHooks.splice(rmIdx, 1)
   trashHook = (url) => { storage.removePublicCopy(client, url) }
