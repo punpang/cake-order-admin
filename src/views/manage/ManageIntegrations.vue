@@ -239,6 +239,7 @@ async function disconnect(k) {
     <!-- กฎแจ้งเตือน -->
     <section class="card mb-4">
       <div class="card-title">แจ้งลูกค้า</div>
+      <p class="mb-2 rounded-lg bg-brand-50 px-3 py-2 text-xs text-stone-600">ช่องทางที่ตั้งไว้ตรงนี้คือ <b>ค่าของระบบ</b> · ถ้าตั้งช่องทางที่ข้อมูลลูกค้า หรือที่หน้าออร์เดอร์ จะใช้ค่านั้นก่อน (ออร์เดอร์ &gt; ลูกค้า &gt; ระบบ)</p>
       <p class="mb-3 text-xs text-stone-500">ส่งทางช่องทางแรกที่ลูกค้ามีข้อมูล ตามลำดับ LINE → Facebook → SMS · ข้อความทาง LINE/Facebook จะขึ้นในศูนย์รวมแชทด้วย (เลือกช่องทางที่อนุญาตในแต่ละเหตุการณ์)</p>
       <ul class="divide-y divide-stone-100">
         <li v-for="r in customerRules" :key="r.event" class="py-3" :class="r.enabled ? '' : 'opacity-60'">

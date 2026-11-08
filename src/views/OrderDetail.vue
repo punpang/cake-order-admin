@@ -6,7 +6,7 @@ import {
   requestConfirmUnpaid, confirmUnpaid, rejectConfirmUnpaid, grantPayExtension, denyPayExtension,
   saveOrderItem, removeOrderItem, orderDate,
   db, customerPoints, usableDiscountCoupons, applyPoints, removePoints, applyCoupon, removeCoupon,
-  setBirthday, depositOf, setDelivery,
+  setBirthday, depositOf, setDelivery, setOrderNotifyChannel,
 } from '../data/store'
 import { orderTotals, shipNetOf } from '../lib/pricing'
 import { QUICK_DUE, quickDue, dueState, remainingText, dueBeforePickup, dueDaysBefore, isHHmm, customerPending } from '../lib/payDue'
@@ -27,6 +27,7 @@ import ItemEditor from '../components/ItemEditor.vue'
 import AppModal from '../components/AppModal.vue'
 import AppIcon from '../components/AppIcon.vue'
 import SmsTick from '../components/SmsTick.vue'
+import NotifyChannelPicker from '../components/NotifyChannelPicker.vue'
 import { smsChoice } from '../lib/smsChoice'
 import SecureImg from '../components/SecureImg.vue'
 import PickupModal from '../components/PickupModal.vue'
@@ -366,6 +367,13 @@ async function saveCancel() {
             </div>
             <button v-if="canEditPickup" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700" aria-label="แก้วันเวลานัด" @click="pickupOpen = true"><AppIcon name="edit" /></button>
           </div>
+        </section>
+
+        <!-- ช่องทางแจ้งเตือนของออร์เดอร์นี้ (เหนือกว่าค่าของลูกค้า/ระบบ) -->
+        <section v-if="customer && order.channel !== 'pos'" class="card">
+          <div class="card-title"><AppIcon name="bell" class="text-brand-600" /> ช่องทางแจ้งเตือนออร์เดอร์นี้</div>
+          <p class="mb-2 text-xs text-stone-500">ตามเดิม = ใช้ค่าของลูกค้า/ระบบ · เปิด/ปิด = บังคับเฉพาะออร์เดอร์นี้ ทุกข้อความ</p>
+          <NotifyChannelPicker :model="order.notifyChannels" :customer="customer" :readonly="!can('editPickup')" @set="(ch, v) => setOrderNotifyChannel(order, ch, v)" />
         </section>
 
         <!-- สินค้า -->
@@ -729,7 +737,7 @@ async function saveCancel() {
         </div>
         <div><label class="label">หมายเหตุการคืนเงิน</label><input v-model="cxl.refundNote" class="input" /></div>
         <label v-if="customer && order.channel !== 'pos'" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="cxl.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่ายกเลิก" /> แจ้งลูกค้าว่ายกเลิกออร์เดอร์</label>
-        <SmsTick v-if="customer && order.channel !== 'pos'" v-model="cxl.sms" :customer="customer" :show="cxl.notify" />
+        <SmsTick v-if="customer && order.channel !== 'pos'" v-model="cxl.sms" :customer="customer" :order="order" :show="cxl.notify" />
         <p v-if="cxlError" class="text-sm text-rose-600">{{ cxlError }}</p>
       </div>
       <template #footer>

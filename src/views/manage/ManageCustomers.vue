@@ -1,7 +1,8 @@
 <script setup>
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
-import { db, saveCustomer, customerOrderCount, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPoints, can } from '../../data/store'
+import NotifyChannelPicker from '../../components/NotifyChannelPicker.vue'
+import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPoints, can } from '../../data/store'
 import { askConfirm } from '../../lib/confirm'
 import { orderTotals } from '../../lib/pricing'
 import { STATUS } from '../../lib/constants'
@@ -36,6 +37,7 @@ const error = ref('')
 function edit(c) {
   Object.assign(form, c ? { promoOptIn: true, ...c } : { id: null, name: '', phone: '', line: '', note: '', active: true, promoOptIn: true, lineUserId: '', fbPsid: '' })
   form.tax = { name: '', taxId: '', branch: '00000', address: '', ...(c?.tax || {}) }
+  form.notifyChannels = { ...(c?.notifyChannels || {}) }
   error.value = ''
   open.value = true
 }
@@ -183,6 +185,11 @@ async function save() {
               <button type="button" class="text-xs text-rose-700 underline lg:py-1.5" @click="delPlace(p)">ลบ</button>
             </li>
           </ul>
+        </div>
+        <div class="rounded-xl bg-stone-50 p-3">
+          <div class="mb-2 text-sm font-medium text-stone-800">ช่องทางแจ้งเตือนลูกค้านี้</div>
+          <p class="mb-2 text-xs text-stone-500">ตามเดิม = ใช้ค่าของระบบ · ออร์เดอร์ที่ตั้งเองจะเหนือกว่าค่านี้</p>
+          <NotifyChannelPicker :model="form.notifyChannels" :customer="form" @set="(ch, v) => setCustomerNotifyChannel(form, ch, v)" />
         </div>
         <AppSwitch v-model="form.promoOptIn" label="รับข่าวโปร / อวยพรวันเกิด" />
         <AppSwitch v-model="form.active" label="ใช้งาน" />

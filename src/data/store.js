@@ -2080,6 +2080,24 @@ export function bellMarkUnread(id, audience = 'staff') {
 export function bellMarkAll(audience = 'staff') {
   for (const i of bellFeed(audience)) bellMarkRead(i.id, audience)
 }
+// ช่องทางที่อนุญาตต่อ event: ออร์เดอร์ > ลูกค้า > ระบบ (กฎของ event) · คีย์ที่ไม่ได้ตั้ง = สืบทอดระดับถัดไป
+// คืน { line, facebook, sms } (true=อนุญาต) และ src = ระดับที่ตัดสินแต่ละช่อง ('order' | 'customer' | 'system')
+export function effectiveChannels(rule, customer = null, order = null) {
+  const out = {}, src = {}
+  for (const k of CUSTOMER_CHANNEL_ORDER) {
+    const o = order?.notifyChannels?.[k], c = customer?.notifyChannels?.[k]
+    if (typeof o === 'boolean') { out[k] = o; src[k] = 'order' } else if (typeof c === 'boolean') { out[k] = c; src[k] = 'customer' } else { out[k] = !!rule?.channels?.includes(k); src[k] = 'system' }
+  }
+  return { ...out, src }
+}
+// ตั้งช่องทางของออร์เดอร์/ลูกค้า: value = true/false หรือ null (ตามระดับถัดไป) · 
+function setNotifyCh(target, ch, value) {
+  const cur = { ...(target.notifyChannels || {}) }
+  if (typeof value === 'boolean') cur[ch] = value; else delete cur[ch]
+  target.notifyChannels = cur // เก็บ {} ได้ (ฟอร์มบันทึกด้วยการ merge จึงต้องมีคีย์เสมอ เพื่อให้ "ตามเดิม" ล้างค่าเก่าได้)
+}
+export const setOrderNotifyChannel = (order, ch, value) => setNotifyCh(order, ch, value)
+export const setCustomerNotifyChannel = (customer, ch, value) => setNotifyCh(customer, ch, value)
 // ส่งตามกฎของ event (คืนจำนวนข้อความที่เข้าคิว)
 export function notify(event, { customer = null, vars = {}, orderId = null, noSms = false, card = null } = {}) {
   emitBell(event, { customer, vars, orderId })
@@ -2093,13 +2111,14 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
     return 1
   }
   if (ev.marketing && customer && customer.promoOptIn === false) return 0
-  const ch = CUSTOMER_CHANNEL_ORDER.find((k) => r.channels.includes(k) && db.integrations[k]?.enabled && customerAddr(customer, k))
+  const allowed = effectiveChannels(r, customer, orderId ? findOrder(orderId) : null)
+  const ch = CUSTOMER_CHANNEL_ORDER.find((k) => allowed[k] && db.integrations[k]?.enabled && customerAddr(customer, k))
   const to = ch ? `${CHANNELS[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}` : customer?.name || '-'
   // ส่งทางแชท (Facebook/LINE) ที่มีการ์ดพร้อมปุ่ม: ตัดบรรทัดลิงก์ออกจากข้อความ (ปุ่มทำหน้าที่แทน) · SMS ยังได้ข้อความเต็มพร้อมลิงก์
   const chatText = card ? text.replace(/\n?ดูออร์เดอร์:\s*\S*\s*$/, '').trim() : text
   pushOut(event, ch || null, to, chatText, orderId, customer, card && (ch === 'facebook' || ch === 'line') ? { card: { text: chatText, card } } : {})
   // ส่งทาง Facebook/LINE แล้ว ถ้าลูกค้ามีเบอร์ → ส่ง SMS ซ้ำด้วยเสมอ (พนักงานติ๊กออกได้ที่หน้าที่ส่ง) · ใช้เฉพาะ event ที่กฎเปิด SMS ไว้
-  if ((ch === 'facebook' || ch === 'line') && !noSms && !ev.marketing && customer?.phone && r.channels.includes('sms') && db.integrations.sms?.enabled) {
+  if ((ch === 'facebook' || ch === 'line') && !noSms && !ev.marketing && customer?.phone && allowed.sms && db.integrations.sms?.enabled) {
     pushOut(event, 'sms', `${CHANNELS.sms.label}: ${customer.name || ''} (${formatPhone(customer.phone)})`, text, orderId, customer)
   }
   return 1
