@@ -13,6 +13,7 @@ const props = defineProps({
   wholeSels: { type: Object, default: () => ({}) },
   sizeIds: { type: Array, default: () => [] },
   typeId: { type: String, default: null },
+  styleId: { type: String, default: null },
   allow: { type: Function, default: null },
 })
 const tierIds = computed(() => new Set(props.groups.filter((g) => g.perTier).map((g) => g.id)))
@@ -20,7 +21,7 @@ const scoped = computed(() => props.bundles.filter((b) => {
   const t = (b.items || []).some((x) => tierIds.value.has(x.groupId))
   return props.scope === 'tier' ? t : !t
 }))
-const hints = computed(() => bundleHints(scoped.value, props.groups, { ...props.wholeSels, ...(props.tierSels || {}) }, { typeId: props.typeId, sizeIds: props.sizeIds, allow: props.allow }))
+const hints = computed(() => bundleHints(scoped.value, props.groups, { ...props.wholeSels, ...(props.tierSels || {}) }, { typeId: props.typeId, sizeIds: props.sizeIds, styleId: props.styleId, allow: props.allow }))
 function add(h) {
   for (const m of h.missing) {
     const g = props.groups.find((x) => x.id === m.groupId)

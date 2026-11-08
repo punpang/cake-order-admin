@@ -127,7 +127,11 @@ async function copy() {
     copied.value = false
   }
 }
-const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, sizeIds: sizeIdsOf(t) }, whole: { typeId: typeOptOf(form.tiers[0])?.id || null, sizeIds: allSizeIds.value } })
+const styleIdOf = (t) => {
+  const sg = groups.value.find((g) => g.key === 'style')
+  return sg ? ([].concat((sg.perTier && t ? t.selections : form.selections)?.[sg.id] ?? [])[0] || null) : null
+}
+const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: styleIdOf(t), sizeIds: sizeIdsOf(t) }, whole: { typeId: typeOptOf(form.tiers[0])?.id || null, styleId: styleIdOf(form.tiers[0]), sizeIds: allSizeIds.value } })
 </script>
 
 <template>
@@ -148,14 +152,14 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, sizeIds: s
     <template v-if="hasTiers">
       <div v-for="(tier, i) in form.tiers" :key="i">
         <OptionPicker v-model="tier.selections" :scopes="scopesFor(tier)" :bundles="db.bundles" :context="form.selections" :groups="showTier" :all-groups="groups" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" :type-opt="typeOptOf(tier)" />
-        <BundleHint scope="tier" :bundles="db.bundles" :groups="groups" :tier-sels="tier.selections" :whole-sels="form.selections" :size-ids="sizeIdsOf(tier)" :type-id="typeOptOf(tier)?.id || null" :allow="allowFor(tier)" />
+        <BundleHint scope="tier" :bundles="db.bundles" :groups="groups" :tier-sels="tier.selections" :whole-sels="form.selections" :size-ids="sizeIdsOf(tier)" :type-id="typeOptOf(tier)?.id || null" :style-id="styleIdOf(tier)" :allow="allowFor(tier)" />
       </div>
     </template>
 
     <template v-if="showWhole.length">
       <div class="text-sm font-semibold text-stone-500">ตัวเลือกเพิ่มเติม</div>
       <OptionPicker v-model="form.selections" :scopes="scopesFor(form.tiers[0])" :bundles="db.bundles" :context="form.tiers[0]?.selections || {}" :groups="showWhole" :all-groups="groups" :active="active" :allow="allowFor(form.tiers[0])" :size-ids="allSizeIds" :type-opt="typeOptOf(form.tiers[0])" />
-      <BundleHint scope="whole" :bundles="db.bundles" :groups="groups" :tier-sels="form.tiers[0]?.selections || null" :whole-sels="form.selections" :size-ids="allSizeIds" :type-id="typeOptOf(form.tiers[0])?.id || null" :allow="allowFor(form.tiers[0])" />
+      <BundleHint scope="whole" :bundles="db.bundles" :groups="groups" :tier-sels="form.tiers[0]?.selections || null" :whole-sels="form.selections" :size-ids="allSizeIds" :type-id="typeOptOf(form.tiers[0])?.id || null" :style-id="styleIdOf(form.tiers[0])" :allow="allowFor(form.tiers[0])" />
     </template>
 
     <div class="rounded-3xl bg-white p-3.5 shadow-md">

@@ -50,6 +50,7 @@ function save() {
 
 // ---------- บันเดิ้ล: ตัวเลือกรอง ในกลุ่มเดียวกันหรือข้ามกลุ่ม ลดราคาตามขนาด ----------
 const sizeOpts = computed(() => (db.optionGroups.find((x) => x.key === 'size')?.options || []).filter((x) => x.active !== false))
+const styleOpts = computed(() => (db.optionGroups.find((x) => x.key === 'style')?.options || []).filter((o) => o.active !== false))
 const bundleGroups = computed(() => db.optionGroups.filter((g) => !MAIN_KEYS.includes(g.key) && g.type !== 'text' && g.active !== false))
 const bundleList = computed(() => db.bundles.filter((b) => inactive.value || b.active !== false))
 const itemName = (x) => {
@@ -57,7 +58,7 @@ const itemName = (x) => {
   return `${g?.name || '?'}: ${g?.options.find((o) => o.id === x.optionId)?.name || '?'}`
 }
 const bOpen = ref(false)
-const bd = reactive({ id: null, name: '', items: [], discount: {}, types: [], typeDiscount: {}, active: true })
+const bd = reactive({ id: null, name: '', items: [], discount: {}, types: [], typeDiscount: {}, styleDiscount: {}, active: true })
 // บันเดิ้ลแปรผันตามประเภท: ใช้กับประเภทไหน + ส่วนลดแยกประเภท (ว่าง = ส่วนลดกลาง)
 const typeOpts = computed(() => (db.optionGroups.find((x) => x.key === 'type')?.options || []).filter((t) => t.active !== false || bd.types.includes(t.id)))
 const typeName = (id) => db.optionGroups.find((x) => x.key === 'type')?.options.find((t) => t.id === id)?.name || ''
@@ -70,8 +71,9 @@ const bError = ref('')
 const bundleAutoName = computed(() => bd.items.map((x) => db.optionGroups.find((g) => g.id === x.groupId)?.options.find((o) => o.id === x.optionId)?.name).filter(Boolean).join(' + '))
 function editBundle(b) {
   Object.assign(bd, b
-    ? { ...b, items: b.items.map((x) => ({ ...x })), discount: { ...(b.discount || {}) }, types: [...(b.types || [])], typeDiscount: JSON.parse(JSON.stringify(b.typeDiscount || {})) }
-    : { id: null, name: '', items: [], discount: {}, types: [], typeDiscount: {}, active: true })
+    ? { ...b, items: b.items.map((x) => ({ ...x })), discount: { ...(b.discount || {}) }, types: [...(b.types || [])], typeDiscount: JSON.parse(JSON.stringify(b.typeDiscount || {})), styleDiscount: JSON.parse(JSON.stringify(b.styleDiscount || {})) }
+    : { id: null, name: '', items: [], discount: {}, types: [], typeDiscount: {}, styleDiscount: {}, active: true })
+  for (const st of styleOpts.value) if (!bd.styleDiscount[st.id]) bd.styleDiscount[st.id] = {}
   for (const t of db.optionGroups.find((x) => x.key === 'type')?.options || []) if (!bd.typeDiscount[t.id]) bd.typeDiscount[t.id] = {}
   bError.value = ''
   bOpen.value = true
@@ -203,6 +205,26 @@ async function saveB() {
             </table>
           </div>
           <p class="mt-1 text-xs text-stone-400">แถวประเภทเว้นว่าง = ใช้ส่วนลด "ทุกประเภท" · เค้กชั้น: ลดตามขนาดและประเภทของแต่ละชั้นที่เลือกครบชุด</p>
+        </div>
+        <div v-if="styleOpts.length">
+          <div class="label">ส่วนลดเฉพาะรูปแบบตกแต่ง (บาท) แต่ละขนาด</div>
+          <div class="-mx-5 overflow-x-auto px-5">
+            <table class="w-full min-w-max text-sm">
+              <thead>
+                <tr class="text-left text-xs text-stone-500">
+                  <th class="py-2 pr-3 font-medium"></th>
+                  <th v-for="sz in sizeOpts" :key="sz.id" class="px-1 py-2 font-medium">{{ sz.name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="st in styleOpts" :key="st.id" class="border-t border-stone-100">
+                  <td class="py-1.5 pr-3 whitespace-nowrap text-stone-700">{{ st.name }}</td>
+                  <td v-for="sz in sizeOpts" :key="sz.id" class="px-1 py-1.5"><input v-model="bd.styleDiscount[st.id][sz.id]" type="text" v-num.dec min="0" class="input h-10 w-24" :data-style-disc="`${st.id}:${sz.id}`" placeholder="—" /></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="mt-1 text-xs text-stone-400">เว้นว่าง = ใช้ส่วนลดตามประเภท/ทุกประเภทตามเดิม · ถ้ากรอก จะใช้ตัวเลขนี้แทนเมื่อลูกค้าเลือกรูปแบบตกแต่งนั้น</p>
         </div>
         <AppSwitch v-model="bd.active" label="ใช้งาน" class="flex" />
         <p v-if="bError" class="text-sm text-rose-600">{{ bError }}</p>

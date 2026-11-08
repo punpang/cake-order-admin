@@ -81,7 +81,7 @@ export function itemBase(item, groups, products, active = [], used = null) {
   // สินค้าสำเร็จ / สินค้าหน้าร้าน (POS): ราคาคงที่ที่บันทึกในรายการ · sizeId/typeId (ถ้ามี) ใช้คิดราคาตัวเลือกแบบตามขนาด/ประเภท
   if (item.kind === 'retail') {
     const pounds = sizeGroup?.options.find((o) => o.id === item.sizeId)?.pounds || 1
-    return { base: Number(item.retailPrice) || 0, pounds, tierPounds: [pounds], tierSizes: [item.sizeId ? [item.sizeId] : []], tierTypes: [item.typeId || null] }
+    return { base: Number(item.retailPrice) || 0, pounds, tierPounds: [pounds], tierSizes: [item.sizeId ? [item.sizeId] : []], tierTypes: [item.typeId || null], tierStyles: [null] }
   }
   const type = groups.find((g) => g.key === 'type')
   const flavor = groups.find((g) => g.key === 'flavor')
@@ -91,15 +91,17 @@ export function itemBase(item, groups, products, active = [], used = null) {
   const tierPounds = []
   const tierSizes = []
   const tierTypes = []
+  const tierStyles = []
   for (const t of tiersOf(item)) {
     const sel = (g) => (g ? (isTierGroup(g, item) ? t.selections : item.selections)?.[g.id] : null)
     const sid = idsOf(sel(sizeGroup))[0] // 1 ขนาดต่อชั้น (รายการเก่าที่เลือกหลายขนาดใช้ขนาดแรก)
     tierPounds.push(sizeGroup?.options.find((o) => o.id === sid)?.pounds || 1)
     tierSizes.push(sid ? [sid] : [])
     tierTypes.push(idsOf(sel(type))[0] || null)
+    tierStyles.push(idsOf(sel(style))[0] || null)
     base += mainPrice(sel(type), sel(flavor), sid, groups, active, used, sel(style), sel(shape))
   }
-  return { base, pounds: tierPounds.reduce((a, b) => a + b, 0), tierPounds, tierSizes, tierTypes }
+  return { base, pounds: tierPounds.reduce((a, b) => a + b, 0), tierPounds, tierSizes, tierTypes, tierStyles }
 }
 
 // ---------- รูปแบบตกแต่ง → หัวข้อรองที่เลือกได้ ----------
@@ -133,7 +135,9 @@ export const sizePriceOf = (o, sizeIds) => sizeIds.reduce((s, id) => s + (Number
 // bundles = [{ items: [{ groupId, optionId }], discount: { [sizeId] }, types: [typeId], typeDiscount: { [typeId]: { [sizeId] } } }]
 // ในกลุ่มเดียวกันหรือข้ามกลุ่ม (เฉพาะตัวเลือกรอง) · picked = Set ของ "groupId:optionId" ที่เลือก · เลือกครบทุกตัว → ลดตามขนาด (ส่วนลดของประเภทถ้ามี)
 const keyOf = (x) => `${x.groupId}:${x.optionId}`
-export const bundleAmount = (b, typeId, sizeIds) => sizeIds.reduce((s, sid) => s + (num(b.typeDiscount?.[typeId]?.[sid]) ?? (Number(b.discount?.[sid]) || 0)), 0)
+// ส่วนลดต่อขนาด: ตามรูปแบบตกแต่ง (styleDiscount) > ตามประเภท (typeDiscount) > ทุกประเภท (discount)
+export const bundleAmount = (b, typeId, sizeIds, styleId = null) =>
+  sizeIds.reduce((s, sid) => s + (num(b.styleDiscount?.[styleId]?.[sid]) ?? num(b.typeDiscount?.[typeId]?.[sid]) ?? (Number(b.discount?.[sid]) || 0)), 0)
 // 1 หัวข้อ (กลุ่มตัวเลือก) ได้ส่วนลดบันเดิ้ลสูงสุด 1 ชุด · หัวข้อของบันเดิ้ล = กลุ่มของตัวเลือกแรก (ข้ามกลุ่มนับเป็นของกลุ่มแรก)
 // ถ้าเข้าเงื่อนไขหลายชุดในหัวข้อเดียวกัน → ใช้ชุดที่ลดน้อยที่สุด (ชุดที่ส่วนลด 0 ไม่นับ) · ต่างหัวข้อใช้พร้อมกันได้ ถ้าไม่ใช้ตัวเลือกซ้ำกัน
 // ทุกชุดที่ครบ (ส่วนลด > 0) ใช้ได้พร้อมกัน ถ้าไม่ใช้ตัวเลือกซ้ำกัน · ซ้ำกัน: ชุดที่มีจำนวนตัวเลือกมากที่สุดมาก่อน แล้วส่วนลดมากกว่า
@@ -150,11 +154,11 @@ export function bundleWinners(c) {
   // ได้ชุดหลายตัวเลือกแล้ว → บันเดิ้ลตัวเลือกเดียวไม่นับ (ทั้งป้ายและส่วนลด)
   return out.some((x) => x.b.items.length > 1) ? out.filter((x) => x.b.items.length > 1) : out
 }
-export function bundleDiscount(bundles, picked, sizeIds, usedBundles = null, typeId = null) {
+export function bundleDiscount(bundles, picked, sizeIds, usedBundles = null, typeId = null, styleId = null) {
   const c = []
   for (const b of bundles) {
     if (b.active === false || !forType(b, typeId) || !(b.items?.length > 0) || !b.items.every((x) => picked.has(keyOf(x)))) continue
-    const amount = bundleAmount(b, typeId, sizeIds)
+    const amount = bundleAmount(b, typeId, sizeIds, styleId)
     if (amount > 0) c.push({ b, amount })
   }
   let total = 0
@@ -169,33 +173,33 @@ export function bundleDiscount(bundles, picked, sizeIds, usedBundles = null, typ
 // sels = ตัวเลือกที่เลือกอยู่ (รวมของชั้น+ทั้งก้อน) · allow(g, o|null) = กติกาเดิมของตัวตั้งค่า (ประเภท/รูปแบบตกแต่ง)
 // เสนอเฉพาะเมื่อเพิ่มได้จริง: ตัวเลือกเปิดใช้งาน ใช้กับประเภทนี้ได้ และไม่ต้องทับค่าที่เลือกไว้ (กลุ่ม multi หรือกลุ่ม single ที่ยังว่าง)
 // ประเภท/ขนาดที่ใช้คิดบันเดิ้ลชุดหนึ่ง ให้ตรงตัวคิดราคา: มีกลุ่มแยกชั้น → ใช้ของชั้น · ไม่มี → ขนาดรวมทุกชั้น + ประเภทชั้นที่ 1
-// scopes = { tier: { typeId, sizeIds }, whole: { typeId, sizeIds } } (ไม่ส่ง = ใช้ typeId/sizeIds ตรง ๆ)
+// scopes = { tier: { typeId, styleId, sizeIds }, whole: { typeId, styleId, sizeIds } } (ไม่ส่ง = ใช้ typeId/sizeIds ตรง ๆ)
 export const bundleScope = (b, groups, scopes, dflt) => {
   if (!scopes) return dflt
   const isTier = b.items.some((x) => groups.find((g) => g.id === x.groupId)?.perTier)
   return (isTier ? scopes.tier : scopes.whole) || dflt
 }
 
-export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = [], allow = null, limit = 2, scopes = null } = {}) {
-  const dT = typeId, dS = sizeIds
+export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = [], styleId = null, allow = null, limit = 2, scopes = null } = {}) {
+  const dT = typeId, dS = sizeIds, dSt = styleId
   const has = (x) => idsOf(sels?.[x.groupId]).includes(x.optionId)
   // ชุดที่ครบแล้ว (ใช้จริง) → ชุดอื่นที่ใช้ตัวเลือกซ้ำกันไม่ทำให้ส่วนลดเพิ่ม → ไม่แนะนำ
   const allC = []
   for (const b of bundles || []) {
     if (b.active === false || !(b.items?.length > 0)) continue
-    const sc = bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS })
-    const amount = forType(b, sc.typeId) ? bundleAmount(b, sc.typeId, sc.sizeIds) : 0
+    const sc = bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS, styleId: dSt })
+    const amount = forType(b, sc.typeId) ? bundleAmount(b, sc.typeId, sc.sizeIds, sc.styleId) : 0
     if (amount > 0) allC.push({ b, amount })
   }
   const sum = (l) => l.reduce((t, x) => t + x.amount, 0)
   const base = sum(bundleWinners(allC.filter((c) => c.b.items.every(has))))
   const out = []
   for (const b of bundles || []) {
-    const { typeId, sizeIds } = b.items?.length ? bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS }) : { typeId: dT, sizeIds: dS }
+    const { typeId, sizeIds, styleId } = b.items?.length ? bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS, styleId: dSt }) : { typeId: dT, sizeIds: dS, styleId: dSt }
     if (b.active === false || !forType(b, typeId) || !(b.items?.length > 1)) continue
     const have = b.items.filter(has)
     if (!have.length || have.length < b.items.length - 1 || have.length === b.items.length) continue
-    const amount = bundleAmount(b, typeId, sizeIds)
+    const amount = bundleAmount(b, typeId, sizeIds, styleId)
     if (!(amount > 0)) continue
     const missing = []
     let ok = true
@@ -220,7 +224,7 @@ export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = []
 // เฉพาะบันเดิ้ลที่ใช้ได้จริงตอนนี้ (ใช้งาน ตรงประเภท ส่วนลดตามขนาด > 0) · หลายบันเดิ้ล: done > partner > idle แล้วส่วนลดมากสุด
 // ป้ายแสดงเมื่อ: ชุดหลายตัวเลือก (N ตัว) = เลือกแล้วอย่างน้อย N-1 ตัว · บันเดิ้ลตัวเลือกเดียว = เลือกครบหัวข้อหลักทุกข้อ (single → "ลดพิเศษ")
 const RANK = { idle: 0, partner: 1, done: 2 }
-export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: dS = [], allow = null, scopes = null } = {}) {
+export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: dS = [], styleId: dSt = null, allow = null, scopes = null } = {}) {
   const tags = new Map()
   const has = (x) => idsOf(sels?.[x.groupId]).includes(x.optionId)
   const put = (x, state, amount, name, single) => {
@@ -233,9 +237,9 @@ export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: 
   const cands = []
   for (const b of bundles || []) {
     if (b.active === false || !(b.items?.length > 0)) continue
-    const { typeId, sizeIds } = bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS })
+    const { typeId, sizeIds, styleId } = bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS, styleId: dSt })
     if (!forType(b, typeId)) continue
-    const amount = bundleAmount(b, typeId, sizeIds)
+    const amount = bundleAmount(b, typeId, sizeIds, styleId)
     if (!(amount > 0)) continue
     const usable = (x) => {
       const g = groups.find((z) => z.id === x.groupId)
@@ -282,7 +286,7 @@ export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: 
 // กลุ่มแยกชั้น: ใช้ขนาด/ประเภทของชั้น · กลุ่มทั้งก้อน: ขนาดทุกชั้นรวมกัน + ประเภทของชั้นที่ 1 · แบบคงที่ไม่ขึ้นกับขนาด
 // บันเดิ้ลที่มีกลุ่มแยกชั้น ตรวจทีละชั้น (ตัวเลือกของชั้น + ตัวเลือกทั้งก้อน) · บันเดิ้ลที่มีแต่กลุ่มทั้งก้อน ตรวจครั้งเดียว
 export function calcUnitPrice(item, groups, products, active = [], used = null, usedBundles = null, bundles = []) {
-  const { base, tierSizes, tierTypes } = itemBase(item, groups, products, active, used)
+  const { base, tierSizes, tierTypes, tierStyles } = itemBase(item, groups, products, active, used)
   const tiers = tiersOf(item)
   const allSizes = tierSizes.flat()
   const wholeType = tierTypes[0] || null
@@ -304,9 +308,9 @@ export function calcUnitPrice(item, groups, products, active = [], used = null, 
     const okT = groupOkFor(groups, item, t)
     const tp = pick(tierG.filter(okT), t.selections, tierTypes[i])
     extra += priceOf(tp, tierTypes[i], tierSizes[i])
-    extra -= bundleDiscount(tierB, keys([...tp, ...wholePicked]), tierSizes[i], usedBundles, tierTypes[i])
+    extra -= bundleDiscount(tierB, keys([...tp, ...wholePicked]), tierSizes[i], usedBundles, tierTypes[i], tierStyles[i])
   })
-  extra -= bundleDiscount(wholeB, keys(wholePicked), allSizes, usedBundles, wholeType)
+  extra -= bundleDiscount(wholeB, keys(wholePicked), allSizes, usedBundles, wholeType, tierStyles[0] || null)
   return base + extra
 }
 
