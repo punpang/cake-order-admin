@@ -24,6 +24,7 @@ import { dueState, overduePayments, orderDue, quickDue, isHHmm, remainingText } 
 import { supabaseEnabled } from '../lib/supabase'
 import { createNumbering } from '../lib/docNo'
 import { staffState } from '../lib/staffAuth'
+import { callAuth, readSessionToken, saveSessionToken, clearSessionToken, injectBundle, clearBundle } from '../lib/customerRemote'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
 let seq = 1000
@@ -2932,13 +2933,38 @@ const liveCustomerByPhone = (phone) => db.customers.find((c) => !c.deleted && ph
 const accountByPhone = (phone) => db.customerAccounts.find((a) => a.phone === phone) || null
 const myAccount = () => db.customerAccounts.find((a) => a.customerId === customerSession.customerId) || null
 export const myCustomer = () => db.customers.find((c) => c.id === customerSession.customerId && !c.deleted) || null
+// โหมด Supabase + ไม่ใช่พนักงาน: บัญชีลูกค้าอยู่ที่เซิร์ฟเวอร์ (Edge Function customer-auth) ไม่ใช่ข้อมูลจำลองในเครื่อง
+const remoteCust = () => supabaseEnabled && !staffState.staff
+const ACCT_BLOCK = 'ยังแก้ข้อมูลบัญชีผ่านหน้าเว็บไม่ได้ในตอนนี้ กรุณาแจ้งร้านทางแชท'
+const REMOTE_OTP = ['register', 'reset']
 export const customerLogout = () => {
+  if (remoteCust()) {
+    const t = readSessionToken()
+    clearSessionToken()
+    clearBundle(db, customerSession.customerId)
+    if (t) callAuth('logout', { session: t })
+  }
   customerSession.customerId = null
+}
+function enterRemote(r) {
+  saveSessionToken(r.session.token)
+  customerSession.customerId = injectBundle(db, r)
+}
+// เปิดหน้าเว็บใหม่: ถ้ามีเซสชันค้างอยู่ (14 วัน) → กลับเข้าบัญชีอัตโนมัติ
+export async function restoreCustomerSession() {
+  const t = readSessionToken()
+  if (!t || !remoteCust() || customerSession.customerId) return false
+  const r = await callAuth('session', { session: t })
+  if (r.ok && r.customer) { customerSession.customerId = injectBundle(db, r); return true }
+  if (r.status === 401) clearSessionToken()
+  return false
 }
 const NEEDS_LOGIN = ['change_pin', 'change_phone', 'delete']
 
 // ขอ OTP (จำลอง: คืน simCode ให้แสดงบนจอ · ของจริงส่ง SMS ผ่านระบบ SMS ของร้านและไม่คืนรหัส)
 export function requestOtp(phoneRaw, purpose) {
+  // โหมดออนไลน์: คืน Promise (เซิร์ฟเวอร์ส่ง SMS จริง ไม่คืนรหัส) · ผู้เรียกใช้ await เสมอ
+  if (remoteCust()) return REMOTE_OTP.includes(purpose) ? callAuth('otp_request', { phone: phoneDigits(phoneRaw), purpose }) : Promise.resolve({ error: ACCT_BLOCK })
   if (!OTP_PURPOSE[purpose]) return { error: 'ไม่รู้จักประเภทรหัส' }
   let phone = phoneDigits(phoneRaw)
   const me = myAccount()
@@ -2966,6 +2992,7 @@ export function requestOtp(phoneRaw, purpose) {
 }
 // ตรวจรหัส OTP → คืน token ไปใช้ในขั้นถัดไป (register: knownCustomer = เบอร์นี้มีลูกค้าในระบบแล้ว ไม่ต้องกรอกชื่อ)
 export function verifyOtp(phoneRaw, purpose, code) {
+  if (remoteCust()) return REMOTE_OTP.includes(purpose) ? callAuth('otp_verify', { phone: phoneDigits(phoneRaw), purpose, code: String(code ?? '') }) : Promise.resolve({ error: ACCT_BLOCK })
   const me = myAccount()
   const phone = NEEDS_LOGIN.includes(purpose) && purpose !== 'change_phone' ? me?.phone : phoneDigits(phoneRaw)
   const o = db.otps.filter((x) => x.phone === phone && x.purpose === purpose && !x.used).sort((a, b) => b.sentAt - a.sentAt)[0]
@@ -2996,6 +3023,12 @@ async function makeCredential(pin) {
 }
 // สมัคร: เบอร์ที่มีลูกค้าอยู่แล้ว (พนักงานสร้างไว้) → ผูกกับลูกค้าเดิม · เบอร์ใหม่ → สร้างลูกค้า (ต้องมีชื่อ)
 export async function registerAccount({ token, phone: phoneRaw, name = '', pin, consent = false }) {
+  if (remoteCust()) {
+    const r = await callAuth('register', { token, phone: phoneDigits(phoneRaw), name, pin, consent })
+    if (!r.ok) return { error: r.error }
+    enterRemote(r)
+    return { ok: true, linked: !!r.linked }
+  }
   const phone = phoneDigits(phoneRaw)
   const o = findVerified(token, 'register', phone)
   if (!o) return NEED_OTP
@@ -3020,6 +3053,12 @@ export async function registerAccount({ token, phone: phoneRaw, name = '', pin, 
 }
 // เข้าสู่ระบบ: เบอร์ + PIN · ผิด 5 ครั้งล็อก 15 นาที (ข้อความผิดทั่วไปไม่บอกว่าเบอร์มีในระบบไหม)
 export async function loginPin(phoneRaw, pin) {
+  if (remoteCust()) {
+    const r = await callAuth('login', { phone: phoneDigits(phoneRaw), pin })
+    if (!r.ok) return { error: r.error, ...(r.locked ? { locked: true } : {}) }
+    enterRemote(r)
+    return { ok: true }
+  }
   const phone = phoneDigits(phoneRaw)
   const bad = { error: 'เบอร์โทรหรือ PIN ไม่ถูกต้อง' }
   const a = accountByPhone(phone)
@@ -3039,6 +3078,11 @@ export async function loginPin(phoneRaw, pin) {
 }
 // ลืม PIN (ยังไม่ล็อกอิน): ยืนยัน OTP แล้วตั้ง PIN ใหม่ ปลดล็อกบัญชี
 export async function resetPin({ token, phone: phoneRaw, pin }) {
+  if (remoteCust()) {
+    const r = await callAuth('reset', { token, phone: phoneDigits(phoneRaw), pin })
+    if (r.ok) clearSessionToken()
+    return r.ok ? { ok: true } : { error: r.error }
+  }
   const phone = phoneDigits(phoneRaw)
   const o = findVerified(token, 'reset', phone)
   const a = accountByPhone(phone)
@@ -3051,6 +3095,7 @@ export async function resetPin({ token, phone: phoneRaw, pin }) {
 }
 // เปลี่ยน PIN (ล็อกอินอยู่): ต้องยืนยัน OTP ก่อน
 export async function changePin({ token, pin }) {
+  if (remoteCust()) return { error: ACCT_BLOCK }
   const a = myAccount()
   const o = findVerified(token, 'change_pin', a?.phone)
   if (!a || !o) return NEED_OTP
@@ -3062,6 +3107,7 @@ export async function changePin({ token, pin }) {
 }
 // เปลี่ยนเบอร์: OTP ส่งไปเบอร์ใหม่
 export function changePhone({ token, phone: phoneRaw }) {
+  if (remoteCust()) return { error: ACCT_BLOCK }
   const phone = phoneDigits(phoneRaw)
   const a = myAccount()
   const cu = myCustomer()
@@ -3081,6 +3127,7 @@ export function myProfile() {
 }
 // แก้ได้เฉพาะ ชื่อ / LINE ID / รับข่าว-โปร (เบอร์แก้ผ่าน changePhone ที่ต้องยืนยัน OTP)
 export function updateMyProfile({ name, line, promoOptIn }) {
+  if (remoteCust()) return { error: ACCT_BLOCK }
   const c = myCustomer()
   if (!c) return { error: 'กรุณาเข้าสู่ระบบ' }
   const n = String(name ?? c.name).trim()
@@ -3107,6 +3154,7 @@ export function myOrder(orderId) {
 export const myBirthdays = () => (myCustomer() ? birthdayList(customerSession.customerId).map((b) => ({ name: b.name, md: b.md })) : [])
 // เขียนรีวิว: เฉพาะออร์เดอร์ของตัวเองที่ส่งมอบแล้ว 1 รีวิวต่อออร์เดอร์ → รอแอดมินอนุมัติ
 export function submitReview({ orderId, rating, text }) {
+  if (remoteCust()) return { error: ACCT_BLOCK }
   const c = myCustomer()
   const o = db.orders.find((x) => x.id === orderId && x.customerId === c?.id)
   if (!c || !o) return { error: 'ไม่พบออร์เดอร์' }
@@ -3192,6 +3240,7 @@ export function needsConsent(customerId = customerSession.customerId) {
 }
 // ลูกค้าที่ล็อกอินอยู่กดยอมรับเวอร์ชันปัจจุบัน
 export function acceptConsent(via = 'reconsent') {
+  if (remoteCust()) return { error: ACCT_BLOCK }
   const id = customerSession.customerId
   if (!id || !myCustomer()) return { error: 'กรุณาเข้าสู่ระบบ' }
   addConsents(id, ACCOUNT_CONSENT_KINDS, via)
@@ -3208,6 +3257,7 @@ export function consentStats(kind) {
 // ลูกค้าส่งคำขอ (ต้องยืนยัน OTP) → แอดมินอนุมัติ/ปฏิเสธ · อนุมัติ = ลบตัวตน เก็บออร์เดอร์/การชำระแบบนิรนาม
 export const myDeletionRequest = () => db.deletionRequests.find((r) => r.customerId === customerSession.customerId && r.status === 'pending') || db.deletionRequests.filter((r) => r.customerId === customerSession.customerId)[0] || null
 export function requestDeletion({ token, note = '' }) {
+  if (remoteCust()) return { error: ACCT_BLOCK }
   const a = myAccount()
   const o = findVerified(token, 'delete', a?.phone)
   if (!a || !o) return NEED_OTP

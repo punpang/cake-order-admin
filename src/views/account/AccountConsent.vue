@@ -10,9 +10,11 @@ const router = useRouter()
 const kinds = computed(() => needsConsent())
 const agree = ref(false)
 const open = ref(null)
+const err = ref('')
 function accept() {
   if (!agree.value) return
-  acceptConsent('reconsent')
+  const r = acceptConsent('reconsent')
+  if (r.error) return (err.value = r.error)
   router.replace('/account')
 }
 function decline() {
@@ -37,6 +39,7 @@ function decline() {
     </div>
     <template v-if="kinds.length">
       <label class="mt-4 flex items-start gap-2 text-sm text-stone-700"><input v-model="agree" type="checkbox" class="mt-0.5 h-5 w-5 accent-brand-600" /> ฉันได้อ่านและยอมรับเอกสารข้างต้น</label>
+      <p v-if="err" class="mt-2 text-sm text-rose-600">{{ err }}</p>
       <div class="mt-4 flex gap-2">
         <button class="btn-outline flex-1" @click="decline">ไม่ยอมรับ (ออกจากระบบ)</button>
         <button class="btn-primary flex-1" :disabled="!agree" @click="accept">ยอมรับและใช้งานต่อ</button>

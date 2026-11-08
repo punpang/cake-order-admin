@@ -77,6 +77,7 @@ async function loadForVisitor() {
     // ไม่ให้หน้าเว็บค้างถ้าเซิร์ฟเวอร์ช้า: รอไม่เกิน 6 วินาที (ข้อมูลที่โหลดเสร็จทีหลังยังถูกใส่ให้เอง)
     await Promise.race([pub.startPublicLoad({ client, db: store.db, onError: (m) => console.warn('โหลดข้อมูลหน้าร้านไม่สำเร็จ:', m) }), new Promise((r) => setTimeout(r, 6000))])
   } catch (e) { console.warn('โหลดข้อมูลหน้าร้านไม่สำเร็จ:', e?.message) }
+  try { await (await import('../data/store')).restoreCustomerSession() } catch (e) { console.warn('กลับเข้าบัญชีลูกค้าไม่สำเร็จ:', e?.message) }
 }
 
 // เข้าสู่ระบบพนักงานด้วย Supabase Auth (อีเมล+รหัสผ่าน) แล้วอ่านบทบาท/สิทธิ์จาก punpang_staff

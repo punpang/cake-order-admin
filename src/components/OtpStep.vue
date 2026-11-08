@@ -6,7 +6,7 @@ import { formatPhone } from '../lib/format'
 import AppIcon from './AppIcon.vue'
 
 // ขั้นยืนยัน OTP: ขอรหัสอัตโนมัติเมื่อเปิด → กรอกรหัส 6 หลัก → ส่ง token ให้ขั้นถัดไป
-// ตอนนี้จำลอง: ยังไม่ส่ง SMS จริง จึงแสดงรหัสบนจอ (ของจริงส่งผ่านระบบ SMS ของร้าน และไม่แสดงรหัส)
+// โหมดจำลอง: แสดงรหัสบนจอ · โหมดออนไลน์: เซิร์ฟเวอร์ส่ง SMS จริงและไม่คืนรหัส (ไม่มี simCode → ไม่แสดงกล่องจำลอง)
 const props = defineProps({ phone: { type: String, default: '' }, purpose: { type: String, required: true } })
 const emit = defineEmits(['verified', 'cancel'])
 
@@ -26,10 +26,10 @@ function tick(sec) {
     if (!wait.value) clearInterval(timer)
   }, 1000)
 }
-function send() {
-  const r = requestOtp(props.phone, props.purpose)
+async function send() {
+  const r = await requestOtp(props.phone, props.purpose)
   if (r.ok) {
-    sim.value = r.simCode
+    sim.value = r.simCode || ''
     sentTo.value = r.phone
     error.value = ''
     code.value = ''
@@ -41,8 +41,8 @@ function send() {
     else if (!sentTo.value) fatal.value = true
   }
 }
-function submit() {
-  const r = verifyOtp(props.phone, props.purpose, code.value)
+async function submit() {
+  const r = await verifyOtp(props.phone, props.purpose, code.value)
   if (r.ok) return emit('verified', r)
   error.value = r.error
   code.value = ''
