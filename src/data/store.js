@@ -730,11 +730,11 @@ export function saveOption(groupId, d) {
   if (g.key === 'size') data.pounds = Number(d.pounds) || 1
   else if (g.key === 'type') {
     if (!d.id) Object.assign(data, { price: 0, sizePrices: {} })
-    if (data.priceType === 'size') data.sizePrices = cleanSpecial(d.sizePrices) // โหมดตามขนาด: กรอกราคาต่อขนาดได้ที่หน้าแก้ตัวเลือก
   } else if (g.key === 'flavor' || g.key === 'style' || g.key === 'shape') {
     // โหมดราคา (คงที่/ตามขนาด) ตั้งที่หน้าแก้ตัวเลือก · ตัวเลขราคาตั้งที่หน้าการกำหนดราคา
     data.priceType = d.priceType === 'size' ? 'size' : 'fixed'
     if (!d.id) Object.assign(data, { price: 0, sizePrices: {} })
+    if (data.priceType === 'size') data.sizePrices = cleanSpecial(d.sizePrices) // โหมดตามขนาด: กรอกราคาต่อขนาดที่หน้าแก้ตัวเลือก
   } else {
     const fixed = d.priceType === 'fixed'
     Object.assign(data, {
