@@ -5,6 +5,7 @@ import { db, activeListsAt, session } from '../data/store'
 import { priceDetail, allowedBy, forType, discountLines } from '../lib/pricing'
 import { decodeCake, findCodes } from '../lib/cakeCode'
 import { money } from '../lib/format'
+import { resizeImage, imageErrorMessage } from '../lib/imageResize'
 import { MAIN_KEYS } from '../lib/constants'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
@@ -150,9 +151,21 @@ function setKind(k) {
   errors.value = {}
 }
 
-function onImages(e) {
-  for (const f of e.target.files) form.images.push(URL.createObjectURL(f))
+const MAX_REF_IMAGES = 6
+const imgError = ref('')
+async function onImages(e) {
+  const files = [...e.target.files]
   e.target.value = ''
+  imgError.value = ''
+  const room = Math.max(MAX_REF_IMAGES - form.images.length, 0)
+  if (files.length > room) imgError.value = `แนบได้สูงสุด ${MAX_REF_IMAGES} รูป`
+  for (const f of files.slice(0, room)) {
+    try {
+      form.images.push(URL.createObjectURL((await resizeImage(f)).blob))
+    } catch (err) {
+      imgError.value = imageErrorMessage(err)
+    }
+  }
 }
 
 function save() {
@@ -327,12 +340,13 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
             <AppIcon name="x" :size="14" />
           </button>
         </div>
-        <label class="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-stone-200 text-xs text-stone-400 hover:border-brand-300 hover:text-brand-600">
+        <label v-if="form.images.length < MAX_REF_IMAGES" class="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-stone-200 text-xs text-stone-400 hover:border-brand-300 hover:text-brand-600">
           <AppIcon name="image" :size="20" />
           เพิ่มรูป
           <input type="file" accept="image/*" multiple class="hidden" @change="onImages" />
         </label>
       </div>
+      <p v-if="imgError" class="mt-1 text-xs text-rose-600">{{ imgError }}</p>
       <div class="mt-4">
         <div class="label">หมายเหตุ</div>
         <textarea v-model="form.note" rows="2" class="input" placeholder="รายละเอียดเพิ่มเติม" />

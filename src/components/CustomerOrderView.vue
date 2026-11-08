@@ -4,6 +4,7 @@ import { customerPay, customerRequestExtension, customerRequestPhotoOptOut, cust
 import { promptPayPayload } from '../lib/promptpay'
 import { money, dateOnly, dateTime, formatPhone } from '../lib/format'
 import { STATUS } from '../lib/constants'
+import { resizeImage, imageErrorMessage } from '../lib/imageResize'
 import StatusBadge from './StatusBadge.vue'
 import PayDueBadge from './PayDueBadge.vue'
 import AppIcon from './AppIcon.vue'
@@ -66,15 +67,17 @@ async function copy(text, key) {
     copied.value = ''
   }
 }
-function onSlip(e) {
+async function onSlip(e) {
   f.error = ''
   const file = e.target.files?.[0]
   if (!file) return
-  if (!/^image\/(png|jpe?g|webp|gif)$/.test(file.type)) return (f.error = 'แนบสลิปเป็นรูปภาพ (PNG / JPG / WEBP)')
-  if (file.size > 5 * 1024 * 1024) return (f.error = 'ไฟล์ใหญ่เกิน 5 MB')
-  const r = new FileReader()
-  r.onload = () => { f.slip = String(r.result); f.slipName = file.name }
-  r.readAsDataURL(file)
+  try {
+    const r = await resizeImage(file)
+    f.slip = r.dataUrl
+    f.slipName = file.name
+  } catch (err) {
+    f.error = imageErrorMessage(err)
+  }
 }
 async function submit() {
   f.error = f.ok = ''
@@ -288,7 +291,7 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
             <label class="flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-stone-200 p-3 text-stone-500 hover:border-brand-300">
               <img v-if="f.slip" :src="f.slip" alt="สลิป" class="h-14 w-14 rounded-lg object-cover" />
               <AppIcon v-else name="image" :size="22" />
-              <span class="min-w-0 truncate">{{ f.slip ? f.slipName || 'เปลี่ยนรูปสลิป' : 'แนบรูปสลิป (ไม่เกิน 5 MB)' }}</span>
+              <span class="min-w-0 truncate">{{ f.slip ? f.slipName || 'เปลี่ยนรูปสลิป' : 'แนบรูปสลิป (ย่อให้อัตโนมัติ ≤ 2 MB)' }}</span>
               <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" aria-label="แนบสลิป" @change="onSlip" />
             </label>
           </div>

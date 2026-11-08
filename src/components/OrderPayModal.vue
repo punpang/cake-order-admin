@@ -7,6 +7,7 @@ import { QUICK_DUE, quickDue, dueBeforePickup, dueDaysBefore, isHHmm } from '../
 import { PAYMENT_METHODS } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
 import { money } from '../lib/format'
+import { resizeImage, imageErrorMessage } from '../lib/imageResize'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
 import SecureImg from './SecureImg.vue'
@@ -59,9 +60,16 @@ const showDeposit = computed(() =>
   pay.notify = true
   payError.value = ''
 }
-function onSlip(e) {
+async function onSlip(e) {
   const f = e.target.files[0]
-  if (f) pay.slip = URL.createObjectURL(f)
+  e.target.value = ''
+  if (!f) return
+  payError.value = ''
+  try {
+    pay.slip = URL.createObjectURL((await resizeImage(f)).blob)
+  } catch (err) {
+    payError.value = imageErrorMessage(err)
+  }
 }
 async function savePay() {
   if (!(pay.amount > 0)) return (payError.value = 'กรอกยอดเงิน')

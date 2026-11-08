@@ -8,6 +8,8 @@ export const syncOnline = reactive({ online: typeof navigator === 'undefined' ? 
 const retryFns = new Map()
 let lastOk = 0
 export const syncLastOk = reactive({ at: 0 })
+// สถานะ Realtime (แยกจากคิวเขียน ไม่กระทบ beforeunload) · off | connecting | live | down
+export const syncRealtime = reactive({ state: 'off', everLive: false, lastLiveAt: 0 })
 
 export function syncSet(key, state, msg = '', retry = null) {
   syncEntries[key] = { state, msg }

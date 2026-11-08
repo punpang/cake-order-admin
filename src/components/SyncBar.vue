@@ -1,13 +1,14 @@
 <script setup>
 import { computed } from 'vue'
-import { syncSummary, syncOnline, syncRetryAll } from '../lib/syncStatus'
+import { syncSummary, syncOnline, syncRetryAll, syncRealtime } from '../lib/syncStatus'
 import { staffState, reloadStaffData } from '../lib/staffAuth'
 import { supabaseEnabled } from '../lib/supabase'
 
 // แถบสถานะการบันทึก/โหลดข้อมูลกับเซิร์ฟเวอร์ (หลังบ้าน โหมด Supabase) — ซ่อนเมื่อทุกอย่างตรงกับเซิร์ฟเวอร์แล้ว
 const sum = computed(() => syncSummary.value)
 const loadFailed = computed(() => staffState.loadFailed || [])
-const show = computed(() => supabaseEnabled && (loadFailed.value.length || !syncOnline.online || sum.value.state !== 'idle'))
+const rtDown = computed(() => syncRealtime.state === 'down')
+const show = computed(() => supabaseEnabled && (loadFailed.value.length || !syncOnline.online || sum.value.state !== 'idle' || rtDown.value))
 </script>
 
 <template>
@@ -21,6 +22,7 @@ const show = computed(() => supabaseEnabled && (loadFailed.value.length || !sync
       <span>บันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ ({{ sum.msgs.join(' · ') }}) · ระบบลองใหม่เอง</span>
       <button type="button" class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-rose-800" @click="syncRetryAll">ลองใหม่ตอนนี้</button>
     </div>
+    <div v-else-if="sum.state === 'idle' && rtDown" class="bg-amber-600 px-4 py-1.5 text-center text-xs text-white" role="status" data-rt-down>ข้อมูลสดขาดการเชื่อมต่อ — ระบบดึงข้อมูลใหม่ทุก 45 วินาทีแทน และจะเชื่อมต่อใหม่เอง</div>
     <div v-else class="bg-stone-800 px-4 py-1.5 text-center text-xs text-white" role="status">{{ sum.state === 'saving' ? 'กำลังบันทึกขึ้นเซิร์ฟเวอร์…' : 'รอบันทึก…' }}</div>
   </div>
 </template>

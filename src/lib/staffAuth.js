@@ -2,6 +2,8 @@ import { reactive } from 'vue'
 import { getSupabase, supabaseEnabled } from './supabase'
 import { showToast } from './toast'
 import { publicState, setRestoring } from './dataStatus'
+import { syncRealtime } from './syncStatus'
+import { startRealtime, makeDebouncer } from './realtimeSync'
 
 // สถานะพนักงานที่ล็อกอินจริง (ใช้เมื่อเปิด Supabase เท่านั้น)
 export const staffState = reactive({ ready: !supabaseEnabled, staff: null, loadFailed: [] })
@@ -11,17 +13,57 @@ let trashHook = null
 const POLL_MS = 45000
 let pollTimer = null
 let pollBusy = false
-async function pollOnce() {
+// Realtime เชื่อมอยู่ = ดึงทั้งหมดแค่ทุก 5 นาทีเป็นตาข่ายสำรอง · หลุด = กลับไปทุก 45 วินาที
+const SAFETY_POLL_MS = 300000
+let lastFull = 0
+let chain = Promise.resolve()
+const exclusive = (fn) => (chain = chain.then(fn, fn).catch(() => {})) // รีเฟรชทีละงาน ไม่ซ้อนกัน
+async function pollOnce(force = false) {
   if (pollBusy || (typeof document !== 'undefined' && document.hidden)) return
+  if (force !== true && syncRealtime.state === 'live' && Date.now() - lastFull < SAFETY_POLL_MS) return
   pollBusy = true
-  try { for (const x of syncs) if (x.refresh) await x.refresh() } catch (e) { console.warn('รีเฟรชข้อมูลไม่สำเร็จ:', e?.message) }
+  await exclusive(async () => {
+    try { for (const x of syncs) if (x.refresh) await x.refresh() } catch (e) { console.warn('รีเฟรชข้อมูลไม่สำเร็จ:', e?.message) }
+    lastFull = Date.now()
+  })
   pollBusy = false
 }
-const onVisible = () => { if (typeof document !== 'undefined' && !document.hidden) pollOnce() }
+const onVisible = () => { if (typeof document !== 'undefined' && !document.hidden) pollOnce(true) }
+const onOnline = () => pollOnce(true)
 function startPolling() {
   stopPolling()
   pollTimer = setInterval(pollOnce, POLL_MS)
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible)
+  if (typeof window !== 'undefined') window.addEventListener('online', onOnline)
+}
+// Realtime ฝั่งพนักงาน: event ของตาราง → refresh เฉพาะ handle ที่เกี่ยวข้อง (หน่วง + รวมเหตุการณ์)
+let rt = null
+let rtDeb = null
+function startStaffRealtime(client, recNames) {
+  stopStaffRealtime()
+  const by = (f) => syncs.filter((x) => x && x.refresh && f(x))
+  const routes = {
+    punpang_orders: by((x) => x.label === 'ออร์เดอร์'),
+    punpang_customers: by((x) => x.label === 'ลูกค้า'),
+    punpang_shifts: by((x) => x.label === 'กะ POS'),
+    punpang_chats: by((x) => x.label === 'แชท'),
+    punpang_quotes: by((x) => x.label === 'ใบเสนอ'),
+    punpang_items: by((x) => x.label === 'สินค้า'),
+    punpang_kv: by((x) => x.label === 'สินค้า' || !x.label), // ตั้งค่า/บัญชี/ล็อกสิทธิ์ (handle ที่โหลดสำเร็จไม่มี label) + ต้นทุนสินค้า
+    punpang_records: by((x) => recNames.has(x.label)),
+  }
+  const bindings = Object.entries(routes).filter(([, h]) => h.length).map(([table]) => ({ table, key: table }))
+  if (!bindings.length) return
+  rtDeb = makeDebouncer((key) => { exclusive(async () => { for (const x of routes[key]) { try { await x.refresh() } catch (e) { console.warn('รีเฟรชข้อมูลไม่สำเร็จ:', e?.message) } } }) })
+  rt = startRealtime({
+    client, name: 'staff-sync', bindings,
+    onEvent: (key) => rtDeb(key, key === 'punpang_chats' || key === 'punpang_quotes' ? 300 : 400),
+    onLive: (reconnect) => { if (reconnect) pollOnce(true) },
+  })
+}
+function stopStaffRealtime() {
+  if (rtDeb) { rtDeb.cancel(); rtDeb = null }
+  if (rt) { rt.stop(); rt = null }
 }
 // เปิดหน้าแชทอยู่ = รีเฟรชเฉพาะแชทถี่ขึ้น (ข้อความ Facebook เข้าทาง webhook) · ที่อื่นคง 45 วินาที
 const FAST_CHAT_MS = 10000
@@ -32,6 +74,7 @@ export function setChatFastPoll(on) {
   if (!on) return
   fastTimer = setInterval(async () => {
     if (typeof document !== 'undefined' && document.hidden) return
+    if (syncRealtime.state === 'live') return // เรียลไทม์เชื่อมอยู่ ไม่ต้อง poll ถี่
     try { for (const x of syncs) if (x.kind === 'chats' && x.refresh) await x.refresh() } catch (e) { console.warn('รีเฟรชแชทไม่สำเร็จ:', e?.message) }
   }, FAST_CHAT_MS)
 }
@@ -41,6 +84,8 @@ function stopPolling() {
   pollTimer = null
   fastTimer = null
   if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible)
+  if (typeof window !== 'undefined') window.removeEventListener('online', onOnline)
+  stopStaffRealtime()
 }
 // หลังล็อกอินสำเร็จ: โหลดข้อมูลจาก Supabase (สินค้า/ลูกค้า) และเขียนกลับเมื่อมีสิทธิ์
 async function startData(staff) {
@@ -156,6 +201,7 @@ async function startData(staff) {
   // ตารางที่โหลดจากเซิร์ฟเวอร์ไม่สำเร็จ → แจ้งบนแถบสถานะ (ข้อมูลที่เห็นอาจไม่ครบ) พร้อมปุ่มลองโหลดใหม่
   staffState.loadFailed = syncs.filter((x) => x && x.loaded === false).map((x) => x.label || 'ข้อมูล')
   startPolling()
+  startStaffRealtime(client, new Set(Object.keys(rec.RECORD_SPECS)))
 }
 export async function reloadStaffData() { if (staffState.staff) await startData(staffState.staff) }
 // ดึงข้อมูลล่าสุดของตารางที่ระบุจากเซิร์ฟเวอร์ทันที (เช่น ก่อนขาย POS: สต็อก/กะ) · ข้ามตารางที่มีแก้ค้างในเครื่อง
@@ -174,7 +220,28 @@ export async function initStaff() {
 const PUBLIC_REFRESH_MS = 60000
 let pubTimer = null
 let pubBusy = false
+let pubRt = null
+let pubDeb = null
+function startPublicRealtime(client) {
+  stopPublicRealtime()
+  pubDeb = makeDebouncer(() => loadPublicNow(false), { wait: 800, minGap: 3000 })
+  pubRt = startRealtime({
+    client, name: 'public-sync',
+    bindings: [
+      { table: 'punpang_kv', filter: 'collection=in.(shop_public,storefront,legal)', key: 'kv' },
+      { table: 'punpang_items', key: 'items' },
+      { table: 'punpang_records', filter: 'collection=in.(reviews,shortLinks)', key: 'records' },
+    ],
+    onEvent: (key) => pubDeb(key),
+    onLive: (reconnect) => { if (reconnect) loadPublicNow(false) },
+  })
+}
+function stopPublicRealtime() {
+  if (pubDeb) { pubDeb.cancel(); pubDeb = null }
+  if (pubRt) { pubRt.stop(); pubRt = null }
+}
 function stopPublicRefresh() {
+  stopPublicRealtime()
   if (pubTimer) { clearInterval(pubTimer); pubTimer = null }
   if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onPubVisible)
 }
@@ -205,6 +272,7 @@ async function loadForVisitor() {
   stopPublicRefresh()
   pubTimer = setInterval(() => { if (typeof document === 'undefined' || document.visibilityState === 'visible') loadPublicNow(false) }, PUBLIC_REFRESH_MS)
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onPubVisible)
+  if (!staffState.staff) startPublicRealtime(await getSupabase())
 }
 async function restoreSession() {
   try { await (await import('../data/store')).restoreCustomerSession() } catch (e) { console.warn('กลับเข้าบัญชีลูกค้าไม่สำเร็จ:', e?.message) }

@@ -158,3 +158,9 @@ pg_cron (ทุก 15 นาที) ──▶ Edge Function: scheduled (เต�
 - **รีเฟรชเพิ่ม**: สินค้า กะ POS และตั้งค่า (`configSync.refresh`) ดึงใหม่ทุก 45 วินาที ข้ามถ้ามีแก้ค้างในเครื่อง
 - **ลิงก์ออร์เดอร์**: เครือข่ายล่ม/5xx = "เชื่อมต่อไม่ได้" + ลองใหม่ (ไม่ใช่ "ลิงก์หมดอายุ") · ปุ่มฝั่งลูกค้าที่รอเซิร์ฟเวอร์มีสถานะกำลังดำเนินการกันกดซ้ำ
 - **ไม่ได้ทำรอบนี้**: แลกแต้ม/สุ่มกาชา/คูปองของลูกค้า และตัดสต็อก POS แบบ atomic ฝั่งเซิร์ฟเวอร์ · compare-and-swap ของออร์เดอร์/ลูกค้า (ยังเขียนทั้งก้อนแบบ last-write-wins)
+
+## Realtime + ย่อรูปก่อนอัปโหลด
+- Realtime: ตาราง `punpang_orders/customers/items/shifts/chats/quotes/kv/records` อยู่ใน publication `supabase_realtime` · เมื่อมี event แอปหน่วง ~0.3–0.4 วิ แล้วเรียก `refresh()` เดิมของตารางนั้น (ข้ามเมื่อมีแก้ค้างในเครื่อง · ไม่ apply payload ตรง) — `src/lib/realtimeSync.js`
+- พนักงาน: channel `staff-sync` (ตามสิทธิ์ที่มี) · เชื่อมอยู่ = poll ทั้งหมดแค่ทุก 5 นาที, หลุด = กลับทุก 45 วินาที + แถบเตือน "ข้อมูลสดขาดการเชื่อมต่อ" (SyncBar) · reconnect/กลับมาออนไลน์/กลับมาที่แท็บ = ดึงทั้งหมดทันที
+- ผู้เยี่ยมชม: channel `public-sync` (kv shop_public/storefront/legal, items, records reviews/shortLinks) → โหลดข้อมูลสาธารณะใหม่ · poll 60 วินาทีเป็นสำรอง · หน้าออร์เดอร์/ลิงก์ลูกค้าไม่ใช้ (ใช้ token ไม่ใช่ JWT)
+- รูป: `src/lib/imageResize.js` ย่อด้านยาว ≤1000px และ ≤2 MB (JPEG พื้นขาว) ก่อนอัปโหลดทุกจุด (ImageUploader, สลิปแอดมิน/ลูกค้า, รูปอ้างอิงออร์เดอร์) · `storage.js` ปฏิเสธไฟล์ >2 MB

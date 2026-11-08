@@ -4,11 +4,13 @@
 export const PUBLIC_BUCKET = 'punpang-public'
 const LOCAL = /^(data:image\/(png|jpe?g|webp|gif);base64,|blob:)/
 export const isLocalImage = (v) => typeof v === 'string' && LOCAL.test(v)
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 + 1024
 const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }
 const rand = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`)
 
 export async function uploadPublicImage(client, src, prefix) {
   const blob = await (await fetch(src)).blob()
+  if (blob.size > MAX_UPLOAD_BYTES) throw new Error('รูปใหญ่เกิน 2 MB')
   const type = EXT[blob.type] ? blob.type : 'image/jpeg'
   const path = `${prefix}/${rand()}.${EXT[type]}`
   const up = await client.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: type, upsert: false })
@@ -49,6 +51,7 @@ export const parseRef = (v) => { const m = typeof v === 'string' ? REF.exec(v) :
 
 export async function uploadPrivateImage(client, bucket, src, prefix) {
   const blob = await (await fetch(src)).blob()
+  if (blob.size > MAX_UPLOAD_BYTES) throw new Error('รูปใหญ่เกิน 2 MB')
   const type = EXT[blob.type] ? blob.type : 'image/jpeg'
   const path = `${prefix}/${rand()}.${EXT[type]}`
   const up = await client.storage.from(bucket).upload(path, blob, { contentType: type, upsert: false })

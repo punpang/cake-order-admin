@@ -1510,7 +1510,7 @@ const linkFails = []
 
 // ---------- มุมมองออร์เดอร์ของลูกค้า (หน้าลิงก์ + หน้าบัญชีที่ล็อกอิน ใช้ข้อมูลชุดเดียวกัน) ----------
 // owner=false (ลิงก์): ปิดบางส่วนเบอร์ ไม่ส่งที่อยู่/url/รายละเอียด · owner=true (ล็อกอินเป็นเจ้าของ): เห็นเต็มของตัวเอง · ไม่มีต้นทุน/กำไร/โน้ตภายใน/ประวัติภายใน
-export const CUSTOMER_PAY = { perHour: 5, slipMaxChars: 7000000, noteMax: 200 }
+export const CUSTOMER_PAY = { perHour: 5, slipMaxChars: 3000000, noteMax: 200 }
 const pendingCustomerSum = (o) => round2(o.payments.filter((p) => p.status === 'reported' && p.customerSubmitted).reduce((x, p) => x + (Number(p.amount) || 0), 0))
 const recentCustomerSubmits = (o) => o.payments.filter((p) => p.customerSubmitted && Date.now() - new Date(p.submittedAt || 0).getTime() < 3600e3).length
 // เหตุผลที่ลูกค้าชำระไม่ได้ ('' = ชำระได้)
@@ -1586,7 +1586,7 @@ export function customerPay(ctx, { amount, slip, note = '', paymentId = null }) 
   if (!(amt > 0)) return { error: 'กรอกยอดที่โอน' }
   if (amt > room + 1e-9) return { error: `ยอดเกินคงค้าง (ชำระได้ไม่เกิน ${money(room)})` }
   if (typeof slip !== 'string' || !SLIP_OK.test(slip)) return { error: 'แนบสลิปเป็นรูปภาพ (PNG / JPG / WEBP)' }
-  if (slip.length > CUSTOMER_PAY.slipMaxChars) return { error: 'ไฟล์สลิปใหญ่เกินไป (ไม่เกิน 5 MB)' }
+  if (slip.length > CUSTOMER_PAY.slipMaxChars) return { error: 'ไฟล์สลิปใหญ่เกินไป (ไม่เกิน 2 MB)' }
   const nt = String(note).trim().slice(0, CUSTOMER_PAY.noteMax)
   if (o._remote) return remoteOrderAction(db, ctx, 'pay', { amount: amt, slip, note: nt, paymentId }) // Promise · เซิร์ฟเวอร์บันทึก/ออกเลข PAY
   let p = null

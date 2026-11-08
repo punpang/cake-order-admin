@@ -1,33 +1,13 @@
 <script setup>
 import { ref } from 'vue'
 import AppIcon from './AppIcon.vue'
+import { resizeImage, imageErrorMessage } from '../lib/imageResize'
 
-// อัปโหลดรูป (จำลอง): ย่อรูปแล้วเก็บเป็น dataURL ในหน่วยความจำ (รีเฟรชแล้วหาย) · ของจริงเก็บใน Supabase Storage
+// เลือกรูป: ย่อ (ด้านยาว ≤1000px, ≤2MB) แล้วถือเป็น dataURL ชั่วคราว · ตอนบันทึกจะอัปโหลดขึ้น Supabase Storage (storage.js)
 const model = defineModel({ type: Array, default: () => [] })
 const props = defineProps({ max: { type: Number, default: 6 }, label: { type: String, default: 'เพิ่มรูป' } })
 const error = ref('')
 
-const MAX_SIDE = 1200
-function shrink(file) {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file)
-    const img = new Image()
-    img.onload = () => {
-      const k = Math.min(1, MAX_SIDE / Math.max(img.width, img.height))
-      const c = document.createElement('canvas')
-      c.width = Math.round(img.width * k)
-      c.height = Math.round(img.height * k)
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
-      URL.revokeObjectURL(url)
-      resolve(c.toDataURL('image/jpeg', 0.82))
-    }
-    img.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error('อ่านรูปไม่ได้'))
-    }
-    img.src = url
-  })
-}
 async function onFiles(e) {
   error.value = ''
   const files = [...e.target.files].filter((f) => f.type.startsWith('image/'))
@@ -37,9 +17,9 @@ async function onFiles(e) {
   const next = [...model.value]
   for (const f of files.slice(0, Math.max(room, 0))) {
     try {
-      next.push(await shrink(f))
-    } catch {
-      error.value = 'บางไฟล์อ่านไม่ได้'
+      next.push((await resizeImage(f)).dataUrl)
+    } catch (err) {
+      error.value = imageErrorMessage(err)
     }
   }
   model.value = next
