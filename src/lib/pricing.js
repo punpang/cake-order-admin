@@ -138,7 +138,8 @@ export function bundleWinners(c) {
     keys.forEach((k) => taken.add(k))
     out.push(x)
   }
-  return out
+  // ได้ชุดหลายตัวเลือกแล้ว → บันเดิ้ลตัวเลือกเดียวไม่นับ (ทั้งป้ายและส่วนลด)
+  return out.some((x) => x.b.items.length > 1) ? out.filter((x) => x.b.items.length > 1) : out
 }
 export function bundleDiscount(bundles, picked, sizeIds, usedBundles = null, typeId = null) {
   const c = []
