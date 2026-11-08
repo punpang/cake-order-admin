@@ -4,7 +4,7 @@ import { reactive } from 'vue'
 import { BELL_MAX, BELL_STAFF, BELL_CUSTOMER, bellText, visibleToStaff, visibleToCustomer, unreadStaff, unreadCustomer, isReadStaff } from '../lib/bell'
 import { STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
-import { orderCardMsg, quoteCardMsg, linkCardMsg, payCard } from '../lib/chatCards'
+import { orderCardMsg, quoteCardMsg, linkCardMsg, payCard, viewCard } from '../lib/chatCards'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { prevStatus } from '../lib/orderFlow'
 import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList, returnedByMethod } from '../lib/refund'
@@ -85,7 +85,10 @@ const PAY_CONFIRMED_TPL = 'ได้รับชำระ {ยอดที่ช
 // เตรียมสินค้าเสร็จ: รับที่ร้านได้ทันที แต่ต้องไม่เกินเวลาปิดร้าน (บรรทัดท้ายใส่เฉพาะรับที่ร้าน ส่วนจัดส่งว่าง)
 const PREPARED_OLD = 'ออร์เดอร์ {เลขออร์เดอร์} เตรียมสินค้าเสร็จแล้วค่ะ นัด{ส่งมอบ} {วันนัด} {เวลานัด}'
 const PREPARED_TPL = 'ออร์เดอร์ {เลขออร์เดอร์} เตรียมสินค้าเสร็จแล้วค่ะ นัด{ส่งมอบ} {วันนัด} {เวลานัด}\n{ข้อความรับสินค้า}'
-const DEFAULT_UPGRADES = { payment_confirmed: [PAY_CONFIRMED_OLD, PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL] }
+// ส่งมอบแล้ว: ขอบคุณ + (ถ้ามีรูปงาน) ขออนุญาตใช้ภาพสินค้า หากไม่ยินยอมแจ้งได้ + ลิงก์ดูออร์เดอร์ (ปุ่มบนการ์ด)
+const DELIVERED_OLD = 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ'
+const DELIVERED_TPL = 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ\n{ข้อความขอใช้ภาพ}\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
+const DEFAULT_UPGRADES = { payment_confirmed: [PAY_CONFIRMED_OLD, PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL], delivered: [DELIVERED_OLD, DELIVERED_TPL] }
 const tplOf = (r) => { const u = DEFAULT_UPGRADES[r.event]; return u && String(r.template || '').trim() === u[0] ? u[1] : r.template }
 
 const rule = (event, channels, template) => ({ event, channels, template, enabled: true })
@@ -261,7 +264,7 @@ export const db = reactive({
     rule('payment_confirmed', ['line', 'facebook', 'sms'], PAY_CONFIRMED_TPL),
     rule('pickup_reminder', ['line', 'facebook', 'sms'], 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
     rule('shipping', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ กำหนดถึง {วันนัด} {เวลานัด}'),
-    rule('delivered', ['line', 'facebook'], 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ'),
+    rule('delivered', ['line', 'facebook'], DELIVERED_TPL),
     rule('cancelled', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว หากมีข้อสงสัยติดต่อร้านได้เลยค่ะ'),
     rule('order_refund_cancelled', ['line', 'facebook', 'sms'], 'ร้านยกเลิกการคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} (ปรับรายการแล้ว) หากสงสัยติดต่อร้านได้เลยค่ะ'),
     rule('order_refunded', ['line', 'facebook', 'sms'], 'ร้านคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} แล้วค่ะ'),
@@ -510,6 +513,7 @@ export function removeGalleryImage(id) {
 // ---------- รูปงานเสร็จ (ส่งให้ลูกค้าดู · เผยแพร่บนเว็บเมนูเมื่อลูกค้าไม่ปฏิเสธ) ----------
 // order.items[].workPhotos = [{ id, image, at, by, publish, galleryId }] · order.photoConsent = { status: ok | requested | revoked, ... }
 export const photoStatusOf = (o) => o?.photoConsent?.status || 'ok'
+const hasWorkPhotos = (o) => (o?.items || []).some((i) => (i.workPhotos || []).length)
 export const photoAllowed = (o) => !!o && photoStatusOf(o) === 'ok'
 const MAX_WORK_PHOTOS = 10
 const photoBlock = (order) => {
@@ -1672,6 +1676,7 @@ function cardImageOf(items) {
   }
   return isHttps(db.storefront?.heroImage) ? db.storefront.heroImage : ''
 }
+const viewCardOf = (order, url) => viewCard(order, { title: `ส่งมอบแล้ว · ${order.code}`, subtitle: 'ขอบคุณที่อุดหนุนค่ะ', url, image: cardImageOf(order.items) })
 const payCardOf = (order, totals, paid, url) => payCard(order, totals, { paid, url, image: cardImageOf(order.items) })
 export function sendOrderLinkToChat(order, url) {
   const chat = (order.chatId && findChat(order.chatId)) || chatFor(order.customerId)
@@ -1972,6 +1977,7 @@ function orderVars(order, extra = {}) {
     ส่งมอบ: order.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับ',
     ข้อความรับสินค้า: order.fulfillment === 'delivery' ? '' : `สามารถรับสินค้าได้แล้ว แต่ต้องไม่เกินเวลาร้านปิด ${db.shop.close || ''} น.`,
     เวลาปิดร้าน: db.shop.close || '',
+    ข้อความขอใช้ภาพ: hasWorkPhotos(order) && photoStatusOf(order) === 'ok' ? 'ขออนุญาตนำภาพสินค้าของออร์เดอร์นี้ไปใช้เผยแพร่ หากไม่ยินยอมสามารถแจ้งได้เลยค่ะ (กดปุ่ม "ดูออร์เดอร์" แล้วเลือก "ไม่อนุญาตให้ใช้รูปเผยแพร่" หรือพิมพ์แจ้งในแชทนี้)' : '',
     ชื่อวันเกิด: order.birthday?.name || c?.name || '',
     คะแนน: '',
     ลิงก์ออร์เดอร์: '',
@@ -2080,7 +2086,7 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   const r = db.notifyRules.find((x) => x.event === event)
   const ev = NOTIFY_EVENTS[event]
   if (!r || !r.enabled || !ev) return 0
-  const text = fillTemplate(tplOf(r), vars).trim()
+  const text = fillTemplate(tplOf(r), vars).replace(/\n{2,}/g, '\n').trim() // ตัวแปรที่ว่างไม่ทิ้งบรรทัดเปล่า
   if (ev.audience === 'team') {
     if (!r.channels.includes('telegram') || !db.integrations.telegram.enabled) return 0
     pushOut(event, 'telegram', 'กลุ่มทีม', text, orderId)
@@ -2113,7 +2119,7 @@ export function notifyOrder(event, order, extra = {}) {
   let url = ''
   if (rule?.enabled && tplOf(rule).includes('{ลิงก์ออร์เดอร์}')) { url = createOrderLink(order, { system: true }).url || ''; vars.ลิงก์ออร์เดอร์ = url }
   const customer = findCustomer(order.customerId)
-  const card = event === 'payment_confirmed' ? payCardOf(order, orderTotals(order), extra.paid, url) : null
+  const card = event === 'payment_confirmed' ? payCardOf(order, orderTotals(order), extra.paid, url) : event === 'delivered' ? viewCardOf(order, url) : null
   notify(event, { customer, vars, orderId: order.id, noSms: !!extra.noSms, card })
   if (TEAM_OF[event]) notify(TEAM_OF[event], { vars, orderId: order.id })
 }
