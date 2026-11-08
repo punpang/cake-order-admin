@@ -14,6 +14,15 @@ async function startData(staff) {
   const { db } = store
   // สำเร็จรูปสาธารณะที่ถอนการเผยแพร่แล้ว → ลบไฟล์ (เฉพาะผู้มีสิทธิ์จัดการ)
   const storage = await import('./storage')
+  // SMS จริงผ่านเกตเวย์ของร้าน (Edge Function sms-send · URL เกตเวย์เก็บเป็น secret ฝั่งเซิร์ฟเวอร์) · ตั้งค่าไว้ = ถือว่าเชื่อมช่องทาง SMS แล้ว
+  store.smsHook.send = async (number, text, kind) => {
+    const r = await client.functions.invoke('sms-send', { body: { number, text, kind } })
+    if (r.error) { let m = ''; try { m = (await r.error.context?.json?.())?.error || '' } catch { /* ข้าม */ } return { ok: false, error: m || 'ส่งไม่สำเร็จ' } }
+    return r.data?.ok ? { ok: true } : { ok: false, error: r.data?.error || '' }
+  }
+  client.functions.invoke('sms-send', { body: { action: 'status' } }).then((r) => {
+    if (r.data?.configured) store.connectIntegration('sms', { accountName: 'เกตเวย์ SMS ของร้าน', accountId: 'gateway' })
+  }, () => {})
   const rmIdx = store.trashHooks.indexOf(trashHook)
   if (rmIdx >= 0) store.trashHooks.splice(rmIdx, 1)
   trashHook = (url) => { storage.removePublicCopy(client, url) }

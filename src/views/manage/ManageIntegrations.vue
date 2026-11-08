@@ -231,6 +231,9 @@ async function disconnect(k) {
           <div class="flex flex-wrap items-center gap-1.5 text-xs">
             <span class="rounded-full px-2 py-0.5 font-semibold" :class="m.channel ? 'bg-brand-50 text-brand-800' : 'bg-rose-50 text-rose-700'">{{ m.channel ? CHANNELS[m.channel].label : 'ไม่มีช่องทาง' }}</span>
             <span class="text-stone-600">{{ NOTIFY_EVENTS[m.event]?.label || EXTRA_EVENT[m.event] }}</span>
+            <span v-if="m.status === 'sent'" class="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">ส่งแล้ว</span>
+            <span v-else-if="m.status === 'sending'" class="rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-700">กำลังส่ง</span>
+            <span v-else-if="m.status === 'failed'" class="rounded-full bg-rose-50 px-2 py-0.5 font-semibold text-rose-700" :title="m.error">ส่งไม่สำเร็จ</span>
             <span class="ml-auto text-stone-400">{{ dateTime(m.at) }}</span>
           </div>
           <div class="mt-1 text-xs text-stone-500">

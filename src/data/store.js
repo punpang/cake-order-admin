@@ -1958,6 +1958,14 @@ function pushOut(event, channel, to, text, orderId = null, customer = null) {
     else sendChat(chat.id, 'staff', text, { orderId, by: 'ระบบ' })
   }
   db.outbox.unshift({ id: uid('msg'), at: now(), event, channel, to, text, orderId, status: channel ? 'simulated' : 'no_channel' })
+  if (channel === 'sms' && customer?.phone) deliverSms(db.outbox[0], customer.phone, text, 'notify')
+}
+// ส่ง SMS จริงผ่านเกตเวย์ (ตั้งโดยชั้นเชื่อม Supabase) · ไม่มีตัวส่ง = คงสถานะจำลองไว้
+export const smsHook = { send: null }
+function deliverSms(row, number, text, kind) {
+  if (!smsHook.send) return
+  row.status = 'sending'
+  smsHook.send(number, text, kind).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
 }
 // ---------- กระดิ่งแจ้งเตือนในแอป ----------
 function bellPush(item) {
@@ -2485,6 +2493,7 @@ export function sendIntegrationTest(key, to = '') {
     toLabel = `SMS: ${formatPhone(to)}`
   } else return { error: 'ช่องทางนี้ไม่มีปุ่มทดสอบ' }
   db.outbox.unshift({ id: uid('msg'), at: now(), event: 'test', channel: key, to: toLabel, text, orderId: null, status: 'simulated' })
+  if (key === 'sms') deliverSms(db.outbox[0], phoneDigits(to), text, 'test')
   return { ok: true, text, to: toLabel }
 }
 export function markRead(chatId) {
