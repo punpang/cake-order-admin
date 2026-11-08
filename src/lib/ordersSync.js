@@ -21,6 +21,12 @@ export async function loadOrders(client) {
   return { items: (a.data || []).map(rowToOrder) }
 }
 
+export async function loadOrdersByIds(client, ids) {
+  const r = await client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data').in('id', ids)
+  if (r.error) return { error: r.error.message }
+  return { items: (r.data || []).map(rowToOrder) }
+}
+
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // เขียนทีละรายการ: แถวใหม่ = insert · แถวที่มีในฐานข้อมูลแล้ว (known) = update
@@ -77,6 +83,8 @@ export function startOrdersSync({ client, db, canWrite, onError, onRecode, numbe
       if (numbering) numbering.seen(items.map((i) => i.code), { reset: !refresh }) // รีเฟรชระหว่างใช้งาน: ห้ามล้างตัวนับ/ชุดเลขที่ขอไว้
     },
     load: () => loadOrders(client),
+    loadByIds: (ids) => loadOrdersByIds(client, ids),
+    applyRows: (rows) => { for (const i of rows) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) } if (numbering) numbering.seen(rows.map((i) => i.code), { reset: false }) },
     push: (changes) => pushOrders(client, changes, { onRecode, retryDelay, numbering, known, slips }),
     canWrite, onError, debounceMs, label: 'ออร์เดอร์', poll: true,
   })

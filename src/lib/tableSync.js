@@ -33,7 +33,7 @@ export const RETRY_MS = [5000, 15000, 60000]
 // แอปจริง (staffAuth) เปิดไว้: โหลดไม่สำเร็จ = ล้างรายการตัวอย่างในเครื่อง ไม่ให้ดูเหมือนข้อมูลจริง · ค่าเริ่มต้นปิด (เทสต์/การใช้งานอื่นคงข้อมูลเดิม)
 export const syncOptions = { clearOnLoadFail: false }
 let syncSeq = 0
-export async function startSync({ list, replace, load, push, canWrite, onError = () => {}, label = '', debounceMs = 600, poll = false }) {
+export async function startSync({ list, replace, load, push, canWrite, onError = () => {}, label = '', debounceMs = 600, poll = false, loadByIds = null, applyRows = null }) {
   const loaded = await load()
   if (loaded.error) {
     onError(`โหลด${label}จากฐานข้อมูลไม่สำเร็จ: ${loaded.error}`)
@@ -63,7 +63,25 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
     for (const i of list()) snapshot.set(i.id, JSON.stringify(i))
     return true
   }
-  if (!canWrite) return { stop() {}, loaded: true, label, refresh: poll ? refresh : undefined }
+  // รีเฟรชเฉพาะแถวที่ระบุ (จาก Realtime) · คืน true=จัดการแล้ว, false=ให้ผู้เรียกรีเฟรชทั้งตารางแทน
+  // แถวที่แก้ค้างในเครื่อง = ข้าม (ไม่ทับงาน) · ไม่ลบแถวใด (ออร์เดอร์ไม่ถูกลบจริง)
+  const refreshIds = loadByIds ? async (ids) => {
+    if (busy || !ids.length) return false
+    const clean = ids.filter((id) => { const cur = list().find((i) => i.id === id); return !cur || snapshot.get(id) === JSON.stringify(cur) })
+    if (!clean.length) return true
+    const r = await loadByIds(clean)
+    if (r.error || busy) return false
+    const rows = r.items.filter((it) => { const cur = list().find((i) => i.id === it.id); return !cur || snapshot.get(it.id) === JSON.stringify(cur) }) // ระหว่างโหลดมีแก้ในเครื่อง → ข้ามแถวนั้น
+    const arr = list()
+    for (const it of rows) {
+      const k = arr.findIndex((i) => i.id === it.id)
+      if (k >= 0) { if (JSON.stringify(arr[k]) !== JSON.stringify(it)) arr.splice(k, 1, it) } else arr.push(it)
+    }
+    applyRows?.(rows)
+    for (const it of rows) { const cur = arr.find((i) => i.id === it.id); if (cur) snapshot.set(it.id, JSON.stringify(cur)) }
+    return true
+  } : undefined
+  if (!canWrite) return { stop() {}, loaded: true, label, refresh: poll ? refresh : undefined, refreshIds }
   // คืน true เมื่อไม่มีอะไรค้าง/เขียนสำเร็จ · false เมื่อเขียนล้มเหลวหรือกำลังเขียนอยู่ (ให้ผู้เรียกที่ต้องเรียงลำดับรอแล้วลองใหม่)
   const flush = async () => {
     if (busy) { again = true; return false }
@@ -97,5 +115,5 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
     if (d.upserts.length || d.deletes.length) syncSet(key, busy ? 'saving' : 'pending', '', flush) // เปลี่ยนจากการรีเฟรชของเซิร์ฟเวอร์ ไม่นับเป็นรอบันทึก
     timer = setTimeout(flush, debounceMs)
   })
-  return { stop() { stopWatch(); clearTimeout(timer); clearTimeout(retryTimer); syncDrop(key) }, loaded: true, label, flush, refresh: poll ? refresh : undefined }
+  return { stop() { stopWatch(); clearTimeout(timer); clearTimeout(retryTimer); syncDrop(key) }, loaded: true, label, flush, refresh: poll ? refresh : undefined, refreshIds }
 }

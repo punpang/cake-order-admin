@@ -42,12 +42,15 @@ export function mergeRecipes(groups, costs) {
 
 export async function loadConfig(client, keys = CONFIG_KEYS, col = null) {
   const colOf = col ? () => col : collectionOf // col = ใช้ collection เดียวทั้งชุด (เช่น 'acct')
-  const r = await client.from('punpang_kv').select('collection,id,data').in('collection', [...new Set(keys.map(colOf))])
+  const wantCosts = keys.includes('optionGroups')
+  const [r, c] = await Promise.all([
+    client.from('punpang_kv').select('collection,id,data').in('collection', [...new Set(keys.map(colOf))]),
+    wantCosts ? client.from('punpang_kv').select('id,data').eq('collection', 'item_costs').eq('id', OPTION_COSTS_ID) : null,
+  ])
   if (r.error) return { error: r.error.message }
   const map = {}
   for (const row of r.data || []) if (keys.includes(row.id) && row.collection === colOf(row.id)) map[row.id] = row.data?.v
-  if (keys.includes('optionGroups') && map.optionGroups != null) {
-    const c = await client.from('punpang_kv').select('id,data').eq('collection', 'item_costs').eq('id', OPTION_COSTS_ID)
+  if (wantCosts && map.optionGroups != null) {
     if (c.error) return { error: c.error.message }
     map.optionGroups = mergeRecipes(map.optionGroups, c.data?.[0]?.data?.v) // อ่านสูตรไม่ได้ (ไม่มีสิทธิ์) = สูตรว่าง
   }

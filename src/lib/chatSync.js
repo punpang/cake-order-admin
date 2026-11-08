@@ -141,7 +141,7 @@ export async function pushQuotes(client, { upserts, deletes }, { numbering = nul
 export async function startChatSync({ client, db, canWrite, numbering, onError, onRecode, debounceMs, onInbound = null, onQuoteConfirm = null }) {
   let lastVers = new Map() // จากการโหลดล่าสุด
   let vers = new Map() // version ของแถวที่ข้อมูลในเครื่องอิงอยู่ (เปลี่ยนเมื่อแทนที่ข้อมูลจริงเท่านั้น — ถ้าโหลดแล้วข้ามเพราะมีการแก้ค้าง ต้องไม่เลื่อน version)
-  const a = await startSync({
+  const pa = startSync({
     list: () => db.chats,
     replace: (items) => {
       vers = new Map(lastVers)
@@ -153,7 +153,7 @@ export async function startChatSync({ client, db, canWrite, numbering, onError, 
     push: (c) => pushChats(client, c, vers),
     canWrite, onError, debounceMs, label: 'แชท', poll: true, // ข้อความจาก Facebook เข้าผ่าน webhook ระหว่างที่เปิดแอปอยู่
   })
-  const b = await startSync({
+  const pb = startSync({
     list: () => db.quotes,
     replace: (items) => {
       db.quotes.splice(0, db.quotes.length, ...items)
@@ -164,6 +164,7 @@ export async function startChatSync({ client, db, canWrite, numbering, onError, 
     push: (c) => pushQuotes(client, c, { numbering, onRecode }),
     canWrite, onError, debounceMs, label: 'ใบเสนอ', poll: true, // ลูกค้ากดปุ่มบน Messenger เปลี่ยนสถานะที่เซิร์ฟเวอร์
   })
+  const [a, b] = await Promise.all([pa, pb]) // แชทกับใบเสนอโหลดพร้อมกัน
   a.kind = 'chats' // ให้ชั้นล็อกอินเลือกรีเฟรชเฉพาะแชทถี่ ๆ ตอนเปิดหน้าแชท
   b.kind = 'chats'
   return [a, b]

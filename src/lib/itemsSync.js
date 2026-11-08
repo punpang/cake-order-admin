@@ -19,9 +19,11 @@ export function rowsToItem(row, cost) {
 }
 
 export async function loadItems(client) {
-  const a = await selectAll((x, y) => client.from('punpang_items').select('id,name,price,active,data').eq('kind', 'retail').order('id').range(x, y))
+  const [a, b] = await Promise.all([
+    selectAll((x, y) => client.from('punpang_items').select('id,name,price,active,data').eq('kind', 'retail').order('id').range(x, y)),
+    selectAll((x, y) => client.from('punpang_kv').select('id,data').eq('collection', COST_COLLECTION).order('id').range(x, y)),
+  ])
   if (a.error) return { error: a.error.message }
-  const b = await selectAll((x, y) => client.from('punpang_kv').select('id,data').eq('collection', COST_COLLECTION).order('id').range(x, y))
   if (b.error) return { error: b.error.message }
   const costs = new Map((b.data || []).map((c) => [c.id, c]))
   return { items: (a.data || []).map((r) => rowsToItem(r, costs.get(r.id))) }

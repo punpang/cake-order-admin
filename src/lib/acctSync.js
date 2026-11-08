@@ -112,28 +112,31 @@ export async function startAcctSync({ client, db, has, onError = () => {}, debou
   const A = db.acct
   const anyView = ACCT_VIEW_PERMS.some(has)
   const canInv = has('taxInvoice') || has('cancel')
-  const out = []
+  // เริ่มทุกตัวพร้อมกัน (เดิมทีละตัว 5 คำขอต่อกัน) · ตัวสถานะปิดงวดเรียกเขียนรายการแช่แข็งผ่าน frozenSync ตอนเขียนเท่านั้น จึงไม่ต้องรอ
   let frozenSync = null
-  if (anyView) {
-    frozenSync = await startSync({
+  const jobs = []
+  const pFrozen = anyView
+    ? startSync({
       list: () => A.frozen,
       replace: (items) => A.frozen.splice(0, A.frozen.length, ...items),
       load: loader(client, 'punpang_acct_frozen', 'id,data,created_at', 'created_at', rowToFrozen),
       push: (c) => pushFrozen(client, c),
       canWrite: has('acctClose'), onError, debounceMs, label: 'รายการแช่แข็ง',
-    })
-  }
+    }).then((h) => (frozenSync = h))
+    : null
   if (anyView || has('taxInvoice') || has('viewAllOrders')) {
-    out.push(await startStateSync({ client, A, canWrite: has('acctClose'), onError, debounceMs, before: frozenSync?.flush ? () => frozenSync.flush() : null }))
-    // ใบกำกับ: คนที่ไม่มีสิทธิ์บัญชีก็อ่านได้ (ใช้ในหน้าออร์เดอร์) · เลขที่ใส่กลับเมื่อฐานข้อมูลออกให้
-    out.push(await numberedSync({ client, A, field: 'taxInvoices', table: 'punpang_acct_invoices', cols: 'id,no,data,created_at', toRow: invoiceToRow, fromRow: rowToInvoice,
-      assign: (inv, row) => { inv.no = row.no; delete inv.pending; for (const c of A.taxInvoices) if (c.refId === inv.id) c.refNo = row.no }, // ใบลดหนี้ที่อ้างใบนี้ได้เลขอ้างอิงจริง
-       canWrite: canInv, onError, label: 'ใบกำกับภาษี', allowDelete: false, debounceMs }))
+    jobs.push(startStateSync({ client, A, canWrite: has('acctClose'), onError, debounceMs, before: anyView ? () => (frozenSync?.flush ? frozenSync.flush() : true) : null }))
+    // ใบกำกับ: คนที่ไม่มีสิทธิ์บัญชีก็อ่านได้ (ใช้ในหน้าออร์เดอร์) · เลขที่ใส่กลับเมื่อเขียนสำเร็จ
+    jobs.push(numberedSync({ client, A, field: 'taxInvoices', table: 'punpang_acct_invoices', cols: 'id,no,data,created_at', toRow: invoiceToRow, fromRow: rowToInvoice,
+      assign: (inv, row) => { inv.no = row.no; delete inv.pending; for (const c of A.taxInvoices) if (c.refId === inv.id) c.refNo = row.no },
+      canWrite: canInv, onError, label: 'ใบกำกับภาษี', allowDelete: false, debounceMs }))
   }
-  if (!anyView) return out
-  out.push(await numberedSync({ client, A, field: 'entries', table: 'punpang_acct_entries', cols: 'id,no,data,created_at', toRow: entryToRow, fromRow: rowToEntry,
-    assign: (e, row) => { e.no = row.no }, canWrite: ['acctRecord', 'acctAssets', 'acctTax'].some(has), onError, label: 'รายการบัญชี', allowDelete: has('acctRecord') || has('acctAssets'), debounceMs }))
-  out.push(frozenSync)
-  out.push(await startConfigSync({ client, db: A, canWrite: ['acctRecord', 'acctClose', 'acctTax', 'acctAssets', 'acctSettings'].some(has), onError, keys: ACCT_KV_KEYS, collection: 'acct', debounceMs }))
+  if (anyView) {
+    jobs.push(numberedSync({ client, A, field: 'entries', table: 'punpang_acct_entries', cols: 'id,no,data,created_at', toRow: entryToRow, fromRow: rowToEntry,
+      assign: (e, row) => { e.no = row.no }, canWrite: ['acctRecord', 'acctAssets', 'acctTax'].some(has), onError, label: 'รายการบัญชี', allowDelete: has('acctRecord') || has('acctAssets'), debounceMs }))
+    jobs.push(pFrozen)
+    jobs.push(startConfigSync({ client, db: A, canWrite: ['acctRecord', 'acctClose', 'acctTax', 'acctAssets', 'acctSettings'].some(has), onError, keys: ACCT_KV_KEYS, collection: 'acct', debounceMs }))
+  }
+  const out = await Promise.all(jobs)
   return out
 }

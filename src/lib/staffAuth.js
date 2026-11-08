@@ -54,10 +54,28 @@ function startStaffRealtime(client, recNames) {
   }
   const bindings = Object.entries(routes).filter(([, h]) => h.length).map(([table]) => ({ table, key: table }))
   if (!bindings.length) return
-  rtDeb = makeDebouncer((key) => { exclusive(async () => { for (const x of routes[key]) { try { await x.refresh() } catch (e) { console.warn('รีเฟรชข้อมูลไม่สำเร็จ:', e?.message) } } }) })
+  // เก็บ id ที่เปลี่ยนต่อ key · มี refreshIds + ทุก event มี id → ดึงเฉพาะแถว ไม่งั้น (หรือดึงไม่สำเร็จ) รีเฟรชทั้งตาราง
+  const pending = new Map()
+  rtDeb = makeDebouncer((key) => {
+    const p = pending.get(key); pending.delete(key)
+    exclusive(async () => {
+      for (const x of routes[key]) {
+        try {
+          if (p && !p.full && p.ids.size && x.refreshIds && p.ids.size <= 50 && await x.refreshIds([...p.ids])) continue
+          await x.refresh()
+        } catch (e) { console.warn('รีเฟรชข้อมูลไม่สำเร็จ:', e?.message) }
+      }
+    })
+  })
   rt = startRealtime({
     client, name: 'staff-sync', bindings,
-    onEvent: (key) => rtDeb(key, key === 'punpang_chats' || key === 'punpang_quotes' ? 300 : 400),
+    onEvent: (key, payload) => {
+      const p = pending.get(key) || { ids: new Set(), full: false }
+      const id = payload?.new?.id || payload?.old?.id
+      if (id && payload?.eventType !== 'DELETE') p.ids.add(id); else p.full = true
+      pending.set(key, p)
+      rtDeb(key, key === 'punpang_chats' || key === 'punpang_quotes' ? 300 : 400)
+    },
     onLive: (reconnect) => { if (reconnect) pollOnce(true) },
   })
 }
@@ -148,19 +166,20 @@ async function startData(staff) {
   // ขอเลขเอกสารเป็นชุดล่วงหน้าจากฐานข้อมูล (ไม่ซ้ำข้ามเครื่อง)
   import('./chatMedia').then((m) => m.setChatMediaSigner(m.makeSigner(client))).catch(() => {})
   store.numbering.setAlloc(async (p, d, n) => { const r = await client.rpc('punpang_alloc_numbers', { p_prefix: p, p_day: d, p_n: n }); return r.error ? null : r.data })
-  syncs.push(await items.startItemsSync({ client, db, canWrite: has('editItems'), onError }))
-  syncs.push(await config.startConfigSync({ client, db, canWrite: has('manage'), onError }))
-  // แอดมิน: สร้างสำเนาสาธารณะของราคา/ตัวเลือก/โปรโมชั่น/ข้อมูลร้านให้ครบ (ครั้งแรกหลังเปิดใช้) — ทำเมื่อโหลดตั้งค่าสำเร็จเท่านั้น
-  if (has('manage') && syncs.at(-1)?.loaded) {
-    const [pub, cfg] = await Promise.all([import('./publicSync'), import('./configSync')])
-    const m = await pub.ensureMirror(client, db, cfg.stripRecipes)
-    if (m.error) onError('เผยแพร่ข้อมูลหน้าร้านไม่สำเร็จ: ' + m.error)
-  }
-  syncs.push(await orders.startOrdersSync({ client, db, numbering: store.numbering, onError, onRecode: (o, c) => showToast(`เลขออร์เดอร์ซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000),
-    canWrite: ['createOrder', 'pos', 'startPreparing', 'markPrepared', 'deliverPickup', 'deliverShipping', 'confirmPayment', 'reportPayment', 'cancel', 'editPickup', 'editItems', 'adjustPrice', 'changeBuyer', 'workPhoto'].some(has) }))
-  store.numbering.prefetch()
-  syncs.push(await customers.startCustomersSync({ client, db, canWrite: has('createOrder') || has('adjustPoints'), onError }))
-  syncs.push(...(await acct.startAcctSync({ client, db, has, onError })))
+  // เริ่มซิงก์ทุกตารางพร้อมกัน (เดิมทีละตาราง ~35 คำขอต่อกัน = ช้า) แล้วรอทั้งชุดครั้งเดียว · ลำดับใน syncs คงเดิม
+  const tasks = []
+  tasks.push(items.startItemsSync({ client, db, canWrite: has('editItems'), onError }))
+  // ตั้งค่า + (แอดมิน) สร้างสำเนาสาธารณะของราคา/ตัวเลือก/โปรโมชั่น/ข้อมูลร้านให้ครบ (ครั้งแรกหลังเปิดใช้) — ทำเบื้องหลังหลังโหลดตั้งค่าสำเร็จ ไม่บล็อกการเปิดหน้า
+  tasks.push(config.startConfigSync({ client, db, canWrite: has('manage'), onError }).then((h) => {
+    if (has('manage') && h?.loaded) {
+      Promise.all([import('./publicSync'), import('./configSync')]).then(([pub, cfg]) => pub.ensureMirror(client, db, cfg.stripRecipes)).then((m) => { if (m.error) onError('เผยแพร่ข้อมูลหน้าร้านไม่สำเร็จ: ' + m.error) }).catch(() => {})
+    }
+    return h
+  }))
+  tasks.push(orders.startOrdersSync({ client, db, numbering: store.numbering, onError, onRecode: (o, c) => showToast(`เลขออร์เดอร์ซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000),
+    canWrite: ['createOrder', 'pos', 'startPreparing', 'markPrepared', 'deliverPickup', 'deliverShipping', 'confirmPayment', 'reportPayment', 'cancel', 'editPickup', 'editItems', 'adjustPrice', 'changeBuyer', 'workPhoto'].some(has) }).then((h) => { store.numbering.prefetch(); return h }))
+  tasks.push(customers.startCustomersSync({ client, db, canWrite: has('createOrder') || has('adjustPoints'), onError }))
+  tasks.push(acct.startAcctSync({ client, db, has, onError }))
   // แชท/ใบเสนอ: เฉพาะผู้มีสิทธิ์ chat · คนอื่นล้างข้อมูลตัวอย่างออก (ไม่ให้เห็นแชทจำลองปนกับของจริง)
   // ข้อความ Facebook ใหม่ที่ webhook เขียนลงฐานข้อมูล → จองสิทธิ์ (atomic) แล้วให้บอทของแอปตอบ/เก็บร่าง · ทำงานเฉพาะตอนมีหน้าแอดมินเปิดอยู่
   const botSeen = new Set()
@@ -181,22 +200,23 @@ async function startData(staff) {
     if (r.error || r.data !== true) { quoteSeen.delete(quoteId); return }
     store.processQuoteConfirm(quoteId)
   }
-  if (has('chat')) syncs.push(...(await chats.startChatSync({ client, db, canWrite: true, numbering: store.numbering, onError, onInbound, onQuoteConfirm: has('createOrder') ? onQuoteConfirm : null, onRecode: (q, c) => showToast(`เลขใบเสนอซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000) })))
+  if (has('chat')) tasks.push(chats.startChatSync({ client, db, canWrite: true, numbering: store.numbering, onError, onInbound, onQuoteConfirm: has('createOrder') ? onQuoteConfirm : null, onRecode: (q, c) => showToast(`เลขใบเสนอซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000) }))
   else { db.chats.splice(0); db.quotes.splice(0) }
   // ผู้ใช้/สิทธิ์: เฉพาะ manageUsers · คนอื่นเห็นแค่ตัวเอง · ผูกตัวตนปัจจุบัน (ไว้บันทึกประวัติ "ใครทำ")
   store.session.userId = staff.user_id
   store.session.role = staff.role
-  if (has('manageUsers')) syncs.push(...(await users.startUsersSync({ client, db, canWrite: true, onError })))
+  if (has('manageUsers')) tasks.push(users.startUsersSync({ client, db, canWrite: true, onError }))
   else users.selfOnly(db, staff)
   // กะ POS: อ่านได้เมื่อมี pos / viewAllOrders / manage · เขียนได้เมื่อมี pos
-  if (['pos', 'viewAllOrders', 'manage'].some(has)) syncs.push(await shifts.startShiftsSync({ client, db, canWrite: has('pos'), onError }))
+  if (['pos', 'viewAllOrders', 'manage'].some(has)) tasks.push(shifts.startShiftsSync({ client, db, canWrite: has('pos'), onError }))
   else db.shifts.splice(0)
   // ข้อมูลปฏิบัติการรายแถว (รีวิว/คูปอง/คำขอ/แจ้งเตือน/ลิงก์ ฯลฯ): อ่าน/เขียนตามสิทธิ์ · อ่านไม่ได้ = ล้างข้อมูลตัวอย่าง
   const rec = await import('./recordsSync')
   for (const [name, spec] of Object.entries(rec.RECORD_SPECS)) {
-    if (rec.specAllows(spec.read, has)) syncs.push(await rec.startRecordsSync({ client, db, collection: name, canWrite: rec.specAllows(spec.write, has), onError }))
+    if (rec.specAllows(spec.read, has)) tasks.push(rec.startRecordsSync({ client, db, collection: name, canWrite: rec.specAllows(spec.write, has), onError }))
     else rec.clearRecords(db, name)
   }
+  for (const r of await Promise.all(tasks)) { if (Array.isArray(r)) syncs.push(...r); else syncs.push(r) }
   import('./clicksSync').then((m) => m.applyClicks(client, db)).catch(() => {})
   // ตารางที่โหลดจากเซิร์ฟเวอร์ไม่สำเร็จ → แจ้งบนแถบสถานะ (ข้อมูลที่เห็นอาจไม่ครบ) พร้อมปุ่มลองโหลดใหม่
   staffState.loadFailed = syncs.filter((x) => x && x.loaded === false).map((x) => x.label || 'ข้อมูล')
