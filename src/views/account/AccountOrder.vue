@@ -14,10 +14,13 @@ const order = computed(() => (tick.value, myOrder(id.value)))
 const ctx = computed(() => ({ orderId: id.value }))
 const refresh = () => tick.value++
 
-const rv = reactive({ order: null, rating: 5, text: '', error: '' })
+const rv = reactive({ order: null, rating: 5, text: '', error: '', busy: false })
 const openReview = (o) => Object.assign(rv, { order: o, rating: 5, text: '', error: '' })
 async function sendReview() {
+  if (rv.busy) return
+  rv.busy = true
   const r = await submitReview({ orderId: rv.order.id, rating: rv.rating, text: rv.text })
+  rv.busy = false
   if (r.ok) { rv.order = null; refresh() } else rv.error = r.error
 }
 </script>
@@ -39,7 +42,7 @@ async function sendReview() {
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="rv.order = null">ยกเลิก</button>
-        <button class="btn-primary flex-1 sm:flex-none" @click="sendReview">ส่งรีวิว</button>
+        <button class="btn-primary flex-1 sm:flex-none" :disabled="rv.busy" @click="sendReview">{{ rv.busy ? 'กำลังส่ง…' : 'ส่งรีวิว' }}</button>
       </template>
     </AppModal>
   </div>

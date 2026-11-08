@@ -73,7 +73,7 @@ async function submit() {
           <span>ฉันได้อ่านและยอมรับ <RouterLink to="/legal/privacy" target="_blank" class="text-brand-700 underline">นโยบายความเป็นส่วนตัว (PDPA)</RouterLink> และ <RouterLink to="/legal/terms" target="_blank" class="text-brand-700 underline">เงื่อนไขการใช้งาน</RouterLink> (รวมกติกาคะแนนสะสม)</span>
         </label>
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
-        <button class="btn-primary w-full" :disabled="busy">สมัครสมาชิก</button>
+        <button class="btn-primary w-full" :disabled="busy">{{ busy ? 'กำลังสมัคร…' : 'สมัครสมาชิก' }}</button>
       </form>
     </div>
   </div>

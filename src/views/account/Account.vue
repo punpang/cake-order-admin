@@ -35,9 +35,13 @@ const tabs = [
 const form = reactive({ name: me.value?.name || '', line: me.value?.line || '', promoOptIn: !!me.value?.promoOptIn })
 const msg = ref('')
 const err = ref('')
+const savingProfile = ref(false)
 async function saveProfile() {
+  if (savingProfile.value) return
   msg.value = err.value = ''
+  savingProfile.value = true
   const r = await updateMyProfile({ ...form })
+  savingProfile.value = false
   if (r.ok) msg.value = 'บันทึกแล้ว'
   else err.value = r.error
 }
@@ -142,7 +146,7 @@ function logout() {
         <div><label class="label">LINE ID</label><input v-model="form.line" class="input" maxlength="50" placeholder="ไม่บังคับ" /></div>
         <AppSwitch v-model="form.promoOptIn" label="รับข่าวสารและโปรโมชัน (รวมอวยพรวันเกิด)" />
         <p v-if="err" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ err }}</p>
-        <button class="btn-primary w-full">บันทึก</button>
+        <button class="btn-primary w-full" :disabled="savingProfile">{{ savingProfile ? 'กำลังบันทึก…' : 'บันทึก' }}</button>
       </form>
 
       <section class="card space-y-3" aria-label="ข้อมูลออกใบกำกับภาษี">

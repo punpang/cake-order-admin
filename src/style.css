@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Prompt", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Prompt", ui-sans-serif, system-ui, sans-serif;
   /* หัวข้อ/ปุ่มหน้าร้าน: ไทยไม่มีหัว โค้งมน */
   /* ความกว้างเนื้อหาสูงสุดบน PC ทั้งหลังบ้านและหน้าร้าน (max-w-page) */
   --container-page: 96rem;

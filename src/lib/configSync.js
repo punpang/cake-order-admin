@@ -1,6 +1,8 @@
 import { watch } from 'vue'
 import { externalizePublic } from './storage'
 import { mirrorRows, PUBLIC_KEYS } from './publicData'
+import { syncSet, syncOk, syncDrop } from './syncStatus'
+import { RETRY_MS } from './tableSync'
 
 // ซิงก์ "ตั้งค่า/แคตตาล็อก" (ร้าน, คะแนน, ตัวเลือกเค้ก, ราคา, POS ฯลฯ) กับ punpang_kv — 1 แถวต่อ 1 คีย์ของ db
 // ไม่รวมความลับ/ข้อมูลรายคน (users, ลูกค้า, ออร์เดอร์ ฯลฯ) · integrations เก็บเฉพาะสวิตช์เปิด/ปิดรายช่องทาง (ไม่เก็บ token/URL/ชื่อบัญชี/สถานะการเชื่อมต่อ) — ดู viewOf
@@ -94,30 +96,65 @@ export async function pushConfig(client, db, keys, col = null) {
 
 export async function startConfigSync({ client, db, canWrite, onError = () => {}, keys = CONFIG_KEYS, debounceMs = 800, collection = null }) {
   const loaded = await loadConfig(client, keys, collection)
-  if (loaded.error) { onError('โหลดตั้งค่าจากฐานข้อมูลไม่สำเร็จ: ' + loaded.error); return { stop() {}, loaded: false } }
+  if (loaded.error) { onError('โหลดตั้งค่าจากฐานข้อมูลไม่สำเร็จ: ' + loaded.error); return { stop() {}, loaded: false, label: collection ? `ตั้งค่า(${collection})` : 'ตั้งค่า' } }
   for (const k of keys) if (k in loaded.map && loaded.map[k] != null) applyValue(db, k, loaded.map[k])
   // คีย์ที่ยังไม่มีในฐานข้อมูล = ใช้ค่าตั้งต้นในแอปต่อ และเขียนเมื่อมีการแก้ไขเท่านั้น
   const snap = new Map(keys.map((k) => [k, k in loaded.map ? JSON.stringify(viewOf(db, k)) : null]))
   const baseline = new Map(keys.map((k) => [k, JSON.stringify(viewOf(db, k))]))
-  if (!canWrite) return { stop() {}, loaded: true }
-  let timer = null
   let busy = false
-  let again = false
-  const flush = async () => {
-    if (busy) { again = true; return }
-    busy = true
-    const changed = keys.filter((k) => {
-      const now = JSON.stringify(viewOf(db, k))
-      return snap.get(k) === null ? now !== baseline.get(k) : now !== snap.get(k)
-    })
-    if (changed.length) {
-      const r = await pushConfig(client, db, changed, collection)
-      if (r.error) onError('บันทึกตั้งค่าไม่สำเร็จ: ' + r.error)
-      else for (const k of changed) snap.set(k, JSON.stringify(viewOf(db, k)))
+  const remoteRaw = new Map(keys.map((k) => [k, k in loaded.map ? JSON.stringify(loaded.map[k]) : null]))
+  const dirtyKeys = () => keys.filter((k) => {
+    const now = JSON.stringify(viewOf(db, k))
+    return snap.get(k) === null ? now !== baseline.get(k) : now !== snap.get(k)
+  })
+  // ดึงตั้งค่าล่าสุดจากฐานข้อมูล (เมื่อแอดมินคนอื่นแก้) — ข้ามเมื่อมีการแก้ค้างในเครื่อง · คืน true เมื่ออัปเดตจริง
+  const refresh = async () => {
+    if (busy || dirtyKeys().length) return false
+    const l = await loadConfig(client, keys, collection)
+    if (l.error || busy || dirtyKeys().length) return false
+    let any = false
+    for (const k of keys) {
+      if (!(k in l.map) || l.map[k] == null) continue
+      const raw = JSON.stringify(l.map[k])
+      if (raw === remoteRaw.get(k)) continue
+      remoteRaw.set(k, raw)
+      applyValue(db, k, l.map[k])
+      snap.set(k, JSON.stringify(viewOf(db, k)))
+      any = true
     }
+    return any
+  }
+  if (!canWrite) return { stop() {}, loaded: true, refresh }
+  let timer = null
+  let retryTimer = null
+  let fails = 0
+  let again = false
+  const key = collection ? `ตั้งค่า(${collection})` : 'ตั้งค่า'
+  const changedKeys = () => keys.filter((k) => {
+    const now = JSON.stringify(viewOf(db, k))
+    return snap.get(k) === null ? now !== baseline.get(k) : now !== snap.get(k)
+  })
+  const flush = async () => {
+    if (busy) { again = true; return false }
+    clearTimeout(retryTimer); clearTimeout(timer)
+    busy = true
+    let ok = true
+    const changed = changedKeys()
+    if (changed.length) {
+      syncSet(key, 'saving', '', flush)
+      const r = await pushConfig(client, db, changed, collection)
+      if (r.error) {
+        ok = false
+        if (fails === 0) onError('บันทึกตั้งค่าไม่สำเร็จ: ' + r.error)
+        syncSet(key, 'failed', r.error, flush)
+        retryTimer = setTimeout(flush, RETRY_MS[Math.min(fails, RETRY_MS.length - 1)])
+        fails++
+      } else { for (const k of changed) snap.set(k, JSON.stringify(viewOf(db, k))); fails = 0; syncOk(key) }
+    } else syncOk(key)
     busy = false
     if (again) { again = false; flush() }
+    return ok
   }
-  const stopWatch = watch(() => keys.map((k) => JSON.stringify(viewOf(db, k))).join('\u0001'), () => { clearTimeout(timer); timer = setTimeout(flush, debounceMs) })
-  return { stop() { stopWatch(); clearTimeout(timer) }, loaded: true, flush }
+  const stopWatch = watch(() => keys.map((k) => JSON.stringify(viewOf(db, k))).join('\u0001'), () => { clearTimeout(timer); if (changedKeys().length) syncSet(key, busy ? 'saving' : 'pending', '', flush); timer = setTimeout(flush, debounceMs) })
+  return { stop() { stopWatch(); clearTimeout(timer); clearTimeout(retryTimer); syncDrop(key) }, loaded: true, flush, refresh }
 }

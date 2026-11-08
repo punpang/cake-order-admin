@@ -10,6 +10,9 @@ import { pointPromoFor } from '../lib/posPromo'
 import { coBought, rankSellers, suggestBundles } from '../lib/posRec'
 import { POS_METHODS, ROLES } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
+import { refreshLabels } from '../lib/staffAuth'
+import { waitSaved } from '../lib/syncStatus'
+import { showToast } from '../lib/toast'
 import { money, dateTime, timeOnly, phoneDigits, formatPhone, phoneValid } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
@@ -272,8 +275,16 @@ const receipt = ref(null)
 const taxFor = ref(null) // บิลที่กำลังออกใบกำกับภาษีเต็มรูป
 const taxable = (o) => can('taxInvoice') && o.status !== 'cancelled' && orderTotals(o).vat > 0
 const payErr = ref('')
-function confirmPay() {
-  if (!canConfirm.value) return
+let selling = false
+async function confirmPay() {
+  if (!canConfirm.value || selling) return
+  selling = true
+  try {
+    await refreshLabels(['สินค้า', 'กะ POS']) // สต็อก/กะล่าสุดจากเซิร์ฟเวอร์ก่อนตัดขาย
+    sellNow()
+  } finally { selling = false }
+}
+function sellNow() {
   payErr.value = member.value ? posCouponProblem({ customerId: member.value.id, couponIds: couponIds.value }) : ''
   if (payErr.value) { couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id)); return }
   const o = posSale({
@@ -288,6 +299,8 @@ function confirmPay() {
   member.value = null
   couponIds.value = []
   discount.value = ''
+  // ขายแล้ว (ใบเสร็จแสดงได้) แต่ต้องแจ้งตามจริงถ้ายังบันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ
+  waitSaved().then((r) => { if (!r.ok) showToast(`บิล ${o.code} ยังบันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ (${r.error}) · ระบบจะลองส่งซ้ำเอง ดูสถานะที่แถบด้านบน`, 12000, 'error') })
 }
 const print = () => window.print()
 

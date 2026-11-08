@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { db, findCustomer, depositOf, reportPayment, confirmPayment, receivePaymentNow, updatePaymentRequest } from '../data/store'
 import { orderTotals } from '../lib/pricing'
-import { showToast } from '../lib/toast'
+import { toastSaved } from '../lib/syncStatus'
 import { QUICK_DUE, quickDue, dueBeforePickup, dueDaysBefore, isHHmm } from '../lib/payDue'
 import { PAYMENT_METHODS } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
@@ -69,7 +69,7 @@ async function savePay() {
     if (!(await askConfirm({ title: 'รับชำระทันที', message: `ได้รับ ${money(pay.amount)} (${pay.method}) · บันทึกเป็นยอดที่ยืนยันแล้วเลย`, okText: 'ยืนยัน' }))) return
     const r = receivePaymentNow(props.order, { ...pay })
     if (r.error) return (payError.value = r.error)
-    showToast(`รับชำระ ${money(pay.amount)} แล้ว · ${props.order.code}`)
+    toastSaved(`รับชำระ ${money(pay.amount)} แล้ว · ${props.order.code}`)
     emit('close')
     return
   }
@@ -79,7 +79,7 @@ async function savePay() {
   if (payMode === 'confirm') confirmPayment(props.order, payTarget.id, { ...pay })
   else if (payMode === 'edit') updatePaymentRequest(props.order, payTarget.id, { ...pay })
   else reportPayment(props.order, { ...pay })
-  showToast(payMode === 'confirm' ? `ยืนยันยอดชำระ ${money(pay.amount)} แล้ว · ${props.order.code}` : payMode === 'edit' ? `แก้ยอดที่แจ้งแล้ว · ${props.order.code}` : `แจ้งยอดชำระ ${money(pay.amount)} แล้ว · ${props.order.code}`)
+  toastSaved(payMode === 'confirm' ? `ยืนยันยอดชำระ ${money(pay.amount)} แล้ว · ${props.order.code}` : payMode === 'edit' ? `แก้ยอดที่แจ้งแล้ว · ${props.order.code}` : `แจ้งยอดชำระ ${money(pay.amount)} แล้ว · ${props.order.code}`)
   emit('close')
 }
 </script>

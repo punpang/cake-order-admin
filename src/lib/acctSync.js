@@ -85,7 +85,7 @@ async function pushFrozen(client, { upserts, deletes }) {
 // before() = ต้องเสร็จก่อนเขียนสถานะ (เช่น เขียนรายการแช่แข็งให้ครบก่อนประกาศว่าปิดงวดแล้ว) · คืน false = ยังไม่เขียน แล้วลองใหม่
 async function startStateSync({ client, A, canWrite, onError, debounceMs = 400, before = null }) {
   const r = await client.from('punpang_acct_state').select('closed_through').eq('id', 1).maybeSingle()
-  if (r.error || !r.data) { onError('โหลดสถานะปิดงวดไม่สำเร็จ: ' + (r.error?.message || 'ไม่พบ')); return { stop() {}, loaded: false } }
+  if (r.error || !r.data) { onError('โหลดสถานะปิดงวดไม่สำเร็จ: ' + (r.error?.message || 'ไม่พบ')); return { stop() {}, loaded: false, label: 'บัญชี' } }
   A.closedThrough = r.data.closed_through || ''
   if (!canWrite) return { stop() {}, loaded: true }
   let last = A.closedThrough

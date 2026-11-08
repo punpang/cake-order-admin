@@ -19,10 +19,11 @@ export async function remoteOrderAction(db, ctx, action, body = {}) {
     return { error: d?.error || NET }
   }
   if (!r.data?.ok) return { error: r.data?.error || NET }
-  // โหลดออร์เดอร์ล่าสุด (ล้มเหลวไม่ถือว่าทำรายการไม่สำเร็จ — รีเฟรชหน้าก็เห็น)
+  // โหลดออร์เดอร์ล่าสุด (ล้มเหลวไม่ถือว่าทำรายการไม่สำเร็จ แต่บอก stale = ข้อมูลบนจอยังไม่ตรงเซิร์ฟเวอร์)
+  let stale = false
   try {
-    if (ctx?.token) { const d = await fetchRemoteLink(ctx.token); if (d?.order) injectRemoteLink(db, d, rowToOrder) }
-    else { const s = await callAuth('session', { session: auth.session }); if (s.ok && s.customer) injectBundle(db, s) }
-  } catch { /* ข้าม */ }
-  return { ok: true, paymentId: r.data.paymentId }
+    if (ctx?.token) { const d = await fetchRemoteLink(ctx.token); if (d?.order) injectRemoteLink(db, d, rowToOrder); else stale = true }
+    else { const s = await callAuth('session', { session: auth.session }); if (s.ok && s.customer) injectBundle(db, s); else stale = true }
+  } catch { stale = true }
+  return { ok: true, paymentId: r.data.paymentId, ...(stale ? { stale: true } : {}) }
 }

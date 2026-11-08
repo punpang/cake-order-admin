@@ -12,6 +12,7 @@ import AppIcon from './components/AppIcon.vue'
 import AppModal from './components/AppModal.vue'
 import BellMenu from './components/BellMenu.vue'
 import SystemSwitcher from './components/SystemSwitcher.vue'
+import SyncBar from './components/SyncBar.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import ToastHost from './components/ToastHost.vue'
 import StoreLayout from './components/StoreLayout.vue'
@@ -44,7 +45,7 @@ const me = computed(() => (supabaseEnabled ? staffState.staff : db.users.find((u
 async function logout() { roleOpen.value = false; await staffSignOut(); appRouter.push('/admin/login') }
 // จำลอง cron: ตรวจแจ้งเตือนตามเวลาทุก 60 วินาทีขณะเปิดแอป (ของจริงใช้ cron ฝั่งเซิร์ฟเวอร์)
 let timer = null
-onMounted(() => { timer = setInterval(() => runScheduledChecks(), 60000); document.addEventListener('pointerdown', sysOutside); document.addEventListener('keydown', sysEsc) })
+onMounted(() => { timer = setInterval(() => { if (!supabaseEnabled || staffState.staff) runScheduledChecks() }, 60000); document.addEventListener('pointerdown', sysOutside); document.addEventListener('keydown', sysEsc) })
 onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('pointerdown', sysOutside); document.removeEventListener('keydown', sysEsc) })
 </script>
 
@@ -86,6 +87,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
       </button>
     </div>
   </header>
+  <SyncBar />
 
   <!-- lock = ล็อกหน้า (เช่น แชท): main ตรึงใต้แถบบน ไม่ให้หน้าเว็บเลื่อน แต่ละกรอบข้างในเลื่อนเอง · ไม่พึ่ง dvh -->
   <main

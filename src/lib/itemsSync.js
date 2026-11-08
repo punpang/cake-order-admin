@@ -55,6 +55,6 @@ export function startItemsSync({ client, db, canWrite, onError, debounceMs }) {
     replace: (items) => db.retailItems.splice(0, db.retailItems.length, ...items),
     load: () => loadItems(client),
     push: (changes) => pushChanges(client, changes),
-    canWrite, onError, debounceMs, label: 'สินค้า',
+    canWrite, onError, debounceMs, label: 'สินค้า', poll: true,
   })
 }

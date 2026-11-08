@@ -85,16 +85,24 @@ async function submit() {
   f.busy = false
   if (r.error) return (f.error = r.error)
   f.ok = 'ส่งสลิปแล้ว ร้านจะตรวจสอบและยืนยันให้'
+  if (r.stale) staleNote.value = true
   Object.assign(f, { slip: '', slipName: '', note: '', custom: '', mode: 'all', paymentId: null })
   open.value = false
   emit('refresh')
 }
+const reload = () => window.location.reload()
 const extNote = ref('')
 const extMsg = ref('')
+const extBusy = ref(false)
+const staleNote = ref(false) // ทำรายการสำเร็จแล้ว แต่โหลดข้อมูลล่าสุดกลับมาไม่ได้
 async function askExtension(p) {
+  if (extBusy.value) return
   extMsg.value = ''
+  extBusy.value = true
   const r = await customerRequestExtension(props.ctx, p.id, extNote.value)
+  extBusy.value = false
   if (r.error) return (extMsg.value = r.error)
+  if (r.stale) staleNote.value = true
   extNote.value = ''
   emit('refresh')
 }
@@ -103,13 +111,17 @@ const submitted = computed(() => o.value.payments.filter((p) => p.status === 're
 const PAY_LABEL = (p) => (p.status === 'confirmed' ? ['ชำระแล้ว', 'bg-emerald-100 text-emerald-800'] : p.submitted ? ['รอร้านตรวจสอบสลิป', 'bg-sky-100 text-sky-800'] : p.due === 'overdue' ? ['เกินกำหนด', 'bg-rose-100 text-rose-700'] : ['รอชำระ', 'bg-amber-100 text-amber-800'])
 // ---------- รูปงานเสร็จ + ขอไม่ให้ใช้รูปเผยแพร่ ----------
 const photos = computed(() => o.value.items.flatMap((i) => (i.workPhotos || []).map((p) => ({ ...p, name: i.name }))))
-const pc = reactive({ open: false, note: '', agree: false, error: '', ok: '' })
+const pc = reactive({ open: false, note: '', agree: false, error: '', ok: '', busy: false })
 const big = ref('')
 async function askOptOut() {
+  if (pc.busy) return
   pc.error = ''
   if (!pc.agree) return (pc.error = 'ติ๊กยืนยันก่อนส่งคำขอ')
+  pc.busy = true
   const r = await customerRequestPhotoOptOut(props.ctx, pc.note)
+  pc.busy = false
   if (r.error) return (pc.error = r.error)
+  if (r.stale) staleNote.value = true
   pc.open = false
   pc.note = ''
   pc.agree = false
@@ -117,15 +129,19 @@ async function askOptOut() {
   emit('refresh')
 }
 async function cancelOptOut() {
+  if (pc.busy) return
+  pc.busy = true
   const r = await customerCancelPhotoOptOut(props.ctx)
+  pc.busy = false
   if (r.error) pc.error = r.error
-  else { pc.ok = 'ยกเลิกคำขอแล้ว'; emit('refresh') }
+  else { pc.ok = 'ยกเลิกคำขอแล้ว'; if (r.stale) staleNote.value = true; emit('refresh') }
 }
 const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' && o.value.balance > 0)
 </script>
 
 <template>
   <div class="space-y-3 text-sm">
+    <p v-if="staleNote" class="rounded-xl bg-amber-50 p-3 text-amber-800" role="status">ทำรายการสำเร็จแล้ว แต่ยังโหลดข้อมูลล่าสุดจากเซิร์ฟเวอร์ไม่ได้ ข้อมูลบนจออาจยังไม่อัปเดต <button type="button" class="ml-1 underline" @click="reload">โหลดหน้าใหม่</button></p>
     <!-- สรุป + ขั้นตอน -->
     <section class="card">
       <div class="flex items-start justify-between gap-3">
@@ -156,7 +172,7 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
         <p v-else-if="p.extension === 'denied'" class="mt-2 rounded-lg bg-white/70 p-2 text-sm">ร้านไม่อนุมัติการขยายเวลา กรุณาติดต่อร้าน</p>
         <div v-else class="mt-2 space-y-2">
           <input v-model="extNote" class="input bg-white" maxlength="200" placeholder="เหตุผล (ไม่บังคับ)" aria-label="เหตุผลที่ขอขยายเวลา" />
-          <button class="btn-primary w-full" @click="askExtension(p)">ขอขยายเวลาชำระ</button>
+          <button class="btn-primary w-full" :disabled="extBusy" @click="askExtension(p)">{{ extBusy ? 'กำลังส่งคำขอ…' : 'ขอขยายเวลาชำระ' }}</button>
         </div>
       </template>
       <p v-if="extMsg" class="mt-2 text-sm text-rose-700">{{ extMsg }}</p>
@@ -198,7 +214,7 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
       <div class="rounded-xl bg-stone-50 p-3 text-xs text-stone-600" role="note" aria-label="การนำรูปไปใช้">
         <b class="text-stone-800">การนำรูปงานไปใช้:</b> ร้านอาจนำรูปงานนี้ไปใช้เป็นรูปตัวอย่างบนเว็บไซต์และโซเชียลของร้าน (ทุกช่องทาง) หากไม่ต้องการ แจ้งได้ ร้านจะตรวจสอบและลบรูปออกจากทุกที่ รวมถึงรูปในออร์เดอร์นี้
       </div>
-      <p v-if="o.photoConsent === 'requested'" class="rounded-xl bg-amber-50 p-3 text-amber-800" role="status">ส่งคำขอไม่ให้ใช้รูปแล้ว รอร้านตรวจสอบ · ระหว่างนี้รูปจะไม่แสดงบนเว็บร้าน <button type="button" class="ml-1 underline" @click="cancelOptOut">ยกเลิกคำขอ</button></p>
+      <p v-if="o.photoConsent === 'requested'" class="rounded-xl bg-amber-50 p-3 text-amber-800" role="status">ส่งคำขอไม่ให้ใช้รูปแล้ว รอร้านตรวจสอบ · ระหว่างนี้รูปจะไม่แสดงบนเว็บร้าน <button type="button" class="ml-1 underline" :disabled="pc.busy" @click="cancelOptOut">{{ pc.busy ? 'กำลังยกเลิก…' : 'ยกเลิกคำขอ' }}</button></p>
       <template v-else-if="o.photoConsent !== 'revoked' && photos.length">
         <button v-if="!pc.open" type="button" class="btn-outline w-full" @click="pc.open = true; pc.error = ''; pc.ok = ''">ไม่อนุญาตให้ใช้รูปเผยแพร่</button>
         <div v-else class="space-y-2 rounded-xl border border-stone-200 p-3">
@@ -206,7 +222,7 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
           <textarea id="pc-note" v-model="pc.note" rows="2" maxlength="300" class="input" aria-label="หมายเหตุขอไม่เผยแพร่รูป"></textarea>
           <label class="flex items-start gap-2 text-stone-700"><input v-model="pc.agree" type="checkbox" class="mt-0.5 h-4 w-4" aria-label="ยืนยันไม่ให้ใช้รูป" /> ยืนยันไม่ให้ร้านนำรูปงานของออร์เดอร์นี้ไปเผยแพร่ในทุกช่องทาง และให้ลบรูปทิ้ง (ร้านจะตรวจสอบก่อนลบ)</label>
           <p v-if="pc.error" class="text-rose-600" role="alert">{{ pc.error }}</p>
-          <div class="flex gap-2"><button type="button" class="btn-outline flex-1" @click="pc.open = false">ยกเลิก</button><button type="button" class="btn-primary flex-1" @click="askOptOut">ส่งคำขอ</button></div>
+          <div class="flex gap-2"><button type="button" class="btn-outline flex-1" @click="pc.open = false">ยกเลิก</button><button type="button" class="btn-primary flex-1" :disabled="pc.busy" @click="askOptOut">{{ pc.busy ? 'กำลังส่ง…' : 'ส่งคำขอ' }}</button></div>
         </div>
       </template>
       <p v-if="pc.ok" class="text-emerald-700" role="status">{{ pc.ok }}</p>

@@ -51,7 +51,7 @@ async function submit() {
         <div><label class="label">PIN ใหม่ 6 หลัก</label><PinInput v-model="pin" autocomplete="new-password" /></div>
         <div><label class="label">ยืนยัน PIN ใหม่</label><PinInput v-model="pin2" autocomplete="new-password" /></div>
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
-        <button class="btn-primary w-full" :disabled="busy">ตั้ง PIN ใหม่</button>
+        <button class="btn-primary w-full" :disabled="busy">{{ busy ? 'กำลังบันทึก…' : 'ตั้ง PIN ใหม่' }}</button>
       </form>
     </div>
   </div>

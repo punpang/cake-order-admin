@@ -13,6 +13,7 @@ import { QUICK_DUE, quickDue, dueState, remainingText, dueBeforePickup, dueDaysB
 import { CHANNELS, NOTIFY_EVENTS } from '../lib/constants'
 import { askConfirm, askConfirmEx } from '../lib/confirm'
 import { showToast } from '../lib/toast'
+import { toastSaved } from '../lib/syncStatus'
 import { prevStatus } from '../lib/orderFlow'
 import { STATUS } from '../lib/constants'
 import { orderCost } from '../lib/materials'
@@ -176,11 +177,11 @@ async function doStatus(status, text, title) {
   // สถานะที่มีข้อความถึงลูกค้า: มีช่องติ๊ก "แจ้งลูกค้า" (ค่าเริ่มต้นติ๊ก)
   const tells = ['awaiting_payment', 'prepared', 'shipping', 'delivered'].includes(status) && order.value.channel !== 'pos' && !!customer.value
   const r = await askConfirmEx({ title, message: `ออร์เดอร์ ${order.value.code}`, okText: title, ...(tells ? { checkbox: { label: 'แจ้งลูกค้า', hint: 'ไม่ติ๊ก = ไม่ส่งข้อความถึงลูกค้า (ทีมยังได้รับตามปกติ)', value: true } } : {}) })
-  if (r.ok) { setStatus(order.value, status, text, { notify: tells ? r.checked : true }); showToast(`${title} แล้ว · ${order.value.code}`) }
+  if (r.ok) { setStatus(order.value, status, text, { notify: tells ? r.checked : true }); toastSaved(`${title} แล้ว · ${order.value.code}`) }
 }
 async function doConfirmUnpaid() {
   const r = await askConfirmEx({ title: 'ยืนยันการสั่งซื้อ (ยังไม่ชำระ)', message: `ออร์เดอร์ ${order.value.code} · คงค้าง ${money(t.value.balance)} ชำระได้ภายหลัง`, okText: 'ยืนยัน', checkbox: { label: 'แจ้งลูกค้า', value: true } })
-  if (r.ok) { confirmUnpaid(order.value, { notify: r.checked }); showToast(`ยืนยันสั่งซื้อ ${order.value.code} แล้ว (ยังไม่ชำระ)`) }
+  if (r.ok) { confirmUnpaid(order.value, { notify: r.checked }); toastSaved(`ยืนยันสั่งซื้อ ${order.value.code} แล้ว (ยังไม่ชำระ)`) }
 }
 async function doRequestUnpaid() {
   if (await askConfirm({ title: 'ขออนุมัติยืนยันการสั่งซื้อ', message: 'ส่งคำขอให้แอดมินอนุมัติ (ยังไม่ชำระ)', okText: 'ส่งคำขอ' })) requestConfirmUnpaid(order.value)

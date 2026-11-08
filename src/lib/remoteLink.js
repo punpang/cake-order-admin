@@ -8,9 +8,15 @@ export async function fetchRemoteLink(token) {
   if (!c) return null // ไม่ได้เปิด Supabase
   try {
     const r = await c.functions.invoke('order-link', { body: { token } })
-    if (r.error) return { error: r.error.context?.status === 429 ? 'ลองบ่อยเกินไป กรุณารอสักครู่' : null, blocked: r.error.context?.status === 429 }
+    if (r.error) {
+      const st = r.error.context?.status
+      if (st === 429) return { error: 'ลองบ่อยเกินไป กรุณารอสักครู่', blocked: true }
+      // ไม่มีสถานะ (เครือข่ายล่ม/ถึงเซิร์ฟเวอร์ไม่ได้) หรือเซิร์ฟเวอร์ผิดพลาด (5xx) = ยังไม่รู้ว่าลิงก์ใช้ได้ไหม → ให้ลองใหม่ ไม่ใช่ "ลิงก์หมดอายุ"
+      if (!Number.isInteger(st) || st >= 500) return { netError: true }
+      return { error: null }
+    }
     return r.data?.order ? r.data : { error: null }
-  } catch { return { error: null } }
+  } catch { return { netError: true } }
 }
 
 // ใส่ข้อมูลลง db (แทนที่ของเดิมที่ id เดียวกัน) · rowToOrder แปลงแถวเป็นออร์เดอร์ของแอป

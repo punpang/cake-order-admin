@@ -35,7 +35,7 @@ async function copyRef() {
     </div>
 
     <div v-else class="grid gap-6 md:grid-cols-2">
-      <div class="aspect-square overflow-hidden rounded-[2rem] shadow-md"><img :src="p.image" :alt="altOf(p)" class="h-full w-full object-cover" /></div>
+      <div class="aspect-square overflow-hidden rounded-[2rem] shadow-md"><img :src="p.image" :alt="altOf(p)" fetchpriority="high" decoding="async" class="h-full w-full object-cover" /></div>
       <div>
         <h1 class="text-[28px] leading-tight text-stone-900">{{ p.typeName || 'เค้กสั่งทำ' }}</h1>
         <p v-if="p.caption" class="mt-1 text-sm text-stone-700">{{ p.caption }}</p>

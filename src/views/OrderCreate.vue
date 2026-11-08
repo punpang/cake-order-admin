@@ -4,6 +4,7 @@ import { computed, reactive, ref, toRef } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useLeaveGuard } from '../lib/leaveGuard'
 import { showToast } from '../lib/toast'
+import { waitSaved } from '../lib/syncStatus'
 import { db, can, vatNow, addCustomer, saveCustomer, findCustomer, createOrder, countPickups, pickupSlots, pickupSlotsInfo, pickupClosure, nearbyOrders, sendQuote, findChat, linkChat, createCustomerFromChat, chatOrderBlock, withPromos, priceItem } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime, timeOnly, toDateStr, formatPhone, phoneDigits, phoneValid } from '../lib/format'
@@ -183,10 +184,12 @@ function goTo(i) {
   step.value = i
 }
 let submitted = false
+let pendingOrder = null // สร้างในเครื่องแล้วแต่ยังไม่ได้ยืนยันกับเซิร์ฟเวอร์ (กดบันทึกซ้ำ = รอบันทึกต่อ ไม่สร้างใบที่สอง)
+const saving = ref(false)
 // ออกจากหน้าสร้างออร์เดอร์ (หน้าเต็ม) ทั้งที่เลือกลูกค้า/เวลา/สินค้าไว้แล้วแต่ยังไม่บันทึก → เตือน
 if (!props.embedded) useLeaveGuard(() => !submitted && !!(form.customerId || form.time || form.items.length))
-function submit(asDraft) {
-  if (submitted) return // กดซ้ำ/ดับเบิลคลิก
+async function submit(asDraft) {
+  if (submitted || saving.value) return // กดซ้ำ/ดับเบิลคลิก
   if (saveBlock.value) return (error.value = `${saveBlock.value} · ไปขั้นลูกค้าเพื่อค้นหา/สร้างลูกค้า`)
   // เวลาอาจผ่านไประหว่างกรอก ตรวจซ้ำก่อนบันทึก
   const e = validate(1) || validate(0)
@@ -195,12 +198,22 @@ function submit(asDraft) {
     error.value = e
     return
   }
-  const o = createOrder({ ...form, pickupAt: pickupAt.value, birthday: birthday.value, chatId: fromChat, notify: notifyCustomer.value }, asDraft)
-  if (o.error) {
-    step.value = 1
-    error.value = o.error
-    return
+  let o = pendingOrder
+  if (!o) {
+    o = createOrder({ ...form, pickupAt: pickupAt.value, birthday: birthday.value, chatId: fromChat, notify: notifyCustomer.value }, asDraft)
+    if (o.error) {
+      step.value = 1
+      error.value = o.error
+      return
+    }
+    pendingOrder = o
   }
+  // รอเซิร์ฟเวอร์บันทึกจริงก่อนแจ้งว่าสำเร็จ/ไปหน้าถัดไป
+  saving.value = true
+  const sv = await waitSaved()
+  saving.value = false
+  if (!sv.ok) return (error.value = `ออร์เดอร์ ${o.code} ถูกบันทึกในเครื่องแล้ว แต่ยังขึ้นเซิร์ฟเวอร์ไม่สำเร็จ (${sv.error}) · ระบบลองส่งซ้ำเอง · กดบันทึกอีกครั้งเพื่อรอผล (จะไม่สร้างซ้ำ)`)
+  pendingOrder = null
   if (!props.embedded) submitted = true
   showToast(asDraft ? `บันทึกร่าง ${o.code} แล้ว` : `สร้างออร์เดอร์ ${o.code} แล้ว · รอชำระ`)
   if (props.embedded) emit('created', o)
@@ -489,13 +502,13 @@ function quote() {
             </p>
             <label class="flex w-full items-center gap-2 text-sm text-stone-700"><input v-model="notifyCustomer" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าเมื่อบันทึก·รอชำระ</label>
             <button class="btn-soft flex-1" @click="quote">ส่งใบเสนอ</button>
-            <button class="btn-primary flex-1" :disabled="!!saveBlock" @click="submit(false)">บันทึก · รอชำระ</button>
+            <button class="btn-primary flex-1" :disabled="!!saveBlock || saving" @click="submit(false)">{{ saving ? 'กำลังบันทึก…' : 'บันทึก · รอชำระ' }}</button>
           </template>
           <template v-else>
             <label class="flex w-full items-center gap-2 text-sm text-stone-700 sm:w-auto"><input v-model="notifyCustomer" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าเมื่อบันทึก·รอชำระ</label>
             <p class="w-full text-xs text-stone-600"><b>บันทึกร่าง</b> = เก็บไว้ก่อน ยังไม่ส่งให้ลูกค้า · <b>บันทึก · รอชำระ</b> = เริ่มรับออร์เดอร์ รอลูกค้าชำระเงิน</p>
-            <button class="btn-outline flex-1 sm:ml-auto sm:flex-none" @click="submit(true)">บันทึกร่าง</button>
-            <button class="btn-primary flex-[1.4] sm:flex-none" @click="submit(false)">บันทึก · รอชำระ</button>
+            <button class="btn-outline flex-1 sm:ml-auto sm:flex-none" :disabled="saving" @click="submit(true)">บันทึกร่าง</button>
+            <button class="btn-primary flex-[1.4] sm:flex-none" :disabled="saving" @click="submit(false)">{{ saving ? 'กำลังบันทึก…' : 'บันทึก · รอชำระ' }}</button>
           </template>
         </template>
       </div>

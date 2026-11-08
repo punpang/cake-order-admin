@@ -1,30 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { customerSession, needsConsent, canAny, can } from './data/store'
 import { firstHome } from './lib/adminSystems'
-import OrderList from './views/OrderList.vue'
-import OrderCreate from './views/OrderCreate.vue'
-import OrderDetail from './views/OrderDetail.vue'
-import Payments from './views/Payments.vue'
-import ManageHome from './views/manage/ManageHome.vue'
-import ManageCustomers from './views/manage/ManageCustomers.vue'
-import ManagePromos from './views/manage/ManagePromos.vue'
-import ManageOptions from './views/manage/ManageOptions.vue'
-import ManageOptionGroup from './views/manage/ManageOptionGroup.vue'
-import ManageUsers from './views/manage/ManageUsers.vue'
-import ManageIngredients from './views/manage/ManageIngredients.vue'
-import ManagePriceLists from './views/manage/ManagePriceLists.vue'
-import ManageLoyalty from './views/manage/ManageLoyalty.vue'
-import ManageProfit from './views/manage/ManageProfit.vue'
-import ManageShop from './views/manage/ManageShop.vue'
-import Materials from './views/Materials.vue'
-import Production from './views/Production.vue'
-import ManageBirthdays from './views/manage/ManageBirthdays.vue'
-import ManageIntegrations from './views/manage/ManageIntegrations.vue'
-import Chat from './views/Chat.vue'
-import Pos from './views/Pos.vue'
-import ManageRetail from './views/manage/ManageRetail.vue'
-import ManageStorefront from './views/manage/ManageStorefront.vue'
-import ManageDeletionRequests from './views/manage/ManageDeletionRequests.vue'
 import StoreHome from './views/store/StoreHome.vue'
 import StoreMenu from './views/store/StoreMenu.vue'
 import StoreCakeGallery from './views/store/StoreCakeGallery.vue'
@@ -36,31 +12,58 @@ import Account from './views/account/Account.vue'
 import AccountConsent from './views/account/AccountConsent.vue'
 import AccountOrder from './views/account/AccountOrder.vue'
 import NoAccess from './views/NoAccess.vue'
-import StaffLogin from './views/StaffLogin.vue'
 import { supabaseEnabled } from './lib/supabase'
 import { staffState } from './lib/staffAuth'
-import Accounting from './views/accounting/Accounting.vue'
+import { whenSessionReady } from './lib/dataStatus'
 import LegalPage from './views/store/LegalPage.vue'
-import ManageLegal from './views/manage/ManageLegal.vue'
-import ManageLinks from './views/manage/ManageLinks.vue'
-import ManageGallery from './views/manage/ManageGallery.vue'
-import ManagePhotoRequests from './views/manage/ManagePhotoRequests.vue'
-import ManageBot from './views/manage/ManageBot.vue'
 import StoreCakeDesign from './views/store/StoreCakeDesign.vue'
 import OrderLink from './views/store/OrderLink.vue'
 import ShortRedirect from './views/store/ShortRedirect.vue'
+
+// หน้าหลังบ้าน: โหลดเมื่อเข้าใช้งานเท่านั้น (ลูกค้าหน้าร้านไม่ต้องดาวน์โหลดโค้ดหลังบ้าน)
+const OrderList = () => import('./views/OrderList.vue')
+const OrderCreate = () => import('./views/OrderCreate.vue')
+const OrderDetail = () => import('./views/OrderDetail.vue')
+const Payments = () => import('./views/Payments.vue')
+const ManageHome = () => import('./views/manage/ManageHome.vue')
+const ManageCustomers = () => import('./views/manage/ManageCustomers.vue')
+const ManagePromos = () => import('./views/manage/ManagePromos.vue')
+const ManageOptions = () => import('./views/manage/ManageOptions.vue')
+const ManageOptionGroup = () => import('./views/manage/ManageOptionGroup.vue')
+const ManageUsers = () => import('./views/manage/ManageUsers.vue')
+const ManageIngredients = () => import('./views/manage/ManageIngredients.vue')
+const ManagePriceLists = () => import('./views/manage/ManagePriceLists.vue')
+const ManageLoyalty = () => import('./views/manage/ManageLoyalty.vue')
+const ManageProfit = () => import('./views/manage/ManageProfit.vue')
+const ManageShop = () => import('./views/manage/ManageShop.vue')
+const Materials = () => import('./views/Materials.vue')
+const Production = () => import('./views/Production.vue')
+const ManageBirthdays = () => import('./views/manage/ManageBirthdays.vue')
+const ManageIntegrations = () => import('./views/manage/ManageIntegrations.vue')
+const Chat = () => import('./views/Chat.vue')
+const Pos = () => import('./views/Pos.vue')
+const ManageRetail = () => import('./views/manage/ManageRetail.vue')
+const ManageStorefront = () => import('./views/manage/ManageStorefront.vue')
+const ManageDeletionRequests = () => import('./views/manage/ManageDeletionRequests.vue')
+const StaffLogin = () => import('./views/StaffLogin.vue')
+const Accounting = () => import('./views/accounting/Accounting.vue')
+const ManageLegal = () => import('./views/manage/ManageLegal.vue')
+const ManageLinks = () => import('./views/manage/ManageLinks.vue')
+const ManageGallery = () => import('./views/manage/ManageGallery.vue')
+const ManagePhotoRequests = () => import('./views/manage/ManagePhotoRequests.vue')
+const ManageBot = () => import('./views/manage/ManageBot.vue')
 
 // meta.store = หน้าร้าน/ระบบลูกค้า (ใช้ StoreLayout) · meta.focus = หน้าหลังบ้านที่มีแถบปุ่มของตัวเอง ซ่อนแถบเมนูล่างบนมือถือ
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     // ---------- หน้าร้าน (ทุกคนดูได้ ไม่ต้องล็อกอิน) ----------
-    { path: '/', component: StoreHome, meta: { store: true } },
-    { path: '/menu', component: StoreMenu, meta: { store: true } },
-    { path: '/menu/gallery', component: StoreCakeGallery, meta: { store: true } },
-    { path: '/menu/design/:id', component: StoreCakeDesign, props: true, meta: { store: true } },
-    { path: '/menu/custom', component: StoreItem, props: { kind: 'custom', id: '' }, meta: { store: true } },
-    { path: '/menu/:kind/:id', component: StoreItem, props: true, meta: { store: true } },
+    { path: '/', component: StoreHome, meta: { store: true, pub: true } },
+    { path: '/menu', component: StoreMenu, meta: { store: true, pub: true } },
+    { path: '/menu/gallery', component: StoreCakeGallery, meta: { store: true, pub: true } },
+    { path: '/menu/design/:id', component: StoreCakeDesign, props: true, meta: { store: true, pub: true } },
+    { path: '/menu/custom', component: StoreItem, props: { kind: 'custom', id: '' }, meta: { store: true, pub: true } },
+    { path: '/menu/:kind/:id', component: StoreItem, props: true, meta: { store: true, pub: true } },
     // ---------- ระบบลูกค้า (จำลอง จนกว่าจะต่อ Supabase) ----------
     { path: '/account/login', component: AccountLogin, meta: { store: true } },
     { path: '/account/register', component: AccountRegister, meta: { store: true } },
@@ -119,11 +122,13 @@ const router = createRouter({
 
 // หน้าบัญชีลูกค้าต้องล็อกอินก่อน (จำลอง: รีเฟรชหน้าแล้วต้องเข้าสู่ระบบใหม่)
 // เอกสารเวอร์ชันใหม่ที่ยังไม่ยอมรับ → ไปหน้ายอมรับก่อน
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   // โหมด Supabase: หลังบ้านต้องล็อกอินพนักงานก่อน
   if (supabaseEnabled && to.path.startsWith('/admin') && to.path !== '/admin/login' && !staffState.staff) return '/admin/login'
   // หลังบ้าน: ต้องมีสิทธิ์อย่างน้อยหนึ่งข้อของหน้านั้น (หน้าจัดการ /admin/settings* ตรวจต่อใน ManageShell)
   if (to.meta.perms && !canAny(to.meta.perms)) return '/admin/no-access'
+  // เซสชันลูกค้าที่ค้างไว้กำลังกู้คืน → รอก่อนตัดสินใจว่าต้องล็อกอินหรือไม่
+  if (to.meta.customer || to.meta.needLogin) await whenSessionReady()
   if ((to.meta.customer || to.meta.needLogin) && !customerSession.customerId) return '/account/login'
   if (to.meta.customer && needsConsent().length) return '/account/consent'
 })

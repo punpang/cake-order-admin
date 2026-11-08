@@ -96,14 +96,14 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
         </div>
         <p v-if="complete && note" class="mt-1.5 line-clamp-1 rounded-2xl bg-[#fff1d6] px-2.5 py-1.5 text-xs text-stone-800 md:mt-2 md:line-clamp-none md:p-2.5" role="note" aria-label="หมายเหตุรูปตัวอย่าง">{{ note }}</p>
         <div v-if="complete && pick.alternatives.length > 1" class="mt-1.5 flex gap-2 overflow-x-auto md:mt-2">
-          <button v-for="(e, i) in pick.alternatives" :key="e.id" type="button" class="h-10 w-10 shrink-0 overflow-hidden rounded-xl border-2 md:h-16 md:w-16" :class="i === altIdx ? 'border-brand-500' : 'border-transparent'" :aria-label="`รูปที่ ${i + 1}`" @click="altIdx = i"><img :src="e.image" alt="" class="h-full w-full object-cover" /></button>
+          <button v-for="(e, i) in pick.alternatives" :key="e.id" type="button" class="h-10 w-10 shrink-0 overflow-hidden rounded-xl border-2 md:h-16 md:w-16" :class="i === altIdx ? 'border-brand-500' : 'border-transparent'" :aria-label="`รูปที่ ${i + 1}`" @click="altIdx = i"><img :src="e.image" alt="" loading="lazy" decoding="async" class="h-full w-full object-cover" /></button>
         </div>
       </div>
       <div v-else>
-        <div class="aspect-square overflow-hidden rounded-[2rem] shadow-md"><CakeImage :src="item.images[cur]" :alt="item.title" /></div>
+        <div class="aspect-square overflow-hidden rounded-[2rem] shadow-md"><CakeImage :src="item.images[cur]" :alt="item.title" priority /></div>
         <div v-if="item.images.length > 1" class="mt-2 flex gap-2 overflow-x-auto">
           <button v-for="(src, i) in item.images" :key="i" type="button" class="h-16 w-16 shrink-0 overflow-hidden rounded-xl border-2" :class="i === cur ? 'border-brand-500' : 'border-transparent'" :aria-label="`รูปที่ ${i + 1}`" @click="cur = i">
-            <img :src="src" alt="" class="h-full w-full object-cover" />
+            <img :src="src" alt="" loading="lazy" decoding="async" class="h-full w-full object-cover" />
           </button>
         </div>
       </div>

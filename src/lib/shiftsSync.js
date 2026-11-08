@@ -30,6 +30,6 @@ export function startShiftsSync({ client, db, canWrite, onError, debounceMs }) {
     replace: (items) => db.shifts.splice(0, db.shifts.length, ...items),
     load: () => loadShifts(client),
     push: (c) => pushShifts(client, c),
-    canWrite, onError, debounceMs, label: 'กะ POS',
+    canWrite, onError, debounceMs, label: 'กะ POS', poll: true,
   })
 }

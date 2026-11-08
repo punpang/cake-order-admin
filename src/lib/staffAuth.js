@@ -1,9 +1,10 @@
 import { reactive } from 'vue'
 import { getSupabase, supabaseEnabled } from './supabase'
 import { showToast } from './toast'
+import { publicState, setRestoring } from './dataStatus'
 
 // สถานะพนักงานที่ล็อกอินจริง (ใช้เมื่อเปิด Supabase เท่านั้น)
-export const staffState = reactive({ ready: !supabaseEnabled, staff: null })
+export const staffState = reactive({ ready: !supabaseEnabled, staff: null, loadFailed: [] })
 let syncs = []
 let trashHook = null
 // รีเฟรชข้อมูลที่คนอื่น/ลูกค้าแก้ (ออร์เดอร์ ลูกค้า ข้อมูลรายแถว) ทุก 45 วินาทีขณะเปิดหน้าอยู่ และเมื่อกลับมาที่แท็บ
@@ -43,6 +44,8 @@ function stopPolling() {
 }
 // หลังล็อกอินสำเร็จ: โหลดข้อมูลจาก Supabase (สินค้า/ลูกค้า) และเขียนกลับเมื่อมีสิทธิ์
 async function startData(staff) {
+  stopPublicRefresh(); publicState.status = 'idle'
+  ;(await import('./tableSync')).syncOptions.clearOnLoadFail = true
   stopPolling()
   syncs.forEach((x) => x.stop())
   syncs = []
@@ -95,7 +98,7 @@ async function startData(staff) {
   if (rmIdx >= 0) store.trashHooks.splice(rmIdx, 1)
   trashHook = (url) => { storage.removePublicCopy(client, url) }
   if (staff.perms.includes('manage')) store.trashHooks.push(trashHook)
-  const onError = (m) => showToast(m, 8000)
+  const onError = (m) => showToast(m, 8000, 'error')
   const has = (p) => staff.perms.includes(p)
   // ขอเลขเอกสารเป็นชุดล่วงหน้าจากฐานข้อมูล (ไม่ซ้ำข้ามเครื่อง)
   import('./chatMedia').then((m) => m.setChatMediaSigner(m.makeSigner(client))).catch(() => {})
@@ -150,7 +153,14 @@ async function startData(staff) {
     else rec.clearRecords(db, name)
   }
   import('./clicksSync').then((m) => m.applyClicks(client, db)).catch(() => {})
+  // ตารางที่โหลดจากเซิร์ฟเวอร์ไม่สำเร็จ → แจ้งบนแถบสถานะ (ข้อมูลที่เห็นอาจไม่ครบ) พร้อมปุ่มลองโหลดใหม่
+  staffState.loadFailed = syncs.filter((x) => x && x.loaded === false).map((x) => x.label || 'ข้อมูล')
   startPolling()
+}
+export async function reloadStaffData() { if (staffState.staff) await startData(staffState.staff) }
+// ดึงข้อมูลล่าสุดของตารางที่ระบุจากเซิร์ฟเวอร์ทันที (เช่น ก่อนขาย POS: สต็อก/กะ) · ข้ามตารางที่มีแก้ค้างในเครื่อง
+export async function refreshLabels(labels) {
+  try { for (const x of syncs) if (x.refresh && labels.includes(x.label)) await x.refresh() } catch (e) { console.warn('รีเฟรชข้อมูลไม่สำเร็จ:', e?.message) }
 }
 export async function initStaff() {
   if (!supabaseEnabled) return
@@ -158,17 +168,45 @@ export async function initStaff() {
   staffState.staff = r.staff || null
   staffState.ready = true
   if (r.staff) await startData(r.staff)
-  else await loadForVisitor()
+  else loadForVisitor() // ไม่รอ: เปิดหน้าก่อน หน้าร้านแสดงสถานะกำลังโหลดจนกว่าข้อมูลจริงจะมา
 }
-// ผู้เยี่ยมชมที่ไม่ได้ล็อกอิน: อ่านข้อมูลสาธารณะของหน้าร้านจาก Supabase (อ่านอย่างเดียว)
-async function loadForVisitor() {
+// ผู้เยี่ยมชมที่ไม่ล็อกอิน: อ่านข้อมูลสาธารณะของหน้าร้านจาก Supabase (อ่านอย่างเดียว)
+const PUBLIC_REFRESH_MS = 60000
+let pubTimer = null
+let pubBusy = false
+function stopPublicRefresh() {
+  if (pubTimer) { clearInterval(pubTimer); pubTimer = null }
+  if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onPubVisible)
+}
+function onPubVisible() { if (document.visibilityState === 'visible') loadPublicNow(false) }
+// first = โหลดครั้งแรก/กดลองใหม่ (แสดงสถานะ) · ครั้งต่อไปเงียบ ผิดพลาดแล้วคงข้อมูลเดิมจากเซิร์ฟเวอร์
+export async function loadPublicNow(first = true) {
+  if (pubBusy || staffState.staff) return
+  pubBusy = true
+  if (first) { publicState.status = 'loading'; publicState.error = '' }
   try {
     const [pub, store, client] = await Promise.all([import('./publicSync'), import('../data/store'), getSupabase()])
-    // ไม่ให้หน้าเว็บค้างถ้าเซิร์ฟเวอร์ช้า: รอไม่เกิน 6 วินาที (ข้อมูลที่โหลดเสร็จทีหลังยังถูกใส่ให้เอง)
-    await Promise.race([pub.startPublicLoad({ client, db: store.db, onError: (m) => console.warn('โหลดข้อมูลหน้าร้านไม่สำเร็จ:', m) }), new Promise((r) => setTimeout(r, 6000))])
-  } catch (e) { console.warn('โหลดข้อมูลหน้าร้านไม่สำเร็จ:', e?.message) }
+    let ok = false, msg = ''
+    // ไม่ให้หน้าเว็บค้างถ้าเซิร์ฟเวอร์ช้า: รอไม่เกิน 15 วินาที แล้วแจ้งผิดพลาด (ถ้าโหลดเสร็จทีหลังจะอัปเดตเอง)
+    const done = pub.startPublicLoad({ client, db: store.db, onError: (m) => { msg = m } }).then((v) => { ok = v; return 'done' })
+    const r = await Promise.race([done, new Promise((res) => setTimeout(() => res('timeout'), 15000))])
+    if (r === 'timeout') done.then(() => { if (ok) publicState.status = 'ready' })
+    if (ok) publicState.status = 'ready'
+    else if (first || publicState.status !== 'ready') { publicState.status = 'error'; publicState.error = r === 'timeout' ? 'เซิร์ฟเวอร์ตอบช้า' : msg || 'โหลดข้อมูลไม่สำเร็จ' }
+  } catch (e) {
+    if (first || publicState.status !== 'ready') { publicState.status = 'error'; publicState.error = e?.message || 'โหลดข้อมูลไม่สำเร็จ' }
+  } finally { pubBusy = false }
+}
+async function loadForVisitor() {
+  setRestoring(restoreSession())
+  await loadPublicNow(true)
   // สถิติคลิกแบบเค้ก (รูปแนะนำ) — โหลดเบื้องหลัง ไม่รอ
   import('./clicksSync').then(async (m) => m.applyClicks(await getSupabase(), (await import('../data/store')).db)).catch(() => {})
+  stopPublicRefresh()
+  pubTimer = setInterval(() => { if (typeof document === 'undefined' || document.visibilityState === 'visible') loadPublicNow(false) }, PUBLIC_REFRESH_MS)
+  if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onPubVisible)
+}
+async function restoreSession() {
   try { await (await import('../data/store')).restoreCustomerSession() } catch (e) { console.warn('กลับเข้าบัญชีลูกค้าไม่สำเร็จ:', e?.message) }
 }
 
@@ -194,4 +232,4 @@ export async function currentStaff() {
   return { staff: data }
 }
 
-export async function staffSignOut() { staffState.staff = null; { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1) }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
+export async function staffSignOut() { staffState.staff = null; staffState.loadFailed = []; { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1) }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }

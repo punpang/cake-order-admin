@@ -8,11 +8,14 @@ export { PUBLIC_COLLECTION, PUBLIC_KEYS, publicShop, mirrorRows } from './public
 //  - หน้าร้าน/นโยบาย: kv 'storefront' (รวมแกลเลอรีเค้ก) และ 'legal' (เปิดสาธารณะอยู่แล้ว)
 //  - ราคา/ตัวเลือก/โปรโมชั่น/ข้อมูลร้านบางส่วน: kv 'shop_public' = สำเนาที่แอดมินเผยแพร่ (ไม่ใช่ตัวจริงใน 'config')
 export async function loadPublic(client) {
-  const kv = await client.from('punpang_kv').select('collection,id,data').in('collection', [PUBLIC_COLLECTION, 'storefront', 'legal'])
+  // 3 คำขอไม่ขึ้นต่อกัน → ยิงพร้อมกัน (เร็วกว่าเดิม 2 รอบเครือข่าย)
+  const [kv, rc, it] = await Promise.all([
+    client.from('punpang_kv').select('collection,id,data').in('collection', [PUBLIC_COLLECTION, 'storefront', 'legal']),
+    client.from('punpang_records').select('collection,id,data').in('collection', ['reviews', 'shortLinks']),
+    client.from('punpang_items').select('id,name,price,active,data').eq('kind', 'retail').eq('active', true).order('id'),
+  ])
   if (kv.error) return { error: kv.error.message }
-  const rc = await client.from('punpang_records').select('collection,id,data').in('collection', ['reviews', 'shortLinks'])
   if (rc.error) return { error: rc.error.message }
-  const it = await client.from('punpang_items').select('id,name,price,active,data').eq('kind', 'retail').eq('active', true).order('id')
   if (it.error) return { error: it.error.message }
   const map = {}
   for (const r of kv.data || []) {

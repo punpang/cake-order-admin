@@ -29,7 +29,7 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
 <template>
   <!-- hero -->
   <section class="relative isolate overflow-hidden text-white">
-    <img v-if="s.heroImage" :src="s.heroImage" alt="" class="absolute inset-0 -z-10 h-full w-full object-cover" />
+    <img v-if="s.heroImage" :src="s.heroImage" alt="" fetchpriority="high" decoding="async" class="absolute inset-0 -z-10 h-full w-full object-cover" />
     <div class="absolute inset-0 -z-10" :class="s.heroImage ? 'bg-linear-to-br from-hero-1/85 via-hero-2/80 to-hero-3/85' : 'bg-linear-to-br from-hero-1 via-hero-2 to-hero-3'"></div>
     <HeroCake class="pointer-events-none absolute -right-4 -bottom-2 -z-0 h-44 w-44 opacity-95 sm:right-10 sm:h-72 sm:w-72" />
     <div class="relative mx-auto max-w-page px-5 py-9 sm:py-20 lg:px-8">

@@ -26,8 +26,12 @@ function tick(sec) {
     if (!wait.value) clearInterval(timer)
   }, 1000)
 }
+const busy = ref(false) // รอเซิร์ฟเวอร์ตอบ (ส่งรหัส/ตรวจรหัส) กันกดซ้ำ
 async function send() {
+  if (busy.value) return
+  busy.value = true
   const r = await requestOtp(props.phone, props.purpose)
+  busy.value = false
   if (r.ok) {
     sim.value = r.simCode || ''
     sentTo.value = r.phone
@@ -42,7 +46,10 @@ async function send() {
   }
 }
 async function submit() {
+  if (busy.value) return
+  busy.value = true
   const r = await verifyOtp(props.phone, props.purpose, code.value)
+  busy.value = false
   if (r.ok) return emit('verified', r)
   error.value = r.error
   code.value = ''
@@ -69,8 +76,8 @@ onUnmounted(() => clearInterval(timer))
       </div>
       <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       <div class="flex flex-wrap gap-2">
-        <button type="button" class="btn-primary flex-1" :disabled="code.length !== 6" @click="submit">ยืนยัน</button>
-        <button type="button" class="btn-outline" :disabled="wait > 0" @click="send">{{ wait > 0 ? `ขอใหม่ได้ใน ${wait} วิ` : 'ขอรหัสใหม่' }}</button>
+        <button type="button" class="btn-primary flex-1" :disabled="code.length !== 6 || busy" @click="submit">{{ busy ? 'กำลังตรวจสอบ…' : 'ยืนยัน' }}</button>
+        <button type="button" class="btn-outline" :disabled="wait > 0 || busy" @click="send">{{ wait > 0 ? `ขอใหม่ได้ใน ${wait} วิ` : 'ขอรหัสใหม่' }}</button>
       </div>
     </template>
     <p v-else-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
