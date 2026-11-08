@@ -73,9 +73,9 @@ function pick(groupId, optionId, required) {
 
 const tags = computed(() => bundleTags(props.bundles, props.allGroups || props.groups, { ...props.context, ...selections.value }, { typeId: props.typeOpt?.id || null, sizeIds: props.sizeIds, allow: props.allow, scopes: props.scopes }))
 const tagOf = (g, o) => tags.value.get(`${g.id}:${o.id}`) || null
-// ข้อความป้ายสั้น ๆ ให้กว้างไม่เกินชิป · ชุด: 🎁/เลือกตัวนี้/✓ + "ลด x฿" · ตัวเลือกเดียว: "ลดพิเศษ x฿"
-const TAG_TEXT = { idle: '🎁', partner: 'ครบชุด', done: '✓' }
-const tagText = (t) => (t.single ? `${t.state === 'done' ? '✓ ' : '🎁 '}ลดพิเศษ ${num(t.amount)}฿` : `${TAG_TEXT[t.state]} ลด ${num(t.amount)}฿`)
+// ข้อความป้ายสั้น ๆ ให้กว้างไม่เกินชิป · ตัวเลือกเดียว/ตัวที่ทำให้ครบชุด: "ลดเพิ่ม x฿" · ชุดอื่น: 🎁/✓ + "ลด x฿"
+const TAG_TEXT = { idle: '🎁', partner: '', done: '✓' }
+const tagText = (t) => (t.single || t.state === 'partner' ? `${t.state === 'done' ? '✓ ' : t.single ? '🎁 ' : ''}ลดเพิ่ม ${num(t.amount)}฿` : `${TAG_TEXT[t.state]} ลด ${num(t.amount)}฿`)
 const isOn = (g, o) =>
   g.type === 'multi' ? (selections.value[g.id] || []).includes(o.id) : selections.value[g.id] === o.id
 </script>
@@ -108,7 +108,7 @@ const isOn = (g, o) =>
           type="button"
           class="relative inline-flex max-w-full items-center gap-1.5 rounded-xl border px-3 py-2 text-left text-sm transition active:scale-[0.98]"
           :class="[isOn(g, o) ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : (tagOf(g, o) ? (tagOf(g, o).state === 'partner' ? 'border-amber-500 bg-amber-50 text-stone-800 ring-2 ring-amber-300 motion-safe:animate-pulse' : 'border-dashed border-emerald-500 bg-emerald-50/50 text-stone-800') : 'border-stone-200 bg-white text-stone-700 hover:border-brand-300'), tagOf(g, o) ? 'pt-3' : '']"
-          :title="tagOf(g, o) ? `${tagOf(g, o).single ? 'ลดพิเศษ' : 'บันเดิ้ล'}: ${tagOf(g, o).names.join(', ')}` : null"
+          :title="tagOf(g, o) ? `${tagOf(g, o).single ? 'ลดเพิ่ม' : 'บันเดิ้ล'}: ${tagOf(g, o).names.join(', ')}` : null"
           :data-bundle-tag="tagOf(g, o)?.state || null"
           @click="g.type === 'multi' ? toggle(g.id, o.id) : pick(g.id, o.id, g.required)"
         >
