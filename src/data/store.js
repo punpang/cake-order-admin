@@ -82,7 +82,11 @@ const sp = (a, b, c, d) => ({ s1: a, s2: b, s3: c, s4: d })
 // ข้อความ "ได้รับชำระ": ยอดที่ชำระครั้งนี้ · ยอดรวม · ชำระแล้ว · คงค้าง · นัดส่งมอบ · ลิงก์ดูออร์เดอร์ (กฎเดิมที่ยังเป็นข้อความเริ่มต้นเก่าจะถูกใช้ข้อความนี้แทนอัตโนมัติ — กฎที่ร้านแก้เองไม่แตะ)
 const PAY_CONFIRMED_OLD = 'ได้รับชำระออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ คงค้าง {คงค้าง}'
 const PAY_CONFIRMED_TPL = 'ได้รับชำระ {ยอดที่ชำระ} ออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ\nยอดรวม {ยอดรวม} · ชำระแล้ว {ชำระแล้ว} · คงค้าง {คงค้าง}\nนัด{ส่งมอบ} {วันนัด} {เวลานัด}\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
-const tplOf = (r) => (r.event === 'payment_confirmed' && String(r.template || '').trim() === PAY_CONFIRMED_OLD ? PAY_CONFIRMED_TPL : r.template)
+// เตรียมสินค้าเสร็จ: รับที่ร้านได้ทันที แต่ต้องไม่เกินเวลาปิดร้าน (บรรทัดท้ายใส่เฉพาะรับที่ร้าน ส่วนจัดส่งว่าง)
+const PREPARED_OLD = 'ออร์เดอร์ {เลขออร์เดอร์} เตรียมสินค้าเสร็จแล้วค่ะ นัด{ส่งมอบ} {วันนัด} {เวลานัด}'
+const PREPARED_TPL = 'ออร์เดอร์ {เลขออร์เดอร์} เตรียมสินค้าเสร็จแล้วค่ะ นัด{ส่งมอบ} {วันนัด} {เวลานัด}\n{ข้อความรับสินค้า}'
+const DEFAULT_UPGRADES = { payment_confirmed: [PAY_CONFIRMED_OLD, PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL] }
+const tplOf = (r) => { const u = DEFAULT_UPGRADES[r.event]; return u && String(r.template || '').trim() === u[0] ? u[1] : r.template }
 
 const rule = (event, channels, template) => ({ event, channels, template, enabled: true })
 // ประเภท: ราคาคงที่ (price) + ราคาขนาดของประเภท (sizePrices) · เนื้อเค้ก: บวกคงที่ (price) · ขนาด: ชื่อ + ปอนด์
@@ -253,7 +257,7 @@ export const db = reactive({
     rule('payment_requested', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง}) ชำระก่อน {ชำระก่อน} ดู/ชำระที่ {ลิงก์ออร์เดอร์}'),
     rule('order_confirmed', ['line', 'facebook', 'sms'], 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ คงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า'),
     rule('payment_reminder', ['line', 'facebook', 'sms'], 'พรุ่งนี้มีนัดออร์เดอร์ {เลขออร์เดอร์} ({วันนัด} {เวลานัด}) ยังไม่ได้ชำระ คงค้าง {คงค้าง} ชำระก่อน {ชำระก่อน} ชำระที่ {ลิงก์ออร์เดอร์}'),
-    rule('prepared', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} เตรียมสินค้าเสร็จแล้วค่ะ นัด{ส่งมอบ} {วันนัด} {เวลานัด}'),
+    rule('prepared', ['line', 'facebook', 'sms'], PREPARED_TPL),
     rule('payment_confirmed', ['line', 'facebook', 'sms'], PAY_CONFIRMED_TPL),
     rule('pickup_reminder', ['line', 'facebook', 'sms'], 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
     rule('shipping', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ กำหนดถึง {วันนัด} {เวลานัด}'),
@@ -1966,6 +1970,8 @@ function orderVars(order, extra = {}) {
     วันนัด: dateOnly(order.pickupAt),
     เวลานัด: timeOnly(order.pickupAt),
     ส่งมอบ: order.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับ',
+    ข้อความรับสินค้า: order.fulfillment === 'delivery' ? '' : `สามารถรับสินค้าได้แล้ว แต่ต้องไม่เกินเวลาร้านปิด ${db.shop.close || ''} น.`,
+    เวลาปิดร้าน: db.shop.close || '',
     ชื่อวันเกิด: order.birthday?.name || c?.name || '',
     คะแนน: '',
     ลิงก์ออร์เดอร์: '',
