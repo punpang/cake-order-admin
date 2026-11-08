@@ -1,5 +1,5 @@
 <script setup>
-import { money } from '../lib/format'
+import { money, num } from '../lib/format'
 import { MAIN_KEYS } from '../lib/constants'
 import { typePrice, typeSizePrice, flavorPrice, stylePrice, optionPrice, isFixed, forType, bundleTags } from '../lib/pricing'
 import { computed } from 'vue'
@@ -69,6 +69,8 @@ function pick(groupId, optionId, required) {
 const tags = computed(() => bundleTags(props.bundles, props.groups, { ...props.context, ...selections.value }, { typeId: props.typeOpt?.id || null, sizeIds: props.sizeIds, allow: props.allow }))
 const tagOf = (g, o) => tags.value.get(`${g.id}:${o.id}`) || null
 const TAG_TEXT = { idle: 'บันเดิ้ล', partner: 'เลือกตัวนี้', done: '✓ ได้บันเดิ้ล' }
+// บันเดิ้ลตัวเลือกเดียว = "ลดพิเศษ x บาท" · ที่เหลือ "<สถานะ> ลด ฿x"
+const tagText = (t) => (t.single ? `${t.state === 'done' ? '✓ ' : '🎁 '}ลดพิเศษ ${num(t.amount)} บาท` : `${t.state === 'idle' ? '🎁 ' : ''}${TAG_TEXT[t.state]} ลด ${money(t.amount)}`)
 const isOn = (g, o) =>
   g.type === 'multi' ? (selections.value[g.id] || []).includes(o.id) : selections.value[g.id] === o.id
 </script>
@@ -101,12 +103,12 @@ const isOn = (g, o) =>
           type="button"
           class="relative inline-flex max-w-full items-center gap-1.5 rounded-xl border px-3 py-2 text-left text-sm transition active:scale-[0.98]"
           :class="[isOn(g, o) ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : (tagOf(g, o) ? (tagOf(g, o).state === 'partner' ? 'border-amber-500 bg-amber-50 text-stone-800 ring-2 ring-amber-300 motion-safe:animate-pulse' : 'border-dashed border-emerald-500 bg-emerald-50/50 text-stone-800') : 'border-stone-200 bg-white text-stone-700 hover:border-brand-300'), tagOf(g, o) ? 'pt-3' : '']"
-          :title="tagOf(g, o) ? `บันเดิ้ล: ${tagOf(g, o).names.join(', ')}` : null"
+          :title="tagOf(g, o) ? `${tagOf(g, o).single ? 'ลดพิเศษ' : 'บันเดิ้ล'}: ${tagOf(g, o).names.join(', ')}` : null"
           :data-bundle-tag="tagOf(g, o)?.state || null"
           @click="g.type === 'multi' ? toggle(g.id, o.id) : pick(g.id, o.id, g.required)"
         >
           <AppIcon v-if="isOn(g, o)" name="check" :size="14" class="text-brand-600" />
-          <span v-if="tagOf(g, o)" class="pointer-events-none absolute -top-2.5 right-2 rounded-full px-2 py-0.5 text-[11px] leading-tight font-bold whitespace-nowrap shadow-sm" :class="tagOf(g, o).state === 'partner' ? 'bg-amber-600 text-white' : tagOf(g, o).state === 'done' ? 'bg-emerald-700 text-white' : 'bg-emerald-600 text-white'">{{ tagOf(g, o).state === 'idle' ? '🎁 ' : '' }}{{ TAG_TEXT[tagOf(g, o).state] }} ลด {{ money(tagOf(g, o).amount) }}</span>
+          <span v-if="tagOf(g, o)" class="pointer-events-none absolute -top-2.5 right-2 rounded-full px-2 py-0.5 text-[11px] leading-tight font-bold whitespace-nowrap shadow-sm" :class="tagOf(g, o).state === 'partner' ? 'bg-amber-600 text-white' : tagOf(g, o).state === 'done' ? 'bg-emerald-700 text-white' : 'bg-emerald-600 text-white'">{{ tagText(tagOf(g, o)) }}</span>
           <span class="min-w-0 break-words">{{ o.name }}</span>
           <span v-if="regularText(g, o)" class="text-xs whitespace-nowrap text-stone-400 line-through">{{ regularText(g, o) }}</span>
           <span v-if="priceText(g, o)" class="text-xs whitespace-nowrap" :class="regularText(g, o) ? 'font-medium text-rose-600' : 'text-stone-500'">{{ priceText(g, o) }}</span>

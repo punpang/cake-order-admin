@@ -169,20 +169,29 @@ export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = []
     }
     if (ok) out.push({ bundle: b, missing, amount })
   }
-  return out.sort((a, b) => b.amount - a.amount).slice(0, limit)
+  // 1 หัวข้อบ้าน (กลุ่มของตัวเลือกแรก) แสดงชุดที่ลดน้อยสุดชุดเดียว · เรียงน้อยไปมาก (ตรงกติกาคิดราคา)
+  const byHome = new Map()
+  for (const h of out) {
+    const k = h.bundle.items[0].groupId
+    if (!byHome.has(k) || h.amount < byHome.get(k).amount) byHome.set(k, h)
+  }
+  return [...byHome.values()].sort((a, b) => a.amount - b.amount).slice(0, limit)
 }
 
 // ป้ายบนตัวเลือกที่อยู่ในบันเดิ้ล: Map("groupId:optionId" → { state, amount, names })
 // state: 'done' = ครบชุดแล้ว (ได้ส่วนลด) · 'partner' = เลือกคู่ไว้แล้ว ตัวนี้เลือกแล้วครบชุดทันที · 'idle' = อยู่ในบันเดิ้ล ยังไม่ได้เลือกคู่
-// เฉพาะบันเดิ้ลที่ใช้ได้จริงตอนนี้ (ใช้งาน ตรงประเภท ส่วนลดตามขนาด > 0) · หลายบันเดิ้ล: done > partner > idle แล้วส่วนลดมากสุด
+// เฉพาะบันเดิ้ลที่ใช้ได้จริงตอนนี้ (ใช้งาน ตรงประเภท ส่วนลดตามขนาด > 0) · หลายบันเดิ้ล: done > partner > idle แล้ว "ส่วนลดน้อยสุด" (ตรงกติกาคิดราคา)
+// ยังไม่ได้เลือกตัวเลือกรองใดเลย → ไม่มีป้าย · single = บันเดิ้ลที่ตั้งไว้ตัวเลือกเดียว (ใช้คำว่า "ลดพิเศษ")
 const RANK = { idle: 0, partner: 1, done: 2 }
 export function bundleTags(bundles, groups, sels, { typeId = null, sizeIds = [], allow = null } = {}) {
   const tags = new Map()
+  const anySecondary = groups.some((g) => !MAIN.includes(g.key) && g.type !== 'text' && idsOf(sels?.[g.id]).length)
+  if (!anySecondary) return tags
   const has = (x) => idsOf(sels?.[x.groupId]).includes(x.optionId)
-  const put = (x, state, amount, name) => {
+  const put = (x, state, amount, name, single) => {
     const k = `${x.groupId}:${x.optionId}`
     const cur = tags.get(k)
-    if (!cur || RANK[state] > RANK[cur.state] || (state === cur.state && amount > cur.amount)) tags.set(k, { state, amount, names: [name] })
+    if (!cur || RANK[state] > RANK[cur.state] || (state === cur.state && amount < cur.amount)) tags.set(k, { state, amount, names: [name], single })
     else if (state === cur.state && amount === cur.amount && !cur.names.includes(name)) cur.names.push(name)
   }
   for (const b of bundles || []) {
@@ -196,12 +205,13 @@ export function bundleTags(bundles, groups, sels, { typeId = null, sizeIds = [],
     }
     if (!b.items.every(usable)) continue
     const have = b.items.filter(has)
-    if (have.length === b.items.length) { for (const x of b.items) put(x, 'done', amount, b.name); continue }
+    const single = b.items.length === 1
+    if (have.length === b.items.length) { for (const x of b.items) put(x, 'done', amount, b.name, single); continue }
     const missing = b.items.filter((x) => !has(x))
     // ตัวที่ขาดเพียงตัวเดียวและมีตัวอื่นเลือกอยู่ = "ตัวสุดท้ายที่ทำให้ครบชุด"
     const last = have.length > 0 && missing.length === 1
-    for (const x of missing) put(x, last ? 'partner' : 'idle', amount, b.name)
-    for (const x of have) put(x, 'idle', amount, b.name)
+    for (const x of missing) put(x, last && !single ? 'partner' : 'idle', amount, b.name, single)
+    for (const x of have) put(x, 'idle', amount, b.name, single)
   }
   return tags
 }
