@@ -127,12 +127,12 @@ const keyOf = (x) => `${x.groupId}:${x.optionId}`
 export const bundleAmount = (b, typeId, sizeIds) => sizeIds.reduce((s, sid) => s + (num(b.typeDiscount?.[typeId]?.[sid]) ?? (Number(b.discount?.[sid]) || 0)), 0)
 // 1 หัวข้อ (กลุ่มตัวเลือก) ได้ส่วนลดบันเดิ้ลสูงสุด 1 ชุด · หัวข้อของบันเดิ้ล = กลุ่มของตัวเลือกแรก (ข้ามกลุ่มนับเป็นของกลุ่มแรก)
 // ถ้าเข้าเงื่อนไขหลายชุดในหัวข้อเดียวกัน → ใช้ชุดที่ลดน้อยที่สุด (ชุดที่ส่วนลด 0 ไม่นับ) · ต่างหัวข้อใช้พร้อมกันได้ ถ้าไม่ใช้ตัวเลือกซ้ำกัน
-// ทุกชุดที่ครบ (ส่วนลด > 0) ใช้ได้พร้อมกัน ถ้าไม่ใช้ตัวเลือกซ้ำกัน · ซ้ำกัน: ชุดหลายตัวเลือกมาก่อนตัวเดี่ยว แล้วส่วนลดมากกว่า
+// ทุกชุดที่ครบ (ส่วนลด > 0) ใช้ได้พร้อมกัน ถ้าไม่ใช้ตัวเลือกซ้ำกัน · ซ้ำกัน: ชุดที่มีจำนวนตัวเลือกมากที่สุดมาก่อน แล้วส่วนลดมากกว่า
 // c = [{ b, amount }] → ชุดที่ได้ใช้จริง
 export function bundleWinners(c) {
   const taken = new Set()
   const out = []
-  for (const x of [...c].sort((p, q) => (q.b.items.length > 1) - (p.b.items.length > 1) || q.amount - p.amount)) {
+  for (const x of [...c].sort((p, q) => q.b.items.length - p.b.items.length || q.amount - p.amount)) {
     const keys = x.b.items.map(keyOf)
     if (keys.some((k) => taken.has(k))) continue
     keys.forEach((k) => taken.add(k))
