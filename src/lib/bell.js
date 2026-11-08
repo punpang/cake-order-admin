@@ -12,6 +12,7 @@ export const BELL_STAFF = {
   team_approval_request: { title: 'ขออนุมัติยืนยันสั่งซื้อ', perms: ['confirmUnpaid', 'requestConfirmUnpaid'], tone: 'amber', to: (c) => (c.orderId ? `/admin/orders/${c.orderId}` : '/admin/orders') },
   team_due_soon: { title: 'งานใกล้เวลาต้องเสร็จ', perms: ['viewAllOrders', 'viewPrepOrders'], tone: 'rose', to: (c) => (c.orderId ? `/admin/orders/${c.orderId}` : '/admin/orders') },
   chat_inbound: { title: 'ข้อความใหม่จากลูกค้า', perms: ['chat'], tone: 'brand', to: (c) => (c.chatId ? `/admin/chat/${c.chatId}` : '/admin/chat') },
+  notify_failed: { title: 'แจ้งลูกค้าไม่สำเร็จ', perms: ['chat', 'viewAllOrders'], tone: 'rose', to: (c) => (c.chatId ? `/admin/chat/${c.chatId}` : '/admin/chat') },
   bot_handoff: { title: 'บอทส่งต่อให้พนักงาน', perms: ['chat'], tone: 'amber', to: (c) => (c.chatId ? `/admin/chat/${c.chatId}` : '/admin/chat') },
   team_photo_optout: { title: 'ลูกค้าขอไม่เผยแพร่รูป', perms: ['manage'], tone: 'amber', to: () => '/admin/settings/photo-requests' },
   deletion_request: { title: 'คำขอลบข้อมูลลูกค้า', perms: ['manage'], tone: 'amber', to: () => '/admin/settings/deletion-requests' },

@@ -4,6 +4,7 @@ import { reactive } from 'vue'
 import { BELL_MAX, BELL_STAFF, BELL_CUSTOMER, bellText, visibleToStaff, visibleToCustomer, unreadStaff, unreadCustomer, isReadStaff } from '../lib/bell'
 import { STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
+import { orderCardText, quoteCardText } from '../lib/chatCards'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { prevStatus } from '../lib/orderFlow'
 import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList, returnedByMethod } from '../lib/refund'
@@ -1952,14 +1953,18 @@ function orderVars(order, extra = {}) {
   }
 }
 function pushOut(event, channel, to, text, orderId = null, customer = null) {
-  // ส่งทาง LINE/Facebook: ลงเธรดของช่องทางนั้นในศูนย์รวมแชทด้วย (สร้างออร์เดอร์ = การ์ดสรุป)
+  db.outbox.unshift({ id: uid('msg'), at: now(), event, channel, to, text, orderId, status: channel ? 'simulated' : 'no_channel' })
+  const row = db.outbox[0]
+  // ส่งทาง LINE/Facebook: ลงเธรดของช่องทางนั้นในศูนย์รวมแชทด้วย (สร้างออร์เดอร์ = การ์ดสรุป) · Facebook ส่งถึง Messenger จริงและอัปเดตสถานะของรายการนี้
   const chat = customer && (channel === 'line' || channel === 'facebook') ? chatFor(customer.id, channel) : null
   if (chat) {
     const order = orderId ? findOrder(orderId) : null
-    if (event === 'order_created' && order) postOrderCard(order, chat)
-    else sendChat(chat.id, 'staff', text, { orderId, by: 'ระบบ' })
+    if (event === 'order_created' && order) postOrderCard(order, chat, row)
+    else sendChat(chat.id, 'staff', text, { orderId, by: 'ระบบ', row })
+  } else if (channel === 'facebook' && customer && fbHook.send) {
+    row.status = 'failed'; row.error = 'ลูกค้ายังไม่มีแชท Facebook ที่ผูกไว้'
+    emitStaffBell('notify_failed', { text: `${customer.name || 'ลูกค้า'}: ยังไม่มีแชท Facebook ที่ผูกไว้ แจ้งทางอื่นเอง` })
   }
-  db.outbox.unshift({ id: uid('msg'), at: now(), event, channel, to, text, orderId, status: channel ? 'simulated' : 'no_channel' })
   if (channel === 'sms' && customer?.phone) deliverSms(db.outbox[0], customer.phone, text, 'notify')
   if (channel === 'telegram') deliverTg(db.outbox[0], text, 'notify')
 }
@@ -2164,15 +2169,31 @@ export function sendChat(chatId, from, text, extra = {}) {
   // แชทล่าสุดขึ้นบนสุด
   db.chats.splice(db.chats.indexOf(c), 1)
   db.chats.unshift(c)
-  if (from === 'staff' && c.channel === 'facebook' && m.kind === 'text') deliverFb(c, c.messages[c.messages.length - 1])
+  if (from === 'staff' && c.channel === 'facebook') {
+    if (m.kind === 'text') deliverFb(c, m, m.text, extra.row)
+    else if (m.kind === 'order') { const o = findOrder(m.orderId); if (o) deliverFb(c, m, orderCardText(o, orderTotals(o), db.shop.name), extra.row) }
+    else if (m.kind === 'quote') { const q = findQuote(m.quoteId); if (q) deliverFb(c, m, quoteCardText(q, orderTotals({ ...q.payload, payments: [], adjustment: null, couponsUsed: [] }), db.shop.name), extra.row) }
+  }
   return m
 }
 // ส่ง Messenger จริงเมื่อพนักงาน/บอท/ระบบตอบในแชท Facebook (ผ่าน Edge Function fb-send · ตั้งโดยชั้นเชื่อม Supabase) · ไม่มีตัวส่ง = คงสถานะจำลอง
 export const fbHook = { send: null }
-function deliverFb(chat, m) {
+function deliverFb(chat, m, text = m.text, row = null) {
   if (!fbHook.send || !m || !chat.externalId) return
+  const fail = (err) => {
+    m.delivery = 'failed'; m.deliveryError = err || ''
+    if (row) { row.status = 'failed'; row.error = err || '' }
+    // ข้อความอัตโนมัติของระบบ (แจ้งลูกค้า) ส่งไม่ถึง → เตือนพนักงานให้ตามเอง
+    if (m.by === 'ระบบ') emitStaffBell('notify_failed', { text: `${chat.profileName || 'ลูกค้า'}: ส่งทาง Facebook ไม่สำเร็จ${err ? ` (${err})` : ''}`, chatId: chat.id })
+  }
+  if (!fbWindowOpen(chat)) return fail('เกิน 24 ชั่วโมงหลังลูกค้าทักล่าสุด ส่งทาง Messenger ไม่ได้')
   m.delivery = 'sending'
-  fbHook.send(chat.externalId, m.text).then((r) => { m.delivery = r.ok ? 'sent' : 'failed'; if (!r.ok) m.deliveryError = r.error || '' }, () => { m.delivery = 'failed' })
+  if (row) row.status = 'sending'
+  fbHook.send(chat.externalId, text).then((r) => {
+    if (!r.ok) return fail(r.error)
+    m.delivery = 'sent'
+    if (row) row.status = 'sent'
+  }, () => fail('เชื่อมต่อไม่ได้'))
 }
 // ข้อความเข้าจาก LINE/Facebook (ของจริงมาจาก webhook) · ผูกอัตโนมัติถ้า userId/PSID ตรงกับลูกค้า
 // ถ้ามีคำถามค้าง (ปุ่มถาม) ข้อความนี้ = คำตอบ → ผูกกับคำถามและกรอกลงร่างอัตโนมัติ
@@ -2555,11 +2576,11 @@ export function createCustomerFromChat(chatId, phone, name = '') {
   return cu
 }
 // การ์ดสรุปออร์เดอร์ในแชท (แชทของออร์เดอร์ ถ้าไม่มีใช้แชทล่าสุดของลูกค้า)
-export function postOrderCard(order, chat = null) {
+export function postOrderCard(order, chat = null, row = null) {
   const c = chat || (order.chatId ? findChat(order.chatId) : chatFor(order.customerId))
   if (!c) return
   if (!order.chatId) order.chatId = c.id
-  sendChat(c.id, 'staff', '', { kind: 'order', orderId: order.id, by: 'ระบบ' })
+  sendChat(c.id, 'staff', '', { kind: 'order', orderId: order.id, by: 'ระบบ', row })
 }
 // ---------- ร่างออร์เดอร์ต่อแชท ----------
 export function draftOf(chatId) {
