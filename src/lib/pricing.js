@@ -127,26 +127,30 @@ const keyOf = (x) => `${x.groupId}:${x.optionId}`
 export const bundleAmount = (b, typeId, sizeIds) => sizeIds.reduce((s, sid) => s + (num(b.typeDiscount?.[typeId]?.[sid]) ?? (Number(b.discount?.[sid]) || 0)), 0)
 // 1 หัวข้อ (กลุ่มตัวเลือก) ได้ส่วนลดบันเดิ้ลสูงสุด 1 ชุด · หัวข้อของบันเดิ้ล = กลุ่มของตัวเลือกแรก (ข้ามกลุ่มนับเป็นของกลุ่มแรก)
 // ถ้าเข้าเงื่อนไขหลายชุดในหัวข้อเดียวกัน → ใช้ชุดที่ลดน้อยที่สุด (ชุดที่ส่วนลด 0 ไม่นับ) · ต่างหัวข้อใช้พร้อมกันได้ ถ้าไม่ใช้ตัวเลือกซ้ำกัน
-export function bundleDiscount(bundles, picked, sizeIds, usedBundles = null, typeId = null) {
-  const byGroup = new Map()
-  for (const b of bundles) {
-    if (b.active === false || !forType(b, typeId) || !(b.items?.length > 0) || !b.items.every((x) => picked.has(keyOf(x)))) continue
-    const d = bundleAmount(b, typeId, sizeIds)
-    if (!(d > 0)) continue
-    const g = b.items[0].groupId
-    const cur = byGroup.get(g)
-    // ชุดบันเดิ้ล (หลายตัวเลือก) มาก่อนบันเดิ้ลตัวเลือกเดียว · ชนิดเดียวกันเอาที่ลดน้อยสุด
-    const set = b.items.length > 1
-    if (!cur || (set && !cur.set) || (set === cur.set && d < cur.d)) byGroup.set(g, { b, d, set })
-  }
+// ทุกชุดที่ครบ (ส่วนลด > 0) ใช้ได้พร้อมกัน ถ้าไม่ใช้ตัวเลือกซ้ำกัน · ซ้ำกัน: ชุดหลายตัวเลือกมาก่อนตัวเดี่ยว แล้วส่วนลดมากกว่า
+// c = [{ b, amount }] → ชุดที่ได้ใช้จริง
+export function bundleWinners(c) {
   const taken = new Set()
-  let total = 0
-  for (const c of [...byGroup.values()].sort((a, b) => b.d - a.d)) {
-    const keys = c.b.items.map(keyOf)
+  const out = []
+  for (const x of [...c].sort((p, q) => (q.b.items.length > 1) - (p.b.items.length > 1) || q.amount - p.amount)) {
+    const keys = x.b.items.map(keyOf)
     if (keys.some((k) => taken.has(k))) continue
     keys.forEach((k) => taken.add(k))
-    total += c.d
-    if (usedBundles) note(usedBundles, c.b.name, c.d)
+    out.push(x)
+  }
+  return out
+}
+export function bundleDiscount(bundles, picked, sizeIds, usedBundles = null, typeId = null) {
+  const c = []
+  for (const b of bundles) {
+    if (b.active === false || !forType(b, typeId) || !(b.items?.length > 0) || !b.items.every((x) => picked.has(keyOf(x)))) continue
+    const amount = bundleAmount(b, typeId, sizeIds)
+    if (amount > 0) c.push({ b, amount })
+  }
+  let total = 0
+  for (const w of bundleWinners(c)) {
+    total += w.amount
+    if (usedBundles) note(usedBundles, w.b.name, w.amount)
   }
   return total
 }
@@ -165,17 +169,20 @@ export const bundleScope = (b, groups, scopes, dflt) => {
 export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = [], allow = null, limit = 2, scopes = null } = {}) {
   const dT = typeId, dS = sizeIds
   const has = (x) => idsOf(sels?.[x.groupId]).includes(x.optionId)
-  // หัวข้อที่ได้บันเดิ้ลแล้ว: ชุดอื่นไม่ทำให้ส่วนลดเพิ่ม (คิดชุดที่ลดน้อยสุด) → ไม่แนะนำ
-  const doneHome = new Set()
+  // ชุดที่ครบแล้ว (ใช้จริง) → ชุดอื่นที่ใช้ตัวเลือกซ้ำกันไม่ทำให้ส่วนลดเพิ่ม → ไม่แนะนำ
+  const doneC = []
   for (const b of bundles || []) {
     if (b.active === false || !(b.items?.length > 0) || !b.items.every(has)) continue
     const sc = bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS })
-    if (b.items.length > 1 && forType(b, sc.typeId) && bundleAmount(b, sc.typeId, sc.sizeIds) > 0) doneHome.add(b.items[0].groupId)
+    const amount = forType(b, sc.typeId) ? bundleAmount(b, sc.typeId, sc.sizeIds) : 0
+    if (amount > 0) doneC.push({ b, amount })
   }
+  const sum = (l) => l.reduce((t, x) => t + x.amount, 0)
+  const base = sum(bundleWinners(doneC))
   const out = []
   for (const b of bundles || []) {
     const { typeId, sizeIds } = b.items?.length ? bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS }) : { typeId: dT, sizeIds: dS }
-    if (b.active === false || !forType(b, typeId) || !(b.items?.length > 1) || doneHome.has(b.items[0].groupId)) continue
+    if (b.active === false || !forType(b, typeId) || !(b.items?.length > 1)) continue
     const have = b.items.filter(has)
     if (!have.length || have.length < b.items.length - 1 || have.length === b.items.length) continue
     const amount = bundleAmount(b, typeId, sizeIds)
@@ -189,20 +196,14 @@ export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = []
       if (g.type !== 'multi' && idsOf(sels?.[g.id]).length) { ok = false; break }
       missing.push({ groupId: g.id, optionId: o.id, name: o.name, groupName: g.name })
     }
-    if (ok) out.push({ bundle: b, missing, amount })
+    if (ok && sum(bundleWinners([...doneC, { b, amount }])) > base) out.push({ bundle: b, missing, amount })
   }
-  // 1 หัวข้อบ้าน (กลุ่มของตัวเลือกแรก) แสดงชุดที่ลดน้อยสุดชุดเดียว · เรียงน้อยไปมาก (ตรงกติกาคิดราคา)
-  const byHome = new Map()
-  for (const h of out) {
-    const k = h.bundle.items[0].groupId
-    if (!byHome.has(k) || h.amount < byHome.get(k).amount) byHome.set(k, h)
-  }
-  return [...byHome.values()].sort((a, b) => a.amount - b.amount).slice(0, limit)
+  return out.sort((a, b) => b.amount - a.amount).slice(0, limit)
 }
 
 // ป้ายบนตัวเลือกที่อยู่ในบันเดิ้ล: Map("groupId:optionId" → { state, amount, names })
 // state: 'done' = ครบชุดแล้ว (ได้ส่วนลด) · 'partner' = เลือกคู่ไว้แล้ว ตัวนี้เลือกแล้วครบชุดทันที · 'idle' = อยู่ในบันเดิ้ล ยังไม่ได้เลือกคู่
-// เฉพาะบันเดิ้ลที่ใช้ได้จริงตอนนี้ (ใช้งาน ตรงประเภท ส่วนลดตามขนาด > 0) · หลายบันเดิ้ล: done > partner > idle แล้ว "ส่วนลดน้อยสุด" (ตรงกติกาคิดราคา)
+// เฉพาะบันเดิ้ลที่ใช้ได้จริงตอนนี้ (ใช้งาน ตรงประเภท ส่วนลดตามขนาด > 0) · หลายบันเดิ้ล: done > partner > idle แล้วส่วนลดมากสุด
 // ป้ายแสดงเมื่อ: ชุดหลายตัวเลือก (N ตัว) = เลือกแล้วอย่างน้อย N-1 ตัว · บันเดิ้ลตัวเลือกเดียว = เลือกครบหัวข้อหลักทุกข้อ (single → "ลดพิเศษ")
 const RANK = { idle: 0, partner: 1, done: 2 }
 export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: dS = [], allow = null, scopes = null } = {}) {
@@ -211,7 +212,7 @@ export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: 
   const put = (x, state, amount, name, single) => {
     const k = `${x.groupId}:${x.optionId}`
     const cur = tags.get(k)
-    if (!cur || RANK[state] > RANK[cur.state] || (state === cur.state && amount < cur.amount)) tags.set(k, { state, amount, names: [name], single })
+    if (!cur || RANK[state] > RANK[cur.state] || (state === cur.state && amount > cur.amount)) tags.set(k, { state, amount, names: [name], single })
     else if (state === cur.state && amount === cur.amount && !cur.names.includes(name)) cur.names.push(name)
   }
   // 1) รวบรวมบันเดิ้ลที่ใช้ได้ + สถานะ
@@ -238,22 +239,15 @@ export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: 
   for (let i = cands.length - 1; i >= 0; i--) if (cands[i].b.items.length > 1 ? !setReady(cands[i]) : !mainDone) cands.splice(i, 1)
   // 2) ให้ตรงตัวคิดราคา: 1 หัวข้อ = 1 ชุด (ลดน้อยสุด) และไม่ใช้ตัวเลือกซ้ำ
   //    หัวข้อที่ได้บันเดิ้ลแล้ว → ชุดอื่นในหัวข้อเดียวกันไม่ทำให้ส่วนลดเพิ่ม จึงไม่ติดป้าย (ป้ายเดียวที่เหลือคือชุดที่ใช้จริง)
-  const bestDone = new Map()
-  const better = (c, cur) => !cur || (c.b.items.length > 1 && cur.b.items.length === 1) || (c.b.items.length > 1 === cur.b.items.length > 1 && c.amount < cur.amount)
-  for (const c of cands) if (c.done && better(c, bestDone.get(c.home))) bestDone.set(c.home, c)
-  const taken = new Set()
-  const won = new Set()
-  for (const c of [...bestDone.values()].sort((x, y) => y.amount - x.amount)) {
-    const keys = c.b.items.map((x) => `${x.groupId}:${x.optionId}`)
-    if (keys.some((k) => taken.has(k))) continue
-    keys.forEach((k) => taken.add(k)); won.add(c)
-  }
+  const winners = new Set(bundleWinners(cands.filter((c) => c.done)))
+  const sum = (l) => l.reduce((t, x) => t + x.amount, 0)
+  const doneC = cands.filter((c) => c.done)
+  const base = sum(bundleWinners(doneC))
   for (const c of cands) {
     const { b, amount } = c
     const single = b.items.length === 1
-    if (c.done) { if (won.has(c)) for (const x of b.items) put(x, 'done', amount, b.name, single); continue }
-    if (bestDone.get(c.home)?.b.items.length > 1) continue // ได้ชุดบันเดิ้ลแล้ว → ชุดอื่นไม่เพิ่มส่วนลด
-    if (bestDone.has(c.home) && !(b.items.length > 1)) continue
+    if (c.done) { if (winners.has(c)) for (const x of b.items) put(x, 'done', amount, b.name, single); continue }
+    if (!(sum(bundleWinners([...doneC, c])) > base)) continue // ครบชุดนี้แล้วส่วนลดรวมไม่เพิ่ม (ตัวเลือกซ้ำกับชุดอื่นที่ได้ไปแล้ว) → ไม่ติดป้าย
     const have = b.items.filter(has)
     const missing = b.items.filter((x) => !has(x))
     // ตัวที่ขาดเพียงตัวเดียวและมีตัวอื่นเลือกอยู่ = "ตัวสุดท้ายที่ทำให้ครบชุด"
