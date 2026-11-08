@@ -165,26 +165,29 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, sizeIds: s
     </div>
 
     <!-- ราคา + ส่ง -->
-    <div class="sticky bottom-3 z-10 space-y-3 rounded-3xl bg-white p-4 shadow-xl ring-1 ring-stone-200/70">
-      <div class="flex items-center justify-between gap-3">
-        <div class="flex h-11 items-center rounded-xl border border-stone-200">
-          <button type="button" class="h-full w-10 text-lg text-stone-600" aria-label="ลดจำนวน" @click="step(-1)">−</button>
-          <input v-model.number="form.qty" type="text" inputmode="numeric" class="h-full w-12 border-0 bg-transparent text-center text-base font-semibold outline-none" aria-label="จำนวน" />
-          <button type="button" class="h-full w-10 text-lg text-stone-600" aria-label="เพิ่มจำนวน" @click="step(1)">+</button>
+    <div class="sticky bottom-2 z-10 rounded-2xl bg-white p-2.5 shadow-xl ring-1 ring-stone-200/70">
+      <div class="flex items-center gap-2">
+        <div class="flex h-10 shrink-0 items-center rounded-xl border border-stone-200">
+          <button type="button" class="h-full w-8 text-lg text-stone-600" aria-label="ลดจำนวน" @click="step(-1)">−</button>
+          <input v-model.number="form.qty" type="text" inputmode="numeric" class="h-full w-8 border-0 bg-transparent text-center text-base font-semibold outline-none" aria-label="จำนวน" />
+          <button type="button" class="h-full w-8 text-lg text-stone-600" aria-label="เพิ่มจำนวน" @click="step(1)">+</button>
         </div>
         <div class="min-w-0 flex-1 text-right leading-tight" aria-live="polite">
-          <div class="text-xs text-stone-500">{{ qty > 1 ? `${money(detail.unitPrice)} × ${qty}` : 'ราคา' }}</div>
+          <div v-if="qty > 1" class="text-[11px] text-stone-500">{{ money(detail.unitPrice) }} × {{ qty }}</div>
           <DiscountDetail :full="detail.fullPrice * qty" :final="detail.unitPrice * qty" :lines="discountLines(detail.discounts, qty)" size="lg" />
         </div>
+        <button type="button" class="btn-primary h-10 shrink-0 whitespace-nowrap px-3.5 text-sm" :disabled="!ready" @click="copy"><AppIcon :name="copied ? 'check' : 'send'" :size="16" /> {{ copied ? 'คัดลอกแล้ว' : 'คัดลอกส่งร้าน' }}</button>
       </div>
-      <p v-if="!ready" class="text-sm text-stone-800">เลือกให้ครบก่อนคัดลอก: {{ missing.join(', ') }}</p>
-      <p class="text-xs text-stone-400">ราคาเบื้องต้น ร้านจะยืนยันราคาสุดท้ายในใบเสนอ</p>
-      <button type="button" class="btn-primary w-full" :disabled="!ready" @click="copy"><AppIcon :name="copied ? 'check' : 'send'" :size="18" /> {{ copied ? 'คัดลอกแล้ว วางในแชทได้เลย' : 'คัดลอกส่งร้าน' }}</button>
-      <div v-if="out && showText">
+      <p v-if="!ready" class="mt-1.5 truncate text-xs text-stone-800">เลือกให้ครบ: {{ missing.join(', ') }}</p>
+      <p v-else class="mt-1 text-center text-[11px] text-stone-400">ราคาเบื้องต้น ร้านจะยืนยันราคาสุดท้ายในใบเสนอ</p>
+    </div>
+    <div v-if="out" class="space-y-3 rounded-3xl bg-white p-4 shadow-md">
+      <p v-if="copied" class="text-sm text-emerald-700">คัดลอกแล้ว วางในแชทได้เลย</p>
+      <div v-if="showText">
         <label class="label" for="cfg-text">ข้อความที่คัดลอก</label>
         <textarea id="cfg-text" :value="out.text" readonly rows="5" class="input font-mono text-xs" @focus="$event.target.select()"></textarea>
       </div>
-      <StoreOrderButtons v-if="out" />
+      <StoreOrderButtons />
     </div>
     </div>
   </section>
