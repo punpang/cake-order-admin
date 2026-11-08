@@ -100,7 +100,7 @@ export function activePromotions(db, now = new Date()) {
   const store = onlyActive(db.retailItems).filter((x) => x.showOnStore)
   const out = activeLists(db.priceLists, d).map((l) => ({
     id: l.id, name: l.name, from: l.scheduled ? l.from : '', to: l.scheduled ? l.to : '', products: [], text: '',
-    custom: [l.types, l.typeSizes, l.flavors, l.styles].some((o) => o && Object.keys(o).length),
+    custom: [l.types, l.typeSizes, l.flavors, l.styles, l.shapes].some((o) => o && Object.keys(o).length),
   })).filter((p) => p.custom)
   const names = (ids) => store.filter((x) => ids.includes(x.id)).map((x) => x.name)
   for (const x of db.posDiscounts || []) {

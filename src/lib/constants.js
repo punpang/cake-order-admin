@@ -130,10 +130,22 @@ export const PAYMENT_METHODS = ['โอนเงิน', 'เงินสด', '
 
 // กลุ่มตัวเลือก
 // กลุ่มหลักของเค้กสั่งทำ (เรียงตามลำดับเลือก): ประเภท > เนื้อเค้ก > ขนาด
-export const MAIN_KEYS = ['type', 'flavor', 'size', 'style']
+export const MAIN_KEYS = ['type', 'flavor', 'size', 'style', 'shape']
+// หลักที่ "ตัวเลือกจำกัดตามประเภท (types)" ยังใช้งานอยู่ (รูปทรง) · หลักอื่นใช้ตัวกรองของประเภทเอง
+export const TYPE_FILTERED_MAIN = ['shape']
+export const typeFreeGroup = (g) => MAIN_KEYS.includes(g.key) && !TYPE_FILTERED_MAIN.includes(g.key)
 // กลุ่มหลักที่ "เพิ่มภายหลัง": ฐานข้อมูลเดิมยังไม่มี → เติมให้อัตโนมัติ (ไม่บังคับเลือก ไม่มีตัวเลือกเริ่มต้น)
 export const STYLE_GROUP = { id: 'g_style', key: 'style', name: 'รูปแบบตกแต่ง', perTier: true, type: 'single', required: false, appliesTo: ['custom'], active: true, options: [] }
+// รูปทรง (g_shape) เดิมเป็นหัวข้อรอง → ยกเป็นหลัก 5: ใส่ key 'shape' และแปลงราคาเป็นบวกคงที่
+export function ensureShapeMain(groups) {
+  const sh = Array.isArray(groups) && groups.find((g) => g.id === 'g_shape' && !g.key)
+  if (!sh) return groups
+  sh.key = 'shape'
+  for (const o of sh.options || []) if (o.priceType !== 'fixed') o.price = Number(o.price) || Object.values(o.sizePrices || {}).map(Number).find((n) => n > 0) || 0
+  return groups
+}
 export function ensureStyleGroup(groups) {
+  ensureShapeMain(groups)
   if (!Array.isArray(groups) || groups.some((g) => g.key === 'style')) return groups
   const at = groups.findIndex((g) => g.key === 'size')
   groups.splice(at >= 0 ? at + 1 : groups.length, 0, JSON.parse(JSON.stringify(STYLE_GROUP)))

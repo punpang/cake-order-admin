@@ -204,8 +204,8 @@ export const db = reactive({
       sizeOpt('s1', '1 ปอนด์', 1), sizeOpt('s2', '2 ปอนด์', 2), sizeOpt('s3', '3 ปอนด์', 3), sizeOpt('s4', '5 ปอนด์', 5),
     ] },
     // ---- ตัวเลือกรอง: ราคาตามขนาด ----
-    { id: 'g_shape', name: 'รูปทรง', perTier: true, type: 'single', required: true, appliesTo: ['custom'], options: [
-      fix('sh1', 'กลม'), fix('sh2', 'สี่เหลี่ยม'), opt('sh3', 'หัวใจ', sp(100, 150, 200, 300)), opt('sh4', 'ตัวเลข/ตัวอักษร', sp(300, 400, 500, 700)),
+    { id: 'g_shape', key: 'shape', name: 'รูปทรง', perTier: true, type: 'single', required: true, appliesTo: ['custom'], options: [
+      fix('sh1', 'กลม'), fix('sh2', 'สี่เหลี่ยม'), fix('sh3', 'หัวใจ', 100), fix('sh4', 'ตัวเลข/ตัวอักษร', 200),
     ] },
     { id: 'g_filling', name: 'สอดไส้', prepList: true, perTier: true, type: 'multi', required: false, appliesTo: ['custom'], options: [
       fix('f1', 'ครีมสด', 0, { recipe: [r('m5', 100)] }),
@@ -469,9 +469,9 @@ export function saveCustomer(d) {
 }
 // ตารางราคา { [k]: { [sizeId]: ราคา } } ตัดช่องว่าง
 const cleanTable = (obj) => Object.fromEntries(Object.entries(obj || {}).map(([k, v]) => [k, cleanSpecial(v)]))
-export const savePriceList = (d) => upsert(db.priceLists, 'pl', { ...d, types: cleanSpecial(d.types), typeSizes: cleanTable(d.typeSizes), flavors: cleanSpecial(d.flavors), styles: cleanSpecial(d.styles) })
+export const savePriceList = (d) => upsert(db.priceLists, 'pl', { ...d, types: cleanSpecial(d.types), typeSizes: cleanTable(d.typeSizes), flavors: cleanSpecial(d.flavors), styles: cleanSpecial(d.styles), shapes: cleanSpecial(d.shapes) })
 // ตารางราคาเค้กหลัก (หน้าการกำหนดราคา): types = { [typeId] }, typeSizes = { [typeId]: { [sizeId] } }, flavors = { [flavorId] }
-export function saveMainPrices({ types = {}, typeSizes = {}, flavors = {}, styles = {} }) {
+export function saveMainPrices({ types = {}, typeSizes = {}, flavors = {}, styles = {}, shapes = {} }) {
   const byKey = (k) => db.optionGroups.find((x) => x.key === k)?.options || []
   for (const o of byKey('type')) {
     if (types[o.id] !== undefined) o.price = Number(types[o.id]) || 0
@@ -479,6 +479,7 @@ export function saveMainPrices({ types = {}, typeSizes = {}, flavors = {}, style
   }
   for (const o of byKey('flavor')) if (flavors[o.id] !== undefined) o.price = Number(flavors[o.id]) || 0
   for (const o of byKey('style')) if (styles[o.id] !== undefined) o.price = Number(styles[o.id]) || 0
+  for (const o of byKey('shape')) if (shapes[o.id] !== undefined) o.price = Number(shapes[o.id]) || 0
 }
 // ---------- คลังรูปเค้กสั่งทำ (แอดมิน) ----------
 const optionIdSet = () => new Set(db.optionGroups.flatMap((g) => (g.options || []).map((o) => o.id)))
@@ -725,7 +726,7 @@ export function saveOption(groupId, d) {
   if (g.key === 'size') data.pounds = Number(d.pounds) || 1
   else if (g.key === 'type') {
     if (!d.id) Object.assign(data, { price: 0, sizePrices: {} })
-  } else if (g.key === 'flavor' || g.key === 'style') {
+  } else if (g.key === 'flavor' || g.key === 'style' || g.key === 'shape') {
     if (!d.id) data.price = 0
   } else {
     const fixed = d.priceType === 'fixed'

@@ -6,7 +6,7 @@ import { priceDetail, allowedBy, forType, discountLines, groupOkFor } from '../l
 import { decodeCake, findCodes } from '../lib/cakeCode'
 import { money } from '../lib/format'
 import { resizeImage, imageErrorMessage } from '../lib/imageResize'
-import { MAIN_KEYS } from '../lib/constants'
+import { MAIN_KEYS, typeFreeGroup } from '../lib/constants'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
 import OptionPicker from './OptionPicker.vue'
@@ -86,7 +86,7 @@ const allowFor = (t) => {
   const tid = typeOptOf(t)?.id
   const gok = groupOkFor(db.optionGroups, form, t)
   // o = null → ถามแค่ว่าหัวข้อนี้เลือกได้ไหม (ตามรูปแบบตกแต่ง)
-  return (g, o) => gok(g) && (!o || (a(g, o) && (MAIN_KEYS.includes(g.key) || forType(o, tid))))
+  return (g, o) => gok(g) && (!o || (a(g, o) && (typeFreeGroup(g) || forType(o, tid))))
 }
 // สินค้าสำเร็จ: ประเภทของสินค้า (ตัวเลือกรองตามประเภท)
 const readyTypeOpt = computed(() => db.optionGroups.find((g) => g.key === 'type')?.options.find((o) => o.id === form.typeId) || null)

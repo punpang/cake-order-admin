@@ -3,7 +3,7 @@
 // ตัวเลือก = กลุ่ม:ค่า;กลุ่ม:ค่า1,ค่า2 · ตัวอักษรพิเศษ \ ; : , | ~ ใส่ \ นำหน้า
 // checksum ไว้จับข้อความที่ถูกตัด/พิมพ์ผิด (ไม่ใช่ความปลอดภัย) · ราคาในรหัสใช้แค่เตือนเมื่อราคาปัจจุบันต่างไป — หลังบ้านคิดราคาใหม่เสมอ
 import { priceDetail, allowedBy, forType, describeSelections, groupOkFor } from './pricing'
-import { MAIN_KEYS } from './constants'
+import { MAIN_KEYS, typeFreeGroup } from './constants'
 import { money } from './format'
 
 export const CODE_RE = /#CK1\.([A-Za-z0-9_-]+)\.([0-9a-z]{3})/g
@@ -153,7 +153,7 @@ export function decodeCake(raw, ctx) {
     const v = typeSelsOf(t)?.[typeG?.id]
     const tid = Array.isArray(v) ? v[0] : v
     const gok = groupOkFor(groups, { kind: 'custom', selections: sel, tiers: tierList }, t)
-    return (g, o) => gok(g) && (!o || (a(g, o) && (MAIN_KEYS.includes(g.key) || forType(o, tid))))
+    return (g, o) => gok(g) && (!o || (a(g, o) && (typeFreeGroup(g) || forType(o, tid))))
   }
   if (tierList.length && !cg.some((g) => g.perTier)) return { error: 'โครงสร้างตัวเลือกร้านเปลี่ยนไป (ไม่มีกลุ่มแยกชั้น)' }
   for (const [pi, p] of places.entries()) {

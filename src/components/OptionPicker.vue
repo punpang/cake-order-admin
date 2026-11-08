@@ -1,7 +1,7 @@
 <script setup>
 import { money, num } from '../lib/format'
 import { MAIN_KEYS } from '../lib/constants'
-import { typePrice, typeSizePrice, flavorPrice, stylePrice, optionPrice, isFixed, forType, bundleTags } from '../lib/pricing'
+import { typePrice, typeSizePrice, flavorPrice, stylePrice, shapePrice, optionPrice, isFixed, forType, bundleTags } from '../lib/pricing'
 import { computed } from 'vue'
 import AppIcon from './AppIcon.vue'
 
@@ -25,6 +25,7 @@ function mainPrice(g, o, active) {
   if (g.key === 'type') return typePrice(o, active) + typeSizePrice(o, props.sizeIds[0], active)
   if (g.key === 'size') return props.typeOpt ? typeSizePrice(props.typeOpt, o.id, active) : null
   if (g.key === 'style') return stylePrice(o, active)
+  if (g.key === 'shape') return shapePrice(o, active)
   return flavorPrice(o, active)
 }
 function priceText(g, o) {

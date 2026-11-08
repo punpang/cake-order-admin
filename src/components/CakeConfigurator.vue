@@ -2,7 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { db, activeListsAt } from '../data/store'
 import { priceDetail, allowedBy, forType, discountLines, groupOkFor } from '../lib/pricing'
-import { MAIN_KEYS } from '../lib/constants'
+import { MAIN_KEYS, typeFreeGroup } from '../lib/constants'
 import { encodeCake } from '../lib/cakeCode'
 import { money } from '../lib/format'
 import OptionPicker from './OptionPicker.vue'
@@ -77,7 +77,7 @@ const allowFor = (t) => {
   const tid = typeOptOf(t)?.id
   const gok = groupOkFor(db.optionGroups, form, t)
   // o = null → ถามแค่ว่าหัวข้อนี้เลือกได้ไหม (ตามรูปแบบตกแต่ง)
-  return (g, o) => gok(g) && (!o || (a(g, o) && (MAIN_KEYS.includes(g.key) || forType(o, tid))))
+  return (g, o) => gok(g) && (!o || (a(g, o) && (typeFreeGroup(g) || forType(o, tid))))
 }
 const allSizeIds = computed(() => (sizeGroup.value?.perTier ? form.tiers.flatMap((t) => sizeIdsOf(t)) : sizeIdsOf(null)))
 function prune(sels, allow, list) {
