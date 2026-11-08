@@ -105,22 +105,28 @@ export const sizePriceOf = (o, sizeIds) => sizeIds.reduce((s, id) => s + (Number
 // ---------- บันเดิ้ล ----------
 // bundles = [{ items: [{ groupId, optionId }], discount: { [sizeId] }, types: [typeId], typeDiscount: { [typeId]: { [sizeId] } } }]
 // ในกลุ่มเดียวกันหรือข้ามกลุ่ม (เฉพาะตัวเลือกรอง) · picked = Set ของ "groupId:optionId" ที่เลือก · เลือกครบทุกตัว → ลดตามขนาด (ส่วนลดของประเภทถ้ามี)
-// ซ้อนกันใช้อันที่ลดมากสุดก่อน ตัวเลือกหนึ่งใช้ได้บันเดิ้ลเดียว
 const keyOf = (x) => `${x.groupId}:${x.optionId}`
 export const bundleAmount = (b, typeId, sizeIds) => sizeIds.reduce((s, sid) => s + (num(b.typeDiscount?.[typeId]?.[sid]) ?? (Number(b.discount?.[sid]) || 0)), 0)
+// 1 หัวข้อ (กลุ่มตัวเลือก) ได้ส่วนลดบันเดิ้ลสูงสุด 1 ชุด · หัวข้อของบันเดิ้ล = กลุ่มของตัวเลือกแรก (ข้ามกลุ่มนับเป็นของกลุ่มแรก)
+// ถ้าเข้าเงื่อนไขหลายชุดในหัวข้อเดียวกัน → ใช้ชุดที่ลดน้อยที่สุด (ชุดที่ส่วนลด 0 ไม่นับ) · ต่างหัวข้อใช้พร้อมกันได้ ถ้าไม่ใช้ตัวเลือกซ้ำกัน
 export function bundleDiscount(bundles, picked, sizeIds, usedBundles = null, typeId = null) {
-  const cands = bundles
-    .filter((b) => b.active !== false && forType(b, typeId) && b.items?.length > 0 && b.items.every((x) => picked.has(keyOf(x))))
-    .map((b) => ({ b, d: bundleAmount(b, typeId, sizeIds) }))
-    .sort((a, b) => b.d - a.d)
+  const byGroup = new Map()
+  for (const b of bundles) {
+    if (b.active === false || !forType(b, typeId) || !(b.items?.length > 0) || !b.items.every((x) => picked.has(keyOf(x)))) continue
+    const d = bundleAmount(b, typeId, sizeIds)
+    if (!(d > 0)) continue
+    const g = b.items[0].groupId
+    const cur = byGroup.get(g)
+    if (!cur || d < cur.d) byGroup.set(g, { b, d })
+  }
   const taken = new Set()
   let total = 0
-  for (const c of cands) {
+  for (const c of [...byGroup.values()].sort((a, b) => b.d - a.d)) {
     const keys = c.b.items.map(keyOf)
     if (keys.some((k) => taken.has(k))) continue
     keys.forEach((k) => taken.add(k))
     total += c.d
-    if (usedBundles && c.d) note(usedBundles, c.b.name, c.d)
+    if (usedBundles) note(usedBundles, c.b.name, c.d)
   }
   return total
 }
