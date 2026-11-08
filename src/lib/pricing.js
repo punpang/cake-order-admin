@@ -172,6 +172,40 @@ export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = []
   return out.sort((a, b) => b.amount - a.amount).slice(0, limit)
 }
 
+// ป้ายบนตัวเลือกที่อยู่ในบันเดิ้ล: Map("groupId:optionId" → { state, amount, names })
+// state: 'done' = ครบชุดแล้ว (ได้ส่วนลด) · 'partner' = เลือกคู่ไว้แล้ว ตัวนี้เลือกแล้วครบชุดทันที · 'idle' = อยู่ในบันเดิ้ล ยังไม่ได้เลือกคู่
+// เฉพาะบันเดิ้ลที่ใช้ได้จริงตอนนี้ (ใช้งาน ตรงประเภท ส่วนลดตามขนาด > 0) · หลายบันเดิ้ล: done > partner > idle แล้วส่วนลดมากสุด
+const RANK = { idle: 0, partner: 1, done: 2 }
+export function bundleTags(bundles, groups, sels, { typeId = null, sizeIds = [], allow = null } = {}) {
+  const tags = new Map()
+  const has = (x) => idsOf(sels?.[x.groupId]).includes(x.optionId)
+  const put = (x, state, amount, name) => {
+    const k = `${x.groupId}:${x.optionId}`
+    const cur = tags.get(k)
+    if (!cur || RANK[state] > RANK[cur.state] || (state === cur.state && amount > cur.amount)) tags.set(k, { state, amount, names: [name] })
+    else if (state === cur.state && amount === cur.amount && !cur.names.includes(name)) cur.names.push(name)
+  }
+  for (const b of bundles || []) {
+    if (b.active === false || !forType(b, typeId) || !(b.items?.length > 0)) continue
+    const amount = bundleAmount(b, typeId, sizeIds)
+    if (!(amount > 0)) continue
+    const usable = (x) => {
+      const g = groups.find((z) => z.id === x.groupId)
+      const o = g?.options?.find((z) => z.id === x.optionId)
+      return !!g && g.active !== false && !!o && o.active !== false && forType(o, typeId) && !(allow && !(allow(g, null) && allow(g, o)))
+    }
+    if (!b.items.every(usable)) continue
+    const have = b.items.filter(has)
+    if (have.length === b.items.length) { for (const x of b.items) put(x, 'done', amount, b.name); continue }
+    const missing = b.items.filter((x) => !has(x))
+    // ตัวที่ขาดเพียงตัวเดียวและมีตัวอื่นเลือกอยู่ = "ตัวสุดท้ายที่ทำให้ครบชุด"
+    const last = have.length > 0 && missing.length === 1
+    for (const x of missing) put(x, last ? 'partner' : 'idle', amount, b.name)
+    for (const x of have) put(x, 'idle', amount, b.name)
+  }
+  return tags
+}
+
 // ราคา/ชิ้น = ราคาเค้กหลัก + ตัวเลือกรอง − บันเดิ้ล
 // กลุ่มแยกชั้น: ใช้ขนาด/ประเภทของชั้น · กลุ่มทั้งก้อน: ขนาดทุกชั้นรวมกัน + ประเภทของชั้นที่ 1 · แบบคงที่ไม่ขึ้นกับขนาด
 // บันเดิ้ลที่มีกลุ่มแยกชั้น ตรวจทีละชั้น (ตัวเลือกของชั้น + ตัวเลือกทั้งก้อน) · บันเดิ้ลที่มีแต่กลุ่มทั้งก้อน ตรวจครั้งเดียว
