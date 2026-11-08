@@ -153,7 +153,14 @@ onMounted(async () => {
   // ล้างพารามิเตอร์ออกจาก URL โดยไม่ให้ router โหลดหน้าใหม่ (หน้านี้ผูก key กับ fullPath จะรีเซ็ตโมดัล)
   window.history.replaceState(null, '', `${location.pathname}${location.search}#${route.path}`)
   openConnect('facebook')
-  if (q.fb === 'error') return (conn.error = FB_ERRORS[q.m] || 'เชื่อม Facebook ไม่สำเร็จ')
+  if (q.fb === 'error') {
+    let extra = '' // รหัสวินิจฉัยจากเซิร์ฟเวอร์ (จำนวนเพจ/สถานะ/สิทธิ์ที่ได้รับ · ไม่มี token)
+    try {
+      const d = JSON.parse(atob(String(q.d || '').replace(/-/g, '+').replace(/_/g, '/')))
+      extra = ` (เพจที่ได้ ${Number(d.a) || 0} · มี token ${Number(d.t) || 0} · HTTP ${Number(d.s) || 0} · สิทธิ์ที่ได้รับ: ${Array.isArray(d.p) && d.p.length ? d.p.map((x) => String(x).slice(0, 40)).join(', ') : 'ไม่มี'})`
+    } catch { /* ไม่มีรหัสวินิจฉัย */ }
+    return (conn.error = (FB_ERRORS[q.m] || 'เชื่อม Facebook ไม่สำเร็จ') + extra)
+  }
   if (q.fb === 'choose' && /^[0-9a-f]{48}$/.test(String(q.n || ''))) {
     conn.stage = 'login'
     const r = await fbConnectCall(await getSupabase(), 'pages', { nonce: String(q.n) })
