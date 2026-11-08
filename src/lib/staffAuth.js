@@ -22,9 +22,23 @@ function startPolling() {
   pollTimer = setInterval(pollOnce, POLL_MS)
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible)
 }
+// เปิดหน้าแชทอยู่ = รีเฟรชเฉพาะแชทถี่ขึ้น (ข้อความ Facebook เข้าทาง webhook) · ที่อื่นคง 45 วินาที
+const FAST_CHAT_MS = 10000
+let fastTimer = null
+export function setChatFastPoll(on) {
+  clearInterval(fastTimer)
+  fastTimer = null
+  if (!on) return
+  fastTimer = setInterval(async () => {
+    if (typeof document !== 'undefined' && document.hidden) return
+    try { for (const x of syncs) if (x.kind === 'chats' && x.refresh) await x.refresh() } catch (e) { console.warn('รีเฟรชแชทไม่สำเร็จ:', e?.message) }
+  }, FAST_CHAT_MS)
+}
 function stopPolling() {
   clearInterval(pollTimer)
+  clearInterval(fastTimer)
   pollTimer = null
+  fastTimer = null
   if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible)
 }
 // หลังล็อกอินสำเร็จ: โหลดข้อมูลจาก Supabase (สินค้า/ลูกค้า) และเขียนกลับเมื่อมีสิทธิ์
@@ -84,6 +98,7 @@ async function startData(staff) {
   const onError = (m) => showToast(m, 8000)
   const has = (p) => staff.perms.includes(p)
   // ขอเลขเอกสารเป็นชุดล่วงหน้าจากฐานข้อมูล (ไม่ซ้ำข้ามเครื่อง)
+  import('./chatMedia').then((m) => m.setChatMediaSigner(m.makeSigner(client))).catch(() => {})
   store.numbering.setAlloc(async (p, d, n) => { const r = await client.rpc('punpang_alloc_numbers', { p_prefix: p, p_day: d, p_n: n }); return r.error ? null : r.data })
   syncs.push(await items.startItemsSync({ client, db, canWrite: has('editItems'), onError }))
   syncs.push(await config.startConfigSync({ client, db, canWrite: has('manage'), onError }))
@@ -99,7 +114,17 @@ async function startData(staff) {
   syncs.push(await customers.startCustomersSync({ client, db, canWrite: has('createOrder') || has('adjustPoints'), onError }))
   syncs.push(...(await acct.startAcctSync({ client, db, has, onError })))
   // แชท/ใบเสนอ: เฉพาะผู้มีสิทธิ์ chat · คนอื่นล้างข้อมูลตัวอย่างออก (ไม่ให้เห็นแชทจำลองปนกับของจริง)
-  if (has('chat')) syncs.push(...(await chats.startChatSync({ client, db, canWrite: true, numbering: store.numbering, onError, onRecode: (q, c) => showToast(`เลขใบเสนอซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000) })))
+  // ข้อความ Facebook ใหม่ที่ webhook เขียนลงฐานข้อมูล → จองสิทธิ์ (atomic) แล้วให้บอทของแอปตอบ/เก็บร่าง · ทำงานเฉพาะตอนมีหน้าแอดมินเปิดอยู่
+  const botSeen = new Set()
+  const onInbound = async (chatId, mid) => {
+    const k = chatId + '|' + mid
+    if (botSeen.has(k)) return
+    botSeen.add(k)
+    const r = await client.rpc('punpang_chat_bot_claim', { p_chat: chatId, p_mid: mid })
+    if (r.error || r.data !== true) return // ไม่ได้สิทธิ์ (มีเครื่องอื่นจองแล้ว) หรือผิดพลาด
+    store.processInbound(chatId, mid)
+  }
+  if (has('chat')) syncs.push(...(await chats.startChatSync({ client, db, canWrite: true, numbering: store.numbering, onError, onInbound, onRecode: (q, c) => showToast(`เลขใบเสนอซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000) })))
   else { db.chats.splice(0); db.quotes.splice(0) }
   // ผู้ใช้/สิทธิ์: เฉพาะ manageUsers · คนอื่นเห็นแค่ตัวเอง · ผูกตัวตนปัจจุบัน (ไว้บันทึกประวัติ "ใครทำ")
   store.session.userId = staff.user_id

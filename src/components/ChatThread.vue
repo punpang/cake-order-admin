@@ -11,6 +11,8 @@ import AppIcon from './AppIcon.vue'
 import PayDueBadge from './PayDueBadge.vue'
 import DiscountDetail from './DiscountDetail.vue'
 import AppModal from './AppModal.vue'
+import ChatAttachment from './ChatAttachment.vue'
+import { messagePreview } from '../lib/chatMedia'
 
 // เธรดแชทของศูนย์รวมแชท (ฝั่งพนักงาน) · ข้อความจากลูกค้ามาจาก LINE OA / Facebook (จำลอง)
 const props = defineProps({ chat: { type: Object, required: true } })
@@ -18,6 +20,16 @@ const emit = defineEmits(['edit-draft', 'link', 'open-panel'])
 const text = ref('')
 const box = ref(null)
 const mine = (m) => m.from === 'staff'
+// สถานะส่งจริง (Facebook) · LINE ยังเป็นการจำลอง
+function sendState(m) {
+  const ch = channelLabel.value
+  if (props.chat.channel === 'facebook') {
+    if (m.delivery === 'sending') return `กำลังส่งทาง ${ch}…`
+    if (m.delivery === 'sent') return `ส่งทาง ${ch} แล้ว`
+    if (m.delivery === 'failed') return `ส่งทาง ${ch} ไม่สำเร็จ${m.deliveryError ? `: ${m.deliveryError}` : ''}`
+  }
+  return `ส่งทาง ${ch} (จำลอง)`
+}
 const channelLabel = computed(() => (props.chat.channel === 'facebook' ? 'Facebook' : 'LINE'))
 // Facebook เกิน 24 ชม. หลังลูกค้าทักล่าสุด → พิมพ์ตอบไม่ได้ (การ์ดออร์เดอร์/ยอดชำระยังส่งได้)
 const canType = computed(() => fbWindowOpen(props.chat))
@@ -114,7 +126,7 @@ function linkSuggest() {
 }
 // ข้อความที่ถูกอ้างอิง (ตอบกลับ / คำถาม)
 const byId = (id) => props.chat.messages.find((x) => x.id === id)
-const snippet = (m) => (!m ? '' : m.kind === 'order' ? 'สรุปออร์เดอร์' : m.kind === 'quote' ? 'ใบเสนอ' : m.text.length > 60 ? `${m.text.slice(0, 60)}…` : m.text)
+const snippet = (m) => { if (!m) return ''; if (m.kind === 'order') return 'สรุปออร์เดอร์'; if (m.kind === 'quote') return 'ใบเสนอ'; const t = messagePreview(m); return t.length > 60 ? `${t.slice(0, 60)}…` : t }
 
 // ---------- ตอบกลับข้อความ ----------
 const replyTo = ref(null)
@@ -247,7 +259,8 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
             <div class="rounded-2xl px-3.5 py-2 text-[15px] break-words whitespace-pre-line" :class="mine(m) ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md bg-white text-stone-900 ring-1 ring-stone-200'">
               <!-- อ้างอิงข้อความที่ตอบ -->
               <div v-if="m.replyTo && byId(m.replyTo)" class="mb-1.5 rounded-lg border-l-2 px-2 py-1 text-xs" :class="mine(m) ? 'border-white/60 bg-white/15 text-white/90' : 'border-brand-400 bg-stone-50 text-stone-500'">{{ snippet(byId(m.replyTo)) }}</div>
-              {{ m.text }}
+              <ChatAttachment v-for="(a, i) in m.attachments || []" :key="i" :a="a" />
+              <template v-if="m.text">{{ m.text }}</template>
             </div>
             <!-- คำตอบของปุ่มถาม -->
             <div v-if="m.answerFor" class="mt-1 flex flex-wrap items-center gap-1 text-xs">
@@ -271,7 +284,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
               </button>
             </div>
             <div class="mt-0.5 flex items-center gap-2 px-1 text-xs text-stone-400" :class="mine(m) ? 'justify-end' : ''">
-              <span>{{ timeOnly(m.at) }}<template v-if="m.from === 'staff'"> · ส่งทาง {{ channelLabel }} (จำลอง)<template v-if="m.by === 'ระบบ'"> · อัตโนมัติ</template></template><template v-if="m.ask"> · ถาม{{ ASK_FIELDS[m.ask]?.label.replace('ขอ', '') }}</template></span>
+              <span>{{ timeOnly(m.at) }}<template v-if="m.from === 'staff'"> · {{ sendState(m) }}<template v-if="m.by === 'ระบบ'"> · อัตโนมัติ</template></template><template v-if="m.ask"> · ถาม{{ ASK_FIELDS[m.ask]?.label.replace('ขอ', '') }}</template></span>
               <button v-if="canType" type="button" class="font-medium text-stone-500 hover:text-brand-700 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100" :aria-label="`ตอบกลับ: ${snippet(m)}`" @click="startReply(m)">ตอบกลับ</button>
             </div>
           </div>

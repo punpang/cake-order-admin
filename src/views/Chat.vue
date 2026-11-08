@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { db, can, findCustomer, findChat, draftOf, hasDraft, clearDraft, linkChat, createCustomerFromChat, receiveMessage, fbWindowLeft } from '../data/store'
 import OrderCreate from './OrderCreate.vue'
@@ -8,6 +8,9 @@ import PhoneInput from '../components/PhoneInput.vue'
 import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
 import ChatThread from '../components/ChatThread.vue'
+import { setChatFastPoll } from '../lib/staffAuth'
+import { messagePreview } from '../lib/chatMedia'
+import { suggestCustomers, phonesInChat } from '../lib/chatLink'
 
 // ศูนย์รวมแชท LINE OA + Facebook (จำลอง: ของจริงรับ webhook / ส่งผ่าน API): ซ้าย = รายการแชท, ขวา = เธรด (มือถือแสดงทีละหน้า)
 const router = useRouter()
@@ -32,12 +35,18 @@ const list = computed(() => {
     return c.profileName.toLowerCase().includes(s) || cu?.name.toLowerCase().includes(s) || (d && cu?.phone?.includes(d))
   })
 })
+// เปิดหน้าแชท = รีเฟรชแชทถี่ขึ้น (~10 วิ) · ออกจากหน้าคืนเป็นปกติ
+onMounted(() => setChatFastPoll(true))
+onUnmounted(() => setChatFastPoll(false))
+// แนะนำลูกค้าให้แชทที่ยังไม่ผูก (พนักงานกดผูกเอง)
+const suggestions = computed(() => (current.value ? suggestCustomers(current.value, db.customers) : []))
+const detectedPhone = computed(() => (current.value && !current.value.customerId ? phonesInChat(current.value)[0] || '' : ''))
 // Facebook: ตอบได้อีกกี่ชั่วโมง
 const fbLeft = computed(() => (current.value?.channel === 'facebook' ? fbWindowLeft(current.value) : null))
 const last = (c) => {
   const m = c.messages[c.messages.length - 1]
   if (!m) return { text: 'ยังไม่มีข้อความ', at: c.updatedAt }
-  return { text: m.kind === 'order' ? 'สรุปออร์เดอร์' : m.kind === 'quote' ? 'ใบเสนอ' : `${m.from === 'staff' ? 'คุณ: ' : ''}${m.text}`, at: m.at }
+  return { text: m.kind === 'order' ? 'สรุปออร์เดอร์' : m.kind === 'quote' ? 'ใบเสนอ' : `${m.from === 'staff' ? 'คุณ: ' : ''}${messagePreview(m)}`, at: m.at }
 }
 const whenText = (at) => (at.slice(0, 10) === toDateStr(new Date()) ? timeOnly(at) : dateOnly(at))
 
@@ -79,7 +88,7 @@ const linkError = ref('')
 function openLink() {
   lq.value = ''
   newName.value = current.value?.profileName || ''
-  newPhone.value = ''
+  newPhone.value = detectedPhone.value
   linkError.value = ''
   linkOpen.value = true
 }
@@ -186,6 +195,12 @@ function doSim() {
           <button type="button" class="h-9 rounded-lg text-sm font-medium" :class="mtab === 'chat' ? 'bg-brand-50 text-brand-800' : 'text-stone-500'" @click="mtab = 'chat'">แชท</button>
           <button type="button" class="relative h-9 rounded-lg text-sm font-medium" :class="mtab === 'order' ? 'bg-brand-50 text-brand-800' : 'text-stone-500'" @click="mtab = 'order'">
             ลงออร์เดอร์<span v-if="hasDraft(current.id)" class="ml-1 text-amber-700">(ร่าง)</span>
+          </button>
+        </div>
+        <div v-if="suggestions.length" class="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <span class="font-medium">ลูกค้าที่น่าจะใช่:</span>
+          <button v-for="x in suggestions" :key="x.customer.id" type="button" class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium hover:bg-amber-100" @click="doLink(x.customer)">
+            {{ x.customer.name }}<span class="text-amber-700"> · {{ x.why === 'phone' ? 'เบอร์ตรงกับที่พิมพ์ในแชท' : 'ชื่อคล้ายโปรไฟล์' }}</span> <span class="font-semibold text-brand-700">ผูก</span>
           </button>
         </div>
         <div class="flex min-h-0 flex-1">

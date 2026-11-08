@@ -1,0 +1,36 @@
+// ไฟล์แนบจากลูกค้า (bucket private punpang-chat): ขอ signed URL ตอนแสดง · เก็บ cache ในหน่วยความจำ ~50 นาที
+const TTL_S = 3600
+const KEEP_MS = 50 * 60 * 1000
+const cache = new Map() // path -> { url, exp }
+let signer = null // async (path) => url | null
+
+export function setChatMediaSigner(fn) {
+  signer = fn
+  cache.clear()
+}
+
+export async function chatMediaUrl(path, now = Date.now()) {
+  if (!path || !signer) return null
+  const hit = cache.get(path)
+  if (hit && hit.exp > now) return hit.url
+  const url = await signer(path)
+  if (url) cache.set(path, { url, exp: now + KEEP_MS })
+  return url || null
+}
+
+export function makeSigner(client) {
+  return async (path) => {
+    const r = await client.storage.from('punpang-chat').createSignedUrl(path, TTL_S)
+    return r.error ? null : r.data?.signedUrl || null
+  }
+}
+
+const KIND_LABEL = { image: 'รูปภาพ', video: 'วิดีโอ', audio: 'เสียง', file: 'ไฟล์', sticker: 'สติกเกอร์' }
+export const attachLabel = (a) => (a?.sticker ? KIND_LABEL.sticker : KIND_LABEL[a?.type] || 'ไฟล์')
+// ข้อความสรุปสำหรับรายการแชท/อ้างอิง: คำบรรยาย หรือ "[รูปภาพ]"
+export function messagePreview(m) {
+  const t = String(m?.text || '').trim()
+  if (t) return t
+  const a = m?.attachments?.[0]
+  return a ? `[${attachLabel(a)}]${m.attachments.length > 1 ? ` +${m.attachments.length - 1}` : ''}` : ''
+}

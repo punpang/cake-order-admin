@@ -2189,6 +2189,23 @@ export function receiveMessage(channel, externalId, profileName, text, at = null
   } else runBot(c, m)
   return c
 }
+// ข้อความจริงที่ webhook เขียนลงฐานข้อมูลแล้ว (ไม่ผ่าน receiveMessage ซึ่งเป็นของตัวจำลอง) → ทำส่วนที่เหลือแบบเดียวกัน: ตอบคำถามค้าง หรือเรียกบอท
+// ผู้เรียกต้อง "จองสิทธิ์" ข้อความนี้ในฐานข้อมูลก่อน (กันหลายแท็บ/หลายพนักงานตอบซ้ำ) · ข้อความที่มีไฟล์แนบไม่ผ่านบอท (ให้พนักงานดูเอง)
+export function processInbound(chatId, mid) {
+  const c = findChat(chatId)
+  if (!c || c.channel !== 'facebook' || !mid) return null
+  const m = c.messages[c.messages.length - 1]
+  if (!m || m.from !== 'customer' || m.fbMid !== mid) return null // มีข้อความใหม่กว่าแล้ว หรือไม่ใช่ข้อความนี้
+  if (m.noBot || m.attachments?.length || !String(m.text || '').trim()) return null
+  const ask = c.pendingAsk
+  const parsed = ask ? parseAnswer(ask.field, m.text) : null
+  if (ask) { m.replyTo = ask.messageId; m.answerFor = ask.field }
+  if (ask && parsed) {
+    m.filled = applyToDraft(c.id, parsed)
+    c.pendingAsk = null
+  } else runBot(c, m)
+  return m
+}
 
 // ---------- บอทตอบแชท ----------
 // ทำงานเมื่อมีข้อความจากลูกค้า (LINE/Facebook): suggest = เก็บร่างให้พนักงานกดส่ง · auto = ส่งเองหลังหน่วงเวลา (Facebook ต้องอยู่ในหน้าต่าง 24 ชม.)
