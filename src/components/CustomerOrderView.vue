@@ -76,12 +76,12 @@ function onSlip(e) {
   r.onload = () => { f.slip = String(r.result); f.slipName = file.name }
   r.readAsDataURL(file)
 }
-function submit() {
+async function submit() {
   f.error = f.ok = ''
   if (!(amount.value > 0)) return (f.error = 'กรอกยอดที่โอน')
   if (!f.slip) return (f.error = 'แนบสลิปก่อนกดส่ง')
   f.busy = true
-  const r = customerPay(props.ctx, { amount: amount.value, slip: f.slip, note: f.note, paymentId: f.mode === 'req' ? f.paymentId : null })
+  const r = await customerPay(props.ctx, { amount: amount.value, slip: f.slip, note: f.note, paymentId: f.mode === 'req' ? f.paymentId : null })
   f.busy = false
   if (r.error) return (f.error = r.error)
   f.ok = 'ส่งสลิปแล้ว ร้านจะตรวจสอบและยืนยันให้'
@@ -91,9 +91,9 @@ function submit() {
 }
 const extNote = ref('')
 const extMsg = ref('')
-function askExtension(p) {
+async function askExtension(p) {
   extMsg.value = ''
-  const r = customerRequestExtension(props.ctx, p.id, extNote.value)
+  const r = await customerRequestExtension(props.ctx, p.id, extNote.value)
   if (r.error) return (extMsg.value = r.error)
   extNote.value = ''
   emit('refresh')
@@ -105,10 +105,10 @@ const PAY_LABEL = (p) => (p.status === 'confirmed' ? ['ชำระแล้ว'
 const photos = computed(() => o.value.items.flatMap((i) => (i.workPhotos || []).map((p) => ({ ...p, name: i.name }))))
 const pc = reactive({ open: false, note: '', agree: false, error: '', ok: '' })
 const big = ref('')
-function askOptOut() {
+async function askOptOut() {
   pc.error = ''
   if (!pc.agree) return (pc.error = 'ติ๊กยืนยันก่อนส่งคำขอ')
-  const r = customerRequestPhotoOptOut(props.ctx, pc.note)
+  const r = await customerRequestPhotoOptOut(props.ctx, pc.note)
   if (r.error) return (pc.error = r.error)
   pc.open = false
   pc.note = ''
@@ -116,8 +116,8 @@ function askOptOut() {
   pc.ok = 'ส่งคำขอแล้ว ร้านจะตรวจสอบและลบรูปออกจากทุกที่ (ระหว่างนี้รูปจะไม่แสดงบนเว็บร้าน)'
   emit('refresh')
 }
-function cancelOptOut() {
-  const r = customerCancelPhotoOptOut(props.ctx)
+async function cancelOptOut() {
+  const r = await customerCancelPhotoOptOut(props.ctx)
   if (r.error) pc.error = r.error
   else { pc.ok = 'ยกเลิกคำขอแล้ว'; emit('refresh') }
 }
