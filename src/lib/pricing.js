@@ -274,8 +274,6 @@ export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: 
       const w = ifPicked(keyOf(x)) // เลือกแล้วชุดนี้ (หรือชุดที่ใหญ่กว่า) ได้ใช้จริงไหม → แสดงส่วนลดของชุดที่ใช้จริง
       if (w) put(x, last && w.b.items.length > 1 ? 'partner' : 'idle', w.amount, w.b.name, w.b.items.length === 1)
     }
-    if (!(sum(bundleWinners([...doneC, c])) > base)) continue
-    for (const x of have) put(x, 'idle', amount, b.name, single)
   }
   return tags
 }
