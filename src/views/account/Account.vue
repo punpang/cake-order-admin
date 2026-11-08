@@ -89,15 +89,15 @@ async function finishPin() {
     msg.value = 'เปลี่ยน PIN แล้ว'
   } else f.error = r.error
 }
-function finishPhone() {
-  const r = changePhone({ token: token.value, phone: phoneDigits(f.phone) })
+async function finishPhone() {
+  const r = await changePhone({ token: token.value, phone: phoneDigits(f.phone) })
   if (r.ok) {
     close()
     msg.value = 'เปลี่ยนเบอร์โทรแล้ว'
   } else f.error = r.error
 }
-function finishDelete() {
-  const r = requestDeletion({ token: token.value, note: f.note })
+async function finishDelete() {
+  const r = await requestDeletion({ token: token.value, note: f.note })
   if (r.ok) {
     close()
     msg.value = 'ส่งคำขอลบข้อมูลแล้ว ร้านจะตรวจสอบและแจ้งผล'

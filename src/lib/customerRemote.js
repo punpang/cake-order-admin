@@ -31,6 +31,7 @@ export function injectBundle(db, b) {
   for (const c of b.coupons || []) put(db.coupons, c)
   for (const c of b.consents || []) put(db.consents, c)
   for (const c of b.reviews || []) put(db.reviews, c)
+  for (const c of b.deletionRequests || []) put(db.deletionRequests, c)
   return b.customer.id
 }
 // ออกจากระบบ: ล้างข้อมูลของลูกค้ารายนั้นออกจากหน่วยความจำ (เครื่องใช้ร่วมกัน)
@@ -42,4 +43,5 @@ export function clearBundle(db, customerId) {
   drop(db.coupons, (c) => c.customerId === customerId)
   drop(db.consents, (c) => c.customerId === customerId)
   drop(db.reviews, (c) => c.customerId === customerId)
+  drop(db.deletionRequests, (c) => c.customerId === customerId)
 }

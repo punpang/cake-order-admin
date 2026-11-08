@@ -2936,7 +2936,9 @@ export const myCustomer = () => db.customers.find((c) => c.id === customerSessio
 // โหมด Supabase + ไม่ใช่พนักงาน: บัญชีลูกค้าอยู่ที่เซิร์ฟเวอร์ (Edge Function customer-auth) ไม่ใช่ข้อมูลจำลองในเครื่อง
 const remoteCust = () => supabaseEnabled && !staffState.staff
 const ACCT_BLOCK = 'ยังแก้ข้อมูลบัญชีผ่านหน้าเว็บไม่ได้ในตอนนี้ กรุณาแจ้งร้านทางแชท'
-const REMOTE_OTP = ['register', 'reset']
+const REMOTE_OTP = ['register', 'reset', 'change_pin', 'change_phone', 'delete']
+// OTP ของบัญชีที่ล็อกอินอยู่ (เปลี่ยน PIN/เบอร์/ลบข้อมูล) ต้องแนบเซสชัน · เซิร์ฟเวอร์ส่งไปเบอร์ของบัญชีเอง (change_phone ส่งไปเบอร์ใหม่)
+const remoteOtpBody = (phone, purpose) => ({ phone: phoneDigits(phone), purpose, ...(NEEDS_LOGIN.includes(purpose) ? { session: readSessionToken() } : {}) })
 export const customerLogout = () => {
   if (remoteCust()) {
     const t = readSessionToken()
@@ -2973,7 +2975,7 @@ const NEEDS_LOGIN = ['change_pin', 'change_phone', 'delete']
 // ขอ OTP (จำลอง: คืน simCode ให้แสดงบนจอ · ของจริงส่ง SMS ผ่านระบบ SMS ของร้านและไม่คืนรหัส)
 export function requestOtp(phoneRaw, purpose) {
   // โหมดออนไลน์: คืน Promise (เซิร์ฟเวอร์ส่ง SMS จริง ไม่คืนรหัส) · ผู้เรียกใช้ await เสมอ
-  if (remoteCust()) return REMOTE_OTP.includes(purpose) ? callAuth('otp_request', { phone: phoneDigits(phoneRaw), purpose }) : Promise.resolve({ error: ACCT_BLOCK })
+  if (remoteCust()) return REMOTE_OTP.includes(purpose) ? callAuth('otp_request', remoteOtpBody(phoneRaw, purpose)) : Promise.resolve({ error: ACCT_BLOCK })
   if (!OTP_PURPOSE[purpose]) return { error: 'ไม่รู้จักประเภทรหัส' }
   let phone = phoneDigits(phoneRaw)
   const me = myAccount()
@@ -3001,7 +3003,7 @@ export function requestOtp(phoneRaw, purpose) {
 }
 // ตรวจรหัส OTP → คืน token ไปใช้ในขั้นถัดไป (register: knownCustomer = เบอร์นี้มีลูกค้าในระบบแล้ว ไม่ต้องกรอกชื่อ)
 export function verifyOtp(phoneRaw, purpose, code) {
-  if (remoteCust()) return REMOTE_OTP.includes(purpose) ? callAuth('otp_verify', { phone: phoneDigits(phoneRaw), purpose, code: String(code ?? '') }) : Promise.resolve({ error: ACCT_BLOCK })
+  if (remoteCust()) return REMOTE_OTP.includes(purpose) ? callAuth('otp_verify', { ...remoteOtpBody(phoneRaw, purpose), code: String(code ?? '') }) : Promise.resolve({ error: ACCT_BLOCK })
   const me = myAccount()
   const phone = NEEDS_LOGIN.includes(purpose) && purpose !== 'change_phone' ? me?.phone : phoneDigits(phoneRaw)
   const o = db.otps.filter((x) => x.phone === phone && x.purpose === purpose && !x.used).sort((a, b) => b.sentAt - a.sentAt)[0]
@@ -3104,7 +3106,7 @@ export async function resetPin({ token, phone: phoneRaw, pin }) {
 }
 // เปลี่ยน PIN (ล็อกอินอยู่): ต้องยืนยัน OTP ก่อน
 export async function changePin({ token, pin }) {
-  if (remoteCust()) return { error: ACCT_BLOCK }
+  if (remoteCust()) return remoteAct('change_pin', { token, pin })
   const a = myAccount()
   const o = findVerified(token, 'change_pin', a?.phone)
   if (!a || !o) return NEED_OTP
@@ -3116,7 +3118,7 @@ export async function changePin({ token, pin }) {
 }
 // เปลี่ยนเบอร์: OTP ส่งไปเบอร์ใหม่
 export function changePhone({ token, phone: phoneRaw }) {
-  if (remoteCust()) return { error: ACCT_BLOCK }
+  if (remoteCust()) return remoteAct('change_phone', { token, phone: phoneDigits(phoneRaw) }) // Promise ในโหมดออนไลน์
   const phone = phoneDigits(phoneRaw)
   const a = myAccount()
   const cu = myCustomer()
@@ -3270,7 +3272,7 @@ export function consentStats(kind) {
 // ลูกค้าส่งคำขอ (ต้องยืนยัน OTP) → แอดมินอนุมัติ/ปฏิเสธ · อนุมัติ = ลบตัวตน เก็บออร์เดอร์/การชำระแบบนิรนาม
 export const myDeletionRequest = () => db.deletionRequests.find((r) => r.customerId === customerSession.customerId && r.status === 'pending') || db.deletionRequests.filter((r) => r.customerId === customerSession.customerId)[0] || null
 export function requestDeletion({ token, note = '' }) {
-  if (remoteCust()) return { error: ACCT_BLOCK }
+  if (remoteCust()) return remoteAct('request_deletion', { token, note }) // Promise ในโหมดออนไลน์
   const a = myAccount()
   const o = findVerified(token, 'delete', a?.phone)
   if (!a || !o) return NEED_OTP
