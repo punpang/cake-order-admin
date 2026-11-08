@@ -3,6 +3,7 @@ import { externalizePublic } from './storage'
 import { mirrorRows, PUBLIC_KEYS } from './publicData'
 import { syncSet, syncOk, syncDrop } from './syncStatus'
 import { RETRY_MS } from './tableSync'
+import { ensureStyleGroup } from './constants'
 
 // ซิงก์ "ตั้งค่า/แคตตาล็อก" (ร้าน, คะแนน, ตัวเลือกเค้ก, ราคา, POS ฯลฯ) กับ punpang_kv — 1 แถวต่อ 1 คีย์ของ db
 // ไม่รวมความลับ/ข้อมูลรายคน (users, ลูกค้า, ออร์เดอร์ ฯลฯ) · integrations เก็บเฉพาะสวิตช์เปิด/ปิดรายช่องทาง (ไม่เก็บ token/URL/ชื่อบัญชี/สถานะการเชื่อมต่อ) — ดู viewOf
@@ -63,6 +64,7 @@ export function applyValue(db, key, value) {
     if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) if (db.integrations?.[k] && typeof v?.enabled === 'boolean') db.integrations[k].enabled = v.enabled
     return
   }
+  if (key === 'optionGroups') ensureStyleGroup(value) // ฐานข้อมูลเดิมยังไม่มีกลุ่มรูปแบบตกแต่ง
   const cur = db[key]
   if (Array.isArray(cur) && Array.isArray(value)) cur.splice(0, cur.length, ...value)
   else if (cur && typeof cur === 'object' && !Array.isArray(cur) && value && typeof value === 'object' && !Array.isArray(value)) {

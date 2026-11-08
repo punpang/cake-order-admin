@@ -2,7 +2,7 @@
 // ขั้นต่อไปจะเปลี่ยนฟังก์ชันในไฟล์นี้ให้เรียก Supabase แทน
 import { reactive } from 'vue'
 import { BELL_MAX, BELL_STAFF, BELL_CUSTOMER, bellText, visibleToStaff, visibleToCustomer, unreadStaff, unreadCustomer, isReadStaff } from '../lib/bell'
-import { STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
+import { ensureStyleGroup, STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
 import { orderCardMsg, quoteCardMsg, linkCardMsg, payCard, viewCard } from '../lib/chatCards'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
@@ -411,6 +411,7 @@ for (const u of db.users) u.perms = rolePreset(u.role) // ผู้ใช้ต�
 for (const c of db.customers) Object.assign(c, { active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: true, places: [] })
 // ตัวอย่าง: ลูกค้าคนแรกผูก LINE แล้ว (จำลอง)
 db.customers[0].lineUserId = 'U-demo-mali'
+ensureStyleGroup(db.optionGroups)
 for (const g of db.optionGroups) g.active = true
 
 // ---------- ฟังก์ชัน ----------
@@ -468,15 +469,16 @@ export function saveCustomer(d) {
 }
 // ตารางราคา { [k]: { [sizeId]: ราคา } } ตัดช่องว่าง
 const cleanTable = (obj) => Object.fromEntries(Object.entries(obj || {}).map(([k, v]) => [k, cleanSpecial(v)]))
-export const savePriceList = (d) => upsert(db.priceLists, 'pl', { ...d, types: cleanSpecial(d.types), typeSizes: cleanTable(d.typeSizes), flavors: cleanSpecial(d.flavors) })
+export const savePriceList = (d) => upsert(db.priceLists, 'pl', { ...d, types: cleanSpecial(d.types), typeSizes: cleanTable(d.typeSizes), flavors: cleanSpecial(d.flavors), styles: cleanSpecial(d.styles) })
 // ตารางราคาเค้กหลัก (หน้าการกำหนดราคา): types = { [typeId] }, typeSizes = { [typeId]: { [sizeId] } }, flavors = { [flavorId] }
-export function saveMainPrices({ types = {}, typeSizes = {}, flavors = {} }) {
+export function saveMainPrices({ types = {}, typeSizes = {}, flavors = {}, styles = {} }) {
   const byKey = (k) => db.optionGroups.find((x) => x.key === k)?.options || []
   for (const o of byKey('type')) {
     if (types[o.id] !== undefined) o.price = Number(types[o.id]) || 0
     if (typeSizes[o.id]) o.sizePrices = { ...(o.sizePrices || {}), ...cleanSpecial(typeSizes[o.id]) }
   }
   for (const o of byKey('flavor')) if (flavors[o.id] !== undefined) o.price = Number(flavors[o.id]) || 0
+  for (const o of byKey('style')) if (styles[o.id] !== undefined) o.price = Number(styles[o.id]) || 0
 }
 // ---------- คลังรูปเค้กสั่งทำ (แอดมิน) ----------
 const optionIdSet = () => new Set(db.optionGroups.flatMap((g) => (g.options || []).map((o) => o.id)))
@@ -723,7 +725,7 @@ export function saveOption(groupId, d) {
   if (g.key === 'size') data.pounds = Number(d.pounds) || 1
   else if (g.key === 'type') {
     if (!d.id) Object.assign(data, { price: 0, sizePrices: {} })
-  } else if (g.key === 'flavor') {
+  } else if (g.key === 'flavor' || g.key === 'style') {
     if (!d.id) data.price = 0
   } else {
     const fixed = d.priceType === 'fixed'

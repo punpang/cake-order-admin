@@ -130,7 +130,15 @@ export const PAYMENT_METHODS = ['โอนเงิน', 'เงินสด', '
 
 // กลุ่มตัวเลือก
 // กลุ่มหลักของเค้กสั่งทำ (เรียงตามลำดับเลือก): ประเภท > เนื้อเค้ก > ขนาด
-export const MAIN_KEYS = ['type', 'flavor', 'size']
+export const MAIN_KEYS = ['type', 'flavor', 'size', 'style']
+// กลุ่มหลักที่ "เพิ่มภายหลัง": ฐานข้อมูลเดิมยังไม่มี → เติมให้อัตโนมัติ (ไม่บังคับเลือก ไม่มีตัวเลือกเริ่มต้น)
+export const STYLE_GROUP = { id: 'g_style', key: 'style', name: 'รูปแบบตกแต่ง', perTier: true, type: 'single', required: false, appliesTo: ['custom'], active: true, options: [] }
+export function ensureStyleGroup(groups) {
+  if (!Array.isArray(groups) || groups.some((g) => g.key === 'style')) return groups
+  const at = groups.findIndex((g) => g.key === 'size')
+  groups.splice(at >= 0 ? at + 1 : groups.length, 0, JSON.parse(JSON.stringify(STYLE_GROUP)))
+  return groups
+}
 
 export const GROUP_TYPES = { single: 'เลือกได้ 1 อย่าง', multi: 'เลือกได้หลายอย่าง', text: 'พิมพ์ข้อความ' }
 export const APPLIES_TO = { custom: 'สั่งทำ', ready: 'สินค้าสำเร็จ' }

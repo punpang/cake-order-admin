@@ -15,11 +15,11 @@ const props = defineProps({ id: { type: String, required: true } })
 const group = computed(() => findGroup(props.id))
 const isSize = computed(() => group.value?.key === 'size')
 const isType = computed(() => group.value?.key === 'type')
-const isFlavor = computed(() => group.value?.key === 'flavor')
+const isFlavor = computed(() => group.value?.key === 'flavor' || group.value?.key === 'style') // รูปแบบตกแต่ง: ราคาบวกคงที่เหมือนเนื้อเค้ก
 // กลุ่มหลัก (ประเภท/เนื้อเค้ก/ขนาด): ราคาตั้งที่หน้าการกำหนดราคา · กลุ่มรอง: ราคาตามขนาด
 const isMain = computed(() => MAIN_KEYS.includes(group.value?.key))
 // ประเภท: เลือกเนื้อเค้ก/ขนาดที่มี
-const limitGroups = computed(() => db.optionGroups.filter((x) => x.key === 'flavor' || x.key === 'size'))
+const limitGroups = computed(() => db.optionGroups.filter((x) => x.key === 'flavor' || x.key === 'size' || (x.key === 'style' && x.options.length)))
 
 const q = ref('')
 const inactive = ref(false)

@@ -24,7 +24,7 @@ export function allowedBy(groups, selections) {
 export const tiersOf = (item) => (item.kind === 'custom' && item.tiers?.length ? item.tiers : [{ selections: item.selections || {} }])
 export const isTierGroup = (g, item) => item.kind === 'custom' && !!g.perTier
 const idsOf = (sel) => (sel == null ? [] : Array.isArray(sel) ? sel : [sel])
-const MAIN = ['type', 'flavor', 'size']
+import { MAIN_KEYS as MAIN } from './constants'
 
 // ---------- ราคาเค้กหลัก: ประเภท (คงที่) + เนื้อเค้ก (คงที่) + ราคาขนาดของประเภท ----------
 // ประเภท: option.price + option.sizePrices[sizeId] · เนื้อเค้ก: option.price
@@ -49,9 +49,10 @@ export const typePrice = (t, active = [], used = null) => (t ? pickSpecial(Numbe
 export const typeSizePrice = (t, sizeId, active = [], used = null) =>
   t && sizeId ? pickSpecial(Number(t.sizePrices?.[sizeId]) || 0, active, (l) => l.typeSizes?.[t.id]?.[sizeId], used) : 0
 export const flavorPrice = (f, active = [], used = null) => (f ? pickSpecial(Number(f.price) || 0, active, (l) => l.flavors?.[f.id], used) : 0)
+export const stylePrice = (o, active = [], used = null) => (o ? pickSpecial(Number(o.price) || 0, active, (l) => l.styles?.[o.id], used) : 0)
 
 // ราคา 1 ชั้น (หรือเค้กสำเร็จ 1 ก้อน)
-export function mainPrice(typeIds, flavorIds, sizeId, groups, active = [], used = null) {
+export function mainPrice(typeIds, flavorIds, sizeId, groups, active = [], used = null, styleIds = null) {
   const find = (key, id) => groups.find((g) => g.key === key)?.options.find((o) => o.id === id)
   let sum = 0
   for (const id of idsOf(typeIds)) {
@@ -59,6 +60,7 @@ export function mainPrice(typeIds, flavorIds, sizeId, groups, active = [], used 
     sum += typePrice(t, active, used) + typeSizePrice(t, sizeId, active, used)
   }
   for (const id of idsOf(flavorIds)) sum += flavorPrice(find('flavor', id), active, used)
+  for (const id of idsOf(styleIds)) sum += stylePrice(find('style', id), active, used)
   return sum
 }
 // base = ราคาเค้กหลัก (รวมทุกชั้น), pounds = ปอนด์รวม, tierPounds / tierSizes / tierTypes = ปอนด์ ขนาด และประเภทของแต่ละชั้น
@@ -72,6 +74,7 @@ export function itemBase(item, groups, products, active = [], used = null) {
   }
   const type = groups.find((g) => g.key === 'type')
   const flavor = groups.find((g) => g.key === 'flavor')
+  const style = groups.find((g) => g.key === 'style')
   let base = 0
   const tierPounds = []
   const tierSizes = []
@@ -82,7 +85,7 @@ export function itemBase(item, groups, products, active = [], used = null) {
     tierPounds.push(sizeGroup?.options.find((o) => o.id === sid)?.pounds || 1)
     tierSizes.push(sid ? [sid] : [])
     tierTypes.push(idsOf(sel(type))[0] || null)
-    base += mainPrice(sel(type), sel(flavor), sid, groups, active, used)
+    base += mainPrice(sel(type), sel(flavor), sid, groups, active, used, sel(style))
   }
   return { base, pounds: tierPounds.reduce((a, b) => a + b, 0), tierPounds, tierSizes, tierTypes }
 }

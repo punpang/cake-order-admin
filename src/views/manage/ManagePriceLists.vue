@@ -24,16 +24,18 @@ const optsOf = (k, all = false) => (db.optionGroups.find((g) => g.key === k)?.op
 const sizes = computed(() => optsOf('size', true).filter((x) => x.active !== false))
 const types = computed(() => optsOf('type'))
 const flavors = computed(() => optsOf('flavor'))
-const table = reactive({ types: {}, typeSizes: {}, flavors: {} })
+const styles = computed(() => optsOf('style'))
+const table = reactive({ types: {}, typeSizes: {}, flavors: {}, styles: {} })
 function loadTable() {
   table.types = Object.fromEntries(optsOf('type', true).map((t) => [t.id, t.price || 0]))
   table.typeSizes = Object.fromEntries(optsOf('type', true).map((t) => [t.id, Object.fromEntries(sizes.value.map((s) => [s.id, t.sizePrices?.[s.id] ?? 0]))]))
   table.flavors = Object.fromEntries(optsOf('flavor', true).map((f) => [f.id, f.price || 0]))
+  table.styles = Object.fromEntries(optsOf('style', true).map((f) => [f.id, f.price || 0]))
 }
 loadTable()
 const tableMsg = ref('')
 function saveTable() {
-  const vals = [...Object.values(table.types), ...Object.values(table.typeSizes).flatMap((r) => Object.values(r)), ...Object.values(table.flavors)]
+  const vals = [...Object.values(table.types), ...Object.values(table.typeSizes).flatMap((r) => Object.values(r)), ...Object.values(table.flavors), ...Object.values(table.styles)]
   if (vals.some((v) => v === '' || v == null || !(Number(v) >= 0))) return (tableMsg.value = 'กรอกตัวเลข 0 ขึ้นไปให้ครบทุกช่อง')
   saveMainPrices(JSON.parse(JSON.stringify(table)))
   loadTable()
@@ -48,11 +50,11 @@ const nowIds = computed(() => activeLists(db.priceLists, today).map((l) => l.id)
 const period = (l) => (l.scheduled ? `${l.from ? dateOnly(l.from) : '…'} – ${l.to ? dateOnly(l.to) : '…'}` : 'ไม่กำหนดเวลา')
 
 const open = ref(false)
-const blank = () => ({ id: null, name: '', active: true, scheduled: false, from: today, to: today, types: {}, typeSizes: {}, flavors: {} })
+const blank = () => ({ id: null, name: '', active: true, scheduled: false, from: today, to: today, types: {}, typeSizes: {}, flavors: {}, styles: {} })
 const form = reactive(blank())
 const error = ref('')
 function edit(l) {
-  Object.assign(form, l ? { ...blank(), ...l, types: { ...(l.types || {}) }, typeSizes: JSON.parse(JSON.stringify(l.typeSizes || {})), flavors: { ...(l.flavors || {}) } } : blank())
+  Object.assign(form, l ? { ...blank(), ...l, types: { ...(l.types || {}) }, typeSizes: JSON.parse(JSON.stringify(l.typeSizes || {})), flavors: { ...(l.flavors || {}) }, styles: { ...(l.styles || {}) } } : blank())
   for (const x of optsOf('type', true)) if (!form.typeSizes[x.id]) form.typeSizes[x.id] = {}
   error.value = ''
   open.value = true
@@ -61,7 +63,7 @@ async function save() {
   if (!form.name.trim()) return (error.value = 'กรอกชื่อราคาพิเศษ')
   if (form.scheduled && (!form.from || !form.to)) return (error.value = 'เลือกวันเริ่มและวันสิ้นสุด')
   if (form.scheduled && form.to < form.from) return (error.value = 'วันสิ้นสุดต้องไม่ก่อนวันเริ่ม')
-  const vals = [...Object.values(form.types), ...Object.values(form.typeSizes).flatMap((r) => Object.values(r)), ...Object.values(form.flavors)]
+  const vals = [...Object.values(form.types), ...Object.values(form.typeSizes).flatMap((r) => Object.values(r)), ...Object.values(form.flavors), ...Object.values(form.styles)]
   if (vals.some((v) => v !== '' && v != null && !(Number(v) >= 0))) return (error.value = 'ราคาต้องเป็น 0 ขึ้นไป')
   if (!(await confirmDeactivate(db.priceLists, form, form.name))) return
   savePriceList({ ...form })
@@ -108,6 +110,15 @@ async function save() {
           <input v-model="table.flavors[f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" />
         </label>
       </div>
+      <template v-if="styles.length">
+        <div class="mt-4 mb-1 text-xs font-semibold text-stone-500">รูปแบบตกแต่ง (บวกเท่ากันทุกขนาด)</div>
+        <div class="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
+          <label v-for="f in styles" :key="f.id" class="flex items-center gap-3" :class="f.active === false ? 'opacity-60' : ''">
+            <span class="min-w-0 flex-1 truncate text-sm text-stone-800">{{ f.name }}<span v-if="f.active === false" class="ml-1 text-xs text-stone-400">(ปิด)</span></span>
+            <input v-model="table.styles[f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" />
+          </label>
+        </div>
+      </template>
       <div class="mt-3 flex items-center justify-end gap-3">
         <span v-if="tableMsg" class="text-sm" :class="tableMsg === 'บันทึกแล้ว' ? 'text-emerald-700' : 'text-rose-600'">{{ tableMsg }}</span>
         <button class="btn-primary" @click="saveTable">บันทึกตาราง</button>
@@ -173,6 +184,15 @@ async function save() {
               <input v-model="form.flavors[f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" :placeholder="money(f.price || 0)" />
             </label>
           </div>
+          <template v-if="optsOf('style', true).some((x) => x.active !== false)">
+            <div class="mt-3 mb-1 text-xs font-semibold text-stone-500">รูปแบบตกแต่ง (บวกเท่ากันทุกขนาด)</div>
+            <div class="space-y-1.5">
+              <label v-for="f in optsOf('style', true).filter((x) => x.active !== false)" :key="f.id" class="flex items-center gap-3">
+                <span class="min-w-0 flex-1 truncate text-sm text-stone-800">{{ f.name }}</span>
+                <input v-model="form.styles[f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" :placeholder="money(f.price || 0)" />
+              </label>
+            </div>
+          </template>
           <p class="mt-1 text-xs text-stone-400">เว้นว่าง = ใช้ราคาปกติ (ตัวเลขจาง)</p>
         </div>
         <p class="text-xs text-stone-400">ถ้ามีหลายแบบใช้งานพร้อมกัน จะใช้ราคาที่ต่ำสุด (แยกทีละช่อง)</p>

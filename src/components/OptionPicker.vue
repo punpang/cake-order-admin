@@ -1,6 +1,7 @@
 <script setup>
 import { money } from '../lib/format'
-import { typePrice, typeSizePrice, flavorPrice, optionPrice, isFixed, forType } from '../lib/pricing'
+import { MAIN_KEYS } from '../lib/constants'
+import { typePrice, typeSizePrice, flavorPrice, stylePrice, optionPrice, isFixed, forType } from '../lib/pricing'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
@@ -14,10 +15,11 @@ const props = defineProps({
 const selections = defineModel({ type: Object, required: true })
 
 // ราคาเค้กหลัก: ประเภท = ราคาคงที่ (+ ราคาขนาดถ้าเลือกขนาดแล้ว), เนื้อเค้ก = คงที่, ขนาด = ราคาขนาดของประเภทที่เลือก
-const isMain = (g) => ['type', 'flavor', 'size'].includes(g.key)
+const isMain = (g) => MAIN_KEYS.includes(g.key)
 function mainPrice(g, o, active) {
   if (g.key === 'type') return typePrice(o, active) + typeSizePrice(o, props.sizeIds[0], active)
   if (g.key === 'size') return props.typeOpt ? typeSizePrice(props.typeOpt, o.id, active) : null
+  if (g.key === 'style') return stylePrice(o, active)
   return flavorPrice(o, active)
 }
 function priceText(g, o) {
@@ -68,7 +70,7 @@ const isOn = (g, o) =>
 <template>
   <div class="space-y-3">
     <div
-      v-for="g in groups"
+      v-for="g in groups.filter((x) => x.key !== 'style' || x.options.some((o) => o.active !== false))"
       :key="g.id"
       class="rounded-2xl border bg-white p-3.5"
       :class="errors[g.id] ? 'border-rose-300 ring-4 ring-rose-50' : 'border-stone-200/70'"
