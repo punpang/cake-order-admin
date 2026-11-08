@@ -276,6 +276,14 @@ async function saveO() {
           <p class="text-sm text-stone-500">ราคาของขนาดนี้ตั้งแยกตามประเภทที่ <RouterLink to="/admin/settings/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></p>
         </template>
 
+        <div v-else-if="isMain && isFlavor && o.priceType === 'size'" class="space-y-2">
+          <div class="label">ราคาบวกเพิ่มตามขนาด (บาท)</div>
+          <div class="flex flex-wrap gap-2">
+            <label v-for="sz in sizeOpts" :key="sz.id" class="text-xs text-stone-500">{{ sz.name }}<input v-model="o.sizePrices[sz.id]" type="text" v-num.dec min="0" class="input mt-0.5 h-11 w-24" :data-opt-size="sz.id" placeholder="0" /></label>
+          </div>
+          <p class="text-xs text-stone-400">เว้นว่าง = ไม่บวกเพิ่มในขนาดนั้น · ราคาพิเศษตามช่วงเวลาตั้งที่ <RouterLink to="/admin/settings/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></p>
+        </div>
+
         <div v-else-if="isMain" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">
           <template v-if="o.id">
             <template v-if="isType">ราคาประเภท {{ money(o.price || 0) }}<br />ราคาขนาด: {{ sizesText(o.sizePrices, '') }}<br /></template>
