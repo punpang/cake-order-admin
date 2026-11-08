@@ -6,6 +6,7 @@ import { paymentCounts } from './lib/paymentsQueue'
 import { focusMain } from './lib/a11yNav'
 import { supabaseEnabled } from './lib/supabase'
 import { staffState, staffSignOut } from './lib/staffAuth'
+import { kb, watchViewport } from './lib/viewportFit'
 import { ROLES } from './lib/constants'
 import { firstHome, homeOf, systemOf, systemByKey, visibleSystems, visibleItems } from './lib/adminSystems'
 import AppIcon from './components/AppIcon.vue'
@@ -36,6 +37,12 @@ const badges = computed(() => ({ chat: unread.value, pay: paySlips.value }))
 const bottomItems = computed(() => (current.value === 'orders' ? items.value.filter((i) => i.mobile) : items.value))
 const hasSwitch = computed(() => systems.value.length > 1)
 const showBottom = computed(() => !route.meta.focus && bottomItems.value.length + (hasSwitch.value ? 1 : 0) >= 2)
+// หน้าล็อก (แชท): ตามขนาดส่วนที่มองเห็นจริงเมื่อแป้นพิมพ์เปิด · ซ่อนแถบเมนูล่างระหว่างพิมพ์
+let stopVv = () => {}
+watch(() => !!route.meta.lock, (on) => { stopVv(); stopVv = on ? watchViewport() : () => {} }, { immediate: true })
+onBeforeUnmount(() => stopVv())
+const lockStyle = computed(() => (route.meta.lock ? { top: 'calc(3.5rem + var(--vvt, 0px))', height: 'calc(var(--vvh, 100dvh) - 3.5rem)' } : null))
+const navShow = computed(() => showBottom.value && !(route.meta.lock && kb.open))
 const sysOpen = ref(false)
 const bottomCols = computed(() => bottomItems.value.length + (hasSwitch.value ? 1 : 0))
 const curLabel = computed(() => systems.value.find((x) => x.key === current.value)?.label || 'ระบบ')
@@ -94,14 +101,15 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     id="main-content"
     tabindex="-1"
     class="mx-auto max-w-page outline-none px-4 lg:px-8"
-    :class="$route.meta.lock ? ['fixed inset-x-0 top-14 bottom-0 overflow-hidden pt-3', $route.meta.focus || !showBottom ? 'pb-[calc(env(safe-area-inset-bottom)+0.75rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-3'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10', 'pt-5']"
+    :style="lockStyle"
+    :class="$route.meta.lock ? ['fixed inset-x-0 overflow-hidden pt-3', $route.meta.focus || !navShow ? 'pb-[calc(env(safe-area-inset-bottom)+0.75rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-3'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10', 'pt-5']"
   >
     <RouterView :key="$route.fullPath" />
   </main>
 
   <!-- แถบเมนูล่าง (มือถือ) -->
   <nav
-    v-if="showBottom"
+    v-if="navShow"
     class="fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_rgb(63_46_46/0.10)] backdrop-blur-xl md:hidden"
     aria-label="เมนูล่าง"
   >

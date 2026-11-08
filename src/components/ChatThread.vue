@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { addCakeCodesToDraft, db, findOrder, sendChat, markRead, findQuote, acceptQuote, reviseQuote, fbWindowOpen, convertQuote, chatOrderBlock, findCustomer, linkChat, askCustomer, cancelAsk, applyToDraft, ASK_FIELDS, saveCanned, removeCanned, sendBotDraft, dismissBotDraft, setChatBot, staffReplied, recommendText, addRecommendToDraft } from '../data/store'
+import { addCakeCodesToDraft, can, postOrderCard, db, findOrder, sendChat, markRead, findQuote, acceptQuote, reviseQuote, fbWindowOpen, convertQuote, chatOrderBlock, findCustomer, linkChat, askCustomer, cancelAsk, applyToDraft, ASK_FIELDS, saveCanned, removeCanned, sendBotDraft, dismissBotDraft, setChatBot, staffReplied, recommendText, addRecommendToDraft } from '../data/store'
 import { detectEntities } from '../lib/chatParse'
 import { CODE_RE, findCodes } from '../lib/cakeCode'
 import { extractIntent, customerText, scoreProducts, intentSummary } from '../lib/chatIntent'
@@ -13,6 +13,8 @@ import DiscountDetail from './DiscountDetail.vue'
 import AppModal from './AppModal.vue'
 import ChatAttachment from './ChatAttachment.vue'
 import { messagePreview } from '../lib/chatMedia'
+import { kb } from '../lib/viewportFit'
+import { showToast } from '../lib/toast'
 
 // เธรดแชทของศูนย์รวมแชท (ฝั่งพนักงาน) · ข้อความจากลูกค้ามาจาก LINE OA / Facebook (จำลอง)
 const props = defineProps({ chat: { type: Object, required: true } })
@@ -59,6 +61,22 @@ watch(count, () => {
   markRead(props.chat.id)
   scrollEnd()
 })
+// แป้นพิมพ์มือถือเปิด/ปิด → เลื่อนให้ข้อความล่าสุดอยู่เหนือช่องพิมพ์
+watch(() => kb.open, () => scrollEnd())
+
+// ส่งการ์ดสรุปออร์เดอร์ของลูกค้ารายนี้ (ปุ่มใต้ช่องพิมพ์): 1 ใบ → ส่งเลย · หลายใบ → เลือกก่อน
+const sumOpen = ref(false)
+const custOrders = computed(() => (props.chat.customerId ? db.orders.filter((o) => o.customerId === props.chat.customerId && o.channel !== 'pos' && o.status !== 'draft') : []))
+function sendSummary(o) {
+  sumOpen.value = false
+  postOrderCard(o, props.chat)
+  showToast(`ส่งสรุปออร์เดอร์ ${o.code} แล้ว`)
+}
+function openSummary() {
+  const l = custOrders.value
+  if (l.length === 1) sendSummary(l[0])
+  else if (l.length) sumOpen.value = true
+}
 onMounted(() => {
   markRead(props.chat.id)
   scrollEnd()
@@ -348,6 +366,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
         <button type="button" aria-label="ยกเลิกคำถาม" @click="cancelAsk(chat.id)"><AppIcon name="x" :size="12" /></button>
       </span>
       <button v-for="(f, k) in ASK_FIELDS" :key="k" type="button" class="chip chip-off shrink-0 px-2.5 py-1 text-xs whitespace-nowrap" @click="ask(k)">{{ f.label }}</button>
+      <button v-if="custOrders.length && can('createOrder')" type="button" class="chip chip-on shrink-0 px-2.5 py-1 text-xs whitespace-nowrap" data-send-summary @click="openSummary">สรุปออร์เดอร์</button>
       <button type="button" class="chip chip-off shrink-0 px-2.5 py-1 text-xs whitespace-nowrap" @click="cannedOpen = true">ข้อความสำเร็จรูป</button>
       <button v-if="db.bot.enabled" type="button" class="chip shrink-0 px-2.5 py-1 text-xs whitespace-nowrap" :class="chat.botOff ? 'chip-off' : 'chip-on'" @click="setChatBot(chat.id, !!chat.botOff)">บอท: {{ chat.botOff ? 'ปิดในแชทนี้' : 'เปิด' }}</button>
     </div>
@@ -362,6 +381,16 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
       <textarea ref="input" v-model="text" rows="1" class="input max-h-32 min-h-11 flex-1 resize-none py-2.5" :placeholder="`ตอบทาง ${channelLabel}`" @keydown="onKey" />
       <button type="submit" class="btn-primary h-11 w-11 shrink-0 px-0" :disabled="!text.trim()" aria-label="ส่ง"><AppIcon name="send" :size="18" /></button>
     </form>
+
+    <!-- เลือกออร์เดอร์ที่จะส่งสรุป -->
+    <AppModal v-if="sumOpen" title="ส่งสรุปออร์เดอร์" @close="sumOpen = false">
+      <div class="space-y-2">
+        <button v-for="o in custOrders" :key="o.id" type="button" class="block w-full rounded-xl border border-stone-200 p-3 text-left hover:bg-stone-50" data-summary-pick @click="sendSummary(o)">
+          <span class="flex items-baseline justify-between gap-2"><span class="font-medium text-stone-900">{{ o.code }}</span><span class="text-xs text-stone-500">{{ STATUS[o.status]?.label || o.status }}</span></span>
+          <span class="mt-0.5 flex items-baseline justify-between gap-2 text-sm text-stone-600"><span>นัด {{ dateTime(o.pickupAt) }}</span><span>{{ money(orderTotals(o).total) }}<span v-if="orderTotals(o).balance > 0.004" class="text-amber-700"> · ค้าง {{ money(orderTotals(o).balance) }}</span></span></span>
+        </button>
+      </div>
+    </AppModal>
 
     <!-- ข้อความสำเร็จรูป -->
     <AppModal v-if="cannedOpen" title="ข้อความสำเร็จรูป" @close="cannedOpen = false; cannedEdit = null">
