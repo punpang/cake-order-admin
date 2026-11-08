@@ -9,13 +9,18 @@ export function activeLists(lists, dateStr) {
 }
 
 // ---------- เนื้อเค้ก/ขนาดที่ประเภทอนุญาต ----------
-// ตัวเลือกของประเภทมี allow = { [groupId]: [optionId] } ไม่มี key = เลือกได้ทุกตัว
+// ตัวเลือกของประเภท (และรูปแบบตกแต่ง) มี allow = { [groupId]: [optionId] } ไม่มี key = เลือกได้ทุกตัว
 export function allowedBy(groups, selections) {
   const type = groups.find((g) => g.key === 'type')
   const sel = type ? selections?.[type.id] : null
   const ids = sel == null ? [] : Array.isArray(sel) ? sel : [sel]
   const types = ids.map((id) => type.options.find((o) => o.id === id)).filter(Boolean)
-  return (g, o) => types.every((t) => !t.allow?.[g.id] || t.allow[g.id].includes(o.id))
+  // รูปแบบตกแต่งที่เลือกก็จำกัดตัวเลือก (เช่น ซ่อน/แสดงขนาด) ด้วย allow รูปแบบเดียวกับประเภท
+  const style = groups.find((g) => g.key === 'style')
+  const sids = style ? [].concat(selections?.[style.id] ?? []) : []
+  const styles = sids.map((id) => style.options.find((o) => o.id === id)).filter(Boolean)
+  const lim = [...types, ...styles]
+  return (g, o) => lim.every((t) => !t.allow?.[g.id] || t.allow[g.id].includes(o.id))
 }
 
 // ---------- ชั้นของเค้ก ----------

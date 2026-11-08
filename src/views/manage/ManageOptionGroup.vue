@@ -112,6 +112,8 @@ function toggleGroup(gid) {
   else cur.push(gid)
   o.groups = subGroups.value.every((x) => cur.includes(x.id)) ? [] : cur // ครบทุกหัวข้อ = ไม่จำกัด
 }
+// รูปแบบตกแต่ง: ซ่อน/แสดงขนาดได้ (เหมือนประเภทเลือกขนาดที่มี)
+const sizeLimit = computed(() => db.optionGroups.filter((x) => x.key === 'size'))
 const allowOn = (lg, oid) => !o.allow[lg.id] || o.allow[lg.id].includes(oid)
 function toggleAllow(lg, oid) {
   const cur = o.allow[lg.id] ? [...o.allow[lg.id]] : lg.options.map((x) => x.id)
@@ -130,9 +132,9 @@ async function saveO() {
   const data = { ...o }
   if (!isType.value) delete data.images
   if (!isStyle.value) delete data.groups
-  if (!isType.value) delete data.allow
+  if (!isType.value && !isStyle.value) delete data.allow
   else {
-    for (const lg of limitGroups.value) if (data.allow[lg.id] && !data.allow[lg.id].length) return (oError.value = `เลือก${lg.name}อย่างน้อย 1 อย่าง`)
+    for (const lg of isType.value ? limitGroups.value : sizeLimit.value) if (data.allow[lg.id] && !data.allow[lg.id].length) return (oError.value = `เลือก${lg.name}อย่างน้อย 1 อย่าง`)
   }
   if (!(await confirmDeactivate(group.value.options, o, o.name))) return
   saveOption(group.value.id, data)
@@ -359,6 +361,15 @@ async function saveO() {
             </div>
           </div>
           <p class="text-xs text-stone-400">ที่ไม่เลือกจะไม่แสดงตอนสั่ง</p>
+        </div>
+        <div v-if="isStyle" class="space-y-3">
+          <div v-for="lg in sizeLimit" :key="lg.id">
+            <div class="label">{{ lg.name }}ที่แสดงเมื่อเลือกรูปแบบนี้</div>
+            <div class="flex flex-wrap gap-2">
+              <button v-for="x in lg.options.filter((y) => y.active !== false || allowOn(lg, y.id))" :key="x.id" type="button" class="chip" :class="allowOn(lg, x.id) ? 'chip-on' : 'chip-off'" :aria-pressed="allowOn(lg, x.id)" :data-style-size="x.id" @click="toggleAllow(lg, x.id)">{{ x.name }}</button>
+            </div>
+          </div>
+          <p class="text-xs text-stone-400">ขนาดที่ไม่เลือกจะซ่อนตอนสั่ง และล้างค่าที่เลือกไว้ · เลือกครบทุกขนาด = ไม่จำกัด · ถ้าประเภทจำกัดขนาดด้วย จะแสดงเฉพาะขนาดที่ทั้งสองอนุญาต</p>
         </div>
         <div v-if="isStyle && subGroups.length">
           <div class="label">หัวข้อที่เลือกได้เมื่อเลือกรูปแบบนี้</div>
