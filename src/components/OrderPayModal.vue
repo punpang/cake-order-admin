@@ -11,6 +11,7 @@ import { resizeImage, imageErrorMessage } from '../lib/imageResize'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
 import SecureImg from './SecureImg.vue'
+import SmsTick from './SmsTick.vue'
 
 // โมดัลแจ้งยอดชำระ / แก้ยอดที่แจ้ง / ยืนยันยอดจริง / รับชำระทันที (ใช้ร่วมกันที่หน้ารายละเอียดออร์เดอร์และหน้าชำระเงิน)
 // mode = new | edit | confirm | direct · target = งวดที่แก้/ยืนยัน (new/direct ไม่ต้องส่ง) · เปิดด้วย v-if ใหม่ทุกครั้ง
@@ -26,7 +27,7 @@ const nowLocal = () => {
 
 const payMode = props.mode // new | edit | confirm | direct (รับชำระทันที ไม่ต้องแจ้งยอด) · เปิดใหม่ทุกครั้ง (v-if) จึงไม่ต้องเป็น ref
 const payTarget = props.target
-const pay = reactive({ amount: 0, method: PAYMENT_METHODS[0], paidAt: '', slip: '', note: '', dueAt: '', notify: true })
+const pay = reactive({ amount: 0, method: PAYMENT_METHODS[0], paidAt: '', slip: '', note: '', dueAt: '', notify: true, sms: true })
 const payError = ref('')
 // กำหนดชำระตามเวลานัด: ก่อนนัด N ชม. / ล่วงหน้า N วัน ก่อน HH:mm (ผ่านไปแล้ว = ปิดปุ่ม + เหตุผล)
 const HOURS_BEFORE = [1, 3, 6, 12, 24]
@@ -58,6 +59,7 @@ const showDeposit = computed(() =>
   dueDays.value = db.shop.payDueRule.daysBefore
   dueTime.value = db.shop.payDueRule.atTime
   pay.notify = true
+  pay.sms = true
   payError.value = ''
 }
 async function onSlip(e) {
@@ -113,6 +115,7 @@ async function savePay() {
       </div>
     </div>
     <label v-if="customer && order.channel !== 'pos' && payMode !== 'edit'" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="pay.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> {{ payMode === 'new' ? 'แจ้งยอดชำระให้ลูกค้าทราบ' : 'แจ้งลูกค้าว่าได้รับชำระแล้ว' }}</label>
+    <SmsTick v-if="customer && order.channel !== 'pos' && payMode !== 'edit'" v-model="pay.sms" :customer="customer" :show="pay.notify" />
     <div v-if="payMode === 'new' || payMode === 'edit'">
       <div class="label">ต้องชำระก่อน</div>
       <div class="mb-2 flex flex-wrap gap-2">

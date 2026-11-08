@@ -49,3 +49,10 @@ export function quoteCardMsg(quote, totals, shopName = '', opts = {}) {
 export function linkCardMsg(order, url, shopName = '', opts = {}) {
   return { text: '', card: { kind: 'link', title: clip(`ออร์เดอร์ ${order.code || ''}`), subtitle: 'เปิดดูสถานะออร์เดอร์ (ดูอย่างเดียว)', url, ...(httpsOnly(opts.image) ? { image: opts.image } : {}) } }
 }
+// การ์ด "ได้รับชำระ": หัวข้อ = ยอดที่ชำระครั้งนี้ · บรรทัดรอง = ชำระแล้ว/คงค้าง · ปุ่มดูออร์เดอร์ (ถ้ามีลิงก์) → คืนเฉพาะ card
+export function payCard(order, totals, { paid = null, url = '', image = '' } = {}) {
+  const owe = totals.balance > 0.004
+  const sub = owe ? `ชำระแล้ว ${money(totals.paid)} · คงค้าง ${money(totals.balance)}` : `ชำระครบ ${money(totals.total)} แล้ว ขอบคุณค่ะ`
+  const link = httpsOnly(url)
+  return { kind: 'order', title: clip(`${paid != null ? `ได้รับชำระ ${money(paid)}` : 'ได้รับชำระ'} · ${order.code || ''}`), subtitle: clip(sub), ...(httpsOnly(image) ? { image } : {}), ...(link ? { url: link, pay: owe } : {}) }
+}

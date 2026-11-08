@@ -18,6 +18,7 @@ import DeliveryFields from '../components/DeliveryFields.vue'
 import { cleanDelivery } from '../lib/delivery'
 import { dayClosed } from '../lib/shopHours'
 import { parseBirthday, mdLabel } from '../lib/birthday'
+import SmsTick from '../components/SmsTick.vue'
 
 // ใช้ได้ 2 แบบ: หน้าเต็ม (/orders/new) หรือแผงในแชท (embedded + draft ของแชทจาก store → สลับไปมาข้อมูลไม่หาย)
 const props = defineProps({
@@ -32,6 +33,7 @@ const steps = ['ลูกค้า', 'นัดรับ', 'สินค้า',
 // สร้างจากแชท: /orders/new?customer=<id>&chat=<chatId> → เติมลูกค้าและข้ามขั้นเลือกลูกค้า
 const fromChat = props.chatId || (typeof route.query.chat === 'string' ? route.query.chat : null)
 const error = ref('')
+const smsToo = ref(true) // ส่ง SMS ซ้ำเมื่อส่งทางแชท (ลูกค้ามีเบอร์)
 const notifyCustomer = ref(true) // แจ้งลูกค้าตอนบันทึก·รอชำระ (ค่าเริ่มต้นส่ง)
 
 const form = props.draft || reactive({
@@ -200,7 +202,7 @@ async function submit(asDraft) {
   }
   let o = pendingOrder
   if (!o) {
-    o = createOrder({ ...form, pickupAt: pickupAt.value, birthday: birthday.value, chatId: fromChat, notify: notifyCustomer.value }, asDraft)
+    o = createOrder({ ...form, pickupAt: pickupAt.value, birthday: birthday.value, chatId: fromChat, notify: notifyCustomer.value, sms: smsToo.value }, asDraft)
     if (o.error) {
       step.value = 1
       error.value = o.error
@@ -501,11 +503,13 @@ function quote() {
               บันทึกไม่ได้: {{ saveBlock }} · <button type="button" class="font-medium underline" @click="step = 0; error = ''">ไปขั้นลูกค้า</button> (ส่งใบเสนอได้ก่อน)
             </p>
             <label class="flex w-full items-center gap-2 text-sm text-stone-700"><input v-model="notifyCustomer" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าเมื่อบันทึก·รอชำระ</label>
+            <SmsTick v-model="smsToo" :customer="customer" :show="notifyCustomer" :class="'w-full'" />
             <button class="btn-soft flex-1" @click="quote">ส่งใบเสนอ</button>
             <button class="btn-primary flex-1" :disabled="!!saveBlock || saving" @click="submit(false)">{{ saving ? 'กำลังบันทึก…' : 'บันทึก · รอชำระ' }}</button>
           </template>
           <template v-else>
             <label class="flex w-full items-center gap-2 text-sm text-stone-700 sm:w-auto"><input v-model="notifyCustomer" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าเมื่อบันทึก·รอชำระ</label>
+            <SmsTick v-model="smsToo" :customer="customer" :show="notifyCustomer" :class="'w-full'" />
             <p class="w-full text-xs text-stone-600"><b>บันทึกร่าง</b> = เก็บไว้ก่อน ยังไม่ส่งให้ลูกค้า · <b>บันทึก · รอชำระ</b> = เริ่มรับออร์เดอร์ รอลูกค้าชำระเงิน</p>
             <button class="btn-outline flex-1 sm:ml-auto sm:flex-none" :disabled="saving" @click="submit(true)">บันทึกร่าง</button>
             <button class="btn-primary flex-[1.4] sm:flex-none" :disabled="saving" @click="submit(false)">{{ saving ? 'กำลังบันทึก…' : 'บันทึก · รอชำระ' }}</button>

@@ -5,19 +5,20 @@ import { refundList } from '../lib/refund'
 import { money, dateTime } from '../lib/format'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
+import SmsTick from './SmsTick.vue'
 
 // ยกเลิกการคืนเงินบางส่วนรายการหนึ่ง (ใช้ร่วมกันทั้งหน้ารายละเอียดออร์เดอร์และ POS) · เก็บประวัติเป็น "ยกเลิกแล้ว"
 const props = defineProps({ order: { type: Object, required: true }, entry: { type: Object, required: true } })
 const emit = defineEmits(['close', 'done'])
 const isPos = computed(() => props.order.channel === 'pos')
 const hasCustomer = computed(() => !!findCustomer(props.order.customerId))
-const f = ref({ reason: '', notify: false }) // ค่าเริ่มต้นไม่แจ้งลูกค้า
+const f = ref({ reason: '', notify: false, sms: true }) // ค่าเริ่มต้นไม่แจ้งลูกค้า
 const error = ref('')
 const rows = computed(() => refundList({ refunds: props.entry.refunds }))
 
 function save() {
   error.value = ''
-  const r = cancelRefund(props.order, props.entry.id, { reason: f.value.reason, notify: f.value.notify })
+  const r = cancelRefund(props.order, props.entry.id, { reason: f.value.reason, notify: f.value.notify, sms: f.value.sms })
   if (r.error) return (error.value = r.error)
   emit('done', r.entry)
   emit('close')
@@ -35,6 +36,7 @@ function save() {
       <p class="text-sm text-stone-600">ยกเลิกแล้วยอดคืนนี้จะไม่นับ (ชำระสุทธิกลับขึ้น) และบัญชีบันทึกรายการกลับ · ถ้าคืนเป็นคะแนนจะหักคะแนนคืน (ทำไม่ได้ถ้าลูกค้าใช้คะแนนนั้นไปแล้ว)</p>
       <div><label class="label" for="rc-reason">เหตุผลที่ยกเลิกการคืน <span class="text-rose-500">*</span></label><input id="rc-reason" v-model="f.reason" class="input" maxlength="120" /></div>
       <label v-if="hasCustomer && !isPos" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="f.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่ายกเลิกการคืนเงิน" /> แจ้งลูกค้าว่ายกเลิกการคืนเงิน</label>
+      <SmsTick v-if="hasCustomer && !isPos" v-model="f.sms" :customer="findCustomer(order.customerId)" :show="f.notify" />
       <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
     </div>
     <template #footer>

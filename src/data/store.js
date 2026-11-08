@@ -4,7 +4,7 @@ import { reactive } from 'vue'
 import { BELL_MAX, BELL_STAFF, BELL_CUSTOMER, bellText, visibleToStaff, visibleToCustomer, unreadStaff, unreadCustomer, isReadStaff } from '../lib/bell'
 import { STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
-import { orderCardMsg, quoteCardMsg, linkCardMsg } from '../lib/chatCards'
+import { orderCardMsg, quoteCardMsg, linkCardMsg, payCard } from '../lib/chatCards'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { prevStatus } from '../lib/orderFlow'
 import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList, returnedByMethod } from '../lib/refund'
@@ -79,6 +79,11 @@ const r = (ingredientId, qty, per = 'pound') => ({ ingredientId, qty, per })
 // ราคาตามขนาด 1 / 2 / 3 / 5 ปอนด์ (s1–s4)
 const sp = (a, b, c, d) => ({ s1: a, s2: b, s3: c, s4: d })
 // กฎแจ้งเตือน (จำลอง)
+// ข้อความ "ได้รับชำระ": ยอดที่ชำระครั้งนี้ · ยอดรวม · ชำระแล้ว · คงค้าง · นัดส่งมอบ · ลิงก์ดูออร์เดอร์ (กฎเดิมที่ยังเป็นข้อความเริ่มต้นเก่าจะถูกใช้ข้อความนี้แทนอัตโนมัติ — กฎที่ร้านแก้เองไม่แตะ)
+const PAY_CONFIRMED_OLD = 'ได้รับชำระออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ คงค้าง {คงค้าง}'
+const PAY_CONFIRMED_TPL = 'ได้รับชำระ {ยอดที่ชำระ} ออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ\nยอดรวม {ยอดรวม} · ชำระแล้ว {ชำระแล้ว} · คงค้าง {คงค้าง}\nนัด{ส่งมอบ} {วันนัด} {เวลานัด}\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
+const tplOf = (r) => (r.event === 'payment_confirmed' && String(r.template || '').trim() === PAY_CONFIRMED_OLD ? PAY_CONFIRMED_TPL : r.template)
+
 const rule = (event, channels, template) => ({ event, channels, template, enabled: true })
 // ประเภท: ราคาคงที่ (price) + ราคาขนาดของประเภท (sizePrices) · เนื้อเค้ก: บวกคงที่ (price) · ขนาด: ชื่อ + ปอนด์
 const typeOpt = (id, name, price, sizePrices, extra = {}) => ({ id, name, price, sizePrices, active: true, recipe: [], ...extra })
@@ -249,7 +254,7 @@ export const db = reactive({
     rule('order_confirmed', ['line', 'facebook', 'sms'], 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ คงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า'),
     rule('payment_reminder', ['line', 'facebook', 'sms'], 'พรุ่งนี้มีนัดออร์เดอร์ {เลขออร์เดอร์} ({วันนัด} {เวลานัด}) ยังไม่ได้ชำระ คงค้าง {คงค้าง} ชำระก่อน {ชำระก่อน} ชำระที่ {ลิงก์ออร์เดอร์}'),
     rule('prepared', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} เตรียมสินค้าเสร็จแล้วค่ะ นัด{ส่งมอบ} {วันนัด} {เวลานัด}'),
-    rule('payment_confirmed', ['line', 'facebook', 'sms'], 'ได้รับชำระออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ คงค้าง {คงค้าง}'),
+    rule('payment_confirmed', ['line', 'facebook', 'sms'], PAY_CONFIRMED_TPL),
     rule('pickup_reminder', ['line', 'facebook', 'sms'], 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
     rule('shipping', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ กำหนดถึง {วันนัด} {เวลานัด}'),
     rule('delivered', ['line', 'facebook'], 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ'),
@@ -548,7 +553,7 @@ export function addWorkPhotos(order, itemId, images, opts = {}) {
   const added = list.map((image) => ({ id: uid('wp'), image, at: now(), by: session.role, publish: false, galleryId: null }))
   it.workPhotos.push(...added)
   log(order, `อัปโหลดรูปงานเสร็จ ${added.length} รูป (${it.name})`)
-  notifyOrder('photo_ready', order, { skip: opts.notify === false })
+  notifyOrder('photo_ready', order, { skip: opts.notify === false, noSms: opts.sms === false })
   return { ok: true, photos: added }
 }
 export function removeWorkPhoto(order, itemId, photoId) {
@@ -643,7 +648,7 @@ export function approvePhotoOptOut(id, opts = {}) {
     log(o, 'อนุมัติคำขอไม่เผยแพร่: ลบรูปงานออกจากทุกที่')
   }
   Object.assign(r, { status: 'approved', decidedAt: now(), decidedBy: session.role })
-  if (o) notifyOrder('photo_optout_done', o, { skip: opts.notify === false })
+  if (o) notifyOrder('photo_optout_done', o, { skip: opts.notify === false, noSms: opts.sms === false })
   return { ok: true }
 }
 export function rejectPhotoOptOut(id, reason, opts = {}) {
@@ -656,7 +661,7 @@ export function rejectPhotoOptOut(id, reason, opts = {}) {
   if (o) {
     o.photoConsent = { ...o.photoConsent, status: 'ok', history: [...(o.photoConsent?.history || []), { at: now(), text: `ร้านไม่อนุมัติ: ${r.decisionNote}` }] }
     log(o, `ไม่อนุมัติคำขอไม่เผยแพร่รูป: ${r.decisionNote}`)
-    notifyOrder('photo_optout_rejected', o, { skip: opts.notify === false })
+    notifyOrder('photo_optout_rejected', o, { skip: opts.notify === false, noSms: opts.sms === false })
   }
   return { ok: true }
 }
@@ -809,7 +814,7 @@ export function createOrder(payload, asDraft = false) {
   log(o, asDraft ? 'สร้างออร์เดอร์ (ร่าง)' : 'สร้างออร์เดอร์ → รอชำระ')
   db.orders.unshift(o)
   if (o.fulfillment === 'delivery') rememberPlaceOf(o.customerId, o)
-  if (!asDraft) notifyOrder('order_created', o, { skip: payload.notify === false })
+  if (!asDraft) notifyOrder('order_created', o, { skip: payload.notify === false, noSms: payload.sms === false })
   return o
 }
 
@@ -827,12 +832,13 @@ export function setStatus(order, status, text, opts = {}) {
   if (status === 'delivered') order.deliveredAt = now()
   if (status === 'delivered') awardOrder(order)
   const skip = opts.notify === false
-  if (status === 'delivered') notifyOrder('delivered', order, { skip })
-  if (status === 'prepared') notifyOrder('prepared', order, { skip })
-  if (status === 'shipping') notifyOrder('shipping', order, { skip })
-  if (status === 'cancelled') notifyOrder('cancelled', order, { skip })
+  const noSms = opts.sms === false
+  if (status === 'delivered') notifyOrder('delivered', order, { skip, noSms })
+  if (status === 'prepared') notifyOrder('prepared', order, { skip, noSms })
+  if (status === 'shipping') notifyOrder('shipping', order, { skip, noSms })
+  if (status === 'cancelled') notifyOrder('cancelled', order, { skip, noSms })
   // ร่าง → ส่งไปรอชำระ = เริ่มเป็นออร์เดอร์จริง
-  if (prev === 'draft' && status === 'awaiting_payment') notifyOrder('order_created', order, { skip })
+  if (prev === 'draft' && status === 'awaiting_payment') notifyOrder('order_created', order, { skip, noSms })
 }
 
 // แจ้งยอดชำระ = ส่งยอดไปให้ลูกค้า (ยังไม่ใช่ยอดที่จ่ายจริง) ยอดจริงใส่ตอนแอดมินยืนยัน
@@ -855,7 +861,7 @@ export function reportPayment(order, p) {
   })
   const due = order.payments[order.payments.length - 1].dueAt
   log(order, `แจ้งยอดชำระ ${money(Number(p.amount))} (${p.method}) ชำระก่อน ${dueText(due)}`)
-  notifyOrder('payment_requested', order, { requested: Number(p.amount), dueAt: due, skip: p.notify === false })
+  notifyOrder('payment_requested', order, { requested: Number(p.amount), dueAt: due, skip: p.notify === false, noSms: p.sms === false })
   if (order.status === 'awaiting_payment') order.status = 'payment_reported'
 }
 
@@ -901,7 +907,7 @@ export function confirmPayment(order, paymentId, data = null) {
   p.confirmedAt = now()
   log(order, `ยืนยันชำระ ${money(p.amount)}${p.amount !== p.requested ? ` (แจ้ง ${money(p.requested)})` : ''}`)
   if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
-  notifyOrder('payment_confirmed', order, { skip: data?.notify === false })
+  notifyOrder('payment_confirmed', order, { skip: data?.notify === false, noSms: data?.sms === false, paid: p.amount })
 }
 
 // รับชำระทันที: ลูกค้าจ่ายแล้วที่หน้างาน ไม่ต้องแจ้งยอด/กำหนดชำระ → สร้างงวดที่ยืนยันแล้วเลย (สิทธิ์ confirmPayment) · คืน { ok } | { error }
@@ -917,7 +923,7 @@ export function receivePaymentNow(order, p) {
   })
   log(order, `รับชำระทันที ${money(amount)} (${p.method})`)
   if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
-  notifyOrder('payment_confirmed', order, { skip: p.notify === false })
+  notifyOrder('payment_confirmed', order, { skip: p.notify === false, noSms: p.sms === false, paid: amount })
   return { ok: true }
 }
 
@@ -936,7 +942,7 @@ export function confirmUnpaid(order, opts = {}) {
   const pending = order.approval?.status === 'pending'
   order.approval = { ...(order.approval || {}), status: 'approved', decidedBy: session.role, decidedAt: now() }
   setStatus(order, 'order_confirmed', pending ? 'อนุมัติ · ยืนยันการสั่งซื้อ (ยังไม่ชำระ)' : 'ยืนยันการสั่งซื้อ (ยังไม่ชำระ)')
-  notifyOrder('order_confirmed', order, { skip: opts.notify === false })
+  notifyOrder('order_confirmed', order, { skip: opts.notify === false, noSms: opts.sms === false })
   return true
 }
 export function rejectConfirmUnpaid(order, note = '') {
@@ -1073,7 +1079,7 @@ export function cancelOrder(order, c) {
   const refundAmount = round2(refunds.reduce((n, x) => n + x.amount, 0))
   const summary = refunds.map((x) => `${REFUND_METHODS[x.method]} ${money(x.amount)}${x.method === 'points' ? ` (${x.points} คะแนน)` : ''}`).join(' + ')
   order.cancel = { reason: c.reason, refunds, refundAmount, refundMethod: refunds.map((x) => REFUND_METHODS[x.method]).join(' + '), refundNote: c.refundNote || '', at: now(), prevStatus: prevSt, restorable }
-  setStatus(order, 'cancelled', `ยกเลิก: ${c.reason}${refundAmount ? ` / คืนเงิน ${summary}` : ''}`, { notify: c.notify })
+  setStatus(order, 'cancelled', `ยกเลิก: ${c.reason}${refundAmount ? ` / คืนเงิน ${summary}` : ''}`, { notify: c.notify, sms: c.sms })
   for (const h of cancelHooks) h(order)
   return { ok: true }
 }
@@ -1103,7 +1109,7 @@ export function refundOrder(order, c) {
   ;(order.returns ||= []).push(entry)
   const summary = refunds.map((x) => `${REFUND_METHODS[x.method]} ${money(x.amount)}${x.method === 'points' ? ` (${x.points} คะแนน)` : ''}`).join(' + ')
   log(order, `คืนเงินบางส่วน ${summary} · ${reason}`)
-  notifyOrder('order_refunded', order, { requested: amount, skip: c?.notify === false })
+  notifyOrder('order_refunded', order, { requested: amount, skip: c?.notify === false, noSms: c?.sms === false })
   return { ok: true, entry }
 }
 
@@ -1137,7 +1143,7 @@ export function cancelRefund(order, returnId, c = {}) {
   }
   r.cancelled = { at: now(), by: session.role, reason }
   log(order, `ยกเลิกการคืนเงิน ${money(r.amount)} · ${reason}`)
-  if (order.channel !== 'pos') notifyOrder('order_refund_cancelled', order, { requested: r.amount, skip: c.notify !== true })
+  if (order.channel !== 'pos') notifyOrder('order_refund_cancelled', order, { requested: r.amount, skip: c.notify !== true, noSms: c.sms === false })
   return { ok: true, entry: r }
 }
 
@@ -1194,7 +1200,7 @@ export function revertStatus(order, reason, opts = {}) {
     }
   }
   log(order, `ย้อนสถานะ ${STATUS[from]?.label || from} → ${STATUS[order.status]?.label || order.status} · เหตุผล: ${why}`)
-  if (opts.notify === true && order.status === 'prepared') notifyOrder('prepared', order)
+  if (opts.notify === true && order.status === 'prepared') notifyOrder('prepared', order, { noSms: opts.sms === false })
   return { ok: true, from, to: order.status }
 }
 export const canRevert = (order) => can('revertStatus') && order?.channel !== 'pos' && !!prevStatus(order)
@@ -1662,6 +1668,7 @@ function cardImageOf(items) {
   }
   return isHttps(db.storefront?.heroImage) ? db.storefront.heroImage : ''
 }
+const payCardOf = (order, totals, paid, url) => payCard(order, totals, { paid, url, image: cardImageOf(order.items) })
 export function sendOrderLinkToChat(order, url) {
   const chat = (order.chatId && findChat(order.chatId)) || chatFor(order.customerId)
   if (!chat) return { error: 'ลูกค้าคนนี้ยังไม่มีแชท' }
@@ -1953,6 +1960,8 @@ function orderVars(order, extra = {}) {
     ยอดรวม: money(t.total),
     คงค้าง: money(Math.max(t.balance, 0)),
     ยอดที่แจ้ง: extra.requested != null ? money(extra.requested) : '',
+    ยอดที่ชำระ: extra.paid != null ? money(extra.paid) : '',
+    ชำระแล้ว: money(Math.max(t.paid, 0)),
     ชำระก่อน: extra.dueAt ? dueText(extra.dueAt) : 'ไม่กำหนด',
     วันนัด: dateOnly(order.pickupAt),
     เวลานัด: timeOnly(order.pickupAt),
@@ -1962,7 +1971,7 @@ function orderVars(order, extra = {}) {
     ลิงก์ออร์เดอร์: '',
   }
 }
-function pushOut(event, channel, to, text, orderId = null, customer = null) {
+function pushOut(event, channel, to, text, orderId = null, customer = null, opts = {}) {
   db.outbox.unshift({ id: uid('msg'), at: now(), event, channel, to, text, orderId, status: channel ? 'simulated' : 'no_channel' })
   const row = db.outbox[0]
   // ส่งทาง LINE/Facebook: ลงเธรดของช่องทางนั้นในศูนย์รวมแชทด้วย (สร้างออร์เดอร์ = การ์ดสรุป) · Facebook ส่งถึง Messenger จริงและอัปเดตสถานะของรายการนี้
@@ -1970,6 +1979,7 @@ function pushOut(event, channel, to, text, orderId = null, customer = null) {
   if (chat) {
     const order = orderId ? findOrder(orderId) : null
     if (event === 'order_created' && order) postOrderCard(order, chat, row)
+    else if (opts.card) sendChat(chat.id, 'staff', text, { orderId, by: 'ระบบ', row, fbCard: opts.card })
     else sendChat(chat.id, 'staff', text, { orderId, by: 'ระบบ', row })
   } else if (channel === 'facebook' && customer && fbHook.send) {
     row.status = 'failed'; row.error = 'ลูกค้ายังไม่มีแชท Facebook ที่ผูกไว้'
@@ -2059,12 +2069,12 @@ export function bellMarkAll(audience = 'staff') {
   for (const i of bellFeed(audience)) bellMarkRead(i.id, audience)
 }
 // ส่งตามกฎของ event (คืนจำนวนข้อความที่เข้าคิว)
-export function notify(event, { customer = null, vars = {}, orderId = null } = {}) {
+export function notify(event, { customer = null, vars = {}, orderId = null, noSms = false, card = null } = {}) {
   emitBell(event, { customer, vars, orderId })
   const r = db.notifyRules.find((x) => x.event === event)
   const ev = NOTIFY_EVENTS[event]
   if (!r || !r.enabled || !ev) return 0
-  const text = fillTemplate(r.template, vars)
+  const text = fillTemplate(tplOf(r), vars).trim()
   if (ev.audience === 'team') {
     if (!r.channels.includes('telegram') || !db.integrations.telegram.enabled) return 0
     pushOut(event, 'telegram', 'กลุ่มทีม', text, orderId)
@@ -2073,7 +2083,13 @@ export function notify(event, { customer = null, vars = {}, orderId = null } = {
   if (ev.marketing && customer && customer.promoOptIn === false) return 0
   const ch = CUSTOMER_CHANNEL_ORDER.find((k) => r.channels.includes(k) && db.integrations[k]?.enabled && customerAddr(customer, k))
   const to = ch ? `${CHANNELS[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}` : customer?.name || '-'
-  pushOut(event, ch || null, to, text, orderId, customer)
+  // ส่งทางแชท (Facebook/LINE) ที่มีการ์ดพร้อมปุ่ม: ตัดบรรทัดลิงก์ออกจากข้อความ (ปุ่มทำหน้าที่แทน) · SMS ยังได้ข้อความเต็มพร้อมลิงก์
+  const chatText = card ? text.replace(/\n?ดูออร์เดอร์:\s*\S*\s*$/, '').trim() : text
+  pushOut(event, ch || null, to, chatText, orderId, customer, card && (ch === 'facebook' || ch === 'line') ? { card: { text: chatText, card } } : {})
+  // ส่งทาง Facebook/LINE แล้ว ถ้าลูกค้ามีเบอร์ → ส่ง SMS ซ้ำด้วยเสมอ (พนักงานติ๊กออกได้ที่หน้าที่ส่ง) · ใช้เฉพาะ event ที่กฎเปิด SMS ไว้
+  if ((ch === 'facebook' || ch === 'line') && !noSms && !ev.marketing && customer?.phone && r.channels.includes('sms') && db.integrations.sms?.enabled) {
+    pushOut(event, 'sms', `${CHANNELS.sms.label}: ${customer.name || ''} (${formatPhone(customer.phone)})`, text, orderId, customer)
+  }
   return 1
 }
 // เหตุการณ์ของออร์เดอร์ → ลูกค้า + ทีม (ถ้ามีคู่ของทีม)
@@ -2088,9 +2104,11 @@ export function notifyOrder(event, order, extra = {}) {
     return
   }
   const rule = db.notifyRules.find((x) => x.event === event)
-  if (rule?.enabled && rule.template.includes('{ลิงก์ออร์เดอร์}')) vars.ลิงก์ออร์เดอร์ = createOrderLink(order, { system: true }).url || ''
+  let url = ''
+  if (rule?.enabled && tplOf(rule).includes('{ลิงก์ออร์เดอร์}')) { url = createOrderLink(order, { system: true }).url || ''; vars.ลิงก์ออร์เดอร์ = url }
   const customer = findCustomer(order.customerId)
-  notify(event, { customer, vars, orderId: order.id })
+  const card = event === 'payment_confirmed' ? payCardOf(order, orderTotals(order), extra.paid, url) : null
+  notify(event, { customer, vars, orderId: order.id, noSms: !!extra.noSms, card })
   if (TEAM_OF[event]) notify(TEAM_OF[event], { vars, orderId: order.id })
 }
 // เตือนลูกค้าที่เคยถูกแจ้งชำระแต่ยังไม่ชำระเลย เมื่อออร์เดอร์เป็นของพรุ่งนี้ ตั้งแต่เวลา payReminderTime (ครั้งเดียวต่อออร์เดอร์)

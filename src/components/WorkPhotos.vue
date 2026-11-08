@@ -7,6 +7,8 @@ import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
 import SecureImg from './SecureImg.vue'
 import { toPublicImage } from '../lib/publishImage'
+import { smsChoice } from '../lib/smsChoice'
+import { formatPhone } from '../lib/format'
 
 // รูปงานเสร็จของรายการสินค้า (เค้กสั่งทำ/สินค้าสำเร็จ): อัปโหลด → ลูกค้าเห็นในหน้าออร์เดอร์ (+แจ้งข้อความพร้อมลิงก์) → ติ๊กเผยแพร่บนเว็บเมนูได้ (ค่าเริ่มต้นไม่ติ๊ก)
 // ลูกค้าขอไม่ให้ใช้รูป = ล็อกการอัปโหลด/เผยแพร่ (ร้านตรวจสอบที่หน้า "คำขอไม่เผยแพร่รูป")
@@ -22,9 +24,9 @@ async function save() {
   err.value = ''
   if (!staged.value.length) return (err.value = 'เลือกรูปก่อน')
   const tells = !!db.customers.find((c) => c.id === props.order.customerId)
-  const r = await askConfirmEx({ title: 'บันทึกรูปงานเสร็จ', message: `${staged.value.length} รูป · ${props.item.name}`, okText: 'บันทึก', ...(tells ? { checkbox: { label: 'แจ้งลูกค้าว่ามีรูปงานแล้ว', hint: 'ข้อความพร้อมลิงก์ไปดูรูปในหน้าออร์เดอร์ ไม่ติ๊ก = ไม่ส่ง (ลูกค้ายังเห็นรูปเมื่อเปิดหน้าออร์เดอร์)', value: true } } : {}) })
+  const r = await askConfirmEx({ title: 'บันทึกรูปงานเสร็จ', message: `${staged.value.length} รูป · ${props.item.name}`, okText: 'บันทึก', ...(tells ? { checkbox: { label: 'แจ้งลูกค้าว่ามีรูปงานแล้ว', hint: 'ข้อความพร้อมลิงก์ไปดูรูปในหน้าออร์เดอร์ ไม่ติ๊ก = ไม่ส่ง (ลูกค้ายังเห็นรูปเมื่อเปิดหน้าออร์เดอร์)', value: true } } : {}), ...(tells && smsChoice(db.customers.find((c) => c.id === props.order.customerId)) ? { checkbox2: { label: 'ส่ง SMS ด้วย', hint: formatPhone(db.customers.find((c) => c.id === props.order.customerId).phone), value: true } } : {}) })
   if (!r.ok) return
-  const res = addWorkPhotos(props.order, props.item.id, staged.value, { notify: tells ? r.checked : true })
+  const res = addWorkPhotos(props.order, props.item.id, staged.value, { notify: tells ? r.checked : true, sms: r.checked2 !== false })
   if (res.error) return (err.value = res.error)
   staged.value = []
 }

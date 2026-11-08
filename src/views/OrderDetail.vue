@@ -26,6 +26,8 @@ import ItemCard from '../components/ItemCard.vue'
 import ItemEditor from '../components/ItemEditor.vue'
 import AppModal from '../components/AppModal.vue'
 import AppIcon from '../components/AppIcon.vue'
+import SmsTick from '../components/SmsTick.vue'
+import { smsChoice } from '../lib/smsChoice'
 import SecureImg from '../components/SecureImg.vue'
 import PickupModal from '../components/PickupModal.vue'
 import RefundEditor from '../components/RefundEditor.vue'
@@ -176,12 +178,12 @@ async function doStatus(status, text, title) {
   if (status === 'delivered' && t.value.balance > 0) return
   // สถานะที่มีข้อความถึงลูกค้า: มีช่องติ๊ก "แจ้งลูกค้า" (ค่าเริ่มต้นติ๊ก)
   const tells = ['awaiting_payment', 'prepared', 'shipping', 'delivered'].includes(status) && order.value.channel !== 'pos' && !!customer.value
-  const r = await askConfirmEx({ title, message: `ออร์เดอร์ ${order.value.code}`, okText: title, ...(tells ? { checkbox: { label: 'แจ้งลูกค้า', hint: 'ไม่ติ๊ก = ไม่ส่งข้อความถึงลูกค้า (ทีมยังได้รับตามปกติ)', value: true } } : {}) })
-  if (r.ok) { setStatus(order.value, status, text, { notify: tells ? r.checked : true }); toastSaved(`${title} แล้ว · ${order.value.code}`) }
+  const r = await askConfirmEx({ title, message: `ออร์เดอร์ ${order.value.code}`, okText: title, ...(tells ? { checkbox: { label: 'แจ้งลูกค้า', hint: 'ไม่ติ๊ก = ไม่ส่งข้อความถึงลูกค้า (ทีมยังได้รับตามปกติ)', value: true } } : {}), ...(tells && smsChoice(customer.value) ? { checkbox2: { label: 'ส่ง SMS ด้วย', hint: formatPhone(customer.value.phone), value: true } } : {}) })
+  if (r.ok) { setStatus(order.value, status, text, { notify: tells ? r.checked : true, sms: r.checked2 !== false }); toastSaved(`${title} แล้ว · ${order.value.code}`) }
 }
 async function doConfirmUnpaid() {
-  const r = await askConfirmEx({ title: 'ยืนยันการสั่งซื้อ (ยังไม่ชำระ)', message: `ออร์เดอร์ ${order.value.code} · คงค้าง ${money(t.value.balance)} ชำระได้ภายหลัง`, okText: 'ยืนยัน', checkbox: { label: 'แจ้งลูกค้า', value: true } })
-  if (r.ok) { confirmUnpaid(order.value, { notify: r.checked }); toastSaved(`ยืนยันสั่งซื้อ ${order.value.code} แล้ว (ยังไม่ชำระ)`) }
+  const r = await askConfirmEx({ title: 'ยืนยันการสั่งซื้อ (ยังไม่ชำระ)', message: `ออร์เดอร์ ${order.value.code} · คงค้าง ${money(t.value.balance)} ชำระได้ภายหลัง`, okText: 'ยืนยัน', checkbox: { label: 'แจ้งลูกค้า', value: true }, ...(customer.value && smsChoice(customer.value) ? { checkbox2: { label: 'ส่ง SMS ด้วย', hint: formatPhone(customer.value.phone), value: true } } : {}) })
+  if (r.ok) { confirmUnpaid(order.value, { notify: r.checked, sms: r.checked2 !== false }); toastSaved(`ยืนยันสั่งซื้อ ${order.value.code} แล้ว (ยังไม่ชำระ)`) }
 }
 async function doRequestUnpaid() {
   if (await askConfirm({ title: 'ขออนุมัติยืนยันการสั่งซื้อ', message: 'ส่งคำขอให้แอดมินอนุมัติ (ยังไม่ชำระ)', okText: 'ส่งคำขอ' })) requestConfirmUnpaid(order.value)
@@ -251,7 +253,7 @@ const rcFor = ref(null) // รายการคืนที่กำลัง�
 const canCancelRefund = computed(() => !!order.value && can(order.value.channel === 'pos' ? 'posVoid' : 'refundPartial') && order.value.status !== 'cancelled')
 const canRefund = computed(() => !!order.value && can(order.value.channel === 'pos' ? 'posVoid' : 'refundPartial') && !['draft', 'cancelled'].includes(order.value.status) && t.value.paidNet > 0)
 const returnedNet = computed(() => (t.value.total > 0 ? Math.round(t.value.returned * (1 - t.value.vat / t.value.total) * 100) / 100 : t.value.returned))
-const cxl = reactive({ reason: '', refunds: [], refundNote: '', notify: true })
+const cxl = reactive({ reason: '', refunds: [], refundNote: '', notify: true, sms: true })
 const cxlError = ref('')
 const buyerOpen = ref(false)
 const linkOpen = ref(false)
@@ -269,14 +271,14 @@ function saveRevert() {
 function openCancel() {
   // คืนเต็มจำนวนตามช่องทางที่ลูกค้าจ่ายล่าสุดเป็นค่าตั้งต้น (เปลี่ยน/แบ่งช่องทางได้: เงินสด / ธนาคาร / คะแนนสะสม)
   const last = order.value.payments.filter((p) => p.status === 'confirmed').at(-1)
-  Object.assign(cxl, { reason: '', refunds: t.value.paidNet > 0 ? [{ method: defaultRefundMethod(last?.method), amount: t.value.paidNet }] : [], refundNote: '', notify: true })
+  Object.assign(cxl, { reason: '', refunds: t.value.paidNet > 0 ? [{ method: defaultRefundMethod(last?.method), amount: t.value.paidNet }] : [], refundNote: '', notify: true, sms: true })
   cxlError.value = ''
   cancelOpen.value = true
 }
 async function saveCancel() {
   if (!cxl.reason.trim()) return (cxlError.value = 'ใส่เหตุผลการยกเลิก')
   if (!(await askConfirm({ title: 'ยกเลิกออร์เดอร์', message: `ออร์เดอร์ ${order.value.code}\nเหตุผล: ${cxl.reason}`, okText: 'ยกเลิกออร์เดอร์', danger: true }))) return
-  const r = cancelOrder(order.value, { reason: cxl.reason, refunds: cxl.refunds.map((x) => ({ method: x.method, amount: Number(x.amount) })), refundNote: cxl.refundNote, notify: cxl.notify })
+  const r = cancelOrder(order.value, { reason: cxl.reason, refunds: cxl.refunds.map((x) => ({ method: x.method, amount: Number(x.amount) })), refundNote: cxl.refundNote, notify: cxl.notify, sms: cxl.sms })
   if (r.error) return (cxlError.value = r.error)
   cancelOpen.value = false
 }
@@ -727,6 +729,7 @@ async function saveCancel() {
         </div>
         <div><label class="label">หมายเหตุการคืนเงิน</label><input v-model="cxl.refundNote" class="input" /></div>
         <label v-if="customer && order.channel !== 'pos'" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="cxl.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่ายกเลิก" /> แจ้งลูกค้าว่ายกเลิกออร์เดอร์</label>
+        <SmsTick v-if="customer && order.channel !== 'pos'" v-model="cxl.sms" :customer="customer" :show="cxl.notify" />
         <p v-if="cxlError" class="text-sm text-rose-600">{{ cxlError }}</p>
       </div>
       <template #footer>

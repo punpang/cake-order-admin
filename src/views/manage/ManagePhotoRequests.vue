@@ -1,7 +1,9 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { db, findCustomer, findOrder, approvePhotoOptOut, rejectPhotoOptOut, allowPhotosAgain, photoStatusOf } from '../../data/store'
-import { dateTime } from '../../lib/format'
+import { dateTime, formatPhone } from '../../lib/format'
+import { smsChoice } from '../../lib/smsChoice'
+import SmsTick from '../../components/SmsTick.vue'
 import { askConfirmEx } from '../../lib/confirm'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
@@ -16,16 +18,16 @@ const msg = ref('')
 const err = ref('')
 async function approve(row) {
   msg.value = err.value = ''
-  const x = await askConfirmEx({ title: 'อนุมัติ · ลบรูปทุกที่', message: `ลบรูปงานทั้งหมด ${row.n} รูปของ ${row.o?.code} ออกจากออร์เดอร์ คลังรูป และรูปสินค้า (ถาวร) และห้ามอัปโหลดรูปใหม่ในออร์เดอร์นี้`, okText: 'อนุมัติและลบ', danger: true, checkbox: { label: 'แจ้งลูกค้าว่าลบรูปแล้ว', value: true } })
+  const x = await askConfirmEx({ title: 'อนุมัติ · ลบรูปทุกที่', message: `ลบรูปงานทั้งหมด ${row.n} รูปของ ${row.o?.code} ออกจากออร์เดอร์ คลังรูป และรูปสินค้า (ถาวร) และห้ามอัปโหลดรูปใหม่ในออร์เดอร์นี้`, okText: 'อนุมัติและลบ', danger: true, checkbox: { label: 'แจ้งลูกค้าว่าลบรูปแล้ว', value: true }, ...(smsChoice(findCustomer(row.o?.customerId)) ? { checkbox2: { label: 'ส่ง SMS ด้วย', hint: formatPhone(findCustomer(row.o.customerId).phone), value: true } } : {}) })
   if (!x.ok) return
-  const r = approvePhotoOptOut(row.r.id, { notify: x.checked })
+  const r = approvePhotoOptOut(row.r.id, { notify: x.checked, sms: x.checked2 !== false })
   if (r.error) err.value = r.error
   else msg.value = 'ลบรูปแล้ว'
 }
-const rj = reactive({ open: false, id: '', reason: '', notify: true, error: '' })
-function openReject(row) { Object.assign(rj, { open: true, id: row.r.id, reason: '', notify: true, error: '' }) }
+const rj = reactive({ open: false, id: '', reason: '', notify: true, sms: true, cust: null, error: '' })
+function openReject(row) { Object.assign(rj, { open: true, id: row.r.id, reason: '', notify: true, sms: true, cust: findCustomer(row.o?.customerId) || null, error: '' }) }
 function doReject() {
-  const r = rejectPhotoOptOut(rj.id, rj.reason, { notify: rj.notify })
+  const r = rejectPhotoOptOut(rj.id, rj.reason, { notify: rj.notify, sms: rj.sms })
   if (r.error) return (rj.error = r.error)
   rj.open = false
   msg.value = 'บันทึกแล้ว รูปกลับมาแสดงตามเดิม'
@@ -48,7 +50,7 @@ function doReject() {
       </article>
     </div>
     <AppModal v-if="rj.open" title="ไม่อนุมัติคำขอ" @close="rj.open = false">
-      <div class="space-y-3 text-sm"><p class="text-stone-600">รูปจะกลับมาแสดงตามเดิม ใส่เหตุผลเพื่อแจ้งลูกค้า (ควรคุยกับลูกค้าก่อน)</p><input v-model="rj.reason" class="input" maxlength="300" aria-label="เหตุผลไม่อนุมัติ" /><label class="flex items-center gap-2"><input v-model="rj.notify" type="checkbox" class="h-4 w-4" /> แจ้งลูกค้า</label><p v-if="rj.error" class="text-rose-600" role="alert">{{ rj.error }}</p></div>
+      <div class="space-y-3 text-sm"><p class="text-stone-600">รูปจะกลับมาแสดงตามเดิม ใส่เหตุผลเพื่อแจ้งลูกค้า (ควรคุยกับลูกค้าก่อน)</p><input v-model="rj.reason" class="input" maxlength="300" aria-label="เหตุผลไม่อนุมัติ" /><label class="flex items-center gap-2"><input v-model="rj.notify" type="checkbox" class="h-4 w-4" /> แจ้งลูกค้า</label><SmsTick v-model="rj.sms" :customer="rj.cust" :show="rj.notify" /><p v-if="rj.error" class="text-rose-600" role="alert">{{ rj.error }}</p></div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="rj.open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="doReject">บันทึก</button></template>
     </AppModal>
   </ManageShell>

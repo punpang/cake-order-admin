@@ -7,6 +7,7 @@ import { allReturnsOf, defaultRefundMethod, refundList } from '../lib/refund'
 import { money, dateTime } from '../lib/format'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
+import SmsTick from './SmsTick.vue'
 import RefundEditor from './RefundEditor.vue'
 import RefundCancelDialog from './RefundCancelDialog.vue'
 
@@ -20,7 +21,7 @@ const customer = computed(() => findCustomer(props.order.customerId))
 const isPos = computed(() => props.order.channel === 'pos')
 const last = props.order.payments.filter((p) => p.status === 'confirmed').at(-1)
 const defMethod = defaultRefundMethod(last?.posMethod || last?.method)
-const f = reactive({ reason: '', note: '', notify: true, refunds: [] })
+const f = reactive({ reason: '', note: '', notify: true, sms: true, refunds: [] })
 const error = ref('')
 const history = computed(() => allReturnsOf(props.order))
 const more = computed(() => t.value.paidNet > 0) // ยังมียอดให้คืนเพิ่ม (ถ้าไม่เหลือ เหลือแต่รายการให้ยกเลิกการคืน)
@@ -29,7 +30,7 @@ const invoice = computed(() => invoiceOfOrder(props.order.id))
 
 function save() {
   error.value = ''
-  const r = refundOrder(props.order, { reason: f.reason, note: f.note, notify: f.notify, refunds: f.refunds.map((x) => ({ method: x.method, amount: Number(x.amount) })) })
+  const r = refundOrder(props.order, { reason: f.reason, note: f.note, notify: f.notify, sms: f.sms, refunds: f.refunds.map((x) => ({ method: x.method, amount: Number(x.amount) })) })
   if (r.error) return (error.value = r.error)
   emit('done', r.entry)
   emit('close')
@@ -49,6 +50,7 @@ function save() {
       </div>
       <div><label class="label" for="rf-note">หมายเหตุ</label><input id="rf-note" v-model="f.note" class="input" maxlength="120" /></div>
       <label v-if="customer && !isPos" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="f.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่าคืนเงินแล้ว" /> แจ้งลูกค้าว่าคืนเงินแล้ว</label>
+      <SmsTick v-if="customer && !isPos" v-model="f.sms" :customer="customer" :show="f.notify" />
       </template>
       <p v-else class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">ไม่เหลือยอดให้คืนเพิ่ม · ยกเลิกการคืนรายการด้านล่างได้</p>
       <div v-if="history.length" class="space-y-2" aria-label="รายการคืนก่อนหน้า">
