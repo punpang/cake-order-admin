@@ -6,7 +6,7 @@ import { priceDetail, allowedBy, forType, discountLines, groupOkFor } from '../l
 import { decodeCake, findCodes } from '../lib/cakeCode'
 import { money } from '../lib/format'
 import { resizeImage, imageErrorMessage } from '../lib/imageResize'
-import { MAIN_KEYS, typeFreeGroup } from '../lib/constants'
+import { MAIN_KEYS, typeFreeGroup, topTierOnly } from '../lib/constants'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
 import OptionPicker from './OptionPicker.vue'
@@ -86,7 +86,29 @@ const allowFor = (t) => {
   const tid = typeOptOf(t)?.id
   const gok = groupOkFor(db.optionGroups, form, t)
   // o = null → ถามแค่ว่าหัวข้อนี้เลือกได้ไหม (ตามรูปแบบตกแต่ง)
-  return (g, o) => gok(g) && (!o || (a(g, o) && (typeFreeGroup(g) || forType(o, tid))))
+  const idx = form.kind === 'custom' ? form.tiers.indexOf(t) : -1
+  // ขนาดต้องไล่ขึ้นจากชั้นบนลงล่าง: ชั้นนี้ ≥ ทุกชั้นที่อยู่บน และ ≤ ทุกชั้นที่อยู่ล่าง (เฉพาะชั้นที่เลือกขนาดแล้ว)
+  const upIdx = idx > 0 ? form.tiers.slice(0, idx).map(sizeIdxOf).filter((x) => x >= 0) : []
+  const lowIdx = idx >= 0 ? form.tiers.slice(idx + 1).map(sizeIdxOf).filter((x) => x >= 0) : []
+  const up = upIdx.length ? Math.max(...upIdx) : -1
+  const low = lowIdx.length ? Math.min(...lowIdx) : -1
+  return (g, o) => {
+    if (idx > 0 && topTierOnly(g)) return false // กลางเค้กมีได้เฉพาะชั้น 1
+    if (!gok(g)) return false
+    if (!o) return true
+    if (sizeGroup.value && g.id === sizeGroup.value.id && g.perTier && idx >= 0) {
+      const i = g.options.findIndex((x) => x.id === o.id)
+      if (up >= 0 && i < up) return false
+      if (low >= 0 && i > low) return false
+    }
+    return a(g, o) && (typeFreeGroup(g) || forType(o, tid))
+  }
+}
+// ลำดับขนาด (ตามลำดับตัวเลือกในหัวข้อขนาด) ของชั้น · -1 = ยังไม่เลือก
+function sizeIdxOf(t) {
+  const sg = sizeGroup.value
+  const id = sizeIdsOf(t)[0]
+  return sg && id ? sg.options.findIndex((x) => x.id === id) : -1
 }
 // สินค้าสำเร็จ: ประเภทของสินค้า (ตัวเลือกรองตามประเภท)
 const readyTypeOpt = computed(() => db.optionGroups.find((g) => g.key === 'type')?.options.find((o) => o.id === form.typeId) || null)
