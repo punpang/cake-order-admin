@@ -146,6 +146,32 @@ export function bundleDiscount(bundles, picked, sizeIds, usedBundles = null, typ
   return total
 }
 
+// แนะนำบันเดิ้ล: เลือกตัวเลือกในบันเดิ้ลแล้วแต่ยังไม่ครบชุด → ตัวที่ขาด + ส่วนลดที่จะได้ (ตามขนาด/ประเภทตอนนี้)
+// sels = ตัวเลือกที่เลือกอยู่ (รวมของชั้น+ทั้งก้อน) · allow(g, o|null) = กติกาเดิมของตัวตั้งค่า (ประเภท/รูปแบบตกแต่ง)
+// เสนอเฉพาะเมื่อเพิ่มได้จริง: ตัวเลือกเปิดใช้งาน ใช้กับประเภทนี้ได้ และไม่ต้องทับค่าที่เลือกไว้ (กลุ่ม multi หรือกลุ่ม single ที่ยังว่าง)
+export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = [], allow = null, limit = 2 } = {}) {
+  const has = (x) => idsOf(sels?.[x.groupId]).includes(x.optionId)
+  const out = []
+  for (const b of bundles || []) {
+    if (b.active === false || !forType(b, typeId) || !(b.items?.length > 1)) continue
+    const have = b.items.filter(has)
+    if (!have.length || have.length === b.items.length) continue
+    const amount = bundleAmount(b, typeId, sizeIds)
+    if (!(amount > 0)) continue
+    const missing = []
+    let ok = true
+    for (const x of b.items.filter((y) => !has(y))) {
+      const g = groups.find((z) => z.id === x.groupId)
+      const o = g?.options?.find((z) => z.id === x.optionId)
+      if (!g || g.active === false || !o || o.active === false || !forType(o, typeId) || (allow && !(allow(g, null) && allow(g, o)))) { ok = false; break }
+      if (g.type !== 'multi' && idsOf(sels?.[g.id]).length) { ok = false; break }
+      missing.push({ groupId: g.id, optionId: o.id, name: o.name, groupName: g.name })
+    }
+    if (ok) out.push({ bundle: b, missing, amount })
+  }
+  return out.sort((a, b) => b.amount - a.amount).slice(0, limit)
+}
+
 // ราคา/ชิ้น = ราคาเค้กหลัก + ตัวเลือกรอง − บันเดิ้ล
 // กลุ่มแยกชั้น: ใช้ขนาด/ประเภทของชั้น · กลุ่มทั้งก้อน: ขนาดทุกชั้นรวมกัน + ประเภทของชั้นที่ 1 · แบบคงที่ไม่ขึ้นกับขนาด
 // บันเดิ้ลที่มีกลุ่มแยกชั้น ตรวจทีละชั้น (ตัวเลือกของชั้น + ตัวเลือกทั้งก้อน) · บันเดิ้ลที่มีแต่กลุ่มทั้งก้อน ตรวจครั้งเดียว

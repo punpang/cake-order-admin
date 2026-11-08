@@ -1,6 +1,6 @@
 // ข้อมูลที่เปิดสาธารณะ (ฟังก์ชันล้วน ไม่พึ่งไลบรารีอื่น) — ใช้ร่วมระหว่าง configSync (เขียนสำเนา) และ publicSync (อ่าน)
 export const PUBLIC_COLLECTION = 'shop_public'
-export const PUBLIC_KEYS = ['optionGroups', 'priceLists', 'posModifiers', 'posDiscounts', 'posBundles', 'posDeals']
+export const PUBLIC_KEYS = ['optionGroups', 'bundles', 'priceLists', 'posModifiers', 'posDiscounts', 'posBundles', 'posDeals']
 const SHOP_FIELDS = ['name', 'open', 'close', 'slotMinutes', 'nearbyHours', 'leadPickup', 'leadDelivery', 'depositPercent', 'birthdayDays', 'closures', 'delivery']
 
 // ข้อมูลร้านที่เปิดสาธารณะ: เฉพาะฟิลด์ในรายการ + VAT (เปิด/แบบ/อัตรา) — ไม่รวมบัญชีรับเงิน เลขผู้เสียภาษี ที่อยู่ ลิงก์/การเตือนภายใน

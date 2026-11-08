@@ -6,6 +6,7 @@ import { MAIN_KEYS } from '../lib/constants'
 import { encodeCake } from '../lib/cakeCode'
 import { money } from '../lib/format'
 import OptionPicker from './OptionPicker.vue'
+import BundleHint from './BundleHint.vue'
 import DiscountDetail from './DiscountDetail.vue'
 import StoreOrderButtons from './StoreOrderButtons.vue'
 import AppIcon from './AppIcon.vue'
@@ -147,12 +148,14 @@ async function copy() {
     <template v-if="hasTiers">
       <div v-for="(tier, i) in form.tiers" :key="i">
         <OptionPicker v-model="tier.selections" :groups="showTier" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" :type-opt="typeOptOf(tier)" />
+        <BundleHint scope="tier" :bundles="db.bundles" :groups="groups" :tier-sels="tier.selections" :whole-sels="form.selections" :size-ids="sizeIdsOf(tier)" :type-id="typeOptOf(tier)?.id || null" :allow="allowFor(tier)" />
       </div>
     </template>
 
     <template v-if="showWhole.length">
       <div class="text-sm font-semibold text-stone-500">ตัวเลือกเพิ่มเติม</div>
       <OptionPicker v-model="form.selections" :groups="showWhole" :active="active" :allow="allowFor(form.tiers[0])" :size-ids="allSizeIds" :type-opt="typeOptOf(form.tiers[0])" />
+      <BundleHint scope="whole" :bundles="db.bundles" :groups="groups" :tier-sels="form.tiers[0]?.selections || null" :whole-sels="form.selections" :size-ids="allSizeIds" :type-id="typeOptOf(form.tiers[0])?.id || null" :allow="allowFor(form.tiers[0])" />
     </template>
 
     <div class="rounded-3xl bg-white p-3.5 shadow-md">
