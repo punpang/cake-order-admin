@@ -46,6 +46,12 @@ async function startData(staff) {
   // กะ POS: อ่านได้เมื่อมี pos / viewAllOrders / manage · เขียนได้เมื่อมี pos
   if (['pos', 'viewAllOrders', 'manage'].some(has)) syncs.push(await shifts.startShiftsSync({ client, db, canWrite: has('pos'), onError }))
   else db.shifts.splice(0)
+  // ข้อมูลปฏิบัติการรายแถว (รีวิว/คูปอง/คำขอ/แจ้งเตือน/ลิงก์ ฯลฯ): อ่าน/เขียนตามสิทธิ์ · อ่านไม่ได้ = ล้างข้อมูลตัวอย่าง
+  const rec = await import('./recordsSync')
+  for (const [name, spec] of Object.entries(rec.RECORD_SPECS)) {
+    if (rec.specAllows(spec.read, has)) syncs.push(await rec.startRecordsSync({ client, db, collection: name, canWrite: rec.specAllows(spec.write, has), onError }))
+    else rec.clearRecords(db, name)
+  }
 }
 export async function initStaff() {
   if (!supabaseEnabled) return

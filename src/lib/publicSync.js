@@ -10,6 +10,8 @@ export { PUBLIC_COLLECTION, PUBLIC_KEYS, publicShop, mirrorRows } from './public
 export async function loadPublic(client) {
   const kv = await client.from('punpang_kv').select('collection,id,data').in('collection', [PUBLIC_COLLECTION, 'storefront', 'legal'])
   if (kv.error) return { error: kv.error.message }
+  const rc = await client.from('punpang_records').select('collection,id,data').in('collection', ['reviews', 'shortLinks'])
+  if (rc.error) return { error: rc.error.message }
   const it = await client.from('punpang_items').select('id,name,price,active,data').eq('kind', 'retail').eq('active', true).order('id')
   if (it.error) return { error: it.error.message }
   const map = {}
@@ -18,6 +20,12 @@ export async function loadPublic(client) {
     else if (r.collection === 'storefront' && (r.id === 'storefront' || r.id === 'cakeGallery')) map[r.id] = r.data?.v
     else if (r.collection === 'legal' && r.id === 'legal') map.legal = r.data?.v
   }
+  const pubRec = { reviews: [], shortLinks: [] }
+  for (const r of rc.data || []) pubRec[r.collection]?.push({ ...(r.data || {}), id: r.id })
+  const t = (x) => String(x.createdAt || '')
+  pubRec.reviews.sort((a, b) => t(b).localeCompare(t(a)))
+  map.reviews = pubRec.reviews
+  map.shortLinks = pubRec.shortLinks
   return { map, items: (it.data || []).map((r) => rowsToItem(r, null)) }
 }
 
