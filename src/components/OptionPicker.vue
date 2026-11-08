@@ -1,7 +1,7 @@
 <script setup>
 import { money, num } from '../lib/format'
 import { MAIN_KEYS } from '../lib/constants'
-import { typePrice, typeSizePrice, flavorPrice, stylePrice, shapePrice, optionPrice, isFixed, forType, bundleTags } from '../lib/pricing'
+import { typePrice, typeSizePrice, flavorPrice, stylePrice, shapePrice, isSizePriced, optionPrice, isFixed, forType, bundleTags } from '../lib/pricing'
 import { computed } from 'vue'
 import AppIcon from './AppIcon.vue'
 
@@ -24,15 +24,17 @@ const isMain = (g) => MAIN_KEYS.includes(g.key)
 function mainPrice(g, o, active) {
   if (g.key === 'type') return typePrice(o, active) + typeSizePrice(o, props.sizeIds[0], active)
   if (g.key === 'size') return props.typeOpt ? typeSizePrice(props.typeOpt, o.id, active) : null
-  if (g.key === 'style') return stylePrice(o, active)
-  if (g.key === 'shape') return shapePrice(o, active)
-  return flavorPrice(o, active)
+  const sid = props.sizeIds[0]
+  if (g.key === 'style') return stylePrice(o, active, null, sid)
+  if (g.key === 'shape') return shapePrice(o, active, null, sid)
+  return flavorPrice(o, active, null, sid)
 }
 function priceText(g, o) {
   if (isMain(g)) {
     const v = mainPrice(g, o, props.active)
     if (v == null) return ''
     if (g.key === 'size') return money(v)
+    if (isSizePriced(o) && !props.sizeIds[0]) return 'ตามขนาด'
     return v ? `+${money(v)}` : ''
   }
   // ตัวเลือกรอง: ราคาตามประเภทของชั้น (คงที่ หรือ ตามขนาด)

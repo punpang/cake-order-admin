@@ -65,9 +65,9 @@ export function customMenu(db) {
   const type = groupOf(db, 'type')
   const from = (t, lists) => {
     const { flavors, sizes } = typeChoices(db, t)
-    const sizePrices = sizes.map((s) => typeSizePrice(t, s.id, lists))
-    const flavorPrices = flavors.map((f) => flavorPrice(f, lists))
-    return typePrice(t, lists) + (sizePrices.length ? Math.min(...sizePrices) : 0) + (flavorPrices.length ? Math.min(...flavorPrices) : 0)
+    // ราคาเริ่มต้น = ต่ำสุดของ (ราคาขนาด + เนื้อเค้กถูกสุดของขนาดนั้น) เพราะเนื้อเค้กอาจตั้งราคาตามขนาด
+    const at = (sid) => (sid ? typeSizePrice(t, sid, lists) : 0) + (flavors.length ? Math.min(...flavors.map((f) => flavorPrice(f, lists, null, sid))) : 0)
+    return typePrice(t, lists) + (sizes.length ? Math.min(...sizes.map((s) => at(s.id))) : at(null))
   }
   return onlyActive(type?.options).map((t) => {
     const { flavors, sizes } = typeChoices(db, t)
@@ -100,7 +100,7 @@ export function activePromotions(db, now = new Date()) {
   const store = onlyActive(db.retailItems).filter((x) => x.showOnStore)
   const out = activeLists(db.priceLists, d).map((l) => ({
     id: l.id, name: l.name, from: l.scheduled ? l.from : '', to: l.scheduled ? l.to : '', products: [], text: '',
-    custom: [l.types, l.typeSizes, l.flavors, l.styles, l.shapes].some((o) => o && Object.keys(o).length),
+    custom: [l.types, l.typeSizes, l.flavors, l.styles, l.shapes, l.flavorSizes, l.styleSizes, l.shapeSizes].some((o) => o && Object.keys(o).length),
   })).filter((p) => p.custom)
   const names = (ids) => store.filter((x) => ids.includes(x.id)).map((x) => x.name)
   for (const x of db.posDiscounts || []) {

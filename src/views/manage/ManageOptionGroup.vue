@@ -43,7 +43,7 @@ const hasPrice = (o) =>
 const priceText = (o) => {
   if (isSize.value) return `${o.pounds} ปอนด์`
   if (isType.value) return `${money(o.price || 0)} + ตามขนาด`
-  if (isFlavor.value) return o.price ? `+${money(o.price)}` : 'ไม่บวกเพิ่ม'
+  if (isFlavor.value) return o.priceType === 'size' ? 'ตามขนาด' : o.price ? `+${money(o.price)}` : 'ไม่บวกเพิ่ม'
   if (!hasPrice(o)) return 'ไม่บวกเพิ่ม'
   return o.priceType === 'fixed' ? `+${money(o.price || 0)}` : 'ตามขนาด'
 }
@@ -101,6 +101,7 @@ function editOption(opt) {
   for (const t of db.optionGroups.find((x) => x.key === 'type')?.options || []) if (!o.typePrices[t.id]) o.typePrices[t.id] = {}
   oError.value = ''
   oOpen.value = true
+  if (isFlavor.value) o.priceType = o.priceType === 'size' && opt ? 'size' : 'fixed' // หัวข้อหลักแบบบวกเพิ่ม: ไม่มีค่า = คงที่
 }
 
 const groupOn = (gid) => !o.groups?.length || o.groups.includes(gid)
@@ -255,6 +256,21 @@ async function saveO() {
       <div class="space-y-4">
         <div><label class="label">ชื่อตัวเลือก <span class="text-rose-500">*</span></label><input v-model="o.name" class="input" /></div>
 
+        <div v-if="isFlavor">
+          <div class="label">รูปแบบราคา</div>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              v-for="pt in [{ v: 'fixed', l: 'คงที่ (ทุกขนาด)' }, { v: 'size', l: 'ตามขนาด' }]"
+              :key="pt.v"
+              type="button"
+              class="flex h-11 items-center justify-center rounded-xl border text-sm font-medium"
+              :class="o.priceType === pt.v ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : 'border-stone-200 text-stone-600'"
+              :data-main-price-type="pt.v"
+              @click="o.priceType = pt.v"
+            >{{ pt.l }}</button>
+          </div>
+        </div>
+
         <template v-if="isSize">
           <div><label class="label">ขนาด (ปอนด์)</label><input v-model.number="o.pounds" type="text" v-num.dec min="0.5" class="input" /></div>
           <p class="text-sm text-stone-500">ราคาของขนาดนี้ตั้งแยกตามประเภทที่ <RouterLink to="/admin/settings/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></p>
@@ -263,6 +279,7 @@ async function saveO() {
         <div v-else-if="isMain" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">
           <template v-if="o.id">
             <template v-if="isType">ราคาประเภท {{ money(o.price || 0) }}<br />ราคาขนาด: {{ sizesText(o.sizePrices, '') }}<br /></template>
+            <template v-else-if="o.priceType === 'size'">ราคาตามขนาด: {{ sizesText(o.sizePrices, '') }}<br /></template>
             <template v-else>ราคา: {{ o.price ? `+${money(o.price)} ทุกขนาด` : 'ไม่บวกเพิ่ม' }}<br /></template>
           </template>
           <span class="text-xs text-stone-500">ตั้ง/แก้ราคาที่ <RouterLink to="/admin/settings/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></span>

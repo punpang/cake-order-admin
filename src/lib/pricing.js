@@ -48,9 +48,18 @@ function pickSpecial(regular, active, get, used) {
 export const typePrice = (t, active = [], used = null) => (t ? pickSpecial(Number(t.price) || 0, active, (l) => l.types?.[t.id], used) : 0)
 export const typeSizePrice = (t, sizeId, active = [], used = null) =>
   t && sizeId ? pickSpecial(Number(t.sizePrices?.[sizeId]) || 0, active, (l) => l.typeSizes?.[t.id]?.[sizeId], used) : 0
-export const flavorPrice = (f, active = [], used = null) => (f ? pickSpecial(Number(f.price) || 0, active, (l) => l.flavors?.[f.id], used) : 0)
-export const shapePrice = (o, active = [], used = null) => (o ? pickSpecial(Number(o.price) || 0, active, (l) => l.shapes?.[o.id], used) : 0)
-export const stylePrice = (o, active = [], used = null) => (o ? pickSpecial(Number(o.price) || 0, active, (l) => l.styles?.[o.id], used) : 0)
+// หัวข้อหลักที่ราคาบวกเพิ่ม (เนื้อเค้ก/รูปแบบตกแต่ง/รูปทรง): รายตัวเลือกเลือกได้ priceType 'fixed' (price) หรือ 'size' (sizePrices[sizeId])
+// ราคาพิเศษ: fixed → priceList[กลุ่มพหูพจน์][id] · size → priceList[กลุ่ม+'Sizes'][id][sizeId]
+const MAIN_PLURAL = { flavor: 'flavors', style: 'styles', shape: 'shapes' }
+export const isSizePriced = (o) => o?.priceType === 'size'
+export function mainOptPrice(o, key, sizeId, active = [], used = null) {
+  if (!o) return 0
+  if (isSizePriced(o)) return sizeId ? pickSpecial(Number(o.sizePrices?.[sizeId]) || 0, active, (l) => l[`${key}Sizes`]?.[o.id]?.[sizeId], used) : 0
+  return pickSpecial(Number(o.price) || 0, active, (l) => l[MAIN_PLURAL[key]]?.[o.id], used)
+}
+export const flavorPrice = (f, active = [], used = null, sizeId = null) => mainOptPrice(f, 'flavor', sizeId, active, used)
+export const shapePrice = (o, active = [], used = null, sizeId = null) => mainOptPrice(o, 'shape', sizeId, active, used)
+export const stylePrice = (o, active = [], used = null, sizeId = null) => mainOptPrice(o, 'style', sizeId, active, used)
 
 // ราคา 1 ชั้น (หรือเค้กสำเร็จ 1 ก้อน)
 export function mainPrice(typeIds, flavorIds, sizeId, groups, active = [], used = null, styleIds = null, shapeIds = null) {
@@ -60,9 +69,9 @@ export function mainPrice(typeIds, flavorIds, sizeId, groups, active = [], used 
     const t = find('type', id)
     sum += typePrice(t, active, used) + typeSizePrice(t, sizeId, active, used)
   }
-  for (const id of idsOf(flavorIds)) sum += flavorPrice(find('flavor', id), active, used)
-  for (const id of idsOf(styleIds)) sum += stylePrice(find('style', id), active, used)
-  for (const id of idsOf(shapeIds)) sum += shapePrice(find('shape', id), active, used)
+  for (const id of idsOf(flavorIds)) sum += flavorPrice(find('flavor', id), active, used, sizeId)
+  for (const id of idsOf(styleIds)) sum += stylePrice(find('style', id), active, used, sizeId)
+  for (const id of idsOf(shapeIds)) sum += shapePrice(find('shape', id), active, used, sizeId)
   return sum
 }
 // base = ราคาเค้กหลัก (รวมทุกชั้น), pounds = ปอนด์รวม, tierPounds / tierSizes / tierTypes = ปอนด์ ขนาด และประเภทของแต่ละชั้น

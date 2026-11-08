@@ -23,21 +23,26 @@ const list = computed(() => {
 const optsOf = (k, all = false) => (db.optionGroups.find((g) => g.key === k)?.options || []).filter((x) => all || inactive.value || x.active !== false)
 const sizes = computed(() => optsOf('size', true).filter((x) => x.active !== false))
 const types = computed(() => optsOf('type'))
-const flavors = computed(() => optsOf('flavor'))
-const styles = computed(() => optsOf('style'))
-const shapes = computed(() => optsOf('shape'))
-const table = reactive({ types: {}, typeSizes: {}, flavors: {}, styles: {}, shapes: {} })
+// หัวข้อหลักแบบบวกเพิ่ม: รายตัวเลือกเป็นคงที่ (f) หรือตามขนาด (s) · ตารางหลัก table / ราคาพิเศษ form ใช้โครงเดียวกัน
+const MAINS = [
+  { key: 'flavor', f: 'flavors', s: 'flavorSizes', title: 'เนื้อเค้ก' },
+  { key: 'style', f: 'styles', s: 'styleSizes', title: 'รูปแบบตกแต่ง' },
+  { key: 'shape', f: 'shapes', s: 'shapeSizes', title: 'รูปทรง' },
+]
+const bySize = (o) => o.priceType === 'size'
+const table = reactive({ types: {}, typeSizes: {}, flavors: {}, styles: {}, shapes: {}, flavorSizes: {}, styleSizes: {}, shapeSizes: {} })
 function loadTable() {
   table.types = Object.fromEntries(optsOf('type', true).map((t) => [t.id, t.price || 0]))
   table.typeSizes = Object.fromEntries(optsOf('type', true).map((t) => [t.id, Object.fromEntries(sizes.value.map((s) => [s.id, t.sizePrices?.[s.id] ?? 0]))]))
-  table.flavors = Object.fromEntries(optsOf('flavor', true).map((f) => [f.id, f.price || 0]))
-  table.styles = Object.fromEntries(optsOf('style', true).map((f) => [f.id, f.price || 0]))
-  table.shapes = Object.fromEntries(optsOf('shape', true).map((f) => [f.id, f.price || 0]))
+  for (const m of MAINS) {
+    table[m.f] = Object.fromEntries(optsOf(m.key, true).map((f) => [f.id, f.price || 0]))
+    table[m.s] = Object.fromEntries(optsOf(m.key, true).filter(bySize).map((f) => [f.id, Object.fromEntries(sizes.value.map((s) => [s.id, f.sizePrices?.[s.id] ?? 0]))]))
+  }
 }
 loadTable()
 const tableMsg = ref('')
 function saveTable() {
-  const vals = [...Object.values(table.types), ...Object.values(table.typeSizes).flatMap((r) => Object.values(r)), ...Object.values(table.flavors), ...Object.values(table.styles), ...Object.values(table.shapes)]
+  const vals = [...Object.values(table.types), ...Object.values(table.typeSizes).flatMap((r) => Object.values(r)), ...MAINS.flatMap((m) => [...Object.values(table[m.f]), ...Object.values(table[m.s]).flatMap((r) => Object.values(r))])]
   if (vals.some((v) => v === '' || v == null || !(Number(v) >= 0))) return (tableMsg.value = 'กรอกตัวเลข 0 ขึ้นไปให้ครบทุกช่อง')
   saveMainPrices(JSON.parse(JSON.stringify(table)))
   loadTable()
@@ -52,12 +57,13 @@ const nowIds = computed(() => activeLists(db.priceLists, today).map((l) => l.id)
 const period = (l) => (l.scheduled ? `${l.from ? dateOnly(l.from) : '…'} – ${l.to ? dateOnly(l.to) : '…'}` : 'ไม่กำหนดเวลา')
 
 const open = ref(false)
-const blank = () => ({ id: null, name: '', active: true, scheduled: false, from: today, to: today, types: {}, typeSizes: {}, flavors: {}, styles: {}, shapes: {} })
+const blank = () => ({ id: null, name: '', active: true, scheduled: false, from: today, to: today, types: {}, typeSizes: {}, flavors: {}, styles: {}, shapes: {}, flavorSizes: {}, styleSizes: {}, shapeSizes: {} })
 const form = reactive(blank())
 const error = ref('')
 function edit(l) {
-  Object.assign(form, l ? { ...blank(), ...l, types: { ...(l.types || {}) }, typeSizes: JSON.parse(JSON.stringify(l.typeSizes || {})), flavors: { ...(l.flavors || {}) }, styles: { ...(l.styles || {}) }, shapes: { ...(l.shapes || {}) } } : blank())
+  Object.assign(form, l ? { ...blank(), ...l, types: { ...(l.types || {}) }, typeSizes: JSON.parse(JSON.stringify(l.typeSizes || {})), flavors: { ...(l.flavors || {}) }, styles: { ...(l.styles || {}) }, shapes: { ...(l.shapes || {}) }, flavorSizes: JSON.parse(JSON.stringify(l.flavorSizes || {})), styleSizes: JSON.parse(JSON.stringify(l.styleSizes || {})), shapeSizes: JSON.parse(JSON.stringify(l.shapeSizes || {})) } : blank())
   for (const x of optsOf('type', true)) if (!form.typeSizes[x.id]) form.typeSizes[x.id] = {}
+  for (const m of MAINS) for (const x of optsOf(m.key, true).filter(bySize)) if (!form[m.s][x.id]) form[m.s][x.id] = {}
   error.value = ''
   open.value = true
 }
@@ -65,7 +71,7 @@ async function save() {
   if (!form.name.trim()) return (error.value = 'กรอกชื่อราคาพิเศษ')
   if (form.scheduled && (!form.from || !form.to)) return (error.value = 'เลือกวันเริ่มและวันสิ้นสุด')
   if (form.scheduled && form.to < form.from) return (error.value = 'วันสิ้นสุดต้องไม่ก่อนวันเริ่ม')
-  const vals = [...Object.values(form.types), ...Object.values(form.typeSizes).flatMap((r) => Object.values(r)), ...Object.values(form.flavors), ...Object.values(form.styles), ...Object.values(form.shapes)]
+  const vals = [...Object.values(form.types), ...Object.values(form.typeSizes).flatMap((r) => Object.values(r)), ...MAINS.flatMap((m) => [...Object.values(form[m.f]), ...Object.values(form[m.s]).flatMap((r) => Object.values(r))])]
   if (vals.some((v) => v !== '' && v != null && !(Number(v) >= 0))) return (error.value = 'ราคาต้องเป็น 0 ขึ้นไป')
   if (!(await confirmDeactivate(db.priceLists, form, form.name))) return
   savePriceList({ ...form })
@@ -105,30 +111,24 @@ async function save() {
           </tbody>
         </table>
       </div>
-      <div class="mt-4 mb-1 text-xs font-semibold text-stone-500">เนื้อเค้ก (บวกเท่ากันทุกขนาด)</div>
-      <div class="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
-        <label v-for="f in flavors" :key="f.id" class="flex items-center gap-3" :class="f.active === false ? 'opacity-60' : ''">
-          <span class="min-w-0 flex-1 truncate text-sm text-stone-800">{{ f.name }}<span v-if="f.active === false" class="ml-1 text-xs text-stone-400">(ปิด)</span></span>
-          <input v-model="table.flavors[f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" />
-        </label>
-      </div>
-      <template v-if="styles.length">
-        <div class="mt-4 mb-1 text-xs font-semibold text-stone-500">รูปแบบตกแต่ง (บวกเท่ากันทุกขนาด)</div>
-        <div class="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
-          <label v-for="f in styles" :key="f.id" class="flex items-center gap-3" :class="f.active === false ? 'opacity-60' : ''">
-            <span class="min-w-0 flex-1 truncate text-sm text-stone-800">{{ f.name }}<span v-if="f.active === false" class="ml-1 text-xs text-stone-400">(ปิด)</span></span>
-            <input v-model="table.styles[f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" />
-          </label>
-        </div>
-      </template>
-      <template v-if="shapes.length">
-        <div class="mt-4 mb-1 text-xs font-semibold text-stone-500">รูปทรง (บวกเท่ากันทุกขนาด)</div>
-        <div class="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
-          <label v-for="f in shapes" :key="f.id" class="flex items-center gap-3" :class="f.active === false ? 'opacity-60' : ''">
-            <span class="min-w-0 flex-1 truncate text-sm text-stone-800">{{ f.name }}<span v-if="f.active === false" class="ml-1 text-xs text-stone-400">(ปิด)</span></span>
-            <input v-model="table.shapes[f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" />
-          </label>
-        </div>
+      <template v-for="m in MAINS" :key="m.key">
+        <template v-if="optsOf(m.key).length">
+          <div class="mt-4 mb-1 text-xs font-semibold text-stone-500">{{ m.title }} (คงที่ = บวกเท่ากันทุกขนาด · ตามขนาด = ตั้งราคาต่อขนาด · เลือกที่หน้าแก้ตัวเลือก)</div>
+          <div class="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
+            <template v-for="f in optsOf(m.key)" :key="f.id">
+              <label v-if="!bySize(f)" class="flex items-center gap-3" :class="f.active === false ? 'opacity-60' : ''">
+                <span class="min-w-0 flex-1 truncate text-sm text-stone-800">{{ f.name }}<span v-if="f.active === false" class="ml-1 text-xs text-stone-400">(ปิด)</span></span>
+                <input v-model="table[m.f][f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" :data-main-fixed="f.id" />
+              </label>
+              <div v-else class="sm:col-span-2" :class="f.active === false ? 'opacity-60' : ''">
+                <div class="mb-1 text-sm text-stone-800">{{ f.name }} <span class="text-xs text-stone-400">ตามขนาด</span><span v-if="f.active === false" class="ml-1 text-xs text-stone-400">(ปิด)</span></div>
+                <div class="flex flex-wrap gap-2">
+                  <label v-for="sz in sizes" :key="sz.id" class="text-xs text-stone-500">{{ sz.name }}<input v-model="table[m.s][f.id][sz.id]" type="text" v-num.dec min="0" class="input mt-0.5 h-10 w-24" :data-main-size="`${f.id}:${sz.id}`" /></label>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
       </template>
       <div class="mt-3 flex items-center justify-end gap-3">
         <span v-if="tableMsg" class="text-sm" :class="tableMsg === 'บันทึกแล้ว' ? 'text-emerald-700' : 'text-rose-600'">{{ tableMsg }}</span>
@@ -188,30 +188,24 @@ async function save() {
               </tbody>
             </table>
           </div>
-          <div class="mt-3 mb-1 text-xs font-semibold text-stone-500">เนื้อเค้ก (บวกเท่ากันทุกขนาด)</div>
-          <div class="space-y-1.5">
-            <label v-for="f in optsOf('flavor', true).filter((x) => x.active !== false)" :key="f.id" class="flex items-center gap-3">
-              <span class="min-w-0 flex-1 truncate text-sm text-stone-800">{{ f.name }}</span>
-              <input v-model="form.flavors[f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" :placeholder="money(f.price || 0)" />
-            </label>
-          </div>
-          <template v-if="optsOf('style', true).some((x) => x.active !== false)">
-            <div class="mt-3 mb-1 text-xs font-semibold text-stone-500">รูปแบบตกแต่ง (บวกเท่ากันทุกขนาด)</div>
-            <div class="space-y-1.5">
-              <label v-for="f in optsOf('style', true).filter((x) => x.active !== false)" :key="f.id" class="flex items-center gap-3">
-                <span class="min-w-0 flex-1 truncate text-sm text-stone-800">{{ f.name }}</span>
-                <input v-model="form.styles[f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" :placeholder="money(f.price || 0)" />
-              </label>
-            </div>
-          </template>
-          <template v-if="optsOf('shape', true).some((x) => x.active !== false)">
-            <div class="mt-3 mb-1 text-xs font-semibold text-stone-500">รูปทรง (บวกเท่ากันทุกขนาด)</div>
-            <div class="space-y-1.5">
-              <label v-for="f in optsOf('shape', true).filter((x) => x.active !== false)" :key="f.id" class="flex items-center gap-3">
-                <span class="min-w-0 flex-1 truncate text-sm text-stone-800">{{ f.name }}</span>
-                <input v-model="form.shapes[f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" :placeholder="money(f.price || 0)" />
-              </label>
-            </div>
+          <template v-for="m in MAINS" :key="m.key">
+            <template v-if="optsOf(m.key, true).some((x) => x.active !== false)">
+              <div class="mt-3 mb-1 text-xs font-semibold text-stone-500">{{ m.title }}</div>
+              <div class="space-y-1.5">
+                <template v-for="f in optsOf(m.key, true).filter((x) => x.active !== false)" :key="f.id">
+                  <label v-if="!bySize(f)" class="flex items-center gap-3">
+                    <span class="min-w-0 flex-1 truncate text-sm text-stone-800">{{ f.name }}</span>
+                    <input v-model="form[m.f][f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" :placeholder="money(f.price || 0)" />
+                  </label>
+                  <div v-else>
+                    <div class="mb-1 text-sm text-stone-800">{{ f.name }} <span class="text-xs text-stone-400">ตามขนาด</span></div>
+                    <div class="flex flex-wrap gap-2">
+                      <label v-for="sz in sizes" :key="sz.id" class="text-xs text-stone-500">{{ sz.name }}<input v-model="form[m.s][f.id][sz.id]" type="text" v-num.dec min="0" class="input mt-0.5 h-10 w-24" :placeholder="money(f.sizePrices?.[sz.id] || 0)" /></label>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
           </template>
           <p class="mt-1 text-xs text-stone-400">เว้นว่าง = ใช้ราคาปกติ (ตัวเลขจาง)</p>
         </div>
