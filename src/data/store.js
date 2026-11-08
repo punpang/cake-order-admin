@@ -221,7 +221,7 @@ export const db = reactive({
     { id: 'g_diet', name: 'ข้อจำกัดอาหาร', type: 'multi', required: false, appliesTo: ['custom', 'ready'], options: [
       fix('dt1', 'หวานน้อย'), fix('dt2', 'ไม่ใส่ถั่ว'), fix('dt3', 'ไม่มีแอลกอฮอล์'), fix('dt4', 'ไม่ใส่นม'),
     ] },
-    { id: 'g_allergy', name: 'แพ้อาหาร (ระบุ)', type: 'text', required: false, appliesTo: ['custom', 'ready'], placeholder: 'ถ้ามี' },
+    { id: 'g_allergy', name: 'แพ้อาหาร (ระบุ)', type: 'text', sensitive: true, required: false, appliesTo: ['custom', 'ready'], placeholder: 'ถ้ามี' },
   ],
 
   // บันเดิ้ล (ตัวเลือกรอง ในกลุ่มเดียวกันหรือข้ามกลุ่ม): items = [{ groupId, optionId }] ≥ 2, discount = { [sizeId]: บาท }

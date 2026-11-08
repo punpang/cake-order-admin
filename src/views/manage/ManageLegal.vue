@@ -10,7 +10,7 @@ import AppSwitch from '../../components/AppSwitch.vue'
 import PhoneInput from '../../components/PhoneInput.vue'
 import LegalText from '../../components/LegalText.vue'
 
-// PDPA / คุกกี้ / เงื่อนไขการใช้งาน (ร่างตั้งต้น) · แก้แล้วขึ้นเวอร์ชันได้ → ลูกค้าต้องกดยอมรับใหม่ · เก็บหลักฐานเวอร์ชัน+เวลาที่ยอมรับ
+// PDPA / คุกกี้ / เงื่อนไขการใช้งาน (ฉบับมาตรฐานของระบบ) · แก้แล้วขึ้นเวอร์ชันได้ → ลูกค้าต้องกดยอมรับใหม่ · เก็บหลักฐานเวอร์ชัน+เวลาที่ยอมรับ
 const DEFAULTS = { privacy: DEFAULT_PRIVACY, terms: DEFAULT_TERMS, cookie: DEFAULT_COOKIE }
 const tab = ref('privacy')
 const tabs = [{ v: 'privacy', l: 'PDPA' }, { v: 'terms', l: 'เงื่อนไข' }, { v: 'cookie', l: 'คุกกี้' }, { v: 'contact', l: 'ผู้ควบคุมข้อมูล' }]
@@ -46,7 +46,7 @@ async function save() {
   } else err.value = r.error
 }
 async function reset() {
-  if (!(await askConfirm({ title: 'คืนค่าร่างตั้งต้น', message: 'ข้อความในช่องแก้ไขจะถูกแทนด้วยร่างตั้งต้น (ยังไม่บันทึกจนกว่าจะกดบันทึก)', okText: 'คืนค่า', danger: true }))) return
+  if (!(await askConfirm({ title: 'คืนค่าฉบับมาตรฐาน', message: 'ข้อความในช่องแก้ไขจะถูกแทนด้วยฉบับมาตรฐานของระบบ (ยังไม่บันทึกจนกว่าจะกดบันทึก)', okText: 'คืนค่า', danger: true }))) return
   form.text = DEFAULTS[tab.value]
 }
 
@@ -65,10 +65,10 @@ const contactMissing = computed(() => ['controller', 'address', 'email', 'phone'
 </script>
 
 <template>
-  <ManageShell narrow guard title="PDPA / คุกกี้ / เงื่อนไข" subtitle="ข้อความที่ลูกค้าต้องยินยอม · ร่างตั้งต้น" :toolbar="false">
+  <ManageShell narrow guard title="PDPA / คุกกี้ / เงื่อนไข" subtitle="ข้อความที่ลูกค้าต้องยินยอม" :toolbar="false">
     <div class="mb-3 flex gap-2 rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">
       <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0" />
-      <p>ข้อความทั้งหมดเป็น <b>ร่างตั้งต้น</b> ไม่ใช่คำปรึกษาทางกฎหมาย กรุณาแก้ให้ตรงกับร้านและให้ที่ปรึกษากฎหมาย/ผู้เชี่ยวชาญ PDPA ตรวจก่อนใช้จริง · เมื่อต่อ Supabase / เปิดใช้ระบบวิเคราะห์ ต้องปรับข้อความให้ตรงกับระบบจริง</p>
+      <p>ข้อความเขียนตามระบบที่ใช้งานจริง (Supabase, Facebook, SMS, Telegram, ขนส่ง) · กรอกชื่อผู้ควบคุมข้อมูล ที่อยู่ อีเมล เบอร์ ให้ครบก่อนเปิดให้ลูกค้าใช้ · เมื่อเพิ่มบริการใหม่ (เช่น LINE จริง ระบบวิเคราะห์) ต้องแก้ข้อความให้ตรง · แนะนำให้ที่ปรึกษากฎหมายตรวจทาน</p>
     </div>
 
     <div class="mb-4 grid grid-cols-4 gap-1 seg-grid">
@@ -126,7 +126,7 @@ const contactMissing = computed(() => ['controller', 'address', 'email', 'phone'
         <p v-if="err" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ err }}</p>
         <div class="flex flex-wrap gap-2">
           <button class="btn-primary flex-1 sm:flex-none" :disabled="!dirty" @click="save">บันทึก</button>
-          <button class="btn-outline" @click="reset">คืนค่าร่างตั้งต้น</button>
+          <button class="btn-outline" @click="reset">คืนค่าฉบับมาตรฐาน</button>
         </div>
       </section>
     </template>

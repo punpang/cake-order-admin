@@ -1,7 +1,7 @@
 <script setup>
 import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRaw, watch } from 'vue'
-import { db, activeListsAt } from '../data/store'
+import { db, activeListsAt, session } from '../data/store'
 import { priceDetail, allowedBy, forType, discountLines } from '../lib/pricing'
 import { decodeCake, findCodes } from '../lib/cakeCode'
 import { money } from '../lib/format'
@@ -34,6 +34,10 @@ if (form.kind === 'custom' && !form.tiers.length) {
   form.tiers = [{ selections: first }]
 }
 const errors = ref({})
+// ข้อมูลแพ้อาหาร = ข้อมูลสุขภาพ (PDPA ม.26) → บันทึกได้เมื่อลูกค้ายินยอมโดยชัดแจ้งแล้วเท่านั้น
+const isHealthGroup = (g) => g.type === 'text' && (g.sensitive || g.id === 'g_allergy')
+const healthText = () => wholeGroups.value.some((g) => isHealthGroup(g) && String(form.selections[g.id] ?? '').trim())
+const healthOk = ref(!!form.healthConsent)
 // เค้กชั้น: ต้องเลือกก่อน ปุ่มเพิ่ม/ลบชั้นถึงขึ้น
 const layered = ref(form.tiers.length > 1)
 async function setLayered(v) {
@@ -164,6 +168,7 @@ function save() {
     if (Object.keys(e).length) err[`t${i}`] = e
   })
   if (!(form.qty >= 1)) err.qty = 'จำนวนอย่างน้อย 1'
+  if (healthText() && !healthOk.value) err.health = 'ต้องได้รับความยินยอมโดยชัดแจ้งจากลูกค้าก่อนบันทึกข้อมูลแพ้อาหาร (หรือลบข้อความออก)'
   errors.value = err
   if (Object.keys(err).length) return
 
@@ -173,6 +178,9 @@ function save() {
   const tierAllowed = new Set(tierGroups.value.map((g) => g.id))
   for (const t of form.tiers) for (const k of Object.keys(t.selections)) if (!tierAllowed.has(k)) delete t.selections[k]
   if (form.kind !== 'custom' || !tierGroups.value.length) form.tiers = []
+  // หลักฐานความยินยอม (เวลา/ผู้บันทึก) · ไม่มีข้อมูลแพ้อาหาร = ไม่เก็บ
+  if (healthText()) form.healthConsent = form.healthConsent || { at: new Date().toISOString(), by: session.role || '' }
+  else delete form.healthConsent
 
   if (form.kind === 'retail') {
     form.name = db.retailItems.find((p) => p.id === form.retailId)?.name || form.name
@@ -300,6 +308,14 @@ const step = (d) => { form.qty = Math.max(1, (Number(form.qty) || 1) + d) }
 
     <div v-if="form.kind === 'custom' && wholeGroups.length" class="mb-2 text-sm font-semibold text-stone-500">ตัวเลือกเพิ่มเติม</div>
     <OptionPicker v-model="form.selections" :groups="wholeGroups" :errors="errors" :active="active" :allow="form.kind === 'custom' ? allowFor(form.tiers[0]) : null" :size-ids="allSizeIds" :type-opt="form.kind === 'custom' ? typeOptOf(form.tiers[0]) : readyTypeOpt" />
+
+    <div v-if="healthText()" class="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3.5">
+      <label class="flex items-start gap-2 text-sm text-amber-900">
+        <input v-model="healthOk" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0" />
+        <span>ลูกค้ายินยอมโดยชัดแจ้งให้ร้านเก็บและใช้ข้อมูลแพ้อาหารนี้ เพื่อทำสินค้าเท่านั้น (ข้อมูลสุขภาพตาม PDPA) — ถามลูกค้าในแชทก่อนติ๊ก</span>
+      </label>
+      <p v-if="errors.health" class="mt-1.5 text-sm text-rose-600" role="alert">{{ errors.health }}</p>
+    </div>
 
     <!-- รูป + หมายเหตุ -->
     <div class="mt-3 rounded-2xl border border-stone-200/70 bg-white p-3.5">
