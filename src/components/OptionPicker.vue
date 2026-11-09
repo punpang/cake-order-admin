@@ -11,6 +11,7 @@ const props = defineProps({
   allGroups: { type: Array, default: null }, // ทุกหัวข้อ (บันเดิ้ลข้ามหัวข้อ/ข้ามส่วนต้องรู้จักกลุ่มของอีกฝั่ง)
   errors: { type: Object, default: () => ({}) },
   active: { type: Array, default: () => [] }, // แบบราคาพิเศษที่ใช้งาน
+  locked: { type: Set, default: null }, // "groupId:optionId" ที่รูปทรงบังคับ (ติ๊กแล้ว เอาออกไม่ได้)
   allow: { type: Function, default: null }, // (group, option) => เลือกได้ไหม (ตามประเภท)
   sizeIds: { type: Array, default: () => [] }, // ขนาดที่เลือก (ราคาตามขนาด)
   typeOpt: { type: Object, default: null }, // ประเภทที่เลือกในชั้นนี้ (ราคาขนาดขึ้นกับประเภท)
@@ -75,6 +76,7 @@ const tags = computed(() => bundleTags(props.bundles, props.allGroups || props.g
 const tagOf = (g, o) => tags.value.get(`${g.id}:${o.id}`) || null
 // ป้าย: ยังไม่ได้ลดจริง (ต้องเลือกเพิ่ม) = สีส้ม "เลือกเพิ่ม → -x฿" · ได้ลดแล้ว = สีเขียวทึบ "✓ ลดแล้ว -x฿" · ตัวที่เลือกไว้แล้วแต่ยังไม่ครบชุดไม่ติดป้าย
 const tagText = (t) => (t.state === 'done' ? `✓ ลดแล้ว -${num(t.amount)}฿` : `เลือกเพิ่ม → -${num(t.amount)}฿`)
+const isLocked = (g, o) => !!props.locked?.has(`${g.id}:${o.id}`)
 const isOn = (g, o) =>
   g.type === 'multi' ? (selections.value[g.id] || []).includes(o.id) : selections.value[g.id] === o.id
 </script>
@@ -109,6 +111,9 @@ const isOn = (g, o) =>
           :class="[isOn(g, o) ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : (tagOf(g, o) ? (tagOf(g, o).state === 'partner' ? 'border-amber-500 bg-amber-50 text-stone-800 ring-2 ring-amber-300 motion-safe:animate-pulse' : 'border-dashed border-amber-500 bg-amber-50/40 text-stone-800') : 'border-stone-200 bg-white text-stone-700 hover:border-brand-300'), tagOf(g, o) ? 'flex-col items-start' : 'items-center']"
           :title="tagOf(g, o) ? `${tagOf(g, o).single ? 'ลดเพิ่ม' : 'บันเดิ้ล'}: ${tagOf(g, o).names.join(', ')}` : null"
           :data-bundle-tag="tagOf(g, o)?.state || null"
+          :disabled="isLocked(g, o)"
+          :aria-disabled="isLocked(g, o)"
+          :data-locked="isLocked(g, o) || null"
           @click="g.type === 'multi' ? toggle(g.id, o.id) : pick(g.id, o.id, g.required)"
         >
           <span v-if="tagOf(g, o)" class="pointer-events-none max-w-full rounded-full px-2 py-0.5 text-[11px] leading-tight font-bold shadow-sm" :class="tagOf(g, o).state === 'done' ? 'bg-emerald-700 text-white' : 'bg-amber-600 text-white'">{{ tagText(tagOf(g, o)) }}</span>
@@ -117,6 +122,7 @@ const isOn = (g, o) =>
             <span class="min-w-0 break-words">{{ o.name }}</span>
             <span v-if="regularText(g, o)" class="text-xs whitespace-nowrap text-stone-400 line-through">{{ regularText(g, o) }}</span>
             <span v-if="priceText(g, o)" class="text-xs whitespace-nowrap" :class="regularText(g, o) ? 'font-medium text-rose-600' : 'text-stone-500'">{{ priceText(g, o) }}</span>
+            <span v-if="isLocked(g, o)" class="rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-bold text-white">บังคับ</span>
           </span>
         </button>
       </div>

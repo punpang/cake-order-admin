@@ -121,6 +121,43 @@ export function groupOkFor(groups, item, t) {
   return (g) => MAIN.includes(g.key) || !only?.length || only.includes(g.id)
 }
 
+// รูปทรงที่เลือกบังคับตัวเลือกในหัวข้ออื่น → Set ของ "groupId:optionId" (ข้ามหัวข้อ/ตัวเลือกที่ปิดใช้งานหรือถูก allow ซ่อน)
+export function forcedOf(groups, sels, allow = null) {
+  const out = new Set()
+  const sg = groups.find((g) => g.key === 'shape')
+  if (!sg) return out
+  const opt = sg.options.find((o) => o.id === idsOf(sels?.[sg.id])[0])
+  for (const [gid, ids] of Object.entries(opt?.forces || {})) {
+    const g = groups.find((x) => x.id === gid)
+    if (!g || !g.perTier || g.active === false || (allow && !allow(g, null))) continue
+    for (const id of ids || []) {
+      const o = g.options?.find((x) => x.id === id)
+      if (o && o.active !== false && (!allow || allow(g, o))) out.add(`${gid}:${id}`)
+    }
+  }
+  return out
+}
+
+// ปรับ selections ตามที่รูปทรงบังคับ: เอาตัวที่เคยถูกบังคับ (prev) แต่ไม่ถูกบังคับแล้วออก แล้วเติมตัวที่ถูกบังคับ · คืน Set ใหม่
+export function syncForced(groups, sels, prev, allow = null) {
+  const next = forcedOf(groups, sels, allow)
+  const split = (k) => { const i = k.indexOf(':'); return [k.slice(0, i), k.slice(i + 1)] }
+  for (const k of prev || []) {
+    if (next.has(k)) continue
+    const [gid, oid] = split(k)
+    const g = groups.find((x) => x.id === gid)
+    if (!g || sels[gid] == null) continue
+    if (g.type === 'multi') sels[gid] = idsOf(sels[gid]).filter((x) => x !== oid)
+    else if (sels[gid] === oid) delete sels[gid]
+  }
+  for (const k of next) {
+    const [gid, oid] = split(k)
+    const g = groups.find((x) => x.id === gid)
+    if (g.type === 'multi') { const cur = idsOf(sels[gid]); if (!cur.includes(oid)) sels[gid] = [...cur, oid] } else if (sels[gid] !== oid) sels[gid] = oid
+  }
+  return next
+}
+
 // ---------- ตัวเลือกรอง ----------
 // priceType: 'size' = ตามขนาด (sizePrices = { [sizeId] }) | 'fixed' = คงที่ (price)
 // แปรผันตามประเภท: types = [typeId] ใช้ได้กับประเภทไหน (ว่าง = ทุกประเภท)

@@ -2,7 +2,7 @@
 import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRaw, watch } from 'vue'
 import { db, activeListsAt, session } from '../data/store'
-import { priceDetail, allowedBy, forType, discountLines, groupOkFor } from '../lib/pricing'
+import { forcedOf, syncForced, priceDetail, allowedBy, forType, discountLines, groupOkFor } from '../lib/pricing'
 import { decodeCake, findCodes } from '../lib/cakeCode'
 import { money } from '../lib/format'
 import { resizeImage, imageErrorMessage } from '../lib/imageResize'
@@ -110,6 +110,13 @@ function sizeIdxOf(t) {
   const id = sizeIdsOf(t)[0]
   return sg && id ? sg.options.findIndex((x) => x.id === id) : -1
 }
+// รูปทรงบังคับตัวเลือก: เติมให้อัตโนมัติ + ล็อก (ต่อชั้น)
+const forcedPrev = new WeakMap()
+const lockedOf = (t) => (t && form.kind === 'custom' ? forcedOf(db.optionGroups, t.selections, allowFor(t)) : null)
+function applyForced() {
+  if (form.kind !== 'custom') return
+  for (const t of form.tiers) forcedPrev.set(t, syncForced(db.optionGroups, t.selections, forcedPrev.get(t), allowFor(t)))
+}
 // สินค้าสำเร็จ: ประเภทของสินค้า (ตัวเลือกรองตามประเภท)
 const readyTypeOpt = computed(() => db.optionGroups.find((g) => g.key === 'type')?.options.find((o) => o.id === form.typeId) || null)
 // เปลี่ยนประเภทแล้ว ตัดตัวเลือกที่ไม่มีออก
@@ -129,6 +136,7 @@ watch(
     if (form.kind !== 'custom') return
     if (form.tiers.length) form.tiers.forEach((t) => prune(t.selections, allowFor(t), tierGroups.value))
     prune(form.selections, allowFor(form.tiers[0]), wholeGroups.value)
+    applyForced()
   },
 )
 // สินค้าที่เลือกได้ = สินค้า POS ที่เปิดใช้งาน/แสดงใน POS และไม่ต้องเลือกตัวเลือกหน้าร้าน (เช่น เครื่องดื่ม) · ค้นหา/กรองหมวดได้
@@ -343,13 +351,13 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
             <span class="font-semibold text-brand-800">ชั้นที่ {{ i + 1 }}</span>
             <button v-if="form.tiers.length > 1" type="button" class="btn-danger h-8 px-2.5 text-sm" @click="removeTier(i)"><AppIcon name="trash" :size="14" /> ลบชั้น</button>
           </div>
-          <OptionPicker v-model="tier.selections" :scopes="scopesFor(tier)" :bundles="form.kind === 'custom' ? db.bundles : []" :context="form.selections" :groups="tierGroups" :all-groups="groups" :errors="errors['t' + i] || {}" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" :type-opt="typeOptOf(tier)" />
+          <OptionPicker v-model="tier.selections" :locked="lockedOf(tier)" :scopes="scopesFor(tier)" :bundles="form.kind === 'custom' ? db.bundles : []" :context="form.selections" :groups="tierGroups" :all-groups="groups" :errors="errors['t' + i] || {}" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" :type-opt="typeOptOf(tier)" />
           <BundleHint scope="tier" :bundles="db.bundles" :groups="groups" :tier-sels="tier.selections" :whole-sels="form.selections" :size-ids="sizeIdsOf(tier)" :type-id="typeOptOf(tier)?.id || null" :style-id="styleIdOf(tier)" :allow="allowFor(tier)" />
         </div>
         <button type="button" class="btn-soft mb-3 w-full" @click="form.tiers.push({ selections: {} })"><AppIcon name="plus" :size="16" /> เพิ่มชั้น</button>
       </template>
       <div v-else class="mb-3">
-        <OptionPicker v-model="form.tiers[0].selections" :scopes="scopesFor(form.tiers[0])" :bundles="form.kind === 'custom' ? db.bundles : []" :context="form.selections" :groups="tierGroups" :all-groups="groups" :errors="errors.t0 || {}" :active="active" :allow="allowFor(form.tiers[0])" :size-ids="sizeIdsOf(form.tiers[0])" :type-opt="typeOptOf(form.tiers[0])" />
+        <OptionPicker v-model="form.tiers[0].selections" :locked="lockedOf(form.tiers[0])" :scopes="scopesFor(form.tiers[0])" :bundles="form.kind === 'custom' ? db.bundles : []" :context="form.selections" :groups="tierGroups" :all-groups="groups" :errors="errors.t0 || {}" :active="active" :allow="allowFor(form.tiers[0])" :size-ids="sizeIdsOf(form.tiers[0])" :type-opt="typeOptOf(form.tiers[0])" />
         <BundleHint scope="tier" :bundles="db.bundles" :groups="groups" :tier-sels="form.tiers[0].selections" :whole-sels="form.selections" :size-ids="sizeIdsOf(form.tiers[0])" :type-id="typeOptOf(form.tiers[0])?.id || null" :style-id="styleIdOf(form.tiers[0])" :allow="allowFor(form.tiers[0])" />
       </div>
     </template>

@@ -97,13 +97,26 @@ const blank = () => ({ id: null, name: '', price: 0, pounds: 1, active: true, re
 const o = reactive(blank())
 const oError = ref('')
 function editOption(opt) {
-  Object.assign(o, opt ? { ...blank(), ...opt, groups: [...(opt.groups || [])], recipe: (opt.recipe || []).map((x) => ({ ...x })), images: [...(opt.images || [])], allow: JSON.parse(JSON.stringify(opt.allow || {})), sizePrices: { ...(opt.sizePrices || {}) }, types: [...(opt.types || [])], typePrices: JSON.parse(JSON.stringify(opt.typePrices || {})), typePrice: { ...(opt.typePrice || {}) } } : blank())
+  Object.assign(o, opt ? { ...blank(), ...opt, groups: [...(opt.groups || [])], recipe: (opt.recipe || []).map((x) => ({ ...x })), images: [...(opt.images || [])], allow: JSON.parse(JSON.stringify(opt.allow || {})), forces: JSON.parse(JSON.stringify(opt.forces || {})), sizePrices: { ...(opt.sizePrices || {}) }, types: [...(opt.types || [])], typePrices: JSON.parse(JSON.stringify(opt.typePrices || {})), typePrice: { ...(opt.typePrice || {}) } } : blank())
   for (const t of db.optionGroups.find((x) => x.key === 'type')?.options || []) if (!o.typePrices[t.id]) o.typePrices[t.id] = {}
+  if (!o.forces) o.forces = {}
   oError.value = ''
   oOpen.value = true
   if (isFlavor.value) o.priceType = o.priceType === 'size' && opt ? 'size' : 'fixed' // หัวข้อหลักแบบบวกเพิ่ม: ไม่มีค่า = คงที่
 }
 
+// รูปทรง: บังคับเลือกตัวเลือกในหัวข้ออื่น (ติ๊กให้อัตโนมัติ + ล็อก)
+const isShape = computed(() => group.value?.key === 'shape')
+const forceGroups = computed(() => subGroups.value.filter((x) => x.perTier && x.type !== 'text' && (x.options || []).length))
+const forceOn = (gid, oid) => (o.forces?.[gid] || []).includes(oid)
+function toggleForce(gid, oid) {
+  const cur = [...(o.forces[gid] || [])]
+  const i = cur.indexOf(oid)
+  if (i >= 0) cur.splice(i, 1)
+  else cur.push(oid)
+  if (cur.length) o.forces[gid] = cur
+  else delete o.forces[gid]
+}
 const groupOn = (gid) => !o.groups?.length || o.groups.includes(gid)
 function toggleGroup(gid) {
   const cur = o.groups?.length ? [...o.groups] : subGroups.value.map((x) => x.id)
@@ -377,6 +390,16 @@ async function saveO() {
             <button v-for="x in subGroups" :key="x.id" type="button" class="chip" :class="groupOn(x.id) ? 'chip-on' : 'chip-off'" :aria-pressed="groupOn(x.id)" data-style-group @click="toggleGroup(x.id)">{{ x.name }}</button>
           </div>
           <p class="mt-1 text-xs text-stone-400">หัวข้อที่ไม่เลือกจะซ่อนตอนสั่ง และล้างค่าที่เลือกไว้ · เลือกครบทุกหัวข้อ = ไม่จำกัด</p>
+        </div>
+        <div v-if="isShape && forceGroups.length">
+          <div class="label">บังคับเลือกเมื่อเลือกรูปทรงนี้</div>
+          <div v-for="fg in forceGroups" :key="fg.id" class="mb-2">
+            <div class="mb-1 text-xs text-stone-500">{{ fg.name }}</div>
+            <div class="flex flex-wrap gap-2">
+              <button v-for="x in fg.options.filter((y) => y.active !== false || forceOn(fg.id, y.id))" :key="x.id" type="button" class="chip" :class="forceOn(fg.id, x.id) ? 'chip-on' : 'chip-off'" :aria-pressed="forceOn(fg.id, x.id)" :data-force="fg.id + ':' + x.id" @click="toggleForce(fg.id, x.id)">{{ x.name }}</button>
+            </div>
+          </div>
+          <p class="text-xs text-stone-400">ตัวที่เลือกจะถูกติ๊กให้อัตโนมัติและลูกค้าเอาออกไม่ได้ · เปลี่ยนรูปทรงแล้วจะถูกเอาออก</p>
         </div>
         <RecipeEditor v-model="o.recipe" />
         <AppSwitch v-model="o.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" class="flex" />

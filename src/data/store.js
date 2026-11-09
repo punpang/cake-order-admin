@@ -727,6 +727,17 @@ export function saveOption(groupId, d) {
   const data = { ...d, recipe: cleanRecipe(d.recipe) }
   // ประเภท/เนื้อเค้ก: ราคาตั้งในหน้าการกำหนดราคา (ไม่แตะราคาที่นี่) · ขนาด: ปอนด์ · ตัวเลือกรอง: ราคาตามขนาด
   for (const k of ['price', 'priceType', 'special', 'sizePrices', 'pounds', 'types', 'typePrices', 'typePrice']) delete data[k]
+  // รูปทรง: บังคับเลือกตัวเลือกในหัวข้ออื่น { [groupId]: [optionId] } (เก็บเฉพาะที่ยังมีอยู่จริง)
+  delete data.forces
+  if (g.key === 'shape') {
+    const forces = {}
+    for (const [gid, ids] of Object.entries(d.forces || {})) {
+      const tg = db.optionGroups.find((x) => x.id === gid)
+      const ok = (ids || []).filter((id) => tg?.options?.some((o) => o.id === id))
+      if (tg && tg.id !== g.id && ok.length) forces[gid] = ok
+    }
+    if (Object.keys(forces).length) data.forces = forces
+  }
   if (g.key === 'size') data.pounds = Number(d.pounds) || 1
   else if (g.key === 'type') {
     if (!d.id) Object.assign(data, { price: 0, sizePrices: {} })

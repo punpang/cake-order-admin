@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { db, activeListsAt } from '../data/store'
-import { priceDetail, allowedBy, forType, discountLines, groupOkFor } from '../lib/pricing'
+import { forcedOf, syncForced, priceDetail, allowedBy, forType, discountLines, groupOkFor } from '../lib/pricing'
 import { MAIN_KEYS, typeFreeGroup } from '../lib/constants'
 import { encodeCake } from '../lib/cakeCode'
 import { money } from '../lib/format'
@@ -93,8 +93,15 @@ function prune(sels, allow, list) {
 watch(() => JSON.stringify([form.selections, form.tiers]), () => {
   if (form.tiers.length) form.tiers.forEach((t) => prune(t.selections, allowFor(t), tierGroups.value))
   prune(form.selections, allowFor(form.tiers[0]), wholeGroups.value)
+  applyForced()
 })
 
+// รูปทรงบังคับตัวเลือก: เติมให้อัตโนมัติ + ล็อก (ต่อชั้น)
+const forcedPrev = new WeakMap()
+const lockedOf = (t) => (t ? forcedOf(db.optionGroups, t.selections, allowFor(t)) : null)
+function applyForced() {
+  for (const t of form.tiers) forcedPrev.set(t, syncForced(db.optionGroups, t.selections, forcedPrev.get(t), allowFor(t)))
+}
 // ---- ราคา ----
 const active = computed(() => activeListsAt(''))
 const detail = computed(() => priceDetail(form, db.optionGroups, db.retailItems, active.value, db.bundles))
@@ -151,7 +158,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
 
     <template v-if="hasTiers">
       <div v-for="(tier, i) in form.tiers" :key="i">
-        <OptionPicker v-model="tier.selections" :scopes="scopesFor(tier)" :bundles="db.bundles" :context="form.selections" :groups="showTier" :all-groups="groups" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" :type-opt="typeOptOf(tier)" />
+        <OptionPicker v-model="tier.selections" :locked="lockedOf(tier)" :scopes="scopesFor(tier)" :bundles="db.bundles" :context="form.selections" :groups="showTier" :all-groups="groups" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" :type-opt="typeOptOf(tier)" />
         <BundleHint scope="tier" :bundles="db.bundles" :groups="groups" :tier-sels="tier.selections" :whole-sels="form.selections" :size-ids="sizeIdsOf(tier)" :type-id="typeOptOf(tier)?.id || null" :style-id="styleIdOf(tier)" :allow="allowFor(tier)" />
       </div>
     </template>
