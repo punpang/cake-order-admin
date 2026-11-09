@@ -113,7 +113,7 @@ function toggleGroup(gid) {
   o.groups = subGroups.value.every((x) => cur.includes(x.id)) ? [] : cur // ครบทุกหัวข้อ = ไม่จำกัด
 }
 // รูปแบบตกแต่ง: ซ่อน/แสดงขนาดได้ (เหมือนประเภทเลือกขนาดที่มี)
-const sizeLimit = computed(() => db.optionGroups.filter((x) => x.key === 'size'))
+const sizeLimit = computed(() => db.optionGroups.filter((x) => x.key === 'size' || x.key === 'shape'))
 const allowOn = (lg, oid) => !o.allow[lg.id] || o.allow[lg.id].includes(oid)
 function toggleAllow(lg, oid) {
   const cur = o.allow[lg.id] ? [...o.allow[lg.id]] : lg.options.map((x) => x.id)
@@ -366,10 +366,10 @@ async function saveO() {
           <div v-for="lg in sizeLimit" :key="lg.id">
             <div class="label">{{ lg.name }}ที่แสดงเมื่อเลือกรูปแบบนี้</div>
             <div class="flex flex-wrap gap-2">
-              <button v-for="x in lg.options.filter((y) => y.active !== false || allowOn(lg, y.id))" :key="x.id" type="button" class="chip" :class="allowOn(lg, x.id) ? 'chip-on' : 'chip-off'" :aria-pressed="allowOn(lg, x.id)" :data-style-size="x.id" @click="toggleAllow(lg, x.id)">{{ x.name }}</button>
+              <button v-for="x in lg.options.filter((y) => y.active !== false || allowOn(lg, y.id))" :key="x.id" type="button" class="chip" :class="allowOn(lg, x.id) ? 'chip-on' : 'chip-off'" :aria-pressed="allowOn(lg, x.id)" :data-style-size="x.id" :data-style-allow="lg.key" @click="toggleAllow(lg, x.id)">{{ x.name }}</button>
             </div>
           </div>
-          <p class="text-xs text-stone-400">ขนาดที่ไม่เลือกจะซ่อนตอนสั่ง และล้างค่าที่เลือกไว้ · เลือกครบทุกขนาด = ไม่จำกัด · ถ้าประเภทจำกัดขนาดด้วย จะแสดงเฉพาะขนาดที่ทั้งสองอนุญาต</p>
+          <p class="text-xs text-stone-400">ขนาด/รูปทรงที่ไม่เลือกจะซ่อนตอนสั่ง และล้างค่าที่เลือกไว้ · เลือกครบทุกตัว = ไม่จำกัด · ถ้าประเภทจำกัดด้วย จะแสดงเฉพาะที่ทั้งสองอนุญาต</p>
         </div>
         <div v-if="isStyle && subGroups.length">
           <div class="label">หัวข้อที่เลือกได้เมื่อเลือกรูปแบบนี้</div>
