@@ -6,12 +6,26 @@ const LOCAL = /^(data:image\/(png|jpe?g|webp|gif);base64,|blob:)/
 export const isLocalImage = (v) => typeof v === 'string' && LOCAL.test(v)
 const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 + 1024
 const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }
+// Worker punpang-files (R2): เปิดใช้เมื่อตั้ง VITE_FILES_URL · ยังไม่ตั้ง = ใช้ Supabase Storage เหมือนเดิม
+const FILES_URL = (import.meta.env.VITE_FILES_URL || '').replace(/\/$/, '')
+export const filesEnabled = () => !!FILES_URL
+async function filesAuth(client) {
+  const sess = (await client.auth.getSession()).data.session
+  return sess?.access_token ? { Authorization: `Bearer ${sess.access_token}` } : {}
+}
+async function filesUpload(client, blob, type, bucket, prefix) {
+  const r = await fetch(`${FILES_URL}/upload?bucket=${bucket}&prefix=${encodeURIComponent(prefix)}`, { method: 'POST', headers: { ...(await filesAuth(client)), 'Content-Type': type }, body: blob })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok || (!j.url && !j.ref)) throw new Error(j.error || 'อัปโหลดรูปไม่สำเร็จ')
+  return j
+}
 const rand = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`)
 
 export async function uploadPublicImage(client, src, prefix) {
   const blob = await (await fetch(src)).blob()
   if (blob.size > MAX_UPLOAD_BYTES) throw new Error('รูปใหญ่เกิน 2 MB')
   const type = EXT[blob.type] ? blob.type : 'image/jpeg'
+  if (filesEnabled()) return (await filesUpload(client, blob, type, 'public', prefix)).url
   const path = `${prefix}/${rand()}.${EXT[type]}`
   const up = await client.storage.from(PUBLIC_BUCKET).upload(path, blob, { contentType: type, upsert: false })
   if (up.error) throw new Error(up.error.message || 'อัปโหลดรูปไม่สำเร็จ')
@@ -47,12 +61,20 @@ export async function externalizePublic(client, root, prefix, cache = new Map())
 // แสดงผลด้วยลิงก์ชั่วคราว (signed URL) — ดูคอมโพเนนต์ SecureImg
 export const SLIP_BUCKET = 'punpang-slips'
 const REF = /^sb:\/\/([a-z0-9-]+)\/(.+)$/
-export const parseRef = (v) => { const m = typeof v === 'string' ? REF.exec(v) : null; return m ? { bucket: m[1], path: m[2] } : null }
+const R2_REF = /^r2:\/\/private\/(.+)$/ // ไฟล์ส่วนตัวใน R2 (Worker)
+export const parseRef = (v) => {
+  if (typeof v !== 'string') return null
+  const r = R2_REF.exec(v)
+  if (r) return { bucket: 'r2', path: r[1] }
+  const m = REF.exec(v)
+  return m ? { bucket: m[1], path: m[2] } : null
+}
 
 export async function uploadPrivateImage(client, bucket, src, prefix) {
   const blob = await (await fetch(src)).blob()
   if (blob.size > MAX_UPLOAD_BYTES) throw new Error('รูปใหญ่เกิน 2 MB')
   const type = EXT[blob.type] ? blob.type : 'image/jpeg'
+  if (filesEnabled()) return (await filesUpload(client, blob, type, 'private', prefix)).ref
   const path = `${prefix}/${rand()}.${EXT[type]}`
   const up = await client.storage.from(bucket).upload(path, blob, { contentType: type, upsert: false })
   if (up.error) throw new Error(up.error.message || 'อัปโหลดรูปไม่สำเร็จ')
@@ -92,7 +114,8 @@ export const slipRefsOf = privateRefsOf
 export async function removePrivate(client, refs) {
   const by = {}
   for (const r of refs) { const x = parseRef(r); if (x) (by[x.bucket] ||= []).push(x.path) }
-  for (const b of Object.keys(by)) { try { await client.storage.from(b).remove(by[b]) } catch { /* ข้าม */ } }
+  if (by.r2?.length && filesEnabled()) { try { await fetch(`${FILES_URL}/delete`, { method: 'POST', headers: { ...(await filesAuth(client)), 'Content-Type': 'application/json' }, body: JSON.stringify({ keys: by.r2 }) }) } catch { /* ข้าม */ } }
+  for (const b of Object.keys(by)) { if (b === 'r2') continue; try { await client.storage.from(b).remove(by[b]) } catch { /* ข้าม */ } }
 }
 
 // ลิงก์ชั่วคราว (เก็บไว้ใช้ซ้ำจนใกล้หมดอายุ)
@@ -102,10 +125,18 @@ export async function signedUrlFor(client, ref, ttl = 3600) {
   if (hit && hit.exp - Date.now() > 300000) return hit.url
   const x = parseRef(ref)
   if (!x) return null
-  const r = await client.storage.from(x.bucket).createSignedUrl(x.path, ttl)
-  if (r.error || !r.data?.signedUrl) return null
-  signed.set(ref, { url: r.data.signedUrl, exp: Date.now() + ttl * 1000 })
-  return r.data.signedUrl
+  let url = null
+  if (x.bucket === 'r2') {
+    if (!filesEnabled()) return null
+    const r = await fetch(`${FILES_URL}/sign`, { method: 'POST', headers: { ...(await filesAuth(client)), 'Content-Type': 'application/json' }, body: JSON.stringify({ key: x.path }) })
+    url = r.ok ? (await r.json()).url || null : null
+  } else {
+    const r = await client.storage.from(x.bucket).createSignedUrl(x.path, ttl)
+    url = r.error ? null : r.data?.signedUrl || null
+  }
+  if (!url) return null
+  signed.set(ref, { url, exp: Date.now() + ttl * 1000 })
+  return url
 }
 
 // เผยแพร่: คัดลอกรูป (ส่วนตัว/ในเครื่อง) ไป bucket สาธารณะ → ลิงก์ถาวร · ลิงก์/ค่าอื่นคืนตามเดิม
@@ -114,6 +145,12 @@ export async function toPublicUrl(client, src) {
   if (isLocalImage(src)) return uploadPublicImage(client, src, PUBLISHED_PREFIX)
   const x = parseRef(src)
   if (!x) return src
+  if (x.bucket === 'r2') {
+    const url = await signedUrlFor(client, src, 300)
+    if (!url) throw new Error('อ่านรูปส่วนตัวไม่สำเร็จ')
+    const blob = await (await fetch(url)).blob()
+    return uploadPublicImage(client, URL.createObjectURL(blob), PUBLISHED_PREFIX)
+  }
   const ext = (x.path.split('.').pop() || 'jpg').toLowerCase()
   const path = `${PUBLISHED_PREFIX}/${rand()}.${ext}`
   const r = await client.storage.from(x.bucket).copy(x.path, path, { destinationBucket: PUBLIC_BUCKET })
