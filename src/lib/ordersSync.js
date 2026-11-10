@@ -1,6 +1,16 @@
 import { startSync, selectAll } from './tableSync'
 import { parseNo } from './docNo'
 import { externalizeOrderImages, privateRefsOf, removePrivate } from './storage'
+import { toDateStr } from './format'
+
+// ตารางออร์เดอร์ในเครื่อง = ออร์เดอร์ที่ยังไม่ปิด + นัดรับภายในช่วงนี้ (วัน) · หน้าที่ต้องใช้ประวัติทั้งหมดเปิดโหมดเต็ม (setOrdersFullHistory)
+export const ORDER_WINDOW_DAYS = 60
+let fullHistory = false
+export function setOrdersFullHistory(on) { fullHistory = !!on }
+// ออร์เดอร์ที่เปิดดูเฉพาะรายการ (นอกช่วง) ต้องคงอยู่ในเครื่องระหว่างรีเฟรช
+const pinned = new Set()
+export function pinOrderId(id) { pinned.add(id) }
+export function clearPinnedOrders() { pinned.clear() }
 
 // ซิงก์ออร์เดอร์ (db.orders) กับ punpang_orders · ชำระเงิน/รายการ/ประวัติ ฯลฯ อยู่ใน data (jsonb)
 // สิทธิ์ตรวจที่ฐานข้อมูลด้วย trigger (เปลี่ยนสถานะ/ยืนยันชำระ/ยกเลิกยอด/แจ้งยอด) — ดู punpang_guard_status
@@ -16,7 +26,14 @@ export function rowToOrder(r) {
 }
 
 export async function loadOrders(client) {
-  const a = await selectAll((x, y) => client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data').order('code').order('id').range(x, y))
+  const d = new Date()
+  d.setDate(d.getDate() - ORDER_WINDOW_DAYS)
+  const from = toDateStr(d)
+  const a = await selectAll((x, y) => {
+    let qy = client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data')
+    if (!fullHistory) qy = qy.or(`status.not.in.(delivered,cancelled,draft),pickup_at.gte.${from}`)
+    return qy.order('code').order('id').range(x, y)
+  })
   if (a.error) return { error: a.error.message }
   return { items: (a.data || []).map(rowToOrder) }
 }
@@ -99,7 +116,9 @@ export function startOrdersSync({ client, db, canWrite, onError, onRecode, numbe
   return startSync({
     list: () => db.orders,
     replace: (items, { refresh = false } = {}) => {
-      db.orders.splice(0, db.orders.length, ...items)
+      // คงออร์เดอร์ที่เปิดดูเฉพาะรายการ (ปักหมุดไว้) แม้อยู่นอกช่วง
+      const keep = db.orders.filter((o) => pinned.has(o.id) && !items.some((i) => i.id === o.id))
+      db.orders.splice(0, db.orders.length, ...items, ...keep)
       known.clear()
       slips.clear()
       for (const i of items) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) }
