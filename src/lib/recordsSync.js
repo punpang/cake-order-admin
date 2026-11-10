@@ -16,7 +16,7 @@ export const RECORD_SPECS = {
   outbox: { key: 'outbox', kind: 'list', order: 'desc', read: ['chat', 'viewAllOrders'], write: true, limit: 1000 },
   bell: { key: 'bell', kind: 'list', order: 'desc', read: true, write: true, limit: 200 },
   orderLinks: { key: 'orderLinks', kind: 'list', order: 'asc', read: ['createOrder', 'viewAllOrders', 'sendToPayment'], write: ['createOrder', 'viewAllOrders', 'sendToPayment'] },
-  consents: { key: 'consents', kind: 'list', order: 'asc', read: ['viewAllOrders', 'createOrder'], write: true },
+  consents: { key: 'consents', kind: 'list', order: 'asc', read: ['viewAllOrders', 'createOrder'], write: ['viewAllOrders', 'createOrder'] },
   chatDrafts: { key: 'chatDrafts', kind: 'map', read: ['chat'], write: ['chat'] },
 }
 export const specAllows = (rule, has) => rule === true || has('manage') || rule.some(has)
