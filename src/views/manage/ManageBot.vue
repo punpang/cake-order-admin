@@ -2,6 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { db, saveBotSettings, saveBotRule, removeBotRule, removeLearned, promoteLearned, testBot } from '../../data/store'
 import { dateOnly } from '../../lib/format'
+import { AUTO_SOURCES } from '../../lib/chatBot'
 import { askConfirm } from '../../lib/confirm'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
@@ -9,14 +10,16 @@ import AppModal from '../../components/AppModal.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
 
 // บอทตอบแชท (กฎคีย์เวิร์ด + เรียนรู้จากพนักงาน · ในเบราว์เซอร์ ไม่ส่งข้อความลูกค้าออกนอก) · ค่าเริ่มต้นปิด
-const st = reactive(JSON.parse(JSON.stringify({ enabled: db.bot.enabled, mode: db.bot.mode, channels: db.bot.channels, confidence: db.bot.confidence, delaySec: db.bot.delaySec, offHours: db.bot.offHours, closedNotice: db.bot.closedNotice, handoff: db.bot.handoff })))
+// โหมดรายประเภท: ไม่เคยตั้งไว้ → ใช้โหมดรวมเดิม
+const srcInit = () => Object.fromEntries(AUTO_SOURCES.map((k) => [k, db.bot.sourceModes?.[k] || db.bot.mode]))
+const st = reactive(JSON.parse(JSON.stringify({ enabled: db.bot.enabled, mode: db.bot.mode, channels: db.bot.channels, confidence: db.bot.confidence, delaySec: db.bot.delaySec, offHours: db.bot.offHours, closedNotice: db.bot.closedNotice, handoff: db.bot.handoff, sourceModes: srcInit() })))
 const msg = ref('')
 const err = ref('')
 function save() {
   msg.value = err.value = ''
   const r = saveBotSettings(st)
   if (r.error) return (err.value = r.error)
-  Object.assign(st, JSON.parse(JSON.stringify({ enabled: db.bot.enabled, mode: db.bot.mode, channels: db.bot.channels, confidence: db.bot.confidence, delaySec: db.bot.delaySec, offHours: db.bot.offHours, closedNotice: db.bot.closedNotice, handoff: db.bot.handoff })))
+  Object.assign(st, JSON.parse(JSON.stringify({ enabled: db.bot.enabled, mode: db.bot.mode, channels: db.bot.channels, confidence: db.bot.confidence, delaySec: db.bot.delaySec, offHours: db.bot.offHours, closedNotice: db.bot.closedNotice, handoff: db.bot.handoff, sourceModes: srcInit() })))
   msg.value = 'บันทึกแล้ว'
 }
 const pct = computed({ get: () => Math.round(st.confidence * 100), set: (v) => (st.confidence = (Number(v) || 60) / 100) })
@@ -61,11 +64,17 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
     <section class="card mb-4 space-y-3">
       <div class="flex items-center justify-between"><h2 class="font-semibold text-stone-900">ตั้งค่า</h2><AppSwitch v-model="st.enabled" label="เปิดบอท" /></div>
       <div>
-        <div class="label">โหมด</div>
-        <div class="grid grid-cols-2 gap-1 seg-grid">
-          <button type="button" class="rounded-xl py-2 text-sm font-medium" :class="st.mode === 'suggest' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.mode = 'suggest'">แนะนำให้พนักงานกดส่ง</button>
-          <button type="button" class="rounded-xl py-2 text-sm font-medium" :class="st.mode === 'auto' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.mode = 'auto'">ตอบเอง</button>
-        </div>
+        <div class="label">ตอบเองรายประเภท (ไม่ตั้ง = แนะนำให้พนักงานกดส่ง)</div>
+        <ul class="divide-y divide-stone-100 rounded-xl border border-stone-200">
+          <li v-for="k in AUTO_SOURCES" :key="k" class="flex items-center justify-between gap-2 p-2.5">
+            <span class="text-sm text-stone-800">{{ SRC[k] }}</span>
+            <div class="grid w-56 grid-cols-2 gap-1 seg-grid">
+              <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.sourceModes[k] === 'suggest' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.sourceModes[k] = 'suggest'">แนะนำ</button>
+              <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.sourceModes[k] === 'auto' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.sourceModes[k] = 'auto'">ตอบเอง</button>
+            </div>
+          </li>
+        </ul>
+        <p class="mt-1 text-xs text-stone-400">การส่งต่อพนักงาน และข้อความที่ยืนยันตัวตนไม่ได้ จะให้พนักงานตอบเสมอ · Facebook ส่งเองได้เฉพาะภายใน 24 ชม.</p>
       </div>
       <div class="flex flex-wrap gap-4"><AppSwitch v-model="st.channels.line" label="LINE OA" /><AppSwitch v-model="st.channels.facebook" label="Facebook (ภายใน 24 ชม.)" /></div>
       <div class="grid gap-3 sm:grid-cols-2">
