@@ -17,7 +17,7 @@ const cfg = () => ({
   secret: (Deno.env.get('FB_APP_SECRET') || '').trim(),
   configId: (Deno.env.get('FB_CONFIG_ID') || '').trim(),
   ver: (Deno.env.get('FB_GRAPH_VERSION') || 'v24.0').trim(),
-  appUrl: (Deno.env.get('FB_APP_URL') || 'https://cake-order-admin.vercel.app').trim().replace(/\/+$/, ''),
+  appUrl: (Deno.env.get('FB_APP_URL') || 'https://cake-order-admin.pages.dev').trim().replace(/\/+$/, ''),
 })
 const configured = (c: ReturnType<typeof cfg>) => /^\d{5,}$/.test(c.appId) && /^[0-9a-f]{20,}$/i.test(c.secret) && /^\d{5,}$/.test(c.configId)
 const b64u = (t: string) => btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
