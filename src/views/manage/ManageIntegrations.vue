@@ -344,8 +344,8 @@ async function disconnect(k) {
         <div><label class="label">Chat ID ของกลุ่มทีม</label><input v-model="sf.chatId" class="input" placeholder="-1001234567890 หรือ @ชื่อช่อง" /></div>
       </div>
       <div v-else class="space-y-3">
-        <div><label class="label">URL ของผู้ให้บริการ SMS (https)</label><input v-model="sf.url" class="input font-mono text-sm" placeholder="https://api.provider.co.th/v1/send" maxlength="500" /><p class="mt-1 text-xs text-stone-400">ต้องเป็นชื่อโดเมน https (ไม่รับ IP/localhost)</p></div>
-        <div><label class="label">ชื่อผู้ส่ง (Sender name)</label><input v-model="sf.sender" class="input" placeholder="CakeShop" maxlength="11" /></div>
+        <div><label class="label">ลิงก์ SMS Gateway (http:// หรือ https://)</label><input v-model="sf.url" class="input font-mono text-sm" placeholder="http://ชื่อโดเมน:พอร์ต" maxlength="500" /><p class="mt-1 text-xs text-stone-400">ใช้ชื่อโดเมนของเกตเวย์หรือรีเลย์ (ไม่รับ IP/localhost) · ระบบฝั่งเซิร์ฟเวอร์ต้องเข้าถึงลิงก์นี้ได้</p></div>
+        <div><label class="label">ชื่อผู้ส่ง (ไม่บังคับ)</label><input v-model="sf.sender" class="input" placeholder="ว่างได้" maxlength="11" /></div>
         <div><label class="label">API key</label><input v-model="sf.apiKey" type="password" autocomplete="off" class="input font-mono text-sm" /></div>
       </div>
       <p v-if="sf.error" class="mt-3 flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ sf.error }}</p>

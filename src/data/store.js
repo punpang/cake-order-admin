@@ -2642,7 +2642,8 @@ export function connectSms({ url, sender, key }) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
   const u = checkSmsUrl(url)
   if (u.error) return u
-  const sd = checkSmsSender(sender)
+  // ชื่อผู้ส่งไม่บังคับ (เกตเวย์ใช้เบอร์ของโทรศัพท์) · ถ้ากรอกต้องผ่านรูปแบบ
+  const sd = String(sender ?? '').trim() ? checkSmsSender(sender) : { ok: true, sender: 'เกตเวย์ SMS' }
   if (sd.error) return sd
   const k = String(key ?? '').trim()
   if (k.length < 8) return { error: 'คีย์ (API key) สั้นเกินไป' }

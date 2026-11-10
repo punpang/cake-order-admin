@@ -117,9 +117,11 @@ pg_cron (ทุก 15 นาที) ──▶ Edge Function: scheduled (เต�
 ### Telegram / SMS (หน้า `/admin/settings/integrations`)
 - Telegram: วาง bot token (จาก @BotFather) + chat id → "เชื่อม" · ตรวจรูปแบบเท่านั้น (ยังไม่ยิง API จริง) · เก็บเฉพาะ **4 ตัวท้าย** ของ token · ปุ่ม "ส่งข้อความทดสอบ" ลงคิวข้อความ (สถานะ simulated)
 - SMS: ช่อง URL ผู้ให้บริการ (**https เท่านั้น · ชื่อโดเมนเท่านั้น ไม่รับ IP/localhost/ภายใน** กัน SSRF ตอนเซิร์ฟเวอร์เรียกจริง · ห้าม user:pass) + ชื่อผู้ส่ง (A-Z a-z 0-9 . _ - 3–11 ตัว) + API key (เก็บ 4 ตัวท้าย) · ปุ่มทดสอบใส่เบอร์ → ลงคิว
-- **ส่งจริงผ่าน Edge Function `sms-send`** (`supabase/functions/sms-send/index.ts`): ตรวจสิทธิ์พนักงาน (punpang_staff active) → ตรวจเบอร์ (0 + 9–10 หลัก) และความยาวข้อความ (≤ 640 ตัวอักษร) → ส่งไปเกตเวย์ด้วย timeout 10 วินาที · หน้าเว็บเรียกผ่าน `smsHook` (`src/lib/staffAuth.js`) และอัปเดตสถานะคิวเป็น sent / failed พร้อมข้อความผิดพลาด
-- **ตั้งค่าฝั่งเซิร์ฟเวอร์ (secret):** `supabase secrets set SMS_GATEWAY_URL=... SMS_API_KEY=... SMS_SENDER=...` แล้ว deploy: `supabase functions deploy sms-send` · ไม่มี secret ครบ = ฟังก์ชันตอบ "ยังไม่ได้ตั้งค่า" และหน้าเว็บไม่ถือว่าเชื่อมแล้ว
-- **ต้องปรับก่อนใช้จริง:** รูปแบบคำขอ `sendOut()` ในฟังก์ชันเป็นรูปแบบกลาง ให้ตรงกับเอกสารของผู้ให้บริการที่เลือก (ชื่อ field, การยืนยันตัวตน, รูปแบบเบอร์ เช่น 66… หรือ 0…) และตรวจผลตอบกลับของผู้ให้บริการให้ครบ (ตอนนี้ดูแค่ HTTP status)
+- **ส่งจริงผ่าน Edge Function `sms-send`** (`supabase/functions/sms-send/index.ts`): ตรวจสิทธิ์พนักงาน (punpang_staff active) → ตรวจเบอร์ (0 + 9–10 หลัก) และความยาวข้อความ (≤ 160 ตัวอักษร = SMS 1 ฉบับ) → เรียก **SMS Gateway API** `POST {SMS_GATEWAY_URL}/v1/sms` (body `{to, message}`, header `Authorization: Bearer <key>` และ `Idempotency-Key` สร้างใหม่ทุกครั้ง) · 200/202 = รับงานแล้ว · หน้าเว็บเรียกผ่าน `smsHook` (`src/lib/staffAuth.js`)
+- **ตั้งค่าฝั่งเซิร์ฟเวอร์ (secret):** `supabase secrets set SMS_GATEWAY_URL=<ลิงก์ http/https ของเกตเวย์หรือรีเลย์> SMS_API_KEY=<key สิทธิ์ส่งและลบ>` ไม่มี secret ครบ = ฟังก์ชันตอบ "ยังไม่ได้ตั้งค่า"
+- **หน้าเชื่อม SMS** (`/admin/settings/integrations`): ช่อง "ลิงก์ SMS Gateway" รับ http:// หรือ https:// ชื่อผู้ส่งไม่บังคับ (เกตเวย์ใช้ซิมของโทรศัพท์) · ค่าในหน้านี้ยังไม่ได้ส่งให้ Edge Function ต้องตั้ง secret ให้ตรงกันเอง
+- **ข้อจำกัดสำคัญ:** เกตเวย์รับคำขอเฉพาะจาก IP ใน LAN และใช้ใบรับรอง self-signed ที่ตรวจด้วย pin ระบบบนคลาวด์ (Supabase) เข้าถึง LAN ไม่ได้โดยตรง ต้องมีรีเลย์ในวง LAN หรือ Tunnel/VPN ก่อนการส่งจริงจะผ่าน
+- **ข้อจำกัดของ API:** ข้อความ ≤160 ตัวอักษร · เกินโควตาต่อวันได้ 429 `daily_limit_reached` · ส่งซ้ำด้วย key เดิมไม่สร้างงานซ้ำ
 - **ยังไม่มี:** จำกัดอัตราการส่งต่อผู้ใช้ และบันทึก log ลงตาราง (ทำได้เมื่อจำเป็น)
 - โค้ด: `src/lib/integrationCheck.js` · `connectTelegram/connectSms/sendIntegrationTest` ใน store
 
