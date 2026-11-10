@@ -161,6 +161,150 @@ export default {
       return json(req, env, { ok: true, deleted: keys.length })
     }
 
+    // ---- จัดการพื้นที่รูป (พนักงานที่มีสิทธิ์ manage) ----
+    if (path.startsWith('/admin/')) {
+      const staff = await staffOf(req, env)
+      if (!staff || !(staff.perms || []).includes('manage')) return json(req, env, { error: 'ต้องมีสิทธิ์จัดการระบบ' }, 403)
+      const body = await req.json().catch(() => ({}))
+      if (path === '/admin/retention/get') return json(req, env, { ok: true, ...(await getRetention(env)) })
+      if (path === '/admin/retention/set') {
+        const cur = await getRetention(env)
+        const next = { slipDays: clampDays(body.slipDays, cur.slipDays), refDays: clampDays(body.refDays, cur.refDays) }
+        await sbWrite(env, 'POST', '/rest/v1/punpang_kv?on_conflict=collection,id', [{ collection: 'config', id: 'fileRetention', data: { v: next } }], 'resolution=merge-duplicates,return=minimal')
+        return json(req, env, { ok: true, ...next })
+      }
+      if (path === '/admin/list') return json(req, env, await adminList(env, body, staff))
+      if (path === '/admin/delete') return json(req, env, await adminDelete(env, body, staff))
+    }
+
     return json(req, env, { error: 'ไม่พบเส้นทาง' }, 404)
   },
+
+  // ลบอัตโนมัติรายวัน (Cron): เฉพาะสลิปและรูปอ้างอิงที่ออเดอร์ปิดเกินจำนวนวันที่ตั้งไว้ และไม่ถูกอ้างอิงแล้ว · รูปงานไม่ลบเด็ดขาด
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(runCleanup(env))
+  },
+}
+
+// ---------- การลบไฟล์ ----------
+const MAX_LIST_PAGES = 40
+const DELETE_BATCH = 500
+const clampDays = (n, d) => { const x = Math.round(Number(n)); return Number.isFinite(x) && x >= 30 && x <= 3650 ? x : d }
+// ประเภทไฟล์จาก key: <orderId>/work/... = รูปงาน · <orderId>/ref/... = รูปอ้างอิง · <orderId>/<ไฟล์> = สลิป
+export function fileTypeOf(key) {
+  const parts = String(key).split('/')
+  if (parts.length < 2 || !parts[0]) return 'other'
+  if (parts[1] === 'work') return 'work'
+  if (parts[1] === 'ref') return 'ref'
+  if (parts.length === 2) return 'slip'
+  return 'other'
+}
+const ORDER_CLOSED = ['delivered', 'cancelled']
+async function getRetention(env) {
+  const r = await sbFetch(env, '/rest/v1/punpang_kv?collection=eq.config&id=eq.fileRetention&select=data')
+  const v = r.ok ? (await r.json())[0]?.data?.v : null
+  return { slipDays: clampDays(v?.slipDays, 180), refDays: clampDays(v?.refDays, 180) }
+}
+async function sbWrite(env, method, path, rows, prefer) {
+  return fetch(`${env.SUPABASE_URL}${path}`, { method, headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json', Prefer: prefer }, body: JSON.stringify(rows) })
+}
+// ดึงข้อมูลออเดอร์ของ key ทั้งหมดเป็นชุด → Map(orderId → {code, status, updated_at, data})
+async function ordersById(env, ids) {
+  const map = new Map()
+  const uniq = [...new Set(ids.filter(Boolean))]
+  for (let i = 0; i < uniq.length; i += 50) {
+    const chunk = uniq.slice(i, i + 50).map((x) => `"${String(x).replace(/"/g, '')}"`).join(',')
+    const r = await sbFetch(env, `/rest/v1/punpang_orders?id=in.(${encodeURIComponent(chunk)})&select=id,code,status,updated_at,data`)
+    for (const o of r.ok ? await r.json() : []) map.set(o.id, o)
+  }
+  return map
+}
+// ไฟล์ที่ยังถูกอ้างอิงในข้อมูลออเดอร์ (ค้นข้อความ key ในข้อมูลออเดอร์)
+const referencedIn = (order, key) => !!order && JSON.stringify(order.data || {}).includes(key)
+const isClosedFor = (order, days) => !!order && ORDER_CLOSED.includes(order.status) && Date.now() - new Date(order.updated_at).getTime() >= days * DAY
+
+async function logDeletions(env, rows) {
+  if (!rows.length) return
+  await sbWrite(env, 'POST', '/rest/v1/punpang_records', rows.map((r) => ({ collection: 'fileDeletions', id: `fd${rand().slice(0, 12)}`, data: r })), 'return=minimal')
+}
+
+// รายการไฟล์ส่วนตัวตามตัวกรอง (ใช้หน้าจัดการ) · คืนหน้าละ ~200 รายการที่ผ่านกรอง
+async function adminList(env, body, staff) {
+  const f = body.filter || {}
+  const page = await env.FILES_PRIVATE.list({ cursor: body.cursor || undefined, limit: 200 })
+  const objs = page.objects || []
+  const ords = await ordersById(env, objs.map((o) => o.key.split('/')[0]))
+  const items = []
+  for (const o of objs) {
+    const type = fileTypeOf(o.key)
+    if (type === 'other') continue
+    if (f.type && f.type !== 'all' && f.type !== type) continue
+    const ord = ords.get(o.key.split('/')[0]) || null
+    const uploaded = o.uploaded ? new Date(o.uploaded).getTime() : 0
+    if (f.uploadedFrom && uploaded < new Date(f.uploadedFrom).getTime()) continue
+    if (f.uploadedTo && uploaded > new Date(f.uploadedTo).getTime() + DAY) continue
+    if (f.status && (!ord || ord.status !== f.status)) continue
+    if (f.code && !(ord?.code || '').includes(String(f.code))) continue
+    if (f.closedFrom || f.closedTo) {
+      const closed = ord && ORDER_CLOSED.includes(ord.status) ? new Date(ord.updated_at).getTime() : 0
+      if (!closed) continue
+      if (f.closedFrom && closed < new Date(f.closedFrom).getTime()) continue
+      if (f.closedTo && closed > new Date(f.closedTo).getTime() + DAY) continue
+    }
+    items.push({ key: o.key, type, orderId: o.key.split('/')[0], code: ord?.code || '', status: ord?.status || '', size: o.size, uploaded: o.uploaded, referenced: referencedIn(ord, o.key), deletable: type !== 'work' })
+  }
+  return { ok: true, items, cursor: page.truncated ? page.cursor : null }
+}
+
+// ลบแมนนวล: เฉพาะสลิป/รูปอ้างอิงที่ไม่ถูกอ้างอิงแล้ว · dryRun = แสดงรายการที่จะลบ โดยไม่ลบจริง
+async function adminDelete(env, body, staff) {
+  const keys = (Array.isArray(body.keys) ? body.keys : []).map(String).filter((k) => k && !k.includes('..') && !k.startsWith('/')).slice(0, 500)
+  const ords = await ordersById(env, keys.map((k) => k.split('/')[0]))
+  const ok = [], refused = []
+  for (const k of keys) {
+    const type = fileTypeOf(k)
+    const ord = ords.get(k.split('/')[0]) || null
+    if (type === 'work') refused.push({ key: k, reason: 'รูปงานลบไม่ได้' })
+    else if (type === 'other') refused.push({ key: k, reason: 'ไม่รู้จักประเภทไฟล์' })
+    else if (referencedIn(ord, k)) refused.push({ key: k, reason: 'ยังถูกอ้างอิงอยู่ในออเดอร์' })
+    else ok.push({ key: k, type, orderId: k.split('/')[0] })
+  }
+  if (body.dryRun) return { ok: true, dryRun: true, wouldDelete: ok, refused }
+  const done = []
+  for (let i = 0; i < ok.length; i += DELETE_BATCH) {
+    const batch = ok.slice(i, i + DELETE_BATCH)
+    await env.FILES_PRIVATE.delete(batch.map((x) => x.key))
+    done.push(...batch)
+  }
+  await logDeletions(env, done.map((x) => ({ ...x, at: new Date().toISOString(), by: staff.user_id, reason: 'manual' })))
+  return { ok: true, deleted: done.length, refused }
+}
+
+// ลบอัตโนมัติ: ตรวจทุกไฟล์ (จำกัดจำนวนหน้า) แล้วลบเฉพาะที่เข้าเกณฑ์
+async function runCleanup(env) {
+  const days = await getRetention(env)
+  let cursor = undefined
+  let pages = 0
+  let total = 0
+  do {
+    const page = await env.FILES_PRIVATE.list({ cursor, limit: 500 })
+    const cands = (page.objects || []).filter((o) => ['slip', 'ref'].includes(fileTypeOf(o.key)))
+    const ords = await ordersById(env, cands.map((o) => o.key.split('/')[0]))
+    const doomed = []
+    for (const o of cands) {
+      const type = fileTypeOf(o.key)
+      const ord = ords.get(o.key.split('/')[0]) || null
+      const limit = type === 'slip' ? days.slipDays : days.refDays
+      if (isClosedFor(ord, limit) && !referencedIn(ord, o.key)) doomed.push({ key: o.key, type, orderId: o.key.split('/')[0] })
+    }
+    for (let i = 0; i < doomed.length; i += DELETE_BATCH) {
+      const batch = doomed.slice(i, i + DELETE_BATCH)
+      await env.FILES_PRIVATE.delete(batch.map((x) => x.key))
+      await logDeletions(env, batch.map((x) => ({ ...x, at: new Date().toISOString(), by: 'auto', reason: 'retention' })))
+      total += batch.length
+    }
+    cursor = page.truncated ? page.cursor : undefined
+    pages++
+  } while (cursor && pages < MAX_LIST_PAGES)
+  return total
 }
