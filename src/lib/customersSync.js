@@ -1,4 +1,4 @@
-import { startSync, selectAll } from './tableSync'
+import { startSync, selectAll, withVer, casUpdate } from './tableSync'
 
 // ซิงก์ลูกค้า (db.customers) กับ punpang_customers · ข้อมูลทั่วไป/คะแนน/ที่อยู่ ฯลฯ เก็บใน data (jsonb)
 // ลูกค้าไม่ถูกลบจริง (ใช้ธง deleted/active) — ตารางไม่มี policy ลบ จึงข้ามการลบ
@@ -8,10 +8,10 @@ export function customerToRow(c) {
   return { id, name: String(name ?? ''), phone: phone || null, line: line || null, note: note || null, data: rest }
 }
 export function rowToCustomer(r) {
-  return { ...(r.data || {}), id: r.id, name: r.name, phone: r.phone || '', line: r.line || '', note: r.note || '' }
+  return withVer({ ...(r.data || {}), id: r.id, name: r.name, phone: r.phone || '', line: r.line || '', note: r.note || '' }, r.updated_at)
 }
 export async function loadCustomers(client) {
-  const a = await selectAll((x, y) => client.from('punpang_customers').select('id,name,phone,line,note,data').order('id').range(x, y))
+  const a = await selectAll((x, y) => client.from('punpang_customers').select('id,name,phone,line,note,data,updated_at').order('id').range(x, y))
   if (a.error) return { error: a.error.message }
   return { items: (a.data || []).map(rowToCustomer) }
 }
@@ -20,10 +20,14 @@ export async function loadCustomers(client) {
 export async function pushCustomers(client, { upserts }, { known = new Set() } = {}) {
   const fresh = upserts.filter((c) => !known.has(c.id))
   const old = upserts.filter((c) => known.has(c.id))
+  const conflicts = []
+  // แก้แถวเดิมแบบเทียบเวอร์ชัน (กันเขียนทับคะแนน/ข้อมูลที่เครื่องอื่นหรือระบบแก้ไปก่อน)
   const upd = async (c) => {
     const { id, ...rest } = customerToRow(c)
-    const r = await client.from('punpang_customers').update(rest).eq('id', id)
+    const r = await casUpdate(client, 'punpang_customers', id, rest, c._v)
+    if (r.conflict) { conflicts.push(id); return { ok: true } }
     if (r.error) return { error: r.error.message }
+    withVer(c, r.ver)
     known.add(id)
     return { ok: true }
   }
@@ -34,7 +38,12 @@ export async function pushCustomers(client, { upserts }, { known = new Set() } =
     else for (const c of fresh) known.add(c.id)
   }
   for (const c of old) { const r = await upd(c); if (r.error) return r }
-  return { ok: true }
+  return conflicts.length ? { ok: true, conflicts } : { ok: true }
+}
+export async function loadCustomersByIds(client, ids) {
+  const r = await client.from('punpang_customers').select('id,name,phone,line,note,data,updated_at').in('id', ids)
+  if (r.error) return { error: r.error.message }
+  return { items: (r.data || []).map(rowToCustomer) }
 }
 export function startCustomersSync({ client, db, canWrite, onError, debounceMs }) {
   const known = new Set()
@@ -42,6 +51,7 @@ export function startCustomersSync({ client, db, canWrite, onError, debounceMs }
     list: () => db.customers,
     replace: (items) => { db.customers.splice(0, db.customers.length, ...items); known.clear(); for (const i of items) known.add(i.id) },
     load: () => loadCustomers(client),
+    loadByIds: (ids) => loadCustomersByIds(client, ids),
     push: (changes) => pushCustomers(client, changes, { known }),
     canWrite, onError, debounceMs, label: 'ลูกค้า', poll: true,
   })
