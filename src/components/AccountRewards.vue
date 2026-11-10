@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { db, customerPoints, customerCoupons, redeemReward, spinGacha, myCustomer, activateCouponAtStore, phaseOfCoupon, sweepCoupons } from '../data/store'
+import { db, customerPoints, customerCoupons, redeemReward, spinGacha, redeemRewardRemote, spinGachaRemote, usesServerLoyalty, myCustomer, activateCouponAtStore, phaseOfCoupon, sweepCoupons } from '../data/store'
 import { expiringSoon, chanceTotal, activeSecondsLeft } from '../lib/loyalty'
 import { money, dateOnly, dateTime, toDateStr, num } from '../lib/format'
 import AppIcon from './AppIcon.vue'
@@ -25,10 +25,17 @@ const tabs = [
 const rewards = computed(() => db.rewards.filter((r) => r.active !== false))
 const confirmRw = ref(null)
 const msg = ref('')
-function redeem() {
-  const cp = redeemReward(me.value, confirmRw.value.id)
-  msg.value = cp ? `แลก ${cp.name} แล้ว รับได้ที่ร้าน (ดูในแท็บคูปอง)` : 'คะแนนไม่พอ'
+async function redeem() {
+  const id = confirmRw.value.id
   confirmRw.value = null
+  if (usesServerLoyalty()) {
+    // บัญชีบนเซิร์ฟเวอร์: แลกทำที่ฐานข้อมูล (กันแลกซ้ำจากสองเครื่อง) แล้วรีเฟรชคะแนน/คูปอง
+    const r = await redeemRewardRemote(id)
+    msg.value = r.error ? r.error : `แลก ${r.coupon?.name || 'ของรางวัล'} แล้ว รับได้ที่ร้าน (ดูในแท็บคูปอง)`
+    return
+  }
+  const cp = redeemReward(me.value, id)
+  msg.value = cp ? `แลก ${cp.name} แล้ว รับได้ที่ร้าน (ดูในแท็บคูปอง)` : 'คะแนนไม่พอ'
 }
 
 // ---------- กาชา ----------
@@ -58,8 +65,17 @@ const result = ref(null)
 async function spin(usePoints) {
   if (spinning.value) return
   if (usePoints && !(await askConfirm({ title: 'หมุนกาชา', message: `ใช้ ${db.loyalty.spinCost} คะแนน`, okText: 'หมุนเลย' }))) return
-  const prize = spinGacha(me.value, usePoints)
-  if (!prize) return (msg.value = usePoints ? 'คะแนนไม่พอ' : 'ไม่มีสิทธิ์หมุน')
+  let prize
+  if (usesServerLoyalty()) {
+    // บัญชีบนเซิร์ฟเวอร์: สุ่มรางวัลและตัดคะแนน/สิทธิ์ที่ฐานข้อมูล
+    const r = await spinGachaRemote(usePoints)
+    if (r.error) return (msg.value = r.error)
+    prize = r.prize
+  } else {
+    prize = spinGacha(me.value, usePoints)
+    if (!prize) return (msg.value = usePoints ? 'คะแนนไม่พอ' : 'ไม่มีสิทธิ์หมุน')
+  }
+  if (!prize) return (msg.value = 'ยังไม่มีรางวัลกาชาที่เปิดใช้')
   const l = labels.value.find((x) => x.id === prize.id)
   // ให้ช่องของรางวัลมาอยู่ใต้เข็มด้านบน
   const target = 360 - (l ? l.angle : 0)
