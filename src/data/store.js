@@ -88,7 +88,10 @@ const PREPARED_TPL = 'ออร์เดอร์ {เลขออร์เด�
 // ส่งมอบแล้ว: ขอบคุณ + (ถ้ามีรูปงาน) ขออนุญาตใช้ภาพสินค้า หากไม่ยินยอมแจ้งได้ + ลิงก์ดูออร์เดอร์ (ปุ่มบนการ์ด)
 const DELIVERED_OLD = 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ'
 const DELIVERED_TPL = 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ\n{ข้อความขอใช้ภาพ}\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
-const DEFAULT_UPGRADES = { payment_confirmed: [PAY_CONFIRMED_OLD, PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL], delivered: [DELIVERED_OLD, DELIVERED_TPL] }
+// เตือนชำระ: ครั้งเดียวตอน 9 โมงเช้า ของออร์เดอร์พรุ่งนี้ที่แจ้งชำระแล้วแต่ยังไม่ชำระเลย (ยกเว้นยืนยันโดยไม่ชำระ) · ข้อความตามที่ร้านกำหนด + ลิงก์ดูออร์เดอร์
+const PAY_REMINDER_OLD = 'พรุ่งนี้มีนัดออร์เดอร์ {เลขออร์เดอร์} ({วันนัด} {เวลานัด}) ยังไม่ได้ชำระ คงค้าง {คงค้าง} ชำระก่อน {ชำระก่อน} ชำระที่ {ลิงก์ออร์เดอร์}'
+const PAY_REMINDER_TPL = 'โปรดชำระเงินก่อน {ชำระก่อน} เพื่อยืนยันการสั่งซื้อ {เลขออร์เดอร์} {วันนัด} {เวลานัด} เพื่อยืนยันการสั่งซื้อ หากชำระแล้ว ต้องขออภัย และสามารถแจ้งเพื่อตรวจสอบอีกครั้ง ขอบคุณค่ะ\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
+const DEFAULT_UPGRADES = { payment_confirmed: [PAY_CONFIRMED_OLD, PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL], delivered: [DELIVERED_OLD, DELIVERED_TPL], payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL] }
 const tplOf = (r) => { const u = DEFAULT_UPGRADES[r.event]; return u && String(r.template || '').trim() === u[0] ? u[1] : r.template }
 
 const rule = (event, channels, template) => ({ event, channels, template, enabled: true })
@@ -259,7 +262,7 @@ export const db = reactive({
     rule('order_created', ['line', 'facebook', 'sms'], 'สวัสดีค่ะ {ชื่อลูกค้า} รับออร์เดอร์ {เลขออร์เดอร์} แล้ว ยอดรวม {ยอดรวม} นัด{ส่งมอบ} {วันนัด} {เวลานัด}'),
     rule('payment_requested', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง}) ชำระก่อน {ชำระก่อน} ดู/ชำระที่ {ลิงก์ออร์เดอร์}'),
     rule('order_confirmed', ['line', 'facebook', 'sms'], 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ คงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า'),
-    rule('payment_reminder', ['line', 'facebook', 'sms'], 'พรุ่งนี้มีนัดออร์เดอร์ {เลขออร์เดอร์} ({วันนัด} {เวลานัด}) ยังไม่ได้ชำระ คงค้าง {คงค้าง} ชำระก่อน {ชำระก่อน} ชำระที่ {ลิงก์ออร์เดอร์}'),
+    rule('payment_reminder', ['line', 'facebook', 'sms'], PAY_REMINDER_TPL),
     rule('prepared', ['line', 'facebook', 'sms'], PREPARED_TPL),
     rule('payment_confirmed', ['line', 'facebook', 'sms'], PAY_CONFIRMED_TPL),
     rule('pickup_reminder', ['line', 'facebook', 'sms'], 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
@@ -1698,6 +1701,11 @@ function cardImageOf(items) {
   return isHttps(db.storefront?.heroImage) ? db.storefront.heroImage : ''
 }
 const viewCardOf = (order, url) => viewCard(order, { title: `ส่งมอบแล้ว · ${order.code}`, subtitle: 'ขอบคุณที่อุดหนุนค่ะ', url, image: cardImageOf(order.items) })
+// การ์ดปุ่ม "ดูออร์เดอร์" ทั่วไปของข้อความที่เกี่ยวกับออร์เดอร์ (บรรทัดรอง = ยอดรวม/คงค้าง)
+const orderLinkCardOf = (order, url) => {
+  const t = orderTotals(order)
+  return viewCard(order, { title: 'ออร์เดอร์ ' + order.code, subtitle: 'ยอดรวม ' + money(t.total) + ' · ' + (t.balance > 0.004 ? 'คงค้าง ' + money(t.balance) : 'ชำระครบแล้ว'), url, image: cardImageOf(order.items) })
+}
 const payCardOf = (order, totals, paid, url) => payCard(order, totals, { paid, url, image: cardImageOf(order.items) })
 export function sendOrderLinkToChat(order, url) {
   const chat = (order.chatId && findChat(order.chatId)) || chatFor(order.customerId)
@@ -2125,7 +2133,13 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   const r = db.notifyRules.find((x) => x.event === event)
   const ev = NOTIFY_EVENTS[event]
   if (!r || !r.enabled || !ev) return 0
-  const text = fillTemplate(tplOf(r), vars).replace(/\n{2,}/g, '\n').trim() // ตัวแปรที่ว่างไม่ทิ้งบรรทัดเปล่า
+  // ข้อความถึงลูกค้าที่เกี่ยวกับออร์เดอร์ (ไม่ใช่การตลาด) ต้องมีลิงก์ดูออร์เดอร์เสมอ · เทมเพลตไม่มีลิงก์ → ต่อท้ายเป็นบรรทัด "ดูออร์เดอร์: <ลิงก์>"
+  const order = orderId ? findOrder(orderId) : null
+  const orderMsg = ev.audience === 'customer' && !ev.marketing && !!order && order.channel !== 'pos'
+  const url = vars.ลิงก์ออร์เดอร์ || (orderMsg ? createOrderLink(order, { system: true }).url || '' : '')
+  const tpl = tplOf(r)
+  const body = fillTemplate(tpl, { ...vars, ลิงก์ออร์เดอร์: url }).replace(/\n{2,}/g, '\n').trim() // ตัวแปรที่ว่างไม่ทิ้งบรรทัดเปล่า
+  const text = url && !tpl.includes('{ลิงก์ออร์เดอร์}') ? `${body}\nดูออร์เดอร์: ${url}` : body
   if (ev.audience === 'team') {
     if (!r.channels.includes('telegram') || !db.integrations.telegram.enabled) return 0
     pushOut(event, 'telegram', 'กลุ่มทีม', text, orderId)
@@ -2136,8 +2150,10 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   const ch = CUSTOMER_CHANNEL_ORDER.find((k) => allowed[k] && db.integrations[k]?.enabled && customerAddr(customer, k))
   const to = ch ? `${CHANNELS[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}` : customer?.name || '-'
   // ส่งทางแชท (Facebook/LINE) ที่มีการ์ดพร้อมปุ่ม: ตัดบรรทัดลิงก์ออกจากข้อความ (ปุ่มทำหน้าที่แทน) · SMS ยังได้ข้อความเต็มพร้อมลิงก์
-  const chatText = card ? text.replace(/\n?ดูออร์เดอร์:\s*\S*\s*$/, '').trim() : text
-  pushOut(event, ch || null, to, chatText, orderId, customer, card && (ch === 'facebook' || ch === 'line') ? { card: { text: chatText, card } } : {})
+  // Facebook: การ์ดปุ่ม "ดูออร์เดอร์" (card ที่ส่งมา หรือการ์ดลิงก์ที่สร้างให้) · ข้อความบนการ์ดตัดบรรทัดลิงก์ออก เพราะปุ่มทำหน้าที่แทน · LINE/SMS ได้ข้อความที่มีลิงก์
+  const fbCard = ch === 'facebook' ? (card || (orderMsg && url ? orderLinkCardOf(order, url) : null)) : null
+  const chatText = fbCard && url ? fillTemplate(tpl, { ...vars, ลิงก์ออร์เดอร์: '' }).replace(/\s*(ดูออร์เดอร์|ดู\/ชำระที่|ชำระที่|ดูได้ที่)\s*:?\s*$/, '').replace(/\n{2,}/g, '\n').trim() : text
+  pushOut(event, ch || null, to, chatText, orderId, customer, fbCard ? { card: { text: chatText, card: fbCard } } : {})
   // ส่งทาง Facebook/LINE แล้ว ถ้าลูกค้ามีเบอร์ → ส่ง SMS ซ้ำด้วยเสมอ (พนักงานติ๊กออกได้ที่หน้าที่ส่ง) · ใช้เฉพาะ event ที่กฎเปิด SMS ไว้
   if ((ch === 'facebook' || ch === 'line') && !noSms && !ev.marketing && customer?.phone && allowed.sms && db.integrations.sms?.enabled) {
     pushOut(event, 'sms', `${CHANNELS.sms.label}: ${customer.name || ''} (${formatPhone(customer.phone)})`, text, orderId, customer)
@@ -2156,8 +2172,9 @@ export function notifyOrder(event, order, extra = {}) {
     return
   }
   const rule = db.notifyRules.find((x) => x.event === event)
-  let url = ''
-  if (rule?.enabled && tplOf(rule).includes('{ลิงก์ออร์เดอร์}')) { url = createOrderLink(order, { system: true }).url || ''; vars.ลิงก์ออร์เดอร์ = url }
+  // ลิงก์ดูออร์เดอร์ของทุกข้อความลูกค้าที่เกี่ยวกับออร์เดอร์ (ออร์เดอร์ร่าง/POS สร้างลิงก์ไม่ได้)
+  const url = rule?.enabled && NOTIFY_EVENTS[event]?.audience === 'customer' && !NOTIFY_EVENTS[event]?.marketing ? createOrderLink(order, { system: true }).url || '' : ''
+  vars.ลิงก์ออร์เดอร์ = url
   const customer = findCustomer(order.customerId)
   const card = event === 'payment_confirmed' ? payCardOf(order, orderTotals(order), extra.paid, url) : event === 'delivered' ? viewCardOf(order, url) : null
   notify(event, { customer, vars, orderId: order.id, noSms: !!extra.noSms, card })
@@ -2172,8 +2189,8 @@ function payReminder(o, nowD, once) {
   const tmrStr = toDateStr(tmr)
   if (String(o.pickupAt).slice(0, 10) !== tmrStr) return
   const asked = o.payments.filter((p) => p.source !== 'customer')
-  if (!asked.length) return // ไม่เคยแจ้งชำระ
-  if (o.payments.some((p) => p.status === 'confirmed')) return // มีชำระแล้ว
+  if (!asked.some((p) => p.status === 'reported')) return // ยังไม่เคยแจ้งชำระ (ไม่มีงวดที่แจ้งไว้)
+  if (o.payments.some((p) => p.status === 'confirmed') || orderTotals(o).paid > 0) return // มีการชำระแล้ว
   if (o.payments.some((p) => p.status === 'reported' && (p.slip || p.source === 'customer'))) return // ลูกค้าแจ้งโอนแล้ว รอตรวจ
   if (orderTotals(o).balance <= 0) return
   const open = asked.filter((p) => p.status === 'reported').sort((a, b) => String(a.dueAt).localeCompare(String(b.dueAt)))[0]
@@ -2193,7 +2210,7 @@ export function runScheduledChecks() {
   for (const o of db.orders) {
     if (['draft', 'delivered', 'cancelled'].includes(o.status)) continue
     const toPickup = new Date(o.pickupAt).getTime() - nowMs
-    if (toPickup > 0 && toPickup <= 24 * 3600e3) once(`pickup|${o.id}`, () => notify('pickup_reminder', { customer: findCustomer(o.customerId), vars: orderVars(o), orderId: o.id }))
+    if (toPickup > 0 && toPickup <= 24 * 3600e3) once(`pickup|${o.id}`, () => { notifyOrder('pickup_reminder', o); return 1 })
     for (const p of overduePayments(o, new Date(nowMs))) once(`overdue|${p.id}|${p.dueAt}`, () => notify('team_pay_overdue', { vars: { ...orderVars(o), ชำระก่อน: dueText(p.dueAt) }, orderId: o.id }))
     payReminder(o, new Date(nowMs), once)
     const toDue = dueAt(o).getTime() - nowMs
