@@ -67,7 +67,7 @@ const prodName = computed(() => db.retailItems.find((r) => r.id === props.item.r
     <p v-else-if="status === 'revoked'" class="mb-2 rounded-xl bg-rose-50 p-2.5 text-xs text-rose-700">ลูกค้าไม่อนุญาตให้ใช้รูปในออร์เดอร์นี้ (ลบรูปแล้ว) อัปโหลดรูปใหม่ไม่ได้ <button v-if="can('manage')" class="ml-1 underline" @click="allowPhotosAgain(order.id)">อนุญาตให้ใช้รูปได้อีก (ลูกค้าแจ้งเปลี่ยนใจ)</button></p>
     <div v-if="photos.length" class="grid grid-cols-2 gap-2 sm:grid-cols-3">
       <div v-for="p in photos" :key="p.id" class="overflow-hidden rounded-xl border border-stone-200">
-        <SecureImg :src="p.image" alt="รูปงานเสร็จ" class="aspect-square w-full object-cover" />
+        <SecureImg :src="p.image" alt="รูปงานเสร็จ" link class="aspect-square w-full object-cover" img-class="aspect-square w-full object-cover" />
         <div class="space-y-1 p-2">
           <label v-if="can('manage') && status === 'ok'" class="flex items-center gap-1.5 text-xs text-stone-700"><input type="checkbox" class="h-4 w-4" :checked="p.publish" :aria-label="`ใช้เป็นรูปตัวอย่างบนเว็บ`" @change="togglePublish(p)" /> ใช้เป็นรูปตัวอย่างบนเว็บ</label>
           <p v-else-if="p.publish" class="text-xs text-emerald-700">เผยแพร่บนเว็บ{{ status === 'requested' ? ' (ซ่อนชั่วคราว)' : '' }}</p>
