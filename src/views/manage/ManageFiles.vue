@@ -9,7 +9,8 @@ import { clearImageLimitsCache } from '../../lib/imageLimits'
 import { openLightbox } from '../../lib/lightbox'
 
 // พื้นที่รูป: ตั้งจำนวนวันลบอัตโนมัติ (สลิป/รูปอ้างอิง) + ค้นหาและลบรูปแบบแมนนวล · รูปงานลบไม่ได้
-const TYPES = [{ v: 'all', l: 'ทั้งหมด (ส่วนตัว)' }, { v: 'slip', l: 'สลิป' }, { v: 'ref', l: 'รูปอ้างอิง' }, { v: 'work', l: 'รูปงาน (ดูอย่างเดียว)' }, { v: 'public', l: 'รูปสาธารณะ (สินค้า/หน้าร้าน)' }, { v: 'trash', l: 'ถังขยะ (กู้คืนได้)' }]
+// s = ป้ายสั้นบนปุ่ม · l = คำอธิบายเต็ม (title)
+const TYPES = [{ v: 'all', s: 'ทั้งหมด', l: 'ทั้งหมด (ส่วนตัว)' }, { v: 'slip', s: 'สลิป', l: 'สลิป' }, { v: 'ref', s: 'รูปอ้างอิง', l: 'รูปอ้างอิง' }, { v: 'work', s: 'รูปงาน', l: 'รูปงาน (ดูอย่างเดียว)' }, { v: 'public', s: 'รูปสาธารณะ', l: 'รูปสาธารณะ (สินค้า/หน้าร้าน)' }, { v: 'trash', s: 'ถังขยะ', l: 'ถังขยะ (กู้คืนได้)' }]
 const trashBucket = ref('private')
 const STATUSES = [{ v: '', l: 'ทุกสถานะ' }, { v: 'delivered', l: 'ส่งมอบแล้ว' }, { v: 'cancelled', l: 'ยกเลิก' }, { v: 'order_confirmed', l: 'ยืนยันแล้ว' }, { v: 'preparing', l: 'กำลังเตรียม' }, { v: 'prepared', l: 'เตรียมแล้ว' }]
 const ret = reactive({ slipDays: 180, refDays: 180, trashDays: 30, loaded: false })
@@ -136,8 +137,20 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
 
       <!-- ค้นหา: แถวเดียว + ตัวกรองเพิ่มเติมพับได้ -->
       <section class="card space-y-2">
-        <div class="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_auto]">
-          <select v-model="filter.type" class="input" aria-label="ประเภท"><option v-for="t in TYPES" :key="t.v" :value="t.v">{{ t.l }}</option></select>
+        <!-- ประเภท: ปุ่มชิป (แตะง่ายบน iPad แทน dropdown) -->
+        <div class="flex flex-wrap gap-2" role="group" aria-label="ประเภท">
+          <button
+            v-for="t in TYPES"
+            :key="t.v"
+            type="button"
+            class="chip h-10 px-3.5 text-sm"
+            :class="filter.type === t.v ? 'chip-on' : 'chip-off'"
+            :aria-pressed="filter.type === t.v"
+            :title="t.l"
+            @click="filter.type = t.v"
+          >{{ t.s }}</button>
+        </div>
+        <div class="grid grid-cols-[1fr_auto] gap-2">
           <input v-model="filter.code" class="input" placeholder="เลขออร์เดอร์ เช่น 001122" aria-label="เลขออร์เดอร์" />
           <button type="button" class="btn-primary h-10 px-4" :disabled="busy" @click="search">ค้นหา</button>
         </div>
