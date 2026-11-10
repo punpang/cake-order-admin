@@ -7,7 +7,7 @@ import { askConfirm } from '../../lib/confirm'
 import { dateTime } from '../../lib/format'
 
 // พื้นที่รูป: ตั้งจำนวนวันลบอัตโนมัติ (สลิป/รูปอ้างอิง) + ค้นหาและลบรูปแบบแมนนวล · รูปงานลบไม่ได้
-const TYPES = [{ v: 'all', l: 'ทั้งหมด' }, { v: 'slip', l: 'สลิป' }, { v: 'ref', l: 'รูปอ้างอิง' }, { v: 'work', l: 'รูปงาน (ดูอย่างเดียว)' }]
+const TYPES = [{ v: 'all', l: 'ทั้งหมด (ส่วนตัว)' }, { v: 'slip', l: 'สลิป' }, { v: 'ref', l: 'รูปอ้างอิง' }, { v: 'work', l: 'รูปงาน (ดูอย่างเดียว)' }, { v: 'public', l: 'รูปสาธารณะ (สินค้า/หน้าร้าน)' }]
 const STATUSES = [{ v: '', l: 'ทุกสถานะ' }, { v: 'delivered', l: 'ส่งมอบแล้ว' }, { v: 'cancelled', l: 'ยกเลิก' }, { v: 'order_confirmed', l: 'ยืนยันแล้ว' }, { v: 'preparing', l: 'กำลังเตรียม' }, { v: 'prepared', l: 'เตรียมแล้ว' }]
 const ret = reactive({ slipDays: 180, refDays: 180, loaded: false })
 const filter = reactive({ type: 'all', status: '', code: '', uploadedFrom: '', uploadedTo: '', closedFrom: '', closedTo: '' })
@@ -18,8 +18,10 @@ const busy = ref(false)
 const msg = ref('')
 const err = ref('')
 const preview = ref(null)
+const listBucket = ref('private') // bucket ของรายการที่แสดงอยู่ (ใช้กับการลบ)
 
 const deletable = (it) => it.deletable && !it.referenced
+const bodyBucket = () => ({ bucket: listBucket.value })
 const pickedKeys = computed(() => [...picked.value])
 const selectedSize = computed(() => items.value.filter((i) => picked.value.has(i.key)).reduce((s, i) => s + (i.size || 0), 0))
 const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
@@ -42,6 +44,7 @@ const saveRetention = () => run(async () => {
 const searchBody = (cur) => ({ cursor: cur || undefined, filter: { type: filter.type, status: filter.status, code: filter.code.trim(), uploadedFrom: filter.uploadedFrom, uploadedTo: filter.uploadedTo, closedFrom: filter.closedFrom, closedTo: filter.closedTo } })
 const search = () => run(async () => {
   picked.value = new Set(); preview.value = null
+  listBucket.value = filter.type === 'public' ? 'public' : 'private'
   const r = await filesApi(await client(), '/admin/list', searchBody(null))
   items.value = r.items; cursor.value = r.cursor
 })
@@ -54,13 +57,13 @@ const clearPicked = () => { picked.value = new Set(); preview.value = null }
 
 const dryRun = () => run(async () => {
   if (!pickedKeys.value.length) throw new Error('เลือกรายการก่อน')
-  preview.value = await filesApi(await client(), '/admin/delete', { keys: pickedKeys.value, dryRun: true })
+  preview.value = await filesApi(await client(), '/admin/delete', { keys: pickedKeys.value, dryRun: true, ...bodyBucket() })
 })
 const removeSelected = () => run(async () => {
   if (!pickedKeys.value.length) throw new Error('เลือกรายการก่อน')
   const ok = await askConfirm({ title: 'ลบรูปที่เลือก', message: `ลบ ${pickedKeys.value.length} ไฟล์ (${fmtSize(selectedSize.value)}) ถาวร ไม่สามารถกู้คืนได้`, okText: 'ลบถาวร', danger: true })
   if (!ok) return
-  const r = await filesApi(await client(), '/admin/delete', { keys: pickedKeys.value })
+  const r = await filesApi(await client(), '/admin/delete', { keys: pickedKeys.value, ...bodyBucket() })
   const gone = new Set(pickedKeys.value)
   items.value = items.value.filter((i) => !gone.has(i.key))
   picked.value = new Set(); preview.value = null
@@ -113,10 +116,10 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
           <li v-for="it in items" :key="it.key" class="flex items-center gap-3 py-2 text-sm">
             <input type="checkbox" :checked="picked.has(it.key)" :disabled="!deletable(it)" :aria-label="`เลือก ${it.key}`" @change="toggle(it.key)" />
             <div class="min-w-0 flex-1">
-              <div class="truncate font-medium text-stone-900">{{ it.code || it.orderId }} · {{ it.type === 'slip' ? 'สลิป' : it.type === 'ref' ? 'รูปอ้างอิง' : 'รูปงาน' }}</div>
+              <div class="truncate font-medium text-stone-900">{{ it.type === 'public' ? it.key : (it.code || it.orderId) + ' · ' + (it.type === 'slip' ? 'สลิป' : it.type === 'ref' ? 'รูปอ้างอิง' : 'รูปงาน') }}</div>
               <div class="text-xs text-stone-500">{{ it.status || 'ไม่พบออร์เดอร์' }} · {{ fmtSize(it.size) }}<span v-if="it.uploaded"> · {{ dateTime(it.uploaded) }}</span></div>
             </div>
-            <span v-if="it.referenced" class="rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-700">ยังถูกอ้างอิง</span>
+            <span v-if="it.referenced" class="rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-700">ยังถูกใช้งาน</span>
             <span v-else-if="!it.deletable" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-600">ลบไม่ได้</span>
           </li>
         </ul>
