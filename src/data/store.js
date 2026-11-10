@@ -2347,7 +2347,9 @@ export function processInbound(chatId, mid) {
 // ---------- บอทตอบแชท ----------
 // ทำงานเมื่อมีข้อความจากลูกค้า (LINE/Facebook): suggest = เก็บร่างให้พนักงานกดส่ง · auto = ส่งเองหลังหน่วงเวลา (Facebook ต้องอยู่ในหน้าต่าง 24 ชม.)
 // ไม่แน่ใจ/เรื่องเงิน/ร้องเรียน/ยืนยันตัวตนไม่ได้ → ส่งต่อพนักงาน + แจ้ง Telegram · ข้อความลูกค้าประมวลผลในเบราว์เซอร์เท่านั้น
-const botOn = (c) => db.bot.enabled && db.bot.mode !== 'off' && !!db.bot.channels[c.channel] && !c.botOff
+// Facebook: บอทฝั่งเซิร์ฟเวอร์ (fb-webhook/bot.ts) ตอบแทนแล้ว → เบราว์เซอร์ไม่ตอบซ้ำ · LINE/อื่น ๆ ยังทำงานในเบราว์เซอร์
+const SERVER_BOT_CHANNELS = ['facebook']
+const botOn = (c) => db.bot.enabled && db.bot.mode !== 'off' && !SERVER_BOT_CHANNELS.includes(c.channel) && !!db.bot.channels[c.channel] && !c.botOff
 function botDeliver(c, res) {
   if (res.prefix) sendChat(c.id, 'staff', res.prefix, { by: 'บอท' }) // ข้อความแจ้งร้านปิด (ส่งก่อนคำตอบ)
   if (res.askField) askCustomer(c.id, res.askField)

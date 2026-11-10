@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { runFbBot } from './bot.ts'
 
 // รับข้อความ Messenger ของเพจที่เชื่อมไว้ (Webhook ของ Meta) → เขียนเข้าแชท (punpang_chats) + กระดิ่งทีม
 // GET: ยืนยัน webhook (hub.verify_token = secret FB_VERIFY_TOKEN) · POST: ตรวจลายเซ็น X-Hub-Signature-256 ด้วย FB_APP_SECRET
@@ -114,6 +115,7 @@ Deno.serve(async (req) => {
       const m = { id: `cm${rand(6)}`, from: 'customer', kind: 'text', text: txt, orderId: null, quoteId: null, replyTo: null, ask: null, answerFor: null, filled: null, at, by: 'ลูกค้า', delivery: null, fbMid: mid || null, ...(att.list.length ? { attachments: att.list } : {}), ...(noBot ? { noBot: true } : {}) }
 
       let done = false
+      let fresh = false // ข้อความใหม่จริง (ไม่ใช่ข้อความซ้ำจาก Meta) → ให้บอทพิจารณาตอบ
       for (let i = 0; i < 4 && !done; i++) {
         const cur = await sb.from('punpang_chats').select('id,data,updated_at,customer_id').eq('channel', 'facebook').eq('external_id', psid).maybeSingle()
         if (cur.error) return text('db error', 500) // ให้ Meta ส่งซ้ำ (กันซ้ำด้วย mid)
@@ -123,7 +125,7 @@ Deno.serve(async (req) => {
           const chat = { profileName: name || 'ลูกค้า Facebook', messages: [m], unreadStaff: 1, lastInboundAt: at, updatedAt: at, pendingAsk: null }
           const newId = `ch${rand(6)}`
           const ins = await sb.from('punpang_chats').insert({ id: newId, channel: 'facebook', external_id: psid, customer_id: null, data: chat })
-          if (!ins.error) { done = true; await bell(sb, `${chat.profileName}: ${label.slice(0, 60)}`, newId) } else if (ins.error.code !== '23505') return text('db error', 500)
+          if (!ins.error) { done = true; fresh = true; await bell(sb, `${chat.profileName}: ${label.slice(0, 60)}`, newId) } else if (ins.error.code !== '23505') return text('db error', 500)
           continue // 23505 = มีแชทเกิดขึ้นพร้อมกัน → อ่านใหม่แล้วต่อท้าย
         }
         const d = cur.data.data || {}
@@ -132,9 +134,16 @@ Deno.serve(async (req) => {
         const next = { ...d, messages: [...msgs, m], unreadStaff: (Number(d.unreadStaff) || 0) + 1, lastInboundAt: at, updatedAt: at }
         const up = await sb.from('punpang_chats').update({ data: next }).eq('id', cur.data.id).eq('updated_at', cur.data.updated_at).select('id')
         if (up.error) return text('db error', 500)
-        if (up.data?.length) { done = true; await bell(sb, `${d.profileName || 'ลูกค้า Facebook'}: ${label.slice(0, 60)}`, cur.data.id) }
+        if (up.data?.length) { done = true; fresh = true; await bell(sb, `${d.profileName || 'ลูกค้า Facebook'}: ${label.slice(0, 60)}`, cur.data.id) }
       }
       if (!done) return text('busy', 500) // ชนกันหลายครั้ง → ให้ Meta ส่งซ้ำ
+      // บอทตอบแชท (ฝั่งเซิร์ฟเวอร์) · เฉพาะข้อความตัวอักษรใหม่ · ข้อผิดพลาดของบอทต้องไม่ทำให้ Meta ส่งซ้ำทั้งชุด
+      if (fresh && !noBot && caption) {
+        try {
+          const chatRow = await sb.from('punpang_chats').select('id').eq('channel', 'facebook').eq('external_id', psid).maybeSingle()
+          if (chatRow.data?.id) await runFbBot({ sb, token: pg.data.token, ver, psid, chatId: chatRow.data.id, mid, text: caption, at })
+        } catch (e) { console.error('fb-bot', (e as Error)?.message ?? 'error') }
+      }
     }
   }
   return text('ok')
