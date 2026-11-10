@@ -219,6 +219,30 @@ async function ordersById(env, ids) {
   }
   return map
 }
+// ข้อความทั้งหมดที่อ้างถึงรูปสาธารณะ (สินค้า, ค่าตั้งค่า/หน้าร้าน, บันทึกต่าง ๆ) → ใช้ตรวจว่ารูปยังถูกใช้อยู่หรือไม่
+async function publicRefText(env) {
+  const parts = []
+  for (const path of ['/rest/v1/punpang_items?select=data', '/rest/v1/punpang_kv?select=data', '/rest/v1/punpang_records?select=data', '/rest/v1/punpang_orders?select=data']) {
+    const r = await sbFetch(env, path)
+    if (r.ok) parts.push(JSON.stringify(await r.json()))
+  }
+  return parts.join('\n')
+}
+async function publicList(env, body) {
+  const f = body.filter || {}
+  const page = await env.FILES_PUBLIC.list({ cursor: body.cursor || undefined, limit: 200 })
+  const objs = page.objects || []
+  const refs = await publicRefText(env)
+  const items = []
+  for (const o of objs) {
+    const uploaded = o.uploaded ? new Date(o.uploaded).getTime() : 0
+    if (f.uploadedFrom && uploaded < new Date(f.uploadedFrom).getTime()) continue
+    if (f.uploadedTo && uploaded > new Date(f.uploadedTo).getTime() + DAY) continue
+    items.push({ key: o.key, bucket: 'public', type: 'public', orderId: '', code: '', status: '', size: o.size, uploaded: o.uploaded, referenced: refs.includes(o.key), deletable: true })
+  }
+  return { ok: true, items, cursor: page.truncated ? page.cursor : null }
+}
+
 // ไฟล์ที่ยังถูกอ้างอิงในข้อมูลออเดอร์ (ค้นข้อความ key ในข้อมูลออเดอร์)
 const referencedIn = (order, key) => !!order && JSON.stringify(order.data || {}).includes(key)
 const isClosedFor = (order, days) => !!order && ORDER_CLOSED.includes(order.status) && Date.now() - new Date(order.updated_at).getTime() >= days * DAY
@@ -231,6 +255,7 @@ async function logDeletions(env, rows) {
 // รายการไฟล์ส่วนตัวตามตัวกรอง (ใช้หน้าจัดการ) · คืนหน้าละ ~200 รายการที่ผ่านกรอง
 async function adminList(env, body, staff) {
   const f = body.filter || {}
+  if (f.type === 'public') return publicList(env, body)
   const page = await env.FILES_PRIVATE.list({ cursor: body.cursor || undefined, limit: 200 })
   const objs = page.objects || []
   const ords = await ordersById(env, objs.map((o) => o.key.split('/')[0]))
@@ -259,6 +284,23 @@ async function adminList(env, body, staff) {
 // ลบแมนนวล: เฉพาะสลิป/รูปอ้างอิงที่ไม่ถูกอ้างอิงแล้ว · dryRun = แสดงรายการที่จะลบ โดยไม่ลบจริง
 async function adminDelete(env, body, staff) {
   const keys = (Array.isArray(body.keys) ? body.keys : []).map(String).filter((k) => k && !k.includes('..') && !k.startsWith('/')).slice(0, 500)
+  if (body.bucket === 'public') {
+    const refs = await publicRefText(env)
+    const ok = [], refused = []
+    for (const k of keys) {
+      if (refs.includes(k)) refused.push({ key: k, reason: 'ยังถูกใช้อยู่ในสินค้า/หน้าร้าน' })
+      else ok.push({ key: k, type: 'public', orderId: '' })
+    }
+    if (body.dryRun) return { ok: true, dryRun: true, wouldDelete: ok, refused }
+    const done = []
+    for (let i = 0; i < ok.length; i += DELETE_BATCH) {
+      const batch = ok.slice(i, i + DELETE_BATCH)
+      await env.FILES_PUBLIC.delete(batch.map((x) => x.key))
+      done.push(...batch)
+    }
+    await logDeletions(env, done.map((x) => ({ ...x, bucket: 'public', at: new Date().toISOString(), by: staff.user_id, reason: 'manual' })))
+    return { ok: true, deleted: done.length, refused }
+  }
   const ords = await ordersById(env, keys.map((k) => k.split('/')[0]))
   const ok = [], refused = []
   for (const k of keys) {
