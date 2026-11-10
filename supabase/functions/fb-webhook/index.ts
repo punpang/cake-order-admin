@@ -93,6 +93,7 @@ Deno.serve(async (req) => {
   const pg = await sb.from('punpang_fb_pages').select('page_id,token').limit(1).maybeSingle()
   if (!pg.data) return text('no page') // ยังไม่ได้เชื่อมเพจ → ไม่ให้ Meta ส่งซ้ำ
   const ver = (Deno.env.get('FB_GRAPH_VERSION') || 'v24.0').trim()
+  const botJobs: Promise<unknown>[] = []
 
   for (const entry of body.entry || []) {
     if (String(entry?.id) !== pg.data.page_id) continue // เพจที่ไม่ได้เชื่อม
@@ -138,14 +139,19 @@ Deno.serve(async (req) => {
       }
       if (!done) return text('busy', 500) // ชนกันหลายครั้ง → ให้ Meta ส่งซ้ำ
       // บอทตอบแชท (ฝั่งเซิร์ฟเวอร์) · เฉพาะข้อความตัวอักษรใหม่ · ข้อผิดพลาดของบอทต้องไม่ทำให้ Meta ส่งซ้ำทั้งชุด
+      // ทำงานหลังตอบ 200 แล้ว (EdgeRuntime.waitUntil) เพื่อไม่ให้หน่วงเวลาของบอททำให้ Meta ส่งซ้ำ
       if (fresh && !noBot && caption) {
-        try {
+        botJobs.push((async () => {
           const chatRow = await sb.from('punpang_chats').select('id').eq('channel', 'facebook').eq('external_id', psid).maybeSingle()
           if (chatRow.data?.id) await runFbBot({ sb, token: pg.data.token, ver, psid, chatId: chatRow.data.id, mid, text: caption, at })
-        } catch (e) { console.error('fb-bot', (e as Error)?.message ?? 'error') }
+        })().catch((e) => console.error('fb-bot', (e as Error)?.message ?? 'error')))
       }
     }
   }
+  const pending = Promise.allSettled(botJobs)
+  const er = (globalThis as any).EdgeRuntime
+  if (er?.waitUntil) er.waitUntil(pending)
+  else await pending
   return text('ok')
 })
 

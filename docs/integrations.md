@@ -145,6 +145,7 @@ pg_cron (ทุก 15 นาที) ──▶ Edge Function: scheduled (เต�
 - **Secrets ที่ต้องตั้ง** (`supabase secrets set`): `FB_APP_ID`, `FB_APP_SECRET`, `FB_CONFIG_ID`, `FB_VERIFY_TOKEN` (≥8 ตัวอักษร, ใช้ตอน verify webhook), ตัวเลือก `FB_GRAPH_VERSION` (ค่าเริ่มต้น v24.0), `FB_APP_URL` (ค่าเริ่มต้น `https://cake-order-admin.pages.dev` ใช้เป็นที่กลับหลัง OAuth · ตั้ง secret ให้ตรงกับโดเมนที่ใช้จริงเสมอ)
 - **ตรวจสถานะ:** เรียก `fb-connect` action `status` → `configured: true/false` และเพจที่เชื่อม
 - **Webhook ของ Meta:** Callback URL = `<SUPABASE_URL>/functions/v1/fb-webhook` · Verify token = `FB_VERIFY_TOKEN` · subscribed fields `messages`, `messaging_postbacks` (แอปสมัครให้เองตอนเชื่อมเพจ)
+- **บอทฝั่งเซิร์ฟเวอร์:** ตอบ 200 ให้ Meta ก่อน แล้วบอททำงานต่อเบื้องหลัง (`EdgeRuntime.waitUntil`) · นอกเวลาทำการตอบครั้งเดียวต่อช่วงปิด (ไม่ตอบซ้ำทุกข้อความระหว่างที่ร้านปิด) · ชุดทดสอบ `supabase/functions/fb-webhook/bot.test.mts` รันด้วย `node bot.test.mts` ในโฟลเดอร์นั้น
 - **การตั้ง verify JWT ของแต่ละฟังก์ชัน (ค่าที่ deploy อยู่):** `fb-send` = เปิด (`verify_jwt` true) · `fb-connect` = ปิด และตรวจ JWT พนักงานในฟังก์ชันเอง · `fb-webhook` = ปิด (ตรวจลายเซ็น Meta แทน) · อย่า deploy ทับโดยไม่ตรวจว่าโค้ดในรีโปตรงกับที่ใช้งานอยู่ และรักษาค่านี้ตามเดิม
 
 ## แชท Facebook (ใช้งานจริง)

@@ -52,6 +52,14 @@ const hm = (s: unknown) => { const [h, m] = String(s || '0:0').split(':').map(Nu
 // เวลาไทย (UTC+7) เป็นนาทีของวัน · เซิร์ฟเวอร์รันเป็น UTC จึงต้องชดเชยเอง
 const bkkMinutes = (d: Date) => { const x = new Date(d.getTime() + 7 * 3600_000); return x.getUTCHours() * 60 + x.getUTCMinutes() }
 const fill = (s: string, vars: Record<string, string>) => Object.entries(vars).reduce((x, [k, v]) => x.split(`{${k}}`).join(v), s)
+// เริ่มต้นวันทำการ (เที่ยงคืนเวลาไทย) ของเวลา d เป็น ms
+const bkkDayStartMs = (d: Date) => { const x = new Date(d.getTime() + 7 * 3600_000); return Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate()) - 7 * 3600_000 }
+// เวลาที่ช่วงปิดปัจจุบันเริ่ม (เวลาปิดร้านล่าสุดที่ผ่านมาแล้ว) · ใช้จำกัดให้ตอบนอกเวลาครั้งเดียวต่อช่วงปิด
+export function offWindowStartMs(now: Date, shop: any): number {
+  const closeMs = hm(shop.close) * 60_000
+  const day = bkkDayStartMs(now)
+  return bkkMinutes(now) >= hm(shop.close) ? day + closeMs : day - 86_400_000 + closeMs
+}
 
 // ความคล้ายแบบ Dice จาก bigram ตัวอักษร (ใช้ได้กับภาษาไทยที่ไม่มีเว้นวรรค) · ตรงกับฝั่งเบราว์เซอร์
 function grams(s: string) {
@@ -168,6 +176,12 @@ export async function runFbBot(o: BotInput): Promise<void> {
       return { ...d, botHandoff: true, botHandoffReason: dec.reason, updatedAt: new Date().toISOString() }
     })
     return
+  }
+
+  // นอกเวลาทำการ: ตอบครั้งเดียวต่อช่วงปิด (ลูกค้าที่ทักหลายข้อความตอนร้านปิดจะไม่ได้คำตอบซ้ำ)
+  if (dec.source === 'offhours') {
+    const start = offWindowStartMs(at, shop)
+    if (msgs0.some((x) => x?.by === 'บอท' && x?.botSource === 'offhours' && new Date(x.at).getTime() >= start)) return
   }
 
   // จองสิทธิ์ตอบก่อนหน่วงเวลา: ถ้า Meta ส่งข้อความเดิมซ้ำระหว่างรอ ครั้งหลังจะไม่ตอบซ้ำ
