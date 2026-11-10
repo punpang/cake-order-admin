@@ -17,6 +17,7 @@ const props = defineProps({
   typeOpt: { type: Object, default: null }, // ประเภทที่เลือกในชั้นนี้ (ราคาขนาดขึ้นกับประเภท)
   bundles: { type: Array, default: () => [] }, // บันเดิ้ลตัวเลือก → ติดป้ายบนชิป
   context: { type: Object, default: () => ({}) }, // ตัวเลือกของอีกส่วน (ชั้น/ทั้งก้อน) ที่ใช้รวมตรวจบันเดิ้ลข้ามกลุ่ม
+  invalid: { type: Array, default: () => [] }, // id ของหัวข้อที่เลือกไว้แต่ไม่เข้ากับตัวเลือกอื่น → แสดงข้อความใต้หัวข้อนั้น
 })
 const selections = defineModel({ type: Object, required: true })
 
@@ -94,6 +95,7 @@ const isOn = (g, o) =>
         <span v-if="g.required" class="text-xs font-medium text-rose-500">จำเป็น</span>
         <span v-else-if="g.type === 'multi'" class="text-xs text-stone-400">เลือกได้หลายอย่าง</span>
       </div>
+      <p v-if="invalid.includes(g.id)" class="mb-2.5 rounded-xl bg-red-50 p-2.5 text-sm font-medium text-red-700" role="alert">{{ g.name }}ที่เลือกไว้ไม่เข้ากับตัวเลือกที่เลือกอยู่ กรุณาเลือกใหม่</p>
 
       <input
         v-if="g.type === 'text'"

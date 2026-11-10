@@ -97,15 +97,15 @@ function validSels(sels, allow, list) {
   }
   return out
 }
-// หัวข้อที่เลือกไว้แล้วแต่ไม่เข้ากับกติกาปัจจุบัน
+// id ของหัวข้อที่เลือกไว้แล้วแต่ไม่เข้ากับตัวเลือกอื่นในปัจจุบัน
 function invalidOf(sels, allow, list) {
-  const names = []
+  const ids = []
   for (const g of list) {
     const v = sels?.[g.id]
     if (v == null || g.type === 'text' || !allow(g, null)) continue
-    if ((Array.isArray(v) ? v : [v]).some((id) => !okOpt(g, id, allow))) names.push(g.name)
+    if ((Array.isArray(v) ? v : [v]).some((id) => !okOpt(g, id, allow))) ids.push(g.id)
   }
-  return names
+  return ids
 }
 watch(() => JSON.stringify([form.selections, form.tiers]), () => {
   if (form.tiers.length) form.tiers.forEach((t) => prune(t.selections, allowFor(t), tierGroups.value))
@@ -123,7 +123,9 @@ function applyForced() {
 const active = computed(() => activeListsAt(''))
 // ราคาคิดจากค่าที่ใช้ได้จริงเท่านั้น (ค่าที่ซ่อนอยู่ไม่ถูกนับ) · invalid = หัวข้อที่ต้องเลือกใหม่
 const priceForm = computed(() => ({ ...form, selections: validSels(form.selections, allowFor(form.tiers[0]), wholeGroups.value), tiers: form.tiers.map((t) => ({ ...t, selections: validSels(t.selections, allowFor(t), tierGroups.value) })) }))
-const invalid = computed(() => [...new Set([...form.tiers.flatMap((t) => invalidOf(t.selections, allowFor(t), tierGroups.value)), ...invalidOf(form.selections, allowFor(form.tiers[0]), wholeGroups.value)])])
+const invalidFor = (t) => invalidOf(t.selections, allowFor(t), tierGroups.value)
+const invalidWhole = computed(() => invalidOf(form.selections, allowFor(form.tiers[0]), wholeGroups.value))
+const invalid = computed(() => [...new Set([...form.tiers.flatMap((t) => invalidFor(t)), ...invalidWhole.value])].map((id) => groups.value.find((g) => g.id === id)?.name).filter(Boolean))
 const detail = computed(() => priceDetail(priceForm.value, db.optionGroups, db.retailItems, active.value, db.bundles))
 const qty = computed(() => Math.min(999, Math.max(1, Math.round(Number(form.qty) || 1))))
 const empty = (v) => v == null || v === '' || (Array.isArray(v) && !v.length)
@@ -176,18 +178,17 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
     </div>
     <div v-show="open" id="cfg-body" class="space-y-3">
       <slot name="types" />
-      <p v-if="invalid.length" class="rounded-xl bg-red-50 p-2.5 text-sm font-medium text-red-700" role="alert">{{ invalid.join(' · ') }} ที่เลือกไว้ไม่เข้ากับรูปแบบตกแต่งที่เลือก กรุณาเลือกใหม่</p>
 
     <template v-if="hasTiers">
       <div v-for="(tier, i) in form.tiers" :key="i">
-        <OptionPicker v-model="tier.selections" :locked="lockedOf(tier)" :scopes="scopesFor(tier)" :bundles="db.bundles" :context="form.selections" :groups="showTier" :all-groups="groups" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" :type-opt="typeOptOf(tier)" />
+        <OptionPicker v-model="tier.selections" :locked="lockedOf(tier)" :scopes="scopesFor(tier)" :bundles="db.bundles" :context="form.selections" :groups="showTier" :all-groups="groups" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" :type-opt="typeOptOf(tier)" :invalid="invalidFor(tier)" />
         <BundleHint scope="tier" :bundles="db.bundles" :groups="groups" :tier-sels="tier.selections" :whole-sels="form.selections" :size-ids="sizeIdsOf(tier)" :type-id="typeOptOf(tier)?.id || null" :style-id="styleIdOf(tier)" :allow="allowFor(tier)" />
       </div>
     </template>
 
     <template v-if="showWhole.length">
       <div class="text-sm font-semibold text-stone-500">ตัวเลือกเพิ่มเติม</div>
-      <OptionPicker v-model="form.selections" :scopes="scopesFor(form.tiers[0])" :bundles="db.bundles" :context="form.tiers[0]?.selections || {}" :groups="showWhole" :all-groups="groups" :active="active" :allow="allowFor(form.tiers[0])" :size-ids="allSizeIds" :type-opt="typeOptOf(form.tiers[0])" />
+      <OptionPicker v-model="form.selections" :scopes="scopesFor(form.tiers[0])" :bundles="db.bundles" :context="form.tiers[0]?.selections || {}" :groups="showWhole" :all-groups="groups" :active="active" :allow="allowFor(form.tiers[0])" :size-ids="allSizeIds" :type-opt="typeOptOf(form.tiers[0])" :invalid="invalidWhole" />
       <BundleHint scope="whole" :bundles="db.bundles" :groups="groups" :tier-sels="form.tiers[0]?.selections || null" :whole-sels="form.selections" :size-ids="allSizeIds" :type-id="typeOptOf(form.tiers[0])?.id || null" :style-id="styleIdOf(form.tiers[0])" :allow="allowFor(form.tiers[0])" />
     </template>
 
