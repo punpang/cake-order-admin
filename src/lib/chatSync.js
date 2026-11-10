@@ -22,12 +22,54 @@ export function rowToQuote(r) {
 const byDesc = (f) => (a, b) => String(b[f] || '').localeCompare(String(a[f] || ''))
 
 const CHAT_COLS = 'id,channel,external_id,customer_id,data,updated_at'
-export async function loadChats(client) {
-  const a = await selectAll((x, y) => client.from('punpang_chats').select(CHAT_COLS).order('id').range(x, y))
-  if (a.error) return { error: a.error.message }
+// โหลดเฉพาะแชทล่าสุด (ตามเวลาที่แก้ล่าสุด) + แชทที่ผู้ใช้เปิด/ค้นเจอแล้วจำไว้ (pinned) · แชทเก่าอื่น ๆ ดึงเมื่อถูกเรียกใช้เท่านั้น
+export const RECENT_CHATS = 150
+const IN_CHUNK = 100
+export async function loadChats(client, pinned = []) {
+  const recent = await client.from('punpang_chats').select(CHAT_COLS).order('updated_at', { ascending: false }).limit(RECENT_CHATS)
+  if (recent.error) return { error: recent.error.message }
+  const rows = new Map((recent.data || []).map((r) => [r.id, r]))
+  const extra = pinned.filter((id) => !rows.has(id))
+  for (let i = 0; i < extra.length; i += IN_CHUNK) {
+    const p = await loadChatRows(client, extra.slice(i, i + IN_CHUNK))
+    if (p.error) return { error: p.error }
+    for (const r of p.data) rows.set(r.id, r)
+  }
+  const all = [...rows.values()]
   // vers = updated_at ของแต่ละแถวตอนโหลด (ไว้ตรวจว่ามีคนแก้แถวนี้ระหว่างนั้นไหมตอนเขียนกลับ)
-  return { items: (a.data || []).map(rowToChat).sort(byDesc('updatedAt')), vers: new Map((a.data || []).map((r) => [r.id, r.updated_at])) } // แชทล่าสุดอยู่บนสุด
+  return { items: all.map(rowToChat).sort(byDesc('updatedAt')), vers: new Map(all.map((r) => [r.id, r.updated_at])) } // แชทล่าสุดอยู่บนสุด
 }
+async function loadChatRows(client, ids) {
+  const r = await client.from('punpang_chats').select(CHAT_COLS).in('id', ids)
+  if (r.error) return { error: r.error.message }
+  return { data: r.data || [] }
+}
+// ดึงแชทตามรหัส (ใช้กับแชทเก่าที่ถูกเปิด/ค้นเจอ และการแจ้งเตือนจาก Realtime)
+export async function loadChatsByIds(client, ids) {
+  const out = []
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const p = await loadChatRows(client, ids.slice(i, i + IN_CHUNK))
+    if (p.error) return { error: p.error }
+    out.push(...p.data)
+  }
+  return { items: out.map(rowToChat) }
+}
+// ค้นแชทที่อยู่นอกชุดล่าสุด: ชื่อ Facebook/LINE ตรงคำค้น · ลูกค้าที่ตรงเบอร์/ชื่อ/ออร์เดอร์ · แชทที่ใบเสนอตรง (ข้อมูลพวกนี้ดึงไว้ในเครื่องแล้ว)
+const clean = (s) => String(s ?? '').replace(/[,()*"\\%]/g, ' ').trim()
+export async function searchChatIds(client, { text = '', customerIds = [], chatIds = [] } = {}) {
+  const parts = []
+  const t = clean(text)
+  if (t) parts.push(`data->>profileName.ilike.*${t}*`)
+  if (customerIds.length) parts.push(`customer_id.in.(${customerIds.map(clean).filter(Boolean).join(',')})`)
+  if (chatIds.length) parts.push(`id.in.(${chatIds.map(clean).filter(Boolean).join(',')})`)
+  if (!parts.length) return { ids: [] }
+  const r = await client.from('punpang_chats').select('id').or(parts.join(',')).limit(100)
+  if (r.error) return { error: r.error.message }
+  return { ids: (r.data || []).map((x) => x.id) }
+}
+// ตัวช่วยให้หน้าแชทเรียกใช้ (ตั้งค่าเมื่อเริ่มซิงก์แชท)
+// ก่อนซิงก์แชทเสร็จ คำขอ ensure ถูกเก็บคิวไว้แล้วทำทีหลัง
+export const chatRemote = { queue: [], ensure: async (ids) => { chatRemote.queue.push(...ids) }, search: async () => {} }
 export async function loadQuotes(client) {
   const a = await selectAll((x, y) => client.from('punpang_quotes').select('id,code,chat_id,customer_id,status,order_id,data').order('id').range(x, y))
   if (a.error) return { error: a.error.message }
@@ -112,6 +154,23 @@ export function pendingBotMessages(chats, nowMs = Date.now(), maxAgeMs = 5 * 60 
   return out
 }
 
+// ลบข้อความแชทที่เก่าเกินระยะเก็บ (เดือน · ตั้งที่ จัดการ → กฎหมาย "เก็บประวัติแชท")
+// เก็บการ์ดออร์เดอร์/ใบเสนอไว้เป็นหลักฐานธุรกรรม · คำตอบที่บอทเรียนรู้เก็บแยกใน db.bot.learned อยู่แล้ว จึงไม่กระทบบอท
+export function purgeOldMessages(chats, months, now = Date.now()) {
+  const n = Math.floor(Number(months))
+  if (!(n > 0)) return 0
+  const d = new Date(now)
+  d.setMonth(d.getMonth() - n)
+  const cutoff = d.getTime()
+  let removed = 0
+  for (const c of chats) {
+    const msgs = c.messages || []
+    const keep = msgs.filter((m) => m.kind === 'order' || m.kind === 'quote' || ts(m.at) >= cutoff)
+    if (keep.length !== msgs.length) { removed += msgs.length - keep.length; c.messages = keep }
+  }
+  return removed
+}
+
 // ใบเสนอที่ลูกค้ากดยืนยันทาง Messenger แล้วรอสร้างออร์เดอร์ (webhook ตั้ง customer_ok)
 export const pendingQuoteConfirms = (quotes) => (quotes || []).filter((q) => q.status === 'customer_ok').map((q) => q.id)
 
@@ -141,6 +200,8 @@ export async function pushQuotes(client, { upserts, deletes }, { numbering = nul
 export async function startChatSync({ client, db, canWrite, numbering, onError, onRecode, debounceMs, onInbound = null, onQuoteConfirm = null }) {
   let lastVers = new Map() // จากการโหลดล่าสุด
   let vers = new Map() // version ของแถวที่ข้อมูลในเครื่องอิงอยู่ (เปลี่ยนเมื่อแทนที่ข้อมูลจริงเท่านั้น — ถ้าโหลดแล้วข้ามเพราะมีการแก้ค้าง ต้องไม่เลื่อน version)
+  const pinned = new Set() // แชทนอกชุดล่าสุดที่ผู้ใช้เปิด/ค้นเจอ/Realtime แจ้ง → ซิงก์ต่อในรอบถัดไปด้วย
+  const pin = (ids) => { for (const id of ids) pinned.add(id); return ids }
   const pa = startSync({
     list: () => db.chats,
     replace: (items) => {
@@ -149,9 +210,10 @@ export async function startChatSync({ client, db, canWrite, numbering, onError, 
       // ข้อความ Facebook ใหม่ → ให้ผู้เรียกจองสิทธิ์แล้วเรียกบอท (หน่วงเล็กน้อยให้ snapshot ของ sync ตั้งเสร็จก่อน กันการแก้ของบอทถูกนับเป็นข้อมูลเดิม)
       if (onInbound) { const pend = pendingBotMessages(items); if (pend.length) setTimeout(() => pend.forEach((x) => onInbound(x.chatId, x.mid)), 0) }
     },
-    load: async () => { const r = await loadChats(client); if (!r.error) lastVers = r.vers; return r },
+    load: async () => { const r = await loadChats(client, [...pinned]); if (!r.error) lastVers = r.vers; return r },
     push: (c) => pushChats(client, c, vers),
     canWrite, onError, debounceMs, label: 'แชท', poll: true, // ข้อความจาก Facebook เข้าผ่าน webhook ระหว่างที่เปิดแอปอยู่
+    loadByIds: (ids) => loadChatsByIds(client, pin(ids)),
   })
   const pb = startSync({
     list: () => db.quotes,
@@ -167,5 +229,26 @@ export async function startChatSync({ client, db, canWrite, numbering, onError, 
   const [a, b] = await Promise.all([pa, pb]) // แชทกับใบเสนอโหลดพร้อมกัน
   a.kind = 'chats' // ให้ชั้นล็อกอินเลือกรีเฟรชเฉพาะแชทถี่ ๆ ตอนเปิดหน้าแชท
   b.kind = 'chats'
+  // ล้างข้อความเก่าเกินระยะเก็บ (การเปลี่ยนแปลงจะถูกซิงก์กลับเซิร์ฟเวอร์โดยอัตโนมัติ)
+  // ตอนเปิดแอป และทุก 6 ชั่วโมงระหว่างใช้งาน (การเปลี่ยนแปลงจากการล้าง จะถูกซิงก์กลับเซิร์ฟเวอร์ผ่าน watch ของตัวซิงก์)
+  if (canWrite) {
+    const runPurge = () => purgeOldMessages(db.chats, db.legal?.contact?.retentionChat)
+    runPurge()
+    setInterval(runPurge, 6 * 60 * 60 * 1000)
+  }
+  // ดึงแชทเก่าที่ยังไม่อยู่ในเครื่อง (เปิดแชท/ค้นหา) แล้วจำไว้ให้ซิงก์รอบถัดไป
+  chatRemote.ensure = async (ids) => {
+    const missing = pin(ids).filter((id) => !db.chats.some((c) => c.id === id))
+    if (!missing.length) return true
+    return a.refreshIds ? a.refreshIds(missing) : false
+  }
+  const queued = chatRemote.queue.splice(0)
+  if (queued.length) await chatRemote.ensure(queued)
+  chatRemote.search = async (keys) => {
+    const r = await searchChatIds(client, keys)
+    if (r.error) return r
+    await chatRemote.ensure(r.ids)
+    return r
+  }
   return [a, b]
 }

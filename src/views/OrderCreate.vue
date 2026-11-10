@@ -97,6 +97,7 @@ function saveNewCustomer() {
   if (!newCus.name.trim()) return (error.value = 'กรอกชื่อลูกค้า')
   if (!phoneValid(newCus.phone)) return (error.value = 'กรอกเบอร์โทรให้ถูกต้อง (บังคับ)')
   const c = props.embedded && chat.value ? createCustomerFromChat(chat.value.id, newCus.phone, newCus.name) : addCustomer(newCus)
+  if (!c || c.error) return (error.value = c?.error || 'ไม่พบแชทนี้')
   if (newCus.line || newCus.note) saveCustomer({ ...c, line: newCus.line || c.line, note: newCus.note || c.note })
   form.customerId = c.id
   Object.assign(newCus, { name: '', phone: '', line: '', note: '' })
@@ -107,7 +108,8 @@ function saveNewCustomer() {
 const addPhone = ref('')
 function savePhone() {
   if (!phoneValid(addPhone.value)) return (error.value = 'กรอกเบอร์โทรให้ถูกต้อง')
-  saveCustomer({ ...customer.value, phone: addPhone.value })
+  const r = saveCustomer({ ...customer.value, phone: addPhone.value })
+  if (r.error) return (error.value = r.error)
   addPhone.value = ''
   error.value = ''
 }
