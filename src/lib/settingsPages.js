@@ -9,6 +9,7 @@ export const SETTINGS_PAGES = [
   { to: '/admin/settings/retail', icon: 'pos', title: 'สินค้า (POS / สินค้าสำเร็จ)' },
   { to: '/admin/settings/promos', icon: 'tag', title: 'โปรโมชัน POS / คะแนนพิเศษ' },
   { to: '/admin/settings/integrations', icon: 'phone', title: 'การเชื่อมต่อ & แจ้งเตือน' },
+  { to: '/admin/settings/sms', icon: 'phone', title: 'SMS Gateway' },
   { to: '/admin/settings/loyalty', icon: 'tag', title: 'คะแนน & รางวัล' },
   { to: '/admin/settings/storefront', icon: 'store', title: 'หน้าร้าน (เว็บลูกค้า)' },
   { to: '/admin/settings/photo-requests', icon: 'shield', title: 'คำขอไม่เผยแพร่รูป' },

@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { supabaseEnabled, getSupabase } from '../../lib/supabase'
 import { fbConnectCall, FB_ERRORS } from '../../lib/fbRemote'
-import { db, findOrder, saveNotifyRule, runScheduledChecks, clearOutbox, fillTemplate, connectIntegration, disconnectIntegration, connectTelegram, connectSms, sendIntegrationTest } from '../../data/store'
+import { db, findOrder, saveNotifyRule, runScheduledChecks, clearOutbox, fillTemplate, connectIntegration, disconnectIntegration, connectTelegram, sendIntegrationTest } from '../../data/store'
 import { CHANNELS, NOTIFY_EVENTS, NOTIFY_VARS } from '../../lib/constants'
 import { askConfirm } from '../../lib/confirm'
 import { dateTime } from '../../lib/format'
@@ -129,20 +129,20 @@ async function runConnect() {
   conn.stage = 'done'
 }
 // ---------- Telegram / SMS (จำลอง) ----------
-const SIMPLE = ['telegram', 'sms']
-const sf = reactive({ key: '', token: '', chatId: '', url: '', sender: '', apiKey: '', error: '' })
+// SMS ไม่มีฟอร์มกรอกในหน้านี้: ค่า URL/คีย์ตั้งที่ Supabase secrets และสถานะถูกตั้งอัตโนมัติ (ดูหน้า /admin/settings/sms)
+const SIMPLE = ['telegram']
+const sf = reactive({ key: '', token: '', chatId: '', error: '' })
 function openSimple(k) {
-  Object.assign(sf, { key: k, token: '', chatId: db.integrations.telegram.accountId || '', url: db.integrations.sms.url || '', sender: db.integrations.sms.sender || '', apiKey: '', error: '' })
+  Object.assign(sf, { key: k, token: '', chatId: db.integrations.telegram.accountId || '', error: '' })
 }
 function submitSimple() {
-  const r = sf.key === 'telegram' ? connectTelegram({ token: sf.token, chatId: sf.chatId }) : connectSms({ url: sf.url, sender: sf.sender, key: sf.apiKey })
+  const r = connectTelegram({ token: sf.token, chatId: sf.chatId })
   if (r.error) return (sf.error = r.error)
-  Object.assign(sf, { key: '', token: '', apiKey: '' }) // ไม่ค้าง token/คีย์ในหน้าจอ
+  Object.assign(sf, { key: '', token: '' }) // ไม่ค้าง token ในหน้าจอ
 }
-const testPhone = ref('')
 const testRes = reactive({ key: '', text: '', error: '' })
 function runTest(k) {
-  const r = sendIntegrationTest(k, testPhone.value)
+  const r = sendIntegrationTest(k)
   Object.assign(testRes, { key: k, text: r.ok ? `ส่งทดสอบแล้ว (จำลอง) → ${r.to}: ${r.text}` : '', error: r.error || '' })
 }
 const EXTRA_EVENT = { test: 'ข้อความทดสอบ', bot_handoff: 'บอทส่งต่อพนักงาน' }
@@ -215,15 +215,20 @@ async function disconnect(k) {
           </div>
           <button v-else type="button" class="btn-primary mt-3 h-10 w-full" @click="openConnect(k)">{{ k === 'facebook' ? 'เชื่อม Facebook' : 'เชื่อม LINE OA' }}</button>
         </template>
+        <template v-else-if="k === 'sms'">
+          <div class="mt-3 space-y-2 text-xs text-stone-500">
+            <p v-if="db.integrations.sms.status === 'connected'">เชื่อมผ่านเกตเวย์ของร้านแล้ว (ตั้งค่าที่เซิร์ฟเวอร์)</p>
+            <p v-else>ยังไม่พร้อม: ตั้ง secret <code>SMS_GATEWAY_URL</code> และ <code>SMS_API_KEY</code> ที่ Supabase</p>
+            <RouterLink to="/admin/settings/sms" class="btn-primary inline-flex h-10 w-full items-center justify-center">ไปหน้า SMS Gateway</RouterLink>
+          </div>
+        </template>
         <template v-else-if="SIMPLE.includes(k)">
           <div v-if="db.integrations[k].status === 'connected'" class="mt-3 space-y-2">
             <div class="text-xs text-stone-500">
               <template v-if="k === 'telegram'">chat {{ db.integrations.telegram.accountId }}</template>
-              <template v-else>{{ db.integrations.sms.accountId }} · ผู้ส่ง {{ db.integrations.sms.sender }}</template>
-              · {{ k === 'sms' ? 'คีย์' : 'token' }} ••••{{ db.integrations[k].tokenHint }} · เมื่อ {{ dateTime(db.integrations[k].connectedAt) }}
+              · token ••••{{ db.integrations[k].tokenHint }} · เมื่อ {{ dateTime(db.integrations[k].connectedAt) }}
             </div>
             <div class="flex flex-wrap items-center gap-2">
-              <input v-if="k === 'sms'" v-model="testPhone" type="tel" inputmode="numeric" maxlength="12" class="input h-9 w-36 text-sm" placeholder="เบอร์ทดสอบ" />
               <button type="button" class="btn-soft h-9 px-3 text-sm" @click="runTest(k)">ส่งข้อความทดสอบ</button>
               <button type="button" class="btn-outline h-9 px-3 text-sm" @click="openSimple(k)">แก้ค่า</button>
               <button type="button" class="btn-outline ml-auto h-9 px-3 text-sm" @click="disconnect(k)">ยกเลิกการเชื่อม</button>
@@ -231,7 +236,7 @@ async function disconnect(k) {
             <p v-if="testRes.key === k && testRes.text" class="rounded-lg bg-emerald-50 p-2 text-xs text-emerald-800">{{ testRes.text }}</p>
             <p v-if="testRes.key === k && testRes.error" class="text-xs text-rose-600">{{ testRes.error }}</p>
           </div>
-          <button v-else type="button" class="btn-primary mt-3 h-10 w-full" @click="openSimple(k)">{{ k === 'telegram' ? 'เชื่อม Telegram' : 'เชื่อม SMS' }}</button>
+          <button v-else type="button" class="btn-primary mt-3 h-10 w-full" @click="openSimple(k)">เชื่อม Telegram</button>
         </template>
       </section>
     </div>
@@ -337,16 +342,11 @@ async function disconnect(k) {
     </AppModal>
 
     <!-- modal เชื่อมบัญชี -->
-    <AppModal v-if="sf.key" :title="sf.key === 'telegram' ? 'เชื่อม Telegram' : 'เชื่อม SMS'" @close="sf.key = ''">
-      <p class="mb-3 rounded-xl bg-amber-50 p-2 text-xs text-amber-800">{{ sf.key === 'sms' ? 'SMS ส่งจริงเมื่อตั้งค่า secret ฝั่งเซิร์ฟเวอร์ครบ (SMS_GATEWAY_URL, SMS_API_KEY) และเกตเวย์เข้าถึงได้จากคลาวด์ผ่านรีเลย์ · หน้านี้เก็บเฉพาะ 4 ตัวท้ายของคีย์' : 'จำลอง · ยังไม่ส่งจริง · ระบบเก็บเฉพาะ 4 ตัวท้ายของ token (ของจริงเก็บที่เซิร์ฟเวอร์เมื่อต่อ Supabase)' }}</p>
-      <div v-if="sf.key === 'telegram'" class="space-y-3">
+    <AppModal v-if="sf.key" title="เชื่อม Telegram" @close="sf.key = ''">
+      <p class="mb-3 rounded-xl bg-amber-50 p-2 text-xs text-amber-800">จำลอง · ยังไม่ส่งจริง · ระบบเก็บเฉพาะ 4 ตัวท้ายของ token (ของจริงเก็บที่เซิร์ฟเวอร์เมื่อต่อ Supabase)</p>
+      <div class="space-y-3">
         <div><label class="label">Bot token (จาก @BotFather)</label><input v-model="sf.token" type="password" autocomplete="off" class="input font-mono text-sm" placeholder="123456789:AAxxxxxxxx…" /></div>
         <div><label class="label">Chat ID ของกลุ่มทีม</label><input v-model="sf.chatId" class="input" placeholder="-1001234567890 หรือ @ชื่อช่อง" /></div>
-      </div>
-      <div v-else class="space-y-3">
-        <div><label class="label">ลิงก์ SMS Gateway (http:// หรือ https://)</label><input v-model="sf.url" class="input font-mono text-sm" placeholder="http://ชื่อโดเมน:พอร์ต" maxlength="500" /><p class="mt-1 text-xs text-stone-400">ใช้ชื่อโดเมนของเกตเวย์หรือรีเลย์ (ไม่รับ IP/localhost) · ระบบฝั่งเซิร์ฟเวอร์ต้องเข้าถึงลิงก์นี้ได้</p></div>
-        <div><label class="label">ชื่อผู้ส่ง (ไม่บังคับ)</label><input v-model="sf.sender" class="input" placeholder="ว่างได้" maxlength="11" /></div>
-        <div><label class="label">API key</label><input v-model="sf.apiKey" type="password" autocomplete="off" class="input font-mono text-sm" /></div>
       </div>
       <p v-if="sf.error" class="mt-3 flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ sf.error }}</p>
       <template #footer>

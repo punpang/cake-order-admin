@@ -1,10 +1,11 @@
-// Edge Function: ส่ง SMS ผ่าน SMS Gateway ที่รันบนโทรศัพท์ (HTTP API `POST /v1/sms`)
+// Edge Function: ส่ง SMS ผ่าน SMS Gateway ที่รันบนโทรศัพท์ (HTTP API v1 ตามเอกสาร SMS Gateway API)
 // - ตรวจสิทธิ์: ต้องเป็นพนักงานที่ active (punpang_staff) เท่านั้น
 // - ความลับ (secret) อยู่ฝั่งเซิร์ฟเวอร์: SMS_GATEWAY_URL (ลิงก์ http/https ของเกตเวย์ หรือรีเลย์), SMS_API_KEY (สิทธิ์ "ส่งและลบ" เท่านั้น)
 //   ตั้งด้วย: supabase secrets set SMS_GATEWAY_URL=... SMS_API_KEY=...
-// - เกตเวย์รับคำขอเฉพาะจาก IP ใน LAN และตรวจ certificate pin (ดู docs/integrations.md) ระบบบนคลาวด์ต้องผ่านรีเลย์/Tunnel ที่อยู่ใน LAN
-// - ฝั่งเรียกต้องส่ง idempotencyKey (8–64 ตัว A-Z a-z 0-9 _ -) ผูกกับข้อความนั้น เพื่อให้ลองซ้ำไม่ส่ง SMS ซ้ำ
-// - ตอบกลับ {ok, error} (และ id ของงานเมื่อสำเร็จ) เท่านั้น ไม่ส่งคีย์หรือ URL เกตเวย์กลับไปที่หน้าเว็บ
+// - เกตเวย์รับคำขอเฉพาะจาก IP ใน LAN และตรวจ certificate pin ระบบบนคลาวด์ต้องผ่านรีเลย์/Tunnel ที่อยู่ใน LAN
+// - การส่ง ต้องมี idempotencyKey จากฝั่งเรียก (8–64 ตัว A-Z a-z 0-9 _ -) เพื่อให้ลองซ้ำไม่ส่ง SMS ซ้ำ
+// - actions: status (ตั้งค่าครบหรือยัง) · gateway (สถานะเกตเวย์ GET /v1/status) · send (POST /v1/sms) · lookup (GET /v1/sms/{id}) · messages (GET /v1/messages)
+// - ไม่ส่งคีย์หรือ URL เกตเวย์กลับไปที่หน้าเว็บ
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -22,14 +23,22 @@ const GATEWAY_URL = env('SMS_GATEWAY_URL').trim()
 const GATEWAY_KEY = env('SMS_API_KEY').trim()
 
 const configured = () => !!(GATEWAY_URL && GATEWAY_KEY)
-// เบอร์ไทย: ขึ้นต้น 0 ยาว 9–10 หลัก (ตรงกับ phoneValid ฝั่งหน้าเว็บ) · เกตเวย์รับรูปแบบ 0… ได้
+
+// ลิงก์ราก (ตัด /v1/... ที่ผู้ตั้งอาจใส่มาด้วย) เช่น https://relay.example.com:8443
+const root = () => GATEWAY_URL.replace(/\/+$/, '').replace(/\/v1(\/sms|\/messages|\/status|\/health)?$/i, '')
+
+// เบอร์: รับ 0xxxxxxxxx(x) · 66xxxxxxxxx · 0066xxxxxxxxx · +66 (ตัดช่องว่าง/ขีดออกก่อน) แล้วส่งเป็น 0… ให้เกตเวย์
 const normalizeNumber = (s: unknown) => {
-  const d = String(s ?? '').replace(/\D/g, '')
+  let d = String(s ?? '').replace(/\D/g, '')
+  if (/^0066\d{8,9}$/.test(d)) d = '0' + d.slice(4)
+  else if (/^66\d{8,9}$/.test(d)) d = '0' + d.slice(2)
   return /^0\d{8,9}$/.test(d) ? d : null
 }
-// เกตเวย์รับได้สูงสุด 5 ฉบับ (ข้อความยาวจะถูกแบ่งอัตโนมัติ) · เพดานนี้เผื่อไว้ให้ตรงกับ 5 ฉบับภาษาไทย (~70 ตัว/ฉบับ) · เกตเวย์เป็นผู้ตัดสินจริง
+
+// เกตเวย์รับได้สูงสุด 5 ฉบับ (ภาษาไทยประมาณ 70 ตัว/ฉบับ) · เพดานนี้ตรงกับ 5 ฉบับ เกตเวย์เป็นผู้ตัดสินจริง
 const MAX_TEXT = 350
 const IDEM = /^[A-Za-z0-9_-]{8,64}$/
+const ID = /^[A-Za-z0-9_-]{1,64}$/
 
 async function staffOf(req: Request): Promise<boolean> {
   const m = /^Bearer (.+)$/.exec(req.headers.get('authorization') || '')
@@ -45,42 +54,57 @@ async function staffOf(req: Request): Promise<boolean> {
   return !!rows[0] && rows[0].active !== false
 }
 
-// ปลายทาง: ยอมรับทั้งลิงก์ฐาน (http://host:port) และลิงก์เต็มที่ลงท้าย /v1/sms
-const endpoint = () => {
-  const base = GATEWAY_URL.replace(/\/+$/, '')
-  return /\/v1\/sms$/i.test(base) ? base : `${base}/v1/sms`
-}
-
-// แปลงรหัสข้อผิดพลาดของเกตเวย์เป็นข้อความไทย (ตาม error table ของ API)
+// แปลงข้อผิดพลาดของเกตเวย์ (ตาราง error ของ API) เป็นข้อความไทย
 function gatewayError(status: number, code: string): string {
-  if (status === 400) return `เกตเวย์ไม่รับข้อมูล (${code || 'invalid'})`
+  const C: Record<string, string> = {
+    invalid_json: 'เกตเวย์อ่านคำขอไม่ได้',
+    empty_body: 'คำขอว่างเปล่า',
+    invalid_to: 'เบอร์ปลายทางไม่ถูกต้องตามที่เกตเวย์รับ',
+    invalid_message: 'ข้อความไม่ถูกต้อง',
+    message_too_long: `ข้อความยาวเกินที่เกตเวย์รับ (สูงสุด ${MAX_TEXT} ตัวอักษร / 5 ฉบับ)`,
+    missing_idempotency_key: 'ไม่มีคีย์กันส่งซ้ำ',
+    invalid_idempotency_key: 'คีย์กันส่งซ้ำไม่ถูกรูปแบบ',
+    invalid_sim: 'เลขซิมไม่ถูกต้อง (ใช้ 1 หรือ 2)',
+    invalid_id: 'รหัสงานไม่ถูกต้อง',
+    chunked_not_supported: 'เกตเวย์ไม่รับการส่งแบบ chunked',
+    body_too_large: 'คำขอใหญ่เกินที่เกตเวย์รับ',
+    unauthorized: 'key ของเกตเวย์ไม่ถูกต้อง',
+    ip_not_allowed: 'IP นี้ไม่อยู่ในรายการที่เกตเวย์อนุญาตสำหรับ key นี้',
+    insufficient_scope: 'key ของเกตเวย์ไม่มีสิทธิ์ทำรายการนี้',
+    forbidden: 'เกตเวย์ปฏิเสธการเชื่อมต่อ (ไม่ได้อยู่ใน LAN ของเกตเวย์)',
+    not_found: 'ไม่พบรายการ หรือไม่มี endpoint นี้',
+    idempotency_key_reused: 'คีย์ส่งซ้ำกับข้อความอื่นที่ไม่ตรงกัน',
+    message_still_pending: 'ข้อความยังรอส่งอยู่',
+    rate_limited: 'เรียกเกตเวย์ถี่เกินไป ลองใหม่อีกครั้ง',
+    daily_limit_reached: 'ถึงโควตาการส่งต่อวันของเกตเวย์แล้ว',
+    internal_error: 'เกตเวย์เกิดข้อผิดพลาดภายใน',
+  }
+  if (code && C[code]) return C[code]
   if (status === 401) return 'key ของเกตเวย์ไม่ถูกต้อง'
-  if (status === 403 && code === 'ip_not_allowed') return 'IP นี้ไม่อยู่ในรายการที่เกตเวย์อนุญาต'
-  if (status === 403 && code === 'insufficient_scope') return 'key ของเกตเวย์ไม่มีสิทธิ์ส่ง SMS'
-  if (status === 403) return 'เกตเวย์ปฏิเสธการเชื่อมต่อ (ไม่ได้อยู่ใน LAN ของเกตเวย์)'
-  if (status === 404) return 'ไม่พบ endpoint ของเกตเวย์ (ตรวจลิงก์)'
-  if (status === 409 && code === 'idempotency_key_reused') return 'คีย์ส่งซ้ำกับข้อความอื่นที่ไม่ตรงกัน'
-  if (status === 409) return 'เกตเวย์มีงานค้างอยู่ ลองใหม่ภายหลัง'
-  if (status === 413) return 'คำขอใหญ่เกินที่เกตเวย์รับ'
-  if (status === 429 && code === 'daily_limit_reached') return 'ถึงโควตาการส่งต่อวันของเกตเวย์แล้ว'
+  if (status === 403) return 'เกตเวย์ปฏิเสธการเชื่อมต่อ'
+  if (status === 404) return 'ไม่พบรายการ หรือไม่มี endpoint นี้ (ตรวจลิงก์)'
+  if (status === 409) return 'เกตเวย์ตอบขัดแย้ง ลองใหม่ภายหลัง'
   if (status === 429) return 'เรียกเกตเวย์ถี่เกินไป ลองใหม่อีกครั้ง'
   return `เกตเวย์ตอบ ${status}`
 }
 
-// คำขอออกไปยังเกตเวย์: POST /v1/sms ด้วย Idempotency-Key จากฝั่งเรียก · 200 = คืนงานเดิม, 202 = สร้างงานใหม่
-async function sendOut(to: string, message: string, idem: string): Promise<{ ok: boolean; id?: unknown; error?: string }> {
+// เรียกเกตเวย์ทุก endpoint ผ่านที่เดียว (หมดเวลา 10 วินาที · ไม่ส่ง key กลับ)
+async function gw(path: string, init: { method: string; body?: unknown; idem?: string }): Promise<{ ok: boolean; status: number; data?: any; error?: string }> {
+  const headers: Record<string, string> = { authorization: `Bearer ${GATEWAY_KEY}` }
+  if (init.body !== undefined) headers['content-type'] = 'application/json'
+  if (init.idem) headers['idempotency-key'] = init.idem
   try {
-    const r = await fetch(endpoint(), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${GATEWAY_KEY}`, 'idempotency-key': idem },
-      body: JSON.stringify({ to, message }),
+    const r = await fetch(`${root()}${path}`, {
+      method: init.method,
+      headers,
+      body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
       signal: AbortSignal.timeout(10_000),
     })
     const data = await r.json().catch(() => null)
-    if (r.ok) return { ok: true, id: data?.id }
-    return { ok: false, error: gatewayError(r.status, String(data?.error ?? '')) }
+    if (r.ok) return { ok: true, status: r.status, data }
+    return { ok: false, status: r.status, error: gatewayError(r.status, String(data?.error ?? '')) }
   } catch {
-    return { ok: false, error: 'เชื่อมต่อเกตเวย์ไม่ได้ (หมดเวลาหรือเครือข่ายขัดข้อง)' }
+    return { ok: false, status: 0, error: 'เชื่อมต่อเกตเวย์ไม่ได้ (หมดเวลาหรือเครือข่ายขัดข้อง)' }
   }
 }
 
@@ -91,10 +115,44 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return json({ ok: false, error: 'คำขอไม่ถูกต้อง' }, 400)
+  const action = String(body.action ?? 'send')
 
-  if (body.action === 'status') return json({ configured: configured() })
+  if (action === 'status') return json({ configured: configured() })
 
   if (!configured()) return json({ ok: false, error: 'ยังไม่ได้ตั้งค่าเกตเวย์ SMS ของร้าน' }, 503)
+
+  // สถานะเกตเวย์: GET /v1/status (running, sms_counts, ...)
+  if (action === 'gateway') {
+    const r = await gw('/v1/status', { method: 'GET' })
+    return json(r.ok ? { ok: true, gateway: r.data } : { ok: false, error: r.error }, r.ok ? 200 : 502)
+  }
+
+  // สถานะงานส่ง SMS รายการเดียว: GET /v1/sms/{id}
+  if (action === 'lookup') {
+    const id = String(body.id ?? '').trim()
+    if (!ID.test(id)) return json({ ok: false, error: 'รหัสงานไม่ถูกต้อง' }, 400)
+    const r = await gw(`/v1/sms/${encodeURIComponent(id)}`, { method: 'GET' })
+    if (!r.ok && r.status === 404) return json({ ok: false, error: 'ไม่พบงานนี้ที่เกตเวย์' }, 404)
+    return json(r.ok ? { ok: true, sms: r.data } : { ok: false, error: r.error }, r.ok ? 200 : 502)
+  }
+
+  // รายการข้อความ: GET /v1/messages?direction=all|in|out&limit=1..200&before=<ms>
+  if (action === 'messages') {
+    const direction = ['all', 'in', 'out'].includes(String(body.direction)) ? String(body.direction) : 'all'
+    const limit = Math.min(200, Math.max(1, Math.floor(Number(body.limit) || 50)))
+    const q = new URLSearchParams({ direction, limit: String(limit) })
+    if (body.before !== undefined && body.before !== null && body.before !== '') {
+      const b = Math.floor(Number(body.before))
+      if (!Number.isFinite(b) || b <= 0) return json({ ok: false, error: 'ค่า before ไม่ถูกต้อง' }, 400)
+      q.set('before', String(b))
+    }
+    const r = await gw(`/v1/messages?${q}`, { method: 'GET' })
+    return json(r.ok ? { ok: true, messages: r.data?.messages ?? [], next_before: r.data?.next_before ?? null } : { ok: false, error: r.error }, r.ok ? 200 : 502)
+  }
+
+  if (action !== 'send') return json({ ok: false, error: 'action ไม่รู้จัก' }, 400)
+
+  // ส่ง: POST /v1/sms (ต้องมี Idempotency-Key จากฝั่งเรียก) · 202 = งานใหม่, 200 = งานเดิมของคีย์นี้
   const to = normalizeNumber(body.number)
   if (!to) return json({ ok: false, error: 'เบอร์โทรไม่ถูกต้อง' }, 400)
   const text = String(body.text ?? '').trim()
@@ -103,7 +161,12 @@ Deno.serve(async (req) => {
   const idem = String(body.idempotencyKey ?? '').trim()
   if (!idem) return json({ ok: false, error: 'ไม่มีคีย์กันส่งซ้ำ (idempotencyKey)' }, 400)
   if (!IDEM.test(idem)) return json({ ok: false, error: 'คีย์กันส่งซ้ำต้องยาว 8–64 ตัว (A-Z a-z 0-9 _ -)' }, 400)
+  const sim = body.sim === 1 || body.sim === 2 || body.sim === '1' || body.sim === '2' ? Number(body.sim) : undefined
 
-  const r = await sendOut(to, text, idem)
-  return json(r.ok ? { ok: true, id: r.id ?? null } : { ok: false, error: r.error }, r.ok ? 200 : 502)
+  const payload: Record<string, unknown> = { to, message: text }
+  if (sim) payload.sim = sim
+  const r = await gw('/v1/sms', { method: 'POST', body: payload, idem })
+  if (!r.ok) return json({ ok: false, error: r.error }, 502)
+  // เก็บเฉพาะข้อมูลที่หน้าเว็บใช้ (id/status) ไม่ส่งเบอร์หรือข้อความซ้ำกลับไป
+  return json({ ok: true, id: r.data?.id ?? null, status: r.data?.status ?? null, created: r.status === 202 })
 })

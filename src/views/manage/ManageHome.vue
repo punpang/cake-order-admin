@@ -18,6 +18,7 @@ const DESC = computed(() => ({
   '/admin/settings/retail': `${activeCount(db.retailItems)} รายการ · แสดงหน้าร้านเว็บ ${db.retailItems.filter((x) => x.active !== false && x.showOnStore).length} · สต็อกหมด ${db.retailItems.filter((x) => x.active !== false && x.stock === 0).length}`,
   '/admin/settings/promos': `ส่วนลด ${db.posDiscounts.filter((x) => x.active !== false).length} · บันเดิ้ล ${db.posBundles.filter((x) => x.active !== false).length} · คะแนนพิเศษ ${db.pointPromos.filter((x) => x.active !== false).length} (ที่เปิดใช้)`,
   '/admin/settings/integrations': `LINE OA · Facebook · SMS · Telegram (จำลอง) · คิว ${db.outbox.length} ข้อความ`,
+  '/admin/settings/sms': `เกตเวย์บนโทรศัพท์ · ส่งทดสอบ · ตรวจสถานะงาน`,
   '/admin/settings/loyalty': `${activeCount(db.rewards)} ของแลก · ${activeCount(db.gachaPrizes)} รางวัลกาชา`,
   '/admin/settings/storefront': `เมนู ${db.retailItems.filter((x) => x.active !== false && x.showOnStore).length} สินค้า · รีวิวรออนุมัติ ${db.reviews.filter((r) => r.status === 'pending').length}`,
   '/admin/settings/photo-requests': `${pendingPhotoRequests()} รอตรวจสอบ · ลูกค้าแจ้งไม่ให้ใช้รูปงาน`,
