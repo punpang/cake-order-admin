@@ -1,0 +1,16 @@
+{
+  // Worker สำหรับเก็บและเสิร์ฟไฟล์ใน R2 (punpang-files)
+  // ตั้งค่า Secrets ใน dashboard (ไม่ใส่ในไฟล์นี้): SIGN_KEY, SUPABASE_SERVICE_ROLE_KEY
+  "name": "punpang-files",
+  "main": "src/index.js",
+  "compatibility_date": "2026-01-01",
+  "r2_buckets": [
+    { "binding": "FILES_PUBLIC", "bucket_name": "punpang-public" },
+    { "binding": "FILES_PRIVATE", "bucket_name": "punpang-private" }
+  ],
+  "vars": {
+    "SUPABASE_URL": "https://itleduijrckxdbhhuooi.supabase.co",
+    "SUPABASE_ANON_KEY": "ใส่ publishable key ของโปรเจกต์ (ไม่ใช่ secret key)",
+    "ALLOWED_ORIGINS": "https://cake-order-admin.pages.dev,https://punpang.vercel.app"
+  }
+}
