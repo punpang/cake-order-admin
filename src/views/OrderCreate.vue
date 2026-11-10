@@ -10,6 +10,7 @@ import { orderTotals } from '../lib/pricing'
 import { money, dateTime, timeOnly, toDateStr, formatPhone, phoneDigits, phoneValid } from '../lib/format'
 import PhoneInput from '../components/PhoneInput.vue'
 import ItemEditor from '../components/ItemEditor.vue'
+import CakeCodeQuote from '../components/CakeCodeQuote.vue'
 import DiscountDetail from '../components/DiscountDetail.vue'
 import ItemCard from '../components/ItemCard.vue'
 import AppIcon from '../components/AppIcon.vue'
@@ -430,6 +431,8 @@ function quote() {
       <ul v-if="promoView.hints.length" class="space-y-1 rounded-2xl bg-sky-50 p-3 text-sm text-sky-900" aria-label="โปรที่ใกล้ถึง">
         <li v-for="h in promoView.hints" :key="h.text">💡 {{ h.text }}</li>
       </ul>
+
+      <CakeCodeQuote :price-date="form.date" @add="editing = { item: $event }" />
 
       <button
         class="flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-brand-200 bg-white/60 p-6 text-brand-700 transition hover:border-brand-400 hover:bg-white active:scale-[0.99]"
