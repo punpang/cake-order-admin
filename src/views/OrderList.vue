@@ -11,7 +11,7 @@ import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
 import BirthdayList from '../components/BirthdayList.vue'
 import { getSupabase } from '../lib/supabase'
-import { loadOrdersInRange, searchOrdersRemote } from '../lib/ordersSync'
+import { loadOrdersInRange, searchOrdersRemote, countOrders } from '../lib/ordersSync'
 
 const status = ref('')
 // PC (≥1024): สลับมุมมอง การ์ด ↔ แถวหนาแน่น · จำค่าที่เลือกไว้ในเบราว์เซอร์
@@ -65,16 +65,18 @@ const bdOpen = ref(false)
 
 // บิลหน้าร้าน (POS) ซ่อนไว้ก่อน กดชิปเพื่อแสดง
 const showPos = ref(false)
-const posCount = computed(() => db.orders.filter((o) => o.channel === 'pos').length)
-// แหล่งข้อมูลรายการ: ผลจากฐานข้อมูลตามตัวกรอง (serverRows) ทับด้วยข้อมูลในเครื่องที่เพิ่งแก้/สร้าง
+// ตัวเลขจากฐานข้อมูลตามตัวกรองปัจจุบัน (null = นับจากรายการที่โหลด เช่น ตอนค้นหา/โหมดสาธิต)
+const serverCounts = ref(null)
+const posTotal = computed(() => (serverCounts.value ? serverCounts.value.pos : db.orders.filter((o) => o.channel === 'pos').length))
+const totalCount = computed(() => (serverCounts.value ? serverCounts.value.all : visible.value.length))
+// แหล่งข้อมูลรายการ = ผลจากฐานข้อมูลตามตัวกรองเท่านั้น · ใช้ข้อมูลในเครื่องทับเฉพาะออร์เดอร์ที่เพิ่งแก้
 // โหมดสาธิต (ไม่มี Supabase) หรือโหลดไม่สำเร็จ = ใช้ข้อมูลในเครื่องเดิม
 const serverRows = ref(null)
 const searchedServer = ref(false) // ผลนี้มาจากการค้นที่เซิร์ฟเวอร์ (ทุกวัน) → ไม่กรองคำค้นซ้ำในเครื่อง
+const dbById = computed(() => new Map(db.orders.map((o) => [o.id, o])))
 const source = computed(() => {
   if (serverRows.value === null) return db.orders
-  const byId = new Map(serverRows.value.map((o) => [o.id, o]))
-  for (const o of db.orders) if (!searchedServer.value || byId.has(o.id)) byId.set(o.id, o)
-  return [...byId.values()]
+  return serverRows.value.map((o) => dbById.value.get(o.id) || o)
 })
 const visible = computed(() => {
   return source.value.filter((o) => (showPos.value || o.channel !== 'pos') && orderVisible(o))
@@ -88,21 +90,26 @@ async function fetchRows() {
   const client = await getSupabase()
   if (!client) { serverRows.value = null; searchedServer.value = false; return }
   const term = q.value.trim()
-  const r = term
-    ? await searchOrdersRemote(client, term)
-    : await loadOrdersInRange(client, { from: from.value, to: to.value, openOnly: !from.value && !to.value, status: status.value, fulfillment: fulfill.value, includePos: showPos.value })
+  const scope = { from: from.value, to: to.value, openOnly: !from.value && !to.value, fulfillment: fulfill.value, includePos: showPos.value, payState: payState.value }
+  const [r, cnt] = term
+    ? [await searchOrdersRemote(client, term), null]
+    : await Promise.all([loadOrdersInRange(client, { ...scope, status: status.value }), countOrders(client, scope)])
   if (seq !== reqSeq) return // มีการเปลี่ยนตัวกรองใหม่ระหว่างรอ
-  if (r.error) { serverRows.value = null; searchedServer.value = false; return }
+  if (r.error) { serverRows.value = null; searchedServer.value = false; serverCounts.value = null; return }
   serverRows.value = r.items
   searchedServer.value = !!term
+  serverCounts.value = cnt && !cnt.error ? cnt : null
 }
 const scheduleFetch = (ms) => { clearTimeout(fetchTimer); fetchTimer = setTimeout(fetchRows, ms) }
-watch([from, to, status, fulfill, showPos], () => scheduleFetch(200))
+watch([from, to, status, fulfill, showPos, payState], () => scheduleFetch(200))
 watch(q, () => scheduleFetch(350))
+// ข้อมูลในเครื่องเปลี่ยน (แก้/สร้าง/ซิงก์) → โหลดตัวเลขและรายการใหม่
+watch(() => db.orders.map((o) => `${o.id}|${o.status}|${o.pickupAt}|${o.fulfillment}|${o.channel}|${orderTotals(o).balance}`).join(';'), () => scheduleFetch(800))
 onMounted(fetchRows)
 onBeforeUnmount(() => clearTimeout(fetchTimer))
 
 const counts = computed(() => {
+  if (serverCounts.value) return serverCounts.value.byStatus
   const c = {}
   for (const o of visible.value) c[o.status] = (c[o.status] || 0) + 1
   return c
@@ -168,7 +175,7 @@ function clearAll() {
     <div class="mb-4 flex items-end justify-between gap-3">
       <div class="min-w-0">
         <h1 class="page-title">ออร์เดอร์</h1>
-        <p class="text-sm text-stone-500">แสดง {{ list.length }} จาก {{ visible.length }} รายการ</p>
+        <p class="text-sm text-stone-500">แสดง {{ list.length }} จาก {{ totalCount }} รายการ</p>
       </div>
       <div class="ml-auto hidden items-center gap-1 rounded-xl bg-white p-1 ring-1 ring-stone-200 lg:flex" role="group" aria-label="มุมมองรายการ">
         <button type="button" class="rounded-lg px-3 py-1.5 text-sm font-medium" :class="view === 'cards' ? 'bg-brand-600 text-white' : 'text-stone-600 hover:bg-stone-50'" :aria-pressed="view === 'cards'" @click="setView('cards')">การ์ด</button>
@@ -249,7 +256,7 @@ function clearAll() {
     <div v-if="isToday && searching && !filtersOpen" data-search-all class="mb-3 rounded-2xl bg-brand-50 px-3.5 py-2 text-sm text-brand-900"><b>ค้นหาในออร์เดอร์ทุกวัน</b> <span class="whitespace-nowrap">({{ list.length }} รายการ)</span></div>
     <div v-else-if="isToday && !filtersOpen" data-today-banner class="mb-3 flex items-center gap-3 rounded-2xl bg-brand-50 px-3.5 py-2">
       <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-brand-600"><AppIcon name="calendar" :size="18" /></span>
-      <span class="min-w-0 flex-1 text-sm text-brand-900"><b>แสดงเฉพาะนัดรับวันนี้</b> <span class="whitespace-nowrap">({{ list.length }} จาก {{ visible.length }})</span></span>
+      <span class="min-w-0 flex-1 text-sm text-brand-900"><b>แสดงเฉพาะนัดรับวันนี้</b> <span class="whitespace-nowrap">({{ list.length }} จาก {{ totalCount }})</span></span>
       <button type="button" class="btn-outline h-11 shrink-0 px-4" aria-label="ดูทั้งหมด (ลบตัวกรอง นัดรับ วันนี้)" @click="clearFilter('date')">ดูทั้งหมด</button>
     </div>
 
@@ -267,11 +274,11 @@ function clearAll() {
 
     <!-- สถานะ -->
     <div class="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0" role="group" aria-label="กรองตามสถานะ">
-      <button v-if="posCount && can('pos')" class="chip" :class="showPos ? 'chip-on' : 'chip-off'" :aria-pressed="showPos" @click="showPos = !showPos">
-        บิลหน้าร้าน <span class="font-normal">{{ posCount }}</span>
+      <button v-if="posTotal && can('pos')" class="chip" :class="showPos ? 'chip-on' : 'chip-off'" :aria-pressed="showPos" @click="showPos = !showPos">
+        บิลหน้าร้าน <span class="font-normal">{{ posTotal }}</span>
       </button>
       <button class="chip" :class="!status ? 'chip-on' : 'chip-off'" :aria-pressed="!status" @click="status = ''">
-        ทั้งหมด <span class="font-normal">{{ visible.length }}</span>
+        ทั้งหมด <span class="font-normal">{{ totalCount }}</span>
       </button>
       <template v-for="(s, key) in STATUS" :key="key">
         <button v-if="counts[key]" class="chip" :class="status === key ? 'chip-on' : 'chip-off'" :aria-pressed="status === key" @click="status = key">

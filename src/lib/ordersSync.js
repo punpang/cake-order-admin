@@ -1,5 +1,7 @@
 import { startSync, selectAll } from './tableSync'
 import { parseNo } from './docNo'
+import { orderTotals } from './pricing'
+import { STATUS } from './constants'
 import { externalizeOrderImages, privateRefsOf, removePrivate } from './storage'
 
 // ตารางออร์เดอร์ในเครื่อง = ทุกออร์เดอร์ที่สถานะไม่ใช่ยกเลิก/ส่งมอบแล้ว (ไม่จำกัดช่วงเวลา) · หน้าที่ต้องใช้ประวัติทั้งหมดเปิดโหมดเต็ม (setOrdersFullHistory)
@@ -13,10 +15,12 @@ export function clearPinnedOrders() { pinned.clear() }
 // ซิงก์ออร์เดอร์ (db.orders) กับ punpang_orders · ชำระเงิน/รายการ/ประวัติ ฯลฯ อยู่ใน data (jsonb)
 // สิทธิ์ตรวจที่ฐานข้อมูลด้วย trigger (เปลี่ยนสถานะ/ยืนยันชำระ/ยกเลิกยอด/แจ้งยอด) — ดู punpang_guard_status
 // ออร์เดอร์ไม่ถูกลบจริง (ใช้สถานะ cancelled) — ตารางไม่มี policy ลบ จึงข้ามการลบ
+// ยอดคงค้าง (คอลัมน์ balance) ใช้กรองการชำระเงินที่ฐานข้อมูล · คำนวณจากข้อมูลออร์เดอร์ตอนเขียน
+const balanceOf = (o) => { try { const b = orderTotals(o).balance; return Number.isFinite(b) ? Math.round(b * 100) / 100 : null } catch { return null } }
 export function orderToRow(o) {
   const { id, code, customerId, status, fulfillment, channel, ...rest } = o
   // pickupAt เป็นเวลาท้องถิ่นแบบไม่มีโซน เก็บฉบับจริงใน data · คอลัมน์ pickup_at ไว้เรียง/ค้นหาเท่านั้น
-  return { id, code, customer_id: customerId || null, status, fulfillment, channel: channel || null, pickup_at: o.pickupAt || null, data: rest }
+  return { id, code, customer_id: customerId || null, status, fulfillment, channel: channel || null, pickup_at: o.pickupAt || null, balance: balanceOf(o), data: rest }
 }
 export function rowToOrder(r) {
   const d = r.data || {}
@@ -36,10 +40,17 @@ export async function loadOrders(client) {
 // หน้าออเดอร์: ดึงเฉพาะแถวตามตัวกรอง (กรองที่ฐานข้อมูล) · from/to = YYYY-MM-DD ของวันนัด (รวมทั้งสองวัน) · ว่าง = ไม่จำกัด
 // pickup_at เป็น timestamptz แต่แอปเก็บเวลานัดแบบท้องถิ่นไม่มีโซน → เทียบด้วยโซนเดียวกับตอนเขียน (ช่วง [from, to+1 วัน))
 const nextDay = (ymd) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10) }
-export async function loadOrdersInRange(client, { from = '', to = '', status = '', fulfillment = '', includePos = true, openOnly = false } = {}) {
+// กรองการชำระเงินที่ฐานข้อมูล: due = ค้างชำระ · paid = ชำระครบ · over = ชำระเกิน (ไม่รวมที่ยกเลิก)
+const applyPay = (qy, payState) => {
+  if (!payState) return qy
+  qy = qy.neq('status', 'cancelled')
+  return payState === 'due' ? qy.gt('balance', 0) : payState === 'paid' ? qy.eq('balance', 0) : payState === 'over' ? qy.lt('balance', 0) : qy
+}
+export async function loadOrdersInRange(client, { from = '', to = '', status = '', fulfillment = '', includePos = true, openOnly = false, payState = '' } = {}) {
   const a = await selectAll((x, y) => {
     let qy = client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data')
     if (openOnly) qy = qy.not('status', 'in', '(cancelled,delivered)') // ไม่เลือกช่วงวันที่ = ทุกออร์เดอร์ที่ยังไม่ยกเลิก/ส่งมอบ
+    qy = applyPay(qy, payState)
     if (from) qy = qy.gte('pickup_at', from)
     if (to) qy = qy.lt('pickup_at', nextDay(to))
     if (status) qy = qy.eq('status', status)
@@ -49,6 +60,35 @@ export async function loadOrdersInRange(client, { from = '', to = '', status = '
   })
   if (a.error) return { error: a.error.message }
   return { items: (a.data || []).map(rowToOrder) }
+}
+
+// นับจำนวนตามตัวกรองเดียวกับรายการ (ไม่รวมตัวกรองสถานะ) → { all, pos, byStatus } · ใช้แถบสถานะ/ตัวเลขบนหน้า
+export async function countOrders(client, { from = '', to = '', fulfillment = '', includePos = true, openOnly = false, payState = '' } = {}) {
+  const base = () => {
+    let qy = client.from('punpang_orders').select('id', { count: 'exact', head: true })
+    if (from) qy = qy.gte('pickup_at', from)
+    if (to) qy = qy.lt('pickup_at', nextDay(to))
+    if (openOnly) qy = qy.not('status', 'in', '(cancelled,delivered)')
+    if (fulfillment) qy = qy.eq('fulfillment', fulfillment)
+    return applyPay(qy, payState)
+  }
+  const scoped = () => (includePos ? base() : base().or('channel.is.null,channel.neq.pos'))
+  const statuses = Object.keys(STATUS)
+  const res = await Promise.all([scoped(), base().eq('channel', 'pos'), ...statuses.map((s) => scoped().eq('status', s))])
+  const bad = res.find((r) => r.error)
+  if (bad) return { error: bad.error.message }
+  return { all: res[0].count || 0, pos: res[1].count || 0, byStatus: Object.fromEntries(statuses.map((s, i) => [s, res[i + 2].count || 0])) }
+}
+
+// เติมคอลัมน์ยอดคงค้างของออร์เดอร์เก่าที่ยังว่าง (ทำครั้งเดียวจากข้อมูลในเครื่อง · เฉพาะผู้มีสิทธิ์เขียน)
+export async function backfillBalances(client, db) {
+  const r = await client.from('punpang_orders').select('id').is('balance', null).limit(5000)
+  if (r.error || !r.data?.length) return
+  const need = new Set(r.data.map((x) => x.id))
+  const todo = db.orders.filter((o) => need.has(o.id))
+  for (let i = 0; i < todo.length; i += 20) {
+    await Promise.all(todo.slice(i, i + 20).map((o) => client.from('punpang_orders').update({ balance: balanceOf(o) }).eq('id', o.id)))
+  }
 }
 
 // ค้นข้อความทุกวันที่เซิร์ฟเวอร์ (RPC punpang_order_search) · ยังไม่มี RPC/ล้มเหลว → { error } ให้หน้าจอค้นจากข้อมูลในเครื่องแทน
@@ -126,5 +166,5 @@ export function startOrdersSync({ client, db, canWrite, onError, onRecode, numbe
     applyRows: (rows) => { for (const i of rows) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) } if (numbering) numbering.seen(rows.map((i) => i.code), { reset: false }) },
     push: (changes) => pushOrders(client, changes, { onRecode, retryDelay, numbering, known, slips }),
     canWrite, onError, debounceMs, label: 'ออร์เดอร์', poll: true,
-  })
+  }).then((h) => { if (canWrite) backfillBalances(client, db).catch(() => {}); return h })
 }
