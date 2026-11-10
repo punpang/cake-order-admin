@@ -43,32 +43,6 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
   </section>
 
   <div class="mx-auto max-w-page space-y-9 px-4 pt-6 pb-2 sm:space-y-12 lg:px-8">
-    <!-- โปรโมชั่น -->
-    <section v-if="promos.length" aria-label="โปรโมชั่น">
-      <h2 class="sr-only">โปรโมชั่น</h2>
-      <div class="grid gap-4 md:grid-cols-2">
-        <div v-for="p in promos" :key="p.id" class="card relative overflow-hidden border-2 border-[#f3e3c7] pt-8 shadow-md">
-          <Bunting />
-          <div class="flex gap-3.5">
-            <svg viewBox="0 0 60 64" class="mt-1 h-16 w-14 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2.5" stroke-linejoin="round"><rect x="8" y="26" width="44" height="32" rx="4" fill="#ff9d5b" /><rect x="4" y="18" width="52" height="12" rx="4" fill="#ffb27e" /><path d="M30 18v40" /><path d="M30 18c-10-14-22-6-12 0zM30 18c10-14 22-6 12 0z" fill="#ff8fa6" /></svg>
-            <div class="min-w-0 flex-1">
-              <div class="font-display text-xl text-stone-900">โปรโมชั่น</div>
-              <div class="font-semibold text-stone-800">{{ p.name }}</div>
-              <div v-if="p.from || p.to" class="text-sm text-stone-600">{{ p.from ? dateOnly(p.from) : '' }} – {{ p.to ? dateOnly(p.to) : '' }}</div>
-              <ul v-if="p.products.length" class="mt-2 space-y-1 text-sm">
-                <li v-for="x in p.products" :key="x.product.id" class="flex justify-between gap-3">
-                  <RouterLink :to="`/menu/ready/${x.product.id}`" class="truncate text-stone-700 underline-offset-2 hover:underline">{{ x.product.name }}</RouterLink>
-                  <span class="shrink-0"><b class="text-stone-900">{{ money(x.price) }}</b> <s class="text-stone-500">{{ money(x.regular) }}</s></span>
-                </li>
-              </ul>
-              <p v-if="p.text" class="mt-1 text-sm text-stone-700">{{ p.text }}</p>
-              <p v-if="p.custom" class="mt-2 text-sm text-stone-600">ราคาพิเศษใช้กับเค้กสั่งทำบางแบบ ดูราคาล่าสุดที่หน้า <RouterLink to="/menu" class="text-brand-700 underline">เมนู</RouterLink></p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- สินค้าที่กำลังมีโปรโมชั่น -->
     <section v-if="promoItems.items.length" aria-label="สินค้าที่กำลังมีโปรโมชั่น">
       <div class="mb-3 flex items-center justify-between gap-3">
@@ -165,6 +139,32 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
           <blockquote class="mt-1 text-sm break-words text-stone-700">{{ r.text }}</blockquote>
           <figcaption class="mt-2 text-xs text-stone-600">— {{ r.name }}</figcaption>
         </figure>
+      </div>
+    </section>
+
+    <!-- โปรโมชั่น -->
+    <section v-if="promos.length" aria-label="โปรโมชั่น">
+      <h2 class="sr-only">โปรโมชั่น</h2>
+      <div class="grid gap-4 md:grid-cols-2">
+        <div v-for="p in promos" :key="p.id" class="card relative overflow-hidden border-2 border-[#f3e3c7] pt-8 shadow-md">
+          <Bunting />
+          <div class="flex gap-3.5">
+            <svg viewBox="0 0 60 64" class="mt-1 h-16 w-14 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2.5" stroke-linejoin="round"><rect x="8" y="26" width="44" height="32" rx="4" fill="#ff9d5b" /><rect x="4" y="18" width="52" height="12" rx="4" fill="#ffb27e" /><path d="M30 18v40" /><path d="M30 18c-10-14-22-6-12 0zM30 18c10-14 22-6 12 0z" fill="#ff8fa6" /></svg>
+            <div class="min-w-0 flex-1">
+              <div class="font-display text-xl text-stone-900">โปรโมชั่น</div>
+              <div class="font-semibold text-stone-800">{{ p.name }}</div>
+              <div v-if="p.from || p.to" class="text-sm text-stone-600">{{ p.from ? dateOnly(p.from) : '' }} – {{ p.to ? dateOnly(p.to) : '' }}</div>
+              <ul v-if="p.products.length" class="mt-2 space-y-1 text-sm">
+                <li v-for="x in p.products" :key="x.product.id" class="flex justify-between gap-3">
+                  <RouterLink :to="`/menu/ready/${x.product.id}`" class="truncate text-stone-700 underline-offset-2 hover:underline">{{ x.product.name }}</RouterLink>
+                  <span class="shrink-0"><b class="text-stone-900">{{ money(x.price) }}</b> <s class="text-stone-500">{{ money(x.regular) }}</s></span>
+                </li>
+              </ul>
+              <p v-if="p.text" class="mt-1 text-sm text-stone-700">{{ p.text }}</p>
+              <p v-if="p.custom" class="mt-2 text-sm text-stone-600">ราคาพิเศษใช้กับเค้กสั่งทำบางแบบ ดูราคาล่าสุดที่หน้า <RouterLink to="/menu" class="text-brand-700 underline">เมนู</RouterLink></p>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
