@@ -6,6 +6,7 @@ import { filesEnabled, filesApi, filesBase } from '../../lib/storage'
 import { askConfirm } from '../../lib/confirm'
 import { dateTime } from '../../lib/format'
 import { clearImageLimitsCache } from '../../lib/imageLimits'
+import { openLightbox } from '../../lib/lightbox'
 
 // พื้นที่รูป: ตั้งจำนวนวันลบอัตโนมัติ (สลิป/รูปอ้างอิง) + ค้นหาและลบรูปแบบแมนนวล · รูปงานลบไม่ได้
 const TYPES = [{ v: 'all', l: 'ทั้งหมด (ส่วนตัว)' }, { v: 'slip', l: 'สลิป' }, { v: 'ref', l: 'รูปอ้างอิง' }, { v: 'work', l: 'รูปงาน (ดูอย่างเดียว)' }, { v: 'public', l: 'รูปสาธารณะ (สินค้า/หน้าร้าน)' }, { v: 'trash', l: 'ถังขยะ (กู้คืนได้)' }]
@@ -173,7 +174,7 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
         <ul class="divide-y divide-stone-100">
           <li v-for="it in items" :key="it.key" class="flex items-center gap-3 py-2 text-sm">
             <input type="checkbox" :checked="picked.has(it.key)" :disabled="!deletable(it)" :aria-label="`เลือก ${it.key}`" @change="toggle(it.key)" />
-            <a v-if="thumbs[it.key]" :href="thumbs[it.key]" target="_blank" rel="noopener" class="shrink-0" aria-label="เปิดรูปเต็ม"><img :src="thumbs[it.key]" alt="" loading="lazy" class="h-14 w-14 rounded-lg object-cover" /></a>
+            <button v-if="thumbs[it.key]" type="button" class="shrink-0 cursor-zoom-in" aria-label="ดูรูปขนาดใหญ่" @click="openLightbox(thumbs[it.key], it.code || it.key)"><img :src="thumbs[it.key]" alt="" loading="lazy" class="h-14 w-14 rounded-lg object-cover" /></button>
             <span v-else class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-[10px] text-stone-400">ไม่มีรูป</span>
             <div class="min-w-0 flex-1">
               <div class="truncate font-medium text-stone-900">{{ it.type === 'public' ? it.key : (it.code || it.orderId) + ' · ' + (it.type === 'slip' ? 'สลิป' : it.type === 'ref' ? 'รูปอ้างอิง' : 'รูปงาน') }}</div>
