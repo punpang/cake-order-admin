@@ -15,7 +15,15 @@ async function hmacHex(secret, msg) {
 }
 const safeEq = (a, b) => { if (a.length !== b.length) return false; let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i); return r === 0 }
 const rand = () => hex(crypto.getRandomValues(new Uint8Array(12)))
-const MAX_BYTES = 5 * 1024 * 1024
+const DEFAULT_MAX_MB = 5
+const clampMb = (n, d) => { const x = Number(n); return Number.isFinite(x) && x >= 1 && x <= 20 ? Math.round(x * 10) / 10 : d }
+const clampPx = (n, d) => { const x = Math.round(Number(n)); return Number.isFinite(x) && x >= 500 && x <= 4000 ? x : d }
+// ค่าขนาดรูปที่ตั้งไว้ (kv config/imageLimits) · maxPx ใช้ฝั่งแอปย่อรูป (Worker ไม่อ่านพิกเซลได้)
+async function getImageLimits(env) {
+  const r = await sbFetch(env, '/rest/v1/punpang_kv?collection=eq.config&id=eq.imageLimits&select=data')
+  const v = r.ok ? (await r.json())[0]?.data?.v : null
+  return { maxMB: clampMb(v?.maxMB, DEFAULT_MAX_MB), maxPx: clampPx(v?.maxPx, 2000) }
+}
 const SIGN_TTL = 3600
 const DAY = 86400000
 
@@ -141,7 +149,8 @@ export default {
       const prefix = safePrefix(url.searchParams.get('prefix') || '')
       if (!prefix || !['public', 'private'].includes(bucket)) return json(req, env, { error: 'พารามิเตอร์ไม่ถูกต้อง' }, 400)
       const bytes = new Uint8Array(await req.arrayBuffer())
-      if (bytes.length === 0 || bytes.length > MAX_BYTES) return json(req, env, { error: 'ไฟล์ว่างหรือใหญ่เกิน 5 MB' }, 400)
+      const lim = await getImageLimits(env)
+      if (bytes.length === 0 || bytes.length > lim.maxMB * 1024 * 1024) return json(req, env, { error: `ไฟล์ว่างหรือใหญ่เกิน ${lim.maxMB} MB` }, 400)
       const kind = extOf(bytes)
       if (!kind) return json(req, env, { error: 'ไฟล์ไม่ใช่รูปภาพที่รองรับ (PNG / JPG / WEBP)' }, 400)
       const key = `${prefix}/${rand()}.${kind.ext}`
@@ -171,6 +180,13 @@ export default {
         const cur = await getRetention(env)
         const next = { slipDays: clampDays(body.slipDays, cur.slipDays), refDays: clampDays(body.refDays, cur.refDays), trashDays: clampDays(body.trashDays, cur.trashDays) }
         await sbWrite(env, 'POST', '/rest/v1/punpang_kv?on_conflict=collection,id', [{ collection: 'config', id: 'fileRetention', data: { v: next } }], 'resolution=merge-duplicates,return=minimal')
+        return json(req, env, { ok: true, ...next })
+      }
+      if (path === '/admin/limits/get') return json(req, env, { ok: true, ...(await getImageLimits(env)) })
+      if (path === '/admin/limits/set') {
+        const cur = await getImageLimits(env)
+        const next = { maxMB: clampMb(body.maxMB, cur.maxMB), maxPx: clampPx(body.maxPx, cur.maxPx) }
+        await sbWrite(env, 'POST', '/rest/v1/punpang_kv?on_conflict=collection,id', [{ collection: 'config', id: 'imageLimits', data: { v: next } }], 'resolution=merge-duplicates,return=minimal')
         return json(req, env, { ok: true, ...next })
       }
       if (path === '/admin/list') return json(req, env, await adminList(env, body, staff))
