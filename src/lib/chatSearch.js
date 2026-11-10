@@ -41,3 +41,18 @@ export function chatMatchesQuery(index, chatId, query) {
   const d = digitsOnly(s)
   return d.length >= 3 && hay.includes(d)
 }
+
+// คีย์สำหรับค้นแชทบนเซิร์ฟเวอร์ (แชทนอกชุดล่าสุด): ลูกค้า/ออร์เดอร์/ใบเสนอที่ตรงคำค้น ซึ่งข้อมูลเหล่านี้ดึงไว้ในเครื่องครบแล้ว
+export function remoteSearchKeys(q, customers, orders, quotes) {
+  const s = lc(q).trim()
+  const d = digitsOnly(s)
+  const customerIds = new Set()
+  if (!s) return { customerIds: [], chatIds: [] }
+  for (const c of customers) {
+    if (c.deleted) continue
+    if (lc(c.name).includes(s) || lc(c.line).includes(s) || (d && digitsOnly(c.phone).includes(d))) customerIds.add(c.id)
+  }
+  for (const o of orders) if (o.customerId && lc(o.code).includes(s)) customerIds.add(o.customerId)
+  const chatIds = (quotes || []).filter((x) => x.chatId && lc(x.code).includes(s)).map((x) => x.chatId)
+  return { customerIds: [...customerIds], chatIds: [...new Set(chatIds)] }
+}
