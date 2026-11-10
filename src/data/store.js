@@ -3070,11 +3070,17 @@ function seedChats() {
 // ---------- หน้าร้าน: เนื้อหา + รีวิว (หลังบ้านแก้ ที่ /admin/settings/storefront) ----------
 const pairs = (list, keys) =>
   (list || []).map((x) => Object.fromEntries(keys.map((k) => [k, String(x[k] ?? '').trim()]))).filter((x) => keys.some((k) => x[k]))
+// ลิงก์ที่หน้าร้านแสดงเป็นปุ่ม (LINE/Facebook/แผนที่): รับเฉพาะ http(s) กัน javascript:/data: ที่ทำงานเมื่อลูกค้ากด · ไม่ถูกต้อง = ว่าง
+const webUrl = (v) => {
+  const s = String(v ?? '').trim()
+  if (!s) return ''
+  try { const u = new URL(s); return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : '' } catch { return '' }
+}
 export function saveStorefront(d) {
   Object.assign(db.storefront, {
     heroTitle: String(d.heroTitle ?? '').trim(), heroText: String(d.heroText ?? '').trim(), heroImage: d.heroImage || '',
-    about: String(d.about ?? '').trim(), address: String(d.address ?? '').trim(), mapUrl: String(d.mapUrl ?? '').trim(),
-    phone: phoneDigits(d.phone), lineUrl: String(d.lineUrl ?? '').trim(), facebookUrl: String(d.facebookUrl ?? '').trim(),
+    about: String(d.about ?? '').trim(), address: String(d.address ?? '').trim(), mapUrl: webUrl(d.mapUrl),
+    phone: phoneDigits(d.phone), lineUrl: webUrl(d.lineUrl), facebookUrl: webUrl(d.facebookUrl),
     hours: pairs(d.hours, ['days', 'time']), howToOrder: pairs(d.howToOrder, ['title', 'text']),
     faq: pairs(d.faq, ['q', 'a']), policies: pairs(d.policies, ['title', 'text']),
     gallery: (d.gallery || []).filter((g) => g.image).map((g) => ({ image: g.image, caption: String(g.caption ?? '').trim() })),

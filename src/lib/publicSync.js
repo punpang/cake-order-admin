@@ -11,7 +11,8 @@ export async function loadPublic(client) {
   // 3 คำขอไม่ขึ้นต่อกัน → ยิงพร้อมกัน (เร็วกว่าเดิม 2 รอบเครือข่าย)
   const [kv, rc, it] = await Promise.all([
     client.from('punpang_kv').select('collection,id,data').in('collection', [PUBLIC_COLLECTION, 'storefront', 'legal']),
-    client.from('punpang_records').select('collection,id,data').in('collection', ['reviews', 'shortLinks']),
+    // ลิงก์ย่อไม่โหลดให้ผู้เยี่ยมชมแล้ว (เปิดผ่าน RPC punpang_resolve_short_link) · รีวิวอ่านได้เฉพาะที่อนุมัติ (RLS)
+    client.from('punpang_records').select('collection,id,data').in('collection', ['reviews']),
     client.from('punpang_items').select('id,name,price,active,data').eq('kind', 'retail').eq('active', true).order('id'),
   ])
   if (kv.error) return { error: kv.error.message }
@@ -28,7 +29,6 @@ export async function loadPublic(client) {
   const t = (x) => String(x.createdAt || '')
   pubRec.reviews.sort((a, b) => t(b).localeCompare(t(a)))
   map.reviews = pubRec.reviews
-  map.shortLinks = pubRec.shortLinks
   return { map, items: (it.data || []).map((r) => rowsToItem(r, null)) }
 }
 
