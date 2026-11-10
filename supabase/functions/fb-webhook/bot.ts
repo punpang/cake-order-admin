@@ -162,17 +162,46 @@ export async function runFbBot(o: BotInput): Promise<void> {
   const autoOk = !dec.handoff && !LOCKED.includes(dec.source) && mode === 'auto'
 
   if (!autoOk) {
-    // ส่งต่อ: แจ้งกระดิ่งพนักงาน + ทำเครื่องหมายแชท (ไม่ส่งข้อความถึงลูกค้า)
-    await o.sb.from('punpang_records').insert({ collection: 'bell', id: `bl${rand(6)}`, data: { audience: 'staff', event: 'bot_handoff', title: 'บอทส่งต่อพนักงาน', text: `${d0.profileName || 'ลูกค้า Facebook'}: ${dec.reason}`.slice(0, 200), chatId: o.chatId, readBy: [], at: new Date().toISOString() } })
+    // ส่งต่อ: ทำเครื่องหมายแชทพร้อมเหตุผล (ไม่ส่งข้อความถึงลูกค้า · กระดิ่งของข้อความใหม่แจ้งไปแล้วที่ fb-webhook)
     await appendToChat(o.sb, o.chatId, (d, msgs) => {
       if (msgs.some((x) => x?.botFor === o.mid)) return null
-      return { ...d, botHandoff: true, updatedAt: new Date().toISOString() }
+      return { ...d, botHandoff: true, botHandoffReason: dec.reason, updatedAt: new Date().toISOString() }
     })
     return
   }
 
+  // จองสิทธิ์ตอบก่อนหน่วงเวลา: ถ้า Meta ส่งข้อความเดิมซ้ำระหว่างรอ ครั้งหลังจะไม่ตอบซ้ำ
+  let claimed = false
+  let dup = false
+  for (let i = 0; i < 4 && !claimed && !dup; i++) {
+    const cur = await o.sb.from('punpang_chats').select('id,data,updated_at').eq('id', o.chatId).maybeSingle()
+    if (cur.error || !cur.data) return
+    const d = cur.data.data || {}
+    const msgs: any[] = Array.isArray(d.messages) ? d.messages : []
+    if (d.botOff || msgs.some((x) => x?.botFor === o.mid) || d.botClaim === o.mid) { dup = true; break }
+    if (!msgs.some((x) => x?.fbMid === o.mid)) return
+    const up = await o.sb.from('punpang_chats').update({ data: { ...d, botClaim: o.mid } }).eq('id', o.chatId).eq('updated_at', cur.data.updated_at).select('id')
+    if (up.error) return
+    if (up.data?.length) claimed = true
+  }
+  if (!claimed) return
+
   // ตอบเอง: หน่วงเวลาสั้น ๆ ก่อนส่ง แล้วส่งทาง Graph API (ลูกค้าเพิ่งทักจึงอยู่ในหน้าต่าง 24 ชม.)
   await new Promise((r) => setTimeout(r, MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS)))
+
+  // ตรวจอีกครั้งหลังหน่วง: ถ้าพนักงานตอบไปแล้ว หรือปิดบอทในระหว่างนั้น → ไม่ส่ง และคืนสิทธิ์จอง
+  const after = await o.sb.from('punpang_chats').select('data').eq('id', o.chatId).maybeSingle()
+  const ad = after.data?.data || {}
+  const am: any[] = Array.isArray(ad.messages) ? ad.messages : []
+  const ai = am.findIndex((x) => x?.fbMid === o.mid)
+  const staffReplied = ai >= 0 && am.slice(ai + 1).some((x) => x?.from === 'staff')
+  if (after.error || !after.data || staffReplied || ad.botOff) {
+    if (!after.error) {
+      await appendToChat(o.sb, o.chatId, (d) => (d.botClaim === o.mid ? { ...d, botClaim: null } : null))
+    }
+    return
+  }
+
   let sent = false
   try {
     const r = await fetch(`${GRAPH}/${o.ver}/me/messages?${new URLSearchParams({ access_token: o.token })}`, {
@@ -193,6 +222,6 @@ export async function runFbBot(o: BotInput): Promise<void> {
   }
   await appendToChat(o.sb, o.chatId, (d, msgs) => {
     if (msgs.some((x) => x?.botFor === o.mid)) return null
-    return { ...d, messages: [...msgs, bm], botHandoff: false, updatedAt: nowIso } // บอทตอบแล้ว → ล้างธงส่งต่อ
+    return { ...d, messages: [...msgs, bm], botHandoff: false, botHandoffReason: null, botClaim: null, updatedAt: nowIso } // บอทตอบแล้ว → ล้างธงส่งต่อและสิทธิ์จอง
   })
 }
