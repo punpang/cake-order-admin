@@ -154,6 +154,23 @@ export function pendingBotMessages(chats, nowMs = Date.now(), maxAgeMs = 5 * 60 
   return out
 }
 
+// ลบข้อความแชทที่เก่าเกินระยะเก็บ (เดือน · ตั้งที่ จัดการ → กฎหมาย "เก็บประวัติแชท")
+// เก็บการ์ดออร์เดอร์/ใบเสนอไว้เป็นหลักฐานธุรกรรม · คำตอบที่บอทเรียนรู้เก็บแยกใน db.bot.learned อยู่แล้ว จึงไม่กระทบบอท
+export function purgeOldMessages(chats, months, now = Date.now()) {
+  const n = Math.floor(Number(months))
+  if (!(n > 0)) return 0
+  const d = new Date(now)
+  d.setMonth(d.getMonth() - n)
+  const cutoff = d.getTime()
+  let removed = 0
+  for (const c of chats) {
+    const msgs = c.messages || []
+    const keep = msgs.filter((m) => m.kind === 'order' || m.kind === 'quote' || ts(m.at) >= cutoff)
+    if (keep.length !== msgs.length) { removed += msgs.length - keep.length; c.messages = keep }
+  }
+  return removed
+}
+
 // ใบเสนอที่ลูกค้ากดยืนยันทาง Messenger แล้วรอสร้างออร์เดอร์ (webhook ตั้ง customer_ok)
 export const pendingQuoteConfirms = (quotes) => (quotes || []).filter((q) => q.status === 'customer_ok').map((q) => q.id)
 
@@ -212,6 +229,13 @@ export async function startChatSync({ client, db, canWrite, numbering, onError, 
   const [a, b] = await Promise.all([pa, pb]) // แชทกับใบเสนอโหลดพร้อมกัน
   a.kind = 'chats' // ให้ชั้นล็อกอินเลือกรีเฟรชเฉพาะแชทถี่ ๆ ตอนเปิดหน้าแชท
   b.kind = 'chats'
+  // ล้างข้อความเก่าเกินระยะเก็บ (การเปลี่ยนแปลงจะถูกซิงก์กลับเซิร์ฟเวอร์โดยอัตโนมัติ)
+  // ตอนเปิดแอป และทุก 6 ชั่วโมงระหว่างใช้งาน (การเปลี่ยนแปลงจากการล้าง จะถูกซิงก์กลับเซิร์ฟเวอร์ผ่าน watch ของตัวซิงก์)
+  if (canWrite) {
+    const runPurge = () => purgeOldMessages(db.chats, db.legal?.contact?.retentionChat)
+    runPurge()
+    setInterval(runPurge, 6 * 60 * 60 * 1000)
+  }
   // ดึงแชทเก่าที่ยังไม่อยู่ในเครื่อง (เปิดแชท/ค้นหา) แล้วจำไว้ให้ซิงก์รอบถัดไป
   chatRemote.ensure = async (ids) => {
     const missing = pin(ids).filter((id) => !db.chats.some((c) => c.id === id))
