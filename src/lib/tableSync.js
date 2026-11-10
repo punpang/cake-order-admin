@@ -88,10 +88,14 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
     clearTimeout(retryTimer); clearTimeout(timer)
     busy = true
     let ok = true
+    try {
     const changes = diffById(snapshot, list())
     if (changes.upserts.length || changes.deletes.length) {
       syncSet(key, 'saving', '', flush)
-      const r = await push(changes)
+      // จดสถานะที่ "ส่งไป" ก่อน await: ถ้าผู้ใช้แก้ระหว่างรอ จะถือว่ายังไม่ซิงก์ (รอบถัดไปเขียนต่อ) ไม่ใช่ซิงก์แล้ว
+      const sent = new Map(changes.upserts.map((it) => [it.id, JSON.stringify(it)]))
+      let r
+      try { r = await push(changes) } catch (e) { r = { error: String(e?.message || e || 'เขียนไม่สำเร็จ') } }
       if (r.error) {
         ok = false
         if (fails === 0) onError(`บันทึก${label}ไม่สำเร็จ: ${r.error}`) // แจ้งครั้งแรกของชุดที่ล้มเหลว (รอบลองซ้ำไม่แจ้งซ้ำ)
@@ -99,13 +103,17 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
         retryTimer = setTimeout(flush, RETRY_MS[Math.min(fails, RETRY_MS.length - 1)])
         fails++
       } else {
-        for (const it of changes.upserts) snapshot.set(it.id, JSON.stringify(it))
+        for (const [id, s] of sent) snapshot.set(id, s)
         for (const id of changes.deletes) snapshot.delete(id)
         fails = 0
+        // ระหว่างเขียนมีการแก้ใหม่ → เขียนต่ออีกรอบ
+        if (diffById(snapshot, list()).upserts.length) again = true
         syncOk(key)
       }
     } else if (fails) { fails = 0; syncOk(key) } else syncOk(key)
-    busy = false
+    } finally {
+      busy = false
+    }
     if (again) { again = false; flush() }
     return ok
   }

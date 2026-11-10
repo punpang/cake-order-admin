@@ -406,19 +406,20 @@ export function orderTotals(order) {
   // ส่วนลดจากคะแนน / คูปอง
   const pointsDiscount = Number(order.pointsUsed?.amount) || 0
   const couponDiscount = (order.couponsUsed || []).reduce((s, c) => s + (Number(c.amount) || 0), 0)
-  const gross = subtotal + shipping + adjustment - pointsDiscount - couponDiscount
+  const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100
+  // ปัดเป็นสตางค์ทันที: 3 × 33.33 = 99.99000000000001 ไม่ทำให้ยอดค้างเศษ 1e-14 (ส่งมอบ/แจ้งชำระไม่ได้)
+  const gross = r2(subtotal + shipping + adjustment - pointsDiscount - couponDiscount)
   // VAT: order.vat = { rate, mode: 'inclusive' | 'exclusive' } (snapshot ตอนสร้างออร์เดอร์ ไม่มี = ไม่คิด VAT)
   // ฐานภาษี = สินค้า + ค่าส่ง หลังส่วนลดทุกประเภท · ใน = ราคารวม VAT แล้ว (แยกบรรทัดแสดง) · นอก = บวกเพิ่มท้ายยอด
   const rate = Number(order.vat?.rate) || 0
   const vatMode = rate > 0 ? (order.vat.mode === 'exclusive' ? 'exclusive' : 'inclusive') : null
   const base = Math.max(gross, 0)
-  const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100
   const vat = vatMode === 'exclusive' ? r2((base * rate) / 100) : vatMode === 'inclusive' ? r2((base * rate) / (100 + rate)) : 0
   const vatAdd = vatMode === 'exclusive' ? vat : 0
-  const total = gross + vatAdd
+  const total = Math.max(r2(gross + vatAdd), 0) // ส่วนลดรวมเกินยอด → ยอดสุทธิ 0 (ไม่ติดลบ)
   const beforeVat = total - vat // ยอดก่อน VAT (ใช้เป็นรายได้/กำไร)
-  const paid = order.payments.filter((p) => p.status === 'confirmed').reduce((s, p) => s + p.amount, 0)
-  const reported = order.payments.filter((p) => p.status === 'reported').reduce((s, p) => s + p.amount, 0)
+  const paid = r2(order.payments.filter((p) => p.status === 'confirmed').reduce((s, p) => s + p.amount, 0))
+  const reported = r2(order.payments.filter((p) => p.status === 'reported').reduce((s, p) => s + p.amount, 0))
   const returned = r2((order.returns || []).filter((x) => !x.cancelled).reduce((s, x) => s + (Number(x.amount) || 0), 0)) // คืนเงินบางส่วนโดยไม่ยกเลิก
   const refunded = r2((Number(order.cancel?.refundAmount) || 0) + returned)
   const paidNet = r2(paid - returned) // เงินที่ยังอยู่กับร้านหลังคืนบางส่วน (เพดานคืนเงินครั้งต่อไป/ตอนยกเลิก)
@@ -437,7 +438,7 @@ export function orderTotals(order) {
   const discountTotal = discountLinesAll.reduce((s, l) => s + l.amount, 0) + (full - subtotal - itemDiscounts.reduce((s, l) => s + l.amount, 0))
   const netGoods = itemNets(order).reduce((a, b) => a + b, 0)
   const fullAll = full + shipFee + Math.max(adjustment, 0) + vatAdd // ราคาเต็มรวมค่าส่ง/VAT (ใช้เทียบกับยอดสุทธิในป้ายส่วนลด)
-  return { vat, vatAdd, vatRate: vatMode ? rate : 0, vatMode, beforeVat, fullAll, netGoods, subtotal, shipping, adjustment, pointsDiscount, couponDiscount, total, paid, paidNet, returned, reported, refunded, balance: total - paid, full, itemDiscounts, discountLines: discountLinesAll, discountTotal }
+  return { vat, vatAdd, vatRate: vatMode ? rate : 0, vatMode, beforeVat, fullAll, netGoods, subtotal, shipping, adjustment, pointsDiscount, couponDiscount, total, paid, paidNet, returned, reported, refunded, balance: r2(total - paid), full, itemDiscounts, discountLines: discountLinesAll, discountTotal }
 }
 
 // แปลงตัวเลือกเป็นข้อความอ่านง่าย (หลายชั้นขึ้นต้นด้วย "ชั้น n")
