@@ -17,6 +17,7 @@ import SyncBar from './components/SyncBar.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import ToastHost from './components/ToastHost.vue'
 import LightboxHost from './components/LightboxHost.vue'
+import LoadingOverlay from './components/LoadingOverlay.vue'
 import StoreLayout from './components/StoreLayout.vue'
 
 const roleOpen = ref(false)
@@ -62,6 +63,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
 <template>
   <button type="button" class="skip-link" @click="focusMain()">ข้ามไปเนื้อหาหลัก</button>
   <LightboxHost />
+  <LoadingOverlay />
   <!-- หน้าร้าน + ระบบลูกค้า -->
   <StoreLayout v-if="$route.meta.store" />
   <main v-else-if="$route.meta.bare" id="main-content" tabindex="-1" class="outline-none"><RouterView /></main>
