@@ -1,6 +1,6 @@
 # แผนเชื่อมต่อ Facebook Page / LINE OA / SMS / Telegram
 
-สถานะตอนนี้: **จำลอง** ข้อความทั้งหมดบันทึกลงคิว (`db.outbox`) ยังไม่ส่งจริง
+สถานะตอนนี้: **Facebook Page ใช้งานจริงแล้ว** (เชื่อมผ่านปุ่ม, รับ/ส่งข้อความและใบเสนอผ่าน Edge Functions ดู "ฝั่งเซิร์ฟเวอร์ Facebook" ด้านล่าง) · **ช่องทางอื่นยังจำลอง** ข้อความบันทึกลงคิว (`db.outbox`) ยังไม่ส่งจริง
 ตั้งค่าได้ที่หน้า **จัดการ → การเชื่อมต่อ & แจ้งเตือน** (`/manage/integrations`)
 
 ลำดับที่จะทำจริง: **Telegram → LINE OA → SMS → Facebook Page**
@@ -108,7 +108,7 @@ pg_cron (ทุก 15 นาที) ──▶ Edge Function: scheduled (เต�
 2. **Telegram:** สร้างบอท → ใส่ `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` ใน secrets → ทดสอบส่ง
 3. **LINE OA:** สร้าง Messaging API channel → ใส่ `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET` → ตั้ง webhook → ทำการผูก userId
 4. **SMS:** สมัครผู้ให้บริการ + ขอชื่อผู้ส่ง → ใส่ `SMS_API_KEY`, `SMS_SENDER` → ทดสอบ
-5. **Facebook:** สร้าง Meta App → ขอ App Review `pages_messaging` → ใส่ `FB_PAGE_TOKEN`, `FB_APP_SECRET` → ตั้ง webhook
+5. **Facebook:** สร้าง Meta App (Facebook Login for Business + Config ID) → ขอ App Review `pages_messaging`, `pages_show_list`, `pages_manage_metadata` → ตั้ง secrets `FB_APP_ID`, `FB_APP_SECRET`, `FB_CONFIG_ID`, `FB_VERIFY_TOKEN` (ดูหัวข้อ "ฝั่งเซิร์ฟเวอร์ Facebook") → ตั้ง Webhook URL → เชื่อมเพจจากหน้า /admin/settings/integrations (ไม่ต้องใส่ Page token เอง)
 6. เปิด pg_cron สำหรับเหตุการณ์ตามเวลา
 7. ทำหน้าแชท (ระยะถัดไป)
 
@@ -134,6 +134,14 @@ pg_cron (ทุก 15 นาที) ──▶ Edge Function: scheduled (เต�
 - เรียนรู้: เมื่อพนักงานตอบเอง จดคู่ ถาม→ตอบ โดย **ตัดเบอร์/อีเมล/เลขออร์เดอร์/เลขยาว/ชื่อ** เป็น placeholder · ไม่เรียนเรื่องเงิน/ร้องเรียน · คำตอบที่เหลือ placeholder ข้อมูลเฉพาะบุคคลไม่ถูกนำกลับมาใช้ · "ยืนยันเป็นกฎ" ได้
 - ข้อความลูกค้าประมวลผลในเบราว์เซอร์ ไม่ส่งออกภายนอก · ของจริงต้องรับ webhook LINE/Facebook ที่เซิร์ฟเวอร์ (ยังเป็นการจำลอง)
 - โค้ด: `src/lib/chatBot.js` (ฟังก์ชันล้วน) · `runBot/sendBotDraft/staffReplied/saveBot*/testBot` ใน store
+
+## ฝั่งเซิร์ฟเวอร์ Facebook (Edge Functions)
+- **โค้ดอยู่ในรีโป:** `supabase/functions/fb-connect`, `fb-send`, `fb-webhook` (คัดลอกจากที่ deploy บนโปรเจกต์ `punpang` แล้ว) · ตาราง `punpang_fb_pages` (token เพจ), `punpang_fb_oauth` (state ชั่วคราว), `punpang_chats`, `punpang_quotes` อยู่ใน `supabase/migrations/20261110130000_punpang_facebook_tables.sql` (`if not exists` รันซ้ำได้)
+- **ความปลอดภัย:** `punpang_fb_pages` และ `punpang_fb_oauth` เปิด RLS แบบไม่มี policy โดยตั้งใจ → เข้าถึงได้เฉพาะ service role ใน Edge Functions เท่านั้น
+- **Secrets ที่ต้องตั้ง** (`supabase secrets set`): `FB_APP_ID`, `FB_APP_SECRET`, `FB_CONFIG_ID`, `FB_VERIFY_TOKEN` (≥8 ตัวอักษร, ใช้ตอน verify webhook), ตัวเลือก `FB_GRAPH_VERSION` (ค่าเริ่มต้น v24.0), `FB_APP_URL` (ค่าเริ่มต้น `https://cake-order-admin.vercel.app` ใช้เป็นที่กลับหลัง OAuth)
+- **ตรวจสถานะ:** เรียก `fb-connect` action `status` → `configured: true/false` และเพจที่เชื่อม
+- **Webhook ของ Meta:** Callback URL = `<SUPABASE_URL>/functions/v1/fb-webhook` · Verify token = `FB_VERIFY_TOKEN` · subscribed fields `messages`, `messaging_postbacks` (แอปสมัครให้เองตอนเชื่อมเพจ)
+- **การตั้ง verify JWT ของแต่ละฟังก์ชัน (ค่าที่ deploy อยู่):** `fb-send` = เปิด (`verify_jwt` true) · `fb-connect` = ปิด และตรวจ JWT พนักงานในฟังก์ชันเอง · `fb-webhook` = ปิด (ตรวจลายเซ็น Meta แทน) · อย่า deploy ทับโดยไม่ตรวจว่าโค้ดในรีโปตรงกับที่ใช้งานอยู่ และรักษาค่านี้ตามเดิม
 
 ## แชท Facebook (ใช้งานจริง)
 - **บอท**: ทำงานในหน้าเว็บที่พนักงานเปิดอยู่เท่านั้น (ไม่มีพนักงานเปิดแอป = บอทไม่ตอบ) · ข้อความใหม่ถูก "จอง" ผ่าน RPC `punpang_chat_bot_claim` เพื่อให้ตอบครั้งเดียวแม้เปิดหลายแท็บ · ไม่ย้อนตอบข้อความเก่ากว่า 5 นาที · ข้อความที่เป็นรูป/ไฟล์ล้วนไม่ผ่านบอท
