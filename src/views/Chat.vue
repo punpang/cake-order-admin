@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { db, can, findCustomer, findChat, draftOf, hasDraft, clearDraft, linkChat, createCustomerFromChat, receiveMessage, fbWindowLeft } from '../data/store'
 import OrderCreate from './OrderCreate.vue'
@@ -12,6 +12,7 @@ import { setChatFastPoll } from '../lib/staffAuth'
 import { messagePreview } from '../lib/chatMedia'
 import { kb } from '../lib/viewportFit'
 import { suggestCustomers, phonesInChat } from '../lib/chatLink'
+import { buildChatIndex, chatMatchesQuery } from '../lib/chatSearch'
 
 // ศูนย์รวมแชท LINE OA + Facebook (จำลอง: ของจริงรับ webhook / ส่งผ่าน API): ซ้าย = รายการแชท, ขวา = เธรด (มือถือแสดงทีละหน้า)
 const router = useRouter()
@@ -24,18 +25,19 @@ const nameOf = (c) => findCustomer(c.customerId)?.name || c.profileName
 const q = ref('')
 const filter = ref('') // '' | line | facebook | unread | unlinked
 const FILTERS = [{ v: '', l: 'ทั้งหมด' }, { v: 'line', l: 'LINE' }, { v: 'facebook', l: 'Facebook' }, { v: 'unread', l: 'ยังไม่อ่าน' }, { v: 'unlinked', l: 'ยังไม่ผูก' }]
-const list = computed(() => {
-  const s = q.value.trim().toLowerCase()
-  const d = phoneDigits(s)
-  return db.chats.filter((c) => {
-    if (filter.value === 'line' || filter.value === 'facebook') { if (c.channel !== filter.value) return false }
-    if (filter.value === 'unread' && !c.unreadStaff) return false
-    if (filter.value === 'unlinked' && c.customerId) return false
-    if (!s) return true
-    const cu = findCustomer(c.customerId)
-    return c.profileName.toLowerCase().includes(s) || cu?.name.toLowerCase().includes(s) || (d && cu?.phone?.includes(d))
-  })
-})
+// รายการแสดงทีละหน้า (กันโหลดแชททั้งหมดพร้อมกันบนมือถือ) · การค้นครอบคลุมทุกแชท ไม่จำกัดตามหน้าที่แสดง
+const PAGE = 40
+const shown = ref(PAGE)
+watch([q, filter], () => { shown.value = PAGE })
+const searchIndex = computed(() => (q.value.trim() ? buildChatIndex(db.chats, db.customers, db.orders, db.quotes) : null))
+const matched = computed(() => db.chats.filter((c) => {
+  if (filter.value === 'line' || filter.value === 'facebook') { if (c.channel !== filter.value) return false }
+  if (filter.value === 'unread' && !c.unreadStaff) return false
+  if (filter.value === 'unlinked' && c.customerId) return false
+  return !searchIndex.value || chatMatchesQuery(searchIndex.value, c.id, q.value)
+}))
+const list = computed(() => matched.value.slice(0, shown.value))
+const moreCount = computed(() => Math.max(0, matched.value.length - shown.value))
 // เปิดหน้าแชท = รีเฟรชแชทถี่ขึ้น (~10 วิ) · ออกจากหน้าคืนเป็นปกติ
 onMounted(() => setChatFastPoll(true))
 onUnmounted(() => setChatFastPoll(false))
@@ -139,14 +141,15 @@ function doSim() {
           <label class="relative block">
             <span class="sr-only">ค้นหาแชท</span>
             <AppIcon name="search" class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-stone-400" />
-            <input v-model="q" type="search" class="input h-10 pl-9" placeholder="ค้นหาชื่อ / เบอร์" />
+            <input v-model="q" type="search" class="input h-10 pl-9" placeholder="ค้นหาชื่อ เบอร์ ออร์เดอร์ ชื่อ Facebook" />
           </label>
           <div class="mt-2 flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
             <button v-for="f in FILTERS" :key="f.v" type="button" class="chip shrink-0 px-2.5 py-1 text-xs" :class="filter === f.v ? 'chip-on' : 'chip-off'" @click="filter = f.v">{{ f.l }}</button>
           </div>
         </div>
         <ul class="min-h-0 flex-1 overflow-y-auto">
-          <li v-if="!list.length" class="p-6 text-center text-sm text-stone-400">ยังไม่มีแชท</li>
+          <li v-if="!list.length" class="p-6 text-center text-sm text-stone-400">{{ q.trim() ? 'ไม่พบแชทที่ตรงกับคำค้น' : 'ยังไม่มีแชท' }}</li>
+          <li v-if="moreCount" class="p-3"><button type="button" class="btn-outline h-9 w-full text-sm" @click="shown += PAGE">โหลดเพิ่ม (อีก {{ moreCount }} แชท)</button></li>
           <li v-for="c in list" :key="c.id">
             <RouterLink :to="`/admin/chat/${c.id}`" class="flex items-center gap-3 border-b border-stone-100 px-3 py-3 hover:bg-stone-50" :class="current?.id === c.id ? 'bg-brand-50' : ''">
               <span class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-800">
