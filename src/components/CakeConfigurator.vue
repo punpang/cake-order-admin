@@ -80,15 +80,32 @@ const allowFor = (t) => {
   return (g, o) => gok(g) && (!o || (a(g, o) && (typeFreeGroup(g) || forType(o, tid))))
 }
 const allSizeIds = computed(() => (sizeGroup.value?.perTier ? form.tiers.flatMap((t) => sizeIdsOf(t)) : sizeIdsOf(null)))
+// ตัวเลือกที่ไม่เข้ากับกติกา (เช่น ขนาดที่รูปแบบตกแต่งซ่อน): ซ่อนจากรายการ แต่คงค่าไว้ให้ลูกค้าเลือกใหม่ · หัวข้อที่ไม่เปิดให้เลือกเลยจะล้างค่า
+const okOpt = (g, id, allow) => { const o = g.options.find((x) => x.id === id); return !o || allow(g, o) }
 function prune(sels, allow, list) {
+  for (const g of list) if (!allow(g, null)) delete sels[g.id] // หัวข้อที่รูปแบบตกแต่งไม่เปิดให้เลือก → ล้างค่า
+}
+// ค่าที่ใช้ได้จริง (ตัดตัวเลือกที่ไม่เข้ากันออก) ใช้คิดราคา
+function validSels(sels, allow, list) {
+  const out = { ...sels }
   for (const g of list) {
-    if (!allow(g, null)) { delete sels[g.id]; continue } // หัวข้อที่รูปแบบตกแต่งไม่เปิดให้เลือก → ล้างค่า
-    const v = sels[g.id]
+    const v = out[g.id]
     if (v == null || g.type === 'text') continue
-    const ok = (id) => { const o = g.options.find((x) => x.id === id); return !o || allow(g, o) }
-    if (Array.isArray(v)) sels[g.id] = v.filter(ok)
-    else if (!ok(v)) delete sels[g.id]
+    if (!allow(g, null)) { delete out[g.id]; continue }
+    if (Array.isArray(v)) out[g.id] = v.filter((id) => okOpt(g, id, allow))
+    else if (!okOpt(g, v, allow)) delete out[g.id]
   }
+  return out
+}
+// หัวข้อที่เลือกไว้แล้วแต่ไม่เข้ากับกติกาปัจจุบัน
+function invalidOf(sels, allow, list) {
+  const names = []
+  for (const g of list) {
+    const v = sels?.[g.id]
+    if (v == null || g.type === 'text' || !allow(g, null)) continue
+    if ((Array.isArray(v) ? v : [v]).some((id) => !okOpt(g, id, allow))) names.push(g.name)
+  }
+  return names
 }
 watch(() => JSON.stringify([form.selections, form.tiers]), () => {
   if (form.tiers.length) form.tiers.forEach((t) => prune(t.selections, allowFor(t), tierGroups.value))
@@ -104,7 +121,10 @@ function applyForced() {
 }
 // ---- ราคา ----
 const active = computed(() => activeListsAt(''))
-const detail = computed(() => priceDetail(form, db.optionGroups, db.retailItems, active.value, db.bundles))
+// ราคาคิดจากค่าที่ใช้ได้จริงเท่านั้น (ค่าที่ซ่อนอยู่ไม่ถูกนับ) · invalid = หัวข้อที่ต้องเลือกใหม่
+const priceForm = computed(() => ({ ...form, selections: validSels(form.selections, allowFor(form.tiers[0]), wholeGroups.value), tiers: form.tiers.map((t) => ({ ...t, selections: validSels(t.selections, allowFor(t), tierGroups.value) })) }))
+const invalid = computed(() => [...new Set([...form.tiers.flatMap((t) => invalidOf(t.selections, allowFor(t), tierGroups.value)), ...invalidOf(form.selections, allowFor(form.tiers[0]), wholeGroups.value)])])
+const detail = computed(() => priceDetail(priceForm.value, db.optionGroups, db.retailItems, active.value, db.bundles))
 const qty = computed(() => Math.min(999, Math.max(1, Math.round(Number(form.qty) || 1))))
 const empty = (v) => v == null || v === '' || (Array.isArray(v) && !v.length)
 const missing = computed(() => {
@@ -113,6 +133,7 @@ const missing = computed(() => {
   const aW = allowFor(form.tiers[0])
   for (const g of wholeGroups.value) if (g.required && g.key !== 'type' && aW(g, null) && empty(form.selections[g.id])) out.push(g.name)
   form.tiers.forEach((t) => { const aT = allowFor(t); for (const g of tierGroups.value) if (g.required && g.key !== 'type' && aT(g, null) && empty(t.selections[g.id])) out.push(g.name) })
+  for (const n of invalid.value) if (!out.includes(n)) out.push(n) // เลือกไว้แต่ไม่เข้ากับรูปแบบ → ต้องเลือกใหม่
   return out
 })
 const ready = computed(() => !missing.value.length)
@@ -155,6 +176,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
     </div>
     <div v-show="open" id="cfg-body" class="space-y-3">
       <slot name="types" />
+      <p v-if="invalid.length" class="rounded-xl bg-red-50 p-2.5 text-sm font-medium text-red-700" role="alert">{{ invalid.join(' · ') }} ที่เลือกไว้ไม่เข้ากับรูปแบบตกแต่งที่เลือก กรุณาเลือกใหม่</p>
 
     <template v-if="hasTiers">
       <div v-for="(tier, i) in form.tiers" :key="i">
