@@ -11,7 +11,7 @@ import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
 import BirthdayList from '../components/BirthdayList.vue'
 import { getSupabase } from '../lib/supabase'
-import { loadOrdersInRange, searchOrdersRemote, windowStartDate } from '../lib/ordersSync'
+import { loadOrdersInRange, searchOrdersRemote } from '../lib/ordersSync'
 
 const status = ref('')
 // PC (≥1024): สลับมุมมอง การ์ด ↔ แถวหนาแน่น · จำค่าที่เลือกไว้ในเบราว์เซอร์
@@ -90,7 +90,7 @@ async function fetchRows() {
   const term = q.value.trim()
   const r = term
     ? await searchOrdersRemote(client, term)
-    : await loadOrdersInRange(client, { from: from.value || windowStartDate(), to: to.value, status: status.value, fulfillment: fulfill.value, includePos: showPos.value })
+    : await loadOrdersInRange(client, { from: from.value, to: to.value, openOnly: !from.value && !to.value, status: status.value, fulfillment: fulfill.value, includePos: showPos.value })
   if (seq !== reqSeq) return // มีการเปลี่ยนตัวกรองใหม่ระหว่างรอ
   if (r.error) { serverRows.value = null; searchedServer.value = false; return }
   serverRows.value = r.items

@@ -1,14 +1,10 @@
 import { startSync, selectAll } from './tableSync'
 import { parseNo } from './docNo'
 import { externalizeOrderImages, privateRefsOf, removePrivate } from './storage'
-import { toDateStr } from './format'
 
-// ตารางออร์เดอร์ในเครื่อง = ออร์เดอร์ที่ยังไม่ปิด + นัดรับภายในช่วงนี้ (วัน) · หน้าที่ต้องใช้ประวัติทั้งหมดเปิดโหมดเต็ม (setOrdersFullHistory)
-export const ORDER_WINDOW_DAYS = 60
+// ตารางออร์เดอร์ในเครื่อง = ทุกออร์เดอร์ที่สถานะไม่ใช่ยกเลิก/ส่งมอบแล้ว (ไม่จำกัดช่วงเวลา) · หน้าที่ต้องใช้ประวัติทั้งหมดเปิดโหมดเต็ม (setOrdersFullHistory)
 let fullHistory = false
 export function setOrdersFullHistory(on) { fullHistory = !!on }
-// วันเริ่มของช่วงล่าสุด (YYYY-MM-DD) ใช้เมื่อหน้าออเดอร์ไม่ได้เลือกช่วงวันที่
-export const windowStartDate = () => { const d = new Date(); d.setDate(d.getDate() - ORDER_WINDOW_DAYS); return toDateStr(d) }
 // ออร์เดอร์ที่เปิดดูเฉพาะรายการ (นอกช่วง) ต้องคงอยู่ในเครื่องระหว่างรีเฟรช
 const pinned = new Set()
 export function pinOrderId(id) { pinned.add(id) }
@@ -28,10 +24,9 @@ export function rowToOrder(r) {
 }
 
 export async function loadOrders(client) {
-  const from = windowStartDate()
   const a = await selectAll((x, y) => {
     let qy = client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data')
-    if (!fullHistory) qy = qy.or(`status.not.in.(delivered,cancelled,draft),pickup_at.gte.${from}`)
+    if (!fullHistory) qy = qy.not('status', 'in', '(cancelled,delivered)')
     return qy.order('code').order('id').range(x, y)
   })
   if (a.error) return { error: a.error.message }
@@ -41,9 +36,10 @@ export async function loadOrders(client) {
 // หน้าออเดอร์: ดึงเฉพาะแถวตามตัวกรอง (กรองที่ฐานข้อมูล) · from/to = YYYY-MM-DD ของวันนัด (รวมทั้งสองวัน) · ว่าง = ไม่จำกัด
 // pickup_at เป็น timestamptz แต่แอปเก็บเวลานัดแบบท้องถิ่นไม่มีโซน → เทียบด้วยโซนเดียวกับตอนเขียน (ช่วง [from, to+1 วัน))
 const nextDay = (ymd) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10) }
-export async function loadOrdersInRange(client, { from = '', to = '', status = '', fulfillment = '', includePos = true } = {}) {
+export async function loadOrdersInRange(client, { from = '', to = '', status = '', fulfillment = '', includePos = true, openOnly = false } = {}) {
   const a = await selectAll((x, y) => {
     let qy = client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data')
+    if (openOnly) qy = qy.not('status', 'in', '(cancelled,delivered)') // ไม่เลือกช่วงวันที่ = ทุกออร์เดอร์ที่ยังไม่ยกเลิก/ส่งมอบ
     if (from) qy = qy.gte('pickup_at', from)
     if (to) qy = qy.lt('pickup_at', nextDay(to))
     if (status) qy = qy.eq('status', status)
