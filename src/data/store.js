@@ -1519,6 +1519,7 @@ export const pointsHook = { call: null }
 const PTS_MSG = {
   insufficient: 'คะแนนไม่พอ (อาจถูกใช้ไปจากอีกเครื่อง) กรุณารีเฟรช', already_used: 'ออร์เดอร์นี้ใช้คะแนนไปแล้ว', bad_status: 'ออร์เดอร์นี้ใช้คะแนนไม่ได้',
   no_order: 'ไม่พบออร์เดอร์บนเซิร์ฟเวอร์ (ยังไม่ซิงก์)', no_customer: 'ไม่พบลูกค้า', invalid: 'ข้อมูลไม่ถูกต้อง', none: 'ออร์เดอร์นี้ไม่ได้ใช้คะแนน',
+  forbidden: 'ไม่มีสิทธิ์ทำรายการนี้',
 }
 export async function applyPointsRemote(order, points) {
   const n = Math.floor(Number(points))
