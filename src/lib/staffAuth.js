@@ -198,7 +198,7 @@ async function startData(staff) {
     if (r.error) return { error: r.error.message }
     try {
       for (const x of syncs) {
-        if (x.refreshIds && x.label === 'ออร์เดอร์') await x.refreshIds([ids.order])
+        if (x.refreshIds && x.label === 'ออร์เดอร์' && ids.order) await x.refreshIds([ids.order])
         if (x.refreshIds && x.label === 'ลูกค้า' && ids.customer) await x.refreshIds([ids.customer])
       }
     } catch { /* ข้อมูลล่าสุดจะมาตามรอบรีเฟรชปกติ */ }

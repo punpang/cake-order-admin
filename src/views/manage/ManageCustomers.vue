@@ -2,7 +2,7 @@
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import NotifyChannelPicker from '../../components/NotifyChannelPicker.vue'
-import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPoints, can } from '../../data/store'
+import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, can } from '../../data/store'
 import { askConfirm } from '../../lib/confirm'
 import { orderTotals } from '../../lib/pricing'
 import { STATUS } from '../../lib/constants'
@@ -66,7 +66,7 @@ async function saveAdj() {
   if (!(n > 0)) return (adj.error = 'ใส่จำนวนคะแนนมากกว่า 0')
   if (!adj.reason.trim()) return (adj.error = 'ใส่เหตุผล')
   if (!(await askConfirm({ title: adj.sign > 0 ? 'เพิ่มคะแนน' : 'ลดคะแนน', message: `${form.name}: ${adj.sign > 0 ? '+' : '−'}${n} คะแนน`, okText: 'ยืนยัน', danger: adj.sign < 0 }))) return
-  const r = adjustPoints(form.id, adj.sign * n, adj.reason)
+  const r = await adjustPointsRemote(form.id, adj.sign * n, adj.reason)
   if (r.error) return (adj.error = r.error)
   adj.open = false
 }

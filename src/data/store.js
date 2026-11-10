@@ -1527,6 +1527,18 @@ export async function removePointsRemote(order) {
   return { ok: true }
 }
 
+// แอดมินปรับแต้ม (+/−) ผ่านเซิร์ฟเวอร์แบบอะตอมิก · ไม่มีตัวเรียก (โหมดจำลอง) = ใช้ adjustPoints ในเครื่องเดิม
+export async function adjustPointsRemote(customerId, delta, reason) {
+  if (!pointsHook.call) return adjustPoints(customerId, delta, reason)
+  if (!can('adjustPoints')) return { error: 'เฉพาะแอดมิน' }
+  const n = Number(delta)
+  if (!Number.isInteger(n) || n === 0 || Math.abs(n) > 1000000) return { error: 'ใส่จำนวนคะแนนเป็นจำนวนเต็ม (ไม่เกิน 1,000,000)' }
+  if (!String(reason ?? '').trim()) return { error: 'ใส่เหตุผลในการปรับคะแนน' }
+  const r = await pointsHook.call('punpang_adjust_points', { p_customer: customerId, p_delta: n, p_reason: String(reason).trim() }, { customer: customerId })
+  if (r.error) return { error: r.error === 'insufficient' ? `ลดได้ไม่เกิน ${r.balance ?? 0} คะแนน (คงเหลือของลูกค้า)` : r.error === 'no_reason' ? 'ใส่เหตุผลในการปรับคะแนน' : PTS_MSG[r.error] || r.error }
+  return { ok: true, balance: r.balance }
+}
+
 export function removePoints(order) {
   const c = findCustomer(order.customerId)
   if (!c || !order.pointsUsed) return
