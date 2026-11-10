@@ -2,7 +2,7 @@ import { reactive } from 'vue'
 import { getSupabase, supabaseEnabled } from './supabase'
 import { showToast } from './toast'
 import { publicState, setRestoring } from './dataStatus'
-import { syncRealtime } from './syncStatus'
+import { syncRealtime, waitSaved } from './syncStatus'
 import { startRealtime, makeDebouncer } from './realtimeSync'
 
 // สถานะพนักงานที่ล็อกอินจริง (ใช้เมื่อเปิด Supabase เท่านั้น)
@@ -190,6 +190,20 @@ async function startData(staff) {
   const { db } = store
   // สำเร็จรูปสาธารณะที่ถอนการเผยแพร่แล้ว → ลบไฟล์ (เฉพาะผู้มีสิทธิ์จัดการ)
   const storage = await import('./storage')
+  // ใช้/ยกเลิกใช้แต้มแบบอะตอมิกบนเซิร์ฟเวอร์ (RPC ล็อกแถวลูกค้า → ตัดแต้ม + แก้ออร์เดอร์ในธุรกรรมเดียว) แล้วดึงแถวล่าสุดของออร์เดอร์/ลูกค้ามาแทนที่
+  store.pointsHook.call = async (fn, args, ids) => {
+    const w = await waitSaved() // บันทึกสิ่งที่แก้ค้างก่อน ให้เครื่องนี้ตรงกับเซิร์ฟเวอร์ก่อนตัดแต้ม
+    if (!w.ok) return { error: `บันทึกข้อมูลก่อนหน้ายังไม่สำเร็จ: ${w.error}` }
+    const r = await client.rpc(fn, args)
+    if (r.error) return { error: r.error.message }
+    try {
+      for (const x of syncs) {
+        if (x.refreshIds && x.label === 'ออร์เดอร์') await x.refreshIds([ids.order])
+        if (x.refreshIds && x.label === 'ลูกค้า' && ids.customer) await x.refreshIds([ids.customer])
+      }
+    } catch { /* ข้อมูลล่าสุดจะมาตามรอบรีเฟรชปกติ */ }
+    return r.data || {}
+  }
   // จองคูปองแบบอะตอมิกบนเซิร์ฟเวอร์ (RPC punpang_claim_coupon / punpang_release_coupon)
   store.couponHook.claim = async (couponId, orderId) => {
     const r = await client.rpc('punpang_claim_coupon', { p_coupon: couponId, p_order: orderId })

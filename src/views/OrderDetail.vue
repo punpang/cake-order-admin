@@ -6,7 +6,7 @@ import {
   updatePaymentRequest, cancelPaymentRequest, cancelConfirmedPayment,
   requestConfirmUnpaid, confirmUnpaid, rejectConfirmUnpaid, grantPayExtension, denyPayExtension,
   saveOrderItem, removeOrderItem, orderDate,
-  db, customerPoints, usableDiscountCoupons, applyPoints, removePoints, claimAndApplyCoupon, removeCoupon,
+  db, customerPoints, usableDiscountCoupons, applyPointsRemote, removePointsRemote, claimAndApplyCoupon, removeCoupon,
   setBirthday, depositOf, setDelivery, setOrderNotifyChannel,
 } from '../data/store'
 import { orderTotals, shipNetOf } from '../lib/pricing'
@@ -210,7 +210,9 @@ async function doCancelRequest(p) {
   if (await askConfirm({ title: 'ยกเลิกยอดที่แจ้ง', message: money(p.requested ?? p.amount), okText: 'ยกเลิกยอด', danger: true })) cancelPaymentRequest(order.value, p.id)
 }
 async function doRemovePoints() {
-  if (await askConfirm({ title: 'ยกเลิกการใช้คะแนน', message: `คืน ${order.value.pointsUsed.points} คะแนนให้ลูกค้า`, okText: 'ยกเลิกการใช้', danger: true })) removePoints(order.value)
+  if (!(await askConfirm({ title: 'ยกเลิกการใช้คะแนน', message: `คืน ${order.value.pointsUsed.points} คะแนนให้ลูกค้า`, okText: 'ยกเลิกการใช้', danger: true }))) return
+  const r = await removePointsRemote(order.value)
+  if (r.error) showToast(r.error, 6000, 'error')
 }
 async function doApplyCoupon(c) {
   if (!(await askConfirm({ title: 'ใช้คูปอง', message: `${c.name} (−${money(c.amount)})`, okText: 'ใช้คูปอง' }))) return
@@ -246,7 +248,8 @@ async function savePoints() {
   const n = Math.floor(Number(ptUse.value) || 0)
   if (n <= 0 || n > ptMax.value) return (ptError.value = `ใช้ได้ 1 – ${ptMax.value} คะแนน`)
   if (!(await askConfirm({ title: 'ใช้คะแนน', message: `ใช้ ${n} คะแนน ลด ${money(n * db.loyalty.pointValue)}`, okText: 'ใช้คะแนน' }))) return
-  applyPoints(order.value, n)
+  const r = await applyPointsRemote(order.value, n)
+  if (r.error) return (ptError.value = r.error)
   ptOpen.value = false
 }
 
