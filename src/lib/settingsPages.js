@@ -12,6 +12,7 @@ export const SETTINGS_PAGES = [
   { to: '/admin/settings/loyalty', icon: 'tag', title: 'คะแนน & รางวัล' },
   { to: '/admin/settings/storefront', icon: 'store', title: 'หน้าร้าน (เว็บลูกค้า)' },
   { to: '/admin/settings/photo-requests', icon: 'shield', title: 'คำขอไม่เผยแพร่รูป' },
+  { to: '/admin/settings/files', icon: 'image', title: 'พื้นที่รูป & การลบรูป' },
   { to: '/admin/settings/gallery', icon: 'image', title: 'คลังรูปเค้กสั่งทำ' },
   { to: '/admin/settings/legal', icon: 'shield', title: 'PDPA / คุกกี้ / เงื่อนไข' },
   { to: '/admin/settings/bot', icon: 'chat', title: 'บอทตอบแชท' },

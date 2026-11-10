@@ -8,6 +8,7 @@
     { "binding": "FILES_PUBLIC", "bucket_name": "punpang-public" },
     { "binding": "FILES_PRIVATE", "bucket_name": "punpang-private" }
   ],
+  "triggers": { "crons": ["0 19 * * *"] },
   "vars": {
     "SUPABASE_URL": "https://itleduijrckxdbhhuooi.supabase.co",
     "SUPABASE_ANON_KEY": "ใส่ publishable key ของโปรเจกต์ (ไม่ใช่ secret key)",

@@ -51,6 +51,7 @@ const ManageLegal = () => import('./views/manage/ManageLegal.vue')
 const ManageLinks = () => import('./views/manage/ManageLinks.vue')
 const ManageGallery = () => import('./views/manage/ManageGallery.vue')
 const ManagePhotoRequests = () => import('./views/manage/ManagePhotoRequests.vue')
+const ManageFiles = () => import('./views/manage/ManageFiles.vue')
 const ManageBot = () => import('./views/manage/ManageBot.vue')
 
 // meta.store = หน้าร้าน/ระบบลูกค้า (ใช้ StoreLayout) · meta.focus = หน้าหลังบ้านที่มีแถบปุ่มของตัวเอง ซ่อนแถบเมนูล่างบนมือถือ
@@ -109,6 +110,7 @@ const router = createRouter({
     { path: '/admin/settings/storefront', component: ManageStorefront },
     { path: '/admin/settings/gallery', component: ManageGallery },
     { path: '/admin/settings/photo-requests', component: ManagePhotoRequests },
+    { path: '/admin/settings/files', component: ManageFiles },
     { path: '/admin/settings/deletion-requests', component: ManageDeletionRequests },
     { path: '/admin/settings/legal', component: ManageLegal },
     { path: '/admin/settings/links', component: ManageLinks },

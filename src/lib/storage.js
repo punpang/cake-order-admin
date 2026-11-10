@@ -13,6 +13,14 @@ async function filesAuth(client) {
   const sess = (await client.auth.getSession()).data.session
   return sess?.access_token ? { Authorization: `Bearer ${sess.access_token}` } : {}
 }
+// เรียก API ของ Worker ที่ต้องมีการยืนยันตัวตนพนักงาน (จัดการพื้นที่รูป)
+export async function filesApi(client, path, body = {}) {
+  if (!FILES_URL) throw new Error('ยังไม่ได้ตั้งค่าเซิร์ฟเวอร์ไฟล์ (VITE_FILES_URL)')
+  const r = await fetch(`${FILES_URL}${path}`, { method: 'POST', headers: { ...(await filesAuth(client)), 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(j.error || 'เรียกเซิร์ฟเวอร์ไฟล์ไม่สำเร็จ')
+  return j
+}
 async function filesUpload(client, blob, type, bucket, prefix) {
   const r = await fetch(`${FILES_URL}/upload?bucket=${bucket}&prefix=${encodeURIComponent(prefix)}`, { method: 'POST', headers: { ...(await filesAuth(client)), 'Content-Type': type }, body: blob })
   const j = await r.json().catch(() => ({}))
