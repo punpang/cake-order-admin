@@ -7,6 +7,8 @@ import { toDateStr } from './format'
 export const ORDER_WINDOW_DAYS = 60
 let fullHistory = false
 export function setOrdersFullHistory(on) { fullHistory = !!on }
+// วันเริ่มของช่วงล่าสุด (YYYY-MM-DD) ใช้เมื่อหน้าออเดอร์ไม่ได้เลือกช่วงวันที่
+export const windowStartDate = () => { const d = new Date(); d.setDate(d.getDate() - ORDER_WINDOW_DAYS); return toDateStr(d) }
 // ออร์เดอร์ที่เปิดดูเฉพาะรายการ (นอกช่วง) ต้องคงอยู่ในเครื่องระหว่างรีเฟรช
 const pinned = new Set()
 export function pinOrderId(id) { pinned.add(id) }
@@ -26,9 +28,7 @@ export function rowToOrder(r) {
 }
 
 export async function loadOrders(client) {
-  const d = new Date()
-  d.setDate(d.getDate() - ORDER_WINDOW_DAYS)
-  const from = toDateStr(d)
+  const from = windowStartDate()
   const a = await selectAll((x, y) => {
     let qy = client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data')
     if (!fullHistory) qy = qy.or(`status.not.in.(delivered,cancelled,draft),pickup_at.gte.${from}`)
