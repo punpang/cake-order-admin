@@ -166,7 +166,8 @@ export default {
       if (!staff) return json(req, env, { error: 'ต้องเข้าสู่ระบบพนักงาน' }, 401)
       const body = await req.json().catch(() => ({}))
       const keys = (Array.isArray(body.keys) ? body.keys : []).map(String).filter((k) => k && !k.includes('..') && !k.startsWith('/')).slice(0, 100)
-      if (keys.length) await env.FILES_PRIVATE.delete(keys)
+      // ทุกการลบต้องผ่านถังขยะก่อน (กู้คืนได้จนกว่าจะครบจำนวนวันในถัง)
+      if (keys.length) await moveToTrash(env.FILES_PRIVATE, keys.map((key) => ({ key })), staff.user_id, 'app')
       return json(req, env, { ok: true, deleted: keys.length })
     }
 
