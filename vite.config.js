@@ -7,7 +7,15 @@ export default defineConfig({
   build: {
     rollupOptions: {
       // แยกไลบรารีหลักออกจากโค้ดแอป: อัปเดตแอปแล้วผู้ใช้ไม่ต้องโหลด vue/router ใหม่ (เบราว์เซอร์จำแคชไว้)
-      output: { manualChunks: (id) => (/node_modules[\\/](vue|@vue|vue-router)[\\/]/.test(id) ? 'vue' : undefined) },
+      // supabase และ qrcode แยกเป็นชุดของตัวเอง (โหลดเฉพาะเมื่อจำเป็น และแคชแยกจากโค้ดแอป)
+      output: {
+        manualChunks: (id) => {
+          if (/node_modules[\\/](vue|@vue|vue-router)[\\/]/.test(id)) return 'vue'
+          if (/node_modules[\\/]@supabase[\\/]/.test(id)) return 'supabase'
+          if (/node_modules[\\/]qrcode[\\/]/.test(id)) return 'qrcode'
+          return undefined
+        },
+      },
     },
   },
 })

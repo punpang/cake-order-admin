@@ -1,24 +1,25 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { customerSession, needsConsent, canAny, can } from './data/store'
 import { firstHome } from './lib/adminSystems'
-import StoreHome from './views/store/StoreHome.vue'
-import StoreMenu from './views/store/StoreMenu.vue'
-import StoreCakeGallery from './views/store/StoreCakeGallery.vue'
-import StoreItem from './views/store/StoreItem.vue'
-import AccountLogin from './views/account/AccountLogin.vue'
-import AccountRegister from './views/account/AccountRegister.vue'
-import AccountForgot from './views/account/AccountForgot.vue'
-import Account from './views/account/Account.vue'
-import AccountConsent from './views/account/AccountConsent.vue'
-import AccountOrder from './views/account/AccountOrder.vue'
 import NoAccess from './views/NoAccess.vue'
+// หน้าร้าน/บัญชีลูกค้า: โหลดเมื่อเปิดหน้านั้นเท่านั้น (ลดขนาดชุดโค้ดเริ่มต้น)
+const StoreHome = () => import('./views/store/StoreHome.vue')
+const StoreMenu = () => import('./views/store/StoreMenu.vue')
+const StoreCakeGallery = () => import('./views/store/StoreCakeGallery.vue')
+const StoreItem = () => import('./views/store/StoreItem.vue')
+const AccountLogin = () => import('./views/account/AccountLogin.vue')
+const AccountRegister = () => import('./views/account/AccountRegister.vue')
+const AccountForgot = () => import('./views/account/AccountForgot.vue')
+const Account = () => import('./views/account/Account.vue')
+const AccountConsent = () => import('./views/account/AccountConsent.vue')
+const AccountOrder = () => import('./views/account/AccountOrder.vue')
 import { supabaseEnabled } from './lib/supabase'
 import { staffState, ensureData } from './lib/staffAuth'
 import { whenSessionReady } from './lib/dataStatus'
-import LegalPage from './views/store/LegalPage.vue'
-import StoreCakeDesign from './views/store/StoreCakeDesign.vue'
-import OrderLink from './views/store/OrderLink.vue'
-import ShortRedirect from './views/store/ShortRedirect.vue'
+const LegalPage = () => import('./views/store/LegalPage.vue')
+const StoreCakeDesign = () => import('./views/store/StoreCakeDesign.vue')
+const OrderLink = () => import('./views/store/OrderLink.vue')
+const ShortRedirect = () => import('./views/store/ShortRedirect.vue')
 
 // หน้าหลังบ้าน: โหลดเมื่อเข้าใช้งานเท่านั้น (ลูกค้าหน้าร้านไม่ต้องดาวน์โหลดโค้ดหลังบ้าน)
 const OrderList = () => import('./views/OrderList.vue')

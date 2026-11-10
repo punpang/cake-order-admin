@@ -20,6 +20,6 @@ watch(() => props.src, async (s) => {
 </script>
 
 <template>
-  <img v-if="url" :src="url" :alt="alt" :class="imgClass" class="cursor-zoom-in" />
+  <img v-if="url" :src="url" :alt="alt" :class="imgClass" class="cursor-zoom-in" loading="lazy" decoding="async" />
   <span v-else class="text-xs text-stone-400">{{ failed ? 'โหลดรูปไม่ได้' : '' }}</span>
 </template>
