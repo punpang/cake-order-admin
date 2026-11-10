@@ -1136,7 +1136,8 @@ export function cancelOrder(order, c) {
   for (const x of refunds) {
     if (x.method !== 'points') continue
     x.points = Math.round(x.amount / db.loyalty.pointValue)
-    earnPoints(cu, x.points, `คืนเงินจากการยกเลิก ${order.code}`, order.id)
+    if (pointsHook.call) { if (x.points > 0 && cu) ledgerRemote(cu.id, [{ op: 'earn', id: uid('pt'), points: x.points, reason: `คืนเงินจากการยกเลิก ${order.code}`, orderId: order.id }], order.id) }
+    else earnPoints(cu, x.points, `คืนเงินจากการยกเลิก ${order.code}`, order.id)
   }
   const refundAmount = round2(refunds.reduce((n, x) => n + x.amount, 0))
   const summary = refunds.map((x) => `${REFUND_METHODS[x.method]} ${money(x.amount)}${x.method === 'points' ? ` (${x.points} คะแนน)` : ''}`).join(' + ')
@@ -1164,7 +1165,10 @@ export function refundOrder(order, c) {
   for (const x of refunds) {
     if (x.method !== 'points') continue
     x.points = Math.round(x.amount / db.loyalty.pointValue)
-    x.lotId = earnPoints(cu, x.points, `คืนเงิน ${order.code}`, order.id)?.id
+    if (pointsHook.call) {
+      x.lotId = x.points > 0 ? uid('pt') : null
+      if (x.lotId) ledgerRemote(cu.id, [{ op: 'earn', id: x.lotId, points: x.points, reason: `คืนเงิน ${order.code}`, orderId: order.id }], order.id)
+    } else x.lotId = earnPoints(cu, x.points, `คืนเงิน ${order.code}`, order.id)?.id
   }
   const amount = round2(refunds.reduce((n, x) => n + x.amount, 0))
   const entry = { id: uid('rf'), at: now(), by: session.role, reason, note: String(c?.note || '').trim().slice(0, 200), refunds, amount }
@@ -1192,16 +1196,23 @@ export function cancelRefund(order, returnId, c = {}) {
   if (date && order.vat && A?.vatFilings?.[date.slice(0, 7)]?.filedAt) return { error: `เดือนภาษี ${date.slice(0, 7)} ยื่น ภ.พ.30 แล้ว ยกเลิกการคืนไม่ได้` }
   // คะแนนที่คืนให้ต้องยังไม่ถูกใช้ (ตรวจทุกก้อนก่อนแก้ข้อมูล)
   const cu = findCustomer(order.customerId)
+  const pts = (r.refunds || []).filter((x) => x.method === 'points')
+  if (pts.length && !cu) return { error: 'ไม่พบลูกค้า' }
   const lots = []
-  for (const x of r.refunds || []) {
-    if (x.method !== 'points') continue
+  for (const x of pts) {
     const lot = cu?.ledger?.find((l) => (x.lotId ? l.id === x.lotId : l.orderId === order.id && l.reason === `คืนเงิน ${order.code}` && l.delta === x.points))
-    if (!lot || lot.remaining !== lot.delta) return { error: 'คะแนนที่คืนให้ลูกค้าถูกใช้ไปแล้ว ยกเลิกการคืนไม่ได้' }
+    // เจอก้อนในเครื่องแล้วถูกใช้ไป = ปฏิเสธ · ไม่เจอในเครื่อง (โหมดเซิร์ฟเวอร์) ให้เซิร์ฟเวอร์ตรวจตอนแก้ไข
+    if (lot ? lot.remaining !== lot.delta : !pointsHook.call) return { error: 'คะแนนที่คืนให้ลูกค้าถูกใช้ไปแล้ว ยกเลิกการคืนไม่ได้' }
     lots.push({ lot, x })
   }
-  for (const { lot, x } of lots) {
-    lot.remaining = 0
-    cu.ledger.push({ id: uid('pt'), at: now(), delta: -x.points, reason: `ยกเลิกการคืนเงิน ${order.code}`, orderId: order.id, takes: [{ lotId: lot.id, n: x.points }] })
+  if (pointsHook.call) {
+    const ops = lots.map(({ lot, x }) => ({ op: 'cut_refund', lotId: lot?.id || x.lotId || null, points: x.points, label: `คืนเงิน ${order.code}`, reason: `ยกเลิกการคืนเงิน ${order.code}`, orderId: order.id }))
+    if (ops.length) ledgerRemote(cu.id, ops, order.id)
+  } else {
+    for (const { lot, x } of lots) {
+      lot.remaining = 0
+      cu.ledger.push({ id: uid('pt'), at: now(), delta: -x.points, reason: `ยกเลิกการคืนเงิน ${order.code}`, orderId: order.id, takes: [{ lotId: lot.id, n: x.points }] })
+    }
   }
   r.cancelled = { at: now(), by: session.role, reason }
   log(order, `ยกเลิกการคืนเงิน ${money(r.amount)} · ${reason}`)
@@ -1627,7 +1638,7 @@ function awardOrder(order) {
 
 // ยกเลิก: คืนคะแนน/คูปองที่ใช้ และตัดคะแนน/สิทธิ์หมุนที่ได้
 function undoLoyalty(order) {
-  if (order.pointsUsed) removePoints(order)
+  if (order.pointsUsed) { if (pointsHook.call) serverRemovePoints(order); else removePoints(order) }
   for (const u of [...order.couponsUsed]) removeCoupon(order, u.couponId)
   undoAwardRemote(order)
 }
@@ -1653,6 +1664,30 @@ export function awardOrderRemote(order) {
     }
   })
 }
+// สมุดแต้มผ่านเซิร์ฟเวอร์ (RPC punpang_ledger_apply): รายการหลายอย่างของลูกค้าหนึ่งคนทำในธุรกรรมเดียว · ผิดพลาดทั้งชุดไม่เกิด
+const LEDGER_MSG = { lot_missing: 'ไม่พบก้อนคะแนนเดิม', lot_used: 'คะแนนที่คืนให้ถูกใช้ไปแล้ว', dup_id: 'รหัสรายการซ้ำ', no_customer: 'ไม่พบลูกค้า', invalid_op: 'ข้อมูลไม่ถูกต้อง', forbidden: 'ไม่มีสิทธิ์' }
+function ledgerRemote(customerId, ops, orderId = null) {
+  return loyaltyQueue(async () => {
+    try {
+      const r = await pointsHook.call('punpang_ledger_apply', { p_customer: customerId, p_ops: ops }, { customer: customerId, order: orderId })
+      if (r.error) showToast(`บันทึกคะแนนไม่สำเร็จ: ${LEDGER_MSG[r.error] || r.error} · ตรวจยอดคะแนนลูกค้า`, 10000, 'error')
+    } catch (e) {
+      showToast(`บันทึกคะแนนไม่สำเร็จ: ${e?.message || 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้'} · ตรวจยอดคะแนนลูกค้า`, 10000, 'error')
+    }
+  })
+}
+// คืนคะแนนที่ตัดไปตอนใช้เป็นส่วนลดของออร์เดอร์ (ฝั่งเซิร์ฟเวอร์ ตามออร์เดอร์) · ใช้ตอนยกเลิกออร์เดอร์
+function serverRemovePoints(order) {
+  return loyaltyQueue(async () => {
+    try {
+      const r = await pointsHook.call('punpang_remove_points', { p_order: order.id }, { order: order.id, customer: order.customerId })
+      if (r.error && r.error !== 'none') showToast(`คืนคะแนนที่ใช้ของออร์เดอร์ ${order.code} ไม่สำเร็จ: ${PTS_MSG[r.error] || r.error} · ตรวจยอดคะแนนลูกค้า`, 10000, 'error')
+    } catch (e) {
+      showToast(`คืนคะแนนที่ใช้ของออร์เดอร์ ${order.code} ไม่สำเร็จ: ${e?.message || 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้'} · ตรวจยอดคะแนนลูกค้า`, 10000, 'error')
+    }
+  })
+}
+
 // ย้อนส่งมอบ/ยกเลิก: ถอนแต้ม/สิทธิ์หมุนผ่านเซิร์ฟเวอร์ (ซ้ำได้ปลอดภัย · ไม่มีแต้มค้างอยู่ = ไม่ทำอะไร) · ไม่มีตัวเรียก = undoAward ในเครื่อง
 export function undoAwardRemote(order) {
   if (!pointsHook.call) return undoAward(order)
@@ -1935,10 +1970,22 @@ export function changeBuyer(order, newId, reason = '') {
   const pv = changeBuyerPreview(order, newId)
   if (pv.error) return pv
   const { from, to } = pv
-  if (order.pointsUsed) removePoints(order)
+  const remote = !!pointsHook.call
+  if (order.pointsUsed) {
+    // โหมดเซิร์ฟเวอร์: คืนคะแนนที่ใช้ให้ผู้ซื้อเดิม (ตามรายการ takes) · ไม่ผ่านออร์เดอร์เพราะผู้ซื้อในออร์เดอร์กำลังจะเปลี่ยน
+    if (remote) { if (from) ledgerRemote(from.id, [{ op: 'refund_spend', entryId: order.pointsUsed.entryId, reason: `คืนคะแนน ${order.code} (เปลี่ยนผู้ซื้อ)` }], order.id); order.pointsUsed = null }
+    else removePoints(order)
+  }
   for (const u of [...(order.couponsUsed || [])]) removeCoupon(order, u.couponId)
   const l = order.loyalty
-  if (l && from) {
+  if (l && from && remote) {
+    const lid = l.points > 0 ? uid('pt') : null
+    const cutOps = [...(l.lotId ? [{ op: 'cut', lotId: l.lotId, reason: `โอนคะแนน ${order.code} ไปผู้ซื้อใหม่`, orderId: order.id }] : []), ...(l.spins ? [{ op: 'spins', delta: -l.spins }] : [])]
+    if (cutOps.length) ledgerRemote(from.id, cutOps, order.id)
+    const earnOps = [...(lid ? [{ op: 'earn', id: lid, points: l.points, reason: `โอนมาจากออร์เดอร์ ${order.code}`, orderId: order.id }] : []), ...(l.spins ? [{ op: 'spins', delta: l.spins }] : [])]
+    if (earnOps.length) ledgerRemote(to.id, earnOps, order.id)
+    order.loyalty = { ...l, lotId: lid }
+  } else if (l && from) {
     const lot = from.ledger.find((x) => x.id === l.lotId)
     if (lot) {
       const cut = lot.remaining
@@ -1955,7 +2002,7 @@ export function changeBuyer(order, newId, reason = '') {
   order.customerId = to.id
   if (order.chatId && findChat(order.chatId)?.customerId !== to.id) order.chatId = null
   log(order, `เปลี่ยนผู้ซื้อ ${from?.name || 'ไม่ระบุ'} → ${to.name}${reason ? ` (${String(reason).trim()})` : ''}${pv.removedAmount ? ` · นำส่วนลดคะแนน/คูปอง ${money(pv.removedAmount)} ออก` : ''}`)
-  if (order.status === 'delivered' && !order.loyalty) awardOrder(order) // บิลที่ไม่เคยมีสมาชิก
+  if (order.status === 'delivered' && !order.loyalty) awardOrderRemote(order) // บิลที่ไม่เคยมีสมาชิก
   return { ok: true, ...pv }
 }
 
@@ -2057,7 +2104,9 @@ export function refundCoupon(couponId, reason, opts = {}) {
   if (ph === 'refunded') return { error: 'คืนคะแนนไปแล้ว' }
   const pts = Number(cp.points) || (cp.rewardId && cp.source !== 'gacha' ? Number(db.rewards.find((r) => r.id === cp.rewardId)?.points) || 0 : 0)
   if (!(pts > 0)) return { error: 'ได้จากกาชา/ไม่มีคะแนนที่จ่าย ไม่มีคะแนนให้คืน' }
-  earnPoints(c, pts, `คืนคะแนน ${cp.name} (${String(reason).trim().slice(0, 80)})`)
+  const why = `คืนคะแนน ${cp.name} (${String(reason).trim().slice(0, 80)})`
+  if (pointsHook.call) { if (Math.round(pts) > 0) ledgerRemote(c.id, [{ op: 'earn', id: uid('pt'), points: Math.round(pts), reason: why }]) }
+  else earnPoints(c, pts, why)
   Object.assign(cp, { status: 'refunded', refundedAt: now(), refundedBy: session.role, refundReason: String(reason).trim().slice(0, 200), activatedAt: null, activatedUntil: null })
   if (opts.notify !== false) {
     const rule = db.notifyRules.find((x) => x.event === 'coupon_refunded')
@@ -3041,7 +3090,7 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
   o.status = 'delivered'
   o.deliveredAt = ts
   log(o, `รับชำระ ${money(total)} (${POS_METHODS[method]}) · ส่งมอบ`)
-  awardOrder(o)
+  awardOrderRemote(o)
   return o
 }
 // ยกเลิกบิล (แอดมิน): คืนสต็อก + คืนคะแนน/คูปองที่ใช้ + ตัดคะแนนที่ได้ + คืนเงินตาม refunds (ไม่ส่ง = คืนเต็มช่องทางที่จ่ายมา)
