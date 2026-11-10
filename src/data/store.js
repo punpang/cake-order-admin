@@ -28,7 +28,7 @@ import { sendClick } from '../lib/clicksSync'
 import { createNumbering } from '../lib/docNo'
 import { staffState } from '../lib/staffAuth'
 import { remoteOrderAction } from '../lib/customerOrderRemote'
-import { callAuth, readSessionToken, saveSessionToken, clearSessionToken, injectBundle, clearBundle } from '../lib/customerRemote'
+import { callAuth, callLoyalty, readSessionToken, saveSessionToken, clearSessionToken, injectBundle, clearBundle } from '../lib/customerRemote'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
 let seq = 1000
@@ -2036,6 +2036,20 @@ export function spinGacha(c, usePoints) {
   if (prize.type === 'discount') newCoupon(c, { type: 'discount', amount: Number(prize.value) || 0, name: prize.name, source: 'gacha' })
   db.spinLog.unshift({ id: uid('sp'), customerId: c.id, at: now(), prizeId: prize.id, prizeName: prize.name, via: usePoints ? 'points' : 'spin' })
   return prize
+}
+// โหมด Supabase (ลูกค้าที่ล็อกอินแล้ว): แลก/หมุนทำบนเซิร์ฟเวอร์ แล้วรีเฟรชข้อมูลลูกค้าในเครื่อง · ไม่ใช่โหมดนี้ให้ใช้ redeemReward/spinGacha เดิม
+export const usesServerLoyalty = () => remoteCust()
+export async function redeemRewardRemote(rewardId) {
+  const r = await callLoyalty('redeem', { session: readSessionToken(), rewardId })
+  if (r.error) return { error: r.error }
+  injectBundle(db, r)
+  return { ok: true, coupon: r.result?.coupon || null }
+}
+export async function spinGachaRemote(usePoints) {
+  const r = await callLoyalty('spin', { session: readSessionToken(), usePoints: !!usePoints })
+  if (r.error) return { error: r.error }
+  injectBundle(db, r)
+  return { ok: true, prize: r.result?.prize || null }
 }
 
 // ---------- คูปอง/ของรางวัลที่ร้าน: ลูกค้าต้องกด "ใช้ที่ร้านตอนนี้" ในระบบลูกค้าก่อน จึงจะขึ้นบน POS (ยืนยันว่าลูกค้าทำรายการเอง) ----------

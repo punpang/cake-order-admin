@@ -9,6 +9,21 @@ export const saveSessionToken = (t) => { try { localStorage.setItem(KEY, t) } ca
 export const clearSessionToken = () => { try { localStorage.removeItem(KEY) } catch { /* ข้าม */ } }
 
 const NET = 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่'
+// แลกของ/หมุนกาชาฝั่งเซิร์ฟเวอร์ (Edge Function customer-loyalty) · ตอบ { ok, customer, coupons, result } หรือ { error }
+export async function callLoyalty(action, body = {}) {
+  const c = await getSupabase()
+  if (!c) return { error: 'ยังไม่ได้เปิดใช้งานออนไลน์' }
+  try {
+    const r = await c.functions.invoke('customer-loyalty', { body: { action, ...body } })
+    if (r.error) {
+      let d = null
+      try { d = await r.error.context?.json() } catch { d = null }
+      return { ...(d || {}), error: d?.error || NET }
+    }
+    return r.data || { error: NET }
+  } catch { return { error: NET } }
+}
+
 export async function callAuth(action, body = {}) {
   const c = await getSupabase()
   if (!c) return { error: 'ยังไม่ได้เปิดใช้งานออนไลน์' }
