@@ -84,6 +84,24 @@ async function sendOut(to: string, message: string, idem: string): Promise<{ ok:
   }
 }
 
+// ตรวจสถานะงาน: GET /v1/sms/{id} (ยอมรับลิงก์ฐานที่มี/ไม่มี /v1/sms)
+async function lookupOut(id: string): Promise<{ ok: boolean; sms?: unknown; error?: string }> {
+  const root = GATEWAY_URL.replace(/\/+$/, '').replace(/\/v1\/sms$/i, '')
+  try {
+    const r = await fetch(`${root}/v1/sms/${encodeURIComponent(id)}`, {
+      method: 'GET',
+      headers: { authorization: `Bearer ${GATEWAY_KEY}` },
+      signal: AbortSignal.timeout(10_000),
+    })
+    const data = await r.json().catch(() => null)
+    if (r.ok) return { ok: true, sms: data }
+    if (r.status === 404) return { ok: false, error: 'ไม่พบงานนี้ที่เกตเวย์' }
+    return { ok: false, error: gatewayError(r.status, String(data?.error ?? '')) }
+  } catch {
+    return { ok: false, error: 'เชื่อมต่อเกตเวย์ไม่ได้ (หมดเวลาหรือเครือข่ายขัดข้อง)' }
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
@@ -93,6 +111,15 @@ Deno.serve(async (req) => {
   if (!body || typeof body !== 'object') return json({ ok: false, error: 'คำขอไม่ถูกต้อง' }, 400)
 
   if (body.action === 'status') return json({ configured: configured() })
+
+  // ตรวจสถานะงานที่ส่งไปแล้ว: GET {เกตเวย์}/v1/sms/{id} (ไม่ส่งเบอร์/ข้อความกลับ นอกจากสถานะที่เกตเวย์ตอบ)
+  if (body.action === 'lookup') {
+    if (!configured()) return json({ ok: false, error: 'ยังไม่ได้ตั้งค่าเกตเวย์ SMS ของร้าน' }, 503)
+    const id = String(body.id ?? '').trim()
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return json({ ok: false, error: 'รหัสงานไม่ถูกต้อง' }, 400)
+    const r = await lookupOut(id)
+    return json(r.ok ? { ok: true, sms: r.sms } : { ok: false, error: r.error }, r.ok ? 200 : 502)
+  }
 
   if (!configured()) return json({ ok: false, error: 'ยังไม่ได้ตั้งค่าเกตเวย์ SMS ของร้าน' }, 503)
   const to = normalizeNumber(body.number)

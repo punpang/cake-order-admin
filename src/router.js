@@ -54,6 +54,7 @@ const ManageGallery = () => import('./views/manage/ManageGallery.vue')
 const ManagePhotoRequests = () => import('./views/manage/ManagePhotoRequests.vue')
 const ManageFiles = () => import('./views/manage/ManageFiles.vue')
 const ManageBot = () => import('./views/manage/ManageBot.vue')
+const ManageSms = () => import('./views/manage/ManageSms.vue')
 
 // meta.store = หน้าร้าน/ระบบลูกค้า (ใช้ StoreLayout) · meta.focus = หน้าหลังบ้านที่มีแถบปุ่มของตัวเอง ซ่อนแถบเมนูล่างบนมือถือ
 const router = createRouter({
@@ -116,6 +117,7 @@ const router = createRouter({
     { path: '/admin/settings/legal', component: ManageLegal },
     { path: '/admin/settings/links', component: ManageLinks },
     { path: '/admin/settings/bot', component: ManageBot },
+    { path: '/admin/settings/sms', component: ManageSms },
     // ลิงก์หลังบ้านเดิม (ก่อนย้ายไป /admin)
     { path: '/:old(orders|manage|chat|pos|materials|production)/:rest(.*)*', redirect: (to) => `/admin${to.fullPath}` },
     { path: '/:pathMatch(.*)*', redirect: '/' },
