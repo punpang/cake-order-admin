@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { db, can, orderVisible, findCustomer, cancelPaymentRequest, denyPayExtension } from '../data/store'
 import { paymentQueue, paymentCounts, PAY_TABS } from '../lib/paymentsQueue'
+import { orderTotals } from '../lib/pricing'
 import { askConfirm } from '../lib/confirm'
 import { money, dateTime, dayLabel, formatPhone } from '../lib/format'
 import PayDueBadge from '../components/PayDueBadge.vue'
@@ -22,7 +23,16 @@ const rows = computed(() => paymentQueue(orders.value, { tab: tab.value, q: q.va
 const canConfirm = computed(() => can('confirmPayment'))
 const canReport = computed(() => can('reportPayment'))
 const canRefund = computed(() => can('refundPartial'))
-const EMPTY = { review: 'ไม่มียอดที่รอตรวจ', due: 'ไม่มีออร์เดอร์ค้างชำระ', paid: 'ยังไม่มีรายการ' }
+const EMPTY = { review: 'ไม่มียอดที่รอตรวจ', due: 'ไม่มีออร์เดอร์ค้างชำระ' }
+// แท็บคืนเงิน: ต้องค้นหาออร์เดอร์ก่อน แล้วจึงแสดงออร์เดอร์ที่มียอดชำระสุทธิ > 0 ให้คืนเงิน
+const tabs = computed(() => PAY_TABS.filter((t) => t.v !== 'refund' || canRefund.value))
+const refundRows = computed(() => {
+  const s = q.value.trim().toLowerCase()
+  if (!s) return []
+  return orders.value
+    .filter((o) => o.status !== 'cancelled' && orderTotals(o).paidNet > 0 && textOf(o).toLowerCase().includes(s))
+    .map((o) => ({ o, t: orderTotals(o), c: findCustomer(o.customerId) }))
+})
 
 // โมดัลที่ใช้ร่วมกับหน้ารายละเอียดออร์เดอร์
 const pay = ref(null) // { order, mode, target }
@@ -53,11 +63,12 @@ const shortDay = (o) => dayLabel(o.pickupAt.slice(0, 10))
     </label>
 
     <div class="mb-4 grid grid-cols-3 gap-1 seg-grid md:max-w-xl" role="group" aria-label="กรองการชำระเงิน">
-      <button v-for="t in PAY_TABS" :key="t.v" type="button" class="seg-item h-auto min-h-10 px-1 py-1.5 text-center leading-tight" :class="tab === t.v ? 'seg-on' : ''" :aria-pressed="tab === t.v" @click="tab = t.v">
+      <button v-for="t in tabs" :key="t.v" type="button" class="seg-item h-auto min-h-10 px-1 py-1.5 text-center leading-tight" :class="tab === t.v ? 'seg-on' : ''" :aria-pressed="tab === t.v" @click="tab = t.v">
         {{ t.l }} <span class="font-normal">{{ counts[t.v] }}</span>
       </button>
     </div>
 
+    <template v-if="tab !== 'refund'">
     <div v-if="!rows.length" class="empty py-12">
       <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><AppIcon name="wallet" :size="28" /></span>
       <div class="font-semibold text-stone-800">{{ q.trim() ? 'ไม่พบออร์เดอร์' : EMPTY[tab] }}</div>
@@ -112,10 +123,43 @@ const shortDay = (o) => dayLabel(o.pickupAt.slice(0, 10))
         <div v-if="r.o.status !== 'cancelled'" class="mt-auto flex flex-wrap gap-2">
           <button v-if="canConfirm && r.t.balance > 0" type="button" class="btn-primary h-9 px-3" @click="openPay(r.o, 'direct')"><AppIcon name="check" :size="16" /> รับชำระทันที</button>
           <button v-if="canReport && r.t.balance > 0" type="button" class="btn-outline h-9 px-3" @click="openPay(r.o, 'new')"><AppIcon name="plus" :size="16" /> แจ้งยอดชำระ</button>
-          <button v-if="canRefund && r.t.paidNet > 0" type="button" class="btn-outline h-9 px-3" @click="refund = r.o"><AppIcon name="wallet" :size="16" /> คืนเงิน</button>
         </div>
       </li>
     </ul>
+    </template>
+
+    <template v-else>
+      <div v-if="!q.trim()" class="empty py-12">
+        <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><AppIcon name="search" :size="28" /></span>
+        <div class="font-semibold text-stone-800">ค้นหาออร์เดอร์ก่อน</div>
+        <div class="text-sm text-stone-500">พิมพ์เลขออร์เดอร์ ชื่อ หรือเบอร์ เพื่อดำเนินการคืนเงิน</div>
+      </div>
+      <div v-else-if="!refundRows.length" class="empty py-12">
+        <div class="font-semibold text-stone-800">ไม่พบออร์เดอร์ที่คืนเงินได้</div>
+      </div>
+      <ul v-else class="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3" aria-label="ออร์เดอร์ที่คืนเงินได้">
+        <li v-for="r in refundRows" :key="r.o.id" class="card flex min-w-0 flex-col gap-3" :data-order="r.o.code">
+          <div class="flex items-start gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span class="font-semibold text-stone-900">{{ r.o.code }}</span>
+                <StatusBadge :status="r.o.status" />
+              </div>
+              <div class="truncate text-sm text-stone-600">{{ r.c?.name || 'ไม่ระบุลูกค้า' }}<template v-if="r.c?.phone"> · {{ formatPhone(r.c.phone) }}</template></div>
+            </div>
+            <RouterLink :to="`/admin/orders/${r.o.id}`" class="shrink-0 text-xs text-brand-700 underline" :aria-label="`เปิดออร์เดอร์ ${r.o.code}`">เปิดออร์เดอร์</RouterLink>
+          </div>
+          <dl class="grid grid-cols-2 gap-2 text-sm">
+            <div class="rounded-xl bg-stone-50 p-2"><dt class="text-xs text-stone-500">ยอดรวม</dt><dd class="font-semibold text-stone-900">{{ money(r.t.total) }}</dd></div>
+            <div class="rounded-xl bg-emerald-50 p-2"><dt class="text-xs text-emerald-700">ชำระแล้ว (สุทธิ)</dt><dd class="font-semibold text-emerald-800">{{ money(r.t.paidNet) }}</dd></div>
+          </dl>
+          <p v-if="r.t.returned" class="text-xs text-rose-600">คืนเงินแล้ว −{{ money(r.t.returned) }}</p>
+          <div class="mt-auto flex flex-wrap gap-2">
+            <button v-if="canRefund" type="button" class="btn-primary h-9 px-3" @click="refund = r.o"><AppIcon name="wallet" :size="16" /> คืนเงิน</button>
+          </div>
+        </li>
+      </ul>
+    </template>
 
     <OrderPayModal v-if="pay" :order="pay.order" :mode="pay.mode" :target="pay.target" @close="pay = null" />
     <PayExtendModal v-if="ext" :order="ext.order" :payment="ext.payment" @close="ext = null" />

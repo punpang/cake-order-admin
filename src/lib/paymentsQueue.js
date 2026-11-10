@@ -3,7 +3,7 @@
 import { orderTotals } from './pricing'
 import { orderDue, dueState, customerPending, pendingExtension } from './payDue'
 
-export const PAY_TABS = [{ v: 'review', l: 'รอตรวจ' }, { v: 'due', l: 'ค้างชำระ' }, { v: 'paid', l: 'ชำระครบ / คืนเงิน' }]
+export const PAY_TABS = [{ v: 'review', l: 'รอตรวจ' }, { v: 'due', l: 'ค้างชำระ' }, { v: 'refund', l: 'คืนเงิน' }]
 
 const eligible = (o) => o.channel !== 'pos' && o.status !== 'draft'
 const live = (o) => eligible(o) && o.status !== 'cancelled'
@@ -14,7 +14,6 @@ export function paymentTabsOf(o, t = orderTotals(o)) {
   if (!eligible(o)) return out
   if (live(o) && (o.payments || []).some((p) => p.status === 'reported')) out.push('review')
   if (live(o) && t.balance > 0) out.push('due')
-  if ((live(o) && t.balance <= 0 && t.paid > 0) || (o.returns || []).some((x) => !x.cancelled)) out.push('paid')
   return out
 }
 
@@ -36,7 +35,7 @@ export function paymentQueue(orders, { tab = 'review', q = '', textOf = (o) => o
 }
 
 export function paymentCounts(orders, now = new Date()) {
-  const c = { review: 0, due: 0, paid: 0, overdue: 0, slips: 0 }
+  const c = { review: 0, due: 0, overdue: 0, slips: 0 }
   for (const o of orders) {
     const tabs = paymentTabsOf(o)
     for (const k of tabs) c[k]++
