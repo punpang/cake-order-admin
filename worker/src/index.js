@@ -169,12 +169,14 @@ export default {
       if (path === '/admin/retention/get') return json(req, env, { ok: true, ...(await getRetention(env)) })
       if (path === '/admin/retention/set') {
         const cur = await getRetention(env)
-        const next = { slipDays: clampDays(body.slipDays, cur.slipDays), refDays: clampDays(body.refDays, cur.refDays) }
+        const next = { slipDays: clampDays(body.slipDays, cur.slipDays), refDays: clampDays(body.refDays, cur.refDays), trashDays: clampDays(body.trashDays, cur.trashDays) }
         await sbWrite(env, 'POST', '/rest/v1/punpang_kv?on_conflict=collection,id', [{ collection: 'config', id: 'fileRetention', data: { v: next } }], 'resolution=merge-duplicates,return=minimal')
         return json(req, env, { ok: true, ...next })
       }
       if (path === '/admin/list') return json(req, env, await adminList(env, body, staff))
       if (path === '/admin/delete') return json(req, env, await adminDelete(env, body, staff))
+      if (path === '/admin/trash/restore') return json(req, env, await trashAction(env, body, staff, 'restore'))
+      if (path === '/admin/trash/purge') return json(req, env, await trashAction(env, body, staff, 'purge'))
     }
 
     return json(req, env, { error: 'ไม่พบเส้นทาง' }, 404)
@@ -193,6 +195,7 @@ const clampDays = (n, d) => { const x = Math.round(Number(n)); return Number.isF
 // ประเภทไฟล์จาก key: <orderId>/work/... = รูปงาน · <orderId>/ref/... = รูปอ้างอิง · <orderId>/<ไฟล์> = สลิป
 export function fileTypeOf(key) {
   const parts = String(key).split('/')
+  if (parts[0] === TRASH_DIR) return 'trash'
   if (parts.length < 2 || !parts[0]) return 'other'
   if (parts[1] === 'work') return 'work'
   if (parts[1] === 'ref') return 'ref'
@@ -203,7 +206,7 @@ const ORDER_CLOSED = ['delivered', 'cancelled']
 async function getRetention(env) {
   const r = await sbFetch(env, '/rest/v1/punpang_kv?collection=eq.config&id=eq.fileRetention&select=data')
   const v = r.ok ? (await r.json())[0]?.data?.v : null
-  return { slipDays: clampDays(v?.slipDays, 180), refDays: clampDays(v?.refDays, 180) }
+  return { slipDays: clampDays(v?.slipDays, 180), refDays: clampDays(v?.refDays, 180), trashDays: clampDays(v?.trashDays, 30) }
 }
 async function sbWrite(env, method, path, rows, prefer) {
   return fetch(`${env.SUPABASE_URL}${path}`, { method, headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json', Prefer: prefer }, body: JSON.stringify(rows) })
@@ -235,6 +238,7 @@ async function publicList(env, body) {
   const refs = await publicRefText(env)
   const items = []
   for (const o of objs) {
+    if (o.key.startsWith(TRASH)) continue
     const uploaded = o.uploaded ? new Date(o.uploaded).getTime() : 0
     if (f.uploadedFrom && uploaded < new Date(f.uploadedFrom).getTime()) continue
     if (f.uploadedTo && uploaded > new Date(f.uploadedTo).getTime() + DAY) continue
@@ -256,13 +260,14 @@ async function logDeletions(env, rows) {
 async function adminList(env, body, staff) {
   const f = body.filter || {}
   if (f.type === 'public') return publicList(env, body)
+  if (f.type === 'trash') return trashList(env, body)
   const page = await env.FILES_PRIVATE.list({ cursor: body.cursor || undefined, limit: 200 })
   const objs = page.objects || []
   const ords = await ordersById(env, objs.map((o) => o.key.split('/')[0]))
   const items = []
   for (const o of objs) {
     const type = fileTypeOf(o.key)
-    if (type === 'other') continue
+    if (type === 'other' || type === 'trash') continue
     if (f.type && f.type !== 'all' && f.type !== type) continue
     const ord = ords.get(o.key.split('/')[0]) || null
     const uploaded = o.uploaded ? new Date(o.uploaded).getTime() : 0
@@ -295,7 +300,7 @@ async function adminDelete(env, body, staff) {
     const done = []
     for (let i = 0; i < ok.length; i += DELETE_BATCH) {
       const batch = ok.slice(i, i + DELETE_BATCH)
-      await env.FILES_PUBLIC.delete(batch.map((x) => x.key))
+      await moveToTrash(env.FILES_PUBLIC, batch, staff.user_id, 'manual')
       done.push(...batch)
     }
     await logDeletions(env, done.map((x) => ({ ...x, bucket: 'public', at: new Date().toISOString(), by: staff.user_id, reason: 'manual' })))
@@ -315,11 +320,65 @@ async function adminDelete(env, body, staff) {
   const done = []
   for (let i = 0; i < ok.length; i += DELETE_BATCH) {
     const batch = ok.slice(i, i + DELETE_BATCH)
-    await env.FILES_PRIVATE.delete(batch.map((x) => x.key))
+    await moveToTrash(env.FILES_PRIVATE, batch, staff.user_id, 'manual')
     done.push(...batch)
   }
   await logDeletions(env, done.map((x) => ({ ...x, at: new Date().toISOString(), by: staff.user_id, reason: 'manual' })))
   return { ok: true, deleted: done.length, refused }
+}
+
+// ---------- ถังขยะ: ลบแบบย้ายไปถังก่อน (เก็บ _trash/<key>) แล้วลบถาวรเมื่อครบจำนวนวัน ----------
+const TRASH_DIR = '_trash'
+const TRASH = TRASH_DIR + '/'
+const origOf = (k) => k.slice(TRASH.length)
+async function moveToTrash(store, items, by, reason) {
+  const now = new Date().toISOString()
+  for (let i = 0; i < items.length; i += 10) {
+    await Promise.all(items.slice(i, i + 10).map(async (x) => {
+      const obj = await store.get(x.key)
+      if (!obj) return
+      await store.put(TRASH + x.key, obj.body, { httpMetadata: obj.httpMetadata, customMetadata: { deletedAt: now, by: String(by), reason: String(reason) } })
+      await store.delete(x.key)
+    }))
+  }
+}
+async function trashList(env, body) {
+  const store = body.bucket === 'public' ? env.FILES_PUBLIC : env.FILES_PRIVATE
+  const page = await store.list({ prefix: TRASH, include: ['customMetadata'], cursor: body.cursor || undefined, limit: 200 })
+  const items = (page.objects || []).map((o) => ({ key: o.key, orig: origOf(o.key), bucket: body.bucket === 'public' ? 'public' : 'private', type: 'trash', size: o.size, uploaded: o.uploaded, deletedAt: o.customMetadata?.deletedAt || '', deletable: true, referenced: false }))
+  return { ok: true, items, cursor: page.truncated ? page.cursor : null }
+}
+async function trashAction(env, body, staff, action) {
+  const store = body.bucket === 'public' ? env.FILES_PUBLIC : env.FILES_PRIVATE
+  const keys = (Array.isArray(body.keys) ? body.keys : []).map(String).filter((k) => k.startsWith(TRASH) && !k.includes('..')).slice(0, 500)
+  let done = 0
+  const skipped = []
+  for (const k of keys) {
+    const obj = await store.get(k)
+    if (!obj) continue
+    if (action === 'restore') {
+      const dst = origOf(k)
+      if (await store.head(dst)) { skipped.push({ key: k, reason: 'มีไฟล์เดิมอยู่แล้ว' }); continue }
+      await store.put(dst, obj.body, { httpMetadata: obj.httpMetadata })
+    }
+    await store.delete(k)
+    done++
+  }
+  await logDeletions(env, keys.slice(0, done).map((k) => ({ key: origOf(k), type: action === 'restore' ? 'restore' : 'purge', bucket: body.bucket || 'private', at: new Date().toISOString(), by: staff.user_id, reason: action === 'restore' ? 'restore' : 'purge-manual' })))
+  return { ok: true, done, skipped }
+}
+// ลบถาวรเฉพาะรายการในถังที่ครบจำนวนวัน (ดูจาก customMetadata.deletedAt)
+async function purgeTrash(store, days) {
+  const cut = Date.now() - days * DAY
+  let cursor = undefined
+  let pages = 0
+  do {
+    const page = await store.list({ prefix: TRASH, include: ['customMetadata'], cursor, limit: 500 })
+    const old = (page.objects || []).filter((o) => new Date(o.customMetadata?.deletedAt || 0).getTime() <= cut).map((o) => o.key)
+    for (let i = 0; i < old.length; i += DELETE_BATCH) await store.delete(old.slice(i, i + DELETE_BATCH))
+    cursor = page.truncated ? page.cursor : undefined
+    pages++
+  } while (cursor && pages < MAX_LIST_PAGES)
 }
 
 // ลบอัตโนมัติ: ตรวจทุกไฟล์ (จำกัดจำนวนหน้า) แล้วลบเฉพาะที่เข้าเกณฑ์
@@ -341,12 +400,14 @@ async function runCleanup(env) {
     }
     for (let i = 0; i < doomed.length; i += DELETE_BATCH) {
       const batch = doomed.slice(i, i + DELETE_BATCH)
-      await env.FILES_PRIVATE.delete(batch.map((x) => x.key))
+      await moveToTrash(env.FILES_PRIVATE, batch, 'auto', 'retention')
       await logDeletions(env, batch.map((x) => ({ ...x, at: new Date().toISOString(), by: 'auto', reason: 'retention' })))
       total += batch.length
     }
     cursor = page.truncated ? page.cursor : undefined
     pages++
   } while (cursor && pages < MAX_LIST_PAGES)
+  await purgeTrash(env.FILES_PRIVATE, days.trashDays)
+  await purgeTrash(env.FILES_PUBLIC, days.trashDays)
   return total
 }
