@@ -1502,6 +1502,31 @@ export function applyPoints(order, points) {
   return true
 }
 
+// ใช้/ยกเลิกใช้แต้มกับออร์เดอร์ผ่านเซิร์ฟเวอร์แบบอะตอมิก (กันใช้แต้มซ้ำจากสองเครื่อง) · ไม่มีตัวเรียก (โหมดจำลอง) = ใช้ฟังก์ชันในเครื่องเดิม
+export const pointsHook = { call: null }
+const PTS_MSG = {
+  insufficient: 'คะแนนไม่พอ (อาจถูกใช้ไปจากอีกเครื่อง) กรุณารีเฟรช', already_used: 'ออร์เดอร์นี้ใช้คะแนนไปแล้ว', bad_status: 'ออร์เดอร์นี้ใช้คะแนนไม่ได้',
+  no_order: 'ไม่พบออร์เดอร์บนเซิร์ฟเวอร์ (ยังไม่ซิงก์)', no_customer: 'ไม่พบลูกค้า', invalid: 'ข้อมูลไม่ถูกต้อง', none: 'ออร์เดอร์นี้ไม่ได้ใช้คะแนน',
+}
+export async function applyPointsRemote(order, points) {
+  const n = Math.floor(Number(points))
+  if (!(n > 0)) return { error: 'จำนวนคะแนนไม่ถูกต้อง' }
+  if (!pointsHook.call) return applyPoints(order, n) ? { ok: true } : { error: 'ใช้คะแนนไม่ได้' }
+  if (!can('useLoyalty')) return { error: 'ไม่มีสิทธิ์ใช้คะแนน' }
+  if (n * db.loyalty.pointValue > orderTotals(order).total + 0.004) return { error: 'ส่วนลดจากคะแนนต้องไม่เกินยอดที่ต้องชำระ' } // เพดานตรวจที่แอป (เซิร์ฟเวอร์ตรวจยอดคะแนน/สถานะ)
+  const r = await pointsHook.call('punpang_apply_points', { p_order: order.id, p_points: n }, { order: order.id, customer: order.customerId })
+  if (r.error) return { error: PTS_MSG[r.error] || r.error }
+  return { ok: true }
+}
+export async function removePointsRemote(order) {
+  if (!order.pointsUsed) return { error: PTS_MSG.none }
+  if (!pointsHook.call) { removePoints(order); return { ok: true } }
+  if (!can('useLoyalty')) return { error: 'ไม่มีสิทธิ์ใช้คะแนน' }
+  const r = await pointsHook.call('punpang_remove_points', { p_order: order.id }, { order: order.id, customer: order.customerId })
+  if (r.error) return { error: PTS_MSG[r.error] || r.error }
+  return { ok: true }
+}
+
 export function removePoints(order) {
   const c = findCustomer(order.customerId)
   if (!c || !order.pointsUsed) return
