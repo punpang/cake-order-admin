@@ -117,7 +117,10 @@ pg_cron (ทุก 15 นาที) ──▶ Edge Function: scheduled (เต�
 ### Telegram / SMS (หน้า `/admin/settings/integrations`)
 - Telegram: วาง bot token (จาก @BotFather) + chat id → "เชื่อม" · ตรวจรูปแบบเท่านั้น (ยังไม่ยิง API จริง) · เก็บเฉพาะ **4 ตัวท้าย** ของ token · ปุ่ม "ส่งข้อความทดสอบ" ลงคิวข้อความ (สถานะ simulated)
 - SMS: ช่อง URL ผู้ให้บริการ (**https เท่านั้น · ชื่อโดเมนเท่านั้น ไม่รับ IP/localhost/ภายใน** กัน SSRF ตอนเซิร์ฟเวอร์เรียกจริง · ห้าม user:pass) + ชื่อผู้ส่ง (A-Z a-z 0-9 . _ - 3–11 ตัว) + API key (เก็บ 4 ตัวท้าย) · ปุ่มทดสอบใส่เบอร์ → ลงคิว
-- **ยังไม่ส่ง OTP จริงผ่าน URL นี้** — รอรูปแบบ request ของผู้ให้บริการ + Supabase Edge Function (key เก็บเป็น secret ที่เซิร์ฟเวอร์)
+- **ส่งจริงผ่าน Edge Function `sms-send`** (`supabase/functions/sms-send/index.ts`): ตรวจสิทธิ์พนักงาน (punpang_staff active) → ตรวจเบอร์ (0 + 9–10 หลัก) และความยาวข้อความ (≤ 640 ตัวอักษร) → ส่งไปเกตเวย์ด้วย timeout 10 วินาที · หน้าเว็บเรียกผ่าน `smsHook` (`src/lib/staffAuth.js`) และอัปเดตสถานะคิวเป็น sent / failed พร้อมข้อความผิดพลาด
+- **ตั้งค่าฝั่งเซิร์ฟเวอร์ (secret):** `supabase secrets set SMS_GATEWAY_URL=... SMS_API_KEY=... SMS_SENDER=...` แล้ว deploy: `supabase functions deploy sms-send` · ไม่มี secret ครบ = ฟังก์ชันตอบ "ยังไม่ได้ตั้งค่า" และหน้าเว็บไม่ถือว่าเชื่อมแล้ว
+- **ต้องปรับก่อนใช้จริง:** รูปแบบคำขอ `sendOut()` ในฟังก์ชันเป็นรูปแบบกลาง ให้ตรงกับเอกสารของผู้ให้บริการที่เลือก (ชื่อ field, การยืนยันตัวตน, รูปแบบเบอร์ เช่น 66… หรือ 0…) และตรวจผลตอบกลับของผู้ให้บริการให้ครบ (ตอนนี้ดูแค่ HTTP status)
+- **ยังไม่มี:** จำกัดอัตราการส่งต่อผู้ใช้ และบันทึก log ลงตาราง (ทำได้เมื่อจำเป็น)
 - โค้ด: `src/lib/integrationCheck.js` · `connectTelegram/connectSms/sendIntegrationTest` ใน store
 
 ### แนะนำสินค้าจากแชท
