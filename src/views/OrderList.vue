@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { db, can, orderVisible, findCustomer, upcomingBirthdays } from '../data/store'
 import { STATUS } from '../lib/constants'
 import { orderTotals, describeSelections } from '../lib/pricing'
@@ -10,6 +10,8 @@ import { customerPending } from '../lib/payDue'
 import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
 import BirthdayList from '../components/BirthdayList.vue'
+import { getSupabase } from '../lib/supabase'
+import { loadOrdersInRange, searchOrdersRemote } from '../lib/ordersSync'
 
 const status = ref('')
 // PC (≥1024): สลับมุมมอง การ์ด ↔ แถวหนาแน่น · จำค่าที่เลือกไว้ในเบราว์เซอร์
@@ -64,9 +66,41 @@ const bdOpen = ref(false)
 // บิลหน้าร้าน (POS) ซ่อนไว้ก่อน กดชิปเพื่อแสดง
 const showPos = ref(false)
 const posCount = computed(() => db.orders.filter((o) => o.channel === 'pos').length)
-const visible = computed(() => {
-  return db.orders.filter((o) => (showPos.value || o.channel !== 'pos') && orderVisible(o))
+// แหล่งข้อมูลรายการ: ผลจากฐานข้อมูลตามตัวกรอง (serverRows) ทับด้วยข้อมูลในเครื่องที่เพิ่งแก้/สร้าง
+// โหมดสาธิต (ไม่มี Supabase) หรือโหลดไม่สำเร็จ = ใช้ข้อมูลในเครื่องเดิม
+const serverRows = ref(null)
+const searchedServer = ref(false) // ผลนี้มาจากการค้นที่เซิร์ฟเวอร์ (ทุกวัน) → ไม่กรองคำค้นซ้ำในเครื่อง
+const source = computed(() => {
+  if (serverRows.value === null) return db.orders
+  const byId = new Map(serverRows.value.map((o) => [o.id, o]))
+  for (const o of db.orders) if (!searchedServer.value || byId.has(o.id)) byId.set(o.id, o)
+  return [...byId.values()]
 })
+const visible = computed(() => {
+  return source.value.filter((o) => (showPos.value || o.channel !== 'pos') && orderVisible(o))
+})
+
+// ดึงจากฐานข้อมูลเฉพาะตามตัวกรอง (ไม่ดึงทั้งหมดแล้วกรองเอง) · ค้นข้อความ → RPC ทุกวัน
+let fetchTimer = null
+let reqSeq = 0
+async function fetchRows() {
+  const seq = ++reqSeq
+  const client = await getSupabase()
+  if (!client) { serverRows.value = null; searchedServer.value = false; return }
+  const term = q.value.trim()
+  const r = term
+    ? await searchOrdersRemote(client, term)
+    : await loadOrdersInRange(client, { from: from.value, to: to.value, status: status.value, fulfillment: fulfill.value, includePos: showPos.value })
+  if (seq !== reqSeq) return // มีการเปลี่ยนตัวกรองใหม่ระหว่างรอ
+  if (r.error) { serverRows.value = null; searchedServer.value = false; return }
+  serverRows.value = r.items
+  searchedServer.value = !!term
+}
+const scheduleFetch = (ms) => { clearTimeout(fetchTimer); fetchTimer = setTimeout(fetchRows, ms) }
+watch([from, to, status, fulfill, showPos], () => scheduleFetch(200))
+watch(q, () => scheduleFetch(350))
+onMounted(fetchRows)
+onBeforeUnmount(() => clearTimeout(fetchTimer))
 
 const counts = computed(() => {
   const c = {}
@@ -82,7 +116,7 @@ const list = computed(() => {
     .filter((o) => !dateActive.value || !to.value || o.pickupAt.slice(0, 10) <= to.value)
     .filter((o) => !fulfill.value || o.fulfillment === fulfill.value)
     .filter(payMatch)
-    .filter((o) => !s || searchText(o).includes(s))
+    .filter((o) => !s || searchedServer.value || searchText(o).includes(s))
     .slice()
     .sort((a, b) => a.pickupAt.localeCompare(b.pickupAt))
 })
