@@ -6,7 +6,7 @@ import {
   updatePaymentRequest, cancelPaymentRequest, cancelConfirmedPayment,
   requestConfirmUnpaid, confirmUnpaid, rejectConfirmUnpaid, grantPayExtension, denyPayExtension,
   saveOrderItem, removeOrderItem, orderDate,
-  db, customerPoints, usableDiscountCoupons, applyPoints, removePoints, applyCoupon, removeCoupon,
+  db, customerPoints, usableDiscountCoupons, applyPoints, removePoints, claimAndApplyCoupon, removeCoupon,
   setBirthday, depositOf, setDelivery, setOrderNotifyChannel,
 } from '../data/store'
 import { orderTotals, shipNetOf } from '../lib/pricing'
@@ -213,7 +213,9 @@ async function doRemovePoints() {
   if (await askConfirm({ title: 'ยกเลิกการใช้คะแนน', message: `คืน ${order.value.pointsUsed.points} คะแนนให้ลูกค้า`, okText: 'ยกเลิกการใช้', danger: true })) removePoints(order.value)
 }
 async function doApplyCoupon(c) {
-  if (await askConfirm({ title: 'ใช้คูปอง', message: `${c.name} (−${money(c.amount)})`, okText: 'ใช้คูปอง' })) applyCoupon(order.value, c.id)
+  if (!(await askConfirm({ title: 'ใช้คูปอง', message: `${c.name} (−${money(c.amount)})`, okText: 'ใช้คูปอง' }))) return
+  const r = await claimAndApplyCoupon(order.value, c.id)
+  if (r.error) showToast(r.error, 6000, 'error')
 }
 async function doRemoveCoupon(u) {
   if (await askConfirm({ title: 'ยกเลิกการใช้คูปอง', message: u.name, okText: 'ยกเลิกการใช้', danger: true })) removeCoupon(order.value, u.couponId)

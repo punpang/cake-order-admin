@@ -1521,6 +1521,40 @@ export function applyCoupon(order, couponId) {
   return true
 }
 
+// จองคูปองกับเซิร์ฟเวอร์แบบอะตอมิกก่อนใช้ (กันสองเครื่องใช้คูปองใบเดียวกับสองออร์เดอร์) · ไม่มีตัวจอง (โหมดจำลอง) = ผ่านเลย
+// ผล: { ok } | { error } · เซิร์ฟเวอร์ตอบ missing (ยังไม่มีแถวในฐานข้อมูล) ถือว่าใช้ต่อในเครื่องได้เหมือนเดิม
+export const couponHook = { claim: null, release: null }
+const CLAIM_MSG = { used: 'คูปองใบนี้ถูกใช้ไปแล้ว (อาจจากอีกเครื่อง) กรุณารีเฟรช', expired: 'คูปองหมดอายุแล้ว', invalid: 'ใช้คูปองนี้ไม่ได้' }
+export async function claimCoupon(couponId, orderId) {
+  if (!couponHook.claim) return { ok: true }
+  let r
+  try { r = await couponHook.claim(String(couponId), String(orderId)) } catch { r = 'error' }
+  if (r === 'ok' || r === 'missing') return { ok: true }
+  return { error: CLAIM_MSG[r] || 'ตรวจคูปองกับเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่' }
+}
+export async function claimAndApplyCoupon(order, couponId) {
+  const cp = db.coupons.find((x) => x.id === couponId)
+  if (!cp || cp.type !== 'discount' || !couponUsable(cp, today())) return { error: 'ใช้คูปองนี้ไม่ได้' }
+  const c = await claimCoupon(couponId, order.id)
+  if (c.error) return c
+  return applyCoupon(order, couponId) ? { ok: true } : { error: 'ใช้คูปองนี้ไม่ได้' }
+}
+// POS: จองทุกใบก่อนขาย · ใบใดไม่ผ่าน → คืนใบที่จองไปแล้วทั้งหมด (คืน { ok, claimed } เพื่อให้ผู้เรียกคืนได้ถ้าขายไม่สำเร็จ)
+export const POS_CLAIM_ORDER = 'pos-pending'
+export async function claimPosCoupons(ids) {
+  const claimed = []
+  for (const id of ids || []) {
+    const c = await claimCoupon(id, POS_CLAIM_ORDER)
+    if (c.error) { await releaseCoupons(claimed); return c }
+    claimed.push(id)
+  }
+  return { ok: true, claimed }
+}
+export async function releaseCoupons(ids, orderId = POS_CLAIM_ORDER) {
+  if (!couponHook.release) return
+  for (const id of ids || []) { try { await couponHook.release(String(id), String(orderId)) } catch { /* ข้าม */ } }
+}
+
 export function removeCoupon(order, couponId) {
   const cp = db.coupons.find((x) => x.id === couponId)
   if (cp) Object.assign(cp, { status: 'pending', orderId: null, usedAt: null, activatedAt: null, activatedUntil: null })

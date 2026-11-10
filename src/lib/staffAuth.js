@@ -190,6 +190,13 @@ async function startData(staff) {
   const { db } = store
   // สำเร็จรูปสาธารณะที่ถอนการเผยแพร่แล้ว → ลบไฟล์ (เฉพาะผู้มีสิทธิ์จัดการ)
   const storage = await import('./storage')
+  // จองคูปองแบบอะตอมิกบนเซิร์ฟเวอร์ (RPC punpang_claim_coupon / punpang_release_coupon)
+  store.couponHook.claim = async (couponId, orderId) => {
+    const r = await client.rpc('punpang_claim_coupon', { p_coupon: couponId, p_order: orderId })
+    if (r.error) throw new Error(r.error.message)
+    return String(r.data || '')
+  }
+  store.couponHook.release = async (couponId, orderId) => { await client.rpc('punpang_release_coupon', { p_coupon: couponId, p_order: orderId }) }
   // SMS จริงผ่านเกตเวย์ของร้าน (Edge Function sms-send · URL เกตเวย์เก็บเป็น secret ฝั่งเซิร์ฟเวอร์) · ตั้งค่าไว้ = ถือว่าเชื่อมช่องทาง SMS แล้ว
   store.smsHook.send = async (number, text, kind, idempotencyKey) => {
     const r = await client.functions.invoke('sms-send', { body: { number, text, kind, idempotencyKey } })

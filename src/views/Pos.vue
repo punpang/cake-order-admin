@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posPromoInfo, posSale, voidPosSale, pointsFor, quickMember, vatNow,
-  customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons,
+  customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons, claimPosCoupons, releaseCoupons,
 } from '../data/store'
 import { activeSecondsLeft } from '../lib/loyalty'
 import { orderTotals } from '../lib/pricing'
@@ -281,17 +281,21 @@ async function confirmPay() {
   selling = true
   try {
     await refreshLabels(['สินค้า', 'กะ POS']) // สต็อก/กะล่าสุดจากเซิร์ฟเวอร์ก่อนตัดขาย
-    sellNow()
+    await sellNow()
   } finally { selling = false }
 }
-function sellNow() {
+async function sellNow() {
   payErr.value = member.value ? posCouponProblem({ customerId: member.value.id, couponIds: couponIds.value }) : ''
   if (payErr.value) { couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id)); return }
+  // จองคูปองกับเซิร์ฟเวอร์ก่อน (อะตอมิก) · ขายไม่สำเร็จ = คืนคูปองที่จองไว้
+  const claim = couponIds.value.length ? await claimPosCoupons(couponIds.value) : { ok: true, claimed: [] }
+  if (claim.error) return (payErr.value = claim.error)
   const o = posSale({
     cart: cart.value, customerId: member.value?.id || null, couponIds: couponIds.value,
     discount: can('adjustPrice') ? Number(discount.value) || 0 : 0, method: pay.method, received: pay.method === 'cash' ? Number(pay.received) : null,
   })
-  if (!o) return (payErr.value = 'ขายไม่สำเร็จ ตรวจกะ/ตะกร้า/คูปองอีกครั้ง')
+  if (!o) { await releaseCoupons(claim.claimed); return (payErr.value = 'ขายไม่สำเร็จ ตรวจกะ/ตะกร้า/คูปองอีกครั้ง') }
+  // ผูกคูปองที่จองไว้ (pos-pending) เข้ากับบิลจริงบนเซิร์ฟเวอร์ผ่านการซิงก์แถวคูปองตามปกติ
   payOpen.value = false
   cartOpen.value = false
   receipt.value = o
