@@ -127,6 +127,9 @@ function toggleGroup(gid) {
 }
 // รูปแบบตกแต่ง: ซ่อน/แสดงขนาดได้ (เหมือนประเภทเลือกขนาดที่มี)
 const sizeLimit = computed(() => db.optionGroups.filter((x) => x.key === 'size' || x.key === 'shape'))
+// รูปทรง: ตั้งได้เฉพาะขนาดที่เปิดให้ (ผลกระทบสองทาง เหมือนรูปแบบตกแต่ง)
+const sizeOnly = computed(() => db.optionGroups.filter((x) => x.key === 'size'))
+const allowGroups = computed(() => (isType.value ? limitGroups.value : isShape.value ? sizeOnly.value : sizeLimit.value))
 const allowOn = (lg, oid) => !o.allow[lg.id] || o.allow[lg.id].includes(oid)
 function toggleAllow(lg, oid) {
   const cur = o.allow[lg.id] ? [...o.allow[lg.id]] : lg.options.map((x) => x.id)
@@ -145,9 +148,9 @@ async function saveO() {
   const data = { ...o }
   if (!isType.value) delete data.images
   if (!isStyle.value) delete data.groups
-  if (!isType.value && !isStyle.value) delete data.allow
+  if (!isType.value && !isStyle.value && !isShape.value) delete data.allow
   else {
-    for (const lg of isType.value ? limitGroups.value : sizeLimit.value) if (data.allow[lg.id] && !data.allow[lg.id].length) return (oError.value = `เลือก${lg.name}อย่างน้อย 1 อย่าง`)
+    for (const lg of allowGroups.value) if (data.allow[lg.id] && !data.allow[lg.id].length) return (oError.value = `เลือก${lg.name}อย่างน้อย 1 อย่าง`)
   }
   if (!(await confirmDeactivate(group.value.options, o, o.name))) return
   saveOption(group.value.id, data)
@@ -382,7 +385,16 @@ async function saveO() {
               <button v-for="x in lg.options.filter((y) => y.active !== false || allowOn(lg, y.id))" :key="x.id" type="button" class="chip" :class="allowOn(lg, x.id) ? 'chip-on' : 'chip-off'" :aria-pressed="allowOn(lg, x.id)" :data-style-size="x.id" :data-style-allow="lg.key" @click="toggleAllow(lg, x.id)">{{ x.name }}</button>
             </div>
           </div>
-          <p class="text-xs text-stone-400">ขนาด/รูปทรงที่ไม่เลือกจะซ่อนตอนสั่ง และล้างค่าที่เลือกไว้ · เลือกครบทุกตัว = ไม่จำกัด · ถ้าประเภทจำกัดด้วย จะแสดงเฉพาะที่ทั้งสองอนุญาต</p>
+          <p class="text-xs text-stone-400">ขนาด/รูปทรงที่ไม่เลือกจะซ่อนตอนสั่ง · ตั้งที่นี่ที่เดียว ใช้ได้ทั้งสองทาง (เลือกรูปแบบนี้ ซ่อนขนาดที่ไม่เข้ากัน / เลือกขนาดที่ไม่เข้ากัน ซ่อนรูปแบบนี้) · เลือกครบทุกตัว = ไม่จำกัด</p>
+        </div>
+        <div v-if="isShape" class="space-y-3">
+          <div v-for="lg in sizeOnly" :key="lg.id">
+            <div class="label">{{ lg.name }}ที่แสดงเมื่อเลือกรูปทรงนี้</div>
+            <div class="flex flex-wrap gap-2">
+              <button v-for="x in lg.options.filter((y) => y.active !== false || allowOn(lg, y.id))" :key="x.id" type="button" class="chip" :class="allowOn(lg, x.id) ? 'chip-on' : 'chip-off'" :aria-pressed="allowOn(lg, x.id)" :data-shape-size="x.id" @click="toggleAllow(lg, x.id)">{{ x.name }}</button>
+            </div>
+          </div>
+          <p class="text-xs text-stone-400">ขนาดที่ไม่เลือกจะซ่อนตอนเลือกรูปทรงนี้ · ตั้งที่นี่ที่เดียว ใช้ได้ทั้งสองทาง · เลือกครบทุกตัว = ไม่จำกัด</p>
         </div>
         <div v-if="isStyle && subGroups.length">
           <div class="label">หัวข้อที่เลือกได้เมื่อเลือกรูปแบบนี้</div>
