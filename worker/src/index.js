@@ -298,7 +298,7 @@ async function adminList(env, body, staff) {
       if (f.closedFrom && closed < new Date(f.closedFrom).getTime()) continue
       if (f.closedTo && closed > new Date(f.closedTo).getTime() + DAY) continue
     }
-    items.push({ key: o.key, type, orderId: o.key.split('/')[0], code: ord?.code || '', status: ord?.status || '', size: o.size, uploaded: o.uploaded, referenced: referencedIn(ord, o.key), deletable: type !== 'work' })
+    items.push({ key: o.key, type, orderId: o.key.split('/')[0], code: ord?.code || '', status: ord?.status || '', size: o.size, uploaded: o.uploaded, referenced: referencedIn(ord, o.key), deletable: true })
   }
   return { ok: true, items, cursor: page.truncated ? page.cursor : null }
 }
@@ -328,8 +328,7 @@ async function adminDelete(env, body, staff) {
   for (const k of keys) {
     const type = fileTypeOf(k)
     const ord = ords.get(k.split('/')[0]) || null
-    if (type === 'work') refused.push({ key: k, reason: 'รูปงานลบไม่ได้' })
-    else if (type === 'other') refused.push({ key: k, reason: 'ไม่รู้จักประเภทไฟล์' })
+    if (type === 'other') refused.push({ key: k, reason: 'ไม่รู้จักประเภทไฟล์' })
     else if (referencedIn(ord, k)) refused.push({ key: k, reason: 'ยังถูกอ้างอิงอยู่ในออเดอร์' })
     else ok.push({ key: k, type, orderId: k.split('/')[0] })
   }

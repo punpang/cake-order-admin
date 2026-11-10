@@ -8,7 +8,7 @@ import { dateTime } from '../../lib/format'
 import { clearImageLimitsCache } from '../../lib/imageLimits'
 import { openLightbox } from '../../lib/lightbox'
 
-// พื้นที่รูป: ตั้งจำนวนวันลบอัตโนมัติ (สลิป/รูปอ้างอิง) + ค้นหาและลบรูปแบบแมนนวล · รูปงานลบไม่ได้
+// พื้นที่รูป: ตั้งจำนวนวันลบอัตโนมัติ (สลิป/รูปอ้างอิง) + ค้นหาและลบรูปแบบแมนนวล · รูปงานลบได้ (เข้าถังขยะ)
 // s = ป้ายสั้นบนปุ่ม · l = คำอธิบายเต็ม (title)
 const TYPES = [{ v: 'all', s: 'ทั้งหมด', l: 'ทั้งหมด (ส่วนตัว)' }, { v: 'slip', s: 'สลิป', l: 'สลิป' }, { v: 'ref', s: 'รูปอ้างอิง', l: 'รูปอ้างอิง' }, { v: 'work', s: 'รูปงาน', l: 'รูปงาน (ดูอย่างเดียว)' }, { v: 'public', s: 'รูปสาธารณะ', l: 'รูปสาธารณะ (สินค้า/หน้าร้าน)' }, { v: 'trash', s: 'ถังขยะ', l: 'ถังขยะ (กู้คืนได้)' }]
 const trashBucket = ref('private')
@@ -115,7 +115,7 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
 </script>
 
 <template>
-  <ManageShell title="พื้นที่รูป & การลบรูป" subtitle="ลบอัตโนมัติ: สลิป/รูปอ้างอิง หลังออเดอร์ปิดตามจำนวนวัน · รูปงานไม่ถูกลบ" :toolbar="false">
+  <ManageShell title="พื้นที่รูป & การลบรูป" subtitle="ลบอัตโนมัติ: สลิป/รูปอ้างอิง หลังออเดอร์ปิดตามจำนวนวัน · รูปงานลบได้ (เข้าถังขยะก่อน กู้คืนได้)" :toolbar="false">
     <div v-if="!filesEnabled()" class="card text-sm text-amber-800">ยังไม่ได้ตั้งค่า VITE_FILES_URL จึงจัดการพื้นที่รูปไม่ได้</div>
     <div v-else class="space-y-3">
       <!-- ตั้งค่า: พับไว้ได้ ค่าเริ่มต้นซ่อน -->
