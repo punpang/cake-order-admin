@@ -1,6 +1,6 @@
 # แผนเชื่อมต่อ Facebook Page / LINE OA / SMS / Telegram
 
-สถานะตอนนี้: **Facebook Page ใช้งานจริงแล้ว** (เชื่อมผ่านปุ่ม, รับ/ส่งข้อความและใบเสนอผ่าน Edge Functions ดู "ฝั่งเซิร์ฟเวอร์ Facebook" ด้านล่าง) · **LINE OA และ Telegram ยังจำลอง** ข้อความบันทึกลงคิว (`db.outbox`) ยังไม่ส่งจริง · **SMS** ส่งจริงผ่าน Edge Function `sms-send` เมื่อตั้งค่า secrets ครบ (ต้องตรวจรูปแบบคำขอกับผู้ให้บริการก่อนใช้จริง ดูหัวข้อ SMS ด้านล่าง)
+สถานะตอนนี้: **Facebook Page ใช้งานจริงแล้ว** (เชื่อมผ่านปุ่ม, รับ/ส่งข้อความและใบเสนอผ่าน Edge Functions ดู "ฝั่งเซิร์ฟเวอร์ Facebook" ด้านล่าง) · **LINE OA และ Telegram ยังจำลอง** ข้อความบันทึกลงคิว (`db.outbox`) ยังไม่ส่งจริง · **SMS** ส่งจริงผ่าน Edge Function `sms-send` → SMS Gateway บนโทรศัพท์ (API `POST /v1/sms`) เมื่อตั้งค่า secrets ครบ และต้องมีรีเลย์/Tunnel ที่เข้าถึง LAN ได้ (ดูหัวข้อ SMS ด้านล่าง)
 ตั้งค่าได้ที่หน้า **จัดการ → การเชื่อมต่อ & แจ้งเตือน** (`/manage/integrations`)
 
 ลำดับที่จะทำจริง: **Telegram → LINE OA → SMS → Facebook Page**
@@ -60,7 +60,7 @@ pg_cron (ทุก 15 นาที) ──▶ Edge Function: scheduled (เต�
 - **ปุ่ม "เชื่อม LINE OA" (วาง token ครั้งเดียว):** หน้าเว็บส่ง token + secret ไป Edge Function `connect-line` (เก็บใน DB ฝั่งเซิร์ฟเวอร์ หน้าเว็บเก็บแค่ 4 ตัวท้าย) → `GET /v2/bot/info` ตรวจ token + ได้ชื่อบอท → `PUT /v2/bot/channel/webhook/endpoint` ตั้ง Webhook URL → `POST /v2/bot/channel/webhook/test` ทดสอบ · LINE ไม่มีปุ่มคลิกเดียวสำหรับร้านทั่วไป (ต้องเป็นพาร์ทเนอร์ LINE)
 
 ### 3. SMS (ลูกค้า สำรอง)
-- **เตรียม:** สมัครผู้ให้บริการ SMS ไทย (เช่น ThaiBulkSMS, SMSMKT) → API key + ขอชื่อผู้ส่ง (sender name ต้องรออนุมัติ)
+- **เตรียม:** ติดตั้งแอป SMS Gateway บนโทรศัพท์ Android 14+ ที่มีซิม → ตั้งพอร์ต (ค่าเริ่มต้น 8443) → สร้าง API key สิทธิ์ **ส่งและลบ** → คัดลอก certificate pin (`sha256//…`) จากหน้าหลักของแอป
 - **ค่าใช้จ่าย:** คิดต่อข้อความ ภาษาไทย 70 ตัวอักษร/ข้อความ (ยาวกว่านั้นนับหลายข้อความ) จึงควรใช้ข้อความสั้น
 - **ใช้เมื่อ:** ลูกค้าไม่ได้ผูก LINE/Facebook และมีเบอร์โทร
 
@@ -107,7 +107,7 @@ pg_cron (ทุก 15 นาที) ──▶ Edge Function: scheduled (เต�
 1. ต่อ Supabase (ตาราง + RLS + Edge Functions `dispatch`, `scheduled`) และย้าย `notify()` จาก `src/data/store.js` ไปเขียนแถว outbox
 2. **Telegram:** สร้างบอท → ใส่ `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` ใน secrets → ทดสอบส่ง
 3. **LINE OA:** สร้าง Messaging API channel → ใส่ `LINE_CHANNEL_ACCESS_TOKEN`, `LINE_CHANNEL_SECRET` → ตั้ง webhook → ทำการผูก userId
-4. **SMS:** สมัครผู้ให้บริการ + ขอชื่อผู้ส่ง → ใส่ `SMS_API_KEY`, `SMS_SENDER` → ทดสอบ
+4. **SMS:** ตั้งแอป SMS Gateway บนโทรศัพท์ → ตั้ง `SMS_GATEWAY_URL` (ลิงก์รีเลย์/เกตเวย์) และ `SMS_API_KEY` (สิทธิ์ส่งและลบ) → ทดสอบ
 5. **Facebook:** สร้าง Meta App (Facebook Login for Business + Config ID) → ขอ App Review `pages_messaging`, `pages_show_list`, `pages_manage_metadata` → ตั้ง secrets `FB_APP_ID`, `FB_APP_SECRET`, `FB_CONFIG_ID`, `FB_VERIFY_TOKEN` (ดูหัวข้อ "ฝั่งเซิร์ฟเวอร์ Facebook") → ตั้ง Webhook URL → เชื่อมเพจจากหน้า /admin/settings/integrations (ไม่ต้องใส่ Page token เอง)
 6. เปิด pg_cron สำหรับเหตุการณ์ตามเวลา
 7. ทำหน้าแชท (ระยะถัดไป)
@@ -117,8 +117,10 @@ pg_cron (ทุก 15 นาที) ──▶ Edge Function: scheduled (เต�
 ### Telegram / SMS (หน้า `/admin/settings/integrations`)
 - Telegram: วาง bot token (จาก @BotFather) + chat id → "เชื่อม" · ตรวจรูปแบบเท่านั้น (ยังไม่ยิง API จริง) · เก็บเฉพาะ **4 ตัวท้าย** ของ token · ปุ่ม "ส่งข้อความทดสอบ" ลงคิวข้อความ (สถานะ simulated)
 - SMS: ช่อง URL ผู้ให้บริการ (**https เท่านั้น · ชื่อโดเมนเท่านั้น ไม่รับ IP/localhost/ภายใน** กัน SSRF ตอนเซิร์ฟเวอร์เรียกจริง · ห้าม user:pass) + ชื่อผู้ส่ง (A-Z a-z 0-9 . _ - 3–11 ตัว) + API key (เก็บ 4 ตัวท้าย) · ปุ่มทดสอบใส่เบอร์ → ลงคิว
-- **ส่งจริงผ่าน Edge Function `sms-send`** (`supabase/functions/sms-send/index.ts`): ตรวจสิทธิ์พนักงาน (punpang_staff active) → ตรวจเบอร์ (0 + 9–10 หลัก) และความยาวข้อความ (≤ 160 ตัวอักษร = SMS 1 ฉบับ) → เรียก **SMS Gateway API** `POST {SMS_GATEWAY_URL}/v1/sms` (body `{to, message}`, header `Authorization: Bearer <key>` และ `Idempotency-Key` สร้างใหม่ทุกครั้ง) · 200/202 = รับงานแล้ว · หน้าเว็บเรียกผ่าน `smsHook` (`src/lib/staffAuth.js`)
-- **ตั้งค่าฝั่งเซิร์ฟเวอร์ (secret):** `supabase secrets set SMS_GATEWAY_URL=<ลิงก์ http/https ของเกตเวย์หรือรีเลย์> SMS_API_KEY=<key สิทธิ์ส่งและลบ>` ไม่มี secret ครบ = ฟังก์ชันตอบ "ยังไม่ได้ตั้งค่า"
+- **ส่งจริงผ่าน Edge Function `sms-send`** (`supabase/functions/sms-send/index.ts`): ตรวจสิทธิ์พนักงาน (punpang_staff active) → ตรวจเบอร์ (0 + 8–9 หลัก) → ตรวจความยาวไม่เกิน 350 ตัวอักษร (เพดานรวมของ 5 ฉบับ เกตเวย์เป็นผู้ตัดสินจริง) → เรียก **SMS Gateway API** `POST {SMS_GATEWAY_URL}/v1/sms` (body `{to, message}`, header `Authorization: Bearer <key>`, `Idempotency-Key` มาจากฝั่งเรียก) · 200 = คืนงานเดิม, 202 = สร้างงานใหม่ · ตอบ `{ok, id}` · หน้าเว็บเรียกผ่าน `smsHook` (`src/lib/staffAuth.js`) โดยส่งคีย์ที่ผูกกับแถวคิวข้อความ (`row.idem`) จึงลองซ้ำไม่ส่งซ้ำ
+- **ข้อจำกัดของ API:** ข้อความแบ่งเป็นได้สูงสุด 5 ฉบับอัตโนมัติ (ภาษาไทยประมาณ 70 ตัวอักษรต่อฉบับ อังกฤษประมาณ 160) · ถ้าฉบับใดล้มเหลวเกตเวย์จะลองส่งทั้งข้อความใหม่ อาจทำให้ฉบับแรกซ้ำได้ · `sms.sent` หมายถึง radio รับงานแล้ว ยังไม่รับรองว่าถึงผู้รับ · โควตาต่อวันนับเฉพาะงานที่ไม่ซ้ำคีย์ · key ผูกกับ IP ได้ในแอป
+- **ตั้งค่าฝั่งเซิร์ฟเวอร์ (secret):** `supabase secrets set SMS_GATEWAY_URL=<ลิงก์ http/https ของเกตเวย์หรือรีเลย์> SMS_API_KEY=<key สิทธิ์ส่งและลบ>` ไม่มี secret ครบ = ฟังก์ชันตอบ "ยังไม่ได้ตั้งค่า" · ไม่ต้องตั้ง `SMS_SENDER` แล้ว (ไม่ใช้กับ API นี้)
+- **ข้อผิดพลาดที่แสดงให้ผู้ใช้:** key ผิด/สิทธิ์ไม่พอ/IP ไม่อนุญาต · เกินโควตาวัน (429 `daily_limit_reached`) · เรียกถี่ (429 `rate_limited`) · คีย์ซ้ำกับข้อความอื่น (409 `idempotency_key_reused`) · เกตเวย์ไม่รับเบอร์/ข้อความ (400)
 - **หน้าเชื่อม SMS** (`/admin/settings/integrations`): ช่อง "ลิงก์ SMS Gateway" รับ http:// หรือ https:// ชื่อผู้ส่งไม่บังคับ (เกตเวย์ใช้ซิมของโทรศัพท์) · ค่าในหน้านี้ยังไม่ได้ส่งให้ Edge Function ต้องตั้ง secret ให้ตรงกันเอง
 - **ข้อจำกัดสำคัญ:** เกตเวย์รับคำขอเฉพาะจาก IP ใน LAN และใช้ใบรับรอง self-signed ที่ตรวจด้วย pin ระบบบนคลาวด์ (Supabase) เข้าถึง LAN ไม่ได้โดยตรง ต้องมีรีเลย์ในวง LAN หรือ Tunnel/VPN ก่อนการส่งจริงจะผ่าน
 - **ข้อจำกัดของ API:** ข้อความ ≤160 ตัวอักษร · เกินโควตาต่อวันได้ 429 `daily_limit_reached` · ส่งซ้ำด้วย key เดิมไม่สร้างงานซ้ำ

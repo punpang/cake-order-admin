@@ -2049,7 +2049,9 @@ export const smsHook = { send: null }
 function deliverSms(row, number, text, kind) {
   if (!smsHook.send) return
   row.status = 'sending'
-  smsHook.send(number, text, kind).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
+  // คีย์กันส่งซ้ำ: ผูกกับแถวคิวเดิม ลองใหม่กี่ครั้งก็ใช้คีย์เดิม (เกตเวย์ไม่สร้างงานซ้ำ)
+  row.idem ??= 'ob' + (globalThis.crypto?.randomUUID?.().replace(/-/g, '') || `${Date.now()}${Math.random().toString(36).slice(2)}`)
+  smsHook.send(number, text, kind, row.idem).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
 }
 // ส่ง Telegram จริงเข้ากลุ่มทีม (Edge Function telegram-send · token/chat id เป็น secret ฝั่งเซิร์ฟเวอร์) · ไม่มีตัวส่ง = คงสถานะจำลองไว้
 export const tgHook = { send: null }

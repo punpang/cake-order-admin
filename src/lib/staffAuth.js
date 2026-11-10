@@ -191,8 +191,8 @@ async function startData(staff) {
   // สำเร็จรูปสาธารณะที่ถอนการเผยแพร่แล้ว → ลบไฟล์ (เฉพาะผู้มีสิทธิ์จัดการ)
   const storage = await import('./storage')
   // SMS จริงผ่านเกตเวย์ของร้าน (Edge Function sms-send · URL เกตเวย์เก็บเป็น secret ฝั่งเซิร์ฟเวอร์) · ตั้งค่าไว้ = ถือว่าเชื่อมช่องทาง SMS แล้ว
-  store.smsHook.send = async (number, text, kind) => {
-    const r = await client.functions.invoke('sms-send', { body: { number, text, kind } })
+  store.smsHook.send = async (number, text, kind, idempotencyKey) => {
+    const r = await client.functions.invoke('sms-send', { body: { number, text, kind, idempotencyKey } })
     if (r.error) { let m = ''; try { m = (await r.error.context?.json?.())?.error || '' } catch { /* ข้าม */ } return { ok: false, error: m || 'ส่งไม่สำเร็จ' } }
     return r.data?.ok ? { ok: true } : { ok: false, error: r.data?.error || '' }
   }

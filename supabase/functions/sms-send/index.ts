@@ -3,7 +3,8 @@
 // - ความลับ (secret) อยู่ฝั่งเซิร์ฟเวอร์: SMS_GATEWAY_URL (ลิงก์ http/https ของเกตเวย์ หรือรีเลย์), SMS_API_KEY (สิทธิ์ "ส่งและลบ" เท่านั้น)
 //   ตั้งด้วย: supabase secrets set SMS_GATEWAY_URL=... SMS_API_KEY=...
 // - เกตเวย์รับคำขอเฉพาะจาก IP ใน LAN และตรวจ certificate pin (ดู docs/integrations.md) ระบบบนคลาวด์ต้องผ่านรีเลย์/Tunnel ที่อยู่ใน LAN
-// - ตอบกลับ {ok, error} เท่านั้น ไม่ส่งคีย์หรือ URL เกตเวย์กลับไปที่หน้าเว็บ
+// - ฝั่งเรียกต้องส่ง idempotencyKey (8–64 ตัว A-Z a-z 0-9 _ -) ผูกกับข้อความนั้น เพื่อให้ลองซ้ำไม่ส่ง SMS ซ้ำ
+// - ตอบกลับ {ok, error} (และ id ของงานเมื่อสำเร็จ) เท่านั้น ไม่ส่งคีย์หรือ URL เกตเวย์กลับไปที่หน้าเว็บ
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -26,7 +27,9 @@ const normalizeNumber = (s: unknown) => {
   const d = String(s ?? '').replace(/\D/g, '')
   return /^0\d{8,9}$/.test(d) ? d : null
 }
-const MAX_TEXT = 160 // SMS 1 ฉบับ (เกตเวย์ไม่รับข้อความที่ต้องแบ่งหลายฉบับ)
+// เกตเวย์รับได้สูงสุด 5 ฉบับ (ข้อความยาวจะถูกแบ่งอัตโนมัติ) · เพดานนี้เผื่อไว้ให้ตรงกับ 5 ฉบับภาษาไทย (~70 ตัว/ฉบับ) · เกตเวย์เป็นผู้ตัดสินจริง
+const MAX_TEXT = 350
+const IDEM = /^[A-Za-z0-9_-]{8,64}$/
 
 async function staffOf(req: Request): Promise<boolean> {
   const m = /^Bearer (.+)$/.exec(req.headers.get('authorization') || '')
@@ -48,31 +51,33 @@ const endpoint = () => {
   return /\/v1\/sms$/i.test(base) ? base : `${base}/v1/sms`
 }
 
-// แปลงรหัสตอบกลับของเกตเวย์เป็นข้อความไทย (ดูตาราง error ใน docs ของเกตเวย์)
+// แปลงรหัสข้อผิดพลาดของเกตเวย์เป็นข้อความไทย (ตาม error table ของ API)
 function gatewayError(status: number, code: string): string {
+  if (status === 400) return `เกตเวย์ไม่รับข้อมูล (${code || 'invalid'})`
   if (status === 401) return 'key ของเกตเวย์ไม่ถูกต้อง'
   if (status === 403 && code === 'ip_not_allowed') return 'IP นี้ไม่อยู่ในรายการที่เกตเวย์อนุญาต'
   if (status === 403 && code === 'insufficient_scope') return 'key ของเกตเวย์ไม่มีสิทธิ์ส่ง SMS'
   if (status === 403) return 'เกตเวย์ปฏิเสธการเชื่อมต่อ (ไม่ได้อยู่ใน LAN ของเกตเวย์)'
-  if (status === 409) return 'คีย์ส่งซ้ำกับข้อมูลเดิมที่ไม่ตรงกัน'
+  if (status === 404) return 'ไม่พบ endpoint ของเกตเวย์ (ตรวจลิงก์)'
+  if (status === 409 && code === 'idempotency_key_reused') return 'คีย์ส่งซ้ำกับข้อความอื่นที่ไม่ตรงกัน'
+  if (status === 409) return 'เกตเวย์มีงานค้างอยู่ ลองใหม่ภายหลัง'
+  if (status === 413) return 'คำขอใหญ่เกินที่เกตเวย์รับ'
   if (status === 429 && code === 'daily_limit_reached') return 'ถึงโควตาการส่งต่อวันของเกตเวย์แล้ว'
   if (status === 429) return 'เรียกเกตเวย์ถี่เกินไป ลองใหม่อีกครั้ง'
-  if (status === 400) return `เกตเวย์ไม่รับข้อมูล (${code || 'invalid'})`
   return `เกตเวย์ตอบ ${status}`
 }
 
-// คำขอออกไปยังเกตเวย์: POST /v1/sms ด้วย Idempotency-Key (กันส่งซ้ำเมื่อ retry) · 200/202 = รับงานแล้ว
-async function sendOut(to: string, message: string): Promise<{ ok: boolean; error?: string }> {
-  const key = `punpang-${crypto.randomUUID().replace(/-/g, '')}`
+// คำขอออกไปยังเกตเวย์: POST /v1/sms ด้วย Idempotency-Key จากฝั่งเรียก · 200 = คืนงานเดิม, 202 = สร้างงานใหม่
+async function sendOut(to: string, message: string, idem: string): Promise<{ ok: boolean; id?: unknown; error?: string }> {
   try {
     const r = await fetch(endpoint(), {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${GATEWAY_KEY}`, 'idempotency-key': key },
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${GATEWAY_KEY}`, 'idempotency-key': idem },
       body: JSON.stringify({ to, message }),
       signal: AbortSignal.timeout(10_000),
     })
-    if (r.ok) return { ok: true }
     const data = await r.json().catch(() => null)
+    if (r.ok) return { ok: true, id: data?.id }
     return { ok: false, error: gatewayError(r.status, String(data?.error ?? '')) }
   } catch {
     return { ok: false, error: 'เชื่อมต่อเกตเวย์ไม่ได้ (หมดเวลาหรือเครือข่ายขัดข้อง)' }
@@ -94,8 +99,11 @@ Deno.serve(async (req) => {
   if (!to) return json({ ok: false, error: 'เบอร์โทรไม่ถูกต้อง' }, 400)
   const text = String(body.text ?? '').trim()
   if (!text) return json({ ok: false, error: 'ไม่มีข้อความ' }, 400)
-  if (text.length > MAX_TEXT) return json({ ok: false, error: `ข้อความยาวเกิน ${MAX_TEXT} ตัวอักษร (SMS 1 ฉบับ)` }, 400)
+  if (text.length > MAX_TEXT) return json({ ok: false, error: `ข้อความยาวเกิน ${MAX_TEXT} ตัวอักษร (สูงสุด 5 ฉบับ)` }, 400)
+  const idem = String(body.idempotencyKey ?? '').trim()
+  if (!idem) return json({ ok: false, error: 'ไม่มีคีย์กันส่งซ้ำ (idempotencyKey)' }, 400)
+  if (!IDEM.test(idem)) return json({ ok: false, error: 'คีย์กันส่งซ้ำต้องยาว 8–64 ตัว (A-Z a-z 0-9 _ -)' }, 400)
 
-  const r = await sendOut(to, text)
-  return json(r.ok ? { ok: true } : { ok: false, error: r.error }, r.ok ? 200 : 502)
+  const r = await sendOut(to, text, idem)
+  return json(r.ok ? { ok: true, id: r.id ?? null } : { ok: false, error: r.error }, r.ok ? 200 : 502)
 })

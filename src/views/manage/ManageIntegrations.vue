@@ -338,7 +338,7 @@ async function disconnect(k) {
 
     <!-- modal เชื่อมบัญชี -->
     <AppModal v-if="sf.key" :title="sf.key === 'telegram' ? 'เชื่อม Telegram' : 'เชื่อม SMS'" @close="sf.key = ''">
-      <p class="mb-3 rounded-xl bg-amber-50 p-2 text-xs text-amber-800">จำลอง · ยังไม่ส่งจริง · ระบบเก็บเฉพาะ 4 ตัวท้ายของ{{ sf.key === 'sms' ? 'คีย์' : ' token' }} (ของจริงเก็บที่เซิร์ฟเวอร์เมื่อต่อ Supabase)</p>
+      <p class="mb-3 rounded-xl bg-amber-50 p-2 text-xs text-amber-800">{{ sf.key === 'sms' ? 'SMS ส่งจริงเมื่อตั้งค่า secret ฝั่งเซิร์ฟเวอร์ครบ (SMS_GATEWAY_URL, SMS_API_KEY) และเกตเวย์เข้าถึงได้จากคลาวด์ผ่านรีเลย์ · หน้านี้เก็บเฉพาะ 4 ตัวท้ายของคีย์' : 'จำลอง · ยังไม่ส่งจริง · ระบบเก็บเฉพาะ 4 ตัวท้ายของ token (ของจริงเก็บที่เซิร์ฟเวอร์เมื่อต่อ Supabase)' }}</p>
       <div v-if="sf.key === 'telegram'" class="space-y-3">
         <div><label class="label">Bot token (จาก @BotFather)</label><input v-model="sf.token" type="password" autocomplete="off" class="input font-mono text-sm" placeholder="123456789:AAxxxxxxxx…" /></div>
         <div><label class="label">Chat ID ของกลุ่มทีม</label><input v-model="sf.chatId" class="input" placeholder="-1001234567890 หรือ @ชื่อช่อง" /></div>
