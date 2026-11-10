@@ -5,12 +5,14 @@ import { getSupabase } from '../../lib/supabase'
 import { filesEnabled, filesApi, filesBase } from '../../lib/storage'
 import { askConfirm } from '../../lib/confirm'
 import { dateTime } from '../../lib/format'
+import { clearImageLimitsCache } from '../../lib/imageLimits'
 
 // พื้นที่รูป: ตั้งจำนวนวันลบอัตโนมัติ (สลิป/รูปอ้างอิง) + ค้นหาและลบรูปแบบแมนนวล · รูปงานลบไม่ได้
 const TYPES = [{ v: 'all', l: 'ทั้งหมด (ส่วนตัว)' }, { v: 'slip', l: 'สลิป' }, { v: 'ref', l: 'รูปอ้างอิง' }, { v: 'work', l: 'รูปงาน (ดูอย่างเดียว)' }, { v: 'public', l: 'รูปสาธารณะ (สินค้า/หน้าร้าน)' }, { v: 'trash', l: 'ถังขยะ (กู้คืนได้)' }]
 const trashBucket = ref('private')
 const STATUSES = [{ v: '', l: 'ทุกสถานะ' }, { v: 'delivered', l: 'ส่งมอบแล้ว' }, { v: 'cancelled', l: 'ยกเลิก' }, { v: 'order_confirmed', l: 'ยืนยันแล้ว' }, { v: 'preparing', l: 'กำลังเตรียม' }, { v: 'prepared', l: 'เตรียมแล้ว' }]
 const ret = reactive({ slipDays: 180, refDays: 180, trashDays: 30, loaded: false })
+const lim = reactive({ maxMB: 5, maxPx: 2000, loaded: false })
 const filter = reactive({ type: 'all', status: '', code: '', uploadedFrom: '', uploadedTo: '', closedFrom: '', closedTo: '' })
 const items = ref([])
 const cursor = ref(null)
@@ -46,7 +48,15 @@ async function run(fn) {
 async function loadRetention() {
   const r = await filesApi(await client(), '/admin/retention/get')
   Object.assign(ret, { slipDays: r.slipDays, refDays: r.refDays, trashDays: r.trashDays, loaded: true })
+  const l = await filesApi(await client(), '/admin/limits/get')
+  Object.assign(lim, { maxMB: l.maxMB, maxPx: l.maxPx, loaded: true })
 }
+const saveLimits = () => run(async () => {
+  const r = await filesApi(await client(), '/admin/limits/set', { maxMB: Number(lim.maxMB), maxPx: Number(lim.maxPx) })
+  Object.assign(lim, { maxMB: r.maxMB, maxPx: r.maxPx })
+  clearImageLimitsCache()
+  msg.value = 'บันทึกขนาดรูปแล้ว'
+})
 const saveRetention = () => run(async () => {
   const r = await filesApi(await client(), '/admin/retention/set', { slipDays: Number(ret.slipDays), refDays: Number(ret.refDays), trashDays: Number(ret.trashDays) })
   Object.assign(ret, { slipDays: r.slipDays, refDays: r.refDays, trashDays: r.trashDays })
@@ -117,6 +127,16 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
         </div>
         <p class="text-xs text-stone-500">ค่าขั้นต่ำ 30 วัน · รูปงานไม่มีการลบอัตโนมัติ</p>
         <button type="button" class="btn-primary h-10 px-4" :disabled="busy || !ret.loaded" @click="saveRetention">บันทึกจำนวนวัน</button>
+      </section>
+
+      <section class="card space-y-3">
+        <h2 class="font-semibold text-stone-900">ขนาดรูปที่อัปโหลด</h2>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label class="block"><span class="label">ขนาดไฟล์สูงสุด (MB, 1–20)</span><input v-model.number="lim.maxMB" type="number" min="1" max="20" step="0.5" class="input" /></label>
+          <label class="block"><span class="label">ด้านยาว/กว้างสูงสุด (px, 500–4000)</span><input v-model.number="lim.maxPx" type="number" min="500" max="4000" step="100" class="input" /></label>
+        </div>
+        <p class="text-xs text-stone-500">แอปจะย่อรูปที่ใหญ่เกินให้อัตโนมัติก่อนอัปโหลด · เซิร์ฟเวอร์ตรวจขนาดไฟล์ตาม MB ที่ตั้งไว้</p>
+        <button type="button" class="btn-primary h-10 px-4" :disabled="busy || !lim.loaded" @click="saveLimits">บันทึกขนาดรูป</button>
       </section>
 
       <section class="card space-y-3">

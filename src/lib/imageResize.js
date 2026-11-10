@@ -1,6 +1,5 @@
-// ย่อรูปก่อนอัปโหลด: ด้านยาวไม่เกิน 1000px และไฟล์ไม่เกิน 2MB (JPEG พื้นขาว — PNG/GIF โปร่งใสจะได้พื้นขาว)
-export const IMG_MAX_SIDE = 1000
-export const IMG_MAX_BYTES = 2 * 1024 * 1024
+// ย่อรูปก่อนอัปโหลด: ด้านยาวและขนาดไฟล์ตามค่าที่ตั้งไว้ (ค่าเริ่มต้น 2000 px / 5 MB) · JPEG พื้นขาว — PNG/GIF โปร่งใสจะได้พื้นขาว
+import { imageLimits } from './imageLimits'
 const RAW_LIMIT = 30 * 1024 * 1024
 
 const ERR = {
@@ -37,9 +36,12 @@ async function decode(file) {
 const toBlob = (canvas, q) => new Promise((res) => canvas.toBlob((b) => res(b), 'image/jpeg', q))
 
 // คืน { blob, dataUrl, width, height }
-export async function resizeImage(file, { maxSide = IMG_MAX_SIDE, maxBytes = IMG_MAX_BYTES } = {}) {
+export async function resizeImage(file, opts = {}) {
   if (!file || !(file.type || '').startsWith('image/')) throw fail('not_image')
   if (file.size > RAW_LIMIT) throw fail('too_big')
+  const lim = await imageLimits()
+  const maxSide = opts.maxSide ?? lim.maxPx
+  const maxBytes = opts.maxBytes ?? lim.maxMB * 1024 * 1024
   const d = await decode(file)
   try {
     if (!d.w || !d.h) throw fail('decode_failed')
