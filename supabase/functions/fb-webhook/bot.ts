@@ -25,6 +25,14 @@ const OFF_VARIANTS = [
   'ตอนนี้นอกเวลาทำการค่ะ ร้านเปิด {เวลาเปิด}–{เวลาปิด} น. พนักงานจะรีบตอบเมื่อเปิดนะคะ',
 ]
 const pickOne = <T>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)]
+// สุ่มข้อความจากแม่แบบ · เลือกไม่ให้ซ้ำกับข้อความบอทล่าสุดในแชท (ถ้ามีทางเลือกอื่น)
+const pickFilled = (tpls: string[], vars: Record<string, string>, avoid?: string): string => {
+  const all = tpls.map((t) => fill(t, vars))
+  const pool = avoid ? all.filter((s) => s !== avoid) : all
+  return pickOne(pool.length ? pool : all)
+}
+const MIN_DELAY_MS = 2000 // หน่วงก่อนตอบให้เหมือนพนักงานพิมพ์ (ไม่ตอบทันทีเกินไป)
+const MAX_DELAY_MS = 5000
 
 type Dec = { reply: string; source: string; handoff: boolean; reason: string; ruleId?: string }
 export type BotInput = {
@@ -60,7 +68,7 @@ export function similarity(a: string, b: string): number {
   return (2 * hit) / (x.n + y.n)
 }
 
-export function decide(text: string, bot: any, shop: any, storefront: any, at: Date): Dec {
+export function decide(text: string, bot: any, shop: any, storefront: any, at: Date, lastBot?: string): Dec {
   const t = lc(text)
   const handoff = (reason: string): Dec => ({ reply: '', source: 'handoff', handoff: true, reason })
   if (!t) return handoff('ข้อความว่าง')
@@ -87,7 +95,7 @@ export function decide(text: string, bot: any, shop: any, storefront: any, at: D
   const hasClosures = (c.hours?.length || 0) + (c.ranges?.length || 0) + (c.weekly?.length || 0) > 0
   if (HOURS_RE.test(t)) {
     if (hasClosures) return handoff('ถามเวลาเปิด แต่ร้านมีวันปิดพิเศษ — ให้พนักงานตอบ')
-    return { reply: fill(pickOne(HOURS_VARIANTS), { เวลา: `${shop.open}–${shop.close}` }), source: 'hours', handoff: false, reason: 'ถามเวลาเปิด-ปิด' }
+    return { reply: pickFilled(HOURS_VARIANTS, { เวลา: `${shop.open}–${shop.close}` }, lastBot), source: 'hours', handoff: false, reason: 'ถามเวลาเปิด-ปิด' }
   }
 
   // นอกเวลาทำการ
@@ -95,8 +103,9 @@ export function decide(text: string, bot: any, shop: any, storefront: any, at: D
   const cur = bkkMinutes(at)
   if (offOn && (cur < hm(shop.open) || cur >= hm(shop.close))) {
     if (hasClosures) return handoff('นอกเวลาและร้านมีวันปิดพิเศษ — ให้พนักงานตอบ')
-    const tpl = String(bot.offHours?.text || pickOne(OFF_VARIANTS))
-    return { reply: fill(tpl, { เวลาเปิด: String(shop.open), เวลาปิด: String(shop.close) }), source: 'offhours', handoff: false, reason: 'นอกเวลาทำการ' }
+    const vars = { เวลาเปิด: String(shop.open), เวลาปิด: String(shop.close) }
+    const reply = bot.offHours?.text ? fill(String(bot.offHours.text), vars) : pickFilled(OFF_VARIANTS, vars, lastBot)
+    return { reply, source: 'offhours', handoff: false, reason: 'นอกเวลาทำการ' }
   }
   return handoff('ต้องให้พนักงานตอบ (ราคา/สั่งทำ/ข้อมูลที่ไม่รู้)')
 }
@@ -146,7 +155,9 @@ export async function runFbBot(o: BotInput): Promise<void> {
   if (idx < 0) return
   if (msgs0.slice(idx + 1).some((x) => x?.from === 'staff')) return // พนักงานตอบไปแล้ว ไม่แทรก
 
-  const dec = decide(o.text, bot, shop, storefront, at)
+  // ข้อความบอทล่าสุดในแชท (ใช้กันการตอบซ้ำแบบเดิมติดกัน)
+  const lastBot = [...msgs0].reverse().find((x) => x?.by === 'บอท' && typeof x?.text === 'string')?.text as string | undefined
+  const dec = decide(o.text, bot, shop, storefront, at, lastBot)
   const mode = bot.sourceModes?.[dec.source] || bot.mode || 'suggest'
   const autoOk = !dec.handoff && !LOCKED.includes(dec.source) && mode === 'auto'
 
@@ -160,7 +171,8 @@ export async function runFbBot(o: BotInput): Promise<void> {
     return
   }
 
-  // ตอบเอง: ส่งทาง Graph API (ลูกค้าเพิ่งทักจึงอยู่ในหน้าต่าง 24 ชม.)
+  // ตอบเอง: หน่วงเวลาสั้น ๆ ก่อนส่ง แล้วส่งทาง Graph API (ลูกค้าเพิ่งทักจึงอยู่ในหน้าต่าง 24 ชม.)
+  await new Promise((r) => setTimeout(r, MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS)))
   let sent = false
   try {
     const r = await fetch(`${GRAPH}/${o.ver}/me/messages?${new URLSearchParams({ access_token: o.token })}`, {
