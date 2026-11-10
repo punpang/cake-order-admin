@@ -168,6 +168,6 @@ export async function runFbBot(o: BotInput): Promise<void> {
   }
   await appendToChat(o.sb, o.chatId, (d, msgs) => {
     if (msgs.some((x) => x?.botFor === o.mid)) return null
-    return { ...d, messages: [...msgs, bm], updatedAt: nowIso }
+    return { ...d, messages: [...msgs, bm], botHandoff: false, updatedAt: nowIso } // บอทตอบแล้ว → ล้างธงส่งต่อ
   })
 }
