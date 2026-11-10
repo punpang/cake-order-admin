@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import ManageShell from '../../components/ManageShell.vue'
 import { getSupabase } from '../../lib/supabase'
-import { filesEnabled, filesApi } from '../../lib/storage'
+import { filesEnabled, filesApi, filesBase } from '../../lib/storage'
 import { askConfirm } from '../../lib/confirm'
 import { dateTime } from '../../lib/format'
 
@@ -19,6 +19,16 @@ const msg = ref('')
 const err = ref('')
 const preview = ref(null)
 const listBucket = ref('private') // bucket ของรายการที่แสดงอยู่ (ใช้กับการลบ)
+const thumbs = reactive({}) // key → ลิงก์รูปตัวอย่าง
+// ลิงก์รูปตัวอย่าง: รูปสาธารณะเปิดตรง ๆ · รูปส่วนตัวขอลิงก์ชั่วคราวจาก Worker (ขอครั้งเดียวต่อรายการ)
+async function loadThumbs(list) {
+  const c = await getSupabase()
+  for (const it of list.slice(0, 60)) {
+    if (thumbs[it.key]) continue
+    if (it.type === 'public') { thumbs[it.key] = `${filesBase()}/p/${it.key}`; continue }
+    try { const r = await filesApi(c, '/sign', { key: it.key }); thumbs[it.key] = r.url } catch { thumbs[it.key] = '' }
+  }
+}
 
 const deletable = (it) => it.deletable && !it.referenced
 const bodyBucket = () => ({ bucket: listBucket.value })
@@ -47,10 +57,12 @@ const search = () => run(async () => {
   listBucket.value = filter.type === 'public' ? 'public' : 'private'
   const r = await filesApi(await client(), '/admin/list', searchBody(null))
   items.value = r.items; cursor.value = r.cursor
+  loadThumbs(r.items)
 })
 const more = () => run(async () => {
   const r = await filesApi(await client(), '/admin/list', searchBody(cursor.value))
   items.value = [...items.value, ...r.items]; cursor.value = r.cursor
+  loadThumbs(r.items)
 })
 const selectAllDeletable = () => { picked.value = new Set(items.value.filter(deletable).map((i) => i.key)) }
 const clearPicked = () => { picked.value = new Set(); preview.value = null }
@@ -115,6 +127,8 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
         <ul class="divide-y divide-stone-100">
           <li v-for="it in items" :key="it.key" class="flex items-center gap-3 py-2 text-sm">
             <input type="checkbox" :checked="picked.has(it.key)" :disabled="!deletable(it)" :aria-label="`เลือก ${it.key}`" @change="toggle(it.key)" />
+            <a v-if="thumbs[it.key]" :href="thumbs[it.key]" target="_blank" rel="noopener" class="shrink-0" aria-label="เปิดรูปเต็ม"><img :src="thumbs[it.key]" alt="" loading="lazy" class="h-14 w-14 rounded-lg object-cover" /></a>
+            <span v-else class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-[10px] text-stone-400">ไม่มีรูป</span>
             <div class="min-w-0 flex-1">
               <div class="truncate font-medium text-stone-900">{{ it.type === 'public' ? it.key : (it.code || it.orderId) + ' · ' + (it.type === 'slip' ? 'สลิป' : it.type === 'ref' ? 'รูปอ้างอิง' : 'รูปงาน') }}</div>
               <div class="text-xs text-stone-500">{{ it.status || 'ไม่พบออร์เดอร์' }} · {{ fmtSize(it.size) }}<span v-if="it.uploaded"> · {{ dateTime(it.uploaded) }}</span></div>

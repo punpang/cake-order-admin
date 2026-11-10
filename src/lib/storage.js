@@ -9,6 +9,7 @@ const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'im
 // Worker punpang-files (R2): เปิดใช้เมื่อตั้ง VITE_FILES_URL · ยังไม่ตั้ง = ใช้ Supabase Storage เหมือนเดิม
 const FILES_URL = (import.meta.env.VITE_FILES_URL || '').replace(/\/$/, '')
 export const filesEnabled = () => !!FILES_URL
+export const filesBase = () => FILES_URL
 async function filesAuth(client) {
   const sess = (await client.auth.getSession()).data.session
   return sess?.access_token ? { Authorization: `Bearer ${sess.access_token}` } : {}
