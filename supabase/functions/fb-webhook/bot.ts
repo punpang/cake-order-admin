@@ -10,7 +10,21 @@ const LOCKED = ['handoff', 'order_unverified']
 const SENSITIVE = ['คืนเงิน', 'เงินคืน', 'ขอเงินคืน', 'ร้องเรียน', 'โกง', 'หลอก', 'ไม่พอใจ', 'แย่มาก', 'เสียหาย', 'เสียใจ', 'ฟ้อง', 'โอนผิด', 'โอนซ้ำ', 'เรียกเงิน', 'ชดเชย', 'ผู้บริโภค', 'refund', 'complain', 'ค่าเสียหาย', 'ทวงเงิน']
 const ORDER_RE = /\bOR-\d{6}-\d{6}\b|\bOR-\d{3,}\b/i
 const HOURS_RE = /เปิดกี่โมง|ปิดกี่โมง|เวลาทำการ|เปิดไหม|ปิดไหม|เปิดวัน|กี่โมง.*(เปิด|ปิด)|opening/
-const DEFAULT_OFF = 'ขณะนี้ร้านปิดทำการ เปิด {เวลาเปิด}–{เวลาปิด} น. พนักงานจะตอบกลับเมื่อร้านเปิดนะคะ'
+// ข้อความอัตโนมัติมีหลายแบบให้สุ่มใช้ (ข้อเท็จจริงเหมือนกัน) · ถ้าร้านตั้งข้อความนอกเวลาเอง (offHours.text) จะใช้ข้อความนั้นเสมอ
+const HOURS_VARIANTS = [
+  'ร้านเปิด {เวลา} น. ค่ะ',
+  'เปิด {เวลา} น. นะคะ',
+  'ร้านเปิดให้บริการ {เวลา} น. ค่ะ',
+  'เวลาเปิดร้านคือ {เวลา} น. ค่ะ',
+  'เปิดทำการ {เวลา} น. นะคะ',
+]
+const OFF_VARIANTS = [
+  'ขณะนี้ร้านปิดทำการ เปิด {เวลาเปิด}–{เวลาปิด} น. พนักงานจะตอบกลับเมื่อร้านเปิดนะคะ',
+  'ตอนนี้ร้านปิดแล้วค่ะ เปิดใหม่ {เวลาเปิด} น. พนักงานจะตอบให้เมื่อร้านเปิดนะคะ',
+  'ขออภัยค่ะ ร้านปิดแล้ว เวลาทำการ {เวลาเปิด}–{เวลาปิด} น. รบกวนทักมาใหม่ตอนร้านเปิดนะคะ',
+  'ตอนนี้นอกเวลาทำการค่ะ ร้านเปิด {เวลาเปิด}–{เวลาปิด} น. พนักงานจะรีบตอบเมื่อเปิดนะคะ',
+]
+const pickOne = <T>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)]
 
 type Dec = { reply: string; source: string; handoff: boolean; reason: string; ruleId?: string }
 export type BotInput = {
@@ -71,10 +85,9 @@ export function decide(text: string, bot: any, shop: any, storefront: any, at: D
   // เวลาเปิด-ปิด: ถ้าร้านมีวันปิดพิเศษ/ปิดเป็นรายสัปดาห์ ไม่ตอบเอง (ให้พนักงานตรวจ)
   const c = shop?.closures || {}
   const hasClosures = (c.hours?.length || 0) + (c.ranges?.length || 0) + (c.weekly?.length || 0) > 0
-  const hoursText = `${shop.open}–${shop.close} น.`
   if (HOURS_RE.test(t)) {
     if (hasClosures) return handoff('ถามเวลาเปิด แต่ร้านมีวันปิดพิเศษ — ให้พนักงานตอบ')
-    return { reply: `ร้านเปิด ${hoursText} ค่ะ`, source: 'hours', handoff: false, reason: 'ถามเวลาเปิด-ปิด' }
+    return { reply: fill(pickOne(HOURS_VARIANTS), { เวลา: `${shop.open}–${shop.close}` }), source: 'hours', handoff: false, reason: 'ถามเวลาเปิด-ปิด' }
   }
 
   // นอกเวลาทำการ
@@ -82,7 +95,7 @@ export function decide(text: string, bot: any, shop: any, storefront: any, at: D
   const cur = bkkMinutes(at)
   if (offOn && (cur < hm(shop.open) || cur >= hm(shop.close))) {
     if (hasClosures) return handoff('นอกเวลาและร้านมีวันปิดพิเศษ — ให้พนักงานตอบ')
-    const tpl = String(bot.offHours?.text || DEFAULT_OFF)
+    const tpl = String(bot.offHours?.text || pickOne(OFF_VARIANTS))
     return { reply: fill(tpl, { เวลาเปิด: String(shop.open), เวลาปิด: String(shop.close) }), source: 'offhours', handoff: false, reason: 'นอกเวลาทำการ' }
   }
   return handoff('ต้องให้พนักงานตอบ (ราคา/สั่งทำ/ข้อมูลที่ไม่รู้)')
