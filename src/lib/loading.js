@@ -37,9 +37,14 @@ export function beginLoad() { count++; sync() }
 export function endLoad() { count = Math.max(0, count - 1); sync() }
 
 // ครอบงานโหลดใด ๆ (Promise) ให้นับเป็นการโหลด
-export async function trackLoad(p) {
+// ถ้าค้างนานเกิน LOAD_TIMEOUT จะปลดหน้าจอโหลดให้ใช้งานต่อได้ (คำขอเดิมยังทำงานต่อเบื้องหลัง)
+const LOAD_TIMEOUT = 15000
+export function trackLoad(p, timeout = LOAD_TIMEOUT) {
   beginLoad()
-  try { return await p } finally { endLoad() }
+  let released = false
+  const release = () => { if (!released) { released = true; endLoad() } }
+  const timer = setTimeout(release, timeout)
+  return Promise.resolve(p).finally(() => { clearTimeout(timer); release() })
 }
 
 // ดักทุก fetch ของหน้าเว็บ (เรียกครั้งเดียวตอนเริ่มแอป ก่อนสร้าง client ของ Supabase)
