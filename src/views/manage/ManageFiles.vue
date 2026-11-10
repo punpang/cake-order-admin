@@ -52,16 +52,14 @@ async function loadRetention() {
   const l = await filesApi(await client(), '/admin/limits/get')
   Object.assign(lim, { maxMB: l.maxMB, maxPx: l.maxPx, loaded: true })
 }
-const saveLimits = () => run(async () => {
-  const r = await filesApi(await client(), '/admin/limits/set', { maxMB: Number(lim.maxMB), maxPx: Number(lim.maxPx) })
-  Object.assign(lim, { maxMB: r.maxMB, maxPx: r.maxPx })
-  clearImageLimitsCache()
-  msg.value = 'บันทึกขนาดรูปแล้ว'
-})
-const saveRetention = () => run(async () => {
-  const r = await filesApi(await client(), '/admin/retention/set', { slipDays: Number(ret.slipDays), refDays: Number(ret.refDays), trashDays: Number(ret.trashDays) })
+const saveAll = () => run(async () => {
+  const c = await client()
+  const r = await filesApi(c, '/admin/retention/set', { slipDays: Number(ret.slipDays), refDays: Number(ret.refDays), trashDays: Number(ret.trashDays) })
   Object.assign(ret, { slipDays: r.slipDays, refDays: r.refDays, trashDays: r.trashDays })
-  msg.value = 'บันทึกจำนวนวันแล้ว'
+  const l = await filesApi(c, '/admin/limits/set', { maxMB: Number(lim.maxMB), maxPx: Number(lim.maxPx) })
+  Object.assign(lim, { maxMB: l.maxMB, maxPx: l.maxPx })
+  clearImageLimitsCache()
+  msg.value = 'บันทึกการตั้งค่าแล้ว'
 })
 const searchBody = (cur) => ({ cursor: cur || undefined, bucket: filter.type === 'trash' ? trashBucket.value : 'private', filter: { type: filter.type, status: filter.status, code: filter.code.trim(), uploadedFrom: filter.uploadedFrom, uploadedTo: filter.uploadedTo, closedFrom: filter.closedFrom, closedTo: filter.closedTo } })
 const search = () => run(async () => {
@@ -118,73 +116,76 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
 <template>
   <ManageShell title="พื้นที่รูป & การลบรูป" subtitle="ลบอัตโนมัติ: สลิป/รูปอ้างอิง หลังออเดอร์ปิดตามจำนวนวัน · รูปงานไม่ถูกลบ" :toolbar="false">
     <div v-if="!filesEnabled()" class="card text-sm text-amber-800">ยังไม่ได้ตั้งค่า VITE_FILES_URL จึงจัดการพื้นที่รูปไม่ได้</div>
-    <div v-else class="space-y-4">
-      <section class="card space-y-3">
-        <h2 class="font-semibold text-stone-900">ลบอัตโนมัติ (ทุกวัน)</h2>
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label class="block"><span class="label">สลิป: ลบหลังออเดอร์ปิดแล้ว (วัน)</span><input v-model.number="ret.slipDays" type="number" min="30" max="3650" class="input" /></label>
-          <label class="block"><span class="label">รูปอ้างอิง: ลบหลังออเดอร์ปิดแล้ว (วัน)</span><input v-model.number="ret.refDays" type="number" min="30" max="3650" class="input" /></label>
-          <label class="block"><span class="label">ถังขยะ: ลบถาวรหลังย้ายไปถัง (วัน)</span><input v-model.number="ret.trashDays" type="number" min="30" max="3650" class="input" /></label>
+    <div v-else class="space-y-3">
+      <!-- ตั้งค่า: พับไว้ได้ ค่าเริ่มต้นซ่อน -->
+      <details class="card group">
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-2 font-semibold text-stone-900">
+          <span>ตั้งค่าการลบและขนาดรูป</span>
+          <span class="text-xs font-normal text-stone-500 group-open:hidden">{{ ret.slipDays }}/{{ ret.refDays }}/{{ ret.trashDays }} วัน · {{ lim.maxMB }} MB · {{ lim.maxPx }}px</span>
+        </summary>
+        <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <label class="block"><span class="label">สลิป (วัน)</span><input v-model.number="ret.slipDays" type="number" min="30" max="3650" class="input" /></label>
+          <label class="block"><span class="label">รูปอ้างอิง (วัน)</span><input v-model.number="ret.refDays" type="number" min="30" max="3650" class="input" /></label>
+          <label class="block"><span class="label">ถังขยะ (วัน)</span><input v-model.number="ret.trashDays" type="number" min="30" max="3650" class="input" /></label>
+          <label class="block"><span class="label">ขนาดไฟล์ (MB)</span><input v-model.number="lim.maxMB" type="number" min="1" max="20" step="0.5" class="input" /></label>
+          <label class="block"><span class="label">ด้านยาว (px)</span><input v-model.number="lim.maxPx" type="number" min="500" max="4000" step="100" class="input" /></label>
         </div>
-        <p class="text-xs text-stone-500">ค่าขั้นต่ำ 30 วัน · รูปงานไม่มีการลบอัตโนมัติ</p>
-        <button type="button" class="btn-primary h-10 px-4" :disabled="busy || !ret.loaded" @click="saveRetention">บันทึกจำนวนวัน</button>
-      </section>
+        <p class="mt-2 text-xs text-stone-500">วันขั้นต่ำ 30 · ระบบย่อรูปที่ใหญ่เกินอัตโนมัติก่อนอัปโหลด</p>
+        <button type="button" class="btn-primary mt-3 h-9 px-4" :disabled="busy || !ret.loaded || !lim.loaded" @click="saveAll">บันทึกการตั้งค่า</button>
+      </details>
 
-      <section class="card space-y-3">
-        <h2 class="font-semibold text-stone-900">ขนาดรูปที่อัปโหลด</h2>
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label class="block"><span class="label">ขนาดไฟล์สูงสุด (MB, 1–20)</span><input v-model.number="lim.maxMB" type="number" min="1" max="20" step="0.5" class="input" /></label>
-          <label class="block"><span class="label">ด้านยาว/กว้างสูงสุด (px, 500–4000)</span><input v-model.number="lim.maxPx" type="number" min="500" max="4000" step="100" class="input" /></label>
+      <!-- ค้นหา: แถวเดียว + ตัวกรองเพิ่มเติมพับได้ -->
+      <section class="card space-y-2">
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+          <select v-model="filter.type" class="input" aria-label="ประเภท"><option v-for="t in TYPES" :key="t.v" :value="t.v">{{ t.l }}</option></select>
+          <input v-model="filter.code" class="input" placeholder="เลขออร์เดอร์ เช่น 001122" aria-label="เลขออร์เดอร์" />
+          <button type="button" class="btn-primary h-10 px-4" :disabled="busy" @click="search">ค้นหา</button>
         </div>
-        <p class="text-xs text-stone-500">แอปจะย่อรูปที่ใหญ่เกินให้อัตโนมัติก่อนอัปโหลด · เซิร์ฟเวอร์ตรวจขนาดไฟล์ตาม MB ที่ตั้งไว้</p>
-        <button type="button" class="btn-primary h-10 px-4" :disabled="busy || !lim.loaded" @click="saveLimits">บันทึกขนาดรูป</button>
-      </section>
-
-      <section class="card space-y-3">
-        <h2 class="font-semibold text-stone-900">ค้นหารูปเพื่อลบ</h2>
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <label class="block"><span class="label">ประเภท</span><select v-model="filter.type" class="input"><option v-for="t in TYPES" :key="t.v" :value="t.v">{{ t.l }}</option></select></label>
-          <label class="block"><span class="label">สถานะออเดอร์</span><select v-model="filter.status" class="input"><option v-for="s in STATUSES" :key="s.v" :value="s.v">{{ s.l }}</option></select></label>
-          <label class="block"><span class="label">เลขออร์เดอร์</span><input v-model="filter.code" class="input" placeholder="เช่น 001122" /></label>
-          <label class="block"><span class="label">อัปโหลดตั้งแต่</span><input v-model="filter.uploadedFrom" type="date" class="input" /></label>
-          <label class="block"><span class="label">อัปโหลดถึง</span><input v-model="filter.uploadedTo" type="date" class="input" /></label>
-          <label class="block"><span class="label">ออเดอร์ปิดตั้งแต่</span><input v-model="filter.closedFrom" type="date" class="input" /></label>
-          <label class="block"><span class="label">ออเดอร์ปิดถึง</span><input v-model="filter.closedTo" type="date" class="input" /></label>
-        </div>
-        <button type="button" class="btn-primary h-10 px-4" :disabled="busy" @click="search">ค้นหา</button>
+        <details class="text-sm">
+          <summary class="cursor-pointer text-stone-600">ตัวกรองเพิ่มเติม</summary>
+          <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <select v-model="filter.status" class="input" aria-label="สถานะออเดอร์"><option v-for="s in STATUSES" :key="s.v" :value="s.v">{{ s.l }}</option></select>
+            <input v-model="filter.uploadedFrom" type="date" class="input" aria-label="อัปโหลดตั้งแต่" />
+            <input v-model="filter.uploadedTo" type="date" class="input" aria-label="อัปโหลดถึง" />
+            <input v-model="filter.closedFrom" type="date" class="input" aria-label="ออเดอร์ปิดตั้งแต่" />
+            <input v-model="filter.closedTo" type="date" class="input" aria-label="ออเดอร์ปิดถึง" />
+          </div>
+        </details>
       </section>
 
       <p v-if="msg" class="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{{ msg }}</p>
       <p v-if="err" class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{{ err }}</p>
 
-      <section v-if="items.length" class="card space-y-3">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="text-sm text-stone-600">พบ {{ items.length }} ไฟล์ · เลือก {{ pickedKeys.length }} ({{ fmtSize(selectedSize) }})</span>
-          <button type="button" class="btn-outline h-9 px-3" @click="selectAllDeletable">เลือกทั้งหมดที่ลบได้</button>
-          <button type="button" class="btn-outline h-9 px-3" @click="clearPicked">ล้างการเลือก</button>
-          <button type="button" class="btn-outline h-9 px-3" :disabled="busy || !pickedKeys.length" @click="dryRun">ดูตัวอย่างก่อนลบ</button>
-          <template v-if="trashMode">
-            <select v-model="trashBucket" class="input h-9 w-auto" aria-label="ถัง"><option value="private">ถังส่วนตัว</option><option value="public">ถังรูปสาธารณะ</option></select>
-            <button type="button" class="btn-primary h-9 px-3" :disabled="busy || !pickedKeys.length" @click="restoreSelected">กู้คืน</button>
-            <button type="button" class="btn-danger h-9 px-3" :disabled="busy || !pickedKeys.length" @click="purgeSelected">ลบถาวร</button>
-          </template>
-          <button v-else type="button" class="btn-danger h-9 px-3" :disabled="busy || !pickedKeys.length" @click="removeSelected">ลบที่เลือก (ย้ายไปถังขยะ)</button>
+      <section v-if="items.length" class="card space-y-2">
+        <div class="flex flex-wrap items-center gap-1.5 text-sm">
+          <span class="mr-auto text-stone-600">พบ {{ items.length }} · เลือก {{ pickedKeys.length }} ({{ fmtSize(selectedSize) }})</span>
+          <button type="button" class="btn-outline h-8 px-2.5 text-xs" @click="selectAllDeletable">เลือกทั้งหมด</button>
+          <button type="button" class="btn-outline h-8 px-2.5 text-xs" @click="clearPicked">ล้าง</button>
+          <button type="button" class="btn-outline h-8 px-2.5 text-xs" :disabled="busy || !pickedKeys.length" @click="dryRun">ดูตัวอย่าง</button>
         </div>
-        <p v-if="preview" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ตัวอย่าง: จะลบ {{ preview.wouldDelete.length }} ไฟล์ · ข้าม {{ preview.refused.length }} ไฟล์<span v-if="preview.refused.length"> ({{ preview.refused[0].reason }})</span></p>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <template v-if="trashMode">
+            <select v-model="trashBucket" class="input h-8 w-auto py-0 text-xs" aria-label="ถัง"><option value="private">ถังส่วนตัว</option><option value="public">ถังรูปสาธารณะ</option></select>
+            <button type="button" class="btn-primary h-8 px-3 text-xs" :disabled="busy || !pickedKeys.length" @click="restoreSelected">กู้คืน</button>
+            <button type="button" class="btn-danger h-8 px-3 text-xs" :disabled="busy || !pickedKeys.length" @click="purgeSelected">ลบถาวร</button>
+          </template>
+          <button v-else type="button" class="btn-danger h-8 px-3 text-xs" :disabled="busy || !pickedKeys.length" @click="removeSelected">ย้ายที่เลือกไปถังขยะ</button>
+        </div>
+        <p v-if="preview" class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">ตัวอย่าง: จะลบ {{ preview.wouldDelete.length }} ไฟล์ · ข้าม {{ preview.refused.length }} ไฟล์<span v-if="preview.refused.length"> ({{ preview.refused[0].reason }})</span></p>
         <ul class="divide-y divide-stone-100">
-          <li v-for="it in items" :key="it.key" class="flex items-center gap-3 py-2 text-sm">
-            <input type="checkbox" :checked="picked.has(it.key)" :disabled="!deletable(it)" :aria-label="`เลือก ${it.key}`" @change="toggle(it.key)" />
-            <button v-if="thumbs[it.key]" type="button" class="shrink-0 cursor-zoom-in" aria-label="ดูรูปขนาดใหญ่" @click="openLightbox(thumbs[it.key], it.code || it.key)"><img :src="thumbs[it.key]" alt="" loading="lazy" class="h-14 w-14 rounded-lg object-cover" /></button>
-            <span v-else class="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-[10px] text-stone-400">ไม่มีรูป</span>
+          <li v-for="it in items" :key="it.key" class="flex items-center gap-2.5 py-1.5 text-sm">
+            <input type="checkbox" class="h-4 w-4 shrink-0" :checked="picked.has(it.key)" :disabled="!deletable(it)" :aria-label="`เลือก ${it.key}`" @change="toggle(it.key)" />
+            <button v-if="thumbs[it.key]" type="button" class="shrink-0 cursor-zoom-in" aria-label="ดูรูปขนาดใหญ่" @click="openLightbox(thumbs[it.key], it.code || it.key)"><img :src="thumbs[it.key]" alt="" loading="lazy" class="h-11 w-11 rounded-lg object-cover" /></button>
+            <span v-else class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-[10px] text-stone-400">ไม่มีรูป</span>
             <div class="min-w-0 flex-1">
               <div class="truncate font-medium text-stone-900">{{ it.type === 'public' ? it.key : (it.code || it.orderId) + ' · ' + (it.type === 'slip' ? 'สลิป' : it.type === 'ref' ? 'รูปอ้างอิง' : 'รูปงาน') }}</div>
-              <div class="text-xs text-stone-500">{{ it.status || 'ไม่พบออร์เดอร์' }} · {{ fmtSize(it.size) }}<span v-if="it.uploaded"> · {{ dateTime(it.uploaded) }}</span></div>
+              <div class="truncate text-xs text-stone-500">{{ it.status || 'ไม่พบออร์เดอร์' }} · {{ fmtSize(it.size) }}<span v-if="it.uploaded"> · {{ dateTime(it.uploaded) }}</span></div>
             </div>
-            <span v-if="it.referenced" class="rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-700">ยังถูกใช้งาน</span>
-            <span v-else-if="!it.deletable" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-600">ลบไม่ได้</span>
+            <span v-if="it.referenced" class="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] text-sky-700">ยังถูกใช้งาน</span>
+            <span v-else-if="!it.deletable" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[11px] text-stone-600">ลบไม่ได้</span>
           </li>
         </ul>
-        <button v-if="cursor" type="button" class="btn-outline h-9 px-3" :disabled="busy" @click="more">โหลดเพิ่ม</button>
+        <button v-if="cursor" type="button" class="btn-outline h-8 px-3 text-xs" :disabled="busy" @click="more">โหลดเพิ่ม</button>
       </section>
     </div>
   </ManageShell>
