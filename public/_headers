@@ -1,0 +1,9 @@
+# Cloudflare Pages: ส่วนหัวความปลอดภัยของทุกหน้า (Vite คัดลอกไฟล์นี้ไปที่ dist/_headers)
+# ส่วนที่บังคับใช้: กัน clickjacking, กัน MIME sniffing, จำกัด Referer, ปิดอุปกรณ์ที่ไม่ได้ใช้
+# CSP เต็มรูปแบบตั้งเป็น Report-Only ก่อน (ดู Console ของเบราว์เซอร์ว่ามีการบล็อกอะไรผิดพลาดหรือไม่) แล้วค่อยเปลี่ยนเป็น Content-Security-Policy
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.workers.dev; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'

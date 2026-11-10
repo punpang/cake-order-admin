@@ -129,7 +129,9 @@ const router = createRouter({
 // เอกสารเวอร์ชันใหม่ที่ยังไม่ยอมรับ → ไปหน้ายอมรับก่อน
 router.beforeEach(async (to) => {
   // โหมด Supabase: หลังบ้านต้องล็อกอินพนักงานก่อน
-  if (supabaseEnabled && to.path.startsWith('/admin') && to.path !== '/admin/login' && !staffState.staff) return '/admin/login'
+  // vue-router จับคู่เส้นทางโดยไม่สนตัวพิมพ์ใหญ่/เล็ก (/ADMIN/... ก็เปิดหน้าหลังบ้าน) จึงเทียบแบบตัวพิมพ์เล็กและ trim / ท้าย
+  const p = to.path.toLowerCase().replace(/\/+$/, '')
+  if (supabaseEnabled && (p === '/admin' || p.startsWith('/admin/')) && p !== '/admin/login' && !staffState.staff) return '/admin/login'
   // หลังบ้าน: ต้องมีสิทธิ์อย่างน้อยหนึ่งข้อของหน้านั้น (หน้าจัดการ /admin/settings* ตรวจต่อใน ManageShell)
   if (to.meta.perms && !canAny(to.meta.perms)) return '/admin/no-access'
   // เซสชันลูกค้าที่ค้างไว้กำลังกู้คืน → รอก่อนตัดสินใจว่าต้องล็อกอินหรือไม่

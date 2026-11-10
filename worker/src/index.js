@@ -47,8 +47,13 @@ async function staffOf(req, env) {
   if (!user?.id) return null
   const r = await sbFetch(env, `/rest/v1/punpang_staff?user_id=eq.${encodeURIComponent(user.id)}&select=user_id,active,perms`)
   const s = r.ok ? (await r.json())[0] : null
-  return s && s.active !== false ? s : null
+  return s && s.active === true ? s : null
 }
+
+// สิทธิ์ที่ต้องมีเพื่อเขียน/ลบไฟล์ (ตรงกับ storage policy ใน Supabase): manage ทำได้ทุกอย่าง
+const hasAnyPerm = (staff, need) => (staff.perms || []).some((p) => p === 'manage' || need.includes(p))
+// ไฟล์ส่วนตัว: <orderId>/work/… รูปงาน · <orderId>/ref/… รูปตัวอย่าง · นอกนั้น (<orderId>/…) สลิป
+const needForPrivateKey = (key) => (/^[^/]+\/work(\/|$)/.test(key) ? ['workPhoto'] : /^[^/]+\/ref(\/|$)/.test(key) ? ['createOrder', 'editItems'] : ['reportPayment', 'confirmPayment'])
 
 // ลูกค้า: เซสชันที่ยังไม่หมดอายุ → customer_id
 async function customerOf(env, session) {
@@ -148,6 +153,7 @@ export default {
       const bucket = url.searchParams.get('bucket')
       const prefix = safePrefix(url.searchParams.get('prefix') || '')
       if (!prefix || !['public', 'private'].includes(bucket)) return json(req, env, { error: 'พารามิเตอร์ไม่ถูกต้อง' }, 400)
+      if (!hasAnyPerm(staff, bucket === 'public' ? ['editItems'] : needForPrivateKey(`${prefix}/x`))) return json(req, env, { error: 'ไม่มีสิทธิ์อัปโหลดไฟล์ประเภทนี้' }, 403)
       const bytes = new Uint8Array(await req.arrayBuffer())
       const lim = await getImageLimits(env)
       if (bytes.length === 0 || bytes.length > lim.maxMB * 1024 * 1024) return json(req, env, { error: `ไฟล์ว่างหรือใหญ่เกิน ${lim.maxMB} MB` }, 400)
@@ -166,6 +172,7 @@ export default {
       if (!staff) return json(req, env, { error: 'ต้องเข้าสู่ระบบพนักงาน' }, 401)
       const body = await req.json().catch(() => ({}))
       const keys = (Array.isArray(body.keys) ? body.keys : []).map(String).filter((k) => k && !k.includes('..') && !k.startsWith('/')).slice(0, 100)
+      if (keys.some((k) => !hasAnyPerm(staff, needForPrivateKey(k)))) return json(req, env, { error: 'ไม่มีสิทธิ์ลบไฟล์ประเภทนี้' }, 403)
       // ทุกการลบต้องผ่านถังขยะก่อน (กู้คืนได้จนกว่าจะครบจำนวนวันในถัง)
       if (keys.length) await moveToTrash(env.FILES_PRIVATE, keys.map((key) => ({ key })), staff.user_id, 'app')
       return json(req, env, { ok: true, deleted: keys.length })
