@@ -7,9 +7,10 @@ import { askConfirm } from '../../lib/confirm'
 import { dateTime } from '../../lib/format'
 
 // พื้นที่รูป: ตั้งจำนวนวันลบอัตโนมัติ (สลิป/รูปอ้างอิง) + ค้นหาและลบรูปแบบแมนนวล · รูปงานลบไม่ได้
-const TYPES = [{ v: 'all', l: 'ทั้งหมด (ส่วนตัว)' }, { v: 'slip', l: 'สลิป' }, { v: 'ref', l: 'รูปอ้างอิง' }, { v: 'work', l: 'รูปงาน (ดูอย่างเดียว)' }, { v: 'public', l: 'รูปสาธารณะ (สินค้า/หน้าร้าน)' }]
+const TYPES = [{ v: 'all', l: 'ทั้งหมด (ส่วนตัว)' }, { v: 'slip', l: 'สลิป' }, { v: 'ref', l: 'รูปอ้างอิง' }, { v: 'work', l: 'รูปงาน (ดูอย่างเดียว)' }, { v: 'public', l: 'รูปสาธารณะ (สินค้า/หน้าร้าน)' }, { v: 'trash', l: 'ถังขยะ (กู้คืนได้)' }]
+const trashBucket = ref('private')
 const STATUSES = [{ v: '', l: 'ทุกสถานะ' }, { v: 'delivered', l: 'ส่งมอบแล้ว' }, { v: 'cancelled', l: 'ยกเลิก' }, { v: 'order_confirmed', l: 'ยืนยันแล้ว' }, { v: 'preparing', l: 'กำลังเตรียม' }, { v: 'prepared', l: 'เตรียมแล้ว' }]
-const ret = reactive({ slipDays: 180, refDays: 180, loaded: false })
+const ret = reactive({ slipDays: 180, refDays: 180, trashDays: 30, loaded: false })
 const filter = reactive({ type: 'all', status: '', code: '', uploadedFrom: '', uploadedTo: '', closedFrom: '', closedTo: '' })
 const items = ref([])
 const cursor = ref(null)
@@ -25,7 +26,7 @@ async function loadThumbs(list) {
   const c = await getSupabase()
   for (const it of list.slice(0, 60)) {
     if (thumbs[it.key]) continue
-    if (it.type === 'public') { thumbs[it.key] = `${filesBase()}/p/${it.key}`; continue }
+    if (it.type === 'public' || it.bucket === 'public') { thumbs[it.key] = `${filesBase()}/p/${it.key}`; continue }
     try { const r = await filesApi(c, '/sign', { key: it.key }); thumbs[it.key] = r.url } catch { thumbs[it.key] = '' }
   }
 }
@@ -44,14 +45,14 @@ async function run(fn) {
 }
 async function loadRetention() {
   const r = await filesApi(await client(), '/admin/retention/get')
-  Object.assign(ret, { slipDays: r.slipDays, refDays: r.refDays, loaded: true })
+  Object.assign(ret, { slipDays: r.slipDays, refDays: r.refDays, trashDays: r.trashDays, loaded: true })
 }
 const saveRetention = () => run(async () => {
-  const r = await filesApi(await client(), '/admin/retention/set', { slipDays: Number(ret.slipDays), refDays: Number(ret.refDays) })
-  Object.assign(ret, { slipDays: r.slipDays, refDays: r.refDays })
+  const r = await filesApi(await client(), '/admin/retention/set', { slipDays: Number(ret.slipDays), refDays: Number(ret.refDays), trashDays: Number(ret.trashDays) })
+  Object.assign(ret, { slipDays: r.slipDays, refDays: r.refDays, trashDays: r.trashDays })
   msg.value = 'บันทึกจำนวนวันแล้ว'
 })
-const searchBody = (cur) => ({ cursor: cur || undefined, filter: { type: filter.type, status: filter.status, code: filter.code.trim(), uploadedFrom: filter.uploadedFrom, uploadedTo: filter.uploadedTo, closedFrom: filter.closedFrom, closedTo: filter.closedTo } })
+const searchBody = (cur) => ({ cursor: cur || undefined, bucket: filter.type === 'trash' ? trashBucket.value : 'private', filter: { type: filter.type, status: filter.status, code: filter.code.trim(), uploadedFrom: filter.uploadedFrom, uploadedTo: filter.uploadedTo, closedFrom: filter.closedFrom, closedTo: filter.closedTo } })
 const search = () => run(async () => {
   picked.value = new Set(); preview.value = null
   listBucket.value = filter.type === 'public' ? 'public' : 'private'
@@ -70,6 +71,25 @@ const clearPicked = () => { picked.value = new Set(); preview.value = null }
 const dryRun = () => run(async () => {
   if (!pickedKeys.value.length) throw new Error('เลือกรายการก่อน')
   preview.value = await filesApi(await client(), '/admin/delete', { keys: pickedKeys.value, dryRun: true, ...bodyBucket() })
+})
+const trashMode = computed(() => filter.type === 'trash')
+const restoreSelected = () => run(async () => {
+  if (!pickedKeys.value.length) throw new Error('เลือกรายการก่อน')
+  const r = await filesApi(await client(), '/admin/trash/restore', { keys: pickedKeys.value, bucket: trashBucket.value })
+  const gone = new Set(pickedKeys.value)
+  items.value = items.value.filter((i) => !gone.has(i.key))
+  picked.value = new Set()
+  msg.value = `กู้คืนแล้ว ${r.done} ไฟล์${r.skipped?.length ? ` · ข้าม ${r.skipped.length} ไฟล์ (มีไฟล์เดิมอยู่แล้ว)` : ''}`
+})
+const purgeSelected = () => run(async () => {
+  if (!pickedKeys.value.length) throw new Error('เลือกรายการก่อน')
+  const ok = await askConfirm({ title: 'ลบถาวร', message: `ลบ ${pickedKeys.value.length} ไฟล์จากถังขยะถาวร ไม่สามารถกู้คืนได้`, okText: 'ลบถาวร', danger: true })
+  if (!ok) return
+  const r = await filesApi(await client(), '/admin/trash/purge', { keys: pickedKeys.value, bucket: trashBucket.value })
+  const gone = new Set(pickedKeys.value)
+  items.value = items.value.filter((i) => !gone.has(i.key))
+  picked.value = new Set()
+  msg.value = `ลบถาวรแล้ว ${r.done} ไฟล์`
 })
 const removeSelected = () => run(async () => {
   if (!pickedKeys.value.length) throw new Error('เลือกรายการก่อน')
@@ -93,6 +113,7 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label class="block"><span class="label">สลิป: ลบหลังออเดอร์ปิดแล้ว (วัน)</span><input v-model.number="ret.slipDays" type="number" min="30" max="3650" class="input" /></label>
           <label class="block"><span class="label">รูปอ้างอิง: ลบหลังออเดอร์ปิดแล้ว (วัน)</span><input v-model.number="ret.refDays" type="number" min="30" max="3650" class="input" /></label>
+          <label class="block"><span class="label">ถังขยะ: ลบถาวรหลังย้ายไปถัง (วัน)</span><input v-model.number="ret.trashDays" type="number" min="30" max="3650" class="input" /></label>
         </div>
         <p class="text-xs text-stone-500">ค่าขั้นต่ำ 30 วัน · รูปงานไม่มีการลบอัตโนมัติ</p>
         <button type="button" class="btn-primary h-10 px-4" :disabled="busy || !ret.loaded" @click="saveRetention">บันทึกจำนวนวัน</button>
@@ -121,7 +142,12 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
           <button type="button" class="btn-outline h-9 px-3" @click="selectAllDeletable">เลือกทั้งหมดที่ลบได้</button>
           <button type="button" class="btn-outline h-9 px-3" @click="clearPicked">ล้างการเลือก</button>
           <button type="button" class="btn-outline h-9 px-3" :disabled="busy || !pickedKeys.length" @click="dryRun">ดูตัวอย่างก่อนลบ</button>
-          <button type="button" class="btn-danger h-9 px-3" :disabled="busy || !pickedKeys.length" @click="removeSelected">ลบที่เลือก</button>
+          <template v-if="trashMode">
+            <select v-model="trashBucket" class="input h-9 w-auto" aria-label="ถัง"><option value="private">ถังส่วนตัว</option><option value="public">ถังรูปสาธารณะ</option></select>
+            <button type="button" class="btn-primary h-9 px-3" :disabled="busy || !pickedKeys.length" @click="restoreSelected">กู้คืน</button>
+            <button type="button" class="btn-danger h-9 px-3" :disabled="busy || !pickedKeys.length" @click="purgeSelected">ลบถาวร</button>
+          </template>
+          <button v-else type="button" class="btn-danger h-9 px-3" :disabled="busy || !pickedKeys.length" @click="removeSelected">ลบที่เลือก (ย้ายไปถังขยะ)</button>
         </div>
         <p v-if="preview" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ตัวอย่าง: จะลบ {{ preview.wouldDelete.length }} ไฟล์ · ข้าม {{ preview.refused.length }} ไฟล์<span v-if="preview.refused.length"> ({{ preview.refused[0].reason }})</span></p>
         <ul class="divide-y divide-stone-100">
