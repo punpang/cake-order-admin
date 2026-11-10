@@ -21,6 +21,30 @@ export async function loadOrders(client) {
   return { items: (a.data || []).map(rowToOrder) }
 }
 
+// หน้าออเดอร์: ดึงเฉพาะแถวตามตัวกรอง (กรองที่ฐานข้อมูล) · from/to = YYYY-MM-DD ของวันนัด (รวมทั้งสองวัน) · ว่าง = ไม่จำกัด
+// pickup_at เป็น timestamptz แต่แอปเก็บเวลานัดแบบท้องถิ่นไม่มีโซน → เทียบด้วยโซนเดียวกับตอนเขียน (ช่วง [from, to+1 วัน))
+const nextDay = (ymd) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10) }
+export async function loadOrdersInRange(client, { from = '', to = '', status = '', fulfillment = '', includePos = true } = {}) {
+  const a = await selectAll((x, y) => {
+    let qy = client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data')
+    if (from) qy = qy.gte('pickup_at', from)
+    if (to) qy = qy.lt('pickup_at', nextDay(to))
+    if (status) qy = qy.eq('status', status)
+    if (fulfillment) qy = qy.eq('fulfillment', fulfillment)
+    if (!includePos) qy = qy.or('channel.is.null,channel.neq.pos')
+    return qy.order('code').order('id').range(x, y)
+  })
+  if (a.error) return { error: a.error.message }
+  return { items: (a.data || []).map(rowToOrder) }
+}
+
+// ค้นข้อความทุกวันที่เซิร์ฟเวอร์ (RPC punpang_order_search) · ยังไม่มี RPC/ล้มเหลว → { error } ให้หน้าจอค้นจากข้อมูลในเครื่องแทน
+export async function searchOrdersRemote(client, q) {
+  const a = await selectAll((x, y) => client.rpc('punpang_order_search', { q }).range(x, y))
+  if (a.error) return { error: a.error.message }
+  return { items: (a.data || []).map(rowToOrder) }
+}
+
 export async function loadOrdersByIds(client, ids) {
   const r = await client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data').in('id', ids)
   if (r.error) return { error: r.error.message }
