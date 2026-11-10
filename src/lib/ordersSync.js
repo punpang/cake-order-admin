@@ -1,4 +1,4 @@
-import { startSync, selectAll } from './tableSync'
+import { startSync, selectAll, withVer, casUpdate } from './tableSync'
 import { parseNo } from './docNo'
 import { orderTotals } from './pricing'
 import { STATUS } from './constants'
@@ -24,12 +24,12 @@ export function orderToRow(o) {
 }
 export function rowToOrder(r) {
   const d = r.data || {}
-  return { ...d, id: r.id, code: r.code, customerId: r.customer_id || '', status: r.status, fulfillment: r.fulfillment, ...(r.channel ? { channel: r.channel } : {}) }
+  return withVer({ ...d, id: r.id, code: r.code, customerId: r.customer_id || '', status: r.status, fulfillment: r.fulfillment, ...(r.channel ? { channel: r.channel } : {}) }, r.updated_at)
 }
 
 export async function loadOrders(client) {
   const a = await selectAll((x, y) => {
-    let qy = client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data')
+    let qy = client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data,updated_at')
     if (!fullHistory) qy = qy.not('status', 'in', '(cancelled,delivered)')
     return qy.order('code').order('id').range(x, y)
   })
@@ -48,7 +48,7 @@ const applyPay = (qy, payState) => {
 }
 export async function loadOrdersInRange(client, { from = '', to = '', status = '', fulfillment = '', includePos = true, openOnly = false, payState = '' } = {}) {
   const a = await selectAll((x, y) => {
-    let qy = client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data')
+    let qy = client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data,updated_at')
     if (openOnly) qy = qy.not('status', 'in', '(cancelled,delivered)') // ไม่เลือกช่วงวันที่ = ทุกออร์เดอร์ที่ยังไม่ยกเลิก/ส่งมอบ
     qy = applyPay(qy, payState)
     if (from) qy = qy.gte('pickup_at', from)
@@ -87,7 +87,8 @@ export async function backfillBalances(client, db) {
   const need = new Set(r.data.map((x) => x.id))
   const todo = db.orders.filter((o) => need.has(o.id))
   for (let i = 0; i < todo.length; i += 20) {
-    await Promise.all(todo.slice(i, i + 20).map((o) => client.from('punpang_orders').update({ balance: balanceOf(o) }).eq('id', o.id)))
+    // เติมคอลัมน์แล้ว updated_at ขยับ → อัปเดตเวอร์ชันในเครื่องด้วย (ไม่งั้นการแก้ครั้งถัดไปจะชนเวอร์ชัน)
+    await Promise.all(todo.slice(i, i + 20).map(async (o) => { const c = await casUpdate(client, 'punpang_orders', o.id, { balance: balanceOf(o) }, null); if (c.ok) withVer(o, c.ver) }))
   }
 }
 
@@ -99,7 +100,7 @@ export async function searchOrdersRemote(client, q) {
 }
 
 export async function loadOrdersByIds(client, ids) {
-  const r = await client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data').in('id', ids)
+  const r = await client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data,updated_at').in('id', ids)
   if (r.error) return { error: r.error.message }
   return { items: (r.data || []).map(rowToOrder) }
 }
@@ -112,15 +113,21 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 // FK ลูกค้ายังไม่ถูกซิงก์ (23503) → รอแล้วลองใหม่ · เลขซ้ำ (23505) → ออกเลขใหม่
 export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRecode = () => {}, numbering = null, known = new Set(), slips = new Map() } = {}) {
   const cache = new Map()
+  const conflicts = []
   for (const o of upserts) {
     // รูปในเครื่อง (สลิป/รูปงาน/รูปตัวอย่าง) → อัปโหลดไป bucket ส่วนตัวก่อน (ล้มเหลว = ไม่เขียนออร์เดอร์นี้)
     try { await externalizeOrderImages(client, o, cache) } catch (e) { return { error: `${o.code || o.id}: อัปโหลดรูปไม่สำเร็จ: ${e.message}` } }
     let tries = 0
     for (;;) {
       const row = orderToRow(o)
-      const r = known.has(o.id)
-        ? await client.from('punpang_orders').update((({ id, ...rest }) => rest)(row)).eq('id', o.id)
-        : await client.from('punpang_orders').insert(row)
+      let r
+      if (known.has(o.id)) {
+        // แก้แถวเดิมแบบเทียบเวอร์ชัน: มีคนอื่น/ระบบ (เช่น ลูกค้าแจ้งชำระ) แก้ไปก่อน = ไม่เขียนทับ รายงาน conflict
+        const c = await casUpdate(client, 'punpang_orders', o.id, (({ id, ...rest }) => rest)(row), o._v)
+        if (c.conflict) { conflicts.push(o.id); break }
+        r = c.error ? { error: c.error } : {}
+        if (c.ok) withVer(o, c.ver)
+      } else r = await client.from('punpang_orders').insert(row)
       if (!r.error) {
         known.add(o.id)
         // รูปที่ไม่ถูกอ้างถึงแล้ว (เปลี่ยนรูป/ลบรูป/ล้างข้อมูลลูกค้า) → ลบไฟล์
@@ -143,7 +150,7 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
       return { error: `${o.code || o.id}: ${r.error.message}` }
     }
   }
-  return { ok: true }
+  return conflicts.length ? { ok: true, conflicts } : { ok: true }
 }
 
 export function startOrdersSync({ client, db, canWrite, onError, onRecode, numbering, debounceMs, retryDelay }) {

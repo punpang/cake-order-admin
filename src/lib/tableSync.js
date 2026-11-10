@@ -28,6 +28,24 @@ export async function selectAll(make) {
   }
 }
 
+// เวอร์ชันของแถว (updated_at) แนบกับอ็อบเจกต์แบบไม่นับในข้อมูล (non-enumerable → ไม่เข้า JSON/สแนปช็อต/คอลัมน์ data)
+export function withVer(obj, updatedAt) {
+  if (updatedAt) Object.defineProperty(obj, '_v', { value: updatedAt, writable: true, enumerable: false, configurable: true })
+  return obj
+}
+// แก้แถวแบบเทียบเวอร์ชัน (compare-and-swap): เขียนเฉพาะเมื่อ updated_at ยังเป็นค่าที่เครื่องนี้อ่านมา
+// ไม่ใช้ RETURNING (ผู้มีสิทธิ์เขียนแต่ไม่มีสิทธิ์อ่านแถวจะโดน RLS) → นับแถวด้วย count แล้วอ่านเวอร์ชันใหม่แยก (อ่านไม่ได้ = ไม่มีเวอร์ชัน รอบหน้าเขียนแบบไม่เทียบ)
+// คืน { ok, ver } | { conflict: true } | { error }
+export async function casUpdate(client, table, id, values, ver) {
+  let q = client.from(table).update(values, { count: 'exact' }).eq('id', id)
+  if (ver) q = q.eq('updated_at', ver)
+  const r = await q
+  if (r.error) return { error: r.error }
+  if (ver && !r.count) return { conflict: true }
+  const v = await client.from(table).select('updated_at').eq('id', id).maybeSingle()
+  return { ok: true, ver: v.data?.updated_at || null }
+}
+
 // ลองเขียนซ้ำเองเมื่อเขียนไม่สำเร็จ: 5 → 15 → 60 วินาที (ค้างที่ 60)
 export const RETRY_MS = [5000, 15000, 60000]
 // แอปจริง (staffAuth) เปิดไว้: โหลดไม่สำเร็จ = ล้างรายการตัวอย่างในเครื่อง ไม่ให้ดูเหมือนข้อมูลจริง · ค่าเริ่มต้นปิด (เทสต์/การใช้งานอื่นคงข้อมูลเดิม)
@@ -103,7 +121,31 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
         retryTimer = setTimeout(flush, RETRY_MS[Math.min(fails, RETRY_MS.length - 1)])
         fails++
       } else {
-        for (const [id, s] of sent) snapshot.set(id, s)
+        // แถวที่ถูกเครื่องอื่น/ระบบแก้ไปก่อน (เทียบเวอร์ชันไม่ตรง): ไม่เขียนทับ → โหลดฉบับล่าสุดแทนที่ แล้วแจ้งให้ทำรายการซ้ำ
+        const conflicts = r.conflicts || []
+        if (conflicts.length) {
+          const fresh = loadByIds ? await loadByIds(conflicts) : { error: 'no loader' }
+          if (fresh.error) {
+            // โหลดไม่สำเร็จ = ยังไม่ตัดสิน: คงแถวไว้ในสถานะรอเขียน แล้วลองใหม่ตามรอบ
+            ok = false
+            const rows = new Set(conflicts)
+            for (const [id, s] of sent) if (!rows.has(id)) snapshot.set(id, s)
+            onError(`${label}ถูกแก้ที่อื่น โหลดข้อมูลล่าสุดไม่สำเร็จ: ${fresh.error}`)
+            syncSet(key, 'failed', fresh.error, flush)
+            retryTimer = setTimeout(flush, RETRY_MS[Math.min(fails, RETRY_MS.length - 1)])
+            fails++
+            return ok
+          }
+          const arr = list()
+          for (const it of fresh.items) {
+            const k = arr.findIndex((i) => i.id === it.id)
+            if (k >= 0) arr.splice(k, 1, it); else arr.push(it)
+          }
+          applyRows?.(fresh.items)
+          for (const it of fresh.items) snapshot.set(it.id, JSON.stringify(arr.find((i) => i.id === it.id)))
+          onError(`${label}ที่แก้ไว้ถูกแก้ที่อื่นไปก่อน (เช่น ลูกค้าแจ้งชำระ/อีกเครื่องแก้) โหลดข้อมูลล่าสุดแล้ว ตรวจแล้วทำรายการซ้ำอีกครั้ง`)
+        }
+        for (const [id, s] of sent) if (!conflicts.includes(id)) snapshot.set(id, s)
         for (const id of changes.deletes) snapshot.delete(id)
         fails = 0
         // ระหว่างเขียนมีการแก้ใหม่ → เขียนต่ออีกรอบ
