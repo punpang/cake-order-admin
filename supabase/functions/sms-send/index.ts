@@ -1,9 +1,10 @@
-// Edge Function: ส่ง SMS จริงผ่านเกตเวย์ของร้าน (ผู้ให้บริการ SMS ไทย)
+// Edge Function: ส่ง SMS ผ่าน SMS Gateway ที่รันบนโทรศัพท์ (HTTP API `POST /v1/sms`)
 // - ตรวจสิทธิ์: ต้องเป็นพนักงานที่ active (punpang_staff) เท่านั้น
-// - ความลับ (secret) อยู่ฝั่งเซิร์ฟเวอร์: SMS_GATEWAY_URL, SMS_API_KEY, SMS_SENDER
-//   ตั้งด้วย: supabase secrets set SMS_GATEWAY_URL=... SMS_API_KEY=... SMS_SENDER=...
-// - รูปแบบคำขอไปยังผู้ให้บริการ (sendOut) ต้องปรับให้ตรงกับผู้ให้บริการที่เลือก
-// - ตอบกลับ {ok, error} เท่านั้น ไม่ส่งคีย์หรือ URL เกตเวย์กลับไปที่หน้าเว็บ
+// - ความลับ (secret) อยู่ฝั่งเซิร์ฟเวอร์: SMS_GATEWAY_URL (ลิงก์ http/https ของเกตเวย์ หรือรีเลย์), SMS_API_KEY (สิทธิ์ "ส่งและลบ" เท่านั้น)
+//   ตั้งด้วย: supabase secrets set SMS_GATEWAY_URL=... SMS_API_KEY=...
+// - เกตเวย์รับคำขอเฉพาะจาก IP ใน LAN และตรวจ certificate pin (ดู docs/integrations.md) ระบบบนคลาวด์ต้องผ่านรีเลย์/Tunnel ที่อยู่ใน LAN
+// - ฝั่งเรียกต้องส่ง idempotencyKey (8–64 ตัว A-Z a-z 0-9 _ -) ผูกกับข้อความนั้น เพื่อให้ลองซ้ำไม่ส่ง SMS ซ้ำ
+// - ตอบกลับ {ok, error} (และ id ของงานเมื่อสำเร็จ) เท่านั้น ไม่ส่งคีย์หรือ URL เกตเวย์กลับไปที่หน้าเว็บ
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -17,17 +18,18 @@ const env = (k: string) => Deno.env.get(k) ?? ''
 const SUPABASE_URL = env('SUPABASE_URL')
 const ANON = env('SUPABASE_ANON_KEY')
 const SERVICE = env('SUPABASE_SERVICE_ROLE_KEY')
-const GATEWAY_URL = env('SMS_GATEWAY_URL')
-const GATEWAY_KEY = env('SMS_API_KEY')
-const SENDER = env('SMS_SENDER')
+const GATEWAY_URL = env('SMS_GATEWAY_URL').trim()
+const GATEWAY_KEY = env('SMS_API_KEY').trim()
 
-const configured = () => !!(GATEWAY_URL && GATEWAY_KEY && SENDER)
-// เบอร์ไทย: ขึ้นต้น 0 ยาว 9–10 หลัก (ตรงกับ phoneValid ฝั่งหน้าเว็บ)
+const configured = () => !!(GATEWAY_URL && GATEWAY_KEY)
+// เบอร์ไทย: ขึ้นต้น 0 ยาว 9–10 หลัก (ตรงกับ phoneValid ฝั่งหน้าเว็บ) · เกตเวย์รับรูปแบบ 0… ได้
 const normalizeNumber = (s: unknown) => {
   const d = String(s ?? '').replace(/\D/g, '')
   return /^0\d{8,9}$/.test(d) ? d : null
 }
-const MAX_TEXT = 640 // ราว 9 ข้อความ SMS ภาษาไทย กันข้อความยาวผิดปกติ
+// เกตเวย์รับได้สูงสุด 5 ฉบับ (ข้อความยาวจะถูกแบ่งอัตโนมัติ) · เพดานนี้เผื่อไว้ให้ตรงกับ 5 ฉบับภาษาไทย (~70 ตัว/ฉบับ) · เกตเวย์เป็นผู้ตัดสินจริง
+const MAX_TEXT = 350
+const IDEM = /^[A-Za-z0-9_-]{8,64}$/
 
 async function staffOf(req: Request): Promise<boolean> {
   const m = /^Bearer (.+)$/.exec(req.headers.get('authorization') || '')
@@ -43,20 +45,42 @@ async function staffOf(req: Request): Promise<boolean> {
   return !!rows[0] && rows[0].active !== false
 }
 
-// คำขอออกไปยังเกตเวย์ (ปรับรูปแบบให้ตรงกับผู้ให้บริการที่ใช้จริง)
-async function sendOut(to: string, message: string): Promise<{ ok: boolean; error?: string }> {
-  const intl = '66' + to.slice(1) // 0812345678 → 66812345678
+// ปลายทาง: ยอมรับทั้งลิงก์ฐาน (http://host:port) และลิงก์เต็มที่ลงท้าย /v1/sms
+const endpoint = () => {
+  const base = GATEWAY_URL.replace(/\/+$/, '')
+  return /\/v1\/sms$/i.test(base) ? base : `${base}/v1/sms`
+}
+
+// แปลงรหัสข้อผิดพลาดของเกตเวย์เป็นข้อความไทย (ตาม error table ของ API)
+function gatewayError(status: number, code: string): string {
+  if (status === 400) return `เกตเวย์ไม่รับข้อมูล (${code || 'invalid'})`
+  if (status === 401) return 'key ของเกตเวย์ไม่ถูกต้อง'
+  if (status === 403 && code === 'ip_not_allowed') return 'IP นี้ไม่อยู่ในรายการที่เกตเวย์อนุญาต'
+  if (status === 403 && code === 'insufficient_scope') return 'key ของเกตเวย์ไม่มีสิทธิ์ส่ง SMS'
+  if (status === 403) return 'เกตเวย์ปฏิเสธการเชื่อมต่อ (ไม่ได้อยู่ใน LAN ของเกตเวย์)'
+  if (status === 404) return 'ไม่พบ endpoint ของเกตเวย์ (ตรวจลิงก์)'
+  if (status === 409 && code === 'idempotency_key_reused') return 'คีย์ส่งซ้ำกับข้อความอื่นที่ไม่ตรงกัน'
+  if (status === 409) return 'เกตเวย์มีงานค้างอยู่ ลองใหม่ภายหลัง'
+  if (status === 413) return 'คำขอใหญ่เกินที่เกตเวย์รับ'
+  if (status === 429 && code === 'daily_limit_reached') return 'ถึงโควตาการส่งต่อวันของเกตเวย์แล้ว'
+  if (status === 429) return 'เรียกเกตเวย์ถี่เกินไป ลองใหม่อีกครั้ง'
+  return `เกตเวย์ตอบ ${status}`
+}
+
+// คำขอออกไปยังเกตเวย์: POST /v1/sms ด้วย Idempotency-Key จากฝั่งเรียก · 200 = คืนงานเดิม, 202 = สร้างงานใหม่
+async function sendOut(to: string, message: string, idem: string): Promise<{ ok: boolean; id?: unknown; error?: string }> {
   try {
-    const r = await fetch(GATEWAY_URL, {
+    const r = await fetch(endpoint(), {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${GATEWAY_KEY}` },
-      body: JSON.stringify({ sender: SENDER, to: intl, message }),
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${GATEWAY_KEY}`, 'idempotency-key': idem },
+      body: JSON.stringify({ to, message }),
       signal: AbortSignal.timeout(10_000),
     })
-    if (!r.ok) return { ok: false, error: `ผู้ให้บริการตอบ ${r.status}` }
-    return { ok: true }
+    const data = await r.json().catch(() => null)
+    if (r.ok) return { ok: true, id: data?.id }
+    return { ok: false, error: gatewayError(r.status, String(data?.error ?? '')) }
   } catch {
-    return { ok: false, error: 'เชื่อมต่อผู้ให้บริการไม่ได้ (หมดเวลาหรือเครือข่ายขัดข้อง)' }
+    return { ok: false, error: 'เชื่อมต่อเกตเวย์ไม่ได้ (หมดเวลาหรือเครือข่ายขัดข้อง)' }
   }
 }
 
@@ -75,8 +99,11 @@ Deno.serve(async (req) => {
   if (!to) return json({ ok: false, error: 'เบอร์โทรไม่ถูกต้อง' }, 400)
   const text = String(body.text ?? '').trim()
   if (!text) return json({ ok: false, error: 'ไม่มีข้อความ' }, 400)
-  if (text.length > MAX_TEXT) return json({ ok: false, error: `ข้อความยาวเกิน ${MAX_TEXT} ตัวอักษร` }, 400)
+  if (text.length > MAX_TEXT) return json({ ok: false, error: `ข้อความยาวเกิน ${MAX_TEXT} ตัวอักษร (สูงสุด 5 ฉบับ)` }, 400)
+  const idem = String(body.idempotencyKey ?? '').trim()
+  if (!idem) return json({ ok: false, error: 'ไม่มีคีย์กันส่งซ้ำ (idempotencyKey)' }, 400)
+  if (!IDEM.test(idem)) return json({ ok: false, error: 'คีย์กันส่งซ้ำต้องยาว 8–64 ตัว (A-Z a-z 0-9 _ -)' }, 400)
 
-  const r = await sendOut(to, text)
-  return json(r.ok ? { ok: true } : { ok: false, error: r.error }, r.ok ? 200 : 502)
+  const r = await sendOut(to, text, idem)
+  return json(r.ok ? { ok: true, id: r.id ?? null } : { ok: false, error: r.error }, r.ok ? 200 : 502)
 })

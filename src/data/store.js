@@ -2049,7 +2049,9 @@ export const smsHook = { send: null }
 function deliverSms(row, number, text, kind) {
   if (!smsHook.send) return
   row.status = 'sending'
-  smsHook.send(number, text, kind).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
+  // คีย์กันส่งซ้ำ: ผูกกับแถวคิวเดิม ลองใหม่กี่ครั้งก็ใช้คีย์เดิม (เกตเวย์ไม่สร้างงานซ้ำ)
+  row.idem ??= 'ob' + (globalThis.crypto?.randomUUID?.().replace(/-/g, '') || `${Date.now()}${Math.random().toString(36).slice(2)}`)
+  smsHook.send(number, text, kind, row.idem).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
 }
 // ส่ง Telegram จริงเข้ากลุ่มทีม (Edge Function telegram-send · token/chat id เป็น secret ฝั่งเซิร์ฟเวอร์) · ไม่มีตัวส่ง = คงสถานะจำลองไว้
 export const tgHook = { send: null }
@@ -2345,7 +2347,9 @@ export function processInbound(chatId, mid) {
 // ---------- บอทตอบแชท ----------
 // ทำงานเมื่อมีข้อความจากลูกค้า (LINE/Facebook): suggest = เก็บร่างให้พนักงานกดส่ง · auto = ส่งเองหลังหน่วงเวลา (Facebook ต้องอยู่ในหน้าต่าง 24 ชม.)
 // ไม่แน่ใจ/เรื่องเงิน/ร้องเรียน/ยืนยันตัวตนไม่ได้ → ส่งต่อพนักงาน + แจ้ง Telegram · ข้อความลูกค้าประมวลผลในเบราว์เซอร์เท่านั้น
-const botOn = (c) => db.bot.enabled && db.bot.mode !== 'off' && !!db.bot.channels[c.channel] && !c.botOff
+// Facebook: บอทฝั่งเซิร์ฟเวอร์ (fb-webhook/bot.ts) ตอบแทนแล้ว → เบราว์เซอร์ไม่ตอบซ้ำ · LINE/อื่น ๆ ยังทำงานในเบราว์เซอร์
+const SERVER_BOT_CHANNELS = ['facebook']
+const botOn = (c) => db.bot.enabled && db.bot.mode !== 'off' && !SERVER_BOT_CHANNELS.includes(c.channel) && !!db.bot.channels[c.channel] && !c.botOff
 function botDeliver(c, res) {
   if (res.prefix) sendChat(c.id, 'staff', res.prefix, { by: 'บอท' }) // ข้อความแจ้งร้านปิด (ส่งก่อนคำตอบ)
   if (res.askField) askCustomer(c.id, res.askField)
@@ -2642,7 +2646,8 @@ export function connectSms({ url, sender, key }) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
   const u = checkSmsUrl(url)
   if (u.error) return u
-  const sd = checkSmsSender(sender)
+  // ชื่อผู้ส่งไม่บังคับ (เกตเวย์ใช้เบอร์ของโทรศัพท์) · ถ้ากรอกต้องผ่านรูปแบบ
+  const sd = String(sender ?? '').trim() ? checkSmsSender(sender) : { ok: true, sender: 'เกตเวย์ SMS' }
   if (sd.error) return sd
   const k = String(key ?? '').trim()
   if (k.length < 8) return { error: 'คีย์ (API key) สั้นเกินไป' }

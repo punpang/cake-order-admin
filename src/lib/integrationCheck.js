@@ -16,7 +16,7 @@ export function checkSmsUrl(raw) {
   if (t.length > 500) return { error: 'URL ยาวเกินไป' }
   let u
   try { u = new URL(t) } catch { return { error: 'รูปแบบ URL ไม่ถูกต้อง' } }
-  if (u.protocol !== 'https:') return { error: 'URL ต้องขึ้นต้นด้วย https:// เท่านั้น' }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return { error: 'URL ต้องขึ้นต้นด้วย http:// หรือ https://' }
   if (u.username || u.password) return { error: 'URL ห้ามมีชื่อผู้ใช้/รหัสผ่าน (ใส่ที่ช่องคีย์)' }
   const h = u.hostname.toLowerCase()
   if (PRIVATE_HOST.test(h) || !h.includes('.') || isIp(h)) return { error: 'ต้องเป็นชื่อโดเมนของผู้ให้บริการ (ไม่รับ IP / localhost / ที่อยู่ภายใน)' }

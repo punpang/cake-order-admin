@@ -338,14 +338,14 @@ async function disconnect(k) {
 
     <!-- modal เชื่อมบัญชี -->
     <AppModal v-if="sf.key" :title="sf.key === 'telegram' ? 'เชื่อม Telegram' : 'เชื่อม SMS'" @close="sf.key = ''">
-      <p class="mb-3 rounded-xl bg-amber-50 p-2 text-xs text-amber-800">จำลอง · ยังไม่ส่งจริง · ระบบเก็บเฉพาะ 4 ตัวท้ายของ{{ sf.key === 'sms' ? 'คีย์' : ' token' }} (ของจริงเก็บที่เซิร์ฟเวอร์เมื่อต่อ Supabase)</p>
+      <p class="mb-3 rounded-xl bg-amber-50 p-2 text-xs text-amber-800">{{ sf.key === 'sms' ? 'SMS ส่งจริงเมื่อตั้งค่า secret ฝั่งเซิร์ฟเวอร์ครบ (SMS_GATEWAY_URL, SMS_API_KEY) และเกตเวย์เข้าถึงได้จากคลาวด์ผ่านรีเลย์ · หน้านี้เก็บเฉพาะ 4 ตัวท้ายของคีย์' : 'จำลอง · ยังไม่ส่งจริง · ระบบเก็บเฉพาะ 4 ตัวท้ายของ token (ของจริงเก็บที่เซิร์ฟเวอร์เมื่อต่อ Supabase)' }}</p>
       <div v-if="sf.key === 'telegram'" class="space-y-3">
         <div><label class="label">Bot token (จาก @BotFather)</label><input v-model="sf.token" type="password" autocomplete="off" class="input font-mono text-sm" placeholder="123456789:AAxxxxxxxx…" /></div>
         <div><label class="label">Chat ID ของกลุ่มทีม</label><input v-model="sf.chatId" class="input" placeholder="-1001234567890 หรือ @ชื่อช่อง" /></div>
       </div>
       <div v-else class="space-y-3">
-        <div><label class="label">URL ของผู้ให้บริการ SMS (https)</label><input v-model="sf.url" class="input font-mono text-sm" placeholder="https://api.provider.co.th/v1/send" maxlength="500" /><p class="mt-1 text-xs text-stone-400">ต้องเป็นชื่อโดเมน https (ไม่รับ IP/localhost)</p></div>
-        <div><label class="label">ชื่อผู้ส่ง (Sender name)</label><input v-model="sf.sender" class="input" placeholder="CakeShop" maxlength="11" /></div>
+        <div><label class="label">ลิงก์ SMS Gateway (http:// หรือ https://)</label><input v-model="sf.url" class="input font-mono text-sm" placeholder="http://ชื่อโดเมน:พอร์ต" maxlength="500" /><p class="mt-1 text-xs text-stone-400">ใช้ชื่อโดเมนของเกตเวย์หรือรีเลย์ (ไม่รับ IP/localhost) · ระบบฝั่งเซิร์ฟเวอร์ต้องเข้าถึงลิงก์นี้ได้</p></div>
+        <div><label class="label">ชื่อผู้ส่ง (ไม่บังคับ)</label><input v-model="sf.sender" class="input" placeholder="ว่างได้" maxlength="11" /></div>
         <div><label class="label">API key</label><input v-model="sf.apiKey" type="password" autocomplete="off" class="input font-mono text-sm" /></div>
       </div>
       <p v-if="sf.error" class="mt-3 flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ sf.error }}</p>
