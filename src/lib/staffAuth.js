@@ -105,9 +105,74 @@ function stopPolling() {
   if (typeof window !== 'undefined') window.removeEventListener('online', onOnline)
   stopStaffRealtime()
 }
+// ตัวจัดการเบื้องหลังของแชท (ใช้เมื่อโหลดกลุ่ม chats เท่านั้น): บอทตอบ/ใบเสนอที่ลูกค้ากดยืนยัน จองสิทธิ์ที่ฐานข้อมูลก่อน
+function chatHooks(client, store, has) {
+  const botSeen = new Set()
+  const onInbound = async (chatId, mid) => {
+    const k = chatId + '|' + mid
+    if (botSeen.has(k)) return
+    botSeen.add(k)
+    const r = await client.rpc('punpang_chat_bot_claim', { p_chat: chatId, p_mid: mid })
+    if (r.error || r.data !== true) return // ไม่ได้สิทธิ์ (มีเครื่องอื่นจองแล้ว) หรือผิดพลาด
+    store.processInbound(chatId, mid)
+  }
+  const quoteSeen = new Set()
+  const onQuoteConfirm = async (quoteId) => {
+    if (quoteSeen.has(quoteId)) return
+    quoteSeen.add(quoteId)
+    const r = await client.rpc('punpang_quote_claim', { p_quote: quoteId })
+    if (r.error || r.data !== true) { quoteSeen.delete(quoteId); return }
+    store.processQuoteConfirm(quoteId)
+  }
+  return { onInbound, onQuoteConfirm: has('createOrder') ? onQuoteConfirm : null }
+}
+
+// กลุ่มข้อมูลที่โหลดตามหน้า (ไม่โหลดตอนเปิดแอป) · คืน handle/array/null ของการซิงก์
+const GROUP_LOADERS = {
+  shifts: async (c) => {
+    if (!['pos', 'viewAllOrders', 'manage'].some(c.has)) return null
+    const m = await import('./shiftsSync')
+    return m.startShiftsSync({ client: c.client, db: c.store.db, canWrite: c.has('pos'), onError: c.onError })
+  },
+  chats: async (c) => {
+    if (!c.has('chat')) return null
+    const m = await import('./chatSync')
+    return m.startChatSync({ client: c.client, db: c.store.db, canWrite: true, numbering: c.store.numbering, onError: c.onError, ...chatHooks(c.client, c.store, c.has),
+      onRecode: (q, n) => showToast(`เลขใบเสนอซ้ำ ระบบเปลี่ยนเป็น ${n}`, 8000) })
+  },
+  users: async (c) => {
+    if (!c.has('manageUsers')) return null
+    const m = await import('./usersSync')
+    return m.startUsersSync({ client: c.client, db: c.store.db, canWrite: true, onError: c.onError })
+  },
+}
+// ข้อมูลของการเข้าสู่ระบบปัจจุบัน (ตั้งหลัง startData) + สัญญาณว่าข้อมูลพื้นฐานพร้อมแล้ว
+let dataCtx = null
+let coreDone = null
+let coreReady = Promise.resolve()
+const groupLoads = new Map()
+// เรียกเมื่อเข้าหน้าที่ต้องใช้กลุ่มข้อมูล (router meta.data): โหลดเฉพาะกลุ่มที่ยังไม่เคยโหลด แล้วคงไว้เมื่อออกจากหน้า
+export function ensureData(groups = []) {
+  if (!dataCtx) return Promise.resolve()
+  for (const g of groups) {
+    if (!GROUP_LOADERS[g] || groupLoads.has(g)) continue
+    const p = Promise.race([coreReady, new Promise((r) => setTimeout(r, 8000))]).then(async () => {
+      if (!dataCtx) return
+      const r = await GROUP_LOADERS[g](dataCtx)
+      if (Array.isArray(r)) syncs.push(...r); else if (r) syncs.push(r)
+      startStaffRealtime(dataCtx.client, dataCtx.recNames)
+    }).catch((e) => { groupLoads.delete(g); console.warn('โหลดข้อมูลไม่สำเร็จ:', g, e?.message) })
+    groupLoads.set(g, p)
+  }
+  return Promise.all(groups.map((g) => groupLoads.get(g) || Promise.resolve()))
+}
+
 // หลังล็อกอินสำเร็จ: โหลดข้อมูลจาก Supabase (สินค้า/ลูกค้า) และเขียนกลับเมื่อมีสิทธิ์
 async function startData(staff) {
   stopPublicRefresh(); publicState.status = 'idle'
+  groupLoads.clear()
+  coreReady = new Promise((r) => (coreDone = r))
+  dataCtx = null
   ;(await import('./tableSync')).syncOptions.clearOnLoadFail = true
   stopPolling()
   syncs.forEach((x) => x.stop())
@@ -180,38 +245,16 @@ async function startData(staff) {
     canWrite: ['createOrder', 'pos', 'startPreparing', 'markPrepared', 'deliverPickup', 'deliverShipping', 'confirmPayment', 'reportPayment', 'cancel', 'editPickup', 'editItems', 'adjustPrice', 'changeBuyer', 'workPhoto'].some(has) }).then((h) => { store.numbering.prefetch(); return h }))
   tasks.push(customers.startCustomersSync({ client, db, canWrite: has('createOrder') || has('adjustPoints'), onError }))
   tasks.push(acct.startAcctSync({ client, db, has, onError }))
-  // แชท/ใบเสนอ: เฉพาะผู้มีสิทธิ์ chat · คนอื่นล้างข้อมูลตัวอย่างออก (ไม่ให้เห็นแชทจำลองปนกับของจริง)
-  // ข้อความ Facebook ใหม่ที่ webhook เขียนลงฐานข้อมูล → จองสิทธิ์ (atomic) แล้วให้บอทของแอปตอบ/เก็บร่าง · ทำงานเฉพาะตอนมีหน้าแอดมินเปิดอยู่
-  const botSeen = new Set()
-  const onInbound = async (chatId, mid) => {
-    const k = chatId + '|' + mid
-    if (botSeen.has(k)) return
-    botSeen.add(k)
-    const r = await client.rpc('punpang_chat_bot_claim', { p_chat: chatId, p_mid: mid })
-    if (r.error || r.data !== true) return // ไม่ได้สิทธิ์ (มีเครื่องอื่นจองแล้ว) หรือผิดพลาด
-    store.processInbound(chatId, mid)
-  }
-  // ลูกค้ากดยืนยันใบเสนอทาง Messenger (webhook ตั้งสถานะ customer_ok) → จองสิทธิ์ (atomic) แล้วสร้างออร์เดอร์/ขอเบอร์ต่อ · ต้องมีสิทธิ์สร้างออร์เดอร์
-  const quoteSeen = new Set()
-  const onQuoteConfirm = async (quoteId) => {
-    if (quoteSeen.has(quoteId)) return
-    quoteSeen.add(quoteId)
-    const r = await client.rpc('punpang_quote_claim', { p_quote: quoteId })
-    if (r.error || r.data !== true) { quoteSeen.delete(quoteId); return }
-    store.processQuoteConfirm(quoteId)
-  }
-  if (has('chat')) tasks.push(chats.startChatSync({ client, db, canWrite: true, numbering: store.numbering, onError, onInbound, onQuoteConfirm: has('createOrder') ? onQuoteConfirm : null, onRecode: (q, c) => showToast(`เลขใบเสนอซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000) }))
-  else { db.chats.splice(0); db.quotes.splice(0) }
-  // ผู้ใช้/สิทธิ์: เฉพาะ manageUsers · คนอื่นเห็นแค่ตัวเอง · ผูกตัวตนปัจจุบัน (ไว้บันทึกประวัติ "ใครทำ")
+  // แชท/ใบเสนอ/กะ POS/ผู้ใช้: โหลดเมื่อเปิดหน้าที่ใช้ (ensureData) · ไม่มีสิทธิ์ = ล้างข้อมูลตัวอย่างทิ้ง
+  if (!has('chat')) { db.chats.splice(0); db.quotes.splice(0) }
   store.session.userId = staff.user_id
   store.session.role = staff.role
-  if (has('manageUsers')) tasks.push(users.startUsersSync({ client, db, canWrite: true, onError }))
-  else users.selfOnly(db, staff)
-  // กะ POS: อ่านได้เมื่อมี pos / viewAllOrders / manage · เขียนได้เมื่อมี pos
-  if (['pos', 'viewAllOrders', 'manage'].some(has)) tasks.push(shifts.startShiftsSync({ client, db, canWrite: has('pos'), onError }))
-  else db.shifts.splice(0)
+  if (!has('manageUsers')) users.selfOnly(db, staff)
+  if (!['pos', 'viewAllOrders', 'manage'].some(has)) db.shifts.splice(0)
   // ข้อมูลปฏิบัติการรายแถว (รีวิว/คูปอง/คำขอ/แจ้งเตือน/ลิงก์ ฯลฯ): อ่าน/เขียนตามสิทธิ์ · อ่านไม่ได้ = ล้างข้อมูลตัวอย่าง
   const rec = await import('./recordsSync')
+  const recNames = new Set(Object.keys(rec.RECORD_SPECS))
+  dataCtx = { client, store, has, onError, recNames }
   for (const [name, spec] of Object.entries(rec.RECORD_SPECS)) {
     if (rec.specAllows(spec.read, has)) tasks.push(rec.startRecordsSync({ client, db, collection: name, canWrite: rec.specAllows(spec.write, has), onError }))
     else rec.clearRecords(db, name)
@@ -221,7 +264,8 @@ async function startData(staff) {
   // ตารางที่โหลดจากเซิร์ฟเวอร์ไม่สำเร็จ → แจ้งบนแถบสถานะ (ข้อมูลที่เห็นอาจไม่ครบ) พร้อมปุ่มลองโหลดใหม่
   staffState.loadFailed = syncs.filter((x) => x && x.loaded === false).map((x) => x.label || 'ข้อมูล')
   startPolling()
-  startStaffRealtime(client, new Set(Object.keys(rec.RECORD_SPECS)))
+  startStaffRealtime(client, recNames)
+  coreDone()
 }
 export async function reloadStaffData() { if (staffState.staff) await startData(staffState.staff) }
 // ดึงข้อมูลล่าสุดของตารางที่ระบุจากเซิร์ฟเวอร์ทันที (เช่น ก่อนขาย POS: สต็อก/กะ) · ข้ามตารางที่มีแก้ค้างในเครื่อง
@@ -320,4 +364,4 @@ export async function currentStaff() {
   return { staff: data }
 }
 
-export async function staffSignOut() { staffState.staff = null; staffState.loadFailed = []; { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1) }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
+export async function staffSignOut() { staffState.staff = null; staffState.loadFailed = []; dataCtx = null; groupLoads.clear(); { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1) }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }

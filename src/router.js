@@ -13,7 +13,7 @@ import AccountConsent from './views/account/AccountConsent.vue'
 import AccountOrder from './views/account/AccountOrder.vue'
 import NoAccess from './views/NoAccess.vue'
 import { supabaseEnabled } from './lib/supabase'
-import { staffState } from './lib/staffAuth'
+import { staffState, ensureData } from './lib/staffAuth'
 import { whenSessionReady } from './lib/dataStatus'
 import LegalPage from './views/store/LegalPage.vue'
 import StoreCakeDesign from './views/store/StoreCakeDesign.vue'
@@ -83,21 +83,21 @@ const router = createRouter({
     { path: '/admin/no-access', component: NoAccess },
     { path: '/admin/accounting', component: Accounting, meta: { perms: ['acctView'] } },
     { path: '/admin/orders', component: OrderList, meta: { perms: ['viewAllOrders', 'viewPrepOrders', 'viewDeliveryOrders'] } },
-    { path: '/admin/orders/new', component: OrderCreate, meta: { focus: true, perms: ['createOrder'] } },
-    { path: '/admin/orders/:id', component: OrderDetail, props: true, meta: { focus: true } },
+    { path: '/admin/orders/new', component: OrderCreate, meta: { focus: true, perms: ['createOrder'], data: ['chats'] } },
+    { path: '/admin/orders/:id', component: OrderDetail, props: true, meta: { focus: true, data: ['chats'] } },
     { path: '/admin/payments', component: Payments, meta: { perms: ['reportPayment', 'confirmPayment'] } },
-    { path: '/admin/chat', component: Chat, meta: { perms: ['chat'], lock: true } },
-    { path: '/admin/chat/:id', component: Chat, props: true, meta: { focus: true, perms: ['chat'], lock: true } },
-    { path: '/admin/pos', component: Pos, meta: { focus: true, perms: ['pos'] } },
+    { path: '/admin/chat', component: Chat, meta: { perms: ['chat'], lock: true, data: ['chats'] } },
+    { path: '/admin/chat/:id', component: Chat, props: true, meta: { focus: true, perms: ['chat'], lock: true, data: ['chats'] } },
+    { path: '/admin/pos', component: Pos, meta: { focus: true, perms: ['pos'], data: ['shifts'] } },
     { path: '/admin/materials', component: Materials, meta: { perms: ['viewMaterials'] } },
     { path: '/admin/production', component: Production, meta: { perms: ['viewMaterials'] } },
-    { path: '/admin/settings', component: ManageHome },
+    { path: '/admin/settings', component: ManageHome, meta: { data: ['users'] } },
     { path: '/admin/settings/customers', component: ManageCustomers },
     { path: '/admin/settings/promos', component: ManagePromos },
     { path: '/admin/settings/products', redirect: '/admin/settings/retail' },
     { path: '/admin/settings/options', component: ManageOptions },
     { path: '/admin/settings/options/:id', component: ManageOptionGroup, props: true },
-    { path: '/admin/settings/users', component: ManageUsers },
+    { path: '/admin/settings/users', component: ManageUsers, meta: { data: ['users'] } },
     { path: '/admin/settings/ingredients', component: ManageIngredients },
     { path: '/admin/settings/pricing', component: ManagePriceLists },
     { path: '/admin/settings/loyalty', component: ManageLoyalty },
@@ -131,6 +131,8 @@ router.beforeEach(async (to) => {
   if (to.meta.customer || to.meta.needLogin) await whenSessionReady()
   if ((to.meta.customer || to.meta.needLogin) && !customerSession.customerId) return '/account/login'
   if (to.meta.customer && needsConsent().length) return '/account/consent'
+  // กลุ่มข้อมูลของหน้า (โหลดครั้งแรกเมื่อเข้าหน้า แล้วคงไว้)
+  if (to.meta.data && supabaseEnabled && staffState.staff) await ensureData(to.meta.data)
 })
 
 export default router
