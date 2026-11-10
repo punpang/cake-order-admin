@@ -8,7 +8,9 @@ import { extractIntent, scoreProducts } from './chatIntent'
 export const BOT_DEFAULTS = {
   enabled: false, // ค่าเริ่มต้นปิดทุกช่องทาง
   channels: { line: false, facebook: false },
-  mode: 'suggest', // suggest = แนะนำให้พนักงานกดส่ง · auto = ส่งเอง
+  mode: 'suggest', // ค่าสำรองสำหรับประเภทที่ไม่ได้ตั้งเองใน sourceModes · suggest = แนะนำให้พนักงานกดส่ง · auto = ส่งเอง
+  // ตั้งรายประเภทได้: auto = ส่งเอง · suggest = แนะนำให้พนักงานกดส่ง (ประเภทในรายการ LOCKED ส่งเองไม่ได้เสมอ)
+  sourceModes: { hours: 'auto', faq: 'auto', offhours: 'auto', order: 'auto', rule: 'suggest', price: 'suggest', learned: 'suggest', ask: 'suggest' },
   confidence: 0.6,
   delaySec: 3,
   offHours: { enabled: true, text: 'ขณะนี้ร้านปิดทำการ เปิด {เวลาเปิด}–{เวลาปิด} น. พนักงานจะตอบกลับเมื่อร้านเปิดนะคะ' },
@@ -20,6 +22,10 @@ export const BOT_DEFAULTS = {
   stats: { suggested: 0, answered: 0, handoff: 0, staffEdited: 0 },
 }
 export const LEARN_MAX = 200
+// ประเภทคำตอบที่ตั้ง ตอบเอง/แนะนำ ได้รายประเภท
+export const AUTO_SOURCES = ['hours', 'faq', 'offhours', 'order', 'rule', 'price', 'learned', 'ask']
+// ประเภทที่ต้องให้พนักงานตอบเสมอ (ส่งเองไม่ได้ ไม่ว่าตั้งค่าอะไร)
+export const LOCKED_SOURCES = ['handoff', 'order_unverified']
 
 const lc = (s) => String(s ?? '').toLowerCase().trim()
 const SENSITIVE = ['คืนเงิน', 'เงินคืน', 'ขอเงินคืน', 'ร้องเรียน', 'โกง', 'หลอก', 'ไม่พอใจ', 'แย่มาก', 'เสียหาย', 'เสียใจ', 'ฟ้อง', 'โอนผิด', 'โอนซ้ำ', 'เรียกเงิน', 'ชดเชย', 'ผู้บริโภค', 'refund', 'complain', 'ค่าเสียหาย', 'ทวงเงิน']

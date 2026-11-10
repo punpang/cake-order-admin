@@ -13,7 +13,7 @@ import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, 
 import { nextBirthday, daysBetween } from '../lib/birthday'
 import { parseAnswer } from '../lib/chatParse'
 import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEFAULT_COOKIE, DEFAULT_LEGAL_CONTACT } from '../lib/legalDefaults'
-import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX } from '../lib/chatBot'
+import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX, AUTO_SOURCES, LOCKED_SOURCES } from '../lib/chatBot'
 import { checkTelegram, checkSmsUrl, checkSmsSender } from '../lib/integrationCheck'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
 import { digitsOf, promptPayKind } from '../lib/promptpay'
@@ -2351,10 +2351,12 @@ function closedNoticeFor(c, m, at = new Date()) {
   const nx = nextOpen(db.shop, at)
   return fillTemplate(cn.text, { เหตุผล: closure.reason || 'ตามเวลาทำการ', เปิดอีกครั้ง: nx ? `${dateOnly(nx)} ${pad(nx.getHours())}:${pad(nx.getMinutes())} น.` : 'ตามที่ร้านแจ้ง' })
 }
+// ส่งเองได้เมื่อประเภทนั้นตั้งเป็นตอบเอง (ประเภทล็อกส่งเองไม่ได้) และ Facebook ยังอยู่ในหน้าต่าง 24 ชม.
+const autoFor = (c, source) => !LOCKED_SOURCES.includes(source) && (db.bot.sourceModes?.[source] || db.bot.mode) === 'auto' && fbWindowOpen(c)
 export function runBot(c, m) {
   if (!m || m.kind !== 'text' || !botOn(c)) return null
   const notice = closedNoticeFor(c, m)
-  const auto = db.bot.mode === 'auto' && fbWindowOpen(c)
+  let auto = false // ตัดสินหลังรู้ประเภทคำตอบ (ดูด้านล่าง)
   let noticeDone = !notice
   const sendNotice = () => { if (!noticeDone) { noticeDone = true; sendChat(c.id, 'staff', notice, { by: 'บอท' }) } }
   const prefixOf = () => { if (!noticeDone && !auto) { noticeDone = true; return notice } return null }
@@ -2365,6 +2367,7 @@ export function runBot(c, m) {
     else { noticeDone = true; c.botDraft = c.botDraft || { text: notice, source: 'closed', confidence: 1, reason: 'ร้านปิด — แจ้งครั้งแรกของวัน', at: now() } }
   }
   const res = botReply(String(m.text).replace(CODE_RE, ' '), { db, chat: c, draft: db.chatDrafts[c.id] || null })
+  auto = autoFor(c, res.source)
   c.botDraft = null
   c.botHandoff = false
   if (res.handoff) {
@@ -2472,6 +2475,7 @@ export function saveBotSettings(d) {
   const b = db.bot
   b.enabled = !!d.enabled
   b.mode = ['suggest', 'auto'].includes(d.mode) ? d.mode : 'suggest'
+  b.sourceModes = Object.fromEntries(AUTO_SOURCES.map((k) => [k, d.sourceModes?.[k] === 'auto' ? 'auto' : 'suggest']))
   b.channels = { line: !!d.channels?.line, facebook: !!d.channels?.facebook }
   b.confidence = Math.min(0.95, Math.max(0.3, Number(d.confidence) || 0.6))
   b.delaySec = Math.min(60, Math.max(0, Math.round(Number(d.delaySec) || 0)))
