@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { supabaseEnabled, getSupabase } from '../../lib/supabase'
 import { fbConnectCall, FB_ERRORS } from '../../lib/fbRemote'
-import { db, findOrder, saveNotifyRule, runScheduledChecks, clearOutbox, fillTemplate, connectIntegration, disconnectIntegration, connectTelegram, sendIntegrationTest } from '../../data/store'
+import { db, findOrder, saveNotifyRule, runScheduledChecks, clearOutbox, fillTemplate, connectIntegration, disconnectIntegration, sendIntegrationTest } from '../../data/store'
 import { CHANNELS, NOTIFY_EVENTS, NOTIFY_VARS } from '../../lib/constants'
 import { askConfirm } from '../../lib/confirm'
 import { dateTime } from '../../lib/format'
@@ -128,18 +128,9 @@ async function runConnect() {
   conn.secret = ''
   conn.stage = 'done'
 }
-// ---------- Telegram / SMS (จำลอง) ----------
-// SMS ไม่มีฟอร์มกรอกในหน้านี้: ค่า URL/คีย์ตั้งที่ Supabase secrets และสถานะถูกตั้งอัตโนมัติ (ดูหน้า /admin/settings/sms)
+// ---------- Telegram ----------
+// ไม่มีฟอร์มกรอก token/chat id ในหน้านี้: ค่าตั้งที่ Supabase secrets และสถานะถูกตั้งอัตโนมัติ (ดูหน้า /admin/settings/sms สำหรับ SMS)
 const SIMPLE = ['telegram']
-const sf = reactive({ key: '', token: '', chatId: '', error: '' })
-function openSimple(k) {
-  Object.assign(sf, { key: k, token: '', chatId: db.integrations.telegram.accountId || '', error: '' })
-}
-function submitSimple() {
-  const r = connectTelegram({ token: sf.token, chatId: sf.chatId })
-  if (r.error) return (sf.error = r.error)
-  Object.assign(sf, { key: '', token: '' }) // ไม่ค้าง token ในหน้าจอ
-}
 const testRes = reactive({ key: '', text: '', error: '' })
 function runTest(k) {
   const r = sendIntegrationTest(k)
@@ -223,20 +214,11 @@ async function disconnect(k) {
           </div>
         </template>
         <template v-else-if="SIMPLE.includes(k)">
-          <div v-if="db.integrations[k].status === 'connected'" class="mt-3 space-y-2">
-            <div class="text-xs text-stone-500">
-              <template v-if="k === 'telegram'">chat {{ db.integrations.telegram.accountId }}</template>
-              · token ••••{{ db.integrations[k].tokenHint }} · เมื่อ {{ dateTime(db.integrations[k].connectedAt) }}
-            </div>
-            <div class="flex flex-wrap items-center gap-2">
-              <button type="button" class="btn-soft h-9 px-3 text-sm" @click="runTest(k)">ส่งข้อความทดสอบ</button>
-              <button type="button" class="btn-outline h-9 px-3 text-sm" @click="openSimple(k)">แก้ค่า</button>
-              <button type="button" class="btn-outline ml-auto h-9 px-3 text-sm" @click="disconnect(k)">ยกเลิกการเชื่อม</button>
-            </div>
+          <div class="mt-3 space-y-2">
+            <button type="button" class="btn-soft h-9 px-3 text-sm" @click="runTest(k)">ส่งข้อความทดสอบ</button>
             <p v-if="testRes.key === k && testRes.text" class="rounded-lg bg-emerald-50 p-2 text-xs text-emerald-800">{{ testRes.text }}</p>
             <p v-if="testRes.key === k && testRes.error" class="text-xs text-rose-600">{{ testRes.error }}</p>
           </div>
-          <button v-else type="button" class="btn-primary mt-3 h-10 w-full" @click="openSimple(k)">เชื่อม Telegram</button>
         </template>
       </section>
     </div>
@@ -342,19 +324,6 @@ async function disconnect(k) {
     </AppModal>
 
     <!-- modal เชื่อมบัญชี -->
-    <AppModal v-if="sf.key" title="เชื่อม Telegram" @close="sf.key = ''">
-      <p class="mb-3 rounded-xl bg-amber-50 p-2 text-xs text-amber-800">จำลอง · ยังไม่ส่งจริง · ระบบเก็บเฉพาะ 4 ตัวท้ายของ token (ของจริงเก็บที่เซิร์ฟเวอร์เมื่อต่อ Supabase)</p>
-      <div class="space-y-3">
-        <div><label class="label">Bot token (จาก @BotFather)</label><input v-model="sf.token" type="password" autocomplete="off" class="input font-mono text-sm" placeholder="123456789:AAxxxxxxxx…" /></div>
-        <div><label class="label">Chat ID ของกลุ่มทีม</label><input v-model="sf.chatId" class="input" placeholder="-1001234567890 หรือ @ชื่อช่อง" /></div>
-      </div>
-      <p v-if="sf.error" class="mt-3 flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ sf.error }}</p>
-      <template #footer>
-        <button class="btn-outline flex-1 sm:flex-none" @click="sf.key = ''">ปิด</button>
-        <button class="btn-primary flex-1 sm:flex-none" @click="submitSimple">เชื่อม</button>
-      </template>
-    </AppModal>
-
     <AppModal v-if="conn.key" :title="conn.key === 'facebook' ? 'เชื่อม Facebook Page' : 'เชื่อม LINE OA'" @close="closeConnect">
       <p v-if="!(fbReal && conn.key === 'facebook')" class="mb-3 rounded-xl bg-amber-50 p-2 text-xs text-amber-800">จำลองขั้นตอน · ต่อจริงเมื่อมีเซิร์ฟเวอร์ (Supabase)</p>
       <p v-if="conn.error && conn.key === 'facebook'" class="mb-3 flex items-center gap-2 rounded-xl bg-rose-50 p-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ conn.error }}</p>
