@@ -10,6 +10,7 @@ import { prevStatus } from '../lib/orderFlow'
 import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList, returnedByMethod } from '../lib/refund'
 import { addDays, pointBalance, takePoints, returnPoints, couponUsable, couponPhase, pickPrize, expiringSoon } from '../lib/loyalty'
 import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, timeOnly } from '../lib/format'
+import { showToast } from '../lib/toast'
 import { nextBirthday, daysBetween } from '../lib/birthday'
 import { parseAnswer } from '../lib/chatParse'
 import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEFAULT_COOKIE, DEFAULT_LEGAL_CONTACT } from '../lib/legalDefaults'
@@ -877,7 +878,7 @@ export function setStatus(order, status, text, opts = {}) {
   order.status = status
   log(order, text)
   if (status === 'delivered') order.deliveredAt = now()
-  if (status === 'delivered') awardOrder(order)
+  if (status === 'delivered') awardOrderRemote(order)
   const skip = opts.notify === false
   const noSms = opts.sms === false
   if (status === 'delivered') notifyOrder('delivered', order, { skip, noSms })
@@ -1257,7 +1258,7 @@ export function revertStatus(order, reason, opts = {}) {
     order.status = to
     if (from === 'delivered') {
       order.deliveredAt = null
-      undoAward(order)
+      undoAwardRemote(order)
     }
   }
   log(order, `ย้อนสถานะ ${STATUS[from]?.label || from} → ${STATUS[order.status]?.label || order.status} · เหตุผล: ${why}`)
@@ -1628,7 +1629,42 @@ function awardOrder(order) {
 function undoLoyalty(order) {
   if (order.pointsUsed) removePoints(order)
   for (const u of [...order.couponsUsed]) removeCoupon(order, u.couponId)
-  undoAward(order)
+  undoAwardRemote(order)
+}
+// คิวคะแนนของเครื่องนี้: การให้/ถอนแต้มทำทีละครั้ง เรียงตามลำดับที่สั่ง (ส่งมอบแล้วย้อนทันที → ถอนต้องไม่แซงการให้)
+let loyaltyChain = Promise.resolve()
+function loyaltyQueue(fn) {
+  const run = loyaltyChain.then(fn)
+  loyaltyChain = run.catch(() => {})
+  return run
+}
+// ส่งมอบ: ให้แต้มผ่านเซิร์ฟเวอร์ (RPC punpang_award_order กันให้ซ้ำด้วย data.loyalty ของออร์เดอร์) · ไม่มีตัวเรียก/ไม่มีลูกค้า = ทำแบบเดิมในเครื่อง
+// ไม่ return ผลลัพธ์ให้ผู้เรียก: ผิดพลาดจะแจ้งด้วย toast (ออร์เดอร์ยังส่งมอบอยู่)
+export function awardOrderRemote(order) {
+  if (!pointsHook.call) return awardOrder(order)
+  if (!order.customerId || !findCustomer(order.customerId) || order.loyalty) return
+  const { points, bonus, spins, base } = pointsFor(order)
+  return loyaltyQueue(async () => {
+    try {
+      const r = await pointsHook.call('punpang_award_order', { p_order: order.id, p_points: points, p_bonus: bonus, p_spins: spins, p_base: base }, { order: order.id, customer: order.customerId })
+      if (r.error && r.error !== 'already_awarded') showToast(`ให้คะแนนออร์เดอร์ ${order.code} ไม่สำเร็จ: ${PTS_MSG[r.error] || r.error} · ย้อนสถานะแล้วส่งมอบใหม่เพื่อลองอีกครั้ง`, 10000, 'error')
+    } catch (e) {
+      showToast(`ให้คะแนนออร์เดอร์ ${order.code} ไม่สำเร็จ: ${e?.message || 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้'} · ย้อนสถานะแล้วส่งมอบใหม่เพื่อลองอีกครั้ง`, 10000, 'error')
+    }
+  })
+}
+// ย้อนส่งมอบ/ยกเลิก: ถอนแต้ม/สิทธิ์หมุนผ่านเซิร์ฟเวอร์ (ซ้ำได้ปลอดภัย · ไม่มีแต้มค้างอยู่ = ไม่ทำอะไร) · ไม่มีตัวเรียก = undoAward ในเครื่อง
+export function undoAwardRemote(order) {
+  if (!pointsHook.call) return undoAward(order)
+  if (!order.customerId || !findCustomer(order.customerId)) return
+  return loyaltyQueue(async () => {
+    try {
+      const r = await pointsHook.call('punpang_undo_award', { p_order: order.id }, { order: order.id, customer: order.customerId })
+      if (r.error) showToast(`ถอนคะแนนออร์เดอร์ ${order.code} ไม่สำเร็จ: ${PTS_MSG[r.error] || r.error} · ตรวจยอดคะแนนลูกค้า`, 10000, 'error')
+    } catch (e) {
+      showToast(`ถอนคะแนนออร์เดอร์ ${order.code} ไม่สำเร็จ: ${e?.message || 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้'} · ตรวจยอดคะแนนลูกค้า`, 10000, 'error')
+    }
+  })
 }
 // ถอนคะแนน/สิทธิ์หมุนที่ให้ตอนส่งมอบ (ไม่แตะส่วนลดที่ใช้)
 function undoAward(order) {
