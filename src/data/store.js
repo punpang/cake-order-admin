@@ -890,7 +890,10 @@ export function setStatus(order, status, text, opts = {}) {
 
 // แจ้งยอดชำระ = ส่งยอดไปให้ลูกค้า (ยังไม่ใช่ยอดที่จ่ายจริง) ยอดจริงใส่ตอนแอดมินยืนยัน
 // payment.status = reported (รอลูกค้าชำระ) | confirmed | cancelled, requested = ยอดที่แจ้ง, amount = ยอดจริง (ตอนยืนยัน)
+const goodAmount = (v) => Number.isFinite(Number(v)) && Number(v) > 0
 export function reportPayment(order, p) {
+  if (!goodAmount(p.amount)) return { error: 'ยอดเงินไม่ถูกต้อง' }
+  if (['draft', 'cancelled'].includes(order.status)) return { error: 'ออร์เดอร์นี้แจ้งยอดไม่ได้' }
   order.payments.push({
     id: uid('pay'), code: numbering.next('PAY'),
     requested: Number(p.amount),
@@ -910,6 +913,7 @@ export function reportPayment(order, p) {
   log(order, `แจ้งยอดชำระ ${money(Number(p.amount))} (${p.method}) ชำระก่อน ${dueText(due)}`)
   notifyOrder('payment_requested', order, { requested: Number(p.amount), dueAt: due, skip: p.notify === false, noSms: p.sms === false })
   if (order.status === 'awaiting_payment') order.status = 'payment_reported'
+  return { ok: true }
 }
 
 const dueText = (iso) => (iso ? `${dateOnly(iso)} ${timeOnly(iso)} น.` : '')
@@ -919,6 +923,7 @@ const payFields = (p) => ({ method: p.method, paidAt: p.paidAt, slip: p.slip || 
 export function updatePaymentRequest(order, paymentId, p) {
   const pay = order.payments.find((x) => x.id === paymentId)
   if (!pay || pay.status !== 'reported') return
+  if (!goodAmount(p.amount)) return { error: 'ยอดเงินไม่ถูกต้อง' }
   Object.assign(pay, { requested: Number(p.amount), amount: Number(p.amount), ...payFields(p) })
   if (p.dueAt) pay.dueAt = p.dueAt
   log(order, `แก้ยอดที่แจ้งเป็น ${money(Number(p.amount))}`)
@@ -948,13 +953,20 @@ export function cancelConfirmedPayment(order, paymentId) {
 export function confirmPayment(order, paymentId, data = null) {
   const p = order.payments.find((x) => x.id === paymentId)
   if (!p || p.status !== 'reported') return
-  if (data) Object.assign(p, { amount: Number(data.amount), ...payFields(data) })
+  if (['draft', 'cancelled'].includes(order.status)) return { error: 'ออร์เดอร์นี้ยืนยันชำระไม่ได้' }
+  if (data) {
+    // ยอดที่ได้รับจริง: ต้องเป็นจำนวนบวก และไม่เกินยอดคงค้าง (ยอดที่ยืนยันแล้วของออร์เดอร์ไม่นับยอดนี้)
+    if (!goodAmount(data.amount)) return { error: 'ยอดเงินไม่ถูกต้อง' }
+    if (round2(Number(data.amount)) > round2(orderTotals(order).balance) + 0.004) return { error: 'ยอดเกินยอดคงค้าง' }
+    Object.assign(p, { amount: round2(Number(data.amount)), ...payFields(data) })
+  }
   p.status = 'confirmed'
   p.confirmedBy = session.role
   p.confirmedAt = now()
   log(order, `ยืนยันชำระ ${money(p.amount)}${p.amount !== p.requested ? ` (แจ้ง ${money(p.requested)})` : ''}`)
   if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
   notifyOrder('payment_confirmed', order, { skip: data?.notify === false, noSms: data?.sms === false, paid: p.amount })
+  return { ok: true }
 }
 
 // รับชำระทันที: ลูกค้าจ่ายแล้วที่หน้างาน ไม่ต้องแจ้งยอด/กำหนดชำระ → สร้างงวดที่ยืนยันแล้วเลย (สิทธิ์ confirmPayment) · คืน { ok } | { error }
@@ -1098,8 +1110,10 @@ export function removeOrderItem(order, itemId) {
 }
 
 export function setAdjustment(order, amount, reason) {
-  order.adjustment = { amount: Number(amount) || 0, reason }
-  log(order, `ปรับราคา ${money(Number(amount))} (${reason})`)
+  // ส่วนลดจากการปรับราคา (ติดลบ) ต้องไม่เกินยอดสินค้า
+  const a = Math.max(Number.isFinite(Number(amount)) ? Number(amount) : 0, -orderTotals(order).subtotal)
+  order.adjustment = { amount: a, reason }
+  log(order, `ปรับราคา ${money(a)} (${reason})`)
 }
 
 // ยกเลิกออร์เดอร์ + คืนเงิน: c = { reason, refunds: [{ method: cash | transfer | points, amount }], refundNote }
@@ -1478,9 +1492,12 @@ export const usableDiscountCoupons = (c) => customerCoupons(c).filter((x) => x.t
 export function applyPoints(order, points) {
   const c = findCustomer(order.customerId)
   if (!c || order.pointsUsed) return false
+  points = Math.floor(Number(points))
+  if (!(points > 0)) return false
+  if (points * db.loyalty.pointValue > orderTotals(order).total + 0.004) return false // ส่วนลดจากคะแนนต้องไม่เกินยอดที่ต้องชำระ
   const e = spendPoints(c, points, `ใช้เป็นส่วนลด ${order.code}`, order.id)
   if (!e) return false
-  order.pointsUsed = { points, amount: points * db.loyalty.pointValue, entryId: e.id }
+  order.pointsUsed = { points, amount: round2(points * db.loyalty.pointValue), entryId: e.id }
   log(order, `ใช้ ${points} คะแนน ลด ${money(order.pointsUsed.amount)}`)
   return true
 }
@@ -1498,7 +1515,8 @@ export function applyCoupon(order, couponId) {
   if (!cp || cp.type !== 'discount' || !couponUsable(cp, today())) return false
   if (Number(cp.minSpend) > 0 && orderTotals(order).subtotal < Number(cp.minSpend)) return false // ยอดสินค้าไม่ถึงขั้นต่ำของคูปอง
   Object.assign(cp, { status: 'used', orderId: order.id, usedAt: now(), activatedAt: null, activatedUntil: null })
-  order.couponsUsed.push({ couponId, name: cp.name, amount: cp.amount })
+  // ส่วนลดคูปองต้องไม่เกินยอดที่ต้องชำระ ณ ตอนใช้ (ยอดไม่ติดลบ)
+  order.couponsUsed.push({ couponId, name: cp.name, amount: Math.min(Math.max(Number(cp.amount) || 0, 0), orderTotals(order).total) })
   log(order, `ใช้คูปอง ${cp.name}`)
   return true
 }
@@ -2898,9 +2916,10 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
   const o = {
     id: uid('o'), code: numbering.next('POS'), channel: 'pos', shiftId: shift.id, chatId: null,
     customerId, pickupAt: ts.slice(0, 16), fulfillment: 'pickup', birthday: null, address: '', shippingFee: 0,
-    items: posItems(cart, new Date(ts)), adjustment: { amount: discount ? -Math.abs(Number(discount)) : 0, reason: discount ? 'ส่วนลดหน้าร้าน' : '' },
+    items: posItems(cart, new Date(ts)), adjustment: { amount: Number.isFinite(Number(discount)) && Number(discount) ? -Math.abs(Number(discount)) : 0, reason: Number.isFinite(Number(discount)) && Number(discount) ? 'ส่วนลดหน้าร้าน' : '' },
     pointsUsed: null, couponsUsed: [], loyalty: null, vat: vatNow(), status: 'payment_confirmed', payments: [], cancel: null, history: [], createdAt: ts,
   }
+  if (o.adjustment.amount < -orderTotals(o).subtotal) o.adjustment.amount = -orderTotals(o).subtotal // ส่วนลดหน้าร้านไม่เกินยอดสินค้า
   db.orders.unshift(o)
   log(o, 'ขายหน้าร้าน (POS)')
   // POS ไม่ใช้คะแนนตรง ๆ แล้ว: ลูกค้าแลกคะแนนเป็นคูปองส่วนลดที่หน้าเว็บ แล้วนำมาใช้ที่นี่
@@ -2910,7 +2929,7 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
   o.payments.push({ id: uid('pay'), code: numbering.next('PAY'), requested: total, amount: total, method: POS_METHODS[method], posMethod: method, received: got, change: got - total, paidAt: ts.slice(0, 16), slip: '', note: '', status: 'confirmed', reportedBy: session.role, confirmedBy: session.role })
   for (const it of o.items) {
     const src = it.kind === 'retail' ? db.retailItems.find((x) => x.id === it.retailId) : null
-    if (src && src.stock != null) src.stock = Math.max(0, src.stock - it.qty)
+    if (src && src.stock != null) { const take = Math.min(src.stock, it.qty); it.stockTaken = take; src.stock -= take } // จดจำนวนที่ตัดจริง ตอนยกเลิกบิลคืนเท่านี้
   }
   o.status = 'delivered'
   o.deliveredAt = ts
@@ -2928,7 +2947,7 @@ export function voidPosSale(order, reason = 'ยกเลิกบิล', refun
   if (r.error) return r
   for (const it of order.items) {
     const src = it.kind === 'retail' ? db.retailItems.find((x) => x.id === it.retailId) : null
-    if (src && src.stock != null) src.stock += it.qty
+    if (src && src.stock != null) src.stock += it.stockTaken ?? it.qty
   }
   return r
 }

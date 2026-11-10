@@ -144,19 +144,30 @@ export async function startConfigSync({ client, db, canWrite, onError = () => {}
     clearTimeout(retryTimer); clearTimeout(timer)
     busy = true
     let ok = true
+    try {
     const changed = changedKeys()
     if (changed.length) {
       syncSet(key, 'saving', '', flush)
-      const r = await pushConfig(client, db, changed, collection)
+      // จดค่าที่ส่งไปก่อน await: ถ้าแก้ระหว่างรอ ค่าใหม่ต้องยังนับว่าไม่ซิงก์
+      const sentView = new Map(changed.map((k) => [k, JSON.stringify(viewOf(db, k))]))
+      let r
+      try { r = await pushConfig(client, db, changed, collection) } catch (e) { r = { error: String(e?.message || e || 'เขียนไม่สำเร็จ') } }
       if (r.error) {
         ok = false
         if (fails === 0) onError('บันทึกตั้งค่าไม่สำเร็จ: ' + r.error)
         syncSet(key, 'failed', r.error, flush)
         retryTimer = setTimeout(flush, RETRY_MS[Math.min(fails, RETRY_MS.length - 1)])
         fails++
-      } else { for (const k of changed) snap.set(k, JSON.stringify(viewOf(db, k))); fails = 0; syncOk(key) }
+      } else {
+        for (const [k, s] of sentView) snap.set(k, s)
+        fails = 0
+        if (changedKeys().length) again = true // ระหว่างเขียนมีการแก้ใหม่ → เขียนต่ออีกรอบ
+        syncOk(key)
+      }
     } else syncOk(key)
-    busy = false
+    } finally {
+      busy = false
+    }
     if (again) { again = false; flush() }
     return ok
   }

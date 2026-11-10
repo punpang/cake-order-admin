@@ -73,7 +73,9 @@ async function onSlip(e) {
     payError.value = imageErrorMessage(err)
   }
 }
+let saving = false
 async function savePay() {
+  if (saving) return
   if (!(pay.amount > 0)) return (payError.value = 'กรอกยอดเงิน')
   if (payMode === 'direct') {
     if (!(await askConfirm({ title: 'รับชำระทันที', message: `ได้รับ ${money(pay.amount)} (${pay.method}) · บันทึกเป็นยอดที่ยืนยันแล้วเลย`, okText: 'ยืนยัน' }))) return
@@ -86,9 +88,15 @@ async function savePay() {
   if (payMode !== 'confirm' && !pay.dueAt) return (payError.value = 'ต้องกำหนดชำระ เลือกเวลาก่อน')
   if (payMode !== 'confirm' && new Date(pay.dueAt).getTime() <= Date.now()) return (payError.value = 'กำหนดชำระต้องเป็นเวลาในอนาคต')
   if (payMode === 'confirm' && !(await askConfirm({ title: 'ยืนยันยอดชำระ', message: `ได้รับจริง ${money(pay.amount)}`, okText: 'ยืนยัน' }))) return
-  if (payMode === 'confirm') confirmPayment(props.order, payTarget.id, { ...pay })
-  else if (payMode === 'edit') updatePaymentRequest(props.order, payTarget.id, { ...pay })
-  else reportPayment(props.order, { ...pay })
+  if (saving) return // กันกดซ้ำระหว่างรอยืนยัน
+  saving = true
+  let r
+  try {
+    if (payMode === 'confirm') r = confirmPayment(props.order, payTarget.id, { ...pay })
+    else if (payMode === 'edit') r = updatePaymentRequest(props.order, payTarget.id, { ...pay })
+    else r = reportPayment(props.order, { ...pay })
+  } finally { saving = false }
+  if (r?.error) return (payError.value = r.error)
   toastSaved(payMode === 'confirm' ? `ยืนยันยอดชำระ ${money(pay.amount)} แล้ว · ${props.order.code}` : payMode === 'edit' ? `แก้ยอดที่แจ้งแล้ว · ${props.order.code}` : `แจ้งยอดชำระ ${money(pay.amount)} แล้ว · ${props.order.code}`)
   emit('close')
 }
