@@ -101,7 +101,8 @@ function doLink(c) {
 function doCreate() {
   if (!newName.value.trim()) return (linkError.value = 'กรอกชื่อ')
   if (!phoneValid(newPhone.value)) return (linkError.value = 'กรอกเบอร์โทรให้ถูกต้อง (บังคับ)')
-  createCustomerFromChat(current.value.id, newPhone.value, newName.value)
+  const r = createCustomerFromChat(current.value.id, newPhone.value, newName.value)
+  if (r?.error) return (linkError.value = r.error)
   linkOpen.value = false
 }
 

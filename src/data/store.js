@@ -425,7 +425,16 @@ const nextCode = () => numbering.next('OR')
 export const findOrder = (id) => db.orders.find((o) => o.id === id)
 export const findCustomer = (id) => db.customers.find((c) => c.id === id)
 
+// เบอร์ห้ามซ้ำในลูกค้าที่ยังใช้งาน (เทียบเฉพาะตัวเลข) · คืนลูกค้าที่ใช้เบอร์นี้อยู่ ถ้ามี
+export const phoneOwner = (phone, exceptId = null) => {
+  const p = phoneDigits(phone)
+  return p ? db.customers.find((c) => !c.deleted && c.id !== exceptId && phoneDigits(c.phone) === p) || null : null
+}
+const dupPhoneError = (cu) => ({ error: `เบอร์นี้เป็นของลูกค้า "${cu.name}" แล้ว` })
+
 export function addCustomer(data) {
+  const dup = phoneOwner(data.phone)
+  if (dup) return dupPhoneError(dup)
   const c = { id: uid('c'), name: data.name.trim(), phone: phoneDigits(data.phone), line: data.line?.trim() || '', note: data.note?.trim() || '', active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: true, places: [] }
   db.customers.push(c)
   return c
@@ -463,6 +472,12 @@ const cleanTax = (t) => ({
   branch: String(t?.branch ?? '00000').replace(/\D/g, '').slice(0, 5) || '00000', address: String(t?.address ?? '').trim().slice(0, 300),
 })
 export function saveCustomer(d) {
+  // ตรวจเบอร์ซ้ำเฉพาะตอนสร้างใหม่ หรือเปลี่ยนเบอร์ (ข้อมูลเดิมที่ซ้ำอยู่แล้วไม่ทำให้การแก้ส่วนอื่นพัง)
+  const cur = d.id ? db.customers.find((x) => x.id === d.id) : null
+  if (!cur || phoneDigits(cur.phone) !== phoneDigits(d.phone)) {
+    const dup = phoneOwner(d.phone, d.id || null)
+    if (dup) return dupPhoneError(dup)
+  }
   const { places, ...rest } = d // สถานที่จัดการผ่าน savePlace/removePlace เท่านั้น (กันฟอร์มเก่าเขียนทับ)
   const tax = d.tax === undefined ? {} : { tax: cleanTax(d.tax) }
   const c = upsert(db.customers, 'c', { ...rest, ...tax, phone: phoneDigits(d.phone) })
@@ -2675,6 +2690,7 @@ export function createCustomerFromChat(chatId, phone, name = '') {
   const c = findChat(chatId)
   if (!c || !phoneValid(phone)) return null
   const cu = addCustomer({ name: (name || c.profileName).trim(), phone, line: '', note: `จาก ${c.channel === 'line' ? 'LINE OA' : 'Facebook'}` })
+  if (cu.error) return cu
   linkChat(chatId, cu.id)
   return cu
 }
@@ -3371,6 +3387,7 @@ export function quickMember({ name, phone, agreed }) {
   if (!n) return { error: 'กรอกชื่อ' }
   if (!agreed) return { error: 'ต้องยืนยันว่าลูกค้ารับทราบนโยบายความเป็นส่วนตัวและเงื่อนไขคะแนนสะสม' }
   const c = addCustomer({ name: n, phone: ph, line: '', note: 'สมัครที่หน้าร้าน (POS)' })
+  if (c.error) return c
   c.promoOptIn = false
   addConsents(c.id, ACCOUNT_CONSENT_KINDS, 'pos')
   return { ok: true, customer: c, existing: false }

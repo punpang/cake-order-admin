@@ -92,7 +92,8 @@ async function save() {
   if (form.tax.taxId && !validTaxId(form.tax.taxId)) return (error.value = 'เลขประจำตัวผู้เสียภาษีไม่ถูกต้อง (13 หลัก ตรวจตัวเลขท้าย)')
   if (form.tax.taxId && !validBranch(form.tax.branch)) return (error.value = 'สาขาต้อง 5 หลัก (สำนักงานใหญ่ 00000)')
   if (!(await confirmDeactivate(db.customers, form, form.name))) return
-  saveCustomer({ ...form })
+  const r = saveCustomer({ ...form })
+  if (r.error) return (error.value = r.error)
   open.value = false
 }
 </script>
