@@ -52,9 +52,9 @@ export function genToken() {
 export const isTokenShape = (t) => /^[A-Za-z0-9_-]{32}$/.test(String(t ?? ''))
 export const hashToken = (t) => sha256Hex(`orderlink:${t}`)
 
-// รหัสลิงก์ย่อ 7 ตัว (a-z0-9 ตัดตัวที่สับสน)
+// รหัสลิงก์ย่อ 8 ตัว (a-z0-9 ตัดตัวที่สับสน)
 const ALPHA = 'abcdefghjkmnpqrstuvwxyz23456789'
-export function genCode(n = 7) {
+export function genCode(n = 8) {
   const a = new Uint8Array(n)
   globalThis.crypto.getRandomValues(a)
   return [...a].map((x) => ALPHA[x % ALPHA.length]).join('')
