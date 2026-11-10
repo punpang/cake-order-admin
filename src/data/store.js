@@ -14,7 +14,7 @@ import { nextBirthday, daysBetween } from '../lib/birthday'
 import { parseAnswer } from '../lib/chatParse'
 import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEFAULT_COOKIE, DEFAULT_LEGAL_CONTACT } from '../lib/legalDefaults'
 import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX, AUTO_SOURCES, LOCKED_SOURCES } from '../lib/chatBot'
-import { checkTelegram, checkSmsUrl, checkSmsSender } from '../lib/integrationCheck'
+import { checkTelegram } from '../lib/integrationCheck'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
 import { digitsOf, promptPayKind } from '../lib/promptpay'
 import { DEFAULT_ACCOUNTS } from '../lib/acct/chart'
@@ -2634,7 +2634,7 @@ export function connectIntegration(key, info) {
 export function disconnectIntegration(key) {
   Object.assign(db.integrations[key], { status: 'not_connected', accountName: '', accountId: '', connectedAt: null, tokenHint: '', url: '', sender: '' })
 }
-// Telegram: bot token + chat id (จำลอง ไม่ยิง API จริง · เก็บเฉพาะ 4 ตัวท้ายของ token) · SMS: URL (https) + ชื่อผู้ส่ง + คีย์ (เก็บ 4 ตัวท้าย)
+// Telegram: bot token + chat id (จำลอง ไม่ยิง API จริง · เก็บเฉพาะ 4 ตัวท้ายของ token) · SMS ไม่มีฟอร์ม: ค่าอยู่ที่ Supabase secrets
 export function connectTelegram({ token, chatId }) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
   const c = checkTelegram(token, chatId)
@@ -2642,38 +2642,16 @@ export function connectTelegram({ token, chatId }) {
   connectIntegration('telegram', { accountName: 'บอททีม', accountId: c.chatId, tokenHint: c.token.slice(-4) })
   return { ok: true }
 }
-export function connectSms({ url, sender, key }) {
-  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
-  const u = checkSmsUrl(url)
-  if (u.error) return u
-  // ชื่อผู้ส่งไม่บังคับ (เกตเวย์ใช้เบอร์ของโทรศัพท์) · ถ้ากรอกต้องผ่านรูปแบบ
-  const sd = String(sender ?? '').trim() ? checkSmsSender(sender) : { ok: true, sender: 'เกตเวย์ SMS' }
-  if (sd.error) return sd
-  const k = String(key ?? '').trim()
-  if (k.length < 8) return { error: 'คีย์ (API key) สั้นเกินไป' }
-  connectIntegration('sms', { accountName: sd.sender, accountId: u.host, tokenHint: k.slice(-4) })
-  db.integrations.sms.url = u.url
-  db.integrations.sms.sender = sd.sender
-  return { ok: true }
-}
-// ส่งข้อความทดสอบ (จำลอง: ลงคิวข้อความ ไม่ส่งจริง)
-export function sendIntegrationTest(key, to = '') {
+// ส่งข้อความทดสอบ (Telegram: ส่งจริงถ้าตั้ง secret · SMS ทดสอบที่หน้า /admin/settings/sms)
+export function sendIntegrationTest(key) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
   const it = db.integrations[key]
   if (!it || it.status !== 'connected') return { error: 'ยังไม่ได้เชื่อม' }
-  let text
-  let toLabel
-  if (key === 'telegram') {
-    text = `[ทดสอบ] ข้อความทดสอบจาก ${db.shop.name} · ${dateOnly(now())} ${timeOnly(now())}`
-    toLabel = 'กลุ่มทีม'
-  } else if (key === 'sms') {
-    if (!phoneValid(to)) return { error: 'กรอกเบอร์โทร 9–10 หลัก' }
-    text = `[ทดสอบ] ข้อความทดสอบจาก ${it.sender || db.shop.name}`
-    toLabel = `SMS: ${formatPhone(to)}`
-  } else return { error: 'ช่องทางนี้ไม่มีปุ่มทดสอบ' }
+  if (key !== 'telegram') return { error: 'ช่องทางนี้ทดสอบที่หน้า SMS Gateway' }
+  const text = `[ทดสอบ] ข้อความทดสอบจาก ${db.shop.name} · ${dateOnly(now())} ${timeOnly(now())}`
+  const toLabel = 'กลุ่มทีม'
   db.outbox.unshift({ id: uid('msg'), at: now(), event: 'test', channel: key, to: toLabel, text, orderId: null, status: 'simulated' })
-  if (key === 'sms') deliverSms(db.outbox[0], phoneDigits(to), text, 'test')
-  if (key === 'telegram') deliverTg(db.outbox[0], text, 'test')
+  deliverTg(db.outbox[0], text, 'test')
   return { ok: true, text, to: toLabel }
 }
 export function markRead(chatId) {
