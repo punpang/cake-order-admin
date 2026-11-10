@@ -10,17 +10,18 @@ export function activeLists(lists, dateStr) {
 
 // ---------- เนื้อเค้ก/ขนาดที่ประเภทอนุญาต ----------
 // ตัวเลือกของประเภท (และรูปแบบตกแต่ง) มี allow = { [groupId]: [optionId] } ไม่มี key = เลือกได้ทุกตัว
+// ตั้ง allow ไว้ฝั่งเดียว (เช่น รูปแบบตกแต่ง: allow[ขนาด] = ขนาดที่เปิดให้) แต่มีผลสองทาง:
+//  - เลือก x แล้ว → ซ่อน o ในหัวข้ออื่นที่ x ไม่เปิดให้ (เช่น เลือกรูปภาพ → ซ่อนขนาดที่ไม่เข้ากัน)
+//  - เลือก x แล้ว → ซ่อน o ที่ allow ไม่รองรับ x (เช่น เลือกขนาดที่ไม่เข้ากับรูปแบบ → ซ่อนรูปแบบนั้น)
 export function allowedBy(groups, selections) {
-  const type = groups.find((g) => g.key === 'type')
-  const sel = type ? selections?.[type.id] : null
-  const ids = sel == null ? [] : Array.isArray(sel) ? sel : [sel]
-  const types = ids.map((id) => type.options.find((o) => o.id === id)).filter(Boolean)
-  // รูปแบบตกแต่งที่เลือกก็จำกัดตัวเลือก (เช่น ซ่อน/แสดงขนาด) ด้วย allow รูปแบบเดียวกับประเภท
-  const style = groups.find((g) => g.key === 'style')
-  const sids = style ? [].concat(selections?.[style.id] ?? []) : []
-  const styles = sids.map((id) => style.options.find((o) => o.id === id)).filter(Boolean)
-  const lim = [...types, ...styles]
-  return (g, o) => lim.every((t) => !t.allow?.[g.id] || t.allow[g.id].includes(o.id))
+  const picked = []
+  for (const h of groups) {
+    for (const id of [].concat(selections?.[h.id] ?? [])) {
+      const x = (h.options || []).find((o) => o.id === id)
+      if (x) picked.push({ h, x })
+    }
+  }
+  return (g, o) => picked.every(({ h, x }) => h.id === g.id || ((!x.allow?.[g.id] || x.allow[g.id].includes(o.id)) && (!o.allow?.[h.id] || o.allow[h.id].includes(x.id))))
 }
 
 // ---------- ชั้นของเค้ก ----------
