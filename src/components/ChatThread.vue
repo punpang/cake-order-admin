@@ -26,9 +26,9 @@ const mine = (m) => m.from === 'staff'
 function sendState(m) {
   const ch = channelLabel.value
   if (props.chat.channel === 'facebook') {
-    if (m.delivery === 'sending') return `กำลังส่งทาง ${ch}…`
-    if (m.delivery === 'sent') return `ส่งทาง ${ch} แล้ว`
-    if (m.delivery === 'failed') return `ส่งทาง ${ch} ไม่สำเร็จ${m.deliveryError ? `: ${m.deliveryError}` : ''}`
+    if (m.delivery === 'sending') return `กำลังส่ง…`
+    if (m.delivery === 'sent') return `ส่งสำเร็จ`
+    if (m.delivery === 'failed') return `ส่งไม่สำเร็จ${m.deliveryError ? `: ${m.deliveryError}` : ''}`
   }
   return `ส่งทาง ${ch} (จำลอง)`
 }

@@ -47,6 +47,11 @@ export function installLoadingFetch() {
   if (typeof window === 'undefined' || window.__loadingFetch) return
   window.__loadingFetch = true
   const orig = window.fetch.bind(window)
-  window.fetch = (...args) => trackLoad(orig(...args))
+  window.fetch = (...args) => {
+    // ส่งข้อความ Facebook ไม่บล็อกหน้าจอ: ข้อความขึ้นในแชททันที และสถานะ "กำลังส่ง/ส่งสำเร็จ" บอกผลเอง
+    const target = typeof args[0] === 'string' ? args[0] : args[0]?.url || ''
+    if (/\/functions\/v1\/fb-send(\?|$)/.test(target)) return orig(...args)
+    return trackLoad(orig(...args))
+  }
 }
 installLoadingFetch()
