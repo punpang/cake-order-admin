@@ -1,5 +1,6 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { loadOneOrder } from '../lib/staffAuth'
 import {
   can, findOrder, findCustomer, setStatus, reportPayment, confirmPayment, receivePaymentNow, revertStatus, setAdjustment, cancelOrder, countPickups,
   updatePaymentRequest, cancelPaymentRequest, cancelConfirmedPayment,
@@ -49,6 +50,7 @@ import { parseBirthday, toForm, mdLabel } from '../lib/birthday'
 
 const props = defineProps({ id: { type: String, required: true } })
 const order = computed(() => findOrder(props.id))
+onMounted(() => { if (!findOrder(props.id)) loadOneOrder(props.id) })
 const customer = computed(() => order.value && findCustomer(order.value.customerId))
 const t = computed(() => orderTotals(order.value))
 // ข้อความแจ้งเตือนของออร์เดอร์นี้ (จำลอง)

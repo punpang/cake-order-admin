@@ -129,6 +129,14 @@ function chatHooks(client, store, has) {
 
 // กลุ่มข้อมูลที่โหลดตามหน้า (ไม่โหลดตอนเปิดแอป) · คืน handle/array/null ของการซิงก์
 const GROUP_LOADERS = {
+  // ประวัติออร์เดอร์ทั้งหมด (บัญชี/กำไร/ลูกค้า/วันเกิด/ชำระเงิน): เปิดโหมดเต็มแล้วรีเฟรชตารางออร์เดอร์
+  ordersAll: async () => {
+    const m = await import('./ordersSync')
+    m.setOrdersFullHistory(true)
+    const h = syncs.find((x) => x && x.label === 'ออร์เดอร์')
+    if (h?.refresh) await h.refresh()
+    return null
+  },
   shifts: async (c) => {
     if (!['pos', 'viewAllOrders', 'manage'].some(c.has)) return null
     const m = await import('./shiftsSync')
@@ -171,6 +179,7 @@ export function ensureData(groups = []) {
 async function startData(staff) {
   stopPublicRefresh(); publicState.status = 'idle'
   groupLoads.clear()
+  { const os = await import('./ordersSync'); os.setOrdersFullHistory(false); os.clearPinnedOrders() }
   coreReady = new Promise((r) => (coreDone = r))
   dataCtx = null
   ;(await import('./tableSync')).syncOptions.clearOnLoadFail = true
@@ -266,6 +275,15 @@ async function startData(staff) {
   startPolling()
   startStaffRealtime(client, recNames)
   coreDone()
+}
+// เปิดออร์เดอร์เดียว (เช่น ลิงก์จากแชท/การแจ้งเตือน) ที่อยู่นอกช่วงที่โหลดไว้: ดึงมาทีละรายการแล้วปักหมุดไว้
+export async function loadOneOrder(id) {
+  const [client, store, m] = await Promise.all([getSupabase(), import('../data/store'), import('./ordersSync')])
+  if (!client || !id || store.findOrder(id)) return
+  const r = await m.loadOrdersByIds(client, [id])
+  if (r.error || !r.items?.length) return
+  m.pinOrderId(id)
+  store.db.orders.push(...r.items)
 }
 export async function reloadStaffData() { if (staffState.staff) await startData(staffState.staff) }
 // ดึงข้อมูลล่าสุดของตารางที่ระบุจากเซิร์ฟเวอร์ทันที (เช่น ก่อนขาย POS: สต็อก/กะ) · ข้ามตารางที่มีแก้ค้างในเครื่อง
