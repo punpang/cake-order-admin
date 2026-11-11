@@ -87,7 +87,10 @@ Deno.serve(async (req) => {
   if (!safeEq(sig, await hmacHex(secret, raw))) return text('bad signature', 403)
   let body: any
   try { body = JSON.parse(raw) } catch { return text('bad json', 400) }
-  if (body?.object !== 'page') return text('ignored')
+  // page = Messenger ของเพจ · instagram = DM ของบัญชี IG ที่ผูกกับเพจ (entry.id คือ IG account id · ยืนยันลายเซ็นแล้วจึงเชื่อถือได้)
+  const isIg = body?.object === 'instagram'
+  if (body?.object !== 'page' && !isIg) return text('ignored')
+  const channel = isIg ? 'instagram' : 'facebook'
 
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
   const pg = await sb.from('punpang_fb_pages').select('page_id,token').limit(1).maybeSingle()
@@ -96,15 +99,17 @@ Deno.serve(async (req) => {
   const botJobs: Promise<unknown>[] = []
 
   for (const entry of body.entry || []) {
-    if (String(entry?.id) !== pg.data.page_id) continue // เพจที่ไม่ได้เชื่อม
+    if (!isIg && String(entry?.id) !== pg.data.page_id) continue // เพจที่ไม่ได้เชื่อม
+    const own = isIg ? String(entry?.id || '') : pg.data.page_id // id ของฝั่งเรา (ผู้รับข้อความ)
+    if (!own) continue
     for (const ev of entry.messaging || []) {
       const psid = String(ev?.sender?.id || '')
       const msg = ev?.message
-      if (ev?.postback && /^\d{5,30}$/.test(psid) && String(ev?.recipient?.id) === pg.data.page_id) { // ลูกค้ากดปุ่มในใบเสนอ
+      if (!isIg && ev?.postback && /^\d{5,30}$/.test(psid) && String(ev?.recipient?.id) === pg.data.page_id) { // ลูกค้ากดปุ่มในใบเสนอ (เฉพาะ Messenger)
         if ((await handlePostback(sb, pg.data, ver, psid, ev)) === 'retry') return text('db error', 500)
         continue
       }
-      if (!/^\d{5,30}$/.test(psid) || !msg || msg.is_echo || String(ev?.recipient?.id) !== pg.data.page_id) continue
+      if (!/^\d{5,30}$/.test(psid) || !msg || msg.is_echo || String(ev?.recipient?.id) !== own) continue
       const mid = String(msg.mid || '')
       const caption = String(msg.text || '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim().slice(0, 2000)
       const att = Array.isArray(msg.attachments) && msg.attachments.length ? await saveAttachments(sb, psid, mid, msg.attachments) : { list: [], unsupported: false }
@@ -118,14 +123,14 @@ Deno.serve(async (req) => {
       let done = false
       let fresh = false // ข้อความใหม่จริง (ไม่ใช่ข้อความซ้ำจาก Meta) → ให้บอทพิจารณาตอบ
       for (let i = 0; i < 4 && !done; i++) {
-        const cur = await sb.from('punpang_chats').select('id,data,updated_at,customer_id').eq('channel', 'facebook').eq('external_id', psid).maybeSingle()
+        const cur = await sb.from('punpang_chats').select('id,data,updated_at,customer_id').eq('channel', channel).eq('external_id', psid).maybeSingle()
         if (cur.error) return text('db error', 500) // ให้ Meta ส่งซ้ำ (กันซ้ำด้วย mid)
         if (!cur.data) {
           let name = ''
           try { const r = await fetch(`${GRAPH}/${ver}/${psid}?${new URLSearchParams({ fields: 'name', access_token: pg.data.token })}`, { signal: AbortSignal.timeout(8000) }); if (r.ok) name = String((await r.json())?.name || '') } catch { /* ใช้ชื่อสำรอง */ }
-          const chat = { profileName: name || 'ลูกค้า Facebook', messages: [m], unreadStaff: 1, lastInboundAt: at, updatedAt: at, pendingAsk: null }
+          const chat = { profileName: name || (isIg ? 'ลูกค้า Instagram' : 'ลูกค้า Facebook'), messages: [m], unreadStaff: 1, lastInboundAt: at, updatedAt: at, pendingAsk: null }
           const newId = `ch${rand(6)}`
-          const ins = await sb.from('punpang_chats').insert({ id: newId, channel: 'facebook', external_id: psid, customer_id: null, data: chat })
+          const ins = await sb.from('punpang_chats').insert({ id: newId, channel, external_id: psid, customer_id: null, data: chat })
           if (!ins.error) { done = true; fresh = true; await bell(sb, `${chat.profileName}: ${label.slice(0, 60)}`, newId) } else if (ins.error.code !== '23505') return text('db error', 500)
           continue // 23505 = มีแชทเกิดขึ้นพร้อมกัน → อ่านใหม่แล้วต่อท้าย
         }
@@ -135,15 +140,15 @@ Deno.serve(async (req) => {
         const next = { ...d, messages: [...msgs, m], unreadStaff: (Number(d.unreadStaff) || 0) + 1, lastInboundAt: at, updatedAt: at }
         const up = await sb.from('punpang_chats').update({ data: next }).eq('id', cur.data.id).eq('updated_at', cur.data.updated_at).select('id')
         if (up.error) return text('db error', 500)
-        if (up.data?.length) { done = true; fresh = true; await bell(sb, `${d.profileName || 'ลูกค้า Facebook'}: ${label.slice(0, 60)}`, cur.data.id) }
+        if (up.data?.length) { done = true; fresh = true; await bell(sb, `${d.profileName || (isIg ? 'ลูกค้า Instagram' : 'ลูกค้า Facebook')}: ${label.slice(0, 60)}`, cur.data.id) }
       }
       if (!done) return text('busy', 500) // ชนกันหลายครั้ง → ให้ Meta ส่งซ้ำ
       // บอทตอบแชท (ฝั่งเซิร์ฟเวอร์) · เฉพาะข้อความตัวอักษรใหม่ · ข้อผิดพลาดของบอทต้องไม่ทำให้ Meta ส่งซ้ำทั้งชุด
       // ทำงานหลังตอบ 200 แล้ว (EdgeRuntime.waitUntil) เพื่อไม่ให้หน่วงเวลาของบอททำให้ Meta ส่งซ้ำ
       if (fresh && !noBot && caption) {
         botJobs.push((async () => {
-          const chatRow = await sb.from('punpang_chats').select('id').eq('channel', 'facebook').eq('external_id', psid).maybeSingle()
-          if (chatRow.data?.id) await runFbBot({ sb, token: pg.data.token, ver, psid, chatId: chatRow.data.id, mid, text: caption, at, aiKey: Deno.env.get('ANTHROPIC_API_KEY') || '' })
+          const chatRow = await sb.from('punpang_chats').select('id').eq('channel', channel).eq('external_id', psid).maybeSingle()
+          if (chatRow.data?.id) await runFbBot({ sb, token: pg.data.token, ver, psid, chatId: chatRow.data.id, mid, text: caption, at, aiKey: Deno.env.get('ANTHROPIC_API_KEY') || '', channel })
         })().catch((e) => console.error('fb-bot', (e as Error)?.message ?? 'error')))
       }
     }

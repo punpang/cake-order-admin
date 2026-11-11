@@ -145,7 +145,7 @@ async function pushChats(client, { upserts, deletes }, vers) {
 export function pendingBotMessages(chats, nowMs = Date.now(), maxAgeMs = 5 * 60 * 1000) {
   const out = []
   for (const c of chats) {
-    if (c.channel !== 'facebook') continue
+    if (c.channel !== 'facebook' && c.channel !== 'instagram') continue
     const m = (c.messages || [])[c.messages.length - 1]
     if (!m || m.from !== 'customer' || !m.fbMid || c.botSeenMid === m.fbMid) continue
     if (nowMs - ts(m.at) > maxAgeMs) continue

@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
   if (!uid) return json({ error: 'ต้องเข้าสู่ระบบพนักงาน' }, 401)
   const st = await sb.from('punpang_staff').select('active,perms').eq('user_id', uid).maybeSingle()
   if (!st.data?.active || !(Array.isArray(st.data.perms) && st.data.perms.includes('chat'))) return json({ error: 'บัญชีนี้ไม่มีสิทธิ์ตอบแชท' }, 403)
-  let body: { psid?: string; text?: string; quoteId?: string; images?: unknown; card?: { kind?: string; title?: string; subtitle?: string; url?: string; image?: string; pay?: boolean } } = {}
+  let body: { psid?: string; channel?: string; text?: string; quoteId?: string; images?: unknown; card?: { kind?: string; title?: string; subtitle?: string; url?: string; image?: string; pay?: boolean } } = {}
   try { body = await req.json() } catch { return json({ error: 'คำขอไม่ถูกต้อง' }, 400) }
   const psid = String(body.psid ?? '')
   const msg = String(body.text ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim()
@@ -38,13 +38,16 @@ Deno.serve(async (req) => {
   if (images.length > 5) return json({ error: 'ส่งรูปได้ครั้งละไม่เกิน 5 รูป' }, 400)
   if (images.some((p) => !new RegExp(`^staff/${psid}/[A-Za-z0-9_-]+\\.jpg$`).test(p))) return json({ error: 'ที่อยู่รูปไม่ถูกต้อง' }, 400)
   if (images.length && (cd || body.quoteId)) return json({ error: 'ส่งรูปพร้อมการ์ดหรือใบเสนอพร้อมกันไม่ได้' }, 400)
+  // ช่องทาง: facebook (ค่าเริ่มต้น) | instagram · IG ส่งได้เฉพาะข้อความตัวอักษร (ไม่มีการ์ด ใบเสนอ หรือรูป)
+  const chan = body.channel === 'instagram' ? 'instagram' : 'facebook'
+  if (chan === 'instagram' && (cd || body.quoteId || images.length)) return json({ error: 'Instagram ส่งได้เฉพาะข้อความตัวอักษร' }, 400)
   if ((!msg && !cd && !images.length) || msg.length > 2000) return json({ error: 'ข้อความต้องยาว 1–2000 ตัวอักษร' }, 400)
   const quoteId = body.quoteId == null ? '' : String(body.quoteId)
   if (kind === 'quote' && !quoteId) return json({ error: 'การ์ดใบเสนอต้องระบุรหัสใบเสนอ' }, 400)
   if (quoteId && !/^[A-Za-z0-9_-]{1,40}$/.test(quoteId)) return json({ error: 'รหัสใบเสนอไม่ถูกต้อง' }, 400)
   const pg = await sb.from('punpang_fb_pages').select('page_id,token').limit(1).maybeSingle()
   if (!pg.data) return json({ error: 'ยังไม่ได้เชื่อมเพจ Facebook' }, 503)
-  const chat = await sb.from('punpang_chats').select('id,data').eq('channel', 'facebook').eq('external_id', psid).maybeSingle()
+  const chat = await sb.from('punpang_chats').select('id,data').eq('channel', chan).eq('external_id', psid).maybeSingle()
   const last = chat.data?.data?.lastInboundAt ? new Date(chat.data.data.lastInboundAt).getTime() : 0
   if (!chat.data) return json({ error: 'ไม่พบแชทของลูกค้ารายนี้' }, 404)
   if (!last || Date.now() - last > WINDOW_MS) return json({ error: 'เกิน 24 ชั่วโมงหลังลูกค้าทักล่าสุด ส่งผ่าน Messenger ไม่ได้' }, 409)
