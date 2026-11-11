@@ -51,9 +51,11 @@ const SLIP_CHIP = {
   busy: ['สลิป QR · ออร์เดอร์กำลังถูกแก้ไข ให้ลูกค้าส่งใหม่', 'bg-amber-50 text-amber-700'],
   manual: ['สลิป QR · รอร้านผูกกับออร์เดอร์', 'bg-sky-50 text-sky-700'],
 }
+// หัวข้อ + จุดสีของการ์ดสลิป: สีจากโทนของสถานะ (เขียว = สำเร็จ · แดง = ผิดพลาด/ซ้ำ · เหลือง = ต้องดูเอง · เทา = ไม่รู้สถานะ)
 function slipChip(s) {
   const [t, cls] = SLIP_CHIP[s?.status] || ['สลิป QR · ตรวจไม่ได้', 'bg-stone-100 text-stone-600']
-  return { t: s?.orderCode ? `${t} · ${s.orderCode}` : t, cls }
+  const dot = cls.includes('emerald') ? 'bg-emerald-500' : cls.includes('rose') ? 'bg-rose-500' : cls.includes('amber') ? 'bg-amber-500' : 'bg-stone-400'
+  return { title: t, sub: s?.orderCode ? `ออร์เดอร์ ${s.orderCode}` : '', dot }
 }
 // โหมดแมนนวล: ร้านผูกสลิปที่ลูกค้าส่งกับออร์เดอร์เอง (ที่แนะนำ = ออร์เดอร์ที่คุยล่าสุด หรือออร์เดอร์อื่นของลูกค้าคนเดียวกัน) ในหน้าแชทนี้
 const canBindSlip = (m) => can('reportPayment') && m.slipCheck?.status === 'manual' && !!m.slipCheck.slipRef
@@ -414,15 +416,31 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
                 <ChatAttachment v-for="(a, k) in m.attachments || []" :key="k" :a="a" />
                 <template v-if="m.text">{{ m.text }}</template>
               </div>
-              <!-- สลิป QR ในรูปที่ลูกค้าส่ง: ผลจับคู่อัตโนมัติ (ยอดยังรอพนักงานตรวจเสมอ) -->
-              <div v-if="m.slipCheck" class="mt-1 flex flex-wrap items-center gap-1 text-xs">
-                <span class="rounded-full px-2 py-0.5 font-medium" :class="slipChip(m.slipCheck).cls">{{ slipChip(m.slipCheck).t }}</span>
-                <span v-if="m.slipCheck.ocrAmount != null" class="rounded-full bg-sky-50 px-2 py-0.5 text-sky-800">อ่านจากสลิป: {{ money(m.slipCheck.ocrAmount) }}{{ m.slipCheck.ocrPaidAt ? ' · ' + m.slipCheck.ocrPaidAt.replace('T', ' ') : '' }}</span>
-              </div>
-              <!-- โหมดแมนนวล: ผูกกับออร์เดอร์ที่แนะนำ หรือเลือกออร์เดอร์อื่นของลูกค้า (ในหน้าแชท ไม่เปลี่ยนหน้า) -->
-              <div v-if="canBindSlip(m)" class="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <button v-if="slipChoicesOf(m).suggested" type="button" class="btn-primary h-8 px-3 text-xs" :disabled="!(slipChoicesOf(m).suggested.room > 0)" data-slip-bind @click="openSlipBind(m, slipChoicesOf(m).suggested.order)">ผูกกับ {{ slipChoicesOf(m).suggested.order.code }}</button>
-                <button type="button" class="btn-outline h-8 px-3 text-xs" data-slip-pick @click="slipPick = m">{{ slipChoicesOf(m).suggested ? 'เลือกออร์เดอร์อื่น' : 'เลือกออร์เดอร์ให้สลิป' }}</button>
+              <!-- สลิป QR ในรูปที่ลูกค้าส่ง: การ์ดสรุปผล + ยอดที่อ่านจากภาพ + ปุ่มผูก (โหมดแมนนวล) -->
+              <div v-if="m.slipCheck" class="mt-1.5 w-full max-w-xs rounded-2xl border border-stone-200 bg-white p-3 text-xs shadow-sm">
+                <div class="flex items-start gap-2">
+                  <span class="mt-1 h-2 w-2 shrink-0 rounded-full" :class="slipChip(m.slipCheck).dot" />
+                  <div class="min-w-0">
+                    <div class="font-semibold leading-snug text-stone-800">{{ slipChip(m.slipCheck).title }}</div>
+                    <div v-if="slipChip(m.slipCheck).sub" class="mt-0.5 text-stone-500">{{ slipChip(m.slipCheck).sub }}</div>
+                  </div>
+                </div>
+                <div v-if="m.slipCheck.ocrAmount != null" class="mt-2.5 grid grid-cols-2 gap-2 rounded-xl bg-sky-50 px-3 py-2 text-sky-900">
+                  <div>
+                    <div class="text-[10px] font-medium uppercase tracking-wide text-sky-600">ยอดตามสลิป</div>
+                    <div class="text-sm font-semibold">{{ money(m.slipCheck.ocrAmount) }}</div>
+                  </div>
+                  <div>
+                    <div class="text-[10px] font-medium uppercase tracking-wide text-sky-600">วัน-เวลาโอน</div>
+                    <div class="text-sm font-semibold">{{ m.slipCheck.ocrPaidAt ? dateTime(m.slipCheck.ocrPaidAt) : '-' }}</div>
+                  </div>
+                  <div class="col-span-2 text-[10px] text-sky-700">อ่านจากภาพ · ตรวจกับธนาคารก่อนยืนยัน</div>
+                </div>
+                <!-- โหมดแมนนวล: ผูกกับออร์เดอร์ที่แนะนำ หรือเลือกออร์เดอร์อื่นของลูกค้า (ในหน้าแชท ไม่เปลี่ยนหน้า) -->
+                <div v-if="canBindSlip(m)" class="mt-2.5 flex gap-2">
+                  <button v-if="slipChoicesOf(m).suggested" type="button" class="btn-primary h-9 min-w-0 flex-1 truncate px-3 text-xs" :disabled="!(slipChoicesOf(m).suggested.room > 0)" data-slip-bind @click="openSlipBind(m, slipChoicesOf(m).suggested.order)">ผูกกับ {{ slipChoicesOf(m).suggested.order.code }}</button>
+                  <button type="button" class="btn-outline h-9 shrink-0 px-3 text-xs" data-slip-pick @click="slipPick = m">{{ slipChoicesOf(m).suggested ? 'เลือกอื่น' : 'เลือกออร์เดอร์' }}</button>
+                </div>
               </div>
               <!-- คำตอบของปุ่มถาม -->
               <div v-if="m.answerFor" class="mt-1 flex flex-wrap items-center gap-1 text-xs">
