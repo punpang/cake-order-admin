@@ -9,6 +9,7 @@ const state = ref('loading') // loading | ok | error
 const big = ref(false)
 
 async function load() {
+  if (props.a.localUrl) { url.value = props.a.localUrl; return (state.value = 'ok') } // รูปที่พนักงานเพิ่งส่ง (โหมดจำลอง)
   if (props.a.failed || !props.a.path) return (state.value = 'error')
   state.value = 'loading'
   try {
