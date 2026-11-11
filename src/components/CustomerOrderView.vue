@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { customerPay, customerRequestExtension, customerRequestPhotoOptOut, customerCancelPhotoOptOut } from '../data/store'
+import { customerPay, customerReadSlip, customerRequestExtension, customerRequestPhotoOptOut, customerCancelPhotoOptOut } from '../data/store'
+import { BANKS, PAY_MSG, bankByCode, checkCustomerTxn } from '../lib/payFields'
 import { promptPayPayload } from '../lib/promptpay'
 import { money, dateOnly, dateTime, formatPhone } from '../lib/format'
 import { STATUS } from '../lib/constants'
@@ -29,7 +30,7 @@ const cancelled = computed(() => o.value.status === 'cancelled')
 const info = computed(() => o.value.pay.info)
 const hasInfo = computed(() => !!(info.value.promptpayId || info.value.accountNo))
 const requests = computed(() => o.value.payments.filter((p) => p.status === 'reported' && p.shopRequested && !p.submitted))
-const f = reactive({ mode: 'all', custom: '', paymentId: null, slip: '', slipName: '', note: '', error: '', ok: '', busy: false })
+const f = reactive({ mode: 'all', custom: '', paymentId: null, slip: '', slipName: '', note: '', error: '', ok: '', busy: false, txnDate: '', txnTime: '', bankCode: '', ref: '', qrNote: '', reading: false })
 const open = ref(false)
 const room = computed(() => o.value.pay.room)
 const amount = computed(() => {
@@ -67,6 +68,47 @@ async function copy(text, key) {
     copied.value = ''
   }
 }
+// วัน-เวลาปัจจุบันตามเวลาไทย (ค่าเริ่มต้นของฟอร์ม · ลูกค้าแก้ได้)
+function thaiNow() {
+  const d = new Date(Date.now() + 7 * 3600000)
+  const p = (n) => String(n).padStart(2, '0')
+  return { date: `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`, time: `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}` }
+}
+function openPay() {
+  open.value = true
+  const n = thaiNow()
+  if (!f.txnDate) f.txnDate = n.date
+  if (!f.txnTime) f.txnTime = n.time
+}
+// ตัวเลือกธนาคาร: รายการของระบบ + รหัสจาก QR ที่ไม่อยู่ในรายการ (ไม่ทิ้งค่าที่อ่านได้จากสลิป)
+const bankOptions = computed(() => {
+  const list = BANKS.map((b) => ({ code: b.code, name: b.name }))
+  if (f.bankCode && !bankByCode(f.bankCode)) list.push({ code: f.bankCode, name: `รหัสธนาคาร ${f.bankCode} (จาก QR)` })
+  return list
+})
+// อ่าน QR จากรูปสลิป → เติมธนาคาร/เลขอ้างอิง · ไม่มี QR หรืออ่านไม่ได้ → กรอกเองได้ (ไม่บล็อกการส่ง)
+let readSeq = 0
+async function readSlip(dataUrl) {
+  const seq = ++readSeq
+  f.reading = true
+  f.qrNote = ''
+  let r
+  try { r = await customerReadSlip(props.ctx, dataUrl) } catch { r = { error: 'อ่านสลิปไม่สำเร็จ' } }
+  if (seq !== readSeq) return // แนบรูปใหม่ระหว่างรอ → ใช้ผลของรูปล่าสุดเท่านั้น
+  f.reading = false
+  if (r.error) return (f.qrNote = 'อ่านสลิปอัตโนมัติไม่ได้ · กรอกธนาคารและเลขอ้างอิงเองได้เลย')
+  const q = r.qr || {}
+  if (q.kind === 'promptpay') {
+    Object.assign(f, { slip: '', slipName: '' })
+    return (f.error = PAY_MSG.notSlip)
+  }
+  if (q.kind === 'slip') {
+    f.bankCode = q.bankCode
+    f.ref = q.ref
+    return (f.qrNote = 'อ่าน QR จากสลิปแล้ว · ตรวจธนาคารและเลขอ้างอิงอีกครั้งก่อนส่ง')
+  }
+  f.qrNote = 'ไม่พบ QR ในรูป · กรอกธนาคารและเลขอ้างอิงเองได้เลย'
+}
 async function onSlip(e) {
   f.error = ''
   const file = e.target.files?.[0]
@@ -75,6 +117,7 @@ async function onSlip(e) {
     const r = await resizeImage(file)
     f.slip = r.dataUrl
     f.slipName = file.name
+    readSlip(r.dataUrl) // ไม่รอผล: ปุ่มส่งถูกปิดระหว่างอ่าน
   } catch (err) {
     f.error = imageErrorMessage(err)
   }
@@ -83,13 +126,15 @@ async function submit() {
   f.error = f.ok = ''
   if (!(amount.value > 0)) return (f.error = 'กรอกยอดที่โอน')
   if (!f.slip) return (f.error = 'แนบสลิปก่อนกดส่ง')
+  const chk = checkCustomerTxn({ txnDate: f.txnDate, txnTime: f.txnTime, bankCode: f.bankCode, ref: f.ref, createdAt: o.value.createdAt })
+  if (chk.error) return (f.error = chk.error)
   f.busy = true
-  const r = await customerPay(props.ctx, { amount: amount.value, slip: f.slip, note: f.note, paymentId: f.mode === 'req' ? f.paymentId : null })
+  const r = await customerPay(props.ctx, { amount: amount.value, slip: f.slip, note: f.note, paymentId: f.mode === 'req' ? f.paymentId : null, txnDate: f.txnDate, txnTime: f.txnTime, bankCode: f.bankCode, ref: f.ref })
   f.busy = false
   if (r.error) return (f.error = r.error)
   f.ok = 'ส่งสลิปแล้ว ร้านจะตรวจสอบและยืนยันให้'
   if (r.stale) staleNote.value = true
-  Object.assign(f, { slip: '', slipName: '', note: '', custom: '', mode: 'all', paymentId: null })
+  Object.assign(f, { slip: '', slipName: '', note: '', custom: '', mode: 'all', paymentId: null, txnDate: '', txnTime: '', bankCode: '', ref: '', qrNote: '' })
   open.value = false
   emit('refresh')
 }
@@ -260,7 +305,7 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
 
       <template v-if="canPayUi">
         <p v-if="o.pay.block" class="rounded-xl bg-stone-50 p-3 text-stone-600">{{ o.pay.block }}</p>
-        <button v-else-if="!open" class="btn-primary w-full" @click="open = true"><AppIcon name="wallet" :size="18" /> ชำระเงิน</button>
+        <button v-else-if="!open" class="btn-primary w-full" @click="openPay()"><AppIcon name="wallet" :size="18" /> ชำระเงิน</button>
         <div v-else class="space-y-3">
           <div>
             <div class="label">ยอดที่จะโอน</div>
@@ -295,11 +340,26 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
               <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden" aria-label="แนบสลิป" @change="onSlip" />
             </label>
           </div>
+          <div class="space-y-2 rounded-2xl border border-stone-200 p-3">
+            <div class="text-xs text-stone-500">รายละเอียดการโอน (ให้ตรงกับสลิป) <span class="text-rose-500">*</span></div>
+            <div class="grid grid-cols-2 gap-2">
+              <div><label class="label" for="pay-date">วันที่โอน</label><input id="pay-date" v-model="f.txnDate" type="date" class="input" :max="thaiNow().date" /></div>
+              <div><label class="label" for="pay-time">เวลาที่โอน</label><input id="pay-time" v-model="f.txnTime" type="time" class="input" /></div>
+            </div>
+            <div><label class="label" for="pay-bank">ธนาคารของผู้โอน</label>
+              <select id="pay-bank" v-model="f.bankCode" class="input">
+                <option value="">เลือกธนาคาร</option>
+                <option v-for="b in bankOptions" :key="b.code" :value="b.code">{{ b.name }}</option>
+              </select>
+            </div>
+            <div><label class="label" for="pay-ref">เลขอ้างอิงรายการ</label><input id="pay-ref" v-model="f.ref" class="input" maxlength="40" autocomplete="off" placeholder="ดูได้ในสลิปหรือแอปธนาคาร" /></div>
+            <p v-if="f.qrNote" class="text-xs text-stone-500" role="status">{{ f.qrNote }}</p>
+          </div>
           <div><label class="label">หมายเหตุ <span class="font-normal text-stone-400">(ไม่บังคับ)</span></label><input v-model="f.note" class="input" maxlength="200" /></div>
           <p v-if="f.error" class="text-rose-600" role="alert">{{ f.error }}</p>
           <div class="flex gap-2">
             <button class="btn-outline flex-1" @click="open = false">ยกเลิก</button>
-            <button class="btn-primary flex-1" :disabled="f.busy || !(amount > 0)" @click="submit">ส่งสลิปแจ้งชำระ</button>
+            <button class="btn-primary flex-1" :disabled="f.busy || f.reading || !(amount > 0)" @click="submit">{{ f.reading ? 'กำลังอ่านสลิป…' : 'ส่งสลิปแจ้งชำระ' }}</button>
           </div>
           <p class="text-xs text-stone-400">ร้านจะตรวจสลิปแล้วยืนยันยอดให้ (ยังไม่ตัดเงินอัตโนมัติ)</p>
         </div>

@@ -164,10 +164,14 @@ export function planAttach(order: { status?: string; data?: any }): AttachPlan {
 export const SLIP_NOTE = 'สลิปจากแชท (QR) · จับคู่อัตโนมัติ · ยังไม่ได้ตรวจยอดกับธนาคาร (ตรวจยอดในสลิปก่อนยืนยัน)'
 
 // ยอดชำระตามรูปแบบเดียวกับที่ customer-order สร้าง (แหล่งแนบ = customer)
-export function buildSlipPayment(p: { id: string; code: string; amount: number; slipRef: string; slipKey: string; paidAt: string; nowIso: string }) {
+export function buildSlipPayment(p: {
+  id: string; code: string; amount: number; slipRef: string; slipKey: string; paidAt: string; nowIso: string
+  bankCode: string; bankName: string | null; ref: string
+}) {
   return {
     id: p.id, code: p.code, requested: p.amount, amount: p.amount, method: 'โอนเงิน', paidAt: p.paidAt, slip: p.slipRef, note: SLIP_NOTE,
     dueAt: '', extension: null, status: 'reported', source: 'customer', customerSubmitted: true, submittedAt: p.nowIso, createdAt: p.nowIso,
     reportedBy: 'customer', confirmedBy: null, slipKey: p.slipKey,
+    bankCode: p.bankCode, bankName: p.bankName, ref: p.ref, refSource: 'qr',
   }
 }

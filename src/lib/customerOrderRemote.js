@@ -27,3 +27,20 @@ export async function remoteOrderAction(db, ctx, action, body = {}) {
   } catch { stale = true }
   return { ok: true, paymentId: r.data.paymentId, ...(stale ? { stale: true } : {}) }
 }
+
+// อ่าน QR ในสลิปที่ลูกค้าแนบ (เซิร์ฟเวอร์ตอบ { qr }) · ไม่มีการเปลี่ยนแปลงออร์เดอร์ จึงไม่โหลดออร์เดอร์ใหม่
+export async function remoteReadSlip(ctx, slip) {
+  const c = await getSupabase()
+  if (!c) return { error: 'ยังไม่ได้เปิดใช้งานออนไลน์' }
+  const auth = ctx?.token ? { token: ctx.token } : { session: readSessionToken(), orderId: ctx?.orderId }
+  if (!ctx?.token && !auth.session) return { error: 'กรุณาเข้าสู่ระบบ' }
+  let r
+  try { r = await c.functions.invoke('customer-order', { body: { action: 'read_slip', ...auth, slip } }) } catch { return { error: NET } }
+  if (r.error) {
+    let d = null
+    try { d = await r.error.context?.json() } catch { d = null }
+    return { error: d?.error || NET }
+  }
+  if (!r.data?.ok) return { error: r.data?.error || NET }
+  return { ok: true, qr: r.data.qr || { kind: 'none' } }
+}

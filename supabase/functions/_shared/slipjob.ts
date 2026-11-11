@@ -1,8 +1,10 @@
 // งานตรวจสลิปจากรูปในแชท (Edge Function): อ่าน QR → จำแนก → จับคู่กับออร์เดอร์ที่คุยกันล่าสุด → บันทึกเป็นยอดรอตรวจ + แจ้งกระดิ่ง
 // ไม่ยืนยันยอดเอง (QR สลิปไม่มียอดเงินและยืนยันกับธนาคารไม่ได้จากที่นี่) · พนักงานตรวจยอดแล้วยืนยันในหน้าชำระเงินเสมอ
 // เขียนออร์เดอร์แบบเทียบ updated_at (CAS) และเก็บไฟล์ในบัคเก็ตส่วนตัว punpang-slips เหมือน customer-order
+// กติกาเลขอ้างอิง/ธนาคาร/วัน-เวลาชำระ ใช้ชุดเดียวกับหน้าชำระเงินของลูกค้า (payfields.ts)
 import { buildSlipPayment, classifyThaiQr, latestOrderId, planAttach, slipKeyOf } from './slip.ts'
 import { imageSize, readQrTexts } from './qrimage.ts'
+import { bankByCode, normalizeRef, paidAtFromMessage, refTaken } from './payfields.ts'
 
 export type SlipOutcome =
   | 'matched' | 'duplicate' | 'no_order' | 'order_missing' | 'order_inactive' | 'order_paid' | 'pending_exists'
@@ -31,7 +33,6 @@ export type SlipJobInput = {
 const TH_OFFSET = 7 * 3600_000
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const ddmmyy = (d: Date) => { const t = new Date(d.getTime() + TH_OFFSET); return `${pad2(t.getUTCDate())}${pad2(t.getUTCMonth() + 1)}${pad2(t.getUTCFullYear() % 100)}` }
-const localNow = (d: Date) => new Date(d.getTime() + TH_OFFSET).toISOString().slice(0, 16) // เวลาไทย YYYY-MM-DDTHH:mm
 const randHex = (n: number) => [...crypto.getRandomValues(new Uint8Array(n))].map((x) => x.toString(16).padStart(2, '0')).join('')
 
 // เปิด/ปิดได้จาก punpang_kv (config / slipQr · v.enabled = false) · ไม่มีแถว = เปิด
@@ -75,7 +76,10 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     if (c.kind === 'slip') { slip = c; break }
   }
   if (!slip) return 'no_slip'
-  const key = slipKeyOf(slip.sendingBank, slip.transRef)
+  const ref = normalizeRef(slip.transRef)
+  const bankCode = slip.sendingBank
+  const bankName = bankByCode(bankCode)?.name ?? null
+  const key = slipKeyOf(bankCode, ref)
 
   // จบแบบไม่แนบ: บันทึกป้ายในแชท + แจ้งพนักงานให้ตรวจเอง
   const finish = async (outcome: SlipOutcome, orderCode?: string, orderId?: string): Promise<SlipOutcome> => {
@@ -88,13 +92,17 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   const ch = await sb.from('punpang_chats').select('id,data').eq('id', chatId).maybeSingle()
   if (ch?.error) return 'error'
   if (!ch?.data) return 'chat_missing'
-  const orderId = latestOrderId(ch.data.data?.messages)
+  const messages: any[] = Array.isArray(ch.data.data?.messages) ? ch.data.data.messages : []
+  const orderId = latestOrderId(messages)
   if (!orderId) return finish('no_order')
+  // เวลาที่ลูกค้าส่งข้อความสลิป → ใช้เป็นวัน-เวลาชำระ (ดู paidAtFromMessage)
+  const msgAt = messages.find((m: any) => m?.id === msgId)?.at
 
-  // กันแนบซ้ำทั้งระบบ: เลขอ้างอิงเดียวกันเคยอยู่ในยอดของออร์เดอร์ใดก็ได้
-  const seen = await sb.from('punpang_orders').select('id,code').contains('data', { payments: [{ slipKey: key }] }).limit(1)
+  // กันแนบซ้ำทั้งระบบ: เลขอ้างอิงเดียวกันในรายการชำระที่ยังไม่ยกเลิกของออร์เดอร์ใดก็ได้
+  const seen = await sb.from('punpang_orders').select('id,code,data').contains('data', { payments: [{ ref }] })
   if (seen?.error) return 'error'
-  if ((seen?.data || []).length) return finish('duplicate', seen.data[0].code, seen.data[0].id)
+  const hit = (seen?.data || []).find((r: any) => refTaken(r.data?.payments, ref))
+  if (hit) return finish('duplicate', hit.code, hit.id)
 
   const ext = imageSize(bytes)?.type === 'png' ? 'png' : 'jpg'
   const contentType = ext === 'png' ? 'image/png' : 'image/jpeg'
@@ -110,7 +118,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     const row = or.data
     const d = row.data || {}
     const payments: any[] = Array.isArray(d.payments) ? d.payments : []
-    if (payments.some((p) => p?.slipKey === key)) { await discardStaged(); return finish('duplicate', row.code, row.id) }
+    if (refTaken(payments, ref)) { await discardStaged(); return finish('duplicate', row.code, row.id) }
     const plan = planAttach({ status: row.status, data: d })
     if (!plan.ok) { await discardStaged(); return finish(plan.reason, row.code, row.id) }
 
@@ -131,7 +139,8 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
 
     const payment = buildSlipPayment({
       id: paymentId, code, amount: plan.amount, slipRef: `sb://punpang-slips/${stagedPath}`, slipKey: key,
-      paidAt: localNow(now), nowIso: now.toISOString(),
+      paidAt: paidAtFromMessage(msgAt, d.createdAt, now.getTime()), nowIso: now.toISOString(),
+      bankCode, bankName, ref,
     })
     const next = {
       ...d,

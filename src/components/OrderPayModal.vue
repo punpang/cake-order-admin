@@ -7,6 +7,7 @@ import { QUICK_DUE, quickDue, dueBeforePickup, dueDaysBefore, isHHmm } from '../
 import { PAYMENT_METHODS } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
 import { money, dateTime } from '../lib/format'
+import { PAY_MSG, notBeforeOrder, thaiMinute } from '../lib/payFields'
 import { resizeImage, imageErrorMessage } from '../lib/imageResize'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
@@ -19,6 +20,7 @@ const props = defineProps({ order: { type: Object, required: true }, mode: { typ
 const emit = defineEmits(['close'])
 const customer = computed(() => findCustomer(props.order.customerId))
 const t = computed(() => orderTotals(props.order))
+const paidMin = computed(() => thaiMinute(props.order.createdAt))
 const nowLocal = () => {
   const d = new Date()
   const p2 = (n) => String(n).padStart(2, '0')
@@ -87,6 +89,8 @@ let saving = false
 async function savePay() {
   if (saving) return
   if (!(pay.amount > 0)) return (payError.value = 'กรอกยอดเงิน')
+  // วัน-เวลาชำระห้ามน้อยกว่าวัน-เวลาสร้างออร์เดอร์ (ตรวจเฉพาะค่าที่แก้ — ข้อมูลเดิมที่ไม่ได้แก้ไม่ถูกบล็อก)
+  if (pay.paidAt !== paidInitial && !notBeforeOrder(pay.paidAt, props.order.createdAt)) return (payError.value = PAY_MSG.beforeOrder)
   if (payMode === 'direct') {
     if (!(await askConfirm({ title: 'รับชำระทันที', message: `ได้รับ ${money(pay.amount)} (${pay.method}) · บันทึกเป็นยอดที่ยืนยันแล้วเลย`, okText: 'ยืนยัน' }))) return
     const r = receivePaymentNow(props.order, { ...pay })
@@ -120,6 +124,12 @@ async function savePay() {
     </div>
     <div v-else class="rounded-xl p-3 text-sm" :class="payMode === 'direct' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'">
       <template v-if="payMode === 'direct'">ลูกค้าชำระแล้ว ไม่ต้องแจ้งยอด/กำหนดชำระ · </template>คงค้าง <b>{{ money(t.balance) }}</b><span v-if="t.reported"> · แจ้งยอดแล้ว {{ money(t.reported) }}</span>
+    </div>
+    <div v-if="payMode === 'confirm' && (payTarget.ref || payTarget.bankName)" class="rounded-xl border border-stone-200 bg-white p-3 text-sm text-stone-700">
+      <div class="text-xs text-stone-500">ข้อมูลรายการที่ลูกค้าแจ้ง (ตรวจกับสลิป)</div>
+      <div>วันเวลาโอน <b class="text-stone-900">{{ payTarget.paidAt ? dateTime(payTarget.paidAt) : '-' }}</b></div>
+      <div>ธนาคาร <b class="text-stone-900">{{ payTarget.bankName || payTarget.bankCode || '-' }}</b></div>
+      <div>เลขอ้างอิง <b class="break-all text-stone-900">{{ payTarget.ref || '-' }}</b><span v-if="payTarget.refSource === 'qr'" class="ml-1 text-xs text-emerald-700">(อ่านจาก QR)</span></div>
     </div>
     <div>
       <label class="label" for="pay-amount">{{ payMode === 'confirm' || payMode === 'direct' ? 'ยอดที่ได้รับจริง' : 'ยอดที่แจ้งลูกค้า' }}</label>
@@ -177,7 +187,7 @@ async function savePay() {
         <span class="min-w-0 truncate text-stone-800">{{ paidText }}</span>
         <button type="button" class="shrink-0 font-medium text-brand-700 hover:underline" @click="editPaidAt = true">เปลี่ยน</button>
       </div>
-      <input v-else v-model="pay.paidAt" type="datetime-local" class="input" aria-label="วันเวลาที่ชำระ" />
+      <input v-else v-model="pay.paidAt" type="datetime-local" class="input" aria-label="วันเวลาที่ชำระ" :min="paidMin" />
     </div>
     <div>
       <div class="label">สลิป <span class="font-normal text-stone-400">(ไม่บังคับ)</span></div>
