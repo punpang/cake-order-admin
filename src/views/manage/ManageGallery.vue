@@ -65,7 +65,6 @@ async function del() {
         <p v-if="err" class="text-sm text-rose-600" role="alert">{{ err }}</p>
         <p v-if="msg" class="text-sm text-emerald-700" role="status">{{ msg }}</p>
         <button type="button" class="btn-primary w-full" @click="saveQueue">บันทึก {{ queue.length || '' }} รูปเข้าคลัง</button>
-        <p class="text-xs text-stone-400">จำลองในหน่วยความจำ (รีเฟรชแล้วหาย) · ของจริงเก็บใน Supabase Storage</p>
       </section>
 
       <section class="card" aria-label="รูปในคลัง">

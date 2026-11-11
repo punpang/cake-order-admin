@@ -51,10 +51,6 @@ const orderLinks = computed(() => {
 
 <template>
   <ManageShell narrow guard title="ลิงก์ย่อ & ลิงก์ออร์เดอร์" subtitle="ลิงก์ย่อ นับคลิก · นโยบายหมดอายุของลิงก์ออร์เดอร์">
-    <div class="mb-3 flex gap-2 rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">
-      <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0" />
-      <p>โหมดจำลอง: ข้อมูลลิงก์อยู่ในหน่วยความจำของเบราว์เซอร์นี้ เปิดจากเครื่องอื่นไม่เจอ — ใช้งานจริงต้องต่อ Supabase</p>
-    </div>
 
     <section class="card mb-4 space-y-3">
       <h2 class="font-semibold text-stone-900">นโยบายลิงก์ออร์เดอร์</h2>

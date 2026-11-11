@@ -94,7 +94,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
 
       <RouterLink to="/" class="ml-auto inline-flex items-center text-sm text-stone-600 underline lg:min-h-8 lg:px-1">หน้าร้าน</RouterLink>
       <BellMenu audience="staff" />
-      <button class="inline-flex h-10 max-w-40 items-center gap-2 rounded-full bg-white px-3 text-sm shadow-sm lg:px-3.5" :aria-label="`ผู้ใช้ ${me?.name || ROLES[session.role]}`" @click="roleOpen = true">
+      <button class="inline-flex h-10 max-w-40 items-center gap-2 rounded-full bg-white px-3 text-sm shadow-sm lg:px-3.5" :aria-label="`ผู้ใช้ ${me?.name || ROLES[session.role]}`" @click="supabaseEnabled && (roleOpen = true)">
         <AppIcon name="user" :size="16" class="shrink-0 text-stone-500" />
         <span class="hidden truncate lg:inline">{{ me?.name || ROLES[session.role] }}</span>
       </button>
@@ -145,25 +145,10 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     </div>
   </nav>
 
-  <!-- เลือกบทบาท (จำลอง) -->
+  <!-- บัญชีผู้ใช้ (ต่อ Supabase) -->
   <AppModal v-if="roleOpen && supabaseEnabled" title="บัญชีผู้ใช้" @close="roleOpen = false">
     <p class="text-sm text-stone-700">{{ me?.name }} · {{ ROLES[me?.role] }}</p>
     <button type="button" class="btn-outline mt-4 w-full" @click="logout">ออกจากระบบ</button>
-  </AppModal>
-  <AppModal v-else-if="roleOpen" title="ทดลองใช้งานเป็นผู้ใช้" @close="roleOpen = false">
-    <div class="grid gap-2">
-      <button
-        v-for="u in db.users.filter((x) => x.active !== false)"
-        :key="u.id"
-        class="flex items-center justify-between gap-2 rounded-2xl border-2 px-4 py-3 text-left"
-        :class="session.userId === u.id ? 'border-brand-500 bg-brand-50 text-brand-800' : 'border-stone-200 hover:bg-stone-50'"
-        @click="switchUser(u.id); roleOpen = false"
-      >
-        <span class="min-w-0"><span class="block truncate font-medium">{{ u.name }}</span><span class="block text-xs text-stone-500">{{ ROLES[u.role] }} · {{ u.perms?.length || 0 }} สิทธิ์</span></span>
-        <AppIcon v-if="session.userId === u.id" name="check" class="shrink-0 text-brand-600" />
-      </button>
-    </div>
-    <p class="mt-3 text-xs text-stone-600">ยังไม่มีล็อกอินจริง: สลับผู้ใช้เพื่อทดลองสิทธิ์ที่ติ๊กไว้</p>
   </AppModal>
   </template>
 

@@ -6,13 +6,12 @@ import { formatPhone } from '../lib/format'
 import AppIcon from './AppIcon.vue'
 
 // ขั้นยืนยัน OTP: ขอรหัสอัตโนมัติเมื่อเปิด → กรอกรหัส 6 หลัก → ส่ง token ให้ขั้นถัดไป
-// โหมดจำลอง: แสดงรหัสบนจอ · โหมดออนไลน์: เซิร์ฟเวอร์ส่ง SMS จริงและไม่คืนรหัส (ไม่มี simCode → ไม่แสดงกล่องจำลอง)
+// เซิร์ฟเวอร์ส่ง SMS จริงและไม่คืนรหัสให้หน้าจอ
 const props = defineProps({ phone: { type: String, default: '' }, purpose: { type: String, required: true } })
 const emit = defineEmits(['verified', 'cancel'])
 
 const code = ref('')
 const error = ref('')
-const sim = ref('')
 const sentTo = ref('')
 const fatal = ref(false)
 const wait = ref(0)
@@ -33,7 +32,6 @@ async function send() {
   const r = await requestOtp(props.phone, props.purpose)
   busy.value = false
   if (r.ok) {
-    sim.value = r.simCode || ''
     sentTo.value = r.phone
     error.value = ''
     code.value = ''
@@ -64,10 +62,6 @@ onUnmounted(() => clearInterval(timer))
       ยืนยันตัวตนเพื่อ<b>{{ OTP_PURPOSE[purpose] }}</b>
       <template v-if="sentTo"> · ส่งรหัส 6 หลักไปที่ <b>{{ formatPhone(sentTo) }}</b> (หมดอายุใน 5 นาที)</template>
     </p>
-
-    <div v-if="sim" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
-      <b>โหมดจำลอง</b> ยังไม่ได้ส่ง SMS จริง รหัสของคุณคือ <b class="text-lg tracking-widest">{{ sim }}</b>
-    </div>
 
     <template v-if="!fatal">
       <div>

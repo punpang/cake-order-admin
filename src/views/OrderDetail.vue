@@ -575,10 +575,10 @@ async function saveCancel() {
           </div>
         </section>
 
-        <!-- ข้อความที่ส่ง (จำลอง) -->
+        <!-- ข้อความที่ส่ง -->
         <section v-if="messages.length && can('manage')" class="card">
           <button type="button" class="card-title mb-0 w-full text-left" :aria-expanded="msgOpen" aria-controls="order-messages" @click="msgOpen = !msgOpen">
-            <AppIcon name="phone" class="text-brand-600" /> ข้อความแจ้งเตือน <span class="font-normal text-stone-400">{{ messages.length }}</span> <span class="text-xs font-normal text-stone-400">จำลอง · ยังไม่ส่งจริง</span>
+            <AppIcon name="phone" class="text-brand-600" /> ข้อความแจ้งเตือน <span class="font-normal text-stone-400">{{ messages.length }}</span> 
             <span class="ml-auto inline-flex items-center gap-1 text-sm font-medium text-brand-700">{{ msgOpen ? 'ซ่อน' : 'แสดง' }} <AppIcon name="next" :size="14" class="transition" :class="msgOpen ? 'rotate-90' : ''" /></span>
           </button>
           <ul v-show="msgOpen" id="order-messages" class="mt-3 space-y-2">
