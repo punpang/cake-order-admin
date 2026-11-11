@@ -1,11 +1,12 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { db, findCustomer, depositOf, reportPayment, confirmPayment, receivePaymentNow, updatePaymentRequest, bindChatSlip } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { toastSaved } from '../lib/syncStatus'
 import { QUICK_DUE, quickDue, dueBeforePickup, dueDaysBefore, isHHmm } from '../lib/payDue'
 import { PAYMENT_METHODS } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
+import { cleanNum } from '../lib/numInput'
 import { money, dateTime } from '../lib/format'
 import { PAY_MSG, notBeforeOrder, thaiMinute } from '../lib/payFields'
 import { slipRoom, pendingCustomerTotal } from '../lib/slipBind'
@@ -75,6 +76,18 @@ const showDeposit = computed(() =>
 // วันเวลาที่ชำระ: แสดงเป็นข้อความ (ค่าเริ่มต้นคือ "ตอนนี้") · กดเปลี่ยนจึงเปิดช่องเลือกวันเวลา (กันวงล้อของ iOS บังปุ่มยืนยัน)
 const editPaidAt = ref(false)
 const paidInitial = pay.paidAt
+// ช่องยอดเงิน: ขณะพิมพ์แสดงตัวเลขดิบ · เมื่อออกจากช่องแสดงรูปแบบ x,xxx.xx
+const amtFmt = (v) => (Number(v) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const amtFocused = ref(false)
+const amtText = ref(amtFmt(pay.amount))
+watch(() => pay.amount, (v) => { if (!amtFocused.value) amtText.value = amtFmt(v) })
+function onAmtInput(e) {
+  const c = cleanNum(e.target.value, true)
+  amtText.value = c
+  pay.amount = c === '' || c === '.' ? 0 : Number(c)
+}
+function onAmtBlur() { amtFocused.value = false; amtText.value = amtFmt(pay.amount) }
+function onAmtFocus() { amtFocused.value = true }
 const paidText = computed(() => {
   if (!pay.paidAt) return '-'
   const label = dateTime(pay.paidAt) + ' น.'
@@ -155,7 +168,7 @@ async function savePay() {
     <div>
       <label class="label" for="pay-amount">{{ payMode === 'slip' ? 'ยอดตามสลิป' : payMode === 'confirm' || payMode === 'direct' ? 'ยอดที่ได้รับจริง' : 'ยอดที่แจ้งลูกค้า' }}</label>
       <div class="relative">
-        <input id="pay-amount" v-model.number="pay.amount" type="text" v-num.dec min="0" enterkeyhint="done" class="input pr-12 text-lg font-semibold" />
+        <input id="pay-amount" :value="amtText" @input="onAmtInput" @focus="onAmtFocus" @blur="onAmtBlur" type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" class="input pr-12 text-lg font-semibold" />
         <span class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-stone-400">บาท</span>
       </div>
       <div v-if="payMode === 'direct' && t.balance > 0" class="mt-2 flex flex-wrap gap-2">
