@@ -36,7 +36,27 @@ export function imageSize(b: Uint8Array): { type: 'png' | 'jpeg'; w: number; h: 
   return null
 }
 
+// ย่อภาพ RGBA ลงครึ่งหนึ่งด้วยการเฉลี่ยบล็อก 2×2 (ไม่มี native resize ใน Deno)
+// jsQR มักพลาด QR เล็กในภาพความละเอียดสูง (รูปถ่ายหน้าจอ/สลิปเต็มภาพ) แต่อ่านได้หลังย่อ
+export function halveRgba(src: Uint8ClampedArray, w: number, h: number): { data: Uint8ClampedArray; w: number; h: number } {
+  const nw = Math.floor(w / 2)
+  const nh = Math.floor(h / 2)
+  const out = new Uint8ClampedArray(nw * nh * 4)
+  for (let y = 0; y < nh; y++) {
+    for (let x = 0; x < nw; x++) {
+      const i0 = ((2 * y) * w + 2 * x) * 4
+      const i1 = i0 + 4
+      const i2 = i0 + w * 4
+      const i3 = i2 + 4
+      const o = (y * nw + x) * 4
+      for (let c = 0; c < 4; c++) out[o + c] = (src[i0 + c] + src[i1 + c] + src[i2 + c] + src[i3 + c] + 2) >> 2
+    }
+  }
+  return { data: out, w: nw, h: nh }
+}
+
 // คืนข้อความของ QR ที่พบในรูป (อย่างมากหนึ่งรายการต่อรูป) · รูปที่อ่านไม่ได้คืน []
+// ลองภาพเต็มก่อน · ถ้าไม่พบและภาพใหญ่ ลองอีกครั้งที่ย่อครึ่งหนึ่ง
 export async function readQrTexts(bytes: Uint8Array): Promise<string[]> {
   const size = imageSize(bytes)
   if (!size || size.w < 16 || size.h < 16 || size.w * size.h > MAX_QR_PIXELS) return []
@@ -45,8 +65,14 @@ export async function readQrTexts(bytes: Uint8Array): Promise<string[]> {
       ? PNG.sync.read(Buffer.from(bytes))
       : jpeg.decode(bytes, { useTArray: true, maxResolutionInMP: 9, maxMemoryUsageInMB: 256, formatAsRGBA: true })
     const rgba = new Uint8ClampedArray(img.data.buffer, img.data.byteOffset, img.data.length)
-    const hit = jsQR(rgba, img.width, img.height, { inversionAttempts: 'attemptBoth' })
-    return hit ? [hit.data] : []
+    const full = jsQR(rgba, img.width, img.height, { inversionAttempts: 'attemptBoth' })
+    if (full) return [full.data]
+    if (Math.max(img.width, img.height) > 1000) {
+      const half = halveRgba(rgba, img.width, img.height)
+      const hit = jsQR(half.data, half.w, half.h, { inversionAttempts: 'attemptBoth' })
+      if (hit) return [hit.data]
+    }
+    return []
   } catch {
     return []
   }
