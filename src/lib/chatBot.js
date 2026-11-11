@@ -19,19 +19,13 @@ export const BOT_DEFAULTS = {
   handoff: { notifyTelegram: true, text: 'ขอส่งต่อให้พนักงานช่วยดูแลต่อนะคะ รอสักครู่ค่ะ' },
   // บอท AI (ทำงานบนเซิร์ฟเวอร์ ช่อง Facebook เท่านั้น) · ปิดเป็นค่าเริ่มต้น · เรียกเฉพาะเมื่อกฎเดิมตอบไม่ได้ · ไม่ส่งข้อมูลออร์เดอร์/ลูกค้า
   // mode: suggest = ร่างให้พนักงานกดส่ง (ค่าเริ่มต้น) · auto = ส่งเอง · dailyLimit = จำนวนครั้งที่เรียกโมเดลต่อวัน (0 = ไม่เรียกเลย)
-  ai: { enabled: false, provider: 'anthropic', tier: 'mid', model: 'claude-sonnet-5-5', mode: 'suggest', dailyLimit: 50, maxTokens: 400 },
+  ai: { enabled: false, provider: 'anthropic', model: 'claude-sonnet-5-5', mode: 'suggest', dailyLimit: 50, maxTokens: 400 },
   rules: [],
   learned: [],
   stats: { suggested: 0, answered: 0, handoff: 0, staffEdited: 0 },
 }
-// ระดับโมเดลของบอท AI (เลือกในหน้าตั้งค่า) · ต่ำ = เร็วและประหยัด · กลาง = สมดุล (แนะนำ) · สูง = ฉลาดที่สุด ค่าใช้จ่ายสูงกว่า
-export const AI_TIERS = {
-  low: { label: 'ต่ำ (เร็ว ประหยัด)', model: 'claude-haiku-5-5' },
-  mid: { label: 'กลาง (แนะนำ)', model: 'claude-sonnet-5-5' },
-  high: { label: 'สูง (ฉลาดที่สุด)', model: 'claude-opus-5-5' },
-}
-// ระดับจากชื่อโมเดลที่บันทึกไว้ (สำหรับค่าเดิมที่ยังไม่มี tier)
-export const tierOfModel = (model) => Object.keys(AI_TIERS).find((k) => AI_TIERS[k].model === model) || 'mid'
+// โมเดลของบอท AI ที่เลือกได้ในหน้าตั้งค่า (ชื่อต้องตรงกับที่ Anthropic ใช้)
+export const AI_MODELS = ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5', 'claude-fable-5-2']
 export const LEARN_MAX = 200
 // ประเภทคำตอบที่ตั้ง ตอบเอง/แนะนำ ได้รายประเภท
 export const AUTO_SOURCES = ['hours', 'faq', 'offhours', 'order', 'rule', 'price', 'learned', 'ask']
