@@ -176,7 +176,12 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     }
     const status = row.status === 'awaiting_payment' ? 'payment_reported' : row.status
     const up = await sb.from('punpang_orders').update({ data: next, status }).eq('id', row.id).eq('updated_at', row.updated_at).select('id')
-    if (up?.error) { await discardStaged(); return 'error' }
+    if (up?.error) {
+      await discardStaged()
+      // ชนกับตัวกันเลขอ้างอิงซ้ำระดับฐานข้อมูล (SQLSTATE 23505) = สลิปซ้ำจริง ไม่ใช่ระบบขัดข้อง
+      if (up.error.code === '23505') return finish('duplicate')
+      return 'error'
+    }
     if ((up?.data || []).length) {
       await bell(sb, { event: 'team_customer_paid', title: 'ลูกค้าแจ้งโอน', text: `${row.code} · ยอด ${plan.amount.toFixed(2)} (สลิป QR ยังไม่ได้ตรวจยอด)`, orderId: row.id, chatId }, rand)
       await annotate(sb, chatId, msgId, { status: 'matched', orderCode: row.code, paymentId, at: now.toISOString() })
