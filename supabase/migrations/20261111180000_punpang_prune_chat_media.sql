@@ -1,8 +1,8 @@
--- ลบลิงก์รูป/ไฟล์ของ Facebook ที่เก่าเกินกำหนด (ค่าเริ่มต้น 180 วัน) ออกจากแชท
+-- ลบลิงก์รูป/ไฟล์ของ Facebook ที่เก่าเกินกำหนด (ค่าเริ่มต้น 30 วัน) ออกจากแชท
 -- เก็บชื่อและชนิดของไฟล์ไว้ ลบเฉพาะฟิลด์ url · ทำงานรายแชทด้วย CAS บน updated_at (ไม่ทับการเขียนที่ชนกัน)
 -- ตั้งเวลารันทุกวันด้วย pg_cron: 03:00 UTC (10:00 เวลาไทย)
---   select cron.schedule('punpang-prune-chat-media', '0 3 * * *', $$select public.punpang_prune_chat_media(180)$$);
-create or replace function public.punpang_prune_chat_media(p_days int default 180)
+--   select cron.schedule('punpang-prune-chat-media', '0 3 * * *', $$select public.punpang_prune_chat_media(30)$$);
+create or replace function public.punpang_prune_chat_media(p_days int default 30)
 returns int
 language plpgsql
 security definer
