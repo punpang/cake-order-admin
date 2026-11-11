@@ -1,7 +1,7 @@
 <script setup>
 import { validTaxId, validBranch } from '../../lib/acct/taxid'
 import { computed, reactive, ref } from 'vue'
-import { db, saveShopSettings, pickupSlots } from '../../data/store'
+import { db, saveShopSettings, saveSlipQrSettings, pickupSlots } from '../../data/store'
 import { toDateStr, money } from '../../lib/format'
 import { deliveryFee } from '../../lib/delivery'
 import { promptPayKind } from '../../lib/promptpay'
@@ -30,6 +30,18 @@ const saved = ref(false)
 const STEPS = [15, 30, 60]
 const NEAR = [1, 2, 3, 6, 0]
 const num = (v) => Number(v) >= 0 && v !== ''
+// ---- สลิปในแชท (บันทึกแยกจากฟอร์มร้าน) ----
+const sq = reactive({ ...db.slipQr })
+const slipErr = ref('')
+const slipSaved = ref(false)
+function saveSlip() {
+  const r = saveSlipQrSettings(sq)
+  if (r?.error) return (slipErr.value = r.error)
+  slipErr.value = ''
+  Object.assign(sq, db.slipQr)
+  slipSaved.value = true
+  setTimeout(() => (slipSaved.value = false), 1500)
+}
 
 function save() {
   if (!st.open || !st.close || st.close <= st.open) return (error.value = 'เวลาปิดต้องหลังเวลาเปิด')
@@ -173,6 +185,22 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
       <p v-if="error" class="text-sm text-rose-600">{{ error }}</p>
       <button class="btn-primary w-full" @click="save"><AppIcon name="check" :size="18" /> {{ saved ? 'บันทึกแล้ว' : 'บันทึก' }}</button>
       <p class="text-xs text-stone-500">ตัวอย่างพรุ่งนี้: {{ pickupSlots(tomorrow).join(', ') }}</p>
+    </section>
+
+    <section class="card space-y-4">
+      <div class="card-title mb-0"><AppIcon name="image" class="text-brand-600" /> สลิปในแชท (QR)</div>
+      <p class="text-sm text-stone-600">ลูกค้าส่งรูปสลิปโอนในแชท ระบบอ่าน QR ของสลิปเพื่อจับคู่ออร์เดอร์ · ยอดยังรอพนักงานตรวจกับสลิปก่อนยืนยันเสมอ</p>
+      <AppSwitch v-model="sq.enabled" label="ตรวจสลิปในแชท" class="flex" />
+      <div>
+        <div class="label">วิธีจับคู่</div>
+        <div class="grid gap-2 sm:grid-cols-2">
+          <button type="button" class="chip" :class="sq.mode === 'auto' ? 'chip-on' : 'chip-off'" @click="sq.mode = 'auto'">อัตโนมัติ · แนบกับออร์เดอร์ที่คุยล่าสุด</button>
+          <button type="button" class="chip" :class="sq.mode === 'manual' ? 'chip-on' : 'chip-off'" @click="sq.mode = 'manual'">แมนนวล · พนักงานเลือกออร์เดอร์เอง</button>
+        </div>
+        <p class="mt-2 text-xs text-stone-500">{{ sq.mode === 'manual' ? 'แชทจะแสดงปุ่มผูกกับออร์เดอร์ที่แนะนำ หรือเลือกออร์เดอร์อื่นของลูกค้า (ในหน้าแชท ไม่เปลี่ยนหน้า)' : 'ถ้ามีออร์เดอร์ที่คุยล่าสุด ระบบแนบให้ทันที · ไม่มีออร์เดอร์ก็แจ้งกระดิ่งให้ผูกเองจากหน้าออร์เดอร์' }}</p>
+      </div>
+      <p v-if="slipErr" class="text-sm text-rose-600">{{ slipErr }}</p>
+      <button class="btn-outline w-full" @click="saveSlip"><AppIcon name="check" :size="18" /> {{ slipSaved ? 'บันทึกแล้ว' : 'บันทึกการตั้งค่าสลิป' }}</button>
     </section>
   </ManageShell>
 </template>

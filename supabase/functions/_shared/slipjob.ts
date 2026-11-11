@@ -9,6 +9,7 @@ import { bankByCode, normalizeRef, paidAtFromMessage, refTaken } from './payfiel
 export type SlipOutcome =
   | 'matched' | 'duplicate' | 'no_order' | 'order_missing' | 'order_inactive' | 'order_paid' | 'pending_exists'
   | 'upload_failed' | 'busy' | 'chat_missing' | 'disabled' | 'no_slip' | 'error'
+  | 'manual' // โหมดแมนนวล: เก็บสลิปไว้ให้พนักงานผูกออร์เดอร์เองในแชท (ยังไม่แนบ)
 
 export const SLIP_REASON_TH: Partial<Record<SlipOutcome, string>> = {
   no_order: 'ยังไม่มีออร์เดอร์ในแชทนี้ — ผูกออร์เดอร์เองในแชท',
@@ -35,10 +36,13 @@ const pad2 = (n: number) => String(n).padStart(2, '0')
 const ddmmyy = (d: Date) => { const t = new Date(d.getTime() + TH_OFFSET); return `${pad2(t.getUTCDate())}${pad2(t.getUTCMonth() + 1)}${pad2(t.getUTCFullYear() % 100)}` }
 const randHex = (n: number) => [...crypto.getRandomValues(new Uint8Array(n))].map((x) => x.toString(16).padStart(2, '0')).join('')
 
-// เปิด/ปิดได้จาก punpang_kv (config / slipQr · v.enabled = false) · ไม่มีแถว = เปิด
-async function slipEnabled(sb: any): Promise<boolean> {
+export type SlipMode = 'auto' | 'manual'
+
+// ตั้งค่าจาก punpang_kv (config / slipQr): v.enabled = false ปิด · v.mode = 'manual' โหมดแมนนวล · ไม่มีแถวหรือค่าอื่น = เปิดแบบอัตโนมัติ
+async function slipConfig(sb: any): Promise<{ enabled: boolean; mode: SlipMode }> {
   const r = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()
-  return r?.data?.data?.v?.enabled !== false
+  const v = r?.data?.data?.v
+  return { enabled: v?.enabled !== false, mode: v?.mode === 'manual' ? 'manual' : 'auto' }
 }
 
 // ใส่ผลลงข้อความในแชท (เทียบ updated_at) · ไม่กระทบการแนบ ถ้าเขียนไม่ได้ก็แค่ไม่มีป้าย
@@ -67,7 +71,8 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   const { sb, chatId, msgId, bytes } = input
   const now = new Date(input.nowMs ?? Date.now())
   const rand = input.rand ?? randHex
-  if (!(await slipEnabled(sb))) return 'disabled'
+  const cfg = await slipConfig(sb)
+  if (!cfg.enabled) return 'disabled'
 
   const texts = await readQrTexts(bytes)
   let slip: { sendingBank: string; transRef: string } | null = null
@@ -94,15 +99,37 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   if (!ch?.data) return 'chat_missing'
   const messages: any[] = Array.isArray(ch.data.data?.messages) ? ch.data.data.messages : []
   const orderId = latestOrderId(messages)
-  if (!orderId) return finish('no_order')
+  // โหมดอัตโนมัติ: ไม่มีออร์เดอร์ที่คุยล่าสุดให้จับคู่ → แจ้งให้ผูกเอง (โหมดแมนนวลพนักงานเลือกเองในแชทได้)
+  if (cfg.mode === 'auto' && !orderId) return finish('no_order')
   // เวลาที่ลูกค้าส่งข้อความสลิป → ใช้เป็นวัน-เวลาชำระ (ดู paidAtFromMessage)
   const msgAt = messages.find((m: any) => m?.id === msgId)?.at
 
-  // กันแนบซ้ำทั้งระบบ: เลขอ้างอิงเดียวกันในรายการชำระที่ยังไม่ยกเลิกของออร์เดอร์ใดก็ได้
+  // กันแนบซ้ำทั้งระบบ (ทั้งสองโหมด): เลขอ้างอิงเดียวกันในรายการชำระที่ยังไม่ยกเลิกของออร์เดอร์ใดก็ได้
   const seen = await sb.from('punpang_orders').select('id,code,data').contains('data', { payments: [{ ref }] })
   if (seen?.error) return 'error'
   const hit = (seen?.data || []).find((r: any) => refTaken(r.data?.payments, ref))
   if (hit) return finish('duplicate', hit.code, hit.id)
+
+  if (cfg.mode === 'manual') {
+    // โหมดแมนนวล: เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์
+    const kind = imageSize(bytes)?.type === 'png' ? 'png' : 'jpg'
+    const path = `manual/${chatId}/${rand(16)}.${kind}`
+    const up = await sb.storage.from('punpang-slips').upload(path, bytes, { contentType: kind === 'png' ? 'image/png' : 'image/jpeg', upsert: false })
+    if (up?.error) return finish('upload_failed', undefined, orderId ?? undefined)
+    const sug = orderId ? await sb.from('punpang_orders').select('id,code').eq('id', orderId).maybeSingle() : null
+    const sugCode: string | undefined = sug?.data?.code || undefined
+    const suggestedId = sugCode && orderId ? orderId : undefined
+    await annotate(sb, chatId, msgId, {
+      status: 'manual', ...(suggestedId ? { orderId: suggestedId, orderCode: sugCode } : {}),
+      slipRef: `sb://punpang-slips/${path}`, slipKey: key, bankCode, ...(bankName ? { bankName } : {}), ref, at: now.toISOString(),
+    })
+    await bell(sb, {
+      event: 'slip_check', title: 'สลิปในแชทรอผูกออร์เดอร์',
+      text: sugCode ? `รอผูกกับ ${sugCode} หรือเลือกออร์เดอร์อื่นในแชท` : 'ยังไม่มีออร์เดอร์ที่คุยล่าสุด · เลือกออร์เดอร์ในแชท',
+      chatId, orderId: suggestedId,
+    }, rand)
+    return 'manual'
+  }
 
   const ext = imageSize(bytes)?.type === 'png' ? 'png' : 'jpg'
   const contentType = ext === 'png' ? 'image/png' : 'image/jpeg'
@@ -158,5 +185,5 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     // เขียนชน (พนักงานแก้ออร์เดอร์พร้อมกัน) → อ่านใหม่แล้วทำซ้ำ
   }
   await discardStaged()
-  return finish('busy', undefined, orderId)
+  return finish('busy', undefined, orderId ?? undefined)
 }

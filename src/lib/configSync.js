@@ -12,7 +12,7 @@ import { ensureStyleGroup } from './constants'
 // storefront/legal ใช้ collection ของตัวเอง เพื่อให้หน้าร้านสาธารณะอ่านได้ภายหลัง (นโยบาย kv_public_read)
 export const CONFIG_KEYS = [
   'shop', 'loyalty', 'rewards', 'gachaPrizes', 'priceLists', 'bundles', 'ingredients', 'optionGroups',
-  'cannedReplies', 'bot', 'notifyRules', 'posModifiers', 'posDiscounts', 'posBundles', 'posDeals', 'pointPromos',
+  'cannedReplies', 'bot', 'slipQr', 'notifyRules', 'posModifiers', 'posDiscounts', 'posBundles', 'posDeals', 'pointPromos',
   'storefront', 'legal', 'cakeGallery', 'integrations',
 ]
 const COLLECTION_OF = { storefront: 'storefront', legal: 'legal', cakeGallery: 'storefront', ingredients: 'materials' } // cakeGallery: หน้าร้านสาธารณะอ่านได้
