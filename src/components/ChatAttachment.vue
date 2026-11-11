@@ -10,6 +10,8 @@ const big = ref(false)
 
 async function load() {
   if (props.a.localUrl) { url.value = props.a.localUrl; return (state.value = 'ok') } // รูปที่พนักงานเพิ่งส่ง (โหมดจำลอง)
+  // ลิงก์ของ Facebook ใช้ได้ชั่วคราว (หมดอายุแล้วโหลดไม่ได้) · ไม่คัดลอกไว้ในระบบ
+  if (props.a.url) { url.value = props.a.url; return (state.value = 'ok') }
   if (props.a.failed || !props.a.path) return (state.value = 'error')
   state.value = 'loading'
   try {
@@ -20,13 +22,13 @@ async function load() {
   }
 }
 onMounted(load)
-watch(() => props.a.path, load)
+watch(() => [props.a.path, props.a.url], load)
 const isImg = () => props.a.type === 'image' || props.a.sticker
 </script>
 
 <template>
   <div class="mb-1 last:mb-0">
-    <p v-if="state === 'error'" class="rounded-lg bg-stone-100 px-2 py-1.5 text-xs text-stone-500">{{ attachLabel(a) }}: โหลดไม่ได้{{ a.failed ? ' (ระบบเก็บสำเนาไม่สำเร็จ)' : '' }}</p>
+    <p v-if="state === 'error'" class="rounded-lg bg-stone-100 px-2 py-1.5 text-xs text-stone-500">{{ attachLabel(a) }}: โหลดไม่ได้{{ a.url ? ' (ลิงก์ของ Facebook หมดอายุแล้ว)' : a.failed ? ' (ระบบเก็บสำเนาไม่สำเร็จ)' : '' }}</p>
     <p v-else-if="state === 'loading'" class="rounded-lg bg-stone-100 px-2 py-1.5 text-xs text-stone-400">กำลังโหลด{{ attachLabel(a) }}…</p>
     <template v-else>
       <button v-if="isImg()" type="button" class="block" :aria-label="`ดู${attachLabel(a)}ขนาดใหญ่`" @click="big = true">

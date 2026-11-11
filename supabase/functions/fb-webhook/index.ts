@@ -22,7 +22,6 @@ const ATTACH_TEXT = '[ลูกค้าส่งข้อความชนิ�
 // ไฟล์แนบ: เก็บสำเนาใน bucket private punpang-chat (URL ของ Facebook หมดอายุ) · จำกัดขนาด/ชนิด ตาม bucket
 const MAX_BYTES = 8 * 1024 * 1024
 const MAX_ATT = 6
-const MIME_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'video/mp4': 'mp4', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/aac': 'aac', 'audio/ogg': 'ogg', 'application/pdf': 'pdf', 'text/plain': 'txt' }
 const KINDS = ['image', 'video', 'audio', 'file']
 async function readLimited(res: Response): Promise<Uint8Array | null> {
   const len = Number(res.headers.get('content-length') || 0)
@@ -42,33 +41,28 @@ async function readLimited(res: Response): Promise<Uint8Array | null> {
   for (const c of chunks) { out.set(c, o); o += c.length }
   return out
 }
-// → { list: ไฟล์ที่เก็บได้/ล้มเหลว, unsupported: มีชนิดที่ไม่รองรับ }
+// → { list: ไฟล์แนบ (เก็บเฉพาะลิงก์ของ Facebook ไม่คัดลอกไฟล์), unsupported: มีชนิดที่ไม่รองรับ, imgs: รูปในหน่วยความจำสำหรับตรวจสลิป }
+// ลิงก์ของ Facebook ใช้ได้ชั่วคราว (หมดอายุแล้วแอปจะแสดงว่าโหลดไม่ได้) · รูปที่ใช้ตรวจสลิปดาวน์โหลดเฉพาะในหน่วยความจำ ไม่เขียนลง Storage
 async function saveAttachments(sb: any, psid: string, mid: string, atts: any[]) {
   const list: any[] = []
-  const imgs: Uint8Array[] = [] // รูปที่ใช้ตรวจสลิป QR (ในหน่วยความจำ · ไม่ใช่สติกเกอร์)
+  const imgs: Uint8Array[] = []
   let unsupported = false
-  const safeMid = mid.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60) || rand(6)
   let i = 0
   for (const a of (Array.isArray(atts) ? atts : []).slice(0, MAX_ATT)) {
     const type = String(a?.type || '')
     if (!KINDS.includes(type)) { unsupported = true; continue }
     const sticker = type === 'image' && a?.payload?.sticker_id ? true : undefined
-    const fail = { type, failed: true, ...(sticker ? { sticker } : {}) }
     const url = String(a?.payload?.url || '')
-    if (!/^https:\/\//i.test(url)) { list.push(fail); continue }
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
-      const mime = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
-      const ext = MIME_EXT[mime]
-      if (!res.ok || !ext) { list.push(fail); continue }
-      const bytes = await readLimited(res)
-      if (!bytes || !bytes.length) { list.push(fail); continue }
-      if (type === 'image' && !a?.payload?.sticker_id && imgs.length < 2) imgs.push(bytes)
-      const path = `fb/${psid}/${safeMid}-${i++}.${ext}`
-      const up = await sb.storage.from('punpang-chat').upload(path, bytes, { contentType: mime, upsert: true })
-      if (up.error) { list.push(fail); continue }
-      list.push({ type, path, mime, name: `${type}-${i}.${ext}`, size: bytes.length, ...(sticker ? { sticker } : {}) })
-    } catch { list.push(fail) }
+    if (!/^https:\/\//i.test(url)) { list.push({ type, failed: true, ...(sticker ? { sticker } : {}) }); continue }
+    if (type === 'image' && !sticker && imgs.length < 2) {
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
+        const bytes = res.ok ? await readLimited(res) : null
+        if (bytes && bytes.length) imgs.push(bytes)
+      } catch { /* ตรวจสลิปไม่ได้ก็ยังบันทึกลิงก์ไว้แสดง */ }
+    }
+    i++
+    list.push({ type, url, name: `${type}-${i}`, ...(sticker ? { sticker } : {}) })
   }
   return { list, unsupported, imgs }
 }
