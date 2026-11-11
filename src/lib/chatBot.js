@@ -24,6 +24,8 @@ export const BOT_DEFAULTS = {
   learned: [],
   stats: { suggested: 0, answered: 0, handoff: 0, staffEdited: 0 },
 }
+// โมเดลของบอท AI ที่เลือกได้ในหน้าตั้งค่า (ชื่อต้องตรงกับที่ Anthropic ใช้)
+export const AI_MODELS = ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5', 'claude-fable-5-2']
 export const LEARN_MAX = 200
 // ประเภทคำตอบที่ตั้ง ตอบเอง/แนะนำ ได้รายประเภท
 export const AUTO_SOURCES = ['hours', 'faq', 'offhours', 'order', 'rule', 'price', 'learned', 'ask']

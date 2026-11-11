@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { db, saveBotSettings, saveBotRule, removeBotRule, removeLearned, promoteLearned, testBot } from '../../data/store'
 import { dateOnly } from '../../lib/format'
-import { AUTO_SOURCES, BOT_DEFAULTS } from '../../lib/chatBot'
+import { AUTO_SOURCES, BOT_DEFAULTS, AI_MODELS } from '../../lib/chatBot'
 import { askConfirm } from '../../lib/confirm'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
@@ -89,7 +89,7 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
             <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.ai.mode === 'auto' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.mode = 'auto'">ส่งเอง</button>
           </div>
           <div><label class="label">เพดานต่อวัน (ครั้ง · 0 = ไม่เรียก)</label><input v-model.number="st.ai.dailyLimit" type="text" v-num class="input" /></div>
-          <div><label class="label">โมเดล</label><input v-model="st.ai.model" class="input" maxlength="80" aria-label="โมเดล AI" /></div>
+          <div><label class="label">โมเดล</label><select v-model="st.ai.model" class="input" aria-label="โมเดล AI"><option v-for="m in AI_MODELS" :key="m" :value="m">{{ m }}</option></select></div>
           <div><label class="label">ความยาวคำตอบสูงสุด (โทเคน)</label><input v-model.number="st.ai.maxTokens" type="text" v-num class="input" /></div>
         </div>
         <p class="text-xs text-stone-400">เริ่มแนะนำให้ใช้โหมดร่างก่อน · โหมดส่งเองควรเปิดหลังทดสอบบนบัญชี Messenger ทดสอบแล้ว · ตั้งงบใช้จ่ายที่ผู้ให้บริการด้วย</p>
