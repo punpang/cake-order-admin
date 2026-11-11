@@ -7,6 +7,7 @@ import { askConfirm } from '../../lib/confirm'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppModal from '../../components/AppModal.vue'
+import BotAiDashboard from '../../components/BotAiDashboard.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
 
 // บอทตอบแชท (กฎคีย์เวิร์ด + เรียนรู้จากพนักงาน · ในเบราว์เซอร์ ไม่ส่งข้อความลูกค้าออกนอก) · ค่าเริ่มต้นปิด
@@ -93,6 +94,7 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
           <div><label class="label">ความยาวคำตอบสูงสุด (โทเคน)</label><input v-model.number="st.ai.maxTokens" type="text" v-num class="input" /></div>
         </div>
         <p class="text-xs text-stone-400">เริ่มแนะนำให้ใช้โหมดร่างก่อน · โหมดส่งเองควรเปิดหลังทดสอบบนบัญชี Messenger ทดสอบแล้ว · ตั้งงบใช้จ่ายที่ผู้ให้บริการด้วย</p>
+        <BotAiDashboard :daily-limit="db.bot.ai?.dailyLimit ?? 0" />
       </div>
       <div class="grid gap-3 sm:grid-cols-2">
         <div><label class="label">ความมั่นใจขั้นต่ำ (%) ต่ำกว่านี้ส่งต่อพนักงาน</label><input v-model.number="pct" type="text" v-num class="input" /></div>
