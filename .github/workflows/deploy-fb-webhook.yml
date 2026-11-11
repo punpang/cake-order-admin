@@ -1,11 +1,23 @@
 name: Deploy fb-webhook
 
 # รันเองเท่านั้น: GitHub → Actions → Deploy fb-webhook → Run workflow
+# ขั้นเทสต์ต้องผ่านก่อน จึงจะ deploy · ถ้าเทสต์ล้มเหลว ฟังก์ชันบน production ไม่ถูกเปลี่ยน
 on:
   workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: เทสต์โมดูลที่ใช้ร่วมกัน (_shared)
+        run: deno test --no-prompt --no-lock --node-modules-dir=none supabase/functions/_shared/
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -13,6 +25,7 @@ jobs:
         with:
           version: latest
       # --no-verify-jwt: Meta เรียก webhook โดยไม่มี JWT (ความปลอดภัยใช้ลายเซ็น X-Hub-Signature-256 แทน)
+      # --yes: ไม่มี TTY ใน Actions จึงต้องยืนยันล่วงหน้า
       - name: Deploy fb-webhook
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
