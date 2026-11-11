@@ -36,7 +36,7 @@ const pickFilled = (tpls: string[], vars: Record<string, string>, avoid?: string
 const MIN_DELAY_MS = 2000 // หน่วงก่อนตอบให้เหมือนพนักงานพิมพ์ (ไม่ตอบทันทีเกินไป)
 const MAX_DELAY_MS = 5000
 
-type Dec = { reply: string; source: string; handoff: boolean; reason: string; ruleId?: string; unsure?: boolean }
+type Dec = { reply: string; source: string; handoff: boolean; reason: string; ruleId?: string; learnedId?: string; unsure?: boolean }
 export type BotInput = {
   sb: any
   token: string
@@ -79,6 +79,24 @@ export function similarity(a: string, b: string): number {
   return (2 * hit) / (x.n + y.n)
 }
 
+// คู่ที่เรียนจากพนักงาน (config.bot.learned) · เกณฑ์และลำดับเดียวกับฝั่งแอป (src/lib/chatBot.js) ·
+// ไม่ใช้ถ้า: ข้อความลูกค้ามีข้อมูลส่วนบุคคล · คำตอบมีตัวแทนข้อมูล/ตัวแปร {…} · คำตอบเกี่ยวกับเงินหรือเลขออร์เดอร์
+const LEARN_MIN_SIM = 0.5
+export function learnedMatch(text: string, bot: any): { reply: string; id: string; sim: number } | null {
+  if (scrubPII(text) !== String(text ?? '').trim()) return null
+  let best: { sim: number; a: string; id: string } | null = null
+  for (const l of Array.isArray(bot.learned) ? bot.learned : []) {
+    const a = String(l?.a || '').trim()
+    const q = String(l?.q || '').trim()
+    if (!a || !q) continue
+    if (/\{[^{}]+\}/.test(a)) continue
+    if (isSensitiveText(a) || isSensitiveText(q) || ORDER_RE.test(a)) continue
+    const sim = similarity(text, q)
+    if (!best || sim > best.sim) best = { sim, a, id: String(l?.id ?? '') }
+  }
+  return best && best.sim >= LEARN_MIN_SIM ? { reply: best.a, id: best.id, sim: best.sim } : null
+}
+
 export function decide(text: string, bot: any, shop: any, storefront: any, at: Date, lastBot?: string): Dec {
   const t = lc(text)
   const handoff = (reason: string): Dec => ({ reply: '', source: 'handoff', handoff: true, reason })
@@ -108,6 +126,10 @@ export function decide(text: string, bot: any, shop: any, storefront: any, at: D
     if (hasClosures) return handoff('ถามเวลาเปิด แต่ร้านมีวันปิดพิเศษ — ให้พนักงานตอบ')
     return { reply: pickFilled(HOURS_VARIANTS, { เวลา: `${shop.open}–${shop.close}` }, lastBot), source: 'hours', handoff: false, reason: 'ถามเวลาเปิด-ปิด' }
   }
+
+  // คำตอบที่พนักงานเคยตอบ (เรียนรู้) · ไม่ซ้ำกับข้อความบอทล่าสุด
+  const L = learnedMatch(text, bot)
+  if (L && L.reply !== lastBot) return { reply: L.reply, source: 'learned', handoff: false, reason: `คล้ายคำตอบที่พนักงานเคยตอบ (${Math.round(L.sim * 100)}%)`, learnedId: L.id }
 
   // นอกเวลาทำการ
   const offOn = bot.offHours?.enabled !== false
@@ -324,7 +346,9 @@ export async function runFbBot(o: BotInput): Promise<void> {
     ? await tryAi(o, bot, shop, storefront, String(d0.profileName || ''), dec0)
     : dec0
   const isAi = dec.source === 'ai' && !dec.handoff
-  const mode = isAi ? (bot.ai?.mode === 'auto' ? 'auto' : 'suggest') : (bot.sourceModes?.[dec.source] || bot.mode || 'suggest')
+  // คำตอบจากการเรียนรู้ ค่าเริ่มต้นเป็นโหมดร่างเสมอ (ไม่ตอบอัตโนมัติจนกว่าร้านจะตั้งเอง)
+  const fallbackMode = dec.source === 'learned' ? 'suggest' : (bot.mode || 'suggest')
+  const mode = isAi ? (bot.ai?.mode === 'auto' ? 'auto' : 'suggest') : (bot.sourceModes?.[dec.source] || fallbackMode)
   const autoOk = !dec.handoff && !LOCKED.includes(dec.source) && mode === 'auto'
 
   if (!autoOk) {
@@ -332,7 +356,7 @@ export async function runFbBot(o: BotInput): Promise<void> {
     const nowIso0 = new Date().toISOString()
     await appendToChat(o.sb, o.chatId, (d, msgs) => {
       if (msgs.some((x) => x?.botFor === o.mid)) return null
-      if (isAi) return { ...d, botDraft: { text: dec.reply, source: 'ai', confidence: null, reason: dec.reason, handoff: false, aiFor: o.mid, at: nowIso0 }, botHandoff: false, botHandoffReason: null, updatedAt: nowIso0 }
+      if (isAi || dec.source === 'learned') return { ...d, botDraft: { text: dec.reply, source: dec.source, confidence: null, reason: dec.reason, handoff: false, ...(isAi ? { aiFor: o.mid } : {}), learnedId: dec.learnedId ?? null, at: nowIso0 }, botHandoff: false, botHandoffReason: null, updatedAt: nowIso0 }
       return { ...d, botHandoff: true, botHandoffReason: dec.reason, updatedAt: nowIso0 }
     })
     return
