@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
       if (fresh && !noBot && caption) {
         botJobs.push((async () => {
           const chatRow = await sb.from('punpang_chats').select('id').eq('channel', 'facebook').eq('external_id', psid).maybeSingle()
-          if (chatRow.data?.id) await runFbBot({ sb, token: pg.data.token, ver, psid, chatId: chatRow.data.id, mid, text: caption, at })
+          if (chatRow.data?.id) await runFbBot({ sb, token: pg.data.token, ver, psid, chatId: chatRow.data.id, mid, text: caption, at, aiKey: Deno.env.get('ANTHROPIC_API_KEY') || '' })
         })().catch((e) => console.error('fb-bot', (e as Error)?.message ?? 'error')))
       }
     }

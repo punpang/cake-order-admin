@@ -2690,6 +2690,15 @@ export function saveBotSettings(d) {
   b.offHours = { enabled: !!d.offHours?.enabled, text: String(d.offHours?.text ?? '').trim().slice(0, 300) || BOT_DEFAULTS.offHours.text }
   b.closedNotice = { enabled: !!d.closedNotice?.enabled, text: String(d.closedNotice?.text ?? '').trim().slice(0, 300) || BOT_DEFAULTS.closedNotice.text }
   b.handoff = { notifyTelegram: !!d.handoff?.notifyTelegram, text: String(d.handoff?.text ?? '').trim().slice(0, 300) || BOT_DEFAULTS.handoff.text }
+  const ai = d.ai || {}
+  b.ai = {
+    enabled: !!ai.enabled,
+    provider: 'anthropic', // รองรับ Claude API ก่อน · ผู้ให้บริการอื่นเพิ่มภายหลังในเซิร์ฟเวอร์
+    model: String(ai.model ?? '').trim().slice(0, 80) || BOT_DEFAULTS.ai.model,
+    mode: ai.mode === 'auto' ? 'auto' : 'suggest',
+    dailyLimit: Math.min(1000, Math.max(0, Math.round(Number(ai.dailyLimit) || 0))),
+    maxTokens: Math.min(1024, Math.max(50, Math.round(Number(ai.maxTokens) || BOT_DEFAULTS.ai.maxTokens))),
+  }
   return { ok: true }
 }
 export function saveBotRule(d) {

@@ -1,13 +1,21 @@
-import { runFbBot, offWindowStartMs } from './bot.ts'
+import { runFbBot, offWindowStartMs, scrubPII } from './bot.ts'
+import { normalizeMessages } from '../_shared/ai.ts'
 
 // ---- ฐานข้อมูลจำลองแบบ CAS (updated_at) ----
 type Row = { id: string; data: any; updated_at: string }
 function makeSb(tables: { chats: Row[]; kv: any[]; records: any[] }) {
   let ver = 0
   const bump = () => new Date(Date.now() + ++ver).toISOString()
+  const counts: Record<string, number> = {} // ตัวนับ punpang_ai_take ต่อวัน (จำลองฟังก์ชันอะตอมิก)
   return {
     records: tables.records,
     chats: tables.chats,
+    rpc(name: string, args: any) {
+      if (name !== 'punpang_ai_take') return Promise.resolve({ data: null, error: { message: 'unknown rpc' } })
+      const n = counts[args.p_day] || 0
+      if (n < args.p_limit) { counts[args.p_day] = n + 1; return Promise.resolve({ data: true, error: null }) }
+      return Promise.resolve({ data: false, error: null })
+    },
     from(table: string) {
       const f: Record<string, any> = {}
       let mode: 'select' | 'update' | 'insert' = 'select'
@@ -61,9 +69,17 @@ const sfRow = { id: 'storefront', collection: 'storefront', data: { v: { faq: []
 const OPEN_AT = new Date().toISOString()
 const NOW_MS = Date.now()
 
-let fetchCalls: any[] = []
+let fetchCalls: any[] = [] // ข้อความที่ส่งผ่าน Graph (ถึงลูกค้า)
+let aiCalls: any[] = [] // คำขอไปยัง Claude API
+let aiReply = 'ร้านมีบริการจัดส่งในพื้นที่ค่ะ'
+let aiThrow = false
 let onDelay: (() => void) | null = null
-globalThis.fetch = (async (_url: any, opts: any) => {
+globalThis.fetch = (async (url: any, opts: any) => {
+  if (String(url).includes('api.anthropic.com')) {
+    aiCalls.push({ headers: opts.headers, body: JSON.parse(opts.body) })
+    if (aiThrow) throw new Error('network')
+    return { ok: true, status: 200, json: async () => ({ content: [{ type: 'text', text: aiReply }] }) }
+  }
   fetchCalls.push(JSON.parse(opts.body))
   return { ok: true }
 }) as any
@@ -168,6 +184,115 @@ function mk(messages: any[], extra: any = {}) {
   const morning = bkk('2026-11-10T00:00:00Z') // 07:00 น. ไทย → ช่วงปิดเริ่ม 18:00 เมื่อวาน
   check('ช่วงปิดตอนเย็น: เริ่ม 18:00 น. ไทยของวันนี้', offWindowStartMs(evening, shop) === Date.parse('2026-11-10T11:00:00Z'))
   check('ช่วงปิดตอนเช้า: เริ่ม 18:00 น. ไทยของเมื่อวาน', offWindowStartMs(morning, shop) === Date.parse('2026-11-09T11:00:00Z'))
+}
+
+// ---- บอท AI ----
+// ร้านเปิดตลอดวัน (ไม่ขึ้นกับเวลาที่รันเทส) → ข้อความที่กฎเดิมตอบไม่ได้จะตกมาเป็น "ไม่แน่ใจ"
+const shopAlways = { id: 'shop', collection: 'config', data: { v: { name: 'ร้านทดสอบ', open: '00:00', close: '23:59', closures: {} } } }
+const aiOn = (extra: any = {}) => ({ id: 'bot', collection: 'config', data: { v: { ...botCfg.data.v, ai: { enabled: true, provider: 'anthropic', model: 'claude-sonnet-5-5', mode: 'auto', dailyLimit: 5, maxTokens: 400, ...extra } } } })
+function mkAi(text: string, mid: string, botVal: any = aiOn(), messages?: any[], extraChat: any = {}) {
+  const chats = [chatWith(messages ?? [inbound(mid, text)], extraChat)]
+  const records: any[] = []
+  const sb = makeSb({ chats, kv: [shopAlways, botVal, sfRow], records })
+  return { sb, chats, records }
+}
+const resetAi = () => { fetchCalls = []; aiCalls = []; aiThrow = false; aiReply = 'ร้านมีบริการจัดส่งในพื้นที่ค่ะ'; onDelay = null }
+const aiLogs = (records: any[]) => records.filter((r) => r.collection === 'aiLog').map((r) => r.data.status)
+
+// 9) AI ปิด (ค่าเริ่มต้น) → ไม่เรียก AI · พฤติกรรมส่งต่อเดิม
+{
+  resetAi()
+  const { sb, chats } = mkAi('มีบริการจัดส่งไหมคะ', 'a1', aiOn({ enabled: false }))
+  await runFbBot({ ...base, sb, mid: 'a1', text: 'มีบริการจัดส่งไหมคะ', aiKey: 'key-x' })
+  check('AI ปิด: ไม่เรียก AI', aiCalls.length === 0)
+  check('AI ปิด: ส่งต่อพนักงานเหมือนเดิม', chats[0].data.botHandoff === true && fetchCalls.length === 0)
+}
+
+// 10) AI เปิด + ไม่แน่ใจ + โหมดส่งเอง → เรียก AI 1 ครั้ง · ส่งผ่าน Graph และบันทึกลงแชท
+{
+  resetAi()
+  const { sb, chats, records } = mkAi('มีบริการจัดส่งไหมคะ', 'a2')
+  await runFbBot({ ...base, sb, mid: 'a2', text: 'มีบริการจัดส่งไหมคะ', aiKey: 'key-x' })
+  check('AI ไม่แน่ใจ: เรียก Claude 1 ครั้ง', aiCalls.length === 1)
+  check('AI: ใช้คีย์ใน header เท่านั้น (ไม่อยู่ในเนื้อหา)', aiCalls[0]?.headers['x-api-key'] === 'key-x' && !JSON.stringify(aiCalls[0].body).includes('key-x'))
+  check('AI: ส่งคำตอบถึงลูกค้า 1 ครั้ง', fetchCalls.length === 1 && fetchCalls[0].message.text === aiReply)
+  check('AI: บันทึกข้อความบอท source=ai', chats[0].data.messages.some((x: any) => x.by === 'บอท' && x.botSource === 'ai' && x.delivery === 'sent'))
+  check('AI: บันทึก log ผลลัพธ์ ok', aiLogs(records).join() === 'ok')
+  check('AI: system prompt มีเวลาทำการ แต่ไม่มีข้อมูลออร์เดอร์', aiCalls[0]?.body.system.includes('เวลาทำการ') && !aiCalls[0].body.system.includes('OR-'))
+}
+
+// 11) เรื่องเงิน / เลขออร์เดอร์ → ไม่เรียก AI เด็ดขาด
+{
+  resetAi()
+  const a = mkAi('ขอคืนเงินหน่อย', 'a3'); await runFbBot({ ...base, sb: a.sb, mid: 'a3', text: 'ขอคืนเงินหน่อย', aiKey: 'key-x' })
+  const b = mkAi('เช็คออร์เดอร์ OR-000123-000001', 'a4'); await runFbBot({ ...base, sb: b.sb, mid: 'a4', text: 'เช็คออร์เดอร์ OR-000123-000001', aiKey: 'key-x' })
+  check('เรื่องเงิน/ออร์เดอร์: ไม่เรียก AI', aiCalls.length === 0)
+  check('เรื่องเงิน/ออร์เดอร์: ยังส่งต่อพนักงาน', a.chats[0].data.botHandoff === true && b.chats[0].data.botHandoff === true)
+}
+
+// 12) AI ตอบ [HANDOFF] → ส่งต่อพนักงาน ไม่ส่งข้อความถึงลูกค้า · log เป็น handoff
+{
+  resetAi(); aiReply = '[HANDOFF]'
+  const { sb, chats, records } = mkAi('ทำเค้กแต่งงาน 3 ชั้นได้ไหม', 'a5')
+  await runFbBot({ ...base, sb, mid: 'a5', text: 'ทำเค้กแต่งงาน 3 ชั้นได้ไหม', aiKey: 'key-x' })
+  check('[HANDOFF]: เรียก AI แล้วไม่ส่งถึงลูกค้า', aiCalls.length === 1 && fetchCalls.length === 0)
+  check('[HANDOFF]: ธงส่งต่อ + log handoff', chats[0].data.botHandoff === true && aiLogs(records).join() === 'handoff')
+}
+
+// 13) เกินเพดานต่อวัน → ไม่เรียก AI และ log เป็น limit
+{
+  resetAi()
+  const { sb, chats, records } = mkAi('มีบริการจัดส่งไหมคะ', 'a6', aiOn({ dailyLimit: 0 }))
+  await runFbBot({ ...base, sb, mid: 'a6', text: 'มีบริการจัดส่งไหมคะ', aiKey: 'key-x' })
+  check('เพดานเป็น 0: ไม่เรียก AI', aiCalls.length === 0)
+  check('เพดานเป็น 0: ส่งต่อ + log limit', chats[0].data.botHandoff === true && aiLogs(records).join() === 'limit')
+}
+
+// 14) ไม่มีคีย์ AI → ไม่เรียก และส่งต่อพนักงาน
+{
+  resetAi()
+  const { sb, chats } = mkAi('มีบริการจัดส่งไหมคะ', 'a7')
+  await runFbBot({ ...base, sb, mid: 'a7', text: 'มีบริการจัดส่งไหมคะ' })
+  check('ไม่มีคีย์: ไม่เรียก AI', aiCalls.length === 0)
+  check('ไม่มีคีย์: ส่งต่อพนักงาน', chats[0].data.botHandoff === true)
+}
+
+// 15) โหมดแนะนำ (suggest) → ไม่ส่งเอง · เก็บเป็นร่างในแชท (botDraft) ให้พนักงานกดส่ง
+{
+  resetAi()
+  const { sb, chats } = mkAi('มีบริการจัดส่งไหมคะ', 'a8', aiOn({ mode: 'suggest' }))
+  await runFbBot({ ...base, sb, mid: 'a8', text: 'มีบริการจัดส่งไหมคะ', aiKey: 'key-x' })
+  const dr = chats[0].data.botDraft
+  check('โหมดร่าง: ไม่ส่งถึงลูกค้าเอง', fetchCalls.length === 0 && aiCalls.length === 1)
+  check('โหมดร่าง: เก็บร่างคำตอบ source=ai และผูกกับข้อความ', dr?.text === aiReply && dr?.source === 'ai' && dr?.aiFor === 'a8' && chats[0].data.botHandoff === false)
+  // Meta ส่งซ้ำ → ไม่เรียก AI ซ้ำ (ไม่เสียเงินซ้ำ)
+  await runFbBot({ ...base, sb, mid: 'a8', text: 'มีบริการจัดส่งไหมคะ', aiKey: 'key-x' })
+  check('โหมดร่าง: ข้อความซ้ำไม่เรียก AI ซ้ำ', aiCalls.length === 1)
+}
+
+// 16) AI ล้มเหลว (เครือข่าย) → ส่งต่อพนักงาน และ log เป็น error
+{
+  resetAi(); aiThrow = true
+  const { sb, chats, records } = mkAi('มีบริการจัดส่งไหมคะ', 'a9')
+  await runFbBot({ ...base, sb, mid: 'a9', text: 'มีบริการจัดส่งไหมคะ', aiKey: 'key-x' })
+  check('AI ล้มเหลว: ส่งต่อพนักงาน ไม่ส่งถึงลูกค้า', chats[0].data.botHandoff === true && fetchCalls.length === 0 && aiLogs(records).join() === 'error')
+}
+
+// 17) ตัดข้อมูลส่วนบุคคลก่อนส่ง
+{
+  const s = scrubPII('โทร 0812345678 อีเมล a.b@mail.com ออร์เดอร์ OR-000123-000001 ชื่อ สมชาย', ['สมชาย'])
+  check('ตัด PII: เบอร์/อีเมล/ออร์เดอร์/ชื่อ', s.includes('{เบอร์}') && s.includes('{อีเมล}') && s.includes('{เลขออร์เดอร์}') && s.includes('{ชื่อ}') && !s.includes('0812345678') && !s.includes('สมชาย'))
+}
+
+// 18) จัดลำดับข้อความให้ตรงกติกาของ Messages API (เริ่มด้วย user · สลับ role)
+{
+  const n = normalizeMessages([
+    { role: 'assistant', content: 'สวัสดี' },
+    { role: 'user', content: 'ราคา' },
+    { role: 'user', content: 'เท่าไหร่' },
+    { role: 'assistant', content: 'ตอบ' },
+  ])
+  check('normalize: ตัด assistant นำหน้า และรวม user ติดกัน', n.length === 2 && n[0].role === 'user' && n[0].content.includes('เท่าไหร่') && n[1].role === 'assistant')
 }
 
 console.log(fail === 0 ? 'ALL PASS' : `${fail} FAILED`)
