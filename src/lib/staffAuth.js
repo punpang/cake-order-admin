@@ -148,6 +148,13 @@ const GROUP_LOADERS = {
     return m.startChatSync({ client: c.client, db: c.store.db, canWrite: true, numbering: c.store.numbering, onError: c.onError, ...chatHooks(c.client, c.store, c.has),
       onRecode: (q, n) => showToast(`เลขใบเสนอซ้ำ ระบบเปลี่ยนเป็น ${n}`, 8000) })
   },
+  // สถิติสินค้าพร้อมขายสำหรับหน้าร้าน: ต้องมีประวัติออร์เดอร์ครบก่อนคำนวณ · เผยแพร่เฉพาะผู้ที่แก้การตั้งค่าได้
+  retailStats: async (c) => {
+    if (!c.has('manage')) return null
+    await GROUP_LOADERS.ordersAll(c)
+    const m = await import('./retailStatsSync')
+    return m.startRetailStatsSync({ client: c.client, db: c.store.db, canWrite: true })
+  },
   users: async (c) => {
     if (!c.has('manageUsers')) return null
     const m = await import('./usersSync')

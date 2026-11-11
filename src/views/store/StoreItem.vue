@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { db } from '../../data/store'
-import { readyMenu, customMenu } from '../../lib/storefront'
+import { readyMenu, customMenu, alsoBoughtFor } from '../../lib/storefront'
 import { money } from '../../lib/format'
 import AppIcon from '../../components/AppIcon.vue'
 import CakeImage from '../../components/CakeImage.vue'
@@ -57,6 +57,8 @@ onBeforeUnmount(() => document.documentElement.classList.remove('has-sticky-phot
 // แบบที่แนะนำ: 4 แบบแรก โหลดเพิ่มทีละ 4 (กดดูเพิ่ม/เลื่อนลงสุด)
 const REC = 4
 const recAll = computed(() => (props.kind === 'custom' ? recommendPhotos(db, { photoId: photoId.value, selectedIds: selIds.value }) : []))
+// ลูกค้าก็สนใจ: สินค้าที่มักสั่งร่วมกับเมนูนี้ (แสดงอย่างเดียว)
+const also = computed(() => (props.kind === 'ready' && props.id ? alsoBoughtFor(db, props.id) : []))
 const recLimit = ref(REC)
 const recShown = computed(() => recAll.value.slice(0, recLimit.value))
 const recMore = computed(() => recAll.value.length > recLimit.value)
@@ -169,6 +171,22 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
         <button v-if="recMore" type="button" class="btn-peach px-6" @click="recLoad">ดูเพิ่ม</button>
         <div ref="recEnd" class="h-1" aria-hidden="true"></div>
       </div>
+    </section>
+
+    <section v-if="also.length" class="mt-10 pb-2" aria-label="ลูกค้าก็สนใจ">
+      <h2 class="mb-1 text-2xl text-stone-900">ลูกค้าก็สนใจ</h2>
+      <p class="mb-3 text-sm text-stone-600">สินค้าที่ลูกค้ามักสั่งร่วมกับเมนูนี้ · กดเพื่อดูรายละเอียด</p>
+      <ul class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+        <li v-for="r in also" :key="r.product.id">
+          <RouterLink :to="`/menu/ready/${r.product.id}`" class="block overflow-hidden rounded-3xl bg-white shadow-md transition hover:shadow-lg">
+            <div class="aspect-square overflow-hidden"><CakeImage :src="r.product.images?.[0]" :alt="r.product.name" /></div>
+            <div class="p-2.5">
+              <div class="line-clamp-1 text-sm font-semibold text-stone-900">{{ r.product.name }}</div>
+              <StorePrice :price="r.price" :regular="r.regular" />
+            </div>
+          </RouterLink>
+        </li>
+      </ul>
     </section>
   </div>
 </template>
