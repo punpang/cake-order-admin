@@ -6,7 +6,7 @@ import { toastSaved } from '../lib/syncStatus'
 import { QUICK_DUE, quickDue, dueBeforePickup, dueDaysBefore, isHHmm } from '../lib/payDue'
 import { PAYMENT_METHODS } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
-import { money } from '../lib/format'
+import { money, dateTime } from '../lib/format'
 import { resizeImage, imageErrorMessage } from '../lib/imageResize'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
@@ -62,6 +62,16 @@ const showDeposit = computed(() =>
   pay.sms = true
   payError.value = ''
 }
+// วันเวลาที่ชำระ: แสดงเป็นข้อความ (ค่าเริ่มต้นคือ "ตอนนี้") · กดเปลี่ยนจึงเปิดช่องเลือกวันเวลา (กันวงล้อของ iOS บังปุ่มยืนยัน)
+const editPaidAt = ref(false)
+const paidInitial = pay.paidAt
+const paidText = computed(() => {
+  if (!pay.paidAt) return '-'
+  const label = dateTime(pay.paidAt) + ' น.'
+  return !payTarget && pay.paidAt === paidInitial ? `ตอนนี้ · ${label}` : label
+})
+const amountMatchesBalance = computed(() => Number(pay.amount) === Number(t.value.balance))
+const saveLabel = computed(() => (payMode === 'direct' ? 'ยืนยันรับชำระ' : payMode === 'confirm' ? 'ยืนยัน' : 'บันทึก'))
 async function onSlip(e) {
   const f = e.target.files[0]
   e.target.value = ''
@@ -111,7 +121,16 @@ async function savePay() {
     <div v-else class="rounded-xl p-3 text-sm" :class="payMode === 'direct' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'">
       <template v-if="payMode === 'direct'">ลูกค้าชำระแล้ว ไม่ต้องแจ้งยอด/กำหนดชำระ · </template>คงค้าง <b>{{ money(t.balance) }}</b><span v-if="t.reported"> · แจ้งยอดแล้ว {{ money(t.reported) }}</span>
     </div>
-    <div><label class="label">{{ payMode === 'confirm' || payMode === 'direct' ? 'ยอดที่ได้รับจริง (บาท)' : 'ยอดที่แจ้งลูกค้า (บาท)' }}</label><input v-model.number="pay.amount" type="text" v-num.dec min="0" class="input text-lg font-semibold" /></div>
+    <div>
+      <label class="label" for="pay-amount">{{ payMode === 'confirm' || payMode === 'direct' ? 'ยอดที่ได้รับจริง' : 'ยอดที่แจ้งลูกค้า' }}</label>
+      <div class="relative">
+        <input id="pay-amount" v-model.number="pay.amount" type="text" v-num.dec min="0" enterkeyhint="done" class="input pr-12 text-lg font-semibold" />
+        <span class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-stone-400">บาท</span>
+      </div>
+      <div v-if="payMode === 'direct' && t.balance > 0" class="mt-2 flex flex-wrap gap-2">
+        <button type="button" class="chip" :class="amountMatchesBalance ? 'chip-on' : 'chip-off'" @click="pay.amount = t.balance">ชำระครบ · {{ money(t.balance) }}</button>
+      </div>
+    </div>
     <div v-if="showDeposit" class="flex flex-wrap gap-2">
       <button type="button" class="chip" :class="pay.amount === depositAmount ? 'chip-on' : 'chip-off'" @click="pay.amount = depositAmount">มัดจำ {{ db.shop.depositPercent }}% · {{ money(depositAmount) }}</button>
       <button type="button" class="chip" :class="pay.amount === fullAmount ? 'chip-on' : 'chip-off'" @click="pay.amount = fullAmount">เต็มจำนวน · {{ money(fullAmount) }}</button>
@@ -122,8 +141,10 @@ async function savePay() {
         <button v-for="m in PAYMENT_METHODS" :key="m" type="button" class="chip" :class="pay.method === m ? 'chip-on' : 'chip-off'" @click="pay.method = m">{{ m }}</button>
       </div>
     </div>
-    <label v-if="customer && order.channel !== 'pos' && payMode !== 'edit'" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="pay.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> {{ payMode === 'new' ? 'แจ้งยอดชำระให้ลูกค้าทราบ' : 'แจ้งลูกค้าว่าได้รับชำระแล้ว' }}</label>
-    <SmsTick v-if="customer && order.channel !== 'pos' && payMode !== 'edit'" v-model="pay.sms" :customer="customer" :order="order" :show="pay.notify" />
+    <div v-if="customer && order.channel !== 'pos' && payMode !== 'edit'" class="space-y-2 rounded-xl border border-stone-200 bg-white p-3">
+      <label class="flex items-center gap-2 text-sm text-stone-700"><input v-model="pay.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> {{ payMode === 'new' ? 'แจ้งยอดชำระให้ลูกค้าทราบ' : 'แจ้งลูกค้าว่าได้รับชำระแล้ว' }}</label>
+      <SmsTick v-model="pay.sms" :customer="customer" :order="order" :show="pay.notify" />
+    </div>
     <div v-if="payMode === 'new' || payMode === 'edit'">
       <div class="label">ต้องชำระก่อน</div>
       <div class="mb-2 flex flex-wrap gap-2">
@@ -150,7 +171,14 @@ async function savePay() {
       <p v-for="(r, i) in dueReasons" :key="i" class="mb-1 text-xs text-rose-600">{{ r }}</p>
       <input v-model="pay.dueAt" type="datetime-local" class="input" aria-label="กำหนดชำระ" />
     </div>
-    <div><label class="label">วันเวลาที่ชำระ</label><input v-model="pay.paidAt" type="datetime-local" class="input" /></div>
+    <div>
+      <div class="label">วันเวลาที่ชำระ</div>
+      <div v-if="!editPaidAt" class="flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm">
+        <span class="min-w-0 truncate text-stone-800">{{ paidText }}</span>
+        <button type="button" class="shrink-0 font-medium text-brand-700 hover:underline" @click="editPaidAt = true">เปลี่ยน</button>
+      </div>
+      <input v-else v-model="pay.paidAt" type="datetime-local" class="input" aria-label="วันเวลาที่ชำระ" />
+    </div>
     <div>
       <div class="label">สลิป <span class="font-normal text-stone-400">(ไม่บังคับ)</span></div>
       <label class="flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-stone-200 p-3 text-sm text-stone-500 hover:border-brand-300">
@@ -165,7 +193,7 @@ async function savePay() {
   </div>
   <template #footer>
     <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ยกเลิก</button>
-    <button class="btn-primary flex-1 sm:flex-none" @click="savePay">{{ payMode === 'confirm' || payMode === 'direct' ? 'ยืนยัน' : 'บันทึก' }}</button>
+    <button class="btn-primary flex-1 sm:flex-none" @click="savePay">{{ saveLabel }}</button>
   </template>
 </AppModal>
 </template>
