@@ -59,7 +59,8 @@ const showDeposit = computed(() =>
 {
   const mode = payMode
   const p = payTarget
-  if (mode === 'slip') Object.assign(pay, { amount: slipMax.value, method: PAYMENT_METHODS[0], paidAt: slipPaidAt(p, props.order), slip: p.slip, note: '', dueAt: '' })
+  // สลิปจากแชท: ใช้ยอด/วันเวลาที่อ่านจากภาพสลิป (ถ้ามี) เป็นค่าเริ่มต้น พนักงานแก้ได้ก่อนผูก
+  if (mode === 'slip') Object.assign(pay, { amount: p.ocrAmount ?? slipMax.value, method: PAYMENT_METHODS[0], paidAt: p.ocrPaidAt || slipPaidAt(p, props.order), slip: p.slip, note: '', dueAt: '' })
   else Object.assign(pay, p
     ? { amount: mode === 'confirm' && p.customerSubmitted ? p.amount : (p.requested ?? p.amount), method: p.method, paidAt: p.paidAt, slip: p.slip, note: p.note, dueAt: p.dueAt || '' }
     : { amount: mode === 'direct' ? Math.max(t.value.balance, 0) : fullAmount.value, method: PAYMENT_METHODS[0], paidAt: nowLocal(), slip: '', note: '', dueAt: db.shop.payDueMin > 0 ? quickDue(db.shop.payDueMin) : '' })

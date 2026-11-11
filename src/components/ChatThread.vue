@@ -67,7 +67,7 @@ const slipPickList = computed(() => {
 })
 function openSlipBind(m, order) {
   slipPick.value = null
-  slipBind.value = { order, target: { chatId: props.chat.id, msgId: m.id, at: m.at, slip: m.slipCheck.slipRef, bankCode: m.slipCheck.bankCode, bankName: m.slipCheck.bankName, ref: m.slipCheck.ref } }
+  slipBind.value = { order, target: { chatId: props.chat.id, msgId: m.id, at: m.at, slip: m.slipCheck.slipRef, bankCode: m.slipCheck.bankCode, bankName: m.slipCheck.bankName, ref: m.slipCheck.ref, ocrAmount: m.slipCheck.ocrAmount, ocrPaidAt: m.slipCheck.ocrPaidAt } }
 }
 // Facebook เกิน 24 ชม. หลังลูกค้าทักล่าสุด → พิมพ์ตอบไม่ได้ (การ์ดออร์เดอร์/ยอดชำระยังส่งได้)
 const canType = computed(() => fbWindowOpen(props.chat))
@@ -417,6 +417,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
               <!-- สลิป QR ในรูปที่ลูกค้าส่ง: ผลจับคู่อัตโนมัติ (ยอดยังรอพนักงานตรวจเสมอ) -->
               <div v-if="m.slipCheck" class="mt-1 flex flex-wrap items-center gap-1 text-xs">
                 <span class="rounded-full px-2 py-0.5 font-medium" :class="slipChip(m.slipCheck).cls">{{ slipChip(m.slipCheck).t }}</span>
+                <span v-if="m.slipCheck.ocrAmount != null" class="rounded-full bg-sky-50 px-2 py-0.5 text-sky-800">อ่านจากสลิป: {{ money(m.slipCheck.ocrAmount) }}{{ m.slipCheck.ocrPaidAt ? ' · ' + m.slipCheck.ocrPaidAt.replace('T', ' ') : '' }}</span>
               </div>
               <!-- โหมดแมนนวล: ผูกกับออร์เดอร์ที่แนะนำ หรือเลือกออร์เดอร์อื่นของลูกค้า (ในหน้าแชท ไม่เปลี่ยนหน้า) -->
               <div v-if="canBindSlip(m)" class="mt-1.5 flex flex-wrap items-center gap-1.5">
