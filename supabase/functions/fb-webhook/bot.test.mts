@@ -408,5 +408,23 @@ const aiLogs = (records: any[]) => records.filter((r) => r.collection === 'aiLog
   check('learned แชทจริง (ตั้ง auto): ส่งผ่าน Graph 1 ครั้ง', fetchCalls.length === 1)
 }
 
+// 13) Instagram: ช่องทางปิดอยู่ → บอทไม่ตอบ / เปิดแล้ว → ตอบ 1 ครั้ง
+{
+  const igOff = { ...botCfg, data: { v: { ...botCfg.data.v, channels: { facebook: true, instagram: false } } } }
+  fetchCalls = []; onDelay = null
+  const chats = [chatWith([inbound('I1', 'เปิดกี่โมงคะ')])]
+  const sb = makeSb({ chats, kv: [shopCfg, igOff, sfRow], records: [] })
+  await runFbBot({ ...base, sb, mid: 'I1', text: 'เปิดกี่โมงคะ', channel: 'instagram' })
+  check('IG ปิดช่องทาง: ไม่ตอบ', fetchCalls.length === 0)
+}
+{
+  const igOn = { ...botCfg, data: { v: { ...botCfg.data.v, channels: { facebook: true, instagram: true } } } }
+  fetchCalls = []; onDelay = null
+  const chats = [chatWith([inbound('I2', 'เปิดกี่โมงคะ')])]
+  const sb = makeSb({ chats, kv: [shopCfg, igOn, sfRow], records: [] })
+  await runFbBot({ ...base, sb, mid: 'I2', text: 'เปิดกี่โมงคะ', channel: 'instagram' })
+  check('IG เปิดช่องทาง: ตอบ 1 ครั้ง', fetchCalls.length === 1)
+}
+
 console.log(fail === 0 ? 'ALL PASS' : `${fail} FAILED`)
 process.exit(fail ? 1 : 0)

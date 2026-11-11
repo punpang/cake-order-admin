@@ -376,6 +376,7 @@ function doCreate() {
 
         <button v-if="can('createOrder')" type="button" class="btn-primary w-full" @click="detailsOpen = false; openPanel()">ลงออร์เดอร์ในแชทนี้</button>
         <p v-if="current.channel === 'facebook'" class="text-xs leading-relaxed text-stone-500">Facebook ให้ตอบข้อความทั่วไปได้ภายใน 24 ชม. หลังลูกค้าทักล่าสุด · เกินเวลานี้ตอบได้เฉพาะการ์ดออร์เดอร์และยอดชำระ</p>
+        <p v-else-if="current.channel === 'instagram'" class="text-xs leading-relaxed text-stone-500">Instagram ตอบได้เฉพาะข้อความตัวอักษรภายใน 24 ชม. หลังลูกค้าทักล่าสุด · ไม่รองรับการ์ดออร์เดอร์หรือรูปภาพ</p>
       </div>
     </AppModal>
 

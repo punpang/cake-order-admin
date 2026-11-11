@@ -167,6 +167,16 @@ pg_cron (ทุก 15 นาที) ──▶ Edge Function: scheduled (เต�
 - **บอทฝั่งเซิร์ฟเวอร์:** ตอบ 200 ให้ Meta ก่อน แล้วบอททำงานต่อเบื้องหลัง (`EdgeRuntime.waitUntil`) · นอกเวลาทำการตอบครั้งเดียวต่อช่วงปิด (ไม่ตอบซ้ำทุกข้อความระหว่างที่ร้านปิด) · ชุดทดสอบ `supabase/functions/fb-webhook/bot.test.mts` รันด้วย `node bot.test.mts` ในโฟลเดอร์นั้น
 - **การตั้ง verify JWT ของแต่ละฟังก์ชัน (ค่าที่ deploy อยู่):** `fb-send` = เปิด (`verify_jwt` true) · `fb-connect` = ปิด และตรวจ JWT พนักงานในฟังก์ชันเอง · `fb-webhook` = ปิด (ตรวจลายเซ็น Meta แทน) · อย่า deploy ทับโดยไม่ตรวจว่าโค้ดในรีโปตรงกับที่ใช้งานอยู่ และรักษาค่านี้ตามเดิม
 
+## แชท Instagram (โค้ดพร้อม · ยังไม่ทดสอบจริง)
+- **สถานะ:** โค้ดครบทั้งเซิร์ฟเวอร์และหน้าแชท แต่ยังไม่ได้ทดสอบกับบัญชี IG จริง รอเชื่อมต่อ (IG business account ต้องผูกกับ Facebook Page ก่อน)
+- **รับข้อความ:** `fb-webhook` รับ `object: 'instagram'` (ตรวจลายเซ็น `X-Hub-Signature-256` เดียวกับ Messenger) เก็บเป็นแชท `channel: 'instagram'` · ใช้ entry `id` ของบัญชี IG เป็นผู้รับ
+- **ส่ง:** `fb-send` รับ `channel: 'instagram'` แล้วส่งผ่าน `me/messages` ด้วย Page token เดิม · ส่งได้เฉพาะข้อความตัวอักษร (ไม่รองรับการ์ด ใบเสนอ ปุ่ม postback และรูป) · ได้ `400` ถ้าส่งประเภทอื่น
+- **กติกา 24 ชม.:** ตอบได้ภายใน 24 ชม. หลังลูกค้าทักล่าสุด หน้าแชทแสดงเวลาที่เหลือเหมือน Facebook
+- **บอท:** เปิดแยกช่องทางได้ที่ `/admin/settings/bot` (สวิตช์ Instagram ค่าเริ่มต้นปิด) ใช้กติกาเดียวกับ Facebook
+- **ฐานข้อมูล:** migration `punpang_chats_instagram` เพิ่ม `instagram` ใน `punpang_chats.channel`
+- **ยังไม่ทำ:** การแจ้งเตือนอัตโนมัติถึงลูกค้า IG · สถิติแดชบอร์ดแยกช่องทาง · ไฟล์แนบ/รูปจาก IG
+- **ก่อนเปิดใช้จริง (ฝั่ง Meta):** สมัครรับ webhook `messages` ของ Instagram ใน App · ขอสิทธิ์ `instagram_manage_messages` (ต้องผ่าน App Review สำหรับผู้ใช้ทั่วไป) · ทดสอบจากบัญชี IG ที่เป็นผู้ทดสอบก่อน
+
 ## แชท Facebook (ใช้งานจริง)
 - **บอทตอบ Facebook ฝั่งเซิร์ฟเวอร์ (Phase 1):** `supabase/functions/fb-webhook/bot.ts` ทำงานหลังบันทึกข้อความตัวอักษรใหม่ของลูกค้าแล้ว ไม่ต้องมีพนักงานเปิดแอป · เปิดได้เมื่อ `punpang_kv` (collection `config`, id `bot`) มี `enabled: true` และ `channels.facebook: true` (ค่าเริ่มต้นปิด)
   - **ตอบเอง** (เฉพาะประเภทที่ `sourceModes` ตั้งเป็น `auto`): เวลาเปิด (ถ้ามีวันปิดพิเศษ ส่งต่อแทน) · นอกเวลาทำการ · FAQ ที่ตรงชัด (อ่านจาก collection `storefront` id `storefront` ถ้ามี) · กฎคีย์เวิร์ด
