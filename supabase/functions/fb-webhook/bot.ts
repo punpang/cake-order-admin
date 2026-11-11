@@ -260,6 +260,40 @@ async function appendToChat(sb: any, chatId: string, fn: (d: any, msgs: any[]) =
   return false
 }
 
+// ---- ตอบสถานะออร์เดอร์ (กฎล้วน ไม่ใช้ AI · ข้อมูลออร์เดอร์ไม่ส่งออกไปยังโมเดล) ----
+const ORDER_Q_RE = /ออร์เดอร์|ออเดอร์|สถานะ|นัด|รับของ|ของที่สั่ง|สั่งไว้|ถึงไหน|เสร็จยัง|เสร็จหรือยัง/
+const STATUS_TH: Record<string, string> = { draft: 'ร่าง', awaiting_payment: 'รอชำระ', payment_reported: 'แจ้งยอดแล้ว', payment_confirmed: 'ยืนยันชำระ', order_confirmed: 'ยืนยันการสั่งซื้อ', preparing: 'กำลังเตรียม', prepared: 'เตรียมสินค้าแล้ว', ready_to_ship: 'พร้อมจัดส่ง', shipping: 'กำลังจัดส่ง', delivered: 'ส่งมอบแล้ว', cancelled: 'ยกเลิก' }
+// เวลาไทย (พ.ศ.) dd-mm-yyyy · HH:MM ตามรูปแบบในแอป
+const bkkFmt = (iso: string) => {
+  const x = new Date(new Date(iso).getTime() + 7 * 3600_000)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return { date: `${p(x.getUTCDate())}-${p(x.getUTCMonth() + 1)}-${x.getUTCFullYear() + 543}`, time: `${p(x.getUTCHours())}:${p(x.getUTCMinutes())}` }
+}
+const money2 = (n: number) => `${Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ฿`
+function orderLine(r: any): string {
+  const bits = [`ออร์เดอร์ ${r.code} สถานะ: ${STATUS_TH[r.status] || r.status}`]
+  if (r.status !== 'cancelled' && r.pickup_at) { const f = bkkFmt(r.pickup_at); bits.push(`นัด${r.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับ'} ${f.date} ${f.time} น.`) }
+  if (r.status !== 'cancelled' && r.balance != null) bits.push(Number(r.balance) > 0 ? `ยอดคงค้าง ${money2(r.balance)}` : 'ชำระครบแล้ว')
+  return bits.join(' · ')
+}
+// คืน Dec เมื่อตอบได้จากออร์เดอร์ของลูกค้าที่ผูกกับแชทนี้เท่านั้น · ไม่ผูก/ไม่ตรง/ผิดพลาด → null (ให้กติกาเดิมทำงานต่อ และไม่เปิดเผยว่ามีออร์เดอร์หรือไม่)
+async function orderReply(o: BotInput, customerId: string | null, text: string): Promise<Dec | null> {
+  if (!customerId) return null
+  const cols = 'code,status,fulfillment,pickup_at,balance'
+  const code = (String(text).match(/\bOR-\d{6}-\d{6}\b|\bOR-\d{3,}\b/i) || [])[0]
+  if (code) {
+    const r = await o.sb.from('punpang_orders').select(cols).eq('code', code.toUpperCase()).eq('customer_id', customerId).maybeSingle()
+    if (r.error || !r.data) return null
+    return { reply: orderLine(r.data), source: 'order', handoff: false, reason: `สถานะออร์เดอร์ ${r.data.code} (แชทผูกลูกค้าและออร์เดอร์เป็นของลูกค้าคนนี้)` }
+  }
+  if (!ORDER_Q_RE.test(text)) return null
+  const list = await o.sb.from('punpang_orders').select(cols).eq('customer_id', customerId).order('pickup_at', { ascending: false }).limit(5)
+  if (list.error) return null
+  const rows = (list.data || []).filter((x: any) => x?.status !== 'cancelled').slice(0, 3)
+  if (!rows.length) return { reply: 'ยังไม่พบออร์เดอร์ที่กำลังดำเนินการค่ะ ถ้าต้องการตรวจสอบเพิ่มเติม รบกวนให้พนักงานช่วยดูให้นะคะ', source: 'order', handoff: false, reason: 'ถามสถานะออร์เดอร์ — ไม่มีออร์เดอร์ที่ใช้งานอยู่' }
+  return { reply: rows.map(orderLine).join('\n'), source: 'order', handoff: false, reason: 'ถามสถานะออร์เดอร์ (แชทผูกลูกค้าแล้ว)' }
+}
+
 // จุดเข้า: ตัดสินและทำงานของบอทสำหรับข้อความลูกค้าหนึ่งข้อความ · ล้มเหลวได้โดยไม่กระทบการรับข้อความ
 export async function runFbBot(o: BotInput): Promise<void> {
   const { bot, shop, storefront } = await loadConfig(o.sb)
@@ -268,9 +302,10 @@ export async function runFbBot(o: BotInput): Promise<void> {
   const at = new Date(o.at)
   if (!(Date.now() - at.getTime() <= STALE_MS)) return
 
-  const cr = await o.sb.from('punpang_chats').select('data').eq('id', o.chatId).maybeSingle()
+  const cr = await o.sb.from('punpang_chats').select('data,customer_id').eq('id', o.chatId).maybeSingle()
   if (cr.error || !cr.data) return
   const d0 = cr.data.data || {}
+  const cid: string | null = cr.data.customer_id || null
   if (d0.botOff) return // ปิดบอทในแชทนี้
   const msgs0: any[] = Array.isArray(d0.messages) ? d0.messages : []
   if (msgs0.some((x) => x?.botFor === o.mid)) return // ตอบข้อความนี้ไปแล้ว
@@ -280,7 +315,9 @@ export async function runFbBot(o: BotInput): Promise<void> {
 
   // ข้อความบอทล่าสุดในแชท (ใช้กันการตอบซ้ำแบบเดิมติดกัน)
   const lastBot = [...msgs0].reverse().find((x) => x?.by === 'บอท' && typeof x?.text === 'string')?.text as string | undefined
-  const dec0 = decide(o.text, bot, shop, storefront, at, lastBot)
+  // สถานะออร์เดอร์ก่อน (เฉพาะแชทที่ผูกลูกค้าแล้ว และไม่ใช่เรื่องเงิน/ร้องเรียน) · ไม่ตรง → กติกาเดิม
+  const orderDec = isSensitiveText(o.text) ? null : await orderReply(o, cid, o.text)
+  const dec0 = orderDec ?? decide(o.text, bot, shop, storefront, at, lastBot)
   // ไม่แน่ใจ + เปิด AI → ให้โมเดลร่างคำตอบ (ข้ามถ้าเคยร่างข้อความนี้ไปแล้ว เพื่อไม่เรียกซ้ำ)
   const aiDone = d0.botDraft?.aiFor === o.mid
   const dec = dec0.unsure && bot.ai?.enabled === true && !aiDone
