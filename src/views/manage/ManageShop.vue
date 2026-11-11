@@ -31,14 +31,14 @@ const STEPS = [15, 30, 60]
 const NEAR = [1, 2, 3, 6, 0]
 const num = (v) => Number(v) >= 0 && v !== ''
 // ---- สลิปในแชท (บันทึกแยกจากฟอร์มร้าน) ----
-const sq = reactive({ ...db.slipQr })
+const sq = reactive({ ...JSON.parse(JSON.stringify(db.slipQr)), ocr: { enabled: db.slipQr.ocr?.enabled === true } })
 const slipErr = ref('')
 const slipSaved = ref(false)
 function saveSlip() {
   const r = saveSlipQrSettings(sq)
   if (r?.error) return (slipErr.value = r.error)
   slipErr.value = ''
-  Object.assign(sq, db.slipQr)
+  Object.assign(sq, { ...JSON.parse(JSON.stringify(db.slipQr)), ocr: { enabled: db.slipQr.ocr?.enabled === true } })
   slipSaved.value = true
   setTimeout(() => (slipSaved.value = false), 1500)
 }
@@ -198,6 +198,10 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
           <button type="button" class="chip" :class="sq.mode === 'manual' ? 'chip-on' : 'chip-off'" @click="sq.mode = 'manual'">แมนนวล · พนักงานเลือกออร์เดอร์เอง</button>
         </div>
         <p class="mt-2 text-xs text-stone-500">{{ sq.mode === 'manual' ? 'แชทจะแสดงปุ่มผูกกับออร์เดอร์ที่แนะนำ หรือเลือกออร์เดอร์อื่นของลูกค้า (ในหน้าแชท ไม่เปลี่ยนหน้า)' : 'ถ้ามีออร์เดอร์ที่คุยล่าสุด ระบบแนบให้ทันที · ไม่มีออร์เดอร์ก็แจ้งกระดิ่งให้ผูกเองจากหน้าออร์เดอร์' }}</p>
+      </div>
+      <div class="space-y-1">
+        <AppSwitch v-model="sq.ocr.enabled" label="อ่านยอดและวัน-เวลาจากภาพสลิป (Claude)" class="flex" />
+        <p class="text-xs text-stone-500">เปิดแล้วระบบส่งเฉพาะรูปสลิปไปให้ Claude อ่านยอดและวันเวลาที่เขียนบนสลิป ค่าที่อ่านได้ยังต้องให้พนักงานตรวจกับธนาคารก่อนยืนยันเสมอ · ต้องตั้งคีย์ ANTHROPIC_API_KEY ใน Supabase ก่อนจึงจะทำงาน</p>
       </div>
       <p v-if="slipErr" class="text-sm text-rose-600">{{ slipErr }}</p>
       <button class="btn-outline w-full" @click="saveSlip"><AppIcon name="check" :size="18" /> {{ slipSaved ? 'บันทึกแล้ว' : 'บันทึกการตั้งค่าสลิป' }}</button>

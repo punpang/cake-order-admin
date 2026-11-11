@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 // ทดสอบการอ่าน QR จากรูปจริง (สร้างรูปด้วย qrcode แล้วถอดรหัสด้วยเส้นทางเดียวกับ Edge Function)
 import { assertEquals } from 'jsr:@std/assert@1'
 import QRCode from 'npm:qrcode@1.5.4'

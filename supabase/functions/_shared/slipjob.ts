@@ -5,6 +5,7 @@
 import { buildSlipPayment, classifyThaiQr, latestOrderId, planAttach, slipKeyOf } from './slip.ts'
 import { imageSize, readQrTexts } from './qrimage.ts'
 import { bankByCode, normalizeRef, paidAtFromMessage, refTaken } from './payfields.ts'
+import { OCR_DEFAULT_MODEL, readSlipFields, type SlipFields } from './slipocr.ts'
 
 export type SlipOutcome =
   | 'matched' | 'duplicate' | 'no_order' | 'order_missing' | 'order_inactive' | 'order_paid' | 'pending_exists'
@@ -29,6 +30,8 @@ export type SlipJobInput = {
   bytes: Uint8Array
   nowMs?: number
   rand?: (n: number) => string
+  ocrKey?: string // คีย์ Anthropic (จาก Deno.env ของ fb-webhook) · ว่าง = ไม่อ่านยอดจากภาพ
+  ocrRead?: (o: { bytes: Uint8Array; key: string; model: string }) => Promise<SlipFields | null> // ทดสอบแทนการเรียก API จริง
 }
 
 const TH_OFFSET = 7 * 3600_000
@@ -39,10 +42,12 @@ const randHex = (n: number) => [...crypto.getRandomValues(new Uint8Array(n))].ma
 export type SlipMode = 'auto' | 'manual'
 
 // ตั้งค่าจาก punpang_kv (config / slipQr): v.enabled = false ปิด · v.mode = 'manual' โหมดแมนนวล · ไม่มีแถวหรือค่าอื่น = เปิดแบบอัตโนมัติ
-async function slipConfig(sb: any): Promise<{ enabled: boolean; mode: SlipMode }> {
+// ค่า ocr: { enabled: true } เปิดอ่านยอด/วันเวลาจากภาพ (ค่าเริ่มต้นปิด) · model ไม่ระบุ = OCR_DEFAULT_MODEL
+async function slipConfig(sb: any): Promise<{ enabled: boolean; mode: SlipMode; ocr: { enabled: boolean; model: string } }> {
   const r = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()
   const v = r?.data?.data?.v
-  return { enabled: v?.enabled !== false, mode: v?.mode === 'manual' ? 'manual' : 'auto' }
+  const model = typeof v?.ocr?.model === 'string' && v.ocr.model.trim() ? v.ocr.model.trim() : OCR_DEFAULT_MODEL
+  return { enabled: v?.enabled !== false, mode: v?.mode === 'manual' ? 'manual' : 'auto', ocr: { enabled: v?.ocr?.enabled === true, model } }
 }
 
 // ใส่ผลลงข้อความในแชท (เทียบ updated_at) · ไม่กระทบการแนบ ถ้าเขียนไม่ได้ก็แค่ไม่มีป้าย
@@ -110,6 +115,11 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   const hit = (seen?.data || []).find((r: any) => refTaken(r.data?.payments, ref))
   if (hit) return finish('duplicate', hit.code, hit.id)
 
+  // อ่านยอดและวัน-เวลาจากตัวหนังสือบนภาพ (เฉพาะเมื่อร้านเปิดไว้และมีคีย์) · อ่านไม่ได้ = ใช้ค่าเดิมต่อไป
+  const fields: SlipFields | null = cfg.ocr.enabled && input.ocrKey
+    ? await (input.ocrRead ?? readSlipFields)({ bytes, key: input.ocrKey, model: cfg.ocr.model }).catch(() => null)
+    : null
+
   if (cfg.mode === 'manual') {
     // โหมดแมนนวล: เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์
     const kind = imageSize(bytes)?.type === 'png' ? 'png' : 'jpg'
@@ -122,10 +132,12 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     await annotate(sb, chatId, msgId, {
       status: 'manual', ...(suggestedId ? { orderId: suggestedId, orderCode: sugCode } : {}),
       slipRef: `sb://punpang-slips/${path}`, slipKey: key, bankCode, ...(bankName ? { bankName } : {}), ref, at: now.toISOString(),
+      ...(fields?.amount != null ? { ocrAmount: fields.amount } : {}), ...(fields?.paidAt ? { ocrPaidAt: fields.paidAt } : {}),
     })
+    const amountNote = fields?.amount != null ? ` · ยอดจากสลิป ${fields.amount.toFixed(2)}` : ''
     await bell(sb, {
       event: 'slip_check', title: 'สลิปในแชทรอผูกออร์เดอร์',
-      text: sugCode ? `รอผูกกับ ${sugCode} หรือเลือกออร์เดอร์อื่นในแชท` : 'ยังไม่มีออร์เดอร์ที่คุยล่าสุด · เลือกออร์เดอร์ในแชท',
+      text: (sugCode ? `รอผูกกับ ${sugCode} หรือเลือกออร์เดอร์อื่นในแชท` : 'ยังไม่มีออร์เดอร์ที่คุยล่าสุด · เลือกออร์เดอร์ในแชท') + amountNote,
       chatId, orderId: suggestedId,
     }, rand)
     return 'manual'
@@ -165,8 +177,8 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     }
 
     const payment = buildSlipPayment({
-      id: paymentId, code, amount: plan.amount, slipRef: `sb://punpang-slips/${stagedPath}`, slipKey: key,
-      paidAt: paidAtFromMessage(msgAt, d.createdAt, now.getTime()), nowIso: now.toISOString(),
+      id: paymentId, code, amount: fields?.amount ?? plan.amount, slipRef: `sb://punpang-slips/${stagedPath}`, slipKey: key,
+      paidAt: fields?.paidAt ?? paidAtFromMessage(msgAt, d.createdAt, now.getTime()), nowIso: now.toISOString(),
       bankCode, bankName, ref,
     })
     const next = {
@@ -183,7 +195,9 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
       return 'error'
     }
     if ((up?.data || []).length) {
-      await bell(sb, { event: 'team_customer_paid', title: 'ลูกค้าแจ้งโอน', text: `${row.code} · ยอด ${plan.amount.toFixed(2)} (สลิป QR ยังไม่ได้ตรวจยอด)`, orderId: row.id, chatId }, rand)
+      const shownAmount = fields?.amount ?? plan.amount
+      const how = fields?.amount != null ? 'ยอดอ่านจากภาพสลิป ยังไม่ได้ตรวจกับธนาคาร' : 'สลิป QR ยังไม่ได้ตรวจยอด'
+      await bell(sb, { event: 'team_customer_paid', title: 'ลูกค้าแจ้งโอน', text: `${row.code} · ยอด ${shownAmount.toFixed(2)} (${how})`, orderId: row.id, chatId }, rand)
       await annotate(sb, chatId, msgId, { status: 'matched', orderCode: row.code, paymentId, at: now.toISOString() })
       return 'matched'
     }

@@ -303,7 +303,7 @@ export const db = reactive({
   // บอทตอบแชท (ค่าเริ่มต้นปิด): rules = กฎคีย์เวิร์ด · learned = คู่ ถาม→ตอบ ที่เรียนจากพนักงาน (ตัดข้อมูลส่วนบุคคลแล้ว) · stats
   bot: JSON.parse(JSON.stringify(BOT_DEFAULTS)),
   // สลิปในแชท (config slipQr): enabled = ตรวจรูปสลิปในแชท · mode = auto (แนบกับออร์เดอร์ที่คุยล่าสุดอัตโนมัติ) | manual (ร้านเลือกออร์เดอร์ผูกเองในแชท)
-  slipQr: { enabled: true, mode: 'auto' },
+  slipQr: { enabled: true, mode: 'auto', ocr: { enabled: false } }, // ocr.enabled = อ่านยอด/วัน-เวลาจากภาพสลิปด้วย Claude (ปิดเป็นค่าเริ่มต้น)
   // shortLinks: [{ id, code, target, kind: internal | external, clicks, createdAt, expiresAt, active, note }]
   shortLinks: [],
   notifySent: [],
@@ -2899,7 +2899,7 @@ export function createCustomerFromChat(chatId, phone, name = '') {
 // db.slipQr (punpang_kv config slipQr): enabled = ตรวจรูปสลิปในแชท · mode = auto | manual (ค่าอื่น = auto)
 export function saveSlipQrSettings(d) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
-  Object.assign(db.slipQr, { enabled: d?.enabled !== false, mode: d?.mode === 'manual' ? 'manual' : 'auto' })
+  Object.assign(db.slipQr, { enabled: d?.enabled !== false, mode: d?.mode === 'manual' ? 'manual' : 'auto', ocr: { ...(db.slipQr.ocr || {}), enabled: d?.ocr?.enabled === true } })
   return { ok: true }
 }
 // ตัวเลือกของสลิปที่รอผูก: ที่แนะนำ (ออร์เดอร์ที่คุยล่าสุด) + ออร์เดอร์อื่นของลูกค้าคนเดียวกัน · room = ยอดที่ผูกได้ (0 = ผูกไม่ได้)

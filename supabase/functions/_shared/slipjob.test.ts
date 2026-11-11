@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 // ทดสอบงานตรวจสลิป end-to-end: รูป (สร้างจริงแล้วถอดรหัส) → จับคู่ออร์เดอร์ → ข้อมูลออร์เดอร์/แชท/กระดิ่ง
 // ใช้ตัวจำลอง supabase ที่เลียนแบบ select/eq/contains/update(CAS)/insert/rpc/storage
 import { assertEquals } from 'jsr:@std/assert@1'
@@ -299,4 +300,48 @@ Deno.test('ข้อผิดพลาดอื่นตอนแนบ (ไม�
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'error')
   assertEquals([sb.calls.uploads, sb.calls.removes, sb.files.size], [1, 1, 0])
   assertEquals(sb.T.punpang_orders[0].data.payments.length, 0)
+})
+
+// ---- อ่านยอดและวัน-เวลาจากภาพ (ตั้งค่า ocr.enabled) ----
+const kvOcr = (mode: 'auto' | 'manual', enabled: boolean) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled: true, mode, ocr: { enabled } } } })
+const ocrFields = (f: { amount: number | null; paidAt: string | null }) => async () => f
+
+Deno.test('OCR เปิด (อัตโนมัติ): ใช้ยอดและวัน-เวลาที่อ่านจากภาพ แทนยอดคงค้างและเวลาข้อความ', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcr('auto', true)] })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrKey: 'k', ocrRead: ocrFields({ amount: 178, paidAt: '2026-11-11T14:48' }) }), 'matched')
+  const p = sb.T.punpang_orders[0].data.payments[0]
+  assertEquals([p.amount, p.paidAt, p.status], [178, '2026-11-11T14:48', 'reported'])
+  const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
+  assertEquals(bell.data.text.includes('อ่านจากภาพสลิป'), true)
+})
+
+Deno.test('OCR เปิดแต่อ่านไม่ได้ (null) → ใช้ยอดคงค้างและเวลาเดิม', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcr('auto', true)] })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrKey: 'k', ocrRead: ocrFields({ amount: null, paidAt: null }) }), 'matched')
+  assertEquals(sb.T.punpang_orders[0].data.payments[0].amount, 540)
+})
+
+Deno.test('OCR ปิดใน config → ไม่เรียกโมเดลเลย', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcr('auto', false)] })
+  let called = false
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrKey: 'k', ocrRead: async () => { called = true; return { amount: 1, paidAt: null } } }), 'matched')
+  assertEquals(called, false)
+  assertEquals(sb.T.punpang_orders[0].data.payments[0].amount, 540)
+})
+
+Deno.test('OCR เปิดแต่ไม่มีคีย์ → ไม่เรียกโมเดล', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcr('auto', true)] })
+  let called = false
+  await runCheck(sb, await slipScreenshot(SLIP), { ocrRead: async () => { called = true; return null } })
+  assertEquals(called, false)
+})
+
+Deno.test('OCR เปิดในโหมดแมนนวล: แนบยอดที่อ่านได้ไว้ในป้ายและกระดิ่ง ไม่สร้างรายการชำระ', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcr('manual', true)] })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrKey: 'k', ocrRead: ocrFields({ amount: 178, paidAt: '2026-11-11T14:48' }) }), 'manual')
+  const msg = sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1')
+  assertEquals([msg.slipCheck.ocrAmount, msg.slipCheck.ocrPaidAt], [178, '2026-11-11T14:48'])
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 0)
+  const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
+  assertEquals(bell.data.text.includes('178.00'), true)
 })
