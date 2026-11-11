@@ -115,6 +115,13 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   const hit = (seen?.data || []).find((r: any) => refTaken(r.data?.payments, ref))
   if (hit) return finish('duplicate', hit.code, hit.id)
 
+  // สลิปเดิมที่เคยเก็บเป็นป้ายในแชทใดก็ได้ (โหมดแมนนวลยังไม่มีรายการชำระ จึงต้องเทียบจากป้ายในแชท) · ตรวจก่อนส่ง AI เสมอ
+  const seenInChats = await sb.from('punpang_chats').select('id,data').contains('data', { messages: [{ slipCheck: { slipKey: key } }] })
+  if (seenInChats?.error) return 'error'
+  const dupInChat = (seenInChats?.data || []).some((c: any) =>
+    (Array.isArray(c.data?.messages) ? c.data.messages : []).some((m: any) => m?.slipCheck?.slipKey === key && !(c.id === chatId && m?.id === msgId)))
+  if (dupInChat) return finish('duplicate')
+
   // อ่านยอดและวัน-เวลาจากตัวหนังสือบนภาพ (เฉพาะเมื่อร้านเปิดไว้และมีคีย์) · อ่านไม่ได้ = ใช้ค่าเดิมต่อไป
   const fields: SlipFields | null = cfg.ocr.enabled && input.ocrKey
     ? await (input.ocrRead ?? readSlipFields)({ bytes, key: input.ocrKey, model: cfg.ocr.model }).catch(() => null)

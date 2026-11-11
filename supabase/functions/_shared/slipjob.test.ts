@@ -345,3 +345,19 @@ Deno.test('OCR เปิดในโหมดแมนนวล: แนบยอ
   const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
   assertEquals(bell.data.text.includes('178.00'), true)
 })
+
+Deno.test('โหมดแมนนวล: สลิปที่เคยเก็บเป็นป้ายในแชทแล้ว → ซ้ำ ไม่ส่ง AI และไม่เก็บรูปซ้ำ', async () => {
+  const prior = { id: 'm0', from: 'customer', kind: 'text', text: '', slipCheck: { status: 'manual', slipKey: '004:A1B2C3D4E5F6G7H8', slipRef: 'sb://punpang-slips/manual/c1/x.png' } }
+  const sb = fakeSb({ chats: [chatWith([prior, staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcr('manual', true)] })
+  let called = false
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrKey: 'k', ocrRead: async () => { called = true; return null } }), 'duplicate')
+  assertEquals(called, false)
+  assertEquals(sb.calls.uploads, 0)
+})
+
+Deno.test('สลิปใหม่ (ยังไม่เคยเก็บในแชทใด) → ส่ง AI ตามปกติ', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcr('manual', true)] })
+  let called = false
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrKey: 'k', ocrRead: async () => { called = true; return null } }), 'manual')
+  assertEquals(called, true)
+})
