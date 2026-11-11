@@ -108,7 +108,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     tabindex="-1"
     class="mx-auto max-w-page outline-none px-4 lg:px-8"
     :style="lockStyle"
-    :class="$route.meta.lock ? ['fixed inset-x-0 overflow-hidden', kbLock ? 'pt-1 pb-1' : 'pt-3', kbLock ? '' : $route.meta.focus || !navShow ? 'pb-[calc(env(safe-area-inset-bottom)+0.75rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-3'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10', 'pt-5']"
+    :class="$route.meta.lock ? ['fixed inset-x-0 overflow-hidden', kbLock ? 'px-0! pt-0 pb-0' : 'pt-3', kbLock ? '' : $route.meta.focus || !navShow ? 'pb-[calc(env(safe-area-inset-bottom)+0.75rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-3'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10', 'pt-5']"
   >
     <RouterView :key="$route.fullPath" />
   </main>
