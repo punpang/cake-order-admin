@@ -36,7 +36,7 @@ export function promoProducts(db, limit = 6, now = new Date()) {
 
 // สินค้าหน้าร้านจัดกลุ่มตามหมวด (หมวดว่าง = "อื่น ๆ" อยู่ท้ายสุด) · ในหมวดปักหมุดก่อน · เงื่อนไขการแสดงเหมือน readyMenu (เปิดใช้งาน + แสดงที่หน้าร้าน)
 // แต่ละรายการเพิ่ม: stock, stockState ('out' | 'low' | ''), options = ชื่อกลุ่มตัวเลือกเสริมที่ผูกกับสินค้า (เหมือน POS)
-export function readyByCategory(db, now = new Date()) {
+export function readyByCategory(db, now = new Date(), occasion = '') {
   const mods = db.posModifiers || []
   const rows = readyMenu(db, now).map((r) => {
     const st = r.product.stock
@@ -45,13 +45,14 @@ export function readyByCategory(db, now = new Date()) {
   const order = []
   for (const r of rows) { const c = r.product.category || ''; if (!order.includes(c)) order.push(c) }
   order.sort((a, b) => (a === '' ? 1 : b === '' ? -1 : 0))
-  // ในหมวด: ปักหมุดก่อน แล้วยอดขายมาก→น้อย · ยอดฮิต = 2 อันดับแรกที่มียอดขาย
-  const sold = db.publicStats?.retailSales || {}
+  // ในหมวด: ปักหมุดก่อน แล้วยอดมาก→น้อย (ยอดขาย 30 วัน หรือยอดของโอกาสที่เลือก) · ป้าย = 2 อันดับแรกที่มียอด
+  const score = occasion ? (db.publicStats?.occasionStats?.[occasion] || {}) : (db.publicStats?.retailSales || {})
+  const hotLabel = occasion ? 'ยอดนิยม' : 'ยอดฮิต'
   return order.map((c) => {
     const items = rows.filter((r) => (r.product.category || '') === c)
-      .map((r) => ({ ...r, sold: Number(sold[r.product.id]) || 0 }))
+      .map((r) => ({ ...r, sold: Number(score[r.product.id]) || 0 }))
       .sort((a, b) => (b.product.pinned ? 1 : 0) - (a.product.pinned ? 1 : 0) || b.sold - a.sold)
-      .map((r, i) => ({ ...r, hot: r.sold > 0 && i < 2 }))
+      .map((r, i) => ({ ...r, hot: r.sold > 0 && i < 2, hotLabel }))
     return { category: c || 'อื่น ๆ', key: c, items }
   })
 }

@@ -19,6 +19,7 @@ import DeliveryFields from '../components/DeliveryFields.vue'
 import { cleanDelivery } from '../lib/delivery'
 import { dayClosed } from '../lib/shopHours'
 import { parseBirthday, mdLabel } from '../lib/birthday'
+import { OCCASIONS } from '../lib/occasion'
 import SmsTick from '../components/SmsTick.vue'
 
 // ใช้ได้ 2 แบบ: หน้าเต็ม (/orders/new) หรือแผงในแชท (embedded + draft ของแชทจาก store → สลับไปมาข้อมูลไม่หาย)
@@ -51,6 +52,8 @@ const form = props.draft || reactive({
   feeManual: false,
   items: [],
   birthday: { name: '', day: '', month: '' }, // วันเกิด (ไม่บังคับ)
+  occasionKind: '', // โอกาสที่ลูกค้าบอก (ไม่บังคับ)
+  occasionConsent: false, // ลูกค้ายินยอมให้ใช้โอกาสเป็นสถิติรวม
   step: 0,
 })
 const step = toRef(form, 'step')
@@ -419,6 +422,17 @@ function quote() {
       <div class="card">
         <div class="card-title"><AppIcon name="cake" class="text-brand-600" /> วันเกิด <span class="font-normal text-stone-400">(ไม่บังคับ ใช้เตือนปีถัดไป)</span></div>
         <BirthdayFields v-model="form.birthday" />
+      </div>
+
+      <div class="card space-y-3">
+        <div class="card-title">โอกาสของการสั่ง <span class="font-normal text-stone-400">(ไม่บังคับ · ถามลูกค้าได้)</span></div>
+        <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3" role="radiogroup" aria-label="โอกาสของการสั่ง">
+          <button v-for="o in OCCASIONS" :key="o.key" type="button" class="chip" :class="form.occasionKind === o.key ? 'chip-on' : 'chip-off'" role="radio" :aria-checked="form.occasionKind === o.key" @click="form.occasionKind = form.occasionKind === o.key ? '' : o.key; if (!form.occasionKind) form.occasionConsent = false">{{ o.label }}</button>
+        </div>
+        <label v-if="form.occasionKind" class="flex items-start gap-2 text-sm text-stone-700">
+          <input v-model="form.occasionConsent" type="checkbox" class="mt-1" />
+          <span>ลูกค้ายินยอมให้ร้านใช้โอกาสนี้เป็นสถิติรวมไม่ระบุตัวตน เพื่อแนะนำสินค้า (ไม่เก็บเพศ อายุ หรือข้อมูลของผู้รับ)</span>
+        </label>
       </div>
     </section>
 

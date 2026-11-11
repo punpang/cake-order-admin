@@ -21,7 +21,7 @@ export async function loadPublic(client) {
   const map = {}
   for (const r of kv.data || []) {
     if (r.collection === PUBLIC_COLLECTION && (r.id === 'shop' || PUBLIC_KEYS.includes(r.id))) map[r.id] = r.data?.v
-    else if (r.collection === PUBLIC_COLLECTION && (r.id === 'retailSales' || r.id === 'retailPairs')) map[r.id] = r.data?.v
+    else if (r.collection === PUBLIC_COLLECTION && (r.id === 'retailSales' || r.id === 'retailPairs' || r.id === 'occasionStats')) map[r.id] = r.data?.v
     else if (r.collection === 'storefront' && (r.id === 'storefront' || r.id === 'cakeGallery')) map[r.id] = r.data?.v
     else if (r.collection === 'legal' && r.id === 'legal') map.legal = r.data?.v
   }
@@ -38,7 +38,7 @@ export function applyPublic(db, { map, items }) {
   for (const k of Object.keys(map)) {
     if (map[k] == null) continue
     if (k === 'shop') Object.assign(db.shop, map.shop)
-    else if (k === 'retailSales' || k === 'retailPairs') { if (db.publicStats) db.publicStats[k] = map[k] }
+    else if (k === 'retailSales' || k === 'retailPairs' || k === 'occasionStats') { if (db.publicStats) db.publicStats[k] = map[k] }
     else applyValue(db, k, map[k])
   }
   db.retailItems.splice(0, db.retailItems.length, ...items)

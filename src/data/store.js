@@ -308,7 +308,7 @@ export const db = reactive({
   // messages: { from: 'customer' | 'staff', kind: 'text' | 'order', text, orderId, at, by }
   chats: [],
   // สถิติสาธารณะของสินค้าพร้อมขาย (ไม่มีข้อมูลลูกค้า): retailSales = ยอดขาย 30 วัน · retailPairs = สินค้าที่มักสั่งร่วมกัน
-  publicStats: { retailSales: {}, retailPairs: {} },
+  publicStats: { retailSales: {}, retailPairs: {}, occasionStats: {} },
   chatDrafts: {}, // ร่างออร์เดอร์ต่อแชท { [chatId]: form } สลับไปมาข้อมูลไม่หาย
   quotes: [], // ใบเสนอในแชท status: pending | accepted | revise | superseded
 
@@ -846,6 +846,8 @@ export function createOrder(payload, asDraft = false) {
     fulfillment: payload.fulfillment,
     chatId: payload.chatId || null, // สร้างจากแชท
     birthday: payload.birthday?.md ? { name: payload.birthday.name || '', md: payload.birthday.md } : null, // { name, md: 'MM-DD' }
+    // โอกาสที่ลูกค้าบอกเอง · เก็บเฉพาะเมื่อลูกค้ายินยอม (ใช้เป็นสถิติรวมไม่ระบุตัวตนเท่านั้น)
+    occasion: payload.occasionConsent && payload.occasionKind ? { kind: String(payload.occasionKind), consent: true } : null,
     ...deliveryFields(payload),
     items: promo.items, // จากใบเสนอ = ราคาตามใบเสนอ · ปกติ = ราคา + โปร/ดีล (withPromos)
     shipPromo: promo.shipPromo,

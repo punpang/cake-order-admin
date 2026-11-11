@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { db } from '../../data/store'
 import { readyMenu, readyByCategory, customMenu, activePromotions } from '../../lib/storefront'
+import { OCCASIONS } from '../../lib/occasion'
 import CakeImage from '../../components/CakeImage.vue'
 import StorePrice from '../../components/StorePrice.vue'
 import StoreOrderButtons from '../../components/StoreOrderButtons.vue'
@@ -11,7 +12,9 @@ import CakeArt from '../../components/art/CakeArt.vue'
 // เมนูเค้ก (สาธารณะ): สินค้าพร้อมขาย (สินค้า POS ที่เปิด "แสดงที่หน้าร้านเว็บ") + เค้กสั่งทำ · ดูอย่างเดียว สั่งทางแชท
 const tab = ref('ready')
 const allReady = computed(() => readyMenu(db))
-const sections = computed(() => readyByCategory(db))
+// ดูตามโอกาส: เลือกเองบนหน้าเว็บ (ไม่เก็บ) · ว่าง = ดูตามยอดขายทั้งหมด
+const occasion = ref('')
+const sections = computed(() => readyByCategory(db, undefined, occasion.value))
 const custom = computed(() => customMenu(db))
 const customFrom = computed(() => Math.min(...custom.value.map((t) => t.from)))
 const customRegular = computed(() => Math.min(...custom.value.map((t) => t.regularFrom)))
@@ -41,6 +44,11 @@ const tabs = computed(() => [
 
     <div v-if="tab === 'ready'" class="mt-5">
       <div v-if="!sections.length" class="empty"><div class="h-24 w-28 overflow-hidden rounded-2xl"><CakeArt kind="cream" /></div>ยังไม่มีสินค้าในเมนู</div>
+      <div class="mb-4 flex flex-wrap items-center gap-1.5" aria-label="ดูตามโอกาส">
+        <span class="text-sm text-stone-600">ดูตามโอกาส:</span>
+        <button type="button" class="chip" :class="!occasion ? 'chip-on' : 'chip-off'" @click="occasion = ''">ทั้งหมด</button>
+        <button v-for="o in OCCASIONS" :key="o.key" type="button" class="chip" :class="occasion === o.key ? 'chip-on' : 'chip-off'" @click="occasion = o.key">{{ o.label }}</button>
+      </div>
       <nav v-if="sections.length > 1" class="mb-4 flex flex-wrap gap-1.5" aria-label="หมวดสินค้า">
         <a v-for="s in sections" :key="s.key" :href="`#cat-${s.key}`" class="chip chip-off" @click.prevent="jump(s.key)">{{ s.category }} <span class="opacity-60">{{ s.items.length }}</span></a>
       </nav>
@@ -49,7 +57,7 @@ const tabs = computed(() => [
         <div class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
           <RouterLink v-for="r in s.items" :key="r.product.id" :to="`/menu/ready/${r.product.id}`" class="overflow-hidden rounded-3xl bg-white shadow-md transition hover:shadow-lg" :class="r.stockState === 'out' ? 'opacity-75' : ''">
             <div class="relative aspect-square overflow-hidden"><CakeImage :src="r.product.images?.[0]" :alt="r.product.name" />
-              <span v-if="r.hot" class="absolute bottom-2 left-2 rounded-full bg-white/90 px-2.5 py-0.5 text-xs font-semibold text-brand-700 shadow-sm">ยอดฮิต</span>
+              <span v-if="r.hot" class="absolute bottom-2 left-2 rounded-full bg-white/90 px-2.5 py-0.5 text-xs font-semibold text-brand-700 shadow-sm">{{ r.hotLabel }}</span>
               <span v-if="r.discounted" class="absolute top-2 left-2 rounded-full bg-brand-700 px-2.5 py-0.5 text-xs font-semibold text-white">โปร</span>
               <span v-if="r.stockState === 'out'" class="absolute top-2 right-2 rounded-full bg-stone-800/80 px-2.5 py-0.5 text-xs font-medium text-white">หมด</span>
               <span v-else-if="r.stockState === 'low'" class="absolute top-2 right-2 rounded-full bg-honey px-2.5 py-0.5 text-xs font-semibold text-stone-900">เหลือ {{ r.stock }}</span>
