@@ -1,6 +1,7 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import { useDialogA11y } from '../lib/dialogA11y'
+import { kb } from '../lib/viewportFit'
 import AppIcon from './AppIcon.vue'
 
 defineProps({ title: { type: String, default: '' }, wide: { type: Boolean, default: false } })
@@ -20,7 +21,11 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
 <template>
   <Teleport to="body">
     <!-- ความสูงอ้างอิงจาก overlay (fixed inset-0) ไม่ใช้ dvh: กล่องไม่เกินจอทุกเบราว์เซอร์/สเกล · overlay เลื่อนได้เป็นทางหนี -->
-    <div class="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-stone-900/45 backdrop-blur-[2px]">
+    <!-- แป้นพิมพ์เปิด (iOS ไม่ลดขนาด layout viewport): ยึดกรอบกับส่วนที่มองเห็นจริง เพื่อให้ช่องกรอกและปุ่มล่างไม่ถูกบัง -->
+    <div
+      class="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-stone-900/45 backdrop-blur-[2px]"
+      :style="kb.open ? { top: 'var(--vvt, 0px)', bottom: 'auto', height: 'var(--vvh, 100%)' } : undefined"
+    >
     <div class="flex h-full items-end justify-center pt-8 sm:items-center sm:p-6" @click.self="backdrop">
       <div
         ref="box"
