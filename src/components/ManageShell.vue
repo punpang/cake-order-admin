@@ -6,6 +6,7 @@ import { SETTINGS_PAGES } from '../lib/settingsPages'
 import { useLeaveGuard } from '../lib/leaveGuard'
 import AppIcon from './AppIcon.vue'
 import AppSwitch from './AppSwitch.vue'
+import BuildInfo from './BuildInfo.vue'
 
 defineProps({
   title: { type: String, required: true },
@@ -73,6 +74,7 @@ const showInactive = defineModel('inactive', { type: Boolean, default: false })
     </div>
 
     <slot />
+    <BuildInfo />
     </div>
   </div>
 </template>
