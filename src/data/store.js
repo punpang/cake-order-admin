@@ -14,7 +14,7 @@ import { showToast } from '../lib/toast'
 import { nextBirthday, daysBetween } from '../lib/birthday'
 import { parseAnswer } from '../lib/chatParse'
 import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEFAULT_COOKIE, DEFAULT_LEGAL_CONTACT } from '../lib/legalDefaults'
-import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX, AUTO_SOURCES, LOCKED_SOURCES } from '../lib/chatBot'
+import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX, AUTO_SOURCES, LOCKED_SOURCES, AI_TIERS, tierOfModel } from '../lib/chatBot'
 import { checkTelegram } from '../lib/integrationCheck'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
 import { digitsOf, promptPayKind } from '../lib/promptpay'
@@ -2691,10 +2691,12 @@ export function saveBotSettings(d) {
   b.closedNotice = { enabled: !!d.closedNotice?.enabled, text: String(d.closedNotice?.text ?? '').trim().slice(0, 300) || BOT_DEFAULTS.closedNotice.text }
   b.handoff = { notifyTelegram: !!d.handoff?.notifyTelegram, text: String(d.handoff?.text ?? '').trim().slice(0, 300) || BOT_DEFAULTS.handoff.text }
   const ai = d.ai || {}
+  const tier = AI_TIERS[ai.tier] ? ai.tier : tierOfModel(ai.model)
   b.ai = {
     enabled: !!ai.enabled,
     provider: 'anthropic', // รองรับ Claude API ก่อน · ผู้ให้บริการอื่นเพิ่มภายหลังในเซิร์ฟเวอร์
-    model: String(ai.model ?? '').trim().slice(0, 80) || BOT_DEFAULTS.ai.model,
+    tier,
+    model: AI_TIERS[tier].model, // ชื่อโมเดลมาจากระดับที่เลือก (ไม่ให้พิมพ์เอง)
     mode: ai.mode === 'auto' ? 'auto' : 'suggest',
     dailyLimit: Math.min(1000, Math.max(0, Math.round(Number(ai.dailyLimit) || 0))),
     maxTokens: Math.min(1024, Math.max(50, Math.round(Number(ai.maxTokens) || BOT_DEFAULTS.ai.maxTokens))),

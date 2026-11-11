@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { db, saveBotSettings, saveBotRule, removeBotRule, removeLearned, promoteLearned, testBot } from '../../data/store'
 import { dateOnly } from '../../lib/format'
-import { AUTO_SOURCES, BOT_DEFAULTS } from '../../lib/chatBot'
+import { AUTO_SOURCES, BOT_DEFAULTS, AI_TIERS, tierOfModel } from '../../lib/chatBot'
 import { askConfirm } from '../../lib/confirm'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
@@ -12,7 +12,7 @@ import AppSwitch from '../../components/AppSwitch.vue'
 // บอทตอบแชท (กฎคีย์เวิร์ด + เรียนรู้จากพนักงาน · ในเบราว์เซอร์ ไม่ส่งข้อความลูกค้าออกนอก) · ค่าเริ่มต้นปิด
 // โหมดรายประเภท: ไม่เคยตั้งไว้ → ใช้โหมดรวมเดิม
 const srcInit = () => Object.fromEntries(AUTO_SOURCES.map((k) => [k, db.bot.sourceModes?.[k] || db.bot.mode]))
-const snap = () => JSON.parse(JSON.stringify({ enabled: db.bot.enabled, mode: db.bot.mode, channels: db.bot.channels, confidence: db.bot.confidence, delaySec: db.bot.delaySec, offHours: db.bot.offHours, closedNotice: db.bot.closedNotice, handoff: db.bot.handoff, sourceModes: srcInit(), ai: { ...BOT_DEFAULTS.ai, ...(db.bot.ai || {}) } }))
+const snap = () => JSON.parse(JSON.stringify({ enabled: db.bot.enabled, mode: db.bot.mode, channels: db.bot.channels, confidence: db.bot.confidence, delaySec: db.bot.delaySec, offHours: db.bot.offHours, closedNotice: db.bot.closedNotice, handoff: db.bot.handoff, sourceModes: srcInit(), ai: { ...BOT_DEFAULTS.ai, ...(db.bot.ai || {}), tier: AI_TIERS[db.bot.ai?.tier] ? db.bot.ai.tier : tierOfModel(db.bot.ai?.model || BOT_DEFAULTS.ai.model) } }))
 const st = reactive(snap())
 const msg = ref('')
 const err = ref('')
@@ -89,7 +89,7 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
             <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.ai.mode === 'auto' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.mode = 'auto'">ส่งเอง</button>
           </div>
           <div><label class="label">เพดานต่อวัน (ครั้ง · 0 = ไม่เรียก)</label><input v-model.number="st.ai.dailyLimit" type="text" v-num class="input" /></div>
-          <div><label class="label">โมเดล</label><input v-model="st.ai.model" class="input" maxlength="80" aria-label="โมเดล AI" /></div>
+          <div><label class="label">ระดับโมเดล</label><select v-model="st.ai.tier" class="input" aria-label="ระดับโมเดล AI"><option v-for="(t, k) in AI_TIERS" :key="k" :value="k">{{ t.label }}</option></select></div>
           <div><label class="label">ความยาวคำตอบสูงสุด (โทเคน)</label><input v-model.number="st.ai.maxTokens" type="text" v-num class="input" /></div>
         </div>
         <p class="text-xs text-stone-400">เริ่มแนะนำให้ใช้โหมดร่างก่อน · โหมดส่งเองควรเปิดหลังทดสอบบนบัญชี Messenger ทดสอบแล้ว · ตั้งงบใช้จ่ายที่ผู้ให้บริการด้วย</p>
