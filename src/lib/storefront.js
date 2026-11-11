@@ -3,6 +3,7 @@ import { activeLists, typePrice, typeSizePrice, flavorPrice } from './pricing'
 import { applyPosPromos, inSchedule, describeSchedule, round2 } from './posPromo'
 import { describeDeal } from './promoDeals'
 import { toDateStr } from './format'
+import { alsoBoughtIds, personalIds, topSalesIds } from './retailStats'
 
 const today = () => toDateStr(new Date())
 const onlyActive = (list) => (list || []).filter((x) => x.active !== false)
@@ -44,7 +45,41 @@ export function readyByCategory(db, now = new Date()) {
   const order = []
   for (const r of rows) { const c = r.product.category || ''; if (!order.includes(c)) order.push(c) }
   order.sort((a, b) => (a === '' ? 1 : b === '' ? -1 : 0))
-  return order.map((c) => ({ category: c || 'อื่น ๆ', key: c, items: rows.filter((r) => (r.product.category || '') === c).sort((a, b) => (b.product.pinned ? 1 : 0) - (a.product.pinned ? 1 : 0)) }))
+  // ในหมวด: ปักหมุดก่อน แล้วยอดขายมาก→น้อย · ยอดฮิต = 2 อันดับแรกที่มียอดขาย
+  const sold = db.publicStats?.retailSales || {}
+  return order.map((c) => {
+    const items = rows.filter((r) => (r.product.category || '') === c)
+      .map((r) => ({ ...r, sold: Number(sold[r.product.id]) || 0 }))
+      .sort((a, b) => (b.product.pinned ? 1 : 0) - (a.product.pinned ? 1 : 0) || b.sold - a.sold)
+      .map((r, i) => ({ ...r, hot: r.sold > 0 && i < 2 }))
+    return { category: c || 'อื่น ๆ', key: c, items }
+  })
+}
+
+// สินค้าที่มักสั่งร่วมกับสินค้านี้ (หน้าสินค้า) · แสดงเป็นคำแนะนำอย่างเดียว ไม่มีการสั่งจากตรงนี้
+export function alsoBoughtFor(db, id, limit = 4) {
+  return rowsFor(db, alsoBoughtIds(db.publicStats?.retailPairs, id), [id], limit)
+}
+// แนะนำจากสิ่งที่ลูกค้าเคยสั่ง (หน้าบัญชี) · ถ้าไม่มีข้อมูลคู่สินค้า ใช้สินค้าขายดีแทน
+export function forBoughtIds(db, boughtIds, limit = 4) {
+  const bought = boughtIds || []
+  const fromPairs = personalIds(db.publicStats?.retailPairs, bought)
+  const ids = fromPairs.length ? fromPairs : topSalesIds(db.publicStats?.retailSales)
+  return rowsFor(db, ids, bought, limit)
+}
+// แปลง id เป็นแถวสินค้าที่สั่งได้ (แสดงหน้าร้าน ไม่หมด) · ตัด id ที่ระบุออก
+function rowsFor(db, ids, exclude, limit) {
+  const skip = new Set(exclude)
+  const map = new Map(readyMenu(db).map((r) => [r.product.id, r]))
+  const out = []
+  for (const id of ids) {
+    if (skip.has(id)) continue
+    const r = map.get(id)
+    if (!r || r.product.stock === 0) continue
+    out.push(r)
+    if (out.length >= limit) break
+  }
+  return out
 }
 
 // เนื้อเค้ก/ขนาดที่ประเภทนั้นมีให้เลือก (ตาม allow)
@@ -87,6 +122,8 @@ export function bestSellers(db, days = 30, limit = 6) {
     if (new Date(o.createdAt).getTime() < since) continue
     for (const it of o.items) if (it.kind === 'retail' && it.retailId) sold.set(it.retailId, (sold.get(it.retailId) || 0) + (Number(it.qty) || 0))
   }
+  // หน้าร้านสาธารณะไม่มีประวัติออร์เดอร์ → ใช้ยอดขายสาธารณะที่เผยแพร่ไว้
+  if (!sold.size) for (const [id, n] of Object.entries(db.publicStats?.retailSales || {})) sold.set(id, Number(n) || 0)
   const rows = readyMenu(db).map((r) => ({ ...r, sold: sold.get(r.product.id) || 0, pinned: !!r.product.pinned }))
   const pinned = rows.filter((r) => r.pinned)
   const auto = rows.filter((r) => !r.pinned && r.sold > 0).sort((a, b) => b.sold - a.sold)

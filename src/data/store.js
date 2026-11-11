@@ -307,6 +307,8 @@ export const db = reactive({
   // ---------- ศูนย์รวมแชท LINE OA + Facebook (จำลอง) ----------
   // messages: { from: 'customer' | 'staff', kind: 'text' | 'order', text, orderId, at, by }
   chats: [],
+  // สถิติสาธารณะของสินค้าพร้อมขาย (ไม่มีข้อมูลลูกค้า): retailSales = ยอดขาย 30 วัน · retailPairs = สินค้าที่มักสั่งร่วมกัน
+  publicStats: { retailSales: {}, retailPairs: {} },
   chatDrafts: {}, // ร่างออร์เดอร์ต่อแชท { [chatId]: form } สลับไปมาข้อมูลไม่หาย
   quotes: [], // ใบเสนอในแชท status: pending | accepted | revise | superseded
 

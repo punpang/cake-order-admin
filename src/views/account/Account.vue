@@ -6,6 +6,9 @@ import {
 } from '../../data/store'
 import { describeSelections } from '../../lib/pricing'
 import { isPin } from '../../lib/customerAuth'
+import { forBoughtIds } from '../../lib/storefront'
+import CakeImage from '../../components/CakeImage.vue'
+import StorePrice from '../../components/StorePrice.vue'
 import { money, dateOnly, dateTime, formatPhone, phoneValid, phoneDigits, num } from '../../lib/format'
 import { mdLabel } from '../../lib/birthday'
 import AppIcon from '../../components/AppIcon.vue'
@@ -59,6 +62,11 @@ function saveTax() {
 
 // ---------- ออร์เดอร์ ----------
 const orders = computed(() => myOrders())
+// สำหรับคุณ: แนะนำจากสินค้าที่เคยสั่ง (ไม่นับออร์เดอร์ที่ยกเลิก) · ไม่มีข้อมูล → ขายดี
+const picks = computed(() => {
+  const bought = orders.value.filter((o) => o.status !== 'cancelled').flatMap((o) => (o.items || []).filter((i) => i.kind === 'retail' && i.retailId).map((i) => i.retailId))
+  return forBoughtIds(db, bought)
+})
 const CHANNEL = { pos: 'หน้าร้าน' }
 
 // ---------- ขั้นตอนที่ต้องยืนยัน OTP (เปลี่ยน PIN / เปลี่ยนเบอร์ / ขอลบข้อมูล) ----------
@@ -171,6 +179,21 @@ function logout() {
 
     <!-- ออร์เดอร์ -->
     <div v-else-if="tab === 'orders'" class="space-y-3">
+      <section v-if="picks.length" class="card space-y-3" aria-label="สำหรับคุณ">
+        <div class="card-title">สำหรับคุณ</div>
+        <p class="text-sm text-stone-600">แนะนำจากสิ่งที่คุณเคยสั่ง · กดเพื่อดูรายละเอียด</p>
+        <ul class="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <li v-for="r in picks" :key="r.product.id">
+            <RouterLink :to="`/menu/ready/${r.product.id}`" class="block overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-stone-200 transition hover:shadow-md">
+              <div class="aspect-square overflow-hidden"><CakeImage :src="r.product.images?.[0]" :alt="r.product.name" /></div>
+              <div class="p-2">
+                <div class="line-clamp-1 text-sm font-semibold text-stone-900">{{ r.product.name }}</div>
+                <StorePrice :price="r.price" :regular="r.regular" />
+              </div>
+            </RouterLink>
+          </li>
+        </ul>
+      </section>
       <p v-if="!orders.length" class="card py-10 text-center text-stone-500">ยังไม่มีออร์เดอร์</p>
       <RouterLink v-for="o in orders" :key="o.id" :to="`/account/orders/${o.id}`" class="card flex items-center gap-3 px-4 py-3 transition hover:border-brand-300 active:scale-[0.99]">
         <span class="min-w-0 flex-1">

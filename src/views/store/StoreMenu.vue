@@ -49,6 +49,7 @@ const tabs = computed(() => [
         <div class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
           <RouterLink v-for="r in s.items" :key="r.product.id" :to="`/menu/ready/${r.product.id}`" class="overflow-hidden rounded-3xl bg-white shadow-md transition hover:shadow-lg" :class="r.stockState === 'out' ? 'opacity-75' : ''">
             <div class="relative aspect-square overflow-hidden"><CakeImage :src="r.product.images?.[0]" :alt="r.product.name" />
+              <span v-if="r.hot" class="absolute bottom-2 left-2 rounded-full bg-white/90 px-2.5 py-0.5 text-xs font-semibold text-brand-700 shadow-sm">ยอดฮิต</span>
               <span v-if="r.discounted" class="absolute top-2 left-2 rounded-full bg-brand-700 px-2.5 py-0.5 text-xs font-semibold text-white">โปร</span>
               <span v-if="r.stockState === 'out'" class="absolute top-2 right-2 rounded-full bg-stone-800/80 px-2.5 py-0.5 text-xs font-medium text-white">หมด</span>
               <span v-else-if="r.stockState === 'low'" class="absolute top-2 right-2 rounded-full bg-honey px-2.5 py-0.5 text-xs font-semibold text-stone-900">เหลือ {{ r.stock }}</span>
