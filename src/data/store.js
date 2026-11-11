@@ -2464,9 +2464,10 @@ function newChat(channel, externalId, profileName) {
 export function sendChat(chatId, from, text, extra = {}) {
   const c = findChat(chatId)
   const t = (text || '').trim()
-  if (!c || (!t && !['order', 'quote'].includes(extra.kind))) return null
+  const hasImg = !!extra.attachments?.length
+  if (!c || (!t && !hasImg && !['order', 'quote'].includes(extra.kind))) return null
   const at = extra.at || now()
-  const m = { id: uid('cm'), from, kind: extra.kind || 'text', text: t, orderId: extra.orderId || null, quoteId: extra.quoteId || null, replyTo: extra.replyTo || null, ask: extra.ask || null, answerFor: extra.answerFor || null, filled: extra.filled || null, at, by: extra.by || (from === 'staff' ? session.role : 'ลูกค้า'), delivery: from === 'staff' ? 'simulated' : null }
+  const m = { id: uid('cm'), from, kind: extra.kind || 'text', text: t, orderId: extra.orderId || null, quoteId: extra.quoteId || null, replyTo: extra.replyTo || null, ask: extra.ask || null, answerFor: extra.answerFor || null, filled: extra.filled || null, at, by: extra.by || (from === 'staff' ? session.role : 'ลูกค้า'), delivery: from === 'staff' ? 'simulated' : null, ...(hasImg ? { attachments: extra.attachments } : {}) }
   c.messages.push(m)
   c.updatedAt = at
   if (from === 'customer') {
@@ -2479,7 +2480,7 @@ export function sendChat(chatId, from, text, extra = {}) {
   if (from === 'staff' && c.channel === 'facebook') {
     if (m.kind === 'text') {
       if (extra.fbCard) deliverFb(c, m, extra.fbCard.text, extra.row, { card: extra.fbCard.card })
-      else deliverFb(c, m, m.text, extra.row)
+      else deliverFb(c, m, m.text, extra.row, hasImg ? { images: m.attachments.filter((a) => a.type === 'image' && a.path).map((a) => a.path) } : {})
     } else if (m.kind === 'order') { const o = findOrder(m.orderId); if (o) { const lk = o.status !== 'draft' && o.channel !== 'pos' ? createOrderLink(o, { system: true }) : null; const k = orderCardMsg(o, orderTotals(o), db.shop.name, { image: cardImageOf(o.items), url: lk?.url }); deliverFb(c, m, k.text, extra.row, { card: k.card }) } }
     else if (m.kind === 'quote') { const q = findQuote(m.quoteId); if (q) { const k = quoteCardMsg(q, orderTotals({ ...q.payload, payments: [], adjustment: null, couponsUsed: [] }), db.shop.name, { image: cardImageOf(q.payload?.items) }); deliverFb(c, m, k.text, extra.row, { quoteId: q.id, card: k.card }) } }
   }

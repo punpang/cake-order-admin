@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { addCakeCodesToDraft, can, postOrderCard, db, findOrder, sendChat, markRead, findQuote, fbWindowOpen, convertQuote, chatOrderBlock, findCustomer, linkChat, askCustomer, cancelAsk, applyToDraft, ASK_FIELDS, saveCanned, removeCanned, sendBotDraft, dismissBotDraft, setChatBot, staffReplied, recommendText, addRecommendToDraft } from '../data/store'
 import { detectEntities } from '../lib/chatParse'
 import { CODE_RE, findCodes } from '../lib/cakeCode'
@@ -15,6 +15,8 @@ import ChatAttachment from './ChatAttachment.vue'
 import { messagePreview } from '../lib/chatMedia'
 import { kb } from '../lib/viewportFit'
 import { showToast } from '../lib/toast'
+import { prepareChatImage, uploadChatImage, MAX_CHAT_IMAGES } from '../lib/chatImage'
+import { imageErrorMessage } from '../lib/imageResize'
 
 // เธรดแชทของศูนย์รวมแชท (ฝั่งพนักงาน) · ข้อความจากลูกค้ามาจาก LINE OA / Facebook
 // ผังล่าง: ข้อความ (เลื่อนได้) → แถบร่างบอท/แจ้งผล → เครื่องมือ → ช่องพิมพ์
@@ -63,14 +65,73 @@ function jumpEnd() {
   markRead(props.chat.id)
 }
 
+// ---------- รูปที่จะส่ง: เลือกจากอัลบั้มหรือถ่ายใหม่ → ดูตัวอย่างก่อนส่ง (ส่งพร้อมคำบรรยายได้) ----------
+const pics = ref([]) // { id, blob, url (พรีวิว), width, height }
+const picBusy = ref(false) // กำลังย่อรูป
+const sendingPics = ref(false) // กำลังอัปโหลด/ส่ง
+const albumInput = ref(null)
+const camInput = ref(null)
+const canSend = computed(() => canType.value && (!!text.value.trim() || pics.value.length > 0) && !picBusy.value && !sendingPics.value)
+function clearPics() {
+  pics.value.forEach((p) => URL.revokeObjectURL(p.url))
+  pics.value = []
+}
+function removePic(id) {
+  const p = pics.value.find((x) => x.id === id)
+  if (p) URL.revokeObjectURL(p.url)
+  pics.value = pics.value.filter((x) => x.id !== id)
+}
+async function addPics(e) {
+  const files = Array.from(e.target.files || [])
+  e.target.value = '' // เลือกรูปเดิมซ้ำได้
+  if (!files.length) return
+  const room = MAX_CHAT_IMAGES - pics.value.length
+  if (room <= 0) return showToast(`ส่งรูปได้ครั้งละไม่เกิน ${MAX_CHAT_IMAGES} รูป`, 5000, 'error')
+  picBusy.value = true
+  try {
+    for (const f of files.slice(0, room)) {
+      try {
+        const p = await prepareChatImage(f)
+        pics.value.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, ...p })
+      } catch (err) {
+        showToast(imageErrorMessage(err), 6000, 'error')
+      }
+    }
+    if (files.length > room) showToast(`เพิ่มได้อีก ${room} รูปเท่านั้น (ไม่เกิน ${MAX_CHAT_IMAGES} รูปต่อครั้ง)`, 5000, 'error')
+  } finally {
+    picBusy.value = false
+  }
+}
+watch(() => props.chat.id, () => clearPics()) // เปลี่ยนแชท = ไม่ให้รูปของแชทเดิมค้างอยู่
+onBeforeUnmount(clearPics)
+
 function send() {
-  if (!text.value.trim() || !canType.value) return
+  if (!canSend.value) return
+  if (pics.value.length) return sendPics()
   const t = text.value
   sendChat(props.chat.id, 'staff', t, { replyTo: replyTo.value?.id })
   staffReplied(props.chat.id, t) // เรียนรู้คู่ ถาม→ตอบ + นับสถิติบอท
   text.value = ''
   replyTo.value = null
   jumpEnd()
+}
+async function sendPics() {
+  sendingPics.value = true
+  try {
+    const attachments = []
+    for (const p of pics.value) attachments.push(await uploadChatImage(props.chat, p.blob, p))
+    const t = text.value
+    sendChat(props.chat.id, 'staff', t, { replyTo: replyTo.value?.id, attachments })
+    if (t.trim()) staffReplied(props.chat.id, t)
+    clearPics()
+    text.value = ''
+    replyTo.value = null
+    jumpEnd()
+  } catch (err) {
+    showToast(err?.message || 'ส่งรูปไม่สำเร็จ', 6000, 'error')
+  } finally {
+    sendingPics.value = false
+  }
 }
 function onKey(e) {
   // Enter ส่ง · Shift+Enter ขึ้นบรรทัด
@@ -369,6 +430,8 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
 
     <!-- ส่วนล่าง: ร่างบอท · แนะนำสินค้า · เครื่องมือ · ช่องพิมพ์ -->
     <div class="shrink-0 border-t border-stone-200 bg-white">
+      <input ref="camInput" type="file" accept="image/*" capture="environment" class="hidden" tabindex="-1" aria-hidden="true" @change="addPics" />
+      <input ref="albumInput" type="file" accept="image/*" multiple class="hidden" tabindex="-1" aria-hidden="true" @change="addPics" />
       <!-- ร่างคำตอบจากบอท -->
       <!-- แป้นพิมพ์เปิด: ร่างเป็นแถบบรรทัดเดียว เพื่อให้พื้นที่ข้อความมากที่สุด -->
       <div v-if="showDraft && kb.open" class="mx-2 mt-2 flex items-center gap-1 rounded-xl border border-violet-200 bg-violet-50 py-1 pr-1 pl-2.5 text-sm">
@@ -427,6 +490,8 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
         <span class="mx-0.5 hidden h-5 w-px bg-stone-200 lg:inline-block" aria-hidden="true" />
         <button v-if="custOrders.length && can('createOrder')" type="button" class="chip h-8 border-brand-300 bg-brand-50 px-3 text-xs whitespace-nowrap text-brand-800 hover:bg-brand-100" data-send-summary @click="openSummary">สรุปออร์เดอร์</button>
         <button type="button" class="chip chip-off h-8 px-3 text-xs whitespace-nowrap" @click="cannedOpen = true">ข้อความสำเร็จรูป</button>
+        <button type="button" class="chip chip-off h-8 px-3 text-xs whitespace-nowrap" @click="camInput?.click()">ถ่ายรูป</button>
+        <button type="button" class="chip chip-off h-8 px-3 text-xs whitespace-nowrap" @click="albumInput?.click()">รูปจากอัลบั้ม</button>
         <button v-if="recs.length" type="button" class="chip h-8 px-3 text-xs whitespace-nowrap" :class="recOpen ? 'chip-on' : 'chip-off'" :aria-expanded="recOpen" @click="recOpen = !recOpen">แนะนำสินค้า ({{ recs.length }})</button>
         <button v-if="db.bot.enabled" type="button" class="chip h-8 px-3 text-xs whitespace-nowrap" :class="chat.botOff ? 'chip-off' : 'border-violet-300 bg-violet-50 text-violet-800'" @click="setChatBot(chat.id, !!chat.botOff)">บอท: {{ chat.botOff ? 'ปิดในแชทนี้' : 'เปิด' }}</button>
       </div>
@@ -435,6 +500,15 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
       <div v-if="replyTo && canType" class="mx-3 mt-2.5 flex items-center gap-2 rounded-xl bg-stone-50 px-3 py-1.5 text-xs text-stone-600">
         <span class="min-w-0 flex-1 truncate">ตอบกลับ: {{ replyPreview }}</span>
         <button type="button" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-stone-400 hover:bg-white" aria-label="ยกเลิกตอบกลับ" @click="replyTo = null"><AppIcon name="x" :size="14" /></button>
+      </div>
+
+      <!-- รูปที่เลือกไว้ (ตัวอย่างก่อนส่ง) -->
+      <div v-if="(pics.length || picBusy) && canType" class="flex items-center gap-2 overflow-x-auto px-3 pt-2.5 [scrollbar-width:none]">
+        <div v-for="p in pics" :key="p.id" class="relative h-16 w-16 shrink-0">
+          <img :src="p.url" alt="รูปที่เลือกไว้" class="h-full w-full rounded-xl object-cover ring-1 ring-stone-200" />
+          <button type="button" class="absolute -top-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-stone-800 text-white shadow" aria-label="เอารูปนี้ออก" :disabled="sendingPics" @click="removePic(p.id)"><AppIcon name="x" :size="12" /></button>
+        </div>
+        <span v-if="picBusy" class="shrink-0 text-xs text-stone-500" role="status">กำลังเตรียมรูป…</span>
       </div>
 
       <p v-if="!canType" class="m-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
@@ -448,7 +522,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
         <div class="flex min-w-0 flex-1 items-end rounded-2xl border border-stone-200 bg-stone-50 transition focus-within:border-brand-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-brand-100">
           <textarea ref="input" v-model="text" rows="1" class="max-h-40 min-h-11 w-full resize-none bg-transparent px-3.5 py-2.5 text-base leading-6 text-stone-900 outline-none placeholder:text-stone-400" :placeholder="`ตอบทาง ${channelLabel}`" aria-label="ข้อความถึงลูกค้า" @focus="toolsOpen = false" @keydown="onKey" />
         </div>
-        <button type="submit" class="btn-primary h-11 w-11 shrink-0 rounded-full px-0" :disabled="!text.trim()" aria-label="ส่งข้อความ"><AppIcon name="send" :size="18" /></button>
+        <button type="submit" class="btn-primary h-11 w-11 shrink-0 rounded-full px-0" :disabled="!canSend" aria-label="ส่งข้อความ"><AppIcon name="send" :size="18" /></button>
       </form>
     </div>
 

@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
   if (!uid) return json({ error: 'ต้องเข้าสู่ระบบพนักงาน' }, 401)
   const st = await sb.from('punpang_staff').select('active,perms').eq('user_id', uid).maybeSingle()
   if (!st.data?.active || !(Array.isArray(st.data.perms) && st.data.perms.includes('chat'))) return json({ error: 'บัญชีนี้ไม่มีสิทธิ์ตอบแชท' }, 403)
-  let body: { psid?: string; text?: string; quoteId?: string; card?: { kind?: string; title?: string; subtitle?: string; url?: string; image?: string; pay?: boolean } } = {}
+  let body: { psid?: string; text?: string; quoteId?: string; images?: unknown; card?: { kind?: string; title?: string; subtitle?: string; url?: string; image?: string; pay?: boolean } } = {}
   try { body = await req.json() } catch { return json({ error: 'คำขอไม่ถูกต้อง' }, 400) }
   const psid = String(body.psid ?? '')
   const msg = String(body.text ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim()
@@ -33,7 +33,12 @@ Deno.serve(async (req) => {
   const cPay = !!(cd && cd.pay)
   if (cd && !cTitle) return json({ error: 'การ์ดต้องมีหัวข้อ' }, 400)
   if (kind === 'link' && !httpsOk(cUrl)) return json({ error: 'ลิงก์ในการ์ดต้องเป็น https' }, 400)
-  if ((!msg && !cd) || msg.length > 2000) return json({ error: 'ข้อความต้องยาว 1–2000 ตัวอักษร' }, 400)
+  // รูปที่พนักงานส่ง: อยู่ในบักเก็ต punpang-chat ใต้ staff/<psid>/ เท่านั้น (กันส่งรูปของลูกค้ารายอื่น)
+  const images: string[] = Array.isArray(body.images) ? body.images.map((x) => String(x ?? '')) : []
+  if (images.length > 5) return json({ error: 'ส่งรูปได้ครั้งละไม่เกิน 5 รูป' }, 400)
+  if (images.some((p) => !new RegExp(`^staff/${psid}/[A-Za-z0-9_-]+\\.jpg$`).test(p))) return json({ error: 'ที่อยู่รูปไม่ถูกต้อง' }, 400)
+  if (images.length && (cd || body.quoteId)) return json({ error: 'ส่งรูปพร้อมการ์ดหรือใบเสนอพร้อมกันไม่ได้' }, 400)
+  if ((!msg && !cd && !images.length) || msg.length > 2000) return json({ error: 'ข้อความต้องยาว 1–2000 ตัวอักษร' }, 400)
   const quoteId = body.quoteId == null ? '' : String(body.quoteId)
   if (kind === 'quote' && !quoteId) return json({ error: 'การ์ดใบเสนอต้องระบุรหัสใบเสนอ' }, 400)
   if (quoteId && !/^[A-Za-z0-9_-]{1,40}$/.test(quoteId)) return json({ error: 'รหัสใบเสนอไม่ถูกต้อง' }, 400)
@@ -65,7 +70,13 @@ Deno.serve(async (req) => {
   } else if (quoteId) {
     const text = msg.length > 640 ? `${msg.slice(0, 636)}…` : msg // button template รับข้อความได้ไม่เกิน 640 ตัวอักษร
     messages.push({ attachment: { type: 'template', payload: { template_type: 'button', text, buttons } } })
-  } else messages.push({ text: msg })
+  } else if (msg) messages.push({ text: msg })
+  // รูป: ส่งหลังข้อความ ทีละรูป · ลิงก์ชั่วคราว 15 นาที (Facebook ดึงไฟล์ตอนส่ง)
+  for (const p of images) {
+    const s = await sb.storage.from('punpang-chat').createSignedUrl(p, 900)
+    if (s.error || !s.data?.signedUrl) return json({ error: 'เปิดไฟล์รูปไม่ได้' }, 502)
+    messages.push({ attachment: { type: 'image', payload: { url: s.data.signedUrl } } })
+  }
   const ver = (Deno.env.get('FB_GRAPH_VERSION') || 'v24.0').trim()
   try {
     for (const message of messages) {
