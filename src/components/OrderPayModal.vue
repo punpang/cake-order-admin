@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { db, findCustomer, depositOf, reportPayment, confirmPayment, receivePaymentNow, updatePaymentRequest, bindChatSlip } from '../data/store'
+import { db, findCustomer, depositOf, reportPayment, confirmPayment, receivePaymentNow, updatePaymentRequest, receiveChatSlip } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { toastSaved } from '../lib/syncStatus'
 import { QUICK_DUE, quickDue, dueBeforePickup, dueDaysBefore, isHHmm } from '../lib/payDue'
@@ -49,7 +49,7 @@ const beforeCustom = computed(() => dueBeforePickup(props.order.pickupAt, dueHou
 const daysOpts = computed(() => DAYS_BEFORE.map((d) => ({ d, ...dueDaysBefore(props.order.pickupAt, d, isHHmm(dueTime.value) ? dueTime.value : '12:00') })))
 const daysCustom = computed(() => dueDaysBefore(props.order.pickupAt, dueDays.value, dueTime.value))
 const dueReasons = computed(() => [...beforeOpts.value.filter((x) => x.disabled).map((x) => `ก่อนนัด ${x.h} ชม.: ${x.reason}`), ...daysOpts.value.filter((x) => x.disabled).map((x) => `ล่วงหน้า ${x.d} วัน ก่อน ${dueTime.value}: ${x.reason}`)])
-const PAY_TITLE = { new: 'แจ้งยอดชำระ', edit: 'แก้ยอดที่แจ้ง', confirm: 'ยืนยันยอดชำระ', direct: 'รับชำระทันที', slip: 'ผูกสลิปกับออร์เดอร์' }
+const PAY_TITLE = { new: 'แจ้งยอดชำระ', edit: 'แก้ยอดที่แจ้ง', confirm: 'ยืนยันยอดชำระ', direct: 'รับชำระทันที', slip: 'รับชำระจากสลิป' }
 // มัดจำ: แจ้งยอดงวดแรก (ยังไม่มีงวดที่แจ้ง/ยืนยัน) เติมยอดมัดจำให้ แก้ได้
 const fullAmount = computed(() => Math.max(t.value.balance - t.value.reported, 0))
 const depositAmount = computed(() => Math.min(depositOf(t.value.total), fullAmount.value))
@@ -94,7 +94,7 @@ const paidText = computed(() => {
   return !payTarget && pay.paidAt === paidInitial ? `ตอนนี้ · ${label}` : label
 })
 const amountMatchesBalance = computed(() => Number(pay.amount) === Number(t.value.balance))
-const saveLabel = computed(() => (payMode === 'direct' ? 'ยืนยันรับชำระ' : payMode === 'confirm' ? 'ยืนยัน' : payMode === 'slip' ? 'ผูกสลิป' : 'บันทึก'))
+const saveLabel = computed(() => (payMode === 'direct' ? 'ยืนยันรับชำระ' : payMode === 'confirm' ? 'ยืนยัน' : payMode === 'slip' ? 'รับชำระ' : 'บันทึก'))
 async function onSlip(e) {
   const f = e.target.files[0]
   e.target.value = ''
@@ -110,13 +110,14 @@ let saving = false
 async function savePay() {
   if (saving) return
   if (!(pay.amount > 0)) return (payError.value = 'กรอกยอดเงิน')
-  if (payMode === 'slip') { // ผูกสลิปจากแชท: กติกาทั้งหมดอยู่ใน bindChatSlip (ชุดเดียวกับ slipBindError)
+  if (payMode === 'slip') { // รับชำระจากสลิปในแชท: ขั้นตอนเดียวกับรับชำระทันที · กติกาทั้งหมดอยู่ใน receiveChatSlip (ชุดเดียวกับ slipBindError)
+    if (!(await askConfirm({ title: 'รับชำระจากสลิป', message: `ยอด ${money(pay.amount)} (${pay.method}) · บันทึกเป็นยอดที่ยืนยันแล้วเลย`, okText: 'รับชำระ' }))) return
     if (saving) return
     saving = true
     let r
-    try { r = bindChatSlip(payTarget.chatId, payTarget.msgId, props.order.id, { ...pay }) } finally { saving = false }
+    try { r = receiveChatSlip(payTarget.chatId, payTarget.msgId, props.order.id, { ...pay }) } finally { saving = false }
     if (r?.error) return (payError.value = r.error)
-    toastSaved(`ผูกสลิปกับ ${props.order.code} แล้ว · ยอด ${money(pay.amount)}`)
+    toastSaved(`รับชำระ ${money(pay.amount)} แล้ว · ${props.order.code}`)
     emit('close')
     return
   }
@@ -154,7 +155,7 @@ async function savePay() {
       ยอดที่แจ้งไป <b>{{ money(payTarget.requested ?? payTarget.amount) }}</b> · ใส่ยอดที่ได้รับจริง
     </div>
     <div v-else-if="payMode === 'slip'" class="rounded-xl bg-sky-50 p-3 text-sm text-sky-800">
-      สลิปจากแชท · คงค้าง <b>{{ money(t.balance) }}</b> · ผูกได้สูงสุด <b>{{ money(slipMax) }}</b><span v-if="slipOwn > 0"> (หักยอดที่ลูกค้าแจ้งรอตรวจ {{ money(slipOwn) }})</span>
+      สลิปจากแชท · คงค้าง <b>{{ money(t.balance) }}</b> · รับได้สูงสุด <b>{{ money(slipMax) }}</b><span v-if="slipOwn > 0"> (หักยอดที่ลูกค้าแจ้งรอตรวจ {{ money(slipOwn) }})</span>
     </div>
     <div v-else class="rounded-xl p-3 text-sm" :class="payMode === 'direct' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'">
       <template v-if="payMode === 'direct'">ลูกค้าชำระแล้ว ไม่ต้องแจ้งยอด/กำหนดชำระ · </template>คงค้าง <b>{{ money(t.balance) }}</b><span v-if="t.reported"> · แจ้งยอดแล้ว {{ money(t.reported) }}</span>
@@ -185,7 +186,7 @@ async function savePay() {
         <button v-for="m in PAYMENT_METHODS" :key="m" type="button" class="chip" :class="pay.method === m ? 'chip-on' : 'chip-off'" @click="pay.method = m">{{ m }}</button>
       </div>
     </div>
-    <div v-if="customer && order.channel !== 'pos' && payMode !== 'edit' && payMode !== 'slip'" class="space-y-2 rounded-xl border border-stone-200 bg-white p-3">
+    <div v-if="customer && order.channel !== 'pos' && payMode !== 'edit'" class="space-y-2 rounded-xl border border-stone-200 bg-white p-3">
       <label class="flex items-center gap-2 text-sm text-stone-700"><input v-model="pay.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> {{ payMode === 'new' ? 'แจ้งยอดชำระให้ลูกค้าทราบ' : 'แจ้งลูกค้าว่าได้รับชำระแล้ว' }}</label>
       <SmsTick v-model="pay.sms" :customer="customer" :order="order" :show="pay.notify" />
     </div>

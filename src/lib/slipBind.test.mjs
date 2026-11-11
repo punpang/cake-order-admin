@@ -1,6 +1,6 @@
 // ทดสอบกติกาการผูกสลิปในแชท (โหมดแมนนวล) · รัน: node src/lib/slipBind.test.mjs
 import assert from 'node:assert/strict'
-import { pendingCustomerTotal, slipRoom, slipChoices, slipBindError, SLIP_BIND_NOTE } from './slipBind.js'
+import { pendingCustomerTotal, slipRoom, slipChoices, slipBindError, SLIP_RECEIVE_NOTE } from './slipBind.js'
 import { PAY_MSG } from './payFields.js'
 
 const cases = []
@@ -53,8 +53,8 @@ t('แชทที่ยังไม่ผูกลูกค้า → ไม่
 })
 
 t('ข้อความบันทึกการผูก: ระบุว่าพนักงานผูกเองและยังไม่ได้ตรวจยอดกับธนาคาร', () => {
-  assert.match(SLIP_BIND_NOTE, /ผูกกับออร์เดอร์เอง/)
-  assert.match(SLIP_BIND_NOTE, /ยังไม่ได้ตรวจยอด/)
+  assert.match(SLIP_RECEIVE_NOTE, /รับชำระ/)
+  assert.match(SLIP_RECEIVE_NOTE, /ยังไม่ได้ตรวจยอด/)
 })
 
 // กติกาก่อนผูก: เวลาคงที่ (ไทย 10:00 วันที่ 11 พ.ย. 2026) · ออร์เดอร์สร้าง 09:00
@@ -66,9 +66,9 @@ t('ผูกสลิป: ข้อมูลครบและผ่านทุ
 })
 
 t('ผูกสลิป: สลิปที่ไม่ได้รอผูก (อัตโนมัติ/ผูกแล้ว/ไม่มีรูป) → ไม่ผ่าน', () => {
-  assert.equal(slipBindError({ ...base, slip: { ...base.slip, status: 'matched' } }), 'สลิปนี้ไม่ได้รอผูกออร์เดอร์')
-  assert.equal(slipBindError({ ...base, slip: { status: 'manual', ref: 'A1B2C3D4E5F6G7H8' } }), 'สลิปนี้ไม่ได้รอผูกออร์เดอร์')
-  assert.equal(slipBindError({ ...base, slip: undefined }), 'สลิปนี้ไม่ได้รอผูกออร์เดอร์')
+  assert.equal(slipBindError({ ...base, slip: { ...base.slip, status: 'matched' } }), 'สลิปนี้ไม่ได้รอรับชำระ')
+  assert.equal(slipBindError({ ...base, slip: { status: 'manual', ref: 'A1B2C3D4E5F6G7H8' } }), 'สลิปนี้ไม่ได้รอรับชำระ')
+  assert.equal(slipBindError({ ...base, slip: undefined }), 'สลิปนี้ไม่ได้รอรับชำระ')
 })
 
 t('ผูกสลิป: ออร์เดอร์ร่าง/ยกเลิก/หน้าร้าน → ไม่ผ่าน', () => {
@@ -82,7 +82,7 @@ t('ผูกสลิป: ยอดผูกได้เป็นศูนย์
 t('ผูกสลิป: ยอดต้องมากกว่า 0 และไม่เกินยอดที่ผูกได้', () => {
   assert.equal(slipBindError({ ...base, amount: 0 }), 'กรอกยอดเงิน')
   assert.equal(slipBindError({ ...base, amount: NaN }), 'กรอกยอดเงิน')
-  assert.match(slipBindError({ ...base, amount: 540.5 }), /^ยอดเกินยอดที่ผูกได้/)
+  assert.match(slipBindError({ ...base, amount: 540.5 }), /^ยอดเกินยอดที่รับได้/)
   assert.equal(slipBindError({ ...base, amount: 540.004 }), '') // ยอมคลาดเคลื่อนไม่เกินสตางค์
 })
 

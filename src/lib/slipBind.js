@@ -1,9 +1,9 @@
-// สลิปในแชท (โหมดแมนนวล): กติกาการผูกสลิปกับออร์เดอร์ · ฟังก์ชันล้วน ไม่แตะ db/Vue (ทดสอบด้วย node src/lib/slipBind.test.mjs)
+// สลิปในแชท (โหมดแมนนวล): กติกาการรับชำระจากสลิปกับออร์เดอร์ · ฟังก์ชันล้วน ไม่แตะ db/Vue (ทดสอบด้วย node src/lib/slipBind.test.mjs)
 // ยอดที่ผูกได้ = ยอดคงค้าง − ยอดที่ลูกค้าแจ้งเองและยังรอตรวจ (ตรงกับ planAttach / pendingSumOf ฝั่งเซิร์ฟเวอร์ใน supabase/functions/_shared/slip.ts)
 import { PAY_MSG, notBeforeOrder, notFuture, thaiMinute } from './payFields.js'
 
-// หมายเหตุของรายการชำระที่พนักงานผูกจากสลิปในแชท (เหมือนโหมดอัตโนมัติ แต่ระบุว่าพนักงานเป็นคนผูก)
-export const SLIP_BIND_NOTE = 'สลิปจากแชท (QR) · พนักงานผูกกับออร์เดอร์เอง · ยังไม่ได้ตรวจยอดกับธนาคาร (ตรวจยอดในสลิปก่อนยืนยัน)'
+// หมายเหตุของรายการชำระที่พนักงานรับชำระจากสลิปในแชท (ระบุว่าพนักงานเป็นคนรับ และยังไม่ได้ตรวจยอดกับธนาคาร)
+export const SLIP_RECEIVE_NOTE = 'สลิปจากแชท (QR) · พนักงานรับชำระจากสลิป · ยังไม่ได้ตรวจยอดกับธนาคาร (ตรวจยอดในสลิปก่อนยืนยัน)'
 
 const r2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100
 
@@ -32,11 +32,11 @@ export function slipChoices({ suggestedId = null, orders = [], customerId = null
 // กติกาก่อนผูกสลิป → ข้อความผิดพลาด หรือ '' เมื่อผ่าน (ลำดับการตรวจเหมือนหน้าชำระเงินของลูกค้า)
 // refUsed = เลขอ้างอิงของสลิปถูกใช้แล้วในรายการชำระที่ไม่ได้ยกเลิกของออร์เดอร์ใดก็ได้ (ผู้เรียกคำนวณจากข้อมูลทั้งหมด)
 export function slipBindError({ slip, orderInactive = false, room, amount, paidAt, createdAt, refUsed = false, nowMs = Date.now() }) {
-  if (slip?.status !== 'manual' || !slip.slipRef) return 'สลิปนี้ไม่ได้รอผูกออร์เดอร์'
+  if (slip?.status !== 'manual' || !slip.slipRef) return 'สลิปนี้ไม่ได้รอรับชำระ'
   if (orderInactive) return 'ออร์เดอร์นี้รับยอดจากสลิปไม่ได้'
   if (!(room > 0)) return 'ออร์เดอร์นี้ชำระครบแล้ว หรือมียอดรอตรวจอยู่แล้ว'
   if (!(amount > 0)) return 'กรอกยอดเงิน'
-  if (amount > room + 0.004) return 'ยอดเกินยอดที่ผูกได้ (หักยอดที่ลูกค้าแจ้งรอตรวจแล้ว)'
+  if (amount > room + 0.004) return 'ยอดเกินยอดที่รับได้ (หักยอดที่ลูกค้าแจ้งรอตรวจแล้ว)'
   if (!thaiMinute(paidAt)) return PAY_MSG.txn
   if (!notBeforeOrder(paidAt, createdAt)) return PAY_MSG.beforeOrder
   if (!notFuture(paidAt, nowMs)) return PAY_MSG.future

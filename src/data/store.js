@@ -29,7 +29,7 @@ import { createNumbering } from '../lib/docNo'
 import { staffState } from '../lib/staffAuth'
 import { remoteOrderAction, remoteReadSlip } from '../lib/customerOrderRemote'
 import { checkCustomerTxn, refTaken, bankByCode, PAY_MSG, thaiMinute } from '../lib/payFields'
-import { SLIP_BIND_NOTE, slipRoom, slipChoices, slipBindError } from '../lib/slipBind'
+import { SLIP_RECEIVE_NOTE, slipRoom, slipChoices, slipBindError } from '../lib/slipBind'
 import { callAuth, callLoyalty, readSessionToken, saveSessionToken, clearSessionToken, injectBundle, clearBundle } from '../lib/customerRemote'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
@@ -2911,10 +2911,10 @@ export function slipChatChoices(chatId, msgId) {
   const pick = (o) => ({ order: o, room: slipRoom(orderTotals(o).balance, o.payments) })
   return { suggested: suggested ? pick(suggested) : null, others: others.map(pick) }
 }
-// ผูกสลิปที่ลูกค้าส่งในแชทกับออร์เดอร์ที่พนักงานเลือก → รายการชำระแบบลูกค้าแจ้ง รอตรวจยอด (ไม่แจ้งลูกค้าซ้ำ เพราะลูกค้าส่งสลิปเองแล้ว)
+// รับชำระจากสลิปที่ลูกค้าส่งในแชท (ออร์เดอร์ที่พนักงานเลือก) · ขั้นตอนเหมือนรับชำระทันที
 // data = { amount, paidAt: 'YYYY-MM-DDTHH:mm', method, note } · คืน { ok, code } | { error }
-export function bindChatSlip(chatId, msgId, orderId, data = {}) {
-  if (!can('reportPayment')) return { error: 'ไม่มีสิทธิ์แจ้งยอดชำระ' }
+export function receiveChatSlip(chatId, msgId, orderId, data = {}) {
+  if (!can('confirmPayment')) return { error: 'ไม่มีสิทธิ์ยืนยันรับชำระ' }
   const c = findChat(chatId)
   const m = c?.messages.find((x) => x.id === msgId)
   const s = m?.slipCheck
@@ -2928,18 +2928,20 @@ export function bindChatSlip(chatId, msgId, orderId, data = {}) {
   })
   if (err) return { error: err }
   const stamp = now()
+  // รับชำระทันที: ยืนยันยอดเลย (เหมือน receivePaymentNow) · สลิปเป็นหลักฐานอ้างอิงของรายการนี้
   const pay = {
     id: uid('pay'), code: numbering.next('PAY'),
     requested: amount, amount, method: data.method || 'โอนเงิน', paidAt: thaiMinute(data.paidAt), slip: s.slipRef,
-    note: [SLIP_BIND_NOTE, String(data.note || '').trim()].filter(Boolean).join(' · '),
-    dueAt: '', extension: null, createdAt: stamp, submittedAt: stamp, status: 'reported', source: 'customer', customerSubmitted: true,
-    reportedBy: 'customer', confirmedBy: null, slipKey: s.slipKey, bankCode: s.bankCode, bankName: s.bankName ?? null, ref: s.ref, refSource: 'qr',
+    note: [SLIP_RECEIVE_NOTE, String(data.note || '').trim()].filter(Boolean).join(' · '),
+    dueAt: '', extension: null, createdAt: stamp, status: 'confirmed', source: 'direct',
+    reportedBy: session.role, confirmedBy: session.role, confirmedAt: stamp,
+    slipKey: s.slipKey, bankCode: s.bankCode, bankName: s.bankName ?? null, ref: s.ref, refSource: 'qr',
   }
   order.payments.push(pay)
-  if (order.status === 'awaiting_payment') order.status = 'payment_reported'
-  log(order, `ผูกสลิปจากแชท (QR) ${money(amount)} (${pay.method}) · รอตรวจยอด`)
-  m.slipCheck = { ...s, status: 'matched', orderId: order.id, orderCode: order.code, paymentId: pay.id, boundBy: session.role, at: stamp }
-  emitStaffBell('team_customer_paid', { text: `${order.code} · ยอด ${money(amount)} (สลิป QR ยังไม่ได้ตรวจยอด)`, chatId, orderId: order.id })
+  if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
+  log(order, `รับชำระจากสลิปในแชท (QR) ${money(amount)} (${pay.method})`)
+  m.slipCheck = { ...s, status: 'received', orderId: order.id, orderCode: order.code, paymentId: pay.id, boundBy: session.role, at: stamp }
+  notifyOrder('payment_confirmed', order, { skip: data.notify === false, noSms: data.sms === false, paid: amount })
   return { ok: true, code: pay.code }
 }
 // การ์ดสรุปออร์เดอร์ในแชท (แชทของออร์เดอร์ ถ้าไม่มีใช้แชทล่าสุดของลูกค้า)

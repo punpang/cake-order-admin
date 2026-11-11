@@ -236,7 +236,7 @@ Deno.test('ข้อความสลิปก่อนวันสร้าง
 const kvMode = (mode: string, enabled = true) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled, mode } } })
 const RAND32 = 'a'.repeat(32)
 
-Deno.test('โหมดแมนนวล: เก็บรูปไว้ในโฟลเดอร์ manual และติดป้าย "รอผูกออร์เดอร์" พร้อมออร์เดอร์ที่แนะนำ โดยไม่แตะออร์เดอร์', async () => {
+Deno.test('โหมดแมนนวล: เก็บรูปไว้ในโฟลเดอร์ manual และติดป้าย "รอรับชำระ" พร้อมออร์เดอร์ที่แนะนำ โดยไม่แตะออร์เดอร์', async () => {
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvMode('manual')] })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'manual')
   const o = sb.T.punpang_orders[0]

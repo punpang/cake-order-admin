@@ -42,14 +42,15 @@ const failed = (m) => mine(m) && (props.chat.channel === 'facebook' || props.cha
 const SLIP_CHIP = {
   matched: ['สลิปจับคู่กับออร์เดอร์แล้ว · รอตรวจยอด', 'bg-emerald-50 text-emerald-700'],
   duplicate: ['สลิปนี้เคยส่งแล้ว · ไม่แนบซ้ำ', 'bg-rose-50 text-rose-700'],
-  no_order: ['สลิป QR · ยังไม่มีออร์เดอร์ในแชท (ผูกเองได้)', 'bg-amber-50 text-amber-700'],
+  no_order: ['สลิป QR · ยังไม่มีออร์เดอร์ในแชท (เลือกออร์เดอร์แล้วรับชำระได้)', 'bg-amber-50 text-amber-700'],
+  received: ['สลิป QR · รับชำระจากสลิปแล้ว', 'bg-emerald-50 text-emerald-700'],
   order_missing: ['สลิป QR · ไม่พบออร์เดอร์ที่คุยล่าสุด', 'bg-amber-50 text-amber-700'],
   order_inactive: ['สลิป QR · ออร์เดอร์เป็นร่างหรือถูกยกเลิก', 'bg-amber-50 text-amber-700'],
   order_paid: ['สลิป QR · ออร์เดอร์ชำระครบแล้ว', 'bg-amber-50 text-amber-700'],
   pending_exists: ['สลิป QR · มียอดรอตรวจของออร์เดอร์นี้อยู่แล้ว', 'bg-amber-50 text-amber-700'],
   upload_failed: ['สลิป QR · บันทึกไฟล์ไม่สำเร็จ ให้ลูกค้าส่งใหม่', 'bg-rose-50 text-rose-700'],
   busy: ['สลิป QR · ออร์เดอร์กำลังถูกแก้ไข ให้ลูกค้าส่งใหม่', 'bg-amber-50 text-amber-700'],
-  manual: ['สลิป QR · รอร้านผูกกับออร์เดอร์', 'bg-sky-50 text-sky-700'],
+  manual: ['สลิป QR · รอร้านรับชำระ', 'bg-sky-50 text-sky-700'],
 }
 // หัวข้อ + จุดสีของการ์ดสลิป: สีจากโทนของสถานะ (เขียว = สำเร็จ · แดง = ผิดพลาด/ซ้ำ · เหลือง = ต้องดูเอง · เทา = ไม่รู้สถานะ)
 function slipChip(s) {
@@ -438,7 +439,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
                 </div>
                 <!-- โหมดแมนนวล: ผูกกับออร์เดอร์ที่แนะนำ หรือเลือกออร์เดอร์อื่นของลูกค้า (ในหน้าแชท ไม่เปลี่ยนหน้า) -->
                 <div v-if="canBindSlip(m)" class="mt-2.5 flex gap-2">
-                  <button v-if="slipChoicesOf(m).suggested" type="button" class="btn-primary h-9 min-w-0 flex-1 truncate px-3 text-xs" :disabled="!(slipChoicesOf(m).suggested.room > 0)" data-slip-bind @click="openSlipBind(m, slipChoicesOf(m).suggested.order)">ผูกกับ {{ slipChoicesOf(m).suggested.order.code }}</button>
+                  <button v-if="slipChoicesOf(m).suggested" type="button" class="btn-primary h-9 min-w-0 flex-1 truncate px-3 text-xs" :disabled="!(slipChoicesOf(m).suggested.room > 0)" data-slip-bind @click="openSlipBind(m, slipChoicesOf(m).suggested.order)">รับชำระ {{ slipChoicesOf(m).suggested.order.code }}</button>
                   <button type="button" class="btn-outline h-9 shrink-0 px-3 text-xs" data-slip-pick @click="slipPick = m">{{ slipChoicesOf(m).suggested ? 'เลือกอื่น' : 'เลือกออร์เดอร์' }}</button>
                 </div>
               </div>
@@ -620,14 +621,14 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
     </AppModal>
 
     <!-- เลือกออร์เดอร์ให้สลิปที่รอผูก (โหมดแมนนวล): ที่แนะนำก่อน แล้วออร์เดอร์อื่นของลูกค้า -->
-    <AppModal v-if="slipPick" title="ผูกสลิปกับออร์เดอร์" @close="slipPick = null">
+    <AppModal v-if="slipPick" title="รับชำระจากสลิป" @close="slipPick = null">
       <div class="space-y-2">
-        <p class="text-sm text-stone-600">เลือกออร์เดอร์ที่สลิปนี้ชำระ · ยอดที่ผูกได้ = คงค้างหักยอดที่ลูกค้าแจ้งรอตรวจ</p>
+        <p class="text-sm text-stone-600">เลือกออร์เดอร์ที่สลิปนี้ชำระ · ยอดที่รับได้ = คงค้างหักยอดที่ลูกค้าแจ้งรอตรวจ</p>
         <p v-if="!chat.customerId" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">แชทนี้ยังไม่ผูกลูกค้า · ผูกลูกค้ากับแชทก่อน เพื่อดูออร์เดอร์อื่นของลูกค้าคนนั้น</p>
         <p v-else-if="!slipPickList.length" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">ลูกค้าคนนี้ไม่มีออร์เดอร์ที่ยังไม่ปิด</p>
         <button v-for="r in slipPickList" :key="r.order.id" type="button" class="block w-full rounded-xl border border-stone-200 bg-white p-3 text-left hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50" :disabled="!(r.room > 0)" data-slip-pick-order @click="openSlipBind(slipPick, r.order)">
           <span class="flex items-baseline justify-between gap-2"><span class="font-medium text-stone-900">{{ r.order.code }}</span><span class="text-xs text-stone-500">{{ STATUS[r.order.status]?.label || r.order.status }}</span></span>
-          <span class="mt-0.5 flex items-baseline justify-between gap-2 text-sm text-stone-600"><span>นัด {{ dateTime(r.order.pickupAt) }}</span><span v-if="r.room > 0">ผูกได้ {{ money(r.room) }}</span><span v-else>ผูกไม่ได้ (ชำระครบ/มียอดรอตรวจ)</span></span>
+          <span class="mt-0.5 flex items-baseline justify-between gap-2 text-sm text-stone-600"><span>นัด {{ dateTime(r.order.pickupAt) }}</span><span v-if="r.room > 0">รับได้ {{ money(r.room) }}</span><span v-else>รับไม่ได้ (ชำระครบ/มียอดรอตรวจ)</span></span>
         </button>
       </div>
     </AppModal>

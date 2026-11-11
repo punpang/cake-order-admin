@@ -13,7 +13,7 @@ export type SlipOutcome =
   | 'manual' // โหมดแมนนวล: เก็บสลิปไว้ให้พนักงานผูกออร์เดอร์เองในแชท (ยังไม่แนบ)
 
 export const SLIP_REASON_TH: Partial<Record<SlipOutcome, string>> = {
-  no_order: 'ยังไม่มีออร์เดอร์ในแชทนี้ — ผูกออร์เดอร์เองในแชท',
+  no_order: 'ยังไม่มีออร์เดอร์ในแชทนี้ — เลือกออร์เดอร์ในแชทแล้วรับชำระ',
   duplicate: 'สลิปนี้เคยส่งมาแล้ว — ไม่แนบซ้ำ',
   order_missing: 'ไม่พบออร์เดอร์ที่คุยกันล่าสุด',
   order_inactive: 'ออร์เดอร์ถูกยกเลิกหรือยังเป็นร่าง',
@@ -143,8 +143,8 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     })
     const amountNote = fields?.amount != null ? ` · ยอดจากสลิป ${fields.amount.toFixed(2)}` : ''
     await bell(sb, {
-      event: 'slip_check', title: 'สลิปในแชทรอผูกออร์เดอร์',
-      text: (sugCode ? `รอผูกกับ ${sugCode} หรือเลือกออร์เดอร์อื่นในแชท` : 'ยังไม่มีออร์เดอร์ที่คุยล่าสุด · เลือกออร์เดอร์ในแชท') + amountNote,
+      event: 'slip_check', title: 'สลิปในแชทรอรับชำระ',
+      text: (sugCode ? `รอรับชำระกับ ${sugCode} หรือเลือกออร์เดอร์อื่นในแชท` : 'ยังไม่มีออร์เดอร์ที่คุยล่าสุด · เลือกออร์เดอร์ในแชท') + amountNote,
       chatId, orderId: suggestedId,
     }, rand)
     return 'manual'
