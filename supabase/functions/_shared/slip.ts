@@ -59,7 +59,8 @@ function readSlipBody(body: string): { sendingBank: string; transRef: string } |
   const bank = sub.get('01') ?? ''
   const ref = sub.get('02') ?? ''
   if (!/^\d{3}$/.test(bank)) return null
-  if (!/^[A-Za-z0-9]{6,40}$/.test(ref)) return null
+  // เลขอ้างอิงของบางธนาคาร (เช่น กรุงไทย) เป็นรูปแบบ UUID มีขีด · ขีดถูกตัดตอนเทียบในฐานข้อมูล (normalizeRef)
+  if (!/^[A-Za-z0-9-]{6,40}$/.test(ref)) return null
   return { sendingBank: bank, transRef: ref }
 }
 
