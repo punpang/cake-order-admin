@@ -1,4 +1,4 @@
-import { runFbBot, offWindowStartMs, scrubPII } from './bot.ts'
+import { runFbBot, offWindowStartMs, scrubPII, decide, learnedMatch } from './bot.ts'
 import { normalizeMessages } from '../_shared/ai.ts'
 
 // ---- ฐานข้อมูลจำลองแบบ CAS (updated_at) ----
@@ -366,6 +366,46 @@ const aiLogs = (records: any[]) => records.filter((r) => r.collection === 'aiLog
     { role: 'assistant', content: 'ตอบ' },
   ])
   check('normalize: ตัด assistant นำหน้า และรวม user ติดกัน', n.length === 2 && n[0].role === 'user' && n[0].content.includes('เท่าไหร่') && n[1].role === 'assistant')
+}
+
+// 19) คำตอบที่พนักงานเคยตอบ (learned): จับคู่ · ข้ามข้อมูลส่วนตัว/ตัวแปร/เรื่องเงิน · ไม่ซ้ำข้อความล่าสุด
+{
+  const at = new Date('2026-11-11T03:00:00Z') // 10:00 น. เวลาไทย (ช่วงเปิดร้าน)
+  const shop = { open: '09:00', close: '18:00', closures: {} }
+  const L = (rows: any[]) => ({ learned: rows, offHours: { enabled: true } })
+  const good = L([{ id: 'bl1', q: 'ร้านอยู่ตรงไหนคะ', a: 'ร้านอยู่ซอยลาดพร้าว 5 ค่ะ' }])
+  const d1 = decide('ร้านอยู่ตรงไหนคะ', good, shop, { faq: [] }, at)
+  check('learned: คำถามคล้ายที่เคยเรียน → ใช้คำตอบนั้น (source=learned)', d1.source === 'learned' && d1.reply === 'ร้านอยู่ซอยลาดพร้าว 5 ค่ะ' && d1.learnedId === 'bl1')
+  const d2 = decide('โทร 0812345678 ร้านอยู่ตรงไหนคะ', good, shop, { faq: [] }, at)
+  check('learned: ข้อความมีเบอร์ → ไม่ใช้คู่ที่เรียน', d2.source !== 'learned' && learnedMatch('โทร 0812345678 ร้านอยู่ตรงไหนคะ', good) === null)
+  const ph = L([{ id: 'bl2', q: 'ติดต่อยังไงคะ', a: 'โทร {เบอร์} ค่ะ' }])
+  check('learned: คำตอบมีตัวแทนข้อมูล {…} → ข้าม', learnedMatch('ติดต่อยังไงคะ', ph) === null)
+  const money = L([{ id: 'bl3', q: 'คืนเงินได้ไหมคะ', a: 'คืนเงินได้ค่ะ' }])
+  check('learned: คำตอบเรื่องเงิน → ข้าม (ส่งต่อพนักงานตามเดิม)', decide('คืนเงินได้ไหมคะ', money, shop, { faq: [] }, at).source === 'handoff')
+  check('learned: ไม่ซ้ำกับข้อความบอทล่าสุด', decide('ร้านอยู่ตรงไหนคะ', good, shop, { faq: [] }, at, 'ร้านอยู่ซอยลาดพร้าว 5 ค่ะ').source !== 'learned')
+  check('learned: ไม่มีคู่ที่คล้าย → ไม่ใช้', learnedMatch('ทำเค้กรูปการ์ตูนได้ไหม', good) === null)
+}
+
+// 19ข) แชทจริง: คู่ที่เรียนในโหมดค่าเริ่มต้น → เก็บเป็นร่างให้พนักงานกดส่ง (ไม่ส่งเอง)
+{
+  fetchCalls = []; onDelay = null
+  const rows = [{ id: 'bl1', q: 'ร้านอยู่ตรงไหนคะ', a: 'ร้านอยู่ซอยลาดพร้าว 5 ค่ะ' }]
+  const kv = [shopCfg, { id: 'bot', collection: 'config', data: { v: { enabled: true, mode: 'auto', channels: { facebook: true }, rules: [], offHours: { enabled: true }, learned: rows } } }, sfRow]
+  const chats = [chatWith([inbound('L1', 'ร้านอยู่ตรงไหนคะ')])]
+  const sb = makeSb({ chats, kv, records: [] })
+  await runFbBot({ ...base, sb, mid: 'L1', text: 'ร้านอยู่ตรงไหนคะ' })
+  check('learned แชทจริง (ค่าเริ่มต้น): ไม่ส่งเอง · เก็บร่าง source=learned', fetchCalls.length === 0 && chats[0].data.botDraft?.source === 'learned' && chats[0].data.botDraft?.text === 'ร้านอยู่ซอยลาดพร้าว 5 ค่ะ')
+}
+
+// 19ค) แชทจริง: ตั้งโหมด learned เป็นอัตโนมัติ → ส่งผ่าน Graph
+{
+  fetchCalls = []; onDelay = null
+  const rows = [{ id: 'bl1', q: 'ร้านอยู่ตรงไหนคะ', a: 'ร้านอยู่ซอยลาดพร้าว 5 ค่ะ' }]
+  const kv = [shopCfg, { id: 'bot', collection: 'config', data: { v: { enabled: true, mode: 'suggest', channels: { facebook: true }, sourceModes: { learned: 'auto' }, rules: [], offHours: { enabled: true }, learned: rows } } }, sfRow]
+  const chats = [chatWith([inbound('L2', 'ร้านอยู่ตรงไหนคะ')])]
+  const sb = makeSb({ chats, kv, records: [] })
+  await runFbBot({ ...base, sb, mid: 'L2', text: 'ร้านอยู่ตรงไหนคะ' })
+  check('learned แชทจริง (ตั้ง auto): ส่งผ่าน Graph 1 ครั้ง', fetchCalls.length === 1)
 }
 
 console.log(fail === 0 ? 'ALL PASS' : `${fail} FAILED`)
