@@ -37,6 +37,22 @@ function sendState(m) {
   return `ส่งทาง ${channelLabel.value}`
 }
 const failed = (m) => mine(m) && (props.chat.channel === 'facebook' || props.chat.channel === 'instagram') && m.delivery === 'failed'
+// ผลตรวจสลิป QR ในรูปที่ลูกค้าส่ง (สถานะจาก _shared/slipjob.ts) · ยอดยังรอพนักงานตรวจเสมอ
+const SLIP_CHIP = {
+  matched: ['สลิปจับคู่กับออร์เดอร์แล้ว · รอตรวจยอด', 'bg-emerald-50 text-emerald-700'],
+  duplicate: ['สลิปนี้เคยส่งแล้ว · ไม่แนบซ้ำ', 'bg-rose-50 text-rose-700'],
+  no_order: ['สลิป QR · ยังไม่มีออร์เดอร์ในแชท (ผูกเองได้)', 'bg-amber-50 text-amber-700'],
+  order_missing: ['สลิป QR · ไม่พบออร์เดอร์ที่คุยล่าสุด', 'bg-amber-50 text-amber-700'],
+  order_inactive: ['สลิป QR · ออร์เดอร์เป็นร่างหรือถูกยกเลิก', 'bg-amber-50 text-amber-700'],
+  order_paid: ['สลิป QR · ออร์เดอร์ชำระครบแล้ว', 'bg-amber-50 text-amber-700'],
+  pending_exists: ['สลิป QR · มียอดรอตรวจของออร์เดอร์นี้อยู่แล้ว', 'bg-amber-50 text-amber-700'],
+  upload_failed: ['สลิป QR · บันทึกไฟล์ไม่สำเร็จ ให้ลูกค้าส่งใหม่', 'bg-rose-50 text-rose-700'],
+  busy: ['สลิป QR · ออร์เดอร์กำลังถูกแก้ไข ให้ลูกค้าส่งใหม่', 'bg-amber-50 text-amber-700'],
+}
+function slipChip(s) {
+  const [t, cls] = SLIP_CHIP[s?.status] || ['สลิป QR · ตรวจไม่ได้', 'bg-stone-100 text-stone-600']
+  return { t: s?.orderCode ? `${t} · ${s.orderCode}` : t, cls }
+}
 // Facebook เกิน 24 ชม. หลังลูกค้าทักล่าสุด → พิมพ์ตอบไม่ได้ (การ์ดออร์เดอร์/ยอดชำระยังส่งได้)
 const canType = computed(() => fbWindowOpen(props.chat))
 
@@ -381,6 +397,10 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
                 <div v-if="m.replyTo && byId(m.replyTo)" class="mb-1.5 rounded-lg border-l-2 px-2 py-1 text-xs leading-snug" :class="mine(m) ? 'border-white/60 bg-white/15 text-white/90' : 'border-brand-400 bg-stone-50 text-stone-500'">{{ snippet(byId(m.replyTo)) }}</div>
                 <ChatAttachment v-for="(a, k) in m.attachments || []" :key="k" :a="a" />
                 <template v-if="m.text">{{ m.text }}</template>
+              </div>
+              <!-- สลิป QR ในรูปที่ลูกค้าส่ง: ผลจับคู่อัตโนมัติ (ยอดยังรอพนักงานตรวจเสมอ) -->
+              <div v-if="m.slipCheck" class="mt-1 flex flex-wrap items-center gap-1 text-xs">
+                <span class="rounded-full px-2 py-0.5 font-medium" :class="slipChip(m.slipCheck).cls">{{ slipChip(m.slipCheck).t }}</span>
               </div>
               <!-- คำตอบของปุ่มถาม -->
               <div v-if="m.answerFor" class="mt-1 flex flex-wrap items-center gap-1 text-xs">

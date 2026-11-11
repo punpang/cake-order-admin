@@ -14,6 +14,7 @@ export const BELL_STAFF = {
   chat_inbound: { title: 'ข้อความใหม่จากลูกค้า', perms: ['chat'], tone: 'brand', to: (c) => (c.chatId ? `/admin/chat/${c.chatId}` : '/admin/chat') },
   notify_failed: { title: 'แจ้งลูกค้าไม่สำเร็จ', perms: ['chat', 'viewAllOrders'], tone: 'rose', to: (c) => (c.chatId ? `/admin/chat/${c.chatId}` : '/admin/chat') },
   bot_handoff: { title: 'บอทส่งต่อให้พนักงาน', perms: ['chat'], tone: 'amber', to: (c) => (c.chatId ? `/admin/chat/${c.chatId}` : '/admin/chat') },
+  slip_check: { title: 'สลิปในแชทรอตรวจเอง', perms: ['chat'], tone: 'amber', to: (c) => (c.chatId ? `/admin/chat/${c.chatId}` : '/admin/chat') },
   team_photo_optout: { title: 'ลูกค้าขอไม่เผยแพร่รูป', perms: ['manage'], tone: 'amber', to: () => '/admin/settings/photo-requests' },
   deletion_request: { title: 'คำขอลบข้อมูลลูกค้า', perms: ['manage'], tone: 'amber', to: () => '/admin/settings/deletion-requests' },
   team_coupon_shown: { title: 'ลูกค้าแสดงคูปองที่ร้าน', perms: ['pos'], tone: 'brand', to: () => '/admin/pos' },
