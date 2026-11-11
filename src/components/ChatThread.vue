@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { addCakeCodesToDraft, can, postOrderCard, db, findOrder, sendChat, markRead, findQuote, acceptQuote, reviseQuote, fbWindowOpen, convertQuote, chatOrderBlock, findCustomer, linkChat, askCustomer, cancelAsk, applyToDraft, ASK_FIELDS, saveCanned, removeCanned, sendBotDraft, dismissBotDraft, setChatBot, staffReplied, recommendText, addRecommendToDraft } from '../data/store'
+import { addCakeCodesToDraft, can, postOrderCard, db, findOrder, sendChat, markRead, findQuote, fbWindowOpen, convertQuote, chatOrderBlock, findCustomer, linkChat, askCustomer, cancelAsk, applyToDraft, ASK_FIELDS, saveCanned, removeCanned, sendBotDraft, dismissBotDraft, setChatBot, staffReplied, recommendText, addRecommendToDraft } from '../data/store'
 import { detectEntities } from '../lib/chatParse'
 import { CODE_RE, findCodes } from '../lib/cakeCode'
 import { extractIntent, customerText, scoreProducts, intentSummary } from '../lib/chatIntent'
@@ -106,24 +106,12 @@ function quoteView(m) {
   const lines = q.payload.items.flatMap((i) => discountLines(i.discounts, i.qty))
   return { q, t, lines }
 }
-const reviseFor = ref(null)
-const reviseText = ref('')
-const quoteError = ref('')
-function accept(q) {
-  const r = acceptQuote(q.id)
-  quoteError.value = r.error || ''
-}
 // ลูกค้ายืนยันแล้วแต่ยังไม่ผูก/ไม่มีเบอร์ → พนักงานผูก/ใส่เบอร์แล้วสร้างออร์เดอร์
 const block = computed(() => chatOrderBlock(props.chat.id))
 const convertError = ref('')
 function convert(q) {
   const r = convertQuote(q.id)
   convertError.value = r.error || ''
-}
-function sendRevise(q) {
-  reviseQuote(q.id, reviseText.value.trim())
-  reviseFor.value = null
-  reviseText.value = ''
 }
 // ---------- จับข้อมูลในข้อความลูกค้า (เบอร์ / วันที่ / เวลา) → กดกรอกลงร่าง ----------
 const ENT = { phone: { icon: 'phone', label: 'เบอร์' }, date: { icon: 'calendar', label: 'วันนัด' }, time: { icon: 'clock', label: 'เวลา' } }
@@ -241,28 +229,6 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
               <DiscountDetail :full="quoteView(m).t.fullAll" :final="quoteView(m).t.total" :lines="quoteView(m).lines" />
             </div>
             <div v-if="quoteView(m).t.vatMode" class="mt-1 text-right text-xs text-stone-400">{{ quoteView(m).t.vatMode === 'exclusive' ? `ยอดรวม VAT ${quoteView(m).t.vatRate}% (บวกเพิ่ม ${money(quoteView(m).t.vat)}) แล้ว` : `ราคารวม VAT ${quoteView(m).t.vatRate}% แล้ว (${money(quoteView(m).t.vat)})` }}</div>
-            <!-- ปุ่มที่ลูกค้าเห็นใน LINE/FB (ของจริงกดแล้วส่ง postback ผ่าน webhook) · ตอนนี้จำลองให้พนักงานกดแทน -->
-            <template v-if="quoteView(m).q.status === 'pending'">
-              <div class="mt-2 grid grid-cols-2 gap-2 opacity-70">
-                <span class="flex h-9 items-center justify-center rounded-lg border border-stone-200 text-sm text-stone-600">ขอแก้</span>
-                <span class="flex h-9 items-center justify-center rounded-lg bg-brand-600 text-sm font-semibold text-white">ยืนยันสั่ง</span>
-              </div>
-              <div class="mt-2 rounded-lg border border-dashed border-amber-300 bg-amber-50 p-2">
-              <div class="mb-1.5 text-xs font-semibold text-amber-700">จำลองลูกค้ากดใน {{ channelLabel }}</div>
-              <div v-if="reviseFor === quoteView(m).q.id" class="mt-2 space-y-2">
-                <input v-model="reviseText" class="input h-10" placeholder="อยากแก้อะไร (ไม่บังคับ)" />
-                <div class="flex gap-2">
-                  <button type="button" class="btn-outline h-9 flex-1" @click="reviseFor = null">ยกเลิก</button>
-                  <button type="button" class="btn-primary h-9 flex-1" @click="sendRevise(quoteView(m).q)">ส่งคำขอแก้</button>
-                </div>
-              </div>
-              <div v-else class="mt-2 flex gap-2">
-                <button type="button" class="btn-outline h-10 flex-1" @click="reviseFor = quoteView(m).q.id; reviseText = ''">ขอแก้</button>
-                <button type="button" class="btn-primary h-10 flex-[1.4]" @click="accept(quoteView(m).q)"><AppIcon name="check" :size="16" /> ยืนยันสั่ง</button>
-              </div>
-              <p v-if="quoteError" class="mt-1 text-xs text-rose-600">{{ quoteError }}</p>
-              </div>
-            </template>
             <!-- พนักงาน -->
             <template v-if="true">
               <RouterLink v-if="quoteView(m).q.orderId" :to="`/admin/orders/${quoteView(m).q.orderId}`" class="btn-soft mt-2 h-9 w-full text-sm">เปิดออร์เดอร์</RouterLink>
