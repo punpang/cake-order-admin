@@ -79,7 +79,7 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
         </ul>
         <p class="mt-1 text-xs text-stone-400">การส่งต่อพนักงาน และข้อความที่ยืนยันตัวตนไม่ได้ จะให้พนักงานตอบเสมอ · Facebook ส่งเองได้เฉพาะภายใน 24 ชม.</p>
       </div>
-      <div class="flex flex-wrap gap-4"><AppSwitch v-model="st.channels.line" label="LINE OA" /><AppSwitch v-model="st.channels.facebook" label="Facebook (ภายใน 24 ชม.)" /></div>
+      <div class="flex flex-wrap gap-4"><AppSwitch v-model="st.channels.line" label="LINE OA" /><AppSwitch v-model="st.channels.facebook" label="Facebook (ภายใน 24 ชม.)" /><AppSwitch v-model="st.channels.instagram" label="Instagram (ภายใน 24 ชม.)" /></div>
       <div class="space-y-3 rounded-xl border border-violet-200 bg-violet-50/40 p-3">
         <div class="flex items-center justify-between"><h3 class="font-semibold text-stone-900">บอท AI</h3><AppSwitch v-model="st.ai.enabled" label="เปิดบอท AI" /></div>
         <p class="text-xs text-stone-600">ใช้เฉพาะเมื่อกฎเดิมตอบไม่ได้ (ไม่รวมเรื่องเงิน ร้องเรียน และเลขออร์เดอร์ — ส่งต่อพนักงานเสมอ) · ใช้ได้เฉพาะ Facebook · ส่งไปยังผู้ให้บริการ AI (Claude API) เฉพาะข้อความปัจจุบันของลูกค้า พร้อมชื่อร้าน เวลาทำการ คำถามที่พบบ่อย และรายการสินค้าพร้อมราคา · ไม่ส่งประวัติแชท ชื่อ เบอร์ อีเมล หรือข้อมูลออร์เดอร์ ข้อความที่มีข้อมูลส่วนตัวจะไม่ส่งให้ AI เลย</p>

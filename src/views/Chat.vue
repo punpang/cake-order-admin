@@ -25,6 +25,7 @@ const customer = computed(() => (current.value ? findCustomer(current.value.cust
 const CH = {
   line: { l: 'LINE', cls: 'bg-[#06C755] text-white' },
   facebook: { l: 'Facebook', cls: 'bg-[#1877F2] text-white' },
+  instagram: { l: 'Instagram', cls: 'bg-gradient-to-tr from-[#f58529] via-[#dd2a7b] to-[#8134af] text-white' },
 }
 const nameOf = (c) => findCustomer(c.customerId)?.name || c.profileName
 const initial = (name) => (name || '?').replace(/^คุณ/, '').trim().charAt(0) || '?'
@@ -37,6 +38,7 @@ const FILTERS = [
   { v: '', l: 'ทั้งหมด' },
   { v: 'line', l: 'LINE' },
   { v: 'facebook', l: 'Facebook' },
+  { v: 'instagram', l: 'Instagram' },
   { v: 'unread', l: 'ยังไม่อ่าน' },
   { v: 'unlinked', l: 'ยังไม่ผูก' },
 ]
@@ -47,6 +49,7 @@ const counts = computed(() => {
     '': all.length,
     line: all.filter((c) => c.channel === 'line').length,
     facebook: all.filter((c) => c.channel === 'facebook').length,
+    instagram: all.filter((c) => c.channel === 'instagram').length,
     unread: all.filter((c) => c.unreadStaff).length,
     unlinked: all.filter((c) => !c.customerId).length,
   }
@@ -65,7 +68,7 @@ watch(q, (v) => {
 })
 const searchIndex = computed(() => (q.value.trim() ? buildChatIndex(db.chats, db.customers, db.orders, db.quotes) : null))
 const matched = computed(() => db.chats.filter((c) => {
-  if (filter.value === 'line' || filter.value === 'facebook') { if (c.channel !== filter.value) return false }
+  if (filter.value === 'line' || filter.value === 'facebook' || filter.value === 'instagram') { if (c.channel !== filter.value) return false }
   if (filter.value === 'unread' && !c.unreadStaff) return false
   if (filter.value === 'unlinked' && c.customerId) return false
   return !searchIndex.value || chatMatchesQuery(searchIndex.value, c.id, q.value)
@@ -82,7 +85,7 @@ onUnmounted(() => setChatFastPoll(false))
 const suggestions = computed(() => (current.value ? suggestCustomers(current.value, db.customers) : []))
 const detectedPhone = computed(() => (current.value && !current.value.customerId ? phonesInChat(current.value)[0] || '' : ''))
 // Facebook: ตอบได้อีกกี่ชั่วโมง
-const fbLeft = computed(() => (current.value?.channel === 'facebook' ? fbWindowLeft(current.value) : null))
+const fbLeft = computed(() => (['facebook', 'instagram'].includes(current.value?.channel) ? fbWindowLeft(current.value) : null))
 const last = (c) => {
   const m = c.messages[c.messages.length - 1]
   if (!m) return { text: 'ยังไม่มีข้อความ', at: c.updatedAt }
@@ -349,7 +352,7 @@ function doCreate() {
               <dt class="text-stone-500">เบอร์โทร</dt>
               <dd class="text-right" :class="customer?.phone ? 'text-stone-900' : 'text-stone-500'">{{ customer?.phone ? formatPhone(customer.phone) : detectedPhone ? `${formatPhone(detectedPhone)} (พบในแชท)` : 'ยังไม่มี' }}</dd>
             </div>
-            <div v-if="current.channel === 'facebook'" class="flex justify-between gap-3">
+            <div v-if="current.channel === 'facebook' || current.channel === 'instagram'" class="flex justify-between gap-3">
               <dt class="text-stone-500">ตอบได้</dt>
               <dd class="text-right" :class="fbLeft > 0 ? 'text-stone-900' : 'font-medium text-rose-700'">{{ fbLeft > 0 ? `อีก ${Math.ceil(fbLeft / 3600e3)} ชม.` : 'เกิน 24 ชม. แล้ว' }}</dd>
             </div>

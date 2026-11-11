@@ -47,6 +47,7 @@ export type BotInput = {
   text: string
   at: string // เวลาที่ลูกค้าส่ง (ISO)
   aiKey?: string // คีย์ Claude API (จาก secret ANTHROPIC_API_KEY) · ไม่มี → บอท AI ไม่ทำงาน
+  channel?: string // 'facebook' (ค่าเริ่มต้น) | 'instagram' · เปิดบอทแยกต่อช่องทางใน config.bot.channels
 }
 
 const lc = (s: unknown) => String(s ?? '').toLowerCase().trim()
@@ -322,7 +323,8 @@ async function orderReply(o: BotInput, customerId: string | null, text: string):
 // จุดเข้า: ตัดสินและทำงานของบอทสำหรับข้อความลูกค้าหนึ่งข้อความ · ล้มเหลวได้โดยไม่กระทบการรับข้อความ
 export async function runFbBot(o: BotInput): Promise<void> {
   const { bot, shop, storefront } = await loadConfig(o.sb)
-  if (!bot || bot.enabled !== true || bot.mode === 'off' || bot.channels?.facebook !== true) return
+  const ch = o.channel === 'instagram' ? 'instagram' : 'facebook'
+  if (!bot || bot.enabled !== true || bot.mode === 'off' || bot.channels?.[ch] !== true) return
   if (!shop?.open || !shop?.close) return
   const at = new Date(o.at)
   if (!(Date.now() - at.getTime() <= STALE_MS)) return

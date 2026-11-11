@@ -2454,7 +2454,7 @@ export const chatsOfCustomer = (customerId) => db.chats.filter((c) => c.customer
 export const chatFor = (customerId, channel = null) => db.chats.find((c) => c.customerId === customerId && (!channel || c.channel === channel)) || null
 // Facebook ตอบข้อความทั่วไปได้ภายใน 24 ชม. หลังลูกค้าทักล่าสุด
 export const fbWindowLeft = (chat) => (chat?.lastInboundAt ? 24 * 3600e3 - (Date.now() - new Date(chat.lastInboundAt).getTime()) : 0)
-export const fbWindowOpen = (chat) => chat?.channel !== 'facebook' || fbWindowLeft(chat) > 0
+export const fbWindowOpen = (chat) => !['facebook', 'instagram'].includes(chat?.channel) || fbWindowLeft(chat) > 0
 function newChat(channel, externalId, profileName) {
   const owner = db.customers.find((c) => c[idField(channel)] && c[idField(channel)] === externalId)
   const c = { id: uid('ch'), channel, externalId, profileName: profileName || 'ไม่ทราบชื่อ', customerId: owner?.id || null, messages: [], unreadStaff: 0, lastInboundAt: null, updatedAt: now(), pendingAsk: null }
@@ -2477,7 +2477,7 @@ export function sendChat(chatId, from, text, extra = {}) {
   // แชทล่าสุดขึ้นบนสุด
   db.chats.splice(db.chats.indexOf(c), 1)
   db.chats.unshift(c)
-  if (from === 'staff' && c.channel === 'facebook') {
+  if (from === 'staff' && (c.channel === 'facebook' || c.channel === 'instagram')) {
     if (m.kind === 'text') {
       if (extra.fbCard) deliverFb(c, m, extra.fbCard.text, extra.row, { card: extra.fbCard.card })
       else deliverFb(c, m, m.text, extra.row, hasImg ? { images: m.attachments.filter((a) => a.type === 'image' && a.path).map((a) => a.path) } : {})
@@ -2494,12 +2494,12 @@ function deliverFb(chat, m, text = m.text, row = null, opts = {}) {
     m.delivery = 'failed'; m.deliveryError = err || ''
     if (row) { row.status = 'failed'; row.error = err || '' }
     // ข้อความอัตโนมัติของระบบ (แจ้งลูกค้า) ส่งไม่ถึง → เตือนพนักงานให้ตามเอง
-    if (m.by === 'ระบบ') emitStaffBell('notify_failed', { text: `${chat.profileName || 'ลูกค้า'}: ส่งทาง Facebook ไม่สำเร็จ${err ? ` (${err})` : ''}`, chatId: chat.id })
+    if (m.by === 'ระบบ') emitStaffBell('notify_failed', { text: `${chat.profileName || 'ลูกค้า'}: ส่งทาง ${chat.channel === 'instagram' ? 'Instagram' : 'Facebook'} ไม่สำเร็จ${err ? ` (${err})` : ''}`, chatId: chat.id })
   }
-  if (!fbWindowOpen(chat)) return fail('เกิน 24 ชั่วโมงหลังลูกค้าทักล่าสุด ส่งทาง Messenger ไม่ได้')
+  if (!fbWindowOpen(chat)) return fail(`เกิน 24 ชั่วโมงหลังลูกค้าทักล่าสุด ส่งทาง ${chat.channel === 'instagram' ? 'Instagram' : 'Messenger'} ไม่ได้`)
   m.delivery = 'sending'
   if (row) row.status = 'sending'
-  fbHook.send(chat.externalId, text, opts).then((r) => {
+  fbHook.send(chat.externalId, text, { ...opts, channel: chat.channel }).then((r) => {
     if (!r.ok) return fail(r.error)
     m.delivery = 'sent'
     if (row) row.status = 'sent'
@@ -2524,7 +2524,7 @@ export function receiveMessage(channel, externalId, profileName, text, at = null
 // ผู้เรียกต้อง "จองสิทธิ์" ข้อความนี้ในฐานข้อมูลก่อน (กันหลายแท็บ/หลายพนักงานตอบซ้ำ) · ข้อความที่มีไฟล์แนบไม่ผ่านบอท (ให้พนักงานดูเอง)
 export function processInbound(chatId, mid) {
   const c = findChat(chatId)
-  if (!c || c.channel !== 'facebook' || !mid) return null
+  if (!c || !['facebook', 'instagram'].includes(c.channel) || !mid) return null
   const m = c.messages[c.messages.length - 1]
   if (!m || m.from !== 'customer' || m.fbMid !== mid) return null // มีข้อความใหม่กว่าแล้ว หรือไม่ใช่ข้อความนี้
   if (m.noBot || m.attachments?.length || !String(m.text || '').trim()) return null
@@ -2542,7 +2542,7 @@ export function processInbound(chatId, mid) {
 // ทำงานเมื่อมีข้อความจากลูกค้า (LINE/Facebook): suggest = เก็บร่างให้พนักงานกดส่ง · auto = ส่งเองหลังหน่วงเวลา (Facebook ต้องอยู่ในหน้าต่าง 24 ชม.)
 // ไม่แน่ใจ/เรื่องเงิน/ร้องเรียน/ยืนยันตัวตนไม่ได้ → ส่งต่อพนักงาน + แจ้ง Telegram · ข้อความลูกค้าประมวลผลในเบราว์เซอร์เท่านั้น
 // Facebook: บอทฝั่งเซิร์ฟเวอร์ (fb-webhook/bot.ts) ตอบแทนแล้ว → เบราว์เซอร์ไม่ตอบซ้ำ · LINE/อื่น ๆ ยังทำงานในเบราว์เซอร์
-const SERVER_BOT_CHANNELS = ['facebook']
+const SERVER_BOT_CHANNELS = ['facebook', 'instagram']
 const botOn = (c) => db.bot.enabled && db.bot.mode !== 'off' && !SERVER_BOT_CHANNELS.includes(c.channel) && !!db.bot.channels[c.channel] && !c.botOff
 function botDeliver(c, res) {
   if (res.prefix) sendChat(c.id, 'staff', res.prefix, { by: 'บอท' }) // ข้อความแจ้งร้านปิด (ส่งก่อนคำตอบ)
@@ -2689,7 +2689,7 @@ export function saveBotSettings(d) {
   b.enabled = !!d.enabled
   b.mode = ['suggest', 'auto'].includes(d.mode) ? d.mode : 'suggest'
   b.sourceModes = Object.fromEntries(AUTO_SOURCES.map((k) => [k, d.sourceModes?.[k] === 'auto' ? 'auto' : 'suggest']))
-  b.channels = { line: !!d.channels?.line, facebook: !!d.channels?.facebook }
+  b.channels = { line: !!d.channels?.line, facebook: !!d.channels?.facebook, instagram: !!d.channels?.instagram }
   b.confidence = Math.min(0.95, Math.max(0.3, Number(d.confidence) || 0.6))
   b.delaySec = Math.min(60, Math.max(0, Math.round(Number(d.delaySec) || 0)))
   b.offHours = { enabled: !!d.offHours?.enabled, text: String(d.offHours?.text ?? '').trim().slice(0, 300) || BOT_DEFAULTS.offHours.text }

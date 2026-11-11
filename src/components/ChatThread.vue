@@ -26,17 +26,17 @@ const text = ref('')
 const box = ref(null)
 const input = ref(null)
 const mine = (m) => m.from === 'staff'
-const channelLabel = computed(() => (props.chat.channel === 'facebook' ? 'Facebook' : 'LINE'))
-// สถานะการส่ง (Facebook ส่งจริงและมีสถานะ · LINE ไม่มีสถานะการส่ง)
+const channelLabel = computed(() => (props.chat.channel === 'facebook' ? 'Facebook' : props.chat.channel === 'instagram' ? 'Instagram' : 'LINE'))
+// สถานะการส่ง (Facebook/Instagram ส่งจริงและมีสถานะ · LINE ไม่มีสถานะการส่ง)
 function sendState(m) {
-  if (props.chat.channel === 'facebook') {
+  if (props.chat.channel === 'facebook' || props.chat.channel === 'instagram') {
     if (m.delivery === 'sending') return 'กำลังส่ง…'
     if (m.delivery === 'sent') return 'ส่งสำเร็จ'
     if (m.delivery === 'failed') return `ส่งไม่สำเร็จ${m.deliveryError ? `: ${m.deliveryError}` : ''}`
   }
   return `ส่งทาง ${channelLabel.value}`
 }
-const failed = (m) => mine(m) && props.chat.channel === 'facebook' && m.delivery === 'failed'
+const failed = (m) => mine(m) && (props.chat.channel === 'facebook' || props.chat.channel === 'instagram') && m.delivery === 'failed'
 // Facebook เกิน 24 ชม. หลังลูกค้าทักล่าสุด → พิมพ์ตอบไม่ได้ (การ์ดออร์เดอร์/ยอดชำระยังส่งได้)
 const canType = computed(() => fbWindowOpen(props.chat))
 
