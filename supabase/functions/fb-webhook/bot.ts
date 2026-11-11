@@ -4,7 +4,7 @@
 // เขียนใหม่สำหรับ Deno (ไม่คัดลอกจาก src/lib/chatBot.js ตรง ๆ) · กติกาให้ตรงกับ botReply ในส่วนที่ Phase 1 ทำ
 // ค่าตั้งอ่านจาก punpang_kv (collection 'config': bot, shop) · ไม่มีค่า → ไม่ทำงาน
 
-import { complete, type AiMsg } from '../_shared/ai.ts'
+import { complete } from '../_shared/ai.ts'
 
 const GRAPH = 'https://graph.facebook.com'
 const STALE_MS = 5 * 60_000 // ข้อความเก่ากว่านี้ (เช่น Meta ส่งซ้ำนาน ๆ) ไม่ตอบ
@@ -124,7 +124,6 @@ export function decide(text: string, bot: any, shop: any, storefront: any, at: D
 
 // ---- บอท AI (ไม่แน่ใจ → ถามโมเดล) ----
 const isSensitiveText = (t: string) => SENSITIVE.some((w) => lc(t).includes(w))
-const AI_HISTORY = 8 // ข้อความล่าสุดที่ส่งให้โมเดล
 const AI_CHAR_CAP = 500 // ตัดข้อความแต่ละข้อความก่อนส่ง
 const clampInt = (v: unknown, lo: number, hi: number, d: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d }
 
@@ -140,7 +139,25 @@ export function scrubPII(text: unknown, names: string[] = []): string {
 }
 
 // ข้อมูลร้านที่โมเดลเห็นได้: ชื่อ เวลาทำการ และคำถามที่พบบ่อย · ไม่มีข้อมูลออร์เดอร์ ลูกค้า หรือเงิน
-export function aiSystemPrompt(shop: any, storefront: any): string {
+// สินค้าพร้อมขาย (punpang_items · เฉพาะที่แสดงหน้าร้าน) และชื่อประเภท/เนื้อเค้กจากสำเนาสาธารณะ (shop_public · ไม่มีสูตรหรือต้นทุน)
+export type Catalog = { retail: { name: string; price: number; soldOut: boolean; desc: string }[]; types: string[]; flavors: string[] }
+const optNames = (groups: any, key: string): string[] =>
+  ((Array.isArray(groups) ? groups : []).find((g: any) => g?.key === key)?.options || [])
+    .filter((x: any) => x?.active !== false && x?.name).map((x: any) => String(x.name).slice(0, 60)).slice(0, 60)
+export async function loadCatalog(sb: any): Promise<Catalog | null> {
+  const [it, kv] = await Promise.all([
+    sb.from('punpang_items').select('id,name,price,active,data').eq('kind', 'retail').eq('active', true),
+    sb.from('punpang_kv').select('data').eq('collection', 'shop_public').eq('id', 'optionGroups').maybeSingle(),
+  ])
+  if (it.error || kv.error) return null
+  const retail = (it.data || []).filter((r: any) => r?.data?.showOnStore).slice(0, 80).map((r: any) => ({
+    name: String(r.name || '').slice(0, 80), price: Number(r.price) || 0, soldOut: r.data?.stock === 0, desc: String(r.data?.description || '').slice(0, 120),
+  }))
+  const groups = kv.data?.data?.v
+  return { retail, types: optNames(groups, 'type'), flavors: optNames(groups, 'flavor') }
+}
+
+export function aiSystemPrompt(shop: any, storefront: any, cat: Catalog): string {
   const faq = (Array.isArray(storefront?.faq) ? storefront.faq : [])
     .filter((f: any) => f?.q && f?.a).slice(0, 40)
     .map((f: any) => `ถาม: ${String(f.q).slice(0, 200)}\nตอบ: ${String(f.a).slice(0, 500)}`).join('\n')
@@ -153,15 +170,24 @@ export function aiSystemPrompt(shop: any, storefront: any): string {
     '',
     `ร้าน: ${String(shop?.name || 'ร้านเค้ก')} · เวลาทำการ ${shop?.open}–${shop?.close} น.`,
     faq ? `คำถามที่พบบ่อย:\n${faq}` : 'ยังไม่มีคำถามที่พบบ่อยที่ตั้งไว้',
-  ].join('\n')
+    'ราคาที่ตอบได้มีเฉพาะในรายการสินค้าด้านล่าง ห้ามคำนวณ ลดราคา หรือเดาราคาเอง',
+    'เค้กสั่งทำ: ไม่มีราคาในข้อมูลนี้ ถ้าถามราคาหรือขอใบเสนอราคาเค้กสั่งทำ ให้ตอบ [HANDOFF]',
+    'สินค้าพร้อมขาย (ราคาเป็นบาท):',
+    cat.retail.length ? cat.retail.map((p) => `• ${p.name} ${p.price} บาท${p.soldOut ? ' (หมดชั่วคราว)' : ''}${p.desc ? ` — ${p.desc}` : ''}`).join('\n') : 'ยังไม่มีสินค้าพร้อมขายที่เปิดหน้าร้าน',
+    cat.types.length ? `ประเภทเค้กสั่งทำ: ${cat.types.join(', ')}` : '',
+    cat.flavors.length ? `เนื้อเค้กสั่งทำ: ${cat.flavors.join(', ')}` : '',
+  ].filter(Boolean).join('\n')
 }
 
 // ลองให้ AI ตอบ · คืน Dec ประเภท 'ai' เมื่อได้คำตอบ · ไม่ได้ → คืนการส่งต่อเดิม (พร้อมเหตุผล)
-async function tryAi(o: BotInput, bot: any, shop: any, storefront: any, msgs0: any[], profileName: string, dec0: Dec): Promise<Dec> {
+async function tryAi(o: BotInput, bot: any, shop: any, storefront: any, profileName: string, dec0: Dec): Promise<Dec> {
   const cfg = bot.ai
   const skip = (why: string): Dec => ({ ...dec0, reason: `${dec0.reason} · ${why}` })
   if (!cfg || cfg.enabled !== true) return dec0
   if (isSensitiveText(o.text) || ORDER_RE.test(String(o.text))) return skip('ไม่ใช้ AI (เรื่องเงิน/เลขออร์เดอร์)')
+  // ข้อความที่มีข้อมูลส่วนตัว (เบอร์/อีเมล/เลขออร์เดอร์/เลขยาว/ชื่อลูกค้า) → ไม่ส่งให้ AI เลย (ตรวจก่อนนับเพดาน)
+  const full = String(o.text ?? '').trim()
+  if (scrubPII(full, [profileName].filter((x) => String(x || '').trim().length >= 2)) !== full) return skip('มีข้อมูลส่วนตัวในข้อความ — ไม่ส่งให้ AI')
   if (!o.aiKey) return skip('ยังไม่ได้ตั้งคีย์ AI')
   if ((cfg.provider || 'anthropic') !== 'anthropic') return skip('ผู้ให้บริการ AI นี้ยังไม่รองรับ')
   const model = String(cfg.model || 'claude-sonnet-5-5').slice(0, 80)
@@ -172,19 +198,16 @@ async function tryAi(o: BotInput, bot: any, shop: any, storefront: any, msgs0: a
   const took = await o.sb.rpc('punpang_ai_take', { p_day: day, p_limit: limit })
   if (took.error || took.data !== true) { await logAi(o, { status: 'limit', model }); return skip('ครบเพดาน AI วันนี้') }
 
-  const names = [profileName].filter(Boolean)
-  const hist: AiMsg[] = msgs0
-    .filter((x) => (x?.from === 'customer' || x?.from === 'staff') && x?.kind === 'text' && typeof x?.text === 'string')
-    .slice(-AI_HISTORY)
-    .map((x) => ({ role: x.from === 'customer' ? 'user' : 'assistant', content: scrubPII(x.text, names).slice(0, AI_CHAR_CAP) }))
-  if (!hist.length || hist[hist.length - 1].role !== 'user') hist.push({ role: 'user', content: scrubPII(o.text, names).slice(0, AI_CHAR_CAP) })
+  // ส่งให้โมเดลเฉพาะข้อความปัจจุบันของลูกค้า (ไม่ส่งประวัติแชท ชื่อลูกค้า หรือข้อความพนักงาน) + ข้อมูลร้าน/สินค้า
+  const catalog = await loadCatalog(o.sb)
+  if (!catalog) { await logAi(o, { status: 'error', model }); return skip('โหลดข้อมูลสินค้าไม่สำเร็จ') }
 
   const t0 = Date.now()
   let reply = ''
   try {
     reply = await complete({
       provider: 'anthropic', model, key: o.aiKey,
-      system: aiSystemPrompt(shop, storefront), messages: hist,
+      system: aiSystemPrompt(shop, storefront, catalog), messages: [{ role: 'user', content: full.slice(0, AI_CHAR_CAP) }],
       maxTokens: clampInt(cfg.maxTokens, 50, 1024, 400),
     })
   } catch {
@@ -261,7 +284,7 @@ export async function runFbBot(o: BotInput): Promise<void> {
   // ไม่แน่ใจ + เปิด AI → ให้โมเดลร่างคำตอบ (ข้ามถ้าเคยร่างข้อความนี้ไปแล้ว เพื่อไม่เรียกซ้ำ)
   const aiDone = d0.botDraft?.aiFor === o.mid
   const dec = dec0.unsure && bot.ai?.enabled === true && !aiDone
-    ? await tryAi(o, bot, shop, storefront, msgs0, String(d0.profileName || ''), dec0)
+    ? await tryAi(o, bot, shop, storefront, String(d0.profileName || ''), dec0)
     : dec0
   const isAi = dec.source === 'ai' && !dec.handoff
   const mode = isAi ? (bot.ai?.mode === 'auto' ? 'auto' : 'suggest') : (bot.sourceModes?.[dec.source] || bot.mode || 'suggest')
