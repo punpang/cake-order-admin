@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { runFbBot } from './bot.ts'
+import { checkSlipImage } from '../_shared/slipjob.ts'
 
 // รับข้อความ Messenger ของเพจที่เชื่อมไว้ (Webhook ของ Meta) → เขียนเข้าแชท (punpang_chats) + กระดิ่งทีม
 // GET: ยืนยัน webhook (hub.verify_token = secret FB_VERIFY_TOKEN) · POST: ตรวจลายเซ็น X-Hub-Signature-256 ด้วย FB_APP_SECRET
@@ -44,6 +45,7 @@ async function readLimited(res: Response): Promise<Uint8Array | null> {
 // → { list: ไฟล์ที่เก็บได้/ล้มเหลว, unsupported: มีชนิดที่ไม่รองรับ }
 async function saveAttachments(sb: any, psid: string, mid: string, atts: any[]) {
   const list: any[] = []
+  const imgs: Uint8Array[] = [] // รูปที่ใช้ตรวจสลิป QR (ในหน่วยความจำ · ไม่ใช่สติกเกอร์)
   let unsupported = false
   const safeMid = mid.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60) || rand(6)
   let i = 0
@@ -61,13 +63,14 @@ async function saveAttachments(sb: any, psid: string, mid: string, atts: any[]) 
       if (!res.ok || !ext) { list.push(fail); continue }
       const bytes = await readLimited(res)
       if (!bytes || !bytes.length) { list.push(fail); continue }
+      if (type === 'image' && !a?.payload?.sticker_id && imgs.length < 2) imgs.push(bytes)
       const path = `fb/${psid}/${safeMid}-${i++}.${ext}`
       const up = await sb.storage.from('punpang-chat').upload(path, bytes, { contentType: mime, upsert: true })
       if (up.error) { list.push(fail); continue }
       list.push({ type, path, mime, name: `${type}-${i}.${ext}`, size: bytes.length, ...(sticker ? { sticker } : {}) })
     } catch { list.push(fail) }
   }
-  return { list, unsupported }
+  return { list, unsupported, imgs }
 }
 const KIND_TH: Record<string, string> = { image: 'รูปภาพ', video: 'วิดีโอ', audio: 'เสียง', file: 'ไฟล์' }
 
@@ -95,6 +98,7 @@ Deno.serve(async (req) => {
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
   const pg = await sb.from('punpang_fb_pages').select('page_id,token').limit(1).maybeSingle()
   if (!pg.data) return text('no page') // ยังไม่ได้เชื่อมเพจ → ไม่ให้ Meta ส่งซ้ำ
+  const pageToken: string = pg.data.token // เก็บไว้ให้งานพื้นหลังใช้ (ตัวตรวจ null ไม่คงอยู่ในฟังก์ชันซ้อน)
   const ver = (Deno.env.get('FB_GRAPH_VERSION') || 'v24.0').trim()
   const botJobs: Promise<unknown>[] = []
 
@@ -112,7 +116,7 @@ Deno.serve(async (req) => {
       if (!/^\d{5,30}$/.test(psid) || !msg || msg.is_echo || String(ev?.recipient?.id) !== own) continue
       const mid = String(msg.mid || '')
       const caption = String(msg.text || '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim().slice(0, 2000)
-      const att = Array.isArray(msg.attachments) && msg.attachments.length ? await saveAttachments(sb, psid, mid, msg.attachments) : { list: [], unsupported: false }
+      const att = Array.isArray(msg.attachments) && msg.attachments.length ? await saveAttachments(sb, psid, mid, msg.attachments) : { list: [], unsupported: false, imgs: [] as Uint8Array[] }
       // ไม่มีข้อความและไม่มีไฟล์ที่แสดงได้ (เช่น ตำแหน่ง) → ข้อความแจ้ง · noBot = ไม่ให้บอทตอบ
       const txt = caption || (att.list.length ? '' : ATTACH_TEXT)
       const noBot = !caption && (att.list.length > 0 || att.unsupported)
@@ -122,6 +126,7 @@ Deno.serve(async (req) => {
 
       let done = false
       let fresh = false // ข้อความใหม่จริง (ไม่ใช่ข้อความซ้ำจาก Meta) → ให้บอทพิจารณาตอบ
+      let freshChatId = ''
       for (let i = 0; i < 4 && !done; i++) {
         const cur = await sb.from('punpang_chats').select('id,data,updated_at,customer_id').eq('channel', channel).eq('external_id', psid).maybeSingle()
         if (cur.error) return text('db error', 500) // ให้ Meta ส่งซ้ำ (กันซ้ำด้วย mid)
@@ -131,7 +136,7 @@ Deno.serve(async (req) => {
           const chat = { profileName: name || (isIg ? 'ลูกค้า Instagram' : 'ลูกค้า Facebook'), messages: [m], unreadStaff: 1, lastInboundAt: at, updatedAt: at, pendingAsk: null }
           const newId = `ch${rand(6)}`
           const ins = await sb.from('punpang_chats').insert({ id: newId, channel, external_id: psid, customer_id: null, data: chat })
-          if (!ins.error) { done = true; fresh = true; await bell(sb, `${chat.profileName}: ${label.slice(0, 60)}`, newId) } else if (ins.error.code !== '23505') return text('db error', 500)
+          if (!ins.error) { done = true; fresh = true; freshChatId = newId; await bell(sb, `${chat.profileName}: ${label.slice(0, 60)}`, newId) } else if (ins.error.code !== '23505') return text('db error', 500)
           continue // 23505 = มีแชทเกิดขึ้นพร้อมกัน → อ่านใหม่แล้วต่อท้าย
         }
         const d = cur.data.data || {}
@@ -140,15 +145,20 @@ Deno.serve(async (req) => {
         const next = { ...d, messages: [...msgs, m], unreadStaff: (Number(d.unreadStaff) || 0) + 1, lastInboundAt: at, updatedAt: at }
         const up = await sb.from('punpang_chats').update({ data: next }).eq('id', cur.data.id).eq('updated_at', cur.data.updated_at).select('id')
         if (up.error) return text('db error', 500)
-        if (up.data?.length) { done = true; fresh = true; await bell(sb, `${d.profileName || (isIg ? 'ลูกค้า Instagram' : 'ลูกค้า Facebook')}: ${label.slice(0, 60)}`, cur.data.id) }
+        if (up.data?.length) { done = true; fresh = true; freshChatId = cur.data.id; await bell(sb, `${d.profileName || (isIg ? 'ลูกค้า Instagram' : 'ลูกค้า Facebook')}: ${label.slice(0, 60)}`, cur.data.id) }
       }
       if (!done) return text('busy', 500) // ชนกันหลายครั้ง → ให้ Meta ส่งซ้ำ
+      // สลิป QR ในรูป (ข้อความใหม่เท่านั้น): อ่าน QR → จับคู่กับออร์เดอร์ที่คุยล่าสุด · ทำในพื้นหลังเหมือนบอท
+      if (fresh && freshChatId && att.imgs.length) {
+        const imgs = att.imgs
+        botJobs.push((async () => { for (const bytes of imgs) await checkSlipImage({ sb, chatId: freshChatId, msgId: m.id, bytes }) })().catch((e) => console.error('slip-check', (e as Error)?.message ?? 'error')))
+      }
       // บอทตอบแชท (ฝั่งเซิร์ฟเวอร์) · เฉพาะข้อความตัวอักษรใหม่ · ข้อผิดพลาดของบอทต้องไม่ทำให้ Meta ส่งซ้ำทั้งชุด
       // ทำงานหลังตอบ 200 แล้ว (EdgeRuntime.waitUntil) เพื่อไม่ให้หน่วงเวลาของบอททำให้ Meta ส่งซ้ำ
       if (fresh && !noBot && caption) {
         botJobs.push((async () => {
           const chatRow = await sb.from('punpang_chats').select('id').eq('channel', channel).eq('external_id', psid).maybeSingle()
-          if (chatRow.data?.id) await runFbBot({ sb, token: pg.data.token, ver, psid, chatId: chatRow.data.id, mid, text: caption, at, aiKey: Deno.env.get('ANTHROPIC_API_KEY') || '', channel })
+          if (chatRow.data?.id) await runFbBot({ sb, token: pageToken, ver, psid, chatId: chatRow.data.id, mid, text: caption, at, aiKey: Deno.env.get('ANTHROPIC_API_KEY') || '', channel })
         })().catch((e) => console.error('fb-bot', (e as Error)?.message ?? 'error')))
       }
     }
