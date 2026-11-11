@@ -17,6 +17,14 @@ Deno.test('สลิปธนาคารที่รูปแบบถูกต
   assertEquals(classifyThaiQr(SLIP_KBANK), { kind: 'slip', sendingBank: '004', transRef: 'A1B2C3D4E5F6G7H8' })
 })
 
+Deno.test('เลขอ้างอิงมีขีด (รูปแบบ UUID ของกรุงไทย) → slip และคงขีดไว้ในค่าที่อ่านได้', () => {
+  const uuidRef = '69120826-6f05-4e68-ba32-83ac8d182102'
+  const sub = `0006000001` + `0103006` + `02${String(uuidRef.length).padStart(2, '0')}${uuidRef}`
+  const root = `00${String(sub.length).padStart(2, '0')}${sub}` + '5102TH' + '9104'
+  const qr = root + crc16Ccitt(root)
+  assertEquals(classifyThaiQr(qr), { kind: 'slip', sendingBank: '006', transRef: uuidRef })
+})
+
 Deno.test('สลิปที่ถูกแก้ไขแม้ตัวเดียว → ไม่ใช่สลิป', () => {
   const tampered = SLIP_SCB.slice(0, 30) + (SLIP_SCB[30] === '1' ? '2' : '1') + SLIP_SCB.slice(31)
   assertEquals(classifyThaiQr(tampered).kind, 'other')
