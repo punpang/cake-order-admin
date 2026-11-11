@@ -27,7 +27,8 @@ import { supabaseEnabled, getSupabase } from '../lib/supabase'
 import { sendClick } from '../lib/clicksSync'
 import { createNumbering } from '../lib/docNo'
 import { staffState } from '../lib/staffAuth'
-import { remoteOrderAction } from '../lib/customerOrderRemote'
+import { remoteOrderAction, remoteReadSlip } from '../lib/customerOrderRemote'
+import { checkCustomerTxn, refTaken, bankByCode, PAY_MSG } from '../lib/payFields'
 import { callAuth, callLoyalty, readSessionToken, saveSessionToken, clearSessionToken, injectBundle, clearBundle } from '../lib/customerRemote'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
@@ -1793,7 +1794,7 @@ export function ctxOrder(ctx) {
 // ออร์เดอร์ที่โหลดมาจากเซิร์ฟเวอร์ (ธง _remote: ลิงก์ข้ามเครื่อง/บัญชีลูกค้า) — ฝั่งลูกค้าทำรายการผ่าน Edge Function customer-order (คืน Promise)
 const SLIP_OK = /^(data:image\/(png|jpe?g|webp|gif);base64,|blob:)/
 // ลูกค้าแจ้งชำระเอง (ไม่ต้องรอร้านแจ้งยอด) · แนบสลิป · แอดมินยืนยันเหมือนเดิม
-export function customerPay(ctx, { amount, slip, note = '', paymentId = null }) {
+export function customerPay(ctx, { amount, slip, note = '', paymentId = null, txnDate = '', txnTime = '', bankCode = '', ref = '' }) {
   const o = ctxOrder(ctx)
   if (!o) return { error: LINK_ERROR }
   const block = customerPayBlock(o)
@@ -1806,22 +1807,37 @@ export function customerPay(ctx, { amount, slip, note = '', paymentId = null }) 
   if (typeof slip !== 'string' || !SLIP_OK.test(slip)) return { error: 'แนบสลิปเป็นรูปภาพ (PNG / JPG / WEBP)' }
   if (slip.length > CUSTOMER_PAY.slipMaxChars) return { error: 'ไฟล์สลิปใหญ่เกินไป (ไม่เกิน 2 MB)' }
   const nt = String(note).trim().slice(0, CUSTOMER_PAY.noteMax)
-  if (o._remote) return remoteOrderAction(db, ctx, 'pay', { amount: amt, slip, note: nt, paymentId }) // Promise · เซิร์ฟเวอร์บันทึก/ออกเลข PAY
+  // วัน-เวลาที่โอน/ธนาคาร/เลขอ้างอิง: ตรวจรูปแบบและกติกาเบื้องต้นตรงนี้ · เซิร์ฟเวอร์ตรวจซ้ำและกันเลขอ้างอิงซ้ำทั้งระบบเสมอ
+  const txn = checkCustomerTxn({ txnDate, txnTime, bankCode, ref, createdAt: o.createdAt })
+  if (txn.error) return { error: txn.error }
+  if (o._remote) return remoteOrderAction(db, ctx, 'pay', { amount: amt, slip, note: nt, paymentId, txnDate, txnTime, bankCode: txn.value.bankCode, ref: txn.value.ref }) // Promise · เซิร์ฟเวอร์บันทึก/ออกเลข PAY
+  // โหมดจำลองไม่มีการอ่าน QR → ธนาคารต้องเลือกจากรายการ และเลขอ้างอิงห้ามซ้ำกับทุกออร์เดอร์
+  if (!bankByCode(txn.value.bankCode)) return { error: PAY_MSG.bank }
+  if (db.orders.some((x) => refTaken(x.payments, txn.value.ref))) return { error: PAY_MSG.refTaken }
+  const txnFields = { paidAt: txn.value.paidAt, bankCode: txn.value.bankCode, bankName: bankByCode(txn.value.bankCode).name, ref: txn.value.ref, refSource: 'typed' }
   let p = null
   if (paymentId) {
     p = o.payments.find((x) => x.id === paymentId)
     if (!p || p.status !== 'reported' || p.source === 'customer') return { error: 'ไม่พบยอดที่ร้านแจ้ง' }
     if (p.customerSubmitted) return { error: 'ส่งสลิปของยอดนี้แล้ว รอร้านตรวจสอบ' }
     if (dueState(p) === 'overdue') return { error: 'ยอดนี้เกินกำหนดชำระ กรุณากดขอขยายเวลาก่อน' }
-    Object.assign(p, { amount: amt, slip, note: nt, customerSubmitted: true, submittedAt: now(), paidAt: localNow() })
+    Object.assign(p, { amount: amt, slip, note: nt, customerSubmitted: true, submittedAt: now(), ...txnFields })
   } else {
-    p = { id: uid('pay'), code: numbering.next('PAY'), requested: amt, amount: amt, method: 'โอนเงิน', paidAt: localNow(), slip, note: nt, dueAt: '', extension: null, status: 'reported', source: 'customer', customerSubmitted: true, submittedAt: now(), createdAt: now(), reportedBy: 'customer', confirmedBy: null }
+    p = { id: uid('pay'), code: numbering.next('PAY'), requested: amt, amount: amt, method: 'โอนเงิน', slip, note: nt, dueAt: '', extension: null, status: 'reported', source: 'customer', customerSubmitted: true, submittedAt: now(), createdAt: now(), reportedBy: 'customer', confirmedBy: null, ...txnFields }
     o.payments.push(p)
   }
   log(o, `ลูกค้าแจ้งชำระ ${money(amt)} ผ่านหน้าออร์เดอร์ (รอตรวจสลิป)`)
   if (o.status === 'awaiting_payment') o.status = 'payment_reported'
   notify('team_customer_paid', { vars: { ...orderVars(o), ยอดที่แจ้ง: money(amt) }, orderId: o.id })
   return { ok: true, paymentId: p.id }
+}
+// อ่าน QR ในสลิปที่ลูกค้าแนบ (ออร์เดอร์ที่เชื่อมเซิร์ฟเวอร์) · โหมดจำลองอ่านไม่ได้ → ลูกค้ากรอกเองได้
+export function customerReadSlip(ctx, slip) {
+  const o = ctxOrder(ctx)
+  if (!o) return { error: LINK_ERROR }
+  if (typeof slip !== 'string' || !SLIP_OK.test(slip)) return { error: 'แนบสลิปเป็นรูปภาพ (PNG / JPG / WEBP)' }
+  if (o._remote) return remoteReadSlip(ctx, slip) // Promise
+  return { error: 'อ่านสลิปอัตโนมัติใช้ได้เมื่อเชื่อมต่อระบบออนไลน์' }
 }
 // ลูกค้าขอขยายเวลาชำระ (เมื่องวดเกินกำหนด)
 export function customerRequestExtension(ctx, paymentId, note = '') {
@@ -1837,10 +1853,6 @@ export function customerRequestExtension(ctx, paymentId, note = '') {
 export function customerOrderView(ctx) {
   const o = ctxOrder(ctx)
   return o ? publicOrderView(o, { owner: !!ctx.orderId }) : null
-}
-const localNow = () => {
-  const d = new Date()
-  return `${toDateStr(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 export function orderLinkUrl(token) {
   const base = typeof location !== 'undefined' ? `${location.origin}${location.pathname}` : ''

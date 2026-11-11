@@ -200,3 +200,32 @@ Deno.test('ไม่มีแถวแชท → chat_missing', async () => {
   const sb = fakeSb({ chats: [], orders: [order()] })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'chat_missing')
 })
+
+Deno.test('เลขอ้างอิงซ้ำกับรายการที่ยังไม่ยกเลิกของออร์เดอร์อื่น → ไม่แนบซ้ำ และบอกเลขออร์เดอร์ที่ใช้เลขนี้อยู่', async () => {
+  const other = { ...order(), id: 'o0', code: 'OR-111126-000009', data: { items: [], history: [], payments: [{ id: 'pz', code: 'PAY-111126-00000', status: 'confirmed', amount: 100, ref: 'A1B2C3D4E5F6G7H8' }] } }
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [other, order()] })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'duplicate')
+  assertEquals(sb.T.punpang_orders.find((o: any) => o.id === 'o1').data.payments.length, 0)
+  const msg = sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1')
+  assertEquals([msg.slipCheck.status, msg.slipCheck.orderCode], ['duplicate', 'OR-111126-000009'])
+})
+
+Deno.test('เลขอ้างอิงที่เคยอยู่ในรายการที่ยกเลิกแล้ว → แนบใหม่ได้', async () => {
+  const cancelled = order({ payments: [{ id: 'px', code: 'PAY-111126-00000', status: 'cancelled', amount: 540, ref: 'A1B2C3D4E5F6G7H8' }] })
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [cancelled] })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'matched')
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 2)
+})
+
+Deno.test('เวลาชำระของสลิปในแชท = เวลาที่ลูกค้าส่งข้อความ (เวลาไทย) และเก็บธนาคาร/เลขอ้างอิงจาก QR', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), { ...slipMsg, at: '2026-11-11T02:30:00.000Z' }])], orders: [order({ createdAt: '2026-11-11T08:00' })] })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'matched')
+  const p = sb.T.punpang_orders[0].data.payments[0]
+  assertEquals([p.paidAt, p.bankCode, p.bankName, p.ref, p.refSource], ['2026-11-11T09:30', '004', 'ธนาคารกสิกรไทย', 'A1B2C3D4E5F6G7H8', 'qr'])
+})
+
+Deno.test('ข้อความสลิปก่อนวันสร้างออร์เดอร์ → ใช้เวลาปัจจุบันแทน', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), { ...slipMsg, at: '2026-11-11T02:30:00.000Z' }])], orders: [order({ createdAt: '2026-11-11T11:00' })] })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'matched')
+  assertEquals(sb.T.punpang_orders[0].data.payments[0].paidAt, '2026-11-11T10:00')
+})

@@ -118,7 +118,7 @@ Deno.test('slipKeyOf: ไม่สนตัวพิมพ์ของเลข�
 })
 
 Deno.test('buildSlipPayment: รูปแบบเดียวกับยอดที่ลูกค้าแจ้งจากหน้าออร์เดอร์', () => {
-  const p = buildSlipPayment({ id: 'payX', code: 'PAY-111126-00001', amount: 600, slipRef: 'sb://punpang-slips/OR1/a.jpg', slipKey: '004:A1', paidAt: '2026-11-11T10:00', nowIso: '2026-11-11T03:00:00.000Z' })
+  const p = buildSlipPayment({ id: 'payX', code: 'PAY-111126-00001', amount: 600, slipRef: 'sb://punpang-slips/OR1/a.jpg', slipKey: '004:A1', paidAt: '2026-11-11T10:00', nowIso: '2026-11-11T03:00:00.000Z', bankCode: '004', bankName: 'ธนาคารกสิกรไทย', ref: 'A1' })
   assertEquals(p.status, 'reported')
   assertEquals(p.source, 'customer')
   assertEquals(p.customerSubmitted, true)
@@ -128,4 +128,5 @@ Deno.test('buildSlipPayment: รูปแบบเดียวกับยอด
   assertEquals(p.slip, 'sb://punpang-slips/OR1/a.jpg')
   assertEquals(p.slipKey, '004:A1')
   assertEquals(p.extension, null)
+  assertEquals([p.bankCode, p.bankName, p.ref, p.refSource], ['004', 'ธนาคารกสิกรไทย', 'A1', 'qr'])
 })

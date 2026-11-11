@@ -1,4 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { PAY_MSG, bankByCode, checkCustomerTxn, refTaken } from '../_shared/payfields.ts'
+import { readSlipQr } from '../_shared/slipread.ts'
 
 // การกระทำของลูกค้าบนออร์เดอร์ (ฝั่งเซิร์ฟเวอร์): แจ้งชำระ(แนบสลิป) · ขอขยายเวลา · ขอ/ยกเลิกขอไม่เผยแพร่รูป
 // ยืนยันตัวตนได้ 2 แบบ: ลิงก์ออร์เดอร์ (token 32 ตัวอักษร เก็บ hash ใน punpang_records) หรือเซสชันลูกค้า (+ orderId ที่เป็นของตัวเอง)
@@ -39,7 +41,6 @@ export function totals(o: any) {
 // เวลาในข้อมูลเป็นเวลาท้องถิ่นไทยไม่มีโซน ("YYYY-MM-DDTHH:mm") → ตีความเป็น +07:00
 const dueMs = (s: unknown) => { const v = String(s || ''); if (!v) return NaN; return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(v) ? v : `${v}${v.length === 16 ? ':00' : ''}+07:00`).getTime() }
 export const isOverdue = (p: any, nowMs = Date.now()) => p?.status === 'reported' && !!p.dueAt && dueMs(p.dueAt) < nowMs
-const localNow = () => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 16) // เวลาไทย YYYY-MM-DDTHH:mm
 const ddmmyy = () => { const d = new Date(Date.now() + 7 * 3600000); const p = (n: number) => String(n).padStart(2, '0'); return `${p(d.getUTCDate())}${p(d.getUTCMonth() + 1)}${p(d.getUTCFullYear() % 100)}` }
 
 // ตรวจชนิดไฟล์จากไบต์จริง (ไม่เชื่อ MIME ที่ลูกค้าส่งมา)
@@ -48,6 +49,18 @@ export function sniffImage(b: Uint8Array): { type: string; ext: string } | null 
   if (b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return { type: 'image/jpeg', ext: 'jpg' }
   if (b.length > 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return { type: 'image/webp', ext: 'webp' }
   return null
+}
+
+// ถอดรูปสลิปจาก data URL แล้วตรวจชนิดจากไบต์จริง · คืน { bytes, type, ext } หรือ { error }
+function decodeSlip(s: unknown): { bytes: Uint8Array; type: string; ext: string } | { error: string } {
+  const m = /^data:image\/(png|jpe?g|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(s ?? ''))
+  if (!m) return { error: 'แนบสลิปเป็นรูปภาพ (PNG / JPG / WEBP)' }
+  let bytes: Uint8Array
+  try { bytes = Uint8Array.from(atob(m[2]), (c) => c.charCodeAt(0)) } catch { return { error: 'ไฟล์สลิปไม่ถูกต้อง' } }
+  if (bytes.length > PAY.slipMaxBytes) return { error: 'ไฟล์สลิปใหญ่เกินไป (ไม่เกิน 5 MB)' }
+  const kind = sniffImage(bytes)
+  if (!kind) return { error: 'ไฟล์สลิปไม่ใช่รูปภาพที่รองรับ (PNG / JPG / WEBP)' }
+  return { bytes, type: kind.type, ext: kind.ext }
 }
 
 Deno.serve(async (req) => {
@@ -59,7 +72,7 @@ Deno.serve(async (req) => {
   try { b = await req.json() } catch { return json({ error: 'คำขอไม่ถูกต้อง' }, 400) }
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
   const action = String(b.action || '')
-  if (!['pay', 'extend', 'photo_optout', 'photo_optout_cancel'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
+  if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
 
   // ---------- ระบุออร์เดอร์ + ตรวจสิทธิ์ ----------
   let orderId = ''
@@ -83,6 +96,15 @@ Deno.serve(async (req) => {
     if (!s || new Date(s.expires_at).getTime() < Date.now()) return json({ error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' }, 401)
     customerIdOfSession = s.customer_id
     orderId = String(b.orderId ?? '')
+  }
+
+  // ---------- อ่าน QR จากรูปสลิป (ไม่เขียนข้อมูล) · ใช้เติมธนาคาร/เลขอ้างอิงในฟอร์มให้ลูกค้าตรวจก่อนส่ง ----------
+  if (action === 'read_slip') {
+    const ro = (await sb.from('punpang_orders').select('id,customer_id,status').eq('id', orderId).maybeSingle()).data
+    if (!ro || ro.status === 'draft' || (customerIdOfSession && ro.customer_id !== customerIdOfSession)) return json({ error: customerIdOfSession ? 'ไม่พบออร์เดอร์' : NOT_FOUND.error }, 404)
+    const img = decodeSlip(b.slip)
+    if ('error' in img) return json({ error: img.error }, 400)
+    return json({ ok: true, qr: await readSlipQr(img.bytes) })
   }
 
   // ---------- อ่าน-แก้-เขียนออร์เดอร์ (เทียบ updated_at ลองใหม่ได้ 3 ครั้ง) ----------
@@ -128,13 +150,22 @@ Deno.serve(async (req) => {
       const room = r2(t.balance - pendingSum)
       if (!(amt > 0)) return json({ error: 'กรอกยอดที่โอน' }, 400)
       if (amt > room + 1e-9) return json({ error: `ยอดเกินคงค้าง (ชำระได้ไม่เกิน ${room.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` }, 400)
-      const m = /^data:image\/(png|jpe?g|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(b.slip ?? ''))
-      if (!m) return json({ error: 'แนบสลิปเป็นรูปภาพ (PNG / JPG / WEBP)' }, 400)
-      let bytes: Uint8Array
-      try { bytes = Uint8Array.from(atob(m[2]), (c) => c.charCodeAt(0)) } catch { return json({ error: 'ไฟล์สลิปไม่ถูกต้อง' }, 400) }
-      if (bytes.length > PAY.slipMaxBytes) return json({ error: 'ไฟล์สลิปใหญ่เกินไป (ไม่เกิน 5 MB)' }, 400)
-      const kind = sniffImage(bytes)
-      if (!kind) return json({ error: 'ไฟล์สลิปไม่ใช่รูปภาพที่รองรับ (PNG / JPG / WEBP)' }, 400)
+      const img = decodeSlip(b.slip)
+      if ('error' in img) return json({ error: img.error }, 400)
+      const bytes = img.bytes
+      // QR ในรูปคือหลักฐานจริง: อ่านเป็นสลิปได้ → ค่าที่กรอกต้องตรงกับ QR · QR พร้อมเพย์ของร้านไม่ใช่สลิป
+      const qr = await readSlipQr(bytes)
+      if (qr.kind === 'promptpay') return json({ error: PAY_MSG.notSlip }, 400)
+      const txn = checkCustomerTxn({ txnDate: b.txnDate, txnTime: b.txnTime, bankCode: b.bankCode, ref: b.ref, createdAt: d.createdAt })
+      if ('error' in txn) return json({ error: txn.error }, 400)
+      const { paidAt, bankCode, ref } = txn.value
+      if (qr.kind === 'slip' && (qr.ref !== ref || qr.bankCode !== bankCode)) return json({ error: PAY_MSG.qrMismatch }, 400)
+      if (qr.kind !== 'slip' && !bankByCode(bankCode)) return json({ error: PAY_MSG.bank }, 400)
+      // เลขอ้างอิงห้ามซ้ำทั้งระบบ (รวมออร์เดอร์อื่น · รายการที่ยกเลิกแล้วใช้ซ้ำได้)
+      const seen = await sb.from('punpang_orders').select('id,data').contains('data', { payments: [{ ref }] })
+      if (seen.error) return json({ error: 'ตรวจเลขอ้างอิงไม่สำเร็จ กรุณาลองใหม่' }, 500)
+      if ((seen.data || []).some((r: any) => refTaken(r.data?.payments, ref))) return json({ error: PAY_MSG.refTaken }, 400)
+      const txnFields = { paidAt, bankCode, bankName: bankByCode(bankCode)?.name ?? null, ref, refSource: qr.kind === 'slip' ? 'qr' : 'typed' }
       const note = String(b.note ?? '').trim().slice(0, PAY.noteMax)
       const pid = b.paymentId ? String(b.paymentId) : ''
       let target: any = null
@@ -144,16 +175,16 @@ Deno.serve(async (req) => {
         if (target.customerSubmitted) return json({ error: 'ส่งสลิปของยอดนี้แล้ว รอร้านตรวจสอบ' }, 400)
       }
       // อัปโหลดสลิปก่อน (ล้มเหลว = ไม่แตะออร์เดอร์) · แนบซ้ำตอนลองใหม่ใช้ไฟล์เดิม
-      newSlipPath = `${row.id}/${randHex(16)}.${kind.ext}`
-      const up = await sb.storage.from('punpang-slips').upload(newSlipPath, bytes, { contentType: kind.type, upsert: false })
+      newSlipPath = `${row.id}/${randHex(16)}.${img.ext}`
+      const up = await sb.storage.from('punpang-slips').upload(newSlipPath, bytes, { contentType: img.type, upsert: false })
       if (up.error) return json({ error: 'อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่' }, 500)
-      const ref = `sb://punpang-slips/${newSlipPath}`
-      if (target) Object.assign(target, { amount: amt, slip: ref, note, customerSubmitted: true, submittedAt: nowIso(), paidAt: localNow() })
+      const slipRef = `sb://punpang-slips/${newSlipPath}`
+      if (target) Object.assign(target, { amount: amt, slip: slipRef, note, customerSubmitted: true, submittedAt: nowIso(), ...txnFields })
       else {
         const al = await sb.rpc('punpang_alloc_numbers_server', { p_prefix: 'PAY', p_day: ddmmyy(), p_n: 1 })
         if (al.error || !Number.isInteger(al.data)) { await sb.storage.from('punpang-slips').remove([newSlipPath]); return json({ error: 'ออกเลขรายการไม่สำเร็จ กรุณาลองใหม่' }, 500) }
         const code = `PAY-${ddmmyy()}-${String(al.data).padStart(5, '0')}`
-        target = { id: `pay${Date.now().toString(36)}${randHex(3)}`, code, requested: amt, amount: amt, method: 'โอนเงิน', paidAt: localNow(), slip: ref, note, dueAt: '', extension: null, status: 'reported', source: 'customer', customerSubmitted: true, submittedAt: nowIso(), createdAt: nowIso(), reportedBy: 'customer', confirmedBy: null }
+        target = { id: `pay${Date.now().toString(36)}${randHex(3)}`, code, requested: amt, amount: amt, method: 'โอนเงิน', slip: slipRef, note, dueAt: '', extension: null, status: 'reported', source: 'customer', customerSubmitted: true, submittedAt: nowIso(), createdAt: nowIso(), reportedBy: 'customer', confirmedBy: null, ...txnFields }
         d.payments.push(target)
       }
       logTo(d, `ลูกค้าแจ้งชำระ ${amt.toFixed(2)} ผ่านหน้าออร์เดอร์ (รอตรวจสลิป)`)
