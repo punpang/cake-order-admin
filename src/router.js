@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { customerSession, needsConsent, canAny, can } from './data/store'
 import { firstHome } from './lib/adminSystems'
+import { trackPageView } from './lib/pageViews'
 import NoAccess from './views/NoAccess.vue'
 // หน้าร้าน/บัญชีลูกค้า: โหลดเมื่อเปิดหน้านั้นเท่านั้น (ลดขนาดชุดโค้ดเริ่มต้น)
 const StoreHome = () => import('./views/store/StoreHome.vue')
@@ -94,6 +95,7 @@ const router = createRouter({
     { path: '/admin/pos', component: Pos, meta: { focus: true, perms: ['pos'], data: ['shifts'] } },
     { path: '/admin/materials', component: Materials, meta: { perms: ['viewMaterials'] } },
     { path: '/admin/production', component: Production, meta: { perms: ['viewMaterials'] } },
+    { path: '/admin/dashboard', component: () => import('./views/manage/ManageDashboard.vue'), meta: { perms: ['viewAllOrders'], data: ['ordersAll', 'chats'] } },
     { path: '/admin/settings', component: ManageHome, meta: { data: ['users'] } },
     { path: '/admin/settings/customers', component: ManageCustomers, meta: { data: ['ordersAll'] } },
     { path: '/admin/settings/promos', component: ManagePromos },
@@ -140,6 +142,11 @@ router.beforeEach(async (to) => {
   if (to.meta.customer && needsConsent().length) return '/account/consent'
   // กลุ่มข้อมูลของหน้า (โหลดครั้งแรกเมื่อเข้าหน้า แล้วคงไว้)
   if (to.meta.data && supabaseEnabled && staffState.staff) await ensureData(to.meta.data)
+})
+
+// นับการเข้าชมหน้าเว็บลูกค้า (หน้าร้านและบัญชีลูกค้า) · หลังบ้านไม่นับ
+router.afterEach((to) => {
+  if (to.meta?.store) trackPageView()
 })
 
 export default router

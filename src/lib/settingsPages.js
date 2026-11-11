@@ -1,5 +1,6 @@
 // รายการหน้าตั้งค่า (ใช้ทั้งหน้าการ์ดตั้งค่า และเมนูข้างของทุกหน้าย่อยบน PC) · perm = สิทธิ์ที่ต้องมี (ค่าเริ่มต้น manage)
 export const SETTINGS_PAGES = [
+  { to: '/admin/dashboard', icon: 'grid', title: 'ภาพรวมระบบ', perm: 'viewAllOrders' },
   { to: '/admin/settings/customers', icon: 'users', title: 'ลูกค้า' },
   { to: '/admin/settings/options', icon: 'tag', title: 'ตัวเลือก + ราคา' },
   { to: '/admin/settings/pricing', icon: 'wallet', title: 'การกำหนดราคา' },
