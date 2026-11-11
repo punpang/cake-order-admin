@@ -3,7 +3,7 @@ import { normalizeMessages } from '../_shared/ai.ts'
 
 // ---- ฐานข้อมูลจำลองแบบ CAS (updated_at) ----
 type Row = { id: string; data: any; updated_at: string }
-function makeSb(tables: { chats: Row[]; kv: any[]; records: any[]; items?: any[] }) {
+function makeSb(tables: { chats: Row[]; kv: any[]; records: any[]; items?: any[]; orders?: any[] }) {
   let ver = 0
   const bump = () => new Date(Date.now() + ++ver).toISOString()
   const counts: Record<string, number> = {} // ตัวนับ punpang_ai_take ต่อวัน (จำลองฟังก์ชันอะตอมิก)
@@ -26,12 +26,17 @@ function makeSb(tables: { chats: Row[]; kv: any[]; records: any[]; items?: any[]
         eq(c: string, v: any) { f[c] = v; return q },
         in(c: string, vs: any[]) { f[c + '_in'] = vs; return q },
         limit() { return q },
+        order() { return q },
         maybeSingle() { single = true; return q },
         update(p: any) { mode = 'update'; payload = p; return q },
         insert(p: any) { mode = 'insert'; payload = p; return q },
         then(res: any, rej: any) {
           const run = async () => {
             if (table === 'punpang_items') return { data: tables.items ?? [], error: null }
+            if (table === 'punpang_orders') {
+              const rows = (tables.orders ?? []).filter((r) => (f.code === undefined || r.code === f.code) && (f.customer_id === undefined || r.customer_id === f.customer_id))
+              return single ? { data: rows[0] ?? null, error: null } : { data: rows, error: null }
+            }
             if (table === 'punpang_kv') {
               const rows = tables.kv.filter((r) => (!f.collection || r.collection === f.collection) && (!f.id || r.id === f.id) && (!f.id_in || f.id_in.includes(r.id)))
               return single ? { data: rows[0] ?? null, error: null } : { data: rows, error: null }
@@ -305,6 +310,51 @@ const aiLogs = (records: any[]) => records.filter((r) => r.collection === 'aiLog
   const b = mkAi('ฉันคือลูกค้าทดสอบ มีบริการจัดส่งไหม', 'a12'); await runFbBot({ ...base, sb: b.sb, mid: 'a12', text: 'ฉันคือลูกค้าทดสอบ มีบริการจัดส่งไหม', aiKey: 'key-x' })
   check('มีเบอร์/ชื่อลูกค้า: ไม่เรียก AI', aiCalls.length === 0)
   check('มีเบอร์/ชื่อลูกค้า: ส่งต่อพนักงาน', a.chats[0].data.botHandoff === true && b.chats[0].data.botHandoff === true)
+}
+
+// 17ง) สถานะออร์เดอร์: ตอบจากกฎ ไม่เรียก AI · เฉพาะแชทที่ผูกลูกค้าและออร์เดอร์เป็นของลูกค้าคนนั้น
+{
+  const orders = [
+    { code: 'OR-260101-000001', customer_id: 'cu1', status: 'preparing', fulfillment: 'pickup', pickup_at: '2026-11-12T03:00:00Z', balance: 150 },
+    { code: 'OR-260101-000002', customer_id: 'cu2', status: 'shipping', fulfillment: 'delivery', pickup_at: '2026-11-12T05:00:00Z', balance: 0 },
+  ]
+  const mkOrd = (text: string, mid: string, customerId: string | null) => {
+    const chats = [{ ...chatWith([inbound(mid, text)]), customer_id: customerId }]
+    const records: any[] = []
+    return { sb: makeSb({ chats, kv: [shopAlways, botCfg, sfRow], records, orders }), chats }
+  }
+  // ออร์เดอร์ของตัวเอง (ผูกแชทแล้ว) → ตอบสถานะ นัดรับ ยอดคงค้าง ไม่เรียก AI
+  resetAi()
+  const a = mkOrd('เช็คออร์เดอร์ OR-260101-000001 หน่อยค่ะ', 'o1', 'cu1')
+  await runFbBot({ ...base, sb: a.sb, mid: 'o1', text: 'เช็คออร์เดอร์ OR-260101-000001 หน่อยค่ะ', aiKey: 'key-x' })
+  const sent = fetchCalls[0]?.message?.text || ''
+  check('สถานะออร์เดอร์: ตอบของตัวเองด้วยสถานะ', fetchCalls.length === 1 && sent.includes('OR-260101-000001') && sent.includes('สถานะ: กำลังเตรียม'))
+  check('สถานะออร์เดอร์: มีวันนัดรับและยอดคงค้าง', sent.includes('นัดรับ') && sent.includes('ยอดคงค้าง 150.00 ฿'))
+  check('สถานะออร์เดอร์: ไม่ส่งข้อมูลให้ AI', aiCalls.length === 0)
+
+  // ออร์เดอร์ของคนอื่น → ไม่เปิดเผย ส่งต่อพนักงาน
+  resetAi()
+  const b = mkOrd('เช็คออร์เดอร์ OR-260101-000002', 'o2', 'cu1')
+  await runFbBot({ ...base, sb: b.sb, mid: 'o2', text: 'เช็คออร์เดอร์ OR-260101-000002', aiKey: 'key-x' })
+  check('ออร์เดอร์คนอื่น: ไม่ตอบสถานะ และส่งต่อพนักงาน', fetchCalls.length === 0 && b.chats[0].data.botHandoff === true)
+
+  // แชทยังไม่ผูกลูกค้า → ไม่ตอบสถานะ
+  resetAi()
+  const c = mkOrd('เช็คออร์เดอร์ OR-260101-000001', 'o3', null)
+  await runFbBot({ ...base, sb: c.sb, mid: 'o3', text: 'เช็คออร์เดอร์ OR-260101-000001', aiKey: 'key-x' })
+  check('แชทไม่ผูกลูกค้า: ไม่ตอบสถานะ', fetchCalls.length === 0 && c.chats[0].data.botHandoff === true)
+
+  // ถามสถานะโดยไม่มีเลขออร์เดอร์ → ตอบออร์เดอร์ที่ผูกกับแชท
+  resetAi()
+  const d = mkOrd('ออร์เดอร์ของฉันถึงไหนแล้วคะ', 'o4', 'cu1')
+  await runFbBot({ ...base, sb: d.sb, mid: 'o4', text: 'ออร์เดอร์ของฉันถึงไหนแล้วคะ', aiKey: 'key-x' })
+  check('ถามสถานะไม่มีเลข: ตอบออร์เดอร์ของลูกค้าคนนี้', fetchCalls.length === 1 && fetchCalls[0].message.text.includes('OR-260101-000001') && !fetchCalls[0].message.text.includes('OR-260101-000002'))
+
+  // เรื่องเงินที่พูดถึงออร์เดอร์ → ไม่ตอบจากกฎสถานะ ส่งต่อพนักงาน
+  resetAi()
+  const e = mkOrd('ขอคืนเงินออร์เดอร์ OR-260101-000001', 'o5', 'cu1')
+  await runFbBot({ ...base, sb: e.sb, mid: 'o5', text: 'ขอคืนเงินออร์เดอร์ OR-260101-000001', aiKey: 'key-x' })
+  check('เรื่องเงิน+ออร์เดอร์: ส่งต่อพนักงาน ไม่ตอบสถานะ', fetchCalls.length === 0 && e.chats[0].data.botHandoff === true)
 }
 
 // 18) จัดลำดับข้อความให้ตรงกติกาของ Messages API (เริ่มด้วย user · สลับ role)
