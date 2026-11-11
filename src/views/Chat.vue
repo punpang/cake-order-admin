@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { db, can, findCustomer, findChat, draftOf, hasDraft, clearDraft, linkChat, createCustomerFromChat, receiveMessage, fbWindowLeft } from '../data/store'
+import { db, can, findCustomer, findChat, draftOf, hasDraft, clearDraft, linkChat, createCustomerFromChat, fbWindowLeft } from '../data/store'
 import OrderCreate from './OrderCreate.vue'
 import { formatPhone, phoneDigits, phoneValid, timeOnly, dateOnly, toDateStr } from '../lib/format'
 import PhoneInput from '../components/PhoneInput.vue'
@@ -15,8 +14,7 @@ import { suggestCustomers, phonesInChat } from '../lib/chatLink'
 import { buildChatIndex, chatMatchesQuery, remoteSearchKeys } from '../lib/chatSearch'
 import { chatRemote } from '../lib/chatSync'
 
-// ศูนย์รวมแชท LINE OA + Facebook (จำลอง: ของจริงรับ webhook / ส่งผ่าน API): ซ้าย = รายการแชท, ขวา = เธรด (มือถือแสดงทีละหน้า)
-const router = useRouter()
+// ศูนย์รวมแชท LINE OA + Facebook (ข้อความเข้าจาก webhook / ส่งผ่าน API): ซ้าย = รายการแชท, ขวา = เธรด (มือถือแสดงทีละหน้า)
 const props = defineProps({ id: { type: String, default: '' } })
 const current = computed(() => (props.id ? findChat(props.id) : null))
 // แชทที่เปิดจากลิงก์/การแจ้งเตือน แต่ยังไม่อยู่ในชุดล่าสุดในเครื่อง → ดึงมาก่อน
@@ -119,21 +117,6 @@ function doCreate() {
   linkOpen.value = false
 }
 
-// จำลองข้อความเข้า (แทน webhook จนกว่าจะต่อจริง)
-const simOpen = ref(false)
-const sim = ref({ channel: 'line', name: '', text: '' })
-function openSim(forCurrent) {
-  sim.value = forCurrent && current.value ? { channel: current.value.channel, name: current.value.profileName, text: '', chat: current.value } : { channel: 'line', name: '', text: '', chat: null }
-  simOpen.value = true
-}
-function doSim() {
-  const v = sim.value
-  if (!v.text.trim()) return
-  const ext = v.chat ? v.chat.externalId : `${v.channel === 'line' ? 'U' : 'PSID'}-sim-${Date.now()}`
-  const c = receiveMessage(v.channel, ext, v.chat ? v.chat.profileName : v.name.trim() || 'ลูกค้าใหม่', v.text)
-  simOpen.value = false
-  if (!v.chat) router.push(`/admin/chat/${c.id}`)
-}
 </script>
 
 <template>
@@ -146,7 +129,6 @@ function doSim() {
       <aside class="flex min-h-0 flex-col border-stone-200 md:border-r" :class="[current ? 'hidden md:flex' : 'flex', panelOpen ? 'lg:hidden xl:flex' : '']">
         <div class="flex items-center gap-2 border-b border-stone-200 p-3">
           <h1 class="page-title flex-1">แชท <span class="text-xs font-normal text-stone-400">LINE OA · Facebook</span></h1>
-          <button type="button" class="h-9 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-2.5 text-xs font-medium text-amber-800" @click="openSim(false)">จำลองข้อความเข้า</button>
         </div>
         <div class="border-b border-stone-200 p-2">
           <label class="relative block">
@@ -199,7 +181,6 @@ function doSim() {
               <template v-if="fbLeft !== null"> · <span :class="fbLeft > 0 ? 'text-stone-500' : 'text-rose-600'">{{ fbLeft > 0 ? `ตอบได้อีก ${Math.ceil(fbLeft / 3600e3)} ชม.` : 'เกิน 24 ชม.' }}</span></template>
             </div>
           </div>
-          <button type="button" class="hidden h-9 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-2.5 text-xs font-medium text-amber-800 sm:inline-flex sm:items-center" @click="openSim(true)">จำลองลูกค้าพิมพ์</button>
           <button v-if="openOrders.length" type="button" class="btn-outline h-9 px-3 text-sm" @click="ordersOpen = true">ออร์เดอร์ {{ openOrders.length }}</button>
           <button v-if="can('createOrder')" type="button" class="relative hidden h-9 px-3 text-sm lg:inline-flex" :class="panelOpen ? 'btn-outline' : 'btn-primary'" @click="togglePanel">
             <AppIcon :name="panelOpen ? 'x' : 'plus'" :size="16" /> {{ panelOpen ? 'ปิดแผงออร์เดอร์' : 'ลงออร์เดอร์' }}
@@ -233,9 +214,8 @@ function doSim() {
       <section v-else class="hidden items-center justify-center bg-stone-50 text-sm text-stone-400 md:flex">เลือกแชททางซ้าย</section>
     </div>
     <p v-show="!kb.open" class="mt-1.5 shrink-0 text-center text-xs text-stone-400">
-      <template v-if="db.integrations.line.status !== 'connected' && db.integrations.facebook.status !== 'connected'">ยังไม่ได้เชื่อม LINE OA / Facebook · <RouterLink v-if="can('manage')" to="/admin/settings/integrations" class="text-brand-700 underline">ไปเชื่อม</RouterLink> · </template>
-      <template v-else>เชื่อมแล้ว: {{ [db.integrations.line.status === 'connected' ? `LINE ${db.integrations.line.accountName}` : '', db.integrations.facebook.status === 'connected' ? `Facebook ${db.integrations.facebook.accountName}` : ''].filter(Boolean).join(' · ') }} · </template>
-      จำลอง (ทดสอบด้วยปุ่ม "จำลองข้อความเข้า")
+      <template v-if="db.integrations.line.status !== 'connected' && db.integrations.facebook.status !== 'connected'">ยังไม่ได้เชื่อม LINE OA / Facebook · <RouterLink v-if="can('manage')" to="/admin/settings/integrations" class="text-brand-700 underline">ไปเชื่อม</RouterLink></template>
+      <template v-else>เชื่อมแล้ว: {{ [db.integrations.line.status === 'connected' ? `LINE ${db.integrations.line.accountName}` : '', db.integrations.facebook.status === 'connected' ? `Facebook ${db.integrations.facebook.accountName}` : ''].filter(Boolean).join(' · ') }}</template>
     </p>
 
     <!-- ออร์เดอร์ของลูกค้า -->
@@ -275,22 +255,5 @@ function doSim() {
       </div>
     </AppModal>
 
-    <!-- จำลองข้อความเข้า -->
-    <AppModal v-if="simOpen" :title="sim.chat ? `จำลอง: ${sim.chat.profileName} พิมพ์` : 'จำลองข้อความเข้า'" @close="simOpen = false">
-      <div class="space-y-3">
-        <p class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">ของจริงข้อความจะเข้ามาเองจาก LINE OA / Facebook (webhook)</p>
-        <template v-if="!sim.chat">
-          <div class="grid grid-cols-2 gap-1 seg-grid">
-            <button v-for="(c, k) in CH" :key="k" type="button" class="h-9 rounded-lg text-sm font-medium" :class="sim.channel === k ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="sim.channel = k">{{ c.l }}</button>
-          </div>
-          <div><label class="label">ชื่อโปรไฟล์</label><input v-model="sim.name" class="input" placeholder="เช่น Ploy" /></div>
-        </template>
-        <div><label class="label">ข้อความ</label><textarea v-model="sim.text" rows="2" class="input" /></div>
-      </div>
-      <template #footer>
-        <button class="btn-outline flex-1 sm:flex-none" @click="simOpen = false">ยกเลิก</button>
-        <button class="btn-primary flex-1 sm:flex-none" :disabled="!sim.text.trim()" @click="doSim">ส่งเข้า</button>
-      </template>
-    </AppModal>
   </div>
 </template>

@@ -5,7 +5,7 @@
 
 ลำดับที่จะทำจริง: **Telegram → LINE OA → SMS → Facebook Page**
 
-**ศูนย์รวมแชท** (หน้า /chat หลังบ้าน) รวมแชทจาก LINE OA และ Facebook Page ไว้ตอบที่เดียว ลูกค้าไม่ต้องเข้าเว็บ ตอนนี้จำลอง (ปุ่ม "จำลองข้อความเข้า") ต่อจริงด้วย webhook → ตาราง `conversations` / `messages` และตอบผ่าน LINE Reply/Push API, Facebook Send API · การ์ดใบเสนอส่งเป็น LINE Flex / Facebook button template ปุ่ม "ยืนยันสั่ง / ขอแก้" เป็น postback กลับมาที่ webhook แล้วสร้างออร์เดอร์อัตโนมัติ · คนที่ทักครั้งแรกขึ้นชื่อโปรไฟล์ + "ยังไม่ผูก" พนักงานผูกกับลูกค้า (จำ userId/PSID)
+**ศูนย์รวมแชท** (หน้า /chat หลังบ้าน) รวมแชทจาก LINE OA และ Facebook Page ไว้ตอบที่เดียว ลูกค้าไม่ต้องเข้าเว็บ ข้อความเข้าจริงมาจาก webhook (ไม่มีปุ่มจำลองข้อความเข้าแล้ว) ต่อด้วย webhook → ตาราง `conversations` / `messages` และตอบผ่าน LINE Reply/Push API, Facebook Send API · การ์ดใบเสนอส่งเป็น LINE Flex / Facebook button template ปุ่ม "ยืนยันสั่ง / ขอแก้" เป็น postback กลับมาที่ webhook แล้วสร้างออร์เดอร์อัตโนมัติ · คนที่ทักครั้งแรกขึ้นชื่อโปรไฟล์ + "ยังไม่ผูก" พนักงานผูกกับลูกค้า (จำ userId/PSID)
 
 ## ใช้ทำอะไร
 
