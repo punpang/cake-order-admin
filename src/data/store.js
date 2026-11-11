@@ -2716,6 +2716,7 @@ export function saveBotSettings(d) {
     provider: 'anthropic', // รองรับ Claude API ก่อน · ผู้ให้บริการอื่นเพิ่มภายหลังในเซิร์ฟเวอร์
     model: AI_MODELS.includes(ai.model) ? ai.model : BOT_DEFAULTS.ai.model, // เลือกได้เฉพาะรายการโมเดลที่กำหนด
     mode: ai.mode === 'auto' ? 'auto' : 'suggest',
+    dataMode: ai.dataMode === 'full' ? 'full' : 'basic', // basic = เฉพาะข้อความ+ข้อมูลร้าน · full = 100% (ตอบได้ทุกเรื่อง รวมออร์เดอร์ของลูกค้าคนนั้นเมื่อถามเรื่องออร์เดอร์ และเรื่องออร์เดอร์เป็นร่างเสมอ)
     dailyLimit: Math.min(1000, Math.max(0, Math.round(Number(ai.dailyLimit) || 0))),
     maxTokens: Math.min(1024, Math.max(50, Math.round(Number(ai.maxTokens) || BOT_DEFAULTS.ai.maxTokens))),
   }

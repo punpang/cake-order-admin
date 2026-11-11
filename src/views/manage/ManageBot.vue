@@ -82,7 +82,16 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
       <div class="flex flex-wrap gap-4"><AppSwitch v-model="st.channels.line" label="LINE OA" /><AppSwitch v-model="st.channels.facebook" label="Facebook (ภายใน 24 ชม.)" /><AppSwitch v-model="st.channels.instagram" label="Instagram (ภายใน 24 ชม.)" /></div>
       <div class="space-y-3 rounded-xl border border-violet-200 bg-violet-50/40 p-3">
         <div class="flex items-center justify-between"><h3 class="font-semibold text-stone-900">บอท AI</h3><AppSwitch v-model="st.ai.enabled" label="เปิดบอท AI" /></div>
-        <p class="text-xs text-stone-600">ใช้เฉพาะเมื่อกฎเดิมตอบไม่ได้ (ไม่รวมเรื่องเงิน ร้องเรียน และเลขออร์เดอร์ — ส่งต่อพนักงานเสมอ) · ใช้ได้เฉพาะ Facebook · ส่งไปยังผู้ให้บริการ AI (Claude API) เฉพาะข้อความปัจจุบันของลูกค้า พร้อมชื่อร้าน เวลาทำการ คำถามที่พบบ่อย และรายการสินค้าพร้อมราคา · ไม่ส่งประวัติแชท ชื่อ เบอร์ อีเมล หรือข้อมูลออร์เดอร์ ข้อความที่มีข้อมูลส่วนตัวจะไม่ส่งให้ AI เลย</p>
+        <p class="text-xs text-stone-600">ใช้เฉพาะเมื่อกฎเดิมตอบไม่ได้ (ไม่รวมเรื่องเงิน ร้องเรียน และเลขออร์เดอร์ — ส่งต่อพนักงานเสมอ) · ใช้ได้เฉพาะ Facebook · ข้อความที่มีข้อมูลส่วนตัวจะไม่ส่งให้ AI เลย</p>
+        <div>
+          <div class="label">ข้อมูลที่ส่งให้ AI</div>
+          <div class="grid grid-cols-2 gap-1 seg-grid">
+            <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.ai.dataMode !== 'full' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.dataMode = 'basic'">แบบเดิม</button>
+            <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.ai.dataMode === 'full' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.dataMode = 'full'">100%</button>
+          </div>
+          <p v-if="st.ai.dataMode !== 'full'" class="mt-1.5 text-xs text-stone-500">ส่งเฉพาะข้อความปัจจุบันของลูกค้า พร้อมชื่อร้าน เวลาทำการ คำถามที่พบบ่อย และสินค้าพร้อมราคา · ไม่ส่งข้อมูลออร์เดอร์ ประวัติแชท หรือข้อมูลลูกค้า</p>
+          <p v-else class="mt-1.5 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">ตอบได้ทุกเรื่องที่ลูกค้าถาม · เมื่อลูกค้าถามเรื่องออร์เดอร์ ระบบส่งรายการออร์เดอร์ที่ใช้งานอยู่ของลูกค้าคนนั้นให้ AI (รหัส สถานะ วันนัด ยอดค้าง · ไม่ส่งชื่อ เบอร์ หรือที่อยู่) และคำตอบเรื่องออร์เดอร์จะเป็นร่างให้พนักงานกดส่งเสมอ · ระบบสั่ง AI ว่าห้ามเก็บและห้ามนำไปฝึกโมเดล แต่การเก็บหรือไม่เก็บจริงขึ้นอยู่กับนโยบายของผู้ให้บริการ AI</p>
+        </div>
         <p class="text-xs text-amber-700">{{ aiKeyHint }}</p>
         <div class="grid gap-2 sm:grid-cols-2">
           <div class="grid grid-cols-2 gap-1 seg-grid">

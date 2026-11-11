@@ -426,5 +426,50 @@ const aiLogs = (records: any[]) => records.filter((r) => r.collection === 'aiLog
   check('IG เปิดช่องทาง: ตอบ 1 ครั้ง', fetchCalls.length === 1)
 }
 
+// 18) โหมดข้อมูลของ AI: แบบเดิม (ไม่ส่งออเดอร์) กับ 100% (ส่งออเดอร์เฉพาะคำถามเรื่องออร์เดอร์ และตอบเป็นร่าง)
+{
+  const orders = [
+    { code: 'OR-260101-000003', customer_id: 'cu9', status: 'preparing', fulfillment: 'pickup', pickup_at: '2026-11-12T03:00:00Z', balance: 200 },
+    { code: 'OR-260101-000004', customer_id: 'cu9', status: 'cancelled', fulfillment: 'pickup', pickup_at: '2026-11-13T03:00:00Z', balance: 0 },
+  ]
+  const mkLinked = (text: string, mid: string, cfg: any) => {
+    const chats = [{ ...chatWith([inbound(mid, text)]), customer_id: 'cu9' }]
+    const records: any[] = []
+    return { sb: makeSb({ chats, kv: [shopAlways, cfg, sfRow, optRow], records, items: [retailRow], orders }), chats }
+  }
+  const TOPIC = 'ขอเปลี่ยนเวลารับเค้กได้ไหมคะ'
+  const PLAIN = 'ร้านมีเค้กแบบไหนบ้างคะ'
+
+  // โหมด 100%: คำถามทั่วไป → ตอบเอง (โหมดส่งเอง) และไม่ส่งข้อมูลออร์เดอร์
+  resetAi()
+  const a = mkLinked(PLAIN, 'f1', aiOn({ dataMode: 'full', mode: 'auto' }))
+  await runFbBot({ ...base, sb: a.sb, mid: 'f1', text: PLAIN, aiKey: 'key-x' })
+  check('100%: คำถามทั่วไป → เรียก AI และส่งเองได้', aiCalls.length === 1 && fetchCalls.length === 1)
+  check('100%: คำถามทั่วไป → ไม่ส่งข้อมูลออร์เดอร์', !aiCalls[0]?.body.system.includes('OR-260101-000003'))
+  check('100%: system มีคำสั่งห้ามเก็บและห้ามนำไปฝึก', aiCalls[0]?.body.system.includes('ห้ามเก็บไว้') && aiCalls[0]?.body.system.includes('ฝึกหรือปรับปรุงโมเดล'))
+
+  // โหมด 100%: คำถามเรื่องออร์เดอร์ → ส่งเฉพาะออร์เดอร์ที่ใช้งานอยู่ของลูกค้าคนนี้ และเป็นร่างเสมอ
+  resetAi()
+  const b = mkLinked(TOPIC, 'f2', aiOn({ dataMode: 'full', mode: 'auto' }))
+  await runFbBot({ ...base, sb: b.sb, mid: 'f2', text: TOPIC, aiKey: 'key-x' })
+  const sys = aiCalls[0]?.body.system || ''
+  check('100%: เรื่องออร์เดอร์ → ส่งออร์เดอร์ที่ใช้งานอยู่ (ไม่รวมที่ยกเลิก)', aiCalls.length === 1 && sys.includes('OR-260101-000003') && !sys.includes('OR-260101-000004'))
+  check('100%: เรื่องออร์เดอร์ → ไม่ส่งชื่อ/เบอร์ลูกค้า (มีแค่รหัสออร์เดอร์และสถานะ)', !sys.includes('ลูกค้าทดสอบ'))
+  check('100%: เรื่องออร์เดอร์ → เป็นร่างให้พนักงาน ไม่ส่งเอง', fetchCalls.length === 0 && b.chats[0].data.botDraft?.source === 'ai')
+
+  // แบบเดิม: เรื่องเดียวกันไม่ส่งข้อมูลออร์เดอร์ให้ AI
+  resetAi()
+  const c = mkLinked(TOPIC, 'f3', aiOn({ dataMode: 'basic', mode: 'auto' }))
+  await runFbBot({ ...base, sb: c.sb, mid: 'f3', text: TOPIC, aiKey: 'key-x' })
+  check('แบบเดิม: เรื่องออร์เดอร์ → ไม่ส่งข้อมูลออร์เดอร์ให้ AI', aiCalls.length === 1 && !aiCalls[0].body.system.includes('OR-260101-000003') && !aiCalls[0].body.system.includes('ห้ามเก็บไว้'))
+  check('แบบเดิม: ส่งเองได้ตามโหมดเดิม', fetchCalls.length === 1)
+
+  // 100% แต่ลูกค้ายังไม่ผูกออร์เดอร์ → บอก AI ว่าไม่มีออร์เดอร์
+  resetAi()
+  const d = mkAi(TOPIC, 'f4', aiOn({ dataMode: 'full', mode: 'auto' }))
+  await runFbBot({ ...base, sb: d.sb, mid: 'f4', text: TOPIC, aiKey: 'key-x' })
+  check('100%: แชทไม่ได้ผูกลูกค้า → system บอกว่าไม่มีออร์เดอร์ และเป็นร่าง', aiCalls[0]?.body.system.includes('ยังไม่มีออร์เดอร์ที่ใช้งานอยู่') && fetchCalls.length === 0)
+}
+
 console.log(fail === 0 ? 'ALL PASS' : `${fail} FAILED`)
 process.exit(fail ? 1 : 0)
