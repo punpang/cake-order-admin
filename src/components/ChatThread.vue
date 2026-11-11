@@ -16,31 +16,53 @@ import { messagePreview } from '../lib/chatMedia'
 import { kb } from '../lib/viewportFit'
 import { showToast } from '../lib/toast'
 
-// เธรดแชทของศูนย์รวมแชท (ฝั่งพนักงาน) · ข้อความจากลูกค้ามาจาก LINE OA / Facebook (จำลอง)
+// เธรดแชทของศูนย์รวมแชท (ฝั่งพนักงาน) · ข้อความจากลูกค้ามาจาก LINE OA / Facebook
+// ผังล่าง: ข้อความ (เลื่อนได้) → แถบร่างบอท/แจ้งผล → เครื่องมือ → ช่องพิมพ์
 const props = defineProps({ chat: { type: Object, required: true } })
 const emit = defineEmits(['edit-draft', 'link', 'open-panel'])
 const text = ref('')
 const box = ref(null)
+const input = ref(null)
 const mine = (m) => m.from === 'staff'
-// สถานะส่งจริง (Facebook) · LINE ยังเป็นการจำลอง
+const channelLabel = computed(() => (props.chat.channel === 'facebook' ? 'Facebook' : 'LINE'))
+// สถานะการส่ง (Facebook ส่งจริงและมีสถานะ · LINE ไม่มีสถานะการส่ง)
 function sendState(m) {
-  const ch = channelLabel.value
   if (props.chat.channel === 'facebook') {
-    if (m.delivery === 'sending') return `กำลังส่ง…`
-    if (m.delivery === 'sent') return `ส่งสำเร็จ`
+    if (m.delivery === 'sending') return 'กำลังส่ง…'
+    if (m.delivery === 'sent') return 'ส่งสำเร็จ'
     if (m.delivery === 'failed') return `ส่งไม่สำเร็จ${m.deliveryError ? `: ${m.deliveryError}` : ''}`
   }
-  return `ส่งทาง ${ch}`
+  return `ส่งทาง ${channelLabel.value}`
 }
-const channelLabel = computed(() => (props.chat.channel === 'facebook' ? 'Facebook' : 'LINE'))
+const failed = (m) => mine(m) && props.chat.channel === 'facebook' && m.delivery === 'failed'
 // Facebook เกิน 24 ชม. หลังลูกค้าทักล่าสุด → พิมพ์ตอบไม่ได้ (การ์ดออร์เดอร์/ยอดชำระยังส่งได้)
 const canType = computed(() => fbWindowOpen(props.chat))
 
+// ---------- เลื่อนลงล่าง / ข้อความใหม่ ----------
 function scrollEnd() {
   nextTick(() => {
     if (box.value) box.value.scrollTop = box.value.scrollHeight
   })
 }
+// อยู่ล่างสุดไหม: ถ้าเลื่อนขึ้นไปอ่านของเก่า ข้อความใหม่จะไม่เลื่อนทับ แต่ขึ้นปุ่ม "ข้อความใหม่" แทน
+const atBottom = ref(true)
+const unseen = ref(0)
+function onScroll() {
+  const el = box.value
+  if (!el) return
+  atBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+  if (atBottom.value) {
+    unseen.value = 0
+    if (props.chat.unreadStaff) markRead(props.chat.id)
+  }
+}
+function jumpEnd() {
+  atBottom.value = true
+  unseen.value = 0
+  scrollEnd()
+  markRead(props.chat.id)
+}
+
 function send() {
   if (!text.value.trim() || !canType.value) return
   const t = text.value
@@ -48,6 +70,7 @@ function send() {
   staffReplied(props.chat.id, t) // เรียนรู้คู่ ถาม→ตอบ + นับสถิติบอท
   text.value = ''
   replyTo.value = null
+  jumpEnd()
 }
 function onKey(e) {
   // Enter ส่ง · Shift+Enter ขึ้นบรรทัด
@@ -56,15 +79,52 @@ function onKey(e) {
     send()
   }
 }
+// ช่องพิมพ์ยืดตามข้อความ (สูงสุดตาม max-h ใน class)
+function fitInput() {
+  const el = input.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+watch(text, () => nextTick(fitInput))
+
 const count = computed(() => props.chat.messages.length)
-watch(count, () => {
-  markRead(props.chat.id)
-  scrollEnd()
+watch(count, (n, o) => {
+  if (atBottom.value) {
+    scrollEnd()
+    if (props.chat.unreadStaff) markRead(props.chat.id)
+  } else if (n > o) {
+    unseen.value += n - o
+  }
 })
 // แป้นพิมพ์มือถือเปิด/ปิด → เลื่อนให้ข้อความล่าสุดอยู่เหนือช่องพิมพ์
 watch(() => kb.open, () => scrollEnd())
+onMounted(() => {
+  markRead(props.chat.id)
+  scrollEnd()
+})
 
-// ส่งการ์ดสรุปออร์เดอร์ของลูกค้ารายนี้ (ปุ่มใต้ช่องพิมพ์): 1 ใบ → ส่งเลย · หลายใบ → เลือกก่อน
+// ---------- ข้อความต่อเนื่อง: ผู้ส่งเดียวกันภายใน 5 นาที (วันเดียวกัน) = กลุ่มเดียว ----------
+const msgs = computed(() => props.chat.messages)
+const RUN_MS = 5 * 60e3
+function sameRun(a, b) {
+  if (!a || !b) return false
+  if (a.from !== b.from || a.by !== b.by) return false
+  if (a.kind === 'order' || a.kind === 'quote' || b.kind === 'order' || b.kind === 'quote') return false
+  if (a.ask || a.answerFor || b.ask || b.answerFor) return false
+  if (a.at.slice(0, 10) !== b.at.slice(0, 10)) return false
+  return Date.parse(b.at) - Date.parse(a.at) < RUN_MS
+}
+const isHead = (i) => !sameRun(msgs.value[i - 1], msgs.value[i])
+const isTail = (i) => !sameRun(msgs.value[i], msgs.value[i + 1])
+// แสดงวันที่คั่นเมื่อเปลี่ยนวัน
+const showDay = (i) => i === 0 || msgs.value[i - 1].at.slice(0, 10) !== msgs.value[i].at.slice(0, 10)
+const gapCls = (i) => (showDay(i) ? '' : isHead(i) ? 'mt-3' : 'mt-0.5')
+const bubble = (m) => (mine(m)
+  ? 'rounded-2xl rounded-br-md bg-brand-600 text-white'
+  : 'rounded-2xl rounded-bl-md bg-white text-stone-900 shadow-sm ring-1 ring-stone-200/80')
+
+// ส่งการ์ดสรุปออร์เดอร์ของลูกค้ารายนี้ (ปุ่มในแถบเครื่องมือ): 1 ใบ → ส่งเลย · หลายใบ → เลือกก่อน
 const sumOpen = ref(false)
 const custOrders = computed(() => (props.chat.customerId ? db.orders.filter((o) => o.customerId === props.chat.customerId && o.channel !== 'pos' && o.status !== 'draft') : []))
 function sendSummary(o) {
@@ -77,10 +137,6 @@ function openSummary() {
   if (l.length === 1) sendSummary(l[0])
   else if (l.length) sumOpen.value = true
 }
-onMounted(() => {
-  markRead(props.chat.id)
-  scrollEnd()
-})
 
 // การ์ดออร์เดอร์
 const card = (m) => {
@@ -138,7 +194,6 @@ const snippet = (m) => { if (!m) return ''; if (m.kind === 'order') return 'ส�
 
 // ---------- ตอบกลับข้อความ ----------
 const replyTo = ref(null)
-const input = ref(null)
 function startReply(m) {
   replyTo.value = m
   nextTick(() => input.value?.focus())
@@ -146,6 +201,10 @@ function startReply(m) {
 
 // ---------- บอทตอบแชท: ร่างคำตอบ (โหมดแนะนำ) ----------
 const botDraft = computed(() => props.chat.botDraft || null)
+const botExpanded = ref(false)
+const botLong = computed(() => (botDraft.value?.text || '').length > 140)
+watch(() => botDraft.value?.text, () => { botExpanded.value = false })
+const confPct = (d) => Math.round(d.confidence * 100)
 function editBotDraft() {
   const d = { ...botDraft.value }
   text.value = d.text
@@ -185,101 +244,115 @@ function saveC() {
   cannedEdit.value = null
 }
 
-// แสดงวันที่คั่นเมื่อเปลี่ยนวัน
-const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !== props.chat.messages[i].at.slice(0, 10)
+// มือถือ: แถบเครื่องมือเปิด/ปิดด้วยปุ่ม + (คอมแสดงเสมอ)
+const toolsOpen = ref(false)
+
+const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''))
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 flex-col">
-    <div ref="box" class="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-1 py-3">
-      <p v-if="!chat.messages.length" class="py-10 text-center text-sm text-stone-400">ยังไม่มีข้อความ</p>
-      <template v-for="(m, i) in chat.messages" :key="m.id">
-        <div v-if="showDay(i)" class="py-1 text-center text-xs text-stone-400">{{ dateOnly(m.at) }}</div>
-        <div class="flex" :class="mine(m) ? 'justify-end' : 'justify-start'">
-          <!-- การ์ดออร์เดอร์ -->
-          <div v-if="m.kind === 'order' && card(m)" class="w-72 max-w-[85%] rounded-2xl border border-stone-200 bg-white p-3 shadow-sm">
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-xs font-semibold text-brand-700">สรุปออร์เดอร์ {{ card(m).o.code }}</span>
-              <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="STATUS[card(m).o.status]?.cls">{{ STATUS[card(m).o.status]?.label }}</span>
-              <PayDueBadge :order="card(m).o" short />
-            </div>
-            <div class="mt-1 text-sm font-medium break-words text-stone-900">{{ card(m).first }}<span v-if="card(m).more > 0" class="text-stone-500"> +{{ card(m).more }} รายการ</span></div>
-            <div class="mt-0.5 text-xs text-stone-500">{{ card(m).o.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }} · {{ dateTime(card(m).o.pickupAt) }}<template v-if="card(m).o.placeName"> · {{ card(m).o.placeName }}</template></div>
-            <div class="mt-2 flex items-end justify-between gap-2 border-t border-stone-100 pt-2">
-              <span class="text-xs text-stone-500">ยอดรวม <b class="block text-base text-stone-900">{{ money(card(m).t.total) }}</b></span>
-              <span class="text-right text-xs" :class="card(m).t.balance > 0 ? 'text-amber-700' : 'text-brand-700'">{{ card(m).t.balance > 0 ? `ค้าง ${money(card(m).t.balance)}` : 'ชำระครบ' }}</span>
-            </div>
-            <RouterLink :to="`/admin/orders/${card(m).o.id}`" class="btn-soft mt-2 h-9 w-full text-sm">เปิดออร์เดอร์</RouterLink>
+  <div class="flex min-h-0 flex-1 flex-col">
+    <!-- ข้อความ -->
+    <div class="relative min-h-0 flex-1 bg-stone-50">
+      <div ref="box" class="absolute inset-0 overflow-y-auto overscroll-contain px-3 pt-4 pb-3 lg:px-6" @scroll="onScroll">
+        <div v-if="!chat.messages.length" class="flex h-full flex-col items-center justify-center gap-2 text-sm text-stone-400">
+          <AppIcon name="chat" :size="32" class="text-stone-300" />
+          ยังไม่มีข้อความในแชทนี้
+        </div>
+        <template v-for="(m, i) in chat.messages" :key="m.id">
+          <div v-if="showDay(i)" class="my-4 flex justify-center">
+            <span class="rounded-full bg-white px-3 py-0.5 text-[11px] font-medium text-stone-500 shadow-sm ring-1 ring-stone-200/70">{{ dateOnly(m.at) }}</span>
           </div>
-          <!-- ใบเสนอ -->
-          <div v-else-if="m.kind === 'quote' && quoteView(m)" class="w-80 max-w-[90%] rounded-2xl border-2 border-brand-200 bg-white p-3 shadow-sm" :class="quoteView(m).q.status === 'superseded' ? 'opacity-60' : ''">
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-xs font-semibold text-brand-700">ใบเสนอ {{ quoteView(m).q.code }}</span>
-              <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="QUOTE_STATUS[quoteView(m).q.status].cls">{{ QUOTE_STATUS[quoteView(m).q.status].t }}</span>
+          <div class="flex" :class="[mine(m) ? 'justify-end' : 'justify-start', gapCls(i)]">
+            <!-- การ์ดออร์เดอร์ -->
+            <div v-if="m.kind === 'order' && card(m)" class="w-80 max-w-[88%] rounded-2xl border border-stone-200 bg-white p-3.5 shadow-sm">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-semibold text-brand-700">สรุปออร์เดอร์ {{ card(m).o.code }}</span>
+                <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="STATUS[card(m).o.status]?.cls">{{ STATUS[card(m).o.status]?.label }}</span>
+                <PayDueBadge :order="card(m).o" short />
+              </div>
+              <div class="mt-1 text-sm font-medium break-words text-stone-900">{{ card(m).first }}<span v-if="card(m).more > 0" class="text-stone-500"> +{{ card(m).more }} รายการ</span></div>
+              <div class="mt-0.5 text-xs text-stone-500">{{ card(m).o.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }} · {{ dateTime(card(m).o.pickupAt) }}<template v-if="card(m).o.placeName"> · {{ card(m).o.placeName }}</template></div>
+              <div class="mt-2 flex items-end justify-between gap-2 border-t border-stone-100 pt-2">
+                <span class="text-xs text-stone-500">ยอดรวม <b class="block text-base text-stone-900">{{ money(card(m).t.total) }}</b></span>
+                <span class="text-right text-xs" :class="card(m).t.balance > 0 ? 'text-amber-700' : 'text-brand-700'">{{ card(m).t.balance > 0 ? `ค้าง ${money(card(m).t.balance)}` : 'ชำระครบ' }}</span>
+              </div>
+              <RouterLink :to="`/admin/orders/${card(m).o.id}`" class="btn-soft mt-2.5 h-9 w-full text-sm">เปิดออร์เดอร์</RouterLink>
             </div>
-            <ul class="mt-2 space-y-1 text-sm">
-              <li v-for="it in quoteView(m).q.payload.items" :key="it.id" class="flex justify-between gap-2">
-                <span class="min-w-0 break-words text-stone-900">{{ it.name }}<span v-if="it.qty > 1" class="text-stone-500"> × {{ it.qty }}</span></span>
-                <span class="shrink-0 text-stone-700">{{ money(it.unitPrice * it.qty) }}</span>
-              </li>
-            </ul>
-            <div class="mt-1.5 text-xs text-stone-500">{{ quoteView(m).q.payload.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }} · {{ dateTime(quoteView(m).q.payload.pickupAt) }}<template v-if="quoteView(m).q.payload.shippingFee"> · ค่าส่ง {{ money(quoteView(m).q.payload.shippingFee) }}</template><template v-if="quoteView(m).q.payload.placeName"> · {{ quoteView(m).q.payload.placeName }}</template><template v-if="quoteView(m).q.payload.distanceKm != null"> · {{ quoteView(m).q.payload.distanceKm }} กม.</template></div>
-            <div class="mt-2 flex items-start justify-between gap-2 border-t border-stone-100 pt-2">
-              <span class="text-xs text-stone-500">ยอดรวม</span>
-              <DiscountDetail :full="quoteView(m).t.fullAll" :final="quoteView(m).t.total" :lines="quoteView(m).lines" />
-            </div>
-            <div v-if="quoteView(m).t.vatMode" class="mt-1 text-right text-xs text-stone-400">{{ quoteView(m).t.vatMode === 'exclusive' ? `ยอดรวม VAT ${quoteView(m).t.vatRate}% (บวกเพิ่ม ${money(quoteView(m).t.vat)}) แล้ว` : `ราคารวม VAT ${quoteView(m).t.vatRate}% แล้ว (${money(quoteView(m).t.vat)})` }}</div>
-            <!-- พนักงาน -->
-            <template v-if="true">
-              <RouterLink v-if="quoteView(m).q.orderId" :to="`/admin/orders/${quoteView(m).q.orderId}`" class="btn-soft mt-2 h-9 w-full text-sm">เปิดออร์เดอร์</RouterLink>
+            <!-- ใบเสนอ -->
+            <div v-else-if="m.kind === 'quote' && quoteView(m)" class="w-80 max-w-[90%] rounded-2xl border-2 border-brand-200 bg-white p-3.5 shadow-sm" :class="quoteView(m).q.status === 'superseded' ? 'opacity-60' : ''">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs font-semibold text-brand-700">ใบเสนอ {{ quoteView(m).q.code }}</span>
+                <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="QUOTE_STATUS[quoteView(m).q.status].cls">{{ QUOTE_STATUS[quoteView(m).q.status].t }}</span>
+              </div>
+              <ul class="mt-2 space-y-1 text-sm">
+                <li v-for="it in quoteView(m).q.payload.items" :key="it.id" class="flex justify-between gap-2">
+                  <span class="min-w-0 break-words text-stone-900">{{ it.name }}<span v-if="it.qty > 1" class="text-stone-500"> × {{ it.qty }}</span></span>
+                  <span class="shrink-0 text-stone-700">{{ money(it.unitPrice * it.qty) }}</span>
+                </li>
+              </ul>
+              <div class="mt-1.5 text-xs text-stone-500">{{ quoteView(m).q.payload.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }} · {{ dateTime(quoteView(m).q.payload.pickupAt) }}<template v-if="quoteView(m).q.payload.shippingFee"> · ค่าส่ง {{ money(quoteView(m).q.payload.shippingFee) }}</template><template v-if="quoteView(m).q.payload.placeName"> · {{ quoteView(m).q.payload.placeName }}</template><template v-if="quoteView(m).q.payload.distanceKm != null"> · {{ quoteView(m).q.payload.distanceKm }} กม.</template></div>
+              <div class="mt-2 flex items-start justify-between gap-2 border-t border-stone-100 pt-2">
+                <span class="text-xs text-stone-500">ยอดรวม</span>
+                <DiscountDetail :full="quoteView(m).t.fullAll" :final="quoteView(m).t.total" :lines="quoteView(m).lines" />
+              </div>
+              <div v-if="quoteView(m).t.vatMode" class="mt-1 text-right text-xs text-stone-400">{{ quoteView(m).t.vatMode === 'exclusive' ? `ยอดรวม VAT ${quoteView(m).t.vatRate}% (บวกเพิ่ม ${money(quoteView(m).t.vat)}) แล้ว` : `ราคารวม VAT ${quoteView(m).t.vatRate}% แล้ว (${money(quoteView(m).t.vat)})` }}</div>
+              <!-- การดำเนินการของพนักงาน -->
+              <RouterLink v-if="quoteView(m).q.orderId" :to="`/admin/orders/${quoteView(m).q.orderId}`" class="btn-soft mt-2.5 h-9 w-full text-sm">เปิดออร์เดอร์</RouterLink>
               <template v-else-if="['need_phone', 'customer_ok', 'converting'].includes(quoteView(m).q.status)">
                 <p v-if="block" class="mt-2 text-xs text-orange-700">{{ block }} · <button type="button" class="font-medium underline" @click="emit('link')">ผูก/สร้างลูกค้า</button></p>
-                <button type="button" class="btn-primary mt-2 h-9 w-full text-sm" :disabled="!!block" @click="convert(quoteView(m).q)">สร้างออร์เดอร์</button>
-                <p v-if="convertError" class="mt-1 text-xs text-rose-600">{{ convertError }}</p>
+                <button type="button" class="btn-primary mt-2.5 h-9 w-full text-sm" :disabled="!!block" @click="convert(quoteView(m).q)">สร้างออร์เดอร์</button>
+                <p v-if="convertError" class="mt-1 text-xs text-rose-600" role="alert">{{ convertError }}</p>
               </template>
-              <button v-else-if="['pending', 'revise'].includes(quoteView(m).q.status)" type="button" class="btn-outline mt-2 h-9 w-full text-sm" @click="emit('edit-draft')">แก้ร่างแล้วส่งใหม่</button>
-            </template>
+              <button v-else-if="['pending', 'revise'].includes(quoteView(m).q.status)" type="button" class="btn-outline mt-2.5 h-9 w-full text-sm" @click="emit('edit-draft')">แก้ร่างแล้วส่งใหม่</button>
+            </div>
+            <!-- ข้อความ -->
+            <div v-else class="group max-w-[80%] lg:max-w-[min(78%,40rem)]">
+              <div class="px-3.5 py-2 text-[15px] leading-relaxed break-words whitespace-pre-line" :class="bubble(m)">
+                <!-- อ้างอิงข้อความที่ตอบ -->
+                <div v-if="m.replyTo && byId(m.replyTo)" class="mb-1.5 rounded-lg border-l-2 px-2 py-1 text-xs leading-snug" :class="mine(m) ? 'border-white/60 bg-white/15 text-white/90' : 'border-brand-400 bg-stone-50 text-stone-500'">{{ snippet(byId(m.replyTo)) }}</div>
+                <ChatAttachment v-for="(a, k) in m.attachments || []" :key="k" :a="a" />
+                <template v-if="m.text">{{ m.text }}</template>
+              </div>
+              <!-- คำตอบของปุ่มถาม -->
+              <div v-if="m.answerFor" class="mt-1 flex flex-wrap items-center gap-1 text-xs">
+                <span class="rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-800">ตอบ: {{ ASK_FIELDS[m.answerFor]?.label }}</span>
+                <span v-if="m.filled?.done?.length" class="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">กรอกแล้ว: {{ m.filled.done.map((d) => d.label).join(', ') }}</span>
+                <span v-else class="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">อ่านค่าไม่ได้ กรอกเอง</span>
+              </div>
+              <!-- รหัสเค้กสั่งทำจากหน้าเว็บ → เพิ่มลงร่าง -->
+              <div v-if="hasCode(m)" class="mt-1 space-y-1">
+                <button type="button" class="inline-flex items-center gap-1 rounded-full border border-brand-300 bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-800 hover:bg-brand-100" @click="addCode(m)"><AppIcon name="cake" :size="13" /> เพิ่มเค้กนี้ลงร่างออร์เดอร์</button>
+                <template v-if="codeResult[m.id]">
+                  <p v-if="codeResult[m.id].added.length" class="text-xs font-medium text-emerald-700" role="status">เพิ่มแล้ว: {{ codeResult[m.id].added.join(', ') }}</p>
+                  <p v-for="(w, k) in codeResult[m.id].warnings" :key="'w' + k" class="text-xs text-amber-700">⚠ {{ w }}</p>
+                  <p v-for="(er, k) in codeResult[m.id].errors" :key="'e' + k" class="text-xs text-rose-600" role="alert">{{ er }}</p>
+                </template>
+              </div>
+              <!-- ข้อมูลที่จับได้ → กดกรอก -->
+              <div v-if="entities(m).length" class="mt-1 flex flex-wrap gap-1">
+                <button v-for="e in entities(m)" :key="e.type + e.value" type="button" class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-white px-2 py-0.5 text-xs font-medium text-brand-800 hover:bg-brand-50" :title="`กรอก${ENT[e.type].label}ลงร่าง`" @click="fill(e)">
+                  <AppIcon :name="ENT[e.type].icon" :size="12" /> {{ entText(e) }} <span class="text-brand-500">กรอก</span>
+                </button>
+              </div>
+              <!-- เวลา/สถานะ: เฉพาะข้อความสุดท้ายของกลุ่ม · ปุ่มตอบกลับทุกข้อความ (บนคอมแสดงเมื่อเอาเมาส์ชี้) -->
+              <div class="flex min-h-4 items-center gap-2 px-1 text-[11px] leading-4 text-stone-400" :class="mine(m) ? 'justify-end' : ''">
+                <span v-if="isTail(i)" :class="failed(m) ? 'font-medium text-rose-600' : ''" :title="dateTime(m.at)">{{ timeOnly(m.at) }}<template v-if="m.from === 'staff'"> · {{ sendState(m) }}<template v-if="m.by === 'ระบบ'"> · อัตโนมัติ</template></template><template v-if="m.ask"> · ถาม{{ ASK_FIELDS[m.ask]?.label.replace('ขอ', '') }}</template></span>
+                <button v-if="canType" type="button" class="font-medium text-stone-500 hover:text-brand-700 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100" :aria-label="`ตอบกลับ: ${snippet(m)}`" @click="startReply(m)">ตอบกลับ</button>
+              </div>
+            </div>
           </div>
-          <!-- ข้อความ -->
-          <div v-else class="group max-w-[80%] lg:max-w-[min(80%,40rem)]">
-            <div class="rounded-2xl px-3.5 py-2 text-[15px] break-words whitespace-pre-line" :class="mine(m) ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md bg-white text-stone-900 ring-1 ring-stone-200'">
-              <!-- อ้างอิงข้อความที่ตอบ -->
-              <div v-if="m.replyTo && byId(m.replyTo)" class="mb-1.5 rounded-lg border-l-2 px-2 py-1 text-xs" :class="mine(m) ? 'border-white/60 bg-white/15 text-white/90' : 'border-brand-400 bg-stone-50 text-stone-500'">{{ snippet(byId(m.replyTo)) }}</div>
-              <ChatAttachment v-for="(a, i) in m.attachments || []" :key="i" :a="a" />
-              <template v-if="m.text">{{ m.text }}</template>
-            </div>
-            <!-- คำตอบของปุ่มถาม -->
-            <div v-if="m.answerFor" class="mt-1 flex flex-wrap items-center gap-1 text-xs">
-              <span class="rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-800">ตอบ: {{ ASK_FIELDS[m.answerFor]?.label }}</span>
-              <span v-if="m.filled?.done?.length" class="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">กรอกแล้ว: {{ m.filled.done.map((d) => d.label).join(', ') }}</span>
-              <span v-else class="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">อ่านค่าไม่ได้ กรอกเอง</span>
-            </div>
-            <!-- รหัสเค้กสั่งทำจากหน้าเว็บ → เพิ่มลงร่าง -->
-            <div v-if="hasCode(m)" class="mt-1 space-y-1">
-              <button type="button" class="inline-flex items-center gap-1 rounded-full border border-brand-300 bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-800 hover:bg-brand-100" @click="addCode(m)"><AppIcon name="cake" :size="13" /> เพิ่มเค้กนี้ลงร่างออร์เดอร์</button>
-              <template v-if="codeResult[m.id]">
-                <p v-if="codeResult[m.id].added.length" class="text-xs font-medium text-emerald-700" role="status">เพิ่มแล้ว: {{ codeResult[m.id].added.join(', ') }}</p>
-                <p v-for="(w, k) in codeResult[m.id].warnings" :key="'w' + k" class="text-xs text-amber-700">⚠ {{ w }}</p>
-                <p v-for="(er, k) in codeResult[m.id].errors" :key="'e' + k" class="text-xs text-rose-600" role="alert">{{ er }}</p>
-              </template>
-            </div>
-            <!-- ข้อมูลที่จับได้ → กดกรอก -->
-            <div v-if="entities(m).length" class="mt-1 flex flex-wrap gap-1">
-              <button v-for="e in entities(m)" :key="e.type + e.value" type="button" class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-white px-2 py-0.5 text-xs font-medium text-brand-800 hover:bg-brand-50" :title="`กรอก${ENT[e.type].label}ลงร่าง`" @click="fill(e)">
-                <AppIcon :name="ENT[e.type].icon" :size="12" /> {{ entText(e) }} <span class="text-brand-500">กรอก</span>
-              </button>
-            </div>
-            <div class="mt-0.5 flex items-center gap-2 px-1 text-xs text-stone-400" :class="mine(m) ? 'justify-end' : ''">
-              <span>{{ timeOnly(m.at) }}<template v-if="m.from === 'staff'"> · {{ sendState(m) }}<template v-if="m.by === 'ระบบ'"> · อัตโนมัติ</template></template><template v-if="m.ask"> · ถาม{{ ASK_FIELDS[m.ask]?.label.replace('ขอ', '') }}</template></span>
-              <button v-if="canType" type="button" class="font-medium text-stone-500 hover:text-brand-700 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100" :aria-label="`ตอบกลับ: ${snippet(m)}`" @click="startReply(m)">ตอบกลับ</button>
-            </div>
-          </div>
-        </div>
-      </template>
+        </template>
+      </div>
+      <!-- ข้อความใหม่ (กำลังเลื่อนขึ้นไปอ่านของเก่า) -->
+      <button v-if="!atBottom" type="button" class="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-700 shadow-md ring-1 ring-stone-200 hover:bg-brand-50" @click="jumpEnd">
+        <AppIcon name="next" :size="14" class="rotate-90" />
+        {{ unseen ? `ข้อความใหม่ ${unseen}` : 'ไปข้อความล่าสุด' }}
+      </button>
     </div>
 
     <!-- แจ้งผลการกรอก -->
-    <div v-if="notice" class="flex flex-wrap items-center gap-2 border-t border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+    <div v-if="notice" class="flex flex-wrap items-center gap-2 border-t border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">
       <AppIcon name="check" :size="16" />
       <span class="min-w-0 flex-1">กรอกลงร่างแล้ว: {{ notice.done.map((d) => `${d.label} ${d.value}`).join(' · ') }}</span>
       <button v-if="notice.suggest" type="button" class="btn-soft h-8 px-2.5 text-xs" @click="linkSuggest">ผูกกับ {{ suggestName }}</button>
@@ -287,71 +360,87 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
       <button type="button" class="text-emerald-700" aria-label="ปิด" @click="notice = null"><AppIcon name="x" :size="16" /></button>
     </div>
 
-    <!-- ร่างคำตอบจากบอท -->
-    <div v-if="botDraft && !botDraft.editing && canType" class="border-t border-violet-200 bg-violet-50 px-3 py-2 text-sm">
-      <div class="mb-1 flex flex-wrap items-center gap-1.5 text-xs text-violet-800">
-        <span class="font-semibold">{{ botDraft.handoff ? 'บอทส่งต่อให้พนักงาน' : 'ร่างคำตอบจากบอท' }}</span>
-        <span class="rounded-full bg-white px-2 py-0.5">{{ SOURCE_LABEL[botDraft.source] || botDraft.source }}<template v-if="botDraft.confidence"> · {{ Math.round(botDraft.confidence * 100) }}%</template></span>
-        <span class="text-violet-600">{{ botDraft.reason }}</span>
-      </div>
-      <p v-if="botDraft.prefix" class="mb-1 rounded-lg bg-white/70 px-2 py-1 text-xs whitespace-pre-line text-violet-800"><b>ส่งก่อน (แจ้งร้านปิด):</b> {{ botDraft.prefix }}</p>
-      <p class="whitespace-pre-line text-stone-800">{{ botDraft.text }}</p>
-      <div class="mt-2 flex gap-2">
-        <button type="button" class="btn-primary h-8 px-3 text-xs" @click="sendBotDraft(chat.id)">ส่งเลย</button>
-        <button type="button" class="btn-outline h-8 px-3 text-xs" @click="editBotDraft">แก้ก่อนส่ง</button>
-        <button type="button" class="btn-outline h-8 px-3 text-xs" @click="dismissBotDraft(chat.id)">ทิ้ง</button>
-      </div>
-    </div>
-    <div v-else-if="chat.botHandoff && !botDraft" class="border-t border-violet-200 bg-violet-50 px-3 py-1.5 text-xs text-violet-800">บอทไม่แน่ใจ/ไม่ตอบเรื่องนี้ — ส่งต่อให้พนักงานตอบ</div>
-
-    <!-- แนะนำสินค้า -->
-    <div v-if="recs.length && canType" class="border-t border-stone-200 bg-white px-3 py-1.5 text-sm">
-      <button type="button" class="flex w-full items-center justify-between gap-2 text-left text-xs font-medium text-brand-700" @click="recOpen = !recOpen">
-        <span>แนะนำสินค้า ({{ recs.length }}) · {{ intentSummary(recIntent).join(' · ') }}</span>
-        <span>{{ recOpen ? 'ซ่อน' : 'ดู' }}</span>
-      </button>
-      <div v-if="recOpen" class="mt-2 space-y-1.5">
-        <div v-for="r in recs" :key="r.kind + r.id" class="flex items-center gap-2 rounded-xl border border-stone-200 p-2">
-          <div class="min-w-0 flex-1">
-            <div class="truncate font-medium text-stone-900">{{ r.name }} <span class="text-xs font-normal text-stone-500">{{ r.kind === 'ready' ? 'สำเร็จ' : 'สั่งทำ' }}</span></div>
-            <div class="truncate text-xs text-stone-500">{{ r.kind === 'custom' && r.from ? 'เริ่มต้น ' : '' }}{{ money(r.price) }} · {{ r.reasons.join(' · ') }}</div>
-          </div>
-          <button v-if="r.kind === 'ready'" type="button" class="btn-soft h-8 shrink-0 px-2.5 text-xs" @click="addRec(r)">เพิ่มลงร่าง</button>
+    <!-- ส่วนล่าง: ร่างบอท · แนะนำสินค้า · เครื่องมือ · ช่องพิมพ์ -->
+    <div class="shrink-0 border-t border-stone-200 bg-white">
+      <!-- ร่างคำตอบจากบอท -->
+      <div v-if="botDraft && !botDraft.editing && canType" class="mx-3 mt-3 rounded-2xl border border-violet-200 bg-violet-50 p-3 text-sm">
+        <div class="flex flex-wrap items-center gap-1.5 text-xs">
+          <span class="rounded-full bg-white px-2 py-0.5 font-semibold text-violet-800 ring-1 ring-violet-200">{{ botDraft.handoff ? 'บอทส่งต่อให้พนักงาน' : 'ร่างจากบอท' }}</span>
+          <span class="text-violet-700">{{ SOURCE_LABEL[botDraft.source] || botDraft.source }}<template v-if="botDraft.confidence"> · {{ confPct(botDraft) }}%</template></span>
+          <span class="min-w-0 truncate text-violet-600">{{ botDraft.reason }}</span>
         </div>
-        <div class="flex items-center gap-2">
+        <p v-if="botDraft.prefix" class="mt-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs whitespace-pre-line text-violet-900"><b>ส่งก่อน (แจ้งร้านปิด):</b> {{ botDraft.prefix }}</p>
+        <p class="mt-2 whitespace-pre-line text-stone-900" :class="botExpanded ? '' : 'line-clamp-3'">{{ botDraft.text }}</p>
+        <div class="mt-2.5 flex flex-wrap items-center justify-end gap-2">
+          <button v-if="botLong" type="button" class="mr-auto text-xs font-medium text-violet-700 underline" @click="botExpanded = !botExpanded">{{ botExpanded ? 'ย่อข้อความ' : 'ดูทั้งหมด' }}</button>
+          <button type="button" class="btn-outline h-9 px-3 text-xs" @click="dismissBotDraft(chat.id)">ทิ้ง</button>
+          <button type="button" class="btn-outline h-9 px-3 text-xs" @click="editBotDraft">แก้ก่อนส่ง</button>
+          <button type="button" class="btn-primary h-9 px-4 text-xs" @click="sendBotDraft(chat.id)">ส่งเลย</button>
+        </div>
+      </div>
+      <p v-else-if="chat.botHandoff && !botDraft" class="px-3 pt-2.5 text-xs text-violet-700">บอทไม่แน่ใจ/ไม่ตอบเรื่องนี้ — ส่งต่อให้พนักงานตอบ</p>
+
+      <!-- แนะนำสินค้า (เปิดจากปุ่มในแถบเครื่องมือ) -->
+      <div v-if="recOpen && recs.length && canType" class="mx-3 mt-2.5 rounded-2xl border border-stone-200 bg-stone-50 p-2.5 text-sm">
+        <div class="mb-2 flex items-center justify-between gap-2 text-xs text-stone-500">
+          <span class="min-w-0 truncate">แนะนำจาก: {{ intentSummary(recIntent).join(' · ') || 'ข้อความลูกค้า' }}</span>
+          <button type="button" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-stone-400 hover:bg-white" aria-label="ปิดรายการแนะนำ" @click="recOpen = false"><AppIcon name="x" :size="14" /></button>
+        </div>
+        <ul class="space-y-1.5">
+          <li v-for="r in recs" :key="r.kind + r.id" class="flex items-center gap-2 rounded-xl bg-white p-2 ring-1 ring-stone-200">
+            <div class="min-w-0 flex-1">
+              <div class="truncate font-medium text-stone-900">{{ r.name }} <span class="text-xs font-normal text-stone-500">{{ r.kind === 'ready' ? 'สำเร็จ' : 'สั่งทำ' }}</span></div>
+              <div class="truncate text-xs text-stone-500">{{ r.kind === 'custom' && r.from ? 'เริ่มต้น ' : '' }}{{ money(r.price) }} · {{ r.reasons.join(' · ') }}</div>
+            </div>
+            <button v-if="r.kind === 'ready'" type="button" class="btn-soft h-8 shrink-0 px-2.5 text-xs" @click="addRec(r)">เพิ่มลงร่าง</button>
+          </li>
+        </ul>
+        <div class="mt-2 flex flex-wrap items-center gap-2">
           <button type="button" class="btn-outline h-8 px-3 text-xs" @click="sendRec">ส่งข้อความแนะนำ</button>
-          <span v-if="recNote" class="text-xs text-emerald-700">{{ recNote }}</span>
+          <span v-if="recNote" class="text-xs text-emerald-700" role="status">{{ recNote }}</span>
         </div>
       </div>
-    </div>
 
-    <!-- ปุ่มถาม + ข้อความสำเร็จรูป -->
-    <div v-if="canType" class="flex items-center gap-1.5 overflow-x-auto border-t border-stone-200 bg-white px-2 py-1.5 [scrollbar-width:none]">
-      <span v-if="chat.pendingAsk" class="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800">
-        รอลูกค้าตอบ: {{ ASK_FIELDS[chat.pendingAsk.field]?.label }}
-        <button type="button" aria-label="ยกเลิกคำถาม" @click="cancelAsk(chat.id)"><AppIcon name="x" :size="12" /></button>
-      </span>
-      <button v-for="(f, k) in ASK_FIELDS" :key="k" type="button" class="chip chip-off shrink-0 px-2.5 py-1 text-xs whitespace-nowrap" @click="ask(k)">{{ f.label }}</button>
-      <button v-if="custOrders.length && can('createOrder')" type="button" class="chip chip-on shrink-0 px-2.5 py-1 text-xs whitespace-nowrap" data-send-summary @click="openSummary">สรุปออร์เดอร์</button>
-      <button type="button" class="chip chip-off shrink-0 px-2.5 py-1 text-xs whitespace-nowrap" @click="cannedOpen = true">ข้อความสำเร็จรูป</button>
-      <button v-if="db.bot.enabled" type="button" class="chip shrink-0 px-2.5 py-1 text-xs whitespace-nowrap" :class="chat.botOff ? 'chip-off' : 'chip-on'" @click="setChatBot(chat.id, !!chat.botOff)">บอท: {{ chat.botOff ? 'ปิดในแชทนี้' : 'เปิด' }}</button>
-    </div>
+      <!-- เครื่องมือ: ถามลูกค้า · สรุปออร์เดอร์ · ข้อความสำเร็จรูป · บอท (คอมแสดงเสมอ · มือถือกดปุ่ม + เพื่อเปิด) -->
+      <div v-if="canType" class="items-center gap-1.5 px-3 pt-2.5 [scrollbar-width:none]" :class="toolsOpen ? 'flex overflow-x-auto lg:flex-wrap lg:overflow-visible' : 'hidden lg:flex lg:flex-wrap'">
+        <span v-if="chat.pendingAsk" class="inline-flex h-8 items-center gap-1 rounded-full bg-amber-50 py-0 pr-1 pl-3 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
+          รอลูกค้าตอบ: {{ ASK_FIELDS[chat.pendingAsk.field]?.label }}
+          <button type="button" class="flex h-6 w-6 items-center justify-center rounded-full hover:bg-amber-100" aria-label="ยกเลิกคำถาม" @click="cancelAsk(chat.id)"><AppIcon name="x" :size="12" /></button>
+        </span>
+        <span class="hidden text-xs font-medium text-stone-500 lg:inline">ถาม:</span>
+        <button v-for="(f, k) in ASK_FIELDS" :key="k" type="button" class="chip chip-off h-8 px-3 text-xs whitespace-nowrap" @click="ask(k)">{{ f.label }}</button>
+        <span class="mx-0.5 hidden h-5 w-px bg-stone-200 lg:inline-block" aria-hidden="true" />
+        <button v-if="custOrders.length && can('createOrder')" type="button" class="chip h-8 border-brand-300 bg-brand-50 px-3 text-xs whitespace-nowrap text-brand-800 hover:bg-brand-100" data-send-summary @click="openSummary">สรุปออร์เดอร์</button>
+        <button type="button" class="chip chip-off h-8 px-3 text-xs whitespace-nowrap" @click="cannedOpen = true">ข้อความสำเร็จรูป</button>
+        <button v-if="recs.length" type="button" class="chip h-8 px-3 text-xs whitespace-nowrap" :class="recOpen ? 'chip-on' : 'chip-off'" :aria-expanded="recOpen" @click="recOpen = !recOpen">แนะนำสินค้า ({{ recs.length }})</button>
+        <button v-if="db.bot.enabled" type="button" class="chip h-8 px-3 text-xs whitespace-nowrap" :class="chat.botOff ? 'chip-off' : 'border-violet-300 bg-violet-50 text-violet-800'" @click="setChatBot(chat.id, !!chat.botOff)">บอท: {{ chat.botOff ? 'ปิดในแชทนี้' : 'เปิด' }}</button>
+      </div>
 
-    <!-- ช่องพิมพ์ -->
-    <div v-if="replyTo && canType" class="flex items-center gap-2 border-t border-stone-200 bg-stone-50 px-3 py-1.5 text-xs text-stone-600">
-      <span class="min-w-0 flex-1 truncate">ตอบกลับ: {{ snippet(replyTo) }}</span>
-      <button type="button" aria-label="ยกเลิกตอบกลับ" @click="replyTo = null"><AppIcon name="x" :size="14" /></button>
+      <!-- ข้อความที่กำลังตอบกลับ -->
+      <div v-if="replyTo && canType" class="mx-3 mt-2.5 flex items-center gap-2 rounded-xl bg-stone-50 px-3 py-1.5 text-xs text-stone-600">
+        <span class="min-w-0 flex-1 truncate">ตอบกลับ: {{ replyPreview }}</span>
+        <button type="button" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-stone-400 hover:bg-white" aria-label="ยกเลิกตอบกลับ" @click="replyTo = null"><AppIcon name="x" :size="14" /></button>
+      </div>
+
+      <p v-if="!canType" class="m-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+        <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0 text-amber-600" />
+        <span>เกิน 24 ชม. หลังลูกค้าทักล่าสุด Facebook ไม่ให้ตอบข้อความทั่วไป (การ์ดออร์เดอร์/ยอดชำระยังส่งได้) รอให้ลูกค้าทักกลับ</span>
+      </p>
+      <form v-else class="flex items-end gap-2 px-3 py-2.5" @submit.prevent="send">
+        <button type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 lg:hidden" :class="toolsOpen ? 'bg-stone-100 text-brand-700' : ''" :aria-expanded="toolsOpen" aria-label="เครื่องมือแชท" @click="toolsOpen = !toolsOpen">
+          <AppIcon name="plus" :size="20" class="transition-transform duration-200" :class="toolsOpen ? 'rotate-45' : ''" />
+        </button>
+        <div class="flex min-w-0 flex-1 items-end rounded-2xl border border-stone-200 bg-stone-50 transition focus-within:border-brand-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-brand-100">
+          <textarea ref="input" v-model="text" rows="1" class="max-h-40 min-h-11 w-full resize-none bg-transparent px-3.5 py-2.5 text-base leading-6 text-stone-900 outline-none placeholder:text-stone-400" :placeholder="`ตอบทาง ${channelLabel}`" aria-label="ข้อความถึงลูกค้า" @keydown="onKey" />
+        </div>
+        <button type="submit" class="btn-primary h-11 w-11 shrink-0 rounded-full px-0" :disabled="!text.trim()" aria-label="ส่งข้อความ"><AppIcon name="send" :size="18" /></button>
+      </form>
     </div>
-    <p v-if="!canType" class="border-t border-stone-200 bg-amber-50 p-3 text-center text-sm text-amber-800">เกิน 24 ชม. หลังลูกค้าทักล่าสุด Facebook ไม่ให้ตอบข้อความทั่วไป (การ์ดออร์เดอร์/ยอดชำระยังส่งได้) รอให้ลูกค้าทักกลับ</p>
-    <form v-else class="flex items-end gap-2 border-t border-stone-200 bg-white p-2" @submit.prevent="send">
-      <textarea ref="input" v-model="text" rows="1" class="input max-h-32 min-h-11 flex-1 resize-none py-2.5" :placeholder="`ตอบทาง ${channelLabel}`" @keydown="onKey" />
-      <button type="submit" class="btn-primary h-11 w-11 shrink-0 px-0" :disabled="!text.trim()" aria-label="ส่ง"><AppIcon name="send" :size="18" /></button>
-    </form>
 
     <!-- เลือกออร์เดอร์ที่จะส่งสรุป -->
     <AppModal v-if="sumOpen" title="ส่งสรุปออร์เดอร์" @close="sumOpen = false">
       <div class="space-y-2">
-        <button v-for="o in custOrders" :key="o.id" type="button" class="block w-full rounded-xl border border-stone-200 p-3 text-left hover:bg-stone-50" data-summary-pick @click="sendSummary(o)">
+        <button v-for="o in custOrders" :key="o.id" type="button" class="block w-full rounded-xl border border-stone-200 bg-white p-3 text-left hover:bg-stone-50" data-summary-pick @click="sendSummary(o)">
           <span class="flex items-baseline justify-between gap-2"><span class="font-medium text-stone-900">{{ o.code }}</span><span class="text-xs text-stone-500">{{ STATUS[o.status]?.label || o.status }}</span></span>
           <span class="mt-0.5 flex items-baseline justify-between gap-2 text-sm text-stone-600"><span>นัด {{ dateTime(o.pickupAt) }}</span><span>{{ money(orderTotals(o).total) }}<span v-if="orderTotals(o).balance > 0.004" class="text-amber-700"> · ค้าง {{ money(orderTotals(o).balance) }}</span></span></span>
         </button>
@@ -369,7 +458,7 @@ const showDay = (i) => i === 0 || props.chat.messages[i - 1].at.slice(0, 10) !==
         </div>
       </div>
       <div v-else class="space-y-2">
-        <div v-for="c in db.cannedReplies" :key="c.id" class="flex gap-1 rounded-xl border border-stone-200 p-1">
+        <div v-for="c in db.cannedReplies" :key="c.id" class="flex gap-1 rounded-xl border border-stone-200 bg-white p-1">
           <button type="button" class="min-w-0 flex-1 rounded-lg p-2 text-left hover:bg-stone-50" @click="useCanned(c)">
             <span class="block font-medium text-stone-900">{{ c.title }}</span>
             <span class="block truncate text-xs text-stone-500">{{ c.text }}</span>
