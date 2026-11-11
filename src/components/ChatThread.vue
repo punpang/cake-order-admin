@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { addCakeCodesToDraft, can, postOrderCard, db, findOrder, sendChat, markRead, findQuote, fbWindowOpen, convertQuote, chatOrderBlock, findCustomer, linkChat, askCustomer, cancelAsk, applyToDraft, ASK_FIELDS, saveCanned, removeCanned, sendBotDraft, dismissBotDraft, setChatBot, staffReplied, recommendText, addRecommendToDraft } from '../data/store'
+import { addCakeCodesToDraft, can, postOrderCard, db, findOrder, sendChat, markRead, findQuote, fbWindowOpen, convertQuote, chatOrderBlock, findCustomer, linkChat, askCustomer, cancelAsk, applyToDraft, ASK_FIELDS, saveCanned, removeCanned, sendBotDraft, dismissBotDraft, setChatBot, staffReplied, recommendText, addRecommendToDraft, slipChatChoices } from '../data/store'
 import { detectEntities } from '../lib/chatParse'
 import { CODE_RE, findCodes } from '../lib/cakeCode'
 import { extractIntent, customerText, scoreProducts, intentSummary } from '../lib/chatIntent'
@@ -11,6 +11,7 @@ import AppIcon from './AppIcon.vue'
 import PayDueBadge from './PayDueBadge.vue'
 import DiscountDetail from './DiscountDetail.vue'
 import AppModal from './AppModal.vue'
+import OrderPayModal from './OrderPayModal.vue'
 import ChatAttachment from './ChatAttachment.vue'
 import { messagePreview } from '../lib/chatMedia'
 import { kb } from '../lib/viewportFit'
@@ -48,10 +49,25 @@ const SLIP_CHIP = {
   pending_exists: ['สลิป QR · มียอดรอตรวจของออร์เดอร์นี้อยู่แล้ว', 'bg-amber-50 text-amber-700'],
   upload_failed: ['สลิป QR · บันทึกไฟล์ไม่สำเร็จ ให้ลูกค้าส่งใหม่', 'bg-rose-50 text-rose-700'],
   busy: ['สลิป QR · ออร์เดอร์กำลังถูกแก้ไข ให้ลูกค้าส่งใหม่', 'bg-amber-50 text-amber-700'],
+  manual: ['สลิป QR · รอร้านผูกกับออร์เดอร์', 'bg-sky-50 text-sky-700'],
 }
 function slipChip(s) {
   const [t, cls] = SLIP_CHIP[s?.status] || ['สลิป QR · ตรวจไม่ได้', 'bg-stone-100 text-stone-600']
   return { t: s?.orderCode ? `${t} · ${s.orderCode}` : t, cls }
+}
+// โหมดแมนนวล: ร้านผูกสลิปที่ลูกค้าส่งกับออร์เดอร์เอง (ที่แนะนำ = ออร์เดอร์ที่คุยล่าสุด หรือออร์เดอร์อื่นของลูกค้าคนเดียวกัน) ในหน้าแชทนี้
+const canBindSlip = (m) => can('reportPayment') && m.slipCheck?.status === 'manual' && !!m.slipCheck.slipRef
+const slipChoicesOf = (m) => slipChatChoices(props.chat.id, m.id)
+const slipPick = ref(null) // ข้อความสลิปที่กำลังเลือกออร์เดอร์อื่น
+const slipBind = ref(null) // { order, target } ของโมดัลผูกสลิป
+const slipPickList = computed(() => {
+  if (!slipPick.value) return []
+  const c = slipChatChoices(props.chat.id, slipPick.value.id)
+  return [...(c.suggested ? [c.suggested] : []), ...c.others]
+})
+function openSlipBind(m, order) {
+  slipPick.value = null
+  slipBind.value = { order, target: { chatId: props.chat.id, msgId: m.id, at: m.at, slip: m.slipCheck.slipRef, bankCode: m.slipCheck.bankCode, bankName: m.slipCheck.bankName, ref: m.slipCheck.ref } }
 }
 // Facebook เกิน 24 ชม. หลังลูกค้าทักล่าสุด → พิมพ์ตอบไม่ได้ (การ์ดออร์เดอร์/ยอดชำระยังส่งได้)
 const canType = computed(() => fbWindowOpen(props.chat))
@@ -402,6 +418,11 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
               <div v-if="m.slipCheck" class="mt-1 flex flex-wrap items-center gap-1 text-xs">
                 <span class="rounded-full px-2 py-0.5 font-medium" :class="slipChip(m.slipCheck).cls">{{ slipChip(m.slipCheck).t }}</span>
               </div>
+              <!-- โหมดแมนนวล: ผูกกับออร์เดอร์ที่แนะนำ หรือเลือกออร์เดอร์อื่นของลูกค้า (ในหน้าแชท ไม่เปลี่ยนหน้า) -->
+              <div v-if="canBindSlip(m)" class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <button v-if="slipChoicesOf(m).suggested" type="button" class="btn-primary h-8 px-3 text-xs" :disabled="!(slipChoicesOf(m).suggested.room > 0)" data-slip-bind @click="openSlipBind(m, slipChoicesOf(m).suggested.order)">ผูกกับ {{ slipChoicesOf(m).suggested.order.code }}</button>
+                <button type="button" class="btn-outline h-8 px-3 text-xs" data-slip-pick @click="slipPick = m">{{ slipChoicesOf(m).suggested ? 'เลือกออร์เดอร์อื่น' : 'เลือกออร์เดอร์ให้สลิป' }}</button>
+              </div>
               <!-- คำตอบของปุ่มถาม -->
               <div v-if="m.answerFor" class="mt-1 flex flex-wrap items-center gap-1 text-xs">
                 <span class="rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-800">ตอบ: {{ ASK_FIELDS[m.answerFor]?.label }}</span>
@@ -578,5 +599,21 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
         <button type="button" class="btn-soft w-full" @click="cannedEdit = { id: null, title: '', text: '' }"><AppIcon name="plus" :size="16" /> เพิ่มข้อความ</button>
       </div>
     </AppModal>
+
+    <!-- เลือกออร์เดอร์ให้สลิปที่รอผูก (โหมดแมนนวล): ที่แนะนำก่อน แล้วออร์เดอร์อื่นของลูกค้า -->
+    <AppModal v-if="slipPick" title="ผูกสลิปกับออร์เดอร์" @close="slipPick = null">
+      <div class="space-y-2">
+        <p class="text-sm text-stone-600">เลือกออร์เดอร์ที่สลิปนี้ชำระ · ยอดที่ผูกได้ = คงค้างหักยอดที่ลูกค้าแจ้งรอตรวจ</p>
+        <p v-if="!chat.customerId" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">แชทนี้ยังไม่ผูกลูกค้า · ผูกลูกค้ากับแชทก่อน เพื่อดูออร์เดอร์อื่นของลูกค้าคนนั้น</p>
+        <p v-else-if="!slipPickList.length" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">ลูกค้าคนนี้ไม่มีออร์เดอร์ที่ยังไม่ปิด</p>
+        <button v-for="r in slipPickList" :key="r.order.id" type="button" class="block w-full rounded-xl border border-stone-200 bg-white p-3 text-left hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50" :disabled="!(r.room > 0)" data-slip-pick-order @click="openSlipBind(slipPick, r.order)">
+          <span class="flex items-baseline justify-between gap-2"><span class="font-medium text-stone-900">{{ r.order.code }}</span><span class="text-xs text-stone-500">{{ STATUS[r.order.status]?.label || r.order.status }}</span></span>
+          <span class="mt-0.5 flex items-baseline justify-between gap-2 text-sm text-stone-600"><span>นัด {{ dateTime(r.order.pickupAt) }}</span><span v-if="r.room > 0">ผูกได้ {{ money(r.room) }}</span><span v-else>ผูกไม่ได้ (ชำระครบ/มียอดรอตรวจ)</span></span>
+        </button>
+      </div>
+    </AppModal>
+
+    <!-- ผูกสลิปกับออร์เดอร์ในหน้าแชท (ไม่เปลี่ยนหน้า) -->
+    <OrderPayModal v-if="slipBind" :order="slipBind.order" mode="slip" :target="slipBind.target" @close="slipBind = null" />
   </div>
 </template>

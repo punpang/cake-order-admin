@@ -29,7 +29,7 @@ function fakeSb(init: { chats?: any[]; orders?: any[]; kv?: any[] } = {}) {
   const T: Record<string, any[]> = { punpang_chats: init.chats ?? [], punpang_orders: init.orders ?? [], punpang_kv: init.kv ?? [], punpang_records: [] }
   const files = new Map<string, Uint8Array>()
   const calls = { rpc: 0, uploads: 0, removes: 0 }
-  const hooks: { beforeOrderUpdate: null | ((rows: any[]) => void); uploadFail: boolean } = { beforeOrderUpdate: null, uploadFail: false }
+  const hooks: { beforeOrderUpdate: null | ((rows: any[]) => void); uploadFail: boolean; orderUpdateError: null | { code: string; message: string } } = { beforeOrderUpdate: null, uploadFail: false, orderUpdateError: null }
   let tick = 0
   let payNo = 1
   const stamp = () => new Date(NOW + ++tick * 1000).toISOString()
@@ -54,6 +54,7 @@ function fakeSb(init: { chats?: any[]; orders?: any[]; kv?: any[] } = {}) {
     const run = (single: boolean) => Promise.resolve().then(() => {
       const list = T[table]
       if (q.op === 'insert') { list.push(structuredClone(q.patch)); return { data: q.patch, error: null } }
+      if (q.op === 'update' && table === 'punpang_orders' && hooks.orderUpdateError) { const e = hooks.orderUpdateError; hooks.orderUpdateError = null; return { data: null, error: e } }
       if (q.op === 'update' && table === 'punpang_orders' && hooks.beforeOrderUpdate) { const h = hooks.beforeOrderUpdate; hooks.beforeOrderUpdate = null; h(list) }
       const hit = list.filter((r) => q.filters.every((f: any) => f(r)))
       if (q.op === 'update') {
@@ -228,4 +229,74 @@ Deno.test('ข้อความสลิปก่อนวันสร้าง
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), { ...slipMsg, at: '2026-11-11T02:30:00.000Z' }])], orders: [order({ createdAt: '2026-11-11T11:00' })] })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'matched')
   assertEquals(sb.T.punpang_orders[0].data.payments[0].paidAt, '2026-11-11T10:00')
+})
+
+// ---- โหมดแมนนวล: เก็บสลิปให้พนักงานผูกเองในแชท · ไม่แนบ ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์ ----
+const kvMode = (mode: string, enabled = true) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled, mode } } })
+const RAND32 = 'a'.repeat(32)
+
+Deno.test('โหมดแมนนวล: เก็บรูปไว้ในโฟลเดอร์ manual และติดป้าย "รอผูกออร์เดอร์" พร้อมออร์เดอร์ที่แนะนำ โดยไม่แตะออร์เดอร์', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvMode('manual')] })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'manual')
+  const o = sb.T.punpang_orders[0]
+  assertEquals([o.status, o.data.payments.length, o.data.history.length], ['awaiting_payment', 0, 0])
+  assertEquals(sb.files.has(`punpang-slips/manual/c1/${RAND32}.png`), true)
+  const msg = sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1')
+  assertEquals(
+    [msg.slipCheck.status, msg.slipCheck.orderId, msg.slipCheck.orderCode, msg.slipCheck.ref, msg.slipCheck.bankCode, msg.slipCheck.slipRef],
+    ['manual', 'o1', 'OR-111126-000010', 'A1B2C3D4E5F6G7H8', '004', `sb://punpang-slips/manual/c1/${RAND32}.png`],
+  )
+  const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
+  assertEquals([bell.data.event, bell.data.orderId, bell.data.audience], ['slip_check', 'o1', 'staff'])
+})
+
+Deno.test('โหมดแมนนวล: ไม่มีออร์เดอร์ที่คุยล่าสุดก็เก็บสลิปไว้ให้เลือกในแชทได้ (ไม่มีออร์เดอร์แนะนำ)', async () => {
+  const sb = fakeSb({ chats: [chatWith([slipMsg])], orders: [order()], kv: [kvMode('manual')] })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'manual')
+  const msg = sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1')
+  assertEquals([msg.slipCheck.status, msg.slipCheck.orderId, msg.slipCheck.orderCode], ['manual', undefined, undefined])
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 0)
+  const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
+  assertEquals([bell.data.event, bell.data.orderId], ['slip_check', null])
+})
+
+Deno.test('โหมดแมนนวล: สลิปที่แนบไว้แล้ว → ยังตอบซ้ำ ไม่เก็บรูปซ้ำ', async () => {
+  const attached = order({ payments: [{ id: 'px', code: 'PAY-111126-00000', status: 'reported', amount: 540, ref: 'A1B2C3D4E5F6G7H8' }] })
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [attached], kv: [kvMode('manual')] })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'duplicate')
+  assertEquals(sb.calls.uploads, 0)
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 1)
+})
+
+Deno.test('โหมดแมนนวล: อัปโหลดไฟล์ไม่สำเร็จ → บอกให้ส่งใหม่ ไม่เก็บป้ายที่ใช้ไม่ได้', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvMode('manual')] })
+  sb.hooks.uploadFail = true
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'upload_failed')
+  const msg = sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1')
+  assertEquals(msg.slipCheck.status, 'upload_failed')
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 0)
+})
+
+Deno.test('ตั้งค่า mode ที่ไม่รู้จัก หรือไม่มี mode → ใช้โหมดอัตโนมัติเหมือนเดิม', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvMode('whatever')] })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'matched')
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 1)
+})
+
+Deno.test('ตัวกันเลขอ้างอิงซ้ำระดับฐานข้อมูล (23505) ตอนแนบ → ซ้ำ ไม่แนบ ลบไฟล์ที่อัปโหลด และไม่แตะออร์เดอร์', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()] })
+  sb.hooks.orderUpdateError = { code: '23505', message: 'punpang_duplicate_ref: A1B2C3D4E5F6G7H8' }
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'duplicate')
+  assertEquals([sb.calls.uploads, sb.calls.removes, sb.files.size], [1, 1, 0])
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 0)
+  const msg = sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1')
+  assertEquals(msg.slipCheck.status, 'duplicate')
+})
+
+Deno.test('ข้อผิดพลาดอื่นตอนแนบ (ไม่ใช่ 23505) → error ลบไฟล์ที่อัปโหลด ไม่แตะออร์เดอร์', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()] })
+  sb.hooks.orderUpdateError = { code: '08006', message: 'connection failure' }
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'error')
+  assertEquals([sb.calls.uploads, sb.calls.removes, sb.files.size], [1, 1, 0])
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 0)
 })

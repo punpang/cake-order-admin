@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { db, findCustomer, depositOf, reportPayment, confirmPayment, receivePaymentNow, updatePaymentRequest } from '../data/store'
+import { db, findCustomer, depositOf, reportPayment, confirmPayment, receivePaymentNow, updatePaymentRequest, bindChatSlip } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { toastSaved } from '../lib/syncStatus'
 import { QUICK_DUE, quickDue, dueBeforePickup, dueDaysBefore, isHHmm } from '../lib/payDue'
@@ -8,6 +8,7 @@ import { PAYMENT_METHODS } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
 import { money, dateTime } from '../lib/format'
 import { PAY_MSG, notBeforeOrder, thaiMinute } from '../lib/payFields'
+import { slipRoom, pendingCustomerTotal } from '../lib/slipBind'
 import { resizeImage, imageErrorMessage } from '../lib/imageResize'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
@@ -15,11 +16,14 @@ import SecureImg from './SecureImg.vue'
 import SmsTick from './SmsTick.vue'
 
 // โมดัลแจ้งยอดชำระ / แก้ยอดที่แจ้ง / ยืนยันยอดจริง / รับชำระทันที (ใช้ร่วมกันที่หน้ารายละเอียดออร์เดอร์และหน้าชำระเงิน)
-// mode = new | edit | confirm | direct · target = งวดที่แก้/ยืนยัน (new/direct ไม่ต้องส่ง) · เปิดด้วย v-if ใหม่ทุกครั้ง
+// mode = new | edit | confirm | direct | slip · target = งวดที่แก้/ยืนยัน (new/direct ไม่ต้องส่ง) · slip = สลิปที่รอผูกในแชท { chatId, msgId, at, slip, bankCode, bankName, ref } · เปิดด้วย v-if ใหม่ทุกครั้ง
 const props = defineProps({ order: { type: Object, required: true }, mode: { type: String, default: 'new' }, target: { type: Object, default: null } })
 const emit = defineEmits(['close'])
 const customer = computed(() => findCustomer(props.order.customerId))
 const t = computed(() => orderTotals(props.order))
+// โหมดสลิป: ยอดที่ผูกได้ = คงค้างหักยอดที่ลูกค้าแจ้งรอตรวจอยู่แล้ว
+const slipMax = computed(() => slipRoom(t.value.balance, props.order.payments))
+const slipOwn = computed(() => pendingCustomerTotal(props.order.payments))
 const paidMin = computed(() => thaiMinute(props.order.createdAt))
 const nowLocal = () => {
   const d = new Date()
@@ -27,7 +31,9 @@ const nowLocal = () => {
   return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}T${p2(d.getHours())}:${p2(d.getMinutes())}`
 }
 
-const payMode = props.mode // new | edit | confirm | direct (รับชำระทันที ไม่ต้องแจ้งยอด) · เปิดใหม่ทุกครั้ง (v-if) จึงไม่ต้องเป็น ref
+// เวลาเริ่มต้นของสลิปในแชท = เวลาที่ลูกค้าส่งข้อความสลิป (เวลาไทย) · ก่อนวันสร้างออร์เดอร์หรือไม่ทราบเวลา → เวลาตอนนี้ (ตรงกับฝั่งเซิร์ฟเวอร์)
+const slipPaidAt = (p, order) => { const m = thaiMinute(p?.at); return m && notBeforeOrder(m, order.createdAt) ? m : nowLocal() }
+const payMode = props.mode // new | edit | confirm | direct | slip (รับชำระทันที ไม่ต้องแจ้งยอด) · เปิดใหม่ทุกครั้ง (v-if) จึงไม่ต้องเป็น ref
 const payTarget = props.target
 const pay = reactive({ amount: 0, method: PAYMENT_METHODS[0], paidAt: '', slip: '', note: '', dueAt: '', notify: true, sms: true })
 const payError = ref('')
@@ -42,7 +48,7 @@ const beforeCustom = computed(() => dueBeforePickup(props.order.pickupAt, dueHou
 const daysOpts = computed(() => DAYS_BEFORE.map((d) => ({ d, ...dueDaysBefore(props.order.pickupAt, d, isHHmm(dueTime.value) ? dueTime.value : '12:00') })))
 const daysCustom = computed(() => dueDaysBefore(props.order.pickupAt, dueDays.value, dueTime.value))
 const dueReasons = computed(() => [...beforeOpts.value.filter((x) => x.disabled).map((x) => `ก่อนนัด ${x.h} ชม.: ${x.reason}`), ...daysOpts.value.filter((x) => x.disabled).map((x) => `ล่วงหน้า ${x.d} วัน ก่อน ${dueTime.value}: ${x.reason}`)])
-const PAY_TITLE = { new: 'แจ้งยอดชำระ', edit: 'แก้ยอดที่แจ้ง', confirm: 'ยืนยันยอดชำระ', direct: 'รับชำระทันที' }
+const PAY_TITLE = { new: 'แจ้งยอดชำระ', edit: 'แก้ยอดที่แจ้ง', confirm: 'ยืนยันยอดชำระ', direct: 'รับชำระทันที', slip: 'ผูกสลิปกับออร์เดอร์' }
 // มัดจำ: แจ้งยอดงวดแรก (ยังไม่มีงวดที่แจ้ง/ยืนยัน) เติมยอดมัดจำให้ แก้ได้
 const fullAmount = computed(() => Math.max(t.value.balance - t.value.reported, 0))
 const depositAmount = computed(() => Math.min(depositOf(t.value.total), fullAmount.value))
@@ -53,7 +59,8 @@ const showDeposit = computed(() =>
 {
   const mode = payMode
   const p = payTarget
-  Object.assign(pay, p
+  if (mode === 'slip') Object.assign(pay, { amount: slipMax.value, method: PAYMENT_METHODS[0], paidAt: slipPaidAt(p, props.order), slip: p.slip, note: '', dueAt: '' })
+  else Object.assign(pay, p
     ? { amount: mode === 'confirm' && p.customerSubmitted ? p.amount : (p.requested ?? p.amount), method: p.method, paidAt: p.paidAt, slip: p.slip, note: p.note, dueAt: p.dueAt || '' }
     : { amount: mode === 'direct' ? Math.max(t.value.balance, 0) : fullAmount.value, method: PAYMENT_METHODS[0], paidAt: nowLocal(), slip: '', note: '', dueAt: db.shop.payDueMin > 0 ? quickDue(db.shop.payDueMin) : '' })
   if (showDeposit.value) pay.amount = depositAmount.value
@@ -73,7 +80,7 @@ const paidText = computed(() => {
   return !payTarget && pay.paidAt === paidInitial ? `ตอนนี้ · ${label}` : label
 })
 const amountMatchesBalance = computed(() => Number(pay.amount) === Number(t.value.balance))
-const saveLabel = computed(() => (payMode === 'direct' ? 'ยืนยันรับชำระ' : payMode === 'confirm' ? 'ยืนยัน' : 'บันทึก'))
+const saveLabel = computed(() => (payMode === 'direct' ? 'ยืนยันรับชำระ' : payMode === 'confirm' ? 'ยืนยัน' : payMode === 'slip' ? 'ผูกสลิป' : 'บันทึก'))
 async function onSlip(e) {
   const f = e.target.files[0]
   e.target.value = ''
@@ -89,6 +96,16 @@ let saving = false
 async function savePay() {
   if (saving) return
   if (!(pay.amount > 0)) return (payError.value = 'กรอกยอดเงิน')
+  if (payMode === 'slip') { // ผูกสลิปจากแชท: กติกาทั้งหมดอยู่ใน bindChatSlip (ชุดเดียวกับ slipBindError)
+    if (saving) return
+    saving = true
+    let r
+    try { r = bindChatSlip(payTarget.chatId, payTarget.msgId, props.order.id, { ...pay }) } finally { saving = false }
+    if (r?.error) return (payError.value = r.error)
+    toastSaved(`ผูกสลิปกับ ${props.order.code} แล้ว · ยอด ${money(pay.amount)}`)
+    emit('close')
+    return
+  }
   // วัน-เวลาชำระห้ามน้อยกว่าวัน-เวลาสร้างออร์เดอร์ (ตรวจเฉพาะค่าที่แก้ — ข้อมูลเดิมที่ไม่ได้แก้ไม่ถูกบล็อก)
   if (pay.paidAt !== paidInitial && !notBeforeOrder(pay.paidAt, props.order.createdAt)) return (payError.value = PAY_MSG.beforeOrder)
   if (payMode === 'direct') {
@@ -122,6 +139,9 @@ async function savePay() {
     <div v-if="payMode === 'confirm'" class="rounded-xl bg-sky-50 p-3 text-sm text-sky-800">
       ยอดที่แจ้งไป <b>{{ money(payTarget.requested ?? payTarget.amount) }}</b> · ใส่ยอดที่ได้รับจริง
     </div>
+    <div v-else-if="payMode === 'slip'" class="rounded-xl bg-sky-50 p-3 text-sm text-sky-800">
+      สลิปจากแชท · คงค้าง <b>{{ money(t.balance) }}</b> · ผูกได้สูงสุด <b>{{ money(slipMax) }}</b><span v-if="slipOwn > 0"> (หักยอดที่ลูกค้าแจ้งรอตรวจ {{ money(slipOwn) }})</span>
+    </div>
     <div v-else class="rounded-xl p-3 text-sm" :class="payMode === 'direct' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'">
       <template v-if="payMode === 'direct'">ลูกค้าชำระแล้ว ไม่ต้องแจ้งยอด/กำหนดชำระ · </template>คงค้าง <b>{{ money(t.balance) }}</b><span v-if="t.reported"> · แจ้งยอดแล้ว {{ money(t.reported) }}</span>
     </div>
@@ -132,7 +152,7 @@ async function savePay() {
       <div>เลขอ้างอิง <b class="break-all text-stone-900">{{ payTarget.ref || '-' }}</b><span v-if="payTarget.refSource === 'qr'" class="ml-1 text-xs text-emerald-700">(อ่านจาก QR)</span></div>
     </div>
     <div>
-      <label class="label" for="pay-amount">{{ payMode === 'confirm' || payMode === 'direct' ? 'ยอดที่ได้รับจริง' : 'ยอดที่แจ้งลูกค้า' }}</label>
+      <label class="label" for="pay-amount">{{ payMode === 'slip' ? 'ยอดตามสลิป' : payMode === 'confirm' || payMode === 'direct' ? 'ยอดที่ได้รับจริง' : 'ยอดที่แจ้งลูกค้า' }}</label>
       <div class="relative">
         <input id="pay-amount" v-model.number="pay.amount" type="text" v-num.dec min="0" enterkeyhint="done" class="input pr-12 text-lg font-semibold" />
         <span class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-stone-400">บาท</span>
@@ -151,7 +171,7 @@ async function savePay() {
         <button v-for="m in PAYMENT_METHODS" :key="m" type="button" class="chip" :class="pay.method === m ? 'chip-on' : 'chip-off'" @click="pay.method = m">{{ m }}</button>
       </div>
     </div>
-    <div v-if="customer && order.channel !== 'pos' && payMode !== 'edit'" class="space-y-2 rounded-xl border border-stone-200 bg-white p-3">
+    <div v-if="customer && order.channel !== 'pos' && payMode !== 'edit' && payMode !== 'slip'" class="space-y-2 rounded-xl border border-stone-200 bg-white p-3">
       <label class="flex items-center gap-2 text-sm text-stone-700"><input v-model="pay.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> {{ payMode === 'new' ? 'แจ้งยอดชำระให้ลูกค้าทราบ' : 'แจ้งลูกค้าว่าได้รับชำระแล้ว' }}</label>
       <SmsTick v-model="pay.sms" :customer="customer" :order="order" :show="pay.notify" />
     </div>
@@ -189,7 +209,17 @@ async function savePay() {
       </div>
       <input v-else v-model="pay.paidAt" type="datetime-local" class="input" aria-label="วันเวลาที่ชำระ" :min="paidMin" />
     </div>
-    <div>
+    <div v-if="payMode === 'slip'" class="rounded-xl border border-stone-200 bg-white p-3 text-sm text-stone-700">
+      <div class="text-xs text-stone-500">สลิปจากแชท · อ่านจาก QR (ยังไม่ได้ตรวจยอดกับธนาคาร)</div>
+      <div class="mt-2 flex items-start gap-3">
+        <SecureImg v-if="pay.slip" :src="pay.slip" alt="สลิปจากแชท" class="h-20 w-20 shrink-0 rounded-lg object-cover" />
+        <div class="min-w-0 space-y-0.5">
+          <div>ธนาคารผู้โอน <b class="text-stone-900">{{ payTarget.bankName || payTarget.bankCode || '-' }}</b></div>
+          <div>เลขอ้างอิง <b class="break-all text-stone-900">{{ payTarget.ref || '-' }}</b></div>
+        </div>
+      </div>
+    </div>
+    <div v-else>
       <div class="label">สลิป <span class="font-normal text-stone-400">(ไม่บังคับ)</span></div>
       <label class="flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-stone-200 p-3 text-sm text-stone-500 hover:border-brand-300">
         <SecureImg v-if="pay.slip" :src="pay.slip" alt="สลิป" class="h-14 w-14 rounded-lg object-cover" />
