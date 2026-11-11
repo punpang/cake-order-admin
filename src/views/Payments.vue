@@ -46,86 +46,156 @@ async function doDenyExt(o, p) {
   if (await askConfirm({ title: 'ไม่อนุมัติขยายเวลา', message: 'ลูกค้าจะยังชำระเองไม่ได้', okText: 'ไม่อนุมัติ', danger: true })) denyPayExtension(o, p.id)
 }
 const reported = (o) => o.payments.map((p, i) => ({ p, n: i + 1 })).filter((x) => x.p.status === 'reported')
-const shortDay = (o) => dayLabel(o.pickupAt.slice(0, 10))
+const customerOf = (o) => findCustomer(o.customerId)
+// หัววันสั้น ๆ ใต้เวลานัด: วันนี้ / พรุ่งนี้ / เมื่อวาน / ส. 14-11
+const dayShort = (o) => {
+  const [a, b = ''] = dayLabel(o.pickupAt.slice(0, 10)).split(' ')
+  return ['วันนี้', 'พรุ่งนี้', 'เมื่อวาน'].includes(a) ? a : `${a} ${b.slice(0, 5)}`
+}
+// เปอร์เซ็นต์ที่ชำระแล้ว (สุทธิหลังคืนเงิน) ของยอดรวม
+const paidPct = (t) => (t.total > 0 ? Math.min(100, Math.max(0, Math.round((t.paidNet / t.total) * 100))) : 0)
+// สรุปยอดด้านบนของแท็บ: รอตรวจ = ยอดที่ลูกค้า/พนักงานแจ้งไว้ · ค้างชำระ = ยอดคงค้างรวม + จำนวนที่เกินกำหนด
+const summary = computed(() => {
+  if (tab.value === 'refund') return null
+  let amount = 0
+  let count = 0
+  let overdue = 0
+  for (const r of rows.value) {
+    if (tab.value === 'review') {
+      for (const { p } of reported(r.o)) { amount += Number(p.requested ?? p.amount) || 0; count++ }
+    } else {
+      amount += Math.max(r.t.balance, 0)
+      count++
+      if (r.due?.state === 'overdue') overdue++
+    }
+  }
+  return { amount, count, overdue }
+})
 </script>
 
 <template>
   <div>
-    <div class="mb-4 min-w-0">
+    <div class="mb-3 min-w-0">
       <h1 class="page-title">ชำระเงิน</h1>
-      <p class="text-sm text-stone-500">ออร์เดอร์เท่านั้น (ไม่รวมบิล POS) · รอตรวจ {{ counts.review }} · ค้างชำระ {{ counts.due }}<template v-if="counts.overdue"> · เกินกำหนด {{ counts.overdue }}</template></p>
+      <p class="text-sm text-stone-500">เฉพาะออร์เดอร์ · ไม่รวมบิล POS</p>
     </div>
 
-    <label class="relative mb-3 block">
+    <div class="mb-3 grid grid-cols-3 gap-1 seg-grid md:max-w-xl" role="group" aria-label="กรองการชำระเงิน">
+      <button v-for="t in tabs" :key="t.v" type="button" class="seg-item h-auto min-h-10 px-1 py-1.5 text-center leading-tight" :class="tab === t.v ? 'seg-on' : ''" :aria-pressed="tab === t.v" @click="tab = t.v">
+        {{ t.l }} <span class="font-normal tabular-nums">{{ counts[t.v] }}</span>
+      </button>
+    </div>
+
+    <!-- สรุปยอดของแท็บ: ตอบคำถามแรกของคนหน้าร้านได้ทันที (ต้องรับเงินเท่าไร) -->
+    <section v-if="summary && rows.length" class="mb-3 flex items-center justify-between gap-3 rounded-2xl px-4 py-3" :class="tab === 'review' ? 'bg-sky-50 text-sky-900' : 'bg-amber-50 text-amber-900'" aria-label="สรุปยอด">
+      <div class="min-w-0">
+        <div class="text-xs font-medium opacity-80">{{ tab === 'review' ? 'ยอดที่แจ้งรอตรวจ' : 'ยอดค้างรับทั้งหมด' }}{{ q.trim() ? ' (ตามที่ค้นหา)' : '' }}</div>
+        <div class="text-xl leading-tight font-semibold tabular-nums">{{ money(summary.amount) }}</div>
+      </div>
+      <div class="shrink-0 text-right text-xs leading-relaxed">
+        <div>{{ summary.count }} {{ tab === 'review' ? 'งวด' : 'ออร์เดอร์' }}</div>
+        <div v-if="summary.overdue" class="font-semibold text-rose-700">เกินกำหนด {{ summary.overdue }}</div>
+      </div>
+    </section>
+
+    <label class="relative mb-4 block">
       <span class="sr-only">ค้นหา</span>
       <AppIcon name="search" class="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-stone-400" />
       <input v-model="q" type="search" class="input bg-white pl-10" placeholder="ค้นหา เลขออร์เดอร์ ชื่อ หรือเบอร์" />
     </label>
 
-    <div class="mb-4 grid grid-cols-3 gap-1 seg-grid md:max-w-xl" role="group" aria-label="กรองการชำระเงิน">
-      <button v-for="t in tabs" :key="t.v" type="button" class="seg-item h-auto min-h-10 px-1 py-1.5 text-center leading-tight" :class="tab === t.v ? 'seg-on' : ''" :aria-pressed="tab === t.v" @click="tab = t.v">
-        {{ t.l }} <span class="font-normal">{{ counts[t.v] }}</span>
-      </button>
-    </div>
-
     <template v-if="tab !== 'refund'">
-    <div v-if="!rows.length" class="empty py-12">
-      <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><AppIcon name="wallet" :size="28" /></span>
-      <div class="font-semibold text-stone-800">{{ q.trim() ? 'ไม่พบออร์เดอร์' : EMPTY[tab] }}</div>
-    </div>
+      <div v-if="!rows.length" class="empty py-12">
+        <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><AppIcon name="wallet" :size="28" /></span>
+        <div class="font-semibold text-stone-800">{{ q.trim() ? 'ไม่พบออร์เดอร์' : EMPTY[tab] }}</div>
+      </div>
 
-    <ul class="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3" aria-label="รายการชำระเงิน">
-      <li v-for="r in rows" :key="r.o.id" class="card flex min-w-0 flex-col gap-3" :data-order="r.o.code">
-        <div class="flex items-start gap-2">
-          <div class="min-w-0 flex-1">
-            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span class="font-semibold text-stone-900">{{ r.o.code }}</span>
-              <StatusBadge :status="r.o.status" />
-              <PayDueBadge :due="r.due" />
-              <span v-if="r.pending.length" class="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-sky-700">ลูกค้าแจ้งโอน</span>
+      <ul v-else class="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3" aria-label="รายการชำระเงิน">
+        <li v-for="r in rows" :key="r.o.id" class="card flex min-w-0 flex-col gap-3 p-3.5" :data-order="r.o.code">
+          <!-- หัว: เวลานัด · ลูกค้า · สถานะ -->
+          <div class="flex items-start gap-3">
+            <div class="flex w-14 shrink-0 flex-col items-center rounded-xl py-2" :class="r.due?.state === 'overdue' ? 'bg-rose-50 text-rose-700' : 'bg-brand-50 text-brand-800'">
+              <span class="text-base leading-none font-semibold tabular-nums">{{ r.o.pickupAt.slice(11, 16) }}</span>
+              <span class="mt-1 text-[11px] leading-none opacity-80">{{ dayShort(r.o) }}</span>
             </div>
-            <div class="truncate text-sm text-stone-600">{{ findCustomer(r.o.customerId)?.name || 'ไม่ระบุลูกค้า' }}<template v-if="findCustomer(r.o.customerId)?.phone"> · {{ formatPhone(findCustomer(r.o.customerId).phone) }}</template></div>
-            <div class="text-xs text-stone-500">นัด{{ r.o.fulfillment === 'delivery' ? 'ส่ง' : 'รับ' }} {{ shortDay(r.o) }} {{ r.o.pickupAt.slice(11, 16) }}</div>
-          </div>
-          <RouterLink :to="`/admin/orders/${r.o.id}`" class="shrink-0 text-xs text-brand-700 underline" :aria-label="`เปิดออร์เดอร์ ${r.o.code}`">เปิดออร์เดอร์</RouterLink>
-        </div>
-
-        <dl class="grid grid-cols-3 gap-2 text-sm">
-          <div class="rounded-xl bg-stone-50 p-2"><dt class="text-xs text-stone-500">ยอดรวม</dt><dd class="font-semibold text-stone-900">{{ money(r.t.total) }}</dd></div>
-          <div class="rounded-xl bg-emerald-50 p-2"><dt class="text-xs text-emerald-700">ชำระแล้ว<template v-if="r.t.returned"> (สุทธิ)</template></dt><dd class="font-semibold text-emerald-800">{{ money(r.t.paidNet) }}</dd></div>
-          <div class="rounded-xl p-2" :class="r.t.balance > 0 ? 'bg-amber-50' : 'bg-stone-50'"><dt class="text-xs" :class="r.t.balance > 0 ? 'text-amber-700' : 'text-stone-500'">คงค้าง</dt><dd class="font-semibold" :class="r.t.balance > 0 ? 'text-amber-800' : 'text-stone-700'">{{ money(Math.max(r.t.balance, 0)) }}</dd></div>
-        </dl>
-        <p v-if="r.t.returned" class="text-xs text-rose-600">คืนเงินแล้ว −{{ money(r.t.returned) }}</p>
-
-        <!-- งวดที่แจ้งไว้ (รอตรวจ/รอรับเงิน) -->
-        <div v-for="x in reported(r.o)" :key="x.p.id" class="space-y-2 rounded-xl border border-sky-200 bg-sky-50/50 p-3" :aria-label="`งวด ${x.n} ${r.o.code}`">
-          <div class="flex items-center justify-between gap-2">
-            <span class="font-semibold text-stone-900">งวด {{ x.n }} · {{ money(x.p.requested ?? x.p.amount) }}</span>
-            <span class="text-xs text-stone-600">{{ x.p.method }}<template v-if="x.p.paidAt"> · {{ dateTime(x.p.paidAt) }}</template></span>
-          </div>
-          <SecureImg v-if="x.p.slip" :src="x.p.slip" alt="สลิป" link class="block w-fit" img-class="h-24 w-auto rounded-lg object-cover" />
-          <p v-if="x.p.note" class="text-sm break-words text-stone-600">{{ x.p.note }}</p>
-          <div v-if="x.p.extension?.status === 'pending'" class="rounded-lg bg-amber-50 p-2.5 text-sm text-amber-800">
-            ลูกค้าขอขยายเวลา<span v-if="x.p.extension.note"> · {{ x.p.extension.note }}</span>
-            <div v-if="canReport" class="mt-2 flex gap-2">
-              <button type="button" class="btn-primary h-9 flex-1 px-3" @click="ext = { order: r.o, payment: x.p }">ขยายเวลา</button>
-              <button type="button" class="btn-outline h-9 px-3" @click="doDenyExt(r.o, x.p)">ไม่อนุมัติ</button>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="truncate font-semibold text-stone-900">{{ customerOf(r.o)?.name || 'ไม่ระบุลูกค้า' }}</div>
+                  <div class="truncate text-xs text-stone-500 tabular-nums">{{ r.o.code }}<template v-if="customerOf(r.o)?.phone"> · {{ formatPhone(customerOf(r.o).phone) }}</template></div>
+                </div>
+                <RouterLink :to="`/admin/orders/${r.o.id}`" class="-mt-1 -mr-1 flex h-10 shrink-0 items-center gap-0.5 rounded-lg px-2 text-sm font-medium text-brand-700 hover:bg-brand-50" :aria-label="`เปิดออร์เดอร์ ${r.o.code}`">
+                  เปิด<AppIcon name="next" :size="14" />
+                </RouterLink>
+              </div>
+              <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <StatusBadge :status="r.o.status" />
+                <PayDueBadge :due="r.due" short />
+                <span v-if="r.pending.length" class="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-sky-700">ลูกค้าแจ้งโอน</span>
+              </div>
             </div>
           </div>
-          <div class="flex flex-wrap gap-2">
-            <button v-if="canConfirm" type="button" class="btn-primary h-9 flex-1 px-3" @click="openPay(r.o, 'confirm', x.p)"><AppIcon name="check" :size="16" /> ยืนยันยอด</button>
-            <button v-if="canReport" type="button" class="btn-outline h-9 px-3" @click="openPay(r.o, 'edit', x.p)"><AppIcon name="edit" :size="16" /> แก้ยอด</button>
-            <button v-if="canReport" type="button" class="btn-danger h-9 px-3" @click="doCancelRequest(r.o, x.p)"><AppIcon name="x" :size="16" /> ยกเลิก</button>
-            <button v-if="canReport && !(x.p.extension?.status === 'pending') && x.p.dueAt" type="button" class="btn-soft h-9 px-3 text-xs" @click="ext = { order: r.o, payment: x.p }">เปลี่ยนกำหนดชำระ</button>
-          </div>
-        </div>
 
-        <div v-if="r.o.status !== 'cancelled'" class="mt-auto flex flex-wrap gap-2">
-          <button v-if="canConfirm && r.t.balance > 0" type="button" class="btn-primary h-9 px-3" @click="openPay(r.o, 'direct')"><AppIcon name="check" :size="16" /> รับชำระทันที</button>
-          <button v-if="canReport && r.t.balance > 0" type="button" class="btn-outline h-9 px-3" @click="openPay(r.o, 'new')"><AppIcon name="plus" :size="16" /> แจ้งยอดชำระ</button>
-        </div>
-      </li>
-    </ul>
+          <!-- ยอด: คงค้างเป็นตัวเด่น · ยอดรวม/ชำระแล้วเป็นรอง · แถบความคืบหน้า -->
+          <div class="rounded-2xl bg-stone-50 p-3">
+            <div class="flex items-end justify-between gap-3">
+              <div class="min-w-0">
+                <div class="text-xs text-stone-500">คงค้าง</div>
+                <div class="text-xl leading-tight font-semibold tabular-nums" :class="r.t.balance > 0 ? 'text-amber-800' : 'text-stone-500'">{{ r.t.balance > 0 ? money(r.t.balance) : 'ไม่มียอดค้าง' }}</div>
+              </div>
+              <div class="shrink-0 text-right text-xs leading-relaxed text-stone-500">
+                <div>ยอดรวม <b class="font-semibold text-stone-700 tabular-nums">{{ money(r.t.total) }}</b></div>
+                <div>ชำระแล้ว <b class="font-semibold text-emerald-700 tabular-nums">{{ money(r.t.paidNet) }}</b></div>
+              </div>
+            </div>
+            <div class="mt-2.5 h-1.5 overflow-hidden rounded-full bg-stone-200" role="progressbar" :aria-valuenow="paidPct(r.t)" aria-valuemin="0" aria-valuemax="100" aria-label="ชำระแล้ว">
+              <div class="h-full rounded-full bg-emerald-500 transition-all" :style="{ width: paidPct(r.t) + '%' }" />
+            </div>
+            <p v-if="r.t.returned" class="mt-2 text-xs text-rose-600">คืนเงินแล้ว −{{ money(r.t.returned) }}</p>
+          </div>
+
+          <!-- งวดที่แจ้งไว้ (รอตรวจ/รอรับเงิน): การกระทำหลักของแท็บรอตรวจ -->
+          <div v-for="x in reported(r.o)" :key="x.p.id" class="rounded-2xl border border-sky-200 bg-sky-50/60 p-3" :aria-label="`งวด ${x.n} ${r.o.code}`">
+            <div class="flex gap-3">
+              <div class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white text-sky-500">
+                <SecureImg v-if="x.p.slip" :src="x.p.slip" alt="สลิป" img-class="h-full w-full object-cover" />
+                <AppIcon v-else name="image" :size="22" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="text-xs font-medium text-sky-700">งวด {{ x.n }} · {{ x.p.customerSubmitted ? 'ลูกค้าแจ้งโอนแล้ว' : 'แจ้งยอดไว้ รอรับเงิน' }}</div>
+                <div class="text-lg leading-tight font-semibold text-stone-900 tabular-nums">{{ money(x.p.requested ?? x.p.amount) }}</div>
+                <div class="truncate text-xs text-stone-600">{{ x.p.method }}<template v-if="x.p.paidAt"> · {{ dateTime(x.p.paidAt) }}</template></div>
+                <p v-if="x.p.note" class="mt-0.5 truncate text-xs text-stone-500">{{ x.p.note }}</p>
+              </div>
+            </div>
+
+            <div v-if="x.p.extension?.status === 'pending'" class="mt-3 rounded-xl bg-amber-50 p-2.5 text-sm text-amber-900">
+              <div>ลูกค้าขอขยายเวลา<span v-if="x.p.extension.note"> · {{ x.p.extension.note }}</span></div>
+              <div v-if="canReport" class="mt-2 grid grid-cols-2 gap-2">
+                <button type="button" class="btn-primary h-11 px-3" @click="ext = { order: r.o, payment: x.p }">ขยายเวลา</button>
+                <button type="button" class="btn-outline h-11 px-3" @click="doDenyExt(r.o, x.p)">ไม่อนุมัติ</button>
+              </div>
+            </div>
+
+            <div class="mt-3 space-y-2">
+              <button v-if="canConfirm" type="button" class="btn-primary h-11 w-full" @click="openPay(r.o, 'confirm', x.p)">
+                <AppIcon name="check" :size="16" /> ยืนยันยอด {{ money(x.p.requested ?? x.p.amount) }}
+              </button>
+              <div v-if="canReport" class="grid gap-2" :class="x.p.dueAt && !(x.p.extension?.status === 'pending') ? 'grid-cols-3' : 'grid-cols-2'">
+                <button type="button" class="btn-outline h-11 px-2 text-sm" @click="openPay(r.o, 'edit', x.p)"><AppIcon name="edit" :size="14" /> แก้ยอด</button>
+                <button v-if="x.p.dueAt && !(x.p.extension?.status === 'pending')" type="button" class="btn-outline h-11 px-2 text-sm" @click="ext = { order: r.o, payment: x.p }">เปลี่ยนกำหนด</button>
+                <button type="button" class="btn-danger h-11 px-2 text-sm" @click="doCancelRequest(r.o, x.p)"><AppIcon name="x" :size="14" /> ยกเลิกยอด</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- การกระทำของออร์เดอร์: แท็บค้างชำระเน้น "รับชำระทันที" · แท็บรอตรวจให้ยืนยันงวดที่แจ้งก่อน -->
+          <div v-if="r.t.balance > 0 && (canConfirm || canReport)" class="mt-auto flex gap-2">
+            <button v-if="canConfirm" type="button" class="h-11 flex-1 px-3" :class="tab === 'due' && !reported(r.o).length ? 'btn-primary' : 'btn-outline'" @click="openPay(r.o, 'direct')"><AppIcon name="check" :size="16" /> รับชำระทันที</button>
+            <button v-if="canReport" type="button" class="btn-outline h-11 flex-1 px-3" @click="openPay(r.o, 'new')"><AppIcon name="plus" :size="16" /> แจ้งยอดชำระ</button>
+          </div>
+        </li>
+      </ul>
     </template>
 
     <template v-else>
@@ -138,25 +208,25 @@ const shortDay = (o) => dayLabel(o.pickupAt.slice(0, 10))
         <div class="font-semibold text-stone-800">ไม่พบออร์เดอร์ที่คืนเงินได้</div>
       </div>
       <ul v-else class="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3" aria-label="ออร์เดอร์ที่คืนเงินได้">
-        <li v-for="r in refundRows" :key="r.o.id" class="card flex min-w-0 flex-col gap-3" :data-order="r.o.code">
-          <div class="flex items-start gap-2">
+        <li v-for="r in refundRows" :key="r.o.id" class="card flex min-w-0 flex-col gap-3 p-3.5" :data-order="r.o.code">
+          <div class="flex items-start gap-3">
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span class="font-semibold text-stone-900">{{ r.o.code }}</span>
+                <span class="font-semibold text-stone-900 tabular-nums">{{ r.o.code }}</span>
                 <StatusBadge :status="r.o.status" />
               </div>
               <div class="truncate text-sm text-stone-600">{{ r.c?.name || 'ไม่ระบุลูกค้า' }}<template v-if="r.c?.phone"> · {{ formatPhone(r.c.phone) }}</template></div>
             </div>
-            <RouterLink :to="`/admin/orders/${r.o.id}`" class="shrink-0 text-xs text-brand-700 underline" :aria-label="`เปิดออร์เดอร์ ${r.o.code}`">เปิดออร์เดอร์</RouterLink>
+            <RouterLink :to="`/admin/orders/${r.o.id}`" class="-mt-1 -mr-1 flex h-10 shrink-0 items-center gap-0.5 rounded-lg px-2 text-sm font-medium text-brand-700 hover:bg-brand-50" :aria-label="`เปิดออร์เดอร์ ${r.o.code}`">
+              เปิด<AppIcon name="next" :size="14" />
+            </RouterLink>
           </div>
-          <dl class="grid grid-cols-2 gap-2 text-sm">
-            <div class="rounded-xl bg-stone-50 p-2"><dt class="text-xs text-stone-500">ยอดรวม</dt><dd class="font-semibold text-stone-900">{{ money(r.t.total) }}</dd></div>
-            <div class="rounded-xl bg-emerald-50 p-2"><dt class="text-xs text-emerald-700">ชำระแล้ว (สุทธิ)</dt><dd class="font-semibold text-emerald-800">{{ money(r.t.paidNet) }}</dd></div>
-          </dl>
-          <p v-if="r.t.returned" class="text-xs text-rose-600">คืนเงินแล้ว −{{ money(r.t.returned) }}</p>
-          <div class="mt-auto flex flex-wrap gap-2">
-            <button v-if="canRefund" type="button" class="btn-primary h-9 px-3" @click="refund = r.o"><AppIcon name="wallet" :size="16" /> คืนเงิน</button>
+          <div class="rounded-2xl bg-emerald-50 p-3">
+            <div class="text-xs text-emerald-700">ชำระแล้ว (สุทธิ · คืนได้)</div>
+            <div class="text-xl leading-tight font-semibold text-emerald-800 tabular-nums">{{ money(r.t.paidNet) }}</div>
+            <div class="mt-1 text-xs text-stone-600">ยอดรวม {{ money(r.t.total) }}<template v-if="r.t.returned"> · คืนแล้ว −{{ money(r.t.returned) }}</template></div>
           </div>
+          <button v-if="canRefund" type="button" class="btn-primary mt-auto h-11 w-full" @click="refund = r.o"><AppIcon name="wallet" :size="16" /> คืนเงิน</button>
         </li>
       </ul>
     </template>
