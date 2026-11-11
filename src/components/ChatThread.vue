@@ -30,7 +30,7 @@ function sendState(m) {
     if (m.delivery === 'sent') return `ส่งสำเร็จ`
     if (m.delivery === 'failed') return `ส่งไม่สำเร็จ${m.deliveryError ? `: ${m.deliveryError}` : ''}`
   }
-  return `ส่งทาง ${ch} (จำลอง)`
+  return `ส่งทาง ${ch}`
 }
 const channelLabel = computed(() => (props.chat.channel === 'facebook' ? 'Facebook' : 'LINE'))
 // Facebook เกิน 24 ชม. หลังลูกค้าทักล่าสุด → พิมพ์ตอบไม่ได้ (การ์ดออร์เดอร์/ยอดชำระยังส่งได้)

@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { supabaseEnabled, getSupabase } from '../../lib/supabase'
 import { fbConnectCall, FB_ERRORS } from '../../lib/fbRemote'
-import { db, findOrder, saveNotifyRule, runScheduledChecks, clearOutbox, fillTemplate, connectIntegration, disconnectIntegration, sendIntegrationTest } from '../../data/store'
+import { db, findOrder, saveNotifyRule, clearOutbox, fillTemplate, connectIntegration, disconnectIntegration, sendIntegrationTest } from '../../data/store'
 import { CHANNELS, NOTIFY_EVENTS, NOTIFY_VARS } from '../../lib/constants'
 import { askConfirm } from '../../lib/confirm'
 import { dateTime } from '../../lib/format'
@@ -49,18 +49,13 @@ function saveTpl() {
 }
 
 // คิวข้อความ
-const scanMsg = ref('')
-function scan() {
-  const n = runScheduledChecks()
-  scanMsg.value = n ? `เพิ่ม ${n} ข้อความ` : 'ไม่มีข้อความใหม่'
-}
 async function clear() {
   if (await askConfirm({ title: 'ล้างคิวข้อความ', message: `${db.outbox.length} รายการ`, okText: 'ล้าง', danger: true })) clearOutbox()
 }
 const showAll = ref(false)
 const outbox = computed(() => (showAll.value ? db.outbox : db.outbox.slice(0, 20)))
 
-// ---------- เชื่อมบัญชี (จำลอง) ----------
+// ---------- เชื่อมบัญชี ----------
 // Facebook: คลิกเดียว (Login → เลือกเพจ) · LINE OA: วาง token ครั้งเดียว แล้วระบบตั้ง webhook + ทดสอบให้
 // ไม่เก็บ token จริงในหน้าเว็บ เก็บแค่ 4 ตัวท้ายไว้แสดง (ของจริงส่งไปเก็บที่เซิร์ฟเวอร์)
 const CONNECTABLE = ['facebook', 'line']
@@ -134,7 +129,7 @@ const SIMPLE = ['telegram']
 const testRes = reactive({ key: '', text: '', error: '' })
 function runTest(k) {
   const r = sendIntegrationTest(k)
-  Object.assign(testRes, { key: k, text: r.ok ? `ส่งทดสอบแล้ว (จำลอง) → ${r.to}: ${r.text}` : '', error: r.error || '' })
+  Object.assign(testRes, { key: k, text: r.ok ? `ส่งทดสอบแล้ว → ${r.to}: ${r.text}` : '', error: r.error || '' })
 }
 const EXTRA_EVENT = { test: 'ข้อความทดสอบ', bot_handoff: 'บอทส่งต่อพนักงาน' }
 // กลับจากหน้าอนุญาตของ Facebook (?fb=choose&n=… | ?fb=error&m=…)
@@ -180,7 +175,7 @@ async function disconnect(k) {
 </script>
 
 <template>
-  <ManageShell narrow title="การเชื่อมต่อ & แจ้งเตือน" subtitle="จำลอง · ยังไม่ส่งข้อความจริง" :toolbar="false">
+  <ManageShell narrow title="การเชื่อมต่อ & แจ้งเตือน" subtitle="ตั้งค่าช่องทางและดูคิวข้อความ" :toolbar="false">
     <p class="mb-4 flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
       <AppIcon name="alert" :size="16" class="mt-0.5 shrink-0" />
       ยังไม่ได้ต่อเซิร์ฟเวอร์ ข้อความทั้งหมดถูกบันทึกลง "คิวข้อความ" ด้านล่างเพื่อดูว่าจะส่งอะไรถึงใคร · ต่อจริงทีหลังพร้อม Supabase (token เก็บที่เซิร์ฟเวอร์ ไม่กรอกในหน้านี้)
@@ -269,14 +264,11 @@ async function disconnect(k) {
     <!-- คิวข้อความ -->
     <section class="card">
       <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div class="text-[15px] font-semibold text-stone-900">คิวข้อความ (จำลอง) <span class="text-sm font-normal text-stone-400">{{ db.outbox.length }}</span></div>
+        <div class="text-[15px] font-semibold text-stone-900">คิวข้อความ <span class="text-sm font-normal text-stone-400">{{ db.outbox.length }}</span></div>
         <div class="flex flex-wrap items-center gap-2">
-          <span v-if="scanMsg" class="text-xs text-stone-500">{{ scanMsg }}</span>
-          <button type="button" class="btn-soft h-9 px-3" @click="scan"><AppIcon name="clock" :size="16" /> จำลองรอบตรวจเวลา</button>
           <button type="button" class="btn-outline h-9 px-3" :disabled="!db.outbox.length" @click="clear">ล้าง</button>
         </div>
       </div>
-      <p class="mb-3 text-xs text-stone-500">รอบตรวจเวลา = เตือนนัดรับ 24 ชม., งานใกล้เวลา 2 ชม., วันเกิด, คะแนนใกล้หมดอายุ (ของจริงจะตรวจอัตโนมัติ)</p>
       <p v-if="!db.outbox.length" class="rounded-xl bg-stone-50 p-4 text-center text-sm text-stone-500">ยังไม่มีข้อความ</p>
       <ul class="space-y-2">
         <li v-for="m in outbox" :key="m.id" class="rounded-xl border border-stone-200 p-3">
@@ -325,7 +317,6 @@ async function disconnect(k) {
 
     <!-- modal เชื่อมบัญชี -->
     <AppModal v-if="conn.key" :title="conn.key === 'facebook' ? 'เชื่อม Facebook Page' : 'เชื่อม LINE OA'" @close="closeConnect">
-      <p v-if="!(fbReal && conn.key === 'facebook')" class="mb-3 rounded-xl bg-amber-50 p-2 text-xs text-amber-800">จำลองขั้นตอน · ต่อจริงเมื่อมีเซิร์ฟเวอร์ (Supabase)</p>
       <p v-if="conn.error && conn.key === 'facebook'" class="mb-3 flex items-center gap-2 rounded-xl bg-rose-50 p-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ conn.error }}</p>
       <!-- Facebook -->
       <template v-if="conn.key === 'facebook'">
