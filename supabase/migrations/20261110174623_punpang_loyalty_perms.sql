@@ -1,6 +1,6 @@
 -- สิทธิ์ของ RPC แต้มสะสม (ตรวจรายการ ไม่ใช่แค่ว่าเป็นพนักงาน active)
 -- award/undo/ledger_apply เดิมตรวจแค่ punpang__pts_staff() · ตอนนี้ตรวจสิทธิ์ตามการกระทำ (แอดมิน manage ใช้ได้เสมอ)
--- ยังไม่ได้รันในฐานข้อมูลจริง (รอการอนุมัติ)
+-- รันแล้วในฐานข้อมูลเป็นเวอร์ชัน 20261110174623 · ไฟล์นี้กู้คืนจาก statements ในประวัติ migration ให้ตรงกับที่รันจริง (ฉบับเดิม 20261110280000 ต่างกันเฉพาะลำดับ REVOKE/GRANT)
 -- แต้มสะสม ขั้น 2b-2 (ส่วนที่ 1): ได้แต้ม/สิทธิ์หมุนตอนส่งมอบ และถอนเมื่อย้อนสถานะ — ทำบนเซิร์ฟเวอร์แบบอะตอมิกและกันซ้ำ
 -- ล็อกลูกค้า → ล็อกออร์เดอร์ → ตรวจ data.loyalty ของออร์เดอร์ (มีแล้ว = ไม่ให้ซ้ำ) → เขียนสมุดแต้ม + สิทธิ์หมุน + data.loyalty ของออร์เดอร์ ในธุรกรรมเดียว
 -- คำนวณแต้มจากยอดสินค้า/โปรคะแนน (pointsFor) ยังทำที่แอปแล้วส่งค่ามา · เซิร์ฟเวอร์รับผิดชอบความถูกต้องของการเขียนและการกันซ้ำ
@@ -92,10 +92,6 @@ begin
   return jsonb_build_object('ok', true, 'cut', cut, 'lotFound', lot_ok);
 end $$;
 
-revoke all on function public.punpang_award_order(text, integer, integer, integer, numeric) from public, anon;
-revoke all on function public.punpang_undo_award(text) from public, anon;
-grant execute on function public.punpang_award_order(text, integer, integer, integer, numeric) to authenticated;
-grant execute on function public.punpang_undo_award(text) to authenticated;
 -- แต้มสะสม ขั้น 2b-2 (ส่วนที่ 2): แก้สมุดแต้มของลูกค้าหลายรายการในธุรกรรมเดียว
 -- ใช้กับ: คืนเงินเป็นคะแนน · ยกเลิกการคืนเงิน · โอนผู้ซื้อ · คืนคะแนนจากคูปอง · ยกเลิกการใช้คะแนนตอนยกเลิกออร์เดอร์ (ผ่าน punpang_remove_points แยก)
 -- ล็อกแถวลูกค้า → ทำทุกรายการตามลำดับ → เขียนกลับครั้งเดียว · ผิดพลาดรายการใดก็ raise = ย้อนทั้งชุด
@@ -210,5 +206,9 @@ begin
   return jsonb_build_object('ok', true, 'count', jsonb_array_length(p_ops));
 end $$;
 
+revoke all on function public.punpang_award_order(text, integer, integer, integer, numeric) from public, anon;
+revoke all on function public.punpang_undo_award(text) from public, anon;
+grant execute on function public.punpang_award_order(text, integer, integer, integer, numeric) to authenticated;
+grant execute on function public.punpang_undo_award(text) to authenticated;
 revoke all on function public.punpang_ledger_apply(text, jsonb) from public, anon;
 grant execute on function public.punpang_ledger_apply(text, jsonb) to authenticated;
