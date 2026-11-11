@@ -12,6 +12,7 @@ import { messagePreview } from '../lib/chatMedia'
 import { suggestCustomers, phonesInChat } from '../lib/chatLink'
 import { buildChatIndex, chatMatchesQuery, remoteSearchKeys } from '../lib/chatSearch'
 import { chatRemote } from '../lib/chatSync'
+import { kb } from '../lib/viewportFit'
 
 // ศูนย์รวมแชท LINE OA + Facebook (ข้อความเข้าจาก webhook / ส่งผ่าน API)
 // คอม: รายการแชท | เธรด | แผงออร์เดอร์ (เปิดได้) · มือถือ/แท็บเล็ต: ทีละหน้า (รายการ → เธรด → ออร์เดอร์ เต็มจอ)
@@ -130,6 +131,8 @@ const asideCls = computed(() => {
   return current.value ? 'hidden md:flex' : 'flex'
 })
 const CARD = 'min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_2px_8px_rgb(63_46_46/0.06)]'
+// แป้นพิมพ์เปิดบนมือถือ: กรอบเต็มจอ (ไม่มีขอบ/มุมโค้ง/เงา) เพื่อใช้พื้นที่ให้มากที่สุด
+const cardCls = computed(() => (kb.open ? 'min-h-0 min-w-0 flex-col overflow-hidden bg-white' : CARD))
 
 // ผูกแชทกับลูกค้า (จำ LINE userId / FB PSID)
 const linkOpen = ref(false)
@@ -175,7 +178,7 @@ function doCreate() {
   <div v-else class="flex h-full min-h-0 flex-col">
     <div class="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] gap-3 lg:gap-4" :class="gridCls">
       <!-- รายการแชท -->
-      <aside :class="[CARD, asideCls]" aria-label="รายการแชท">
+      <aside :class="[cardCls, asideCls]" aria-label="รายการแชท">
         <div class="flex items-center justify-between gap-2 px-4 pt-3.5 pb-2.5">
           <h1 class="page-title">แชท</h1>
           <div class="flex min-w-0 items-center gap-1.5">
@@ -251,12 +254,12 @@ function doCreate() {
       </aside>
 
       <!-- เธรด -->
-      <section v-if="current" :class="[CARD, orderOpen ? 'hidden lg:flex' : 'flex']" :aria-label="`แชทกับ ${chName}`">
-        <header class="flex items-center gap-1 border-b border-stone-200 bg-white px-2 py-2 lg:gap-2 lg:px-4 lg:py-2.5">
+      <section v-if="current" :class="[cardCls, orderOpen ? 'hidden lg:flex' : 'flex']" :aria-label="`แชทกับ ${chName}`">
+        <header class="flex items-center gap-1 border-b border-stone-200 bg-white px-2 lg:gap-2 lg:px-4 lg:py-2.5" :class="kb.open ? 'py-1' : 'py-2'">
           <RouterLink to="/admin/chat" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-stone-600 hover:bg-stone-100 md:hidden" aria-label="กลับไปรายการแชท">
             <AppIcon name="back" :size="22" />
           </RouterLink>
-          <button type="button" class="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1.5 py-1 text-left hover:bg-stone-50" :aria-label="`ข้อมูลลูกค้า ${chName}`" @click="detailsOpen = true">
+          <button type="button" class="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1.5 text-left hover:bg-stone-50" :class="kb.open ? 'py-0' : 'py-1'" :aria-label="`ข้อมูลลูกค้า ${chName}`" @click="detailsOpen = true">
             <span class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-800">
               {{ initial(chName) }}
               <span class="absolute -right-1 -bottom-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[current.channel].cls">{{ current.channel === 'line' ? 'L' : 'f' }}</span>
@@ -267,11 +270,11 @@ function doCreate() {
                 <span class="hidden shrink-0 rounded px-1.5 text-[11px] leading-5 font-semibold sm:inline-block" :class="CH[current.channel].cls">{{ CH[current.channel].l }}</span>
                 <AppIcon name="next" :size="14" class="shrink-0 text-stone-400" />
               </span>
-              <span class="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-stone-500">
-                <span v-if="!customer" class="font-medium text-amber-700">ยังไม่ผูกลูกค้า</span>
-                <span v-else-if="customer.phone" class="tabular-nums">{{ formatPhone(customer.phone) }}</span>
-                <span v-if="fbLeft !== null" class="rounded-full px-2 py-px font-medium" :class="fbLeft > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'">{{ fbLeft > 0 ? `ตอบได้อีก ${Math.ceil(fbLeft / 3600e3)} ชม.` : 'เกิน 24 ชม.' }}</span>
-                <span v-if="openOrders.length" class="font-medium text-stone-600">ออร์เดอร์เปิด {{ openOrders.length }}</span>
+              <span class="mt-0.5 flex min-w-0 items-center gap-x-2 gap-y-1 text-xs text-stone-500" :class="kb.open ? 'flex-nowrap overflow-hidden' : 'flex-wrap'">
+                <span v-if="!customer" class="shrink-0 font-medium text-amber-700">ยังไม่ผูกลูกค้า</span>
+                <span v-else-if="customer.phone && !kb.open" class="shrink-0 tabular-nums">{{ formatPhone(customer.phone) }}</span>
+                <span v-if="fbLeft !== null" class="shrink-0 rounded-full px-2 py-px font-medium" :class="fbLeft > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'">{{ fbLeft > 0 ? `ตอบได้อีก ${Math.ceil(fbLeft / 3600e3)} ชม.` : 'เกิน 24 ชม.' }}</span>
+                <span v-if="openOrders.length && !kb.open" class="shrink-0 font-medium text-stone-600">ออร์เดอร์เปิด {{ openOrders.length }}</span>
               </span>
             </span>
           </button>
@@ -289,7 +292,7 @@ function doCreate() {
             <span v-if="hasDraft(current.id) && !orderOpen" class="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-400 ring-2 ring-white" aria-hidden="true" />
           </button>
         </header>
-        <div v-if="suggestions.length" class="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <div v-if="suggestions.length && !kb.open" class="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           <span class="font-medium">ลูกค้าที่น่าจะใช่:</span>
           <button v-for="x in suggestions" :key="x.customer.id" type="button" class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium hover:bg-amber-100" @click="doLink(x.customer)">
             {{ x.customer.name }}<span class="text-amber-700"> · {{ x.why === 'phone' ? 'เบอร์ตรงกับที่พิมพ์ในแชท' : 'ชื่อคล้ายโปรไฟล์' }}</span> <span class="font-semibold text-brand-700">ผูก</span>
@@ -304,7 +307,7 @@ function doCreate() {
       </section>
 
       <!-- แผงลงออร์เดอร์ -->
-      <section v-if="current && orderOpen && can('createOrder')" :class="[CARD, 'flex']" aria-label="ลงออร์เดอร์ในแชท">
+      <section v-if="current && orderOpen && can('createOrder')" :class="[cardCls, 'flex']" aria-label="ลงออร์เดอร์ในแชท">
         <header class="flex items-center gap-2 border-b border-stone-200 bg-white px-2 py-2 lg:px-4 lg:py-2.5">
           <button type="button" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-stone-600 hover:bg-stone-100 lg:hidden" aria-label="กลับไปแชท" @click="orderOpen = false">
             <AppIcon name="back" :size="22" />

@@ -201,6 +201,7 @@ function startReply(m) {
 
 // ---------- บอทตอบแชท: ร่างคำตอบ (โหมดแนะนำ) ----------
 const botDraft = computed(() => props.chat.botDraft || null)
+const showDraft = computed(() => !!botDraft.value && !botDraft.value.editing && canType.value)
 const botExpanded = ref(false)
 const botLong = computed(() => (botDraft.value?.text || '').length > 140)
 watch(() => botDraft.value?.text, () => { botExpanded.value = false })
@@ -244,8 +245,14 @@ function saveC() {
   cannedEdit.value = null
 }
 
-// มือถือ: แถบเครื่องมือเปิด/ปิดด้วยปุ่ม + (คอมแสดงเสมอ)
+// มือถือ: แถบเครื่องมือเปิด/ปิดด้วยปุ่ม + (คอมแสดงเสมอ) · ขณะแป้นพิมพ์เปิด แถบจะซ่อน จึงกดเปิดเครื่องมือ = ปิดแป้นพิมพ์ก่อน
 const toolsOpen = ref(false)
+function toggleTools() {
+  if (!toolsOpen.value && kb.open) input.value?.blur()
+  toolsOpen.value = !toolsOpen.value
+}
+// แถบเครื่องมือเปลี่ยนความสูง → ถ้ากำลังอยู่ล่างสุด ให้เลื่อนตามให้ข้อความล่าสุดยังเห็น
+watch(toolsOpen, () => { if (atBottom.value) scrollEnd() })
 
 const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''))
 </script>
@@ -254,7 +261,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
   <div class="flex min-h-0 flex-1 flex-col">
     <!-- ข้อความ -->
     <div class="relative min-h-0 flex-1 bg-stone-50">
-      <div ref="box" class="absolute inset-0 overflow-y-auto overscroll-contain px-3 pt-4 pb-3 lg:px-6" @scroll="onScroll">
+      <div ref="box" class="absolute inset-0 overflow-y-auto overscroll-contain px-3 lg:px-6" :class="kb.open ? 'pt-2 pb-2' : 'pt-4 pb-3'" @scroll="onScroll">
         <div v-if="!chat.messages.length" class="flex h-full flex-col items-center justify-center gap-2 text-sm text-stone-400">
           <AppIcon name="chat" :size="32" class="text-stone-300" />
           ยังไม่มีข้อความในแชทนี้
@@ -363,7 +370,15 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
     <!-- ส่วนล่าง: ร่างบอท · แนะนำสินค้า · เครื่องมือ · ช่องพิมพ์ -->
     <div class="shrink-0 border-t border-stone-200 bg-white">
       <!-- ร่างคำตอบจากบอท -->
-      <div v-if="botDraft && !botDraft.editing && canType" class="mx-3 mt-3 rounded-2xl border border-violet-200 bg-violet-50 p-3 text-sm">
+      <!-- แป้นพิมพ์เปิด: ร่างเป็นแถบบรรทัดเดียว เพื่อให้พื้นที่ข้อความมากที่สุด -->
+      <div v-if="showDraft && kb.open" class="mx-2 mt-2 flex items-center gap-1 rounded-xl border border-violet-200 bg-violet-50 py-1 pr-1 pl-2.5 text-sm">
+        <span class="shrink-0 text-xs font-semibold text-violet-800">{{ botDraft.handoff ? 'บอทส่งต่อ' : 'ร่างบอท' }}</span>
+        <span class="min-w-0 flex-1 truncate text-stone-900">{{ botDraft.text }}</span>
+        <button type="button" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-violet-700 hover:bg-white" aria-label="ทิ้งร่างบอท" @click="dismissBotDraft(chat.id)"><AppIcon name="x" :size="15" /></button>
+        <button type="button" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-violet-700 hover:bg-white" aria-label="แก้ร่างบอทก่อนส่ง" @click="editBotDraft"><AppIcon name="edit" :size="15" /></button>
+        <button type="button" class="btn-primary h-9 shrink-0 px-3 text-xs" @click="sendBotDraft(chat.id)">ส่งเลย</button>
+      </div>
+      <div v-else-if="showDraft" class="mx-3 mt-3 rounded-2xl border border-violet-200 bg-violet-50 p-3 text-sm">
         <div class="flex flex-wrap items-center gap-1.5 text-xs">
           <span class="rounded-full bg-white px-2 py-0.5 font-semibold text-violet-800 ring-1 ring-violet-200">{{ botDraft.handoff ? 'บอทส่งต่อให้พนักงาน' : 'ร่างจากบอท' }}</span>
           <span class="text-violet-700">{{ SOURCE_LABEL[botDraft.source] || botDraft.source }}<template v-if="botDraft.confidence"> · {{ confPct(botDraft) }}%</template></span>
@@ -378,10 +393,10 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
           <button type="button" class="btn-primary h-9 px-4 text-xs" @click="sendBotDraft(chat.id)">ส่งเลย</button>
         </div>
       </div>
-      <p v-else-if="chat.botHandoff && !botDraft" class="px-3 pt-2.5 text-xs text-violet-700">บอทไม่แน่ใจ/ไม่ตอบเรื่องนี้ — ส่งต่อให้พนักงานตอบ</p>
+      <p v-else-if="chat.botHandoff && !botDraft && !kb.open" class="px-3 pt-2.5 text-xs text-violet-700">บอทไม่แน่ใจ/ไม่ตอบเรื่องนี้ — ส่งต่อให้พนักงานตอบ</p>
 
       <!-- แนะนำสินค้า (เปิดจากปุ่มในแถบเครื่องมือ) -->
-      <div v-if="recOpen && recs.length && canType" class="mx-3 mt-2.5 rounded-2xl border border-stone-200 bg-stone-50 p-2.5 text-sm">
+      <div v-if="recOpen && recs.length && canType && !kb.open" class="mx-3 mt-2.5 rounded-2xl border border-stone-200 bg-stone-50 p-2.5 text-sm">
         <div class="mb-2 flex items-center justify-between gap-2 text-xs text-stone-500">
           <span class="min-w-0 truncate">แนะนำจาก: {{ intentSummary(recIntent).join(' · ') || 'ข้อความลูกค้า' }}</span>
           <button type="button" class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-stone-400 hover:bg-white" aria-label="ปิดรายการแนะนำ" @click="recOpen = false"><AppIcon name="x" :size="14" /></button>
@@ -402,7 +417,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
       </div>
 
       <!-- เครื่องมือ: ถามลูกค้า · สรุปออร์เดอร์ · ข้อความสำเร็จรูป · บอท (คอมแสดงเสมอ · มือถือกดปุ่ม + เพื่อเปิด) -->
-      <div v-if="canType" class="items-center gap-1.5 px-3 pt-2.5 [scrollbar-width:none]" :class="toolsOpen ? 'flex overflow-x-auto lg:flex-wrap lg:overflow-visible' : 'hidden lg:flex lg:flex-wrap'">
+      <div v-if="canType && !kb.open" class="items-center gap-1.5 px-3 pt-2.5 [scrollbar-width:none]" :class="toolsOpen ? 'flex overflow-x-auto lg:flex-wrap lg:overflow-visible' : 'hidden lg:flex lg:flex-wrap'">
         <span v-if="chat.pendingAsk" class="inline-flex h-8 items-center gap-1 rounded-full bg-amber-50 py-0 pr-1 pl-3 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
           รอลูกค้าตอบ: {{ ASK_FIELDS[chat.pendingAsk.field]?.label }}
           <button type="button" class="flex h-6 w-6 items-center justify-center rounded-full hover:bg-amber-100" aria-label="ยกเลิกคำถาม" @click="cancelAsk(chat.id)"><AppIcon name="x" :size="12" /></button>
@@ -426,12 +441,12 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
         <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0 text-amber-600" />
         <span>เกิน 24 ชม. หลังลูกค้าทักล่าสุด Facebook ไม่ให้ตอบข้อความทั่วไป (การ์ดออร์เดอร์/ยอดชำระยังส่งได้) รอให้ลูกค้าทักกลับ</span>
       </p>
-      <form v-else class="flex items-end gap-2 px-3 py-2.5" @submit.prevent="send">
-        <button type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 lg:hidden" :class="toolsOpen ? 'bg-stone-100 text-brand-700' : ''" :aria-expanded="toolsOpen" aria-label="เครื่องมือแชท" @click="toolsOpen = !toolsOpen">
+      <form v-else class="flex items-end gap-2 px-3" :class="kb.open ? 'py-2' : 'py-2.5'" @submit.prevent="send">
+        <button type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 lg:hidden" :class="toolsOpen ? 'bg-stone-100 text-brand-700' : ''" :aria-expanded="toolsOpen" aria-label="เครื่องมือแชท" @click="toggleTools">
           <AppIcon name="plus" :size="20" class="transition-transform duration-200" :class="toolsOpen ? 'rotate-45' : ''" />
         </button>
         <div class="flex min-w-0 flex-1 items-end rounded-2xl border border-stone-200 bg-stone-50 transition focus-within:border-brand-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-brand-100">
-          <textarea ref="input" v-model="text" rows="1" class="max-h-40 min-h-11 w-full resize-none bg-transparent px-3.5 py-2.5 text-base leading-6 text-stone-900 outline-none placeholder:text-stone-400" :placeholder="`ตอบทาง ${channelLabel}`" aria-label="ข้อความถึงลูกค้า" @keydown="onKey" />
+          <textarea ref="input" v-model="text" rows="1" class="max-h-40 min-h-11 w-full resize-none bg-transparent px-3.5 py-2.5 text-base leading-6 text-stone-900 outline-none placeholder:text-stone-400" :placeholder="`ตอบทาง ${channelLabel}`" aria-label="ข้อความถึงลูกค้า" @focus="toolsOpen = false" @keydown="onKey" />
         </div>
         <button type="submit" class="btn-primary h-11 w-11 shrink-0 rounded-full px-0" :disabled="!text.trim()" aria-label="ส่งข้อความ"><AppIcon name="send" :size="18" /></button>
       </form>
