@@ -17,6 +17,9 @@ export const BOT_DEFAULTS = {
   // แจ้งร้านปิดเมื่อลูกค้าทักครั้งแรกของวัน (ตามวัน-เวลาปิดร้าน) แล้วตอบต่อตามปกติ · ตัวแปร {เหตุผล} {เปิดอีกครั้ง}
   closedNotice: { enabled: true, text: 'ขณะนี้ร้านปิด ({เหตุผล}) เปิดอีกครั้ง {เปิดอีกครั้ง} · ยังคุยและสั่งของวัน-เวลาที่ร้านเปิดได้ตามปกตินะคะ' },
   handoff: { notifyTelegram: true, text: 'ขอส่งต่อให้พนักงานช่วยดูแลต่อนะคะ รอสักครู่ค่ะ' },
+  // บอท AI (ทำงานบนเซิร์ฟเวอร์ ช่อง Facebook เท่านั้น) · ปิดเป็นค่าเริ่มต้น · เรียกเฉพาะเมื่อกฎเดิมตอบไม่ได้ · ไม่ส่งข้อมูลออร์เดอร์/ลูกค้า
+  // mode: suggest = ร่างให้พนักงานกดส่ง (ค่าเริ่มต้น) · auto = ส่งเอง · dailyLimit = จำนวนครั้งที่เรียกโมเดลต่อวัน (0 = ไม่เรียกเลย)
+  ai: { enabled: false, provider: 'anthropic', model: 'claude-sonnet-5-5', mode: 'suggest', dailyLimit: 50, maxTokens: 400 },
   rules: [],
   learned: [],
   stats: { suggested: 0, answered: 0, handoff: 0, staffEdited: 0 },

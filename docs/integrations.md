@@ -141,6 +141,18 @@ pg_cron (ทุก 15 นาที) ──▶ Edge Function: scheduled (เต�
 - ข้อความลูกค้าประมวลผลในเบราว์เซอร์ ไม่ส่งออกภายนอก · ของจริงต้องรับ webhook LINE/Facebook ที่เซิร์ฟเวอร์ (ยังเป็นการจำลอง)
 - โค้ด: `src/lib/chatBot.js` (ฟังก์ชันล้วน) · `runBot/sendBotDraft/staffReplied/saveBot*/testBot` ใน store
 
+#### บอท AI (Claude API · ช่อง Facebook เท่านั้น)
+- **เปิด/ปิด:** `จัดการ → บอทตอบแชท → บอท AI` (ค่าเริ่มต้น **ปิด**) · เก็บใน `punpang_kv` config `bot.ai` · fb-webhook อ่านค่าทุกครั้งที่รับข้อความ จึงมีผลทันทีโดยไม่ต้อง deploy
+- **เรียกเมื่อไร:** เฉพาะเมื่อกฎเดิมตอบไม่ได้ (ตกมาเป็น "ไม่แน่ใจ") · **ไม่เรียก** เมื่อเป็นเรื่องเงิน/ร้องเรียน, มีเลขออร์เดอร์, ส่งต่อด้วยเหตุวันปิดพิเศษ, หรือเกินเพดานต่อวัน
+- **โหมด:** `ร่างให้พนักงานกดส่ง` (ค่าเริ่มต้น · เก็บเป็น `botDraft` ในแชท source=`ai`) หรือ `ส่งเอง` (ส่งผ่าน Graph API ภายใน 24 ชม.) · AI ตอบ `[HANDOFF]` หรือผิดพลาด → ส่งต่อพนักงานเหมือนเดิม
+- **คีย์:** ตั้ง secret `ANTHROPIC_API_KEY` ของ Supabase ผ่านฟอร์มที่ปลอดภัยเท่านั้น (ห้ามวางในแชท/โค้ด) · ไม่มีคีย์ = บอท AI ไม่ทำงาน ส่งต่อพนักงานตามปกติ
+- **ข้อมูลที่ส่งออก:** ชื่อร้าน เวลาทำการ คำถามที่พบบ่อยจาก storefront และข้อความล่าสุดไม่เกิน 8 ข้อความ (ตัดเบอร์/อีเมล/เลขออร์เดอร์/เลขยาว/ชื่อลูกค้า) · **ไม่ส่ง** ข้อมูลออร์เดอร์ ลูกค้า ยอดเงิน หรือแต้ม · ตัดข้อมูลส่วนตัวได้ไม่สมบูรณ์ 100% จึงไม่ควรให้ลูกค้าพิมพ์ข้อมูลอ่อนไหวในแชท
+- **เพดาน:** `dailyLimit` ครั้งต่อวัน (เวลาไทย) นับอะตอมิกด้วย `punpang_ai_take` (migration `20261111100000`) · ควรตั้งงบใช้จ่ายที่ผู้ให้บริการ Anthropic ด้วย
+- **บันทึก:** ทุกการเรียกลง `punpang_records` collection `aiLog` (สถานะ ok/handoff/error/limit · ข้อความลูกค้าตัด 200 ตัวอักษร · ไม่มีคีย์)
+- **ยังไม่มี:** ข้อมูลราคาสินค้าให้ AI (ตอบเรื่องราคาได้เฉพาะ FAQ) · ผู้ให้บริการอื่นนอกจาก Anthropic · สถิติรายวันบนหน้าจอ
+- โค้ด: `supabase/functions/_shared/ai.ts` (อะแดปเตอร์) · `supabase/functions/fb-webhook/bot.ts` (`tryAi`, `aiSystemPrompt`, `scrubPII`) · ทดสอบ `node bot.test.mts` (mock fetch/rpc)
+- **ก่อนเปิดจริง:** deploy `fb-webhook` + ตั้ง secret + apply migration (ต้องอนุมัติทุกครั้ง) → ทดสอบบัญชี Messenger ทดสอบในโหมดร่างก่อน → ค่อยพิจารณาโหมดส่งเอง
+
 ## ฝั่งเซิร์ฟเวอร์ Facebook (Edge Functions)
 - **โค้ดอยู่ในรีโป:** `supabase/functions/fb-connect`, `fb-send`, `fb-webhook` (คัดลอกจากที่ deploy บนโปรเจกต์ `punpang` แล้ว) · ตาราง `punpang_fb_pages` (token เพจ), `punpang_fb_oauth` (state ชั่วคราว), `punpang_chats`, `punpang_quotes` อยู่ใน `supabase/migrations/20261110130000_punpang_facebook_tables.sql` (`if not exists` รันซ้ำได้)
 - **ความปลอดภัย:** `punpang_fb_pages` และ `punpang_fb_oauth` เปิด RLS แบบไม่มี policy โดยตั้งใจ → เข้าถึงได้เฉพาะ service role ใน Edge Functions เท่านั้น

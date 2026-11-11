@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { db, saveBotSettings, saveBotRule, removeBotRule, removeLearned, promoteLearned, testBot } from '../../data/store'
 import { dateOnly } from '../../lib/format'
-import { AUTO_SOURCES } from '../../lib/chatBot'
+import { AUTO_SOURCES, BOT_DEFAULTS } from '../../lib/chatBot'
 import { askConfirm } from '../../lib/confirm'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
@@ -12,16 +12,18 @@ import AppSwitch from '../../components/AppSwitch.vue'
 // บอทตอบแชท (กฎคีย์เวิร์ด + เรียนรู้จากพนักงาน · ในเบราว์เซอร์ ไม่ส่งข้อความลูกค้าออกนอก) · ค่าเริ่มต้นปิด
 // โหมดรายประเภท: ไม่เคยตั้งไว้ → ใช้โหมดรวมเดิม
 const srcInit = () => Object.fromEntries(AUTO_SOURCES.map((k) => [k, db.bot.sourceModes?.[k] || db.bot.mode]))
-const st = reactive(JSON.parse(JSON.stringify({ enabled: db.bot.enabled, mode: db.bot.mode, channels: db.bot.channels, confidence: db.bot.confidence, delaySec: db.bot.delaySec, offHours: db.bot.offHours, closedNotice: db.bot.closedNotice, handoff: db.bot.handoff, sourceModes: srcInit() })))
+const snap = () => JSON.parse(JSON.stringify({ enabled: db.bot.enabled, mode: db.bot.mode, channels: db.bot.channels, confidence: db.bot.confidence, delaySec: db.bot.delaySec, offHours: db.bot.offHours, closedNotice: db.bot.closedNotice, handoff: db.bot.handoff, sourceModes: srcInit(), ai: { ...BOT_DEFAULTS.ai, ...(db.bot.ai || {}) } }))
+const st = reactive(snap())
 const msg = ref('')
 const err = ref('')
 function save() {
   msg.value = err.value = ''
   const r = saveBotSettings(st)
   if (r.error) return (err.value = r.error)
-  Object.assign(st, JSON.parse(JSON.stringify({ enabled: db.bot.enabled, mode: db.bot.mode, channels: db.bot.channels, confidence: db.bot.confidence, delaySec: db.bot.delaySec, offHours: db.bot.offHours, closedNotice: db.bot.closedNotice, handoff: db.bot.handoff, sourceModes: srcInit() })))
+  Object.assign(st, snap())
   msg.value = 'บันทึกแล้ว'
 }
+const aiKeyHint = 'ต้องตั้งคีย์ ANTHROPIC_API_KEY เป็น secret ของ Supabase (Edge Function fb-webhook) ก่อน · ไม่มีคีย์ = บอทส่งต่อพนักงานเหมือนเดิม'
 const pct = computed({ get: () => Math.round(st.confidence * 100), set: (v) => (st.confidence = (Number(v) || 60) / 100) })
 
 // กฎ
@@ -77,6 +79,21 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
         <p class="mt-1 text-xs text-stone-400">การส่งต่อพนักงาน และข้อความที่ยืนยันตัวตนไม่ได้ จะให้พนักงานตอบเสมอ · Facebook ส่งเองได้เฉพาะภายใน 24 ชม.</p>
       </div>
       <div class="flex flex-wrap gap-4"><AppSwitch v-model="st.channels.line" label="LINE OA" /><AppSwitch v-model="st.channels.facebook" label="Facebook (ภายใน 24 ชม.)" /></div>
+      <div class="space-y-3 rounded-xl border border-violet-200 bg-violet-50/40 p-3">
+        <div class="flex items-center justify-between"><h3 class="font-semibold text-stone-900">บอท AI</h3><AppSwitch v-model="st.ai.enabled" label="เปิดบอท AI" /></div>
+        <p class="text-xs text-stone-600">ใช้เฉพาะเมื่อกฎเดิมตอบไม่ได้ (ไม่รวมเรื่องเงิน ร้องเรียน และเลขออร์เดอร์ — ส่งต่อพนักงานเสมอ) · ใช้ได้เฉพาะ Facebook · ส่งข้อความไปยังผู้ให้บริการ AI (Claude API) เฉพาะข้อความล่าสุดที่ตัดข้อมูลส่วนตัวแล้ว พร้อมชื่อร้าน เวลาทำการ และคำถามที่พบบ่อย</p>
+        <p class="text-xs text-amber-700">{{ aiKeyHint }}</p>
+        <div class="grid gap-2 sm:grid-cols-2">
+          <div class="grid grid-cols-2 gap-1 seg-grid">
+            <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.ai.mode === 'suggest' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.mode = 'suggest'">ร่างให้พนักงานกดส่ง</button>
+            <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.ai.mode === 'auto' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.mode = 'auto'">ส่งเอง</button>
+          </div>
+          <div><label class="label">เพดานต่อวัน (ครั้ง · 0 = ไม่เรียก)</label><input v-model.number="st.ai.dailyLimit" type="text" v-num class="input" /></div>
+          <div><label class="label">โมเดล</label><input v-model="st.ai.model" class="input" maxlength="80" aria-label="โมเดล AI" /></div>
+          <div><label class="label">ความยาวคำตอบสูงสุด (โทเคน)</label><input v-model.number="st.ai.maxTokens" type="text" v-num class="input" /></div>
+        </div>
+        <p class="text-xs text-stone-400">เริ่มแนะนำให้ใช้โหมดร่างก่อน · โหมดส่งเองควรเปิดหลังทดสอบบนบัญชี Messenger ทดสอบแล้ว · ตั้งงบใช้จ่ายที่ผู้ให้บริการด้วย</p>
+      </div>
       <div class="grid gap-3 sm:grid-cols-2">
         <div><label class="label">ความมั่นใจขั้นต่ำ (%) ต่ำกว่านี้ส่งต่อพนักงาน</label><input v-model.number="pct" type="text" v-num class="input" /></div>
         <div><label class="label">หน่วงเวลาก่อนตอบเอง (วินาที)</label><input v-model.number="st.delaySec" type="text" v-num class="input" /></div>

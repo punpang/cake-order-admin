@@ -164,7 +164,7 @@ function editBotDraft() {
   props.chat.botDraft = { ...d, editing: true } // ซ่อนแถบร่าง · พอพนักงานกดส่ง staffReplied จะเทียบกับร่างเดิมแล้วนับเป็น "แก้"
   nextTick(() => input.value?.focus())
 }
-const SOURCE_LABEL = { rule: 'กฎ', faq: 'FAQ', hours: 'เวลาเปิด', price: 'ราคา/แนะนำสินค้า', learned: 'เรียนรู้จากพนักงาน', order: 'สถานะออร์เดอร์', closed: 'แจ้งร้านปิด', ask: 'ขอข้อมูล', offhours: 'นอกเวลา', handoff: 'ส่งต่อพนักงาน', order_unverified: 'ยืนยันตัวตนไม่ได้' }
+const SOURCE_LABEL = { ai: 'บอท AI', rule: 'กฎ', faq: 'FAQ', hours: 'เวลาเปิด', price: 'ราคา/แนะนำสินค้า', learned: 'เรียนรู้จากพนักงาน', order: 'สถานะออร์เดอร์', closed: 'แจ้งร้านปิด', ask: 'ขอข้อมูล', offhours: 'นอกเวลา', handoff: 'ส่งต่อพนักงาน', order_unverified: 'ยืนยันตัวตนไม่ได้' }
 
 // ---------- แนะนำสินค้าจากแชท ----------
 const recOpen = ref(false)
