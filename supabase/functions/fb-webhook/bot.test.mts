@@ -3,7 +3,7 @@ import { normalizeMessages } from '../_shared/ai.ts'
 
 // ---- ฐานข้อมูลจำลองแบบ CAS (updated_at) ----
 type Row = { id: string; data: any; updated_at: string }
-function makeSb(tables: { chats: Row[]; kv: any[]; records: any[] }) {
+function makeSb(tables: { chats: Row[]; kv: any[]; records: any[]; items?: any[] }) {
   let ver = 0
   const bump = () => new Date(Date.now() + ++ver).toISOString()
   const counts: Record<string, number> = {} // ตัวนับ punpang_ai_take ต่อวัน (จำลองฟังก์ชันอะตอมิก)
@@ -31,6 +31,7 @@ function makeSb(tables: { chats: Row[]; kv: any[]; records: any[] }) {
         insert(p: any) { mode = 'insert'; payload = p; return q },
         then(res: any, rej: any) {
           const run = async () => {
+            if (table === 'punpang_items') return { data: tables.items ?? [], error: null }
             if (table === 'punpang_kv') {
               const rows = tables.kv.filter((r) => (!f.collection || r.collection === f.collection) && (!f.id || r.id === f.id) && (!f.id_in || f.id_in.includes(r.id)))
               return single ? { data: rows[0] ?? null, error: null } : { data: rows, error: null }
@@ -189,11 +190,13 @@ function mk(messages: any[], extra: any = {}) {
 // ---- บอท AI ----
 // ร้านเปิดตลอดวัน (ไม่ขึ้นกับเวลาที่รันเทส) → ข้อความที่กฎเดิมตอบไม่ได้จะตกมาเป็น "ไม่แน่ใจ"
 const shopAlways = { id: 'shop', collection: 'config', data: { v: { name: 'ร้านทดสอบ', open: '00:00', close: '23:59', closures: {} } } }
+const optRow = { id: 'optionGroups', collection: 'shop_public', data: { v: [{ key: 'type', options: [{ name: 'ชีฟฟ่อน' }] }, { key: 'flavor', options: [{ name: 'ช็อกโกแลต' }] }] } }
+const retailRow = { id: 'rt1', kind: 'retail', name: 'ชาเขียวเค้กโรล', price: 99, active: true, data: { showOnStore: true, stock: 5, description: 'หอมชาเขียว' } }
 const aiOn = (extra: any = {}) => ({ id: 'bot', collection: 'config', data: { v: { ...botCfg.data.v, ai: { enabled: true, provider: 'anthropic', model: 'claude-sonnet-5-5', mode: 'auto', dailyLimit: 5, maxTokens: 400, ...extra } } } })
 function mkAi(text: string, mid: string, botVal: any = aiOn(), messages?: any[], extraChat: any = {}) {
   const chats = [chatWith(messages ?? [inbound(mid, text)], extraChat)]
   const records: any[] = []
-  const sb = makeSb({ chats, kv: [shopAlways, botVal, sfRow], records })
+  const sb = makeSb({ chats, kv: [shopAlways, botVal, sfRow, optRow], records, items: [retailRow] })
   return { sb, chats, records }
 }
 const resetAi = () => { fetchCalls = []; aiCalls = []; aiThrow = false; aiReply = 'ร้านมีบริการจัดส่งในพื้นที่ค่ะ'; onDelay = null }
@@ -282,6 +285,26 @@ const aiLogs = (records: any[]) => records.filter((r) => r.collection === 'aiLog
 {
   const s = scrubPII('โทร 0812345678 อีเมล a.b@mail.com ออร์เดอร์ OR-000123-000001 ชื่อ สมชาย', ['สมชาย'])
   check('ตัด PII: เบอร์/อีเมล/ออร์เดอร์/ชื่อ', s.includes('{เบอร์}') && s.includes('{อีเมล}') && s.includes('{เลขออร์เดอร์}') && s.includes('{ชื่อ}') && !s.includes('0812345678') && !s.includes('สมชาย'))
+}
+
+// 17ข) ส่งให้ AI เฉพาะข้อความปัจจุบัน · ไม่มีประวัติแชท/ชื่อลูกค้า · มีราคาสินค้าจากฐานข้อมูล
+{
+  resetAi()
+  const prior = [inbound('p0', 'สวัสดีค่ะ'), { id: 'st1', from: 'staff', kind: 'text', text: 'ยินดีค่ะ', by: 'พนักงาน' }, inbound('a10', 'ชาเขียวเค้กโรลราคาเท่าไหร่')]
+  const { sb } = mkAi('ชาเขียวเค้กโรลราคาเท่าไหร่', 'a10', aiOn({ mode: 'suggest' }), prior)
+  await runFbBot({ ...base, sb, mid: 'a10', text: 'ชาเขียวเค้กโรลราคาเท่าไหร่', aiKey: 'key-x' })
+  const body = aiCalls[0]?.body
+  check('AI: ส่งเฉพาะข้อความปัจจุบัน (ไม่มีประวัติ/ข้อความพนักงาน)', body?.messages?.length === 1 && body.messages[0].role === 'user' && body.messages[0].content === 'ชาเขียวเค้กโรลราคาเท่าไหร่')
+  check('AI: system มีราคาสินค้าจากฐานข้อมูล', body?.system.includes('ชาเขียวเค้กโรล 99 บาท') && body.system.includes('ชีฟฟ่อน'))
+}
+
+// 17ค) ข้อความที่มีข้อมูลส่วนตัว → ไม่เรียก AI เลย และส่งต่อพนักงาน
+{
+  resetAi()
+  const a = mkAi('ช่วยโทร 0812345678 กลับหน่อย', 'a11'); await runFbBot({ ...base, sb: a.sb, mid: 'a11', text: 'ช่วยโทร 0812345678 กลับหน่อย', aiKey: 'key-x' })
+  const b = mkAi('ฉันคือลูกค้าทดสอบ มีบริการจัดส่งไหม', 'a12'); await runFbBot({ ...base, sb: b.sb, mid: 'a12', text: 'ฉันคือลูกค้าทดสอบ มีบริการจัดส่งไหม', aiKey: 'key-x' })
+  check('มีเบอร์/ชื่อลูกค้า: ไม่เรียก AI', aiCalls.length === 0)
+  check('มีเบอร์/ชื่อลูกค้า: ส่งต่อพนักงาน', a.chats[0].data.botHandoff === true && b.chats[0].data.botHandoff === true)
 }
 
 // 18) จัดลำดับข้อความให้ตรงกติกาของ Messages API (เริ่มด้วย user · สลับ role)
