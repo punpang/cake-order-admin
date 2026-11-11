@@ -9,6 +9,7 @@ const TONES = ['bg-brand-100 text-brand-700', 'bg-orange-100 text-orange-800', '
 const activeCount = (list) => list.filter((x) => x.active !== false).length
 
 const DESC = computed(() => ({
+  '/admin/dashboard': 'ออร์เดอร์ค้าง · แชท Facebook · การเข้าชมหน้าเว็บ · งานค้าง',
   '/admin/settings/customers': `${activeCount(db.customers)} รายการที่ใช้งาน`,
   '/admin/settings/options': `${activeCount(db.optionGroups)} กลุ่มที่ใช้งาน`,
   '/admin/settings/pricing': `${activeCount(db.priceLists)} แบบราคาพิเศษที่ใช้งาน`,
