@@ -105,7 +105,7 @@ async function flip(x) {
 
     <AppModal v-if="open" :title="`${f.id ? 'แก้ไข' : 'เพิ่ม'}${tab === 'discount' ? 'ส่วนลด' : tab === 'bundle' ? 'บันเดิ้ล' : tab === 'deal' ? 'ดีล' : 'โปรคะแนนพิเศษ'}`" @close="open = false">
       <div class="space-y-4">
-        <div><label class="label">ชื่อ <span class="text-rose-500">*</span></label><input v-model="f.name" class="input" maxlength="80" /></div>
+        <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="f.name" class="input" maxlength="80" /></div>
 
         <!-- ส่วนลด -->
         <template v-if="tab === 'discount'">
@@ -233,7 +233,7 @@ async function flip(x) {
 
         <div><div class="label">ช่วงเวลา</div><ScheduleEditor v-model="f.schedule" /></div>
         <AppSwitch v-model="f.active" label="เปิดใช้งาน" class="flex" />
-        <p v-if="err" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ err }}</p>
+        <p v-if="err" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
       </div>
       <template #footer>
         <button v-if="f.id" class="btn-danger" @click="del(f)">ลบ</button>

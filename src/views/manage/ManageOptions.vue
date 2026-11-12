@@ -228,7 +228,7 @@ async function saveB() {
           <p class="mt-1 text-xs text-stone-400">ราคากลาง = ใช้ส่วนลดตามประเภท/ทุกประเภทด้านบน · ราคาประจำตัว = ใช้ส่วนลดต่อขนาดที่กรอกตรงนี้แทน (เว้นช่องว่าง = ไม่ลดในขนาดนั้น)</p>
         </div>
         <AppSwitch v-model="bd.active" label="ใช้งาน" class="flex" />
-        <p v-if="bError" class="text-sm text-rose-600">{{ bError }}</p>
+        <p v-if="bError" class="text-sm text-rose-700">{{ bError }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="bOpen = false">ยกเลิก</button>
@@ -238,7 +238,7 @@ async function saveB() {
 
     <AppModal v-if="open" title="เพิ่มกลุ่มตัวเลือก" @close="open = false">
       <div class="space-y-4">
-        <div><label class="label">ชื่อกลุ่ม <span class="text-rose-500">*</span></label><input v-model="form.name" class="input" placeholder="เช่น ลายครีม" /></div>
+        <div><label class="label">ชื่อกลุ่ม <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" placeholder="เช่น ลายครีม" /></div>
         <div>
           <div class="label">รูปแบบ</div>
           <div class="grid gap-2">
@@ -262,7 +262,7 @@ async function saveB() {
         </div>
         <div v-if="form.type === 'text'"><label class="label">ข้อความตัวอย่างในช่อง</label><input v-model="form.placeholder" class="input" /></div>
         <AppSwitch v-model="form.required" label="จำเป็นต้องเลือก/กรอก" />
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>

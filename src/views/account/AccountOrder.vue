@@ -27,7 +27,7 @@ async function sendReview() {
 
 <template>
   <div class="mx-auto max-w-xl px-4 py-6">
-    <RouterLink to="/account" class="mb-3 inline-flex items-center gap-1 text-sm text-stone-600 hover:text-brand-700"><AppIcon name="back" :size="16" /> กลับบัญชีของฉัน</RouterLink>
+    <RouterLink to="/account" class="tap mb-3 inline-flex items-center gap-1 text-sm text-stone-600 hover:text-brand-700"><AppIcon name="back" :size="16" /> กลับบัญชีของฉัน</RouterLink>
     <div v-if="!order" class="card py-12 text-center text-stone-500">ไม่พบออร์เดอร์นี้ <RouterLink to="/account" class="text-brand-700 underline">กลับ</RouterLink></div>
     <CustomerOrderView v-else :order="order" :ctx="ctx" :can-review="order.status === 'delivered'" @refresh="refresh" @review="openReview" />
 
@@ -38,7 +38,7 @@ async function sendReview() {
         </div>
         <textarea v-model="rv.text" rows="4" maxlength="500" class="input" placeholder="เล่าให้ฟังหน่อยว่าเป็นอย่างไรบ้าง"></textarea>
         <p class="text-xs text-stone-400">จะแสดงบนหน้าร้านหลังร้านตรวจสอบ โดยใช้ชื่อต้นของคุณเท่านั้น</p>
-        <p v-if="rv.error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ rv.error }}</p>
+        <p v-if="rv.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ rv.error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="rv.order = null">ยกเลิก</button>

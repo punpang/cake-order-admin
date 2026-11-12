@@ -92,7 +92,7 @@ function exportInvoices() {
         <button v-if="canTax && !reopening" class="btn-outline" @click="reopening = true">ยกเลิกการยื่น (ปลดล็อกเดือน)</button>
         <div v-if="reopening" class="space-y-2"><input v-model="reason" class="input" maxlength="200" placeholder="เหตุผล" aria-label="เหตุผลยกเลิกการยื่น" /><div class="flex gap-2"><button class="btn-outline flex-1" @click="reopening = false">ไม่ยกเลิก</button><button class="btn-primary flex-1" @click="reopen">ยืนยัน</button></div></div>
       </section>
-      <p v-if="error" class="text-sm text-rose-600">{{ error }}</p>
+      <p v-if="error" class="text-sm text-rose-700">{{ error }}</p>
     </template>
 
     <template v-else-if="sub === 'inv'">
@@ -101,7 +101,7 @@ function exportInvoices() {
         <p v-if="!invoices.length" class="py-6 text-center text-stone-400">ยังไม่มี · ออกจากหน้ารายละเอียดออร์เดอร์ (ปุ่ม "ใบกำกับภาษีเต็มรูป")</p>
         <ul class="divide-y divide-stone-100">
           <li v-for="i in invoices" :key="i.id" class="flex items-center justify-between gap-3 py-2">
-            <div class="min-w-0"><div class="font-medium text-stone-800">{{ i.no }} <span v-if="i.type === 'credit'" class="text-xs text-amber-700">ใบลดหนี้ (อ้างอิง {{ i.refNo }})</span><span v-if="i.voidedBy" class="text-xs text-rose-600"> ยกเลิกแล้ว</span></div><div class="truncate text-xs text-stone-500">{{ dateOnly(i.date) }} · {{ i.orderCode }} · {{ i.buyer.name }} ({{ branchLabel(i.buyer.branch) }})</div></div>
+            <div class="min-w-0"><div class="font-medium text-stone-800">{{ i.no }} <span v-if="i.type === 'credit'" class="text-xs text-amber-700">ใบลดหนี้ (อ้างอิง {{ i.refNo }})</span><span v-if="i.voidedBy" class="text-xs text-rose-700"> ยกเลิกแล้ว</span></div><div class="truncate text-xs text-stone-500">{{ dateOnly(i.date) }} · {{ i.orderCode }} · {{ i.buyer.name }} ({{ branchLabel(i.buyer.branch) }})</div></div>
             <b class="shrink-0">{{ money(i.type === 'credit' ? -i.total : i.total) }}</b>
           </li>
         </ul>

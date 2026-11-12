@@ -155,9 +155,9 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
               <div class="font-display text-xl text-stone-900">โปรโมชั่น</div>
               <div class="font-semibold text-stone-800">{{ p.name }}</div>
               <div v-if="p.from || p.to" class="text-sm text-stone-600">{{ p.from ? dateOnly(p.from) : '' }} – {{ p.to ? dateOnly(p.to) : '' }}</div>
-              <ul v-if="p.products.length" class="mt-2 space-y-1 text-sm">
+              <ul v-if="p.products.length" class="mt-2 space-y-1.5 text-sm">
                 <li v-for="x in p.products" :key="x.product.id" class="flex justify-between gap-3">
-                  <RouterLink :to="`/menu/ready/${x.product.id}`" class="truncate text-stone-700 underline-offset-2 hover:underline">{{ x.product.name }}</RouterLink>
+                  <RouterLink :to="`/menu/ready/${x.product.id}`" class="-my-1 truncate py-1 text-stone-700 underline-offset-2 hover:underline">{{ x.product.name }}</RouterLink>
                   <span class="shrink-0"><b class="text-stone-900">{{ money(x.price) }}</b> <s class="text-stone-500">{{ money(x.regular) }}</s></span>
                 </li>
               </ul>

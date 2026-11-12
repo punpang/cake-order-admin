@@ -24,7 +24,7 @@ const customer = computed(() => (current.value ? findCustomer(current.value.cust
 
 const CH = {
   line: { l: 'LINE', cls: 'bg-[#06C755] text-white' },
-  facebook: { l: 'Facebook', cls: 'bg-[#1877F2] text-white' },
+  facebook: { l: 'Facebook', cls: 'bg-[#166FE5] text-white' }, // น้ำเงิน Facebook เข้มขึ้นเล็กน้อยให้ตัวขาวอ่านได้ ≥4.5:1
   instagram: { l: 'Instagram', cls: 'bg-gradient-to-tr from-[#f58529] via-[#dd2a7b] to-[#8134af] text-white' },
 }
 const nameOf = (c) => findCustomer(c.customerId)?.name || c.profileName
@@ -208,7 +208,7 @@ function doCreate() {
         <div class="flex flex-wrap gap-1.5 px-3 pb-2.5" role="group" aria-label="ตัวกรองแชท">
           <button v-for="f in FILTERS" :key="f.v" type="button" class="chip h-8 shrink-0 px-3 text-xs" :class="filter === f.v ? 'chip-on' : 'chip-off'" :aria-pressed="filter === f.v" @click="filter = f.v">
             {{ f.l }}
-            <span class="tabular-nums" :class="filter === f.v ? 'text-white/80' : 'text-stone-400'">{{ counts[f.v] }}</span>
+            <span class="font-normal tabular-nums" :class="filter === f.v ? 'text-white' : 'text-stone-500'">{{ counts[f.v] }}</span>
           </button>
         </div>
 
@@ -240,14 +240,14 @@ function doCreate() {
                 <span class="flex items-baseline gap-2">
                   <span class="flex min-w-0 flex-1 items-center gap-1.5">
                     <span class="truncate text-[15px]" :class="c.unreadStaff ? 'font-semibold text-stone-900' : 'font-medium text-stone-800'">{{ nameOf(c) }}</span>
-                    <span v-if="!c.customerId" class="shrink-0 rounded bg-amber-50 px-1.5 text-[11px] leading-5 font-medium text-amber-700">ยังไม่ผูก</span>
+                    <span v-if="!c.customerId" class="shrink-0 rounded bg-amber-50 px-1.5 text-xs leading-5 font-medium text-amber-700">ยังไม่ผูก</span>
                   </span>
                   <span class="shrink-0 text-xs tabular-nums" :class="c.unreadStaff ? 'font-semibold text-brand-700' : 'text-stone-400'">{{ whenText(last(c).at) }}</span>
                 </span>
                 <span class="mt-0.5 flex items-center gap-2">
                   <span class="min-w-0 flex-1 truncate text-sm" :class="c.unreadStaff ? 'font-medium text-stone-900' : 'text-stone-500'">{{ last(c).text }}</span>
-                  <span v-if="c.botHandoff" class="shrink-0 rounded bg-violet-50 px-1.5 text-[11px] leading-5 font-medium text-violet-700">บอทส่งต่อ</span>
-                  <span v-else-if="c.botDraft && !c.botDraft.editing" class="shrink-0 rounded bg-violet-50 px-1.5 text-[11px] leading-5 font-medium text-violet-700">มีร่างบอท</span>
+                  <span v-if="c.botHandoff" class="shrink-0 rounded bg-violet-50 px-1.5 text-xs leading-5 font-medium text-violet-700">บอทส่งต่อ</span>
+                  <span v-else-if="c.botDraft && !c.botDraft.editing" class="shrink-0 rounded bg-violet-50 px-1.5 text-xs leading-5 font-medium text-violet-700">มีร่างบอท</span>
                   <span v-if="c.unreadStaff" class="shrink-0 rounded-full bg-brand-600 px-1.5 text-[11px] leading-5 font-semibold text-white tabular-nums">{{ c.unreadStaff }}</span>
                 </span>
               </span>
@@ -270,7 +270,7 @@ function doCreate() {
             <span class="min-w-0 flex-1">
               <span class="flex min-w-0 items-center gap-2">
                 <span class="truncate font-semibold text-stone-900">{{ chName }}</span>
-                <span class="hidden shrink-0 rounded px-1.5 text-[11px] leading-5 font-semibold sm:inline-block" :class="CH[current.channel].cls">{{ CH[current.channel].l }}</span>
+                <span class="hidden shrink-0 rounded px-1.5 text-xs leading-5 font-semibold sm:inline-block" :class="CH[current.channel].cls">{{ CH[current.channel].l }}</span>
                 <AppIcon name="next" :size="14" class="shrink-0 text-stone-400" />
               </span>
               <span class="mt-0.5 flex min-w-0 items-center gap-x-2 gap-y-1 text-xs text-stone-500" :class="kb.open ? 'flex-nowrap overflow-hidden' : 'flex-wrap'">
@@ -387,7 +387,7 @@ function doCreate() {
         <div class="text-sm font-semibold text-stone-800">สร้างลูกค้าใหม่</div>
         <input v-model="newName" class="input" placeholder="ชื่อ" />
         <PhoneInput v-model="newPhone" />
-        <p v-if="linkError" class="text-sm text-rose-600" role="alert">{{ linkError }}</p>
+        <p v-if="linkError" class="text-sm text-rose-700" role="alert">{{ linkError }}</p>
         <button type="button" class="btn-soft w-full" @click="doCreate"><AppIcon name="plus" :size="16" /> สร้างและผูก</button>
         <p class="text-xs text-stone-500">ยังไม่มีเบอร์? ปิดไว้ก่อนได้ ลงออร์เดอร์/ส่งใบเสนอในแชทได้ แต่บันทึกออร์เดอร์ต้องมีเบอร์</p>
       </div>

@@ -75,11 +75,11 @@ async function revoke() {
         </ul>
       </div>
       <p v-if="msg" class="text-emerald-700">{{ msg }}</p>
-      <p v-if="error" class="flex items-center gap-2 text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+      <p v-if="error" class="flex items-center gap-2 text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
     </div>
     <template #footer>
       <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ปิด</button>
-      <button v-if="links.length" class="btn-outline flex-1 text-rose-600 sm:flex-none" @click="revoke">เพิกถอนทั้งหมด</button>
+      <button v-if="links.length" class="btn-outline flex-1 text-rose-700 sm:flex-none" @click="revoke">เพิกถอนทั้งหมด</button>
       <button class="btn-primary flex-1 sm:flex-none" @click="create">สร้างลิงก์ใหม่</button>
     </template>
   </AppModal>

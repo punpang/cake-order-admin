@@ -201,13 +201,13 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
     <div class="sticky bottom-2 z-10 rounded-2xl bg-white p-2.5 shadow-xl ring-1 ring-stone-200/70">
       <div class="flex items-center gap-2">
         <div class="min-w-0 flex-1 text-left leading-tight" aria-live="polite">
-          <div v-if="qty > 1" class="text-[11px] text-stone-500">{{ money(detail.unitPrice) }} × {{ qty }}</div>
+          <div v-if="qty > 1" class="text-xs text-stone-500">{{ money(detail.unitPrice) }} × {{ qty }}</div>
           <DiscountDetail :full="detail.fullPrice * qty" :final="detail.unitPrice * qty" :lines="discountLines(detail.discounts, qty)" size="lg" align="left" />
         </div>
         <button type="button" class="btn-primary h-10 shrink-0 whitespace-nowrap px-3.5 text-sm" :disabled="!ready" @click="copy"><AppIcon :name="copied ? 'check' : 'send'" :size="16" /> {{ copied ? 'คัดลอกแล้ว' : 'คัดลอกส่งร้าน' }}</button>
       </div>
       <p v-if="!ready" class="mt-1.5 truncate text-xs text-stone-800">เลือกให้ครบ: {{ missing.join(', ') }}</p>
-      <p v-else class="mt-1 text-center text-[11px] text-stone-400">ราคาเบื้องต้น ร้านจะยืนยันราคาสุดท้ายในใบเสนอ</p>
+      <p v-else class="mt-1 text-center text-xs text-stone-500">ราคาเบื้องต้น ร้านจะยืนยันราคาสุดท้ายในใบเสนอ</p>
     </div>
     <div v-if="out" class="space-y-3 rounded-3xl bg-white p-4 shadow-md">
       <p v-if="copied" class="text-sm text-emerald-700">คัดลอกแล้ว วางในแชทได้เลย</p>

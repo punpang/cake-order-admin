@@ -77,10 +77,10 @@ const prodName = computed(() => db.retailItems.find((r) => r.id === props.item.r
     </div>
     <div v-if="canEdit" class="mt-2 space-y-2">
       <ImageUploader v-model="staged" :max="10" label="เลือกรูปงานเสร็จ" />
-      <p v-if="err" class="text-xs text-rose-600" role="alert">{{ err }}</p>
+      <p v-if="err" class="text-xs text-rose-700" role="alert">{{ err }}</p>
       <button v-if="staged.length" type="button" class="btn-primary w-full" @click="save">บันทึก {{ staged.length }} รูป · ส่งให้ลูกค้าดู</button>
     </div>
-    <p v-else-if="err" class="mt-1 text-xs text-rose-600" role="alert">{{ err }}</p>
+    <p v-else-if="err" class="mt-1 text-xs text-rose-700" role="alert">{{ err }}</p>
 
     <AppModal v-if="pub.open" :title="isRetail ? 'ใช้เป็นรูปสินค้าบนเว็บ' : 'ใช้เป็นรูปตัวอย่างบนเว็บ (ติดแท็ก)'" @close="pub.open = false">
       <div class="space-y-3">
@@ -91,7 +91,7 @@ const prodName = computed(() => db.retailItems.find((r) => r.id === props.item.r
           <div v-for="g in groups" :key="g.id"><div class="mb-1 text-xs font-semibold text-stone-600">{{ g.name }}</div><div class="flex flex-wrap gap-1.5"><button v-for="o in g.options.filter((x) => x.active !== false)" :key="o.id" type="button" class="chip" :class="pub.tags.includes(o.id) ? 'chip-on' : 'chip-off'" :aria-pressed="pub.tags.includes(o.id)" @click="toggleTag(o.id)">{{ o.name }}</button></div></div>
           <div><label class="label">คำอธิบายรูป (ไม่บังคับ)</label><input v-model="pub.caption" class="input" maxlength="120" aria-label="คำอธิบายรูปเผยแพร่" /></div>
         </template>
-        <p v-if="pub.error" class="text-sm text-rose-600" role="alert">{{ pub.error }}</p>
+        <p v-if="pub.error" class="text-sm text-rose-700" role="alert">{{ pub.error }}</p>
       </div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="pub.open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="doPublish">เผยแพร่บนเว็บ</button></template>
     </AppModal>

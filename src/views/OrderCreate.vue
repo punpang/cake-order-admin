@@ -329,9 +329,9 @@ function quote() {
       </template>
 
       <div v-else class="space-y-3" @keydown.esc.stop="showNew = false; error = ''">
-        <div><label class="label">ชื่อ <span class="text-rose-500">*</span></label><input v-model="newCus.name" class="input" /></div>
+        <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="newCus.name" class="input" /></div>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div><label class="label">เบอร์โทร <span class="text-rose-500">*</span></label><PhoneInput v-model="newCus.phone" /></div>
+          <div><label class="label">เบอร์โทร <span class="text-rose-600">*</span></label><PhoneInput v-model="newCus.phone" /></div>
           <div><label class="label">LINE</label><input v-model="newCus.line" class="input" /></div>
         </div>
         <div><label class="label">หมายเหตุ</label><input v-model="newCus.note" class="input" /></div>
@@ -366,7 +366,7 @@ function quote() {
               @click="form.time = s.t"
             >{{ s.t }}</button>
           </div>
-          <p v-if="!dayClosure && slotInfo.some((s) => s.closed)" class="mt-1.5 text-xs text-rose-600">ช่องที่ขีดฆ่าร้านปิด: {{ [...new Set(slotInfo.filter((s) => s.closed).map((s) => s.reason))].join(', ') }}</p>
+          <p v-if="!dayClosure && slotInfo.some((s) => s.closed)" class="mt-1.5 text-xs text-rose-700">ช่องที่ขีดฆ่าร้านปิด: {{ [...new Set(slotInfo.filter((s) => s.closed).map((s) => s.reason))].join(', ') }}</p>
         </div>
         <div
           v-if="pickupAt"

@@ -53,6 +53,6 @@ const move = (i, d) => {
         <input type="file" accept="image/*" :multiple="max > 1" class="hidden" @change="onFiles" />
       </label>
     </div>
-    <p v-if="error" class="mt-1 text-xs text-rose-600">{{ error }}</p>
+    <p v-if="error" class="mt-1 text-xs text-rose-700">{{ error }}</p>
   </div>
 </template>

@@ -294,7 +294,7 @@ function clearAll() {
       class="mb-4 flex w-full items-center gap-3 rounded-2xl border border-rose-100 bg-rose-50/60 px-3.5 py-3 text-left transition hover:bg-rose-50 active:scale-[0.99]"
       @click="bdOpen = true"
     >
-      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-rose-600"><AppIcon name="cake" :size="18" /></span>
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-rose-700"><AppIcon name="cake" :size="18" /></span>
       <span class="min-w-0 flex-1">
         <span class="block text-sm font-semibold text-rose-900">วันเกิดใกล้ถึง {{ birthdays.length }} คน</span>
         <span class="block truncate text-xs text-rose-700">{{ birthdays.map((b) => b.name || findCustomer(b.customerId)?.name).join(', ') }}</span>
@@ -339,7 +339,7 @@ function clearAll() {
             <template v-if="o.status === 'cancelled'"><span class="text-stone-500">ยกเลิกแล้ว</span></template>
             <template v-else>
               <span v-if="t.balance > 0" class="text-amber-700">ค้าง {{ money(t.balance) }}</span>
-              <span v-else-if="t.balance < 0" class="text-rose-600">ชำระเกิน {{ money(-t.balance) }}</span>
+              <span v-else-if="t.balance < 0" class="text-rose-700">ชำระเกิน {{ money(-t.balance) }}</span>
               <span v-else class="text-brand-700">ชำระครบ</span>
             </template>
           </span>
@@ -384,7 +384,7 @@ function clearAll() {
               <b class="block font-semibold text-stone-900 tabular-nums">{{ money(t.total) }}</b>
               <template v-if="o.status !== 'cancelled'">
                 <span v-if="t.balance > 0" class="text-xs font-medium text-amber-700">ค้าง {{ money(t.balance) }}</span>
-                <span v-else-if="t.balance < 0" class="text-xs font-medium text-rose-600">ชำระเกิน {{ money(-t.balance) }}</span>
+                <span v-else-if="t.balance < 0" class="text-xs font-medium text-rose-700">ชำระเกิน {{ money(-t.balance) }}</span>
                 <span v-else class="text-xs font-medium text-brand-700">ชำระครบ</span>
               </template>
               <span class="block text-xs text-stone-400">{{ o.code }}</span>

@@ -95,7 +95,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
         </RouterLink>
       </nav>
 
-      <RouterLink to="/" class="ml-auto inline-flex shrink-0 items-center text-sm whitespace-nowrap text-stone-600 underline lg:min-h-8 lg:px-1">หน้าร้าน</RouterLink>
+      <RouterLink to="/" class="ml-auto inline-flex min-h-10 shrink-0 items-center px-1.5 text-sm whitespace-nowrap text-stone-600 underline">หน้าร้าน</RouterLink>
       <BellMenu audience="staff" />
       <button class="inline-flex h-10 max-w-40 items-center gap-2 rounded-full bg-white px-3 text-sm shadow-sm lg:px-3.5" :aria-label="`ผู้ใช้ ${me?.name || ROLES[session.role]}`" @click="supabaseEnabled && (roleOpen = true)">
         <AppIcon name="user" :size="16" class="shrink-0 text-stone-500" />

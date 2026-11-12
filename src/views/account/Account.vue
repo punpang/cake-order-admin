@@ -153,7 +153,7 @@ function logout() {
         </div>
         <div><label class="label">LINE ID</label><input v-model="form.line" class="input" maxlength="50" placeholder="ไม่บังคับ" /></div>
         <AppSwitch v-model="form.promoOptIn" label="รับข่าวสารและโปรโมชัน (รวมอวยพรวันเกิด)" />
-        <p v-if="err" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ err }}</p>
+        <p v-if="err" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
         <button class="btn-primary w-full" :disabled="savingProfile">{{ savingProfile ? 'กำลังบันทึก…' : 'บันทึก' }}</button>
       </form>
 
@@ -162,7 +162,7 @@ function logout() {
         <div><label class="label">ชื่อผู้ซื้อ</label><input v-model="tax.name" class="input" maxlength="120" aria-label="ชื่อตามใบกำกับ" /></div>
         <div class="grid grid-cols-3 gap-3"><div class="col-span-2"><label class="label">เลขประจำตัวผู้เสียภาษี</label><input v-model="tax.taxId" inputmode="numeric" maxlength="13" class="input" aria-label="เลขผู้เสียภาษีของฉัน" /></div><div><label class="label">สาขา</label><input v-model="tax.branch" inputmode="numeric" maxlength="5" class="input" aria-label="สาขาของฉัน" /></div></div>
         <div><label class="label">ที่อยู่ตามใบกำกับ</label><TaxAddressField v-model="tax.address" label="ที่อยู่ใบกำกับของฉัน" :suggestions="myAddressChoices()" /></div>
-        <p v-if="taxErr" class="text-sm text-rose-600" role="alert">{{ taxErr }}</p>
+        <p v-if="taxErr" class="text-sm text-rose-700" role="alert">{{ taxErr }}</p>
         <p v-if="taxMsg" class="text-sm text-emerald-700" role="status">{{ taxMsg }}</p>
         <button type="button" class="btn-soft w-full" @click="saveTax">บันทึกข้อมูลใบกำกับภาษี</button>
       </section>
@@ -231,7 +231,7 @@ function logout() {
   <AppModal v-if="flow" :title="{ pin: 'เปลี่ยน PIN', phone: 'เปลี่ยนเบอร์โทร', delete: 'ขอลบข้อมูล' }[flow]" @close="close">
     <div v-if="flow === 'phone' && step === 1" class="space-y-4">
       <div><label class="label">เบอร์ใหม่</label><PhoneInput v-model="f.phone" /></div>
-      <p v-if="f.error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
+      <p v-if="f.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
       <button class="btn-primary w-full" @click="newPhoneNext">ขอรหัสยืนยัน (OTP)</button>
     </div>
 
@@ -240,20 +240,20 @@ function logout() {
     <div v-else-if="flow === 'pin'" class="space-y-4">
       <div><label class="label">PIN ใหม่ 6 หลัก</label><PinInput v-model="f.pin" autocomplete="new-password" /></div>
       <div><label class="label">ยืนยัน PIN ใหม่</label><PinInput v-model="f.pin2" autocomplete="new-password" /></div>
-      <p v-if="f.error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
+      <p v-if="f.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
       <button class="btn-primary w-full" @click="finishPin">เปลี่ยน PIN</button>
     </div>
 
     <div v-else-if="flow === 'phone'" class="space-y-4">
       <p class="text-sm text-stone-600">ยืนยันแล้ว เปลี่ยนเบอร์เป็น <b>{{ formatPhone(f.phone) }}</b></p>
-      <p v-if="f.error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
+      <p v-if="f.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
       <button class="btn-primary w-full" @click="finishPhone">ยืนยันการเปลี่ยนเบอร์</button>
     </div>
 
     <div v-else class="space-y-4">
       <p class="text-sm text-stone-600">ส่งคำขอให้ร้านตรวจสอบ ระหว่างนี้บัญชียังใช้งานได้ตามปกติ</p>
       <div><label class="label">หมายเหตุถึงร้าน (ไม่บังคับ)</label><textarea v-model="f.note" rows="3" maxlength="300" class="input"></textarea></div>
-      <p v-if="f.error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
+      <p v-if="f.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
       <button class="btn-danger w-full" @click="finishDelete">ส่งคำขอลบข้อมูล</button>
     </div>
   </AppModal>

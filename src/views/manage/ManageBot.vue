@@ -129,7 +129,7 @@ const tab = ref('settings')
         <textarea v-model="st.handoff.text" rows="2" class="input" maxlength="300" aria-label="ข้อความตอนส่งต่อพนักงาน" />
         <div class="mt-2"><AppSwitch v-model="st.handoff.notifyTelegram" label="แจ้งทีมทาง Telegram เมื่อส่งต่อ" /></div>
       </div>
-      <p v-if="err" class="text-sm text-rose-600">{{ err }}</p>
+      <p v-if="err" class="text-sm text-rose-700">{{ err }}</p>
       <p v-if="msg" class="text-sm text-emerald-700">{{ msg }}</p>
       <button class="btn-primary" @click="save">บันทึกตั้งค่า</button>
     </section>
@@ -165,7 +165,7 @@ const tab = ref('settings')
         <li v-for="r in db.bot.rules" :key="r.id" class="py-2.5 text-sm" :class="r.active === false ? 'opacity-60' : ''">
           <div class="flex flex-wrap items-center gap-2"><b class="text-stone-900">{{ r.name }}</b><span class="chip chip-off">{{ r.keywords.join(' · ') }}</span><span class="ml-auto text-xs text-stone-400">ใช้ {{ r.hits || 0 }} ครั้ง</span></div>
           <p class="mt-0.5 text-xs text-stone-500">{{ r.reply }}</p>
-          <div class="mt-1.5 flex gap-2"><button class="btn-outline h-8 px-3 text-xs" @click="openRule(r)">แก้ไข</button><button class="btn-outline h-8 px-3 text-xs text-rose-600" @click="delRule(r)">ลบ</button></div>
+          <div class="mt-1.5 flex gap-2"><button class="btn-outline h-8 px-3 text-xs" @click="openRule(r)">แก้ไข</button><button class="btn-outline h-8 px-3 text-xs text-rose-700" @click="delRule(r)">ลบ</button></div>
         </li>
       </ul>
     </section>
@@ -180,18 +180,18 @@ const tab = ref('settings')
           <p class="text-stone-900">{{ l.q }}</p>
           <div class="mt-1 text-xs text-stone-400">ตอบ</div>
           <p class="whitespace-pre-line text-stone-700">{{ l.a }}</p>
-          <div class="mt-1.5 flex gap-2"><button class="btn-soft h-8 px-3 text-xs" @click="promote(l)">ยืนยันเป็นกฎ</button><button class="btn-outline h-8 px-3 text-xs text-rose-600" @click="delLearned(l)">ลบ</button></div>
+          <div class="mt-1.5 flex gap-2"><button class="btn-soft h-8 px-3 text-xs" @click="promote(l)">ยืนยันเป็นกฎ</button><button class="btn-outline h-8 px-3 text-xs text-rose-700" @click="delLearned(l)">ลบ</button></div>
         </li>
       </ul>
     </section>
 
     <AppModal v-if="rule" :title="rule.id ? 'แก้กฎ' : 'เพิ่มกฎ'" @close="rule = null">
       <div class="space-y-3">
-        <div><label class="label">ชื่อกฎ <span class="text-rose-500">*</span></label><input v-model="rule.name" class="input" maxlength="60" /></div>
-        <div><label class="label">คีย์เวิร์ด (คั่นด้วย ,) <span class="text-rose-500">*</span></label><input v-model="rule.keywords" class="input" placeholder="จอดรถ, ที่จอด" /></div>
-        <div><label class="label">คำตอบ <span class="text-rose-500">*</span></label><textarea v-model="rule.reply" rows="3" class="input" maxlength="500" /></div>
+        <div><label class="label">ชื่อกฎ <span class="text-rose-600">*</span></label><input v-model="rule.name" class="input" maxlength="60" /></div>
+        <div><label class="label">คีย์เวิร์ด (คั่นด้วย ,) <span class="text-rose-600">*</span></label><input v-model="rule.keywords" class="input" placeholder="จอดรถ, ที่จอด" /></div>
+        <div><label class="label">คำตอบ <span class="text-rose-600">*</span></label><textarea v-model="rule.reply" rows="3" class="input" maxlength="500" /></div>
         <AppSwitch v-model="rule.active" label="เปิดใช้งาน" />
-        <p v-if="rerr" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ rerr }}</p>
+        <p v-if="rerr" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ rerr }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="rule = null">ปิด</button>

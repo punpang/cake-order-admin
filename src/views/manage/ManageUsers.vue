@@ -114,15 +114,15 @@ async function save() {
         <li v-for="l in log" :key="l.id" class="py-2">
           <b class="text-stone-800">{{ userName(l.userId) }}</b> · {{ l.isNew ? 'เพิ่มผู้ใช้' : 'แก้สิทธิ์' }} โดย {{ userName(l.by) }}
           <span v-if="l.added.length" class="block text-emerald-700">+ {{ l.added.map((k) => labelOf[k] || k).join(', ') }}</span>
-          <span v-if="l.removed.length" class="block text-rose-600">− {{ l.removed.map((k) => labelOf[k] || k).join(', ') }}</span>
+          <span v-if="l.removed.length" class="block text-rose-700">− {{ l.removed.map((k) => labelOf[k] || k).join(', ') }}</span>
         </li>
       </ul>
     </section>
 
     <AppModal v-if="open" :title="form.id ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้'" @close="open = false">
       <div class="space-y-4">
-        <div><label class="label">ชื่อ <span class="text-rose-500">*</span></label><input v-model="form.name" class="input" /></div>
-        <div><label class="label">อีเมล <span class="text-rose-500">*</span></label><input v-model="form.email" type="email" inputmode="email" autocomplete="off" class="input" /></div>
+        <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" /></div>
+        <div><label class="label">อีเมล <span class="text-rose-600">*</span></label><input v-model="form.email" type="email" inputmode="email" autocomplete="off" class="input" /></div>
         <div>
           <div class="label">บทบาท</div>
           <div class="grid grid-cols-2 gap-2">
@@ -162,7 +162,7 @@ async function save() {
         </div>
         <AppSwitch v-model="form.active" label="ใช้งาน" />
         <p class="rounded-xl bg-stone-50 p-3 text-xs text-stone-500">ยังไม่ได้ต่อ Supabase: ข้อมูลผู้ใช้เก็บไว้ชั่วคราว และยังไม่มีการล็อกอินจริง</p>
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>

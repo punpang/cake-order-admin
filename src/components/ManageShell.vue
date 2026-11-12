@@ -50,7 +50,7 @@ const showInactive = defineModel('inactive', { type: Boolean, default: false })
   <div v-else :class="side.length ? 'lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:items-start lg:gap-6' : ''" @input.capture="guard && onEdit($event)" @change.capture="guard && onEdit($event)" @click.capture="guard && onClickCap($event)">
     <nav v-if="side.length" ref="sideNav" aria-label="เมนูตั้งค่า" class="sticky top-20 hidden max-h-[calc(100vh-6rem)] overflow-y-auto rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-stone-200 lg:block">
       <div v-for="g in side" :key="g.key" class="mb-1.5 last:mb-0">
-        <p class="px-2.5 pt-1.5 pb-0.5 text-[11px] font-semibold text-stone-400">{{ g.title }}</p>
+        <p class="px-2.5 pt-2 pb-0.5 text-xs font-semibold text-stone-500">{{ g.title }}</p>
         <RouterLink
           v-for="p in g.items"
           :key="p.to"

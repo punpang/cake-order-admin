@@ -86,7 +86,7 @@ function reject() {
       <div class="space-y-3">
         <p class="text-sm text-stone-600">ลูกค้าจะเห็นเหตุผลนี้ในหน้าบัญชีของเขา</p>
         <textarea v-model="rej.reason" rows="3" maxlength="300" class="input" placeholder="เหตุผล เช่น ยังมีออร์เดอร์ที่ต้องรับ"></textarea>
-        <p v-if="rej.error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ rej.error }}</p>
+        <p v-if="rej.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ rej.error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="rej.row = null">ยกเลิก</button>

@@ -155,7 +155,7 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
           <button type="button" class="btn-primary h-10 px-4" :disabled="busy" @click="search">ค้นหา</button>
         </div>
         <details class="text-sm">
-          <summary class="cursor-pointer text-stone-600">ตัวกรองเพิ่มเติม</summary>
+          <summary class="cursor-pointer py-2 text-stone-600">ตัวกรองเพิ่มเติม</summary>
           <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <select v-model="filter.status" class="input" aria-label="สถานะออเดอร์"><option v-for="s in STATUSES" :key="s.v" :value="s.v">{{ s.l }}</option></select>
             <input v-model="filter.uploadedFrom" type="date" class="input" aria-label="อัปโหลดตั้งแต่" />
@@ -194,8 +194,8 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
               <div class="truncate font-medium text-stone-900">{{ it.type === 'public' ? it.key : (it.code || it.orderId) + ' · ' + (it.type === 'slip' ? 'สลิป' : it.type === 'ref' ? 'รูปอ้างอิง' : 'รูปงาน') }}</div>
               <div class="truncate text-xs text-stone-500">{{ it.status || 'ไม่พบออร์เดอร์' }} · {{ fmtSize(it.size) }}<span v-if="it.uploaded"> · {{ dateTime(it.uploaded) }}</span></div>
             </div>
-            <span v-if="it.referenced" class="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] text-sky-700">ยังถูกใช้งาน</span>
-            <span v-else-if="!it.deletable" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[11px] text-stone-600">ลบไม่ได้</span>
+            <span v-if="it.referenced" class="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-700">ยังถูกใช้งาน</span>
+            <span v-else-if="!it.deletable" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-600">ลบไม่ได้</span>
           </li>
         </ul>
         <button v-if="cursor" type="button" class="btn-outline h-8 px-3 text-xs" :disabled="busy" @click="more">โหลดเพิ่ม</button>

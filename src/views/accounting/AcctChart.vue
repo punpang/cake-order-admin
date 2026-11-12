@@ -51,7 +51,7 @@ async function del() {
         <AppSwitch v-model="f.quick" label="ให้เลือกในฟอร์มบันทึกรายได้/ค่าใช้จ่าย" />
         <AppSwitch v-if="f.kind === 'expense'" v-model="f.taxDeductible" label="หักเป็นรายจ่ายทางภาษีได้ตามปกติ" />
         <AppSwitch v-model="f.active" label="ใช้งาน" :disabled="f.system" />
-        <p v-if="error" class="text-sm text-rose-600" role="alert">{{ error }}</p>
+        <p v-if="error" class="text-sm text-rose-700" role="alert">{{ error }}</p>
       </div>
       <template #footer><button v-if="!f.isNew && !f.system && !used.has(f.id)" class="btn-danger sm:mr-auto" @click="del">ลบ</button><button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="save">บันทึก</button></template>
     </AppModal>

@@ -286,8 +286,8 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
         <div v-else class="space-y-2 rounded-xl border border-stone-200 p-3">
           <label class="label" for="pc-note">หมายเหตุถึงร้าน (ไม่บังคับ)</label>
           <textarea id="pc-note" v-model="pc.note" rows="2" maxlength="300" class="input" aria-label="หมายเหตุขอไม่เผยแพร่รูป"></textarea>
-          <label class="flex items-start gap-2 text-stone-700"><input v-model="pc.agree" type="checkbox" class="mt-0.5 h-4 w-4" aria-label="ยืนยันไม่ให้ใช้รูป" /> ยืนยันไม่ให้ร้านนำรูปงานของออร์เดอร์นี้ไปเผยแพร่ในทุกช่องทาง และให้ลบรูปทิ้ง (ร้านจะตรวจสอบก่อนลบ)</label>
-          <p v-if="pc.error" class="text-rose-600" role="alert">{{ pc.error }}</p>
+          <label class="flex items-start gap-2 py-1.5 text-stone-700"><input v-model="pc.agree" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" aria-label="ยืนยันไม่ให้ใช้รูป" /> ยืนยันไม่ให้ร้านนำรูปงานของออร์เดอร์นี้ไปเผยแพร่ในทุกช่องทาง และให้ลบรูปทิ้ง (ร้านจะตรวจสอบก่อนลบ)</label>
+          <p v-if="pc.error" class="text-rose-700" role="alert">{{ pc.error }}</p>
           <div class="flex gap-2"><button type="button" class="btn-outline flex-1" @click="pc.open = false">ยกเลิก</button><button type="button" class="btn-primary flex-1" :disabled="pc.busy" @click="askOptOut">{{ pc.busy ? 'กำลังส่ง…' : 'ส่งคำขอ' }}</button></div>
         </div>
       </template>
@@ -301,8 +301,8 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
       <div v-if="o.delivery && o.delivery.shippingFee" class="flex justify-between text-stone-500"><span>ค่าจัดส่ง</span><span>{{ money(o.delivery.shippingFee) }}</span></div>
       <div class="flex justify-between text-base"><span class="font-medium">ยอดรวม</span><b class="text-stone-900">{{ money(o.total) }}</b></div>
       <div v-if="o.vatMode" class="flex justify-between text-xs text-stone-500"><span>{{ o.vatMode === 'exclusive' ? `รวม VAT ${o.vatRate}% (บวกเพิ่ม)` : `รวม VAT ${o.vatRate}% แล้ว` }}</span><span>{{ money(o.vat) }}</span></div>
-      <div v-for="(r, i) in o.refunds" :key="'rf' + i" class="flex justify-between text-xs text-rose-600"><span>คืนเงิน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span>{{ money(r.amount) }}</span></div>
-      <template v-for="rt in o.returns || []" :key="rt.id"><div v-for="(r, i) in rt.items" :key="rt.id + i" class="flex justify-between text-xs text-rose-600"><span>คืนเงินบางส่วน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span>{{ money(r.amount) }}</span></div></template>
+      <div v-for="(r, i) in o.refunds" :key="'rf' + i" class="flex justify-between text-xs text-rose-700"><span>คืนเงิน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span>{{ money(r.amount) }}</span></div>
+      <template v-for="rt in o.returns || []" :key="rt.id"><div v-for="(r, i) in rt.items" :key="rt.id + i" class="flex justify-between text-xs text-rose-700"><span>คืนเงินบางส่วน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span>{{ money(r.amount) }}</span></div></template>
       <div class="flex justify-between"><span>ชำระแล้ว</span><span>{{ money(o.paid) }}</span></div>
       <div v-if="!cancelled" class="flex justify-between text-base" :class="o.balance > 0 ? 'text-amber-700' : 'text-emerald-700'"><span class="font-medium">คงค้าง</span><b>{{ money(o.balance) }}</b></div>
     </section>
@@ -333,7 +333,7 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
               <button type="button" class="chip" :class="f.mode === 'custom' ? 'chip-on' : 'chip-off'" @click="pick('custom')">ระบุเอง</button>
             </div>
             <input v-if="f.mode === 'custom'" v-model="f.custom" type="text" inputmode="decimal" class="input mt-2" placeholder="ยอดที่โอน (บาท)" aria-label="ยอดที่โอน" />
-            <p v-if="f.mode === 'custom' && Number(f.custom) > room" class="mt-1 text-xs text-rose-600">เกินคงค้าง (ไม่เกิน {{ money(room) }})</p>
+            <p v-if="f.mode === 'custom' && Number(f.custom) > room" class="mt-1 text-xs text-rose-700">เกินคงค้าง (ไม่เกิน {{ money(room) }})</p>
           </div>
 
           <div v-if="hasInfo" class="rounded-2xl border border-stone-200 bg-white p-3">
@@ -358,7 +358,7 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
           <p v-else class="rounded-xl bg-amber-50 p-3 text-amber-800">ร้านยังไม่ได้ตั้งช่องทางรับชำระ กรุณาสอบถามร้าน</p>
 
           <div>
-            <div class="label">สลิปการโอน <span class="text-rose-500">*</span></div>
+            <div class="label">สลิปการโอน <span class="text-rose-600">*</span></div>
             <label class="flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-stone-200 p-3 text-stone-500 hover:border-brand-300">
               <img v-if="f.slip" :src="f.slip" alt="สลิป" class="h-14 w-14 rounded-lg object-cover" />
               <AppIcon v-else name="image" :size="22" />
@@ -367,7 +367,7 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
             </label>
           </div>
           <div class="space-y-2 rounded-2xl border border-stone-200 p-3">
-            <div class="text-xs text-stone-500">รายละเอียดการโอน (ให้ตรงกับสลิป) <span class="text-rose-500">*</span></div>
+            <div class="text-xs text-stone-500">รายละเอียดการโอน (ให้ตรงกับสลิป) <span class="text-rose-600">*</span></div>
             <div class="grid grid-cols-2 gap-2">
               <div><label class="label" for="pay-date">วันที่โอน</label><input id="pay-date" v-model="f.txnDate" type="date" class="input" :max="thaiNow().date" /></div>
               <div><label class="label" for="pay-time">เวลาที่โอน</label><input id="pay-time" v-model="f.txnTime" type="time" class="input" /></div>
@@ -382,7 +382,7 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
             <p v-if="f.qrNote" class="text-xs text-stone-500" role="status">{{ f.qrNote }}</p>
           </div>
           <div><label class="label">หมายเหตุ <span class="font-normal text-stone-400">(ไม่บังคับ)</span></label><input v-model="f.note" class="input" maxlength="200" /></div>
-          <p v-if="f.error" class="text-rose-600" role="alert">{{ f.error }}</p>
+          <p v-if="f.error" class="text-rose-700" role="alert">{{ f.error }}</p>
           <div class="flex gap-2">
             <button class="btn-outline flex-1" @click="open = false">ยกเลิก</button>
             <button class="btn-primary flex-1" :disabled="f.busy || f.reading || !(amount > 0)" @click="submit">{{ f.reading ? 'กำลังอ่านสลิป…' : 'ส่งสลิปแจ้งชำระ' }}</button>

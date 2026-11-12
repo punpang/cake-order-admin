@@ -22,7 +22,7 @@ const saved = () => props.full - props.final
         <span class="text-xs text-stone-400">เต็ม <span class="line-through">{{ money(full) }}</span></span>
         <button
           type="button"
-          class="inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+          class="tap inline-flex items-center gap-0.5 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
           :aria-expanded="open"
           @click.stop="open = !open"
         >

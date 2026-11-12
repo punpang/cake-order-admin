@@ -72,9 +72,9 @@ async function save() {
 
     <AppModal v-if="open" :title="form.id ? 'แก้ไขวัตถุดิบ' : 'เพิ่มวัตถุดิบ'" @close="open = false">
       <div class="space-y-4">
-        <div><label class="label">ชื่อวัตถุดิบ <span class="text-rose-500">*</span></label><input v-model="form.name" class="input" /></div>
+        <div><label class="label">ชื่อวัตถุดิบ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" /></div>
         <div>
-          <label class="label">หน่วย <span class="text-rose-500">*</span></label>
+          <label class="label">หน่วย <span class="text-rose-600">*</span></label>
           <input v-model="form.unit" class="input" list="unit-list" />
           <datalist id="unit-list"><option v-for="u in UNITS" :key="u" :value="u" /></datalist>
         </div>
@@ -87,7 +87,7 @@ async function save() {
           <p class="mt-1 text-xs text-stone-500">= {{ costText(form) }}</p>
         </div>
         <AppSwitch v-model="form.active" label="ใช้งาน (เลือกใส่สูตรได้)" />
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>

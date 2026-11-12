@@ -42,11 +42,11 @@ const onFee = () => (props.form.feeManual = true)
       </div>
     </div>
     <div><label class="label">ชื่อสถานที่ <span class="font-normal text-stone-400">(เช่น บ้าน / ที่ทำงาน)</span></label><input v-model="form.placeName" class="input" :maxlength="LIMITS.placeName" /></div>
-    <div><label class="label">ที่อยู่จัดส่ง <span class="text-rose-500">*</span></label><textarea v-model="form.address" rows="2" class="input" :maxlength="LIMITS.address" /></div>
+    <div><label class="label">ที่อยู่จัดส่ง <span class="text-rose-600">*</span></label><textarea v-model="form.address" rows="2" class="input" :maxlength="LIMITS.address" /></div>
     <div>
       <label class="label">url แผนที่ <span class="font-normal text-stone-400">(ไม่บังคับ · https เท่านั้น)</span></label>
       <input v-model="form.mapUrl" type="url" inputmode="url" class="input" placeholder="https://maps.app.goo.gl/…" :maxlength="LIMITS.url" />
-      <p v-if="url.error" class="mt-1 text-xs text-rose-600">{{ url.error }}</p>
+      <p v-if="url.error" class="mt-1 text-xs text-rose-700">{{ url.error }}</p>
       <p v-else-if="url.host" class="mt-1 text-xs text-stone-500">ลิงก์ไปยัง {{ url.host }}</p>
     </div>
     <div><label class="label">รายละเอียด <span class="font-normal text-stone-400">(ทางเข้า / ฝากไว้ / เบอร์ผู้รับ)</span></label><textarea v-model="form.detail" rows="2" class="input" :maxlength="LIMITS.detail" /></div>

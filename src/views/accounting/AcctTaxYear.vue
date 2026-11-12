@@ -65,7 +65,7 @@ function csv() {
       <section v-if="juristic" class="card text-sm" aria-label="ภาษีเงินได้นิติบุคคล">
         <div class="card-title">ภาษีเงินได้นิติบุคคล {{ r.fy.label }}</div>
         <div class="flex justify-between py-0.5"><span>กำไร (ขาดทุน) สุทธิทางบัญชี</span><b>{{ money(r.calc.accountingProfit) }}</b></div>
-        <div v-for="(a, i) in r.adjustments" :key="i" class="flex justify-between gap-2 py-0.5 pl-3 text-xs" :class="a.amount >= 0 ? 'text-stone-700' : 'text-emerald-700'"><span class="min-w-0 break-words">{{ a.label }}<button v-if="!a.auto && !locked && canTax" class="ml-1 text-rose-600 underline print:hidden" @click="delAdj(i - r.adjustments.filter((x) => x.auto).length)">ลบ</button></span><span class="shrink-0">{{ money(a.amount) }}</span></div>
+        <div v-for="(a, i) in r.adjustments" :key="i" class="flex justify-between gap-2 py-0.5 pl-3 text-xs" :class="a.amount >= 0 ? 'text-stone-700' : 'text-emerald-700'"><span class="min-w-0 break-words">{{ a.label }}<button v-if="!a.auto && !locked && canTax" class="ml-1 text-rose-700 underline print:hidden" @click="delAdj(i - r.adjustments.filter((x) => x.auto).length)">ลบ</button></span><span class="shrink-0">{{ money(a.amount) }}</span></div>
         <div class="flex justify-between border-t border-stone-100 py-0.5"><span>กำไรทางภาษีก่อนหักขาดทุนสะสม</span><span>{{ money(r.calc.profitBeforeLoss) }}</span></div>
         <div class="flex justify-between py-0.5"><span>หัก ขาดทุนสะสมยกมา (ไม่เกิน {{ r.table.lossYears }} ปี)</span><span>{{ money(r.calc.lossUsed) }}</span></div>
         <div class="flex justify-between border-t border-stone-100 py-0.5 font-semibold"><span>กำไรสุทธิทางภาษี</span><span aria-label="กำไรสุทธิทางภาษี">{{ money(r.calc.taxableProfit) }}</span></div>
@@ -150,7 +150,7 @@ function csv() {
             <div v-for="(b, i) in tbl.t[g[0]]" :key="i" class="mt-1 grid grid-cols-2 gap-2"><input v-if="b.upTo !== null" v-model="b.upTo" type="number" class="input h-9" :aria-label="`${g[0]} ขั้นที่ ${i + 1} ถึง`" /><div v-else class="flex h-9 items-center text-stone-500">ส่วนที่เกิน</div><input v-model="b.rate" type="number" class="input h-9" :aria-label="`${g[0]} ขั้นที่ ${i + 1} อัตรา %`" /></div>
           </div>
           <div class="grid grid-cols-2 gap-2"><div v-for="k in [['corporateRate', 'อัตรานิติบุคคลทั่วไป %'], ['smeMaxCapital', 'SME ทุนไม่เกิน'], ['smeMaxRevenue', 'SME รายได้ไม่เกิน'], ['minTaxPct', 'ภาษีขั้นต่ำ %'], ['minTaxThreshold', 'ขั้นต่ำเมื่อเงินได้เกิน'], ['lumpPct', 'หักเหมา %'], ['entertainmentPct', 'เพดานค่ารับรอง %'], ['entertainmentMax', 'เพดานค่ารับรองสูงสุด']]" :key="k[0]"><label class="label">{{ k[1] }}</label><input v-model="tbl.t[k[0]]" type="number" class="input h-9" :aria-label="k[1]" /></div></div>
-          <p v-if="err" class="text-sm text-rose-600" role="alert">{{ err }}</p>
+          <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
         </div>
         <div class="flex shrink-0 gap-2 border-t border-stone-100 px-5 py-3"><button class="btn-outline flex-1" @click="tbl.open = false; err = ''">ยกเลิก</button><button class="btn-primary flex-1" @click="saveTable">บันทึกตาราง</button></div>
       </div>

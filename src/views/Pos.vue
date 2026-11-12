@@ -409,7 +409,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </span>
             <span v-if="inCart(x)" class="absolute -top-2 -right-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand-600 px-1 text-xs font-semibold text-white">{{ inCart(x) }}</span>
           </button>
-          <button v-if="inCart(x)" type="button" class="absolute -bottom-4 left-1/2 z-10 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-stone-200 bg-white text-rose-600 shadow-md active:scale-95" :aria-label="`ลด ${x.name}`" @click="lessOf(x)"><AppIcon name="minus" :size="18" /></button>
+          <button v-if="inCart(x)" type="button" class="absolute -bottom-4 left-1/2 z-10 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-stone-200 bg-white text-rose-700 shadow-md active:scale-95" :aria-label="`ลด ${x.name}`" @click="lessOf(x)"><AppIcon name="minus" :size="18" /></button>
           </div>
         </div>
         <p v-if="!shown.length" class="empty py-8 text-sm">ไม่พบสินค้า</p>
@@ -423,7 +423,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       >
         <div class="flex items-center justify-between border-b border-stone-100 px-4 py-3">
           <span class="font-semibold text-stone-900">ตะกร้า <span class="text-stone-400">{{ count }}</span></span>
-          <span class="flex items-center gap-3"><button v-if="cart.length" type="button" class="text-sm text-rose-600 underline" aria-label="ล้างตะกร้า" @click="clearCart">ล้างตะกร้า</button><button type="button" class="text-sm text-stone-500 lg:hidden" @click="cartOpen = false">ปิด</button></span>
+          <span class="flex items-center gap-3"><button v-if="cart.length" type="button" class="text-sm text-rose-700 underline" aria-label="ล้างตะกร้า" @click="clearCart">ล้างตะกร้า</button><button type="button" class="text-sm text-stone-500 lg:hidden" @click="cartOpen = false">ปิด</button></span>
         </div>
         <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
           <p v-if="!cart.length" class="py-6 text-center text-sm text-stone-400">แตะสินค้าเพื่อเพิ่ม</p>
@@ -439,7 +439,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                 <span class="w-7 text-center text-sm font-semibold">{{ l.qty }}</span>
                 <button type="button" class="h-full w-9 text-stone-600" aria-label="เพิ่ม" @click="step(l, 1)"><AppIcon name="plus" :size="16" class="mx-auto" /></button>
               </span>
-              <button type="button" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-rose-600 hover:bg-rose-50" :aria-label="`ลบ ${itemOf(l)?.name}`" @click="removeLine(l)"><AppIcon name="trash" :size="17" /></button>
+              <button type="button" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-rose-700 hover:bg-rose-50" :aria-label="`ลบ ${itemOf(l)?.name}`" @click="removeLine(l)"><AppIcon name="trash" :size="17" /></button>
             </li>
           </ul>
 
@@ -459,7 +459,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <div v-if="bundleSug.length || pairSug.length" class="space-y-2 rounded-xl bg-amber-50/70 p-2.5" aria-label="แนะนำขายต่อ">
             <div v-for="s in bundleSug" :key="s.bundle.id" class="rounded-lg bg-white p-2 text-sm">
               <div class="font-medium text-stone-900">ชุด {{ s.bundle.name }} · {{ money(s.bundle.price) }} <s class="text-xs font-normal text-stone-400">ราคาเต็ม {{ money(s.setRegular) }}</s></div>
-              <div class="text-xs text-stone-600">เพิ่ม {{ s.missing.map((m) => `${m.name} ×${m.qty}`).join(', ') }} ได้ราคาชุด · ประหยัด <b class="text-rose-600">{{ money(s.saving) }}</b></div>
+              <div class="text-xs text-stone-600">เพิ่ม {{ s.missing.map((m) => `${m.name} ×${m.qty}`).join(', ') }} ได้ราคาชุด · ประหยัด <b class="text-rose-700">{{ money(s.saving) }}</b></div>
               <button type="button" class="btn-soft mt-1.5 h-8 px-3 text-xs" @click="addMissing(s)"><AppIcon name="plus" :size="14" /> เพิ่มให้ครบชุด</button>
             </div>
             <div v-if="pairSug.length">
@@ -518,7 +518,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <div v-if="undo.snap" class="fixed inset-x-3 bottom-28 z-50 flex items-center justify-between gap-3 rounded-2xl bg-stone-900 px-4 py-3 text-sm text-white shadow-xl lg:bottom-6 lg:left-auto lg:w-80" role="status"><span class="min-w-0 truncate">{{ undo.text }}</span><button type="button" class="shrink-0 font-semibold text-brand-200 underline" @click="undoRemove">เลิกทำ</button></div>
       <div v-if="!cartOpen" class="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur lg:hidden">
         <div v-if="cart.length" class="-mx-1 mb-2 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]" aria-label="รายการในตะกร้า (แตะ ✕ เพื่อลบ)">
-          <span v-for="l in cart" :key="'q' + lineKey(l)" class="flex shrink-0 items-center gap-1 rounded-full border border-stone-200 bg-white py-1 pr-1 pl-3 text-xs text-stone-700"><span class="max-w-32 truncate">{{ lineName(l) }} ×{{ l.qty }}</span><button type="button" class="flex h-7 w-7 items-center justify-center rounded-full text-rose-600 hover:bg-rose-50" :aria-label="`ลบ ${itemOf(l)?.name} ออกจากตะกร้า`" @click="removeLine(l)">✕</button></span>
+          <span v-for="l in cart" :key="'q' + lineKey(l)" class="flex shrink-0 items-center gap-1 rounded-full border border-stone-200 bg-white py-1 pr-1 pl-3 text-xs text-stone-700"><span class="max-w-32 truncate">{{ lineName(l) }} ×{{ l.qty }}</span><button type="button" class="flex h-7 w-7 items-center justify-center rounded-full text-rose-700 hover:bg-rose-50" :aria-label="`ลบ ${itemOf(l)?.name} ออกจากตะกร้า`" @click="removeLine(l)">✕</button></span>
         </div>
         <button type="button" class="btn-primary h-12 w-full justify-between px-5 text-base" @click="cartOpen = true">
           <span>ตะกร้า {{ count }} ชิ้น</span><span>{{ money(total) }}</span>
@@ -569,13 +569,13 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <div class="space-y-4">
         <p v-if="invoiceOfOrder(voidFor.id)" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ออร์เดอร์นี้ออกใบกำกับภาษีไว้แล้ว ({{ invoiceOfOrder(voidFor.id).no }}) · เมื่อยกเลิกระบบจะออกใบลดหนี้ให้อัตโนมัติ</p>
         <p class="text-sm text-stone-500">ยกเลิกแล้วจะคืนสต็อก คืนคูปองที่ใช้ และตัดคะแนนที่ได้จากบิลนี้</p>
-        <div><label class="label">เหตุผล <span class="text-rose-500">*</span></label><input v-model="vd.reason" class="input" maxlength="120" /></div>
+        <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><input v-model="vd.reason" class="input" maxlength="120" /></div>
         <div>
           <div class="label">คืนเงินให้ลูกค้า</div>
           <RefundEditor v-model="vd.refunds" :paid="voidPaid" :can-points="!!voidFor.customerId && !!findCustomer(voidFor.customerId) && !findCustomer(voidFor.customerId).deleted" :default-method="voidDefault" />
         </div>
         <div><label class="label">หมายเหตุการคืนเงิน</label><input v-model="vd.note" class="input" maxlength="120" /></div>
-        <p v-if="vd.error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ vd.error }}</p>
+        <p v-if="vd.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ vd.error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="voidFor = null">ปิด</button>
@@ -588,14 +588,14 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <!-- สมัครสมาชิกที่เคาน์เตอร์ -->
     <AppModal v-if="signup.open" title="สมัครสมาชิก (สะสมคะแนน)" @close="signup.open = false">
       <div class="space-y-4">
-        <div><label class="label">เบอร์โทร <span class="text-rose-500">*</span></label><PhoneInput v-model="signup.phone" /></div>
-        <div><label class="label">ชื่อ <span class="text-rose-500">*</span></label><input v-model="signup.name" class="input" maxlength="100" autocomplete="off" /></div>
+        <div><label class="label">เบอร์โทร <span class="text-rose-600">*</span></label><PhoneInput v-model="signup.phone" /></div>
+        <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="signup.name" class="input" maxlength="100" autocomplete="off" /></div>
         <p class="text-xs text-stone-500">เบอร์ที่มีในระบบแล้วจะใช้ข้อมูลเดิม · ลูกค้าตั้ง PIN เข้าเว็บทีหลังได้ด้วยเบอร์เดิม (ต้องยืนยัน OTP)</p>
         <label class="flex items-start gap-2 text-sm text-stone-700">
           <input v-model="signup.agreed" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" />
           <span>ลูกค้ารับทราบ <RouterLink to="/legal/privacy" target="_blank" class="text-brand-700 underline">นโยบายความเป็นส่วนตัว</RouterLink> และ <RouterLink to="/legal/terms" target="_blank" class="text-brand-700 underline">เงื่อนไขคะแนนสะสม</RouterLink> แล้ว</span>
         </label>
-        <p v-if="signup.error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ signup.error }}</p>
+        <p v-if="signup.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ signup.error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="signup.open = false">ยกเลิก</button>
@@ -607,7 +607,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <AppModal v-if="modFor" :title="modFor.x.name" @close="modFor = null">
       <div class="space-y-4">
         <div v-for="g in groupsOf(modFor.x)" :key="g.id">
-          <div class="label">{{ g.name }} <span v-if="g.required" class="text-rose-500">*</span><span v-else-if="g.type === 'multi'" class="font-normal text-stone-400">(เลือกได้หลายอย่าง)</span></div>
+          <div class="label">{{ g.name }} <span v-if="g.required" class="text-rose-600">*</span><span v-else-if="g.type === 'multi'" class="font-normal text-stone-400">(เลือกได้หลายอย่าง)</span></div>
           <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <button
               v-for="o in g.options"
@@ -629,7 +629,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <button type="button" class="h-full w-11" aria-label="เพิ่ม" :disabled="modFor.qty >= modQtyMax" @click="modFor.qty++"><AppIcon name="plus" :size="18" class="mx-auto" /></button>
           </span>
         </div>
-        <p v-if="modMissing.length" class="text-sm text-rose-600">เลือก {{ modMissing.join(', ') }}</p>
+        <p v-if="modMissing.length" class="text-sm text-rose-700">เลือก {{ modMissing.join(', ') }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="modFor = null">ยกเลิก</button>
@@ -707,7 +707,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <p v-if="rdCoupons.length" class="rounded-xl bg-emerald-50 p-2.5 text-xs text-emerald-800" role="note">ลูกค้าแสดงคูปองส่วนลดอยู่ {{ rdCoupons.length }} ใบ — ใช้ได้ที่ขั้นตอนชำระเงินของการขาย (เลือกลูกค้าเป็นสมาชิกก่อน)</p>
           <p v-if="rdHidden" class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800" role="note">ยังมีอีก {{ rdHidden }} รายการที่ลูกค้าไม่ได้กด "ใช้ที่ร้านตอนนี้" — ให้ลูกค้ากดในระบบลูกค้าของตนเอง (ยืนยันว่าลูกค้าทำรายการเอง) รายการจึงจะขึ้นที่นี่ · ร้านแลกแทนลูกค้าไม่ได้</p>
         </template>
-        <p v-if="rd.err" class="text-rose-600" role="alert">{{ rd.err }}</p>
+        <p v-if="rd.err" class="text-rose-700" role="alert">{{ rd.err }}</p>
         <p v-if="rd.msg" class="rounded-xl bg-emerald-50 p-2.5 text-emerald-800" role="status">{{ rd.msg }}</p>
       </div>
       <template #footer><button class="btn-primary flex-1 sm:flex-none" @click="rd.open = false">ปิด</button></template>

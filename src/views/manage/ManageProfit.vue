@@ -144,7 +144,7 @@ watch([from, to], () => { rowLimit.value = 50 })
       <div class="card p-3.5"><div class="text-xs text-stone-500">ออร์เดอร์</div><div class="text-xl font-semibold text-stone-900">{{ rows.length }}</div></div>
       <div class="card p-3.5"><div class="text-xs text-stone-500">ยอดขาย</div><div class="text-xl font-semibold text-stone-900">{{ money(sum.total) }}</div></div>
       <div class="card p-3.5"><div class="text-xs text-stone-500">ต้นทุนวัตถุดิบ</div><div class="text-xl font-semibold text-stone-900">{{ money(sum.cost) }}</div></div>
-      <div class="card p-3.5"><div class="text-xs text-stone-500">กำไร ({{ margin }}%)</div><div class="text-xl font-semibold" :class="sum.profit >= 0 ? 'text-emerald-700' : 'text-rose-600'">{{ money(sum.profit) }}</div></div>
+      <div class="card p-3.5"><div class="text-xs text-stone-500">กำไร ({{ margin }}%)</div><div class="text-xl font-semibold" :class="sum.profit >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ money(sum.profit) }}</div></div>
     </div>
 
     <SectionTabs v-model="tab" :tabs="[{ key: 'summary', label: 'สรุป' }, { key: 'orders', label: 'ออร์เดอร์', badge: rows.length }]" />
@@ -160,7 +160,7 @@ watch([from, to], () => { rowLimit.value = 50 })
         </div>
       </div>
       <div class="mb-2 h-5 text-sm text-stone-600">
-        <template v-if="hovered">{{ bucketTitle(hovered.key) }} · ยอดขาย <b class="text-stone-900">{{ money(hovered.sales) }}</b> · กำไร <b :class="hovered.profit >= 0 ? 'text-emerald-700' : 'text-rose-600'">{{ money(hovered.profit) }}</b> · {{ hovered.count }} ออร์เดอร์</template>
+        <template v-if="hovered">{{ bucketTitle(hovered.key) }} · ยอดขาย <b class="text-stone-900">{{ money(hovered.sales) }}</b> · กำไร <b :class="hovered.profit >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ money(hovered.profit) }}</b> · {{ hovered.count }} ออร์เดอร์</template>
         <span v-else class="text-stone-400">แตะหรือชี้ที่แท่งเพื่อดูตัวเลข</span>
       </div>
       <div class="overflow-x-auto pb-1" @mouseleave="hover = -1">
@@ -242,7 +242,7 @@ watch([from, to], () => { rowLimit.value = 50 })
         </span>
         <span class="shrink-0 text-right text-sm leading-tight">
           <span class="block text-stone-500">{{ money(r.total) }} − {{ money(r.cost) }}</span>
-          <span class="block font-semibold" :class="r.profit >= 0 ? 'text-emerald-700' : 'text-rose-600'">{{ money(r.profit) }}</span>
+          <span class="block font-semibold" :class="r.profit >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ money(r.profit) }}</span>
         </span>
       </RouterLink>
     </div>

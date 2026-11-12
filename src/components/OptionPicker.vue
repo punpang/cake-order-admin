@@ -92,7 +92,7 @@ const isOn = (g, o) =>
     >
       <div class="mb-2.5 flex flex-wrap items-baseline gap-x-2">
         <span class="text-sm font-semibold text-stone-800">{{ g.name }}</span>
-        <span v-if="g.required" class="text-xs font-medium text-rose-500">จำเป็น</span>
+        <span v-if="g.required" class="text-xs font-medium text-rose-700">จำเป็น</span>
         <span v-else-if="g.type === 'multi'" class="text-xs text-stone-400">เลือกได้หลายอย่าง</span>
       </div>
       <p v-if="invalid.includes(g.id)" class="mb-2.5 rounded-xl bg-red-50 p-2.5 text-sm font-medium text-red-700" role="alert">{{ g.name }}ที่เลือกไว้ไม่เข้ากับตัวเลือกที่เลือกอยู่ กรุณาเลือกใหม่</p>
@@ -123,12 +123,12 @@ const isOn = (g, o) =>
             <AppIcon v-if="isOn(g, o)" name="check" :size="14" class="text-brand-600" />
             <span class="min-w-0 break-words">{{ o.name }}</span>
             <span v-if="regularText(g, o)" class="text-xs whitespace-nowrap text-stone-400 line-through">{{ regularText(g, o) }}</span>
-            <span v-if="priceText(g, o)" class="text-xs whitespace-nowrap" :class="regularText(g, o) ? 'font-medium text-rose-600' : 'text-stone-500'">{{ priceText(g, o) }}</span>
+            <span v-if="priceText(g, o)" class="text-xs whitespace-nowrap" :class="regularText(g, o) ? 'font-medium text-rose-700' : 'text-stone-500'">{{ priceText(g, o) }}</span>
             <span v-if="isLocked(g, o)" class="rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-bold text-white">บังคับ</span>
           </span>
         </button>
       </div>
-      <p v-if="errors[g.id]" class="mt-2 text-sm text-rose-600">{{ errors[g.id] }}</p>
+      <p v-if="errors[g.id]" class="mt-2 text-sm text-rose-700">{{ errors[g.id] }}</p>
     </div>
   </div>
 </template>

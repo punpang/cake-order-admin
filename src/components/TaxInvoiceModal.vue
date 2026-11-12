@@ -76,14 +76,14 @@ function print(copy) {
         <input v-model="reason" class="input" maxlength="200" aria-label="เหตุผลยกเลิกใบกำกับ" />
         <div class="flex gap-2"><button class="btn-outline flex-1" @click="voiding = false">ไม่ยกเลิก</button><button class="btn-primary flex-1" @click="doVoid">ออกใบลดหนี้</button></div>
       </div>
-      <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+      <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
     </div>
     <template #footer>
       <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ปิด</button>
       <template v-if="shown">
         <button class="btn-soft flex-1 sm:flex-none" :disabled="!!shown.pending" @click="print(false)"><AppIcon name="printer" :size="16" /> พิมพ์</button>
         <button class="btn-soft flex-1 sm:flex-none" :disabled="!!shown.pending" @click="print(true)">พิมพ์สำเนา</button>
-        <button v-if="current && shown.id === current.id && can('taxInvoice') && !voiding" class="btn-outline flex-1 text-rose-600 sm:flex-none" @click="voiding = true">ยกเลิกใบ</button>
+        <button v-if="current && shown.id === current.id && can('taxInvoice') && !voiding" class="btn-outline flex-1 text-rose-700 sm:flex-none" @click="voiding = true">ยกเลิกใบ</button>
       </template>
       <button v-if="!current && can('taxInvoice')" class="btn-primary flex-1 sm:flex-none" :disabled="!!block" @click="issue">ออกใบกำกับภาษี</button>
     </template>

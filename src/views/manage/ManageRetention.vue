@@ -150,7 +150,7 @@ async function save() {
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
               <h3 :id="`rt-${c.key}`" class="text-[15px] font-semibold text-stone-900">{{ c.title }}</h3>
-              <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="form[c.key].enabled ? 'bg-rose-50 text-rose-700' : 'bg-stone-100 text-stone-500'">{{ form[c.key].enabled ? 'ลบอัตโนมัติ' : 'ไม่ลบ' }}</span>
+              <span class="rounded-full px-2 py-0.5 text-xs font-semibold" :class="form[c.key].enabled ? 'bg-rose-50 text-rose-700' : 'bg-stone-100 text-stone-500'">{{ form[c.key].enabled ? 'ลบอัตโนมัติ' : 'ไม่ลบ' }}</span>
               <span v-if="changed(c.key)" class="text-xs font-medium text-amber-700">ยังไม่บันทึก</span>
             </div>
           </div>
@@ -193,7 +193,7 @@ async function save() {
               @click="setDays(c.key, n)"
             >{{ n === 365 ? '1 ปี' : `${n} วัน` }}</button>
           </div>
-          <p :id="`rh-${c.key}`" class="mt-2 text-xs" :class="errors[c.key] ? 'font-medium text-rose-600' : 'text-stone-500'" aria-live="polite">
+          <p :id="`rh-${c.key}`" class="mt-2 text-xs" :class="errors[c.key] ? 'font-medium text-rose-700' : 'text-stone-500'" aria-live="polite">
             <template v-if="errors[c.key]">{{ errors[c.key] }} (ตั้งได้ {{ c.min }}–{{ RETENTION_MAX_DAYS.toLocaleString('en-US') }} วัน)</template>
             <template v-else-if="form[c.key].enabled">จะลบรายการที่เก่ากว่าวันที่ {{ dateOnly(retentionCutoff(form[c.key].days).toISOString()) }}</template>
             <template v-else>ปิดอยู่ · ไม่มีการลบในหมวดนี้</template>
@@ -216,7 +216,7 @@ async function save() {
 
     <!-- แถบบันทึก -->
     <div class="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-10 mt-4 rounded-2xl lg:bottom-3 border border-stone-200 bg-white/95 p-3 shadow-lg backdrop-blur">
-      <p v-if="err" class="mb-2 text-sm font-medium text-rose-600" role="alert">{{ err }}</p>
+      <p v-if="err" class="mb-2 text-sm font-medium text-rose-700" role="alert">{{ err }}</p>
       <p v-else-if="msg" class="mb-2 text-sm font-medium text-emerald-700" role="status">{{ msg }}</p>
       <div class="flex flex-wrap items-center justify-end gap-2">
         <p v-if="dirty || !msg" class="w-full text-sm sm:w-auto sm:flex-1" :class="dirty ? 'font-medium text-amber-700' : 'text-stone-500'">{{ dirty ? 'มีการแก้ไขที่ยังไม่บันทึก' : 'ไม่มีการแก้ไข' }}</p>

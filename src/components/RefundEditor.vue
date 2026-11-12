@@ -47,10 +47,10 @@ const pts = (x) => (x.method === 'points' && Number(x.amount) > 0 ? Math.round((
       <p v-if="pts(x) != null" class="text-xs text-stone-500">= {{ pts(x) }} คะแนน (1 คะแนน = {{ money(pv) }}) อายุตามค่าตั้งต้น {{ db.loyalty.pointExpireDays }} วัน</p>
     </div>
     <button v-if="free.length && paid" type="button" class="btn-soft h-9 w-full" @click="add"><AppIcon name="plus" :size="16" /> เพิ่มช่องทาง</button>
-    <div v-if="paid" class="flex justify-between text-sm" :class="left < 0 ? 'text-rose-600' : 'text-stone-500'">
+    <div v-if="paid" class="flex justify-between text-sm" :class="left < 0 ? 'text-rose-700' : 'text-stone-500'">
       <span>รวมคืน {{ money(sum) }}</span><span>{{ left >= 0 ? `ไม่คืน ${money(left)}` : `เกิน ${money(-left)}` }}</span>
     </div>
-    <p v-if="err" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ err }}</p>
+    <p v-if="err" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
     <p v-if="!canPoints && paid" class="text-xs text-stone-400">คืนเป็นคะแนนได้เมื่อออร์เดอร์ผูกกับลูกค้า</p>
   </div>
 </template>

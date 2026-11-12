@@ -41,8 +41,8 @@ function decline() {
       <p v-if="!kinds.length" class="card text-center text-sm text-stone-500">ไม่มีเอกสารที่ต้องยอมรับ <RouterLink to="/account" class="text-brand-700 underline">ไปหน้าบัญชี</RouterLink></p>
     </div>
     <template v-if="kinds.length">
-      <label class="mt-4 flex items-start gap-2 text-sm text-stone-700"><input v-model="agree" type="checkbox" class="mt-0.5 h-5 w-5 accent-brand-600" /> ฉันได้อ่านและยอมรับเอกสารข้างต้น</label>
-      <p v-if="err" class="mt-2 text-sm text-rose-600">{{ err }}</p>
+      <label class="mt-3 flex items-start gap-2 py-1.5 text-sm text-stone-700"><input v-model="agree" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" /> ฉันได้อ่านและยอมรับเอกสารข้างต้น</label>
+      <p v-if="err" class="mt-2 text-sm text-rose-700">{{ err }}</p>
       <div class="mt-4 flex gap-2">
         <button class="btn-outline flex-1" @click="decline">ไม่ยอมรับ (ออกจากระบบ)</button>
         <button class="btn-primary flex-1" :disabled="!agree || busy" @click="accept">{{ busy ? 'กำลังบันทึก…' : 'ยอมรับและใช้งานต่อ' }}</button>

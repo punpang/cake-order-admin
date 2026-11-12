@@ -112,7 +112,7 @@ const details = (it) => describeSelections(it, db.optionGroups)
                   </div>
                   <StatusBadge :status="r.o.status" />
                 </div>
-                <div v-if="r.late" class="mt-1 text-xs font-semibold text-rose-600">เลยเวลาที่ต้องเสร็จแล้ว</div>
+                <div v-if="r.late" class="mt-1 text-xs font-semibold text-rose-700">เลยเวลาที่ต้องเสร็จแล้ว</div>
               </div>
             </div>
             <ul class="mt-3 space-y-2 border-t border-stone-100 pt-3 text-sm">

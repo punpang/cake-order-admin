@@ -117,13 +117,13 @@ const contactMissing = computed(() => ['controller', 'address', 'email', 'phone'
           <p class="mt-1 text-xs text-stone-400">รูปแบบ: <code>## หัวข้อ</code> · <code>- รายการ</code> · เว้นบรรทัดเพื่อขึ้นย่อหน้าใหม่ · ตัวแปรแทนค่าอัตโนมัติ เช่น {ชื่อร้าน} {อัตราสะสม} {อายุคะแนน}</p>
         </div>
         <details class="rounded-xl bg-stone-50 p-3 text-xs text-stone-600">
-          <summary class="cursor-pointer font-medium">ตัวแปรที่ใช้ได้</summary>
+          <summary class="cursor-pointer py-2 font-medium">ตัวแปรที่ใช้ได้</summary>
           <ul class="mt-2 space-y-0.5"><li v-for="(d, k) in LEGAL_VARS" :key="k"><code>{{ tag(k) }}</code> · {{ d }}</li></ul>
         </details>
         <p v-if="missing.length" class="text-sm text-amber-700">ตัวแปรที่ยังไม่มีค่า: {{ missingText }} → ไปกรอกที่แท็บ "ผู้ควบคุมข้อมูล"</p>
         <AppSwitch v-model="form.bump" :label="tab === 'cookie' ? 'ขึ้นเวอร์ชันใหม่ (ถามคุกกี้ผู้เข้าชมใหม่)' : 'ขึ้นเวอร์ชันใหม่ (ลูกค้าต้องกดยอมรับอีกครั้ง)'" />
         <p v-if="msg" class="rounded-xl bg-brand-50 p-2.5 text-sm text-brand-800">{{ msg }}</p>
-        <p v-if="err" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ err }}</p>
+        <p v-if="err" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
         <div class="flex flex-wrap gap-2">
           <button class="btn-primary flex-1 sm:flex-none" :disabled="!dirty" @click="save">บันทึก</button>
           <button class="btn-outline" @click="reset">คืนค่าฉบับมาตรฐาน</button>

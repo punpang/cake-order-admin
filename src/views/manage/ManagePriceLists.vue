@@ -131,7 +131,7 @@ async function save() {
         </template>
       </template>
       <div class="mt-3 flex items-center justify-end gap-3">
-        <span v-if="tableMsg" class="text-sm" :class="tableMsg === 'บันทึกแล้ว' ? 'text-emerald-700' : 'text-rose-600'">{{ tableMsg }}</span>
+        <span v-if="tableMsg" class="text-sm" :class="tableMsg === 'บันทึกแล้ว' ? 'text-emerald-700' : 'text-rose-700'">{{ tableMsg }}</span>
         <button class="btn-primary" @click="saveTable">บันทึกตาราง</button>
       </div>
     </section>
@@ -161,7 +161,7 @@ async function save() {
 
     <AppModal v-if="open" :title="form.id ? 'แก้ไขราคาพิเศษ' : 'เพิ่มราคาพิเศษ'" @close="open = false">
       <div class="space-y-4">
-        <div><label class="label">ชื่อ <span class="text-rose-500">*</span></label><input v-model="form.name" class="input" placeholder="เช่น ราคาสมาชิก, โปรวันแม่" /></div>
+        <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" placeholder="เช่น ราคาสมาชิก, โปรวันแม่" /></div>
         <AppSwitch v-model="form.scheduled" label="กำหนดช่วงเวลา (นับจากวันที่สร้างออร์เดอร์)" class="flex" />
         <div v-if="form.scheduled" class="grid grid-cols-2 gap-3">
           <div><label class="label">วันเริ่ม</label><input v-model="form.from" type="date" class="input" /></div>
@@ -210,7 +210,7 @@ async function save() {
           <p class="mt-1 text-xs text-stone-400">เว้นว่าง = ใช้ราคาปกติ (ตัวเลขจาง)</p>
         </div>
         <p class="text-xs text-stone-400">ถ้ามีหลายแบบใช้งานพร้อมกัน จะใช้ราคาที่ต่ำสุด (แยกทีละช่อง)</p>
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>

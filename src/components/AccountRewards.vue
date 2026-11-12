@@ -197,7 +197,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
       <div v-else-if="tab === 'coupons'" class="space-y-2.5">
         <p v-if="!coupons.length" class="card py-10 text-center text-stone-500">ยังไม่มีคูปอง</p>
         <p v-else class="rounded-xl bg-stone-50 p-3 text-xs text-stone-600" role="note">จะใช้คูปอง/รับของที่ร้าน ให้กด "ใช้ที่ร้านตอนนี้" เมื่ออยู่ที่ร้านแล้ว พนักงานจึงจะเห็นบนเครื่อง POS ({{ db.loyalty.activationMin || 15 }} นาที) · ครบเวลาถือว่าใช้ไปแล้ว ใช้ซ้ำและยกเลิกไม่ได้</p>
-        <p v-if="useErr" class="text-sm text-rose-600" role="alert">{{ useErr }}</p>
+        <p v-if="useErr" class="text-sm text-rose-700" role="alert">{{ useErr }}</p>
         <p v-if="useMsg" class="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800" role="status">{{ useMsg }}</p>
         <div v-for="c in coupons" :key="c.id" class="card flex items-center gap-3">
           <span class="min-w-0 flex-1">
@@ -219,7 +219,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
             <span class="block truncate text-sm text-stone-900">{{ h.reason }}</span>
             <span class="block text-xs text-stone-400">{{ dateTime(h.at) }}<template v-if="h.delta > 0 && h.expiresAt"> · หมดอายุ {{ dateOnly(h.expiresAt) }}</template></span>
           </span>
-          <span class="shrink-0 font-semibold" :class="h.delta > 0 ? 'text-emerald-700' : 'text-rose-600'">{{ h.delta > 0 ? '+' : '' }}{{ h.delta }}</span>
+          <span class="shrink-0 font-semibold" :class="h.delta > 0 ? 'text-emerald-700' : 'text-rose-700'">{{ h.delta > 0 ? '+' : '' }}{{ h.delta }}</span>
         </div>
       </div>
     </template>

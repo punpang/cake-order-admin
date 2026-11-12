@@ -7,7 +7,7 @@ defineProps({ price: { type: Number, required: true }, regular: { type: Number, 
 
 <template>
   <span class="inline-flex flex-wrap items-baseline gap-x-2">
-    <span v-if="from" class="text-[11px] text-stone-600 sm:text-xs">เริ่มต้น</span>
+    <span v-if="from" class="text-xs text-stone-600">เริ่มต้น</span>
     <b class="text-[15px] font-semibold text-stone-900 sm:text-lg">{{ money(price) }}</b>
     <span v-if="regular > price" class="text-xs text-stone-600 line-through sm:text-sm">{{ money(regular) }}</span>
   </span>

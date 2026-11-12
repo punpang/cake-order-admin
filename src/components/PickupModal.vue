@@ -57,7 +57,7 @@ function save() {
         <AppIcon :name="load.day ? 'alert' : 'check'" :size="18" class="mt-0.5" />
         <span>วันนั้นมีอีก <b>{{ load.day }}</b> ออร์เดอร์ · ช่วง {{ time.slice(0, 2) }}:00 น. มี <b>{{ load.hour }}</b> ออร์เดอร์</span>
       </div>
-      <p v-if="error" class="text-sm text-rose-600">{{ error }}</p>
+      <p v-if="error" class="text-sm text-rose-700">{{ error }}</p>
     </div>
     <template #footer>
       <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ยกเลิก</button>

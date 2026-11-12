@@ -51,7 +51,7 @@ const totals = computed(() => assets().filter((a) => !a.disposal).reduce((t, a) 
             <div v-if="canA" class="flex flex-wrap gap-2 pt-1">
               <button class="btn-soft h-9 px-3" @click="edit(a)">แก้ไข</button>
               <button v-if="!a.disposal" class="btn-outline h-9 px-3" @click="Object.assign(disp, { open: true, id: a.id, date: today, proceeds: '' }); err = ''">จำหน่าย/ขาย</button>
-              <button class="btn-outline h-9 px-3 text-rose-600" @click="del(a)">ลบ</button>
+              <button class="btn-outline h-9 px-3 text-rose-700" @click="del(a)">ลบ</button>
             </div>
           </div>
         </li>
@@ -69,7 +69,7 @@ const totals = computed(() => assets().filter((a) => !a.disposal).reduce((t, a) 
         <div class="grid grid-cols-2 gap-3"><div><label class="label">วันที่ซื้อ</label><input v-model="f.buyDate" type="date" class="input" aria-label="วันที่ซื้อสินทรัพย์" /></div><div><label class="label">วันที่เริ่มใช้</label><input v-model="f.startDate" type="date" class="input" aria-label="วันที่เริ่มใช้สินทรัพย์" /></div></div>
         <div v-if="!f.id"><label class="label">การซื้อ</label><select v-model="f.acquire" class="input" aria-label="วิธีซื้อสินทรัพย์"><option value="bank">จ่ายธนาคาร/โอน</option><option value="cash">จ่ายเงินสด</option><option value="payable">ค้างจ่าย (เจ้าหนี้)</option><option value="none">ไม่บันทึกการซื้อ (ยกมา/ซื้อผ่อนไว้แล้ว)</option></select></div>
         <div><label class="label">หมายเหตุ</label><input v-model="f.note" class="input" maxlength="300" aria-label="หมายเหตุสินทรัพย์" /></div>
-        <p v-if="err" class="text-sm text-rose-600" role="alert">{{ err }}</p>
+        <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
       </div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="save">บันทึก</button></template>
     </AppModal>
@@ -78,7 +78,7 @@ const totals = computed(() => assets().filter((a) => !a.disposal).reduce((t, a) 
         <div><label class="label">วันที่จำหน่าย</label><input v-model="disp.date" type="date" class="input" aria-label="วันที่จำหน่าย" /></div>
         <div><label class="label">ยอดที่ขายได้ (0 = ทิ้ง/ตัดจำหน่าย)</label><input v-model="disp.proceeds" v-num.dec class="input" aria-label="ยอดขายสินทรัพย์" /></div>
         <div><label class="label">รับเงินทาง</label><select v-model="disp.method" class="input" aria-label="รับเงินขายสินทรัพย์"><option value="cash">เงินสด</option><option value="bank">ธนาคาร</option></select></div>
-        <p v-if="err" class="text-sm text-rose-600" role="alert">{{ err }}</p>
+        <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
       </div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="disp.open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="dispose">ยืนยันจำหน่าย</button></template>
     </AppModal>

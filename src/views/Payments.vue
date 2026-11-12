@@ -120,7 +120,7 @@ const summary = computed(() => {
           <div class="flex items-start gap-3">
             <div class="flex w-14 shrink-0 flex-col items-center rounded-xl py-2" :class="r.due?.state === 'overdue' ? 'bg-rose-50 text-rose-700' : 'bg-brand-50 text-brand-800'">
               <span class="text-base leading-none font-semibold tabular-nums">{{ r.o.pickupAt.slice(11, 16) }}</span>
-              <span class="mt-1 text-[11px] leading-none opacity-80">{{ dayShort(r.o) }}</span>
+              <span class="mt-1 text-xs leading-none">{{ dayShort(r.o) }}</span>
             </div>
             <div class="min-w-0 flex-1">
               <div class="flex items-start justify-between gap-2">
@@ -155,7 +155,7 @@ const summary = computed(() => {
             <div class="mt-2.5 h-1.5 overflow-hidden rounded-full bg-stone-200" role="progressbar" :aria-valuenow="paidPct(r.t)" aria-valuemin="0" aria-valuemax="100" aria-label="ชำระแล้ว">
               <div class="h-full rounded-full bg-emerald-500 transition-all" :style="{ width: paidPct(r.t) + '%' }" />
             </div>
-            <p v-if="r.t.returned" class="mt-2 text-xs text-rose-600">คืนเงินแล้ว −{{ money(r.t.returned) }}</p>
+            <p v-if="r.t.returned" class="mt-2 text-xs text-rose-700">คืนเงินแล้ว −{{ money(r.t.returned) }}</p>
           </div>
 
           <!-- งวดที่แจ้งไว้ (รอตรวจ/รอรับเงิน): การกระทำหลักของแท็บรอตรวจ -->

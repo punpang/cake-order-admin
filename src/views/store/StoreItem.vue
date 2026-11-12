@@ -83,7 +83,7 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
 
 <template>
   <div class="mx-auto max-w-6xl px-4 pt-6 lg:px-8">
-    <RouterLink to="/menu" class="mb-4 inline-flex items-center gap-1 text-sm text-stone-600 hover:text-brand-700"><AppIcon name="back" :size="16" /> กลับเมนู</RouterLink>
+    <RouterLink to="/menu" class="tap mb-4 inline-flex items-center gap-1 text-sm text-stone-600 hover:text-brand-700"><AppIcon name="back" :size="16" /> กลับเมนู</RouterLink>
 
     <div v-if="!item" class="empty">ไม่พบเมนูนี้ (อาจปิดการขายแล้ว) <RouterLink to="/menu" class="text-brand-700 underline">กลับไปเมนู</RouterLink></div>
 
@@ -125,7 +125,7 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
             <div role="group" aria-label="เลือกประเภทเค้ก" class="rounded-2xl border border-stone-200/70 bg-white p-3.5">
               <div class="mb-2.5 flex flex-wrap items-baseline gap-x-2">
                 <span class="text-sm font-semibold text-stone-800">เลือกประเภทเค้ก</span>
-                <span class="text-xs font-medium text-rose-500">จำเป็น</span>
+                <span class="text-xs font-medium text-rose-600">จำเป็น</span>
               </div>
               <div class="flex flex-wrap gap-2">
                 <button

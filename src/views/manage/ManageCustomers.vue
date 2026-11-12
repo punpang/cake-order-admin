@@ -133,14 +133,14 @@ async function save() {
 
     <AppModal v-if="open" :title="form.id ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้า'" @close="open = false">
       <div class="space-y-4">
-        <div><label class="label">ชื่อ <span class="text-rose-500">*</span></label><input v-model="form.name" class="input" /></div>
+        <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" /></div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div><label class="label">เบอร์โทร <span class="text-rose-500">*</span></label><PhoneInput v-model="form.phone" /></div>
+          <div><label class="label">เบอร์โทร <span class="text-rose-600">*</span></label><PhoneInput v-model="form.phone" /></div>
           <div><label class="label">LINE</label><input v-model="form.line" class="input" /></div>
         </div>
         <div><label class="label">หมายเหตุ</label><textarea v-model="form.note" rows="2" class="input" /></div>
         <details class="rounded-2xl border border-stone-200 p-3" :open="!!form.tax.taxId">
-          <summary class="cursor-pointer text-sm font-semibold text-stone-800">ข้อมูลออกใบกำกับภาษี (ไม่บังคับ)</summary>
+          <summary class="cursor-pointer py-2 text-sm font-semibold text-stone-800">ข้อมูลออกใบกำกับภาษี (ไม่บังคับ)</summary>
           <div class="mt-3 space-y-3">
             <div><label class="label">ชื่อตามใบกำกับ</label><input v-model="form.tax.name" class="input" maxlength="120" aria-label="ชื่อตามใบกำกับ" /></div>
             <div class="grid grid-cols-3 gap-3">
@@ -167,7 +167,7 @@ async function save() {
           <ul v-if="ledger.length" class="mt-2 divide-y divide-stone-100 text-xs">
             <li v-for="e in ledger" :key="e.id" class="flex items-start justify-between gap-2 py-1.5">
               <span class="min-w-0 break-words text-stone-600">{{ e.reason }}<span v-if="e.adjust" class="ml-1 rounded-full bg-amber-50 px-1.5 text-xs text-amber-700">ปรับเอง · {{ e.by === 'admin' ? 'แอดมิน' : e.by }}</span><span class="block text-stone-400">{{ dateTime(e.at) }}</span></span>
-              <b class="shrink-0" :class="e.delta > 0 ? 'text-emerald-700' : 'text-rose-600'">{{ e.delta > 0 ? '+' : '' }}{{ e.delta }}</b>
+              <b class="shrink-0" :class="e.delta > 0 ? 'text-emerald-700' : 'text-rose-700'">{{ e.delta > 0 ? '+' : '' }}{{ e.delta }}</b>
             </li>
           </ul>
         </div>
@@ -219,7 +219,7 @@ async function save() {
             </div>
           </div>
         </div>
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>
@@ -233,8 +233,8 @@ async function save() {
         </div>
         <p class="text-sm text-stone-500">คงเหลือ {{ balance }} คะแนน</p>
         <div><label class="label">จำนวนคะแนน</label><input v-model="adj.amount" type="text" inputmode="numeric" class="input text-lg font-semibold" aria-label="จำนวนคะแนน" /></div>
-        <div><label class="label">เหตุผล <span class="text-rose-500">*</span></label><input v-model="adj.reason" class="input" maxlength="120" aria-label="เหตุผลปรับคะแนน" /></div>
-        <p v-if="adj.error" class="text-sm text-rose-600" role="alert">{{ adj.error }}</p>
+        <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><input v-model="adj.reason" class="input" maxlength="120" aria-label="เหตุผลปรับคะแนน" /></div>
+        <p v-if="adj.error" class="text-sm text-rose-700" role="alert">{{ adj.error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="adj.open = false">ยกเลิก</button>
@@ -244,11 +244,11 @@ async function save() {
     <AppModal v-if="pl.open" :title="pl.id ? 'แก้สถานที่' : 'เพิ่มสถานที่'" @close="pl.open = false">
       <div class="space-y-3">
         <div><label class="label">ชื่อสถานที่</label><input v-model="pl.placeName" class="input" maxlength="80" /></div>
-        <div><label class="label">ที่อยู่ <span class="text-rose-500">*</span></label><textarea v-model="pl.address" rows="2" class="input" maxlength="300" /></div>
+        <div><label class="label">ที่อยู่ <span class="text-rose-600">*</span></label><textarea v-model="pl.address" rows="2" class="input" maxlength="300" /></div>
         <div><label class="label">url แผนที่ (https)</label><input v-model="pl.mapUrl" type="url" class="input" /></div>
         <div><label class="label">รายละเอียด</label><textarea v-model="pl.detail" rows="2" class="input" maxlength="300" /></div>
         <div class="max-w-[10rem]"><label class="label">ระยะทาง (กม.)</label><input v-model.number="pl.distanceKm" type="text" v-num.dec min="0" class="input" /></div>
-        <p v-if="pl.error" class="text-sm text-rose-600">{{ pl.error }}</p>
+        <p v-if="pl.error" class="text-sm text-rose-700">{{ pl.error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="pl.open = false">ยกเลิก</button>

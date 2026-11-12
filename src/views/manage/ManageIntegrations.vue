@@ -217,7 +217,7 @@ async function disconnect(k) {
           <div class="mt-3 space-y-2">
             <button type="button" class="btn-soft h-9 px-3 text-sm" @click="runTest(k)">ส่งข้อความทดสอบ</button>
             <p v-if="testRes.key === k && testRes.text" class="rounded-lg bg-emerald-50 p-2 text-xs text-emerald-800">{{ testRes.text }}</p>
-            <p v-if="testRes.key === k && testRes.error" class="text-xs text-rose-600">{{ testRes.error }}</p>
+            <p v-if="testRes.key === k && testRes.error" class="text-xs text-rose-700">{{ testRes.error }}</p>
           </div>
         </template>
       </section>
@@ -351,7 +351,7 @@ async function disconnect(k) {
           <label class="label">Channel secret</label>
           <input v-model="conn.secret" type="password" class="input" autocomplete="off" />
         </div>
-        <p v-if="conn.error" class="text-sm text-rose-600">{{ conn.error }}</p>
+        <p v-if="conn.error" class="text-sm text-rose-700">{{ conn.error }}</p>
       </div>
       <!-- ขั้นตอนเชื่อม -->
       <ul v-if="conn.stage === 'steps' || conn.stage === 'done'" class="space-y-2">

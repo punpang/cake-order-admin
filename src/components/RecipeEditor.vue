@@ -62,7 +62,7 @@ async function remove(i) {
       <div v-if="recipe.length" class="mt-2 rounded-xl bg-stone-50 p-2.5 text-sm text-stone-700">
         ต้นทุน {{ money(cost.perPound) }}/ปอนด์ + {{ money(cost.perPiece) }}/ชิ้น
         <template v-if="pounds"> = <b>{{ money(total) }}</b> ({{ pounds }} ปอนด์)</template>
-        <template v-if="pounds && price != null"> · กำไร <b :class="price - total >= 0 ? 'text-emerald-700' : 'text-rose-600'">{{ money(price - total) }}</b></template>
+        <template v-if="pounds && price != null"> · กำไร <b :class="price - total >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ money(price - total) }}</b></template>
       </div>
     </template>
   </div>

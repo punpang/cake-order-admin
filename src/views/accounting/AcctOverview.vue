@@ -17,7 +17,7 @@ const recent = computed(() => allEntries().slice().reverse().slice(0, 6))
 const cards = computed(() => [
   { l: 'รายได้', v: pl.value.revenueTotal, cls: 'text-stone-900' },
   { l: 'ต้นทุนขาย + ค่าใช้จ่าย', v: pl.value.cogsTotal + pl.value.opexTotal, cls: 'text-stone-900' },
-  { l: 'กำไร (ขาดทุน) สุทธิ', v: pl.value.netProfit, cls: pl.value.netProfit < 0 ? 'text-rose-600' : 'text-emerald-700' },
+  { l: 'กำไร (ขาดทุน) สุทธิ', v: pl.value.netProfit, cls: pl.value.netProfit < 0 ? 'text-rose-700' : 'text-emerald-700' },
   { l: 'เงินสด + ธนาคาร (สิ้นเดือน)', v: cash.value.total, cls: 'text-stone-900' },
 ])
 const alerts = computed(() => acctAlerts())

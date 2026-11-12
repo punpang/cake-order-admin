@@ -364,7 +364,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
         </div>
         <template v-for="(m, i) in chat.messages" :key="m.id">
           <div v-if="showDay(i)" class="my-4 flex justify-center">
-            <span class="rounded-full bg-white px-3 py-0.5 text-[11px] font-medium text-stone-500 shadow-sm ring-1 ring-stone-200/70">{{ dateOnly(m.at) }}</span>
+            <span class="rounded-full bg-white px-3 py-0.5 text-xs font-medium text-stone-500 shadow-sm ring-1 ring-stone-200/70">{{ dateOnly(m.at) }}</span>
           </div>
           <div class="flex" :class="[mine(m) ? 'justify-end' : 'justify-start', gapCls(i)]">
             <!-- การ์ดออร์เดอร์ -->
@@ -405,7 +405,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
               <template v-else-if="['need_phone', 'customer_ok', 'converting'].includes(quoteView(m).q.status)">
                 <p v-if="block" class="mt-2 text-xs text-orange-700">{{ block }} · <button type="button" class="font-medium underline" @click="emit('link')">ผูก/สร้างลูกค้า</button></p>
                 <button type="button" class="btn-primary mt-2.5 h-9 w-full text-sm" :disabled="!!block" @click="convert(quoteView(m).q)">สร้างออร์เดอร์</button>
-                <p v-if="convertError" class="mt-1 text-xs text-rose-600" role="alert">{{ convertError }}</p>
+                <p v-if="convertError" class="mt-1 text-xs text-rose-700" role="alert">{{ convertError }}</p>
               </template>
               <button v-else-if="['pending', 'revise'].includes(quoteView(m).q.status)" type="button" class="btn-outline mt-2.5 h-9 w-full text-sm" @click="emit('edit-draft')">แก้ร่างแล้วส่งใหม่</button>
             </div>
@@ -428,14 +428,14 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
                 </div>
                 <div v-if="m.slipCheck.ocrAmount != null" class="mt-2.5 grid grid-cols-2 gap-2 rounded-xl bg-sky-50 px-3 py-2 text-sky-900">
                   <div>
-                    <div class="text-[10px] font-medium uppercase tracking-wide text-sky-600">ยอดตามสลิป</div>
+                    <div class="text-xs font-medium text-sky-700">ยอดตามสลิป</div>
                     <div class="text-sm font-semibold">{{ money(m.slipCheck.ocrAmount) }}</div>
                   </div>
                   <div>
-                    <div class="text-[10px] font-medium uppercase tracking-wide text-sky-600">วัน-เวลาโอน</div>
+                    <div class="text-xs font-medium text-sky-700">วัน-เวลาโอน</div>
                     <div class="text-sm font-semibold">{{ m.slipCheck.ocrPaidAt ? dateTime(m.slipCheck.ocrPaidAt) : '-' }}</div>
                   </div>
-                  <div class="col-span-2 text-[10px] text-sky-700">อ่านจากภาพ · ตรวจกับธนาคารก่อนยืนยัน</div>
+                  <div class="col-span-2 text-xs text-sky-700">อ่านจากภาพ · ตรวจกับธนาคารก่อนยืนยัน</div>
                 </div>
                 <!-- โหมดแมนนวล: ผูกกับออร์เดอร์ที่แนะนำ หรือเลือกออร์เดอร์อื่นของลูกค้า (ในหน้าแชท ไม่เปลี่ยนหน้า) -->
                 <div v-if="canBindSlip(m)" class="mt-2.5 flex gap-2">
@@ -455,19 +455,19 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
                 <template v-if="codeResult[m.id]">
                   <p v-if="codeResult[m.id].added.length" class="text-xs font-medium text-emerald-700" role="status">เพิ่มแล้ว: {{ codeResult[m.id].added.join(', ') }}</p>
                   <p v-for="(w, k) in codeResult[m.id].warnings" :key="'w' + k" class="text-xs text-amber-700">⚠ {{ w }}</p>
-                  <p v-for="(er, k) in codeResult[m.id].errors" :key="'e' + k" class="text-xs text-rose-600" role="alert">{{ er }}</p>
+                  <p v-for="(er, k) in codeResult[m.id].errors" :key="'e' + k" class="text-xs text-rose-700" role="alert">{{ er }}</p>
                 </template>
               </div>
               <!-- ข้อมูลที่จับได้ → กดกรอก -->
               <div v-if="entities(m).length" class="mt-1 flex flex-wrap gap-1">
                 <button v-for="e in entities(m)" :key="e.type + e.value" type="button" class="inline-flex items-center gap-1 rounded-full border border-brand-200 bg-white px-2 py-0.5 text-xs font-medium text-brand-800 hover:bg-brand-50" :title="`กรอก${ENT[e.type].label}ลงร่าง`" @click="fill(e)">
-                  <AppIcon :name="ENT[e.type].icon" :size="12" /> {{ entText(e) }} <span class="text-brand-500">กรอก</span>
+                  <AppIcon :name="ENT[e.type].icon" :size="12" /> {{ entText(e) }} <span class="font-medium text-brand-700">กรอก</span>
                 </button>
               </div>
               <!-- เวลา/สถานะ: เฉพาะข้อความสุดท้ายของกลุ่ม · ปุ่มตอบกลับทุกข้อความ (บนคอมแสดงเมื่อเอาเมาส์ชี้) -->
-              <div class="flex min-h-4 items-center gap-2 px-1 text-[11px] leading-4 text-stone-400" :class="mine(m) ? 'justify-end' : ''">
-                <span v-if="isTail(i)" :class="failed(m) ? 'font-medium text-rose-600' : ''" :title="dateTime(m.at)">{{ timeOnly(m.at) }}<template v-if="m.from === 'staff'"> · {{ sendState(m) }}<template v-if="m.by === 'ระบบ'"> · อัตโนมัติ</template></template><template v-if="m.ask"> · ถาม{{ ASK_FIELDS[m.ask]?.label.replace('ขอ', '') }}</template></span>
-                <button v-if="canType" type="button" class="font-medium text-stone-500 hover:text-brand-700 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100" :aria-label="`ตอบกลับ: ${snippet(m)}`" @click="startReply(m)">ตอบกลับ</button>
+              <div class="flex min-h-4 items-center gap-2 px-1 text-xs leading-4 text-stone-500" :class="mine(m) ? 'justify-end' : ''">
+                <span v-if="isTail(i)" :class="failed(m) ? 'font-medium text-rose-700' : ''" :title="dateTime(m.at)">{{ timeOnly(m.at) }}<template v-if="m.from === 'staff'"> · {{ sendState(m) }}<template v-if="m.by === 'ระบบ'"> · อัตโนมัติ</template></template><template v-if="m.ask"> · ถาม{{ ASK_FIELDS[m.ask]?.label.replace('ขอ', '') }}</template></span>
+                <button v-if="canType" type="button" class="tap font-medium text-stone-600 hover:text-brand-700 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100" :aria-label="`ตอบกลับ: ${snippet(m)}`" @click="startReply(m)">ตอบกลับ</button>
               </div>
             </div>
           </div>
@@ -506,7 +506,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
         <div class="flex flex-wrap items-center gap-1.5 text-xs">
           <span class="rounded-full bg-white px-2 py-0.5 font-semibold text-violet-800 ring-1 ring-violet-200">{{ botDraft.handoff ? 'บอทส่งต่อให้พนักงาน' : 'ร่างจากบอท' }}</span>
           <span class="text-violet-700">{{ SOURCE_LABEL[botDraft.source] || botDraft.source }}<template v-if="botDraft.confidence"> · {{ confPct(botDraft) }}%</template></span>
-          <span class="min-w-0 truncate text-violet-600">{{ botDraft.reason }}</span>
+          <span class="min-w-0 truncate text-violet-700">{{ botDraft.reason }}</span>
         </div>
         <p v-if="botDraft.prefix" class="mt-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs whitespace-pre-line text-violet-900"><b>ส่งก่อน (แจ้งร้านปิด):</b> {{ botDraft.prefix }}</p>
         <p class="mt-2 whitespace-pre-line text-stone-900" :class="botExpanded ? '' : 'line-clamp-3'">{{ botDraft.text }}</p>

@@ -79,6 +79,31 @@
     outline: 2px solid var(--color-brand-600);
     outline-offset: 2px;
   }
+  /* พื้นที่แตะของลิงก์/ปุ่มแบบข้อความ (บนอุปกรณ์สัมผัส): ขยายเกินตัวอักษร บน-ล่าง 6px ซ้าย-ขวา 4px ด้วย ::after ที่มองไม่เห็น
+     (ข้อความ 16–20px → พื้นที่แตะ 28–32px ผ่านเกณฑ์ 24px · ไม่ขยายมากกว่านี้เพื่อไม่ทับช่องกรอก/ปุ่มที่อยู่ชิดกัน)
+     เลย์เอาต์ไม่ขยับ · ใช้อัตโนมัติกับ a/button ที่มีคลาส underline และใส่คลาส .tap เองกับปุ่มข้อความอื่น (ลิงก์กลับ, ตอบกลับ ฯลฯ)
+     :where() = ไม่เพิ่ม specificity → คลาสตำแหน่งของ Tailwind (absolute/fixed/sticky) ยังชนะ */
+  @media (any-pointer: coarse) {
+    :where(a, button).underline,
+    :where(.tap) {
+      position: relative;
+    }
+    :where(a, button).underline::after,
+    :where(.tap)::after {
+      content: '';
+      position: absolute;
+      inset: -0.375rem -0.25rem;
+    }
+    /* ช่องติ๊ก/ตัวเลือกที่อยู่ใน label: ทั้งแถวของ label แตะได้ และสูงขึ้นบน-ล่างอีก 6px */
+    :where(label):has(> input[type='checkbox'], > input[type='radio']) {
+      position: relative;
+    }
+    :where(label):has(> input[type='checkbox'], > input[type='radio'])::after {
+      content: '';
+      position: absolute;
+      inset: -0.375rem 0;
+    }
+  }
   /* ลิงก์ข้ามไปเนื้อหาหลัก: ซ่อนจนกว่าจะโฟกัสด้วยแป้นพิมพ์ */
   .skip-link {
     @apply sr-only;
@@ -201,7 +226,7 @@
     @apply flex flex-col items-center gap-2 rounded-3xl border-2 border-dashed border-stone-200 bg-white/70 px-4 py-10 text-center text-stone-600;
   }
   .btn-danger {
-    @apply border border-rose-200 bg-white text-rose-600 hover:bg-rose-50;
+    @apply border border-rose-200 bg-white text-rose-700 hover:bg-rose-50;
   }
   .chip {
     @apply inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium whitespace-nowrap transition;

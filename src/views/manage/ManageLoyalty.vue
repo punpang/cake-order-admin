@@ -212,9 +212,9 @@ function doRefund() {
     <AppModal v-if="rf.open" title="คืนคะแนนตามคูปองที่ไม่ได้ใช้" @close="rf.open = false">
       <div class="space-y-3 text-sm">
         <p class="text-stone-600"><b>{{ rf.c.name }}</b> ของ {{ findCustomer(rf.c.customerId)?.name }} · คืน {{ rf.c.points || (db.rewards.find((r) => r.id === rf.c.rewardId)?.points ?? 0) }} คะแนน แล้วคูปองจะใช้ไม่ได้อีก</p>
-        <div><label class="label">เหตุผล <span class="text-rose-500">*</span></label><input v-model="rf.reason" class="input" maxlength="200" aria-label="เหตุผลคืนคะแนน" /></div>
+        <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><input v-model="rf.reason" class="input" maxlength="200" aria-label="เหตุผลคืนคะแนน" /></div>
         <label class="flex items-center gap-2"><input v-model="rf.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าคืนคะแนน" /> แจ้งลูกค้า</label>
-        <p v-if="rf.error" class="text-rose-600" role="alert">{{ rf.error }}</p>
+        <p v-if="rf.error" class="text-rose-700" role="alert">{{ rf.error }}</p>
       </div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="rf.open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="doRefund">คืนคะแนน</button></template>
     </AppModal>
@@ -222,7 +222,7 @@ function doRefund() {
     <!-- modal ของแลก -->
     <AppModal v-if="rwOpen" :title="rw.id ? 'แก้ไขของแลก' : 'เพิ่มของแลก'" @close="rwOpen = false">
       <div class="space-y-4">
-        <div><label class="label">ชื่อของ <span class="text-rose-500">*</span></label><input v-model="rw.name" class="input" /></div>
+        <div><label class="label">ชื่อของ <span class="text-rose-600">*</span></label><input v-model="rw.name" class="input" /></div>
         <div class="grid grid-cols-2 gap-1 seg-grid">
           <button v-for="k in [{ v: 'item', l: 'ของรางวัล (รับที่ร้าน)' }, { v: 'coupon', l: 'คูปองส่วนลด' }]" :key="k.v" type="button" class="h-9 rounded-lg px-1 text-sm font-medium" :class="rw.kind === k.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="rw.kind = k.v">{{ k.l }}</button>
         </div>
@@ -236,7 +236,7 @@ function doRefund() {
         </template>
         <div><label class="label">ใช้คะแนน</label><input v-model.number="rw.points" type="text" v-num min="1" class="input" /></div>
         <AppSwitch v-model="rw.active" label="ใช้งาน (แสดงให้ลูกค้าแลก)" class="flex" />
-        <p v-if="rwError" class="text-sm text-rose-600">{{ rwError }}</p>
+        <p v-if="rwError" class="text-sm text-rose-700">{{ rwError }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="rwOpen = false">ยกเลิก</button>
@@ -247,7 +247,7 @@ function doRefund() {
     <!-- modal รางวัลกาชา -->
     <AppModal v-if="gpOpen" :title="gp.id ? 'แก้ไขรางวัล' : 'เพิ่มรางวัล'" @close="gpOpen = false">
       <div class="space-y-4">
-        <div><label class="label">ชื่อรางวัล (แสดงบนวงล้อ) <span class="text-rose-500">*</span></label><input v-model="gp.name" class="input" /></div>
+        <div><label class="label">ชื่อรางวัล (แสดงบนวงล้อ) <span class="text-rose-600">*</span></label><input v-model="gp.name" class="input" /></div>
         <div>
           <div class="label">ประเภท</div>
           <div class="flex flex-wrap gap-2">
@@ -267,7 +267,7 @@ function doRefund() {
         </div>
         <div><label class="label">โอกาส (%)</label><input v-model.number="gp.chance" type="text" v-num.dec min="0" max="100" class="input" /></div>
         <AppSwitch v-model="gp.active" label="ใช้งาน" class="flex" />
-        <p v-if="gpError" class="text-sm text-rose-600">{{ gpError }}</p>
+        <p v-if="gpError" class="text-sm text-rose-700">{{ gpError }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="gpOpen = false">ยกเลิก</button>

@@ -50,7 +50,7 @@ function doReject() {
       </article>
     </div>
     <AppModal v-if="rj.open" title="ไม่อนุมัติคำขอ" @close="rj.open = false">
-      <div class="space-y-3 text-sm"><p class="text-stone-600">รูปจะกลับมาแสดงตามเดิม ใส่เหตุผลเพื่อแจ้งลูกค้า (ควรคุยกับลูกค้าก่อน)</p><input v-model="rj.reason" class="input" maxlength="300" aria-label="เหตุผลไม่อนุมัติ" /><label class="flex items-center gap-2"><input v-model="rj.notify" type="checkbox" class="h-4 w-4" /> แจ้งลูกค้า</label><SmsTick v-model="rj.sms" :customer="rj.cust" :show="rj.notify" /><p v-if="rj.error" class="text-rose-600" role="alert">{{ rj.error }}</p></div>
+      <div class="space-y-3 text-sm"><p class="text-stone-600">รูปจะกลับมาแสดงตามเดิม ใส่เหตุผลเพื่อแจ้งลูกค้า (ควรคุยกับลูกค้าก่อน)</p><input v-model="rj.reason" class="input" maxlength="300" aria-label="เหตุผลไม่อนุมัติ" /><label class="flex items-center gap-2"><input v-model="rj.notify" type="checkbox" class="h-4 w-4" /> แจ้งลูกค้า</label><SmsTick v-model="rj.sms" :customer="rj.cust" :show="rj.notify" /><p v-if="rj.error" class="text-rose-700" role="alert">{{ rj.error }}</p></div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="rj.open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="doReject">บันทึก</button></template>
     </AppModal>
   </ManageShell>

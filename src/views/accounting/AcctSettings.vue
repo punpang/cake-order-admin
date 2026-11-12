@@ -40,7 +40,7 @@ async function reopen() {
       <div class="grid grid-cols-2 gap-3"><div><label class="label">เริ่มปีบัญชีเดือน</label><select v-model="st.fiscalYearStartMonth" class="input" aria-label="เดือนเริ่มปีบัญชี"><option v-for="(m, i) in MONTHS" :key="i" :value="i + 1">{{ m }}</option></select></div><div><label class="label">ทุนชำระแล้ว (บาท)</label><input v-model="st.paidInCapital" v-num.dec class="input" aria-label="ทุนชำระแล้ว" /></div></div>
       <div><label class="label">สินทรัพย์ต่ำกว่า (บาท) ตัดเป็นค่าใช้จ่ายทันที</label><input v-model="st.assetMinCost" v-num.dec class="input" aria-label="เกณฑ์สินทรัพย์" /></div>
       <button class="btn-soft w-full" @click="saveSt">บันทึกตั้งค่า</button>
-      <p v-if="st.error" class="text-sm text-rose-600" role="alert">{{ st.error }}</p>
+      <p v-if="st.error" class="text-sm text-rose-700" role="alert">{{ st.error }}</p>
       <p v-if="st.ok" class="text-sm text-emerald-700" role="status">{{ st.ok }}</p>
     </section>
     <section class="card space-y-3">
@@ -56,7 +56,7 @@ async function reopen() {
         </div>
       </template>
       <p v-else class="text-sm text-stone-500">ต้องมีสิทธิ์ "ปิดงวด/เปิดงวด"</p>
-      <p v-if="f.error" class="text-sm text-rose-600" role="alert">{{ f.error }}</p>
+      <p v-if="f.error" class="text-sm text-rose-700" role="alert">{{ f.error }}</p>
       <p v-if="f.ok" class="text-sm text-emerald-700" role="status">{{ f.ok }}</p>
     </section>
     <section class="card text-sm text-stone-600">

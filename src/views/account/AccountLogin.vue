@@ -38,7 +38,7 @@ async function submit() {
     <form class="card mt-5 space-y-4" @submit.prevent="submit">
       <div><label class="label">เบอร์โทร</label><PhoneInput v-model="phone" /></div>
       <div><label class="label">PIN 6 หลัก</label><PinInput v-model="pin" /></div>
-      <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+      <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       <button class="btn-primary w-full" :disabled="busy">{{ busy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ' }}</button>
       <div class="flex justify-between text-sm">
         <RouterLink to="/account/forgot" class="text-stone-500 underline">ลืม PIN</RouterLink>

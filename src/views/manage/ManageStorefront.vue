@@ -138,7 +138,7 @@ async function del(r) {
         <input v-model="rv.name" class="input" maxlength="60" placeholder="ชื่อที่แสดง เช่น คุณมะลิ" />
         <div class="flex gap-1" role="radiogroup" aria-label="คะแนน"><button v-for="n in 5" :key="n" type="button" role="radio" :aria-checked="rv.rating === n" class="text-3xl leading-none" :class="n <= rv.rating ? 'text-amber-500' : 'text-stone-300'" :aria-label="`${n} ดาว`" @click="rv.rating = n">★</button></div>
         <textarea v-model="rv.text" rows="3" maxlength="500" class="input" placeholder="ข้อความรีวิว"></textarea>
-        <p v-if="rv.error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ rv.error }}</p>
+        <p v-if="rv.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ rv.error }}</p>
         <button class="btn-primary w-full" @click="addReview">เพิ่มรีวิว</button>
       </section>
 

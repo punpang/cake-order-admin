@@ -206,7 +206,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
       </div>
       <!-- แถบบันทึกติดขอบล่าง: หน้านี้ยาว ไม่ต้องเลื่อนถึงท้ายเพื่อบันทึก -->
       <div class="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-10 rounded-2xl border border-stone-200 bg-white/95 p-2 shadow-lg backdrop-blur lg:bottom-3">
-        <p v-if="error" class="mb-2 px-1 text-sm font-medium text-rose-600" role="alert">{{ error }}</p>
+        <p v-if="error" class="mb-2 px-1 text-sm font-medium text-rose-700" role="alert">{{ error }}</p>
         <button class="btn-primary w-full" @click="save"><AppIcon name="check" :size="18" /> {{ saved ? 'บันทึกแล้ว' : 'บันทึก' }}</button>
       </div>
       <p class="text-xs text-stone-500">ตัวอย่างพรุ่งนี้: {{ pickupSlots(tomorrow).join(', ') }}</p>
@@ -228,7 +228,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         <AppSwitch v-model="sq.ocr.enabled" label="อ่านยอดและวัน-เวลาจากภาพสลิป (Claude)" class="flex" />
         <p class="text-xs text-stone-500">เปิดแล้วระบบส่งเฉพาะรูปสลิปไปให้ Claude อ่านยอดและวันเวลาที่เขียนบนสลิป ค่าที่อ่านได้ยังต้องให้พนักงานตรวจกับธนาคารก่อนยืนยันเสมอ · ต้องตั้งคีย์ ANTHROPIC_API_KEY ใน Supabase ก่อนจึงจะทำงาน</p>
       </div>
-      <p v-if="slipErr" class="text-sm text-rose-600">{{ slipErr }}</p>
+      <p v-if="slipErr" class="text-sm text-rose-700">{{ slipErr }}</p>
       <button class="btn-outline w-full" @click="saveSlip"><AppIcon name="check" :size="18" /> {{ slipSaved ? 'บันทึกแล้ว' : 'บันทึกการตั้งค่าสลิป' }}</button>
     </section>
   </ManageShell>

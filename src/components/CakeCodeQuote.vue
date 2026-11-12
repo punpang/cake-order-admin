@@ -51,7 +51,7 @@ function addToOrder() {
       <button type="button" class="btn-soft self-start" :disabled="!text.trim()" @click="evaluate">ประเมิน</button>
     </div>
 
-    <p v-if="result?.error" class="text-sm text-rose-600" role="alert">{{ result.error }}</p>
+    <p v-if="result?.error" class="text-sm text-rose-700" role="alert">{{ result.error }}</p>
 
     <template v-else-if="result?.item">
       <div class="rounded-xl bg-stone-50 p-3">

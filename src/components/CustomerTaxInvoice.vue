@@ -67,7 +67,7 @@ function submit() {
       <div class="grid grid-cols-3 gap-3"><div class="col-span-2"><label class="label">เลขประจำตัวผู้เสียภาษี 13 หลัก</label><input v-model="f.taxId" inputmode="numeric" maxlength="13" class="input" aria-label="เลขผู้เสียภาษี" /></div><div><label class="label">สาขา (5 หลัก)</label><input v-model="f.branch" inputmode="numeric" maxlength="5" class="input" aria-label="สาขา" /></div></div>
       <div><label class="label">ที่อยู่ตามใบกำกับ</label><TaxAddressField v-model="f.address" label="ที่อยู่ใบกำกับ" :suggestions="myAddressChoices(orderId)" /></div>
       <label class="flex items-center gap-2 text-stone-600"><input v-model="f.remember" type="checkbox" class="h-4 w-4" /> จดจำข้อมูลนี้ไว้ใช้ครั้งหน้า (เก็บได้ชุดเดียว ทับของเดิม)</label>
-      <p v-if="err" class="text-rose-600" role="alert">{{ err }}</p>
+      <p v-if="err" class="text-rose-700" role="alert">{{ err }}</p>
       <div class="flex gap-2"><button v-if="editing" class="btn-outline flex-1" @click="editing = false">ยกเลิก</button><button class="btn-primary flex-1" @click="submit">{{ editing ? 'บันทึกการแก้ไข' : 'ขอใบกำกับภาษี' }}</button></div>
     </template>
     <p v-else-if="st && !others.length" class="text-stone-500">{{ st.reason }}</p>

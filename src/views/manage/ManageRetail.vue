@@ -128,7 +128,7 @@ function doAdd() {
 
     <AppModal v-if="mOpen" :title="mf.id ? 'แก้ไขกลุ่มตัวเลือก' : 'เพิ่มกลุ่มตัวเลือก'" @close="mOpen = false">
       <div class="space-y-4">
-        <div><label class="label">ชื่อกลุ่ม <span class="text-rose-500">*</span></label><input v-model="mf.name" class="input" placeholder="เช่น ความหวาน" /></div>
+        <div><label class="label">ชื่อกลุ่ม <span class="text-rose-600">*</span></label><input v-model="mf.name" class="input" placeholder="เช่น ความหวาน" /></div>
         <div class="grid grid-cols-2 gap-1 seg-grid">
           <button v-for="t in [{ v: 'single', l: 'เลือกได้ 1 อย่าง' }, { v: 'multi', l: 'เลือกได้หลายอย่าง' }]" :key="t.v" type="button" class="h-9 rounded-lg text-sm font-medium" :class="mf.type === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="mf.type = t.v">{{ t.l }}</button>
         </div>
@@ -146,7 +146,7 @@ function doAdd() {
         </div>
         <AppSwitch v-model="mf.required" label="จำเป็นต้องเลือก" class="flex" />
         <AppSwitch v-model="mf.active" label="ใช้งาน" class="flex" />
-        <p v-if="mError" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ mError }}</p>
+        <p v-if="mError" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ mError }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="mOpen = false">ยกเลิก</button>
@@ -156,14 +156,14 @@ function doAdd() {
 
     <AppModal v-if="open" :title="form.id ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'" @close="open = false">
       <div class="space-y-4">
-        <div><label class="label">ชื่อ <span class="text-rose-500">*</span></label><input v-model="form.name" class="input" /></div>
+        <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" /></div>
         <div>
           <label class="label">หมวด</label>
           <input v-model="form.category" class="input" list="retail-cats" placeholder="เช่น เค้กชิ้น, เครื่องดื่ม" />
           <datalist id="retail-cats"><option v-for="c in categories" :key="c" :value="c" /></datalist>
         </div>
         <div class="grid grid-cols-2 gap-4">
-          <div><label class="label">ราคา (บาท) <span class="text-rose-500">*</span></label><input v-model="form.price" type="text" v-num.dec class="input" /></div>
+          <div><label class="label">ราคา (บาท) <span class="text-rose-600">*</span></label><input v-model="form.price" type="text" v-num.dec class="input" /></div>
           <div><label class="label">สต็อก</label><input v-model="form.stock" type="text" v-num class="input" placeholder="ไม่นับ" /></div>
         </div>
         <p class="text-xs text-stone-400">สต็อกเว้นว่าง = ไม่นับสต็อก (เช่น เครื่องดื่มชงสด) · ขายใน POS แล้วตัดสต็อกอัตโนมัติ</p>
@@ -173,7 +173,7 @@ function doAdd() {
           <ImageUploader v-model="form.images" :max="6" />
         </div>
         <details class="rounded-xl bg-stone-50 p-3">
-          <summary class="cursor-pointer text-sm font-medium text-stone-700">ข้อมูลเค้ก (ไม่บังคับ) — ประเภท / เนื้อ / ขนาด</summary>
+          <summary class="cursor-pointer py-2 text-sm font-medium text-stone-700">ข้อมูลเค้ก (ไม่บังคับ) — ประเภท / เนื้อ / ขนาด</summary>
           <p class="mt-1 text-xs text-stone-400">ใช้แสดงประกอบ แนะนำสินค้า และคิดราคาตัวเลือกตามขนาด · ราคาสินค้าเป็นราคาคงที่ที่กรอกด้านบน</p>
           <div v-for="m in [{ k: 'type', f: 'typeId' }, { k: 'flavor', f: 'flavorId' }, { k: 'size', f: 'sizeId' }]" :key="m.k" class="mt-2">
             <div class="mb-1 text-xs font-medium text-stone-500">{{ grp(m.k)?.name }}</div>
@@ -196,7 +196,7 @@ function doAdd() {
           <AppSwitch v-model="form.pinned" label="ปักหมุดในสินค้าขายดีของหน้าร้านเว็บ" class="flex" />
         </div>
         <AppSwitch v-model="form.active" label="ใช้งาน (ปิด = ไม่แสดงทุกที่)" />
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>

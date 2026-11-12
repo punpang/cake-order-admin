@@ -43,7 +43,7 @@ function save() {
       <p class="text-sm text-stone-600">คืนเงินบางส่วนโดยไม่ยกเลิก{{ isPos ? 'บิล' : 'ออร์เดอร์' }} (ไม่คืนสต็อก ไม่ตัดคะแนนที่ได้) · ชำระสุทธิตอนนี้ <b class="text-stone-900">{{ money(t.paidNet) }}</b><template v-if="t.returned"> · คืนไปแล้ว {{ money(t.returned) }}</template></p>
       <p v-if="invoice" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ออกใบกำกับภาษีไว้แล้ว ({{ invoice.no }}) · การคืนบางส่วนยังไม่ออกใบลดหนี้ให้อัตโนมัติ (ยกเลิกทั้งใบจึงจะออก) กรุณาตรวจกับผู้ทำบัญชี</p>
       <template v-if="more">
-      <div><label class="label" for="rf-reason">เหตุผล <span class="text-rose-500">*</span></label><input id="rf-reason" v-model="f.reason" class="input" maxlength="120" /></div>
+      <div><label class="label" for="rf-reason">เหตุผล <span class="text-rose-600">*</span></label><input id="rf-reason" v-model="f.reason" class="input" maxlength="120" /></div>
       <div>
         <div class="label">คืนเงินให้ลูกค้า</div>
         <RefundEditor v-model="f.refunds" :paid="t.paidNet" :can-points="!!customer && !customer.deleted" :default-method="defMethod" />
@@ -63,7 +63,7 @@ function save() {
           <button v-else-if="order.status !== 'cancelled'" type="button" class="btn-outline mt-2 h-9 px-3" @click="rcFor = r"><AppIcon name="x" :size="16" /> ยกเลิกการคืน</button>
         </div>
       </div>
-      <p v-if="error" class="flex items-center gap-2 text-sm text-rose-600"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+      <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
     </div>
     <template #footer>
       <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ปิด</button>

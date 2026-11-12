@@ -67,7 +67,7 @@ const itemLimit = ref(24) // รูปเยอะ: แสดงทีละ 24
         </div>
         <div><label class="label">คำอธิบายรูป (ไม่บังคับ)</label><input v-model="caption" class="input" maxlength="120" aria-label="คำอธิบายรูป" /></div>
         <ImageUploader v-model="queue" :max="20" label="เลือกรูป (หลายรูปได้)" />
-        <p v-if="err" class="text-sm text-rose-600" role="alert">{{ err }}</p>
+        <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
         <p v-if="msg" class="text-sm text-emerald-700" role="status">{{ msg }}</p>
         <button type="button" class="btn-primary w-full" @click="saveQueue">บันทึก {{ queue.length || '' }} รูปเข้าคลัง</button>
       </section>
@@ -101,7 +101,7 @@ const itemLimit = ref(24) // รูปเยอะ: แสดงทีละ 24
         <div v-for="g in groups" :key="g.id"><div class="mb-1 text-xs font-semibold text-stone-600">{{ g.name }}</div><div class="flex flex-wrap gap-1.5"><button v-for="o in g.options.filter((x) => x.active !== false)" :key="o.id" type="button" class="chip" :class="ed.tags.includes(o.id) ? 'chip-on' : 'chip-off'" @click="toggle(ed.tags, o.id)">{{ o.name }}</button></div></div>
         <div><label class="label">คำอธิบาย</label><input v-model="ed.caption" class="input" maxlength="120" aria-label="คำอธิบายรูปที่แก้ไข" /></div>
         <AppSwitch v-model="ed.active" label="แสดงที่หน้าเว็บ" />
-        <p v-if="ed.error" class="text-sm text-rose-600" role="alert">{{ ed.error }}</p>
+        <p v-if="ed.error" class="text-sm text-rose-700" role="alert">{{ ed.error }}</p>
       </div>
       <template #footer>
         <button class="btn-danger flex-1 sm:flex-none" @click="del"><AppIcon name="trash" :size="16" /> ลบ</button>

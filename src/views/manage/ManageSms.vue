@@ -10,7 +10,7 @@ import AppIcon from '../../components/AppIcon.vue'
 // เรียกผ่าน Edge Function sms-send เท่านั้น · URL/คีย์เป็น secret ฝั่งเซิร์ฟเวอร์ หน้านี้ไม่แสดงค่าลับ
 const MAX_TEXT = 350
 const STATUS_TH = { QUEUED: 'รอส่ง', SENDING: 'กำลังส่ง', SENT: 'ส่งแล้ว', FAILED: 'ไม่สำเร็จ' }
-const STATUS_CLS = { QUEUED: 'text-stone-500', SENDING: 'text-sky-700', SENT: 'text-emerald-700', FAILED: 'text-rose-600' }
+const STATUS_CLS = { QUEUED: 'text-stone-500', SENDING: 'text-sky-700', SENT: 'text-emerald-700', FAILED: 'text-rose-700' }
 const DIRECTIONS = { all: 'ทั้งหมด', out: 'ส่งออก', in: 'รับเข้า' }
 
 const sms = reactive({ configured: null, checking: false, statusErr: '', gateway: null })
@@ -193,7 +193,7 @@ onMounted(() => {
           </dd>
           <dt class="text-stone-500">การทำงานของแอป</dt>
           <dd>
-            <span v-if="sms.gateway" :class="sms.gateway.running ? 'text-emerald-700' : 'text-rose-600'">{{ sms.gateway.running ? 'กำลังทำงาน' : 'หยุดอยู่' }}</span>
+            <span v-if="sms.gateway" :class="sms.gateway.running ? 'text-emerald-700' : 'text-rose-700'">{{ sms.gateway.running ? 'กำลังทำงาน' : 'หยุดอยู่' }}</span>
             <span v-else class="text-stone-400">-</span>
           </dd>
           <dt class="text-stone-500">ปลายทางที่บันทึกไว้</dt>
@@ -205,9 +205,9 @@ onMounted(() => {
           <div class="rounded-xl bg-stone-50 p-2"><div class="text-base font-semibold">{{ counts.queued ?? 0 }}</div>รอส่ง</div>
           <div class="rounded-xl bg-stone-50 p-2"><div class="text-base font-semibold">{{ counts.sending ?? 0 }}</div>กำลังส่ง</div>
           <div class="rounded-xl bg-emerald-50 p-2"><div class="text-base font-semibold text-emerald-700">{{ counts.sent ?? 0 }}</div>ส่งแล้ว</div>
-          <div class="rounded-xl bg-rose-50 p-2"><div class="text-base font-semibold text-rose-600">{{ counts.failed ?? 0 }}</div>ไม่สำเร็จ</div>
+          <div class="rounded-xl bg-rose-50 p-2"><div class="text-base font-semibold text-rose-700">{{ counts.failed ?? 0 }}</div>ไม่สำเร็จ</div>
         </div>
-        <p v-if="sms.statusErr" class="mt-2 text-xs text-rose-600">{{ sms.statusErr }}</p>
+        <p v-if="sms.statusErr" class="mt-2 text-xs text-rose-700">{{ sms.statusErr }}</p>
         <p v-else-if="sms.configured === false" class="mt-2 text-xs text-stone-500">ตั้ง secret ที่ Supabase: <code>SMS_GATEWAY_URL</code> (ลิงก์รีเลย์) และ <code>SMS_API_KEY</code> (สิทธิ์ส่งและลบ) · ตั้งชื่อ/URL ที่หน้า "การเชื่อมต่อ &amp; แจ้งเตือน"</p>
         <RouterLink to="/admin/settings/integrations" class="mt-2 inline-block text-xs text-brand-700 underline">ไปหน้าการเชื่อมต่อ</RouterLink>
         <p v-if="!hasGateway" class="mt-1 text-xs text-stone-400">ยังไม่ได้บันทึกการเชื่อมในระบบ (ตั้งที่หน้าการเชื่อมต่อ)</p>
@@ -234,7 +234,7 @@ onMounted(() => {
             </select>
           </div>
           <button type="button" class="btn-primary h-10" :disabled="test.busy" @click="sendTest">{{ test.busy ? 'กำลังส่ง…' : 'ส่งทดสอบ' }}</button>
-          <p v-if="test.msg" class="text-sm" :class="test.ok ? 'text-emerald-700' : 'text-rose-600'">{{ test.msg }}</p>
+          <p v-if="test.msg" class="text-sm" :class="test.ok ? 'text-emerald-700' : 'text-rose-700'">{{ test.msg }}</p>
           <p v-if="test.id" class="text-xs text-stone-500">รหัสงาน <span class="font-mono">{{ test.id }}</span> · คีย์ <span class="font-mono">{{ test.key }}</span></p>
         </div>
       </section>
@@ -246,7 +246,7 @@ onMounted(() => {
           <input v-model="look.id" class="input flex-1 font-mono text-sm" maxlength="64" placeholder="รหัสงาน" />
           <button type="button" class="btn-primary h-10 px-4" :disabled="look.busy" @click="lookupStatus">{{ look.busy ? '…' : 'ตรวจ' }}</button>
         </div>
-        <p v-if="look.msg" class="mt-2 text-sm" :class="look.ok ? 'text-emerald-700' : 'text-rose-600'">{{ look.msg }}</p>
+        <p v-if="look.msg" class="mt-2 text-sm" :class="look.ok ? 'text-emerald-700' : 'text-rose-700'">{{ look.msg }}</p>
         <dl v-if="look.data" class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
           <template v-for="[k, v] in lookupFields" :key="k">
             <dt class="text-stone-500">{{ k }}</dt>
@@ -263,7 +263,7 @@ onMounted(() => {
             <button v-for="(label, d) in DIRECTIONS" :key="d" type="button" class="h-8 rounded-full px-3 text-xs" :class="list.direction === d ? 'bg-brand-600 text-white' : 'bg-stone-100 text-stone-600'" @click="setDirection(d)">{{ label }}</button>
           </div>
         </div>
-        <p v-if="list.err" class="mt-2 text-sm text-rose-600">{{ list.err }}</p>
+        <p v-if="list.err" class="mt-2 text-sm text-rose-700">{{ list.err }}</p>
         <p v-else-if="!list.items.length && !list.busy" class="mt-2 text-sm text-stone-500">ยังไม่มีรายการ</p>
         <ul v-else class="mt-2 divide-y divide-stone-100 text-sm">
           <li v-for="m in list.items" :key="m.kind + m.id" class="py-2">

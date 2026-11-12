@@ -213,7 +213,7 @@ async function savePay() {
           <button type="button" class="chip chip-off" :class="daysCustom.disabled ? 'cursor-not-allowed opacity-40' : ''" :disabled="daysCustom.disabled" @click="pay.dueAt = daysCustom.dueAt">ตั้ง</button>
         </span>
       </div>
-      <p v-for="(r, i) in dueReasons" :key="i" class="mb-1 text-xs text-rose-600">{{ r }}</p>
+      <p v-for="(r, i) in dueReasons" :key="i" class="mb-1 text-xs text-rose-700">{{ r }}</p>
       <input v-model="pay.dueAt" type="datetime-local" class="input" aria-label="กำหนดชำระ" />
     </div>
     <div>
@@ -244,7 +244,7 @@ async function savePay() {
       </label>
     </div>
     <div><label class="label">หมายเหตุ</label><input v-model="pay.note" class="input" /></div>
-    <p v-if="payError" class="text-sm text-rose-600">{{ payError }}</p>
+    <p v-if="payError" class="text-sm text-rose-700">{{ payError }}</p>
   </div>
   <template #footer>
     <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ยกเลิก</button>

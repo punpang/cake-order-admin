@@ -151,7 +151,7 @@ function saveJ() {
           <div class="mb-1 font-semibold text-stone-700">รายการบัญชีที่จะลง</div>
           <div v-for="(l, i) in preview.entry.lines" :key="i" class="flex justify-between"><span>{{ l.dr ? 'เดบิต' : 'เครดิต' }} {{ l.account }}</span><span>{{ money(l.dr || l.cr) }}</span></div>
         </div>
-        <p v-if="error" class="text-sm text-rose-600" role="alert">{{ error }}</p>
+        <p v-if="error" class="text-sm text-rose-700" role="alert">{{ error }}</p>
       </div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="save">บันทึก</button></template>
     </AppModal>
@@ -160,7 +160,7 @@ function saveJ() {
       <div class="space-y-3"><div class="rounded-xl bg-stone-50 p-3 text-sm">{{ settleFor.no }} · {{ money(settleFor.source.total) }}</div>
         <div><label class="label">วันที่</label><input v-model="sf.date" type="date" class="input" /></div>
         <div class="flex gap-2"><button class="chip" :class="sf.method === 'cash' ? 'chip-on' : 'chip-off'" @click="sf.method = 'cash'">เงินสด</button><button class="chip" :class="sf.method === 'bank' ? 'chip-on' : 'chip-off'" @click="sf.method = 'bank'">ธนาคาร</button></div>
-        <p v-if="sf.error" class="text-sm text-rose-600">{{ sf.error }}</p></div>
+        <p v-if="sf.error" class="text-sm text-rose-700">{{ sf.error }}</p></div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="settleFor = null">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="doSettle">ยืนยัน</button></template>
     </AppModal>
 
@@ -174,7 +174,7 @@ function saveJ() {
         </div>
         <button class="text-sm text-brand-700 underline" @click="j.lines.push({ account: '', dr: '', cr: '' })">+ เพิ่มบรรทัด</button>
         <div class="flex justify-between rounded-xl p-3 text-sm" :class="jDr === jCr && jDr > 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'"><span>เดบิต {{ money(jDr) }}</span><span>เครดิต {{ money(jCr) }}</span></div>
-        <p v-if="j.error" class="text-sm text-rose-600" role="alert">{{ j.error }}</p>
+        <p v-if="j.error" class="text-sm text-rose-700" role="alert">{{ j.error }}</p>
       </div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="jOpen = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="saveJ">บันทึก</button></template>
     </AppModal>

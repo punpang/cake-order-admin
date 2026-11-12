@@ -47,7 +47,7 @@ const pct = (n, d) => (d ? `${Math.round((n / d) * 1000) / 10}%` : '-')
       <div class="grid grid-cols-[3rem_1fr_5.5rem_5.5rem] gap-x-2 border-b border-stone-200 pb-1 text-xs font-semibold text-stone-500"><span>รหัส</span><span>ชื่อบัญชี</span><span class="text-right">เดบิต</span><span class="text-right">เครดิต</span></div>
       <div v-for="r in tb.rows" :key="r.account.id" class="grid grid-cols-[3rem_1fr_5.5rem_5.5rem] gap-x-2 py-1"><span class="text-stone-500">{{ r.account.id }}</span><span class="min-w-0 break-words">{{ r.account.name }}</span><span class="text-right tabular-nums">{{ r.debit ? money(r.debit) : '' }}</span><span class="text-right tabular-nums">{{ r.credit ? money(r.credit) : '' }}</span></div>
       <div class="mt-1 grid grid-cols-[3rem_1fr_5.5rem_5.5rem] gap-x-2 border-t border-stone-200 pt-1 font-semibold"><span /><span>รวม</span><span class="text-right tabular-nums" aria-label="รวมเดบิต">{{ money(tb.debit) }}</span><span class="text-right tabular-nums" aria-label="รวมเครดิต">{{ money(tb.credit) }}</span></div>
-      <p class="mt-2 text-xs" :class="tb.debit === tb.credit ? 'text-emerald-700' : 'text-rose-600'">{{ tb.debit === tb.credit ? 'งบทดลองสมดุล' : 'งบทดลองไม่สมดุล!' }}</p>
+      <p class="mt-2 text-xs" :class="tb.debit === tb.credit ? 'text-emerald-700' : 'text-rose-700'">{{ tb.debit === tb.credit ? 'งบทดลองสมดุล' : 'งบทดลองไม่สมดุล!' }}</p>
     </section>
 
     <section v-else-if="kind === 'ledger'" class="card text-sm" aria-label="บัญชีแยกประเภท">
