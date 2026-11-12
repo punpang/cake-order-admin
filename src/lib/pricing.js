@@ -30,7 +30,7 @@ export function allowedBy(groups, selections) {
 export const tiersOf = (item) => (item.kind === 'custom' && item.tiers?.length ? item.tiers : [{ selections: item.selections || {} }])
 export const isTierGroup = (g, item) => item.kind === 'custom' && !!g.perTier
 const idsOf = (sel) => (sel == null ? [] : Array.isArray(sel) ? sel : [sel])
-import { MAIN_KEYS as MAIN } from './constants'
+import { MAIN_KEYS as MAIN } from './constants.js'
 
 // ---------- ราคาเค้กหลัก: ประเภท (คงที่) + เนื้อเค้ก (คงที่) + ราคาขนาดของประเภท ----------
 // ประเภท: option.price + option.sizePrices[sizeId] · เนื้อเค้ก: option.price

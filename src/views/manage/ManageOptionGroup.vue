@@ -189,7 +189,7 @@ async function saveO() {
             <template v-if="isMain">
               {{ isSize ? 'ราคาขนาดตั้งแยกตามประเภท' : isType ? 'ราคาประเภท + ราคาขนาดของประเภท' : 'บวกเพิ่มเท่ากันทุกขนาด' }} · ตั้งตัวเลขที่ <RouterLink to="/admin/settings/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink>
             </template>
-            <template v-else-if="group.type !== 'text'">ราคาตามขนาด · บันเดิ้ลตั้งที่ <RouterLink to="/admin/settings/options" class="text-brand-700 underline">ตัวเลือก + ราคา</RouterLink></template>
+            <template v-else-if="group.type !== 'text'">ราคาตามขนาด · บันเดิ้ลตั้งที่ <RouterLink to="/admin/settings/bundles" class="text-brand-700 underline">บันเดิ้ล</RouterLink></template>
           </div>
         </div>
         <button class="btn-outline h-9 px-3" @click="editGroup"><AppIcon name="edit" :size="16" /> แก้ไข</button>

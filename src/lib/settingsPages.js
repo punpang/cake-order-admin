@@ -13,6 +13,7 @@ export const SETTINGS_PAGES = [
   { group: 'overview', to: '/admin/dashboard', icon: 'grid', title: 'ภาพรวมระบบ', perm: 'viewAllOrders', keywords: 'dashboard สถิติ' },
   { group: 'overview', to: '/admin/settings/profit', icon: 'history', title: 'ยอดขาย & กำไร', keywords: 'รายงาน กราฟ ต้นทุน' },
   { group: 'catalog', to: '/admin/settings/options', icon: 'tag', title: 'ตัวเลือก + ราคา', keywords: 'เค้ก ขนาด รสชาติ' },
+  { group: 'catalog', to: '/admin/settings/bundles', icon: 'tag', title: 'บันเดิ้ล (ชุดลดราคา)', keywords: 'ชุด ลด ส่วนลด ราคาชุด เลือกครบชุด combo' },
   { group: 'catalog', to: '/admin/settings/pricing', icon: 'calendar', title: 'การกำหนดราคา', keywords: 'ราคาพิเศษ ช่วงวัน โปร' },
   { group: 'catalog', to: '/admin/settings/retail', icon: 'pos', title: 'สินค้า (POS / สินค้าสำเร็จ)', keywords: 'สต็อก เมนู' },
   { group: 'catalog', to: '/admin/settings/promos', icon: 'star', title: 'โปรโมชัน POS / คะแนนพิเศษ', keywords: 'ส่วนลด บันเดิ้ล' },
