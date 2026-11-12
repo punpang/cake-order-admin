@@ -1810,10 +1810,10 @@ export function customerPay(ctx, { amount, slip, note = '', paymentId = null, tx
   const txn = checkCustomerTxn({ txnDate, txnTime, bankCode, ref, createdAt: o.createdAt })
   if (txn.error) return { error: txn.error }
   if (o._remote) return remoteOrderAction(db, ctx, 'pay', { amount: amt, slip, note: nt, paymentId, txnDate, txnTime, bankCode: txn.value.bankCode, ref: txn.value.ref }) // Promise · เซิร์ฟเวอร์บันทึก/ออกเลข PAY
-  // โหมดจำลองไม่มีการอ่าน QR → ธนาคารต้องเลือกจากรายการ และเลขอ้างอิงห้ามซ้ำกับทุกออร์เดอร์
-  if (!bankByCode(txn.value.bankCode)) return { error: PAY_MSG.bank }
-  if (db.orders.some((x) => refTaken(x.payments, txn.value.ref))) return { error: PAY_MSG.refTaken }
-  const txnFields = { paidAt: txn.value.paidAt, bankCode: txn.value.bankCode, bankName: bankByCode(txn.value.bankCode).name, ref: txn.value.ref, refSource: 'typed' }
+  // โหมดจำลองไม่มีการอ่าน QR → ธนาคารที่กรอกต้องเลือกจากรายการ และเลขอ้างอิงที่กรอกห้ามซ้ำกับทุกออร์เดอร์
+  if (txn.value.bankCode && !bankByCode(txn.value.bankCode)) return { error: PAY_MSG.bank }
+  if (txn.value.ref && db.orders.some((x) => refTaken(x.payments, txn.value.ref))) return { error: PAY_MSG.refTaken }
+  const txnFields = { paidAt: txn.value.paidAt, bankCode: txn.value.bankCode || null, bankName: txn.value.bankCode ? bankByCode(txn.value.bankCode).name : null, ref: txn.value.ref, refSource: txn.value.ref ? 'typed' : '' }
   let p = null
   if (paymentId) {
     p = o.payments.find((x) => x.id === paymentId)

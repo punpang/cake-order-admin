@@ -158,14 +158,23 @@ Deno.serve(async (req) => {
       if (qr.kind === 'promptpay') return json({ error: PAY_MSG.notSlip }, 400)
       const txn = checkCustomerTxn({ txnDate: b.txnDate, txnTime: b.txnTime, bankCode: b.bankCode, ref: b.ref, createdAt: d.createdAt })
       if ('error' in txn) return json({ error: txn.error }, 400)
-      const { paidAt, bankCode, ref } = txn.value
-      if (qr.kind === 'slip' && (qr.ref !== ref || qr.bankCode !== bankCode)) return json({ error: PAY_MSG.qrMismatch }, 400)
-      if (qr.kind !== 'slip' && !bankByCode(bankCode)) return json({ error: PAY_MSG.bank }, 400)
-      // เลขอ้างอิงห้ามซ้ำทั้งระบบ (รวมออร์เดอร์อื่น · รายการที่ยกเลิกแล้วใช้ซ้ำได้)
-      const seen = await sb.from('punpang_orders').select('id,data').contains('data', { payments: [{ ref }] })
-      if (seen.error) return json({ error: 'ตรวจเลขอ้างอิงไม่สำเร็จ กรุณาลองใหม่' }, 500)
-      if ((seen.data || []).some((r: any) => refTaken(r.data?.payments, ref))) return json({ error: PAY_MSG.refTaken }, 400)
-      const txnFields = { paidAt, bankCode, bankName: bankByCode(bankCode)?.name ?? null, ref, refSource: qr.kind === 'slip' ? 'qr' : 'typed' }
+      const { paidAt } = txn.value
+      // ธนาคาร/เลขอ้างอิง: ถ้าอ่านจาก QR ในสลิปได้ ใช้ค่าจาก QR (ที่ลูกค้ากรอกมาต้องตรงกัน) · ไม่ได้กรอกก็ไม่เป็นไร ร้านตรวจจากสลิป
+      let bankCode = txn.value.bankCode
+      let ref = txn.value.ref
+      if (qr.kind === 'slip') {
+        if ((bankCode && bankCode !== qr.bankCode) || (ref && ref !== qr.ref)) return json({ error: PAY_MSG.qrMismatch }, 400)
+        bankCode = qr.bankCode
+        ref = qr.ref
+      }
+      if (bankCode && qr.kind !== 'slip' && !bankByCode(bankCode)) return json({ error: PAY_MSG.bank }, 400)
+      // เลขอ้างอิงที่รู้แล้วห้ามซ้ำทั้งระบบ (รวมออร์เดอร์อื่น · รายการที่ยกเลิกแล้วใช้ซ้ำได้)
+      if (ref) {
+        const seen = await sb.from('punpang_orders').select('id,data').contains('data', { payments: [{ ref }] })
+        if (seen.error) return json({ error: 'ตรวจเลขอ้างอิงไม่สำเร็จ กรุณาลองใหม่' }, 500)
+        if ((seen.data || []).some((r: any) => refTaken(r.data?.payments, ref))) return json({ error: PAY_MSG.refTaken }, 400)
+      }
+      const txnFields = { paidAt, bankCode: bankCode || null, bankName: bankCode ? (bankByCode(bankCode)?.name ?? null) : null, ref: ref || '', refSource: qr.kind === 'slip' ? 'qr' : (ref ? 'typed' : '') }
       const note = String(b.note ?? '').trim().slice(0, PAY.noteMax)
       const pid = b.paymentId ? String(b.paymentId) : ''
       let target: any = null

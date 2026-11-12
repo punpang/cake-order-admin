@@ -66,6 +66,7 @@ Deno.test('ตรวจฟิลด์: ผ่านแล้วได้ค่�
   assertEquals(checkCustomerTxn({ ...base, txnTime: '08:59' }), { error: PAY_MSG.beforeOrder })
   assertEquals(checkCustomerTxn({ ...base, txnTime: '10:30' }), { error: PAY_MSG.future })
   assertEquals(checkCustomerTxn({ ...base, bankCode: '4' }), { error: PAY_MSG.bank })
+  assertEquals(checkCustomerTxn({ ...base, bankCode: '', ref: '' }), { value: { paidAt: '2026-11-11T10:00', bankCode: '', ref: '' } })
   assertEquals(checkCustomerTxn({ ...base, ref: 'ABC' }), { error: PAY_MSG.ref })
 })
 

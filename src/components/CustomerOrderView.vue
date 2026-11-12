@@ -99,7 +99,7 @@ async function readSlip(dataUrl) {
   try { r = await customerReadSlip(props.ctx, dataUrl) } catch { r = { error: 'อ่านสลิปไม่สำเร็จ' } }
   if (seq !== readSeq) return // แนบรูปใหม่ระหว่างรอ → ใช้ผลของรูปล่าสุดเท่านั้น
   f.reading = false
-  if (r.error) return (f.qrNote = 'อ่านสลิปอัตโนมัติไม่ได้ · กรอกธนาคารและเลขอ้างอิงเองได้เลย')
+  if (r.error) return (f.qrNote = 'อ่านสลิปอัตโนมัติไม่ได้ · ไม่ต้องกรอกธนาคารและเลขอ้างอิงก็ได้ ร้านจะตรวจจากสลิปให้')
   const q = r.qr || {}
   if (q.kind === 'promptpay') {
     Object.assign(f, { slip: '', slipName: '' })
@@ -110,7 +110,7 @@ async function readSlip(dataUrl) {
     f.ref = q.ref
     return (f.qrNote = 'อ่าน QR จากสลิปแล้ว · ตรวจธนาคารและเลขอ้างอิงอีกครั้งก่อนส่ง')
   }
-  f.qrNote = 'ไม่พบ QR ในรูป · กรอกธนาคารและเลขอ้างอิงเองได้เลย'
+  f.qrNote = 'ไม่พบ QR ในรูป · ไม่ต้องกรอกธนาคารและเลขอ้างอิงก็ได้ ร้านจะตรวจจากสลิปให้'
 }
 async function onSlip(e) {
   f.error = ''
@@ -357,13 +357,13 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
               <div><label class="label" for="pay-date">วันที่โอน</label><input id="pay-date" v-model="f.txnDate" type="date" class="input" :max="thaiNow().date" /></div>
               <div><label class="label" for="pay-time">เวลาที่โอน</label><input id="pay-time" v-model="f.txnTime" type="time" class="input" /></div>
             </div>
-            <div><label class="label" for="pay-bank">ธนาคารของผู้โอน</label>
+            <div><label class="label" for="pay-bank">ธนาคารของผู้โอน <span class="font-normal text-stone-400">(ไม่บังคับ)</span></label>
               <select id="pay-bank" v-model="f.bankCode" class="input">
-                <option value="">เลือกธนาคาร</option>
+                <option value="">ไม่ระบุ</option>
                 <option v-for="b in bankOptions" :key="b.code" :value="b.code">{{ b.name }}</option>
               </select>
             </div>
-            <div><label class="label" for="pay-ref">เลขอ้างอิงรายการ</label><input id="pay-ref" v-model="f.ref" class="input" maxlength="40" autocomplete="off" placeholder="ดูได้ในสลิปหรือแอปธนาคาร" /></div>
+            <div><label class="label" for="pay-ref">เลขอ้างอิงรายการ <span class="font-normal text-stone-400">(ไม่บังคับ)</span></label><input id="pay-ref" v-model="f.ref" class="input" maxlength="40" autocomplete="off" placeholder="ไม่ต้องกรอกก็ได้ ร้านตรวจจากสลิปให้" /></div>
             <p v-if="f.qrNote" class="text-xs text-stone-500" role="status">{{ f.qrNote }}</p>
           </div>
           <div><label class="label">หมายเหตุ <span class="font-normal text-stone-400">(ไม่บังคับ)</span></label><input v-model="f.note" class="input" maxlength="200" /></div>

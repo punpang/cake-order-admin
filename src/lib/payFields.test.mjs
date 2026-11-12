@@ -80,7 +80,8 @@ t('ตรวจฟิลด์: แต่ละข้อผิดได้ข้
   assert.equal(checkCustomerTxn({ ...base, txnTime: '' }).error, PAY_MSG.txn)
   assert.equal(checkCustomerTxn({ ...base, txnDate: '2026-11-11', txnTime: '08:59' }).error, PAY_MSG.beforeOrder)
   assert.equal(checkCustomerTxn({ ...base, txnTime: '10:30' }).error, PAY_MSG.future)
-  assert.equal(checkCustomerTxn({ ...base, bankCode: '' }).error, PAY_MSG.bank)
+  assert.equal(checkCustomerTxn({ ...base, bankCode: '' }).error, undefined) // ธนาคารไม่บังคับ
+  assert.deepEqual(checkCustomerTxn({ ...base, bankCode: '', ref: '' }).value, { paidAt: '2026-11-11T10:00', bankCode: '', ref: '' })
   assert.equal(checkCustomerTxn({ ...base, bankCode: '4' }).error, PAY_MSG.bank)
   assert.equal(checkCustomerTxn({ ...base, ref: 'ABC' }).error, PAY_MSG.ref)
 })

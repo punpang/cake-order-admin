@@ -97,10 +97,11 @@ export function checkCustomerTxn(input: {
   if (!paidAt) return { error: PAY_MSG.txn }
   if (!notBeforeOrder(paidAt, input.createdAt)) return { error: PAY_MSG.beforeOrder }
   if (!notFuture(paidAt, input.nowMs ?? Date.now())) return { error: PAY_MSG.future }
-  const bankCode = String(input.bankCode ?? '')
-  if (!/^\d{3}$/.test(bankCode)) return { error: PAY_MSG.bank }
+  // ธนาคารและเลขอ้างอิงไม่บังคับ (ถ้าอ่านจาก QR ในสลิปได้ เซิร์ฟเวอร์ใช้ค่าจาก QR) · ถ้ากรอกมาต้องถูกรูปแบบ
+  const bankCode = String(input.bankCode ?? '').trim()
+  if (bankCode && !/^\d{3}$/.test(bankCode)) return { error: PAY_MSG.bank }
   const ref = normalizeRef(input.ref)
-  if (!REF_RE.test(ref)) return { error: PAY_MSG.ref }
+  if (ref && !REF_RE.test(ref)) return { error: PAY_MSG.ref }
   return { value: { paidAt, bankCode, ref } }
 }
 
