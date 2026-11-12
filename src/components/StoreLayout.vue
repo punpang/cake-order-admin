@@ -23,7 +23,8 @@ const hold = computed(() => !!route.meta.pub && loading.value)
 </script>
 
 <template>
-  <div class="store-theme">
+  <!-- flex + min-h-dvh: หน้าที่เนื้อหาสั้น (ล็อกอิน, สินค้าเดี่ยว) ฟุตเตอร์ยังอยู่ชิดขอบล่างของจอ ไม่ลอยกลางจอบนจอสูง -->
+  <div class="store-theme flex min-h-dvh flex-col">
   <header class="sticky top-0 z-20 bg-cream/90 backdrop-blur-xl">
     <div class="mx-auto flex h-14 max-w-page items-center gap-2 px-4 lg:px-8">
       <RouterLink to="/" class="flex min-w-0 items-center gap-2.5">
@@ -40,7 +41,7 @@ const hold = computed(() => !!route.meta.pub && loading.value)
     </div>
   </header>
 
-  <main id="main-content" tabindex="-1" class="min-h-[60vh] outline-none">
+  <main id="main-content" tabindex="-1" class="min-h-[60vh] flex-1 outline-none">
     <div v-if="hold" class="mx-auto max-w-page space-y-4 px-4 py-8 lg:px-8" role="status" aria-live="polite" aria-busy="true">
       <span class="sr-only">กำลังโหลดข้อมูลร้านจากเซิร์ฟเวอร์</span>
       <div class="h-40 animate-pulse rounded-3xl bg-stone-200 sm:h-56"></div>

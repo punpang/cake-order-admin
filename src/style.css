@@ -240,6 +240,14 @@
   .meta {
     @apply inline-flex items-center gap-1.5 text-sm text-stone-600;
   }
+  /* แถวชิป/ตัวกรอง: มือถือเลื่อนแนวนอนในบรรทัดเดียว (ขอบชิดจอ ซ่อนแถบเลื่อน) ไม่ดันเนื้อหาลงหลายบรรทัด · md ขึ้นไปห่อขึ้นบรรทัดใหม่
+     ใช้ในหน้าที่มีขอบข้าง px-4 (ค่าเริ่มต้นของหน้า) · ถ้าอยู่ในกล่องที่ขอบต่างกัน ให้กำหนดระยะขอบติดลบและ padding ข้างเอง */
+  .chip-row {
+    @apply -mx-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0;
+  }
+  .chip-row::-webkit-scrollbar {
+    display: none;
+  }
   /* แถบปุ่มติดล่าง (มือถือ) */
   .action-bar {
     animation: action-bar-arm 0.45s steps(1, end);

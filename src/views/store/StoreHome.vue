@@ -1,6 +1,6 @@
 <script setup>
 import { safeHref } from '../../lib/safeUrl'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { db } from '../../data/store'
 import { bestSellers, activePromotions, customMenu, approvedReviews, avgRating, promoProducts } from '../../lib/storefront'
 import { dateOnly, money } from '../../lib/format'
@@ -25,6 +25,10 @@ const altOf = (p) => p.caption || [p.typeName, ...p.tagNames.filter((t) => t.gro
 const reviews = computed(() => approvedReviews(db, 6))
 const rating = computed(() => avgRating(db.reviews.filter((r) => r.status === 'approved')))
 const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
+// มือถือ: รีวิวและโปรโมชั่นเรียงลงยาวมาก → แสดง 3 รายการแรก กดดูที่เหลือได้ (จอ md ขึ้นไปแสดงครบ)
+const MOBILE_FIRST = 3
+const moreReviews = ref(false)
+const morePromos = ref(false)
 </script>
 
 <template>
@@ -135,19 +139,20 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
       <h2 class="mb-1 text-2xl text-stone-900">เสียงจากลูกค้า</h2>
       <p class="mb-3 text-sm text-stone-600"><span class="text-amber-500">★</span> {{ rating.toFixed(1) }} จาก {{ db.reviews.filter((r) => r.status === 'approved').length }} รีวิว</p>
       <div class="grid gap-3 md:grid-cols-3">
-        <figure v-for="r in reviews" :key="r.id" class="card shadow-md">
+        <figure v-for="(r, i) in reviews" :key="r.id" class="card shadow-md" :class="i >= MOBILE_FIRST && !moreReviews ? 'max-md:hidden' : ''">
           <div class="text-amber-500" :aria-label="`${r.rating} ดาว`">{{ stars(r.rating) }}</div>
           <blockquote class="mt-1 text-sm break-words text-stone-700">{{ r.text }}</blockquote>
           <figcaption class="mt-2 text-xs text-stone-600">— {{ r.name }}</figcaption>
         </figure>
       </div>
+      <button v-if="reviews.length > MOBILE_FIRST && !moreReviews" type="button" class="btn-outline mt-3 w-full md:hidden" @click="moreReviews = true">ดูรีวิวเพิ่มอีก {{ reviews.length - MOBILE_FIRST }} รายการ</button>
     </section>
 
     <!-- โปรโมชั่น -->
     <section v-if="promos.length" aria-label="โปรโมชั่น">
       <h2 class="sr-only">โปรโมชั่น</h2>
       <div class="grid gap-4 md:grid-cols-2">
-        <div v-for="p in promos" :key="p.id" class="card relative overflow-hidden border-2 border-[#f3e3c7] pt-8 shadow-md">
+        <div v-for="(p, i) in promos" :key="p.id" class="card relative overflow-hidden border-2 border-[#f3e3c7] pt-8 shadow-md" :class="i >= MOBILE_FIRST && !morePromos ? 'max-md:hidden' : ''">
           <Bunting />
           <div class="flex gap-3.5">
             <svg viewBox="0 0 60 64" class="mt-1 h-16 w-14 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2.5" stroke-linejoin="round"><rect x="8" y="26" width="44" height="32" rx="4" fill="#ff9d5b" /><rect x="4" y="18" width="52" height="12" rx="4" fill="#ffb27e" /><path d="M30 18v40" /><path d="M30 18c-10-14-22-6-12 0zM30 18c10-14 22-6 12 0z" fill="#ff8fa6" /></svg>
@@ -167,6 +172,7 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
           </div>
         </div>
       </div>
+      <button v-if="promos.length > MOBILE_FIRST && !morePromos" type="button" class="btn-outline mt-3 w-full md:hidden" @click="morePromos = true">ดูโปรโมชั่นทั้งหมด ({{ promos.length }})</button>
     </section>
 
     <!-- วิธีสั่ง (timeline) -->

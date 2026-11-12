@@ -210,14 +210,13 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
     <p v-if="staleNote" class="rounded-xl bg-amber-50 p-3 text-amber-800" role="status">ทำรายการสำเร็จแล้ว แต่ยังโหลดข้อมูลล่าสุดจากเซิร์ฟเวอร์ไม่ได้ ข้อมูลบนจออาจยังไม่อัปเดต <button type="button" class="ml-1 underline" @click="reload">โหลดหน้าใหม่</button></p>
     <!-- สรุป + ขั้นตอน -->
     <section class="card">
-      <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0">
-          <div class="text-xs text-stone-600">ออร์เดอร์</div>
-          <h1 class="text-[26px] text-stone-900">{{ o.code }}</h1>
-          <div v-if="o.customer" class="truncate text-stone-500">{{ o.customer.name }}<span v-if="o.customer.phone"> · {{ o.customer.phone.startsWith('xxx') ? o.customer.phone : formatPhone(o.customer.phone) }}</span></div>
-        </div>
-        <div class="flex shrink-0 flex-col items-end gap-1.5"><StatusBadge :status="o.status" /><PayDueBadge :due="o.payDue" /></div>
+      <!-- ป้ายสถานะอยู่แถวบน เลขออร์เดอร์ได้ความกว้างเต็มการ์ด → ไม่ถูกตัดขึ้นบรรทัดใหม่บนมือถือ -->
+      <div class="flex items-center justify-between gap-3">
+        <div class="text-xs text-stone-600">ออร์เดอร์</div>
+        <div class="flex flex-wrap items-center justify-end gap-1.5"><StatusBadge :status="o.status" /><PayDueBadge :due="o.payDue" /></div>
       </div>
+      <h1 class="mt-0.5 text-[22px] whitespace-nowrap text-stone-900 min-[360px]:text-[26px]">{{ o.code }}</h1>
+      <div v-if="o.customer" class="truncate text-stone-500">{{ o.customer.name }}<span v-if="o.customer.phone"> · {{ o.customer.phone.startsWith('xxx') ? o.customer.phone : formatPhone(o.customer.phone) }}</span></div>
       <ol v-if="!cancelled" class="mt-4 grid gap-1" :style="{ gridTemplateColumns: `repeat(${STEPS.length}, minmax(0, 1fr))` }" aria-label="ขั้นตอนออร์เดอร์">
         <li v-for="(label, i) in STEPS" :key="label" class="flex flex-col items-center gap-1 text-center" :aria-current="i === step ? 'step' : undefined">
           <span class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold" :class="i < step ? 'bg-matcha text-stone-900' : i === step ? 'bg-brand-600 text-white ring-4 ring-brand-100' : 'bg-stone-100 text-stone-500'">
