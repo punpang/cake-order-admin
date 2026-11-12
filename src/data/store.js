@@ -212,7 +212,30 @@ const tplOf = (r) => { const u = DEFAULT_UPGRADES[r.event]; return u && [].conca
 // channelTemplates (ไม่บังคับ): เทมเพลตแยกตามแพลตฟอร์ม { line?, facebook?, sms? } · ไม่มี = ใช้ template หลัก
 const rule = (event, channels, template, channelTemplates = null) => ({ event, channels, template, enabled: true, ...(channelTemplates ? { channelTemplates } : {}) })
 // เทมเพลตตามแพลตฟอร์มเริ่มต้นในโค้ด: กฎที่บันทึกไว้ (Supabase) อาจไม่มี channelTemplates → ใช้ค่านี้แทน
-const DEFAULT_CHANNEL_TPL = { order_created: { facebook: ORDER_CREATED_FB_TPL, sms: ORDER_CREATED_SMS_TPL } }
+// เทมเพลต Facebook ของทุกเหตุการณ์ที่ส่งถึงลูกค้า: ข้อความธรรมดา ไม่มีอีโมจิ · ลิงก์อยู่บรรทัดท้าย (การ์ดปุ่มตัดบรรทัดลิงก์ออกได้)
+const FB_TPL = {
+  payment_requested: 'ออร์เดอร์ {เลขออร์เดอร์}\nยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง})\nชำระก่อน {ชำระก่อน}\nดู/ชำระที่: {ลิงก์ออร์เดอร์}',
+  order_confirmed: 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ\nคงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า',
+  payment_confirmed: PAY_CONFIRMED_TPL,
+  prepared: PREPARED_TPL,
+  payment_reminder: PAY_REMINDER_TPL,
+  pickup_reminder: 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์}\nวันที่ {วันนัด} เวลา {เวลานัด}',
+  shipping: 'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ\nกำหนดถึง {วันนัด} {เวลานัด}',
+  delivered: DELIVERED_TPL,
+  cancelled: 'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว\nหากมีข้อสงสัยติดต่อร้านได้เลยค่ะ',
+  order_refund_cancelled: 'ร้านยกเลิกการคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} (ปรับรายการแล้ว)\nหากสงสัยติดต่อร้านได้เลยค่ะ',
+  order_refunded: 'ร้านคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} แล้วค่ะ',
+  birthday: 'สุขสันต์วันเกิดล่วงหน้า {ชื่อวันเกิด}\nสั่งเค้กกับเราได้เลยค่ะ',
+  points_expiring: '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ\nใช้ก่อนหมดนะคะ',
+  photo_ready: 'ออร์เดอร์ {เลขออร์เดอร์} มีรูปงานเสร็จให้ดูแล้วค่ะ\nดูได้ที่: {ลิงก์ออร์เดอร์}',
+  photo_optout_done: 'ร้านลบรูปงานของออร์เดอร์ {เลขออร์เดอร์} ออกจากทุกที่ตามที่แจ้งแล้วค่ะ',
+  photo_optout_rejected: 'ร้านขอคุยเรื่องการใช้รูปงานของออร์เดอร์ {เลขออร์เดอร์} เพิ่มเติม\nรายละเอียดดูได้ที่: {ลิงก์ออร์เดอร์}',
+  coupon_refunded: '{ชื่อลูกค้า} ร้านคืน {คะแนน} คะแนนจาก {รายการ} ให้แล้วค่ะ',
+}
+const DEFAULT_CHANNEL_TPL = Object.fromEntries([
+  ['order_created', { facebook: ORDER_CREATED_FB_TPL, sms: ORDER_CREATED_SMS_TPL }],
+  ...Object.entries(FB_TPL).map(([ev, t]) => [ev, { facebook: t }]),
+])
 // เทมเพลตของช่อง: กฎที่บันทึกไว้ → ค่าเริ่มต้นของเหตุการณ์ → เทมเพลตหลัก
 const channelTplOf = (r, chKey) => r.channelTemplates?.[chKey] || DEFAULT_CHANNEL_TPL[r.event]?.[chKey] || tplOf(r)
 // ประเภท: ราคาคงที่ (price) + ราคาขนาดของประเภท (sizePrices) · เนื้อเค้ก: บวกคงที่ (price) · ขนาด: ชื่อ + ปอนด์
