@@ -47,7 +47,7 @@ function pick(mode, p = null) {
   f.paymentId = p?.id || null
 }
 const qr = ref('')
-const payload = computed(() => (amount.value > 0 && pp.value ? promptPayPayload(pp.value.promptpayId, amount.value) : null))
+const payload = computed(() => (amount.value > 0 && pp.value ? promptPayPayload(pp.value.promptpayId, amount.value, o.value.code) : null))
 watch(
   [payload, open],
   async () => {
@@ -362,6 +362,8 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
 
           <div v-if="hasInfo" class="rounded-2xl border border-stone-200 bg-white p-3">
             <div v-if="pp" class="text-center">
+              <div class="text-xs text-stone-500">QR นี้สำหรับออร์เดอร์</div>
+              <div class="text-base font-semibold text-stone-900">{{ o.code }}</div>
               <img v-if="qr" :src="qr" alt="QR พร้อมเพย์" class="mx-auto h-48 w-48" />
               <p v-else-if="amount > 0" class="py-8 text-stone-400">กำลังสร้าง QR…</p>
             </div>
@@ -405,7 +407,7 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
             <div><label class="label" for="pay-ref">เลขอ้างอิงรายการ <span class="font-normal text-stone-400">(ไม่บังคับ)</span></label><input id="pay-ref" v-model="f.ref" class="input" maxlength="40" autocomplete="off" placeholder="ไม่ต้องกรอกก็ได้ ร้านตรวจจากสลิปให้" /></div>
             <p v-if="f.qrNote" class="text-xs text-stone-500" role="status">{{ f.qrNote }}</p>
           </div>
-          <div><label class="label">หมายเหตุ <span class="font-normal text-stone-400">(ไม่บังคับ)</span></label><input v-model="f.note" class="input" maxlength="200" /></div>
+          <div><label class="label">หมายเหตุ <span class="font-normal text-stone-400">(ไม่บังคับ · ใส่เลขออร์เดอร์ {{ o.code }} เพื่อให้ร้านตรวจได้ง่าย)</span></label><input v-model="f.note" class="input" maxlength="200" :placeholder="o.code" /></div>
           <p v-if="f.error" class="text-rose-700" role="alert">{{ f.error }}</p>
           <div class="flex gap-2">
             <button class="btn-outline flex-1" @click="open = false">ยกเลิก</button>

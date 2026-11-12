@@ -9,7 +9,7 @@ import { askConfirm } from '../lib/confirm'
 import { cleanNum } from '../lib/numInput'
 import { money, dateTime } from '../lib/format'
 import { PAY_MSG, notBeforeOrder, thaiMinute } from '../lib/payFields'
-import { slipRoom, pendingCustomerTotal } from '../lib/slipBind'
+import { slipRoom, pendingCustomerTotal, slipMatchChecks } from '../lib/slipBind'
 import { resizeImage, imageErrorMessage } from '../lib/imageResize'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
@@ -25,6 +25,7 @@ const t = computed(() => orderTotals(props.order))
 // โหมดสลิป: ยอดที่ผูกได้ = คงค้างหักยอดที่ลูกค้าแจ้งรอตรวจอยู่แล้ว
 const slipMax = computed(() => slipRoom(t.value.balance, props.order.payments))
 const slipOwn = computed(() => pendingCustomerTotal(props.order.payments))
+const slipChecks = computed(() => (payMode === 'slip' ? slipMatchChecks({ amount: pay.amount, paidAt: pay.paidAt, payments: props.order.payments }) : []))
 const paidMin = computed(() => thaiMinute(props.order.createdAt))
 const nowLocal = () => {
   const d = new Date()
@@ -157,6 +158,9 @@ async function savePay() {
     <div v-else-if="payMode === 'slip'" class="rounded-xl bg-sky-50 p-3 text-sm text-sky-800">
       สลิปจากแชท · คงค้าง <b>{{ money(t.balance) }}</b> · รับได้สูงสุด <b>{{ money(slipMax) }}</b><span v-if="slipOwn > 0"> (หักยอดที่ลูกค้าแจ้งรอตรวจ {{ money(slipOwn) }})</span>
     </div>
+    <ul v-if="payMode === 'slip' && slipChecks.length" class="space-y-1 rounded-xl border border-stone-200 bg-white p-3 text-sm" aria-label="ผลตรวจสลิปกับออร์เดอร์">
+      <li v-for="(c, k) in slipChecks" :key="k" class="flex items-start gap-2" :class="c.ok ? 'text-emerald-700' : 'text-rose-700'"><span aria-hidden="true" class="font-bold">{{ c.ok ? '✓' : '✗' }}</span><span>{{ c.text }}</span></li>
+    </ul>
     <div v-else class="rounded-xl p-3 text-sm" :class="payMode === 'direct' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'">
       <template v-if="payMode === 'direct'">ลูกค้าชำระแล้ว ไม่ต้องแจ้งยอด/กำหนดชำระ · </template>คงค้าง <b>{{ money(t.balance) }}</b><span v-if="t.reported"> · แจ้งยอดแล้ว {{ money(t.reported) }}</span>
     </div>

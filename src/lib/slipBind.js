@@ -29,6 +29,21 @@ export function slipChoices({ suggestedId = null, orders = [], customerId = null
   return { suggested, others }
 }
 
+// เทียบสลิปกับออร์เดอร์ก่อนรับชำระ (ฟังก์ชันล้วน): ยอด + เวลาโอนเทียบกับงวดที่ร้านแจ้งชำระและยังรอตรวจ → รายการ [{ ok, text }]
+export function slipMatchChecks({ amount, paidAt, payments = [] }) {
+  const amt = r2(amount)
+  if (!(amt > 0)) return []
+  const list = Array.isArray(payments) ? payments : []
+  const hit = list.find((p) => p?.status === 'reported' && r2(p.requested ?? p.amount) === amt) || null
+  const out = [hit
+    ? { ok: true, text: 'ยอดตรงกับยอดที่ร้านแจ้งชำระ' }
+    : { ok: false, text: 'ยอดไม่ตรงกับยอดที่ร้านแจ้งชำระที่รอตรวจ' }]
+  const t = thaiMinute(paidAt)
+  const due = hit?.dueAt ? thaiMinute(hit.dueAt) : ''
+  if (t && due) out.push(t <= due ? { ok: true, text: 'โอนก่อนกำหนดชำระ' } : { ok: false, text: 'โอนเลยกำหนดชำระแล้ว' })
+  return out
+}
+
 // กติกาก่อนผูกสลิป → ข้อความผิดพลาด หรือ '' เมื่อผ่าน (ลำดับการตรวจเหมือนหน้าชำระเงินของลูกค้า)
 // refUsed = เลขอ้างอิงของสลิปถูกใช้แล้วในรายการชำระที่ไม่ได้ยกเลิกของออร์เดอร์ใดก็ได้ (ผู้เรียกคำนวณจากข้อมูลทั้งหมด)
 export function slipBindError({ slip, orderInactive = false, room, amount, paidAt, createdAt, refUsed = false, nowMs = Date.now() }) {

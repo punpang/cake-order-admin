@@ -25,7 +25,8 @@ export function crc16(str) {
 const tlv = (tag, value) => `${tag}${String(value.length).padStart(2, '0')}${value}`
 
 // สร้าง payload สำหรับ QR · amount ไม่ใส่ = QR ใช้ซ้ำ (static) ไม่ล็อกยอด
-export function promptPayPayload(id, amount = null) {
+// ref (ไม่บังคับ) = รหัสอ้างอิง 1 (เช่น เลขออร์เดอร์) → แอปธนาคารบางแห่งกรอกให้ในสลิป · สูงสุด 25 ตัวอักษร
+export function promptPayPayload(id, amount = null, ref = '') {
   const kind = promptPayKind(id)
   if (!kind) return null
   const d = digitsOf(id)
@@ -39,6 +40,7 @@ export function promptPayPayload(id, amount = null) {
     tlv('58', 'TH') +
     tlv('53', '764') +
     (amt == null ? '' : tlv('54', amt.toFixed(2))) +
+    (ref ? tlv('62', tlv('05', String(ref).replace(/[^A-Za-z0-9-]/g, '').slice(0, 25))) : '') +
     '6304'
   return body + crc16(body)
 }

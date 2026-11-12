@@ -1105,7 +1105,7 @@ export function reportPayment(order, p) {
   const due = order.payments[order.payments.length - 1].dueAt
   log(order, `แจ้งยอดชำระ ${money(Number(p.amount))} (${p.method}) ชำระก่อน ${dueText(due)}`)
   notifyOrder('payment_requested', order, { requested: Number(p.amount), dueAt: due, skip: p.notify === false, noSms: p.sms === false })
-  if (p.notify !== false) sendPayQrFacebook(order, Number(p.amount)) // QR พร้อมเพย์ส่งเข้า Messenger เฉพาะเมื่อข้อความแจ้งชำระใช้ช่อง Facebook
+  if (p.notify !== false) sendPayQrFacebook(order, Number(p.amount), due) // QR พร้อมเพย์ส่งเข้า Messenger เฉพาะเมื่อข้อความแจ้งชำระใช้ช่อง Facebook
   if (order.status === 'awaiting_payment') order.status = 'payment_reported'
   return { ok: true }
 }
@@ -2463,7 +2463,7 @@ function deliverTg(row, text, kind, parseMode = '') {
   tgHook.send(text, kind, parseMode).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
 }
 // QR พร้อมเพย์ของยอดที่แจ้งชำระ → แชท Facebook ของลูกค้า (ตามช่องทางที่ข้อความแจ้งชำระใช้จริง) · ไม่มีบัญชีพร้อมเพย์/ไม่มีแชท/โหมดจำลอง = ข้าม
-async function sendPayQrFacebook(order, amount) {
+async function sendPayQrFacebook(order, amount, due = '') {
   try {
     if (!(amount > 0) || order.channel === 'pos') return
     const customer = findCustomer(order.customerId)
@@ -2476,10 +2476,11 @@ async function sendPayQrFacebook(order, amount) {
     const pp = payAccountsOf(db.shop.payment).find((a) => a.show && a.kind === 'promptpay')
     if (!chat || !pp) return
     const QR = await import('qrcode')
-    const dataUrl = await (QR.default || QR).toDataURL(promptPayPayload(pp.promptpayId, amount), { type: 'image/jpeg', width: 480, margin: 2, errorCorrectionLevel: 'M' })
+    const dataUrl = await (QR.default || QR).toDataURL(promptPayPayload(pp.promptpayId, amount, order.code), { type: 'image/jpeg', width: 480, margin: 2, errorCorrectionLevel: 'M' })
     const att = await uploadChatImage(chat, await (await fetch(dataUrl)).blob(), { width: 480, height: 480 })
     if (!att.path) return // โหมดจำลอง ไม่มีการอัปโหลด
-    sendChat(chat.id, 'staff', `สแกน QR พร้อมเพย์เพื่อชำระ ${money(amount)}`, { orderId: order.id, by: 'ระบบ', attachments: [att] })
+    const caption = [`สแกน QR พร้อมเพย์เพื่อชำระออร์เดอร์ ${order.code}`, `ยอด ${money(amount)}`, due ? `ชำระภายใน ${dueText(due)}` : ''].filter(Boolean).join('\n')
+    sendChat(chat.id, 'staff', caption, { orderId: order.id, by: 'ระบบ', attachments: [att] })
   } catch {
     emitStaffBell('notify_failed', { text: `${findCustomer(order.customerId)?.name || 'ลูกค้า'}: ส่ง QR พร้อมเพย์ทาง Facebook ไม่สำเร็จ` })
   }
