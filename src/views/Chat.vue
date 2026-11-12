@@ -205,7 +205,8 @@ function doCreate() {
             <input v-model="q" type="search" class="input h-10 rounded-full bg-stone-50 pl-10" placeholder="ค้นหาชื่อ เบอร์ เลขออร์เดอร์" />
           </label>
         </div>
-        <div class="flex flex-wrap gap-1.5 px-3 pb-2.5" role="group" aria-label="ตัวกรองแชท">
+        <!-- มือถือ: ตัวกรองแถวเดียวเลื่อนแนวนอน เห็นรายการแชทได้มากขึ้น · md ขึ้นไปห่อบรรทัด -->
+        <div class="flex gap-1.5 overflow-x-auto px-3 pb-2.5 [scrollbar-width:none] md:flex-wrap md:overflow-visible" role="group" aria-label="ตัวกรองแชท">
           <button v-for="f in FILTERS" :key="f.v" type="button" class="chip h-8 shrink-0 px-3 text-xs" :class="filter === f.v ? 'chip-on' : 'chip-off'" :aria-pressed="filter === f.v" @click="filter = f.v">
             {{ f.l }}
             <span class="font-normal tabular-nums" :class="filter === f.v ? 'text-white' : 'text-stone-500'">{{ counts[f.v] }}</span>

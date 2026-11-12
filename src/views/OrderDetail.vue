@@ -266,6 +266,17 @@ const cxlError = ref('')
 const buyerOpen = ref(false)
 const linkOpen = ref(false)
 const taxOpen = ref(false)
+// ปุ่มในการ์ดลูกค้า (แสดงตามสิทธิ์และสถานะออร์เดอร์) · เงื่อนไขเดิมของแต่ละลิงก์คงไว้ทุกข้อ
+const custActions = computed(() => {
+  const o = order.value
+  if (!o) return []
+  return [
+    !o.birthday && canEditBirthday.value && { key: 'birthday', icon: 'cake', label: 'เพิ่มวันเกิด', run: openBirthday },
+    can('changeBuyer') && o.status !== 'cancelled' && { key: 'buyer', icon: 'users', label: 'เปลี่ยนผู้ซื้อ', run: () => { buyerOpen.value = true } },
+    can('createOrder') && o.status !== 'draft' && o.channel !== 'pos' && { key: 'link', icon: 'link', label: 'ส่งลิงก์ให้ลูกค้า', run: () => { linkOpen.value = true } },
+    can('taxInvoice') && t.value.vatMode && o.status !== 'draft' && o.status !== 'cancelled' && { key: 'tax', icon: 'printer', label: 'ใบกำกับภาษีเต็มรูป', run: () => { taxOpen.value = true } },
+  ].filter(Boolean)
+})
 // ย้อนสถานะทีละขั้น
 const rv = reactive({ open: false, reason: '', error: '' })
 const revTo = computed(() => prevStatus(order.value))
@@ -300,16 +311,17 @@ async function saveCancel() {
 
   <div v-else :class="hasActions ? 'pb-[calc(env(safe-area-inset-bottom)+6rem)]' : ''">
     <!-- หัว -->
-    <div class="mb-4 flex items-center gap-2">
+    <!-- จอเล็ก (< sm): ป้ายสถานะลงแถวของตัวเองใต้เลขออร์เดอร์ เลขออร์เดอร์จึงแสดงครบไม่ถูกตัด · sm ขึ้นไปอยู่แถวเดียวกัน -->
+    <div class="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1.5">
       <RouterLink to="/admin/orders" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
         <AppIcon name="back" :size="20" />
       </RouterLink>
-      <div class="min-w-0 flex-1">
-        <h1 class="page-title truncate">{{ order.code }}</h1>
+      <h1 class="page-title min-w-0 flex-1 truncate">{{ order.code }}</h1>
+      <div class="flex flex-wrap items-center gap-1.5 max-sm:w-full max-sm:pl-12">
+        <span v-if="customerPending(order).length" class="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-sky-700">ลูกค้าแจ้งโอน รอตรวจสลิป</span>
+        <PayDueBadge :order="order" />
+        <StatusBadge :status="order.status" />
       </div>
-      <span v-if="customerPending(order).length" class="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-sky-700">ลูกค้าแจ้งโอน รอตรวจสลิป</span>
-      <PayDueBadge :order="order" />
-      <StatusBadge :status="order.status" />
     </div>
 
     <!-- ขออนุมัติยืนยันการสั่งซื้อ (ยังไม่ชำระ) -->
@@ -329,28 +341,32 @@ async function saveCancel() {
       <div class="min-w-0 space-y-3 lg:space-y-4">
         <!-- ลูกค้า + นัดรับ -->
         <section class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div class="card flex min-w-0 gap-3">
-            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-600 text-lg font-semibold text-white">{{ initial(customer?.name) }}</span>
-            <div class="min-w-0 flex-1">
-              <div class="text-xs text-stone-500">ลูกค้า</div>
-              <div class="truncate font-semibold text-stone-900">{{ customer?.name }}</div>
-              <div v-if="customer?.line" class="truncate text-sm text-stone-500">LINE {{ customer.line }}</div>
-              <div v-if="customer?.note" class="mt-1 text-sm break-words text-stone-500">{{ customer.note }}</div>
-              <div v-if="order.birthday" class="mt-1 text-sm break-words text-stone-600">
-                วันเกิด {{ order.birthday.name }} · {{ mdLabel(order.birthday.md) }}
-                <button v-if="canEditBirthday" class="ml-1 text-brand-700 underline" @click="openBirthday">แก้</button>
+          <div class="card flex min-w-0 flex-col">
+            <div class="flex min-w-0 gap-3">
+              <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-600 text-lg font-semibold text-white">{{ initial(customer?.name) }}</span>
+              <div class="min-w-0 flex-1">
+                <div class="text-xs text-stone-500">ลูกค้า</div>
+                <div class="truncate font-semibold text-stone-900">{{ customer?.name }}</div>
+                <div v-if="customer?.line" class="truncate text-sm text-stone-500">LINE {{ customer.line }}</div>
+                <div v-if="customer?.note" class="mt-1 text-sm break-words text-stone-500">{{ customer.note }}</div>
+                <div v-if="order.birthday" class="mt-1 text-sm break-words text-stone-600">
+                  วันเกิด {{ order.birthday.name }} · {{ mdLabel(order.birthday.md) }}
+                  <button v-if="canEditBirthday" class="ml-1 text-brand-700 underline" @click="openBirthday">แก้</button>
+                </div>
               </div>
-              <button v-else-if="canEditBirthday" class="mt-1 text-sm text-brand-700 underline lg:py-1.5" @click="openBirthday">+ เพิ่มวันเกิด</button>
-              <button v-if="can('changeBuyer') && order.status !== 'cancelled'" class="mt-1 block text-sm text-brand-700 underline lg:py-1.5" @click="buyerOpen = true">เปลี่ยนผู้ซื้อ</button>
-              <button v-if="can('createOrder') && order.status !== 'draft' && order.channel !== 'pos'" class="mt-1 block text-sm text-brand-700 underline lg:py-1.5" @click="linkOpen = true">ส่งลิงก์ให้ลูกค้า</button>
-              <button v-if="can('taxInvoice') && t.vatMode && order.status !== 'draft' && order.status !== 'cancelled'" class="mt-1 block text-sm text-brand-700 underline lg:py-1.5" @click="taxOpen = true">ใบกำกับภาษีเต็มรูป</button>
+              <a
+                v-if="customer?.phone"
+                :href="`tel:${phoneDigits(customer.phone)}`"
+                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700"
+                :aria-label="`โทร ${formatPhone(customer.phone)}`"
+              ><AppIcon name="phone" /></a>
             </div>
-            <a
-              v-if="customer?.phone"
-              :href="`tel:${phoneDigits(customer.phone)}`"
-              class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700"
-              :aria-label="`โทร ${formatPhone(customer.phone)}`"
-            ><AppIcon name="phone" /></a>
+            <!-- การกระทำของลูกค้า/เอกสาร: ปุ่มชิปแถวเดียว (เดิมเป็นลิงก์ข้อความเรียงลง 4 บรรทัด แตะยากและกินความสูง) -->
+            <div v-if="custActions.length" class="mt-auto flex flex-wrap gap-1.5 pt-3" role="group" aria-label="จัดการลูกค้าและเอกสาร">
+              <button v-for="a in custActions" :key="a.key" type="button" class="inline-flex h-9 items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-brand-700 hover:border-brand-200 hover:bg-brand-50" @click="a.run">
+                <AppIcon :name="a.icon" :size="15" /> {{ a.label }}
+              </button>
+            </div>
           </div>
 
           <div class="card flex min-w-0 gap-3">
@@ -369,7 +385,7 @@ async function saveCancel() {
                 <div v-if="order.detail" class="break-words">รายละเอียด: {{ order.detail }}</div>
                 <a v-if="mapHref" :href="mapHref" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-brand-700 underline"><AppIcon name="pin" :size="14" /> เปิดแผนที่</a>
               </div>
-              <button v-if="canEditDelivery" class="mt-1 block text-sm text-brand-700 underline lg:py-1.5" @click="openDelivery">แก้ข้อมูลจัดส่ง</button>
+              <button v-if="canEditDelivery" type="button" class="mt-2 inline-flex h-9 items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3 text-sm font-medium whitespace-nowrap text-brand-700 hover:border-brand-200 hover:bg-brand-50" @click="openDelivery"><AppIcon name="edit" :size="15" /> แก้ข้อมูลจัดส่ง</button>
               <div class="mt-1.5 text-xs text-stone-400">วันเดียวกันมีอีก {{ load.day }} · ชั่วโมงเดียวกัน {{ load.hour }}</div>
             </div>
             <button v-if="canEditPickup" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700" aria-label="แก้วันเวลานัด" @click="pickupOpen = true"><AppIcon name="edit" /></button>
