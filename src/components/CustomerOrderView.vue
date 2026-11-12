@@ -203,6 +203,13 @@ async function cancelOptOut() {
   else { pc.ok = 'ยกเลิกคำขอแล้ว'; if (r.stale) staleNote.value = true; emit('refresh') }
 }
 const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' && o.value.balance > 0)
+// ราคาก่อนลด = ยอดรวมหลังลด + ส่วนลด (ถ้า VAT แยกนอก ส่วนลดต้องคูณ VAT ด้วย)
+const beforeDiscount = computed(() => {
+  const d = Number(o.value.discountTotal) || 0
+  if (!d) return 0
+  const k = o.value.vatMode === 'exclusive' ? 1 + (Number(o.value.vatRate) || 0) / 100 : 1
+  return Math.round((Number(o.value.total) + d * k) * 100) / 100
+})
 </script>
 
 <template>
@@ -314,6 +321,7 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
     <!-- ยอด -->
     <section class="card">
       <div v-if="o.discountTotal || (o.delivery && o.delivery.shippingFee)" class="space-y-1.5 text-stone-500">
+        <div v-if="o.discountTotal" class="flex justify-between"><span>ราคาก่อนลด</span><span>{{ money(beforeDiscount) }}</span></div>
         <div v-if="o.discountTotal" class="flex justify-between"><span>ส่วนลดรวม</span><span class="text-rose-600">-{{ money(o.discountTotal) }}</span></div>
         <div v-if="o.delivery && o.delivery.shippingFee" class="flex justify-between"><span>ค่าจัดส่ง</span><span>{{ money(o.delivery.shippingFee) }}</span></div>
       </div>
