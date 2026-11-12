@@ -527,11 +527,16 @@ function quote() {
             <button class="btn-primary flex-1" :disabled="!!saveBlock || saving" @click="submit(false)">{{ saving ? 'กำลังบันทึก…' : 'บันทึก · รอชำระ' }}</button>
           </template>
           <template v-else>
-            <label class="flex w-full items-center gap-2 text-sm text-stone-700 sm:w-auto"><input v-model="notifyCustomer" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าเมื่อบันทึก·รอชำระ</label>
-            <SmsTick v-model="smsToo" :customer="customer" :show="notifyCustomer" :class="'w-full'" />
-            <p class="w-full text-xs text-stone-600"><b>บันทึกร่าง</b> = เก็บไว้ก่อน ยังไม่ส่งให้ลูกค้า · <b>บันทึก · รอชำระ</b> = เริ่มรับออร์เดอร์ รอลูกค้าชำระเงิน</p>
-            <button class="btn-outline flex-1 sm:ml-auto sm:flex-none" :disabled="saving" @click="submit(true)">บันทึกร่าง</button>
-            <button class="btn-primary flex-[1.4] sm:flex-none" :disabled="saving" @click="submit(false)">{{ saving ? 'กำลังบันทึก…' : 'บันทึก · รอชำระ' }}</button>
+            <!-- แถวเดียวบนจอกว้าง: ย้อนกลับ · ตัวเลือกแจ้งลูกค้า · ปุ่มบันทึก (มือถือเรียงลงมา) -->
+            <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-stone-700">
+              <label class="inline-flex min-h-9 items-center gap-2"><input v-model="notifyCustomer" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าเมื่อบันทึก·รอชำระ</label>
+              <SmsTick v-model="smsToo" :customer="customer" :show="notifyCustomer" />
+            </div>
+            <div class="grid w-full grid-cols-[1fr_1.4fr] gap-2 sm:flex sm:w-auto sm:shrink-0">
+              <button class="btn-outline sm:min-w-32" :disabled="saving" @click="submit(true)">บันทึกร่าง</button>
+              <button class="btn-primary sm:min-w-44" :disabled="saving" @click="submit(false)">{{ saving ? 'กำลังบันทึก…' : 'บันทึก · รอชำระ' }}</button>
+            </div>
+            <p class="w-full text-xs leading-relaxed text-stone-500"><b class="font-semibold text-stone-700">บันทึกร่าง</b> = เก็บไว้ก่อน ยังไม่ส่งให้ลูกค้า · <b class="font-semibold text-stone-700">บันทึก · รอชำระ</b> = เริ่มรับออร์เดอร์ รอลูกค้าชำระเงิน</p>
           </template>
         </template>
       </div>
