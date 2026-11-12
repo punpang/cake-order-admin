@@ -800,7 +800,7 @@ export function customerRequestPhotoOptOut(ctx, note = '') {
   const req = { id: uid('pr'), orderId: o.id, customerId: o.customerId, status: 'pending', note: String(note ?? '').trim().slice(0, 300), createdAt: now(), decidedAt: null, decidedBy: null, decisionNote: '' }
   db.photoRequests.unshift(req)
   o.photoConsent = { status: 'requested', requestedAt: req.createdAt, note: req.note, history: [...(o.photoConsent?.history || []), { at: req.createdAt, text: 'ลูกค้าขอไม่ให้ใช้รูปเผยแพร่' }] }
-  log(o, 'ลูกค้าขอไม่ให้ใช้รูปงานเผยแพร่ (รอร้านตรวจสอบ · ระงับการแสดงบนเว็บชั่วคราว)')
+  log(o, 'ลูกค้าขอไม่ให้ใช้รูปงานเผยแพร่ (รอร้านตรวจสอบ · ระงับการแสดงบนเว็บชั่วคราว)', { team: false })
   notify('team_photo_optout', { vars: orderVars(o), orderId: o.id })
   return { ok: true, request: req }
 }
@@ -957,8 +957,10 @@ export function priceItem(item, dateStr) {
   return { ...item, ...priceDetail(item, db.optionGroups, db.retailItems, activeListsAt(dateStr), db.bundles) }
 }
 
-function log(order, text) {
+// บันทึกการเปลี่ยนแปลงออร์เดอร์ + แจ้งทีมทาง Telegram (team:false = เหตุการณ์นั้นมีข้อความทีมเฉพาะอยู่แล้ว ไม่ส่งซ้ำ)
+function log(order, text, { team = true } = {}) {
   order.history.push({ at: now(), text, by: session.role })
+  if (team) notifyOrderChange(order, text)
 }
 
 // ฟิลด์จัดส่งของออร์เดอร์ (รับหน้าร้าน = ว่างหมด) · url ที่ไม่ผ่านตรวจถูกตัดทิ้ง
@@ -1009,7 +1011,7 @@ export function createOrder(payload, asDraft = false) {
     history: [],
     createdAt: now(),
   }
-  log(o, asDraft ? 'สร้างออร์เดอร์ (ร่าง)' : 'สร้างออร์เดอร์ → รอชำระ')
+  log(o, asDraft ? 'สร้างออร์เดอร์ (ร่าง)' : 'สร้างออร์เดอร์ → รอชำระ', { team: false })
   db.orders.unshift(o)
   if (o.fulfillment === 'delivery') rememberPlaceOf(o.customerId, o)
   if (!asDraft) notifyOrder('order_created', o, { skip: payload.notify === false, noSms: payload.sms === false })
@@ -1026,7 +1028,8 @@ export function setStatus(order, status, text, opts = {}) {
   if (isShip && SHIP_FROM[status] && order.status !== SHIP_FROM[status]) return
   const prev = order.status
   order.status = status
-  log(order, text)
+  // ชำระแล้ว/ยกเลิก/ร่างไปรอชำระ มีข้อความทีมเฉพาะอยู่แล้ว (team_payment_confirmed, team_cancelled, team_new_order)
+  log(order, text, { team: !(['payment_confirmed', 'cancelled'].includes(status) || prev === 'draft') })
   if (status === 'delivered') order.deliveredAt = now()
   if (status === 'delivered') awardOrderRemote(order)
   const skip = opts.notify === false
@@ -1114,7 +1117,7 @@ export function confirmPayment(order, paymentId, data = null) {
   p.status = 'confirmed'
   p.confirmedBy = session.role
   p.confirmedAt = now()
-  log(order, `ยืนยันชำระ ${money(p.amount)}${p.amount !== p.requested ? ` (แจ้ง ${money(p.requested)})` : ''}`)
+  log(order, `ยืนยันชำระ ${money(p.amount)}${p.amount !== p.requested ? ` (แจ้ง ${money(p.requested)})` : ''}`, { team: false })
   if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
   notifyOrder('payment_confirmed', order, { skip: data?.notify === false, noSms: data?.sms === false, paid: p.amount })
   return { ok: true }
@@ -1131,7 +1134,7 @@ export function receivePaymentNow(order, p) {
     id: uid('pay'), code: numbering.next('PAY'), requested: amount, amount, method: p.method, paidAt: p.paidAt || now(), slip: p.slip || '', note: p.note || '',
     dueAt: '', extension: null, createdAt: now(), status: 'confirmed', source: 'direct', reportedBy: session.role, confirmedBy: session.role, confirmedAt: now(),
   })
-  log(order, `รับชำระทันที ${money(amount)} (${p.method})`)
+  log(order, `รับชำระทันที ${money(amount)} (${p.method})`, { team: false })
   if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
   notifyOrder('payment_confirmed', order, { skip: p.notify === false, noSms: p.sms === false, paid: amount })
   return { ok: true }
@@ -1143,7 +1146,7 @@ const canConfirmUnpaid = (o) => ['awaiting_payment', 'payment_reported'].include
 export function requestConfirmUnpaid(order, note = '') {
   if (!can('requestConfirmUnpaid') || !canConfirmUnpaid(order) || order.approval?.status === 'pending') return false
   order.approval = { status: 'pending', by: session.role, at: now(), note: String(note).trim().slice(0, 200) }
-  log(order, `ขออนุมัติยืนยันการสั่งซื้อ (ยังไม่ชำระ)${order.approval.note ? ` · ${order.approval.note}` : ''}`)
+  log(order, `ขออนุมัติยืนยันการสั่งซื้อ (ยังไม่ชำระ)${order.approval.note ? ` · ${order.approval.note}` : ''}`, { team: false })
   notify('team_approval_request', { vars: orderVars(order), orderId: order.id })
   return true
 }
@@ -1168,7 +1171,7 @@ export function requestPayExtension(order, paymentId, note = '') {
   const p = order.payments.find((x) => x.id === paymentId)
   if (!p || p.status !== 'reported' || dueState(p) !== 'overdue' || p.extension?.status === 'pending') return false
   p.extension = { status: 'pending', at: now(), note: String(note).trim().slice(0, 200) }
-  log(order, 'ลูกค้าขอขยายเวลาชำระ')
+  log(order, 'ลูกค้าขอขยายเวลาชำระ', { team: false })
   notify('team_pay_extend_request', { vars: { ...orderVars(order), ชำระก่อน: dueText(p.dueAt) }, orderId: order.id })
   return true
 }
@@ -1967,7 +1970,7 @@ export function customerPay(ctx, { amount, slip, note = '', paymentId = null, tx
     p = { id: uid('pay'), code: numbering.next('PAY'), requested: amt, amount: amt, method: 'โอนเงิน', slip, note: nt, dueAt: '', extension: null, status: 'reported', source: 'customer', customerSubmitted: true, submittedAt: now(), createdAt: now(), reportedBy: 'customer', confirmedBy: null, ...txnFields }
     o.payments.push(p)
   }
-  log(o, `ลูกค้าแจ้งชำระ ${money(amt)} ผ่านหน้าออร์เดอร์ (รอตรวจสลิป)`)
+  log(o, `ลูกค้าแจ้งชำระ ${money(amt)} ผ่านหน้าออร์เดอร์ (รอตรวจสลิป)`, { team: false })
   if (o.status === 'awaiting_payment') o.status = 'payment_reported'
   notify('team_customer_paid', { vars: { ...orderVars(o), ยอดที่แจ้ง: money(amt) }, orderId: o.id })
   return { ok: true, paymentId: p.id }
@@ -2418,6 +2421,24 @@ function deliverTg(row, text, kind, parseMode = '') {
   if (!tgHook.send) return
   row.status = 'sending'
   tgHook.send(text, kind, parseMode).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
+}
+// การเปลี่ยนแปลงออร์เดอร์ → ทีม (Telegram) · บิลหน้าร้าน (POS) ไม่แจ้ง ตามกฎเดิม · ไม่มีตัวส่ง/ปิดช่อง = ข้าม
+function notifyOrderChange(order, text) {
+  if (order.channel === 'pos' || !tgHook.send || !db.integrations.telegram.enabled) return
+  const c = findCustomer(order.customerId)
+  const t = orderTotals(order)
+  const who = db.users.find((x) => x.id === session.userId)?.name || ''
+  const body = [
+    `🔄 <b>อัปเดตออร์เดอร์ ${escapeHtml(order.code)}</b>`,
+    '━━━━━━━━━━━━━━',
+    `📝 ${escapeHtml(text)}`,
+    `👤 <b>${escapeHtml(c?.name || '-')}</b>${c?.phone ? ` · <code>${escapeHtml(formatPhone(c.phone))}</code>` : ''}`,
+    `📅 นัด${order.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน'} ${escapeHtml(dateOnly(order.pickupAt))} เวลา ${escapeHtml(timeOnly(order.pickupAt))}`,
+    `💰 ยอดรวม <b>${escapeHtml(money(t.total))}</b> · ⏳ คงค้าง <b>${escapeHtml(money(Math.max(t.balance, 0)))}</b>`,
+    `📌 สถานะ: ${escapeHtml(STATUS[order.status]?.label || order.status)}`,
+    `🕒 ${escapeHtml(dateOnly(now()))} ${escapeHtml(timeOnly(now()))}${who ? ` · โดย ${escapeHtml(who)}` : ''}`,
+  ].join('\n')
+  pushOut('order_change', 'telegram', 'กลุ่มทีม', body, order.id, null, { parseMode: 'HTML' })
 }
 // ---------- กระดิ่งแจ้งเตือนในแอป ----------
 function bellPush(item) {
@@ -3111,7 +3132,7 @@ export function receiveChatSlip(chatId, msgId, orderId, data = {}) {
   }
   order.payments.push(pay)
   if (['awaiting_payment', 'payment_reported'].includes(order.status)) order.status = 'payment_confirmed'
-  log(order, `รับชำระจากสลิปในแชท (QR) ${money(amount)} (${pay.method})`)
+  log(order, `รับชำระจากสลิปในแชท (QR) ${money(amount)} (${pay.method})`, { team: false })
   m.slipCheck = { ...s, status: 'received', orderId: order.id, orderCode: order.code, paymentId: pay.id, boundBy: session.role, at: stamp }
   notifyOrder('payment_confirmed', order, { skip: data.notify === false, noSms: data.sms === false, paid: amount })
   return { ok: true, code: pay.code }
