@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { db, session, can, switchUser, unreadChats, runScheduledChecks, orderVisible } from './data/store'
 import { paymentCounts } from './lib/paymentsQueue'
@@ -23,6 +23,9 @@ import StoreLayout from './components/StoreLayout.vue'
 const roleOpen = ref(false)
 // 4 ระบบหลังบ้าน (lib/adminSystems.js): ตัวสลับระบบ + เมนูย่อยของระบบปัจจุบัน
 const route = useRoute()
+// ชื่อร้านจากตั้งค่าร้าน (ไม่ฝังชื่อไว้ในโค้ด) · แท็บเบราว์เซอร์แสดงตามชื่อร้านด้วย
+const shopName = computed(() => (db.shop.name || '').trim() || 'ร้านของคุณ')
+watchEffect(() => { document.title = `ระบบหลังบ้าน ${shopName.value}` })
 // เปลี่ยนหน้า (SPA) → ย้ายโฟกัสไปเนื้อหา ให้ผู้ใช้แป้นพิมพ์/โปรแกรมอ่านหน้าจอเริ่มจากหน้าใหม่
 // (ข้ามการนำทางครั้งแรกตอนโหลดหน้า เพื่อไม่ให้ข้ามลิงก์ "ข้ามไปเนื้อหาหลัก")
 const appRouter = useRouter()
@@ -72,9 +75,9 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
   <!-- แถบบน -->
   <header v-show="!kbLock" class="sticky top-0 z-20 bg-cream/90 shadow-[0_1px_0_rgb(63_46_46/0.06)] backdrop-blur-xl">
     <div class="mx-auto flex h-14 max-w-page items-center gap-3 px-4 lg:px-8">
-      <RouterLink :to="firstHome(can)" class="flex min-w-0 items-center gap-2.5" aria-label="ร้านเค้ก หน้าแรกหลังบ้าน">
+      <RouterLink :to="firstHome(can)" class="flex min-w-0 items-center gap-2.5" :aria-label="`${shopName} หน้าแรกหลังบ้าน`">
         <svg viewBox="0 0 48 48" class="h-10 w-10 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2" stroke-linejoin="round"><ellipse cx="24" cy="40" rx="18" ry="4" fill="#fff" /><rect x="9" y="22" width="30" height="16" rx="4" fill="#ffd05c" /><path d="M8 22c0-7 7-10 16-10s16 3 16 10c-3 3-5 0-8 3s-5 0-8 3-5 0-8-3-5 0-8-3z" fill="#ff8fa6" /><circle cx="24" cy="9" r="4" fill="#e0314f" /></svg>
-        <span class="hidden truncate font-display text-xl text-brand-700 sm:inline">ร้านเค้ก</span>
+        <span class="hidden truncate font-display text-xl text-brand-700 sm:inline">{{ shopName }}</span>
       </RouterLink>
 
       <SystemSwitcher :systems="systems" :current="current" />
