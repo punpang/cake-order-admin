@@ -82,12 +82,12 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
 
       <SystemSwitcher :systems="systems" :current="current" />
 
-      <nav v-if="items.length > 1" class="ml-1 hidden min-w-0 gap-0.5 overflow-x-auto [scrollbar-width:none] md:flex lg:gap-1" aria-label="เมนูของระบบ">
+      <nav v-if="items.length > 1" class="ml-1 hidden min-w-0 gap-1 overflow-x-auto [scrollbar-width:none] lg:flex" aria-label="เมนูของระบบ">
         <RouterLink
           v-for="i in items"
           :key="i.to"
           :to="i.to"
-          class="relative rounded-full px-2 py-1.5 text-sm font-medium whitespace-nowrap text-stone-600 hover:bg-white lg:px-3.5"
+          class="relative rounded-full px-3 py-1.5 text-sm font-medium whitespace-nowrap text-stone-600 hover:bg-white xl:px-3.5"
           :active-class="i.exact ? '' : 'bg-white text-brand-700 shadow-sm'"
           :exact-active-class="i.exact ? 'bg-white text-brand-700 shadow-sm' : ''"
         >
@@ -111,15 +111,15 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     tabindex="-1"
     class="mx-auto max-w-page outline-none px-4 lg:px-8"
     :style="lockStyle"
-    :class="$route.meta.lock ? ['fixed inset-x-0 overflow-hidden', kbLock ? 'px-0! pt-0 pb-0' : 'pt-3', kbLock ? '' : $route.meta.focus || !navShow ? 'pb-[calc(env(safe-area-inset-bottom)+0.75rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-3'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] md:pb-10', 'pt-5']"
+    :class="$route.meta.lock ? ['fixed inset-x-0 overflow-hidden', kbLock ? 'px-0! pt-0 pb-0' : 'pt-3', kbLock ? '' : $route.meta.focus || !navShow ? 'pb-[calc(env(safe-area-inset-bottom)+0.75rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)] lg:pb-3'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] lg:pb-10', 'pt-5']"
   >
     <RouterView :key="$route.fullPath" />
   </main>
 
-  <!-- แถบเมนูล่าง (มือถือ) -->
+  <!-- แถบเมนูล่าง (มือถือ + แท็บเล็ตแนวตั้ง < lg): แถบบนไม่พอวางเมนูย่อยทั้งหมดจนกว่าจะกว้าง 1024px -->
   <nav
     v-if="navShow"
-    class="fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_rgb(63_46_46/0.10)] backdrop-blur-xl md:hidden"
+    class="fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_rgb(63_46_46/0.10)] backdrop-blur-xl lg:hidden"
     aria-label="เมนูล่าง"
   >
     <div class="mx-auto grid h-16 max-w-md items-center" :style="{ gridTemplateColumns: `repeat(${bottomCols}, minmax(0, 1fr))` }">

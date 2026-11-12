@@ -215,7 +215,7 @@ async function save() {
     </ul>
 
     <!-- แถบบันทึก -->
-    <div class="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-10 mt-4 md:bottom-3 rounded-2xl border border-stone-200 bg-white/95 p-3 shadow-lg backdrop-blur">
+    <div class="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-10 mt-4 rounded-2xl lg:bottom-3 border border-stone-200 bg-white/95 p-3 shadow-lg backdrop-blur">
       <p v-if="err" class="mb-2 text-sm font-medium text-rose-600" role="alert">{{ err }}</p>
       <p v-else-if="msg" class="mb-2 text-sm font-medium text-emerald-700" role="status">{{ msg }}</p>
       <div class="flex flex-wrap items-center justify-end gap-2">
