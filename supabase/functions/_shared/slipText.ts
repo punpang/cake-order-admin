@@ -18,9 +18,10 @@ const pad = (n: number) => String(n).padStart(2, '0')
 
 // วัน-เวลาทำรายการ เช่น "13 พ.ย. 2569 - 01:28" หรือ "12 พ.ย. 69 11:52" (ปี พ.ศ. 2 หลัก = 25xx)
 export function parseThaiDateTime(text: string): string | null {
-  const m = text.match(/(\d{1,2})\s*(ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.)\s*(\d{4}|\d{2})\s*[-–]?\s*(\d{1,2}):(\d{2})/)
+  // วันที่: OCR มักอ่านเลข 1 เป็น l/I/| และ 0 เป็น O/o จึงแก้ตัวอักษรที่หน้าตาคล้ายตัวเลขก่อนแปลงวัน
+  const m = text.match(/([0-9lI|iOo]{1,2})\s*(ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.)\s*(\d{4}|\d{2})\s*[-–]?\s*(\d{1,2}):(\d{2})/)
   if (!m) return null
-  const day = Number(m[1])
+  const day = Number(m[1].replace(/[lI|i]/g, '1').replace(/[Oo]/g, '0'))
   const month = MONTHS[m[2]]
   let year = Number(m[3])
   if (year < 100) year += 2500

@@ -4,7 +4,7 @@ import { parseAmount, parseThaiDateTime, parseSlipText } from './slipText.ts'
 
 const SLIP_OK = 'รหัสอ้างอิง A7cb57\nไปยัง\nผู้รับตัวอย่าง\nพร้อมเพย์\nXXX XXX 3402\nจำนวนเงิน 1.00 บาท\nค่าธรรมเนียม 0.00 บาท\nวันที่ทํารายการ 13 พ.ย. 2569 - 01:28'
 const SLIP_BE2 = 'ทำรายการสำเร็จ\n12 พ.ย. 69 11:52\nจำนวนเงิน 24 un\nค่าธรรมเนียม 0 บาท'
-const SLIP_BROKEN_DATE = 'จำนวนเงิน 40 unn\nll พ.ย. 69 15:49'
+const SLIP_BROKEN_DATE = 'จำนวนเงิน 40 unn\nw.g. พ.ย. 69 15:49'
 
 Deno.test('ยอดเงิน: อ่านจากบรรทัดจำนวนเงิน ไม่เอาค่าธรรมเนียม', () => {
   assertEquals(parseAmount(SLIP_OK), 1)
@@ -20,7 +20,8 @@ Deno.test('วัน-เวลา: ปี พ.ศ. 4 หลักและ 2 ห
 
 Deno.test('วัน-เวลา: เดือนหรือวันที่อ่านไม่ได้ → null (ให้พนักงานตรวจ)', () => {
   assertEquals(parseThaiDateTime('ll w.g. 69 20:24'), null)
-  assertEquals(parseThaiDateTime('ll พ.ย. 69 15:49'), null)
+  assertEquals(parseThaiDateTime('ll พ.ย. 69 15:49'), '2026-11-11T15:49') // l = 1 (OCR)
+  assertEquals(parseThaiDateTime('ll พ.ย. 69 15:49x'), '2026-11-11T15:49')
   assertEquals(parseThaiDateTime('31 ก.พ. 2569 10:00'), null)
 })
 
