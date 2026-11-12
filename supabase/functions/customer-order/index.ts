@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
         if (seen.error) return json({ error: 'ตรวจเลขอ้างอิงไม่สำเร็จ กรุณาลองใหม่' }, 500)
         if ((seen.data || []).some((r: any) => refTaken(r.data?.payments, ref))) return json({ error: PAY_MSG.refTaken }, 400)
       }
-      const ocrFields = { ...(fields?.amount != null ? { ocrAmount: fields.amount } : {}), ...(fields?.paidAt ? { ocrPaidAt: fields.paidAt } : {}) }
+      const ocrFields = { ...(fields?.amount != null ? { ocrAmount: fields.amount } : {}), ...(fields?.paidAt ? { ocrPaidAt: fields.paidAt } : {}), ...(fields?.receiverName ? { ocrReceiverName: fields.receiverName } : {}), ...(fields?.receiverAccount ? { ocrReceiverAccount: fields.receiverAccount } : {}) }
       const txnFields = { ...ocrFields, paidAt, bankCode: bankCode || null, bankName: bankCode ? (bankByCode(bankCode)?.name ?? null) : null, ref: ref || '', refSource: qr.kind === 'slip' ? 'qr' : (ref ? 'typed' : '') }
       const note = String(b.note ?? '').trim().slice(0, PAY.noteMax)
       const pid = b.paymentId ? String(b.paymentId) : ''

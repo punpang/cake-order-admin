@@ -139,7 +139,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     await annotate(sb, chatId, msgId, {
       status: 'manual', ...(suggestedId ? { orderId: suggestedId, orderCode: sugCode } : {}),
       slipRef: `sb://punpang-slips/${path}`, slipKey: key, bankCode, ...(bankName ? { bankName } : {}), ref, at: now.toISOString(),
-      ...(fields?.amount != null ? { ocrAmount: fields.amount } : {}), ...(fields?.paidAt ? { ocrPaidAt: fields.paidAt } : {}),
+      ...(fields?.amount != null ? { ocrAmount: fields.amount } : {}), ...(fields?.paidAt ? { ocrPaidAt: fields.paidAt } : {}), ...(fields?.receiverName ? { ocrReceiverName: fields.receiverName } : {}), ...(fields?.receiverAccount ? { ocrReceiverAccount: fields.receiverAccount } : {}),
     })
     const amountNote = fields?.amount != null ? ` · ยอดจากสลิป ${fields.amount.toFixed(2)}` : ''
     await bell(sb, {
