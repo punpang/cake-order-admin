@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { db, moveItem } from '../../data/store'
-import { bahtText, bundleSummary } from '../../lib/bundleEditor'
+import { bahtText, bundleSummary, findDuplicate } from '../../lib/bundleEditor'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 
@@ -17,7 +17,7 @@ const ctx = computed(() => ({
   types: db.optionGroups.find((x) => x.key === 'type')?.options || [],
   styles: (db.optionGroups.find((x) => x.key === 'style')?.options || []).filter((x) => x.active !== false),
 }))
-const rows = computed(() => db.bundles.map((b) => ({ b, s: bundleSummary(b, ctx.value) })))
+const rows = computed(() => db.bundles.map((b) => ({ b, s: bundleSummary(b, ctx.value), dup: findDuplicate(b.items, db.bundles, b.id) })))
 const activeCount = computed(() => db.bundles.filter((b) => b.active !== false).length)
 const list = computed(() => {
   const s = q.value.trim().toLowerCase()
@@ -92,6 +92,7 @@ const copy = (b) => router.push({ path: '/admin/settings/bundles/new', query: { 
           </dl>
           <p v-if="!r.s.hasDiscount" class="mt-2 text-xs font-medium text-amber-800">ยังไม่มีส่วนลด · ชุดนี้จะยังไม่ทำงาน</p>
           <p v-if="r.s.hasOff" class="mt-2 text-xs font-medium text-rose-700">มีตัวเลือกในชุดที่ปิดอยู่ · ลูกค้าเลือกไม่ได้</p>
+          <p v-if="r.dup" class="mt-2 text-xs font-medium text-rose-700" data-dup-warning>ตัวเลือกซ้ำกับ "{{ r.dup.name }}"{{ r.dup.active === false ? ' (ปิดอยู่)' : '' }} · ควรแก้หรือลบชุดใดชุดหนึ่ง</p>
         </RouterLink>
         <div class="flex items-center gap-1 border-t border-stone-100 px-2 py-1.5">
           <button type="button" class="btn-soft h-9 px-3 text-sm" :data-copy="r.b.id" @click="copy(r.b)">ทำสำเนา</button>

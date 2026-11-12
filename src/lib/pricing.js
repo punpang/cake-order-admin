@@ -219,6 +219,12 @@ export function bundleDiscount(bundles, picked, sizeIds, usedBundles = null, typ
   return total
 }
 
+// ยอดรวมของชุด = ราคาตัวเลือกทั้งชุด − ส่วนลด (บอกลูกค้าตอนชุดครบแทนชุดเดิมที่ลดเท่ากัน จึงไม่มีส่วนลดเพิ่ม)
+export const setTotalOf = (b, groups, typeId, sizeIds, amount) => {
+  const price = b.items.reduce((s, x) => s + optionPrice(groups.find((g) => g.id === x.groupId)?.options?.find((o) => o.id === x.optionId), typeId, sizeIds), 0)
+  return Math.max(0, Math.round((price - amount) * 100) / 100)
+}
+
 // แนะนำบันเดิ้ล: เลือกตัวเลือกในบันเดิ้ลแล้วแต่ยังไม่ครบชุด → ตัวที่ขาด + ส่วนลดที่จะได้ (ตามขนาด/ประเภทตอนนี้)
 // sels = ตัวเลือกที่เลือกอยู่ (รวมของชั้น+ทั้งก้อน) · allow(g, o|null) = กติกาเดิมของตัวตั้งค่า (ประเภท/รูปแบบตกแต่ง)
 // เสนอเฉพาะเมื่อเพิ่มได้จริง: ตัวเลือกเปิดใช้งาน ใช้กับประเภทนี้ได้ และไม่ต้องทับค่าที่เลือกไว้ (กลุ่ม multi หรือกลุ่ม single ที่ยังว่าง)
@@ -261,10 +267,14 @@ export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = []
       missing.push({ groupId: g.id, optionId: o.id, name: o.name, groupName: g.name })
     }
     if (!ok) continue
-    // จำลองหลังเลือกตัวที่ขาด: ชุดนี้ต้องเป็นชุดที่ถูกใช้จริง (ตามลำดับความสำคัญ) และส่วนลดรวมเพิ่มขึ้น
+    // จำลองหลังเลือกตัวที่ขาด: ชุดนี้ต้องเป็นชุดที่ถูกใช้จริง (ตามลำดับความสำคัญ)
+    // ส่วนลดรวมเพิ่ม = แนะนำแบบลดเพิ่ม · ส่วนลดรวมเท่าเดิม (ชุดครบแทนชุดคู่ที่ลดเท่ากัน) = แนะนำแบบยอดรวมของชุด · ลดลง = ไม่แนะนำ
     const mk = new Set(missing.map((m) => `${m.groupId}:${m.optionId}`))
     const sim = bundleWinners(allC.filter((c) => c.b.items.every((x) => has(x) || mk.has(keyOf(x)))))
-    if (sim.some((w) => w.b === b) && sum(sim) > base) out.push({ bundle: b, missing, amount })
+    const total = sum(sim)
+    if (!sim.some((w) => w.b === b)) continue
+    if (total > base) out.push({ bundle: b, missing, amount, tie: false, setTotal: null })
+    else if (total === base && b.items.length > 1) out.push({ bundle: b, missing, amount, tie: true, setTotal: setTotalOf(b, groups, typeId, sizeIds, amount) })
   }
   return out.sort((a, b) => b.amount - a.amount).slice(0, limit)
 }
@@ -277,11 +287,16 @@ const RANK = { idle: 0, partner: 1, done: 2 }
 export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: dS = [], styleId: dSt = null, allow = null, scopes = null } = {}) {
   const tags = new Map()
   const has = (x) => idsOf(sels?.[x.groupId]).includes(x.optionId)
-  const put = (x, state, amount, name, single) => {
+  const put = (x, state, amount, name, single, setTotal = null) => {
     const k = `${x.groupId}:${x.optionId}`
     const cur = tags.get(k)
-    if (!cur || RANK[state] > RANK[cur.state] || (state === cur.state && amount > cur.amount)) tags.set(k, { state, amount, names: [name], single })
-    else if (state === cur.state && amount === cur.amount && !cur.names.includes(name)) cur.names.push(name)
+    if (!cur || RANK[state] > RANK[cur.state] || (state === cur.state && amount > cur.amount)) {
+      tags.set(k, { state, amount, names: [name], single, setTotal })
+    } else if (state === cur.state && amount === cur.amount) {
+      if (!cur.names.includes(name)) cur.names.push(name)
+      // ปนกันระหว่างชุดที่ลดเพิ่มจริงกับชุดครบแบบยอดรวม → แสดงแบบลดเพิ่ม · หลายชุดแบบยอดรวม → ใช้ยอดที่ถูกที่สุด
+      cur.setTotal = cur.setTotal == null || setTotal == null ? null : Math.min(cur.setTotal, setTotal)
+    }
   }
   // 1) รวบรวมบันเดิ้ลที่ใช้ได้ + สถานะ
   const cands = []
@@ -297,7 +312,7 @@ export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: 
       return !!g && g.active !== false && !!o && o.active !== false && forType(o, typeId) && !(allow && !(allow(g, null) && allow(g, o)))
     }
     if (!b.items.every(usable)) continue
-    cands.push({ b, amount, home: b.items[0].groupId, done: b.items.every(has) })
+    cands.push({ b, amount, typeId, sizeIds, home: b.items[0].groupId, done: b.items.every(has) })
   }
   // ประตูแสดงป้าย: บันเดิ้ลตัวเลือกเดียว = เลือกครบหัวข้อหลักทุกข้อก่อน · ชุดหลายตัวเลือก = ต้องเลือกตัวใดตัวหนึ่งที่อยู่ในชุดบันเดิ้ลก่อน
   const mainGroups = groups.filter((g) => MAIN.includes(g.key) && g.active !== false && g.options?.some((o) => o.active !== false) && !(allow && !allow(g, null)))
@@ -311,10 +326,15 @@ export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: 
   const sum = (l) => l.reduce((t, x) => t + x.amount, 0)
   const doneC = cands.filter((c) => c.done)
   const base = sum(bundleWinners(doneC))
-  // จำลองหลังเลือกตัวเลือก x: ชุดที่จะถูกใช้จริง (ตามลำดับความสำคัญ) ต้องมี x และส่วนลดรวมเพิ่ม → ป้ายแสดงส่วนลดของชุดนั้น
+  // จำลองหลังเลือกตัวเลือก x: ชุดที่จะถูกใช้จริง (ตามลำดับความสำคัญ) ต้องมี x → ป้ายแสดงชุดนั้น
+  // ส่วนลดรวมเพิ่ม = ป้ายลดเพิ่ม · ส่วนลดรวมเท่าเดิม (ชุดครบแทนชุดคู่ที่ลดเท่ากัน) = ป้ายยอดรวมของชุด (ไม่บอกว่าลดเพิ่ม) · ลดลง = ไม่ติดป้าย
   const ifPicked = (xk) => {
     const sim = bundleWinners(cands.filter((c) => c.b.items.every((x) => has(x) || keyOf(x) === xk)))
-    return sum(sim) > base ? sim.find((w) => w.b.items.some((x) => keyOf(x) === xk)) || null : null
+    const w = sim.find((c) => c.b.items.some((x) => keyOf(x) === xk)) || null
+    if (!w) return null
+    const total = sum(sim)
+    if (total > base) return { w, tie: false }
+    return total === base && w.b.items.length > 1 ? { w, tie: true } : null
   }
   for (const c of cands) {
     const { b, amount } = c
@@ -325,8 +345,10 @@ export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: 
     // ตัวที่ขาดเพียงตัวเดียวและมีตัวอื่นเลือกอยู่ = "ตัวสุดท้ายที่ทำให้ครบชุด"
     const last = have.length > 0 && missing.length === 1
     for (const x of missing) {
-      const w = ifPicked(keyOf(x)) // เลือกแล้วชุดนี้ (หรือชุดที่ใหญ่กว่า) ได้ใช้จริงไหม → แสดงส่วนลดของชุดที่ใช้จริง
-      if (w) put(x, last && w.b.items.length > 1 ? 'partner' : 'idle', w.amount, w.b.name, w.b.items.length === 1)
+      const hit = ifPicked(keyOf(x)) // เลือกแล้วชุดนี้ (หรือชุดที่ใหญ่กว่า) ได้ใช้จริงไหม → แสดงส่วนลดของชุดที่ใช้จริง
+      if (!hit) continue
+      const { w, tie } = hit
+      put(x, last && w.b.items.length > 1 ? 'partner' : 'idle', w.amount, w.b.name, w.b.items.length === 1, tie ? setTotalOf(w.b, groups, w.typeId, w.sizeIds, w.amount) : null)
     }
   }
   return tags

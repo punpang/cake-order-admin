@@ -1,14 +1,31 @@
 // หน้าบันเดิ้ล (ชุดลดราคาตัวเลือก): ราคาปกติรวม ราคาหลังลด และตรวจข้อมูลก่อนบันทึก
 // ใช้ฟังก์ชันคิดราคาเดียวกับหน้าขาย (optionPrice / bundleAmount ใน pricing.js) เพื่อให้ตัวเลขในหน้านี้ตรงกับที่ลูกค้าจ่าย
-import { optionPrice, bundleAmount, isOwnStyle } from './pricing.js'
+import { optionPrice, bundleAmount, isOwnStyle, isFixed } from './pricing.js'
 import { qty } from './format.js'
 
 const EPS = 1e-9
 const num = (v) => (v == null || v === '' ? null : Number(v))
 const keyOf = (x) => `${x.groupId}:${x.optionId}`
+// ตัวเลือกชุดเดียวกัน (ไม่สนลำดับ) = ชุดเดียวกัน · ใช้ตรวจชุดซ้ำ
+export const itemSetKey = (items) => [...new Set((items || []).map(keyOf))].sort().join('|')
+// ชุดที่มีตัวเลือกชุดเดียวกันอยู่แล้ว (ไม่สนลำดับและประเภท) · excludeId = ชุดที่ไม่นับ (ชุดตัวเอง)
+export function findDuplicate(items, bundles, excludeId = null) {
+  const k = itemSetKey(items)
+  if (!k) return null
+  return (bundles || []).find((o) => o.id !== excludeId && itemSetKey(o.items) === k) || null
+}
 
 // ตัวเลือกที่ชุดอ้างถึง (ไม่พบ = undefined)
 export const findItemOption = (groups, x) => groups.find((g) => g.id === x.groupId)?.options?.find((o) => o.id === x.optionId)
+// ตัวเลือกคงที่ที่ราคา 0 ฿ ในประเภทที่ชุดใช้ได้ (ราคาหลัก หรือราคาของประเภทนั้นเป็น 0 · ยังไม่ตั้งราคาคงที่ก็นับเป็น 0 ฿)
+// กติกา: บันเดิ้ลที่มีตัวเลือกราคา 0 ฿ สร้างไม่ได้ เพราะเพิ่มตัวเลือกนี้เข้าชุดแล้วราคาไม่เพิ่ม จึงไม่มีช่องให้ลดชุดนี้
+export function freeNamesOf(items, groups, typeIds) {
+  const names = (items || [])
+    .map((x) => findItemOption(groups, x))
+    .filter((o) => o && isFixed(o) && typeIds.some((t) => optionPrice(o, t, []) === 0))
+    .map((o) => o.name)
+  return [...new Set(names)]
+}
 
 // เงินแบบสั้นสำหรับการ์ดและข้อความเตือน: 50 ฿ · 1,234.5 ฿
 export const bahtText = (n) => `${qty(n)} ฿`
@@ -56,9 +73,9 @@ export function makeDraft(src, styles = [], types = []) {
 }
 
 // ตรวจชุดก่อนบันทึก · errors = ต้องแก้ก่อนบันทึก · warnings = บันทึกได้แต่ควรดู · info = ข้อมูลประกอบ
-// ctx = { groups, sizes, types (ทุกประเภท · ประเภทที่ปิดอยู่ถูกข้ามเอง), styles, bundles }
+// ctx = { groups, sizes, types (ทุกประเภท · ประเภทที่ปิดอยู่ถูกข้ามเอง), styles, bundles, original (ชุดที่บันทึกไว้ · ไม่มี = ชุดใหม่) }
 export function checkBundle(b, ctx = {}) {
-  const { groups = [], sizes = [], types = [], styles = [], bundles = [] } = ctx
+  const { groups = [], sizes = [], types = [], styles = [], bundles = [], original = null } = ctx
   const errors = []
   const warnings = []
   const info = []
@@ -67,10 +84,24 @@ export function checkBundle(b, ctx = {}) {
   const activeIds = types.filter((t) => t.active !== false).map((t) => t.id)
 
   if (!items.length) errors.push('เลือกตัวเลือกอย่างน้อย 1 อย่าง')
+  // ห้ามสร้างชุดซ้ำ: ชุดใหม่ หรือแก้ตัวเลือกจนไปซ้ำกับชุดอื่น · ชุดเดิมที่ซ้ำอยู่แล้วแก้ส่วนอื่นได้ตามปกติ
+  if (items.length) {
+    const dup = findDuplicate(items, bundles, b.id ?? null)
+    if (dup && (!original || itemSetKey(original.items) !== itemSetKey(items))) {
+      errors.push(`ซ้ำกับบันเดิ้ล "${dup.name}"${dup.active === false ? ' (ปิดอยู่)' : ''} — มีตัวเลือกชุดเดียวกันแล้ว แก้ชุดเดิมแทน หรือเปลี่ยนตัวเลือกให้ต่างกัน`)
+    }
+  }
 
   // ประเภทที่ชุดนี้ใช้ได้จริง (ว่าง = ทุกประเภทที่เปิดใช้งาน) · ส่วนลดต้องไม่เกินราคาปกติของทุกประเภทที่ใช้ได้
   const picked = b.types?.length ? b.types.filter((id) => activeIds.includes(id)) : activeIds
   const scopes = picked.length ? picked : [null]
+  // ตัวเลือก 0 ฿ → บันเดิ้ลที่มีตัวเลือกนี้สร้างไม่ได้ · ชุดเดิมที่มีอยู่แล้วแก้ส่วนอื่นได้ (มีคำเตือน) แต่เปลี่ยนตัวเลือกให้มีตัวเลือก 0 ฿ ไม่ได้
+  const free = freeNamesOf(items, groups, scopes)
+  if (free.length && (!original || itemSetKey(original.items) !== itemSetKey(items))) {
+    errors.push(`มีตัวเลือกราคา 0 ฿ (${free.join(', ')}) — บันเดิ้ลที่มีตัวเลือกนี้สร้างไม่ได้ เอาตัวเลือกนี้ออกจากชุด หรือตั้งราคาตัวเลือกนี้ก่อน`)
+  } else if (free.length) {
+    warnings.push(`มีตัวเลือกราคา 0 ฿ (${free.join(', ')}) — ชุดนี้สร้างไว้ก่อนกติกานี้ ควรเอาตัวเลือกนี้ออก หรือตั้งราคาตัวเลือกนี้`)
+  }
   if (items.length) {
     const over = []
     for (const sz of sizes) {

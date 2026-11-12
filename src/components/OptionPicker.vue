@@ -75,8 +75,9 @@ function pick(groupId, optionId, required) {
 
 const tags = computed(() => bundleTags(props.bundles, props.allGroups || props.groups, { ...props.context, ...selections.value }, { typeId: props.typeOpt?.id || null, sizeIds: props.sizeIds, allow: props.allow, scopes: props.scopes }))
 const tagOf = (g, o) => tags.value.get(`${g.id}:${o.id}`) || null
-// ป้าย: ยังไม่ได้ลดจริง (ต้องเลือกเพิ่ม) = สีส้ม "เลือกเพิ่ม → -x฿" · ได้ลดแล้ว = สีเขียวทึบ "✓ ลดแล้ว -x฿" · ตัวที่เลือกไว้แล้วแต่ยังไม่ครบชุดไม่ติดป้าย
-const tagText = (t) => (t.state === 'done' ? `✓ ลดแล้ว -${num(t.amount)}฿` : `เลือกเพิ่ม → -${num(t.amount)}฿`)
+// ป้าย: ยังไม่ได้ลดจริง (ต้องเลือกเพิ่ม) = สีส้ม "เลือกเพิ่ม → -x฿" · ชุดครบแทนชุดเดิมที่ลดเท่ากัน = "เลือกเพิ่ม → ครบชุดรวม x฿" (ไม่ได้ลดเพิ่ม) · ได้ลดแล้ว = สีเขียวทึบ "✓ ลดแล้ว -x฿" · ตัวที่เลือกไว้แล้วแต่ยังไม่ครบชุดไม่ติดป้าย
+const tagText = (t) =>
+  t.state === 'done' ? `✓ ลดแล้ว -${num(t.amount)}฿` : t.setTotal != null ? `เลือกเพิ่ม → ครบชุดรวม ${num(t.setTotal)}฿` : `เลือกเพิ่ม → -${num(t.amount)}฿`
 const isLocked = (g, o) => !!props.locked?.has(`${g.id}:${o.id}`)
 const isOn = (g, o) =>
   g.type === 'multi' ? (selections.value[g.id] || []).includes(o.id) : selections.value[g.id] === o.id
