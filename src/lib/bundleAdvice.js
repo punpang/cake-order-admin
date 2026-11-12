@@ -1,7 +1,7 @@
 // คำแนะนำบันเดิ้ล: บันเดิ้ลทางเลือกจากตัวเลือกที่เลือก และราคาที่แนะนำพร้อมเหตุผล
 // ลำดับความสำคัญ: 1) ลดน้อยที่สุดที่ยังจูงใจ (รายได้เสียน้อย) 2) สมดุลราคา (บังคับ ตรวจเป็นบาทจริงทุกขนาด): ชุดใหญ่ต้องคิดเงินมากกว่าทุกชุดย่อย
 // และน้อยกว่าชุดใหญ่ที่มีอยู่ทุกชุด 3) เป็นธรรม: ชุดใหญ่ลดมากกว่าชุดย่อยเป็นขั้นละ 5% 4) อ่านง่าย: เปอร์เซ็นต์เดียวกันทุกขนาด ปัดเป็นบาทเต็ม
-import { autoBundleName, bahtText, effectiveDiscount, findDuplicate, findItemOption, itemSetKey, percentOf, regularTotal } from './bundleEditor.js'
+import { autoBundleName, bahtText, effectiveDiscount, findDuplicate, findItemOption, freeNamesOf, itemSetKey, percentOf, regularTotal } from './bundleEditor.js'
 import { isFixed } from './pricing.js'
 
 export const STEP = 5 // ขั้นการปรับของเปอร์เซ็นต์
@@ -91,8 +91,10 @@ export function recommendPrice(items, { groups = [], sizes = [], bundles = [], t
   const priceType = scopeType(types)
   const base = ladder(n)
   const others = bundles.filter((b) => b.id !== selfId && b.active !== false && typesOverlap(b.types, types))
-  const reasons = [`ขั้นพื้นฐาน: ${n} อย่างลด ${base}% (เลือกมากขึ้น ลดมากขึ้น)`]
-  const conflicts = []
+  // ตัวเลือก 0 ฿ ในประเภทที่ชุดใช้ได้ → ชุดนี้สร้างไม่ได้ (ไม่แนะนำส่วนลด) · ข้อความขัดแย้งบอกชื่อและเหตุผล
+  const free = freeNamesOf(list, groups, tIds)
+  const reasons = free.length ? [] : [`ขั้นพื้นฐาน: ${n} อย่างลด ${base}% (เลือกมากขึ้น ลดมากขึ้น)`]
+  const conflicts = free.length ? [`"${free.join(', ')}" ราคา 0 ฿ — เพิ่มตัวเลือกนี้เข้าชุดแล้วราคาไม่เพิ่ม ชุดนี้จึงสร้างไม่ได้ · ตั้งราคาตัวเลือกนี้ก่อน หรือเอาออกจากชุด`] : []
   const warnings = []
 
   // ราคาปกติรวมของแต่ละขนาด · ขนาดที่ตั้งราคาได้ = ทุกตัวเลือกมีราคาในขนาดนั้น
@@ -191,21 +193,22 @@ export function recommendPrice(items, { groups = [], sizes = [], bundles = [], t
   else pct = want
   if (status === 'ok' && pct !== base) status = 'adjusted'
   if (!orderingOK && (status === 'ok' || status === 'adjusted' || status === 'capped')) status = 'conflict'
+  if (free.length) { status = 'conflict'; pct = 0 } // ตัวเลือก 0 ฿ → ไม่แนะนำส่วนลด
 
   // ยอดลดต่อขนาด: เปอร์เซ็นต์เดียวกัน ปัดเป็นบาทเต็ม · ขนาดที่ยังตั้งราคาไม่ครบ = ไม่ลด
   const amounts = {}
   for (const id of sizeIds) amounts[id] = offered.includes(id) ? percentOf(regular[id], pct) : 0
-  const balanced = upper.every((c) => amounts[c.size] <= c.cap + EPS) && lower.every((c) => amounts[c.size] >= c.need - EPS)
+  const balanced = !free.length && upper.every((c) => amounts[c.size] <= c.cap + EPS) && lower.every((c) => amounts[c.size] >= c.need - EPS)
 
   // เหตุผล
   for (const s of subs) reasons.push(`ชุดย่อย "${s.name}" ลดสูงสุด ${fmt(s.top)}%`)
   for (const s of supers) reasons.push(`ชุดใหญ่ "${s.name}" ลด ${fmt(s.low)}% → ชุดนี้ต้องลดน้อยกว่า`)
   if (status === 'adjusted' && subs.length && softLo > base && pct > base) reasons.push(`ปรับขึ้นเป็น ${pct}% ให้มากกว่าชุดย่อยทุกชุด`)
   if (status === 'adjusted' && supers.length && softHi < base && pct < base) reasons.push(`ปรับลงเป็น ${pct}% ให้น้อยกว่าชุดใหญ่ทุกชุด`)
-  if (offered.length && hardOK && want > hardHi && upBy) {
+  if (offered.length && hardOK && want > hardHi && upBy && !free.length) {
     reasons.push(`ลดได้ไม่เกิน ${fmt(hardHi)}% เพราะถ้ามากกว่านี้ ราคาหลังลดจะไม่สูงกว่า "${upBy.label}" ที่เหลือ ${bahtText(upBy.net)} (${sizeName[upBy.size]}) — ชุดใหญ่ต้องจ่ายมากกว่าชุดย่อยเสมอ`)
   }
-  if (offered.length && hardOK && want < hardLo && lowBy) {
+  if (offered.length && hardOK && want < hardLo && lowBy && !free.length) {
     reasons.push(`ต้องลดอย่างน้อย ${lowBy.pMin}% เพราะ "${lowBy.label}" (${sizeName[lowBy.size]}) เหลือ ${bahtText(lowBy.net)} ชุดนี้ต้องต่ำกว่านั้น`)
   }
   const peers = others
@@ -219,7 +222,7 @@ export function recommendPrice(items, { groups = [], sizes = [], bundles = [], t
   if (!orderingOK) {
     if (softLo > CAP) {
       for (const s of subs) {
-        if (ceilStep(s.top + STEP) > CAP) conflicts.push(`ปรับ "${s.name}" จาก ${fmt(s.top)}% เป็น ${ladder(s.count)}% ก่อน${hardOK && offered.length ? ` — ชุดนี้จึงตั้งที่ ${pct}% ได้` : ''}`)
+        if (ceilStep(s.top + STEP) > CAP) conflicts.push(`ปรับ "${s.name}" จาก ${fmt(s.top)}% เป็น ${ladder(s.count)}% ก่อน${hardOK && offered.length && !free.length ? ` — ชุดนี้จึงตั้งที่ ${pct}% ได้` : ''}`)
       }
     } else if (subs.length) {
       const sMax = subs.reduce((a, b) => (b.top > a.top ? b : a))
@@ -236,12 +239,8 @@ export function recommendPrice(items, { groups = [], sizes = [], bundles = [], t
         ? `ชุดใหญ่ "${lowBy.label}" (${sizeName[lowBy.size]}) เหลือ ${bahtText(lowBy.net)} จึงไม่มีราคาไหนที่ชุดนี้จะต่ำกว่าได้ — ปรับ "${lowBy.label}" ก่อน`
         : `ชุดใหญ่ "${lowBy.label}" (${sizeName[lowBy.size]}) เหลือ ${bahtText(lowBy.net)} ชุดนี้ต้องลดอย่างน้อย ${lowBy.pMin}% แต่ลดได้ไม่เกิน ${fmt(hardHi)}% — ปรับ "${lowBy.label}" ก่อน`)
     }
-    if (upBy && hardHi < 0) {
-      // ตัวเลือกที่ราคา 0 ฿ ในขนาดนี้ทำให้ชุดที่มีมันลดไม่ได้ (ลูกค้าเลือกแค่ชุดย่อยก็จ่ายเท่านี้แล้ว)
-      const free = list.filter((x) => !(regularTotal([x], groups, priceType, upBy.size) > 0)).map((x) => findItemOption(groups, x)?.name).filter(Boolean)
-      conflicts.push(free.length
-        ? `"${free.join(', ')}" ราคา 0 ฿ ในขนาด ${sizeName[upBy.size]} — ลูกค้าที่เลือกแค่ "${upBy.label}" ก็จ่าย ${bahtText(upBy.net)} แล้ว ชุดนี้จึงลดไม่ได้ · ตั้งราคาตัวเลือกนี้ก่อน`
-        : `ลดชุดนี้ไม่ได้: "${upBy.label}" (${sizeName[upBy.size]}) คิดราคา ${bahtText(upBy.net)} ซึ่งไม่ต่ำกว่าราคาปกติของชุดนี้ — ปรับ "${upBy.label}" ก่อน`)
+    if (upBy && hardHi < 0 && !free.length) {
+      conflicts.push(`ลดชุดนี้ไม่ได้: "${upBy.label}" (${sizeName[upBy.size]}) คิดราคา ${bahtText(upBy.net)} ซึ่งไม่ต่ำกว่าราคาปกติของชุดนี้ — ปรับ "${upBy.label}" ก่อน`)
     }
   }
 

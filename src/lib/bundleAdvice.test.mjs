@@ -194,6 +194,52 @@ t('ตัวเลือกราคา 0 ฿ (เช่น ครีมฟร�
   assert.ok(r.conflicts.some((c) => c.includes('ครีมฟรี') && c.includes('0 ฿')))
 })
 
+t('กติการาคา 0 ฿: ชุด 3 อย่างที่มีตัวเลือก 0 ฿ สร้างไม่ได้ แม้ชุดย่อยที่ไม่มีตัวเลือกนั้นจะลดแล้ว', () => {
+  const free = { id: 'g_free', name: 'ของฟรี', options: [{ id: 'z', name: 'ครีมฟรี', active: true, priceType: 'fixed', price: 0 }] }
+  const Z = { groupId: 'g_free', optionId: 'z' }
+  const r = recommendPrice([C, K, Z], { groups: [...groups, free], sizes, bundles: [bundle('p', [C, K], { s1: 10 })], types: [], allTypeIds: TYPES })
+  assert.equal(r.status, 'conflict')
+  assert.equal(r.pct, 0)
+  assert.equal(r.balanced, false)
+  assert.deepEqual(r.amounts, { s1: 0, s2: 0, s3: 0 })
+  assert.equal(r.conflicts.length, 1)
+  assert.ok(r.conflicts[0].includes('ครีมฟรี') && r.conflicts[0].includes('ราคา 0 ฿'))
+})
+
+t('กติการาคา 0 ฿ ตอนบันทึก: ชุดใหม่ที่มี 0 ฿ บันทึกไม่ได้ · ชุดเดิมแก้ส่วนลดได้ (มีคำเตือน) · เปลี่ยนตัวเลือกให้มี 0 ฿ ไม่ได้', () => {
+  const free = { id: 'g_free', name: 'ของฟรี', options: [{ id: 'z', name: 'ครีมฟรี', active: true, priceType: 'fixed', price: 0 }] }
+  const Z = { groupId: 'g_free', optionId: 'z' }
+  const gs = [...groups, free]
+  const fresh = { id: null, name: '', items: [C, Z], discount: { s1: 5 }, types: [], typeDiscount: {}, styleDiscount: {}, styleMode: {}, active: true }
+  assert.ok(checkBundle(fresh, ctx({ groups: gs })).errors.some((e) => e.includes('ครีมฟรี') && e.includes('ราคา 0 ฿')))
+  const legacy = { ...fresh, id: 'L', name: 'เก่า' }
+  const kept = checkBundle({ ...legacy, discount: { s1: 8 } }, ctx({ groups: gs, bundles: [legacy], original: legacy }))
+  assert.deepEqual(kept.errors, [])
+  assert.ok(kept.warnings.some((w) => w.includes('ครีมฟรี')))
+  assert.ok(checkBundle({ ...legacy, items: [C, K, Z] }, ctx({ groups: gs, original: { ...legacy, items: [C, K] } })).errors.some((e) => e.includes('ครีมฟรี')))
+})
+
+t('กติการาคา 0 ฿: ราคาเป็น 0 เฉพาะประเภทที่ชุดใช้ได้ก็นับ · ประเภทที่ชุดไม่ใช้ไม่นับ', () => {
+  const gp = [...groups, { id: 'g_p', name: 'พิเศษ', options: [{ id: 'y', name: 'ของพิเศษ', active: true, priceType: 'fixed', price: 30, typePrice: { t2: 0 } }] }]
+  const Y = { groupId: 'g_p', optionId: 'y' }
+  const base = { id: null, name: '', items: [C, Y], discount: { s1: 5 }, types: ['t2'], typeDiscount: {}, styleDiscount: {}, styleMode: {}, active: true }
+  assert.ok(checkBundle(base, ctx({ groups: gp })).errors.some((e) => e.includes('ของพิเศษ')))
+  assert.equal(checkBundle({ ...base, types: ['t1'] }, ctx({ groups: gp })).errors.some((e) => e.includes('ของพิเศษ')), false)
+})
+
+t('บันเดิ้ลทางเลือก: ชุดที่มีตัวเลือก 0 ฿ ไม่ถูกแนะนำให้สร้าง · ชุดที่ไม่มีตัวเลือกนั้นยังแนะนำได้ตามปกติ', () => {
+  const free = { id: 'g_free', name: 'ของฟรี', options: [{ id: 'z', name: 'ครีมฟรี', active: true, priceType: 'fixed', price: 0 }] }
+  const Z = { groupId: 'g_free', optionId: 'z' }
+  const subs = subSuggestions([C, K, Z], { groups: [...groups, free], sizes, bundles: [], types: [], allTypeIds: TYPES })
+  assert.equal(subs.length, 3)
+  const withZ = subs.filter((s) => s.items.some((x) => x.optionId === 'z'))
+  assert.equal(withZ.length, 2)
+  assert.ok(withZ.every((s) => s.rec.status === 'conflict' && s.rec.pct === 0))
+  const ck = subs.find((s) => s.name === 'เชอร์รี่ + คิทแคท')
+  assert.equal(ck.rec.pct, 10)
+  assert.notEqual(ck.rec.status, 'conflict')
+})
+
 t('ตรวจสมดุลซ้ำกับตัวอย่างสุ่ม 400 ชุด: ผลที่สมดุลต้องให้ทุกชุดย่อยถูกกว่าและทุกชุดใหญ่แพงกว่าเป็นบาททุกขนาด · ผลที่ไม่สมดุลต้องขึ้นสถานะขัดแย้ง', () => {
   let seed = 20240601
   const rnd = () => {
