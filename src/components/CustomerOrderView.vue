@@ -105,12 +105,26 @@ async function readSlip(dataUrl) {
     Object.assign(f, { slip: '', slipName: '' })
     return (f.error = PAY_MSG.notSlip)
   }
+  // เติมค่าจากสลิปเหมือนสลิปในแชท: QR → ธนาคาร/เลขอ้างอิง · ภาพ → ยอด/วัน-เวลา (เฉพาะช่องที่ยังว่าง)
+  const fl = r.fields || null
+  const got = []
   if (q.kind === 'slip') {
     f.bankCode = q.bankCode
     f.ref = q.ref
-    return (f.qrNote = 'อ่าน QR จากสลิปแล้ว · ตรวจธนาคารและเลขอ้างอิงอีกครั้งก่อนส่ง')
+    got.push('ธนาคาร/เลขอ้างอิงจาก QR')
   }
-  f.qrNote = 'ไม่พบ QR ในรูป · ไม่ต้องกรอกธนาคารและเลขอ้างอิงก็ได้ ร้านจะตรวจจากสลิปให้'
+  if (fl?.amount != null) {
+    if (f.mode === 'all' && !f.custom && fl.amount <= room.value + 0.004) { f.mode = 'custom'; f.custom = String(fl.amount) }
+    got.push(`ยอด ${money(fl.amount)}`)
+  }
+  if (fl?.paidAt) {
+    const [d, t] = fl.paidAt.split('T')
+    if (!f.txnDate) f.txnDate = d
+    if (!f.txnTime) f.txnTime = t
+    got.push(`วัน-เวลา ${d} ${t}`)
+  }
+  if (got.length) return (f.qrNote = `อ่านจากสลิปแล้ว: ${got.join(' · ')} · ตรวจอีกครั้งก่อนส่ง`)
+  f.qrNote = 'ไม่พบ QR ในรูป · กรอกยอด วัน-เวลา ธนาคาร และเลขอ้างอิงเองได้ ร้านจะตรวจจากสลิปให้'
 }
 async function onSlip(e) {
   f.error = ''

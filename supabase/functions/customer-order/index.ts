@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { PAY_MSG, bankByCode, checkCustomerTxn, refTaken } from '../_shared/payfields.ts'
 import { readSlipQr } from '../_shared/slipread.ts'
+import { OCR_DEFAULT_MODEL, readSlipFields } from '../_shared/slipocr.ts'
 
 // การกระทำของลูกค้าบนออร์เดอร์ (ฝั่งเซิร์ฟเวอร์): แจ้งชำระ(แนบสลิป) · ขอขยายเวลา · ขอ/ยกเลิกขอไม่เผยแพร่รูป
 // ยืนยันตัวตนได้ 2 แบบ: ลิงก์ออร์เดอร์ (token 32 ตัวอักษร เก็บ hash ใน punpang_records) หรือเซสชันลูกค้า (+ orderId ที่เป็นของตัวเอง)
@@ -71,6 +72,15 @@ Deno.serve(async (req) => {
   let b: Record<string, any> = {}
   try { b = await req.json() } catch { return json({ error: 'คำขอไม่ถูกต้อง' }, 400) }
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
+  // อ่านยอดและวัน-เวลาจากภาพสลิป (เหมือนสลิปในแชท) · เฉพาะเมื่อร้านเปิดไว้และมีคีย์ · อ่านไม่ได้ = null (ไม่บล็อกการส่ง)
+  const slipFieldsOf = async (bytes: Uint8Array) => {
+    const cfg = (await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()).data?.data?.v?.ocr
+    if (cfg?.enabled !== true) return null
+    const key = Deno.env.get('ANTHROPIC_API_KEY') || ''
+    if (!key) return null
+    const model = typeof cfg.model === 'string' && cfg.model.trim() ? cfg.model.trim() : OCR_DEFAULT_MODEL
+    return await readSlipFields({ bytes, key, model })
+  }
   const action = String(b.action || '')
   if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
 
@@ -104,7 +114,8 @@ Deno.serve(async (req) => {
     if (!ro || ro.status === 'draft' || (customerIdOfSession && ro.customer_id !== customerIdOfSession)) return json({ error: customerIdOfSession ? 'ไม่พบออร์เดอร์' : NOT_FOUND.error }, 404)
     const img = decodeSlip(b.slip)
     if ('error' in img) return json({ error: img.error }, 400)
-    return json({ ok: true, qr: await readSlipQr(img.bytes) })
+    const fields = await slipFieldsOf(img.bytes)
+    return json({ ok: true, qr: await readSlipQr(img.bytes), fields })
   }
 
   // ---------- อ่าน-แก้-เขียนออร์เดอร์ (เทียบ updated_at ลองใหม่ได้ 3 ครั้ง) ----------
@@ -159,6 +170,10 @@ Deno.serve(async (req) => {
       const txn = checkCustomerTxn({ txnDate: b.txnDate, txnTime: b.txnTime, bankCode: b.bankCode, ref: b.ref, createdAt: d.createdAt })
       if ('error' in txn) return json({ error: txn.error }, 400)
       const { paidAt } = txn.value
+      // ยอดและวัน-เวลาในสลิป (อ่านจากภาพ) ต้องตรงกับที่ลูกค้ากรอก · อ่านไม่ได้ = ไม่ตรวจ
+      const fields = await slipFieldsOf(bytes)
+      if (fields?.amount != null && Math.abs(fields.amount - amt) > 0.005) return json({ error: `ยอดในสลิป (${fields.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}) ไม่ตรงกับยอดที่แจ้ง กรุณาตรวจอีกครั้ง` }, 400)
+      if (fields?.paidAt && fields.paidAt !== paidAt) return json({ error: 'วัน-เวลาในสลิปไม่ตรงกับที่กรอก กรุณาตรวจอีกครั้ง' }, 400)
       // ธนาคาร/เลขอ้างอิง: ถ้าอ่านจาก QR ในสลิปได้ ใช้ค่าจาก QR (ที่ลูกค้ากรอกมาต้องตรงกัน) · ไม่ได้กรอกก็ไม่เป็นไร ร้านตรวจจากสลิป
       let bankCode = txn.value.bankCode
       let ref = txn.value.ref
@@ -174,7 +189,8 @@ Deno.serve(async (req) => {
         if (seen.error) return json({ error: 'ตรวจเลขอ้างอิงไม่สำเร็จ กรุณาลองใหม่' }, 500)
         if ((seen.data || []).some((r: any) => refTaken(r.data?.payments, ref))) return json({ error: PAY_MSG.refTaken }, 400)
       }
-      const txnFields = { paidAt, bankCode: bankCode || null, bankName: bankCode ? (bankByCode(bankCode)?.name ?? null) : null, ref: ref || '', refSource: qr.kind === 'slip' ? 'qr' : (ref ? 'typed' : '') }
+      const ocrFields = { ...(fields?.amount != null ? { ocrAmount: fields.amount } : {}), ...(fields?.paidAt ? { ocrPaidAt: fields.paidAt } : {}) }
+      const txnFields = { ...ocrFields, paidAt, bankCode: bankCode || null, bankName: bankCode ? (bankByCode(bankCode)?.name ?? null) : null, ref: ref || '', refSource: qr.kind === 'slip' ? 'qr' : (ref ? 'typed' : '') }
       const note = String(b.note ?? '').trim().slice(0, PAY.noteMax)
       const pid = b.paymentId ? String(b.paymentId) : ''
       let target: any = null
