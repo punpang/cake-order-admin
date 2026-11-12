@@ -55,7 +55,7 @@ function save() {
       </div>
       <div v-if="pickupAt" class="flex items-start gap-2.5 rounded-xl p-3 text-sm" :class="load.day ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'">
         <AppIcon :name="load.day ? 'alert' : 'check'" :size="18" class="mt-0.5" />
-        <span>วันนั้นมีอีก <b>{{ load.day }}</b> ออร์เดอร์ · ช่วง {{ time.slice(0, 2) }}:00 น. มี <b>{{ load.hour }}</b> ออร์เดอร์</span>
+        <span>วันนั้นมีอีก <b>{{ load.day }}</b> ออร์เดอร์ · ช่วง {{ time.slice(0, 2) }}:00 น. มี <b>{{ load.hour }}</b> ออร์เดอร์ · ภายใน ±1 ชม. มี <b>{{ load.near }}</b> ออร์เดอร์</span>
       </div>
       <p v-if="error" class="text-sm text-rose-700">{{ error }}</p>
     </div>

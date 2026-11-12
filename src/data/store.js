@@ -1472,14 +1472,17 @@ export function revertStatus(order, reason, opts = {}) {
 export const canRevert = (order) => can('revertStatus') && order?.channel !== 'pos' && !!prevStatus(order)
 
 // จำนวนออร์เดอร์ (ไม่นับยกเลิก) ในวันเดียวกัน และในชั่วโมงเดียวกัน
+// near = ออร์เดอร์ที่นัดภายใน ±1 ชั่วโมงจากเวลาที่เลือก (ไม่นับตัวเอง/ที่ยกเลิก)
 export function countPickups(pickupAt, excludeId) {
-  if (!pickupAt) return { day: 0, hour: 0 }
+  if (!pickupAt) return { day: 0, hour: 0, near: 0 }
   const day = pickupAt.slice(0, 10)
   const hour = pickupAt.slice(0, 13)
+  const t = new Date(pickupAt).getTime()
   const list = db.orders.filter((o) => o.status !== 'cancelled' && o.id !== excludeId)
   return {
     day: list.filter((o) => o.pickupAt.slice(0, 10) === day).length,
     hour: list.filter((o) => o.pickupAt.slice(0, 13) === hour).length,
+    near: list.filter((o) => Math.abs(new Date(o.pickupAt).getTime() - t) <= 3600000).length,
   }
 }
 
