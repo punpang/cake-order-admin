@@ -7,6 +7,9 @@ const KB_MIN = 120 // ส่วนต่างความสูงที่ถ�
 // ขณะช่องกรอกโฟกัส ตรวจค่าซ้ำทุก 250 ms: iOS บางครั้งไม่ส่ง resize/scroll หลังแป้นพิมพ์ขึ้นเสร็จ → ค่าค้างเป็นค่าช่วงกำลังเลื่อน
 const POLL_MS = 250
 const FIELD = /^(INPUT|TEXTAREA|SELECT)$/
+// แป้นพิมพ์เปิดหรือไม่: เทียบความสูงที่มองเห็นกับ "ความสูงเต็ม" = ค่ามากสุดระหว่าง innerHeight กับความสูงที่เคยเห็นในแนวจอนี้
+// (iOS บางรุ่น/โหมดแอปบนหน้าจอโฮม ลด innerHeight ตามแป้นพิมพ์ด้วย → เทียบกับ innerHeight อย่างเดียวจะไม่รู้ว่าแป้นพิมพ์เปิด)
+export const keyboardOpen = (fullH, visibleH) => fullH - visibleH > KB_MIN
 const isField = (el) => !!el && FIELD.test(el.tagName) && !el.disabled && !el.readOnly
 
 export function watchViewport() {
@@ -15,6 +18,8 @@ export function watchViewport() {
   const root = document.documentElement
   let lastH = ''
   let lastT = ''
+  let maxH = 0 // ความสูงที่มองเห็นมากสุดในแนวจอปัจจุบัน
+  let lastW = 0
   // ตั้งค่าเฉพาะตอนที่เปลี่ยนจริง (การตรวจซ้ำไม่ทำให้หน้าจัดวางใหม่โดยไม่จำเป็น)
   const apply = () => {
     const h = `${Math.round(vv.height)}px`
@@ -27,7 +32,10 @@ export function watchViewport() {
       root.style.setProperty('--vvt', t)
       lastT = t
     }
-    const open = window.innerHeight - vv.height > KB_MIN
+    const w = Math.round(vv.width * vv.scale)
+    if (w !== lastW) { lastW = w; maxH = 0 } // หมุนจอ/เปลี่ยนขนาดหน้าต่าง → เริ่มนับใหม่
+    if (vv.scale === 1 && vv.height > maxH) maxH = vv.height // ไม่นับตอนซูมด้วยสองนิ้ว
+    const open = keyboardOpen(Math.max(window.innerHeight, maxH), vv.height)
     if (open !== kb.open) kb.open = open
   }
   let timer = null
