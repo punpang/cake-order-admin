@@ -77,12 +77,12 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     <div class="mx-auto flex h-14 max-w-page items-center gap-3 px-4 lg:px-8">
       <RouterLink :to="firstHome(can)" class="flex min-w-0 items-center gap-2.5" :aria-label="`${shopName} หน้าแรกหลังบ้าน`">
         <svg viewBox="0 0 48 48" class="h-10 w-10 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2" stroke-linejoin="round"><ellipse cx="24" cy="40" rx="18" ry="4" fill="#fff" /><rect x="9" y="22" width="30" height="16" rx="4" fill="#ffd05c" /><path d="M8 22c0-7 7-10 16-10s16 3 16 10c-3 3-5 0-8 3s-5 0-8 3-5 0-8-3-5 0-8-3z" fill="#ff8fa6" /><circle cx="24" cy="9" r="4" fill="#e0314f" /></svg>
-        <span class="hidden truncate font-display text-xl text-brand-700 sm:inline">{{ shopName }}</span>
+        <span class="hidden max-w-40 truncate font-display text-xl text-brand-700 2xl:inline">{{ shopName }}</span>
       </RouterLink>
 
       <SystemSwitcher :systems="systems" :current="current" />
 
-      <nav v-if="items.length > 1" class="ml-1 hidden gap-0.5 md:flex lg:gap-1" aria-label="เมนูของระบบ">
+      <nav v-if="items.length > 1" class="ml-1 hidden min-w-0 gap-0.5 overflow-x-auto [scrollbar-width:none] md:flex lg:gap-1" aria-label="เมนูของระบบ">
         <RouterLink
           v-for="i in items"
           :key="i.to"
@@ -95,7 +95,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
         </RouterLink>
       </nav>
 
-      <RouterLink to="/" class="ml-auto inline-flex items-center text-sm text-stone-600 underline lg:min-h-8 lg:px-1">หน้าร้าน</RouterLink>
+      <RouterLink to="/" class="ml-auto inline-flex shrink-0 items-center text-sm whitespace-nowrap text-stone-600 underline lg:min-h-8 lg:px-1">หน้าร้าน</RouterLink>
       <BellMenu audience="staff" />
       <button class="inline-flex h-10 max-w-40 items-center gap-2 rounded-full bg-white px-3 text-sm shadow-sm lg:px-3.5" :aria-label="`ผู้ใช้ ${me?.name || ROLES[session.role]}`" @click="supabaseEnabled && (roleOpen = true)">
         <AppIcon name="user" :size="16" class="shrink-0 text-stone-500" />

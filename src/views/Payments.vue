@@ -98,7 +98,7 @@ const summary = computed(() => {
       </div>
     </section>
 
-    <label class="relative mb-4 block">
+    <label class="relative mb-4 block lg:max-w-xl">
       <span class="sr-only">ค้นหา</span>
       <AppIcon name="search" class="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-stone-400" />
       <input v-model="q" type="search" class="input bg-white pl-10" placeholder="ค้นหา เลขออร์เดอร์ ชื่อ หรือเบอร์" />
