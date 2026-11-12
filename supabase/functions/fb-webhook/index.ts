@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { runFbBot } from './bot.ts'
 import { checkSlipImage } from '../_shared/slipjob.ts'
+import { attachmentNote } from '../_shared/attnote.ts'
 
 // รับข้อความ Messenger ของเพจที่เชื่อมไว้ (Webhook ของ Meta) → เขียนเข้าแชท (punpang_chats) + กระดิ่งทีม
 // GET: ยืนยัน webhook (hub.verify_token = secret FB_VERIFY_TOKEN) · POST: ตรวจลายเซ็น X-Hub-Signature-256 ด้วย FB_APP_SECRET
@@ -46,11 +47,12 @@ async function readLimited(res: Response): Promise<Uint8Array | null> {
 async function saveAttachments(sb: any, psid: string, mid: string, atts: any[]) {
   const list: any[] = []
   const imgs: Uint8Array[] = []
+  const notes: string[] = [] // ข้อความแทนไฟล์ที่ไม่เก็บเป็นไฟล์ (ลิงก์แชร์ ฯลฯ)
   let unsupported = false
   let i = 0
   for (const a of (Array.isArray(atts) ? atts : []).slice(0, MAX_ATT)) {
     const type = String(a?.type || '')
-    if (!KINDS.includes(type)) { unsupported = true; continue }
+    if (!KINDS.includes(type)) { unsupported = true; const note = attachmentNote(a); if (note) notes.push(note); continue }
     const sticker = type === 'image' && a?.payload?.sticker_id ? true : undefined
     const url = String(a?.payload?.url || '')
     if (!/^https:\/\//i.test(url)) { list.push({ type, failed: true, ...(sticker ? { sticker } : {}) }); continue }
@@ -64,7 +66,7 @@ async function saveAttachments(sb: any, psid: string, mid: string, atts: any[]) 
     i++
     list.push({ type, url, name: `${type}-${i}`, ...(sticker ? { sticker } : {}) })
   }
-  return { list, unsupported, imgs }
+  return { list, unsupported, imgs, notes }
 }
 const KIND_TH: Record<string, string> = { image: 'รูปภาพ', video: 'วิดีโอ', audio: 'เสียง', file: 'ไฟล์' }
 
@@ -110,9 +112,9 @@ Deno.serve(async (req) => {
       if (!/^\d{5,30}$/.test(psid) || !msg || msg.is_echo || String(ev?.recipient?.id) !== own) continue
       const mid = String(msg.mid || '')
       const caption = String(msg.text || '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim().slice(0, 2000)
-      const att = Array.isArray(msg.attachments) && msg.attachments.length ? await saveAttachments(sb, psid, mid, msg.attachments) : { list: [], unsupported: false, imgs: [] as Uint8Array[] }
+      const att = Array.isArray(msg.attachments) && msg.attachments.length ? await saveAttachments(sb, psid, mid, msg.attachments) : { list: [], unsupported: false, imgs: [] as Uint8Array[], notes: [] as string[] }
       // ไม่มีข้อความและไม่มีไฟล์ที่แสดงได้ (เช่น ตำแหน่ง) → ข้อความแจ้ง · noBot = ไม่ให้บอทตอบ
-      const txt = caption || (att.list.length ? '' : ATTACH_TEXT)
+      const txt = caption || (att.list.length ? '' : (att.notes.join('\n') || ATTACH_TEXT))
       const noBot = !caption && (att.list.length > 0 || att.unsupported)
       const label = caption || (att.list[0] ? `[${att.list[0].sticker ? 'สติกเกอร์' : KIND_TH[att.list[0].type] || 'ไฟล์'}]` : ATTACH_TEXT)
       const at = new Date(typeof ev.timestamp === 'number' ? ev.timestamp : Date.now()).toISOString()
