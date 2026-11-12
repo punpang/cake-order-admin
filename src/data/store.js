@@ -149,6 +149,42 @@ const TEAM_CANCEL_V2 = [
   '{รายการสินค้า}',
   '💰 ยอดรวม {ยอดรวม} · ✅ ชำระแล้ว {ชำระแล้ว}',
 ].join('\n')
+// แจ้งชำระ = สรุปออร์เดอร์ให้ลูกค้า + กำหนดวัน-เวลาชำระ + คำเตือนว่าไม่ชำระตามกำหนดสินค้าจะยังไม่ถูกจัดเตรียมล่วงหน้า
+const PAY_REQ_OLD = 'ออร์เดอร์ {เลขออร์เดอร์} ยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง}) ชำระก่อน {ชำระก่อน} ดู/ชำระที่ {ลิงก์ออร์เดอร์}'
+const PAY_REQ_TPL = [
+  '🧾 สรุปออร์เดอร์ {เลขออร์เดอร์}',
+  '━━━━━━━━━━━━━━',
+  '{รายการสินค้า}',
+  '━━━━━━━━━━━━━━',
+  '📅 นัด{ส่งมอบ} {วันนัด} เวลา {เวลานัด}',
+  '{บรรทัดที่อยู่}',
+  '{บรรทัดค่าส่ง}',
+  '💰 ยอดรวม {ยอดรวม}',
+  '✅ ชำระแล้ว {ชำระแล้ว}',
+  '⏳ คงค้าง {คงค้าง}',
+  '',
+  '💳 กรุณาชำระ {ยอดที่แจ้ง} ภายใน {ชำระก่อน}',
+  '⚠️ หากไม่ชำระภายในเวลาที่กำหนด ร้านจะยังไม่จัดเตรียมสินค้าของออร์เดอร์นี้ไว้ล่วงหน้า',
+  '',
+  'ดูรายละเอียดและชำระที่: {ลิงก์ออร์เดอร์}',
+].join('\n')
+const PAY_REQ_SMS_TPL = 'ออร์เดอร์ {เลขออร์เดอร์} นัด{ส่งมอบ} {วันนัด} {เวลานัด} ยอดรวม {ยอดรวม} คงค้าง {คงค้าง} กรุณาชำระ {ยอดที่แจ้ง} ภายใน {ชำระก่อน} หากไม่ชำระตามกำหนด ร้านจะยังไม่จัดเตรียมสินค้าไว้ล่วงหน้า ชำระที่ {ลิงก์ออร์เดอร์}'
+const PAY_REQ_FB_TPL = [
+  'สรุปออร์เดอร์ {เลขออร์เดอร์}',
+  '{รายการสินค้า}',
+  '',
+  'นัด{ส่งมอบ} {วันนัด} เวลา {เวลานัด}',
+  '{บรรทัดที่อยู่}',
+  '{บรรทัดค่าส่ง}',
+  'ยอดรวม {ยอดรวม}',
+  'ชำระแล้ว {ชำระแล้ว}',
+  'คงค้าง {คงค้าง}',
+  '',
+  'กรุณาชำระ {ยอดที่แจ้ง} ภายใน {ชำระก่อน}',
+  'หากไม่ชำระภายในเวลาที่กำหนด ร้านจะยังไม่จัดเตรียมสินค้าของออร์เดอร์นี้ไว้ล่วงหน้า',
+  '',
+  'ดู/ชำระที่: {ลิงก์ออร์เดอร์}',
+].join('\n')
 // ข้อความทีม Telegram ใช้ HTML (ตัวหนา/โค้ด) · ข้อความ SMS/Facebook ที่ไม่มีเทมเพลตของตัวเอง ใช้เทมเพลตหลักแล้วตัดอีโมจิอัตโนมัติ
 const TEAM_NEW_ORDER_TPL = [
   '🎂 <b>ออร์เดอร์ใหม่ {เลขออร์เดอร์}</b>',
@@ -204,6 +240,7 @@ const ORDER_CREATED_SMS_TPL = 'สวัสดีค่ะ {ชื่อลู�
 const DEFAULT_UPGRADES = {
   payment_confirmed: [PAY_CONFIRMED_OLD, PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL], delivered: [DELIVERED_OLD, DELIVERED_TPL], payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL],
   order_created: [ORDER_CREATED_OLD, ORDER_CREATED_TPL],
+  payment_requested: [PAY_REQ_OLD, PAY_REQ_TPL],
   team_new_order: [[TEAM_NEW_ORDER_OLD, TEAM_NEW_ORDER_V2], TEAM_NEW_ORDER_TPL], team_payment_confirmed: [[TEAM_PAID_OLD, TEAM_PAID_V2], TEAM_PAID_TPL], team_cancelled: [[TEAM_CANCEL_OLD, TEAM_CANCEL_V2], TEAM_CANCEL_TPL],
 }
 // u[0] = ข้อความเดิม (ข้อความเดียว หรือรายการ) → ถ้าตรงกับที่เก็บไว้ ให้ใช้ u[1] แทน
@@ -214,7 +251,7 @@ const rule = (event, channels, template, channelTemplates = null) => ({ event, c
 // เทมเพลตตามแพลตฟอร์มเริ่มต้นในโค้ด: กฎที่บันทึกไว้ (Supabase) อาจไม่มี channelTemplates → ใช้ค่านี้แทน
 // เทมเพลต Facebook ของทุกเหตุการณ์ที่ส่งถึงลูกค้า: ข้อความธรรมดา ไม่มีอีโมจิ · ลิงก์อยู่บรรทัดท้าย (การ์ดปุ่มตัดบรรทัดลิงก์ออกได้)
 const FB_TPL = {
-  payment_requested: 'ออร์เดอร์ {เลขออร์เดอร์}\n\nยอดที่ต้องชำระ: {ยอดที่แจ้ง}\nคงค้างทั้งหมด: {คงค้าง}\nชำระก่อน: {ชำระก่อน}\n\nดู/ชำระที่: {ลิงก์ออร์เดอร์}',
+  payment_requested: PAY_REQ_FB_TPL,
   order_confirmed: 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ\n\nคงค้าง: {คงค้าง}\nชำระได้ตอนรับสินค้า',
   payment_confirmed: PAY_CONFIRMED_TPL,
   prepared: PREPARED_TPL,
@@ -403,7 +440,7 @@ export const db = reactive({
   // กฎแจ้งเตือน: event → ช่องทาง + ข้อความ (ตัวอย่าง)
   notifyRules: [
     rule('order_created', ['line', 'facebook', 'sms'], ORDER_CREATED_TPL, { facebook: ORDER_CREATED_FB_TPL, sms: ORDER_CREATED_SMS_TPL }),
-    rule('payment_requested', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง}) ชำระก่อน {ชำระก่อน} ดู/ชำระที่ {ลิงก์ออร์เดอร์}'),
+    rule('payment_requested', ['line', 'facebook', 'sms'], PAY_REQ_TPL, { sms: PAY_REQ_SMS_TPL }),
     rule('order_confirmed', ['line', 'facebook', 'sms'], 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ คงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า'),
     rule('payment_reminder', ['line', 'facebook', 'sms'], PAY_REMINDER_TPL),
     rule('prepared', ['line', 'facebook', 'sms'], PREPARED_TPL),
@@ -2571,6 +2608,11 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
 // เหตุการณ์ของออร์เดอร์ → ลูกค้า + ทีม (ถ้ามีคู่ของทีม)
 export function notifyOrder(event, order, extra = {}) {
   if (order.channel === 'pos') return // บิลหน้าร้านไม่แจ้งเตือน
+  // สรุปออร์เดอร์ให้ลูกค้าย้ายไปอยู่ในข้อความแจ้งชำระ (พร้อมวัน-เวลาชำระ) → ตอนสร้างออร์เดอร์ส่งให้ทีมอย่างเดียว
+  if (event === 'order_created') {
+    if (TEAM_OF[event]) notify(TEAM_OF[event], { vars: orderVars(order, extra), orderId: order.id })
+    return
+  }
   const vars = orderVars(order, extra)
   // พนักงานติ๊ก "ไม่แจ้งลูกค้า": ไม่ส่งหาลูกค้า (ทีมยังได้รับตามปกติ) · บันทึกไว้ในคิวว่าถูกข้าม เพื่อไล่ตรวจย้อนหลังได้
   if (extra.skip) {
