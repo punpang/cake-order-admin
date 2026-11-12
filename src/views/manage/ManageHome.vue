@@ -4,6 +4,7 @@ import { db, upcomingBirthdays, pendingDeletions, pendingPhotoRequests, can } fr
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import { SETTINGS_PAGES } from '../../lib/settingsPages'
+import { retentionSummary } from '../../lib/retention'
 
 const TONES = ['bg-brand-100 text-brand-700', 'bg-orange-100 text-orange-800', 'bg-amber-100 text-amber-800', 'bg-matcha-soft text-stone-800']
 const activeCount = (list) => list.filter((x) => x.active !== false).length
@@ -27,7 +28,7 @@ const DESC = computed(() => ({
   '/admin/settings/legal': `เวอร์ชัน ${db.legal.docs.privacy.version}/${db.legal.docs.terms.version}/${db.legal.docs.cookie.version} · ร่าง แก้ได้`,
   '/admin/settings/bot': `${db.bot.enabled ? (db.bot.mode === 'auto' ? 'เปิด · ตอบเอง' : 'เปิด · แนะนำให้กดส่ง') : 'ปิดอยู่'} · ที่เรียนรู้ ${db.bot.learned.length}`,
   '/admin/settings/links': `ลิงก์ย่อ ${db.shortLinks.length} · ลิงก์ออร์เดอร์ที่ใช้อยู่ ${db.orderLinks.length}`,
-  '/admin/settings/retention': db.retention ? Object.entries(db.retention).filter(([, v]) => v.enabled).map(([k, v]) => `${k} ${v.days} วัน`).join(' · ') || 'ปิดทุกหมวด' : 'ยังไม่ตั้งค่า',
+  '/admin/settings/retention': retentionSummary(db.retention),
   '/admin/settings/deletion-requests': `${pendingDeletions()} รอตรวจสอบ`,
   '/admin/settings/ingredients': `${activeCount(db.ingredients)} รายการที่ใช้งาน`,
   '/admin/settings/users': `${activeCount(db.users)} คนที่ใช้งาน · ติ๊กสิทธิ์รายคน`,

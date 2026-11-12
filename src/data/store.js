@@ -1,5 +1,6 @@
 // ข้อมูลตัวอย่าง (เก็บในหน่วยความจำ รีเฟรชแล้วหาย)
 // ขั้นต่อไปจะเปลี่ยนฟังก์ชันในไฟล์นี้ให้เรียก Supabase แทน
+import { RETENTION_CATS, validateRetention } from '../lib/retention'
 import { reactive } from 'vue'
 import { BELL_MAX, BELL_STAFF, BELL_CUSTOMER, bellText, visibleToStaff, visibleToCustomer, unreadStaff, unreadCustomer, isReadStaff } from '../lib/bell'
 import { ensureStyleGroup, STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
@@ -2895,24 +2896,13 @@ export function createCustomerFromChat(chatId, phone, name = '') {
   return cu
 }
 // ---------- จัดการข้อมูลที่อาจเป็นขยะ (ลบตามจำนวนวันที่ร้านตั้งไว้) ----------
-export const RETENTION_CATS = [
-  { key: 'slipRead', label: 'ผลอ่านสลิป (แคชการอ่านสลิปของลูกค้า/แชท)', def: { enabled: true, days: 30 } },
-  { key: 'chatMedia', label: 'ลิงก์รูป/ไฟล์ Facebook ในแชท (เก็บชื่อไฟล์ ลบเฉพาะลิงก์)', def: { enabled: true, days: 30 } },
-  { key: 'aiLog', label: 'บันทึกการทำงานของบอท AI', def: { enabled: false, days: 90 } },
-  { key: 'bell', label: 'กระดิ่งแจ้งเตือนที่เก่าแล้ว', def: { enabled: false, days: 90 } },
-  { key: 'orderLinks', label: 'ลิงก์ออร์เดอร์ที่ถูกเพิกถอนแล้ว', def: { enabled: false, days: 180 } },
-]
-export function defaultRetention() {
-  return Object.fromEntries(RETENTION_CATS.map((c) => [c.key, { ...c.def }]))
-}
+// ค่าที่บันทึกผ่านการตรวจแล้วเท่านั้น (หมวด/ขั้นต่ำ/สูงสุดอยู่ใน lib/retention.js) · ฐานข้อมูลเป็นผู้ลบจริง
 export function saveRetentionSettings(d) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
-  for (const c of RETENTION_CATS) {
-    const v = d?.[c.key] || {}
-    const days = Math.round(Number(v.days))
-    if (!Number.isFinite(days) || days < 1 || days > 3650) return { error: `${c.label}: กรอกจำนวนวันระหว่าง 1–3650` }
-  }
-  db.retention = Object.fromEntries(RETENTION_CATS.map((c) => [c.key, { enabled: d[c.key].enabled === true, days: Math.round(Number(d[c.key].days)) }]))
+  const errors = validateRetention(d)
+  const bad = RETENTION_CATS.find((c) => errors[c.key])
+  if (bad) return { error: `${bad.title}: ${errors[bad.key]}` }
+  db.retention = Object.fromEntries(RETENTION_CATS.map((c) => [c.key, { enabled: d[c.key].enabled === true, days: Number(d[c.key].days) }]))
   return { ok: true }
 }
 // ---------- สลิปในแชท: โหมดแมนนวล (ร้านเลือกออร์เดอร์ผูกเอง) ----------
