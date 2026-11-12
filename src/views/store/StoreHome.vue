@@ -1,4 +1,5 @@
 <script setup>
+import { safeHref } from '../../lib/safeUrl'
 import { computed } from 'vue'
 import { db } from '../../data/store'
 import { bestSellers, activePromotions, customMenu, approvedReviews, avgRating, promoProducts } from '../../lib/storefront'
@@ -37,7 +38,7 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
       <p class="mt-2.5 max-w-[15rem] text-base leading-snug font-medium sm:max-w-lg sm:text-lg">{{ s.heroText }}</p>
       <div class="mt-5 flex flex-wrap gap-2">
         <RouterLink to="/menu" class="inline-flex h-12 items-center gap-1.5 rounded-full bg-white px-6 font-display text-base text-stone-800 shadow-lg hover:bg-brand-50">ดูเมนูเค้ก <AppIcon name="next" :size="16" /></RouterLink>
-        <a v-if="s.lineUrl" :href="s.lineUrl" target="_blank" rel="noopener" class="inline-flex h-12 items-center gap-1.5 rounded-full border-2 border-white/80 px-5 font-display text-base text-white hover:bg-white/10"><AppIcon name="chat" :size="16" /> สั่งทาง LINE</a>
+        <a v-if="safeHref(s.lineUrl)" :href="safeHref(s.lineUrl)" target="_blank" rel="noopener" class="inline-flex h-12 items-center gap-1.5 rounded-full border-2 border-white/80 px-5 font-display text-base text-white hover:bg-white/10"><AppIcon name="chat" :size="16" /> สั่งทาง LINE</a>
       </div>
     </div>
   </section>
@@ -206,7 +207,7 @@ const stars = (n) => '★'.repeat(n) + '☆'.repeat(5 - n)
       <h2 class="mb-1.5 text-[22px] text-stone-900">ติดต่อร้าน</h2>
       <p v-if="s.address" class="mb-3 flex gap-2 text-sm text-stone-700"><AppIcon name="pin" :size="16" class="mt-0.5 text-stone-500" /> {{ s.address }}</p>
       <div class="flex flex-wrap gap-2">
-        <a v-if="s.mapUrl" :href="s.mapUrl" target="_blank" rel="noopener" class="btn-outline"><AppIcon name="pin" :size="16" /> ดูแผนที่</a>
+        <a v-if="safeHref(s.mapUrl)" :href="safeHref(s.mapUrl)" target="_blank" rel="noopener" class="btn-outline"><AppIcon name="pin" :size="16" /> ดูแผนที่</a>
         <StoreOrderButtons />
       </div>
     </section>

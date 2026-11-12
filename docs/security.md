@@ -9,7 +9,7 @@
 - ลิงก์ย่อ: ตรวจที่เซิร์ฟเวอร์ผ่าน RPC `punpang_resolve_short_link` · ปิดการอ่านตาราง `shortLinks` โดยผู้ไม่ล็อกอิน · **ห้ามเก็บโทเคนลิงก์ออร์เดอร์ (`/o/<token>`) ไว้ในปลายทางลิงก์ย่อ**
 - RPC: `punpang_order_search` เรียกโดย anon ไม่ได้ · จองคูปองแบบอะตอมิก `punpang_claim_coupon` / `punpang_release_coupon`
 - worker (R2): `/upload` และ `/delete` ตรวจสิทธิ์ตามชนิดไฟล์ (ตรงกับ storage policy)
-- แอป: `/ADMIN/...` ไม่ข้ามหน้าล็อกอิน · `public/_headers` (nosniff, referrer, frame-ancestors, CSP แบบ Report-Only) · `package-lock.json` · ลิงก์หน้าร้านรับเฉพาะ http(s)
+- แอป: `/ADMIN/...` ไม่ข้ามหน้าล็อกอิน · `public/_headers` (nosniff, referrer, frame-ancestors + X-Frame-Options, HSTS 1 ปี, Cross-Origin-Opener-Policy, CSP แบบ Report-Only) · `package-lock.json` · ลิงก์หน้าร้านรับเฉพาะ http(s) ทั้งตอนบันทึก (`webUrl`/`checkMapUrl`) และตอนแสดงผล (`lib/safeUrl.js` `safeHref`) · ฟอนต์ฝังมากับเว็บ (`src/fonts.css`) ไม่เรียก Google Fonts จึงไม่ส่ง IP/ผู้อ้างอิงของผู้เข้าชมให้บุคคลที่สาม
 - เงิน: ปัดยอดเป็นสตางค์ · ตรวจจำนวนเงินแจ้ง/ยืนยันชำระ · เพดานส่วนลด (แต้ม คูปอง ปรับราคา POS) · คืนสต็อก POS ตามที่ตัดจริง
 - sync: แก้ไขระหว่างกำลังบันทึกไม่หายเงียบ · ไม่ค้างเมื่อ push พัง · เขียนออร์เดอร์/ลูกค้าแบบเทียบเวอร์ชัน ไม่เขียนทับข้อมูลที่ถูกแก้ที่อื่นก่อน
 

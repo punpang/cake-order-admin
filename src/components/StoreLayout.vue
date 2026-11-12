@@ -1,4 +1,5 @@
 <script setup>
+import { safeHref } from '../lib/safeUrl'
 import { db, customerSession } from '../data/store'
 import { formatPhone } from '../lib/format'
 import AppIcon from './AppIcon.vue'
@@ -64,8 +65,8 @@ const hold = computed(() => !!route.meta.pub && loading.value)
         <p v-if="db.storefront.address" class="flex gap-2"><AppIcon name="pin" :size="16" class="mt-0.5 text-cream/70" /> {{ db.storefront.address }}</p>
         <p v-if="db.storefront.phone" class="flex gap-2"><AppIcon name="phone" :size="16" class="mt-0.5 text-cream/70" /> <a :href="`tel:${db.storefront.phone}`" class="underline">{{ formatPhone(db.storefront.phone) }}</a></p>
         <p class="flex flex-wrap gap-x-4">
-          <a v-if="db.storefront.lineUrl" :href="db.storefront.lineUrl" target="_blank" rel="noopener" class="underline">LINE OA</a>
-          <a v-if="db.storefront.facebookUrl" :href="db.storefront.facebookUrl" target="_blank" rel="noopener" class="underline">Facebook</a>
+          <a v-if="safeHref(db.storefront.lineUrl)" :href="safeHref(db.storefront.lineUrl)" target="_blank" rel="noopener" class="underline">LINE OA</a>
+          <a v-if="safeHref(db.storefront.facebookUrl)" :href="safeHref(db.storefront.facebookUrl)" target="_blank" rel="noopener" class="underline">Facebook</a>
         </p>
       </div>
       <div class="space-y-1.5">

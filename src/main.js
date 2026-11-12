@@ -7,6 +7,7 @@ import { supabaseEnabled } from './lib/supabase'
 import { startAutoLabel } from './lib/autoLabel'
 import { startAutoTitle } from './lib/a11yNav'
 import { initStaff } from './lib/staffAuth'
+import './fonts.css' // ฟอนต์ฝังมากับเว็บ (ต้องมาก่อน style.css)
 import './style.css'
 
 // ให้เบราว์เซอร์วาดหน้า "กำลังเตรียมข้อมูล" ก่อน แล้วค่อยสร้างข้อมูลตัวอย่าง (งานหนัก ~1 วินาที) — ตอนต่อ Supabase ลบส่วนนี้ + src/data/demo.js
@@ -16,7 +17,11 @@ trackLoad(afterPaint().then(async () => {
 if (!supabaseEnabled) (await import('./data/demo')).seedDemo()
 
 await initStaff() // โหมด Supabase: อ่านเซสชันพนักงานที่ล็อกอินค้างไว้ก่อนเริ่มนำทาง
-createApp(App).use(router).directive('num', vNum).mount('#app')
+const app = createApp(App).use(router).directive('num', vNum)
+// รอให้เส้นทางแรกพร้อมก่อนวาดแอป: ถ้าวาดทันที เส้นทางยังว่าง (ไม่มี meta) แอปจะวาดโครงหลังบ้านแวบหนึ่งก่อนสลับเป็นหน้าร้าน/หน้าล็อกอิน
+// ระหว่างรอ ผู้ใช้เห็นข้อความ "กำลังเตรียมข้อมูล…" ใน index.html ต่อไป · นำทางครั้งแรกผิดพลาดก็ยังวาดแอป (ให้ router จัดการต่อ)
+await router.isReady().catch(() => {})
+app.mount('#app')
 startAutoLabel()
 startAutoTitle()
 }))

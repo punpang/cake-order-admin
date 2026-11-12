@@ -1,3 +1,4 @@
+import { mayHaveStaffSession } from './staffSessionHint'
 import { reactive } from 'vue'
 import { getSupabase, supabaseEnabled } from './supabase'
 import { showToast } from './toast'
@@ -320,6 +321,9 @@ export async function refreshLabels(labels) {
 }
 export async function initStaff() {
   if (!supabaseEnabled) return
+  // ผู้เยี่ยมชมทั่วไป (เบราว์เซอร์นี้ไม่มีเซสชันพนักงานค้าง): วาดหน้าเว็บได้เลย ไม่ต้องรอดาวน์โหลดไลบรารี Supabase และตรวจเซสชันก่อน
+  // ข้อมูลหน้าร้านโหลดต่อเบื้องหลังเหมือนเดิม · ถ้าไม่แน่ใจ mayHaveStaffSession ตอบ true แล้วใช้ขั้นตอนเต็มด้านล่าง
+  if (!mayHaveStaffSession()) { staffState.ready = true; loadForVisitor(); return }
   const r = await currentStaff()
   staffState.staff = r.staff || null
   staffState.ready = true

@@ -316,7 +316,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
           :class="form.retailId === p.id ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-stone-200 hover:border-brand-300'"
           @click="pickProduct(p)"
         >
-          <img v-if="p.images?.length" :src="p.images[0]" alt="" class="h-10 w-10 shrink-0 rounded-lg object-cover" />
+          <img v-if="p.images?.length" :src="p.images[0]" alt="" loading="lazy" decoding="async" class="h-10 w-10 shrink-0 rounded-lg object-cover" />
           <span v-else class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg" :class="form.retailId === p.id ? 'bg-brand-600 text-white' : 'bg-brand-50 text-brand-600'">
             <AppIcon :name="form.retailId === p.id ? 'check' : 'cake'" :size="20" />
           </span>

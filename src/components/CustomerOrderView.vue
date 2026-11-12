@@ -1,4 +1,5 @@
 <script setup>
+import { safeHref } from '../lib/safeUrl'
 import { computed, reactive, ref, watch } from 'vue'
 import { customerPay, customerReadSlip, customerRequestExtension, customerRequestPhotoOptOut, customerCancelPhotoOptOut } from '../data/store'
 import { BANKS, PAY_MSG, bankByCode, checkCustomerTxn } from '../lib/payFields'
@@ -255,7 +256,7 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
         <div v-if="o.delivery.address" class="break-words">{{ o.delivery.address }}</div>
         <div v-if="o.delivery.detail" class="break-words text-stone-500">{{ o.delivery.detail }}</div>
         <div v-if="o.delivery.distanceKm != null" class="text-stone-500">ระยะทาง {{ o.delivery.distanceKm }} กม.</div>
-        <a v-if="o.delivery.mapUrl" :href="o.delivery.mapUrl" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-brand-700 underline"><AppIcon name="pin" :size="14" /> เปิดแผนที่</a>
+        <a v-if="safeHref(o.delivery.mapUrl)" :href="safeHref(o.delivery.mapUrl)" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-brand-700 underline"><AppIcon name="pin" :size="14" /> เปิดแผนที่</a>
       </div>
       <div v-if="o.birthday" class="mt-2 text-stone-500">วันเกิด {{ o.birthday.name }}</div>
     </section>

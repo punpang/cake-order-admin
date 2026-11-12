@@ -115,7 +115,7 @@ async function del(r) {
       <section v-else class="card space-y-3">
         <div class="card-title">แกลเลอรีผลงาน ({{ st.gallery.length }}/{{ MAX_GALLERY }})</div>
         <div v-for="(g, i) in st.gallery" :key="i" class="flex items-center gap-2">
-          <img :src="g.image" alt="" class="h-16 w-16 shrink-0 rounded-xl border border-stone-200 object-cover" />
+          <img :src="g.image" alt="" loading="lazy" decoding="async" class="h-16 w-16 shrink-0 rounded-xl border border-stone-200 object-cover" />
           <input v-model="g.caption" class="input min-w-0 flex-1" placeholder="คำบรรยาย (ไม่บังคับ)" maxlength="80" />
           <button type="button" class="btn-danger h-11 px-3" aria-label="ลบรูป" @click="delRow(st.gallery, i)"><AppIcon name="trash" :size="16" /></button>
         </div>
