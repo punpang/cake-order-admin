@@ -72,6 +72,40 @@ export function makeDraft(src, styles = [], types = []) {
   return d
 }
 
+// ประเภทที่ชุดนี้ใช้ได้จริง (ว่าง = ทุกประเภทที่เปิดใช้งาน) · ไม่มีประเภทที่เปิดอยู่เลย = [null] (ราคาทั่วไป)
+export function scopesOf(b, types = []) {
+  const activeIds = types.filter((t) => t.active !== false).map((t) => t.id)
+  const picked = b.types?.length ? b.types.filter((id) => activeIds.includes(id)) : activeIds
+  return picked.length ? picked : [null]
+}
+
+// ส่วนลดที่เกินราคาปกติของตัวเลือกในชุด (ทุกขนาด ทุกประเภทที่ใช้ได้ และรูปแบบที่ตั้งส่วนลดเอง) → ข้อความทุกรายการ (ว่าง = ไม่เกิน)
+// ใช้ทั้งตรวจก่อนบันทึก (checkBundle) และเตือนในหน้ารายการ · ราคาตัวเลือกลดลงหลังตั้งส่วนลดแล้วทำให้เกิดเคสนี้ได้
+export function overDiscounts(b, ctx = {}) {
+  const { groups = [], sizes = [], types = [], styles = [] } = ctx
+  const items = b.items || []
+  if (!items.length) return []
+  const typeName = (id) => types.find((t) => t.id === id)?.name || ''
+  const scopes = scopesOf(b, types)
+  const over = []
+  for (const sz of sizes) {
+    for (const t of scopes) {
+      const reg = regularTotal(items, groups, t, sz.id)
+      const eff = effectiveDiscount(b, t, sz.id)
+      if (eff > reg + EPS) over.push(`${sz.name}${t ? ` (${typeName(t)})` : ''}: ลด ${bahtText(eff)} มากกว่าราคาปกติ ${bahtText(reg)}`)
+    }
+    for (const st of styles) {
+      if (b.styleMode?.[st.id] !== 'own') continue
+      const sd = num(b.styleDiscount?.[st.id]?.[sz.id]) || 0
+      for (const t of scopes) {
+        const reg = regularTotal(items, groups, t, sz.id)
+        if (sd > reg + EPS) over.push(`${sz.name} · ${st.name}${t ? ` (${typeName(t)})` : ''}: ลด ${bahtText(sd)} มากกว่าราคาปกติ ${bahtText(reg)}`)
+      }
+    }
+  }
+  return over
+}
+
 // ตรวจชุดก่อนบันทึก · errors = ต้องแก้ก่อนบันทึก · warnings = บันทึกได้แต่ควรดู · info = ข้อมูลประกอบ
 // ctx = { groups, sizes, types (ทุกประเภท · ประเภทที่ปิดอยู่ถูกข้ามเอง), styles, bundles, original (ชุดที่บันทึกไว้ · ไม่มี = ชุดใหม่) }
 export function checkBundle(b, ctx = {}) {
@@ -80,8 +114,6 @@ export function checkBundle(b, ctx = {}) {
   const warnings = []
   const info = []
   const items = b.items || []
-  const typeName = (id) => types.find((t) => t.id === id)?.name || ''
-  const activeIds = types.filter((t) => t.active !== false).map((t) => t.id)
 
   if (!items.length) errors.push('เลือกตัวเลือกอย่างน้อย 1 อย่าง')
   // ห้ามสร้างชุดซ้ำ: ชุดใหม่ หรือแก้ตัวเลือกจนไปซ้ำกับชุดอื่น · ชุดเดิมที่ซ้ำอยู่แล้วแก้ส่วนอื่นได้ตามปกติ
@@ -92,9 +124,8 @@ export function checkBundle(b, ctx = {}) {
     }
   }
 
-  // ประเภทที่ชุดนี้ใช้ได้จริง (ว่าง = ทุกประเภทที่เปิดใช้งาน) · ส่วนลดต้องไม่เกินราคาปกติของทุกประเภทที่ใช้ได้
-  const picked = b.types?.length ? b.types.filter((id) => activeIds.includes(id)) : activeIds
-  const scopes = picked.length ? picked : [null]
+  // ส่วนลดต้องไม่เกินราคาปกติของทุกประเภทที่ใช้ได้ (ดู scopesOf)
+  const scopes = scopesOf(b, types)
   // ตัวเลือก 0 ฿ → บันเดิ้ลที่มีตัวเลือกนี้สร้างไม่ได้ · ชุดเดิมที่มีอยู่แล้วแก้ส่วนอื่นได้ (มีคำเตือน) แต่เปลี่ยนตัวเลือกให้มีตัวเลือก 0 ฿ ไม่ได้
   const free = freeNamesOf(items, groups, scopes)
   if (free.length && (!original || itemSetKey(original.items) !== itemSetKey(items))) {
@@ -103,22 +134,7 @@ export function checkBundle(b, ctx = {}) {
     warnings.push(`มีตัวเลือกราคา 0 ฿ (${free.join(', ')}) — ชุดนี้สร้างไว้ก่อนกติกานี้ ควรเอาตัวเลือกนี้ออก หรือตั้งราคาตัวเลือกนี้`)
   }
   if (items.length) {
-    const over = []
-    for (const sz of sizes) {
-      for (const t of scopes) {
-        const reg = regularTotal(items, groups, t, sz.id)
-        const eff = effectiveDiscount(b, t, sz.id)
-        if (eff > reg + EPS) over.push(`${sz.name}${t ? ` (${typeName(t)})` : ''}: ลด ${bahtText(eff)} มากกว่าราคาปกติ ${bahtText(reg)}`)
-      }
-      for (const st of styles) {
-        if (b.styleMode?.[st.id] !== 'own') continue
-        const sd = num(b.styleDiscount?.[st.id]?.[sz.id]) || 0
-        for (const t of scopes) {
-          const reg = regularTotal(items, groups, t, sz.id)
-          if (sd > reg + EPS) over.push(`${sz.name} · ${st.name}${t ? ` (${typeName(t)})` : ''}: ลด ${bahtText(sd)} มากกว่าราคาปกติ ${bahtText(reg)}`)
-        }
-      }
-    }
+    const over = overDiscounts(b, ctx)
     errors.push(...over.slice(0, 3))
     if (over.length > 3) errors.push(`และอีก ${over.length - 3} รายการ`)
 

@@ -188,6 +188,13 @@ export const isOwnStyle = (b, styleId) => {
 // ส่วนลดต่อขนาด: ราคาประจำตัวของรูปแบบ (ช่องว่าง = 0) · ไม่งั้นราคากลาง: ตามประเภท (typeDiscount) > ทุกประเภท (discount)
 export const bundleAmount = (b, typeId, sizeIds, styleId = null) =>
   sizeIds.reduce((s, sid) => s + (isOwnStyle(b, styleId) ? num(b.styleDiscount?.[styleId]?.[sid]) ?? 0 : num(b.typeDiscount?.[typeId]?.[sid]) ?? (Number(b.discount?.[sid]) || 0)), 0)
+// ราคาตัวเลือกทั้งชุด ณ ประเภท/ขนาดที่คิดราคา (เหมือนราคาตัวเลือกในตะกร้า)
+const itemsPriceOf = (b, groups, typeId, sizeIds) =>
+  (b.items || []).reduce((s, x) => s + optionPrice(groups.find((g) => g.id === x.groupId)?.options?.find((o) => o.id === x.optionId), typeId, sizeIds), 0)
+// ส่วนลดที่ลูกค้าได้จริง = ส่วนลดที่ตั้งไว้ แต่ไม่เกินราคาตัวเลือกในชุด
+// ส่วนลดเป็นบาทคงที่ ถ้าราคาตัวเลือกลดลงหลังตั้งส่วนลด ไม่กันไว้ราคาเค้กจะต่ำกว่าฐานหรือติดลบ (หน้าแก้ไข/รายการเตือนชุดนั้นด้วย overDiscounts)
+export const bundleAmountCapped = (b, groups, typeId, sizeIds, styleId = null) =>
+  Math.max(0, Math.min(bundleAmount(b, typeId, sizeIds, styleId), itemsPriceOf(b, groups, typeId, sizeIds)))
 // 1 หัวข้อ (กลุ่มตัวเลือก) ได้ส่วนลดบันเดิ้ลสูงสุด 1 ชุด · หัวข้อของบันเดิ้ล = กลุ่มของตัวเลือกแรก (ข้ามกลุ่มนับเป็นของกลุ่มแรก)
 // ถ้าเข้าเงื่อนไขหลายชุดในหัวข้อเดียวกัน → ใช้ชุดที่ลดน้อยที่สุด (ชุดที่ส่วนลด 0 ไม่นับ) · ต่างหัวข้อใช้พร้อมกันได้ ถ้าไม่ใช้ตัวเลือกซ้ำกัน
 // ทุกชุดที่ครบ (ส่วนลด > 0) ใช้ได้พร้อมกัน ถ้าไม่ใช้ตัวเลือกซ้ำกัน · ซ้ำกัน: ชุดที่มีจำนวนตัวเลือกมากที่สุดมาก่อน แล้วส่วนลดมากกว่า
@@ -204,11 +211,11 @@ export function bundleWinners(c) {
   // ได้ชุดหลายตัวเลือกแล้ว → บันเดิ้ลตัวเลือกเดียวไม่นับ (ทั้งป้ายและส่วนลด)
   return out.some((x) => x.b.items.length > 1) ? out.filter((x) => x.b.items.length > 1) : out
 }
-export function bundleDiscount(bundles, picked, sizeIds, usedBundles = null, typeId = null, styleId = null) {
+export function bundleDiscount(bundles, picked, sizeIds, usedBundles = null, typeId = null, styleId = null, groups) {
   const c = []
   for (const b of bundles) {
     if (b.active === false || !forType(b, typeId) || !(b.items?.length > 0) || !b.items.every((x) => picked.has(keyOf(x)))) continue
-    const amount = bundleAmount(b, typeId, sizeIds, styleId)
+    const amount = bundleAmountCapped(b, groups, typeId, sizeIds, styleId)
     if (amount > 0) c.push({ b, amount })
   }
   let total = 0
@@ -244,7 +251,7 @@ export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = []
   for (const b of bundles || []) {
     if (b.active === false || !(b.items?.length > 0)) continue
     const sc = bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS, styleId: dSt })
-    const amount = forType(b, sc.typeId) ? bundleAmount(b, sc.typeId, sc.sizeIds, sc.styleId) : 0
+    const amount = forType(b, sc.typeId) ? bundleAmountCapped(b, groups, sc.typeId, sc.sizeIds, sc.styleId) : 0
     if (amount > 0) allC.push({ b, amount })
   }
   const sum = (l) => l.reduce((t, x) => t + x.amount, 0)
@@ -255,7 +262,7 @@ export function bundleHints(bundles, groups, sels, { typeId = null, sizeIds = []
     if (b.active === false || !forType(b, typeId) || !(b.items?.length > 1)) continue
     const have = b.items.filter(has)
     if (!have.length || have.length < b.items.length - 1 || have.length === b.items.length) continue
-    const amount = bundleAmount(b, typeId, sizeIds, styleId)
+    const amount = bundleAmountCapped(b, groups, typeId, sizeIds, styleId)
     if (!(amount > 0)) continue
     const missing = []
     let ok = true
@@ -304,7 +311,7 @@ export function bundleTags(bundles, groups, sels, { typeId: dT = null, sizeIds: 
     if (b.active === false || !(b.items?.length > 0)) continue
     const { typeId, sizeIds, styleId } = bundleScope(b, groups, scopes, { typeId: dT, sizeIds: dS, styleId: dSt })
     if (!forType(b, typeId)) continue
-    const amount = bundleAmount(b, typeId, sizeIds, styleId)
+    const amount = bundleAmountCapped(b, groups, typeId, sizeIds, styleId)
     if (!(amount > 0)) continue
     const usable = (x) => {
       const g = groups.find((z) => z.id === x.groupId)
@@ -380,10 +387,11 @@ export function calcUnitPrice(item, groups, products, active = [], used = null, 
     const okT = groupOkFor(groups, item, t)
     const tp = pick(tierG.filter(okT), t.selections, tierTypes[i])
     extra += priceOf(tp, tierTypes[i], tierSizes[i])
-    extra -= bundleDiscount(tierB, keys([...tp, ...wholePicked]), tierSizes[i], usedBundles, tierTypes[i], tierStyles[i])
+    extra -= bundleDiscount(tierB, keys([...tp, ...wholePicked]), tierSizes[i], usedBundles, tierTypes[i], tierStyles[i], groups)
   })
-  extra -= bundleDiscount(wholeB, keys(wholePicked), allSizes, usedBundles, wholeType, tierStyles[0] || null)
-  return base + extra
+  extra -= bundleDiscount(wholeB, keys(wholePicked), allSizes, usedBundles, wholeType, tierStyles[0] || null, groups)
+  // ราคาตัวเลือกไม่ติดลบ (ส่วนลดกันไว้ที่ราคาตัวเลือกแล้ว · ชั้นนี้กันซ้ำอีกชั้น)
+  return base + Math.max(0, extra)
 }
 
 // ราคาที่ใช้ + ราคาปกติ + ชื่อแบบราคาพิเศษ/บันเดิ้ลที่ใช้
