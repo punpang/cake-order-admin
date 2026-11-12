@@ -7,6 +7,7 @@ import { showToast } from '../../lib/toast'
 import { qty } from '../../lib/format'
 import { MAIN_KEYS } from '../../lib/constants'
 import { autoBundleName, bahtText, checkBundle, effectiveDiscount, findItemOption, makeDraft, percentOf, regularTotal } from '../../lib/bundleEditor'
+import { recommendPrice, subSuggestions } from '../../lib/bundleAdvice'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
@@ -51,8 +52,59 @@ const autoName = computed(() => autoBundleName(draft.items, db.optionGroups))
 const finalName = computed(() => draft.name.trim() || autoName.value)
 const hasItems = computed(() => draft.items.length > 0)
 const selectedText = computed(() => draft.items.map((x) => findItemOption(db.optionGroups, x)?.name || 'ตัวเลือกที่ถูกลบแล้ว').join(' + '))
-const check = computed(() => checkBundle(draft, { groups: db.optionGroups, sizes: sizes.value, types: typesAll.value, styles: styles.value, bundles: db.bundles }))
+// ชุดที่บันทึกไว้ (ไว้เช็กว่าแก้ตัวเลือกจนซ้ำกับชุดอื่นหรือไม่) · ชุดใหม่ = ไม่มี
+const original = computed(() => (isNew.value ? null : db.bundles.find((b) => b.id === props.id) || null))
+const check = computed(() => checkBundle(draft, { groups: db.optionGroups, sizes: sizes.value, types: typesAll.value, styles: styles.value, bundles: db.bundles, original: original.value }))
 const blocked = computed(() => check.value.errors.length > 0)
+
+// ---------- บันเดิ้ลทางเลือก และราคาที่แนะนำ ----------
+const activeTypeIds = computed(() => activeTypes.value.map((t) => t.id))
+const hasTypeOverride = computed(() => Object.values(draft.typeDiscount || {}).some((m) => Object.values(m || {}).some((v) => v !== '' && v != null)))
+const advice = computed(() => (draft.items.length >= 2 ? recommendPrice(draft.items, { groups: db.optionGroups, sizes: sizes.value, bundles: db.bundles, types: draft.types, allTypeIds: activeTypeIds.value, selfId: draft.id }) : null))
+const subs = computed(() => (draft.items.length >= 3 ? subSuggestions(draft.items, { groups: db.optionGroups, sizes: sizes.value, bundles: db.bundles, types: draft.types, allTypeIds: activeTypeIds.value }) : []))
+// สร้างได้เฉพาะชุดที่มีส่วนลดสมดุลแล้ว · ชุดขัดแย้งหรือไม่มีส่วนลดต้องแก้ชุดเดิมหรือราคาตัวเลือกก่อน
+const creatable = (s) => !s.existing && s.rec.pct > 0 && s.rec.status !== 'conflict' && s.rec.status !== 'noprice'
+const newSubs = computed(() => subs.value.filter((s) => creatable(s)))
+// ใส่ราคาที่แนะนำลงช่องส่วนลดทุกขนาดของ "ทุกประเภท" · ยังไม่บันทึกจนกว่าจะกดบันทึก
+function applyAdvice() {
+  if (!advice.value) return
+  scope.value = 'all'
+  for (const sz of sizes.value) draft.discount[sz.id] = String(advice.value.amounts[sz.id] ?? 0)
+  showToast(`ใส่ราคาแนะนำ ลด ${advice.value.pct}% แล้ว · กดบันทึกเมื่อพอใจ`)
+}
+// ข้อมูลชุดใหม่จากบันเดิ้ลทางเลือก: ชื่ออัตโนมัติ ประเภทเดียวกับที่เลือกอยู่ และราคาที่แนะนำ
+function suggestionData(s) {
+  const d = makeDraft(null, styles.value, typesAll.value)
+  d.name = s.name
+  d.items = s.items.map((x) => ({ groupId: x.groupId, optionId: x.optionId }))
+  d.types = [...draft.types]
+  for (const sz of sizes.value) d.discount[sz.id] = String(s.rec.amounts[sz.id] ?? 0)
+  return JSON.parse(JSON.stringify(d))
+}
+// บันทึกชุดใหม่ด้วยกติกาเดียวกับหน้าแก้ไข (รวมการกันชุดซ้ำ) · คืนข้อความผิดพลาดถ้าบันทึกไม่ได้
+function saveNewBundle(d) {
+  const r = checkBundle(d, { groups: db.optionGroups, sizes: sizes.value, types: typesAll.value, styles: styles.value, bundles: db.bundles, original: null })
+  if (r.errors.length) return r.errors[0]
+  saveBundle(d)
+  return ''
+}
+function createSuggestion(s) {
+  if (!creatable(s)) return
+  const err = saveNewBundle(suggestionData(s))
+  if (err) showToast(err, 8000, 'error')
+  else showToast(`สร้าง "${s.name}" แล้ว · ลด ${s.rec.pct}%`)
+}
+function createAllNew() {
+  let made = 0
+  let failed = ''
+  for (const s of newSubs.value) {
+    const err = saveNewBundle(suggestionData(s))
+    if (err) failed = err
+    else made++
+  }
+  if (failed) showToast(`สร้างได้ ${made} ชุด · ${failed}`, 8000, 'error')
+  else showToast(`สร้าง ${made} ชุดแล้ว`)
+}
 
 // ---------- 1 ตัวเลือก ----------
 const picked = (g, o) => draft.items.some((x) => x.groupId === g.id && x.optionId === o.id)
@@ -201,6 +253,52 @@ async function save() {
         </p>
       </section>
 
+      <!-- บันเดิ้ลทางเลือกจากตัวเลือกที่เลือก (เลือกตั้งแต่ 3 อย่างขึ้นไป) -->
+      <section v-if="subs.length" class="card" aria-labelledby="bd-subs" data-sub-section>
+        <div class="mb-3 flex items-start gap-3">
+          <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-semibold text-white">+</span>
+          <div class="min-w-0">
+            <h2 id="bd-subs" class="font-semibold text-stone-900">บันเดิ้ลทางเลือกที่เป็นไปได้ ({{ subs.length }} ชุด)</h2>
+            <p class="text-sm text-stone-500">แยกจากตัวเลือกที่เลือกทุกคู่ · ราคาแนะนำลดแบบเดียวกันทุกขนาด · ชุดที่มีอยู่แล้วไม่สร้างซ้ำ</p>
+          </div>
+        </div>
+        <ul class="space-y-2">
+          <li
+            v-for="(s, i) in subs"
+            :key="i"
+            class="rounded-xl border p-3"
+            :class="s.existing ? 'border-stone-200 bg-stone-50' : creatable(s) ? 'border-emerald-200 bg-emerald-50/50' : 'border-rose-200 bg-rose-50/40'"
+            data-sub-item
+          >
+            <div class="flex flex-wrap items-start gap-2">
+              <div class="min-w-0 flex-1">
+                <div class="font-semibold break-words text-stone-900">{{ s.name }}</div>
+                <div class="text-sm text-stone-700">
+                  แนะนำ <b>ลด {{ s.rec.pct }}%</b> ทุกขนาด
+                  <span v-if="s.rec.sample" class="text-stone-500">· {{ s.rec.sample.size }} {{ bahtText(s.rec.sample.regular) }} → เหลือ {{ bahtText(s.rec.sample.net) }}</span>
+                </div>
+                <div v-if="s.existing" class="mt-0.5 text-xs text-stone-600" data-sub-status>
+                  มีอยู่แล้ว{{ s.existing.active === false ? ' (ปิดอยู่)' : '' }} · {{ s.current ? `ตอนนี้ลดสูงสุด ${s.current}%` : 'ตอนนี้ยังไม่ลด' }}
+                </div>
+                <div v-else-if="creatable(s)" class="mt-0.5 text-xs text-emerald-800">ยังไม่มีชุดนี้ · สร้างได้</div>
+                <div v-else class="mt-0.5 text-xs text-rose-700" data-sub-blocked>ยังไม่มีชุดนี้ · สร้างไม่ได้ตอนนี้ ({{ s.rec.conflicts.length ? 'ดูข้อขัดแย้งด้านล่าง' : 'ยังไม่มีส่วนลดที่สมดุล' }})</div>
+              </div>
+              <RouterLink v-if="s.existing" :to="`/admin/settings/bundles/${s.existing.id}`" class="btn-outline h-9 shrink-0 px-3 text-sm" data-sub-edit>แก้ชุดเดิม</RouterLink>
+              <button v-else-if="creatable(s)" type="button" class="btn-primary h-9 shrink-0 px-3 text-sm" data-sub-create @click="createSuggestion(s)">สร้างชุดนี้</button>
+            </div>
+            <p v-for="(c, j) in s.rec.conflicts" :key="`c${j}`" class="mt-2 rounded-lg bg-rose-50 p-2 text-xs text-rose-800">{{ c }}</p>
+            <p v-for="(w, j) in s.rec.warnings" :key="`w${j}`" class="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">{{ w }}</p>
+            <details v-if="s.rec.reasons.length" class="mt-2">
+              <summary class="cursor-pointer text-xs text-stone-500">เหตุผลของราคานี้</summary>
+              <ul class="mt-1 list-disc space-y-0.5 pl-5 text-xs text-stone-600">
+                <li v-for="(r, j) in s.rec.reasons" :key="j">{{ r }}</li>
+              </ul>
+            </details>
+          </li>
+        </ul>
+        <button v-if="newSubs.length >= 2" type="button" class="btn-soft mt-3 h-10 w-full" data-sub-create-all @click="createAllNew">สร้างชุดที่ยังไม่มีทั้งหมด ({{ newSubs.length }} ชุด)</button>
+      </section>
+
       <!-- 2 ชื่อ -->
       <section class="card" aria-labelledby="bd-name">
         <div class="mb-3 flex items-start gap-3">
@@ -249,6 +347,23 @@ async function save() {
           </div>
         </div>
 
+        <!-- ราคาที่แนะนำ: วิเคราะห์จากบันเดิ้ลอื่นและราคาตัวเลือก พร้อมเหตุผล -->
+        <div v-if="advice" class="mb-4 rounded-2xl border p-3" :class="advice.status === 'conflict' ? 'border-rose-200 bg-rose-50/50' : 'border-emerald-200 bg-emerald-50/50'" data-price-advice>
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="text-xs text-stone-500">ราคาที่แนะนำ · ลดน้อยที่สุดที่ยังจูงใจ</div>
+              <div class="font-semibold text-stone-900" data-advice-pct>ลด {{ advice.pct }}% ทุกขนาด</div>
+              <div v-if="advice.sample" class="text-xs text-stone-600">{{ advice.sample.size }} {{ bahtText(advice.sample.regular) }} → เหลือ {{ bahtText(advice.sample.net) }}</div>
+            </div>
+            <button type="button" class="btn-primary h-10 shrink-0 px-4" data-apply-advice @click="applyAdvice">ใช้ราคาที่แนะนำ</button>
+          </div>
+          <ul class="mt-2 list-disc space-y-0.5 pl-5 text-xs text-stone-600" data-advice-reasons>
+            <li v-for="(r, i) in advice.reasons" :key="`r${i}`">{{ r }}</li>
+          </ul>
+          <p v-for="(c, i) in advice.conflicts" :key="`c${i}`" class="mt-2 rounded-lg bg-rose-50 p-2 text-xs text-rose-800">{{ c }}</p>
+          <p v-for="(w, i) in advice.warnings" :key="`w${i}`" class="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">{{ w }}</p>
+          <p v-if="hasTypeOverride" class="mt-2 text-xs text-stone-500">มีราคาแยกประเภทที่ตั้งไว้ ค่าเหล่านั้นยังใช้อยู่ · ใส่ราคาแนะนำจะเปลี่ยนเฉพาะ "ทุกประเภท"</p>
+        </div>
         <div class="flex flex-wrap gap-2" role="group" aria-label="เลือกประเภทที่จะตั้งส่วนลด">
           <button
             v-for="s in scopes"
