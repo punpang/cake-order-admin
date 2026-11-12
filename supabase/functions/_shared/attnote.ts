@@ -12,7 +12,8 @@ const clean = (s: unknown, max: number) => String(s ?? '').replace(/[\u0000-\u00
 export function attachmentNote(a: any): string | null {
   const type = clean(a?.type, 40)
   const url = clean(a?.payload?.url ?? a?.url, 500)
-  const title = clean(a?.title ?? a?.payload?.title, 200)
+  // การ์ดข้อความ (template) เก็บชื่อการ์ดไว้ในรายการแรกของ elements
+  const title = clean(a?.title ?? a?.payload?.title ?? a?.payload?.elements?.[0]?.title, 200)
   const safeUrl = /^https:\/\//i.test(url) ? url : ''
   if (!LABEL[type] && !safeUrl && !title) return null
   return [`[${LABEL[type] || 'ข้อความแนบ'}]`, title, safeUrl].filter(Boolean).join(' ')

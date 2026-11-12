@@ -20,3 +20,6 @@ Deno.test('ตัดอักขระควบคุมและความย
   assertEquals(n?.includes('\u0000'), false)
   assertEquals((n ?? '').length <= 200 + '[ลิงก์ที่แชร์] '.length, true)
 })
+Deno.test('การ์ดข้อความ (template) แสดงชื่อการ์ดจากรายการแรก', () => {
+  assertEquals(attachmentNote({ type: 'template', payload: { template_type: 'generic', elements: [{ title: 'ออร์เดอร์ OR-1' }] } }), '[การ์ดข้อความ] ออร์เดอร์ OR-1')
+})
