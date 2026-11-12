@@ -13,7 +13,7 @@ import { ensureStyleGroup } from './constants'
 export const CONFIG_KEYS = [
   'shop', 'loyalty', 'rewards', 'gachaPrizes', 'priceLists', 'bundles', 'ingredients', 'optionGroups',
   'cannedReplies', 'bot', 'slipQr', 'notifyRules', 'posModifiers', 'posDiscounts', 'posBundles', 'posDeals', 'pointPromos',
-  'storefront', 'legal', 'cakeGallery', 'integrations',
+  'storefront', 'legal', 'cakeGallery', 'integrations', 'retention',
 ]
 const COLLECTION_OF = { storefront: 'storefront', legal: 'legal', cakeGallery: 'storefront', ingredients: 'materials' } // cakeGallery: หน้าร้านสาธารณะอ่านได้
 // ค่าที่เก็บจริงของบางคีย์ (integrations: เฉพาะ { ช่องทาง: { enabled } })

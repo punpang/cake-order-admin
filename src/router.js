@@ -51,6 +51,7 @@ const StaffLogin = () => import('./views/StaffLogin.vue')
 const Accounting = () => import('./views/accounting/Accounting.vue')
 const ManageLegal = () => import('./views/manage/ManageLegal.vue')
 const ManageLinks = () => import('./views/manage/ManageLinks.vue')
+const ManageRetention = () => import('./views/manage/ManageRetention.vue')
 const ManageGallery = () => import('./views/manage/ManageGallery.vue')
 const ManagePhotoRequests = () => import('./views/manage/ManagePhotoRequests.vue')
 const ManageFiles = () => import('./views/manage/ManageFiles.vue')
@@ -119,6 +120,7 @@ const router = createRouter({
     { path: '/admin/settings/legal', component: ManageLegal },
     { path: '/admin/settings/links', component: ManageLinks },
     { path: '/admin/settings/bot', component: ManageBot },
+    { path: '/admin/settings/retention', component: ManageRetention },
     { path: '/admin/settings/sms', component: ManageSms },
     // ลิงก์หลังบ้านเดิม (ก่อนย้ายไป /admin)
     { path: '/:old(orders|manage|chat|pos|materials|production)/:rest(.*)*', redirect: (to) => `/admin${to.fullPath}` },
