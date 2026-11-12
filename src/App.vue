@@ -23,9 +23,9 @@ import StoreLayout from './components/StoreLayout.vue'
 const roleOpen = ref(false)
 // 4 ระบบหลังบ้าน (lib/adminSystems.js): ตัวสลับระบบ + เมนูย่อยของระบบปัจจุบัน
 const route = useRoute()
-// ชื่อร้านจากตั้งค่าร้าน (ไม่ฝังชื่อไว้ในโค้ด) · แท็บเบราว์เซอร์แสดงตามชื่อร้านด้วย
+// ชื่อร้านจากตั้งค่าร้าน (ไม่ฝังชื่อไว้ในโค้ด) · แท็บเบราว์เซอร์แสดงชื่อร้านอย่างเดียว
 const shopName = computed(() => (db.shop.name || '').trim() || 'ร้านของคุณ')
-watchEffect(() => { document.title = `ระบบหลังบ้าน ${shopName.value}` })
+watchEffect(() => { document.title = shopName.value })
 // เปลี่ยนหน้า (SPA) → ย้ายโฟกัสไปเนื้อหา ให้ผู้ใช้แป้นพิมพ์/โปรแกรมอ่านหน้าจอเริ่มจากหน้าใหม่
 // (ข้ามการนำทางครั้งแรกตอนโหลดหน้า เพื่อไม่ให้ข้ามลิงก์ "ข้ามไปเนื้อหาหลัก")
 const appRouter = useRouter()
