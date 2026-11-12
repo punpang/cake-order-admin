@@ -73,13 +73,20 @@ Deno.serve(async (req) => {
   try { b = await req.json() } catch { return json({ error: 'คำขอไม่ถูกต้อง' }, 400) }
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
   // อ่านยอดและวัน-เวลาจากภาพสลิป (เหมือนสลิปในแชท) · เฉพาะเมื่อร้านเปิดไว้และมีคีย์ · อ่านไม่ได้ = null (ไม่บล็อกการส่ง)
+  // อ่านภาพเพียงครั้งเดียว: ผลเก็บตามแฮชของภาพ (1 ชม.) ตอนแนบ/ตอนส่งใช้ผลเดียวกัน ไม่เรียกโมเดลซ้ำ
+  const sha = async (b: Uint8Array) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', b))].map((x) => x.toString(16).padStart(2, '0')).join('')
   const slipFieldsOf = async (bytes: Uint8Array) => {
     const cfg = (await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()).data?.data?.v?.ocr
     if (cfg?.enabled !== true) return null
     const key = Deno.env.get('ANTHROPIC_API_KEY') || ''
     if (!key) return null
+    const id = `sr${(await sha(bytes)).slice(0, 40)}`
+    const hit = (await sb.from('punpang_records').select('data').eq('collection', 'slipRead').eq('id', id).maybeSingle()).data?.data
+    if (hit && Date.now() - new Date(hit.at).getTime() < 3600_000) return hit.fields ?? null
     const model = typeof cfg.model === 'string' && cfg.model.trim() ? cfg.model.trim() : OCR_DEFAULT_MODEL
-    return await readSlipFields({ bytes, key, model })
+    const fields = await readSlipFields({ bytes, key, model })
+    await sb.from('punpang_records').insert({ collection: 'slipRead', id, data: { fields, at: new Date().toISOString() } }) // ซ้ำ = ข้าม
+    return fields
   }
   const action = String(b.action || '')
   if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)

@@ -19,6 +19,7 @@ export const SETTINGS_PAGES = [
   { to: '/admin/settings/legal', icon: 'shield', title: 'PDPA / คุกกี้ / เงื่อนไข' },
   { to: '/admin/settings/bot', icon: 'chat', title: 'บอทตอบแชท' },
   { to: '/admin/settings/links', icon: 'link', title: 'ลิงก์ย่อ & ลิงก์ออร์เดอร์' },
+  { to: '/admin/settings/retention', icon: 'trash', title: 'จัดการข้อมูลที่เป็นขยะ' },
   { to: '/admin/settings/deletion-requests', icon: 'shield', title: 'คำขอลบข้อมูลลูกค้า' },
   { to: '/admin/settings/ingredients', icon: 'basket', title: 'วัตถุดิบ' },
   { to: '/admin/settings/users', icon: 'shield', title: 'ผู้ใช้ & สิทธิ์', perm: 'manageUsers' },

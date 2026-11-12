@@ -304,6 +304,8 @@ export const db = reactive({
   bot: JSON.parse(JSON.stringify(BOT_DEFAULTS)),
   // สลิปในแชท (config slipQr): enabled = ตรวจรูปสลิปในแชท · mode = auto (แนบกับออร์เดอร์ที่คุยล่าสุดอัตโนมัติ) | manual (ร้านเลือกออร์เดอร์ผูกเองในแชท)
   slipQr: { enabled: true, mode: 'auto', ocr: { enabled: false } }, // ocr.enabled = อ่านยอด/วัน-เวลาจากภาพสลิปด้วย Claude (ปิดเป็นค่าเริ่มต้น)
+  // จัดการข้อมูลที่อาจเป็นขยะ (config retention): แต่ละหมวดเปิด/ปิดได้ และกำหนดจำนวนวันที่เก็บ · ค่าเริ่มต้นตรงกับฟังก์ชัน punpang_run_retention
+  retention: { slipRead: { enabled: true, days: 30 }, chatMedia: { enabled: true, days: 30 }, aiLog: { enabled: false, days: 90 }, bell: { enabled: false, days: 90 }, orderLinks: { enabled: false, days: 180 } },
   // shortLinks: [{ id, code, target, kind: internal | external, clicks, createdAt, expiresAt, active, note }]
   shortLinks: [],
   notifySent: [],
@@ -2891,6 +2893,27 @@ export function createCustomerFromChat(chatId, phone, name = '') {
   if (cu.error) return cu
   linkChat(chatId, cu.id)
   return cu
+}
+// ---------- จัดการข้อมูลที่อาจเป็นขยะ (ลบตามจำนวนวันที่ร้านตั้งไว้) ----------
+export const RETENTION_CATS = [
+  { key: 'slipRead', label: 'ผลอ่านสลิป (แคชการอ่านสลิปของลูกค้า/แชท)', def: { enabled: true, days: 30 } },
+  { key: 'chatMedia', label: 'ลิงก์รูป/ไฟล์ Facebook ในแชท (เก็บชื่อไฟล์ ลบเฉพาะลิงก์)', def: { enabled: true, days: 30 } },
+  { key: 'aiLog', label: 'บันทึกการทำงานของบอท AI', def: { enabled: false, days: 90 } },
+  { key: 'bell', label: 'กระดิ่งแจ้งเตือนที่เก่าแล้ว', def: { enabled: false, days: 90 } },
+  { key: 'orderLinks', label: 'ลิงก์ออร์เดอร์ที่ถูกเพิกถอนแล้ว', def: { enabled: false, days: 180 } },
+]
+export function defaultRetention() {
+  return Object.fromEntries(RETENTION_CATS.map((c) => [c.key, { ...c.def }]))
+}
+export function saveRetentionSettings(d) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
+  for (const c of RETENTION_CATS) {
+    const v = d?.[c.key] || {}
+    const days = Math.round(Number(v.days))
+    if (!Number.isFinite(days) || days < 1 || days > 3650) return { error: `${c.label}: กรอกจำนวนวันระหว่าง 1–3650` }
+  }
+  db.retention = Object.fromEntries(RETENTION_CATS.map((c) => [c.key, { enabled: d[c.key].enabled === true, days: Math.round(Number(d[c.key].days)) }]))
+  return { ok: true }
 }
 // ---------- สลิปในแชท: โหมดแมนนวล (ร้านเลือกออร์เดอร์ผูกเอง) ----------
 // db.slipQr (punpang_kv config slipQr): enabled = ตรวจรูปสลิปในแชท · mode = auto | manual (ค่าอื่น = auto)
