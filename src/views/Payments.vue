@@ -86,19 +86,23 @@ const summary = computed(() => {
       </button>
     </div>
 
-    <!-- สรุปยอดของแท็บ: ตอบคำถามแรกของคนหน้าร้านได้ทันที (ต้องรับเงินเท่าไร) -->
-    <section v-if="summary && rows.length" class="mb-3 flex items-center justify-between gap-3 rounded-2xl px-4 py-3" :class="tab === 'review' ? 'bg-sky-50 text-sky-900' : 'bg-amber-50 text-amber-900'" aria-label="สรุปยอด">
-      <div class="min-w-0">
+    <!-- สรุปยอดของแท็บ: ตอบคำถามแรกของคนหน้าร้านได้ทันที (ต้องรับเงินเท่าไร · กี่รายการ · เกินกำหนดกี่รายการ) -->
+    <section v-if="summary && rows.length" class="mb-3 grid grid-cols-3 divide-x divide-stone-200/80 overflow-hidden rounded-2xl border shadow-sm md:max-w-xl" :class="tab === 'review' ? 'border-sky-200 bg-sky-50' : 'border-amber-200 bg-amber-50'" aria-label="สรุปยอด">
+      <div class="col-span-3 min-w-0 px-4 pt-3 sm:col-span-1 sm:pb-3" :class="tab === 'review' ? 'text-sky-900' : 'text-amber-900'">
         <div class="text-xs font-medium opacity-80">{{ tab === 'review' ? 'ยอดที่แจ้งรอตรวจ' : 'ยอดค้างรับทั้งหมด' }}{{ q.trim() ? ' (ตามที่ค้นหา)' : '' }}</div>
-        <div class="text-xl leading-tight font-semibold tabular-nums">{{ money(summary.amount) }}</div>
+        <div class="mt-0.5 text-2xl leading-tight font-semibold tabular-nums">{{ money(summary.amount) }}</div>
       </div>
-      <div class="shrink-0 text-right text-xs leading-relaxed">
-        <div>{{ summary.count }} {{ tab === 'review' ? 'งวด' : 'ออร์เดอร์' }}</div>
-        <div v-if="summary.overdue" class="font-semibold text-rose-700">เกินกำหนด {{ summary.overdue }}</div>
+      <div class="px-4 py-3" :class="tab === 'review' ? 'text-sky-900' : 'text-amber-900'">
+        <div class="text-xs font-medium opacity-80">{{ tab === 'review' ? 'งวดที่รอตรวจ' : 'ออร์เดอร์' }}</div>
+        <div class="mt-0.5 text-lg leading-tight font-semibold tabular-nums">{{ summary.count.toLocaleString('th-TH') }}</div>
+      </div>
+      <div class="px-4 py-3" :class="summary.overdue ? 'text-rose-700' : tab === 'review' ? 'text-sky-900' : 'text-amber-900'">
+        <div class="text-xs font-medium opacity-80">เกินกำหนด</div>
+        <div class="mt-0.5 text-lg leading-tight font-semibold tabular-nums">{{ tab === 'review' ? '—' : summary.overdue.toLocaleString('th-TH') }}</div>
       </div>
     </section>
 
-    <label class="relative mb-4 block lg:max-w-xl">
+    <label class="relative mb-3 block md:max-w-xl">
       <span class="sr-only">ค้นหา</span>
       <AppIcon name="search" class="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-stone-400" />
       <input v-model="q" type="search" class="input bg-white pl-10" placeholder="ค้นหา เลขออร์เดอร์ ชื่อ หรือเบอร์" />
