@@ -120,7 +120,8 @@ function savePhone() {
 const saveBlock = computed(() => (props.embedded && props.chatId ? chatOrderBlock(props.chatId) : ''))
 
 // ---------- ขั้น 2 นัดรับ ----------
-const sideSummary = computed(() => !props.embedded && step.value < 3)
+// แผงขวาอยู่ทุกขั้น (บนจอกว้าง): ขั้น 1-3 = สรุปออร์เดอร์ · ขั้นสรุป = ตรวจก่อนบันทึก (ยอด + สิ่งที่จะเกิดขึ้น)
+const sideSummary = computed(() => !props.embedded)
 const pickupAt = computed(() => (form.date && form.time ? `${form.date}T${form.time}` : ''))
 const load = computed(() => countPickups(pickupAt.value))
 // เวลานัดเป็นปุ่มตามช่วงเวลาที่ตั้งไว้
@@ -536,7 +537,7 @@ function quote() {
               <button class="btn-outline sm:min-w-32" :disabled="saving" @click="submit(true)">บันทึกร่าง</button>
               <button class="btn-primary sm:min-w-44" :disabled="saving" @click="submit(false)">{{ saving ? 'กำลังบันทึก…' : 'บันทึก · รอชำระ' }}</button>
             </div>
-            <p class="w-full text-xs leading-relaxed text-stone-500"><b class="font-semibold text-stone-700">บันทึกร่าง</b> = เก็บไว้ก่อน ยังไม่ส่งให้ลูกค้า · <b class="font-semibold text-stone-700">บันทึก · รอชำระ</b> = เริ่มรับออร์เดอร์ รอลูกค้าชำระเงิน</p>
+            <p class="w-full text-xs leading-relaxed text-stone-500 lg:hidden"><b class="font-semibold text-stone-700">บันทึกร่าง</b> = เก็บไว้ก่อน ยังไม่ส่งให้ลูกค้า · <b class="font-semibold text-stone-700">บันทึก · รอชำระ</b> = เริ่มรับออร์เดอร์ รอลูกค้าชำระเงิน</p>
           </template>
         </template>
       </div>
@@ -544,8 +545,25 @@ function quote() {
 
     </div>
 
-    <aside v-if="sideSummary" class="hidden lg:sticky lg:top-20 lg:block" aria-label="สรุปออร์เดอร์">
-      <div class="card space-y-3 text-sm">
+    <aside v-if="sideSummary" class="hidden lg:sticky lg:top-20 lg:block" :aria-label="step === 3 ? 'ตรวจก่อนบันทึก' : 'สรุปออร์เดอร์'">
+      <div v-if="step === 3" class="card space-y-4 text-sm">
+        <div class="card-title"><AppIcon name="check" class="text-brand-600" /> ตรวจก่อนบันทึก</div>
+        <div class="rounded-2xl bg-brand-50 p-4">
+          <div class="text-xs font-medium text-brand-800">ยอดรวมทั้งออร์เดอร์</div>
+          <div class="mt-0.5 text-3xl leading-tight font-semibold tabular-nums text-stone-900">{{ money(totals.total) }}</div>
+          <div class="mt-1 text-xs text-stone-600">{{ form.items.length }} รายการ · {{ form.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }} · {{ dateTime(pickupAt) }}</div>
+        </div>
+        <ol class="space-y-2.5">
+          <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-100 text-xs font-semibold text-stone-600">1</span><span class="text-stone-700"><b class="font-semibold text-stone-900">บันทึกร่าง</b> เก็บไว้ก่อน ยังไม่ส่งให้ลูกค้า</span></li>
+          <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white">2</span><span class="text-stone-700"><b class="font-semibold text-stone-900">บันทึก · รอชำระ</b> เริ่มรับออร์เดอร์ รอลูกค้าชำระเงิน</span></li>
+          <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-100 text-xs font-semibold text-stone-600">3</span><span class="text-stone-700">{{ !notifyCustomer ? 'ไม่แจ้งลูกค้า' : smsToo && customer?.phone ? 'แจ้งลูกค้าในแชท และส่ง SMS' : 'แจ้งลูกค้าในแชท' }}</span></li>
+        </ol>
+        <div class="space-y-1.5 border-t border-stone-100 pt-3 text-xs text-stone-500">
+          <div class="flex justify-between"><span>ลูกค้า</span><span class="truncate pl-3 font-medium text-stone-700">{{ customer?.name || '—' }}</span></div>
+          <div class="flex justify-between"><span>สินค้า</span><span class="font-medium text-stone-700">{{ form.items.length }} รายการ</span></div>
+        </div>
+      </div>
+      <div v-else class="card space-y-3 text-sm">
         <div class="card-title"><AppIcon name="list" class="text-brand-600" /> สรุปออร์เดอร์</div>
         <div><div class="text-xs text-stone-500">ลูกค้า</div><div class="truncate font-semibold text-stone-900">{{ customer?.name || 'ยังไม่เลือก' }}</div><div v-if="customer?.phone" class="text-stone-500">{{ formatPhone(customer.phone) }}</div></div>
         <div><div class="text-xs text-stone-500">นัดรับ · {{ form.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }}</div><div class="font-semibold text-stone-900">{{ pickupAt ? dateTime(pickupAt) : 'ยังไม่เลือก' }}</div></div>
