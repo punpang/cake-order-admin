@@ -17,7 +17,6 @@ import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEF
 import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX, AUTO_SOURCES, LOCKED_SOURCES, AI_MODELS } from '../lib/chatBot'
 import { checkTelegram } from '../lib/integrationCheck'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
-import { digitsOf, promptPayKind } from '../lib/promptpay'
 import { DEFAULT_ACCOUNTS } from '../lib/acct/chart'
 import { cleanClosures, emptyClosures, slotClosed, pickupClosed, isClosedNow, nextOpen } from '../lib/shopHours'
 import { decodeCake, findCodes, CODE_RE } from '../lib/cakeCode'
@@ -30,6 +29,7 @@ import { staffState } from '../lib/staffAuth'
 import { remoteOrderAction, remoteReadSlip } from '../lib/customerOrderRemote'
 import { checkCustomerTxn, refTaken, bankByCode, PAY_MSG, thaiMinute } from '../lib/payFields'
 import { SLIP_RECEIVE_NOTE, slipRoom, slipChoices, slipBindError } from '../lib/slipBind'
+import { payAccountsOf } from '../lib/payAccounts'
 import { callAuth, callLoyalty, readSessionToken, saveSessionToken, clearSessionToken, injectBundle, clearBundle } from '../lib/customerRemote'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
@@ -123,7 +123,7 @@ export const db = reactive({
     // วัน-เวลาปิดร้าน: ประจำสัปดาห์ / ช่วงวัน / ช่วงเวลาในวัน · วัน-เวลานัดที่ตรงช่วงปิดเลือกไม่ได้
     closures: emptyClosures(),
     // ช่องทางชำระเงินที่แสดงให้ลูกค้า (พร้อมเพย์ = เบอร์มือถือ/เลขบัตร/e-Wallet)
-    payment: { promptpayId: '', accountName: '', bank: '', accountNo: '', note: '' },
+    payment: { accounts: [], note: '' }, // accounts = บัญชีรับชำระ (พร้อมเพย์/ธนาคาร) ไม่จำกัดจำนวน · show = แสดงให้ลูกค้าหรือไม่
     // VAT: ฐาน = สินค้า+ค่าส่ง หลังส่วนลด · mode inclusive (ราคารวม VAT แล้ว) | exclusive (บวกเพิ่มท้ายยอด) · เก็บ snapshot {rate, mode} ในแต่ละออร์เดอร์ (order.vat)
     vat: { enabled: false, rate: 7, mode: 'inclusive', taxId: '', legalName: '', address: '', branch: '00000' },
     // ลิงก์ออร์เดอร์: หมดอายุ = เปิดล่าสุด + idleDays (เลื่อนทุกครั้งที่เปิด) · ไม่เคยเปิด = สร้าง + neverOpenedDays · linkAllowlist = โฮสต์ภายนอกที่ลิงก์ย่อชี้ไปได้ (https)
@@ -1329,11 +1329,7 @@ export function saveShopSettings(d) {
   if (d.delivery) db.shop.delivery = cleanDeliveryConfig(d.delivery)
   if (d.payment) {
     const t = (v, n) => String(v ?? '').trim().slice(0, n)
-    const pid = digitsOf(d.payment.promptpayId)
-    db.shop.payment = {
-      promptpayId: promptPayKind(pid) ? pid : '', accountName: t(d.payment.accountName, 80), bank: t(d.payment.bank, 60),
-      accountNo: digitsOf(d.payment.accountNo).slice(0, 20), note: t(d.payment.note, 200),
-    }
+    db.shop.payment = { accounts: payAccountsOf(d.payment), note: t(d.payment.note, 200) }
   }
   if (d.payReminderTime !== undefined) db.shop.payReminderTime = isHHmm(d.payReminderTime) ? d.payReminderTime : db.shop.payReminderTime
   if (d.vat) {

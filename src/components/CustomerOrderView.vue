@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { customerPay, customerReadSlip, customerRequestExtension, customerRequestPhotoOptOut, customerCancelPhotoOptOut } from '../data/store'
 import { BANKS, PAY_MSG, bankByCode, checkCustomerTxn } from '../lib/payFields'
 import { promptPayPayload } from '../lib/promptpay'
+import { visiblePayAccounts } from '../lib/payAccounts'
 import { money, dateOnly, dateTime, formatPhone } from '../lib/format'
 import { STATUS } from '../lib/constants'
 import { resizeImage, imageErrorMessage } from '../lib/imageResize'
@@ -28,7 +29,9 @@ const cancelled = computed(() => o.value.status === 'cancelled')
 
 // ---------- ชำระเงิน ----------
 const info = computed(() => o.value.pay.info)
-const hasInfo = computed(() => !!(info.value.promptpayId || info.value.accountNo))
+const accounts = computed(() => visiblePayAccounts(info.value)) // บัญชีที่ร้านเปิดให้แสดง
+const pp = computed(() => accounts.value.find((a) => a.kind === 'promptpay') || null) // QR ใช้พร้อมเพย์ตัวแรกที่แสดง
+const hasInfo = computed(() => !!(accounts.value.length || info.value.note))
 const requests = computed(() => o.value.payments.filter((p) => p.status === 'reported' && p.shopRequested && !p.submitted))
 const f = reactive({ mode: 'all', custom: '', paymentId: null, slip: '', slipName: '', note: '', error: '', ok: '', busy: false, txnDate: '', txnTime: '', bankCode: '', ref: '', qrNote: '', reading: false })
 const open = ref(false)
@@ -43,7 +46,7 @@ function pick(mode, p = null) {
   f.paymentId = p?.id || null
 }
 const qr = ref('')
-const payload = computed(() => (amount.value > 0 ? promptPayPayload(info.value.promptpayId, amount.value) : null))
+const payload = computed(() => (amount.value > 0 && pp.value ? promptPayPayload(pp.value.promptpayId, amount.value) : null))
 watch(
   [payload, open],
   async () => {
@@ -318,15 +321,23 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
             <p v-if="f.mode === 'custom' && Number(f.custom) > room" class="mt-1 text-xs text-rose-600">เกินคงค้าง (ไม่เกิน {{ money(room) }})</p>
           </div>
 
-          <div v-if="hasInfo" class="rounded-2xl border border-stone-200 bg-white p-3 text-center">
-            <img v-if="qr" :src="qr" alt="QR พร้อมเพย์" class="mx-auto h-48 w-48" />
-            <p v-else-if="info.promptpayId && amount > 0" class="py-8 text-stone-400">กำลังสร้าง QR…</p>
-            <p v-if="amount > 0" class="text-base font-semibold text-stone-900">{{ money(amount) }}</p>
-            <div class="mt-2 space-y-1 text-left text-stone-600">
-              <div v-if="info.accountName">ชื่อบัญชี: <b class="text-stone-900">{{ info.accountName }}</b></div>
-              <div v-if="info.bank || info.accountNo" class="flex flex-wrap items-center gap-2">{{ info.bank }} <b class="text-stone-900">{{ info.accountNo }}</b><button v-if="info.accountNo" type="button" class="chip chip-off h-7 px-2 text-xs" @click="copy(info.accountNo, 'acc')">{{ copied === 'acc' ? 'คัดลอกแล้ว' : 'คัดลอกเลขบัญชี' }}</button></div>
-              <div v-if="info.promptpayId" class="flex flex-wrap items-center gap-2">พร้อมเพย์ <b class="text-stone-900">{{ info.promptpayId }}</b><button type="button" class="chip chip-off h-7 px-2 text-xs" @click="copy(info.promptpayId, 'pp')">{{ copied === 'pp' ? 'คัดลอกแล้ว' : 'คัดลอก' }}</button></div>
-              <div v-if="info.note" class="text-xs text-stone-500">{{ info.note }}</div>
+          <div v-if="hasInfo" class="rounded-2xl border border-stone-200 bg-white p-3">
+            <div v-if="pp" class="text-center">
+              <img v-if="qr" :src="qr" alt="QR พร้อมเพย์" class="mx-auto h-48 w-48" />
+              <p v-else-if="amount > 0" class="py-8 text-stone-400">กำลังสร้าง QR…</p>
+            </div>
+            <p v-if="amount > 0" class="text-center text-base font-semibold text-stone-900">{{ money(amount) }}</p>
+            <div class="mt-3 space-y-2 text-left">
+              <div v-for="a in accounts" :key="a.id" class="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                <div class="text-xs font-medium text-stone-500">{{ a.kind === 'bank' ? 'โอนเข้าบัญชีธนาคาร' : 'พร้อมเพย์' }}</div>
+                <div class="mt-0.5 font-semibold text-stone-900">{{ a.kind === 'bank' ? a.bankName : 'พร้อมเพย์' }}</div>
+                <div class="mt-1 flex flex-wrap items-center gap-2 text-stone-700">
+                  <span class="text-base font-semibold text-stone-900">{{ a.kind === 'bank' ? a.accountNo : a.promptpayId }}</span>
+                  <button type="button" class="chip chip-off h-7 px-2 text-xs" @click="copy(a.kind === 'bank' ? a.accountNo : a.promptpayId, 'acc-' + a.id)">{{ copied === 'acc-' + a.id ? 'คัดลอกแล้ว' : (a.kind === 'bank' ? 'คัดลอกเลขบัญชี' : 'คัดลอก') }}</button>
+                </div>
+                <div v-if="a.accountName" class="mt-1 text-xs text-stone-500">ชื่อบัญชี: <span class="text-stone-800">{{ a.accountName }}</span></div>
+              </div>
+              <div v-if="info.note" class="pt-1 text-xs text-stone-500">{{ info.note }}</div>
             </div>
           </div>
           <p v-else class="rounded-xl bg-amber-50 p-3 text-amber-800">ร้านยังไม่ได้ตั้งช่องทางรับชำระ กรุณาสอบถามร้าน</p>

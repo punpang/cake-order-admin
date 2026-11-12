@@ -4,7 +4,8 @@ import { computed, reactive, ref } from 'vue'
 import { db, saveShopSettings, saveSlipQrSettings, pickupSlots } from '../../data/store'
 import { toDateStr, money } from '../../lib/format'
 import { deliveryFee } from '../../lib/delivery'
-import { promptPayKind } from '../../lib/promptpay'
+import { BANKS, bankByCode } from '../../lib/payFields'
+import { clonePayment, validatePayAccount, newPayAccountId } from '../../lib/payAccounts'
 import { cleanClosures, describeClosures, DOW_NAMES, MAX_ROWS } from '../../lib/shopHours'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
@@ -16,7 +17,7 @@ const shopAddrChoices = computed(() => [
   { label: 'ใช้ที่อยู่ร้านหน้าเว็บ', text: /ตัวอย่าง/.test(db.storefront?.address || '') ? '' : db.storefront?.address },
   { label: 'ใช้ที่อยู่ตามข้อมูลกฎหมาย', text: db.legal?.contact?.address },
 ])
-const st = reactive({ ...db.shop, vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: { ...db.shop.payment }, closures: JSON.parse(JSON.stringify(db.shop.closures)) })
+const st = reactive({ ...db.shop, vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
 // ---- วัน-เวลาปิดร้าน ----
 const DOWS = [1, 2, 3, 4, 5, 6, 0] // จันทร์เริ่ม
 const flip = (arr, d) => (arr.includes(d) ? arr.splice(arr.indexOf(d), 1) : arr.push(d))
@@ -43,6 +44,11 @@ function saveSlip() {
   setTimeout(() => (slipSaved.value = false), 1500)
 }
 
+// บัญชีรับชำระ: เพิ่ม/ลบ/เลือกธนาคาร (ไม่จำกัดจำนวน)
+const addPayAccount = (kind) => st.payment.accounts.push({ id: newPayAccountId(), kind, show: true, bankCode: '', bankName: '', accountNo: '', promptpayId: '', accountName: '' })
+const removePayAccount = (i) => st.payment.accounts.splice(i, 1)
+function setBank(a, code) { a.bankCode = code; a.bankName = bankByCode(code)?.name || '' }
+
 function save() {
   if (!st.open || !st.close || st.close <= st.open) return (error.value = 'เวลาปิดต้องหลังเวลาเปิด')
   if (!(Number(st.slotMinutes) >= 5)) return (error.value = 'ช่วงเวลาต้องอย่างน้อย 5 นาที')
@@ -56,11 +62,11 @@ function save() {
   if (String(v.taxId || '').replace(/\D/g, '').length && !validTaxId(String(v.taxId).replace(/\D/g, ''))) return (error.value = 'เลขประจำตัวผู้เสียภาษีไม่ถูกต้อง (13 หลัก ตรวจตัวเลขท้าย)')
   if (v.branch && !validBranch(v.branch)) return (error.value = 'สาขาต้อง 5 หลัก (สำนักงานใหญ่ 00000)')
   { const cr = cleanClosures(st.closures); if (cr.error) return (error.value = cr.error) }
-  if (st.payment.promptpayId && !promptPayKind(st.payment.promptpayId)) return (error.value = 'เลขพร้อมเพย์ไม่ถูกต้อง (เบอร์มือถือ 10 หลัก / เลข 13 หลัก / e-Wallet 15 หลัก)')
+  for (const a of st.payment.accounts) { const e = validatePayAccount(a); if (e) return (error.value = e) }
   error.value = ''
   const sr = saveShopSettings(st)
   if (sr?.error) return (error.value = sr.error)
-  Object.assign(st, db.shop, { vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: { ...db.shop.payment }, closures: JSON.parse(JSON.stringify(db.shop.closures)) })
+  Object.assign(st, db.shop, { vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
   saved.value = true
   setTimeout(() => (saved.value = false), 1500)
 }
@@ -135,13 +141,29 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
       </div>
       <div class="border-t border-stone-100 pt-4">
         <div class="card-title mb-3"><AppIcon name="wallet" class="text-brand-600" /> ช่องทางรับชำระ (แสดงให้ลูกค้า)</div>
-        <div class="grid grid-cols-2 gap-3">
-          <div class="col-span-2"><label class="label">พร้อมเพย์ (เบอร์มือถือ / เลขบัตร / e-Wallet)</label><input v-model="st.payment.promptpayId" inputmode="numeric" class="input" placeholder="0812345678" aria-label="เลขพร้อมเพย์" /></div>
-          <div class="col-span-2"><label class="label">ชื่อบัญชี</label><input v-model="st.payment.accountName" class="input" maxlength="80" /></div>
-          <div><label class="label">ธนาคาร</label><input v-model="st.payment.bank" class="input" maxlength="60" /></div>
-          <div><label class="label">เลขบัญชี</label><input v-model="st.payment.accountNo" inputmode="numeric" class="input" maxlength="24" /></div>
-          <div class="col-span-2"><label class="label">หมายเหตุให้ลูกค้า</label><input v-model="st.payment.note" class="input" maxlength="200" /></div>
-          <p class="col-span-2 text-xs text-stone-500">ลูกค้าจะเห็น QR พร้อมเพย์ตามยอดที่เลือก · ถ้าเลขพร้อมเพย์ไม่ถูกต้อง ระบบจะไม่เก็บ</p>
+        <div class="space-y-3">
+          <div v-for="(a, i) in st.payment.accounts" :key="a.id" class="space-y-2 rounded-2xl border border-stone-200 bg-white p-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="text-sm font-semibold text-stone-800">{{ a.kind === 'bank' ? 'บัญชีธนาคาร' : 'พร้อมเพย์' }} {{ i + 1 }}</span>
+              <div class="flex items-center gap-3"><AppSwitch v-model="a.show" label="แสดงให้ลูกค้า" /><button type="button" class="btn-outline h-8 px-3 text-xs" @click="removePayAccount(i)">ลบ</button></div>
+            </div>
+            <div v-if="a.kind === 'bank'" class="grid grid-cols-2 gap-2">
+              <div class="col-span-2"><label class="label">ธนาคาร</label><select class="input" :value="a.bankCode" @change="setBank(a, $event.target.value)"><option value="">เลือกธนาคาร</option><option v-for="b in BANKS" :key="b.code" :value="b.code">{{ b.name }}</option></select></div>
+              <div class="col-span-2"><label class="label">เลขบัญชี</label><input v-model="a.accountNo" inputmode="numeric" class="input" maxlength="20" /></div>
+              <div class="col-span-2"><label class="label">ชื่อบัญชี</label><input v-model="a.accountName" class="input" maxlength="80" /></div>
+            </div>
+            <div v-else class="grid grid-cols-2 gap-2">
+              <div class="col-span-2"><label class="label">เลขพร้อมเพย์ (เบอร์มือถือ / เลขบัตร / e-Wallet)</label><input v-model="a.promptpayId" inputmode="numeric" class="input" maxlength="15" /></div>
+              <div class="col-span-2"><label class="label">ชื่อบัญชี</label><input v-model="a.accountName" class="input" maxlength="80" /></div>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" class="btn-outline h-9 px-3 text-sm" @click="addPayAccount('bank')">+ บัญชีธนาคาร</button>
+            <button type="button" class="btn-outline h-9 px-3 text-sm" @click="addPayAccount('promptpay')">+ พร้อมเพย์</button>
+          </div>
+          <p v-if="!st.payment.accounts.length" class="text-xs text-amber-700">ยังไม่มีช่องทางรับชำระ ลูกค้าจะเห็นข้อความให้สอบถามร้าน</p>
+          <div><label class="label">หมายเหตุให้ลูกค้า</label><input v-model="st.payment.note" class="input" maxlength="200" /></div>
+          <p class="text-xs text-stone-500">ลูกค้าจะเห็นเฉพาะบัญชีที่เปิดแสดง · QR พร้อมเพย์สร้างจากพร้อมเพย์ตัวแรกที่เปิดแสดง ตามยอดที่ลูกค้าเลือก</p>
         </div>
       </div>
       <div class="border-t border-stone-100 pt-4">
