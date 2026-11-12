@@ -247,26 +247,43 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
     <p v-if="f.ok" class="rounded-3xl bg-emerald-50 p-3 text-emerald-800" role="status">{{ f.ok }}</p>
 
     <!-- นัดรับ/ส่ง -->
-    <section class="card">
-      <div class="flex items-center gap-2 text-xs text-stone-500"><AppIcon :name="o.fulfillment === 'delivery' ? 'truck' : 'store'" :size="16" /> นัด{{ o.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }}</div>
-      <div class="mt-0.5 text-base font-semibold text-stone-900">{{ dateTime(o.pickupAt) }}</div>
-      <div v-if="o.delivery" class="mt-2 space-y-0.5 text-stone-600">
-        <div v-if="o.delivery.placeName" class="font-medium text-stone-800">{{ o.delivery.placeName }}</div>
-        <div v-if="o.delivery.address" class="break-words">{{ o.delivery.address }}</div>
-        <div v-if="o.delivery.detail" class="break-words text-stone-500">{{ o.delivery.detail }}</div>
-        <div v-if="o.delivery.distanceKm != null" class="text-stone-500">ระยะทาง {{ o.delivery.distanceKm }} กม.</div>
-        <a v-if="safeHref(o.delivery.mapUrl)" :href="safeHref(o.delivery.mapUrl)" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-brand-700 underline"><AppIcon name="pin" :size="14" /> เปิดแผนที่</a>
+    <section class="card flex items-start gap-3">
+      <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-700"><AppIcon :name="o.fulfillment === 'delivery' ? 'truck' : 'store'" :size="20" /></span>
+      <div class="min-w-0 flex-1">
+        <div class="text-xs font-medium text-stone-500">นัด{{ o.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }}</div>
+        <div class="mt-0.5 text-lg font-semibold leading-snug text-stone-900">{{ dateTime(o.pickupAt) }}</div>
+        <div v-if="o.delivery" class="mt-2 space-y-0.5 rounded-xl bg-stone-50 p-3 text-stone-600">
+          <div v-if="o.delivery.placeName" class="font-medium text-stone-800">{{ o.delivery.placeName }}</div>
+          <div v-if="o.delivery.address" class="break-words">{{ o.delivery.address }}</div>
+          <div v-if="o.delivery.detail" class="break-words text-stone-500">{{ o.delivery.detail }}</div>
+          <div v-if="o.delivery.distanceKm != null" class="text-stone-500">ระยะทาง {{ o.delivery.distanceKm }} กม.</div>
+          <a v-if="safeHref(o.delivery.mapUrl)" :href="safeHref(o.delivery.mapUrl)" target="_blank" rel="noopener noreferrer" class="mt-1 inline-flex items-center gap-1 font-medium text-brand-700 underline"><AppIcon name="pin" :size="14" /> เปิดแผนที่</a>
+        </div>
+        <div v-if="o.birthday" class="mt-2 text-stone-500">วันเกิด {{ o.birthday.name }}</div>
       </div>
-      <div v-if="o.birthday" class="mt-2 text-stone-500">วันเกิด {{ o.birthday.name }}</div>
     </section>
 
     <!-- รายการ -->
-    <section class="card space-y-3">
-      <div v-for="it in o.items" :key="it.id" class="min-w-0">
-        <div class="flex justify-between gap-3"><span class="font-medium text-stone-900">{{ it.name }} × {{ it.qty }}</span><span class="shrink-0 font-medium">{{ money(it.unitPrice * it.qty) }}</span></div>
-        <div v-for="(d, j) in it.lines" :key="j" class="text-xs text-stone-500">{{ d.group }}: {{ d.value }}</div>
-        <div v-if="it.note" class="text-xs break-words text-stone-500">หมายเหตุ: {{ it.note }}</div>
-      </div>
+    <section class="card">
+      <div class="mb-1 flex items-center justify-between text-xs font-medium text-stone-500"><span>รายการสินค้า</span><span>{{ o.items.length }} รายการ</span></div>
+      <ul class="divide-y divide-stone-100">
+        <li v-for="it in o.items" :key="it.id" class="min-w-0 py-3 first:pt-1 last:pb-0">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="font-semibold leading-snug break-words text-stone-900">{{ it.name }}</div>
+              <div class="mt-0.5 text-xs text-stone-500">{{ it.qty }} × {{ money(it.unitPrice) }}</div>
+            </div>
+            <div class="shrink-0 font-semibold text-stone-900">{{ money(it.unitPrice * it.qty) }}</div>
+          </div>
+          <dl v-if="it.lines && it.lines.length" class="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-xl bg-stone-50 px-3 py-2 text-xs">
+            <template v-for="(d, j) in it.lines" :key="j">
+              <dt class="text-stone-500">{{ d.group }}</dt>
+              <dd class="break-words text-stone-800">{{ d.value }}</dd>
+            </template>
+          </dl>
+          <div v-if="it.note" class="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs break-words text-amber-900">หมายเหตุ: {{ it.note }}</div>
+        </li>
+      </ul>
     </section>
 
     <!-- รูปงานเสร็จ -->
@@ -295,15 +312,23 @@ const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' &
     </section>
 
     <!-- ยอด -->
-    <section class="card space-y-1.5">
-      <div v-if="o.discountTotal" class="flex justify-between text-stone-500"><span>ส่วนลดรวม</span><span>-{{ money(o.discountTotal) }}</span></div>
-      <div v-if="o.delivery && o.delivery.shippingFee" class="flex justify-between text-stone-500"><span>ค่าจัดส่ง</span><span>{{ money(o.delivery.shippingFee) }}</span></div>
-      <div class="flex justify-between text-base"><span class="font-medium">ยอดรวม</span><b class="text-stone-900">{{ money(o.total) }}</b></div>
-      <div v-if="o.vatMode" class="flex justify-between text-xs text-stone-500"><span>{{ o.vatMode === 'exclusive' ? `รวม VAT ${o.vatRate}% (บวกเพิ่ม)` : `รวม VAT ${o.vatRate}% แล้ว` }}</span><span>{{ money(o.vat) }}</span></div>
-      <div v-for="(r, i) in o.refunds" :key="'rf' + i" class="flex justify-between text-xs text-rose-700"><span>คืนเงิน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span>{{ money(r.amount) }}</span></div>
-      <template v-for="rt in o.returns || []" :key="rt.id"><div v-for="(r, i) in rt.items" :key="rt.id + i" class="flex justify-between text-xs text-rose-700"><span>คืนเงินบางส่วน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span>{{ money(r.amount) }}</span></div></template>
-      <div class="flex justify-between"><span>ชำระแล้ว</span><span>{{ money(o.paid) }}</span></div>
-      <div v-if="!cancelled" class="flex justify-between text-base" :class="o.balance > 0 ? 'text-amber-700' : 'text-emerald-700'"><span class="font-medium">คงค้าง</span><b>{{ money(o.balance) }}</b></div>
+    <section class="card">
+      <div v-if="o.discountTotal || (o.delivery && o.delivery.shippingFee)" class="space-y-1.5 text-stone-500">
+        <div v-if="o.discountTotal" class="flex justify-between"><span>ส่วนลดรวม</span><span class="text-rose-600">-{{ money(o.discountTotal) }}</span></div>
+        <div v-if="o.delivery && o.delivery.shippingFee" class="flex justify-between"><span>ค่าจัดส่ง</span><span>{{ money(o.delivery.shippingFee) }}</span></div>
+      </div>
+      <div class="flex items-baseline justify-between gap-3" :class="{ 'mt-2 border-t border-dashed border-stone-200 pt-2': o.discountTotal || (o.delivery && o.delivery.shippingFee) }">
+        <span class="font-medium text-stone-900">ยอดรวม</span><b class="text-xl text-stone-900">{{ money(o.total) }}</b>
+      </div>
+      <div v-if="o.vatMode" class="mt-0.5 flex justify-between text-xs text-stone-500"><span>{{ o.vatMode === 'exclusive' ? `รวม VAT ${o.vatRate}% (บวกเพิ่ม)` : `รวม VAT ${o.vatRate}% แล้ว` }}</span><span>{{ money(o.vat) }}</span></div>
+      <div v-if="o.refunds?.length || o.returns?.length" class="mt-3 space-y-1.5 border-t border-stone-100 pt-3">
+        <div v-for="(r, i) in o.refunds" :key="'rf' + i" class="flex justify-between gap-3 text-xs text-rose-700"><span class="min-w-0 break-words">คืนเงิน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span class="shrink-0">{{ money(r.amount) }}</span></div>
+        <template v-for="rt in o.returns || []" :key="rt.id"><div v-for="(r, i) in rt.items" :key="rt.id + i" class="flex justify-between gap-3 text-xs text-rose-700"><span class="min-w-0 break-words">คืนเงินบางส่วน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span class="shrink-0">{{ money(r.amount) }}</span></div></template>
+      </div>
+      <div class="mt-3 flex justify-between border-t border-stone-100 pt-3 text-stone-600"><span>ชำระแล้ว</span><span>{{ money(o.paid) }}</span></div>
+      <div v-if="!cancelled" class="mt-3 flex items-center justify-between gap-3 rounded-2xl px-4 py-3" :class="o.balance > 0 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'">
+        <span class="font-semibold">คงค้าง</span><b class="text-lg">{{ money(o.balance) }}</b>
+      </div>
     </section>
 
     <!-- การชำระเงิน -->
