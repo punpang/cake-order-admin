@@ -49,6 +49,9 @@ const beforeOpts = computed(() => HOURS_BEFORE.map((h) => ({ h, ...dueBeforePick
 const beforeCustom = computed(() => dueBeforePickup(props.order.pickupAt, dueHours.value))
 const daysOpts = computed(() => DAYS_BEFORE.map((d) => ({ d, ...dueDaysBefore(props.order.pickupAt, d, isHHmm(dueTime.value) ? dueTime.value : '12:00') })))
 const daysCustom = computed(() => dueDaysBefore(props.order.pickupAt, dueDays.value, dueTime.value))
+// ปุ่มเวลาชำระที่เลือกล่าสุด (ไฮไลต์ให้เห็นว่ากดแล้ว) · พิมพ์/เลือกวัน-เวลาเองจะล้างการเลือก
+const dueSel = ref('')
+const pickDue = (key, at) => { dueSel.value = key; pay.dueAt = at }
 const dueReasons = computed(() => [...beforeOpts.value.filter((x) => x.disabled).map((x) => `ก่อนนัด ${x.h} ชม.: ${x.reason}`), ...daysOpts.value.filter((x) => x.disabled).map((x) => `ล่วงหน้า ${x.d} วัน ก่อน ${dueTime.value}: ${x.reason}`)])
 const PAY_TITLE = { new: 'แจ้งยอดชำระ', edit: 'แก้ยอดที่แจ้ง', confirm: 'ยืนยันยอดชำระ', direct: 'รับชำระทันที', slip: 'รับชำระจากสลิป' }
 // มัดจำ: แจ้งยอดงวดแรก (ยังไม่มีงวดที่แจ้ง/ยืนยัน) เติมยอดมัดจำให้ แก้ได้
@@ -197,28 +200,28 @@ async function savePay() {
     <div v-if="payMode === 'new' || payMode === 'edit'">
       <div class="label">ต้องชำระก่อน</div>
       <div class="mb-2 flex flex-wrap gap-2">
-        <button v-for="q in QUICK_DUE" :key="q.m" type="button" class="chip chip-off" @click="pay.dueAt = quickDue(q.m)">{{ q.label }}</button>
+        <button v-for="q in QUICK_DUE" :key="q.m" type="button" class="chip" :class="dueSel === 'q' + q.m ? 'chip-on' : 'chip-off'" @click="pickDue('q' + q.m, quickDue(q.m))">{{ q.label }}</button>
       </div>
       <div class="mb-1 text-xs text-stone-500">ก่อนเวลานัด</div>
       <div class="mb-2 flex flex-wrap items-center gap-2">
-        <button v-for="o in beforeOpts" :key="o.h" type="button" class="chip" :class="[o.disabled ? 'chip-off cursor-not-allowed opacity-40' : 'chip-off']" :disabled="o.disabled" :aria-label="`ก่อนนัด ${o.h} ชั่วโมง`" @click="pay.dueAt = o.dueAt">{{ o.h }} ชม.</button>
+        <button v-for="o in beforeOpts" :key="o.h" type="button" class="chip" :class="o.disabled ? 'chip-off cursor-not-allowed opacity-40' : dueSel === 'h' + o.h ? 'chip-on' : 'chip-off'" :disabled="o.disabled" :aria-label="`ก่อนนัด ${o.h} ชั่วโมง`" @click="pickDue('h' + o.h, o.dueAt)">{{ o.h }} ชม.</button>
         <span class="flex items-center gap-1">
           <input v-model.number="dueHours" type="text" v-num min="1" max="720" class="input h-9 w-16 px-2 text-center" aria-label="ชั่วโมงก่อนนัด" />
-          <button type="button" class="chip chip-off" :class="beforeCustom.disabled ? 'cursor-not-allowed opacity-40' : ''" :disabled="beforeCustom.disabled" @click="pay.dueAt = beforeCustom.dueAt">ชม. ก่อนนัด</button>
+          <button type="button" class="chip" :class="beforeCustom.disabled ? 'chip-off cursor-not-allowed opacity-40' : dueSel === 'hc' ? 'chip-on' : 'chip-off'" :disabled="beforeCustom.disabled" @click="pickDue('hc', beforeCustom.dueAt)">ชม. ก่อนนัด</button>
         </span>
       </div>
       <div class="mb-1 text-xs text-stone-500">ล่วงหน้า ก่อนเวลา</div>
       <div class="mb-2 flex flex-wrap items-center gap-2">
-        <button v-for="o in daysOpts" :key="o.d" type="button" class="chip chip-off" :class="o.disabled ? 'cursor-not-allowed opacity-40' : ''" :disabled="o.disabled" :aria-label="`ล่วงหน้า ${o.d} วัน ก่อน ${dueTime}`" @click="pay.dueAt = o.dueAt">{{ o.d }} วัน ก่อน {{ dueTime }}</button>
+        <button v-for="o in daysOpts" :key="o.d" type="button" class="chip" :class="o.disabled ? 'chip-off cursor-not-allowed opacity-40' : dueSel === 'd' + o.d ? 'chip-on' : 'chip-off'" :disabled="o.disabled" :aria-label="`ล่วงหน้า ${o.d} วัน ก่อน ${dueTime}`" @click="pickDue('d' + o.d, o.dueAt)">{{ o.d }} วัน ก่อน {{ dueTime }}</button>
         <span class="flex items-center gap-1">
           <input v-model.number="dueDays" type="text" v-num min="0" max="30" class="input h-9 w-14 px-2 text-center" aria-label="จำนวนวันล่วงหน้า" />
           <span class="text-xs text-stone-500">วัน ก่อน</span>
           <input v-model="dueTime" type="time" class="input h-9 w-28 px-2" aria-label="เวลาก่อน" />
-          <button type="button" class="chip chip-off" :class="daysCustom.disabled ? 'cursor-not-allowed opacity-40' : ''" :disabled="daysCustom.disabled" @click="pay.dueAt = daysCustom.dueAt">ตั้ง</button>
+          <button type="button" class="chip" :class="daysCustom.disabled ? 'chip-off cursor-not-allowed opacity-40' : dueSel === 'dc' ? 'chip-on' : 'chip-off'" :disabled="daysCustom.disabled" @click="pickDue('dc', daysCustom.dueAt)">ตั้ง</button>
         </span>
       </div>
       <p v-for="(r, i) in dueReasons" :key="i" class="mb-1 text-xs text-rose-700">{{ r }}</p>
-      <input v-model="pay.dueAt" type="datetime-local" class="input" aria-label="กำหนดชำระ" />
+      <input v-model="pay.dueAt" type="datetime-local" class="input" aria-label="กำหนดชำระ" @input="dueSel = ''" />
     </div>
     <div>
       <div class="label">วันเวลาที่ชำระ</div>
