@@ -74,6 +74,11 @@
   select {
     cursor: pointer;
   }
+  /* โฟกัสด้วยแป้นพิมพ์: เห็นกรอบชัดทุกปุ่ม/ลิงก์ (ช่องกรอกมีวงแหวนของตัวเองอยู่แล้ว) */
+  :where(a, button, summary, [role='button'], [role='switch'], [role='tab']):focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
   /* ลิงก์ข้ามไปเนื้อหาหลัก: ซ่อนจนกว่าจะโฟกัสด้วยแป้นพิมพ์ */
   .skip-link {
     @apply sr-only;

@@ -36,6 +36,8 @@ function submit() {
 async function del(l) {
   if (await askConfirm({ title: 'ลบลิงก์ย่อ', message: `${shortLinkUrl(l.code)} จะใช้ไม่ได้อีก`, okText: 'ลบ', danger: true })) removeShortLink(l.id)
 }
+// ลิงก์ออร์เดอร์มีได้หลายร้อยรายการ → แสดงทีละ 20 (ล่าสุดก่อน)
+const linkLimit = ref(20)
 const copied = ref('')
 async function copy(l) {
   try {
@@ -47,10 +49,11 @@ const orderLinks = computed(() => {
   purgeOrderLinks()
   return db.orderLinks.map((l) => ({ ...l, code: findOrder(l.orderId)?.code || '-', expires: new Date(linkExpiresAt(l, db.shop.linkPolicy)).toISOString() }))
 })
+const shownOrderLinks = computed(() => orderLinks.value.slice().reverse().slice(0, linkLimit.value))
 </script>
 
 <template>
-  <ManageShell narrow guard title="ลิงก์ย่อ & ลิงก์ออร์เดอร์" subtitle="ลิงก์ย่อ นับคลิก · นโยบายหมดอายุของลิงก์ออร์เดอร์">
+  <ManageShell narrow guard :toolbar="false" title="ลิงก์ย่อ & ลิงก์ออร์เดอร์" subtitle="ลิงก์ย่อ นับคลิก · นโยบายหมดอายุของลิงก์ออร์เดอร์">
 
     <section class="card mb-4 space-y-3">
       <h2 class="font-semibold text-stone-900">นโยบายลิงก์ออร์เดอร์</h2>
@@ -96,12 +99,13 @@ const orderLinks = computed(() => {
       <h2 class="mb-2 font-semibold text-stone-900">ลิงก์ออร์เดอร์ที่ใช้อยู่ ({{ orderLinks.length }})</h2>
       <p v-if="!orderLinks.length" class="py-4 text-center text-sm text-stone-400">ยังไม่มี · สร้างได้จากหน้าออร์เดอร์ (ปุ่ม "ส่งลิงก์ให้ลูกค้า")</p>
       <ul class="divide-y divide-stone-100">
-        <li v-for="l in orderLinks" :key="l.id" class="flex flex-wrap justify-between gap-x-3 py-2 text-xs text-stone-600">
+        <li v-for="l in shownOrderLinks" :key="l.id" class="flex flex-wrap justify-between gap-x-3 py-2 text-xs text-stone-600">
           <b class="text-stone-800">{{ l.code }}</b>
           <span>{{ l.openCount ? `เปิด ${l.openCount} ครั้ง · ล่าสุด ${dateTime(l.lastOpenedAt)}` : 'ยังไม่เคยเปิด' }}</span>
           <span class="w-full text-stone-400">หมดอายุ {{ dateTime(l.expires) }}</span>
         </li>
       </ul>
+      <button v-if="orderLinks.length > linkLimit" type="button" class="btn-outline mt-2 w-full" @click="linkLimit += 50">ดูเพิ่ม (เหลืออีก {{ orderLinks.length - linkLimit }})</button>
     </section>
 
     <AppModal v-if="form" :title="form.id ? 'แก้ลิงก์ย่อ' : 'สร้างลิงก์ย่อ'" @close="form = null">

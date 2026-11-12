@@ -1,8 +1,8 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { can } from '../data/store'
-import { SETTINGS_PAGES } from '../lib/settingsPages'
+import { SETTINGS_PAGES, groupSettings } from '../lib/settingsPages'
 import { useLeaveGuard } from '../lib/leaveGuard'
 import AppIcon from './AppIcon.vue'
 import AppSwitch from './AppSwitch.vue'
@@ -27,7 +27,14 @@ const onClickCap = (e) => { if (e.target.closest?.('button')?.textContent.trim()
 useLeaveGuard(() => edited.value)
 // PC: เมนูข้างรายการหน้าตั้งค่า (เฉพาะหน้าย่อย /admin/settings/*) สลับหน้าได้โดยไม่ต้องกลับหน้าการ์ด
 const route = useRoute()
-const side = computed(() => route.path.startsWith('/admin/settings/') ? SETTINGS_PAGES.filter((x) => can(x.perm || 'manage')) : [])
+const side = computed(() => route.path.startsWith('/admin/settings/') ? groupSettings(SETTINGS_PAGES.filter((x) => can(x.perm || 'manage'))) : [])
+// เมนูข้างยาวกว่าจอ: เลื่อนให้เห็นหน้าปัจจุบันเสมอ
+const sideNav = ref(null)
+onMounted(() => nextTick(() => {
+  const nav = sideNav.value
+  const el = nav?.querySelector('[aria-current="page"]')
+  if (el) nav.scrollTop = Math.max(0, el.offsetTop - nav.clientHeight / 2)
+}))
 const q = defineModel('q', { type: String, default: '' })
 const showInactive = defineModel('inactive', { type: Boolean, default: false })
 </script>
@@ -41,14 +48,17 @@ const showInactive = defineModel('inactive', { type: Boolean, default: false })
   </div>
 
   <div v-else :class="side.length ? 'lg:grid lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:items-start lg:gap-6' : ''" @input.capture="guard && onEdit($event)" @change.capture="guard && onEdit($event)" @click.capture="guard && onClickCap($event)">
-    <nav v-if="side.length" aria-label="เมนูตั้งค่า" class="sticky top-20 hidden max-h-[calc(100vh-6rem)] overflow-y-auto rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-stone-200 lg:block">
-      <RouterLink
-        v-for="p in side"
-        :key="p.to"
-        :to="p.to"
-        class="flex min-h-9 items-center gap-2 rounded-xl px-2.5 py-1.5 text-sm text-stone-700 hover:bg-stone-50"
-        active-class="bg-brand-50 font-semibold text-brand-700"
-      ><AppIcon :name="p.icon" :size="16" class="shrink-0" /><span class="min-w-0">{{ p.title }}</span></RouterLink>
+    <nav v-if="side.length" ref="sideNav" aria-label="เมนูตั้งค่า" class="sticky top-20 hidden max-h-[calc(100vh-6rem)] overflow-y-auto rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-stone-200 lg:block">
+      <div v-for="g in side" :key="g.key" class="mb-1.5 last:mb-0">
+        <p class="px-2.5 pt-1.5 pb-0.5 text-[11px] font-semibold text-stone-400">{{ g.title }}</p>
+        <RouterLink
+          v-for="p in g.items"
+          :key="p.to"
+          :to="p.to"
+          class="flex min-h-9 items-center gap-2 rounded-xl px-2.5 py-1.5 text-sm text-stone-700 hover:bg-stone-50"
+          active-class="bg-brand-50 font-semibold text-brand-700"
+        ><AppIcon :name="p.icon" :size="16" class="shrink-0" /><span class="min-w-0">{{ p.title }}</span></RouterLink>
+      </div>
     </nav>
     <div :class="narrow ? 'mx-auto w-full max-w-4xl xl:max-w-5xl' : 'min-w-0'">
     <div class="mb-4 flex items-center gap-2">

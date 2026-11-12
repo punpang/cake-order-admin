@@ -169,7 +169,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <ManageShell narrow guard title="SMS Gateway" subtitle="สถานะเกตเวย์ · ส่งทดสอบ · ตรวจสถานะงาน · รายการข้อความ">
+  <ManageShell narrow guard :toolbar="false" title="SMS Gateway" subtitle="สถานะเกตเวย์ · ส่งทดสอบ · ตรวจสถานะงาน · รายการข้อความ">
     <p v-if="!canManage" class="rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">เฉพาะผู้มีสิทธิ์จัดการการเชื่อมต่อ</p>
 
     <template v-else>

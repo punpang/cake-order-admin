@@ -1,12 +1,11 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { db, upcomingBirthdays, pendingDeletions, pendingPhotoRequests, can } from '../../data/store'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
-import { SETTINGS_PAGES } from '../../lib/settingsPages'
+import { SETTINGS_PAGES, groupSettings } from '../../lib/settingsPages'
 import { retentionSummary } from '../../lib/retention'
 
-const TONES = ['bg-brand-100 text-brand-700', 'bg-orange-100 text-orange-800', 'bg-amber-100 text-amber-800', 'bg-matcha-soft text-stone-800']
 const activeCount = (list) => list.filter((x) => x.active !== false).length
 
 const DESC = computed(() => ({
@@ -33,25 +32,57 @@ const DESC = computed(() => ({
   '/admin/settings/ingredients': `${activeCount(db.ingredients)} รายการที่ใช้งาน`,
   '/admin/settings/users': `${activeCount(db.users)} คนที่ใช้งาน · ติ๊กสิทธิ์รายคน`,
 }))
-const items = computed(() => SETTINGS_PAGES.filter((x) => can(x.perm || 'manage')).map((x) => ({ ...x, desc: DESC.value[x.to] })))
+// ป้ายตัวเลข = งานที่รอให้ร้านตรวจ (ไม่ใช่จำนวนรายการทั้งหมด)
+const BADGE = computed(() => ({
+  '/admin/settings/photo-requests': pendingPhotoRequests(),
+  '/admin/settings/deletion-requests': pendingDeletions(),
+  '/admin/settings/storefront': db.reviews.filter((r) => r.status === 'pending').length,
+}))
+const q = ref('')
+const items = computed(() => SETTINGS_PAGES.filter((x) => can(x.perm || 'manage')).map((x) => ({ ...x, desc: DESC.value[x.to], badge: BADGE.value[x.to] || 0 })))
+const groups = computed(() => groupSettings(items.value, q.value))
+const todo = computed(() => items.value.filter((x) => x.badge))
 </script>
 
 <template>
   <ManageShell title="ตั้งค่า" back="/admin/orders" :toolbar="false">
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-      <RouterLink
-        v-for="(it, n) in items"
-        :key="it.to"
-        :to="it.to"
-        class="card flex items-center gap-4 rounded-3xl border-transparent shadow-md transition hover:shadow-lg focus-visible:ring-4 focus-visible:ring-brand-200 focus-visible:outline-none active:scale-[0.99]"
-      >
-        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full" :class="TONES[n % TONES.length]"><AppIcon :name="it.icon" :size="24" /></span>
-        <span class="min-w-0 flex-1">
-          <span class="block font-display text-stone-900">{{ it.title }}</span>
-          <span class="block text-sm text-stone-600">{{ it.desc }}</span>
-        </span>
-        <AppIcon name="next" class="text-stone-300" />
-      </RouterLink>
-    </div>
+    <label class="relative mb-4 block">
+      <span class="sr-only">ค้นหาหน้าตั้งค่า</span>
+      <AppIcon name="search" class="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-stone-400" />
+      <input v-model="q" type="search" class="input bg-white pl-10" placeholder="ค้นหาการตั้งค่า เช่น พร้อมเพย์ บอท สิทธิ์" />
+    </label>
+
+    <section v-if="todo.length && !q.trim()" class="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-3" aria-label="งานที่รอตรวจ">
+      <h2 class="mb-2 flex items-center gap-1.5 text-sm font-semibold text-amber-900"><AppIcon name="alert" :size="16" /> รอให้ตรวจ</h2>
+      <div class="flex flex-wrap gap-2">
+        <RouterLink v-for="it in todo" :key="it.to" :to="it.to" class="inline-flex min-h-9 items-center gap-2 rounded-full bg-white px-3 text-sm font-medium text-stone-800 shadow-sm ring-1 ring-amber-200 hover:bg-amber-100">
+          {{ it.title }} <span class="rounded-full bg-brand-600 px-1.5 text-xs font-semibold text-white">{{ it.badge }}</span>
+        </RouterLink>
+      </div>
+    </section>
+
+    <p v-if="!groups.length" class="card py-10 text-center text-sm text-stone-500">ไม่พบการตั้งค่าที่ตรงกับ "{{ q }}"</p>
+
+    <section v-for="g in groups" :key="g.key" class="mb-6" :aria-labelledby="`sg-${g.key}`">
+      <h2 :id="`sg-${g.key}`" class="mb-2 px-1 text-sm font-semibold text-stone-500">{{ g.title }}</h2>
+      <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        <RouterLink
+          v-for="it in g.items"
+          :key="it.to"
+          :to="it.to"
+          class="card flex items-center gap-3 py-3 transition hover:border-brand-200 hover:shadow-md active:scale-[0.99]"
+        >
+          <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl" :class="g.tone"><AppIcon :name="it.icon" :size="22" /></span>
+          <span class="min-w-0 flex-1">
+            <span class="flex items-center gap-2">
+              <span class="font-display text-stone-900">{{ it.title }}</span>
+              <span v-if="it.badge" class="rounded-full bg-brand-600 px-1.5 text-xs font-semibold text-white" :aria-label="`รอตรวจ ${it.badge} รายการ`">{{ it.badge }}</span>
+            </span>
+            <span class="line-clamp-2 block text-sm text-stone-600">{{ it.desc }}</span>
+          </span>
+          <AppIcon name="next" class="shrink-0 text-stone-300" />
+        </RouterLink>
+      </div>
+    </section>
   </ManageShell>
 </template>

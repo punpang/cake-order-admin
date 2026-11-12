@@ -204,8 +204,11 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
           <p class="mt-2 text-xs text-amber-700">ใบเสร็จย่อของระบบนี้ไม่ใช่ใบกำกับภาษี · ออกใบกำกับภาษีเต็มรูปได้ที่หน้ารายละเอียดออร์เดอร์ (ต้องกรอกชื่อ ที่อยู่ เลขผู้เสียภาษีและสาขาของร้านให้ครบ) · ควรให้นักบัญชีตรวจก่อนใช้จริง</p>
         </template>
       </div>
-      <p v-if="error" class="text-sm text-rose-600">{{ error }}</p>
-      <button class="btn-primary w-full" @click="save"><AppIcon name="check" :size="18" /> {{ saved ? 'บันทึกแล้ว' : 'บันทึก' }}</button>
+      <!-- แถบบันทึกติดขอบล่าง: หน้านี้ยาว ไม่ต้องเลื่อนถึงท้ายเพื่อบันทึก -->
+      <div class="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-10 rounded-2xl border border-stone-200 bg-white/95 p-2 shadow-lg backdrop-blur md:bottom-3">
+        <p v-if="error" class="mb-2 px-1 text-sm font-medium text-rose-600" role="alert">{{ error }}</p>
+        <button class="btn-primary w-full" @click="save"><AppIcon name="check" :size="18" /> {{ saved ? 'บันทึกแล้ว' : 'บันทึก' }}</button>
+      </div>
       <p class="text-xs text-stone-500">ตัวอย่างพรุ่งนี้: {{ pickupSlots(tomorrow).join(', ') }}</p>
     </section>
 
