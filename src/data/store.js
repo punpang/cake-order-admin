@@ -211,6 +211,10 @@ const tplOf = (r) => { const u = DEFAULT_UPGRADES[r.event]; return u && [].conca
 
 // channelTemplates (ไม่บังคับ): เทมเพลตแยกตามแพลตฟอร์ม { line?, facebook?, sms? } · ไม่มี = ใช้ template หลัก
 const rule = (event, channels, template, channelTemplates = null) => ({ event, channels, template, enabled: true, ...(channelTemplates ? { channelTemplates } : {}) })
+// เทมเพลตตามแพลตฟอร์มเริ่มต้นในโค้ด: กฎที่บันทึกไว้ (Supabase) อาจไม่มี channelTemplates → ใช้ค่านี้แทน
+const DEFAULT_CHANNEL_TPL = { order_created: { facebook: ORDER_CREATED_FB_TPL, sms: ORDER_CREATED_SMS_TPL } }
+// เทมเพลตของช่อง: กฎที่บันทึกไว้ → ค่าเริ่มต้นของเหตุการณ์ → เทมเพลตหลัก
+const channelTplOf = (r, chKey) => r.channelTemplates?.[chKey] || DEFAULT_CHANNEL_TPL[r.event]?.[chKey] || tplOf(r)
 // ประเภท: ราคาคงที่ (price) + ราคาขนาดของประเภท (sizePrices) · เนื้อเค้ก: บวกคงที่ (price) · ขนาด: ชื่อ + ปอนด์
 const typeOpt = (id, name, price, sizePrices, extra = {}) => ({ id, name, price, sizePrices, active: true, recipe: [], ...extra })
 const sizeOpt = (id, name, pounds) => ({ id, name, pounds, active: true, recipe: [r('m8', 1, 'piece')] })
@@ -2488,7 +2492,7 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   const url = vars.ลิงก์ออร์เดอร์ || (orderMsg ? createOrderLink(order, { system: true }).url || '' : '')
   // เทมเพลตตามแพลตฟอร์ม: r.channelTemplates[ช่อง] ถ้ามี · ไม่มี = เทมเพลตหลัก (LINE/ทั่วไป)
   const renderFor = (chKey, v, link = url) => {
-    const tpl = r.channelTemplates?.[chKey] || tplOf(r)
+    const tpl = channelTplOf(r, chKey)
     const body = fillTemplate(tpl, { ...v, ลิงก์ออร์เดอร์: link }).replace(/\n{2,}/g, '\n').trim() // ตัวแปรที่ว่างไม่ทิ้งบรรทัดเปล่า
     return { tpl, text: link && !tpl.includes('{ลิงก์ออร์เดอร์}') ? `${body}\nดูออร์เดอร์: ${link}` : body }
   }
