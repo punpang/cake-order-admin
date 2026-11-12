@@ -233,8 +233,8 @@ async function startData(staff) {
     }
   }, () => {})
   // Telegram จริงเข้ากลุ่มทีม (Edge Function telegram-send · secret อยู่ฝั่งเซิร์ฟเวอร์) · ตั้งค่าไว้ = ถือว่าเชื่อมช่องทาง Telegram แล้ว
-  store.tgHook.send = async (text, kind) => {
-    const r = await client.functions.invoke('telegram-send', { body: { text, kind } })
+  store.tgHook.send = async (text, kind, parseMode = '') => {
+    const r = await client.functions.invoke('telegram-send', { body: { text, kind, parse_mode: parseMode || undefined } })
     if (r.error) { let m = ''; try { m = (await r.error.context?.json?.())?.error || '' } catch { /* ข้าม */ } return { ok: false, error: m || 'ส่งไม่สำเร็จ' } }
     return r.data?.ok ? { ok: true } : { ok: false, error: r.data?.error || '' }
   }

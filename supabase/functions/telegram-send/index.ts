@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
   if (!uid) return json({ error: 'ต้องเข้าสู่ระบบพนักงาน' }, 401)
   const st = await sb.from('punpang_staff').select('active').eq('user_id', uid).maybeSingle()
   if (!st.data?.active) return json({ error: 'บัญชีนี้ไม่มีสิทธิ์' }, 403)
-  let body: { action?: string; text?: string; kind?: string } = {}
+  let body: { action?: string; text?: string; kind?: string; parse_mode?: string } = {}
   try { body = await req.json() } catch { return json({ error: 'คำขอไม่ถูกต้อง' }, 400) }
   const token = (Deno.env.get('TELEGRAM_BOT_TOKEN') || '').trim()
   const chat = (Deno.env.get('TELEGRAM_CHAT_ID') || '').trim()
@@ -27,6 +27,7 @@ Deno.serve(async (req) => {
   const text = String(body.text ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim()
   if (!text || text.length > 4096) return json({ error: 'ข้อความต้องยาว 1–4096 ตัวอักษร' }, 400)
   const kind = body.kind === 'test' ? 'test' : 'notify'
+  const parseMode = body.parse_mode === 'HTML' ? 'HTML' : ''
   const log = (status: string, detail = '') => sb.from('punpang_tg_log').insert({ user_id: uid, kind, status, detail })
 
   const since = (ms: number) => new Date(Date.now() - ms).toISOString()
@@ -37,7 +38,7 @@ Deno.serve(async (req) => {
   if ((m.count ?? 0) >= PER_MIN || (h.count ?? 0) >= PER_HOUR) { await log('blocked', 'rate'); return json({ error: 'ส่งบ่อยเกินไป กรุณารอสักครู่' }, 429) }
 
   try {
-    const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true }), signal: AbortSignal.timeout(15000) })
+    const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true, ...(parseMode ? { parse_mode: parseMode } : {}) }), signal: AbortSignal.timeout(15000) })
     if (!r.ok) { await log('failed', `http ${r.status}`); return json({ error: 'Telegram ตอบกลับผิดพลาด', status: r.status }, 502) }
     await log('sent')
     return json({ ok: true })

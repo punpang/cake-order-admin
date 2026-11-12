@@ -115,7 +115,7 @@ const ORDER_CREATED_TPL = [
 ].join('\n')
 // ข้อความทีม (Telegram): ครบทุกรายละเอียด (รายการ+จำนวน, ลูกค้า+เบอร์, วันเวลา+รับ/ส่ง+ที่อยู่, ยอดเงิน, หมายเหตุ)
 const TEAM_NEW_ORDER_OLD = '[ออร์เดอร์ใหม่] {เลขออร์เดอร์} {ชื่อลูกค้า} {ยอดรวม} นัด {วันนัด} {เวลานัด}'
-const TEAM_NEW_ORDER_TPL = [
+const TEAM_NEW_ORDER_V2 = [
   '🎂 ออร์เดอร์ใหม่ {เลขออร์เดอร์}',
   '━━━━━━━━━━━━━━',
   '👤 {ชื่อลูกค้า} · {เบอร์ลูกค้า}',
@@ -130,7 +130,7 @@ const TEAM_NEW_ORDER_TPL = [
   '{บรรทัดหมายเหตุ}',
 ].join('\n')
 const TEAM_PAID_OLD = '[ชำระแล้ว] {เลขออร์เดอร์} คงค้าง {คงค้าง}'
-const TEAM_PAID_TPL = [
+const TEAM_PAID_V2 = [
   '💵 ชำระแล้ว {เลขออร์เดอร์}',
   '👤 {ชื่อลูกค้า} · {เบอร์ลูกค้า}',
   'ได้รับ {ยอดที่ชำระ}',
@@ -141,7 +141,7 @@ const TEAM_PAID_TPL = [
   '{รายการสินค้า}',
 ].join('\n')
 const TEAM_CANCEL_OLD = '[ยกเลิก] {เลขออร์เดอร์} {ชื่อลูกค้า}'
-const TEAM_CANCEL_TPL = [
+const TEAM_CANCEL_V2 = [
   '❌ ยกเลิกออร์เดอร์ {เลขออร์เดอร์}',
   '👤 {ชื่อลูกค้า} · {เบอร์ลูกค้า}',
   '📅 นัด{ส่งมอบ} {วันนัด} เวลา {เวลานัด}',
@@ -149,13 +149,68 @@ const TEAM_CANCEL_TPL = [
   '{รายการสินค้า}',
   '💰 ยอดรวม {ยอดรวม} · ✅ ชำระแล้ว {ชำระแล้ว}',
 ].join('\n')
+// ข้อความทีม Telegram ใช้ HTML (ตัวหนา/โค้ด) · ข้อความ SMS/Facebook ที่ไม่มีเทมเพลตของตัวเอง ใช้เทมเพลตหลักแล้วตัดอีโมจิอัตโนมัติ
+const TEAM_NEW_ORDER_TPL = [
+  '🎂 <b>ออร์เดอร์ใหม่ {เลขออร์เดอร์}</b>',
+  '━━━━━━━━━━━━━━',
+  '👤 <b>{ชื่อลูกค้า}</b> · <code>{เบอร์ลูกค้า}</code>',
+  '📅 นัด{ส่งมอบ} <b>{วันนัด} {เวลานัด}</b>',
+  '{บรรทัดที่อยู่}',
+  '{บรรทัดค่าส่ง}',
+  '🧾 <b>รายการ</b>',
+  '{รายการสินค้า}',
+  '━━━━━━━━━━━━━━',
+  '💰 ยอดรวม <b>{ยอดรวม}</b>',
+  '✅ ชำระแล้ว {ชำระแล้ว} · ⏳ คงค้าง <b>{คงค้าง}</b>',
+  '{บรรทัดหมายเหตุ}',
+].join('\n')
+const TEAM_PAID_TPL = [
+  '💵 <b>ชำระแล้ว {เลขออร์เดอร์}</b>',
+  '👤 <b>{ชื่อลูกค้า}</b> · <code>{เบอร์ลูกค้า}</code>',
+  'ได้รับ <b>{ยอดที่ชำระ}</b>',
+  '💰 ยอดรวม {ยอดรวม} · ✅ ชำระแล้ว {ชำระแล้ว} · ⏳ คงค้าง <b>{คงค้าง}</b>',
+  '📅 นัด{ส่งมอบ} {วันนัด} เวลา {เวลานัด}',
+  '{บรรทัดที่อยู่}',
+  '🧾 <b>รายการ</b>',
+  '{รายการสินค้า}',
+].join('\n')
+const TEAM_CANCEL_TPL = [
+  '❌ <b>ยกเลิกออร์เดอร์ {เลขออร์เดอร์}</b>',
+  '👤 <b>{ชื่อลูกค้า}</b> · <code>{เบอร์ลูกค้า}</code>',
+  '📅 นัด{ส่งมอบ} {วันนัด} เวลา {เวลานัด}',
+  '🧾 <b>รายการ</b>',
+  '{รายการสินค้า}',
+  '💰 ยอดรวม {ยอดรวม} · ✅ ชำระแล้ว {ชำระแล้ว}',
+].join('\n')
+// เทมเพลต Facebook: ข้อความธรรมดา ไม่มีอีโมจิ
+const ORDER_CREATED_FB_TPL = [
+  'สวัสดีค่ะ {ชื่อลูกค้า}',
+  'ร้านรับออร์เดอร์ของคุณแล้วค่ะ',
+  '',
+  'ออร์เดอร์ {เลขออร์เดอร์}',
+  '{รายการสินค้า}',
+  '',
+  'นัด{ส่งมอบ} {วันนัด} เวลา {เวลานัด}',
+  '{บรรทัดที่อยู่}',
+  '{บรรทัดค่าส่ง}',
+  'ยอดรวม {ยอดรวม}',
+  'คงค้าง {คงค้าง}',
+  '',
+  'ขอบคุณที่อุดหนุนค่ะ',
+  'ดูออร์เดอร์: {ลิงก์ออร์เดอร์}',
+].join('\n')
+// เทมเพลต SMS: สั้น ไม่มีอีโมจิ
+const ORDER_CREATED_SMS_TPL = 'สวัสดีค่ะ {ชื่อลูกค้า} รับออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ นัด{ส่งมอบ} {วันนัด} {เวลานัด} ยอดรวม {ยอดรวม} คงค้าง {คงค้าง} ดู: {ลิงก์ออร์เดอร์}'
 const DEFAULT_UPGRADES = {
   payment_confirmed: [PAY_CONFIRMED_OLD, PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL], delivered: [DELIVERED_OLD, DELIVERED_TPL], payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL],
-  order_created: [ORDER_CREATED_OLD, ORDER_CREATED_TPL], team_new_order: [TEAM_NEW_ORDER_OLD, TEAM_NEW_ORDER_TPL], team_payment_confirmed: [TEAM_PAID_OLD, TEAM_PAID_TPL], team_cancelled: [TEAM_CANCEL_OLD, TEAM_CANCEL_TPL],
+  order_created: [ORDER_CREATED_OLD, ORDER_CREATED_TPL],
+  team_new_order: [[TEAM_NEW_ORDER_OLD, TEAM_NEW_ORDER_V2], TEAM_NEW_ORDER_TPL], team_payment_confirmed: [[TEAM_PAID_OLD, TEAM_PAID_V2], TEAM_PAID_TPL], team_cancelled: [[TEAM_CANCEL_OLD, TEAM_CANCEL_V2], TEAM_CANCEL_TPL],
 }
-const tplOf = (r) => { const u = DEFAULT_UPGRADES[r.event]; return u && String(r.template || '').trim() === u[0] ? u[1] : r.template }
+// u[0] = ข้อความเดิม (ข้อความเดียว หรือรายการ) → ถ้าตรงกับที่เก็บไว้ ให้ใช้ u[1] แทน
+const tplOf = (r) => { const u = DEFAULT_UPGRADES[r.event]; return u && [].concat(u[0]).includes(String(r.template || '').trim()) ? u[1] : r.template }
 
-const rule = (event, channels, template) => ({ event, channels, template, enabled: true })
+// channelTemplates (ไม่บังคับ): เทมเพลตแยกตามแพลตฟอร์ม { line?, facebook?, sms? } · ไม่มี = ใช้ template หลัก
+const rule = (event, channels, template, channelTemplates = null) => ({ event, channels, template, enabled: true, ...(channelTemplates ? { channelTemplates } : {}) })
 // ประเภท: ราคาคงที่ (price) + ราคาขนาดของประเภท (sizePrices) · เนื้อเค้ก: บวกคงที่ (price) · ขนาด: ชื่อ + ปอนด์
 const typeOpt = (id, name, price, sizePrices, extra = {}) => ({ id, name, price, sizePrices, active: true, recipe: [], ...extra })
 const sizeOpt = (id, name, pounds) => ({ id, name, pounds, active: true, recipe: [r('m8', 1, 'piece')] })
@@ -320,7 +375,7 @@ export const db = reactive({
   ],
   // กฎแจ้งเตือน: event → ช่องทาง + ข้อความ (ตัวอย่าง)
   notifyRules: [
-    rule('order_created', ['line', 'facebook', 'sms'], ORDER_CREATED_TPL),
+    rule('order_created', ['line', 'facebook', 'sms'], ORDER_CREATED_TPL, { facebook: ORDER_CREATED_FB_TPL, sms: ORDER_CREATED_SMS_TPL }),
     rule('payment_requested', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง}) ชำระก่อน {ชำระก่อน} ดู/ชำระที่ {ลิงก์ออร์เดอร์}'),
     rule('order_confirmed', ['line', 'facebook', 'sms'], 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ คงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า'),
     rule('payment_reminder', ['line', 'facebook', 'sms'], PAY_REMINDER_TPL),
@@ -2268,6 +2323,11 @@ const customerAddr = (c, ch) => (ch === 'line' ? c?.lineUserId : ch === 'faceboo
 export function fillTemplate(tpl, vars) {
   return Object.entries(vars).reduce((s, [k, v]) => s.split(`{${k}}`).join(v ?? ''), tpl || '')
 }
+// ข้อความธรรมดา (SMS/Facebook): ตัดอีโมจิและเส้นตกแต่ง แล้วยุบบรรทัดว่าง
+export const plainText = (s) => String(s ?? '').replace(/[\p{Extended_Pictographic}\u200d\ufe0f━]/gu, '').replace(/[ \t]+\n/g, '\n').replace(/[ \t]{2,}/g, ' ').replace(/\n{2,}/g, '\n').trim()
+// Telegram HTML: escape ค่าตัวแปรก่อนแทรกลงเทมเพลต (กัน < > & ทำข้อความเพี้ยน)
+const escapeHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+const escapeVars = (v) => Object.fromEntries(Object.entries(v).map(([k, x]) => [k, escapeHtml(x)]))
 function orderVars(order, extra = {}) {
   const c = findCustomer(order.customerId)
   const t = orderTotals(order)
@@ -2314,7 +2374,7 @@ function pushOut(event, channel, to, text, orderId = null, customer = null, opts
     emitStaffBell('notify_failed', { text: `${customer.name || 'ลูกค้า'}: ยังไม่มีแชท Facebook ที่ผูกไว้ แจ้งทางอื่นเอง` })
   }
   if (channel === 'sms' && customer?.phone) deliverSms(db.outbox[0], customer.phone, text, 'notify')
-  if (channel === 'telegram') deliverTg(db.outbox[0], text, 'notify')
+  if (channel === 'telegram') deliverTg(db.outbox[0], text, 'notify', opts.parseMode || '')
 }
 // ส่ง SMS จริงผ่านเกตเวย์ (ตั้งโดยชั้นเชื่อม Supabase) · ไม่มีตัวส่ง = คงสถานะจำลองไว้
 export const smsHook = { send: null }
@@ -2327,10 +2387,10 @@ function deliverSms(row, number, text, kind) {
 }
 // ส่ง Telegram จริงเข้ากลุ่มทีม (Edge Function telegram-send · token/chat id เป็น secret ฝั่งเซิร์ฟเวอร์) · ไม่มีตัวส่ง = คงสถานะจำลองไว้
 export const tgHook = { send: null }
-function deliverTg(row, text, kind) {
+function deliverTg(row, text, kind, parseMode = '') {
   if (!tgHook.send) return
   row.status = 'sending'
-  tgHook.send(text, kind).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
+  tgHook.send(text, kind, parseMode).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
 }
 // ---------- กระดิ่งแจ้งเตือนในแอป ----------
 function bellPush(item) {
@@ -2426,12 +2486,17 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   const order = orderId ? findOrder(orderId) : null
   const orderMsg = ev.audience === 'customer' && !ev.marketing && !!order && order.channel !== 'pos'
   const url = vars.ลิงก์ออร์เดอร์ || (orderMsg ? createOrderLink(order, { system: true }).url || '' : '')
-  const tpl = tplOf(r)
-  const body = fillTemplate(tpl, { ...vars, ลิงก์ออร์เดอร์: url }).replace(/\n{2,}/g, '\n').trim() // ตัวแปรที่ว่างไม่ทิ้งบรรทัดเปล่า
-  const text = url && !tpl.includes('{ลิงก์ออร์เดอร์}') ? `${body}\nดูออร์เดอร์: ${url}` : body
+  // เทมเพลตตามแพลตฟอร์ม: r.channelTemplates[ช่อง] ถ้ามี · ไม่มี = เทมเพลตหลัก (LINE/ทั่วไป)
+  const renderFor = (chKey, v, link = url) => {
+    const tpl = r.channelTemplates?.[chKey] || tplOf(r)
+    const body = fillTemplate(tpl, { ...v, ลิงก์ออร์เดอร์: link }).replace(/\n{2,}/g, '\n').trim() // ตัวแปรที่ว่างไม่ทิ้งบรรทัดเปล่า
+    return { tpl, text: link && !tpl.includes('{ลิงก์ออร์เดอร์}') ? `${body}\nดูออร์เดอร์: ${link}` : body }
+  }
   if (ev.audience === 'team') {
     if (!r.channels.includes('telegram') || !db.integrations.telegram.enabled) return 0
-    pushOut(event, 'telegram', 'กลุ่มทีม', text, orderId)
+    // ทีม (Telegram) ส่งแบบ HTML: ค่าทุกตัวต้อง escape ก่อน
+    const { text } = renderFor('telegram', escapeVars(vars), escapeHtml(url))
+    pushOut(event, 'telegram', 'กลุ่มทีม', text, orderId, null, { parseMode: 'HTML' })
     return 1
   }
   if (ev.marketing && customer && customer.promoOptIn === false) return 0
@@ -2441,11 +2506,15 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   // ส่งทางแชท (Facebook/LINE) ที่มีการ์ดพร้อมปุ่ม: ตัดบรรทัดลิงก์ออกจากข้อความ (ปุ่มทำหน้าที่แทน) · SMS ยังได้ข้อความเต็มพร้อมลิงก์
   // Facebook: การ์ดปุ่ม "ดูออร์เดอร์" (card ที่ส่งมา หรือการ์ดลิงก์ที่สร้างให้) · ข้อความบนการ์ดตัดบรรทัดลิงก์ออก เพราะปุ่มทำหน้าที่แทน · LINE/SMS ได้ข้อความที่มีลิงก์
   const fbCard = ch === 'facebook' ? (card || (orderMsg && url ? orderLinkCardOf(order, url) : null)) : null
-  const chatText = fbCard && url ? fillTemplate(tpl, { ...vars, ลิงก์ออร์เดอร์: '' }).replace(/\s*(ดูออร์เดอร์|ดู\/ชำระที่|ชำระที่|ดูได้ที่)\s*:?\s*$/, '').replace(/\n{2,}/g, '\n').trim() : text
+  // ข้อความของช่องที่เลือก: SMS/Facebook เป็นข้อความธรรมดา (ตัดอีโมจิ) · LINE คงรูปแบบเต็ม
+  const plainFor = (chKey, s) => (chKey === 'sms' || chKey === 'facebook' ? plainText(s) : s)
+  const main = renderFor(ch || 'line', vars)
+  const text = plainFor(ch, main.text)
+  const chatText = fbCard && url ? plainFor('facebook', fillTemplate(main.tpl, { ...vars, ลิงก์ออร์เดอร์: '' }).replace(/\s*(ดูออร์เดอร์|ดู\/ชำระที่|ชำระที่|ดูได้ที่)\s*:?\s*$/, '').replace(/\n{2,}/g, '\n').trim()) : text
   pushOut(event, ch || null, to, chatText, orderId, customer, fbCard ? { card: { text: chatText, card: fbCard } } : {})
-  // ส่งทาง Facebook/LINE แล้ว ถ้าลูกค้ามีเบอร์ → ส่ง SMS ซ้ำด้วยเสมอ (พนักงานติ๊กออกได้ที่หน้าที่ส่ง) · ใช้เฉพาะ event ที่กฎเปิด SMS ไว้
+  // ส่งทาง Facebook/LINE แล้ว ถ้าลูกค้ามีเบอร์ → ส่ง SMS ซ้ำด้วยเสมอ (พนักงานติ๊กออกได้ที่หน้าที่ส่ง) · ใช้เฉพาะ event ที่กฎเปิด SMS ไว้ · ใช้เทมเพลต SMS
   if ((ch === 'facebook' || ch === 'line') && !noSms && !ev.marketing && customer?.phone && allowed.sms && db.integrations.sms?.enabled) {
-    pushOut(event, 'sms', `${CHANNELS.sms.label}: ${customer.name || ''} (${formatPhone(customer.phone)})`, text, orderId, customer)
+    pushOut(event, 'sms', `${CHANNELS.sms.label}: ${customer.name || ''} (${formatPhone(customer.phone)})`, plainFor('sms', renderFor('sms', vars).text), orderId, customer)
   }
   return 1
 }
@@ -2666,7 +2735,7 @@ export function runBot(c, m) {
     db.bot.stats.handoff++
     c.botHandoff = true
     emitStaffBell('bot_handoff', { text: `${c.profileName || 'ลูกค้า'}: ${res.reason || ''}`.trim(), chatId: c.id })
-    if (db.bot.handoff.notifyTelegram && db.integrations.telegram.enabled) pushOut('bot_handoff', 'telegram', 'กลุ่มทีม', `🤖 บอทส่งต่อลูกค้า\n👤 ${c.profileName || 'ลูกค้า'} (${c.channel})\n💬 "${String(m.text).trim()}"\n📌 เหตุผล: ${res.reason || '-'}`)
+    if (db.bot.handoff.notifyTelegram && db.integrations.telegram.enabled) pushOut('bot_handoff', 'telegram', 'กลุ่มทีม', `🤖 <b>บอทส่งต่อลูกค้า</b>\n👤 <b>${escapeHtml(c.profileName || 'ลูกค้า')}</b> (${escapeHtml(c.channel)})\n💬 "${escapeHtml(String(m.text).trim())}"\n📌 เหตุผล: ${escapeHtml(res.reason || '-')}`, null, null, { parseMode: 'HTML' })
     if (res.source === 'order_unverified' || res.source === 'handoff') {
       if (auto) { sendNotice(); sendChat(c.id, 'staff', res.reply, { by: 'บอท' }) }
       else c.botDraft = { text: res.reply, source: res.source, confidence: res.confidence, reason: res.reason, handoff: true, prefix: prefixOf(), at: now() }
