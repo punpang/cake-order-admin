@@ -1,4 +1,5 @@
 <script setup>
+import SectionTabs from '../../components/SectionTabs.vue'
 import { computed, reactive, ref } from 'vue'
 import { db, saveGalleryImage, removeGalleryImage } from '../../data/store'
 import { galleryCoverage, galleryOf } from '../../lib/cakeImage'
@@ -48,12 +49,16 @@ async function del() {
   removeGalleryImage(ed.id)
   ed.open = false
 }
+// แท็บ: รูปในคลัง (เปิดก่อน) · เพิ่มรูป · ความครอบคลุม
+const tab = ref('items')
+const itemLimit = ref(24) // รูปเยอะ: แสดงทีละ 24
 </script>
 
 <template>
   <ManageShell title="คลังรูปเค้กสั่งทำ" subtitle="ติดแท็กตัวเลือก · หน้าเว็บเปลี่ยนรูปตามที่ลูกค้าเลือก" :toolbar="false">
+    <SectionTabs v-model="tab" :tabs="[{ key: 'items', label: 'รูปในคลัง', badge: items.length }, { key: 'add', label: 'เพิ่มรูป' }, { key: 'coverage', label: 'ความครอบคลุม' }]" />
     <div class="space-y-4">
-      <section class="card space-y-3 lg:max-w-3xl" aria-label="อัปโหลดรูป">
+      <section v-show="tab === 'add'" class="card space-y-3 lg:max-w-3xl" aria-label="อัปโหลดรูป">
         <div class="card-title">เพิ่มรูป (อัปโหลดทีละหลายรูปได้)</div>
         <p class="text-sm text-stone-500">ติ๊กตัวเลือกที่รูปเหล่านี้เป็นตัวแทนก่อน แล้วเลือกรูปทีเดียวหลายรูป ระบบใช้แท็กเดียวกันกับทุกรูปในครั้งนั้น (ติ๊กน้อย = ใช้ได้กว้าง, ติ๊กหลายอย่าง = เจาะจง เช่น ช็อกโกแลต + 2 ปอนด์)</p>
         <div v-for="g in groups" :key="g.id">
@@ -67,21 +72,22 @@ async function del() {
         <button type="button" class="btn-primary w-full" @click="saveQueue">บันทึก {{ queue.length || '' }} รูปเข้าคลัง</button>
       </section>
 
-      <section class="card" aria-label="รูปในคลัง">
+      <section v-show="tab === 'items'" class="card" aria-label="รูปในคลัง">
         <div class="card-title">รูปในคลัง ({{ items.length }})<span v-if="typeImgs.length" class="text-xs font-normal text-stone-400"> + รูปหน้าปกประเภท {{ typeImgs.length }} รูป</span></div>
-        <p v-if="!items.length" class="py-6 text-center text-sm text-stone-400">ยังไม่มีรูปในคลัง</p>
+        <p v-if="!items.length" class="py-6 text-center text-sm text-stone-400">ยังไม่มีรูปในคลัง · <button type="button" class="font-medium text-brand-700 underline" @click="tab = 'add'">เพิ่มรูปแรก</button></p>
         <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-6">
-          <div v-for="it in items" :key="it.id" class="overflow-hidden rounded-2xl border border-stone-200 bg-white text-left" :class="it.active === false ? 'opacity-50' : ''">
+          <div v-for="it in items.slice(0, itemLimit)" :key="it.id" class="overflow-hidden rounded-2xl border border-stone-200 bg-white text-left" :class="it.active === false ? 'opacity-50' : ''">
             <button type="button" class="block w-full text-left" @click="edit(it)">
-              <img :src="it.image" :alt="it.caption || 'รูปเค้ก'" class="aspect-square w-full object-cover" />
+              <img :src="it.image" :alt="it.caption || 'รูปเค้ก'" class="aspect-square w-full object-cover" loading="lazy" decoding="async" />
               <span class="block space-y-1 px-2 pt-2"><span class="flex flex-wrap gap-1"><span v-for="t in it.tags" :key="t" class="rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-800">{{ nameOf(t) }}</span></span><span v-if="it.caption" class="block truncate text-xs text-stone-500">{{ it.caption }}</span></span>
             </button>
             <div class="p-2 pt-1"><RouterLink v-if="it.source" :to="`/admin/orders/${it.source.orderId}`" class="block text-xs text-brand-700 underline">จากออร์เดอร์ {{ codeOf(it.source.orderId) }}</RouterLink></div>
           </div>
         </div>
+        <button v-if="items.length > itemLimit" type="button" class="btn-outline mt-3 w-full" @click="itemLimit += 48">ดูเพิ่ม (เหลืออีก {{ items.length - itemLimit }})</button>
       </section>
 
-      <section class="card text-sm" aria-label="ความครอบคลุมของรูป">
+      <section v-show="tab === 'coverage'" class="card text-sm" aria-label="ความครอบคลุมของรูป">
         <div class="card-title">ความครอบคลุมของรูป</div>
         <div v-if="cov.popular.length" class="mb-3"><div class="mb-1 font-semibold text-stone-800">แบบที่ลูกค้าสั่งจริงแต่ยังไม่มีรูปตรง</div><ul class="space-y-0.5"><li v-for="p in cov.popular" :key="p.label" class="flex justify-between"><span>{{ p.label }}</span><span class="text-stone-500">สั่งแล้ว {{ p.count }}</span></li></ul></div>
         <div v-for="r in cov.groups" :key="r.group.id" class="mb-2"><div class="font-semibold text-stone-800">{{ r.group.name }} <span class="text-xs font-normal" :class="r.missing.length ? 'text-amber-700' : 'text-emerald-700'">{{ r.missing.length ? `ยังไม่มีรูป ${r.missing.length}` : 'มีรูปครบ' }}</span></div><div v-if="r.missing.length" class="mt-0.5 flex flex-wrap gap-1"><span v-for="o in r.missing" :key="o.id" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-800">{{ o.name }}</span></div></div>

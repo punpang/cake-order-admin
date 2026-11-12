@@ -1,5 +1,6 @@
 <script setup>
-import { computed, ref } from 'vue'
+import SectionTabs from '../../components/SectionTabs.vue'
+import { computed, ref, watch } from 'vue'
 import { db, findCustomer } from '../../data/store'
 import { orderTotals, shipNetOf } from '../../lib/pricing'
 import { orderCost } from '../../lib/materials'
@@ -126,6 +127,10 @@ const due = computed(() => {
   const list = rows.value.filter((r) => r.balance > 0)
   return { count: list.length, amount: list.reduce((s, r) => s + r.balance, 0) }
 })
+// แท็บ: สรุป (กราฟ/ขายดี/รับเงิน) · ออร์เดอร์ (รายการ แสดงทีละ 50)
+const tab = ref('summary')
+const rowLimit = ref(50)
+watch([from, to], () => { rowLimit.value = 50 })
 </script>
 
 <template>
@@ -142,6 +147,9 @@ const due = computed(() => {
       <div class="card p-3.5"><div class="text-xs text-stone-500">กำไร ({{ margin }}%)</div><div class="text-xl font-semibold" :class="sum.profit >= 0 ? 'text-emerald-700' : 'text-rose-600'">{{ money(sum.profit) }}</div></div>
     </div>
 
+    <SectionTabs v-model="tab" :tabs="[{ key: 'summary', label: 'สรุป' }, { key: 'orders', label: 'ออร์เดอร์', badge: rows.length }]" />
+
+    <div v-show="tab === 'summary'">
     <!-- กราฟ -->
     <section class="card mb-4">
       <div class="mb-1 flex flex-wrap items-center justify-between gap-2">
@@ -222,9 +230,12 @@ const due = computed(() => {
       </div>
     </section>
 
+    </div>
+
+    <div v-show="tab === 'orders'">
     <p v-if="!rows.length" class="card py-10 text-center text-stone-500">ไม่มีออร์เดอร์ในช่วงนี้</p>
     <div v-else class="card divide-y divide-stone-100 p-0">
-      <RouterLink v-for="r in rows" :key="r.o.id" :to="`/admin/orders/${r.o.id}`" class="flex items-center gap-3 px-4 py-3 hover:bg-stone-50">
+      <RouterLink v-for="r in rows.slice(0, rowLimit)" :key="r.o.id" :to="`/admin/orders/${r.o.id}`" class="flex items-center gap-3 px-4 py-3 hover:bg-stone-50">
         <span class="min-w-0 flex-1">
           <span class="block truncate font-medium text-stone-900">{{ r.o.code }} · {{ findCustomer(r.o.customerId)?.name }}</span>
           <span class="block text-xs text-stone-500">{{ dateTime(r.o.pickupAt) }} · {{ STATUS[r.o.status].label }}</span>
@@ -234,6 +245,8 @@ const due = computed(() => {
           <span class="block font-semibold" :class="r.profit >= 0 ? 'text-emerald-700' : 'text-rose-600'">{{ money(r.profit) }}</span>
         </span>
       </RouterLink>
+    </div>
+    <button v-if="rows.length > rowLimit" type="button" class="btn-outline mt-3 w-full" @click="rowLimit += 100">ดูเพิ่ม (เหลืออีก {{ rows.length - rowLimit }})</button>
     </div>
   </ManageShell>
 </template>

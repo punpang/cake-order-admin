@@ -1,4 +1,5 @@
 <script setup>
+import SectionTabs from '../../components/SectionTabs.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { supabaseEnabled, getSupabase } from '../../lib/supabase'
@@ -53,6 +54,8 @@ async function clear() {
   if (await askConfirm({ title: 'ล้างคิวข้อความ', message: `${db.outbox.length} รายการ`, okText: 'ล้าง', danger: true })) clearOutbox()
 }
 const showAll = ref(false)
+// แท็บของหน้า: ช่องทาง · แจ้งลูกค้า · แจ้งทีม · คิวข้อความ
+const tab = ref('channels')
 const outbox = computed(() => (showAll.value ? db.outbox : db.outbox.slice(0, 20)))
 
 // ---------- เชื่อมบัญชี ----------
@@ -178,11 +181,13 @@ async function disconnect(k) {
   <ManageShell narrow title="การเชื่อมต่อ & แจ้งเตือน" subtitle="ตั้งค่าช่องทางและดูคิวข้อความ" :toolbar="false">
     <p class="mb-4 flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
       <AppIcon name="alert" :size="16" class="mt-0.5 shrink-0" />
-      ยังไม่ได้ต่อเซิร์ฟเวอร์ ข้อความทั้งหมดถูกบันทึกลง "คิวข้อความ" ด้านล่างเพื่อดูว่าจะส่งอะไรถึงใคร · ต่อจริงทีหลังพร้อม Supabase (token เก็บที่เซิร์ฟเวอร์ ไม่กรอกในหน้านี้)
+      ยังไม่ได้ต่อเซิร์ฟเวอร์ ข้อความทั้งหมดถูกบันทึกลง แท็บ "คิวข้อความ"เพื่อดูว่าจะส่งอะไรถึงใคร · ต่อจริงทีหลังพร้อม Supabase (token เก็บที่เซิร์ฟเวอร์ ไม่กรอกในหน้านี้)
     </p>
 
+    <SectionTabs v-model="tab" :tabs="[{ key: 'channels', label: 'ช่องทาง' }, { key: 'customer', label: 'แจ้งลูกค้า' }, { key: 'team', label: 'แจ้งทีม' }, { key: 'outbox', label: 'คิวข้อความ', badge: db.outbox.length }]" />
+
     <!-- ช่องทาง -->
-    <div class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div v-show="tab === 'channels'" class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
       <section v-for="(c, k) in CHANNELS" :key="k" class="card">
         <div class="mb-1 flex items-center justify-between gap-2">
           <span class="font-semibold text-stone-900">{{ c.label }}</span>
@@ -219,7 +224,7 @@ async function disconnect(k) {
     </div>
 
     <!-- กฎแจ้งเตือน -->
-    <section class="card mb-4">
+    <section v-show="tab === 'customer'" class="card mb-4">
       <div class="card-title">แจ้งลูกค้า</div>
       <p class="mb-2 rounded-lg bg-brand-50 px-3 py-2 text-xs text-stone-600">ช่องทางที่ตั้งไว้ตรงนี้คือ <b>ค่าของระบบ</b> · ถ้าตั้งช่องทางที่ข้อมูลลูกค้า หรือที่หน้าออร์เดอร์ จะใช้ค่านั้นก่อน (ออร์เดอร์ &gt; ลูกค้า &gt; ระบบ)</p>
       <p class="mb-3 text-xs text-stone-500">ส่งทางช่องทางแรกที่ลูกค้ามีข้อมูล ตามลำดับ LINE → Facebook → SMS · ข้อความทาง LINE/Facebook จะขึ้นในศูนย์รวมแชทด้วย (เลือกช่องทางที่อนุญาตในแต่ละเหตุการณ์)</p>
@@ -244,7 +249,7 @@ async function disconnect(k) {
       </ul>
     </section>
 
-    <section class="card mb-4">
+    <section v-show="tab === 'team'" class="card mb-4">
       <div class="card-title">แจ้งทีมภายใน (Telegram)</div>
       <ul class="divide-y divide-stone-100">
         <li v-for="r in teamRules" :key="r.event" class="flex items-center gap-3 py-3" :class="r.enabled ? '' : 'opacity-60'">
@@ -262,7 +267,7 @@ async function disconnect(k) {
     </section>
 
     <!-- คิวข้อความ -->
-    <section class="card">
+    <section v-show="tab === 'outbox'" class="card">
       <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div class="text-[15px] font-semibold text-stone-900">คิวข้อความ <span class="text-sm font-normal text-stone-400">{{ db.outbox.length }}</span></div>
         <div class="flex flex-wrap items-center gap-2">

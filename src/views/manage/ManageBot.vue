@@ -1,4 +1,5 @@
 <script setup>
+import SectionTabs from '../../components/SectionTabs.vue'
 import { computed, reactive, ref } from 'vue'
 import { db, saveBotSettings, saveBotRule, removeBotRule, removeLearned, promoteLearned, testBot } from '../../data/store'
 import { dateOnly } from '../../lib/format'
@@ -55,6 +56,8 @@ function runTest() {
   test.res = test.text.trim() ? testBot(test.text, { customerId: test.customerId || null }) : null
 }
 const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เวลาเปิด', price: 'ราคา/แนะนำสินค้า', learned: 'เรียนรู้จากพนักงาน', order: 'สถานะออร์เดอร์', ask: 'ขอข้อมูลที่ขาด', offhours: 'นอกเวลาทำการ', handoff: 'ส่งต่อพนักงาน', order_unverified: 'ยืนยันตัวตนไม่ได้ (ส่งต่อ)' }
+// แท็บ: ตั้งค่า · ทดสอบ (สถิติ + ลองข้อความ) · กฎ · ที่เรียนรู้
+const tab = ref('settings')
 </script>
 
 <template>
@@ -64,7 +67,9 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
       <p>บอทไม่ตอบเรื่องเงิน/คืนเงิน/ร้องเรียน (ส่งต่อพนักงานเสมอ) และบอกสถานะออร์เดอร์เฉพาะเมื่อแชทผูกลูกค้าและออร์เดอร์เป็นของลูกค้าคนนั้น · ข้อความลูกค้าประมวลผลในเบราว์เซอร์ ไม่ส่งออกภายนอก · ของจริงรับแชทผ่าน webhook ต้องต่อเซิร์ฟเวอร์</p>
     </div>
 
-    <section class="card mb-4 space-y-3">
+    <SectionTabs v-model="tab" :tabs="[{ key: 'settings', label: 'ตั้งค่า' }, { key: 'test', label: 'ทดสอบ & สถิติ' }, { key: 'rules', label: 'กฎ', badge: db.bot.rules.length }, { key: 'learned', label: 'ที่เรียนรู้', badge: db.bot.learned.length }]" />
+
+    <section v-show="tab === 'settings'" class="card mb-4 space-y-3">
       <div class="flex items-center justify-between"><h2 class="font-semibold text-stone-900">ตั้งค่า</h2><AppSwitch v-model="st.enabled" label="เปิดบอท" /></div>
       <div>
         <div class="label">ตอบเองรายประเภท (ไม่ตั้ง = แนะนำให้พนักงานกดส่ง)</div>
@@ -129,14 +134,14 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
       <button class="btn-primary" @click="save">บันทึกตั้งค่า</button>
     </section>
 
-    <section class="card mb-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
+    <section v-show="tab === 'test'" class="card mb-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
       <div><div class="text-xl font-bold text-stone-900">{{ db.bot.stats.suggested }}</div><div class="text-xs text-stone-500">ร่างที่เสนอ</div></div>
       <div><div class="text-xl font-bold text-emerald-700">{{ db.bot.stats.answered }}</div><div class="text-xs text-stone-500">ตอบแล้ว</div></div>
       <div><div class="text-xl font-bold text-violet-700">{{ db.bot.stats.handoff }}</div><div class="text-xs text-stone-500">ส่งต่อพนักงาน</div></div>
       <div><div class="text-xl font-bold text-amber-700">{{ db.bot.stats.staffEdited }}</div><div class="text-xs text-stone-500">พนักงานแก้ร่าง</div></div>
     </section>
 
-    <section class="card mb-4">
+    <section v-show="tab === 'test'" class="card mb-4">
       <h2 class="mb-2 font-semibold text-stone-900">ทดสอบ (ไม่ส่งจริง)</h2>
       <div class="space-y-2">
         <input v-model="test.text" class="input" aria-label="ข้อความลูกค้าที่ใช้ทดสอบ" placeholder="พิมพ์ข้อความลูกค้า เช่น เปิดกี่โมง / ขอเช็คออร์เดอร์ OR-0004" @keyup.enter="runTest" />
@@ -150,7 +155,7 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
       </div>
     </section>
 
-    <section class="card mb-4">
+    <section v-show="tab === 'rules'" class="card mb-4">
       <div class="mb-2 flex items-center justify-between">
         <h2 class="font-semibold text-stone-900">กฎคีย์เวิร์ด ({{ db.bot.rules.length }})</h2>
         <button class="btn-primary h-9 px-3" @click="openRule(null)">+ เพิ่มกฎ</button>
@@ -165,7 +170,7 @@ const SRC = { rule: 'กฎ', faq: 'FAQ หน้าร้าน', hours: 'เ�
       </ul>
     </section>
 
-    <section class="card">
+    <section v-show="tab === 'learned'" class="card">
       <h2 class="mb-1 font-semibold text-stone-900">คำตอบที่เรียนรู้จากพนักงาน ({{ db.bot.learned.length }})</h2>
       <p class="mb-2 text-xs text-stone-500">จดคู่ ถาม→ตอบ เมื่อพนักงานตอบแชทเอง (ตัดเบอร์/อีเมล/เลขออร์เดอร์/ชื่อเป็น placeholder · ไม่เรียนเรื่องเงิน/ร้องเรียน) · กด "ยืนยันเป็นกฎ" เพื่อให้เป็นกฎถาวร</p>
       <p v-if="!db.bot.learned.length" class="py-3 text-center text-sm text-stone-400">ยังไม่มี</p>
