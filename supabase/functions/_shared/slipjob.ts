@@ -5,7 +5,7 @@
 import { buildSlipPayment, classifyThaiQr, latestOrderId, planAttach, slipKeyOf } from './slip.ts'
 import { imageSize, readQrTexts } from './qrimage.ts'
 import { bankByCode, normalizeRef, paidAtFromMessage, refTaken } from './payfields.ts'
-import { OCR_DEFAULT_MODEL, readSlipFields, type SlipFields } from './slipocr.ts'
+import { OCR_DEFAULT_MODEL, readSlipFields, readSlipFieldsRemote, type SlipFields } from './slipocr.ts'
 
 export type SlipOutcome =
   | 'matched' | 'duplicate' | 'no_order' | 'order_missing' | 'order_inactive' | 'order_paid' | 'pending_exists'
@@ -31,6 +31,7 @@ export type SlipJobInput = {
   nowMs?: number
   rand?: (n: number) => string
   ocrKey?: string // คีย์ Anthropic (จาก Deno.env ของ fb-webhook) · ว่าง = ไม่อ่านยอดจากภาพ
+  ocrRemote?: { url: string; token: string } // บริการอ่านของร้านเอง (Tesseract) · มีค่า = ใช้แทน Claude
   ocrRead?: (o: { bytes: Uint8Array; key: string; model: string }) => Promise<SlipFields | null> // ทดสอบแทนการเรียก API จริง
 }
 
@@ -123,8 +124,11 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   if (dupInChat) return finish('duplicate')
 
   // อ่านยอดและวัน-เวลาจากตัวหนังสือบนภาพ (เฉพาะเมื่อร้านเปิดไว้และมีคีย์) · อ่านไม่ได้ = ใช้ค่าเดิมต่อไป
-  const fields: SlipFields | null = cfg.ocr.enabled && input.ocrKey
-    ? await (input.ocrRead ?? readSlipFields)({ bytes, key: input.ocrKey, model: cfg.ocr.model }).catch(() => null)
+  const remote = input.ocrRemote?.url ? input.ocrRemote : null
+  const fields: SlipFields | null = cfg.ocr.enabled && (remote || input.ocrKey)
+    ? remote
+      ? await (input.ocrRead ?? ((o) => readSlipFieldsRemote({ bytes: o.bytes, url: remote.url, token: remote.token })))({ bytes, key: '', model: '' }).catch(() => null)
+      : await (input.ocrRead ?? readSlipFields)({ bytes, key: input.ocrKey!, model: cfg.ocr.model }).catch(() => null)
     : null
 
   if (cfg.mode === 'manual') {
