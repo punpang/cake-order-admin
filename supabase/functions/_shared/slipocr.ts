@@ -116,7 +116,7 @@ export async function readSlipFieldsRemote(o: { bytes: Uint8Array; url: string; 
     const res = await doFetch(o.url, {
       method: 'POST',
       headers: { authorization: `Bearer ${o.token}`, 'content-type': type },
-      body: o.bytes,
+      body: new Uint8Array(o.bytes), // สำเนาเป็น ArrayBuffer แท้ (Deno ล่าสุดไม่รับ Uint8Array ที่ผูกกับ ArrayBufferLike)
       signal: AbortSignal.timeout(60_000),
     })
     if (!res.ok) return null
