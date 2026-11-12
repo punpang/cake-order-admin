@@ -214,8 +214,8 @@ const rule = (event, channels, template, channelTemplates = null) => ({ event, c
 // เทมเพลตตามแพลตฟอร์มเริ่มต้นในโค้ด: กฎที่บันทึกไว้ (Supabase) อาจไม่มี channelTemplates → ใช้ค่านี้แทน
 // เทมเพลต Facebook ของทุกเหตุการณ์ที่ส่งถึงลูกค้า: ข้อความธรรมดา ไม่มีอีโมจิ · ลิงก์อยู่บรรทัดท้าย (การ์ดปุ่มตัดบรรทัดลิงก์ออกได้)
 const FB_TPL = {
-  payment_requested: 'ออร์เดอร์ {เลขออร์เดอร์}\nยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง})\nชำระก่อน {ชำระก่อน}\nดู/ชำระที่: {ลิงก์ออร์เดอร์}',
-  order_confirmed: 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ\nคงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า',
+  payment_requested: 'ออร์เดอร์ {เลขออร์เดอร์}\n\nยอดที่ต้องชำระ: {ยอดที่แจ้ง}\nคงค้างทั้งหมด: {คงค้าง}\nชำระก่อน: {ชำระก่อน}\n\nดู/ชำระที่: {ลิงก์ออร์เดอร์}',
+  order_confirmed: 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ\n\nคงค้าง: {คงค้าง}\nชำระได้ตอนรับสินค้า',
   payment_confirmed: PAY_CONFIRMED_TPL,
   prepared: PREPARED_TPL,
   payment_reminder: PAY_REMINDER_TPL,
@@ -2351,7 +2351,7 @@ export function fillTemplate(tpl, vars) {
   return Object.entries(vars).reduce((s, [k, v]) => s.split(`{${k}}`).join(v ?? ''), tpl || '')
 }
 // ข้อความธรรมดา (SMS/Facebook): ตัดอีโมจิและเส้นตกแต่ง แล้วยุบบรรทัดว่าง
-export const plainText = (s) => String(s ?? '').replace(/[\p{Extended_Pictographic}\u200d\ufe0f━]/gu, '').replace(/[ \t]+\n/g, '\n').replace(/[ \t]{2,}/g, ' ').replace(/\n{2,}/g, '\n').trim()
+export const plainText = (s) => String(s ?? '').replace(/[\p{Extended_Pictographic}\u200d\ufe0f━]/gu, '').replace(/[ \t]+\n/g, '\n').replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
 // Telegram HTML: escape ค่าตัวแปรก่อนแทรกลงเทมเพลต (กัน < > & ทำข้อความเพี้ยน)
 const escapeHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const escapeVars = (v) => Object.fromEntries(Object.entries(v).map(([k, x]) => [k, escapeHtml(x)]))
@@ -2516,7 +2516,9 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   // เทมเพลตตามแพลตฟอร์ม: r.channelTemplates[ช่อง] ถ้ามี · ไม่มี = เทมเพลตหลัก (LINE/ทั่วไป)
   const renderFor = (chKey, v, link = url) => {
     const tpl = channelTplOf(r, chKey)
-    const body = fillTemplate(tpl, { ...v, ลิงก์ออร์เดอร์: link }).replace(/\n{2,}/g, '\n').trim() // ตัวแปรที่ว่างไม่ทิ้งบรรทัดเปล่า
+    // บรรทัดที่กลายเป็นว่างเพราะตัวแปรว่าง → ตัดทิ้ง · บรรทัดว่างที่เขียนไว้ในเทมเพลต (แบ่งหมวด) → คงไว้ แต่ไม่เกิน 1 บรรทัด
+    const lines = tpl.split('\n')
+    const body = lines.map((ln) => fillTemplate(ln, { ...v, ลิงก์ออร์เดอร์: link })).filter((ln, i) => ln.trim() !== '' || lines[i].trim() === '').join('\n').replace(/\n{3,}/g, '\n\n').trim()
     return { tpl, text: link && !tpl.includes('{ลิงก์ออร์เดอร์}') ? `${body}\nดูออร์เดอร์: ${link}` : body }
   }
   if (ev.audience === 'team') {

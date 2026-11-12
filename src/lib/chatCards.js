@@ -26,10 +26,12 @@ export function quoteCardText(quote, totals, shopName = '') {
 // ---------- การ์ด Messenger (generic template) ----------
 // หัวข้อ/บรรทัดรองของการ์ดยาวได้ไม่เกิน 80 ตัวอักษร → รายการสินค้าส่งเป็นข้อความนำหน้าการ์ด
 const clip = (s, n = 80) => { const v = String(s || '').replace(/\s+/g, ' ').trim(); return v.length > n ? `${v.slice(0, n - 1)}…` : v }
+// รายการสินค้า + วัน-เวลานัด แยกบรรทัด (อ่านง่ายบนมือถือ)
 const detailLines = (o, items) => {
-  const lines = itemLines(items)
+  const lines = ['รายการสินค้า', ...itemLines(items)]
   if ((items || []).length > 15) lines.push(`… และอีก ${items.length - 15} รายการ`)
-  lines.push(`${where(o)} · ${dateTime(o.pickupAt)}`)
+  lines.push('', `${o.fulfillment === 'delivery' ? 'นัดจัดส่ง' : 'นัดรับที่ร้าน'}: ${dateTime(o.pickupAt)}`)
+  if (o.fulfillment === 'delivery' && o.placeName) lines.push(`สถานที่: ${o.placeName}`)
   return lines.join('\n')
 }
 // → { text: ข้อความนำ, card: { kind, title, subtitle, image?, url?, pay? } }
@@ -37,9 +39,10 @@ const detailLines = (o, items) => {
 const httpsOnly = (u) => (typeof u === 'string' && /^https:\/\/\S+$/i.test(u) && u.length <= 500 ? u : '')
 export function orderCardMsg(order, totals, shopName = '', opts = {}) {
   const owe = totals.balance > 0.004
-  const sub = [`ยอดรวม ${money(totals.total)}`, owe ? `ค้างชำระ ${money(totals.balance)}` : 'ชำระครบแล้ว'].join(' · ')
+  const sub = owe ? `คงค้าง ${money(totals.balance)}` : 'ชำระครบแล้ว'
   const url = httpsOnly(opts.url)
-  return { text: detailLines(order, order.items), card: { kind: 'order', title: clip(`ออร์เดอร์ ${order.code || ''}`), subtitle: clip(sub), ...(httpsOnly(opts.image) ? { image: opts.image } : {}), ...(url ? { url, pay: owe } : {}) } }
+  const summary = ['', `ยอดรวม: ${money(totals.total)}`, owe ? `คงค้าง: ${money(totals.balance)}` : 'ชำระครบแล้ว'].join('\n')
+  return { text: detailLines(order, order.items) + summary, card: { kind: 'order', title: clip(`ออร์เดอร์ ${order.code || ''}`), subtitle: clip(sub), ...(httpsOnly(opts.image) ? { image: opts.image } : {}), ...(url ? { url, pay: owe } : {}) } }
 }
 export function quoteCardMsg(quote, totals, shopName = '', opts = {}) {
   const p = quote.payload || {}
