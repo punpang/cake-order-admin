@@ -51,18 +51,32 @@ export function inferThaiDateTime(text: string, nowMs = Date.now()): string | nu
 
 // จำนวนเงิน: บรรทัดที่มี "เงิน" (ไม่ใช่ค่าธรรมเนียม) ตัวเลขแรกในบรรทัด · ผิดช่วง = null
 export function parseAmount(text: string): number | null {
-  for (const line of text.split('\n')) {
-    if (!/เงิน/.test(line) || /ธรรมเนียม/.test(line)) continue
-    const m = line.match(/(\d{1,3}(?:,\d{3})*|\d+)(?:\.(\d{1,2}))?/)
+  const lines = text.split('\n').map((l) => l.trim())
+  const NUM = /(\d{1,3}(?:,\d{3})*|\d+)(\.\d{1,2})?/
+  const BAHT = /บาท|บงาท|บ\s?า\s?ท|\bun+\b|\bubn\b/
+  const value = (m: RegExpMatchArray) => { const n = Number(`${m[1].replace(/,/g, '')}${m[2] ?? ''}`); return Number.isFinite(n) && n > 0 && n <= 10_000_000 ? Math.round(n * 100) / 100 : null }
+  const feeAt = lines.findIndex((l) => /ธรรมเนียม/.test(l))
+  // 1) บรรทัด "จำนวน/จำนวนเงิน ... ตัวเลข" (มีทศนิยมหรือมีคำว่าบาท) ไม่ใช่บรรทัดค่าธรรมเนียม
+  for (const l of lines) {
+    if (!/เงิน|จำนวน/.test(l) || /ธรรมเนียม/.test(l)) continue
+    const m = l.match(NUM)
     if (!m) continue
-    const n = Number(`${m[1].replace(/,/g, '')}${m[2] ? `.${m[2]}` : ''}`)
-    if (Number.isFinite(n) && n > 0 && n <= 10_000_000) return Math.round(n * 100) / 100
+    if (!m[2] && !BAHT.test(l)) continue
+    const v = value(m); if (v != null) return v
+  }
+  // 2) ตัวเลขที่ตามด้วยคำว่าบาท (เช่น "650.00 บาท" ใต้หัวข้อจำนวนของแอป K PLUS) ก่อนบรรทัดค่าธรรมเนียม
+  const limit = feeAt >= 0 ? feeAt : lines.length
+  for (const l of lines.slice(0, limit)) {
+    if (/ธรรมเนียม/.test(l) || !BAHT.test(l)) continue
+    const m = l.match(NUM)
+    if (!m) continue
+    const v = value(m); if (v != null) return v
   }
   return null
 }
 
 const letters = (l: string) => (l.match(/[ก-๙A-Za-z]/g) || []).length
-const MASK = /[*xX]{2,}[*xX\- ]*\d{2,}[\d\- ]*$/ // เลขที่ถูกปิดบางหลัก เช่น "*** ******** 4797" / "XXX XXX 3402"
+const MASK = /[*xX%]{2,}[*xX%\- ]*\d{2,}[\dxX%*\- ]*$/ // OCR มักอ่านตัว x ที่ถูกปิดเป็น % // เลขที่ถูกปิดบางหลัก เช่น "*** ******** 4797" / "XXX XXX 3402"
 const cleanName = (l: string) => l.replace(/^[^ก-๙A-Za-z]+/, '').replace(/\s+/g, ' ').trim()
 
 // ผู้รับโอน รองรับ 2 แบบ:
@@ -74,8 +88,12 @@ export function parseReceiver(text: string): { name: string | null; account: str
   const acctOf = (l: string) => { const m = l.match(MASK); return m ? m[0].replace(/\s+/g, ' ').trim() : null }
   const to = lines.findIndex((l) => /ไปยัง/.test(l))
   if (to >= 0) {
-    const rest = lines.slice(to + 1, to + 5)
-    const name = rest.find((l) => letters(l) >= 3 && !acctOf(l) && !/พร้อมเพย์|จํานวน|จำนวน|ธรรมเนียม/.test(l))
+    // บางแอปพิมพ์ชื่อผู้รับต่อจากคำว่า "ไปยัง" ในบรรทัดเดียวกัน
+    const same = lines[to].replace(/^.*ไปยัง/, '').replace(/^[^ก-๙A-Za-z]+/, '').trim()
+    const rest = [...(same ? [same] : []), ...lines.slice(to + 1, to + 5)]
+    // ชื่อผู้รับ = บรรทัดก่อนเลขบัญชีที่มีตัวอักษรมากสุด (ข้ามชื่อธนาคารสั้น ๆ เช่น SCB)
+    const before = rest.slice(0, rest.findIndex((l) => acctOf(l) || /ธุรกรรม|ร้านค้า/.test(l)) < 0 ? rest.length : rest.findIndex((l) => acctOf(l) || /ธุรกรรม|ร้านค้า/.test(l)))
+    const name = before.filter((l) => letters(l) >= 3 && !acctOf(l) && !/พร้อมเพย์|จํานวน|จำนวน|ธรรมเนียม/.test(l)).sort((a, b) => letters(b) - letters(a))[0]
     const acc = rest.map(acctOf).find(Boolean) ?? null
     return { name: name ? cleanName(name) : null, account: acc }
   }

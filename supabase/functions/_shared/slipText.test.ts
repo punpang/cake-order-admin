@@ -78,3 +78,26 @@ Deno.test('เทียบชื่อกับชื่อบัญชีที
   assertEquals(matchKnownName('คนอื่น ไม่เกี่ยวข้อง', known), null)
   assertEquals(matchKnownName(null, known), null)
 })
+
+Deno.test('ยอดเงิน: แอป K PLUS (ตัวเลขตามด้วยบาท ก่อนบรรทัดค่าธรรมเนียม) และ Kept (จำนวน 270.00 บาท)', () => {
+  assertEquals(parseAmount('จำนวน:\n650.00 บาท\nค่าธรรมเนียม:\n0.00 บาท'), 650)
+  assertEquals(parseAmount('จำนวน 270.00 บาท\nค่าธรรมเนียม 0.00 บาท'), 270)
+  assertEquals(parseAmount('ค่าธรรมเนียม 0.00 บาท'), null)
+})
+
+Deno.test('ผู้รับ: เลขบัญชีปิดบางหลักแบบ "xxx-x-x6111-x" ถูกจับเป็นเลขของผู้โอน (ไม่ใช่ผู้รับ)', () => {
+  const r = parseReceiver('น.ส. ผู้โอนตัวอย่าง\nxxx-x-x6111-x\nนางสาว ผู้รับตัวอย่าง นามสมมติ\nxxx-x-x8154-x\nจำนวน 650.00 บาท')
+  assertEquals(r.account, 'xxx-x-x8154-x')
+})
+
+Deno.test('ผู้รับ: หลัง "ไปยัง" เลือกบรรทัดชื่อที่ยาวสุด ไม่ใช่ชื่อธนาคารสั้น ๆ', () => {
+  const r = parseReceiver('ไปยัง\nSCB\nTITIPAT SRISU\n4XX-1-XXX54-9\nจำนวน 270.00 บาท')
+  assertEquals(r.name, 'TITIPAT SRISU')
+})
+
+Deno.test('ผู้รับ: ชื่อในบรรทัดเดียวกับคำว่า "ไปยัง" และเลขที่ OCR อ่าน x เป็น %', () => {
+  const r = parseReceiver('ไปยัง          @   TITIPAT SRISU\nSCB\n4XX-1-XXX54-9')
+  assertEquals(r.name, 'TITIPAT SRISU')
+  const m = parseReceiver('%%%-%-%6111-%\nนางสาว ผู้รับตัวอย่าง นามสมมติ\n%%%-%-%8154-%\n620.00 บาท')
+  assertEquals(m.account, '%%%-%-%8154-%')
+})
