@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
     // ลืม PIN + ไม่มีบัญชี: ไม่ส่ง SMS แต่ตอบเหมือนส่งแล้ว (ไม่บอกว่าเบอร์นี้มีบัญชีหรือไม่)
     if (purpose === 'reset' && !au.data) return json({ ok: true, phone: ph.local })
     const shop = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'shop').maybeSingle()
-    const name = String(shop.data?.data?.v?.name || 'ร้านของคุณ').slice(0, 40)
+    const name = String(shop.data?.data?.v?.name || 'ร้านเค้ก').slice(0, 40)
     const sent = await sendSms(ph.local, `รหัส OTP ของ ${name} คือ ${code} (ใช้ได้ 5 นาที ห้ามบอกผู้อื่น)`, id)
     if (!sent) { await sb.from('punpang_otps').delete().eq('id', id); return json({ error: 'ส่ง SMS ไม่สำเร็จ กรุณาลองใหม่ภายหลัง' }, 502) }
     return json({ ok: true, phone: ph.local })
