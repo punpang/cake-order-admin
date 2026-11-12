@@ -25,9 +25,9 @@ Deno.serve(async (req) => {
   if (!configured) return json({ error: 'ยังไม่ได้ตั้งค่า Telegram' }, 503)
 
   const text = String(body.text ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim()
-  if (!text || text.length > 1000) return json({ error: 'ข้อความต้องยาว 1–1000 ตัวอักษร' }, 400)
+  if (!text || text.length > 4096) return json({ error: 'ข้อความต้องยาว 1–4096 ตัวอักษร' }, 400)
   const kind = body.kind === 'test' ? 'test' : 'notify'
-  const log = (status: string, detail = '') => sb.from('punpang_tg_log').insert({ user_id: uid, kind, status, detail: detail.slice(0, 200) })
+  const log = (status: string, detail = '') => sb.from('punpang_tg_log').insert({ user_id: uid, kind, status, detail })
 
   const since = (ms: number) => new Date(Date.now() - ms).toISOString()
   const [m, h] = await Promise.all([

@@ -95,7 +95,64 @@ const DELIVERED_TPL = 'ส่งมอบออร์เดอร์ {เลข�
 // เตือนชำระ: ครั้งเดียวตอน 9 โมงเช้า ของออร์เดอร์พรุ่งนี้ที่แจ้งชำระแล้วแต่ยังไม่ชำระเลย (ยกเว้นยืนยันโดยไม่ชำระ) · ข้อความตามที่ร้านกำหนด + ลิงก์ดูออร์เดอร์
 const PAY_REMINDER_OLD = 'พรุ่งนี้มีนัดออร์เดอร์ {เลขออร์เดอร์} ({วันนัด} {เวลานัด}) ยังไม่ได้ชำระ คงค้าง {คงค้าง} ชำระก่อน {ชำระก่อน} ชำระที่ {ลิงก์ออร์เดอร์}'
 const PAY_REMINDER_TPL = 'โปรดชำระเงินก่อน {ชำระก่อน} เพื่อยืนยันการสั่งซื้อ {เลขออร์เดอร์} {วันนัด} {เวลานัด} เพื่อยืนยันการสั่งซื้อ หากชำระแล้ว ต้องขออภัย และสามารถแจ้งเพื่อตรวจสอบอีกครั้ง ขอบคุณค่ะ\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
-const DEFAULT_UPGRADES = { payment_confirmed: [PAY_CONFIRMED_OLD, PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL], delivered: [DELIVERED_OLD, DELIVERED_TPL], payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL] }
+// สรุปออร์เดอร์ให้ลูกค้า (เทมเพลต order_created): ข้อความสั้น จัดเรียง อ่านง่าย · บรรทัดว่าง (เช่น ไม่มีที่อยู่/ค่าส่ง) ถูกตัดทิ้งอัตโนมัติ
+const ORDER_CREATED_OLD = 'สวัสดีค่ะ {ชื่อลูกค้า} รับออร์เดอร์ {เลขออร์เดอร์} แล้ว ยอดรวม {ยอดรวม} นัด{ส่งมอบ} {วันนัด} {เวลานัด}'
+const ORDER_CREATED_TPL = [
+  'สวัสดีค่ะ {ชื่อลูกค้า} 🎂',
+  'ร้านรับออร์เดอร์ของคุณแล้วค่ะ',
+  '',
+  '🧾 ออร์เดอร์ {เลขออร์เดอร์}',
+  '{รายการสินค้า}',
+  '━━━━━━━━━━━━━━',
+  '📅 นัด{ส่งมอบ} {วันนัด} เวลา {เวลานัด}',
+  '{บรรทัดที่อยู่}',
+  '{บรรทัดค่าส่ง}',
+  '💰 ยอดรวม {ยอดรวม}',
+  '💳 คงค้าง {คงค้าง}',
+  '',
+  'ขอบคุณที่อุดหนุนค่ะ 💕',
+  'ดูออร์เดอร์: {ลิงก์ออร์เดอร์}',
+].join('\n')
+// ข้อความทีม (Telegram): ครบทุกรายละเอียด (รายการ+จำนวน, ลูกค้า+เบอร์, วันเวลา+รับ/ส่ง+ที่อยู่, ยอดเงิน, หมายเหตุ)
+const TEAM_NEW_ORDER_OLD = '[ออร์เดอร์ใหม่] {เลขออร์เดอร์} {ชื่อลูกค้า} {ยอดรวม} นัด {วันนัด} {เวลานัด}'
+const TEAM_NEW_ORDER_TPL = [
+  '🎂 ออร์เดอร์ใหม่ {เลขออร์เดอร์}',
+  '━━━━━━━━━━━━━━',
+  '👤 {ชื่อลูกค้า} · {เบอร์ลูกค้า}',
+  '📅 นัด{ส่งมอบ} {วันนัด} เวลา {เวลานัด}',
+  '{บรรทัดที่อยู่}',
+  '{บรรทัดค่าส่ง}',
+  '🧾 รายการ',
+  '{รายการสินค้า}',
+  '━━━━━━━━━━━━━━',
+  '💰 ยอดรวม {ยอดรวม}',
+  '✅ ชำระแล้ว {ชำระแล้ว} · ⏳ คงค้าง {คงค้าง}',
+  '{บรรทัดหมายเหตุ}',
+].join('\n')
+const TEAM_PAID_OLD = '[ชำระแล้ว] {เลขออร์เดอร์} คงค้าง {คงค้าง}'
+const TEAM_PAID_TPL = [
+  '💵 ชำระแล้ว {เลขออร์เดอร์}',
+  '👤 {ชื่อลูกค้า} · {เบอร์ลูกค้า}',
+  'ได้รับ {ยอดที่ชำระ}',
+  '💰 ยอดรวม {ยอดรวม} · ✅ ชำระแล้ว {ชำระแล้ว} · ⏳ คงค้าง {คงค้าง}',
+  '📅 นัด{ส่งมอบ} {วันนัด} เวลา {เวลานัด}',
+  '{บรรทัดที่อยู่}',
+  '🧾 รายการ',
+  '{รายการสินค้า}',
+].join('\n')
+const TEAM_CANCEL_OLD = '[ยกเลิก] {เลขออร์เดอร์} {ชื่อลูกค้า}'
+const TEAM_CANCEL_TPL = [
+  '❌ ยกเลิกออร์เดอร์ {เลขออร์เดอร์}',
+  '👤 {ชื่อลูกค้า} · {เบอร์ลูกค้า}',
+  '📅 นัด{ส่งมอบ} {วันนัด} เวลา {เวลานัด}',
+  '🧾 รายการ',
+  '{รายการสินค้า}',
+  '💰 ยอดรวม {ยอดรวม} · ✅ ชำระแล้ว {ชำระแล้ว}',
+].join('\n')
+const DEFAULT_UPGRADES = {
+  payment_confirmed: [PAY_CONFIRMED_OLD, PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL], delivered: [DELIVERED_OLD, DELIVERED_TPL], payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL],
+  order_created: [ORDER_CREATED_OLD, ORDER_CREATED_TPL], team_new_order: [TEAM_NEW_ORDER_OLD, TEAM_NEW_ORDER_TPL], team_payment_confirmed: [TEAM_PAID_OLD, TEAM_PAID_TPL], team_cancelled: [TEAM_CANCEL_OLD, TEAM_CANCEL_TPL],
+}
 const tplOf = (r) => { const u = DEFAULT_UPGRADES[r.event]; return u && String(r.template || '').trim() === u[0] ? u[1] : r.template }
 
 const rule = (event, channels, template) => ({ event, channels, template, enabled: true })
@@ -263,7 +320,7 @@ export const db = reactive({
   ],
   // กฎแจ้งเตือน: event → ช่องทาง + ข้อความ (ตัวอย่าง)
   notifyRules: [
-    rule('order_created', ['line', 'facebook', 'sms'], 'สวัสดีค่ะ {ชื่อลูกค้า} รับออร์เดอร์ {เลขออร์เดอร์} แล้ว ยอดรวม {ยอดรวม} นัด{ส่งมอบ} {วันนัด} {เวลานัด}'),
+    rule('order_created', ['line', 'facebook', 'sms'], ORDER_CREATED_TPL),
     rule('payment_requested', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ยอดที่ต้องชำระ {ยอดที่แจ้ง} (คงค้างทั้งหมด {คงค้าง}) ชำระก่อน {ชำระก่อน} ดู/ชำระที่ {ลิงก์ออร์เดอร์}'),
     rule('order_confirmed', ['line', 'facebook', 'sms'], 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ คงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า'),
     rule('payment_reminder', ['line', 'facebook', 'sms'], PAY_REMINDER_TPL),
@@ -277,10 +334,10 @@ export const db = reactive({
     rule('order_refunded', ['line', 'facebook', 'sms'], 'ร้านคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} แล้วค่ะ'),
     rule('birthday', ['line', 'facebook'], 'สุขสันต์วันเกิดล่วงหน้า {ชื่อวันเกิด} สั่งเค้กกับเราได้เลยค่ะ'),
     rule('points_expiring', ['line', 'facebook'], '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ ใช้ก่อนหมดนะคะ'),
-    rule('team_new_order', ['telegram'], '[ออร์เดอร์ใหม่] {เลขออร์เดอร์} {ชื่อลูกค้า} {ยอดรวม} นัด {วันนัด} {เวลานัด}'),
-    rule('team_payment_confirmed', ['telegram'], '[ชำระแล้ว] {เลขออร์เดอร์} คงค้าง {คงค้าง}'),
+    rule('team_new_order', ['telegram'], TEAM_NEW_ORDER_TPL),
+    rule('team_payment_confirmed', ['telegram'], TEAM_PAID_TPL),
     rule('team_due_soon', ['telegram'], '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน 2 ชม. (นัด {เวลานัด})'),
-    rule('team_cancelled', ['telegram'], '[ยกเลิก] {เลขออร์เดอร์} {ชื่อลูกค้า}'),
+    rule('team_cancelled', ['telegram'], TEAM_CANCEL_TPL),
     rule('team_approval_request', ['telegram'], '[ขออนุมัติ] {เลขออร์เดอร์} {ชื่อลูกค้า} ยืนยันสั่งซื้อแบบยังไม่ชำระ คงค้าง {คงค้าง}'),
     rule('team_pay_overdue', ['telegram'], '[เกินกำหนดชำระ] {เลขออร์เดอร์} {ชื่อลูกค้า} ต้องชำระก่อน {ชำระก่อน} คงค้าง {คงค้าง}'),
     rule('team_customer_paid', ['telegram'], '[ลูกค้าแจ้งโอน] {เลขออร์เดอร์} {ชื่อลูกค้า} {ยอดที่แจ้ง} รอตรวจสลิป'),
@@ -2232,6 +2289,14 @@ function orderVars(order, extra = {}) {
     ชื่อวันเกิด: order.birthday?.name || c?.name || '',
     คะแนน: '',
     ลิงก์ออร์เดอร์: '',
+    // รายละเอียดครบชุดสำหรับสรุป (ว่างได้ · บรรทัดที่ว่างถูกตัดทิ้งตอนส่ง)
+    เบอร์ลูกค้า: formatPhone(c?.phone || ''),
+    รายการสินค้า: (order.items || []).length
+      ? order.items.map((i) => `• ${i.name || 'สินค้า'} × ${i.qty || 1}${i.note ? ` (${String(i.note).trim()})` : ''} — ${money((Number(i.unitPrice) || 0) * (Number(i.qty) || 1))}`).join('\n')
+      : '• -',
+    บรรทัดที่อยู่: order.fulfillment === 'delivery' && order.address ? `📍 ${[order.placeName, order.address, order.detail].filter(Boolean).map((s) => String(s).trim()).join(' · ')}` : '',
+    บรรทัดค่าส่ง: order.fulfillment === 'delivery' && t.shipping > 0 ? `🚚 ค่าส่ง ${money(t.shipping)}` : '',
+    บรรทัดหมายเหตุ: c?.note ? `📝 หมายเหตุลูกค้า: ${String(c.note).trim()}` : '',
   }
 }
 function pushOut(event, channel, to, text, orderId = null, customer = null, opts = {}) {
@@ -2601,7 +2666,7 @@ export function runBot(c, m) {
     db.bot.stats.handoff++
     c.botHandoff = true
     emitStaffBell('bot_handoff', { text: `${c.profileName || 'ลูกค้า'}: ${res.reason || ''}`.trim(), chatId: c.id })
-    if (db.bot.handoff.notifyTelegram && db.integrations.telegram.enabled) pushOut('bot_handoff', 'telegram', 'กลุ่มทีม', `[บอทส่งต่อ] ${c.profileName || 'ลูกค้า'} (${c.channel}): "${String(m.text).slice(0, 80)}" · ${res.reason}`)
+    if (db.bot.handoff.notifyTelegram && db.integrations.telegram.enabled) pushOut('bot_handoff', 'telegram', 'กลุ่มทีม', `🤖 บอทส่งต่อลูกค้า\n👤 ${c.profileName || 'ลูกค้า'} (${c.channel})\n💬 "${String(m.text).trim()}"\n📌 เหตุผล: ${res.reason || '-'}`)
     if (res.source === 'order_unverified' || res.source === 'handoff') {
       if (auto) { sendNotice(); sendChat(c.id, 'staff', res.reply, { by: 'บอท' }) }
       else c.botDraft = { text: res.reply, source: res.source, confidence: res.confidence, reason: res.reason, handoff: true, prefix: prefixOf(), at: now() }
