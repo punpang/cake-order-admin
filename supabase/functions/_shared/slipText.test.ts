@@ -36,3 +36,45 @@ Deno.test('ผลรวม: ฟิลด์ที่อ่านไม่ได�
   assertEquals(parseSlipText(SLIP_BROKEN_DATE).review.includes('paidAt'), true)
   assertEquals(parseSlipText(SLIP_OK).review, ['receiverName', 'receiverAccount'])
 })
+
+// ---------- แบบไม่มีคำว่า "ไปยัง" (เป๋าตัง) · อ่านหลายรอบแล้วโหวต · เทียบชื่อกับชื่อบัญชีที่รู้ ----------
+import { parseReceiver, mergeSlipTexts, matchKnownName, inferThaiDateTime } from './slipText.ts'
+
+const PT_PP = 'ทํารายการสําเร็จ\n11 พ.ย. 69 15:49\nผู้โอนตัวอย่าง A***\nบัญชีกรุงไทย: *** * **123 4\nง/\n  น.ส. ผู้รับตัวอย่าง นามสมมติ\nPay\nเลขพร้อมเพย์: *** ******** 1234\nจํานวนเงิน 40 บาท\nค่าธรรมเนียม 0 บาท'
+const PT_SHOP = 'ทํารายการสําเร็จ\n12 พ.ุย. 69 11:52\nผู้โอนตัวอย่าง A***\nบัญชีกรุงไทย: *** * **123 4\nNV\nSAMPLE SHOP NAME\n- รหัสร้านค้า: :8000001234567\nรหัสธุรกรรม: KPSO04KBO0O0001234567\nจํานวนเงิน 24 un\nค่าธรรมเนียม 0 บาท'
+
+Deno.test('ผู้รับแบบเป๋าตัง (พร้อมเพย์): ชื่อและเลขปิดบางหลักของผู้รับ ไม่ใช่ของผู้โอน', () => {
+  assertEquals(parseReceiver(PT_PP), { name: 'น.ส. ผู้รับตัวอย่าง นามสมมติ', account: '*** ******** 1234' })
+})
+
+Deno.test('ผู้รับแบบร้านค้า: เลข = KB + 12 หลักท้ายของรหัสธุรกรรม แม้ OCR อ่าน 0 เป็น O', () => {
+  assertEquals(parseReceiver(PT_SHOP), { name: 'SAMPLE SHOP NAME', account: 'KB000001234567' })
+})
+
+Deno.test('วัน-เวลา: สระลอยหลังจุดในชื่อเดือน ("พ.ุย.") ยังอ่านได้', () => {
+  assertEquals(parseThaiDateTime('12 พ.ุย. 69 11:52'), '2026-11-12T11:52')
+})
+
+Deno.test('วัน-เวลา: เดือนอ่านไม่ออก → คาดการณ์เดือนล่าสุดที่ไม่เกินตอนนี้', () => {
+  const now = Date.UTC(2026, 10, 12, 12, 0) // 12-11-2026 19:00 เวลาไทย
+  assertEquals(inferThaiDateTime('ทํารายการ\n11 we. 69 15:49', now), '2026-11-11T15:49')
+  assertEquals(inferThaiDateTime('ทํารายการ\n25 we. 69 15:49', now), '2026-10-25T15:49') // 25 พ.ย. ยังไม่ถึง → เดือนก่อน
+  assertEquals(inferThaiDateTime('ไม่มีวันที่', now), null)
+})
+
+Deno.test('รวมผลหลายรอบ: ค่าที่ตรงกันมากสุดชนะ และฟิลด์ที่ไม่มีเสียงยืนยันอยู่ใน review', () => {
+  const bad = PT_PP.replace('1234\nจํานวน', '1204\nจํานวน').replace('11 พ.ย.', '11 we.')
+  const r = mergeSlipTexts([bad, PT_PP, PT_PP], Date.UTC(2026, 10, 12, 12, 0))
+  assertEquals([r.amount, r.paidAt, r.receiverAccount], [40, '2026-11-11T15:49', '*** ******** 1234'])
+  assertEquals(r.review, [])
+  const one = mergeSlipTexts([bad], Date.UTC(2026, 10, 12, 12, 0))
+  assertEquals(one.paidAt, '2026-11-11T15:49') // คาดการณ์เดือน
+  assertEquals(one.review.includes('paidAt'), true)
+})
+
+Deno.test('เทียบชื่อกับชื่อบัญชีที่รู้: ผิด 1–2 ตัวอักษรยังจับคู่ได้ · ชื่ออื่นไม่จับคู่', () => {
+  const known = ['นางสาว ผู้รับตัวอย่าง นามสมมติ', 'SAMPLE SHOP NAME']
+  assertEquals(matchKnownName('นางสาว ผู้รับตัวอยาง นามสมมดิ', known), known[0])
+  assertEquals(matchKnownName('คนอื่น ไม่เกี่ยวข้อง', known), null)
+  assertEquals(matchKnownName(null, known), null)
+})
