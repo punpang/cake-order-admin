@@ -53,17 +53,24 @@ async function slipConfig(sb: any): Promise<{ enabled: boolean; mode: SlipMode; 
 }
 
 // ใส่ผลลงข้อความในแชท (เทียบ updated_at) · ไม่กระทบการแนบ ถ้าเขียนไม่ได้ก็แค่ไม่มีป้าย
-async function annotate(sb: any, chatId: string, msgId: string, value: Record<string, unknown>) {
-  for (let i = 0; i < 4; i++) {
+// ใส่ผลลงข้อความในแชท (เทียบ updated_at) · แชทที่ถูกเขียนพร้อมกันบ่อยจึงลองใหม่หลายรอบพร้อมหน่วงเวลาสั้น ๆ
+// ไม่กระทบการแนบ · เขียนไม่สำเร็จจริง ๆ บันทึก log (มีเฉพาะรหัสแชทและรหัสข้อความ) เพื่อตรวจสอบ
+async function annotate(sb: any, chatId: string, msgId: string, value: Record<string, unknown>): Promise<boolean> {
+  let reason = 'write_failed'
+  for (let i = 0; i < 8; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 80 + Math.floor(Math.random() * 220)))
     const cur = await sb.from('punpang_chats').select('id,data,updated_at').eq('id', chatId).maybeSingle()
-    if (cur?.error || !cur?.data) return
+    if (cur?.error || !cur?.data) { reason = 'read_failed'; continue }
     const d = cur.data.data || {}
     const msgs: any[] = Array.isArray(d.messages) ? d.messages : []
-    if (!msgs.some((m) => m?.id === msgId)) return
+    if (!msgs.some((m) => m?.id === msgId)) { reason = 'message_missing'; continue }
     const next = { ...d, messages: msgs.map((m) => (m?.id === msgId ? { ...m, slipCheck: value } : m)) }
     const up = await sb.from('punpang_chats').update({ data: next }).eq('id', chatId).eq('updated_at', cur.data.updated_at).select('id')
-    if (!up?.error && (up?.data || []).length) return
+    if (!up?.error && (up?.data || []).length) return true
+    reason = up?.error ? 'write_error' : 'conflict'
   }
+  console.error('slip-annotate', reason, chatId, msgId)
+  return false
 }
 
 async function bell(sb: any, rec: { event: string; title: string; text: string; orderId?: string; chatId?: string }, rand: (n: number) => string) {
