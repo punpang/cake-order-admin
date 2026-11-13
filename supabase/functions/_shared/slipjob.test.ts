@@ -125,11 +125,12 @@ const kvOcr = (mode: 'auto' | 'manual', enabled: boolean) => ({ collection: 'con
 const kvOcrAll = (flags: { wai?: boolean; claude?: boolean }) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled: true, mode: 'auto', ocr: flags } } })
 const ocrFields = (f: { amount: number | null; paidAt: string | null }) => async () => f
 // ค่าที่อ่านได้ครบและตรงกับออร์เดอร์ o1: ยอด 540 = ยอดค้าง · วัน-เวลาหลัง 09:00 · รหัสร้านค้าตรง · รหัสอ้างอิง OR-111126-000010
-const fieldsOk = (over: Record<string, unknown> = {}) => ({ amount: 540, paidAt: '2026-11-11T10:00', receiverName: null, receiverAccount: 'xxx-x-x8154-x', merchantCode: SHOP, shopRef: 'ORD111126000010', ...over })
+const QR_REF = 'ORD111126000010ABCDE' // Ref 2 = POS/ORD + รหัสสุ่ม 5 ตัว ของรายการแจ้งชำระที่ลูกค้าขอ QR ไว้
+const fieldsOk = (over: Record<string, unknown> = {}) => ({ amount: 540, paidAt: '2026-11-11T10:00', receiverName: null, receiverAccount: 'xxx-x-x8154-x', merchantCode: SHOP, shopRef: 'ORD111126000010', qrRef: QR_REF, ...over })
 const autoOpts = (over: Record<string, unknown> = {}) => ({ ocrWai: WAI_CRED, ocrReadBy: { wai: async () => fieldsOk(over) } })
 const AUTO_KV = () => [kvOcrAll({ wai: true }), shopKv]
-// รายการแจ้งชำระที่ลูกค้าขอ QR ไว้ (ยอดค้าง 540 ตรงกับยอดในสลิป) · สลิปใหม่ไม่ผูกกับรายการนี้แล้ว (ได้งวดใหม่)
-const reqPayment = (over: Record<string, unknown> = {}) => ({ id: 'pr1', code: 'PAY-111126-00009', status: 'reported', requested: 540, amount: 540, method: 'โอนเงิน', dueAt: '', extension: null, source: 'customer', qrRequest: true, customerSubmitted: false, createdAt: ORDER_CREATED, reportedBy: 'customer', confirmedBy: null, ...over })
+// รายการแจ้งชำระที่ลูกค้าขอ QR ไว้ (รหัสสุ่มตรงกับ fieldsOk · ยอดเท่ากับยอดในสลิป) → ยืนยันอัตโนมัติได้ครบ 5 ข้อ
+const reqPayment = (over: Record<string, unknown> = {}) => ({ id: 'pr1', code: 'PAY-111126-00001', status: 'reported', requested: 540, amount: 540, method: 'โอนเงิน', dueAt: '', extension: null, source: 'customer', qrRequest: true, qrRef: QR_REF, customerSubmitted: false, createdAt: ORDER_CREATED, reportedBy: 'customer', confirmedBy: null, ...over })
 const orderQr = (over: Record<string, unknown> = {}) => order({ payments: [reqPayment()], ...over })
 
 // ---- ผูกอัตโนมัติเมื่อครบ 4 ข้อ (ยอด · วัน-เวลา · รหัสร้านค้า · รหัสอ้างอิงร้านค้า) ----
@@ -157,7 +158,7 @@ Deno.test('ยอดเกินยอดค้าง → ไม่ผูกอ�
 Deno.test('รหัสอ้างอิงร้านค้า (ORD) บนสลิปจับคู่ออร์เดอร์ได้ แม้แชทยังไม่มีออร์เดอร์ที่คุยล่าสุด', async () => {
   const sb = fakeSb({ chats: [chatWith([slipMsg])], orders: [orderQr()], kv: AUTO_KV() })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
-  const p = sb.T.punpang_orders[0].data.payments.at(-1)
+  const p = sb.T.punpang_orders[0].data.payments[0]
   assertEquals([p.shopRef, p.merchantMismatch], ['ORD111126000010', undefined])
 })
 
@@ -174,13 +175,13 @@ Deno.test('รหัสร้านค้าไม่ตรงกับที่
   assertEquals(sb2.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1').slipCheck.merchantMismatch, true)
 })
 
-Deno.test('ครบ 4 เงื่อนไข → ผูกอัตโนมัติเป็นงวดใหม่ (ไม่ใช้รายการ QR ที่ค้างอยู่) เก็บยอดรอตรวจ แจ้งกระดิ่ง และติดป้ายในแชท', async () => {
+Deno.test('ครบ 5 เงื่อนไข → ผูกอัตโนมัติเข้ารายการแจ้งชำระที่ขอ QR ไว้ เก็บยอดรอตรวจ แจ้งกระดิ่ง และติดป้ายในแชท', async () => {
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [orderQr()], kv: AUTO_KV() })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
   const o = sb.T.punpang_orders[0]
   assertEquals(o.status, 'payment_reported')
-  assertEquals(o.data.payments.length, 2)
-  const p = o.data.payments.at(-1)
+  assertEquals(o.data.payments.length, 1)
+  const p = o.data.payments[0]
   assertEquals([p.code, p.amount, p.status, p.source, p.customerSubmitted], ['PAY-111126-00001', 540, 'reported', 'customer', true])
   assertEquals(p.slipKey, '004:A1B2C3D4E5F6G7H8')
   assertEquals(p.slip, 'r2://private/o1/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png')
@@ -198,7 +199,7 @@ Deno.test('สลิปเดิมส่งซ้ำ → ไม่แนบซ�
   const bytes = await slipScreenshot(SLIP)
   assertEquals(await runCheck(sb, bytes, autoOpts()), 'matched')
   assertEquals(await runCheck(sb, bytes, autoOpts()), 'duplicate')
-  assertEquals(sb.T.punpang_orders[0].data.payments.length, 2)
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 1)
   const msg = sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1')
   assertEquals(msg.slipCheck.status, 'duplicate')
 })
@@ -211,7 +212,7 @@ Deno.test('รหัสอ้างอิงชี้ออร์เดอร์
   })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
   assertEquals(sb.T.punpang_orders.find((o: any) => o.id === 'o0').data.payments.length, 0)
-  assertEquals(sb.T.punpang_orders.find((o: any) => o.id === 'o1').data.payments.length, 2)
+  assertEquals(sb.T.punpang_orders.find((o: any) => o.id === 'o1').data.payments.length, 1)
 })
 
 Deno.test('ไม่มีออร์เดอร์อ้างอิงในแชท → ไม่แนบ แจ้งพนักงานให้ผูกเอง', async () => {
@@ -235,12 +236,12 @@ Deno.test('ออร์เดอร์มียอดรอตรวจอยู
   }
 })
 
-Deno.test('ชนกันตอนเขียนออร์เดอร์ (CAS) → อ่านใหม่แล้วแนบได้ครั้งเดียว ออกเลข PAY ครั้งเดียว', async () => {
+Deno.test('ชนกันตอนเขียนออร์เดอร์ (CAS) → อ่านใหม่แล้วแนบได้ครั้งเดียว ใช้เลขรายการที่ขอ QR ไว้ (ไม่ออกเลข PAY)', async () => {
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [orderQr()], kv: AUTO_KV() })
   sb.hooks.beforeOrderUpdate = (rows) => { rows[0].updated_at = 'changed-by-staff' }
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
-  assertEquals(sb.T.punpang_orders[0].data.payments.length, 2)
-  assertEquals(sb.calls.rpc, 1)
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 1)
+  assertEquals(sb.calls.rpc, 0)
   assertEquals(sb.calls.uploads, 1)
 })
 
@@ -275,7 +276,7 @@ Deno.test('ออร์เดอร์ถูกแก้ทุกครั้ง
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'busy')
   assertEquals(n, 3)
   assertEquals(sb.T.punpang_orders[0].data.payments.length, 1)
-  assertEquals([sb.calls.uploads, sb.calls.removes, sb.calls.rpc, sb.files.size], [1, 1, 1, 0])
+  assertEquals([sb.calls.uploads, sb.calls.removes, sb.calls.rpc, sb.files.size], [1, 1, 0, 0])
   const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
   assertEquals([bell.data.event, bell.data.orderId, bell.data.chatId], ['slip_check', 'o1', 'c1'])
   const msg = sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1')
@@ -300,7 +301,7 @@ Deno.test('เลขอ้างอิงที่เคยอยู่ในร
   const cancelled = order({ payments: [{ id: 'px', code: 'PAY-111126-00000', status: 'cancelled', amount: 540, ref: 'A1B2C3D4E5F6G7H8' }, reqPayment()] })
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [cancelled], kv: AUTO_KV() })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
-  assertEquals(sb.T.punpang_orders[0].data.payments.length, 3)
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 2)
 })
 
 Deno.test('สลิป QR ที่ไม่มีรหัสอ้างอิงร้านค้า → ไม่ผูกอัตโนมัติ ส่งพนักงาน และเก็บธนาคาร/เลขอ้างอิงจาก QR ไว้ในป้าย', async () => {
@@ -314,7 +315,7 @@ Deno.test('สลิป QR ที่ไม่มีรหัสอ้างอ�
 Deno.test('ตั้งค่า mode ที่ไม่รู้จัก หรือไม่มี mode → ใช้โหมดอัตโนมัติเหมือนเดิม', async () => {
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [orderQr()], kv: [slipKv({ enabled: true, mode: 'whatever', ocr: { wai: true } }), shopKv] })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
-  assertEquals(sb.T.punpang_orders[0].data.payments.length, 2)
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 1)
 })
 
 // ---- โหมดแมนนวล: เก็บสลิปให้พนักงานผูกเองในแชท · ไม่แนบ ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์ ----
@@ -388,11 +389,11 @@ Deno.test('ข้อผิดพลาดอื่นตอนแนบ (ไม�
 })
 
 // ---- อ่านยอดและวัน-เวลาจากภาพ (ตั้งค่า ocr.claude) ----
-Deno.test('OCR (Claude) ในโหมดอัตโนมัติ ครบ 4 ข้อ → ใช้ยอดและวัน-เวลาที่อ่านจากภาพ และผูกอัตโนมัติ', async () => {
+Deno.test('OCR (Claude) ในโหมดอัตโนมัติ ครบ 5 ข้อ → ใช้ยอดและวัน-เวลาที่อ่านจากภาพ และผูกอัตโนมัติ', async () => {
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ payments: [reqPayment({ amount: 178, requested: 178 })] })], kv: [kvOcr('auto', true), shopKv] })
   const read = async () => fieldsOk({ amount: 178, paidAt: '2026-11-11T14:48' })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrKey: 'k', ocrRead: read }), 'matched')
-  const p = sb.T.punpang_orders[0].data.payments.at(-1)
+  const p = sb.T.punpang_orders[0].data.payments[0]
   assertEquals([p.amount, p.paidAt, p.status], [178, '2026-11-11T14:48', 'reported'])
   const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
   assertEquals(bell.data.text.includes('อ่านจากภาพสลิป'), true)
@@ -485,14 +486,14 @@ Deno.test('ขั้นตอน: รูปที่ไม่ใช่สลิ�
 })
 
 Deno.test('ป้ายสลิปยังแนบได้แม้แชทถูกเขียนชนกันหลายครั้ง (ลองเขียนซ้ำจนสำเร็จ)', async () => {
-  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: AUTO_KV() })
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [orderQr()], kv: AUTO_KV() })
   sb.hooks.chatConflicts = 5
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
   assertEquals(sb.T.punpang_chats[0].data.messages.find((x: any) => x.id === 'm1')?.slipCheck?.status, 'matched')
 })
 
 Deno.test('แชทถูกเขียนชนกันเกินจำนวนรอบ → ไม่มีป้าย แต่การรับสลิปยังสำเร็จ', async () => {
-  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: AUTO_KV() })
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [orderQr()], kv: AUTO_KV() })
   sb.hooks.chatConflicts = 50
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
   assertEquals(sb.T.punpang_chats[0].data.messages.find((x: any) => x.id === 'm1')?.slipCheck, undefined)
@@ -507,9 +508,9 @@ Deno.test('อ่านได้ → เก็บค่าที่อ่าน�
 })
 
 Deno.test('เคยอ่านเลขอ้างอิงนี้แล้ว → ใช้ค่าที่เก็บไว้ ไม่เรียกโมเดลซ้ำ', async () => {
-  const first = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: AUTO_KV() })
+  const first = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ payments: [reqPayment({ amount: 178, requested: 178 })] })], kv: AUTO_KV() })
   await runCheck(first, await slipScreenshot(SLIP), autoOpts({ amount: 178, paidAt: '2026-11-11T14:48' }))
-  const second = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: AUTO_KV() })
+  const second = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ payments: [reqPayment({ amount: 178, requested: 178 })] })], kv: AUTO_KV() })
   second.T.punpang_records.push(...first.T.punpang_records.filter((r: any) => r.collection === 'slipRead'))
   let calls = 0
   assertEquals(await runCheck(second, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: async () => { calls++; return null } } }), 'matched')
@@ -580,7 +581,7 @@ Deno.test('วัน-เวลาโอนเท่ากับเวลาส�
 })
 
 Deno.test('ยอดเท่ากับยอดค้างพอดี → ผ่าน (ไม่เกินยอดค้าง)', async () => {
-  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: AUTO_KV() })
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [orderQr()], kv: AUTO_KV() })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts({ amount: 540 })), 'matched')
 })
 
@@ -592,7 +593,7 @@ Deno.test('ยืนยันอัตโนมัติ: เปิด และ
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
   const o = sb.T.punpang_orders[0]
   assertEquals(o.status, 'payment_confirmed')
-  const p = o.data.payments.at(-1)
+  const p = o.data.payments[0]
   assertEquals([p.status, p.amount, p.confirmedBy, p.customerSubmitted], ['confirmed', 540, 'auto', true])
   assertEquals(o.data.history.at(-1).by, 'auto')
   const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
@@ -624,17 +625,17 @@ Deno.test('ยืนยันอัตโนมัติ: ออร์เดอ�
 Deno.test('ยืนยันอัตโนมัติ: ตั้ง 0 วัน → นัดรับวันนี้ยืนยันได้ · นัดวันที่ผ่านไปแล้วไม่ยืนยัน', async () => {
   const sbToday = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ pickupAt: '2026-11-11T18:00', payments: [reqPayment()] })], kv: AUTO_CONFIRM_KV(0) })
   assertEquals(await runCheck(sbToday, await slipScreenshot(SLIP), autoOpts()), 'matched')
-  assertEquals(sbToday.T.punpang_orders[0].data.payments.at(-1).status, 'confirmed')
+  assertEquals(sbToday.T.punpang_orders[0].data.payments[0].status, 'confirmed')
   const sbPast = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ pickupAt: '2026-11-10T18:00', payments: [reqPayment()] })], kv: AUTO_CONFIRM_KV(0) })
   assertEquals(await runCheck(sbPast, await slipScreenshot(SLIP), autoOpts()), 'matched')
-  assertEquals(sbPast.T.punpang_orders[0].data.payments.at(-1).status, 'reported')
+  assertEquals(sbPast.T.punpang_orders[0].data.payments[0].status, 'reported')
 })
 
 Deno.test('ยืนยันอัตโนมัติ: ยอดบางส่วน → ยืนยันเฉพาะยอดนั้น ออร์เดอร์ยังค้างส่วนที่เหลือ', async () => {
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ pickupAt: '2026-11-14T10:00', payments: [reqPayment({ amount: 200, requested: 200 })] })], kv: AUTO_CONFIRM_KV(3) })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts({ amount: 200 })), 'matched')
   const o = sb.T.punpang_orders[0]
-  assertEquals([o.status, o.data.payments.at(-1).status, o.data.payments.at(-1).amount], ['payment_confirmed', 'confirmed', 200])
+  assertEquals([o.status, o.data.payments[0].status, o.data.payments[0].amount], ['payment_confirmed', 'confirmed', 200])
 })
 
 Deno.test('ยืนยันอัตโนมัติ: ยกเลิกยอดที่ร้านแจ้งเดิมที่ยังรออยู่ของออร์เดอร์นั้น และบันทึกประวัติ/กระดิ่ง', async () => {
@@ -642,17 +643,17 @@ Deno.test('ยืนยันอัตโนมัติ: ยกเลิกย�
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [{ ...order({ pickupAt: '2026-11-14T10:00', payments: [staff, reqPayment()] }), status: 'payment_reported' }], kv: AUTO_CONFIRM_KV(3) })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
   const o = sb.T.punpang_orders[0]
-  assertEquals([o.status, o.data.payments[0].status, o.data.payments[0].cancelledBy, o.data.payments[1].status, o.data.payments.at(-1).status], ['payment_confirmed', 'cancelled', 'auto', 'cancelled', 'confirmed'])
-  assertEquals(o.data.history.some((h: any) => h.text.includes('ยกเลิกยอดที่แจ้งเดิม 2 รายการ')), true)
+  assertEquals([o.status, o.data.payments[0].status, o.data.payments[0].cancelledBy, o.data.payments[1].status], ['payment_confirmed', 'cancelled', 'auto', 'confirmed'])
+  assertEquals(o.data.history.some((h: any) => h.text.includes('ยกเลิกยอดที่แจ้งเดิม 1 รายการ')), true)
   const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
-  assertEquals(bell.data.text.includes('ยกเลิกยอดที่แจ้งเดิม 2 รายการ'), true)
+  assertEquals(bell.data.text.includes('ยกเลิกยอดที่แจ้งเดิม 1 รายการ'), true)
 })
 
 Deno.test('ยืนยันอัตโนมัติปิดอยู่ → ยอดที่ร้านแจ้งเดิมยังอยู่ ไม่ถูกยกเลิก', async () => {
   const staff = { id: 'ps1', code: 'PAY-111126-00000', status: 'reported', requested: 540, amount: 540, method: 'โอนเงิน', dueAt: '', source: 'staff', customerSubmitted: false }
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [{ ...order({ pickupAt: '2026-11-14T10:00', payments: [staff, reqPayment()] }), status: 'payment_reported' }], kv: AUTO_CONFIRM_KV(3, false) })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
-  assertEquals(sb.T.punpang_orders[0].data.payments.map((p: any) => p.status), ['reported', 'reported', 'reported'])
+  assertEquals(sb.T.punpang_orders[0].data.payments.map((p: any) => p.status), ['reported', 'reported'])
 })
 
 Deno.test('ยืนยันอัตโนมัติ: อ่านภาพไม่ครบ 4 ข้อ → ไม่ผูกและไม่ยืนยัน (ส่งพนักงาน)', async () => {

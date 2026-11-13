@@ -2,8 +2,9 @@
 // ✓ = ผ่าน · ✗ = ไม่ผ่าน · null = ไม่มีข้อมูลให้ตรวจ
 //  - ยอด: ไม่เกินยอดค้างของออร์เดอร์
 //  - วัน-เวลาที่ชำระ: ต้องหลังเวลาสร้างออร์เดอร์ (เทียบเป็นนาที · เวลาไทย) · บิล POS ยังข้ามไปก่อน
-//  - รหัสร้านค้า (Ref 1): ตรงกับรหัสร้านค้าที่ตั้งไว้ (ยังไม่ตั้ง = ไม่ตรวจ)
-//  - รหัสอ้างอิงร้านค้า (Ref 2 = POS/ORD): ตรงกับรหัสอ้างอิงของออร์เดอร์นี้ (OR-ddmmyy-xxxxxx ↔ ORDddmmyyxxxxxx)
+//  - รหัสร้านค้า: ตรงกับรหัสร้านค้าที่ตั้งไว้ (ยังไม่ตั้ง = ไม่ตรวจ)
+//  - รหัสอ้างอิงร้านค้า (Ref 1): ตรงกับรหัสอ้างอิงของออร์เดอร์นี้ (OR-ddmmyy-xxxxxx ↔ ORDddmmyyxxxxxx)
+//  - รหัสสุ่ม (Ref 2): ตรงกับรายการแจ้งชำระของออร์เดอร์นี้ และยอดในสลิปเท่ากับยอดของรายการนั้น
 const THAI_OFFSET = '+07:00'
 const digitsOf = (v) => String(v ?? '').replace(/\D/g, '')
 const normRef = (v) => String(v ?? '').toUpperCase().replace(/[\s-]/g, '')
@@ -11,11 +12,12 @@ const normRef = (v) => String(v ?? '').toUpperCase().replace(/[\s-]/g, '')
 // รหัสอ้างอิงของเลขออร์เดอร์ (แปลงจากเลขเดิม ไม่เก็บเพิ่ม)
 export const refOfOrderCode = (code) => String(code || '').replace(/^OR-/, 'ORD').replace(/^POS-/, 'POS').replace(/-/g, '')
 
-// fields = ค่าที่อ่านจากสลิป { amount, paidAt, merchantCode, shopRef } · order = { code, createdAt } · balance = ยอดค้างของออร์เดอร์
+// fields = ค่าที่อ่านจากสลิป { amount, paidAt, merchantCode, shopRef, qrRef } · order = { code, createdAt } · balance = ยอดค้างของออร์เดอร์
+// request = รายการแจ้งชำระของออร์เดอร์นี้ที่มีรหัสสุ่ม (Ref 2) ตรงกับสลิป { qrRef, amount } · ไม่พบ = null
 /**
- * @param {{ fields?: object | null, order?: { code?: string, createdAt?: string | null } | null, configuredMerchantCode?: string, balance?: number | null }} [opts]
+ * @param {{ fields?: object | null, order?: { code?: string, createdAt?: string | null } | null, configuredMerchantCode?: string, balance?: number | null, request?: { qrRef?: string, amount?: number } | null }} [opts]
  */
-export function slipChecksOf({ fields, order = null, configuredMerchantCode = '', balance = null } = {}) {
+export function slipChecksOf({ fields, order = null, configuredMerchantCode = '', balance = null, request = null } = {}) {
   const f = fields || {}
   const out = []
 
@@ -47,6 +49,16 @@ export function slipChecksOf({ fields, order = null, configuredMerchantCode = ''
   else {
     const ok = normRef(f.shopRef) === refOfOrderCode(order.code)
     out.push({ key: 'shopRef', ok, text: ok ? 'รหัสอ้างอิงตรงกับออร์เดอร์นี้' : 'รหัสอ้างอิงไม่ตรงกับออร์เดอร์นี้' })
+  }
+
+  // รหัสสุ่ม (Ref 2) ต้องตรงกับรายการแจ้งชำระของออร์เดอร์นี้ และยอดในสลิปต้องเท่ากับยอดของรายการนั้น
+  if (!f.qrRef) out.push({ key: 'qrRef', ok: null, text: 'ไม่มีรหัสสุ่ม (Ref 2) ในสลิป' })
+  else if (!request?.qrRef) out.push({ key: 'qrRef', ok: false, text: 'ไม่พบรายการแจ้งชำระที่มีรหัสสุ่มนี้' })
+  else {
+    const sameRef = normRef(f.qrRef) === normRef(request.qrRef)
+    const sameAmount = f.amount != null && Math.abs(Number(f.amount) - Number(request.amount)) < 0.005
+    const ok = sameRef && sameAmount
+    out.push({ key: 'qrRef', ok, text: ok ? 'รหัสสุ่มและยอดตรงกับรายการแจ้งชำระ' : 'รหัสสุ่มหรือยอดไม่ตรงกับรายการแจ้งชำระ' })
   }
 
   return out

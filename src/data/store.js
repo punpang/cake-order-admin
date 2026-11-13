@@ -33,7 +33,8 @@ import { SLIP_RECEIVE_NOTE, slipRoom, slipChoices, slipBindError } from '../lib/
 import { payAccountsOf } from '../lib/payAccounts'
 import { customerTargets, withNewRules } from '../lib/notifyPlan'
 import { uploadChatImage } from '../lib/chatImage'
-import { billerIdOf, promptPayBillerPayload, shopRefOfCode } from '../lib/promptpay'
+import { billerIdOf, newQrSuffix, promptPayBillerPayload, shopRefOfCode } from '../lib/promptpay'
+import { orderNo } from '../lib/format'
 import { callAuth, callLoyalty, readSessionToken, saveSessionToken, clearSessionToken, injectBundle, clearBundle } from '../lib/customerRemote'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
@@ -243,11 +244,14 @@ const ORDER_CREATED_SMS_TPL = 'สวัสดีค่ะ {ชื่อลู�
 // เทมเพลตทีม "ใกล้เวลาต้องเสร็จ": จำนวนชั่วโมงเปลี่ยนตามที่ร้านตั้งได้ (ค่าเดิมฝังเลข 2 ไว้ในข้อความ)
 const DUE_SOON_OLD = '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน 2 ชม. (นัด {เวลานัด})'
 const DUE_SOON_TPL = '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน {ชั่วโมง} ชม. (นัด {เวลานัด})'
+const PAY_REQ_CANCEL_OLD = 'ออร์เดอร์ {เลขออร์เดอร์} ยกเลิกยอดที่แจ้งชำระ {ยอดที่แจ้ง} แล้วค่ะ'
+const PAY_REQ_CANCEL_TPL = 'ออร์เดอร์ {เลขออร์เดอร์} ยกเลิกยอดที่แจ้งชำระ {ยอดที่แจ้ง} แล้วค่ะ\nเหตุผล: {เหตุผล}\nกรุณาแจ้งชำระยอดใหม่ค่ะ'
 const DEFAULT_UPGRADES = {
   payment_confirmed: [PAY_CONFIRMED_OLD, PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL], delivered: [DELIVERED_OLD, DELIVERED_TPL], payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL],
   order_created: [ORDER_CREATED_OLD, ORDER_CREATED_TPL],
   team_due_soon: [DUE_SOON_OLD, DUE_SOON_TPL],
   payment_requested: [PAY_REQ_OLD, PAY_REQ_TPL],
+  payment_request_cancelled: [PAY_REQ_CANCEL_OLD, PAY_REQ_CANCEL_TPL],
   team_new_order: [[TEAM_NEW_ORDER_OLD, TEAM_NEW_ORDER_V2], TEAM_NEW_ORDER_TPL], team_payment_confirmed: [[TEAM_PAID_OLD, TEAM_PAID_V2], TEAM_PAID_TPL], team_cancelled: [[TEAM_CANCEL_OLD, TEAM_CANCEL_V2], TEAM_CANCEL_TPL],
 }
 // u[0] = ข้อความเดิม (ข้อความเดียว หรือรายการ) → ถ้าตรงกับที่เก็บไว้ ให้ใช้ u[1] แทน
@@ -1100,9 +1104,18 @@ export function setStatus(order, status, text, opts = {}) {
 // แจ้งยอดชำระ = ส่งยอดไปให้ลูกค้า (ยังไม่ใช่ยอดที่จ่ายจริง) ยอดจริงใส่ตอนแอดมินยืนยัน
 // payment.status = reported (รอลูกค้าชำระ) | confirmed | cancelled, requested = ยอดที่แจ้ง, amount = ยอดจริง (ตอนยืนยัน)
 const goodAmount = (v) => Number.isFinite(Number(v)) && Number(v) > 0
+// รหัสสุ่มของรายการแจ้งชำระ (ต่อท้าย POS/ORD ใน Ref 2): สุ่มใหม่ถ้าซ้ำกับรายการที่มีอยู่ในเครื่อง
+function uniqueQrRef(order) {
+  const base = shopRefOfCode(order.code)
+  const used = (r) => db.orders.some((o) => (o.payments || []).some((x) => x.qrRef === r))
+  let r = base + newQrSuffix()
+  for (let k = 0; k < 5 && used(r); k++) r = base + newQrSuffix()
+  return r
+}
 export function reportPayment(order, p) {
   if (!goodAmount(p.amount)) return { error: 'ยอดเงินไม่ถูกต้อง' }
   if (['draft', 'cancelled'].includes(order.status)) return { error: 'ออร์เดอร์นี้แจ้งยอดไม่ได้' }
+  const qrRef = uniqueQrRef(order)
   const pay = {
     id: uid('pay'), code: numbering.next('PAY'),
     requested: Number(p.amount),
@@ -1117,14 +1130,15 @@ export function reportPayment(order, p) {
     status: 'reported',
     reportedBy: session.role,
     confirmedBy: null,
+    qrRef, // Ref 2 ของ QR งวดนี้ (POS/ORD + รหัสสุ่ม)
   }
   order.payments.push(pay)
   const due = pay.dueAt
   log(order, `แจ้งยอดชำระ ${money(Number(p.amount))} (${p.method}) ชำระก่อน ${dueText(due)}`)
   notifyOrder('payment_requested', order, { requested: Number(p.amount), dueAt: due, skip: p.notify === false, noSms: p.sms === false })
-  if (p.notify !== false) sendPayQrFacebook(order, Number(p.amount), due) // QR พร้อมเพย์ส่งเข้า Messenger เฉพาะเมื่อข้อความแจ้งชำระใช้ช่อง Facebook
+  if (p.notify !== false) sendPayQrFacebook(order, Number(p.amount), due, qrRef) // QR พร้อมเพย์ส่งเข้า Messenger เฉพาะเมื่อข้อความแจ้งชำระใช้ช่อง Facebook
   if (order.status === 'awaiting_payment') order.status = 'payment_reported'
-  return { ok: true, paymentId: pay.id }
+  return { ok: true, paymentId: pay.id, qrRef }
 }
 
 const dueText = (iso) => (iso ? `${dateOnly(iso)} ${timeOnly(iso)} น.` : '')
@@ -1145,10 +1159,13 @@ export function updatePaymentRequest(order, paymentId, p) {
 export function cancelPaymentRequest(order, paymentId, opts = {}) {
   const pay = order.payments.find((x) => x.id === paymentId)
   if (!pay || pay.status !== 'reported') return
+  const reason = String(opts.reason ?? '').trim()
+  if (!reason) return { error: 'ใส่เหตุผลการยกเลิก' }
   pay.status = 'cancelled'
-  log(order, `ยกเลิกยอดที่แจ้ง ${money(pay.requested)}`)
+  pay.cancelReason = reason
+  log(order, `ยกเลิกยอดที่แจ้ง ${money(pay.requested)} · เหตุผล: ${reason}`)
   if (order.status === 'payment_reported' && !order.payments.some((x) => x.status === 'reported')) order.status = 'awaiting_payment'
-  notifyOrder('payment_request_cancelled', order, { skip: opts.notify === false, noSms: opts.sms === false, requested: pay.requested })
+  notifyOrder('payment_request_cancelled', order, { skip: opts.notify === false, noSms: opts.sms === false, requested: pay.requested, reason })
 }
 
 // ยกเลิกยอดที่ยืนยันแล้ว (แอดมิน) · ไม่เหลือยอดที่ยืนยัน → ถอยสถานะเป็น แจ้งยอดแล้ว (ถ้ามีงวดที่แจ้งค้าง) หรือ รอชำระ
@@ -2082,10 +2099,11 @@ export function customerRequestQr(ctx, amount) {
   const t = orderTotals(o)
   const room = round2(t.balance - pendingCustomerSum(o))
   if (amt > room + 1e-9) return { error: `ยอดเกินคงค้าง (ชำระได้ไม่เกิน ${money(room)})` }
-  const pay = { id: uid('pay'), code: numbering.next('PAY'), requested: amt, amount: amt, method: 'โอนเงิน', slip: '', note: '', dueAt: '', extension: null, status: 'reported', source: 'customer', qrRequest: true, customerSubmitted: false, createdAt: now(), reportedBy: 'customer', confirmedBy: null }
+  const qrRef = uniqueQrRef(o)
+  const pay = { id: uid('pay'), code: numbering.next('PAY'), requested: amt, amount: amt, method: 'โอนเงิน', slip: '', note: '', dueAt: '', extension: null, status: 'reported', source: 'customer', qrRequest: true, qrRef, customerSubmitted: false, createdAt: now(), reportedBy: 'customer', confirmedBy: null }
   o.payments.push(pay)
   log(o, `ลูกค้าขอ QR ชำระ ${money(amt)} (รอแนบสลิป)`, { team: false })
-  return { ok: true, paymentId: pay.id, amount: amt }
+  return { ok: true, paymentId: pay.id, qrRef, amount: amt }
 }
 // อ่าน QR ในสลิปที่ลูกค้าแนบ (ออร์เดอร์ที่เชื่อมเซิร์ฟเวอร์) · โหมดจำลองอ่านไม่ได้ → ลูกค้ากรอกเองได้
 export function customerReadSlip(ctx, slip) {
@@ -2148,7 +2166,7 @@ function cardImageOf(items) {
   }
   return isHttps(db.storefront?.heroImage) ? db.storefront.heroImage : ''
 }
-const viewCardOf = (order, url) => viewCard(order, { title: `ส่งมอบแล้ว · ${order.code}`, subtitle: 'ขอบคุณที่อุดหนุนค่ะ', url, image: cardImageOf(order.items) })
+const viewCardOf = (order, url) => viewCard(order, { title: `ส่งมอบแล้ว · ${orderNo(order.code)}`, subtitle: 'ขอบคุณที่อุดหนุนค่ะ', url, image: cardImageOf(order.items) })
 // การ์ดปุ่ม "ดูออร์เดอร์" ทั่วไปของข้อความที่เกี่ยวกับออร์เดอร์ (บรรทัดรอง = ยอดรวม/คงค้าง)
 const orderLinkCardOf = (order, url) => {
   const t = orderTotals(order)
@@ -2158,7 +2176,7 @@ const payCardOf = (order, totals, paid, url) => payCard(order, totals, { paid, u
 export function sendOrderLinkToChat(order, url) {
   const chat = (order.chatId && findChat(order.chatId)) || chatFor(order.customerId)
   if (!chat) return { error: 'ลูกค้าคนนี้ยังไม่มีแชท' }
-  sendChat(chat.id, 'staff', `ดูออร์เดอร์ ${order.code} ได้ที่ลิงก์นี้ค่ะ (ใช้ดูอย่างเดียว) ${url}`, { orderId: order.id, by: session.role, fbCard: linkCardMsg(order, url, db.shop.name, { image: cardImageOf(order.items) }) })
+  sendChat(chat.id, 'staff', `ดูออร์เดอร์ ${orderNo(order.code)} ได้ที่ลิงก์นี้ค่ะ (ใช้ดูอย่างเดียว) ${url}`, { orderId: order.id, by: session.role, fbCard: linkCardMsg(order, url, db.shop.name, { image: cardImageOf(order.items) }) })
   return { ok: true }
 }
 const maskPhone = (p) => (phoneDigits(p).length >= 6 ? `xxx-xxx-${phoneDigits(p).slice(-3)}` : '')
@@ -2475,11 +2493,12 @@ function orderVars(order, extra = {}) {
   const t = orderTotals(order)
   return {
     ชื่อลูกค้า: c?.name || '',
-    เลขออร์เดอร์: order.code,
+    เลขออร์เดอร์: orderNo(order.code),
     ยอดรวม: money(t.total),
     คงค้าง: money(Math.max(t.balance, 0)),
     ยอดที่แจ้ง: extra.requested != null ? money(extra.requested) : '',
     ยอดที่ชำระ: extra.paid != null ? money(extra.paid) : '',
+    เหตุผล: extra.reason ?? '',
     ชำระแล้ว: money(Math.max(t.paid, 0)),
     ชำระก่อน: extra.dueAt ? dueText(extra.dueAt) : 'ไม่กำหนด',
     วันนัด: dateOnly(order.pickupAt),
@@ -2542,7 +2561,7 @@ function deliverTg(row, text, kind, parseMode = '') {
   tgHook.send(text, kind, parseMode).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
 }
 // QR พร้อมเพย์ของยอดที่แจ้งชำระ → แชท Facebook ของลูกค้า (ตามช่องทางที่ข้อความแจ้งชำระใช้จริง) · ไม่มีบัญชีพร้อมเพย์/ไม่มีแชท/โหมดจำลอง = ข้าม
-async function sendPayQrFacebook(order, amount, due = '') {
+async function sendPayQrFacebook(order, amount, due = '', qrRef = '') {
   try {
     if (!(amount > 0) || order.channel === 'pos') return
     const customer = findCustomer(order.customerId)
@@ -2551,13 +2570,13 @@ async function sendPayQrFacebook(order, amount, due = '') {
     const allowed = effectiveChannels(r, customer, order)
     if (!customerTargets({ order: CUSTOMER_CHANNEL_ORDER, allowed, integrations: db.integrations, addressOf: (k) => customerAddr(customer, k) }).includes('facebook')) return
     const chat = chatFor(customer.id, 'facebook')
-    const payload = promptPayBillerPayload(billerIdOf(db.shop.billerId), amount, db.shop.merchantCode, shopRefOfCode(order.code))
+    const payload = promptPayBillerPayload(billerIdOf(db.shop.billerId), amount, db.shop.merchantCode, qrRef)
     if (!chat || !payload) return
     const QR = await import('qrcode')
     const dataUrl = await (QR.default || QR).toDataURL(payload, { type: 'image/jpeg', width: 480, margin: 2, errorCorrectionLevel: 'M' })
     const att = await uploadChatImage(chat, await (await fetch(dataUrl)).blob(), { width: 480, height: 480 })
     if (!att.path) return // โหมดจำลอง ไม่มีการอัปโหลด
-    const caption = [`สแกน QR พร้อมเพย์เพื่อชำระออร์เดอร์ ${order.code}`, `ยอด ${money(amount)}`, due ? `ชำระภายใน ${dueText(due)}` : ''].filter(Boolean).join('\n')
+    const caption = [`สแกน QR พร้อมเพย์เพื่อชำระออร์เดอร์ ${orderNo(order.code)}`, `ยอด ${money(amount)}`, due ? `ชำระภายใน ${dueText(due)}` : ''].filter(Boolean).join('\n')
     sendChat(chat.id, 'staff', caption, { orderId: order.id, by: 'ระบบ', attachments: [att] })
   } catch {
     emitStaffBell('notify_failed', { text: `${findCustomer(order.customerId)?.name || 'ลูกค้า'}: ส่ง QR พร้อมเพย์ทาง Facebook ไม่สำเร็จ` })

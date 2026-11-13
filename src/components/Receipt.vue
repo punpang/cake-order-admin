@@ -1,4 +1,5 @@
 <script setup>
+import { orderNo } from '../lib/format'
 import { computed } from 'vue'
 import { db, findCustomer, customerPoints } from '../data/store'
 import { orderTotals } from '../lib/pricing'
@@ -16,7 +17,7 @@ const customer = computed(() => findCustomer(props.order.customerId))
     <div class="text-center">
       <div class="text-base font-bold">{{ db.shop.name }}</div>
       <div>ใบเสร็จรับเงิน</div>
-      <div class="text-xs">{{ order.code }} · {{ dateTime(order.createdAt) }}</div>
+      <div class="text-xs">{{ orderNo(order.code) }} · {{ dateTime(order.createdAt) }}</div>
       <div v-if="t.vatMode && db.shop.vat.legalName" class="text-xs">{{ db.shop.vat.legalName }}</div>
       <div v-if="t.vatMode && db.shop.vat.taxId" class="text-xs">เลขประจำตัวผู้เสียภาษี {{ db.shop.vat.taxId }}</div>
       <div v-if="order.status === 'cancelled'" class="mt-1 font-bold">** ยกเลิกแล้ว **</div>

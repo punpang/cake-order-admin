@@ -1,4 +1,5 @@
 <script setup>
+import { orderNo } from '../lib/format'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { loadOneOrder } from '../lib/staffAuth'
 import {
@@ -216,8 +217,8 @@ async function doRemoveItem(it) {
   if (r.ok) removeOrderItem(order.value, it.id, notifyOf(r))
 }
 async function doCancelRequest(p) {
-  const r = await askConfirmEx({ title: 'ยกเลิกยอดที่แจ้ง', message: money(p.requested ?? p.amount), okText: 'ยกเลิกยอด', danger: true, ...notifyBoxOf(customer.value) })
-  if (r.ok) cancelPaymentRequest(order.value, p.id, notifyOf(r))
+  const r = await askConfirmEx({ title: 'ยกเลิกยอดที่แจ้ง', message: money(p.requested ?? p.amount), okText: 'ยกเลิกยอด', danger: true, reason: { label: 'เหตุผลที่ยกเลิก', required: true }, ...notifyBoxOf(customer.value) })
+  if (r.ok) cancelPaymentRequest(order.value, p.id, { ...notifyOf(r), reason: r.reason })
 }
 async function doRemovePoints() {
   const r0 = await askConfirmEx({ title: 'ยกเลิกการใช้คะแนน', message: `คืน ${order.value.pointsUsed.points} คะแนนให้ลูกค้า`, okText: 'ยกเลิกการใช้', danger: true, ...notifyBoxOf(customer.value) })
@@ -330,7 +331,7 @@ async function saveCancel() {
       <RouterLink to="/admin/orders" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
         <AppIcon name="back" :size="20" />
       </RouterLink>
-      <h1 class="page-title min-w-0 flex-1 truncate">{{ order.code }}</h1>
+      <h1 class="page-title min-w-0 flex-1 truncate">{{ orderNo(order.code) }}</h1>
       <div class="flex flex-wrap items-center gap-1.5 max-sm:w-full max-sm:pl-12">
         <span v-if="customerPending(order).length" class="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-sky-700">ลูกค้าแจ้งโอน รอตรวจสลิป</span>
         <PayDueBadge :order="order" />

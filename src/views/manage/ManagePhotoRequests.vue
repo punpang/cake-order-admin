@@ -1,4 +1,5 @@
 <script setup>
+import { orderNo } from '../../lib/format'
 import { computed, reactive, ref } from 'vue'
 import { db, findCustomer, findOrder, approvePhotoOptOut, rejectPhotoOptOut, allowPhotosAgain, photoStatusOf } from '../../data/store'
 import { dateTime, formatPhone } from '../../lib/format'
@@ -42,7 +43,7 @@ function doReject() {
       <p v-if="err" class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700" role="alert">{{ err }}</p>
       <p v-if="!rows.length" class="card py-10 text-center text-stone-500">ไม่มีคำขอ</p>
       <article v-for="row in rows" :key="row.r.id" class="card space-y-2 text-sm">
-        <div class="flex items-start justify-between gap-2"><div class="min-w-0"><RouterLink v-if="row.o" :to="`/admin/orders/${row.o.id}`" class="font-semibold text-brand-700 underline">{{ row.o.code }}</RouterLink> <span class="text-stone-600">{{ row.c?.name || 'ลูกค้า' }}</span><div class="text-xs text-stone-400">{{ dateTime(row.r.createdAt) }} · รูปงาน {{ row.n }} รูป</div></div><span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold" :class="STATUS[row.r.status][1]">{{ STATUS[row.r.status][0] }}</span></div>
+        <div class="flex items-start justify-between gap-2"><div class="min-w-0"><RouterLink v-if="row.o" :to="`/admin/orders/${row.o.id}`" class="font-semibold text-brand-700 underline">{{ orderNo(row.o.code) }}</RouterLink> <span class="text-stone-600">{{ row.c?.name || 'ลูกค้า' }}</span><div class="text-xs text-stone-400">{{ dateTime(row.r.createdAt) }} · รูปงาน {{ row.n }} รูป</div></div><span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold" :class="STATUS[row.r.status][1]">{{ STATUS[row.r.status][0] }}</span></div>
         <p v-if="row.r.note" class="rounded-xl bg-stone-50 p-2 text-stone-700">หมายเหตุลูกค้า: {{ row.r.note }}</p>
         <p v-if="row.r.decisionNote" class="text-xs text-stone-500">เหตุผลร้าน: {{ row.r.decisionNote }}</p>
         <div v-if="row.r.status === 'pending'" class="flex gap-2"><button class="btn-danger flex-1" @click="approve(row)">อนุมัติ · ลบรูปทุกที่</button><button class="btn-outline flex-1" @click="openReject(row)">ไม่อนุมัติ</button></div>

@@ -1,4 +1,5 @@
 <script setup>
+import { orderNo } from '../../lib/format'
 import SectionTabs from '../../components/SectionTabs.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
@@ -287,7 +288,7 @@ async function disconnect(k) {
           </div>
           <div class="mt-1 text-xs text-stone-500">
             ถึง {{ m.to }}
-            <RouterLink v-if="m.orderId && findOrder(m.orderId)" :to="`/admin/orders/${m.orderId}`" class="ml-1 text-brand-700 underline">{{ findOrder(m.orderId).code }}</RouterLink>
+            <RouterLink v-if="m.orderId && findOrder(m.orderId)" :to="`/admin/orders/${m.orderId}`" class="ml-1 text-brand-700 underline">{{ orderNo(findOrder(m.orderId).code) }}</RouterLink>
           </div>
           <div class="mt-1.5 text-sm break-words whitespace-pre-line text-stone-800">{{ m.text }}</div>
         </li>

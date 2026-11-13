@@ -1,4 +1,5 @@
 <script setup>
+import { orderNo } from '../../lib/format'
 import SectionTabs from '../../components/SectionTabs.vue'
 import { computed, ref, watch } from 'vue'
 import { db, findCustomer } from '../../data/store'
@@ -237,7 +238,7 @@ watch([from, to], () => { rowLimit.value = 50 })
     <div v-else class="card divide-y divide-stone-100 p-0">
       <RouterLink v-for="r in rows.slice(0, rowLimit)" :key="r.o.id" :to="`/admin/orders/${r.o.id}`" class="flex items-center gap-3 px-4 py-3 hover:bg-stone-50">
         <span class="min-w-0 flex-1">
-          <span class="block truncate font-medium text-stone-900">{{ r.o.code }} · {{ findCustomer(r.o.customerId)?.name }}</span>
+          <span class="block truncate font-medium text-stone-900">{{ orderNo(r.o.code) }} · {{ findCustomer(r.o.customerId)?.name }}</span>
           <span class="block text-xs text-stone-500">{{ dateTime(r.o.pickupAt) }} · {{ STATUS[r.o.status].label }}</span>
         </span>
         <span class="shrink-0 text-right text-sm leading-tight">

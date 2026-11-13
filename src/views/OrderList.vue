@@ -1,4 +1,5 @@
 <script setup>
+import { orderNo } from '../lib/format'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { db, can, orderVisible, findCustomer, upcomingBirthdays } from '../data/store'
 import { STATUS } from '../lib/constants'
@@ -327,7 +328,7 @@ function clearAll() {
           data-order-row
         >
           <span class="font-semibold text-brand-800 tabular-nums">{{ timeOnly(o.pickupAt) }} น.</span>
-          <span class="min-w-0"><b class="block truncate font-semibold text-stone-900">{{ c?.name }}</b><span class="block text-xs text-stone-400">{{ o.code }}</span></span>
+          <span class="min-w-0"><b class="block truncate font-semibold text-stone-900">{{ c?.name }}</b><span class="block text-xs text-stone-400">{{ orderNo(o.code) }}</span></span>
           <span class="flex min-w-0 items-center gap-1.5 text-stone-500">
             <AppIcon :name="o.fulfillment === 'delivery' ? 'truck' : 'store'" :size="14" class="shrink-0" />
             <span class="shrink-0">{{ o.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }}</span><span aria-hidden="true">·</span>
@@ -387,7 +388,7 @@ function clearAll() {
                 <span v-else-if="t.balance < 0" class="text-xs font-medium text-rose-700">ชำระเกิน {{ money(-t.balance) }}</span>
                 <span v-else class="text-xs font-medium text-brand-700">ชำระครบ</span>
               </template>
-              <span class="block text-xs text-stone-400">{{ o.code }}</span>
+              <span class="block text-xs text-stone-400">{{ orderNo(o.code) }}</span>
             </span>
           </div>
         </RouterLink>

@@ -1,4 +1,5 @@
 <script setup>
+import { orderNo } from '../lib/format'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { addCakeCodesToDraft, can, postOrderCard, db, findOrder, sendChat, markRead, findQuote, fbWindowOpen, convertQuote, chatOrderBlock, findCustomer, linkChat, askCustomer, cancelAsk, applyToDraft, ASK_FIELDS, saveCanned, removeCanned, sendBotDraft, dismissBotDraft, setChatBot, staffReplied, recommendText, addRecommendToDraft, slipChatChoices } from '../data/store'
 import { detectEntities } from '../lib/chatParse'
@@ -379,7 +380,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
             <!-- การ์ดออร์เดอร์ -->
             <div v-if="m.kind === 'order' && card(m)" class="w-80 max-w-[88%] rounded-2xl border border-stone-200 bg-white p-3.5 shadow-sm">
               <div class="flex items-center justify-between gap-2">
-                <span class="text-xs font-semibold text-brand-700">สรุปออร์เดอร์ {{ card(m).o.code }}</span>
+                <span class="text-xs font-semibold text-brand-700">สรุปออร์เดอร์ {{ orderNo(card(m).o.code) }}</span>
                 <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="STATUS[card(m).o.status]?.cls">{{ STATUS[card(m).o.status]?.label }}</span>
                 <PayDueBadge :order="card(m).o" short />
               </div>
@@ -606,7 +607,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
     <AppModal v-if="sumOpen" title="ส่งสรุปออร์เดอร์" @close="sumOpen = false">
       <div class="space-y-2">
         <button v-for="o in custOrders" :key="o.id" type="button" class="block w-full rounded-xl border border-stone-200 bg-white p-3 text-left hover:bg-stone-50" data-summary-pick @click="sendSummary(o)">
-          <span class="flex items-baseline justify-between gap-2"><span class="font-medium text-stone-900">{{ o.code }}</span><span class="text-xs text-stone-500">{{ STATUS[o.status]?.label || o.status }}</span></span>
+          <span class="flex items-baseline justify-between gap-2"><span class="font-medium text-stone-900">{{ orderNo(o.code) }}</span><span class="text-xs text-stone-500">{{ STATUS[o.status]?.label || o.status }}</span></span>
           <span class="mt-0.5 flex items-baseline justify-between gap-2 text-sm text-stone-600"><span>นัด {{ dateTime(o.pickupAt) }}</span><span>{{ money(orderTotals(o).total) }}<span v-if="orderTotals(o).balance > 0.004" class="text-amber-700"> · ค้าง {{ money(orderTotals(o).balance) }}</span></span></span>
         </button>
       </div>
@@ -642,7 +643,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
         <p v-if="!chat.customerId" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">แชทนี้ยังไม่ผูกลูกค้า · ผูกลูกค้ากับแชทก่อน เพื่อดูออร์เดอร์อื่นของลูกค้าคนนั้น</p>
         <p v-else-if="!slipPickList.length" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">ลูกค้าคนนี้ไม่มีออร์เดอร์ที่ยังไม่ปิด</p>
         <button v-for="r in slipPickList" :key="r.order.id" type="button" class="block w-full rounded-xl border border-stone-200 bg-white p-3 text-left hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50" :disabled="!(r.room > 0)" data-slip-pick-order @click="openSlipBind(slipPick, r.order)">
-          <span class="flex items-baseline justify-between gap-2"><span class="font-medium text-stone-900">{{ r.order.code }}</span><span class="text-xs text-stone-500">{{ STATUS[r.order.status]?.label || r.order.status }}</span></span>
+          <span class="flex items-baseline justify-between gap-2"><span class="font-medium text-stone-900">{{ orderNo(r.order.code) }}</span><span class="text-xs text-stone-500">{{ STATUS[r.order.status]?.label || r.order.status }}</span></span>
           <span class="mt-0.5 flex items-baseline justify-between gap-2 text-sm text-stone-600"><span>นัด {{ dateTime(r.order.pickupAt) }}</span><span v-if="r.room > 0">รับได้ {{ money(r.room) }}</span><span v-else>รับไม่ได้ (ชำระครบ/มียอดรอตรวจ)</span></span>
         </button>
       </div>

@@ -48,8 +48,8 @@ export function promptPayPayload(id, amount = null, ref = '') {
 // PromptPay Biller (ชำระผ่านผู้เรียกเก็บเงิน): tag 30 · AID A000000677010112
 //   01 = Biller ID ของร้าน (ผู้เรียกเก็บเงิน 15 หลัก, ตั้งค่าร้าน)
 //   02 = Ref 1 = รหัสร้านค้า (ตัวเลข, ตั้งค่าร้าน)
-//   03 = Ref 2 = รหัสอ้างอิงร้านค้า POS/ORD (ตามออร์เดอร์)
-// ยอดฝังใน QR (tag 54) · ไม่มีรหัสสุ่ม
+//   03 = Ref 2 = รหัสอ้างอิงร้านค้า POS/ORD (ตามออร์เดอร์) + รหัสสุ่ม 5 ตัวต่อท้าย (ไม่ซ้ำ ออกใหม่ทุกรายการแจ้งชำระ)
+// ยอดฝังใน QR (tag 54)
 export const billerIdOf = (s) => {
   const d = digitsOf(s)
   return /^\d{15}$/.test(d) ? d : ''
@@ -62,6 +62,21 @@ export const shopRefOk = (v) => /^(POS|ORD)\d{3,17}$/.test(String(v ?? ''))
 export const shopRefOfCode = (code) =>
   String(code ?? '').trim().toUpperCase().replace(/^OR-/, 'ORD').replace(/^POS-/, 'POS').replace(/-/g, '')
 
+// รหัสสุ่ม 5 ตัวของ Ref 2 (ไม่มี 0 1 I L O) · ตรงกับ _shared/payqr.ts
+const QR_SUFFIX_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+const QR_SUFFIX_LIMIT = Math.floor(256 / QR_SUFFIX_CHARS.length) * QR_SUFFIX_CHARS.length // สุ่มแบบไม่เอนเอียง
+export function newQrSuffix() {
+  let out = ''
+  while (out.length < 5) {
+    const bytes = new Uint8Array(16)
+    crypto.getRandomValues(bytes)
+    for (const b of bytes) if (b < QR_SUFFIX_LIMIT && out.length < 5) out += QR_SUFFIX_CHARS[b % QR_SUFFIX_CHARS.length]
+  }
+  return out
+}
+// Ref 2 = POS/ORD (ORD+12 หลัก หรือ POS+11 หลัก) + รหัสสุ่ม 5 ตัว
+export const qrRefOk = (v) => /^(?:ORD\d{12}|POS\d{11})[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{5}$/.test(String(v ?? ''))
+
 // รหัสร้านค้า (Ref 1): ตัวเลข 1–20 หลัก (ตัดช่องว่างและขีด) · ไม่ใช่ตัวเลข = ''
 export const shopCodeOf = (s) => {
   const v = String(s ?? '').replace(/[\s-]/g, '')
@@ -73,7 +88,7 @@ export function promptPayBillerPayload(billerId, amount = null, shopCode = '', s
   const id = billerIdOf(billerId)
   const r1 = shopCodeOf(shopCode)
   const r2 = String(shopRef ?? '').trim().toUpperCase()
-  if (!id || !r1 || !shopRefOk(r2)) return null
+  if (!id || !r1 || !qrRefOk(r2)) return null
   const amt = amount == null || amount === '' ? null : Math.round(Number(amount) * 100) / 100
   if (amt != null && (!Number.isFinite(amt) || amt <= 0 || amt > 9999999.99)) return null
   const body =

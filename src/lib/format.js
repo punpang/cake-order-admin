@@ -46,3 +46,6 @@ export function dayLabel(s) {
   const label = day === today ? 'วันนี้' : day === tomorrow ? 'พรุ่งนี้' : day === yesterday ? 'เมื่อวาน' : DOW[toDate(day).getDay()]
   return `${label} ${dateOnly(day)}`
 }
+
+// รหัสออเดอร์ที่แสดงให้คนเห็น: OR-ddmmyy-xxxxxx → ORDddmmyyxxxxxx (ตรงกับเลขบนสลิป) · รูปแบบอื่นคงเดิม
+export const orderNo = (code) => String(code ?? '').replace(/^OR-(\d{6})-(\d+)$/i, 'ORD$1$2')

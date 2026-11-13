@@ -1,3 +1,4 @@
+import { QR_SUFFIX_LEN, qrRefOk } from './payqr.ts'
 // รหัสอ้างอิงร้านค้าบนสลิป (ORD / POS) และรหัสร้านค้าผู้รับชำระ · ฟังก์ชันล้วน ทดสอบได้
 // รหัสอ้างอิงแปลงจากเลขเดิมในระบบ (ไม่เก็บเพิ่ม): OR-ddmmyy-xxxxxx ↔ ORDddmmyyxxxxxx · POS-ddmmyy-xxxxx ↔ POSddmmyyxxxxx
 
@@ -43,22 +44,27 @@ export function merchantCodeOk(mc: string, receiverAccount: unknown, shopRef: st
 }
 
 // ค่าจากคำตอบของตัวอ่าน (merchant_code / shop_ref) · ใส่คีย์เฉพาะเมื่อผ่านเกณฑ์ (ผลเดิมรูปร่างไม่เปลี่ยน)
-export function readShopFields(obj: any, receiverAccount?: string | null): { merchantCode?: string; shopRef?: string } {
-  // POS/ORD เป็นรหัสอ้างอิงร้านค้า (Ref 2) เท่านั้น ไม่เป็นรหัสร้านค้า
+export function readShopFields(obj: any, receiverAccount?: string | null): { merchantCode?: string; shopRef?: string; qrRef?: string } {
+  // POS/ORD ไม่เป็นรหัสร้านค้า · Ref 2 = POS/ORD + รหัสสุ่ม 5 ตัว (qrRef = ทั้งหมด · shopRef = ส่วน POS/ORD)
   const isPosOrd = (v: string): boolean => /^(POS|ORD)/.test(v)
   const rawMc = normalizeShopRef(obj?.merchant_code)
   const sr = normalizeShopRef(obj?.shop_ref)
-  let shopRef = shopRefOk(sr) ? sr : ''
+  const qrRef = qrRefOk(sr) ? sr : ''
+  let shopRef = qrRef ? sr.slice(0, -QR_SUFFIX_LEN) : (shopRefOk(sr) ? sr : '')
   // POS/ORD ที่ตัวอ่านวางไว้ในช่องรหัสร้านค้า → ใช้เป็นรหัสอ้างอิงร้านค้า (ไม่ใช่รหัสร้านค้า)
   if (!shopRef && shopRefOk(rawMc)) shopRef = rawMc
   const mc = isPosOrd(rawMc) ? '' : digitsOf(obj?.merchant_code)
   const merchantCode = mc && merchantCodeOk(mc, receiverAccount, shopRef) ? mc : ''
-  return { ...(merchantCode ? { merchantCode } : {}), ...(shopRef ? { shopRef } : {}) }
+  return { ...(merchantCode ? { merchantCode } : {}), ...(shopRef ? { shopRef } : {}), ...(qrRef ? { qrRef } : {}) }
 }
 
 // ค่าที่เก็บในแคชและชุดเทรน: เฉพาะคีย์ที่มีค่า
-export function shopPartOf(f: { merchantCode?: unknown; shopRef?: unknown } | null | undefined): { merchantCode?: string; shopRef?: string } {
+export function shopPartOf(f: { merchantCode?: unknown; shopRef?: unknown; qrRef?: unknown } | null | undefined): { merchantCode?: string; shopRef?: string; qrRef?: string } {
   const mc = digitsOf(f?.merchantCode)
   const sr = normalizeShopRef(f?.shopRef)
-  return { ...(mc ? { merchantCode: mc } : {}), ...(sr ? { shopRef: sr } : {}) }
+  const qr = normalizeShopRef(f?.qrRef)
+  return { ...(mc ? { merchantCode: mc } : {}), ...(sr ? { shopRef: sr } : {}), ...(qr ? { qrRef: qr } : {}) }
 }
+
+// รหัสออเดอร์ที่แสดงให้คนเห็น (ตรงกับ orderNo ฝั่งแอป): OR-ddmmyy-xxxxxx → ORDddmmyyxxxxxx
+export const orderNo = (code: unknown): string => String(code ?? '').replace(/^OR-(\d{6})-(\d+)$/i, 'ORD$1$2')

@@ -1,4 +1,4 @@
-// ทดสอบรหัสอ้างอิงร้านค้า (ORD/POS) และรหัสร้านค้า: แปลงกับเลขเดิม · ติดธงเมื่อไม่ตรง · ใส่คีย์เฉพาะที่อ่านได้
+// ทดสอบรหัสอ้างอิงร้านค้า (ORD/POS) รหัสสุ่มของรายการแจ้งชำระ และรหัสร้านค้า: แปลงกับเลขเดิม · ติดธงเมื่อไม่ตรง · ใส่คีย์เฉพาะที่อ่านได้
 import { assertEquals } from 'jsr:@std/assert@1'
 import { codeOfRef, digitsOf, merchantMismatch, readShopFields, refOfCode, shopPartOf } from './slipref.ts'
 
@@ -11,7 +11,7 @@ Deno.test('รหัสอ้างอิงแปลงกลับไปเล
 })
 
 Deno.test('รหัสที่รูปแบบไม่ตรงกับเลขในระบบ → ไม่จับคู่', () => {
-  assertEquals(codeOfRef('POS123927229'), null) // รหัสในสลิปตัวอย่าง ไม่ตรงรูปแบบเลขในระบบ
+  assertEquals(codeOfRef('POS123927229'), null)
   assertEquals(codeOfRef('ORD12345'), null)
   assertEquals(codeOfRef(''), null)
 })
@@ -32,8 +32,13 @@ Deno.test('ค่าจากตัวอ่าน: ใส่เฉพาะค�
   assertEquals(digitsOf('0-1'), '01')
 })
 
-Deno.test('POS/ORD เป็นรหัสอ้างอิงร้านค้า (Ref 2) ไม่ใช่รหัสร้านค้า · รหัสร้านค้า (Ref 1) เป็นตัวเลข', () => {
+Deno.test('Ref 2 = POS/ORD + รหัสสุ่ม 5 ตัว → แยกเป็น qrRef (ทั้งหมด) และ shopRef (ส่วน POS/ORD)', () => {
+  assertEquals(readShopFields({ merchant_code: '014000000517185', shop_ref: 'ord131126000741abcde' }), { merchantCode: '014000000517185', shopRef: 'ORD131126000741', qrRef: 'ORD131126000741ABCDE' })
+  assertEquals(readShopFields({ shop_ref: 'ORD131126000741ABCD0' }), {})
+  assertEquals(readShopFields({ shop_ref: 'ORD131126000741ABCDE' }), { shopRef: 'ORD131126000741', qrRef: 'ORD131126000741ABCDE' })
+})
+
+Deno.test('POS/ORD ไม่ใช่รหัสร้านค้า: ค่า POS/ORD ในช่องรหัสร้านค้าถูกใช้เป็นรหัสอ้างอิงแทน', () => {
   assertEquals(readShopFields({ merchant_code: 'ORD131126000741', shop_ref: null }), { shopRef: 'ORD131126000741' })
   assertEquals(readShopFields({ merchant_code: 'POS123927229', shop_ref: 'ORD131126000741' }), { shopRef: 'ORD131126000741' })
-  assertEquals(readShopFields({ merchant_code: '014000000517185', shop_ref: 'ORD131126000741' }), { merchantCode: '014000000517185', shopRef: 'ORD131126000741' })
 })
