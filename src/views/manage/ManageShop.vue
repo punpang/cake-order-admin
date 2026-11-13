@@ -33,14 +33,15 @@ const NEAR = [1, 2, 3, 6, 0]
 const num = (v) => Number(v) >= 0 && v !== ''
 // ---- สลิปในแชท (บันทึกแยกจากฟอร์มร้าน) ----
 const ocrOf = (q) => ({ wai: q.ocr?.wai === true, claude: (q.ocr?.claude ?? q.ocr?.enabled) === true })
-const sq = reactive({ ...JSON.parse(JSON.stringify(db.slipQr)), ocr: ocrOf(db.slipQr) })
+const acOf = (q) => ({ enabled: q.autoConfirm?.enabled === true, days: q.autoConfirm?.days ?? 3 })
+const sq = reactive({ ...JSON.parse(JSON.stringify(db.slipQr)), ocr: ocrOf(db.slipQr), autoConfirm: acOf(db.slipQr) })
 const slipErr = ref('')
 const slipSaved = ref(false)
 function saveSlip() {
   const r = saveSlipQrSettings(sq)
   if (r?.error) return (slipErr.value = r.error)
   slipErr.value = ''
-  Object.assign(sq, { ...JSON.parse(JSON.stringify(db.slipQr)), ocr: ocrOf(db.slipQr) })
+  Object.assign(sq, { ...JSON.parse(JSON.stringify(db.slipQr)), ocr: ocrOf(db.slipQr), autoConfirm: acOf(db.slipQr) })
   slipSaved.value = true
   setTimeout(() => (slipSaved.value = false), 1500)
 }
@@ -229,7 +230,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
 
     <section class="card space-y-4">
       <div class="card-title mb-0"><AppIcon name="image" class="text-brand-600" /> สลิปในแชท (QR)</div>
-      <p class="text-sm text-stone-600">ลูกค้าส่งรูปสลิปโอนในแชท ระบบอ่าน QR ของสลิปเพื่อจับคู่ออร์เดอร์ · ยอดยังรอพนักงานตรวจกับสลิปก่อนยืนยันเสมอ</p>
+      <p class="text-sm text-stone-600">ลูกค้าส่งรูปสลิปโอนในแชท ระบบอ่าน QR ของสลิปเพื่อจับคู่ออร์เดอร์ · ยอดรอพนักงานตรวจก่อนยืนยันเสมอ (ยกเว้นเปิดยืนยันสลิปอัตโนมัติ)</p>
       <AppSwitch v-model="sq.enabled" label="ตรวจสลิปในแชท" class="flex" />
       <div>
         <div class="label">วิธีจับคู่</div>
@@ -237,7 +238,15 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
           <button type="button" class="chip" :class="sq.mode === 'auto' ? 'chip-on' : 'chip-off'" @click="sq.mode = 'auto'">อัตโนมัติ · แนบกับออร์เดอร์ที่คุยล่าสุด</button>
           <button type="button" class="chip" :class="sq.mode === 'manual' ? 'chip-on' : 'chip-off'" @click="sq.mode = 'manual'">แมนนวล · พนักงานเลือกออร์เดอร์เอง</button>
         </div>
-        <p class="mt-2 text-xs text-stone-500">{{ sq.mode === 'manual' ? 'แชทจะแสดงปุ่มผูกกับออร์เดอร์ที่แนะนำ หรือเลือกออร์เดอร์อื่นของลูกค้า (ในหน้าแชท ไม่เปลี่ยนหน้า)' : 'ถ้ามีออร์เดอร์ที่คุยล่าสุด ระบบแนบให้ทันที · ไม่มีออร์เดอร์ก็แจ้งกระดิ่งให้ผูกเองจากหน้าออร์เดอร์' }}</p>
+        <p class="mt-2 text-xs text-stone-500">{{ sq.mode === 'manual' ? 'แชทจะแสดงปุ่มผูกกับออร์เดอร์ที่แนะนำ หรือเลือกออร์เดอร์อื่นของลูกค้า (ในหน้าแชท ไม่เปลี่ยนหน้า)' : 'ผูกอัตโนมัติเมื่อรหัสอ้างอิงร้านค้าตรงกับออร์เดอร์ และยอด วัน-เวลา รหัสร้านค้าถูกต้องครบ · ไม่ครบให้พนักงานผูกเองในหน้าแชท' }}</p>
+      </div>
+      <div class="space-y-2">
+        <AppSwitch v-model="sq.autoConfirm.enabled" label="ยืนยันสลิปอัตโนมัติ (เมื่อครบ 4 ข้อ)" class="flex" />
+        <div v-if="sq.autoConfirm.enabled" class="max-w-md">
+          <label class="label">ยืนยันอัตโนมัติเมื่อวันนัดรับห่างจากวันนี้อย่างน้อย (วัน)</label>
+          <input v-model.number="sq.autoConfirm.days" type="text" v-num min="0" max="30" class="input" />
+        </div>
+        <p class="text-xs text-stone-500">ครบ 4 ข้อ = ยอดไม่เกินยอดค้าง · วัน-เวลาโอนหลังเวลาสร้างออร์เดอร์ · รหัสร้านค้าตรงกับที่ตั้งไว้ · รหัสอ้างอิงร้านค้าตรงกับออร์เดอร์ · นัดรับใกล้กว่าจำนวนวันที่ตั้ง หรือยังอ่านภาพสลิปไม่ได้ → พนักงานยืนยันเอง</p>
       </div>
       <div class="space-y-2">
         <p class="text-sm font-medium text-stone-700">ลำดับการอ่านสลิป</p>

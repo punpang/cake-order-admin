@@ -493,8 +493,8 @@ export const db = reactive({
   orderLinks: [],
   // บอทตอบแชท (ค่าเริ่มต้นปิด): rules = กฎคีย์เวิร์ด · learned = คู่ ถาม→ตอบ ที่เรียนจากพนักงาน (ตัดข้อมูลส่วนบุคคลแล้ว) · stats
   bot: JSON.parse(JSON.stringify(BOT_DEFAULTS)),
-  // สลิปในแชท (config slipQr): enabled = ตรวจรูปสลิปในแชท · mode = auto (แนบกับออร์เดอร์ที่คุยล่าสุดอัตโนมัติ) | manual (ร้านเลือกออร์เดอร์ผูกเองในแชท)
-  slipQr: { enabled: true, mode: 'auto', ocr: { wai: false, claude: false } }, // ocr = อ่านยอด/วัน-เวลาจากภาพสลิป: wai (Workers AI) → claude (ระบบเดิม) · ปิดเป็นค่าเริ่มต้น
+  // สลิปในแชท (config slipQr): enabled = ตรวจรูปสลิปในแชท · mode = auto (ผูกอัตโนมัติเมื่อรหัสอ้างอิงตรงกับออร์เดอร์และครบ 4 ข้อ) | manual (ร้านเลือกออร์เดอร์ผูกเองในแชท)
+  slipQr: { enabled: true, mode: 'auto', ocr: { wai: false, claude: false }, autoConfirm: { enabled: false, days: 3 } }, // ocr = อ่านยอด/วัน-เวลาจากภาพสลิป: wai (Workers AI) → claude (ระบบเดิม) · ปิดเป็นค่าเริ่มต้น · autoConfirm = ยืนยันชำระอัตโนมัติเมื่อครบ 4 ข้อและนัดรับห่างอย่างน้อย days วัน (ปิดเป็นค่าเริ่มต้น)
   // จัดการข้อมูลที่อาจเป็นขยะ (config retention): แต่ละหมวดเปิด/ปิดได้ และกำหนดจำนวนวันที่เก็บ · ค่าเริ่มต้นตรงกับฟังก์ชัน punpang_run_retention
   retention: { slipRead: { enabled: true, days: 180 }, chatMedia: { enabled: true, days: 30 }, aiLog: { enabled: false, days: 90 }, bell: { enabled: false, days: 90 }, orderLinks: { enabled: false, days: 180 } },
   // shortLinks: [{ id, code, target, kind: internal | external, clicks, createdAt, expiresAt, active, note }]
@@ -2751,7 +2751,8 @@ export function runScheduledChecks() {
   for (const o of serverRuns ? [] : db.orders) {
     if (['draft', 'delivered', 'cancelled'].includes(o.status)) continue
     const toPickup = new Date(o.pickupAt).getTime() - nowMs
-    if (toPickup > 0 && toPickup <= pickupHours * 3600e3) once(`pickup|${o.id}`, () => { notifyOrder('pickup_reminder', o); return 1 })
+    // กฎ "เตือนก่อนนัดรับ" ปิดอยู่ → ไม่เตือนนัดรับเลย (เหมือนฝั่งเซิร์ฟเวอร์)
+    if (db.notifyRules.find((r) => r.event === 'pickup_reminder')?.enabled !== false && toPickup > 0 && toPickup <= pickupHours * 3600e3) once(`pickup|${o.id}`, () => { notifyOrder('pickup_reminder', o); return 1 })
     for (const p of overduePayments(o, new Date(nowMs))) once(`overdue|${p.id}|${p.dueAt}`, () => notify('team_pay_overdue', { vars: { ...orderVars(o), ชำระก่อน: dueText(p.dueAt) }, orderId: o.id }))
     payReminder(o, new Date(nowMs), once)
     const toDue = dueAt(o).getTime() - nowMs
@@ -3228,7 +3229,8 @@ export function saveSlipQrSettings(d) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
   const prevOcr = { ...(db.slipQr.ocr || {}) }
   delete prevOcr.enabled // ค่าเดิมถูกแทนด้วยสวิตช์ claude
-  Object.assign(db.slipQr, { enabled: d?.enabled !== false, mode: d?.mode === 'manual' ? 'manual' : 'auto', ocr: { ...prevOcr, wai: d?.ocr?.wai === true, claude: d?.ocr?.claude === true } })
+  const ac = d?.autoConfirm || {}
+  Object.assign(db.slipQr, { enabled: d?.enabled !== false, mode: d?.mode === 'manual' ? 'manual' : 'auto', ocr: { ...prevOcr, wai: d?.ocr?.wai === true, claude: d?.ocr?.claude === true }, autoConfirm: { enabled: ac.enabled === true, days: intIn(ac.days, 0, 30, db.slipQr.autoConfirm?.days ?? 3) } })
   return { ok: true }
 }
 // ตัวเลือกของสลิปที่รอผูก: ที่แนะนำ (ออร์เดอร์ที่คุยล่าสุด) + ออร์เดอร์อื่นของลูกค้าคนเดียวกัน · room = ยอดที่ผูกได้ (0 = ผูกไม่ได้)

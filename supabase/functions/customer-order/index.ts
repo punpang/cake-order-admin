@@ -1,7 +1,8 @@
 import { filesEnv, svcDelete, svcUpload } from '../_shared/filesvc.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { PAY_MSG, bankByCode, checkCustomerTxn, normalizeRef, refTaken } from '../_shared/payfields.ts'
-import { slipKeyOf } from '../_shared/slip.ts'
+import { autoConfirmOf, slipKeyOf } from '../_shared/slip.ts'
+import { autoConfirmDecision, confirmSlipPayment } from '../_shared/slipautoconfirm.ts'
 import { readSlipQr } from '../_shared/slipread.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine } from '../_shared/slipocr.ts'
 import { readSlipOnce } from '../_shared/slipstore.ts'
@@ -136,6 +137,12 @@ Deno.serve(async (req) => {
     if (!engines.length) return null
     return readSlipOnce(sb, { key: slipKeyOf(qr.bankCode, normalizeRef(qr.ref)), bytes, bankCode: qr.bankCode, source: 'order', engines, files: filesEnv() })
   }
+  // ยืนยันสลิปอัตโนมัติ: ค่าจาก config/slipQr.autoConfirm + รหัสร้านค้าจาก config/shop (ว่าง = ยังไม่ผ่านข้อรหัสร้านค้า)
+  const autoConfirmCfgOf = async () => {
+    const sq = (await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()).data?.data?.v
+    const sh = (await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'shop').maybeSingle()).data?.data?.v
+    return { auto: autoConfirmOf(sq), merchantCode: String(sh?.merchantCode ?? '').replace(/\D/g, '') }
+  }
   const action = String(b.action || '')
   if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
 
@@ -199,6 +206,7 @@ Deno.serve(async (req) => {
     const order = { id: row.id, code: row.code, ...d }
     let newStatus = row.status
     let extraBell: { event: string; x: any } | null = null
+    let autoBell: { code: string; amount: string } | null = null
     let slipNotice: SlipNotice | null = null
     let result: Record<string, unknown> = { ok: true }
     let newSlipPath = ''
@@ -251,6 +259,11 @@ Deno.serve(async (req) => {
       }
       const ocrFields = { ...(fields?.amount != null ? { ocrAmount: fields.amount } : {}), ...(fields?.paidAt ? { ocrPaidAt: fields.paidAt } : {}), ...(fields?.receiverAccount ? { ocrReceiverAccount: fields.receiverAccount } : {}) }
       const txnFields = { ...ocrFields, paidAt, bankCode: bankCode || null, bankName: bankCode ? (bankByCode(bankCode)?.name ?? null) : null, ref: ref || '', refSource: qr.kind === 'slip' ? 'qr' : (ref ? 'typed' : '') }
+      // ยืนยันสลิปอัตโนมัติ (ครบ 4 ข้อจากภาพสลิปเทียบกับออร์เดอร์ + นัดรับห่างพอ + เปิดไว้) · ตัดสินตรงนี้ ใช้ผลตอนบันทึก
+      const acCfg = await autoConfirmCfgOf()
+      const autoDecision = autoConfirmDecision({ enabled: acCfg.auto.enabled, days: acCfg.auto.days, fields, order: { code: row.code, createdAt: d.createdAt, pickupAt: d.pickupAt }, configuredMerchantCode: acCfg.merchantCode, balance: t.balance, nowMs: Date.now() })
+      let autoDone = false
+      let autoCancelled: any[] = []
       const note = String(b.note ?? '').trim().slice(0, PAY.noteMax)
       const pid = b.paymentId ? String(b.paymentId) : ''
       let target: any = null
@@ -272,11 +285,26 @@ Deno.serve(async (req) => {
         target = { id: `pay${Date.now().toString(36)}${randHex(3)}`, code, requested: amt, amount: amt, method: 'โอนเงิน', slip: slipRef, note, dueAt: '', extension: null, status: 'reported', source: 'customer', customerSubmitted: true, submittedAt: nowIso(), createdAt: nowIso(), reportedBy: 'customer', confirmedBy: null, ...txnFields }
         d.payments.push(target)
       }
-      logTo(d, `ลูกค้าแจ้งชำระ ${amt.toFixed(2)} ผ่านหน้าออร์เดอร์ (รอตรวจสลิป)`)
-      if (row.status === 'awaiting_payment') newStatus = 'payment_reported'
-      extraBell = { event: 'team_customer_paid', x: { amount: amt.toFixed(2) } }
-      slipNotice = { orderCode: row.code, orderId: row.id, customerId: row.customer_id, amount: amt }
-      result = { ok: true, paymentId: target.id }
+      // ยืนยันอัตโนมัติ: ยืนยันงวดนี้ + ยกเลิกยอดที่ร้านแจ้งเดิมที่ยังรออยู่ของออร์เดอร์
+      if (autoDecision.ok) {
+        const conf = confirmSlipPayment(d.payments, target.id, nowIso())
+        d.payments = conf.payments
+        autoCancelled = conf.cancelled
+        autoDone = true
+      }
+      logTo(d, autoDone ? `ลูกค้าแจ้งชำระ ${amt.toFixed(2)} ผ่านหน้าออร์เดอร์ (ระบบยืนยันอัตโนมัติ)` : `ลูกค้าแจ้งชำระ ${amt.toFixed(2)} ผ่านหน้าออร์เดอร์ (รอตรวจสลิป)`)
+      if (autoDone) {
+        d.history = [...(d.history || []), { at: nowIso(), text: `ยืนยันชำระอัตโนมัติ (ครบ 4 ข้อ · นัดรับห่าง ${autoDecision.daysLeft} วัน · ยังไม่ได้ตรวจกับธนาคาร)`, by: 'auto' }]
+        if (autoCancelled.length) d.history = [...d.history, { at: nowIso(), text: `ยกเลิกยอดที่แจ้งเดิม ${autoCancelled.length} รายการ (${autoCancelled.map((p: any) => (Number(p.amount) || 0).toFixed(2)).join(', ')}) เพราะยืนยันชำระอัตโนมัติแล้ว`, by: 'auto' }]
+        newStatus = ['awaiting_payment', 'payment_reported'].includes(row.status) ? 'payment_confirmed' : row.status
+        autoBell = { code: row.code, amount: amt.toFixed(2) }
+      } else {
+        if (row.status === 'awaiting_payment') newStatus = 'payment_reported'
+        extraBell = { event: 'team_customer_paid', x: { amount: amt.toFixed(2) } }
+      }
+      // ยืนยันอัตโนมัติ → ไม่ส่ง "ได้รับสลิป" (ข้อความยืนยันชำระจะส่งจากรอบ scheduled)
+      slipNotice = autoDone ? null : { orderCode: row.code, orderId: row.id, customerId: row.customer_id, amount: amt }
+      result = { ok: true, paymentId: target.id, ...(autoDone ? { autoConfirmed: true } : {}) }
     } else if (action === 'extend') {
       const p = d.payments.find((x: any) => x.id === String(b.paymentId ?? ''))
       if (!p || p.source === 'customer') return json({ error: 'ไม่พบยอดที่ร้านแจ้ง' }, 400)
@@ -316,6 +344,7 @@ Deno.serve(async (req) => {
     if (reqRow) await sb.from('punpang_records').insert(reqRow)
     if (cancelReq) await sb.from('punpang_records').update({ data: { ...cancelReq.data, status: 'cancelled', decidedAt: nowIso(), decidedBy: 'customer' } }).eq('collection', 'photoRequests').eq('id', cancelReq.id)
     if (extraBell) await bell(extraBell.event, { id: row.id, code: row.code }, extraBell.x)
+    if (autoBell) await sb.from('punpang_records').insert({ collection: 'bell', id: `bl${randHex(6)}`, data: { audience: 'staff', event: 'team_customer_paid', title: 'ยืนยันชำระอัตโนมัติแล้ว', text: `${autoBell.code} · ยอด ${autoBell.amount} (อ่านจากภาพ ยังไม่ได้ตรวจกับธนาคาร)`, orderId: row.id, readBy: [], at: new Date().toISOString() } })
     if (slipNotice) {
       // ไม่รอผลส่ง: ให้ลูกค้าได้รับคำตอบเร็ว · ถ้าเปิดได้ (EdgeRuntime.waitUntil) ให้งานทำต่อหลังตอบกลับ
       const job = notifySlipFacebook(sb, slipNotice).catch((e) => console.error('slip-notify', String((e as Error)?.message || e)))

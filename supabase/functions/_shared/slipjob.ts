@@ -1,9 +1,10 @@
 // งานตรวจสลิปจากรูปในแชท (Edge Function): อ่าน QR → จำแนก → จับคู่กับออร์เดอร์ที่คุยกันล่าสุด → บันทึกเป็นยอดรอตรวจ + แจ้งกระดิ่ง
-// ไม่ยืนยันยอดเอง (QR สลิปไม่มียอดเงินและยืนยันกับธนาคารไม่ได้จากที่นี่) · พนักงานตรวจยอดแล้วยืนยันในหน้าชำระเงินเสมอ
+// ไม่ยืนยันยอดเอง (QR สลิปไม่มียอดเงินและยืนยันกับธนาคารไม่ได้จากที่นี่) · พนักงานตรวจยอดแล้วยืนยันในหน้าชำระเงินเสมอ (ยกเว้นยืนยันสลิปอัตโนมัติที่เปิดไว้และครบเงื่อนไข)
 // เขียนออร์เดอร์แบบเทียบ updated_at (CAS) และเก็บไฟล์ส่วนตัวใน R2 ผ่าน Worker เหมือน customer-order
 // กติกาเลขอ้างอิง/ธนาคาร/วัน-เวลาชำระ ใช้ชุดเดียวกับหน้าชำระเงินของลูกค้า (payfields.ts)
-import { buildSlipPayment, classifyThaiQr, latestOrderId, orderTotals, planAttach, slipKeyOf } from './slip.ts'
+import { autoConfirmOf, buildSlipPayment, classifyThaiQr, daysUntilPickup, latestOrderId, orderTotals, planAttach, slipKeyOf } from './slip.ts'
 import { slipChecksOf } from './schedlib/slipChecks.js'
+import { confirmSlipPayment } from './slipautoconfirm.ts'
 import { readQrTexts } from './qrimage.ts'
 import { bankByCode, normalizeRef, paidAtFromMessage, refTaken } from './payfields.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine, type SlipFields } from './slipocr.ts'
@@ -51,12 +52,12 @@ export type SlipMode = 'auto' | 'manual'
 // ตั้งค่าจาก punpang_kv (config / slipQr): v.enabled = false ปิด · v.mode = 'manual' โหมดแมนนวล · ไม่มีแถวหรือค่าอื่น = เปิดแบบอัตโนมัติ
 // ค่า ocr แยกเป็น 2 สวิตช์: wai (Workers AI) · claude (ระบบเดิม) · ค่าเดิม ocr.enabled = claude (ถ้ายังไม่มี claude)
 // ลำดับการลอง: Workers AI → Claude เฉพาะตัวที่เปิดและตั้งค่าไว้ · model ไม่ระบุ = OCR_DEFAULT_MODEL
-async function slipConfig(sb: any): Promise<{ enabled: boolean; mode: SlipMode; ocr: { wai: boolean; claude: boolean; model: string }; merchantCode: string }> {
+async function slipConfig(sb: any): Promise<{ enabled: boolean; mode: SlipMode; ocr: { wai: boolean; claude: boolean; model: string }; merchantCode: string; autoConfirm: { enabled: boolean; days: number } }> {
   const r = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()
   const v = r?.data?.data?.v
   // รหัสร้านค้า (ตั้งในหน้าตั้งค่าร้าน เก็บที่ config/shop) · ว่าง = ไม่ตรวจรหัสร้านค้า
   const sh = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'shop').maybeSingle()
-  return { enabled: v?.enabled !== false, mode: v?.mode === 'manual' ? 'manual' : 'auto', ocr: ocrFlagsOf(v?.ocr), merchantCode: digitsOf(sh?.data?.data?.v?.merchantCode) }
+  return { enabled: v?.enabled !== false, mode: v?.mode === 'manual' ? 'manual' : 'auto', ocr: ocrFlagsOf(v?.ocr), merchantCode: digitsOf(sh?.data?.data?.v?.merchantCode), autoConfirm: autoConfirmOf(v) }
 }
 
 // จับคู่ออร์เดอร์จากรหัสอ้างอิงร้านค้าบนสลิป (แปลงจากเลขเดิม ไม่เก็บเพิ่ม) · ไม่พบ = null
@@ -160,12 +161,12 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   // อ่านผ่าน readSlipOnce: ใช้ผลที่เคยได้ตามเลขอ้างอิงก่อน (ไม่เรียกโมเดลซ้ำ) · ผลที่ตอบแล้วจำไว้ · อ่านไม่ครบเก็บรูปไว้ชุดเทรน
   const fields = await readSlipOnce(sb, { key, bytes, bankCode, source: 'chat', engines, files })
 
-  // จับคู่ออร์เดอร์: รหัสอ้างอิงร้านค้าบนสลิป (แปลงจากเลขเดิม) ก่อน · ไม่พบ → ออร์เดอร์ที่คุยล่าสุดในแชท
+  // ผูกอัตโนมัติได้เฉพาะเมื่อรหัสอ้างอิงร้านค้าบนสลิปตรงกับรหัสออร์เดอร์ (แปลงจากเลขเดิม) · ออร์เดอร์ที่คุยล่าสุดเป็นตัวแนะนำให้พนักงานเท่านั้น
   const refOrderId = fields?.shopRef ? await orderIdOfShopRef(sb, fields.shopRef) : null
   const orderId = refOrderId ?? chatOrderId
-  // โหมดอัตโนมัติ: ไม่มีออร์เดอร์ให้จับคู่ → แจ้งให้ผูกเอง (โหมดแมนนวลพนักงานเลือกเองในแชทได้)
+  // โหมดอัตโนมัติ: ไม่มีออร์เดอร์ให้จับคู่เลย → แจ้งให้ผูกเอง (โหมดแมนนวลพนักงานเลือกเองในแชทได้)
   if (cfg.mode === 'auto' && !orderId) return finish('no_order')
-  // รหัสร้านค้าในสลิปไม่ตรงกับที่ตั้งไว้ (หรืออ่านไม่ได้) → รับไว้และติดธงให้พนักงานตรวจ
+  // รหัสร้านค้าในสลิปไม่ตรงกับที่ตั้งไว้ (หรืออ่านไม่ได้) → ไม่ผูกอัตโนมัติ ส่งให้พนักงานพร้อมธง
   const flagged = merchantMismatch(cfg.merchantCode, fields?.merchantCode)
   const flagPart = { ...shopPartOf(fields), ...(flagged ? { merchantMismatch: true } : {}) }
   // เครื่องหมายตรวจสลิปกับออร์เดอร์ (ยอด · วัน-เวลาหลังสร้างออร์เดอร์ · รหัสร้านค้า · รหัสอ้างอิง) · บิล POS ยังข้ามไปก่อน
@@ -175,13 +176,14 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     order: orderRow ? { code: orderRow.code, createdAt: orderRow.data?.createdAt } : null,
     balance: orderRow ? orderTotals(orderRow.data).balance : null,
   })
-  // วัน-เวลาชำระไม่ผ่าน → ไม่แนบอัตโนมัติ ส่งให้พนักงานตรวจ
-  const timeFailed = checks.some((c) => c.key === 'paidAt' && c.ok === false)
-  const failedTexts = checks.filter((c) => c.ok === false).map((c) => c.text)
-  const mismatchNote = failedTexts.length ? ` · ✗ ${failedTexts.join(' · ')}` : ''
+  // ผูกอัตโนมัติเมื่อครบ 4 ข้อเป็น ✓ (ยอด · วัน-เวลา · รหัสร้านค้า · รหัสอ้างอิงร้านค้า) และรหัสอ้างอิงตรงกับออร์เดอร์ที่พบ · นอกนั้นส่งให้พนักงาน
+  const autoOk = cfg.mode === 'auto' && refOrderId !== null && checks.every((c) => c.ok === true)
+  // เหตุผลที่ไม่ผ่าน ✗ = ไม่ถูกต้อง · – = อ่านไม่ได้หรือยังไม่มีข้อมูลให้เทียบ → ไปที่กระดิ่งและป้าย
+  const reasons = checks.filter((c) => c.ok !== true).map((c) => `${c.ok === false ? '✗' : '–'} ${c.text}`)
+  const mismatchNote = reasons.length ? ` · ${reasons.join(' · ')}` : ''
 
-  if (cfg.mode === 'manual' || timeFailed) {
-    // โหมดแมนนวล (หรือวัน-เวลาชำระไม่ผ่าน): เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์
+  if (!autoOk) {
+    // ไม่ผูกอัตโนมัติ (โหมดแมนนวล หรือไม่ครบ 4 ข้อ): เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่รหัสอ้างอิงตรง หรือที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์
     let staged: { key: string; ref: string }
     try { staged = await svcUpload(files, bytes, `manual/${chatId}`) } catch { return finish('upload_failed', undefined, orderId ?? undefined) }
     const sug = orderId ? await sb.from('punpang_orders').select('id,code').eq('id', orderId).maybeSingle() : null
@@ -233,17 +235,32 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
       paymentId = `pay${now.getTime().toString(36)}${rand(3)}`
     }
 
-    const payment = buildSlipPayment({
+    // ยืนยันอัตโนมัติ: เปิดไว้ และวันนัดรับห่างจากวันนี้อย่างน้อยตามจำนวนวันที่ตั้ง (นัดน้อยกว่า → รอพนักงานยืนยัน)
+    const daysLeft = daysUntilPickup(d.pickupAt, now.getTime())
+    const autoConfirm = cfg.autoConfirm.enabled && daysLeft !== null && daysLeft >= cfg.autoConfirm.days
+    const nowIso = now.toISOString()
+    const built = buildSlipPayment({
       id: paymentId, code, amount: fields?.amount ?? plan.amount, slipRef: stagedRef, slipKey: key,
-      paidAt: fields?.paidAt ?? paidAtFromMessage(msgAt, d.createdAt, now.getTime()), nowIso: now.toISOString(),
+      paidAt: fields?.paidAt ?? paidAtFromMessage(msgAt, d.createdAt, now.getTime()), nowIso,
       bankCode, bankName, ref, shopRef: fields?.shopRef, merchantMismatch: flagged,
     })
+    // ยืนยันอัตโนมัติ: งวดนี้ยืนยันทันที และยกเลิกยอดที่ร้านแจ้งไว้เดิมซึ่งยังรออยู่ของออร์เดอร์นี้ (ยอดที่ลูกค้าแจ้งเองไม่ถึงขั้นนี้ เพราะกันด้วย pending_exists)
+    const conf = autoConfirm ? confirmSlipPayment([...payments, built], built.id, nowIso) : { payments: [...payments, built], cancelled: [] as any[] }
+    const cancelledReqs = conf.cancelled
     const next = {
       ...d,
-      payments: [...payments, payment],
-      history: [...(Array.isArray(d.history) ? d.history : []), { at: now.toISOString(), text: 'ลูกค้าส่งสลิปในแชท (QR) · ระบบจับคู่กับออร์เดอร์นี้อัตโนมัติ (รอตรวจยอด)', by: 'customer' }],
+      payments: conf.payments,
+      history: [
+        ...(Array.isArray(d.history) ? d.history : []),
+        { at: nowIso, text: autoConfirm ? 'ลูกค้าส่งสลิปในแชท (QR) · ระบบจับคู่กับออร์เดอร์นี้อัตโนมัติ' : 'ลูกค้าส่งสลิปในแชท (QR) · ระบบจับคู่กับออร์เดอร์นี้อัตโนมัติ (รอตรวจยอด)', by: 'customer' },
+        ...(autoConfirm ? [{ at: nowIso, text: `ยืนยันชำระอัตโนมัติ (ครบ 4 ข้อ · นัดรับห่าง ${daysLeft} วัน · ยังไม่ได้ตรวจกับธนาคาร)`, by: 'auto' }] : []),
+        ...(cancelledReqs.length ? [{ at: nowIso, text: `ยกเลิกยอดที่แจ้งเดิม ${cancelledReqs.length} รายการ (${cancelledReqs.map((p: any) => (Number(p.amount) || 0).toFixed(2)).join(', ')}) เพราะยืนยันชำระอัตโนมัติแล้ว`, by: 'auto' }] : []),
+      ],
     }
-    const status = row.status === 'awaiting_payment' ? 'payment_reported' : row.status
+    // ยืนยันแล้ว → ออร์เดอร์เป็นยืนยันชำระ (เหมือนพนักงานยืนยันจากหน้าชำระเงิน) · ไม่ยืนยัน → สถานะเดิม
+    const status = autoConfirm
+      ? (['awaiting_payment', 'payment_reported'].includes(row.status) ? 'payment_confirmed' : row.status)
+      : (row.status === 'awaiting_payment' ? 'payment_reported' : row.status)
     const up = await sb.from('punpang_orders').update({ data: next, status }).eq('id', row.id).eq('updated_at', row.updated_at).select('id')
     if (up?.error) {
       await discardStaged()
@@ -254,8 +271,11 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     if ((up?.data || []).length) {
       const shownAmount = fields?.amount ?? plan.amount
       const how = fields?.amount != null ? 'ยอดอ่านจากภาพสลิป ยังไม่ได้ตรวจกับธนาคาร' : 'สลิป QR ยังไม่ได้ตรวจยอด'
-      await bell(sb, { event: 'team_customer_paid', title: 'ลูกค้าแจ้งโอน', text: `${row.code} · ยอด ${shownAmount.toFixed(2)} (${how})${mismatchNote}`, orderId: row.id, chatId }, rand)
-      await annotate(sb, chatId, msgId, { status: 'matched', orderCode: row.code, paymentId, at: now.toISOString(), ...flagPart, checks })
+      const bellText = autoConfirm
+        ? `${row.code} · ยอด ${shownAmount.toFixed(2)} (ยืนยันอัตโนมัติแล้ว · ยังไม่ได้ตรวจกับธนาคาร · นัดรับห่าง ${daysLeft} วัน${cancelledReqs.length ? ` · ยกเลิกยอดที่แจ้งเดิม ${cancelledReqs.length} รายการ` : ''})${mismatchNote}`
+        : `${row.code} · ยอด ${shownAmount.toFixed(2)} (${how})${mismatchNote}`
+      await bell(sb, { event: 'team_customer_paid', title: autoConfirm ? 'ยืนยันชำระอัตโนมัติแล้ว' : 'ลูกค้าแจ้งโอน', text: bellText, orderId: row.id, chatId }, rand)
+      await annotate(sb, chatId, msgId, { status: 'matched', ...(autoConfirm ? { autoConfirmed: true } : {}), orderCode: row.code, paymentId, at: nowIso, ...flagPart, checks })
       return 'matched'
     }
     // เขียนชน (พนักงานแก้ออร์เดอร์พร้อมกัน) → อ่านใหม่แล้วทำซ้ำ
