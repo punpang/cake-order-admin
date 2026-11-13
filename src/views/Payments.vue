@@ -3,7 +3,8 @@ import { computed, ref } from 'vue'
 import { db, can, orderVisible, findCustomer, cancelPaymentRequest, denyPayExtension } from '../data/store'
 import { paymentQueue, paymentCounts, PAY_TABS } from '../lib/paymentsQueue'
 import { orderTotals } from '../lib/pricing'
-import { askConfirm } from '../lib/confirm'
+import { askConfirm, askConfirmEx } from '../lib/confirm'
+import { notifyBoxOf, notifyOf } from '../lib/notifyBox'
 import { money, dateTime, dayLabel, formatPhone } from '../lib/format'
 import PayDueBadge from '../components/PayDueBadge.vue'
 import StatusBadge from '../components/StatusBadge.vue'
@@ -40,10 +41,12 @@ const ext = ref(null) // { order, payment }
 const refund = ref(null)
 const openPay = (order, mode, target = null) => { pay.value = { order, mode, target } }
 async function doCancelRequest(o, p) {
-  if (await askConfirm({ title: 'ยกเลิกยอดที่แจ้ง', message: money(p.requested ?? p.amount), okText: 'ยกเลิกยอด', danger: true })) cancelPaymentRequest(o, p.id)
+  const r = await askConfirmEx({ title: 'ยกเลิกยอดที่แจ้ง', message: money(p.requested ?? p.amount), okText: 'ยกเลิกยอด', danger: true, ...notifyBoxOf(findCustomer(o.customerId)) })
+  if (r.ok) cancelPaymentRequest(o, p.id, notifyOf(r))
 }
 async function doDenyExt(o, p) {
-  if (await askConfirm({ title: 'ไม่อนุมัติขยายเวลา', message: 'ลูกค้าจะยังชำระเองไม่ได้', okText: 'ไม่อนุมัติ', danger: true })) denyPayExtension(o, p.id)
+  const r = await askConfirmEx({ title: 'ไม่อนุมัติขยายเวลา', message: 'ลูกค้าจะยังชำระเองไม่ได้', okText: 'ไม่อนุมัติ', danger: true, ...notifyBoxOf(findCustomer(o.customerId)) })
+  if (r.ok) denyPayExtension(o, p.id, notifyOf(r))
 }
 const reported = (o) => o.payments.map((p, i) => ({ p, n: i + 1 })).filter((x) => x.p.status === 'reported')
 const customerOf = (o) => findCustomer(o.customerId)

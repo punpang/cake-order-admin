@@ -310,6 +310,8 @@ export const db = reactive({
     linkPolicy: { ...DEFAULT_LINK_POLICY }, linkAllowlist: ['lin.ee', 'line.me', 'facebook.com', 'fb.me', 'maps.app.goo.gl', 'maps.google.com'] },
   // เตือนวันเกิด: key ที่กด "ทักแล้ว" (ลูกค้า|ชื่อ|MM-DD|ปี)
   birthdayGreeted: [],
+  // เซิร์ฟเวอร์ส่งเตือนลูกค้า/ทีมตามเวลาแทนแอปเมื่อ server = true (punpang_kv: config/scheduled) · ค่าเริ่มต้นแอปยังทำเอง
+  scheduled: { server: false },
 
   // ---------- คะแนนสะสม / แลกของ / กาชา ----------
   // earnPer = ทุกกี่บาทได้ 1 คะแนน, pointValue = 1 คะแนนลดได้กี่บาท, spinCost = คะแนนต่อการหมุน 1 ครั้ง, spinPer = ทุกกี่บาทได้สิทธิ์หมุน 1 ครั้ง
@@ -1078,6 +1080,8 @@ export function setStatus(order, status, text, opts = {}) {
   if (status === 'delivered') notifyOrder('delivered', order, { skip, noSms })
   if (status === 'prepared') notifyOrder('prepared', order, { skip, noSms })
   if (status === 'shipping') notifyOrder('shipping', order, { skip, noSms })
+  if (status === 'preparing') notifyOrder('preparing', order, { skip, noSms })
+  if (status === 'ready_to_ship') notifyOrder('ready_to_ship', order, { skip, noSms })
   if (status === 'cancelled') notifyOrder('cancelled', order, { skip, noSms })
   // ร่าง → ส่งไปรอชำระ = เริ่มเป็นออร์เดอร์จริง
   if (prev === 'draft' && status === 'awaiting_payment') notifyOrder('order_created', order, { skip, noSms })
@@ -1116,6 +1120,7 @@ const dueText = (iso) => (iso ? `${dateOnly(iso)} ${timeOnly(iso)} น.` : '')
 
 const payFields = (p) => ({ method: p.method, paidAt: p.paidAt, slip: p.slip || '', note: p.note || '' })
 
+// opts = { notify, sms } จากกล่องติ๊ก "แจ้งลูกค้า" (ไม่ส่ง = false) · ทุกการเปลี่ยนแปลงแจ้งลูกค้าตามช่องทางที่มี
 export function updatePaymentRequest(order, paymentId, p) {
   const pay = order.payments.find((x) => x.id === paymentId)
   if (!pay || pay.status !== 'reported') return
@@ -1123,18 +1128,20 @@ export function updatePaymentRequest(order, paymentId, p) {
   Object.assign(pay, { requested: Number(p.amount), amount: Number(p.amount), ...payFields(p) })
   if (p.dueAt) pay.dueAt = p.dueAt
   log(order, `แก้ยอดที่แจ้งเป็น ${money(Number(p.amount))}`)
+  notifyOrder('payment_request_changed', order, { skip: p.notify === false, noSms: p.sms === false, requested: pay.requested, dueAt: pay.dueAt })
 }
 
-export function cancelPaymentRequest(order, paymentId) {
+export function cancelPaymentRequest(order, paymentId, opts = {}) {
   const pay = order.payments.find((x) => x.id === paymentId)
   if (!pay || pay.status !== 'reported') return
   pay.status = 'cancelled'
   log(order, `ยกเลิกยอดที่แจ้ง ${money(pay.requested)}`)
   if (order.status === 'payment_reported' && !order.payments.some((x) => x.status === 'reported')) order.status = 'awaiting_payment'
+  notifyOrder('payment_request_cancelled', order, { skip: opts.notify === false, noSms: opts.sms === false, requested: pay.requested })
 }
 
 // ยกเลิกยอดที่ยืนยันแล้ว (แอดมิน) · ไม่เหลือยอดที่ยืนยัน → ถอยสถานะเป็น แจ้งยอดแล้ว (ถ้ามีงวดที่แจ้งค้าง) หรือ รอชำระ
-export function cancelConfirmedPayment(order, paymentId) {
+export function cancelConfirmedPayment(order, paymentId, opts = {}) {
   const p = order.payments.find((x) => x.id === paymentId)
   if (!p || p.status !== 'confirmed' || ['delivered', 'cancelled'].includes(order.status)) return
   if (orderTotals(order).paidNet - p.amount < -0.004) return { error: 'ยกเลิกยอดนี้ไม่ได้ เพราะคืนเงินบางส่วนไปแล้ว' }
@@ -1143,6 +1150,7 @@ export function cancelConfirmedPayment(order, paymentId) {
   if (!order.payments.some((x) => x.status === 'confirmed') && ['payment_confirmed', 'preparing', 'prepared', 'ready_to_ship', 'shipping'].includes(order.status)) {
     order.status = order.payments.some((x) => x.status === 'reported') ? 'payment_reported' : 'awaiting_payment'
   }
+  notifyOrder('payment_cancelled', order, { skip: opts.notify === false, noSms: opts.sms === false, paid: p.amount })
 }
 
 // data = ยอดที่ได้รับจริง + รายละเอียด (ไม่ส่ง = ใช้ตามที่แจ้ง)
@@ -1217,20 +1225,22 @@ export function requestPayExtension(order, paymentId, note = '') {
   notify('team_pay_extend_request', { vars: { ...orderVars(order), ชำระก่อน: dueText(p.dueAt) }, orderId: order.id })
   return true
 }
-export function grantPayExtension(order, paymentId, dueAt) {
+export function grantPayExtension(order, paymentId, dueAt, opts = {}) {
   const p = order.payments.find((x) => x.id === paymentId)
   if (!can('reportPayment') || !p || p.status !== 'reported' || !dueAt || Number.isNaN(new Date(dueAt).getTime())) return false
   const old = p.dueAt
   p.dueAt = dueAt
   p.extension = { ...(p.extension || {}), status: 'granted', decidedBy: session.role, decidedAt: now() }
   log(order, `ขยายเวลาชำระเป็น ${dueText(dueAt)}${old ? ` (เดิม ${dueText(old)})` : ''}`)
+  notifyOrder('pay_extension_granted', order, { skip: opts.notify === false, noSms: opts.sms === false, dueAt })
   return true
 }
-export function denyPayExtension(order, paymentId) {
+export function denyPayExtension(order, paymentId, opts = {}) {
   const p = order.payments.find((x) => x.id === paymentId)
   if (!can('reportPayment') || !p || p.extension?.status !== 'pending') return false
   p.extension = { ...p.extension, status: 'denied', decidedBy: session.role, decidedAt: now() }
   log(order, 'ไม่อนุมัติขยายเวลาชำระ')
+  notifyOrder('pay_extension_denied', order, { skip: opts.notify === false, noSms: opts.sms === false, dueAt: p.dueAt })
   return true
 }
 
@@ -1291,28 +1301,31 @@ function repriceAll(order) {
   order.shipPromo = w.shipPromo
 }
 
-export function saveOrderItem(order, item) {
+export function saveOrderItem(order, item, opts = {}) {
   const i = order.items.findIndex((x) => x.id === item.id)
   if (i >= 0) order.items[i] = item
   else order.items.push(item)
   repriceAll(order)
   log(order, `${i >= 0 ? 'แก้ไข' : 'เพิ่ม'}สินค้า: ${item.name} × ${item.qty}`)
+  notifyOrder('items_changed', order, { skip: opts.notify === false, noSms: opts.sms === false })
 }
 
-export function removeOrderItem(order, itemId) {
+export function removeOrderItem(order, itemId, opts = {}) {
   const it = order.items.find((x) => x.id === itemId)
   if (!it || it.promoGift || order.items.filter((x) => !x.promoGift).length <= 1) return false
   order.items = order.items.filter((x) => x.id !== itemId)
   repriceAll(order)
   log(order, `ลบสินค้า: ${it.name}`)
+  notifyOrder('items_changed', order, { skip: opts.notify === false, noSms: opts.sms === false })
   return true
 }
 
-export function setAdjustment(order, amount, reason) {
+export function setAdjustment(order, amount, reason, opts = {}) {
   // ส่วนลดจากการปรับราคา (ติดลบ) ต้องไม่เกินยอดสินค้า
   const a = Math.max(Number.isFinite(Number(amount)) ? Number(amount) : 0, -orderTotals(order).subtotal)
   order.adjustment = { amount: a, reason }
   log(order, `ปรับราคา ${money(a)} (${reason})`)
+  notifyOrder('adjustment_changed', order, { skip: opts.notify === false, noSms: opts.sms === false })
 }
 
 // ยกเลิกออร์เดอร์ + คืนเงิน: c = { reason, refunds: [{ method: cash | transfer | points, amount }], refundNote }
@@ -1719,22 +1732,33 @@ const PTS_MSG = {
   no_order: 'ไม่พบออร์เดอร์บนเซิร์ฟเวอร์ (ยังไม่ซิงก์)', no_customer: 'ไม่พบลูกค้า', invalid: 'ข้อมูลไม่ถูกต้อง', none: 'ออร์เดอร์นี้ไม่ได้ใช้คะแนน',
   forbidden: 'ไม่มีสิทธิ์ทำรายการนี้',
 }
-export async function applyPointsRemote(order, points) {
+// opts = { notify, sms } จากกล่องติ๊กในโมดัลยืนยัน · แจ้งลูกค้าหลังทำรายการสำเร็จเท่านั้น
+// ยอดคงค้างในข้อความคิดส่วนลดคะแนนแล้ว (ส่งสถานะที่คาดหลังทำรายการ ไม่รอการซิงก์)
+export async function applyPointsRemote(order, points, opts = {}) {
   const n = Math.floor(Number(points))
   if (!(n > 0)) return { error: 'จำนวนคะแนนไม่ถูกต้อง' }
-  if (!pointsHook.call) return applyPoints(order, n) ? { ok: true } : { error: 'ใช้คะแนนไม่ได้' }
-  if (!can('useLoyalty')) return { error: 'ไม่มีสิทธิ์ใช้คะแนน' }
-  if (n * db.loyalty.pointValue > orderTotals(order).total + 0.004) return { error: 'ส่วนลดจากคะแนนต้องไม่เกินยอดที่ต้องชำระ' } // เพดานตรวจที่แอป (เซิร์ฟเวอร์ตรวจยอดคะแนน/สถานะ)
-  const r = await pointsHook.call('punpang_apply_points', { p_order: order.id, p_points: n }, { order: order.id, customer: order.customerId })
-  if (r.error) return { error: PTS_MSG[r.error] || r.error }
+  if (!pointsHook.call) {
+    if (!applyPoints(order, n)) return { error: 'ใช้คะแนนไม่ได้' }
+  } else {
+    if (!can('useLoyalty')) return { error: 'ไม่มีสิทธิ์ใช้คะแนน' }
+    if (n * db.loyalty.pointValue > orderTotals(order).total + 0.004) return { error: 'ส่วนลดจากคะแนนต้องไม่เกินยอดที่ต้องชำระ' } // เพดานตรวจที่แอป (เซิร์ฟเวอร์ตรวจยอดคะแนน/สถานะ)
+    const r = await pointsHook.call('punpang_apply_points', { p_order: order.id, p_points: n }, { order: order.id, customer: order.customerId })
+    if (r.error) return { error: PTS_MSG[r.error] || r.error }
+  }
+  const amount = round2(n * db.loyalty.pointValue)
+  notifyOrder('points_applied', { ...order, pointsUsed: { points: n, amount } }, { skip: opts.notify === false, noSms: opts.sms === false, points: n, pointsAmount: amount })
   return { ok: true }
 }
-export async function removePointsRemote(order) {
+export async function removePointsRemote(order, opts = {}) {
   if (!order.pointsUsed) return { error: PTS_MSG.none }
-  if (!pointsHook.call) { removePoints(order); return { ok: true } }
-  if (!can('useLoyalty')) return { error: 'ไม่มีสิทธิ์ใช้คะแนน' }
-  const r = await pointsHook.call('punpang_remove_points', { p_order: order.id }, { order: order.id, customer: order.customerId })
-  if (r.error) return { error: PTS_MSG[r.error] || r.error }
+  const { points: n, amount } = order.pointsUsed
+  if (!pointsHook.call) removePoints(order)
+  else {
+    if (!can('useLoyalty')) return { error: 'ไม่มีสิทธิ์ใช้คะแนน' }
+    const r = await pointsHook.call('punpang_remove_points', { p_order: order.id }, { order: order.id, customer: order.customerId })
+    if (r.error) return { error: PTS_MSG[r.error] || r.error }
+  }
+  notifyOrder('points_removed', { ...order, pointsUsed: null }, { skip: opts.notify === false, noSms: opts.sms === false, points: n, pointsAmount: amount })
   return { ok: true }
 }
 
@@ -2428,7 +2452,8 @@ function orderVars(order, extra = {}) {
     เวลาปิดร้าน: db.shop.close || '',
     ข้อความขอใช้ภาพ: hasWorkPhotos(order) && photoStatusOf(order) === 'ok' ? 'ขออนุญาตนำภาพสินค้าของออร์เดอร์นี้ไปใช้เผยแพร่ หากไม่ยินยอมสามารถแจ้งได้เลยค่ะ (กดปุ่ม "ดูออร์เดอร์" แล้วเลือก "ไม่อนุญาตให้ใช้รูปเผยแพร่" หรือพิมพ์แจ้งในแชทนี้)' : '',
     ชื่อวันเกิด: order.birthday?.name || c?.name || '',
-    คะแนน: '',
+    คะแนน: extra.points != null ? String(extra.points) : '',
+    ส่วนลดคะแนน: extra.pointsAmount != null ? money(extra.pointsAmount) : '',
     ลิงก์ออร์เดอร์: '',
     // รายละเอียดครบชุดสำหรับสรุป (ว่างได้ · บรรทัดที่ว่างถูกตัดทิ้งตอนส่ง)
     เบอร์ลูกค้า: formatPhone(c?.phone || ''),
@@ -2454,17 +2479,23 @@ function pushOut(event, channel, to, text, orderId = null, customer = null, opts
     row.status = 'failed'; row.error = 'ลูกค้ายังไม่มีแชท Facebook ที่ผูกไว้'
     emitStaffBell('notify_failed', { text: `${customer.name || 'ลูกค้า'}: ยังไม่มีแชท Facebook ที่ผูกไว้ แจ้งทางอื่นเอง` })
   }
-  if (channel === 'sms' && customer?.phone) deliverSms(db.outbox[0], customer.phone, text, 'notify')
+  if (channel === 'sms' && customer?.phone) deliverSms(db.outbox[0], customer.phone, text, 'notify', customer.name)
   if (channel === 'telegram') deliverTg(db.outbox[0], text, 'notify', opts.parseMode || '')
 }
 // ส่ง SMS จริงผ่านเกตเวย์ (ตั้งโดยชั้นเชื่อม Supabase) · ไม่มีตัวส่ง = คงสถานะจำลองไว้
 export const smsHook = { send: null }
-function deliverSms(row, number, text, kind) {
+function deliverSms(row, number, text, kind, who = '') {
   if (!smsHook.send) return
   row.status = 'sending'
   // คีย์กันส่งซ้ำ: ผูกกับแถวคิวเดิม ลองใหม่กี่ครั้งก็ใช้คีย์เดิม (เกตเวย์ไม่สร้างงานซ้ำ)
   row.idem ??= 'ob' + (globalThis.crypto?.randomUUID?.().replace(/-/g, '') || `${Date.now()}${Math.random().toString(36).slice(2)}`)
-  smsHook.send(number, text, kind, row.idem).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
+  // ส่งไม่สำเร็จ → เตือนพนักงานให้ตามเอง (เหมือนช่อง Facebook)
+  const failed = (err = '') => {
+    row.status = 'failed'
+    row.error = err
+    emitStaffBell('notify_failed', { text: `${who || 'ลูกค้า'}: ส่ง SMS ไม่สำเร็จ${err ? ` (${err})` : ''}` })
+  }
+  smsHook.send(number, text, kind, row.idem).then((r) => { if (r.ok) row.status = 'sent'; else failed(r.error || '') }, () => failed())
 }
 // ส่ง Telegram จริงเข้ากลุ่มทีม (Edge Function telegram-send · token/chat id เป็น secret ฝั่งเซิร์ฟเวอร์) · ไม่มีตัวส่ง = คงสถานะจำลองไว้
 export const tgHook = { send: null }
@@ -2692,12 +2723,14 @@ export const scheduledHooks = []
 export function runScheduledChecks() {
   let n = 0
   const nowMs = Date.now()
+  // server = true → เซิร์ฟเวอร์ (Edge Function scheduled) ส่งเตือนลูกค้าและทีมแล้ว แอปข้ามส่วนนั้น (บัญชีและคูปองยังทำในแอป)
+  const serverRuns = db.scheduled?.server === true
   const once = (key, fn) => {
     if (db.notifySent.includes(key)) return
     db.notifySent.push(key)
     n += fn()
   }
-  for (const o of db.orders) {
+  for (const o of serverRuns ? [] : db.orders) {
     if (['draft', 'delivered', 'cancelled'].includes(o.status)) continue
     const toPickup = new Date(o.pickupAt).getTime() - nowMs
     if (toPickup > 0 && toPickup <= 24 * 3600e3) once(`pickup|${o.id}`, () => { notifyOrder('pickup_reminder', o); return 1 })
@@ -2706,14 +2739,14 @@ export function runScheduledChecks() {
     const toDue = dueAt(o).getTime() - nowMs
     if (toDue <= 2 * 3600e3) once(`due|${o.id}`, () => notify('team_due_soon', { vars: orderVars(o), orderId: o.id }))
   }
-  for (const b of upcomingBirthdays()) {
+  for (const b of serverRuns ? [] : upcomingBirthdays()) {
     const c = findCustomer(b.customerId)
     once(`bd|${b.customerId}|${b.name}|${b.md}|${b.year}`, () => notify('birthday', { customer: c, vars: { ...orderVars(b.order), ชื่อวันเกิด: b.name || c?.name || '' }, orderId: b.order.id }))
   }
   const today = toDateStr(new Date())
   sweepCoupons()
   for (const h of scheduledHooks) n += h(once, today) || 0
-  for (const c of db.customers) {
+  for (const c of serverRuns ? [] : db.customers) {
     const soon = expiringSoon(c.ledger || [], today)
     if (soon?.points > 0) once(`pts|${c.id}|${soon.date}`, () => notify('points_expiring', { customer: c, vars: { ชื่อลูกค้า: c.name, คะแนน: String(soon.points) } }))
   }

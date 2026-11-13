@@ -193,8 +193,8 @@ async function savePay() {
         <button v-for="m in PAYMENT_METHODS" :key="m" type="button" class="chip" :class="pay.method === m ? 'chip-on' : 'chip-off'" @click="pay.method = m">{{ m }}</button>
       </div>
     </div>
-    <div v-if="customer && order.channel !== 'pos' && payMode !== 'edit'" class="space-y-2 rounded-xl border border-stone-200 bg-white p-3">
-      <label class="flex items-center gap-2 text-sm text-stone-700"><input v-model="pay.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> {{ payMode === 'new' ? 'แจ้งยอดชำระให้ลูกค้าทราบ' : 'แจ้งลูกค้าว่าได้รับชำระแล้ว' }}</label>
+    <div v-if="customer && order.channel !== 'pos'" class="space-y-2 rounded-xl border border-stone-200 bg-white p-3">
+      <label class="flex items-center gap-2 text-sm text-stone-700"><input v-model="pay.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> {{ payMode === 'new' ? 'แจ้งยอดชำระให้ลูกค้าทราบ' : payMode === 'edit' ? 'แจ้งลูกค้าว่ายอดที่แจ้งเปลี่ยนแล้ว' : 'แจ้งลูกค้าว่าได้รับชำระแล้ว' }}</label>
       <SmsTick v-model="pay.sms" :customer="customer" :order="order" :show="pay.notify" />
     </div>
     <div v-if="payMode === 'new' || payMode === 'edit'">

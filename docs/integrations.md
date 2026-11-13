@@ -27,7 +27,9 @@
 LINE / Facebook ──webhook──▶ Edge Function: webhook-line / webhook-facebook
                                ▼
                      ตาราง conversations / messages (รับแชท) + ผูก customers
-pg_cron (ทุก 15 นาที) ──▶ Edge Function: scheduled (เตือนนัด 24 ชม., งานใกล้เวลา 2 ชม., วันเกิด, คะแนนใกล้หมด)
+pg_cron (ทุก 15 นาที, migration punpang_scheduled_cron) ──▶ Edge Function: scheduled (เฉพาะเมื่อ config/scheduled.server = true)
+   เตือนลูกค้า: นัด 24 ชม., ชำระตามนัด, วันเกิด, คะแนนใกล้หมด · เตือนทีม: ใกล้เวลาต้องเสร็จ, เกินกำหนดชำระ (Telegram)
+   ยังไม่รวม: แจ้งเตือนบัญชี (VAT/ค่าใช้จ่ายประจำ/ผ่อนชำระ) ยังทำในแอปพนักงาน
 ```
 
 - **token ทั้งหมดอยู่ใน Supabase secrets เท่านั้น** หน้าเว็บไม่เคยเห็น token
