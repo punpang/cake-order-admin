@@ -499,7 +499,7 @@ export const db = reactive({
   orderLinks: [],
   // บอทตอบแชท (ค่าเริ่มต้นปิด): rules = กฎคีย์เวิร์ด · learned = คู่ ถาม→ตอบ ที่เรียนจากพนักงาน (ตัดข้อมูลส่วนบุคคลแล้ว) · stats
   bot: JSON.parse(JSON.stringify(BOT_DEFAULTS)),
-  // สลิปในแชท (config slipQr): enabled = ตรวจรูปสลิปในแชท · mode = auto (ผูกอัตโนมัติเมื่อรหัสอ้างอิงตรงกับออร์เดอร์และครบ 5 ข้อ รวมรหัสสุ่ม Ref 2 ที่ตรงกับรายการแจ้งชำระ) | manual (ร้านเลือกออร์เดอร์ผูกเองในแชท)
+  // สลิปในแชท (config slipQr): enabled = ตรวจรูปสลิปในแชท · mode = auto (ผูกอัตโนมัติเมื่อรหัสอ้างอิงตรงกับออร์เดอร์และครบ 4 ข้อ รวมรหัสสุ่ม Ref 2 ที่ตรงกับรายการแจ้งชำระ) | manual (ร้านเลือกออร์เดอร์ผูกเองในแชท)
   slipQr: { enabled: true, mode: 'auto', ocr: { wai: false, claude: false }, autoConfirm: { enabled: false, days: 3 } }, // ocr = อ่านยอด/วัน-เวลาจากภาพสลิป: wai (Workers AI) → claude (ระบบเดิม) · ปิดเป็นค่าเริ่มต้น · autoConfirm = ยืนยันชำระอัตโนมัติเมื่อครบ 4 ข้อและนัดรับห่างอย่างน้อย days วัน (ปิดเป็นค่าเริ่มต้น)
   // จัดการข้อมูลที่อาจเป็นขยะ (config retention): แต่ละหมวดเปิด/ปิดได้ และกำหนดจำนวนวันที่เก็บ · ค่าเริ่มต้นตรงกับฟังก์ชัน punpang_run_retention
   retention: { slipRead: { enabled: true, days: 180 }, chatMedia: { enabled: true, days: 30 }, aiLog: { enabled: false, days: 90 }, bell: { enabled: false, days: 90 }, orderLinks: { enabled: false, days: 180 } },

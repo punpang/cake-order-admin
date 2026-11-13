@@ -185,14 +185,14 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     balance: orderRow ? orderTotals(orderRow.data).balance : null,
     request: reqOfSlip,
   })
-  // ผูกอัตโนมัติเมื่อครบ 5 ข้อเป็น ✓ (ยอด · วัน-เวลา · รหัสร้านค้า · รหัสอ้างอิงร้านค้า (Ref 1) · รหัสสุ่ม (Ref 2) ตรงกับรายการแจ้งชำระ) และรหัสอ้างอิงตรงกับออร์เดอร์ที่พบ · นอกนั้นส่งให้พนักงาน
-  const autoOk = cfg.mode === 'auto' && refOrderId !== null && !sameRefDup && checks.every((c) => c.ok === true)
+  // ผูกอัตโนมัติเมื่อครบ 4 ข้อเป็น ✓ (ยอด · วัน-เวลา · รหัสอ้างอิงร้านค้า (Ref 1) · รหัสสุ่ม (Ref 2) ตรงกับรายการแจ้งชำระ) และรหัสอ้างอิงตรงกับออร์เดอร์ที่พบ · รหัสร้านค้าแสดงให้พนักงานดูเท่านั้น · นอกนั้นส่งให้พนักงาน
+  const autoOk = cfg.mode === 'auto' && refOrderId !== null && !sameRefDup && checks.filter((c) => !c.info).every((c) => c.ok === true)
   // เหตุผลที่ไม่ผ่าน ✗ = ไม่ถูกต้อง · – = อ่านไม่ได้หรือยังไม่มีข้อมูลให้เทียบ → ไปที่กระดิ่งและป้าย
   const reasons = checks.filter((c) => c.ok !== true).map((c) => `${c.ok === false ? '✗' : '–'} ${c.text}`)
   const mismatchNote = reasons.length ? ` · ${reasons.join(' · ')}` : ''
 
   if (!autoOk) {
-    // ไม่ผูกอัตโนมัติ (โหมดแมนนวล หรือไม่ครบ 5 ข้อ): เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่รหัสอ้างอิงตรง หรือที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์
+    // ไม่ผูกอัตโนมัติ (โหมดแมนนวล หรือไม่ครบ 4 ข้อ): เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่รหัสอ้างอิงตรง หรือที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์
     let staged: { key: string; ref: string }
     try { staged = await svcUpload(files, bytes, `manual/${chatId}`) } catch { return finish('upload_failed', undefined, orderId ?? undefined) }
     const sug = orderId ? await sb.from('punpang_orders').select('id,code').eq('id', orderId).maybeSingle() : null
@@ -269,7 +269,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
       history: [
         ...(Array.isArray(d.history) ? d.history : []),
         { at: nowIso, text: autoConfirm ? 'ลูกค้าส่งสลิปในแชท (QR) · ระบบจับคู่กับออร์เดอร์นี้อัตโนมัติ' : 'ลูกค้าส่งสลิปในแชท (QR) · ระบบจับคู่กับออร์เดอร์นี้อัตโนมัติ (รอตรวจยอด)', by: 'customer' },
-        ...(autoConfirm ? [{ at: nowIso, text: `ยืนยันชำระอัตโนมัติ (ครบ 5 ข้อ · นัดรับห่าง ${daysLeft} วัน · ยังไม่ได้ตรวจกับธนาคาร)`, by: 'auto' }] : []),
+        ...(autoConfirm ? [{ at: nowIso, text: `ยืนยันชำระอัตโนมัติ (ครบ 4 ข้อ · นัดรับห่าง ${daysLeft} วัน · ยังไม่ได้ตรวจกับธนาคาร)`, by: 'auto' }] : []),
         ...(cancelledReqs.length ? [{ at: nowIso, text: `ยกเลิกยอดที่แจ้งเดิม ${cancelledReqs.length} รายการ (${cancelledReqs.map((p: any) => (Number(p.amount) || 0).toFixed(2)).join(', ')}) เพราะยืนยันชำระอัตโนมัติแล้ว`, by: 'auto' }] : []),
       ],
     }

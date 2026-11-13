@@ -40,18 +40,20 @@ Deno.test('เงื่อนไข 2: วัน-เวลาโอนเท่�
   assertEquals(decide({}, { ...FIELDS, paidAt: null }).ok, false)
 })
 
-Deno.test('เงื่อนไข 3: ยังไม่ตั้งรหัสร้านค้า หรือรหัสในสลิปไม่ตรง → ไม่ยืนยัน', () => {
-  assertEquals(decide({ configuredMerchantCode: '' }).ok, false)
-  assertEquals(decide({}, { ...FIELDS, merchantCode: '014000000517186' }).ok, false)
+Deno.test('รหัสร้านค้าไม่นับเป็นเงื่อนไข: ไม่ตั้ง/ไม่ตรง ก็ยืนยันได้ แต่ยังแสดงเครื่องหมายให้พนักงานเห็น', () => {
+  assertEquals(decide({ configuredMerchantCode: '' }).ok, true)
+  const r = decide({}, { ...FIELDS, merchantCode: '014000000517186' })
+  assertEquals(r.ok, true)
+  assertEquals(r.checks.find((c: any) => c.key === 'merchant')?.ok, false)
 })
 
-Deno.test('เงื่อนไข 4: รหัสอ้างอิงร้านค้าไม่ตรงกับออร์เดอร์ หรือไม่ได้อ่าน → ไม่ยืนยัน · ไม่ได้อ่านภาพเลย → ไม่ยืนยัน', () => {
+Deno.test('เงื่อนไข 3: รหัสอ้างอิงร้านค้าไม่ตรงกับออร์เดอร์ หรือไม่ได้อ่าน → ไม่ยืนยัน · ไม่ได้อ่านภาพเลย → ไม่ยืนยัน', () => {
   assertEquals(decide({}, { ...FIELDS, shopRef: 'POS123927229' }).ok, false)
   assertEquals(decide({}, { ...FIELDS, shopRef: undefined }).ok, false)
   assertEquals(decide({}, null).ok, false)
 })
 
-Deno.test('เงื่อนไข 5: รหัสสุ่ม (Ref 2) ไม่ตรงกับรายการแจ้งชำระ · ไม่พบรายการ · ยอดไม่เท่ากับรายการ · ไม่มีรหัสสุ่มในสลิป → ไม่ยืนยัน', () => {
+Deno.test('เงื่อนไข 4: รหัสสุ่ม (Ref 2) ไม่ตรงกับรายการแจ้งชำระ · ไม่พบรายการ · ยอดไม่เท่ากับรายการ · ไม่มีรหัสสุ่มในสลิป → ไม่ยืนยัน', () => {
   assertEquals(decide({ request: { qrRef: 'ZZZZZZZZZZZZ', amount: 540 } }).ok, false)
   assertEquals(decide({ request: null }).ok, false)
   assertEquals(decide({ request: { qrRef: QR_REF, amount: 300 } }).ok, false)
