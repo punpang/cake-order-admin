@@ -31,7 +31,7 @@ import { remoteOrderAction, remoteReadSlip } from '../lib/customerOrderRemote'
 import { checkCustomerTxn, refTaken, bankByCode, PAY_MSG, thaiMinute } from '../lib/payFields'
 import { SLIP_RECEIVE_NOTE, slipRoom, slipChoices, slipBindError } from '../lib/slipBind'
 import { payAccountsOf } from '../lib/payAccounts'
-import { customerTargets } from '../lib/notifyPlan'
+import { customerTargets, withNewRules } from '../lib/notifyPlan'
 import { uploadChatImage } from '../lib/chatImage'
 import { promptPayPayload } from '../lib/promptpay'
 import { callAuth, callLoyalty, readSessionToken, saveSessionToken, clearSessionToken, injectBundle, clearBundle } from '../lib/customerRemote'
@@ -442,6 +442,7 @@ export const db = reactive({
   ],
   // กฎแจ้งเตือน: event → ช่องทาง + ข้อความ (ตัวอย่าง)
   notifyRules: [
+    ...withNewRules([]),
     rule('order_created', ['line', 'facebook', 'sms'], ORDER_CREATED_TPL, { facebook: ORDER_CREATED_FB_TPL, sms: ORDER_CREATED_SMS_TPL }),
     rule('payment_requested', ['line', 'facebook', 'sms'], PAY_REQ_TPL, { sms: PAY_REQ_SMS_TPL }),
     rule('order_confirmed', ['line', 'facebook', 'sms'], 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ คงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า'),
@@ -1234,16 +1235,19 @@ export function denyPayExtension(order, paymentId) {
 }
 
 // ---------- ข้อมูลจัดส่งของออร์เดอร์ (แก้ได้ก่อนส่งมอบ/ยกเลิก) ----------
-export function setDelivery(order, d) {
+export function setDelivery(order, d, opts = {}) {
   if (!can('editPickup') || order.fulfillment !== 'delivery' || ['delivered', 'cancelled'].includes(order.status)) return { error: 'แก้ข้อมูลจัดส่งไม่ได้' }
   if (!String(d.address ?? '').trim()) return { error: 'กรอกที่อยู่จัดส่ง' }
   const r = cleanDelivery(d)
   if (r.error) return r
   const v = r.value
   const oldFee = Number(order.shippingFee) || 0
+  const delivKey = () => JSON.stringify([order.address, order.placeName, order.mapUrl, order.detail, order.distanceKm, order.shippingFee, order.feeManual])
+  const before = delivKey()
   Object.assign(order, { address: v.address, placeName: v.placeName, mapUrl: v.mapUrl, detail: v.detail, distanceKm: v.distanceKm, shippingFee: v.shippingFee, feeManual: v.feeManual })
   log(order, `แก้ข้อมูลจัดส่ง${v.placeName ? ` · ${v.placeName}` : ''}${v.distanceKm != null ? ` · ${v.distanceKm} กม.` : ''}${oldFee !== v.shippingFee ? ` · ค่าส่ง ${money(oldFee)} → ${money(v.shippingFee)}` : ''}`)
   rememberPlaceOf(order.customerId, order)
+  if (delivKey() !== before) notifyOrder('delivery_changed', order, { skip: opts.notify === false, noSms: opts.sms === false })
   return { ok: true }
 }
 // ค่าส่งที่แนะนำจากระยะทาง (null = ปิดใช้/ไม่มีเรต)
@@ -1535,13 +1539,14 @@ export function saveShopSettings(d) {
 export const vatNow = () => (db.shop.vat?.enabled && Number(db.shop.vat.rate) > 0 ? { rate: Number(db.shop.vat.rate), mode: db.shop.vat.mode === 'exclusive' ? 'exclusive' : 'inclusive' } : null)
 
 // แก้วันเวลานัด (หน้ารายละเอียด)
-export function setPickup(order, pickupAt) {
+export function setPickup(order, pickupAt, opts = {}) {
   if (order.pickupAt === pickupAt) return { ok: true }
   const closed = pickupClosed(db.shop, pickupAt)
   if (closed) return { error: closedMsg(closed) }
   const fmt = (s) => s.replace('T', ' ')
   log(order, `เปลี่ยนวันนัด ${fmt(order.pickupAt)} → ${fmt(pickupAt)}`)
   order.pickupAt = pickupAt
+  notifyOrder('pickup_changed', order, { skip: opts.notify === false, noSms: opts.sms === false })
   return { ok: true }
 }
 
@@ -1775,12 +1780,14 @@ export async function claimCoupon(couponId, orderId) {
   if (r === 'ok' || r === 'missing') return { ok: true }
   return { error: CLAIM_MSG[r] || 'ตรวจคูปองกับเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่' }
 }
-export async function claimAndApplyCoupon(order, couponId) {
+export async function claimAndApplyCoupon(order, couponId, opts = {}) {
   const cp = db.coupons.find((x) => x.id === couponId)
   if (!cp || cp.type !== 'discount' || !couponUsable(cp, today())) return { error: 'ใช้คูปองนี้ไม่ได้' }
   const c = await claimCoupon(couponId, order.id)
   if (c.error) return c
-  return applyCoupon(order, couponId) ? { ok: true } : { error: 'ใช้คูปองนี้ไม่ได้' }
+  if (!applyCoupon(order, couponId)) return { error: 'ใช้คูปองนี้ไม่ได้' }
+  notifyOrder('coupon_applied', order, { skip: opts.notify === false, noSms: opts.sms === false })
+  return { ok: true }
 }
 // POS: จองทุกใบก่อนขาย · ใบใดไม่ผ่าน → คืนใบที่จองไปแล้วทั้งหมด (คืน { ok, claimed } เพื่อให้ผู้เรียกคืนได้ถ้าขายไม่สำเร็จ)
 export const POS_CLAIM_ORDER = 'pos-pending'
@@ -2639,6 +2646,7 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
 }
 // เหตุการณ์ของออร์เดอร์ → ลูกค้า + ทีม (ถ้ามีคู่ของทีม)
 export function notifyOrder(event, order, extra = {}) {
+  if (order.status === 'draft') return // ร่างยังไม่ส่งถึงลูกค้า
   // บิลหน้าร้านก็แจ้งลูกค้าตามช่องทางที่มี (ไม่สนใจว่าทำรายการจากช่องทางไหน)
   // สรุปออร์เดอร์ให้ลูกค้าย้ายไปอยู่ในข้อความแจ้งชำระ (พร้อมวัน-เวลาชำระ) → ตอนสร้างออร์เดอร์ส่งให้ทีมอย่างเดียว
   if (event === 'order_created') {

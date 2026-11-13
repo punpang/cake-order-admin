@@ -1,6 +1,6 @@
 // ทดสอบแผนการส่งข้อความถึงลูกค้า · รัน: node src/lib/notifyPlan.test.mjs
 import assert from 'node:assert/strict'
-import { customerTargets } from './notifyPlan.js'
+import { customerTargets, withNewRules, NEW_CUSTOMER_RULES } from './notifyPlan.js'
 
 let fail = 0
 const t = (name, fn) => { try { fn(); console.log(`PASS ${name}`) } catch (e) { fail++; console.log(`FAIL ${name}: ${e.message}`) } }
@@ -34,6 +34,22 @@ t('ข้อความการตลาด → ส่งช่องแรก
 })
 t('ไม่มีรายการช่องทาง/ค่าว่าง → ไม่ error', () => {
   assert.deepEqual(customerTargets(), [])
+})
+
+t('กฎที่ยังไม่มีในฐานข้อมูลถูกเติม และกฎที่ร้านแก้ไว้แล้วไม่ถูกทับ', () => {
+  const saved = [{ event: 'pickup_changed', channels: ['line'], template: 'ของร้าน', enabled: false }]
+  const merged = withNewRules(saved)
+  assert.equal(merged.length, NEW_CUSTOMER_RULES.length)
+  const pickup = merged.find((r) => r.event === 'pickup_changed')
+  assert.deepEqual(pickup, { event: 'pickup_changed', channels: ['line'], template: 'ของร้าน', enabled: false })
+  assert.ok(merged.some((r) => r.event === 'delivery_changed' && r.enabled === true))
+  assert.ok(merged.some((r) => r.event === 'coupon_applied' && r.enabled === true))
+})
+t('withNewRules ไม่แก้รายการเดิม และไม่เพิ่มซ้ำเมื่อเรียกซ้ำ', () => {
+  const once = withNewRules([])
+  const twice = withNewRules(once)
+  assert.equal(twice.length, once.length)
+  assert.equal(withNewRules(undefined).length, NEW_CUSTOMER_RULES.length)
 })
 
 if (fail) { console.log(`${fail} failed`); process.exit(1) }

@@ -37,6 +37,9 @@ export const BELL_CUSTOMER = {
   cancelled: { title: 'ยกเลิกออร์เดอร์' },
   order_refunded: { title: 'คืนเงินแล้ว' },
   order_refund_cancelled: { title: 'ยกเลิกการคืนเงิน' },
+  pickup_changed: { title: 'เปลี่ยนวันนัดรับ' },
+  delivery_changed: { title: 'แก้ข้อมูลจัดส่ง' },
+  coupon_applied: { title: 'ใช้คูปองในออร์เดอร์' },
   photo_ready: { title: 'มีรูปงานเสร็จให้ดู' },
   photo_optout_done: { title: 'ลบรูปตามคำขอแล้ว' },
   photo_optout_rejected: { title: 'ร้านไม่อนุมัติคำขอไม่เผยแพร่รูป' },
@@ -63,6 +66,7 @@ export function bellText(event, vars = {}) {
     case 'order_refunded': return `${code} · คืน ${v(vars, 'ยอดที่แจ้ง')}`
     case 'points_expiring': return `คะแนน ${v(vars, 'คะแนน')} แต้มใกล้หมดอายุ`
     case 'coupon_refunded': return `${v(vars, 'รายการ')} · คืน ${v(vars, 'คะแนน')} คะแนน`
+    case 'pickup_changed':
     case 'pickup_reminder': return `${code} · นัด ${v(vars, 'วันนัด')} ${v(vars, 'เวลานัด')}`
     default: return head || code
   }
