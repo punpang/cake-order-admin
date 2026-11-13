@@ -15,7 +15,7 @@ import OrderPayModal from './OrderPayModal.vue'
 import ChatAttachment from './ChatAttachment.vue'
 import { messagePreview } from '../lib/chatMedia'
 import { payAccountsOf } from '../lib/payAccounts'
-import { slipAccountMatches } from '../lib/slipAccount'
+import { slipAccountCheck } from '../lib/slipAccount'
 import { kb } from '../lib/viewportFit'
 import { showToast } from '../lib/toast'
 import { prepareChatImage, uploadChatImage, MAX_CHAT_IMAGES } from '../lib/chatImage'
@@ -30,9 +30,12 @@ const box = ref(null)
 const input = ref(null)
 const mine = (m) => m.from === 'staff'
 const channelLabel = computed(() => (props.chat.channel === 'facebook' ? 'Facebook' : props.chat.channel === 'instagram' ? 'Instagram' : 'LINE'))
-// บัญชีธนาคารของร้านทุกบัญชีที่ตั้งไว้ · ใช้เทียบเลขบัญชีผู้รับบนสลิปเพื่อแสดงเครื่องหมายถูกเท่านั้น
-const shopBankNos = computed(() => payAccountsOf(db.shop?.payment).filter((a) => a.kind === 'bank').map((a) => a.accountNo))
-const slipAccountOk = (acc) => slipAccountMatches(acc, shopBankNos.value)
+// บัญชีของร้านที่ใช้เทียบเลขผู้รับบนสลิป: บัญชีธนาคารและพร้อมเพย์ทุกบัญชีที่ตั้งไว้ (แสดงเครื่องหมายถูกหรือเตือนเท่านั้น)
+const shopAccts = computed(() => payAccountsOf(db.shop?.payment))
+const slipAcctState = (acc) => slipAccountCheck(acc, {
+  bank: shopAccts.value.filter((a) => a.kind === 'bank').map((a) => a.accountNo),
+  promptpay: shopAccts.value.filter((a) => a.kind === 'promptpay').map((a) => a.promptpayId),
+})
 // สถานะการส่ง (Facebook/Instagram ส่งจริงและมีสถานะ · LINE ไม่มีสถานะการส่ง)
 function sendState(m) {
   if (props.chat.channel === 'facebook' || props.chat.channel === 'instagram') {
@@ -443,7 +446,8 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
                   <div v-if="m.slipCheck.ocrReceiverAccount" class="col-span-2">
                     <div class="text-xs font-medium text-sky-700">เลขที่บัญชีผู้รับ</div>
                     <div class="text-sm font-semibold break-words">{{ m.slipCheck.ocrReceiverAccount }}</div>
-                    <div v-if="slipAccountOk(m.slipCheck.ocrReceiverAccount)" class="mt-0.5 text-xs font-semibold text-emerald-700">✓ ตรงกับบัญชีของร้าน</div>
+                    <div v-if="slipAcctState(m.slipCheck.ocrReceiverAccount) === 'match'" class="mt-0.5 text-xs font-semibold text-emerald-700">✓ ตรงกับบัญชีของร้าน</div>
+                    <div v-else-if="slipAcctState(m.slipCheck.ocrReceiverAccount) === 'mismatch'" class="mt-0.5 text-xs font-semibold text-amber-700">⚠ ไม่ตรงกับบัญชีของร้าน</div>
                   </div>
                   <div class="col-span-2 text-xs text-sky-700">อ่านจากภาพ · ตรวจกับธนาคารก่อนยืนยัน</div>
                 </div>
