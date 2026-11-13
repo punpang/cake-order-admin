@@ -2,7 +2,8 @@
 // ไม่ยืนยันยอดเอง (QR สลิปไม่มียอดเงินและยืนยันกับธนาคารไม่ได้จากที่นี่) · พนักงานตรวจยอดแล้วยืนยันในหน้าชำระเงินเสมอ
 // เขียนออร์เดอร์แบบเทียบ updated_at (CAS) และเก็บไฟล์ส่วนตัวใน R2 ผ่าน Worker เหมือน customer-order
 // กติกาเลขอ้างอิง/ธนาคาร/วัน-เวลาชำระ ใช้ชุดเดียวกับหน้าชำระเงินของลูกค้า (payfields.ts)
-import { buildSlipPayment, classifyThaiQr, latestOrderId, planAttach, slipKeyOf } from './slip.ts'
+import { buildSlipPayment, classifyThaiQr, latestOrderId, orderTotals, planAttach, slipKeyOf } from './slip.ts'
+import { slipChecksOf } from './schedlib/slipChecks.js'
 import { readQrTexts } from './qrimage.ts'
 import { bankByCode, normalizeRef, paidAtFromMessage, refTaken } from './payfields.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine, type SlipFields } from './slipocr.ts'
@@ -167,17 +168,27 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   // รหัสร้านค้าในสลิปไม่ตรงกับที่ตั้งไว้ (หรืออ่านไม่ได้) → รับไว้และติดธงให้พนักงานตรวจ
   const flagged = merchantMismatch(cfg.merchantCode, fields?.merchantCode)
   const flagPart = { ...shopPartOf(fields), ...(flagged ? { merchantMismatch: true } : {}) }
-  const mismatchNote = flagged ? ' · รหัสร้านค้าในสลิปไม่ตรง ตรวจด้วยตนเอง' : ''
+  // เครื่องหมายตรวจสลิปกับออร์เดอร์ (ยอด · วัน-เวลาหลังสร้างออร์เดอร์ · รหัสร้านค้า · รหัสอ้างอิง) · บิล POS ยังข้ามไปก่อน
+  const orderRow = orderId ? (await sb.from('punpang_orders').select('id,code,data').eq('id', orderId).maybeSingle()).data : null
+  const checks = slipChecksOf({
+    fields, configuredMerchantCode: cfg.merchantCode,
+    order: orderRow ? { code: orderRow.code, createdAt: orderRow.data?.createdAt } : null,
+    balance: orderRow ? orderTotals(orderRow.data).balance : null,
+  })
+  // วัน-เวลาชำระไม่ผ่าน → ไม่แนบอัตโนมัติ ส่งให้พนักงานตรวจ
+  const timeFailed = checks.some((c) => c.key === 'paidAt' && c.ok === false)
+  const failedTexts = checks.filter((c) => c.ok === false).map((c) => c.text)
+  const mismatchNote = failedTexts.length ? ` · ✗ ${failedTexts.join(' · ')}` : ''
 
-  if (cfg.mode === 'manual') {
-    // โหมดแมนนวล: เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์
+  if (cfg.mode === 'manual' || timeFailed) {
+    // โหมดแมนนวล (หรือวัน-เวลาชำระไม่ผ่าน): เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์
     let staged: { key: string; ref: string }
     try { staged = await svcUpload(files, bytes, `manual/${chatId}`) } catch { return finish('upload_failed', undefined, orderId ?? undefined) }
     const sug = orderId ? await sb.from('punpang_orders').select('id,code').eq('id', orderId).maybeSingle() : null
     const sugCode: string | undefined = sug?.data?.code || undefined
     const suggestedId = sugCode && orderId ? orderId : undefined
     await annotate(sb, chatId, msgId, {
-      status: 'manual', ...flagPart, ...(suggestedId ? { orderId: suggestedId, orderCode: sugCode } : {}),
+      status: 'manual', ...flagPart, checks, ...(suggestedId ? { orderId: suggestedId, orderCode: sugCode } : {}),
       slipRef: staged.ref, slipKey: key, bankCode, ...(bankName ? { bankName } : {}), ref, at: now.toISOString(),
       ...(fields?.amount != null ? { ocrAmount: fields.amount } : {}), ...(fields?.paidAt ? { ocrPaidAt: fields.paidAt } : {}), ...(fields?.receiverAccount ? { ocrReceiverAccount: fields.receiverAccount } : {}),
     })
@@ -244,7 +255,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
       const shownAmount = fields?.amount ?? plan.amount
       const how = fields?.amount != null ? 'ยอดอ่านจากภาพสลิป ยังไม่ได้ตรวจกับธนาคาร' : 'สลิป QR ยังไม่ได้ตรวจยอด'
       await bell(sb, { event: 'team_customer_paid', title: 'ลูกค้าแจ้งโอน', text: `${row.code} · ยอด ${shownAmount.toFixed(2)} (${how})${mismatchNote}`, orderId: row.id, chatId }, rand)
-      await annotate(sb, chatId, msgId, { status: 'matched', orderCode: row.code, paymentId, at: now.toISOString(), ...flagPart })
+      await annotate(sb, chatId, msgId, { status: 'matched', orderCode: row.code, paymentId, at: now.toISOString(), ...flagPart, checks })
       return 'matched'
     }
     // เขียนชน (พนักงานแก้ออร์เดอร์พร้อมกัน) → อ่านใหม่แล้วทำซ้ำ
