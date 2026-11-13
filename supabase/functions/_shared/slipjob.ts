@@ -1,6 +1,6 @@
 // งานตรวจสลิปจากรูปในแชท (Edge Function): อ่าน QR → จำแนก → จับคู่กับออร์เดอร์ที่คุยกันล่าสุด → บันทึกเป็นยอดรอตรวจ + แจ้งกระดิ่ง
 // ไม่ยืนยันยอดเอง (QR สลิปไม่มียอดเงินและยืนยันกับธนาคารไม่ได้จากที่นี่) · พนักงานตรวจยอดแล้วยืนยันในหน้าชำระเงินเสมอ
-// เขียนออร์เดอร์แบบเทียบ updated_at (CAS) และเก็บไฟล์ในบัคเก็ตส่วนตัว punpang-slips เหมือน customer-order
+// เขียนออร์เดอร์แบบเทียบ updated_at (CAS) และเก็บไฟล์ส่วนตัวใน R2 ผ่าน Worker เหมือน customer-order
 // กติกาเลขอ้างอิง/ธนาคาร/วัน-เวลาชำระ ใช้ชุดเดียวกับหน้าชำระเงินของลูกค้า (payfields.ts)
 import { buildSlipPayment, classifyThaiQr, latestOrderId, planAttach, slipKeyOf } from './slip.ts'
 import { readQrTexts } from './qrimage.ts'

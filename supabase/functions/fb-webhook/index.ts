@@ -20,7 +20,7 @@ async function hmacHex(secret: string, body: string): Promise<string> {
   return hex(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(body)))
 }
 const ATTACH_TEXT = '[ลูกค้าส่งข้อความชนิดที่ระบบยังแสดงไม่ได้ — ดูในกล่องข้อความของเพจ]'
-// ไฟล์แนบ: เก็บสำเนาใน bucket private punpang-chat (URL ของ Facebook หมดอายุ) · จำกัดขนาด/ชนิด ตาม bucket
+// ไฟล์แนบ: ไม่เก็บสำเนาใน Storage (เก็บเฉพาะลิงก์ Facebook ซึ่งอาจหมดอายุ) · จำกัดขนาดและชนิดไฟล์
 const MAX_BYTES = 8 * 1024 * 1024
 const MAX_ATT = 6
 const KINDS = ['image', 'video', 'audio', 'file']
