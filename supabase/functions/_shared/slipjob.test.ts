@@ -127,8 +127,9 @@ const ocrFields = (f: { amount: number | null; paidAt: string | null }) => async
 // ค่าที่อ่านได้ครบและตรงกับออร์เดอร์ o1: ยอด 540 = ยอดค้าง · วัน-เวลาหลัง 09:00 · รหัสร้านค้าตรง · รหัสอ้างอิง OR-111126-000010
 const QR_REF = 'ORD111126000010ABCDE' // Ref 2 = POS/ORD + รหัสสุ่ม 5 ตัว ของรายการแจ้งชำระที่ลูกค้าขอ QR ไว้
 const fieldsOk = (over: Record<string, unknown> = {}) => ({ amount: 540, paidAt: '2026-11-11T10:00', receiverName: null, receiverAccount: 'xxx-x-x8154-x', merchantCode: SHOP, shopRef: 'ORD111126000010', qrRef: QR_REF, ...over })
-const autoOpts = (over: Record<string, unknown> = {}) => ({ ocrWai: WAI_CRED, ocrReadBy: { wai: async () => fieldsOk(over) } })
-const AUTO_KV = () => [kvOcrAll({ wai: true }), shopKv]
+// รหัสร้านค้าใช้ได้เมื่อตัวอ่าน 2 ตัว (Workers AI + Claude) ได้ค่าเดียวกัน → ตั้งทั้งสองตัวให้ตอบค่าเดียวกัน
+const autoOpts = (over: Record<string, unknown> = {}) => ({ ocrWai: WAI_CRED, ocrKey: 'k', ocrReadBy: { wai: async () => fieldsOk(over), claude: async () => fieldsOk(over) } })
+const AUTO_KV = () => [kvOcrAll({ wai: true, claude: true }), shopKv]
 // รายการแจ้งชำระที่ลูกค้าขอ QR ไว้ (รหัสสุ่มตรงกับ fieldsOk · ยอดเท่ากับยอดในสลิป) → ยืนยันอัตโนมัติได้ครบ 5 ข้อ
 const reqPayment = (over: Record<string, unknown> = {}) => ({ id: 'pr1', code: 'PAY-111126-00001', status: 'reported', requested: 540, amount: 540, method: 'โอนเงิน', dueAt: '', extension: null, source: 'customer', qrRequest: true, qrRef: QR_REF, customerSubmitted: false, createdAt: ORDER_CREATED, reportedBy: 'customer', confirmedBy: null, ...over })
 const orderQr = (over: Record<string, unknown> = {}) => order({ payments: [reqPayment()], ...over })
@@ -319,7 +320,7 @@ Deno.test('สลิป QR ที่ไม่มีรหัสอ้างอ�
 })
 
 Deno.test('ตั้งค่า mode ที่ไม่รู้จัก หรือไม่มี mode → ใช้โหมดอัตโนมัติเหมือนเดิม', async () => {
-  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [orderQr()], kv: [slipKv({ enabled: true, mode: 'whatever', ocr: { wai: true } }), shopKv] })
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [orderQr()], kv: [slipKv({ enabled: true, mode: 'whatever', ocr: { wai: true, claude: true } }), shopKv] })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
   assertEquals(sb.T.punpang_orders[0].data.payments.length, 1)
 })
@@ -396,9 +397,9 @@ Deno.test('ข้อผิดพลาดอื่นตอนแนบ (ไม�
 
 // ---- อ่านยอดและวัน-เวลาจากภาพ (ตั้งค่า ocr.claude) ----
 Deno.test('OCR (Claude) ในโหมดอัตโนมัติ ครบ 5 ข้อ → ใช้ยอดและวัน-เวลาที่อ่านจากภาพ และผูกอัตโนมัติ', async () => {
-  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ payments: [reqPayment({ amount: 178, requested: 178 })] })], kv: [kvOcr('auto', true), shopKv] })
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ payments: [reqPayment({ amount: 178, requested: 178 })] })], kv: [kvOcrAll({ wai: true, claude: true }), shopKv] })
   const read = async () => fieldsOk({ amount: 178, paidAt: '2026-11-11T14:48' })
-  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrKey: 'k', ocrRead: read }), 'matched')
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrKey: 'k', ocrWai: WAI_CRED, ocrReadBy: { wai: read, claude: read } }), 'matched')
   const p = sb.T.punpang_orders[0].data.payments[0]
   assertEquals([p.amount, p.paidAt, p.status], [178, '2026-11-11T14:48', 'reported'])
   const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
@@ -452,7 +453,7 @@ Deno.test('สลิปใหม่ (ยังไม่เคยเก็บใ�
   assertEquals(called, true)
 })
 
-Deno.test('ลำดับตัวอ่าน: Workers AI → ระบบเดิม (Claude) · ตัวแรกที่ได้ยอดหรือวัน-เวลาจะหยุด', async () => {
+Deno.test('ลำดับตัวอ่าน: Workers AI → ระบบเดิม (Claude) · อ่านทุกตัวที่เปิด (เทียบรหัสร้านค้าข้ามตัว) · ยอดเอาจากตัวแรกที่ได้', async () => {
   const calls: string[] = []
   const none = (name: string) => async () => { calls.push(name); return null }
   const empty = (name: string) => async () => { calls.push(name); return { amount: null, paidAt: null, receiverName: null, receiverAccount: null } }
@@ -463,11 +464,11 @@ Deno.test('ลำดับตัวอ่าน: Workers AI → ระบบเ�
   const sb1 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true, claude: true })] })
   assertEquals(await runCheck(sb1, await slipScreenshot(SLIP), opts({ wai: empty('wai'), claude: hit('claude') })), 'manual')
   assertEquals(calls, ['wai', 'claude'])
-  // Workers AI ได้ผล → ไม่เรียกระบบเดิม
+  // Workers AI ได้ผล และ Claude ตอบว่าง → ยังเรียกทั้งสองตัว (เทียบรหัสร้านค้า)
   calls.length = 0
   const sb2 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true, claude: true })] })
   assertEquals(await runCheck(sb2, await slipScreenshot(SLIP), opts({ wai: hit('wai'), claude: none('claude') })), 'manual')
-  assertEquals(calls, ['wai'])
+  assertEquals(calls, ['wai', 'claude'])
   // ปิด Workers AI → ใช้ระบบเดิม (Claude) เท่านั้น
   calls.length = 0
   const sb3 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: false, claude: true })] })
@@ -592,7 +593,7 @@ Deno.test('ยอดเท่ากับยอดค้างพอดี → �
 })
 
 // ---- ยืนยันสลิปอัตโนมัติ: ครบ 4 ข้อ + นัดรับห่างอย่างน้อยตามที่ตั้ง → ยืนยันชำระทันที (ปิดไว้ = รอพนักงานยืนยัน) ----
-const AUTO_CONFIRM_KV = (days = 3, enabled = true) => [slipKv({ enabled: true, mode: 'auto', ocr: { wai: true }, autoConfirm: { enabled, days } }), shopKv]
+const AUTO_CONFIRM_KV = (days = 3, enabled = true) => [slipKv({ enabled: true, mode: 'auto', ocr: { wai: true, claude: true }, autoConfirm: { enabled, days } }), shopKv]
 
 Deno.test('ยืนยันอัตโนมัติ: เปิด และนัดรับห่างอย่างน้อยเท่าที่ตั้ง → ยืนยันชำระ ออร์เดอร์เป็นยืนยันชำระแล้ว และแจ้งทีม', async () => {
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ pickupAt: '2026-11-14T10:00', payments: [reqPayment()] })], kv: AUTO_CONFIRM_KV(3) })

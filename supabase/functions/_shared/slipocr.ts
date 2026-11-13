@@ -170,16 +170,25 @@ export async function readSlipFieldsWorkersAI(o: { bytes: Uint8Array; accountId:
 // ไม่มีตัวไหนได้ผลครบ → ใช้ผลบางส่วนของตัวแรกที่ตอบ
 export type OcrEngine = { name: string; read: (bytes: Uint8Array) => Promise<SlipFields | null> }
 // status.errored = true เมื่อมีตัวอ่านที่ผิดพลาดหรือไม่ตอบ (null) · ใช้ตัดสินว่าผลที่ได้ควรจำไว้ใช้ซ้ำหรือไม่
+// อ่านทุกตัวที่เปิดอยู่ · ยอด/วัน-เวลาเอาจากตัวแรกที่ได้ค่า (เหมือนเดิม)
+// รหัสร้านค้าใช้ค่าเฉพาะเมื่อตัวอ่านอิสระอย่างน้อย 2 ตัวได้ค่าเดียวกัน · ไม่ตรงกันหรือมีตัวเดียว = ไม่ใช้ค่า (ให้พนักงานตรวจ)
 export async function readSlipFieldsChain(bytes: Uint8Array, engines: OcrEngine[], status?: { errored: boolean }): Promise<SlipFields | null> {
   let partial: SlipFields | null = null
+  let main: SlipFields | null = null
+  const codes: string[] = []
   for (const e of engines) {
     let f: SlipFields | null = null
     try { f = await e.read(bytes) } catch { f = null }
     if (f == null && status) status.errored = true
-    if (f?.amount != null || f?.paidAt != null) return f
+    if (f?.merchantCode) codes.push(f.merchantCode)
+    if (main == null && (f?.amount != null || f?.paidAt != null)) main = f
     partial ??= f
   }
-  return partial
+  const base = main ?? partial
+  if (!base) return null
+  const { merchantCode: _unverified, ...rest } = base
+  const agreed = codes.length >= 2 && codes.every((c) => c === codes[0]) ? codes[0] : null
+  return agreed ? { ...rest, merchantCode: agreed } : rest
 }
 
 // ค่าสวิตช์จาก punpang_kv config slipQr.ocr: wai (Workers AI) · claude (ระบบเดิม) · ค่าเดิม ocr.enabled = claude เมื่อยังไม่มี claude
