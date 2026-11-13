@@ -1,4 +1,5 @@
 <script setup>
+import { orderNo } from '../lib/format'
 import { safeHref } from '../lib/safeUrl'
 import { computed, reactive, ref, watch } from 'vue'
 import { customerPay, customerReadSlip, customerRequestExtension, customerRequestPhotoOptOut, customerCancelPhotoOptOut, customerRequestQr } from '../data/store'
@@ -239,7 +240,7 @@ const beforeDiscount = computed(() => {
         <div class="text-xs text-stone-600">ออร์เดอร์</div>
         <div class="flex flex-wrap items-center justify-end gap-1.5"><StatusBadge :status="o.status" /><PayDueBadge :due="o.payDue" /></div>
       </div>
-      <h1 class="mt-0.5 text-[22px] whitespace-nowrap text-stone-900 min-[360px]:text-[26px]">{{ o.code }}</h1>
+      <h1 class="mt-0.5 text-[22px] whitespace-nowrap text-stone-900 min-[360px]:text-[26px]">{{ orderNo(o.code) }}</h1>
       <div v-if="o.customer" class="truncate text-stone-500">{{ o.customer.name }}<span v-if="o.customer.phone"> · {{ o.customer.phone.startsWith('xxx') ? o.customer.phone : formatPhone(o.customer.phone) }}</span></div>
       <ol v-if="!cancelled" class="mt-4 grid gap-1" :style="{ gridTemplateColumns: `repeat(${STEPS.length}, minmax(0, 1fr))` }" aria-label="ขั้นตอนออร์เดอร์">
         <li v-for="(label, i) in STEPS" :key="label" class="flex flex-col items-center gap-1 text-center" :aria-current="i === step ? 'step' : undefined">
@@ -388,7 +389,7 @@ const beforeDiscount = computed(() => {
           <div v-if="hasInfo" class="rounded-2xl border border-stone-200 bg-white p-3">
             <div v-if="billerId && shopCode" class="text-center">
               <div class="text-xs text-stone-500">QR นี้สำหรับออร์เดอร์</div>
-              <div class="text-base font-semibold text-stone-900">{{ o.code }}</div>
+              <div class="text-base font-semibold text-stone-900">{{ orderNo(o.code) }}</div>
               <img v-if="qr" :src="qr" alt="QR พร้อมเพย์" class="mx-auto h-48 w-48" />
               <button v-else type="button" class="btn-soft mx-auto mt-2" :disabled="qrReq.busy || !(amount > 0)" @click="makeQr">{{ qrReq.busy ? 'กำลังสร้าง QR…' : 'สร้าง QR สำหรับยอดนี้' }}</button>
               <p v-if="qrReq.error" class="mt-1 text-xs text-rose-700" role="alert">{{ qrReq.error }}</p>
@@ -433,7 +434,7 @@ const beforeDiscount = computed(() => {
             <div><label class="label" for="pay-ref">เลขอ้างอิงรายการ <span class="font-normal text-stone-400">(ไม่บังคับ)</span></label><input id="pay-ref" v-model="f.ref" class="input" maxlength="40" autocomplete="off" placeholder="ไม่ต้องกรอกก็ได้ ร้านตรวจจากสลิปให้" /></div>
             <p v-if="f.qrNote" class="text-xs text-stone-500" role="status">{{ f.qrNote }}</p>
           </div>
-          <div><label class="label">หมายเหตุ <span class="font-normal text-stone-400">(ไม่บังคับ · ใส่เลขออร์เดอร์ {{ o.code }} เพื่อให้ร้านตรวจได้ง่าย)</span></label><input v-model="f.note" class="input" maxlength="200" :placeholder="o.code" /></div>
+          <div><label class="label">หมายเหตุ <span class="font-normal text-stone-400">(ไม่บังคับ · ใส่เลขออร์เดอร์ {{ orderNo(o.code) }} เพื่อให้ร้านตรวจได้ง่าย)</span></label><input v-model="f.note" class="input" maxlength="200" :placeholder="o.code" /></div>
           <p v-if="f.error" class="text-rose-700" role="alert">{{ f.error }}</p>
           <div class="flex gap-2">
             <button class="btn-outline flex-1" @click="open = false">ยกเลิก</button>

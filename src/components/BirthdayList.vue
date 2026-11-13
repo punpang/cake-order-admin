@@ -1,4 +1,5 @@
 <script setup>
+import { orderNo } from '../lib/format'
 import { computed, ref } from 'vue'
 import { db, findCustomer, upcomingBirthdays, setGreeted } from '../data/store'
 import { mdLabel } from '../lib/birthday'
@@ -34,7 +35,7 @@ async function copyLine(b) {
           <div class="min-w-0">
             <div class="font-semibold break-words text-stone-900">{{ b.name || 'ไม่ระบุชื่อ' }} <span class="font-normal text-stone-500">· {{ mdLabel(b.md) }}</span></div>
             <div class="text-sm break-words text-stone-600">ลูกค้า {{ b.c?.name }}<span v-if="b.c?.phone"> · {{ formatPhone(b.c.phone) }}</span></div>
-            <RouterLink :to="`/admin/orders/${b.order.id}`" class="text-xs text-brand-700 underline">ล่าสุด {{ b.order.code }}</RouterLink>
+            <RouterLink :to="`/admin/orders/${b.order.id}`" class="text-xs text-brand-700 underline">ล่าสุด {{ orderNo(b.order.code) }}</RouterLink>
           </div>
           <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold" :class="b.inDays <= 3 ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'">{{ when(b.inDays) }}</span>
         </div>

@@ -1,3 +1,4 @@
+import { orderNo } from '../_shared/slipref.ts'
 import { filesEnv, svcDelete, svcUpload } from '../_shared/filesvc.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { PAY_MSG, bankByCode, checkCustomerTxn, normalizeRef, refTaken } from '../_shared/payfields.ts'
@@ -185,9 +186,9 @@ Deno.serve(async (req) => {
 
   // ---------- อ่าน-แก้-เขียนออร์เดอร์ (เทียบ updated_at ลองใหม่ได้ 3 ครั้ง) ----------
   const NOTIFY: Record<string, { title: string; text: (o: any, x: any) => string }> = {
-    team_customer_paid: { title: 'ลูกค้าแจ้งโอน', text: (o, x) => `${o.code} · ยอด ${x.amount}` },
-    team_pay_extend_request: { title: 'ลูกค้าขอขยายเวลาชำระ', text: (o) => o.code },
-    team_photo_optout: { title: 'ลูกค้าขอไม่เผยแพร่รูป', text: (o) => o.code },
+    team_customer_paid: { title: 'ลูกค้าแจ้งโอน', text: (o, x) => `${orderNo(o.code)} · ยอด ${x.amount}` },
+    team_pay_extend_request: { title: 'ลูกค้าขอขยายเวลาชำระ', text: (o) => orderNo(o.code) },
+    team_photo_optout: { title: 'ลูกค้าขอไม่เผยแพร่รูป', text: (o) => orderNo(o.code) },
   }
   async function bell(event: string, o: any, extra: any = {}) {
     const d = NOTIFY[event]

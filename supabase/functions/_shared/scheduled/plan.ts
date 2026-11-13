@@ -1,6 +1,7 @@
 // แผนงานตามเวลาฝั่งเซิร์ฟเวอร์ (ฟังก์ชันล้วน · ทดสอบได้) — ตรรกะเทียบกับ runScheduledChecks / payReminder / notify ใน src/data/store.js
 // เวลาในออร์เดอร์และกำหนดชำระเป็นเวลาไทยแบบไม่มีโซน: เทียบเวลาจริงด้วย +07:00 · ข้อความที่แสดงใช้สตริงเดิม (ให้ตรงกับที่พนักงานเห็น)
 // โมดูลใน ../schedlib คัดลอกจาก src/lib ด้วย scripts/sync-schedlib.mjs (ห้ามแก้ไฟล์เหล่านั้นโดยตรง)
+import { orderNo } from '../slipref.ts'
 import { orderTotals } from '../schedlib/pricing.js'
 import { overduePayments } from '../schedlib/payDue.js'
 import { expiringSoon } from '../schedlib/loyalty.js'
@@ -51,7 +52,7 @@ export function orderVars(order: Any, extra: Any, shop: Any, customer: Any | nul
   const items: Any[] = order.items || []
   return {
     ชื่อลูกค้า: c?.name || '',
-    เลขออร์เดอร์: order.code,
+    เลขออร์เดอร์: orderNo(order.code),
     ยอดรวม: money(t.total),
     คงค้าง: money(Math.max(t.balance, 0)),
     ยอดที่แจ้ง: extra.requested != null ? money(extra.requested) : '',

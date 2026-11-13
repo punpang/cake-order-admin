@@ -1,4 +1,5 @@
 <script setup>
+import { orderNo } from '../lib/format'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { db, can, findCustomer, findChat, draftOf, hasDraft, clearDraft, linkChat, createCustomerFromChat, fbWindowLeft } from '../data/store'
 import OrderCreate from './OrderCreate.vue'
@@ -367,7 +368,7 @@ function doCreate() {
           <div v-else class="space-y-2">
             <RouterLink v-for="o in openOrders" :key="o.id" :to="`/admin/orders/${o.id}`" class="flex items-center justify-between gap-2 rounded-xl border border-stone-200 bg-white p-3 hover:border-brand-300">
               <span class="min-w-0">
-                <span class="block font-medium text-stone-900">{{ o.code }}</span>
+                <span class="block font-medium text-stone-900">{{ orderNo(o.code) }}</span>
                 <span class="block truncate text-xs text-stone-500">{{ o.items[0]?.name }}</span>
               </span>
               <AppIcon name="next" class="text-stone-300" />

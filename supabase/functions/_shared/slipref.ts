@@ -62,3 +62,6 @@ export function shopPartOf(f: { merchantCode?: unknown; shopRef?: unknown } | nu
   const sr = normalizeShopRef(f?.shopRef)
   return { ...(mc ? { merchantCode: mc } : {}), ...(sr ? { shopRef: sr } : {}) }
 }
+
+// รหัสออเดอร์ที่แสดงให้คนเห็น (ตรงกับ orderNo ฝั่งแอป): OR-ddmmyy-xxxxxx → ORDddmmyyxxxxxx
+export const orderNo = (code: unknown): string => String(code ?? '').replace(/^OR-(\d{6})-(\d+)$/i, 'ORD$1$2')

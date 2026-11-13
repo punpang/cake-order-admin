@@ -34,6 +34,7 @@ import { payAccountsOf } from '../lib/payAccounts'
 import { customerTargets, withNewRules } from '../lib/notifyPlan'
 import { uploadChatImage } from '../lib/chatImage'
 import { billerIdOf, promptPayBillerPayload, shopRefOfCode } from '../lib/promptpay'
+import { orderNo } from '../lib/format'
 import { callAuth, callLoyalty, readSessionToken, saveSessionToken, clearSessionToken, injectBundle, clearBundle } from '../lib/customerRemote'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
@@ -2154,7 +2155,7 @@ function cardImageOf(items) {
   }
   return isHttps(db.storefront?.heroImage) ? db.storefront.heroImage : ''
 }
-const viewCardOf = (order, url) => viewCard(order, { title: `ส่งมอบแล้ว · ${order.code}`, subtitle: 'ขอบคุณที่อุดหนุนค่ะ', url, image: cardImageOf(order.items) })
+const viewCardOf = (order, url) => viewCard(order, { title: `ส่งมอบแล้ว · ${orderNo(order.code)}`, subtitle: 'ขอบคุณที่อุดหนุนค่ะ', url, image: cardImageOf(order.items) })
 // การ์ดปุ่ม "ดูออร์เดอร์" ทั่วไปของข้อความที่เกี่ยวกับออร์เดอร์ (บรรทัดรอง = ยอดรวม/คงค้าง)
 const orderLinkCardOf = (order, url) => {
   const t = orderTotals(order)
@@ -2164,7 +2165,7 @@ const payCardOf = (order, totals, paid, url) => payCard(order, totals, { paid, u
 export function sendOrderLinkToChat(order, url) {
   const chat = (order.chatId && findChat(order.chatId)) || chatFor(order.customerId)
   if (!chat) return { error: 'ลูกค้าคนนี้ยังไม่มีแชท' }
-  sendChat(chat.id, 'staff', `ดูออร์เดอร์ ${order.code} ได้ที่ลิงก์นี้ค่ะ (ใช้ดูอย่างเดียว) ${url}`, { orderId: order.id, by: session.role, fbCard: linkCardMsg(order, url, db.shop.name, { image: cardImageOf(order.items) }) })
+  sendChat(chat.id, 'staff', `ดูออร์เดอร์ ${orderNo(order.code)} ได้ที่ลิงก์นี้ค่ะ (ใช้ดูอย่างเดียว) ${url}`, { orderId: order.id, by: session.role, fbCard: linkCardMsg(order, url, db.shop.name, { image: cardImageOf(order.items) }) })
   return { ok: true }
 }
 const maskPhone = (p) => (phoneDigits(p).length >= 6 ? `xxx-xxx-${phoneDigits(p).slice(-3)}` : '')
@@ -2481,7 +2482,7 @@ function orderVars(order, extra = {}) {
   const t = orderTotals(order)
   return {
     ชื่อลูกค้า: c?.name || '',
-    เลขออร์เดอร์: order.code,
+    เลขออร์เดอร์: orderNo(order.code),
     ยอดรวม: money(t.total),
     คงค้าง: money(Math.max(t.balance, 0)),
     ยอดที่แจ้ง: extra.requested != null ? money(extra.requested) : '',
@@ -2564,7 +2565,7 @@ async function sendPayQrFacebook(order, amount, due = '') {
     const dataUrl = await (QR.default || QR).toDataURL(payload, { type: 'image/jpeg', width: 480, margin: 2, errorCorrectionLevel: 'M' })
     const att = await uploadChatImage(chat, await (await fetch(dataUrl)).blob(), { width: 480, height: 480 })
     if (!att.path) return // โหมดจำลอง ไม่มีการอัปโหลด
-    const caption = [`สแกน QR พร้อมเพย์เพื่อชำระออร์เดอร์ ${order.code}`, `ยอด ${money(amount)}`, due ? `ชำระภายใน ${dueText(due)}` : ''].filter(Boolean).join('\n')
+    const caption = [`สแกน QR พร้อมเพย์เพื่อชำระออร์เดอร์ ${orderNo(order.code)}`, `ยอด ${money(amount)}`, due ? `ชำระภายใน ${dueText(due)}` : ''].filter(Boolean).join('\n')
     sendChat(chat.id, 'staff', caption, { orderId: order.id, by: 'ระบบ', attachments: [att] })
   } catch {
     emitStaffBell('notify_failed', { text: `${findCustomer(order.customerId)?.name || 'ลูกค้า'}: ส่ง QR พร้อมเพย์ทาง Facebook ไม่สำเร็จ` })

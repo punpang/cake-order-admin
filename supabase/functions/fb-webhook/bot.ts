@@ -4,6 +4,7 @@
 // เขียนใหม่สำหรับ Deno (ไม่คัดลอกจาก src/lib/chatBot.js ตรง ๆ) · กติกาให้ตรงกับ botReply ในส่วนที่ Phase 1 ทำ
 // ค่าตั้งอ่านจาก punpang_kv (collection 'config': bot, shop) · ไม่มีค่า → ไม่ทำงาน
 
+import { orderNo } from '../_shared/slipref.ts'
 import { complete } from '../_shared/ai.ts'
 
 const GRAPH = 'https://graph.facebook.com'
@@ -322,7 +323,7 @@ const bkkFmt = (iso: string) => {
 }
 const money2 = (n: number) => `${Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ฿`
 function orderLine(r: any): string {
-  const bits = [`ออร์เดอร์ ${r.code} สถานะ: ${STATUS_TH[r.status] || r.status}`]
+  const bits = [`ออร์เดอร์ ${orderNo(r.code)} สถานะ: ${STATUS_TH[r.status] || r.status}`]
   if (r.status !== 'cancelled' && r.pickup_at) { const f = bkkFmt(r.pickup_at); bits.push(`นัด${r.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับ'} ${f.date} ${f.time} น.`) }
   if (r.status !== 'cancelled' && r.balance != null) bits.push(Number(r.balance) > 0 ? `ยอดคงค้าง ${money2(r.balance)}` : 'ชำระครบแล้ว')
   return bits.join(' · ')
@@ -335,7 +336,7 @@ async function orderReply(o: BotInput, customerId: string | null, text: string):
   if (code) {
     const r = await o.sb.from('punpang_orders').select(cols).eq('code', code.toUpperCase()).eq('customer_id', customerId).maybeSingle()
     if (r.error || !r.data) return null
-    return { reply: orderLine(r.data), source: 'order', handoff: false, reason: `สถานะออร์เดอร์ ${r.data.code} (แชทผูกลูกค้าและออร์เดอร์เป็นของลูกค้าคนนี้)` }
+    return { reply: orderLine(r.data), source: 'order', handoff: false, reason: `สถานะออร์เดอร์ ${orderNo(r.data.code)} (แชทผูกลูกค้าและออร์เดอร์เป็นของลูกค้าคนนี้)` }
   }
   if (!ORDER_Q_RE.test(text)) return null
   const list = await o.sb.from('punpang_orders').select(cols).eq('customer_id', customerId).order('pickup_at', { ascending: false }).limit(5)

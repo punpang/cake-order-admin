@@ -1,4 +1,5 @@
 <script setup>
+import { orderNo } from '../lib/format'
 import { computed, ref } from 'vue'
 import { db, can, orderVisible, findCustomer, cancelPaymentRequest, denyPayExtension } from '../data/store'
 import { paymentQueue, paymentCounts, PAY_TABS } from '../lib/paymentsQueue'
@@ -19,7 +20,7 @@ const tab = ref('review')
 const q = ref('')
 const orders = computed(() => db.orders.filter(orderVisible))
 const counts = computed(() => paymentCounts(orders.value))
-const textOf = (o) => { const c = findCustomer(o.customerId); return [o.code, c?.name, c?.phone, c?.phone && formatPhone(c.phone)].filter(Boolean).join(' ') }
+const textOf = (o) => { const c = findCustomer(o.customerId); return [o.code, orderNo(o.code), c?.name, c?.phone, c?.phone && formatPhone(c.phone)].filter(Boolean).join(' ') }
 const rows = computed(() => paymentQueue(orders.value, { tab: tab.value, q: q.value, textOf }))
 const canConfirm = computed(() => can('confirmPayment'))
 const canReport = computed(() => can('reportPayment'))
@@ -130,7 +131,7 @@ const summary = computed(() => {
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
                   <div class="truncate font-semibold text-stone-900">{{ customerOf(r.o)?.name || 'ไม่ระบุลูกค้า' }}</div>
-                  <div class="truncate text-xs text-stone-500 tabular-nums">{{ r.o.code }}<template v-if="customerOf(r.o)?.phone"> · {{ formatPhone(customerOf(r.o).phone) }}</template></div>
+                  <div class="truncate text-xs text-stone-500 tabular-nums">{{ orderNo(r.o.code) }}<template v-if="customerOf(r.o)?.phone"> · {{ formatPhone(customerOf(r.o).phone) }}</template></div>
                 </div>
                 <RouterLink :to="`/admin/orders/${r.o.id}`" class="-mt-1 -mr-1 flex h-10 shrink-0 items-center gap-0.5 rounded-lg px-2 text-sm font-medium text-brand-700 hover:bg-brand-50" :aria-label="`เปิดออร์เดอร์ ${r.o.code}`">
                   เปิด<AppIcon name="next" :size="14" />
@@ -220,7 +221,7 @@ const summary = computed(() => {
           <div class="flex items-start gap-3">
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span class="font-semibold text-stone-900 tabular-nums">{{ r.o.code }}</span>
+                <span class="font-semibold text-stone-900 tabular-nums">{{ orderNo(r.o.code) }}</span>
                 <StatusBadge :status="r.o.status" />
               </div>
               <div class="truncate text-sm text-stone-600">{{ r.c?.name || 'ไม่ระบุลูกค้า' }}<template v-if="r.c?.phone"> · {{ formatPhone(r.c.phone) }}</template></div>

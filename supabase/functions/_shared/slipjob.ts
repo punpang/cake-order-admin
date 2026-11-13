@@ -2,6 +2,7 @@
 // ไม่ยืนยันยอดเอง (QR สลิปไม่มียอดเงินและยืนยันกับธนาคารไม่ได้จากที่นี่) · พนักงานตรวจยอดแล้วยืนยันในหน้าชำระเงินเสมอ (ยกเว้นยืนยันสลิปอัตโนมัติที่เปิดไว้และครบเงื่อนไข)
 // เขียนออร์เดอร์แบบเทียบ updated_at (CAS) และเก็บไฟล์ส่วนตัวใน R2 ผ่าน Worker เหมือน customer-order
 // กติกาเลขอ้างอิง/ธนาคาร/วัน-เวลาชำระ ใช้ชุดเดียวกับหน้าชำระเงินของลูกค้า (payfields.ts)
+import { orderNo } from './slipref.ts'
 import { autoConfirmOf, buildSlipPayment, classifyThaiQr, daysUntilPickup, latestOrderId, orderTotals, planAttach, slipKeyOf } from './slip.ts'
 import { slipChecksOf } from './schedlib/slipChecks.js'
 import { confirmSlipPayment } from './slipautoconfirm.ts'
@@ -273,8 +274,8 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
       const shownAmount = fields?.amount ?? plan.amount
       const how = fields?.amount != null ? 'ยอดอ่านจากภาพสลิป ยังไม่ได้ตรวจกับธนาคาร' : 'สลิป QR ยังไม่ได้ตรวจยอด'
       const bellText = autoConfirm
-        ? `${row.code} · ยอด ${shownAmount.toFixed(2)} (ยืนยันอัตโนมัติแล้ว · ยังไม่ได้ตรวจกับธนาคาร · นัดรับห่าง ${daysLeft} วัน${cancelledReqs.length ? ` · ยกเลิกยอดที่แจ้งเดิม ${cancelledReqs.length} รายการ` : ''})${mismatchNote}`
-        : `${row.code} · ยอด ${shownAmount.toFixed(2)} (${how})${mismatchNote}`
+        ? `${orderNo(row.code)} · ยอด ${shownAmount.toFixed(2)} (ยืนยันอัตโนมัติแล้ว · ยังไม่ได้ตรวจกับธนาคาร · นัดรับห่าง ${daysLeft} วัน${cancelledReqs.length ? ` · ยกเลิกยอดที่แจ้งเดิม ${cancelledReqs.length} รายการ` : ''})${mismatchNote}`
+        : `${orderNo(row.code)} · ยอด ${shownAmount.toFixed(2)} (${how})${mismatchNote}`
       await bell(sb, { event: 'team_customer_paid', title: autoConfirm ? 'ยืนยันชำระอัตโนมัติแล้ว' : 'ลูกค้าแจ้งโอน', text: bellText, orderId: row.id, chatId }, rand)
       await annotate(sb, chatId, msgId, { status: 'matched', ...(autoConfirm ? { autoConfirmed: true } : {}), orderCode: row.code, paymentId, at: nowIso, ...flagPart, checks })
       return 'matched'

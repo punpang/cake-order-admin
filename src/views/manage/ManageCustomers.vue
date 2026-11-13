@@ -1,4 +1,5 @@
 <script setup>
+import { orderNo } from '../../lib/format'
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import NotifyChannelPicker from '../../components/NotifyChannelPicker.vue'
@@ -211,7 +212,7 @@ async function save() {
             <div v-else class="divide-y divide-stone-100 rounded-xl border border-stone-200/70">
               <RouterLink v-for="r in history.orders" :key="r.o.id" :to="`/admin/orders/${r.o.id}`" class="flex items-center gap-3 px-3 py-2.5 text-sm hover:bg-stone-50">
                 <span class="min-w-0 flex-1">
-                  <span class="block truncate font-medium text-stone-900">{{ r.o.code }} · {{ r.o.items[0]?.name }}<template v-if="r.o.items.length > 1"> +{{ r.o.items.length - 1 }}</template></span>
+                  <span class="block truncate font-medium text-stone-900">{{ orderNo(r.o.code) }} · {{ r.o.items[0]?.name }}<template v-if="r.o.items.length > 1"> +{{ r.o.items.length - 1 }}</template></span>
                   <span class="block text-xs text-stone-500">{{ dateTime(r.o.pickupAt) }} · {{ STATUS[r.o.status].label }}</span>
                 </span>
                 <span class="shrink-0 font-semibold" :class="r.o.status === 'cancelled' ? 'text-stone-400 line-through' : 'text-stone-900'">{{ money(r.total) }}</span>

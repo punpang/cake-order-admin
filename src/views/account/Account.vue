@@ -1,4 +1,5 @@
 <script setup>
+import { orderNo } from '../../lib/format'
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
@@ -197,7 +198,7 @@ function logout() {
       <p v-if="!orders.length" class="card py-10 text-center text-stone-500">ยังไม่มีออร์เดอร์</p>
       <RouterLink v-for="o in orders" :key="o.id" :to="`/account/orders/${o.id}`" class="card flex items-center gap-3 px-4 py-3 transition hover:border-brand-300 active:scale-[0.99]">
         <span class="min-w-0 flex-1">
-          <span class="flex items-center gap-2"><b class="text-stone-900">{{ o.code }}</b><span v-if="CHANNEL[o.channel]" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{{ CHANNEL[o.channel] }}</span></span>
+          <span class="flex items-center gap-2"><b class="text-stone-900">{{ orderNo(o.code) }}</b><span v-if="CHANNEL[o.channel]" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{{ CHANNEL[o.channel] }}</span></span>
           <span class="block text-xs text-stone-500">{{ o.channel === 'pos' ? dateTime(o.createdAt) : `นัดรับ ${dateTime(o.pickupAt)}` }}</span>
           <span class="block truncate text-xs text-stone-400">{{ o.items[0]?.name }}<template v-if="o.items.length > 1"> +{{ o.items.length - 1 }}</template></span>
         </span>
