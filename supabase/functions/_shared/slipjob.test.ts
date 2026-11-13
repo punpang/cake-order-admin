@@ -436,10 +436,27 @@ Deno.test('เคยอ่านเลขอ้างอิงนี้แล้
   const p = second.T.punpang_orders[0].data.payments[0]
   assertEquals([p.amount, p.paidAt], [178, '2026-11-11T14:48'])
 })
-Deno.test('อ่านไม่ผ่าน → เก็บรูปไว้ชุดเทรนแยกจากสลิปของออร์เดอร์ และยังแนบตามปกติ', async () => {
+Deno.test('อ่านไม่ครบ (ตัวอ่านตอบว่างทั้งหมด) → เก็บรูปไว้ชุดเทรนแยกจากสลิปของออร์เดอร์ และยังแนบตามปกติ', async () => {
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
-  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: async () => null } }), 'matched')
+  const blank = { amount: null, paidAt: null, receiverName: null, receiverAccount: null }
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: async () => blank } }), 'matched')
   assertEquals(sb.T.punpang_records.filter((r: any) => r.collection === 'slipTrain').length, 1)
   assertEquals([...sb.files.keys()].some((k: string) => k.includes('/train/')), true)
-  assertEquals(sb.T.punpang_records.some((r: any) => r.collection === 'slipRead'), false)
+  assertEquals(sb.T.punpang_records.filter((r: any) => r.collection === 'slipRead').length, 1)
+})
+Deno.test('ตัวอ่านผิดพลาด (ไม่ตอบ) → ไม่จำผลและไม่เก็บชุดเทรน รอบหน้าลองอ่านใหม่', async () => {
+  let calls = 0
+  const ocrReadBy = { wai: async () => { calls++; return null } }
+  const first = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
+  await runCheck(first, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy })
+  assertEquals(first.T.punpang_records.filter((r: any) => r.collection === 'slipRead' || r.collection === 'slipTrain').length, 0)
+  const second = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
+  await runCheck(second, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy })
+  assertEquals(calls, 2)
+})
+Deno.test('อ่านครบ (ยอด วัน-เวลา เลขบัญชีผู้รับ) → จำผล และไม่เก็บชุดเทรน', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
+  await runCheck(sb, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: async () => ({ amount: 178, paidAt: '2026-11-11T14:48', receiverName: null, receiverAccount: 'xxx-x-x8154-x' }) } })
+  assertEquals(sb.T.punpang_records.filter((r: any) => r.collection === 'slipRead').length, 1)
+  assertEquals(sb.T.punpang_records.filter((r: any) => r.collection === 'slipTrain').length, 0)
 })

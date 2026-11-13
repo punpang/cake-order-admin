@@ -5,8 +5,8 @@
 import { buildSlipPayment, classifyThaiQr, latestOrderId, planAttach, slipKeyOf } from './slip.ts'
 import { imageSize, readQrTexts } from './qrimage.ts'
 import { bankByCode, normalizeRef, paidAtFromMessage, refTaken } from './payfields.ts'
-import { ocrFlagsOf, readSlipFields, readSlipFieldsChain, readSlipFieldsWorkersAI, type OcrEngine, type SlipFields } from './slipocr.ts'
-import { cacheSlipFields, cachedSlipFields, saveFailedSlip, usableFields } from './slipstore.ts'
+import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine, type SlipFields } from './slipocr.ts'
+import { readSlipOnce } from './slipstore.ts'
 
 export type SlipOutcome =
   | 'matched' | 'duplicate' | 'no_order' | 'order_missing' | 'order_inactive' | 'order_paid' | 'pending_exists'
@@ -144,16 +144,8 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     const read: (o: { bytes: Uint8Array; key: string; model: string }) => Promise<SlipFields | null> = input.ocrReadBy?.claude ?? input.ocrRead ?? readSlipFields
     engines.push({ name: 'claude', read: (x) => read({ bytes: x, key: input.ocrKey!, model: cfg.ocr.model }) })
   }
-  // ใช้ค่าที่เคยอ่านของเลขอ้างอิงนี้ก่อน (ไม่เรียกโมเดลซ้ำ) · อ่านได้ → เก็บไว้ใช้ซ้ำ · อ่านไม่ผ่าน → เก็บรูปไว้ชุดเทรน
-  let fields: SlipFields | null = null
-  if (engines.length) {
-    fields = await cachedSlipFields(sb, key)
-    if (!fields) {
-      fields = await readSlipFieldsChain(bytes, engines)
-      if (usableFields(fields)) await cacheSlipFields(sb, key, fields)
-      else await saveFailedSlip(sb, { bytes, bankCode, source: 'chat', attempts: [fields] })
-    }
-  }
+  // อ่านผ่าน readSlipOnce: ใช้ผลที่เคยได้ตามเลขอ้างอิงก่อน (ไม่เรียกโมเดลซ้ำ) · ผลที่ตอบแล้วจำไว้ · อ่านไม่ครบเก็บรูปไว้ชุดเทรน
+  const fields = await readSlipOnce(sb, { key, bytes, bankCode, source: 'chat', engines })
 
   if (cfg.mode === 'manual') {
     // โหมดแมนนวล: เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์

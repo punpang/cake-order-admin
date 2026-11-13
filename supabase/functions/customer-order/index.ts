@@ -2,8 +2,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { PAY_MSG, bankByCode, checkCustomerTxn, normalizeRef, refTaken } from '../_shared/payfields.ts'
 import { slipKeyOf } from '../_shared/slip.ts'
 import { readSlipQr } from '../_shared/slipread.ts'
-import { ocrFlagsOf, readSlipFields, readSlipFieldsChain, readSlipFieldsWorkersAI, type OcrEngine } from '../_shared/slipocr.ts'
-import { cacheSlipFields, cachedSlipFields, saveFailedSlip, usableFields } from '../_shared/slipstore.ts'
+import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine } from '../_shared/slipocr.ts'
+import { readSlipOnce } from '../_shared/slipstore.ts'
 
 // การกระทำของลูกค้าบนออร์เดอร์ (ฝั่งเซิร์ฟเวอร์): แจ้งชำระ(แนบสลิป) · ขอขยายเวลา · ขอ/ยกเลิกขอไม่เผยแพร่รูป
 // ยืนยันตัวตนได้ 2 แบบ: ลิงก์ออร์เดอร์ (token 32 ตัวอักษร เก็บ hash ใน punpang_records) หรือเซสชันลูกค้า (+ orderId ที่เป็นของตัวเอง)
@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
   try { b = await req.json() } catch { return json({ error: 'คำขอไม่ถูกต้อง' }, 400) }
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
   // อ่านยอดและวัน-เวลาจากภาพสลิป (เหมือนสลิปในแชท) · เฉพาะเมื่อร้านเปิดไว้และมีคีย์ · อ่านไม่ได้ = null (ไม่บล็อกการส่ง)
-  // อ่านภาพเพียงครั้งเดียวต่อเลขอ้างอิงสลิป: ผลที่อ่านได้เก็บไว้ใช้ซ้ำ (ตามการตั้งค่าผลอ่านสลิป) ตอนแนบ/ตอนส่งใช้ผลเดียวกัน ไม่เรียกโมเดลซ้ำ
+  // อ่านภาพเพียงครั้งเดียวต่อเลขอ้างอิงสลิป: ผลที่โมเดลตอบแล้วจำไว้ตามเลขอ้างอิง (ตามการตั้งค่าผลอ่านสลิป) ตอนแนบ/ตอนส่งใช้ผลเดียวกัน ไม่เรียกโมเดลซ้ำ
   // เลขอ้างอิงของสลิปนี้ถูกใช้ในรายการชำระของออร์เดอร์ไหนแล้วหรือยัง (ไม่นับรายการที่ยกเลิก)
   const refUsed = async (ref: string) => {
     if (!ref) return false
@@ -92,13 +92,7 @@ Deno.serve(async (req) => {
     const key = Deno.env.get('ANTHROPIC_API_KEY') || ''
     if (flags.claude && key) engines.push({ name: 'claude', read: (x) => readSlipFields({ bytes: x, key, model: flags.model }) })
     if (!engines.length) return null
-    const slipKey = slipKeyOf(qr.bankCode, normalizeRef(qr.ref))
-    const cached = await cachedSlipFields(sb, slipKey)
-    if (cached) return cached
-    const fields = await readSlipFieldsChain(bytes, engines)
-    if (usableFields(fields)) await cacheSlipFields(sb, slipKey, fields)
-    else await saveFailedSlip(sb, { bytes, bankCode: qr.bankCode, source: 'order', attempts: [fields] })
-    return fields
+    return readSlipOnce(sb, { key: slipKeyOf(qr.bankCode, normalizeRef(qr.ref)), bytes, bankCode: qr.bankCode, source: 'order', engines })
   }
   const action = String(b.action || '')
   if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)

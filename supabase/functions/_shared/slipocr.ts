@@ -161,11 +161,13 @@ export async function readSlipFieldsWorkersAI(o: { bytes: Uint8Array; accountId:
 // ทำหลัง QR พบว่าเป็นสลิปธนาคารแล้วเท่านั้น · ตัวแรกที่ได้ยอดหรือวัน-เวลาจะหยุด · ผลว่างหรือ error ไปตัวถัดไป
 // ไม่มีตัวไหนได้ผลครบ → ใช้ผลบางส่วนของตัวแรกที่ตอบ
 export type OcrEngine = { name: string; read: (bytes: Uint8Array) => Promise<SlipFields | null> }
-export async function readSlipFieldsChain(bytes: Uint8Array, engines: OcrEngine[]): Promise<SlipFields | null> {
+// status.errored = true เมื่อมีตัวอ่านที่ผิดพลาดหรือไม่ตอบ (null) · ใช้ตัดสินว่าผลที่ได้ควรจำไว้ใช้ซ้ำหรือไม่
+export async function readSlipFieldsChain(bytes: Uint8Array, engines: OcrEngine[], status?: { errored: boolean }): Promise<SlipFields | null> {
   let partial: SlipFields | null = null
   for (const e of engines) {
     let f: SlipFields | null = null
     try { f = await e.read(bytes) } catch { f = null }
+    if (f == null && status) status.errored = true
     if (f?.amount != null || f?.paidAt != null) return f
     partial ??= f
   }
