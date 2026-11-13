@@ -310,6 +310,8 @@ export const db = reactive({
     linkPolicy: { ...DEFAULT_LINK_POLICY }, linkAllowlist: ['lin.ee', 'line.me', 'facebook.com', 'fb.me', 'maps.app.goo.gl', 'maps.google.com'] },
   // เตือนวันเกิด: key ที่กด "ทักแล้ว" (ลูกค้า|ชื่อ|MM-DD|ปี)
   birthdayGreeted: [],
+  // เซิร์ฟเวอร์ส่งเตือนลูกค้า/ทีมตามเวลาแทนแอปเมื่อ server = true (punpang_kv: config/scheduled) · ค่าเริ่มต้นแอปยังทำเอง
+  scheduled: { server: false },
 
   // ---------- คะแนนสะสม / แลกของ / กาชา ----------
   // earnPer = ทุกกี่บาทได้ 1 คะแนน, pointValue = 1 คะแนนลดได้กี่บาท, spinCost = คะแนนต่อการหมุน 1 ครั้ง, spinPer = ทุกกี่บาทได้สิทธิ์หมุน 1 ครั้ง
@@ -2721,12 +2723,14 @@ export const scheduledHooks = []
 export function runScheduledChecks() {
   let n = 0
   const nowMs = Date.now()
+  // server = true → เซิร์ฟเวอร์ (Edge Function scheduled) ส่งเตือนลูกค้าและทีมแล้ว แอปข้ามส่วนนั้น (บัญชีและคูปองยังทำในแอป)
+  const serverRuns = db.scheduled?.server === true
   const once = (key, fn) => {
     if (db.notifySent.includes(key)) return
     db.notifySent.push(key)
     n += fn()
   }
-  for (const o of db.orders) {
+  for (const o of serverRuns ? [] : db.orders) {
     if (['draft', 'delivered', 'cancelled'].includes(o.status)) continue
     const toPickup = new Date(o.pickupAt).getTime() - nowMs
     if (toPickup > 0 && toPickup <= 24 * 3600e3) once(`pickup|${o.id}`, () => { notifyOrder('pickup_reminder', o); return 1 })
@@ -2735,14 +2739,14 @@ export function runScheduledChecks() {
     const toDue = dueAt(o).getTime() - nowMs
     if (toDue <= 2 * 3600e3) once(`due|${o.id}`, () => notify('team_due_soon', { vars: orderVars(o), orderId: o.id }))
   }
-  for (const b of upcomingBirthdays()) {
+  for (const b of serverRuns ? [] : upcomingBirthdays()) {
     const c = findCustomer(b.customerId)
     once(`bd|${b.customerId}|${b.name}|${b.md}|${b.year}`, () => notify('birthday', { customer: c, vars: { ...orderVars(b.order), ชื่อวันเกิด: b.name || c?.name || '' }, orderId: b.order.id }))
   }
   const today = toDateStr(new Date())
   sweepCoupons()
   for (const h of scheduledHooks) n += h(once, today) || 0
-  for (const c of db.customers) {
+  for (const c of serverRuns ? [] : db.customers) {
     const soon = expiringSoon(c.ledger || [], today)
     if (soon?.points > 0) once(`pts|${c.id}|${soon.date}`, () => notify('points_expiring', { customer: c, vars: { ชื่อลูกค้า: c.name, คะแนน: String(soon.points) } }))
   }
