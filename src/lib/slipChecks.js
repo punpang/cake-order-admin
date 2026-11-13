@@ -37,11 +37,12 @@ export function slipChecksOf({ fields, order = null, configuredMerchantCode = ''
     out.push({ key: 'paidAt', ok, text: ok ? 'โอนหลังเวลาสร้างออร์เดอร์' : 'โอนก่อนเวลาสร้างออร์เดอร์' })
   }
 
-  if (!digitsOf(configuredMerchantCode)) out.push({ key: 'merchant', ok: null, text: 'ยังไม่ได้ตั้งรหัสร้านค้า' })
-  else if (!digitsOf(f.merchantCode)) out.push({ key: 'merchant', ok: false, text: 'อ่านรหัสร้านค้าในสลิปไม่ได้' })
+  // รหัสร้านค้าแสดงให้พนักงานเห็นเท่านั้น (info) · ไม่นับเป็นเงื่อนไขผูก/ยืนยันอัตโนมัติ
+  if (!digitsOf(configuredMerchantCode)) out.push({ key: 'merchant', ok: null, text: 'ยังไม่ได้ตั้งรหัสร้านค้า', info: true })
+  else if (!digitsOf(f.merchantCode)) out.push({ key: 'merchant', ok: false, text: 'อ่านรหัสร้านค้าในสลิปไม่ได้', info: true })
   else {
     const ok = digitsOf(f.merchantCode) === digitsOf(configuredMerchantCode)
-    out.push({ key: 'merchant', ok, text: ok ? 'รหัสร้านค้าตรงกับของร้าน' : 'รหัสร้านค้าในสลิปไม่ตรงกับของร้าน' })
+    out.push({ key: 'merchant', ok, text: ok ? 'รหัสร้านค้าตรงกับของร้าน' : 'รหัสร้านค้าในสลิปไม่ตรงกับของร้าน', info: true })
   }
 
   if (!f.shopRef) out.push({ key: 'shopRef', ok: null, text: 'ไม่มีรหัสอ้างอิงร้านค้าในสลิป' })
