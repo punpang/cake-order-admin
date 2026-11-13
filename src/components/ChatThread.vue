@@ -1,7 +1,7 @@
 <script setup>
 import { orderNo } from '../lib/format'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { addCakeCodesToDraft, can, postOrderCard, db, findOrder, sendChat, markRead, findQuote, fbWindowOpen, convertQuote, chatOrderBlock, findCustomer, linkChat, askCustomer, cancelAsk, applyToDraft, ASK_FIELDS, saveCanned, removeCanned, sendBotDraft, dismissBotDraft, setChatBot, staffReplied, recommendText, addRecommendToDraft, slipChatChoices } from '../data/store'
+import { cancelChatSlip, addCakeCodesToDraft, can, postOrderCard, db, findOrder, sendChat, markRead, findQuote, fbWindowOpen, convertQuote, chatOrderBlock, findCustomer, linkChat, askCustomer, cancelAsk, applyToDraft, ASK_FIELDS, saveCanned, removeCanned, sendBotDraft, dismissBotDraft, setChatBot, staffReplied, recommendText, addRecommendToDraft, slipChatChoices } from '../data/store'
 import { detectEntities } from '../lib/chatParse'
 import { CODE_RE, findCodes } from '../lib/cakeCode'
 import { extractIntent, customerText, scoreProducts, intentSummary } from '../lib/chatIntent'
@@ -19,6 +19,7 @@ import { payAccountsOf } from '../lib/payAccounts'
 import { slipAccountCheck } from '../lib/slipAccount'
 import { kb } from '../lib/viewportFit'
 import { showToast } from '../lib/toast'
+import { askConfirm } from '../lib/confirm'
 import { prepareChatImage, uploadChatImage, MAX_CHAT_IMAGES } from '../lib/chatImage'
 import { imageErrorMessage } from '../lib/imageResize'
 
@@ -61,6 +62,7 @@ const SLIP_CHIP = {
   upload_failed: ['สลิป QR · บันทึกไฟล์ไม่สำเร็จ ให้ลูกค้าส่งใหม่', 'bg-rose-50 text-rose-700'],
   busy: ['สลิป QR · ออร์เดอร์กำลังถูกแก้ไข ให้ลูกค้าส่งใหม่', 'bg-amber-50 text-amber-700'],
   manual: ['สลิป QR · รอร้านรับชำระ', 'bg-sky-50 text-sky-700'],
+  cancelled: ['สลิป QR · ยกเลิกแล้ว', 'bg-stone-100 text-stone-600'],
 }
 // หัวข้อ + จุดสีของการ์ดสลิป: สีจากโทนของสถานะ (เขียว = สำเร็จ · แดง = ผิดพลาด/ซ้ำ · เหลือง = ต้องดูเอง · เทา = ไม่รู้สถานะ)
 function slipChip(s) {
@@ -70,6 +72,12 @@ function slipChip(s) {
 }
 // โหมดแมนนวล: ร้านผูกสลิปที่ลูกค้าส่งกับออร์เดอร์เอง (ที่แนะนำ = ออร์เดอร์ที่คุยล่าสุด หรือออร์เดอร์อื่นของลูกค้าคนเดียวกัน) ในหน้าแชทนี้
 const canBindSlip = (m) => can('reportPayment') && m.slipCheck?.status === 'manual' && !!m.slipCheck.slipRef
+const slipCheckList = (m) => (Array.isArray(m.slipCheck?.checks) ? m.slipCheck.checks : [])
+async function doCancelSlip(m) {
+  if (!(await askConfirm({ title: 'ยกเลิกสลิปนี้', message: 'สลิปนี้จะไม่ผูกกับออร์เดอร์ และลูกค้าส่งรูปเดิมซ้ำได้', okText: 'ยกเลิกสลิป', danger: true }))) return
+  const r = cancelChatSlip(props.chat.id, m.id)
+  if (r.error) showToast(r.error, 4000, 'error')
+}
 const slipChoicesOf = (m) => slipChatChoices(props.chat.id, m.id)
 const slipPick = ref(null) // ข้อความสลิปที่กำลังเลือกออร์เดอร์อื่น
 const slipBind = ref(null) // { order, target } ของโมดัลผูกสลิป
@@ -453,10 +461,14 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
                   </div>
                   <div class="col-span-2 text-xs text-sky-700">{{ m.slipCheck.autoConfirmed ? 'อ่านจากภาพ · ยืนยันอัตโนมัติแล้ว ยังไม่ได้ตรวจกับธนาคาร' : 'อ่านจากภาพ · ตรวจกับธนาคารก่อนยืนยัน' }}</div>
                 </div>
+                <ul v-if="slipCheckList(m).length" class="mt-2.5 space-y-1 rounded-xl bg-white p-2.5 text-xs" aria-label="เครื่องหมายตรวจสลิป">
+                  <li v-for="(c, k) in slipCheckList(m)" :key="k" class="flex items-start gap-1.5" :class="c.ok === true ? 'text-emerald-700' : c.ok === false ? 'text-rose-700' : 'text-stone-500'"><span aria-hidden="true" class="font-bold">{{ c.ok === true ? '✓' : c.ok === false ? '✗' : '–' }}</span><span>{{ c.text }}</span></li>
+                </ul>
                 <!-- โหมดแมนนวล: ผูกกับออร์เดอร์ที่แนะนำ หรือเลือกออร์เดอร์อื่นของลูกค้า (ในหน้าแชท ไม่เปลี่ยนหน้า) -->
                 <div v-if="canBindSlip(m)" class="mt-2.5 flex gap-2">
                   <button v-if="slipChoicesOf(m).suggested" type="button" class="btn-primary h-9 min-w-0 flex-1 truncate px-3 text-xs" :disabled="!(slipChoicesOf(m).suggested.room > 0)" data-slip-bind @click="openSlipBind(m, slipChoicesOf(m).suggested.order)">รับชำระ {{ slipChoicesOf(m).suggested.order.code }}</button>
                   <button type="button" class="btn-outline h-9 shrink-0 px-3 text-xs" data-slip-pick @click="slipPick = m">{{ slipChoicesOf(m).suggested ? 'เลือกอื่น' : 'เลือกออร์เดอร์' }}</button>
+                  <button type="button" class="btn-outline h-9 shrink-0 px-3 text-xs text-rose-700" data-slip-cancel @click="doCancelSlip(m)">ยกเลิกสลิป</button>
                 </div>
               </div>
               <!-- คำตอบของปุ่มถาม -->

@@ -3315,6 +3315,14 @@ export function receiveChatSlip(chatId, msgId, orderId, data = {}) {
   notifyOrder('payment_confirmed', order, { skip: data.notify === false, noSms: data.sms === false, paid: amount })
   return { ok: true, code: pay.code }
 }
+// ยกเลิกสลิปที่รอร้านรับชำระ (ไม่ผูกกับออร์เดอร์) · ลูกค้าส่งรูปเดิมซ้ำได้
+export function cancelChatSlip(chatId, msgId) {
+  if (!can('reportPayment')) return { error: 'ไม่มีสิทธิ์' }
+  const m = findChat(chatId)?.messages.find((x) => x.id === msgId)
+  if (!m?.slipCheck || m.slipCheck.status !== 'manual') return { error: 'ยกเลิกได้เฉพาะสลิปที่รอร้านรับชำระ' }
+  m.slipCheck = { ...m.slipCheck, status: 'cancelled', cancelledAt: now(), cancelledBy: session.role }
+  return { ok: true }
+}
 // การ์ดสรุปออร์เดอร์ในแชท (แชทของออร์เดอร์ ถ้าไม่มีใช้แชทล่าสุดของลูกค้า)
 export function postOrderCard(order, chat = null, row = null) {
   const c = chat || (order.chatId ? findChat(order.chatId) : chatFor(order.customerId))

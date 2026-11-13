@@ -152,7 +152,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   }
   // อ่านผ่าน readSlipOnce: ใช้ผลที่เคยได้ตามเลขอ้างอิงก่อน (ไม่เรียกโมเดลซ้ำ) · ผลที่ตอบแล้วจำไว้ · อ่านไม่ครบเก็บรูปไว้ชุดเทรน
   // สลิปรูปเดิมที่เคยเก็บในแชทและยังไม่ได้แนบเข้าออร์เดอร์ → ซ้ำ (ไม่อ่านซ้ำ) · ที่แนบแล้วซ้ำได้เฉพาะออร์เดอร์เดิมที่ยังไม่ปิด
-  const priorImage = (seenInChats?.data || []).flatMap((c: any) => (Array.isArray(c.data?.messages) ? c.data.messages : []).map((m: any) => ({ c, m }))).filter(({ c, m }: any) => m?.slipCheck?.slipKey === key && !(c.id === chatId && m?.id === msgId))
+  const priorImage = (seenInChats?.data || []).flatMap((c: any) => (Array.isArray(c.data?.messages) ? c.data.messages : []).map((m: any) => ({ c, m }))).filter(({ c, m }: any) => m?.slipCheck?.slipKey === key && !(c.id === chatId && m?.id === msgId) && m.slipCheck.status !== 'cancelled')
   if (priorImage.some(({ m }: any) => m.slipCheck.status !== 'matched')) return finish('duplicate')
   const fields = await readSlipOnce(sb, { key, bytes, bankCode, source: 'chat', engines, files })
 

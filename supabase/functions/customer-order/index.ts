@@ -9,6 +9,7 @@ import { readSlipQr } from '../_shared/slipread.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine } from '../_shared/slipocr.ts'
 import { readSlipOnce } from '../_shared/slipstore.ts'
 import { inFbWindow, renderSlipNotice, slipNoticeOn, slipNoticeTemplate } from '../_shared/slipnotice.ts'
+import { sendSmsGateway } from '../_shared/sms.ts'
 
 // การกระทำของลูกค้าบนออร์เดอร์ (ฝั่งเซิร์ฟเวอร์): แจ้งชำระ(แนบสลิป) · ขอขยายเวลา · ขอ/ยกเลิกขอไม่เผยแพร่รูป
 // ยืนยันตัวตนได้ 2 แบบ: ลิงก์ออร์เดอร์ (token 32 ตัวอักษร เก็บ hash ใน punpang_records) หรือเซสชันลูกค้า (+ orderId ที่เป็นของตัวเอง)
@@ -73,24 +74,24 @@ function decodeSlip(s: unknown): { bytes: Uint8Array; type: string; ext: string 
 
 // ---------- แจ้งลูกค้าทาง Facebook เมื่อส่งสลิปผ่านหน้าออร์เดอร์/บัญชี (งานพื้นหลัง · ไม่ทำให้การส่งสลิปล้มเหลว) ----------
 type SlipNotice = { orderCode: string; orderId: string; customerId: string; amount: number }
-async function notifySlipFacebook(sb: any, n: SlipNotice): Promise<void> {
+async function notifySlipFacebook(sb: any, n: SlipNotice): Promise<boolean> {
   const nowIso = () => new Date().toISOString()
   const bellFail = (reason: string) => sb.from('punpang_records').insert({ collection: 'bell', id: `bl${randHex(6)}`, data: { audience: 'staff', event: 'notify_failed', title: 'แจ้งลูกค้าไม่สำเร็จ', text: `${n.orderCode} · ${reason}`, orderId: n.orderId, readBy: [], at: nowIso() } })
   const cu = await sb.from('punpang_customers').select('name,data').eq('id', n.customerId).maybeSingle()
   const psid = String(cu.data?.data?.fbPsid || '')
-  if (!/^\d{5,30}$/.test(psid)) return // ลูกค้ารายนี้ไม่ได้ผูก Facebook
+  if (!/^\d{5,30}$/.test(psid)) return false // ลูกค้ารายนี้ไม่ได้ผูก Facebook
   const kv = await sb.from('punpang_kv').select('id,data').eq('collection', 'config').in('id', ['notifyRules', 'integrations'])
   const cfg: { notifyRules?: any; integrations?: any } = {}
   for (const r of kv.data || []) {
     if (r.id === 'notifyRules') cfg.notifyRules = r.data?.v
     if (r.id === 'integrations') cfg.integrations = r.data?.v
   }
-  if (!slipNoticeOn(cfg)) return
+  if (!slipNoticeOn(cfg)) return false
   const pg = await sb.from('punpang_fb_pages').select('token').limit(1).maybeSingle()
-  if (!pg.data?.token) return
+  if (!pg.data?.token) return false
   const chat = await sb.from('punpang_chats').select('id,data,updated_at').eq('channel', 'facebook').eq('external_id', psid).maybeSingle()
-  if (!chat.data) return
-  if (!inFbWindow(chat.data.data?.lastInboundAt, Date.now())) { await bellFail('เกิน 24 ชม. หลังลูกค้าทัก Facebook ล่าสุด ส่งไม่ได้'); return }
+  if (!chat.data) return false
+  if (!inFbWindow(chat.data.data?.lastInboundAt, Date.now())) { await bellFail('เกิน 24 ชม. หลังลูกค้าทัก Facebook ล่าสุด ส่งไม่ได้'); return false }
   const text = renderSlipNotice(slipNoticeTemplate(cfg), { code: n.orderCode, amount: n.amount, name: String(cu.data?.name || '').trim() })
   const ver = (Deno.env.get('FB_GRAPH_VERSION') || 'v24.0').trim()
   let sent = false
@@ -109,6 +110,22 @@ async function notifySlipFacebook(sb: any, n: SlipNotice): Promise<void> {
     if (!up.error && (up.data || []).length) break
   }
   if (!sent) await bellFail('ส่ง Facebook ไม่สำเร็จ')
+  return sent
+}
+
+// ลูกค้าที่แจ้ง Facebook ไม่ได้ (ไม่ผูก / เกิน 24 ชม. / ร้านปิดช่อง) → ส่ง SMS ไปเบอร์ลูกค้าแทน
+async function notifySlipSms(sb: any, n: SlipNotice): Promise<void> {
+  const cu = await sb.from('punpang_customers').select('phone').eq('id', n.customerId).maybeSingle()
+  const phone = String(cu.data?.phone || '').replace(/\D/g, '')
+  if (!/^0[689]\d{8}$/.test(phone)) return
+  const text = `ร้านได้รับสลิปการชำระเงินของออร์เดอร์ ${n.orderCode} ยอด ${Number(n.amount).toFixed(2)} บาทแล้วค่ะ รอร้านตรวจสอบ ขอบคุณค่ะ`
+  const ok = await sendSmsGateway(phone, text, `slip-${n.orderId}-${randHex(4)}`)
+  if (!ok) await sb.from('punpang_records').insert({ collection: 'bell', id: `bl${randHex(6)}`, data: { audience: 'staff', event: 'notify_failed', title: 'แจ้งลูกค้าไม่สำเร็จ', text: `${n.orderCode} · ส่ง SMS แจ้งรับสลิปไม่สำเร็จ`, orderId: n.orderId, readBy: [], at: new Date().toISOString() } })
+}
+
+// แจ้งรับสลิป: Facebook ก่อน ถ้าส่งไม่ได้จึงส่ง SMS
+async function notifySlip(sb: any, n: SlipNotice): Promise<void> {
+  if (!(await notifySlipFacebook(sb, n))) await notifySlipSms(sb, n)
 }
 
 Deno.serve(async (req) => {
@@ -386,7 +403,7 @@ Deno.serve(async (req) => {
     if (autoBell) await sb.from('punpang_records').insert({ collection: 'bell', id: `bl${randHex(6)}`, data: { audience: 'staff', event: 'team_customer_paid', title: 'ยืนยันชำระอัตโนมัติแล้ว', text: `${autoBell.code} · ยอด ${autoBell.amount} (อ่านจากภาพ ยังไม่ได้ตรวจกับธนาคาร)`, orderId: row.id, readBy: [], at: new Date().toISOString() } })
     if (slipNotice) {
       // ไม่รอผลส่ง: ให้ลูกค้าได้รับคำตอบเร็ว · ถ้าเปิดได้ (EdgeRuntime.waitUntil) ให้งานทำต่อหลังตอบกลับ
-      const job = notifySlipFacebook(sb, slipNotice).catch((e) => console.error('slip-notify', String((e as Error)?.message || e)))
+      const job = notifySlip(sb, slipNotice).catch((e) => console.error('slip-notify', String((e as Error)?.message || e)))
       const er = (globalThis as any).EdgeRuntime
       if (er?.waitUntil) er.waitUntil(job)
       else await job
