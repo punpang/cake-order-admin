@@ -117,10 +117,18 @@ Deno.test('readSlipFieldsChain: ตัวแรกที่ได้ยอดห
   assertEquals(calls, ['wai', 'claude'])
   calls.length = 0
   assertEquals(await readSlipFieldsChain(JPG, [eng('wai', async () => got), eng('claude', async () => null)]), got)
-  assertEquals(calls, ['wai'])
+  assertEquals(calls, ['wai', 'claude'])
   calls.length = 0
   assertEquals(await readSlipFieldsChain(JPG, [eng('wai', async () => { throw new Error('ล้มเหลว') }), eng('claude', async () => got)]), got)
   assertEquals(calls, ['wai', 'claude'])
+})
+
+Deno.test('readSlipFieldsChain: รหัสร้านค้าใช้เฉพาะเมื่อตัวอ่านอิสระ 2 ตัวตรงกัน', async () => {
+  const eng = (mc: string | undefined) => ({ name: 'x', read: async (_b: Uint8Array) => ({ amount: 1, paidAt: null, receiverName: null, receiverAccount: null, ...(mc ? { merchantCode: mc } : {}) }) as SlipFields })
+  assertEquals(await readSlipFieldsChain(JPG, [eng('014000000517185'), eng('014000000517185')]), { amount: 1, paidAt: null, receiverName: null, receiverAccount: null, merchantCode: '014000000517185' })
+  assertEquals(await readSlipFieldsChain(JPG, [eng('01400000517185'), eng('014000000517185')]), { amount: 1, paidAt: null, receiverName: null, receiverAccount: null })
+  assertEquals(await readSlipFieldsChain(JPG, [eng('014000000517185')]), { amount: 1, paidAt: null, receiverName: null, receiverAccount: null })
+  assertEquals(await readSlipFieldsChain(JPG, [eng(undefined), eng('014000000517185')]), { amount: 1, paidAt: null, receiverName: null, receiverAccount: null })
 })
 
 Deno.test('readSlipFieldsChain: ไม่มีตัวไหนได้ยอดหรือวัน-เวลา → ใช้ผลบางส่วนของตัวแรกที่ตอบ · ไม่มีเลยเป็น null', async () => {
