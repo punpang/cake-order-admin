@@ -6,7 +6,7 @@ export const RETENTION_PRESETS = [7, 30, 90, 180, 365]
 // timeField = ฟิลด์เวลาในข้อมูลที่ใช้นับอายุ (null = นับจำนวนล่วงหน้าไม่ได้) · min = จำนวนวันขั้นต่ำที่ยอมให้ตั้ง
 export const RETENTION_CATS = [
   {
-    key: 'slipRead', icon: 'wallet', title: 'ผลอ่านสลิป', min: 1, timeField: 'at', def: { enabled: true, days: 30 },
+    key: 'slipRead', icon: 'wallet', title: 'ผลอ่านสลิป', min: 1, timeField: 'at', def: { enabled: true, days: 180 },
     removes: 'ผลอ่านยอดและวัน-เวลาที่ระบบจำไว้ชั่วคราว เพื่อไม่ต้องอ่านสลิปใบเดิมซ้ำ',
     keeps: 'รายการชำระเงินและรูปสลิปในออร์เดอร์ไม่ถูกแตะ',
   },

@@ -91,7 +91,29 @@ const chatWith = (messages: any[]) => ({ id: 'c1', channel: 'facebook', external
 const slipMsg = { id: 'm1', from: 'customer', kind: 'text', text: '', fbMid: 'mid1', attachments: [{ type: 'image', path: 'fb/123/mid1-0.png' }], by: 'ลูกค้า' }
 const staffRef = (orderId: string) => ({ id: 's1', from: 'staff', kind: 'text', text: 'สรุปออร์เดอร์ให้แล้วค่ะ', orderId, by: 'พนักงาน' })
 const kvSlip = (enabled: boolean) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled } } })
-const runCheck = (sb: any, bytes: Uint8Array, extra: Record<string, unknown> = {}) => checkSlipImage({ sb, chatId: 'c1', msgId: 'm1', bytes, nowMs: NOW, rand: (n) => 'a'.repeat(n * 2).slice(0, n * 2), ...extra })
+// เซิร์ฟเวอร์ไฟล์จำลอง (Worker): เก็บไฟล์ลงแมป sb.files ตามคีย์ที่ Worker จะออกให้ และนับการอัปโหลด/ลบเหมือนตัวจำลองเดิม
+const svcFake = (sb: any) => ({
+  url: 'https://files.test',
+  key: 'svc-key',
+  fetchImpl: (async (input: any, init: any) => {
+    const u = new URL(String(input))
+    if (u.pathname === '/svc/upload') {
+      sb.calls.uploads++
+      if (sb.hooks.uploadFail) return new Response('{"error":"fail"}', { status: 500 })
+      const body = new Uint8Array(init.body)
+      const key = `${u.searchParams.get('prefix') || ''}/${'a'.repeat(32)}.${body[0] === 0x89 ? 'png' : 'jpg'}`
+      sb.files.set(key, body)
+      return new Response(JSON.stringify({ key, ref: `r2://private/${key}` }), { status: 200 })
+    }
+    if (u.pathname === '/svc/delete') {
+      sb.calls.removes++
+      for (const k of JSON.parse(String(init.body)).keys) sb.files.delete(k)
+      return new Response('{"ok":true}', { status: 200 })
+    }
+    return new Response('{}', { status: 404 })
+  }) as typeof fetch,
+})
+const runCheck = (sb: any, bytes: Uint8Array, extra: Record<string, unknown> = {}) => checkSlipImage({ sb, chatId: 'c1', msgId: 'm1', bytes, nowMs: NOW, rand: (n) => 'a'.repeat(n * 2).slice(0, n * 2), files: svcFake(sb), ...extra })
 
 Deno.test('สลิปในแชท + ออร์เดอร์ที่คุยล่าสุด → จับคู่ เก็บยอดรอตรวจ แจ้งกระดิ่ง และติดป้ายในแชท', async () => {
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [] })
@@ -102,8 +124,8 @@ Deno.test('สลิปในแชท + ออร์เดอร์ที่ค
   const p = o.data.payments[0]
   assertEquals([p.code, p.amount, p.status, p.source, p.customerSubmitted], ['PAY-111126-00001', 540, 'reported', 'customer', true])
   assertEquals(p.slipKey, '004:A1B2C3D4E5F6G7H8')
-  assertEquals(p.slip, 'sb://punpang-slips/o1/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png')
-  assertEquals(sb.files.has('punpang-slips/o1/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png'), true)
+  assertEquals(p.slip, 'r2://private/o1/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png')
+  assertEquals(sb.files.has('o1/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png'), true)
   assertEquals(o.data.history.at(-1).by, 'customer')
   const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
   assertEquals([bell.data.event, bell.data.orderId, bell.data.audience], ['team_customer_paid', 'o1', 'staff'])
@@ -243,11 +265,11 @@ Deno.test('โหมดแมนนวล: เก็บรูปไว้ใน�
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'manual')
   const o = sb.T.punpang_orders[0]
   assertEquals([o.status, o.data.payments.length, o.data.history.length], ['awaiting_payment', 0, 0])
-  assertEquals(sb.files.has(`punpang-slips/manual/c1/${RAND32}.png`), true)
+  assertEquals(sb.files.has(`manual/c1/${RAND32}.png`), true)
   const msg = sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1')
   assertEquals(
     [msg.slipCheck.status, msg.slipCheck.orderId, msg.slipCheck.orderCode, msg.slipCheck.ref, msg.slipCheck.bankCode, msg.slipCheck.slipRef],
-    ['manual', 'o1', 'OR-111126-000010', 'A1B2C3D4E5F6G7H8', '004', `sb://punpang-slips/manual/c1/${RAND32}.png`],
+    ['manual', 'o1', 'OR-111126-000010', 'A1B2C3D4E5F6G7H8', '004', `r2://private/manual/c1/${RAND32}.png`],
   )
   const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
   assertEquals([bell.data.event, bell.data.orderId, bell.data.audience], ['slip_check', 'o1', 'staff'])
@@ -416,4 +438,47 @@ Deno.test('แชทถูกเขียนชนกันเกินจำน
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'matched')
   assertEquals(sb.T.punpang_chats[0].data.messages.find((x: any) => x.id === 'm1')?.slipCheck, undefined)
   assertEquals(sb.T.punpang_orders[0].data.payments.length, 1)
+})
+
+// ---- เก็บผลอ่านไว้ใช้ซ้ำ และเก็บสลิปที่อ่านไม่ผ่านไว้ชุดเทรน ----
+const WAI_CRED = { accountId: 'a', token: 't', model: '' }
+Deno.test('อ่านได้ → เก็บค่าที่อ่านไว้ตามเลขอ้างอิง', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
+  await runCheck(sb, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: async () => ({ amount: 178, paidAt: '2026-11-11T14:48', receiverName: null, receiverAccount: null }) } })
+  assertEquals(sb.T.punpang_records.filter((r: any) => r.collection === 'slipRead').length, 1)
+})
+Deno.test('เคยอ่านเลขอ้างอิงนี้แล้ว → ใช้ค่าที่เก็บไว้ ไม่เรียกโมเดลซ้ำ', async () => {
+  const first = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
+  await runCheck(first, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: async () => ({ amount: 178, paidAt: '2026-11-11T14:48', receiverName: null, receiverAccount: null }) } })
+  const second = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
+  second.T.punpang_records.push(...first.T.punpang_records.filter((r: any) => r.collection === 'slipRead'))
+  let calls = 0
+  assertEquals(await runCheck(second, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: async () => { calls++; return null } } }), 'matched')
+  assertEquals(calls, 0)
+  const p = second.T.punpang_orders[0].data.payments[0]
+  assertEquals([p.amount, p.paidAt], [178, '2026-11-11T14:48'])
+})
+Deno.test('อ่านไม่ครบ (ตัวอ่านตอบว่างทั้งหมด) → เก็บรูปไว้ชุดเทรนแยกจากสลิปของออร์เดอร์ และยังแนบตามปกติ', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
+  const blank = { amount: null, paidAt: null, receiverName: null, receiverAccount: null }
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: async () => blank } }), 'matched')
+  assertEquals(sb.T.punpang_records.filter((r: any) => r.collection === 'slipTrain').length, 1)
+  assertEquals([...sb.files.keys()].some((k: string) => k.startsWith('train/')), true)
+  assertEquals(sb.T.punpang_records.filter((r: any) => r.collection === 'slipRead').length, 1)
+})
+Deno.test('ตัวอ่านผิดพลาด (ไม่ตอบ) → ไม่จำผลและไม่เก็บชุดเทรน รอบหน้าลองอ่านใหม่', async () => {
+  let calls = 0
+  const ocrReadBy = { wai: async () => { calls++; return null } }
+  const first = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
+  await runCheck(first, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy })
+  assertEquals(first.T.punpang_records.filter((r: any) => r.collection === 'slipRead' || r.collection === 'slipTrain').length, 0)
+  const second = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
+  await runCheck(second, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy })
+  assertEquals(calls, 2)
+})
+Deno.test('อ่านครบ (ยอด วัน-เวลา เลขบัญชีผู้รับ) → จำผล และไม่เก็บชุดเทรน', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
+  await runCheck(sb, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: async () => ({ amount: 178, paidAt: '2026-11-11T14:48', receiverName: null, receiverAccount: 'xxx-x-x8154-x' }) } })
+  assertEquals(sb.T.punpang_records.filter((r: any) => r.collection === 'slipRead').length, 1)
+  assertEquals(sb.T.punpang_records.filter((r: any) => r.collection === 'slipTrain').length, 0)
 })

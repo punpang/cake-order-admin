@@ -1,3 +1,4 @@
+import { filesEnv, isR2Ref, keyOfR2Ref, svcSign } from '../_shared/filesvc.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 // ระบบบัญชีลูกค้าฝั่งเซิร์ฟเวอร์: OTP ทาง SMS (เกตเวย์ของร้าน) + PIN 6 หลัก + เซสชัน
@@ -77,6 +78,7 @@ Deno.serve(async (req) => {
 
   // ---------- ข้อมูลของลูกค้า (ส่งให้หน้าบัญชี) ----------
   async function sign(v: unknown) {
+    if (isR2Ref(v)) return (await svcSign(filesEnv(), keyOfR2Ref(v), 3600)) || ''
     const m = typeof v === 'string' ? /^sb:\/\/([a-z0-9-]+)\/(.+)$/.exec(v) : null
     if (!m) return v
     const r = await sb.storage.from(m[1]).createSignedUrl(m[2], 3600)

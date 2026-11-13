@@ -7,7 +7,7 @@ const t = async (name, fn) => { try { await fn(); console.log(`PASS ${name}`) } 
 
 await t('ค่าเริ่มต้นตรงกับฟังก์ชันในฐานข้อมูล', () => {
   assert.deepEqual(defaultRetention(), {
-    slipRead: { enabled: true, days: 30 }, chatMedia: { enabled: true, days: 30 },
+    slipRead: { enabled: true, days: 180 }, chatMedia: { enabled: true, days: 30 },
     aiLog: { enabled: false, days: 90 }, bell: { enabled: false, days: 90 }, orderLinks: { enabled: false, days: 180 },
   })
 })
@@ -35,7 +35,7 @@ await t('ความเสี่ยง: เปิดหมวดใหม่แ
 })
 await t('เทียบค่าเท่ากัน (ตัวเลขเป็นข้อความก็เท่า) และเวลาตัด', () => {
   const a = defaultRetention()
-  const b = { ...defaultRetention(), slipRead: { enabled: true, days: '30' } }
+  const b = { ...defaultRetention(), slipRead: { enabled: true, days: '180' } }
   assert.equal(retentionEqual(a, b), true)
   assert.equal(retentionEqual(a, { ...a, bell: { enabled: true, days: 90 } }), false)
   assert.equal(retentionCutoff(30, Date.UTC(2026, 10, 12)).toISOString(), '2026-10-13T00:00:00.000Z')

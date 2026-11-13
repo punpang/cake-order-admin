@@ -1,3 +1,4 @@
+import { filesEnv, svcSign } from '../_shared/filesvc.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 // ส่งข้อความ Messenger ไปหาลูกค้า (เฉพาะพนักงานที่มีสิทธิ์ chat) · ต้องอยู่ในหน้าต่าง 24 ชม. หลังลูกค้าทักล่าสุด
@@ -36,7 +37,7 @@ Deno.serve(async (req) => {
   // รูปที่พนักงานส่ง: อยู่ในบักเก็ต punpang-chat ใต้ staff/<psid>/ เท่านั้น (กันส่งรูปของลูกค้ารายอื่น)
   const images: string[] = Array.isArray(body.images) ? body.images.map((x) => String(x ?? '')) : []
   if (images.length > 5) return json({ error: 'ส่งรูปได้ครั้งละไม่เกิน 5 รูป' }, 400)
-  if (images.some((p) => !new RegExp(`^staff/${psid}/[A-Za-z0-9_-]+\\.jpg$`).test(p))) return json({ error: 'ที่อยู่รูปไม่ถูกต้อง' }, 400)
+  if (images.some((p) => !new RegExp(`^(r2://private/)?staff/${psid}/[A-Za-z0-9_-]+\\.(jpg|png|webp)$`).test(p))) return json({ error: 'ที่อยู่รูปไม่ถูกต้อง' }, 400)
   if (images.length && (cd || body.quoteId)) return json({ error: 'ส่งรูปพร้อมการ์ดหรือใบเสนอพร้อมกันไม่ได้' }, 400)
   // ช่องทาง: facebook (ค่าเริ่มต้น) | instagram · IG ส่งได้เฉพาะข้อความตัวอักษร (ไม่มีการ์ด ใบเสนอ หรือรูป)
   const chan = body.channel === 'instagram' ? 'instagram' : 'facebook'
@@ -76,9 +77,9 @@ Deno.serve(async (req) => {
   } else if (msg) messages.push({ text: msg })
   // รูป: ส่งหลังข้อความ ทีละรูป · ลิงก์ชั่วคราว 15 นาที (Facebook ดึงไฟล์ตอนส่ง)
   for (const p of images) {
-    const s = await sb.storage.from('punpang-chat').createSignedUrl(p, 900)
-    if (s.error || !s.data?.signedUrl) return json({ error: 'เปิดไฟล์รูปไม่ได้' }, 502)
-    messages.push({ attachment: { type: 'image', payload: { url: s.data.signedUrl } } })
+    const signed = p.startsWith('r2://private/') ? await svcSign(filesEnv(), p.slice('r2://private/'.length), 900) : ((await sb.storage.from('punpang-chat').createSignedUrl(p, 900)).data?.signedUrl || null)
+    if (!signed) return json({ error: 'เปิดไฟล์รูปไม่ได้' }, 502)
+    messages.push({ attachment: { type: 'image', payload: { url: signed } } })
   }
   const ver = (Deno.env.get('FB_GRAPH_VERSION') || 'v24.0').trim()
   try {

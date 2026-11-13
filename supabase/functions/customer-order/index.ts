@@ -1,7 +1,10 @@
+import { filesEnv, svcDelete, svcUpload } from '../_shared/filesvc.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { PAY_MSG, bankByCode, checkCustomerTxn, refTaken } from '../_shared/payfields.ts'
+import { PAY_MSG, bankByCode, checkCustomerTxn, normalizeRef, refTaken } from '../_shared/payfields.ts'
+import { slipKeyOf } from '../_shared/slip.ts'
 import { readSlipQr } from '../_shared/slipread.ts'
-import { ocrFlagsOf, readSlipFields, readSlipFieldsChain, readSlipFieldsWorkersAI, type OcrEngine } from '../_shared/slipocr.ts'
+import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine } from '../_shared/slipocr.ts'
+import { readSlipOnce } from '../_shared/slipstore.ts'
 
 // การกระทำของลูกค้าบนออร์เดอร์ (ฝั่งเซิร์ฟเวอร์): แจ้งชำระ(แนบสลิป) · ขอขยายเวลา · ขอ/ยกเลิกขอไม่เผยแพร่รูป
 // ยืนยันตัวตนได้ 2 แบบ: ลิงก์ออร์เดอร์ (token 32 ตัวอักษร เก็บ hash ใน punpang_records) หรือเซสชันลูกค้า (+ orderId ที่เป็นของตัวเอง)
@@ -73,16 +76,15 @@ Deno.serve(async (req) => {
   try { b = await req.json() } catch { return json({ error: 'คำขอไม่ถูกต้อง' }, 400) }
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
   // อ่านยอดและวัน-เวลาจากภาพสลิป (เหมือนสลิปในแชท) · เฉพาะเมื่อร้านเปิดไว้และมีคีย์ · อ่านไม่ได้ = null (ไม่บล็อกการส่ง)
-  // อ่านภาพเพียงครั้งเดียว: ผลเก็บตามแฮชของภาพ (1 ชม.) ตอนแนบ/ตอนส่งใช้ผลเดียวกัน ไม่เรียกโมเดลซ้ำ
-  const sha = async (b: Uint8Array) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(b)))].map((x) => x.toString(16).padStart(2, '0')).join('')
+  // อ่านภาพเพียงครั้งเดียวต่อเลขอ้างอิงสลิป: ผลที่โมเดลตอบแล้วจำไว้ตามเลขอ้างอิง (ตามการตั้งค่าผลอ่านสลิป) ตอนแนบ/ตอนส่งใช้ผลเดียวกัน ไม่เรียกโมเดลซ้ำ
   // เลขอ้างอิงของสลิปนี้ถูกใช้ในรายการชำระของออร์เดอร์ไหนแล้วหรือยัง (ไม่นับรายการที่ยกเลิก)
   const refUsed = async (ref: string) => {
     if (!ref) return false
     const seen = await sb.from('punpang_orders').select('id,data').contains('data', { payments: [{ ref }] })
     return (seen.data || []).some((r: any) => refTaken(r.data?.payments, ref))
   }
-  // ลำดับเดียวกับสลิปในแชท: เรียกเฉพาะเมื่อ QR เป็นสลิปธนาคารแล้ว · Workers AI → ระบบเดิม (Claude) · ตัวที่เปิดไว้และตั้งค่าครบจึงลอง
-  const slipFieldsOf = async (bytes: Uint8Array) => {
+  // ลำดับเดียวกับสลิปในแชท: เรียกเฉพาะเมื่อ QR เป็นสลิปธนาคารแล้ว · Workers AI → ระบบเดิม (Claude) · ตัวที่เปิดไว้และตั้งค่าครบจึงลอง · ใช้ค่าที่เคยอ่านของเลขอ้างอิงนี้ก่อน (ประหยัด) · อ่านไม่ผ่านเก็บรูปไว้ชุดเทรน
+  const slipFieldsOf = async (bytes: Uint8Array, qr: { bankCode: string; ref: string }) => {
     const flags = ocrFlagsOf((await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()).data?.data?.v?.ocr)
     const engines: OcrEngine[] = []
     const cfId = Deno.env.get('CLOUDFLARE_ACCOUNT_ID') || ''
@@ -91,12 +93,7 @@ Deno.serve(async (req) => {
     const key = Deno.env.get('ANTHROPIC_API_KEY') || ''
     if (flags.claude && key) engines.push({ name: 'claude', read: (x) => readSlipFields({ bytes: x, key, model: flags.model }) })
     if (!engines.length) return null
-    const id = `sr${(await sha(bytes)).slice(0, 40)}`
-    const hit = (await sb.from('punpang_records').select('data').eq('collection', 'slipRead').eq('id', id).maybeSingle()).data?.data
-    if (hit && Date.now() - new Date(hit.at).getTime() < 3600_000) return hit.fields ?? null
-    const fields = await readSlipFieldsChain(bytes, engines)
-    await sb.from('punpang_records').insert({ collection: 'slipRead', id, data: { fields, at: new Date().toISOString() } }) // ซ้ำ = ข้าม
-    return fields
+    return readSlipOnce(sb, { key: slipKeyOf(qr.bankCode, normalizeRef(qr.ref)), bytes, bankCode: qr.bankCode, source: 'order', engines, files: filesEnv() })
   }
   const action = String(b.action || '')
   if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
@@ -134,7 +131,7 @@ Deno.serve(async (req) => {
     // อ่าน QR ก่อน · เป็นสลิปธนาคารจึงส่งต่อไปอ่านยอด/วัน-เวลา (รูปอื่นไม่ส่งไปโมเดล)
     const qr = await readSlipQr(img.bytes)
     // สลิปซ้ำ (เลขอ้างอิงถูกใช้ไปแล้ว) ไม่ส่งให้โมเดลอ่านซ้ำ
-    const fields = qr.kind === 'slip' && !(await refUsed(qr.ref)) ? await slipFieldsOf(img.bytes) : null
+    const fields = qr.kind === 'slip' && !(await refUsed(qr.ref)) ? await slipFieldsOf(img.bytes, qr) : null
     return json({ ok: true, qr, fields })
   }
 
@@ -192,7 +189,7 @@ Deno.serve(async (req) => {
       const { paidAt } = txn.value
       // ยอดและวัน-เวลาในสลิป (อ่านจากภาพ) ต้องตรงกับที่ลูกค้ากรอก · อ่านไม่ได้ = ไม่ตรวจ
       // สลิปซ้ำ (เลขอ้างอิงถูกใช้ไปแล้ว) ไม่ส่งให้โมเดลอ่านซ้ำ · การตรวจซ้ำเต็มรูปแบบอยู่ด้านล่าง
-      const fields = qr.kind === 'slip' && !(await refUsed(qr.ref)) ? await slipFieldsOf(bytes) : null
+      const fields = qr.kind === 'slip' && !(await refUsed(qr.ref)) ? await slipFieldsOf(bytes, qr) : null
       if (fields?.amount != null && Math.abs(fields.amount - amt) > 0.005) return json({ error: `ยอดในสลิป (${fields.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}) ไม่ตรงกับยอดที่แจ้ง กรุณาตรวจอีกครั้ง` }, 400)
       if (fields?.paidAt && fields.paidAt !== paidAt) return json({ error: 'วัน-เวลาในสลิปไม่ตรงกับที่กรอก กรุณาตรวจอีกครั้ง' }, 400)
       // ธนาคาร/เลขอ้างอิง: ถ้าอ่านจาก QR ในสลิปได้ ใช้ค่าจาก QR (ที่ลูกค้ากรอกมาต้องตรงกัน) · ไม่ได้กรอกก็ไม่เป็นไร ร้านตรวจจากสลิป
@@ -220,15 +217,15 @@ Deno.serve(async (req) => {
         if (!target || target.status !== 'reported' || target.source === 'customer') return json({ error: 'ไม่พบยอดที่ร้านแจ้ง' }, 400)
         if (target.customerSubmitted) return json({ error: 'ส่งสลิปของยอดนี้แล้ว รอร้านตรวจสอบ' }, 400)
       }
-      // อัปโหลดสลิปก่อน (ล้มเหลว = ไม่แตะออร์เดอร์) · แนบซ้ำตอนลองใหม่ใช้ไฟล์เดิม
-      newSlipPath = `${row.id}/${randHex(16)}.${img.ext}`
-      const up = await sb.storage.from('punpang-slips').upload(newSlipPath, bytes, { contentType: img.type, upsert: false })
-      if (up.error) return json({ error: 'อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่' }, 500)
-      const slipRef = `sb://punpang-slips/${newSlipPath}`
+      // อัปโหลดสลิปก่อน (ล้มเหลว = ไม่แตะออร์เดอร์) · ไฟล์ใหม่เก็บที่ R2 ผ่าน Worker เท่านั้น · แนบซ้ำตอนลองใหม่ใช้ไฟล์เดิม
+      let up: { key: string; ref: string }
+      try { up = await svcUpload(filesEnv(), bytes, row.id) } catch { return json({ error: 'อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่' }, 500) }
+      newSlipPath = up.key
+      const slipRef = up.ref
       if (target) Object.assign(target, { amount: amt, slip: slipRef, note, customerSubmitted: true, submittedAt: nowIso(), ...txnFields })
       else {
         const al = await sb.rpc('punpang_alloc_numbers_server', { p_prefix: 'PAY', p_day: ddmmyy(), p_n: 1 })
-        if (al.error || !Number.isInteger(al.data)) { await sb.storage.from('punpang-slips').remove([newSlipPath]); return json({ error: 'ออกเลขรายการไม่สำเร็จ กรุณาลองใหม่' }, 500) }
+        if (al.error || !Number.isInteger(al.data)) { await svcDelete(filesEnv(), [newSlipPath]); return json({ error: 'ออกเลขรายการไม่สำเร็จ กรุณาลองใหม่' }, 500) }
         const code = `PAY-${ddmmyy()}-${String(al.data).padStart(5, '0')}`
         target = { id: `pay${Date.now().toString(36)}${randHex(3)}`, code, requested: amt, amount: amt, method: 'โอนเงิน', slip: slipRef, note, dueAt: '', extension: null, status: 'reported', source: 'customer', customerSubmitted: true, submittedAt: nowIso(), createdAt: nowIso(), reportedBy: 'customer', confirmedBy: null, ...txnFields }
         d.payments.push(target)
@@ -269,7 +266,7 @@ Deno.serve(async (req) => {
     // เขียนแบบเทียบ updated_at: ถ้าพนักงานแก้ออร์เดอร์พร้อมกัน แถวไม่ตรง → อ่านใหม่แล้วทำซ้ำ
     const up = await sb.from('punpang_orders').update({ data: d, status: newStatus }).eq('id', row.id).eq('updated_at', row.updated_at).select('id')
     if (up.error || !(up.data || []).length) {
-      if (newSlipPath) await sb.storage.from('punpang-slips').remove([newSlipPath]) // รอบหน้าอัปโหลดใหม่ (ไม่ทิ้งไฟล์ค้าง)
+      if (newSlipPath) await svcDelete(filesEnv(), [newSlipPath]) // รอบหน้าอัปโหลดใหม่ (ไม่ทิ้งไฟล์ค้าง)
       if (up.error) return json({ error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' }, 500)
       continue
     }
