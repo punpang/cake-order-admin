@@ -4,6 +4,7 @@ import { mirrorRows, PUBLIC_KEYS } from './publicData'
 import { syncSet, syncOk, syncDrop } from './syncStatus'
 import { RETRY_MS } from './tableSync'
 import { ensureStyleGroup } from './constants'
+import { withNewRules } from './notifyPlan'
 
 // ซิงก์ "ตั้งค่า/แคตตาล็อก" (ร้าน, คะแนน, ตัวเลือกเค้ก, ราคา, POS ฯลฯ) กับ punpang_kv — 1 แถวต่อ 1 คีย์ของ db
 // ไม่รวมความลับ/ข้อมูลรายคน (users, ลูกค้า, ออร์เดอร์ ฯลฯ) · integrations เก็บเฉพาะสวิตช์เปิด/ปิดรายช่องทาง (ไม่เก็บ token/URL/ชื่อบัญชี/สถานะการเชื่อมต่อ) — ดู viewOf
@@ -60,6 +61,7 @@ export async function loadConfig(client, keys = CONFIG_KEYS, col = null) {
 
 // ใส่ค่าที่โหลดมาลงใน db โดยคงอ็อบเจกต์/อาร์เรย์เดิม (ให้ reactive และ ref ที่ถืออยู่ยังชี้ถูก)
 export function applyValue(db, key, value) {
+  if (key === 'notifyRules' && Array.isArray(value)) value = withNewRules(value) // กฎที่เพิ่มภายหลังยังไม่มีในฐานข้อมูลเดิม
   if (key === 'integrations') { // รวมเฉพาะ enabled เข้ากับช่องทางที่มีอยู่ (ไม่แตะสถานะ/ข้อมูลบัญชี)
     if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) if (db.integrations?.[k] && typeof v?.enabled === 'boolean') db.integrations[k].enabled = v.enabled
     return

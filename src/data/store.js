@@ -31,6 +31,7 @@ import { remoteOrderAction, remoteReadSlip } from '../lib/customerOrderRemote'
 import { checkCustomerTxn, refTaken, bankByCode, PAY_MSG, thaiMinute } from '../lib/payFields'
 import { SLIP_RECEIVE_NOTE, slipRoom, slipChoices, slipBindError } from '../lib/slipBind'
 import { payAccountsOf } from '../lib/payAccounts'
+import { customerTargets, withNewRules } from '../lib/notifyPlan'
 import { uploadChatImage } from '../lib/chatImage'
 import { promptPayPayload } from '../lib/promptpay'
 import { callAuth, callLoyalty, readSessionToken, saveSessionToken, clearSessionToken, injectBundle, clearBundle } from '../lib/customerRemote'
@@ -441,6 +442,7 @@ export const db = reactive({
   ],
   // กฎแจ้งเตือน: event → ช่องทาง + ข้อความ (ตัวอย่าง)
   notifyRules: [
+    ...withNewRules([]),
     rule('order_created', ['line', 'facebook', 'sms'], ORDER_CREATED_TPL, { facebook: ORDER_CREATED_FB_TPL, sms: ORDER_CREATED_SMS_TPL }),
     rule('payment_requested', ['line', 'facebook', 'sms'], PAY_REQ_TPL, { sms: PAY_REQ_SMS_TPL }),
     rule('order_confirmed', ['line', 'facebook', 'sms'], 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ คงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า'),
@@ -1233,16 +1235,19 @@ export function denyPayExtension(order, paymentId) {
 }
 
 // ---------- ข้อมูลจัดส่งของออร์เดอร์ (แก้ได้ก่อนส่งมอบ/ยกเลิก) ----------
-export function setDelivery(order, d) {
+export function setDelivery(order, d, opts = {}) {
   if (!can('editPickup') || order.fulfillment !== 'delivery' || ['delivered', 'cancelled'].includes(order.status)) return { error: 'แก้ข้อมูลจัดส่งไม่ได้' }
   if (!String(d.address ?? '').trim()) return { error: 'กรอกที่อยู่จัดส่ง' }
   const r = cleanDelivery(d)
   if (r.error) return r
   const v = r.value
   const oldFee = Number(order.shippingFee) || 0
+  const delivKey = () => JSON.stringify([order.address, order.placeName, order.mapUrl, order.detail, order.distanceKm, order.shippingFee, order.feeManual])
+  const before = delivKey()
   Object.assign(order, { address: v.address, placeName: v.placeName, mapUrl: v.mapUrl, detail: v.detail, distanceKm: v.distanceKm, shippingFee: v.shippingFee, feeManual: v.feeManual })
   log(order, `แก้ข้อมูลจัดส่ง${v.placeName ? ` · ${v.placeName}` : ''}${v.distanceKm != null ? ` · ${v.distanceKm} กม.` : ''}${oldFee !== v.shippingFee ? ` · ค่าส่ง ${money(oldFee)} → ${money(v.shippingFee)}` : ''}`)
   rememberPlaceOf(order.customerId, order)
+  if (delivKey() !== before) notifyOrder('delivery_changed', order, { skip: opts.notify === false, noSms: opts.sms === false })
   return { ok: true }
 }
 // ค่าส่งที่แนะนำจากระยะทาง (null = ปิดใช้/ไม่มีเรต)
@@ -1409,7 +1414,7 @@ export function cancelRefund(order, returnId, c = {}) {
   }
   r.cancelled = { at: now(), by: session.role, reason }
   log(order, `ยกเลิกการคืนเงิน ${money(r.amount)} · ${reason}`)
-  if (order.channel !== 'pos') notifyOrder('order_refund_cancelled', order, { requested: r.amount, skip: c.notify !== true, noSms: c.sms === false })
+  notifyOrder('order_refund_cancelled', order, { requested: r.amount, skip: c.notify !== true, noSms: c.sms === false })
   return { ok: true, entry: r }
 }
 
@@ -1534,13 +1539,14 @@ export function saveShopSettings(d) {
 export const vatNow = () => (db.shop.vat?.enabled && Number(db.shop.vat.rate) > 0 ? { rate: Number(db.shop.vat.rate), mode: db.shop.vat.mode === 'exclusive' ? 'exclusive' : 'inclusive' } : null)
 
 // แก้วันเวลานัด (หน้ารายละเอียด)
-export function setPickup(order, pickupAt) {
+export function setPickup(order, pickupAt, opts = {}) {
   if (order.pickupAt === pickupAt) return { ok: true }
   const closed = pickupClosed(db.shop, pickupAt)
   if (closed) return { error: closedMsg(closed) }
   const fmt = (s) => s.replace('T', ' ')
   log(order, `เปลี่ยนวันนัด ${fmt(order.pickupAt)} → ${fmt(pickupAt)}`)
   order.pickupAt = pickupAt
+  notifyOrder('pickup_changed', order, { skip: opts.notify === false, noSms: opts.sms === false })
   return { ok: true }
 }
 
@@ -1774,12 +1780,14 @@ export async function claimCoupon(couponId, orderId) {
   if (r === 'ok' || r === 'missing') return { ok: true }
   return { error: CLAIM_MSG[r] || 'ตรวจคูปองกับเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่' }
 }
-export async function claimAndApplyCoupon(order, couponId) {
+export async function claimAndApplyCoupon(order, couponId, opts = {}) {
   const cp = db.coupons.find((x) => x.id === couponId)
   if (!cp || cp.type !== 'discount' || !couponUsable(cp, today())) return { error: 'ใช้คูปองนี้ไม่ได้' }
   const c = await claimCoupon(couponId, order.id)
   if (c.error) return c
-  return applyCoupon(order, couponId) ? { ok: true } : { error: 'ใช้คูปองนี้ไม่ได้' }
+  if (!applyCoupon(order, couponId)) return { error: 'ใช้คูปองนี้ไม่ได้' }
+  notifyOrder('coupon_applied', order, { skip: opts.notify === false, noSms: opts.sms === false })
+  return { ok: true }
 }
 // POS: จองทุกใบก่อนขาย · ใบใดไม่ผ่าน → คืนใบที่จองไปแล้วทั้งหมด (คืน { ok, claimed } เพื่อให้ผู้เรียกคืนได้ถ้าขายไม่สำเร็จ)
 export const POS_CLAIM_ORDER = 'pos-pending'
@@ -2390,7 +2398,7 @@ const nearLot = earnPoints(db.customers[1], 40, 'คะแนนตัวอย�
 nearLot.expiresAt = addDays(today(), 10)
 
 // ---------- การเชื่อมต่อ & แจ้งเตือน (จำลอง) ----------
-// ทีม = Telegram · ลูกค้า = ช่องทางแรกตามลำดับ LINE → Facebook → SMS ที่ (เปิดในกฎ + เปิดใช้ช่องทาง + ลูกค้ามีข้อมูล)
+// ทีม = Telegram · ลูกค้า = ทุกช่องทางที่มี (LINE, Facebook, SMS) ที่กฎอนุญาต + เปิดใช้ช่องทาง + ลูกค้ามีข้อมูลติดต่อ
 const TEAM_OF = { order_created: 'team_new_order', payment_confirmed: 'team_payment_confirmed', cancelled: 'team_cancelled' }
 const customerAddr = (c, ch) => (ch === 'line' ? c?.lineUserId : ch === 'facebook' ? c?.fbPsid : ch === 'sms' ? c?.phone : '')
 export function fillTemplate(tpl, vars) {
@@ -2473,8 +2481,7 @@ async function sendPayQrFacebook(order, amount, due = '') {
     const r = db.notifyRules.find((x) => x.event === 'payment_requested')
     if (!customer || !r?.enabled || !fbHook.send || !db.integrations.facebook?.enabled) return
     const allowed = effectiveChannels(r, customer, order)
-    const ch = CUSTOMER_CHANNEL_ORDER.find((k) => allowed[k] && db.integrations[k]?.enabled && customerAddr(customer, k))
-    if (ch !== 'facebook') return
+    if (!customerTargets({ order: CUSTOMER_CHANNEL_ORDER, allowed, integrations: db.integrations, addressOf: (k) => customerAddr(customer, k) }).includes('facebook')) return
     const chat = chatFor(customer.id, 'facebook')
     const pp = payAccountsOf(db.shop.payment).find((a) => a.show && a.kind === 'promptpay')
     if (!chat || !pp) return
@@ -2616,27 +2623,31 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
     return 1
   }
   if (ev.marketing && customer && customer.promoOptIn === false) return 0
-  const allowed = effectiveChannels(r, customer, orderId ? findOrder(orderId) : null)
-  const ch = CUSTOMER_CHANNEL_ORDER.find((k) => allowed[k] && db.integrations[k]?.enabled && customerAddr(customer, k))
-  const to = ch ? `${CHANNELS[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}` : customer?.name || '-'
-  // ส่งทางแชท (Facebook/LINE) ที่มีการ์ดพร้อมปุ่ม: ตัดบรรทัดลิงก์ออกจากข้อความ (ปุ่มทำหน้าที่แทน) · SMS ยังได้ข้อความเต็มพร้อมลิงก์
-  // Facebook: การ์ดปุ่ม "ดูออร์เดอร์" (card ที่ส่งมา หรือการ์ดลิงก์ที่สร้างให้) · ข้อความบนการ์ดตัดบรรทัดลิงก์ออก เพราะปุ่มทำหน้าที่แทน · LINE/SMS ได้ข้อความที่มีลิงก์
-  const fbCard = ch === 'facebook' ? (card || (orderMsg && url ? orderLinkCardOf(order, url) : null)) : null
-  // ข้อความของช่องที่เลือก: SMS/Facebook เป็นข้อความธรรมดา (ตัดอีโมจิ) · LINE คงรูปแบบเต็ม
-  const plainFor = (chKey, s) => (chKey === 'sms' || chKey === 'facebook' ? plainText(s) : s)
-  const main = renderFor(ch || 'line', vars)
-  const text = plainFor(ch, main.text)
-  const chatText = fbCard && url ? plainFor('facebook', fillTemplate(main.tpl, { ...vars, ลิงก์ออร์เดอร์: '' }).replace(/\s*(ดูออร์เดอร์|ดู\/ชำระที่|ชำระที่|ดูได้ที่)\s*:?\s*$/, '').replace(/\n{2,}/g, '\n').trim()) : text
-  pushOut(event, ch || null, to, chatText, orderId, customer, fbCard ? { card: { text: chatText, card: fbCard } } : {})
-  // ส่งทาง Facebook/LINE แล้ว ถ้าลูกค้ามีเบอร์ → ส่ง SMS ซ้ำด้วยเสมอ (พนักงานติ๊กออกได้ที่หน้าที่ส่ง) · ใช้เฉพาะ event ที่กฎเปิด SMS ไว้ · ใช้เทมเพลต SMS
-  if ((ch === 'facebook' || ch === 'line') && !noSms && !ev.marketing && customer?.phone && allowed.sms && db.integrations.sms?.enabled) {
-    pushOut(event, 'sms', `${CHANNELS.sms.label}: ${customer.name || ''} (${formatPhone(customer.phone)})`, plainFor('sms', renderFor('sms', vars).text), orderId, customer)
+  // ส่งทุกช่องทางที่ลูกค้ามี (ตามกฎ + ช่องทางเปิดใช้ + มีข้อมูลติดต่อ) ไม่หยุดที่ช่องแรก · ข้อความการตลาดส่งช่องแรกช่องเดียว (เหมือนเดิม)
+  const allowed = effectiveChannels(r, customer, order)
+  const targets = customerTargets({ order: CUSTOMER_CHANNEL_ORDER, allowed, integrations: db.integrations, addressOf: (k) => customerAddr(customer, k), noSms, marketing: !!ev.marketing })
+  // ไม่มีช่องทางไหนส่งได้ → บันทึกคิวไว้โดยไม่มีช่องทาง (เหมือนเดิม)
+  if (!targets.length) {
+    pushOut(event, null, customer?.name || '-', renderFor('line', vars).text, orderId, customer, {})
+    return 1
   }
-  return 1
+  // ข้อความของแต่ละช่อง (เทมเพลตตามแพลตฟอร์ม) · SMS/Facebook เป็นข้อความธรรมดา (ตัดอีโมจิ) · LINE คงรูปแบบเต็ม
+  const plainFor = (chKey, s) => (chKey === 'sms' || chKey === 'facebook' ? plainText(s) : s)
+  for (const ch of targets) {
+    const to = `${CHANNELS[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}`
+    // Facebook: การ์ดปุ่ม "ดูออร์เดอร์" (card ที่ส่งมา หรือการ์ดลิงก์ที่สร้างให้) · ข้อความบนการ์ดตัดบรรทัดลิงก์ออก เพราะปุ่มทำหน้าที่แทน · LINE/SMS ได้ข้อความที่มีลิงก์
+    const fbCard = ch === 'facebook' ? (card || (orderMsg && url ? orderLinkCardOf(order, url) : null)) : null
+    const main = renderFor(ch, vars)
+    const text = plainFor(ch, main.text)
+    const chatText = fbCard && url ? plainFor('facebook', fillTemplate(main.tpl, { ...vars, ลิงก์ออร์เดอร์: '' }).replace(/\s*(ดูออร์เดอร์|ดู\/ชำระที่|ชำระที่|ดูได้ที่)\s*:?\s*$/, '').replace(/\n{2,}/g, '\n').trim()) : text
+    pushOut(event, ch, to, chatText, orderId, customer, fbCard ? { card: { text: chatText, card: fbCard } } : {})
+  }
+  return targets.length
 }
 // เหตุการณ์ของออร์เดอร์ → ลูกค้า + ทีม (ถ้ามีคู่ของทีม)
 export function notifyOrder(event, order, extra = {}) {
-  if (order.channel === 'pos') return // บิลหน้าร้านไม่แจ้งเตือน
+  if (order.status === 'draft') return // ร่างยังไม่ส่งถึงลูกค้า
+  // บิลหน้าร้านก็แจ้งลูกค้าตามช่องทางที่มี (ไม่สนใจว่าทำรายการจากช่องทางไหน)
   // สรุปออร์เดอร์ให้ลูกค้าย้ายไปอยู่ในข้อความแจ้งชำระ (พร้อมวัน-เวลาชำระ) → ตอนสร้างออร์เดอร์ส่งให้ทีมอย่างเดียว
   if (event === 'order_created') {
     if (TEAM_OF[event]) notify(TEAM_OF[event], { vars: orderVars(order, extra), orderId: order.id })

@@ -1,10 +1,11 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { db, countPickups, pickupSlots, pickupSlotsInfo, setPickup } from '../data/store'
+import { db, countPickups, pickupSlots, pickupSlotsInfo, setPickup, findCustomer } from '../data/store'
 import { dayClosed } from '../lib/shopHours'
 import { toDateStr } from '../lib/format'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
+import SmsTick from './SmsTick.vue'
 
 // แก้วันเวลานัด: เลือกเวลาเป็นปุ่มตามตั้งค่าร้าน เวลาต้องมากกว่าเวลาปัจจุบัน
 const props = defineProps({ order: { type: Object, required: true } })
@@ -18,6 +19,9 @@ const time = ref(slots.value.includes(props.order.pickupAt.slice(11, 16)) ? prop
 const pickupAt = computed(() => (date.value && time.value ? `${date.value}T${time.value}` : ''))
 const load = computed(() => countPickups(pickupAt.value, props.order.id))
 const error = ref('')
+const notify = ref(true) // แจ้งลูกค้าว่าเปลี่ยนวันนัด (ไม่ติ๊ก = ไม่ส่งข้อความถึงลูกค้า)
+const sms = ref(true)
+const customer = computed(() => findCustomer(props.order.customerId))
 
 function onDate() {
   if (!slots.value.includes(time.value)) time.value = ''
@@ -25,7 +29,7 @@ function onDate() {
 function save() {
   if (!pickupAt.value) return (error.value = 'เลือกวันและเวลานัดรับ')
   if (new Date(pickupAt.value) <= new Date()) return (error.value = 'เวลานัดต้องมากกว่าเวลาปัจจุบัน')
-  const r = setPickup(props.order, pickupAt.value)
+  const r = setPickup(props.order, pickupAt.value, { notify: notify.value, sms: sms.value })
   if (r.error) return (error.value = r.error)
   emit('close')
 }
@@ -57,6 +61,8 @@ function save() {
         <AppIcon :name="load.day ? 'alert' : 'check'" :size="18" class="mt-0.5" />
         <span>วันนั้นมีอีก <b>{{ load.day }}</b> ออร์เดอร์ · ช่วง {{ time.slice(0, 2) }}:00 น. มี <b>{{ load.hour }}</b> ออร์เดอร์ · ภายใน ±1 ชม. มี <b>{{ load.near }}</b> ออร์เดอร์</span>
       </div>
+      <label v-if="customer" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่าเปลี่ยนวันนัด" /> แจ้งลูกค้าว่าเปลี่ยนวันนัด</label>
+      <SmsTick v-if="customer" v-model="sms" :customer="customer" :order="order" :show="notify" />
       <p v-if="error" class="text-sm text-rose-700">{{ error }}</p>
     </div>
     <template #footer>

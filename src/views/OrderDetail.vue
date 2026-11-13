@@ -143,6 +143,8 @@ function saveBirthday() {
 
 // ---------- แก้ข้อมูลจัดส่ง ----------
 const dvOpen = ref(false)
+const dvNotify = ref(true)
+const dvSms = ref(true)
 const dv = reactive({ placeName: '', address: '', mapUrl: '', detail: '', distanceKm: '', shippingFee: 0, feeManual: false })
 const dvError = ref('')
 const canEditDelivery = computed(() => can('editPickup') && !closed.value && order.value.fulfillment === 'delivery')
@@ -150,10 +152,12 @@ function openDelivery() {
   const o = order.value
   Object.assign(dv, { placeName: o.placeName || '', address: o.address || '', mapUrl: o.mapUrl || '', detail: o.detail || '', distanceKm: o.distanceKm ?? '', shippingFee: o.shippingFee || 0, feeManual: !!o.feeManual })
   dvError.value = ''
+  dvNotify.value = true
+  dvSms.value = true
   dvOpen.value = true
 }
 function saveDelivery() {
-  const r = setDelivery(order.value, { ...dv })
+  const r = setDelivery(order.value, { ...dv }, { notify: dvNotify.value, sms: dvSms.value })
   if (r.error) return (dvError.value = r.error)
   dvOpen.value = false
 }
@@ -215,8 +219,9 @@ async function doRemovePoints() {
   if (r.error) showToast(r.error, 6000, 'error')
 }
 async function doApplyCoupon(c) {
-  if (!(await askConfirm({ title: 'ใช้คูปอง', message: `${c.name} (−${money(c.amount)})`, okText: 'ใช้คูปอง' }))) return
-  const r = await claimAndApplyCoupon(order.value, c.id)
+  const r0 = await askConfirmEx({ title: 'ใช้คูปอง', message: `${c.name} (−${money(c.amount)})`, okText: 'ใช้คูปอง', ...(customer.value ? { checkbox: { label: 'แจ้งลูกค้า', hint: 'ไม่ติ๊ก = ไม่ส่งข้อความถึงลูกค้า', value: true } } : {}), ...(customer.value && smsChoice(customer.value) ? { checkbox2: { label: 'ส่ง SMS ด้วย', hint: formatPhone(customer.value.phone), value: true } } : {}) })
+  if (!r0.ok) return
+  const r = await claimAndApplyCoupon(order.value, c.id, { notify: r0.checked, sms: r0.checked2 !== false })
   if (r.error) showToast(r.error, 6000, 'error')
 }
 async function doRemoveCoupon(u) {
@@ -713,6 +718,8 @@ async function saveCancel() {
     <!-- modal แจ้งยอด / แก้ยอด / ยืนยันยอดจริง -->
     <AppModal v-if="dvOpen" title="ข้อมูลจัดส่ง" @close="dvOpen = false">
       <DeliveryFields :form="dv" :customer-id="order.customerId" />
+      <label v-if="customer" class="mt-3 flex items-center gap-2 text-sm text-stone-700"><input v-model="dvNotify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่าแก้ข้อมูลจัดส่ง" /> แจ้งลูกค้าว่าแก้ข้อมูลจัดส่ง</label>
+      <SmsTick v-if="customer" v-model="dvSms" :customer="customer" :order="order" :show="dvNotify" />
       <p v-if="dvError" class="mt-3 text-sm text-rose-700">{{ dvError }}</p>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="dvOpen = false">ยกเลิก</button>
@@ -759,8 +766,8 @@ async function saveCancel() {
           <RefundEditor v-model="cxl.refunds" :paid="t.paidNet":can-points="!!customer && !customer.deleted" :default-method="defaultRefundMethod(order.payments.filter((p) => p.status === 'confirmed').at(-1)?.method)" />
         </div>
         <div><label class="label">หมายเหตุการคืนเงิน</label><input v-model="cxl.refundNote" class="input" /></div>
-        <label v-if="customer && order.channel !== 'pos'" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="cxl.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่ายกเลิก" /> แจ้งลูกค้าว่ายกเลิกออร์เดอร์</label>
-        <SmsTick v-if="customer && order.channel !== 'pos'" v-model="cxl.sms" :customer="customer" :order="order" :show="cxl.notify" />
+        <label v-if="customer" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="cxl.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่ายกเลิก" /> แจ้งลูกค้าว่ายกเลิกออร์เดอร์</label>
+        <SmsTick v-if="customer" v-model="cxl.sms" :customer="customer" :order="order" :show="cxl.notify" />
         <p v-if="cxlError" class="text-sm text-rose-700">{{ cxlError }}</p>
       </div>
       <template #footer>

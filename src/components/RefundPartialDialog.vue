@@ -49,8 +49,8 @@ function save() {
         <RefundEditor v-model="f.refunds" :paid="t.paidNet" :can-points="!!customer && !customer.deleted" :default-method="defMethod" />
       </div>
       <div><label class="label" for="rf-note">หมายเหตุ</label><input id="rf-note" v-model="f.note" class="input" maxlength="120" /></div>
-      <label v-if="customer && !isPos" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="f.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่าคืนเงินแล้ว" /> แจ้งลูกค้าว่าคืนเงินแล้ว</label>
-      <SmsTick v-if="customer && !isPos" v-model="f.sms" :customer="customer" :order="order" :show="f.notify" />
+      <label v-if="customer" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="f.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่าคืนเงินแล้ว" /> แจ้งลูกค้าว่าคืนเงินแล้ว</label>
+      <SmsTick v-if="customer" v-model="f.sms" :customer="customer" :order="order" :show="f.notify" />
       </template>
       <p v-else class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">ไม่เหลือยอดให้คืนเพิ่ม · ยกเลิกการคืนรายการด้านล่างได้</p>
       <div v-if="history.length" class="space-y-2" aria-label="รายการคืนก่อนหน้า">

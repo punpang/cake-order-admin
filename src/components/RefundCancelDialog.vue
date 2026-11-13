@@ -10,7 +10,6 @@ import SmsTick from './SmsTick.vue'
 // ยกเลิกการคืนเงินบางส่วนรายการหนึ่ง (ใช้ร่วมกันทั้งหน้ารายละเอียดออร์เดอร์และ POS) · เก็บประวัติเป็น "ยกเลิกแล้ว"
 const props = defineProps({ order: { type: Object, required: true }, entry: { type: Object, required: true } })
 const emit = defineEmits(['close', 'done'])
-const isPos = computed(() => props.order.channel === 'pos')
 const hasCustomer = computed(() => !!findCustomer(props.order.customerId))
 const f = ref({ reason: '', notify: false, sms: true }) // ค่าเริ่มต้นไม่แจ้งลูกค้า
 const error = ref('')
@@ -35,8 +34,8 @@ function save() {
       </div>
       <p class="text-sm text-stone-600">ยกเลิกแล้วยอดคืนนี้จะไม่นับ (ชำระสุทธิกลับขึ้น) และบัญชีบันทึกรายการกลับ · ถ้าคืนเป็นคะแนนจะหักคะแนนคืน (ทำไม่ได้ถ้าลูกค้าใช้คะแนนนั้นไปแล้ว)</p>
       <div><label class="label" for="rc-reason">เหตุผลที่ยกเลิกการคืน <span class="text-rose-600">*</span></label><input id="rc-reason" v-model="f.reason" class="input" maxlength="120" /></div>
-      <label v-if="hasCustomer && !isPos" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="f.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่ายกเลิกการคืนเงิน" /> แจ้งลูกค้าว่ายกเลิกการคืนเงิน</label>
-      <SmsTick v-if="hasCustomer && !isPos" v-model="f.sms" :customer="findCustomer(order.customerId)" :order="order" :show="f.notify" />
+      <label v-if="hasCustomer" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="f.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่ายกเลิกการคืนเงิน" /> แจ้งลูกค้าว่ายกเลิกการคืนเงิน</label>
+      <SmsTick v-if="hasCustomer" v-model="f.sms" :customer="findCustomer(order.customerId)" :order="order" :show="f.notify" />
       <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
     </div>
     <template #footer>
