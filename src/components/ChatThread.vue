@@ -443,6 +443,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
                     <div class="font-semibold leading-snug text-stone-800">{{ slipChip(m.slipCheck).title }}</div>
                     <div v-if="slipChip(m.slipCheck).sub" class="mt-0.5 text-stone-500">{{ slipChip(m.slipCheck).sub }}</div>
                   </div>
+                  <button v-if="canBindSlip(m)" type="button" class="-mt-1 -mr-1 ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-rose-600 hover:bg-rose-50" aria-label="ยกเลิกสลิป" title="ยกเลิกสลิป" data-slip-cancel @click="doCancelSlip(m)"><AppIcon name="x" :size="18" /></button>
                 </div>
                 <div v-if="m.slipCheck.ocrAmount != null" class="mt-2.5 grid grid-cols-2 gap-2 rounded-xl bg-sky-50 px-3 py-2 text-sky-900">
                   <div>
@@ -468,7 +469,6 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
                 <div v-if="canBindSlip(m)" class="mt-2.5 flex gap-2">
                   <button v-if="slipChoicesOf(m).suggested" type="button" class="btn-primary h-9 min-w-0 flex-1 truncate px-3 text-xs" :disabled="!(slipChoicesOf(m).suggested.room > 0)" data-slip-bind @click="openSlipBind(m, slipChoicesOf(m).suggested.order)">รับชำระ {{ slipChoicesOf(m).suggested.order.code }}</button>
                   <button type="button" class="btn-outline h-9 shrink-0 px-3 text-xs" data-slip-pick @click="slipPick = m">{{ slipChoicesOf(m).suggested ? 'เลือกอื่น' : 'เลือกออร์เดอร์' }}</button>
-                  <button type="button" class="btn-outline h-9 shrink-0 px-3 text-xs text-rose-700" data-slip-cancel @click="doCancelSlip(m)">ยกเลิกสลิป</button>
                 </div>
               </div>
               <!-- คำตอบของปุ่มถาม -->
