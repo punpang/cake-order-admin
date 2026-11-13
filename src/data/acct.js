@@ -909,6 +909,8 @@ export function reopenTaxFiling(year, reason) {
 // ---------- ตรวจตามเวลา (เรียกจาก runScheduledChecks ของ store) ----------
 export function runAcctChecks(once, todayStr = today()) {
   let n = 0
+  // โหมดเซิร์ฟเวอร์ (config/scheduled.server): เซิร์ฟเวอร์เตือนค่าใช้จ่ายที่ยังไม่บันทึกและงวดผ่อนชำระแทน จึงไม่เตือนซ้ำที่นี่
+  const serverRuns = db.scheduled?.server === true
   const ym = prevMonth(todayStr.slice(0, 7))
   for (const m of [ym]) {
     const s = vatSummary(allEntries(), m)
@@ -922,10 +924,10 @@ export function runAcctChecks(once, todayStr = today()) {
     for (const r of recurringStatus(m, todayStr)) {
       if (r.state !== 'missing' && r.state !== 'due') continue
       if (r.t.autoPost && r.t.kind === 'fixed' && !locked(r.due) && !(r.t.vatMode !== 'none' && vatFiled(r.due.slice(0, 7)))) { postRecurring(r.t.id, m, {}, true); continue }
-      if (r.state === 'missing') once(`expmiss|${r.t.id}|${m}`, () => (n += notify('team_expense_missing', { vars: { รายการ: r.t.name, เดือนภาษี: m, วันที่: r.due } }), 0))
+      if (r.state === 'missing' && !serverRuns) once(`expmiss|${r.t.id}|${m}`, () => (n += notify('team_expense_missing', { vars: { รายการ: r.t.name, เดือนภาษี: m, วันที่: r.due } }), 0))
     }
   }
-  for (const a of installmentAlerts(todayStr, 1)) once(`instdue|${a.x.id}|${a.row.no}`, () => (n += notify('team_installment_due', { vars: { รายการ: a.x.name, งวด: String(a.row.no), วันที่: a.row.due, ยอดรวม: String(a.row.payment) } }), 0))
+  for (const a of serverRuns ? [] : installmentAlerts(todayStr, 1)) once(`instdue|${a.x.id}|${a.row.no}`, () => (n += notify('team_installment_due', { vars: { รายการ: a.x.name, งวด: String(a.row.no), วันที่: a.row.due, ยอดรวม: String(a.row.payment) } }), 0))
   return n
 }
 

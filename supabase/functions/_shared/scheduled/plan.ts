@@ -32,6 +32,8 @@ export function instantOf(s: unknown): number {
   if (/(Z|[+-]\d{2}:?\d{2})$/i.test(v)) return Date.parse(v)
   return Date.parse(`${v}+07:00`)
 }
+// วันที่ปัจจุบันตามเวลาไทย (YYYY-MM-DD)
+export const todayBkk = (nowMs: number): string => toDateStr(wallNow(nowMs))
 const asInstantIso = (s: unknown): unknown => {
   const t = instantOf(s)
   return Number.isFinite(t) ? new Date(t).toISOString() : s

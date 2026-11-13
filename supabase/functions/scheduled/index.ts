@@ -1,9 +1,10 @@
 // Edge Function scheduled: ส่งเตือนตามเวลาแทนแอปพนักงาน (เรียกทุก 15 นาทีจาก pg_cron ด้วยคีย์ x-cron-key)
 // ทำงานจริงเฉพาะเมื่อ punpang_kv (config/scheduled) มี {"server": true} · ค่าเริ่มต้น = แอปพนักงานยังทำเอง (ไม่มีการส่งซ้ำ)
-// เนื้อหา: เตือนนัดรับ · เตือนชำระ · วันเกิด · คะแนนใกล้หมดอายุ (ลูกค้า) · ใกล้เวลาต้องเสร็จ · เกินกำหนดชำระ (ทีม)
-// ยังไม่รวม: แจ้งเตือนบัญชี (VAT/ค่าใช้จ่ายประจำ/ผ่อนชำระ) และการลบคูปองหมดอายุ → ยังทำในแอปพนักงาน
+// เนื้อหา: เตือนนัดรับ · เตือนชำระ · วันเกิด · คะแนนใกล้หมดอายุ (ลูกค้า) · ใกล้เวลาต้องเสร็จ · เกินกำหนดชำระ (ทีม) · ค่าใช้จ่ายประจำที่ยังไม่บันทึก · งวดผ่อนชำระใกล้/เลยกำหนด (ทีม)
+// ยังไม่รวม: เตือน VAT และการบันทึกค่าใช้จ่ายประจำอัตโนมัติ (ต้องใช้ยอดขาย/เขียนบัญชี) และการลบคูปองหมดอายุ → ยังทำในแอปพนักงาน
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { planScheduled, withNewRules } from '../_shared/scheduled/plan.ts'
+import { planScheduled, todayBkk, withNewRules } from '../_shared/scheduled/plan.ts'
+import { accountingPlans } from '../_shared/scheduled/accounting.ts'
 import { runPlans, type Ctx } from '../_shared/scheduled/run.ts'
 
 // deno-lint-ignore no-explicit-any
@@ -30,6 +31,26 @@ async function fetchAll(build: (from: number, to: number) => PromiseLike<Any>): 
     if (rows.length < 1000) break
   }
   return out
+}
+
+// แผนเตือนบัญชี (อ่านอย่างเดียว): ค่าใช้จ่ายประจำที่ยังไม่บันทึก และงวดผ่อนชำระ · VAT และการบันทึกอัตโนมัติยังอยู่ในแอป
+async function acctPlansOf(sb: Any, nowMs: number): Promise<Any[]> {
+  const kv = await sb.from('punpang_kv').select('id,data').eq('collection', 'acct').in('id', ['recurring', 'recurringSkips', 'installments', 'vatFilings'])
+  if (kv.error) throw new Error(kv.error.message)
+  const acct: Record<string, Any> = {}
+  for (const r of kv.data || []) acct[r.id] = r.data?.v
+  const st = await sb.from('punpang_acct_state').select('closed_through').eq('id', 1).maybeSingle()
+  if (st.error) throw new Error(st.error.message)
+  const entries = await fetchAll((x, y) => sb.from('punpang_acct_entries').select('id,data').not('data->source', 'is', null).order('id').range(x, y))
+  return accountingPlans({
+    todayStr: todayBkk(nowMs),
+    closedThrough: String(st.data?.closed_through || ''),
+    recurring: acct.recurring || [],
+    recurringSkips: acct.recurringSkips || [],
+    installments: acct.installments || [],
+    vatFilings: acct.vatFilings || {},
+    postedRecurring: entries.map((r) => r.data || {}),
+  })
 }
 
 Deno.serve(async (req) => {
@@ -67,7 +88,16 @@ Deno.serve(async (req) => {
     const tgToken = (Deno.env.get('TELEGRAM_BOT_TOKEN') || '').trim()
     const tgChat = (Deno.env.get('TELEGRAM_CHAT_ID') || '').trim()
 
-    const plans = planScheduled({ nowMs, shop: cfg.shop || {}, rules: withNewRules(cfg.notifyRules || []), orders, customers, sent })
+    const planned = planScheduled({ nowMs, shop: cfg.shop || {}, rules: withNewRules(cfg.notifyRules || []), orders, customers, sent })
+    // ถ้าอ่านข้อมูลบัญชีไม่ได้ ให้เตือนส่วนอื่นต่อไปตามปกติ (รอบถัดไปจะเตือนรายการที่ยังค้างอยู่เอง)
+    let acctPlans: Any[] = []
+    let acctError = ''
+    try {
+      acctPlans = await acctPlansOf(sb, nowMs)
+    } catch (e) {
+      acctError = String((e as Error)?.message || e).slice(0, 200)
+    }
+    const plans = [...planned, ...acctPlans]
     const ctx: Ctx = {
       sb,
       nowMs,
@@ -80,7 +110,7 @@ Deno.serve(async (req) => {
       siteUrl: (Deno.env.get('SITE_URL') || 'https://cake-order-admin.pages.dev').trim().replace(/\/+$/, ''),
     }
     const res = await runPlans(ctx, plans)
-    return json({ ok: true, planned: plans.length, done: res.done, skipped: res.skipped, errors: res.errors.slice(0, 20) })
+    return json({ ok: true, planned: plans.length, done: res.done, skipped: res.skipped, errors: res.errors.slice(0, 20), acctError })
   } catch (e) {
     return json({ ok: false, error: String((e as Error)?.message || e).slice(0, 300) }, 500)
   }
