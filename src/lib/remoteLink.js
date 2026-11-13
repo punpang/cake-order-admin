@@ -21,7 +21,7 @@ export async function fetchRemoteLink(token) {
 
 // ใส่ข้อมูลลง db (แทนที่ของเดิมที่ id เดียวกัน) · rowToOrder แปลงแถวเป็นออร์เดอร์ของแอป
 export function injectRemoteLink(db, data, rowToOrder) {
-  const o = { ...rowToOrder(data.order), _remote: true, _payInfo: data.shop?.payment || null } // ช่องทางรับชำระของร้าน (เครื่องลูกค้าไม่มีข้อมูลร้าน)
+  const o = { ...rowToOrder(data.order), _remote: true, _payInfo: data.shop?.payment || null, _depositPercent: Number(data.shop?.depositPercent) || 0 } // ช่องทางรับชำระของร้าน (เครื่องลูกค้าไม่มีข้อมูลร้าน)
   const put = (list, item) => { const i = list.findIndex((x) => x.id === item.id); if (i >= 0) list.splice(i, 1, item); else list.push(item) }
   put(db.orders, o)
   if (data.customer && !db.customers.some((c) => c.id === data.customer.id)) db.customers.push({ id: data.customer.id, name: data.customer.name, phone: data.customer.phone || '', line: '', note: '', deleted: !!data.customer.deleted })

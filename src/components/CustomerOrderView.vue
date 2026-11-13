@@ -40,6 +40,9 @@ const requests = computed(() => o.value.payments.filter((p) => p.status === 'rep
 const f = reactive({ mode: 'all', custom: '', paymentId: null, slip: '', slipName: '', note: '', error: '', ok: '', busy: false, txnDate: '', txnTime: '', bankCode: '', ref: '', qrNote: '', reading: false })
 const open = ref(false)
 const room = computed(() => o.value.pay.room)
+// ยอดขั้นต่ำที่ลูกค้าระบุเองได้ (มัดจำขั้นต่ำ) · 0 = ไม่มี
+const minimum = computed(() => Number(o.value.pay.minimum) || 0)
+const belowMinimum = computed(() => minimum.value > 0 && f.mode === 'custom' && amount.value < minimum.value - 0.004)
 const amount = computed(() => {
   if (f.mode === 'all') return room.value
   if (f.mode === 'req') return Math.min(requests.value.find((p) => p.id === f.paymentId)?.amount ?? 0, room.value)
@@ -62,6 +65,7 @@ function askConsent(kinds) { consentNeed.value = kinds; for (const k of kinds) c
 async function makeQr() {
   qrReq.error = ''
   if (!(amount.value > 0)) return (qrReq.error = 'เลือกยอดก่อนสร้าง QR')
+  if (belowMinimum.value) return (qrReq.error = `ยอดต้องไม่น้อยกว่า ${money(minimum.value)}`)
   qrReq.busy = true
   const r = await customerRequestQr(props.ctx, amount.value, consentAll.value)
   qrReq.busy = false
@@ -168,6 +172,7 @@ async function onSlip(e) {
 async function submit() {
   f.error = f.ok = ''
   if (!(amount.value > 0)) return (f.error = 'กรอกยอดที่โอน')
+  if (belowMinimum.value) return (f.error = `ยอดต้องไม่น้อยกว่า ${money(minimum.value)}`)
   if (!f.slip) return (f.error = 'แนบสลิปก่อนกดส่ง')
   const chk = checkCustomerTxn({ txnDate: f.txnDate, txnTime: f.txnTime, bankCode: f.bankCode, ref: f.ref, createdAt: o.value.createdAt })
   if (chk.error) return (f.error = chk.error)
@@ -394,6 +399,7 @@ const beforeDiscount = computed(() => {
               <button type="button" class="chip" :class="f.mode === 'custom' ? 'chip-on' : 'chip-off'" @click="pick('custom')">ระบุเอง</button>
             </div>
             <input v-if="f.mode === 'custom'" v-model="f.custom" type="text" inputmode="decimal" class="input mt-2" placeholder="ยอดที่โอน (บาท)" aria-label="ยอดที่โอน" />
+            <p v-if="f.mode === 'custom' && minimum > 0" class="mt-1 text-xs text-stone-500">ขั้นต่ำ {{ money(minimum) }}</p>
             <p v-if="f.mode === 'custom' && Number(f.custom) > room" class="mt-1 text-xs text-rose-700">เกินคงค้าง (ไม่เกิน {{ money(room) }})</p>
           </div>
 
@@ -406,7 +412,7 @@ const beforeDiscount = computed(() => {
                 <p class="font-semibold">ก่อนชำระเงิน กรุณายินยอมตามข้อต่อไปนี้</p>
                 <label v-for="k in consentNeed" :key="k" class="flex items-start gap-2"><input v-model="consentOk[k]" type="checkbox" class="mt-0.5 h-4 w-4" :data-consent="k" /><span>{{ LEGAL_KINDS[k]?.label || k }}</span></label>
               </div>
-              <button v-else type="button" class="btn-soft mx-auto mt-2" :disabled="qrReq.busy || !(amount > 0) || (consentNeed.length > 0 && !consentAll)" @click="makeQr">{{ qrReq.busy ? 'กำลังสร้าง QR…' : 'สร้าง QR สำหรับยอดนี้' }}</button>
+              <button v-else type="button" class="btn-soft mx-auto mt-2" :disabled="qrReq.busy || !(amount > 0) || belowMinimum || (consentNeed.length > 0 && !consentAll)" @click="makeQr">{{ qrReq.busy ? 'กำลังสร้าง QR…' : 'สร้าง QR สำหรับยอดนี้' }}</button>
               <p v-if="qrReq.error" class="mt-1 text-xs text-rose-700" role="alert">{{ qrReq.error }}</p>
             </div>
             <p v-if="amount > 0" class="text-center text-base font-semibold text-stone-900">{{ money(amount) }}</p>
@@ -458,7 +464,7 @@ const beforeDiscount = computed(() => {
           </div>
           <div class="flex gap-2">
             <button class="btn-outline flex-1" @click="open = false">ยกเลิก</button>
-            <button class="btn-primary flex-1" :disabled="f.busy || f.reading || !(amount > 0) || (consentNeed.length > 0 && !consentAll)" @click="submit">{{ f.reading ? 'กำลังอ่านสลิป…' : 'ส่งสลิปแจ้งชำระ' }}</button>
+            <button class="btn-primary flex-1" :disabled="f.busy || f.reading || !(amount > 0) || belowMinimum || (consentNeed.length > 0 && !consentAll)" @click="submit">{{ f.reading ? 'กำลังอ่านสลิป…' : 'ส่งสลิปแจ้งชำระ' }}</button>
           </div>
           <p class="text-xs text-stone-400">ร้านจะตรวจสลิปแล้วยืนยันยอดให้ (ยังไม่ตัดเงินอัตโนมัติ)</p>
         </div>

@@ -71,6 +71,6 @@ Deno.serve(async (req) => {
     order: { id: row.id, code: row.code, customer_id: row.customer_id, status: row.status, fulfillment: row.fulfillment, channel: row.channel, data: d },
     customer,
     link: { ...nextLink, id: lr.data.id },
-    shop: { name: shop.data?.data?.v?.name || '', payment: publicPaymentOf(shop.data?.data?.v) },
+    shop: { name: shop.data?.data?.v?.name || '', payment: publicPaymentOf(shop.data?.data?.v), depositPercent: Number(shop.data?.data?.v?.depositPercent) || 0 },
   })
 })
