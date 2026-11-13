@@ -217,7 +217,7 @@ export default {
 
   // ลบอัตโนมัติรายวัน (Cron): เฉพาะสลิปและรูปอ้างอิงที่ออเดอร์ปิดเกินจำนวนวันที่ตั้งไว้ และไม่ถูกอ้างอิงแล้ว · รูปงานไม่ลบเด็ดขาด
   async scheduled(_event, env, ctx) {
-    ctx.waitUntil(Promise.allSettled([runCleanup(env), runTrainPrune(env)]))
+    ctx.waitUntil(Promise.allSettled([runCleanup(env), runTrainPrune(env), runLegacyPrune(env)]))
   },
 }
 
@@ -274,6 +274,84 @@ export async function runTrainPrune(env) {
     method: 'DELETE',
     headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, Prefer: 'return=minimal' },
   })
+  return removed
+}
+
+// ---------- ไฟล์เดิมใน Supabase Storage (punpang-slips, punpang-chat): ลบตามอายุ ----------
+// ไม่รับไฟล์ใหม่แล้ว · กติกา:
+//  - punpang-chat: เก่ากว่า retention.chatMedia.days (ค่าเริ่มต้น 30 วัน)
+//  - punpang-slips/manual/<แชท>/...: เก่ากว่า fileRetention.slipDays (ค่าเริ่มต้น 180 วัน)
+//  - punpang-slips/<ออร์เดอร์>/...: เฉพาะออร์เดอร์ที่ปิดแล้ว (ส่งมอบ/ยกเลิก) และอัปเดตล่าสุดเกิน slipDays
+// หมายเหตุ: ข้อมูลในฐานข้อมูลที่ยังอ้างถึงไฟล์เหล่านี้จะไม่มีรูปหลังไฟล์ถูกลบ
+const LEGACY_BUCKETS = ['punpang-slips', 'punpang-chat']
+const LEGACY_DEPTH = 3
+const LEGACY_BATCH = 100
+const sbStorage = (env, method, path, body) => fetch(`${env.SUPABASE_URL}/storage/v1${path}`, {
+  method,
+  headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json' },
+  body: body === undefined ? undefined : JSON.stringify(body),
+})
+// รายการไฟล์ทั้งบักเก็ต: เดินตามโฟลเดอร์ไม่เกิน LEGACY_DEPTH ชั้น
+async function listLegacy(env, bucket) {
+  const out = []
+  let frontier = ['']
+  for (let depth = 0; depth < LEGACY_DEPTH && frontier.length; depth++) {
+    const next = []
+    for (const prefix of frontier) {
+      for (let offset = 0; ; offset += 1000) {
+        const r = await sbStorage(env, 'POST', `/object/list/${bucket}`, { prefix, limit: 1000, offset, sortBy: { column: 'name', order: 'asc' } })
+        if (!r.ok) throw new Error(`list ${bucket} ${r.status}`)
+        const items = await r.json()
+        for (const it of items) {
+          const path = prefix ? `${prefix}/${it.name}` : it.name
+          if (it.id === null) next.push(path)
+          else out.push({ path, created: it.created_at })
+        }
+        if (items.length < 1000) break
+      }
+    }
+    frontier = next
+  }
+  return out
+}
+async function getChatMediaDays(env) {
+  const r = await sbFetch(env, '/rest/v1/punpang_kv?collection=eq.config&id=eq.retention&select=data')
+  const v = r.ok ? (await r.json())[0]?.data?.v : null
+  const d = Math.round(Number(v?.chatMedia?.days))
+  return Number.isFinite(d) && d >= 1 && d <= 3650 ? d : 30
+}
+// ลบไฟล์เดิมตามกติกา · คืนจำนวนที่ลบ (บักเก็ตที่ผิดพลาดถูกข้าม ไม่หยุดบักเก็ตอื่น)
+export async function runLegacyPrune(env) {
+  const ret = await getRetention(env)
+  const chatDays = await getChatMediaDays(env)
+  const now = Date.now()
+  const aged = (t, days) => !!t && now - new Date(t).getTime() >= days * DAY
+  let removed = 0
+  for (const bucket of LEGACY_BUCKETS) {
+    try {
+      const files = await listLegacy(env, bucket)
+      // โฟลเดอร์ชั้นบนสุดของ punpang-slips (ยกเว้น manual/) คือรหัสออร์เดอร์
+      const orderFolders = bucket === 'punpang-slips'
+        ? files.filter((f) => f.path.includes('/') && !f.path.startsWith('manual/')).map((f) => f.path.split('/')[0])
+        : []
+      const ords = await ordersById(env, orderFolders)
+      const doomed = files.filter((f) => {
+        const top = f.path.split('/')[0]
+        if (bucket === 'punpang-chat') return aged(f.created, chatDays)
+        if (top === 'manual') return aged(f.created, ret.slipDays)
+        const o = f.path.includes('/') ? ords.get(top) : null
+        return !!o && ORDER_CLOSED.includes(o.status) && aged(o.updated_at, ret.slipDays)
+      }).map((f) => f.path)
+      for (let i = 0; i < doomed.length; i += LEGACY_BATCH) {
+        const batch = doomed.slice(i, i + LEGACY_BATCH)
+        const r = await sbStorage(env, 'DELETE', `/object/${bucket}`, { prefixes: batch })
+        if (!r.ok) throw new Error(`delete ${bucket} ${r.status}`)
+        removed += batch.length
+      }
+    } catch (e) {
+      console.error('legacy-prune', bucket, String(e?.message || e))
+    }
+  }
   return removed
 }
 
