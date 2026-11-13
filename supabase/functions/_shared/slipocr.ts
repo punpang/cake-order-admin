@@ -65,7 +65,7 @@ export function parseSlipFields(text: string, nowMs = Date.now()): SlipFields {
   // เลขบัญชี: เก็บเฉพาะตัวเลข ตัวปิด (x, X, *) ขีด และช่องว่าง · ต้องมีตัวเลขอย่างน้อย 3 ตัว
   const acc = cleanText(obj?.receiver_account, 40).replace(/[^0-9xX*\- ]/g, '').trim()
   const receiverAccount = (acc.match(/\d/g) || []).length >= 3 ? acc : null
-  return { amount, paidAt, receiverName, receiverAccount, ...readShopFields(obj) }
+  return { amount, paidAt, receiverName, receiverAccount, ...readShopFields(obj, receiverAccount) }
 }
 
 const toBase64 = (b: Uint8Array) => {
@@ -115,9 +115,13 @@ export async function readSlipFields(o: { bytes: Uint8Array; key: string; model:
 export const WAI_DEFAULT_MODEL = '@cf/mistralai/mistral-small-3.1-24b-instruct'
 const WAI_PROMPT = [
   'ภาพนี้คือสลิปโอนเงินของธนาคารหรือแอปในประเทศไทย อ่านเฉพาะตัวหนังสือในภาพ',
-  'ตอบเป็น JSON อย่างเดียว รูปแบบ {"amount": ตัวเลขบาท ใช้จุดเป็นทศนิยม ไม่มีคอมมา, "date_text": "ข้อความวันที่และเวลาตามที่เห็น", "receiver_account": "เลขบัญชีหรือเลขพร้อมเพย์ของผู้รับตามที่เห็น", "sender_account": "เลขบัญชีหรือเลขพร้อมเพย์ของผู้โอนตามที่เห็น", "merchant_code": "รหัสร้านค้าตามที่เห็น (ตัวเลข) หรือ null", "shop_ref": "รหัสอ้างอิงร้านค้าที่ขึ้นต้นด้วย POS หรือ ORD ตามที่เห็น หรือ null"}',
+  'ตอบเป็น JSON อย่างเดียว รูปแบบ {"amount": ตัวเลขบาท ใช้จุดเป็นทศนิยม ไม่มีคอมมา, "date_text": "ข้อความวันที่และเวลาตามที่เห็น", "receiver_account": "เลขบัญชีหรือพร้อมเพย์ของผู้รับ ที่อยู่ใต้ป้ายไปยัง/ไปที่/To หรือ null", "sender_account": "เลขบัญชีหรือเลขพร้อมเพย์ของผู้โอนตามที่เห็น", "merchant_code": "ตัวเลขหลังป้ายรหัสร้านค้าเท่านั้น หรือ null", "shop_ref": "ค่าหลังป้ายรหัสอ้างอิงร้านค้า ที่ขึ้นต้นด้วย POS หรือ ORD หรือ null"}',
   'ผู้รับคือฝั่งที่มีป้าย "ไปยัง" "ไปที่" หรือ "To" ผู้โอนคือฝั่งที่มีป้าย "จาก" หรือ "From"',
   'ให้ยึดป้ายกำกับเป็นหลัก ห้ามเดาจากตำแหน่งบนหรือล่างของสลิป',
+  'ห้ามสลับค่า: รหัสร้านค้า (merchant_code) ไม่ใช่เลขบัญชี · เลขบัญชีผู้รับ (receiver_account) ไม่ใช่รหัสร้านค้า · รหัสอ้างอิงร้านค้า (shop_ref) ไม่ใช่รหัสร้านค้า',
+  'merchant_code ใช้เฉพาะตัวเลขที่อยู่หลังป้าย "รหัสร้านค้า" "Company code" หรือ "Merchant code" คัดลอกทุกหลักตามที่เห็น ห้ามดึงตัวเลขจากรหัสอ้างอิง รหัส POS/ORD หรือ Biller ID',
+  'receiver_account ห้ามคัดลอกค่าที่อยู่หลังป้าย "รหัสร้านค้า" "Biller ID" "รหัสอ้างอิง" "หมายเลขอ้างอิง" หรือ "เลขที่รายการ" ถ้าไม่มีเลขบัญชีหรือพร้อมเพย์ใต้ป้ายผู้รับ ให้ใส่ null',
+  'shop_ref ใช้เฉพาะค่าหลังป้าย "รหัสอ้างอิงร้านค้า" หรือ "Ref 2" คัดลอกพร้อมคำนำหน้า POS หรือ ORD ห้ามแปลงเป็นตัวเลขล้วน',
   'amount คือจำนวนเงินหลักของรายการ (ตัวเลขใหญ่ หรือ "ยอดเงินที่ชำระ") ไม่ใช่ค่าธรรมเนียม ดอกเบี้ย หรือยอดคงเหลือ',
   'date_text คัดลอกตามที่เห็น ห้ามแปลงปีหรือเดือนเอง',
   'ตัวเลขที่ถูกปิดแสดงเป็นจุด • ให้คงจุดไว้ตามจำนวนที่เห็น เช่น "••• ••• 5562" ตอบ "••••••5562" และไม่แปลงจุดเป็น x',
@@ -154,7 +158,7 @@ export async function readSlipFieldsWorkersAI(o: { bytes: Uint8Array; accountId:
     // ผู้รับจากป้าย "ไปยัง/ไปที่/To" ที่โมเดลระบุ (ไม่เดาจากตำแหน่งบนล่าง) · ต้องมีตัวเลขอย่างน้อยหนึ่งตัว
     const rv = typeof j?.receiver_account === 'string' ? j.receiver_account.trim() : ''
     const receiverAccount = /\d/.test(rv) ? rv.slice(0, 40) : null
-    return { amount, paidAt, receiverName: null, receiverAccount, ...readShopFields(j) }
+    return { amount, paidAt, receiverName: null, receiverAccount, ...readShopFields(j, receiverAccount) }
   } catch {
     return null
   }

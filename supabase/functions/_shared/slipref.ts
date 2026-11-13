@@ -31,11 +31,24 @@ export function merchantMismatch(configured: unknown, read: unknown): boolean {
   return digitsOf(read) !== want
 }
 
-// ค่าจากคำตอบของตัวอ่าน (merchant_code / shop_ref) · ใส่คีย์เฉพาะเมื่ออ่านได้ (ผลเดิมรูปร่างไม่เปลี่ยน)
-export function readShopFields(obj: any): { merchantCode?: string; shopRef?: string } {
+// รหัสร้านค้าที่อ่านได้ใช้ไม่ได้ (ทิ้งเป็นค่าว่าง) เมื่อ
+// - ซ้ำกับเลขบัญชีผู้รับ (ตัวอ่านมักสลับสองค่านี้)
+// - เป็นตัวเลขจากรหัสอ้างอิงร้านค้า เช่น POS123927229 → 123927229
+export function merchantCodeOk(mc: string, receiverAccount: unknown, shopRef: string): boolean {
+  if (mc.length < 6) return false
+  if (digitsOf(receiverAccount) === mc) return false
+  const refDigits = digitsOf(shopRef)
+  if (refDigits && refDigits.includes(mc)) return false
+  return true
+}
+
+// ค่าจากคำตอบของตัวอ่าน (merchant_code / shop_ref) · ใส่คีย์เฉพาะเมื่อผ่านเกณฑ์ (ผลเดิมรูปร่างไม่เปลี่ยน)
+export function readShopFields(obj: any, receiverAccount?: string | null): { merchantCode?: string; shopRef?: string } {
   const mc = digitsOf(obj?.merchant_code)
   const sr = normalizeShopRef(obj?.shop_ref)
-  return { ...(mc.length >= 6 ? { merchantCode: mc } : {}), ...(shopRefOk(sr) ? { shopRef: sr } : {}) }
+  const shopRef = shopRefOk(sr) ? sr : ''
+  const merchantCode = merchantCodeOk(mc, receiverAccount, shopRef) ? mc : ''
+  return { ...(merchantCode ? { merchantCode } : {}), ...(shopRef ? { shopRef } : {}) }
 }
 
 // ค่าที่เก็บในแคชและชุดเทรน: เฉพาะคีย์ที่มีค่า
