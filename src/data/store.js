@@ -240,9 +240,13 @@ const ORDER_CREATED_FB_TPL = [
 ].join('\n')
 // เทมเพลต SMS: สั้น ไม่มีอีโมจิ
 const ORDER_CREATED_SMS_TPL = 'สวัสดีค่ะ {ชื่อลูกค้า} รับออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ นัด{ส่งมอบ} {วันนัด} {เวลานัด} ยอดรวม {ยอดรวม} คงค้าง {คงค้าง} ดู: {ลิงก์ออร์เดอร์}'
+// เทมเพลตทีม "ใกล้เวลาต้องเสร็จ": จำนวนชั่วโมงเปลี่ยนตามที่ร้านตั้งได้ (ค่าเดิมฝังเลข 2 ไว้ในข้อความ)
+const DUE_SOON_OLD = '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน 2 ชม. (นัด {เวลานัด})'
+const DUE_SOON_TPL = '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน {ชั่วโมง} ชม. (นัด {เวลานัด})'
 const DEFAULT_UPGRADES = {
   payment_confirmed: [PAY_CONFIRMED_OLD, PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL], delivered: [DELIVERED_OLD, DELIVERED_TPL], payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL],
   order_created: [ORDER_CREATED_OLD, ORDER_CREATED_TPL],
+  team_due_soon: [DUE_SOON_OLD, DUE_SOON_TPL],
   payment_requested: [PAY_REQ_OLD, PAY_REQ_TPL],
   team_new_order: [[TEAM_NEW_ORDER_OLD, TEAM_NEW_ORDER_V2], TEAM_NEW_ORDER_TPL], team_payment_confirmed: [[TEAM_PAID_OLD, TEAM_PAID_V2], TEAM_PAID_TPL], team_cancelled: [[TEAM_CANCEL_OLD, TEAM_CANCEL_V2], TEAM_CANCEL_TPL],
 }
@@ -298,6 +302,8 @@ export const db = reactive({
     // ตัวเลือกกำหนดชำระตามนัด: ก่อนนัด hoursBefore ชม. · ล่วงหน้า daysBefore วัน ก่อน atTime · เตือนลูกค้าที่ยังไม่ชำระของพรุ่งนี้ตอน payReminderTime
     payDueRule: { hoursBefore: 24, daysBefore: 1, atTime: '12:00' },
     payReminderTime: '09:00',
+    // เวลาแจ้งเตือนอัตโนมัติ (ค่าเริ่มต้นเท่าการทำงานเดิม): นัดรับ = ชม.ก่อนนัด · งานใกล้เวลา = ชม.ก่อนเวลาผลิต · คะแนนหมดอายุ = วันล่วงหน้า · งวดผ่อนชำระ = วันก่อนครบกำหนด
+    pickupRemindHours: 24, dueSoonHours: 2, pointsExpireDays: 30, installmentAlertDays: 1,
     // ค่าส่งจากระยะทาง (กม.): ปิดอยู่จนกว่าร้านจะตั้งเรต
     delivery: { ...DEFAULT_DELIVERY },
     // วัน-เวลาปิดร้าน: ประจำสัปดาห์ / ช่วงวัน / ช่วงเวลาในวัน · วัน-เวลานัดที่ตรงช่วงปิดเลือกไม่ได้
@@ -461,7 +467,7 @@ export const db = reactive({
     rule('points_expiring', ['line', 'facebook'], '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ ใช้ก่อนหมดนะคะ'),
     rule('team_new_order', ['telegram'], TEAM_NEW_ORDER_TPL),
     rule('team_payment_confirmed', ['telegram'], TEAM_PAID_TPL),
-    rule('team_due_soon', ['telegram'], '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน 2 ชม. (นัด {เวลานัด})'),
+    rule('team_due_soon', ['telegram'], DUE_SOON_TPL),
     rule('team_cancelled', ['telegram'], TEAM_CANCEL_TPL),
     rule('team_approval_request', ['telegram'], '[ขออนุมัติ] {เลขออร์เดอร์} {ชื่อลูกค้า} ยืนยันสั่งซื้อแบบยังไม่ชำระ คงค้าง {คงค้าง}'),
     rule('team_pay_overdue', ['telegram'], '[เกินกำหนดชำระ] {เลขออร์เดอร์} {ชื่อลูกค้า} ต้องชำระก่อน {ชำระก่อน} คงค้าง {คงค้าง}'),
@@ -1504,6 +1510,8 @@ export function countPickups(pickupAt, excludeId) {
   }
 }
 
+// เลขจำนวนเต็มในช่วงที่กำหนด · นอกช่วง/ไม่ใช่เลข → ใช้ค่า fallback (ค่าเดิม)
+const intIn = (v, lo, hi, fallback) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= lo && n <= hi ? n : fallback }
 export function saveShopSettings(d) {
   db.shop.name = (d.name || '').trim() || db.shop.name
   db.shop.slotMinutes = Math.max(5, Number(d.slotMinutes) || 30)
@@ -1514,6 +1522,10 @@ export function saveShopSettings(d) {
   db.shop.leadDelivery = Math.max(0, Number(d.leadDelivery) || 0)
   db.shop.depositPercent = Math.min(100, Math.max(0, Number(d.depositPercent) || 0))
   db.shop.birthdayDays = Math.max(0, Number(d.birthdayDays) || 0)
+  db.shop.pickupRemindHours = intIn(d.pickupRemindHours, 1, 72, db.shop.pickupRemindHours ?? 24)
+  db.shop.dueSoonHours = intIn(d.dueSoonHours, 1, 12, db.shop.dueSoonHours ?? 2)
+  db.shop.pointsExpireDays = intIn(d.pointsExpireDays, 1, 90, db.shop.pointsExpireDays ?? 30)
+  db.shop.installmentAlertDays = intIn(d.installmentAlertDays, 0, 30, db.shop.installmentAlertDays ?? 1)
   if (d.payDueMin !== undefined) {
     const m = Math.round(Number(d.payDueMin))
     db.shop.payDueMin = m >= 1 ? Math.min(10080, m) : 30
@@ -2717,7 +2729,7 @@ function payReminder(o, nowD, once) {
   const open = asked.filter((p) => p.status === 'reported').sort((a, b) => String(a.dueAt).localeCompare(String(b.dueAt)))[0]
   once(`payrem|${o.id}|${tmrStr}`, () => { notifyOrder('payment_reminder', o, { dueAt: open?.dueAt || '' }); return 1 })
 }
-// จำลองรอบตรวจตามเวลา (ของจริงใช้ cron): เตือนนัดรับ 24 ชม., งานใกล้เวลา 2 ชม., วันเกิด, คะแนนใกล้หมดอายุ · ส่งครั้งเดียวต่อ key
+// จำลองรอบตรวจตามเวลา (ของจริงใช้ cron): เตือนนัดรับ, งานใกล้เวลา, วันเกิด, คะแนนใกล้หมดอายุ (ตามที่ร้านตั้งไว้) · ส่งครั้งเดียวต่อ key
 // ตัวตรวจตามเวลาจากโมดูลอื่น (เช่นบัญชี) ลงทะเบียนที่นี่ — store ไม่ import โมดูลเหล่านั้นเพื่อกัน import วน
 export const scheduledHooks = []
 export function runScheduledChecks() {
@@ -2725,6 +2737,9 @@ export function runScheduledChecks() {
   const nowMs = Date.now()
   // server = true → เซิร์ฟเวอร์ (Edge Function scheduled) ส่งเตือนลูกค้าและทีมแล้ว แอปข้ามส่วนนั้น (บัญชีและคูปองยังทำในแอป)
   const serverRuns = db.scheduled?.server === true
+  const pickupHours = Number(db.shop.pickupRemindHours ?? 24)
+  const dueHours = Number(db.shop.dueSoonHours ?? 2)
+  const pointsDays = Number(db.shop.pointsExpireDays ?? 30)
   const once = (key, fn) => {
     if (db.notifySent.includes(key)) return
     db.notifySent.push(key)
@@ -2733,11 +2748,11 @@ export function runScheduledChecks() {
   for (const o of serverRuns ? [] : db.orders) {
     if (['draft', 'delivered', 'cancelled'].includes(o.status)) continue
     const toPickup = new Date(o.pickupAt).getTime() - nowMs
-    if (toPickup > 0 && toPickup <= 24 * 3600e3) once(`pickup|${o.id}`, () => { notifyOrder('pickup_reminder', o); return 1 })
+    if (toPickup > 0 && toPickup <= pickupHours * 3600e3) once(`pickup|${o.id}`, () => { notifyOrder('pickup_reminder', o); return 1 })
     for (const p of overduePayments(o, new Date(nowMs))) once(`overdue|${p.id}|${p.dueAt}`, () => notify('team_pay_overdue', { vars: { ...orderVars(o), ชำระก่อน: dueText(p.dueAt) }, orderId: o.id }))
     payReminder(o, new Date(nowMs), once)
     const toDue = dueAt(o).getTime() - nowMs
-    if (toDue <= 2 * 3600e3) once(`due|${o.id}`, () => notify('team_due_soon', { vars: orderVars(o), orderId: o.id }))
+    if (toDue <= dueHours * 3600e3) once(`due|${o.id}`, () => notify('team_due_soon', { vars: { ...orderVars(o), ชั่วโมง: String(dueHours) }, orderId: o.id }))
   }
   for (const b of serverRuns ? [] : upcomingBirthdays()) {
     const c = findCustomer(b.customerId)
@@ -2747,7 +2762,7 @@ export function runScheduledChecks() {
   sweepCoupons()
   for (const h of scheduledHooks) n += h(once, today) || 0
   for (const c of serverRuns ? [] : db.customers) {
-    const soon = expiringSoon(c.ledger || [], today)
+    const soon = expiringSoon(c.ledger || [], today, pointsDays)
     if (soon?.points > 0) once(`pts|${c.id}|${soon.date}`, () => notify('points_expiring', { customer: c, vars: { ชื่อลูกค้า: c.name, คะแนน: String(soon.points) } }))
   }
   return n

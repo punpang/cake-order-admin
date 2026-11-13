@@ -177,7 +177,7 @@ export const NOTIFY_EVENTS = {
   order_confirmed: { label: 'ยืนยันการสั่งซื้อ', audience: 'customer' },
   prepared: { label: 'เตรียมสินค้าเสร็จ (พร้อมรับ/ส่ง)', audience: 'customer' },
   payment_reminder: { label: 'เตือนชำระ (ออร์เดอร์พรุ่งนี้ ยังไม่ชำระ)', audience: 'customer', scheduled: true },
-  pickup_reminder: { label: 'เตือนก่อนนัดรับ (24 ชม.)', audience: 'customer', scheduled: true },
+  pickup_reminder: { label: 'เตือนก่อนนัดรับ', audience: 'customer', scheduled: true },
   shipping: { label: 'ออร์เดอร์ออกจัดส่งแล้ว', audience: 'customer' },
   delivered: { label: 'ส่งมอบแล้ว', audience: 'customer' },
   cancelled: { label: 'ยกเลิกออร์เดอร์', audience: 'customer' },
@@ -202,7 +202,7 @@ export const NOTIFY_EVENTS = {
   points_expiring: { label: 'คะแนนใกล้หมดอายุ', audience: 'customer', scheduled: true, marketing: true },
   team_new_order: { label: 'ออร์เดอร์ใหม่', audience: 'team' },
   team_payment_confirmed: { label: 'ยืนยันชำระแล้ว', audience: 'team' },
-  team_due_soon: { label: 'งานใกล้เวลาต้องเสร็จ (2 ชม.)', audience: 'team', scheduled: true },
+  team_due_soon: { label: 'งานใกล้เวลาต้องเสร็จ', audience: 'team', scheduled: true },
   team_cancelled: { label: 'ยกเลิกออร์เดอร์', audience: 'team' },
   team_approval_request: { label: 'ขออนุมัติยืนยันสั่งซื้อ (ยังไม่ชำระ)', audience: 'team' },
   team_pay_overdue: { label: 'เกินกำหนดชำระ', audience: 'team', scheduled: true },
@@ -218,7 +218,7 @@ export const NOTIFY_EVENTS = {
   team_installment_due: { label: 'งวดผ่อนชำระใกล้/เลยกำหนด', audience: 'team', scheduled: true },
   team_vat_due: { label: 'ครบกำหนดยื่น ภ.พ.30 (ยังไม่ยื่น)', audience: 'team', scheduled: true },
 }
-export const NOTIFY_VARS = ['{ชื่อลูกค้า}', '{เลขออร์เดอร์}', '{ยอดรวม}', '{คงค้าง}', '{ยอดที่แจ้ง}', '{วันนัด}', '{เวลานัด}', '{ส่งมอบ}', '{ชื่อวันเกิด}', '{คะแนน}', '{ลิงก์ออร์เดอร์}', '{ชำระก่อน}', '{เดือนภาษี}', '{รายการ}', '{วันที่}', '{งวด}', '{นาที}', '{ยอดที่ชำระ}', '{ชำระแล้ว}', '{ข้อความรับสินค้า}', '{เวลาปิดร้าน}', '{ข้อความขอใช้ภาพ}', '{เบอร์ลูกค้า}', '{รายการสินค้า}', '{บรรทัดที่อยู่}', '{บรรทัดค่าส่ง}', '{บรรทัดหมายเหตุ}']
+export const NOTIFY_VARS = ['{ชื่อลูกค้า}', '{เลขออร์เดอร์}', '{ยอดรวม}', '{คงค้าง}', '{ยอดที่แจ้ง}', '{วันนัด}', '{เวลานัด}', '{ส่งมอบ}', '{ชื่อวันเกิด}', '{คะแนน}', '{ลิงก์ออร์เดอร์}', '{ชำระก่อน}', '{เดือนภาษี}', '{รายการ}', '{วันที่}', '{งวด}', '{นาที}', '{ยอดที่ชำระ}', '{ชำระแล้ว}', '{ข้อความรับสินค้า}', '{เวลาปิดร้าน}', '{ข้อความขอใช้ภาพ}', '{เบอร์ลูกค้า}', '{รายการสินค้า}', '{บรรทัดที่อยู่}', '{บรรทัดค่าส่ง}', '{บรรทัดหมายเหตุ}', '{ชั่วโมง}']
 
 export const POS_METHODS = { cash: 'เงินสด', transfer: 'โอนเงิน', card: 'บัตร' }
 
