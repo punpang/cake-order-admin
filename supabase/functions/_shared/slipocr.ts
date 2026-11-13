@@ -4,9 +4,10 @@
 // ไม่อ่าน Deno.env ที่นี่ เพื่อให้ทดสอบด้วยตัวจำลอง fetch ได้
 import { imageSize } from './qrimage.ts'
 import { inferThaiDateTime, parseThaiDateTime } from './slipText.ts'
+import { readShopFields } from './slipref.ts'
 
 // paidAt = "YYYY-MM-DDTHH:mm" เวลาไทย (รูปแบบเดียวกับวันชำระในระบบ) · receiverAccount = ตามที่เห็นบนสลิป (มักถูกปิดบางหลัก เช่น xxx-x-x1234-x)
-export type SlipFields = { amount: number | null; paidAt: string | null; receiverName?: string | null; receiverAccount?: string | null }
+export type SlipFields = { amount: number | null; paidAt: string | null; receiverName?: string | null; receiverAccount?: string | null; merchantCode?: string; shopRef?: string }
 
 export const OCR_DEFAULT_MODEL = 'claude-sonnet-5-5'
 const TIMEOUT_MS = 30_000
@@ -19,16 +20,18 @@ const PROMPT = [
   '2) datetime: วันและเวลาที่ทำรายการ รูปแบบ "YYYY-MM-DDTHH:mm" เวลาไทย ปีคริสต์ศักราช · ปีพุทธศักราชให้ลบ 543 (ปี 2 หลักเช่น 69 คือ พ.ศ. 2569 = ค.ศ. 2026) · เดือนอาจเป็นตัวย่อไทย (ม.ค. ก.พ. มี.ค. เม.ย. พ.ค. มิ.ย. ก.ค. ส.ค. ก.ย. ต.ค. พ.ย. ธ.ค.) หรืออังกฤษ',
   '3) receiver_name: ชื่อผู้รับโอน (ฝั่ง "ไปยัง" / "ถึง" / "To" / "ผู้รับ" — ปกติอยู่ส่วนล่างถัดจากผู้โอน) คัดลอกตามที่เห็น รวมคำนำหน้า ไม่ใช่ชื่อผู้โอน และไม่ใช่ชื่อธนาคาร',
   '4) receiver_account: เลขที่บัญชี / หมายเลขพร้อมเพย์ / เลข e-Wallet ของผู้รับโอน คัดลอกตามที่เห็นทุกตัวอักษร รวมตัวที่ถูกปิด (x, X, *) และขีด เช่น "xxx-x-x1234-x" · ไม่ใช่บัญชีผู้โอน และไม่ใช่รหัสอ้างอิง',
+  '5) merchant_code: รหัสร้านค้าผู้รับชำระ (ป้าย "รหัสร้านค้า" / "Company code" / "Merchant code") เป็นตัวเลขยาว คัดลอกทุกหลักตามที่เห็น · ไม่ใช่เลขบัญชีและไม่ใช่เลขอ้างอิง',
+  '6) shop_ref: รหัสอ้างอิงร้านค้า (ป้าย "รหัสอ้างอิงร้านค้า" / "Ref 2") ขึ้นต้นด้วย POS หรือ ORD ตามด้วยตัวเลข คัดลอกตามที่เห็น · ไม่ใช่เลขอ้างอิงของธนาคาร',
   'ค่าใดไม่เห็นในภาพ หรืออ่านได้ไม่ชัดพอจะมั่นใจ ให้ใส่ null ห้ามเดา',
-  'ตอบเป็น JSON อย่างเดียว เช่น {"amount": 178, "datetime": "2026-11-11T14:48", "receiver_name": "นาย ตัวอย่าง ใจดี", "receiver_account": "xxx-x-x1234-x"}',
+  'ตอบเป็น JSON อย่างเดียว เช่น {"amount": 178, "datetime": "2026-11-11T14:48", "receiver_name": "นาย ตัวอย่าง ใจดี", "receiver_account": "xxx-x-x1234-x", "merchant_code": null, "shop_ref": null}',
 ].join('\n')
 
 // โครงคำตอบ (structured outputs): บังคับให้คำตอบเป็น JSON ตามนี้เสมอ
 const nullable = (type: string) => ({ anyOf: [{ type }, { type: 'null' }] })
 const OUTPUT_SCHEMA = {
   type: 'object',
-  properties: { amount: nullable('number'), datetime: nullable('string'), receiver_name: nullable('string'), receiver_account: nullable('string') },
-  required: ['amount', 'datetime', 'receiver_name', 'receiver_account'],
+  properties: { amount: nullable('number'), datetime: nullable('string'), receiver_name: nullable('string'), receiver_account: nullable('string'), merchant_code: nullable('string'), shop_ref: nullable('string') },
+  required: ['amount', 'datetime', 'receiver_name', 'receiver_account', 'merchant_code', 'shop_ref'],
   additionalProperties: false,
 }
 const cleanText = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max) : '')
@@ -62,7 +65,7 @@ export function parseSlipFields(text: string, nowMs = Date.now()): SlipFields {
   // เลขบัญชี: เก็บเฉพาะตัวเลข ตัวปิด (x, X, *) ขีด และช่องว่าง · ต้องมีตัวเลขอย่างน้อย 3 ตัว
   const acc = cleanText(obj?.receiver_account, 40).replace(/[^0-9xX*\- ]/g, '').trim()
   const receiverAccount = (acc.match(/\d/g) || []).length >= 3 ? acc : null
-  return { amount, paidAt, receiverName, receiverAccount }
+  return { amount, paidAt, receiverName, receiverAccount, ...readShopFields(obj) }
 }
 
 const toBase64 = (b: Uint8Array) => {
@@ -112,7 +115,7 @@ export async function readSlipFields(o: { bytes: Uint8Array; key: string; model:
 export const WAI_DEFAULT_MODEL = '@cf/mistralai/mistral-small-3.1-24b-instruct'
 const WAI_PROMPT = [
   'ภาพนี้คือสลิปโอนเงินของธนาคารหรือแอปในประเทศไทย อ่านเฉพาะตัวหนังสือในภาพ',
-  'ตอบเป็น JSON อย่างเดียว รูปแบบ {"amount": ตัวเลขบาท ใช้จุดเป็นทศนิยม ไม่มีคอมมา, "date_text": "ข้อความวันที่และเวลาตามที่เห็น", "receiver_account": "เลขบัญชีหรือเลขพร้อมเพย์ของผู้รับตามที่เห็น", "sender_account": "เลขบัญชีหรือเลขพร้อมเพย์ของผู้โอนตามที่เห็น"}',
+  'ตอบเป็น JSON อย่างเดียว รูปแบบ {"amount": ตัวเลขบาท ใช้จุดเป็นทศนิยม ไม่มีคอมมา, "date_text": "ข้อความวันที่และเวลาตามที่เห็น", "receiver_account": "เลขบัญชีหรือเลขพร้อมเพย์ของผู้รับตามที่เห็น", "sender_account": "เลขบัญชีหรือเลขพร้อมเพย์ของผู้โอนตามที่เห็น", "merchant_code": "รหัสร้านค้าตามที่เห็น (ตัวเลข) หรือ null", "shop_ref": "รหัสอ้างอิงร้านค้าที่ขึ้นต้นด้วย POS หรือ ORD ตามที่เห็น หรือ null"}',
   'ผู้รับคือฝั่งที่มีป้าย "ไปยัง" "ไปที่" หรือ "To" ผู้โอนคือฝั่งที่มีป้าย "จาก" หรือ "From"',
   'ให้ยึดป้ายกำกับเป็นหลัก ห้ามเดาจากตำแหน่งบนหรือล่างของสลิป',
   'amount คือจำนวนเงินหลักของรายการ (ตัวเลขใหญ่ หรือ "ยอดเงินที่ชำระ") ไม่ใช่ค่าธรรมเนียม ดอกเบี้ย หรือยอดคงเหลือ',
@@ -151,7 +154,7 @@ export async function readSlipFieldsWorkersAI(o: { bytes: Uint8Array; accountId:
     // ผู้รับจากป้าย "ไปยัง/ไปที่/To" ที่โมเดลระบุ (ไม่เดาจากตำแหน่งบนล่าง) · ต้องมีตัวเลขอย่างน้อยหนึ่งตัว
     const rv = typeof j?.receiver_account === 'string' ? j.receiver_account.trim() : ''
     const receiverAccount = /\d/.test(rv) ? rv.slice(0, 40) : null
-    return { amount, paidAt, receiverName: null, receiverAccount }
+    return { amount, paidAt, receiverName: null, receiverAccount, ...readShopFields(j) }
   } catch {
     return null
   }

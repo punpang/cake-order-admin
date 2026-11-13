@@ -4,6 +4,7 @@
 // ไม่เก็บชื่อผู้รับ (ระบบไม่ได้ใช้ชื่อ) · เลขบัญชีเก็บตามที่สลิปปิดไว้
 import { readSlipFieldsChain, type OcrEngine, type SlipFields } from './slipocr.ts'
 import { svcDelete, svcUpload, type FilesEnv } from './filesvc.ts'
+import { shopPartOf } from './slipref.ts'
 
 // อ่านได้ = มียอดหรือวัน-เวลา (เกณฑ์เดียวกับการแนบป้ายในแชท)
 export const usableFields = (f: SlipFields | null | undefined): f is SlipFields => !!f && (f.amount != null || f.paidAt != null)
@@ -24,7 +25,7 @@ export async function cachedSlipFields(sb: any, slipKey: string): Promise<SlipFi
   const id = await cacheId(slipKey)
   const f = (await sb.from('punpang_records').select('data').eq('collection', 'slipRead').eq('id', id).maybeSingle()).data?.data?.fields
   if (!f || typeof f !== 'object') return null
-  return { amount: f.amount ?? null, paidAt: f.paidAt ?? null, receiverAccount: f.receiverAccount ?? null }
+  return { amount: f.amount ?? null, paidAt: f.paidAt ?? null, receiverAccount: f.receiverAccount ?? null, ...shopPartOf(f) }
 }
 
 // จำผลที่ตัวอ่านตอบแล้วไว้ตามเลขอ้างอิง (ซ้ำ = ข้าม)
@@ -32,7 +33,7 @@ export async function cacheSlipFields(sb: any, slipKey: string, fields: SlipFiel
   const id = await cacheId(slipKey)
   const r = await sb.from('punpang_records').insert({
     collection: 'slipRead', id,
-    data: { fields: { amount: fields.amount ?? null, paidAt: fields.paidAt ?? null, receiverAccount: fields.receiverAccount ?? null }, at: new Date().toISOString() },
+    data: { fields: { amount: fields.amount ?? null, paidAt: fields.paidAt ?? null, receiverAccount: fields.receiverAccount ?? null, ...shopPartOf(fields) }, at: new Date().toISOString() },
   })
   return !r?.error
 }
@@ -51,7 +52,7 @@ export async function saveFailedSlip(sb: any, o: { bytes: Uint8Array; bankCode: 
     collection: 'slipTrain', id,
     data: {
       at: new Date().toISOString(), source: o.source, bankCode: o.bankCode, path: s.key, missing: missingOf(o.fields),
-      fields: { amount: o.fields.amount ?? null, paidAt: o.fields.paidAt ?? null, receiverAccount: o.fields.receiverAccount ?? null },
+      fields: { amount: o.fields.amount ?? null, paidAt: o.fields.paidAt ?? null, receiverAccount: o.fields.receiverAccount ?? null, ...shopPartOf(o.fields) },
     },
   })
   if (r?.error) { await svcDelete(o.files, [s.key]); return false }

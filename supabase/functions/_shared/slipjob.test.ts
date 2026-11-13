@@ -115,6 +115,28 @@ const svcFake = (sb: any) => ({
 })
 const runCheck = (sb: any, bytes: Uint8Array, extra: Record<string, unknown> = {}) => checkSlipImage({ sb, chatId: 'c1', msgId: 'm1', bytes, nowMs: NOW, rand: (n) => 'a'.repeat(n * 2).slice(0, n * 2), files: svcFake(sb), ...extra })
 
+Deno.test('รหัสอ้างอิงร้านค้า (ORD) บนสลิปจับคู่ออร์เดอร์ได้ แม้แชทยังไม่มีออร์เดอร์ที่คุยล่าสุด', async () => {
+  const sb = fakeSb({ chats: [chatWith([slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
+  const reader = async () => ({ amount: 540, paidAt: '2026-11-11T10:00', receiverName: null, receiverAccount: 'xxx-x-x8154-x', merchantCode: '014000000517185', shopRef: 'ORD111126000010' })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: reader } }), 'matched')
+  const p = sb.T.punpang_orders[0].data.payments[0]
+  assertEquals([p.shopRef, p.merchantMismatch], ['ORD111126000010', undefined]) // ยังไม่ได้ตั้งรหัสร้านค้า → ไม่ติดธง
+})
+
+Deno.test('รหัสร้านค้าในสลิปไม่ตรงที่ตั้งไว้ หรืออ่านไม่ได้ → รับไว้และติดธงให้พนักงานตรวจ', async () => {
+  const kv = [kvOcrAll({ wai: true }), { collection: 'config', id: 'shop', data: { v: { merchantCode: '014000000517185' } } }]
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv })
+  const reader = async () => ({ amount: 540, paidAt: '2026-11-11T10:00', receiverName: null, receiverAccount: 'xxx-x-x8154-x', merchantCode: '014000000517186', shopRef: 'ORD111126000010' })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: reader } }), 'matched')
+  assertEquals(sb.T.punpang_orders[0].data.payments[0].merchantMismatch, true)
+  const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
+  assertEquals(bell.data.text.includes('รหัสร้านค้าในสลิปไม่ตรง'), true)
+  const sb2 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv })
+  const unread = async () => ({ amount: 540, paidAt: '2026-11-11T10:00', receiverName: null, receiverAccount: 'xxx-x-x8154-x' })
+  assertEquals(await runCheck(sb2, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: unread } }), 'matched')
+  assertEquals(sb2.T.punpang_orders[0].data.payments[0].merchantMismatch, true)
+})
+
 Deno.test('สลิปในแชท + ออร์เดอร์ที่คุยล่าสุด → จับคู่ เก็บยอดรอตรวจ แจ้งกระดิ่ง และติดป้ายในแชท', async () => {
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [] })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'matched')

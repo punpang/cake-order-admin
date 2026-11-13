@@ -304,6 +304,8 @@ export const db = reactive({
     payReminderTime: '09:00',
     // เวลาแจ้งเตือนอัตโนมัติ (ค่าเริ่มต้นเท่าการทำงานเดิม): นัดรับ = ชม.ก่อนนัด · งานใกล้เวลา = ชม.ก่อนเวลาผลิต · คะแนนหมดอายุ = วันล่วงหน้า · งวดผ่อนชำระ = วันก่อนครบกำหนด
     pickupRemindHours: 24, dueSoonHours: 2, pointsExpireDays: 30, installmentAlertDays: 1,
+    // รหัสร้านค้า (ผู้รับชำระ) ใช้ตรวจรหัสร้านค้าในสลิปโอนเงิน · ว่าง = ไม่ตรวจ
+    merchantCode: '',
     // ค่าส่งจากระยะทาง (กม.): ปิดอยู่จนกว่าร้านจะตั้งเรต
     delivery: { ...DEFAULT_DELIVERY },
     // วัน-เวลาปิดร้าน: ประจำสัปดาห์ / ช่วงวัน / ช่วงเวลาในวัน · วัน-เวลานัดที่ตรงช่วงปิดเลือกไม่ได้
@@ -1526,6 +1528,7 @@ export function saveShopSettings(d) {
   db.shop.dueSoonHours = intIn(d.dueSoonHours, 1, 12, db.shop.dueSoonHours ?? 2)
   db.shop.pointsExpireDays = intIn(d.pointsExpireDays, 1, 90, db.shop.pointsExpireDays ?? 30)
   db.shop.installmentAlertDays = intIn(d.installmentAlertDays, 0, 30, db.shop.installmentAlertDays ?? 1)
+  db.shop.merchantCode = String(d.merchantCode ?? db.shop.merchantCode ?? '').replace(/\D/g, '').slice(0, 20)
   if (d.payDueMin !== undefined) {
     const m = Math.round(Number(d.payDueMin))
     db.shop.payDueMin = m >= 1 ? Math.min(10080, m) : 30
