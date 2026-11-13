@@ -46,9 +46,10 @@ function sendState(m) {
   return `ส่งทาง ${channelLabel.value}`
 }
 const failed = (m) => mine(m) && (props.chat.channel === 'facebook' || props.chat.channel === 'instagram') && m.delivery === 'failed'
-// ผลตรวจสลิป QR ในรูปที่ลูกค้าส่ง (สถานะจาก _shared/slipjob.ts) · ยอดยังรอพนักงานตรวจเสมอ
+// ผลตรวจสลิป QR ในรูปที่ลูกค้าส่ง (สถานะจาก _shared/slipjob.ts) · ยอดรอพนักงานตรวจ (ยกเว้นยืนยันอัตโนมัติ)
 const SLIP_CHIP = {
   matched: ['สลิปจับคู่กับออร์เดอร์แล้ว · รอตรวจยอด', 'bg-emerald-50 text-emerald-700'],
+  auto_confirmed: ['สลิปยืนยันชำระอัตโนมัติแล้ว · ยังไม่ได้ตรวจกับธนาคาร', 'bg-emerald-50 text-emerald-700'],
   duplicate: ['สลิปนี้เคยส่งแล้ว · ไม่แนบซ้ำ', 'bg-rose-50 text-rose-700'],
   no_order: ['สลิป QR · ยังไม่มีออร์เดอร์ในแชท (เลือกออร์เดอร์แล้วรับชำระได้)', 'bg-amber-50 text-amber-700'],
   received: ['สลิป QR · รับชำระจากสลิปแล้ว', 'bg-emerald-50 text-emerald-700'],
@@ -62,7 +63,7 @@ const SLIP_CHIP = {
 }
 // หัวข้อ + จุดสีของการ์ดสลิป: สีจากโทนของสถานะ (เขียว = สำเร็จ · แดง = ผิดพลาด/ซ้ำ · เหลือง = ต้องดูเอง · เทา = ไม่รู้สถานะ)
 function slipChip(s) {
-  const [t, cls] = SLIP_CHIP[s?.status] || ['สลิป QR · ตรวจไม่ได้', 'bg-stone-100 text-stone-600']
+  const [t, cls] = SLIP_CHIP[s?.status === 'matched' && s?.autoConfirmed ? 'auto_confirmed' : s?.status] || ['สลิป QR · ตรวจไม่ได้', 'bg-stone-100 text-stone-600']
   const dot = cls.includes('emerald') ? 'bg-emerald-500' : cls.includes('rose') ? 'bg-rose-500' : cls.includes('amber') ? 'bg-amber-500' : 'bg-stone-400'
   return { title: t, sub: s?.orderCode ? `ออร์เดอร์ ${s.orderCode}` : '', dot }
 }
@@ -449,7 +450,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
                     <div v-if="slipAcctState(m.slipCheck.ocrReceiverAccount) === 'match'" class="mt-0.5 text-xs font-semibold text-emerald-700">✓ ตรงกับบัญชีของร้าน</div>
                     <div v-else-if="slipAcctState(m.slipCheck.ocrReceiverAccount) === 'mismatch'" class="mt-0.5 text-xs font-semibold text-amber-700">⚠ ไม่ตรงกับบัญชีของร้าน</div>
                   </div>
-                  <div class="col-span-2 text-xs text-sky-700">อ่านจากภาพ · ตรวจกับธนาคารก่อนยืนยัน</div>
+                  <div class="col-span-2 text-xs text-sky-700">{{ m.slipCheck.autoConfirmed ? 'อ่านจากภาพ · ยืนยันอัตโนมัติแล้ว ยังไม่ได้ตรวจกับธนาคาร' : 'อ่านจากภาพ · ตรวจกับธนาคารก่อนยืนยัน' }}</div>
                 </div>
                 <!-- โหมดแมนนวล: ผูกกับออร์เดอร์ที่แนะนำ หรือเลือกออร์เดอร์อื่นของลูกค้า (ในหน้าแชท ไม่เปลี่ยนหน้า) -->
                 <div v-if="canBindSlip(m)" class="mt-2.5 flex gap-2">

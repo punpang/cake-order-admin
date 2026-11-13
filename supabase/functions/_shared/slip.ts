@@ -178,3 +178,28 @@ export function buildSlipPayment(p: {
     ...(p.shopRef ? { shopRef: p.shopRef } : {}), ...(p.merchantMismatch ? { merchantMismatch: true } : {}),
   }
 }
+
+// ยืนยันสลิปอัตโนมัติ (ตั้งใน config slipQr.autoConfirm): ค่าเริ่มต้นปิด · วันนัดรับต้องห่างจากวันนี้อย่างน้อย days วัน จึงยืนยันเอง
+export const AUTO_CONFIRM_DEFAULT_DAYS = 3
+export function autoConfirmOf(v: any): { enabled: boolean; days: number } {
+  const ac = v?.autoConfirm
+  const n = Number(ac?.days)
+  const days = Number.isInteger(n) && n >= 0 && n <= 30 ? n : AUTO_CONFIRM_DEFAULT_DAYS
+  return { enabled: ac?.enabled === true, days }
+}
+
+// จำนวนวันจากวันนี้ (เวลาไทย) ถึงวันนัดรับ · นัดวันนี้ = 0 · นัดวันที่ผ่านไปแล้ว = ค่าลบ · ไม่มีหรือรูปแบบวันผิด = null
+const TH_MS = 7 * 3600_000
+const DAY_MS = 86400_000
+export function daysUntilPickup(pickupAt: unknown, nowMs: number): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(typeof pickupAt === 'string' ? pickupAt : '')
+  if (!m) return null
+  const y = Number(m[1])
+  const mo = Number(m[2]) - 1
+  const d = Number(m[3])
+  const pick = new Date(Date.UTC(y, mo, d))
+  if (pick.getUTCFullYear() !== y || pick.getUTCMonth() !== mo || pick.getUTCDate() !== d) return null // วันที่ไม่มีจริง เช่น 31 ก.พ.
+  const th = new Date(nowMs + TH_MS)
+  const today = Date.UTC(th.getUTCFullYear(), th.getUTCMonth(), th.getUTCDate())
+  return Math.round((pick.getTime() - today) / DAY_MS)
+}
