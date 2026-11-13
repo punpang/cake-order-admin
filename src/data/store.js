@@ -3552,7 +3552,7 @@ function posLinesOk(lines, total) {
   if (Math.abs(round2(lines.reduce((s, l) => s + round2(Number(l.amount)), 0)) - total) > 0.005) return false
   for (const l of lines) {
     if (l.method === 'cash' && (Number(l.received) || 0) < round2(Number(l.amount))) return false
-    if (l.method === 'transfer' && (!l.qrRef || !l.confirmed || posQrExpired(l))) return false
+    if (l.method === 'transfer' && (!l.qrRef || !l.confirmed)) return false // หมดอายุตรวจตอนรับชำระแล้ว (รับเองหลังเวลา 3 นาทีได้)
   }
   return true
 }
@@ -3580,7 +3580,7 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
   for (const l of rows) {
     const amt = round2(Number(l.amount))
     const got = l.method === 'cash' ? Math.max(Number(l.received) || 0, amt) : amt
-    o.payments.push({ id: uid('pay'), code: numbering.next('PAY'), requested: amt, amount: amt, method: POS_METHODS[l.method], posMethod: l.method, received: got, change: round2(got - amt), paidAt: ts.slice(0, 16), slip: '', note: '', status: 'confirmed', reportedBy: session.role, confirmedBy: session.role, ...(l.method === 'transfer' && l.qrRef ? { qrRef: l.qrRef, ...(l.maneeId ? { maneeId: l.maneeId } : {}) } : {}) })
+    o.payments.push({ id: uid('pay'), code: numbering.next('PAY'), requested: amt, amount: amt, method: POS_METHODS[l.method], posMethod: l.method, received: got, change: round2(got - amt), paidAt: ts.slice(0, 16), slip: '', note: '', status: 'confirmed', reportedBy: session.role, confirmedBy: session.role, ...(l.method === 'transfer' && l.qrRef ? { qrRef: l.qrRef, ...(l.maneeId ? { maneeId: l.maneeId } : {}), qrAccept: l.acceptedBy || 'staff' } : {}) })
   }
   for (const it of o.items) {
     const src = it.kind === 'retail' ? db.retailItems.find((x) => x.id === it.retailId) : null

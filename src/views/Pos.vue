@@ -272,7 +272,9 @@ const lineAmt = (l) => Math.round((Number(l.amount) || 0) * 100) / 100
 const paidSum = computed(() => Math.round(payLines.value.reduce((s, l) => s + lineAmt(l), 0) * 100) / 100)
 const remaining = computed(() => Math.round((total.value - paidSum.value) * 100) / 100)
 const newKey = () => Math.random().toString(36).slice(2)
-const expiredLine = (l) => posQrExpired(l, payNow.value)
+const expiredLine = (l) => !l.detectedAt && !l.confirmed && l.status !== 'cancelled' && posQrExpired(l, payNow.value)
+const AUTO_ACCEPT_MS = 3 * 60 * 1000 // พบรายการโอนแล้ว พนักงานไม่กดรับภายใน 3 นาที ระบบรับเอง
+const autoLeft = (l) => { const sec = Math.max(0, Math.ceil((l.detectedAt + AUTO_ACCEPT_MS - payNow.value) / 1000)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` }
 const changeOf = (l) => (Number(l.received) || 0) - lineAmt(l)
 const quickFor = (l) => { const a = lineAmt(l); return [...new Set([a, Math.ceil(a / 100) * 100, Math.ceil(a / 500) * 500, Math.ceil(a / 1000) * 1000])].filter((v) => v >= a) }
 const qrLeft = (l) => { const sec = Math.max(0, Math.ceil((new Date(l.qrExpiresAt).getTime() - payNow.value) / 1000)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` }
@@ -282,7 +284,7 @@ function openPay() {
   payLines.value = [{ key: newKey(), method: 'cash', amount: String(total.value), received: '', qrRef: '', qrExpiresAt: '', confirmed: false }]
   payNow.value = Date.now()
   clearInterval(payTimer)
-  payTimer = setInterval(() => { payNow.value = Date.now(); if (++payTick % 5 === 0) pollManee() }, 1000)
+  payTimer = setInterval(() => { payNow.value = Date.now(); tickLines(); if (++payTick % 5 === 0) pollManee() }, 1000)
   payOpen.value = true
 }
 function closePay() {
@@ -299,19 +301,34 @@ function removePayLine(i) {
   payLines.value.splice(i, 1)
 }
 // ดึงรายการโอนแม่มณีที่ตรงกับ QR ที่ยังรอชำระ (ทุก 5 วินาที)
+// พบรายการเดียว → ขึ้นสถานะ "ลูกค้าชำระแล้ว" (อนิเมชัน) รอพนักงานกดรับ · พบหลายรายการ → ให้พนักงานเลือกเอง
 async function pollManee() {
   if (maneePolling) return
   maneePolling = true
   try {
     for (const l of payLines.value) {
-      if (l.method !== 'transfer' || !l.qrRef || l.confirmed || expiredLine(l)) continue
+      if (l.method !== 'transfer' || !l.qrRef || l.confirmed || l.detectedAt || l.status === 'cancelled' || expiredLine(l)) continue
       const r = await listManeeTransfers({ amount: lineAmt(l), from: l.qrCreatedAt, to: l.qrExpiresAt })
-      if (!r.error) l.candidates = r.rows
+      if (r.error) continue
+      l.candidates = r.rows
+      if (r.rows.length === 1) Object.assign(l, { detectedAt: Date.now(), maneeId: r.rows[0].id })
     }
   } finally { maneePolling = false }
 }
+// รับเองเมื่อครบ 3 นาทีหลังพบรายการ (เฉพาะกรณีพบรายการเดียว)
+function tickLines() {
+  for (const l of payLines.value) {
+    if (l.method === 'transfer' && l.detectedAt && !l.confirmed && l.status !== 'cancelled' && Date.now() - l.detectedAt >= AUTO_ACCEPT_MS) Object.assign(l, { confirmed: true, acceptedBy: 'auto' })
+  }
+}
 function pickManee(l, c) {
-  Object.assign(l, { confirmed: true, maneeId: c.id })
+  Object.assign(l, { confirmed: true, acceptedBy: 'staff', maneeId: c.id })
+}
+function receiveNow(l) {
+  Object.assign(l, { confirmed: true, acceptedBy: 'staff' })
+}
+function cancelQr(l) {
+  Object.assign(l, { status: 'cancelled', confirmed: false, detectedAt: 0, maneeId: '', candidates: [] })
 }
 function makeQr(l) {
   const a = lineAmt(l)
@@ -319,16 +336,18 @@ function makeQr(l) {
   const ref = newPosQrRef()
   if (!ref) return (payErr.value = 'สร้างรหัส QR ไม่สำเร็จ ลองอีกครั้ง')
   const mins = db.shop.posQrExpireMin || 10
-  Object.assign(l, { qrRef: ref, qrCreatedAt: new Date().toISOString(), qrExpiresAt: new Date(Date.now() + mins * 60000).toISOString(), confirmed: false, maneeId: '', candidates: [] })
+  Object.assign(l, { qrRef: ref, qrCreatedAt: new Date().toISOString(), qrExpiresAt: new Date(Date.now() + mins * 60000).toISOString(), status: 'waiting', confirmed: false, detectedAt: 0, acceptedBy: '', maneeId: '', candidates: [] })
 }
 const lineOk = (l) => {
   const a = lineAmt(l)
   if (!(a > 0)) return false
   if (l.method === 'cash') return (Number(l.received) || 0) >= a
-  if (l.method === 'transfer') return !!l.qrRef && l.confirmed && !expiredLine(l)
+  if (l.method === 'transfer') return !!l.qrRef && l.confirmed
   return true
 }
-const canConfirm = computed(() => payLines.value.length > 0 && remaining.value === 0 && payLines.value.every(lineOk))
+// รายการที่ยอด 0 ถูกข้าม (ไม่นับและไม่ส่งไปบันทึก)
+const activeLines = computed(() => payLines.value.filter((l) => lineAmt(l) > 0))
+const canConfirm = computed(() => activeLines.value.length > 0 && remaining.value === 0 && activeLines.value.every(lineOk))
 const receipt = ref(null)
 const taxFor = ref(null) // บิลที่กำลังออกใบกำกับภาษีเต็มรูป
 const taxable = (o) => can('taxInvoice') && o.status !== 'cancelled' && orderTotals(o).vat > 0
@@ -351,7 +370,7 @@ async function sellNow() {
   const o = posSale({
     cart: cart.value, customerId: member.value?.id || null, couponIds: couponIds.value,
     discount: can('adjustPrice') ? Number(discount.value) || 0 : 0,
-    lines: payLines.value.map((l) => ({ method: l.method, amount: lineAmt(l), received: l.method === 'cash' ? Number(l.received) : null, qrRef: l.qrRef || null, qrExpiresAt: l.qrExpiresAt || null, confirmed: !!l.confirmed, maneeId: l.maneeId || '' })),
+    lines: activeLines.value.map((l) => ({ method: l.method, amount: lineAmt(l), received: l.method === 'cash' ? Number(l.received) : null, qrRef: l.qrRef || null, qrExpiresAt: l.qrExpiresAt || null, confirmed: !!l.confirmed, maneeId: l.maneeId || '', acceptedBy: l.acceptedBy || '' })),
   })
   if (!o) { await releaseCoupons(claim.claimed); return (payErr.value = 'ขายไม่สำเร็จ ตรวจกะ/ตะกร้า/คูปองอีกครั้ง') }
   // ผูกคูปองที่จองไว้ (pos-pending) เข้ากับบิลจริงบนเซิร์ฟเวอร์ผ่านการซิงก์แถวคูปองตามปกติ
@@ -741,20 +760,33 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           </template>
           <template v-else-if="l.method === 'transfer'">
             <button v-if="!l.qrRef" type="button" class="btn-outline w-full" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
+            <template v-else-if="l.status === 'cancelled'">
+              <p class="text-center text-sm font-semibold text-stone-600">ยกเลิก QR แล้ว</p>
+              <button type="button" class="btn-primary w-full" @click="makeQr(l)">สร้าง QR ใหม่</button>
+            </template>
+            <template v-else-if="l.confirmed">
+              <p class="text-center font-semibold text-emerald-700"><AppIcon name="check" :size="16" /> รับชำระแล้ว{{ l.acceptedBy === 'auto' ? ' (ระบบรับอัตโนมัติ)' : '' }} · {{ money(lineAmt(l)) }}</p>
+              <button type="button" class="btn-outline w-full" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิกการรับชำระ</button>
+            </template>
             <template v-else>
-              <BillerQr :amount="lineAmt(l)" :ref1="db.shop.merchantCode || ''" :ref2="l.qrRef" />
-              <p class="text-center text-sm" :class="expiredLine(l) ? 'font-semibold text-rose-700' : 'text-stone-600'">{{ expiredLine(l) ? 'QR หมดอายุแล้ว ต้องสร้างใหม่' : `หมดอายุใน ${qrLeft(l)}` }}</p>
-              <div v-if="!l.confirmed && !expiredLine(l)" class="space-y-1.5">
-                <p class="text-xs text-stone-500">รายการรับเงินแม่มณีที่ตรงกับ QR นี้ (ยอดเท่ากัน ภายในเวลาของ QR)</p>
-                <button v-for="c in (l.candidates || [])" :key="c.id" type="button" class="btn-outline w-full justify-between" @click="pickManee(l, c)"><span>{{ timeOnly(c.received_at) }}</span><span>{{ money(c.amount) }} · เลือกรายการนี้</span></button>
-                <p v-if="!(l.candidates || []).length" class="text-xs text-stone-400">ยังไม่พบรายการที่ตรง · ยืนยันเองได้ที่ปุ่มด้านล่าง</p>
+              <div v-if="l.detectedAt" class="animate-pulse rounded-xl bg-emerald-600 p-3 text-center text-lg font-bold text-white">ลูกค้าชำระแล้ว · รับชำระ {{ money(lineAmt(l)) }}</div>
+              <BillerQr v-if="!l.detectedAt" :amount="lineAmt(l)" :ref1="db.shop.merchantCode || ''" :ref2="l.qrRef" />
+              <p class="text-center text-sm" :class="expiredLine(l) ? 'font-semibold text-rose-700' : 'text-stone-600'">
+                <template v-if="expiredLine(l)">QR หมดอายุแล้ว ต้องสร้างใหม่</template>
+                <template v-else-if="l.detectedAt">ระบบจะรับเองภายใน {{ autoLeft(l) }} ถ้าไม่กดรับ</template>
+                <template v-else>สถานะ: รอลูกค้าชำระ · หมดอายุใน {{ qrLeft(l) }}</template>
+              </p>
+              <div v-if="!l.detectedAt && !expiredLine(l) && (l.candidates || []).length > 1" class="space-y-1.5">
+                <p class="text-xs text-amber-700">พบรายการที่ตรงหลายรายการ เลือกรายการที่ใช่</p>
+                <button v-for="c in l.candidates" :key="c.id" type="button" class="btn-outline w-full justify-between" @click="pickManee(l, c)"><span>{{ timeOnly(c.received_at) }}</span><span>{{ money(c.amount) }} · เลือกรายการนี้</span></button>
               </div>
               <div class="grid grid-cols-2 gap-2">
                 <button v-if="expiredLine(l)" type="button" class="btn-primary" @click="makeQr(l)">สร้าง QR ใหม่</button>
-                <button v-else-if="!l.confirmed" type="button" class="btn-primary" @click="l.confirmed = true"><AppIcon name="check" :size="16" /> ลูกค้าชำระแล้ว</button>
-                <button v-else type="button" class="btn-outline" @click="l.confirmed = false; l.maneeId = ''">ยกเลิกการยืนยัน</button>
-                <button type="button" class="btn-outline" @click="removePayLine(i)">ย้อนกลับ (ยกเลิก QR)</button>
+                <button v-else-if="l.detectedAt" type="button" class="btn-primary" @click="receiveNow(l)"><AppIcon name="check" :size="16" /> รับชำระ</button>
+                <button v-else type="button" class="btn-outline" @click="receiveNow(l)">ลูกค้าชำระแล้ว (ไม่พบอัตโนมัติ)</button>
+                <button type="button" class="btn-outline" @click="cancelQr(l)">ยกเลิก QR</button>
               </div>
+              <button v-if="!l.detectedAt" type="button" class="btn-soft w-full" @click="removePayLine(i)">ย้อนกลับ (ยังไม่ชำระ · ยกเลิก QR)</button>
             </template>
           </template>
           <p v-else class="text-xs text-stone-500">รับตามยอดที่ระบุ</p>
