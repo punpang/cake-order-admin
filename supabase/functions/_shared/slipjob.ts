@@ -127,7 +127,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   if (dupInChat) return finish('duplicate')
 
   // อ่านยอดและวัน-เวลาจากตัวหนังสือบนภาพ (เฉพาะเมื่อร้านเปิดไว้และมีคีย์) · อ่านไม่ได้ = ใช้ค่าเดิมต่อไป
-  // ลำดับ: Workers AI → ระบบเดิม (Claude) · ตัวที่เปิดไว้และตั้งค่าครบจะลอง · ตัวแรกที่ได้ยอดหรือวัน-เวลาจะหยุด
+  // หลัง QR พบว่าเป็นสลิป · ลำดับ: Workers AI → ระบบเดิม (Claude) · ตัวที่เปิดไว้และตั้งค่าครบจะลอง · ตัวแรกที่ได้ยอดหรือวัน-เวลาจะหยุด
   const chain: Array<() => Promise<SlipFields | null>> = []
   const w = input.ocrWai
   if (cfg.ocr.wai && w?.accountId && w?.token) {

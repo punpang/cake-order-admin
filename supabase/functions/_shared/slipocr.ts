@@ -153,27 +153,3 @@ export async function readSlipFieldsWorkersAI(o: { bytes: Uint8Array; accountId:
     return null
   }
 }
-
-// อ่านด้วยบริการ Tesseract (tools/slip-ocr/service.ts ผ่าน Cloudflare Tunnel) · ไม่อยู่ในลำดับการอ่านสลิปแล้ว (เก็บไว้ตามโค้ดใน tools/slip-ocr)
-// ล้มเหลว/หมดเวลา/ผลผิดรูป = null (ระบบใช้ค่าเดิมต่อไป)
-export async function readSlipFieldsRemote(o: { bytes: Uint8Array; url: string; token: string; fetchImpl?: typeof fetch }): Promise<SlipFields | null> {
-  if (!o.url || !o.token) return null
-  const doFetch = o.fetchImpl ?? fetch
-  const type = o.bytes[0] === 0x89 ? 'image/png' : 'image/jpeg'
-  try {
-    const res = await doFetch(o.url, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${o.token}`, 'content-type': type },
-      body: new Uint8Array(o.bytes), // สำเนาเป็น ArrayBuffer แท้ (Deno ล่าสุดไม่รับ Uint8Array ที่ผูกกับ ArrayBufferLike)
-      signal: AbortSignal.timeout(60_000),
-    })
-    if (!res.ok) return null
-    const d: any = await res.json()
-    const amount = typeof d?.amount === 'number' && d.amount > 0 && d.amount <= 10_000_000 ? Math.round(d.amount * 100) / 100 : null
-    const paidAt = typeof d?.paidAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(d.paidAt) ? d.paidAt : null
-    const str = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null)
-    return { amount, paidAt, receiverName: str(d?.receiverName, 100), receiverAccount: str(d?.receiverAccount, 40) }
-  } catch {
-    return null
-  }
-}

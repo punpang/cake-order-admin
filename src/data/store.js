@@ -3166,7 +3166,6 @@ export function saveSlipQrSettings(d) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
   const prevOcr = { ...(db.slipQr.ocr || {}) }
   delete prevOcr.enabled // ค่าเดิมถูกแทนด้วยสวิตช์ claude
-  delete prevOcr.shop // Tesseract ไม่อยู่ในลำดับแล้ว
   Object.assign(db.slipQr, { enabled: d?.enabled !== false, mode: d?.mode === 'manual' ? 'manual' : 'auto', ocr: { ...prevOcr, wai: d?.ocr?.wai === true, claude: d?.ocr?.claude === true } })
   return { ok: true }
 }

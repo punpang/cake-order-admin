@@ -226,10 +226,14 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         <p class="mt-2 text-xs text-stone-500">{{ sq.mode === 'manual' ? 'แชทจะแสดงปุ่มผูกกับออร์เดอร์ที่แนะนำ หรือเลือกออร์เดอร์อื่นของลูกค้า (ในหน้าแชท ไม่เปลี่ยนหน้า)' : 'ถ้ามีออร์เดอร์ที่คุยล่าสุด ระบบแนบให้ทันที · ไม่มีออร์เดอร์ก็แจ้งกระดิ่งให้ผูกเองจากหน้าออร์เดอร์' }}</p>
       </div>
       <div class="space-y-2">
-        <p class="text-sm font-medium text-stone-700">การอ่านยอดและวัน-เวลาจากภาพสลิป</p>
-        <AppSwitch v-model="sq.ocr.wai" label="1) Workers AI (Cloudflare)" class="flex" />
-        <AppSwitch v-model="sq.ocr.claude" label="2) ระบบเดิม (Claude)" class="flex" />
-        <p class="text-xs text-stone-500">ระบบลองตามลำดับ 1 → 2 เฉพาะตัวที่เปิดไว้และตั้งค่าที่เซิร์ฟเวอร์ครบ ถ้าตัวแรกอ่านไม่ได้จะลองตัวถัดไป · การอ่าน QR ทำงานตามปกติ ไม่ขึ้นกับสวิตช์นี้ · ส่งเฉพาะรูปสลิปไปยังผู้ให้บริการที่เปิดไว้</p>
+        <p class="text-sm font-medium text-stone-700">ลำดับการอ่านสลิป</p>
+        <div class="flex items-center justify-between gap-3 text-sm text-stone-700">
+          <span>1) อ่าน QR ในสลิป</span>
+          <span class="shrink-0 text-xs text-stone-500">ทำทุกครั้งที่ส่งสลิป</span>
+        </div>
+        <AppSwitch v-model="sq.ocr.wai" label="2) Workers AI (Cloudflare) · อ่านยอดและวัน-เวลา" class="flex" />
+        <AppSwitch v-model="sq.ocr.claude" label="3) Claude (ระบบเดิม) · อ่านยอดและวัน-เวลา" class="flex" />
+        <p class="text-xs text-stone-500">ระบบอ่าน QR ก่อนทุกครั้ง ถ้าเป็นสลิปจึงส่งต่อตามลำดับ 2 → 3 เฉพาะตัวที่เปิดไว้และตั้งค่าที่เซิร์ฟเวอร์ครบ ถ้าตัวแรกอ่านไม่ได้จะลองตัวถัดไป · ส่งเฉพาะรูปสลิปไปยังผู้ให้บริการที่เปิดไว้</p>
       </div>
       <p v-if="slipErr" class="text-sm text-rose-700">{{ slipErr }}</p>
       <button class="btn-outline w-full" @click="saveSlip"><AppIcon name="check" :size="18" /> {{ slipSaved ? 'บันทึกแล้ว' : 'บันทึกการตั้งค่าสลิป' }}</button>
