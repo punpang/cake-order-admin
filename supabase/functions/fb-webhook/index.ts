@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { runFbBot } from './bot.ts'
 import { checkSlipImage } from '../_shared/slipjob.ts'
-import { attachmentNote } from '../_shared/attnote.ts'
+import { attachmentNote, attachmentShape } from '../_shared/attnote.ts'
 
 // รับข้อความ Messenger ของเพจที่เชื่อมไว้ (Webhook ของ Meta) → เขียนเข้าแชท (punpang_chats) + กระดิ่งทีม
 // GET: ยืนยัน webhook (hub.verify_token = secret FB_VERIFY_TOKEN) · POST: ตรวจลายเซ็น X-Hub-Signature-256 ด้วย FB_APP_SECRET
@@ -52,7 +52,7 @@ async function saveAttachments(sb: any, psid: string, mid: string, atts: any[]) 
   let i = 0
   for (const a of (Array.isArray(atts) ? atts : []).slice(0, MAX_ATT)) {
     const type = String(a?.type || '')
-    if (!KINDS.includes(type)) { unsupported = true; const note = attachmentNote(a); if (note) notes.push(note); continue }
+    if (!KINDS.includes(type)) { unsupported = true; const note = attachmentNote(a); if (note) notes.push(note); if (!note || /^\[[^\]]+\]$/.test(note)) console.log('attachment-shape', JSON.stringify(attachmentShape(a))); continue }
     const sticker = type === 'image' && a?.payload?.sticker_id ? true : undefined
     const url = String(a?.payload?.url || '')
     if (!/^https:\/\//i.test(url)) { list.push({ type, failed: true, ...(sticker ? { sticker } : {}) }); continue }
