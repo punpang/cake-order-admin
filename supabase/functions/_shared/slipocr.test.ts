@@ -1,6 +1,6 @@
 // ทดสอบการอ่านยอด/วัน-เวลาจากภาพสลิป (ไม่เรียก API จริง ใช้ fetch จำลอง)
 import { assertEquals, assert } from 'jsr:@std/assert@1'
-import { OCR_DEFAULT_MODEL, parseSlipFields, readSlipFields, readSlipFieldsRemote } from './slipocr.ts'
+import { OCR_DEFAULT_MODEL, parseSlipFields, readSlipFields, readSlipFieldsRemote, readSlipFieldsWorkersAI, WAI_DEFAULT_MODEL } from './slipocr.ts'
 
 const NOW = Date.UTC(2026, 10, 11, 3, 0, 0) // 11-11-2026 10:00 เวลาไทย
 const JPG = new Uint8Array([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x00, 0x10, 0x00, 0x10, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xd9])
@@ -102,4 +102,27 @@ Deno.test('readSlipFieldsRemote: ค่าผิดชนิดถูกทิ�
   assertEquals(await readSlipFieldsRemote({ bytes: JPG, url: '', token: 't', fetchImpl: bad }), null)
   const down = (async () => new Response('x', { status: 503 })) as unknown as typeof fetch
   assertEquals(await readSlipFieldsRemote({ bytes: JPG, url: 'https://x/', token: 't', fetchImpl: down }), null)
+})
+
+Deno.test('readSlipFieldsWorkersAI: แปลงข้อความวันที่ที่โมเดลคัดลอก และอ่านยอดได้ (จำลองการเรียก)', async () => {
+  let body: any = null
+  let url = ''
+  const fetchImpl = (async (u: string, init: any) => {
+    url = u
+    body = JSON.parse(init.body)
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"amount": 650, "date_text": "2 พ.ย. 69 13:17 น."}' } }] }), { status: 200 })
+  }) as unknown as typeof fetch
+  const r = await readSlipFieldsWorkersAI({ bytes: JPG, accountId: 'acc1', token: 't1', nowMs: Date.UTC(2026, 10, 13), fetchImpl })
+  assertEquals(r, { amount: 650, paidAt: '2026-11-02T13:17', receiverName: null, receiverAccount: null })
+  assertEquals(url, 'https://api.cloudflare.com/client/v4/accounts/acc1/ai/v1/chat/completions')
+  assertEquals(body.model, WAI_DEFAULT_MODEL)
+  assertEquals(body.messages[0].content[0].image_url.url.startsWith('data:image/jpeg;base64,'), true)
+})
+
+Deno.test('readSlipFieldsWorkersAI: ไม่มีค่า/ตอบผิดสถานะ/ยอดผิดรูปแบบ → null หรือค่าว่างที่ปลอดภัย', async () => {
+  const down = (async () => new Response('x', { status: 403 })) as unknown as typeof fetch
+  assertEquals(await readSlipFieldsWorkersAI({ bytes: JPG, accountId: 'a', token: 't', fetchImpl: down }), null)
+  assertEquals(await readSlipFieldsWorkersAI({ bytes: JPG, accountId: '', token: 't', fetchImpl: down }), null)
+  const bad = (async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"amount": "ไม่รู้", "date_text": null}' } }] }), { status: 200 })) as unknown as typeof fetch
+  assertEquals(await readSlipFieldsWorkersAI({ bytes: JPG, accountId: 'a', token: 't', fetchImpl: bad }), { amount: null, paidAt: null, receiverName: null, receiverAccount: null })
 })
