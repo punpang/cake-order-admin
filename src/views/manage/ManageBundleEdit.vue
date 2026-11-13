@@ -6,7 +6,7 @@ import { confirmDeactivate } from '../../lib/confirm'
 import { showToast } from '../../lib/toast'
 import { qty } from '../../lib/format'
 import { MAIN_KEYS } from '../../lib/constants'
-import { autoBundleName, bahtText, checkBundle, effectiveDiscount, findItemOption, makeDraft, percentOf, regularTotal } from '../../lib/bundleEditor'
+import { autoBundleName, bahtText, checkBundle, effectiveDiscount, findItemOption, makeDraft, percentOf, regularTotal, validPct } from '../../lib/bundleEditor'
 import { recommendPrice, subSuggestions } from '../../lib/bundleAdvice'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
@@ -70,6 +70,7 @@ function applyAdvice() {
   if (!advice.value) return
   scope.value = 'all'
   for (const sz of sizes.value) draft.discount[sz.id] = String(advice.value.amounts[sz.id] ?? 0)
+  unlinkScope()
   showToast(`ใส่ราคาแนะนำ ลด ${advice.value.pct}% แล้ว · กดบันทึกเมื่อพอใจ`)
 }
 // ข้อมูลชุดใหม่จากบันเดิ้ลทางเลือก: ชื่ออัตโนมัติ ประเภทเดียวกับที่เลือกอยู่ และราคาที่แนะนำ
@@ -173,15 +174,28 @@ const rows = computed(() =>
     }
   }),
 )
+// ตั้งตามเปอร์เซ็นต์ของแท็บนี้: ทุกประเภท → draft.pct · ประเภท → draft.typePct[id] · หน้ารายการจะตามราคาตัวเลือกให้
+const linkedPct = computed(() => (scope.value === 'all' ? draft.pct : draft.typePct?.[scope.value]) ?? null)
+// กรอกเป็นบาทเองหรือล้างช่อง = แท็บนี้ไม่ได้ตั้งตามเปอร์เซ็นต์แล้ว
+function unlinkScope() {
+  if (scope.value === 'all') draft.pct = null
+  else if (draft.typePct) delete draft.typePct[scope.value]
+}
 function fillAll() {
   if (fillAmount.value === '') return
   for (const sz of sizes.value) cells.value[sz.id] = fillAmount.value
+  unlinkScope()
 }
 function fillPercent() {
   for (const r of rows.value) cells.value[r.id] = String(percentOf(r.reg, fillPct.value))
+  const p = validPct(fillPct.value)
+  if (p == null) return
+  if (scope.value === 'all') draft.pct = p
+  else draft.typePct = { ...(draft.typePct || {}), [scope.value]: p }
 }
 function clearScope() {
   for (const sz of sizes.value) delete cells.value[sz.id]
+  unlinkScope()
 }
 
 // ---------- 5 รูปแบบตกแต่ง (ไม่บังคับ) ----------
@@ -377,6 +391,11 @@ async function save() {
           >{{ s.label }}<span v-if="scopeFilled(s.key)" class="text-xs" aria-hidden="true">●</span></button>
         </div>
         <p class="mt-2 text-xs text-stone-500" data-scope-hint>{{ scopeHint }}</p>
+        <p v-if="linkedPct" class="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-sky-50 p-2.5 text-xs text-sky-900" data-link-status>
+          <span class="min-w-0 flex-1">ตั้งตาม <b>{{ linkedPct }}%</b> ของราคาปกติ · ราคาตัวเลือกเปลี่ยนเมื่อไหร่ หน้ารายการจะแจ้งให้ปรับ</span>
+          <button type="button" class="underline underline-offset-2" data-unlink-scope @click="unlinkScope">เลิกตั้งตามเปอร์เซ็นต์</button>
+        </p>
+        <p v-else-if="scopeFilled(scope)" class="mt-2 text-xs text-stone-500" data-unlink-hint>ตั้งเป็นบาทเองอยู่ · ถ้าอยากให้หน้ารายการแจ้งเมื่อราคาตัวเลือกเปลี่ยน กรอกเปอร์เซ็นต์แล้วกด "คิดจากราคาปกติ"</p>
 
         <div class="mt-4 grid gap-2 sm:grid-cols-2">
           <div class="flex items-center gap-2">
@@ -414,6 +433,7 @@ async function save() {
                   v-model="cells[r.id]"
                   type="text"
                   v-num.dec
+                  @input="unlinkScope"
                   class="input h-10 max-w-[9rem] justify-self-end px-2 text-right"
                   :placeholder="r.placeholder"
                   :aria-label="`ส่วนลด ${r.name} (บาท)`"

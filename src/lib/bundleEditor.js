@@ -66,6 +66,8 @@ export function makeDraft(src, styles = [], types = []) {
     styleDiscount: copy(src?.styleDiscount),
     styleMode: Object.fromEntries(styles.map((st) => [st.id, src && isOwnStyle(src, st.id) ? 'own' : 'central'])),
     active: src ? src.active !== false : true,
+    pct: validPct(src?.pct), // เปอร์เซ็นต์ของค่ากลาง (ไม่ได้ตั้ง = null) · ดู "ส่วนลดตามเปอร์เซ็นต์" ท้ายไฟล์
+    typePct: copy(src?.typePct), // เปอร์เซ็นต์ของประเภทที่ตั้งส่วนลดแยก { [typeId]: % }
   }
   for (const t of types) d.typeDiscount[t.id] ??= {}
   for (const st of styles) d.styleDiscount[st.id] ??= {}
@@ -186,4 +188,92 @@ export function bundleSummary(b, ctx = {}) {
     hasDiscount: ownDisc || typeDisc || sizeRows.some((z) => z.amount > 0),
     hasOff: items.some((i) => i.off),
   }
+}
+
+// ---------- ส่วนลดตามเปอร์เซ็นต์ของราคาปกติ (รู้ว่าราคาตัวเลือกเปลี่ยนแล้วต้องปรับส่วนลดไหม) ----------
+// ชุดเก็บเปอร์เซ็นต์ที่ตั้งไว้ 2 ส่วน: pct = ค่ากลาง (ทุกประเภท) · typePct = { [typeId]: % } ของประเภทที่ตั้งส่วนลดแยกด้วยเปอร์เซ็นต์
+// ช่องที่ตั้งด้วยเปอร์เซ็นต์ควรเท่ากับ % × ราคาปกติของช่องนั้น · เมื่อราคาตัวเลือกเปลี่ยนจะไม่ตรง (driftRows) และปรับได้ด้วย applyIntendedPct
+// ไม่นับ: ช่องที่กรอกเป็นบาทเอง (ไม่มีเปอร์เซ็นต์) · ช่องว่าง/0 (ตั้งใจไม่ลด) · ขนาดที่ตัวเลือกในชุดยังไม่มีราคาครบ (ไม่รู้ราคาจริง)
+export const validPct = (v) => {
+  const p = Number(v)
+  return p > 0 && p <= 100 ? p : null
+}
+const slotPct = (b, scopeId) => validPct(scopeId ? b.typePct?.[scopeId] : b.pct)
+// ตัวเลือกมีราคาในประเภท t (null = ราคาทั่วไป) และขนาด sid หรือยัง
+const hasPrice = (o, t, sid) =>
+  !!o && (isFixed(o) ? num(o.typePrice?.[t]) != null || num(o.price) != null : num(o.typePrices?.[t]?.[sid]) != null || num(o.sizePrices?.[sid]) != null)
+
+// ช่องส่วนลดที่มีผลจริงของชุด: ค่ากลาง (เมื่อมีประเภทที่ใช้ได้ซึ่งไม่ได้ตั้งแยก) และช่องแยกประเภท · base = ราคาปกติของช่องนั้น
+export function discountSlots(b, ctx = {}) {
+  const { groups = [], sizes = [], types = [] } = ctx
+  const items = b.items || []
+  if (!items.length) return []
+  const scopes = scopesOf(b, types)
+  const typeName = (id) => types.find((t) => t.id === id)?.name || ''
+  const overridden = (t, sid) => t != null && num(b.typeDiscount?.[t]?.[sid]) != null
+  const priced = (t, sid) => items.every((x) => hasPrice(findItemOption(groups, x), t, sid))
+  const out = []
+  for (const sz of sizes) {
+    if (scopes.some((t) => !overridden(t, sz.id)) && priced(null, sz.id)) {
+      out.push({ scopeId: null, scopeName: '', sizeId: sz.id, sizeName: sz.name, base: regularTotal(items, groups, null, sz.id), current: num(b.discount?.[sz.id]), label: `${sz.name} · ทุกประเภท` })
+    }
+    for (const t of scopes) {
+      if (!overridden(t, sz.id) || !priced(t, sz.id)) continue
+      out.push({ scopeId: t, scopeName: typeName(t), sizeId: sz.id, sizeName: sz.name, base: regularTotal(items, groups, t, sz.id), current: num(b.typeDiscount[t][sz.id]), label: `${sz.name} · ${typeName(t)}` })
+    }
+  }
+  return out
+}
+
+// ช่องที่ตั้งเป็นเปอร์เซ็นต์แล้ว แต่ส่วนลดไม่ตรงกับราคาปกติตอนนี้ → target = ส่วนลดที่ควรเป็น · ชุดปิดอยู่ไม่นับ
+export function driftRows(b, ctx = {}) {
+  if (b.active === false) return []
+  return discountSlots(b, ctx).flatMap((s) => {
+    const p = slotPct(b, s.scopeId)
+    if (p == null || !s.current) return []
+    const target = percentOf(s.base, p)
+    return Math.abs(target - s.current) > EPS ? [{ ...s, pct: p, target, key: `${s.scopeId ?? 'all'}:${s.sizeId}` }] : []
+  })
+}
+
+// เปอร์เซ็นต์จำนวนเต็มที่ทุกช่องของกลุ่มนี้ (ค่ากลาง หรือประเภทหนึ่ง) ตรงพอดี · ไม่มีช่อง หรือตรงได้หลายค่า = null (ไม่เดา)
+export function inferScopePct(b, ctx = {}, scopeId = null) {
+  const slots = discountSlots(b, ctx).filter((s) => s.scopeId === scopeId && s.current)
+  if (!slots.length) return null
+  const fits = []
+  for (let p = 1; p <= 100; p++) if (slots.every((s) => percentOf(s.base, p) === s.current)) fits.push(p)
+  return fits.length === 1 ? fits[0] : null
+}
+
+// กลุ่มที่ยังไม่ได้ตั้งเปอร์เซ็นต์ แต่ส่วนลดตรงกับเปอร์เซ็นต์หนึ่งอยู่แล้ว → เสนอให้ตั้ง (ไม่เปลี่ยนจำนวนเงิน)
+export function linkSuggestions(b, ctx = {}) {
+  if (b.active === false) return []
+  const slots = discountSlots(b, ctx)
+  const out = []
+  for (const sc of new Set(slots.map((s) => s.scopeId))) {
+    if (slotPct(b, sc) != null) continue
+    const pct = inferScopePct(b, ctx, sc)
+    if (pct != null) out.push({ scopeId: sc, scopeName: slots.find((s) => s.scopeId === sc)?.scopeName || '', pct })
+  }
+  return out
+}
+
+// ใส่เปอร์เซ็นต์ที่เสนอลงชุด (คืนชุดใหม่ ไม่แก้ชุดเดิม)
+export function withLinks(b, links) {
+  const next = JSON.parse(JSON.stringify(b))
+  for (const l of links) {
+    if (l.scopeId) next.typePct = { ...(next.typePct || {}), [l.scopeId]: l.pct }
+    else next.pct = l.pct
+  }
+  return next
+}
+
+// ตั้งส่วนลดของช่องที่ไม่ตรงให้เท่ากับ % × ราคาปกติตอนนี้ (คืนชุดใหม่ ไม่แก้ชุดเดิม · ช่องที่ตรงแล้วไม่เปลี่ยน)
+export function applyIntendedPct(b, ctx = {}) {
+  const next = JSON.parse(JSON.stringify(b))
+  for (const r of driftRows(b, ctx)) {
+    if (r.scopeId) next.typeDiscount[r.scopeId][r.sizeId] = r.target
+    else next.discount[r.sizeId] = r.target
+  }
+  return next
 }
