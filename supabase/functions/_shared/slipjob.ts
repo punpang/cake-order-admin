@@ -171,19 +171,22 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   const flagPart = { ...shopPartOf(fields), ...(flagged ? { merchantMismatch: true } : {}) }
   // เครื่องหมายตรวจสลิปกับออร์เดอร์ (ยอด · วัน-เวลาหลังสร้างออร์เดอร์ · รหัสร้านค้า · รหัสอ้างอิง) · บิล POS ยังข้ามไปก่อน
   const orderRow = orderId ? (await sb.from('punpang_orders').select('id,code,data').eq('id', orderId).maybeSingle()).data : null
+  // รายการแจ้งชำระของออร์เดอร์นี้ที่รหัสสุ่ม (Ref 2) ตรงกับสลิป (ยังไม่ส่งสลิป)
+  const reqOfSlip = orderRow && fields?.qrRef ? ((orderRow.data?.payments ?? []) as any[]).find((p: any) => p.qrRef === fields.qrRef && p.status === 'reported' && p.customerSubmitted !== true) ?? null : null
   const checks = slipChecksOf({
     fields, configuredMerchantCode: cfg.merchantCode,
     order: orderRow ? { code: orderRow.code, createdAt: orderRow.data?.createdAt } : null,
     balance: orderRow ? orderTotals(orderRow.data).balance : null,
+    request: reqOfSlip,
   })
-  // ผูกอัตโนมัติเมื่อครบ 4 ข้อเป็น ✓ (ยอด · วัน-เวลา · รหัสร้านค้า · รหัสอ้างอิงร้านค้า) และรหัสอ้างอิงตรงกับออร์เดอร์ที่พบ · นอกนั้นส่งให้พนักงาน
+  // ผูกอัตโนมัติเมื่อครบ 5 ข้อเป็น ✓ (ยอด · วัน-เวลา · รหัสร้านค้า · รหัสอ้างอิงร้านค้า (Ref 1) · รหัสสุ่ม (Ref 2) ตรงกับรายการแจ้งชำระ) และรหัสอ้างอิงตรงกับออร์เดอร์ที่พบ · นอกนั้นส่งให้พนักงาน
   const autoOk = cfg.mode === 'auto' && refOrderId !== null && checks.every((c) => c.ok === true)
   // เหตุผลที่ไม่ผ่าน ✗ = ไม่ถูกต้อง · – = อ่านไม่ได้หรือยังไม่มีข้อมูลให้เทียบ → ไปที่กระดิ่งและป้าย
   const reasons = checks.filter((c) => c.ok !== true).map((c) => `${c.ok === false ? '✗' : '–'} ${c.text}`)
   const mismatchNote = reasons.length ? ` · ${reasons.join(' · ')}` : ''
 
   if (!autoOk) {
-    // ไม่ผูกอัตโนมัติ (โหมดแมนนวล หรือไม่ครบ 4 ข้อ): เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่รหัสอ้างอิงตรง หรือที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์
+    // ไม่ผูกอัตโนมัติ (โหมดแมนนวล หรือไม่ครบ 5 ข้อ): เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่รหัสอ้างอิงตรง หรือที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์
     let staged: { key: string; ref: string }
     try { staged = await svcUpload(files, bytes, `manual/${chatId}`) } catch { return finish('upload_failed', undefined, orderId ?? undefined) }
     const sug = orderId ? await sb.from('punpang_orders').select('id,code').eq('id', orderId).maybeSingle() : null
@@ -227,8 +230,12 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
       stagedKey = s.key
       stagedRef = s.ref
     }
-    // ออกเลข PAY ครั้งเดียว (เหมือนการแจ้งชำระจากหน้าออร์เดอร์)
-    if (!code) {
+    // รายการแจ้งชำระที่รหัสสุ่ม (Ref 2) ตรงกับสลิป → สลิปนี้ชำระงวดนั้น (ไม่ออกเลขใหม่) · ไม่มี → ออกเลข PAY ครั้งเดียว (เหมือนการแจ้งชำระจากหน้าออร์เดอร์)
+    const req: any = fields?.qrRef ? (payments.find((p: any) => p.qrRef === fields.qrRef && p.status === 'reported' && p.customerSubmitted !== true) ?? null) : null
+    if (req) {
+      code = req.code
+      paymentId = req.id
+    } else if (!code) {
       const al = await sb.rpc('punpang_alloc_numbers_server', { p_prefix: 'PAY', p_day: ddmmyy(now), p_n: 1 })
       if (al?.error || !Number.isInteger(al?.data)) { await discardStaged(); return 'error' }
       code = `PAY-${ddmmyy(now)}-${String(al.data).padStart(5, '0')}`
@@ -237,7 +244,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
 
     // ยืนยันอัตโนมัติ: เปิดไว้ และวันนัดรับห่างจากวันนี้อย่างน้อยตามจำนวนวันที่ตั้ง (นัดน้อยกว่า → รอพนักงานยืนยัน)
     const daysLeft = daysUntilPickup(d.pickupAt, now.getTime())
-    const autoConfirm = cfg.autoConfirm.enabled && daysLeft !== null && daysLeft >= cfg.autoConfirm.days
+    const autoConfirm = cfg.autoConfirm.enabled && daysLeft !== null && daysLeft >= cfg.autoConfirm.days && req !== null
     const nowIso = now.toISOString()
     const built = buildSlipPayment({
       id: paymentId, code, amount: fields?.amount ?? plan.amount, slipRef: stagedRef, slipKey: key,
@@ -245,7 +252,10 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
       bankCode, bankName, ref, shopRef: fields?.shopRef, merchantMismatch: flagged,
     })
     // ยืนยันอัตโนมัติ: งวดนี้ยืนยันทันที และยกเลิกยอดที่ร้านแจ้งไว้เดิมซึ่งยังรออยู่ของออร์เดอร์นี้ (ยอดที่ลูกค้าแจ้งเองไม่ถึงขั้นนี้ เพราะกันด้วย pending_exists)
-    const conf = autoConfirm ? confirmSlipPayment([...payments, built], built.id, nowIso) : { payments: [...payments, built], cancelled: [] as any[] }
+    // งวดที่ลูกค้าขอ QR ไว้รับสลิปนี้: รวมข้อมูลสลิปเข้ากับงวดเดิม (ไม่เพิ่มงวดซ้ำ) · ไม่มี → เพิ่มงวดใหม่
+    const attached = req ? { ...req, ...built, source: req.source, requested: req.requested ?? built.requested, reportedBy: req.reportedBy ?? built.reportedBy, createdAt: req.createdAt ?? built.createdAt, dueAt: req.dueAt ?? built.dueAt, extension: req.extension ?? null, qrRef: req.qrRef } : built
+    const list = req ? payments.map((p: any) => (p.id === req.id ? attached : p)) : [...payments, built]
+    const conf = autoConfirm ? confirmSlipPayment(list, attached.id, nowIso) : { payments: list, cancelled: [] as any[] }
     const cancelledReqs = conf.cancelled
     const next = {
       ...d,
@@ -253,7 +263,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
       history: [
         ...(Array.isArray(d.history) ? d.history : []),
         { at: nowIso, text: autoConfirm ? 'ลูกค้าส่งสลิปในแชท (QR) · ระบบจับคู่กับออร์เดอร์นี้อัตโนมัติ' : 'ลูกค้าส่งสลิปในแชท (QR) · ระบบจับคู่กับออร์เดอร์นี้อัตโนมัติ (รอตรวจยอด)', by: 'customer' },
-        ...(autoConfirm ? [{ at: nowIso, text: `ยืนยันชำระอัตโนมัติ (ครบ 4 ข้อ · นัดรับห่าง ${daysLeft} วัน · ยังไม่ได้ตรวจกับธนาคาร)`, by: 'auto' }] : []),
+        ...(autoConfirm ? [{ at: nowIso, text: `ยืนยันชำระอัตโนมัติ (ครบ 5 ข้อ · นัดรับห่าง ${daysLeft} วัน · ยังไม่ได้ตรวจกับธนาคาร)`, by: 'auto' }] : []),
         ...(cancelledReqs.length ? [{ at: nowIso, text: `ยกเลิกยอดที่แจ้งเดิม ${cancelledReqs.length} รายการ (${cancelledReqs.map((p: any) => (Number(p.amount) || 0).toFixed(2)).join(', ')}) เพราะยืนยันชำระอัตโนมัติแล้ว`, by: 'auto' }] : []),
       ],
     }

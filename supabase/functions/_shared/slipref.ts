@@ -1,5 +1,7 @@
 // รหัสอ้างอิงร้านค้าบนสลิป (ORD / POS) และรหัสร้านค้าผู้รับชำระ · ฟังก์ชันล้วน ทดสอบได้
 // รหัสอ้างอิงแปลงจากเลขเดิมในระบบ (ไม่เก็บเพิ่ม): OR-ddmmyy-xxxxxx ↔ ORDddmmyyxxxxxx · POS-ddmmyy-xxxxx ↔ POSddmmyyxxxxx
+// รหัสสุ่มไม่ซ้ำของรายการแจ้งชำระ (Ref 2) อ่านจากสลิปด้วย และตรวจรูปแบบด้วย qrRefOk (_shared/payqr.ts)
+import { qrRefOk } from './payqr.ts'
 
 // รหัสอ้างอิงของเลขเดิม (รูปแบบที่ร้านให้ลูกค้าใช้อ้างอิง)
 export const refOfCode = (code: string): string => String(code || '').replace(/^OR-/, 'ORD').replace(/^POS-/, 'POS').replace(/-/g, '')
@@ -43,12 +45,15 @@ export function merchantCodeOk(mc: string, receiverAccount: unknown, shopRef: st
 }
 
 // ค่าจากคำตอบของตัวอ่าน (merchant_code / shop_ref) · ใส่คีย์เฉพาะเมื่อผ่านเกณฑ์ (ผลเดิมรูปร่างไม่เปลี่ยน)
-export function readShopFields(obj: any, receiverAccount?: string | null): { merchantCode?: string; shopRef?: string } {
+export function readShopFields(obj: any, receiverAccount?: string | null): { merchantCode?: string; shopRef?: string; qrRef?: string } {
   const mc = digitsOf(obj?.merchant_code)
   const sr = normalizeShopRef(obj?.shop_ref)
   const shopRef = shopRefOk(sr) ? sr : ''
   const merchantCode = merchantCodeOk(mc, receiverAccount, shopRef) ? mc : ''
-  return { ...(merchantCode ? { merchantCode } : {}), ...(shopRef ? { shopRef } : {}) }
+  // รหัสสุ่ม (Ref 2): 12 ตัวจากชุดอักษรของระบบ (ไม่มี 0 1 I L O จึงไม่ปนกับ POS/ORD)
+  const qr = normalizeShopRef(obj?.qr_ref)
+  const qrRef = qrRefOk(qr) ? qr : ''
+  return { ...(merchantCode ? { merchantCode } : {}), ...(shopRef ? { shopRef } : {}), ...(qrRef ? { qrRef } : {}) }
 }
 
 // ค่าที่เก็บในแคชและชุดเทรน: เฉพาะคีย์ที่มีค่า

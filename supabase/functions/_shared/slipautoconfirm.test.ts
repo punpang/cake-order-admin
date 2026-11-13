@@ -6,14 +6,16 @@ const SHOP = '014000000517185'
 // 11-11-2569 10:00 เวลาไทย · ออร์เดอร์สร้าง 09:00 · นัดรับ 14-11-2569 10:00 (ห่าง 3 วัน)
 const NOW = Date.UTC(2026, 10, 11, 3, 0)
 const ORDER = { code: 'OR-111126-000010', createdAt: '2026-11-11T02:00:00.000Z', pickupAt: '2026-11-14T10:00' }
-const FIELDS = { amount: 540, paidAt: '2026-11-11T10:00', merchantCode: SHOP, shopRef: 'ORD111126000010' }
+const QR_REF = 'K7M3QRT2XBHD' // รหัสสุ่ม (Ref 2) ที่อ่านจากสลิป
+const FIELDS = { amount: 540, paidAt: '2026-11-11T10:00', merchantCode: SHOP, shopRef: 'ORD111126000010', qrRef: QR_REF }
+const QR_REQUEST = { qrRef: QR_REF, amount: 540 } // รายการแจ้งชำระที่ลูกค้าขอ QR ไว้ (รหัสสุ่มและยอดตรงกับสลิป)
 const decide = (over: Record<string, unknown> = {}, fields: any = FIELDS) =>
-  autoConfirmDecision({ enabled: true, days: 3, fields, order: ORDER, configuredMerchantCode: SHOP, balance: 540, nowMs: NOW, ...over } as any)
+  autoConfirmDecision({ enabled: true, days: 3, fields, order: ORDER, configuredMerchantCode: SHOP, balance: 540, nowMs: NOW, request: QR_REQUEST, ...over } as any)
 
-Deno.test('ครบ 4 ข้อ + เปิดไว้ + นัดห่างพอ → ยืนยันได้', () => {
+Deno.test('ครบ 5 ข้อ + เปิดไว้ + นัดห่างพอ → ยืนยันได้', () => {
   const d = decide()
   assertEquals([d.ok, d.daysLeft], [true, 3])
-  assertEquals(d.checks.map((c) => c.ok), [true, true, true, true])
+  assertEquals(d.checks.map((c) => c.ok), [true, true, true, true, true])
 })
 
 Deno.test('นัดวันนี้กับตั้ง 0 วัน → ยืนยันได้ · นัดห่างไม่พอ → ไม่ยืนยัน', () => {
@@ -47,6 +49,13 @@ Deno.test('เงื่อนไข 4: รหัสอ้างอิงร้�
   assertEquals(decide({}, { ...FIELDS, shopRef: 'POS123927229' }).ok, false)
   assertEquals(decide({}, { ...FIELDS, shopRef: undefined }).ok, false)
   assertEquals(decide({}, null).ok, false)
+})
+
+Deno.test('เงื่อนไข 5: รหัสสุ่ม (Ref 2) ไม่ตรงกับรายการแจ้งชำระ · ไม่พบรายการ · ยอดไม่เท่ากับรายการ · ไม่มีรหัสสุ่มในสลิป → ไม่ยืนยัน', () => {
+  assertEquals(decide({ request: { qrRef: 'ZZZZZZZZZZZZ', amount: 540 } }).ok, false)
+  assertEquals(decide({ request: null }).ok, false)
+  assertEquals(decide({ request: { qrRef: QR_REF, amount: 300 } }).ok, false)
+  assertEquals(decide({}, { ...FIELDS, qrRef: undefined }).ok, false)
 })
 
 Deno.test('ยืนยันงวดนี้ ยกเลิกเฉพาะยอดที่ร้านแจ้งเดิมที่ยังรออยู่ · ไม่แตะยอดที่ลูกค้าแจ้งเอง ยอดที่ยกเลิกแล้ว หรือยอดที่ยืนยันแล้ว', () => {

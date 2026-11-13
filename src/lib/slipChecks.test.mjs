@@ -41,4 +41,16 @@ t('รหัสอ้างอิงร้านค้า: ตรงกับอ
   assert.equal(by(slipChecksOf({ fields: {}, order: ORDER }), 'shopRef').ok, null)
 })
 
+const REQ = { qrRef: 'K7M3QRT2XBHD', amount: 389 }
+t('รหัสสุ่ม (Ref 2): ตรงกับรายการแจ้งชำระและยอดเท่ากัน ✓', () => {
+  const c = by(slipChecksOf({ fields: { qrRef: 'K7M3QRT2XBHD', amount: 389 }, order: ORDER, request: REQ }), 'qrRef')
+  assert.equal(c.ok, true)
+})
+t('รหัสสุ่ม (Ref 2): รหัสไม่ตรง ✗ · ยอดไม่เท่ากับรายการ ✗ · ไม่พบรายการที่มีรหัสนี้ ✗ · ไม่มีในสลิป → null', () => {
+  assert.equal(by(slipChecksOf({ fields: { qrRef: 'ZZZZZZZZZZZZ', amount: 389 }, order: ORDER, request: REQ }), 'qrRef').ok, false)
+  assert.equal(by(slipChecksOf({ fields: { qrRef: 'K7M3QRT2XBHD', amount: 390 }, order: ORDER, request: REQ }), 'qrRef').ok, false)
+  assert.equal(by(slipChecksOf({ fields: { qrRef: 'K7M3QRT2XBHD', amount: 389 }, order: ORDER, request: null }), 'qrRef').ok, false)
+  assert.equal(by(slipChecksOf({ fields: { amount: 389 }, order: ORDER, request: REQ }), 'qrRef').ok, null)
+})
+
 console.log(`slipChecks: ${n} passed`)

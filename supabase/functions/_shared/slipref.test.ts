@@ -31,3 +31,9 @@ Deno.test('ค่าจากตัวอ่าน: ใส่เฉพาะค�
   assertEquals(shopPartOf({ merchantCode: '', shopRef: 'POS1' }), { shopRef: 'POS1' })
   assertEquals(digitsOf('0-1'), '01')
 })
+
+Deno.test('รหัสสุ่ม (Ref 2) จากตัวอ่าน: 12 ตัวตามชุดอักษรของระบบ (ตัดช่องว่างและขีด) · มี 0 หรือเป็นรูปแบบ POS/ORD ทิ้ง', () => {
+  assertEquals(readShopFields({ qr_ref: 'k7m3-qrt2 xbhd' }), { qrRef: 'K7M3QRT2XBHD' })
+  assertEquals(readShopFields({ qr_ref: 'K7M3QRT2XB0D' }), {})
+  assertEquals(readShopFields({ qr_ref: 'POS123927229' }), {})
+})

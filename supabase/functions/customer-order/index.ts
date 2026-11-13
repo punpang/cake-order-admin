@@ -260,13 +260,15 @@ Deno.serve(async (req) => {
       }
       const ocrFields = { ...(fields?.amount != null ? { ocrAmount: fields.amount } : {}), ...(fields?.paidAt ? { ocrPaidAt: fields.paidAt } : {}), ...(fields?.receiverAccount ? { ocrReceiverAccount: fields.receiverAccount } : {}) }
       const txnFields = { ...ocrFields, paidAt, bankCode: bankCode || null, bankName: bankCode ? (bankByCode(bankCode)?.name ?? null) : null, ref: ref || '', refSource: qr.kind === 'slip' ? 'qr' : (ref ? 'typed' : '') }
-      // ยืนยันสลิปอัตโนมัติ (ครบ 4 ข้อจากภาพสลิปเทียบกับออร์เดอร์ + นัดรับห่างพอ + เปิดไว้) · ตัดสินตรงนี้ ใช้ผลตอนบันทึก
+      // ยืนยันสลิปอัตโนมัติ (ครบ 5 ข้อจากภาพสลิปเทียบกับออร์เดอร์และรายการแจ้งชำระ + นัดรับห่างพอ + เปิดไว้) · ตัดสินตรงนี้ ใช้ผลตอนบันทึก
+      // รายการแจ้งชำระที่รหัสสุ่ม (Ref 2) ตรงกับสลิป → เป็นงวดที่สลิปนี้ชำระ (ไม่สร้างรายการซ้ำ)
+      const reqPay = fields?.qrRef ? (d.payments.find((p: any) => p.qrRef === fields.qrRef && p.status === 'reported' && p.customerSubmitted !== true) ?? null) : null
       const acCfg = await autoConfirmCfgOf()
-      const autoDecision = autoConfirmDecision({ enabled: acCfg.auto.enabled, days: acCfg.auto.days, fields, order: { code: row.code, createdAt: d.createdAt, pickupAt: d.pickupAt }, configuredMerchantCode: acCfg.merchantCode, balance: t.balance, nowMs: Date.now() })
+      const autoDecision = autoConfirmDecision({ enabled: acCfg.auto.enabled, days: acCfg.auto.days, fields, order: { code: row.code, createdAt: d.createdAt, pickupAt: d.pickupAt }, configuredMerchantCode: acCfg.merchantCode, balance: t.balance, nowMs: Date.now(), request: reqPay })
       let autoDone = false
       let autoCancelled: any[] = []
       const note = String(b.note ?? '').trim().slice(0, PAY.noteMax)
-      const pid = b.paymentId ? String(b.paymentId) : ''
+      const pid = reqPay ? reqPay.id : (b.paymentId ? String(b.paymentId) : '')
       let target: any = null
       if (pid) {
         target = d.payments.find((x: any) => x.id === pid)
@@ -297,7 +299,7 @@ Deno.serve(async (req) => {
       }
       logTo(d, autoDone ? `ลูกค้าแจ้งชำระ ${amt.toFixed(2)} ผ่านหน้าออร์เดอร์ (ระบบยืนยันอัตโนมัติ)` : `ลูกค้าแจ้งชำระ ${amt.toFixed(2)} ผ่านหน้าออร์เดอร์ (รอตรวจสลิป)`)
       if (autoDone) {
-        d.history = [...(d.history || []), { at: nowIso(), text: `ยืนยันชำระอัตโนมัติ (ครบ 4 ข้อ · นัดรับห่าง ${autoDecision.daysLeft} วัน · ยังไม่ได้ตรวจกับธนาคาร)`, by: 'auto' }]
+        d.history = [...(d.history || []), { at: nowIso(), text: `ยืนยันชำระอัตโนมัติ (ครบ 5 ข้อ · นัดรับห่าง ${autoDecision.daysLeft} วัน · ยังไม่ได้ตรวจกับธนาคาร)`, by: 'auto' }]
         if (autoCancelled.length) d.history = [...d.history, { at: nowIso(), text: `ยกเลิกยอดที่แจ้งเดิม ${autoCancelled.length} รายการ (${autoCancelled.map((p: any) => (Number(p.amount) || 0).toFixed(2)).join(', ')}) เพราะยืนยันชำระอัตโนมัติแล้ว`, by: 'auto' }]
         newStatus = ['awaiting_payment', 'payment_reported'].includes(row.status) ? 'payment_confirmed' : row.status
         autoBell = { code: row.code, amount: amt.toFixed(2) }
