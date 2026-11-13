@@ -153,3 +153,26 @@ export async function readSlipFieldsWorkersAI(o: { bytes: Uint8Array; accountId:
     return null
   }
 }
+
+// ---------- ลำดับอ่านยอดและวัน-เวลาจากภาพสลิป (ใช้ทั้งสลิปในแชทและหน้าสั่งของลูกค้า) ----------
+// ทำหลัง QR พบว่าเป็นสลิปธนาคารแล้วเท่านั้น · ตัวแรกที่ได้ยอดหรือวัน-เวลาจะหยุด · ผลว่างหรือ error ไปตัวถัดไป
+// ไม่มีตัวไหนได้ผลครบ → ใช้ผลบางส่วนของตัวแรกที่ตอบ
+export type OcrEngine = { name: string; read: (bytes: Uint8Array) => Promise<SlipFields | null> }
+export async function readSlipFieldsChain(bytes: Uint8Array, engines: OcrEngine[]): Promise<SlipFields | null> {
+  let partial: SlipFields | null = null
+  for (const e of engines) {
+    let f: SlipFields | null = null
+    try { f = await e.read(bytes) } catch { f = null }
+    if (f?.amount != null || f?.paidAt != null) return f
+    partial ??= f
+  }
+  return partial
+}
+
+// ค่าสวิตช์จาก punpang_kv config slipQr.ocr: wai (Workers AI) · claude (ระบบเดิม) · ค่าเดิม ocr.enabled = claude เมื่อยังไม่มี claude
+// model ไม่ระบุ = OCR_DEFAULT_MODEL
+export function ocrFlagsOf(ocr: any): { wai: boolean; claude: boolean; model: string } {
+  const claude = ocr?.claude !== undefined ? ocr.claude === true : ocr?.enabled === true
+  const model = typeof ocr?.model === 'string' && ocr.model.trim() ? ocr.model.trim() : OCR_DEFAULT_MODEL
+  return { wai: ocr?.wai === true, claude, model }
+}

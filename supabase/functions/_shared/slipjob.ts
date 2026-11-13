@@ -5,7 +5,7 @@
 import { buildSlipPayment, classifyThaiQr, latestOrderId, planAttach, slipKeyOf } from './slip.ts'
 import { imageSize, readQrTexts } from './qrimage.ts'
 import { bankByCode, normalizeRef, paidAtFromMessage, refTaken } from './payfields.ts'
-import { OCR_DEFAULT_MODEL, readSlipFields, readSlipFieldsWorkersAI, type SlipFields } from './slipocr.ts'
+import { ocrFlagsOf, readSlipFields, readSlipFieldsChain, readSlipFieldsWorkersAI, type OcrEngine, type SlipFields } from './slipocr.ts'
 
 export type SlipOutcome =
   | 'matched' | 'duplicate' | 'no_order' | 'order_missing' | 'order_inactive' | 'order_paid' | 'pending_exists'
@@ -49,9 +49,7 @@ export type SlipMode = 'auto' | 'manual'
 async function slipConfig(sb: any): Promise<{ enabled: boolean; mode: SlipMode; ocr: { wai: boolean; claude: boolean; model: string } }> {
   const r = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()
   const v = r?.data?.data?.v
-  const model = typeof v?.ocr?.model === 'string' && v.ocr.model.trim() ? v.ocr.model.trim() : OCR_DEFAULT_MODEL
-  const claude = v?.ocr?.claude !== undefined ? v.ocr.claude === true : v?.ocr?.enabled === true
-  return { enabled: v?.enabled !== false, mode: v?.mode === 'manual' ? 'manual' : 'auto', ocr: { wai: v?.ocr?.wai === true, claude, model } }
+  return { enabled: v?.enabled !== false, mode: v?.mode === 'manual' ? 'manual' : 'auto', ocr: ocrFlagsOf(v?.ocr) }
 }
 
 // ใส่ผลลงข้อความในแชท (เทียบ updated_at) · ไม่กระทบการแนบ ถ้าเขียนไม่ได้ก็แค่ไม่มีป้าย
@@ -128,23 +126,17 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
 
   // อ่านยอดและวัน-เวลาจากตัวหนังสือบนภาพ (เฉพาะเมื่อร้านเปิดไว้และมีคีย์) · อ่านไม่ได้ = ใช้ค่าเดิมต่อไป
   // หลัง QR พบว่าเป็นสลิป · ลำดับ: Workers AI → ระบบเดิม (Claude) · ตัวที่เปิดไว้และตั้งค่าครบจะลอง · ตัวแรกที่ได้ยอดหรือวัน-เวลาจะหยุด
-  const chain: Array<() => Promise<SlipFields | null>> = []
+  const engines: OcrEngine[] = []
   const w = input.ocrWai
   if (cfg.ocr.wai && w?.accountId && w?.token) {
-    chain.push(() => (input.ocrReadBy?.wai ?? ((o) => readSlipFieldsWorkersAI({ bytes: o.bytes, accountId: w.accountId, token: w.token, model: w.model })))({ bytes, key: '', model: '' }).catch(() => null))
+    const read: (o: { bytes: Uint8Array; key: string; model: string }) => Promise<SlipFields | null> = input.ocrReadBy?.wai ?? ((o) => readSlipFieldsWorkersAI({ bytes: o.bytes, accountId: w.accountId, token: w.token, model: w.model }))
+    engines.push({ name: 'wai', read: (x) => read({ bytes: x, key: '', model: '' }) })
   }
   if (cfg.ocr.claude && input.ocrKey) {
-    chain.push(() => (input.ocrReadBy?.claude ?? input.ocrRead ?? readSlipFields)({ bytes, key: input.ocrKey!, model: cfg.ocr.model }).catch(() => null))
+    const read: (o: { bytes: Uint8Array; key: string; model: string }) => Promise<SlipFields | null> = input.ocrReadBy?.claude ?? input.ocrRead ?? readSlipFields
+    engines.push({ name: 'claude', read: (x) => read({ bytes: x, key: input.ocrKey!, model: cfg.ocr.model }) })
   }
-  // ผลที่ใช้ได้ = อ่านยอดหรือวัน-เวลาได้ (ผลว่างของตัวนี้ไปลองตัวถัดไป) · ไม่มีตัวไหนอ่านได้ใช้ผลบางส่วนของตัวแรกที่ตอบ
-  let fields: SlipFields | null = null
-  let partial: SlipFields | null = null
-  for (const read of chain) {
-    const f = await read()
-    if (f?.amount != null || f?.paidAt != null) { fields = f; break }
-    partial ??= f
-  }
-  fields ??= partial
+  const fields = await readSlipFieldsChain(bytes, engines)
 
   if (cfg.mode === 'manual') {
     // โหมดแมนนวล: เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์
