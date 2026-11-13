@@ -24,3 +24,8 @@ Deno.test('วัน-เวลา: เดือนอ่านไม่ออก
   assertEquals(inferThaiDateTime('ทํารายการ\n25 we. 69 15:49', now), '2026-10-25T15:49') // 25 พ.ย. ยังไม่ถึง → เดือนก่อน
   assertEquals(inferThaiDateTime('ไม่มีวันที่', now), null)
 })
+Deno.test('วัน-เวลา: มีคอมมาหลังปีได้ (รูปแบบของแอป CLICX และ Bangkok Bank)', () => {
+  assertEquals(parseThaiDateTime('10 พ.ย. 2569, 09:57'), '2026-11-10T09:57')
+  assertEquals(parseThaiDateTime('25 ต.ค. 69, 08:33'), '2026-10-25T08:33')
+  assertEquals(inferThaiDateTime('25 ต.ค. 69, 08:33', Date.UTC(2026, 10, 12, 12, 0)), '2026-10-25T08:33')
+})
