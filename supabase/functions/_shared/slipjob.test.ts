@@ -30,7 +30,7 @@ function fakeSb(init: { chats?: any[]; orders?: any[]; kv?: any[] } = {}) {
   const T: Record<string, any[]> = { punpang_chats: init.chats ?? [], punpang_orders: init.orders ?? [], punpang_kv: init.kv ?? [], punpang_records: [] }
   const files = new Map<string, Uint8Array>()
   const calls = { rpc: 0, uploads: 0, removes: 0 }
-  const hooks: { beforeOrderUpdate: null | ((rows: any[]) => void); uploadFail: boolean; orderUpdateError: null | { code: string; message: string } } = { beforeOrderUpdate: null, uploadFail: false, orderUpdateError: null }
+  const hooks: { beforeOrderUpdate: null | ((rows: any[]) => void); uploadFail: boolean; orderUpdateError: null | { code: string; message: string }; chatConflicts: number } = { beforeOrderUpdate: null, uploadFail: false, orderUpdateError: null, chatConflicts: 0 }
   let tick = 0
   let payNo = 1
   const stamp = () => new Date(NOW + ++tick * 1000).toISOString()
@@ -57,6 +57,8 @@ function fakeSb(init: { chats?: any[]; orders?: any[]; kv?: any[] } = {}) {
       if (q.op === 'insert') { list.push(structuredClone(q.patch)); return { data: q.patch, error: null } }
       if (q.op === 'update' && table === 'punpang_orders' && hooks.orderUpdateError) { const e = hooks.orderUpdateError; hooks.orderUpdateError = null; return { data: null, error: e } }
       if (q.op === 'update' && table === 'punpang_orders' && hooks.beforeOrderUpdate) { const h = hooks.beforeOrderUpdate; hooks.beforeOrderUpdate = null; h(list) }
+      // จำลองแชทถูกเขียนชนกัน: เปลี่ยน updated_at ของแถวที่ตรงเงื่อนไข ทำให้การเขียนตามเวลาเดิมไม่ตรง
+      if (q.op === 'update' && table === 'punpang_chats' && hooks.chatConflicts > 0) { hooks.chatConflicts--; for (const r of list) if (q.filters.every((f: any) => f(r))) r.updated_at = stamp() }
       const hit = list.filter((r) => q.filters.every((f: any) => f(r)))
       if (q.op === 'update') {
         for (const r of hit) Object.assign(r, q.patch, { updated_at: stamp() })
@@ -400,4 +402,18 @@ Deno.test('ขั้นตอน: รูปที่ไม่ใช่สลิ�
   const blank = new PNG({ width: 400, height: 400 }); blank.data.fill(255)
   assertEquals(await runCheck(sb, new Uint8Array(PNG.sync.write(blank)), opts), 'no_slip')
   assertEquals(called, [])
+})
+
+Deno.test('ป้ายสลิปยังแนบได้แม้แชทถูกเขียนชนกันหลายครั้ง (ลองเขียนซ้ำจนสำเร็จ)', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [] })
+  sb.hooks.chatConflicts = 5
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'matched')
+  assertEquals(sb.T.punpang_chats[0].data.messages.find((x: any) => x.id === 'm1')?.slipCheck?.status, 'matched')
+})
+Deno.test('แชทถูกเขียนชนกันเกินจำนวนรอบ → ไม่มีป้าย แต่การรับสลิปยังสำเร็จ', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [] })
+  sb.hooks.chatConflicts = 50
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'matched')
+  assertEquals(sb.T.punpang_chats[0].data.messages.find((x: any) => x.id === 'm1')?.slipCheck, undefined)
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 1)
 })
