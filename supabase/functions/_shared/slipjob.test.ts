@@ -390,3 +390,14 @@ Deno.test('ลำดับตัวอ่าน: Workers AI → ระบบเ�
   await runCheck(sb4, await slipScreenshot(SLIP), opts({ wai: hit('wai'), claude: hit('claude') }, { accountId: '', token: '', model: '' }))
   assertEquals(calls, ['claude'])
 })
+
+Deno.test('ขั้นตอน: รูปที่ไม่ใช่สลิปไม่ถูกส่งต่อให้โมเดล แม้เปิด Workers AI และ Claude ครบ', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true, claude: true })] })
+  const called: string[] = []
+  const reader = (name: string) => async () => { called.push(name); return { amount: 1, paidAt: null, receiverName: null, receiverAccount: null } }
+  const opts = { ocrKey: 'k', ocrWai: { accountId: 'a', token: 't', model: '' }, ocrReadBy: { wai: reader('wai'), claude: reader('claude') } }
+  assertEquals(await runCheck(sb, await qrPlain(PROMPTPAY_540), opts), 'no_slip')
+  const blank = new PNG({ width: 400, height: 400 }); blank.data.fill(255)
+  assertEquals(await runCheck(sb, new Uint8Array(PNG.sync.write(blank)), opts), 'no_slip')
+  assertEquals(called, [])
+})
