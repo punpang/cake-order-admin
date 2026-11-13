@@ -14,6 +14,8 @@ Deno.serve(async (req) => {
 
   let p: any
   try { p = JSON.parse(raw) } catch { return json({ error: 'json' }, 400) }
+  // DEBUG ชั่วคราว: บันทึกโครงสร้างคำขอ (ตัวเลขยาวถูกปิดบัง เพื่อไม่เก็บเลขบัญชี) · ลบออกหลังทดสอบเสร็จ
+  console.log('manee-debug', JSON.stringify({ event: p?.event, app: p?.app, app_name: p?.app_name, test: p?.test, keys: Object.keys(p ?? {}), id_len: String(p?.id ?? '').length, amount_ok: parseManeeAmount(String(p?.text ?? '')) != null, text: String(p?.text ?? '').replace(/\d{6,}/g, '#').slice(0, 160) }))
   // ตอบ 2xx กับรายการที่ไม่ใช่แม่มณีด้วย เพื่อให้แอปไม่ส่งซ้ำ
   const isRelevant = p?.event === 'notification.forwarded' && isManeeApp(String(p.app ?? ''), String(p.app_name ?? ''), Deno.env.get('MANEE_APP_IDS') || '')
   if (!isRelevant || p.test === true) return json({ ok: true, stored: false })
