@@ -244,13 +244,18 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
       bankCode, bankName, ref, shopRef: fields?.shopRef, merchantMismatch: flagged,
     })
     const payment = autoConfirm ? { ...built, status: 'confirmed', confirmedBy: 'auto', confirmedAt: nowIso } : built
+    // ยืนยันอัตโนมัติ: ยกเลิกยอดที่ร้านแจ้งไว้เดิมซึ่งยังรออยู่ของออร์เดอร์นี้ (ยอดที่ลูกค้าแจ้งเองไม่ถึงขั้นนี้ เพราะกันด้วย pending_exists)
+    const staleReq = (p: any) => autoConfirm && p?.status === 'reported' && p?.customerSubmitted !== true
+    const cancelledReqs = payments.filter(staleReq)
+    const kept = payments.map((p: any) => (staleReq(p) ? { ...p, status: 'cancelled', cancelledAt: nowIso, cancelledBy: 'auto' } : p))
     const next = {
       ...d,
-      payments: [...payments, payment],
+      payments: [...kept, payment],
       history: [
         ...(Array.isArray(d.history) ? d.history : []),
         { at: nowIso, text: autoConfirm ? 'ลูกค้าส่งสลิปในแชท (QR) · ระบบจับคู่กับออร์เดอร์นี้อัตโนมัติ' : 'ลูกค้าส่งสลิปในแชท (QR) · ระบบจับคู่กับออร์เดอร์นี้อัตโนมัติ (รอตรวจยอด)', by: 'customer' },
         ...(autoConfirm ? [{ at: nowIso, text: `ยืนยันชำระอัตโนมัติ (ครบ 4 ข้อ · นัดรับห่าง ${daysLeft} วัน · ยังไม่ได้ตรวจกับธนาคาร)`, by: 'auto' }] : []),
+        ...(cancelledReqs.length ? [{ at: nowIso, text: `ยกเลิกยอดที่แจ้งเดิม ${cancelledReqs.length} รายการ (${cancelledReqs.map((p: any) => (Number(p.amount) || 0).toFixed(2)).join(', ')}) เพราะยืนยันชำระอัตโนมัติแล้ว`, by: 'auto' }] : []),
       ],
     }
     // ยืนยันแล้ว → ออร์เดอร์เป็นยืนยันชำระ (เหมือนพนักงานยืนยันจากหน้าชำระเงิน) · ไม่ยืนยัน → สถานะเดิม
@@ -268,7 +273,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
       const shownAmount = fields?.amount ?? plan.amount
       const how = fields?.amount != null ? 'ยอดอ่านจากภาพสลิป ยังไม่ได้ตรวจกับธนาคาร' : 'สลิป QR ยังไม่ได้ตรวจยอด'
       const bellText = autoConfirm
-        ? `${row.code} · ยอด ${shownAmount.toFixed(2)} (ยืนยันอัตโนมัติแล้ว · ยังไม่ได้ตรวจกับธนาคาร · นัดรับห่าง ${daysLeft} วัน)${mismatchNote}`
+        ? `${row.code} · ยอด ${shownAmount.toFixed(2)} (ยืนยันอัตโนมัติแล้ว · ยังไม่ได้ตรวจกับธนาคาร · นัดรับห่าง ${daysLeft} วัน${cancelledReqs.length ? ` · ยกเลิกยอดที่แจ้งเดิม ${cancelledReqs.length} รายการ` : ''})${mismatchNote}`
         : `${row.code} · ยอด ${shownAmount.toFixed(2)} (${how})${mismatchNote}`
       await bell(sb, { event: 'team_customer_paid', title: autoConfirm ? 'ยืนยันชำระอัตโนมัติแล้ว' : 'ลูกค้าแจ้งโอน', text: bellText, orderId: row.id, chatId }, rand)
       await annotate(sb, chatId, msgId, { status: 'matched', ...(autoConfirm ? { autoConfirmed: true } : {}), orderCode: row.code, paymentId, at: nowIso, ...flagPart, checks })

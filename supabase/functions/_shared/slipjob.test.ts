@@ -634,6 +634,24 @@ Deno.test('ยืนยันอัตโนมัติ: ยอดบางส�
   assertEquals([o.status, o.data.payments[0].status, o.data.payments[0].amount], ['payment_confirmed', 'confirmed', 200])
 })
 
+Deno.test('ยืนยันอัตโนมัติ: ยกเลิกยอดที่ร้านแจ้งเดิมที่ยังรออยู่ของออร์เดอร์นั้น และบันทึกประวัติ/กระดิ่ง', async () => {
+  const staff = { id: 'ps1', code: 'PAY-111126-00000', status: 'reported', requested: 540, amount: 540, method: 'โอนเงิน', dueAt: '', source: 'staff', customerSubmitted: false }
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [{ ...order({ pickupAt: '2026-11-14T10:00', payments: [staff] }), status: 'payment_reported' }], kv: AUTO_CONFIRM_KV(3) })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
+  const o = sb.T.punpang_orders[0]
+  assertEquals([o.status, o.data.payments[0].status, o.data.payments[0].cancelledBy, o.data.payments[1].status], ['payment_confirmed', 'cancelled', 'auto', 'confirmed'])
+  assertEquals(o.data.history.some((h: any) => h.text.includes('ยกเลิกยอดที่แจ้งเดิม 1 รายการ')), true)
+  const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
+  assertEquals(bell.data.text.includes('ยกเลิกยอดที่แจ้งเดิม 1 รายการ'), true)
+})
+
+Deno.test('ยืนยันอัตโนมัติปิดอยู่ → ยอดที่ร้านแจ้งเดิมยังอยู่ ไม่ถูกยกเลิก', async () => {
+  const staff = { id: 'ps1', code: 'PAY-111126-00000', status: 'reported', requested: 540, amount: 540, method: 'โอนเงิน', dueAt: '', source: 'staff', customerSubmitted: false }
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [{ ...order({ pickupAt: '2026-11-14T10:00', payments: [staff] }), status: 'payment_reported' }], kv: AUTO_CONFIRM_KV(3, false) })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
+  assertEquals(sb.T.punpang_orders[0].data.payments.map((p: any) => p.status), ['reported', 'reported'])
+})
+
 Deno.test('ยืนยันอัตโนมัติ: อ่านภาพไม่ครบ 4 ข้อ → ไม่ผูกและไม่ยืนยัน (ส่งพนักงาน)', async () => {
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ pickupAt: '2026-11-14T10:00' })], kv: AUTO_CONFIRM_KV(3) })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'manual')

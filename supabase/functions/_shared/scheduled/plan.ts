@@ -219,6 +219,13 @@ export function planScheduled(inp: PlanInput): Plan[] {
     if (pickupOn && toPickup > 0 && toPickup <= pickupHours * HOUR) {
       add(`pickup|${o.id}`, { kind: 'customer', event: 'pickup_reminder', orderId: o.id, order: o, customer: custFor(o), vars: varsOf(o) })
     }
+    // ยืนยันสลิปอัตโนมัติ: แจ้งลูกค้าว่ายืนยันชำระแล้ว (ตามกฎ payment_confirmed ของร้าน) · เฉพาะงวดที่ระบบยืนยันเอง ภายใน 24 ชม. · ส่งครั้งเดียวต่องวด
+    for (const p of Array.isArray(o.payments) ? o.payments : []) {
+      if (p?.status !== 'confirmed' || p.confirmedBy !== 'auto') continue
+      const at = Date.parse(String(p.confirmedAt || ''))
+      if (!Number.isFinite(at) || inp.nowMs - at > 24 * HOUR) continue
+      add(`payconf|${p.id}`, { kind: 'customer', event: 'payment_confirmed', orderId: o.id, order: o, customer: custFor(o), vars: varsOf(o, { paid: p.amount }) })
+    }
     // ทีม: งวดชำระเลยกำหนด
     for (const p of overdueOf(o, inp.nowMs)) {
       add(`overdue|${p.id}|${p.dueAt}`, { kind: 'team', event: 'team_pay_overdue', orderId: o.id, order: o, customer: null, vars: { ...varsOf(o), ชำระก่อน: dueTextOf(p.dueAt) } })
