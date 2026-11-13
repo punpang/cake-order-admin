@@ -3,6 +3,7 @@
 // ส่งเฉพาะรูปสลิปไปยัง API (ไม่ส่งข้อมูลลูกค้า/ออร์เดอร์) · คีย์ API รับเป็นพารามิเตอร์ ไม่เขียนลง log
 // ไม่อ่าน Deno.env ที่นี่ เพื่อให้ทดสอบด้วยตัวจำลอง fetch ได้
 import { imageSize } from './qrimage.ts'
+import { inferThaiDateTime, parseThaiDateTime } from './slipText.ts'
 
 // paidAt = "YYYY-MM-DDTHH:mm" เวลาไทย (รูปแบบเดียวกับวันชำระในระบบ) · receiverAccount = ตามที่เห็นบนสลิป (มักถูกปิดบางหลัก เช่น xxx-x-x1234-x)
 export type SlipFields = { amount: number | null; paidAt: string | null; receiverName?: string | null; receiverAccount?: string | null }
@@ -101,6 +102,50 @@ export async function readSlipFields(o: { bytes: Uint8Array; key: string; model:
     if (data?.stop_reason === 'refusal') return null
     const text = (Array.isArray(data?.content) ? data.content : []).filter((x: any) => x?.type === 'text').map((x: any) => String(x.text ?? '')).join('')
     return parseSlipFields(text, o.nowMs)
+  } catch {
+    return null
+  }
+}
+
+// อ่านด้วย Workers AI (โมเดลอ่านภาพของ Cloudflare) · โมเดลคัดลอกข้อความวันที่ตามที่เห็น แล้วโค้ดของเราแปลงเป็นวัน-เวลา
+// ส่งรูปสลิปเต็มไป Cloudflare ตามที่ร้านอนุมัติ (มีชื่อและเลขบัญชีในรูป) · ผิดพลาด/หมดเวลา = null
+export const WAI_DEFAULT_MODEL = '@cf/mistralai/mistral-small-3.1-24b-instruct'
+const WAI_PROMPT = [
+  'ภาพนี้คือสลิปโอนเงินของธนาคารหรือแอปในประเทศไทย อ่านเฉพาะตัวหนังสือในภาพ',
+  'ตอบเป็น JSON อย่างเดียว รูปแบบ {"amount": ตัวเลขบาท ไม่มีคอมมา, "date_text": "ข้อความวันที่และเวลาตามที่เห็นในภาพ คัดลอกตามตัวอักษรทุกตัว"}',
+  'amount คือจำนวนเงินที่โอน ไม่ใช่ค่าธรรมเนียมหรือยอดคงเหลือ',
+  'date_text เช่น "13 พ.ย. 2569 - 01:28" ห้ามแปลงปีหรือเดือนเอง ให้คัดลอกตามที่เห็น',
+  'ค่าใดอ่านไม่ได้ให้ใส่ null ห้ามเดา',
+].join('\n')
+
+export async function readSlipFieldsWorkersAI(o: { bytes: Uint8Array; accountId: string; token: string; model?: string; nowMs?: number; fetchImpl?: typeof fetch }): Promise<SlipFields | null> {
+  if (!o.accountId || !o.token) return null
+  const doFetch = o.fetchImpl ?? fetch
+  const type = o.bytes[0] === 0x89 ? 'image/png' : 'image/jpeg'
+  const dataUrl = `data:${type};base64,${toBase64(o.bytes)}`
+  try {
+    const res = await doFetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(o.accountId)}/ai/v1/chat/completions`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${o.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: o.model || WAI_DEFAULT_MODEL,
+        max_tokens: 200,
+        temperature: 0,
+        messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: dataUrl } }, { type: 'text', text: WAI_PROMPT }] }],
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+    if (!res.ok) return null
+    const data: any = await res.json()
+    const text = String(data?.choices?.[0]?.message?.content ?? '')
+    const s = text.indexOf('{'), e = text.lastIndexOf('}')
+    if (s < 0 || e <= s) return null
+    const j = JSON.parse(text.slice(s, e + 1))
+    const rawAmount = typeof j?.amount === 'string' ? Number(j.amount.replace(/,/g, '')) : j?.amount
+    const amount = typeof rawAmount === 'number' && Number.isFinite(rawAmount) && rawAmount > 0 && rawAmount <= MAX_AMOUNT ? Math.round(rawAmount * 100) / 100 : null
+    const dateText = typeof j?.date_text === 'string' ? j.date_text.slice(0, 80) : ''
+    const paidAt = dateText ? (parseThaiDateTime(dateText) ?? inferThaiDateTime(dateText, o.nowMs ?? Date.now())) : null
+    return { amount, paidAt, receiverName: null, receiverAccount: null }
   } catch {
     return null
   }
