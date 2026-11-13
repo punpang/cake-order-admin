@@ -7,7 +7,7 @@ import { inferThaiDateTime, parseThaiDateTime } from './slipText.ts'
 import { readShopFields } from './slipref.ts'
 
 // paidAt = "YYYY-MM-DDTHH:mm" เวลาไทย (รูปแบบเดียวกับวันชำระในระบบ) · receiverAccount = ตามที่เห็นบนสลิป (มักถูกปิดบางหลัก เช่น xxx-x-x1234-x)
-export type SlipFields = { amount: number | null; paidAt: string | null; receiverName?: string | null; receiverAccount?: string | null; merchantCode?: string; shopRef?: string }
+export type SlipFields = { amount: number | null; paidAt: string | null; receiverName?: string | null; receiverAccount?: string | null; merchantCode?: string; shopRef?: string; qrRef?: string }
 
 export const OCR_DEFAULT_MODEL = 'claude-sonnet-5-5'
 const TIMEOUT_MS = 30_000
