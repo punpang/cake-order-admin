@@ -42,5 +42,5 @@ export async function remoteReadSlip(ctx, slip) {
     return { error: d?.error || NET }
   }
   if (!r.data?.ok) return { error: r.data?.error || NET }
-  return { ok: true, qr: r.data.qr || { kind: 'none' } }
+  return { ok: true, qr: r.data.qr || { kind: 'none' }, fields: r.data.fields || null }
 }

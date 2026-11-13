@@ -1955,7 +1955,7 @@ export function publicOrderView(o, { owner = false } = {}) {
     refunds: o.status === 'cancelled' ? refundList(o.cancel) : [],
     returns: (o.returns || []).filter((r) => !r.cancelled).map((r) => ({ id: r.id, at: r.at, amount: r.amount, items: r.refunds.map((x) => ({ label: REFUND_METHODS[x.method] || x.method, amount: x.amount, points: x.points ?? null })) })),
     payments: pays, payDue: orderDue(o), unpaidApproved: o.status === 'order_confirmed',
-    pay: { block: customerPayBlock(o), room, info: { ...db.shop.payment }, limitPerHour: CUSTOMER_PAY.perHour },
+    pay: { block: customerPayBlock(o), room, info: { ...(o._payInfo || db.shop.payment) }, limitPerHour: CUSTOMER_PAY.perHour },
     review: owner && rv ? { rating: rv.rating, status: rv.status } : null,
   }
 }

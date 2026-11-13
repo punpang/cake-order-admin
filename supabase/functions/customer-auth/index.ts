@@ -1,4 +1,5 @@
 import { filesEnv, isR2Ref, keyOfR2Ref, svcSign } from '../_shared/filesvc.ts'
+import { publicPaymentOf } from '../_shared/shoppay.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 // ระบบบัญชีลูกค้าฝั่งเซิร์ฟเวอร์: OTP ทาง SMS (เกตเวย์ของร้าน) + PIN 6 หลัก + เซสชัน
@@ -106,7 +107,8 @@ Deno.serve(async (req) => {
     const rv = await sb.from('punpang_records').select('id,data').eq('collection', 'reviews').eq('data->>customerId', customerId)
     const dr = await sb.from('punpang_records').select('id,data').eq('collection', 'deletionRequests').eq('data->>customerId', customerId)
     const rec = (r: any) => ({ ...(r.data || {}), id: r.id })
-    return { customer, orders, coupons: (cp.data || []).map(rec), consents: (cs.data || []).map(rec), reviews: (rv.data || []).map(rec), deletionRequests: (dr.data || []).map(rec) }
+    const sh = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'shop').maybeSingle()
+    return { customer, orders, coupons: (cp.data || []).map(rec), consents: (cs.data || []).map(rec), reviews: (rv.data || []).map(rec), deletionRequests: (dr.data || []).map(rec), shop: { payment: publicPaymentOf(sh.data?.data?.v) } }
   }
   async function newSession(customerId: string) {
     const token = randHex(32)

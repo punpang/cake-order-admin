@@ -83,6 +83,7 @@ function openPay() {
   const n = thaiNow()
   if (!f.txnDate) f.txnDate = n.date
   if (!f.txnTime) f.txnTime = n.time
+  if (!f.note) f.note = o.value.code // เติมเลขออร์เดอร์ในหมายเหตุเป็นค่าจริง (เดิมเป็นแค่ placeholder)
 }
 // ตัวเลือกธนาคาร: รายการของระบบ + รหัสจาก QR ที่ไม่อยู่ในรายการ (ไม่ทิ้งค่าที่อ่านได้จากสลิป)
 const bankOptions = computed(() => {
@@ -106,7 +107,7 @@ async function readSlip(dataUrl) {
     Object.assign(f, { slip: '', slipName: '' })
     return (f.error = PAY_MSG.notSlip)
   }
-  // เติมค่าจากสลิปเหมือนสลิปในแชท: QR → ธนาคาร/เลขอ้างอิง · ภาพ → ยอด/วัน-เวลา (เฉพาะช่องที่ยังว่าง)
+  // เติมค่าจากสลิปเหมือนสลิปในแชท: QR → ธนาคาร/เลขอ้างอิง · ภาพ → ยอด/วัน-เวลา (ทับค่าที่ระบบเติมไว้ก่อน · ไม่เปลี่ยนยอดในรายการที่ร้านขอ)
   const fl = r.fields || null
   const got = []
   if (q.kind === 'slip') {
@@ -115,13 +116,13 @@ async function readSlip(dataUrl) {
     got.push('ธนาคาร/เลขอ้างอิงจาก QR')
   }
   if (fl?.amount != null) {
-    if (f.mode === 'all' && !f.custom && fl.amount <= room.value + 0.004) { f.mode = 'custom'; f.custom = String(fl.amount) }
+    if (f.mode !== 'req' && fl.amount > 0 && fl.amount <= room.value + 0.004) { f.mode = 'custom'; f.custom = String(fl.amount) }
     got.push(`ยอด ${money(fl.amount)}`)
   }
-  if (fl?.paidAt) {
+  if (fl?.paidAt?.includes('T')) {
     const [d, t] = fl.paidAt.split('T')
-    if (!f.txnDate) f.txnDate = d
-    if (!f.txnTime) f.txnTime = t
+    f.txnDate = d
+    f.txnTime = t
     got.push(`วัน-เวลา ${d} ${t}`)
   }
   if (got.length) return (f.qrNote = `อ่านจากสลิปแล้ว: ${got.join(' · ')} · ตรวจอีกครั้งก่อนส่ง`)
