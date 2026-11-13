@@ -216,8 +216,8 @@ async function doRemoveItem(it) {
   if (r.ok) removeOrderItem(order.value, it.id, notifyOf(r))
 }
 async function doCancelRequest(p) {
-  const r = await askConfirmEx({ title: 'ยกเลิกยอดที่แจ้ง', message: money(p.requested ?? p.amount), okText: 'ยกเลิกยอด', danger: true, ...notifyBoxOf(customer.value) })
-  if (r.ok) cancelPaymentRequest(order.value, p.id, notifyOf(r))
+  const r = await askConfirmEx({ title: 'ยกเลิกยอดที่แจ้ง', message: money(p.requested ?? p.amount), okText: 'ยกเลิกยอด', danger: true, reason: { label: 'เหตุผลที่ยกเลิก', required: true }, ...notifyBoxOf(customer.value) })
+  if (r.ok) cancelPaymentRequest(order.value, p.id, { ...notifyOf(r), reason: r.reason })
 }
 async function doRemovePoints() {
   const r0 = await askConfirmEx({ title: 'ยกเลิกการใช้คะแนน', message: `คืน ${order.value.pointsUsed.points} คะแนนให้ลูกค้า`, okText: 'ยกเลิกการใช้', danger: true, ...notifyBoxOf(customer.value) })

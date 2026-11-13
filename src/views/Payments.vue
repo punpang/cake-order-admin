@@ -41,8 +41,8 @@ const ext = ref(null) // { order, payment }
 const refund = ref(null)
 const openPay = (order, mode, target = null) => { pay.value = { order, mode, target } }
 async function doCancelRequest(o, p) {
-  const r = await askConfirmEx({ title: 'ยกเลิกยอดที่แจ้ง', message: money(p.requested ?? p.amount), okText: 'ยกเลิกยอด', danger: true, ...notifyBoxOf(findCustomer(o.customerId)) })
-  if (r.ok) cancelPaymentRequest(o, p.id, notifyOf(r))
+  const r = await askConfirmEx({ title: 'ยกเลิกยอดที่แจ้ง', message: money(p.requested ?? p.amount), okText: 'ยกเลิกยอด', danger: true, reason: { label: 'เหตุผลที่ยกเลิก', required: true }, ...notifyBoxOf(findCustomer(o.customerId)) })
+  if (r.ok) cancelPaymentRequest(o, p.id, { ...notifyOf(r), reason: r.reason })
 }
 async function doDenyExt(o, p) {
   const r = await askConfirmEx({ title: 'ไม่อนุมัติขยายเวลา', message: 'ลูกค้าจะยังชำระเองไม่ได้', okText: 'ไม่อนุมัติ', danger: true, ...notifyBoxOf(findCustomer(o.customerId)) })

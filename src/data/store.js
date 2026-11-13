@@ -243,11 +243,14 @@ const ORDER_CREATED_SMS_TPL = 'สวัสดีค่ะ {ชื่อลู�
 // เทมเพลตทีม "ใกล้เวลาต้องเสร็จ": จำนวนชั่วโมงเปลี่ยนตามที่ร้านตั้งได้ (ค่าเดิมฝังเลข 2 ไว้ในข้อความ)
 const DUE_SOON_OLD = '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน 2 ชม. (นัด {เวลานัด})'
 const DUE_SOON_TPL = '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน {ชั่วโมง} ชม. (นัด {เวลานัด})'
+const PAY_REQ_CANCEL_OLD = 'ออร์เดอร์ {เลขออร์เดอร์} ยกเลิกยอดที่แจ้งชำระ {ยอดที่แจ้ง} แล้วค่ะ'
+const PAY_REQ_CANCEL_TPL = 'ออร์เดอร์ {เลขออร์เดอร์} ยกเลิกยอดที่แจ้งชำระ {ยอดที่แจ้ง} แล้วค่ะ\nเหตุผล: {เหตุผล}\nกรุณาแจ้งชำระยอดใหม่ค่ะ'
 const DEFAULT_UPGRADES = {
   payment_confirmed: [PAY_CONFIRMED_OLD, PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL], delivered: [DELIVERED_OLD, DELIVERED_TPL], payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL],
   order_created: [ORDER_CREATED_OLD, ORDER_CREATED_TPL],
   team_due_soon: [DUE_SOON_OLD, DUE_SOON_TPL],
   payment_requested: [PAY_REQ_OLD, PAY_REQ_TPL],
+  payment_request_cancelled: [PAY_REQ_CANCEL_OLD, PAY_REQ_CANCEL_TPL],
   team_new_order: [[TEAM_NEW_ORDER_OLD, TEAM_NEW_ORDER_V2], TEAM_NEW_ORDER_TPL], team_payment_confirmed: [[TEAM_PAID_OLD, TEAM_PAID_V2], TEAM_PAID_TPL], team_cancelled: [[TEAM_CANCEL_OLD, TEAM_CANCEL_V2], TEAM_CANCEL_TPL],
 }
 // u[0] = ข้อความเดิม (ข้อความเดียว หรือรายการ) → ถ้าตรงกับที่เก็บไว้ ให้ใช้ u[1] แทน
@@ -1145,10 +1148,13 @@ export function updatePaymentRequest(order, paymentId, p) {
 export function cancelPaymentRequest(order, paymentId, opts = {}) {
   const pay = order.payments.find((x) => x.id === paymentId)
   if (!pay || pay.status !== 'reported') return
+  const reason = String(opts.reason ?? '').trim()
+  if (!reason) return { error: 'ใส่เหตุผลการยกเลิก' }
   pay.status = 'cancelled'
-  log(order, `ยกเลิกยอดที่แจ้ง ${money(pay.requested)}`)
+  pay.cancelReason = reason
+  log(order, `ยกเลิกยอดที่แจ้ง ${money(pay.requested)} · เหตุผล: ${reason}`)
   if (order.status === 'payment_reported' && !order.payments.some((x) => x.status === 'reported')) order.status = 'awaiting_payment'
-  notifyOrder('payment_request_cancelled', order, { skip: opts.notify === false, noSms: opts.sms === false, requested: pay.requested })
+  notifyOrder('payment_request_cancelled', order, { skip: opts.notify === false, noSms: opts.sms === false, requested: pay.requested, reason })
 }
 
 // ยกเลิกยอดที่ยืนยันแล้ว (แอดมิน) · ไม่เหลือยอดที่ยืนยัน → ถอยสถานะเป็น แจ้งยอดแล้ว (ถ้ามีงวดที่แจ้งค้าง) หรือ รอชำระ
@@ -2480,6 +2486,7 @@ function orderVars(order, extra = {}) {
     คงค้าง: money(Math.max(t.balance, 0)),
     ยอดที่แจ้ง: extra.requested != null ? money(extra.requested) : '',
     ยอดที่ชำระ: extra.paid != null ? money(extra.paid) : '',
+    เหตุผล: extra.reason ?? '',
     ชำระแล้ว: money(Math.max(t.paid, 0)),
     ชำระก่อน: extra.dueAt ? dueText(extra.dueAt) : 'ไม่กำหนด',
     วันนัด: dateOnly(order.pickupAt),
