@@ -1,4 +1,5 @@
 import { filesEnv, isR2Ref, keyOfR2Ref, svcSign } from '../_shared/filesvc.ts'
+import { publicPaymentOf } from '../_shared/shoppay.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 // ลิงก์ออร์เดอร์ของลูกค้า (ดูอย่างเดียว ไม่ต้องล็อกอิน): รับ token → คืนข้อมูลออร์เดอร์ที่ตัดข้อมูลภายในออกแล้ว
@@ -70,6 +71,6 @@ Deno.serve(async (req) => {
     order: { id: row.id, code: row.code, customer_id: row.customer_id, status: row.status, fulfillment: row.fulfillment, channel: row.channel, data: d },
     customer,
     link: { ...nextLink, id: lr.data.id },
-    shop: { name: shop.data?.data?.v?.name || '' },
+    shop: { name: shop.data?.data?.v?.name || '', payment: publicPaymentOf(shop.data?.data?.v) },
   })
 })

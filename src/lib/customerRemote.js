@@ -42,7 +42,7 @@ const put = (list, item) => { const i = list.findIndex((x) => x.id === item.id);
 // ใส่ข้อมูลของลูกค้าที่ล็อกอินลงหน่วยความจำของเบราว์เซอร์นี้ (ดูอย่างเดียว · ออร์เดอร์ติดธง _remote)
 export function injectBundle(db, b) {
   put(db.customers, { note: '', ...b.customer })
-  for (const o of b.orders || []) put(db.orders, { ...rowToOrder(o), _remote: true })
+  for (const o of b.orders || []) put(db.orders, { ...rowToOrder(o), _remote: true, _payInfo: b.shop?.payment || null })
   for (const c of b.coupons || []) put(db.coupons, c)
   for (const c of b.consents || []) put(db.consents, c)
   for (const c of b.reviews || []) put(db.reviews, c)
