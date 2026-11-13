@@ -33,6 +33,10 @@ function corsHeaders(req, env) {
   return { 'Access-Control-Allow-Origin': allowed.includes(o) ? o : allowed[0] || '*', Vary: 'Origin', 'Access-Control-Allow-Headers': 'authorization, content-type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' }
 }
 const json = (req, env, body, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders(req, env), 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
+// ---- เรียกจากฟังก์ชันของ Supabase (Bearer = คีย์ลับ FILES_SERVICE_KEY) ----
+const serviceOk = (req, env) => { const m = /^Bearer (.+)$/.exec(req.headers.get('Authorization') || ''); return !!env.FILES_SERVICE_KEY && !!m && safeEq(m[1], env.FILES_SERVICE_KEY) }
+const validKey = (k) => typeof k === 'string' && k.length > 0 && k.length <= 200 && /^[A-Za-z0-9_\-\/]+\.(png|jpg|webp)$/.test(k) && !k.includes('..') && !k.includes('//') && !k.startsWith('/')
+const clampTtl = (n) => { const x = Math.round(Number(n)); return Number.isFinite(x) && x >= 60 && x <= 3600 ? x : SIGN_TTL }
 
 // เรียก Supabase REST ด้วยคีย์ service role (ฝั่งเซิร์ฟเวอร์เท่านั้น)
 const sbFetch = (env, path) => fetch(`${env.SUPABASE_URL}${path}`, { headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` } })
@@ -83,6 +87,7 @@ async function orderOfLink(env, token) {
 async function allowedToSee(req, env, key, body) {
   const staff = await staffOf(req, env)
   if (key.startsWith('chat/')) return !!staff && (staff.perms || []).some((p) => p === 'chat' || p === 'manage')
+  if (key.startsWith('staff/')) return !!staff && (staff.perms || []).some((p) => p === 'chat' || p === 'manage')
   if (staff) return true
   const orderId = key.split('/')[0]
   if (!orderId) return false
@@ -135,6 +140,9 @@ export default {
 
     if (req.method !== 'POST') return json(req, env, { error: 'method' }, 405)
 
+    // ---- เรียกจากฟังก์ชันของ Supabase (คีย์ลับ) ----
+    if (path.startsWith('/svc/')) return serviceOk(req, env) ? svcRoute(req, env, url, path) : json(req, env, { error: 'unauthorized' }, 401)
+
     // ---- ออกลิงก์ชั่วคราว ----
     if (path === '/sign') {
       const body = await req.json().catch(() => ({}))
@@ -153,7 +161,8 @@ export default {
       const bucket = url.searchParams.get('bucket')
       const prefix = safePrefix(url.searchParams.get('prefix') || '')
       if (!prefix || !['public', 'private'].includes(bucket)) return json(req, env, { error: 'พารามิเตอร์ไม่ถูกต้อง' }, 400)
-      if (!hasAnyPerm(staff, bucket === 'public' ? ['editItems'] : needForPrivateKey(`${prefix}/x`))) return json(req, env, { error: 'ไม่มีสิทธิ์อัปโหลดไฟล์ประเภทนี้' }, 403)
+      const need = bucket === 'public' ? ['editItems'] : prefix.startsWith('staff/') ? ['chat'] : needForPrivateKey(`${prefix}/x`)
+      if (!hasAnyPerm(staff, need)) return json(req, env, { error: 'ไม่มีสิทธิ์อัปโหลดไฟล์ประเภทนี้' }, 403)
       const bytes = new Uint8Array(await req.arrayBuffer())
       const lim = await getImageLimits(env)
       if (bytes.length === 0 || bytes.length > lim.maxMB * 1024 * 1024) return json(req, env, { error: `ไฟล์ว่างหรือใหญ่เกิน ${lim.maxMB} MB` }, 400)
@@ -208,8 +217,64 @@ export default {
 
   // ลบอัตโนมัติรายวัน (Cron): เฉพาะสลิปและรูปอ้างอิงที่ออเดอร์ปิดเกินจำนวนวันที่ตั้งไว้ และไม่ถูกอ้างอิงแล้ว · รูปงานไม่ลบเด็ดขาด
   async scheduled(_event, env, ctx) {
-    ctx.waitUntil(runCleanup(env))
+    ctx.waitUntil(Promise.allSettled([runCleanup(env), runTrainPrune(env)]))
   },
+}
+
+// ---------- เรียกจากฟังก์ชันของ Supabase (svc) ----------
+async function svcRoute(req, env, url, path) {
+  if (path === '/svc/upload') {
+    const prefix = safePrefix(url.searchParams.get('prefix') || '')
+    if (!prefix || url.searchParams.get('bucket') !== 'private') return json(req, env, { error: 'พารามิเตอร์ไม่ถูกต้อง' }, 400)
+    const bytes = new Uint8Array(await req.arrayBuffer())
+    const lim = await getImageLimits(env)
+    if (bytes.length === 0 || bytes.length > lim.maxMB * 1024 * 1024) return json(req, env, { error: `ไฟล์ว่างหรือใหญ่เกิน ${lim.maxMB} MB` }, 400)
+    const kind = extOf(bytes)
+    if (!kind) return json(req, env, { error: 'ไฟล์ไม่ใช่รูปภาพที่รองรับ (PNG / JPG / WEBP)' }, 400)
+    const key = `${prefix}/${rand()}.${kind.ext}`
+    await env.FILES_PRIVATE.put(key, bytes, { httpMetadata: { contentType: kind.type } })
+    return json(req, env, { key, ref: `r2://private/${key}` })
+  }
+  if (path === '/svc/sign') {
+    const body = await req.json().catch(() => ({}))
+    const key = String(body.key || '')
+    if (!validKey(key)) return json(req, env, { error: 'key ไม่ถูกต้อง' }, 400)
+    const exp = Math.floor(Date.now() / 1000) + clampTtl(body.ttl)
+    const sig = await hmacHex(env.SIGN_KEY, `${key}|${exp}`)
+    return json(req, env, { url: `${url.origin}/f/${encodeURIComponent(key)}?exp=${exp}&sig=${sig}`, exp })
+  }
+  if (path === '/svc/delete') {
+    const body = await req.json().catch(() => ({}))
+    const keys = (Array.isArray(body.keys) ? body.keys : []).map(String).filter(validKey).slice(0, 100)
+    if (keys.length) await env.FILES_PRIVATE.delete(keys)
+    return json(req, env, { ok: true, deleted: keys.length })
+  }
+  return json(req, env, { error: 'ไม่พบเส้นทาง' }, 404)
+}
+
+// รูปชุดเทรน (train/…): ลบถาวรเมื่อครบ 30 วัน (ไม่ผ่านถังขยะ) แล้วลบรายการ slipTrain ที่เก่ากว่านั้นในฐานข้อมูลด้วย
+const TRAIN_DAYS = 30
+export async function runTrainPrune(env) {
+  const cut = Date.now() - TRAIN_DAYS * DAY
+  let cursor = undefined
+  let pages = 0
+  let removed = 0
+  do {
+    const page = await env.FILES_PRIVATE.list({ prefix: 'train/', cursor, limit: 500 })
+    const old = (page.objects || []).filter((o) => o.uploaded && new Date(o.uploaded).getTime() <= cut).map((o) => o.key)
+    for (let i = 0; i < old.length; i += DELETE_BATCH) {
+      const batch = old.slice(i, i + DELETE_BATCH)
+      await env.FILES_PRIVATE.delete(batch)
+      removed += batch.length
+    }
+    cursor = page.truncated ? page.cursor : undefined
+    pages++
+  } while (cursor && pages < MAX_LIST_PAGES)
+  await fetch(`${env.SUPABASE_URL}/rest/v1/punpang_records?collection=eq.slipTrain&data->>at=lt.${encodeURIComponent(new Date(cut).toISOString())}`, {
+    method: 'DELETE',
+    headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, Prefer: 'return=minimal' },
+  })
+  return removed
 }
 
 // ---------- การลบไฟล์ ----------
@@ -220,6 +285,7 @@ const clampDays = (n, d) => { const x = Math.round(Number(n)); return Number.isF
 export function fileTypeOf(key) {
   const parts = String(key).split('/')
   if (parts[0] === TRASH_DIR) return 'trash'
+  if (parts[0] === 'train') return 'other' // รูปชุดเทรน ไม่ใช่ไฟล์ของออร์เดอร์ (ลบด้วย runTrainPrune)
   if (parts.length < 2 || !parts[0]) return 'other'
   if (parts[1] === 'work') return 'work'
   if (parts[1] === 'ref') return 'ref'

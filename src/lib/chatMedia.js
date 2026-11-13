@@ -1,4 +1,7 @@
-// ไฟล์แนบจากลูกค้า (bucket private punpang-chat): ขอ signed URL ตอนแสดง · เก็บ cache ในหน่วยความจำ ~50 นาที
+// ไฟล์แนบในแชท: ขอลิงก์ชั่วคราวตอนแสดง · เก็บ cache ในหน่วยความจำ ~50 นาที
+// อ้างอิง r2://… → Worker (R2) · path เดิม (ไม่มี scheme) → Supabase Storage (ไฟล์เก่า อ่านอย่างเดียว)
+import { signedUrlFor } from './storage'
+
 const TTL_S = 3600
 const KEEP_MS = 50 * 60 * 1000
 const cache = new Map() // path -> { url, exp }
@@ -20,6 +23,7 @@ export async function chatMediaUrl(path, now = Date.now()) {
 
 export function makeSigner(client) {
   return async (path) => {
+    if (String(path).startsWith('r2://')) return signedUrlFor(client, path, TTL_S)
     const r = await client.storage.from('punpang-chat').createSignedUrl(path, TTL_S)
     return r.error ? null : r.data?.signedUrl || null
   }

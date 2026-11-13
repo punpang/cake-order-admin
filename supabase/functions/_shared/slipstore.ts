@@ -1,8 +1,9 @@
 // ที่เก็บผลอ่านสลิป ใช้ร่วมกันทั้งแชทและหน้าสั่งของลูกค้า
 // 1) ผลที่ตัวอ่านตอบแล้ว (อ่านได้หรือไม่ก็ตาม) จำไว้ตามเลขอ้างอิง (ธนาคารต้นทาง + ref) เลขเดิมจึงไม่ส่งโมเดลซ้ำ · ตัวอ่านผิดพลาดชั่วคราวไม่จำ รอบหน้าลองใหม่
-// 2) สลิปที่อ่านไม่ครบ (ไม่มียอด / วัน-เวลา / เลขบัญชีผู้รับ อย่างใดอย่างหนึ่ง) เก็บรูปไว้โฟลเดอร์ train/ เพื่อนำไปเทรนภายหลัง · รูปเดิมเก็บครั้งเดียว
+// 2) สลิปที่อ่านไม่ครบ (ไม่มียอด / วัน-เวลา / เลขบัญชีผู้รับ อย่างใดอย่างหนึ่ง) เก็บรูปไว้ใน R2 ใต้ train/ ผ่าน Worker เพื่อนำไปเทรนภายหลัง · รูปเดิมเก็บครั้งเดียว · Worker ลบเองเมื่อครบ 30 วัน
 // ไม่เก็บชื่อผู้รับ (ระบบไม่ได้ใช้ชื่อ) · เลขบัญชีเก็บตามที่สลิปปิดไว้
 import { readSlipFieldsChain, type OcrEngine, type SlipFields } from './slipocr.ts'
+import { svcDelete, svcUpload, type FilesEnv } from './filesvc.ts'
 
 // อ่านได้ = มียอดหรือวัน-เวลา (เกณฑ์เดียวกับการแนบป้ายในแชท)
 export const usableFields = (f: SlipFields | null | undefined): f is SlipFields => !!f && (f.amount != null || f.paidAt != null)
@@ -36,34 +37,31 @@ export async function cacheSlipFields(sb: any, slipKey: string, fields: SlipFiel
   return !r?.error
 }
 
-// สลิปที่อ่านไม่ครบ: เก็บรูปไว้ train/ (ชื่อไฟล์จากแฮชรูป · รูปเดิมเก็บครั้งเดียว) แล้วบันทึกรายการ slipTrain พร้อมผลที่อ่านได้และฟิลด์ที่ขาด
+// สลิปที่อ่านไม่ครบ: เก็บรูปไว้ใน R2 ใต้ train/ (ผ่าน Worker) แล้วบันทึกรายการ slipTrain พร้อมผลที่อ่านได้และฟิลด์ที่ขาด
 // บันทึกรายการไม่สำเร็จ → ลบรูปที่เพิ่งอัปโหลด ไม่ให้ค้างโดยไม่มีรายการ
-export async function saveFailedSlip(sb: any, o: { bytes: Uint8Array; bankCode: string; source: 'chat' | 'order'; fields: SlipFields }): Promise<boolean> {
+export async function saveFailedSlip(sb: any, o: { bytes: Uint8Array; bankCode: string; source: 'chat' | 'order'; fields: SlipFields; files: FilesEnv }): Promise<boolean> {
   if (isCompleteSlip(o.fields)) return false
   const hash = await sha256Hex(o.bytes)
   const id = 'st' + hash.slice(0, 40)
   const exists = (await sb.from('punpang_records').select('id').eq('collection', 'slipTrain').eq('id', id).maybeSingle()).data
   if (exists) return false
-  const ext = o.bytes[0] === 0x89 ? 'png' : 'jpg'
-  const path = `train/${hash}.${ext}`
-  const bucket = sb.storage.from('punpang-slips')
-  const up = await bucket.upload(path, o.bytes, { contentType: ext === 'png' ? 'image/png' : 'image/jpeg', upsert: false })
-  if (up?.error) return false
+  let s: { key: string; ref: string }
+  try { s = await svcUpload(o.files, o.bytes, 'train') } catch { return false }
   const r = await sb.from('punpang_records').insert({
     collection: 'slipTrain', id,
     data: {
-      at: new Date().toISOString(), source: o.source, bankCode: o.bankCode, path, missing: missingOf(o.fields),
+      at: new Date().toISOString(), source: o.source, bankCode: o.bankCode, path: s.key, missing: missingOf(o.fields),
       fields: { amount: o.fields.amount ?? null, paidAt: o.fields.paidAt ?? null, receiverAccount: o.fields.receiverAccount ?? null },
     },
   })
-  if (r?.error) { await bucket.remove([path]); return false }
+  if (r?.error) { await svcDelete(o.files, [s.key]); return false }
   return true
 }
 
 // อ่านยอด วัน-เวลา และเลขบัญชีผู้รับของสลิปหนึ่งใบ (ใช้ทั้งแชทและหน้าสั่งของลูกค้า)
 // มีผลที่เคยได้ตามเลขอ้างอิงแล้ว → ใช้ผลนั้น ไม่เรียกตัวอ่าน · ไม่มี → เรียกตัวอ่านตามลำดับ แล้วจำผลที่ตอบแล้ว และเก็บสลิปที่อ่านไม่ครบเข้าชุดเทรน
 // ตัวอ่านผิดพลาดชั่วคราวโดยยังไม่ได้ผลที่ใช้ได้ → คืนผลให้คำขอนี้ แต่ไม่จำ (รอบหน้าลองอ่านใหม่)
-export async function readSlipOnce(sb: any, o: { key: string; bytes: Uint8Array; bankCode: string; source: 'chat' | 'order'; engines: OcrEngine[] }): Promise<SlipFields | null> {
+export async function readSlipOnce(sb: any, o: { key: string; bytes: Uint8Array; bankCode: string; source: 'chat' | 'order'; engines: OcrEngine[]; files: FilesEnv }): Promise<SlipFields | null> {
   if (!o.engines.length) return null
   const hit = await cachedSlipFields(sb, o.key)
   if (hit) return hit
@@ -72,6 +70,6 @@ export async function readSlipOnce(sb: any, o: { key: string; bytes: Uint8Array;
   if (!fields) return null
   if (status.errored && !usableFields(fields)) return fields
   await cacheSlipFields(sb, o.key, fields)
-  await saveFailedSlip(sb, { bytes: o.bytes, bankCode: o.bankCode, source: o.source, fields })
+  await saveFailedSlip(sb, { bytes: o.bytes, bankCode: o.bankCode, source: o.source, fields, files: o.files })
   return fields
 }

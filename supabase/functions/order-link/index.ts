@@ -1,3 +1,4 @@
+import { filesEnv, isR2Ref, keyOfR2Ref, svcSign } from '../_shared/filesvc.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 // ลิงก์ออร์เดอร์ของลูกค้า (ดูอย่างเดียว ไม่ต้องล็อกอิน): รับ token → คืนข้อมูลออร์เดอร์ที่ตัดข้อมูลภายในออกแล้ว
@@ -44,6 +45,7 @@ Deno.serve(async (req) => {
   // ข้อมูลส่วนตัว: ผู้ถือลิงก์ไม่ควรอ่านได้แม้เปิดดูผ่าน API (ลิงก์อาจถูกส่งต่อ) · ที่อยู่/แผนที่เห็นได้เฉพาะเจ้าของที่ล็อกอิน (customer-auth)
   for (const k of ['address', 'mapUrl', 'detail', 'birthday']) delete d[k]
   const sign = async (v: unknown) => {
+    if (isR2Ref(v)) return (await svcSign(filesEnv(), keyOfR2Ref(v), 3600)) || ''
     const m = typeof v === 'string' ? /^sb:\/\/([a-z0-9-]+)\/(.+)$/.exec(v) : null
     if (!m) return v
     const r = await sb.storage.from(m[1]).createSignedUrl(m[2], 3600)

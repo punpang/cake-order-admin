@@ -1,3 +1,4 @@
+import { filesEnv, svcDelete, svcUpload } from '../_shared/filesvc.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { PAY_MSG, bankByCode, checkCustomerTxn, normalizeRef, refTaken } from '../_shared/payfields.ts'
 import { slipKeyOf } from '../_shared/slip.ts'
@@ -92,7 +93,7 @@ Deno.serve(async (req) => {
     const key = Deno.env.get('ANTHROPIC_API_KEY') || ''
     if (flags.claude && key) engines.push({ name: 'claude', read: (x) => readSlipFields({ bytes: x, key, model: flags.model }) })
     if (!engines.length) return null
-    return readSlipOnce(sb, { key: slipKeyOf(qr.bankCode, normalizeRef(qr.ref)), bytes, bankCode: qr.bankCode, source: 'order', engines })
+    return readSlipOnce(sb, { key: slipKeyOf(qr.bankCode, normalizeRef(qr.ref)), bytes, bankCode: qr.bankCode, source: 'order', engines, files: filesEnv() })
   }
   const action = String(b.action || '')
   if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
@@ -216,15 +217,15 @@ Deno.serve(async (req) => {
         if (!target || target.status !== 'reported' || target.source === 'customer') return json({ error: 'ไม่พบยอดที่ร้านแจ้ง' }, 400)
         if (target.customerSubmitted) return json({ error: 'ส่งสลิปของยอดนี้แล้ว รอร้านตรวจสอบ' }, 400)
       }
-      // อัปโหลดสลิปก่อน (ล้มเหลว = ไม่แตะออร์เดอร์) · แนบซ้ำตอนลองใหม่ใช้ไฟล์เดิม
-      newSlipPath = `${row.id}/${randHex(16)}.${img.ext}`
-      const up = await sb.storage.from('punpang-slips').upload(newSlipPath, bytes, { contentType: img.type, upsert: false })
-      if (up.error) return json({ error: 'อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่' }, 500)
-      const slipRef = `sb://punpang-slips/${newSlipPath}`
+      // อัปโหลดสลิปก่อน (ล้มเหลว = ไม่แตะออร์เดอร์) · ไฟล์ใหม่เก็บที่ R2 ผ่าน Worker เท่านั้น · แนบซ้ำตอนลองใหม่ใช้ไฟล์เดิม
+      let up: { key: string; ref: string }
+      try { up = await svcUpload(filesEnv(), bytes, row.id) } catch { return json({ error: 'อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่' }, 500) }
+      newSlipPath = up.key
+      const slipRef = up.ref
       if (target) Object.assign(target, { amount: amt, slip: slipRef, note, customerSubmitted: true, submittedAt: nowIso(), ...txnFields })
       else {
         const al = await sb.rpc('punpang_alloc_numbers_server', { p_prefix: 'PAY', p_day: ddmmyy(), p_n: 1 })
-        if (al.error || !Number.isInteger(al.data)) { await sb.storage.from('punpang-slips').remove([newSlipPath]); return json({ error: 'ออกเลขรายการไม่สำเร็จ กรุณาลองใหม่' }, 500) }
+        if (al.error || !Number.isInteger(al.data)) { await svcDelete(filesEnv(), [newSlipPath]); return json({ error: 'ออกเลขรายการไม่สำเร็จ กรุณาลองใหม่' }, 500) }
         const code = `PAY-${ddmmyy()}-${String(al.data).padStart(5, '0')}`
         target = { id: `pay${Date.now().toString(36)}${randHex(3)}`, code, requested: amt, amount: amt, method: 'โอนเงิน', slip: slipRef, note, dueAt: '', extension: null, status: 'reported', source: 'customer', customerSubmitted: true, submittedAt: nowIso(), createdAt: nowIso(), reportedBy: 'customer', confirmedBy: null, ...txnFields }
         d.payments.push(target)
@@ -265,7 +266,7 @@ Deno.serve(async (req) => {
     // เขียนแบบเทียบ updated_at: ถ้าพนักงานแก้ออร์เดอร์พร้อมกัน แถวไม่ตรง → อ่านใหม่แล้วทำซ้ำ
     const up = await sb.from('punpang_orders').update({ data: d, status: newStatus }).eq('id', row.id).eq('updated_at', row.updated_at).select('id')
     if (up.error || !(up.data || []).length) {
-      if (newSlipPath) await sb.storage.from('punpang-slips').remove([newSlipPath]) // รอบหน้าอัปโหลดใหม่ (ไม่ทิ้งไฟล์ค้าง)
+      if (newSlipPath) await svcDelete(filesEnv(), [newSlipPath]) // รอบหน้าอัปโหลดใหม่ (ไม่ทิ้งไฟล์ค้าง)
       if (up.error) return json({ error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' }, 500)
       continue
     }

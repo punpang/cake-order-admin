@@ -3,10 +3,11 @@
 // เขียนออร์เดอร์แบบเทียบ updated_at (CAS) และเก็บไฟล์ในบัคเก็ตส่วนตัว punpang-slips เหมือน customer-order
 // กติกาเลขอ้างอิง/ธนาคาร/วัน-เวลาชำระ ใช้ชุดเดียวกับหน้าชำระเงินของลูกค้า (payfields.ts)
 import { buildSlipPayment, classifyThaiQr, latestOrderId, planAttach, slipKeyOf } from './slip.ts'
-import { imageSize, readQrTexts } from './qrimage.ts'
+import { readQrTexts } from './qrimage.ts'
 import { bankByCode, normalizeRef, paidAtFromMessage, refTaken } from './payfields.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine, type SlipFields } from './slipocr.ts'
 import { readSlipOnce } from './slipstore.ts'
+import { filesEnv, svcDelete, svcUpload, type FilesEnv } from './filesvc.ts'
 
 export type SlipOutcome =
   | 'matched' | 'duplicate' | 'no_order' | 'order_missing' | 'order_inactive' | 'order_paid' | 'pending_exists'
@@ -35,6 +36,7 @@ export type SlipJobInput = {
   ocrWai?: { accountId: string; token: string; model: string } // Workers AI (Cloudflare) · มีค่า = ลองก่อนระบบเดิม (Claude)
   ocrRead?: (o: { bytes: Uint8Array; key: string; model: string }) => Promise<SlipFields | null> // ทดสอบแทนการเรียก API จริง (ใช้กับ Claude)
   ocrReadBy?: Partial<Record<'wai' | 'claude', (o: { bytes: Uint8Array; key: string; model: string }) => Promise<SlipFields | null>>> // ทดสอบลำดับตัวอ่าน
+  files?: FilesEnv // เซิร์ฟเวอร์ไฟล์ (R2 ผ่าน Worker) · ไม่ระบุ = ใช้ FILES_URL / FILES_SERVICE_KEY จาก Deno.env
 }
 
 const TH_OFFSET = 7 * 3600_000
@@ -84,6 +86,7 @@ async function bell(sb: any, rec: { event: string; title: string; text: string; 
 // จุดเข้า: รูปหนึ่งรูปจากข้อความลูกค้า · คืนผลลัพธ์ (ทุกกรณีที่ไม่ใช่สลิปไม่แตะข้อมูล)
 export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> {
   const { sb, chatId, msgId, bytes } = input
+  const files: FilesEnv = input.files ?? filesEnv()
   const now = new Date(input.nowMs ?? Date.now())
   const rand = input.rand ?? randHex
   const cfg = await slipConfig(sb)
@@ -145,20 +148,18 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     engines.push({ name: 'claude', read: (x) => read({ bytes: x, key: input.ocrKey!, model: cfg.ocr.model }) })
   }
   // อ่านผ่าน readSlipOnce: ใช้ผลที่เคยได้ตามเลขอ้างอิงก่อน (ไม่เรียกโมเดลซ้ำ) · ผลที่ตอบแล้วจำไว้ · อ่านไม่ครบเก็บรูปไว้ชุดเทรน
-  const fields = await readSlipOnce(sb, { key, bytes, bankCode, source: 'chat', engines })
+  const fields = await readSlipOnce(sb, { key, bytes, bankCode, source: 'chat', engines, files })
 
   if (cfg.mode === 'manual') {
     // โหมดแมนนวล: เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์
-    const kind = imageSize(bytes)?.type === 'png' ? 'png' : 'jpg'
-    const path = `manual/${chatId}/${rand(16)}.${kind}`
-    const up = await sb.storage.from('punpang-slips').upload(path, bytes, { contentType: kind === 'png' ? 'image/png' : 'image/jpeg', upsert: false })
-    if (up?.error) return finish('upload_failed', undefined, orderId ?? undefined)
+    let staged: { key: string; ref: string }
+    try { staged = await svcUpload(files, bytes, `manual/${chatId}`) } catch { return finish('upload_failed', undefined, orderId ?? undefined) }
     const sug = orderId ? await sb.from('punpang_orders').select('id,code').eq('id', orderId).maybeSingle() : null
     const sugCode: string | undefined = sug?.data?.code || undefined
     const suggestedId = sugCode && orderId ? orderId : undefined
     await annotate(sb, chatId, msgId, {
       status: 'manual', ...(suggestedId ? { orderId: suggestedId, orderCode: sugCode } : {}),
-      slipRef: `sb://punpang-slips/${path}`, slipKey: key, bankCode, ...(bankName ? { bankName } : {}), ref, at: now.toISOString(),
+      slipRef: staged.ref, slipKey: key, bankCode, ...(bankName ? { bankName } : {}), ref, at: now.toISOString(),
       ...(fields?.amount != null ? { ocrAmount: fields.amount } : {}), ...(fields?.paidAt ? { ocrPaidAt: fields.paidAt } : {}), ...(fields?.receiverAccount ? { ocrReceiverAccount: fields.receiverAccount } : {}),
     })
     const amountNote = fields?.amount != null ? ` · ยอดจากสลิป ${fields.amount.toFixed(2)}` : ''
@@ -170,12 +171,11 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     return 'manual'
   }
 
-  const ext = imageSize(bytes)?.type === 'png' ? 'png' : 'jpg'
-  const contentType = ext === 'png' ? 'image/png' : 'image/jpeg'
-  let stagedPath: string | null = null
+  let stagedKey: string | null = null
+  let stagedRef = ''
   let code = ''
   let paymentId = ''
-  const discardStaged = async () => { if (stagedPath) await sb.storage.from('punpang-slips').remove([stagedPath]) }
+  const discardStaged = async () => { if (stagedKey) await svcDelete(files, [stagedKey]) }
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const or = await sb.from('punpang_orders').select('id,code,status,customer_id,data,updated_at').eq('id', orderId).maybeSingle()
@@ -188,12 +188,12 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     const plan = planAttach({ status: row.status, data: d })
     if (!plan.ok) { await discardStaged(); return finish(plan.reason, row.code, row.id) }
 
-    // อัปโหลดไฟล์ครั้งเดียว (ลองใหม่ใช้ไฟล์เดิม) · ล้มเหลว = ไม่แตะออร์เดอร์
-    if (!stagedPath) {
-      const path = `${row.id}/${rand(16)}.${ext}`
-      const up = await sb.storage.from('punpang-slips').upload(path, bytes, { contentType, upsert: false })
-      if (up?.error) return finish('upload_failed', row.code, row.id)
-      stagedPath = path
+    // อัปโหลดไฟล์ครั้งเดียวไป R2 (ลองใหม่ใช้ไฟล์เดิม) · ล้มเหลว = ไม่แตะออร์เดอร์
+    if (!stagedKey) {
+      let s: { key: string; ref: string }
+      try { s = await svcUpload(files, bytes, row.id) } catch { return finish('upload_failed', row.code, row.id) }
+      stagedKey = s.key
+      stagedRef = s.ref
     }
     // ออกเลข PAY ครั้งเดียว (เหมือนการแจ้งชำระจากหน้าออร์เดอร์)
     if (!code) {
@@ -204,7 +204,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     }
 
     const payment = buildSlipPayment({
-      id: paymentId, code, amount: fields?.amount ?? plan.amount, slipRef: `sb://punpang-slips/${stagedPath}`, slipKey: key,
+      id: paymentId, code, amount: fields?.amount ?? plan.amount, slipRef: stagedRef, slipKey: key,
       paidAt: fields?.paidAt ?? paidAtFromMessage(msgAt, d.createdAt, now.getTime()), nowIso: now.toISOString(),
       bankCode, bankName, ref,
     })
