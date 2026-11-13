@@ -274,8 +274,8 @@ Deno.serve(async (req) => {
       if (pid) {
         target = d.payments.find((x: any) => x.id === pid)
         if (!target) return json({ error: 'ไม่พบยอดที่ร้านแจ้ง' }, 400)
-        // QR ที่เคยรับสลิปแล้ว (ลูกค้าใช้ QR ซ้ำ) → สลิปนี้เป็นรายการใหม่ให้พนักงานผูกกับออร์เดอร์
-        if (target.qrRequest && target.customerSubmitted) target = null
+        // QR ของรายการที่ถูกยกเลิกแล้ว → ใช้ QR ซ้ำได้: สลิปนี้เป็นรายการใหม่ให้พนักงานผูกกับออร์เดอร์
+        if (target.qrRequest && target.status === 'cancelled') target = null
         else {
           // รายการที่ลูกค้าขอ QR ไว้เอง (qrRequest) รับสลิปได้ · ยอดต้องตรงกับ QR ที่ออกไว้
           if (target.status !== 'reported' || (target.source === 'customer' && !target.qrRequest)) return json({ error: 'ไม่พบยอดที่ร้านแจ้ง' }, 400)
