@@ -25,8 +25,12 @@ export function preconnectHints(env = {}) {
   }
 }
 
+// ข้อความเวอร์ชันบนหน้า "กำลังเตรียมข้อมูล" (index.html: %BUILD_INFO%) · เวลาอัปเดต = เวลาที่ build
+const buildNote = `เวอร์ชัน ${pkg.version} · build ${commit} · อัปเดต ${new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short' })}`
+const buildInfoHtml = () => ({ name: 'build-info-html', transformIndexHtml: (html) => html.replace('%BUILD_INFO%', buildNote) })
+
 export default defineConfig(({ mode }) => ({
-  plugins: [vue(), tailwindcss(), preconnectHints(loadEnv(mode, process.cwd(), 'VITE_'))],
+  plugins: [vue(), tailwindcss(), preconnectHints(loadEnv(mode, process.cwd(), 'VITE_')), buildInfoHtml()],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __APP_COMMIT__: JSON.stringify(commit),
