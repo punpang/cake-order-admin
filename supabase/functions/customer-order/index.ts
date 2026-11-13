@@ -257,7 +257,7 @@ Deno.serve(async (req) => {
       if (ref) {
         const seen = await sb.from('punpang_orders').select('id,data').contains('data', { payments: [{ ref }] })
         if (seen.error) return json({ error: 'ตรวจเลขอ้างอิงไม่สำเร็จ กรุณาลองใหม่' }, 500)
-        if ((seen.data || []).some((r: any) => refTaken(r.data?.payments, ref))) return json({ error: PAY_MSG.refTaken }, 400)
+        if ((seen.data || []).some((r: any) => (r.id !== row.id || ['delivered', 'cancelled'].includes(row.status)) && refTaken(r.data?.payments, ref))) return json({ error: PAY_MSG.refTaken }, 400)
       }
       const ocrFields = { ...(fields?.amount != null ? { ocrAmount: fields.amount } : {}), ...(fields?.paidAt ? { ocrPaidAt: fields.paidAt } : {}), ...(fields?.receiverAccount ? { ocrReceiverAccount: fields.receiverAccount } : {}) }
       const txnFields = { ...ocrFields, paidAt, bankCode: bankCode || null, bankName: bankCode ? (bankByCode(bankCode)?.name ?? null) : null, ref: ref || '', refSource: qr.kind === 'slip' ? 'qr' : (ref ? 'typed' : '') }
@@ -273,10 +273,15 @@ Deno.serve(async (req) => {
       let target: any = null
       if (pid) {
         target = d.payments.find((x: any) => x.id === pid)
-        // รายการที่ลูกค้าขอ QR ไว้เอง (qrRequest) รับสลิปได้ · ยอดต้องตรงกับ QR ที่ออกไว้
-        if (!target || target.status !== 'reported' || (target.source === 'customer' && !target.qrRequest)) return json({ error: 'ไม่พบยอดที่ร้านแจ้ง' }, 400)
-        if (target.customerSubmitted) return json({ error: 'ส่งสลิปของยอดนี้แล้ว รอร้านตรวจสอบ' }, 400)
-        if (target.qrRequest && amt !== r2(Number(target.amount))) return json({ error: 'ยอดต้องตรงกับ QR ที่สร้างไว้' }, 400)
+        if (!target) return json({ error: 'ไม่พบยอดที่ร้านแจ้ง' }, 400)
+        // QR ของรายการที่ถูกยกเลิกแล้ว → ใช้ QR ซ้ำได้: สลิปนี้เป็นรายการใหม่ให้พนักงานผูกกับออร์เดอร์
+        if (target.qrRequest && target.status === 'cancelled') target = null
+        else {
+          // รายการที่ลูกค้าขอ QR ไว้เอง (qrRequest) รับสลิปได้ · ยอดต้องตรงกับ QR ที่ออกไว้
+          if (target.status !== 'reported' || (target.source === 'customer' && !target.qrRequest)) return json({ error: 'ไม่พบยอดที่ร้านแจ้ง' }, 400)
+          if (target.customerSubmitted) return json({ error: 'ส่งสลิปของยอดนี้แล้ว รอร้านตรวจสอบ' }, 400)
+          if (target.qrRequest && amt !== r2(Number(target.amount))) return json({ error: 'ยอดต้องตรงกับ QR ที่สร้างไว้' }, 400)
+        }
       }
       // อัปโหลดสลิปก่อน (ล้มเหลว = ไม่แตะออร์เดอร์) · ไฟล์ใหม่เก็บที่ R2 ผ่าน Worker เท่านั้น · แนบซ้ำตอนลองใหม่ใช้ไฟล์เดิม
       let up: { key: string; ref: string }
