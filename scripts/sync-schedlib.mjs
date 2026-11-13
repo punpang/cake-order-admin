@@ -5,7 +5,11 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-export const SCHEDLIB_FILES = ['constants.js', 'format.js', 'pricing.js', 'payDue.js', 'loyalty.js', 'birthday.js', 'notifyPlan.js', 'bell.js', 'orderLink.js']
+// ไฟล์ใน src/lib (เส้นทางสัมพัทธ์จาก src/lib) · acct/* ใช้คำนวณเตือนค่าใช้จ่ายประจำและผ่อนชำระ
+export const SCHEDLIB_FILES = [
+  'constants.js', 'format.js', 'pricing.js', 'payDue.js', 'loyalty.js', 'birthday.js', 'notifyPlan.js', 'bell.js', 'orderLink.js',
+  'acct/plan.js', 'acct/period.js', 'acct/money.js',
+]
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 export const srcPath = (f) => join(ROOT, 'src', 'lib', f)
@@ -15,7 +19,9 @@ export const dstPath = (f) => join(ROOT, 'supabase', 'functions', '_shared', 'sc
 export const toDenoSource = (text) => text.replace(/(from '\.\/[A-Za-z0-9_-]+)'/g, "$1.js'")
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  mkdirSync(dirname(dstPath(SCHEDLIB_FILES[0])), { recursive: true })
-  for (const f of SCHEDLIB_FILES) writeFileSync(dstPath(f), toDenoSource(readFileSync(srcPath(f), 'utf8')))
+  for (const f of SCHEDLIB_FILES) {
+    mkdirSync(dirname(dstPath(f)), { recursive: true })
+    writeFileSync(dstPath(f), toDenoSource(readFileSync(srcPath(f), 'utf8')))
+  }
   console.log(`synced ${SCHEDLIB_FILES.length} files`)
 }
