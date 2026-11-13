@@ -482,7 +482,7 @@ export const db = reactive({
   // บอทตอบแชท (ค่าเริ่มต้นปิด): rules = กฎคีย์เวิร์ด · learned = คู่ ถาม→ตอบ ที่เรียนจากพนักงาน (ตัดข้อมูลส่วนบุคคลแล้ว) · stats
   bot: JSON.parse(JSON.stringify(BOT_DEFAULTS)),
   // สลิปในแชท (config slipQr): enabled = ตรวจรูปสลิปในแชท · mode = auto (แนบกับออร์เดอร์ที่คุยล่าสุดอัตโนมัติ) | manual (ร้านเลือกออร์เดอร์ผูกเองในแชท)
-  slipQr: { enabled: true, mode: 'auto', ocr: { enabled: false } }, // ocr.enabled = อ่านยอด/วัน-เวลาจากภาพสลิปด้วย Claude (ปิดเป็นค่าเริ่มต้น)
+  slipQr: { enabled: true, mode: 'auto', ocr: { shop: false, wai: false, claude: false } }, // ocr = อ่านยอด/วัน-เวลาจากภาพสลิป: shop (บริการของร้าน) · wai (Workers AI) · claude (ลำดับ: ของร้าน → Workers AI → Claude) (ปิดเป็นค่าเริ่มต้น)
   // จัดการข้อมูลที่อาจเป็นขยะ (config retention): แต่ละหมวดเปิด/ปิดได้ และกำหนดจำนวนวันที่เก็บ · ค่าเริ่มต้นตรงกับฟังก์ชัน punpang_run_retention
   retention: { slipRead: { enabled: true, days: 30 }, chatMedia: { enabled: true, days: 30 }, aiLog: { enabled: false, days: 90 }, bell: { enabled: false, days: 90 }, orderLinks: { enabled: false, days: 180 } },
   // shortLinks: [{ id, code, target, kind: internal | external, clicks, createdAt, expiresAt, active, note }]
@@ -3164,7 +3164,9 @@ export function saveRetentionSettings(d) {
 // db.slipQr (punpang_kv config slipQr): enabled = ตรวจรูปสลิปในแชท · mode = auto | manual (ค่าอื่น = auto)
 export function saveSlipQrSettings(d) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
-  Object.assign(db.slipQr, { enabled: d?.enabled !== false, mode: d?.mode === 'manual' ? 'manual' : 'auto', ocr: { ...(db.slipQr.ocr || {}), enabled: d?.ocr?.enabled === true } })
+  const prevOcr = { ...(db.slipQr.ocr || {}) }
+  delete prevOcr.enabled // ค่าเดิมถูกแทนด้วยสวิตช์ claude
+  Object.assign(db.slipQr, { enabled: d?.enabled !== false, mode: d?.mode === 'manual' ? 'manual' : 'auto', ocr: { ...prevOcr, shop: d?.ocr?.shop === true, wai: d?.ocr?.wai === true, claude: d?.ocr?.claude === true } })
   return { ok: true }
 }
 // ตัวเลือกของสลิปที่รอผูก: ที่แนะนำ (ออร์เดอร์ที่คุยล่าสุด) + ออร์เดอร์อื่นของลูกค้าคนเดียวกัน · room = ยอดที่ผูกได้ (0 = ผูกไม่ได้)

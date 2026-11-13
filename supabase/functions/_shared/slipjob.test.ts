@@ -302,8 +302,9 @@ Deno.test('ข้อผิดพลาดอื่นตอนแนบ (ไม�
   assertEquals(sb.T.punpang_orders[0].data.payments.length, 0)
 })
 
-// ---- อ่านยอดและวัน-เวลาจากภาพ (ตั้งค่า ocr.enabled) ----
-const kvOcr = (mode: 'auto' | 'manual', enabled: boolean) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled: true, mode, ocr: { enabled } } } })
+// ---- อ่านยอดและวัน-เวลาจากภาพ (ตั้งค่า ocr.claude) ----
+const kvOcr = (mode: 'auto' | 'manual', enabled: boolean) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled: true, mode, ocr: { claude: enabled } } } })
+const kvOcrAll = (flags: { shop?: boolean; wai?: boolean; claude?: boolean }) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled: true, mode: 'auto', ocr: flags } } })
 const ocrFields = (f: { amount: number | null; paidAt: string | null }) => async () => f
 
 Deno.test('OCR เปิด (อัตโนมัติ): ใช้ยอดและวัน-เวลาที่อ่านจากภาพ แทนยอดคงค้างและเวลาข้อความ', async () => {
@@ -360,4 +361,26 @@ Deno.test('สลิปใหม่ (ยังไม่เคยเก็บใ�
   let called = false
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrKey: 'k', ocrRead: async () => { called = true; return null } }), 'manual')
   assertEquals(called, true)
+})
+
+Deno.test('ลำดับตัวอ่าน: ของร้าน → Workers AI → Claude และตัวถัดไปทำงานเมื่อตัวก่อนอ่านไม่ได้', async () => {
+  const calls: string[] = []
+  const none = (name: string) => async () => { calls.push(name); return null }
+  const empty = (name: string) => async () => { calls.push(name); return { amount: null, paidAt: null, receiverName: null, receiverAccount: null } }
+  const hit = (name: string) => async () => { calls.push(name); return { amount: 178, paidAt: '2026-11-11T14:48', receiverName: null, receiverAccount: null } }
+  const opts = (ocrReadBy: any) => ({ ocrKey: 'k', ocrRemote: { url: 'https://ocr.example/', token: 't' }, ocrWai: { accountId: 'a', token: 't', model: '' }, ocrReadBy })
+  // ของร้านตอบผลว่าง (ไม่มียอดและวัน-เวลา) → ไปลอง Workers AI ที่ได้ผล → ไม่เรียก Claude
+  const sb1 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ shop: true, wai: true, claude: true })] })
+  assertEquals(await runCheck(sb1, await slipScreenshot(SLIP), opts({ shop: empty('shop'), wai: hit('wai'), claude: none('claude') })), 'matched')
+  assertEquals(calls, ['shop', 'wai'])
+  // ทั้งสามเปิด ของร้านและ Workers AI ไม่ได้ผล → Claude
+  calls.length = 0
+  const sb3 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ shop: true, wai: true, claude: true })] })
+  assertEquals(await runCheck(sb3, await slipScreenshot(SLIP), opts({ shop: none('shop'), wai: none('wai'), claude: hit('claude') })), 'matched')
+  assertEquals(calls, ['shop', 'wai', 'claude'])
+  // ปิดของร้านและ Workers AI → ใช้ Claude เท่านั้น
+  calls.length = 0
+  const sb2 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ shop: false, wai: false, claude: true })] })
+  await runCheck(sb2, await slipScreenshot(SLIP), opts({ shop: none('shop'), wai: none('wai'), claude: hit('claude') }))
+  assertEquals(calls, ['claude'])
 })

@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
   const sha = async (b: Uint8Array) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(b)))].map((x) => x.toString(16).padStart(2, '0')).join('')
   const slipFieldsOf = async (bytes: Uint8Array) => {
     const cfg = (await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()).data?.data?.v?.ocr
-    if (cfg?.enabled !== true) return null
+    if (!(cfg?.claude === true || (cfg?.claude === undefined && cfg?.enabled === true))) return null
     const key = Deno.env.get('ANTHROPIC_API_KEY') || ''
     if (!key) return null
     const id = `sr${(await sha(bytes)).slice(0, 40)}`
