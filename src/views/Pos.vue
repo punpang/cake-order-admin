@@ -281,7 +281,7 @@ const qrLeft = (l) => { const sec = Math.max(0, Math.ceil((new Date(l.qrExpiresA
 function openPay() {
   if (!cart.value.length) return
   payErr.value = ''
-  payLines.value = [{ key: newKey(), method: 'cash', amount: String(total.value), received: '', qrRef: '', qrExpiresAt: '', confirmed: false }]
+  payLines.value = []
   payNow.value = Date.now()
   clearInterval(payTimer)
   payTimer = setInterval(() => { payNow.value = Date.now(); tickLines(); if (++payTick % 5 === 0) pollManee() }, 1000)
