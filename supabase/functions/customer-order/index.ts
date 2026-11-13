@@ -5,6 +5,7 @@ import { slipKeyOf } from '../_shared/slip.ts'
 import { readSlipQr } from '../_shared/slipread.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine } from '../_shared/slipocr.ts'
 import { readSlipOnce } from '../_shared/slipstore.ts'
+import { inFbWindow, renderSlipNotice, slipNoticeOn, slipNoticeTemplate } from '../_shared/slipnotice.ts'
 
 // การกระทำของลูกค้าบนออร์เดอร์ (ฝั่งเซิร์ฟเวอร์): แจ้งชำระ(แนบสลิป) · ขอขยายเวลา · ขอ/ยกเลิกขอไม่เผยแพร่รูป
 // ยืนยันตัวตนได้ 2 แบบ: ลิงก์ออร์เดอร์ (token 32 ตัวอักษร เก็บ hash ใน punpang_records) หรือเซสชันลูกค้า (+ orderId ที่เป็นของตัวเอง)
@@ -65,6 +66,46 @@ function decodeSlip(s: unknown): { bytes: Uint8Array; type: string; ext: string 
   const kind = sniffImage(bytes)
   if (!kind) return { error: 'ไฟล์สลิปไม่ใช่รูปภาพที่รองรับ (PNG / JPG / WEBP)' }
   return { bytes, type: kind.type, ext: kind.ext }
+}
+
+// ---------- แจ้งลูกค้าทาง Facebook เมื่อส่งสลิปผ่านหน้าออร์เดอร์/บัญชี (งานพื้นหลัง · ไม่ทำให้การส่งสลิปล้มเหลว) ----------
+type SlipNotice = { orderCode: string; orderId: string; customerId: string; amount: number }
+async function notifySlipFacebook(sb: any, n: SlipNotice): Promise<void> {
+  const nowIso = () => new Date().toISOString()
+  const bellFail = (reason: string) => sb.from('punpang_records').insert({ collection: 'bell', id: `bl${randHex(6)}`, data: { audience: 'staff', event: 'notify_failed', title: 'แจ้งลูกค้าไม่สำเร็จ', text: `${n.orderCode} · ${reason}`, orderId: n.orderId, readBy: [], at: nowIso() } })
+  const cu = await sb.from('punpang_customers').select('name,data').eq('id', n.customerId).maybeSingle()
+  const psid = String(cu.data?.data?.fbPsid || '')
+  if (!/^\d{5,30}$/.test(psid)) return // ลูกค้ารายนี้ไม่ได้ผูก Facebook
+  const kv = await sb.from('punpang_kv').select('id,data').eq('collection', 'config').in('id', ['notifyRules', 'integrations'])
+  const cfg: { notifyRules?: any; integrations?: any } = {}
+  for (const r of kv.data || []) {
+    if (r.id === 'notifyRules') cfg.notifyRules = r.data?.v
+    if (r.id === 'integrations') cfg.integrations = r.data?.v
+  }
+  if (!slipNoticeOn(cfg)) return
+  const pg = await sb.from('punpang_fb_pages').select('token').limit(1).maybeSingle()
+  if (!pg.data?.token) return
+  const chat = await sb.from('punpang_chats').select('id,data,updated_at').eq('channel', 'facebook').eq('external_id', psid).maybeSingle()
+  if (!chat.data) return
+  if (!inFbWindow(chat.data.data?.lastInboundAt, Date.now())) { await bellFail('เกิน 24 ชม. หลังลูกค้าทัก Facebook ล่าสุด ส่งไม่ได้'); return }
+  const text = renderSlipNotice(slipNoticeTemplate(cfg), { code: n.orderCode, amount: n.amount, name: String(cu.data?.name || '').trim() })
+  const ver = (Deno.env.get('FB_GRAPH_VERSION') || 'v24.0').trim()
+  let sent = false
+  try {
+    const r = await fetch(`https://graph.facebook.com/${ver}/me/messages?${new URLSearchParams({ access_token: pg.data.token })}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipient: { id: psid }, messaging_type: 'RESPONSE', message: { text } }), signal: AbortSignal.timeout(10000) })
+    sent = r.ok
+  } catch { sent = false }
+  // บันทึกลงแชทเป็นข้อความของระบบ (พร้อมผลส่ง) · เขียนแบบเทียบ updated_at กันชนกับ webhook
+  const sm = { id: `cm${randHex(6)}`, from: 'staff', kind: 'text', text, orderId: n.orderId, quoteId: null, replyTo: null, ask: null, answerFor: null, filled: null, at: nowIso(), by: 'ระบบ', delivery: sent ? 'sent' : 'failed', ...(sent ? {} : { deliveryError: 'ส่ง Facebook ไม่สำเร็จ' }) }
+  for (let i = 0; i < 4; i++) {
+    const cur = await sb.from('punpang_chats').select('id,data,updated_at').eq('id', chat.data.id).maybeSingle()
+    if (cur.error || !cur.data) break
+    const d = cur.data.data || {}
+    const msgs: any[] = Array.isArray(d.messages) ? d.messages : []
+    const up = await sb.from('punpang_chats').update({ data: { ...d, messages: [...msgs, sm] } }).eq('id', chat.data.id).eq('updated_at', cur.data.updated_at).select('id')
+    if (!up.error && (up.data || []).length) break
+  }
+  if (!sent) await bellFail('ส่ง Facebook ไม่สำเร็จ')
 }
 
 Deno.serve(async (req) => {
@@ -158,6 +199,7 @@ Deno.serve(async (req) => {
     const order = { id: row.id, code: row.code, ...d }
     let newStatus = row.status
     let extraBell: { event: string; x: any } | null = null
+    let slipNotice: SlipNotice | null = null
     let result: Record<string, unknown> = { ok: true }
     let newSlipPath = ''
     let reqRow: { collection: string; id: string; data: any } | null = null
@@ -233,6 +275,7 @@ Deno.serve(async (req) => {
       logTo(d, `ลูกค้าแจ้งชำระ ${amt.toFixed(2)} ผ่านหน้าออร์เดอร์ (รอตรวจสลิป)`)
       if (row.status === 'awaiting_payment') newStatus = 'payment_reported'
       extraBell = { event: 'team_customer_paid', x: { amount: amt.toFixed(2) } }
+      slipNotice = { orderCode: row.code, orderId: row.id, customerId: row.customer_id, amount: amt }
       result = { ok: true, paymentId: target.id }
     } else if (action === 'extend') {
       const p = d.payments.find((x: any) => x.id === String(b.paymentId ?? ''))
@@ -273,6 +316,13 @@ Deno.serve(async (req) => {
     if (reqRow) await sb.from('punpang_records').insert(reqRow)
     if (cancelReq) await sb.from('punpang_records').update({ data: { ...cancelReq.data, status: 'cancelled', decidedAt: nowIso(), decidedBy: 'customer' } }).eq('collection', 'photoRequests').eq('id', cancelReq.id)
     if (extraBell) await bell(extraBell.event, { id: row.id, code: row.code }, extraBell.x)
+    if (slipNotice) {
+      // ไม่รอผลส่ง: ให้ลูกค้าได้รับคำตอบเร็ว · ถ้าเปิดได้ (EdgeRuntime.waitUntil) ให้งานทำต่อหลังตอบกลับ
+      const job = notifySlipFacebook(sb, slipNotice).catch((e) => console.error('slip-notify', String((e as Error)?.message || e)))
+      const er = (globalThis as any).EdgeRuntime
+      if (er?.waitUntil) er.waitUntil(job)
+      else await job
+    }
     return json(result)
   }
   return json({ error: 'ออร์เดอร์กำลังถูกแก้ไขอยู่ กรุณาลองใหม่อีกครั้ง' }, 409)
