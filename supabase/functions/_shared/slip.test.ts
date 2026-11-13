@@ -65,6 +65,12 @@ Deno.test('QR พร้อมเพย์ของร้าน → payment_qr (�
   assertEquals(classifyThaiQr(PROMPTPAY_540), { kind: 'payment_qr', aid: 'A000000677010111' })
 })
 
+// QR แบบ PromptPay Biller ที่ร้านสร้าง (src/lib/promptpay.js · รหัสร้านค้า 014000000517185 · POS/ORD ใน Ref 1/Ref 2) ต้องไม่ถูกนับเป็นสลิป
+const BILLER_540 = '00020101021230770016A00000067701011201150140000005171850215ORD1311260001230315ORD13112600012353037645406540.005802TH630431C8'
+Deno.test('QR Biller ของร้าน → payment_qr (ไม่ใช่สลิป)', () => {
+  assertEquals(classifyThaiQr(BILLER_540), { kind: 'payment_qr', aid: 'A000000677010112' })
+})
+
 Deno.test('ข้อความทั่วไป / ว่าง / ยาวเกินไป → other', () => {
   for (const t of ['', 'สวัสดีค่ะ', 'https://example.com/slip?id=123456', '0000', 'A'.repeat(600)]) assertEquals(classifyThaiQr(t).kind, 'other')
   assertEquals(classifyThaiQr(undefined).kind, 'other')

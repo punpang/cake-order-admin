@@ -40,6 +40,8 @@ import OrderPayModal from '../components/OrderPayModal.vue'
 import PayExtendModal from '../components/PayExtendModal.vue'
 import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
 import OrderLinkModal from '../components/OrderLinkModal.vue'
+import BillerQr from '../components/BillerQr.vue'
+import { shopRefOfCode } from '../lib/promptpay'
 import TaxInvoiceModal from '../components/TaxInvoiceModal.vue'
 import WorkPhotos from '../components/WorkPhotos.vue'
 import { invoiceOfOrder } from '../data/acct'
@@ -277,6 +279,7 @@ const cxl = reactive({ reason: '', refunds: [], refundNote: '', notify: true, sm
 const cxlError = ref('')
 const buyerOpen = ref(false)
 const linkOpen = ref(false)
+const qrOpen = ref(false)
 const taxOpen = ref(false)
 // ปุ่มในการ์ดลูกค้า (แสดงตามสิทธิ์และสถานะออร์เดอร์) · เงื่อนไขเดิมของแต่ละลิงก์คงไว้ทุกข้อ
 const custActions = computed(() => {
@@ -483,6 +486,7 @@ async function saveCancel() {
             </div>
             <div v-if="t.returned" class="mt-2 rounded-xl bg-rose-50 p-2.5 text-sm text-rose-700">คืนเงินแล้ว −{{ money(t.returned) }} · ชำระสุทธิ {{ money(t.paidNet) }}</div>
             <div v-if="t.reported" class="mt-2 rounded-xl bg-sky-50 p-2.5 text-sm text-sky-800">แจ้งยอดแล้ว รอลูกค้าชำระ {{ money(t.reported) }}</div>
+            <button v-if="can('reportPayment') && t.balance > 0 && order.status !== 'draft'" type="button" class="btn-soft mt-2 w-full" @click="qrOpen = true"><AppIcon name="wallet" :size="16" /> สร้าง QR ชำระ</button>
           </template>
 
           <dl class="mt-3 space-y-1.5 border-t border-stone-100 pt-3 text-sm">
@@ -793,6 +797,7 @@ async function saveCancel() {
   <ChangeBuyerModal v-if="buyerOpen && order" :order="order" @close="buyerOpen = false" />
   <OrderLinkModal v-if="linkOpen && order" :order="order" @close="linkOpen = false" />
   <TaxInvoiceModal v-if="taxOpen && order" :order="order" @close="taxOpen = false" />
+  <AppModal v-if="qrOpen && order" title="สร้าง QR ชำระ" @close="qrOpen = false"><BillerQr :amount="String(t.balance)" :ref-code="shopRefOfCode(order.code)" /></AppModal>
   <ItemEditor v-if="editing" :item="editing.item || null" :price-date="orderDate(order)" :customer="customer" :order="order" @save="onSaveItem" @close="editing = null" />
   <PickupModal v-if="pickupOpen && order" :order="order" @close="pickupOpen = false" />
   <AppModal v-if="bdOpen" title="วันเกิด" @close="bdOpen = false">

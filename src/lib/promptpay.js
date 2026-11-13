@@ -44,3 +44,35 @@ export function promptPayPayload(id, amount = null, ref = '') {
     '6304'
   return body + crc16(body)
 }
+
+// PromptPay Biller (ชำระผ่านผู้เรียกเก็บเงิน): tag 30 · AID A000000677010112 · 01 = Biller ID (15 หลัก) · 02 = Ref 1 · 03 = Ref 2
+// ร้าน: รหัสร้านค้า = Biller ID · POS/ORD ใส่ทั้ง Ref 1 และ Ref 2
+export const billerIdOf = (s) => {
+  const d = digitsOf(s)
+  return /^\d{15}$/.test(d) ? d : ''
+}
+
+// รหัสอ้างอิงร้านค้า: POS หรือ ORD ตามด้วยตัวเลข ไม่มีขีด (ตรงกับ shopRefOk ฝั่งเซิร์ฟเวอร์ _shared/slipref.ts)
+export const shopRefOk = (v) => /^(POS|ORD)\d{3,17}$/.test(String(v ?? ''))
+
+// รหัสออร์เดอร์/POS แบบมีขีด → รหัสอ้างอิงที่ฝังใน QR (OR-131126-000123 → ORD131126000123) · ตรงกับ refOfCode ฝั่งเซิร์ฟเวอร์
+export const shopRefOfCode = (code) =>
+  String(code ?? '').trim().toUpperCase().replace(/^OR-/, 'ORD').replace(/^POS-/, 'POS').replace(/-/g, '')
+
+// QR พร้อมเพย์แบบ Biller · ยอดว่าง = ไม่ล็อกยอด · ข้อมูลไม่ถูกต้อง (Biller ID / รหัสอ้างอิง / ยอด) = null
+export function promptPayBillerPayload(billerId, amount = null, ref = '') {
+  const id = billerIdOf(billerId)
+  const r = String(ref ?? '').trim().toUpperCase()
+  if (!id || !shopRefOk(r)) return null
+  const amt = amount == null || amount === '' ? null : Math.round(Number(amount) * 100) / 100
+  if (amt != null && (!Number.isFinite(amt) || amt <= 0 || amt > 9999999.99)) return null
+  const body =
+    tlv('00', '01') +
+    tlv('01', amt == null ? '11' : '12') +
+    tlv('30', tlv('00', 'A000000677010112') + tlv('01', id) + tlv('02', r) + tlv('03', r)) +
+    tlv('53', '764') +
+    (amt == null ? '' : tlv('54', amt.toFixed(2))) +
+    tlv('58', 'TH') +
+    '6304'
+  return body + crc16(body)
+}

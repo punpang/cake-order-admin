@@ -81,6 +81,7 @@ const summary = computed(() => {
     <div class="mb-3 min-w-0">
       <h1 class="page-title">ชำระเงิน</h1>
       <p class="text-sm text-stone-500">เฉพาะออร์เดอร์ · ไม่รวมบิล POS</p>
+      <router-link v-if="canReport" to="/admin/qr" class="btn-soft mt-2 inline-flex">สร้าง QR ชำระ</router-link>
     </div>
 
     <div class="mb-3 grid grid-cols-3 gap-1 seg-grid md:max-w-xl" role="group" aria-label="กรองการชำระเงิน">
