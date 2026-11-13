@@ -18,6 +18,10 @@ export const NEW_CUSTOMER_RULES = [
   { event: 'pay_extension_denied', channels: ['line', 'facebook', 'sms'], template: 'ร้านยังไม่อนุมัติขยายเวลาชำระออร์เดอร์ {เลขออร์เดอร์} กรุณาชำระภายในกำหนดเดิม {ชำระก่อน} ค่ะ', enabled: true },
   { event: 'items_changed', channels: ['line', 'facebook', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} มีการแก้ไขรายการสินค้าแล้วค่ะ\n{รายการสินค้า}\nยอดรวม {ยอดรวม} คงค้าง {คงค้าง}', enabled: true },
   { event: 'adjustment_changed', channels: ['line', 'facebook', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} มีการปรับราคาแล้วค่ะ ยอดรวม {ยอดรวม} คงค้าง {คงค้าง}', enabled: true },
+  { event: 'preparing', channels: ['line', 'facebook', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} เริ่มเตรียมสินค้าแล้วค่ะ', enabled: true },
+  { event: 'ready_to_ship', channels: ['line', 'facebook', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} พร้อมจัดส่งแล้วค่ะ', enabled: true },
+  { event: 'points_applied', channels: ['line', 'facebook', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} ใช้คะแนนสะสม {คะแนน} คะแนนเป็นส่วนลด {ส่วนลดคะแนน} แล้วค่ะ ยอดรวม {ยอดรวม} คงค้าง {คงค้าง}', enabled: true },
+  { event: 'points_removed', channels: ['line', 'facebook', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} ยกเลิกการใช้คะแนนสะสม {คะแนน} คะแนนแล้วค่ะ ยอดรวม {ยอดรวม} คงค้าง {คงค้าง}', enabled: true },
   // ส่งจากเซิร์ฟเวอร์ (customer-order) เฉพาะ Facebook · ข้อความต้องตรงกับ SLIP_RECEIVED_TPL ใน supabase/functions/_shared/slipnotice.ts
   { event: 'slip_received', channels: ['facebook'], template: 'ร้านได้รับสลิปการชำระเงินของออร์เดอร์ {เลขออร์เดอร์} ยอด {ยอดที่แจ้ง} บาทแล้วค่ะ ร้านจะตรวจสอบและยืนยันให้เร็ว ๆ นี้ ขอบคุณค่ะ', enabled: true },
 ]

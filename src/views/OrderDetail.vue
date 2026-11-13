@@ -185,7 +185,7 @@ function saveAdj() {
 async function doStatus(status, text, title) {
   if (status === 'delivered' && t.value.balance > 0) return
   // สถานะที่มีข้อความถึงลูกค้า: มีช่องติ๊ก "แจ้งลูกค้า" (ค่าเริ่มต้นติ๊ก)
-  const tells = ['awaiting_payment', 'prepared', 'shipping', 'delivered'].includes(status) && order.value.channel !== 'pos' && !!customer.value
+  const tells = ['awaiting_payment', 'preparing', 'prepared', 'ready_to_ship', 'shipping', 'delivered'].includes(status) && order.value.channel !== 'pos' && !!customer.value
   const r = await askConfirmEx({ title, message: `ออร์เดอร์ ${order.value.code}`, okText: title, ...(tells ? { checkbox: { label: 'แจ้งลูกค้า', hint: 'ไม่ติ๊ก = ไม่ส่งข้อความถึงลูกค้า (ทีมยังได้รับตามปกติ)', value: true } } : {}), ...(tells && smsChoice(customer.value) ? { checkbox2: { label: 'ส่ง SMS ด้วย', hint: formatPhone(customer.value.phone), value: true } } : {}) })
   if (r.ok) { setStatus(order.value, status, text, { notify: tells ? r.checked : true, sms: r.checked2 !== false }); toastSaved(`${title} แล้ว · ${order.value.code}`) }
 }
@@ -219,8 +219,9 @@ async function doCancelRequest(p) {
   if (r.ok) cancelPaymentRequest(order.value, p.id, notifyOf(r))
 }
 async function doRemovePoints() {
-  if (!(await askConfirm({ title: 'ยกเลิกการใช้คะแนน', message: `คืน ${order.value.pointsUsed.points} คะแนนให้ลูกค้า`, okText: 'ยกเลิกการใช้', danger: true }))) return
-  const r = await removePointsRemote(order.value)
+  const r0 = await askConfirmEx({ title: 'ยกเลิกการใช้คะแนน', message: `คืน ${order.value.pointsUsed.points} คะแนนให้ลูกค้า`, okText: 'ยกเลิกการใช้', danger: true, ...notifyBoxOf(customer.value) })
+  if (!r0.ok) return
+  const r = await removePointsRemote(order.value, notifyOf(r0))
   if (r.error) showToast(r.error, 6000, 'error')
 }
 async function doApplyCoupon(c) {
@@ -257,8 +258,9 @@ function openPoints() {
 async function savePoints() {
   const n = Math.floor(Number(ptUse.value) || 0)
   if (n <= 0 || n > ptMax.value) return (ptError.value = `ใช้ได้ 1 – ${ptMax.value} คะแนน`)
-  if (!(await askConfirm({ title: 'ใช้คะแนน', message: `ใช้ ${n} คะแนน ลด ${money(n * db.loyalty.pointValue)}`, okText: 'ใช้คะแนน' }))) return
-  const r = await applyPointsRemote(order.value, n)
+  const r0 = await askConfirmEx({ title: 'ใช้คะแนน', message: `ใช้ ${n} คะแนน ลด ${money(n * db.loyalty.pointValue)}`, okText: 'ใช้คะแนน', ...notifyBoxOf(customer.value) })
+  if (!r0.ok) return
+  const r = await applyPointsRemote(order.value, n, notifyOf(r0))
   if (r.error) return (ptError.value = r.error)
   ptOpen.value = false
 }

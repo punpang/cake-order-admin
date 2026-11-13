@@ -1078,6 +1078,8 @@ export function setStatus(order, status, text, opts = {}) {
   if (status === 'delivered') notifyOrder('delivered', order, { skip, noSms })
   if (status === 'prepared') notifyOrder('prepared', order, { skip, noSms })
   if (status === 'shipping') notifyOrder('shipping', order, { skip, noSms })
+  if (status === 'preparing') notifyOrder('preparing', order, { skip, noSms })
+  if (status === 'ready_to_ship') notifyOrder('ready_to_ship', order, { skip, noSms })
   if (status === 'cancelled') notifyOrder('cancelled', order, { skip, noSms })
   // ร่าง → ส่งไปรอชำระ = เริ่มเป็นออร์เดอร์จริง
   if (prev === 'draft' && status === 'awaiting_payment') notifyOrder('order_created', order, { skip, noSms })
@@ -1728,22 +1730,33 @@ const PTS_MSG = {
   no_order: 'ไม่พบออร์เดอร์บนเซิร์ฟเวอร์ (ยังไม่ซิงก์)', no_customer: 'ไม่พบลูกค้า', invalid: 'ข้อมูลไม่ถูกต้อง', none: 'ออร์เดอร์นี้ไม่ได้ใช้คะแนน',
   forbidden: 'ไม่มีสิทธิ์ทำรายการนี้',
 }
-export async function applyPointsRemote(order, points) {
+// opts = { notify, sms } จากกล่องติ๊กในโมดัลยืนยัน · แจ้งลูกค้าหลังทำรายการสำเร็จเท่านั้น
+// ยอดคงค้างในข้อความคิดส่วนลดคะแนนแล้ว (ส่งสถานะที่คาดหลังทำรายการ ไม่รอการซิงก์)
+export async function applyPointsRemote(order, points, opts = {}) {
   const n = Math.floor(Number(points))
   if (!(n > 0)) return { error: 'จำนวนคะแนนไม่ถูกต้อง' }
-  if (!pointsHook.call) return applyPoints(order, n) ? { ok: true } : { error: 'ใช้คะแนนไม่ได้' }
-  if (!can('useLoyalty')) return { error: 'ไม่มีสิทธิ์ใช้คะแนน' }
-  if (n * db.loyalty.pointValue > orderTotals(order).total + 0.004) return { error: 'ส่วนลดจากคะแนนต้องไม่เกินยอดที่ต้องชำระ' } // เพดานตรวจที่แอป (เซิร์ฟเวอร์ตรวจยอดคะแนน/สถานะ)
-  const r = await pointsHook.call('punpang_apply_points', { p_order: order.id, p_points: n }, { order: order.id, customer: order.customerId })
-  if (r.error) return { error: PTS_MSG[r.error] || r.error }
+  if (!pointsHook.call) {
+    if (!applyPoints(order, n)) return { error: 'ใช้คะแนนไม่ได้' }
+  } else {
+    if (!can('useLoyalty')) return { error: 'ไม่มีสิทธิ์ใช้คะแนน' }
+    if (n * db.loyalty.pointValue > orderTotals(order).total + 0.004) return { error: 'ส่วนลดจากคะแนนต้องไม่เกินยอดที่ต้องชำระ' } // เพดานตรวจที่แอป (เซิร์ฟเวอร์ตรวจยอดคะแนน/สถานะ)
+    const r = await pointsHook.call('punpang_apply_points', { p_order: order.id, p_points: n }, { order: order.id, customer: order.customerId })
+    if (r.error) return { error: PTS_MSG[r.error] || r.error }
+  }
+  const amount = round2(n * db.loyalty.pointValue)
+  notifyOrder('points_applied', { ...order, pointsUsed: { points: n, amount } }, { skip: opts.notify === false, noSms: opts.sms === false, points: n, pointsAmount: amount })
   return { ok: true }
 }
-export async function removePointsRemote(order) {
+export async function removePointsRemote(order, opts = {}) {
   if (!order.pointsUsed) return { error: PTS_MSG.none }
-  if (!pointsHook.call) { removePoints(order); return { ok: true } }
-  if (!can('useLoyalty')) return { error: 'ไม่มีสิทธิ์ใช้คะแนน' }
-  const r = await pointsHook.call('punpang_remove_points', { p_order: order.id }, { order: order.id, customer: order.customerId })
-  if (r.error) return { error: PTS_MSG[r.error] || r.error }
+  const { points: n, amount } = order.pointsUsed
+  if (!pointsHook.call) removePoints(order)
+  else {
+    if (!can('useLoyalty')) return { error: 'ไม่มีสิทธิ์ใช้คะแนน' }
+    const r = await pointsHook.call('punpang_remove_points', { p_order: order.id }, { order: order.id, customer: order.customerId })
+    if (r.error) return { error: PTS_MSG[r.error] || r.error }
+  }
+  notifyOrder('points_removed', { ...order, pointsUsed: null }, { skip: opts.notify === false, noSms: opts.sms === false, points: n, pointsAmount: amount })
   return { ok: true }
 }
 
@@ -2437,7 +2450,8 @@ function orderVars(order, extra = {}) {
     เวลาปิดร้าน: db.shop.close || '',
     ข้อความขอใช้ภาพ: hasWorkPhotos(order) && photoStatusOf(order) === 'ok' ? 'ขออนุญาตนำภาพสินค้าของออร์เดอร์นี้ไปใช้เผยแพร่ หากไม่ยินยอมสามารถแจ้งได้เลยค่ะ (กดปุ่ม "ดูออร์เดอร์" แล้วเลือก "ไม่อนุญาตให้ใช้รูปเผยแพร่" หรือพิมพ์แจ้งในแชทนี้)' : '',
     ชื่อวันเกิด: order.birthday?.name || c?.name || '',
-    คะแนน: '',
+    คะแนน: extra.points != null ? String(extra.points) : '',
+    ส่วนลดคะแนน: extra.pointsAmount != null ? money(extra.pointsAmount) : '',
     ลิงก์ออร์เดอร์: '',
     // รายละเอียดครบชุดสำหรับสรุป (ว่างได้ · บรรทัดที่ว่างถูกตัดทิ้งตอนส่ง)
     เบอร์ลูกค้า: formatPhone(c?.phone || ''),

@@ -24,9 +24,9 @@ t('ช่องทางของทุกกฎอยู่ในลำดั�
   }
 })
 
-t('เหตุการณ์การเปลี่ยนแปลงออร์เดอร์ที่เพิ่มมีกฎครบ', () => {
+t('เหตุการณ์ที่เพิ่มมีกฎครบ', () => {
   const have = new Set(NEW_CUSTOMER_RULES.map((r) => r.event))
-  for (const e of ['payment_request_changed', 'payment_request_cancelled', 'payment_cancelled', 'pay_extension_granted', 'pay_extension_denied', 'items_changed', 'adjustment_changed']) {
+  for (const e of ['payment_request_changed', 'payment_request_cancelled', 'payment_cancelled', 'pay_extension_granted', 'pay_extension_denied', 'items_changed', 'adjustment_changed', 'preparing', 'ready_to_ship', 'points_applied', 'points_removed']) {
     assert.ok(have.has(e), e)
   }
 })
