@@ -24,6 +24,7 @@ export const NEW_CUSTOMER_RULES = [
   { event: 'points_removed', channels: ['line', 'facebook', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} ยกเลิกการใช้คะแนนสะสม {คะแนน} คะแนนแล้วค่ะ ยอดรวม {ยอดรวม} คงค้าง {คงค้าง}', enabled: true },
   // ส่งจากเซิร์ฟเวอร์ (customer-order) เฉพาะ Facebook · ข้อความต้องตรงกับ SLIP_RECEIVED_TPL ใน supabase/functions/_shared/slipnotice.ts
   { event: 'slip_received', channels: ['facebook'], template: 'ร้านได้รับสลิปการชำระเงินของออร์เดอร์ {เลขออร์เดอร์} ยอด {ยอดที่แจ้ง} บาทแล้วค่ะ ร้านจะตรวจสอบและยืนยันให้เร็ว ๆ นี้ ขอบคุณค่ะ', enabled: true },
+  { event: 'slip_cancelled', channels: ['line', 'facebook', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} ร้านยกเลิกสลิปที่ส่งมาแล้วค่ะ\nเหตุผล: {เหตุผล}\nกรุณาส่งสลิปใหม่หรือแจ้งชำระใหม่ค่ะ', enabled: true },
 ]
 // เติมกฎที่ยังไม่มีในรายการ (กฎที่ร้านแก้ไว้แล้วไม่ถูกทับ) · คืนรายการใหม่ ไม่แก้รายการเดิม
 export function withNewRules(list) {

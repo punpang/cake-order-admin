@@ -19,7 +19,8 @@ import { payAccountsOf } from '../lib/payAccounts'
 import { slipAccountCheck } from '../lib/slipAccount'
 import { kb } from '../lib/viewportFit'
 import { showToast } from '../lib/toast'
-import { askConfirm } from '../lib/confirm'
+import { askConfirmEx } from '../lib/confirm'
+import { notifyBoxOf, notifyOf } from '../lib/notifyBox'
 import { prepareChatImage, uploadChatImage, MAX_CHAT_IMAGES } from '../lib/chatImage'
 import { imageErrorMessage } from '../lib/imageResize'
 
@@ -74,9 +75,11 @@ function slipChip(s) {
 const canBindSlip = (m) => can('reportPayment') && m.slipCheck?.status === 'manual' && !!m.slipCheck.slipRef
 const slipCheckList = (m) => (Array.isArray(m.slipCheck?.checks) ? m.slipCheck.checks : [])
 async function doCancelSlip(m) {
-  if (!(await askConfirm({ title: 'ยกเลิกสลิปนี้', message: 'สลิปนี้จะไม่ผูกกับออร์เดอร์ และลูกค้าส่งรูปเดิมซ้ำได้', okText: 'ยกเลิกสลิป', danger: true }))) return
-  const r = cancelChatSlip(props.chat.id, m.id)
-  if (r.error) showToast(r.error, 4000, 'error')
+  const customer = m.slipCheck?.orderId ? findCustomer(props.chat.customerId) : null
+  const r = await askConfirmEx({ title: 'ยกเลิกสลิปนี้', message: 'สลิปนี้จะไม่ผูกกับออร์เดอร์ และลูกค้าส่งรูปเดิมซ้ำได้', okText: 'ยกเลิกสลิป', danger: true, reason: { label: 'เหตุผลที่ยกเลิก', required: true }, ...notifyBoxOf(customer) })
+  if (!r.ok) return
+  const res = cancelChatSlip(props.chat.id, m.id, { reason: r.reason, ...notifyOf(r) })
+  if (res.error) showToast(res.error, 4000, 'error')
 }
 const slipChoicesOf = (m) => slipChatChoices(props.chat.id, m.id)
 const slipPick = ref(null) // ข้อความสลิปที่กำลังเลือกออร์เดอร์อื่น

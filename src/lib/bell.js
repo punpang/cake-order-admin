@@ -42,6 +42,7 @@ export const BELL_CUSTOMER = {
   coupon_applied: { title: 'ใช้คูปองในออร์เดอร์' },
   payment_request_changed: { title: 'แก้ยอดที่แจ้งชำระ' },
   payment_request_cancelled: { title: 'ยกเลิกยอดที่แจ้งชำระ' },
+  slip_cancelled: { title: 'ยกเลิกสลิปที่ส่งมา' },
   payment_cancelled: { title: 'ยกเลิกยอดที่ยืนยันแล้ว' },
   pay_extension_granted: { title: 'อนุมัติขยายเวลาชำระ' },
   pay_extension_denied: { title: 'ไม่อนุมัติขยายเวลาชำระ' },
