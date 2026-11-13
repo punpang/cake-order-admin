@@ -2,3 +2,6 @@ node_modules
 dist
 .env
 .env.local
+
+# ชุดทดสอบรหัสร้านค้า (มีข้อมูลส่วนตัวบนสลิป ไม่ commit)
+tests/slip-samples/

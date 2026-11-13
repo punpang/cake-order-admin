@@ -36,3 +36,7 @@ Deno.test('ยืนยันโดยพนักงาน หรือยื�
 Deno.test('ส่งไปแล้ว (มีคีย์ในรายการส่งแล้ว) → ไม่วางแผนซ้ำ', () => {
   assertEquals(payPlans([order()], ['payconf|p1']).length, 0)
 })
+
+Deno.test('งวดที่แจ้งลูกค้าไปแล้วตอนยืนยัน (autoNotified) → ไม่วางแผนซ้ำ', () => {
+  assertEquals(payPlans([order({ payments: [payment({ autoNotified: true })] })]).length, 0)
+})
