@@ -46,13 +46,18 @@ export function merchantCodeOk(mc: string, receiverAccount: unknown, shopRef: st
 
 // ค่าจากคำตอบของตัวอ่าน (merchant_code / shop_ref) · ใส่คีย์เฉพาะเมื่อผ่านเกณฑ์ (ผลเดิมรูปร่างไม่เปลี่ยน)
 export function readShopFields(obj: any, receiverAccount?: string | null): { merchantCode?: string; shopRef?: string; qrRef?: string } {
-  const mc = digitsOf(obj?.merchant_code)
+  // POS/ORD ใช้เฉพาะ Ref 1: ไม่เป็นรหัสร้านค้า และไม่เป็นรหัสสุ่ม (Ref 2)
+  const isRef1 = (v: string): boolean => /^(POS|ORD)/.test(v)
+  const rawMc = normalizeShopRef(obj?.merchant_code)
   const sr = normalizeShopRef(obj?.shop_ref)
-  const shopRef = shopRefOk(sr) ? sr : ''
-  const merchantCode = merchantCodeOk(mc, receiverAccount, shopRef) ? mc : ''
-  // รหัสสุ่ม (Ref 2): 12 ตัวจากชุดอักษรของระบบ (ไม่มี 0 1 I L O จึงไม่ปนกับ POS/ORD)
+  let shopRef = shopRefOk(sr) ? sr : ''
+  // Ref 1 ที่ตัวอ่านวางไว้ใต้ป้ายรหัสร้านค้า → ใช้เป็นรหัสอ้างอิงร้านค้า (ไม่ใช่รหัสร้านค้า)
+  if (!shopRef && shopRefOk(rawMc)) shopRef = rawMc
+  const mc = isRef1(rawMc) ? '' : digitsOf(obj?.merchant_code)
+  const merchantCode = mc && merchantCodeOk(mc, receiverAccount, shopRef) ? mc : ''
+  // รหัสสุ่ม (Ref 2): 12 ตัวจากชุดอักษรของระบบ (ไม่มี 0 1 I L O จึงไม่ปนกับ POS/ORD) และไม่ขึ้นต้นด้วย POS/ORD
   const qr = normalizeShopRef(obj?.qr_ref)
-  const qrRef = qrRefOk(qr) ? qr : ''
+  const qrRef = qrRefOk(qr) && !isRef1(qr) ? qr : ''
   return { ...(merchantCode ? { merchantCode } : {}), ...(shopRef ? { shopRef } : {}), ...(qrRef ? { qrRef } : {}) }
 }
 
