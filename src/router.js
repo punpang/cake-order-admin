@@ -27,6 +27,7 @@ const OrderList = () => import('./views/OrderList.vue')
 const OrderCreate = () => import('./views/OrderCreate.vue')
 const OrderDetail = () => import('./views/OrderDetail.vue')
 const Payments = () => import('./views/Payments.vue')
+const PayQr = () => import('./views/PayQr.vue')
 const ManageHome = () => import('./views/manage/ManageHome.vue')
 const ManageCustomers = () => import('./views/manage/ManageCustomers.vue')
 const ManagePromos = () => import('./views/manage/ManagePromos.vue')
@@ -93,6 +94,7 @@ const router = createRouter({
     { path: '/admin/orders/new', component: OrderCreate, meta: { focus: true, perms: ['createOrder'], data: ['chats'] } },
     { path: '/admin/orders/:id', component: OrderDetail, props: true, meta: { focus: true, data: ['chats'] } },
     { path: '/admin/payments', component: Payments, meta: { perms: ['reportPayment', 'confirmPayment'], data: ['ordersAll'] } },
+    { path: '/admin/qr', component: PayQr, meta: { perms: ['reportPayment'] } },
     { path: '/admin/chat', component: Chat, meta: { perms: ['chat'], lock: true, data: ['chats'] } },
     { path: '/admin/chat/:id', component: Chat, props: true, meta: { focus: true, perms: ['chat'], lock: true, data: ['chats'] } },
     { path: '/admin/pos', component: Pos, meta: { focus: true, perms: ['pos'], data: ['shifts'] } },

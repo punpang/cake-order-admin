@@ -33,7 +33,7 @@ import { SLIP_RECEIVE_NOTE, slipRoom, slipChoices, slipBindError } from '../lib/
 import { payAccountsOf } from '../lib/payAccounts'
 import { customerTargets, withNewRules } from '../lib/notifyPlan'
 import { uploadChatImage } from '../lib/chatImage'
-import { promptPayPayload } from '../lib/promptpay'
+import { billerIdOf, promptPayBillerPayload, shopRefOfCode } from '../lib/promptpay'
 import { callAuth, callLoyalty, readSessionToken, saveSessionToken, clearSessionToken, injectBundle, clearBundle } from '../lib/customerRemote'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
@@ -2529,10 +2529,10 @@ async function sendPayQrFacebook(order, amount, due = '') {
     const allowed = effectiveChannels(r, customer, order)
     if (!customerTargets({ order: CUSTOMER_CHANNEL_ORDER, allowed, integrations: db.integrations, addressOf: (k) => customerAddr(customer, k) }).includes('facebook')) return
     const chat = chatFor(customer.id, 'facebook')
-    const pp = payAccountsOf(db.shop.payment).find((a) => a.show && a.kind === 'promptpay')
-    if (!chat || !pp) return
+    const payload = promptPayBillerPayload(billerIdOf(db.shop.merchantCode), amount, shopRefOfCode(order.code))
+    if (!chat || !payload) return
     const QR = await import('qrcode')
-    const dataUrl = await (QR.default || QR).toDataURL(promptPayPayload(pp.promptpayId, amount, order.code), { type: 'image/jpeg', width: 480, margin: 2, errorCorrectionLevel: 'M' })
+    const dataUrl = await (QR.default || QR).toDataURL(payload, { type: 'image/jpeg', width: 480, margin: 2, errorCorrectionLevel: 'M' })
     const att = await uploadChatImage(chat, await (await fetch(dataUrl)).blob(), { width: 480, height: 480 })
     if (!att.path) return // โหมดจำลอง ไม่มีการอัปโหลด
     const caption = [`สแกน QR พร้อมเพย์เพื่อชำระออร์เดอร์ ${order.code}`, `ยอด ${money(amount)}`, due ? `ชำระภายใน ${dueText(due)}` : ''].filter(Boolean).join('\n')

@@ -3,7 +3,7 @@ import { safeHref } from '../lib/safeUrl'
 import { computed, reactive, ref, watch } from 'vue'
 import { customerPay, customerReadSlip, customerRequestExtension, customerRequestPhotoOptOut, customerCancelPhotoOptOut } from '../data/store'
 import { BANKS, PAY_MSG, bankByCode, checkCustomerTxn } from '../lib/payFields'
-import { promptPayPayload } from '../lib/promptpay'
+import { billerIdOf, promptPayBillerPayload, shopRefOfCode } from '../lib/promptpay'
 import { visiblePayAccounts } from '../lib/payAccounts'
 import { money, dateOnly, dateTime, formatPhone } from '../lib/format'
 import { STATUS } from '../lib/constants'
@@ -31,7 +31,7 @@ const cancelled = computed(() => o.value.status === 'cancelled')
 // ---------- ชำระเงิน ----------
 const info = computed(() => o.value.pay.info)
 const accounts = computed(() => visiblePayAccounts(info.value)) // บัญชีที่ร้านเปิดให้แสดง
-const pp = computed(() => accounts.value.find((a) => a.kind === 'promptpay') || null) // QR ใช้พร้อมเพย์ตัวแรกที่แสดง
+const billerId = computed(() => billerIdOf(info.value?.billerId)) // รหัสร้านค้า (Biller ID 15 หลัก) จากร้าน · ใช้สร้าง QR แบบ Biller
 const hasInfo = computed(() => !!(accounts.value.length || info.value.note))
 const requests = computed(() => o.value.payments.filter((p) => p.status === 'reported' && p.shopRequested && !p.submitted))
 const f = reactive({ mode: 'all', custom: '', paymentId: null, slip: '', slipName: '', note: '', error: '', ok: '', busy: false, txnDate: '', txnTime: '', bankCode: '', ref: '', qrNote: '', reading: false })
@@ -47,7 +47,7 @@ function pick(mode, p = null) {
   f.paymentId = p?.id || null
 }
 const qr = ref('')
-const payload = computed(() => (amount.value > 0 && pp.value ? promptPayPayload(pp.value.promptpayId, amount.value, o.value.code) : null))
+const payload = computed(() => (amount.value > 0 && billerId.value ? promptPayBillerPayload(billerId.value, amount.value, shopRefOfCode(o.value.code)) : null))
 watch(
   [payload, open],
   async () => {
@@ -370,7 +370,7 @@ const beforeDiscount = computed(() => {
           </div>
 
           <div v-if="hasInfo" class="rounded-2xl border border-stone-200 bg-white p-3">
-            <div v-if="pp" class="text-center">
+            <div v-if="billerId" class="text-center">
               <div class="text-xs text-stone-500">QR นี้สำหรับออร์เดอร์</div>
               <div class="text-base font-semibold text-stone-900">{{ o.code }}</div>
               <img v-if="qr" :src="qr" alt="QR พร้อมเพย์" class="mx-auto h-48 w-48" />
