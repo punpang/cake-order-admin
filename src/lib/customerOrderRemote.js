@@ -16,7 +16,8 @@ export async function remoteOrderAction(db, ctx, action, body = {}) {
   if (r.error) {
     let d = null
     try { d = await r.error.context?.json() } catch { d = null }
-    return { error: d?.error || NET }
+    // ยังไม่ยินยอม (ก่อนชำระ) → ส่งรายการที่ต้องยินยอมกลับไปให้หน้าจอถาม
+    return { error: d?.error || NET, ...(d?.consentNeeded ? { consentNeeded: d.consentNeeded } : {}) }
   }
   if (!r.data?.ok) return { error: r.data?.error || NET }
   // โหลดออร์เดอร์ล่าสุด (ล้มเหลวไม่ถือว่าทำรายการไม่สำเร็จ แต่บอก stale = ข้อมูลบนจอยังไม่ตรงเซิร์ฟเวอร์)

@@ -2049,7 +2049,7 @@ export function ctxOrder(ctx) {
 // ออร์เดอร์ที่โหลดมาจากเซิร์ฟเวอร์ (ธง _remote: ลิงก์ข้ามเครื่อง/บัญชีลูกค้า) — ฝั่งลูกค้าทำรายการผ่าน Edge Function customer-order (คืน Promise)
 const SLIP_OK = /^(data:image\/(png|jpe?g|webp|gif);base64,|blob:)/
 // ลูกค้าแจ้งชำระเอง (ไม่ต้องรอร้านแจ้งยอด) · แนบสลิป · แอดมินยืนยันเหมือนเดิม
-export function customerPay(ctx, { amount, slip, note = '', paymentId = null, txnDate = '', txnTime = '', bankCode = '', ref = '' }) {
+export function customerPay(ctx, { amount, slip, note = '', paymentId = null, txnDate = '', txnTime = '', bankCode = '', ref = '', consent = false }) {
   const o = ctxOrder(ctx)
   if (!o) return { error: LINK_ERROR }
   const block = customerPayBlock(o)
@@ -2065,7 +2065,7 @@ export function customerPay(ctx, { amount, slip, note = '', paymentId = null, tx
   // วัน-เวลาที่โอน/ธนาคาร/เลขอ้างอิง: ตรวจรูปแบบและกติกาเบื้องต้นตรงนี้ · เซิร์ฟเวอร์ตรวจซ้ำและกันเลขอ้างอิงซ้ำทั้งระบบเสมอ
   const txn = checkCustomerTxn({ txnDate, txnTime, bankCode, ref, createdAt: o.createdAt })
   if (txn.error) return { error: txn.error }
-  if (o._remote) return remoteOrderAction(db, ctx, 'pay', { amount: amt, slip, note: nt, paymentId, txnDate, txnTime, bankCode: txn.value.bankCode, ref: txn.value.ref }) // Promise · เซิร์ฟเวอร์บันทึก/ออกเลข PAY
+  if (o._remote) return remoteOrderAction(db, ctx, 'pay', { amount: amt, slip, note: nt, paymentId, txnDate, txnTime, bankCode: txn.value.bankCode, ref: txn.value.ref, consent: consent === true }) // Promise · เซิร์ฟเวอร์บันทึก/ออกเลข PAY
   // โหมดจำลองไม่มีการอ่าน QR → ธนาคารที่กรอกต้องเลือกจากรายการ และเลขอ้างอิงที่กรอกห้ามซ้ำกับทุกออร์เดอร์
   if (txn.value.bankCode && !bankByCode(txn.value.bankCode)) return { error: PAY_MSG.bank }
   if (txn.value.ref && db.orders.some((x) => (x.id !== o.id || ['delivered', 'cancelled'].includes(o.status)) && refTaken(x.payments, txn.value.ref))) return { error: PAY_MSG.refTaken }
@@ -2088,14 +2088,14 @@ export function customerPay(ctx, { amount, slip, note = '', paymentId = null, tx
   return { ok: true, paymentId: p.id }
 }
 // ขอ QR ชำระ (ลูกค้า): สร้างรายการแจ้งชำระใหม่ทุกครั้ง · เซิร์ฟเวอร์บันทึกให้ (โหมดจำลองบันทึกในเครื่อง)
-export function customerRequestQr(ctx, amount) {
+export function customerRequestQr(ctx, amount, consent = false) {
   const o = ctxOrder(ctx)
   if (!o) return { error: LINK_ERROR }
   const block = customerPayBlock(o)
   if (block) return { error: block }
   const amt = round2(Number(amount))
   if (!(amt > 0)) return { error: 'เลือกยอดก่อนสร้าง QR' }
-  if (o._remote) return remoteOrderAction(db, ctx, 'qr_request', { amount: amt }) // Promise · เซิร์ฟเวอร์บันทึก/ออกรหัส
+  if (o._remote) return remoteOrderAction(db, ctx, 'qr_request', { amount: amt, consent: consent === true }) // Promise · เซิร์ฟเวอร์บันทึก/ออกรหัส
   const t = orderTotals(o)
   const room = round2(t.balance - pendingCustomerSum(o))
   if (amt > room + 1e-9) return { error: `ยอดเกินคงค้าง (ชำระได้ไม่เกิน ${money(room)})` }

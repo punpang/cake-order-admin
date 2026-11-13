@@ -8,6 +8,7 @@ import { billerIdOf, promptPayBillerPayload, shopCodeOf, shopRefOfCode } from '.
 import { visiblePayAccounts } from '../lib/payAccounts'
 import { money, dateOnly, dateTime, formatPhone } from '../lib/format'
 import { STATUS } from '../lib/constants'
+import { LEGAL_KINDS } from '../lib/legalDefaults'
 import { resizeImage, imageErrorMessage } from '../lib/imageResize'
 import StatusBadge from './StatusBadge.vue'
 import PayDueBadge from './PayDueBadge.vue'
@@ -53,13 +54,20 @@ const qr = ref('')
 const qrReq = reactive({ amount: 0, paymentId: '', qrRef: '', busy: false, error: '' })
 const payload = computed(() => (qrReq.qrRef && billerId.value && shopCode.value && qrReq.amount > 0 ? promptPayBillerPayload(billerId.value, qrReq.amount, shopCode.value, qrReq.qrRef) : null))
 function clearQr() { Object.assign(qrReq, { amount: 0, paymentId: '', qrRef: '', busy: false, error: '' }) }
+// ยินยอมก่อนชำระ (ลูกค้ารายใหม่/เวอร์ชันใหม่): เซิร์ฟเวอร์ตอบรายการที่ต้องยินยอม → แสดงช่องติ๊ก ต้องติ๊กครบจึงส่งได้
+const consentNeed = ref([])
+const consentOk = reactive({ privacy: false, terms: false, cookie: false })
+const consentAll = computed(() => consentNeed.value.every((k) => consentOk[k]))
+function askConsent(kinds) { consentNeed.value = kinds; for (const k of kinds) consentOk[k] = false }
 async function makeQr() {
   qrReq.error = ''
   if (!(amount.value > 0)) return (qrReq.error = 'เลือกยอดก่อนสร้าง QR')
   qrReq.busy = true
-  const r = await customerRequestQr(props.ctx, amount.value)
+  const r = await customerRequestQr(props.ctx, amount.value, consentAll.value)
   qrReq.busy = false
+  if (r.consentNeeded) return askConsent(r.consentNeeded)
   if (r.error) return (qrReq.error = r.error)
+  consentNeed.value = []
   Object.assign(qrReq, { amount: r.amount, paymentId: r.paymentId, qrRef: r.qrRef })
   if (r.stale) staleNote.value = true
 }
@@ -164,9 +172,11 @@ async function submit() {
   const chk = checkCustomerTxn({ txnDate: f.txnDate, txnTime: f.txnTime, bankCode: f.bankCode, ref: f.ref, createdAt: o.value.createdAt })
   if (chk.error) return (f.error = chk.error)
   f.busy = true
-  const r = await customerPay(props.ctx, { amount: amount.value, slip: f.slip, note: f.note, paymentId: qrReq.paymentId && qrReq.amount === amount.value ? qrReq.paymentId : (f.mode === 'req' ? f.paymentId : null), txnDate: f.txnDate, txnTime: f.txnTime, bankCode: f.bankCode, ref: f.ref })
+  const r = await customerPay(props.ctx, { amount: amount.value, slip: f.slip, note: f.note, paymentId: qrReq.paymentId && qrReq.amount === amount.value ? qrReq.paymentId : (f.mode === 'req' ? f.paymentId : null), txnDate: f.txnDate, txnTime: f.txnTime, bankCode: f.bankCode, ref: f.ref, consent: consentAll.value })
   f.busy = false
+  if (r.consentNeeded) return askConsent(r.consentNeeded)
   if (r.error) return (f.error = r.error)
+  consentNeed.value = []
   f.ok = r.autoConfirmed ? 'ร้านยืนยันการชำระแล้ว ขอบคุณค่ะ' : 'ส่งสลิปแล้ว ร้านจะตรวจสอบและยืนยันให้'
   if (r.stale) staleNote.value = true
   Object.assign(f, { slip: '', slipName: '', note: '', custom: '', mode: 'all', paymentId: null, txnDate: '', txnTime: '', bankCode: '', ref: '', qrNote: '' })
@@ -391,7 +401,11 @@ const beforeDiscount = computed(() => {
               <div class="text-xs text-stone-500">QR นี้สำหรับออร์เดอร์</div>
               <div class="text-base font-semibold text-stone-900">{{ orderNo(o.code) }}</div>
               <img v-if="qr" :src="qr" alt="QR พร้อมเพย์" class="mx-auto h-48 w-48" />
-              <button v-else type="button" class="btn-soft mx-auto mt-2" :disabled="qrReq.busy || !(amount > 0)" @click="makeQr">{{ qrReq.busy ? 'กำลังสร้าง QR…' : 'สร้าง QR สำหรับยอดนี้' }}</button>
+              <div v-if="consentNeed.length" class="space-y-2 rounded-xl bg-amber-50 p-3 text-sm text-stone-700" role="group" aria-label="ยินยอมก่อนชำระ">
+                <p class="font-semibold">ก่อนชำระเงิน กรุณายินยอมตามข้อต่อไปนี้</p>
+                <label v-for="k in consentNeed" :key="k" class="flex items-start gap-2"><input v-model="consentOk[k]" type="checkbox" class="mt-0.5 h-4 w-4" :data-consent="k" /><span>{{ LEGAL_KINDS[k]?.label || k }}</span></label>
+              </div>
+              <button v-else type="button" class="btn-soft mx-auto mt-2" :disabled="qrReq.busy || !(amount > 0) || (consentNeed.length > 0 && !consentAll)" @click="makeQr">{{ qrReq.busy ? 'กำลังสร้าง QR…' : 'สร้าง QR สำหรับยอดนี้' }}</button>
               <p v-if="qrReq.error" class="mt-1 text-xs text-rose-700" role="alert">{{ qrReq.error }}</p>
             </div>
             <p v-if="amount > 0" class="text-center text-base font-semibold text-stone-900">{{ money(amount) }}</p>
@@ -436,9 +450,14 @@ const beforeDiscount = computed(() => {
           </div>
           <div><label class="label">หมายเหตุ <span class="font-normal text-stone-400">(ไม่บังคับ · ใส่เลขออร์เดอร์ {{ orderNo(o.code) }} เพื่อให้ร้านตรวจได้ง่าย)</span></label><input v-model="f.note" class="input" maxlength="200" :placeholder="o.code" /></div>
           <p v-if="f.error" class="text-rose-700" role="alert">{{ f.error }}</p>
+          <!-- ยินยอมก่อนชำระ: แสดงเฉพาะเมื่อร้านขอ · ต้องติ๊กทุกข้อจึงส่งได้ -->
+          <div v-if="consentNeed.length" class="space-y-2 rounded-xl bg-amber-50 p-3 text-sm text-stone-700" role="group" aria-label="ยินยอมก่อนชำระ">
+            <p class="font-semibold">ก่อนชำระเงิน กรุณายินยอมตามข้อต่อไปนี้</p>
+            <label v-for="k in consentNeed" :key="k" class="flex items-start gap-2"><input v-model="consentOk[k]" type="checkbox" class="mt-0.5 h-4 w-4" :data-consent="k" /><span>{{ LEGAL_KINDS[k]?.label || k }}</span></label>
+          </div>
           <div class="flex gap-2">
             <button class="btn-outline flex-1" @click="open = false">ยกเลิก</button>
-            <button class="btn-primary flex-1" :disabled="f.busy || f.reading || !(amount > 0)" @click="submit">{{ f.reading ? 'กำลังอ่านสลิป…' : 'ส่งสลิปแจ้งชำระ' }}</button>
+            <button class="btn-primary flex-1" :disabled="f.busy || f.reading || !(amount > 0) || (consentNeed.length > 0 && !consentAll)" @click="submit">{{ f.reading ? 'กำลังอ่านสลิป…' : 'ส่งสลิปแจ้งชำระ' }}</button>
           </div>
           <p class="text-xs text-stone-400">ร้านจะตรวจสลิปแล้วยืนยันยอดให้ (ยังไม่ตัดเงินอัตโนมัติ)</p>
         </div>

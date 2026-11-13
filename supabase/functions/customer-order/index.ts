@@ -6,6 +6,7 @@ import { PAY_MSG, bankByCode, checkCustomerTxn, normalizeRef, refTaken } from '.
 import { autoConfirmOf, slipKeyOf } from '../_shared/slip.ts'
 import { autoConfirmDecision, confirmSlipPayment } from '../_shared/slipautoconfirm.ts'
 import { notifyPaymentConfirmed } from '../_shared/payconfirm.ts'
+import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
 import { readSlipQr } from '../_shared/slipread.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine } from '../_shared/slipocr.ts'
 import { readSlipOnce } from '../_shared/slipstore.ts'
@@ -238,6 +239,9 @@ Deno.serve(async (req) => {
       if (limited(`pay:${ip}`, 12, 3600000)) return json({ error: 'ส่งสลิปบ่อยเกินไป กรุณารอสักครู่' }, 429)
       if (row.channel === 'pos') return json({ error: 'บิลหน้าร้านแจ้งชำระผ่านเว็บไม่ได้' }, 400)
       if (row.status === 'cancelled') return json({ error: 'ออร์เดอร์นี้ถูกยกเลิกแล้ว' }, 400)
+      // ยินยอมก่อนชำระ: ลูกค้าที่ยังไม่เคยยินยอมเวอร์ชันปัจจุบันต้องติ๊กก่อน (ไม่ยอม = ไม่ไปต่อ)
+      const needC = await consentNeededFor(sb, row.customer_id)
+      if (needC.length) { if (b.consent !== true) return json({ error: 'ต้องยินยอมก่อนชำระเงิน', consentNeeded: needC }, 400); await recordConsents(sb, row.customer_id, needC, 'order') }
       const t = totals(order)
       if (t.balance <= 0.004) return json({ error: 'ชำระครบแล้ว' }, 400)
       if (d.payments.some((p: any) => isOverdue(p) && row.status !== 'delivered')) return json({ error: 'เกินกำหนดชำระ กรุณากดขอขยายเวลาก่อน' }, 400)
@@ -361,6 +365,8 @@ Deno.serve(async (req) => {
       if (limited(`qr:${ip}`, 30, 3600000)) return json({ error: 'ขอ QR บ่อยเกินไป กรุณารอสักครู่' }, 429)
       if (row.channel === 'pos') return json({ error: 'บิลหน้าร้านแจ้งชำระผ่านเว็บไม่ได้' }, 400)
       if (row.status === 'cancelled') return json({ error: 'ออร์เดอร์นี้ถูกยกเลิกแล้ว' }, 400)
+      const needQ = await consentNeededFor(sb, row.customer_id)
+      if (needQ.length) { if (b.consent !== true) return json({ error: 'ต้องยินยอมก่อนชำระเงิน', consentNeeded: needQ }, 400); await recordConsents(sb, row.customer_id, needQ, 'order') }
       const t = totals(order)
       if (t.balance <= 0.004) return json({ error: 'ชำระครบแล้ว' }, 400)
       if (d.payments.some((p: any) => isOverdue(p) && row.status !== 'delivered')) return json({ error: 'เกินกำหนดชำระ กรุณากดขอขยายเวลาก่อน' }, 400)
