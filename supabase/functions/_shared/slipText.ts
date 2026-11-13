@@ -20,14 +20,14 @@ const build = (y: number, month: number, day: number, hh: number, mm: number): s
 const ceYear = (v: string) => { let y = Number(v); if (y < 100) y += 2500; return y >= 2500 ? y - 543 : y }
 export function parseThaiDateTime(text: string): string | null {
   const t = text.replace(/\.[ัิ-ฺ็-๎]+/g, '.')
-  const m = t.match(new RegExp(`${DAY}\\s*(ม\\.ค\\.|ก\\.พ\\.|มี\\.ค\\.|เม\\.ย\\.|พ\\.ค\\.|มิ\\.ย\\.|ก\\.ค\\.|ส\\.ค\\.|ก\\.ย\\.|ต\\.ค\\.|พ\\.ย\\.|ธ\\.ค\\.)\\s*(\\d{4}|\\d{2})\\s*[-–]?\\s*(\\d{1,2}):(\\d{2})`))
+  const m = t.match(new RegExp(`${DAY}\\s*(ม\\.ค\\.|ก\\.พ\\.|มี\\.ค\\.|เม\\.ย\\.|พ\\.ค\\.|มิ\\.ย\\.|ก\\.ค\\.|ส\\.ค\\.|ก\\.ย\\.|ต\\.ค\\.|พ\\.ย\\.|ธ\\.ค\\.)\\s*(\\d{4}|\\d{2})\\s*[-–,]?\\s*(\\d{1,2}):(\\d{2})`))
   if (!m) return null
   return build(ceYear(m[3]), MONTHS[m[2]], fixDay(m[1]), Number(m[4]), Number(m[5]))
 }
 // เดือนอ่านไม่ออก (เช่น "11 we. 69 15:49") แต่วัน ปี เวลา ครบ → เลือกเดือนล่าสุดที่ไม่เกินเวลาปัจจุบัน (สลิปที่ส่งมามักเพิ่งโอน)
 // เป็นค่าคาดการณ์ · ผู้เรียกต้องให้พนักงานตรวจ
 export function inferThaiDateTime(text: string, nowMs = Date.now()): string | null {
-  const m = text.match(new RegExp(`(?:^|\\n)\\s*(?:\\S{1,3}\\s+)?${DAY}\\s+\\S{1,6}\\s+(\\d{4}|\\d{2})\\s*[-–]?\\s*(\\d{1,2}):(\\d{2})`))
+  const m = text.match(new RegExp(`(?:^|\\n)\\s*(?:\\S{1,3}\\s+)?${DAY}\\s+\\S{1,6}\\s+(\\d{4}|\\d{2})\\s*[-–,]?\\s*(\\d{1,2}):(\\d{2})`))
   if (!m) return null
   const y = ceYear(m[2])
   const now = new Date(nowMs + 7 * 3600_000) // เวลาไทย

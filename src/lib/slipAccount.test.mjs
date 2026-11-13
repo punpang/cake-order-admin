@@ -50,5 +50,15 @@ t('มีหลายบัญชีร้าน → match ถ้าบัญช
   assert.equal(slipAccountCheck('xxx-x-x8154-x', { bank: ['9999999999', '1234581540'], promptpay: [] }), 'match')
 })
 
+t('ปิดด้วยจุด • (แอป CLICX) ตรงกับบัญชีร้านที่หลักเดียวกัน → match', () => {
+  assert.equal(slipAccountCheck('••• ••• 5562', { bank: ['1234565562'], promptpay: [] }), 'match')
+})
+t('จุดปิดและเลขที่เห็นไม่ตรงกับบัญชีร้าน → mismatch', () => {
+  assert.equal(slipAccountCheck('••••••5562', { bank: ['1234565563'], promptpay: [] }), 'mismatch')
+})
+t('รูปแบบ 086-•••-5562 (ขีดกับจุดผสมกัน) เทียบกับเบอร์ร้านที่จำนวนหลักเท่ากัน → match', () => {
+  assert.equal(slipAccountCheck('086-•••-5562', { bank: [], promptpay: ['0861115562'] }), 'match')
+})
+
 console.log(fail ? `ไม่ผ่าน ${fail} รายการ` : 'ผ่านทั้งหมด')
 if (fail) process.exitCode = 1

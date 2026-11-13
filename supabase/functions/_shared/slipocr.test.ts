@@ -91,7 +91,7 @@ Deno.test('readSlipFieldsWorkersAI: แปลงข้อความวัน�
   const fetchImpl = (async (u: string, init: any) => {
     url = u
     body = JSON.parse(init.body)
-    return new Response(JSON.stringify({ choices: [{ message: { content: '{"amount": 650, "date_text": "2 พ.ย. 69 13:17 น.", "accounts": ["xxx-x-x6111-x", "xxx-x-x8154-x"]}' } }] }), { status: 200 })
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"amount": 650, "date_text": "2 พ.ย. 69 13:17 น.", "receiver_account": "xxx-x-x8154-x", "sender_account": "xxx-x-x6111-x"}' } }] }), { status: 200 })
   }) as unknown as typeof fetch
   const r = await readSlipFieldsWorkersAI({ bytes: JPG, accountId: 'acc1', token: 't1', nowMs: Date.UTC(2026, 10, 13), fetchImpl })
   assertEquals(r, { amount: 650, paidAt: '2026-11-02T13:17', receiverName: null, receiverAccount: 'xxx-x-x8154-x' })
@@ -104,7 +104,7 @@ Deno.test('readSlipFieldsWorkersAI: ไม่มีค่า/ตอบผิด�
   const down = (async () => new Response('x', { status: 403 })) as unknown as typeof fetch
   assertEquals(await readSlipFieldsWorkersAI({ bytes: JPG, accountId: 'a', token: 't', fetchImpl: down }), null)
   assertEquals(await readSlipFieldsWorkersAI({ bytes: JPG, accountId: '', token: 't', fetchImpl: down }), null)
-  const bad = (async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"amount": "ไม่รู้", "date_text": null, "accounts": ["xxx-x-x6111-x"]}' } }] }), { status: 200 })) as unknown as typeof fetch
+  const bad = (async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"amount": "ไม่รู้", "date_text": null, "receiver_account": "  "}' } }] }), { status: 200 })) as unknown as typeof fetch
   assertEquals(await readSlipFieldsWorkersAI({ bytes: JPG, accountId: 'a', token: 't', fetchImpl: bad }), { amount: null, paidAt: null, receiverName: null, receiverAccount: null })
 })
 
