@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
   const clean = (v: unknown, n: number) => String(v ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/\s+/g, ' ').trim().slice(0, n)
   const cd = body.card && typeof body.card === 'object' ? body.card : null
   const kind = cd ? String(cd.kind ?? '') : ''
-  if (cd && !['quote', 'order', 'link'].includes(kind)) return json({ error: 'ชนิดการ์ดไม่ถูกต้อง' }, 400)
+  if (cd && !['quote', 'order', 'link', 'payreq'].includes(kind)) return json({ error: 'ชนิดการ์ดไม่ถูกต้อง' }, 400)
   const cTitle = cd ? clean(cd.title, 80) : ''
   const cSub = cd ? clean(cd.subtitle, 80) : ''
   const httpsOk = (u: string) => u.length <= 500 && /^https:\/\/[^\s]+$/i.test(u)
@@ -64,12 +64,19 @@ Deno.serve(async (req) => {
       { type: 'postback', title: 'ขอแก้ไข', payload: `q:rev:${quoteId}` },
     ]
   }
+  // การ์ดแจ้งชำระ: ปุ่ม "ถูกต้อง/ชำระเงิน" (postback) → เซิร์ฟเวอร์ส่ง QR พร้อมเพย์และช่องทางชำระให้
+  const payId = cd && kind === 'payreq' ? String((cd as any).paymentId ?? '') : ''
+  if (kind === 'payreq' && !/^[A-Za-z0-9_-]{1,40}$/.test(payId)) return json({ error: 'รหัสการแจ้งชำระไม่ถูกต้อง' }, 400)
+  if (kind === 'payreq') buttons = [{ type: 'postback', title: 'ถูกต้อง/ชำระเงิน', payload: `pay:ok:${payId}` }]
   if (kind === 'link') buttons = [{ type: 'web_url', url: cUrl, title: 'ดูออร์เดอร์' }]
   if (kind === 'order' && cUrl && httpsOk(cUrl)) buttons = [{ type: 'web_url', url: cUrl, title: cPay ? 'ดูออร์เดอร์ / โอนเงิน' : 'ดูออร์เดอร์' }]
   const defUrl = (kind === 'link' || kind === 'order') && cUrl && httpsOk(cUrl) ? cUrl : ''
   // การ์ด = ข้อความรายละเอียด (ถ้ามี) แล้วตามด้วย generic template · ไม่มีการ์ด: ข้อความเดียว (ใบเสนอแบบเก่ายังส่งเป็น button template)
   const messages: Record<string, unknown>[] = []
-  if (cd) {
+  if (kind === 'payreq') {
+    const text = msg.length > 640 ? `${msg.slice(0, 636)}…` : msg // button template รับข้อความได้ไม่เกิน 640 ตัวอักษร
+    messages.push({ attachment: { type: 'template', payload: { template_type: 'button', text, buttons } } })
+  } else if (cd) {
     if (msg) messages.push({ text: msg })
     messages.push({ attachment: { type: 'template', payload: { template_type: 'generic', elements: [{ title: cTitle, ...(cImgOk ? { image_url: cImg } : {}), ...(cSub ? { subtitle: cSub } : {}), ...(defUrl ? { default_action: { type: 'web_url', url: defUrl } } : {}), ...(buttons.length ? { buttons } : {}) }] } } })
   } else if (quoteId) {

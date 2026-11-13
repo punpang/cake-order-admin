@@ -1136,8 +1136,8 @@ export function reportPayment(order, p) {
   order.payments.push(pay)
   const due = pay.dueAt
   log(order, `แจ้งยอดชำระ ${money(Number(p.amount))} (${p.method}) ชำระก่อน ${dueText(due)}`)
-  notifyOrder('payment_requested', order, { requested: Number(p.amount), dueAt: due, skip: p.notify === false, noSms: p.sms === false })
-  if (p.notify !== false) sendPayQrFacebook(order, Number(p.amount), due, qrRef) // QR พร้อมเพย์ส่งเข้า Messenger เฉพาะเมื่อข้อความแจ้งชำระใช้ช่อง Facebook
+  // Facebook: การ์ดมีปุ่ม "ถูกต้อง/ชำระเงิน" · QR พร้อมเพย์ส่งหลังลูกค้ากดปุ่ม (เซิร์ฟเวอร์)
+  notifyOrder('payment_requested', order, { requested: Number(p.amount), dueAt: due, skip: p.notify === false, noSms: p.sms === false, paymentId: pay.id })
   if (order.status === 'awaiting_payment') order.status = 'payment_reported'
   return { ok: true, paymentId: pay.id, qrRef }
 }
@@ -2562,27 +2562,6 @@ function deliverTg(row, text, kind, parseMode = '') {
   tgHook.send(text, kind, parseMode).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
 }
 // QR พร้อมเพย์ของยอดที่แจ้งชำระ → แชท Facebook ของลูกค้า (ตามช่องทางที่ข้อความแจ้งชำระใช้จริง) · ไม่มีบัญชีพร้อมเพย์/ไม่มีแชท/โหมดจำลอง = ข้าม
-async function sendPayQrFacebook(order, amount, due = '', qrRef = '') {
-  try {
-    if (!(amount > 0) || order.channel === 'pos') return
-    const customer = findCustomer(order.customerId)
-    const r = db.notifyRules.find((x) => x.event === 'payment_requested')
-    if (!customer || !r?.enabled || !fbHook.send || !db.integrations.facebook?.enabled) return
-    const allowed = effectiveChannels(r, customer, order)
-    if (!customerTargets({ order: CUSTOMER_CHANNEL_ORDER, allowed, integrations: db.integrations, addressOf: (k) => customerAddr(customer, k) }).includes('facebook')) return
-    const chat = chatFor(customer.id, 'facebook')
-    const payload = promptPayBillerPayload(billerIdOf(db.shop.billerId), amount, db.shop.merchantCode, qrRef)
-    if (!chat || !payload) return
-    const QR = await import('qrcode')
-    const dataUrl = await (QR.default || QR).toDataURL(payload, { type: 'image/jpeg', width: 480, margin: 2, errorCorrectionLevel: 'M' })
-    const att = await uploadChatImage(chat, await (await fetch(dataUrl)).blob(), { width: 480, height: 480 })
-    if (!att.path) return // โหมดจำลอง ไม่มีการอัปโหลด
-    const caption = [`สแกน QR พร้อมเพย์เพื่อชำระออร์เดอร์ ${orderNo(order.code)}`, `ยอด ${money(amount)}`, due ? `ชำระภายใน ${dueText(due)}` : ''].filter(Boolean).join('\n')
-    sendChat(chat.id, 'staff', caption, { orderId: order.id, by: 'ระบบ', attachments: [att] })
-  } catch {
-    emitStaffBell('notify_failed', { text: `${findCustomer(order.customerId)?.name || 'ลูกค้า'}: ส่ง QR พร้อมเพย์ทาง Facebook ไม่สำเร็จ` })
-  }
-}
 // การเปลี่ยนแปลงออร์เดอร์ → ทีม (Telegram) · บิลหน้าร้าน (POS) ไม่แจ้ง ตามกฎเดิม · ไม่มีตัวส่ง/ปิดช่อง = ข้าม
 function notifyOrderChange(order, text) {
   if (order.channel === 'pos' || !tgHook.send || !db.integrations.telegram.enabled) return
@@ -2758,7 +2737,7 @@ export function notifyOrder(event, order, extra = {}) {
   const url = rule?.enabled && NOTIFY_EVENTS[event]?.audience === 'customer' && !NOTIFY_EVENTS[event]?.marketing ? createOrderLink(order, { system: true }).url || '' : ''
   vars.ลิงก์ออร์เดอร์ = url
   const customer = findCustomer(order.customerId)
-  const card = event === 'payment_confirmed' ? payCardOf(order, orderTotals(order), extra.paid, url) : event === 'delivered' ? viewCardOf(order, url) : null
+  const card = event === 'payment_confirmed' ? payCardOf(order, orderTotals(order), extra.paid, url) : event === 'delivered' ? viewCardOf(order, url) : event === 'payment_requested' && extra.paymentId ? { kind: 'payreq', title: 'แจ้งยอดชำระ', paymentId: extra.paymentId } : null
   notify(event, { customer, vars, orderId: order.id, noSms: !!extra.noSms, card })
   if (TEAM_OF[event]) notify(TEAM_OF[event], { vars, orderId: order.id })
 }

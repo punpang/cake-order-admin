@@ -3,6 +3,7 @@ import { runFbBot } from './bot.ts'
 import { checkSlipImage } from '../_shared/slipjob.ts'
 import { attachmentNote, attachmentShape } from '../_shared/attnote.ts'
 import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
+import { PAY_OK_PREFIX, sendPaymentQr } from '../_shared/payqrsend.ts'
 
 // รับข้อความ Messenger ของเพจที่เชื่อมไว้ (Webhook ของ Meta) → เขียนเข้าแชท (punpang_chats) + กระดิ่งทีม
 // GET: ยืนยัน webhook (hub.verify_token = secret FB_VERIFY_TOKEN) · POST: ตรวจลายเซ็น X-Hub-Signature-256 ด้วย FB_APP_SECRET
@@ -194,6 +195,15 @@ async function bell(sb: any, t: string, chatId: string | null) {
 const pickupMs = (s: unknown) => { const v = String(s || ''); if (!v) return NaN; return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(v) ? v : `${v}${v.length === 16 ? ':00' : ''}+07:00`).getTime() }
 async function handlePostback(sb: any, pg: { page_id: string; token: string }, ver: string, psid: string, ev: any): Promise<'ok' | 'retry'> {
   const pb = ev.postback
+  // ปุ่ม "ถูกต้อง/ชำระเงิน" ในการ์ดแจ้งชำระ → ส่ง QR พร้อมเพย์ตามยอด + ช่องทางชำระอื่น
+  const payload0 = String(pb?.payload || '')
+  if (payload0.startsWith(PAY_OK_PREFIX) && /^[A-Za-z0-9_-]{1,40}$/.test(payload0.slice(PAY_OK_PREFIX.length))) {
+    const paymentId = payload0.slice(PAY_OK_PREFIX.length)
+    let reply = ''
+    try { reply = await sendPaymentQr(sb, { psid, paymentId, token: pg.token, ver }) } catch (e) { console.error('pay-qr', (e as Error)?.message ?? 'error'); reply = 'ส่ง QR ไม่สำเร็จ กรุณาติดต่อร้านค่ะ' }
+    if (reply) await fetch(`${GRAPH}/${ver}/me/messages?${new URLSearchParams({ access_token: pg.token })}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipient: { id: psid }, messaging_type: 'RESPONSE', message: { text: reply } }), signal: AbortSignal.timeout(8000) }).catch(() => null)
+    return 'ok'
+  }
   // ปุ่ม "ยินยอม" ในการ์ดก่อนชำระ (PDPA · เงื่อนไข · คุกกี้) → บันทึกการยินยอมของลูกค้าที่ผูกแชทนี้
   if (String(pb?.payload || '') === 'consent:ok') {
     const cc = await sb.from('punpang_chats').select('id,customer_id').eq('channel', 'facebook').eq('external_id', psid).maybeSingle()
