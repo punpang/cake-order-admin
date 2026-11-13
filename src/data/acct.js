@@ -927,7 +927,7 @@ export function runAcctChecks(once, todayStr = today()) {
       if (r.state === 'missing' && !serverRuns) once(`expmiss|${r.t.id}|${m}`, () => (n += notify('team_expense_missing', { vars: { รายการ: r.t.name, เดือนภาษี: m, วันที่: r.due } }), 0))
     }
   }
-  for (const a of serverRuns ? [] : installmentAlerts(todayStr, 1)) once(`instdue|${a.x.id}|${a.row.no}`, () => (n += notify('team_installment_due', { vars: { รายการ: a.x.name, งวด: String(a.row.no), วันที่: a.row.due, ยอดรวม: String(a.row.payment) } }), 0))
+  for (const a of serverRuns ? [] : installmentAlerts(todayStr, Number(db.shop.installmentAlertDays ?? 1))) once(`instdue|${a.x.id}|${a.row.no}`, () => (n += notify('team_installment_due', { vars: { รายการ: a.x.name, งวด: String(a.row.no), วันที่: a.row.due, ยอดรวม: String(a.row.payment) } }), 0))
   return n
 }
 

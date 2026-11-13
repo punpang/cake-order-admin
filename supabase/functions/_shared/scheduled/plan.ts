@@ -83,7 +83,10 @@ export function orderVars(order: Any, extra: Any, shop: Any, customer: Any | nul
 const PAY_REMINDER_OLD = 'พรุ่งนี้มีนัดออร์เดอร์ {เลขออร์เดอร์} ({วันนัด} {เวลานัด}) ยังไม่ได้ชำระ คงค้าง {คงค้าง} ชำระก่อน {ชำระก่อน} ชำระที่ {ลิงก์ออร์เดอร์}'
 const PAY_REMINDER_TPL = 'โปรดชำระเงินก่อน {ชำระก่อน} เพื่อยืนยันการสั่งซื้อ {เลขออร์เดอร์} {วันนัด} {เวลานัด} เพื่อยืนยันการสั่งซื้อ หากชำระแล้ว ต้องขออภัย และสามารถแจ้งเพื่อตรวจสอบอีกครั้ง ขอบคุณค่ะ\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
 // เทมเพลตเก่าของ payment_reminder → เทมเพลตปัจจุบัน (ตรงกับ DEFAULT_UPGRADES ในแอป)
-const TPL_UPGRADES: Record<string, [string, string]> = { payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL] }
+// ทีม "ใกล้เวลาต้องเสร็จ": จำนวนชั่วโมงเปลี่ยนตามที่ร้านตั้งได้ (ตรงกับ DUE_SOON ในแอป)
+const DUE_SOON_OLD = '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน 2 ชม. (นัด {เวลานัด})'
+const DUE_SOON_TPL = '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน {ชั่วโมง} ชม. (นัด {เวลานัด})'
+const TPL_UPGRADES: Record<string, [string, string]> = { payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL], team_due_soon: [DUE_SOON_OLD, DUE_SOON_TPL] }
 // เทมเพลตเฉพาะ Facebook ของเหตุการณ์ตามเวลา (ตรงกับ FB_TPL ในแอป)
 const FB_TPL: Record<string, string> = {
   payment_reminder: PAY_REMINDER_TPL,
@@ -203,11 +206,15 @@ export function planScheduled(inp: PlanInput): Plan[] {
   const custFor = (o: Any): Any | null => custOf.get(o.customerId) ?? null
   const varsOf = (o: Any, extra: Any = {}) => orderVars(o, extra, inp.shop, custFor(o))
 
+  // ค่าเวลาแจ้งเตือนที่ร้านตั้งไว้ (ค่าเริ่มต้นเท่าการทำงานเดิม)
+  const pickupHours = Number(inp.shop?.pickupRemindHours ?? 24)
+  const dueHours = Number(inp.shop?.dueSoonHours ?? 2)
+  const pointsDays = Number(inp.shop?.pointsExpireDays ?? 30)
   for (const o of inp.orders) {
     if (['draft', 'delivered', 'cancelled'].includes(o.status)) continue
-    // เตือนนัดรับ: ภายใน 24 ชม. ก่อนนัด
+    // เตือนนัดรับ: ภายในจำนวนชั่วโมงที่ร้านตั้งไว้ก่อนนัด
     const toPickup = instantOf(o.pickupAt) - inp.nowMs
-    if (toPickup > 0 && toPickup <= 24 * HOUR) {
+    if (toPickup > 0 && toPickup <= pickupHours * HOUR) {
       add(`pickup|${o.id}`, { kind: 'customer', event: 'pickup_reminder', orderId: o.id, order: o, customer: custFor(o), vars: varsOf(o) })
     }
     // ทีม: งวดชำระเลยกำหนด
@@ -233,11 +240,11 @@ export function planScheduled(inp: PlanInput): Plan[] {
         }
       }
     }
-    // ทีม: ใกล้เวลาต้องเสร็จ (เหลือไม่เกิน 2 ชม. ตามเวลาผลิต = นัดลบเวลาเตรียม)
+    // ทีม: ใกล้เวลาต้องเสร็จ (เหลือไม่เกินชั่วโมงที่ร้านตั้งไว้ ตามเวลาผลิต = นัดลบเวลาเตรียม)
     const lead = Number(o.fulfillment === 'delivery' ? inp.shop?.leadDelivery : inp.shop?.leadPickup) || 0
     const dueMs = instantOf(o.pickupAt) - lead * 60000
-    if (dueMs - inp.nowMs <= 2 * HOUR) {
-      add(`due|${o.id}`, { kind: 'team', event: 'team_due_soon', orderId: o.id, order: o, customer: null, vars: varsOf(o) })
+    if (dueMs - inp.nowMs <= dueHours * HOUR) {
+      add(`due|${o.id}`, { kind: 'team', event: 'team_due_soon', orderId: o.id, order: o, customer: null, vars: { ...varsOf(o), ชั่วโมง: String(dueHours) } })
     }
   }
 
@@ -255,9 +262,9 @@ export function planScheduled(inp: PlanInput): Plan[] {
     })
   }
 
-  // คะแนนใกล้หมดอายุ (ภายใน 30 วัน)
+  // คะแนนใกล้หมดอายุ (ภายในจำนวนวันที่ร้านตั้งไว้)
   for (const c of inp.customers) {
-    const soon: Any = expiringSoon(c.ledger || [], today)
+    const soon: Any = expiringSoon(c.ledger || [], today, pointsDays)
     if (soon && soon.points > 0) {
       add(`pts|${c.id}|${soon.date}`, { kind: 'customer', event: 'points_expiring', orderId: null, order: null, customer: c, vars: { ชื่อลูกค้า: c.name, คะแนน: String(soon.points) } })
     }

@@ -17,7 +17,7 @@ const shopAddrChoices = computed(() => [
   { label: 'ใช้ที่อยู่ร้านหน้าเว็บ', text: /ตัวอย่าง/.test(db.storefront?.address || '') ? '' : db.storefront?.address },
   { label: 'ใช้ที่อยู่ตามข้อมูลกฎหมาย', text: db.legal?.contact?.address },
 ])
-const st = reactive({ ...db.shop, vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
+const st = reactive({ ...db.shop, pickupRemindHours: db.shop.pickupRemindHours ?? 24, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
 // ---- วัน-เวลาปิดร้าน ----
 const DOWS = [1, 2, 3, 4, 5, 6, 0] // จันทร์เริ่ม
 const flip = (arr, d) => (arr.includes(d) ? arr.splice(arr.indexOf(d), 1) : arr.push(d))
@@ -54,6 +54,7 @@ function save() {
   if (!st.open || !st.close || st.close <= st.open) return (error.value = 'เวลาปิดต้องหลังเวลาเปิด')
   if (!(Number(st.slotMinutes) >= 5)) return (error.value = 'ช่วงเวลาต้องอย่างน้อย 5 นาที')
   if (![st.leadPickup, st.leadDelivery, st.birthdayDays].every(num)) return (error.value = 'กรอกตัวเลขตั้งแต่ 0 ขึ้นไป')
+  if (!(st.pickupRemindHours >= 1 && st.pickupRemindHours <= 72) || !(st.dueSoonHours >= 1 && st.dueSoonHours <= 12) || !(st.pointsExpireDays >= 1 && st.pointsExpireDays <= 90) || !(st.installmentAlertDays >= 0 && st.installmentAlertDays <= 30)) return (error.value = 'ตรวจเวลาแจ้งเตือน (นัดรับ 1–72 ชม. · งานใกล้เวลา 1–12 ชม. · คะแนนหมดอายุ 1–90 วัน · ผ่อนชำระ 0–30 วัน)')
   if (!(Number(st.payDueMin) >= 1) || Number(st.payDueMin) > 10080) return (error.value = 'กำหนดชำระเริ่มต้นต้องอยู่ระหว่าง 1–10080 นาที')
   const pr = st.payDueRule
   if (!(Number(pr.hoursBefore) >= 1 && Number(pr.hoursBefore) <= 720) || !(Number(pr.daysBefore) >= 0 && Number(pr.daysBefore) <= 30) || !hm.test(pr.atTime) || !hm.test(st.payReminderTime)) return (error.value = 'ตรวจค่ากำหนดชำระตามนัด / เวลาเตือน (ชม. 1–720, วัน 0–30, เวลา HH:mm)')
@@ -108,15 +109,25 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         </div>
       </div>
       <div class="border-t border-stone-100 pt-4">
-        <div class="card-title mb-3"><AppIcon name="wallet" class="text-brand-600" /> มัดจำ / วันเกิด</div>
+        <div class="card-title mb-3"><AppIcon name="wallet" class="text-brand-600" /> มัดจำ / กำหนดชำระ</div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="label">มัดจำขั้นต่ำ (%) <span class="font-normal text-stone-400">0 = ไม่ใช้</span></label><input v-model.number="st.depositPercent" type="text" v-num min="0" max="100" class="input" /></div>
-          <div><label class="label">เตือนวันเกิดล่วงหน้า (วัน)</label><input v-model.number="st.birthdayDays" type="text" v-num min="0" class="input" /></div>
           <div class="col-span-2"><label class="label">กำหนดชำระเริ่มต้นตอนแจ้งยอด (นาที)</label><input v-model.number="st.payDueMin" type="text" v-num min="1" max="10080" class="input" /></div>
           <div><label class="label">ก่อนนัด (ชม.) เริ่มต้น</label><input v-model.number="st.payDueRule.hoursBefore" type="text" v-num min="1" max="720" class="input" /></div>
           <div><label class="label">ล่วงหน้า (วัน) เริ่มต้น</label><input v-model.number="st.payDueRule.daysBefore" type="text" v-num min="0" max="30" class="input" /></div>
           <div><label class="label">...ก่อนเวลา</label><input v-model="st.payDueRule.atTime" type="time" class="input" /></div>
+        </div>
+      </div>
+      <div class="border-t border-stone-100 pt-4">
+        <div class="card-title mb-1"><AppIcon name="calendar" class="text-brand-600" /> ตั้งเวลาแจ้งเตือนอัตโนมัติ</div>
+        <p class="mb-3 text-xs text-stone-500">ค่าเริ่มต้นเท่าการทำงานเดิม · เกินกำหนดชำระใช้กำหนดชำระของออร์เดอร์ · ค่าใช้จ่ายประจำตั้งผ่อนผันรายการที่หน้าบัญชี</p>
+        <div class="grid grid-cols-2 gap-3">
           <div><label class="label">เตือนชำระ (พรุ่งนี้มีนัด) เวลา</label><input v-model="st.payReminderTime" type="time" class="input" /></div>
+          <div><label class="label">เตือนก่อนนัดรับ (ชม.)</label><input v-model.number="st.pickupRemindHours" type="text" v-num min="1" max="72" class="input" /></div>
+          <div><label class="label">เตือนวันเกิดล่วงหน้า (วัน)</label><input v-model.number="st.birthdayDays" type="text" v-num min="0" class="input" /></div>
+          <div><label class="label">คะแนนใกล้หมดอายุ (วันล่วงหน้า)</label><input v-model.number="st.pointsExpireDays" type="text" v-num min="1" max="90" class="input" /></div>
+          <div><label class="label">งานใกล้เวลาต้องเสร็จ (ชม.)</label><input v-model.number="st.dueSoonHours" type="text" v-num min="1" max="12" class="input" /></div>
+          <div><label class="label">งวดผ่อนชำระ (วันก่อนครบกำหนด)</label><input v-model.number="st.installmentAlertDays" type="text" v-num min="0" max="30" class="input" /></div>
         </div>
       </div>
       <div class="border-t border-stone-100 pt-4">

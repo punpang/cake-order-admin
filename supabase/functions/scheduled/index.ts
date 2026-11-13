@@ -34,7 +34,7 @@ async function fetchAll(build: (from: number, to: number) => PromiseLike<Any>): 
 }
 
 // แผนเตือนบัญชี (อ่านอย่างเดียว): ค่าใช้จ่ายประจำที่ยังไม่บันทึก และงวดผ่อนชำระ · VAT และการบันทึกอัตโนมัติยังอยู่ในแอป
-async function acctPlansOf(sb: Any, nowMs: number): Promise<Any[]> {
+async function acctPlansOf(sb: Any, nowMs: number, installmentDays: number): Promise<Any[]> {
   const kv = await sb.from('punpang_kv').select('id,data').eq('collection', 'acct').in('id', ['recurring', 'recurringSkips', 'installments', 'vatFilings'])
   if (kv.error) throw new Error(kv.error.message)
   const acct: Record<string, Any> = {}
@@ -45,6 +45,7 @@ async function acctPlansOf(sb: Any, nowMs: number): Promise<Any[]> {
   return accountingPlans({
     todayStr: todayBkk(nowMs),
     closedThrough: String(st.data?.closed_through || ''),
+    installmentDays,
     recurring: acct.recurring || [],
     recurringSkips: acct.recurringSkips || [],
     installments: acct.installments || [],
@@ -93,7 +94,7 @@ Deno.serve(async (req) => {
     let acctPlans: Any[] = []
     let acctError = ''
     try {
-      acctPlans = await acctPlansOf(sb, nowMs)
+      acctPlans = await acctPlansOf(sb, nowMs, Number(cfg.shop?.installmentAlertDays ?? 1))
     } catch (e) {
       acctError = String((e as Error)?.message || e).slice(0, 200)
     }

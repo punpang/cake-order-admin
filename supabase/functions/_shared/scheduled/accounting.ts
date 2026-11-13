@@ -1,7 +1,7 @@
 // แผนเตือนบัญชีตามเวลา (ฟังก์ชันล้วน · ทดสอบได้) — ตรรกะเทียบกับ runAcctChecks ใน src/data/acct.js
 // เตือนเฉพาะสิ่งที่คำนวณจากข้อมูลบัญชีอย่างเดียว (ไม่ต้องใช้ยอดขาย และไม่เขียนข้อมูลบัญชี):
 //   - ค่าใช้จ่ายประจำที่ยังไม่บันทึก (สถานะ missing)
-//   - งวดผ่อนชำระที่ใกล้หรือเลยกำหนด (ภายใน 1 วัน)
+//   - งวดผ่อนชำระที่ใกล้หรือเลยกำหนด (ภายในจำนวนวันที่ร้านตั้งไว้ ค่าเริ่มต้น 1 วัน)
 // ยังอยู่ในแอป: เตือน VAT (ต้องยอดขายจากออร์เดอร์) และการบันทึกค่าใช้จ่ายประจำอัตโนมัติ (เขียนข้อมูลบัญชี)
 import { addDays, loanSchedule, recurringDue, recurringState } from '../schedlib/acct/plan.js'
 import { addMonths } from '../schedlib/acct/period.js'
@@ -18,6 +18,7 @@ export type AcctInput = {
   installments: Any[] // kv acct 'installments'
   vatFilings: Record<string, Any> // kv acct 'vatFilings'
   postedRecurring: Any[] // รายการบัญชีที่มี source.recurringId (จากตาราง punpang_acct_entries)
+  installmentDays?: number // ผ่อนชำระ: เตือนงวดที่ครบกำหนดภายในกี่วัน (ค่าเริ่มต้น 1)
 }
 
 const locked = (input: AcctInput, date: string) => !!input.closedThrough && date <= input.closedThrough
@@ -46,7 +47,7 @@ export function accountingPlans(input: AcctInput): Plan[] {
   for (const x of input.installments) {
     const rows = loanSchedule(x).map((r: Any) => ({ ...r, paid: (x.payments || []).find((p: Any) => p.no === r.no) || null }))
     const row = rows.find((r: Any) => !r.paid)
-    if (row && row.due <= addDays(input.todayStr, 1)) {
+    if (row && row.due <= addDays(input.todayStr, input.installmentDays ?? 1)) {
       out.push(plan(`instdue|${x.id}|${row.no}`, 'team_installment_due', { รายการ: x.name, งวด: String(row.no), วันที่: row.due, ยอดรวม: String(row.payment) }))
     }
   }
