@@ -257,7 +257,7 @@ Deno.serve(async (req) => {
       if (ref) {
         const seen = await sb.from('punpang_orders').select('id,data').contains('data', { payments: [{ ref }] })
         if (seen.error) return json({ error: 'ตรวจเลขอ้างอิงไม่สำเร็จ กรุณาลองใหม่' }, 500)
-        if ((seen.data || []).some((r: any) => refTaken(r.data?.payments, ref))) return json({ error: PAY_MSG.refTaken }, 400)
+        if ((seen.data || []).some((r: any) => (r.id !== row.id || ['delivered', 'cancelled'].includes(row.status)) && refTaken(r.data?.payments, ref))) return json({ error: PAY_MSG.refTaken }, 400)
       }
       const ocrFields = { ...(fields?.amount != null ? { ocrAmount: fields.amount } : {}), ...(fields?.paidAt ? { ocrPaidAt: fields.paidAt } : {}), ...(fields?.receiverAccount ? { ocrReceiverAccount: fields.receiverAccount } : {}) }
       const txnFields = { ...ocrFields, paidAt, bankCode: bankCode || null, bankName: bankCode ? (bankByCode(bankCode)?.name ?? null) : null, ref: ref || '', refSource: qr.kind === 'slip' ? 'qr' : (ref ? 'typed' : '') }

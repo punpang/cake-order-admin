@@ -2068,7 +2068,7 @@ export function customerPay(ctx, { amount, slip, note = '', paymentId = null, tx
   if (o._remote) return remoteOrderAction(db, ctx, 'pay', { amount: amt, slip, note: nt, paymentId, txnDate, txnTime, bankCode: txn.value.bankCode, ref: txn.value.ref }) // Promise · เซิร์ฟเวอร์บันทึก/ออกเลข PAY
   // โหมดจำลองไม่มีการอ่าน QR → ธนาคารที่กรอกต้องเลือกจากรายการ และเลขอ้างอิงที่กรอกห้ามซ้ำกับทุกออร์เดอร์
   if (txn.value.bankCode && !bankByCode(txn.value.bankCode)) return { error: PAY_MSG.bank }
-  if (txn.value.ref && db.orders.some((x) => refTaken(x.payments, txn.value.ref))) return { error: PAY_MSG.refTaken }
+  if (txn.value.ref && db.orders.some((x) => (x.id !== o.id || ['delivered', 'cancelled'].includes(o.status)) && refTaken(x.payments, txn.value.ref))) return { error: PAY_MSG.refTaken }
   const txnFields = { paidAt: txn.value.paidAt, bankCode: txn.value.bankCode || null, bankName: txn.value.bankCode ? bankByCode(txn.value.bankCode).name : null, ref: txn.value.ref, refSource: txn.value.ref ? 'typed' : '' }
   let p = null
   if (paymentId) {
@@ -3295,7 +3295,7 @@ export function receiveChatSlip(chatId, msgId, orderId, data = {}) {
   const err = slipBindError({
     slip: s, orderInactive: order.channel === 'pos' || ['draft', 'cancelled'].includes(order.status),
     room: slipRoom(orderTotals(order).balance, order.payments), amount, paidAt: data.paidAt, createdAt: order.createdAt,
-    refUsed: !!s?.ref && db.orders.some((o) => refTaken(o.payments, s.ref)),
+    refUsed: !!s?.ref && db.orders.some((o) => (o.id !== order.id || ['delivered', 'cancelled'].includes(order.status)) && refTaken(o.payments, s.ref)),
   })
   if (err) return { error: err }
   const stamp = now()

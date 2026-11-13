@@ -194,16 +194,22 @@ Deno.test('ครบ 5 เงื่อนไข → ผูกอัตโนม�
   assertEquals(msg.slipCheck.orderCode, 'OR-111126-000010')
 })
 
-Deno.test('สลิปเดิมส่งซ้ำ → ไม่แนบซ้ำ (ซ้ำทั้งระบบ) และแจ้งพนักงาน', async () => {
+Deno.test('สลิปเดิมส่งซ้ำในออร์เดอร์ที่ยังไม่ปิด → ส่งได้ แต่ไม่ยืนยันอัตโนมัติ (ให้พนักงานตรวจ)', async () => {
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [orderQr()], kv: AUTO_KV() })
   const bytes = await slipScreenshot(SLIP)
   assertEquals(await runCheck(sb, bytes, autoOpts()), 'matched')
-  assertEquals(await runCheck(sb, bytes, autoOpts()), 'duplicate')
+  assertEquals(await runCheck(sb, bytes, autoOpts()), 'manual')
   assertEquals(sb.T.punpang_orders[0].data.payments.length, 1)
-  const msg = sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1')
-  assertEquals(msg.slipCheck.status, 'duplicate')
 })
 
+Deno.test('สลิปเดิมส่งซ้ำเมื่อออร์เดอร์ปิดแล้ว → ไม่แนบซ้ำ และแจ้งพนักงาน', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [orderQr()], kv: AUTO_KV() })
+  const bytes = await slipScreenshot(SLIP)
+  assertEquals(await runCheck(sb, bytes, autoOpts()), 'matched')
+  sb.T.punpang_orders[0].status = 'delivered'
+  assertEquals(await runCheck(sb, bytes, autoOpts()), 'duplicate')
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 1)
+})
 Deno.test('รหัสอ้างอิงชี้ออร์เดอร์ที่ตรง (ไม่ใช่ออร์เดอร์ที่คุยล่าสุด) → แนบเข้าเฉพาะออร์เดอร์ที่รหัสตรง', async () => {
   const sb = fakeSb({
     chats: [chatWith([staffRef('o1'), staffRef('o0'), { id: 'x', from: 'customer', orderId: null }, slipMsg])],
@@ -350,8 +356,8 @@ Deno.test('โหมดแมนนวล: ไม่มีออร์เดอ�
 Deno.test('โหมดแมนนวล: สลิปที่แนบไว้แล้ว → ยังตอบซ้ำ ไม่เก็บรูปซ้ำ', async () => {
   const attached = order({ payments: [{ id: 'px', code: 'PAY-111126-00000', status: 'reported', amount: 540, ref: 'A1B2C3D4E5F6G7H8' }] })
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [attached], kv: [kvMode('manual')] })
-  assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'duplicate')
-  assertEquals(sb.calls.uploads, 0)
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'manual')
+  assertEquals(sb.calls.uploads, 1)
   assertEquals(sb.T.punpang_orders[0].data.payments.length, 1)
 })
 

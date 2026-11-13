@@ -134,18 +134,9 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   // เวลาที่ลูกค้าส่งข้อความสลิป → ใช้เป็นวัน-เวลาชำระ (ดู paidAtFromMessage)
   const msgAt = messages.find((m: any) => m?.id === msgId)?.at
 
-  // กันแนบซ้ำทั้งระบบ (ทั้งสองโหมด): เลขอ้างอิงเดียวกันในรายการชำระที่ยังไม่ยกเลิกของออร์เดอร์ใดก็ได้
-  const seen = await sb.from('punpang_orders').select('id,code,data').contains('data', { payments: [{ ref }] })
-  if (seen?.error) return 'error'
-  const hit = (seen?.data || []).find((r: any) => refTaken(r.data?.payments, ref))
-  if (hit) return finish('duplicate', hit.code, hit.id)
-
   // สลิปเดิมที่เคยเก็บเป็นป้ายในแชทใดก็ได้ (โหมดแมนนวลยังไม่มีรายการชำระ จึงต้องเทียบจากป้ายในแชท) · ตรวจก่อนส่ง AI เสมอ
   const seenInChats = await sb.from('punpang_chats').select('id,data').contains('data', { messages: [{ slipCheck: { slipKey: key } }] })
   if (seenInChats?.error) return 'error'
-  const dupInChat = (seenInChats?.data || []).some((c: any) =>
-    (Array.isArray(c.data?.messages) ? c.data.messages : []).some((m: any) => m?.slipCheck?.slipKey === key && !(c.id === chatId && m?.id === msgId)))
-  if (dupInChat) return finish('duplicate')
 
   // อ่านยอดและวัน-เวลาจากตัวหนังสือบนภาพ (เฉพาะเมื่อร้านเปิดไว้และมีคีย์) · อ่านไม่ได้ = ใช้ค่าเดิมต่อไป
   // หลัง QR พบว่าเป็นสลิป · ลำดับ: Workers AI → ระบบเดิม (Claude) · ตัวที่เปิดไว้และตั้งค่าครบจะลอง · ตัวแรกที่ได้ยอดหรือวัน-เวลาจะหยุด
@@ -160,6 +151,9 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     engines.push({ name: 'claude', read: (x) => read({ bytes: x, key: input.ocrKey!, model: cfg.ocr.model }) })
   }
   // อ่านผ่าน readSlipOnce: ใช้ผลที่เคยได้ตามเลขอ้างอิงก่อน (ไม่เรียกโมเดลซ้ำ) · ผลที่ตอบแล้วจำไว้ · อ่านไม่ครบเก็บรูปไว้ชุดเทรน
+  // สลิปรูปเดิมที่เคยเก็บในแชทและยังไม่ได้แนบเข้าออร์เดอร์ → ซ้ำ (ไม่อ่านซ้ำ) · ที่แนบแล้วซ้ำได้เฉพาะออร์เดอร์เดิมที่ยังไม่ปิด
+  const priorImage = (seenInChats?.data || []).flatMap((c: any) => (Array.isArray(c.data?.messages) ? c.data.messages : []).map((m: any) => ({ c, m }))).filter(({ c, m }: any) => m?.slipCheck?.slipKey === key && !(c.id === chatId && m?.id === msgId))
+  if (priorImage.some(({ m }: any) => m.slipCheck.status !== 'matched')) return finish('duplicate')
   const fields = await readSlipOnce(sb, { key, bytes, bankCode, source: 'chat', engines, files })
 
   // ผูกอัตโนมัติได้เฉพาะเมื่อรหัสอ้างอิงร้านค้าบนสลิปตรงกับรหัสออร์เดอร์ (แปลงจากเลขเดิม) · ออร์เดอร์ที่คุยล่าสุดเป็นตัวแนะนำให้พนักงานเท่านั้น
@@ -171,7 +165,18 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   const flagged = merchantMismatch(cfg.merchantCode, fields?.merchantCode)
   const flagPart = { ...shopPartOf(fields), ...(flagged ? { merchantMismatch: true } : {}) }
   // เครื่องหมายตรวจสลิปกับออร์เดอร์ (ยอด · วัน-เวลาหลังสร้างออร์เดอร์ · รหัสร้านค้า · รหัสอ้างอิง) · บิล POS ยังข้ามไปก่อน
-  const orderRow = orderId ? (await sb.from('punpang_orders').select('id,code,data').eq('id', orderId).maybeSingle()).data : null
+  const orderRow = orderId ? (await sb.from('punpang_orders').select('id,code,status,data').eq('id', orderId).maybeSingle()).data : null
+  // เลขอ้างอิงซ้ำ: ซ้ำข้ามออร์เดอร์ = ไม่แนบ · ซ้ำในออร์เดอร์เดิม = แนบได้เมื่อออร์เดอร์ยังไม่ปิด (ไม่ยืนยันอัตโนมัติ) · ออร์เดอร์ปิดแล้ว = ไม่แนบ
+  const closedOrder = !!orderRow && ['delivered', 'cancelled'].includes(orderRow.status)
+  if (priorImage.some(({ m }: any) => !(orderRow && !closedOrder && m.slipCheck.orderCode === orderRow.code))) return finish('duplicate')
+  if (ref && orderId) {
+    const seenRef = await sb.from('punpang_orders').select('id,code,data').contains('data', { payments: [{ ref }] })
+    if (seenRef?.error) return 'error'
+    const other = (seenRef?.data || []).find((r: any) => r.id !== orderId && refTaken(r.data?.payments, ref))
+    if (other) return finish('duplicate', other.code, other.id)
+  }
+  const sameRefDup = !!orderRow && !!ref && refTaken(orderRow.data?.payments, ref)
+  if (sameRefDup && closedOrder) return finish('duplicate', orderRow.code, orderRow.id)
   // รายการแจ้งชำระของออร์เดอร์นี้ที่รหัสสุ่ม (Ref 2) ตรงกับสลิป (ยังไม่ส่งสลิป)
   const reqOfSlip = orderRow && fields?.qrRef ? ((orderRow.data?.payments ?? []) as any[]).find((p: any) => p.qrRef === fields.qrRef && p.status === 'reported' && p.customerSubmitted !== true) ?? null : null
   const checks = slipChecksOf({
@@ -181,7 +186,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     request: reqOfSlip,
   })
   // ผูกอัตโนมัติเมื่อครบ 5 ข้อเป็น ✓ (ยอด · วัน-เวลา · รหัสร้านค้า · รหัสอ้างอิงร้านค้า (Ref 1) · รหัสสุ่ม (Ref 2) ตรงกับรายการแจ้งชำระ) และรหัสอ้างอิงตรงกับออร์เดอร์ที่พบ · นอกนั้นส่งให้พนักงาน
-  const autoOk = cfg.mode === 'auto' && refOrderId !== null && checks.every((c) => c.ok === true)
+  const autoOk = cfg.mode === 'auto' && refOrderId !== null && !sameRefDup && checks.every((c) => c.ok === true)
   // เหตุผลที่ไม่ผ่าน ✗ = ไม่ถูกต้อง · – = อ่านไม่ได้หรือยังไม่มีข้อมูลให้เทียบ → ไปที่กระดิ่งและป้าย
   const reasons = checks.filter((c) => c.ok !== true).map((c) => `${c.ok === false ? '✗' : '–'} ${c.text}`)
   const mismatchNote = reasons.length ? ` · ${reasons.join(' · ')}` : ''
@@ -220,7 +225,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     const row = or.data
     const d = row.data || {}
     const payments: any[] = Array.isArray(d.payments) ? d.payments : []
-    if (refTaken(payments, ref)) { await discardStaged(); return finish('duplicate', row.code, row.id) }
+    if (closedOrder && refTaken(payments, ref)) { await discardStaged(); return finish('duplicate', row.code, row.id) }
     const plan = planAttach({ status: row.status, data: d })
     if (!plan.ok) { await discardStaged(); return finish(plan.reason, row.code, row.id) }
 
