@@ -33,7 +33,7 @@ import { SLIP_RECEIVE_NOTE, slipRoom, slipChoices, slipBindError } from '../lib/
 import { payAccountsOf } from '../lib/payAccounts'
 import { customerTargets, withNewRules } from '../lib/notifyPlan'
 import { uploadChatImage } from '../lib/chatImage'
-import { billerIdOf, promptPayBillerPayload, shopRefOfCode } from '../lib/promptpay'
+import { billerIdOf, newQrSuffix, promptPayBillerPayload, shopRefOfCode } from '../lib/promptpay'
 import { orderNo } from '../lib/format'
 import { callAuth, callLoyalty, readSessionToken, saveSessionToken, clearSessionToken, injectBundle, clearBundle } from '../lib/customerRemote'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
@@ -1104,9 +1104,18 @@ export function setStatus(order, status, text, opts = {}) {
 // แจ้งยอดชำระ = ส่งยอดไปให้ลูกค้า (ยังไม่ใช่ยอดที่จ่ายจริง) ยอดจริงใส่ตอนแอดมินยืนยัน
 // payment.status = reported (รอลูกค้าชำระ) | confirmed | cancelled, requested = ยอดที่แจ้ง, amount = ยอดจริง (ตอนยืนยัน)
 const goodAmount = (v) => Number.isFinite(Number(v)) && Number(v) > 0
+// รหัสสุ่มของรายการแจ้งชำระ (ต่อท้าย POS/ORD ใน Ref 2): สุ่มใหม่ถ้าซ้ำกับรายการที่มีอยู่ในเครื่อง
+function uniqueQrRef(order) {
+  const base = shopRefOfCode(order.code)
+  const used = (r) => db.orders.some((o) => (o.payments || []).some((x) => x.qrRef === r))
+  let r = base + newQrSuffix()
+  for (let k = 0; k < 5 && used(r); k++) r = base + newQrSuffix()
+  return r
+}
 export function reportPayment(order, p) {
   if (!goodAmount(p.amount)) return { error: 'ยอดเงินไม่ถูกต้อง' }
   if (['draft', 'cancelled'].includes(order.status)) return { error: 'ออร์เดอร์นี้แจ้งยอดไม่ได้' }
+  const qrRef = uniqueQrRef(order)
   const pay = {
     id: uid('pay'), code: numbering.next('PAY'),
     requested: Number(p.amount),
@@ -1121,14 +1130,15 @@ export function reportPayment(order, p) {
     status: 'reported',
     reportedBy: session.role,
     confirmedBy: null,
+    qrRef, // Ref 2 ของ QR งวดนี้ (POS/ORD + รหัสสุ่ม)
   }
   order.payments.push(pay)
   const due = pay.dueAt
   log(order, `แจ้งยอดชำระ ${money(Number(p.amount))} (${p.method}) ชำระก่อน ${dueText(due)}`)
   notifyOrder('payment_requested', order, { requested: Number(p.amount), dueAt: due, skip: p.notify === false, noSms: p.sms === false })
-  if (p.notify !== false) sendPayQrFacebook(order, Number(p.amount), due) // QR พร้อมเพย์ส่งเข้า Messenger เฉพาะเมื่อข้อความแจ้งชำระใช้ช่อง Facebook
+  if (p.notify !== false) sendPayQrFacebook(order, Number(p.amount), due, qrRef) // QR พร้อมเพย์ส่งเข้า Messenger เฉพาะเมื่อข้อความแจ้งชำระใช้ช่อง Facebook
   if (order.status === 'awaiting_payment') order.status = 'payment_reported'
-  return { ok: true, paymentId: pay.id }
+  return { ok: true, paymentId: pay.id, qrRef }
 }
 
 const dueText = (iso) => (iso ? `${dateOnly(iso)} ${timeOnly(iso)} น.` : '')
@@ -2089,10 +2099,11 @@ export function customerRequestQr(ctx, amount) {
   const t = orderTotals(o)
   const room = round2(t.balance - pendingCustomerSum(o))
   if (amt > room + 1e-9) return { error: `ยอดเกินคงค้าง (ชำระได้ไม่เกิน ${money(room)})` }
-  const pay = { id: uid('pay'), code: numbering.next('PAY'), requested: amt, amount: amt, method: 'โอนเงิน', slip: '', note: '', dueAt: '', extension: null, status: 'reported', source: 'customer', qrRequest: true, customerSubmitted: false, createdAt: now(), reportedBy: 'customer', confirmedBy: null }
+  const qrRef = uniqueQrRef(o)
+  const pay = { id: uid('pay'), code: numbering.next('PAY'), requested: amt, amount: amt, method: 'โอนเงิน', slip: '', note: '', dueAt: '', extension: null, status: 'reported', source: 'customer', qrRequest: true, qrRef, customerSubmitted: false, createdAt: now(), reportedBy: 'customer', confirmedBy: null }
   o.payments.push(pay)
   log(o, `ลูกค้าขอ QR ชำระ ${money(amt)} (รอแนบสลิป)`, { team: false })
-  return { ok: true, paymentId: pay.id, amount: amt }
+  return { ok: true, paymentId: pay.id, qrRef, amount: amt }
 }
 // อ่าน QR ในสลิปที่ลูกค้าแนบ (ออร์เดอร์ที่เชื่อมเซิร์ฟเวอร์) · โหมดจำลองอ่านไม่ได้ → ลูกค้ากรอกเองได้
 export function customerReadSlip(ctx, slip) {
@@ -2550,7 +2561,7 @@ function deliverTg(row, text, kind, parseMode = '') {
   tgHook.send(text, kind, parseMode).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
 }
 // QR พร้อมเพย์ของยอดที่แจ้งชำระ → แชท Facebook ของลูกค้า (ตามช่องทางที่ข้อความแจ้งชำระใช้จริง) · ไม่มีบัญชีพร้อมเพย์/ไม่มีแชท/โหมดจำลอง = ข้าม
-async function sendPayQrFacebook(order, amount, due = '') {
+async function sendPayQrFacebook(order, amount, due = '', qrRef = '') {
   try {
     if (!(amount > 0) || order.channel === 'pos') return
     const customer = findCustomer(order.customerId)
@@ -2559,7 +2570,7 @@ async function sendPayQrFacebook(order, amount, due = '') {
     const allowed = effectiveChannels(r, customer, order)
     if (!customerTargets({ order: CUSTOMER_CHANNEL_ORDER, allowed, integrations: db.integrations, addressOf: (k) => customerAddr(customer, k) }).includes('facebook')) return
     const chat = chatFor(customer.id, 'facebook')
-    const payload = promptPayBillerPayload(billerIdOf(db.shop.billerId), amount, db.shop.merchantCode, shopRefOfCode(order.code))
+    const payload = promptPayBillerPayload(billerIdOf(db.shop.billerId), amount, db.shop.merchantCode, qrRef)
     if (!chat || !payload) return
     const QR = await import('qrcode')
     const dataUrl = await (QR.default || QR).toDataURL(payload, { type: 'image/jpeg', width: 480, margin: 2, errorCorrectionLevel: 'M' })

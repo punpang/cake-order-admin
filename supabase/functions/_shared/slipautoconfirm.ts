@@ -1,7 +1,8 @@
 // ยืนยันสลิปอัตโนมัติ: ฟังก์ชันล้วน (ไม่แตะฐานข้อมูล) ใช้ร่วมกันทั้งสลิปในแชท (slipjob) และสลิปจากหน้าออร์เดอร์ (customer-order)
-// เงื่อนไข (ครบทั้ง 4 ข้อเป็น ✓ · อ่านจากภาพสลิปแล้วเทียบกับออร์เดอร์):
+// เงื่อนไข (ครบทั้ง 5 ข้อเป็น ✓ · อ่านจากภาพสลิปแล้วเทียบกับออร์เดอร์และรายการแจ้งชำระ):
 //   1) จำนวนไม่เกินยอดคงค้าง  2) วัน-เวลาโอนมากกว่าเวลาสร้างออร์เดอร์ (ถึงนาที)
-//   3) รหัสร้านค้า (Ref 1) ตรงกับที่ตั้งไว้ (ยังไม่ตั้ง = ไม่ผ่าน)  4) รหัสอ้างอิงร้านค้า (Ref 2 = POS/ORD) ตรงกับรหัสออร์เดอร์
+//   3) รหัสร้านค้าตรงกับที่ตั้งไว้ (ยังไม่ตั้ง = ไม่ผ่าน)  4) รหัสอ้างอิงร้านค้า (Ref 1 = POS/ORD) ตรงกับรหัสออร์เดอร์
+//   5) รหัสสุ่ม (Ref 2) ตรงกับรายการแจ้งชำระของออร์เดอร์นั้น และยอดเท่ากับรายการนั้น
 // และเปิดไว้ (config slipQr.autoConfirm) · นัดรับห่างจากวันนี้ (ตามปฏิทินเวลาไทย) อย่างน้อยตามจำนวนวันที่ร้านตั้ง
 import { slipChecksOf } from './schedlib/slipChecks.js'
 import { daysUntilPickup } from './slip.ts'
@@ -16,12 +17,15 @@ export function autoConfirmDecision(input: {
   configuredMerchantCode: string
   balance: number
   nowMs: number
+  // รายการแจ้งชำระที่รหัสสุ่ม (Ref 2) ตรงกับสลิป · ไม่พบ = null (ข้อ 5 ไม่ผ่าน)
+  request?: { qrRef?: string; amount?: number } | null
 }): { ok: boolean; daysLeft: number | null; checks: SlipCheck[] } {
   const checks = slipChecksOf({
     fields: input.fields,
     order: { code: input.order.code, createdAt: input.order.createdAt as string | null },
     configuredMerchantCode: input.configuredMerchantCode,
     balance: input.balance,
+    request: input.request ?? null,
   }) as SlipCheck[]
   const daysLeft = daysUntilPickup(input.order.pickupAt, input.nowMs)
   const ok = input.enabled && checks.every((c) => c.ok === true) && daysLeft !== null && daysLeft >= input.days

@@ -1,6 +1,6 @@
 <script setup>
 // สร้าง QR ชำระจากออร์เดอร์ (ใช้ในหน้ารายละเอียดออร์เดอร์และหน้าเครื่องมือ QR)
-// ทุกครั้งที่กดสร้าง = รายการแจ้งชำระใหม่ของออร์เดอร์นั้น · Ref 1 = รหัสร้านค้า · Ref 2 = รหัสอ้างอิงร้านค้า POS/ORD
+// ทุกครั้งที่กดสร้าง = รายการแจ้งชำระใหม่ของออร์เดอร์นั้น · Ref 1 = รหัสร้านค้า · Ref 2 = POS/ORD + รหัสสุ่ม
 import { computed, ref } from 'vue'
 import { db, reportPayment } from '../data/store'
 import { orderTotals } from '../lib/pricing'
@@ -29,7 +29,7 @@ function make() {
   if (n > balance + 0.004) return (err.value = `ยอดเกินคงค้าง (${money(balance)})`)
   const r = reportPayment(props.order, { amount: n, method: 'โอนเงิน', notify: false })
   if (r.error) return (err.value = r.error)
-  made.value = { amount: n, ref1: db.shop.merchantCode, ref2: shopRefOfCode(props.order.code) }
+  made.value = { amount: n, ref1: db.shop.merchantCode, ref2: r.qrRef }
 }
 </script>
 
