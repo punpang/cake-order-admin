@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
       // สลิป QR ในรูป (ข้อความใหม่เท่านั้น): อ่าน QR → จับคู่กับออร์เดอร์ที่คุยล่าสุด · ทำในพื้นหลังเหมือนบอท
       if (fresh && freshChatId && att.imgs.length) {
         const imgs = att.imgs
-        botJobs.push((async () => { for (const bytes of imgs) await checkSlipImage({ sb, chatId: freshChatId, msgId: m.id, bytes, ocrKey: Deno.env.get('ANTHROPIC_API_KEY') || '', ocrRemote: { url: Deno.env.get('SLIP_OCR_URL') || '', token: Deno.env.get('SLIP_OCR_TOKEN') || '' }, ocrWai: { accountId: Deno.env.get('CLOUDFLARE_ACCOUNT_ID') || '', token: Deno.env.get('CLOUDFLARE_API_TOKEN') || '', model: Deno.env.get('WAI_MODEL') || '' } }) })().catch((e) => console.error('slip-check', (e as Error)?.message ?? 'error')))
+        botJobs.push((async () => { for (const bytes of imgs) await checkSlipImage({ sb, chatId: freshChatId, msgId: m.id, bytes, ocrKey: Deno.env.get('ANTHROPIC_API_KEY') || '', ocrWai: { accountId: Deno.env.get('CLOUDFLARE_ACCOUNT_ID') || '', token: Deno.env.get('CLOUDFLARE_API_TOKEN') || '', model: Deno.env.get('WAI_MODEL') || '' } }) })().catch((e) => console.error('slip-check', (e as Error)?.message ?? 'error')))
       }
       // บอทตอบแชท (ฝั่งเซิร์ฟเวอร์) · เฉพาะข้อความตัวอักษรใหม่ · ข้อผิดพลาดของบอทต้องไม่ทำให้ Meta ส่งซ้ำทั้งชุด
       // ทำงานหลังตอบ 200 แล้ว (EdgeRuntime.waitUntil) เพื่อไม่ให้หน่วงเวลาของบอททำให้ Meta ส่งซ้ำ

@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { PAY_MSG, bankByCode, checkCustomerTxn, refTaken } from '../_shared/payfields.ts'
 import { readSlipQr } from '../_shared/slipread.ts'
-import { OCR_DEFAULT_MODEL, readSlipFields } from '../_shared/slipocr.ts'
+import { ocrFlagsOf, readSlipFields, readSlipFieldsChain, readSlipFieldsWorkersAI, type OcrEngine } from '../_shared/slipocr.ts'
 
 // การกระทำของลูกค้าบนออร์เดอร์ (ฝั่งเซิร์ฟเวอร์): แจ้งชำระ(แนบสลิป) · ขอขยายเวลา · ขอ/ยกเลิกขอไม่เผยแพร่รูป
 // ยืนยันตัวตนได้ 2 แบบ: ลิงก์ออร์เดอร์ (token 32 ตัวอักษร เก็บ hash ใน punpang_records) หรือเซสชันลูกค้า (+ orderId ที่เป็นของตัวเอง)
@@ -75,16 +75,20 @@ Deno.serve(async (req) => {
   // อ่านยอดและวัน-เวลาจากภาพสลิป (เหมือนสลิปในแชท) · เฉพาะเมื่อร้านเปิดไว้และมีคีย์ · อ่านไม่ได้ = null (ไม่บล็อกการส่ง)
   // อ่านภาพเพียงครั้งเดียว: ผลเก็บตามแฮชของภาพ (1 ชม.) ตอนแนบ/ตอนส่งใช้ผลเดียวกัน ไม่เรียกโมเดลซ้ำ
   const sha = async (b: Uint8Array) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(b)))].map((x) => x.toString(16).padStart(2, '0')).join('')
+  // ลำดับเดียวกับสลิปในแชท: เรียกเฉพาะเมื่อ QR เป็นสลิปธนาคารแล้ว · Workers AI → ระบบเดิม (Claude) · ตัวที่เปิดไว้และตั้งค่าครบจึงลอง
   const slipFieldsOf = async (bytes: Uint8Array) => {
-    const cfg = (await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()).data?.data?.v?.ocr
-    if (cfg?.enabled !== true) return null
+    const flags = ocrFlagsOf((await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()).data?.data?.v?.ocr)
+    const engines: OcrEngine[] = []
+    const cfId = Deno.env.get('CLOUDFLARE_ACCOUNT_ID') || ''
+    const cfTok = Deno.env.get('CLOUDFLARE_API_TOKEN') || ''
+    if (flags.wai && cfId && cfTok) engines.push({ name: 'wai', read: (x) => readSlipFieldsWorkersAI({ bytes: x, accountId: cfId, token: cfTok, model: Deno.env.get('WAI_MODEL') || undefined }) })
     const key = Deno.env.get('ANTHROPIC_API_KEY') || ''
-    if (!key) return null
+    if (flags.claude && key) engines.push({ name: 'claude', read: (x) => readSlipFields({ bytes: x, key, model: flags.model }) })
+    if (!engines.length) return null
     const id = `sr${(await sha(bytes)).slice(0, 40)}`
     const hit = (await sb.from('punpang_records').select('data').eq('collection', 'slipRead').eq('id', id).maybeSingle()).data?.data
     if (hit && Date.now() - new Date(hit.at).getTime() < 3600_000) return hit.fields ?? null
-    const model = typeof cfg.model === 'string' && cfg.model.trim() ? cfg.model.trim() : OCR_DEFAULT_MODEL
-    const fields = await readSlipFields({ bytes, key, model })
+    const fields = await readSlipFieldsChain(bytes, engines)
     await sb.from('punpang_records').insert({ collection: 'slipRead', id, data: { fields, at: new Date().toISOString() } }) // ซ้ำ = ข้าม
     return fields
   }
@@ -121,8 +125,10 @@ Deno.serve(async (req) => {
     if (!ro || ro.status === 'draft' || (customerIdOfSession && ro.customer_id !== customerIdOfSession)) return json({ error: customerIdOfSession ? 'ไม่พบออร์เดอร์' : NOT_FOUND.error }, 404)
     const img = decodeSlip(b.slip)
     if ('error' in img) return json({ error: img.error }, 400)
-    const fields = await slipFieldsOf(img.bytes)
-    return json({ ok: true, qr: await readSlipQr(img.bytes), fields })
+    // อ่าน QR ก่อน · เป็นสลิปธนาคารจึงส่งต่อไปอ่านยอด/วัน-เวลา (รูปอื่นไม่ส่งไปโมเดล)
+    const qr = await readSlipQr(img.bytes)
+    const fields = qr.kind === 'slip' ? await slipFieldsOf(img.bytes) : null
+    return json({ ok: true, qr, fields })
   }
 
   // ---------- อ่าน-แก้-เขียนออร์เดอร์ (เทียบ updated_at ลองใหม่ได้ 3 ครั้ง) ----------
@@ -178,7 +184,7 @@ Deno.serve(async (req) => {
       if ('error' in txn) return json({ error: txn.error }, 400)
       const { paidAt } = txn.value
       // ยอดและวัน-เวลาในสลิป (อ่านจากภาพ) ต้องตรงกับที่ลูกค้ากรอก · อ่านไม่ได้ = ไม่ตรวจ
-      const fields = await slipFieldsOf(bytes)
+      const fields = qr.kind === 'slip' ? await slipFieldsOf(bytes) : null
       if (fields?.amount != null && Math.abs(fields.amount - amt) > 0.005) return json({ error: `ยอดในสลิป (${fields.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}) ไม่ตรงกับยอดที่แจ้ง กรุณาตรวจอีกครั้ง` }, 400)
       if (fields?.paidAt && fields.paidAt !== paidAt) return json({ error: 'วัน-เวลาในสลิปไม่ตรงกับที่กรอก กรุณาตรวจอีกครั้ง' }, 400)
       // ธนาคาร/เลขอ้างอิง: ถ้าอ่านจาก QR ในสลิปได้ ใช้ค่าจาก QR (ที่ลูกค้ากรอกมาต้องตรงกัน) · ไม่ได้กรอกก็ไม่เป็นไร ร้านตรวจจากสลิป

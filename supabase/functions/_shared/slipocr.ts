@@ -1,4 +1,4 @@
-// อ่านยอดเงิน วัน-เวลาทำรายการ ชื่อผู้รับโอน และเลขที่บัญชีผู้รับโอน จากภาพสลิป ด้วยโมเดล Claude (vision) · ทำงานเฉพาะเมื่อร้านเปิดไว้ (config slipQr.ocr.enabled)
+// อ่านยอดเงิน วัน-เวลาทำรายการ ชื่อผู้รับโอน และเลขที่บัญชีผู้รับโอน จากภาพสลิป ด้วยโมเดล Claude (vision) · ทำงานเฉพาะเมื่อร้านเปิดไว้ (config slipQr.ocr.claude)
 // QR บนสลิปไม่มียอดเงินและเวลา จึงต้องอ่านจากตัวหนังสือบนภาพ · ผลเป็น "ค่าที่อ่านได้" ยังไม่ใช่ยอดที่ธนาคารยืนยัน
 // ส่งเฉพาะรูปสลิปไปยัง API (ไม่ส่งข้อมูลลูกค้า/ออร์เดอร์) · คีย์ API รับเป็นพารามิเตอร์ ไม่เขียนลง log
 // ไม่อ่าน Deno.env ที่นี่ เพื่อให้ทดสอบด้วยตัวจำลอง fetch ได้
@@ -154,26 +154,25 @@ export async function readSlipFieldsWorkersAI(o: { bytes: Uint8Array; accountId:
   }
 }
 
-// อ่านด้วยบริการของร้านเอง (tools/slip-ocr/service.ts ผ่าน Cloudflare Tunnel) · ไม่มีค่าใช้จ่ายต่อรูป
-// ล้มเหลว/หมดเวลา/ผลผิดรูป = null (ระบบใช้ค่าเดิมต่อไป)
-export async function readSlipFieldsRemote(o: { bytes: Uint8Array; url: string; token: string; fetchImpl?: typeof fetch }): Promise<SlipFields | null> {
-  if (!o.url || !o.token) return null
-  const doFetch = o.fetchImpl ?? fetch
-  const type = o.bytes[0] === 0x89 ? 'image/png' : 'image/jpeg'
-  try {
-    const res = await doFetch(o.url, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${o.token}`, 'content-type': type },
-      body: new Uint8Array(o.bytes), // สำเนาเป็น ArrayBuffer แท้ (Deno ล่าสุดไม่รับ Uint8Array ที่ผูกกับ ArrayBufferLike)
-      signal: AbortSignal.timeout(60_000),
-    })
-    if (!res.ok) return null
-    const d: any = await res.json()
-    const amount = typeof d?.amount === 'number' && d.amount > 0 && d.amount <= 10_000_000 ? Math.round(d.amount * 100) / 100 : null
-    const paidAt = typeof d?.paidAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(d.paidAt) ? d.paidAt : null
-    const str = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null)
-    return { amount, paidAt, receiverName: str(d?.receiverName, 100), receiverAccount: str(d?.receiverAccount, 40) }
-  } catch {
-    return null
+// ---------- ลำดับอ่านยอดและวัน-เวลาจากภาพสลิป (ใช้ทั้งสลิปในแชทและหน้าสั่งของลูกค้า) ----------
+// ทำหลัง QR พบว่าเป็นสลิปธนาคารแล้วเท่านั้น · ตัวแรกที่ได้ยอดหรือวัน-เวลาจะหยุด · ผลว่างหรือ error ไปตัวถัดไป
+// ไม่มีตัวไหนได้ผลครบ → ใช้ผลบางส่วนของตัวแรกที่ตอบ
+export type OcrEngine = { name: string; read: (bytes: Uint8Array) => Promise<SlipFields | null> }
+export async function readSlipFieldsChain(bytes: Uint8Array, engines: OcrEngine[]): Promise<SlipFields | null> {
+  let partial: SlipFields | null = null
+  for (const e of engines) {
+    let f: SlipFields | null = null
+    try { f = await e.read(bytes) } catch { f = null }
+    if (f?.amount != null || f?.paidAt != null) return f
+    partial ??= f
   }
+  return partial
+}
+
+// ค่าสวิตช์จาก punpang_kv config slipQr.ocr: wai (Workers AI) · claude (ระบบเดิม) · ค่าเดิม ocr.enabled = claude เมื่อยังไม่มี claude
+// model ไม่ระบุ = OCR_DEFAULT_MODEL
+export function ocrFlagsOf(ocr: any): { wai: boolean; claude: boolean; model: string } {
+  const claude = ocr?.claude !== undefined ? ocr.claude === true : ocr?.enabled === true
+  const model = typeof ocr?.model === 'string' && ocr.model.trim() ? ocr.model.trim() : OCR_DEFAULT_MODEL
+  return { wai: ocr?.wai === true, claude, model }
 }

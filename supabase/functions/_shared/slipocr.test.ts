@@ -1,6 +1,6 @@
 // ทดสอบการอ่านยอด/วัน-เวลาจากภาพสลิป (ไม่เรียก API จริง ใช้ fetch จำลอง)
 import { assertEquals, assert } from 'jsr:@std/assert@1'
-import { OCR_DEFAULT_MODEL, parseSlipFields, readSlipFields, readSlipFieldsRemote, readSlipFieldsWorkersAI, WAI_DEFAULT_MODEL } from './slipocr.ts'
+import { OCR_DEFAULT_MODEL, ocrFlagsOf, parseSlipFields, readSlipFields, readSlipFieldsChain, readSlipFieldsWorkersAI, type SlipFields, WAI_DEFAULT_MODEL } from './slipocr.ts'
 
 const NOW = Date.UTC(2026, 10, 11, 3, 0, 0) // 11-11-2026 10:00 เวลาไทย
 const JPG = new Uint8Array([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x00, 0x10, 0x00, 0x10, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xd9])
@@ -85,25 +85,6 @@ Deno.test('readSlipFields: รุ่นที่ไม่รองรับ stru
   assertEquals(bodies[1].output_config, undefined)
 })
 
-Deno.test('readSlipFieldsRemote: ส่งโทเคนและรูป แล้วอ่านผลที่ตรวจชนิดข้อมูลแล้ว', async () => {
-  let seen: any = null
-  const fetchImpl = (async (url: string, init: any) => {
-    seen = { url, auth: init.headers.authorization, type: init.headers['content-type'] }
-    return new Response(JSON.stringify({ amount: 178, paidAt: '2026-11-11T20:24', receiverName: 'ร้านตัวอย่าง', receiverAccount: 'KB000001234567', review: [] }), { status: 200 })
-  }) as unknown as typeof fetch
-  const r = await readSlipFieldsRemote({ bytes: JPG, url: 'https://ocr.example/', token: 't1', fetchImpl })
-  assertEquals(r, { amount: 178, paidAt: '2026-11-11T20:24', receiverName: 'ร้านตัวอย่าง', receiverAccount: 'KB000001234567' })
-  assertEquals(seen, { url: 'https://ocr.example/', auth: 'Bearer t1', type: 'image/jpeg' })
-})
-
-Deno.test('readSlipFieldsRemote: ค่าผิดชนิดถูกทิ้ง · ไม่มี url/โทเคน หรือเซิร์ฟเวอร์ล้มเหลว → null', async () => {
-  const bad = (async () => new Response(JSON.stringify({ amount: '178', paidAt: 'yesterday', receiverName: 5 }), { status: 200 })) as unknown as typeof fetch
-  assertEquals(await readSlipFieldsRemote({ bytes: JPG, url: 'https://x/', token: 't', fetchImpl: bad }), { amount: null, paidAt: null, receiverName: null, receiverAccount: null })
-  assertEquals(await readSlipFieldsRemote({ bytes: JPG, url: '', token: 't', fetchImpl: bad }), null)
-  const down = (async () => new Response('x', { status: 503 })) as unknown as typeof fetch
-  assertEquals(await readSlipFieldsRemote({ bytes: JPG, url: 'https://x/', token: 't', fetchImpl: down }), null)
-})
-
 Deno.test('readSlipFieldsWorkersAI: แปลงข้อความวันที่ที่โมเดลคัดลอก และอ่านยอดได้ (จำลองการเรียก)', async () => {
   let body: any = null
   let url = ''
@@ -125,4 +106,34 @@ Deno.test('readSlipFieldsWorkersAI: ไม่มีค่า/ตอบผิด�
   assertEquals(await readSlipFieldsWorkersAI({ bytes: JPG, accountId: '', token: 't', fetchImpl: down }), null)
   const bad = (async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"amount": "ไม่รู้", "date_text": null, "accounts": ["xxx-x-x6111-x"]}' } }] }), { status: 200 })) as unknown as typeof fetch
   assertEquals(await readSlipFieldsWorkersAI({ bytes: JPG, accountId: 'a', token: 't', fetchImpl: bad }), { amount: null, paidAt: null, receiverName: null, receiverAccount: null })
+})
+
+Deno.test('readSlipFieldsChain: ตัวแรกที่ได้ยอดหรือวัน-เวลาหยุด · ผลว่างหรือ error ไปตัวถัดไป', async () => {
+  const calls: string[] = []
+  const eng = (name: string, r: () => Promise<SlipFields | null>) => ({ name, read: async (_b: Uint8Array) => { calls.push(name); return r() } })
+  const empty = { amount: null, paidAt: null, receiverName: null, receiverAccount: null }
+  const got = { amount: 178, paidAt: '2026-11-11T14:48', receiverName: null, receiverAccount: null }
+  assertEquals(await readSlipFieldsChain(JPG, [eng('wai', async () => empty), eng('claude', async () => got)]), got)
+  assertEquals(calls, ['wai', 'claude'])
+  calls.length = 0
+  assertEquals(await readSlipFieldsChain(JPG, [eng('wai', async () => got), eng('claude', async () => null)]), got)
+  assertEquals(calls, ['wai'])
+  calls.length = 0
+  assertEquals(await readSlipFieldsChain(JPG, [eng('wai', async () => { throw new Error('ล้มเหลว') }), eng('claude', async () => got)]), got)
+  assertEquals(calls, ['wai', 'claude'])
+})
+
+Deno.test('readSlipFieldsChain: ไม่มีตัวไหนได้ยอดหรือวัน-เวลา → ใช้ผลบางส่วนของตัวแรกที่ตอบ · ไม่มีเลยเป็น null', async () => {
+  const partial = { amount: null, paidAt: null, receiverName: null, receiverAccount: 'xxx-x-x8154-x' }
+  const eng = (r: SlipFields | null) => ({ name: 'x', read: async (_b: Uint8Array) => r })
+  assertEquals(await readSlipFieldsChain(JPG, [eng(partial), eng(null)]), partial)
+  assertEquals(await readSlipFieldsChain(JPG, [eng(null)]), null)
+  assertEquals(await readSlipFieldsChain(JPG, []), null)
+})
+
+Deno.test('ocrFlagsOf: ค่าเดิม ocr.enabled เป็นสวิตช์ Claude · ไม่ระบุโมเดลใช้ค่าเริ่มต้น', () => {
+  assertEquals(ocrFlagsOf({ enabled: true }), { wai: false, claude: true, model: OCR_DEFAULT_MODEL })
+  assertEquals(ocrFlagsOf({ wai: true, claude: false, enabled: true }), { wai: true, claude: false, model: OCR_DEFAULT_MODEL })
+  assertEquals(ocrFlagsOf(undefined), { wai: false, claude: false, model: OCR_DEFAULT_MODEL })
+  assertEquals(ocrFlagsOf({ claude: true, model: ' m1 ' }).model, 'm1')
 })

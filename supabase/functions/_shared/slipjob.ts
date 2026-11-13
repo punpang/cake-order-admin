@@ -5,7 +5,7 @@
 import { buildSlipPayment, classifyThaiQr, latestOrderId, planAttach, slipKeyOf } from './slip.ts'
 import { imageSize, readQrTexts } from './qrimage.ts'
 import { bankByCode, normalizeRef, paidAtFromMessage, refTaken } from './payfields.ts'
-import { OCR_DEFAULT_MODEL, readSlipFields, readSlipFieldsRemote, readSlipFieldsWorkersAI, type SlipFields } from './slipocr.ts'
+import { ocrFlagsOf, readSlipFields, readSlipFieldsChain, readSlipFieldsWorkersAI, type OcrEngine, type SlipFields } from './slipocr.ts'
 
 export type SlipOutcome =
   | 'matched' | 'duplicate' | 'no_order' | 'order_missing' | 'order_inactive' | 'order_paid' | 'pending_exists'
@@ -31,9 +31,9 @@ export type SlipJobInput = {
   nowMs?: number
   rand?: (n: number) => string
   ocrKey?: string // คีย์ Anthropic (จาก Deno.env ของ fb-webhook) · ว่าง = ไม่อ่านยอดจากภาพ
-  ocrWai?: { accountId: string; token: string; model: string } // Workers AI (Cloudflare) · มีค่า = ใช้ก่อนทุกทาง
-  ocrRemote?: { url: string; token: string } // บริการอ่านของร้านเอง (Tesseract) · มีค่า = ใช้แทน Claude
-  ocrRead?: (o: { bytes: Uint8Array; key: string; model: string }) => Promise<SlipFields | null> // ทดสอบแทนการเรียก API จริง
+  ocrWai?: { accountId: string; token: string; model: string } // Workers AI (Cloudflare) · มีค่า = ลองก่อนระบบเดิม (Claude)
+  ocrRead?: (o: { bytes: Uint8Array; key: string; model: string }) => Promise<SlipFields | null> // ทดสอบแทนการเรียก API จริง (ใช้กับ Claude)
+  ocrReadBy?: Partial<Record<'wai' | 'claude', (o: { bytes: Uint8Array; key: string; model: string }) => Promise<SlipFields | null>>> // ทดสอบลำดับตัวอ่าน
 }
 
 const TH_OFFSET = 7 * 3600_000
@@ -44,12 +44,12 @@ const randHex = (n: number) => [...crypto.getRandomValues(new Uint8Array(n))].ma
 export type SlipMode = 'auto' | 'manual'
 
 // ตั้งค่าจาก punpang_kv (config / slipQr): v.enabled = false ปิด · v.mode = 'manual' โหมดแมนนวล · ไม่มีแถวหรือค่าอื่น = เปิดแบบอัตโนมัติ
-// ค่า ocr: { enabled: true } เปิดอ่านยอด/วันเวลาจากภาพ (ค่าเริ่มต้นปิด) · model ไม่ระบุ = OCR_DEFAULT_MODEL
-async function slipConfig(sb: any): Promise<{ enabled: boolean; mode: SlipMode; ocr: { enabled: boolean; model: string } }> {
+// ค่า ocr แยกเป็น 2 สวิตช์: wai (Workers AI) · claude (ระบบเดิม) · ค่าเดิม ocr.enabled = claude (ถ้ายังไม่มี claude)
+// ลำดับการลอง: Workers AI → Claude เฉพาะตัวที่เปิดและตั้งค่าไว้ · model ไม่ระบุ = OCR_DEFAULT_MODEL
+async function slipConfig(sb: any): Promise<{ enabled: boolean; mode: SlipMode; ocr: { wai: boolean; claude: boolean; model: string } }> {
   const r = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()
   const v = r?.data?.data?.v
-  const model = typeof v?.ocr?.model === 'string' && v.ocr.model.trim() ? v.ocr.model.trim() : OCR_DEFAULT_MODEL
-  return { enabled: v?.enabled !== false, mode: v?.mode === 'manual' ? 'manual' : 'auto', ocr: { enabled: v?.ocr?.enabled === true, model } }
+  return { enabled: v?.enabled !== false, mode: v?.mode === 'manual' ? 'manual' : 'auto', ocr: ocrFlagsOf(v?.ocr) }
 }
 
 // ใส่ผลลงข้อความในแชท (เทียบ updated_at) · ไม่กระทบการแนบ ถ้าเขียนไม่ได้ก็แค่ไม่มีป้าย
@@ -125,15 +125,18 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   if (dupInChat) return finish('duplicate')
 
   // อ่านยอดและวัน-เวลาจากตัวหนังสือบนภาพ (เฉพาะเมื่อร้านเปิดไว้และมีคีย์) · อ่านไม่ได้ = ใช้ค่าเดิมต่อไป
-  const wai = input.ocrWai?.accountId && input.ocrWai?.token ? input.ocrWai : null
-  const remote = !wai && input.ocrRemote?.url ? input.ocrRemote : null
-  const fields: SlipFields | null = cfg.ocr.enabled && (wai || remote || input.ocrKey)
-    ? wai
-      ? await (input.ocrRead ?? ((o) => readSlipFieldsWorkersAI({ bytes: o.bytes, accountId: wai.accountId, token: wai.token, model: wai.model })))({ bytes, key: '', model: '' }).catch(() => null)
-      : remote
-        ? await (input.ocrRead ?? ((o) => readSlipFieldsRemote({ bytes: o.bytes, url: remote.url, token: remote.token })))({ bytes, key: '', model: '' }).catch(() => null)
-        : await (input.ocrRead ?? readSlipFields)({ bytes, key: input.ocrKey!, model: cfg.ocr.model }).catch(() => null)
-    : null
+  // หลัง QR พบว่าเป็นสลิป · ลำดับ: Workers AI → ระบบเดิม (Claude) · ตัวที่เปิดไว้และตั้งค่าครบจะลอง · ตัวแรกที่ได้ยอดหรือวัน-เวลาจะหยุด
+  const engines: OcrEngine[] = []
+  const w = input.ocrWai
+  if (cfg.ocr.wai && w?.accountId && w?.token) {
+    const read: (o: { bytes: Uint8Array; key: string; model: string }) => Promise<SlipFields | null> = input.ocrReadBy?.wai ?? ((o) => readSlipFieldsWorkersAI({ bytes: o.bytes, accountId: w.accountId, token: w.token, model: w.model }))
+    engines.push({ name: 'wai', read: (x) => read({ bytes: x, key: '', model: '' }) })
+  }
+  if (cfg.ocr.claude && input.ocrKey) {
+    const read: (o: { bytes: Uint8Array; key: string; model: string }) => Promise<SlipFields | null> = input.ocrReadBy?.claude ?? input.ocrRead ?? readSlipFields
+    engines.push({ name: 'claude', read: (x) => read({ bytes: x, key: input.ocrKey!, model: cfg.ocr.model }) })
+  }
+  const fields = await readSlipFieldsChain(bytes, engines)
 
   if (cfg.mode === 'manual') {
     // โหมดแมนนวล: เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์

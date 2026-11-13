@@ -32,14 +32,15 @@ const STEPS = [15, 30, 60]
 const NEAR = [1, 2, 3, 6, 0]
 const num = (v) => Number(v) >= 0 && v !== ''
 // ---- สลิปในแชท (บันทึกแยกจากฟอร์มร้าน) ----
-const sq = reactive({ ...JSON.parse(JSON.stringify(db.slipQr)), ocr: { enabled: db.slipQr.ocr?.enabled === true } })
+const ocrOf = (q) => ({ wai: q.ocr?.wai === true, claude: (q.ocr?.claude ?? q.ocr?.enabled) === true })
+const sq = reactive({ ...JSON.parse(JSON.stringify(db.slipQr)), ocr: ocrOf(db.slipQr) })
 const slipErr = ref('')
 const slipSaved = ref(false)
 function saveSlip() {
   const r = saveSlipQrSettings(sq)
   if (r?.error) return (slipErr.value = r.error)
   slipErr.value = ''
-  Object.assign(sq, { ...JSON.parse(JSON.stringify(db.slipQr)), ocr: { enabled: db.slipQr.ocr?.enabled === true } })
+  Object.assign(sq, { ...JSON.parse(JSON.stringify(db.slipQr)), ocr: ocrOf(db.slipQr) })
   slipSaved.value = true
   setTimeout(() => (slipSaved.value = false), 1500)
 }
@@ -224,9 +225,15 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         </div>
         <p class="mt-2 text-xs text-stone-500">{{ sq.mode === 'manual' ? 'แชทจะแสดงปุ่มผูกกับออร์เดอร์ที่แนะนำ หรือเลือกออร์เดอร์อื่นของลูกค้า (ในหน้าแชท ไม่เปลี่ยนหน้า)' : 'ถ้ามีออร์เดอร์ที่คุยล่าสุด ระบบแนบให้ทันที · ไม่มีออร์เดอร์ก็แจ้งกระดิ่งให้ผูกเองจากหน้าออร์เดอร์' }}</p>
       </div>
-      <div class="space-y-1">
-        <AppSwitch v-model="sq.ocr.enabled" label="อ่านยอดและวัน-เวลาจากภาพสลิป (Claude)" class="flex" />
-        <p class="text-xs text-stone-500">เปิดแล้วระบบส่งเฉพาะรูปสลิปไปให้ Claude อ่านยอดและวันเวลาที่เขียนบนสลิป ค่าที่อ่านได้ยังต้องให้พนักงานตรวจกับธนาคารก่อนยืนยันเสมอ · ต้องตั้งคีย์ ANTHROPIC_API_KEY ใน Supabase ก่อนจึงจะทำงาน</p>
+      <div class="space-y-2">
+        <p class="text-sm font-medium text-stone-700">ลำดับการอ่านสลิป</p>
+        <div class="flex items-center justify-between gap-3 text-sm text-stone-700">
+          <span>1) อ่าน QR ในสลิป</span>
+          <span class="shrink-0 text-xs text-stone-500">ทำทุกครั้งที่ส่งสลิป</span>
+        </div>
+        <AppSwitch v-model="sq.ocr.wai" label="2) Workers AI (Cloudflare) · อ่านยอดและวัน-เวลา" class="flex" />
+        <AppSwitch v-model="sq.ocr.claude" label="3) Claude (ระบบเดิม) · อ่านยอดและวัน-เวลา" class="flex" />
+        <p class="text-xs text-stone-500">ระบบอ่าน QR ก่อนทุกครั้ง ถ้าเป็นสลิปจึงส่งต่อตามลำดับ 2 → 3 เฉพาะตัวที่เปิดไว้และตั้งค่าที่เซิร์ฟเวอร์ครบ ถ้าตัวแรกอ่านไม่ได้จะลองตัวถัดไป · ส่งเฉพาะรูปสลิปไปยังผู้ให้บริการที่เปิดไว้</p>
       </div>
       <p v-if="slipErr" class="text-sm text-rose-700">{{ slipErr }}</p>
       <button class="btn-outline w-full" @click="saveSlip"><AppIcon name="check" :size="18" /> {{ slipSaved ? 'บันทึกแล้ว' : 'บันทึกการตั้งค่าสลิป' }}</button>

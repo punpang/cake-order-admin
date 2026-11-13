@@ -302,8 +302,9 @@ Deno.test('ข้อผิดพลาดอื่นตอนแนบ (ไม�
   assertEquals(sb.T.punpang_orders[0].data.payments.length, 0)
 })
 
-// ---- อ่านยอดและวัน-เวลาจากภาพ (ตั้งค่า ocr.enabled) ----
-const kvOcr = (mode: 'auto' | 'manual', enabled: boolean) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled: true, mode, ocr: { enabled } } } })
+// ---- อ่านยอดและวัน-เวลาจากภาพ (ตั้งค่า ocr.claude) ----
+const kvOcr = (mode: 'auto' | 'manual', enabled: boolean) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled: true, mode, ocr: { claude: enabled } } } })
+const kvOcrAll = (flags: { wai?: boolean; claude?: boolean }) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled: true, mode: 'auto', ocr: flags } } })
 const ocrFields = (f: { amount: number | null; paidAt: string | null }) => async () => f
 
 Deno.test('OCR เปิด (อัตโนมัติ): ใช้ยอดและวัน-เวลาที่อ่านจากภาพ แทนยอดคงค้างและเวลาข้อความ', async () => {
@@ -360,4 +361,43 @@ Deno.test('สลิปใหม่ (ยังไม่เคยเก็บใ�
   let called = false
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrKey: 'k', ocrRead: async () => { called = true; return null } }), 'manual')
   assertEquals(called, true)
+})
+
+Deno.test('ลำดับตัวอ่าน: Workers AI → ระบบเดิม (Claude) · ตัวแรกที่ได้ยอดหรือวัน-เวลาจะหยุด', async () => {
+  const calls: string[] = []
+  const none = (name: string) => async () => { calls.push(name); return null }
+  const empty = (name: string) => async () => { calls.push(name); return { amount: null, paidAt: null, receiverName: null, receiverAccount: null } }
+  const hit = (name: string) => async () => { calls.push(name); return { amount: 178, paidAt: '2026-11-11T14:48', receiverName: null, receiverAccount: null } }
+  const wai = { accountId: 'a', token: 't', model: '' }
+  const opts = (ocrReadBy: any, ocrWai: any = wai) => ({ ocrKey: 'k', ocrWai, ocrReadBy })
+  // Workers AI ตอบผลว่าง → ไปลองระบบเดิม (Claude) ที่ได้ผล
+  const sb1 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true, claude: true })] })
+  assertEquals(await runCheck(sb1, await slipScreenshot(SLIP), opts({ wai: empty('wai'), claude: hit('claude') })), 'matched')
+  assertEquals(calls, ['wai', 'claude'])
+  // Workers AI ได้ผล → ไม่เรียกระบบเดิม
+  calls.length = 0
+  const sb2 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true, claude: true })] })
+  assertEquals(await runCheck(sb2, await slipScreenshot(SLIP), opts({ wai: hit('wai'), claude: none('claude') })), 'matched')
+  assertEquals(calls, ['wai'])
+  // ปิด Workers AI → ใช้ระบบเดิม (Claude) เท่านั้น
+  calls.length = 0
+  const sb3 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: false, claude: true })] })
+  await runCheck(sb3, await slipScreenshot(SLIP), opts({ wai: hit('wai'), claude: hit('claude') }))
+  assertEquals(calls, ['claude'])
+  // ไม่ได้ตั้งค่า Cloudflare → ข้าม Workers AI ไปใช้ระบบเดิม
+  calls.length = 0
+  const sb4 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true, claude: true })] })
+  await runCheck(sb4, await slipScreenshot(SLIP), opts({ wai: hit('wai'), claude: hit('claude') }, { accountId: '', token: '', model: '' }))
+  assertEquals(calls, ['claude'])
+})
+
+Deno.test('ขั้นตอน: รูปที่ไม่ใช่สลิปไม่ถูกส่งต่อให้โมเดล แม้เปิด Workers AI และ Claude ครบ', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true, claude: true })] })
+  const called: string[] = []
+  const reader = (name: string) => async () => { called.push(name); return { amount: 1, paidAt: null, receiverName: null, receiverAccount: null } }
+  const opts = { ocrKey: 'k', ocrWai: { accountId: 'a', token: 't', model: '' }, ocrReadBy: { wai: reader('wai'), claude: reader('claude') } }
+  assertEquals(await runCheck(sb, await qrPlain(PROMPTPAY_540), opts), 'no_slip')
+  const blank = new PNG({ width: 400, height: 400 }); blank.data.fill(255)
+  assertEquals(await runCheck(sb, new Uint8Array(PNG.sync.write(blank)), opts), 'no_slip')
+  assertEquals(called, [])
 })
