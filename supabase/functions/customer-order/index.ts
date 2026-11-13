@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
     return { auto: autoConfirmOf(sq), merchantCode: String(sh?.merchantCode ?? '').replace(/\D/g, '') }
   }
   const action = String(b.action || '')
-  if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
+  if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel', 'qr_request'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
 
   // ---------- ระบุออร์เดอร์ + ตรวจสิทธิ์ ----------
   let orderId = ''
