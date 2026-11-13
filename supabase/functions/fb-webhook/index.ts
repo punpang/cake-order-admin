@@ -2,10 +2,27 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { runFbBot } from './bot.ts'
 import { checkSlipImage } from '../_shared/slipjob.ts'
 import { attachmentNote, attachmentShape } from '../_shared/attnote.ts'
+import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
+import { PAY_OK_PREFIX, sendPaymentQr } from '../_shared/payqrsend.ts'
 
 // รับข้อความ Messenger ของเพจที่เชื่อมไว้ (Webhook ของ Meta) → เขียนเข้าแชท (punpang_chats) + กระดิ่งทีม
 // GET: ยืนยัน webhook (hub.verify_token = secret FB_VERIFY_TOKEN) · POST: ตรวจลายเซ็น X-Hub-Signature-256 ด้วย FB_APP_SECRET
 const GRAPH = 'https://graph.facebook.com'
+// ชื่อสำรองที่ใช้เมื่อดึงชื่อจาก Facebook ไม่ได้ (ดึงใหม่ได้เมื่อลูกค้าทักครั้งถัดไป)
+const FALLBACK_NAMES = ['ลูกค้า Facebook', 'ลูกค้า Instagram', '']
+// ชื่อโปรไฟล์ของผู้ส่ง: ลองฟิลด์ name ก่อน แล้ว first_name + last_name · ล้มเหลวบันทึกสาเหตุไว้ดู (ไม่ทำให้รับข้อความล้มเหลว)
+async function fetchProfileName(psid: string, token: string, ver: string): Promise<string> {
+  for (const fields of ['name', 'first_name,last_name']) {
+    try {
+      const r = await fetch(`${GRAPH}/${ver}/${psid}?${new URLSearchParams({ fields, access_token: token })}`, { signal: AbortSignal.timeout(8000) })
+      if (!r.ok) { console.error('profile-name', fields, r.status, (await r.text()).slice(0, 200)); continue }
+      const j: any = await r.json()
+      const name = String(j?.name || [j?.first_name, j?.last_name].filter(Boolean).join(' ') || '').trim()
+      if (name) return name
+    } catch (e) { console.error('profile-name', fields, (e as Error)?.message ?? 'error') }
+  }
+  return ''
+}
 const text = (b: string, status = 200) => new Response(b, { status, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } })
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('')
 const rand = (n: number) => hex(crypto.getRandomValues(new Uint8Array(n)).buffer)
@@ -127,8 +144,7 @@ Deno.serve(async (req) => {
         const cur = await sb.from('punpang_chats').select('id,data,updated_at,customer_id').eq('channel', channel).eq('external_id', psid).maybeSingle()
         if (cur.error) return text('db error', 500) // ให้ Meta ส่งซ้ำ (กันซ้ำด้วย mid)
         if (!cur.data) {
-          let name = ''
-          try { const r = await fetch(`${GRAPH}/${ver}/${psid}?${new URLSearchParams({ fields: 'name', access_token: pg.data.token })}`, { signal: AbortSignal.timeout(8000) }); if (r.ok) name = String((await r.json())?.name || '') } catch { /* ใช้ชื่อสำรอง */ }
+          const name = await fetchProfileName(psid, pg.data.token, ver)
           const chat = { profileName: name || (isIg ? 'ลูกค้า Instagram' : 'ลูกค้า Facebook'), messages: [m], unreadStaff: 1, lastInboundAt: at, updatedAt: at, pendingAsk: null }
           const newId = `ch${rand(6)}`
           const ins = await sb.from('punpang_chats').insert({ id: newId, channel, external_id: psid, customer_id: null, data: chat })
@@ -138,7 +154,9 @@ Deno.serve(async (req) => {
         const d = cur.data.data || {}
         const msgs: any[] = Array.isArray(d.messages) ? d.messages : []
         if (mid && msgs.some((x) => x?.fbMid === mid)) { done = true; break } // ข้อความซ้ำจาก Meta
-        const next = { ...d, messages: [...msgs, m], unreadStaff: (Number(d.unreadStaff) || 0) + 1, lastInboundAt: at, updatedAt: at }
+        // แชทที่ยังใช้ชื่อสำรอง → ลองดึงชื่อจริงอีกครั้งตอนลูกค้าทักมา
+        const realName = FALLBACK_NAMES.includes(String(d.profileName || '').trim()) ? await fetchProfileName(psid, pg.data.token, ver) : ''
+        const next = { ...d, ...(realName ? { profileName: realName } : {}), messages: [...msgs, m], unreadStaff: (Number(d.unreadStaff) || 0) + 1, lastInboundAt: at, updatedAt: at }
         const up = await sb.from('punpang_chats').update({ data: next }).eq('id', cur.data.id).eq('updated_at', cur.data.updated_at).select('id')
         if (up.error) return text('db error', 500)
         if (up.data?.length) { done = true; fresh = true; freshChatId = cur.data.id; await bell(sb, `${d.profileName || (isIg ? 'ลูกค้า Instagram' : 'ลูกค้า Facebook')}: ${label.slice(0, 60)}`, cur.data.id) }
@@ -177,6 +195,28 @@ async function bell(sb: any, t: string, chatId: string | null) {
 const pickupMs = (s: unknown) => { const v = String(s || ''); if (!v) return NaN; return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(v) ? v : `${v}${v.length === 16 ? ':00' : ''}+07:00`).getTime() }
 async function handlePostback(sb: any, pg: { page_id: string; token: string }, ver: string, psid: string, ev: any): Promise<'ok' | 'retry'> {
   const pb = ev.postback
+  // ปุ่ม "ถูกต้อง/ชำระเงิน" ในการ์ดแจ้งชำระ → ส่ง QR พร้อมเพย์ตามยอด + ช่องทางชำระอื่น
+  const payload0 = String(pb?.payload || '')
+  if (payload0.startsWith(PAY_OK_PREFIX) && /^[A-Za-z0-9_-]{1,40}$/.test(payload0.slice(PAY_OK_PREFIX.length))) {
+    const paymentId = payload0.slice(PAY_OK_PREFIX.length)
+    let reply = ''
+    try { reply = await sendPaymentQr(sb, { psid, paymentId, token: pg.token, ver }) } catch (e) { console.error('pay-qr', (e as Error)?.message ?? 'error'); reply = 'ส่ง QR ไม่สำเร็จ กรุณาติดต่อร้านค่ะ' }
+    if (reply) await fetch(`${GRAPH}/${ver}/me/messages?${new URLSearchParams({ access_token: pg.token })}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipient: { id: psid }, messaging_type: 'RESPONSE', message: { text: reply } }), signal: AbortSignal.timeout(8000) }).catch(() => null)
+    return 'ok'
+  }
+  // ปุ่ม "ยินยอม" ในการ์ดก่อนชำระ (PDPA · เงื่อนไข · คุกกี้) → บันทึกการยินยอมของลูกค้าที่ผูกแชทนี้
+  if (String(pb?.payload || '') === 'consent:ok') {
+    const cc = await sb.from('punpang_chats').select('id,customer_id').eq('channel', 'facebook').eq('external_id', psid).maybeSingle()
+    if (cc.error) return 'retry'
+    if (cc.data?.customer_id) {
+      const need = await consentNeededFor(sb, cc.data.customer_id)
+      if (need.length) await recordConsents(sb, cc.data.customer_id, need, 'facebook')
+    }
+    try {
+      await fetch(`${GRAPH}/${ver}/me/messages?${new URLSearchParams({ access_token: pg.token })}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipient: { id: psid }, messaging_type: 'RESPONSE', message: { text: 'บันทึกการยินยอมแล้วค่ะ ขอบคุณค่ะ' } }), signal: AbortSignal.timeout(8000) })
+    } catch { /* ตอบไม่ได้ไม่ทำให้การบันทึกล้มเหลว */ }
+    return 'ok'
+  }
   const mm = /^q:(ok|rev):([A-Za-z0-9_-]{1,40})$/.exec(String(pb?.payload || ''))
   if (!mm) return 'ok' // ปุ่มอื่น ไม่เกี่ยวกับใบเสนอ
   const act = mm[1], qid = mm[2]

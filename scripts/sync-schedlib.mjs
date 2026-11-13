@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 // ไฟล์ใน src/lib (เส้นทางสัมพัทธ์จาก src/lib) · acct/* ใช้คำนวณเตือนค่าใช้จ่ายประจำและผ่อนชำระ
 export const SCHEDLIB_FILES = [
   'constants.js', 'format.js', 'pricing.js', 'payDue.js', 'loyalty.js', 'birthday.js', 'notifyPlan.js', 'bell.js', 'orderLink.js',
-  'acct/plan.js', 'acct/period.js', 'acct/money.js', 'slipChecks.js',
+  'acct/plan.js', 'acct/period.js', 'acct/money.js', 'slipChecks.js', 'promptpay.js',
 ]
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')

@@ -89,7 +89,8 @@ const sp = (a, b, c, d) => ({ s1: a, s2: b, s3: c, s4: d })
 // กฎแจ้งเตือน (จำลอง)
 // ข้อความ "ได้รับชำระ": ยอดที่ชำระครั้งนี้ · ยอดรวม · ชำระแล้ว · คงค้าง · นัดส่งมอบ · ลิงก์ดูออร์เดอร์ (กฎเดิมที่ยังเป็นข้อความเริ่มต้นเก่าจะถูกใช้ข้อความนี้แทนอัตโนมัติ — กฎที่ร้านแก้เองไม่แตะ)
 const PAY_CONFIRMED_OLD = 'ได้รับชำระออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ คงค้าง {คงค้าง}'
-const PAY_CONFIRMED_TPL = 'ได้รับชำระ {ยอดที่ชำระ} ออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ\nยอดรวม {ยอดรวม} · ชำระแล้ว {ชำระแล้ว} · คงค้าง {คงค้าง}\nนัด{ส่งมอบ} {วันนัด} {เวลานัด}\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
+const PAY_CONFIRMED_V2 = 'ได้รับชำระ {ยอดที่ชำระ} ออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ\nยอดรวม {ยอดรวม} · ชำระแล้ว {ชำระแล้ว} · คงค้าง {คงค้าง}\nนัด{ส่งมอบ} {วันนัด} {เวลานัด}\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
+const PAY_CONFIRMED_TPL = 'ได้รับชำระ {ยอดที่ชำระ} ออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ\nยอดรวม {ยอดรวม} · ชำระแล้ว {ชำระแล้ว} · คงค้าง {คงค้าง}\nนัด{ส่งมอบ} {วันนัด} {เวลานัด}\nหลังชำระเงินแล้ว ร้านสงวนสิทธิ์ตรวจสอบรายละเอียดรายการสั่งซื้อ และลูกค้าได้ศึกษาข้อตกลง PDPA และอื่น ๆ แล้ว\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
 // เตรียมสินค้าเสร็จ: รับที่ร้านได้ทันที แต่ต้องไม่เกินเวลาปิดร้าน (บรรทัดท้ายใส่เฉพาะรับที่ร้าน ส่วนจัดส่งว่าง)
 const PREPARED_OLD = 'ออร์เดอร์ {เลขออร์เดอร์} เตรียมสินค้าเสร็จแล้วค่ะ นัด{ส่งมอบ} {วันนัด} {เวลานัด}'
 const PREPARED_TPL = 'ออร์เดอร์ {เลขออร์เดอร์} เตรียมสินค้าเสร็จแล้วค่ะ นัด{ส่งมอบ} {วันนัด} {เวลานัด}\n{ข้อความรับสินค้า}'
@@ -247,7 +248,7 @@ const DUE_SOON_TPL = '[ใกล้เวลา] {เลขออร์เดอ
 const PAY_REQ_CANCEL_OLD = 'ออร์เดอร์ {เลขออร์เดอร์} ยกเลิกยอดที่แจ้งชำระ {ยอดที่แจ้ง} แล้วค่ะ'
 const PAY_REQ_CANCEL_TPL = 'ออร์เดอร์ {เลขออร์เดอร์} ยกเลิกยอดที่แจ้งชำระ {ยอดที่แจ้ง} แล้วค่ะ\nเหตุผล: {เหตุผล}\nกรุณาแจ้งชำระยอดใหม่ค่ะ'
 const DEFAULT_UPGRADES = {
-  payment_confirmed: [PAY_CONFIRMED_OLD, PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL], delivered: [DELIVERED_OLD, DELIVERED_TPL], payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL],
+  payment_confirmed: [[PAY_CONFIRMED_OLD, PAY_CONFIRMED_V2], PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL], delivered: [DELIVERED_OLD, DELIVERED_TPL], payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL],
   order_created: [ORDER_CREATED_OLD, ORDER_CREATED_TPL],
   team_due_soon: [DUE_SOON_OLD, DUE_SOON_TPL],
   payment_requested: [PAY_REQ_OLD, PAY_REQ_TPL],
@@ -1135,8 +1136,8 @@ export function reportPayment(order, p) {
   order.payments.push(pay)
   const due = pay.dueAt
   log(order, `แจ้งยอดชำระ ${money(Number(p.amount))} (${p.method}) ชำระก่อน ${dueText(due)}`)
-  notifyOrder('payment_requested', order, { requested: Number(p.amount), dueAt: due, skip: p.notify === false, noSms: p.sms === false })
-  if (p.notify !== false) sendPayQrFacebook(order, Number(p.amount), due, qrRef) // QR พร้อมเพย์ส่งเข้า Messenger เฉพาะเมื่อข้อความแจ้งชำระใช้ช่อง Facebook
+  // Facebook: การ์ดมีปุ่ม "ถูกต้อง/ชำระเงิน" · QR พร้อมเพย์ส่งหลังลูกค้ากดปุ่ม (เซิร์ฟเวอร์)
+  notifyOrder('payment_requested', order, { requested: Number(p.amount), dueAt: due, skip: p.notify === false, noSms: p.sms === false, paymentId: pay.id })
   if (order.status === 'awaiting_payment') order.status = 'payment_reported'
   return { ok: true, paymentId: pay.id, qrRef }
 }
@@ -2049,7 +2050,7 @@ export function ctxOrder(ctx) {
 // ออร์เดอร์ที่โหลดมาจากเซิร์ฟเวอร์ (ธง _remote: ลิงก์ข้ามเครื่อง/บัญชีลูกค้า) — ฝั่งลูกค้าทำรายการผ่าน Edge Function customer-order (คืน Promise)
 const SLIP_OK = /^(data:image\/(png|jpe?g|webp|gif);base64,|blob:)/
 // ลูกค้าแจ้งชำระเอง (ไม่ต้องรอร้านแจ้งยอด) · แนบสลิป · แอดมินยืนยันเหมือนเดิม
-export function customerPay(ctx, { amount, slip, note = '', paymentId = null, txnDate = '', txnTime = '', bankCode = '', ref = '' }) {
+export function customerPay(ctx, { amount, slip, note = '', paymentId = null, txnDate = '', txnTime = '', bankCode = '', ref = '', consent = false }) {
   const o = ctxOrder(ctx)
   if (!o) return { error: LINK_ERROR }
   const block = customerPayBlock(o)
@@ -2065,7 +2066,7 @@ export function customerPay(ctx, { amount, slip, note = '', paymentId = null, tx
   // วัน-เวลาที่โอน/ธนาคาร/เลขอ้างอิง: ตรวจรูปแบบและกติกาเบื้องต้นตรงนี้ · เซิร์ฟเวอร์ตรวจซ้ำและกันเลขอ้างอิงซ้ำทั้งระบบเสมอ
   const txn = checkCustomerTxn({ txnDate, txnTime, bankCode, ref, createdAt: o.createdAt })
   if (txn.error) return { error: txn.error }
-  if (o._remote) return remoteOrderAction(db, ctx, 'pay', { amount: amt, slip, note: nt, paymentId, txnDate, txnTime, bankCode: txn.value.bankCode, ref: txn.value.ref }) // Promise · เซิร์ฟเวอร์บันทึก/ออกเลข PAY
+  if (o._remote) return remoteOrderAction(db, ctx, 'pay', { amount: amt, slip, note: nt, paymentId, txnDate, txnTime, bankCode: txn.value.bankCode, ref: txn.value.ref, consent: consent === true }) // Promise · เซิร์ฟเวอร์บันทึก/ออกเลข PAY
   // โหมดจำลองไม่มีการอ่าน QR → ธนาคารที่กรอกต้องเลือกจากรายการ และเลขอ้างอิงที่กรอกห้ามซ้ำกับทุกออร์เดอร์
   if (txn.value.bankCode && !bankByCode(txn.value.bankCode)) return { error: PAY_MSG.bank }
   if (txn.value.ref && db.orders.some((x) => (x.id !== o.id || ['delivered', 'cancelled'].includes(o.status)) && refTaken(x.payments, txn.value.ref))) return { error: PAY_MSG.refTaken }
@@ -2088,14 +2089,14 @@ export function customerPay(ctx, { amount, slip, note = '', paymentId = null, tx
   return { ok: true, paymentId: p.id }
 }
 // ขอ QR ชำระ (ลูกค้า): สร้างรายการแจ้งชำระใหม่ทุกครั้ง · เซิร์ฟเวอร์บันทึกให้ (โหมดจำลองบันทึกในเครื่อง)
-export function customerRequestQr(ctx, amount) {
+export function customerRequestQr(ctx, amount, consent = false) {
   const o = ctxOrder(ctx)
   if (!o) return { error: LINK_ERROR }
   const block = customerPayBlock(o)
   if (block) return { error: block }
   const amt = round2(Number(amount))
   if (!(amt > 0)) return { error: 'เลือกยอดก่อนสร้าง QR' }
-  if (o._remote) return remoteOrderAction(db, ctx, 'qr_request', { amount: amt }) // Promise · เซิร์ฟเวอร์บันทึก/ออกรหัส
+  if (o._remote) return remoteOrderAction(db, ctx, 'qr_request', { amount: amt, consent: consent === true }) // Promise · เซิร์ฟเวอร์บันทึก/ออกรหัส
   const t = orderTotals(o)
   const room = round2(t.balance - pendingCustomerSum(o))
   if (amt > room + 1e-9) return { error: `ยอดเกินคงค้าง (ชำระได้ไม่เกิน ${money(room)})` }
@@ -2561,27 +2562,6 @@ function deliverTg(row, text, kind, parseMode = '') {
   tgHook.send(text, kind, parseMode).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
 }
 // QR พร้อมเพย์ของยอดที่แจ้งชำระ → แชท Facebook ของลูกค้า (ตามช่องทางที่ข้อความแจ้งชำระใช้จริง) · ไม่มีบัญชีพร้อมเพย์/ไม่มีแชท/โหมดจำลอง = ข้าม
-async function sendPayQrFacebook(order, amount, due = '', qrRef = '') {
-  try {
-    if (!(amount > 0) || order.channel === 'pos') return
-    const customer = findCustomer(order.customerId)
-    const r = db.notifyRules.find((x) => x.event === 'payment_requested')
-    if (!customer || !r?.enabled || !fbHook.send || !db.integrations.facebook?.enabled) return
-    const allowed = effectiveChannels(r, customer, order)
-    if (!customerTargets({ order: CUSTOMER_CHANNEL_ORDER, allowed, integrations: db.integrations, addressOf: (k) => customerAddr(customer, k) }).includes('facebook')) return
-    const chat = chatFor(customer.id, 'facebook')
-    const payload = promptPayBillerPayload(billerIdOf(db.shop.billerId), amount, db.shop.merchantCode, qrRef)
-    if (!chat || !payload) return
-    const QR = await import('qrcode')
-    const dataUrl = await (QR.default || QR).toDataURL(payload, { type: 'image/jpeg', width: 480, margin: 2, errorCorrectionLevel: 'M' })
-    const att = await uploadChatImage(chat, await (await fetch(dataUrl)).blob(), { width: 480, height: 480 })
-    if (!att.path) return // โหมดจำลอง ไม่มีการอัปโหลด
-    const caption = [`สแกน QR พร้อมเพย์เพื่อชำระออร์เดอร์ ${orderNo(order.code)}`, `ยอด ${money(amount)}`, due ? `ชำระภายใน ${dueText(due)}` : ''].filter(Boolean).join('\n')
-    sendChat(chat.id, 'staff', caption, { orderId: order.id, by: 'ระบบ', attachments: [att] })
-  } catch {
-    emitStaffBell('notify_failed', { text: `${findCustomer(order.customerId)?.name || 'ลูกค้า'}: ส่ง QR พร้อมเพย์ทาง Facebook ไม่สำเร็จ` })
-  }
-}
 // การเปลี่ยนแปลงออร์เดอร์ → ทีม (Telegram) · บิลหน้าร้าน (POS) ไม่แจ้ง ตามกฎเดิม · ไม่มีตัวส่ง/ปิดช่อง = ข้าม
 function notifyOrderChange(order, text) {
   if (order.channel === 'pos' || !tgHook.send || !db.integrations.telegram.enabled) return
@@ -2685,6 +2665,8 @@ function setNotifyCh(target, ch, value) {
 export const setOrderNotifyChannel = (order, ch, value) => setNotifyCh(order, ch, value)
 export const setCustomerNotifyChannel = (customer, ch, value) => setNotifyCh(customer, ch, value)
 // ส่งตามกฎของ event (คืนจำนวนข้อความที่เข้าคิว)
+// ตัดป้ายลิงก์ที่เหลือท้ายข้อความ (เช่น "ดูออร์เดอร์:") เมื่อช่องนั้นใช้ปุ่มแทน
+const stripLinkLabel = (s) => String(s).replace(/\s*(ดูออร์เดอร์|ดู\/ชำระที่|ชำระที่|ดูได้ที่)\s*:?\s*$/, '').trim()
 export function notify(event, { customer = null, vars = {}, orderId = null, noSms = false, card = null } = {}) {
   emitBell(event, { customer, vars, orderId })
   const r = db.notifyRules.find((x) => x.event === event)
@@ -2697,9 +2679,12 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   // เทมเพลตตามแพลตฟอร์ม: r.channelTemplates[ช่อง] ถ้ามี · ไม่มี = เทมเพลตหลัก (LINE/ทั่วไป)
   const renderFor = (chKey, v, link = url) => {
     const tpl = channelTplOf(r, chKey)
+    // ลิงก์เป็นข้อความเฉพาะ SMS และทีม (Telegram) · ช่องทางอื่นแสดงเป็นปุ่มด้านล่างของการ์ด
+    const withLink = chKey === 'sms' || chKey === 'telegram'
     // บรรทัดที่กลายเป็นว่างเพราะตัวแปรว่าง → ตัดทิ้ง · บรรทัดว่างที่เขียนไว้ในเทมเพลต (แบ่งหมวด) → คงไว้ แต่ไม่เกิน 1 บรรทัด
     const lines = tpl.split('\n')
-    const body = lines.map((ln) => fillTemplate(ln, { ...v, ลิงก์ออร์เดอร์: link })).filter((ln, i) => ln.trim() !== '' || lines[i].trim() === '').join('\n').replace(/\n{3,}/g, '\n\n').trim()
+    const body = lines.map((ln) => fillTemplate(ln, { ...v, ลิงก์ออร์เดอร์: withLink ? link : '' })).filter((ln, i) => ln.trim() !== '' || lines[i].trim() === '').join('\n').replace(/\n{3,}/g, '\n\n').trim()
+    if (!withLink) return { tpl, text: stripLinkLabel(body) }
     return { tpl, text: link && !tpl.includes('{ลิงก์ออร์เดอร์}') ? `${body}\nดูออร์เดอร์: ${link}` : body }
   }
   if (ev.audience === 'team') {
@@ -2722,12 +2707,11 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   const plainFor = (chKey, s) => (chKey === 'sms' || chKey === 'facebook' ? plainText(s) : s)
   for (const ch of targets) {
     const to = `${CHANNELS[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}`
-    // Facebook: การ์ดปุ่ม "ดูออร์เดอร์" (card ที่ส่งมา หรือการ์ดลิงก์ที่สร้างให้) · ข้อความบนการ์ดตัดบรรทัดลิงก์ออก เพราะปุ่มทำหน้าที่แทน · LINE/SMS ได้ข้อความที่มีลิงก์
-    const fbCard = ch === 'facebook' ? (card || (orderMsg && url ? orderLinkCardOf(order, url) : null)) : null
+    // Facebook / LINE: การ์ดปุ่ม "ดูออร์เดอร์" ด้านล่าง (card ที่ส่งมา หรือการ์ดลิงก์ที่สร้างให้) · SMS: ข้อความที่มีลิงก์
+    const buttonCard = ch === 'facebook' || ch === 'line' ? (card || (orderMsg && url ? orderLinkCardOf(order, url) : null)) : null
     const main = renderFor(ch, vars)
     const text = plainFor(ch, main.text)
-    const chatText = fbCard && url ? plainFor('facebook', fillTemplate(main.tpl, { ...vars, ลิงก์ออร์เดอร์: '' }).replace(/\s*(ดูออร์เดอร์|ดู\/ชำระที่|ชำระที่|ดูได้ที่)\s*:?\s*$/, '').replace(/\n{2,}/g, '\n').trim()) : text
-    pushOut(event, ch, to, chatText, orderId, customer, fbCard ? { card: { text: chatText, card: fbCard } } : {})
+    pushOut(event, ch, to, text, orderId, customer, buttonCard ? { card: { text, card: buttonCard } } : {})
   }
   return targets.length
 }
@@ -2753,7 +2737,7 @@ export function notifyOrder(event, order, extra = {}) {
   const url = rule?.enabled && NOTIFY_EVENTS[event]?.audience === 'customer' && !NOTIFY_EVENTS[event]?.marketing ? createOrderLink(order, { system: true }).url || '' : ''
   vars.ลิงก์ออร์เดอร์ = url
   const customer = findCustomer(order.customerId)
-  const card = event === 'payment_confirmed' ? payCardOf(order, orderTotals(order), extra.paid, url) : event === 'delivered' ? viewCardOf(order, url) : null
+  const card = event === 'payment_confirmed' ? payCardOf(order, orderTotals(order), extra.paid, url) : event === 'delivered' ? viewCardOf(order, url) : event === 'payment_requested' && extra.paymentId ? { kind: 'payreq', title: 'แจ้งยอดชำระ', paymentId: extra.paymentId } : null
   notify(event, { customer, vars, orderId: order.id, noSms: !!extra.noSms, card })
   if (TEAM_OF[event]) notify(TEAM_OF[event], { vars, orderId: order.id })
 }
