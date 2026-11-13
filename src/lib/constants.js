@@ -198,6 +198,7 @@ export const NOTIFY_EVENTS = {
   points_applied: { label: 'ใช้คะแนนเป็นส่วนลด', audience: 'customer' },
   points_removed: { label: 'ยกเลิกการใช้คะแนน', audience: 'customer' },
   slip_received: { label: 'ได้รับสลิปการชำระจากลูกค้า (ส่งจากเซิร์ฟเวอร์ · Facebook)', audience: 'customer' },
+  slip_cancelled: { label: 'ยกเลิกสลิปที่ลูกค้าส่งมา', audience: 'customer' },
   birthday: { label: 'อวยพรวันเกิด', audience: 'customer', scheduled: true, marketing: true },
   points_expiring: { label: 'คะแนนใกล้หมดอายุ', audience: 'customer', scheduled: true, marketing: true },
   team_new_order: { label: 'ออร์เดอร์ใหม่', audience: 'team' },
