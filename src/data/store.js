@@ -2751,7 +2751,8 @@ export function runScheduledChecks() {
   for (const o of serverRuns ? [] : db.orders) {
     if (['draft', 'delivered', 'cancelled'].includes(o.status)) continue
     const toPickup = new Date(o.pickupAt).getTime() - nowMs
-    if (toPickup > 0 && toPickup <= pickupHours * 3600e3) once(`pickup|${o.id}`, () => { notifyOrder('pickup_reminder', o); return 1 })
+    // กฎ "เตือนก่อนนัดรับ" ปิดอยู่ → ไม่เตือนนัดรับเลย (เหมือนฝั่งเซิร์ฟเวอร์)
+    if (db.notifyRules.find((r) => r.event === 'pickup_reminder')?.enabled !== false && toPickup > 0 && toPickup <= pickupHours * 3600e3) once(`pickup|${o.id}`, () => { notifyOrder('pickup_reminder', o); return 1 })
     for (const p of overduePayments(o, new Date(nowMs))) once(`overdue|${p.id}|${p.dueAt}`, () => notify('team_pay_overdue', { vars: { ...orderVars(o), ชำระก่อน: dueText(p.dueAt) }, orderId: o.id }))
     payReminder(o, new Date(nowMs), once)
     const toDue = dueAt(o).getTime() - nowMs

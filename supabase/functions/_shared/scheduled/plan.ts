@@ -210,11 +210,13 @@ export function planScheduled(inp: PlanInput): Plan[] {
   const pickupHours = Number(inp.shop?.pickupRemindHours ?? 24)
   const dueHours = Number(inp.shop?.dueSoonHours ?? 2)
   const pointsDays = Number(inp.shop?.pointsExpireDays ?? 30)
+  // กฎ "เตือนก่อนนัดรับ" ปิดอยู่ → ไม่วางแผนเตือนนัดรับเลย (ไม่ส่งและไม่ขึ้นกระดิ่งลูกค้า) · ไม่มีกฎ = เปิด
+  const pickupOn = inp.rules.find((r) => r?.event === 'pickup_reminder')?.enabled !== false
   for (const o of inp.orders) {
     if (['draft', 'delivered', 'cancelled'].includes(o.status)) continue
     // เตือนนัดรับ: ภายในจำนวนชั่วโมงที่ร้านตั้งไว้ก่อนนัด
     const toPickup = instantOf(o.pickupAt) - inp.nowMs
-    if (toPickup > 0 && toPickup <= pickupHours * HOUR) {
+    if (pickupOn && toPickup > 0 && toPickup <= pickupHours * HOUR) {
       add(`pickup|${o.id}`, { kind: 'customer', event: 'pickup_reminder', orderId: o.id, order: o, customer: custFor(o), vars: varsOf(o) })
     }
     // ทีม: งวดชำระเลยกำหนด
