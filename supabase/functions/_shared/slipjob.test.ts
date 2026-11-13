@@ -417,3 +417,29 @@ Deno.test('แชทถูกเขียนชนกันเกินจำน
   assertEquals(sb.T.punpang_chats[0].data.messages.find((x: any) => x.id === 'm1')?.slipCheck, undefined)
   assertEquals(sb.T.punpang_orders[0].data.payments.length, 1)
 })
+
+// ---- เก็บผลอ่านไว้ใช้ซ้ำ และเก็บสลิปที่อ่านไม่ผ่านไว้ชุดเทรน ----
+const WAI_CRED = { accountId: 'a', token: 't', model: '' }
+Deno.test('อ่านได้ → เก็บค่าที่อ่านไว้ตามเลขอ้างอิง', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
+  await runCheck(sb, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: async () => ({ amount: 178, paidAt: '2026-11-11T14:48', receiverName: null, receiverAccount: null }) } })
+  assertEquals(sb.T.punpang_records.filter((r: any) => r.collection === 'slipRead').length, 1)
+})
+Deno.test('เคยอ่านเลขอ้างอิงนี้แล้ว → ใช้ค่าที่เก็บไว้ ไม่เรียกโมเดลซ้ำ', async () => {
+  const first = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
+  await runCheck(first, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: async () => ({ amount: 178, paidAt: '2026-11-11T14:48', receiverName: null, receiverAccount: null }) } })
+  const second = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
+  second.T.punpang_records.push(...first.T.punpang_records.filter((r: any) => r.collection === 'slipRead'))
+  let calls = 0
+  assertEquals(await runCheck(second, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: async () => { calls++; return null } } }), 'matched')
+  assertEquals(calls, 0)
+  const p = second.T.punpang_orders[0].data.payments[0]
+  assertEquals([p.amount, p.paidAt], [178, '2026-11-11T14:48'])
+})
+Deno.test('อ่านไม่ผ่าน → เก็บรูปไว้ชุดเทรนแยกจากสลิปของออร์เดอร์ และยังแนบตามปกติ', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: async () => null } }), 'matched')
+  assertEquals(sb.T.punpang_records.filter((r: any) => r.collection === 'slipTrain').length, 1)
+  assertEquals([...sb.files.keys()].some((k: string) => k.includes('/train/')), true)
+  assertEquals(sb.T.punpang_records.some((r: any) => r.collection === 'slipRead'), false)
+})
