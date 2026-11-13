@@ -1,8 +1,10 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { db, moveItem } from '../../data/store'
-import { bahtText, bundleSummary, findDuplicate, overDiscounts } from '../../lib/bundleEditor'
+import { db, moveItem, saveBundle } from '../../data/store'
+import { askConfirm } from '../../lib/confirm'
+import { showToast } from '../../lib/toast'
+import { applyIntendedPct, bahtText, bundleSummary, checkBundle, driftRows, findDuplicate, linkSuggestions, overDiscounts, withLinks } from '../../lib/bundleEditor'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 
@@ -17,7 +19,16 @@ const ctx = computed(() => ({
   types: db.optionGroups.find((x) => x.key === 'type')?.options || [],
   styles: (db.optionGroups.find((x) => x.key === 'style')?.options || []).filter((x) => x.active !== false),
 }))
-const rows = computed(() => db.bundles.map((b) => ({ b, s: bundleSummary(b, ctx.value), dup: findDuplicate(b.items, db.bundles, b.id), over: overDiscounts(b, ctx.value) })))
+const rows = computed(() =>
+  db.bundles.map((b) => ({
+    b,
+    s: bundleSummary(b, ctx.value),
+    dup: findDuplicate(b.items, db.bundles, b.id),
+    over: overDiscounts(b, ctx.value),
+    drift: driftRows(b, ctx.value), // ช่องที่ตั้งเป็นเปอร์เซ็นต์แล้ว แต่ราคาตัวเลือกเปลี่ยนจนไม่ตรง
+    links: linkSuggestions(b, ctx.value), // ชุดที่ยังไม่ได้ตั้งเปอร์เซ็นต์ แต่ส่วนลดตรงกับเปอร์เซ็นต์หนึ่งอยู่แล้ว
+  })),
+)
 const activeCount = computed(() => db.bundles.filter((b) => b.active !== false).length)
 const list = computed(() => {
   const s = q.value.trim().toLowerCase()
@@ -27,6 +38,30 @@ const list = computed(() => {
 })
 const move = (b, dir) => moveItem(db.bundles, db.bundles.indexOf(b), dir)
 const copy = (b) => router.push({ path: '/admin/settings/bundles/new', query: { from: b.id } })
+const linkText = (links) => links.map((l) => `${l.scopeName || 'ทุกประเภท'} ${l.pct}%`).join(' · ')
+// ปรับช่องที่ตั้งเป็นเปอร์เซ็นต์ให้ตรงกับราคาปกติตอนนี้ · ตรวจก่อน แล้วถามยืนยันพร้อมรายการที่จะเปลี่ยน
+async function adjust(b) {
+  const next = applyIntendedPct(b, ctx.value)
+  const r = checkBundle(next, { ...ctx.value, bundles: db.bundles, original: b })
+  if (r.errors.length) {
+    showToast(r.errors[0], 8000, 'error')
+    return
+  }
+  const lines = driftRows(b, ctx.value).map((d) => `${d.label} (${d.pct}%): ${bahtText(d.current)} → ${bahtText(d.target)}`)
+  const ok = await askConfirm({ title: 'ปรับส่วนลดตามราคาใหม่?', message: `ชุด "${b.name}" จะตั้งส่วนลดใหม่ตามเปอร์เซ็นต์เดิม\n${lines.join('\n')}`, okText: 'ปรับเลย' })
+  if (!ok) return
+  saveBundle(next)
+  showToast(`ปรับส่วนลดของ "${b.name}" แล้ว`)
+}
+// ตั้งเปอร์เซ็นต์ให้ชุดเดิมตามที่ส่วนลดตรงอยู่แล้ว · ไม่เปลี่ยนจำนวนเงินส่วนลด
+async function link(b) {
+  const links = linkSuggestions(b, ctx.value)
+  if (!links.length) return
+  const ok = await askConfirm({ title: 'ตั้งตามเปอร์เซ็นต์?', message: `ชุด "${b.name}" จะจำเปอร์เซ็นต์ที่ใช้อยู่: ${linkText(links)}\nจำนวนเงินส่วนลดไม่เปลี่ยน`, okText: 'ตั้งเลย' })
+  if (!ok) return
+  saveBundle(withLinks(b, links))
+  showToast(`ตั้งตามเปอร์เซ็นต์ของ "${b.name}" แล้ว`)
+}
 </script>
 
 <template>
@@ -95,6 +130,18 @@ const copy = (b) => router.push({ path: '/admin/settings/bundles/new', query: { 
           <p v-if="r.dup" class="mt-2 text-xs font-medium text-rose-700" data-dup-warning>ตัวเลือกซ้ำกับ "{{ r.dup.name }}"{{ r.dup.active === false ? ' (ปิดอยู่)' : '' }} · ควรแก้หรือลบชุดใดชุดหนึ่ง</p>
           <p v-if="r.over.length" class="mt-2 text-xs font-medium text-rose-700" data-over-warning>ลดเกินราคาปกติ: {{ r.over[0] }}{{ r.over.length > 1 ? ' (และอีก ' + (r.over.length - 1) + ' รายการ)' : '' }} · หน้าร้านจะลดได้ไม่เกินราคาตัวเลือก ควรปรับส่วนลดในหน้าแก้ไข</p>
         </RouterLink>
+        <div v-if="r.drift.length" class="mx-3 mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3" :data-drift="r.b.id">
+          <p class="text-xs font-semibold text-amber-900">ราคาปกติเปลี่ยนแล้ว · ส่วนลดไม่ตรงกับเปอร์เซ็นต์ที่ตั้งไว้</p>
+          <ul class="mt-1 space-y-0.5 text-xs text-amber-900">
+            <li v-for="d in r.drift.slice(0, 4)" :key="d.key">{{ d.label }} ({{ d.pct }}%): {{ bahtText(d.current) }} → {{ bahtText(d.target) }}</li>
+          </ul>
+          <p v-if="r.drift.length > 4" class="mt-0.5 text-xs text-amber-900">และอีก {{ r.drift.length - 4 }} ช่อง</p>
+          <button type="button" class="btn-primary mt-2 h-9 px-3 text-sm" :data-adjust="r.b.id" @click="adjust(r.b)">ปรับตามราคาใหม่</button>
+        </div>
+        <div v-if="r.links.length" class="mx-3 mb-3 flex flex-wrap items-center gap-2 rounded-xl bg-sky-50 p-3" :data-link="r.b.id">
+          <p class="min-w-0 flex-1 text-xs text-sky-900">ยังไม่ได้ตั้งตามเปอร์เซ็นต์ · ตอนนี้ตรงกับ {{ linkText(r.links) }}</p>
+          <button type="button" class="btn-soft h-9 px-3 text-sm" :data-link-btn="r.b.id" @click="link(r.b)">ตั้งตามเปอร์เซ็นต์นี้</button>
+        </div>
         <div class="flex items-center gap-1 border-t border-stone-100 px-2 py-1.5">
           <button type="button" class="btn-soft h-9 px-3 text-sm" :data-copy="r.b.id" @click="copy(r.b)">ทำสำเนา</button>
           <span class="flex-1" />
