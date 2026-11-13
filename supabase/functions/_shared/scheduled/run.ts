@@ -99,13 +99,17 @@ async function appendChat(ctx: Ctx, chatId: string, msg: StaffMsg): Promise<void
   }
 }
 
-async function sendFb(ctx: Ctx, psid: string, text: string): Promise<{ ok: boolean; error?: string }> {
+async function sendFb(ctx: Ctx, psid: string, text: string, url?: string): Promise<{ ok: boolean; error?: string }> {
   if (!ctx.fb) return { ok: false, error: 'ยังไม่ได้เชื่อม Facebook Page' }
+  // มีลิงก์ดูออร์เดอร์ → ปุ่มด้านล่างของข้อความ (button template · ข้อความไม่เกิน 640 ตัวอักษร)
+  const message = url
+    ? { attachment: { type: 'template', payload: { template_type: 'button', text: text.slice(0, 640), buttons: [{ type: 'web_url', url, title: 'ดูออร์เดอร์' }] } } }
+    : { text }
   try {
     const r = await fetch(`https://graph.facebook.com/${ctx.fb.version}/me/messages?${new URLSearchParams({ access_token: ctx.fb.token })}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recipient: { id: psid }, messaging_type: 'RESPONSE', message: { text } }),
+      body: JSON.stringify({ recipient: { id: psid }, messaging_type: 'RESPONSE', message }),
       signal: AbortSignal.timeout(15000),
     })
     if (r.ok) return { ok: true }
@@ -158,7 +162,7 @@ async function sendTg(ctx: Ctx, text: string, parseMode: string): Promise<{ ok: 
   }
 }
 
-type Out = { event: string; channel: string | null; to: string; text: string; orderId: string | null; customer: Any | null; parseMode?: string }
+type Out = { event: string; channel: string | null; to: string; text: string; orderId: string | null; customer: Any | null; parseMode?: string; url?: string }
 
 // ส่งหนึ่งข้อความไปยังช่องทางหนึ่ง แล้วบันทึกคิวข้อความ (outbox) และแชท (ถ้ามี) — เหมือน pushOut ในแอป
 async function pushOut(ctx: Ctx, m: Out): Promise<void> {
@@ -177,7 +181,7 @@ async function pushOut(ctx: Ctx, m: Out): Promise<void> {
         msg.deliveryError = err
         await appendChat(ctx, chat.id, msg)
       } else {
-        const r = await sendFb(ctx, String(chat.external_id), m.text)
+        const r = await sendFb(ctx, String(chat.external_id), m.text, m.url)
         row.status = r.ok ? 'sent' : 'failed'
         if (!r.ok) row.error = r.error || ''
         if (!r.ok) await bellFail(ctx, `${profile}: ส่งทาง Facebook ไม่สำเร็จ${r.error ? ` (${r.error})` : ''}`, chat.id)
@@ -247,7 +251,7 @@ export async function execPlan(ctx: Ctx, plan: Plan): Promise<void> {
     const to = `${CHN[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}`
     const main = renderFor(rule, ch, plan.vars, url)
     const text = ch === 'sms' || ch === 'facebook' ? plainText(main.text) : main.text
-    await pushOut(ctx, { event: plan.event, channel: ch, to, text, orderId: plan.orderId, customer })
+    await pushOut(ctx, { event: plan.event, channel: ch, to, text, orderId: plan.orderId, customer, ...(ch === 'facebook' && url ? { url } : {}) })
   }
 }
 

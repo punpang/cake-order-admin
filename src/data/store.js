@@ -2685,6 +2685,8 @@ function setNotifyCh(target, ch, value) {
 export const setOrderNotifyChannel = (order, ch, value) => setNotifyCh(order, ch, value)
 export const setCustomerNotifyChannel = (customer, ch, value) => setNotifyCh(customer, ch, value)
 // ส่งตามกฎของ event (คืนจำนวนข้อความที่เข้าคิว)
+// ตัดป้ายลิงก์ที่เหลือท้ายข้อความ (เช่น "ดูออร์เดอร์:") เมื่อช่องนั้นใช้ปุ่มแทน
+const stripLinkLabel = (s) => String(s).replace(/\s*(ดูออร์เดอร์|ดู\/ชำระที่|ชำระที่|ดูได้ที่)\s*:?\s*$/, '').trim()
 export function notify(event, { customer = null, vars = {}, orderId = null, noSms = false, card = null } = {}) {
   emitBell(event, { customer, vars, orderId })
   const r = db.notifyRules.find((x) => x.event === event)
@@ -2697,9 +2699,12 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   // เทมเพลตตามแพลตฟอร์ม: r.channelTemplates[ช่อง] ถ้ามี · ไม่มี = เทมเพลตหลัก (LINE/ทั่วไป)
   const renderFor = (chKey, v, link = url) => {
     const tpl = channelTplOf(r, chKey)
+    // ลิงก์เป็นข้อความเฉพาะ SMS และทีม (Telegram) · ช่องทางอื่นแสดงเป็นปุ่มด้านล่างของการ์ด
+    const withLink = chKey === 'sms' || chKey === 'telegram'
     // บรรทัดที่กลายเป็นว่างเพราะตัวแปรว่าง → ตัดทิ้ง · บรรทัดว่างที่เขียนไว้ในเทมเพลต (แบ่งหมวด) → คงไว้ แต่ไม่เกิน 1 บรรทัด
     const lines = tpl.split('\n')
-    const body = lines.map((ln) => fillTemplate(ln, { ...v, ลิงก์ออร์เดอร์: link })).filter((ln, i) => ln.trim() !== '' || lines[i].trim() === '').join('\n').replace(/\n{3,}/g, '\n\n').trim()
+    const body = lines.map((ln) => fillTemplate(ln, { ...v, ลิงก์ออร์เดอร์: withLink ? link : '' })).filter((ln, i) => ln.trim() !== '' || lines[i].trim() === '').join('\n').replace(/\n{3,}/g, '\n\n').trim()
+    if (!withLink) return { tpl, text: stripLinkLabel(body) }
     return { tpl, text: link && !tpl.includes('{ลิงก์ออร์เดอร์}') ? `${body}\nดูออร์เดอร์: ${link}` : body }
   }
   if (ev.audience === 'team') {
@@ -2722,12 +2727,11 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   const plainFor = (chKey, s) => (chKey === 'sms' || chKey === 'facebook' ? plainText(s) : s)
   for (const ch of targets) {
     const to = `${CHANNELS[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}`
-    // Facebook: การ์ดปุ่ม "ดูออร์เดอร์" (card ที่ส่งมา หรือการ์ดลิงก์ที่สร้างให้) · ข้อความบนการ์ดตัดบรรทัดลิงก์ออก เพราะปุ่มทำหน้าที่แทน · LINE/SMS ได้ข้อความที่มีลิงก์
-    const fbCard = ch === 'facebook' ? (card || (orderMsg && url ? orderLinkCardOf(order, url) : null)) : null
+    // Facebook / LINE: การ์ดปุ่ม "ดูออร์เดอร์" ด้านล่าง (card ที่ส่งมา หรือการ์ดลิงก์ที่สร้างให้) · SMS: ข้อความที่มีลิงก์
+    const buttonCard = ch === 'facebook' || ch === 'line' ? (card || (orderMsg && url ? orderLinkCardOf(order, url) : null)) : null
     const main = renderFor(ch, vars)
     const text = plainFor(ch, main.text)
-    const chatText = fbCard && url ? plainFor('facebook', fillTemplate(main.tpl, { ...vars, ลิงก์ออร์เดอร์: '' }).replace(/\s*(ดูออร์เดอร์|ดู\/ชำระที่|ชำระที่|ดูได้ที่)\s*:?\s*$/, '').replace(/\n{2,}/g, '\n').trim()) : text
-    pushOut(event, ch, to, chatText, orderId, customer, fbCard ? { card: { text: chatText, card: fbCard } } : {})
+    pushOut(event, ch, to, text, orderId, customer, buttonCard ? { card: { text, card: buttonCard } } : {})
   }
   return targets.length
 }

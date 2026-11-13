@@ -123,15 +123,23 @@ export function tplOf(rule: Any): string {
 export function channelTplOf(rule: Any, ch: string): string {
   return rule.channelTemplates?.[ch] || (ch === 'facebook' ? FB_TPL[rule.event] : undefined) || tplOf(rule)
 }
+// ลิงก์เป็นข้อความเฉพาะ SMS (และทีม Telegram) · ช่องทางอื่นแสดงเป็นปุ่มด้านล่างของการ์ด (ไม่มีลิงก์ในข้อความ)
+export const linkAsText = (ch: string) => ch === 'sms' || ch === 'telegram'
+// ตัดป้ายลิงก์ที่เหลือท้ายข้อความ เช่น "ดูออร์เดอร์:" (เมื่อไม่มีลิงก์ให้ต่อ)
+export function stripLinkLabel(s: string): string {
+  return s.replace(/\s*(ดูออร์เดอร์|ดู\/ชำระที่|ชำระที่|ดูได้ที่)\s*:?\s*$/, '').trim()
+}
 export function renderFor(rule: Any, ch: string, v: Record<string, string>, link: string): { tpl: string; text: string } {
   const tpl = channelTplOf(rule, ch)
+  const withLink = linkAsText(ch)
   const lines = tpl.split('\n')
   const body = lines
-    .map((ln) => fillTemplate(ln, { ...v, ลิงก์ออร์เดอร์: link }))
+    .map((ln) => fillTemplate(ln, { ...v, ลิงก์ออร์เดอร์: withLink ? link : '' }))
     .filter((ln, i) => ln.trim() !== '' || lines[i].trim() === '')
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
+  if (!withLink) return { tpl, text: stripLinkLabel(body) }
   return { tpl, text: link && !tpl.includes('{ลิงก์ออร์เดอร์}') ? `${body}\nดูออร์เดอร์: ${link}` : body }
 }
 
