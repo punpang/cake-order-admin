@@ -115,6 +115,28 @@ const svcFake = (sb: any) => ({
 })
 const runCheck = (sb: any, bytes: Uint8Array, extra: Record<string, unknown> = {}) => checkSlipImage({ sb, chatId: 'c1', msgId: 'm1', bytes, nowMs: NOW, rand: (n) => 'a'.repeat(n * 2).slice(0, n * 2), files: svcFake(sb), ...extra })
 
+Deno.test('วัน-เวลาชำระก่อนเวลาสร้างออร์เดอร์ → ไม่แนบอัตโนมัติ ส่งให้พนักงานตรวจพร้อมเครื่องหมาย ✗', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ createdAt: '2026-11-11T08:00:00.000Z' })], kv: [kvOcrAll({ wai: true })] })
+  const reader = async () => ({ amount: 178, paidAt: '2026-11-11T14:48', receiverName: null, receiverAccount: 'xxx-x-x8154-x' })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: reader } }), 'manual')
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 0)
+  const msg = sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1')
+  assertEquals(msg.slipCheck.status, 'manual')
+  assertEquals(msg.slipCheck.checks.find((c: any) => c.key === 'paidAt').ok, false)
+  const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
+  assertEquals(bell.data.text.includes('โอนก่อนเวลาสร้างออร์เดอร์'), true)
+})
+
+Deno.test('ยอดเกินยอดค้างแต่วัน-เวลาผ่าน → แนบตามปกติ และติดเครื่องหมาย ✗ ที่ยอด', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ createdAt: '2026-11-11T02:00:00.000Z' })], kv: [kvOcrAll({ wai: true })] })
+  const reader = async () => ({ amount: 900, paidAt: '2026-11-11T14:48', receiverName: null, receiverAccount: 'xxx-x-x8154-x' })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrWai: WAI_CRED, ocrReadBy: { wai: reader } }), 'matched')
+  assertEquals(sb.T.punpang_orders[0].data.payments.length, 1)
+  const msg = sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1')
+  assertEquals(msg.slipCheck.checks.find((c: any) => c.key === 'amount').ok, false)
+  assertEquals(msg.slipCheck.checks.find((c: any) => c.key === 'paidAt').ok, true)
+})
+
 Deno.test('รหัสอ้างอิงร้านค้า (ORD) บนสลิปจับคู่ออร์เดอร์ได้ แม้แชทยังไม่มีออร์เดอร์ที่คุยล่าสุด', async () => {
   const sb = fakeSb({ chats: [chatWith([slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true })] })
   const reader = async () => ({ amount: 540, paidAt: '2026-11-11T10:00', receiverName: null, receiverAccount: 'xxx-x-x8154-x', merchantCode: '014000000517185', shopRef: 'ORD111126000010' })
