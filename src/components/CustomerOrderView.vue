@@ -278,6 +278,7 @@ const beforeDiscount = computed(() => {
       <p v-if="extMsg" class="mt-2 text-sm text-rose-700">{{ extMsg }}</p>
     </section>
     <section v-if="submitted.length" class="rounded-3xl border-2 border-sky-200 bg-sky-50 p-4 text-sky-800">ส่งสลิป {{ money(submitted.reduce((s, p) => s + p.amount, 0)) }} แล้ว · รอร้านตรวจสอบและยืนยัน</section>
+    <section v-if="o.payments.some((p) => p.status === 'confirmed')" class="rounded-3xl border-2 border-stone-200 bg-stone-50 p-4 text-sm text-stone-700" aria-label="หลังชำระเงิน">หลังชำระเงินแล้ว ร้านสงวนสิทธิ์ตรวจสอบรายละเอียดรายการสั่งซื้อ และลูกค้าได้ศึกษาข้อตกลง PDPA และอื่น ๆ แล้ว</section>
     <section v-if="o.unpaidApproved" class="rounded-3xl border-2 border-indigo-200 bg-indigo-50 p-4 text-indigo-800">ร้านยืนยันการสั่งซื้อแล้ว · ชำระยอดคงค้างได้ตอนรับสินค้า</section>
     <p v-if="f.ok" class="rounded-3xl bg-emerald-50 p-3 text-emerald-800" role="status">{{ f.ok }}</p>
 

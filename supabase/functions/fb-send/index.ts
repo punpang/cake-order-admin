@@ -1,4 +1,5 @@
 import { filesEnv, svcSign } from '../_shared/filesvc.ts'
+import { consentNeededFor } from '../_shared/consent.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 // ส่งข้อความ Messenger ไปหาลูกค้า (เฉพาะพนักงานที่มีสิทธิ์ chat) · ต้องอยู่ในหน้าต่าง 24 ชม. หลังลูกค้าทักล่าสุด
@@ -48,7 +49,7 @@ Deno.serve(async (req) => {
   if (quoteId && !/^[A-Za-z0-9_-]{1,40}$/.test(quoteId)) return json({ error: 'รหัสใบเสนอไม่ถูกต้อง' }, 400)
   const pg = await sb.from('punpang_fb_pages').select('page_id,token').limit(1).maybeSingle()
   if (!pg.data) return json({ error: 'ยังไม่ได้เชื่อมเพจ Facebook' }, 503)
-  const chat = await sb.from('punpang_chats').select('id,data').eq('channel', chan).eq('external_id', psid).maybeSingle()
+  const chat = await sb.from('punpang_chats').select('id,data,customer_id').eq('channel', chan).eq('external_id', psid).maybeSingle()
   const last = chat.data?.data?.lastInboundAt ? new Date(chat.data.data.lastInboundAt).getTime() : 0
   if (!chat.data) return json({ error: 'ไม่พบแชทของลูกค้ารายนี้' }, 404)
   if (!last || Date.now() - last > WINDOW_MS) return json({ error: 'เกิน 24 ชั่วโมงหลังลูกค้าทักล่าสุด ส่งผ่าน Messenger ไม่ได้' }, 409)
@@ -80,6 +81,10 @@ Deno.serve(async (req) => {
     const signed = p.startsWith('r2://private/') ? await svcSign(filesEnv(), p.slice('r2://private/'.length), 900) : ((await sb.storage.from('punpang-chat').createSignedUrl(p, 900)).data?.signedUrl || null)
     if (!signed) return json({ error: 'เปิดไฟล์รูปไม่ได้' }, 502)
     messages.push({ attachment: { type: 'image', payload: { url: signed } } })
+  }
+  // การ์ดชำระเงิน: ลูกค้าที่ยังไม่ยินยอม → ส่งปุ่ม "ยินยอม" ก่อนลิงก์ชำระ
+  if (cPay && chat.data?.customer_id && (await consentNeededFor(sb, chat.data.customer_id)).length) {
+    messages.unshift({ attachment: { type: 'template', payload: { template_type: 'button', text: 'ก่อนชำระเงิน กรุณาอ่านนโยบาย PDPA และเงื่อนไขการใช้บริการ แล้วกดยินยอมด้านล่างค่ะ', buttons: [{ type: 'postback', title: 'ยินยอม', payload: 'consent:ok' }] } } })
   }
   const ver = (Deno.env.get('FB_GRAPH_VERSION') || 'v24.0').trim()
   try {

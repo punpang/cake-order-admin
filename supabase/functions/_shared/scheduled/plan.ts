@@ -87,7 +87,9 @@ const PAY_REMINDER_TPL = 'โปรดชำระเงินก่อน {ช�
 // ทีม "ใกล้เวลาต้องเสร็จ": จำนวนชั่วโมงเปลี่ยนตามที่ร้านตั้งได้ (ตรงกับ DUE_SOON ในแอป)
 const DUE_SOON_OLD = '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน 2 ชม. (นัด {เวลานัด})'
 const DUE_SOON_TPL = '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน {ชั่วโมง} ชม. (นัด {เวลานัด})'
-const TPL_UPGRADES: Record<string, [string, string]> = { payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL], team_due_soon: [DUE_SOON_OLD, DUE_SOON_TPL] }
+const PAY_CONFIRMED_V2 = 'ได้รับชำระ {ยอดที่ชำระ} ออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ\nยอดรวม {ยอดรวม} · ชำระแล้ว {ชำระแล้ว} · คงค้าง {คงค้าง}\nนัด{ส่งมอบ} {วันนัด} {เวลานัด}\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
+const PAY_CONFIRMED_TPL = 'ได้รับชำระ {ยอดที่ชำระ} ออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ\nยอดรวม {ยอดรวม} · ชำระแล้ว {ชำระแล้ว} · คงค้าง {คงค้าง}\nนัด{ส่งมอบ} {วันนัด} {เวลานัด}\nหลังชำระเงินแล้ว ร้านสงวนสิทธิ์ตรวจสอบรายละเอียดรายการสั่งซื้อ และลูกค้าได้ศึกษาข้อตกลง PDPA และอื่น ๆ แล้ว\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
+const TPL_UPGRADES: Record<string, [string, string]> = { payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL], team_due_soon: [DUE_SOON_OLD, DUE_SOON_TPL], payment_confirmed: [PAY_CONFIRMED_V2, PAY_CONFIRMED_TPL] }
 // เทมเพลตเฉพาะ Facebook ของเหตุการณ์ตามเวลา (ตรงกับ FB_TPL ในแอป)
 const FB_TPL: Record<string, string> = {
   payment_reminder: PAY_REMINDER_TPL,

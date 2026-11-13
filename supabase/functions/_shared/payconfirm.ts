@@ -6,7 +6,9 @@ import { inFbWindow } from './slipnotice.ts'
 import { sendSmsGateway } from './sms.ts'
 
 // ข้อความค่าเริ่มต้น (เหมือน PAY_CONFIRMED_TPL ในแอป แต่ไม่มีลิงก์ออร์เดอร์)
-export const PAY_CONFIRMED_DEFAULT = 'ได้รับชำระ {ยอดที่ชำระ} ออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ\nยอดรวม {ยอดรวม} · ชำระแล้ว {ชำระแล้ว} · คงค้าง {คงค้าง}\nนัด{ส่งมอบ} {วันนัด} {เวลานัด}'
+const PAY_CONFIRMED_V2 = 'ได้รับชำระ {ยอดที่ชำระ} ออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ\nยอดรวม {ยอดรวม} · ชำระแล้ว {ชำระแล้ว} · คงค้าง {คงค้าง}\nนัด{ส่งมอบ} {วันนัด} {เวลานัด}\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
+const RESERVE = 'หลังชำระเงินแล้ว ร้านสงวนสิทธิ์ตรวจสอบรายละเอียดรายการสั่งซื้อ และลูกค้าได้ศึกษาข้อตกลง PDPA และอื่น ๆ แล้ว'
+export const PAY_CONFIRMED_DEFAULT = 'ได้รับชำระ {ยอดที่ชำระ} ออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ\nยอดรวม {ยอดรวม} · ชำระแล้ว {ชำระแล้ว} · คงค้าง {คงค้าง}\nนัด{ส่งมอบ} {วันนัด} {เวลานัด}\nหลังชำระเงินแล้ว ร้านสงวนสิทธิ์ตรวจสอบรายละเอียดรายการสั่งซื้อ และลูกค้าได้ศึกษาข้อตกลง PDPA และอื่น ๆ แล้ว'
 
 type Rule = { event?: string; enabled?: boolean; channels?: string[]; template?: string }
 
@@ -15,7 +17,9 @@ export function paidNoticeRule(notifyRules: unknown): { template: string; channe
   const list: Rule[] = Array.isArray(notifyRules) ? notifyRules : []
   const r = list.find((x) => x?.event === 'payment_confirmed')
   if (r && r.enabled === false) return null
-  const template = typeof r?.template === 'string' && r.template.trim() ? r.template : PAY_CONFIRMED_DEFAULT
+  const saved = typeof r?.template === 'string' ? r.template.trim() : ''
+  // เทมเพลตเดิมที่ยังไม่มีข้อความสงวนสิทธิ์ → ใช้ค่าเริ่มต้นใหม่
+  const template = saved && saved !== PAY_CONFIRMED_V2 ? r!.template! : PAY_CONFIRMED_DEFAULT
   const channels = Array.isArray(r?.channels) ? r.channels : ['facebook', 'sms']
   return { template, channels }
 }

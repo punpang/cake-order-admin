@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { runFbBot } from './bot.ts'
 import { checkSlipImage } from '../_shared/slipjob.ts'
 import { attachmentNote, attachmentShape } from '../_shared/attnote.ts'
+import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
 
 // รับข้อความ Messenger ของเพจที่เชื่อมไว้ (Webhook ของ Meta) → เขียนเข้าแชท (punpang_chats) + กระดิ่งทีม
 // GET: ยืนยัน webhook (hub.verify_token = secret FB_VERIFY_TOKEN) · POST: ตรวจลายเซ็น X-Hub-Signature-256 ด้วย FB_APP_SECRET
@@ -193,6 +194,19 @@ async function bell(sb: any, t: string, chatId: string | null) {
 const pickupMs = (s: unknown) => { const v = String(s || ''); if (!v) return NaN; return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(v) ? v : `${v}${v.length === 16 ? ':00' : ''}+07:00`).getTime() }
 async function handlePostback(sb: any, pg: { page_id: string; token: string }, ver: string, psid: string, ev: any): Promise<'ok' | 'retry'> {
   const pb = ev.postback
+  // ปุ่ม "ยินยอม" ในการ์ดก่อนชำระ (PDPA · เงื่อนไข · คุกกี้) → บันทึกการยินยอมของลูกค้าที่ผูกแชทนี้
+  if (String(pb?.payload || '') === 'consent:ok') {
+    const cc = await sb.from('punpang_chats').select('id,customer_id').eq('channel', 'facebook').eq('external_id', psid).maybeSingle()
+    if (cc.error) return 'retry'
+    if (cc.data?.customer_id) {
+      const need = await consentNeededFor(sb, cc.data.customer_id)
+      if (need.length) await recordConsents(sb, cc.data.customer_id, need, 'facebook')
+    }
+    try {
+      await fetch(`${GRAPH}/${ver}/me/messages?${new URLSearchParams({ access_token: pg.token })}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipient: { id: psid }, messaging_type: 'RESPONSE', message: { text: 'บันทึกการยินยอมแล้วค่ะ ขอบคุณค่ะ' } }), signal: AbortSignal.timeout(8000) })
+    } catch { /* ตอบไม่ได้ไม่ทำให้การบันทึกล้มเหลว */ }
+    return 'ok'
+  }
   const mm = /^q:(ok|rev):([A-Za-z0-9_-]{1,40})$/.exec(String(pb?.payload || ''))
   if (!mm) return 'ok' // ปุ่มอื่น ไม่เกี่ยวกับใบเสนอ
   const act = mm[1], qid = mm[2]
