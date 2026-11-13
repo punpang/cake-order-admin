@@ -25,7 +25,7 @@ export async function remoteOrderAction(db, ctx, action, body = {}) {
     if (ctx?.token) { const d = await fetchRemoteLink(ctx.token); if (d?.order) injectRemoteLink(db, d, rowToOrder); else stale = true }
     else { const s = await callAuth('session', { session: auth.session }); if (s.ok && s.customer) injectBundle(db, s); else stale = true }
   } catch { stale = true }
-  return { ok: true, paymentId: r.data.paymentId, ...(stale ? { stale: true } : {}) }
+  return { ok: true, paymentId: r.data.paymentId, ...(r.data.autoConfirmed ? { autoConfirmed: true } : {}), ...(stale ? { stale: true } : {}) }
 }
 
 // อ่าน QR ในสลิปที่ลูกค้าแนบ (เซิร์ฟเวอร์ตอบ { qr }) · ไม่มีการเปลี่ยนแปลงออร์เดอร์ จึงไม่โหลดออร์เดอร์ใหม่

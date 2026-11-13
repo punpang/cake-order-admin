@@ -4,6 +4,7 @@
 // กติกาเลขอ้างอิง/ธนาคาร/วัน-เวลาชำระ ใช้ชุดเดียวกับหน้าชำระเงินของลูกค้า (payfields.ts)
 import { autoConfirmOf, buildSlipPayment, classifyThaiQr, daysUntilPickup, latestOrderId, orderTotals, planAttach, slipKeyOf } from './slip.ts'
 import { slipChecksOf } from './schedlib/slipChecks.js'
+import { confirmSlipPayment } from './slipautoconfirm.ts'
 import { readQrTexts } from './qrimage.ts'
 import { bankByCode, normalizeRef, paidAtFromMessage, refTaken } from './payfields.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine, type SlipFields } from './slipocr.ts'
@@ -243,14 +244,12 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
       paidAt: fields?.paidAt ?? paidAtFromMessage(msgAt, d.createdAt, now.getTime()), nowIso,
       bankCode, bankName, ref, shopRef: fields?.shopRef, merchantMismatch: flagged,
     })
-    const payment = autoConfirm ? { ...built, status: 'confirmed', confirmedBy: 'auto', confirmedAt: nowIso } : built
-    // ยืนยันอัตโนมัติ: ยกเลิกยอดที่ร้านแจ้งไว้เดิมซึ่งยังรออยู่ของออร์เดอร์นี้ (ยอดที่ลูกค้าแจ้งเองไม่ถึงขั้นนี้ เพราะกันด้วย pending_exists)
-    const staleReq = (p: any) => autoConfirm && p?.status === 'reported' && p?.customerSubmitted !== true
-    const cancelledReqs = payments.filter(staleReq)
-    const kept = payments.map((p: any) => (staleReq(p) ? { ...p, status: 'cancelled', cancelledAt: nowIso, cancelledBy: 'auto' } : p))
+    // ยืนยันอัตโนมัติ: งวดนี้ยืนยันทันที และยกเลิกยอดที่ร้านแจ้งไว้เดิมซึ่งยังรออยู่ของออร์เดอร์นี้ (ยอดที่ลูกค้าแจ้งเองไม่ถึงขั้นนี้ เพราะกันด้วย pending_exists)
+    const conf = autoConfirm ? confirmSlipPayment([...payments, built], built.id, nowIso) : { payments: [...payments, built], cancelled: [] as any[] }
+    const cancelledReqs = conf.cancelled
     const next = {
       ...d,
-      payments: [...kept, payment],
+      payments: conf.payments,
       history: [
         ...(Array.isArray(d.history) ? d.history : []),
         { at: nowIso, text: autoConfirm ? 'ลูกค้าส่งสลิปในแชท (QR) · ระบบจับคู่กับออร์เดอร์นี้อัตโนมัติ' : 'ลูกค้าส่งสลิปในแชท (QR) · ระบบจับคู่กับออร์เดอร์นี้อัตโนมัติ (รอตรวจยอด)', by: 'customer' },

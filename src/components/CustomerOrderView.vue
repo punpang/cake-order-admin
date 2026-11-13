@@ -151,7 +151,7 @@ async function submit() {
   const r = await customerPay(props.ctx, { amount: amount.value, slip: f.slip, note: f.note, paymentId: f.mode === 'req' ? f.paymentId : null, txnDate: f.txnDate, txnTime: f.txnTime, bankCode: f.bankCode, ref: f.ref })
   f.busy = false
   if (r.error) return (f.error = r.error)
-  f.ok = 'ส่งสลิปแล้ว ร้านจะตรวจสอบและยืนยันให้'
+  f.ok = r.autoConfirmed ? 'ร้านยืนยันการชำระแล้ว ขอบคุณค่ะ' : 'ส่งสลิปแล้ว ร้านจะตรวจสอบและยืนยันให้'
   if (r.stale) staleNote.value = true
   Object.assign(f, { slip: '', slipName: '', note: '', custom: '', mode: 'all', paymentId: null, txnDate: '', txnTime: '', bankCode: '', ref: '', qrNote: '' })
   open.value = false
