@@ -1,5 +1,5 @@
 <script setup>
-// QR พร้อมเพย์แบบ Biller ของรายการแจ้งชำระหนึ่งรายการ: Biller ID ของร้าน (ตั้งค่าร้าน) · Ref 1 = POS/ORD · Ref 2 = รหัสสุ่มของรายการ · ยอดฝังใน QR
+// QR พร้อมเพย์แบบ Biller ของรายการแจ้งชำระหนึ่งรายการ: Biller ID ของร้าน · Ref 1 = รหัสร้านค้า · Ref 2 = รหัสอ้างอิงร้านค้า POS/ORD · ยอดฝังใน QR
 import { computed, ref, watch } from 'vue'
 import { db } from '../data/store'
 import { billerIdOf, promptPayBillerPayload } from '../lib/promptpay'
@@ -34,8 +34,8 @@ watch(payload, async (p) => {
       <img v-if="qr" :src="qr" alt="QR พร้อมเพย์ (Biller)" class="mx-auto h-56 w-56" />
       <p v-else class="py-8 text-stone-400">กำลังสร้าง QR…</p>
       <p class="text-base font-semibold text-stone-900">{{ money(amount) }}</p>
-      <p class="text-xs text-stone-500">รหัสอ้างอิง {{ ref1 }} · รหัสสุ่ม {{ ref2 }}</p>
+      <p class="text-xs text-stone-500">รหัสร้านค้า {{ ref1 }} · รหัสอ้างอิง {{ ref2 }}</p>
     </template>
-    <p v-else class="text-left text-xs text-rose-700">ข้อมูล QR ไม่ครบ (ยอดหรือรหัสอ้างอิง)</p>
+    <p v-else class="text-left text-xs text-rose-700">ข้อมูล QR ไม่ครบ (ยอด รหัสร้านค้า หรือรหัสอ้างอิง)</p>
   </div>
 </template>

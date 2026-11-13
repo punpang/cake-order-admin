@@ -32,14 +32,8 @@ Deno.test('ค่าจากตัวอ่าน: ใส่เฉพาะค�
   assertEquals(digitsOf('0-1'), '01')
 })
 
-Deno.test('รหัสสุ่ม (Ref 2) จากตัวอ่าน: 12 ตัวตามชุดอักษรของระบบ (ตัดช่องว่างและขีด) · มี 0 หรือเป็นรูปแบบ POS/ORD ทิ้ง', () => {
-  assertEquals(readShopFields({ qr_ref: 'k7m3-qrt2 xbhd' }), { qrRef: 'K7M3QRT2XBHD' })
-  assertEquals(readShopFields({ qr_ref: 'K7M3QRT2XB0D' }), {})
-  assertEquals(readShopFields({ qr_ref: 'POS123927229' }), {})
-})
-
-Deno.test('POS/ORD ใช้เฉพาะรหัสอ้างอิงร้านค้า (Ref 1): ไม่เป็นรหัสร้านค้า และไม่เป็นรหัสสุ่ม', () => {
+Deno.test('POS/ORD เป็นรหัสอ้างอิงร้านค้า (Ref 2) ไม่ใช่รหัสร้านค้า · รหัสร้านค้า (Ref 1) เป็นตัวเลข', () => {
   assertEquals(readShopFields({ merchant_code: 'ORD131126000741', shop_ref: null }), { shopRef: 'ORD131126000741' })
   assertEquals(readShopFields({ merchant_code: 'POS123927229', shop_ref: 'ORD131126000741' }), { shopRef: 'ORD131126000741' })
-  assertEquals(readShopFields({ merchant_code: '014000000517185', shop_ref: 'ORD131126000741', qr_ref: 'ORD131126000741' }), { merchantCode: '014000000517185', shopRef: 'ORD131126000741' })
+  assertEquals(readShopFields({ merchant_code: '014000000517185', shop_ref: 'ORD131126000741' }), { merchantCode: '014000000517185', shopRef: 'ORD131126000741' })
 })

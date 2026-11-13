@@ -1,7 +1,5 @@
 // รหัสอ้างอิงร้านค้าบนสลิป (ORD / POS) และรหัสร้านค้าผู้รับชำระ · ฟังก์ชันล้วน ทดสอบได้
 // รหัสอ้างอิงแปลงจากเลขเดิมในระบบ (ไม่เก็บเพิ่ม): OR-ddmmyy-xxxxxx ↔ ORDddmmyyxxxxxx · POS-ddmmyy-xxxxx ↔ POSddmmyyxxxxx
-// รหัสสุ่มไม่ซ้ำของรายการแจ้งชำระ (Ref 2) อ่านจากสลิปด้วย และตรวจรูปแบบด้วย qrRefOk (_shared/payqr.ts)
-import { qrRefOk } from './payqr.ts'
 
 // รหัสอ้างอิงของเลขเดิม (รูปแบบที่ร้านให้ลูกค้าใช้อ้างอิง)
 export const refOfCode = (code: string): string => String(code || '').replace(/^OR-/, 'ORD').replace(/^POS-/, 'POS').replace(/-/g, '')
@@ -45,20 +43,17 @@ export function merchantCodeOk(mc: string, receiverAccount: unknown, shopRef: st
 }
 
 // ค่าจากคำตอบของตัวอ่าน (merchant_code / shop_ref) · ใส่คีย์เฉพาะเมื่อผ่านเกณฑ์ (ผลเดิมรูปร่างไม่เปลี่ยน)
-export function readShopFields(obj: any, receiverAccount?: string | null): { merchantCode?: string; shopRef?: string; qrRef?: string } {
-  // POS/ORD ใช้เฉพาะ Ref 1: ไม่เป็นรหัสร้านค้า และไม่เป็นรหัสสุ่ม (Ref 2)
-  const isRef1 = (v: string): boolean => /^(POS|ORD)/.test(v)
+export function readShopFields(obj: any, receiverAccount?: string | null): { merchantCode?: string; shopRef?: string } {
+  // POS/ORD เป็นรหัสอ้างอิงร้านค้า (Ref 2) เท่านั้น ไม่เป็นรหัสร้านค้า
+  const isPosOrd = (v: string): boolean => /^(POS|ORD)/.test(v)
   const rawMc = normalizeShopRef(obj?.merchant_code)
   const sr = normalizeShopRef(obj?.shop_ref)
   let shopRef = shopRefOk(sr) ? sr : ''
-  // Ref 1 ที่ตัวอ่านวางไว้ใต้ป้ายรหัสร้านค้า → ใช้เป็นรหัสอ้างอิงร้านค้า (ไม่ใช่รหัสร้านค้า)
+  // POS/ORD ที่ตัวอ่านวางไว้ในช่องรหัสร้านค้า → ใช้เป็นรหัสอ้างอิงร้านค้า (ไม่ใช่รหัสร้านค้า)
   if (!shopRef && shopRefOk(rawMc)) shopRef = rawMc
-  const mc = isRef1(rawMc) ? '' : digitsOf(obj?.merchant_code)
+  const mc = isPosOrd(rawMc) ? '' : digitsOf(obj?.merchant_code)
   const merchantCode = mc && merchantCodeOk(mc, receiverAccount, shopRef) ? mc : ''
-  // รหัสสุ่ม (Ref 2): 12 ตัวจากชุดอักษรของระบบ (ไม่มี 0 1 I L O จึงไม่ปนกับ POS/ORD) และไม่ขึ้นต้นด้วย POS/ORD
-  const qr = normalizeShopRef(obj?.qr_ref)
-  const qrRef = qrRefOk(qr) && !isRef1(qr) ? qr : ''
-  return { ...(merchantCode ? { merchantCode } : {}), ...(shopRef ? { shopRef } : {}), ...(qrRef ? { qrRef } : {}) }
+  return { ...(merchantCode ? { merchantCode } : {}), ...(shopRef ? { shopRef } : {}) }
 }
 
 // ค่าที่เก็บในแคชและชุดเทรน: เฉพาะคีย์ที่มีค่า

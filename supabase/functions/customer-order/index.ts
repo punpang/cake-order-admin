@@ -1,5 +1,4 @@
 import { filesEnv, svcDelete, svcUpload } from '../_shared/filesvc.ts'
-import { newQrRef } from '../_shared/payqr.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { PAY_MSG, bankByCode, checkCustomerTxn, normalizeRef, refTaken } from '../_shared/payfields.ts'
 import { autoConfirmOf, slipKeyOf } from '../_shared/slip.ts'
@@ -260,15 +259,13 @@ Deno.serve(async (req) => {
       }
       const ocrFields = { ...(fields?.amount != null ? { ocrAmount: fields.amount } : {}), ...(fields?.paidAt ? { ocrPaidAt: fields.paidAt } : {}), ...(fields?.receiverAccount ? { ocrReceiverAccount: fields.receiverAccount } : {}) }
       const txnFields = { ...ocrFields, paidAt, bankCode: bankCode || null, bankName: bankCode ? (bankByCode(bankCode)?.name ?? null) : null, ref: ref || '', refSource: qr.kind === 'slip' ? 'qr' : (ref ? 'typed' : '') }
-      // ยืนยันสลิปอัตโนมัติ (ครบ 5 ข้อจากภาพสลิปเทียบกับออร์เดอร์และรายการแจ้งชำระ + นัดรับห่างพอ + เปิดไว้) · ตัดสินตรงนี้ ใช้ผลตอนบันทึก
-      // รายการแจ้งชำระที่รหัสสุ่ม (Ref 2) ตรงกับสลิป → เป็นงวดที่สลิปนี้ชำระ (ไม่สร้างรายการซ้ำ)
-      const reqPay = fields?.qrRef ? (d.payments.find((p: any) => p.qrRef === fields.qrRef && p.status === 'reported' && p.customerSubmitted !== true) ?? null) : null
+      // ยืนยันสลิปอัตโนมัติ (ครบ 4 ข้อจากภาพสลิปเทียบกับออร์เดอร์ + นัดรับห่างพอ + เปิดไว้) · ตัดสินตรงนี้ ใช้ผลตอนบันทึก
       const acCfg = await autoConfirmCfgOf()
-      const autoDecision = autoConfirmDecision({ enabled: acCfg.auto.enabled, days: acCfg.auto.days, fields, order: { code: row.code, createdAt: d.createdAt, pickupAt: d.pickupAt }, configuredMerchantCode: acCfg.merchantCode, balance: t.balance, nowMs: Date.now(), request: reqPay })
+      const autoDecision = autoConfirmDecision({ enabled: acCfg.auto.enabled, days: acCfg.auto.days, fields, order: { code: row.code, createdAt: d.createdAt, pickupAt: d.pickupAt }, configuredMerchantCode: acCfg.merchantCode, balance: t.balance, nowMs: Date.now() })
       let autoDone = false
       let autoCancelled: any[] = []
       const note = String(b.note ?? '').trim().slice(0, PAY.noteMax)
-      const pid = reqPay ? reqPay.id : (b.paymentId ? String(b.paymentId) : '')
+      const pid = b.paymentId ? String(b.paymentId) : ''
       let target: any = null
       if (pid) {
         target = d.payments.find((x: any) => x.id === pid)
@@ -299,7 +296,7 @@ Deno.serve(async (req) => {
       }
       logTo(d, autoDone ? `ลูกค้าแจ้งชำระ ${amt.toFixed(2)} ผ่านหน้าออร์เดอร์ (ระบบยืนยันอัตโนมัติ)` : `ลูกค้าแจ้งชำระ ${amt.toFixed(2)} ผ่านหน้าออร์เดอร์ (รอตรวจสลิป)`)
       if (autoDone) {
-        d.history = [...(d.history || []), { at: nowIso(), text: `ยืนยันชำระอัตโนมัติ (ครบ 5 ข้อ · นัดรับห่าง ${autoDecision.daysLeft} วัน · ยังไม่ได้ตรวจกับธนาคาร)`, by: 'auto' }]
+        d.history = [...(d.history || []), { at: nowIso(), text: `ยืนยันชำระอัตโนมัติ (ครบ 4 ข้อ · นัดรับห่าง ${autoDecision.daysLeft} วัน · ยังไม่ได้ตรวจกับธนาคาร)`, by: 'auto' }]
         if (autoCancelled.length) d.history = [...d.history, { at: nowIso(), text: `ยกเลิกยอดที่แจ้งเดิม ${autoCancelled.length} รายการ (${autoCancelled.map((p: any) => (Number(p.amount) || 0).toFixed(2)).join(', ')}) เพราะยืนยันชำระอัตโนมัติแล้ว`, by: 'auto' }]
         newStatus = ['awaiting_payment', 'payment_reported'].includes(row.status) ? 'payment_confirmed' : row.status
         autoBell = { code: row.code, amount: amt.toFixed(2) }
@@ -331,7 +328,7 @@ Deno.serve(async (req) => {
       logTo(d, 'ลูกค้าขอไม่ให้ใช้รูปงานเผยแพร่ (รอร้านตรวจสอบ · ระงับการแสดงบนเว็บชั่วคราว)')
       extraBell = { event: 'team_photo_optout', x: {} }
     } else if (action === 'qr_request') {
-      // ขอ QR ชำระ = สร้างรายการแจ้งชำระใหม่ของลูกค้า (ยังไม่มีสลิป) พร้อมรหัสสุ่มไม่ซ้ำ (Ref 2)
+      // ขอ QR ชำระ = สร้างรายการแจ้งชำระใหม่ของลูกค้าทุกครั้ง (ยังไม่มีสลิป)
       if (limited(`qr:${ip}`, 30, 3600000)) return json({ error: 'ขอ QR บ่อยเกินไป กรุณารอสักครู่' }, 429)
       if (row.channel === 'pos') return json({ error: 'บิลหน้าร้านแจ้งชำระผ่านเว็บไม่ได้' }, 400)
       if (row.status === 'cancelled') return json({ error: 'ออร์เดอร์นี้ถูกยกเลิกแล้ว' }, 400)
@@ -343,21 +340,13 @@ Deno.serve(async (req) => {
       const amt = r2(Number(b.amount))
       if (!(amt > 0)) return json({ error: 'กรอกยอดที่ชำระ' }, 400)
       if (amt > room + 1e-9) return json({ error: `ยอดเกินคงค้าง (ชำระได้ไม่เกิน ${room.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` }, 400)
-      // รหัสสุ่มไม่ซ้ำทั้งระบบ: ออกใหม่ถ้าเคยถูกใช้ (ค้นใน JSON ของออร์เดอร์ทั้งหมด)
-      let qrRef = newQrRef()
-      for (let k = 0; k < 3; k++) {
-        const seen = await sb.from('punpang_orders').select('id').contains('data', { payments: [{ qrRef }] })
-        if (seen.error) return json({ error: 'สร้าง QR ไม่สำเร็จ กรุณาลองใหม่' }, 500)
-        if (!(seen.data || []).length) break
-        qrRef = newQrRef()
-      }
       const al = await sb.rpc('punpang_alloc_numbers_server', { p_prefix: 'PAY', p_day: ddmmyy(), p_n: 1 })
       if (al.error || !Number.isInteger(al.data)) return json({ error: 'ออกเลขรายการไม่สำเร็จ กรุณาลองใหม่' }, 500)
       const code = `PAY-${ddmmyy()}-${String(al.data).padStart(5, '0')}`
-      const reqPay = { id: `pay${Date.now().toString(36)}${randHex(3)}`, code, requested: amt, amount: amt, method: 'โอนเงิน', slip: '', note: '', dueAt: '', extension: null, status: 'reported', source: 'customer', qrRequest: true, qrRef, customerSubmitted: false, createdAt: nowIso(), reportedBy: 'customer', confirmedBy: null }
+      const reqPay = { id: `pay${Date.now().toString(36)}${randHex(3)}`, code, requested: amt, amount: amt, method: 'โอนเงิน', slip: '', note: '', dueAt: '', extension: null, status: 'reported', source: 'customer', qrRequest: true, customerSubmitted: false, createdAt: nowIso(), reportedBy: 'customer', confirmedBy: null }
       d.payments.push(reqPay)
       logTo(d, `ลูกค้าขอ QR ชำระ ${amt.toFixed(2)} (รอแนบสลิป)`)
-      result = { ok: true, paymentId: reqPay.id, qrRef, amount: amt }
+      result = { ok: true, paymentId: reqPay.id, amount: amt }
     } else {
       const pr = await sb.from('punpang_records').select('id,data').eq('collection', 'photoRequests').eq('data->>orderId', row.id)
       const req = (pr.data || []).find((x: any) => x.data?.status === 'pending')

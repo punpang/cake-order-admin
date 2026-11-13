@@ -1,8 +1,8 @@
 <script setup>
 // สร้าง QR ชำระจากออร์เดอร์ (ใช้ในหน้ารายละเอียดออร์เดอร์และหน้าเครื่องมือ QR)
-// ทุกครั้งที่กดสร้าง = รายการแจ้งชำระใหม่ของออร์เดอร์นั้น พร้อมรหัสสุ่มไม่ซ้ำ (Ref 2)
+// ทุกครั้งที่กดสร้าง = รายการแจ้งชำระใหม่ของออร์เดอร์นั้น · Ref 1 = รหัสร้านค้า · Ref 2 = รหัสอ้างอิงร้านค้า POS/ORD
 import { computed, ref } from 'vue'
-import { reportPayment } from '../data/store'
+import { db, reportPayment } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { shopRefOfCode } from '../lib/promptpay'
 import { money } from '../lib/format'
@@ -15,7 +15,7 @@ const props = defineProps({
 
 const amt = ref(props.defaultAmount)
 const err = ref('')
-const made = ref(null) // { amount, qrRef, ref1 } ของ QR ที่สร้างล่าสุด
+const made = ref(null) // { amount, ref1, ref2 } ของ QR ที่สร้างล่าสุด
 const amount = computed(() => {
   const s = String(amt.value ?? '').replace(/,/g, '').trim()
   return s === '' ? null : Number(s)
@@ -29,7 +29,7 @@ function make() {
   if (n > balance + 0.004) return (err.value = `ยอดเกินคงค้าง (${money(balance)})`)
   const r = reportPayment(props.order, { amount: n, method: 'โอนเงิน', notify: false })
   if (r.error) return (err.value = r.error)
-  made.value = { amount: n, qrRef: r.qrRef, ref1: shopRefOfCode(props.order.code) }
+  made.value = { amount: n, ref1: db.shop.merchantCode, ref2: shopRefOfCode(props.order.code) }
 }
 </script>
 
@@ -43,6 +43,6 @@ function make() {
       <button type="button" class="btn-primary" @click="make">สร้าง QR</button>
     </div>
     <p v-if="err" class="text-xs text-rose-700" role="alert">{{ err }}</p>
-    <BillerQr v-if="made" :amount="made.amount" :ref1="made.ref1" :ref2="made.qrRef" />
+    <BillerQr v-if="made" :amount="made.amount" :ref1="made.ref1" :ref2="made.ref2" />
   </div>
 </template>
