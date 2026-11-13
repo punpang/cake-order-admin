@@ -83,6 +83,7 @@ function openPay() {
   const n = thaiNow()
   if (!f.txnDate) f.txnDate = n.date
   if (!f.txnTime) f.txnTime = n.time
+  if (!f.note) f.note = o.value.code // เติมเลขออร์เดอร์ในหมายเหตุเป็นค่าจริง (เดิมเป็นแค่ placeholder)
 }
 // ตัวเลือกธนาคาร: รายการของระบบ + รหัสจาก QR ที่ไม่อยู่ในรายการ (ไม่ทิ้งค่าที่อ่านได้จากสลิป)
 const bankOptions = computed(() => {
