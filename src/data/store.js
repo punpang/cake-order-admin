@@ -1999,6 +1999,11 @@ export function customerPayBlock(o) {
   if (recentCustomerSubmits(o) >= CUSTOMER_PAY.perHour) return 'ส่งสลิปบ่อยเกินไป กรุณารอสักครู่'
   return ''
 }
+// ยอดขั้นต่ำที่ลูกค้าระบุเองได้ = มัดจำขั้นต่ำ (%) ของยอดรวม ปัดขึ้น ไม่เกินยอดคงค้างที่ยังชำระได้ · 0% = ไม่มีขั้นต่ำ
+const minimumPayOf = (o, total, room) => {
+  const pct = Number(o._depositPercent ?? db.shop.depositPercent) || 0
+  return pct > 0 ? Math.min(Math.ceil(Math.max(total, 0) * pct / 100), Math.max(room, 0)) : 0
+}
 export function publicOrderView(o, { owner = false } = {}) {
   const t = orderTotals(o)
   const cu = findCustomer(o.customerId)
@@ -2024,7 +2029,7 @@ export function publicOrderView(o, { owner = false } = {}) {
     refunds: o.status === 'cancelled' ? refundList(o.cancel) : [],
     returns: (o.returns || []).filter((r) => !r.cancelled).map((r) => ({ id: r.id, at: r.at, amount: r.amount, items: r.refunds.map((x) => ({ label: REFUND_METHODS[x.method] || x.method, amount: x.amount, points: x.points ?? null })) })),
     payments: pays, payDue: orderDue(o), unpaidApproved: o.status === 'order_confirmed',
-    pay: { block: customerPayBlock(o), room, info: { ...(o._payInfo || db.shop.payment) }, limitPerHour: CUSTOMER_PAY.perHour },
+    pay: { block: customerPayBlock(o), room, minimum: minimumPayOf(o, t.total, room), info: { ...(o._payInfo || db.shop.payment) }, limitPerHour: CUSTOMER_PAY.perHour },
     review: owner && rv ? { rating: rv.rating, status: rv.status } : null,
   }
 }

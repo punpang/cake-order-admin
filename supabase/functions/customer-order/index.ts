@@ -33,6 +33,13 @@ const hits = new Map<string, number[]>()
 const limited = (ip: string, max: number, windowMs = 300000) => { const now = Date.now(); const a = (hits.get(ip) || []).filter((t) => now - t < windowMs); a.push(now); hits.set(ip, a); return a.length > max }
 
 // ยอดรวม/ค้างชำระ — ต้องตรงกับ orderTotals ในแอป (src/lib/pricing.js): total = gross + VAT นอก · balance = total - ยืนยันชำระแล้ว
+// ยอดขั้นต่ำที่ลูกค้าระบุเองได้ = มัดจำขั้นต่ำ (%) ของยอดรวม ปัดขึ้น · ไม่เกินยอดคงค้าง · ไม่ตั้ง (0%) = ไม่มีขั้นต่ำ
+export async function minimumOf(sb: any, total: number, balance: number): Promise<number> {
+  const kv = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'shop').maybeSingle()
+  const pct = Number(kv.data?.data?.v?.depositPercent) || 0
+  if (pct <= 0) return 0
+  return Math.min(Math.ceil(Math.max(total, 0) * pct / 100), Math.max(balance, 0))
+}
 export function totals(o: any) {
   const items = o.items || []
   const subtotal = items.reduce((s: number, i: any) => s + (Number(i.unitPrice) || 0) * (Number(i.qty) || 0), 0)
@@ -251,6 +258,7 @@ Deno.serve(async (req) => {
       if (recent >= PAY.perHour) return json({ error: 'ส่งสลิปบ่อยเกินไป กรุณารอสักครู่' }, 429)
       const amt = r2(Number(b.amount))
       const room = r2(t.balance - pendingSum)
+      const minC = await minimumOf(sb, t.total, t.balance)
       if (!(amt > 0)) return json({ error: 'กรอกยอดที่โอน' }, 400)
       if (amt > room + 1e-9) return json({ error: `ยอดเกินคงค้าง (ชำระได้ไม่เกิน ${room.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` }, 400)
       const img = decodeSlip(b.slip)
@@ -286,6 +294,8 @@ Deno.serve(async (req) => {
       const txnFields = { ...ocrFields, paidAt, bankCode: bankCode || null, bankName: bankCode ? (bankByCode(bankCode)?.name ?? null) : null, ref: ref || '', refSource: qr.kind === 'slip' ? 'qr' : (ref ? 'typed' : '') }
       // ยืนยันสลิปอัตโนมัติ (ครบ 4 ข้อจากภาพสลิปเทียบกับออร์เดอร์และรายการแจ้งชำระ + นัดรับห่างพอ + เปิดไว้) · ตัดสินตรงนี้ ใช้ผลตอนบันทึก
       // รายการแจ้งชำระที่รหัสสุ่ม (Ref 2) ตรงกับสลิป → เป็นงวดที่สลิปนี้ชำระ (ไม่สร้างรายการซ้ำ)
+      // ยอดที่ลูกค้าระบุเอง (ไม่ใช่ยอดที่ร้านแจ้งหรือ QR ของร้าน) ต้องไม่น้อยกว่ายอดขั้นต่ำ
+      if (!b.paymentId && amt < minC - 1e-9 && !(fields?.qrRef && d.payments.some((p: any) => p.qrRef === fields.qrRef))) return json({ error: `ยอดต้องไม่น้อยกว่า ${minC.toFixed(2)} บาท` }, 400)
       const reqPay = fields?.qrRef ? (d.payments.find((p: any) => p.qrRef === fields.qrRef && p.status === 'reported' && p.customerSubmitted !== true) ?? null) : null
       const acCfg = await autoConfirmCfgOf()
       const autoDecision = autoConfirmDecision({ enabled: acCfg.auto.enabled, days: acCfg.auto.days, fields, order: { code: row.code, createdAt: d.createdAt, pickupAt: d.pickupAt }, configuredMerchantCode: acCfg.merchantCode, balance: t.balance, nowMs: Date.now(), request: reqPay })
@@ -374,6 +384,8 @@ Deno.serve(async (req) => {
       const room = r2(t.balance - pendingSum)
       const amt = r2(Number(b.amount))
       if (!(amt > 0)) return json({ error: 'กรอกยอดที่ชำระ' }, 400)
+      const minQ = await minimumOf(sb, t.total, t.balance)
+      if (amt < minQ - 1e-9) return json({ error: `ยอดต้องไม่น้อยกว่า ${minQ.toFixed(2)} บาท` }, 400)
       if (amt > room + 1e-9) return json({ error: `ยอดเกินคงค้าง (ชำระได้ไม่เกิน ${room.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` }, 400)
       // รหัสสุ่มไม่ซ้ำทั้งระบบ: ออกใหม่ถ้าเคยถูกใช้ (ค้นใน JSON ของออร์เดอร์ทั้งหมด)
       let qrRef = refOfCode(row.code) + newQrSuffix()
