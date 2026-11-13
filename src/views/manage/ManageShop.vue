@@ -32,7 +32,7 @@ const STEPS = [15, 30, 60]
 const NEAR = [1, 2, 3, 6, 0]
 const num = (v) => Number(v) >= 0 && v !== ''
 // ---- สลิปในแชท (บันทึกแยกจากฟอร์มร้าน) ----
-const ocrOf = (q) => ({ shop: q.ocr?.shop === true, wai: q.ocr?.wai === true, claude: (q.ocr?.claude ?? q.ocr?.enabled) === true })
+const ocrOf = (q) => ({ wai: q.ocr?.wai === true, claude: (q.ocr?.claude ?? q.ocr?.enabled) === true })
 const sq = reactive({ ...JSON.parse(JSON.stringify(db.slipQr)), ocr: ocrOf(db.slipQr) })
 const slipErr = ref('')
 const slipSaved = ref(false)
@@ -227,10 +227,9 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
       </div>
       <div class="space-y-2">
         <p class="text-sm font-medium text-stone-700">การอ่านยอดและวัน-เวลาจากภาพสลิป</p>
-        <AppSwitch v-model="sq.ocr.shop" label="1) บริการของร้าน (Tesseract)" class="flex" />
-        <AppSwitch v-model="sq.ocr.wai" label="2) Workers AI (Cloudflare)" class="flex" />
-        <AppSwitch v-model="sq.ocr.claude" label="3) Claude (Anthropic)" class="flex" />
-        <p class="text-xs text-stone-500">ระบบลองตามลำดับ 1 → 2 → 3 เฉพาะตัวที่เปิดไว้และตั้งค่าที่เซิร์ฟเวอร์ครบ ถ้าตัวหนึ่งอ่านไม่ได้จะลองตัวถัดไป ส่งเฉพาะรูปสลิปไปยังผู้ให้บริการที่เปิดไว้</p>
+        <AppSwitch v-model="sq.ocr.wai" label="1) Workers AI (Cloudflare)" class="flex" />
+        <AppSwitch v-model="sq.ocr.claude" label="2) ระบบเดิม (Claude)" class="flex" />
+        <p class="text-xs text-stone-500">ระบบลองตามลำดับ 1 → 2 เฉพาะตัวที่เปิดไว้และตั้งค่าที่เซิร์ฟเวอร์ครบ ถ้าตัวแรกอ่านไม่ได้จะลองตัวถัดไป · การอ่าน QR ทำงานตามปกติ ไม่ขึ้นกับสวิตช์นี้ · ส่งเฉพาะรูปสลิปไปยังผู้ให้บริการที่เปิดไว้</p>
       </div>
       <p v-if="slipErr" class="text-sm text-rose-700">{{ slipErr }}</p>
       <button class="btn-outline w-full" @click="saveSlip"><AppIcon name="check" :size="18" /> {{ slipSaved ? 'บันทึกแล้ว' : 'บันทึกการตั้งค่าสลิป' }}</button>

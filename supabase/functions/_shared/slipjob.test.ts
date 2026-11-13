@@ -304,7 +304,7 @@ Deno.test('ข้อผิดพลาดอื่นตอนแนบ (ไม�
 
 // ---- อ่านยอดและวัน-เวลาจากภาพ (ตั้งค่า ocr.claude) ----
 const kvOcr = (mode: 'auto' | 'manual', enabled: boolean) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled: true, mode, ocr: { claude: enabled } } } })
-const kvOcrAll = (flags: { shop?: boolean; wai?: boolean; claude?: boolean }) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled: true, mode: 'auto', ocr: flags } } })
+const kvOcrAll = (flags: { wai?: boolean; claude?: boolean }) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled: true, mode: 'auto', ocr: flags } } })
 const ocrFields = (f: { amount: number | null; paidAt: string | null }) => async () => f
 
 Deno.test('OCR เปิด (อัตโนมัติ): ใช้ยอดและวัน-เวลาที่อ่านจากภาพ แทนยอดคงค้างและเวลาข้อความ', async () => {
@@ -363,24 +363,30 @@ Deno.test('สลิปใหม่ (ยังไม่เคยเก็บใ�
   assertEquals(called, true)
 })
 
-Deno.test('ลำดับตัวอ่าน: ของร้าน → Workers AI → Claude และตัวถัดไปทำงานเมื่อตัวก่อนอ่านไม่ได้', async () => {
+Deno.test('ลำดับตัวอ่าน: Workers AI → ระบบเดิม (Claude) · ตัวแรกที่ได้ยอดหรือวัน-เวลาจะหยุด', async () => {
   const calls: string[] = []
   const none = (name: string) => async () => { calls.push(name); return null }
   const empty = (name: string) => async () => { calls.push(name); return { amount: null, paidAt: null, receiverName: null, receiverAccount: null } }
   const hit = (name: string) => async () => { calls.push(name); return { amount: 178, paidAt: '2026-11-11T14:48', receiverName: null, receiverAccount: null } }
-  const opts = (ocrReadBy: any) => ({ ocrKey: 'k', ocrRemote: { url: 'https://ocr.example/', token: 't' }, ocrWai: { accountId: 'a', token: 't', model: '' }, ocrReadBy })
-  // ของร้านตอบผลว่าง (ไม่มียอดและวัน-เวลา) → ไปลอง Workers AI ที่ได้ผล → ไม่เรียก Claude
-  const sb1 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ shop: true, wai: true, claude: true })] })
-  assertEquals(await runCheck(sb1, await slipScreenshot(SLIP), opts({ shop: empty('shop'), wai: hit('wai'), claude: none('claude') })), 'matched')
-  assertEquals(calls, ['shop', 'wai'])
-  // ทั้งสามเปิด ของร้านและ Workers AI ไม่ได้ผล → Claude
+  const wai = { accountId: 'a', token: 't', model: '' }
+  const opts = (ocrReadBy: any, ocrWai: any = wai) => ({ ocrKey: 'k', ocrWai, ocrReadBy })
+  // Workers AI ตอบผลว่าง → ไปลองระบบเดิม (Claude) ที่ได้ผล
+  const sb1 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true, claude: true })] })
+  assertEquals(await runCheck(sb1, await slipScreenshot(SLIP), opts({ wai: empty('wai'), claude: hit('claude') })), 'matched')
+  assertEquals(calls, ['wai', 'claude'])
+  // Workers AI ได้ผล → ไม่เรียกระบบเดิม
   calls.length = 0
-  const sb3 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ shop: true, wai: true, claude: true })] })
-  assertEquals(await runCheck(sb3, await slipScreenshot(SLIP), opts({ shop: none('shop'), wai: none('wai'), claude: hit('claude') })), 'matched')
-  assertEquals(calls, ['shop', 'wai', 'claude'])
-  // ปิดของร้านและ Workers AI → ใช้ Claude เท่านั้น
+  const sb2 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true, claude: true })] })
+  assertEquals(await runCheck(sb2, await slipScreenshot(SLIP), opts({ wai: hit('wai'), claude: none('claude') })), 'matched')
+  assertEquals(calls, ['wai'])
+  // ปิด Workers AI → ใช้ระบบเดิม (Claude) เท่านั้น
   calls.length = 0
-  const sb2 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ shop: false, wai: false, claude: true })] })
-  await runCheck(sb2, await slipScreenshot(SLIP), opts({ shop: none('shop'), wai: none('wai'), claude: hit('claude') }))
+  const sb3 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: false, claude: true })] })
+  await runCheck(sb3, await slipScreenshot(SLIP), opts({ wai: hit('wai'), claude: hit('claude') }))
+  assertEquals(calls, ['claude'])
+  // ไม่ได้ตั้งค่า Cloudflare → ข้าม Workers AI ไปใช้ระบบเดิม
+  calls.length = 0
+  const sb4 = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcrAll({ wai: true, claude: true })] })
+  await runCheck(sb4, await slipScreenshot(SLIP), opts({ wai: hit('wai'), claude: hit('claude') }, { accountId: '', token: '', model: '' }))
   assertEquals(calls, ['claude'])
 })

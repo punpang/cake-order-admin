@@ -154,7 +154,7 @@ export async function readSlipFieldsWorkersAI(o: { bytes: Uint8Array; accountId:
   }
 }
 
-// อ่านด้วยบริการของร้านเอง (tools/slip-ocr/service.ts ผ่าน Cloudflare Tunnel) · ไม่มีค่าใช้จ่ายต่อรูป
+// อ่านด้วยบริการ Tesseract (tools/slip-ocr/service.ts ผ่าน Cloudflare Tunnel) · ไม่อยู่ในลำดับการอ่านสลิปแล้ว (เก็บไว้ตามโค้ดใน tools/slip-ocr)
 // ล้มเหลว/หมดเวลา/ผลผิดรูป = null (ระบบใช้ค่าเดิมต่อไป)
 export async function readSlipFieldsRemote(o: { bytes: Uint8Array; url: string; token: string; fetchImpl?: typeof fetch }): Promise<SlipFields | null> {
   if (!o.url || !o.token) return null
