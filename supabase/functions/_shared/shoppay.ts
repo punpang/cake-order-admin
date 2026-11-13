@@ -3,7 +3,7 @@
 // รูปแบบเดิม (promptpayId / accountNo / bank ตัวเดียว) แปลงเป็นรายการเหมือนฝั่งแอป (src/lib/payAccounts.js)
 // ใช้ร่วมกันโดย order-link และ customer-auth
 export type PublicPayAccount = { id: string; kind: 'bank' | 'promptpay'; bankCode?: string; bankName?: string; accountNo?: string; promptpayId?: string; accountName: string }
-export type PublicPayment = { note: string; accounts: PublicPayAccount[]; billerId: string }
+export type PublicPayment = { note: string; accounts: PublicPayAccount[]; billerId: string; merchantCode: string }
 
 const txt = (v: unknown, n: number) => String(v ?? '').trim().slice(0, n)
 
@@ -24,7 +24,13 @@ export function publicPaymentOf(shopV: any): PublicPayment {
       if (accountNo) accounts.push({ id: txt(a.id, 40), kind: 'bank', bankCode: txt(a.bankCode, 3), bankName: txt(a.bankName, 60), accountNo, accountName: txt(a.accountName, 80) })
     }
   }
-  // รหัสร้านค้า (Biller ID 15 หลัก) ใช้สร้าง QR แบบ Biller ให้ลูกค้า · อยู่ในคิวอาร์ของร้านอยู่แล้วจึงไม่ใช่ข้อมูลลับ
-  const biller = txt(shopV?.merchantCode, 20).replace(/\D/g, '')
-  return { note: txt(p.note, 300), accounts, billerId: /^\d{15}$/.test(biller) ? biller : '' }
+  // Biller ID (15 หลัก) ส่งให้ลูกค้าเพื่อสร้าง QR · รหัสร้านค้าใช้ตรวจสลิป · อยู่ในคิวอาร์ของร้านอยู่แล้วจึงไม่ใช่ข้อมูลลับ
+  const biller = txt(shopV?.billerId, 20).replace(/\D/g, '')
+  const shopCode = txt(shopV?.merchantCode, 20).replace(/\D/g, '')
+  return {
+    note: txt(p.note, 300),
+    accounts,
+    billerId: /^\d{15}$/.test(biller) ? biller : '',
+    merchantCode: /^\d{1,20}$/.test(shopCode) ? shopCode : '',
+  }
 }

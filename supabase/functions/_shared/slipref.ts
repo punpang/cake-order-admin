@@ -44,10 +44,15 @@ export function merchantCodeOk(mc: string, receiverAccount: unknown, shopRef: st
 
 // ค่าจากคำตอบของตัวอ่าน (merchant_code / shop_ref) · ใส่คีย์เฉพาะเมื่อผ่านเกณฑ์ (ผลเดิมรูปร่างไม่เปลี่ยน)
 export function readShopFields(obj: any, receiverAccount?: string | null): { merchantCode?: string; shopRef?: string } {
-  const mc = digitsOf(obj?.merchant_code)
+  // POS/ORD เป็นรหัสอ้างอิงร้านค้า (Ref 2) เท่านั้น ไม่เป็นรหัสร้านค้า
+  const isPosOrd = (v: string): boolean => /^(POS|ORD)/.test(v)
+  const rawMc = normalizeShopRef(obj?.merchant_code)
   const sr = normalizeShopRef(obj?.shop_ref)
-  const shopRef = shopRefOk(sr) ? sr : ''
-  const merchantCode = merchantCodeOk(mc, receiverAccount, shopRef) ? mc : ''
+  let shopRef = shopRefOk(sr) ? sr : ''
+  // POS/ORD ที่ตัวอ่านวางไว้ในช่องรหัสร้านค้า → ใช้เป็นรหัสอ้างอิงร้านค้า (ไม่ใช่รหัสร้านค้า)
+  if (!shopRef && shopRefOk(rawMc)) shopRef = rawMc
+  const mc = isPosOrd(rawMc) ? '' : digitsOf(obj?.merchant_code)
+  const merchantCode = mc && merchantCodeOk(mc, receiverAccount, shopRef) ? mc : ''
   return { ...(merchantCode ? { merchantCode } : {}), ...(shopRef ? { shopRef } : {}) }
 }
 

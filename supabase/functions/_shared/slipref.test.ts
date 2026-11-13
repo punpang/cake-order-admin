@@ -31,3 +31,9 @@ Deno.test('ค่าจากตัวอ่าน: ใส่เฉพาะค�
   assertEquals(shopPartOf({ merchantCode: '', shopRef: 'POS1' }), { shopRef: 'POS1' })
   assertEquals(digitsOf('0-1'), '01')
 })
+
+Deno.test('POS/ORD เป็นรหัสอ้างอิงร้านค้า (Ref 2) ไม่ใช่รหัสร้านค้า · รหัสร้านค้า (Ref 1) เป็นตัวเลข', () => {
+  assertEquals(readShopFields({ merchant_code: 'ORD131126000741', shop_ref: null }), { shopRef: 'ORD131126000741' })
+  assertEquals(readShopFields({ merchant_code: 'POS123927229', shop_ref: 'ORD131126000741' }), { shopRef: 'ORD131126000741' })
+  assertEquals(readShopFields({ merchant_code: '014000000517185', shop_ref: 'ORD131126000741' }), { merchantCode: '014000000517185', shopRef: 'ORD131126000741' })
+})

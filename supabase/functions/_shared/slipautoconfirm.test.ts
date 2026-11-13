@@ -43,7 +43,7 @@ Deno.test('เงื่อนไข 3: ยังไม่ตั้งรหั�
   assertEquals(decide({}, { ...FIELDS, merchantCode: '014000000517186' }).ok, false)
 })
 
-Deno.test('เงื่อนไข 4: รหัสอ้างอิงร้านค้าไม่ตรงกับออร์เดอร์ หรือไม่ได้อ่าน → ไม่ยืนยัน · ไม่ได้อ่านภาพเลย → ไม่ยืนยัน', () => {
+Deno.test('เงื่อนไข 4: รหัสอ้างอิงร้านค้า (POS/ORD) ไม่ตรงกับออร์เดอร์ หรือไม่ได้อ่าน → ไม่ยืนยัน · ไม่ได้อ่านภาพเลย → ไม่ยืนยัน', () => {
   assertEquals(decide({}, { ...FIELDS, shopRef: 'POS123927229' }).ok, false)
   assertEquals(decide({}, { ...FIELDS, shopRef: undefined }).ok, false)
   assertEquals(decide({}, null).ok, false)

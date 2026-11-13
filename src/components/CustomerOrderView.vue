@@ -1,9 +1,9 @@
 <script setup>
 import { safeHref } from '../lib/safeUrl'
 import { computed, reactive, ref, watch } from 'vue'
-import { customerPay, customerReadSlip, customerRequestExtension, customerRequestPhotoOptOut, customerCancelPhotoOptOut } from '../data/store'
+import { customerPay, customerReadSlip, customerRequestExtension, customerRequestPhotoOptOut, customerCancelPhotoOptOut, customerRequestQr } from '../data/store'
 import { BANKS, PAY_MSG, bankByCode, checkCustomerTxn } from '../lib/payFields'
-import { billerIdOf, promptPayBillerPayload, shopRefOfCode } from '../lib/promptpay'
+import { billerIdOf, promptPayBillerPayload, shopCodeOf, shopRefOfCode } from '../lib/promptpay'
 import { visiblePayAccounts } from '../lib/payAccounts'
 import { money, dateOnly, dateTime, formatPhone } from '../lib/format'
 import { STATUS } from '../lib/constants'
@@ -31,7 +31,8 @@ const cancelled = computed(() => o.value.status === 'cancelled')
 // ---------- ชำระเงิน ----------
 const info = computed(() => o.value.pay.info)
 const accounts = computed(() => visiblePayAccounts(info.value)) // บัญชีที่ร้านเปิดให้แสดง
-const billerId = computed(() => billerIdOf(info.value?.billerId)) // รหัสร้านค้า (Biller ID 15 หลัก) จากร้าน · ใช้สร้าง QR แบบ Biller
+const billerId = computed(() => billerIdOf(info.value?.billerId)) // Biller ID (15 หลัก) จากร้าน · ใช้สร้าง QR แบบ Biller
+const shopCode = computed(() => shopCodeOf(info.value?.merchantCode)) // รหัสร้านค้า (Ref 1) จากร้าน · ใช้สร้าง QR
 const hasInfo = computed(() => !!(accounts.value.length || info.value.note))
 const requests = computed(() => o.value.payments.filter((p) => p.status === 'reported' && p.shopRequested && !p.submitted))
 const f = reactive({ mode: 'all', custom: '', paymentId: null, slip: '', slipName: '', note: '', error: '', ok: '', busy: false, txnDate: '', txnTime: '', bankCode: '', ref: '', qrNote: '', reading: false })
@@ -47,7 +48,21 @@ function pick(mode, p = null) {
   f.paymentId = p?.id || null
 }
 const qr = ref('')
-const payload = computed(() => (amount.value > 0 && billerId.value ? promptPayBillerPayload(billerId.value, amount.value, shopRefOfCode(o.value.code)) : null))
+// QR ของยอดที่ลูกค้าเลือก: กดสร้างก่อน → เซิร์ฟเวอร์สร้างรายการแจ้งชำระใหม่ของยอดนั้นทุกครั้ง · Ref 1 = รหัสร้านค้า · Ref 2 = POS/ORD ของออร์เดอร์
+const qrReq = reactive({ amount: 0, paymentId: '', busy: false, error: '' })
+const payload = computed(() => (qrReq.paymentId && billerId.value && shopCode.value && qrReq.amount > 0 ? promptPayBillerPayload(billerId.value, qrReq.amount, shopCode.value, shopRefOfCode(o.value.code)) : null))
+function clearQr() { Object.assign(qrReq, { amount: 0, paymentId: '', busy: false, error: '' }) }
+async function makeQr() {
+  qrReq.error = ''
+  if (!(amount.value > 0)) return (qrReq.error = 'เลือกยอดก่อนสร้าง QR')
+  qrReq.busy = true
+  const r = await customerRequestQr(props.ctx, amount.value)
+  qrReq.busy = false
+  if (r.error) return (qrReq.error = r.error)
+  Object.assign(qrReq, { amount: r.amount, paymentId: r.paymentId })
+  if (r.stale) staleNote.value = true
+}
+watch([amount, () => f.mode, () => f.paymentId], () => { if (qrReq.paymentId && qrReq.amount !== amount.value) clearQr() })
 watch(
   [payload, open],
   async () => {
@@ -154,6 +169,7 @@ async function submit() {
   f.ok = r.autoConfirmed ? 'ร้านยืนยันการชำระแล้ว ขอบคุณค่ะ' : 'ส่งสลิปแล้ว ร้านจะตรวจสอบและยืนยันให้'
   if (r.stale) staleNote.value = true
   Object.assign(f, { slip: '', slipName: '', note: '', custom: '', mode: 'all', paymentId: null, txnDate: '', txnTime: '', bankCode: '', ref: '', qrNote: '' })
+  clearQr()
   open.value = false
   emit('refresh')
 }
@@ -370,11 +386,12 @@ const beforeDiscount = computed(() => {
           </div>
 
           <div v-if="hasInfo" class="rounded-2xl border border-stone-200 bg-white p-3">
-            <div v-if="billerId" class="text-center">
+            <div v-if="billerId && shopCode" class="text-center">
               <div class="text-xs text-stone-500">QR นี้สำหรับออร์เดอร์</div>
               <div class="text-base font-semibold text-stone-900">{{ o.code }}</div>
               <img v-if="qr" :src="qr" alt="QR พร้อมเพย์" class="mx-auto h-48 w-48" />
-              <p v-else-if="amount > 0" class="py-8 text-stone-400">กำลังสร้าง QR…</p>
+              <button v-else type="button" class="btn-soft mx-auto mt-2" :disabled="qrReq.busy || !(amount > 0)" @click="makeQr">{{ qrReq.busy ? 'กำลังสร้าง QR…' : 'สร้าง QR สำหรับยอดนี้' }}</button>
+              <p v-if="qrReq.error" class="mt-1 text-xs text-rose-700" role="alert">{{ qrReq.error }}</p>
             </div>
             <p v-if="amount > 0" class="text-center text-base font-semibold text-stone-900">{{ money(amount) }}</p>
             <div class="mt-3 space-y-2 text-left">

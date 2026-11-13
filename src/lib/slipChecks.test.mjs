@@ -1,4 +1,4 @@
-// ทดสอบเครื่องหมายตรวจสลิปเทียบกับออร์เดอร์: ยอดไม่เกินยอดค้าง · วัน-เวลาหลังสร้างออร์เดอร์ (เวลาไทย) · รหัสร้านค้า · รหัสอ้างอิง
+// ทดสอบเครื่องหมายตรวจสลิปเทียบกับออร์เดอร์: ยอดไม่เกินยอดค้าง · วัน-เวลาหลังสร้างออร์เดอร์ (เวลาไทย) · รหัสร้านค้า (Ref 1) · รหัสอ้างอิงร้านค้า (Ref 2)
 import assert from 'node:assert/strict'
 import { slipChecksOf, refOfOrderCode } from './slipChecks.js'
 
@@ -28,17 +28,21 @@ t('วัน-เวลา: ต้องหลังเวลาสร้าง�
   assert.equal(by(slipChecksOf({ fields: { paidAt: '2026-11-11T14:48' }, order: { code: ORDER.code } }), 'paidAt').ok, null)
 })
 
-t('รหัสร้านค้า: ตรง ✓ · ไม่ตรง ✗ · อ่านไม่ได้ ✗ · ยังไม่ได้ตั้งรหัสร้านค้า → null', () => {
+t('รหัสร้านค้า (Ref 1): ตรง ✓ · ไม่ตรง ✗ · อ่านไม่ได้ ✗ · ยังไม่ได้ตั้งรหัสร้านค้า → null', () => {
   assert.equal(by(slipChecksOf({ fields: { merchantCode: SHOP }, configuredMerchantCode: SHOP }), 'merchant').ok, true)
   assert.equal(by(slipChecksOf({ fields: { merchantCode: '123927229' }, configuredMerchantCode: SHOP }), 'merchant').ok, false)
   assert.equal(by(slipChecksOf({ fields: {}, configuredMerchantCode: SHOP }), 'merchant').ok, false)
   assert.equal(by(slipChecksOf({ fields: { merchantCode: SHOP }, configuredMerchantCode: '' }), 'merchant').ok, null)
 })
 
-t('รหัสอ้างอิงร้านค้า: ตรงกับออร์เดอร์ ✓ · ไม่ตรง ✗ · ไม่มีในสลิป → null', () => {
+t('รหัสอ้างอิงร้านค้า (Ref 2 = POS/ORD): ตรงกับออร์เดอร์ ✓ · ไม่ตรง ✗ · ไม่มีในสลิป → null', () => {
   assert.equal(by(slipChecksOf({ fields: { shopRef: 'ORD131126000123' }, order: ORDER }), 'shopRef').ok, true)
   assert.equal(by(slipChecksOf({ fields: { shopRef: 'POS123927229' }, order: ORDER }), 'shopRef').ok, false)
   assert.equal(by(slipChecksOf({ fields: {}, order: ORDER }), 'shopRef').ok, null)
+})
+
+t('มีเครื่องหมายตรวจ 4 ข้อ (ไม่มีรหัสสุ่มแล้ว)', () => {
+  assert.deepEqual(slipChecksOf({ fields: {}, order: ORDER, balance: 540 }).map((c) => c.key), ['amount', 'paidAt', 'merchant', 'shopRef'])
 })
 
 console.log(`slipChecks: ${n} passed`)

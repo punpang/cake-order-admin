@@ -45,8 +45,11 @@ export function promptPayPayload(id, amount = null, ref = '') {
   return body + crc16(body)
 }
 
-// PromptPay Biller (ชำระผ่านผู้เรียกเก็บเงิน): tag 30 · AID A000000677010112 · 01 = Biller ID (15 หลัก) · 02 = Ref 1 · 03 = Ref 2
-// ร้าน: รหัสร้านค้า = Biller ID · POS/ORD ใส่ทั้ง Ref 1 และ Ref 2
+// PromptPay Biller (ชำระผ่านผู้เรียกเก็บเงิน): tag 30 · AID A000000677010112
+//   01 = Biller ID ของร้าน (ผู้เรียกเก็บเงิน 15 หลัก, ตั้งค่าร้าน)
+//   02 = Ref 1 = รหัสร้านค้า (ตัวเลข, ตั้งค่าร้าน)
+//   03 = Ref 2 = รหัสอ้างอิงร้านค้า POS/ORD (ตามออร์เดอร์)
+// ยอดฝังใน QR (tag 54) · ไม่มีรหัสสุ่ม
 export const billerIdOf = (s) => {
   const d = digitsOf(s)
   return /^\d{15}$/.test(d) ? d : ''
@@ -59,17 +62,24 @@ export const shopRefOk = (v) => /^(POS|ORD)\d{3,17}$/.test(String(v ?? ''))
 export const shopRefOfCode = (code) =>
   String(code ?? '').trim().toUpperCase().replace(/^OR-/, 'ORD').replace(/^POS-/, 'POS').replace(/-/g, '')
 
-// QR พร้อมเพย์แบบ Biller · ยอดว่าง = ไม่ล็อกยอด · ข้อมูลไม่ถูกต้อง (Biller ID / รหัสอ้างอิง / ยอด) = null
-export function promptPayBillerPayload(billerId, amount = null, ref = '') {
+// รหัสร้านค้า (Ref 1): ตัวเลข 1–20 หลัก (ตัดช่องว่างและขีด) · ไม่ใช่ตัวเลข = ''
+export const shopCodeOf = (s) => {
+  const v = String(s ?? '').replace(/[\s-]/g, '')
+  return /^\d{1,20}$/.test(v) ? v : ''
+}
+
+// QR พร้อมเพย์แบบ Biller · ยอดว่าง = ไม่ล็อกยอด · ข้อมูลไม่ถูกต้อง (Biller ID / รหัสร้านค้า / รหัสอ้างอิง / ยอด) = null
+export function promptPayBillerPayload(billerId, amount = null, shopCode = '', shopRef = '') {
   const id = billerIdOf(billerId)
-  const r = String(ref ?? '').trim().toUpperCase()
-  if (!id || !shopRefOk(r)) return null
+  const r1 = shopCodeOf(shopCode)
+  const r2 = String(shopRef ?? '').trim().toUpperCase()
+  if (!id || !r1 || !shopRefOk(r2)) return null
   const amt = amount == null || amount === '' ? null : Math.round(Number(amount) * 100) / 100
   if (amt != null && (!Number.isFinite(amt) || amt <= 0 || amt > 9999999.99)) return null
   const body =
     tlv('00', '01') +
     tlv('01', amt == null ? '11' : '12') +
-    tlv('30', tlv('00', 'A000000677010112') + tlv('01', id) + tlv('02', r) + tlv('03', r)) +
+    tlv('30', tlv('00', 'A000000677010112') + tlv('01', id) + tlv('02', r1) + tlv('03', r2)) +
     tlv('53', '764') +
     (amt == null ? '' : tlv('54', amt.toFixed(2))) +
     tlv('58', 'TH') +

@@ -176,7 +176,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     order: orderRow ? { code: orderRow.code, createdAt: orderRow.data?.createdAt } : null,
     balance: orderRow ? orderTotals(orderRow.data).balance : null,
   })
-  // ผูกอัตโนมัติเมื่อครบ 4 ข้อเป็น ✓ (ยอด · วัน-เวลา · รหัสร้านค้า · รหัสอ้างอิงร้านค้า) และรหัสอ้างอิงตรงกับออร์เดอร์ที่พบ · นอกนั้นส่งให้พนักงาน
+  // ผูกอัตโนมัติเมื่อครบ 4 ข้อเป็น ✓ (ยอด · วัน-เวลา · รหัสร้านค้า (Ref 1) · รหัสอ้างอิงร้านค้า POS/ORD (Ref 2)) และรหัสอ้างอิงตรงกับออร์เดอร์ที่พบ · นอกนั้นส่งให้พนักงาน
   const autoOk = cfg.mode === 'auto' && refOrderId !== null && checks.every((c) => c.ok === true)
   // เหตุผลที่ไม่ผ่าน ✗ = ไม่ถูกต้อง · – = อ่านไม่ได้หรือยังไม่มีข้อมูลให้เทียบ → ไปที่กระดิ่งและป้าย
   const reasons = checks.filter((c) => c.ok !== true).map((c) => `${c.ok === false ? '✗' : '–'} ${c.text}`)
@@ -227,7 +227,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
       stagedKey = s.key
       stagedRef = s.ref
     }
-    // ออกเลข PAY ครั้งเดียว (เหมือนการแจ้งชำระจากหน้าออร์เดอร์)
+    // ทุกใบเป็นงวดใหม่ (ออกเลข PAY ครั้งเดียวต่อการลองซ้ำ)
     if (!code) {
       const al = await sb.rpc('punpang_alloc_numbers_server', { p_prefix: 'PAY', p_day: ddmmyy(now), p_n: 1 })
       if (al?.error || !Number.isInteger(al?.data)) { await discardStaged(); return 'error' }
@@ -245,7 +245,8 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
       bankCode, bankName, ref, shopRef: fields?.shopRef, merchantMismatch: flagged,
     })
     // ยืนยันอัตโนมัติ: งวดนี้ยืนยันทันที และยกเลิกยอดที่ร้านแจ้งไว้เดิมซึ่งยังรออยู่ของออร์เดอร์นี้ (ยอดที่ลูกค้าแจ้งเองไม่ถึงขั้นนี้ เพราะกันด้วย pending_exists)
-    const conf = autoConfirm ? confirmSlipPayment([...payments, built], built.id, nowIso) : { payments: [...payments, built], cancelled: [] as any[] }
+    const list = [...payments, built]
+    const conf = autoConfirm ? confirmSlipPayment(list, built.id, nowIso) : { payments: list, cancelled: [] as any[] }
     const cancelledReqs = conf.cancelled
     const next = {
       ...d,
