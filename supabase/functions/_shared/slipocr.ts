@@ -112,10 +112,10 @@ export async function readSlipFields(o: { bytes: Uint8Array; key: string; model:
 export const WAI_DEFAULT_MODEL = '@cf/mistralai/mistral-small-3.1-24b-instruct'
 const WAI_PROMPT = [
   'ภาพนี้คือสลิปโอนเงินของธนาคารหรือแอปในประเทศไทย อ่านเฉพาะตัวหนังสือในภาพ',
-  'ตอบเป็น JSON อย่างเดียว รูปแบบ {"amount": ตัวเลขบาท ไม่มีคอมมา, "date_text": "ข้อความวันที่และเวลาตามที่เห็นในภาพ คัดลอกตามตัวอักษรทุกตัว"}',
+  'ตอบเป็น JSON อย่างเดียว รูปแบบ {"amount": ตัวเลขบาท ไม่มีคอมมา, "date_text": "ข้อความวันที่และเวลาตามที่เห็น คัดลอกตามตัวอักษร", "accounts": ["เลขบัญชีหรือพร้อมเพย์ที่เห็น คัดลอกตามที่เห็น รวมตัวที่ถูกปิด"]}',
+  'accounts ต้องเรียงจากบนลงล่างตามลำดับที่ปรากฏในภาพ ใส่เฉพาะเลขบัญชีหรือพร้อมเพย์ ไม่ใส่รหัสอ้างอิง รหัสธุรกรรม หรือเลขอื่น',
   'amount คือจำนวนเงินที่โอน ไม่ใช่ค่าธรรมเนียมหรือยอดคงเหลือ',
-  'date_text เช่น "13 พ.ย. 2569 - 01:28" ห้ามแปลงปีหรือเดือนเอง ให้คัดลอกตามที่เห็น',
-  'ค่าใดอ่านไม่ได้ให้ใส่ null ห้ามเดา',
+  'ค่าใดอ่านไม่ได้ให้ใส่ null หรือ [] ห้ามเดา',
 ].join('\n')
 
 export async function readSlipFieldsWorkersAI(o: { bytes: Uint8Array; accountId: string; token: string; model?: string; nowMs?: number; fetchImpl?: typeof fetch }): Promise<SlipFields | null> {
@@ -145,7 +145,10 @@ export async function readSlipFieldsWorkersAI(o: { bytes: Uint8Array; accountId:
     const amount = typeof rawAmount === 'number' && Number.isFinite(rawAmount) && rawAmount > 0 && rawAmount <= MAX_AMOUNT ? Math.round(rawAmount * 100) / 100 : null
     const dateText = typeof j?.date_text === 'string' ? j.date_text.slice(0, 80) : ''
     const paidAt = dateText ? (parseThaiDateTime(dateText) ?? inferThaiDateTime(dateText, o.nowMs ?? Date.now())) : null
-    return { amount, paidAt, receiverName: null, receiverAccount: null }
+    // เลขที่ปรากฏเรียงบนลงล่าง: ตัวสุดท้ายคือผู้รับ · เลขเดียวบอกไม่ได้ว่าเป็นของใคร จึงไม่ใส่ค่า
+    const list = Array.isArray(j?.accounts) ? j.accounts.filter((x: unknown) => typeof x === 'string').map((x: string) => x.trim()).filter((x: string) => /\d/.test(x)) : []
+    const receiverAccount = list.length >= 2 ? list[list.length - 1].slice(0, 40) : null
+    return { amount, paidAt, receiverName: null, receiverAccount }
   } catch {
     return null
   }
