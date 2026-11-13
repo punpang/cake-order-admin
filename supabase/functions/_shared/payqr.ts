@@ -14,4 +14,4 @@ export function newQrSuffix(): string {
 }
 
 // Ref 2 = POS/ORD ตามออร์เดอร์ (ORD + ddmmyy + xxxxxx = 12 หลัก · POS + ddmmyy + xxxxx = 11 หลัก) + รหัสสุ่ม 5 ตัว
-export const qrRefOk = (v: unknown): boolean => /^(?:ORD\d{12}|POS\d{11})[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{5}$/.test(String(v ?? ''))
+export const qrRefOk = (v: unknown): boolean => /^(?:ORD\d{12}|POS\d{12})[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{5}$/.test(String(v ?? ''))

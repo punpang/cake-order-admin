@@ -33,7 +33,7 @@ import { SLIP_RECEIVE_NOTE, slipRoom, slipChoices, slipBindError } from '../lib/
 import { payAccountsOf } from '../lib/payAccounts'
 import { customerTargets, withNewRules } from '../lib/notifyPlan'
 import { uploadChatImage } from '../lib/chatImage'
-import { billerIdOf, newQrSuffix, promptPayBillerPayload, shopRefOfCode } from '../lib/promptpay'
+import { billerIdOf, newQrSuffix, promptPayBillerPayload, qrRefOk, shopRefOfCode } from '../lib/promptpay'
 import { orderNo } from '../lib/format'
 import { callAuth, callLoyalty, readSessionToken, saveSessionToken, clearSessionToken, injectBundle, clearBundle } from '../lib/customerRemote'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
@@ -304,6 +304,7 @@ export const db = reactive({
   shop: { name: 'ร้านเค้กตัวอย่าง', slotMinutes: 30, open: '09:00', close: '20:00', nearbyHours: 2, leadPickup: 60, leadDelivery: 120, depositPercent: 50, birthdayDays: 14,
     // กำหนดชำระเริ่มต้นตอนแจ้งยอด (นาที) · 0 = ไม่กำหนด
     payDueMin: 30,
+    posQrExpireMin: 10, // QR โอนหน้าร้าน (POS) หมดอายุ (นาที)
     // ตัวเลือกกำหนดชำระตามนัด: ก่อนนัด hoursBefore ชม. · ล่วงหน้า daysBefore วัน ก่อน atTime · เตือนลูกค้าที่ยังไม่ชำระของพรุ่งนี้ตอน payReminderTime
     payDueRule: { hoursBefore: 24, daysBefore: 1, atTime: '12:00' },
     payReminderTime: '09:00',
@@ -1551,6 +1552,10 @@ export function saveShopSettings(d) {
   db.shop.installmentAlertDays = intIn(d.installmentAlertDays, 0, 30, db.shop.installmentAlertDays ?? 1)
   db.shop.merchantCode = String(d.merchantCode ?? db.shop.merchantCode ?? '').replace(/\D/g, '').slice(0, 20)
   db.shop.billerId = String(d.billerId ?? db.shop.billerId ?? '').replace(/\D/g, '').slice(0, 15)
+  if (d.posQrExpireMin !== undefined) {
+    const m = Math.round(Number(d.posQrExpireMin))
+    db.shop.posQrExpireMin = m >= 1 && m <= 60 ? m : 10
+  }
   if (d.payDueMin !== undefined) {
     const m = Math.round(Number(d.payDueMin))
     db.shop.payDueMin = m >= 1 ? Math.min(10080, m) : 30
@@ -3530,7 +3535,28 @@ export function withPromos(items, { at = new Date() } = {}) {
 }
 const stockOf = (l) => db.retailItems.find((x) => x.id === l.refId)
 // ขาย: สร้างบิล (ออร์เดอร์ channel 'pos') ส่งมอบทันที + ตัดสต็อก + คะแนน
-export function posSale({ cart, customerId = null, couponIds = [], discount = 0, method = 'cash', received = null }) {
+// ---------- POS: QR โอนหน้าร้าน ----------
+// ref2 = POS + เลขสุ่ม 12 หลัก + รหัสสุ่ม 5 ตัว (ไม่ใช่เลขที่บิล) · ไม่ซ้ำทั้งระบบ
+export function newPosQrRef() {
+  const used = (r) => db.orders.some((o) => (o.payments || []).some((x) => x.qrRef === r))
+  for (let k = 0; k < 10; k++) {
+    const r = 'POS' + Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b % 10).join('') + newQrSuffix()
+    if (qrRefOk(r) && !used(r)) return r
+  }
+  return null
+}
+export const posQrExpired = (l, nowMs = Date.now()) => !!l?.qrExpiresAt && nowMs >= new Date(l.qrExpiresAt).getTime()
+function posLinesOk(lines, total) {
+  if (!Array.isArray(lines) || !lines.length) return false
+  if (lines.some((l) => !POS_METHODS[l.method] || !(round2(Number(l.amount)) > 0))) return false
+  if (Math.abs(round2(lines.reduce((s, l) => s + round2(Number(l.amount)), 0)) - total) > 0.005) return false
+  for (const l of lines) {
+    if (l.method === 'cash' && (Number(l.received) || 0) < round2(Number(l.amount))) return false
+    if (l.method === 'transfer' && (!l.qrRef || !l.confirmed || posQrExpired(l))) return false
+  }
+  return true
+}
+export function posSale({ cart, customerId = null, couponIds = [], discount = 0, method = 'cash', received = null, lines = null }) {
   const shift = currentShift()
   if (!shift || !cart.length) return null
   if (couponIds.length && (!customerId || posCouponProblem({ customerId, couponIds }))) return null // คูปองต้องที่ลูกค้ากดแสดงอยู่ (POS ตรวจก่อนด้วย posCouponProblem)
@@ -3542,20 +3568,27 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
     pointsUsed: null, couponsUsed: [], loyalty: null, vat: vatNow(), status: 'payment_confirmed', payments: [], cancel: null, history: [], createdAt: ts,
   }
   if (o.adjustment.amount < -orderTotals(o).subtotal) o.adjustment.amount = -orderTotals(o).subtotal // ส่วนลดหน้าร้านไม่เกินยอดสินค้า
+  // หลายช่องทาง: lines = [{ method, amount, received?, qrRef?, qrExpiresAt?, confirmed? }] ยอดรวมต้องเท่ายอดบิลพอดี · โอนที่มี QR ต้องยืนยันแล้วและยังไม่หมดอายุ
   db.orders.unshift(o)
   log(o, 'ขายหน้าร้าน (POS)')
   // POS ไม่ใช้คะแนนตรง ๆ แล้ว: ลูกค้าแลกคะแนนเป็นคูปองส่วนลดที่หน้าเว็บ แล้วนำมาใช้ที่นี่
   if (customerId) for (const id of couponIds) applyCoupon(o, id)
   const total = Math.max(orderTotals(o).total, 0)
-  const got = method === 'cash' ? Math.max(Number(received) || 0, total) : total
-  o.payments.push({ id: uid('pay'), code: numbering.next('PAY'), requested: total, amount: total, method: POS_METHODS[method], posMethod: method, received: got, change: got - total, paidAt: ts.slice(0, 16), slip: '', note: '', status: 'confirmed', reportedBy: session.role, confirmedBy: session.role })
+  // ตรวจหลังใช้คูปองแล้ว (ยอดสุดท้ายของบิล) · POS ตรวจยอดตรงกันก่อนส่งมาแล้ว จึงไม่ค่อยเกิดกรณีนี้ · ถ้าเกิดให้ถอดบิลที่เพิ่งเพิ่มออก
+  if (lines && !posLinesOk(lines, total)) { db.orders.splice(db.orders.indexOf(o), 1); return null }
+  const rows = lines || [{ method, amount: total, received }]
+  for (const l of rows) {
+    const amt = round2(Number(l.amount))
+    const got = l.method === 'cash' ? Math.max(Number(l.received) || 0, amt) : amt
+    o.payments.push({ id: uid('pay'), code: numbering.next('PAY'), requested: amt, amount: amt, method: POS_METHODS[l.method], posMethod: l.method, received: got, change: round2(got - amt), paidAt: ts.slice(0, 16), slip: '', note: '', status: 'confirmed', reportedBy: session.role, confirmedBy: session.role, ...(l.method === 'transfer' && l.qrRef ? { qrRef: l.qrRef } : {}) })
+  }
   for (const it of o.items) {
     const src = it.kind === 'retail' ? db.retailItems.find((x) => x.id === it.retailId) : null
     if (src && src.stock != null) { const take = Math.min(src.stock, it.qty); it.stockTaken = take; src.stock -= take } // จดจำนวนที่ตัดจริง ตอนยกเลิกบิลคืนเท่านี้
   }
   o.status = 'delivered'
   o.deliveredAt = ts
-  log(o, `รับชำระ ${money(total)} (${POS_METHODS[method]}) · ส่งมอบ`)
+  log(o, `รับชำระ ${money(total)} (${rows.map((l) => POS_METHODS[l.method]).join(' + ')}) · ส่งมอบ`)
   awardOrderRemote(o)
   return o
 }

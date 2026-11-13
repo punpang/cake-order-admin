@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posPromoInfo, posSale, voidPosSale, pointsFor, quickMember, vatNow,
   customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons, claimPosCoupons, releaseCoupons,
+  newPosQrRef, posQrExpired,
 } from '../data/store'
 import { activeSecondsLeft } from '../lib/loyalty'
 import { orderTotals } from '../lib/pricing'
@@ -26,6 +27,7 @@ import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
 import TaxInvoiceModal from '../components/TaxInvoiceModal.vue'
 import { invoiceOfOrder } from '../data/acct'
 import { defaultRefundMethod } from '../lib/refund'
+import BillerQr from '../components/BillerQr.vue'
 
 // POS หน้าร้าน: เปิดกะ → ขาย (ตะกร้า สมาชิก คูปอง ส่วนลด + โปรโมชัน/บันเดิ้ลอัตโนมัติ) → ชำระ (เงินสด/โอน/บัตร + ทอน) → ใบเสร็จ · บิล · ปิดกะ
 // สะสมคะแนนจากยอดสุทธิ (โปรคะแนนพิเศษคูณได้) · ไม่ใช้คะแนนตรง ๆ: ลูกค้าแลกคะแนนเป็นคูปองที่หน้าเว็บ แล้วใช้คูปองที่นี่
@@ -259,19 +261,56 @@ function doSignup() {
 
 // ---------- ชำระเงิน ----------
 const payOpen = ref(false)
-const pay = reactive({ method: 'cash', received: '' })
+// รายการชำระของบิลนี้: เงินสด / โอน (มี QR หมดอายุตามตั้งค่า) / บัตร · หลายรายการได้ ยอดรวมต้องพอดี
+const payLines = ref([])
+const payNow = ref(Date.now())
+let payTimer = null
+const lineAmt = (l) => Math.round((Number(l.amount) || 0) * 100) / 100
+const paidSum = computed(() => Math.round(payLines.value.reduce((s, l) => s + lineAmt(l), 0) * 100) / 100)
+const remaining = computed(() => Math.round((total.value - paidSum.value) * 100) / 100)
+const newKey = () => Math.random().toString(36).slice(2)
+const expiredLine = (l) => posQrExpired(l, payNow.value)
+const changeOf = (l) => (Number(l.received) || 0) - lineAmt(l)
+const quickFor = (l) => { const a = lineAmt(l); return [...new Set([a, Math.ceil(a / 100) * 100, Math.ceil(a / 500) * 500, Math.ceil(a / 1000) * 1000])].filter((v) => v >= a) }
+const qrLeft = (l) => { const sec = Math.max(0, Math.ceil((new Date(l.qrExpiresAt).getTime() - payNow.value) / 1000)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` }
 function openPay() {
   if (!cart.value.length) return
-  Object.assign(pay, { method: 'cash', received: '' })
   payErr.value = ''
+  payLines.value = [{ key: newKey(), method: 'cash', amount: String(total.value), received: '', qrRef: '', qrExpiresAt: '', confirmed: false }]
+  payNow.value = Date.now()
+  clearInterval(payTimer)
+  payTimer = setInterval(() => { payNow.value = Date.now() }, 1000)
   payOpen.value = true
 }
-const quick = computed(() => {
-  const t = total.value
-  return [...new Set([t, Math.ceil(t / 100) * 100, Math.ceil(t / 500) * 500, Math.ceil(t / 1000) * 1000])].filter((v) => v >= t)
-})
-const change = computed(() => (Number(pay.received) || 0) - total.value)
-const canConfirm = computed(() => pay.method !== 'cash' || change.value >= 0)
+function closePay() {
+  payOpen.value = false
+  payLines.value = []
+  clearInterval(payTimer)
+}
+onBeforeUnmount(() => clearInterval(payTimer))
+function addPayLine(method) {
+  if (remaining.value <= 0) return
+  payLines.value.push({ key: newKey(), method, amount: String(remaining.value), received: '', qrRef: '', qrExpiresAt: '', confirmed: false })
+}
+function removePayLine(i) {
+  payLines.value.splice(i, 1)
+}
+function makeQr(l) {
+  const a = lineAmt(l)
+  if (!(a > 0) || a > remaining.value + lineAmt(l) + 0.005) return
+  const ref = newPosQrRef()
+  if (!ref) return (payErr.value = 'สร้างรหัส QR ไม่สำเร็จ ลองอีกครั้ง')
+  const mins = db.shop.posQrExpireMin || 10
+  Object.assign(l, { qrRef: ref, qrExpiresAt: new Date(Date.now() + mins * 60000).toISOString(), confirmed: false })
+}
+const lineOk = (l) => {
+  const a = lineAmt(l)
+  if (!(a > 0)) return false
+  if (l.method === 'cash') return (Number(l.received) || 0) >= a
+  if (l.method === 'transfer') return !!l.qrRef && l.confirmed && !expiredLine(l)
+  return true
+}
+const canConfirm = computed(() => payLines.value.length > 0 && remaining.value === 0 && payLines.value.every(lineOk))
 const receipt = ref(null)
 const taxFor = ref(null) // บิลที่กำลังออกใบกำกับภาษีเต็มรูป
 const taxable = (o) => can('taxInvoice') && o.status !== 'cancelled' && orderTotals(o).vat > 0
@@ -293,11 +332,12 @@ async function sellNow() {
   if (claim.error) return (payErr.value = claim.error)
   const o = posSale({
     cart: cart.value, customerId: member.value?.id || null, couponIds: couponIds.value,
-    discount: can('adjustPrice') ? Number(discount.value) || 0 : 0, method: pay.method, received: pay.method === 'cash' ? Number(pay.received) : null,
+    discount: can('adjustPrice') ? Number(discount.value) || 0 : 0,
+    lines: payLines.value.map((l) => ({ method: l.method, amount: lineAmt(l), received: l.method === 'cash' ? Number(l.received) : null, qrRef: l.qrRef || null, qrExpiresAt: l.qrExpiresAt || null, confirmed: !!l.confirmed })),
   })
   if (!o) { await releaseCoupons(claim.claimed); return (payErr.value = 'ขายไม่สำเร็จ ตรวจกะ/ตะกร้า/คูปองอีกครั้ง') }
   // ผูกคูปองที่จองไว้ (pos-pending) เข้ากับบิลจริงบนเซิร์ฟเวอร์ผ่านการซิงก์แถวคูปองตามปกติ
-  payOpen.value = false
+  closePay()
   cartOpen.value = false
   receipt.value = o
   cart.value = []
@@ -639,7 +679,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     </AppModal>
 
     <!-- ชำระเงิน -->
-    <AppModal v-if="payOpen" title="ชำระเงิน" @close="payOpen = false">
+    <AppModal v-if="payOpen" title="ชำระเงิน" @close="closePay">
       <div class="space-y-4">
         <div class="rounded-2xl bg-brand-50 p-4 text-center">
           <div class="text-sm text-brand-800">ยอดชำระ</div>
@@ -655,25 +695,53 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <p v-for="c in coupons.filter((x) => !couponOk(x))" :key="'n' + c.id" class="mt-1 text-xs text-amber-700">{{ c.name }}: ยอดสินค้าต้องถึง {{ money(c.minSpend) }} (ตอนนี้ {{ money(goods) }})</p>
           <p v-if="couponIds.length" class="mt-1.5 text-xs text-emerald-700">ใช้คูปองลดแล้ว {{ money(preview.couponDiscount) }}</p>
         </div>
-        <div class="grid grid-cols-3 gap-2">
-          <button v-for="(label, k) in POS_METHODS" :key="k" type="button" class="h-12 rounded-xl border text-sm font-semibold" :class="pay.method === k ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : 'border-stone-200 text-stone-600'" @click="pay.method = k">{{ label }}</button>
+        <div class="flex items-center justify-between rounded-xl p-3" :class="remaining === 0 ? 'bg-emerald-50 text-emerald-800' : (remaining > 0 ? 'bg-amber-50 text-amber-800' : 'bg-rose-50 text-rose-700')">
+          <span class="text-sm">{{ remaining > 0 ? 'ยังขาด' : (remaining < 0 ? 'เกินยอด' : 'ครบแล้ว') }}</span>
+          <span class="text-2xl font-semibold">{{ money(Math.abs(remaining)) }}</span>
         </div>
-        <template v-if="pay.method === 'cash'">
+        <div v-for="(l, i) in payLines" :key="l.key" class="space-y-2.5 rounded-2xl border border-stone-200 p-3">
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-semibold text-stone-800">{{ POS_METHODS[l.method] }}</span>
+            <button v-if="!l.qrRef && (payLines.length > 1 || l.method !== 'cash')" type="button" class="btn-soft h-8 px-2.5 text-sm" @click="removePayLine(i)">ลบรายการ</button>
+          </div>
           <div>
-            <label class="label">รับเงินมา (บาท)</label>
-            <input v-model="pay.received" type="text" v-num.dec class="input h-12 text-xl font-semibold" placeholder="0" />
+            <label class="label">ยอด (บาท)</label>
+            <input v-model="l.amount" type="text" v-num.dec class="input h-11" :readonly="!!l.qrRef" />
           </div>
-          <div class="flex flex-wrap gap-2">
-            <button v-for="v in quick" :key="v" type="button" class="chip chip-off" @click="pay.received = String(v)">{{ v === total ? 'พอดี' : money(v) }}</button>
-          </div>
-          <div class="flex items-center justify-between rounded-xl p-3" :class="change >= 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'">
-            <span class="text-sm">{{ change >= 0 ? 'เงินทอน' : 'ยังขาด' }}</span>
-            <span class="text-2xl font-semibold">{{ money(Math.abs(change)) }}</span>
-          </div>
-        </template>
+          <template v-if="l.method === 'cash'">
+            <div>
+              <label class="label">รับเงินมา (บาท)</label>
+              <input v-model="l.received" type="text" v-num.dec class="input h-12 text-xl font-semibold" placeholder="0" />
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button v-for="v in quickFor(l)" :key="v" type="button" class="chip chip-off" @click="l.received = String(v)">{{ v === lineAmt(l) ? 'พอดี' : money(v) }}</button>
+            </div>
+            <div class="flex items-center justify-between rounded-xl p-3" :class="changeOf(l) >= 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'">
+              <span class="text-sm">{{ changeOf(l) >= 0 ? 'เงินทอน' : 'ยังขาด' }}</span>
+              <span class="text-xl font-semibold">{{ money(Math.abs(changeOf(l))) }}</span>
+            </div>
+          </template>
+          <template v-else-if="l.method === 'transfer'">
+            <button v-if="!l.qrRef" type="button" class="btn-outline w-full" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
+            <template v-else>
+              <BillerQr :amount="lineAmt(l)" :ref1="db.shop.merchantCode || ''" :ref2="l.qrRef" />
+              <p class="text-center text-sm" :class="expiredLine(l) ? 'font-semibold text-rose-700' : 'text-stone-600'">{{ expiredLine(l) ? 'QR หมดอายุแล้ว ต้องสร้างใหม่' : `หมดอายุใน ${qrLeft(l)}` }}</p>
+              <div class="grid grid-cols-2 gap-2">
+                <button v-if="expiredLine(l)" type="button" class="btn-primary" @click="makeQr(l)">สร้าง QR ใหม่</button>
+                <button v-else-if="!l.confirmed" type="button" class="btn-primary" @click="l.confirmed = true"><AppIcon name="check" :size="16" /> ลูกค้าชำระแล้ว</button>
+                <button v-else type="button" class="btn-outline" @click="l.confirmed = false">ยกเลิกการยืนยัน</button>
+                <button type="button" class="btn-outline" @click="removePayLine(i)">ย้อนกลับ (ยกเลิก QR)</button>
+              </div>
+            </template>
+          </template>
+          <p v-else class="text-xs text-stone-500">รับตามยอดที่ระบุ</p>
+        </div>
+        <div v-if="remaining > 0" class="grid grid-cols-3 gap-2">
+          <button v-for="(label, k) in POS_METHODS" :key="k" type="button" class="h-11 rounded-xl border border-dashed border-brand-300 text-sm font-semibold text-brand-700" @click="addPayLine(k)">+ {{ label }}</button>
+        </div>
       </div>
       <template #footer>
-        <button class="btn-outline flex-1 sm:flex-none" @click="payOpen = false">ยกเลิก</button>
+        <button class="btn-outline flex-1 sm:flex-none" @click="closePay">ยกเลิก</button>
         <button class="btn-primary flex-1 sm:flex-none" :disabled="!canConfirm" @click="confirmPay"><AppIcon name="check" :size="18" /> ยืนยันรับเงิน</button>
       </template>
     </AppModal>

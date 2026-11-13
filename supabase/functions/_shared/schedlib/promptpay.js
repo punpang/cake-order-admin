@@ -75,7 +75,7 @@ export function newQrSuffix() {
   return out
 }
 // Ref 2 = POS/ORD (ORD+12 หลัก หรือ POS+11 หลัก) + รหัสสุ่ม 5 ตัว
-export const qrRefOk = (v) => /^(?:ORD\d{12}|POS\d{11})[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{5}$/.test(String(v ?? ''))
+export const qrRefOk = (v) => /^(?:ORD\d{12}|POS\d{12})[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{5}$/.test(String(v ?? ''))
 
 // รหัสร้านค้า (Ref 1): ตัวเลข 1–20 หลัก (ตัดช่องว่างและขีด) · ไม่ใช่ตัวเลข = ''
 export const shopCodeOf = (s) => {
