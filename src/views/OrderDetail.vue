@@ -759,8 +759,8 @@ async function saveCancel() {
           <RefundEditor v-model="cxl.refunds" :paid="t.paidNet":can-points="!!customer && !customer.deleted" :default-method="defaultRefundMethod(order.payments.filter((p) => p.status === 'confirmed').at(-1)?.method)" />
         </div>
         <div><label class="label">หมายเหตุการคืนเงิน</label><input v-model="cxl.refundNote" class="input" /></div>
-        <label v-if="customer && order.channel !== 'pos'" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="cxl.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่ายกเลิก" /> แจ้งลูกค้าว่ายกเลิกออร์เดอร์</label>
-        <SmsTick v-if="customer && order.channel !== 'pos'" v-model="cxl.sms" :customer="customer" :order="order" :show="cxl.notify" />
+        <label v-if="customer" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="cxl.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่ายกเลิก" /> แจ้งลูกค้าว่ายกเลิกออร์เดอร์</label>
+        <SmsTick v-if="customer" v-model="cxl.sms" :customer="customer" :order="order" :show="cxl.notify" />
         <p v-if="cxlError" class="text-sm text-rose-700">{{ cxlError }}</p>
       </div>
       <template #footer>
