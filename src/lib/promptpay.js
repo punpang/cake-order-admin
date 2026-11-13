@@ -46,8 +46,10 @@ export function promptPayPayload(id, amount = null, ref = '') {
 }
 
 // PromptPay Biller (ชำระผ่านผู้เรียกเก็บเงิน): tag 30 · AID A000000677010112
-//   01 = Biller ID ของร้าน (ผู้เรียกเก็บเงิน 15 หลัก) · 02 = Ref 1 = รหัสร้านค้า (ตัวเลข) · 03 = Ref 2 = รหัสอ้างอิง POS/ORD
-// โครงนี้ตรงกับ QR ที่ธนาคารรับได้และแสดงเป็น "รหัสร้านค้า" + "รหัสอ้างอิงร้านค้า" (ตัวอย่าง Biller ID 010753600010286 · รหัสร้านค้า 014000000517185 · POS123927229)
+//   01 = Biller ID ของร้าน (ผู้เรียกเก็บเงิน 15 หลัก, ตั้งค่าร้าน)
+//   02 = Ref 1 = รหัสอ้างอิงร้านค้า POS/ORD (ตามออร์เดอร์)
+//   03 = Ref 2 = รหัสสุ่มไม่ซ้ำของรายการแจ้งชำระ (ออกใหม่ทุกครั้งที่แจ้งยอด)
+// รหัสร้านค้า (ใช้ตรวจสลิป) ไม่ได้อยู่ใน QR
 export const billerIdOf = (s) => {
   const d = digitsOf(s)
   return /^\d{15}$/.test(d) ? d : ''
@@ -60,24 +62,32 @@ export const shopRefOk = (v) => /^(POS|ORD)\d{3,17}$/.test(String(v ?? ''))
 export const shopRefOfCode = (code) =>
   String(code ?? '').trim().toUpperCase().replace(/^OR-/, 'ORD').replace(/^POS-/, 'POS').replace(/-/g, '')
 
-// รหัสร้านค้า (Ref 1): ตัวเลข 1–20 หลัก · ว่าง/ผิดรูป = ไม่ใช่รหัสที่ใช้ได้
-export const shopCodeOf = (s) => {
-  const d = digitsOf(s)
-  return /^\d{1,20}$/.test(d) ? d : ''
+// รหัสสุ่มไม่ซ้ำ (Ref 2): 12 ตัว ตัดตัวที่อ่านสับสนออก (ไม่มี 0 1 I L O) · ตรงกับ _shared/payqr.ts
+const QR_REF_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+const QR_REF_LIMIT = Math.floor(256 / QR_REF_CHARS.length) * QR_REF_CHARS.length // สุ่มแบบไม่เอนเอียง (ทิ้งค่าที่เกิน)
+export function newQrRef() {
+  let out = ''
+  while (out.length < 12) {
+    const bytes = new Uint8Array(16)
+    crypto.getRandomValues(bytes)
+    for (const b of bytes) if (b < QR_REF_LIMIT && out.length < 12) out += QR_REF_CHARS[b % QR_REF_CHARS.length]
+  }
+  return out
 }
+export const qrRefOk = (v) => new RegExp(`^[${QR_REF_CHARS}]{12}$`).test(String(v ?? ''))
 
-// QR พร้อมเพย์แบบ Biller · ยอดว่าง = ไม่ล็อกยอด · ข้อมูลไม่ถูกต้อง (Biller ID / รหัสร้านค้า / รหัสอ้างอิง / ยอด) = null
-export function promptPayBillerPayload(billerId, amount = null, ref = '', shopCode = '') {
+// QR พร้อมเพย์แบบ Biller · ยอดว่าง = ไม่ล็อกยอด · ข้อมูลไม่ถูกต้อง (Biller ID / รหัสอ้างอิง / รหัสสุ่ม / ยอด) = null
+export function promptPayBillerPayload(billerId, amount = null, ref1 = '', ref2 = '') {
   const id = billerIdOf(billerId)
-  const r = String(ref ?? '').trim().toUpperCase()
-  const c = shopCodeOf(shopCode)
-  if (!id || !c || !shopRefOk(r)) return null
+  const r1 = String(ref1 ?? '').trim().toUpperCase()
+  const r2 = String(ref2 ?? '').trim().toUpperCase()
+  if (!id || !shopRefOk(r1) || !qrRefOk(r2)) return null
   const amt = amount == null || amount === '' ? null : Math.round(Number(amount) * 100) / 100
   if (amt != null && (!Number.isFinite(amt) || amt <= 0 || amt > 9999999.99)) return null
   const body =
     tlv('00', '01') +
     tlv('01', amt == null ? '11' : '12') +
-    tlv('30', tlv('00', 'A000000677010112') + tlv('01', id) + tlv('02', c) + tlv('03', r)) +
+    tlv('30', tlv('00', 'A000000677010112') + tlv('01', id) + tlv('02', r1) + tlv('03', r2)) +
     tlv('53', '764') +
     (amt == null ? '' : tlv('54', amt.toFixed(2))) +
     tlv('58', 'TH') +

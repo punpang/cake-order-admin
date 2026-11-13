@@ -24,7 +24,7 @@ export function publicPaymentOf(shopV: any): PublicPayment {
       if (accountNo) accounts.push({ id: txt(a.id, 40), kind: 'bank', bankCode: txt(a.bankCode, 3), bankName: txt(a.bankName, 60), accountNo, accountName: txt(a.accountName, 80) })
     }
   }
-  // Biller ID (15 หลัก) และรหัสร้านค้า (Ref 1 ของ QR) ส่งให้ลูกค้าเพื่อสร้าง QR · อยู่ในคิวอาร์ของร้านอยู่แล้วจึงไม่ใช่ข้อมูลลับ
+  // Biller ID (15 หลัก) ส่งให้ลูกค้าเพื่อสร้าง QR · รหัสร้านค้าใช้ตรวจสลิป · อยู่ในคิวอาร์ของร้านอยู่แล้วจึงไม่ใช่ข้อมูลลับ
   const biller = txt(shopV?.billerId, 20).replace(/\D/g, '')
   const shopCode = txt(shopV?.merchantCode, 20).replace(/\D/g, '')
   return {

@@ -1,6 +1,6 @@
 // ทดสอบ QR พร้อมเพย์แบบ Biller และตัวช่วยรหัส · รัน: node src/lib/promptpay.test.mjs
 import assert from 'node:assert/strict'
-import { billerIdOf, shopCodeOf, shopRefOk, shopRefOfCode, promptPayBillerPayload, crc16 } from './promptpay.js'
+import { billerIdOf, shopRefOk, shopRefOfCode, newQrRef, qrRefOk, promptPayBillerPayload, crc16 } from './promptpay.js'
 
 let fail = 0
 const t = (name, fn) => { try { fn(); console.log(`PASS ${name}`) } catch (e) { fail++; console.log(`FAIL ${name}: ${e.message}`) } }
@@ -17,10 +17,9 @@ const parse = (s) => {
   return out
 }
 
-// ตัวอย่างที่ธนาคารรับได้ (QR บนการ์ด): Biller ID · รหัสร้านค้า (Ref 1) · รหัสอ้างอิง POS (Ref 2)
-const BILLER = '010753600010286'
-const SHOP = '014000000517185'
-const REF = 'POS123927229'
+const BILLER = '010753600010286' // Biller ID ของร้าน (ตั้งค่าร้าน)
+const ORDER = 'ORD131126000741' // Ref 1 = รหัสอ้างอิงร้านค้า POS/ORD
+const RANDOM = 'K7M3QRT2XBHD' // Ref 2 = รหัสสุ่มของรายการแจ้งชำระ
 
 t('crc16 ตรงกับค่าอ้างอิง CRC-16/CCITT-FALSE ("123456789" = 29B1)', () => assert.equal(crc16('123456789'), '29B1'))
 
@@ -30,28 +29,38 @@ t('billerIdOf รับเฉพาะตัวเลข 15 หลัก', () =>
   assert.equal(billerIdOf(''), '')
 })
 
-t('shopCodeOf รับตัวเลข 1–20 หลัก', () => {
-  assert.equal(shopCodeOf('014 000 000 517 185'), SHOP)
-  assert.equal(shopCodeOf('ABC'), '')
-  assert.equal(shopCodeOf(''), '')
-})
-
 t('shopRefOfCode แปลงรหัสมีขีดเป็นรหัสอ้างอิงไม่มีขีด', () => {
-  assert.equal(shopRefOfCode('OR-131126-000123'), 'ORD131126000123')
+  assert.equal(shopRefOfCode('OR-131126-000741'), 'ORD131126000741')
   assert.equal(shopRefOfCode('POS-131126-00123'), 'POS13112600123')
-  assert.equal(shopRefOfCode('ORD131126000123'), 'ORD131126000123')
+  assert.equal(shopRefOfCode('ORD131126000741'), 'ORD131126000741')
 })
 
 t('shopRefOk: POS/ORD ตามด้วยตัวเลข 3–17 หลัก ไม่มีขีด', () => {
-  assert.equal(shopRefOk('ORD131126000123'), true)
+  assert.equal(shopRefOk('ORD131126000741'), true)
   assert.equal(shopRefOk('POS13112600123'), true)
-  assert.equal(shopRefOk('OR-131126-000123'), false)
+  assert.equal(shopRefOk('OR-131126-000741'), false)
   assert.equal(shopRefOk('ORD12'), false)
-  assert.equal(shopRefOk('ABC123456'), false)
 })
 
-t('promptPayBillerPayload: Biller ID ที่ 01 · รหัสร้านค้าที่ 02 (Ref 1) · รหัสอ้างอิงที่ 03 (Ref 2)', () => {
-  const p = promptPayBillerPayload(BILLER, 1, REF, SHOP)
+t('newQrRef: 12 ตัวตามชุดอักษร ไม่มี 0 1 I L O และไม่ซ้ำกันในการสุ่มหลายครั้ง', () => {
+  const seen = new Set()
+  for (let i = 0; i < 200; i++) {
+    const r = newQrRef()
+    assert.equal(qrRefOk(r), true, r)
+    seen.add(r)
+  }
+  assert.equal(seen.size, 200)
+})
+
+t('qrRefOk ไม่รับตัวอักษรที่อ่านสับสนและความยาวผิด', () => {
+  assert.equal(qrRefOk('ABCDEFGHJKMN'), true)
+  assert.equal(qrRefOk('ABCDEFGH0JKM'), false)
+  assert.equal(qrRefOk('ABCDEFGHIJKM'), false)
+  assert.equal(qrRefOk('ABC'), false)
+})
+
+t('promptPayBillerPayload: Biller ID ที่ 01 · POS/ORD ที่ 02 (Ref 1) · รหัสสุ่มที่ 03 (Ref 2) · ไม่มีรหัสร้านค้าใน QR', () => {
+  const p = promptPayBillerPayload(BILLER, 389, ORDER, RANDOM)
   assert.ok(p)
   const body = p.slice(0, -4)
   assert.equal(p.slice(-4), crc16(body))
@@ -59,42 +68,34 @@ t('promptPayBillerPayload: Biller ID ที่ 01 · รหัสร้านค
   assert.equal(root.get('00'), '01')
   assert.equal(root.get('01'), '12')
   assert.equal(root.get('53'), '764')
-  assert.equal(root.get('54'), '1.00')
+  assert.equal(root.get('54'), '389.00')
   assert.equal(root.get('58'), 'TH')
   assert.equal(root.get('63'), crc16(body))
   const biller = parse(root.get('30'))
   assert.equal(biller.get('00'), 'A000000677010112')
   assert.equal(biller.get('01'), BILLER)
-  assert.equal(biller.get('02'), SHOP)
-  assert.equal(biller.get('03'), REF)
-})
-
-t('ฟิลด์ตรงกับ QR ตัวอย่างที่ธนาคารรับได้ (ไม่รวม tag 62)', () => {
-  const root = parse(promptPayBillerPayload(BILLER, 1, REF, SHOP))
-  const biller = parse(root.get('30'))
-  assert.deepEqual(
-    [root.get('01'), root.get('53'), root.get('54'), root.get('58'), biller.get('00'), biller.get('01'), biller.get('02'), biller.get('03')],
-    ['12', '764', '1.00', 'TH', 'A000000677010112', BILLER, SHOP, REF],
-  )
+  assert.equal(biller.get('02'), ORDER)
+  assert.equal(biller.get('03'), RANDOM)
+  assert.equal(p.includes('014000000517185'), false)
 })
 
 t('ยอดทศนิยมปัดเป็นสองตำแหน่ง', () => {
-  const root = parse(promptPayBillerPayload(BILLER, '99.5', REF, SHOP))
+  const root = parse(promptPayBillerPayload(BILLER, '99.5', ORDER, RANDOM))
   assert.equal(root.get('54'), '99.50')
 })
 
 t('ไม่ระบุยอด = QR ไม่ล็อกยอด (01 = 11 และไม่มี tag 54)', () => {
-  const root = parse(promptPayBillerPayload(BILLER, null, REF, SHOP))
+  const root = parse(promptPayBillerPayload(BILLER, null, ORDER, RANDOM))
   assert.equal(root.get('01'), '11')
   assert.equal(root.has('54'), false)
 })
 
-t('ข้อมูลไม่ถูกต้องคืน null (ไม่มี Biller ID / ไม่มีรหัสร้านค้า / รหัสอ้างอิงผิด / ยอดผิด)', () => {
-  assert.equal(promptPayBillerPayload('12345', 100, REF, SHOP), null)
-  assert.equal(promptPayBillerPayload(BILLER, 100, REF, ''), null)
-  assert.equal(promptPayBillerPayload(BILLER, 100, 'OR-131126-000123', SHOP), null)
-  assert.equal(promptPayBillerPayload(BILLER, 0, REF, SHOP), null)
-  assert.equal(promptPayBillerPayload(BILLER, 10000000, REF, SHOP), null)
+t('ข้อมูลไม่ถูกต้องคืน null (Biller ID / รหัสอ้างอิง / รหัสสุ่ม / ยอด)', () => {
+  assert.equal(promptPayBillerPayload('12345', 100, ORDER, RANDOM), null)
+  assert.equal(promptPayBillerPayload(BILLER, 100, 'OR-131126-000741', RANDOM), null)
+  assert.equal(promptPayBillerPayload(BILLER, 100, ORDER, 'ABC'), null)
+  assert.equal(promptPayBillerPayload(BILLER, 0, ORDER, RANDOM), null)
+  assert.equal(promptPayBillerPayload(BILLER, 10000000, ORDER, RANDOM), null)
 })
 
 console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED')

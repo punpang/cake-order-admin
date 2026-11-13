@@ -40,8 +40,7 @@ import OrderPayModal from '../components/OrderPayModal.vue'
 import PayExtendModal from '../components/PayExtendModal.vue'
 import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
 import OrderLinkModal from '../components/OrderLinkModal.vue'
-import BillerQr from '../components/BillerQr.vue'
-import { shopRefOfCode } from '../lib/promptpay'
+import QrPaymentPanel from '../components/QrPaymentPanel.vue'
 import TaxInvoiceModal from '../components/TaxInvoiceModal.vue'
 import WorkPhotos from '../components/WorkPhotos.vue'
 import { invoiceOfOrder } from '../data/acct'
@@ -797,7 +796,7 @@ async function saveCancel() {
   <ChangeBuyerModal v-if="buyerOpen && order" :order="order" @close="buyerOpen = false" />
   <OrderLinkModal v-if="linkOpen && order" :order="order" @close="linkOpen = false" />
   <TaxInvoiceModal v-if="taxOpen && order" :order="order" @close="taxOpen = false" />
-  <AppModal v-if="qrOpen && order" title="สร้าง QR ชำระ" @close="qrOpen = false"><BillerQr :amount="String(t.balance)" :ref-code="shopRefOfCode(order.code)" /></AppModal>
+  <AppModal v-if="qrOpen && order" title="สร้าง QR ชำระ" @close="qrOpen = false"><QrPaymentPanel :order="order" :default-amount="String(t.balance)" /></AppModal>
   <ItemEditor v-if="editing" :item="editing.item || null" :price-date="orderDate(order)" :customer="customer" :order="order" @save="onSaveItem" @close="editing = null" />
   <PickupModal v-if="pickupOpen && order" :order="order" @close="pickupOpen = false" />
   <AppModal v-if="bdOpen" title="วันเกิด" @close="bdOpen = false">

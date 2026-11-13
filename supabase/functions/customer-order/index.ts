@@ -1,4 +1,5 @@
 import { filesEnv, svcDelete, svcUpload } from '../_shared/filesvc.ts'
+import { newQrRef } from '../_shared/payqr.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { PAY_MSG, bankByCode, checkCustomerTxn, normalizeRef, refTaken } from '../_shared/payfields.ts'
 import { autoConfirmOf, slipKeyOf } from '../_shared/slip.ts'
@@ -269,8 +270,10 @@ Deno.serve(async (req) => {
       let target: any = null
       if (pid) {
         target = d.payments.find((x: any) => x.id === pid)
-        if (!target || target.status !== 'reported' || target.source === 'customer') return json({ error: 'ไม่พบยอดที่ร้านแจ้ง' }, 400)
+        // รายการที่ลูกค้าขอ QR ไว้เอง (qrRequest) รับสลิปได้ · ยอดต้องตรงกับ QR ที่ออกไว้
+        if (!target || target.status !== 'reported' || (target.source === 'customer' && !target.qrRequest)) return json({ error: 'ไม่พบยอดที่ร้านแจ้ง' }, 400)
         if (target.customerSubmitted) return json({ error: 'ส่งสลิปของยอดนี้แล้ว รอร้านตรวจสอบ' }, 400)
+        if (target.qrRequest && amt !== r2(Number(target.amount))) return json({ error: 'ยอดต้องตรงกับ QR ที่สร้างไว้' }, 400)
       }
       // อัปโหลดสลิปก่อน (ล้มเหลว = ไม่แตะออร์เดอร์) · ไฟล์ใหม่เก็บที่ R2 ผ่าน Worker เท่านั้น · แนบซ้ำตอนลองใหม่ใช้ไฟล์เดิม
       let up: { key: string; ref: string }
@@ -325,6 +328,34 @@ Deno.serve(async (req) => {
       d.photoConsent = { status: 'requested', requestedAt: at, note, history: [...(d.photoConsent?.history || []), { at, text: 'ลูกค้าขอไม่ให้ใช้รูปเผยแพร่' }] }
       logTo(d, 'ลูกค้าขอไม่ให้ใช้รูปงานเผยแพร่ (รอร้านตรวจสอบ · ระงับการแสดงบนเว็บชั่วคราว)')
       extraBell = { event: 'team_photo_optout', x: {} }
+    } else if (action === 'qr_request') {
+      // ขอ QR ชำระ = สร้างรายการแจ้งชำระใหม่ของลูกค้า (ยังไม่มีสลิป) พร้อมรหัสสุ่มไม่ซ้ำ (Ref 2)
+      if (limited(`qr:${ip}`, 30, 3600000)) return json({ error: 'ขอ QR บ่อยเกินไป กรุณารอสักครู่' }, 429)
+      if (row.channel === 'pos') return json({ error: 'บิลหน้าร้านแจ้งชำระผ่านเว็บไม่ได้' }, 400)
+      if (row.status === 'cancelled') return json({ error: 'ออร์เดอร์นี้ถูกยกเลิกแล้ว' }, 400)
+      const t = totals(order)
+      if (t.balance <= 0.004) return json({ error: 'ชำระครบแล้ว' }, 400)
+      if (d.payments.some((p: any) => isOverdue(p) && row.status !== 'delivered')) return json({ error: 'เกินกำหนดชำระ กรุณากดขอขยายเวลาก่อน' }, 400)
+      const pendingSum = r2(d.payments.filter((p: any) => p.status === 'reported' && p.customerSubmitted).reduce((x: number, p: any) => x + (Number(p.amount) || 0), 0))
+      const room = r2(t.balance - pendingSum)
+      const amt = r2(Number(b.amount))
+      if (!(amt > 0)) return json({ error: 'กรอกยอดที่ชำระ' }, 400)
+      if (amt > room + 1e-9) return json({ error: `ยอดเกินคงค้าง (ชำระได้ไม่เกิน ${room.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` }, 400)
+      // รหัสสุ่มไม่ซ้ำทั้งระบบ: ออกใหม่ถ้าเคยถูกใช้ (ค้นใน JSON ของออร์เดอร์ทั้งหมด)
+      let qrRef = newQrRef()
+      for (let k = 0; k < 3; k++) {
+        const seen = await sb.from('punpang_orders').select('id').contains('data', { payments: [{ qrRef }] })
+        if (seen.error) return json({ error: 'สร้าง QR ไม่สำเร็จ กรุณาลองใหม่' }, 500)
+        if (!(seen.data || []).length) break
+        qrRef = newQrRef()
+      }
+      const al = await sb.rpc('punpang_alloc_numbers_server', { p_prefix: 'PAY', p_day: ddmmyy(), p_n: 1 })
+      if (al.error || !Number.isInteger(al.data)) return json({ error: 'ออกเลขรายการไม่สำเร็จ กรุณาลองใหม่' }, 500)
+      const code = `PAY-${ddmmyy()}-${String(al.data).padStart(5, '0')}`
+      const reqPay = { id: `pay${Date.now().toString(36)}${randHex(3)}`, code, requested: amt, amount: amt, method: 'โอนเงิน', slip: '', note: '', dueAt: '', extension: null, status: 'reported', source: 'customer', qrRequest: true, qrRef, customerSubmitted: false, createdAt: nowIso(), reportedBy: 'customer', confirmedBy: null }
+      d.payments.push(reqPay)
+      logTo(d, `ลูกค้าขอ QR ชำระ ${amt.toFixed(2)} (รอแนบสลิป)`)
+      result = { ok: true, paymentId: reqPay.id, qrRef, amount: amt }
     } else {
       const pr = await sb.from('punpang_records').select('id,data').eq('collection', 'photoRequests').eq('data->>orderId', row.id)
       const req = (pr.data || []).find((x: any) => x.data?.status === 'pending')
