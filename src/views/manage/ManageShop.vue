@@ -17,7 +17,7 @@ const shopAddrChoices = computed(() => [
   { label: 'ใช้ที่อยู่ร้านหน้าเว็บ', text: /ตัวอย่าง/.test(db.storefront?.address || '') ? '' : db.storefront?.address },
   { label: 'ใช้ที่อยู่ตามข้อมูลกฎหมาย', text: db.legal?.contact?.address },
 ])
-const st = reactive({ ...db.shop, pickupRemindHours: db.shop.pickupRemindHours ?? 24, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, merchantCode: db.shop.merchantCode ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
+const st = reactive({ ...db.shop, pickupRemindHours: db.shop.pickupRemindHours ?? 24, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, merchantCode: db.shop.merchantCode ?? '', billerId: db.shop.billerId ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
 // ---- วัน-เวลาปิดร้าน ----
 const DOWS = [1, 2, 3, 4, 5, 6, 0] // จันทร์เริ่ม
 const flip = (arr, d) => (arr.includes(d) ? arr.splice(arr.indexOf(d), 1) : arr.push(d))
@@ -156,7 +156,8 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
       </div>
       <div class="border-t border-stone-100 pt-4">
         <div class="card-title mb-3"><AppIcon name="wallet" class="text-brand-600" /> ช่องทางรับชำระ (แสดงให้ลูกค้า)</div>
-        <div class="mb-4 max-w-md"><label class="label">รหัสร้านค้า (ผู้รับชำระ) <span class="font-normal text-stone-400">ใช้ตรวจรหัสในสลิปโอนเงิน และเป็น Biller ID 15 หลักสำหรับสร้าง QR · เว้นว่าง = ไม่ตรวจและไม่สร้าง QR</span></label><input v-model="st.merchantCode" type="text" inputmode="numeric" class="input" placeholder="เช่น 014000000517185" /></div>
+        <div class="mb-4 max-w-md"><label class="label">รหัสร้านค้า (ผู้รับชำระ) <span class="font-normal text-stone-400">ตรงกับ "รหัสร้านค้า" บนสลิป · ใช้ตรวจสลิป และเป็น Ref 1 ของ QR · เว้นว่าง = ไม่ตรวจ</span></label><input v-model="st.merchantCode" type="text" inputmode="numeric" class="input" placeholder="เช่น 014000000517185" /></div>
+        <div class="mb-4 max-w-md"><label class="label">Biller ID (ผู้เรียกเก็บเงิน 15 หลัก) <span class="font-normal text-stone-400">ใช้สร้าง QR พร้อมเพย์แบบ Biller · เว้นว่าง = ไม่มี QR</span></label><input v-model="st.billerId" type="text" inputmode="numeric" maxlength="15" class="input" placeholder="เช่น 010753600010286" /></div>
         <div class="space-y-3">
           <div v-for="(a, i) in st.payment.accounts" :key="a.id" class="space-y-2 rounded-2xl border border-stone-200 bg-white p-3">
             <div class="flex flex-wrap items-center justify-between gap-2">
