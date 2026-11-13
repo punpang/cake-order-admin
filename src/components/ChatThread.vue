@@ -435,10 +435,9 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
                     <div class="text-xs font-medium text-sky-700">วัน-เวลาโอน</div>
                     <div class="text-sm font-semibold">{{ m.slipCheck.ocrPaidAt ? dateTime(m.slipCheck.ocrPaidAt) : '-' }}</div>
                   </div>
-                  <div v-if="m.slipCheck.ocrReceiverName || m.slipCheck.ocrReceiverAccount" class="col-span-2">
-                    <div class="text-xs font-medium text-sky-700">ผู้รับโอน</div>
-                    <div class="text-sm font-semibold break-words">{{ m.slipCheck.ocrReceiverName || '-' }}</div>
-                    <div v-if="m.slipCheck.ocrReceiverAccount" class="text-xs">เลขที่บัญชี {{ m.slipCheck.ocrReceiverAccount }}</div>
+                  <div v-if="m.slipCheck.ocrReceiverAccount" class="col-span-2">
+                    <div class="text-xs font-medium text-sky-700">เลขที่บัญชีผู้รับ</div>
+                    <div class="text-sm font-semibold break-words">{{ m.slipCheck.ocrReceiverAccount }}</div>
                   </div>
                   <div class="col-span-2 text-xs text-sky-700">อ่านจากภาพ · ตรวจกับธนาคารก่อนยืนยัน</div>
                 </div>

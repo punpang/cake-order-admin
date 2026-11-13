@@ -32,20 +32,40 @@ const TEXT_DATE_PROMPT = [
   'date_text เช่น "13 พ.ย. 2569 - 01:28" ห้ามแปลงปีหรือเดือนเอง ให้คัดลอกตามที่เห็น',
   'ค่าใดอ่านไม่ได้ให้ใส่ null ห้ามเดา',
 ].join('\n')
+// โหมด full: ขอทั้งยอด วันที่ตามที่เห็น และชื่อกับเลขบัญชีของผู้รับ (ฝั่งปลายทาง ไม่ใช่ผู้โอน)
+const FULL_PROMPT = [
+  'ภาพนี้คือสลิปโอนเงินของธนาคารหรือแอปในประเทศไทย อ่านเฉพาะตัวหนังสือในภาพ',
+  'ตอบเป็น JSON อย่างเดียว รูปแบบ {"amount": ตัวเลขบาท ไม่มีคอมมา, "date_text": "ข้อความวันที่และเวลาตามที่เห็น คัดลอกตามตัวอักษร", "sender_account": "เลขบัญชีหรือพร้อมเพย์ของผู้โอน คัดลอกตามที่เห็น", "receiver_account": "เลขบัญชีหรือพร้อมเพย์ของผู้รับ คัดลอกตามที่เห็น รวมตัวที่ถูกปิด"}',
+  'ผู้โอนคือฝั่งที่แสดงก่อน มักอยู่บนสุดของสลิป ผู้รับคือฝั่งปลายทาง มักมีคำว่า "ไปยัง" หรือ "To" หรืออยู่ใต้ผู้โอน',
+  'receiver_account ต้องเป็นเลขของฝั่งผู้รับเท่านั้น ห้ามใช้เลขของผู้โอน',
+  'amount คือจำนวนเงินที่โอน ไม่ใช่ค่าธรรมเนียมหรือยอดคงเหลือ',
+  'ค่าใดอ่านไม่ได้ให้ใส่ null ห้ามเดา',
+].join('\n')
+// โหมด order: ให้โมเดลลิสต์เลขบัญชีทั้งหมดตามลำดับจากบนลงล่าง (ไม่รวมรหัสอ้างอิง) แล้วโค้ดเลือกตัวสุดท้ายเป็นผู้รับ
+const ORDER_PROMPT = [
+  'ภาพนี้คือสลิปโอนเงินของธนาคารหรือแอปในประเทศไทย อ่านเฉพาะตัวหนังสือในภาพ',
+  'ตอบเป็น JSON อย่างเดียว รูปแบบ {"amount": ตัวเลขบาท ไม่มีคอมมา, "date_text": "ข้อความวันที่และเวลาตามที่เห็น คัดลอกตามตัวอักษร", "accounts": ["เลขบัญชีหรือพร้อมเพย์ที่เห็น คัดลอกตามที่เห็น รวมตัวที่ถูกปิด"]}',
+  'accounts ต้องเรียงจากบนลงล่างตามลำดับที่ปรากฏในภาพ ใส่เฉพาะเลขบัญชีหรือพร้อมเพย์ ไม่ใส่รหัสอ้างอิง รหัสธุรกรรม หรือเลขอื่น',
+  'amount คือจำนวนเงินที่โอน ไม่ใช่ค่าธรรมเนียมหรือยอดคงเหลือ',
+  'ค่าใดอ่านไม่ได้ให้ใส่ null หรือ [] ห้ามเดา',
+].join('\n')
 const MODE = process.env.WAI_MODE || 'datetime'
 const OUT = process.env.WAI_OUT || ''
 
 function parseReply(text) {
   const s = text.indexOf('{'), e = text.lastIndexOf('}')
-  if (s < 0 || e <= s) return { amount: null, datetime: null, date_text: null }
+  if (s < 0 || e <= s) return { amount: null, datetime: null, date_text: null, receiver_name: null, receiver_account: null }
   try {
     const o = JSON.parse(text.slice(s, e + 1))
     const amount = typeof o.amount === 'number' ? o.amount : Number(String(o.amount ?? '').replace(/,/g, '')) || null
     const dt = typeof o.datetime === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(o.datetime) ? o.datetime : null
     const date_text = typeof o.date_text === 'string' ? o.date_text : null
-    return { amount, datetime: dt, date_text }
+    const receiver_account = typeof o.receiver_account === 'string' ? o.receiver_account : null
+    const sender_account = typeof o.sender_account === 'string' ? o.sender_account : null
+    const accounts = Array.isArray(o.accounts) ? o.accounts.filter((x) => typeof x === 'string') : []
+    return { amount, datetime: dt, date_text, receiver_account, sender_account, accounts }
   } catch {
-    return { amount: null, datetime: null, date_text: null }
+    return { amount: null, datetime: null, date_text: null, receiver_name: null, receiver_account: null }
   }
 }
 
@@ -59,7 +79,7 @@ async function ask(bytes) {
       role: 'user',
       content: [
         { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${bytes.toString('base64')}` } },
-        { type: 'text', text: MODE === 'text_date' ? TEXT_DATE_PROMPT : PROMPT },
+        { type: 'text', text: MODE === 'order' ? ORDER_PROMPT : MODE === 'full' ? FULL_PROMPT : MODE === 'text_date' ? TEXT_DATE_PROMPT : PROMPT },
       ],
     }],
   }
