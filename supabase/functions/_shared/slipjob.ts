@@ -160,12 +160,12 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   // อ่านผ่าน readSlipOnce: ใช้ผลที่เคยได้ตามเลขอ้างอิงก่อน (ไม่เรียกโมเดลซ้ำ) · ผลที่ตอบแล้วจำไว้ · อ่านไม่ครบเก็บรูปไว้ชุดเทรน
   const fields = await readSlipOnce(sb, { key, bytes, bankCode, source: 'chat', engines, files })
 
-  // จับคู่ออร์เดอร์: รหัสอ้างอิงร้านค้าบนสลิป (แปลงจากเลขเดิม) ก่อน · ไม่พบ → ออร์เดอร์ที่คุยล่าสุดในแชท
+  // ผูกอัตโนมัติได้เฉพาะเมื่อรหัสอ้างอิงร้านค้าบนสลิปตรงกับรหัสออร์เดอร์ (แปลงจากเลขเดิม) · ออร์เดอร์ที่คุยล่าสุดเป็นตัวแนะนำให้พนักงานเท่านั้น
   const refOrderId = fields?.shopRef ? await orderIdOfShopRef(sb, fields.shopRef) : null
   const orderId = refOrderId ?? chatOrderId
-  // โหมดอัตโนมัติ: ไม่มีออร์เดอร์ให้จับคู่ → แจ้งให้ผูกเอง (โหมดแมนนวลพนักงานเลือกเองในแชทได้)
+  // โหมดอัตโนมัติ: ไม่มีออร์เดอร์ให้จับคู่เลย → แจ้งให้ผูกเอง (โหมดแมนนวลพนักงานเลือกเองในแชทได้)
   if (cfg.mode === 'auto' && !orderId) return finish('no_order')
-  // รหัสร้านค้าในสลิปไม่ตรงกับที่ตั้งไว้ (หรืออ่านไม่ได้) → รับไว้และติดธงให้พนักงานตรวจ
+  // รหัสร้านค้าในสลิปไม่ตรงกับที่ตั้งไว้ (หรืออ่านไม่ได้) → ไม่ผูกอัตโนมัติ ส่งให้พนักงานพร้อมธง
   const flagged = merchantMismatch(cfg.merchantCode, fields?.merchantCode)
   const flagPart = { ...shopPartOf(fields), ...(flagged ? { merchantMismatch: true } : {}) }
   // เครื่องหมายตรวจสลิปกับออร์เดอร์ (ยอด · วัน-เวลาหลังสร้างออร์เดอร์ · รหัสร้านค้า · รหัสอ้างอิง) · บิล POS ยังข้ามไปก่อน
@@ -175,13 +175,14 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     order: orderRow ? { code: orderRow.code, createdAt: orderRow.data?.createdAt } : null,
     balance: orderRow ? orderTotals(orderRow.data).balance : null,
   })
-  // วัน-เวลาชำระไม่ผ่าน → ไม่แนบอัตโนมัติ ส่งให้พนักงานตรวจ
-  const timeFailed = checks.some((c) => c.key === 'paidAt' && c.ok === false)
-  const failedTexts = checks.filter((c) => c.ok === false).map((c) => c.text)
-  const mismatchNote = failedTexts.length ? ` · ✗ ${failedTexts.join(' · ')}` : ''
+  // ผูกอัตโนมัติเมื่อครบ 4 ข้อเป็น ✓ (ยอด · วัน-เวลา · รหัสร้านค้า · รหัสอ้างอิงร้านค้า) และรหัสอ้างอิงตรงกับออร์เดอร์ที่พบ · นอกนั้นส่งให้พนักงาน
+  const autoOk = cfg.mode === 'auto' && refOrderId !== null && checks.every((c) => c.ok === true)
+  // เหตุผลที่ไม่ผ่าน ✗ = ไม่ถูกต้อง · – = อ่านไม่ได้หรือยังไม่มีข้อมูลให้เทียบ → ไปที่กระดิ่งและป้าย
+  const reasons = checks.filter((c) => c.ok !== true).map((c) => `${c.ok === false ? '✗' : '–'} ${c.text}`)
+  const mismatchNote = reasons.length ? ` · ${reasons.join(' · ')}` : ''
 
-  if (cfg.mode === 'manual' || timeFailed) {
-    // โหมดแมนนวล (หรือวัน-เวลาชำระไม่ผ่าน): เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์
+  if (!autoOk) {
+    // ไม่ผูกอัตโนมัติ (โหมดแมนนวล หรือไม่ครบ 4 ข้อ): เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่รหัสอ้างอิงตรง หรือที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์
     let staged: { key: string; ref: string }
     try { staged = await svcUpload(files, bytes, `manual/${chatId}`) } catch { return finish('upload_failed', undefined, orderId ?? undefined) }
     const sug = orderId ? await sb.from('punpang_orders').select('id,code').eq('id', orderId).maybeSingle() : null
