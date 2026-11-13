@@ -20,7 +20,7 @@ export async function svcUpload(f: FilesEnv, bytes: Uint8Array, prefix: string):
     signal: AbortSignal.timeout(20_000),
   })
   const j: any = await res.json().catch(() => ({}))
-  if (!res.ok || typeof j?.ref !== 'string' || typeof j?.key !== 'string') throw new Error(j?.error || 'อัปโหลดรูปไม่สำเร็จ')
+  if (!res.ok || typeof j?.ref !== 'string' || typeof j?.key !== 'string') throw new Error(`${j?.error || 'อัปโหลดรูปไม่สำเร็จ'} (HTTP ${res.status})`)
   return { key: j.key, ref: j.ref }
 }
 

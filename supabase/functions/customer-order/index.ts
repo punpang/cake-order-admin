@@ -219,7 +219,7 @@ Deno.serve(async (req) => {
       }
       // อัปโหลดสลิปก่อน (ล้มเหลว = ไม่แตะออร์เดอร์) · ไฟล์ใหม่เก็บที่ R2 ผ่าน Worker เท่านั้น · แนบซ้ำตอนลองใหม่ใช้ไฟล์เดิม
       let up: { key: string; ref: string }
-      try { up = await svcUpload(filesEnv(), bytes, row.id) } catch { return json({ error: 'อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่' }, 500) }
+      try { up = await svcUpload(filesEnv(), bytes, row.id) } catch (e) { const fe = filesEnv(); console.error('slip-upload', (e as Error)?.message ?? String(e), 'hasUrl', !!fe.url, 'hasKey', !!fe.key); return json({ error: 'อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่' }, 500) }
       newSlipPath = up.key
       const slipRef = up.ref
       if (target) Object.assign(target, { amount: amt, slip: slipRef, note, customerSubmitted: true, submittedAt: nowIso(), ...txnFields })
