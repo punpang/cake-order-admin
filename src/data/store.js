@@ -1116,6 +1116,7 @@ const dueText = (iso) => (iso ? `${dateOnly(iso)} ${timeOnly(iso)} น.` : '')
 
 const payFields = (p) => ({ method: p.method, paidAt: p.paidAt, slip: p.slip || '', note: p.note || '' })
 
+// opts = { notify, sms } จากกล่องติ๊ก "แจ้งลูกค้า" (ไม่ส่ง = false) · ทุกการเปลี่ยนแปลงแจ้งลูกค้าตามช่องทางที่มี
 export function updatePaymentRequest(order, paymentId, p) {
   const pay = order.payments.find((x) => x.id === paymentId)
   if (!pay || pay.status !== 'reported') return
@@ -1123,18 +1124,20 @@ export function updatePaymentRequest(order, paymentId, p) {
   Object.assign(pay, { requested: Number(p.amount), amount: Number(p.amount), ...payFields(p) })
   if (p.dueAt) pay.dueAt = p.dueAt
   log(order, `แก้ยอดที่แจ้งเป็น ${money(Number(p.amount))}`)
+  notifyOrder('payment_request_changed', order, { skip: p.notify === false, noSms: p.sms === false, requested: pay.requested, dueAt: pay.dueAt })
 }
 
-export function cancelPaymentRequest(order, paymentId) {
+export function cancelPaymentRequest(order, paymentId, opts = {}) {
   const pay = order.payments.find((x) => x.id === paymentId)
   if (!pay || pay.status !== 'reported') return
   pay.status = 'cancelled'
   log(order, `ยกเลิกยอดที่แจ้ง ${money(pay.requested)}`)
   if (order.status === 'payment_reported' && !order.payments.some((x) => x.status === 'reported')) order.status = 'awaiting_payment'
+  notifyOrder('payment_request_cancelled', order, { skip: opts.notify === false, noSms: opts.sms === false, requested: pay.requested })
 }
 
 // ยกเลิกยอดที่ยืนยันแล้ว (แอดมิน) · ไม่เหลือยอดที่ยืนยัน → ถอยสถานะเป็น แจ้งยอดแล้ว (ถ้ามีงวดที่แจ้งค้าง) หรือ รอชำระ
-export function cancelConfirmedPayment(order, paymentId) {
+export function cancelConfirmedPayment(order, paymentId, opts = {}) {
   const p = order.payments.find((x) => x.id === paymentId)
   if (!p || p.status !== 'confirmed' || ['delivered', 'cancelled'].includes(order.status)) return
   if (orderTotals(order).paidNet - p.amount < -0.004) return { error: 'ยกเลิกยอดนี้ไม่ได้ เพราะคืนเงินบางส่วนไปแล้ว' }
@@ -1143,6 +1146,7 @@ export function cancelConfirmedPayment(order, paymentId) {
   if (!order.payments.some((x) => x.status === 'confirmed') && ['payment_confirmed', 'preparing', 'prepared', 'ready_to_ship', 'shipping'].includes(order.status)) {
     order.status = order.payments.some((x) => x.status === 'reported') ? 'payment_reported' : 'awaiting_payment'
   }
+  notifyOrder('payment_cancelled', order, { skip: opts.notify === false, noSms: opts.sms === false, paid: p.amount })
 }
 
 // data = ยอดที่ได้รับจริง + รายละเอียด (ไม่ส่ง = ใช้ตามที่แจ้ง)
@@ -1217,20 +1221,22 @@ export function requestPayExtension(order, paymentId, note = '') {
   notify('team_pay_extend_request', { vars: { ...orderVars(order), ชำระก่อน: dueText(p.dueAt) }, orderId: order.id })
   return true
 }
-export function grantPayExtension(order, paymentId, dueAt) {
+export function grantPayExtension(order, paymentId, dueAt, opts = {}) {
   const p = order.payments.find((x) => x.id === paymentId)
   if (!can('reportPayment') || !p || p.status !== 'reported' || !dueAt || Number.isNaN(new Date(dueAt).getTime())) return false
   const old = p.dueAt
   p.dueAt = dueAt
   p.extension = { ...(p.extension || {}), status: 'granted', decidedBy: session.role, decidedAt: now() }
   log(order, `ขยายเวลาชำระเป็น ${dueText(dueAt)}${old ? ` (เดิม ${dueText(old)})` : ''}`)
+  notifyOrder('pay_extension_granted', order, { skip: opts.notify === false, noSms: opts.sms === false, dueAt })
   return true
 }
-export function denyPayExtension(order, paymentId) {
+export function denyPayExtension(order, paymentId, opts = {}) {
   const p = order.payments.find((x) => x.id === paymentId)
   if (!can('reportPayment') || !p || p.extension?.status !== 'pending') return false
   p.extension = { ...p.extension, status: 'denied', decidedBy: session.role, decidedAt: now() }
   log(order, 'ไม่อนุมัติขยายเวลาชำระ')
+  notifyOrder('pay_extension_denied', order, { skip: opts.notify === false, noSms: opts.sms === false, dueAt: p.dueAt })
   return true
 }
 
@@ -1291,28 +1297,31 @@ function repriceAll(order) {
   order.shipPromo = w.shipPromo
 }
 
-export function saveOrderItem(order, item) {
+export function saveOrderItem(order, item, opts = {}) {
   const i = order.items.findIndex((x) => x.id === item.id)
   if (i >= 0) order.items[i] = item
   else order.items.push(item)
   repriceAll(order)
   log(order, `${i >= 0 ? 'แก้ไข' : 'เพิ่ม'}สินค้า: ${item.name} × ${item.qty}`)
+  notifyOrder('items_changed', order, { skip: opts.notify === false, noSms: opts.sms === false })
 }
 
-export function removeOrderItem(order, itemId) {
+export function removeOrderItem(order, itemId, opts = {}) {
   const it = order.items.find((x) => x.id === itemId)
   if (!it || it.promoGift || order.items.filter((x) => !x.promoGift).length <= 1) return false
   order.items = order.items.filter((x) => x.id !== itemId)
   repriceAll(order)
   log(order, `ลบสินค้า: ${it.name}`)
+  notifyOrder('items_changed', order, { skip: opts.notify === false, noSms: opts.sms === false })
   return true
 }
 
-export function setAdjustment(order, amount, reason) {
+export function setAdjustment(order, amount, reason, opts = {}) {
   // ส่วนลดจากการปรับราคา (ติดลบ) ต้องไม่เกินยอดสินค้า
   const a = Math.max(Number.isFinite(Number(amount)) ? Number(amount) : 0, -orderTotals(order).subtotal)
   order.adjustment = { amount: a, reason }
   log(order, `ปรับราคา ${money(a)} (${reason})`)
+  notifyOrder('adjustment_changed', order, { skip: opts.notify === false, noSms: opts.sms === false })
 }
 
 // ยกเลิกออร์เดอร์ + คืนเงิน: c = { reason, refunds: [{ method: cash | transfer | points, amount }], refundNote }
@@ -2454,17 +2463,23 @@ function pushOut(event, channel, to, text, orderId = null, customer = null, opts
     row.status = 'failed'; row.error = 'ลูกค้ายังไม่มีแชท Facebook ที่ผูกไว้'
     emitStaffBell('notify_failed', { text: `${customer.name || 'ลูกค้า'}: ยังไม่มีแชท Facebook ที่ผูกไว้ แจ้งทางอื่นเอง` })
   }
-  if (channel === 'sms' && customer?.phone) deliverSms(db.outbox[0], customer.phone, text, 'notify')
+  if (channel === 'sms' && customer?.phone) deliverSms(db.outbox[0], customer.phone, text, 'notify', customer.name)
   if (channel === 'telegram') deliverTg(db.outbox[0], text, 'notify', opts.parseMode || '')
 }
 // ส่ง SMS จริงผ่านเกตเวย์ (ตั้งโดยชั้นเชื่อม Supabase) · ไม่มีตัวส่ง = คงสถานะจำลองไว้
 export const smsHook = { send: null }
-function deliverSms(row, number, text, kind) {
+function deliverSms(row, number, text, kind, who = '') {
   if (!smsHook.send) return
   row.status = 'sending'
   // คีย์กันส่งซ้ำ: ผูกกับแถวคิวเดิม ลองใหม่กี่ครั้งก็ใช้คีย์เดิม (เกตเวย์ไม่สร้างงานซ้ำ)
   row.idem ??= 'ob' + (globalThis.crypto?.randomUUID?.().replace(/-/g, '') || `${Date.now()}${Math.random().toString(36).slice(2)}`)
-  smsHook.send(number, text, kind, row.idem).then((r) => { row.status = r.ok ? 'sent' : 'failed'; if (!r.ok) row.error = r.error || '' }, () => { row.status = 'failed' })
+  // ส่งไม่สำเร็จ → เตือนพนักงานให้ตามเอง (เหมือนช่อง Facebook)
+  const failed = (err = '') => {
+    row.status = 'failed'
+    row.error = err
+    emitStaffBell('notify_failed', { text: `${who || 'ลูกค้า'}: ส่ง SMS ไม่สำเร็จ${err ? ` (${err})` : ''}` })
+  }
+  smsHook.send(number, text, kind, row.idem).then((r) => { if (r.ok) row.status = 'sent'; else failed(r.error || '') }, () => failed())
 }
 // ส่ง Telegram จริงเข้ากลุ่มทีม (Edge Function telegram-send · token/chat id เป็น secret ฝั่งเซิร์ฟเวอร์) · ไม่มีตัวส่ง = คงสถานะจำลองไว้
 export const tgHook = { send: null }

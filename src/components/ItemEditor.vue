@@ -13,13 +13,18 @@ import OptionPicker from './OptionPicker.vue'
 import BundleHint from './BundleHint.vue'
 import DiscountDetail from './DiscountDetail.vue'
 import SecureImg from './SecureImg.vue'
+import SmsTick from './SmsTick.vue'
 
 const props = defineProps({
   item: { type: Object, default: null },
   priceDate: { type: String, default: '' }, // วันที่ใช้เลือกราคาพิเศษ (วันที่สร้างออร์เดอร์) ว่าง = วันนี้
   defaults: { type: Object, default: null }, // ค่าเริ่มต้นของรายการใหม่ (เช่น ข้อความบนเค้กจากแชท) { [groupId]: value }
+  customer: { type: Object, default: null }, // มีลูกค้า = แสดงกล่องติ๊ก "แจ้งลูกค้า" (ใช้ที่หน้ารายละเอียดออร์เดอร์)
+  order: { type: Object, default: null },
 })
 const emit = defineEmits(['save', 'close'])
+const notifyCust = ref(true)
+const smsCust = ref(true)
 
 const blank = () => ({ id: `i${Date.now()}`, kind: 'retail', retailId: null, retailPrice: 0, sizeId: null, typeId: null, name: '', qty: 1, note: '', images: [], selections: { ...(props.defaults || {}) }, tiers: [] })
 const form = reactive(props.item ? { tiers: [], ...JSON.parse(JSON.stringify(toRaw(props.item))) } : blank())
@@ -251,7 +256,7 @@ function save() {
       ? `เค้กสั่งทำ ${tiers.length} ชั้น (${tiers.map((t) => mainOf(t) || '-').join(' / ')})`
       : mainOf(tiers[0]) || 'เค้กสั่งทำ'
   }
-  emit('save', { ...JSON.parse(JSON.stringify(toRaw(form))), ...detail.value })
+  emit('save', { ...JSON.parse(JSON.stringify(toRaw(form))), ...detail.value }, { notify: notifyCust.value, sms: smsCust.value })
 }
 
 async function removeTier(i) {
@@ -394,6 +399,10 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
       <div class="mt-4">
         <div class="label">หมายเหตุ</div>
         <textarea v-model="form.note" rows="2" class="input" placeholder="รายละเอียดเพิ่มเติม" />
+      </div>
+      <div v-if="customer" class="mt-4 space-y-2 rounded-xl border border-stone-200 bg-white p-3">
+        <label class="flex items-center gap-2 text-sm text-stone-700"><input v-model="notifyCust" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าว่ามีการแก้ไขรายการ</label>
+        <SmsTick v-model="smsCust" :customer="customer" :order="order" :show="notifyCust" />
       </div>
     </div>
 

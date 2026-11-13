@@ -30,6 +30,7 @@ import AppIcon from '../components/AppIcon.vue'
 import SmsTick from '../components/SmsTick.vue'
 import NotifyChannelPicker from '../components/NotifyChannelPicker.vue'
 import { smsChoice } from '../lib/smsChoice'
+import { notifyBoxOf, notifyOf } from '../lib/notifyBox'
 import SecureImg from '../components/SecureImg.vue'
 import PickupModal from '../components/PickupModal.vue'
 import RefundEditor from '../components/RefundEditor.vue'
@@ -166,17 +167,17 @@ const mapHref = computed(() => checkMapUrl(order.value.mapUrl).url || '')
 // ---------- ปรับราคา ----------
 const adjOpen = ref(false)
 // sign: -1 = ส่วนลด, 1 = เพิ่มราคา · amount = จำนวนเงิน (บวก) กรอกด้วยแป้นตัวเลข
-const adj = reactive({ amount: 0, sign: -1, reason: '' })
+const adj = reactive({ amount: 0, sign: -1, reason: '', notify: true, sms: true })
 const adjError = ref('')
 function openAdj() {
   const a = Number(order.value.adjustment.amount) || 0
-  Object.assign(adj, { amount: Math.abs(a) || '', sign: a > 0 ? 1 : -1, reason: order.value.adjustment.reason })
+  Object.assign(adj, { amount: Math.abs(a) || '', sign: a > 0 ? 1 : -1, reason: order.value.adjustment.reason, notify: true, sms: true })
   adjError.value = ''
   adjOpen.value = true
 }
 function saveAdj() {
   if (!adj.reason.trim()) return (adjError.value = 'ใส่เหตุผล')
-  setAdjustment(order.value, adj.sign * (Number(adj.amount) || 0), adj.reason.trim())
+  setAdjustment(order.value, adj.sign * (Number(adj.amount) || 0), adj.reason.trim(), { notify: adj.notify, sms: adj.sms })
   adjOpen.value = false
 }
 
@@ -202,16 +203,20 @@ async function doRejectUnpaid() {
 const extFor = ref(null) // งวดที่กำลังขยาย
 const openExt = (p) => { extFor.value = p }
 async function doDenyExt(p) {
-  if (await askConfirm({ title: 'ไม่อนุมัติขยายเวลา', message: 'ลูกค้าจะยังชำระเองไม่ได้', okText: 'ไม่อนุมัติ', danger: true })) denyPayExtension(order.value, p.id)
+  const r = await askConfirmEx({ title: 'ไม่อนุมัติขยายเวลา', message: 'ลูกค้าจะยังชำระเองไม่ได้', okText: 'ไม่อนุมัติ', danger: true, ...notifyBoxOf(customer.value) })
+  if (r.ok) denyPayExtension(order.value, p.id, notifyOf(r))
 }
 async function doCancelConfirmed(p) {
-  if (await askConfirm({ title: 'ยกเลิกยอดที่ยืนยันแล้ว', message: `${money(p.amount)} (${p.method})`, okText: 'ยกเลิกยอด', danger: true })) cancelConfirmedPayment(order.value, p.id)
+  const r = await askConfirmEx({ title: 'ยกเลิกยอดที่ยืนยันแล้ว', message: `${money(p.amount)} (${p.method})`, okText: 'ยกเลิกยอด', danger: true, ...notifyBoxOf(customer.value) })
+  if (r.ok) cancelConfirmedPayment(order.value, p.id, notifyOf(r))
 }
 async function doRemoveItem(it) {
-  if (await askConfirm({ title: 'ลบสินค้า', message: `${it.name} × ${it.qty}`, okText: 'ลบ', danger: true })) removeOrderItem(order.value, it.id)
+  const r = await askConfirmEx({ title: 'ลบสินค้า', message: `${it.name} × ${it.qty}`, okText: 'ลบ', danger: true, ...notifyBoxOf(customer.value) })
+  if (r.ok) removeOrderItem(order.value, it.id, notifyOf(r))
 }
 async function doCancelRequest(p) {
-  if (await askConfirm({ title: 'ยกเลิกยอดที่แจ้ง', message: money(p.requested ?? p.amount), okText: 'ยกเลิกยอด', danger: true })) cancelPaymentRequest(order.value, p.id)
+  const r = await askConfirmEx({ title: 'ยกเลิกยอดที่แจ้ง', message: money(p.requested ?? p.amount), okText: 'ยกเลิกยอด', danger: true, ...notifyBoxOf(customer.value) })
+  if (r.ok) cancelPaymentRequest(order.value, p.id, notifyOf(r))
 }
 async function doRemovePoints() {
   if (!(await askConfirm({ title: 'ยกเลิกการใช้คะแนน', message: `คืน ${order.value.pointsUsed.points} คะแนนให้ลูกค้า`, okText: 'ยกเลิกการใช้', danger: true }))) return
@@ -230,8 +235,8 @@ async function doRemoveCoupon(u) {
 
 // ---------- แก้รายการสินค้า (แอดมิน) ----------
 const editing = ref(null) // null = ปิด, {} = เพิ่มใหม่, { item } = แก้ไข
-function onSaveItem(item) {
-  saveOrderItem(order.value, item)
+function onSaveItem(item, opts) {
+  saveOrderItem(order.value, item, opts || {})
   editing.value = null
 }
 
@@ -748,6 +753,10 @@ async function saveCancel() {
           <input v-model.number="adj.amount" type="text" v-num.dec class="input text-lg font-semibold" />
         </div>
         <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><input v-model="adj.reason" class="input" /></div>
+        <div v-if="customer" class="space-y-2 rounded-xl border border-stone-200 bg-white p-3">
+          <label class="flex items-center gap-2 text-sm text-stone-700"><input v-model="adj.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าว่ามีการปรับราคา</label>
+          <SmsTick v-model="adj.sms" :customer="customer" :order="order" :show="adj.notify" />
+        </div>
         <p v-if="adjError" class="text-sm text-rose-700">{{ adjError }}</p>
       </div>
       <template #footer>
@@ -782,7 +791,7 @@ async function saveCancel() {
   <ChangeBuyerModal v-if="buyerOpen && order" :order="order" @close="buyerOpen = false" />
   <OrderLinkModal v-if="linkOpen && order" :order="order" @close="linkOpen = false" />
   <TaxInvoiceModal v-if="taxOpen && order" :order="order" @close="taxOpen = false" />
-  <ItemEditor v-if="editing" :item="editing.item || null" :price-date="orderDate(order)" @save="onSaveItem" @close="editing = null" />
+  <ItemEditor v-if="editing" :item="editing.item || null" :price-date="orderDate(order)" :customer="customer" :order="order" @save="onSaveItem" @close="editing = null" />
   <PickupModal v-if="pickupOpen && order" :order="order" @close="pickupOpen = false" />
   <AppModal v-if="bdOpen" title="วันเกิด" @close="bdOpen = false">
     <BirthdayFields v-model="bd" />
