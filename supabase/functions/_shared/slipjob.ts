@@ -10,6 +10,7 @@ import { readQrTexts } from './qrimage.ts'
 import { bankByCode, normalizeRef, paidAtFromMessage, refTaken } from './payfields.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine, type SlipFields } from './slipocr.ts'
 import { readSlipOnce } from './slipstore.ts'
+import { notifyPaymentConfirmed } from './payconfirm.ts'
 import { codeOfRef, digitsOf, merchantMismatch, shopPartOf } from './slipref.ts'
 import { filesEnv, svcDelete, svcUpload, type FilesEnv } from './filesvc.ts'
 
@@ -261,7 +262,9 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     // งวดที่ลูกค้าขอ QR ไว้รับสลิปนี้: รวมข้อมูลสลิปเข้ากับงวดเดิม (ไม่เพิ่มงวดซ้ำ) · ไม่มี → เพิ่มงวดใหม่
     const attached = req ? { ...req, ...built, source: req.source, requested: req.requested ?? built.requested, reportedBy: req.reportedBy ?? built.reportedBy, createdAt: req.createdAt ?? built.createdAt, dueAt: req.dueAt ?? built.dueAt, extension: req.extension ?? null, qrRef: req.qrRef } : built
     const list = req ? payments.map((p: any) => (p.id === req.id ? attached : p)) : [...payments, built]
-    const conf = autoConfirm ? confirmSlipPayment(list, attached.id, nowIso) : { payments: list, cancelled: [] as any[] }
+    const conf0 = autoConfirm ? confirmSlipPayment(list, attached.id, nowIso) : { payments: list, cancelled: [] as any[] }
+    // งวดที่ระบบยืนยันเอง = แจ้งลูกค้าไปแล้วตอนนี้ (กันรอบ scheduled แจ้งซ้ำ)
+    const conf = autoConfirm ? { ...conf0, payments: conf0.payments.map((p: any) => (p.id === attached.id ? { ...p, autoNotified: true } : p)) } : conf0
     const cancelledReqs = conf.cancelled
     const next = {
       ...d,
@@ -291,6 +294,13 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
         ? `${orderNo(row.code)} · ยอด ${shownAmount.toFixed(2)} (ยืนยันอัตโนมัติแล้ว · ยังไม่ได้ตรวจกับธนาคาร · นัดรับห่าง ${daysLeft} วัน${cancelledReqs.length ? ` · ยกเลิกยอดที่แจ้งเดิม ${cancelledReqs.length} รายการ` : ''})${mismatchNote}`
         : `${orderNo(row.code)} · ยอด ${shownAmount.toFixed(2)} (${how})${mismatchNote}`
       await bell(sb, { event: 'team_customer_paid', title: autoConfirm ? 'ยืนยันชำระอัตโนมัติแล้ว' : 'ลูกค้าแจ้งโอน', text: bellText, orderId: row.id, chatId }, rand)
+      if (autoConfirm) {
+        // แจ้งลูกค้าทันที (งานพื้นหลัง · ไม่ทำให้การผูกสลิปล้มเหลว)
+        const job = notifyPaymentConfirmed(sb, { order: { ...next, id: row.id, code: row.code, status: 'payment_confirmed' }, customerId: row.customer_id, amount: attached.amount }).catch(() => false)
+        const er = (globalThis as any).EdgeRuntime
+        if (er?.waitUntil) er.waitUntil(job)
+        else await job
+      }
       await annotate(sb, chatId, msgId, { status: 'matched', ...(autoConfirm ? { autoConfirmed: true } : {}), orderCode: row.code, paymentId, at: nowIso, ...flagPart, checks })
       return 'matched'
     }

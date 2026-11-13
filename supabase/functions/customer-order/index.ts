@@ -5,6 +5,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { PAY_MSG, bankByCode, checkCustomerTxn, normalizeRef, refTaken } from '../_shared/payfields.ts'
 import { autoConfirmOf, slipKeyOf } from '../_shared/slip.ts'
 import { autoConfirmDecision, confirmSlipPayment } from '../_shared/slipautoconfirm.ts'
+import { notifyPaymentConfirmed } from '../_shared/payconfirm.ts'
 import { readSlipQr } from '../_shared/slipread.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine } from '../_shared/slipocr.ts'
 import { readSlipOnce } from '../_shared/slipstore.ts'
@@ -227,6 +228,7 @@ Deno.serve(async (req) => {
     let extraBell: { event: string; x: any } | null = null
     let autoBell: { code: string; amount: string } | null = null
     let slipNotice: SlipNotice | null = null
+    let payNotice: { order: any; customerId: string; amount: number } | null = null
     let result: Record<string, unknown> = { ok: true }
     let newSlipPath = ''
     let reqRow: { collection: string; id: string; data: any } | null = null
@@ -316,7 +318,7 @@ Deno.serve(async (req) => {
       // ยืนยันอัตโนมัติ: ยืนยันงวดนี้ + ยกเลิกยอดที่ร้านแจ้งเดิมที่ยังรออยู่ของออร์เดอร์
       if (autoDecision.ok) {
         const conf = confirmSlipPayment(d.payments, target.id, nowIso())
-        d.payments = conf.payments
+        d.payments = conf.payments.map((p: any) => (p.id === target.id ? { ...p, autoNotified: true } : p))
         autoCancelled = conf.cancelled
         autoDone = true
       }
@@ -332,6 +334,7 @@ Deno.serve(async (req) => {
       }
       // ยืนยันอัตโนมัติ → ไม่ส่ง "ได้รับสลิป" (ข้อความยืนยันชำระจะส่งจากรอบ scheduled)
       slipNotice = autoDone ? null : { orderCode: row.code, orderId: row.id, customerId: row.customer_id, amount: amt }
+      payNotice = autoDone ? { order: { ...d, id: row.id, code: row.code, status: newStatus }, customerId: row.customer_id, amount: amt } : null
       result = { ok: true, paymentId: target.id, ...(autoDone ? { autoConfirmed: true } : {}) }
     } else if (action === 'extend') {
       const p = d.payments.find((x: any) => x.id === String(b.paymentId ?? ''))
@@ -401,6 +404,13 @@ Deno.serve(async (req) => {
     if (cancelReq) await sb.from('punpang_records').update({ data: { ...cancelReq.data, status: 'cancelled', decidedAt: nowIso(), decidedBy: 'customer' } }).eq('collection', 'photoRequests').eq('id', cancelReq.id)
     if (extraBell) await bell(extraBell.event, { id: row.id, code: row.code }, extraBell.x)
     if (autoBell) await sb.from('punpang_records').insert({ collection: 'bell', id: `bl${randHex(6)}`, data: { audience: 'staff', event: 'team_customer_paid', title: 'ยืนยันชำระอัตโนมัติแล้ว', text: `${autoBell.code} · ยอด ${autoBell.amount} (อ่านจากภาพ ยังไม่ได้ตรวจกับธนาคาร)`, orderId: row.id, readBy: [], at: new Date().toISOString() } })
+    if (payNotice) {
+      // ยืนยันอัตโนมัติ: แจ้งลูกค้าทันที (งานพื้นหลัง · ไม่ทำให้การส่งสลิปล้มเหลว)
+      const job = notifyPaymentConfirmed(sb, payNotice).catch((e) => console.error('pay-notify', String((e as Error)?.message || e)))
+      const er = (globalThis as any).EdgeRuntime
+      if (er?.waitUntil) er.waitUntil(job)
+      else await job
+    }
     if (slipNotice) {
       // ไม่รอผลส่ง: ให้ลูกค้าได้รับคำตอบเร็ว · ถ้าเปิดได้ (EdgeRuntime.waitUntil) ให้งานทำต่อหลังตอบกลับ
       const job = notifySlip(sb, slipNotice).catch((e) => console.error('slip-notify', String((e as Error)?.message || e)))

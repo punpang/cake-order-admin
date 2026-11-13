@@ -222,7 +222,7 @@ export function planScheduled(inp: PlanInput): Plan[] {
     }
     // ยืนยันสลิปอัตโนมัติ: แจ้งลูกค้าว่ายืนยันชำระแล้ว (ตามกฎ payment_confirmed ของร้าน) · เฉพาะงวดที่ระบบยืนยันเอง ภายใน 24 ชม. · ส่งครั้งเดียวต่องวด
     for (const p of Array.isArray(o.payments) ? o.payments : []) {
-      if (p?.status !== 'confirmed' || p.confirmedBy !== 'auto') continue
+      if (p?.status !== 'confirmed' || p.confirmedBy !== 'auto' || p.autoNotified === true) continue // autoNotified = ระบบแจ้งลูกค้าไปแล้วตอนยืนยัน
       const at = Date.parse(String(p.confirmedAt || ''))
       if (!Number.isFinite(at) || inp.nowMs - at > 24 * HOUR) continue
       add(`payconf|${p.id}`, { kind: 'customer', event: 'payment_confirmed', orderId: o.id, order: o, customer: custFor(o), vars: varsOf(o, { paid: p.amount }) })
