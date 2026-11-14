@@ -19,7 +19,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - uses: android-actions/setup-android@v3
+      # runner ubuntu-latest มี Android SDK ติดตั้งอยู่แล้ว (ANDROID_HOME) จึงไม่ใช้ android-actions/setup-android
+      # (action นั้นเรียก sdkmanager tools ซึ่งล้มเหลวบน runner นี้)
       - name: ติดตั้งส่วนประกอบ Android SDK ที่โปรเจกต์ใช้
         run: |
           yes | sdkmanager --licenses > /dev/null
