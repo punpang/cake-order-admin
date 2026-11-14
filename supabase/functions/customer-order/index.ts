@@ -1,4 +1,4 @@
-import { filesEnv, svcDelete, svcUpload } from '../_shared/filesvc.ts'
+import { filesEnv, svcDelete, svcSign, svcUpload } from '../_shared/filesvc.ts'
 import { newQrSuffix } from '../_shared/payqr.ts'
 import { orderNo, refOfCode } from '../_shared/slipref.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
@@ -7,7 +7,7 @@ import { autoConfirmOf, slipKeyOf } from '../_shared/slip.ts'
 import { autoConfirmDecision, configuredAccountsOf, confirmSlipPayment } from '../_shared/slipautoconfirm.ts'
 import { notifyPaymentConfirmed } from '../_shared/payconfirm.ts'
 import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
-import { customerChatList, customerChatSend } from '../_shared/customerchat.ts'
+import { customerChatList, customerChatPhoto, customerChatSend } from '../_shared/customerchat.ts'
 import { customerPushRegister } from '../_shared/customerpush.ts'
 import { readSlipQr } from '../_shared/slipread.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine } from '../_shared/slipocr.ts'
@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
     return { auto: autoConfirmOf(sq), merchantCode: String(sh?.merchantCode ?? '').replace(/\D/g, ''), accounts: configuredAccountsOf(sh) }
   }
   const action = String(b.action || '')
-  if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel', 'qr_request', 'chat_list', 'chat_send', 'push_register'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
+  if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel', 'qr_request', 'chat_list', 'chat_send', 'chat_photo', 'push_register'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
 
   // ---------- ระบุออร์เดอร์ + ตรวจสิทธิ์ ----------
   let orderId = ''
@@ -204,9 +204,15 @@ Deno.serve(async (req) => {
   }
 
   // ---------- แชทกับร้าน (เฉพาะลูกค้าที่ล็อกอินแล้ว · ไม่ผูกกับออร์เดอร์) ----------
-  if (action === 'chat_list' || action === 'chat_send') {
+  if (action === 'chat_list' || action === 'chat_send' || action === 'chat_photo') {
     if (!customerIdOfSession) return json({ error: 'กรุณาเข้าสู่ระบบก่อนใช้แชท' }, 401)
-    const r = action === 'chat_list' ? await customerChatList(sb, customerIdOfSession) : await customerChatSend(sb, customerIdOfSession, b.text)
+    if (action === 'chat_photo') {
+      const r = await customerChatPhoto(sb, customerIdOfSession, b.photo, filesEnv())
+      return json(r.body, r.status)
+    }
+    const r = action === 'chat_list'
+      ? await customerChatList(sb, customerIdOfSession, (key: string) => svcSign(filesEnv(), key, 3600), Array.isArray(b.have) ? b.have : [])
+      : await customerChatSend(sb, customerIdOfSession, b.text, b.photos)
     return json(r.body, r.status)
   }
 

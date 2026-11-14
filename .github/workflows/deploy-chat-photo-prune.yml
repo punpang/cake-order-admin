@@ -1,0 +1,33 @@
+name: Deploy chat-photo-prune
+
+# รันเองเท่านั้น: GitHub → Actions → Deploy chat-photo-prune → Run workflow
+# ฟังก์ชันนี้ถูกเรียกจาก pg_cron ด้วยคีย์ x-cron-key จึงปิด JWT ตรวจสอบ (เหมือน scheduled)
+# ต้องมี secret SCHEDULED_KEY และ FILES_URL / FILES_SERVICE_KEY ใน Supabase แล้ว · ขั้นเทสต์ต้องผ่านก่อนจึงจะ deploy
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: เทสต์โมดูลที่ใช้ร่วมกัน (_shared)
+        run: deno test --no-prompt --no-lock --node-modules-dir=none supabase/functions/_shared/
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # --no-verify-jwt: pg_cron เรียกโดยไม่มี JWT (ตรวจด้วยคีย์ x-cron-key ในฟังก์ชัน)
+      # --yes: ไม่มี TTY ใน Actions จึงต้องยืนยันล่วงหน้า
+      - name: Deploy chat-photo-prune
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy chat-photo-prune --project-ref itleduijrckxdbhhuooi --no-verify-jwt --yes
