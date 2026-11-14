@@ -159,8 +159,8 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
       </div>
       <div class="border-t border-stone-100 pt-4">
         <div class="card-title mb-3"><AppIcon name="wallet" class="text-brand-600" /> ช่องทางรับชำระ (แสดงให้ลูกค้า)</div>
-        <div class="mb-4 max-w-md"><label class="label">รหัสร้านค้า (ผู้รับชำระ) <span class="font-normal text-stone-400">ใส่ใน QR เป็น Ref 1 และใช้ตรวจสลิป · เว้นว่าง = ไม่มี QR และไม่ตรวจรหัสร้านค้า</span></label><input v-model="st.merchantCode" type="text" inputmode="numeric" class="input" placeholder="เช่น 014000000517185" /></div>
         <div class="mb-4 max-w-md"><label class="label">Biller ID (ผู้เรียกเก็บเงิน 15 หลัก) <span class="font-normal text-stone-400">ใช้สร้าง QR พร้อมเพย์แบบ Biller · เว้นว่าง = ไม่มี QR</span></label><input v-model="st.billerId" type="text" inputmode="numeric" maxlength="15" class="input" placeholder="เช่น 010753600010286" /></div>
+        <div class="mb-4 max-w-md"><label class="label">รหัสร้านค้า (ผู้รับชำระ) <span class="font-normal text-stone-400">ใส่ใน QR เป็น Ref 1 และใช้ตรวจสลิป · เว้นว่าง = ไม่มี QR และไม่ตรวจรหัสร้านค้า</span></label><input v-model="st.merchantCode" type="text" inputmode="numeric" class="input" placeholder="เช่น 014000000517185" /></div>
         <div class="space-y-3">
           <div v-for="(a, i) in st.payment.accounts" :key="a.id" class="space-y-2 rounded-2xl border border-stone-200 bg-white p-3">
             <div class="flex flex-wrap items-center justify-between gap-2">
