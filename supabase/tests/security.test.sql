@@ -1,0 +1,291 @@
+-- ทดสอบความปลอดภัยของฐานข้อมูล: รันโดย supabase/tests/run.sh หลัง stubs.sql + migration ทุกไฟล์
+-- แต่ละข้อใช้ test.ok(ชื่อ, เงื่อนไข) · เงื่อนไขไม่เป็นจริง = ล้มทันที (psql จบด้วยรหัสผิดพลาด)
+-- ข้อที่ขึ้นต้นด้วยรหัส T1–T9 มาจากการทดสอบเจาะระบบที่พบในรายงานตรวจโค้ด (ก่อนแก้ ข้อเหล่านี้ "สำเร็จ" = ช่องโหว่)
+
+-- ---------- ตัวช่วย ----------
+create function test.ok(name text, cond boolean) returns void language plpgsql as $$
+begin
+  if cond is not true then raise exception 'FAIL: %', name; end if;
+  raise notice 'PASS: %', name;
+end $$;
+
+-- รันคำสั่งในฐานะพนักงาน (role authenticated + sub = uid) · คืน 'OK' หรือ 'ERR:<sqlstate>:<ข้อความ>'
+create function test.as_staff(uid uuid, stmt text) returns text language plpgsql as $$
+begin
+  perform set_config('request.jwt.claim.sub', coalesce(uid::text, ''), true);
+  execute 'set local role authenticated';
+  begin
+    execute stmt;
+  exception when others then
+    execute 'reset role';
+    return 'ERR:' || sqlstate || ':' || sqlerrm;
+  end;
+  execute 'reset role';
+  return 'OK';
+end $$;
+
+-- เหมือน as_staff แต่ stmt ต้องคืนค่า jsonb หนึ่งค่า (เรียก RPC) · ผิดพลาด = { exception, message }
+create function test.rpc_as(uid uuid, stmt text) returns jsonb language plpgsql as $$
+declare res jsonb;
+begin
+  perform set_config('request.jwt.claim.sub', coalesce(uid::text, ''), true);
+  execute 'set local role authenticated';
+  begin
+    execute stmt into res;
+  exception when others then
+    execute 'reset role';
+    return jsonb_build_object('exception', sqlstate, 'message', sqlerrm);
+  end;
+  execute 'reset role';
+  return res;
+end $$;
+
+-- รันคำสั่งในฐานะผู้ไม่ล็อกอิน
+create function test.as_anon(stmt text) returns text language plpgsql as $$
+begin
+  execute 'set local role anon';
+  begin
+    execute stmt;
+  exception when others then
+    execute 'reset role';
+    return 'ERR:' || sqlstate || ':' || sqlerrm;
+  end;
+  execute 'reset role';
+  return 'OK';
+end $$;
+
+-- ---------- ข้อมูลตั้งต้น ----------
+insert into auth.users (id, email) values
+  ('11111111-1111-1111-1111-111111111111', 'sales@t'),
+  ('22222222-2222-2222-2222-222222222222', 'driver@t'),
+  ('33333333-3333-3333-3333-333333333333', 'baker@t'),
+  ('44444444-4444-4444-4444-444444444444', 'refunder@t'),
+  ('55555555-5555-5555-5555-555555555555', 'admin@t'),
+  ('66666666-6666-6666-6666-666666666666', 'payer@t'),
+  ('77777777-7777-7777-7777-777777777777', 'changer@t');
+insert into public.punpang_staff (user_id, name, role, perms) values
+  ('11111111-1111-1111-1111-111111111111', 'Sales', 'sales', '{createOrder,viewAllOrders,useLoyalty,pos}'),
+  ('22222222-2222-2222-2222-222222222222', 'Driver', 'driver', '{deliverShipping,viewDeliveryOrders}'),
+  ('33333333-3333-3333-3333-333333333333', 'Baker', 'baker', '{startPreparing,markPrepared,workPhoto,viewPrepOrders}'),
+  ('44444444-4444-4444-4444-444444444444', 'Refunder', 'sales', '{refundPartial,viewAllOrders}'),
+  ('55555555-5555-5555-5555-555555555555', 'Admin', 'admin', '{manage,manageUsers,adjustPoints,confirmPayment,useLoyalty,viewAllOrders,createOrder,revertStatus,cancel}'),
+  ('66666666-6666-6666-6666-666666666666', 'Payer', 'sales', '{reportPayment}'),
+  ('77777777-7777-7777-7777-777777777777', 'Changer', 'sales', '{changeBuyer,viewAllOrders}');
+
+insert into public.punpang_customers (id, name, phone, data) values
+  ('c1', 'Cust One', '0811111111', '{"ledger":[],"spins":0}'),
+  ('c2', 'Cust Two', '0822222222', '{"ledger":[],"spins":0}'),
+  ('c_legacy', 'Legacy', '0833333333', '{}');
+
+insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values
+  ('o_prep', 'OR-141126-000001', 'c1', 'preparing', 'pickup', 'line',
+   '{"items":[{"unitPrice":300,"qty":3}],"payments":[],"adjustment":{"amount":0}}'),
+  ('o_del', 'OR-141126-000002', 'c1', 'delivered', 'pickup', 'line',
+   '{"items":[{"unitPrice":300,"qty":3}],"payments":[{"id":"p1","status":"confirmed","amount":900}],"adjustment":{"amount":0}}'),
+  ('o_del2', 'OR-141126-000004', 'c1', 'delivered', 'pickup', 'line',
+   '{"items":[{"unitPrice":300,"qty":3}],"payments":[{"id":"p3","status":"confirmed","amount":900}],"adjustment":{"amount":0}}'),
+  ('o_del3', 'OR-141126-000005', 'c1', 'delivered', 'pickup', 'line',
+   '{"items":[{"unitPrice":300,"qty":3}],"payments":[{"id":"p4","status":"confirmed","amount":900}],"adjustment":{"amount":0}}'),
+  ('o_pay', 'OR-141126-000003', 'c1', 'payment_confirmed', 'pickup', 'line',
+   '{"items":[{"unitPrice":500,"qty":1}],"payments":[{"id":"p2","status":"confirmed","amount":500}],"loyalty":{"points":5,"spins":1,"lotId":"lot_award"}}');
+
+-- ===== H1/T1: แก้สมุดแต้ม/สิทธิ์หมุนตรง ๆ =====
+select test.ok('T1: sales (createOrder) แก้ spins ตรง ๆ ไม่ได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ update public.punpang_customers set data = jsonb_set(data, '{spins}', '9999') where id = 'c1' $q$) like 'ERR:42501:%');
+select test.ok('T1: sales แก้ ledger ตรง ๆ ไม่ได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ update public.punpang_customers set data = jsonb_set(data, '{ledger}', '[{"id":"x","delta":1000000,"remaining":1000000}]'::jsonb) where id = 'c1' $q$) like 'ERR:42501:%');
+select test.ok('H1: sales แก้ชื่อได้ตามเดิม',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ update public.punpang_customers set name = 'Cust One X' where id = 'c1' $q$) = 'OK');
+select test.ok('H1: บันทึกซ้ำด้วย ledger/spins เดิมและเพิ่มฟิลด์อื่นได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ update public.punpang_customers set data = data || '{"promoOptIn":true}'::jsonb where id = 'c1' $q$) = 'OK');
+select test.ok('H1: ลูกค้าเก่าที่ยังไม่มี ledger/spins บันทึกด้วยสมุดว่างได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ update public.punpang_customers set data = jsonb_build_object('ledger', '[]'::jsonb, 'spins', 0) where id = 'c_legacy' $q$) = 'OK');
+select test.ok('H1: สร้างลูกค้าใหม่ที่มีแต้มมาให้ไม่ได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ insert into public.punpang_customers (id, name, data) values ('c_fake', 'Fake', '{"ledger":[{"id":"x","delta":500,"remaining":500}],"spins":0}') $q$) like 'ERR:42501:%');
+select test.ok('H1: สร้างลูกค้าใหม่ที่มีสิทธิ์หมุนมาให้ไม่ได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ insert into public.punpang_customers (id, name, data) values ('c_fake2', 'Fake2', '{"ledger":[],"spins":50}') $q$) like 'ERR:42501:%');
+select test.ok('H1: สร้างลูกค้าใหม่ด้วยสมุดว่างได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ insert into public.punpang_customers (id, name, data) values ('c_new', 'New', '{"ledger":[],"spins":0}') $q$) = 'OK');
+update public.punpang_customers set data = jsonb_set(jsonb_set(data, '{ledger}', '[{"id":"seed","delta":10,"remaining":10}]'::jsonb), '{spins}', '3') where id = 'c2';
+select test.ok('H1: แอดมิน (manage) ล้างสมุดตรงได้ (ลบข้อมูลตามคำขอ PDPA)',
+  test.as_staff('55555555-5555-5555-5555-555555555555',
+    $q$ update public.punpang_customers set data = jsonb_set(jsonb_set(data, '{ledger}', '[]'::jsonb), '{spins}', '0') where id = 'c2' $q$) = 'OK');
+select test.ok('H1: RPC ปรับแต้ม (security definer) ยังเขียนสมุดได้',
+  (test.rpc_as('55555555-5555-5555-5555-555555555555', $q$ select public.punpang_adjust_points('c1', 2000, 'seed') $q$)->>'ok')::boolean);
+select test.ok('H1: หลัง RPC ปรับแต้ม สมุดของ c1 มีรายการ',
+  (select jsonb_array_length(data->'ledger') from public.punpang_customers where id = 'c1') = 1);
+
+-- ===== H2/T2: ให้คะแนนตอนส่งมอบ =====
+select test.ok('T2: คนส่งของให้คะแนนออร์เดอร์ที่ยังไม่ส่งมอบไม่ได้',
+  test.rpc_as('22222222-2222-2222-2222-222222222222', $q$ select public.punpang_award_order('o_prep', 9, 0, 1, 900) $q$)->>'error' = 'not_delivered');
+select test.ok('T2: คนส่งของขอ 1,000,000 แต้ม + 10,000 สิทธิ์หมุนบนออร์เดอร์ที่ส่งมอบแล้วไม่ได้',
+  test.rpc_as('22222222-2222-2222-2222-222222222222', $q$ select public.punpang_award_order('o_del', 1000000, 0, 10000, 900) $q$)->>'error' = 'invalid');
+select test.ok('H2: ยอดฐานเกินยอดสินค้าของออร์เดอร์ไม่ได้',
+  test.rpc_as('22222222-2222-2222-2222-222222222222', $q$ select public.punpang_award_order('o_del', 10, 0, 1, 1000) $q$)->>'error' = 'invalid');
+select test.ok('H2: คะแนนเกินสูตร (ไม่มีโปร: 900 บาท = 9 แต้ม) ไม่ได้',
+  test.rpc_as('22222222-2222-2222-2222-222222222222', $q$ select public.punpang_award_order('o_del', 10, 0, 1, 900) $q$)->>'error' = 'invalid');
+select test.ok('H2: คะแนนโบนัสเกินคะแนนรวมไม่ได้',
+  test.rpc_as('22222222-2222-2222-2222-222222222222', $q$ select public.punpang_award_order('o_del', 9, 20, 1, 900) $q$)->>'error' = 'invalid');
+select test.ok('H2: คนส่งของให้คะแนนตามสูตรจริงได้ (900 บาท = 9 แต้ม 1 สิทธิ์หมุน)',
+  (test.rpc_as('22222222-2222-2222-2222-222222222222', $q$ select public.punpang_award_order('o_del', 9, 0, 1, 900) $q$)->>'ok')::boolean);
+select test.ok('H2: ให้ซ้ำไม่ได้',
+  test.rpc_as('22222222-2222-2222-2222-222222222222', $q$ select public.punpang_award_order('o_del', 9, 0, 1, 900) $q$)->>'error' = 'already_awarded');
+select test.ok('H2: คนที่ไม่มีสิทธิ์ส่งมอบ (ช่างเค้ก) ให้คะแนนไม่ได้',
+  test.rpc_as('33333333-3333-3333-3333-333333333333', $q$ select public.punpang_award_order('o_del2', 9, 0, 1, 900) $q$)->>'exception' = '42501');
+insert into public.punpang_kv (collection, id, data) values
+  ('config', 'pointPromos', '{"v":[{"id":"pt1","multiplier":3,"active":true},{"id":"pt2","multiplier":50,"active":false}]}');
+select test.ok('H2: มีโปรคูณ 3 → เกิน 27 แต้มไม่ได้ (โปรที่ปิดอยู่ไม่นับ)',
+  test.rpc_as('22222222-2222-2222-2222-222222222222', $q$ select public.punpang_award_order('o_del2', 28, 19, 1, 900) $q$)->>'error' = 'invalid');
+select test.ok('H2: มีโปรคูณ 3 → 27 แต้มได้',
+  (test.rpc_as('22222222-2222-2222-2222-222222222222', $q$ select public.punpang_award_order('o_del2', 27, 18, 1, 900) $q$)->>'ok')::boolean);
+
+-- ===== H2/T3: แก้สมุดหลายรายการ =====
+select test.ok('T3: ผู้มีแค่ refundPartial เพิ่ม 50 × 1,000,000 แต้มไม่ได้',
+  test.rpc_as('44444444-4444-4444-4444-444444444444',
+    $q$ select public.punpang_ledger_apply('c1', (select jsonb_agg(jsonb_build_object('op','earn','id','m'||g,'points',1000000,'reason','x','orderId','o_pay')) from generate_series(1,50) g)) $q$)->>'message' = 'cap_exceeded');
+select test.ok('H2: earn ไม่ระบุออร์เดอร์ ต้องเป็นแอดมินเท่านั้น (ผู้มี refundPartial ไม่ได้)',
+  test.rpc_as('44444444-4444-4444-4444-444444444444',
+    $q$ select public.punpang_ledger_apply('c1', '[{"op":"earn","id":"n1","points":10,"reason":"x"}]'::jsonb) $q$)->>'exception' = '42501');
+select test.ok('H2: ผู้มีแค่ useLoyalty เพิ่มคะแนนด้วย earn ไม่ได้ (ไม่ใช่การคืนเงิน/ยกเลิก)',
+  test.rpc_as('11111111-1111-1111-1111-111111111111',
+    $q$ select public.punpang_ledger_apply('c1', '[{"op":"earn","id":"n2","points":10,"reason":"x","orderId":"o_pay"}]'::jsonb) $q$)->>'exception' = '42501');
+select test.ok('H2: earn อ้างออร์เดอร์ที่ไม่มีอยู่ไม่ได้',
+  test.rpc_as('44444444-4444-4444-4444-444444444444',
+    $q$ select public.punpang_ledger_apply('c1', '[{"op":"earn","id":"n3","points":10,"reason":"x","orderId":"no_such"}]'::jsonb) $q$)->>'message' = 'invalid_op');
+select test.ok('H2: คืนเงินเป็นคะแนนตามที่ชำระจริงได้ (ออร์เดอร์จ่าย 500 → คืน 300 แต้ม)',
+  (test.rpc_as('44444444-4444-4444-4444-444444444444',
+    $q$ select public.punpang_ledger_apply('c1', '[{"op":"earn","id":"r1","points":300,"reason":"คืนเงิน OR-141126-000003","orderId":"o_pay"}]'::jsonb) $q$)->>'ok')::boolean);
+select test.ok('H2: คืนรอบสอง 300 แต้ม รวมเกินที่ชำระ (500) ไม่ได้',
+  test.rpc_as('44444444-4444-4444-4444-444444444444',
+    $q$ select public.punpang_ledger_apply('c1', '[{"op":"earn","id":"r2","points":300,"reason":"คืนเงิน","orderId":"o_pay"}]'::jsonb) $q$)->>'message' = 'cap_exceeded');
+select test.ok('H2: แอดมินเพิ่มคะแนนแบบไม่ระบุออร์เดอร์ได้ (เช่น คืนคะแนนคูปอง)',
+  (test.rpc_as('55555555-5555-5555-5555-555555555555',
+    $q$ select public.punpang_ledger_apply('c1', '[{"op":"earn","id":"a1","points":100,"reason":"คืนคะแนนคูปอง"}]'::jsonb) $q$)->>'ok')::boolean);
+select test.ok('H2: สิทธิ์หมุนเพิ่มโดยไม่อ้างออร์เดอร์ ต้องเป็นแอดมิน',
+  test.rpc_as('44444444-4444-4444-4444-444444444444', $q$ select public.punpang_ledger_apply('c1', '[{"op":"spins","delta":5}]'::jsonb) $q$)->>'exception' = '42501');
+select test.ok('H2: เปลี่ยนผู้ซื้อ: โอนคะแนน+สิทธิ์หมุนของออร์เดอร์ (5 แต้ม 1 สิทธิ์) ได้',
+  (test.rpc_as('77777777-7777-7777-7777-777777777777',
+    $q$ select public.punpang_ledger_apply('c2', '[{"op":"earn","id":"t1","points":5,"reason":"โอนมา","orderId":"o_pay"},{"op":"spins","delta":1}]'::jsonb) $q$)->>'ok')::boolean);
+select test.ok('H2: เปลี่ยนผู้ซื้อ: สิทธิ์หมุนที่โอนเกินที่ออร์เดอร์ได้ไม่ได้',
+  test.rpc_as('77777777-7777-7777-7777-777777777777',
+    $q$ select public.punpang_ledger_apply('c2', '[{"op":"earn","id":"t2","points":5,"reason":"โอนมา","orderId":"o_pay"},{"op":"spins","delta":2}]'::jsonb) $q$)->>'message' = 'cap_exceeded');
+select test.ok('H2: การตัดสิทธิ์หมุน (ค่าลบ) ยังทำได้ตามสิทธิ์เดิม',
+  (test.rpc_as('77777777-7777-7777-7777-777777777777', $q$ select public.punpang_ledger_apply('c2', '[{"op":"spins","delta":-1}]'::jsonb) $q$)->>'ok')::boolean);
+
+-- ===== H2: ใช้คะแนนเป็นส่วนลด =====
+select test.ok('H2: ใช้คะแนนเป็นส่วนลดเกินยอดออร์เดอร์ (900) ไม่ได้',
+  test.rpc_as('11111111-1111-1111-1111-111111111111', $q$ select public.punpang_apply_points('o_prep', 901) $q$)->>'error' = 'exceeds_total');
+select test.ok('H2: ช่างเค้กใช้คะแนนไม่ได้',
+  test.rpc_as('33333333-3333-3333-3333-333333333333', $q$ select public.punpang_apply_points('o_prep', 10) $q$)->>'exception' = '42501');
+select test.ok('H2: ใช้คะแนนเท่ายอดออร์เดอร์ได้',
+  (test.rpc_as('11111111-1111-1111-1111-111111111111', $q$ select public.punpang_apply_points('o_prep', 900) $q$)->>'ok')::boolean);
+
+-- ===== T6: สถานะออร์เดอร์ =====
+select test.ok('T6: ตั้งสถานะที่ไม่มีในระบบผ่าน punpang_set_status ไม่ได้',
+  test.as_staff('55555555-5555-5555-5555-555555555555', $q$ select public.punpang_set_status('o_prep', 'totally_bogus_status') $q$) like 'ERR:23514:%');
+select test.ok('T6: เพิ่มออร์เดอร์ที่สถานะไม่รู้จักไม่ได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment) values ('o_bogus', 'OR-141126-000099', 'c1', 'totally_bogus_status', 'pickup') $q$) like 'ERR:%');
+select test.ok('T6: ช่างเค้กเปลี่ยนเป็น "เตรียมสินค้าแล้ว" ผ่าน punpang_set_status ได้ตามเดิม',
+  test.as_staff('33333333-3333-3333-3333-333333333333', $q$ select public.punpang_set_status('o_prep', 'prepared') $q$) = 'OK');
+alter table public.punpang_orders disable trigger punpang_orders_status_valid;
+insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data)
+  values ('o_legacy', 'OR-141126-000098', 'c1', 'legacy_status', 'pickup', 'line', '{"items":[]}');
+alter table public.punpang_orders enable trigger punpang_orders_status_valid;
+select test.ok('T6: แถวเก่าที่สถานะแปลก แก้ฟิลด์อื่นได้ (ตรวจเฉพาะตอนสถานะเปลี่ยน)',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ update public.punpang_orders set data = data || '{"note":"x"}'::jsonb where id = 'o_legacy' $q$) = 'OK');
+
+-- หมายเหตุ: คำสั่งที่แก้ข้อมูลต้องรันเป็นคำสั่งแยกก่อน แล้วค่อยตรวจผลในคำสั่งถัดไป (ฟังก์ชัน volatile ในคำสั่งเดียวกัน
+--          มองไม่เห็นผลของตัวเองใน subquery เพราะใช้ snapshot ของคำสั่ง) · ใช้ \gset เก็บผลของการเรียกไว้ตรวจ
+
+-- ===== T5: RPC ของผู้ไม่ล็อกอิน =====
+select test.as_anon($q$ select public.punpang_record_pageview('9999-99-99'); select public.punpang_record_pageview('0001-01-01') $q$) as r \gset
+select test.ok('T5: นับเข้าชมด้วยวันปลอมไม่ผิดพลาด แต่ไม่สร้างแถววันปลอม (ใช้วันของเซิร์ฟเวอร์ → 1 แถว)',
+  :'r' = 'OK'
+  and not exists (select 1 from public.punpang_kv where collection = 'pageViews' and id in ('9999-99-99', '0001-01-01'))
+  and (select count(*) from public.punpang_kv where collection = 'pageViews') = 1);
+select test.as_anon($q$ select public.punpang_record_pageview('not-a-date') $q$) as r \gset
+select test.ok('T5: รูปแบบวันผิดไม่สร้างแถว',
+  :'r' = 'OK' and (select count(*) from public.punpang_kv where collection = 'pageViews') = 1);
+select test.as_anon($q$ select public.punpang_record_pageview('2026-01-01') $q$) as r \gset
+select test.ok('T5: นับซ้ำในวันเดียวกัน = แถวเดิม เพิ่มจำนวน (วันปลอม 2 ครั้ง + วันที่ถูกต้อง 1 ครั้ง = 3)',
+  :'r' = 'OK' and (select count(*) from public.punpang_kv where collection = 'pageViews') = 1
+  and (select (data->>'n')::int from public.punpang_kv where collection = 'pageViews') = 3);
+
+insert into public.punpang_cake_clicks (v, photo_id, at)
+  select 'visitor_' || lpad(g::text, 6, '0'), 'p1', now() - interval '100 days' from generate_series(1, 50000) g;
+select test.as_anon($q$ select public.punpang_record_click('photo1', 'visitor_new_001') $q$) as r \gset
+select test.ok('D5: ตารางคลิกเต็ม 50,000 แถว (เก่ากว่า 90 วัน) → ลบของเก่าแล้วบันทึกต่อได้',
+  :'r' = 'OK'
+  and (select count(*) from public.punpang_cake_clicks) = 1
+  and exists (select 1 from public.punpang_cake_clicks where v = 'visitor_new_001' and photo_id = 'photo1'));
+insert into public.punpang_cake_clicks (v, photo_id, at)
+  select 'visitor_' || lpad(g::text, 6, '0'), 'p1', now() from generate_series(1, 49999) g;
+select test.as_anon($q$ select public.punpang_record_click('photo2', 'visitor_new_002') $q$) as r \gset
+select test.ok('D5: ตารางเต็มด้วยแถวใหม่ (ยังไม่ครบ 90 วัน) → ไม่เพิ่มเกินเพดาน',
+  :'r' = 'OK' and (select count(*) from public.punpang_cake_clicks) = 50000
+  and not exists (select 1 from public.punpang_cake_clicks where v = 'visitor_new_002'));
+
+select test.ok('T9: ผู้ไม่ล็อกอินเรียก punpang_order_search ไม่ได้',
+  test.as_anon($q$ select * from public.punpang_order_search('x') $q$) like 'ERR:42501:%');
+
+-- ===== T8: สลิปในบักเก็ตเดิม =====
+insert into storage.objects (bucket_id, name) values ('punpang-slips', 'o9/evidence.png');
+select test.as_staff('66666666-6666-6666-6666-666666666666', $q$ delete from storage.objects where bucket_id = 'punpang-slips' and name = 'o9/evidence.png' $q$) as r \gset
+select test.ok('T8: ผู้มีแค่ reportPayment ลบสลิปของคนอื่นไม่ได้ (ไม่ผิดพลาด แต่ไม่มีแถวถูกลบ)',
+  :'r' = 'OK' and exists (select 1 from storage.objects where bucket_id = 'punpang-slips' and name = 'o9/evidence.png'));
+select test.as_staff('66666666-6666-6666-6666-666666666666', $q$ update storage.objects set name = 'o9/hacked.png' where bucket_id = 'punpang-slips' and name = 'o9/evidence.png' $q$) as r \gset
+select test.ok('T8: ผู้มีแค่ reportPayment เขียนทับสลิปไม่ได้',
+  :'r' = 'OK' and exists (select 1 from storage.objects where bucket_id = 'punpang-slips' and name = 'o9/evidence.png')
+  and not exists (select 1 from storage.objects where name = 'o9/hacked.png'));
+select test.as_staff('66666666-6666-6666-6666-666666666666', $q$ insert into storage.objects (bucket_id, name) values ('punpang-slips', 'o9/new.png') $q$) as r \gset
+select test.ok('T8: ผู้แจ้งชำระเพิ่มสลิปได้ตามเดิม',
+  :'r' = 'OK' and exists (select 1 from storage.objects where bucket_id = 'punpang-slips' and name = 'o9/new.png'));
+select test.as_staff('55555555-5555-5555-5555-555555555555', $q$ delete from storage.objects where bucket_id = 'punpang-slips' and name = 'o9/evidence.png' $q$) as r \gset
+select test.ok('T8: ผู้ยืนยันชำระ (admin) ลบสลิปได้',
+  :'r' = 'OK' and not exists (select 1 from storage.objects where bucket_id = 'punpang-slips' and name = 'o9/evidence.png'));
+
+-- ===== N1: แชทเว็บ/แอป + trigger แจ้งเตือน =====
+insert into public.punpang_chats (id, channel, external_id, customer_id, data)
+  values ('chweb1', 'web', 'c1', 'c1', '{"messages":[{"id":"m1","from":"customer","text":"hi","at":"2026-11-14T10:00:00Z"}]}');
+select test.ok('N1: สร้างกระทู้แชท channel = web ได้ (ก่อนแก้ ล้มด้วย check constraint)',
+  exists (select 1 from public.punpang_chats where id = 'chweb1' and channel = 'web'));
+select test.ok('N1: ลูกค้าส่งข้อความ ไม่ยิงแจ้งเตือน', (select count(*) from test.net_calls) = 0);
+update public.punpang_chats set data = jsonb_set(data, '{messages}', data->'messages' || '[{"id":"m2","from":"staff","text":"reply","at":"2026-11-14T10:01:00Z"}]'::jsonb) where id = 'chweb1';
+select test.ok('N1: พนักงานตอบ → ยิง push-send หนึ่งครั้งพร้อม chatId',
+  (select count(*) from test.net_calls) = 1
+  and (select body->>'chatId' from test.net_calls order by id limit 1) = 'chweb1'
+  and (select url from test.net_calls order by id limit 1) like '%/push-send');
+update public.punpang_chats set data = jsonb_set(data, '{unreadStaff}', '0') where id = 'chweb1';
+select test.ok('N1: แก้ฟิลด์อื่นของกระทู้ ไม่ยิงซ้ำ', (select count(*) from test.net_calls) = 1);
+insert into public.punpang_chats (id, channel, external_id, customer_id, data)
+  values ('chfb1', 'facebook', '1234567', 'c1', '{"messages":[{"id":"m1","from":"staff","text":"x","at":"2026-11-14T10:00:00Z"}]}');
+select test.ok('N1: ข้อความพนักงานในแชท Facebook ไม่ยิง push ของลูกค้า', (select count(*) from test.net_calls) = 1);
+
+-- ===== D9: แจ้งเตือนล้มเหลวต้องไม่ทำให้การบันทึกข้อมูลหลักล้ม =====
+set test.net_fail = 'on';
+update public.punpang_chats set data = jsonb_set(data, '{messages}', data->'messages' || '[{"id":"m3","from":"staff","text":"reply2","at":"2026-11-14T10:02:00Z"}]'::jsonb) where id = 'chweb1';
+select test.ok('D9: pg_net ล้มเหลว → บันทึกข้อความตอบของพนักงานยังสำเร็จ',
+  (select jsonb_array_length(data->'messages') from public.punpang_chats where id = 'chweb1') = 3
+  and (select count(*) from test.net_calls) = 1);
+insert into public.punpang_records (collection, id, data) values ('bell', 'bl_fail', '{"audience":"staff","event":"team_new_order","text":"x"}');
+select test.ok('D9: pg_net ล้มเหลว → เพิ่มกระดิ่งพนักงานยังสำเร็จ',
+  exists (select 1 from public.punpang_records where id = 'bl_fail') and (select count(*) from test.net_calls) = 1);
+reset test.net_fail;
+insert into public.punpang_records (collection, id, data) values ('bell', 'bl_ok', '{"audience":"staff","event":"team_new_order","text":"x"}');
+select test.ok('D9: กระดิ่งพนักงานประเภทที่ต้องแจ้ง → ยิง push-send พร้อม recordId',
+  (select count(*) from test.net_calls) = 2
+  and (select body->>'recordId' from test.net_calls order by id desc limit 1) = 'bl_ok');
+insert into public.punpang_records (collection, id, data) values ('bell', 'bl_other', '{"audience":"staff","event":"some_other_event","text":"x"}');
+select test.ok('D9: กระดิ่งประเภทอื่นไม่ยิง push', (select count(*) from test.net_calls) = 2);
+
+select 'ผ่านทั้งหมด' as security_tests;

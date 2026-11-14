@@ -1781,7 +1781,7 @@ export const pointsHook = { call: null }
 const PTS_MSG = {
   insufficient: 'คะแนนไม่พอ (อาจถูกใช้ไปจากอีกเครื่อง) กรุณารีเฟรช', already_used: 'ออร์เดอร์นี้ใช้คะแนนไปแล้ว', bad_status: 'ออร์เดอร์นี้ใช้คะแนนไม่ได้',
   no_order: 'ไม่พบออร์เดอร์บนเซิร์ฟเวอร์ (ยังไม่ซิงก์)', no_customer: 'ไม่พบลูกค้า', invalid: 'ข้อมูลไม่ถูกต้อง', none: 'ออร์เดอร์นี้ไม่ได้ใช้คะแนน',
-  forbidden: 'ไม่มีสิทธิ์ทำรายการนี้',
+  forbidden: 'ไม่มีสิทธิ์ทำรายการนี้', exceeds_total: 'ส่วนลดจากคะแนนต้องไม่เกินยอดของออร์เดอร์', not_delivered: 'ออร์เดอร์นี้ยังไม่ส่งมอบ ให้คะแนนไม่ได้',
 }
 // opts = { notify, sms } จากกล่องติ๊กในโมดัลยืนยัน · แจ้งลูกค้าหลังทำรายการสำเร็จเท่านั้น
 // ยอดคงค้างในข้อความคิดส่วนลดคะแนนแล้ว (ส่งสถานะที่คาดหลังทำรายการ ไม่รอการซิงก์)
@@ -1941,7 +1941,7 @@ export function awardOrderRemote(order) {
   })
 }
 // สมุดแต้มผ่านเซิร์ฟเวอร์ (RPC punpang_ledger_apply): รายการหลายอย่างของลูกค้าหนึ่งคนทำในธุรกรรมเดียว · ผิดพลาดทั้งชุดไม่เกิด
-const LEDGER_MSG = { lot_missing: 'ไม่พบก้อนคะแนนเดิม', lot_used: 'คะแนนที่คืนให้ถูกใช้ไปแล้ว', dup_id: 'รหัสรายการซ้ำ', no_customer: 'ไม่พบลูกค้า', invalid_op: 'ข้อมูลไม่ถูกต้อง', forbidden: 'ไม่มีสิทธิ์' }
+const LEDGER_MSG = { lot_missing: 'ไม่พบก้อนคะแนนเดิม', lot_used: 'คะแนนที่คืนให้ถูกใช้ไปแล้ว', dup_id: 'รหัสรายการซ้ำ', no_customer: 'ไม่พบลูกค้า', invalid_op: 'ข้อมูลไม่ถูกต้อง', forbidden: 'ไม่มีสิทธิ์', cap_exceeded: 'คะแนน/สิทธิ์หมุนเกินที่ออร์เดอร์นี้ให้ได้' }
 function ledgerRemote(customerId, ops, orderId = null) {
   return loyaltyQueue(async () => {
     try {
@@ -2292,9 +2292,9 @@ export function changeBuyer(order, newId, reason = '') {
   const l = order.loyalty
   if (l && from && remote) {
     const lid = l.points > 0 ? uid('pt') : null
-    const cutOps = [...(l.lotId ? [{ op: 'cut', lotId: l.lotId, reason: `โอนคะแนน ${order.code} ไปผู้ซื้อใหม่`, orderId: order.id }] : []), ...(l.spins ? [{ op: 'spins', delta: -l.spins }] : [])]
+    const cutOps = [...(l.lotId ? [{ op: 'cut', lotId: l.lotId, reason: `โอนคะแนน ${order.code} ไปผู้ซื้อใหม่`, orderId: order.id }] : []), ...(l.spins ? [{ op: 'spins', delta: -l.spins, orderId: order.id }] : [])]
     if (cutOps.length) ledgerRemote(from.id, cutOps, order.id)
-    const earnOps = [...(lid ? [{ op: 'earn', id: lid, points: l.points, reason: `โอนมาจากออร์เดอร์ ${order.code}`, orderId: order.id }] : []), ...(l.spins ? [{ op: 'spins', delta: l.spins }] : [])]
+    const earnOps = [...(lid ? [{ op: 'earn', id: lid, points: l.points, reason: `โอนมาจากออร์เดอร์ ${order.code}`, orderId: order.id }] : []), ...(l.spins ? [{ op: 'spins', delta: l.spins, orderId: order.id }] : [])]
     if (earnOps.length) ledgerRemote(to.id, earnOps, order.id)
     order.loyalty = { ...l, lotId: lid }
   } else if (l && from) {
