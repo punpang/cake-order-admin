@@ -10,6 +10,7 @@ import { cleanNum } from '../lib/numInput'
 import { money, dateTime } from '../lib/format'
 import { PAY_MSG, notBeforeOrder, thaiMinute } from '../lib/payFields'
 import { slipRoom, pendingCustomerTotal, slipMatchChecks } from '../lib/slipBind'
+import OrderQrPay from './OrderQrPay.vue'
 import { resizeImage, imageErrorMessage } from '../lib/imageResize'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
@@ -98,6 +99,8 @@ const paidText = computed(() => {
   return !payTarget && pay.paidAt === paidInitial ? `ตอนนี้ · ${label}` : label
 })
 const amountMatchesBalance = computed(() => Number(pay.amount) === Number(t.value.balance))
+// รับชำระโอนหน้าร้าน: แสดง QR แบบ POS (ตรวจรายการแม่มณีอัตโนมัติ) แทนปุ่มบันทึกทั่วไป
+const qrMode = computed(() => payMode === 'direct' && pay.method === 'โอนเงิน' && t.value.balance > 0)
 const saveLabel = computed(() => (payMode === 'direct' ? 'ยืนยันรับชำระ' : payMode === 'confirm' ? 'ยืนยัน' : payMode === 'slip' ? 'รับชำระ' : 'บันทึก'))
 async function onSlip(e) {
   const f = e.target.files[0]
@@ -193,6 +196,7 @@ async function savePay() {
         <button v-for="m in PAYMENT_METHODS" :key="m" type="button" class="chip" :class="pay.method === m ? 'chip-on' : 'chip-off'" @click="pay.method = m">{{ m }}</button>
       </div>
     </div>
+    <OrderQrPay v-if="qrMode" :order="order" :amount="pay.amount" @done="emit('close')" />
     <div v-if="customer && order.channel !== 'pos'" class="space-y-2 rounded-xl border border-stone-200 bg-white p-3">
       <label class="flex items-center gap-2 text-sm text-stone-700"><input v-model="pay.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> {{ payMode === 'new' ? 'แจ้งยอดชำระให้ลูกค้าทราบ' : payMode === 'edit' ? 'แจ้งลูกค้าว่ายอดที่แจ้งเปลี่ยนแล้ว' : 'แจ้งลูกค้าว่าได้รับชำระแล้ว' }}</label>
       <SmsTick v-model="pay.sms" :customer="customer" :order="order" :show="pay.notify" />
@@ -255,7 +259,7 @@ async function savePay() {
   </div>
   <template #footer>
     <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ยกเลิก</button>
-    <button class="btn-primary flex-1 sm:flex-none" @click="savePay">{{ saveLabel }}</button>
+    <button v-if="!qrMode" class="btn-primary flex-1 sm:flex-none" @click="savePay">{{ saveLabel }}</button>
   </template>
 </AppModal>
 </template>
