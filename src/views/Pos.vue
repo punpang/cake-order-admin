@@ -887,10 +887,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                 <button v-if="expiredLine(l)" type="button" class="btn-primary h-12 w-full" @click="makeQr(l)">สร้าง QR ใหม่</button>
                 <button v-else-if="l.detectedAt" type="button" class="btn-primary h-12 w-full" @click="receiveNow(l)"><AppIcon name="check" :size="16" /> รับชำระ</button>
                 <button v-else type="button" class="btn-outline h-12 w-full" @click="receiveNow(l)">ลูกค้าชำระแล้ว (ไม่พบอัตโนมัติ)</button>
-                <div class="grid grid-cols-2 gap-2">
-                  <button type="button" class="btn-outline h-11" @click="cancelQr(l)">ยกเลิก QR</button>
-                  <button v-if="!l.detectedAt" type="button" class="btn-soft h-11" @click="removePayLine(i)">ย้อนกลับ</button>
-                </div>
+                <button type="button" class="btn-outline h-11 w-full" @click="cancelQr(l)">ยกเลิก QR</button>
+                <button v-if="!l.detectedAt" type="button" class="btn-soft h-11 w-full" @click="removePayLine(i)">ย้อนกลับ</button>
               </div>
             </div>
           </template>
