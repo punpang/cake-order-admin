@@ -3566,7 +3566,7 @@ function posLinesOk(lines, total) {
   }
   return true
 }
-export function posSale({ cart, customerId = null, couponIds = [], discount = 0, method = 'cash', received = null, lines = null }) {
+export function posSale({ cart, customerId = null, couponIds = [], discount = 0, method = 'cash', received = null, lines = null, partial = false }) {
   const shift = currentShift()
   if (!shift || !cart.length) return null
   if (couponIds.length && (!customerId || posCouponProblem({ customerId, couponIds }))) return null // คูปองต้องที่ลูกค้ากดแสดงอยู่ (POS ตรวจก่อนด้วย posCouponProblem)
@@ -3585,22 +3585,75 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
   if (customerId) for (const id of couponIds) applyCoupon(o, id)
   const total = Math.max(orderTotals(o).total, 0)
   // ตรวจหลังใช้คูปองแล้ว (ยอดสุดท้ายของบิล) · POS ตรวจยอดตรงกันก่อนส่งมาแล้ว จึงไม่ค่อยเกิดกรณีนี้ · ถ้าเกิดให้ถอดบิลที่เพิ่งเพิ่มออก
-  if (lines && !posLinesOk(lines, total)) { db.orders.splice(db.orders.indexOf(o), 1); return null }
+  if (partial ? !partialLinesOk(lines, total) : (lines && !posLinesOk(lines, total))) { db.orders.splice(db.orders.indexOf(o), 1); return null }
   const rows = lines || [{ method, amount: total, received }]
+  pushPosPayments(o, rows, ts)
+  if (partial) {
+    // รับบางส่วน: บิลค้างรอชำระส่วนที่เหลือ · ยังไม่ตัดสต็อก ไม่ส่งมอบ ไม่สะสมคะแนน
+    o.status = 'pos_pending'
+    log(o, `รับชำระบางส่วน ${money(paidOf(rows))} (${posRowsText(rows)}) · บิลค้าง คงเหลือ ${money(total - paidOf(rows))}`)
+    return o
+  }
+  takePosStock(o)
+  o.status = 'delivered'
+  o.deliveredAt = ts
+  log(o, `รับชำระ ${money(total)} (${posRowsText(rows)}) · ส่งมอบ`)
+  awardOrderRemote(o)
+  return o
+}
+const paidOf = (rows) => round2(rows.reduce((s, l) => s + round2(Number(l.amount)), 0))
+const posRowsText = (rows) => rows.map((l) => POS_METHODS[l.method]).join(' + ')
+function pushPosPayments(o, rows, ts) {
   for (const l of rows) {
     const amt = round2(Number(l.amount))
     const got = l.method === 'cash' ? Math.max(Number(l.received) || 0, amt) : amt
     o.payments.push({ id: uid('pay'), code: numbering.next('PAY'), requested: amt, amount: amt, method: POS_METHODS[l.method], posMethod: l.method, received: got, change: round2(got - amt), paidAt: ts.slice(0, 16), slip: '', note: '', status: 'confirmed', reportedBy: session.role, confirmedBy: session.role, ...(l.method === 'transfer' && l.qrRef ? { qrRef: l.qrRef, ...(l.maneeId ? { maneeId: l.maneeId } : {}), qrAccept: l.acceptedBy || 'staff' } : {}) })
   }
+}
+function takePosStock(o) {
   for (const it of o.items) {
     const src = it.kind === 'retail' ? db.retailItems.find((x) => x.id === it.retailId) : null
     if (src && src.stock != null) { const take = Math.min(src.stock, it.qty); it.stockTaken = take; src.stock -= take } // จดจำนวนที่ตัดจริง ตอนยกเลิกบิลคืนเท่านี้
   }
-  o.status = 'delivered'
-  o.deliveredAt = ts
-  log(o, `รับชำระ ${money(total)} (${rows.map((l) => POS_METHODS[l.method]).join(' + ')}) · ส่งมอบ`)
-  awardOrderRemote(o)
-  return o
+}
+// รับชำระบางส่วนเพิ่มในบิลค้าง (ยังไม่ครบ) · ไม่ตัดสต็อก ไม่ส่งมอบ
+export function addPosPartial(order, lines) {
+  if (!order || order.channel !== 'pos' || order.status !== 'pos_pending') return { error: 'บิลนี้ไม่ได้รอชำระ' }
+  const shift = currentShift()
+  if (!shift || order.shiftId !== shift.id) return { error: 'รับชำระต่อได้เฉพาะในกะที่เปิดอยู่' }
+  const bal = round2(orderTotals(order).balance)
+  if (!partialLinesOk(lines, bal)) return { error: 'ยอดรับบางส่วนต้องน้อยกว่ายอดคงค้าง และข้อมูลช่องทางครบ' }
+  pushPosPayments(order, lines, now())
+  log(order, `รับชำระบางส่วน ${money(paidOf(lines))} (${posRowsText(lines)}) · คงเหลือ ${money(round2(bal - paidOf(lines)))}`)
+  return { order }
+}
+// รับชำระส่วนที่เหลือของบิลค้าง → ตัดสต็อก ส่งมอบ สะสมคะแนนตามปกติ
+export function finishPosBill(order, lines) {
+  if (!order || order.channel !== 'pos' || order.status !== 'pos_pending') return { error: 'บิลนี้ไม่ได้รอชำระ' }
+  const shift = currentShift()
+  if (!shift || order.shiftId !== shift.id) return { error: 'รับชำระต่อได้เฉพาะในกะที่เปิดอยู่' }
+  const bal = round2(orderTotals(order).balance)
+  if (!posLinesOk(lines, bal)) return { error: 'ยอดรับชำระต้องเท่ายอดคงค้างพอดี' }
+  const ts = now()
+  pushPosPayments(order, lines, ts)
+  takePosStock(order)
+  order.status = 'delivered'
+  order.deliveredAt = ts
+  log(order, `รับชำระส่วนที่เหลือ ${money(bal)} (${posRowsText(lines)}) · ส่งมอบ`)
+  awardOrderRemote(order)
+  return { order }
+}
+// เงื่อนไขรับบางส่วน: ยอดรวมต้องน้อยกว่ายอดบิล (ยังขาด) และแต่ละช่องทางถูกต้อง
+function partialLinesOk(lines, total) {
+  if (!Array.isArray(lines) || !lines.length) return false
+  if (lines.some((l) => !POS_METHODS[l.method] || !(round2(Number(l.amount)) > 0))) return false
+  const sum = paidOf(lines)
+  if (!(sum > 0) || sum >= round2(total) - 0.005) return false
+  for (const l of lines) {
+    if (l.method === 'cash' && (Number(l.received) || 0) < round2(Number(l.amount))) return false
+    if (l.method === 'transfer' && (!l.qrRef || !l.confirmed)) return false
+  }
+  return true
 }
 // ยกเลิกบิล (แอดมิน): คืนสต็อก + คืนคะแนน/คูปองที่ใช้ + ตัดคะแนนที่ได้ + คืนเงินตาม refunds (ไม่ส่ง = คืนเต็มช่องทางที่จ่ายมา)
 export function voidPosSale(order, reason = 'ยกเลิกบิล', refunds = null, refundNote = '') {
@@ -3608,9 +3661,10 @@ export function voidPosSale(order, reason = 'ยกเลิกบิล', refun
   const pay = order.payments.find((p) => p.status === 'confirmed')
   const net = orderTotals(order).paidNet
   const rows = refunds || (pay && net > 0 ? [{ method: defaultRefundMethod(pay.posMethod), amount: net }] : [])
+  const wasPending = order.status === 'pos_pending' // บิลค้างยังไม่ได้ตัดสต็อก จึงไม่คืน
   const r = cancelOrder(order, { reason, refunds: rows, refundNote })
   if (r.error) return r
-  for (const it of order.items) {
+  if (!wasPending) for (const it of order.items) {
     const src = it.kind === 'retail' ? db.retailItems.find((x) => x.id === it.retailId) : null
     if (src && src.stock != null) src.stock += it.stockTaken ?? it.qty
   }

@@ -3,7 +3,7 @@ import MoneyInput from '../components/MoneyInput.vue'
 import { orderNo } from '../lib/format'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
-  db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posPromoInfo, posSale, voidPosSale, pointsFor, quickMember, vatNow,
+  db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posPromoInfo, posSale, voidPosSale, addPosPartial, finishPosBill, pointsFor, quickMember, vatNow,
   customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons, claimPosCoupons, releaseCoupons,
   newPosQrRef, posQrExpired,
 } from '../data/store'
@@ -250,7 +250,8 @@ const orderLike = computed(() => ({
   couponsUsed: coupons.value.filter((c) => couponIds.value.includes(c.id)).map((c) => ({ couponId: c.id, name: c.name, amount: c.amount })),
 }))
 const preview = computed(() => orderTotals(orderLike.value))
-const total = computed(() => Math.max(preview.value.total, 0))
+const resumeOrder = ref(null) // บิลค้างที่กำลังรับชำระส่วนที่เหลือ (null = ขายใหม่จากตะกร้า)
+const total = computed(() => (resumeOrder.value ? Math.max(orderTotals(resumeOrder.value).total, 0) : Math.max(preview.value.total, 0)))
 // คะแนนที่สมาชิกจะได้จากบิลนี้ (ยอดสุทธิ + โปรคะแนนพิเศษ)
 const earn = computed(() => (member.value && cart.value.length ? pointsFor(orderLike.value, new Date()) : null))
 
@@ -297,6 +298,7 @@ function openPay() {
 function closePay() {
   payOpen.value = false
   payLines.value = []
+  resumeOrder.value = null
   clearInterval(payTimer)
 }
 onBeforeUnmount(() => {
@@ -362,6 +364,8 @@ const lineOk = (l) => {
 // รายการที่ยอด 0 ถูกข้าม (ไม่นับและไม่ส่งไปบันทึก)
 const activeLines = computed(() => payLines.value.filter((l) => lineAmt(l) > 0))
 const canConfirm = computed(() => activeLines.value.length > 0 && remaining.value === 0 && activeLines.value.every(lineOk))
+// บันทึกบิลค้างได้เมื่อยังขาดยอดและมีรายการที่รับแล้วซึ่งยังไม่ได้บันทึก (รายการที่ยังไม่รับจะไม่ถูกบันทึก)
+const canSavePartial = computed(() => remaining.value > 0 && payLines.value.some((l) => l.confirmed && !l.locked && lineAmt(l) > 0))
 // ---------- เครื่องพิมพ์และจอลูกค้า (แอป Android) ----------
 const native = isNative()
 const deviceOpen = ref(false)
@@ -427,10 +431,43 @@ async function confirmPay() {
   selling = true
   try {
     await refreshLabels(['สินค้า', 'กะ POS']) // สต็อก/กะล่าสุดจากเซิร์ฟเวอร์ก่อนตัดขาย
+    if (resumeOrder.value) return finishResume()
     await sellNow()
   } finally { selling = false }
 }
-async function sellNow() {
+// ---------- บิลค้าง (รับชำระบางส่วน) ----------
+const toPosLine = (l) => ({ method: l.method, amount: lineAmt(l), received: l.method === 'cash' ? Number(l.received) : null, qrRef: l.qrRef || null, qrExpiresAt: l.qrExpiresAt || null, confirmed: !!l.confirmed, maneeId: l.maneeId || '', acceptedBy: l.acceptedBy || '' })
+// เปิดบิลค้าง: ยอดที่รับแล้วแสดงเป็นรายการที่ล็อกไว้ · รับส่วนที่เหลือแล้วปิดบิล
+function resumeBill(o) {
+  payErr.value = ''
+  resumeOrder.value = o
+  payLines.value = o.payments.filter((p) => p.status === 'confirmed').map((p) => ({ key: newKey(), method: p.posMethod || 'cash', amount: String(p.amount), received: String(p.received ?? ''), qrRef: p.qrRef || '', qrExpiresAt: '', confirmed: true, locked: true, acceptedBy: p.qrAccept || 'staff', maneeId: p.maneeId || '' }))
+  payNow.value = Date.now()
+  clearInterval(payTimer)
+  payTimer = setInterval(() => { payNow.value = Date.now(); tickLines(); if (++payTick % 5 === 0) quietly(pollManee) }, 1000)
+  payOpen.value = true
+}
+function finishResume() {
+  const r = finishPosBill(resumeOrder.value, payLines.value.filter((l) => !l.locked && lineAmt(l) > 0).map(toPosLine))
+  if (r.error) return (payErr.value = r.error)
+  receipt.value = r.order
+  closePay()
+}
+async function saveBillPartial() {
+  if (selling) return
+  selling = true
+  try {
+    if (resumeOrder.value) {
+      const r = addPosPartial(resumeOrder.value, payLines.value.filter((l) => l.confirmed && !l.locked && lineAmt(l) > 0).map(toPosLine))
+      if (r.error) return (payErr.value = r.error)
+      closePay()
+      return
+    }
+    await refreshLabels(['สินค้า', 'กะ POS'])
+    await sellNow({ partial: true, lines: payLines.value.filter((l) => l.confirmed && lineAmt(l) > 0).map(toPosLine) })
+  } finally { selling = false }
+}
+async function sellNow(opts = {}) {
   payErr.value = member.value ? posCouponProblem({ customerId: member.value.id, couponIds: couponIds.value }) : ''
   if (payErr.value) { couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id)); return }
   // จองคูปองกับเซิร์ฟเวอร์ก่อน (อะตอมิก) · ขายไม่สำเร็จ = คืนคูปองที่จองไว้
@@ -439,14 +476,15 @@ async function sellNow() {
   const o = posSale({
     cart: cart.value, customerId: member.value?.id || null, couponIds: couponIds.value,
     discount: can('adjustPrice') ? Number(discount.value) || 0 : 0,
-    lines: activeLines.value.map((l) => ({ method: l.method, amount: lineAmt(l), received: l.method === 'cash' ? Number(l.received) : null, qrRef: l.qrRef || null, qrExpiresAt: l.qrExpiresAt || null, confirmed: !!l.confirmed, maneeId: l.maneeId || '', acceptedBy: l.acceptedBy || '' })),
+    lines: opts.lines || activeLines.value.map(toPosLine), partial: !!opts.partial,
   })
   if (!o) { await releaseCoupons(claim.claimed); return (payErr.value = 'ขายไม่สำเร็จ ตรวจกะ/ตะกร้า/คูปองอีกครั้ง') }
   // ผูกคูปองที่จองไว้ (pos-pending) เข้ากับบิลจริงบนเซิร์ฟเวอร์ผ่านการซิงก์แถวคูปองตามปกติ
   closePay()
   cartOpen.value = false
-  receipt.value = o
-  if (native) {
+  if (opts.partial) showToast(`บันทึกบิลค้าง ${o.code} แล้ว · รับชำระส่วนที่เหลือได้ที่แท็บบิล`, 8000)
+  else receipt.value = o
+  if (native && !opts.partial) {
     const oT = orderTotals(o)
     thanks.value = { until: Date.now() + 8000, total: oT.total, saved: (oT.discountLines || []).reduce((sum, l) => sum + (Number(l.amount) || 0), 0) }
     clearTimeout(thanksTimer)
@@ -697,8 +735,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           </button>
           <span class="shrink-0 text-right text-sm">
             <b class="block text-stone-900">{{ money(orderTotals(o).total) }}</b>
-            <span class="text-xs text-stone-500">{{ o.status === 'cancelled' ? 'ยกเลิกแล้ว' : o.payments[0]?.method }}</span>
+            <span class="text-xs text-stone-500">{{ o.status === 'cancelled' ? 'ยกเลิกแล้ว' : o.status === 'pos_pending' ? `รอชำระ · คงเหลือ ${money(orderTotals(o).balance)}` : o.payments[0]?.method }}</span>
           </span>
+          <button v-if="o.status === 'pos_pending' && can('pos')" type="button" class="btn-primary h-9 shrink-0 px-2.5 text-xs" @click="resumeBill(o)">รับชำระต่อ</button>
           <button v-if="can('posVoid') && o.status !== 'cancelled' && (orderTotals(o).paidNet > 0 || (o.returns || []).some((r) => !r.cancelled))" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" aria-label="คืนเงินบางส่วน" @click="refundFor = o">คืนเงิน</button>
           <button v-if="can('posVoid') && o.status !== 'cancelled'" type="button" class="btn-danger h-9 shrink-0 px-2.5" aria-label="ยกเลิกบิล" @click="openVoid(o)"><AppIcon name="x" :size="16" /></button>
           <button v-if="can('changeBuyer') && o.status !== 'cancelled'" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" @click="buyerFor = o">เปลี่ยนผู้ซื้อ</button>
@@ -835,14 +874,14 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <div v-for="(l, i) in payLines" :key="l.key" class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
           <div class="flex items-center justify-between gap-2">
             <span class="text-base font-semibold text-stone-800">{{ POS_METHODS[l.method] }}</span>
-            <button v-if="!l.qrRef && (payLines.length > 1 || l.method !== 'cash')" type="button" class="rounded-full px-3 py-1 text-sm font-medium text-rose-700 hover:bg-rose-50" @click="removePayLine(i)">ลบ</button>
+            <button v-if="!l.qrRef && !l.locked && (payLines.length > 1 || l.method !== 'cash')" type="button" class="rounded-full px-3 py-1 text-sm font-medium text-rose-700 hover:bg-rose-50" @click="removePayLine(i)">ลบ</button>
           </div>
           <label class="label mt-3" :for="'amt-' + l.key">ยอด (บาท)</label>
-          <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input h-12 text-lg font-semibold" :readonly="!!l.qrRef" />
+          <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input h-12 text-lg font-semibold" :readonly="!!l.qrRef || !!l.locked" />
 
           <template v-if="l.method === 'cash'">
             <label class="label mt-3" :for="'rcv-' + l.key">รับเงินมา (บาท)</label>
-            <MoneyInput :id="'rcv-' + l.key" v-model="l.received" class="input h-12 text-xl font-semibold" placeholder="0" />
+            <MoneyInput :id="'rcv-' + l.key" v-model="l.received" class="input h-12 text-xl font-semibold" placeholder="0" :readonly="!!l.locked" />
             <div class="mt-2 flex flex-wrap gap-2">
               <button v-for="v in quickFor(l)" :key="v" type="button" class="chip chip-off" @click="l.received = String(v)">{{ v === lineAmt(l) ? 'พอดี' : money(v) }}</button>
             </div>
@@ -862,7 +901,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
             <div v-else-if="l.confirmed" class="mt-3 space-y-2">
               <div class="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800"><AppIcon name="check" :size="18" /> รับชำระแล้ว{{ l.acceptedBy === 'auto' ? ' (ระบบรับอัตโนมัติ)' : '' }}</div>
-              <button type="button" class="btn-outline h-11 w-full" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิกการรับชำระ</button>
+              <button v-if="!l.locked" type="button" class="btn-outline h-11 w-full" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิกการรับชำระ</button>
             </div>
 
             <div v-else class="mt-3 grid gap-3 sm:grid-cols-2 sm:items-start">
@@ -903,6 +942,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <template #footer>
         <div class="flex w-full gap-2">
           <button class="btn-outline h-12 flex-1" @click="closePay">ยกเลิก</button>
+          <button v-if="canSavePartial" class="btn-soft h-12 flex-1" @click="saveBillPartial">บันทึกบิลค้างไว้</button>
           <button class="btn-primary h-12 flex-[1.4]" :disabled="!canConfirm" @click="confirmPay"><AppIcon name="check" :size="18" /> ยืนยันรับเงิน</button>
         </div>
       </template>
