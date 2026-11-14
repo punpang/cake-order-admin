@@ -9,6 +9,7 @@ import { notifyPaymentConfirmed } from '../_shared/payconfirm.ts'
 import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
 import { customerChatList, customerChatPhoto, customerChatSend } from '../_shared/customerchat.ts'
 import { customerPushRegister } from '../_shared/customerpush.ts'
+import { clientIp, createLimiter } from '../_shared/ratelimit.ts'
 import { readSlipQr } from '../_shared/slipread.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine } from '../_shared/slipocr.ts'
 import { readSlipOnce } from '../_shared/slipstore.ts'
@@ -30,9 +31,8 @@ const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 const NOT_FOUND = { error: 'ลิงก์ไม่ถูกต้องหรือหมดอายุแล้ว' }
 const PAY = { perHour: 5, slipMaxBytes: 5 * 1024 * 1024, noteMax: 200 }
 
-// จำกัดลองผิด/ยิงถี่ต่อ IP (ต่อ instance)
-const hits = new Map<string, number[]>()
-const limited = (ip: string, max: number, windowMs = 300000) => { const now = Date.now(); const a = (hits.get(ip) || []).filter((t) => now - t < windowMs); a.push(now); hits.set(ip, a); return a.length > max }
+// จำกัดลองผิด/ยิงถี่ (ต่อ instance · แบบหน้าต่างเลื่อน นับเฉพาะคำขอที่ผ่าน · ดู _shared/ratelimit.ts)
+const limited = createLimiter()
 
 // ยอดรวม/ค้างชำระ — ต้องตรงกับ orderTotals ในแอป (src/lib/pricing.js): total = gross + VAT นอก · balance = total - ยืนยันชำระแล้ว
 // ยอดขั้นต่ำที่ลูกค้าระบุเองได้ = มัดจำขั้นต่ำ (%) ของยอดรวม ปัดขึ้น · ไม่เกินยอดคงค้าง · ไม่ตั้ง (0%) = ไม่มีขั้นต่ำ
@@ -142,10 +142,13 @@ async function notifySlip(sb: any, n: SlipNotice): Promise<void> {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
-  if (limited(ip, 40)) return json({ error: 'ลองบ่อยเกินไป กรุณารอสักครู่' }, 429)
+  const ip = clientIp(req.headers) // cf-connecting-ip (ปลอมไม่ได้) · ไม่ใช้ค่าซ้ายสุดของ x-forwarded-for ที่ผู้เรียกใส่เองได้
   let b: Record<string, any> = {}
   try { b = await req.json() } catch { return json({ error: 'คำขอไม่ถูกต้อง' }, 400) }
+  // แชท/แจ้งเตือนของลูกค้าที่ล็อกอินโพลล์ถี่ (หน้าแชทอัปเดตทุก 3 วินาที) จึงไม่ใช้เพดานของงานชำระเงิน (40 ครั้ง/5 นาที/IP)
+  // · ใช้เพดานของตัวเองต่อ IP (กว้างกว่า รองรับหลายเครื่องหลัง NAT) และต่อลูกค้า (ด้านล่าง)
+  const isChatAction = ['chat_list', 'chat_send', 'chat_photo', 'push_register'].includes(String(b.action || ''))
+  if (isChatAction ? limited(`chat:${ip}`, 1500) : limited(ip, 40)) return json({ error: 'ลองบ่อยเกินไป กรุณารอสักครู่' }, 429)
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
   // อ่านยอดและวัน-เวลาจากภาพสลิป (เหมือนสลิปในแชท) · เฉพาะเมื่อร้านเปิดไว้และมีคีย์ · อ่านไม่ได้ = null (ไม่บล็อกการส่ง)
   // อ่านภาพเพียงครั้งเดียวต่อเลขอ้างอิงสลิป: ผลที่โมเดลตอบแล้วจำไว้ตามเลขอ้างอิง (ตามการตั้งค่าผลอ่านสลิป) ตอนแนบ/ตอนส่งใช้ผลเดียวกัน ไม่เรียกโมเดลซ้ำ
@@ -206,6 +209,8 @@ Deno.serve(async (req) => {
   // ---------- แชทกับร้าน (เฉพาะลูกค้าที่ล็อกอินแล้ว · ไม่ผูกกับออร์เดอร์) ----------
   if (action === 'chat_list' || action === 'chat_send' || action === 'chat_photo') {
     if (!customerIdOfSession) return json({ error: 'กรุณาเข้าสู่ระบบก่อนใช้แชท' }, 401)
+    // ต่อลูกค้า: โพลล์ปกติ 20 ครั้ง/นาที (ทุก 3 วินาที) · เพดาน 40 ครั้ง/นาที เผื่อเปิดหลายแท็บ/ส่งข้อความสลับกัน
+    if (action === 'chat_list' && limited(`cl:${customerIdOfSession}`, 40, 60_000)) return json({ error: 'อัปเดตแชทถี่เกินไป กรุณารอสักครู่' }, 429)
     if (action === 'chat_photo') {
       const r = await customerChatPhoto(sb, customerIdOfSession, b.photo, filesEnv())
       return json(r.body, r.status)
@@ -219,6 +224,7 @@ Deno.serve(async (req) => {
   // ---------- แจ้งเตือนแชทบนแอปลูกค้า: ลงทะเบียนโทเค็น FCM ของเครื่องนี้กับเซสชันที่ล็อกอินอยู่ (ฟิลด์ pushToken เพราะ token ใช้เป็นลิงก์ออร์เดอร์) ----------
   if (action === 'push_register') {
     if (!customerIdOfSession || !customerSessionHash) return json({ error: 'กรุณาเข้าสู่ระบบก่อน' }, 401)
+    if (limited(`pr:${customerIdOfSession}`, 10, 600_000)) return json({ error: 'ลงทะเบียนแจ้งเตือนถี่เกินไป กรุณารอสักครู่' }, 429)
     const r = await customerPushRegister(sb, customerIdOfSession, customerSessionHash, b.pushToken)
     return json(r.body, r.status)
   }
@@ -227,6 +233,8 @@ Deno.serve(async (req) => {
   if (action === 'read_slip') {
     const ro = (await sb.from('punpang_orders').select('id,customer_id,status').eq('id', orderId).maybeSingle()).data
     if (!ro || ro.status === 'draft' || (customerIdOfSession && ro.customer_id !== customerIdOfSession)) return json({ error: customerIdOfSession ? 'ไม่พบออร์เดอร์' : NOT_FOUND.error }, 404)
+    // ตรวจสลิปด้วยโมเดล (มีค่าใช้จ่าย) จำกัดต่อออร์เดอร์ ไม่ผูกกับ IP ที่ปลอมได้
+    if (limited(`rs:${orderId}`, 12, 3_600_000)) return json({ error: 'ตรวจสลิปบ่อยเกินไป กรุณารอสักครู่' }, 429)
     const img = decodeSlip(b.slip)
     if ('error' in img) return json({ error: img.error }, 400)
     // อ่าน QR ก่อน · เป็นสลิปธนาคารจึงส่งต่อไปอ่านยอด/วัน-เวลา (รูปอื่นไม่ส่งไปโมเดล)

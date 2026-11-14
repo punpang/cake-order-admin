@@ -57,7 +57,7 @@ export async function remoteChat(action, body = {}) {
   if (r.error) {
     let d = null
     try { d = await r.error.context?.json() } catch { d = null }
-    return { error: d?.error || NET }
+    return { error: d?.error || NET, status: r.error.context?.status } // status: ให้ผู้เรียกแยก 429 (ถูกจำกัดอัตรา) ได้
   }
   return r.data || {}
 }
