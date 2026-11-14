@@ -32,7 +32,7 @@ const text = ref('')
 const box = ref(null)
 const input = ref(null)
 const mine = (m) => m.from === 'staff'
-const channelLabel = computed(() => (props.chat.channel === 'facebook' ? 'Facebook' : props.chat.channel === 'instagram' ? 'Instagram' : 'LINE'))
+const channelLabel = computed(() => (props.chat.channel === 'facebook' ? 'Facebook' : props.chat.channel === 'instagram' ? 'Instagram' : props.chat.channel === 'web' ? 'เว็บ/แอป' : 'LINE'))
 // บัญชีของร้านที่ใช้เทียบเลขผู้รับบนสลิป: บัญชีธนาคารและพร้อมเพย์ทุกบัญชีที่ตั้งไว้ (แสดงเครื่องหมายถูกหรือเตือนเท่านั้น)
 const shopAccts = computed(() => payAccountsOf(db.shop?.payment))
 const slipAcctState = (acc) => slipAccountCheck(acc, {

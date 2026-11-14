@@ -7,6 +7,7 @@ import { autoConfirmOf, slipKeyOf } from '../_shared/slip.ts'
 import { autoConfirmDecision, configuredAccountsOf, confirmSlipPayment } from '../_shared/slipautoconfirm.ts'
 import { notifyPaymentConfirmed } from '../_shared/payconfirm.ts'
 import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
+import { customerChatList, customerChatSend } from '../_shared/customerchat.ts'
 import { readSlipQr } from '../_shared/slipread.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine } from '../_shared/slipocr.ts'
 import { readSlipOnce } from '../_shared/slipstore.ts'
@@ -172,7 +173,7 @@ Deno.serve(async (req) => {
     return { auto: autoConfirmOf(sq), merchantCode: String(sh?.merchantCode ?? '').replace(/\D/g, ''), accounts: configuredAccountsOf(sh) }
   }
   const action = String(b.action || '')
-  if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel', 'qr_request'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
+  if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel', 'qr_request', 'chat_list', 'chat_send'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
 
   // ---------- ระบุออร์เดอร์ + ตรวจสิทธิ์ ----------
   let orderId = ''
@@ -196,6 +197,13 @@ Deno.serve(async (req) => {
     if (!s || new Date(s.expires_at).getTime() < Date.now()) return json({ error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' }, 401)
     customerIdOfSession = s.customer_id
     orderId = String(b.orderId ?? '')
+  }
+
+  // ---------- แชทกับร้าน (เฉพาะลูกค้าที่ล็อกอินแล้ว · ไม่ผูกกับออร์เดอร์) ----------
+  if (action === 'chat_list' || action === 'chat_send') {
+    if (!customerIdOfSession) return json({ error: 'กรุณาเข้าสู่ระบบก่อนใช้แชท' }, 401)
+    const r = action === 'chat_list' ? await customerChatList(sb, customerIdOfSession) : await customerChatSend(sb, customerIdOfSession, b.text)
+    return json(r.body, r.status)
   }
 
   // ---------- อ่าน QR จากรูปสลิป (ไม่เขียนข้อมูล) · ใช้เติมธนาคาร/เลขอ้างอิงในฟอร์มให้ลูกค้าตรวจก่อนส่ง ----------

@@ -40,6 +40,7 @@ const FILTERS = [
   { v: 'line', l: 'LINE' },
   { v: 'facebook', l: 'Facebook' },
   { v: 'instagram', l: 'Instagram' },
+  { v: 'web', l: 'เว็บ/แอป' },
   { v: 'unread', l: 'ยังไม่อ่าน' },
   { v: 'unlinked', l: 'ยังไม่ผูก' },
 ]
@@ -50,6 +51,7 @@ const counts = computed(() => {
     '': all.length,
     line: all.filter((c) => c.channel === 'line').length,
     facebook: all.filter((c) => c.channel === 'facebook').length,
+    web: all.filter((c) => c.channel === 'web').length,
     instagram: all.filter((c) => c.channel === 'instagram').length,
     unread: all.filter((c) => c.unreadStaff).length,
     unlinked: all.filter((c) => !c.customerId).length,
@@ -69,7 +71,7 @@ watch(q, (v) => {
 })
 const searchIndex = computed(() => (q.value.trim() ? buildChatIndex(db.chats, db.customers, db.orders, db.quotes) : null))
 const matched = computed(() => db.chats.filter((c) => {
-  if (filter.value === 'line' || filter.value === 'facebook' || filter.value === 'instagram') { if (c.channel !== filter.value) return false }
+  if (filter.value === 'line' || filter.value === 'facebook' || filter.value === 'instagram' || filter.value === 'web') { if (c.channel !== filter.value) return false }
   if (filter.value === 'unread' && !c.unreadStaff) return false
   if (filter.value === 'unlinked' && c.customerId) return false
   return !searchIndex.value || chatMatchesQuery(searchIndex.value, c.id, q.value)

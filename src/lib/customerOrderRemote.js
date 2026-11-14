@@ -45,3 +45,19 @@ export async function remoteReadSlip(ctx, slip) {
   if (!r.data?.ok) return { error: r.data?.error || NET }
   return { ok: true, qr: r.data.qr || { kind: 'none' }, fields: r.data.fields || null }
 }
+
+// แชทกับร้าน (เฉพาะลูกค้าที่ล็อกอิน) → Edge Function 'customer-order' · action = chat_list | chat_send
+export async function remoteChat(action, body = {}) {
+  const c = await getSupabase()
+  if (!c) return { error: 'ยังไม่ได้เปิดใช้งานออนไลน์' }
+  const session = readSessionToken()
+  if (!session) return { error: 'กรุณาเข้าสู่ระบบ' }
+  let r
+  try { r = await c.functions.invoke('customer-order', { body: { action, session, ...body } }) } catch { return { error: NET } }
+  if (r.error) {
+    let d = null
+    try { d = await r.error.context?.json() } catch { d = null }
+    return { error: d?.error || NET }
+  }
+  return r.data || {}
+}

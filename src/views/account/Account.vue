@@ -23,6 +23,7 @@ import OtpStep from '../../components/OtpStep.vue'
 import AccountRewards from '../../components/AccountRewards.vue'
 import { myTaxProfile, saveMyTaxProfile, myAddressChoices } from '../../data/acct'
 import TaxAddressField from '../../components/TaxAddressField.vue'
+import AccountChat from './AccountChat.vue'
 
 // บัญชีของฉัน: เห็นข้อมูลของตัวเองทั้งหมด แก้ได้เฉพาะ ชื่อ / LINE ID / รับข่าวโปร · เบอร์และ PIN ต้องยืนยัน OTP
 const router = useRouter()
@@ -33,6 +34,7 @@ const tabs = [
   { v: 'orders', l: 'ออร์เดอร์' },
   { v: 'rewards', l: 'คะแนน' },
   { v: 'security', l: 'ความปลอดภัย' },
+  { v: 'chat', l: 'แชทร้าน' },
 ]
 
 // ---------- ข้อมูลส่วนตัว ----------
@@ -134,7 +136,7 @@ function logout() {
       <button class="btn-outline h-10 px-3" @click="logout"><AppIcon name="logout" :size="16" /> ออก</button>
     </div>
 
-    <div class="mb-4 grid grid-cols-4 gap-1 seg-grid">
+    <div class="mb-4 grid grid-cols-5 gap-1 seg-grid">
       <button v-for="t in tabs" :key="t.v" type="button" class="seg-item px-1 text-xs sm:text-sm" :class="tab === t.v ? 'seg-on' : ''" @click="tab = t.v; msg = err = ''">{{ t.l }}</button>
     </div>
     <p v-if="msg" class="mb-3 rounded-2xl bg-brand-50 p-3 text-sm text-brand-800">{{ msg }}</p>
@@ -208,6 +210,9 @@ function logout() {
 
     <!-- คะแนน / แลกของ / กาชา / คูปอง -->
     <AccountRewards v-else-if="tab === 'rewards'" />
+
+    <!-- แชทกับร้าน (เฉพาะลูกค้าที่ล็อกอิน) -->
+    <AccountChat v-else-if="tab === 'chat'" />
 
     <!-- ความปลอดภัย -->
     <div v-else class="space-y-4">
