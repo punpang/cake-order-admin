@@ -9,11 +9,11 @@ export const SYSTEMS = [
       { to: '/admin/chat', label: 'แชท', icon: 'chat', perms: ['chat'], badge: 'chat', mobile: true },
       { to: '/admin/payments', label: 'ชำระเงิน', icon: 'wallet', perms: ['reportPayment', 'confirmPayment'], badge: 'pay', mobile: true },
       { to: '/admin/materials', label: 'วัตถุดิบ', mobileLabel: 'ครัว', icon: 'basket', perms: ['viewMaterials'], exact: true, mobile: true },
-      { to: '/admin/manee-test', label: 'ทดสอบแม่มณี', mobileLabel: 'แม่มณี', icon: 'wallet', perms: ['pos'], exact: true, mobile: true },
       { to: '/admin/production', label: 'ตารางผลิต', icon: 'cake', perms: ['viewMaterials'], exact: true },
     ],
   },
   { key: 'pos', label: 'POS', icon: 'pos', home: '/admin/pos', perms: ['pos'], items: [{ to: '/admin/pos', label: 'POS', icon: 'pos', perms: ['pos'] }] },
+  { key: 'manee', label: 'แม่มณี', icon: 'wallet', home: '/admin/manee-test', perms: ['pos'], items: [{ to: '/admin/manee-test', label: 'แม่มณี', icon: 'wallet', perms: ['pos'], exact: true, mobile: true }] },
   { key: 'accounting', label: 'บัญชี', icon: 'wallet', home: '/admin/accounting', perms: ['acctView'], items: [{ to: '/admin/accounting', label: 'บัญชี', icon: 'wallet', perms: ['acctView'] }] },
   { key: 'settings', label: 'ตั้งค่า', icon: 'grid', home: '/admin/settings', perms: ['manage', 'manageUsers'], items: [{ to: '/admin/settings', label: 'ตั้งค่า', icon: 'grid', perms: ['manage', 'manageUsers'] }] },
 ]
@@ -24,6 +24,7 @@ export function systemOf(path) {
   if (!p.startsWith('/admin')) return null
   if (p === '/admin/no-access') return null
   if (p === '/admin/pos' || p.startsWith('/admin/pos/')) return 'pos'
+  if (p === '/admin/manee-test' || p.startsWith('/admin/manee-test/')) return 'manee'
   if (p === '/admin/accounting' || p.startsWith('/admin/accounting/')) return 'accounting'
   if (p === '/admin/settings' || p.startsWith('/admin/settings/')) return 'settings'
   return 'orders'
