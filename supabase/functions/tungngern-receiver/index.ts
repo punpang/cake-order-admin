@@ -42,9 +42,11 @@ Deno.serve(async (req) => {
   if (!ref) { await logInbox(false, 'ไม่พบรหัสธุรกรรม (ORD/POS) ในข้อความ'); return json({ ok: true, stored: false }) }
 
   const amount = extractAmount(String(p.title ?? ''), String(p.text ?? ''))
+  // received_at ที่ไม่ใช่เวลาที่ถูกต้อง (ไม่ใช่ตัวเลข หรือเลขใหญ่เกินช่วงวันที่) → toISOString() จะโยนข้อผิดพลาดและทำให้ตอบ 500 · บันทึกด้วยเวลาปัจจุบันแทน และไม่จับคู่งวดชำระ (ให้พนักงานตรวจเอง)
   const receivedMs = Number(p.received_at)
+  const timeOk = Number.isFinite(receivedMs) && Number.isFinite(new Date(receivedMs).getTime())
   const { data: inserted, error } = await sb.from('tungngern_transfers').upsert({
-    id, ref, amount, received_at: new Date(receivedMs).toISOString(), app: String(p.app ?? ''), text: String(p.text ?? '').slice(0, 300),
+    id, ref, amount, received_at: new Date(timeOk ? receivedMs : Date.now()).toISOString(), app: String(p.app ?? ''), text: String(p.text ?? '').slice(0, 300),
   }, { onConflict: 'id', ignoreDuplicates: true }).select('id')
   if (error) { console.error('manee insert', error.message); await logInbox(false, 'บันทึกตารางไม่สำเร็จ'); return json({ error: 'store' }, 500) }
   // รับซ้ำ (แอปส่งซ้ำ) → ไม่จับคู่ซ้ำ
@@ -52,7 +54,7 @@ Deno.serve(async (req) => {
   // จับคู่งวดชำระด้วยรหัส Ref2 + ยอด → ยืนยันอัตโนมัติ หรือทำเครื่องหมายผ่านการตรวจสอบให้พนักงานยืนยัน
   const cfg = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()
   const ac = autoConfirmOf(cfg?.data?.data?.v)
-  const res = Number.isFinite(receivedMs)
+  const res = timeOk
     ? await applyNotifyPayment(sb, { ref, amount, receivedMs, autoOn: ac.enabled, days: ac.days, nowIso: new Date().toISOString() })
     : { done: false, reason: 'เวลารับเงินในแจ้งเตือนไม่ถูกต้อง' }
   await logInbox(true, `บันทึกรหัสธุรกรรมแล้ว · ${res.reason}`)
