@@ -119,7 +119,8 @@ const runCheck = (sb: any, bytes: Uint8Array, extra: Record<string, unknown> = {
 // ---- ตั้งค่าและตัวอ่านสำหรับการผูกอัตโนมัติ: ต้องอ่านได้ครบ 4 ข้อและตรงกับออร์เดอร์ o1 ----
 const SHOP = '014000000517185' // รหัสร้านค้าที่ตั้งไว้ในหน้าตั้งค่าร้าน
 const WAI_CRED = { accountId: 'a', token: 't', model: '' }
-const shopKv = { collection: 'config', id: 'shop', data: { v: { merchantCode: SHOP } } }
+// บัญชีของร้านที่ตั้งไว้ (เลขบัญชีผู้รับบนสลิปใน fieldsOk = xxx-x-x8154-x ต้องตรงหลักที่เห็น)
+const shopKv = { collection: 'config', id: 'shop', data: { v: { merchantCode: SHOP, payment: { accounts: [{ kind: 'bank', accountNo: '1234581540' }] } } } }
 const slipKv = (v: Record<string, unknown>) => ({ collection: 'config', id: 'slipQr', data: { v } })
 const kvOcr = (mode: 'auto' | 'manual', enabled: boolean) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled: true, mode, ocr: { claude: enabled } } } })
 const kvOcrAll = (flags: { wai?: boolean; claude?: boolean }) => ({ collection: 'config', id: 'slipQr', data: { v: { enabled: true, mode: 'auto', ocr: flags } } })
