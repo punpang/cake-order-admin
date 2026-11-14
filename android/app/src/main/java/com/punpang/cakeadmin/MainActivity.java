@@ -1,6 +1,11 @@
 package com.punpang.cakeadmin;
 
+import android.graphics.Color;
 import android.os.Bundle;
+import android.view.View;
+import android.view.ViewGroup;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -13,20 +18,22 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(BtPrinterPlugin.class);
         registerPlugin(CustomerDisplayPlugin.class);
         super.onCreate(savedInstanceState);
-        hideStatusBar();
+        keepClearOfStatusBar();
     }
 
-    // ซ่อนแถบบนของระบบ (นาฬิกา สัญญาณ) ให้แอปใช้พื้นที่เต็มจอ · ปัดลงจากขอบบนจะแสดงชั่วคราวแล้วซ่อนเองอัตโนมัติ
-    private void hideStatusBar() {
+    // แถบบนของระบบ (นาฬิกา สัญญาณ) แสดงตามปกติ · เว้นพื้นที่ด้านบนเท่าความสูงของแถบนั้น เนื้อหาแอปจึงไม่ทับ
+    private void keepClearOfStatusBar() {
+        View webView = getBridge().getWebView();
+        if (!(webView.getParent() instanceof ViewGroup)) return;
+        ViewGroup container = (ViewGroup) webView.getParent();
+        // พื้นที่แถบบนใช้สีเดียวกับหัวแอป (ครีม) และให้ไอคอนแถบบนเป็นสีเข้มให้มองเห็น
+        container.setBackgroundColor(Color.parseColor("#FFF8F2"));
         WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
-        controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-        controller.hide(WindowInsetsCompat.Type.statusBars());
-    }
-
-    @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-        super.onWindowFocusChanged(hasFocus);
-        // กลับมาโฟกัสหลังดึงแถบแจ้งเตือน/กดสลับแอป ให้ซ่อนแถบบนอีกครั้ง
-        if (hasFocus) hideStatusBar();
+        controller.setAppearanceLightStatusBars(true);
+        ViewCompat.setOnApplyWindowInsetsListener(container, (v, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.statusBars());
+            v.setPadding(0, bars.top, 0, 0);
+            return insets;
+        });
     }
 }
