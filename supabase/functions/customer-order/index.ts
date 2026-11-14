@@ -330,7 +330,9 @@ Deno.serve(async (req) => {
         d.payments.push(target)
       }
       // ยืนยันอัตโนมัติ: ยืนยันงวดนี้ + ยกเลิกยอดที่ร้านแจ้งเดิมที่ยังรออยู่ของออร์เดอร์
-      if (autoDecision.ok) {
+      // สลิปถุงเงินที่รหัสสุ่ม (Ref 2) ตรงกับรายการนี้และยอดเท่ากัน → ยืนยันตามจำนวนวันนัดเท่านั้น
+      const ref2Days = !!reqPay && fields?.amount != null && Math.abs(Number(fields.amount) - Number(reqPay.amount)) < 0.005 && acCfg.auto.enabled && autoDecision.daysLeft !== null && autoDecision.daysLeft >= acCfg.auto.days
+      if (autoDecision.ok || ref2Days) {
         const conf = confirmSlipPayment(d.payments, target.id, nowIso())
         d.payments = conf.payments.map((p: any) => (p.id === target.id ? { ...p, autoNotified: true } : p))
         autoCancelled = conf.cancelled

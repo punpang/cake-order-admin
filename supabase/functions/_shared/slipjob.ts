@@ -188,7 +188,9 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   })
   checks.push(accountCheckOf(fields?.receiverAccount, cfg.accounts))
   // ผูกอัตโนมัติเมื่อครบ 4 ข้อเป็น ✓ (ยอด · วัน-เวลา · รหัสอ้างอิงร้านค้า (Ref 1) · รหัสสุ่ม (Ref 2) ตรงกับรายการแจ้งชำระ) และรหัสอ้างอิงตรงกับออร์เดอร์ที่พบ · รหัสร้านค้าแสดงให้พนักงานดูเท่านั้น · นอกนั้นส่งให้พนักงาน
-  const autoOk = cfg.mode === 'auto' && refOrderId !== null && !sameRefDup && checks.filter((c) => !c.info).every((c) => c.ok === true)
+  // สลิปถุงเงินที่รหัสสุ่ม (Ref 2) ตรงกับรายการแจ้งชำระของออร์เดอร์นั้น และยอดเท่ากัน → ผูกอัตโนมัติทุกโหมด (ยืนยันทันทีเมื่อนัดห่างพอ ไม่งั้นรอพนักงาน)
+  const ref2Link = reqOfSlip !== null && refOrderId !== null && !sameRefDup && fields?.amount != null && Math.abs(Number(fields.amount) - Number(reqOfSlip.amount)) < 0.005
+  const autoOk = ref2Link || (cfg.mode === 'auto' && refOrderId !== null && !sameRefDup && checks.filter((c) => !c.info).every((c) => c.ok === true))
   // เหตุผลที่ไม่ผ่าน ✗ = ไม่ถูกต้อง · – = อ่านไม่ได้หรือยังไม่มีข้อมูลให้เทียบ → ไปที่กระดิ่งและป้าย
   const reasons = checks.filter((c) => c.ok !== true).map((c) => `${c.ok === false ? '✗' : '–'} ${c.text}`)
   const mismatchNote = reasons.length ? ` · ${reasons.join(' · ')}` : ''
