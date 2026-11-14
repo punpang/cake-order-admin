@@ -1,5 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { verifyGatewaySignature, extractTransferRef, extractAmount } from '../_shared/maneeforward.ts'
+import { applyNotifyPayment } from '../_shared/notifyconfirm.ts'
+import { autoConfirmOf } from '../_shared/slip.ts'
 
 // รับ notification.forwarded จากแอปส่งต่อ (ถุงเงิน) → บันทึกรหัสธุรกรรม ORD/POS ลงตาราง tungngern_transfers เพื่อจับคู่กับ QR หน้าร้าน
 // ทุกคำขอที่ผ่านลายเซ็นจะบันทึกลง tungngern_inbox (แอป · ข้อความ · ผ่าน/ไม่ผ่าน · เหตุผล) เพื่อดูรายงานแอปที่ส่งเข้ามา
@@ -39,10 +41,20 @@ Deno.serve(async (req) => {
   const ref = extractTransferRef(String(p.text ?? ''))
   if (!ref) { await logInbox(false, 'ไม่พบรหัสธุรกรรม (ORD/POS) ในข้อความ'); return json({ ok: true, stored: false }) }
 
-  const { error } = await sb.from('tungngern_transfers').upsert({
-    id, ref, amount: extractAmount(String(p.title ?? ''), String(p.text ?? '')), received_at: new Date(Number(p.received_at)).toISOString(), app: String(p.app ?? ''), text: String(p.text ?? '').slice(0, 300),
-  }, { onConflict: 'id', ignoreDuplicates: true })
+  const amount = extractAmount(String(p.title ?? ''), String(p.text ?? ''))
+  const receivedMs = Number(p.received_at)
+  const { data: inserted, error } = await sb.from('tungngern_transfers').upsert({
+    id, ref, amount, received_at: new Date(receivedMs).toISOString(), app: String(p.app ?? ''), text: String(p.text ?? '').slice(0, 300),
+  }, { onConflict: 'id', ignoreDuplicates: true }).select('id')
   if (error) { console.error('manee insert', error.message); await logInbox(false, 'บันทึกตารางไม่สำเร็จ'); return json({ error: 'store' }, 500) }
-  await logInbox(true, 'บันทึกรหัสธุรกรรมแล้ว')
+  // รับซ้ำ (แอปส่งซ้ำ) → ไม่จับคู่ซ้ำ
+  if (!(inserted ?? []).length) { await logInbox(true, 'รับซ้ำ ไม่ทำซ้ำ'); return json({ ok: true, stored: true }) }
+  // จับคู่งวดชำระด้วยรหัส Ref2 + ยอด → ยืนยันอัตโนมัติ หรือทำเครื่องหมายผ่านการตรวจสอบให้พนักงานยืนยัน
+  const cfg = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()
+  const ac = autoConfirmOf(cfg?.data?.data?.v)
+  const res = Number.isFinite(receivedMs)
+    ? await applyNotifyPayment(sb, { ref, amount, receivedMs, autoOn: ac.enabled, days: ac.days, nowIso: new Date().toISOString() })
+    : { done: false, reason: 'เวลารับเงินในแจ้งเตือนไม่ถูกต้อง' }
+  await logInbox(true, `บันทึกรหัสธุรกรรมแล้ว · ${res.reason}`)
   return json({ ok: true, stored: true })
 })

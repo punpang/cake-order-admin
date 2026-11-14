@@ -31,21 +31,13 @@ const state = computed(() => {
   if (!pay.value) return 'idle'
   if (pay.value.status === 'confirmed') return 'confirmed'
   if (pay.value.status === 'cancelled') return 'cancelled'
-  if (detectedAt.value) return 'detected'
+  // ผ่านการตรวจสอบแล้ว (แจ้งเตือนถุงเงินตรงรหัสและยอด) หรือพบรายการโอน → รอพนักงานยืนยัน
+  if (detectedAt.value || pay.value.receiptVerified) return 'detected'
   if (qr.value && now.value > new Date(qr.value.to).getTime()) return 'expired'
   return 'waiting'
 })
 const fmt = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
 const left = computed(() => fmt(Math.max(0, Math.ceil((new Date(qr.value?.to || 0).getTime() - now.value) / 1000))))
-// ยืนยันอัตโนมัติเฉพาะเมื่อยังไม่ถึงวันตัดรอบ = วันนัด (00:00) − X วัน · ไม่มีวันนัด = ให้พนักงานยืนยันเอง
-const autoOk = computed(() => {
-  if (!props.order?.pickupAt) return false
-  const d = new Date(props.order.pickupAt)
-  if (Number.isNaN(d.getTime())) return false
-  d.setHours(0, 0, 0, 0)
-  d.setDate(d.getDate() - (Number(db.shop.orderAutoPayDaysBefore) || 0))
-  return now.value < d.getTime()
-})
 
 function make() {
   err.value = ''
@@ -92,7 +84,6 @@ function cancel() {
 
 function tick() {
   now.value = Date.now()
-  if (state.value === 'detected' && autoOk.value) return accept('auto')
   if (++tickCount % 5 === 0) quietly(poll)
 }
 
@@ -118,11 +109,11 @@ onBeforeUnmount(() => {
     </template>
 
     <template v-else>
-      <div v-if="state === 'detected'" class="animate-pulse rounded-xl bg-emerald-600 p-3 text-center text-lg font-bold text-white">ลูกค้าชำระแล้ว · รับชำระ {{ money(qr.amount) }}</div>
+      <div v-if="state === 'detected'" class="animate-pulse rounded-xl bg-emerald-600 p-3 text-center text-lg font-bold text-white">ลูกค้าชำระแล้ว · ผ่านการตรวจสอบแล้ว · {{ money(qr.amount) }}</div>
       <BillerQr v-else :amount="qr.amount" :ref1="qr.ref1" :ref2="qr.ref2" />
       <p class="text-center text-sm" :class="state === 'expired' ? 'font-semibold text-rose-700' : 'text-stone-600'">
         <template v-if="state === 'expired'">QR หมดอายุแล้ว ต้องสร้างใหม่</template>
-        <template v-else-if="state === 'detected'">{{ autoOk ? 'ระบบกำลังยืนยันออเดอร์อัตโนมัติ' : 'ชำระหลังกำหนดอัตโนมัติ · รอพนักงานยืนยัน' }}</template>
+        <template v-else-if="state === 'detected'">ผ่านการตรวจสอบแล้ว · รอพนักงานกดยืนยัน</template>
         <template v-else>สถานะ: รอลูกค้าชำระ · หมดอายุใน {{ left }}</template>
       </p>
       <div v-if="state === 'waiting' && candidates.length > 1" class="space-y-1.5">
