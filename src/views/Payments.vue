@@ -171,7 +171,7 @@ const summary = computed(() => {
                 <AppIcon v-else name="image" :size="22" />
               </div>
               <div class="min-w-0 flex-1">
-                <div class="text-xs font-medium text-sky-700">งวด {{ x.n }} · {{ x.p.customerSubmitted ? 'ลูกค้าแจ้งโอนแล้ว' : 'แจ้งยอดไว้ รอรับเงิน' }}</div>
+                <div class="text-xs font-medium text-sky-700">งวด {{ x.n }} · {{ x.p.receiptVerified ? 'ลูกค้าชำระแล้ว · ผ่านการตรวจสอบแล้ว (แจ้งเตือนถุงเงิน)' : x.p.customerSubmitted ? 'ลูกค้าแจ้งโอนแล้ว' : 'แจ้งยอดไว้ รอรับเงิน' }}</div>
                 <div class="text-lg leading-tight font-semibold text-stone-900 tabular-nums">{{ money(x.p.requested ?? x.p.amount) }}</div>
                 <div class="truncate text-xs text-stone-600">{{ x.p.method }}<template v-if="x.p.paidAt"> · {{ dateTime(x.p.paidAt) }}</template></div>
                 <p v-if="x.p.note" class="mt-0.5 truncate text-xs text-stone-500">{{ x.p.note }}</p>
