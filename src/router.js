@@ -60,6 +60,7 @@ const ManagePhotoRequests = () => import('./views/manage/ManagePhotoRequests.vue
 const ManageFiles = () => import('./views/manage/ManageFiles.vue')
 const ManageBot = () => import('./views/manage/ManageBot.vue')
 const ManageSms = () => import('./views/manage/ManageSms.vue')
+const ManeeTest = () => import('./views/ManeeTest.vue')
 
 // meta.store = หน้าร้าน/ระบบลูกค้า (ใช้ StoreLayout) · meta.focus = หน้าหลังบ้านที่มีแถบปุ่มของตัวเอง ซ่อนแถบเมนูล่างบนมือถือ
 const router = createRouter({
@@ -98,6 +99,7 @@ const router = createRouter({
     { path: '/admin/chat', component: Chat, meta: { perms: ['chat'], lock: true, data: ['chats'] } },
     { path: '/admin/chat/:id', component: Chat, props: true, meta: { focus: true, perms: ['chat'], lock: true, data: ['chats'] } },
     { path: '/admin/pos', component: Pos, meta: { focus: true, perms: ['pos'], data: ['shifts'] } },
+    { path: '/admin/manee-test', component: ManeeTest, meta: { perms: ['pos'] } },
     { path: '/admin/materials', component: Materials, meta: { perms: ['viewMaterials'] } },
     { path: '/admin/production', component: Production, meta: { perms: ['viewMaterials'] } },
     { path: '/admin/dashboard', component: () => import('./views/manage/ManageDashboard.vue'), meta: { perms: ['viewAllOrders'], data: ['ordersAll', 'chats', 'retailStats'] } },
