@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "1060909132252",
+    "firebase_url": "https://punpang-288f9.firebaseio.com",
+    "project_id": "punpang-288f9",
+    "storage_bucket": "punpang-288f9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1060909132252:android:e875dbaada12273c87c719",
+        "android_client_info": {
+          "package_name": "com.punpang.cakeadmin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSGqoid8Q0PMS_RI5iJVcxh87soOIiFbs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1060909132252:android:c5c0d7df22152ecd87c719",
+        "android_client_info": {
+          "package_name": "com.punpang.customer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSGqoid8Q0PMS_RI5iJVcxh87soOIiFbs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

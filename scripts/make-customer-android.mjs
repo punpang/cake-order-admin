@@ -58,8 +58,10 @@ if (existsSync(capConfig)) {
   writeFileSync(capConfig, JSON.stringify(cfg, null, 2))
 }
 
-// ไม่ใช้ FCM ของแอปพนักงาน (แอปลูกค้ายังไม่ได้ลงทะเบียนกับ Firebase)
+// ไฟล์ Firebase ของแอปลูกค้า (โปรเจกต์ punpang-288f9 · มี client ของทั้งแอปพนักงานและแอปลูกค้า) แทนไฟล์ของแอปพนักงาน
+const FIREBASE_CUSTOMER = join(ROOT, 'scripts', 'google-services.customer.json')
 rmSync(join(DST, 'app', 'google-services.json'), { force: true })
+if (existsSync(FIREBASE_CUSTOMER)) cpSync(FIREBASE_CUSTOMER, join(DST, 'app', 'google-services.json'))
 
 // ไฟล์เว็บของแอปลูกค้า
 const publicDir = join(DST, 'app', 'src', 'main', 'assets', 'public')
