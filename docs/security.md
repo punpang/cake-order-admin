@@ -5,7 +5,7 @@
 ## รอบตรวจ 2026-11-14 (ตรวจโค้ดละเอียด) — แก้ในรีโปแล้ว ต้อง deploy เอง
 
 **ลำดับ deploy (ยังไม่มีอะไรถูกรัน/deploy ให้ — ต้องทำเอง):**
-1. SQL Editor ของ Supabase รันตามลำดับ: `20261115000000_punpang_security_hardening.sql` แล้ว `20261115010000_punpang_chat_photo_prune_cron.sql` (ตัวหลังต้องมี Edge Function `chat-photo-prune` deploy แล้ว และ vault secret `scheduled_key` ซึ่งเป็นตัวเดียวกับที่ cron `scheduled` ใช้) · ทั้งสองไฟล์รันซ้ำได้ปลอดภัย
+1. SQL ของ Supabase (SQL Editor หรือ MCP): รัน `20261115000000_punpang_security_hardening.sql` ไฟล์เดียว (รันซ้ำได้ปลอดภัย) · `20261115010000_punpang_chat_photo_prune_cron.sql` เป็นแค่การบันทึกงานตั้งเวลาที่ production ตั้งไว้แล้ว (03:40 UTC) ลงรีโป ไม่ต้องรันซ้ำ
 2. Deploy Edge Function: `customer-auth` · `customer-order` · `fb-webhook` · `tungngern-receiver` · `scheduled` (ไฟล์ `_shared/schedlib` ที่คัดลอกจากแอปเคยไม่ตรงต้นฉบับ ตอนนี้ซิงก์แล้ว) — ใช้ workflow `Deploy ...` ที่มีอยู่ (ไม่มี workflow ของ `customer-loyalty`, `sms-send`, `telegram-send`, `fb-connect`: ฟังก์ชันเหล่านี้ไม่ได้แก้รอบนี้)
 3. Worker `punpang-files`: ตรวจใน dashboard ก่อนว่า Variable `SUPABASE_ANON_KEY` เป็นค่าจริง (ไฟล์ `wrangler.jsonc` ไม่มีค่านี้แล้ว และตั้ง `keep_vars` ไว้) จึงรัน `wrangler deploy`
 4. สร้างแอป Android ใหม่ทั้งสองแอป (ปิด `allowBackup` แล้ว) · ถ้าฐานข้อมูลจริงบันทึกเวอร์ชัน migration `20261114030000` / `20261114040000` ไว้ ชื่อไฟล์ในรีโปถูกเปลี่ยนเป็น `20261114031000_punpang_push_devices.sql` / `20261114050000_punpang_customer_push.sql` (เดิมเลขเวอร์ชันซ้ำกับอีกไฟล์ ทำให้ `supabase db push` ชน) เนื้อหาเหมือนเดิม ไม่ต้องรันซ้ำ
@@ -18,7 +18,7 @@
 - ผู้ไม่ล็อกอินนับเข้าชมด้วยวันที่ปลอมสร้างแถวไม่ได้ (ใช้วันเวลาไทยของเซิร์ฟเวอร์) · ตารางคลิกเต็มแล้วลบรายการเกิน 90 วันแทนการหยุดบันทึกถาวร
 - trigger แจ้งเตือน push ล้มแล้วไม่ทำให้การบันทึกข้อมูลหลักล้มตาม · `search_path` ว่าง
 - บักเก็ตสลิปเดิม: ผู้มีสิทธิ์ `reportPayment` เพิ่มไฟล์ได้อย่างเดียว ลบ/แก้ต้อง `confirmPayment` หรือ `manage`
-- ตั้งเวลา `chat-photo-prune` (ลบรูปแชทเก่าทุกวัน — เดิมมีฟังก์ชันแต่ไม่มีตัวสั่งให้ทำงาน)
+- บันทึกงานตั้งเวลา `chat-photo-prune` (ลบรูปแชทเก่าทุกวัน) ที่ production ตั้งไว้แล้ว เป็น migration เพื่อให้สร้างฐานข้อมูลใหม่ได้ตรงกัน
 
 **Edge Function:**
 - `customer-auth`: จองครั้งที่ลองผิดของ PIN/OTP ก่อนตรวจรหัส (เขียนแบบมีเงื่อนไข `_shared/authguard.ts`) · เดิมยิงคำขอพร้อมกันหลายร้อยคำขอเดา PIN/OTP ได้เกินเพดาน 5 ครั้งหลายเท่า · ล็อกบัญชีตั้งพร้อมการจองครั้งสุดท้าย · บันทึกโปรไฟล์เทียบ `updated_at` ไม่เขียนทับแต้มที่เพิ่งเปลี่ยน
