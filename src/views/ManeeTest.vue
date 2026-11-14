@@ -7,6 +7,9 @@ import ManageShell from '../components/ManageShell.vue'
 
 const rows = ref([])
 const inbox = ref([])
+const openId = ref(null)
+const recentInbox = computed(() => inbox.value.slice(0, 50))
+const toggle = (id) => { openId.value = openId.value === id ? null : id }
 const names = ref([])
 const newName = ref('')
 const nameErr = ref('')
@@ -124,6 +127,33 @@ onBeforeUnmount(() => clearInterval(timer))
         </tbody>
       </table>
     </div>
+
+    <h2 class="mt-5 text-sm font-semibold text-stone-800">ข้อความที่ส่งเข้ามาล่าสุด</h2>
+    <p class="mt-1 text-xs text-stone-500">กดแถวเพื่อดูรายละเอียด · แสดง 50 รายการล่าสุด</p>
+    <p v-if="!recentInbox.length" class="mt-2 text-sm text-stone-500">ยังไม่มีข้อความ</p>
+    <ul v-else class="mt-2 space-y-2">
+      <li v-for="r in recentInbox" :key="r.id" class="rounded-2xl border border-stone-200 bg-white">
+        <button type="button" class="flex w-full items-start justify-between gap-2 p-3 text-left" :aria-expanded="openId === r.id" @click="toggle(r.id)">
+          <span class="min-w-0">
+            <span class="block text-sm font-medium text-stone-800">{{ r.app_name || r.app || '-' }}</span>
+            <span class="block truncate text-xs text-stone-500">{{ masked(r.text) }}</span>
+          </span>
+          <span class="shrink-0 text-right">
+            <span class="block rounded-full px-2 py-0.5 text-xs" :class="r.stored ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-600'">{{ r.stored ? 'บันทึกแล้ว' : 'ไม่บันทึก' }}</span>
+            <span class="mt-1 block text-xs text-stone-400">{{ dateTime(r.received_at) }}</span>
+          </span>
+        </button>
+        <dl v-if="openId === r.id" class="grid grid-cols-[6rem_1fr] gap-x-3 gap-y-2 border-t border-stone-100 p-3 text-sm">
+          <dt class="text-stone-500">เวลารับ</dt><dd>{{ dateTime(r.received_at) }}</dd>
+          <dt class="text-stone-500">ชื่อแอป</dt><dd>{{ r.app_name || '-' }}</dd>
+          <dt class="text-stone-500">รหัสแอป</dt><dd class="break-all">{{ r.app || '-' }}</dd>
+          <dt class="text-stone-500">เหตุการณ์</dt><dd class="break-all">{{ r.event || '-' }}</dd>
+          <dt class="text-stone-500">สถานะ</dt><dd>{{ r.stored ? 'บันทึกเป็นยอดรับแล้ว' : 'ไม่บันทึก' }}</dd>
+          <dt class="text-stone-500">เหตุผล</dt><dd>{{ r.reason || '-' }}</dd>
+          <dt class="text-stone-500">ข้อความ</dt><dd class="break-words whitespace-pre-wrap">{{ masked(r.text) || '-' }}</dd>
+        </dl>
+      </li>
+    </ul>
 
     <h2 class="mt-5 text-sm font-semibold text-stone-800">รายการรับยอดล่าสุด</h2>
     <ul class="mt-2 space-y-2">
