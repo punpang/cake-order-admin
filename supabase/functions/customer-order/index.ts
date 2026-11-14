@@ -4,7 +4,7 @@ import { orderNo, refOfCode } from '../_shared/slipref.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { PAY_MSG, bankByCode, checkCustomerTxn, normalizeRef, refTaken } from '../_shared/payfields.ts'
 import { autoConfirmOf, slipKeyOf } from '../_shared/slip.ts'
-import { autoConfirmDecision, confirmSlipPayment } from '../_shared/slipautoconfirm.ts'
+import { autoConfirmDecision, configuredAccountsOf, confirmSlipPayment } from '../_shared/slipautoconfirm.ts'
 import { notifyPaymentConfirmed } from '../_shared/payconfirm.ts'
 import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
 import { readSlipQr } from '../_shared/slipread.ts'
@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
   const autoConfirmCfgOf = async () => {
     const sq = (await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()).data?.data?.v
     const sh = (await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'shop').maybeSingle()).data?.data?.v
-    return { auto: autoConfirmOf(sq), merchantCode: String(sh?.merchantCode ?? '').replace(/\D/g, '') }
+    return { auto: autoConfirmOf(sq), merchantCode: String(sh?.merchantCode ?? '').replace(/\D/g, ''), accounts: configuredAccountsOf(sh) }
   }
   const action = String(b.action || '')
   if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel', 'qr_request'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
@@ -298,7 +298,7 @@ Deno.serve(async (req) => {
       if (!b.paymentId && amt < minC - 1e-9 && !(fields?.qrRef && d.payments.some((p: any) => p.qrRef === fields.qrRef))) return json({ error: `ยอดต้องไม่น้อยกว่า ${minC.toFixed(2)} บาท` }, 400)
       const reqPay = fields?.qrRef ? (d.payments.find((p: any) => p.qrRef === fields.qrRef && p.status === 'reported' && p.customerSubmitted !== true) ?? null) : null
       const acCfg = await autoConfirmCfgOf()
-      const autoDecision = autoConfirmDecision({ enabled: acCfg.auto.enabled, days: acCfg.auto.days, fields, order: { code: row.code, createdAt: d.createdAt, pickupAt: d.pickupAt }, configuredMerchantCode: acCfg.merchantCode, balance: t.balance, nowMs: Date.now(), request: reqPay })
+      const autoDecision = autoConfirmDecision({ enabled: acCfg.auto.enabled, days: acCfg.auto.days, fields, order: { code: row.code, createdAt: d.createdAt, pickupAt: d.pickupAt }, configuredMerchantCode: acCfg.merchantCode, configuredAccounts: acCfg.accounts, balance: t.balance, nowMs: Date.now(), request: reqPay })
       let autoDone = false
       let autoCancelled: any[] = []
       const note = String(b.note ?? '').trim().slice(0, PAY.noteMax)

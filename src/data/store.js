@@ -3661,6 +3661,9 @@ export function voidPosSale(order, reason = 'ยกเลิกบิล', refun
   const pay = order.payments.find((p) => p.status === 'confirmed')
   const net = orderTotals(order).paidNet
   const rows = refunds || (pay && net > 0 ? [{ method: defaultRefundMethod(pay.posMethod), amount: net }] : [])
+  // คืนไม่เต็มจำนวนที่ชำระแล้ว ต้องระบุเหตุผลในหมายเหตุการคืนเงิน
+  const refundedNow = round2(rows.reduce((s, x) => s + (Number(x.amount) || 0), 0))
+  if (refundedNow < round2(net) - 0.005 && !String(refundNote || '').trim()) return { error: 'คืนไม่เต็มจำนวน: ระบุเหตุผลในหมายเหตุการคืนเงิน' }
   const wasPending = order.status === 'pos_pending' // บิลค้างยังไม่ได้ตัดสต็อก จึงไม่คืน
   const r = cancelOrder(order, { reason, refunds: rows, refundNote })
   if (r.error) return r

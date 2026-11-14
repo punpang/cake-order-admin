@@ -5,7 +5,7 @@
 import { orderNo } from './slipref.ts'
 import { autoConfirmOf, buildSlipPayment, classifyThaiQr, daysUntilPickup, latestOrderId, orderTotals, planAttach, slipKeyOf } from './slip.ts'
 import { slipChecksOf } from './schedlib/slipChecks.js'
-import { confirmSlipPayment } from './slipautoconfirm.ts'
+import { accountCheckOf, configuredAccountsOf, confirmSlipPayment } from './slipautoconfirm.ts'
 import { readQrTexts } from './qrimage.ts'
 import { bankByCode, normalizeRef, paidAtFromMessage, refTaken } from './payfields.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine, type SlipFields } from './slipocr.ts'
@@ -54,12 +54,12 @@ export type SlipMode = 'auto' | 'manual'
 // ตั้งค่าจาก punpang_kv (config / slipQr): v.enabled = false ปิด · v.mode = 'manual' โหมดแมนนวล · ไม่มีแถวหรือค่าอื่น = เปิดแบบอัตโนมัติ
 // ค่า ocr แยกเป็น 2 สวิตช์: wai (Workers AI) · claude (ระบบเดิม) · ค่าเดิม ocr.enabled = claude (ถ้ายังไม่มี claude)
 // ลำดับการลอง: Workers AI → Claude เฉพาะตัวที่เปิดและตั้งค่าไว้ · model ไม่ระบุ = OCR_DEFAULT_MODEL
-async function slipConfig(sb: any): Promise<{ enabled: boolean; mode: SlipMode; ocr: { wai: boolean; claude: boolean; model: string }; merchantCode: string; autoConfirm: { enabled: boolean; days: number } }> {
+async function slipConfig(sb: any): Promise<{ enabled: boolean; mode: SlipMode; ocr: { wai: boolean; claude: boolean; model: string }; merchantCode: string; accounts: string[]; autoConfirm: { enabled: boolean; days: number } }> {
   const r = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()
   const v = r?.data?.data?.v
   // รหัสร้านค้า (ตั้งในหน้าตั้งค่าร้าน เก็บที่ config/shop) · ว่าง = ไม่ตรวจรหัสร้านค้า
   const sh = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'shop').maybeSingle()
-  return { enabled: v?.enabled !== false, mode: v?.mode === 'manual' ? 'manual' : 'auto', ocr: ocrFlagsOf(v?.ocr), merchantCode: digitsOf(sh?.data?.data?.v?.merchantCode), autoConfirm: autoConfirmOf(v) }
+  return { enabled: v?.enabled !== false, mode: v?.mode === 'manual' ? 'manual' : 'auto', ocr: ocrFlagsOf(v?.ocr), merchantCode: digitsOf(sh?.data?.data?.v?.merchantCode), accounts: configuredAccountsOf(sh?.data?.data?.v), autoConfirm: autoConfirmOf(v) }
 }
 
 // จับคู่ออร์เดอร์จากรหัสอ้างอิงร้านค้าบนสลิป (แปลงจากเลขเดิม ไม่เก็บเพิ่ม) · ไม่พบ = null
@@ -186,6 +186,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     balance: orderRow ? orderTotals(orderRow.data).balance : null,
     request: reqOfSlip,
   })
+  checks.push(accountCheckOf(fields?.receiverAccount, cfg.accounts))
   // ผูกอัตโนมัติเมื่อครบ 4 ข้อเป็น ✓ (ยอด · วัน-เวลา · รหัสอ้างอิงร้านค้า (Ref 1) · รหัสสุ่ม (Ref 2) ตรงกับรายการแจ้งชำระ) และรหัสอ้างอิงตรงกับออร์เดอร์ที่พบ · รหัสร้านค้าแสดงให้พนักงานดูเท่านั้น · นอกนั้นส่งให้พนักงาน
   const autoOk = cfg.mode === 'auto' && refOrderId !== null && !sameRefDup && checks.filter((c) => !c.info).every((c) => c.ok === true)
   // เหตุผลที่ไม่ผ่าน ✗ = ไม่ถูกต้อง · – = อ่านไม่ได้หรือยังไม่มีข้อมูลให้เทียบ → ไปที่กระดิ่งและป้าย

@@ -1,21 +1,34 @@
 // ทดสอบตรรกะยืนยันสลิปอัตโนมัติที่ใช้ร่วมกัน (ฟังก์ชันล้วน): เงื่อนไข 4 ข้อ · นัดรับห่างพอ · ยกเลิกยอดที่แจ้งเดิม
 import { assertEquals } from 'jsr:@std/assert@1'
-import { autoConfirmDecision, confirmSlipPayment } from './slipautoconfirm.ts'
+import { accountMatches, autoConfirmDecision, confirmSlipPayment } from './slipautoconfirm.ts'
 
 const SHOP = '014000000517185'
 // 11-11-2569 10:00 เวลาไทย · ออร์เดอร์สร้าง 09:00 · นัดรับ 14-11-2569 10:00 (ห่าง 3 วัน)
 const NOW = Date.UTC(2026, 10, 11, 3, 0)
 const ORDER = { code: 'OR-111126-000010', createdAt: '2026-11-11T02:00:00.000Z', pickupAt: '2026-11-14T10:00' }
 const QR_REF = 'K7M3QRT2XBHD' // รหัสสุ่ม (Ref 2) ที่อ่านจากสลิป
-const FIELDS = { amount: 540, paidAt: '2026-11-11T10:00', merchantCode: SHOP, shopRef: 'ORD111126000010', qrRef: QR_REF }
+const ACCT = '123-4-56789-0' // เลขบัญชีของร้านที่ตั้งไว้
+const FIELDS = { amount: 540, paidAt: '2026-11-11T10:00', merchantCode: SHOP, shopRef: 'ORD111126000010', qrRef: QR_REF, receiverAccount: 'xxx-x-x6789-0' }
 const QR_REQUEST = { qrRef: QR_REF, amount: 540 } // รายการแจ้งชำระที่ลูกค้าขอ QR ไว้ (รหัสสุ่มและยอดตรงกับสลิป)
 const decide = (over: Record<string, unknown> = {}, fields: any = FIELDS) =>
-  autoConfirmDecision({ enabled: true, days: 3, fields, order: ORDER, configuredMerchantCode: SHOP, balance: 540, nowMs: NOW, request: QR_REQUEST, ...over } as any)
+  autoConfirmDecision({ enabled: true, days: 3, fields, order: ORDER, configuredMerchantCode: SHOP, configuredAccounts: [ACCT], balance: 540, nowMs: NOW, request: QR_REQUEST, ...over } as any)
 
 Deno.test('ครบ 5 ข้อ + เปิดไว้ + นัดห่างพอ → ยืนยันได้', () => {
   const d = decide()
   assertEquals([d.ok, d.daysLeft], [true, 3])
-  assertEquals(d.checks.map((c) => c.ok), [true, true, true, true, true])
+  assertEquals(d.checks.map((c) => c.ok), [true, true, true, true, true, true])
+})
+
+Deno.test('เงื่อนไข 5: เลขบัญชีผู้รับไม่ตรงบัญชีร้าน → ไม่ยืนยันอัตโนมัติ · อ่านเลขบัญชีไม่ได้ → ไม่ยืนยัน', () => {
+  assertEquals(decide({}, { ...FIELDS, receiverAccount: '999-9-99999-9' }).ok, false)
+  assertEquals(decide({}, { ...FIELDS, receiverAccount: null }).ok, false)
+  assertEquals(decide({ configuredAccounts: [] }).ok, false)
+})
+
+Deno.test('เลขบัญชีที่ OCR ปิดบางหลักยังนับว่าตรงได้ถ้าหลักที่เห็นตรง', () => {
+  assertEquals(accountMatches('xxx-x-x6789-0', [ACCT]), true)
+  assertEquals(accountMatches('xxx-x-x6788-0', [ACCT]), false)
+  assertEquals(accountMatches('123-4-56789-0', [ACCT, '0812345678']), true)
 })
 
 Deno.test('นัดวันนี้กับตั้ง 0 วัน → ยืนยันได้ · นัดห่างไม่พอ → ไม่ยืนยัน', () => {
