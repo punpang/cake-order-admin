@@ -1,9 +1,13 @@
 {
   // Worker สำหรับเก็บและเสิร์ฟไฟล์ใน R2 (punpang-files)
-  // ตั้งค่า Secrets ใน dashboard (ไม่ใส่ในไฟล์นี้): SIGN_KEY, SUPABASE_SERVICE_ROLE_KEY
+  // ตั้งค่า Secrets ใน dashboard (ไม่ใส่ในไฟล์นี้): SIGN_KEY, SUPABASE_SERVICE_ROLE_KEY, FILES_SERVICE_KEY
+  // ตั้งค่า Variable ใน dashboard (Workers → punpang-files → Settings → Variables): SUPABASE_ANON_KEY = publishable (anon) key ของโปรเจกต์
+  //   ไม่ใส่ในไฟล์นี้: ค่าในไฟล์จะทับค่าจริงใน dashboard ทุกครั้งที่ wrangler deploy (เคยเป็นข้อความตัวอย่างจนยืนยันตัวพนักงานกับ Worker พัง)
   "name": "punpang-files",
   "main": "src/index.js",
   "compatibility_date": "2026-01-01",
+  // เก็บ Variable/Secret ที่ตั้งใน dashboard ไว้ตอน deploy (ไม่ถูกลบเพราะไม่มีในไฟล์นี้)
+  "keep_vars": true,
   "r2_buckets": [
     { "binding": "FILES_PUBLIC", "bucket_name": "punpang-public" },
     { "binding": "FILES_PRIVATE", "bucket_name": "punpang-private" }
@@ -11,7 +15,6 @@
   "triggers": { "crons": ["0 19 * * *"] },
   "vars": {
     "SUPABASE_URL": "https://itleduijrckxdbhhuooi.supabase.co",
-    "SUPABASE_ANON_KEY": "ใส่ publishable key ของโปรเจกต์ (ไม่ใช่ secret key)",
     "ALLOWED_ORIGINS": "https://cake-order-admin.pages.dev"
   }
 }

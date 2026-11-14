@@ -125,3 +125,41 @@ Deno.test('fileTypeOf: รูปชุดเทรนไม่ถูกนับ
   assertEquals(fileTypeOf('train/abc.jpg'), 'other')
   assertEquals(fileTypeOf('o1/abc.png'), 'slip')
 })
+
+// ---- /sign: สิทธิ์ดูไฟล์ส่วนตัวตามประเภทของ key ----
+const signAs = (env: ReturnType<typeof makeEnv>, perms: string[] | null, key: string) => {
+  staffPerms = perms
+  return worker.fetch(new Request('https://files.test/sign', { method: 'POST', headers: { Authorization: 'Bearer staff-jwt', 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) }), env)
+}
+
+Deno.test('/sign: ไฟล์นอกออร์เดอร์ (webchat/ manual/ pay-qr/ train/) ต้องมีสิทธิ์ตามประเภท · ไฟล์ของออร์เดอร์พนักงาน active ดูได้เหมือนเดิม', async () => {
+  stubFetch()
+  const env = makeEnv()
+  const KEYS = { webchat: 'webchat/c1/a.jpg', manual: 'manual/chat1/a.png', payqr: 'pay-qr/o1/a.png', train: 'train/a.jpg', chat: 'chat/x/a.jpg', staff: 'staff/123/a.jpg', order: 'o1/a.png', work: 'o1/work/a.jpg' }
+  const status = async (perms: string[] | null) => Object.fromEntries(await Promise.all(Object.entries(KEYS).map(async ([n, k]) => [n, (await signAs(env, perms, k)).status])))
+  // พนักงานที่ไม่มีสิทธิ์แชท/รับชำระ: เห็นเฉพาะไฟล์ของออร์เดอร์
+  assertEquals(await status(['workPhoto']), { webchat: 403, manual: 403, payqr: 403, train: 403, chat: 403, staff: 403, order: 200, work: 200 })
+  // สิทธิ์แชท: ไฟล์แชท + รูปลูกค้าในแชท + สลิปรอผูก + QR · ยังไม่เห็นรูปชุดเทรน
+  assertEquals(await status(['chat']), { webchat: 200, manual: 200, payqr: 200, train: 403, chat: 200, staff: 200, order: 200, work: 200 })
+  // สิทธิ์รับชำระ: สลิปรอผูก + QR · ไม่เห็นรูปแชทของลูกค้า
+  assertEquals(await status(['reportPayment']), { webchat: 403, manual: 200, payqr: 200, train: 403, chat: 403, staff: 403, order: 200, work: 200 })
+  // manage: ทุกอย่างรวมรูปชุดเทรน
+  assertEquals(await status(['manage']), { webchat: 200, manual: 200, payqr: 200, train: 200, chat: 200, staff: 200, order: 200, work: 200 })
+  // ไม่ใช่พนักงาน (ไม่มีลิงก์/เซสชันลูกค้า): ไม่เห็นอะไรเลย
+  assertEquals(await status(null), { webchat: 403, manual: 403, payqr: 403, train: 403, chat: 403, staff: 403, order: 403, work: 403 })
+  staffPerms = null
+})
+
+Deno.test('ไฟล์ที่เสิร์ฟมี nosniff · path ที่เข้ารหัสเสียตอบ 403/404 แทนที่จะล้มเป็น 500', async () => {
+  stubFetch()
+  const env = makeEnv()
+  env.FILES_PUBLIC.objs.set('shop/a.png', { key: 'shop/a.png', body: PNG, uploaded: new Date() })
+  env.FILES_PRIVATE.objs.set('o1/a.png', { key: 'o1/a.png', body: PNG, uploaded: new Date() })
+  const pub = await worker.fetch(new Request('https://files.test/p/shop/a.png'), env)
+  assertEquals([pub.status, pub.headers.get('X-Content-Type-Options')], [200, 'nosniff'])
+  const signed = await (await worker.fetch(svc('/svc/sign', { headers: bearer, body: JSON.stringify({ key: 'o1/a.png' }) }), env)).json()
+  const priv = await worker.fetch(new Request(signed.url), env)
+  assertEquals([priv.status, priv.headers.get('X-Content-Type-Options')], [200, 'nosniff'])
+  assertEquals((await worker.fetch(new Request('https://files.test/p/%E0%A4%A'), env)).status, 404)
+  assertEquals((await worker.fetch(new Request('https://files.test/f/%E0%A4%A?exp=9999999999&sig=x'), env)).status, 403)
+})
