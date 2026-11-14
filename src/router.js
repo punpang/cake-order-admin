@@ -1,6 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { customerSession, needsConsent, canAny, can } from './data/store'
-import { firstHome } from './lib/adminSystems'
+import { firstHome, APP_MODE, allowedInApp } from './lib/adminSystems'
 import { trackPageView } from './lib/pageViews'
 import NoAccess from './views/NoAccess.vue'
 // หน้าร้าน/บัญชีลูกค้า: โหลดเมื่อเปิดหน้านั้นเท่านั้น (ลดขนาดชุดโค้ดเริ่มต้น)
@@ -143,6 +143,8 @@ router.beforeEach(async (to) => {
   // โหมด Supabase: หลังบ้านต้องล็อกอินพนักงานก่อน
   // vue-router จับคู่เส้นทางโดยไม่สนตัวพิมพ์ใหญ่/เล็ก (/ADMIN/... ก็เปิดหน้าหลังบ้าน) จึงเทียบแบบตัวพิมพ์เล็กและ trim / ท้าย
   const p = to.path.toLowerCase().replace(/\/+$/, '')
+  // แอป Android: เปิดได้เฉพาะหลังบ้าน POS/ออร์เดอร์ ส่วนอื่นกลับไปหน้าแรกของแอป
+  if (APP_MODE === 'android' && !allowedInApp(p)) return '/admin'
   if (supabaseEnabled && (p === '/admin' || p.startsWith('/admin/')) && p !== '/admin/login' && !staffState.staff) return '/admin/login'
   // หลังบ้าน: ต้องมีสิทธิ์อย่างน้อยหนึ่งข้อของหน้านั้น (หน้าจัดการ /admin/settings* ตรวจต่อใน ManageShell)
   if (to.meta.perms && !canAny(to.meta.perms)) return '/admin/no-access'

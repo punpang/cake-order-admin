@@ -1,0 +1,44 @@
+name: Build Android APK
+
+# รันเองเท่านั้น: GitHub → Actions → Build Android APK → Run workflow
+# ใช้ค่า VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY จาก Repository variables (ไม่ใช่ secret: เป็นค่าสาธารณะของ Supabase)
+# ผลลัพธ์: artifact ชื่อ cake-admin-debug-apk (ไฟล์ app-debug.apk) สำหรับติดตั้งภายในร้าน
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: ติดตั้งส่วนประกอบ Android SDK ที่โปรเจกต์ใช้
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - run: npm ci
+      - name: สร้างไฟล์เว็บสำหรับแอป (โหมด Android)
+        env:
+          VITE_USE_SUPABASE: '1'
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_FILES_URL: ${{ vars.VITE_FILES_URL }}
+        run: npm run build:android
+      - name: คัดลอกไฟล์เว็บเข้าโปรเจกต์ Android
+        run: npx cap sync android
+      - name: สร้าง APK (debug)
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cake-admin-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
