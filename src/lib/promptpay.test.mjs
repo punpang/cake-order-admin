@@ -61,9 +61,10 @@ t('newQrSuffix: 5 ตัวตามชุดอักษร ไม่มี 0 1
   assert.equal(seen.size, 300)
 })
 
-t('qrRefOk: POS/ORD (ORD+12 หลัก หรือ POS+11 หลัก) + รหัสสุ่ม 5 ตัว', () => {
+t('qrRefOk: ORD+12 หลัก หรือ POS+เลขสุ่ม 12 หลัก + รหัสสุ่ม 5 ตัว', () => {
   assert.equal(qrRefOk(QR), true)
-  assert.equal(qrRefOk('POS13112600123ABCDE'), true)
+  assert.equal(qrRefOk('POS131126001234ABCDE'), true) // บิล POS: POS + เลขสุ่ม 12 หลัก (newPosQrRef)
+  assert.equal(qrRefOk('POS13112600123ABCDE'), false) // POS+11 หลัก (รูปแบบเลขที่บิลแบบเก่า) ไม่ใช่ Ref 2 ที่ระบบออกแล้ว
   assert.equal(qrRefOk(ORDER), false)
   assert.equal(qrRefOk('ORD131126000741ABCD0'), false)
   assert.equal(qrRefOk('ORD131126000741ABCDI'), false)

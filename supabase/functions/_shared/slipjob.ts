@@ -49,6 +49,18 @@ const pad2 = (n: number) => String(n).padStart(2, '0')
 const ddmmyy = (d: Date) => { const t = new Date(d.getTime() + TH_OFFSET); return `${pad2(t.getUTCDate())}${pad2(t.getUTCMonth() + 1)}${pad2(t.getUTCFullYear() % 100)}` }
 const randHex = (n: number) => [...crypto.getRandomValues(new Uint8Array(n))].map((x) => x.toString(16).padStart(2, '0')).join('')
 
+// เพดานการอ่านสลิปด้วยโมเดลต่อแชท: นับป้ายผลตรวจสลิปของข้อความอื่นในแชทนี้ที่ทำภายใน 24 ชม. ล่าสุด (ทุกผลนับ รวมซ้ำ — ลูกค้าจริงไม่ส่งสลิปเป็นสิบใบต่อวัน)
+// เกิน = ไม่เรียกโมเดล (ผลที่จำไว้ยังใช้ได้) · สลิปยังถูกเก็บให้พนักงานเลือกออร์เดอร์เอง พร้อมหมายเหตุ
+export const OCR_CHAT_DAILY_CAP = 30
+export function ocrChatUsed(messages: any[], nowMs: number, exceptMsgId: string): number {
+  let n = 0
+  for (const m of messages) {
+    const at = m?.slipCheck?.at ? Date.parse(m.slipCheck.at) : NaN
+    if (m?.id !== exceptMsgId && Number.isFinite(at) && nowMs - at < 24 * 3600_000) n++
+  }
+  return n
+}
+
 export type SlipMode = 'auto' | 'manual'
 
 // ตั้งค่าจาก punpang_kv (config / slipQr): v.enabled = false ปิด · v.mode = 'manual' โหมดแมนนวล · ไม่มีแถวหรือค่าอื่น = เปิดแบบอัตโนมัติ
@@ -155,7 +167,8 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   // สลิปรูปเดิมที่เคยเก็บในแชทและยังไม่ได้แนบเข้าออร์เดอร์ → ซ้ำ (ไม่อ่านซ้ำ) · ที่แนบแล้วซ้ำได้เฉพาะออร์เดอร์เดิมที่ยังไม่ปิด
   const priorImage = (seenInChats?.data || []).flatMap((c: any) => (Array.isArray(c.data?.messages) ? c.data.messages : []).map((m: any) => ({ c, m }))).filter(({ c, m }: any) => m?.slipCheck?.slipKey === key && !(c.id === chatId && m?.id === msgId) && m.slipCheck.status !== 'cancelled')
   if (priorImage.some(({ m }: any) => m.slipCheck.status !== 'matched')) return finish('duplicate')
-  const fields = await readSlipOnce(sb, { key, bytes, bankCode, source: 'chat', engines, files })
+  const chatCapped = engines.length > 0 && ocrChatUsed(messages, now.getTime(), msgId) >= OCR_CHAT_DAILY_CAP
+  const fields = await readSlipOnce(sb, { key, bytes, bankCode, source: 'chat', engines, files, allowModel: !chatCapped, nowMs: now.getTime() })
 
   // ผูกอัตโนมัติได้เฉพาะเมื่อรหัสอ้างอิงร้านค้าบนสลิปตรงกับรหัสออร์เดอร์ (แปลงจากเลขเดิม) · ออร์เดอร์ที่คุยล่าสุดเป็นตัวแนะนำให้พนักงานเท่านั้น
   const refOrderId = fields?.shopRef ? await orderIdOfShopRef(sb, fields.shopRef) : null
@@ -193,7 +206,8 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   const autoOk = ref2Link || (cfg.mode === 'auto' && refOrderId !== null && !sameRefDup && checks.filter((c) => !c.info).every((c) => c.ok === true))
   // เหตุผลที่ไม่ผ่าน ✗ = ไม่ถูกต้อง · – = อ่านไม่ได้หรือยังไม่มีข้อมูลให้เทียบ → ไปที่กระดิ่งและป้าย
   const reasons = checks.filter((c) => c.ok !== true).map((c) => `${c.ok === false ? '✗' : '–'} ${c.text}`)
-  const mismatchNote = reasons.length ? ` · ${reasons.join(' · ')}` : ''
+  const capNote = chatCapped && !fields ? ' · ข้ามการอ่านยอดจากภาพ (แชทนี้ส่งสลิปถี่เกินกำหนด)' : ''
+  const mismatchNote = (reasons.length ? ` · ${reasons.join(' · ')}` : '') + capNote
 
   if (!autoOk) {
     // ไม่ผูกอัตโนมัติ (โหมดแมนนวล หรือไม่ครบ 4 ข้อ): เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่รหัสอ้างอิงตรง หรือที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์

@@ -6,6 +6,7 @@ export const BELL_MAX = 200
 // ฝั่งพนักงาน: perms = มีสิทธิ์ข้อใดข้อหนึ่งจึงเห็น · to(ctx) = ลิงก์ปลายทาง · tone = สีจุด
 export const BELL_STAFF = {
   team_customer_paid: { title: 'ลูกค้าแจ้งโอน', perms: ['confirmPayment', 'reportPayment'], tone: 'amber', to: () => '/admin/payments' },
+  team_customer_message: { title: 'ลูกค้าส่งข้อความ (เว็บ/แอป)', perms: ['chat'], tone: 'brand', to: (c) => (c.chatId ? `/admin/chat/${c.chatId}` : '/admin/chat') },
   team_pay_extend_request: { title: 'ลูกค้าขอขยายเวลาชำระ', perms: ['confirmPayment', 'reportPayment'], tone: 'amber', to: () => '/admin/payments' },
   team_pay_overdue: { title: 'เกินกำหนดชำระ', perms: ['confirmPayment', 'reportPayment'], tone: 'rose', to: () => '/admin/payments' },
   team_new_order: { title: 'ออร์เดอร์ใหม่', perms: ['viewAllOrders'], tone: 'brand', to: (c) => (c.orderId ? `/admin/orders/${c.orderId}` : '/admin/orders') },

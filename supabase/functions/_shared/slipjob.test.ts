@@ -4,7 +4,8 @@ import { Buffer } from 'node:buffer'
 import { assertEquals } from 'jsr:@std/assert@1'
 import QRCode from 'npm:qrcode@1.5.4'
 import { PNG } from 'npm:pngjs@7.0.0'
-import { checkSlipImage } from './slipjob.ts'
+import { checkSlipImage, OCR_CHAT_DAILY_CAP, ocrChatUsed } from './slipjob.ts'
+import { cacheSlipFields } from './slipstore.ts'
 
 const SLIP = '0037000600000101030040216A1B2C3D4E5F6G7H85102TH9104DE9E' // สลิปธนาคาร 004 เลขอ้างอิง A1B2C3D4E5F6G7H8
 const PROMPTPAY_540 = '00020101021229370016A000000677010111011300668123456785802TH53037645406540.0063048A50'
@@ -668,4 +669,45 @@ Deno.test('ยืนยันอัตโนมัติ: อ่านภาพ�
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ pickupAt: '2026-11-14T10:00' })], kv: AUTO_CONFIRM_KV(3) })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP)), 'manual')
   assertEquals(sb.T.punpang_orders[0].data.payments.length, 0)
+})
+
+// ---- เพดานการเรียกโมเดลอ่านสลิปต่อแชท (กันถูกส่งสลิป QR ปลอมรัว ๆ เผาค่า AI) ----
+const priorChecks = (n: number, atMs: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, from: 'customer', kind: 'text', text: '', slipCheck: { status: 'no_order', at: new Date(atMs).toISOString() } }))
+
+Deno.test('ocrChatUsed: นับป้ายผลตรวจสลิปของข้อความอื่นภายใน 24 ชม. เท่านั้น', () => {
+  const msgs = [...priorChecks(3, NOW - 3600_000), ...priorChecks(2, NOW - 25 * 3600_000), { id: 'x', slipCheck: { status: 'manual', at: new Date(NOW - 1000).toISOString() } }, { id: 'y', text: 'ไม่มีป้าย' }, { id: 'z', slipCheck: { status: 'manual' } }]
+  assertEquals(ocrChatUsed(msgs, NOW, 'none'), 4) // 3 + x (ที่ไม่มี at / เก่าเกิน 24 ชม. ไม่นับ)
+  assertEquals(ocrChatUsed(msgs, NOW, 'x'), 3) // ข้อความที่กำลังตรวจอยู่ไม่นับตัวเอง
+})
+
+Deno.test('เพดานต่อแชท: ครบ 30 ภายใน 24 ชม. → ไม่เรียกโมเดล เก็บสลิปให้พนักงานเลือกออร์เดอร์ พร้อมหมายเหตุในกระดิ่ง', async () => {
+  const sb = fakeSb({ chats: [chatWith([...priorChecks(OCR_CHAT_DAILY_CAP, NOW - 3600_000), staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcr('manual', true)] })
+  let called = 0
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrKey: 'k', ocrRead: async () => { called++; return fieldsOk() } }), 'manual')
+  assertEquals(called, 0)
+  assertEquals(sb.T.punpang_records.filter((r: any) => r.collection === 'slipRead').length, 0) // ไม่จำผล: พ้นเพดานแล้วสลิปเดิมอ่านได้ใหม่
+  const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
+  assertEquals(bell.data.text.includes('ข้ามการอ่านยอดจากภาพ'), true)
+  assertEquals(sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1').slipCheck.status, 'manual') // ยังเก็บสลิปให้พนักงาน
+})
+
+Deno.test('เพดานต่อแชท: ต่ำกว่า 30 หรือป้ายเก่ากว่า 24 ชม. → เรียกโมเดลตามปกติ ไม่มีหมายเหตุ', async () => {
+  for (const msgs of [priorChecks(OCR_CHAT_DAILY_CAP - 1, NOW - 3600_000), priorChecks(OCR_CHAT_DAILY_CAP + 10, NOW - 25 * 3600_000)]) {
+    const sb = fakeSb({ chats: [chatWith([...msgs, staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcr('manual', true)] })
+    let called = 0
+    assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrKey: 'k', ocrRead: async () => { called++; return fieldsOk() } }), 'manual')
+    assertEquals(called, 1)
+    assertEquals(sb.T.punpang_records.find((r: any) => r.collection === 'bell').data.text.includes('ข้ามการอ่านยอดจากภาพ'), false)
+  }
+})
+
+Deno.test('เพดานต่อแชท: เกินเพดานแล้ว สลิปที่เคยอ่านไว้ (จำผลตามเลขอ้างอิง) ยังใช้ผลเดิมได้ และไม่มีหมายเหตุ', async () => {
+  const sb = fakeSb({ chats: [chatWith([...priorChecks(OCR_CHAT_DAILY_CAP, NOW - 3600_000), staffRef('o1'), slipMsg])], orders: [order()], kv: [kvOcr('manual', true)] })
+  await cacheSlipFields(sb, '004:A1B2C3D4E5F6G7H8', { amount: 178, paidAt: '2026-11-11T14:48', receiverAccount: 'xxx-x-x8154-x' })
+  let called = 0
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), { ocrKey: 'k', ocrRead: async () => { called++; return null } }), 'manual')
+  assertEquals(called, 0)
+  const slipCheck = sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1').slipCheck
+  assertEquals(slipCheck.ocrAmount, 178)
+  assertEquals(sb.T.punpang_records.find((r: any) => r.collection === 'bell').data.text.includes('ข้ามการอ่านยอดจากภาพ'), false)
 })
