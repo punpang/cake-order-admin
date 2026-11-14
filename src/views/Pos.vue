@@ -22,6 +22,7 @@ import { billerIdOf, promptPayBillerPayload } from '../lib/promptpay'
 import DeviceSettings from '../components/DeviceSettings.vue'
 import { money, dateTime, timeOnly, phoneDigits, formatPhone, phoneValid } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
+import { kb } from '../lib/viewportFit'
 import AppModal from '../components/AppModal.vue'
 import DiscountDetail from '../components/DiscountDetail.vue'
 import Receipt from '../components/Receipt.vue'
@@ -576,6 +577,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <aside
         class="z-50 flex-col rounded-t-3xl border border-stone-200 bg-white lg:sticky lg:top-20 lg:flex lg:max-h-[calc(100dvh-7rem)] lg:rounded-2xl"
         :class="cartOpen ? 'fixed inset-x-0 bottom-0 flex max-h-[88dvh] pb-[env(safe-area-inset-bottom)]' : 'hidden'"
+        :style="cartOpen && kb.open ? { bottom: 'var(--kbh, 0px)', maxHeight: 'calc(var(--vvh, 100dvh) * 0.88)' } : undefined"
       >
         <div class="flex items-center justify-between border-b border-stone-100 px-4 py-3">
           <span class="font-semibold text-stone-900">ตะกร้า <span class="text-stone-400">{{ count }}</span></span>

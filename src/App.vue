@@ -43,9 +43,8 @@ const badges = computed(() => ({ chat: unread.value, pay: paySlips.value }))
 const bottomItems = computed(() => (current.value === 'orders' ? items.value.filter((i) => i.mobile) : items.value))
 const hasSwitch = computed(() => systems.value.length > 1)
 const showBottom = computed(() => !route.meta.focus && bottomItems.value.length + (hasSwitch.value ? 1 : 0) >= 2)
-// หน้าล็อก (แชท): ตามขนาดส่วนที่มองเห็นจริงเมื่อแป้นพิมพ์เปิด · ซ่อนแถบเมนูล่างระหว่างพิมพ์
-let stopVv = () => {}
-watch(() => !!route.meta.lock, (on) => { stopVv(); stopVv = on ? watchViewport() : () => {} }, { immediate: true })
+// ตามขนาดส่วนที่มองเห็นจริงเมื่อแป้นพิมพ์เปิด ทุกหน้า (ป็อปอัป/แถบล่างไม่ถูกแป้นพิมพ์บัง) · หน้าล็อก (แชท) ซ่อนแถบเมนูล่างระหว่างพิมพ์
+const stopVv = watchViewport()
 onBeforeUnmount(() => stopVv())
 // แป้นพิมพ์เปิดบนหน้าล็อก: ซ่อนแถบบน ใช้พื้นที่ทั้งหมดที่เหลือให้แชท
 const kbLock = computed(() => !!route.meta.lock && kb.open)

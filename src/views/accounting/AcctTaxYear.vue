@@ -5,6 +5,7 @@ import { annualTaxReport, saveTaxYear, saveTaxTable, taxTableOf, markTaxFiled, r
 import { downloadCsv } from '../../lib/acct/csv'
 import { money, dateOnly, toDateStr } from '../../lib/format'
 import AppIcon from '../../components/AppIcon.vue'
+import { kb } from '../../lib/viewportFit'
 import A4Print from '../../components/A4Print.vue'
 
 // ภาษีเงินได้ประจำปี: นิติบุคคล (ภ.ง.ด.50/51) หรือ บุคคลธรรมดา 40(8) (ภ.ง.ด.90/94) ตามตั้งค่า · ตัวช่วยคำนวณ ต้องตรวจกับนักบัญชี/กรมสรรพากรก่อนยื่นจริง
@@ -140,7 +141,7 @@ function csv() {
       </template>
     </section>
 
-    <div v-if="tbl.open" class="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-stone-900/40" role="dialog" aria-modal="true">
+    <div v-if="tbl.open" class="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-stone-900/40" role="dialog" aria-modal="true" :style="kb.open ? { top: 'var(--vvt, 0px)', bottom: 'auto', height: 'var(--vvh, 100%)' } : undefined">
     <div class="flex h-full items-end justify-center pt-8 sm:items-center sm:p-6" @click.self="tbl.open = false">
       <div class="flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-t-3xl bg-white sm:max-w-md sm:rounded-3xl">
         <div class="shrink-0 px-5 pt-4 pb-2 text-lg font-semibold">ตารางอัตราภาษี ปี {{ year }}</div>

@@ -1,5 +1,5 @@
 // แป้นพิมพ์มือถือ (iOS): แป้นพิมพ์ไม่ลดขนาด layout viewport → กรอบแบบ fixed ที่ยึดขอบล่างจึงถูกแป้นพิมพ์บัง
-// ที่นี่ตามขนาด "ส่วนที่มองเห็นจริง" (visualViewport) ให้กรอบหน้าล็อก (แชท) ใช้: --vvh (ความสูง) · --vvt (ระยะเลื่อนด้านบน) · kb.open (แป้นพิมพ์เปิด)
+// ที่นี่ตามขนาด "ส่วนที่มองเห็นจริง" (visualViewport) ให้กรอบทุกหน้าใช้: --vvh (ความสูงที่มองเห็น) · --vvt (ระยะเลื่อนด้านบน) · --kbh (ความสูงแป้นพิมพ์) · kb.open (แป้นพิมพ์เปิด)
 import { reactive } from 'vue'
 
 export const kb = reactive({ open: false })
@@ -18,6 +18,7 @@ export function watchViewport() {
   const root = document.documentElement
   let lastH = ''
   let lastT = ''
+  let lastK = ''
   let maxH = 0 // ความสูงที่มองเห็นมากสุดในแนวจอปัจจุบัน
   let lastW = 0
   // ตั้งค่าเฉพาะตอนที่เปลี่ยนจริง (การตรวจซ้ำไม่ทำให้หน้าจัดวางใหม่โดยไม่จำเป็น)
@@ -37,6 +38,12 @@ export function watchViewport() {
     if (vv.scale === 1 && vv.height > maxH) maxH = vv.height // ไม่นับตอนซูมด้วยสองนิ้ว
     const open = keyboardOpen(Math.max(window.innerHeight, maxH), vv.height)
     if (open !== kb.open) kb.open = open
+    // ความสูงที่แป้นพิมพ์บังอยู่ (px): กล่องแบบ fixed ที่ติดขอบล่างใช้ดันขึ้นให้อยู่เหนือแป้นพิมพ์ (0 เมื่อปิดแป้นพิมพ์)
+    const k = open ? `${Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))}px` : '0px'
+    if (k !== lastK) {
+      root.style.setProperty('--kbh', k)
+      lastK = k
+    }
   }
   let timer = null
   let settle = null
@@ -77,6 +84,7 @@ export function watchViewport() {
     document.removeEventListener('focusout', onFocusOut)
     root.style.removeProperty('--vvh')
     root.style.removeProperty('--vvt')
+    root.style.removeProperty('--kbh')
     kb.open = false
   }
 }
