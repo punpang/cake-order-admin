@@ -521,7 +521,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
     </div>
 
     <!-- ส่วนล่าง: ร่างบอท · แนะนำสินค้า · เครื่องมือ · ช่องพิมพ์ -->
-    <div class="shrink-0 border-t border-stone-200 bg-white">
+    <div class="shrink-0 border-t border-stone-200 bg-white" :class="kb.open ? '' : 'pb-[env(safe-area-inset-bottom)]'">
       <input ref="camInput" type="file" accept="image/*" capture="environment" class="hidden" tabindex="-1" aria-hidden="true" @change="addPics" />
       <input ref="albumInput" type="file" accept="image/*" multiple class="hidden" tabindex="-1" aria-hidden="true" @change="addPics" />
       <!-- ร่างคำตอบจากบอท -->
