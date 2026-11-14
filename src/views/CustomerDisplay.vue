@@ -44,7 +44,6 @@ const THEME = {
   thanks: { pill: 'bg-matcha text-stone-900', label: 'ชำระเรียบร้อย' },
 }
 const theme = computed(() => THEME[state.value.status] || THEME.idle)
-const many = computed(() => (state.value.lines || []).length > 6)
 const remaining = computed(() => Number(state.value.remaining) || 0)
 const pricing = computed(() => state.value.pricing || { full: 0, discounts: [], saved: 0, surcharge: 0, vatMode: null, vatRate: 0, vat: 0 })
 const hasDiscount = computed(() => (pricing.value.discounts || []).length > 0)
@@ -107,14 +106,14 @@ watch(
 
     <main class="flex min-h-0 flex-1 flex-col p-[clamp(0.4rem,1.2vh,0.9rem)]">
       <!-- กำลังเลือกสินค้า: รายการ (ซ้าย) · สรุปยอดและโปรโมชั่น (ขวา) -->
-      <div v-if="state.status === 'shopping'" class="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-[clamp(0.4rem,1.2vh,0.8rem)] grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+      <div v-if="state.status === 'shopping'" class="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-[clamp(0.4rem,1.2vh,0.8rem)] grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <section class="@container flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
           <div class="flex shrink-0 items-center justify-between bg-brand-50 px-[clamp(0.8rem,2vw,1.4rem)] py-[clamp(0.3rem,1vh,0.6rem)]">
             <span class="font-semibold text-brand-700 text-[clamp(0.85rem,2.4vh,1.1rem)]">รายการที่สั่ง</span>
             <span class="rounded-full bg-honey px-3 py-0.5 text-[clamp(0.7rem,1.9vh,0.9rem)] font-semibold text-stone-900">{{ (state.lines || []).length }} รายการ</span>
           </div>
           <FitBox>
-            <ul class="p-[clamp(0.5rem,1.4vh,1rem)]" :class="many ? 'grid grid-cols-1 gap-x-4 gap-y-[clamp(0.35rem,1vh,0.6rem)] @[34rem]:grid-cols-2' : 'space-y-[clamp(0.35rem,1vh,0.6rem)]'">
+            <ul class="space-y-[clamp(0.35rem,1vh,0.6rem)] p-[clamp(0.5rem,1.4vh,1rem)]">
               <li v-for="(l, i) in state.lines" :key="i" class="flex items-start gap-[clamp(0.5rem,1.4vw,0.9rem)] rounded-2xl bg-stone-50 p-[clamp(0.35rem,1.1vh,0.8rem)]">
                 <span class="grid aspect-square h-[clamp(2rem,5.2vh,2.75rem)] shrink-0 place-items-center rounded-xl bg-brand-100 font-bold text-brand-800 text-[clamp(0.9rem,2.6vh,1.2rem)]">{{ l.qty }}</span>
                 <!-- ซ้าย: ชื่อ + ราคา (ราคาที่ต้องจ่ายก่อน · ราคาเต็มขีดฆ่าไว้ข้างหลัง) -->
@@ -169,7 +168,7 @@ watch(
                 <div class="flex items-center gap-2 font-semibold text-brand-700">
                   <AppIcon name="star" :size="16" /> โปรโมชั่นแนะนำ
                 </div>
-                <div class="grid grid-cols-2 gap-[clamp(0.3rem,1vh,0.6rem)]">
+                <div class="flex flex-col gap-[clamp(0.3rem,1vh,0.6rem)]">
                   <div v-for="c in visiblePromos" :key="c.key" class="rounded-2xl px-[clamp(0.45rem,1.2vw,0.7rem)] py-[clamp(0.3rem,1vh,0.6rem)]" :class="c.cls">
                     <div class="break-words font-medium leading-snug" :class="c.titleCls">
                       <span class="mr-1 inline-flex items-center gap-0.5 rounded-full bg-white/80 px-2 align-middle text-[0.75em] font-semibold" :class="c.labelCls"><AppIcon v-if="c.star" name="star" :size="11" />{{ c.label }}</span>{{ c.title }}<span v-if="c.price" class="whitespace-nowrap font-semibold"> · {{ c.price }}</span>
@@ -192,7 +191,7 @@ watch(
       </div>
 
       <!-- กำลังชำระเงิน: ยอดและวิธีชำระ (ซ้าย) · QR (ขวา) -->
-      <div v-else-if="state.status === 'paying'" class="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-[clamp(0.4rem,1.2vh,0.8rem)] grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
+      <div v-else-if="state.status === 'paying'" class="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-[clamp(0.4rem,1.2vh,0.8rem)] grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <section class="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
           <div class="shrink-0 bg-brand-50 px-[clamp(0.8rem,2vw,1.4rem)] py-[clamp(0.3rem,1vh,0.6rem)]">
             <span class="font-semibold text-brand-700 text-[clamp(0.85rem,2.4vh,1.1rem)]">การชำระเงิน</span>
