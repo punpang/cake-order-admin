@@ -89,7 +89,7 @@ const paidText = computed(() => {
   return !payTarget && pay.paidAt === paidInitial ? `ตอนนี้ · ${label}` : label
 })
 const amountMatchesBalance = computed(() => Number(pay.amount) === Number(t.value.balance))
-// รับชำระโอนหน้าร้าน: แสดง QR แบบ POS (ตรวจรายการแม่มณีอัตโนมัติ) แทนปุ่มบันทึกทั่วไป
+// รับชำระโอนหน้าร้าน: แสดง QR แบบ POS (ตรวจรายการถุงเงินอัตโนมัติ) แทนปุ่มบันทึกทั่วไป
 const qrMode = computed(() => payMode === 'direct' && pay.method === 'โอนเงิน' && t.value.balance > 0)
 const saveLabel = computed(() => (payMode === 'direct' ? 'ยืนยันรับชำระ' : payMode === 'confirm' ? 'ยืนยัน' : payMode === 'slip' ? 'รับชำระ' : 'บันทึก'))
 async function onSlip(e) {

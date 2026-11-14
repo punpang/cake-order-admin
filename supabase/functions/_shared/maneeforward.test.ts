@@ -1,6 +1,6 @@
-// ทดสอบการรับแจ้งเตือนแม่มณี: ลายเซ็น ยอด การกรองแอป การจับคู่กับ QR
+// ทดสอบการรับแจ้งเตือนถุงเงิน: ลายเซ็น การดึงรหัสธุรกรรม การตรวจรูปแบบรหัส
 import { assertEquals } from 'jsr:@std/assert@1'
-import { verifyGatewaySignature, parseManeeAmount, isManeeApp, matchTransfers } from './maneeforward.ts'
+import { verifyGatewaySignature, extractTransferRef, isRefShape } from './maneeforward.ts'
 
 const SECRET = 'example-secret-0123456'
 const hmacHex = async (secret: string, msg: string) => {
@@ -23,27 +23,20 @@ Deno.test('ลายเซ็นผิด / body ถูกแก้ / เวล�
   assertEquals(await verifyGatewaySignature(SECRET, '1731230000', body, good, 1731230000), true)
 })
 
-Deno.test('ยอดจากข้อความแม่มณี', () => {
-  assertEquals(parseManeeAmount('คุณได้รับเงิน 1.00 บาท จาก MR.Someone'), 1)
-  assertEquals(parseManeeAmount('คุณได้รับเงิน 1,250.50 บาท จาก X'), 1250.5)
-  assertEquals(parseManeeAmount('คุณโอนเงิน 500.00 บาท ให้ X'), null)
-  assertEquals(parseManeeAmount(''), null)
+Deno.test('ดึงรหัสธุรกรรมจากแจ้งเตือนถุงเงิน', () => {
+  assertEquals(extractTransferRef('จาก MR.Pansit Sri. รหัสธุรกรรมถุงเงิน ORD12340272826288288'), 'ORD12340272826288288')
+  assertEquals(extractTransferRef('จาก MR PANSIT SRI. รหัสธุรกรรมถุงเงิน ORD47567336FDHUFYTRY'), 'ORD47567336FDHUFYTRY')
+  assertEquals(extractTransferRef('รหัสธุรกรรมถุงเงิน POS123456789012ABCDE'), 'POS123456789012ABCDE')
+  assertEquals(extractTransferRef('คุณได้รับเงิน 1.00 บาท'), null)
+  assertEquals(extractTransferRef('ORD123'), null)
+  assertEquals(extractTransferRef('xORD12340272826288288'), null)
+  assertEquals(extractTransferRef(''), null)
 })
 
-Deno.test('กรองแอปแม่มณี', () => {
-  assertEquals(isManeeApp('com.x', 'แอปพลิเคชัน แม่มณี'), true)
-  assertEquals(isManeeApp('com.other', 'ธนาคาร'), false)
-  assertEquals(isManeeApp('com.manee.pkg', '', 'com.manee.pkg'), true)
-})
-
-Deno.test('จับคู่: ยอดเท่ากัน และเวลาอยู่ในช่วงอายุ QR (หลังสร้าง ไม่เกินหมดอายุ)', () => {
-  const qr = { amount: 90, createdAtMs: 1000_000, expiresAtMs: 1000_000 + 600_000 }
-  const list = [
-    { id: 'a', amount: 90, receivedAtMs: 1000_000 - 1 },   // ก่อนสร้าง QR
-    { id: 'b', amount: 90, receivedAtMs: 1000_000 + 5_000 }, // ตรง
-    { id: 'c', amount: 89, receivedAtMs: 1000_000 + 5_000 }, // ยอดไม่ตรง
-    { id: 'd', amount: 90, receivedAtMs: 1000_000 + 700_000 }, // หมดอายุแล้ว
-    { id: 'e', amount: 90, receivedAtMs: 1000_000 + 600_000 }, // พอดีเวลาหมดอายุ = ตรง
-  ]
-  assertEquals(matchTransfers(list, qr).map((t) => t.id), ['b', 'e'])
+Deno.test('ตรวจรูปแบบรหัสที่รับจาก client', () => {
+  assertEquals(isRefShape('ORD12340272826288288'), true)
+  assertEquals(isRefShape('POS123456789012ABCDE'), true)
+  assertEquals(isRefShape('ord12340272826288288'), false)
+  assertEquals(isRefShape('ORD123'), false)
+  assertEquals(isRefShape("ORD' OR 1=1--"), false)
 })

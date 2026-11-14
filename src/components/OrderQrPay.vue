@@ -1,10 +1,10 @@
 <script setup>
-// รับชำระโอนหน้าร้านจากหน้าออร์เดอร์ · ทำงานเหมือน QR ของ POS: รอชำระ → ตรวจรายการแม่มณี → ลูกค้าชำระแล้ว → รับชำระ
+// รับชำระโอนหน้าร้านจากหน้าออร์เดอร์ · ทำงานเหมือน QR ของ POS: รอชำระ → ตรวจรายการถุงเงิน (ด้วยรหัสธุรกรรม) → ลูกค้าชำระแล้ว → รับชำระ
 // รับเองเมื่อครบ 3 นาทีหลังพบรายการเดียว · หมดอายุตามตั้งค่า POS · ปิดหน้าก่อนชำระ = ยกเลิก QR
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { db, reportPayment, confirmPayment, cancelPaymentRequest } from '../data/store'
 import { orderTotals } from '../lib/pricing'
-import { listManeeTransfers } from '../lib/maneeRemote'
+import { listTransfersByRef } from '../lib/maneeRemote'
 import { quietly } from '../lib/loading'
 import { money, dateTime } from '../lib/format'
 import BillerQr from './BillerQr.vue'
@@ -60,7 +60,7 @@ async function poll() {
   if (polling || !qr.value || state.value !== 'waiting') return
   polling = true
   try {
-    const r = await listManeeTransfers({ amount: qr.value.amount, from: qr.value.from, to: qr.value.to })
+    const r = await listTransfersByRef({ ref: qr.value.ref2 })
     if (r.error) return
     candidates.value = r.rows
     if (r.rows.length === 1) { found.value = r.rows[0]; detectedAt.value = Date.now() }
@@ -73,7 +73,7 @@ function accept(by, row = null) {
     amount: qr.value.amount,
     method: 'โอนเงิน',
     paidAt: (row || found.value)?.received_at || new Date().toISOString(),
-    note: by === 'auto' ? 'รับอัตโนมัติ · แม่มณี' : 'พนักงานรับ · แม่มณี',
+    note: by === 'auto' ? 'รับอัตโนมัติ · ถุงเงิน' : 'พนักงานรับ · ถุงเงิน',
   })
   if (res?.error) return (err.value = res.error)
   emit('done')
@@ -121,7 +121,7 @@ onBeforeUnmount(() => {
       <div v-if="state === 'waiting' && candidates.length > 1" class="space-y-1.5">
         <p class="text-xs text-amber-700">พบรายการที่ตรงหลายรายการ เลือกรายการที่ใช่</p>
         <button v-for="c in candidates" :key="c.id" type="button" class="btn-outline w-full justify-between" @click="accept('staff', c)">
-          <span>{{ dateTime(c.received_at) }}</span><span>{{ money(c.amount) }} · เลือก</span>
+          <span>{{ dateTime(c.received_at) }}</span><span>เลือก</span>
         </button>
       </div>
       <div class="grid grid-cols-2 gap-2">

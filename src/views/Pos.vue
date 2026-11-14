@@ -35,7 +35,7 @@ import TaxInvoiceModal from '../components/TaxInvoiceModal.vue'
 import { invoiceOfOrder } from '../data/acct'
 import { defaultRefundMethod } from '../lib/refund'
 import BillerQr from '../components/BillerQr.vue'
-import { listManeeTransfers } from '../lib/maneeRemote'
+import { listTransfersByRef } from '../lib/maneeRemote'
 
 // POS หน้าร้าน: เปิดกะ → ขาย (ตะกร้า สมาชิก คูปอง ส่วนลด + โปรโมชัน/บันเดิ้ลอัตโนมัติ) → ชำระ (เงินสด/โอน/บัตร + ทอน) → ใบเสร็จ · บิล · ปิดกะ
 // สะสมคะแนนจากยอดสุทธิ (โปรคะแนนพิเศษคูณได้) · ไม่ใช้คะแนนตรง ๆ: ลูกค้าแลกคะแนนเป็นคูปองที่หน้าเว็บ แล้วใช้คูปองที่นี่
@@ -313,7 +313,7 @@ function addPayLine(method) {
 function removePayLine(i) {
   payLines.value.splice(i, 1)
 }
-// ดึงรายการโอนแม่มณีที่ตรงกับ QR ที่ยังรอชำระ (ทุก 5 วินาที)
+// ดึงรายการโอนถุงเงินที่มีรหัสธุรกรรมตรงกับ QR ที่ยังรอชำระ (ทุก 5 วินาที)
 // พบรายการเดียว → ขึ้นสถานะ "ลูกค้าชำระแล้ว" (อนิเมชัน) รอพนักงานกดรับ · พบหลายรายการ → ให้พนักงานเลือกเอง
 async function pollManee() {
   if (maneePolling) return
@@ -321,7 +321,7 @@ async function pollManee() {
   try {
     for (const l of payLines.value) {
       if (l.method !== 'transfer' || !l.qrRef || l.confirmed || l.detectedAt || l.status === 'cancelled' || expiredLine(l)) continue
-      const r = await listManeeTransfers({ amount: lineAmt(l), from: l.qrCreatedAt, to: l.qrExpiresAt })
+      const r = await listTransfersByRef({ ref: l.qrRef })
       if (r.error) continue
       l.candidates = r.rows
       if (r.rows.length === 1) Object.assign(l, { detectedAt: Date.now(), maneeId: r.rows[0].id })
@@ -879,7 +879,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               <div v-if="!l.detectedAt && !expiredLine(l) && (l.candidates || []).length > 1" class="space-y-2">
                 <p class="text-sm font-medium text-amber-800">พบหลายรายการที่ตรง เลือกรายการที่ใช่</p>
                 <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-12 w-full items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-4" @click="pickManee(l, c)">
-                  <span>{{ timeOnly(c.received_at) }}</span><span class="font-semibold">{{ money(c.amount) }} · เลือก</span>
+                  <span>{{ timeOnly(c.received_at) }}</span><span class="font-semibold">เลือก</span>
                 </button>
               </div>
 

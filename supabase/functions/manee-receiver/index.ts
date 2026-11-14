@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { verifyGatewaySignature, parseManeeAmount } from '../_shared/maneeforward.ts'
+import { verifyGatewaySignature, extractTransferRef } from '../_shared/maneeforward.ts'
 
-// รับ notification.forwarded / sms.forwarded จากแอปส่งต่อ → บันทึกยอดรับเงินแม่มณีลงตาราง manee_transfers
+// รับ notification.forwarded จากแอปส่งต่อ (ถุงเงิน) → บันทึกรหัสธุรกรรม ORD/POS ลงตาราง manee_transfers เพื่อจับคู่กับ QR หน้าร้าน
 // ทุกคำขอที่ผ่านลายเซ็นจะบันทึกลง manee_inbox (แอป · ข้อความ · ผ่าน/ไม่ผ่าน · เหตุผล) เพื่อดูรายงานแอปที่ส่งเข้ามา
 // ค่าลับ: MANEE_FORWARD_SECRET (ค่าเดียวกับกฎส่งต่อ) · MANEE_APP_IDS (ไม่บังคับ) · ไม่มีการตอบข้อมูลภายในให้ผู้เรียก
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'Content-Type': 'application/json' } })
@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
 
   // ตอบ 2xx กับรายการที่ไม่ใช่แม่มณีด้วย เพื่อให้แอปไม่ส่งซ้ำ
   if (p?.event !== 'notification.forwarded') { await logInbox(false, 'event ไม่รองรับ'); return json({ ok: true, stored: false }) }
-  // รายชื่อแอปแม่มณีตั้งจากหน้าเว็บ (ตาราง manee_app_names · เทียบชื่อแอปที่แสดงบนโทรศัพท์ ไม่สนตัวพิมพ์) + MANEE_APP_IDS (รหัสแอป, ไม่บังคับ)
+  // รายชื่อแอปที่รับ (ถุงเงิน) ตั้งจากหน้าเว็บ (ตาราง manee_app_names · เทียบชื่อแอปที่แสดงบนโทรศัพท์ ไม่สนตัวพิมพ์) + MANEE_APP_IDS (รหัสแอป, ไม่บังคับ)
   const { data: nameRows } = await sb.from('manee_app_names').select('name')
   const names = (nameRows ?? []).map((r: { name: string }) => r.name.trim().toLowerCase())
   const appName = String(p.app_name ?? '').trim().toLowerCase()
@@ -36,13 +36,13 @@ Deno.serve(async (req) => {
   if (p.test === true) { await logInbox(false, 'ข้อความทดสอบ (test=true)'); return json({ ok: true, stored: false }) }
   const id = String(p.id ?? '')
   if (!/^[0-9a-f-]{36}$/i.test(id)) { await logInbox(false, 'id ไม่ถูกต้อง'); return json({ ok: true, stored: false }) }
-  const amount = parseManeeAmount(String(p.text ?? ''))
-  if (amount == null) { await logInbox(false, 'ไม่ใช่ยอดรับเงิน (ต้องมี "คุณได้รับเงิน … บาท")'); return json({ ok: true, stored: false }) }
+  const ref = extractTransferRef(String(p.text ?? ''))
+  if (!ref) { await logInbox(false, 'ไม่พบรหัสธุรกรรม (ORD/POS) ในข้อความ'); return json({ ok: true, stored: false }) }
 
   const { error } = await sb.from('manee_transfers').upsert({
-    id, amount, received_at: new Date(Number(p.received_at)).toISOString(), app: String(p.app ?? ''), text: String(p.text ?? '').slice(0, 300),
+    id, ref, amount: null, received_at: new Date(Number(p.received_at)).toISOString(), app: String(p.app ?? ''), text: String(p.text ?? '').slice(0, 300),
   }, { onConflict: 'id', ignoreDuplicates: true })
   if (error) { console.error('manee insert', error.message); await logInbox(false, 'บันทึกตารางไม่สำเร็จ'); return json({ error: 'store' }, 500) }
-  await logInbox(true, 'บันทึกยอดแล้ว')
+  await logInbox(true, 'บันทึกรหัสธุรกรรมแล้ว')
   return json({ ok: true, stored: true })
 })

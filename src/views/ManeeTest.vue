@@ -1,8 +1,8 @@
 <script setup>
-// หน้าทดสอบการรับยอดแม่มณี: รายงานแอปที่ส่งเข้ามา + รายการรับยอดล่าสุด รีเฟรชอัตโนมัติ · เฉพาะพนักงานที่มีสิทธิ์ POS (ดูนโยบาย RLS)
+// หน้าทดสอบการรับยอดถุงเงิน: รายงานแอปที่ส่งเข้ามา + รายการรับยอดล่าสุด รีเฟรชอัตโนมัติ · เฉพาะพนักงานที่มีสิทธิ์ POS (ดูนโยบาย RLS)
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { supabaseEnabled, getSupabase } from '../lib/supabase'
-import { dateTime, money } from '../lib/format'
+import { dateTime } from '../lib/format'
 import ManageShell from '../components/ManageShell.vue'
 import { quietly } from '../lib/loading'
 
@@ -18,7 +18,7 @@ const err = ref('')
 const loadedAt = ref('')
 let timer = null
 
-// เพิ่ม/ลบชื่อแอปแม่มณี (ชื่อที่แสดงบนโทรศัพท์) · รายการหลายชื่อได้
+// เพิ่ม/ลบชื่อแอปที่รับ (ชื่อที่แสดงบนโทรศัพท์) · รายการหลายชื่อได้
 async function addName() {
   nameErr.value = ''
   const n = newName.value.trim()
@@ -67,7 +67,7 @@ async function load() {
   try {
     const c = await getSupabase()
     const [t, i, n] = await Promise.all([
-      c.from('manee_transfers').select('id, amount, received_at, app, text, created_at').order('created_at', { ascending: false }).limit(20),
+      c.from('manee_transfers').select('id, ref, amount, received_at, app, text, created_at').order('created_at', { ascending: false }).limit(20),
       c.from('manee_inbox').select('id, received_at, app, app_name, event, text, stored, reason').order('received_at', { ascending: false }).limit(500),
       c.from('manee_app_names').select('name').order('name'),
     ])
@@ -89,14 +89,14 @@ onBeforeUnmount(() => clearInterval(timer))
 </script>
 
 <template>
-  <ManageShell narrow :toolbar="false" title="ทดสอบรับยอดแม่มณี" subtitle="แอปที่ส่งเข้ามา · รายการรับยอดล่าสุด · รีเฟรชทุก 5 วินาที">
+  <ManageShell narrow :toolbar="false" title="ทดสอบรับยอดถุงเงิน" subtitle="แอปที่ส่งเข้ามา · รายการรับยอดล่าสุด · รีเฟรชทุก 5 วินาที">
     <p v-if="err" class="rounded-2xl bg-rose-50 p-3 text-sm text-rose-700" role="alert">{{ err }}</p>
     <p v-else class="text-sm text-stone-600">
       {{ count ? `รับยอดแล้ว ${count} รายการล่าสุด` : 'ยังไม่มีรายการรับยอดเข้ามา' }}
       <span v-if="loadedAt" class="text-xs text-stone-400"> · ตรวจล่าสุด {{ loadedAt }}</span>
     </p>
 
-    <h2 class="mt-5 text-sm font-semibold text-stone-800">ชื่อแอปที่ถือว่าเป็นแม่มณี</h2>
+    <h2 class="mt-5 text-sm font-semibold text-stone-800">ชื่อแอปที่รับ (ถุงเงิน)</h2>
     <p class="mt-1 text-xs text-stone-500">ใช้ชื่อที่แสดงบนโทรศัพท์ (ไม่สนตัวพิมพ์) เพิ่มได้หลายชื่อ</p>
     <ul class="mt-2 flex flex-wrap gap-2">
       <li v-for="x in names" :key="x.name" class="flex items-center gap-1 rounded-full bg-brand-50 px-3 py-1 text-sm text-brand-800">
@@ -105,7 +105,7 @@ onBeforeUnmount(() => clearInterval(timer))
       </li>
     </ul>
     <form class="mt-2 flex gap-2" @submit.prevent="addName">
-      <input v-model="newName" type="text" maxlength="100" placeholder="ชื่อแอป เช่น แม่มณี" class="input h-11 flex-1" />
+      <input v-model="newName" type="text" maxlength="100" placeholder="ชื่อแอป เช่น ถุงเงิน" class="input h-11 flex-1" />
       <button type="submit" class="btn-primary h-11" :disabled="!newName.trim()">เพิ่ม</button>
     </form>
     <p v-if="nameErr" class="mt-2 text-sm text-rose-700" role="alert">{{ nameErr }}</p>
@@ -160,7 +160,7 @@ onBeforeUnmount(() => clearInterval(timer))
     <ul class="mt-2 space-y-2">
       <li v-for="r in rows" :key="r.id" class="rounded-2xl border border-stone-200 bg-white p-3">
         <div class="flex items-center justify-between">
-          <span class="font-semibold text-stone-800">{{ money(r.amount) }}</span>
+          <span class="font-semibold text-stone-800">{{ masked(r.ref) || '-' }}</span>
           <span class="text-xs text-stone-500">{{ dateTime(r.received_at) }}</span>
         </div>
         <div class="mt-1 text-xs text-stone-500">แอป: {{ r.app || '-' }}</div>
