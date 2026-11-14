@@ -14,6 +14,7 @@ import { suggestCustomers, phonesInChat } from '../lib/chatLink'
 import { buildChatIndex, chatMatchesQuery, remoteSearchKeys } from '../lib/chatSearch'
 import { chatRemote } from '../lib/chatSync'
 import { kb } from '../lib/viewportFit'
+import { APP_MODE } from '../lib/adminSystems'
 
 // ศูนย์รวมแชท LINE OA + Facebook (ข้อความเข้าจาก webhook / ส่งผ่าน API)
 // คอม: รายการแชท | เธรด | แผงออร์เดอร์ (เปิดได้) · มือถือ/แท็บเล็ต: ทีละหน้า (รายการ → เธรด → ออร์เดอร์ เต็มจอ)
@@ -136,7 +137,9 @@ const asideCls = computed(() => {
 })
 const CARD = 'min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_2px_8px_rgb(63_46_46/0.06)]'
 // แป้นพิมพ์เปิดบนมือถือ: กรอบเต็มจอ (ไม่มีขอบ/มุมโค้ง/เงา) เพื่อใช้พื้นที่ให้มากที่สุด
-const cardCls = computed(() => (kb.open ? 'min-h-0 min-w-0 flex-col overflow-hidden bg-white' : CARD))
+// แอป Android: ไม่มีกรอบ/มุมโค้ง/เงา เต็มจอชิดขอบเสมอ (เหมือนตอนแป้นพิมพ์เปิด)
+const BARE = 'min-h-0 min-w-0 flex-col overflow-hidden bg-white'
+const cardCls = computed(() => (kb.open || APP_MODE === 'android' ? BARE : CARD))
 
 // ผูกแชทกับลูกค้า (จำ LINE userId / FB PSID)
 const linkOpen = ref(false)
