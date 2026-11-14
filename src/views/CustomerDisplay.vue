@@ -95,17 +95,20 @@ watch(
             <ul class="min-h-0 flex-1 space-y-[clamp(0.4rem,1.2vh,0.75rem)] overflow-y-auto p-[clamp(0.6rem,1.6vh,1.25rem)]">
               <li v-for="(l, i) in state.lines" :key="i" class="flex items-start gap-[clamp(0.5rem,1.4vw,0.9rem)] rounded-2xl bg-stone-50 p-[clamp(0.4rem,1.2vh,0.85rem)]">
                 <span class="grid aspect-square h-[clamp(2rem,5.2vh,2.75rem)] shrink-0 place-items-center rounded-xl bg-brand-100 font-bold text-brand-800 text-[clamp(0.9rem,2.6vh,1.2rem)]">{{ l.qty }}</span>
+                <!-- ซ้าย: ชื่อ + ราคาต่อหน่วย (ขีดราคาเต็มถ้าลดรายการ) · ขวา: ราคารวมของรายการ และป้ายโปรโมชั่นอยู่ใต้ราคารวม -->
                 <div class="min-w-0 flex-1">
                   <div class="break-words font-medium text-stone-900 text-[clamp(0.95rem,3vh,1.4rem)]">{{ l.name }}</div>
-                  <div class="text-stone-600 text-[clamp(0.8rem,2.3vh,1.05rem)]">
-                    {{ l.qty }} × <span v-if="l.fullUnit !== l.unit" class="text-stone-400 line-through">{{ money(l.fullUnit) }}</span>
-                    {{ money(l.unit) }}
+                  <div class="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-stone-600 text-[clamp(0.8rem,2.3vh,1.05rem)]">
+                    <span v-if="l.fullUnit !== l.unit" class="text-stone-400 line-through">{{ money(l.fullUnit) }}</span>
+                    <span>{{ money(l.unit) }}</span>
                   </div>
-                  <div v-if="l.tags?.length" class="mt-1 flex flex-wrap gap-1">
+                </div>
+                <div class="flex shrink-0 flex-col items-end gap-1">
+                  <span class="font-semibold text-stone-900 text-[clamp(0.95rem,3vh,1.4rem)]">{{ money(l.amount) }}</span>
+                  <div v-if="l.tags?.length" class="flex flex-wrap justify-end gap-1">
                     <span v-for="(t, k) in l.tags" :key="k" class="rounded-full bg-honey/50 px-2 py-0.5 text-[clamp(0.7rem,1.9vh,0.9rem)] text-stone-900">{{ t }}</span>
                   </div>
                 </div>
-                <span class="shrink-0 font-semibold text-stone-900 text-[clamp(0.95rem,3vh,1.4rem)]">{{ money(l.amount) }}</span>
               </li>
             </ul>
           </section>
