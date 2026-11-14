@@ -7,9 +7,40 @@ import ManageShell from '../components/ManageShell.vue'
 
 const rows = ref([])
 const inbox = ref([])
+const names = ref([])
+const newName = ref('')
+const nameErr = ref('')
 const err = ref('')
 const loadedAt = ref('')
 let timer = null
+
+// เพิ่ม/ลบชื่อแอปแม่มณี (ชื่อที่แสดงบนโทรศัพท์) · รายการหลายชื่อได้
+async function addName() {
+  nameErr.value = ''
+  const n = newName.value.trim()
+  if (!n) return
+  if (names.value.some((x) => x.name.toLowerCase() === n.toLowerCase())) { nameErr.value = 'มีชื่อนี้อยู่แล้ว'; return }
+  try {
+    const c = await getSupabase()
+    const r = await c.from('manee_app_names').insert({ name: n })
+    if (r.error) { nameErr.value = 'เพิ่มไม่สำเร็จ: ' + r.error.message; return }
+    newName.value = ''
+    await load()
+  } catch {
+    nameErr.value = 'เพิ่มไม่สำเร็จ'
+  }
+}
+async function removeName(n) {
+  nameErr.value = ''
+  try {
+    const c = await getSupabase()
+    const r = await c.from('manee_app_names').delete().eq('name', n)
+    if (r.error) { nameErr.value = 'ลบไม่สำเร็จ: ' + r.error.message; return }
+    await load()
+  } catch {
+    nameErr.value = 'ลบไม่สำเร็จ'
+  }
+}
 
 // ปิดบังตัวเลขยาว 6 หลักขึ้นไป (เลขบัญชี/อ้างอิง) ก่อนแสดงผล
 const masked = (t) => String(t ?? '').replace(/\d{6,}/g, '••••••')
@@ -31,13 +62,15 @@ async function load() {
   if (!supabaseEnabled) { err.value = 'โหมดจำลอง: ไม่ได้เชื่อม Supabase'; return }
   try {
     const c = await getSupabase()
-    const [t, i] = await Promise.all([
+    const [t, i, n] = await Promise.all([
       c.from('manee_transfers').select('id, amount, received_at, app, text, created_at').order('created_at', { ascending: false }).limit(20),
       c.from('manee_inbox').select('id, received_at, app, app_name, event, text, stored, reason').order('received_at', { ascending: false }).limit(500),
+      c.from('manee_app_names').select('name').order('name'),
     ])
-    if (t.error || i.error) { err.value = 'อ่านข้อมูลไม่ได้: ' + (t.error?.message || i.error?.message); return }
+    if (t.error || i.error || n.error) { err.value = 'อ่านข้อมูลไม่ได้: ' + (t.error?.message || i.error?.message || n.error?.message); return }
     rows.value = t.data || []
     inbox.value = i.data || []
+    names.value = n.data || []
     err.value = ''
     loadedAt.value = dateTime(new Date().toISOString())
   } catch {
@@ -58,6 +91,20 @@ onBeforeUnmount(() => clearInterval(timer))
       {{ count ? `รับยอดแล้ว ${count} รายการล่าสุด` : 'ยังไม่มีรายการรับยอดเข้ามา' }}
       <span v-if="loadedAt" class="text-xs text-stone-400"> · ตรวจล่าสุด {{ loadedAt }}</span>
     </p>
+
+    <h2 class="mt-5 text-sm font-semibold text-stone-800">ชื่อแอปที่ถือว่าเป็นแม่มณี</h2>
+    <p class="mt-1 text-xs text-stone-500">ใช้ชื่อที่แสดงบนโทรศัพท์ (ไม่สนตัวพิมพ์) เพิ่มได้หลายชื่อ</p>
+    <ul class="mt-2 flex flex-wrap gap-2">
+      <li v-for="x in names" :key="x.name" class="flex items-center gap-1 rounded-full bg-brand-50 px-3 py-1 text-sm text-brand-800">
+        {{ x.name }}
+        <button type="button" class="ml-1 text-brand-700" :aria-label="'ลบ ' + x.name" @click="removeName(x.name)">×</button>
+      </li>
+    </ul>
+    <form class="mt-2 flex gap-2" @submit.prevent="addName">
+      <input v-model="newName" type="text" maxlength="100" placeholder="ชื่อแอป เช่น แม่มณี" class="input h-11 flex-1" />
+      <button type="submit" class="btn-primary h-11" :disabled="!newName.trim()">เพิ่ม</button>
+    </form>
+    <p v-if="nameErr" class="mt-2 text-sm text-rose-700" role="alert">{{ nameErr }}</p>
 
     <h2 class="mt-5 text-sm font-semibold text-stone-800">แอปที่ส่งเข้ามา</h2>
     <p v-if="!byApp.length" class="mt-2 text-sm text-stone-500">ยังไม่มีคำขอเข้ามา</p>

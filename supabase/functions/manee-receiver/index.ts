@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { verifyGatewaySignature, parseManeeAmount, isManeeApp } from '../_shared/maneeforward.ts'
+import { verifyGatewaySignature, parseManeeAmount } from '../_shared/maneeforward.ts'
 
 // รับ notification.forwarded / sms.forwarded จากแอปส่งต่อ → บันทึกยอดรับเงินแม่มณีลงตาราง manee_transfers
 // ทุกคำขอที่ผ่านลายเซ็นจะบันทึกลง manee_inbox (แอป · ข้อความ · ผ่าน/ไม่ผ่าน · เหตุผล) เพื่อดูรายงานแอปที่ส่งเข้ามา
@@ -26,7 +26,13 @@ Deno.serve(async (req) => {
 
   // ตอบ 2xx กับรายการที่ไม่ใช่แม่มณีด้วย เพื่อให้แอปไม่ส่งซ้ำ
   if (p?.event !== 'notification.forwarded') { await logInbox(false, 'event ไม่รองรับ'); return json({ ok: true, stored: false }) }
-  if (!isManeeApp(String(p.app ?? ''), String(p.app_name ?? ''), Deno.env.get('MANEE_APP_IDS') || '')) { await logInbox(false, 'ไม่ใช่แอปแม่มณี'); return json({ ok: true, stored: false }) }
+  // รายชื่อแอปแม่มณีตั้งจากหน้าเว็บ (ตาราง manee_app_names · เทียบชื่อแอปที่แสดงบนโทรศัพท์ ไม่สนตัวพิมพ์) + MANEE_APP_IDS (รหัสแอป, ไม่บังคับ)
+  const { data: nameRows } = await sb.from('manee_app_names').select('name')
+  const names = (nameRows ?? []).map((r: { name: string }) => r.name.trim().toLowerCase())
+  const appName = String(p.app_name ?? '').trim().toLowerCase()
+  const ids = (Deno.env.get('MANEE_APP_IDS') || '').split(',').map((s) => s.trim()).filter(Boolean)
+  const isMatch = (appName !== '' && names.includes(appName)) || ids.includes(String(p.app ?? ''))
+  if (!isMatch) { await logInbox(false, 'ไม่อยู่ในรายชื่อแอปแม่มณี'); return json({ ok: true, stored: false }) }
   if (p.test === true) { await logInbox(false, 'ข้อความทดสอบ (test=true)'); return json({ ok: true, stored: false }) }
   const id = String(p.id ?? '')
   if (!/^[0-9a-f-]{36}$/i.test(id)) { await logInbox(false, 'id ไม่ถูกต้อง'); return json({ ok: true, stored: false }) }
