@@ -40,6 +40,8 @@ const THEME = {
 const theme = computed(() => THEME[state.value.status] || THEME.idle)
 const many = computed(() => (state.value.lines || []).length > 6)
 const remaining = computed(() => Number(state.value.remaining) || 0)
+const pricing = computed(() => state.value.pricing || { full: 0, discounts: [], saved: 0, surcharge: 0, vatMode: null, vatRate: 0, vat: 0 })
+const hasDiscount = computed(() => (pricing.value.discounts || []).length > 0)
 
 // สีป้ายวิธีชำระ (ตามชื่อวิธีชำระที่ POS ส่งมา) โทนคลุม
 const METHOD_CHIP = {
@@ -82,28 +84,67 @@ watch(
 
     <!-- เนื้อหาหลัก -->
     <main class="flex min-h-0 flex-1 flex-col gap-[clamp(0.5rem,1.6vh,1rem)] p-[clamp(0.6rem,2vh,1.5rem)]">
-      <!-- กำลังเลือกสินค้า: รายการที่สั่ง -->
+      <!-- กำลังเลือกสินค้า: รายการ (ซ้าย) · สรุปยอดพร้อมส่วนลดทั้งหมด (ขวา) -->
       <template v-if="state.status === 'shopping'">
-        <section class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
-          <div class="flex shrink-0 items-center justify-between bg-brand-50 px-[clamp(0.9rem,2vw,1.5rem)] py-[clamp(0.4rem,1.2vh,0.75rem)]">
-            <span class="font-semibold text-brand-700 text-[clamp(0.9rem,2.6vh,1.15rem)]">รายการที่สั่ง</span>
-            <span class="rounded-full bg-honey px-3 py-0.5 text-[clamp(0.75rem,2vh,0.95rem)] font-semibold text-stone-900">{{ (state.lines || []).length }} รายการ</span>
-          </div>
-          <ul
-            class="min-h-0 flex-1 overflow-y-auto p-[clamp(0.6rem,1.6vh,1.25rem)]"
-            :class="many ? 'grid gap-x-5 gap-y-[clamp(0.4rem,1.2vh,0.75rem)] sm:grid-cols-2' : 'space-y-[clamp(0.4rem,1.2vh,0.75rem)]'"
-          >
-            <li
-              v-for="(l, i) in state.lines"
-              :key="i"
-              class="flex items-center gap-[clamp(0.6rem,1.6vw,1rem)] rounded-2xl bg-stone-50 p-[clamp(0.4rem,1.2vh,0.85rem)]"
-            >
-              <span class="grid aspect-square h-[clamp(2rem,5.6vh,3rem)] shrink-0 place-items-center rounded-xl bg-brand-100 font-bold text-brand-800 text-[clamp(0.9rem,2.6vh,1.2rem)]">{{ l.qty }}</span>
-              <span class="min-w-0 flex-1 break-words font-medium text-stone-800 text-[clamp(1rem,3.2vh,1.65rem)]">{{ l.name }}</span>
-              <span class="shrink-0 font-semibold text-stone-900 text-[clamp(1rem,3.2vh,1.65rem)]">{{ money(l.amount) }}</span>
-            </li>
-          </ul>
-        </section>
+        <div class="grid min-h-0 flex-1 gap-[clamp(0.5rem,1.6vh,1rem)] sm:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+          <section class="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
+            <div class="flex shrink-0 items-center justify-between bg-brand-50 px-[clamp(0.9rem,2vw,1.5rem)] py-[clamp(0.4rem,1.2vh,0.75rem)]">
+              <span class="font-semibold text-brand-700 text-[clamp(0.9rem,2.6vh,1.15rem)]">รายการที่สั่ง</span>
+              <span class="rounded-full bg-honey px-3 py-0.5 text-[clamp(0.75rem,2vh,0.95rem)] font-semibold text-stone-900">{{ (state.lines || []).length }} รายการ</span>
+            </div>
+            <ul class="min-h-0 flex-1 space-y-[clamp(0.4rem,1.2vh,0.75rem)] overflow-y-auto p-[clamp(0.6rem,1.6vh,1.25rem)]">
+              <li v-for="(l, i) in state.lines" :key="i" class="flex items-start gap-[clamp(0.5rem,1.4vw,0.9rem)] rounded-2xl bg-stone-50 p-[clamp(0.4rem,1.2vh,0.85rem)]">
+                <span class="grid aspect-square h-[clamp(2rem,5.2vh,2.75rem)] shrink-0 place-items-center rounded-xl bg-brand-100 font-bold text-brand-800 text-[clamp(0.9rem,2.6vh,1.2rem)]">{{ l.qty }}</span>
+                <div class="min-w-0 flex-1">
+                  <div class="break-words font-medium text-stone-900 text-[clamp(0.95rem,3vh,1.4rem)]">{{ l.name }}</div>
+                  <div class="text-stone-600 text-[clamp(0.8rem,2.3vh,1.05rem)]">
+                    {{ l.qty }} × <span v-if="l.fullUnit !== l.unit" class="text-stone-400 line-through">{{ money(l.fullUnit) }}</span>
+                    {{ money(l.unit) }}
+                  </div>
+                  <div v-if="l.tags?.length" class="mt-1 flex flex-wrap gap-1">
+                    <span v-for="(t, k) in l.tags" :key="k" class="rounded-full bg-honey/50 px-2 py-0.5 text-[clamp(0.7rem,1.9vh,0.9rem)] text-stone-900">{{ t }}</span>
+                  </div>
+                </div>
+                <span class="shrink-0 font-semibold text-stone-900 text-[clamp(0.95rem,3vh,1.4rem)]">{{ money(l.amount) }}</span>
+              </li>
+            </ul>
+          </section>
+
+          <section class="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
+            <div class="shrink-0 bg-brand-50 px-[clamp(0.9rem,2vw,1.5rem)] py-[clamp(0.4rem,1.2vh,0.75rem)]">
+              <span class="font-semibold text-brand-700 text-[clamp(0.9rem,2.6vh,1.15rem)]">สรุปยอด</span>
+            </div>
+            <div class="flex min-h-0 flex-1 flex-col gap-[clamp(0.3rem,1vh,0.6rem)] overflow-y-auto p-[clamp(0.8rem,2vh,1.5rem)] text-[clamp(0.85rem,2.5vh,1.15rem)]">
+              <div class="flex justify-between gap-3">
+                <span class="text-stone-600">ราคาเต็ม</span>
+                <span class="font-medium text-stone-900">{{ money(pricing.full) }}</span>
+              </div>
+              <div v-for="(d, k) in pricing.discounts" :key="k" class="flex justify-between gap-3 text-brand-700">
+                <span class="min-w-0 break-words">{{ d.label }}</span>
+                <span class="shrink-0 font-semibold">−{{ money(d.amount) }}</span>
+              </div>
+              <div v-if="pricing.surcharge > 0" class="flex justify-between gap-3">
+                <span class="text-stone-600">ปรับราคาเพิ่ม</span>
+                <span class="shrink-0 font-medium text-stone-900">+{{ money(pricing.surcharge) }}</span>
+              </div>
+              <div v-if="pricing.vatMode === 'exclusive'" class="flex justify-between gap-3">
+                <span class="text-stone-600">VAT {{ pricing.vatRate }}% (บวกเพิ่ม)</span>
+                <span class="shrink-0 font-medium text-stone-900">+{{ money(pricing.vat) }}</span>
+              </div>
+              <div v-if="pricing.vatMode === 'inclusive'" class="flex justify-between gap-3 text-stone-500">
+                <span>รวม VAT {{ pricing.vatRate }}% แล้ว</span>
+                <span class="shrink-0">{{ money(pricing.vat) }}</span>
+              </div>
+              <div v-if="hasDiscount" class="mt-1 rounded-2xl bg-brand-50 px-3 py-2 text-center text-brand-700 font-semibold">
+                ประหยัดไป {{ money(pricing.saved) }}
+              </div>
+              <div class="mt-auto flex items-end justify-between gap-3 border-t border-stone-200 pt-3">
+                <span class="font-semibold text-stone-900 text-[clamp(1rem,3vh,1.4rem)]">ยอดสุทธิ</span>
+                <span class="font-display font-semibold text-stone-900 text-[clamp(1.25rem,4.4vh,2rem)]">{{ money(state.total) }}</span>
+              </div>
+            </div>
+          </section>
+        </div>
       </template>
 
       <!-- กำลังชำระเงิน: ยอดและวิธีชำระ (ซ้าย) · QR (ขวา) -->
@@ -117,6 +158,14 @@ watch(
               <div>
                 <div class="text-stone-500 text-[clamp(0.85rem,2.4vh,1.1rem)]">ยอดที่ต้องชำระ</div>
                 <div class="font-display font-semibold text-stone-900 text-[clamp(2rem,8vh,3.75rem)] leading-tight">{{ money(state.total) }}</div>
+              </div>
+              <div class="space-y-1 text-[clamp(0.8rem,2.3vh,1.05rem)] text-stone-700">
+                <div v-for="(d, k) in pricing.discounts" :key="'d' + k" class="flex justify-between gap-3 text-brand-700">
+                  <span class="min-w-0 break-words">{{ d.label }}</span><span class="shrink-0 font-semibold">−{{ money(d.amount) }}</span>
+                </div>
+                <div v-if="pricing.vatMode === 'exclusive'" class="flex justify-between gap-3">
+                  <span>VAT {{ pricing.vatRate }}% (บวกเพิ่ม)</span><span class="shrink-0">+{{ money(pricing.vat) }}</span>
+                </div>
               </div>
               <ul v-if="state.payLines?.length" class="space-y-[clamp(0.35rem,1vh,0.6rem)]">
                 <li v-for="(p, i) in state.payLines" :key="i" class="flex items-center justify-between gap-3 rounded-2xl bg-stone-50 p-[clamp(0.4rem,1.2vh,0.85rem)]">
@@ -159,6 +208,7 @@ watch(
           </div>
           <div class="font-display font-medium text-stone-900 text-[clamp(2.5rem,11vh,5rem)] leading-tight">ขอบคุณค่ะ</div>
           <div class="text-stone-600 text-[clamp(1rem,3.4vh,1.5rem)]">ชำระเรียบร้อยแล้ว <span class="font-bold text-stone-900">{{ money(state.total) }}</span></div>
+          <div v-if="(state.saved || 0) > 0" class="rounded-full bg-brand-50 px-5 py-2 font-semibold text-brand-700 text-[clamp(0.95rem,3vh,1.3rem)]">ประหยัดไป {{ money(state.saved) }}</div>
         </section>
       </template>
 

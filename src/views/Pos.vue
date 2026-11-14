@@ -7,7 +7,7 @@ import {
   newPosQrRef, posQrExpired,
 } from '../data/store'
 import { activeSecondsLeft } from '../lib/loyalty'
-import { orderTotals } from '../lib/pricing'
+import { orderTotals, discountLines } from '../lib/pricing'
 import { pointPromoFor } from '../lib/posPromo'
 import { coBought, rankSellers, suggestBundles } from '../lib/posRec'
 import { POS_METHODS, ROLES } from '../lib/constants'
@@ -364,22 +364,39 @@ const native = isNative()
 const deviceOpen = ref(false)
 const thanks = ref({ until: 0, total: 0 })
 let thanksTimer = null
-const displayLines = computed(() => lineItems.value.map((i) => ({ name: i.name, qty: i.qty, amount: i.unitPrice * i.qty })))
+// รายการบนจอลูกค้า: จำนวน × ราคาต่อหน่วย (ราคาเต็มถ้ามีส่วนลดรายการ) + ป้ายส่วนลด/ของแถม
+const displayLines = computed(() => lineItems.value.map((i) => ({
+  name: i.name, qty: i.qty, unit: i.unitPrice, fullUnit: i.fullPrice ?? i.unitPrice,
+  amount: i.unitPrice * i.qty, gift: !!i.promoGift,
+  tags: discountLines(i.discounts, i.qty).map((l) => l.label),
+})))
+// สรุปยอดครบทุกส่วนลด (ตรงกับใบเสร็จ): ราคาเต็ม · ส่วนลดทุกรายการ · ปรับราคาเพิ่ม · VAT
+const displayPricing = computed(() => {
+  const t = preview.value
+  const discounts = (t.discountLines || []).map((l) => ({ label: l.label, amount: Number(l.amount) || 0 }))
+  return {
+    full: t.full,
+    discounts,
+    saved: discounts.reduce((sum, l) => sum + l.amount, 0),
+    surcharge: Math.max(0, Number(t.adjustment) || 0),
+    vatMode: t.vatMode, vatRate: t.vatRate, vat: t.vat,
+  }
+})
 const displayState = computed(() => {
   const shopName = db.shop?.name || ''
-  if (thanks.value.until > Date.now()) return { status: 'thanks', shopName, total: thanks.value.total }
+  if (thanks.value.until > Date.now()) return { status: 'thanks', shopName, total: thanks.value.total, saved: thanks.value.saved }
   if (payOpen.value) {
     const bid = billerIdOf(db.shop?.billerId)
     const qrLine = payLines.value.find((l) => l.method === 'transfer' && l.qrRef && !l.confirmed && l.status !== 'cancelled')
     const qrAmount = qrLine ? lineAmt(qrLine) : 0
     return {
       status: 'paying', shopName, total: total.value, remaining: remaining.value,
-      lines: displayLines.value,
+      lines: displayLines.value, pricing: displayPricing.value,
       payLines: payLines.value.map((l) => ({ method: POS_METHODS[l.method], amount: lineAmt(l), done: !!l.confirmed })),
       qr: qrLine && bid && qrAmount > 0 ? { amount: qrAmount, payload: promptPayBillerPayload(bid, qrAmount, db.shop?.merchantCode || '', qrLine.qrRef) } : null,
     }
   }
-  if (cart.value.length) return { status: 'shopping', shopName, total: total.value, lines: displayLines.value }
+  if (cart.value.length) return { status: 'shopping', shopName, total: total.value, lines: displayLines.value, pricing: displayPricing.value }
   return { status: 'idle', shopName }
 })
 watch(displayState, (st) => { if (native) pushDisplay(st) }, { deep: true })
@@ -413,9 +430,10 @@ async function sellNow() {
   cartOpen.value = false
   receipt.value = o
   if (native) {
-    thanks.value = { until: Date.now() + 8000, total: orderTotals(o).total }
+    const oT = orderTotals(o)
+    thanks.value = { until: Date.now() + 8000, total: oT.total, saved: (oT.discountLines || []).reduce((sum, l) => sum + (Number(l.amount) || 0), 0) }
     clearTimeout(thanksTimer)
-    thanksTimer = setTimeout(() => { thanks.value = { until: 0, total: 0 } }, 8000)
+    thanksTimer = setTimeout(() => { thanks.value = { until: 0, total: 0, saved: 0 } }, 8000)
     if (getDeviceConfig().printer?.address) printOrderReceipt(o).catch((e) => showToast(`พิมพ์ใบเสร็จไม่สำเร็จ: ${e.message || e}`))
   }
   cart.value = []
