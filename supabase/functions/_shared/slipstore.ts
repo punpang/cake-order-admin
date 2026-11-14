@@ -59,13 +59,27 @@ export async function saveFailedSlip(sb: any, o: { bytes: Uint8Array; bankCode: 
   return true
 }
 
+// เพดานการเรียกโมเดลอ่านสลิปรวมทั้งร้านต่อชั่วโมง (นับผลอ่านที่จำไว้ในชั่วโมงล่าสุด · 1 ผล = 1 การเรียก)
+// กันการส่งสลิป QR ปลอมที่รูปแบบถูกต้อง (สร้างได้ฟรี และเลขอ้างอิงใหม่ทุกครั้งจึงไม่เคยถูกจำผล) เพื่อเผาค่า AI
+// เกินเพดาน = ไม่เรียกโมเดล (ผลที่จำไว้แล้วยังใช้ได้) · สลิปยังถูกเก็บให้พนักงานตรวจเอง · นับไม่ได้ (ฐานข้อมูลขัดข้อง) = ไม่ถือว่าเกิน
+export const OCR_HOURLY_CAP = 300
+export async function ocrOverHourlyCap(sb: any, nowMs: number = Date.now(), cap: number = OCR_HOURLY_CAP): Promise<boolean> {
+  try {
+    const since = new Date(nowMs - 3_600_000).toISOString()
+    const r = await sb.from('punpang_records').select('id', { count: 'exact', head: true }).eq('collection', 'slipRead').gte('data->>at', since)
+    return !r?.error && Number(r?.count ?? 0) >= cap
+  } catch { return false }
+}
+
 // อ่านยอด วัน-เวลา และเลขบัญชีผู้รับของสลิปหนึ่งใบ (ใช้ทั้งแชทและหน้าสั่งของลูกค้า)
 // มีผลที่เคยได้ตามเลขอ้างอิงแล้ว → ใช้ผลนั้น ไม่เรียกตัวอ่าน · ไม่มี → เรียกตัวอ่านตามลำดับ แล้วจำผลที่ตอบแล้ว และเก็บสลิปที่อ่านไม่ครบเข้าชุดเทรน
 // ตัวอ่านผิดพลาดชั่วคราวโดยยังไม่ได้ผลที่ใช้ได้ → คืนผลให้คำขอนี้ แต่ไม่จำ (รอบหน้าลองอ่านใหม่)
-export async function readSlipOnce(sb: any, o: { key: string; bytes: Uint8Array; bankCode: string; source: 'chat' | 'order'; engines: OcrEngine[]; files: FilesEnv }): Promise<SlipFields | null> {
+// allowModel = false: ผู้เรียกบอกว่าเกินเพดานของตัวเองแล้ว (เช่น ต่อแชท) → ใช้ได้เฉพาะผลที่จำไว้ ไม่เรียกโมเดล
+export async function readSlipOnce(sb: any, o: { key: string; bytes: Uint8Array; bankCode: string; source: 'chat' | 'order'; engines: OcrEngine[]; files: FilesEnv; allowModel?: boolean; nowMs?: number }): Promise<SlipFields | null> {
   if (!o.engines.length) return null
   const hit = await cachedSlipFields(sb, o.key)
   if (hit) return hit
+  if (o.allowModel === false || await ocrOverHourlyCap(sb, o.nowMs)) return null // ไม่จำผล: พ้นเพดานแล้วสลิปเดิมอ่านได้ใหม่
   const status = { errored: false }
   const fields = await readSlipFieldsChain(o.bytes, o.engines, status)
   if (!fields) return null

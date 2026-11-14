@@ -208,6 +208,7 @@ export const NOTIFY_EVENTS = {
   team_approval_request: { label: 'ขออนุมัติยืนยันสั่งซื้อ (ยังไม่ชำระ)', audience: 'team' },
   team_pay_overdue: { label: 'เกินกำหนดชำระ', audience: 'team', scheduled: true },
   team_customer_paid: { label: 'ลูกค้าแจ้งโอน (รอตรวจสลิป)', audience: 'team' },
+  team_customer_message: { label: 'ลูกค้าส่งข้อความ (เว็บ/แอป)', audience: 'team' },
   photo_ready: { label: 'มีรูปงานเสร็จให้ดู', audience: 'customer' },
   photo_optout_done: { label: 'ลบรูปตามคำขอไม่เผยแพร่แล้ว', audience: 'customer' },
   photo_optout_rejected: { label: 'ร้านไม่อนุมัติคำขอไม่เผยแพร่รูป', audience: 'customer' },

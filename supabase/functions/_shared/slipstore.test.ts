@@ -1,6 +1,6 @@
 // ทดสอบที่เก็บผลอ่านสลิป: ผลที่ตัวอ่านตอบแล้วจำไว้ตามเลขอ้างอิง · ตัวอ่านผิดพลาดไม่จำ · สลิปที่อ่านไม่ครบส่งรูปเข้า R2 (train/)
 import { assertEquals } from 'jsr:@std/assert@1'
-import { cachedSlipFields, cacheSlipFields, isCompleteSlip, readSlipOnce, saveFailedSlip, usableFields } from './slipstore.ts'
+import { cachedSlipFields, cacheSlipFields, isCompleteSlip, OCR_HOURLY_CAP, ocrOverHourlyCap, readSlipOnce, saveFailedSlip, usableFields } from './slipstore.ts'
 import type { OcrEngine, SlipFields } from './slipocr.ts'
 
 function fakeStore(opts: { failInsert?: string } = {}) {
@@ -11,6 +11,9 @@ function fakeStore(opts: { failInsert?: string } = {}) {
       const api: any = {
         select: () => api,
         eq: (c: string, v: any) => { filters.push((r: any) => r[c] === v); return api },
+        // gte บนคีย์ใน JSON (data->>at) แบบเทียบข้อความ ISO · await ตัว builder ตรง ๆ = นับแถว (ใช้กับ select(..., { count: 'exact', head: true }))
+        gte: (c: string, v: any) => { filters.push((r: any) => { const x = c.startsWith('data->>') ? r.data?.[c.slice(7)] : r[c]; return x != null && String(x) >= String(v) }); return api },
+        then: (res: any, rej: any) => Promise.resolve({ data: null, count: rows.filter((r) => r.table === table && filters.every((g) => g(r))).length, error: null }).then(res, rej),
         maybeSingle: async () => {
           const hit = rows.find((r) => r.table === table && filters.every((g) => g(r)))
           return { data: hit ? { id: hit.id, data: hit.data } : null, error: null }
@@ -176,4 +179,54 @@ Deno.test('saveFailedSlip: สลิปครบไม่ส่งชุดเ�
   const c = fakeFiles({ failUpload: true })
   assertEquals(await saveFailedSlip(fakeStore().sb, { bytes: img(10), bankCode: '004', source: 'chat', fields: EMPTY, files: c.env }), false)
   assertEquals(c.files.size, 0)
+})
+
+// ---- เพดานการเรียกโมเดลอ่านสลิป ----
+const NOW_CAP = Date.UTC(2026, 10, 14, 5, 0, 0)
+const readRow = (id: string, atMs: number) => ({ table: 'punpang_records', collection: 'slipRead', id, data: { fields: { amount: 1, paidAt: null, receiverAccount: null }, at: new Date(atMs).toISOString() } })
+
+Deno.test('เพดานรายชั่วโมงของร้าน: นับเฉพาะผลอ่านที่จำไว้ในชั่วโมงล่าสุด · ถึงเพดาน = เกิน · นับไม่ได้ = ไม่ถือว่าเกิน', async () => {
+  const { sb, rows } = fakeStore()
+  for (let i = 0; i < 3; i++) rows.push(readRow(`a${i}`, NOW_CAP - 10 * 60_000))
+  rows.push(readRow('old', NOW_CAP - 2 * 3_600_000)) // เกิน 1 ชั่วโมง ไม่นับ
+  rows.push({ table: 'punpang_records', collection: 'slipTrain', id: 't1', data: { at: new Date(NOW_CAP).toISOString() } }) // คนละ collection ไม่นับ
+  assertEquals(await ocrOverHourlyCap(sb, NOW_CAP, 4), false) // 3 < 4
+  assertEquals(await ocrOverHourlyCap(sb, NOW_CAP, 3), true) // 3 >= 3
+  assertEquals(await ocrOverHourlyCap({ from: () => { throw new Error('db down') } }, NOW_CAP, 1), false)
+  const erroring = { from: () => ({ select: () => ({ eq: () => ({ gte: async () => ({ data: null, count: null, error: { code: 'XX000' } }) }) }) }) }
+  assertEquals(await ocrOverHourlyCap(erroring, NOW_CAP, 1), false)
+  assertEquals(OCR_HOURLY_CAP, 300)
+})
+
+Deno.test('readSlipOnce: เกินเพดานรายชั่วโมง → ไม่เรียกตัวอ่าน คืน null ไม่จำผล · ผลที่จำไว้แล้วยังใช้ได้ · พ้นเพดานแล้วอ่านใหม่ได้', async () => {
+  const { sb, rows } = fakeStore()
+  const f = fakeFiles()
+  const calls: string[] = []
+  const engines = [engine('wai', COMPLETE, calls)]
+  const run = (key: string, nowMs: number) => readSlipOnce(sb, { key, bytes: img(7), bankCode: '004', source: 'chat', engines, files: f.env, nowMs })
+  for (let i = 0; i < OCR_HOURLY_CAP; i++) rows.push(readRow(`h${i}`, NOW_CAP - 60_000))
+  assertEquals(await run('004:NEW', NOW_CAP), null)
+  assertEquals(calls, [])
+  assertEquals(rows.some((r) => r.collection === 'slipRead' && r.id.startsWith('sk')), false)
+  // ผลที่เคยอ่านแล้ว (จำไว้ตามเลขอ้างอิง) ยังคืนได้ แม้ร้านเกินเพดาน
+  await cacheSlipFields(sb, '004:SEEN', COMPLETE)
+  assertEquals(await run('004:SEEN', NOW_CAP), COMPLETE)
+  assertEquals(calls, [])
+  // ผ่านไปเกิน 1 ชั่วโมง ผลที่นับเก่าหมด → เรียกตัวอ่านได้อีก
+  assertEquals(await run('004:NEW', NOW_CAP + 2 * 3_600_000), COMPLETE)
+  assertEquals(calls, ['wai'])
+})
+
+Deno.test('readSlipOnce: allowModel=false (เกินเพดานต่อแชท) → ไม่เรียกตัวอ่าน แต่ผลที่จำไว้ยังใช้ได้ · ไม่ระบุ = เรียกตามปกติ', async () => {
+  const { sb } = fakeStore()
+  const f = fakeFiles()
+  const calls: string[] = []
+  const engines = [engine('wai', COMPLETE, calls)]
+  assertEquals(await readSlipOnce(sb, { key: '004:A', bytes: img(1), bankCode: '004', source: 'chat', engines, files: f.env, allowModel: false }), null)
+  assertEquals(calls, [])
+  await cacheSlipFields(sb, '004:B', COMPLETE)
+  assertEquals(await readSlipOnce(sb, { key: '004:B', bytes: img(1), bankCode: '004', source: 'chat', engines, files: f.env, allowModel: false }), COMPLETE)
+  assertEquals(calls, [])
+  assertEquals(await readSlipOnce(sb, { key: '004:C', bytes: img(1), bankCode: '004', source: 'chat', engines, files: f.env }), COMPLETE)
+  assertEquals(calls, ['wai'])
 })

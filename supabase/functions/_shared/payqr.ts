@@ -13,5 +13,5 @@ export function newQrSuffix(): string {
   return out
 }
 
-// Ref 2 = POS/ORD ตามออร์เดอร์ (ORD + ddmmyy + xxxxxx = 12 หลัก · POS + ddmmyy + xxxxx = 11 หลัก) + รหัสสุ่ม 5 ตัว
+// Ref 2 = ORD + 12 หลักตามเลขออร์เดอร์ (ORD + ddmmyy + xxxxxx) หรือ POS + เลขสุ่ม 12 หลัก (บิล POS ใช้เลขสุ่ม ไม่ใช่เลขที่บิล) แล้วต่อด้วยรหัสสุ่ม 5 ตัว
 export const qrRefOk = (v: unknown): boolean => /^(?:ORD\d{12}|POS\d{12})[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{5}$/.test(String(v ?? ''))
