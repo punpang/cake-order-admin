@@ -15,6 +15,9 @@ jobs:
           deno-version: v2.x
       - name: เทสต์โมดูลที่ใช้ร่วมกัน (_shared)
         run: deno test --no-prompt --no-lock --node-modules-dir=none supabase/functions/_shared/
+      # ยิงคำขอจริงเข้า handler (เข้าสู่ระบบ / ตรวจ OTP / บันทึกโปรไฟล์ รวมกรณียิงพร้อมกัน) กับฐานข้อมูลจำลอง
+      - name: เทสต์ customer-auth ทั้งฟังก์ชัน
+        run: deno test -A --no-lock --node-modules-dir=none --import-map=supabase/tests/functions/customer-auth/importmap.json supabase/tests/functions/customer-auth/
 
   deploy:
     needs: test

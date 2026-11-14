@@ -1,4 +1,6 @@
+import { reserveOtpAttempt, reservePinAttempt } from '../_shared/authguard.ts'
 import { filesEnv, isR2Ref, keyOfR2Ref, svcSign } from '../_shared/filesvc.ts'
+import { clientIp } from '../_shared/ratelimit.ts'
 import { publicPaymentOf } from '../_shared/shoppay.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -46,9 +48,7 @@ const ipBlocked = (ip: string) => { const now = Date.now(); const a = (loginIpFa
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
-  // IP ผู้เรียก: cf-connecting-ip (ตั้งโดย Cloudflare หน้าบ้าน ปลอมไม่ได้) · ไม่มี = ค่าท้ายสุดของ x-forwarded-for (ค่าที่พร็อกซีฝั่งเราต่อท้าย ไม่ใช่ค่าซ้ายสุดที่ผู้เรียกใส่เองได้)
-  const xff = (req.headers.get('x-forwarded-for') || '').split(',').map((s) => s.trim()).filter(Boolean)
-  const ip = req.headers.get('cf-connecting-ip')?.trim() || xff[xff.length - 1] || 'unknown'
+  const ip = clientIp(req.headers) // cf-connecting-ip → ค่าท้ายสุดของ x-forwarded-for (ค่าซ้ายสุดผู้เรียกใส่เองได้ จึงไม่ใช้)
   let b: Record<string, any> = {}
   try { b = await req.json() } catch { return json({ error: 'คำขอไม่ถูกต้อง' }, 400) }
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
@@ -201,12 +201,23 @@ Deno.serve(async (req) => {
     const o = r.data
     if (o && ownerCid && o.customer_id !== ownerCid) return json({ error: 'ยังไม่ได้ขอรหัส กรุณาขอรหัสก่อน', expired: true }, 400)
     if (!o) return json({ error: 'ยังไม่ได้ขอรหัส กรุณาขอรหัสก่อน', expired: true }, 400)
-    if (Date.now() > new Date(o.expires_at).getTime()) return json({ error: 'รหัสหมดอายุ กรุณาขอรหัสใหม่', expired: true }, 400)
-    if (o.attempts >= OTP.maxTries) return json({ error: 'กรอกผิดเกินกำหนด กรุณาขอรหัสใหม่', expired: true }, 400)
+    // จองครั้งที่ตรวจก่อนเทียบรหัส (เขียนแบบมีเงื่อนไข) · ยิงพร้อมกันกี่คำขอก็เดาได้ไม่เกิน OTP.maxTries ครั้งต่อรหัส (ดู _shared/authguard.ts)
+    const gate = await reserveOtpAttempt({
+      read: async () => (await sb.from('punpang_otps').select('attempts,used,expires_at').eq('id', o.id).maybeSingle()).data ?? null,
+      casAttempts: async (expect) => {
+        const u = await sb.from('punpang_otps').update({ attempts: expect + 1 }).eq('id', o.id).eq('attempts', expect).eq('used', false).select('id')
+        return !u.error && (u.data || []).length > 0
+      },
+    }, OTP, o)
+    if (!gate.ok) {
+      if (gate.reason === 'busy') return json({ error: 'มีการตรวจรหัสหลายคำขอพร้อมกัน กรุณารอสักครู่แล้วลองใหม่' }, 429)
+      if (gate.reason === 'expired') return json({ error: 'รหัสหมดอายุ กรุณาขอรหัสใหม่', expired: true }, 400)
+      if (gate.reason === 'exhausted') return json({ error: 'กรอกผิดเกินกำหนด กรุณาขอรหัสใหม่', expired: true }, 400)
+      return json({ error: 'ยังไม่ได้ขอรหัส กรุณาขอรหัสก่อน', expired: true }, 400)
+    }
     const good = /^\d{6}$/.test(code) && safeEq(await sha256Hex(`${o.salt}:${code}`), o.code_hash)
     if (!good) {
-      await sb.from('punpang_otps').update({ attempts: o.attempts + 1 }).eq('id', o.id)
-      const left = OTP.maxTries - (o.attempts + 1)
+      const left = OTP.maxTries - gate.attempts
       return json(left > 0 ? { error: `รหัสไม่ถูกต้อง (เหลือ ${left} ครั้ง)` } : { error: 'กรอกผิดเกินกำหนด กรุณาขอรหัสใหม่', expired: true }, 400)
     }
     await sb.from('punpang_otps').update({ verified_until: iso(Date.now() + OTP.verifiedMs) }).eq('id', o.id)
@@ -262,16 +273,22 @@ Deno.serve(async (req) => {
     if (!ph || !/^\d{6}$/.test(pin)) return fail()
     const a = (await sb.from('punpang_customer_auth').select('*').eq('phone', ph.local).maybeSingle()).data
     if (!a) { await pbkdf2(pin, '00'.repeat(16)); return fail() } // เวลาตอบใกล้เคียงกรณีมีบัญชี
-    if (a.locked_until && new Date(a.locked_until).getTime() > Date.now()) return json({ error: `ลองผิดเกินกำหนด ล็อกอีก ${Math.ceil((new Date(a.locked_until).getTime() - Date.now()) / MIN)} นาที หรือใช้ "ลืม PIN"`, locked: true }, 423)
+    // จองครั้งที่ลองก่อนตรวจ PIN (เขียนแบบมีเงื่อนไข) · ยิงพร้อมกันกี่คำขอก็ได้ตรวจจริงไม่เกิน PIN.maxFails ครั้งต่อรอบ (ดู _shared/authguard.ts)
+    const gate = await reservePinAttempt({
+      read: async () => (await sb.from('punpang_customer_auth').select('failed,locked_until').eq('customer_id', a.customer_id).maybeSingle()).data ?? null,
+      casFailed: async (expect, patch) => {
+        const r = await sb.from('punpang_customer_auth').update(patch).eq('customer_id', a.customer_id).eq('failed', expect).select('customer_id')
+        return !r.error && (r.data || []).length > 0
+      },
+    }, PIN, a)
+    if (!gate.ok) {
+      if (gate.reason === 'locked') return json({ error: `ลองผิดเกินกำหนด ล็อกอีก ${Math.max(1, Math.ceil((gate.until - Date.now()) / MIN))} นาที หรือใช้ "ลืม PIN"`, locked: true }, 423)
+      return json({ error: 'มีการเข้าสู่ระบบหลายคำขอพร้อมกัน กรุณารอสักครู่แล้วลองใหม่' }, 429)
+    }
     if (!safeEq(await pbkdf2(pin, a.pin_salt), a.pin_hash)) {
-      const failed = (a.failed || 0) + 1
       loginIpFails.set(ip, [...(loginIpFails.get(ip) || []), Date.now()])
-      if (failed >= PIN.maxFails) {
-        await sb.from('punpang_customer_auth').update({ failed: 0, locked_until: iso(Date.now() + PIN.lockMs) }).eq('customer_id', a.customer_id)
-        return json({ error: `ใส่ PIN ผิดครบ ${PIN.maxFails} ครั้ง ล็อก ${PIN.lockMs / MIN} นาที หรือใช้ "ลืม PIN"`, locked: true }, 423)
-      }
-      await sb.from('punpang_customer_auth').update({ failed }).eq('customer_id', a.customer_id)
-      return json({ error: `เบอร์โทรหรือ PIN ไม่ถูกต้อง (เหลือ ${PIN.maxFails - failed} ครั้ง)` }, 401)
+      if (gate.n >= PIN.maxFails) return json({ error: `ใส่ PIN ผิดครบ ${PIN.maxFails} ครั้ง ล็อก ${PIN.lockMs / MIN} นาที หรือใช้ "ลืม PIN"`, locked: true }, 423) // ล็อกถูกตั้งไว้ตอนจองครั้งสุดท้ายแล้ว
+      return json({ error: `เบอร์โทรหรือ PIN ไม่ถูกต้อง (เหลือ ${PIN.maxFails - gate.n} ครั้ง)` }, 401)
     }
     await sb.from('punpang_customer_auth').update({ failed: 0, locked_until: null }).eq('customer_id', a.customer_id)
     const session = await newSession(a.customer_id)
@@ -302,14 +319,27 @@ Deno.serve(async (req) => {
     const s = (await sb.from('punpang_customer_sessions').select('customer_id,expires_at').eq('token_hash', h).maybeSingle()).data
     if (!s || new Date(s.expires_at).getTime() < Date.now()) return json({ error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' }, 401)
     const cid: string = s.customer_id
-    const cu = (await sb.from('punpang_customers').select('id,name,line,data').eq('id', cid).maybeSingle()).data
+    const cuSel = 'id,name,line,data,updated_at'
+    let cu = (await sb.from('punpang_customers').select(cuSel).eq('id', cid).maybeSingle()).data
     if (!cu || cu.data?.deleted) return json({ error: 'ไม่พบบัญชี' }, 401)
     if (action === 'update_profile') {
       const name = String(b.name ?? cu.name).trim().slice(0, 100)
       if (!name) return json({ error: 'กรอกชื่อ' }, 400)
       const line = String(b.line ?? '').trim().slice(0, 50)
-      const u = await sb.from('punpang_customers').update({ name, line: line || null, data: { ...(cu.data || {}), promoOptIn: !!b.promoOptIn } }).eq('id', cid)
-      if (u.error) return json({ error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' }, 500)
+      // เขียนแบบเทียบ updated_at (CAS): แถวลูกค้าเก็บแต้ม/ประวัติแต้มไว้ใน data ด้วย · ถ้ามีการเปลี่ยนแต้มระหว่างอ่านกับเขียน
+      // การเขียนทับด้วยสำเนาเก่าจะทำให้แต้มที่เพิ่งเปลี่ยนหายไป → อ่านใหม่แล้วลองอีกครั้ง
+      let saved = false
+      for (let i = 0; i < 4 && !saved; i++) {
+        if (i > 0) {
+          await new Promise((r) => setTimeout(r, 40 + Math.floor(Math.random() * 120)))
+          cu = (await sb.from('punpang_customers').select(cuSel).eq('id', cid).maybeSingle()).data
+          if (!cu || cu.data?.deleted) return json({ error: 'ไม่พบบัญชี' }, 401)
+        }
+        const u = await sb.from('punpang_customers').update({ name, line: line || null, data: { ...(cu.data || {}), promoOptIn: !!b.promoOptIn } }).eq('id', cid).eq('updated_at', cu.updated_at).select('id')
+        if (u.error) return json({ error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' }, 500)
+        saved = (u.data || []).length > 0
+      }
+      if (!saved) return json({ error: 'บันทึกไม่สำเร็จ มีการแก้ข้อมูลพร้อมกัน กรุณาลองใหม่' }, 409)
     } else if (action === 'submit_review') {
       const o = (await sb.from('punpang_orders').select('id,status').eq('id', String(b.orderId ?? '')).eq('customer_id', cid).maybeSingle()).data
       if (!o) return json({ error: 'ไม่พบออร์เดอร์' }, 400)
