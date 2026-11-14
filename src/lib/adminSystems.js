@@ -21,8 +21,8 @@ const ALL_SYSTEMS = [
 ]
 
 const ANDROID_KEYS = ['orders', 'pos']
-const ANDROID_ORDER_LINKS = ['/admin/orders', '/admin/orders/new', '/admin/payments']
-const ANDROID_PATHS = ['/admin/login', '/admin/no-access', '/admin/pos', '/admin/orders', '/admin/payments', '/display']
+const ANDROID_ORDER_LINKS = ['/admin/orders', '/admin/orders/new', '/admin/payments', '/admin/chat']
+const ANDROID_PATHS = ['/admin/login', '/admin/no-access', '/admin/pos', '/admin/orders', '/admin/payments', '/admin/chat', '/display']
 export const SYSTEMS = APP_MODE === 'android'
   ? ALL_SYSTEMS.filter((s) => ANDROID_KEYS.includes(s.key)).map((s) => (s.key === 'orders' ? { ...s, items: s.items.filter((i) => ANDROID_ORDER_LINKS.includes(i.to)) } : s))
   : ALL_SYSTEMS
