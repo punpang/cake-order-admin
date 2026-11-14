@@ -2225,8 +2225,9 @@ export function saveShortLink(d) {
   const chk = checkTarget(d.target, db.shop.linkAllowlist)
   if (chk.error) return chk
   let code = String(d.code ?? '').trim().toLowerCase()
-  if (code && !isCodeShape(code)) return { error: 'รหัสใช้ได้เฉพาะ a-z 0-9 และ - (3–32 ตัว)' }
   const cur = d.id ? db.shortLinks.find((x) => x.id === d.id) : null
+  // แก้ลิงก์เดิมโดยไม่เปลี่ยนรหัส ไม่ต้องตรวจรูปแบบรหัสซ้ำ (รหัสเดิมที่ยาวกว่า 10 ตัวยังใช้ได้)
+  if (code && code !== cur?.code && !isCodeShape(code)) return { error: 'รหัสใช้ได้เฉพาะ a-z 0-9 และ - (3–10 ตัว)' }
   if (!code) do code = genCode() 
   while (db.shortLinks.some((x) => x.code === code))
   if (db.shortLinks.some((x) => x.code === code && x !== cur)) return { error: 'รหัสนี้ถูกใช้แล้ว' }

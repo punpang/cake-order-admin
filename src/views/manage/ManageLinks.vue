@@ -111,7 +111,7 @@ const shownOrderLinks = computed(() => orderLinks.value.slice().reverse().slice(
     <AppModal v-if="form" :title="form.id ? 'แก้ลิงก์ย่อ' : 'สร้างลิงก์ย่อ'" @close="form = null">
       <div class="space-y-3">
         <div><label class="label">ปลายทาง <span class="text-rose-600">*</span></label><input v-model="form.target" class="input" placeholder="/menu หรือ https://lin.ee/xxxx" maxlength="2000" /></div>
-        <div><label class="label">รหัสลิงก์ (เว้นว่าง = สุ่ม)</label><input v-model="form.code" class="input font-mono" maxlength="32" placeholder="เช่น promo" /></div>
+        <div><label class="label">รหัสลิงก์ (เว้นว่าง = สุ่ม)</label><input v-model="form.code" class="input font-mono" maxlength="10" placeholder="เช่น promo" /></div>
         <div><label class="label">หมายเหตุ</label><input v-model="form.note" class="input" maxlength="120" /></div>
         <div><label class="label">หมดอายุ (เว้นว่าง = ไม่หมด)</label><input v-model="form.expiresAt" type="date" class="input" /></div>
         <AppSwitch v-model="form.active" label="เปิดใช้งาน" />

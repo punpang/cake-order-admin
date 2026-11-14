@@ -59,7 +59,8 @@ export function genCode(n = 8) {
   globalThis.crypto.getRandomValues(a)
   return [...a].map((x) => ALPHA[x % ALPHA.length]).join('')
 }
-export const isCodeShape = (c) => /^[a-z0-9-]{3,32}$/.test(String(c ?? ''))
+// รหัสลิงก์ย่อที่ตั้งเองได้ 3–10 ตัว (รหัสอัตโนมัติ 8 ตัว อยู่ในกติกานี้)
+export const isCodeShape = (c) => /^[a-z0-9-]{3,10}$/.test(String(c ?? ''))
 
 export function cleanPolicy(p = {}) {
   const n = (v, d) => {
