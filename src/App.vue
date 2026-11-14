@@ -67,7 +67,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
 <template>
   <button type="button" class="skip-link" @click="focusMain()">ข้ามไปเนื้อหาหลัก</button>
   <LightboxHost />
-  <LoadingOverlay />
+  <LoadingOverlay v-if="!$route.meta.display" />
   <!-- หน้าร้าน + ระบบลูกค้า -->
   <StoreLayout v-if="$route.meta.store" />
   <main v-else-if="$route.meta.bare" id="main-content" tabindex="-1" class="outline-none"><RouterView /></main>

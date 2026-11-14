@@ -61,6 +61,7 @@ const ManageFiles = () => import('./views/manage/ManageFiles.vue')
 const ManageBot = () => import('./views/manage/ManageBot.vue')
 const ManageSms = () => import('./views/manage/ManageSms.vue')
 const ManeeTest = () => import('./views/ManeeTest.vue')
+const CustomerDisplay = () => import('./views/CustomerDisplay.vue')
 
 // meta.store = หน้าร้าน/ระบบลูกค้า (ใช้ StoreLayout) · meta.focus = หน้าหลังบ้านที่มีแถบปุ่มของตัวเอง ซ่อนแถบเมนูล่างบนมือถือ
 const router = createRouter({
@@ -132,6 +133,8 @@ const router = createRouter({
     { path: '/admin/settings/sms', component: ManageSms },
     // ลิงก์หลังบ้านเดิม (ก่อนย้ายไป /admin)
     { path: '/:old(orders|manage|chat|pos|materials|production)/:rest(.*)*', redirect: (to) => `/admin${to.fullPath}` },
+    // จอลูกค้า (แอป Android ส่งสถานะเข้ามา) · ไม่มีเมนูหรือข้อมูลส่วนตัวในหน้านี้
+    { path: '/display', component: CustomerDisplay, meta: { bare: true, display: true } },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
   scrollBehavior: () => ({ top: 0 }),

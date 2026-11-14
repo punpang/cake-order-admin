@@ -16,6 +16,10 @@ import { refreshLabels } from '../lib/staffAuth'
 import { waitSaved } from '../lib/syncStatus'
 import { showToast } from '../lib/toast'
 import { quietly } from '../lib/loading'
+import { isNative, getDeviceConfig, pushDisplay, showDisplay } from '../lib/nativeDevices'
+import { printOrderReceipt } from '../lib/receiptRaster'
+import { billerIdOf, promptPayBillerPayload } from '../lib/promptpay'
+import DeviceSettings from '../components/DeviceSettings.vue'
 import { money, dateTime, timeOnly, phoneDigits, formatPhone, phoneValid } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
@@ -294,6 +298,7 @@ function closePay() {
   clearInterval(payTimer)
 }
 onBeforeUnmount(() => clearInterval(payTimer))
+onMounted(() => { if (native) showDisplay().catch(() => {}) })
 function addPayLine(method) {
   if (remaining.value <= 0) return
   payLines.value.push({ key: newKey(), method, amount: String(remaining.value), received: '', qrRef: '', qrExpiresAt: '', confirmed: false })
@@ -349,6 +354,30 @@ const lineOk = (l) => {
 // รายการที่ยอด 0 ถูกข้าม (ไม่นับและไม่ส่งไปบันทึก)
 const activeLines = computed(() => payLines.value.filter((l) => lineAmt(l) > 0))
 const canConfirm = computed(() => activeLines.value.length > 0 && remaining.value === 0 && activeLines.value.every(lineOk))
+// ---------- เครื่องพิมพ์และจอลูกค้า (แอป Android) ----------
+const native = isNative()
+const deviceOpen = ref(false)
+const thanks = ref({ until: 0, total: 0 })
+let thanksTimer = null
+const displayLines = computed(() => lineItems.value.map((i) => ({ name: i.name, qty: i.qty, amount: i.unitPrice * i.qty })))
+const displayState = computed(() => {
+  const shopName = db.shop?.name || ''
+  if (thanks.value.until > Date.now()) return { status: 'thanks', shopName, total: thanks.value.total }
+  if (payOpen.value) {
+    const bid = billerIdOf(db.shop?.billerId)
+    const qrLine = payLines.value.find((l) => l.method === 'transfer' && l.qrRef && !l.confirmed && l.status !== 'cancelled')
+    const qrAmount = qrLine ? lineAmt(qrLine) : 0
+    return {
+      status: 'paying', shopName, total: total.value, remaining: remaining.value,
+      lines: displayLines.value,
+      payLines: payLines.value.map((l) => ({ method: POS_METHODS[l.method], amount: lineAmt(l), done: !!l.confirmed })),
+      qr: qrLine && bid && qrAmount > 0 ? { amount: qrAmount, payload: promptPayBillerPayload(bid, qrAmount, db.shop?.merchantCode || '', qrLine.qrRef) } : null,
+    }
+  }
+  if (cart.value.length) return { status: 'shopping', shopName, total: total.value, lines: displayLines.value }
+  return { status: 'idle', shopName }
+})
+watch(displayState, (st) => { if (native) pushDisplay(st) }, { deep: true })
 const receipt = ref(null)
 const taxFor = ref(null) // บิลที่กำลังออกใบกำกับภาษีเต็มรูป
 const taxable = (o) => can('taxInvoice') && o.status !== 'cancelled' && orderTotals(o).vat > 0
@@ -378,6 +407,12 @@ async function sellNow() {
   closePay()
   cartOpen.value = false
   receipt.value = o
+  if (native) {
+    thanks.value = { until: Date.now() + 8000, total: orderTotals(o).total }
+    clearTimeout(thanksTimer)
+    thanksTimer = setTimeout(() => { thanks.value = { until: 0, total: 0 } }, 8000)
+    if (getDeviceConfig().printer?.address) printOrderReceipt(o).catch((e) => showToast(`พิมพ์ใบเสร็จไม่สำเร็จ: ${e.message || e}`))
+  }
   cart.value = []
   member.value = null
   couponIds.value = []
@@ -385,7 +420,11 @@ async function sellNow() {
   // ขายแล้ว (ใบเสร็จแสดงได้) แต่ต้องแจ้งตามจริงถ้ายังบันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ
   waitSaved().then((r) => { if (!r.ok) showToast(`บิล ${o.code} ยังบันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ (${r.error}) · ระบบจะลองส่งซ้ำเอง ดูสถานะที่แถบด้านบน`, 12000, 'error') })
 }
-const print = () => window.print()
+const print = () => {
+  if (!native) return window.print()
+  if (!receipt.value) return
+  printOrderReceipt(receipt.value).catch((e) => showToast(`พิมพ์ไม่สำเร็จ: ${e.message || e}`))
+}
 
 // ---------- บิลของกะ ----------
 const bills = computed(() => (shift.value ? shiftBills(shift.value.id) : []))
@@ -431,7 +470,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <RouterLink to="/admin/orders" class="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 md:hidden" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
       <h1 class="page-title">POS หน้าร้าน</h1>
       <span v-if="shift" class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">กะเปิด {{ timeOnly(shift.openedAt) }} · {{ ROLES[shift.openedBy] }}</span>
-      <button v-if="shift && can('useLoyalty')" type="button" class="btn-soft ml-auto h-9 px-3 text-sm" @click="openRedeem"><AppIcon name="star" :size="15" /> มอบของรางวัล</button>
+      <button v-if="native" type="button" class="btn-soft ml-auto h-9 px-3 text-sm" @click="deviceOpen = true">เครื่องพิมพ์/จอ</button>
+      <button v-if="shift && can('useLoyalty')" type="button" class="btn-soft ml-2 h-9 px-3 text-sm" @click="openRedeem"><AppIcon name="star" :size="15" /> มอบของรางวัล</button>
       <div v-if="shift" class="grid grid-cols-3 gap-1 seg-grid" :class="can('useLoyalty') ? '' : 'ml-auto'">
         <button v-for="t in [{ v: 'sell', l: 'ขาย' }, { v: 'bills', l: `บิล ${bills.length}` }, { v: 'shift', l: 'ปิดกะ' }]" :key="t.v" type="button" class="h-9 rounded-lg px-3 text-sm font-medium" :class="tab === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="tab = t.v">{{ t.l }}</button>
       </div>
@@ -716,6 +756,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       </template>
     </AppModal>
 
+    <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · เลย์เอาต์ใหม่: สรุปยอด → เลือกวิธีชำระ → รายการชำระ → ยืนยันปุ่มล่าง -->
     <AppModal v-if="payOpen" title="ชำระเงิน" @close="closePay">
       <div class="space-y-4">
