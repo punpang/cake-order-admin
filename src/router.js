@@ -148,6 +148,8 @@ router.beforeEach(async (to) => {
   const p = to.path.toLowerCase().replace(/\/+$/, '')
   // แอป Android: เปิดได้เฉพาะหลังบ้าน POS/ออร์เดอร์ ส่วนอื่นกลับไปหน้าแรกของแอป
   if (APP_MODE === 'android' && !allowedInApp(p)) return '/admin'
+  // แอปลูกค้า: เปิดได้เฉพาะหน้าลูกค้า ส่วนอื่น (รวมหน้าแรกของร้าน) กลับไปที่บัญชีลูกค้า
+  if (APP_MODE === 'customer' && !allowedInApp(p)) return '/account'
   if (supabaseEnabled && (p === '/admin' || p.startsWith('/admin/')) && p !== '/admin/login' && !staffState.staff) return '/admin/login'
   // หลังบ้าน: ต้องมีสิทธิ์อย่างน้อยหนึ่งข้อของหน้านั้น (หน้าจัดการ /admin/settings* ตรวจต่อใน ManageShell)
   if (to.meta.perms && !canAny(to.meta.perms)) return '/admin/no-access'

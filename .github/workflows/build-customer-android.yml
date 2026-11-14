@@ -1,0 +1,48 @@
+name: Build Customer Android APK
+
+# รันเองเท่านั้น: GitHub → Actions → Build Customer Android APK → Run workflow
+# แอปลูกค้า (แพ็กเกจ com.punpang.customer) แยกจากแอปพนักงาน (com.punpang.cakeadmin) ติดตั้งคู่กันได้
+# ผลลัพธ์: artifact ชื่อ cake-customer-debug-apk (ไฟล์ app-debug.apk)
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      # ติดตั้งส่วนประกอบ Android SDK เหมือนแอปพนักงาน (ดู build-android.yml)
+      - name: ติดตั้งส่วนประกอบ Android SDK ที่โปรเจกต์ใช้
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -r | head -n 1)"
+          echo "ใช้ sdkmanager ที่: $SDKMANAGER"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+      - run: npm ci
+      - name: สร้างไฟล์เว็บสำหรับแอปลูกค้า (โหมด customer)
+        env:
+          VITE_USE_SUPABASE: '1'
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_FILES_URL: ${{ vars.VITE_FILES_URL }}
+        run: npm run build:customer
+      - name: สร้างโปรเจกต์ Android ของแอปลูกค้า
+        run: node scripts/make-customer-android.mjs
+      - name: สร้าง APK (debug)
+        working-directory: android-customer
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cake-customer-debug-apk
+          path: android-customer/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

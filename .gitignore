@@ -5,3 +5,7 @@ dist
 
 # ชุดทดสอบรหัสร้านค้า (มีข้อมูลส่วนตัวบนสลิป ไม่ commit)
 tests/slip-samples/
+
+# ผลการสร้างแอปลูกค้า (สร้างใหม่ทุกครั้งใน CI)
+dist-customer/
+android-customer/

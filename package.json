@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --host",
     "build:android": "vite build --mode android",
+    "build:customer": "vite build --mode customer --outDir dist-customer",
     "android:sync": "npm run build:android && npx cap sync android"
   },
   "dependencies": {

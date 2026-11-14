@@ -1,7 +1,8 @@
 // ระบบหลังบ้าน 4 ระบบ (ออร์เดอร์ / POS / บัญชี / ตั้งค่า) · ฟังก์ชันล้วน ไม่ผูกกับ store
 // items: เมนูย่อยของระบบ · perms = มีข้อใดข้อหนึ่งจึงเห็น · exact = ไฮไลต์เฉพาะลิงก์ตรง · mobile = แสดงในเมนูล่างมือถือ · badge = ป้ายตัวเลข
 // โหมดแอป Android (VITE_APP_MODE=android): เหลือเฉพาะ POS และออร์เดอร์ (ออร์เดอร์ สร้างออร์เดอร์ ชำระเงิน) · ความปลอดภัยยังอยู่ที่ RLS
-export const APP_MODE = import.meta.env?.VITE_APP_MODE === 'android' ? 'android' : 'web'
+// โหมดแอปลูกค้า (VITE_APP_MODE=customer): เปิดเฉพาะบัญชีลูกค้า และหน้าออร์เดอร์ผ่านลิงก์ (/o/...)
+export const APP_MODE = import.meta.env?.VITE_APP_MODE === 'android' ? 'android' : import.meta.env?.VITE_APP_MODE === 'customer' ? 'customer' : 'web'
 const ALL_SYSTEMS = [
   {
     key: 'orders', label: 'ออร์เดอร์', icon: 'list', home: '/admin/orders',
@@ -27,7 +28,11 @@ export const SYSTEMS = APP_MODE === 'android'
   ? ALL_SYSTEMS.filter((s) => ANDROID_KEYS.includes(s.key)).map((s) => (s.key === 'orders' ? { ...s, items: s.items.filter((i) => ANDROID_ORDER_LINKS.includes(i.to)) } : s))
   : ALL_SYSTEMS
 // เส้นทางที่เปิดได้ในแอป (โหมดเว็บเปิดทุกเส้นทาง)
-export const allowedInApp = (path) => APP_MODE !== 'android' || ANDROID_PATHS.some((p) => path === p || path.startsWith(p + '/'))
+const isCustomerPath = (path) => path === '/account' || path.startsWith('/account/') || path.startsWith('/o/')
+export const allowedInApp = (path) => {
+  if (APP_MODE === 'customer') return isCustomerPath(path)
+  return APP_MODE !== 'android' || ANDROID_PATHS.some((p) => path === p || path.startsWith(p + '/'))
+}
 
 // ระบบของเส้นทางนี้ (null = ไม่ใช่หน้าหลังบ้านของระบบใด เช่น no-access)
 export function systemOf(path) {
