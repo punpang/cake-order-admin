@@ -107,7 +107,7 @@ watch(
 
     <main class="flex min-h-0 flex-1 flex-col p-[clamp(0.4rem,1.2vh,0.9rem)]">
       <!-- กำลังเลือกสินค้า: รายการ (ซ้าย) · สรุปยอดและโปรโมชั่น (ขวา) -->
-      <div v-if="state.status === 'shopping'" class="grid min-h-0 flex-1 gap-[clamp(0.4rem,1.2vh,0.8rem)] sm:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+      <div v-if="state.status === 'shopping'" class="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-[clamp(0.4rem,1.2vh,0.8rem)] grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <section class="@container flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
           <div class="flex shrink-0 items-center justify-between bg-brand-50 px-[clamp(0.8rem,2vw,1.4rem)] py-[clamp(0.3rem,1vh,0.6rem)]">
             <span class="font-semibold text-brand-700 text-[clamp(0.85rem,2.4vh,1.1rem)]">รายการที่สั่ง</span>
@@ -192,7 +192,7 @@ watch(
       </div>
 
       <!-- กำลังชำระเงิน: ยอดและวิธีชำระ (ซ้าย) · QR (ขวา) -->
-      <div v-else-if="state.status === 'paying'" class="grid min-h-0 flex-1 gap-[clamp(0.4rem,1.2vh,0.8rem)] sm:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
+      <div v-else-if="state.status === 'paying'" class="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-[clamp(0.4rem,1.2vh,0.8rem)] grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
         <section class="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
           <div class="shrink-0 bg-brand-50 px-[clamp(0.8rem,2vw,1.4rem)] py-[clamp(0.3rem,1vh,0.6rem)]">
             <span class="font-semibold text-brand-700 text-[clamp(0.85rem,2.4vh,1.1rem)]">การชำระเงิน</span>

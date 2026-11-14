@@ -4,11 +4,14 @@ import android.app.Activity;
 import android.app.Presentation;
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.Point;
 import android.hardware.display.DisplayManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Display;
+import android.view.Gravity;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.webkit.MimeTypeMap;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -124,8 +127,11 @@ public class CustomerDisplayPlugin extends Plugin {
         private String pending;
         private boolean loaded = false;
 
+        private final Display screen;
+
         CustomerPresentation(Context ctx, Display display) {
             super(ctx, display);
+            screen = display;
         }
 
         void setPending(String json) {
@@ -160,7 +166,21 @@ public class CustomerDisplayPlugin extends Plugin {
                     if (pending != null) push(pending);
                 }
             });
-            setContentView(web, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            // จอแนวนอนเท่านั้น: ถ้าจอถูกติดตั้งแนวตั้ง จะหมุนหน้าเว็บ 90° ให้เต็มจอเป็นแนวนอนเสมอ
+            FrameLayout root = new FrameLayout(ctx);
+            Point size = new Point();
+            screen.getRealSize(size);
+            if (size.y > size.x) {
+                FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(size.y, size.x, Gravity.TOP | Gravity.START);
+                root.addView(web, lp);
+                web.setPivotX(0f);
+                web.setPivotY(0f);
+                web.setRotation(90f);
+                web.setTranslationX(size.x);
+            } else {
+                root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            }
+            setContentView(root, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             web.loadUrl("https://localhost/index.html#/display");
         }
     }
