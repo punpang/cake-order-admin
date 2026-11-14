@@ -20,11 +20,15 @@ jobs:
           distribution: temurin
           java-version: '21'
       # runner ubuntu-latest มี Android SDK ติดตั้งอยู่แล้ว (ANDROID_HOME) จึงไม่ใช้ android-actions/setup-android
-      # (action นั้นเรียก sdkmanager tools ซึ่งล้มเหลวบน runner นี้)
+      # (action นั้นเรียก sdkmanager tools ซึ่งล้มเหลวบน runner นี้) · sdkmanager ไม่อยู่ใน PATH จึงหาเส้นทางเอง
       - name: ติดตั้งส่วนประกอบ Android SDK ที่โปรเจกต์ใช้
         run: |
-          yes | sdkmanager --licenses > /dev/null
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -r | head -n 1)"
+          echo "ใช้ sdkmanager ที่: $SDKMANAGER"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
       - run: npm ci
       - name: สร้างไฟล์เว็บสำหรับแอป (โหมด Android)
         env:
