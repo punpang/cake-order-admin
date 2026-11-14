@@ -384,12 +384,12 @@ const displayPricing = computed(() => {
 })
 // แนะนำเพิ่มให้ลูกค้า (ใช้ตรรกะเดียวกับที่พนักงานเห็น): โปรที่ใกล้ถึง · บันเดิ้ลที่ขาดอีกนิด · ซื้อคู่กัน · สินค้าขายดีอันดับ 1
 const displaySuggest = computed(() => {
-  const hints = (promoInfo.value.hints || []).slice(0, 1).map((h) => h.text)
-  const bundles = bundleSug.value.slice(0, 1).map((b) => ({
+  const hints = (promoInfo.value.hints || []).slice(0, 4).map((h) => h.text)
+  const bundles = bundleSug.value.slice(0, 3).map((b) => ({
     name: b.bundle.name, price: Number(b.bundle.price) || 0, saving: b.saving,
     add: b.missing.map((m) => (m.qty > 1 ? `${m.name} ×${m.qty}` : m.name)),
   }))
-  const pairs = pairSug.value.slice(0, 2).map((r) => ({ name: r.item.name, price: Number(r.item.price) || 0 }))
+  const pairs = pairSug.value.slice(0, 4).map((r) => ({ name: r.item.name, price: Number(r.item.price) || 0 }))
   const inCart = new Set(cartRetail.value.map((l) => l.retailId))
   const top = [...ranks.value].find(([, v]) => v.rank === 1)
   const topItem = top && !inCart.has(top[0]) ? catalog.value.find((x) => x.id === top[0]) : null

@@ -1,9 +1,10 @@
 <script setup>
 // จอแสดงให้ลูกค้า (หน้า /display) · รับสถานะจากแอป POS ผ่าน window.__displayUpdate (แอป Android ส่งเข้ามา)
-// โทนเดียวกับหน้าเว็บหลัก (หน้าร้านออนไลน์): หัวข้อไล่สีชมพู-แดง (hero) · พื้นครีม · การ์ดขาวเงาอุ่น · แถบยอดสีช็อกโกแลต · ป้ายเหลืองน้ำผึ้ง/เขียวมัทฉะ
-// ขนาดตัวอักษรใช้ clamp() ตามความสูงจอ · QR ปรับขนาดตามพื้นที่ที่เหลือจริง
+// จอสัมผัสไม่ได้ จึงไม่มีการเลื่อน: ทุกส่วนย่อให้พอดีด้วย FitBox · สรุปยอดและโปรโมชั่นย่อไปพร้อมกันจนพอดี และแสดงครบทุกรายการ
+// โทนเดียวกับหน้าเว็บหลัก (หน้าร้านออนไลน์)
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
+import FitBox from '../components/FitBox.vue'
 import { money } from '../lib/format'
 
 const state = ref({ status: 'idle', shopName: '' })
@@ -17,20 +18,25 @@ function apply(s) {
 }
 onMounted(() => {
   window.__displayUpdate = apply
-  if (qrBox.value && 'ResizeObserver' in window) {
-    ro = new ResizeObserver(([e]) => {
-      const { width, height } = e.contentRect
-      qrPx.value = Math.max(120, Math.floor(Math.min(width, height) - 8))
-    })
-    ro.observe(qrBox.value)
-  }
 })
 onBeforeUnmount(() => {
   if (window.__displayUpdate === apply) delete window.__displayUpdate
   if (ro) ro.disconnect()
 })
 
-// โทนสีของแต่ละขั้นตอน (ชื่อคลาสเต็มเพื่อให้ Tailwind รู้จัก)
+// ขนาด QR ตามพื้นที่ที่เหลือจริง (กล่อง QR จะมีเฉพาะตอนกำลังชำระเงิน จึงผูกตัววัดตอนกล่องปรากฏ)
+watch(qrBox, (el) => {
+  if (ro) ro.disconnect()
+  ro = null
+  if (!el || !('ResizeObserver' in window)) return
+  ro = new ResizeObserver(([e]) => {
+    const { width, height } = e.contentRect
+    qrPx.value = Math.max(120, Math.floor(Math.min(width, height) - 8))
+  })
+  ro.observe(el)
+})
+
+// สถานะ: ป้ายบนหัวข้อ (หัวข้อเป็นสีแบรนด์ทุกสถานะ)
 const THEME = {
   idle: { pill: 'bg-white text-brand-700', label: 'ยินดีต้อนรับ' },
   shopping: { pill: 'bg-white text-brand-700', label: 'กำลังเลือกสินค้า' },
@@ -44,9 +50,26 @@ const pricing = computed(() => state.value.pricing || { full: 0, discounts: [], 
 const hasDiscount = computed(() => (pricing.value.discounts || []).length > 0)
 // โปรโมชั่นแนะนำให้ลูกค้าซื้อเพิ่ม (มาจาก POS: โปรที่ใกล้ถึง · บันเดิ้ล · ซื้อคู่กัน · ขายดีอันดับ 1)
 const suggest = computed(() => state.value.suggest || { hints: [], bundles: [], pairs: [], best: null })
-const hasSuggest = computed(() => Boolean(suggest.value.hints?.length || suggest.value.bundles?.length || suggest.value.pairs?.length || suggest.value.best))
 
-// สีป้ายวิธีชำระ (ตามชื่อวิธีชำระที่ POS ส่งมา) โทนคลุม
+// โปรโมชั่นแนะนำ: ลำดับความสำคัญ บันเดิ้ล → โปรใกล้ถึง → ซื้อคู่กัน → ขายดีอันดับ 1 (แต่ละการ์ดแสดงครบ ไม่ตัดข้อความ)
+const promoCards = computed(() => {
+  const out = []
+  for (const b of suggest.value.bundles || []) out.push({ key: 'b' + b.name, cls: 'bg-brand-50', label: 'บันเดิ้ล', labelCls: 'text-brand-700', title: b.name, titleCls: 'text-brand-800', price: money(b.price), detail: [`เพิ่มอีก ${b.add.join(' + ')}`, `ประหยัด ${money(b.saving)}`] })
+  for (const h of suggest.value.hints || []) out.push({ key: 'h' + h, cls: 'bg-honey/30', label: 'โปรใกล้ถึง', labelCls: 'text-stone-700', title: h, titleCls: 'text-stone-900', price: '', detail: [] })
+  for (const pr of suggest.value.pairs || []) out.push({ key: 'p' + pr.name, cls: 'bg-matcha-soft/60', label: 'ซื้อคู่กัน', labelCls: 'text-stone-700', title: pr.name, titleCls: 'text-stone-900', price: money(pr.price), detail: [] })
+  if (suggest.value.best) out.push({ key: 'best', cls: 'bg-white ring-1 ring-brand-200', label: 'ขายดีอันดับ 1', labelCls: 'text-brand-700', title: suggest.value.best.name, titleCls: 'text-stone-900', price: money(suggest.value.best.price), detail: [], star: true })
+  return out
+})
+const promoKey = computed(() => JSON.stringify(promoCards.value))
+const promoLimit = ref(0)
+watch(promoKey, () => { promoLimit.value = promoCards.value.length }, { immediate: true })
+const visiblePromos = computed(() => promoCards.value.slice(0, promoLimit.value))
+// สรุปยอดกับโปรย่อไปพร้อมกันให้พอดี · ถ้ายังล้นแม้ย่อถึงขั้นต่ำสุด ค่อยตัดโปรท้ายสุดทีละรายการ (ไม่ตัดข้อความ)
+function onSummaryFit({ overflow }) {
+  if (overflow && promoLimit.value > 0) promoLimit.value -= 1
+}
+
+// สีป้ายวิธีชำระ (ตามชื่อวิธีชำระที่ POS ส่งมา)
 const METHOD_CHIP = {
   เงินสด: 'bg-matcha-soft text-stone-900',
   โอนเงิน: 'bg-brand-100 text-brand-800',
@@ -73,40 +96,36 @@ watch(
 </script>
 
 <template>
-  <div class="flex h-dvh flex-col overflow-hidden bg-cream text-stone-800">
-    <!-- หัวข้อ: ชื่อร้าน + สถานะ (สีเปลี่ยนตามขั้นตอน) -->
-    <header class="flex shrink-0 items-center justify-between gap-4 bg-linear-to-br from-hero-1 via-hero-2 to-hero-3 px-[clamp(1rem,3vw,2.5rem)] py-[clamp(0.6rem,2vh,1.25rem)] text-white shadow-md">
-      <div class="min-w-0">
-        <div class="truncate font-display font-medium text-[clamp(1.25rem,4.2vh,2.25rem)] leading-tight">{{ state.shopName || 'ยินดีต้อนรับ' }}</div>
-        <div class="text-[clamp(0.75rem,2vh,1rem)] text-white/90">ขอบคุณที่มาอุดหนุนค่ะ</div>
-      </div>
-      <div class="shrink-0 rounded-full px-[clamp(0.75rem,2vw,1.5rem)] py-[clamp(0.3rem,1vh,0.6rem)] font-semibold text-[clamp(0.8rem,2.2vh,1.15rem)]" :class="theme.pill">
+  <div class="flex h-dvh flex-col overflow-hidden bg-cream text-stone-900">
+    <!-- หัวข้อ: บาง ชื่อร้าน + สถานะ -->
+    <header class="flex shrink-0 items-center justify-between gap-3 bg-linear-to-br from-hero-1 via-hero-2 to-hero-3 px-[clamp(0.8rem,2.5vw,2rem)] py-[clamp(0.2rem,0.5vh,0.35rem)] text-white shadow-md">
+      <div class="min-w-0 truncate font-display font-medium text-[clamp(0.9rem,2.8vh,1.3rem)] leading-tight">{{ state.shopName || 'ยินดีต้อนรับ' }}</div>
+      <div class="shrink-0 rounded-full px-[clamp(0.5rem,1.4vw,1rem)] py-[clamp(0.05rem,0.3vh,0.2rem)] font-semibold leading-tight text-[clamp(0.65rem,1.7vh,0.8rem)]" :class="theme.pill">
         {{ theme.label }}
       </div>
     </header>
 
-    <!-- เนื้อหาหลัก -->
-    <main class="flex min-h-0 flex-1 flex-col gap-[clamp(0.5rem,1.6vh,1rem)] p-[clamp(0.6rem,2vh,1.5rem)]">
-      <!-- กำลังเลือกสินค้า: รายการ (ซ้าย) · สรุปยอดพร้อมส่วนลดทั้งหมด (ขวา) -->
-      <template v-if="state.status === 'shopping'">
-        <div class="grid min-h-0 flex-1 gap-[clamp(0.5rem,1.6vh,1rem)] sm:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-          <section class="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
-            <div class="flex shrink-0 items-center justify-between bg-brand-50 px-[clamp(0.9rem,2vw,1.5rem)] py-[clamp(0.4rem,1.2vh,0.75rem)]">
-              <span class="font-semibold text-brand-700 text-[clamp(0.9rem,2.6vh,1.15rem)]">รายการที่สั่ง</span>
-              <span class="rounded-full bg-honey px-3 py-0.5 text-[clamp(0.75rem,2vh,0.95rem)] font-semibold text-stone-900">{{ (state.lines || []).length }} รายการ</span>
-            </div>
-            <ul class="min-h-0 flex-1 space-y-[clamp(0.4rem,1.2vh,0.75rem)] overflow-y-auto p-[clamp(0.6rem,1.6vh,1.25rem)]">
-              <li v-for="(l, i) in state.lines" :key="i" class="flex items-start gap-[clamp(0.5rem,1.4vw,0.9rem)] rounded-2xl bg-stone-50 p-[clamp(0.4rem,1.2vh,0.85rem)]">
+    <main class="flex min-h-0 flex-1 flex-col p-[clamp(0.4rem,1.2vh,0.9rem)]">
+      <!-- กำลังเลือกสินค้า: รายการ (ซ้าย) · สรุปยอดและโปรโมชั่น (ขวา) -->
+      <div v-if="state.status === 'shopping'" class="grid min-h-0 flex-1 gap-[clamp(0.4rem,1.2vh,0.8rem)] sm:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <section class="@container flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
+          <div class="flex shrink-0 items-center justify-between bg-brand-50 px-[clamp(0.8rem,2vw,1.4rem)] py-[clamp(0.3rem,1vh,0.6rem)]">
+            <span class="font-semibold text-brand-700 text-[clamp(0.85rem,2.4vh,1.1rem)]">รายการที่สั่ง</span>
+            <span class="rounded-full bg-honey px-3 py-0.5 text-[clamp(0.7rem,1.9vh,0.9rem)] font-semibold text-stone-900">{{ (state.lines || []).length }} รายการ</span>
+          </div>
+          <FitBox>
+            <ul class="p-[clamp(0.5rem,1.4vh,1rem)]" :class="many ? 'grid grid-cols-1 gap-x-4 gap-y-[clamp(0.35rem,1vh,0.6rem)] @[34rem]:grid-cols-2' : 'space-y-[clamp(0.35rem,1vh,0.6rem)]'">
+              <li v-for="(l, i) in state.lines" :key="i" class="flex items-start gap-[clamp(0.5rem,1.4vw,0.9rem)] rounded-2xl bg-stone-50 p-[clamp(0.35rem,1.1vh,0.8rem)]">
                 <span class="grid aspect-square h-[clamp(2rem,5.2vh,2.75rem)] shrink-0 place-items-center rounded-xl bg-brand-100 font-bold text-brand-800 text-[clamp(0.9rem,2.6vh,1.2rem)]">{{ l.qty }}</span>
-                <!-- ซ้าย: ชื่อ + ราคาต่อหน่วย (ขีดราคาเต็มถ้าลดรายการ) · ขวา: ราคารวมของรายการ และป้ายโปรโมชั่นอยู่ใต้ราคารวม -->
+                <!-- ซ้าย: ชื่อ + ราคา (ราคาที่ต้องจ่ายก่อน · ราคาเต็มขีดฆ่าไว้ข้างหลัง) -->
                 <div class="min-w-0 flex-1">
                   <div class="break-words font-medium text-stone-900 text-[clamp(0.95rem,3vh,1.4rem)]">{{ l.name }}</div>
                   <div class="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-[clamp(0.8rem,2.3vh,1.05rem)]">
-                    <!-- ราคาที่ต้องจ่ายขึ้นก่อน (สีแบรนด์) · ราคาเต็มที่ขีดฆ่าไว้ข้างหลัง (สีเทาจาง) -->
                     <span :class="l.fullUnit !== l.unit ? 'font-semibold text-brand-700' : 'text-stone-700'">{{ money(l.unit) }}</span>
                     <span v-if="l.fullUnit !== l.unit" class="text-stone-400 line-through">{{ money(l.fullUnit) }}</span>
                   </div>
                 </div>
+                <!-- ขวา: ราคารวมของรายการ และป้ายโปรโมชั่นอยู่ใต้ราคารวม -->
                 <div class="flex shrink-0 flex-col items-end gap-1">
                   <span class="font-semibold text-stone-900 text-[clamp(0.95rem,3vh,1.4rem)]">{{ money(l.amount) }}</span>
                   <div v-if="l.tags?.length" class="flex flex-wrap justify-end gap-1">
@@ -115,13 +134,15 @@ watch(
                 </div>
               </li>
             </ul>
-          </section>
+          </FitBox>
+        </section>
 
-          <section class="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
-            <div class="shrink-0 bg-brand-50 px-[clamp(0.9rem,2vw,1.5rem)] py-[clamp(0.4rem,1.2vh,0.75rem)]">
-              <span class="font-semibold text-brand-700 text-[clamp(0.9rem,2.6vh,1.15rem)]">สรุปยอด</span>
-            </div>
-            <div class="flex min-h-0 flex-1 flex-col gap-[clamp(0.3rem,1vh,0.6rem)] overflow-y-auto p-[clamp(0.8rem,2vh,1.5rem)] text-[clamp(0.85rem,2.5vh,1.15rem)]">
+        <section class="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
+          <div class="shrink-0 bg-brand-50 px-[clamp(0.8rem,2vw,1.4rem)] py-[clamp(0.3rem,1vh,0.6rem)]">
+            <span class="font-semibold text-brand-700 text-[clamp(0.85rem,2.4vh,1.1rem)]">สรุปยอด</span>
+          </div>
+          <FitBox @fit="onSummaryFit">
+            <div class="flex flex-col gap-[clamp(0.25rem,0.9vh,0.5rem)] p-[clamp(0.5rem,1.4vh,1rem)] text-[clamp(0.8rem,2.3vh,1.1rem)]">
               <div class="flex justify-between gap-3">
                 <span class="text-stone-600">ราคาเต็ม</span>
                 <span class="font-medium text-stone-900">{{ money(pricing.full) }}</span>
@@ -142,54 +163,51 @@ watch(
                 <span>รวม VAT {{ pricing.vatRate }}% แล้ว</span>
                 <span class="shrink-0">{{ money(pricing.vat) }}</span>
               </div>
-              <!-- โปรโมชั่นแนะนำ: ช่องว่างในสรุปยอดใช้แนะนำให้ลูกค้าซื้อเพิ่ม -->
-              <div v-if="hasSuggest" class="mt-1 flex flex-col gap-[clamp(0.3rem,1vh,0.6rem)]">
-                <div class="flex items-center gap-2 font-semibold text-brand-700 text-[clamp(0.85rem,2.4vh,1.05rem)]">
+
+              <!-- โปรโมชั่นแนะนำ: อยู่ในกล่องเดียวกับสรุปยอด จึงย่อพร้อมกันให้พอดี · กริด 2 คอลัมน์คงที่ (ขนาดไม่เปลี่ยนระหว่างย่อ) -->
+              <div v-if="visiblePromos.length" class="mt-[clamp(0.3rem,1vh,0.7rem)] flex flex-col gap-[clamp(0.3rem,1vh,0.6rem)]">
+                <div class="flex items-center gap-2 font-semibold text-brand-700">
                   <AppIcon name="star" :size="16" /> โปรโมชั่นแนะนำ
                 </div>
-                <div v-for="(h, k) in suggest.hints" :key="'h' + k" class="rounded-xl bg-honey/30 px-3 py-1.5 text-stone-900 text-[clamp(0.8rem,2.2vh,1rem)]">💡 {{ h }}</div>
-                <div v-for="(b, k) in suggest.bundles" :key="'b' + k" class="rounded-xl bg-brand-50 px-3 py-1.5">
-                  <div class="font-semibold text-brand-800 text-[clamp(0.85rem,2.4vh,1.05rem)]">บันเดิ้ล {{ b.name }} · {{ money(b.price) }}</div>
-                  <div class="text-stone-700 text-[clamp(0.75rem,2vh,0.95rem)]">เพิ่มอีก {{ b.add.join(' + ') }} · ประหยัด {{ money(b.saving) }}</div>
-                </div>
-                <div v-if="suggest.pairs?.length" class="flex flex-wrap gap-2">
-                  <span v-for="(pr, k) in suggest.pairs" :key="'p' + k" class="rounded-full bg-matcha-soft px-3 py-1 text-stone-900 text-[clamp(0.75rem,2vh,0.95rem)]">ซื้อคู่กัน {{ pr.name }} · {{ money(pr.price) }}</span>
-                </div>
-                <div v-if="suggest.best" class="flex items-center justify-between gap-2 rounded-xl bg-brand-50 px-3 py-1.5 text-[clamp(0.8rem,2.2vh,1rem)]">
-                  <span class="flex min-w-0 items-center gap-2 font-semibold text-stone-900"><AppIcon name="star" :size="16" class="shrink-0 text-brand-600" /> <span class="truncate">ขายดีอันดับ 1: {{ suggest.best.name }}</span></span>
-                  <span class="shrink-0 font-semibold text-stone-900">{{ money(suggest.best.price) }}</span>
+                <div class="grid grid-cols-2 gap-[clamp(0.3rem,1vh,0.6rem)]">
+                  <div v-for="c in visiblePromos" :key="c.key" class="rounded-2xl px-[clamp(0.45rem,1.2vw,0.7rem)] py-[clamp(0.3rem,1vh,0.6rem)]" :class="c.cls">
+                    <div class="break-words font-medium leading-snug" :class="c.titleCls">
+                      <span class="mr-1 inline-flex items-center gap-0.5 rounded-full bg-white/80 px-2 align-middle text-[0.75em] font-semibold" :class="c.labelCls"><AppIcon v-if="c.star" name="star" :size="11" />{{ c.label }}</span>{{ c.title }}<span v-if="c.price" class="whitespace-nowrap font-semibold"> · {{ c.price }}</span>
+                    </div>
+                    <div v-for="(d, k) in c.detail" :key="k" class="text-[0.9em] leading-snug text-stone-700" :class="k === 1 ? 'font-semibold text-brand-700' : ''">{{ d }}</div>
+                  </div>
                 </div>
               </div>
             </div>
-            <!-- ยอดสุทธิ: อยู่ด้านล่างการ์ดเสมอ ไม่ถูกเลื่อนหายเมื่อรายการยาว -->
-            <div class="flex shrink-0 items-end justify-between gap-3 border-t border-stone-200 px-[clamp(0.8rem,2vh,1.5rem)] py-[clamp(0.5rem,1.5vh,1rem)]">
-              <div class="min-w-0">
-                <div class="font-semibold text-stone-900 text-[clamp(1rem,3vh,1.4rem)]">ยอดสุทธิ</div>
-                <div v-if="hasDiscount" class="font-semibold text-brand-700 text-[clamp(0.8rem,2.2vh,1rem)]">ประหยัดไป {{ money(pricing.saved) }}</div>
-              </div>
-              <span class="font-display font-semibold text-stone-900 text-[clamp(1.25rem,4.4vh,2rem)]">{{ money(state.total) }}</span>
+          </FitBox>
+          <!-- ยอดสุทธิ: ด้านล่างการ์ดเสมอ -->
+          <div class="flex shrink-0 items-end justify-between gap-3 border-t border-stone-200 px-[clamp(0.8rem,2vh,1.5rem)] py-[clamp(0.4rem,1.3vh,0.9rem)]">
+            <div class="min-w-0">
+              <div class="font-semibold text-stone-900 text-[clamp(0.95rem,2.8vh,1.3rem)]">ยอดสุทธิ</div>
+              <div v-if="hasDiscount" class="font-semibold text-brand-700 text-[clamp(0.75rem,2vh,0.95rem)]">ประหยัดไป {{ money(pricing.saved) }}</div>
             </div>
-          </section>
-        </div>
-      </template>
+            <span class="whitespace-nowrap font-display font-semibold text-stone-900 text-[clamp(1.1rem,3.6vh,1.9rem)]">{{ money(state.total) }}</span>
+          </div>
+        </section>
+      </div>
 
       <!-- กำลังชำระเงิน: ยอดและวิธีชำระ (ซ้าย) · QR (ขวา) -->
-      <template v-else-if="state.status === 'paying'">
-        <div class="grid min-h-0 flex-1 gap-[clamp(0.5rem,1.6vh,1rem)] sm:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
-          <section class="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
-            <div class="shrink-0 bg-brand-50 px-[clamp(0.9rem,2vw,1.5rem)] py-[clamp(0.4rem,1.2vh,0.75rem)]">
-              <span class="font-semibold text-brand-700 text-[clamp(0.9rem,2.6vh,1.15rem)]">การชำระเงิน</span>
-            </div>
-            <div class="flex min-h-0 flex-1 flex-col gap-[clamp(0.5rem,1.6vh,1rem)] overflow-y-auto p-[clamp(0.9rem,2vh,1.5rem)]">
+      <div v-else-if="state.status === 'paying'" class="grid min-h-0 flex-1 gap-[clamp(0.4rem,1.2vh,0.8rem)] sm:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]">
+        <section class="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
+          <div class="shrink-0 bg-brand-50 px-[clamp(0.8rem,2vw,1.4rem)] py-[clamp(0.3rem,1vh,0.6rem)]">
+            <span class="font-semibold text-brand-700 text-[clamp(0.85rem,2.4vh,1.1rem)]">การชำระเงิน</span>
+          </div>
+          <FitBox>
+            <div class="flex flex-col gap-[clamp(0.4rem,1.2vh,0.8rem)] p-[clamp(0.6rem,1.8vh,1.25rem)]">
               <div>
-                <div class="text-stone-500 text-[clamp(0.85rem,2.4vh,1.1rem)]">ยอดที่ต้องชำระ</div>
-                <div class="font-display font-semibold text-stone-900 text-[clamp(2rem,8vh,3.75rem)] leading-tight">{{ money(state.total) }}</div>
-                <div class="mt-2">
-                  <span v-if="remaining > 0" class="inline-block rounded-full bg-honey px-4 py-1.5 font-bold text-stone-900 text-[clamp(0.9rem,2.8vh,1.25rem)]">ยังขาด {{ money(remaining) }}</span>
-                  <span v-else class="inline-block rounded-full bg-matcha px-4 py-1.5 font-bold text-stone-900 text-[clamp(0.9rem,2.8vh,1.25rem)]">ครบแล้ว ✓</span>
+                <div class="text-stone-500 text-[clamp(0.8rem,2.2vh,1.05rem)]">ยอดที่ต้องชำระ</div>
+                <div class="font-display font-semibold text-stone-900 text-[clamp(1.75rem,7vh,3.4rem)] leading-tight">{{ money(state.total) }}</div>
+                <div class="mt-1.5">
+                  <span v-if="remaining > 0" class="inline-block rounded-full bg-honey px-4 py-1 font-bold text-stone-900 text-[clamp(0.85rem,2.6vh,1.2rem)]">ยังขาด {{ money(remaining) }}</span>
+                  <span v-else class="inline-block rounded-full bg-matcha px-4 py-1 font-bold text-stone-900 text-[clamp(0.85rem,2.6vh,1.2rem)]">ครบแล้ว ✓</span>
                 </div>
               </div>
-              <div class="space-y-1 text-[clamp(0.8rem,2.3vh,1.05rem)] text-stone-700">
+              <div class="flex flex-col gap-0.5 text-[clamp(0.75rem,2.1vh,1rem)] text-stone-700">
                 <div v-for="(d, k) in pricing.discounts" :key="'d' + k" class="flex justify-between gap-3 text-brand-700">
                   <span class="min-w-0 break-words">{{ d.label }}</span><span class="shrink-0 font-semibold">−{{ money(d.amount) }}</span>
                 </div>
@@ -197,68 +215,63 @@ watch(
                   <span>VAT {{ pricing.vatRate }}% (บวกเพิ่ม)</span><span class="shrink-0">+{{ money(pricing.vat) }}</span>
                 </div>
               </div>
-              <ul v-if="state.payLines?.length" class="space-y-[clamp(0.35rem,1vh,0.6rem)]">
-                <li v-for="(p, i) in state.payLines" :key="i" class="flex items-center justify-between gap-3 rounded-2xl bg-stone-50 p-[clamp(0.4rem,1.2vh,0.85rem)]">
-                  <span class="rounded-full px-3 py-1 font-semibold text-[clamp(0.8rem,2.2vh,1rem)]" :class="chipOf(p.method)">{{ p.method }}</span>
-                  <span class="font-semibold text-stone-900 text-[clamp(1rem,3vh,1.4rem)]">
+              <ul v-if="state.payLines?.length" class="space-y-[clamp(0.3rem,1vh,0.6rem)]">
+                <li v-for="(p, i) in state.payLines" :key="i" class="flex items-center justify-between gap-3 rounded-2xl bg-stone-50 p-[clamp(0.35rem,1.1vh,0.8rem)]">
+                  <span class="rounded-full px-3 py-1 font-semibold text-[clamp(0.75rem,2.1vh,0.95rem)]" :class="chipOf(p.method)">{{ p.method }}</span>
+                  <span class="font-semibold text-stone-900 text-[clamp(0.95rem,2.8vh,1.3rem)]">
                     {{ money(p.amount) }}
                     <span v-if="p.done" class="ml-1 text-stone-800">✓</span>
                   </span>
                 </li>
               </ul>
             </div>
-          </section>
+          </FitBox>
+        </section>
 
-          <section class="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
-            <div class="flex shrink-0 items-center justify-center bg-matcha-soft px-4 py-[clamp(0.4rem,1.2vh,0.75rem)]">
-              <span class="font-semibold text-stone-900 text-[clamp(0.9rem,2.6vh,1.15rem)]">สแกน QR เพื่อชำระ</span>
-            </div>
-            <div ref="qrBox" class="flex min-h-0 flex-1 items-center justify-center p-[clamp(0.3rem,1vh,0.75rem)]">
-              <img
-                v-if="state.qr && qrSrc"
-                :src="qrSrc"
-                alt="QR พร้อมเพย์สำหรับชำระเงิน"
-                :style="{ width: qrPx + 'px', height: qrPx + 'px' }"
-                class="rounded-2xl bg-white "
-              />
-              <div v-else class="text-stone-400">รอสร้าง QR</div>
-            </div>
-            <div v-if="state.qr" class="shrink-0 pb-[clamp(0.5rem,1.6vh,1rem)] text-center font-display font-semibold text-brand-700 text-[clamp(1.25rem,4.4vh,2rem)]">
-              {{ money(state.qr.amount) }}
-            </div>
-          </section>
-        </div>
-      </template>
+        <section class="flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
+          <div class="flex shrink-0 items-center justify-center bg-matcha-soft px-4 py-[clamp(0.3rem,1vh,0.6rem)]">
+            <span class="font-semibold text-stone-900 text-[clamp(0.85rem,2.4vh,1.1rem)]">สแกน QR เพื่อชำระ</span>
+          </div>
+          <div ref="qrBox" class="flex min-h-0 flex-1 items-center justify-center p-[clamp(0.3rem,1vh,0.6rem)]">
+            <img
+              v-if="state.qr && qrSrc"
+              :src="qrSrc"
+              alt="QR พร้อมเพย์สำหรับชำระเงิน"
+              :style="{ width: qrPx + 'px', height: qrPx + 'px' }"
+              class="rounded-2xl bg-white ring-1 ring-stone-200"
+            />
+            <div v-else class="text-stone-400">รอสร้าง QR</div>
+          </div>
+          <div v-if="state.qr" class="shrink-0 pb-[clamp(0.4rem,1.2vh,0.9rem)] text-center font-display font-semibold text-brand-700 text-[clamp(1.2rem,4vh,1.9rem)]">
+            {{ money(state.qr.amount) }}
+          </div>
+        </section>
+      </div>
 
       <!-- ชำระเรียบร้อย -->
-      <template v-else-if="state.status === 'thanks'">
-        <section class="flex flex-1 flex-col items-center justify-center gap-[clamp(0.75rem,2.5vh,1.5rem)] rounded-3xl bg-white p-8 text-center shadow-md">
-          <div class="grid aspect-square h-[clamp(4.5rem,16vh,7rem)] place-items-center rounded-full bg-matcha-soft text-stone-800">
-            <AppIcon name="check" :size="56" />
-          </div>
-          <div class="font-display font-medium text-stone-900 text-[clamp(2.5rem,11vh,5rem)] leading-tight">ขอบคุณค่ะ</div>
-          <div class="text-stone-600 text-[clamp(1rem,3.4vh,1.5rem)]">ชำระเรียบร้อยแล้ว <span class="font-bold text-stone-900">{{ money(state.total) }}</span></div>
-          <div v-if="(state.saved || 0) > 0" class="rounded-full bg-brand-50 px-5 py-2 font-semibold text-brand-700 text-[clamp(0.95rem,3vh,1.3rem)]">ประหยัดไป {{ money(state.saved) }}</div>
-        </section>
-      </template>
+      <div v-else-if="state.status === 'thanks'" class="flex min-h-0 flex-1 flex-col items-center justify-center gap-[clamp(0.6rem,2vh,1.4rem)] rounded-3xl bg-white p-8 text-center shadow-md">
+        <div class="grid aspect-square h-[clamp(3.5rem,14vh,6rem)] place-items-center rounded-full bg-matcha-soft text-stone-900">
+          <AppIcon name="check" :size="48" />
+        </div>
+        <div class="font-display font-medium text-stone-900 text-[clamp(2rem,9vh,4.5rem)] leading-tight">ขอบคุณค่ะ</div>
+        <div class="text-stone-600 text-[clamp(0.95rem,3vh,1.4rem)]">ชำระเรียบร้อยแล้ว <span class="font-bold text-stone-900">{{ money(state.total) }}</span></div>
+        <div v-if="(state.saved || 0) > 0" class="rounded-full bg-brand-50 px-5 py-2 font-semibold text-brand-700 text-[clamp(0.9rem,2.8vh,1.2rem)]">ประหยัดไป {{ money(state.saved) }}</div>
+      </div>
 
       <!-- ยินดีต้อนรับ (ยังไม่มีรายการ) -->
-      <template v-else>
-        <section class="relative flex flex-1 flex-col items-center justify-center overflow-hidden rounded-3xl bg-white p-8 text-center shadow-md">
-          <div class="absolute -left-16 -top-16 h-56 w-56 rounded-full bg-honey/30" />
-          <div class="absolute -bottom-20 -right-10 h-64 w-64 rounded-full bg-matcha-soft" />
-          <div class="relative">
-            <div class="font-display font-bold text-brand-800 text-[clamp(2.25rem,10vh,4.5rem)] leading-tight">ยินดีต้อนรับค่ะ</div>
-            <div class="mt-3 text-stone-600 text-[clamp(1rem,3.4vh,1.5rem)]">เชิญเลือกสินค้าได้เลยค่ะ</div>
-            <div class="mt-[clamp(1rem,4vh,2rem)] flex flex-wrap justify-center gap-3 font-semibold text-[clamp(0.85rem,2.6vh,1.1rem)]">
-              <span class="rounded-full bg-matcha-soft px-4 py-2 text-stone-800">เงินสด</span>
-              <span class="rounded-full bg-brand-100 px-4 py-2 text-brand-800">โอนเงิน QR</span>
-              <span class="rounded-full bg-stone-200 px-4 py-2 text-stone-800">บัตร</span>
-            </div>
+      <div v-else class="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-3xl bg-white p-8 text-center shadow-md">
+        <div class="absolute -left-16 -top-16 h-56 w-56 rounded-full bg-brand-100" />
+        <div class="absolute -bottom-20 -right-10 h-64 w-64 rounded-full bg-matcha-soft" />
+        <div class="relative">
+          <div class="font-display font-medium text-brand-700 text-[clamp(2rem,9vh,4.2rem)] leading-tight">ยินดีต้อนรับค่ะ</div>
+          <div class="mt-3 text-stone-600 text-[clamp(0.95rem,3vh,1.4rem)]">เชิญเลือกสินค้าได้เลยค่ะ</div>
+          <div class="mt-[clamp(0.8rem,3vh,2rem)] flex flex-wrap justify-center gap-3 font-semibold text-[clamp(0.8rem,2.4vh,1.05rem)]">
+            <span class="rounded-full bg-matcha-soft px-4 py-2 text-stone-900">เงินสด</span>
+            <span class="rounded-full bg-brand-100 px-4 py-2 text-brand-800">โอนเงิน QR</span>
+            <span class="rounded-full bg-honey/40 px-4 py-2 text-stone-900">บัตร</span>
           </div>
-        </section>
-      </template>
+        </div>
+      </div>
     </main>
-
   </div>
 </template>
