@@ -15,6 +15,7 @@ import { askConfirm } from '../lib/confirm'
 import { refreshLabels } from '../lib/staffAuth'
 import { waitSaved } from '../lib/syncStatus'
 import { showToast } from '../lib/toast'
+import { quietly } from '../lib/loading'
 import { money, dateTime, timeOnly, phoneDigits, formatPhone, phoneValid } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
@@ -284,7 +285,7 @@ function openPay() {
   payLines.value = []
   payNow.value = Date.now()
   clearInterval(payTimer)
-  payTimer = setInterval(() => { payNow.value = Date.now(); tickLines(); if (++payTick % 5 === 0) pollManee() }, 1000)
+  payTimer = setInterval(() => { payNow.value = Date.now(); tickLines(); if (++payTick % 5 === 0) quietly(pollManee) }, 1000)
   payOpen.value = true
 }
 function closePay() {

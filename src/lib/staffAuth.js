@@ -2,6 +2,7 @@ import { mayHaveStaffSession } from './staffSessionHint'
 import { reactive } from 'vue'
 import { getSupabase, supabaseEnabled } from './supabase'
 import { showToast } from './toast'
+import { quietly } from './loading'
 import { publicState, setRestoring } from './dataStatus'
 import { syncRealtime, waitSaved } from './syncStatus'
 import { startRealtime, makeDebouncer } from './realtimeSync'
@@ -33,7 +34,7 @@ const onVisible = () => { if (typeof document !== 'undefined' && !document.hidde
 const onOnline = () => pollOnce(true)
 function startPolling() {
   stopPolling()
-  pollTimer = setInterval(pollOnce, POLL_MS)
+  pollTimer = setInterval(() => quietly(pollOnce), POLL_MS)
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible)
   if (typeof window !== 'undefined') window.addEventListener('online', onOnline)
 }
@@ -384,7 +385,7 @@ async function loadForVisitor() {
   // สถิติคลิกแบบเค้ก (รูปแนะนำ) — โหลดเบื้องหลัง ไม่รอ
   import('./clicksSync').then(async (m) => m.applyClicks(await getSupabase(), (await import('../data/store')).db)).catch(() => {})
   stopPublicRefresh()
-  pubTimer = setInterval(() => { if (typeof document === 'undefined' || document.visibilityState === 'visible') loadPublicNow(false) }, PUBLIC_REFRESH_MS)
+  pubTimer = setInterval(() => { if (typeof document === 'undefined' || document.visibilityState === 'visible') quietly(() => loadPublicNow(false)) }, PUBLIC_REFRESH_MS)
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onPubVisible)
   if (!staffState.staff) startPublicRealtime(await getSupabase())
 }

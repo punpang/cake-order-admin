@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { db, session, can, switchUser, unreadChats, runScheduledChecks, orderVisible } from './data/store'
+import { quietly } from './lib/loading'
 import { paymentCounts } from './lib/paymentsQueue'
 import { focusMain } from './lib/a11yNav'
 import { supabaseEnabled } from './lib/supabase'
@@ -59,7 +60,7 @@ const me = computed(() => (supabaseEnabled ? staffState.staff : db.users.find((u
 async function logout() { roleOpen.value = false; await staffSignOut(); appRouter.push('/admin/login') }
 // จำลอง cron: ตรวจแจ้งเตือนตามเวลาทุก 60 วินาทีขณะเปิดแอป (ของจริงใช้ cron ฝั่งเซิร์ฟเวอร์)
 let timer = null
-onMounted(() => { timer = setInterval(() => { if (!supabaseEnabled || staffState.staff) runScheduledChecks() }, 60000); document.addEventListener('pointerdown', sysOutside); document.addEventListener('keydown', sysEsc) })
+onMounted(() => { timer = setInterval(() => { if (!supabaseEnabled || staffState.staff) quietly(runScheduledChecks) }, 60000); document.addEventListener('pointerdown', sysOutside); document.addEventListener('keydown', sysEsc) })
 onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('pointerdown', sysOutside); document.removeEventListener('keydown', sysEsc) })
 </script>
 

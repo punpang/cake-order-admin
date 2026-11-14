@@ -42,6 +42,14 @@ export async function trackLoad(p) {
   try { return await p } finally { endLoad() }
 }
 
+// งานอัปเดตเบื้องหลัง (เช่น ดึงรายการทุก 5 วินาที): ไม่ขึ้นหน้าจอหมุนโหลด ไม่บล็อกการคลิก
+let quietDepth = 0
+export async function quietly(fn) {
+  quietDepth++
+  try { return await fn() } finally { quietDepth-- }
+}
+export const isQuiet = () => quietDepth > 0
+
 // ดักทุก fetch ของหน้าเว็บ (เรียกครั้งเดียวตอนเริ่มแอป ก่อนสร้าง client ของ Supabase)
 export function installLoadingFetch() {
   if (typeof window === 'undefined' || window.__loadingFetch) return
@@ -51,6 +59,7 @@ export function installLoadingFetch() {
     // ส่งข้อความ Facebook ไม่บล็อกหน้าจอ: ข้อความขึ้นในแชททันที และสถานะ "กำลังส่ง/ส่งสำเร็จ" บอกผลเอง
     const target = typeof args[0] === 'string' ? args[0] : args[0]?.url || ''
     if (/\/functions\/v1\/fb-send(\?|$)/.test(target)) return orig(...args)
+    if (quietDepth > 0) return orig(...args)
     return trackLoad(orig(...args))
   }
 }

@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { supabaseEnabled, getSupabase } from '../lib/supabase'
 import { dateTime, money } from '../lib/format'
 import ManageShell from '../components/ManageShell.vue'
+import { quietly } from '../lib/loading'
 
 const rows = ref([])
 const inbox = ref([])
@@ -83,7 +84,7 @@ async function load() {
 
 const count = computed(() => rows.value.length)
 
-onMounted(() => { load(); timer = setInterval(load, 5000) })
+onMounted(() => { load(); timer = setInterval(() => quietly(load), 5000) })
 onBeforeUnmount(() => clearInterval(timer))
 </script>
 
