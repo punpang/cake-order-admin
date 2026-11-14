@@ -1,6 +1,6 @@
 {
   "appId": "com.punpang.cakeadmin",
-  "appName": "ร้านเค้ก หลังบ้าน",
+  "appName": "PUNPANG",
   "webDir": "dist",
   "android": {
     "allowMixedContent": false
