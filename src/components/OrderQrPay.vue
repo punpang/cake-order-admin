@@ -1,6 +1,6 @@
 <script setup>
 // รับชำระโอนหน้าร้านจากหน้าออร์เดอร์ · ทำงานเหมือน QR ของ POS: รอชำระ → ตรวจรายการถุงเงิน (ด้วยรหัสธุรกรรม) → ลูกค้าชำระแล้ว → รับชำระ
-// รับเองเมื่อครบ 3 นาทีหลังพบรายการเดียว · หมดอายุตามตั้งค่า POS · ปิดหน้าก่อนชำระ = ยกเลิก QR
+// พบรายการที่ตรง (รหัส + ยอด) → ยืนยันอัตโนมัติทันที เฉพาะชำระก่อนวันนัด − X วัน (ตั้งค่าร้าน) · หลังจากนั้นพนักงานยืนยันเอง · หมดอายุตามตั้งค่า POS · ปิดหน้าก่อนชำระ = ยกเลิก QR
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { db, reportPayment, confirmPayment, cancelPaymentRequest } from '../data/store'
 import { orderTotals } from '../lib/pricing'
@@ -15,7 +15,6 @@ const props = defineProps({
 })
 const emit = defineEmits(['done'])
 
-const AUTO_ACCEPT_MS = 3 * 60 * 1000
 const pid = ref(null)
 const qr = ref(null) // { amount, ref1, ref2, from, to }
 const err = ref('')
@@ -38,7 +37,15 @@ const state = computed(() => {
 })
 const fmt = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
 const left = computed(() => fmt(Math.max(0, Math.ceil((new Date(qr.value?.to || 0).getTime() - now.value) / 1000))))
-const autoLeft = computed(() => fmt(Math.max(0, Math.ceil((detectedAt.value + AUTO_ACCEPT_MS - now.value) / 1000))))
+// ยืนยันอัตโนมัติเฉพาะเมื่อยังไม่ถึงวันตัดรอบ = วันนัด (00:00) − X วัน · ไม่มีวันนัด = ให้พนักงานยืนยันเอง
+const autoOk = computed(() => {
+  if (!props.order?.pickupAt) return false
+  const d = new Date(props.order.pickupAt)
+  if (Number.isNaN(d.getTime())) return false
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() - (Number(db.shop.orderAutoPayDaysBefore) || 0))
+  return now.value < d.getTime()
+})
 
 function make() {
   err.value = ''
@@ -85,7 +92,7 @@ function cancel() {
 
 function tick() {
   now.value = Date.now()
-  if (state.value === 'detected' && now.value - detectedAt.value >= AUTO_ACCEPT_MS) return accept('auto')
+  if (state.value === 'detected' && autoOk.value) return accept('auto')
   if (++tickCount % 5 === 0) quietly(poll)
 }
 
@@ -115,7 +122,7 @@ onBeforeUnmount(() => {
       <BillerQr v-else :amount="qr.amount" :ref1="qr.ref1" :ref2="qr.ref2" />
       <p class="text-center text-sm" :class="state === 'expired' ? 'font-semibold text-rose-700' : 'text-stone-600'">
         <template v-if="state === 'expired'">QR หมดอายุแล้ว ต้องสร้างใหม่</template>
-        <template v-else-if="state === 'detected'">ระบบจะรับเองภายใน {{ autoLeft }} ถ้าไม่กดรับ</template>
+        <template v-else-if="state === 'detected'">{{ autoOk ? 'ระบบกำลังยืนยันออเดอร์อัตโนมัติ' : 'ชำระหลังกำหนดอัตโนมัติ · รอพนักงานยืนยัน' }}</template>
         <template v-else>สถานะ: รอลูกค้าชำระ · หมดอายุใน {{ left }}</template>
       </p>
       <div v-if="state === 'waiting' && candidates.length > 1" class="space-y-1.5">

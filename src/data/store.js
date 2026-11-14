@@ -305,6 +305,8 @@ export const db = reactive({
     // กำหนดชำระเริ่มต้นตอนแจ้งยอด (นาที) · 0 = ไม่กำหนด
     payDueMin: 30,
     posQrExpireMin: 10, // QR โอนหน้าร้าน (POS) หมดอายุ (นาที)
+    // ออร์เดอร์: ชำระก่อนวันนัด − X วัน → ยืนยันออเดอร์อัตโนมัติ · หลังจากนั้นพนักงานยืนยันเอง (0–30)
+    orderAutoPayDaysBefore: 3,
     // ตัวเลือกกำหนดชำระตามนัด: ก่อนนัด hoursBefore ชม. · ล่วงหน้า daysBefore วัน ก่อน atTime · เตือนลูกค้าที่ยังไม่ชำระของพรุ่งนี้ตอน payReminderTime
     payDueRule: { hoursBefore: 24, daysBefore: 1, atTime: '12:00' },
     payReminderTime: '09:00',
@@ -1555,6 +1557,10 @@ export function saveShopSettings(d) {
   if (d.posQrExpireMin !== undefined) {
     const m = Math.round(Number(d.posQrExpireMin))
     db.shop.posQrExpireMin = m >= 1 && m <= 60 ? m : 10
+  }
+  if (d.orderAutoPayDaysBefore !== undefined) {
+    const n = Math.round(Number(d.orderAutoPayDaysBefore))
+    db.shop.orderAutoPayDaysBefore = n >= 0 && n <= 30 ? n : 3
   }
   if (d.payDueMin !== undefined) {
     const m = Math.round(Number(d.payDueMin))

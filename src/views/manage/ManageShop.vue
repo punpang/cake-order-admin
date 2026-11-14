@@ -61,6 +61,7 @@ function save() {
   if (!(st.pickupRemindHours >= 1 && st.pickupRemindHours <= 72) || !(st.dueSoonHours >= 1 && st.dueSoonHours <= 12) || !(st.pointsExpireDays >= 1 && st.pointsExpireDays <= 90) || !(st.installmentAlertDays >= 0 && st.installmentAlertDays <= 30)) return (error.value = 'ตรวจเวลาแจ้งเตือน (นัดรับ 1–72 ชม. · งานใกล้เวลา 1–12 ชม. · คะแนนหมดอายุ 1–90 วัน · ผ่อนชำระ 0–30 วัน)')
   if (!(Number(st.payDueMin) >= 1) || Number(st.payDueMin) > 10080) return (error.value = 'กำหนดชำระเริ่มต้นต้องอยู่ระหว่าง 1–10080 นาที')
   if (!(Number(st.posQrExpireMin) >= 1) || Number(st.posQrExpireMin) > 60) return (error.value = 'QR หน้าร้าน (POS) หมดอายุต้องอยู่ระหว่าง 1–60 นาที')
+  if (!(Number(st.orderAutoPayDaysBefore) >= 0) || Number(st.orderAutoPayDaysBefore) > 30) return (error.value = 'ยืนยันออเดอร์อัตโนมัติ: ชำระก่อนวันนัดได้ 0–30 วัน')
   const pr = st.payDueRule
   if (!(Number(pr.hoursBefore) >= 1 && Number(pr.hoursBefore) <= 720) || !(Number(pr.daysBefore) >= 0 && Number(pr.daysBefore) <= 30) || !hm.test(pr.atTime) || !hm.test(st.payReminderTime)) return (error.value = 'ตรวจค่ากำหนดชำระตามนัด / เวลาเตือน (ชม. 1–720, วัน 0–30, เวลา HH:mm)')
   if (!num(st.depositPercent) || Number(st.depositPercent) > 100) return (error.value = 'มัดจำต้องอยู่ระหว่าง 0–100%')
@@ -119,6 +120,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
           <div><label class="label">มัดจำขั้นต่ำ (%) <span class="font-normal text-stone-400">0 = ไม่ใช้</span></label><input v-model.number="st.depositPercent" type="text" v-num min="0" max="100" class="input" /></div>
           <div class="col-span-2"><label class="label">กำหนดชำระเริ่มต้นตอนแจ้งยอด (นาที)</label><input v-model.number="st.payDueMin" type="text" v-num min="1" max="10080" class="input" /></div>
           <div class="col-span-2"><label class="label">QR โอนหน้าร้าน (POS) หมดอายุหลัง (นาที)</label><input v-model.number="st.posQrExpireMin" type="text" v-num min="1" max="60" class="input" /></div>
+          <div class="col-span-2"><label class="label">ออร์เดอร์: ชำระก่อนวันนัดกี่วัน แล้วยืนยันอัตโนมัติ <span class="font-normal text-stone-400">หลังจากนั้นพนักงานยืนยันเอง · 0–30 วัน</span></label><input v-model.number="st.orderAutoPayDaysBefore" type="text" v-num min="0" max="30" class="input" /></div>
           <div><label class="label">ก่อนนัด (ชม.) เริ่มต้น</label><input v-model.number="st.payDueRule.hoursBefore" type="text" v-num min="1" max="720" class="input" /></div>
           <div><label class="label">ล่วงหน้า (วัน) เริ่มต้น</label><input v-model.number="st.payDueRule.daysBefore" type="text" v-num min="0" max="30" class="input" /></div>
           <div><label class="label">...ก่อนเวลา</label><input v-model="st.payDueRule.atTime" type="time" class="input" /></div>
