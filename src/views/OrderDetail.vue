@@ -644,49 +644,49 @@ async function saveCancel() {
       <p v-if="shipAction === 'deliver' && t.balance > 0" class="mx-auto mb-2 flex max-w-page items-center gap-1.5 text-sm font-medium text-amber-700">
         <AppIcon name="alert" :size="16" /> ยังค้างชำระ {{ money(t.balance) }} ส่งมอบไม่ได้
       </p>
-      <div class="mx-auto flex max-w-page gap-2 lg:px-4">
+      <div class="mx-auto flex max-w-page flex-wrap gap-2 lg:px-4">
         <button v-if="canRevertUi" class="btn-outline px-3 sm:px-4" aria-label="ย้อนสถานะ" title="กลับไปสถานะก่อนหน้า" @click="openRevert"><AppIcon name="back" :size="16" /> <span class="hidden sm:inline">ย้อนสถานะ</span></button>
         <button v-if="can('cancel') && !closed" class="btn-danger px-3 sm:px-4" aria-label="ยกเลิกออร์เดอร์" @click="openCancel">
           <AppIcon name="x" :size="16" /> <span :class="primaryAction ? 'hidden sm:inline' : ''">ยกเลิกออร์เดอร์</span>
         </button>
         <button
           v-if="order.status === 'draft' && can('sendToPayment')"
-          class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8"
+          class="btn-primary grow sm:ml-auto sm:grow-0 sm:px-8"
           @click="doStatus('awaiting_payment', 'ส่งไปรอชำระ', 'ส่งไปรอชำระ')"
         >ส่งไปรอชำระ</button>
         <button
           v-if="unpaidStage(order.status) && can('confirmUnpaid')"
-          class="btn-outline flex-1 sm:ml-auto sm:flex-none sm:px-6"
+          class="btn-outline grow sm:ml-auto sm:grow-0 sm:px-6"
           @click="doConfirmUnpaid"
         >ยืนยันสั่งซื้อ (ยังไม่ชำระ)</button>
         <button
           v-else-if="unpaidStage(order.status) && can('requestConfirmUnpaid') && order.approval?.status !== 'pending'"
-          class="btn-outline flex-1 sm:ml-auto sm:flex-none sm:px-6"
+          class="btn-outline grow sm:ml-auto sm:grow-0 sm:px-6"
           @click="doRequestUnpaid"
         >ขออนุมัติยืนยัน (ยังไม่ชำระ)</button>
         <button
           v-if="startable(order.status) && can('startPreparing')"
-          class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8"
+          class="btn-primary grow sm:ml-auto sm:grow-0 sm:px-8"
           @click="doStatus('preparing', 'เริ่มเตรียมสินค้า', 'เริ่มเตรียมสินค้า')"
         >เริ่มเตรียมสินค้า</button>
         <button
           v-if="order.status === 'preparing' && can('markPrepared')"
-          class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8"
+          class="btn-primary grow sm:ml-auto sm:grow-0 sm:px-8"
           @click="doStatus('prepared', 'เตรียมสินค้าเสร็จแล้ว', 'เตรียมสินค้าเสร็จแล้ว')"
         ><AppIcon name="check" :size="18" /> เตรียมสินค้าเสร็จ</button>
         <button
           v-if="shipAction === 'ready'"
-          class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8"
+          class="btn-primary grow sm:ml-auto sm:grow-0 sm:px-8"
           @click="doStatus('ready_to_ship', 'พร้อมจัดส่ง', 'พร้อมจัดส่ง')"
         ><AppIcon name="truck" :size="18" /> พร้อมจัดส่ง</button>
         <button
           v-if="shipAction === 'ship'"
-          class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8"
+          class="btn-primary grow sm:ml-auto sm:grow-0 sm:px-8"
           @click="doStatus('shipping', 'เริ่มจัดส่ง (กำลังจัดส่ง)', 'กำลังจัดส่ง')"
         ><AppIcon name="truck" :size="18" /> เริ่มจัดส่ง</button>
         <button
           v-if="shipAction === 'deliver'"
-          class="btn-primary flex-1 sm:ml-auto sm:flex-none sm:px-8"
+          class="btn-primary grow sm:ml-auto sm:grow-0 sm:px-8"
           :disabled="t.balance > 0"
           @click="doStatus('delivered', 'ส่งมอบแล้ว', 'ส่งมอบแล้ว')"
         ><AppIcon name="check" :size="18" /> ส่งมอบแล้ว</button>

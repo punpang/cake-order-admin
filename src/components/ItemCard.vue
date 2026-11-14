@@ -50,9 +50,9 @@ const lines = computed(() => discountLines(props.item.discounts, props.item.qty)
 <template>
   <div :class="bare ? 'p-4' : 'rounded-3xl bg-white p-4 shadow-md'">
     <!-- หัว: ชื่อ + ราคา -->
-    <div class="flex items-start justify-between gap-3">
+    <div class="flex flex-wrap items-start gap-x-3 gap-y-2">
       <div v-if="index" class="flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full bg-stone-800 px-1.5 text-xs font-bold text-white" :aria-label="`รายการที่ ${index}`">#{{ index }}</div>
-      <div class="min-w-0 flex-1">
+      <div class="min-w-[11rem] flex-1">
         <div class="text-[15px] font-semibold break-words text-stone-900">{{ item.name }}</div>
         <div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-stone-500">
           <span v-if="item.promoGift" class="rounded-md bg-emerald-700 px-1.5 py-0.5 text-xs font-semibold text-white">แถม</span>
@@ -62,7 +62,7 @@ const lines = computed(() => discountLines(props.item.discounts, props.item.qty)
           <span v-if="item.mods?.length" class="text-brand-700">{{ item.mods.map((m) => m.name).join(' · ') }}</span>
         </div>
       </div>
-      <DiscountDetail class="shrink-0" :full="full" :final="item.unitPrice * item.qty" :lines="lines" />
+      <DiscountDetail class="ml-auto shrink-0" :full="full" :final="item.unitPrice * item.qty" :lines="lines" />
     </div>
 
     <!-- ข้อความบนเค้ก -->
