@@ -324,7 +324,8 @@ async function pollManee() {
       const r = await listTransfersByRef({ ref: l.qrRef, amount: lineAmt(l) })
       if (r.error) continue
       l.candidates = r.rows
-      if (r.rows.length === 1) Object.assign(l, { detectedAt: Date.now(), maneeId: r.rows[0].id })
+      if (r.rows.length === 1 && db.shop.posAutoAcceptNow) Object.assign(l, { detectedAt: Date.now(), maneeId: r.rows[0].id, confirmed: true, acceptedBy: 'auto' })
+      else if (r.rows.length === 1) Object.assign(l, { detectedAt: Date.now(), maneeId: r.rows[0].id })
     }
   } finally { maneePolling = false }
 }

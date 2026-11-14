@@ -120,6 +120,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
           <div><label class="label">มัดจำขั้นต่ำ (%) <span class="font-normal text-stone-400">0 = ไม่ใช้</span></label><input v-model.number="st.depositPercent" type="text" v-num min="0" max="100" class="input" /></div>
           <div class="col-span-2"><label class="label">กำหนดชำระเริ่มต้นตอนแจ้งยอด (นาที)</label><input v-model.number="st.payDueMin" type="text" v-num min="1" max="10080" class="input" /></div>
           <div class="col-span-2"><label class="label">QR โอนหน้าร้าน (POS) หมดอายุหลัง (นาที)</label><input v-model.number="st.posQrExpireMin" type="text" v-num min="1" max="60" class="input" /></div>
+          <div class="col-span-2"><AppSwitch v-model="st.posAutoAcceptNow" label="POS: พบรายการโอนแล้วยืนยันทันที (ปิด = รอ 3 นาทีแล้วระบบรับเอง)" class="flex" /></div>
           <div class="col-span-2"><label class="label">ออร์เดอร์: ชำระก่อนวันนัดกี่วัน แล้วยืนยันอัตโนมัติ <span class="font-normal text-stone-400">หลังจากนั้นพนักงานยืนยันเอง · 0–30 วัน</span></label><input v-model.number="st.orderAutoPayDaysBefore" type="text" v-num min="0" max="30" class="input" /></div>
           <div><label class="label">ก่อนนัด (ชม.) เริ่มต้น</label><input v-model.number="st.payDueRule.hoursBefore" type="text" v-num min="1" max="720" class="input" /></div>
           <div><label class="label">ล่วงหน้า (วัน) เริ่มต้น</label><input v-model.number="st.payDueRule.daysBefore" type="text" v-num min="0" max="30" class="input" /></div>
