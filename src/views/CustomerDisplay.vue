@@ -158,6 +158,10 @@ watch(
               <div>
                 <div class="text-stone-500 text-[clamp(0.85rem,2.4vh,1.1rem)]">ยอดที่ต้องชำระ</div>
                 <div class="font-display font-semibold text-stone-900 text-[clamp(2rem,8vh,3.75rem)] leading-tight">{{ money(state.total) }}</div>
+                <div class="mt-2">
+                  <span v-if="remaining > 0" class="inline-block rounded-full bg-honey px-4 py-1.5 font-bold text-stone-900 text-[clamp(0.9rem,2.8vh,1.25rem)]">ยังขาด {{ money(remaining) }}</span>
+                  <span v-else class="inline-block rounded-full bg-matcha px-4 py-1.5 font-bold text-stone-900 text-[clamp(0.9rem,2.8vh,1.25rem)]">ครบแล้ว ✓</span>
+                </div>
               </div>
               <div class="space-y-1 text-[clamp(0.8rem,2.3vh,1.05rem)] text-stone-700">
                 <div v-for="(d, k) in pricing.discounts" :key="'d' + k" class="flex justify-between gap-3 text-brand-700">
@@ -230,15 +234,5 @@ watch(
       </template>
     </main>
 
-    <!-- แถบยอดด้านล่าง: ยอดรวม (กำลังเลือก) · ยอดคงค้าง (กำลังชำระ) -->
-    <footer v-if="state.status === 'shopping'" class="flex shrink-0 items-center justify-between gap-4 bg-choco px-[clamp(1rem,3vw,2.5rem)] py-[clamp(0.6rem,2vh,1.25rem)] text-cream">
-      <span class="text-cream/85 text-[clamp(0.95rem,3vh,1.5rem)]">ยอดรวมทั้งหมด</span>
-      <span class="font-display font-semibold text-[clamp(2rem,8vh,3.75rem)] leading-tight">{{ money(state.total) }}</span>
-    </footer>
-    <footer v-else-if="state.status === 'paying'" class="flex shrink-0 items-center justify-between gap-4 bg-choco px-[clamp(1rem,3vw,2.5rem)] py-[clamp(0.6rem,2vh,1.25rem)] text-cream">
-      <span v-if="remaining > 0" class="rounded-full bg-honey px-5 py-2 font-bold text-stone-900 text-[clamp(0.95rem,3vh,1.5rem)]">ยังขาด {{ money(remaining) }}</span>
-      <span v-else class="rounded-full bg-matcha px-5 py-2 font-bold text-stone-900 text-[clamp(0.95rem,3vh,1.5rem)]">ครบแล้ว ✓</span>
-      <span class="font-display font-semibold text-[clamp(1.75rem,7vh,3rem)] leading-tight">{{ money(state.total) }}</span>
-    </footer>
   </div>
 </template>
