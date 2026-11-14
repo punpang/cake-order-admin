@@ -42,6 +42,9 @@ const many = computed(() => (state.value.lines || []).length > 6)
 const remaining = computed(() => Number(state.value.remaining) || 0)
 const pricing = computed(() => state.value.pricing || { full: 0, discounts: [], saved: 0, surcharge: 0, vatMode: null, vatRate: 0, vat: 0 })
 const hasDiscount = computed(() => (pricing.value.discounts || []).length > 0)
+// โปรโมชั่นแนะนำให้ลูกค้าซื้อเพิ่ม (มาจาก POS: โปรที่ใกล้ถึง · บันเดิ้ล · ซื้อคู่กัน · ขายดีอันดับ 1)
+const suggest = computed(() => state.value.suggest || { hints: [], bundles: [], pairs: [], best: null })
+const hasSuggest = computed(() => Boolean(suggest.value.hints?.length || suggest.value.bundles?.length || suggest.value.pairs?.length || suggest.value.best))
 
 // สีป้ายวิธีชำระ (ตามชื่อวิธีชำระที่ POS ส่งมา) โทนคลุม
 const METHOD_CHIP = {
@@ -138,13 +141,32 @@ watch(
                 <span>รวม VAT {{ pricing.vatRate }}% แล้ว</span>
                 <span class="shrink-0">{{ money(pricing.vat) }}</span>
               </div>
-              <div v-if="hasDiscount" class="mt-1 rounded-2xl bg-brand-50 px-3 py-2 text-center text-brand-700 font-semibold">
-                ประหยัดไป {{ money(pricing.saved) }}
+              <!-- โปรโมชั่นแนะนำ: ช่องว่างในสรุปยอดใช้แนะนำให้ลูกค้าซื้อเพิ่ม -->
+              <div v-if="hasSuggest" class="mt-1 flex flex-col gap-[clamp(0.3rem,1vh,0.6rem)]">
+                <div class="flex items-center gap-2 font-semibold text-brand-700 text-[clamp(0.85rem,2.4vh,1.05rem)]">
+                  <AppIcon name="star" :size="16" /> โปรโมชั่นแนะนำ
+                </div>
+                <div v-for="(h, k) in suggest.hints" :key="'h' + k" class="rounded-xl bg-honey/30 px-3 py-1.5 text-stone-900 text-[clamp(0.8rem,2.2vh,1rem)]">💡 {{ h }}</div>
+                <div v-for="(b, k) in suggest.bundles" :key="'b' + k" class="rounded-xl bg-brand-50 px-3 py-1.5">
+                  <div class="font-semibold text-brand-800 text-[clamp(0.85rem,2.4vh,1.05rem)]">บันเดิ้ล {{ b.name }} · {{ money(b.price) }}</div>
+                  <div class="text-stone-700 text-[clamp(0.75rem,2vh,0.95rem)]">เพิ่มอีก {{ b.add.join(' + ') }} · ประหยัด {{ money(b.saving) }}</div>
+                </div>
+                <div v-if="suggest.pairs?.length" class="flex flex-wrap gap-2">
+                  <span v-for="(pr, k) in suggest.pairs" :key="'p' + k" class="rounded-full bg-matcha-soft px-3 py-1 text-stone-900 text-[clamp(0.75rem,2vh,0.95rem)]">ซื้อคู่กัน {{ pr.name }} · {{ money(pr.price) }}</span>
+                </div>
+                <div v-if="suggest.best" class="flex items-center justify-between gap-2 rounded-xl bg-brand-50 px-3 py-1.5 text-[clamp(0.8rem,2.2vh,1rem)]">
+                  <span class="flex min-w-0 items-center gap-2 font-semibold text-stone-900"><AppIcon name="star" :size="16" class="shrink-0 text-brand-600" /> <span class="truncate">ขายดีอันดับ 1: {{ suggest.best.name }}</span></span>
+                  <span class="shrink-0 font-semibold text-stone-900">{{ money(suggest.best.price) }}</span>
+                </div>
               </div>
-              <div class="mt-auto flex items-end justify-between gap-3 border-t border-stone-200 pt-3">
-                <span class="font-semibold text-stone-900 text-[clamp(1rem,3vh,1.4rem)]">ยอดสุทธิ</span>
-                <span class="font-display font-semibold text-stone-900 text-[clamp(1.25rem,4.4vh,2rem)]">{{ money(state.total) }}</span>
+            </div>
+            <!-- ยอดสุทธิ: อยู่ด้านล่างการ์ดเสมอ ไม่ถูกเลื่อนหายเมื่อรายการยาว -->
+            <div class="flex shrink-0 items-end justify-between gap-3 border-t border-stone-200 px-[clamp(0.8rem,2vh,1.5rem)] py-[clamp(0.5rem,1.5vh,1rem)]">
+              <div class="min-w-0">
+                <div class="font-semibold text-stone-900 text-[clamp(1rem,3vh,1.4rem)]">ยอดสุทธิ</div>
+                <div v-if="hasDiscount" class="font-semibold text-brand-700 text-[clamp(0.8rem,2.2vh,1rem)]">ประหยัดไป {{ money(pricing.saved) }}</div>
               </div>
+              <span class="font-display font-semibold text-stone-900 text-[clamp(1.25rem,4.4vh,2rem)]">{{ money(state.total) }}</span>
             </div>
           </section>
         </div>
