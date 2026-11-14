@@ -83,11 +83,24 @@ async function orderOfLink(env, token) {
   return Date.now() <= expires ? link.orderId : null
 }
 
-// สิทธิ์เห็นไฟล์: ไฟล์แชท (chat/...) → พนักงานที่มีสิทธิ์แชท · ไฟล์ของออร์เดอร์ (<orderId>/...) → พนักงาน active / ลูกค้าเจ้าของ / ลิงก์ออร์เดอร์
+// ไฟล์ส่วนตัวที่ "ไม่ใช่ไฟล์ของออร์เดอร์": ต้องมีสิทธิ์ตามประเภท (manage ได้ทุกอย่าง) · ไฟล์ของออร์เดอร์ (<orderId>/…) พนักงาน active ทุกคนยังดูได้เหมือนเดิม
+//   chat/ staff/ = ไฟล์แชท · webchat/ = รูปที่ลูกค้าส่งในแชทของหน้าเว็บ/แอป · manual/ = สลิปที่เก็บไว้รอพนักงานผูกออร์เดอร์ · pay-qr/ = รูป QR รับเงินที่ส่งให้ลูกค้า
+//   train/ = รูปชุดเทรนตัวอ่านสลิป (มีข้อมูลบัญชีผู้รับ) → เฉพาะ manage
+const STAFF_PREFIX_PERMS = [
+  ['chat/', ['chat']],
+  ['staff/', ['chat']],
+  ['webchat/', ['chat']],
+  ['manual/', ['chat', 'reportPayment', 'confirmPayment']],
+  ['pay-qr/', ['chat', 'reportPayment', 'confirmPayment']],
+  ['train/', []],
+]
+const needForStaffPrefix = (key) => STAFF_PREFIX_PERMS.find(([p]) => key.startsWith(p))?.[1] ?? null
+
+// สิทธิ์เห็นไฟล์: ไฟล์นอกออร์เดอร์ → พนักงานที่มีสิทธิ์ตามประเภท · ไฟล์ของออร์เดอร์ (<orderId>/...) → พนักงาน active / ลูกค้าเจ้าของ / ลิงก์ออร์เดอร์
 async function allowedToSee(req, env, key, body) {
   const staff = await staffOf(req, env)
-  if (key.startsWith('chat/')) return !!staff && (staff.perms || []).some((p) => p === 'chat' || p === 'manage')
-  if (key.startsWith('staff/')) return !!staff && (staff.perms || []).some((p) => p === 'chat' || p === 'manage')
+  const need = needForStaffPrefix(key)
+  if (need) return !!staff && hasAnyPerm(staff, need)
   if (staff) return true
   const orderId = key.split('/')[0]
   if (!orderId) return false
@@ -113,6 +126,8 @@ const extOf = (b) => {
   return null
 }
 const safePrefix = (p) => (/^[A-Za-z0-9_-]{1,40}(\/[A-Za-z0-9_-]{1,60})?$/.test(p) ? p : null)
+// ถอดรหัส %xx ใน path · เสีย (เช่น %E0%A4%A) คืน null แทนโยนข้อผิดพลาด (ไม่ให้ Worker ล้มเป็น 500)
+const safeDecode = (v) => { try { return decodeURIComponent(v) } catch { return null } }
 
 export default {
   async fetch(req, env) {
@@ -122,20 +137,21 @@ export default {
 
     // ---- ไฟล์สาธารณะ ----
     if (req.method === 'GET' && path.startsWith('/p/')) {
-      const key = decodeURIComponent(path.slice(3))
+      const key = safeDecode(path.slice(3))
+      if (key === null) return new Response('ไม่พบไฟล์', { status: 404, headers: corsHeaders(req, env) })
       const obj = await env.FILES_PUBLIC.get(key)
       if (!obj) return new Response('ไม่พบไฟล์', { status: 404, headers: corsHeaders(req, env) })
-      return new Response(obj.body, { headers: { ...corsHeaders(req, env), 'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400' } })
+      return new Response(obj.body, { headers: { ...corsHeaders(req, env), 'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=86400' } })
     }
 
     // ---- ไฟล์ส่วนตัวด้วยลิงก์ลงลายเซ็น ----
     if (req.method === 'GET' && path.startsWith('/f/')) {
-      const key = decodeURIComponent(path.slice(3))
+      const key = safeDecode(path.slice(3))
       const exp = Number(url.searchParams.get('exp'))
-      if (!(await verifySig(env, key, exp, url.searchParams.get('sig')))) return new Response('ลิงก์หมดอายุหรือไม่ถูกต้อง', { status: 403, headers: corsHeaders(req, env) })
+      if (key === null || !(await verifySig(env, key, exp, url.searchParams.get('sig')))) return new Response('ลิงก์หมดอายุหรือไม่ถูกต้อง', { status: 403, headers: corsHeaders(req, env) })
       const obj = await env.FILES_PRIVATE.get(key)
       if (!obj) return new Response('ไม่พบไฟล์', { status: 404, headers: corsHeaders(req, env) })
-      return new Response(obj.body, { headers: { ...corsHeaders(req, env), 'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream', 'Cache-Control': 'private, max-age=300' } })
+      return new Response(obj.body, { headers: { ...corsHeaders(req, env), 'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=300' } })
     }
 
     if (req.method !== 'POST') return json(req, env, { error: 'method' }, 405)
