@@ -29,6 +29,9 @@ jobs:
           yes | "$SDKMANAGER" --licenses > /dev/null || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
       - run: npm ci
+      # ไฟล์ปลั๊กอิน Capacitor (capacitor-cordova-android-plugins) ไม่อยู่ใน git · cap update สร้างให้โดยไม่คัดลอกเว็บ
+      - name: เตรียมไฟล์ปลั๊กอิน Capacitor ของโปรเจกต์ Android
+        run: npx cap update android
       - name: สร้างไฟล์เว็บสำหรับแอปลูกค้า (โหมด customer)
         env:
           VITE_USE_SUPABASE: '1'
