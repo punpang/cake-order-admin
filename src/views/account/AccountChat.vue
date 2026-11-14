@@ -1,5 +1,6 @@
 <script setup>
-// แชทกับร้านของลูกค้าที่ล็อกอินแล้ว (ข้อความและรูปภาพ ไม่เกิน 5 รูปต่อข้อความ) · อัปเดตทุก 3 วินาทีขณะเปิดหน้า · เปิดแท็บแล้วลงทะเบียนแจ้งเตือนของเครื่อง (Android)
+// แชทกับร้านของลูกค้าที่ล็อกอินแล้ว (ข้อความและรูปภาพ ไม่เกิน 5 รูปต่อข้อความ) · เปิดแท็บแล้วลงทะเบียนแจ้งเตือนของเครื่อง (Android)
+// อัปเดตแบบโพลล์: 3 วินาทีตอนกำลังคุยกัน แล้วห่างขึ้นเรื่อย ๆ (สูงสุด 15 วินาที) เมื่อไม่มีข้อความใหม่ · หยุดยิงขณะแท็บถูกซ่อน · ถูกจำกัดอัตรา (429) = ถอยไป 20 วินาที
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { remoteChat } from '../../lib/customerOrderRemote'
 import { startCustomerPush } from '../../lib/customerPush'
@@ -19,8 +20,15 @@ const picks = ref([]) // รูปที่เลือกแล้วแต่�
 const urls = new Map() // ref รูป → { url, at } (ลิงก์ในเครื่องเท่านั้น)
 const made = new Set() // ลิงก์ blob ที่สร้างไว้ (เก็บเพื่อคืนหน่วยความจำตอนออกจากหน้า)
 let timer = null
+let stopped = false
+let idle = 0 // จำนวนรอบโพลล์ติดกันที่ไม่มีข้อความใหม่
 let loading = false
 let seq = 0
+const POLL_MS = 3000
+const POLL_MAX_MS = 15000
+const BACKOFF_MS = 20000
+// 3 วินาทีใน 20 รอบแรก (1 นาที) แล้วเพิ่มทีละ 3 วินาทีทุก 20 รอบ จนถึงเพดาน
+const nextDelay = () => Math.min(POLL_MAX_MS, POLL_MS * (1 + Math.floor(idle / 20)))
 
 const toBottom = async () => {
   await nextTick()
@@ -53,19 +61,41 @@ function withUrls(m) {
   }
 }
 
+// คืน { changed, limited } เพื่อให้ตัวตั้งเวลาปรับความถี่ · ถูกจำกัดอัตรา (429) ไม่แสดงข้อผิดพลาดให้ลูกค้า แค่ถอยห่างออกไป
 async function load() {
-  if (loading) return
+  if (loading) return { changed: false, limited: false }
   loading = true
   try {
     const r = await remoteChat('chat_list', { have: freshRefs() })
-    if (r.error) { err.value = r.error; return }
+    if (r.status === 429) return { changed: false, limited: true }
+    if (r.error) { err.value = r.error; return { changed: false, limited: false } }
     const list = (Array.isArray(r.messages) ? r.messages : []).map(withUrls)
-    // เลื่อนลงเฉพาะเมื่อมีข้อความใหม่ — อัปเดตทุก 3 วินาที ไม่ให้หน้าจอกระโดดระหว่างที่ลูกค้าเลื่อนอ่านข้อความเก่า
+    // เลื่อนลงเฉพาะเมื่อมีข้อความใหม่ — ไม่ให้หน้าจอกระโดดระหว่างที่ลูกค้าเลื่อนอ่านข้อความเก่า
     const grew = list.length > messages.value.length
+    const changed = grew || list.at(-1)?.id !== messages.value.at(-1)?.id
     messages.value = list
     err.value = ''
     if (grew) await toBottom()
+    return { changed, limited: false }
   } finally { loading = false }
+}
+
+function schedule(ms) {
+  clearTimeout(timer)
+  if (!stopped) timer = setTimeout(tick, ms)
+}
+async function tick() {
+  if (stopped) return
+  if (typeof document !== 'undefined' && document.hidden) return schedule(nextDelay()) // แท็บถูกซ่อน = ไม่ยิงคำขอ
+  const r = (await quietly(load)) || {}
+  idle = r.changed ? 0 : idle + 1
+  schedule(r.limited ? BACKOFF_MS : nextDelay())
+}
+// กลับมาที่แท็บ: ดึงทันทีและกลับไปโพลล์ถี่
+function onVisible() {
+  if (typeof document !== 'undefined' && document.hidden) return
+  idle = 0
+  schedule(0)
 }
 
 function onPick(e) {
@@ -107,15 +137,24 @@ async function send() {
     text.value = ''
     picks.value = []
     if (r.message) messages.value = [...messages.value, withUrls(r.message)]
+    idle = 0 // กำลังคุยกัน: โพลล์ถี่รอร้านตอบ
+    schedule(POLL_MS)
     await toBottom()
   } catch (e) {
     err.value = e?.message || 'ส่งไม่สำเร็จ กรุณาลองใหม่'
   } finally { sending.value = false }
 }
 
-onMounted(() => { load(); startCustomerPush(); timer = setInterval(() => quietly(load), 3000) })
+onMounted(() => {
+  stopped = false
+  startCustomerPush()
+  document.addEventListener('visibilitychange', onVisible)
+  schedule(0)
+})
 onBeforeUnmount(() => {
-  clearInterval(timer)
+  stopped = true
+  clearTimeout(timer)
+  document.removeEventListener('visibilitychange', onVisible)
   for (const u of made) URL.revokeObjectURL(u)
   made.clear()
 })
