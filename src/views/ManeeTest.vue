@@ -68,7 +68,7 @@ async function load() {
     const c = await getSupabase()
     const [t, i, n] = await Promise.all([
       c.from('tungngern_transfers').select('id, ref, amount, received_at, app, text, created_at').order('created_at', { ascending: false }).limit(20),
-      c.from('tungngern_inbox').select('id, received_at, app, app_name, event, text, stored, reason').order('received_at', { ascending: false }).limit(500),
+      c.from('tungngern_inbox').select('id, received_at, app, app_name, event, title, text, stored, reason').order('received_at', { ascending: false }).limit(500),
       c.from('tungngern_app_names').select('name').order('name'),
     ])
     if (t.error || i.error || n.error) { err.value = 'อ่านข้อมูลไม่ได้: ' + (t.error?.message || i.error?.message || n.error?.message); return }
@@ -149,6 +149,7 @@ onBeforeUnmount(() => clearInterval(timer))
           <dt class="text-stone-500">ชื่อแอป</dt><dd>{{ r.app_name || '-' }}</dd>
           <dt class="text-stone-500">รหัสแอป</dt><dd class="break-all">{{ r.app || '-' }}</dd>
           <dt class="text-stone-500">เหตุการณ์</dt><dd class="break-all">{{ r.event || '-' }}</dd>
+          <dt class="text-stone-500">หัวข้อ</dt><dd class="break-words">{{ masked(r.title) || '-' }}</dd>
           <dt class="text-stone-500">สถานะ</dt><dd>{{ r.stored ? 'บันทึกเป็นยอดรับแล้ว' : 'ไม่บันทึก' }}</dd>
           <dt class="text-stone-500">เหตุผล</dt><dd>{{ r.reason || '-' }}</dd>
           <dt class="text-stone-500">ข้อความ</dt><dd class="break-words whitespace-pre-wrap">{{ masked(r.text) || '-' }}</dd>
