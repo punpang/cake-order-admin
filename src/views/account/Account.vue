@@ -155,7 +155,7 @@ function logout() {
         <div><label class="label">LINE ID</label><input v-model="form.line" class="input" maxlength="50" placeholder="ไม่บังคับ" /></div>
         <AppSwitch v-model="form.promoOptIn" label="รับข่าวสารและโปรโมชัน (รวมอวยพรวันเกิด)" />
         <p v-if="err" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
-        <button class="btn-primary w-full" :disabled="savingProfile">{{ savingProfile ? 'กำลังบันทึก…' : 'บันทึก' }}</button>
+        <button class="btn-primary w-full" :disabled="savingProfile"><span v-if="savingProfile" class="brand-ring on-brand" aria-hidden="true"></span>{{ savingProfile ? 'กำลังบันทึก…' : 'บันทึก' }}</button>
       </form>
 
       <section class="card space-y-3" aria-label="ข้อมูลออกใบกำกับภาษี">

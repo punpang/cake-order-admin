@@ -29,7 +29,7 @@ const isImg = () => props.a.type === 'image' || props.a.sticker
 <template>
   <div class="mb-1 last:mb-0">
     <p v-if="state === 'error'" class="rounded-lg bg-stone-100 px-2 py-1.5 text-xs text-stone-500">{{ attachLabel(a) }}: โหลดไม่ได้{{ a.url ? ' (ลิงก์ของ Facebook หมดอายุแล้ว)' : a.failed ? ' (ระบบเก็บสำเนาไม่สำเร็จ)' : '' }}</p>
-    <p v-else-if="state === 'loading'" class="rounded-lg bg-stone-100 px-2 py-1.5 text-xs text-stone-400">กำลังโหลด{{ attachLabel(a) }}…</p>
+    <p v-else-if="state === 'loading'" class="flex items-center gap-1.5 rounded-lg bg-stone-100 px-2 py-1.5 text-xs text-stone-400"><span class="brand-ring" aria-hidden="true"></span>กำลังโหลด{{ attachLabel(a) }}…</p>
     <template v-else>
       <button v-if="isImg()" type="button" class="block" :aria-label="`ดู${attachLabel(a)}ขนาดใหญ่`" @click="big = true">
         <img :src="url" :alt="attachLabel(a)" class="rounded-lg object-cover" :class="a.sticker ? 'max-h-32 max-w-32' : 'max-h-60 max-w-full'" loading="lazy" @error="state = 'error'" />

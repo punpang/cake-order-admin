@@ -32,7 +32,7 @@ watch(payload, async (p) => {
     <p v-if="!biller" class="text-left text-xs text-amber-700">ยังไม่ได้ตั้ง Biller ID ของร้าน (ตั้งค่าร้าน › ช่องทางรับชำระ) จึงสร้าง QR ไม่ได้</p>
     <template v-else-if="payload">
       <img v-if="qr" :src="qr" alt="QR พร้อมเพย์ (Biller)" class="mx-auto h-56 w-56" />
-      <p v-else class="py-8 text-stone-400">กำลังสร้าง QR…</p>
+      <p v-else class="flex items-center justify-center gap-2 py-8 text-stone-400"><span class="brand-ring" aria-hidden="true"></span>กำลังสร้าง QR…</p>
       <p class="text-base font-semibold text-stone-900">{{ money(amount) }}</p>
       <p class="text-xs text-stone-500">รหัสร้านค้า {{ ref1 }} · รหัสอ้างอิง {{ ref2 }}</p>
     </template>

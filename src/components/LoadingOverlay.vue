@@ -6,7 +6,7 @@ import { loadingState } from '../lib/loading'
   <Teleport to="body">
     <div v-if="loadingState.show" class="loading-overlay" role="status" aria-live="polite" aria-busy="true">
       <div class="loading-card">
-        <span class="loading-spinner" aria-hidden="true"></span>
+        <span class="brand-ring lg" aria-hidden="true"></span>
         <span>กำลังโหลดข้อมูล…</span>
       </div>
     </div>
@@ -37,22 +37,8 @@ import { loadingState } from '../lib/loading'
   font-size: 0.9rem;
   font-weight: 600;
 }
-.loading-spinner {
-  width: 1.25rem;
-  height: 1.25rem;
-  border-radius: 9999px;
-  border: 3px solid #f6d3dc;
-  border-top-color: #c0405f;
-  animation: loading-spin 0.8s linear infinite;
-}
-@keyframes loading-spin {
-  to { transform: rotate(360deg); }
-}
 @keyframes loading-fade {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .loading-spinner { animation-duration: 2.4s; }
 }
 </style>

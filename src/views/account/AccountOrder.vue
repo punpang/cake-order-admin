@@ -42,7 +42,7 @@ async function sendReview() {
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="rv.order = null">ยกเลิก</button>
-        <button class="btn-primary flex-1 sm:flex-none" :disabled="rv.busy" @click="sendReview">{{ rv.busy ? 'กำลังส่ง…' : 'ส่งรีวิว' }}</button>
+        <button class="btn-primary flex-1 sm:flex-none" :disabled="rv.busy" @click="sendReview"><span v-if="rv.busy" class="brand-ring on-brand" aria-hidden="true"></span>{{ rv.busy ? 'กำลังส่ง…' : 'ส่งรีวิว' }}</button>
       </template>
     </AppModal>
   </div>

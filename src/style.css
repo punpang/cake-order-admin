@@ -265,6 +265,53 @@
   }
 }
 
+/* ตัวโหลดแบรนด์ (วงหมุนชมพู→ส้ม) ใช้ทุกจุดที่กำลังโหลด/กำลังบันทึก · ชุดเดียวกับหน้าโหลดตอนเปิด */
+.brand-ring {
+  display: inline-block;
+  flex: none;
+  width: 1.05em;
+  height: 1.05em;
+  border-radius: 9999px;
+  border: 2px solid #fbd5e0;
+  border-top-color: #d6336c;
+  border-right-color: #f59e7a;
+  vertical-align: -0.15em;
+  animation: brand-spin 0.9s linear infinite;
+}
+.brand-ring.on-brand {
+  border-color: rgb(255 255 255 / 0.4);
+  border-top-color: #fff;
+  border-right-color: rgb(255 255 255 / 0.9);
+}
+.brand-ring.lg {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-width: 4px;
+}
+@keyframes brand-spin {
+  to { transform: rotate(360deg); }
+}
+/* โครงหน้าก่อนโหลด: แสงวิ่งผ่าน (สีพื้นกำหนดจาก class ของแต่ละจุด) */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.6), transparent);
+  animation: skeleton-sweep 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-sweep {
+  to { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-ring { animation-duration: 2.4s; }
+  .skeleton::after { display: none; }
+}
+
 /* พิมพ์ใบเสร็จหน้าร้าน (POS): พิมพ์เฉพาะ .receipt-print กว้าง 80mm */
 @media print {
   @page {

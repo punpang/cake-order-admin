@@ -23,6 +23,6 @@ const show = computed(() => supabaseEnabled && (loadFailed.value.length || !sync
       <button type="button" class="rounded-full bg-white px-3 py-1 text-xs font-semibold text-rose-800" @click="syncRetryAll">ลองใหม่ตอนนี้</button>
     </div>
     <div v-else-if="sum.state === 'idle' && rtDown" class="bg-amber-600 px-4 py-1.5 text-center text-xs text-white" role="status" data-rt-down>ข้อมูลสดขาดการเชื่อมต่อ — ระบบดึงข้อมูลใหม่ทุก 45 วินาทีแทน และจะเชื่อมต่อใหม่เอง</div>
-    <div v-else class="bg-stone-800 px-4 py-1.5 text-center text-xs text-white" role="status">{{ sum.state === 'saving' ? 'กำลังบันทึกขึ้นเซิร์ฟเวอร์…' : 'รอบันทึก…' }}</div>
+    <div v-else class="flex items-center justify-center gap-2 bg-stone-800 px-4 py-1.5 text-xs text-white" role="status"><span class="brand-ring on-brand" aria-hidden="true"></span>{{ sum.state === 'saving' ? 'กำลังบันทึกขึ้นเซิร์ฟเวอร์…' : 'รอบันทึก…' }}</div>
   </div>
 </template>

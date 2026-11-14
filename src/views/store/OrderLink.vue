@@ -48,7 +48,7 @@ function refresh() {
 
 <template>
   <div class="mx-auto max-w-xl px-4 py-6">
-    <div v-if="!res" class="py-16 text-center text-stone-400">กำลังโหลด…</div>
+    <div v-if="!res" class="flex flex-col items-center gap-3 py-16 text-stone-400"><span class="brand-ring lg" aria-hidden="true"></span>กำลังโหลด…</div>
     <div v-else-if="res.netError" class="card py-12 text-center" role="alert">
       <AppIcon name="alert" :size="28" class="mx-auto text-stone-300" />
       <p class="mt-3 font-medium text-stone-700">เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ในขณะนี้</p>

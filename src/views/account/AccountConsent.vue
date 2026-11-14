@@ -45,7 +45,7 @@ function decline() {
       <p v-if="err" class="mt-2 text-sm text-rose-700">{{ err }}</p>
       <div class="mt-4 flex gap-2">
         <button class="btn-outline flex-1" @click="decline">ไม่ยอมรับ (ออกจากระบบ)</button>
-        <button class="btn-primary flex-1" :disabled="!agree || busy" @click="accept">{{ busy ? 'กำลังบันทึก…' : 'ยอมรับและใช้งานต่อ' }}</button>
+        <button class="btn-primary flex-1" :disabled="!agree || busy" @click="accept"><span v-if="busy" class="brand-ring on-brand" aria-hidden="true"></span>{{ busy ? 'กำลังบันทึก…' : 'ยอมรับและใช้งานต่อ' }}</button>
       </div>
     </template>
   </div>

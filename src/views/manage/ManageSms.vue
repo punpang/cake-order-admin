@@ -182,7 +182,7 @@ onMounted(() => {
       <section class="card mb-3 p-4">
         <div class="flex items-center justify-between gap-2">
           <h2 class="font-semibold">สถานะเกตเวย์</h2>
-          <button type="button" class="btn-ghost h-9 px-3 text-sm" :disabled="sms.checking" @click="checkStatus">{{ sms.checking ? 'กำลังตรวจ…' : 'ตรวจอีกครั้ง' }}</button>
+          <button type="button" class="btn-ghost h-9 px-3 text-sm" :disabled="sms.checking" @click="checkStatus"><span v-if="sms.checking" class="brand-ring" aria-hidden="true"></span>{{ sms.checking ? 'กำลังตรวจ…' : 'ตรวจอีกครั้ง' }}</button>
         </div>
         <dl class="mt-3 grid grid-cols-2 gap-2 text-sm">
           <dt class="text-stone-500">ฝั่งเซิร์ฟเวอร์</dt>
@@ -233,7 +233,7 @@ onMounted(() => {
               <option value="2">ซิม 2</option>
             </select>
           </div>
-          <button type="button" class="btn-primary h-10" :disabled="test.busy" @click="sendTest">{{ test.busy ? 'กำลังส่ง…' : 'ส่งทดสอบ' }}</button>
+          <button type="button" class="btn-primary h-10" :disabled="test.busy" @click="sendTest"><span v-if="test.busy" class="brand-ring on-brand" aria-hidden="true"></span>{{ test.busy ? 'กำลังส่ง…' : 'ส่งทดสอบ' }}</button>
           <p v-if="test.msg" class="text-sm" :class="test.ok ? 'text-emerald-700' : 'text-rose-700'">{{ test.msg }}</p>
           <p v-if="test.id" class="text-xs text-stone-500">รหัสงาน <span class="font-mono">{{ test.id }}</span> · คีย์ <span class="font-mono">{{ test.key }}</span></p>
         </div>
@@ -278,7 +278,7 @@ onMounted(() => {
           </li>
         </ul>
         <div v-if="list.nextBefore" class="mt-2 text-center">
-          <button type="button" class="btn-ghost h-9 px-4 text-sm" :disabled="list.busy" @click="loadMessages(true)">{{ list.busy ? 'กำลังโหลด…' : 'โหลดเพิ่ม' }}</button>
+          <button type="button" class="btn-ghost h-9 px-4 text-sm" :disabled="list.busy" @click="loadMessages(true)"><span v-if="list.busy" class="brand-ring" aria-hidden="true"></span>{{ list.busy ? 'กำลังโหลด…' : 'โหลดเพิ่ม' }}</button>
         </div>
       </section>
     </template>

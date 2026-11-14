@@ -184,7 +184,7 @@ function clearAll() {
     <div class="mb-4 flex items-end justify-between gap-3">
       <div class="min-w-0">
         <h1 class="page-title">ออร์เดอร์</h1>
-        <p class="text-sm text-stone-500">แสดง {{ list.length }} จาก {{ totalCount }} รายการ<span v-if="loadingRows" class="ml-1.5 text-stone-400">· กำลังโหลด…</span></p>
+        <p class="text-sm text-stone-500">แสดง {{ list.length }} จาก {{ totalCount }} รายการ<span v-if="loadingRows" class="ml-2 inline-flex items-center gap-1.5 align-middle text-stone-400"><span class="brand-ring" aria-hidden="true"></span>กำลังโหลด…</span></p>
       </div>
       <div class="ml-auto hidden items-center gap-1 rounded-xl bg-white p-1 ring-1 ring-stone-200 lg:flex" role="group" aria-label="มุมมองรายการ">
         <button type="button" class="rounded-lg px-3 py-1.5 text-sm font-medium" :class="view === 'cards' ? 'bg-brand-600 text-white' : 'text-stone-600 hover:bg-stone-50'" :aria-pressed="view === 'cards'" @click="setView('cards')">การ์ด</button>

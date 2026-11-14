@@ -44,8 +44,8 @@ const hold = computed(() => !!route.meta.pub && loading.value)
   <main id="main-content" tabindex="-1" class="min-h-[60vh] flex-1 outline-none">
     <div v-if="hold" class="mx-auto max-w-page space-y-4 px-4 py-8 lg:px-8" role="status" aria-live="polite" aria-busy="true">
       <span class="sr-only">กำลังโหลดข้อมูลร้านจากเซิร์ฟเวอร์</span>
-      <div class="h-40 animate-pulse rounded-3xl bg-stone-200 sm:h-56"></div>
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3"><div v-for="n in 6" :key="n" class="h-36 animate-pulse rounded-2xl bg-stone-100"></div></div>
+      <div class="h-40 skeleton rounded-3xl bg-stone-200 sm:h-56"></div>
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3"><div v-for="n in 6" :key="n" class="h-36 skeleton rounded-2xl bg-stone-100"></div></div>
     </div>
     <div v-else-if="failed" class="mx-auto max-w-page px-4 py-16 text-center lg:px-8" role="alert">
       <p class="font-display text-xl text-stone-800">โหลดข้อมูลร้านไม่สำเร็จ</p>
