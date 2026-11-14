@@ -1,6 +1,6 @@
 // ทดสอบการรับแจ้งเตือนถุงเงิน: ลายเซ็น การดึงรหัสธุรกรรม การตรวจรูปแบบรหัส
 import { assertEquals } from 'jsr:@std/assert@1'
-import { verifyGatewaySignature, extractTransferRef, isRefShape } from './maneeforward.ts'
+import { verifyGatewaySignature, extractTransferRef, isRefShape, extractAmount } from './maneeforward.ts'
 
 const SECRET = 'example-secret-0123456'
 const hmacHex = async (secret: string, msg: string) => {
@@ -39,4 +39,12 @@ Deno.test('ตรวจรูปแบบรหัสที่รับจาก
   assertEquals(isRefShape('ord12340272826288288'), false)
   assertEquals(isRefShape('ORD123'), false)
   assertEquals(isRefShape("ORD' OR 1=1--"), false)
+})
+
+Deno.test('ดึงยอดเงินเข้าจากหัวข้อ/ข้อความ', () => {
+  assertEquals(extractAmount('เงินเข้า 1 บาท', 'จาก MR.Pansit Sri. รหัสธุรกรรมถุงเงิน ORD12340272826288288'), 1)
+  assertEquals(extractAmount('เงินเข้า 1,250.50 บาท', ''), 1250.5)
+  assertEquals(extractAmount('', 'คุณได้รับเงิน 1.00 บาท จาก X'), 1)
+  assertEquals(extractAmount('ถุงเงิน', 'จาก MR.X รหัสธุรกรรมถุงเงิน ORD12340272826288288'), null)
+  assertEquals(extractAmount('เงินออก -1.00 บาท', ''), null)
 })

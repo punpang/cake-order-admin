@@ -1,5 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { verifyGatewaySignature, extractTransferRef } from '../_shared/maneeforward.ts'
+import { verifyGatewaySignature, extractTransferRef, extractAmount } from '../_shared/maneeforward.ts'
 
 // รับ notification.forwarded จากแอปส่งต่อ (ถุงเงิน) → บันทึกรหัสธุรกรรม ORD/POS ลงตาราง manee_transfers เพื่อจับคู่กับ QR หน้าร้าน
 // ทุกคำขอที่ผ่านลายเซ็นจะบันทึกลง manee_inbox (แอป · ข้อความ · ผ่าน/ไม่ผ่าน · เหตุผล) เพื่อดูรายงานแอปที่ส่งเข้ามา
@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
   const logInbox = async (stored: boolean, reason: string) => {
     const { error } = await sb.from('manee_inbox').insert({
       app: String(p?.app ?? '').slice(0, 200), app_name: String(p?.app_name ?? '').slice(0, 200),
-      event: String(p?.event ?? '').slice(0, 100), text: String(p?.text ?? '').slice(0, 500), stored, reason,
+      event: String(p?.event ?? '').slice(0, 100), title: String(p?.title ?? '').slice(0, 200), text: String(p?.text ?? '').slice(0, 500), stored, reason,
     })
     if (error) console.error('manee inbox', error.message)
   }
@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
   if (!ref) { await logInbox(false, 'ไม่พบรหัสธุรกรรม (ORD/POS) ในข้อความ'); return json({ ok: true, stored: false }) }
 
   const { error } = await sb.from('manee_transfers').upsert({
-    id, ref, amount: null, received_at: new Date(Number(p.received_at)).toISOString(), app: String(p.app ?? ''), text: String(p.text ?? '').slice(0, 300),
+    id, ref, amount: extractAmount(String(p.title ?? ''), String(p.text ?? '')), received_at: new Date(Number(p.received_at)).toISOString(), app: String(p.app ?? ''), text: String(p.text ?? '').slice(0, 300),
   }, { onConflict: 'id', ignoreDuplicates: true })
   if (error) { console.error('manee insert', error.message); await logInbox(false, 'บันทึกตารางไม่สำเร็จ'); return json({ error: 'store' }, 500) }
   await logInbox(true, 'บันทึกรหัสธุรกรรมแล้ว')

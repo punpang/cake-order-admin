@@ -31,6 +31,15 @@ export function extractTransferRef(text: string): string | null {
   return m ? m[1] : null
 }
 
+// ยอดเงินเข้าจากหัวข้อหรือข้อความแจ้งเตือน เช่น "เงินเข้า 1 บาท" หรือ "คุณได้รับเงิน 1.00 บาท" · คืน null ถ้าไม่พบ
+const AMOUNT_RE = /(?:เงินเข้า|คุณได้รับเงิน)\s*:?\s*([\d,]+(?:\.\d{1,2})?)\s*บาท/
+export function extractAmount(title: string, text: string): number | null {
+  const m = AMOUNT_RE.exec(`${String(title ?? '')} ${String(text ?? '')}`)
+  if (!m) return null
+  const n = Number(m[1].replace(/,/g, ''))
+  return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null
+}
+
 // รูปแบบรหัสที่ยอมรับจาก client (ใช้ซ้ำกับตอนค้นหา เพื่อไม่ให้ส่งค่าแปลกเข้าคำค้น)
 export function isRefShape(ref: string): boolean {
   return /^(?:ORD|POS)[0-9A-Z]{17}$/.test(ref)
