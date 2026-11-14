@@ -60,7 +60,7 @@ async function poll() {
   if (polling || !qr.value || state.value !== 'waiting') return
   polling = true
   try {
-    const r = await listTransfersByRef({ ref: qr.value.ref2 })
+    const r = await listTransfersByRef({ ref: qr.value.ref2, amount: qr.value.amount })
     if (r.error) return
     candidates.value = r.rows
     if (r.rows.length === 1) { found.value = r.rows[0]; detectedAt.value = Date.now() }

@@ -321,7 +321,7 @@ async function pollManee() {
   try {
     for (const l of payLines.value) {
       if (l.method !== 'transfer' || !l.qrRef || l.confirmed || l.detectedAt || l.status === 'cancelled' || expiredLine(l)) continue
-      const r = await listTransfersByRef({ ref: l.qrRef })
+      const r = await listTransfersByRef({ ref: l.qrRef, amount: lineAmt(l) })
       if (r.error) continue
       l.candidates = r.rows
       if (r.rows.length === 1) Object.assign(l, { detectedAt: Date.now(), maneeId: r.rows[0].id })

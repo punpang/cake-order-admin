@@ -15,13 +15,16 @@ Deno.serve(async (req) => {
   if (!uid) return json({ error: 'ต้องเข้าสู่ระบบพนักงาน' }, 401)
   const st = await sb.from('punpang_staff').select('active').eq('user_id', uid).maybeSingle()
   if (!st.data?.active) return json({ error: 'บัญชีนี้ไม่มีสิทธิ์' }, 403)
-  let b: { ref?: unknown } = {}
+  let b: { ref?: unknown; amount?: unknown } = {}
   try { b = await req.json() } catch { return json({ error: 'คำขอไม่ถูกต้อง' }, 400) }
   const ref = String(b.ref ?? '').trim()
-  if (!isRefShape(ref)) return json({ error: 'คำขอไม่ถูกต้อง' }, 400)
+  const amount = Math.round(Number(b.amount) * 100) / 100
+  if (!isRefShape(ref) || !(amount > 0)) return json({ error: 'คำขอไม่ถูกต้อง' }, 400)
+  // ต้องตรงทั้งรหัสธุรกรรม (Ref2) และยอดเงิน · แจ้งเตือนที่ไม่มียอดจะไม่ถูกจับคู่
   const { data, error } = await sb.from('tungngern_transfers')
     .select('id,received_at,amount')
     .eq('ref', ref)
+    .eq('amount', amount)
     .order('received_at', { ascending: true })
     .limit(20)
   if (error) return json({ error: 'อ่านข้อมูลไม่สำเร็จ' }, 500)
