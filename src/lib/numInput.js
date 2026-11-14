@@ -16,6 +16,7 @@ export const vNum = {
     el.setAttribute('inputmode', dec ? 'decimal' : 'numeric')
     if (!dec) el.setAttribute('pattern', '[0-9]*')
     el.setAttribute('autocomplete', 'off')
+    el.setAttribute('data-numpad', dec ? 'dec' : 'int') // บนอุปกรณ์สัมผัสจะใช้แผงปุ่มตัวเลขของแอปแทนแป้นพิมพ์ (lib/numpad.js)
     el._numClean = (e) => {
       if (e.isComposing) return
       const c = cleanNum(el.value, dec)

@@ -91,6 +91,7 @@ watch(() => props.modelValue, (v) => {
   <input
     type="text"
     :inputmode="allowNegative ? 'text' : 'decimal'"
+    :data-numpad="allowNegative ? null : 'dec'"
     autocomplete="off"
     :value="text"
     @input="onInput"

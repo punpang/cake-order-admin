@@ -11,6 +11,13 @@ const FIELD = /^(INPUT|TEXTAREA|SELECT)$/
 // (iOS บางรุ่น/โหมดแอปบนหน้าจอโฮม ลด innerHeight ตามแป้นพิมพ์ด้วย → เทียบกับ innerHeight อย่างเดียวจะไม่รู้ว่าแป้นพิมพ์เปิด)
 export const keyboardOpen = (fullH, visibleH) => fullH - visibleH > KB_MIN
 const isField = (el) => !!el && FIELD.test(el.tagName) && !el.disabled && !el.readOnly
+// แผงปุ่มตัวเลขของแอป (lib/numpad.js) ทำหน้าที่เหมือนแป้นพิมพ์: บังส่วนล่างของจอ ให้กล่องต่าง ๆ ขยับหนีเหมือนตอนแป้นพิมพ์เปิด
+let virtualH = 0
+let applyNow = null
+export function setVirtualKeyboardHeight(h) {
+  virtualH = Math.max(0, Math.round(Number(h) || 0))
+  applyNow?.()
+}
 
 export function watchViewport() {
   const vv = typeof window !== 'undefined' ? window.visualViewport : null
@@ -23,7 +30,7 @@ export function watchViewport() {
   let lastW = 0
   // ตั้งค่าเฉพาะตอนที่เปลี่ยนจริง (การตรวจซ้ำไม่ทำให้หน้าจัดวางใหม่โดยไม่จำเป็น)
   const apply = () => {
-    const h = `${Math.round(vv.height)}px`
+    const h = `${Math.max(0, Math.round(vv.height - virtualH))}px`
     const t = `${Math.round(vv.offsetTop)}px`
     if (h !== lastH) {
       root.style.setProperty('--vvh', h)
@@ -36,10 +43,10 @@ export function watchViewport() {
     const w = Math.round(vv.width * vv.scale)
     if (w !== lastW) { lastW = w; maxH = 0 } // หมุนจอ/เปลี่ยนขนาดหน้าต่าง → เริ่มนับใหม่
     if (vv.scale === 1 && vv.height > maxH) maxH = vv.height // ไม่นับตอนซูมด้วยสองนิ้ว
-    const open = keyboardOpen(Math.max(window.innerHeight, maxH), vv.height)
+    const open = virtualH > 0 || keyboardOpen(Math.max(window.innerHeight, maxH), vv.height)
     if (open !== kb.open) kb.open = open
     // ความสูงที่แป้นพิมพ์บังอยู่ (px): กล่องแบบ fixed ที่ติดขอบล่างใช้ดันขึ้นให้อยู่เหนือแป้นพิมพ์ (0 เมื่อปิดแป้นพิมพ์)
-    const k = open ? `${Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))}px` : '0px'
+    const k = open ? `${Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop + virtualH))}px` : '0px'
     if (k !== lastK) {
       root.style.setProperty('--kbh', k)
       lastK = k
@@ -68,6 +75,7 @@ export function watchViewport() {
       if (!isField(document.activeElement)) stop()
     }, 700)
   }
+  applyNow = apply
   apply()
   vv.addEventListener('resize', apply)
   vv.addEventListener('scroll', apply)
@@ -86,5 +94,7 @@ export function watchViewport() {
     root.style.removeProperty('--vvt')
     root.style.removeProperty('--kbh')
     kb.open = false
+    applyNow = null
+    virtualH = 0
   }
 }

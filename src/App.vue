@@ -19,6 +19,8 @@ import ConfirmDialog from './components/ConfirmDialog.vue'
 import ToastHost from './components/ToastHost.vue'
 import LightboxHost from './components/LightboxHost.vue'
 import LoadingOverlay from './components/LoadingOverlay.vue'
+import NumPad from './components/NumPad.vue'
+import { attachNumPad } from './lib/numpad'
 import StoreLayout from './components/StoreLayout.vue'
 
 const roleOpen = ref(false)
@@ -46,6 +48,9 @@ const showBottom = computed(() => !route.meta.focus && bottomItems.value.length 
 // ตามขนาดส่วนที่มองเห็นจริงเมื่อแป้นพิมพ์เปิด ทุกหน้า (ป็อปอัป/แถบล่างไม่ถูกแป้นพิมพ์บัง) · หน้าล็อก (แชท) ซ่อนแถบเมนูล่างระหว่างพิมพ์
 const stopVv = watchViewport()
 onBeforeUnmount(() => stopVv())
+// แป้นตัวเลขของแอป (บนอุปกรณ์สัมผัส): ช่องตัวเลขไม่เปิดแป้นพิมพ์ของระบบ เพื่อไม่ให้แถบ ↑ ↓ ✓ ของ iOS ขึ้น
+const stopNumPad = attachNumPad()
+onBeforeUnmount(() => stopNumPad())
 // แป้นพิมพ์เปิดบนหน้าล็อก: ซ่อนแถบบน ใช้พื้นที่ทั้งหมดที่เหลือให้แชท
 const kbLock = computed(() => !!route.meta.lock && kb.open)
 const lockStyle = computed(() => (route.meta.lock ? (kbLock.value ? { top: 'var(--vvt, 0px)', height: 'var(--vvh, 100dvh)' } : { top: 'calc(3.5rem + var(--vvt, 0px))', height: 'calc(var(--vvh, 100dvh) - 3.5rem)' }) : null))
@@ -67,6 +72,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
   <button type="button" class="skip-link" @click="focusMain()">ข้ามไปเนื้อหาหลัก</button>
   <LightboxHost />
   <LoadingOverlay v-if="!$route.meta.display" />
+  <NumPad />
   <!-- หน้าร้าน + ระบบลูกค้า -->
   <StoreLayout v-if="$route.meta.store" />
   <main v-else-if="$route.meta.bare" id="main-content" tabindex="-1" class="outline-none"><RouterView /></main>
