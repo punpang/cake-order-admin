@@ -328,7 +328,7 @@ const aiLogs = (records: any[]) => records.filter((r) => r.collection === 'aiLog
   const a = mkOrd('เช็คออร์เดอร์ OR-260101-000001 หน่อยค่ะ', 'o1', 'cu1')
   await runFbBot({ ...base, sb: a.sb, mid: 'o1', text: 'เช็คออร์เดอร์ OR-260101-000001 หน่อยค่ะ', aiKey: 'key-x' })
   const sent = fetchCalls[0]?.message?.text || ''
-  check('สถานะออร์เดอร์: ตอบของตัวเองด้วยสถานะ', fetchCalls.length === 1 && sent.includes('OR-260101-000001') && sent.includes('สถานะ: กำลังเตรียม'))
+  check('สถานะออร์เดอร์: ตอบของตัวเองด้วยสถานะ', fetchCalls.length === 1 && sent.includes('ORD260101000001') && sent.includes('สถานะ: กำลังเตรียม'))
   check('สถานะออร์เดอร์: มีวันนัดรับและยอดคงค้าง', sent.includes('นัดรับ') && sent.includes('ยอดคงค้าง 150.00 ฿'))
   check('สถานะออร์เดอร์: ไม่ส่งข้อมูลให้ AI', aiCalls.length === 0)
 
@@ -348,7 +348,7 @@ const aiLogs = (records: any[]) => records.filter((r) => r.collection === 'aiLog
   resetAi()
   const d = mkOrd('ออร์เดอร์ของฉันถึงไหนแล้วคะ', 'o4', 'cu1')
   await runFbBot({ ...base, sb: d.sb, mid: 'o4', text: 'ออร์เดอร์ของฉันถึงไหนแล้วคะ', aiKey: 'key-x' })
-  check('ถามสถานะไม่มีเลข: ตอบออร์เดอร์ของลูกค้าคนนี้', fetchCalls.length === 1 && fetchCalls[0].message.text.includes('OR-260101-000001') && !fetchCalls[0].message.text.includes('OR-260101-000002'))
+  check('ถามสถานะไม่มีเลข: ตอบออร์เดอร์ของลูกค้าคนนี้', fetchCalls.length === 1 && fetchCalls[0].message.text.includes('ORD260101000001') && !fetchCalls[0].message.text.includes('ORD260101000002'))
 
   // เรื่องเงินที่พูดถึงออร์เดอร์ → ไม่ตอบจากกฎสถานะ ส่งต่อพนักงาน
   resetAi()
@@ -445,7 +445,7 @@ const aiLogs = (records: any[]) => records.filter((r) => r.collection === 'aiLog
   const a = mkLinked(PLAIN, 'f1', aiOn({ dataMode: 'full', mode: 'auto' }))
   await runFbBot({ ...base, sb: a.sb, mid: 'f1', text: PLAIN, aiKey: 'key-x' })
   check('100%: คำถามทั่วไป → เรียก AI และส่งเองได้', aiCalls.length === 1 && fetchCalls.length === 1)
-  check('100%: คำถามทั่วไป → ไม่ส่งข้อมูลออร์เดอร์', !aiCalls[0]?.body.system.includes('OR-260101-000003'))
+  check('100%: คำถามทั่วไป → ไม่ส่งข้อมูลออร์เดอร์', !aiCalls[0]?.body.system.includes('ORD260101000003'))
   check('100%: system มีคำสั่งห้ามเก็บและห้ามนำไปฝึก', aiCalls[0]?.body.system.includes('ห้ามเก็บไว้') && aiCalls[0]?.body.system.includes('ฝึกหรือปรับปรุงโมเดล'))
 
   // โหมด 100%: คำถามเรื่องออร์เดอร์ → ส่งเฉพาะออร์เดอร์ที่ใช้งานอยู่ของลูกค้าคนนี้ และเป็นร่างเสมอ
@@ -453,7 +453,7 @@ const aiLogs = (records: any[]) => records.filter((r) => r.collection === 'aiLog
   const b = mkLinked(TOPIC, 'f2', aiOn({ dataMode: 'full', mode: 'auto' }))
   await runFbBot({ ...base, sb: b.sb, mid: 'f2', text: TOPIC, aiKey: 'key-x' })
   const sys = aiCalls[0]?.body.system || ''
-  check('100%: เรื่องออร์เดอร์ → ส่งออร์เดอร์ที่ใช้งานอยู่ (ไม่รวมที่ยกเลิก)', aiCalls.length === 1 && sys.includes('OR-260101-000003') && !sys.includes('OR-260101-000004'))
+  check('100%: เรื่องออร์เดอร์ → ส่งออร์เดอร์ที่ใช้งานอยู่ (ไม่รวมที่ยกเลิก)', aiCalls.length === 1 && sys.includes('ORD260101000003') && !sys.includes('ORD260101000004'))
   check('100%: เรื่องออร์เดอร์ → ไม่ส่งชื่อ/เบอร์ลูกค้า (มีแค่รหัสออร์เดอร์และสถานะ)', !sys.includes('ลูกค้าทดสอบ'))
   check('100%: เรื่องออร์เดอร์ → เป็นร่างให้พนักงาน ไม่ส่งเอง', fetchCalls.length === 0 && b.chats[0].data.botDraft?.source === 'ai')
 
@@ -461,7 +461,7 @@ const aiLogs = (records: any[]) => records.filter((r) => r.collection === 'aiLog
   resetAi()
   const c = mkLinked(TOPIC, 'f3', aiOn({ dataMode: 'basic', mode: 'auto' }))
   await runFbBot({ ...base, sb: c.sb, mid: 'f3', text: TOPIC, aiKey: 'key-x' })
-  check('แบบเดิม: เรื่องออร์เดอร์ → ไม่ส่งข้อมูลออร์เดอร์ให้ AI', aiCalls.length === 1 && !aiCalls[0].body.system.includes('OR-260101-000003') && !aiCalls[0].body.system.includes('ห้ามเก็บไว้'))
+  check('แบบเดิม: เรื่องออร์เดอร์ → ไม่ส่งข้อมูลออร์เดอร์ให้ AI', aiCalls.length === 1 && !aiCalls[0].body.system.includes('ORD260101000003') && !aiCalls[0].body.system.includes('ห้ามเก็บไว้'))
   check('แบบเดิม: ส่งเองได้ตามโหมดเดิม', fetchCalls.length === 1)
 
   // 100% แต่ลูกค้ายังไม่ผูกออร์เดอร์ → บอก AI ว่าไม่มีออร์เดอร์

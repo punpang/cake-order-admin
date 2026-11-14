@@ -11,6 +11,17 @@ npm run dev
 
 เปิดลิงก์ที่ขึ้นใน terminal (มือถือในวง Wi‑Fi เดียวกันเปิดลิงก์ Network ได้)
 
+## ทดสอบ
+
+```bash
+npm test            # ฝั่ง Node (ไม่ต้องติดตั้งอะไรเพิ่ม)
+npm run test:deno   # Edge Function + Worker (ต้องมี Deno 2)
+npm run test:db     # migration ทั้งหมดบน Postgres จริง + นโยบายความปลอดภัย (ต้องมี psql และเชื่อม Postgres ที่สร้างฐาน/role ได้ เช่น PGHOST/PGUSER/PGPASSWORD)
+npm run test:all    # ทั้งหมดข้างต้น
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) รันชุดเดียวกันนี้ทุก push เข้า main และทุก Pull Request · การ deploy ใช้ workflow `Deploy ...` ที่รันเองเท่านั้น
+
 ## มีอะไรบ้าง
 
 - รายการออร์เดอร์: กรองตามสถานะ / วันนัดรับ / ค้นหา
