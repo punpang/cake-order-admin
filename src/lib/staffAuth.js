@@ -63,8 +63,10 @@ function startStaffRealtime(client, recNames) {
     exclusive(async () => {
       for (const x of routes[key]) {
         try {
-          if (p && !p.full && p.ids.size && x.refreshIds && p.ids.size <= 50 && await x.refreshIds([...p.ids])) continue
-          await x.refresh()
+          // ข้อมูลที่เปลี่ยนจาก Realtime ดึงเบื้องหลัง: ไม่ขึ้นหน้าจอหมุนโหลด
+          const byIds = await quietly(() => (p && !p.full && p.ids.size && x.refreshIds && p.ids.size <= 50 ? x.refreshIds([...p.ids]) : false))
+          if (byIds) continue
+          await quietly(() => x.refresh())
         } catch (e) { console.warn('รีเฟรชข้อมูลไม่สำเร็จ:', e?.message) }
       }
     })
@@ -78,7 +80,7 @@ function startStaffRealtime(client, recNames) {
       pending.set(key, p)
       rtDeb(key, key === 'punpang_chats' || key === 'punpang_quotes' ? 300 : 400)
     },
-    onLive: (reconnect) => { if (reconnect) pollOnce(true) },
+    onLive: (reconnect) => { if (reconnect) quietly(() => pollOnce(true)) },
   })
 }
 function stopStaffRealtime() {
@@ -339,7 +341,7 @@ let pubRt = null
 let pubDeb = null
 function startPublicRealtime(client) {
   stopPublicRealtime()
-  pubDeb = makeDebouncer(() => loadPublicNow(false), { wait: 800, minGap: 3000 })
+  pubDeb = makeDebouncer(() => quietly(() => loadPublicNow(false)), { wait: 800, minGap: 3000 })
   pubRt = startRealtime({
     client, name: 'public-sync',
     bindings: [
@@ -348,7 +350,7 @@ function startPublicRealtime(client) {
       { table: 'punpang_records', filter: 'collection=in.(reviews,shortLinks)', key: 'records' },
     ],
     onEvent: (key) => pubDeb(key),
-    onLive: (reconnect) => { if (reconnect) loadPublicNow(false) },
+    onLive: (reconnect) => { if (reconnect) quietly(() => loadPublicNow(false)) },
   })
 }
 function stopPublicRealtime() {
