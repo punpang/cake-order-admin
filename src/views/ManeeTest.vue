@@ -1,11 +1,12 @@
 <script setup>
-// หน้าทดสอบการรับยอดแม่มณี: แสดงรายการที่เข้ามาล่าสุด รีเฟรชอัตโนมัติ · เฉพาะพนักงานที่มีสิทธิ์ POS (ดูนโยบาย RLS)
+// หน้าทดสอบการรับยอดแม่มณี: รายงานแอปที่ส่งเข้ามา + รายการรับยอดล่าสุด รีเฟรชอัตโนมัติ · เฉพาะพนักงานที่มีสิทธิ์ POS (ดูนโยบาย RLS)
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { supabaseEnabled, getSupabase } from '../lib/supabase'
 import { dateTime, money } from '../lib/format'
 import ManageShell from '../components/ManageShell.vue'
 
 const rows = ref([])
+const inbox = ref([])
 const err = ref('')
 const loadedAt = ref('')
 let timer = null
@@ -13,13 +14,30 @@ let timer = null
 // ปิดบังตัวเลขยาว 6 หลักขึ้นไป (เลขบัญชี/อ้างอิง) ก่อนแสดงผล
 const masked = (t) => String(t ?? '').replace(/\d{6,}/g, '••••••')
 
+// สรุปตามแอป: จำนวนครั้ง, ครั้งล่าสุด, จำนวนที่บันทึกได้, เหตุผลล่าสุด
+const byApp = computed(() => {
+  const m = new Map()
+  for (const r of inbox.value) {
+    const key = r.app || '(ไม่ระบุ)'
+    if (!m.has(key)) m.set(key, { app: key, name: r.app_name || '', count: 0, stored: 0, last: r.received_at, reason: r.reason })
+    const x = m.get(key)
+    x.count += 1
+    if (r.stored) x.stored += 1
+  }
+  return [...m.values()].sort((a, b) => (a.last < b.last ? 1 : -1))
+})
+
 async function load() {
   if (!supabaseEnabled) { err.value = 'โหมดจำลอง: ไม่ได้เชื่อม Supabase'; return }
   try {
     const c = await getSupabase()
-    const r = await c.from('manee_transfers').select('id, amount, received_at, app, text, created_at').order('created_at', { ascending: false }).limit(20)
-    if (r.error) { err.value = 'อ่านข้อมูลไม่ได้: ' + r.error.message; return }
-    rows.value = r.data || []
+    const [t, i] = await Promise.all([
+      c.from('manee_transfers').select('id, amount, received_at, app, text, created_at').order('created_at', { ascending: false }).limit(20),
+      c.from('manee_inbox').select('id, received_at, app, app_name, event, text, stored, reason').order('received_at', { ascending: false }).limit(500),
+    ])
+    if (t.error || i.error) { err.value = 'อ่านข้อมูลไม่ได้: ' + (t.error?.message || i.error?.message); return }
+    rows.value = t.data || []
+    inbox.value = i.data || []
     err.value = ''
     loadedAt.value = dateTime(new Date().toISOString())
   } catch {
@@ -34,13 +52,34 @@ onBeforeUnmount(() => clearInterval(timer))
 </script>
 
 <template>
-  <ManageShell narrow :toolbar="false" title="ทดสอบรับยอดแม่มณี" subtitle="รายการที่เข้ามาล่าสุด · รีเฟรชทุก 5 วินาที">
+  <ManageShell narrow :toolbar="false" title="ทดสอบรับยอดแม่มณี" subtitle="แอปที่ส่งเข้ามา · รายการรับยอดล่าสุด · รีเฟรชทุก 5 วินาที">
     <p v-if="err" class="rounded-2xl bg-rose-50 p-3 text-sm text-rose-700" role="alert">{{ err }}</p>
     <p v-else class="text-sm text-stone-600">
-      {{ count ? `พบ ${count} รายการล่าสุด` : 'ยังไม่มีรายการเข้ามา — โอนเงินเข้าบัญชีแล้วรอสักครู่' }}
+      {{ count ? `รับยอดแล้ว ${count} รายการล่าสุด` : 'ยังไม่มีรายการรับยอดเข้ามา' }}
       <span v-if="loadedAt" class="text-xs text-stone-400"> · ตรวจล่าสุด {{ loadedAt }}</span>
     </p>
-    <ul class="mt-3 space-y-2">
+
+    <h2 class="mt-5 text-sm font-semibold text-stone-800">แอปที่ส่งเข้ามา</h2>
+    <p v-if="!byApp.length" class="mt-2 text-sm text-stone-500">ยังไม่มีคำขอเข้ามา</p>
+    <div v-else class="mt-2 overflow-x-auto rounded-2xl border border-stone-200 bg-white">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-stone-50 text-xs text-stone-500">
+          <tr><th class="p-2">แอป</th><th class="p-2">ครั้ง</th><th class="p-2">บันทึกได้</th><th class="p-2">ล่าสุด</th><th class="p-2">เหตุผลล่าสุด</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="a in byApp" :key="a.app" class="border-t border-stone-100">
+            <td class="p-2"><div class="font-medium text-stone-800">{{ a.name || '-' }}</div><div class="text-xs text-stone-500 break-all">{{ a.app }}</div></td>
+            <td class="p-2">{{ a.count }}</td>
+            <td class="p-2">{{ a.stored }}</td>
+            <td class="p-2 text-xs">{{ dateTime(a.last) }}</td>
+            <td class="p-2 text-xs">{{ a.reason }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 class="mt-5 text-sm font-semibold text-stone-800">รายการรับยอดล่าสุด</h2>
+    <ul class="mt-2 space-y-2">
       <li v-for="r in rows" :key="r.id" class="rounded-2xl border border-stone-200 bg-white p-3">
         <div class="flex items-center justify-between">
           <span class="font-semibold text-stone-800">{{ money(r.amount) }}</span>
