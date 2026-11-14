@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
   try { b = await req.json() } catch { return json({ error: 'คำขอไม่ถูกต้อง' }, 400) }
   const ref = String(b.ref ?? '').trim()
   if (!isRefShape(ref)) return json({ error: 'คำขอไม่ถูกต้อง' }, 400)
-  const { data, error } = await sb.from('manee_transfers')
+  const { data, error } = await sb.from('tungngern_transfers')
     .select('id,received_at,amount')
     .eq('ref', ref)
     .order('received_at', { ascending: true })

@@ -26,7 +26,7 @@ async function addName() {
   if (names.value.some((x) => x.name.toLowerCase() === n.toLowerCase())) { nameErr.value = 'มีชื่อนี้อยู่แล้ว'; return }
   try {
     const c = await getSupabase()
-    const r = await c.from('manee_app_names').insert({ name: n })
+    const r = await c.from('tungngern_app_names').insert({ name: n })
     if (r.error) { nameErr.value = 'เพิ่มไม่สำเร็จ: ' + r.error.message; return }
     newName.value = ''
     await load()
@@ -38,7 +38,7 @@ async function removeName(n) {
   nameErr.value = ''
   try {
     const c = await getSupabase()
-    const r = await c.from('manee_app_names').delete().eq('name', n)
+    const r = await c.from('tungngern_app_names').delete().eq('name', n)
     if (r.error) { nameErr.value = 'ลบไม่สำเร็จ: ' + r.error.message; return }
     await load()
   } catch {
@@ -67,9 +67,9 @@ async function load() {
   try {
     const c = await getSupabase()
     const [t, i, n] = await Promise.all([
-      c.from('manee_transfers').select('id, ref, amount, received_at, app, text, created_at').order('created_at', { ascending: false }).limit(20),
-      c.from('manee_inbox').select('id, received_at, app, app_name, event, text, stored, reason').order('received_at', { ascending: false }).limit(500),
-      c.from('manee_app_names').select('name').order('name'),
+      c.from('tungngern_transfers').select('id, ref, amount, received_at, app, text, created_at').order('created_at', { ascending: false }).limit(20),
+      c.from('tungngern_inbox').select('id, received_at, app, app_name, event, text, stored, reason').order('received_at', { ascending: false }).limit(500),
+      c.from('tungngern_app_names').select('name').order('name'),
     ])
     if (t.error || i.error || n.error) { err.value = 'อ่านข้อมูลไม่ได้: ' + (t.error?.message || i.error?.message || n.error?.message); return }
     rows.value = t.data || []
