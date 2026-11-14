@@ -6,22 +6,19 @@
     <meta name="theme-color" content="#fff8f2" />
     <title>ร้านของคุณ</title>
     <style>
-      /* หน้ากำลังโหลดก่อนแอปพร้อม · เว็บ: ข้อความเรียบ · แอป Android (data-mode="android"): ไอคอน + แถบโหลด */
-      .boot { box-sizing: border-box; min-height: 100vh; margin: 0; padding: 3rem 1rem; text-align: center; font: 16px system-ui, sans-serif; color: #57534e; background: #fff8f2; }
-      .boot-text { margin: 0; }
-      .boot small { display: block; font-size: 12px; color: #a8a29e; }
-      .boot-art, .boot-bar, .boot-dots { display: none; }
-      [data-mode='android'] .boot { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.1rem; padding: 1.5rem; background: radial-gradient(circle at 18% 12%, #ffe3ea 0, transparent 42%), radial-gradient(circle at 85% 88%, #ffe9d6 0, transparent 45%), #fff8f2; }
-      [data-mode='android'] .boot-art { position: relative; display: block; width: 128px; height: 128px; animation: boot-float 2.4s ease-in-out infinite; }
-      [data-mode='android'] .boot-art img { position: relative; display: block; width: 100%; height: 100%; filter: drop-shadow(0 12px 18px rgb(214 51 108 / 0.28)); }
+      /* หน้ากำลังโหลดก่อนแอปพร้อม · ดีไซน์เดียวกันทั้งเว็บและแอป Android: ไอคอนลอย + จุดกำลังโหลด + แถบเลื่อน */
+      .boot { box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.1rem; min-height: 100vh; min-height: 100dvh; margin: 0; padding: 1.5rem; text-align: center; font: 16px system-ui, sans-serif; color: #57534e; background: radial-gradient(circle at 18% 12%, #ffe3ea 0, transparent 42%), radial-gradient(circle at 85% 88%, #ffe9d6 0, transparent 45%), #fff8f2; }
+      .boot-art { position: relative; display: block; width: 128px; height: 128px; animation: boot-float 2.4s ease-in-out infinite; }
+      .boot-art img { position: relative; display: block; width: 100%; height: 100%; filter: drop-shadow(0 12px 18px rgb(214 51 108 / 0.28)); }
       .boot-glow { position: absolute; inset: -22%; border-radius: 50%; background: radial-gradient(circle, rgb(255 255 255 / 0.95) 0, rgb(255 214 226 / 0.55) 45%, transparent 70%); }
-      [data-mode='android'] .boot-text { font-size: 1.05rem; font-weight: 600; color: #9d174d; }
-      [data-mode='android'] .boot-dots { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
+      .boot-text { margin: 0; font-size: 1.05rem; font-weight: 600; color: #9d174d; }
+      .boot-dots { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
       .boot-dots i { width: 6px; height: 6px; border-radius: 50%; background: #d6336c; animation: boot-dot 1.2s ease-in-out infinite; }
       .boot-dots i:nth-child(2) { animation-delay: 0.15s; }
       .boot-dots i:nth-child(3) { animation-delay: 0.3s; }
-      [data-mode='android'] .boot-bar { display: block; width: min(220px, 60vw); height: 6px; overflow: hidden; border-radius: 999px; background: #fbd5e0; }
+      .boot-bar { display: block; width: min(220px, 60vw); height: 6px; overflow: hidden; border-radius: 999px; background: #fbd5e0; }
       .boot-bar span { display: block; width: 40%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #d6336c, #f59e7a); animation: boot-slide 1.4s ease-in-out infinite; }
+      .boot small { display: block; font-size: 12px; color: #a8a29e; }
       @keyframes boot-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
       @keyframes boot-dot { 0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
       @keyframes boot-slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(260%); } }
@@ -29,7 +26,7 @@
     </style>
   </head>
   <body>
-    <div id="app" data-mode="%VITE_APP_MODE%">
+    <div id="app">
       <div class="boot" role="status">
         <div class="boot-art" aria-hidden="true"><span class="boot-glow"></span><img src="/boot-icon.png" alt="" width="128" height="128" /></div>
         <p class="boot-text">กำลังเตรียมข้อมูล<span class="boot-dots" aria-hidden="true"><i></i><i></i><i></i></span></p>
