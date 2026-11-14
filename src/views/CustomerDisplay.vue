@@ -53,10 +53,10 @@ const suggest = computed(() => state.value.suggest || { hints: [], bundles: [], 
 // โปรโมชั่นแนะนำ: ลำดับความสำคัญ บันเดิ้ล → โปรใกล้ถึง → ซื้อคู่กัน → ขายดีอันดับ 1 (แต่ละการ์ดแสดงครบ ไม่ตัดข้อความ)
 const promoCards = computed(() => {
   const out = []
-  for (const b of suggest.value.bundles || []) out.push({ key: 'b' + b.name, cls: 'bg-brand-50', label: 'บันเดิ้ล', labelCls: 'text-brand-700', title: b.name, titleCls: 'text-brand-800', price: money(b.price), detail: [`เพิ่มอีก ${b.add.join(' + ')}`, `ประหยัด ${money(b.saving)}`] })
-  for (const h of suggest.value.hints || []) out.push({ key: 'h' + h, cls: 'bg-honey/30', label: 'โปรใกล้ถึง', labelCls: 'text-stone-700', title: h, titleCls: 'text-stone-900', price: '', detail: [] })
-  for (const pr of suggest.value.pairs || []) out.push({ key: 'p' + pr.name, cls: 'bg-matcha-soft/60', label: 'ซื้อคู่กัน', labelCls: 'text-stone-700', title: pr.name, titleCls: 'text-stone-900', price: money(pr.price), detail: [] })
-  if (suggest.value.best) out.push({ key: 'best', cls: 'bg-white ring-1 ring-brand-200', label: 'ขายดีอันดับ 1', labelCls: 'text-brand-700', title: suggest.value.best.name, titleCls: 'text-stone-900', price: money(suggest.value.best.price), detail: [], star: true })
+  for (const b of suggest.value.bundles || []) out.push({ key: 'b' + b.name, cls: 'bg-brand-50', label: 'บันเดิ้ล', labelCls: 'text-brand-700', title: b.name, titleCls: 'text-brand-800', price: money(b.price) })
+  for (const h of suggest.value.hints || []) out.push({ key: 'h' + h, cls: 'bg-honey/30', label: 'โปรใกล้ถึง', labelCls: 'text-stone-700', title: h, titleCls: 'text-stone-900', price: '' })
+  for (const pr of suggest.value.pairs || []) out.push({ key: 'p' + pr.name, cls: 'bg-matcha-soft/60', label: 'ซื้อคู่กัน', labelCls: 'text-stone-700', title: pr.name, titleCls: 'text-stone-900', price: money(pr.price) })
+  if (suggest.value.best) out.push({ key: 'best', cls: 'bg-white ring-1 ring-brand-200', label: 'ขายดีอันดับ 1', labelCls: 'text-brand-700', title: suggest.value.best.name, titleCls: 'text-stone-900', price: money(suggest.value.best.price), star: true })
   return out
 })
 const promoKey = computed(() => JSON.stringify(promoCards.value))
@@ -163,17 +163,17 @@ watch(
                 <span class="shrink-0">{{ money(pricing.vat) }}</span>
               </div>
 
-              <!-- โปรโมชั่นแนะนำ: อยู่ในกล่องเดียวกับสรุปยอด จึงย่อพร้อมกันให้พอดี · กริด 2 คอลัมน์คงที่ (ขนาดไม่เปลี่ยนระหว่างย่อ) -->
+              <!-- โปรโมชั่นแนะนำ: อยู่ในกล่องเดียวกับสรุปยอด จึงย่อพร้อมกันให้พอดี · แถวละ 1 บรรทัด (ชื่อกับราคาอยู่บรรทัดเดียวกัน) -->
               <div v-if="visiblePromos.length" class="mt-[clamp(0.3rem,1vh,0.7rem)] flex flex-col gap-[clamp(0.3rem,1vh,0.6rem)]">
                 <div class="flex items-center gap-2 font-semibold text-brand-700">
                   <AppIcon name="star" :size="16" /> โปรโมชั่นแนะนำ
                 </div>
                 <div class="flex flex-col gap-[clamp(0.3rem,1vh,0.6rem)]">
-                  <div v-for="c in visiblePromos" :key="c.key" class="rounded-2xl px-[clamp(0.45rem,1.2vw,0.7rem)] py-[clamp(0.3rem,1vh,0.6rem)]" :class="c.cls">
-                    <div class="break-words font-medium leading-snug" :class="c.titleCls">
-                      <span class="mr-1 inline-flex items-center gap-0.5 rounded-full bg-white/80 px-2 align-middle text-[0.75em] font-semibold" :class="c.labelCls"><AppIcon v-if="c.star" name="star" :size="11" />{{ c.label }}</span>{{ c.title }}<span v-if="c.price" class="whitespace-nowrap font-semibold"> · {{ c.price }}</span>
+                  <div v-for="c in visiblePromos" :key="c.key" class="flex items-center justify-between gap-2 rounded-2xl px-[clamp(0.45rem,1.2vw,0.7rem)] py-[clamp(0.3rem,1vh,0.6rem)]" :class="c.cls">
+                    <div class="min-w-0 break-words font-medium leading-snug" :class="c.titleCls">
+                      <span class="mr-1 inline-flex items-center gap-0.5 rounded-full bg-white/80 px-2 align-middle text-[0.75em] font-semibold" :class="c.labelCls"><AppIcon v-if="c.star" name="star" :size="11" />{{ c.label }}</span>{{ c.title }}
                     </div>
-                    <div v-for="(d, k) in c.detail" :key="k" class="text-[0.9em] leading-snug text-stone-700" :class="k === 1 ? 'font-semibold text-brand-700' : ''">{{ d }}</div>
+                    <span v-if="c.price" class="shrink-0 whitespace-nowrap font-semibold" :class="c.titleCls">{{ c.price }}</span>
                   </div>
                 </div>
               </div>
