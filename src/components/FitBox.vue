@@ -6,7 +6,7 @@ import { nextTick, onBeforeUnmount, onMounted, onUpdated, ref } from 'vue'
 const emit = defineEmits(['fit'])
 
 const props = defineProps({
-  min: { type: Number, default: 0.6 },
+  min: { type: Number, default: 0.4 },
 })
 
 const outer = ref(null)
