@@ -101,9 +101,10 @@ watch(
                 <!-- ซ้าย: ชื่อ + ราคาต่อหน่วย (ขีดราคาเต็มถ้าลดรายการ) · ขวา: ราคารวมของรายการ และป้ายโปรโมชั่นอยู่ใต้ราคารวม -->
                 <div class="min-w-0 flex-1">
                   <div class="break-words font-medium text-stone-900 text-[clamp(0.95rem,3vh,1.4rem)]">{{ l.name }}</div>
-                  <div class="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-stone-600 text-[clamp(0.8rem,2.3vh,1.05rem)]">
+                  <div class="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-[clamp(0.8rem,2.3vh,1.05rem)]">
+                    <!-- ราคาที่ต้องจ่ายขึ้นก่อน (สีแบรนด์) · ราคาเต็มที่ขีดฆ่าไว้ข้างหลัง (สีเทาจาง) -->
+                    <span :class="l.fullUnit !== l.unit ? 'font-semibold text-brand-700' : 'text-stone-700'">{{ money(l.unit) }}</span>
                     <span v-if="l.fullUnit !== l.unit" class="text-stone-400 line-through">{{ money(l.fullUnit) }}</span>
-                    <span>{{ money(l.unit) }}</span>
                   </div>
                 </div>
                 <div class="flex shrink-0 flex-col items-end gap-1">
