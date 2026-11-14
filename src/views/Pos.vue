@@ -799,7 +799,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · เลย์เอาต์ใหม่: สรุปยอด → เลือกวิธีชำระ → รายการชำระ → ยืนยันปุ่มล่าง -->
-    <AppModal v-if="payOpen" title="ชำระเงิน" @close="closePay">
+    <AppModal v-if="payOpen" title="ชำระเงิน" wide @close="closePay">
       <div class="space-y-4">
         <div class="rounded-2xl bg-brand-50 p-4">
           <div class="flex items-end justify-between gap-3">
@@ -865,31 +865,33 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               <button type="button" class="btn-outline h-11 w-full" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิกการรับชำระ</button>
             </div>
 
-            <div v-else class="mt-3 space-y-3">
+            <div v-else class="mt-3 grid gap-3 sm:grid-cols-2 sm:items-start">
               <div v-if="l.detectedAt" class="animate-pulse rounded-2xl bg-emerald-600 p-4 text-center text-lg font-bold text-white">ลูกค้าชำระแล้ว · {{ money(lineAmt(l)) }}</div>
               <BillerQr v-else :amount="lineAmt(l)" :ref1="db.shop.merchantCode || ''" :ref2="l.qrRef" />
 
-              <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span v-if="l.detectedAt" class="rounded-full bg-emerald-100 px-3 py-1 font-medium text-emerald-800">พบรายการโอนแล้ว</span>
-                <span v-else-if="expiredLine(l)" class="rounded-full bg-rose-100 px-3 py-1 font-medium text-rose-700">QR หมดอายุแล้ว</span>
-                <span v-else class="rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-800">รอลูกค้าชำระ</span>
-                <span v-if="l.detectedAt" class="text-stone-600">ระบบรับเองใน <b class="tabular-nums">{{ autoLeft(l) }}</b></span>
-                <span v-else-if="!expiredLine(l)" class="text-stone-600">หมดอายุใน <b class="tabular-nums">{{ qrLeft(l) }}</b></span>
-              </div>
+              <div class="space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span v-if="l.detectedAt" class="rounded-full bg-emerald-100 px-3 py-1 font-medium text-emerald-800">พบรายการโอนแล้ว</span>
+                  <span v-else-if="expiredLine(l)" class="rounded-full bg-rose-100 px-3 py-1 font-medium text-rose-700">QR หมดอายุแล้ว</span>
+                  <span v-else class="rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-800">รอลูกค้าชำระ</span>
+                  <span v-if="l.detectedAt" class="text-stone-600">ระบบรับเองใน <b class="tabular-nums">{{ autoLeft(l) }}</b></span>
+                  <span v-else-if="!expiredLine(l)" class="text-stone-600">หมดอายุใน <b class="tabular-nums">{{ qrLeft(l) }}</b></span>
+                </div>
 
-              <div v-if="!l.detectedAt && !expiredLine(l) && (l.candidates || []).length > 1" class="space-y-2">
-                <p class="text-sm font-medium text-amber-800">พบหลายรายการที่ตรง เลือกรายการที่ใช่</p>
-                <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-12 w-full items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-4" @click="pickManee(l, c)">
-                  <span>{{ timeOnly(c.received_at) }}</span><span class="font-semibold">เลือก</span>
-                </button>
-              </div>
+                <div v-if="!l.detectedAt && !expiredLine(l) && (l.candidates || []).length > 1" class="space-y-2">
+                  <p class="text-sm font-medium text-amber-800">พบหลายรายการที่ตรง เลือกรายการที่ใช่</p>
+                  <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-12 w-full items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-4" @click="pickManee(l, c)">
+                    <span>{{ timeOnly(c.received_at) }}</span><span class="font-semibold">เลือก</span>
+                  </button>
+                </div>
 
-              <div class="space-y-2">
-                <button v-if="expiredLine(l)" type="button" class="btn-primary h-12 w-full" @click="makeQr(l)">สร้าง QR ใหม่</button>
-                <button v-else-if="l.detectedAt" type="button" class="btn-primary h-12 w-full" @click="receiveNow(l)"><AppIcon name="check" :size="16" /> รับชำระ</button>
-                <button v-else type="button" class="btn-outline h-12 w-full" @click="receiveNow(l)">ลูกค้าชำระแล้ว (ไม่พบอัตโนมัติ)</button>
-                <button type="button" class="btn-outline h-11 w-full" @click="cancelQr(l)">ยกเลิก QR</button>
-                <button v-if="!l.detectedAt" type="button" class="btn-soft h-11 w-full" @click="removePayLine(i)">ย้อนกลับ</button>
+                <div class="space-y-2">
+                  <button v-if="expiredLine(l)" type="button" class="btn-primary h-12 w-full" @click="makeQr(l)">สร้าง QR ใหม่</button>
+                  <button v-else-if="l.detectedAt" type="button" class="btn-primary h-12 w-full" @click="receiveNow(l)"><AppIcon name="check" :size="16" /> รับชำระ</button>
+                  <button v-else type="button" class="btn-outline h-12 w-full" @click="receiveNow(l)">ลูกค้าชำระแล้ว (ไม่พบอัตโนมัติ)</button>
+                  <button type="button" class="btn-outline h-11 w-full" @click="cancelQr(l)">ยกเลิก QR</button>
+                  <button v-if="!l.detectedAt" type="button" class="btn-soft h-11 w-full" @click="removePayLine(i)">ย้อนกลับ</button>
+                </div>
               </div>
             </div>
           </template>
