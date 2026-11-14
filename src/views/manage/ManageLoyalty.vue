@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../../components/MoneyInput.vue'
 import { computed, reactive, ref } from 'vue'
 import { db, can, findCustomer, saveReward, savePrize, saveLoyaltySettings, markCouponDelivered, phaseOfCoupon, refundCoupon } from '../../data/store'
 import { chanceTotal } from '../../lib/loyalty'
@@ -127,7 +128,7 @@ function doRefund() {
       <div v-for="f in FIELDS" :key="f.k">
         <label class="label">{{ f.l }}</label>
         <div class="flex items-center gap-2">
-          <input v-model.number="st[f.k]" type="text" v-num.dec min="0" class="input" />
+          <MoneyInput v-model.number="st[f.k]" min="0" class="input" />
           <span class="w-14 shrink-0 text-sm text-stone-500">{{ f.u }}</span>
         </div>
       </div>
@@ -228,8 +229,8 @@ function doRefund() {
         </div>
         <template v-if="rw.kind === 'coupon'">
           <div class="grid grid-cols-3 gap-3">
-            <div><label class="label">ลด (บาท)</label><input v-model="rw.amount" type="text" v-num.dec class="input" /></div>
-            <div><label class="label">ยอดขั้นต่ำ</label><input v-model="rw.minSpend" type="text" v-num.dec class="input" placeholder="ไม่มี" /></div>
+            <div><label class="label">ลด (บาท)</label><MoneyInput v-model="rw.amount" class="input" /></div>
+            <div><label class="label">ยอดขั้นต่ำ</label><MoneyInput v-model="rw.minSpend" class="input" placeholder="ไม่มี" /></div>
             <div><label class="label">อายุ (วัน)</label><input v-model="rw.validDays" type="text" v-num class="input" :placeholder="String(db.loyalty.couponExpireDays)" /></div>
           </div>
           <p class="text-xs text-stone-400">ลูกค้าแลกบนเว็บ (บัญชีของฉัน → คะแนน) แล้วนำคูปองมาใช้ที่ POS/ออร์เดอร์ · คะแนนที่แลกแล้วไม่คืน</p>
@@ -265,7 +266,7 @@ function doRefund() {
             <option v-for="r in db.rewards.filter((x) => x.kind !== 'coupon')" :key="r.id" :value="r.id">{{ r.name }}</option>
           </select>
         </div>
-        <div><label class="label">โอกาส (%)</label><input v-model.number="gp.chance" type="text" v-num.dec min="0" max="100" class="input" /></div>
+        <div><label class="label">โอกาส (%)</label><MoneyInput v-model.number="gp.chance" min="0" max="100" class="input" /></div>
         <AppSwitch v-model="gp.active" label="ใช้งาน" class="flex" />
         <p v-if="gpError" class="text-sm text-rose-700">{{ gpError }}</p>
       </div>

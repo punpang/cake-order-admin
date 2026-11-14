@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../../components/MoneyInput.vue'
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import { db, savePriceList, saveMainPrices } from '../../data/store'
@@ -105,8 +106,8 @@ async function save() {
           <tbody>
             <tr v-for="t in types" :key="t.id" class="border-t border-stone-100" :class="t.active === false ? 'opacity-60' : ''">
               <td class="py-1.5 pr-3 whitespace-nowrap text-stone-800">{{ t.name }}<span v-if="t.active === false" class="ml-1 text-xs text-stone-400">(ปิด)</span></td>
-              <td class="px-1 py-1.5"><input v-model="table.types[t.id]" type="text" v-num.dec min="0" class="input h-10 w-24" :aria-label="`ราคา ${t.name}`" /></td>
-              <td v-for="sz in sizes" :key="sz.id" class="px-1 py-1.5"><input v-model="table.typeSizes[t.id][sz.id]" type="text" v-num.dec min="0" class="input h-10 w-24" :class="sizeOff(t, sz) ? 'opacity-40' : ''" :aria-label="`${t.name} ${sz.name}`" /></td>
+              <td class="px-1 py-1.5"><MoneyInput v-model="table.types[t.id]" min="0" class="input h-10 w-24" :aria-label="`ราคา ${t.name}`" /></td>
+              <td v-for="sz in sizes" :key="sz.id" class="px-1 py-1.5"><MoneyInput v-model="table.typeSizes[t.id][sz.id]" min="0" class="input h-10 w-24" :class="sizeOff(t, sz) ? 'opacity-40' : ''" :aria-label="`${t.name} ${sz.name}`" /></td>
             </tr>
           </tbody>
         </table>
@@ -118,12 +119,12 @@ async function save() {
             <template v-for="f in optsOf(m.key)" :key="f.id">
               <label v-if="!bySize(f)" class="flex items-center gap-3" :class="f.active === false ? 'opacity-60' : ''">
                 <span class="min-w-0 flex-1 truncate text-sm text-stone-800">{{ f.name }}<span v-if="f.active === false" class="ml-1 text-xs text-stone-400">(ปิด)</span></span>
-                <input v-model="table[m.f][f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" :data-main-fixed="f.id" />
+                <MoneyInput v-model="table[m.f][f.id]" min="0" class="input h-10 w-24 shrink-0" :data-main-fixed="f.id" />
               </label>
               <div v-else class="sm:col-span-2" :class="f.active === false ? 'opacity-60' : ''">
                 <div class="mb-1 text-sm text-stone-800">{{ f.name }} <span class="text-xs text-stone-400">ตามขนาด</span><span v-if="f.active === false" class="ml-1 text-xs text-stone-400">(ปิด)</span></div>
                 <div class="flex flex-wrap gap-2">
-                  <label v-for="sz in sizes" :key="sz.id" class="text-xs text-stone-500">{{ sz.name }}<input v-model="table[m.s][f.id][sz.id]" type="text" v-num.dec min="0" class="input mt-0.5 h-10 w-24" :data-main-size="`${f.id}:${sz.id}`" /></label>
+                  <label v-for="sz in sizes" :key="sz.id" class="text-xs text-stone-500">{{ sz.name }}<MoneyInput v-model="table[m.s][f.id][sz.id]" min="0" class="input mt-0.5 h-10 w-24" :data-main-size="`${f.id}:${sz.id}`" /></label>
                 </div>
               </div>
             </template>
@@ -182,8 +183,8 @@ async function save() {
               <tbody>
                 <tr v-for="t in optsOf('type', true).filter((x) => x.active !== false)" :key="t.id" class="border-t border-stone-100">
                   <td class="py-1.5 pr-3 whitespace-nowrap text-stone-800">{{ t.name }}</td>
-                  <td class="px-1 py-1.5"><input v-model="form.types[t.id]" type="text" v-num.dec min="0" class="input h-10 w-24" :placeholder="money(t.price || 0)" /></td>
-                  <td v-for="sz in sizes" :key="sz.id" class="px-1 py-1.5"><input v-model="form.typeSizes[t.id][sz.id]" type="text" v-num.dec min="0" class="input h-10 w-24" :placeholder="money(t.sizePrices?.[sz.id] || 0)" /></td>
+                  <td class="px-1 py-1.5"><MoneyInput v-model="form.types[t.id]" min="0" class="input h-10 w-24" :placeholder="money(t.price || 0)" /></td>
+                  <td v-for="sz in sizes" :key="sz.id" class="px-1 py-1.5"><MoneyInput v-model="form.typeSizes[t.id][sz.id]" min="0" class="input h-10 w-24" :placeholder="money(t.sizePrices?.[sz.id] || 0)" /></td>
                 </tr>
               </tbody>
             </table>
@@ -195,12 +196,12 @@ async function save() {
                 <template v-for="f in optsOf(m.key, true).filter((x) => x.active !== false)" :key="f.id">
                   <label v-if="!bySize(f)" class="flex items-center gap-3">
                     <span class="min-w-0 flex-1 truncate text-sm text-stone-800">{{ f.name }}</span>
-                    <input v-model="form[m.f][f.id]" type="text" v-num.dec min="0" class="input h-10 w-24 shrink-0" :placeholder="money(f.price || 0)" />
+                    <MoneyInput v-model="form[m.f][f.id]" min="0" class="input h-10 w-24 shrink-0" :placeholder="money(f.price || 0)" />
                   </label>
                   <div v-else>
                     <div class="mb-1 text-sm text-stone-800">{{ f.name }} <span class="text-xs text-stone-400">ตามขนาด</span></div>
                     <div class="flex flex-wrap gap-2">
-                      <label v-for="sz in sizes" :key="sz.id" class="text-xs text-stone-500">{{ sz.name }}<input v-model="form[m.s][f.id][sz.id]" type="text" v-num.dec min="0" class="input mt-0.5 h-10 w-24" :placeholder="money(f.sizePrices?.[sz.id] || 0)" /></label>
+                      <label v-for="sz in sizes" :key="sz.id" class="text-xs text-stone-500">{{ sz.name }}<MoneyInput v-model="form[m.s][f.id][sz.id]" min="0" class="input mt-0.5 h-10 w-24" :placeholder="money(f.sizePrices?.[sz.id] || 0)" /></label>
                     </div>
                   </div>
                 </template>

@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from './MoneyInput.vue'
 import { computed } from 'vue'
 import { db } from '../data/store'
 import { RECIPE_PER } from '../lib/constants'
@@ -42,7 +43,7 @@ async function remove(i) {
             </button>
           </div>
           <div class="mt-2 flex items-center gap-2">
-            <input v-model.number="line.qty" type="text" v-num.dec min="0" class="input w-28 shrink-0" />
+            <MoneyInput v-model.number="line.qty" min="0" class="input w-28 shrink-0" />
             <span class="w-10 shrink-0 text-sm text-stone-500">{{ unitOf(line.ingredientId) }}</span>
             <div class="grid flex-1 grid-cols-2 gap-1 seg-grid">
               <button

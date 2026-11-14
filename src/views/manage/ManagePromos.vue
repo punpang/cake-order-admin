@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../../components/MoneyInput.vue'
 import { computed, reactive, ref } from 'vue'
 import { db, savePosDiscount, savePosBundle, savePointPromo, saveDeal, removePromo, DEAL_KINDS } from '../../data/store'
 import { describeDeal, dealWarnings } from '../../lib/promoDeals'
@@ -113,8 +114,8 @@ async function flip(x) {
             <button v-for="t in [{ v: 'percent', l: 'ลดเป็น %' }, { v: 'amount', l: 'ลดเป็นบาท' }]" :key="t.v" type="button" class="h-9 rounded-lg text-sm font-medium" :class="f.type === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="f.type = t.v">{{ t.l }}</button>
           </div>
           <div class="grid grid-cols-2 gap-3">
-            <div><label class="label">{{ f.type === 'percent' ? 'เปอร์เซ็นต์' : 'บาท' }}</label><input v-model="f.value" type="text" v-num.dec class="input" /></div>
-            <div><label class="label">ยอดสินค้าขั้นต่ำ (บาท)</label><input v-model="f.minSpend" type="text" v-num.dec class="input" placeholder="ไม่มี" /></div>
+            <div><label class="label">{{ f.type === 'percent' ? 'เปอร์เซ็นต์' : 'บาท' }}</label><MoneyInput v-model="f.value" class="input" /></div>
+            <div><label class="label">ยอดสินค้าขั้นต่ำ (บาท)</label><MoneyInput v-model="f.minSpend" class="input" placeholder="ไม่มี" /></div>
           </div>
         </template>
 
@@ -136,7 +137,7 @@ async function flip(x) {
           </div>
           <div>
             <label class="label">ราคาชุด (บาท)</label>
-            <input v-model="f.price" type="text" v-num.dec class="input" />
+            <MoneyInput v-model="f.price" class="input" />
             <p class="mt-1 text-xs" :class="saving > 0 ? 'text-emerald-700' : 'text-stone-400'">ราคาปกติรวม {{ money(regular) }}<template v-if="saving > 0"> · ประหยัด {{ money(saving) }}</template></p>
           </div>
         </template>
@@ -169,7 +170,7 @@ async function flip(x) {
           <template v-else-if="f.kind === 'nth'">
             <div class="grid grid-cols-2 gap-3">
               <div><label class="label">ชิ้นที่ (N)</label><input v-model="f.n" type="text" v-num class="input" /></div>
-              <div><label class="label">ลด (%)</label><input v-model="f.percent" type="text" v-num.dec class="input" /></div>
+              <div><label class="label">ลด (%)</label><MoneyInput v-model="f.percent" class="input" /></div>
             </div>
             <p class="text-xs text-stone-500">ทุก {{ f.n || 'N' }} ชิ้น ชิ้นที่ถูกสุดในกลุ่มลด {{ f.percent || '–' }}% (100% = ซื้อ {{ f.n || 'N' }} จ่าย {{ (Number(f.n) || 1) - 1 }})</p>
           </template>
@@ -177,9 +178,9 @@ async function flip(x) {
             <div class="label">ขั้นส่วนลด (ใช้ขั้นสูงสุดที่ยอดถึง)</div>
             <div class="space-y-2">
               <div v-for="(t, i) in f.tiers" :key="i" class="flex items-center gap-2">
-                <input v-model="t.min" type="text" v-num.dec class="input min-w-0 flex-1" placeholder="ครบ (บาท)" :aria-label="`ขั้น ${i + 1} ยอดครบ`" />
+                <MoneyInput v-model="t.min" class="input min-w-0 flex-1" placeholder="ครบ (บาท)" :aria-label="`ขั้น ${i + 1} ยอดครบ`" />
                 <select v-model="t.type" class="input w-24 shrink-0" :aria-label="`ขั้น ${i + 1} ชนิดส่วนลด`"><option value="amount">ลด ฿</option><option value="percent">ลด %</option></select>
-                <input v-model="t.value" type="text" v-num.dec class="input w-20 shrink-0" placeholder="ลด" :aria-label="`ขั้น ${i + 1} ส่วนลด`" />
+                <MoneyInput v-model="t.value" class="input w-20 shrink-0" placeholder="ลด" :aria-label="`ขั้น ${i + 1} ส่วนลด`" />
                 <button type="button" class="btn-danger h-11 w-11 shrink-0 px-0" aria-label="ลบขั้น" :disabled="f.tiers.length <= 1" @click="f.tiers.splice(i, 1)"><AppIcon name="trash" :size="16" /></button>
               </div>
             </div>
@@ -187,7 +188,7 @@ async function flip(x) {
           </template>
           <template v-else-if="f.kind === 'spend_free'">
             <div class="grid grid-cols-2 gap-3">
-              <div><label class="label">ซื้อครบ (บาท)</label><input v-model="f.min" type="text" v-num.dec class="input" /></div>
+              <div><label class="label">ซื้อครบ (บาท)</label><MoneyInput v-model="f.min" class="input" /></div>
               <div><label class="label">จำนวนที่ฟรี</label><input v-model="f.giftQty" type="text" v-num class="input" /></div>
             </div>
             <div>
@@ -196,25 +197,25 @@ async function flip(x) {
             </div>
           </template>
           <template v-else-if="f.kind === 'spend_addon'">
-            <div><label class="label">ซื้อครบ (บาท)</label><input v-model="f.min" type="text" v-num.dec class="input" /></div>
+            <div><label class="label">ซื้อครบ (บาท)</label><MoneyInput v-model="f.min" class="input" /></div>
             <div>
               <label class="label" for="deal-addon">สินค้าที่ขายราคาพิเศษ</label>
               <select id="deal-addon" v-model="f.itemId" class="input"><option value="" disabled>เลือกสินค้า</option><option v-for="p in items" :key="p.id" :value="p.id">{{ p.name }} · {{ money(p.price) }}</option></select>
             </div>
             <div class="grid grid-cols-2 gap-3">
-              <div><label class="label">ราคาพิเศษ (บาท)</label><input v-model="f.price" type="text" v-num.dec class="input" /></div>
+              <div><label class="label">ราคาพิเศษ (บาท)</label><MoneyInput v-model="f.price" class="input" /></div>
               <div><label class="label">สูงสุดต่อบิล (ชิ้น)</label><input v-model="f.limit" type="text" v-num class="input" /></div>
             </div>
           </template>
           <template v-else-if="f.kind === 'free_ship'">
-            <div><label class="label">ซื้อครบ (บาท)</label><input v-model="f.min" type="text" v-num.dec class="input" /></div>
+            <div><label class="label">ซื้อครบ (บาท)</label><MoneyInput v-model="f.min" class="input" /></div>
             <p class="text-xs text-stone-500">ใช้กับออร์เดอร์ที่จัดส่งเท่านั้น · ค่าส่งเป็น 0 เมื่อยอดสินค้าถึงเกณฑ์</p>
           </template>
         </template>
 
         <!-- คะแนนพิเศษ -->
         <template v-else>
-          <div><label class="label">ตัวคูณคะแนน (เช่น 2 = สองเท่า)</label><input v-model="f.multiplier" type="text" v-num.dec class="input" /></div>
+          <div><label class="label">ตัวคูณคะแนน (เช่น 2 = สองเท่า)</label><MoneyInput v-model="f.multiplier" class="input" /></div>
         </template>
 
         <!-- ขอบเขต -->

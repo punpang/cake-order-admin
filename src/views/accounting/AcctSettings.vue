@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../../components/MoneyInput.vue'
 import { reactive, ref } from 'vue'
 import { db, can } from '../../data/store'
 import { closePeriod, reopenPeriod, saveAcctSettings } from '../../data/acct'
@@ -37,8 +38,8 @@ async function reopen() {
     <section v-if="can('acctSettings')" class="card space-y-3" aria-label="ตั้งค่าบัญชี">
       <div class="card-title">ตั้งค่าบัญชี</div>
       <div class="grid grid-cols-2 gap-1 seg-grid"><button v-for="m in [['juristic', 'นิติบุคคล'], ['individual', 'บุคคลธรรมดา']]" :key="m[0]" type="button" class="h-9 rounded-lg text-sm font-medium" :class="st.entityType === m[0] ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="st.entityType = m[0]">{{ m[1] }}</button></div>
-      <div class="grid grid-cols-2 gap-3"><div><label class="label">เริ่มปีบัญชีเดือน</label><select v-model="st.fiscalYearStartMonth" class="input" aria-label="เดือนเริ่มปีบัญชี"><option v-for="(m, i) in MONTHS" :key="i" :value="i + 1">{{ m }}</option></select></div><div><label class="label">ทุนชำระแล้ว (บาท)</label><input v-model="st.paidInCapital" v-num.dec class="input" aria-label="ทุนชำระแล้ว" /></div></div>
-      <div><label class="label">สินทรัพย์ต่ำกว่า (บาท) ตัดเป็นค่าใช้จ่ายทันที</label><input v-model="st.assetMinCost" v-num.dec class="input" aria-label="เกณฑ์สินทรัพย์" /></div>
+      <div class="grid grid-cols-2 gap-3"><div><label class="label">เริ่มปีบัญชีเดือน</label><select v-model="st.fiscalYearStartMonth" class="input" aria-label="เดือนเริ่มปีบัญชี"><option v-for="(m, i) in MONTHS" :key="i" :value="i + 1">{{ m }}</option></select></div><div><label class="label">ทุนชำระแล้ว (บาท)</label><MoneyInput v-model="st.paidInCapital" class="input" aria-label="ทุนชำระแล้ว" /></div></div>
+      <div><label class="label">สินทรัพย์ต่ำกว่า (บาท) ตัดเป็นค่าใช้จ่ายทันที</label><MoneyInput v-model="st.assetMinCost" class="input" aria-label="เกณฑ์สินทรัพย์" /></div>
       <button class="btn-soft w-full" @click="saveSt">บันทึกตั้งค่า</button>
       <p v-if="st.error" class="text-sm text-rose-700" role="alert">{{ st.error }}</p>
       <p v-if="st.ok" class="text-sm text-emerald-700" role="status">{{ st.ok }}</p>

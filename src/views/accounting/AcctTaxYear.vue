@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../../components/MoneyInput.vue'
 import { computed, reactive, ref } from 'vue'
 import { db, can } from '../../data/store'
 import { annualTaxReport, saveTaxYear, saveTaxTable, taxTableOf, markTaxFiled, reopenTaxFiling, fiscalRange } from '../../data/acct'
@@ -108,21 +109,21 @@ function csv() {
     <section v-if="!locked && canTax" class="card space-y-3 text-sm" aria-label="ข้อมูลประกอบการคำนวณภาษี">
       <div class="card-title">ข้อมูลประกอบ (กรอกเอง)</div>
       <div class="grid grid-cols-2 gap-3">
-        <div v-if="juristic"><label class="label">ขาดทุนสะสมยกมา</label><input v-model="inp.lossForward" v-num.dec class="input" aria-label="ขาดทุนสะสมยกมา" /></div>
-        <div><label class="label">{{ juristic ? 'ชำระ ภ.ง.ด.51 แล้ว' : 'ชำระ ภ.ง.ด.94 แล้ว' }}</label><input v-model="inp.prepaid" v-num.dec class="input" aria-label="ภาษีที่ชำระครึ่งปี" /></div>
-        <div><label class="label">ภาษีหัก ณ ที่จ่ายที่ถูกหัก</label><input v-model="inp.wht" v-num.dec class="input" aria-label="ภาษีหัก ณ ที่จ่าย" /></div>
-        <div v-if="juristic"><label class="label">ประมาณกำไรทั้งปี (ว่าง = ครึ่งปี×2)</label><input v-model="inp.estimatedAnnual" v-num.dec class="input" aria-label="ประมาณกำไรทั้งปี" /></div>
+        <div v-if="juristic"><label class="label">ขาดทุนสะสมยกมา</label><MoneyInput v-model="inp.lossForward" class="input" aria-label="ขาดทุนสะสมยกมา" /></div>
+        <div><label class="label">{{ juristic ? 'ชำระ ภ.ง.ด.51 แล้ว' : 'ชำระ ภ.ง.ด.94 แล้ว' }}</label><MoneyInput v-model="inp.prepaid" class="input" aria-label="ภาษีที่ชำระครึ่งปี" /></div>
+        <div><label class="label">ภาษีหัก ณ ที่จ่ายที่ถูกหัก</label><MoneyInput v-model="inp.wht" class="input" aria-label="ภาษีหัก ณ ที่จ่าย" /></div>
+        <div v-if="juristic"><label class="label">ประมาณกำไรทั้งปี (ว่าง = ครึ่งปี×2)</label><MoneyInput v-model="inp.estimatedAnnual" class="input" aria-label="ประมาณกำไรทั้งปี" /></div>
       </div>
       <div v-if="!juristic">
         <label class="label">วิธีหักค่าใช้จ่าย</label>
         <select v-model="inp.method" class="input" aria-label="วิธีหักค่าใช้จ่าย"><option value="best">เลือกแบบที่เสียน้อยกว่า</option><option value="actual">ตามจริง</option><option value="lump">เหมา</option></select>
         <div class="mt-2 text-sm font-semibold text-stone-800">ค่าลดหย่อน</div>
-        <div class="grid grid-cols-2 gap-3"><div v-for="a in ALLOW" :key="a[0]"><label class="label">{{ a[1] }}</label><input v-model="inp.allow[a[0]]" v-num.dec class="input" :aria-label="`ลดหย่อน${a[1]}`" /></div></div>
+        <div class="grid grid-cols-2 gap-3"><div v-for="a in ALLOW" :key="a[0]"><label class="label">{{ a[1] }}</label><MoneyInput v-model="inp.allow[a[0]]" class="input" :aria-label="`ลดหย่อน${a[1]}`" /></div></div>
       </div>
       <button class="btn-soft w-full" @click="save()">บันทึกข้อมูล</button>
       <div v-if="juristic" class="border-t border-stone-100 pt-3">
         <div class="font-semibold text-stone-800">รายการปรับปรุงทางภาษีเพิ่มเติม</div>
-        <div class="mt-2 grid grid-cols-[1fr_6rem_auto] gap-2"><input v-model="inp.adjLabel" class="input" placeholder="ชื่อรายการ" aria-label="ชื่อรายการปรับปรุง" /><input v-model="inp.adjAmount" type="number" class="input" placeholder="+/−" aria-label="จำนวนปรับปรุง" /><button class="btn-soft px-3" @click="addAdj">เพิ่ม</button></div>
+        <div class="mt-2 grid grid-cols-[1fr_6rem_auto] gap-2"><input v-model="inp.adjLabel" class="input" placeholder="ชื่อรายการ" aria-label="ชื่อรายการปรับปรุง" /><MoneyInput v-model="inp.adjAmount" allow-negative class="input" placeholder="+/−" aria-label="จำนวนปรับปรุง" /><button class="btn-soft px-3" @click="addAdj">เพิ่ม</button></div>
         <p class="mt-1 text-xs text-stone-500">บวก = บวกกลับ (กำไรทางภาษีเพิ่ม) · ลบ = หักออก · ค่าปรับ/ค่ารับรองเกิน/ค่าเสื่อมส่วนต่าง ระบบใส่ให้อัตโนมัติ</p>
       </div>
     </section>
@@ -132,7 +133,7 @@ function csv() {
       <template v-if="!locked">
         <div class="card-title">บันทึกว่ายื่นแล้ว</div>
         <p class="text-xs text-stone-500">ต้องปิดงวดถึง {{ dateOnly(r.fy.to) }} ก่อน (ปิดงวดถึง {{ db.acct.closedThrough ? dateOnly(db.acct.closedThrough) : 'ยังไม่เคยปิด' }})</p>
-        <div class="grid grid-cols-2 gap-3"><div><label class="label">วันที่ยื่น</label><input v-model="fil.filedAt" type="date" class="input" aria-label="วันที่ยื่นภาษีประจำปี" /></div><div><label class="label">เลขอ้างอิง</label><input v-model="fil.ref" class="input" maxlength="60" aria-label="เลขอ้างอิงภาษีประจำปี" /></div><div class="col-span-2"><label class="label">ยอดที่ชำระ</label><input v-model="fil.paid" v-num.dec class="input" aria-label="ยอดภาษีประจำปีที่ชำระ" /></div></div>
+        <div class="grid grid-cols-2 gap-3"><div><label class="label">วันที่ยื่น</label><input v-model="fil.filedAt" type="date" class="input" aria-label="วันที่ยื่นภาษีประจำปี" /></div><div><label class="label">เลขอ้างอิง</label><input v-model="fil.ref" class="input" maxlength="60" aria-label="เลขอ้างอิงภาษีประจำปี" /></div><div class="col-span-2"><label class="label">ยอดที่ชำระ</label><MoneyInput v-model="fil.paid" class="input" aria-label="ยอดภาษีประจำปีที่ชำระ" /></div></div>
         <button class="btn-primary w-full" @click="file">บันทึกว่ายื่นแล้ว</button>
       </template>
       <template v-else>
@@ -148,9 +149,9 @@ function csv() {
         <div class="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 pb-3 text-sm">
           <div v-for="g in [['progressive', 'บุคคลธรรมดา (เงินได้สุทธิ)'], ['sme', 'นิติบุคคล SME (กำไรสุทธิ)']]" :key="g[0]">
             <div class="font-semibold">{{ g[1] }}</div>
-            <div v-for="(b, i) in tbl.t[g[0]]" :key="i" class="mt-1 grid grid-cols-2 gap-2"><input v-if="b.upTo !== null" v-model="b.upTo" type="number" class="input h-9" :aria-label="`${g[0]} ขั้นที่ ${i + 1} ถึง`" /><div v-else class="flex h-9 items-center text-stone-500">ส่วนที่เกิน</div><input v-model="b.rate" type="number" class="input h-9" :aria-label="`${g[0]} ขั้นที่ ${i + 1} อัตรา %`" /></div>
+            <div v-for="(b, i) in tbl.t[g[0]]" :key="i" class="mt-1 grid grid-cols-2 gap-2"><MoneyInput v-if="b.upTo !== null" v-model="b.upTo" class="input h-9" :aria-label="`${g[0]} ขั้นที่ ${i + 1} ถึง`" /><div v-else class="flex h-9 items-center text-stone-500">ส่วนที่เกิน</div><MoneyInput v-model="b.rate" class="input h-9" :aria-label="`${g[0]} ขั้นที่ ${i + 1} อัตรา %`" /></div>
           </div>
-          <div class="grid grid-cols-2 gap-2"><div v-for="k in [['corporateRate', 'อัตรานิติบุคคลทั่วไป %'], ['smeMaxCapital', 'SME ทุนไม่เกิน'], ['smeMaxRevenue', 'SME รายได้ไม่เกิน'], ['minTaxPct', 'ภาษีขั้นต่ำ %'], ['minTaxThreshold', 'ขั้นต่ำเมื่อเงินได้เกิน'], ['lumpPct', 'หักเหมา %'], ['entertainmentPct', 'เพดานค่ารับรอง %'], ['entertainmentMax', 'เพดานค่ารับรองสูงสุด']]" :key="k[0]"><label class="label">{{ k[1] }}</label><input v-model="tbl.t[k[0]]" type="number" class="input h-9" :aria-label="k[1]" /></div></div>
+          <div class="grid grid-cols-2 gap-2"><div v-for="k in [['corporateRate', 'อัตรานิติบุคคลทั่วไป %'], ['smeMaxCapital', 'SME ทุนไม่เกิน'], ['smeMaxRevenue', 'SME รายได้ไม่เกิน'], ['minTaxPct', 'ภาษีขั้นต่ำ %'], ['minTaxThreshold', 'ขั้นต่ำเมื่อเงินได้เกิน'], ['lumpPct', 'หักเหมา %'], ['entertainmentPct', 'เพดานค่ารับรอง %'], ['entertainmentMax', 'เพดานค่ารับรองสูงสุด']]" :key="k[0]"><label class="label">{{ k[1] }}</label><MoneyInput v-model="tbl.t[k[0]]" class="input h-9" :aria-label="k[1]" /></div></div>
           <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
         </div>
         <div class="flex shrink-0 gap-2 border-t border-stone-100 px-5 py-3"><button class="btn-outline flex-1" @click="tbl.open = false; err = ''">ยกเลิก</button><button class="btn-primary flex-1" @click="saveTable">บันทึกตาราง</button></div>

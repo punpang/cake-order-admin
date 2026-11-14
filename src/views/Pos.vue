@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../components/MoneyInput.vue'
 import { orderNo } from '../lib/format'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
@@ -519,7 +520,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <section v-if="!shift" class="card mx-auto max-w-md">
       <div class="card-title"><AppIcon name="pos" class="text-brand-600" /> เปิดกะก่อนขาย</div>
       <label class="label">เงินทอนตั้งต้นในลิ้นชัก (บาท)</label>
-      <input v-model="float" type="text" v-num.dec class="input text-lg font-semibold" placeholder="0" />
+      <MoneyInput v-model="float" class="input text-lg font-semibold" placeholder="0" />
       <button type="button" class="btn-primary mt-3 w-full" @click="doOpen">เปิดกะ</button>
       <div v-if="closedShifts.length" class="mt-5 border-t border-stone-100 pt-4">
         <div class="label">กะที่ผ่านมา</div>
@@ -660,7 +661,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <p v-if="usedPromos.length" class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">โปรที่ใช้: {{ usedPromos.join(' · ') }}</p>
           <div v-if="can('adjustPrice')">
             <label class="label">ส่วนลดบิล (บาท)</label>
-            <input v-model="discount" type="text" v-num.dec class="input h-10" placeholder="0" />
+            <MoneyInput v-model="discount" class="input h-10" placeholder="0" />
           </div>
         </div>
         <div class="border-t border-stone-100 p-4">
@@ -717,7 +718,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <div class="flex justify-between font-semibold"><dt>เงินสดที่ควรมีในลิ้นชัก</dt><dd>{{ money(summary.expectedCash) }}</dd></div>
       </dl>
       <label class="label mt-4">เงินสดที่นับได้ (บาท)</label>
-      <input v-model="counted" type="text" v-num.dec class="input text-lg font-semibold" placeholder="0" />
+      <MoneyInput v-model="counted" class="input text-lg font-semibold" placeholder="0" />
       <p v-if="counted !== ''" class="mt-1 text-sm" :class="Number(counted) - summary.expectedCash === 0 ? 'text-emerald-700' : 'text-amber-700'">ส่วนต่าง {{ money(Number(counted) - summary.expectedCash) }}</p>
       <button type="button" class="btn-primary mt-3 w-full" :disabled="counted === ''" @click="doClose">ปิดกะ</button>
     </section>
@@ -836,11 +837,11 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <button v-if="!l.qrRef && (payLines.length > 1 || l.method !== 'cash')" type="button" class="rounded-full px-3 py-1 text-sm font-medium text-rose-700 hover:bg-rose-50" @click="removePayLine(i)">ลบ</button>
           </div>
           <label class="label mt-3" :for="'amt-' + l.key">ยอด (บาท)</label>
-          <input :id="'amt-' + l.key" v-model="l.amount" type="text" v-num.dec class="input h-12 text-lg font-semibold" :readonly="!!l.qrRef" />
+          <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input h-12 text-lg font-semibold" :readonly="!!l.qrRef" />
 
           <template v-if="l.method === 'cash'">
             <label class="label mt-3" :for="'rcv-' + l.key">รับเงินมา (บาท)</label>
-            <input :id="'rcv-' + l.key" v-model="l.received" type="text" v-num.dec class="input h-12 text-xl font-semibold" placeholder="0" />
+            <MoneyInput :id="'rcv-' + l.key" v-model="l.received" class="input h-12 text-xl font-semibold" placeholder="0" />
             <div class="mt-2 flex flex-wrap gap-2">
               <button v-for="v in quickFor(l)" :key="v" type="button" class="chip chip-off" @click="l.received = String(v)">{{ v === lineAmt(l) ? 'พอดี' : money(v) }}</button>
             </div>

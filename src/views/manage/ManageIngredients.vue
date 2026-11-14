@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../../components/MoneyInput.vue'
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import { db, saveIngredient } from '../../data/store'
@@ -81,8 +82,8 @@ async function save() {
         <div>
           <div class="label">ต้นทุน (ราคาต่อแพ็ก)</div>
           <div class="grid grid-cols-2 gap-3">
-            <div><label class="text-xs text-stone-500">ขนาดแพ็ก ({{ form.unit || 'หน่วย' }})</label><input v-model.number="form.packSize" type="text" v-num.dec min="0" class="input" /></div>
-            <div><label class="text-xs text-stone-500">ราคาต่อแพ็ก (บาท)</label><input v-model.number="form.packPrice" type="text" v-num.dec min="0" class="input" /></div>
+            <div><label class="text-xs text-stone-500">ขนาดแพ็ก ({{ form.unit || 'หน่วย' }})</label><MoneyInput v-model.number="form.packSize" min="0" class="input" /></div>
+            <div><label class="text-xs text-stone-500">ราคาต่อแพ็ก (บาท)</label><MoneyInput v-model.number="form.packPrice" min="0" class="input" /></div>
           </div>
           <p class="mt-1 text-xs text-stone-500">= {{ costText(form) }}</p>
         </div>

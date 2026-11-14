@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../../components/MoneyInput.vue'
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { db, saveBundle } from '../../data/store'
@@ -399,11 +400,11 @@ async function save() {
 
         <div class="mt-4 grid gap-2 sm:grid-cols-2">
           <div class="flex items-center gap-2">
-            <input v-model="fillAmount" type="text" v-num.dec class="input h-10 min-w-0 flex-1" placeholder="ลดเท่ากันทุกขนาด (บาท)" aria-label="ลดเท่ากันทุกขนาด (บาท)" data-fill-input />
+            <MoneyInput v-model="fillAmount" class="input h-10 min-w-0 flex-1" placeholder="ลดเท่ากันทุกขนาด (บาท)" aria-label="ลดเท่ากันทุกขนาด (บาท)" data-fill-input />
             <button type="button" class="btn-soft h-10 shrink-0 px-3 disabled:opacity-40" :disabled="fillAmount === ''" data-fill-amount @click="fillAll">ใช้ทุกขนาด</button>
           </div>
           <div class="flex items-center gap-2">
-            <input v-model="fillPct" type="text" v-num.dec class="input h-10 min-w-0 flex-1" placeholder="ลดกี่ % ของราคาปกติ" aria-label="ลดกี่เปอร์เซ็นต์ของราคาปกติ" />
+            <MoneyInput v-model="fillPct" class="input h-10 min-w-0 flex-1" placeholder="ลดกี่ % ของราคาปกติ" aria-label="ลดกี่เปอร์เซ็นต์ของราคาปกติ" />
             <button type="button" class="btn-soft h-10 shrink-0 px-3 disabled:opacity-40" :disabled="!hasItems || !(Number(fillPct) > 0)" data-fill-percent @click="fillPercent">คิดจากราคาปกติ</button>
           </div>
         </div>
@@ -429,10 +430,8 @@ async function save() {
               <div class="grid grid-cols-[4.25rem_minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
                 <span class="truncate text-sm font-semibold text-stone-900">{{ r.name }}</span>
                 <span class="text-right text-sm text-stone-600" data-reg>{{ hasItems ? qty(r.reg) : '—' }}</span>
-                <input
+                <MoneyInput
                   v-model="cells[r.id]"
-                  type="text"
-                  v-num.dec
                   @input="unlinkScope"
                   class="input h-10 max-w-[9rem] justify-self-end px-2 text-right"
                   :placeholder="r.placeholder"
@@ -490,7 +489,7 @@ async function save() {
             <div v-if="draft.styleMode[st.id] === 'own'" class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <label v-for="sz in sizes" :key="sz.id" class="text-xs text-stone-500">
                 {{ sz.name }} (บาท)
-                <input v-model="draft.styleDiscount[st.id][sz.id]" type="text" v-num.dec class="input mt-1 h-10 px-2" :data-style-disc="`${st.id}:${sz.id}`" placeholder="0" />
+                <MoneyInput v-model="draft.styleDiscount[st.id][sz.id]" class="input mt-1 h-10 px-2" :data-style-disc="`${st.id}:${sz.id}`" placeholder="0" />
               </label>
             </div>
           </div>

@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from './MoneyInput.vue'
 import { computed } from 'vue'
 import { db } from '../data/store'
 import { REFUND_METHODS, refundErrors } from '../lib/refund'
@@ -41,7 +42,7 @@ const pts = (x) => (x.method === 'points' && Number(x.amount) > 0 ? Math.round((
         >{{ l }}</button>
       </div>
       <div class="flex items-center gap-2">
-        <input v-model.number="x.amount" type="text" v-num.dec class="input min-w-0 flex-1" placeholder="จำนวนเงิน (บาท)" :aria-label="`ยอดคืน ${REFUND_METHODS[x.method]}`" />
+        <MoneyInput v-model.number="x.amount" class="input min-w-0 flex-1" placeholder="จำนวนเงิน (บาท)" :aria-label="`ยอดคืน ${REFUND_METHODS[x.method]}`" />
         <button type="button" class="btn-danger h-11 w-11 shrink-0 px-0" aria-label="ลบแถว" @click="rows.splice(i, 1)"><AppIcon name="trash" :size="16" /></button>
       </div>
       <p v-if="pts(x) != null" class="text-xs text-stone-500">= {{ pts(x) }} คะแนน (1 คะแนน = {{ money(pv) }}) อายุตามค่าตั้งต้น {{ db.loyalty.pointExpireDays }} วัน</p>

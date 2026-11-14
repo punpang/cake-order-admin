@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from './MoneyInput.vue'
 import { computed, watch } from 'vue'
 import { db, findCustomer, suggestShipping } from '../data/store'
 import { checkMapUrl, LIMITS } from '../lib/delivery'
@@ -51,8 +52,8 @@ const onFee = () => (props.form.feeManual = true)
     </div>
     <div><label class="label">รายละเอียด <span class="font-normal text-stone-400">(ทางเข้า / ฝากไว้ / เบอร์ผู้รับ)</span></label><textarea v-model="form.detail" rows="2" class="input" :maxlength="LIMITS.detail" /></div>
     <div class="grid grid-cols-2 gap-3">
-      <div><label class="label">ระยะทาง (กม.)</label><input v-model.number="form.distanceKm" type="text" v-num.dec min="0" class="input" aria-label="ระยะทาง กิโลเมตร" /></div>
-      <div><label class="label">ค่าส่ง (ลูกค้าออก) บาท</label><input v-model.number="form.shippingFee" type="text" v-num.dec min="0" class="input" aria-label="ค่าส่ง" @input="onFee" /></div>
+      <div><label class="label">ระยะทาง (กม.)</label><MoneyInput v-model.number="form.distanceKm" min="0" class="input" aria-label="ระยะทาง กิโลเมตร" /></div>
+      <div><label class="label">ค่าส่ง (ลูกค้าออก) บาท</label><MoneyInput v-model.number="form.shippingFee" min="0" class="input" aria-label="ค่าส่ง" @input="onFee" /></div>
     </div>
     <div v-if="cfg.enabled" class="flex flex-wrap items-center gap-2 text-xs text-stone-500">
       <span>เรต: ฟรี {{ cfg.freeKm }} กม. แล้ว {{ cfg.perKm }} บาท/กม.<template v-if="cfg.minFee"> ขั้นต่ำ {{ money(cfg.minFee) }}</template></span>

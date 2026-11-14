@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../../components/MoneyInput.vue'
 import { computed, reactive, ref } from 'vue'
 import { can } from '../../data/store'
 import { activeAccounts, recurring, recurringStatus, saveRecurring, removeRecurring, postRecurring, skipRecurring, deferrals, deferralRows, saveDeferral, removeDeferral, installments, installmentRows, saveInstallment, payInstallment, removeInstallment } from '../../data/acct'
@@ -147,8 +148,8 @@ const SET = [['cash', 'เงินสด'], ['bank', 'ธนาคาร/โอ
         <div><label class="label">ชื่อรายการ</label><input v-model="rf.name" class="input" maxlength="100" aria-label="ชื่อรายการประจำ" /></div>
         <div><label class="label">หมวดบัญชี</label><select v-model="rf.account" class="input" aria-label="บัญชีรายการประจำ"><option value="" disabled>เลือกหมวด</option><option v-for="a in expAccts" :key="a.id" :value="a.id">{{ a.id }} {{ a.name }}</option></select></div>
         <div class="grid grid-cols-2 gap-1 seg-grid"><button v-for="m in [['fixed', 'คงที่'], ['variable', 'ไม่คงที่']]" :key="m[0]" type="button" class="h-9 rounded-lg text-sm font-medium" :class="rf.kind === m[0] ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="rf.kind = m[0]">{{ m[1] }}</button></div>
-        <div v-if="rf.kind === 'fixed'"><label class="label">จำนวนเงินต่อเดือน</label><input v-model="rf.amount" v-num.dec class="input" aria-label="จำนวนเงินประจำ" /></div>
-        <div v-else><label class="label">ประมาณการต่อเดือน (ใส่ยอดจริงทุกเดือนตอนบันทึก)</label><input v-model="rf.estimate" v-num.dec class="input" aria-label="ประมาณการ" /></div>
+        <div v-if="rf.kind === 'fixed'"><label class="label">จำนวนเงินต่อเดือน</label><MoneyInput v-model="rf.amount" class="input" aria-label="จำนวนเงินประจำ" /></div>
+        <div v-else><label class="label">ประมาณการต่อเดือน (ใส่ยอดจริงทุกเดือนตอนบันทึก)</label><MoneyInput v-model="rf.estimate" class="input" aria-label="ประมาณการ" /></div>
         <div class="grid grid-cols-2 gap-3"><div><label class="label">ครบกำหนดวันที่</label><input v-model="rf.dueDay" v-num class="input" aria-label="วันครบกำหนด" /></div><div><label class="label">ผ่อนผัน (วัน) ก่อนเตือน</label><input v-model="rf.graceDays" v-num class="input" aria-label="วันผ่อนผัน" /></div></div>
         <div class="grid grid-cols-2 gap-3"><div><label class="label">จ่ายโดย</label><select v-model="rf.settle" class="input" aria-label="จ่ายโดย"><option v-for="s in SET" :key="s[0]" :value="s[0]">{{ s[1] }}</option></select></div><div><label class="label">เริ่มเดือน</label><input v-model="rf.startMonth" type="month" class="input" aria-label="เริ่มเดือน" /></div></div>
         <div><label class="label">คู่ค้า</label><input v-model="rf.payee" class="input" maxlength="100" aria-label="คู่ค้า" /></div>
@@ -159,7 +160,7 @@ const SET = [['cash', 'เงินสด'], ['bank', 'ธนาคาร/โอ
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="rOpen = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="rSave">บันทึก</button></template>
     </AppModal>
     <AppModal v-if="post.open" :title="`บันทึก ${post.t?.name}`" @close="post.open = false">
-      <div><label class="label">ยอดเดือน {{ monthLabel(ym) }} (ประมาณ {{ money(post.t?.estimate) }})</label><input v-model="post.amount" v-num.dec class="input" aria-label="ยอดเดือนนี้" /></div>
+      <div><label class="label">ยอดเดือน {{ monthLabel(ym) }} (ประมาณ {{ money(post.t?.estimate) }})</label><MoneyInput v-model="post.amount" class="input" aria-label="ยอดเดือนนี้" /></div>
       <p v-if="err" class="mt-2 text-sm text-rose-700" role="alert">{{ err }}</p>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="post.open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="rPostVar">บันทึก</button></template>
     </AppModal>
@@ -172,7 +173,7 @@ const SET = [['cash', 'เงินสด'], ['bank', 'ธนาคาร/โอ
       <div class="space-y-3">
         <div class="grid grid-cols-2 gap-1 seg-grid"><button v-for="m in [['prepaid', 'จ่ายล่วงหน้า'], ['unearned', 'รับล่วงหน้า']]" :key="m[0]" type="button" class="h-9 rounded-lg text-sm font-medium" :class="df.kind === m[0] ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="df.kind = m[0]; df.account = ''">{{ m[1] }}</button></div>
         <div><label class="label">ชื่อรายการ</label><input v-model="df.name" class="input" maxlength="100" aria-label="ชื่อรายการล่วงหน้า" /></div>
-        <div class="grid grid-cols-2 gap-3"><div><label class="label">จำนวนเงินรวม</label><input v-model="df.total" v-num.dec class="input" aria-label="ยอดล่วงหน้า" /></div><div><label class="label">ทยอยกี่เดือน</label><input v-model="df.months" v-num class="input" aria-label="จำนวนเดือนล่วงหน้า" /></div></div>
+        <div class="grid grid-cols-2 gap-3"><div><label class="label">จำนวนเงินรวม</label><MoneyInput v-model="df.total" class="input" aria-label="ยอดล่วงหน้า" /></div><div><label class="label">ทยอยกี่เดือน</label><input v-model="df.months" v-num class="input" aria-label="จำนวนเดือนล่วงหน้า" /></div></div>
         <div class="grid grid-cols-2 gap-3"><div><label class="label">เริ่มตัดเดือน</label><input v-model="df.startMonth" type="month" class="input" aria-label="เริ่มตัดเดือน" /></div><div><label class="label">วันที่{{ df.kind === 'unearned' ? 'รับ' : 'จ่าย' }}เงิน</label><input v-model="df.payDate" type="date" class="input" aria-label="วันที่รับจ่ายล่วงหน้า" /></div></div>
         <div><label class="label">{{ df.kind === 'unearned' ? 'บัญชีรายได้ที่จะรับรู้' : 'บัญชีค่าใช้จ่ายที่จะตัด' }}</label><select v-model="df.account" class="input" aria-label="บัญชีปลายทางล่วงหน้า"><option value="" disabled>เลือกบัญชี</option><option v-for="a in (df.kind === 'unearned' ? revAccts : expAccts)" :key="a.id" :value="a.id">{{ a.id }} {{ a.name }}</option></select></div>
         <div><label class="label">{{ df.kind === 'unearned' ? 'รับเงินทาง' : 'จ่ายโดย' }}</label><select v-model="df.method" class="input" aria-label="วิธีรับจ่ายล่วงหน้า"><option v-for="s in SET.filter((x) => df.kind === 'prepaid' || x[0] !== 'payable')" :key="s[0]" :value="s[0]">{{ s[1] }}</option></select></div>
@@ -184,7 +185,7 @@ const SET = [['cash', 'เงินสด'], ['bank', 'ธนาคาร/โอ
       <div class="space-y-3">
         <div class="grid grid-cols-2 gap-1 seg-grid"><button v-for="m in [['loan', 'เงินกู้'], ['purchase', 'ซื้อผ่อน']]" :key="m[0]" type="button" class="h-9 rounded-lg text-sm font-medium" :class="inf.kind === m[0] ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="inf.kind = m[0]">{{ m[1] }}</button></div>
         <div><label class="label">ชื่อรายการ</label><input v-model="inf.name" class="input" maxlength="100" aria-label="ชื่อรายการผ่อน" /></div>
-        <div class="grid grid-cols-2 gap-3"><div><label class="label">เงินต้น</label><input v-model="inf.principal" v-num.dec class="input" aria-label="เงินต้นผ่อน" /></div><div><label class="label">ดอกเบี้ย % ต่อปี</label><input v-model="inf.ratePct" v-num.dec class="input" aria-label="ดอกเบี้ยต่อปี" /></div></div>
+        <div class="grid grid-cols-2 gap-3"><div><label class="label">เงินต้น</label><MoneyInput v-model="inf.principal" class="input" aria-label="เงินต้นผ่อน" /></div><div><label class="label">ดอกเบี้ย % ต่อปี</label><MoneyInput v-model="inf.ratePct" class="input" aria-label="ดอกเบี้ยต่อปี" /></div></div>
         <div class="grid grid-cols-2 gap-3"><div><label class="label">จำนวนงวด (เดือน)</label><input v-model="inf.n" v-num class="input" aria-label="จำนวนงวด" /></div><div><label class="label">วิธีคิดดอก</label><select v-model="inf.method" class="input" aria-label="วิธีคิดดอก"><option value="reducing">ลดต้นลดดอก</option><option value="flat">คงที่ (flat)</option></select></div></div>
         <div class="grid grid-cols-2 gap-3"><div><label class="label">วันที่เริ่ม/รับเงิน</label><input v-model="inf.startDate" type="date" class="input" aria-label="วันที่เริ่มผ่อน" /></div><div><label class="label">ครบงวดแรก</label><input v-model="inf.firstDue" type="date" class="input" aria-label="ครบงวดแรก" /></div></div>
         <div v-if="inf.kind === 'loan'"><label class="label">รับเงินเข้า</label><select v-model="inf.receive" class="input" aria-label="รับเงินกู้เข้า"><option value="bank">ธนาคาร</option><option value="cash">เงินสด</option></select></div>

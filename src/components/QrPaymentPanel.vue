@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from './MoneyInput.vue'
 // สร้าง QR ชำระจากออร์เดอร์ (ใช้ในหน้ารายละเอียดออร์เดอร์และหน้าเครื่องมือ QR)
 // ทุกครั้งที่กดสร้าง = รายการแจ้งชำระใหม่ของออร์เดอร์นั้น · Ref 1 = รหัสร้านค้า · Ref 2 = POS/ORD + รหัสสุ่ม
 import { computed, ref } from 'vue'
@@ -38,7 +39,7 @@ function make() {
     <div class="flex flex-wrap items-end gap-2">
       <div class="min-w-0 flex-1">
         <label class="label" for="qrp-amount">จำนวนเงิน (บาท)</label>
-        <input id="qrp-amount" v-model="amt" type="text" inputmode="decimal" class="input" placeholder="เช่น 389" />
+        <MoneyInput id="qrp-amount" v-model="amt" class="input" placeholder="เช่น 389" />
       </div>
       <button type="button" class="btn-primary" @click="make">สร้าง QR</button>
     </div>

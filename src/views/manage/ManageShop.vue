@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../../components/MoneyInput.vue'
 import { validTaxId, validBranch } from '../../lib/acct/taxid'
 import { computed, reactive, ref } from 'vue'
 import { db, saveShopSettings, saveSlipQrSettings, pickupSlots } from '../../data/store'
@@ -189,9 +190,9 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         <div class="card-title mb-3"><AppIcon name="truck" class="text-brand-600" /> ค่าจัดส่งจากระยะทาง</div>
         <AppSwitch v-model="st.delivery.enabled" label="คิดค่าส่งแนะนำจากระยะทาง (พนักงานแก้ทับได้)" class="flex" />
         <div v-if="st.delivery.enabled" class="mt-3 grid grid-cols-2 gap-3">
-          <div><label class="label">ฟรีในระยะ (กม.)</label><input v-model.number="st.delivery.freeKm" type="text" v-num.dec min="0" class="input" /></div>
-          <div><label class="label">เกินแล้วคิด (บาท/กม.)</label><input v-model.number="st.delivery.perKm" type="text" v-num.dec min="0" class="input" /></div>
-          <div><label class="label">ค่าส่งขั้นต่ำเมื่อเกินระยะฟรี (บาท)</label><input v-model.number="st.delivery.minFee" type="text" v-num.dec min="0" class="input" /></div>
+          <div><label class="label">ฟรีในระยะ (กม.)</label><MoneyInput v-model.number="st.delivery.freeKm" min="0" class="input" /></div>
+          <div><label class="label">เกินแล้วคิด (บาท/กม.)</label><MoneyInput v-model.number="st.delivery.perKm" min="0" class="input" /></div>
+          <div><label class="label">ค่าส่งขั้นต่ำเมื่อเกินระยะฟรี (บาท)</label><MoneyInput v-model.number="st.delivery.minFee" min="0" class="input" /></div>
           <div><label class="label">ปัดขึ้นทีละ (บาท)</label><input v-model.number="st.delivery.roundTo" type="text" v-num min="1" class="input" /></div>
           <p class="col-span-2 text-xs text-stone-500">ตัวอย่าง 8 กม.: {{ exampleFee == null ? 'ตั้งเรตต่อกม. ให้มากกว่า 0' : money(exampleFee) }}</p>
         </div>
@@ -201,7 +202,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         <AppSwitch v-model="st.vat.enabled" label="คิด VAT กับออร์เดอร์ใหม่ (ทุกช่องทาง รวม POS)" class="flex" />
         <template v-if="st.vat.enabled">
           <div class="mt-3 grid grid-cols-2 gap-3">
-            <div><label class="label">อัตรา (%)</label><input v-model="st.vat.rate" type="text" v-num.dec class="input" /></div>
+            <div><label class="label">อัตรา (%)</label><MoneyInput v-model="st.vat.rate" class="input" /></div>
             <div>
               <div class="label">รูปแบบ</div>
               <div class="grid grid-cols-2 gap-1 seg-grid">

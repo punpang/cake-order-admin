@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../../components/MoneyInput.vue'
 import { orderNo } from '../../lib/format'
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
@@ -248,7 +249,7 @@ async function save() {
         <div><label class="label">ที่อยู่ <span class="text-rose-600">*</span></label><textarea v-model="pl.address" rows="2" class="input" maxlength="300" /></div>
         <div><label class="label">url แผนที่ (https)</label><input v-model="pl.mapUrl" type="url" class="input" /></div>
         <div><label class="label">รายละเอียด</label><textarea v-model="pl.detail" rows="2" class="input" maxlength="300" /></div>
-        <div class="max-w-[10rem]"><label class="label">ระยะทาง (กม.)</label><input v-model.number="pl.distanceKm" type="text" v-num.dec min="0" class="input" /></div>
+        <div class="max-w-[10rem]"><label class="label">ระยะทาง (กม.)</label><MoneyInput v-model.number="pl.distanceKm" min="0" class="input" /></div>
         <p v-if="pl.error" class="text-sm text-rose-700">{{ pl.error }}</p>
       </div>
       <template #footer>

@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../../components/MoneyInput.vue'
 import { computed, reactive, ref } from 'vue'
 import { db, can } from '../../data/store'
 import { saveManual, saveJournal, deleteManual, reverseEntry, settleEntry, activeAccounts, locked } from '../../data/acct'
@@ -122,7 +123,7 @@ function saveJ() {
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="label">วันที่</label><input v-model="f.date" type="date" class="input" aria-label="วันที่รายการ" /></div>
-          <div><label class="label">จำนวนเงิน (บาท)</label><input v-model="f.amount" type="text" v-num.dec class="input text-lg font-semibold" aria-label="จำนวนเงิน" /></div>
+          <div><label class="label">จำนวนเงิน (บาท)</label><MoneyInput v-model="f.amount" class="input text-lg font-semibold" aria-label="จำนวนเงิน" /></div>
         </div>
         <div><label class="label">หมวด</label>
           <select v-model="f.account" class="input" aria-label="หมวดบัญชี"><option value="" disabled>เลือกหมวด</option><option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.id }} {{ a.name }}</option></select>
@@ -132,7 +133,7 @@ function saveJ() {
           <div class="flex flex-wrap gap-2">
             <button v-for="m in [{ v: 'none', t: 'ไม่มี VAT' }, { v: 'included', t: 'ราคารวม VAT แล้ว' }, { v: 'excluded', t: 'ยังไม่รวม VAT' }]" :key="m.v" type="button" class="chip" :class="f.vatMode === m.v ? 'chip-on' : 'chip-off'" @click="f.vatMode = m.v">{{ m.t }}</button>
           </div>
-          <div v-if="f.vatMode !== 'none'" class="mt-2 grid grid-cols-2 gap-3"><div><label class="label">อัตรา (%)</label><input v-model.number="f.vatRate" type="text" v-num.dec class="input" aria-label="อัตรา VAT" /></div>
+          <div v-if="f.vatMode !== 'none'" class="mt-2 grid grid-cols-2 gap-3"><div><label class="label">อัตรา (%)</label><MoneyInput v-model.number="f.vatRate" class="input" aria-label="อัตรา VAT" /></div>
             <div v-if="f.kind === 'expense'" class="self-end"><AppSwitch v-model="f.claimable" label="ขอคืนภาษีซื้อได้" /></div></div>
         </div>
         <div>
@@ -169,8 +170,8 @@ function saveJ() {
         <div class="grid grid-cols-2 gap-3"><div><label class="label">วันที่</label><input v-model="j.date" type="date" class="input" aria-label="วันที่รายการขั้นสูง" /></div><div><label class="label">คำอธิบาย</label><input v-model="j.memo" class="input" maxlength="200" aria-label="คำอธิบายรายการขั้นสูง" /></div></div>
         <div v-for="(l, i) in j.lines" :key="i" class="grid grid-cols-[1fr_5.5rem_5.5rem] gap-2">
           <select v-model="l.account" class="input px-2" :aria-label="`บัญชีบรรทัด ${i + 1}`"><option value="">บัญชี</option><option v-for="a in activeAccounts()" :key="a.id" :value="a.id">{{ a.id }} {{ a.name }}</option></select>
-          <input v-model="l.dr" type="text" v-num.dec class="input px-2" placeholder="เดบิต" :aria-label="`เดบิตบรรทัด ${i + 1}`" />
-          <input v-model="l.cr" type="text" v-num.dec class="input px-2" placeholder="เครดิต" :aria-label="`เครดิตบรรทัด ${i + 1}`" />
+          <MoneyInput v-model="l.dr" class="input px-2" placeholder="เดบิต" :aria-label="`เดบิตบรรทัด ${i + 1}`" />
+          <MoneyInput v-model="l.cr" class="input px-2" placeholder="เครดิต" :aria-label="`เครดิตบรรทัด ${i + 1}`" />
         </div>
         <button class="text-sm text-brand-700 underline" @click="j.lines.push({ account: '', dr: '', cr: '' })">+ เพิ่มบรรทัด</button>
         <div class="flex justify-between rounded-xl p-3 text-sm" :class="jDr === jCr && jDr > 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'"><span>เดบิต {{ money(jDr) }}</span><span>เครดิต {{ money(jCr) }}</span></div>

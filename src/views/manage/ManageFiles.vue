@@ -4,6 +4,7 @@ import ManageShell from '../../components/ManageShell.vue'
 import { getSupabase } from '../../lib/supabase'
 import { filesEnabled, filesApi, filesBase } from '../../lib/storage'
 import { askConfirm } from '../../lib/confirm'
+import MoneyInput from '../../components/MoneyInput.vue'
 import { dateTime } from '../../lib/format'
 import { clearImageLimitsCache } from '../../lib/imageLimits'
 import { openLightbox } from '../../lib/lightbox'
@@ -128,7 +129,7 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
           <label class="block"><span class="label">สลิป (วัน)</span><input v-model.number="ret.slipDays" type="number" min="30" max="3650" class="input" /></label>
           <label class="block"><span class="label">รูปอ้างอิง (วัน)</span><input v-model.number="ret.refDays" type="number" min="30" max="3650" class="input" /></label>
           <label class="block"><span class="label">ถังขยะ (วัน)</span><input v-model.number="ret.trashDays" type="number" min="30" max="3650" class="input" /></label>
-          <label class="block"><span class="label">ขนาดไฟล์ (MB)</span><input v-model.number="lim.maxMB" type="number" min="1" max="20" step="0.5" class="input" /></label>
+          <label class="block"><span class="label">ขนาดไฟล์ (MB)</span><MoneyInput v-model.number="lim.maxMB" min="1" max="20" class="input" /></label>
           <label class="block"><span class="label">ด้านยาว (px)</span><input v-model.number="lim.maxPx" type="number" min="500" max="4000" step="100" class="input" /></label>
         </div>
         <p class="mt-2 text-xs text-stone-500">วันขั้นต่ำ 30 · ระบบย่อรูปที่ใหญ่เกินอัตโนมัติก่อนอัปโหลด</p>

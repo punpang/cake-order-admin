@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from './MoneyInput.vue'
 import { orderNo } from '../lib/format'
 import { safeHref } from '../lib/safeUrl'
 import { computed, reactive, ref, watch } from 'vue'
@@ -398,7 +399,7 @@ const beforeDiscount = computed(() => {
               <button v-for="p in requests" :key="p.id" type="button" class="chip" :class="f.mode === 'req' && f.paymentId === p.id ? 'chip-on' : 'chip-off'" @click="pick('req', p)">ตามที่ร้านแจ้ง {{ money(p.amount) }}</button>
               <button type="button" class="chip" :class="f.mode === 'custom' ? 'chip-on' : 'chip-off'" @click="pick('custom')">ระบุเอง</button>
             </div>
-            <input v-if="f.mode === 'custom'" v-model="f.custom" type="text" inputmode="decimal" class="input mt-2" placeholder="ยอดที่โอน (บาท)" aria-label="ยอดที่โอน" />
+            <MoneyInput v-if="f.mode === 'custom'" v-model="f.custom" class="input mt-2" placeholder="ยอดที่โอน (บาท)" aria-label="ยอดที่โอน" />
             <p v-if="f.mode === 'custom' && minimum > 0" class="mt-1 text-xs text-stone-500">ขั้นต่ำ {{ money(minimum) }}</p>
             <p v-if="f.mode === 'custom' && Number(f.custom) > room" class="mt-1 text-xs text-rose-700">เกินคงค้าง (ไม่เกิน {{ money(room) }})</p>
           </div>

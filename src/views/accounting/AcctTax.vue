@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../../components/MoneyInput.vue'
 import { computed, reactive, ref } from 'vue'
 import { can, db } from '../../data/store'
 import { allEntries, vatReport, vatSetExtra, vatMarkFiled, vatReopen, vatDiff, vatThreshold, taxInvoices } from '../../data/acct'
@@ -80,10 +81,10 @@ function exportInvoices() {
       <p v-if="diff" class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">ข้อมูลเปลี่ยนหลังยื่น: ภาษีขายต่างจากที่ยื่น {{ money(diff.outputVat) }} · ภาษีซื้อต่างจากที่ยื่น {{ money(diff.inputVat) }} — ตรวจสอบและยื่นแบบเพิ่มเติมถ้าจำเป็น</p>
       <section v-if="!rep.filing?.filedAt" class="card space-y-3 text-sm">
         <div class="card-title">ยอดที่กรอกเอง (ไม่อยู่ในระบบ)</div>
-        <div class="grid grid-cols-2 gap-3"><div><label class="label">ยอดขายอัตราร้อยละ 0</label><input v-model="extra.zeroRated" v-num.dec class="input" :disabled="!canTax" aria-label="ยอดขายอัตราศูนย์" /></div><div><label class="label">ยอดขายที่ได้รับยกเว้น</label><input v-model="extra.exempt" v-num.dec class="input" :disabled="!canTax" aria-label="ยอดขายยกเว้น" /></div></div>
+        <div class="grid grid-cols-2 gap-3"><div><label class="label">ยอดขายอัตราร้อยละ 0</label><MoneyInput v-model="extra.zeroRated" class="input" :disabled="!canTax" aria-label="ยอดขายอัตราศูนย์" /></div><div><label class="label">ยอดขายที่ได้รับยกเว้น</label><MoneyInput v-model="extra.exempt" class="input" :disabled="!canTax" aria-label="ยอดขายยกเว้น" /></div></div>
         <button v-if="canTax" class="btn-soft" @click="saveExtra">บันทึกยอด</button>
         <div class="card-title mt-2">บันทึกว่ายื่นแล้ว (ล็อกเดือนภาษี)</div>
-        <div class="grid grid-cols-2 gap-3"><div><label class="label">วันที่ยื่น</label><input v-model="fil.filedAt" type="date" class="input" aria-label="วันที่ยื่น" /></div><div><label class="label">เลขอ้างอิง</label><input v-model="fil.ref" class="input" maxlength="60" aria-label="เลขอ้างอิงการยื่น" /></div><div class="col-span-2"><label class="label">ยอดที่ชำระ</label><input v-model="fil.paid" v-num.dec class="input" aria-label="ยอดภาษีที่ชำระ" /></div></div>
+        <div class="grid grid-cols-2 gap-3"><div><label class="label">วันที่ยื่น</label><input v-model="fil.filedAt" type="date" class="input" aria-label="วันที่ยื่น" /></div><div><label class="label">เลขอ้างอิง</label><input v-model="fil.ref" class="input" maxlength="60" aria-label="เลขอ้างอิงการยื่น" /></div><div class="col-span-2"><label class="label">ยอดที่ชำระ</label><MoneyInput v-model="fil.paid" class="input" aria-label="ยอดภาษีที่ชำระ" /></div></div>
         <button v-if="canTax" class="btn-primary w-full" @click="file">บันทึกว่ายื่นแล้ว</button>
         <p v-else class="text-xs text-stone-500">ต้องมีสิทธิ์ "ภาษี" เพื่อบันทึกการยื่น</p>
       </section>

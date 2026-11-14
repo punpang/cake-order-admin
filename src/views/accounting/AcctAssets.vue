@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../../components/MoneyInput.vue'
 import { computed, reactive, ref } from 'vue'
 import { can } from '../../data/store'
 import { assets, ASSET_CATS, saveAsset, disposeAsset, removeAsset, assetSchedule, assetTaxDepr, taxRateOf } from '../../data/acct'
@@ -63,9 +64,9 @@ const totals = computed(() => assets().filter((a) => !a.disposal).reduce((t, a) 
       <div class="space-y-3">
         <div><label class="label">ชื่อสินทรัพย์</label><input v-model="f.name" class="input" maxlength="100" aria-label="ชื่อสินทรัพย์" /></div>
         <div><label class="label">หมวด</label><select v-model="f.category" class="input" aria-label="หมวดสินทรัพย์"><option v-for="c in ASSET_CATS" :key="c.id" :value="c.id">{{ c.label }}</option></select></div>
-        <div class="grid grid-cols-2 gap-3"><div><label class="label">ราคาทุน</label><input v-model="f.cost" v-num.dec class="input" aria-label="ราคาทุน" /></div><div><label class="label">มูลค่าซาก</label><input v-model="f.salvage" v-num.dec class="input" aria-label="มูลค่าซาก" /></div></div>
-        <div class="grid grid-cols-2 gap-3"><div><label class="label">อายุใช้งาน (ปี)</label><input v-model="f.lifeYears" v-num.dec class="input" aria-label="อายุใช้งานปี" /></div><div><label class="label">วิธีคิดค่าเสื่อม</label><select v-model="f.method" class="input" aria-label="วิธีค่าเสื่อม"><option value="sl">เส้นตรง</option><option value="db">ยอดลดลง</option></select></div></div>
-        <div v-if="f.method === 'db'"><label class="label">อัตรา % ต่อปี</label><input v-model="f.rate" v-num.dec class="input" aria-label="อัตราค่าเสื่อมต่อปี" /></div>
+        <div class="grid grid-cols-2 gap-3"><div><label class="label">ราคาทุน</label><MoneyInput v-model="f.cost" class="input" aria-label="ราคาทุน" /></div><div><label class="label">มูลค่าซาก</label><MoneyInput v-model="f.salvage" class="input" aria-label="มูลค่าซาก" /></div></div>
+        <div class="grid grid-cols-2 gap-3"><div><label class="label">อายุใช้งาน (ปี)</label><MoneyInput v-model="f.lifeYears" class="input" aria-label="อายุใช้งานปี" /></div><div><label class="label">วิธีคิดค่าเสื่อม</label><select v-model="f.method" class="input" aria-label="วิธีค่าเสื่อม"><option value="sl">เส้นตรง</option><option value="db">ยอดลดลง</option></select></div></div>
+        <div v-if="f.method === 'db'"><label class="label">อัตรา % ต่อปี</label><MoneyInput v-model="f.rate" class="input" aria-label="อัตราค่าเสื่อมต่อปี" /></div>
         <div class="grid grid-cols-2 gap-3"><div><label class="label">วันที่ซื้อ</label><input v-model="f.buyDate" type="date" class="input" aria-label="วันที่ซื้อสินทรัพย์" /></div><div><label class="label">วันที่เริ่มใช้</label><input v-model="f.startDate" type="date" class="input" aria-label="วันที่เริ่มใช้สินทรัพย์" /></div></div>
         <div v-if="!f.id"><label class="label">การซื้อ</label><select v-model="f.acquire" class="input" aria-label="วิธีซื้อสินทรัพย์"><option value="bank">จ่ายธนาคาร/โอน</option><option value="cash">จ่ายเงินสด</option><option value="payable">ค้างจ่าย (เจ้าหนี้)</option><option value="none">ไม่บันทึกการซื้อ (ยกมา/ซื้อผ่อนไว้แล้ว)</option></select></div>
         <div><label class="label">หมายเหตุ</label><input v-model="f.note" class="input" maxlength="300" aria-label="หมายเหตุสินทรัพย์" /></div>
@@ -76,7 +77,7 @@ const totals = computed(() => assets().filter((a) => !a.disposal).reduce((t, a) 
     <AppModal v-if="disp.open" title="จำหน่าย/ขายสินทรัพย์" @close="disp.open = false">
       <div class="space-y-3">
         <div><label class="label">วันที่จำหน่าย</label><input v-model="disp.date" type="date" class="input" aria-label="วันที่จำหน่าย" /></div>
-        <div><label class="label">ยอดที่ขายได้ (0 = ทิ้ง/ตัดจำหน่าย)</label><input v-model="disp.proceeds" v-num.dec class="input" aria-label="ยอดขายสินทรัพย์" /></div>
+        <div><label class="label">ยอดที่ขายได้ (0 = ทิ้ง/ตัดจำหน่าย)</label><MoneyInput v-model="disp.proceeds" class="input" aria-label="ยอดขายสินทรัพย์" /></div>
         <div><label class="label">รับเงินทาง</label><select v-model="disp.method" class="input" aria-label="รับเงินขายสินทรัพย์"><option value="cash">เงินสด</option><option value="bank">ธนาคาร</option></select></div>
         <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
       </div>

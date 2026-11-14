@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../components/MoneyInput.vue'
 import { orderNo } from '../lib/format'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { loadOneOrder } from '../lib/staffAuth'
@@ -756,7 +757,7 @@ async function saveCancel() {
             >{{ k.l }}</button>
           </div>
           <label class="label">จำนวนเงิน (บาท)</label>
-          <input v-model.number="adj.amount" type="text" v-num.dec class="input text-lg font-semibold" />
+          <MoneyInput v-model.number="adj.amount" class="input text-lg font-semibold" />
         </div>
         <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><input v-model="adj.reason" class="input" /></div>
         <div v-if="customer" class="space-y-2 rounded-xl border border-stone-200 bg-white p-3">

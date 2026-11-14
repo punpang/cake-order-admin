@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../../components/MoneyInput.vue'
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import { db, findGroup, saveGroup, saveOption, moveItem, moveItemTo } from '../../data/store'
@@ -290,14 +291,14 @@ async function saveO() {
         </div>
 
         <template v-if="isSize">
-          <div><label class="label">ขนาด (ปอนด์)</label><input v-model.number="o.pounds" type="text" v-num.dec min="0.5" class="input" /></div>
+          <div><label class="label">ขนาด (ปอนด์)</label><MoneyInput v-model.number="o.pounds" min="0.5" class="input" /></div>
           <p class="text-sm text-stone-500">ราคาของขนาดนี้ตั้งแยกตามประเภทที่ <RouterLink to="/admin/settings/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></p>
         </template>
 
         <div v-else-if="isMain && isFlavor && o.priceType === 'size'" class="space-y-2">
           <div class="label">ราคาบวกเพิ่มตามขนาด (บาท)</div>
           <div class="flex flex-wrap gap-2">
-            <label v-for="sz in sizeOpts" :key="sz.id" class="text-xs text-stone-500">{{ sz.name }}<input v-model="o.sizePrices[sz.id]" type="text" v-num.dec min="0" class="input mt-0.5 h-11 w-24" :data-opt-size="sz.id" placeholder="0" /></label>
+            <label v-for="sz in sizeOpts" :key="sz.id" class="text-xs text-stone-500">{{ sz.name }}<MoneyInput v-model="o.sizePrices[sz.id]" min="0" class="input mt-0.5 h-11 w-24" :data-opt-size="sz.id" placeholder="0" /></label>
           </div>
           <p class="text-xs text-stone-400">เว้นว่าง = ไม่บวกเพิ่มในขนาดนั้น · ราคาพิเศษตามช่วงเวลาตั้งที่ <RouterLink to="/admin/settings/pricing" class="text-brand-700 underline">การกำหนดราคา</RouterLink></p>
         </div>
@@ -346,13 +347,13 @@ async function saveO() {
                 <tbody>
                   <tr class="border-t border-stone-100">
                     <td class="py-1.5 pr-3 font-semibold whitespace-nowrap text-stone-900">ทุกประเภท</td>
-                    <td v-if="o.priceType === 'fixed'" class="px-1 py-1.5"><input v-model="o.price" type="text" v-num.dec min="0" class="input h-10 w-24" placeholder="0" /></td>
-                    <td v-for="sz in o.priceType === 'fixed' ? [] : sizeOpts" :key="sz.id" class="px-1 py-1.5"><input v-model="o.sizePrices[sz.id]" type="text" v-num.dec min="0" class="input h-10 w-24" placeholder="0" /></td>
+                    <td v-if="o.priceType === 'fixed'" class="px-1 py-1.5"><MoneyInput v-model="o.price" min="0" class="input h-10 w-24" placeholder="0" /></td>
+                    <td v-for="sz in o.priceType === 'fixed' ? [] : sizeOpts" :key="sz.id" class="px-1 py-1.5"><MoneyInput v-model="o.sizePrices[sz.id]" min="0" class="input h-10 w-24" placeholder="0" /></td>
                   </tr>
                   <tr v-for="t in types.filter((x) => !o.types.length || o.types.includes(x.id))" :key="t.id" class="border-t border-stone-100">
                     <td class="py-1.5 pr-3 whitespace-nowrap text-stone-700">{{ t.name }}</td>
-                    <td v-if="o.priceType === 'fixed'" class="px-1 py-1.5"><input v-model="o.typePrice[t.id]" type="text" v-num.dec min="0" class="input h-10 w-24" :placeholder="String(o.price || 0)" /></td>
-                    <td v-for="sz in o.priceType === 'fixed' ? [] : sizeOpts" :key="sz.id" class="px-1 py-1.5"><input v-model="o.typePrices[t.id][sz.id]" type="text" v-num.dec min="0" class="input h-10 w-24" :placeholder="String(o.sizePrices[sz.id] || 0)" /></td>
+                    <td v-if="o.priceType === 'fixed'" class="px-1 py-1.5"><MoneyInput v-model="o.typePrice[t.id]" min="0" class="input h-10 w-24" :placeholder="String(o.price || 0)" /></td>
+                    <td v-for="sz in o.priceType === 'fixed' ? [] : sizeOpts" :key="sz.id" class="px-1 py-1.5"><MoneyInput v-model="o.typePrices[t.id][sz.id]" min="0" class="input h-10 w-24" :placeholder="String(o.sizePrices[sz.id] || 0)" /></td>
                   </tr>
                 </tbody>
               </table>

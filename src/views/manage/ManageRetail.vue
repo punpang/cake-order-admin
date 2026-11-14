@@ -1,4 +1,5 @@
 <script setup>
+import MoneyInput from '../../components/MoneyInput.vue'
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import { db, saveRetailItem, addStock, saveModifier, moveItem } from '../../data/store'
@@ -137,7 +138,7 @@ function doAdd() {
           <div class="space-y-2">
             <div v-for="(o, i) in mf.options" :key="i" class="flex items-center gap-2">
               <input v-model="o.name" class="input min-w-0 flex-1" placeholder="เช่น หวานน้อย" />
-              <input v-model="o.price" type="text" v-num.dec class="input w-24 shrink-0" placeholder="0" />
+              <MoneyInput v-model="o.price" class="input w-24 shrink-0" placeholder="0" />
               <button type="button" class="btn-danger h-11 w-11 shrink-0 px-0" aria-label="ลบตัวเลือก" @click="mf.options.splice(i, 1)"><AppIcon name="trash" :size="16" /></button>
             </div>
           </div>
@@ -163,7 +164,7 @@ function doAdd() {
           <datalist id="retail-cats"><option v-for="c in categories" :key="c" :value="c" /></datalist>
         </div>
         <div class="grid grid-cols-2 gap-4">
-          <div><label class="label">ราคา (บาท) <span class="text-rose-600">*</span></label><input v-model="form.price" type="text" v-num.dec class="input" /></div>
+          <div><label class="label">ราคา (บาท) <span class="text-rose-600">*</span></label><MoneyInput v-model="form.price" class="input" /></div>
           <div><label class="label">สต็อก</label><input v-model="form.stock" type="text" v-num class="input" placeholder="ไม่นับ" /></div>
         </div>
         <p class="text-xs text-stone-400">สต็อกเว้นว่าง = ไม่นับสต็อก (เช่น เครื่องดื่มชงสด) · ขายใน POS แล้วตัดสต็อกอัตโนมัติ</p>
