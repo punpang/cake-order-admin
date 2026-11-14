@@ -297,7 +297,12 @@ function closePay() {
   payLines.value = []
   clearInterval(payTimer)
 }
-onBeforeUnmount(() => clearInterval(payTimer))
+onBeforeUnmount(() => {
+  clearInterval(payTimer)
+  clearTimeout(thanksTimer)
+  // ออกจากหน้าขาย: จอลูกค้ากลับเป็นหน้ายินดีต้อนรับ (ไม่ค้างตะกร้า/การชำระ/QR)
+  if (native) pushDisplay({ status: 'idle', shopName: db.shop?.name || '' })
+})
 onMounted(() => { if (native) showDisplay().catch(() => {}) })
 function addPayLine(method) {
   if (remaining.value <= 0) return
