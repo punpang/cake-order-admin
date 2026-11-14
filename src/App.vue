@@ -74,7 +74,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
 
   <template v-else>
   <!-- แถบบน -->
-  <header v-show="!kbLock" class="sticky top-0 z-20 bg-cream/90 shadow-[0_1px_0_rgb(63_46_46/0.06)] backdrop-blur-xl">
+  <header v-show="!kbLock" class="sticky top-0 z-20 bg-cream shadow-[0_1px_0_rgb(63_46_46/0.06)]">
     <div class="mx-auto flex h-14 max-w-page items-center gap-3 px-4 lg:px-8">
       <RouterLink :to="firstHome(can)" class="flex min-w-0 items-center gap-2.5" :aria-label="`${shopName} หน้าแรกหลังบ้าน`">
         <svg viewBox="0 0 48 48" class="h-10 w-10 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2" stroke-linejoin="round"><ellipse cx="24" cy="40" rx="18" ry="4" fill="#fff" /><rect x="9" y="22" width="30" height="16" rx="4" fill="#ffd05c" /><path d="M8 22c0-7 7-10 16-10s16 3 16 10c-3 3-5 0-8 3s-5 0-8 3-5 0-8-3-5 0-8-3z" fill="#ff8fa6" /><circle cx="24" cy="9" r="4" fill="#e0314f" /></svg>
@@ -120,7 +120,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
   <!-- แถบเมนูล่าง (มือถือ + แท็บเล็ตแนวตั้ง < lg): แถบบนไม่พอวางเมนูย่อยทั้งหมดจนกว่าจะกว้าง 1024px -->
   <nav
     v-if="navShow"
-    class="fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_rgb(63_46_46/0.10)] backdrop-blur-xl lg:hidden"
+    class="fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_rgb(63_46_46/0.10)] lg:hidden"
     aria-label="เมนูล่าง"
   >
     <div class="mx-auto grid h-16 max-w-md items-center" :style="{ gridTemplateColumns: `repeat(${bottomCols}, minmax(0, 1fr))` }">

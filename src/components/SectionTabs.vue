@@ -46,7 +46,7 @@ function onKey(e) {
 </script>
 
 <template>
-  <div ref="bar" class="sticky top-14 z-10 -mx-4 mb-4 bg-cream/95 px-4 py-2 backdrop-blur md:mx-0 md:rounded-2xl md:px-0">
+  <div ref="bar" class="sticky top-14 z-10 -mx-4 mb-4 bg-cream px-4 py-2 md:mx-0 md:rounded-2xl md:px-0">
     <div role="tablist" :aria-label="label" class="flex gap-1 overflow-x-auto rounded-2xl bg-stone-200/60 p-1 [scrollbar-width:none]" @keydown="onKey">
       <button
         v-for="t in tabs"

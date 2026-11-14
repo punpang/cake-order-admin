@@ -21,8 +21,7 @@ import { loadingState } from '../lib/loading'
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(250, 246, 240, 0.6);
-  backdrop-filter: blur(2px);
+  background: rgba(250, 246, 240, 0.85);
   cursor: progress;
   animation: loading-fade 0.15s ease-out;
 }

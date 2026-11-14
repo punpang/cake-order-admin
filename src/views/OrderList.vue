@@ -13,6 +13,7 @@ import AppModal from '../components/AppModal.vue'
 import BirthdayList from '../components/BirthdayList.vue'
 import { getSupabase } from '../lib/supabase'
 import { loadOrdersInRange, searchOrdersRemote, countOrders } from '../lib/ordersSync'
+import { quietly } from '../lib/loading'
 
 const status = ref('')
 // PC (≥1024): สลับมุมมอง การ์ด ↔ แถวหนาแน่น · จำค่าที่เลือกไว้ในเบราว์เซอร์
@@ -86,7 +87,14 @@ const visible = computed(() => {
 // ดึงจากฐานข้อมูลเฉพาะตามตัวกรอง (ไม่ดึงทั้งหมดแล้วกรองเอง) · ค้นข้อความ → RPC ทุกวัน
 let fetchTimer = null
 let reqSeq = 0
+// กำลังดึงรายการ: แสดงข้อความเล็กข้างจำนวนแทนหน้าจอโหลดทับทั้งจอ (ไม่บล็อกการแตะ/เลื่อน)
+const loadingRows = ref(false)
 async function fetchRows() {
+  const next = reqSeq + 1
+  loadingRows.value = true
+  try { await runFetch() } finally { if (reqSeq === next) loadingRows.value = false }
+}
+async function runFetch() {
   const seq = ++reqSeq
   const client = await getSupabase()
   if (!client) { serverRows.value = null; searchedServer.value = false; return }
@@ -101,12 +109,12 @@ async function fetchRows() {
   searchedServer.value = !!term
   serverCounts.value = cnt && !cnt.error ? cnt : null
 }
-const scheduleFetch = (ms) => { clearTimeout(fetchTimer); fetchTimer = setTimeout(fetchRows, ms) }
+const scheduleFetch = (ms) => { clearTimeout(fetchTimer); fetchTimer = setTimeout(() => quietly(fetchRows), ms) }
 watch([from, to, status, fulfill, showPos, payState], () => scheduleFetch(200))
 watch(q, () => scheduleFetch(350))
 // ข้อมูลในเครื่องเปลี่ยน (แก้/สร้าง/ซิงก์) → โหลดตัวเลขและรายการใหม่
 watch(() => db.orders.map((o) => `${o.id}|${o.status}|${o.pickupAt}|${o.fulfillment}|${o.channel}|${orderTotals(o).balance}`).join(';'), () => scheduleFetch(800))
-onMounted(fetchRows)
+onMounted(() => quietly(fetchRows))
 onBeforeUnmount(() => clearTimeout(fetchTimer))
 
 const counts = computed(() => {
@@ -176,7 +184,7 @@ function clearAll() {
     <div class="mb-4 flex items-end justify-between gap-3">
       <div class="min-w-0">
         <h1 class="page-title">ออร์เดอร์</h1>
-        <p class="text-sm text-stone-500">แสดง {{ list.length }} จาก {{ totalCount }} รายการ</p>
+        <p class="text-sm text-stone-500">แสดง {{ list.length }} จาก {{ totalCount }} รายการ<span v-if="loadingRows" class="ml-1.5 text-stone-400">· กำลังโหลด…</span></p>
       </div>
       <div class="ml-auto hidden items-center gap-1 rounded-xl bg-white p-1 ring-1 ring-stone-200 lg:flex" role="group" aria-label="มุมมองรายการ">
         <button type="button" class="rounded-lg px-3 py-1.5 text-sm font-medium" :class="view === 'cards' ? 'bg-brand-600 text-white' : 'text-stone-600 hover:bg-stone-50'" :aria-pressed="view === 'cards'" @click="setView('cards')">การ์ด</button>
@@ -313,7 +321,7 @@ function clearAll() {
 
     <!-- รายการตามวัน -->
     <section v-for="g in rows" :key="g.day" class="mb-6">
-      <h2 class="sticky top-14 z-10 -mx-4 mb-2 flex items-baseline gap-2 bg-cream/90 px-5 py-2 backdrop-blur">
+      <h2 class="sticky top-14 z-10 -mx-4 mb-2 flex items-baseline gap-2 bg-cream px-5 py-2">
         <span class="text-base font-semibold text-stone-900">{{ dayLabel(g.day) }}</span>
         <span class="ml-auto text-xs font-medium text-stone-500">{{ g.orders.length }} ออร์เดอร์</span>
       </h2>
