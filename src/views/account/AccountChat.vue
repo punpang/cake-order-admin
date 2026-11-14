@@ -1,7 +1,8 @@
 <script setup>
-// แชทกับร้านของลูกค้าที่ล็อกอินแล้ว (ข้อความตัวอักษรอย่างเดียว) · อัปเดตทุก 5 วินาทีขณะเปิดหน้า
+// แชทกับร้านของลูกค้าที่ล็อกอินแล้ว (ข้อความตัวอักษรอย่างเดียว) · อัปเดตทุก 3 วินาทีขณะเปิดหน้า · เปิดแท็บแล้วลงทะเบียนแจ้งเตือนของเครื่อง (Android)
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { remoteChat } from '../../lib/customerOrderRemote'
+import { startCustomerPush } from '../../lib/customerPush'
 import { dateTime } from '../../lib/format'
 import { quietly } from '../../lib/loading'
 
@@ -25,9 +26,12 @@ async function load() {
   try {
     const r = await remoteChat('chat_list')
     if (r.error) { err.value = r.error; return }
-    messages.value = Array.isArray(r.messages) ? r.messages : []
+    const list = Array.isArray(r.messages) ? r.messages : []
+    // เลื่อนลงเฉพาะเมื่อมีข้อความใหม่ — อัปเดตทุก 3 วินาที ไม่ให้หน้าจอกระโดดระหว่างที่ลูกค้าเลื่อนอ่านข้อความเก่า
+    const grew = list.length > messages.value.length
+    messages.value = list
     err.value = ''
-    await toBottom()
+    if (grew) await toBottom()
   } finally { loading = false }
 }
 
@@ -45,7 +49,7 @@ async function send() {
   } finally { sending.value = false }
 }
 
-onMounted(() => { load(); timer = setInterval(() => quietly(load), 5000) })
+onMounted(() => { load(); startCustomerPush(); timer = setInterval(() => quietly(load), 3000) })
 onBeforeUnmount(() => clearInterval(timer))
 </script>
 

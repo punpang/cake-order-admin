@@ -1,7 +1,9 @@
-// แจ้งเตือนระบบไปยังอุปกรณ์ Android ของพนักงาน (FCM HTTP v1)
-// เรียกจากทริกเกอร์ของ punpang_records (กระดิ่งฝั่งพนักงานใหม่) · ไม่ตรวจ JWT เพราะเรียกจากฐานข้อมูล
-// ความปลอดภัย: อ่านแถวกระดิ่งจริงจากฐานข้อมูลเอง → ต้องเป็นกระดิ่งฝั่งพนักงาน ประเภทที่อนุญาต และอายุไม่เกิน 10 นาที
+// แจ้งเตือนระบบไปยังอุปกรณ์ Android (FCM HTTP v1) · เรียกจากทริกเกอร์ของฐานข้อมูล จึงไม่ตรวจ JWT (ดูไฟล์ deploy)
+// 1) recordId = กระดิ่งฝั่งพนักงาน → แจ้งพนักงานที่มีสิทธิ์ (ประเภทที่อนุญาต อายุไม่เกิน 10 นาที)
+// 2) chatId = พนักงานตอบกลับในแชทเว็บ/แอป → แจ้งเฉพาะอุปกรณ์ของลูกค้านั้น ที่เซสชันยังไม่หมดอายุ (ข้อความทั่วไป ไม่แสดงเนื้อหา)
+// ความปลอดภัย: ทุกกรณีอ่านข้อมูลจริงจากฐานข้อมูลเองและตรวจเงื่อนไขซ้ำ ไม่เชื่อค่าที่ส่งมา
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { staffReplyOf } from '../_shared/chatpush.ts'
 
 // ประเภทที่แจ้งเตือน → สิทธิ์ที่ต้องมี (พนักงานที่มีสิทธิ์อย่างน้อยหนึ่งข้อจะได้รับ) + ปลายทางเมื่อกดแจ้งเตือน
 const ALLOWED: Record<string, { perms: string[]; path: (d: Record<string, string>) => string }> = {
@@ -11,7 +13,8 @@ const ALLOWED: Record<string, { perms: string[]; path: (d: Record<string, string
   team_due_soon: { perms: ['viewAllOrders', 'viewPrepOrders'], path: (d) => (d.orderId ? `/admin/orders/${d.orderId}` : '/admin/orders') },
 }
 const MAX_AGE_MS = 10 * 60 * 1000
-const CHANNEL = 'staff-alerts'
+const STAFF_CHANNEL = 'staff-alerts'
+const CUSTOMER_CHANNEL = 'customer-alerts'
 const enc = new TextEncoder()
 
 const b64url = (input: ArrayBuffer | Uint8Array): string => {
@@ -49,14 +52,47 @@ async function fcmAccessToken(sa: { client_email: string; private_key: string })
   return j.access_token as string
 }
 
-Deno.serve(async (req) => {
-  if (req.method !== 'POST') return json(405, { error: 'method' })
-  let body: { recordId?: string }
-  try { body = await req.json() } catch { return json(400, { error: 'json' }) }
-  const recordId = String(body.recordId || '')
-  if (!recordId) return json(400, { error: 'recordId' })
+type FcmSa = { client_email: string; private_key: string; project_id: string }
+// ค่า FCM_SERVICE_ACCOUNT (JSON) · ไม่ครบหรืออ่านไม่ได้ = null
+function fcmConfig(): FcmSa | null {
+  try {
+    const sa = JSON.parse(Deno.env.get('FCM_SERVICE_ACCOUNT') || 'null')
+    return sa?.client_email && sa?.private_key && sa?.project_id ? sa : null
+  } catch { return null }
+}
 
-  const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
+type FcmMsg = { title: string; body: string; data: Record<string, string>; channel: string; tag?: string }
+// ส่งทีละโทเค็น · คืนจำนวนที่ส่งสำเร็จ และโทเค็นที่ใช้ไม่ได้แล้ว (ผู้เรียกลบออกจากฐานข้อมูล)
+async function fcmSend(sa: FcmSa, tokens: string[], m: FcmMsg): Promise<{ sent: number; invalid: string[] }> {
+  const access = await fcmAccessToken(sa)
+  let sent = 0
+  const invalid: string[] = []
+  for (const token of tokens) {
+    const r = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: {
+          token,
+          notification: { title: m.title, body: m.body },
+          data: m.data,
+          android: { priority: 'HIGH', notification: { channel_id: m.channel, ...(m.tag ? { tag: m.tag } : {}) } },
+        },
+      }),
+    })
+    if (r.ok) { sent++; continue }
+    const errText = await r.text()
+    // โทเค็นที่แอปถอนการลงทะเบียนแล้ว (เช่น ถอนแอป) → ลบทิ้ง · ข้อผิดพลาดอื่นไม่ลบ
+    if (r.status === 404 || errText.includes('UNREGISTERED')) invalid.push(token)
+  }
+  return { sent, invalid }
+}
+
+// ไคลเอนต์ฐานข้อมูล (service role) · ใช้ any เหมือนฟังก์ชันใน _shared เพราะชนิดที่สร้างจาก createClient ทั่วไปเป็น generic ที่ตรวจไม่ตรงกับตารางนี้
+type Db = any
+
+// กระดิ่งฝั่งพนักงาน (งานเดิม)
+async function staffBell(db: Db, recordId: string): Promise<Response> {
   const { data: rec, error } = await db.from('punpang_records').select('id,collection,data,created_at').eq('collection', 'bell').eq('id', recordId).maybeSingle()
   if (error || !rec) return json(404, { error: 'record' })
   const d = (rec.data || {}) as Record<string, string>
@@ -65,38 +101,49 @@ Deno.serve(async (req) => {
   if (Date.now() - new Date(rec.created_at).getTime() > MAX_AGE_MS) return json(200, { skipped: 'old' })
 
   const { data: staff } = await db.from('punpang_staff').select('user_id,perms').eq('active', true)
-  const targets = (staff || []).filter((s) => (s.perms || []).some((p: string) => rule.perms.includes(p))).map((s) => s.user_id)
+  const targets = (staff || []).filter((s: any) => (s.perms || []).some((p: string) => rule.perms.includes(p))).map((s: any) => s.user_id)
   if (!targets.length) return json(200, { sent: 0 })
   const { data: devices } = await db.from('punpang_push_devices').select('token').in('staff_id', targets)
-  const tokens = [...new Set((devices || []).map((x) => x.token as string))]
+  const tokens: string[] = [...new Set<string>((devices || []).map((x: any) => x.token as string))]
   if (!tokens.length) return json(200, { sent: 0 })
 
-  const sa = JSON.parse(Deno.env.get('FCM_SERVICE_ACCOUNT') || 'null')
-  if (!sa?.client_email || !sa?.private_key || !sa?.project_id) return json(500, { error: 'FCM_SERVICE_ACCOUNT ยังไม่ได้ตั้งค่า' })
-  const access = await fcmAccessToken(sa)
-  const path = rule.path(d)
-  let sent = 0
-  let removed = 0
-  for (const token of tokens) {
-    const r = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: {
-          token,
-          notification: { title: String(d.title || 'แจ้งเตือน'), body: String(d.text || '') },
-          data: { path, event: String(d.event), recordId },
-          android: { priority: 'HIGH', notification: { channel_id: CHANNEL } },
-        },
-      }),
-    })
-    if (r.ok) { sent++; continue }
-    const errText = await r.text()
-    // โทเค็นที่แอปถอนการลงทะเบียนแล้ว (เช่น ถอนแอป) → ลบทิ้ง · ข้อผิดพลาดอื่นไม่ลบ
-    if (r.status === 404 || errText.includes('UNREGISTERED')) {
-      await db.from('punpang_push_devices').delete().eq('token', token)
-      removed++
-    }
-  }
-  return json(200, { sent, removed })
+  const sa = fcmConfig()
+  if (!sa) return json(500, { error: 'FCM_SERVICE_ACCOUNT ยังไม่ได้ตั้งค่า' })
+  const r = await fcmSend(sa, tokens, { title: String(d.title || 'แจ้งเตือน'), body: String(d.text || ''), data: { path: rule.path(d), event: String(d.event), recordId }, channel: STAFF_CHANNEL })
+  for (const t of r.invalid) await db.from('punpang_push_devices').delete().eq('token', t)
+  return json(200, { sent: r.sent, removed: r.invalid.length })
+}
+
+// ร้านตอบกลับในแชทเว็บ/แอป → แจ้งเฉพาะอุปกรณ์ของลูกค้านั้น (เซสชันที่ยังไม่หมดอายุ) · ข้อความไม่มีเนื้อหาแชท
+async function customerReply(db: Db, chatId: string): Promise<Response> {
+  const { data: row } = await db.from('punpang_chats').select('id,channel,customer_id,data').eq('id', chatId).maybeSingle()
+  if (!row || row.channel !== 'web' || !row.customer_id) return json(200, { skipped: 'chat' })
+  if (!staffReplyOf((row.data as Record<string, unknown> | null)?.messages, Date.now())) return json(200, { skipped: 'not-staff' })
+
+  const { data: cu } = await db.from('punpang_customers').select('data').eq('id', row.customer_id).maybeSingle()
+  if (!cu || cu.data?.deleted === true || cu.data?.active === false) return json(200, { skipped: 'customer' })
+
+  const { data: sess } = await db.from('punpang_customer_sessions').select('token_hash').eq('customer_id', row.customer_id).gt('expires_at', new Date().toISOString())
+  const live = (sess || []).map((s: any) => s.token_hash as string)
+  if (!live.length) return json(200, { sent: 0 })
+  const { data: devices } = await db.from('punpang_customer_push_devices').select('token').eq('customer_id', row.customer_id).in('session_hash', live)
+  const tokens: string[] = [...new Set<string>((devices || []).map((x: any) => x.token as string))]
+  if (!tokens.length) return json(200, { sent: 0 })
+
+  const sa = fcmConfig()
+  if (!sa) return json(500, { error: 'FCM_SERVICE_ACCOUNT ยังไม่ได้ตั้งค่า' })
+  const r = await fcmSend(sa, tokens, { title: 'ปั้นแป้ง', body: 'ร้านตอบกลับข้อความของคุณ', data: { path: '/account', event: 'chat_staff_reply', chatId }, channel: CUSTOMER_CHANNEL, tag: `chat-${chatId}` })
+  for (const t of r.invalid) await db.from('punpang_customer_push_devices').delete().eq('token', t)
+  return json(200, { sent: r.sent, removed: r.invalid.length })
+}
+
+Deno.serve(async (req) => {
+  if (req.method !== 'POST') return json(405, { error: 'method' })
+  let body: { recordId?: string; chatId?: string }
+  try { body = await req.json() } catch { return json(400, { error: 'json' }) }
+  const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
+  if (body.chatId) return customerReply(db, String(body.chatId))
+  const recordId = String(body.recordId || '')
+  if (!recordId) return json(400, { error: 'recordId' })
+  return staffBell(db, recordId)
 })

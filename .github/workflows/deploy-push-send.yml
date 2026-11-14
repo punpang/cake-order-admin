@@ -1,13 +1,24 @@
 name: Deploy push-send
 
 # รันเองเท่านั้น: GitHub → Actions → Deploy push-send → Run workflow
-# ฟังก์ชันนี้ถูกเรียกจากฐานข้อมูล (ทริกเกอร์ punpang_push_on_bell) จึงปิด JWT ตรวจสอบ (ดูเหตุผลในไฟล์ฟังก์ชัน)
-# ก่อน deploy ต้องตั้ง secret FCM_SERVICE_ACCOUNT ใน Supabase แล้ว
+# ฟังก์ชันนี้ถูกเรียกจากฐานข้อมูล (ทริกเกอร์ punpang_push_on_bell และ punpang_push_on_chat) จึงปิด JWT ตรวจสอบ (ดูเหตุผลในไฟล์ฟังก์ชัน)
+# ก่อน deploy ต้องตั้ง secret FCM_SERVICE_ACCOUNT ใน Supabase แล้ว · ขั้นเทสต์ต้องผ่านก่อนจึงจะ deploy
 on:
   workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: เทสต์โมดูลที่ใช้ร่วมกัน (_shared)
+        run: deno test --no-prompt --no-lock --node-modules-dir=none supabase/functions/_shared/
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

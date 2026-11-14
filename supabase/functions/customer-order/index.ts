@@ -8,6 +8,7 @@ import { autoConfirmDecision, configuredAccountsOf, confirmSlipPayment } from '.
 import { notifyPaymentConfirmed } from '../_shared/payconfirm.ts'
 import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
 import { customerChatList, customerChatSend } from '../_shared/customerchat.ts'
+import { customerPushRegister } from '../_shared/customerpush.ts'
 import { readSlipQr } from '../_shared/slipread.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine } from '../_shared/slipocr.ts'
 import { readSlipOnce } from '../_shared/slipstore.ts'
@@ -173,11 +174,12 @@ Deno.serve(async (req) => {
     return { auto: autoConfirmOf(sq), merchantCode: String(sh?.merchantCode ?? '').replace(/\D/g, ''), accounts: configuredAccountsOf(sh) }
   }
   const action = String(b.action || '')
-  if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel', 'qr_request', 'chat_list', 'chat_send'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
+  if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel', 'qr_request', 'chat_list', 'chat_send', 'push_register'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
 
   // ---------- ระบุออร์เดอร์ + ตรวจสิทธิ์ ----------
   let orderId = ''
   let customerIdOfSession: string | null = null
+  let customerSessionHash: string | null = null
   if (b.token != null) {
     const token = String(b.token)
     if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json(NOT_FOUND, 404)
@@ -193,9 +195,11 @@ Deno.serve(async (req) => {
   } else {
     const t = String(b.session ?? '')
     if (!/^[a-f0-9]{64}$/.test(t)) return json({ error: 'ยังไม่ได้เข้าสู่ระบบ' }, 401)
-    const s = (await sb.from('punpang_customer_sessions').select('customer_id,expires_at').eq('token_hash', await sha256Hex(`custsess:${t}`)).maybeSingle()).data
+    const sh = await sha256Hex(`custsess:${t}`)
+    const s = (await sb.from('punpang_customer_sessions').select('customer_id,expires_at').eq('token_hash', sh).maybeSingle()).data
     if (!s || new Date(s.expires_at).getTime() < Date.now()) return json({ error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' }, 401)
     customerIdOfSession = s.customer_id
+    customerSessionHash = sh
     orderId = String(b.orderId ?? '')
   }
 
@@ -203,6 +207,13 @@ Deno.serve(async (req) => {
   if (action === 'chat_list' || action === 'chat_send') {
     if (!customerIdOfSession) return json({ error: 'กรุณาเข้าสู่ระบบก่อนใช้แชท' }, 401)
     const r = action === 'chat_list' ? await customerChatList(sb, customerIdOfSession) : await customerChatSend(sb, customerIdOfSession, b.text)
+    return json(r.body, r.status)
+  }
+
+  // ---------- แจ้งเตือนแชทบนแอปลูกค้า: ลงทะเบียนโทเค็น FCM ของเครื่องนี้กับเซสชันที่ล็อกอินอยู่ (ฟิลด์ pushToken เพราะ token ใช้เป็นลิงก์ออร์เดอร์) ----------
+  if (action === 'push_register') {
+    if (!customerIdOfSession || !customerSessionHash) return json({ error: 'กรุณาเข้าสู่ระบบก่อน' }, 401)
+    const r = await customerPushRegister(sb, customerIdOfSession, customerSessionHash, b.pushToken)
     return json(r.body, r.status)
   }
 
