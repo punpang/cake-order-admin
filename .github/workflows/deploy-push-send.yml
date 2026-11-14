@@ -1,0 +1,22 @@
+name: Deploy push-send
+
+# รันเองเท่านั้น: GitHub → Actions → Deploy push-send → Run workflow
+# ฟังก์ชันนี้ถูกเรียกจากฐานข้อมูล (ทริกเกอร์ punpang_push_on_bell) จึงปิด JWT ตรวจสอบ (ดูเหตุผลในไฟล์ฟังก์ชัน)
+# ก่อน deploy ต้องตั้ง secret FCM_SERVICE_ACCOUNT ใน Supabase แล้ว
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # --no-verify-jwt: ทริกเกอร์ของฐานข้อมูลเรียกโดยไม่มี JWT (ความปลอดภัยมาจากการอ่านแถวจริงในฟังก์ชัน)
+      # --yes: ไม่มี TTY ใน Actions จึงต้องยืนยันล่วงหน้า
+      - name: Deploy push-send
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy push-send --project-ref itleduijrckxdbhhuooi --no-verify-jwt --yes

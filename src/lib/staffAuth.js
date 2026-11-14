@@ -6,6 +6,7 @@ import { quietly } from './loading'
 import { publicState, setRestoring } from './dataStatus'
 import { syncRealtime, waitSaved } from './syncStatus'
 import { startRealtime, makeDebouncer } from './realtimeSync'
+import { startPush, stopPush } from './push'
 
 // สถานะพนักงานที่ล็อกอินจริง (ใช้เมื่อเปิด Supabase เท่านั้น)
 export const staffState = reactive({ ready: !supabaseEnabled, staff: null, loadFailed: [] })
@@ -307,6 +308,7 @@ async function startData(staff) {
   startPolling()
   startStaffRealtime(client, recNames)
   coreDone()
+  startPush() // แอป Android เท่านั้น · เว็บไม่ทำอะไร
 }
 // เปิดออร์เดอร์เดียว (เช่น ลิงก์จากแชท/การแจ้งเตือน) ที่อยู่นอกช่วงที่โหลดไว้: ดึงมาทีละรายการแล้วปักหมุดไว้
 export async function loadOneOrder(id) {
@@ -417,4 +419,4 @@ export async function currentStaff() {
   return { staff: data }
 }
 
-export async function staffSignOut() { staffState.staff = null; staffState.loadFailed = []; dataCtx = null; groupLoads.clear(); { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1) }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
+export async function staffSignOut() { await stopPush(); staffState.staff = null; staffState.loadFailed = []; dataCtx = null; groupLoads.clear(); { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1) }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
