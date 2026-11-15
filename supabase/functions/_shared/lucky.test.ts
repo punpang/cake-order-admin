@@ -1,6 +1,6 @@
 // ทดสอบกติกาลุ้นโชคท้ายบิล (ฟังก์ชันล้วน) · รัน: deno test supabase/functions/_shared/
 import { assertEquals, assertMatch } from 'jsr:@std/assert@1'
-import { CODE_ALPHABET, codeFromBytes, inWindow, isTokenShape, nextSpin, percentFromBytes, pickPrize, tokenFromBytes, validatePrizes } from './lucky.ts'
+import { CODE_ALPHABET, codeFromBytes, inWindow, isTokenShape, nextSpin, percentFromBytes, pickPrize, tallyAwards, tokenFromBytes, validatePrizes } from './lucky.ts'
 
 const P = [
   { id: 'a', name: 'ส่วนลด 50', kind: 'coupon' as const, amount: 50, chance: 10 },
@@ -72,4 +72,21 @@ Deno.test('การลุ้นครั้งถัดไป: ครบจำ�
   assertEquals(miss?.prize, null) // 99.99% ≥ 40% รวมโอกาส → ไม่ได้รางวัล
   assertEquals(miss?.code, null)
   assertEquals(miss?.codeExpiresAt, null)
+})
+
+Deno.test('รางวัลที่ออกไปแล้วในช่วงเปิดลุ้น: นับเฉพาะที่ได้รางวัลและอยู่ในช่วง เรียงจากมากไปน้อย', () => {
+  const from = Date.parse('2026-11-15T00:00:00.000Z')
+  const to = Date.parse('2026-11-30T23:59:59.000Z')
+  const spins = [
+    { at: '2026-11-15T01:00:00.000Z', prize: { name: 'ส่วนลด 50' } },
+    { at: '2026-11-16T01:00:00.000Z', prize: { name: 'คัพเค้ก' } },
+    { at: '2026-11-17T01:00:00.000Z', prize: { name: 'ส่วนลด 50' } },
+    { at: '2026-11-18T01:00:00.000Z', prize: null }, // ไม่ได้รางวัล
+    { at: '2026-11-14T23:00:00.000Z', prize: { name: 'ส่วนลด 50' } }, // ก่อนเริ่มช่วง
+    { at: '2026-12-01T00:00:00.000Z', prize: { name: 'คัพเค้ก' } }, // หลังสิ้นสุดช่วง
+    { at: 'ไม่ใช่วันที่', prize: { name: 'ส่วนลด 50' } }, // อ่านเวลาไม่ได้
+  ]
+  assertEquals(tallyAwards(spins, from, to), [{ name: 'ส่วนลด 50', count: 2 }, { name: 'คัพเค้ก', count: 1 }])
+  assertEquals(tallyAwards(spins, Number.NaN, to), []) // ช่วงไม่ถูกต้อง = ไม่มีรายการ
+  assertEquals(tallyAwards([], from, to), [])
 })

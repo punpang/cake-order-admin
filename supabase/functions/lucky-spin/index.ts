@@ -1,10 +1,10 @@
 import { corsWrap } from '../_shared/cors.ts'
-import { isTokenShape, nextSpin, type LuckyPrize } from '../_shared/lucky.ts'
+import { isTokenShape, nextSpin, tallyAwards, type LuckyPrize } from '../_shared/lucky.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 // หน้าลุ้นโชคของบิล (ไม่ต้องล็อกอิน): รับ token → คืนสถานะ (พร้อมรายการรางวัลที่ลุ้นได้) หรือลุ้นทีละครั้งจนครบจำนวนที่บิลมี
 // token สุ่ม 192 บิต เก็บเฉพาะ hash ใน punpang_records('luckyTokens') · ทุกครั้งที่ลุ้นเขียนด้วยเงื่อนไข spinCount เดิม (กันลุ้นซ้อน)
-// รายการรางวัลและโอกาสอ่านจากตั้งค่าร้าน (punpang_kv config/shop → v.luckyDraw) · หน้าเว็บเห็นเฉพาะชื่อ ประเภท และจำนวนของรางวัล (ไม่เห็นโอกาส)
+// รายการรางวัลและโอกาสอ่านจากตั้งค่าร้าน (punpang_kv config/shop → v.luckyDraw) · หน้าเว็บเห็นเฉพาะชื่อ ประเภท และจำนวนของรางวัล (ไม่เห็นโอกาส) · รางวัลที่ออกไปแล้วในช่วงเปิดลุ้นเห็นเป็นชื่อกับจำนวนรวมเท่านั้น
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
 const sha256Hex = async (s: string) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, '0')).join('')
 const NOT_FOUND = { error: 'ลิงก์ไม่ถูกต้องหรือหมดอายุแล้ว' }
@@ -39,6 +39,21 @@ Deno.serve(corsWrap(async (req) => {
   if (!isTokenShape(token)) return fail(ip)
 
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
+  // รางวัลที่ออกไปแล้วในช่วงเปิดลุ้น (ทุกบิล) · บิลที่ลุ้นในช่วงนี้หมดอายุหลังเวลาเริ่มช่วงเสมอ จึงกรองแถวด้วย expiresAt ได้ · อ่านทีละ 1000 แถว (เพดานของ API)
+  const awardsInWindow = async (cfg: { from?: string; to?: string }) => {
+    const fromMs = Date.parse(String(cfg.from || ''))
+    const toMs = Date.parse(String(cfg.to || ''))
+    if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return []
+    const spins: Record<string, any>[] = []
+    for (let page = 0; ; page++) {
+      const { data, error } = await sb.from('punpang_records').select('data').eq('collection', 'luckyTokens')
+        .gte('data->>expiresAt', new Date(fromMs).toISOString()).order('id').range(page * 1000, page * 1000 + 999)
+      if (error) throw new Error(error.message)
+      for (const r of data ?? []) for (const s of Array.isArray(r.data?.spins) ? r.data.spins : []) spins.push(s)
+      if ((data ?? []).length < 1000) break
+    }
+    return tallyAwards(spins, fromMs, toMs)
+  }
   const hash = await sha256Hex(`luckydraw:${token}`)
   const rec = await sb.from('punpang_records').select('id,data').eq('collection', 'luckyTokens').eq('data->>tokenHash', hash).maybeSingle()
   if (rec.error || !rec.data) return fail(ip)
@@ -47,24 +62,30 @@ Deno.serve(corsWrap(async (req) => {
   if (!(now <= Date.parse(String(data.expiresAt)))) return json({ error: 'หมดเวลาลุ้นของบิลนี้แล้ว' }, 410)
 
   const shop = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'shop').maybeSingle()
-  const cfg = (shop.data?.data?.v?.luckyDraw || {}) as { prizes?: LuckyPrize[]; prizeDays?: number }
+  const cfg = (shop.data?.data?.v?.luckyDraw || {}) as { prizes?: LuckyPrize[]; prizeDays?: number; from?: string; to?: string }
   const prizes: LuckyPrize[] = Array.isArray(cfg.prizes) ? cfg.prizes : []
   const spins: Record<string, any>[] = Array.isArray(data.spins) ? data.spins : []
-  if (!spin || spins.length >= (Number(data.draws) || 0)) return json(resultOf(data, prizes)) // ไม่ได้ขอให้ลุ้น หรือลุ้นครบแล้ว
+  // ทุกคำตอบแนบ "ช่วงเปิดลุ้น" และ "รางวัลที่ออกไปแล้ว" (null ถ้าอ่านไม่ได้ · ไม่กระทบการลุ้น)
+  const reply = async (d: Record<string, any>) => json({
+    ...resultOf(d, prizes),
+    window: { from: String(cfg.from || ''), to: String(cfg.to || '') },
+    awarded: await awardsInWindow(cfg).catch((e) => { console.error('awarded', e); return null }),
+  })
+  if (!spin || spins.length >= (Number(data.draws) || 0)) return reply(data) // ไม่ได้ขอให้ลุ้น หรือลุ้นครบแล้ว
 
   const cur = Number(data.spinCount ?? spins.length)
   const one = nextSpin({
     draws: Number(data.draws) || 0, spinCount: spins.length, prizes, rnd: crypto.getRandomValues(new Uint8Array(10)),
     nowIso: new Date(now).toISOString(), prizeDays: Number(cfg.prizeDays) || 30,
   })
-  if (!one) return json(resultOf(data, prizes))
+  if (!one) return reply(data)
   const next = { ...data, spins: [...spins, one], spinCount: spins.length + 1 }
   // เขียนได้เมื่อยังเป็นจำนวนครั้งเดิม: ถ้ามีการลุ้นพร้อมกัน แถวนี้จะไม่ตรงเงื่อนไขและไม่ถูกเขียนซ้ำ
   const up = await sb.from('punpang_records').update({ data: next }).eq('id', rec.data.id).filter('data->>spinCount', 'eq', String(cur)).select('id')
   if (up.error) return json({ error: 'ลองใหม่อีกครั้ง' }, 500)
   if (!up.data?.length) { // มีการลุ้นพร้อมกันไปแล้ว → อ่านสถานะล่าสุด
     const again = await sb.from('punpang_records').select('data').eq('id', rec.data.id).maybeSingle()
-    return json(resultOf((again.data?.data as Record<string, any>) || data, prizes))
+    return reply((again.data?.data as Record<string, any>) || data)
   }
-  return json(resultOf(next, prizes))
+  return reply(next)
 }))

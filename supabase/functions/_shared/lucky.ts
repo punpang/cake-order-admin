@@ -69,3 +69,17 @@ export function inWindow(cfg: { from?: string; to?: string }, nowMs: number): bo
   if (Number.isNaN(f) || Number.isNaN(t)) return false
   return nowMs >= f && nowMs <= t
 }
+
+// รางวัลที่ออกไปแล้วในช่วงเปิดลุ้น: นับเฉพาะครั้งที่ได้รางวัล และเวลาลุ้นอยู่ใน [fromMs, toMs] · จัดกลุ่มตามชื่อ เรียงจากมากไปน้อย
+export type Award = { name: string; count: number }
+export function tallyAwards(spins: { at?: unknown; prize?: { name?: unknown } | null }[], fromMs: number, toMs: number): Award[] {
+  const counts = new Map<string, number>()
+  for (const s of spins) {
+    const t = Date.parse(String(s.at ?? ''))
+    if (!(t >= fromMs && t <= toMs)) continue
+    const name = String(s.prize?.name ?? '').trim()
+    if (!name) continue
+    counts.set(name, (counts.get(name) ?? 0) + 1)
+  }
+  return [...counts].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count)
+}

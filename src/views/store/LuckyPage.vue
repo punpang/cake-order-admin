@@ -10,6 +10,8 @@ const phase = ref('loading') // loading · error · ready · busy (กำลั�
 const err = ref('')
 const data = ref(null) // { draws, remaining, state, prizes, spins: [{ at, prize, code, codeExpiresAt, redeemed }] }
 const pending = ref(null) // { index, spin } ใบที่กำลังขูด
+const awarded = ref(null) // รางวัลที่ออกไปแล้วในช่วงเปิดลุ้นที่แสดงอยู่ (null = โหลดไม่ได้)
+const awardedLatest = ref(null) // ค่าล่าสุดจากเซิร์ฟเวอร์ (รวมบัตรที่กำลังขูด) · แสดงจริงเมื่อขูดเสร็จ เพื่อไม่ให้เผยผลก่อนขูด
 const KIND = { points: 'คะแนนสะสม', coupon: 'คูปองส่วนลด', item: 'ของ/อื่น ๆ' }
 
 const remaining = computed(() => data.value?.remaining ?? 0)
@@ -23,6 +25,8 @@ function fail(message) {
 }
 function applyStatus(d) {
   data.value = d
+  awardedLatest.value = d.awarded ?? null
+  awarded.value = awardedLatest.value
   phase.value = 'ready'
 }
 
@@ -40,6 +44,7 @@ async function startCard() {
   const r = await callLuckySpin(props.token, true)
   if (r.error) return fail(r.error)
   data.value = r.data
+  awardedLatest.value = r.data.awarded ?? null // ยังไม่แสดงจนกว่าขูดเสร็จ
   const index = r.data.spins.length - 1
   pending.value = { index, spin: r.data.spins[index] }
   phase.value = 'scratch'
@@ -48,6 +53,7 @@ async function startCard() {
 // ขูดครบแล้ว: บัตรใบนี้ไปอยู่ในรายการผลที่เปิดแล้ว
 function onRevealed() {
   pending.value = null
+  awarded.value = awardedLatest.value
   phase.value = 'ready'
 }
 
@@ -108,6 +114,20 @@ onMounted(load)
       </section>
 
       <section v-else class="card text-center text-stone-700">ขูดครบทุกใบของบิลนี้แล้ว</section>
+
+      <section v-if="awarded" class="card space-y-2">
+        <div class="card-title">รางวัลที่ออกไปแล้ว</div>
+        <p v-if="data?.window?.from && data?.window?.to" class="text-xs text-stone-500">
+          ช่วงเปิดลุ้น {{ dateTime(data.window.from) }} – {{ dateTime(data.window.to) }}
+        </p>
+        <ul v-if="awarded.length" class="divide-y divide-stone-100">
+          <li v-for="a in awarded" :key="a.name" class="flex items-center justify-between gap-3 py-2 text-sm">
+            <span class="text-stone-900">{{ a.name }}</span>
+            <span class="shrink-0 font-semibold text-brand-800">ออกแล้ว {{ a.count }} ครั้ง</span>
+          </li>
+        </ul>
+        <p v-else class="rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-500">ยังไม่มีการออกรางวัลในช่วงนี้</p>
+      </section>
 
       <section v-for="{ s, i } in doneCards" :key="s.at + '-' + i" class="card space-y-2 text-center">
         <div class="text-xs text-stone-500">บัตรใบที่ {{ i + 1 }}</div>
