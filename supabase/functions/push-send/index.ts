@@ -4,6 +4,7 @@
 // ความปลอดภัย: ทุกกรณีอ่านข้อมูลจริงจากฐานข้อมูลเองและตรวจเงื่อนไขซ้ำ ไม่เชื่อค่าที่ส่งมา
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { staffReplyOf } from '../_shared/chatpush.ts'
+import { checkPushKey } from '../_shared/pushauth.ts'
 
 // ประเภทที่แจ้งเตือน → สิทธิ์ที่ต้องมี (พนักงานที่มีสิทธิ์อย่างน้อยหนึ่งข้อจะได้รับ) + ปลายทางเมื่อกดแจ้งเตือน
 const ALLOWED: Record<string, { perms: string[]; path: (d: Record<string, string>) => string }> = {
@@ -139,6 +140,10 @@ async function customerReply(db: Db, chatId: string): Promise<Response> {
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json(405, { error: 'method' })
+  // เฉพาะทริกเกอร์ของฐานข้อมูลที่แนบคีย์ (x-push-key) เท่านั้นที่ส่งแจ้งเตือนได้ · ไม่ตั้ง PUSH_SEND_KEY = ปิดทั้งหมด
+  const auth = checkPushKey(Deno.env.get('PUSH_SEND_KEY') || '', req.headers.get('x-push-key'))
+  if (auth === 'not-configured') return json(503, { error: 'PUSH_SEND_KEY ยังไม่ได้ตั้งค่า' })
+  if (auth !== 'ok') return json(401, { error: 'unauthorized' })
   let body: { recordId?: string; chatId?: string }
   try { body = await req.json() } catch { return json(400, { error: 'json' }) }
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })

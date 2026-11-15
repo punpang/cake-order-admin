@@ -74,6 +74,12 @@ public class CustomerDisplayPlugin extends Plugin {
     @PluginMethod
     public void update(PluginCall call) {
         final String json = call.getString("json", "{}");
+        try {
+            new org.json.JSONObject(json); // ต้องเป็นออบเจกต์ JSON เท่านั้น (กันสตริงแปลกเข้าไปในโค้ด JavaScript)
+        } catch (org.json.JSONException e) {
+            call.reject("invalid json");
+            return;
+        }
         lastJson = json;
         Activity act = getActivity();
         if (act != null) {
@@ -140,7 +146,7 @@ public class CustomerDisplayPlugin extends Plugin {
 
         void push(String json) {
             if (web == null || !loaded || json == null) return;
-            web.evaluateJavascript("window.__displayUpdate && window.__displayUpdate(" + json + ");", null);
+            web.evaluateJavascript("window.__displayUpdate && window.__displayUpdate(JSON.parse(" + org.json.JSONObject.quote(json) + "));", null);
         }
 
         @Override

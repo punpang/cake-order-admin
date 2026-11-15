@@ -171,14 +171,55 @@ select test.ok('H2: แอดมินเพิ่มคะแนนแบบไ
     $q$ select public.punpang_ledger_apply('c1', '[{"op":"earn","id":"a1","points":100,"reason":"คืนคะแนนคูปอง"}]'::jsonb) $q$)->>'ok')::boolean);
 select test.ok('H2: สิทธิ์หมุนเพิ่มโดยไม่อ้างออร์เดอร์ ต้องเป็นแอดมิน',
   test.rpc_as('44444444-4444-4444-4444-444444444444', $q$ select public.punpang_ledger_apply('c1', '[{"op":"spins","delta":5}]'::jsonb) $q$)->>'exception' = '42501');
-select test.ok('H2: เปลี่ยนผู้ซื้อ: โอนคะแนน+สิทธิ์หมุนของออร์เดอร์ (5 แต้ม 1 สิทธิ์) ได้',
+-- ===== H2 (รอบ 2026-11-15): คืนเงินต้องเป็นของผู้ซื้อ · เพดานสะสมต่อออร์เดอร์ · โอนได้เท่าที่ตัดไว้ =====
+select test.ok('H2: คืนเงินเป็นคะแนนให้ลูกค้าอีกคนที่ไม่ใช่ผู้ซื้อของออร์เดอร์ไม่ได้',
+  test.rpc_as('44444444-4444-4444-4444-444444444444',
+    $q$ select public.punpang_ledger_apply('c2', '[{"op":"earn","id":"x1","points":5,"reason":"คืนเงิน","orderId":"o_pay"}]'::jsonb) $q$)->>'exception' = '42501');
+-- ก้อนคะแนนของการขายและสิทธิ์หมุน 1 ของ o_pay อยู่ที่ c1 (ตั้งค่าโดยผู้ดูแลระบบสำหรับเทสต์)
+update public.punpang_customers
+   set data = jsonb_set(jsonb_set(data, '{ledger}', coalesce(data->'ledger', '[]'::jsonb) || '[{"id":"lot_award","at":"2026-11-14T00:00:00Z","delta":5,"remaining":5,"orderId":"o_pay","expiresAt":"2099-01-01"}]'::jsonb),
+                                  '{spins}', to_jsonb(coalesce((data->>'spins')::int, 0) + 1))
+ where id = 'c1';
+select test.ok('H2: เปลี่ยนผู้ซื้อ: ตัดคะแนนและสิทธิ์หมุนของออร์เดอร์จากผู้ซื้อเดิมได้',
   (test.rpc_as('77777777-7777-7777-7777-777777777777',
-    $q$ select public.punpang_ledger_apply('c2', '[{"op":"earn","id":"t1","points":5,"reason":"โอนมา","orderId":"o_pay"},{"op":"spins","delta":1}]'::jsonb) $q$)->>'ok')::boolean);
-select test.ok('H2: เปลี่ยนผู้ซื้อ: สิทธิ์หมุนที่โอนเกินที่ออร์เดอร์ได้ไม่ได้',
+    $q$ select public.punpang_ledger_apply('c1', '[{"op":"cut","lotId":"lot_award","orderId":"o_pay"},{"op":"spins","delta":-1,"orderId":"o_pay"}]'::jsonb) $q$)->>'ok')::boolean);
+select test.rpc_as('77777777-7777-7777-7777-777777777777',
+    $q$ select public.punpang_ledger_apply('c2', '[{"op":"earn","id":"t1","points":5,"reason":"โอนมา","orderId":"o_pay","transfer":true},{"op":"spins","delta":1,"orderId":"o_pay","transfer":true}]'::jsonb) $q$) as r1 \gset
+select test.ok('H2: โอนให้ผู้ซื้อใหม่ได้เท่าที่ตัดไว้ (5 แต้ม 1 สิทธิ์) และไม่เกิดของเพิ่ม',
+  (:'r1'::jsonb->>'ok')::boolean
+  and (select coalesce(sum((e->>'delta')::int), 0) from public.punpang_customers c, jsonb_array_elements(c.data->'ledger') e where c.id = 'c2' and e->>'orderId' = 'o_pay') = 5
+  and (select (data->>'spins')::int from public.punpang_customers where id = 'c2') = 1);
+select test.rpc_as('77777777-7777-7777-7777-777777777777',
+    $q$ select public.punpang_ledger_apply('c2', '[{"op":"earn","id":"t2","points":5,"reason":"โอนมา","orderId":"o_pay","transfer":true},{"op":"spins","delta":1,"orderId":"o_pay","transfer":true}]'::jsonb) $q$) as r2 \gset
+select test.ok('H2: โอนซ้ำหลังโอนครบแล้วไม่ได้คะแนนหรือสิทธิ์หมุนเพิ่ม (ออร์เดอร์เดียวกันออกซ้ำไม่ได้)',
+  (:'r2'::jsonb->>'ok')::boolean
+  and (select coalesce(sum((e->>'delta')::int), 0) from public.punpang_customers c, jsonb_array_elements(c.data->'ledger') e where c.id = 'c2' and e->>'orderId' = 'o_pay') = 5
+  and (select (data->>'spins')::int from public.punpang_customers where id = 'c2') = 1);
+select test.ok('H2: ผู้มีแค่ refundPartial โอนคะแนนไม่ได้ (ต้องมีสิทธิ์เปลี่ยนผู้ซื้อหรือแอดมิน)',
+  test.rpc_as('44444444-4444-4444-4444-444444444444',
+    $q$ select public.punpang_ledger_apply('c2', '[{"op":"earn","id":"t3","points":5,"reason":"x","orderId":"o_pay","transfer":true}]'::jsonb) $q$)->>'exception' = '42501');
+select test.ok('H2: สิทธิ์หมุนที่อ้างออร์เดอร์ (ไม่ใช่การโอน) ผู้ที่ไม่ใช่แอดมินเพิ่มไม่ได้',
   test.rpc_as('77777777-7777-7777-7777-777777777777',
-    $q$ select public.punpang_ledger_apply('c2', '[{"op":"earn","id":"t2","points":5,"reason":"โอนมา","orderId":"o_pay"},{"op":"spins","delta":2}]'::jsonb) $q$)->>'message' = 'cap_exceeded');
+    $q$ select public.punpang_ledger_apply('c2', '[{"op":"spins","delta":1,"orderId":"o_pay"}]'::jsonb) $q$)->>'exception' = '42501');
 select test.ok('H2: การตัดสิทธิ์หมุน (ค่าลบ) ยังทำได้ตามสิทธิ์เดิม',
   (test.rpc_as('77777777-7777-7777-7777-777777777777', $q$ select public.punpang_ledger_apply('c2', '[{"op":"spins","delta":-1}]'::jsonb) $q$)->>'ok')::boolean);
+
+-- ===== H3 (รอบ 2026-11-15): คืนเงินซ้ำหลังใช้คะแนนไปแล้วต้องถูกปฏิเสธ =====
+insert into public.punpang_customers (id, name, phone, data) values ('c4', 'Cust Four', '0844444444', '{"ledger":[],"spins":0}');
+insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values
+  ('o_ref', 'OR-141126-000010', 'c4', 'delivered', 'pickup', 'line', '{"items":[{"unitPrice":1000,"qty":1}],"payments":[{"id":"pr1","status":"confirmed","amount":1000}],"adjustment":{"amount":0}}'),
+  ('o_ref2', 'OR-141126-000011', 'c4', 'preparing', 'pickup', 'line', '{"items":[{"unitPrice":2000,"qty":1}],"payments":[],"adjustment":{"amount":0}}');
+select test.ok('H3: คืนเงินเป็นคะแนนครั้งแรก 1,000 แต้ม (ชำระ 1,000 บาท) ได้',
+  (test.rpc_as('44444444-4444-4444-4444-444444444444',
+    $q$ select public.punpang_ledger_apply('c4', '[{"op":"earn","id":"e4a","points":1000,"reason":"คืนเงิน","orderId":"o_ref"}]'::jsonb) $q$)->>'ok')::boolean);
+select test.ok('H3: ใช้คะแนนทั้งหมดเป็นส่วนลดของออร์เดอร์อื่นแล้ว',
+  (test.rpc_as('11111111-1111-1111-1111-111111111111', $q$ select public.punpang_apply_points('o_ref2', 1000) $q$)->>'ok')::boolean);
+select test.ok('H3: คืนเงินเป็นคะแนนซ้ำหลังใช้คะแนนไปแล้วต้องถูกปฏิเสธ (เพดานสะสมต่อออร์เดอร์)',
+  test.rpc_as('44444444-4444-4444-4444-444444444444',
+    $q$ select public.punpang_ledger_apply('c4', '[{"op":"earn","id":"e4b","points":1000,"reason":"คืนเงิน","orderId":"o_ref"}]'::jsonb) $q$)->>'message' = 'cap_exceeded');
+select test.ok('H3: คืนเงินให้ลูกค้าอีกคนจากออร์เดอร์ของ c4 ไม่ได้',
+  test.rpc_as('44444444-4444-4444-4444-444444444444',
+    $q$ select public.punpang_ledger_apply('c2', '[{"op":"earn","id":"e4c","points":10,"reason":"คืนเงิน","orderId":"o_ref"}]'::jsonb) $q$)->>'exception' = '42501');
 
 -- ===== H2: ใช้คะแนนเป็นส่วนลด =====
 select test.ok('H2: ใช้คะแนนเป็นส่วนลดเกินยอดออร์เดอร์ (900) ไม่ได้',
@@ -223,6 +264,7 @@ select test.ok('T5: นับซ้ำในวันเดียวกัน = 
 
 insert into public.punpang_cake_clicks (v, photo_id, at)
   select 'visitor_' || lpad(g::text, 6, '0'), 'p1', now() - interval '100 days' from generate_series(1, 50000) g;
+analyze public.punpang_cake_clicks;
 select test.as_anon($q$ select public.punpang_record_click('photo1', 'visitor_new_001') $q$) as r \gset
 select test.ok('D5: ตารางคลิกเต็ม 50,000 แถว (เก่ากว่า 90 วัน) → ลบของเก่าแล้วบันทึกต่อได้',
   :'r' = 'OK'
@@ -230,6 +272,7 @@ select test.ok('D5: ตารางคลิกเต็ม 50,000 แถว (�
   and exists (select 1 from public.punpang_cake_clicks where v = 'visitor_new_001' and photo_id = 'photo1'));
 insert into public.punpang_cake_clicks (v, photo_id, at)
   select 'visitor_' || lpad(g::text, 6, '0'), 'p1', now() from generate_series(1, 49999) g;
+analyze public.punpang_cake_clicks;
 select test.as_anon($q$ select public.punpang_record_click('photo2', 'visitor_new_002') $q$) as r \gset
 select test.ok('D5: ตารางเต็มด้วยแถวใหม่ (ยังไม่ครบ 90 วัน) → ไม่เพิ่มเกินเพดาน',
   :'r' = 'OK' and (select count(*) from public.punpang_cake_clicks) = 50000
@@ -287,5 +330,42 @@ select test.ok('D9: กระดิ่งพนักงานประเภท
   and (select body->>'recordId' from test.net_calls order by id desc limit 1) = 'bl_ok');
 insert into public.punpang_records (collection, id, data) values ('bell', 'bl_other', '{"audience":"staff","event":"some_other_event","text":"x"}');
 select test.ok('D9: กระดิ่งประเภทอื่นไม่ยิง push', (select count(*) from test.net_calls) = 2);
+
+
+-- ===== D2 (รอบ 2026-11-15): ราคา/ยอดของออร์เดอร์แก้ได้เฉพาะผู้มีสิทธิ์ (ผ่าน PostgREST) =====
+insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values
+  ('o_draft', 'OR-141126-000020', 'c1', 'draft', 'pickup', 'line', '{"items":[{"id":"it1","unitPrice":300,"qty":1}],"payments":[],"adjustment":{"amount":0}}');
+select test.ok('D2: ช่างเค้กแก้ราคาในออร์เดอร์ไม่ได้',
+  test.as_staff('33333333-3333-3333-3333-333333333333', $q$ update public.punpang_orders set data = jsonb_set(data, '{items,0,unitPrice}', '1') where id = 'o_prep' $q$) like 'ERR:42501:%');
+select test.ok('D2: ช่างเค้กบันทึกรูปงานในออร์เดอร์ได้ (ไม่เปลี่ยนยอด)',
+  test.as_staff('33333333-3333-3333-3333-333333333333', $q$ update public.punpang_orders set data = jsonb_set(data, '{items,0,workPhotos}', '[]'::jsonb) where id = 'o_prep' $q$) = 'OK');
+select test.ok('D2: พนักงานขายแก้ราคาออร์เดอร์ที่กำลังเตรียมไม่ได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111', $q$ update public.punpang_orders set data = jsonb_set(data, '{items,0,unitPrice}', '1') where id = 'o_prep' $q$) like 'ERR:42501:%');
+select test.ok('D2: พนักงานขายแก้ราคาในออร์เดอร์ร่างได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111', $q$ update public.punpang_orders set data = jsonb_set(data, '{items,0,unitPrice}', '250') where id = 'o_draft' $q$) = 'OK');
+select test.ok('D2: พนักงานขายแก้ส่วนลด (adjustment) ไม่ได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111', $q$ update public.punpang_orders set data = jsonb_set(data, '{adjustment}', '{"amount":-100,"reason":"x"}') where id = 'o_draft' $q$) like 'ERR:42501:%');
+select test.ok('D2: พนักงานขายแก้จำนวนเงินของงวดที่ยืนยันแล้วไม่ได้ (เห็นออร์เดอร์นี้ได้ แต่ไม่มีสิทธิ์ยืนยันชำระ)',
+  test.as_staff('11111111-1111-1111-1111-111111111111', $q$ update public.punpang_orders set data = jsonb_set(data, '{payments,0,amount}', '1') where id = 'o_del' $q$) like 'ERR:42501:%');
+select test.ok('D2: พนักงานขายเปลี่ยนผู้ซื้อไม่ได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111', $q$ update public.punpang_orders set customer_id = 'c2' where id = 'o_draft' $q$) like 'ERR:42501:%');
+select test.ok('D2: ตั้งคะแนนที่ใช้ในออร์เดอร์โดยตรงไม่ได้ (ต้องผ่านเซิร์ฟเวอร์)',
+  test.as_staff('11111111-1111-1111-1111-111111111111', $q$ update public.punpang_orders set data = jsonb_set(data, '{pointsUsed}', '{"points":500,"amount":500,"entryId":"fake"}') where id = 'o_draft' $q$) like 'ERR:42501:%');
+select test.ok('D2: ผู้จัดการแก้ส่วนลดได้',
+  test.as_staff('55555555-5555-5555-5555-555555555555', $q$ update public.punpang_orders set data = jsonb_set(data, '{adjustment}', '{"amount":-10,"reason":"x"}') where id = 'o_draft' $q$) = 'OK');
+
+-- ===== E1 (รอบ 2026-11-15): สิทธิ์ของผู้ไม่ล็อกอินและตารางที่ใช้ภายใน =====
+select test.ok('E1: ผู้ไม่ล็อกอินอ่านตารางคลิกไม่ได้', test.as_anon($q$ select count(*) from public.punpang_cake_clicks $q$) like 'ERR:42501:%');
+select test.ok('E1: ผู้ไม่ล็อกอินเพิ่มอุปกรณ์ push ไม่ได้', test.as_anon($q$ insert into public.punpang_push_devices (token, staff_id) values ('x', '11111111-1111-1111-1111-111111111111') $q$) like 'ERR:42501:%');
+select test.ok('E1: ผู้ไม่ล็อกอินลงทะเบียน push ไม่ได้', test.as_anon($q$ select public.punpang_register_push_token('x') $q$) like 'ERR:42501:%');
+select test.ok('E1: ผู้ไม่ล็อกอินอ่านสินค้าที่เปิดขายได้ตามเดิม', test.as_anon($q$ select count(*) from public.punpang_items $q$) = 'OK');
+select test.ok('E1: ผู้ไม่ล็อกอินนับคลิกรูปแนะนำได้ตามเดิม', test.as_anon($q$ select public.punpang_click_pairs() $q$) = 'OK');
+select test.ok('E1: ผู้ไม่ล็อกอินอ่านตารางยอดที่ออกจากออร์เดอร์ไม่ได้', test.as_anon($q$ select count(*) from public.punpang_order_issued $q$) like 'ERR:42501:%');
+select test.ok('E1: พนักงานที่ล็อกอินแล้วอ่านตารางยอดที่ออกจากออร์เดอร์ตรง ๆ ไม่ได้',
+  test.as_staff('55555555-5555-5555-5555-555555555555', $q$ select 1 from public.punpang_order_issued $q$) like 'ERR:42501:%');
+
+-- ===== D9 (รอบ 2026-11-15): คำขอ push ต้องแนบคีย์จาก Vault =====
+select test.ok('D9: คำขอ push แนบคีย์ x-push-key จาก Vault',
+  (select headers->>'x-push-key' from test.net_calls order by id desc limit 1) = 'test-push-key');
 
 select 'ผ่านทั้งหมด' as security_tests;

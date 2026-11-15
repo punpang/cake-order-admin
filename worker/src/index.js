@@ -58,6 +58,8 @@ async function staffOf(req, env) {
 const hasAnyPerm = (staff, need) => (staff.perms || []).some((p) => p === 'manage' || need.includes(p))
 // ไฟล์ส่วนตัว: <orderId>/work/… รูปงาน · <orderId>/ref/… รูปตัวอย่าง · นอกนั้น (<orderId>/…) สลิป
 const needForPrivateKey = (key) => (/^[^/]+\/work(\/|$)/.test(key) ? ['workPhoto'] : /^[^/]+\/ref(\/|$)/.test(key) ? ['createOrder', 'editItems'] : ['reportPayment', 'confirmPayment'])
+// กติกาการลบ: รูปงาน/รูปตัวอย่างตามเดิม · สลิปและไฟล์อื่น ลบได้เฉพาะผู้ยืนยันชำระ (ตรงกับ storage policy เดิม) · ผู้แจ้งชำระแก้/เพิ่มได้อย่างเดียว
+const needForDelete = (key) => (/^[^/]+\/(work|ref)(\/|$)/.test(key) ? needForPrivateKey(key) : ['confirmPayment'])
 
 // ลูกค้า: เซสชันที่ยังไม่หมดอายุ → customer_id
 async function customerOf(env, session) {
@@ -197,7 +199,7 @@ export default {
       if (!staff) return json(req, env, { error: 'ต้องเข้าสู่ระบบพนักงาน' }, 401)
       const body = await req.json().catch(() => ({}))
       const keys = (Array.isArray(body.keys) ? body.keys : []).map(String).filter((k) => k && !k.includes('..') && !k.startsWith('/')).slice(0, 100)
-      if (keys.some((k) => !hasAnyPerm(staff, needForPrivateKey(k)))) return json(req, env, { error: 'ไม่มีสิทธิ์ลบไฟล์ประเภทนี้' }, 403)
+      if (keys.some((k) => !hasAnyPerm(staff, needForDelete(k)))) return json(req, env, { error: 'ไม่มีสิทธิ์ลบไฟล์ประเภทนี้' }, 403)
       // ทุกการลบต้องผ่านถังขยะก่อน (กู้คืนได้จนกว่าจะครบจำนวนวันในถัง)
       if (keys.length) await moveToTrash(env.FILES_PRIVATE, keys.map((key) => ({ key })), staff.user_id, 'app')
       return json(req, env, { ok: true, deleted: keys.length })
@@ -407,12 +409,28 @@ async function ordersById(env, ids) {
   return map
 }
 // ข้อความทั้งหมดที่อ้างถึงรูปสาธารณะ (สินค้า, ค่าตั้งค่า/หน้าร้าน, บันทึกต่าง ๆ) → ใช้ตรวจว่ารูปยังถูกใช้อยู่หรือไม่
-async function publicRefText(env) {
-  const parts = []
-  for (const path of ['/rest/v1/punpang_items?select=data', '/rest/v1/punpang_kv?select=data', '/rest/v1/punpang_records?select=data', '/rest/v1/punpang_orders?select=data']) {
-    const r = await sbFetch(env, path)
-    if (r.ok) parts.push(JSON.stringify(await r.json()))
+// อ่านทุกแถวของตาราง: PostgREST ตัดที่ 1,000 แถวต่อคำขอ (เดิมอ่านแค่หน้าแรก → รูปที่ถูกอ้างในแถวที่ 1,001+ ถูกนับว่าไม่ถูกใช้)
+// อ่านไม่สำเร็จ = โยนข้อผิดพลาด (ไม่ตัดสินว่ารูปไม่ถูกใช้จากข้อมูลที่ไม่ครบ)
+export async function sbAll(env, path, order) {
+  const out = []
+  for (let off = 0; ; off += 1000) {
+    const r = await sbFetch(env, `${path}&order=${order}&limit=1000&offset=${off}`)
+    if (!r.ok) throw new Error(`อ่านข้อมูล ${path.split('?')[0]} ไม่สำเร็จ (${r.status})`)
+    const rows = await r.json()
+    out.push(...rows)
+    if (rows.length < 1000) break
   }
+  return out
+}
+export async function publicRefText(env) {
+  const sources = [
+    ['/rest/v1/punpang_items?select=data', 'id'],
+    ['/rest/v1/punpang_kv?select=data', 'collection,id'],
+    ['/rest/v1/punpang_records?select=data', 'id'],
+    ['/rest/v1/punpang_orders?select=data', 'id'],
+  ]
+  const parts = []
+  for (const [path, order] of sources) parts.push(JSON.stringify(await sbAll(env, path, order)))
   return parts.join('\n')
 }
 async function publicList(env, body) {

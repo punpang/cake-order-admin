@@ -7,6 +7,7 @@ import { startCustomerPush } from '../../lib/customerPush'
 import { PHOTO_MAX_COUNT, shrinkPhoto } from '../../lib/customerPhoto'
 import { dateTime } from '../../lib/format'
 import { quietly } from '../../lib/loading'
+import { safeHref } from '../../lib/safeUrl'
 
 const MAX = 1000
 const LINK_KEEP_MS = 50 * 60e3 // ลิงก์รูปที่ออกให้มีอายุ 1 ชม. · เก็บใช้ต่อไม่เกิน 50 นาที
@@ -169,7 +170,7 @@ onBeforeUnmount(() => {
         <div class="max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words" :class="m.from === 'customer' ? 'bg-brand-600 text-white' : 'bg-stone-100 text-stone-900'">
           <div v-if="m.from === 'staff'" class="text-[11px] opacity-80">ร้าน</div>
           <div v-if="m.photos?.length" class="mb-1 grid gap-1" :class="m.photos.length > 1 ? 'grid-cols-2' : ''">
-            <a v-for="p in m.photos" :key="p.ref" :href="p.url || undefined" target="_blank" rel="noopener" class="block">
+            <a v-for="p in m.photos" :key="p.ref" :href="safeHref(p.url) || undefined" target="_blank" rel="noopener" class="block">
               <img v-if="p.url" :src="p.url" alt="รูปที่แนบ" class="max-h-48 w-full rounded-lg object-cover" loading="lazy" />
               <span v-else class="flex h-24 items-center justify-center rounded-lg bg-stone-200 text-xs text-stone-500">โหลดรูปไม่ได้</span>
             </a>

@@ -1,7 +1,7 @@
 // ทดสอบ Worker punpang-files: เส้นทาง /svc/* (คีย์ลับ) · ลบรูปชุดเทรนเมื่อครบ 30 วัน · สิทธิ์อัปโหลดรูปแชท (staff/)
 // ใช้ R2 และ fetch จำลอง ไม่ต่อระบบจริง
 import { assert, assertEquals } from 'jsr:@std/assert@1'
-import worker, { fileTypeOf, runTrainPrune } from '../src/index.js'
+import worker, { fileTypeOf, publicRefText, runTrainPrune } from '../src/index.js'
 
 const DAY = 86_400_000
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 1, 2, 3, 4, 5, 6, 7, 8])
@@ -105,6 +105,49 @@ Deno.test('รูปชุดเทรนเก่าเกิน 30 วัน�
   assertEquals([...env.FILES_PRIVATE.objs.keys()].sort(), ['o1/slip.png', 'train/new.jpg'])
   const del = calls.find((c) => c.method === 'DELETE')
   assert(del !== undefined && del.url.includes('collection=eq.slipTrain'))
+})
+
+Deno.test('ลบสลิปของออร์เดอร์ได้เฉพาะผู้ยืนยันชำระหรือแอดมิน (ผู้แจ้งชำระแก้ได้อย่างเดียว)', async () => {
+  stubFetch()
+  const env = makeEnv()
+  const del = (perms: string[]) => {
+    staffPerms = perms
+    env.FILES_PRIVATE.objs.set('o9/slip.png', { key: 'o9/slip.png', body: PNG, uploaded: new Date() })
+    return worker.fetch(new Request('https://files.test/delete', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer staff-jwt', 'content-type': 'application/json' },
+      body: JSON.stringify({ keys: ['o9/slip.png'] }),
+    }), env)
+  }
+  assertEquals((await del(['reportPayment'])).status, 403)
+  assert(env.FILES_PRIVATE.objs.has('o9/slip.png'))
+  assertEquals((await del(['confirmPayment'])).status, 200)
+  assertEquals((await del(['manage'])).status, 200)
+  staffPerms = null
+})
+
+Deno.test('รูปสาธารณะที่ถูกอ้างในแถวที่ 1,001 ขึ้นไปยังนับว่าถูกใช้ (อ่านข้อมูลทุกหน้า)', async () => {
+  const requested: string[] = []
+  globalThis.fetch = (async (input: any) => {
+    const url = new URL(String(input))
+    requested.push(url.pathname + url.search)
+    if (url.pathname !== '/rest/v1/punpang_items') return new Response('[]', { status: 200 })
+    const off = Number(url.searchParams.get('offset') || 0)
+    const page = off === 0
+      ? Array.from({ length: 1000 }, (_, i) => ({ data: { name: 'เค้ก ' + i } }))
+      : [{ data: { image: 'sb://pub/cake-1001.png' } }]
+    return new Response(JSON.stringify(page), { status: 200 })
+  }) as typeof fetch
+  const refs = await publicRefText({ SUPABASE_URL: 'https://sb.test', SUPABASE_SERVICE_ROLE_KEY: 'srk' } as any)
+  assert(refs.includes('cake-1001.png'))
+  assert(requested.some((u) => u.includes('offset=1000')))
+})
+
+Deno.test('อ่านข้อมูลอ้างอิงไม่สำเร็จ = ไม่ตัดสินว่ารูปไม่ถูกใช้ (โยนข้อผิดพลาด)', async () => {
+  globalThis.fetch = (async () => new Response('boom', { status: 500 })) as typeof fetch
+  let threw = false
+  try { await publicRefText({ SUPABASE_URL: 'https://sb.test', SUPABASE_SERVICE_ROLE_KEY: 'srk' } as any) } catch { threw = true }
+  assert(threw)
 })
 
 Deno.test('อัปโหลดรูปแชท (staff/…) ต้องมีสิทธิ์แชท', async () => {

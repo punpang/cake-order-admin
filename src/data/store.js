@@ -2294,7 +2294,7 @@ export function changeBuyer(order, newId, reason = '') {
     const lid = l.points > 0 ? uid('pt') : null
     const cutOps = [...(l.lotId ? [{ op: 'cut', lotId: l.lotId, reason: `โอนคะแนน ${order.code} ไปผู้ซื้อใหม่`, orderId: order.id }] : []), ...(l.spins ? [{ op: 'spins', delta: -l.spins, orderId: order.id }] : [])]
     if (cutOps.length) ledgerRemote(from.id, cutOps, order.id)
-    const earnOps = [...(lid ? [{ op: 'earn', id: lid, points: l.points, reason: `โอนมาจากออร์เดอร์ ${order.code}`, orderId: order.id }] : []), ...(l.spins ? [{ op: 'spins', delta: l.spins, orderId: order.id }] : [])]
+    const earnOps = [...(lid ? [{ op: 'earn', id: lid, points: l.points, reason: `โอนมาจากออร์เดอร์ ${order.code}`, orderId: order.id, transfer: true }] : []), ...(l.spins ? [{ op: 'spins', delta: l.spins, orderId: order.id, transfer: true }] : [])]
     if (earnOps.length) ledgerRemote(to.id, earnOps, order.id)
     order.loyalty = { ...l, lotId: lid }
   } else if (l && from) {

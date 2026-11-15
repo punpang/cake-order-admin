@@ -38,11 +38,13 @@ create function cron.schedule(text, text, text) returns bigint language sql as '
 create function cron.unschedule(text) returns boolean language sql as 'select true';
 
 create schema vault;
-create view vault.decrypted_secrets as select 'scheduled_key'::text as name, 'test-secret'::text as decrypted_secret;
+create view vault.decrypted_secrets as
+  select 'scheduled_key'::text as name, 'test-secret'::text as decrypted_secret
+  union all select 'push_send_key'::text, 'test-push-key'::text;
 
 -- pg_net จำลอง: บันทึกคำเรียกไว้ให้เทสต์ตรวจ · ตั้ง test.net_fail = 'on' เพื่อจำลองว่าเรียกไม่สำเร็จ
 create schema test;
-create table test.net_calls (id bigserial primary key, at timestamptz default now(), url text, body jsonb);
+create table test.net_calls (id bigserial primary key, at timestamptz default now(), url text, body jsonb, headers jsonb);
 create schema net;
 create function net.http_post(url text, headers jsonb default '{}', body jsonb default '{}', timeout_milliseconds int default 1000)
 returns bigint language plpgsql as $$
@@ -50,6 +52,6 @@ begin
   if current_setting('test.net_fail', true) = 'on' then
     raise exception 'simulated pg_net failure';
   end if;
-  insert into test.net_calls (url, body) values (url, body);
+  insert into test.net_calls (url, body, headers) values (url, body, headers);
   return 1;
 end $$;
