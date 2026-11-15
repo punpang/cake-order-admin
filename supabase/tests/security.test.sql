@@ -379,22 +379,22 @@ insert into public.punpang_records (collection, id, data) values
   ('coupons', 'cpM', '{"type":"discount","status":"used","orderId":"o_draft","customerId":"c1","amount":50,"minSpend":10000,"name":"ขั้นต่ำ 10,000"}');
 select test.ok('C1: ส่วนลดจากคูปองที่ไม่มีอยู่จริงเพิ่มไม่ได้ (เคสเดิม 400 บาท)',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ update public.punpang_orders set data = jsonb_set(data, '{couponsUsed}', '[{"couponId":"ไม่มีคูปองนี้","name":"ส่วนลดพิเศษ","amount":400}]'::jsonb) where id = 'o_draft' $q$) like 'ERR:42501:%');
+    $q$ update public.punpang_orders set data = jsonb_set(data, '{couponsUsed}', '[{"couponId":"ไม่มีคูปองนี้","name":"ส่วนลดพิเศษ","amount":400}]'::jsonb) where id = 'o_draft' $q$) like 'ERR:42501:coupon is not claimed%');
 select test.ok('C1: คูปองที่ยังไม่ได้จองกับออร์เดอร์ใส่ไม่ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ update public.punpang_orders set data = jsonb_set(data, '{couponsUsed}', '[{"couponId":"cpB","name":"ยังไม่จอง","amount":100}]'::jsonb) where id = 'o_draft' $q$) like 'ERR:42501:%');
+    $q$ update public.punpang_orders set data = jsonb_set(data, '{couponsUsed}', '[{"couponId":"cpB","name":"ยังไม่จอง","amount":100}]'::jsonb) where id = 'o_draft' $q$) like 'ERR:42501:coupon is not claimed%');
 select test.ok('C1: คูปองที่จองให้ออร์เดอร์อื่นใส่ไม่ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ update public.punpang_orders set data = jsonb_set(data, '{couponsUsed}', '[{"couponId":"cpC","name":"จองให้ออร์เดอร์อื่น","amount":100}]'::jsonb) where id = 'o_draft' $q$) like 'ERR:42501:%');
+    $q$ update public.punpang_orders set data = jsonb_set(data, '{couponsUsed}', '[{"couponId":"cpC","name":"จองให้ออร์เดอร์อื่น","amount":100}]'::jsonb) where id = 'o_draft' $q$) like 'ERR:42501:coupon is not claimed%');
 select test.ok('C1: คูปองของลูกค้าอีกคนใส่ไม่ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ update public.punpang_orders set data = jsonb_set(data, '{couponsUsed}', '[{"couponId":"cpE","name":"ของลูกค้าอีกคน","amount":100}]'::jsonb) where id = 'o_draft' $q$) like 'ERR:42501:%');
+    $q$ update public.punpang_orders set data = jsonb_set(data, '{couponsUsed}', '[{"couponId":"cpE","name":"ของลูกค้าอีกคน","amount":100}]'::jsonb) where id = 'o_draft' $q$) like 'ERR:42501:coupon is not claimed%');
 select test.ok('C1: ส่วนลดเกินมูลค่าคูปอง (คูปอง 100 บาท ใส่ 150) ไม่ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ update public.punpang_orders set data = jsonb_set(data, '{couponsUsed}', '[{"couponId":"cpF","name":"คูปอง 100","amount":150}]'::jsonb) where id = 'o_draft' $q$) like 'ERR:42501:%');
+    $q$ update public.punpang_orders set data = jsonb_set(data, '{couponsUsed}', '[{"couponId":"cpF","name":"คูปอง 100","amount":150}]'::jsonb) where id = 'o_draft' $q$) like 'ERR:42501:coupon is not claimed%');
 select test.ok('C1: ยอดสินค้าไม่ถึงขั้นต่ำของคูปองใส่ไม่ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ update public.punpang_orders set data = jsonb_set(data, '{couponsUsed}', '[{"couponId":"cpM","name":"ขั้นต่ำ","amount":50}]'::jsonb) where id = 'o_draft' $q$) like 'ERR:42501:%');
+    $q$ update public.punpang_orders set data = jsonb_set(data, '{couponsUsed}', '[{"couponId":"cpM","name":"ขั้นต่ำ","amount":50}]'::jsonb) where id = 'o_draft' $q$) like 'ERR:42501:coupon is not claimed%');
 select test.ok('C1: คูปองที่จองไว้กับออร์เดอร์นี้และไม่เกินมูลค่า ใช้ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
     $q$ update public.punpang_orders set data = jsonb_set(data, '{couponsUsed}', '[{"couponId":"cpF","name":"คูปอง 100","amount":100}]'::jsonb) where id = 'o_draft' $q$) = 'OK');
@@ -409,9 +409,31 @@ select test.ok('C1: สร้างออร์เดอร์หน้าร้
     $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_pos1', 'OR-POS-1', 'c1', 'payment_confirmed', 'pickup', 'pos', '{"items":[{"id":"p1","unitPrice":500,"qty":1}],"payments":[],"couponsUsed":[{"couponId":"cpD","name":"จองหน้าร้าน","amount":50}]}') $q$) = 'OK');
 select test.ok('C1: สร้างออร์เดอร์ออนไลน์ด้วยคูปอง pos-pending ไม่ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_pos2', 'OR-POS-2', 'c1', 'awaiting_payment', 'pickup', 'line', '{"items":[{"id":"p2","unitPrice":500,"qty":1}],"payments":[],"couponsUsed":[{"couponId":"cpD","name":"จองหน้าร้าน","amount":50}]}') $q$) like 'ERR:42501:%');
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_pos2', 'OR-POS-2', 'c1', 'awaiting_payment', 'pickup', 'line', '{"items":[{"id":"p2","unitPrice":500,"qty":1}],"payments":[],"couponsUsed":[{"couponId":"cpD","name":"จองหน้าร้าน","amount":50}]}') $q$) like 'ERR:42501:coupon is not claimed%');
 select test.ok('C1: สร้างออร์เดอร์โดยใส่คูปองปลอมไม่ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_pos3', 'OR-POS-3', 'c1', 'awaiting_payment', 'pickup', 'line', '{"items":[{"id":"p3","unitPrice":500,"qty":1}],"payments":[],"couponsUsed":[{"couponId":"ไม่มีคูปองนี้","name":"ปลอม","amount":400}]}') $q$) like 'ERR:42501:%');
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_pos3', 'OR-POS-3', 'c1', 'awaiting_payment', 'pickup', 'line', '{"items":[{"id":"p3","unitPrice":500,"qty":1}],"payments":[],"couponsUsed":[{"couponId":"ไม่มีคูปองนี้","name":"ปลอม","amount":400}]}') $q$) like 'ERR:42501:coupon is not claimed%');
+
+-- ===== C2 (รอบ 2026-11-15): ตอนสร้างออร์เดอร์ ห้ามตั้งคะแนนที่ใช้หรือส่วนลดเอง =====
+insert into auth.users (id, email) values ('88888888-8888-8888-8888-888888888888', 'pricer@example.test') on conflict do nothing;
+insert into public.punpang_staff (user_id, name, role, perms) values ('88888888-8888-8888-8888-888888888888', 'Pricer', 'sales', '{adjustPrice,createOrder,viewAllOrders}');
+select test.ok('C2: สร้างออร์เดอร์ที่ตั้งคะแนนที่ใช้เองไม่ได้ (เคส 500 แต้มปลอม)',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_c2a', 'OR-C2-1', 'c1', 'awaiting_payment', 'pickup', 'line', '{"items":[{"id":"q1","unitPrice":500,"qty":1}],"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":{"points":500,"amount":500,"entryId":"fake"}}') $q$) like 'ERR:42501:points can only be applied%');
+select test.ok('C2: สร้างออร์เดอร์ที่ตั้งส่วนลดเองไม่ได้ (ไม่มีสิทธิ์ปรับราคา)',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_c2b', 'OR-C2-2', 'c1', 'awaiting_payment', 'pickup', 'line', '{"items":[{"id":"q2","unitPrice":500,"qty":1}],"payments":[],"adjustment":{"amount":-400,"reason":"x"},"pointsUsed":null}') $q$) like 'ERR:42501:no permission to set a discount%');
+select test.ok('C2: สร้างออร์เดอร์ใหม่ที่ส่วนลดเป็นศูนย์และคะแนนว่างได้ (ค่าเริ่มต้นของแอป)',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_c2c', 'OR-C2-3', 'c1', 'awaiting_payment', 'pickup', 'line', '{"items":[{"id":"q3","unitPrice":500,"qty":1}],"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null}') $q$) = 'OK');
+select test.ok('C2: บิลหน้าร้านที่ไม่มีสิทธิ์ปรับราคาให้ส่วนลดไม่ได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_c2d', 'OR-C2-4', 'c1', 'payment_confirmed', 'pickup', 'pos', '{"items":[{"id":"q4","unitPrice":500,"qty":1}],"payments":[],"adjustment":{"amount":-50,"reason":"ส่วนลดหน้าร้าน"},"pointsUsed":null}') $q$) like 'ERR:42501:no permission to set a discount%');
+select test.ok('C2: ผู้ที่มีสิทธิ์ปรับราคาสร้างออร์เดอร์ที่มีส่วนลดได้ (ไม่ใช่ผู้จัดการ)',
+  test.as_staff('88888888-8888-8888-8888-888888888888',
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_c2e', 'OR-C2-5', 'c1', 'awaiting_payment', 'pickup', 'line', '{"items":[{"id":"q5","unitPrice":500,"qty":1}],"payments":[],"adjustment":{"amount":-50,"reason":"ตกลงกับลูกค้า"},"pointsUsed":null}') $q$) = 'OK');
+select test.ok('C2: ผู้จัดการสร้างออร์เดอร์ที่มีส่วนลดและคะแนนที่ใช้ได้ (ผู้จัดการผ่านทุกข้อ)',
+  test.as_staff('55555555-5555-5555-5555-555555555555',
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_c2f', 'OR-C2-6', 'c1', 'awaiting_payment', 'pickup', 'line', '{"items":[{"id":"q6","unitPrice":500,"qty":1}],"payments":[],"adjustment":{"amount":-50,"reason":"แอดมิน"},"pointsUsed":{"points":10,"amount":10,"entryId":"x"}}') $q$) = 'OK');
 
 select 'ผ่านทั้งหมด' as security_tests;
