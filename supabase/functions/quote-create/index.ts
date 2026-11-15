@@ -6,6 +6,7 @@
 // ดู docs/security.md (รอบ 2026-11-15) — ใช้ร่วมกับ migration 20261115080000 (ปิดการ INSERT ใบเสนอจากเครื่องพนักงาน)
 import { buildQuotePayload, bkkWall } from '../_shared/schedlib/quotePrice.js'
 import { ddmmyy, formatNo } from '../_shared/schedlib/docNo.js'
+import { loadCatalog } from '../_shared/catalog.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -20,8 +21,6 @@ const SUPABASE_URL = env('SUPABASE_URL')
 const ANON = env('SUPABASE_ANON_KEY')
 const SERVICE = env('SUPABASE_SERVICE_ROLE_KEY')
 const SERVICE_HEADERS = { apikey: SERVICE, Authorization: `Bearer ${SERVICE}` }
-// ค่าตั้งค่าที่ใช้คิดราคา (collection config · 1 แถวต่อ 1 คีย์)
-const CONFIG_IDS = ['shop', 'priceLists', 'bundles', 'optionGroups', 'posDiscounts', 'posBundles', 'posDeals']
 
 // พนักงานที่ล็อกอินอยู่ (โทเค็นจากแอป) และ active จริง
 async function staffOf(token: string): Promise<{ id: string; perms: string[]; token: string } | null> {
@@ -41,33 +40,6 @@ async function rest(path: string): Promise<any[] | null> {
   if (!r.ok) return null
   const rows = await r.json()
   return Array.isArray(rows) ? rows : null
-}
-
-// แคตาล็อกที่ใช้คิดราคา: ค่าตั้งค่า + สินค้าหน้าร้านทั้งหมด (แบ่งหน้า เพราะ API ส่งทีละไม่เกิน 1000 แถว)
-async function loadCatalog(): Promise<Record<string, unknown> | null> {
-  const kv = await rest(`punpang_kv?collection=eq.config&id=in.(${CONFIG_IDS.join(',')})&select=id,data`)
-  if (!kv) return null
-  const cfg: Record<string, any> = {}
-  for (const row of kv) cfg[row.id] = row.data?.v
-  const retailItems: unknown[] = []
-  for (let off = 0; ; off += 1000) {
-    const page = await rest(`punpang_items?kind=eq.retail&select=id,name,price,active,data&order=id&limit=1000&offset=${off}`)
-    if (!page) return null
-    for (const x of page) {
-      retailItems.push({ ...(x.data || {}), id: x.id, name: x.name, price: x.price == null ? null : Number(x.price), active: x.active })
-    }
-    if (page.length < 1000) break
-  }
-  return {
-    shop: cfg.shop ?? {},
-    priceLists: cfg.priceLists ?? [],
-    optionGroups: cfg.optionGroups ?? [],
-    bundles: cfg.bundles ?? [],
-    posDiscounts: cfg.posDiscounts ?? [],
-    posBundles: cfg.posBundles ?? [],
-    posDeals: cfg.posDeals ?? [],
-    retailItems,
-  }
 }
 
 // เลขใบเสนอ (QT-ddmmyy-xxxxx) จากตัวนับเดียวกับแอป · ใช้โทเค็นพนักงาน เพราะฟังก์ชันนับเลขตรวจ auth.uid()
@@ -101,7 +73,7 @@ Deno.serve(async (req) => {
   const chats = await rest(`punpang_chats?id=eq.${chatId}&select=id,customer_id`)
   if (!chats) return json({ error: 'อ่านข้อมูลแชทไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
   if (!chats.length) return json({ error: 'ไม่พบแชท' }, 404)
-  const catalog = await loadCatalog()
+  const catalog = await loadCatalog(SUPABASE_URL, SERVICE_HEADERS)
   if (!catalog) return json({ error: 'อ่านแคตาล็อกไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
 
   const now = Date.now()

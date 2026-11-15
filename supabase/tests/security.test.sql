@@ -492,7 +492,7 @@ select test.ok('C5: พนักงานเขียนผลตรวจบิ
     $q$ insert into public.punpang_order_audits (order_id, ok, flags) values ('o_q2', true, '[]') $q$) like 'ERR:42501:%');
 select test.ok('C5: พนักงานเรียกคิวตรวจบิลไม่ได้ (เฉพาะเซิร์ฟเวอร์)',
   test.as_staff('99999999-9999-9999-9999-999999999999',
-    $q$ select * from public.punpang_pos_unaudited(1) $q$) like 'ERR:42501:%');
+    $q$ select * from public.punpang_orders_unaudited(1) $q$) like 'ERR:42501:%');
 select test.ok('C5: พนักงานที่เห็นออร์เดอร์ทั้งหมดอ่านผลตรวจได้',
   test.as_staff('99999999-9999-9999-9999-999999999999',
     $q$ select count(*) from public.punpang_order_audits $q$) = 'OK');

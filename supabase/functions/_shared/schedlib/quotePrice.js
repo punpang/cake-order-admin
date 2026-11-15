@@ -130,15 +130,17 @@ const fail = (error, code = 'invalid') => ({ ok: false, code, error })
 
 // ใบเสนอ 1 ใบ → payload ที่ส่งให้ลูกค้า (ราคาคิดจากแคตาล็อกล้วน) · ไม่ได้ข้อมูล/ร้านปิดรับนัด = { ok: false, error, code }
 // draft: ข้อมูลที่พนักงานกรอก (fulfillment, pickupAt, items, birthday, ค่าจัดส่ง) · customerId: ลูกค้าของแชท · nowMs: เวลาปัจจุบัน (ms)
-export function buildQuotePayload({ draft, customerId, catalog, nowMs }) {
+export function buildQuotePayload({ draft, customerId, catalog, nowMs, checkClosure = true }) {
   const d = isObj(draft) ? draft : {}
   const cat = catalog || {}
   if (d.fulfillment !== 'pickup' && d.fulfillment !== 'delivery') return fail('รูปแบบการรับสินค้าไม่ถูกต้อง')
   if (typeof d.pickupAt !== 'string' || !TIME_RE.test(d.pickupAt) || Number.isNaN(pickupMs(d.pickupAt))) return fail('วันเวลานัดไม่ถูกต้อง')
   if (!Array.isArray(d.items) || d.items.length < 1 || d.items.length > MAX_ITEMS) return fail(`ใบเสนอต้องมีรายการสินค้า 1–${MAX_ITEMS} รายการ`)
 
-  const closure = closureAt(cat.shop || {}, bkkWall(pickupMs(d.pickupAt)))
-  if (closure) return fail(`ร้านปิด (${closure.reason}) เลือกวัน-เวลานัดอื่น`, 'closed')
+  if (checkClosure) {
+    const closure = closureAt(cat.shop || {}, bkkWall(pickupMs(d.pickupAt)))
+    if (closure) return fail(`ร้านปิด (${closure.reason}) เลือกวัน-เวลานัดอื่น`, 'closed')
+  }
 
   const items = []
   for (const raw of d.items) {
