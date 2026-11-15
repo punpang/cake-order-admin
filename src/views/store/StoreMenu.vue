@@ -31,7 +31,7 @@ const tabs = computed(() => [
 <template>
   <div class="mx-auto max-w-page px-4 pt-6 lg:px-8">
     <h1 class="text-[28px] text-stone-900">เมนูเค้ก</h1>
-    <p class="mt-1 text-sm text-stone-600">เลือกดูแล้วกดสั่งทางแชท LINE / Facebook ร้านจะยืนยันราคาและวันเวลารับให้</p>
+    <p class="mt-1 text-sm text-stone-600">เลือกดูแล้วกดสั่งทางแชท Facebook ร้านจะยืนยันราคาและวันเวลารับให้</p>
 
     <div v-if="promos.length" class="relative mt-4 overflow-hidden rounded-3xl border-2 border-[#f3e3c7] bg-white px-4 pt-7 pb-3 text-sm text-stone-800 shadow-md"><Bunting />
       <p :class="promoOpen ? '' : 'line-clamp-2 md:line-clamp-none'">โปรโมชันตอนนี้: <b>{{ promos.map((p) => p.name).join(' · ') }}</b> (ราคาที่แสดงรวมโปรแล้ว)</p>

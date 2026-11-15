@@ -27,7 +27,7 @@ import { getSupabase } from '../lib/supabase'
 import { isTypingNow, msOf, pingDue, PRESENCE_POLL_MS, readReceiptId } from '../lib/chatPresence'
 import { watchTable } from '../lib/liveWatch'
 
-// เธรดแชทของศูนย์รวมแชท (ฝั่งพนักงาน) · ข้อความจากลูกค้ามาจาก LINE OA / Facebook
+// เธรดแชทของศูนย์รวมแชท (ฝั่งพนักงาน) · ข้อความจากลูกค้ามาจาก Facebook
 // ผังล่าง: ข้อความ (เลื่อนได้) → แถบร่างบอท/แจ้งผล → เครื่องมือ → ช่องพิมพ์
 const props = defineProps({ chat: { type: Object, required: true } })
 const emit = defineEmits(['edit-draft', 'link', 'open-panel'])
@@ -35,23 +35,23 @@ const text = ref('')
 const box = ref(null)
 const input = ref(null)
 const mine = (m) => m.from === 'staff'
-const channelLabel = computed(() => (props.chat.channel === 'facebook' ? 'Facebook' : props.chat.channel === 'instagram' ? 'Instagram' : props.chat.channel === 'web' ? 'เว็บ/แอป' : 'LINE'))
+const channelLabel = computed(() => (props.chat.channel === 'facebook' ? 'Facebook' : props.chat.channel === 'instagram' ? 'Instagram' : props.chat.channel === 'web' ? 'เว็บ/แอป' : 'อื่น ๆ'))
 // บัญชีของร้านที่ใช้เทียบเลขผู้รับบนสลิป: บัญชีธนาคารและพร้อมเพย์ทุกบัญชีที่ตั้งไว้ (แสดงเครื่องหมายถูกหรือเตือนเท่านั้น)
 const shopAccts = computed(() => payAccountsOf(db.shop?.payment))
 const slipAcctState = (acc) => slipAccountCheck(acc, {
   bank: shopAccts.value.filter((a) => a.kind === 'bank').map((a) => a.accountNo),
   promptpay: shopAccts.value.filter((a) => a.kind === 'promptpay').map((a) => a.promptpayId),
 })
-// สถานะการส่ง (Facebook/Instagram ส่งจริงและมีสถานะ · LINE ไม่มีสถานะการส่ง)
+// สถานะการส่ง (Facebook/Instagram ส่งจริงและมีสถานะ)
 function sendState(m) {
-  if (props.chat.channel === 'facebook' || props.chat.channel === 'instagram' || props.chat.channel === 'line') {
+  if (props.chat.channel === 'facebook' || props.chat.channel === 'instagram') {
     if (m.delivery === 'sending') return 'กำลังส่ง…'
     if (m.delivery === 'sent') return 'ส่งสำเร็จ'
     if (m.delivery === 'failed') return `ส่งไม่สำเร็จ${m.deliveryError ? `: ${m.deliveryError}` : ''}`
   }
   return `ส่งทาง ${channelLabel.value}`
 }
-const failed = (m) => mine(m) && (props.chat.channel === 'facebook' || props.chat.channel === 'instagram' || props.chat.channel === 'line') && m.delivery === 'failed'
+const failed = (m) => mine(m) && (props.chat.channel === 'facebook' || props.chat.channel === 'instagram') && m.delivery === 'failed'
 // ผลตรวจสลิป QR ในรูปที่ลูกค้าส่ง (สถานะจาก _shared/slipjob.ts) · ยอดรอพนักงานตรวจ (ยกเว้นยืนยันอัตโนมัติ)
 const SLIP_CHIP = {
   matched: ['สลิปจับคู่กับออร์เดอร์แล้ว · รอตรวจยอด', 'bg-emerald-50 text-emerald-700'],

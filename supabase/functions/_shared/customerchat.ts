@@ -1,5 +1,5 @@
 // แชทกับร้านของลูกค้าที่ล็อกอินแล้ว (เว็บและแอป) · ข้อความตัวอักษรและรูปภาพ (ไม่เกิน 2 MB ต่อรูป ไม่เกิน 5 รูปต่อข้อความ)
-// เก็บเป็นกระทู้ของช่องทาง 'web' แยกจาก LINE/Facebook (ต่อลูกค้าหนึ่งคนหนึ่งกระทู้)
+// เก็บเป็นกระทู้ของช่องทาง 'web' แยกจาก Facebook (ต่อลูกค้าหนึ่งคนหนึ่งกระทู้)
 // เขียนแบบเทียบ updated_at (CAS) เหมือนแชทอื่น · ทุกข้อความใหม่แจ้งกระดิ่งพนักงาน (สิทธิ์ chat)
 import { CHAT_PHOTO_KV, CHAT_PHOTO_UPLOAD_MAX, decodePhotoDataUrl, photoKeyOf, photoKeyOwned, photoPrefixOf, photoRefsOf } from './chatphoto.ts'
 import { type FilesEnv, svcDelete, svcUpload } from './filesvc.ts'

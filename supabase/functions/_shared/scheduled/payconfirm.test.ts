@@ -5,7 +5,7 @@ import { planScheduled } from './plan.ts'
 // deno-lint-ignore no-explicit-any
 type Any = any
 const SHOP: Any = { close: '20:00', leadPickup: 60, leadDelivery: 120, birthdayDays: 14, payReminderTime: '09:00' }
-const CUSTOMER: Any = { id: 'c1', name: 'คุณมะลิ', phone: '0812345678', fbPsid: '1669442389773370', lineUserId: '', promoOptIn: true, ledger: [], note: '' }
+const CUSTOMER: Any = { id: 'c1', name: 'คุณมะลิ', phone: '0812345678', fbPsid: '1669442389773370', promoOptIn: true, ledger: [], note: '' }
 const RULES: Any[] = [{ event: 'payment_confirmed', enabled: true, channels: ['facebook', 'sms'], template: 'ยืนยันชำระ {ยอดที่ชำระ} แล้วค่ะ ออร์เดอร์ {เลขออร์เดอร์}' }]
 // 11-11-2569 10:00 เวลาไทย
 const NOW = Date.parse('2026-11-11T10:00+07:00')

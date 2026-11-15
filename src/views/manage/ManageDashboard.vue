@@ -102,7 +102,7 @@ function refresh() {
         <h2 class="text-sm font-semibold text-stone-700">แชทที่รอตอบ</h2>
         <template v-if="d.chats">
           <div><div class="text-xs text-stone-500">รวมทุกช่องทาง</div><div class="text-3xl font-semibold text-stone-900">{{ d.chats.awaitingReply }}</div></div>
-          <div class="text-sm text-stone-700">Facebook {{ d.chats.awaitingFacebook }} · แชททั้งหมด LINE {{ d.chats.lineTotal }}</div>
+          <div class="text-sm text-stone-700">Facebook {{ d.chats.awaitingFacebook }}</div>
         </template>
         <p v-else class="text-sm text-stone-500">ไม่มีสิทธิ์ดูแชท</p>
       </section>

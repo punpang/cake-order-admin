@@ -17,7 +17,7 @@ const results = computed(() => {
   if (s.length < 2) return []
   const d = phoneDigits(s)
   return db.customers
-    .filter((c) => !c.deleted && c.active !== false && c.id !== props.order.customerId && (c.name.toLowerCase().includes(s) || (d.length >= 3 && (c.phone || '').includes(d)) || (c.line || '').toLowerCase().includes(s)))
+    .filter((c) => !c.deleted && c.active !== false && c.id !== props.order.customerId && (c.name.toLowerCase().includes(s) || (d.length >= 3 && (c.phone || '').includes(d))))
     .slice(0, 8)
 })
 const pv = computed(() => (picked.value ? changeBuyerPreview(props.order, picked.value.id) : null))
@@ -38,7 +38,7 @@ function confirm() {
     <div class="space-y-4">
       <p class="text-sm text-stone-500">ผู้ซื้อปัจจุบัน: <b class="text-stone-800">{{ db.customers.find((c) => c.id === order.customerId)?.name || 'ไม่ระบุ (ลูกค้าทั่วไป)' }}</b></p>
       <div v-if="!picked">
-        <label class="label">ค้นหาผู้ซื้อใหม่ (ชื่อ / เบอร์ / LINE)</label>
+        <label class="label">ค้นหาผู้ซื้อใหม่ (ชื่อ / เบอร์)</label>
         <input v-model="q" type="search" class="input" placeholder="พิมพ์อย่างน้อย 2 ตัวอักษร" />
         <div v-if="results.length" class="mt-2 space-y-1.5">
           <button v-for="c in results" :key="c.id" type="button" class="flex w-full items-center justify-between gap-2 rounded-xl border border-stone-200 px-3 py-2 text-left text-sm hover:border-brand-300 disabled:opacity-50" :disabled="!phoneValid(c.phone)" @click="pick(c)">

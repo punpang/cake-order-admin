@@ -86,10 +86,10 @@ Deno.serve(async (req) => {
     return r.data?.signedUrl || ''
   }
   async function bundle(customerId: string) {
-    const cu = await sb.from('punpang_customers').select('id,name,phone,line,data').eq('id', customerId).maybeSingle()
+    const cu = await sb.from('punpang_customers').select('id,name,phone,data').eq('id', customerId).maybeSingle()
     if (!cu.data) return null
     const { data: cdata } = cu.data
-    const customer = { ...(cdata || {}), id: cu.data.id, name: cu.data.name, phone: cu.data.phone || '', line: cu.data.line || '' } // ไม่ส่ง note (หมายเหตุพนักงาน)
+    const customer = { ...(cdata || {}), id: cu.data.id, name: cu.data.name, phone: cu.data.phone || '' } // ไม่ส่ง note (หมายเหตุพนักงาน)
     const or = await sb.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data').eq('customer_id', customerId).neq('status', 'draft').order('created_at', { ascending: false }).limit(100)
     const orders = []
     for (const row of or.data || []) {
@@ -246,7 +246,7 @@ Deno.serve(async (req) => {
       const name = String(b.name ?? '').trim().slice(0, 100)
       if (!name) return json({ error: 'กรอกชื่อ' }, 400)
       customerId = `c${Date.now().toString(36)}${randHex(3)}`
-      const ci = await sb.from('punpang_customers').insert({ id: customerId, name, phone: ph.local, line: null, note: 'สมัครเองจากหน้าร้าน', data: { active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: false, places: [] } })
+      const ci = await sb.from('punpang_customers').insert({ id: customerId, name, phone: ph.local, note: 'สมัครเองจากหน้าร้าน', data: { active: true, ledger: [], spins: 0, fbPsid: '', promoOptIn: false, places: [] } })
       if (ci.error) return json({ error: 'สมัครไม่สำเร็จ กรุณาลองใหม่' }, 500)
     }
     const salt = randHex(16)
@@ -319,13 +319,12 @@ Deno.serve(async (req) => {
     const s = (await sb.from('punpang_customer_sessions').select('customer_id,expires_at').eq('token_hash', h).maybeSingle()).data
     if (!s || new Date(s.expires_at).getTime() < Date.now()) return json({ error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' }, 401)
     const cid: string = s.customer_id
-    const cuSel = 'id,name,line,data,updated_at'
+    const cuSel = 'id,name,data,updated_at'
     let cu = (await sb.from('punpang_customers').select(cuSel).eq('id', cid).maybeSingle()).data
     if (!cu || cu.data?.deleted) return json({ error: 'ไม่พบบัญชี' }, 401)
     if (action === 'update_profile') {
       const name = String(b.name ?? cu.name).trim().slice(0, 100)
       if (!name) return json({ error: 'กรอกชื่อ' }, 400)
-      const line = String(b.line ?? '').trim().slice(0, 50)
       // เขียนแบบเทียบ updated_at (CAS): แถวลูกค้าเก็บแต้ม/ประวัติแต้มไว้ใน data ด้วย · ถ้ามีการเปลี่ยนแต้มระหว่างอ่านกับเขียน
       // การเขียนทับด้วยสำเนาเก่าจะทำให้แต้มที่เพิ่งเปลี่ยนหายไป → อ่านใหม่แล้วลองอีกครั้ง
       let saved = false
@@ -335,7 +334,7 @@ Deno.serve(async (req) => {
           cu = (await sb.from('punpang_customers').select(cuSel).eq('id', cid).maybeSingle()).data
           if (!cu || cu.data?.deleted) return json({ error: 'ไม่พบบัญชี' }, 401)
         }
-        const u = await sb.from('punpang_customers').update({ name, line: line || null, data: { ...(cu.data || {}), promoOptIn: !!b.promoOptIn } }).eq('id', cid).eq('updated_at', cu.updated_at).select('id')
+        const u = await sb.from('punpang_customers').update({ name, data: { ...(cu.data || {}), promoOptIn: !!b.promoOptIn } }).eq('id', cid).eq('updated_at', cu.updated_at).select('id')
         if (u.error) return json({ error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' }, 500)
         saved = (u.data || []).length > 0
       }

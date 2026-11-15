@@ -93,13 +93,12 @@ export function seedDemo() {
     NAMES.forEach((name, i) => {
       const phone = `08${int(10000000, 99999999)}`
       const c = db.customers.find((x) => x.name === name) || (() => {
-        const n = { id: '', name, phone, line: i % 3 ? `${['cake', 'sweet', 'yum', 'happy'][i % 4]}.${i}` : '', note: pick(['', '', 'ชอบหวานน้อย', 'แพ้ถั่ว', 'รับของช่วงเย็น', 'ลูกค้าประจำ']) }
-        const created = (db.customers.push({ ...n, id: `cd${i + 1}`, active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: chance(0.6), places: [] }), db.customers[db.customers.length - 1])
+        const n = { id: '', name, phone, note: pick(['', '', 'ชอบหวานน้อย', 'แพ้ถั่ว', 'รับของช่วงเย็น', 'ลูกค้าประจำ']) }
+        const created = (db.customers.push({ ...n, id: `cd${i + 1}`, active: true, ledger: [], spins: 0, fbPsid: '', promoOptIn: chance(0.6), places: [] }), db.customers[db.customers.length - 1])
         return created
       })()
       if (TAXED[name]) c.tax = { name, taxId: taxId(TAXED[name][0]), branch: '00000', address: TAXED[name][1] }
-      if (i % 4 === 0) c.lineUserId = `U-demo-${i}`
-      else if (i % 5 === 0) c.fbPsid = `PSID-demo-${i}`
+      if (i % 4 === 0 || i % 5 === 0) c.fbPsid = `PSID-demo-${i}`
       custs.push(c)
     })
     const pool = [...new Set(custs)].filter((c) => !c.deleted)
@@ -166,7 +165,7 @@ export function seedDemo() {
         if (o.error) return
         s.order = o
         orders.push(o)
-        if (chance(0.15)) { const l = createOrderLink(o); if (l.ok && chance(0.5) && s.cust.lineUserId) { /* ส่งลิงก์ให้ลูกค้าบางราย */ void l } }
+        if (chance(0.15)) { const l = createOrderLink(o); if (l.ok && chance(0.5) && s.cust.fbPsid) { /* ส่งลิงก์ให้ลูกค้าบางราย */ void l } }
         if (s.fate === 'awaiting') return
         const tot = () => orderTotals(o)
         const method = pick(['โอนเงิน', 'โอนเงิน', 'พร้อมเพย์', 'เงินสด'])
@@ -211,22 +210,22 @@ export function seedDemo() {
     }
     const named = (n) => pool.find((c) => c.name.includes(n))
     const hasChat = (id) => db.chats.some((ch) => ch.externalId === id)
-    const lineCust = pool.filter((c) => c.lineUserId && !hasChat(c.lineUserId)).slice(0, 5)
-    lineCust.forEach((c, k) => {
-      chatFor('line', c.lineUserId, c.name.replace('คุณ', ''), [
+    const chatCust = pool.filter((c) => c.fbPsid && !hasChat(c.fbPsid)).slice(0, 5)
+    chatCust.forEach((c, k) => {
+      chatFor('facebook', c.fbPsid, c.name.replace('คุณ', ''), [
         ['c', pick(['สวัสดีค่ะ อยากสั่งเค้กวันเกิด 2 ปอนด์ค่ะ', 'สอบถามราคาเค้กหน้านิ่ม 1 ปอนด์ค่ะ', 'มีเค้กช็อกโกแลตพร้อมรับวันนี้ไหมคะ', 'ขอดูแบบเค้กที่เคยทำหน่อยค่ะ']) ],
         ['s', 'สวัสดีค่ะ ต้องการรับวันไหน เวลากี่โมงคะ'], ['c', pick(['วันเสาร์นี้ช่วงบ่ายค่ะ', 'พรุ่งนี้เย็นๆ ค่ะ', 'อาทิตย์หน้าค่ะ'])], ['s', 'ได้ค่ะ เดี๋ยวส่งใบเสนอราคาให้นะคะ'],
       ], T(14 - k * 3, 10 + k, 5))
     })
     const fbCust = pool.filter((c) => c.fbPsid && !hasChat(c.fbPsid)).slice(0, 2)
     fbCust.forEach((c, k) => chatFor('facebook', c.fbPsid, c.name.replace('คุณ', ''), [['c', 'สนใจเค้กงานเลี้ยง 5 ปอนด์ค่ะ ราคาเท่าไหร่คะ'], ['s', 'ราคาเริ่มต้น 2,000 บาทค่ะ ขึ้นกับแบบและการตกแต่ง'], ['c', 'ขอบคุณค่ะ เดี๋ยวปรึกษาที่บ้านก่อนนะคะ']], T(5 + k * 7, 13, 20)))
-    chatFor('line', 'U-new-1', 'Ploy_K', [['c', 'สวัสดีค่ะ ร้านเปิดกี่โมงคะ'], ['s', 'เปิด 09:00–20:00 ทุกวันค่ะ'], ['c', 'มีที่จอดรถไหมคะ']], T(1, 9, 40))
-    chatFor('line', 'U-new-2', 'บีม 🎂', [['c', 'ขอสั่งเค้กฟองดองท์ลายการ์ตูนได้ไหมครับ']], T(0, 8, 15))
+    chatFor('facebook', 'PSID-new-1', 'Ploy_K', [['c', 'สวัสดีค่ะ ร้านเปิดกี่โมงคะ'], ['s', 'เปิด 09:00–20:00 ทุกวันค่ะ'], ['c', 'มีที่จอดรถไหมคะ']], T(1, 9, 40))
+    chatFor('facebook', 'PSID-new-2', 'บีม 🎂', [['c', 'ขอสั่งเค้กฟองดองท์ลายการ์ตูนได้ไหมครับ']], T(0, 8, 15))
     // ใบเสนอ: ยืนยันแล้ว / รอตอบ / ขอแก้ไข
     const quoteDraft = (daysAhead) => ({ pickupAt: local(T(-daysAhead, 14, 0)), fulfillment: 'pickup', items: [{ ...customItem(), id: `i${int(1e8, 9e8)}` }] })
-    const quotes = lineCust.slice(0, 3)
+    const quotes = chatCust.slice(0, 3)
     quotes.forEach((c, k) => at(T(8 - k * 2, 15, 30), () => {
-      const ch = chats[c.lineUserId]
+      const ch = chats[c.fbPsid]
       if (!ch) return
       if (!ch.customerId) ch.customerId = c.id
       const q = sendQuoteLocal(ch.id, quoteDraft(k + 3))
@@ -235,7 +234,7 @@ export function seedDemo() {
       if (k === 1) at(clock + 60 * M, () => reviseQuote(q.id, 'ขอเปลี่ยนเป็นเนื้อช็อกโกแลตค่ะ'))
     }))
     // การ์ดออร์เดอร์ในแชท
-    at(T(1, 18, 0), () => { const o = orders.find((x) => x.customerId === lineCust[1]?.id); if (o && chats[lineCust[1].lineUserId]) postOrderCard(o, chats[lineCust[1].lineUserId]) })
+    at(T(1, 18, 0), () => { const o = orders.find((x) => x.customerId === chatCust[1]?.id); if (o && chats[chatCust[1].fbPsid]) postOrderCard(o, chats[chatCust[1].fbPsid]) })
 
     // ---------- เรียกใช้เหตุการณ์ตามลำดับเวลา ----------
     let guardN = 0

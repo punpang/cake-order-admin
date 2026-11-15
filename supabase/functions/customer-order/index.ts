@@ -16,8 +16,6 @@ import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine } f
 import { readSlipOnce } from '../_shared/slipstore.ts'
 import { inFbWindow, renderSlipNotice, slipNoticeOn, slipNoticeOnFor, slipNoticeTemplate } from '../_shared/slipnotice.ts'
 import { sendSmsGateway } from '../_shared/sms.ts'
-import { isLineUserId } from '../_shared/line.ts'
-import { sendLineToCustomer } from '../_shared/linenotify.ts'
 
 // การกระทำของลูกค้าบนออร์เดอร์ (ฝั่งเซิร์ฟเวอร์): แจ้งชำระ(แนบสลิป) · ขอขยายเวลา · ขอ/ยกเลิกขอไม่เผยแพร่รูป
 // ยืนยันตัวตนได้ 2 แบบ: ลิงก์ออร์เดอร์ (token 32 ตัวอักษร เก็บ hash ใน punpang_records) หรือเซสชันลูกค้า (+ orderId ที่เป็นของตัวเอง)
@@ -137,25 +135,9 @@ async function notifySlipSms(sb: any, n: SlipNotice): Promise<void> {
   if (!ok) await sb.from('punpang_records').insert({ collection: 'bell', id: `bl${randHex(6)}`, data: { audience: 'staff', event: 'notify_failed', title: 'แจ้งลูกค้าไม่สำเร็จ', text: `${n.orderCode} · ส่ง SMS แจ้งรับสลิปไม่สำเร็จ`, orderId: n.orderId, readBy: [], at: new Date().toISOString() } })
 }
 
-// แจ้งรับสลิป: LINE ก่อน (ลูกค้าผูก LINE และกติกาเปิด LINE) → Facebook → SMS (ส่งได้ช่องทางเดียว)
+// แจ้งรับสลิป: Facebook ก่อน → SMS (ส่งได้ช่องทางเดียว)
 async function notifySlip(sb: any, n: SlipNotice): Promise<void> {
-  if (await notifySlipLine(sb, n)) return
   if (!(await notifySlipFacebook(sb, n))) await notifySlipSms(sb, n)
-}
-
-// LINE OA: ลูกค้าที่ผูก userId และร้านเปิดกติกาแจ้งรับสลิปทาง LINE
-async function notifySlipLine(sb: any, n: SlipNotice): Promise<boolean> {
-  const cu = await sb.from('punpang_customers').select('name,data').eq('id', n.customerId).maybeSingle()
-  if (!isLineUserId(cu.data?.data?.lineUserId)) return false
-  const kv = await sb.from('punpang_kv').select('id,data').eq('collection', 'config').in('id', ['notifyRules', 'integrations'])
-  const cfg: { notifyRules?: any; integrations?: any } = {}
-  for (const r of kv.data || []) {
-    if (r.id === 'notifyRules') cfg.notifyRules = r.data?.v
-    if (r.id === 'integrations') cfg.integrations = r.data?.v
-  }
-  if (!slipNoticeOnFor(cfg, 'line')) return false
-  const text = renderSlipNotice(slipNoticeTemplate(cfg), { code: n.orderCode, amount: n.amount, name: String(cu.data?.name || '').trim() })
-  return sendLineToCustomer(sb, n.customerId, text, n.orderId)
 }
 
 Deno.serve(async (req) => {

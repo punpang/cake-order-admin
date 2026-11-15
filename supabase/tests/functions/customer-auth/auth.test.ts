@@ -16,7 +16,7 @@ const D = () => (globalThis as any).__DB
 async function seed(failed = 0, locked: string | null = null) {
   const salt = 'ab'.repeat(8)
   ;(globalThis as any).__DB = { tick: 0, hooks: {}, t: {
-    punpang_customers: [{ id: 'c1', name: 'ทดสอบ', phone: '0812345678', line: null, note: '', data: { active: true, ledger: [{ id: 'l1', pts: 5 }], spins: 1 }, updated_at: '2026-11-14T00:00:00.000000+00:00' }],
+    punpang_customers: [{ id: 'c1', name: 'ทดสอบ', phone: '0812345678', note: '', data: { active: true, ledger: [{ id: 'l1', pts: 5 }], spins: 1 }, updated_at: '2026-11-14T00:00:00.000000+00:00' }],
     punpang_customer_auth: [{ customer_id: 'c1', phone: '0812345678', pin_salt: salt, pin_hash: await pbkdf2('135792', salt), failed, locked_until: locked }],
     punpang_otps: [], punpang_customer_sessions: [], punpang_orders: [], punpang_records: [], punpang_kv: [], punpang_sms_log: [],
   } }
@@ -88,12 +88,12 @@ async function sessionFor(cid = 'c1') {
   D().t.punpang_customer_sessions.push({ token_hash: await sha(`custsess:${token}`), customer_id: cid, expires_at: new Date(Date.now() + 3600000).toISOString() })
   return token
 }
-Deno.test('update_profile: บันทึกชื่อ/LINE/โปรโมชัน และไม่แตะแต้ม', async () => {
+Deno.test('update_profile: บันทึกชื่อ/โปรโมชัน และไม่แตะแต้ม', async () => {
   await seed(); const s = await sessionFor()
-  const r = await call({ action: 'update_profile', session: s, name: 'ชื่อใหม่', line: '@abc', promoOptIn: true })
+  const r = await call({ action: 'update_profile', session: s, name: 'ชื่อใหม่', promoOptIn: true })
   assertEquals(r.status, 200)
   const c = D().t.punpang_customers[0]
-  assertEquals([c.name, c.line, c.data.promoOptIn, c.data.ledger.length, c.data.spins], ['ชื่อใหม่', '@abc', true, 1, 1])
+  assertEquals([c.name, c.data.promoOptIn, c.data.ledger.length, c.data.spins], ['ชื่อใหม่', true, 1, 1])
 })
 Deno.test('update_profile: แต้มถูกเปลี่ยนระหว่างอ่านกับเขียน → ไม่ถูกเขียนทับ (อ่านใหม่แล้วเขียนซ้ำ)', async () => {
   await seed(); const s = await sessionFor()

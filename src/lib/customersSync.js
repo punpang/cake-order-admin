@@ -4,14 +4,14 @@ import { startSync, selectAll, withVer, casUpdate } from './tableSync'
 // ลูกค้าไม่ถูกลบจริง (ใช้ธง deleted/active) — ตารางไม่มี policy ลบ จึงข้ามการลบ
 // หมายเหตุ: PIN/OTP ไม่อยู่ในที่นี้ (จะอยู่ punpang_customer_auth ฝั่งเซิร์ฟเวอร์)
 export function customerToRow(c) {
-  const { id, name, phone, line, note, ...rest } = c
-  return { id, name: String(name ?? ''), phone: phone || null, line: line || null, note: note || null, data: rest }
+  const { id, name, phone, note, ...rest } = c
+  return { id, name: String(name ?? ''), phone: phone || null, note: note || null, data: rest }
 }
 export function rowToCustomer(r) {
-  return withVer({ ...(r.data || {}), id: r.id, name: r.name, phone: r.phone || '', line: r.line || '', note: r.note || '' }, r.updated_at)
+  return withVer({ ...(r.data || {}), id: r.id, name: r.name, phone: r.phone || '', note: r.note || '' }, r.updated_at)
 }
 export async function loadCustomers(client) {
-  const a = await selectAll((x, y) => client.from('punpang_customers').select('id,name,phone,line,note,data,updated_at').order('id').range(x, y))
+  const a = await selectAll((x, y) => client.from('punpang_customers').select('id,name,phone,note,data,updated_at').order('id').range(x, y))
   if (a.error) return { error: a.error.message }
   return { items: (a.data || []).map(rowToCustomer) }
 }
@@ -41,7 +41,7 @@ export async function pushCustomers(client, { upserts }, { known = new Set() } =
   return conflicts.length ? { ok: true, conflicts } : { ok: true }
 }
 export async function loadCustomersByIds(client, ids) {
-  const r = await client.from('punpang_customers').select('id,name,phone,line,note,data,updated_at').in('id', ids)
+  const r = await client.from('punpang_customers').select('id,name,phone,note,data,updated_at').in('id', ids)
   if (r.error) return { error: r.error.message }
   return { items: (r.data || []).map(rowToCustomer) }
 }

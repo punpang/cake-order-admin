@@ -10,11 +10,11 @@ const NOW = at('2026-11-14T18:30') // 14 พ.ย. 18:30 เวลาไทย
 const SHOP = { close: '20:00', leadPickup: 60, leadDelivery: 120, birthdayDays: 14, payReminderTime: '09:00' }
 
 const order = (over: Any = {}): Any => ({
-  id: 'o1', code: 'OR-1', customerId: 'c1', status: 'awaiting_payment', fulfillment: 'pickup', channel: 'line',
+  id: 'o1', code: 'OR-1', customerId: 'c1', status: 'awaiting_payment', fulfillment: 'pickup', channel: 'facebook',
   pickupAt: '2026-11-15T10:00', items: [{ id: 'i1', name: 'เค้กช็อกโกแลต', unitPrice: 500, qty: 1, fullPrice: 500 }],
   payments: [], couponsUsed: [], pointsUsed: null, adjustment: { amount: 0, reason: '' }, vat: null, ...over,
 })
-const CUSTOMER: Any = { id: 'c1', name: 'คุณมะลิ', phone: '0812345678', fbPsid: '', lineUserId: '', promoOptIn: true, ledger: [], note: '' }
+const CUSTOMER: Any = { id: 'c1', name: 'คุณมะลิ', phone: '0812345678', fbPsid: '', promoOptIn: true, ledger: [], note: '' }
 const run = (shop: Any, over: Any = {}) => planScheduled({ nowMs: NOW, shop: { ...SHOP, ...shop }, rules: [], orders: [], customers: [CUSTOMER], sent: new Set(), ...over })
 const has = (ps: Any[], key: string) => ps.some((p) => p.key === key)
 

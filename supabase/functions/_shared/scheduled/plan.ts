@@ -158,7 +158,7 @@ export function effectiveChannels(rule: Any, customer: Any | null, order: Any | 
   return out
 }
 export function customerAddr(c: Any | null, ch: string): string {
-  const v = ch === 'line' ? c?.lineUserId : ch === 'facebook' ? c?.fbPsid : ch === 'sms' ? c?.phone : ''
+  const v = ch === 'facebook' ? c?.fbPsid : ch === 'sms' ? c?.phone : ''
   return v ? String(v) : ''
 }
 

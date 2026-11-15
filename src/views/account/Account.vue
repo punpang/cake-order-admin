@@ -25,7 +25,7 @@ import { myTaxProfile, saveMyTaxProfile, myAddressChoices } from '../../data/acc
 import TaxAddressField from '../../components/TaxAddressField.vue'
 import AccountChat from './AccountChat.vue'
 
-// บัญชีของฉัน: เห็นข้อมูลของตัวเองทั้งหมด แก้ได้เฉพาะ ชื่อ / LINE ID / รับข่าวโปร · เบอร์และ PIN ต้องยืนยัน OTP
+// บัญชีของฉัน: เห็นข้อมูลของตัวเองทั้งหมด แก้ได้เฉพาะ ชื่อ / รับข่าวโปร · เบอร์และ PIN ต้องยืนยัน OTP
 const router = useRouter()
 const me = computed(() => myProfile())
 const tab = ref('profile')
@@ -38,7 +38,7 @@ const tabs = [
 ]
 
 // ---------- ข้อมูลส่วนตัว ----------
-const form = reactive({ name: me.value?.name || '', line: me.value?.line || '', promoOptIn: !!me.value?.promoOptIn })
+const form = reactive({ name: me.value?.name || '', promoOptIn: !!me.value?.promoOptIn })
 const msg = ref('')
 const err = ref('')
 const savingProfile = ref(false)
@@ -154,7 +154,6 @@ function logout() {
           </div>
           <p class="mt-1 text-xs text-stone-400">การเปลี่ยนเบอร์ต้องยืนยัน OTP ที่เบอร์ใหม่</p>
         </div>
-        <div><label class="label">LINE ID</label><input v-model="form.line" class="input" maxlength="50" placeholder="ไม่บังคับ" /></div>
         <AppSwitch v-model="form.promoOptIn" label="รับข่าวสารและโปรโมชัน (รวมอวยพรวันเกิด)" />
         <p v-if="err" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
         <button class="btn-primary w-full" :disabled="savingProfile"><span v-if="savingProfile" class="brand-ring on-brand" aria-hidden="true"></span>{{ savingProfile ? 'กำลังบันทึก…' : 'บันทึก' }}</button>
@@ -224,7 +223,7 @@ function logout() {
 
       <section class="card space-y-3">
         <div class="card-title"><AppIcon name="shield" :size="16" /> ขอลบข้อมูลของฉัน</div>
-        <p class="text-sm text-stone-600">เมื่อร้านอนุมัติ ร้านจะลบชื่อ เบอร์โทร LINE/Facebook ที่ผูกไว้ บัญชีและ PIN แชท คะแนน/คูปอง รีวิว และรายละเอียดส่วนตัวในออร์เดอร์ (ที่อยู่ วันเกิด รูปอ้างอิง สลิป ข้อความบนเค้ก)</p>
+        <p class="text-sm text-stone-600">เมื่อร้านอนุมัติ ร้านจะลบชื่อ เบอร์โทร และ Facebook ที่ผูกไว้ บัญชีและ PIN แชท คะแนน/คูปอง รีวิว และรายละเอียดส่วนตัวในออร์เดอร์ (ที่อยู่ วันเกิด รูปอ้างอิง สลิป ข้อความบนเค้ก)</p>
         <p class="text-sm text-stone-600">ร้านจะเก็บ <b>ออร์เดอร์และการชำระเงินแบบไม่ระบุตัวตน</b> เพื่อเป็นหลักฐานทางบัญชี · ลบได้เมื่อไม่มีออร์เดอร์ที่ยังไม่จบหรือยอดค้างชำระ</p>
         <div v-if="delReq?.status === 'pending'" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ส่งคำขอเมื่อ {{ dateTime(delReq.createdAt) }} · รอร้านตรวจสอบ</div>
         <div v-else-if="delReq?.status === 'rejected'" class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">คำขอก่อนหน้าไม่ได้รับอนุมัติ: {{ delReq.reason }}</div>

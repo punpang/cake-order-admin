@@ -26,7 +26,7 @@ const list = computed(() => {
   const s = q.value.trim().toLowerCase()
   return db.customers
     .filter((c) => inactive.value || c.active !== false)
-    .filter((c) => !s || [c.name, c.phone, c.line].some((v) => v?.toLowerCase().includes(s)) || (phoneDigits(s) && c.phone?.includes(phoneDigits(s))))
+    .filter((c) => !s || [c.name, c.phone].some((v) => v?.toLowerCase().includes(s)) || (phoneDigits(s) && c.phone?.includes(phoneDigits(s))))
     .slice()
     .sort((a, b) => a.name.localeCompare(b.name, 'th'))
 })
@@ -34,10 +34,10 @@ const list = computed(() => {
 const initial = (n) => (n || '').replace(/^คุณ/, '').trim().charAt(0)
 
 const open = ref(false)
-const form = reactive({ id: null, name: '', phone: '', line: '', note: '', active: true, promoOptIn: true, tax: { name: '', taxId: '', branch: '00000', address: '' } })
+const form = reactive({ id: null, name: '', phone: '', note: '', active: true, promoOptIn: true, tax: { name: '', taxId: '', branch: '00000', address: '' } })
 const error = ref('')
 function edit(c) {
-  Object.assign(form, c ? { promoOptIn: true, ...c } : { id: null, name: '', phone: '', line: '', note: '', active: true, promoOptIn: true, lineUserId: '', fbPsid: '' })
+  Object.assign(form, c ? { promoOptIn: true, ...c } : { id: null, name: '', phone: '', note: '', active: true, promoOptIn: true, fbPsid: '' })
   form.tax = { name: '', taxId: '', branch: '00000', address: '', ...(c?.tax || {}) }
   form.notifyChannels = { ...(c?.notifyChannels || {}) }
   error.value = ''
@@ -107,7 +107,7 @@ async function save() {
     title="ลูกค้า"
     :subtitle="`${list.length} รายการ`"
     add-label="เพิ่มลูกค้า"
-    search-placeholder="ค้นหา ชื่อ / เบอร์ / LINE"
+    search-placeholder="ค้นหา ชื่อ / เบอร์"
     @add="edit(null)"
   >
     <p v-if="!list.length" class="card py-10 text-center text-stone-500">ไม่พบลูกค้า</p>
@@ -126,7 +126,7 @@ async function save() {
             <span class="truncate font-semibold text-stone-900">{{ c.name }}</span>
             <span v-if="c.active === false" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
           </span>
-          <span class="block truncate text-sm text-stone-500"><template v-if="c.phone">{{ formatPhone(c.phone) }}</template><span v-else class="rounded bg-amber-50 px-1 text-xs text-amber-700">ไม่มีเบอร์</span><template v-if="c.line"> · LINE {{ c.line }}</template></span>
+          <span class="block truncate text-sm text-stone-500"><template v-if="c.phone">{{ formatPhone(c.phone) }}</template><span v-else class="rounded bg-amber-50 px-1 text-xs text-amber-700">ไม่มีเบอร์</span></span>
           <span v-if="c.note" class="block truncate text-sm text-stone-400">{{ c.note }}</span>
         </span>
         <span class="shrink-0 rounded-lg bg-stone-50 px-2 py-1 text-xs text-stone-500">{{ customerOrderCount(c.id) }} ออร์เดอร์</span>
@@ -138,7 +138,6 @@ async function save() {
         <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" /></div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div><label class="label">เบอร์โทร <span class="text-rose-600">*</span></label><PhoneInput v-model="form.phone" /></div>
-          <div><label class="label">LINE</label><input v-model="form.line" class="input" /></div>
         </div>
         <div><label class="label">หมายเหตุ</label><textarea v-model="form.note" rows="2" class="input" /></div>
         <details class="rounded-2xl border border-stone-200 p-3" :open="!!form.tax.taxId">
@@ -155,11 +154,10 @@ async function save() {
         <div>
           <div class="label">ช่องทางแจ้งเตือน</div>
           <div class="flex flex-wrap gap-1.5 text-xs">
-            <span class="rounded-full px-2 py-0.5" :class="form.lineUserId ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'">LINE OA: {{ form.lineUserId ? 'ผูกแล้ว' : 'ยังไม่ผูก' }}</span>
             <span class="rounded-full px-2 py-0.5" :class="form.fbPsid ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'">Facebook: {{ form.fbPsid ? 'ผูกแล้ว' : 'ยังไม่ผูก' }}</span>
             <span class="rounded-full px-2 py-0.5" :class="form.phone ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'">SMS: {{ form.phone ? 'มีเบอร์' : 'ไม่มีเบอร์' }}</span>
           </div>
-          <p class="mt-1 text-xs text-stone-400">ผูก LINE/Facebook ได้ในหน้าแชท (เมื่อลูกค้าทักมาทาง LINE OA / Facebook)</p>
+          <p class="mt-1 text-xs text-stone-400">ผูก Facebook ได้ในหน้าแชท (เมื่อลูกค้าทักมาทาง Facebook)</p>
         </div>
         <div v-if="form.id && live" class="rounded-xl border border-stone-200/70 p-3">
           <div class="flex items-center justify-between gap-2">

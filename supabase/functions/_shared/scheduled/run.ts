@@ -1,9 +1,8 @@
 // ส่งข้อความตามแผนงานตามเวลา (ฝั่ง IO) — เขียนผลลง punpang_records (outbox, bell, notifySent, orderLinks) และแชท (punpang_chats) เหมือนที่แอปทำ
-// ช่องทาง: Facebook (Graph API ภายใน 24 ชม. หลังลูกค้าทัก) · SMS (เกตเวย์ของร้าน) · LINE (บันทึกในแชทเท่านั้น เหมือนแอป) · Telegram (กลุ่มทีม)
+// ช่องทาง: Facebook (Graph API ภายใน 24 ชม. หลังลูกค้าทัก) · SMS (เกตเวย์ของร้าน)
 // เปลี่ยนจากแอปตรงที่หาแชท Facebook ด้วยรหัส PSID ได้ด้วย (ไม่ต้องผูก customer_id ไว้ก่อน)
 import { inFbWindow } from '../slipnotice.ts'
 import { genToken, hashToken } from '../schedlib/orderLink.js'
-import { isLineUserId, linePush } from '../line.ts'
 import { formatPhone } from '../schedlib/format.js'
 import {
   BELL_CUSTOMER, BELL_STAFF, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, bellText, customerAddr, customerTargets, effectiveChannels, escapeHtml, escapeVars, plainText, renderFor, type Plan,
@@ -23,7 +22,7 @@ export type Ctx = {
   nowMs: number
   rules: Any[]
   integrations: Any
-  chats: Any[] // แชท facebook/line ทั้งหมด (โหลดครั้งเดียวต่อรอบ)
+  chats: Any[] // แชท facebook ทั้งหมด (โหลดครั้งเดียวต่อรอบ)
   fb: { token: string; version: string } | null
   gw: { url: string; key: string } | null // เกตเวย์ SMS (ไม่มี = ยังไม่ได้ตั้งค่า)
   tg: { token: string; chat: string } | null // Telegram (ไม่มี = ยังไม่ได้ตั้งค่า)
@@ -75,12 +74,11 @@ async function orderLinkUrl(ctx: Ctx, order: Any): Promise<string> {
   return `${ctx.siteUrl}/#/o/${token}`
 }
 
-// แชทของลูกค้าในช่องทางนั้น: ผูก customer_id ก่อน · ไม่ได้ผูก → หาด้วยรหัส PSID / LINE userId
+// แชทของลูกค้าในช่องทางนั้น: ผูก customer_id ก่อน · ไม่ได้ผูก → หาด้วยรหัส PSID
 function findChat(ctx: Ctx, customer: Any, channel: string): Any | null {
   const byCustomer = ctx.chats.find((c) => c.channel === channel && c.customer_id === customer.id)
   if (byCustomer) return byCustomer
   if (channel === 'facebook' && customer.fbPsid) return ctx.chats.find((c) => c.channel === 'facebook' && String(c.external_id) === String(customer.fbPsid)) ?? null
-  if (channel === 'line' && customer.lineUserId) return ctx.chats.find((c) => c.channel === 'line' && String(c.external_id) === String(customer.lineUserId)) ?? null
   return null
 }
 
@@ -169,7 +167,7 @@ type Out = { event: string; channel: string | null; to: string; text: string; or
 async function pushOut(ctx: Ctx, m: Out): Promise<void> {
   const row: Any = { at: iso(ctx.nowMs), to: m.to, text: m.text, event: m.event, channel: m.channel, orderId: m.orderId, status: m.channel ? 'simulated' : 'no_channel' }
   const name = m.customer?.name || 'ลูกค้า'
-  if ((m.channel === 'facebook' || m.channel === 'line') && m.customer) {
+  if (m.channel === 'facebook' && m.customer) {
     const chat = findChat(ctx, m.customer, m.channel)
     if (chat && m.channel === 'facebook') {
       const profile = chat.data?.profileName || name
@@ -189,21 +187,6 @@ async function pushOut(ctx: Ctx, m: Out): Promise<void> {
         const msg = staffMsg(ctx, m.text, m.orderId, r.ok ? 'sent' : 'failed')
         if (!r.ok) msg.deliveryError = r.error || ''
         await appendChat(ctx, chat.id, msg)
-      }
-    } else if (m.channel === 'line') {
-      // LINE OA: ส่งจริงถึงผู้ใช้ที่ผูกไว้ (ต้องมี token และ userId) · ผลส่งลงแชทเป็นข้อความของระบบ
-      const token = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || ''
-      const uid = String(m.customer.lineUserId || '')
-      const profile = chat?.data?.profileName || name
-      if (!token || !isLineUserId(uid)) {
-        row.status = 'failed'
-        row.error = !token ? 'ยังไม่ได้ตั้งค่า LINE OA' : 'ลูกค้ายังไม่ได้ผูก LINE'
-      } else {
-        const r = await linePush(token, uid, m.text)
-        row.status = r.ok ? 'sent' : 'failed'
-        if (!r.ok) row.error = r.error || ''
-        if (!r.ok) await bellFail(ctx, `${profile}: ส่งทาง LINE ไม่สำเร็จ${r.error ? ` (${r.error})` : ''}`, chat?.id ?? null)
-        if (chat) await appendChat(ctx, chat.id, staffMsg(ctx, m.text, m.orderId, r.ok ? 'sent' : 'failed'))
       }
     } else if (m.channel === 'facebook') {
       row.status = 'failed'
@@ -257,7 +240,7 @@ export async function execPlan(ctx: Ctx, plan: Plan): Promise<void> {
     marketing: !!ev.marketing,
   })
   if (!targets.length) {
-    await pushOut(ctx, { event: plan.event, channel: null, to: customer?.name || '-', text: renderFor(rule, 'line', plan.vars, url).text, orderId: plan.orderId, customer })
+    await pushOut(ctx, { event: plan.event, channel: null, to: customer?.name || '-', text: renderFor(rule, 'web', plan.vars, url).text, orderId: plan.orderId, customer })
     return
   }
   for (const ch of targets) {

@@ -25,7 +25,7 @@ export const SETTINGS_PAGES = [
   { group: 'shop', to: '/admin/settings/storefront', icon: 'store', title: 'หน้าร้าน (เว็บลูกค้า)', keywords: 'รีวิว เมนู' },
   { group: 'shop', to: '/admin/settings/gallery', icon: 'image', title: 'คลังรูปเค้กสั่งทำ', keywords: 'รูป แท็ก' },
   { group: 'shop', to: '/admin/settings/links', icon: 'link', title: 'ลิงก์ย่อ & ลิงก์ออร์เดอร์', keywords: 'url หมดอายุ' },
-  { group: 'channels', to: '/admin/settings/integrations', icon: 'send', title: 'การเชื่อมต่อ & แจ้งเตือน', keywords: 'line facebook telegram ข้อความ' },
+  { group: 'channels', to: '/admin/settings/integrations', icon: 'send', title: 'การเชื่อมต่อ & แจ้งเตือน', keywords: 'facebook telegram ข้อความ' },
   { group: 'channels', to: '/admin/settings/sms', icon: 'phone', title: 'SMS Gateway', keywords: 'ข้อความ โทรศัพท์' },
   { group: 'channels', to: '/admin/settings/bot', icon: 'chat', title: 'บอทตอบแชท', keywords: 'ai อัตโนมัติ คีย์เวิร์ด' },
   { group: 'privacy', to: '/admin/settings/legal', icon: 'shield', title: 'PDPA / คุกกี้ / เงื่อนไข', keywords: 'นโยบาย ความเป็นส่วนตัว' },

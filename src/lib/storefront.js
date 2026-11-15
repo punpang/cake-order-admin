@@ -174,8 +174,8 @@ export const approvedReviews = (db, limit = 12) =>
   db.reviews.filter((r) => r.status === 'approved').sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit)
 export const avgRating = (list) => (list.length ? list.reduce((s, r) => s + r.rating, 0) / list.length : 0)
 
-// ลิงก์สั่งทาง LINE / Facebook พร้อมข้อความตั้งต้น (ถ้าร้านตั้งลิงก์ไว้)
+// ลิงก์สั่งทาง Facebook พร้อมข้อความตั้งต้น (ถ้าร้านตั้งลิงก์ไว้)
 export function orderLinks(db, text = '') {
   const s = db.storefront
-  return { line: s.lineUrl || '', facebook: s.facebookUrl || '', text }
+  return { facebook: s.facebookUrl || '', text }
 }

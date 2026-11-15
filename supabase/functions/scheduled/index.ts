@@ -75,13 +75,13 @@ Deno.serve(async (req) => {
     for (const r of [...active, ...withBirthday]) byId.set(r.id, r)
     const orders = [...byId.values()].map((r) => ({ ...(r.data || {}), id: r.id, code: r.code, customerId: r.customer_id || '', status: r.status, fulfillment: r.fulfillment, ...(r.channel ? { channel: r.channel } : {}) }))
 
-    const custRows = await fetchAll((x, y) => sb.from('punpang_customers').select('id,name,phone,line,note,data').order('id').range(x, y))
-    const customers = custRows.map((r) => ({ ...(r.data || {}), id: r.id, name: r.name, phone: r.phone || '', line: r.line || '', note: r.note || '' }))
+    const custRows = await fetchAll((x, y) => sb.from('punpang_customers').select('id,name,phone,note,data').order('id').range(x, y))
+    const customers = custRows.map((r) => ({ ...(r.data || {}), id: r.id, name: r.name, phone: r.phone || '', note: r.note || '' }))
 
     const sentRows = await fetchAll((x, y) => sb.from('punpang_records').select('id').eq('collection', 'notifySent').order('id').range(x, y))
     const sent = new Set<string>(sentRows.map((r) => String(r.id)))
 
-    const chats = await fetchAll((x, y) => sb.from('punpang_chats').select('id,channel,external_id,customer_id,data').in('channel', ['facebook', 'line']).order('id').range(x, y))
+    const chats = await fetchAll((x, y) => sb.from('punpang_chats').select('id,channel,external_id,customer_id,data').in('channel', ['facebook']).order('id').range(x, y))
     const pg = await sb.from('punpang_fb_pages').select('token').limit(1).maybeSingle()
 
     const gwUrl = (Deno.env.get('SMS_GATEWAY_URL') || '').trim()

@@ -60,27 +60,25 @@ const tab = ref('channels')
 const outbox = computed(() => (showAll.value ? db.outbox : db.outbox.slice(0, 20)))
 
 // ---------- เชื่อมบัญชี ----------
-// Facebook: คลิกเดียว (Login → เลือกเพจ) · LINE OA: วาง token ครั้งเดียว แล้วระบบตั้ง webhook + ทดสอบให้
-// ไม่เก็บ token จริงในหน้าเว็บ เก็บแค่ 4 ตัวท้ายไว้แสดง (ของจริงส่งไปเก็บที่เซิร์ฟเวอร์)
-const CONNECTABLE = ['facebook', 'line']
+// Facebook: คลิกเดียว (Login → เลือกเพจ)
+const CONNECTABLE = ['facebook']
 const SAMPLE_PAGES = [
   { id: '104512345678901', name: db.shop.name },
   { id: '104598765432109', name: `${db.shop.name} สาขา 2` },
 ]
 const FB_STEPS = ['ขอสิทธิ์รับ-ส่งข้อความของเพจ', 'สมัครรับ webhook ของเพจ', 'ทดสอบรับข้อความ']
-const LINE_STEPS = ['ตรวจ Channel access token', 'ตั้ง Webhook URL อัตโนมัติ', 'ทดสอบ webhook']
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const conn = reactive({ key: '', stage: 'start', pageId: '', token: '', secret: '', done: 0, error: '', nonce: '', pages: [], note: '' })
+const conn = reactive({ key: '', stage: 'start', pageId: '', done: 0, error: '', nonce: '', pages: [], note: '' })
 // โหมด Supabase: Facebook เชื่อมจริงด้วย OAuth (fb-connect) · token เก็บฝั่งเซิร์ฟเวอร์ ไม่ผ่านหน้าเว็บ
 const fbReal = supabaseEnabled
 const fbPages = computed(() => (fbReal ? conn.pages : SAMPLE_PAGES))
 function openConnect(k) {
-  Object.assign(conn, { key: k, stage: 'start', pageId: SAMPLE_PAGES[0].id, token: '', secret: '', done: 0, error: '', nonce: '', pages: [], note: '' })
+  Object.assign(conn, { key: k, stage: 'start', pageId: SAMPLE_PAGES[0].id, done: 0, error: '', nonce: '', pages: [], note: '' })
   if (k === 'facebook' && fbReal) conn.pageId = ''
 }
 const closeConnect = () => (conn.key = '')
-const connSteps = computed(() => (conn.key === 'facebook' ? FB_STEPS : LINE_STEPS))
+const connSteps = computed(() => FB_STEPS)
 async function fbLogin() {
   if (fbReal) {
     conn.error = ''
@@ -107,24 +105,14 @@ async function runConnect() {
     conn.stage = 'done'
     return
   }
-  if (conn.key === 'line' && conn.token.trim().length < 20) return (conn.error = 'Channel access token สั้นเกินไป ตรวจสอบอีกครั้ง')
-  if (conn.key === 'line' && !conn.secret.trim()) return (conn.error = 'กรอก Channel secret')
   conn.stage = 'steps'
   conn.done = 0
   for (let i = 0; i < connSteps.value.length; i++) {
     await wait(600)
     conn.done = i + 1
   }
-  const info =
-    conn.key === 'facebook'
-      ? (() => {
-          const pg = SAMPLE_PAGES.find((x) => x.id === conn.pageId)
-          return { accountName: pg.name, accountId: pg.id, tokenHint: '' }
-        })()
-      : { accountName: '@bannkhanom', accountId: 'U' + conn.token.trim().slice(-8), tokenHint: conn.token.trim().slice(-4) }
-  connectIntegration(conn.key, info)
-  conn.token = ''
-  conn.secret = ''
+  const pg = SAMPLE_PAGES.find((x) => x.id === conn.pageId)
+  connectIntegration(conn.key, { accountName: pg.name, accountId: pg.id, tokenHint: '' })
   conn.stage = 'done'
 }
 // ---------- Telegram ----------
@@ -205,7 +193,7 @@ async function disconnect(k) {
             <span class="text-xs text-stone-500">เมื่อ {{ dateTime(db.integrations[k].connectedAt) }}<template v-if="db.integrations[k].tokenHint"> · token ••••{{ db.integrations[k].tokenHint }}</template></span>
             <button type="button" class="btn-outline ml-auto h-9 px-3 text-sm" @click="disconnect(k)">ยกเลิกการเชื่อม</button>
           </div>
-          <button v-else type="button" class="btn-primary mt-3 h-10 w-full" @click="openConnect(k)">{{ k === 'facebook' ? 'เชื่อม Facebook' : 'เชื่อม LINE OA' }}</button>
+          <button v-else type="button" class="btn-primary mt-3 h-10 w-full" @click="openConnect(k)">เชื่อม Facebook</button>
         </template>
         <template v-else-if="k === 'sms'">
           <div class="mt-3 space-y-2 text-xs text-stone-500">
@@ -228,7 +216,7 @@ async function disconnect(k) {
     <section v-show="tab === 'customer'" class="card mb-4">
       <div class="card-title">แจ้งลูกค้า</div>
       <p class="mb-2 rounded-lg bg-brand-50 px-3 py-2 text-xs text-stone-600">ช่องทางที่ตั้งไว้ตรงนี้คือ <b>ค่าของระบบ</b> · ถ้าตั้งช่องทางที่ข้อมูลลูกค้า หรือที่หน้าออร์เดอร์ จะใช้ค่านั้นก่อน (ออร์เดอร์ &gt; ลูกค้า &gt; ระบบ)</p>
-      <p class="mb-3 text-xs text-stone-500">ส่งทางช่องทางแรกที่ลูกค้ามีข้อมูล ตามลำดับ LINE → Facebook → SMS · ข้อความทาง LINE/Facebook จะขึ้นในศูนย์รวมแชทด้วย (เลือกช่องทางที่อนุญาตในแต่ละเหตุการณ์)</p>
+      <p class="mb-3 text-xs text-stone-500">ส่งทางช่องทางแรกที่ลูกค้ามีข้อมูล ตามลำดับ Facebook → SMS · ข้อความทาง Facebook จะขึ้นในศูนย์รวมแชทด้วย (เลือกช่องทางที่อนุญาตในแต่ละเหตุการณ์)</p>
       <ul class="divide-y divide-stone-100">
         <li v-for="r in customerRules" :key="r.event" class="py-3" :class="r.enabled ? '' : 'opacity-60'">
           <div class="flex items-center gap-3">
@@ -322,7 +310,7 @@ async function disconnect(k) {
     </AppModal>
 
     <!-- modal เชื่อมบัญชี -->
-    <AppModal v-if="conn.key" :title="conn.key === 'facebook' ? 'เชื่อม Facebook Page' : 'เชื่อม LINE OA'" @close="closeConnect">
+    <AppModal v-if="conn.key" :title="'เชื่อม Facebook Page'" @close="closeConnect">
       <p v-if="conn.error && conn.key === 'facebook'" class="mb-3 flex items-center gap-2 rounded-xl bg-rose-50 p-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ conn.error }}</p>
       <!-- Facebook -->
       <template v-if="conn.key === 'facebook'">
@@ -339,21 +327,6 @@ async function disconnect(k) {
           <p v-if="conn.note" class="break-words text-xs text-stone-500">{{ conn.note }}</p>
         </div>
       </template>
-      <!-- LINE -->
-      <div v-else-if="conn.stage === 'start'" class="space-y-3">
-        <p class="text-sm text-stone-600">
-          คัดลอกจาก <a href="https://developers.line.biz/console/" target="_blank" rel="noopener" class="text-brand-700 underline">LINE Developers Console</a> → เลือก Channel (Messaging API) · วางครั้งเดียว ระบบตั้ง Webhook และทดสอบให้อัตโนมัติ
-        </p>
-        <div>
-          <label class="label">Channel access token (long-lived)</label>
-          <input v-model="conn.token" type="password" class="input" autocomplete="off" />
-        </div>
-        <div>
-          <label class="label">Channel secret</label>
-          <input v-model="conn.secret" type="password" class="input" autocomplete="off" />
-        </div>
-        <p v-if="conn.error" class="text-sm text-rose-700">{{ conn.error }}</p>
-      </div>
       <!-- ขั้นตอนเชื่อม -->
       <ul v-if="conn.stage === 'steps' || conn.stage === 'done'" class="space-y-2">
         <li v-for="(t, i) in connSteps" :key="t" class="flex items-center gap-2 text-sm" :class="i < conn.done ? 'text-emerald-700' : 'text-stone-400'">
@@ -365,7 +338,7 @@ async function disconnect(k) {
         <button v-if="conn.stage === 'done'" class="btn-primary flex-1 sm:flex-none" @click="closeConnect">เสร็จ</button>
         <template v-else>
           <button class="btn-outline flex-1 sm:flex-none" :disabled="conn.stage === 'steps'" @click="closeConnect">ยกเลิก</button>
-          <button v-if="conn.key === 'facebook' ? conn.stage === 'pick' : conn.stage === 'start'" class="btn-primary flex-1 sm:flex-none" @click="runConnect">เชื่อมต่อ</button>
+          <button v-if="conn.stage === 'pick'" class="btn-primary flex-1 sm:flex-none" @click="runConnect">เชื่อมต่อ</button>
         </template>
       </template>
     </AppModal>

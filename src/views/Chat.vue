@@ -15,7 +15,7 @@ import { buildChatIndex, chatMatchesQuery, remoteSearchKeys } from '../lib/chatS
 import { chatRemote } from '../lib/chatSync'
 import { kb } from '../lib/viewportFit'
 
-// ศูนย์รวมแชท LINE OA + Facebook (ข้อความเข้าจาก webhook / ส่งผ่าน API)
+// ศูนย์รวมแชท Facebook (ข้อความเข้าจาก webhook / ส่งผ่าน API)
 // คอม: รายการแชท | เธรด | แผงออร์เดอร์ (เปิดได้) · มือถือ/แท็บเล็ต: ทีละหน้า (รายการ → เธรด → ออร์เดอร์ เต็มจอ)
 const props = defineProps({ id: { type: String, default: '' } })
 const current = computed(() => (props.id ? findChat(props.id) : null))
@@ -24,7 +24,6 @@ watch(() => props.id, (id) => { if (id && !findChat(id)) chatRemote.ensure([id])
 const customer = computed(() => (current.value ? findCustomer(current.value.customerId) : null))
 
 const CH = {
-  line: { l: 'LINE', cls: 'bg-[#06C755] text-white' },
   facebook: { l: 'Facebook', cls: 'bg-[#166FE5] text-white' }, // น้ำเงิน Facebook เข้มขึ้นเล็กน้อยให้ตัวขาวอ่านได้ ≥4.5:1
   instagram: { l: 'Instagram', cls: 'bg-gradient-to-tr from-[#f58529] via-[#dd2a7b] to-[#8134af] text-white' },
 }
@@ -34,10 +33,9 @@ const initial = (name) => (name || '?').replace(/^คุณ/, '').trim().charAt(
 const chName = computed(() => (current.value ? customer.value?.name || current.value.profileName : ''))
 
 const q = ref('')
-const filter = ref('') // '' | line | facebook | unread | unlinked
+const filter = ref('') // '' | facebook | instagram | web | unread | unlinked
 const FILTERS = [
   { v: '', l: 'ทั้งหมด' },
-  { v: 'line', l: 'LINE' },
   { v: 'facebook', l: 'Facebook' },
   { v: 'instagram', l: 'Instagram' },
   { v: 'web', l: 'เว็บ/แอป' },
@@ -49,7 +47,6 @@ const counts = computed(() => {
   const all = db.chats
   return {
     '': all.length,
-    line: all.filter((c) => c.channel === 'line').length,
     facebook: all.filter((c) => c.channel === 'facebook').length,
     web: all.filter((c) => c.channel === 'web').length,
     instagram: all.filter((c) => c.channel === 'instagram').length,
@@ -71,7 +68,7 @@ watch(q, (v) => {
 })
 const searchIndex = computed(() => (q.value.trim() ? buildChatIndex(db.chats, db.customers, db.orders, db.quotes) : null))
 const matched = computed(() => db.chats.filter((c) => {
-  if (filter.value === 'line' || filter.value === 'facebook' || filter.value === 'instagram' || filter.value === 'web') { if (c.channel !== filter.value) return false }
+  if (filter.value === 'facebook' || filter.value === 'instagram' || filter.value === 'web') { if (c.channel !== filter.value) return false }
   if (filter.value === 'unread' && !c.unreadStaff) return false
   if (filter.value === 'unlinked' && c.customerId) return false
   return !searchIndex.value || chatMatchesQuery(searchIndex.value, c.id, q.value)
@@ -79,7 +76,6 @@ const matched = computed(() => db.chats.filter((c) => {
 const list = computed(() => matched.value.slice(0, shown.value))
 const moreCount = computed(() => Math.max(0, matched.value.length - shown.value))
 // สถานะช่องทาง (แสดงที่หัวรายการแทนแถบข้อความท้ายหน้า)
-const lineOn = computed(() => db.integrations.line.status === 'connected')
 const fbOn = computed(() => db.integrations.facebook.status === 'connected')
 // เปิดหน้าแชท = รีเฟรชแชทถี่ขึ้น (~10 วิ) · ออกจากหน้าคืนเป็นปกติ
 onMounted(() => setChatFastPoll(true))
@@ -139,7 +135,7 @@ const asideCls = computed(() => {
 // ไม่มีกรอบ/มุมโค้ง/เงา ใช้พื้นที่เต็มจอชิดขอบทุกขนาดจอ (เหมือนตอนแป้นพิมพ์เปิดบนมือถือ)
 const cardCls = 'min-h-0 min-w-0 flex-col overflow-hidden bg-white'
 
-// ผูกแชทกับลูกค้า (จำ LINE userId / FB PSID)
+// ผูกแชทกับลูกค้า (จำ FB PSID)
 const linkOpen = ref(false)
 const lq = ref('')
 const linkList = computed(() => {
@@ -187,16 +183,13 @@ function doCreate() {
         <div class="flex items-center justify-between gap-2 px-4 pt-3.5 pb-2.5">
           <h1 class="page-title">แชท</h1>
           <div class="flex min-w-0 items-center gap-1.5">
-            <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium" :class="lineOn ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'" :title="lineOn ? `LINE ${db.integrations.line.accountName}` : 'ยังไม่ได้เชื่อม LINE OA'">
-              <span class="h-1.5 w-1.5 rounded-full" :class="lineOn ? 'bg-emerald-500' : 'bg-stone-300'" />LINE
-            </span>
             <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium" :class="fbOn ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'" :title="fbOn ? `Facebook ${db.integrations.facebook.accountName}` : 'ยังไม่ได้เชื่อม Facebook'">
               <span class="h-1.5 w-1.5 rounded-full" :class="fbOn ? 'bg-emerald-500' : 'bg-stone-300'" />Facebook
             </span>
           </div>
         </div>
-        <p v-if="!lineOn && !fbOn" class="px-4 pb-2 text-xs text-stone-500">
-          ยังไม่ได้เชื่อม LINE OA / Facebook
+        <p v-if="!fbOn" class="px-4 pb-2 text-xs text-stone-500">
+          ยังไม่ได้เชื่อม Facebook
           <RouterLink v-if="can('manage')" to="/admin/settings/integrations" class="font-medium text-brand-700 underline">ไปเชื่อม</RouterLink>
         </p>
 
@@ -227,8 +220,8 @@ function doCreate() {
             </template>
             <template v-else>
               <p class="text-sm font-medium text-stone-700">ยังไม่มีแชท</p>
-              <p class="text-xs text-stone-500">ข้อความจาก LINE OA และ Facebook จะขึ้นที่นี่อัตโนมัติ</p>
-              <RouterLink v-if="!lineOn && !fbOn && can('manage')" to="/admin/settings/integrations" class="btn-soft mt-2 h-9 text-sm">เชื่อมช่องทาง</RouterLink>
+              <p class="text-xs text-stone-500">ข้อความจาก Facebook จะขึ้นที่นี่อัตโนมัติ</p>
+              <RouterLink v-if="!fbOn && can('manage')" to="/admin/settings/integrations" class="btn-soft mt-2 h-9 text-sm">เชื่อมช่องทาง</RouterLink>
             </template>
           </li>
           <li v-if="moreCount" class="p-3"><button type="button" class="btn-outline h-9 w-full text-sm" @click="shown += PAGE">โหลดเพิ่ม (อีก {{ moreCount }} แชท)</button></li>
@@ -237,7 +230,7 @@ function doCreate() {
               <span v-if="current?.id === c.id" class="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-500" aria-hidden="true" />
               <span class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-100 text-base font-semibold text-brand-800">
                 {{ initial(nameOf(c)) }}
-                <span class="absolute -right-1 -bottom-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[c.channel].cls">{{ c.channel === 'line' ? 'L' : 'f' }}</span>
+                <span class="absolute -right-1 -bottom-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[c.channel].cls">{{ 'f' }}</span>
               </span>
               <span class="min-w-0 flex-1">
                 <span class="flex items-baseline gap-2">
@@ -268,7 +261,7 @@ function doCreate() {
           <button type="button" class="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1.5 text-left hover:bg-stone-50" :class="kb.open ? 'py-0' : 'py-1'" :aria-label="`ข้อมูลลูกค้า ${chName}`" @click="detailsOpen = true">
             <span class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-800">
               {{ initial(chName) }}
-              <span class="absolute -right-1 -bottom-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[current.channel].cls">{{ current.channel === 'line' ? 'L' : 'f' }}</span>
+              <span class="absolute -right-1 -bottom-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[current.channel].cls">{{ 'f' }}</span>
             </span>
             <span class="min-w-0 flex-1">
               <span class="flex min-w-0 items-center gap-2">
@@ -339,7 +332,7 @@ function doCreate() {
           <div class="flex items-center gap-3">
             <span class="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-100 text-lg font-semibold text-brand-800">
               {{ initial(chName) }}
-              <span class="absolute -right-1 -bottom-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[current.channel].cls">{{ current.channel === 'line' ? 'L' : 'f' }}</span>
+              <span class="absolute -right-1 -bottom-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[current.channel].cls">{{ 'f' }}</span>
             </span>
             <div class="min-w-0 flex-1">
               <div class="truncate text-base font-semibold text-stone-900">{{ chName }}</div>

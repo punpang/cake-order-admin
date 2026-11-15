@@ -20,7 +20,7 @@ const orders = [
 const chats = [
   { id: 'a', channel: 'facebook', unreadStaff: 0, messages: [{ from: 'customer', at: '2026-11-10T03:00:00Z' }] }, // รอตอบ (ข้อความสุดท้ายจากลูกค้า) · ทักใหม่ในช่วง 7 วัน
   { id: 'b', channel: 'facebook', unreadStaff: 0, messages: [{ from: 'customer', at: '2026-10-01T03:00:00Z' }, { from: 'staff', at: '2026-10-01T04:00:00Z' }] }, // ตอบแล้ว เก่า
-  { id: 'c', channel: 'line', unreadStaff: 2, messages: [{ from: 'customer', at: '2026-11-11T01:00:00Z' }, { from: 'staff', at: '2026-11-11T02:00:00Z' }] }, // รอตอบ (ยังไม่อ่าน)
+  { id: 'c', channel: 'instagram', unreadStaff: 2, messages: [{ from: 'customer', at: '2026-11-11T01:00:00Z' }, { from: 'staff', at: '2026-11-11T02:00:00Z' }] }, // รอตอบ (ยังไม่อ่าน)
   { id: 'd', channel: 'facebook', unreadStaff: 0, messages: [{ from: 'staff', at: '2026-11-11T02:00:00Z' }] }, // พนักงานตอบล่าสุด
 ]
 
@@ -45,7 +45,6 @@ t('แชท Facebook: จำนวนทั้งหมด และทัก�
   const d = computeDashboard(base)
   assert.equal(d.chats.facebookTotal, 3)
   assert.equal(d.chats.facebookNew7d, 1) // a เท่านั้น (b เก่า, d ไม่มีข้อความลูกค้า)
-  assert.equal(d.chats.lineTotal, 1)
 })
 t('รอตอบ: ข้อความสุดท้ายเป็นลูกค้า หรือยังไม่อ่าน', () => {
   const d = computeDashboard(base)

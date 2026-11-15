@@ -68,7 +68,7 @@ const contactMissing = computed(() => ['controller', 'address', 'email', 'phone'
   <ManageShell narrow guard title="PDPA / คุกกี้ / เงื่อนไข" subtitle="ข้อความที่ลูกค้าต้องยินยอม" :toolbar="false">
     <div class="mb-3 flex gap-2 rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">
       <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0" />
-      <p>ข้อความเขียนตามระบบที่ใช้งานจริง (Supabase, Facebook, SMS, Telegram, ขนส่ง) · กรอกชื่อผู้ควบคุมข้อมูล ที่อยู่ อีเมล เบอร์ ให้ครบก่อนเปิดให้ลูกค้าใช้ · เมื่อเพิ่มบริการใหม่ (เช่น LINE จริง ระบบวิเคราะห์) ต้องแก้ข้อความให้ตรง · แนะนำให้ที่ปรึกษากฎหมายตรวจทาน</p>
+      <p>ข้อความเขียนตามระบบที่ใช้งานจริง (Supabase, Facebook, SMS, Telegram, ขนส่ง) · กรอกชื่อผู้ควบคุมข้อมูล ที่อยู่ อีเมล เบอร์ ให้ครบก่อนเปิดให้ลูกค้าใช้ · เมื่อเพิ่มบริการใหม่ (เช่น Facebook จริง ระบบวิเคราะห์) ต้องแก้ข้อความให้ตรง · แนะนำให้ที่ปรึกษากฎหมายตรวจทาน</p>
     </div>
 
     <div class="mb-4 grid grid-cols-4 gap-1 seg-grid">

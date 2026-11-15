@@ -44,10 +44,10 @@ const hasDate = computed(() => from.value || to.value)
 const searching = computed(() => !!q.value.trim())
 const dateActive = computed(() => !(isToday.value && searching.value))
 
-// ข้อความที่ค้นหาได้: เลขออร์เดอร์, ชื่อ, เบอร์, LINE, ชื่อเค้ก, ตัวเลือก/ข้อความบนเค้ก, เจ้าของวันเกิด
+// ข้อความที่ค้นหาได้: เลขออร์เดอร์, ชื่อ, เบอร์, ชื่อเค้ก, ตัวเลือก/ข้อความบนเค้ก, เจ้าของวันเกิด
 function searchText(o) {
   const c = findCustomer(o.customerId)
-  const parts = [o.code, c?.name, c?.phone, c?.phone && formatPhone(c.phone), c?.line, o.birthday?.name]
+  const parts = [o.code, c?.name, c?.phone, c?.phone && formatPhone(c.phone), o.birthday?.name]
   for (const i of o.items) {
     parts.push(i.name, i.note)
     for (const d of describeSelections(i, db.optionGroups)) parts.push(d.value)

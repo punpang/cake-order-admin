@@ -42,7 +42,6 @@ const morePromos = ref(false)
       <p class="mt-2.5 max-w-[15rem] text-base leading-snug font-medium sm:max-w-lg sm:text-lg">{{ s.heroText }}</p>
       <div class="mt-5 flex flex-wrap gap-2">
         <RouterLink to="/menu" class="inline-flex h-12 items-center gap-1.5 rounded-full bg-white px-6 font-display text-base text-stone-800 shadow-lg hover:bg-brand-50">ดูเมนูเค้ก <AppIcon name="next" :size="16" /></RouterLink>
-        <a v-if="safeHref(s.lineUrl)" :href="safeHref(s.lineUrl)" target="_blank" rel="noopener" class="inline-flex h-12 items-center gap-1.5 rounded-full border-2 border-white/80 px-5 font-display text-base text-white hover:bg-white/10"><AppIcon name="chat" :size="16" /> สั่งทาง LINE</a>
       </div>
     </div>
   </section>

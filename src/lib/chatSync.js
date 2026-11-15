@@ -2,7 +2,7 @@ import { startSync, selectAll } from './tableSync'
 
 // ซิงก์แชท (db.chats) กับ punpang_chats และใบเสนอ (db.quotes) กับ punpang_quotes
 // ข้อความในแชท/ร่างบอท/ฯลฯ อยู่ใน data (jsonb) · ใช้สิทธิ์ 'chat' (ลบได้เฉพาะ 'manage' = ตอนอนุมัติลบข้อมูลลูกค้า)
-// ข้อความจาก LINE/Facebook จริงต้องเข้าผ่าน webhook (Edge Function) ในอนาคต — ตอนนี้เป็นการจำลองในแอป
+// ข้อความจาก Facebook จริงต้องเข้าผ่าน webhook (Edge Function) ในอนาคต — ตอนนี้เป็นการจำลองในแอป
 export function chatToRow(c) {
   const { id, channel, externalId, customerId, ...rest } = c
   return { id, channel, external_id: externalId || null, customer_id: customerId || null, data: rest }
@@ -53,7 +53,7 @@ export async function loadChatsByIds(client, ids) {
   }
   return { items: out.map(rowToChat) }
 }
-// ค้นแชทที่อยู่นอกชุดล่าสุด: ชื่อ Facebook/LINE ตรงคำค้น · ลูกค้าที่ตรงเบอร์/ชื่อ/ออร์เดอร์ · แชทที่ใบเสนอตรง (ข้อมูลพวกนี้ดึงไว้ในเครื่องแล้ว)
+// ค้นแชทที่อยู่นอกชุดล่าสุด: ชื่อ Facebook ตรงคำค้น · ลูกค้าที่ตรงเบอร์/ชื่อ/ออร์เดอร์ · แชทที่ใบเสนอตรง (ข้อมูลพวกนี้ดึงไว้ในเครื่องแล้ว)
 const clean = (s) => String(s ?? '').replace(/[,()*"\\%]/g, ' ').trim()
 export async function searchChatIds(client, { text = '', customerIds = [], chatIds = [] } = {}) {
   const parts = []

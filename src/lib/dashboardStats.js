@@ -31,7 +31,6 @@ export function computeDashboard({ now = new Date(), orders = [], chats = null, 
   let chatCounts = null
   if (chats) {
     const fb = chats.filter((c) => c?.channel === 'facebook')
-    const line = chats.filter((c) => c?.channel === 'line')
     // ทักใหม่ = ข้อความแรกที่เป็นของลูกค้า (แชทที่พนักงานทักก่อนไม่นับ)
     const firstAt = (c) => (Array.isArray(c.messages) ? c.messages.find((m) => m?.from === 'customer')?.at : null) || null
     const waiting = (c) => {
@@ -42,7 +41,6 @@ export function computeDashboard({ now = new Date(), orders = [], chats = null, 
     chatCounts = {
       facebookTotal: fb.length,
       facebookNew7d: fb.filter((c) => inWeek(firstAt(c))).length,
-      lineTotal: line.length,
       awaitingReply: chats.filter(waiting).length,
       awaitingFacebook: fb.filter(waiting).length,
     }

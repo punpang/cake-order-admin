@@ -260,7 +260,7 @@ const DEFAULT_UPGRADES = {
 // u[0] = ข้อความเดิม (ข้อความเดียว หรือรายการ) → ถ้าตรงกับที่เก็บไว้ ให้ใช้ u[1] แทน
 const tplOf = (r) => { const u = DEFAULT_UPGRADES[r.event]; return u && [].concat(u[0]).includes(String(r.template || '').trim()) ? u[1] : r.template }
 
-// channelTemplates (ไม่บังคับ): เทมเพลตแยกตามแพลตฟอร์ม { line?, facebook?, sms? } · ไม่มี = ใช้ template หลัก
+// channelTemplates (ไม่บังคับ): เทมเพลตแยกตามแพลตฟอร์ม { facebook?, sms? } · ไม่มี = ใช้ template หลัก
 const rule = (event, channels, template, channelTemplates = null) => ({ event, channels, template, enabled: true, ...(channelTemplates ? { channelTemplates } : {}) })
 // เทมเพลตตามแพลตฟอร์มเริ่มต้นในโค้ด: กฎที่บันทึกไว้ (Supabase) อาจไม่มี channelTemplates → ใช้ค่านี้แทน
 // เทมเพลต Facebook ของทุกเหตุการณ์ที่ส่งถึงลูกค้า: ข้อความธรรมดา ไม่มีอีโมจิ · ลิงก์อยู่บรรทัดท้าย (การ์ดปุ่มตัดบรรทัดลิงก์ออกได้)
@@ -296,9 +296,9 @@ const flavorOpt = (id, name, price = 0, extra = {}) => ({ id, name, price, activ
 
 export const db = reactive({
   customers: [
-    { id: 'c1', name: 'คุณมะลิ ใจดี', phone: '0812345678', line: 'mali.j', note: '' },
-    { id: 'c2', name: 'คุณสมชาย รักเค้ก', phone: '0899998888', line: '', note: 'ชอบหวานน้อย' },
-    { id: 'c3', name: 'บริษัท ขนมหวาน จำกัด', phone: '021234567', line: 'sweetco', note: 'ขอใบกำกับภาษี' },
+    { id: 'c1', name: 'คุณมะลิ ใจดี', phone: '0812345678', note: '' },
+    { id: 'c2', name: 'คุณสมชาย รักเค้ก', phone: '0899998888', note: 'ชอบหวานน้อย' },
+    { id: 'c3', name: 'บริษัท ขนมหวาน จำกัด', phone: '021234567', note: 'ขอใบกำกับภาษี' },
   ],
 
   // ตั้งค่าร้าน: เวลานัดรับ ทุก slotMinutes นาที ระหว่าง open–close, nearbyHours = ค่าเริ่มต้นช่วงดูออร์เดอร์ก่อน/หลัง (0 = ทั้งวัน)
@@ -329,7 +329,7 @@ export const db = reactive({
     // VAT: ฐาน = สินค้า+ค่าส่ง หลังส่วนลด · mode inclusive (ราคารวม VAT แล้ว) | exclusive (บวกเพิ่มท้ายยอด) · เก็บ snapshot {rate, mode} ในแต่ละออร์เดอร์ (order.vat)
     vat: { enabled: false, rate: 7, mode: 'inclusive', taxId: '', legalName: '', address: '', branch: '00000' },
     // ลิงก์ออร์เดอร์: หมดอายุ = เปิดล่าสุด + idleDays (เลื่อนทุกครั้งที่เปิด) · ไม่เคยเปิด = สร้าง + neverOpenedDays · linkAllowlist = โฮสต์ภายนอกที่ลิงก์ย่อชี้ไปได้ (https)
-    linkPolicy: { ...DEFAULT_LINK_POLICY }, linkAllowlist: ['lin.ee', 'line.me', 'facebook.com', 'fb.me', 'maps.app.goo.gl', 'maps.google.com'] },
+    linkPolicy: { ...DEFAULT_LINK_POLICY }, linkAllowlist: ['facebook.com', 'fb.me', 'maps.app.goo.gl', 'maps.google.com'] },
   // เตือนวันเกิด: key ที่กด "ทักแล้ว" (ลูกค้า|ชื่อ|MM-DD|ปี)
   birthdayGreeted: [],
   // เซิร์ฟเวอร์ส่งเตือนลูกค้า/ทีมตามเวลาแทนแอปเมื่อ server = true (punpang_kv: config/scheduled) · ค่าเริ่มต้นแอปยังทำเอง
@@ -467,20 +467,20 @@ export const db = reactive({
   // กฎแจ้งเตือน: event → ช่องทาง + ข้อความ (ตัวอย่าง)
   notifyRules: [
     ...withNewRules([]),
-    rule('order_created', ['line', 'facebook', 'sms'], ORDER_CREATED_TPL, { facebook: ORDER_CREATED_FB_TPL, sms: ORDER_CREATED_SMS_TPL }),
-    rule('payment_requested', ['line', 'facebook', 'sms'], PAY_REQ_TPL, { sms: PAY_REQ_SMS_TPL }),
-    rule('order_confirmed', ['line', 'facebook', 'sms'], 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ คงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า'),
-    rule('payment_reminder', ['line', 'facebook', 'sms'], PAY_REMINDER_TPL),
-    rule('prepared', ['line', 'facebook', 'sms'], PREPARED_TPL),
-    rule('payment_confirmed', ['line', 'facebook', 'sms'], PAY_CONFIRMED_TPL),
-    rule('pickup_reminder', ['line', 'facebook', 'sms'], 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
-    rule('shipping', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ กำหนดถึง {วันนัด} {เวลานัด}'),
-    rule('delivered', ['line', 'facebook'], DELIVERED_TPL),
-    rule('cancelled', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว หากมีข้อสงสัยติดต่อร้านได้เลยค่ะ'),
-    rule('order_refund_cancelled', ['line', 'facebook', 'sms'], 'ร้านยกเลิกการคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} (ปรับรายการแล้ว) หากสงสัยติดต่อร้านได้เลยค่ะ'),
-    rule('order_refunded', ['line', 'facebook', 'sms'], 'ร้านคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} แล้วค่ะ'),
-    rule('birthday', ['line', 'facebook'], 'สุขสันต์วันเกิดล่วงหน้า {ชื่อวันเกิด} สั่งเค้กกับเราได้เลยค่ะ'),
-    rule('points_expiring', ['line', 'facebook'], '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ ใช้ก่อนหมดนะคะ'),
+    rule('order_created', ['facebook', 'sms'], ORDER_CREATED_TPL, { facebook: ORDER_CREATED_FB_TPL, sms: ORDER_CREATED_SMS_TPL }),
+    rule('payment_requested', ['facebook', 'sms'], PAY_REQ_TPL, { sms: PAY_REQ_SMS_TPL }),
+    rule('order_confirmed', ['facebook', 'sms'], 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ คงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า'),
+    rule('payment_reminder', ['facebook', 'sms'], PAY_REMINDER_TPL),
+    rule('prepared', ['facebook', 'sms'], PREPARED_TPL),
+    rule('payment_confirmed', ['facebook', 'sms'], PAY_CONFIRMED_TPL),
+    rule('pickup_reminder', ['facebook', 'sms'], 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
+    rule('shipping', ['facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ กำหนดถึง {วันนัด} {เวลานัด}'),
+    rule('delivered', ['facebook'], DELIVERED_TPL),
+    rule('cancelled', ['facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว หากมีข้อสงสัยติดต่อร้านได้เลยค่ะ'),
+    rule('order_refund_cancelled', ['facebook', 'sms'], 'ร้านยกเลิกการคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} (ปรับรายการแล้ว) หากสงสัยติดต่อร้านได้เลยค่ะ'),
+    rule('order_refunded', ['facebook', 'sms'], 'ร้านคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} แล้วค่ะ'),
+    rule('birthday', ['facebook'], 'สุขสันต์วันเกิดล่วงหน้า {ชื่อวันเกิด} สั่งเค้กกับเราได้เลยค่ะ'),
+    rule('points_expiring', ['facebook'], '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ ใช้ก่อนหมดนะคะ'),
     rule('team_new_order', ['telegram'], TEAM_NEW_ORDER_TPL),
     rule('team_payment_confirmed', ['telegram'], TEAM_PAID_TPL),
     rule('team_due_soon', ['telegram'], DUE_SOON_TPL),
@@ -491,11 +491,11 @@ export const db = reactive({
     rule('team_expense_missing', ['telegram'], '[ค่าใช้จ่ายประจำ] {รายการ} เดือน {เดือนภาษี} ยังไม่ได้บันทึก (ครบกำหนด {วันที่})'),
     rule('team_installment_due', ['telegram'], '[ผ่อนชำระ] {รายการ} งวดที่ {งวด} ครบกำหนด {วันที่} ยอด {ยอดรวม}'),
     rule('team_vat_due', ['telegram'], '[ภ.พ.30] เดือนภาษี {เดือนภาษี} ครบกำหนดยื่น {ชำระก่อน} ยังไม่ได้บันทึกว่ายื่นแล้ว'),
-    rule('photo_ready', ['line', 'facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} มีรูปงานเสร็จให้ดูแล้วค่ะ ดูได้ที่ {ลิงก์ออร์เดอร์}'),
-    rule('photo_optout_done', ['line', 'facebook', 'sms'], 'ร้านลบรูปงานของออร์เดอร์ {เลขออร์เดอร์} ออกจากทุกที่ตามที่แจ้งแล้วค่ะ'),
-    rule('photo_optout_rejected', ['line', 'facebook', 'sms'], 'ร้านขอคุยเรื่องการใช้รูปงานของออร์เดอร์ {เลขออร์เดอร์} เพิ่มเติม รายละเอียดดูที่ {ลิงก์ออร์เดอร์}'),
+    rule('photo_ready', ['facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} มีรูปงานเสร็จให้ดูแล้วค่ะ ดูได้ที่ {ลิงก์ออร์เดอร์}'),
+    rule('photo_optout_done', ['facebook', 'sms'], 'ร้านลบรูปงานของออร์เดอร์ {เลขออร์เดอร์} ออกจากทุกที่ตามที่แจ้งแล้วค่ะ'),
+    rule('photo_optout_rejected', ['facebook', 'sms'], 'ร้านขอคุยเรื่องการใช้รูปงานของออร์เดอร์ {เลขออร์เดอร์} เพิ่มเติม รายละเอียดดูที่ {ลิงก์ออร์เดอร์}'),
     rule('team_coupon_shown', ['telegram'], '[ลูกค้าแสดงคูปอง] {ชื่อลูกค้า} {รายการ} (ภายใน {นาที} นาที)'),
-    rule('coupon_refunded', ['line', 'facebook', 'sms'], '{ชื่อลูกค้า} ร้านคืน {คะแนน} คะแนนจาก {รายการ} ให้แล้วค่ะ'),
+    rule('coupon_refunded', ['facebook', 'sms'], '{ชื่อลูกค้า} ร้านคืน {คะแนน} คะแนนจาก {รายการ} ให้แล้วค่ะ'),
     rule('team_photo_optout', ['telegram'], '[ขอไม่เผยแพร่รูป] {เลขออร์เดอร์} {ชื่อลูกค้า} รอร้านตรวจสอบ'),
     rule('team_pay_extend_request', ['telegram'], '[ขอขยายเวลาชำระ] {เลขออร์เดอร์} {ชื่อลูกค้า} เดิมกำหนด {ชำระก่อน}'),
   ],
@@ -515,7 +515,7 @@ export const db = reactive({
   shortLinks: [],
   notifySent: [],
 
-  // ---------- ศูนย์รวมแชท LINE OA + Facebook (จำลอง) ----------
+  // ---------- ศูนย์รวมแชท Facebook (จำลอง) ----------
   // messages: { from: 'customer' | 'staff', kind: 'text' | 'order', text, orderId, at, by }
   chats: [],
   // สถิติสาธารณะของสินค้าพร้อมขาย (ไม่มีข้อมูลลูกค้า): retailSales = ยอดขาย 30 วัน · retailPairs = สินค้าที่มักสั่งร่วมกัน
@@ -576,12 +576,11 @@ export const db = reactive({
     address: 'ที่อยู่ร้าน (ตัวอย่าง)',
     mapUrl: '',
     phone: '',
-    lineUrl: '',
     facebookUrl: '',
     hours: [{ days: 'ทุกวัน', time: '09:00–20:00' }],
     howToOrder: [
       { title: 'เลือกเค้ก', text: 'ดูเมนูในเว็บ เลือกเค้กสำเร็จหรือแบบที่อยากสั่งทำ' },
-      { title: 'ทักแชท', text: 'กดปุ่มสั่งทาง LINE หรือ Facebook แจ้งวันเวลารับ' },
+      { title: 'ทักแชท', text: 'กดปุ่มสั่งทาง Facebook แจ้งวันเวลารับ' },
       { title: 'ยืนยัน + ชำระ', text: 'ร้านส่งใบเสนอราคาให้ยืนยัน แล้วชำระตามยอดที่แจ้ง' },
       { title: 'รับเค้ก', text: 'รับที่ร้านหรือจัดส่งตามวันเวลาที่นัด' },
     ],
@@ -625,9 +624,9 @@ export const db = reactive({
 for (const o of db.optionGroups.find((g) => g.key === 'type')?.options || []) o.images = o.images || []
 for (const r of db.retailItems) Object.assign(r, { modifierIds: r.modifierIds || [], images: r.images || [], recipe: r.recipe || [], pinned: !!r.pinned, showInPos: r.showInPos ?? true, showOnStore: r.showOnStore ?? false, description: r.description || '', typeId: r.typeId || null, flavorId: r.flavorId || null, sizeId: r.sizeId || null })
 for (const u of db.users) u.perms = rolePreset(u.role) // ผู้ใช้ตัวอย่างเริ่มด้วยสิทธิ์ตามบทบาท
-for (const c of db.customers) Object.assign(c, { active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: true, places: [] })
-// ตัวอย่าง: ลูกค้าคนแรกผูก LINE แล้ว (จำลอง)
-db.customers[0].lineUserId = 'U-demo-mali'
+for (const c of db.customers) Object.assign(c, { active: true, ledger: [], spins: 0, fbPsid: '', promoOptIn: true, places: [] })
+// ตัวอย่าง: ลูกค้าคนแรกผูก Facebook แล้ว (จำลอง)
+db.customers[0].fbPsid = 'PSID-mali'
 ensureStyleGroup(db.optionGroups)
 for (const g of db.optionGroups) g.active = true
 
@@ -649,7 +648,7 @@ const dupPhoneError = (cu) => ({ error: `เบอร์นี้เป็นข
 export function addCustomer(data) {
   const dup = phoneOwner(data.phone)
   if (dup) return dupPhoneError(dup)
-  const c = { id: uid('c'), name: data.name.trim(), phone: phoneDigits(data.phone), line: data.line?.trim() || '', note: data.note?.trim() || '', active: true, ledger: [], spins: 0, lineUserId: '', fbPsid: '', promoOptIn: true, places: [] }
+  const c = { id: uid('c'), name: data.name.trim(), phone: phoneDigits(data.phone), note: data.note?.trim() || '', active: true, ledger: [], spins: 0, fbPsid: '', promoOptIn: true, places: [] }
   db.customers.push(c)
   return c
 }
@@ -2524,9 +2523,9 @@ const nearLot = earnPoints(db.customers[1], 40, 'คะแนนตัวอย�
 nearLot.expiresAt = addDays(today(), 10)
 
 // ---------- การเชื่อมต่อ & แจ้งเตือน (จำลอง) ----------
-// ทีม = Telegram · ลูกค้า = ทุกช่องทางที่มี (LINE, Facebook, SMS) ที่กฎอนุญาต + เปิดใช้ช่องทาง + ลูกค้ามีข้อมูลติดต่อ
+// ทีม = Telegram · ลูกค้า = ทุกช่องทางที่มี (Facebook, SMS) ที่กฎอนุญาต + เปิดใช้ช่องทาง + ลูกค้ามีข้อมูลติดต่อ
 const TEAM_OF = { order_created: 'team_new_order', payment_confirmed: 'team_payment_confirmed', cancelled: 'team_cancelled' }
-const customerAddr = (c, ch) => (ch === 'line' ? c?.lineUserId : ch === 'facebook' ? c?.fbPsid : ch === 'sms' ? c?.phone : '')
+const customerAddr = (c, ch) => (ch === 'facebook' ? c?.fbPsid : ch === 'sms' ? c?.phone : '')
 export function fillTemplate(tpl, vars) {
   return Object.entries(vars).reduce((s, [k, v]) => s.split(`{${k}}`).join(v ?? ''), tpl || '')
 }
@@ -2571,8 +2570,8 @@ function orderVars(order, extra = {}) {
 function pushOut(event, channel, to, text, orderId = null, customer = null, opts = {}) {
   db.outbox.unshift({ id: uid('msg'), at: now(), event, channel, to, text, orderId, status: channel ? 'simulated' : 'no_channel' })
   const row = db.outbox[0]
-  // ส่งทาง LINE/Facebook: ลงเธรดของช่องทางนั้นในศูนย์รวมแชทด้วย (สร้างออร์เดอร์ = การ์ดสรุป) · Facebook ส่งถึง Messenger จริงและอัปเดตสถานะของรายการนี้
-  const chat = customer && (channel === 'line' || channel === 'facebook') ? chatFor(customer.id, channel) : null
+  // ส่งทาง Facebook: ลงเธรดของช่องทางนั้นในศูนย์รวมแชทด้วย (สร้างออร์เดอร์ = การ์ดสรุป) · Facebook ส่งถึง Messenger จริงและอัปเดตสถานะของรายการนี้
+  const chat = customer && channel === 'facebook' ? chatFor(customer.id, channel) : null
   if (chat) {
     const order = orderId ? findOrder(orderId) : null
     if (event === 'order_created' && order) postOrderCard(order, chat, row)
@@ -2693,7 +2692,7 @@ export function bellMarkAll(audience = 'staff') {
   for (const i of bellFeed(audience)) bellMarkRead(i.id, audience)
 }
 // ช่องทางที่อนุญาตต่อ event: ออร์เดอร์ > ลูกค้า > ระบบ (กฎของ event) · คีย์ที่ไม่ได้ตั้ง = สืบทอดระดับถัดไป
-// คืน { line, facebook, sms } (true=อนุญาต) และ src = ระดับที่ตัดสินแต่ละช่อง ('order' | 'customer' | 'system')
+// คืน { facebook, sms } (true=อนุญาต) และ src = ระดับที่ตัดสินแต่ละช่อง ('order' | 'customer' | 'system')
 export function effectiveChannels(rule, customer = null, order = null) {
   const out = {}, src = {}
   for (const k of CUSTOMER_CHANNEL_ORDER) {
@@ -2722,7 +2721,7 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   const order = orderId ? findOrder(orderId) : null
   const orderMsg = ev.audience === 'customer' && !ev.marketing && !!order && order.channel !== 'pos'
   const url = vars.ลิงก์ออร์เดอร์ || (orderMsg ? createOrderLink(order, { system: true }).url || '' : '')
-  // เทมเพลตตามแพลตฟอร์ม: r.channelTemplates[ช่อง] ถ้ามี · ไม่มี = เทมเพลตหลัก (LINE/ทั่วไป)
+  // เทมเพลตตามแพลตฟอร์ม: r.channelTemplates[ช่อง] ถ้ามี · ไม่มี = เทมเพลตหลัก (ทั่วไป)
   const renderFor = (chKey, v, link = url) => {
     const tpl = channelTplOf(r, chKey)
     // ลิงก์เป็นข้อความเฉพาะ SMS และทีม (Telegram) · ช่องทางอื่นแสดงเป็นปุ่มด้านล่างของการ์ด
@@ -2746,15 +2745,15 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   const targets = customerTargets({ order: CUSTOMER_CHANNEL_ORDER, allowed, integrations: db.integrations, addressOf: (k) => customerAddr(customer, k), noSms, marketing: !!ev.marketing })
   // ไม่มีช่องทางไหนส่งได้ → บันทึกคิวไว้โดยไม่มีช่องทาง (เหมือนเดิม)
   if (!targets.length) {
-    pushOut(event, null, customer?.name || '-', renderFor('line', vars).text, orderId, customer, {})
+    pushOut(event, null, customer?.name || '-', renderFor('web', vars).text, orderId, customer, {})
     return 1
   }
-  // ข้อความของแต่ละช่อง (เทมเพลตตามแพลตฟอร์ม) · SMS/Facebook เป็นข้อความธรรมดา (ตัดอีโมจิ) · LINE คงรูปแบบเต็ม
+  // ข้อความของแต่ละช่อง (เทมเพลตตามแพลตฟอร์ม) · SMS/Facebook เป็นข้อความธรรมดา (ตัดอีโมจิ)
   const plainFor = (chKey, s) => (chKey === 'sms' || chKey === 'facebook' ? plainText(s) : s)
   for (const ch of targets) {
     const to = `${CHANNELS[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}`
-    // Facebook / LINE: การ์ดปุ่ม "ดูออร์เดอร์" ด้านล่าง (card ที่ส่งมา หรือการ์ดลิงก์ที่สร้างให้) · SMS: ข้อความที่มีลิงก์
-    const buttonCard = ch === 'facebook' || ch === 'line' ? (card || (orderMsg && url ? orderLinkCardOf(order, url) : null)) : null
+    // Facebook: การ์ดปุ่ม "ดูออร์เดอร์" ด้านล่าง (card ที่ส่งมา หรือการ์ดลิงก์ที่สร้างให้) · SMS: ข้อความที่มีลิงก์
+    const buttonCard = ch === 'facebook' ? (card || (orderMsg && url ? orderLinkCardOf(order, url) : null)) : null
     const main = renderFor(ch, vars)
     const text = plainFor(ch, main.text)
     pushOut(event, ch, to, text, orderId, customer, buttonCard ? { card: { text, card: buttonCard } } : {})
@@ -2848,10 +2847,10 @@ export const saveNotifyRule = (event, d) => {
 }
 export const clearOutbox = () => db.outbox.splice(0)
 
-// ---------- ศูนย์รวมแชท LINE OA + Facebook (จำลอง: ของจริงรับผ่าน webhook ส่งผ่าน Reply/Push/Send API) ----------
-// chat: { channel: 'line' | 'facebook', externalId (LINE userId / FB PSID), profileName, customerId (null = ยังไม่ผูก), lastInboundAt }
+// ---------- ศูนย์รวมแชท Facebook (จำลอง: ของจริงรับผ่าน webhook ส่งผ่าน Send API) ----------
+// chat: { channel: 'facebook', externalId (FB PSID), profileName, customerId (null = ยังไม่ผูก), lastInboundAt }
 export const findChat = (id) => db.chats.find((c) => c.id === id)
-const idField = (channel) => (channel === 'line' ? 'lineUserId' : 'fbPsid')
+const idField = () => 'fbPsid'
 export const chatsOfCustomer = (customerId) => db.chats.filter((c) => c.customerId === customerId)
 // แชทของลูกค้าในช่องทางนั้น (หรือแชทล่าสุดถ้าไม่ระบุช่องทาง)
 export const chatFor = (customerId, channel = null) => db.chats.find((c) => c.customerId === customerId && (!channel || c.channel === channel)) || null
@@ -2887,50 +2886,10 @@ export function sendChat(chatId, from, text, extra = {}) {
     } else if (m.kind === 'order') { const o = findOrder(m.orderId); if (o) { const lk = o.status !== 'draft' && o.channel !== 'pos' ? createOrderLink(o, { system: true }) : null; const k = orderCardMsg(o, orderTotals(o), db.shop.name, { image: cardImageOf(o.items), url: lk?.url }); deliverFb(c, m, k.text, extra.row, { card: k.card }) } }
     else if (m.kind === 'quote') { const q = findQuote(m.quoteId); if (q) { const k = quoteCardMsg(q, orderTotals({ ...q.payload, payments: [], adjustment: null, couponsUsed: [] }), db.shop.name, { image: cardImageOf(q.payload?.items) }); deliverFb(c, m, k.text, extra.row, { quoteId: q.id, card: k.card }) } }
   }
-  if (from === 'staff' && c.channel === 'line') sendToLine(c, m, extra)
   return m
 }
 // ส่ง Messenger จริงเมื่อพนักงาน/บอท/ระบบตอบในแชท Facebook (ผ่าน Edge Function fb-send · ตั้งโดยชั้นเชื่อม Supabase) · ไม่มีตัวส่ง = คงสถานะจำลอง
 export const fbHook = { send: null }
-// LINE OA: ส่งข้อความถึงลูกค้าจริงผ่าน Edge Function line-send (ตั้งโดยชั้นเชื่อม Supabase) · ไม่มีตัวส่ง = คงสถานะจำลอง
-export const lineHook = { send: null }
-// ข้อความตัวอักษร และการ์ดออร์เดอร์/ใบเสนอ (แปลงเป็นตัวอักษร) · รูปจากแชทยังไม่รองรับบน LINE
-function sendToLine(c, m, extra) {
-  if (m.kind === 'text') {
-    if (extra.attachments?.length) return deliverLine(c, m, '', extra.row, 'LINE ยังไม่รองรับการส่งรูปจากแชท')
-    return deliverLine(c, m, m.text, extra.row)
-  }
-  if (m.kind === 'order') {
-    const o = findOrder(m.orderId)
-    if (!o) return
-    const lk = o.status !== 'draft' && o.channel !== 'pos' ? createOrderLink(o, { system: true }) : null
-    const k = orderCardMsg(o, orderTotals(o), db.shop.name, { image: cardImageOf(o.items), url: lk?.url })
-    return deliverLine(c, m, lk?.url ? `${k.text}\n\nดูออร์เดอร์: ${lk.url}` : k.text, extra.row)
-  }
-  if (m.kind === 'quote') {
-    const q = findQuote(m.quoteId)
-    if (!q) return
-    const k = quoteCardMsg(q, orderTotals({ ...q.payload, payments: [], adjustment: null, couponsUsed: [] }), db.shop.name, { image: cardImageOf(q.payload?.items) })
-    return deliverLine(c, m, k.text, extra.row)
-  }
-}
-function deliverLine(chat, m, text = m.text, row = null, preError = '') {
-  if (!lineHook.send || !m || !chat.externalId) return
-  const fail = (err) => {
-    m.delivery = 'failed'; m.deliveryError = err || ''
-    if (row) { row.status = 'failed'; row.error = err || '' }
-    // ข้อความอัตโนมัติของระบบ (แจ้งลูกค้า) ส่งไม่ถึง → เตือนพนักงานให้ตามเอง
-    if (m.by === 'ระบบ') emitStaffBell('notify_failed', { text: `${chat.profileName || 'ลูกค้า'}: ส่งทาง LINE ไม่สำเร็จ${err ? ` (${err})` : ''}`, chatId: chat.id })
-  }
-  if (preError) return fail(preError)
-  m.delivery = 'sending'
-  if (row) row.status = 'sending'
-  lineHook.send(chat.externalId, text).then((r) => {
-    if (!r.ok) return fail(r.error)
-    m.delivery = 'sent'
-    if (row) row.status = 'sent'
-  }, () => fail('เชื่อมต่อไม่ได้'))
-}
 function deliverFb(chat, m, text = m.text, row = null, opts = {}) {
   if (!fbHook.send || !m || !chat.externalId) return
   const fail = (err) => {
@@ -2948,7 +2907,7 @@ function deliverFb(chat, m, text = m.text, row = null, opts = {}) {
     if (row) row.status = 'sent'
   }, () => fail('เชื่อมต่อไม่ได้'))
 }
-// ข้อความเข้าจาก LINE/Facebook (ของจริงมาจาก webhook) · ผูกอัตโนมัติถ้า userId/PSID ตรงกับลูกค้า
+// ข้อความเข้าจาก Facebook (ของจริงมาจาก webhook) · ผูกอัตโนมัติถ้า PSID ตรงกับลูกค้า
 // ถ้ามีคำถามค้าง (ปุ่มถาม) ข้อความนี้ = คำตอบ → ผูกกับคำถามและกรอกลงร่างอัตโนมัติ
 export function receiveMessage(channel, externalId, profileName, text, at = null) {
   const c = db.chats.find((x) => x.channel === channel && x.externalId === externalId) || newChat(channel, externalId, profileName)
@@ -2982,9 +2941,9 @@ export function processInbound(chatId, mid) {
 }
 
 // ---------- บอทตอบแชท ----------
-// ทำงานเมื่อมีข้อความจากลูกค้า (LINE/Facebook): suggest = เก็บร่างให้พนักงานกดส่ง · auto = ส่งเองหลังหน่วงเวลา (Facebook ต้องอยู่ในหน้าต่าง 24 ชม.)
+// ทำงานเมื่อมีข้อความจากลูกค้า (Facebook): suggest = เก็บร่างให้พนักงานกดส่ง · auto = ส่งเองหลังหน่วงเวลา (Facebook ต้องอยู่ในหน้าต่าง 24 ชม.)
 // ไม่แน่ใจ/เรื่องเงิน/ร้องเรียน/ยืนยันตัวตนไม่ได้ → ส่งต่อพนักงาน + แจ้ง Telegram · ข้อความลูกค้าประมวลผลในเบราว์เซอร์เท่านั้น
-// Facebook: บอทฝั่งเซิร์ฟเวอร์ (fb-webhook/bot.ts) ตอบแทนแล้ว → เบราว์เซอร์ไม่ตอบซ้ำ · LINE/อื่น ๆ ยังทำงานในเบราว์เซอร์
+// Facebook: บอทฝั่งเซิร์ฟเวอร์ (fb-webhook/bot.ts) ตอบแทนแล้ว → เบราว์เซอร์ไม่ตอบซ้ำ · ช่องอื่น ๆ ยังทำงานในเบราว์เซอร์
 const SERVER_BOT_CHANNELS = ['facebook', 'instagram']
 const botOn = (c) => db.bot.enabled && db.bot.mode !== 'off' && !SERVER_BOT_CHANNELS.includes(c.channel) && !!db.bot.channels[c.channel] && !c.botOff
 function botDeliver(c, res) {
@@ -3132,7 +3091,7 @@ export function saveBotSettings(d) {
   b.enabled = !!d.enabled
   b.mode = ['suggest', 'auto'].includes(d.mode) ? d.mode : 'suggest'
   b.sourceModes = Object.fromEntries(AUTO_SOURCES.map((k) => [k, d.sourceModes?.[k] === 'auto' ? 'auto' : 'suggest']))
-  b.channels = { line: !!d.channels?.line, facebook: !!d.channels?.facebook, instagram: !!d.channels?.instagram }
+  b.channels = { facebook: !!d.channels?.facebook, instagram: !!d.channels?.instagram }
   b.confidence = Math.min(0.95, Math.max(0.3, Number(d.confidence) || 0.6))
   b.delaySec = Math.min(60, Math.max(0, Math.round(Number(d.delaySec) || 0)))
   b.offHours = { enabled: !!d.offHours?.enabled, text: String(d.offHours?.text ?? '').trim().slice(0, 300) || BOT_DEFAULTS.offHours.text }
@@ -3190,7 +3149,7 @@ export function promoteLearned(id, keywords) {
 }
 // ทดสอบในหน้าตั้งค่า: ไม่ส่งจริง ไม่นับสถิติ · customerId = จำลองว่าแชทผูกกับลูกค้านี้
 export function testBot(text, { customerId = null, at = null } = {}) {
-  const chat = { channel: 'line', customerId, profileName: 'ลูกค้าทดสอบ', messages: [] }
+  const chat = { channel: 'facebook', customerId, profileName: 'ลูกค้าทดสอบ', messages: [] }
   return botReply(text, { db, chat, now: at || new Date() })
 }
 
@@ -3280,7 +3239,7 @@ export function removeCanned(id) {
   if (i >= 0) db.cannedReplies.splice(i, 1)
 }
 
-// ---------- เชื่อมบัญชี LINE OA / Facebook (จำลอง: ของจริง Facebook OAuth / LINE วาง token แล้วตั้ง webhook อัตโนมัติ) ----------
+// ---------- เชื่อมบัญชี Facebook (จำลอง: ของจริงใช้ Facebook OAuth) ----------
 export function connectIntegration(key, info) {
   Object.assign(db.integrations[key], { status: 'connected', enabled: true, connectedAt: now(), accountName: info.accountName || '', accountId: info.accountId || '', tokenHint: info.tokenHint || '' })
 }
@@ -3311,7 +3270,7 @@ export function markRead(chatId) {
   const c = findChat(chatId)
   if (c) c.unreadStaff = 0
 }
-// ผูกแชทกับลูกค้า (จำ LINE userId / FB PSID ไว้กับลูกค้า)
+// ผูกแชทกับลูกค้า (จำ FB PSID ไว้กับลูกค้า)
 export function linkChat(chatId, customerId) {
   const c = findChat(chatId)
   const cu = findCustomer(customerId)
@@ -3325,7 +3284,7 @@ export function linkChat(chatId, customerId) {
 export function createCustomerFromChat(chatId, phone, name = '') {
   const c = findChat(chatId)
   if (!c || !phoneValid(phone)) return null
-  const cu = addCustomer({ name: (name || c.profileName).trim(), phone, line: '', note: `จาก ${c.channel === 'line' ? 'LINE OA' : 'Facebook'}` })
+  const cu = addCustomer({ name: (name || c.profileName).trim(), phone, note: 'จาก Facebook' })
   if (cu.error) return cu
   linkChat(chatId, cu.id)
   return cu
@@ -3861,15 +3820,15 @@ export function addStock(item, n) {
   item.stock = Math.max(0, (Number(item.stock) || 0) + (Number(n) || 0))
 }
 
-// ตัวอย่างแชท (LINE ผูกแล้ว / LINE ยังไม่ผูก / Facebook ผูกแล้ว / Facebook เกิน 24 ชม.)
+// ตัวอย่างแชท (Facebook ผูกแล้ว / Facebook เกิน 24 ชม.)
 function seedChats() {
   const ago = (h) => new Date(Date.now() - h * 3600e3).toISOString()
-  const c1 = receiveMessage('line', 'U-demo-mali', 'Mali', 'สวัสดีค่ะ อยากสั่งเค้กวันเกิดคุณแม่ 2 ปอนด์ค่ะ', ago(3))
+  const c1 = receiveMessage('facebook', 'PSID-mali', 'Mali', 'สวัสดีค่ะ อยากสั่งเค้กวันเกิดคุณแม่ 2 ปอนด์ค่ะ', ago(3))
   sendChat(c1.id, 'staff', 'ได้เลยค่ะ ต้องการรับวันไหน เวลากี่โมงคะ', { by: 'sales', at: ago(2.9) })
   const o1 = db.orders.find((o) => o.customerId === 'c1' && o.code === 'OR-0001')
   if (o1) postOrderCard(o1, c1)
-  receiveMessage('line', 'U-demo-mali', 'Mali', 'ขอบคุณค่ะ เดี๋ยวโอนให้นะคะ')
-  receiveMessage('line', 'U-demo-ploy', 'Ploy', 'มีเค้กหน้านิ่ม 1 ปอนด์ พรุ่งนี้ไหมคะ')
+  receiveMessage('facebook', 'PSID-mali', 'Mali', 'ขอบคุณค่ะ เดี๋ยวโอนให้นะคะ')
+  receiveMessage('facebook', 'PSID-ploy', 'Ploy', 'มีเค้กหน้านิ่ม 1 ปอนด์ พรุ่งนี้ไหมคะ')
   db.customers.find((c) => c.id === 'c3').fbPsid = 'PSID-sweetco'
   receiveMessage('facebook', 'PSID-sweetco', 'Sweet Co.', 'สอบถามเค้กสำหรับงานบริษัท 5 ปอนด์ ราคาเท่าไหร่คะ', ago(1))
   const old = receiveMessage('facebook', 'PSID-old', 'Nok Nok', 'ยังรับออร์เดอร์อยู่ไหมคะ', ago(30))
@@ -3879,7 +3838,7 @@ function seedChats() {
 // ---------- หน้าร้าน: เนื้อหา + รีวิว (หลังบ้านแก้ ที่ /admin/settings/storefront) ----------
 const pairs = (list, keys) =>
   (list || []).map((x) => Object.fromEntries(keys.map((k) => [k, String(x[k] ?? '').trim()]))).filter((x) => keys.some((k) => x[k]))
-// ลิงก์ที่หน้าร้านแสดงเป็นปุ่ม (LINE/Facebook/แผนที่): รับเฉพาะ http(s) กัน javascript:/data: ที่ทำงานเมื่อลูกค้ากด · ไม่ถูกต้อง = ว่าง
+// ลิงก์ที่หน้าร้านแสดงเป็นปุ่ม (Facebook/แผนที่): รับเฉพาะ http(s) กัน javascript:/data: ที่ทำงานเมื่อลูกค้ากด · ไม่ถูกต้อง = ว่าง
 const webUrl = (v) => {
   const s = String(v ?? '').trim()
   if (!s) return ''
@@ -3889,7 +3848,7 @@ export function saveStorefront(d) {
   Object.assign(db.storefront, {
     heroTitle: String(d.heroTitle ?? '').trim(), heroText: String(d.heroText ?? '').trim(), heroImage: d.heroImage || '',
     about: String(d.about ?? '').trim(), address: String(d.address ?? '').trim(), mapUrl: webUrl(d.mapUrl),
-    phone: phoneDigits(d.phone), lineUrl: webUrl(d.lineUrl), facebookUrl: webUrl(d.facebookUrl),
+    phone: phoneDigits(d.phone), facebookUrl: webUrl(d.facebookUrl),
     hours: pairs(d.hours, ['days', 'time']), howToOrder: pairs(d.howToOrder, ['title', 'text']),
     faq: pairs(d.faq, ['q', 'a']), policies: pairs(d.policies, ['title', 'text']),
     gallery: (d.gallery || []).filter((g) => g.image).map((g) => ({ image: g.image, caption: String(g.caption ?? '').trim() })),
@@ -4045,7 +4004,7 @@ export async function registerAccount({ token, phone: phoneRaw, name = '', pin, 
   if (!cu) {
     const n = String(name).trim().slice(0, 100)
     if (!n) return { error: 'กรอกชื่อ' }
-    cu = addCustomer({ name: n, phone, line: '', note: 'สมัครเองจากหน้าร้าน' })
+    cu = addCustomer({ name: n, phone, note: 'สมัครเองจากหน้าร้าน' })
     cu.promoOptIn = false
   }
   db.customerAccounts.push({ customerId: cu.id, phone, ...(await makeCredential(pin)), failed: 0, lockedUntil: 0, createdAt: now() })
@@ -4126,17 +4085,16 @@ export function changePhone({ token, phone: phoneRaw }) {
 // ข้อมูลของฉัน (เฉพาะช่องที่ลูกค้าเห็นได้ ไม่รวมหมายเหตุของพนักงาน)
 export function myProfile() {
   const c = myCustomer()
-  return c ? { id: c.id, name: c.name, phone: c.phone, line: c.line || '', promoOptIn: !!c.promoOptIn, spins: c.spins || 0, points: customerPoints(c) } : null
+  return c ? { id: c.id, name: c.name, phone: c.phone, promoOptIn: !!c.promoOptIn, spins: c.spins || 0, points: customerPoints(c) } : null
 }
-// แก้ได้เฉพาะ ชื่อ / LINE ID / รับข่าว-โปร (เบอร์แก้ผ่าน changePhone ที่ต้องยืนยัน OTP)
-export function updateMyProfile({ name, line, promoOptIn }) {
-  if (remoteCust()) return remoteAct('update_profile', { name, line, promoOptIn }) // Promise ในโหมดออนไลน์
+// แก้ได้เฉพาะ ชื่อ / รับข่าว-โปร (เบอร์แก้ผ่าน changePhone ที่ต้องยืนยัน OTP)
+export function updateMyProfile({ name, promoOptIn }) {
+  if (remoteCust()) return remoteAct('update_profile', { name, promoOptIn }) // Promise ในโหมดออนไลน์
   const c = myCustomer()
   if (!c) return { error: 'กรุณาเข้าสู่ระบบ' }
   const n = String(name ?? c.name).trim()
   if (!n) return { error: 'กรอกชื่อ' }
   c.name = n.slice(0, 100)
-  c.line = String(line ?? '').trim().slice(0, 50)
   c.promoOptIn = !!promoOptIn
   return { ok: true }
 }
@@ -4184,7 +4142,7 @@ export function quickMember({ name, phone, agreed }) {
   const n = String(name ?? '').trim().slice(0, 100)
   if (!n) return { error: 'กรอกชื่อ' }
   if (!agreed) return { error: 'ต้องยืนยันว่าลูกค้ารับทราบนโยบายความเป็นส่วนตัวและเงื่อนไขคะแนนสะสม' }
-  const c = addCustomer({ name: n, phone: ph, line: '', note: 'สมัครที่หน้าร้าน (POS)' })
+  const c = addCustomer({ name: n, phone: ph, note: 'สมัครที่หน้าร้าน (POS)' })
   if (c.error) return c
   c.promoOptIn = false
   addConsents(c.id, ACCOUNT_CONSENT_KINDS, 'pos')
@@ -4291,7 +4249,7 @@ export const pendingDeletions = () => db.deletionRequests.filter((r) => r.status
 function scrubCustomer(id) {
   const cu = findCustomer(id)
   const orderIds = new Set(db.orders.filter((o) => o.customerId === id).map((o) => o.id))
-  const addrs = new Set([cu.phone, cu.lineUserId, cu.fbPsid].filter(Boolean))
+  const addrs = new Set([cu.phone, cu.fbPsid].filter(Boolean))
   cu.places = []
   const chatIds = new Set(db.chats.filter((c) => c.customerId === id).map((c) => c.id))
   const textGroups = new Set(db.optionGroups.filter((g) => g.type === 'text').map((g) => g.id))
@@ -4321,7 +4279,7 @@ function scrubCustomer(id) {
   db.customerAccounts = db.customerAccounts.filter((a) => a.customerId !== id)
   // OTP: ลบของเจ้าของบัญชีนี้ + ที่ใช้แล้ว/หมดอายุทั้งหมด (กันเบอร์เก่าตกค้างหลังเปลี่ยนเบอร์)
   db.otps = db.otps.filter((o) => !addrs.has(o.phone) && o.accountId !== id && !o.used && o.expiresAt > Date.now())
-  Object.assign(cu, { name: 'ลูกค้าที่ลบแล้ว', phone: '', line: '', note: '', lineUserId: '', fbPsid: '', promoOptIn: false, active: false, deleted: true, deletedAt: now(), ledger: [], spins: 0 })
+  Object.assign(cu, { name: 'ลูกค้าที่ลบแล้ว', phone: '', note: '', fbPsid: '', promoOptIn: false, active: false, deleted: true, deletedAt: now(), ledger: [], spins: 0 })
   if (customerSession.customerId === id) customerSession.customerId = null
 }
 export function approveDeletion(requestId) {

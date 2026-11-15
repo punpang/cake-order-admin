@@ -417,7 +417,6 @@ async function saveCancel() {
               <div class="min-w-0 flex-1">
                 <div class="text-xs text-stone-500">ลูกค้า</div>
                 <div class="truncate font-semibold text-stone-900">{{ customer?.name }}</div>
-                <div v-if="customer?.line" class="truncate text-sm text-stone-500">LINE {{ customer.line }}</div>
                 <div v-if="customer?.note" class="mt-1 text-sm break-words text-stone-500">{{ customer.note }}</div>
                 <div v-if="order.birthday" class="mt-1 text-sm break-words text-stone-600">
                   วันเกิด {{ order.birthday.name }} · {{ mdLabel(order.birthday.md) }}

@@ -43,7 +43,7 @@ try {
   for (const x of catalog.posDeals) if (x.schedule) x.schedule = { from: '', to: '', days: [], timeFrom: '', timeTo: '' }
   for (const x of catalog.posDiscounts) if (x.schedule) x.schedule = { from: '', to: '', days: [], timeFrom: '', timeTo: '' }
   Object.assign(db, { shop: catalog.shop, priceLists: catalog.priceLists, optionGroups: clone(db.optionGroups), bundles: catalog.bundles, retailItems: catalog.retailItems, posDiscounts: catalog.posDiscounts, posBundles: catalog.posBundles, posDeals: catalog.posDeals })
-  db.chats.unshift({ id: 'golden-chat', channel: 'line', customerId: 'golden-cust', externalId: '', messages: [] })
+  db.chats.unshift({ id: 'golden-chat', channel: 'facebook', customerId: 'golden-cust', externalId: '', messages: [] })
 
   // ตัวเลือกเค้กสั่งทำ: เลือกตัวแรกของกลุ่มหลัก
   const pick = (keys) => {

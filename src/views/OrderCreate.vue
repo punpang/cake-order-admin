@@ -66,12 +66,12 @@ const birthday = computed(() => parseBirthday(form.birthday).value)
 // ---------- ขั้น 1 ลูกค้า ----------
 const q = ref('')
 const showNew = ref(false)
-const newCus = reactive({ name: '', phone: '', line: '', note: '' })
+const newCus = reactive({ name: '', phone: '', note: '' })
 const customer = computed(() => findCustomer(form.customerId))
 const matches = computed(() => {
   const s = q.value.trim().toLowerCase()
   const active = db.customers.filter((c) => c.active !== false)
-  const list = s ? active.filter((c) => [c.name, c.phone, c.line].some((v) => v?.toLowerCase().includes(s)) || (phoneDigits(s) && c.phone?.includes(phoneDigits(s)))) : active
+  const list = s ? active.filter((c) => [c.name, c.phone].some((v) => v?.toLowerCase().includes(s)) || (phoneDigits(s) && c.phone?.includes(phoneDigits(s)))) : active
   return list.slice(0, 8)
 })
 const initial = (n) => (n || '').replace(/^คุณ/, '').trim().charAt(0)
@@ -101,9 +101,9 @@ function saveNewCustomer() {
   if (!phoneValid(newCus.phone)) return (error.value = 'กรอกเบอร์โทรให้ถูกต้อง (บังคับ)')
   const c = props.embedded && chat.value ? createCustomerFromChat(chat.value.id, newCus.phone, newCus.name) : addCustomer(newCus)
   if (!c || c.error) return (error.value = c?.error || 'ไม่พบแชทนี้')
-  if (newCus.line || newCus.note) saveCustomer({ ...c, line: newCus.line || c.line, note: newCus.note || c.note })
+  if (newCus.note) saveCustomer({ ...c, note: newCus.note || c.note })
   form.customerId = c.id
-  Object.assign(newCus, { name: '', phone: '', line: '', note: '' })
+  Object.assign(newCus, { name: '', phone: '', note: '' })
   showNew.value = false
   error.value = ''
 }
@@ -289,7 +289,7 @@ async function quote() {
         <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-600 text-lg font-semibold text-white">{{ initial(customer.name) }}</span>
         <div class="min-w-0 flex-1">
           <div class="truncate font-semibold text-stone-900">{{ customer.name }}</div>
-          <div class="truncate text-sm text-stone-600">{{ customer.phone ? formatPhone(customer.phone) : '-' }}<span v-if="customer.line"> · LINE {{ customer.line }}</span></div>
+          <div class="truncate text-sm text-stone-600">{{ customer.phone ? formatPhone(customer.phone) : '-' }}</div>
           <div v-if="customer.note" class="truncate text-sm text-stone-500">{{ customer.note }}</div>
         </div>
         <button class="btn-outline h-9 px-3" @click="form.customerId = null">เปลี่ยน</button>
@@ -313,7 +313,7 @@ async function quote() {
       <template v-else-if="!showNew">
         <label class="relative mb-3 block">
           <AppIcon name="search" class="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-stone-400" />
-          <input v-model="q" class="input pl-10" placeholder="ค้นหา ชื่อ / เบอร์ / LINE" />
+          <input v-model="q" class="input pl-10" placeholder="ค้นหา ชื่อ / เบอร์" />
         </label>
         <div class="space-y-2">
           <button
@@ -338,7 +338,6 @@ async function quote() {
         <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="newCus.name" class="input" /></div>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div><label class="label">เบอร์โทร <span class="text-rose-600">*</span></label><PhoneInput v-model="newCus.phone" /></div>
-          <div><label class="label">LINE</label><input v-model="newCus.line" class="input" /></div>
         </div>
         <div><label class="label">หมายเหตุ</label><input v-model="newCus.note" class="input" /></div>
         <div class="flex justify-end gap-2 pt-1">

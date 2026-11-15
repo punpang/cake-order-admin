@@ -13,16 +13,6 @@ const greetedCount = computed(() => all.value.filter((b) => b.greeted).length)
 const list = computed(() => all.value.filter((b) => showGreeted.value || !b.greeted))
 const when = (n) => (n === 0 ? 'วันนี้' : n === 1 ? 'พรุ่งนี้' : `อีก ${n} วัน`)
 
-const copied = ref('')
-async function copyLine(b) {
-  try {
-    await navigator.clipboard.writeText(b.c.line)
-    copied.value = b.c.line
-    setTimeout(() => (copied.value = ''), 1500)
-  } catch {
-    copied.value = ''
-  }
-}
 </script>
 
 <template>
@@ -41,7 +31,6 @@ async function copyLine(b) {
         </div>
         <div class="mt-2.5 flex flex-wrap gap-2">
           <a v-if="b.c?.phone" :href="`tel:${phoneDigits(b.c.phone)}`" class="btn-outline h-9 px-3"><AppIcon name="phone" :size="16" /> โทร</a>
-          <button v-if="b.c?.line" type="button" class="btn-outline h-9 px-3" @click="copyLine(b)">{{ copied === b.c.line ? 'คัดลอกแล้ว' : `คัดลอก LINE ${b.c.line}` }}</button>
           <button type="button" class="h-9 px-3" :class="b.greeted ? 'btn-outline' : 'btn-soft'" @click="setGreeted(b, !b.greeted)">
             <AppIcon :name="b.greeted ? 'x' : 'check'" :size="16" /> {{ b.greeted ? 'ยังไม่ได้ทัก' : 'ทักแล้ว' }}
           </button>

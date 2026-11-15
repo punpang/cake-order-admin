@@ -50,9 +50,9 @@ Deno.serve(async (req) => {
   const d = (r.data || {}) as Record<string, any>
   if (d.error) return json({ error: MSG[d.error] || 'ทำรายการไม่ได้', code: d.error }, 400)
 
-  const cu = (await sb.from('punpang_customers').select('id,name,phone,line,data').eq('id', cid).maybeSingle()).data
+  const cu = (await sb.from('punpang_customers').select('id,name,phone,data').eq('id', cid).maybeSingle()).data
   if (!cu) return json({ error: 'ไม่พบบัญชี' }, 401)
-  const customer = { ...(cu.data || {}), id: cu.id, name: cu.name, phone: cu.phone || '', line: cu.line || '' }
+  const customer = { ...(cu.data || {}), id: cu.id, name: cu.name, phone: cu.phone || '' }
   const cp = await sb.from('punpang_records').select('id,data').eq('collection', 'coupons').eq('data->>customerId', cid)
   const coupons = (cp.data || []).map((x: any) => ({ ...(x.data || {}), id: x.id }))
   return json({ ok: true, customer, coupons, result: d })

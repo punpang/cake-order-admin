@@ -69,7 +69,6 @@ async function del(r) {
           <div><label class="label">ที่อยู่</label><textarea v-model="st.address" rows="2" class="input" maxlength="200"></textarea></div>
           <div><label class="label">ลิงก์แผนที่ (Google Maps)</label><input v-model="st.mapUrl" class="input" inputmode="url" placeholder="https://maps.google.com/..." /></div>
           <div><label class="label">เบอร์โทรร้าน</label><PhoneInput v-model="st.phone" /></div>
-          <div><label class="label">ลิงก์ LINE OA (ปุ่มสั่งทาง LINE)</label><input v-model="st.lineUrl" class="input" inputmode="url" placeholder="https://line.me/R/ti/p/@..." /></div>
           <div><label class="label">ลิงก์ Facebook Page (ปุ่มสั่งทาง Facebook)</label><input v-model="st.facebookUrl" class="input" inputmode="url" placeholder="https://m.me/..." /></div>
         </section>
         <section class="card space-y-2">
@@ -134,7 +133,7 @@ async function del(r) {
     <div v-else class="space-y-4">
       <section class="card space-y-3">
         <div class="card-title">เพิ่มรีวิว (แอดมินกรอก)</div>
-        <p class="text-xs text-stone-500">ใส่เฉพาะรีวิวจริงที่ลูกค้าให้ไว้ (เช่น จาก LINE/Facebook) และควรได้รับอนุญาตจากลูกค้า</p>
+        <p class="text-xs text-stone-500">ใส่เฉพาะรีวิวจริงที่ลูกค้าให้ไว้ (เช่น จาก Facebook) และควรได้รับอนุญาตจากลูกค้า</p>
         <input v-model="rv.name" class="input" maxlength="60" placeholder="ชื่อที่แสดง เช่น คุณมะลิ" />
         <div class="flex gap-1" role="radiogroup" aria-label="คะแนน"><button v-for="n in 5" :key="n" type="button" role="radio" :aria-checked="rv.rating === n" class="text-3xl leading-none" :class="n <= rv.rating ? 'text-amber-500' : 'text-stone-300'" :aria-label="`${n} ดาว`" @click="rv.rating = n">★</button></div>
         <textarea v-model="rv.text" rows="3" maxlength="500" class="input" placeholder="ข้อความรีวิว"></textarea>

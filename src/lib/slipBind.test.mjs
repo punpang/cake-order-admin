@@ -28,12 +28,12 @@ t('ยอดที่ผูกได้ = ยอดคงค้าง − ยอ
 
 t('ตัวเลือกออร์เดอร์: แนะนำขึ้นก่อน แล้วตามด้วยออร์เดอร์อื่นของลูกค้าคนเดียวกันที่ยังไม่ปิด', () => {
   const orders = [
-    { id: 'a', customerId: 'c1', status: 'awaiting_payment', channel: 'line' },
-    { id: 'b', customerId: 'c1', status: 'draft', channel: 'line' },
-    { id: 'c', customerId: 'c1', status: 'cancelled', channel: 'line' },
+    { id: 'a', customerId: 'c1', status: 'awaiting_payment', channel: 'facebook' },
+    { id: 'b', customerId: 'c1', status: 'draft', channel: 'facebook' },
+    { id: 'c', customerId: 'c1', status: 'cancelled', channel: 'facebook' },
     { id: 'd', customerId: 'c1', status: 'payment_reported', channel: 'pos' },
-    { id: 'e', customerId: 'c1', status: 'preparing', channel: 'line' },
-    { id: 'f', customerId: 'c2', status: 'awaiting_payment', channel: 'line' },
+    { id: 'e', customerId: 'c1', status: 'preparing', channel: 'facebook' },
+    { id: 'f', customerId: 'c2', status: 'awaiting_payment', channel: 'facebook' },
   ]
   const { suggested, others } = slipChoices({ suggestedId: 'a', orders, customerId: 'c1' })
   assert.equal(suggested.id, 'a')
@@ -41,12 +41,12 @@ t('ตัวเลือกออร์เดอร์: แนะนำขึ้
 })
 
 t('ไม่มีออร์เดอร์แนะนำ → แสดงเฉพาะออร์เดอร์ของลูกค้า', () => {
-  const orders = [{ id: 'x', customerId: 'c1', status: 'awaiting_payment', channel: 'line' }]
+  const orders = [{ id: 'x', customerId: 'c1', status: 'awaiting_payment', channel: 'facebook' }]
   assert.deepEqual(slipChoices({ suggestedId: null, orders, customerId: 'c1' }), { suggested: null, others: [orders[0]] })
 })
 
 t('แชทที่ยังไม่ผูกลูกค้า → ไม่มีออร์เดอร์อื่นให้เลือก แต่ออร์เดอร์แนะนำยังแสดง', () => {
-  const orders = [{ id: 'x', customerId: 'c1', status: 'awaiting_payment', channel: 'line' }]
+  const orders = [{ id: 'x', customerId: 'c1', status: 'awaiting_payment', channel: 'facebook' }]
   const r = slipChoices({ suggestedId: 'x', orders, customerId: null })
   assert.equal(r.suggested.id, 'x')
   assert.deepEqual(r.others, [])

@@ -2,7 +2,7 @@ import { findPhones } from './chatParse'
 import { similarity } from './chatBot'
 
 // แนะนำลูกค้าให้แชทที่ยังไม่ผูก (ไม่ผูกเอง ให้พนักงานกดยืนยัน)
-const idField = (channel) => (channel === 'line' ? 'lineUserId' : 'fbPsid')
+const idField = () => 'fbPsid'
 
 export function phonesInChat(chat) {
   const seen = new Set()

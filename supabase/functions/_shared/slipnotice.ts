@@ -8,8 +8,7 @@ type Cfg = { integrations?: any; notifyRules?: any }
 const slipRule = (cfg: Cfg) => (Array.isArray(cfg.notifyRules) ? cfg.notifyRules : []).find((r: any) => r?.event === 'slip_received')
 
 // เปิดส่งหรือไม่: ร้านปิดช่อง Facebook → ไม่ส่ง · กติกาถูกปิด หรือไม่รวม Facebook → ไม่ส่ง · ยังไม่มีกติกา = ส่ง
-// LINE เป็นช่องที่ร้านต้องเปิดเองในกติกา (ยังไม่มีกติกา = ไม่ส่ง) · Facebook คงพฤติกรรมเดิม (ยังไม่มีกติกา = ส่ง)
-export function slipNoticeOnFor(cfg: Cfg, channel: 'facebook' | 'line'): boolean {
+export function slipNoticeOnFor(cfg: Cfg, channel: 'facebook'): boolean {
   if (cfg.integrations?.[channel]?.enabled === false) return false
   const rule = slipRule(cfg)
   if (!rule) return channel === 'facebook'

@@ -7,7 +7,7 @@ import { extractIntent, scoreProducts } from './chatIntent'
 
 export const BOT_DEFAULTS = {
   enabled: false, // ค่าเริ่มต้นปิดทุกช่องทาง
-  channels: { line: false, facebook: false, instagram: false },
+  channels: { facebook: false, instagram: false },
   mode: 'suggest', // ค่าสำรองสำหรับประเภทที่ไม่ได้ตั้งเองใน sourceModes · suggest = แนะนำให้พนักงานกดส่ง · auto = ส่งเอง
   // ตั้งรายประเภทได้: auto = ส่งเอง · suggest = แนะนำให้พนักงานกดส่ง (ประเภทในรายการ LOCKED ส่งเองไม่ได้เสมอ)
   sourceModes: { hours: 'auto', faq: 'auto', offhours: 'auto', order: 'auto', rule: 'suggest', price: 'suggest', learned: 'suggest', ask: 'suggest' },

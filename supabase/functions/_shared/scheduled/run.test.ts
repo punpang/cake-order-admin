@@ -39,18 +39,18 @@ function fakeSb(chats: Any[] = []) {
 
 const NOW = Date.parse('2026-11-14T18:30+07:00')
 const SHOP = { close: '20:00', leadPickup: 60, leadDelivery: 120, birthdayDays: 14, payReminderTime: '09:00' }
-const INTEG = { line: { enabled: false }, facebook: { enabled: true }, sms: { enabled: true }, telegram: { enabled: true } }
+const INTEG = { facebook: { enabled: true }, sms: { enabled: true }, telegram: { enabled: true } }
 const RULES = [
-  { event: 'pickup_reminder', channels: ['line', 'facebook', 'sms'], template: 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}', enabled: true },
-  { event: 'points_expiring', channels: ['line', 'facebook'], template: '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ', enabled: true },
+  { event: 'pickup_reminder', channels: ['facebook', 'sms'], template: 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}', enabled: true },
+  { event: 'points_expiring', channels: ['facebook'], template: '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ', enabled: true },
   { event: 'team_due_soon', channels: ['telegram'], template: '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน 2 ชม.', enabled: true },
   { event: 'pickup_off', channels: ['facebook'], template: 'x', enabled: false },
 ]
 const ORDER: Any = {
-  id: 'o1', code: 'OR-1', customerId: 'c1', status: 'awaiting_payment', fulfillment: 'pickup', channel: 'line', pickupAt: '2026-11-15T10:00',
+  id: 'o1', code: 'OR-1', customerId: 'c1', status: 'awaiting_payment', fulfillment: 'pickup', channel: 'facebook', pickupAt: '2026-11-15T10:00',
   items: [{ id: 'i1', name: 'เค้ก', unitPrice: 500, qty: 1 }], payments: [], couponsUsed: [], pointsUsed: null, adjustment: { amount: 0, reason: '' }, vat: null,
 }
-const CUST: Any = { id: 'c1', name: 'คุณมะลิ', phone: '0812345678', fbPsid: '1669442389773370', lineUserId: '', promoOptIn: true, ledger: [], note: '' }
+const CUST: Any = { id: 'c1', name: 'คุณมะลิ', phone: '0812345678', fbPsid: '1669442389773370', promoOptIn: true, ledger: [], note: '' }
 
 function ctxOf(sb: Any, over: Partial<Ctx> = {}): Ctx {
   return { sb, nowMs: NOW, rules: RULES, integrations: INTEG, chats: [], fb: null, gw: null, tg: null, siteUrl: 'https://site.test', ...over }

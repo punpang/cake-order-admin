@@ -1,6 +1,6 @@
 const digitsOnly = (v) => String(v ?? '').replace(/\D/g, '')
 
-// ค้นแชทจากข้อมูลที่เกี่ยวข้อง: ชื่อใน Facebook/LINE, ชื่อลูกค้า, เบอร์โทร, LINE ID, เลขออร์เดอร์ (OR-…), เลขใบเสนอ (QT-…)
+// ค้นแชทจากข้อมูลที่เกี่ยวข้อง: ชื่อใน Facebook, ชื่อลูกค้า, เบอร์โทร, เลขออร์เดอร์ (OR-…), เลขใบเสนอ (QT-…)
 // สร้างดัชนีข้อความต่อแชทครั้งเดียวต่อการค้น (ตัวพิมพ์เล็ก + เบอร์เป็นตัวเลขล้วน) แล้วเทียบด้วย includes
 const lc = (v) => String(v ?? '').toLowerCase()
 
@@ -23,7 +23,7 @@ export function buildChatIndex(chats, customers, orders, quotes) {
   for (const c of chats) {
     const parts = [c.profileName, c.externalId]
     const k = c.customerId ? cu.get(c.customerId) : null
-    if (k) parts.push(k.name, k.phone, digitsOnly(k.phone), k.line)
+    if (k) parts.push(k.name, k.phone, digitsOnly(k.phone))
     if (k) parts.push(...(ordersByCustomer.get(k.id) || []), ...(quotesByCustomer.get(k.id) || []))
     parts.push(...(quotesByChat.get(c.id) || []))
     for (const m of c.messages || []) if (m?.orderId && orderCode.has(m.orderId)) parts.push(orderCode.get(m.orderId))
@@ -50,7 +50,7 @@ export function remoteSearchKeys(q, customers, orders, quotes) {
   if (!s) return { customerIds: [], chatIds: [] }
   for (const c of customers) {
     if (c.deleted) continue
-    if (lc(c.name).includes(s) || lc(c.line).includes(s) || (d && digitsOnly(c.phone).includes(d))) customerIds.add(c.id)
+    if (lc(c.name).includes(s) || (d && digitsOnly(c.phone).includes(d))) customerIds.add(c.id)
   }
   for (const o of orders) if (o.customerId && lc(o.code).includes(s)) customerIds.add(o.customerId)
   const chatIds = (quotes || []).filter((x) => x.chatId && lc(x.code).includes(s)).map((x) => x.chatId)

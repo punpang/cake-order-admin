@@ -9,7 +9,7 @@ Deno.test('ไม่มีกติกาที่บันทึก → ส่�
 
 Deno.test('กติกา slip_received: ปิดอยู่หรือไม่รวม Facebook → ไม่ส่ง · เปิดและรวม Facebook → ส่ง', () => {
   assertEquals(slipNoticeOn({ notifyRules: [{ event: 'slip_received', channels: ['facebook'], enabled: false }] }), false)
-  assertEquals(slipNoticeOn({ notifyRules: [{ event: 'slip_received', channels: ['line', 'sms'], enabled: true }] }), false)
+  assertEquals(slipNoticeOn({ notifyRules: [{ event: 'slip_received', channels: ['sms'], enabled: true }] }), false)
   assertEquals(slipNoticeOn({ notifyRules: [{ event: 'slip_received', channels: ['facebook'], enabled: true }] }), true)
 })
 

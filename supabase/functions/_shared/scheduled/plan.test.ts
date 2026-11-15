@@ -11,11 +11,11 @@ const SHOP = { close: '20:00', leadPickup: 60, leadDelivery: 120, birthdayDays: 
 const NOW = at('2026-11-14T18:30') // 14 พ.ย. 18:30 เวลาไทย
 
 const order = (over: Any = {}): Any => ({
-  id: 'o1', code: 'OR-1', customerId: 'c1', status: 'awaiting_payment', fulfillment: 'pickup', channel: 'line',
+  id: 'o1', code: 'OR-1', customerId: 'c1', status: 'awaiting_payment', fulfillment: 'pickup', channel: 'facebook',
   pickupAt: '2026-11-15T10:00', items: [{ id: 'i1', name: 'เค้กช็อกโกแลต', unitPrice: 500, qty: 1, fullPrice: 500 }],
   payments: [], couponsUsed: [], pointsUsed: null, adjustment: { amount: 0, reason: '' }, vat: null, ...over,
 })
-const CUSTOMER: Any = { id: 'c1', name: 'คุณมะลิ', phone: '0812345678', fbPsid: '1669442389773370', lineUserId: '', promoOptIn: true, ledger: [], note: '' }
+const CUSTOMER: Any = { id: 'c1', name: 'คุณมะลิ', phone: '0812345678', fbPsid: '1669442389773370', promoOptIn: true, ledger: [], note: '' }
 const run = (over: Any = {}) => planScheduled({ nowMs: NOW, shop: SHOP, rules: [], orders: [], customers: [CUSTOMER], sent: new Set(), ...over })
 const keys = (ps: Any[]) => ps.map((p) => p.key)
 
@@ -80,7 +80,7 @@ Deno.test('กันส่งซ้ำ: คีย์ที่ส่งแล้�
 })
 
 Deno.test('ข้อความ: เทมเพลต Facebook/SMS, ลิงก์ต่อท้าย, ตัดอีโมจิ, escape ของทีม', () => {
-  const rule = { event: 'pickup_reminder', channels: ['line', 'facebook', 'sms'], template: 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}', enabled: true }
+  const rule = { event: 'pickup_reminder', channels: ['facebook', 'sms'], template: 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}', enabled: true }
   const v = orderVars(order(), {}, SHOP, CUSTOMER)
   assertEquals(renderFor(rule, 'sms', v, '').text, 'เตือนนัดรับออร์เดอร์ OR-1 วันที่ 15-11-2569 เวลา 10:00')
   assertEquals(renderFor(rule, 'facebook', v, '').text, 'เตือนนัดรับออร์เดอร์ OR-1\nวันที่ 15-11-2569 เวลา 10:00')
@@ -91,11 +91,10 @@ Deno.test('ข้อความ: เทมเพลต Facebook/SMS, ลิง�
 })
 
 Deno.test('ช่องทาง: ปิดช่องหรือไม่มีข้อมูลติดต่อ → ไม่ส่งช่องนั้น', () => {
-  const rule = { event: 'birthday', channels: ['line', 'facebook'], template: 'สุขสันต์', enabled: true }
+  const rule = { event: 'birthday', channels: ['facebook'], template: 'สุขสันต์', enabled: true }
   const allowed = effectiveChannels(rule, CUSTOMER, order())
-  const integrations = { line: { enabled: false }, facebook: { enabled: true }, sms: { enabled: true } }
+  const integrations = { facebook: { enabled: true }, sms: { enabled: true } }
   const ct = customerTargets as Any // ฟังก์ชันจาก JS (ไม่มีชนิด)
   const targets: string[] = ct({ order: CUSTOMER_CHANNEL_ORDER, allowed, integrations, addressOf: (k: string) => customerAddr(CUSTOMER, k), marketing: true })
   assertEquals(targets, ['facebook']) // การตลาดส่งช่องแรกที่ใช้ได้ช่องเดียว
-  assertEquals(customerAddr(CUSTOMER, 'line'), '')
 })
