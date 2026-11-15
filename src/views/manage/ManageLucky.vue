@@ -1,8 +1,8 @@
 <script setup>
-// ลุ้นโชคท้ายบิล (แอดมิน): เปิด/ปิด ช่วงเวลา URL หน้าเว็บ อายุรหัสรางวัล และรายการรางวัล+โอกาส · ดูสถิติการลุ้น
+// ลุ้นโชคท้ายบิล (แอดมิน): เปิด/ปิด ช่วงเวลา URL หน้าเว็บ อายุรหัสรางวัล · ทุกกี่บาทลุ้นได้ 1 ครั้ง · สินค้าที่ร่วมรายการ · รางวัลและโอกาส · สถิติ
 import { computed, reactive, ref } from 'vue'
 import { db, saveLuckyDraw } from '../../data/store'
-import { luckyDefaults, LUCKY_SITE_URL } from '../../lib/luckyDraw'
+import { luckyDefaults, LUCKY_SITE_URL, MAX_DRAWS_PER_BILL } from '../../lib/luckyDraw'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
@@ -25,30 +25,64 @@ const base = { ...luckyDefaults(), ...(db.shop.luckyDraw || {}) }
 const st = reactive({
   enabled: !!base.enabled, fromL: toLocal(base.from), toL: toLocal(base.to),
   siteUrl: base.siteUrl || LUCKY_SITE_URL, prizeDays: base.prizeDays || 30,
+  perBaht: base.perBaht || 100,
+  itemIds: [...(base.itemIds || [])],
   prizes: (base.prizes || []).map((p) => ({ id: p.id, name: p.name, kind: p.kind || 'item', amount: p.amount || 0, chance: p.chance || 0 })),
 })
 const msg = ref('')
 const ok = ref(false)
 
+// ---------- สินค้าที่ร่วมรายการ (จัดกลุ่มตามหมวด · ค้นหาได้) ----------
+const itemQuery = ref('')
+const itemGroups = computed(() => {
+  const q = itemQuery.value.trim().toLowerCase()
+  const groups = new Map()
+  for (const x of db.retailItems || []) {
+    if (x.active === false) continue
+    if (q && !String(x.name).toLowerCase().includes(q)) continue
+    const key = x.category || 'ไม่มีหมวด'
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(x)
+  }
+  return [...groups.entries()].map(([category, items]) => ({ category, items }))
+})
+const isPicked = (id) => st.itemIds.includes(id)
+function togglePick(id) {
+  st.itemIds = isPicked(id) ? st.itemIds.filter((x) => x !== id) : [...st.itemIds, id]
+}
+const pickedNames = computed(() => st.itemIds.map((id) => db.retailItems.find((x) => x.id === id)?.name || id))
+
+// ---------- รางวัลและโอกาส ----------
 const sumChance = computed(() => st.prizes.reduce((s, p) => s + (Number(p.chance) || 0), 0))
 const noPrize = computed(() => Math.max(0, Math.round((100 - sumChance.value) * 100) / 100))
-const stats = computed(() => {
-  const t = db.luckyTokens || []
-  return { issued: t.length, spun: t.filter((r) => r.spunAt).length, won: t.filter((r) => r.prize).length, redeemed: t.filter((r) => r.redeemedAt).length }
-})
 const KINDS = [{ v: 'points', l: 'คะแนนสะสม' }, { v: 'coupon', l: 'คูปองส่วนลด' }, { v: 'item', l: 'ของ/อื่น ๆ' }]
-
 function addPrize() { st.prizes.push({ id: '', name: '', kind: 'item', amount: 0, chance: 0 }) }
 function removePrize(i) { st.prizes.splice(i, 1) }
+
+// ---------- สถิติ ----------
+const stats = computed(() => {
+  const recs = db.luckyTokens || []
+  const spins = recs.flatMap((r) => r.spins || [])
+  return {
+    bills: recs.length,
+    spins: spins.length,
+    won: spins.filter((s) => s.prize).length,
+    redeemed: spins.filter((s) => s.redeemedAt).length,
+  }
+})
+
 function save() {
-  const r = saveLuckyDraw({ enabled: st.enabled, from: toIso(st.fromL), to: toIso(st.toL), siteUrl: st.siteUrl, prizeDays: st.prizeDays, prizes: st.prizes })
+  const r = saveLuckyDraw({
+    enabled: st.enabled, from: toIso(st.fromL), to: toIso(st.toL), siteUrl: st.siteUrl, prizeDays: st.prizeDays,
+    perBaht: st.perBaht, itemIds: st.itemIds, prizes: st.prizes,
+  })
   ok.value = !r.error
   msg.value = r.error || 'บันทึกแล้ว'
 }
 </script>
 
 <template>
-  <ManageShell title="ลุ้นโชคท้ายบิล" subtitle="QR ท้ายใบเสร็จ → หน้าลุ้นโชคของบิลนั้น · ลุ้นได้ 1 ครั้งต่อบิล" back="/admin/settings" narrow :toolbar="false">
+  <ManageShell title="ลุ้นโชคท้ายบิล" subtitle="QR ท้ายใบเสร็จ → หน้าลุ้นโชคของบิลนั้น" back="/admin/settings" narrow :toolbar="false">
     <div class="space-y-4">
       <section class="card space-y-4">
         <div class="card-title">ตั้งค่า</div>
@@ -63,7 +97,12 @@ function save() {
             <input id="lk-to" v-model="st.toL" type="datetime-local" class="input h-11" />
           </div>
         </div>
-        <div class="grid gap-3 sm:grid-cols-2">
+        <div class="grid gap-3 sm:grid-cols-3">
+          <div>
+            <label class="label" for="lk-per">ทุกกี่บาทลุ้นได้ 1 ครั้ง</label>
+            <input id="lk-per" v-model.number="st.perBaht" type="number" min="1" step="1" class="input h-11" />
+            <p class="mt-1 text-xs text-stone-500">นับจากยอดที่ลูกค้าจ่ายจริงของสินค้าที่ร่วมรายการ สูงสุด {{ MAX_DRAWS_PER_BILL }} ครั้งต่อบิล</p>
+          </div>
           <div>
             <label class="label" for="lk-url">URL หน้าเว็บ (ใช้ทำ QR)</label>
             <input id="lk-url" v-model="st.siteUrl" class="input h-11" placeholder="https://cake-order-admin.pages.dev" />
@@ -72,6 +111,27 @@ function save() {
             <label class="label" for="lk-days">วันใช้รหัสรางวัลหลังลุ้น</label>
             <input id="lk-days" v-model.number="st.prizeDays" type="number" min="1" max="365" class="input h-11" />
           </div>
+        </div>
+      </section>
+
+      <section class="card space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="card-title">สินค้าที่ร่วมลุ้น</div>
+          <span class="text-sm text-stone-600">เลือกแล้ว {{ st.itemIds.length }} รายการ</span>
+        </div>
+        <p class="text-sm text-stone-600">บิลจะได้ลุ้นเมื่อมีสินค้าที่เลือกไว้ และลุ้นตามยอดของสินค้าเหล่านั้นเท่านั้น</p>
+        <p v-if="pickedNames.length" class="rounded-xl bg-brand-50 p-2.5 text-sm text-brand-900">{{ pickedNames.join(' · ') }}</p>
+        <p v-else class="rounded-xl bg-amber-50 p-2.5 text-sm text-amber-800">ยังไม่ได้เลือกสินค้า ระบบจะไม่ออก QR ให้บิลใดเลย</p>
+        <input v-model="itemQuery" type="search" class="input h-11" placeholder="ค้นหาชื่อสินค้า" aria-label="ค้นหาสินค้า" />
+        <div class="max-h-96 space-y-3 overflow-y-auto pr-1">
+          <div v-for="g in itemGroups" :key="g.category">
+            <div class="mb-1 text-xs font-semibold text-stone-500">{{ g.category }}</div>
+            <label v-for="x in g.items" :key="x.id" class="flex cursor-pointer items-center gap-2 rounded-xl px-2 py-2 hover:bg-stone-50">
+              <input type="checkbox" class="h-5 w-5 accent-brand-600" :checked="isPicked(x.id)" @change="togglePick(x.id)" />
+              <span class="flex-1 text-sm text-stone-800">{{ x.name }}</span>
+            </label>
+          </div>
+          <p v-if="!itemGroups.length" class="py-4 text-center text-sm text-stone-500">ไม่พบสินค้า</p>
         </div>
       </section>
 
@@ -113,12 +173,12 @@ function save() {
       <section class="card">
         <div class="card-title">สถิติ</div>
         <div class="mt-2 grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
-          <div class="rounded-xl bg-stone-50 p-3"><div class="text-xs text-stone-500">ออก QR แล้ว</div><div class="text-xl font-semibold">{{ stats.issued }}</div></div>
-          <div class="rounded-xl bg-stone-50 p-3"><div class="text-xs text-stone-500">ลุ้นแล้ว</div><div class="text-xl font-semibold">{{ stats.spun }}</div></div>
+          <div class="rounded-xl bg-stone-50 p-3"><div class="text-xs text-stone-500">บิลที่มีสิทธิ์ลุ้น</div><div class="text-xl font-semibold">{{ stats.bills }}</div></div>
+          <div class="rounded-xl bg-stone-50 p-3"><div class="text-xs text-stone-500">ลุ้นแล้ว (ครั้ง)</div><div class="text-xl font-semibold">{{ stats.spins }}</div></div>
           <div class="rounded-xl bg-stone-50 p-3"><div class="text-xs text-stone-500">ได้รางวัล</div><div class="text-xl font-semibold">{{ stats.won }}</div></div>
           <div class="rounded-xl bg-stone-50 p-3"><div class="text-xs text-stone-500">รับรางวัลที่ร้านแล้ว</div><div class="text-xl font-semibold">{{ stats.redeemed }}</div></div>
         </div>
-        <p class="mt-3 text-xs text-stone-500">QR ออกเฉพาะบิลที่ขายเสร็จในช่วงเวลาที่เปิด · รับรางวัลที่ร้านด้วยปุ่ม "รับรางวัลลุ้นโชค" ในหน้าขาย</p>
+        <p class="mt-3 text-xs text-stone-500">รับรางวัลที่ร้านด้วยปุ่ม "รับรางวัลลุ้นโชค" ในหน้าขาย · ลุ้นได้ตามจำนวนที่บิลมี แต่ละครั้งได้ผลแยกกัน</p>
       </section>
     </div>
   </ManageShell>

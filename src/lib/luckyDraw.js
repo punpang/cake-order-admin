@@ -1,9 +1,16 @@
-// ลุ้นโชคท้ายบิล (ฝั่งแอป): ค่าเริ่มต้น การตรวจตั้งค่า การสร้าง token/hash และ URL ของ QR
+// ลุ้นโชคท้ายบิล (ฝั่งแอป): ค่าเริ่มต้น การตรวจตั้งค่า จำนวนครั้งลุ้นของบิล การสร้าง token/hash และ URL ของ QR
 // กติกาการสุ่มจริงอยู่ที่ Edge Function lucky-spin (supabase/functions/_shared/lucky.ts) · token เต็มไม่เก็บในฐานข้อมูล
+import { orderTotals } from './pricing.js'
 
 export const LUCKY_SITE_URL = 'https://cake-order-admin.pages.dev'
+export const MAX_DRAWS_PER_BILL = 10 // เพดานครั้งลุ้นต่อบิล (กันบิลยอดสูงมากได้ลุ้นจำนวนมากเกินไป)
 
-export const luckyDefaults = () => ({ enabled: false, from: '', to: '', siteUrl: LUCKY_SITE_URL, prizeDays: 30, prizes: [] })
+export const luckyDefaults = () => ({
+  enabled: false, from: '', to: '', siteUrl: LUCKY_SITE_URL, prizeDays: 30,
+  perBaht: 100, // ทุกกี่บาทของยอดที่จ่ายจริง (จากสินค้าที่ร่วมรายการ) ลุ้นได้ 1 ครั้ง
+  itemIds: [], // สินค้าที่ร่วมรายการ (id ของสินค้าหน้าร้าน)
+  prizes: [],
+})
 
 // ตรวจรายการรางวัลก่อนบันทึก (กติกาเดียวกับเซิร์ฟเวอร์): ชื่อไม่ว่าง โอกาส ≥ 0 และรวมไม่เกิน 100
 export function validateLuckyPrizes(prizes) {
@@ -15,6 +22,13 @@ export function validateLuckyPrizes(prizes) {
   return ''
 }
 
+// ตรวจการตั้งค่าลุ้นโชคทั้งชุด: ทุกกี่บาทต้องมากกว่า 0 · เปิดใช้งานต้องเลือกสินค้าอย่างน้อย 1 รายการ · รางวัลถูกต้อง
+export function validateLuckyConfig(cfg) {
+  if (!(Number(cfg?.perBaht) > 0)) return 'ทุกกี่บาทลุ้นได้ 1 ครั้ง ต้องมากกว่า 0'
+  if (cfg?.enabled && !(Array.isArray(cfg?.itemIds) && cfg.itemIds.length)) return 'เลือกสินค้าที่ร่วมลุ้นอย่างน้อย 1 รายการ'
+  return validateLuckyPrizes(cfg?.prizes || [])
+}
+
 // เปิดให้ลุ้นอยู่หรือไม่: เปิดใช้งาน และเวลาปัจจุบันอยู่ในช่วง from–to
 export function luckyActive(cfg, nowMs = Date.now()) {
   if (!cfg?.enabled) return false
@@ -22,6 +36,21 @@ export function luckyActive(cfg, nowMs = Date.now()) {
   const t = cfg.to ? Date.parse(cfg.to) : NaN
   if (Number.isNaN(f) || Number.isNaN(t)) return false
   return nowMs >= f && nowMs <= t
+}
+
+// จำนวนครั้งลุ้นของบิลหนึ่ง = ยอดที่จ่ายจริงของสินค้าที่ร่วมรายการ ÷ ทุกกี่บาท (ปัดลง · ไม่เกินเพดาน)
+// ยอดจริง = สัดส่วนของสินค้าที่ร่วมรายการจากยอดรวมหลังส่วนลดและคูปอง · ของแถมจากโปรไม่นับ
+export function luckyDrawsOf(order, cfg) {
+  const per = Number(cfg?.perBaht) || 0
+  const ids = new Set(Array.isArray(cfg?.itemIds) ? cfg.itemIds : [])
+  if (!order || !(per > 0) || ids.size === 0) return 0
+  const lines = (order.items || []).filter((i) => i && !i.promoGift && (Number(i.qty) || 0) > 0)
+  const amount = (i) => (Number(i.unitPrice) || 0) * (Number(i.qty) || 0)
+  const subtotal = lines.reduce((s, i) => s + amount(i), 0)
+  if (!(subtotal > 0)) return 0
+  const paid = orderTotals(order).total
+  const eligiblePaid = lines.filter((i) => ids.has(i.retailId)).reduce((s, i) => s + amount(i), 0) * (paid / subtotal)
+  return Math.min(MAX_DRAWS_PER_BILL, Math.max(0, Math.floor(eligiblePaid / per + 1e-9)))
 }
 
 const b64url = (bytes) => {

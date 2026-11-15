@@ -46,6 +46,22 @@ export function pickPrize(prizes: LuckyPrize[], r: number): LuckyPrize | null {
   return null
 }
 
+// การลุ้นครั้งถัดไปของบิลหนึ่ง: บิลมีจำนวนครั้งลุ้น (draws) ตามยอดที่จ่ายจริงตอนออก QR
+// rnd ต้องมี 10 ไบต์ (4 ไบต์แรกสุ่มรางวัล · 6 ไบต์ถัดไปเป็นรหัสรางวัล) · คืน null ถ้าลุ้นครบแล้ว
+export function nextSpin(args: { draws: number; spinCount: number; prizes: LuckyPrize[]; rnd: Uint8Array; nowIso: string; prizeDays: number }) {
+  if (!(args.spinCount < args.draws)) return null
+  const won = pickPrize(args.prizes, percentFromBytes(args.rnd.subarray(0, 4)))
+  const days = Math.min(365, Math.max(1, Math.round(Number(args.prizeDays) || 30)))
+  return {
+    at: args.nowIso,
+    prize: won ? { id: won.id, name: won.name, kind: won.kind, amount: Number(won.amount) || 0 } : null,
+    code: won ? codeFromBytes(args.rnd.subarray(4, 10)) : null,
+    codeExpiresAt: won ? new Date(Date.parse(args.nowIso) + days * 86400000).toISOString() : null,
+    redeemedAt: null,
+    redeemedBy: null,
+  }
+}
+
 // ช่วงเวลาที่เปิดให้ลุ้น (from ≤ now ≤ to) · ค่าที่อ่านไม่ได้ = ไม่เปิด
 export function inWindow(cfg: { from?: string; to?: string }, nowMs: number): boolean {
   const f = cfg.from ? Date.parse(cfg.from) : NaN

@@ -1,6 +1,6 @@
 // ทดสอบกติกาลุ้นโชคท้ายบิล (ฟังก์ชันล้วน) · รัน: deno test supabase/functions/_shared/
 import { assertEquals, assertMatch } from 'jsr:@std/assert@1'
-import { CODE_ALPHABET, codeFromBytes, inWindow, isTokenShape, percentFromBytes, pickPrize, tokenFromBytes, validatePrizes } from './lucky.ts'
+import { CODE_ALPHABET, codeFromBytes, inWindow, isTokenShape, nextSpin, percentFromBytes, pickPrize, tokenFromBytes, validatePrizes } from './lucky.ts'
 
 const P = [
   { id: 'a', name: 'ส่วนลด 50', kind: 'coupon' as const, amount: 50, chance: 10 },
@@ -57,4 +57,19 @@ Deno.test('ช่วงเวลาเปิดลุ้น: from ≤ now ≤ to
   assertEquals(inWindow(cfg, Date.parse('2026-12-01T00:00:00.000Z')), false)
   assertEquals(inWindow({ from: '', to: '' }, Date.now()), false)
   assertEquals(inWindow({ from: 'x', to: 'y' }, Date.now()), false)
+})
+
+Deno.test('การลุ้นครั้งถัดไป: ครบจำนวนแล้วคืน null · ถ้าได้รางวัลมีรหัสและวันหมดอายุ', () => {
+  const now = '2026-11-20T10:00:00.000Z'
+  const rnd = new Uint8Array([0, 0, 0, 0, 5, 6, 7, 8, 9, 10]) // สุ่มได้ 0% → รางวัลแรก
+  const won = nextSpin({ draws: 2, spinCount: 0, prizes: P, rnd, nowIso: now, prizeDays: 30 })
+  assertEquals(won?.prize?.id, 'a')
+  assertEquals(won?.code?.length, 6)
+  assertEquals(won?.codeExpiresAt, '2026-12-20T10:00:00.000Z')
+  assertEquals(won?.redeemedAt, null)
+  assertEquals(nextSpin({ draws: 2, spinCount: 2, prizes: P, rnd, nowIso: now, prizeDays: 30 }), null)
+  const miss = nextSpin({ draws: 1, spinCount: 0, prizes: P, rnd: new Uint8Array([255, 255, 255, 255, 1, 1, 1, 1, 1, 1]), nowIso: now, prizeDays: 30 })
+  assertEquals(miss?.prize, null) // 99.99% ≥ 40% รวมโอกาส → ไม่ได้รางวัล
+  assertEquals(miss?.code, null)
+  assertEquals(miss?.codeExpiresAt, null)
 })

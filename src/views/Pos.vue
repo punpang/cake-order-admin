@@ -5,7 +5,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posPromoInfo, posSale, voidPosSale, addPosPartial, editPosPending, finishPosBill, pointsFor, quickMember, vatNow,
   customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons, claimPosCoupons, releaseCoupons,
-  newPosQrRef, posQrExpired, issueLuckyToken, findLuckyByCode, redeemLuckyRecord,
+  newPosQrRef, posQrExpired, issueLuckyToken, findLuckySpinByCode, redeemLuckySpin,
 } from '../data/store'
 import { activeSecondsLeft } from '../lib/loyalty'
 import { orderTotals, discountLines } from '../lib/pricing'
@@ -219,15 +219,17 @@ const rdCoupons = computed(() => (rd.cust ? posCoupons(rd.cust, nowIso.value) : 
 const rdHidden = computed(() => (rd.cust ? notShownCount(rd.cust, nowIso.value) : 0))
 function openRedeem() { Object.assign(rd, { open: true, q: '', cust: null, msg: '', err: '' }) }
 // รับรางวัลลุ้นโชคท้ายบิล: ลูกค้าแสดงรหัส 6 ตัว → ค้นหาบิล → ยืนยันรับที่ร้าน (ครั้งเดียว)
-const lk = reactive({ open: false, code: '', rec: null, msg: '', ok: false })
-function openLucky() { Object.assign(lk, { open: true, code: '', rec: null, msg: '', ok: false }) }
+const lk = reactive({ open: false, code: '', rec: null, spin: null, msg: '', ok: false })
+function openLucky() { Object.assign(lk, { open: true, code: '', rec: null, spin: null, msg: '', ok: false }) }
 function luckyLookup() {
-  lk.rec = findLuckyByCode(lk.code)
+  const f = findLuckySpinByCode(lk.code)
+  lk.rec = f?.rec || null
+  lk.spin = f?.spin || null
   lk.ok = false
-  lk.msg = lk.rec ? '' : 'ไม่พบรหัสนี้ ตรวจรหัสอีกครั้ง'
+  lk.msg = f ? '' : 'ไม่พบรหัสนี้ ตรวจรหัสอีกครั้ง'
 }
 function luckyRedeem() {
-  const r = redeemLuckyRecord(lk.rec)
+  const r = redeemLuckySpin(lk.spin)
   if (r.error) { lk.msg = r.error; return }
   lk.ok = true
   lk.msg = 'รับรางวัลเรียบร้อย'
@@ -1135,15 +1137,15 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <p v-if="lk.msg" class="rounded-xl p-2.5" :class="lk.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'" role="status">{{ lk.msg }}</p>
         <div v-if="lk.rec" class="rounded-2xl border border-stone-200 p-3">
           <div>บิล <b>{{ orderNo(lk.rec.orderCode) }}</b></div>
-          <div v-if="lk.rec.prize">รางวัล: <b>{{ lk.rec.prize.name }}</b></div>
-          <div v-else class="text-stone-600">บิลนี้ไม่ได้รางวัล</div>
-          <div v-if="lk.rec.codeExpiresAt" class="text-xs text-stone-500">ใช้ได้ถึง {{ dateTime(lk.rec.codeExpiresAt) }}</div>
-          <div v-if="lk.rec.redeemedAt" class="text-xs text-stone-500">รับแล้วเมื่อ {{ dateTime(lk.rec.redeemedAt) }}</div>
+          <div v-if="lk.spin && lk.spin.prize">รางวัล: <b>{{ lk.spin.prize.name }}</b></div>
+          <div v-else-if="lk.spin" class="text-stone-600">ครั้งนี้ไม่ได้รางวัล</div>
+          <div v-if="lk.spin && lk.spin.codeExpiresAt" class="text-xs text-stone-500">ใช้ได้ถึง {{ dateTime(lk.spin.codeExpiresAt) }}</div>
+          <div v-if="lk.spin && lk.spin.redeemedAt" class="text-xs text-stone-500">รับแล้วเมื่อ {{ dateTime(lk.spin.redeemedAt) }}</div>
         </div>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="lk.open = false">ปิด</button>
-        <button v-if="lk.rec && lk.rec.prize && !lk.rec.redeemedAt && !lk.ok" class="btn-primary flex-1 sm:flex-none" @click="luckyRedeem">ยืนยันรับรางวัล</button>
+        <button v-if="lk.spin && lk.spin.prize && !lk.spin.redeemedAt && !lk.ok" class="btn-primary flex-1 sm:flex-none" @click="luckyRedeem">ยืนยันรับรางวัล</button>
       </template>
     </AppModal>
     <AppModal v-if="rd.open" title="รับของรางวัลที่ร้าน (ลูกค้ากดแสดงแล้ว)" @close="rd.open = false">

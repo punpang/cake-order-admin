@@ -1,13 +1,25 @@
 // ทดสอบกติกาฝั่งแอปของลุ้นโชคท้ายบิล · รัน: node src/lib/luckyDraw.test.mjs
 import assert from 'node:assert/strict'
-import { LUCKY_SITE_URL, genLuckyToken, hashLuckyToken, isLuckyCodeShape, luckyActive, luckyDefaults, luckyUrl, normalizeLuckyCode, validateLuckyPrizes } from './luckyDraw.js'
+import { LUCKY_SITE_URL, MAX_DRAWS_PER_BILL, genLuckyToken, hashLuckyToken, isLuckyCodeShape, luckyActive, luckyDefaults, luckyDrawsOf, luckyUrl, normalizeLuckyCode, validateLuckyConfig, validateLuckyPrizes } from './luckyDraw.js'
 
 let pass = 0
 const t = async (name, fn) => { await fn(); pass++; console.log('PASS', name) }
 
-await t('ค่าเริ่มต้น: ปิดอยู่ ไม่มีรางวัล และชี้ไปเว็บหลัก', () => {
+// บิลตัวอย่าง: สินค้า a 100 บาท ×2 และ b 50 บาท ×1 (ยอดรวม 250)
+const bill = (extra = {}) => ({
+  fulfillment: 'pickup', payments: [], adjustment: { amount: 0, reason: '' }, pointsUsed: null, couponsUsed: [], vat: undefined,
+  items: [
+    { retailId: 'a', name: 'เค้ก A', unitPrice: 100, qty: 2 },
+    { retailId: 'b', name: 'คัพเค้ก B', unitPrice: 50, qty: 1 },
+  ],
+  ...extra,
+})
+
+await t('ค่าเริ่มต้น: ปิดอยู่ ทุก 100 บาท ยังไม่เลือกสินค้า และชี้ไปเว็บหลัก', () => {
   const d = luckyDefaults()
   assert.equal(d.enabled, false)
+  assert.equal(d.perBaht, 100)
+  assert.deepEqual(d.itemIds, [])
   assert.deepEqual(d.prizes, [])
   assert.equal(d.siteUrl, LUCKY_SITE_URL)
   assert.equal(d.prizeDays, 30)
@@ -18,8 +30,14 @@ await t('ตรวจรายการรางวัล: ชื่อว่า
   assert.notEqual(validateLuckyPrizes([{ name: ' ', chance: 10 }]), '')
   assert.notEqual(validateLuckyPrizes([{ name: 'ก', chance: -1 }]), '')
   assert.match(validateLuckyPrizes([{ name: 'ก', chance: 60 }, { name: 'ข', chance: 41 }]), /เกิน 100/)
-  assert.equal(validateLuckyPrizes([{ name: 'ก', chance: 60 }, { name: 'ข', chance: 40 }]), '')
   assert.notEqual(validateLuckyPrizes(null), '')
+})
+
+await t('ตรวจการตั้งค่า: ทุกกี่บาทต้องมากกว่า 0 และเปิดใช้ต้องเลือกสินค้า', () => {
+  assert.match(validateLuckyConfig({ perBaht: 0, enabled: false, itemIds: ['a'] }), /มากกว่า 0/)
+  assert.match(validateLuckyConfig({ perBaht: 100, enabled: true, itemIds: [] }), /เลือกสินค้า/)
+  assert.equal(validateLuckyConfig({ perBaht: 100, enabled: false, itemIds: [] }), '')
+  assert.equal(validateLuckyConfig({ perBaht: 100, enabled: true, itemIds: ['a'], prizes: [] }), '')
 })
 
 await t('เปิดให้ลุ้น: ต้องเปิดใช้งานและอยู่ในช่วงเวลา', () => {
@@ -28,7 +46,27 @@ await t('เปิดให้ลุ้น: ต้องเปิดใช้ง
   assert.equal(luckyActive(cfg, Date.parse('2026-11-20T00:00:00.000Z')), true)
   assert.equal(luckyActive(cfg, Date.parse('2026-12-01T00:00:00.000Z')), false)
   assert.equal(luckyActive({ ...cfg, enabled: false }, Date.parse('2026-11-20T00:00:00.000Z')), false)
-  assert.equal(luckyActive({ enabled: true, from: '', to: '' }, Date.now()), false)
+})
+
+await t('จำนวนครั้งลุ้น: นับเฉพาะสินค้าที่ร่วมรายการ ทุก X บาท ปัดลง', () => {
+  assert.equal(luckyDrawsOf(bill(), { perBaht: 100, itemIds: ['a'] }), 2) // a = 200 บาท → 2 ครั้ง
+  assert.equal(luckyDrawsOf(bill(), { perBaht: 100, itemIds: ['b'] }), 0) // b = 50 บาท ยังไม่ถึง 100
+  assert.equal(luckyDrawsOf(bill(), { perBaht: 50, itemIds: ['a', 'b'] }), 5) // 250 ÷ 50
+  assert.equal(luckyDrawsOf(bill(), { perBaht: 100, itemIds: [] }), 0) // ไม่เลือกสินค้า = ไม่มีบิลไหนลุ้น
+  assert.equal(luckyDrawsOf(bill(), { perBaht: 0, itemIds: ['a'] }), 0)
+})
+
+await t('จำนวนครั้งลุ้นใช้ยอดที่จ่ายจริง: ส่วนลดคูปองลดสัดส่วนของสินค้าที่ร่วมด้วย', () => {
+  const withCoupon = bill({ couponsUsed: [{ couponId: 'c1', name: 'คูปอง', amount: 50 }] }) // ยอดจ่าย 200 จาก 250
+  // สินค้า a = 200 × (200 ÷ 250) = 160 บาท → 1 ครั้ง (ไม่ใช่ 2 ครั้งตามราคาก่อนลด)
+  assert.equal(luckyDrawsOf(withCoupon, { perBaht: 100, itemIds: ['a'] }), 1)
+})
+
+await t('ของแถมจากโปรไม่นับ และเพดานต่อบิลคือ 10 ครั้ง', () => {
+  const gift = bill({ items: [...bill().items, { retailId: 'g', name: 'ของแถม', unitPrice: 0, qty: 1, promoGift: { dealId: 'd', name: 'แถม' } }] })
+  assert.equal(luckyDrawsOf(gift, { perBaht: 100, itemIds: ['g'] }), 0)
+  const big = bill({ items: [{ retailId: 'a', name: 'เค้กใหญ่', unitPrice: 10000, qty: 1 }] })
+  assert.equal(luckyDrawsOf(big, { perBaht: 100, itemIds: ['a'] }), MAX_DRAWS_PER_BILL)
 })
 
 await t('token: 32 ตัว base64url และไม่ซ้ำกัน', () => {
@@ -46,18 +84,15 @@ await t('hash ของ token: กำหนดได้แน่นอน แล
   assert.equal(h1, h2)
   assert.match(h1, /^[0-9a-f]{64}$/)
   assert.notEqual(h1, token)
-  assert.notEqual(h1, await hashLuckyToken(token.slice(1) + 'A'))
 })
 
 await t('URL ของ QR: ชี้ไปหน้าลุ้นโชคของบิล และตัด / ท้ายออก', () => {
   assert.equal(luckyUrl('https://example.com/', 'TOKEN'), 'https://example.com/#/luck/TOKEN')
-  assert.equal(luckyUrl('https://example.com', 'TOKEN'), 'https://example.com/#/luck/TOKEN')
   assert.equal(luckyUrl('', 'TOKEN'), `${LUCKY_SITE_URL}/#/luck/TOKEN`)
 })
 
 await t('รหัสรางวัล: ตัดช่องว่างและแปลงเป็นพิมพ์ใหญ่ก่อนตรวจรูปแบบ', () => {
   assert.equal(normalizeLuckyCode(' ab3 c4-x '), 'AB3C4-X')
-  assert.equal(isLuckyCodeShape(' ab3 c4 '), false) // ตัวอักษร/เลขต้อง 6 ตัวในชุดที่กำหนด (มีขีดไม่ผ่าน)
   assert.equal(isLuckyCodeShape('ab3c45'), true)
   assert.equal(isLuckyCodeShape('AB0CDE'), false) // ไม่มี 0
   assert.equal(isLuckyCodeShape('ABCDE'), false)

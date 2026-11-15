@@ -17,7 +17,7 @@ import { parseAnswer } from '../lib/chatParse'
 import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEFAULT_COOKIE, DEFAULT_LEGAL_CONTACT } from '../lib/legalDefaults'
 import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX, AUTO_SOURCES, LOCKED_SOURCES, AI_MODELS, AI_WAI_MODELS } from '../lib/chatBot'
 import { checkTelegram } from '../lib/integrationCheck'
-import { luckyActive, luckyDefaults, luckyUrl, genLuckyToken, hashLuckyToken, normalizeLuckyCode, validateLuckyPrizes, LUCKY_SITE_URL } from '../lib/luckyDraw'
+import { luckyActive, luckyDefaults, luckyDrawsOf, luckyUrl, genLuckyToken, hashLuckyToken, normalizeLuckyCode, validateLuckyConfig, LUCKY_SITE_URL } from '../lib/luckyDraw'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
 import { DEFAULT_ACCOUNTS } from '../lib/acct/chart'
 import { cleanClosures, emptyClosures, slotClosed, pickupClosed, isClosedNow, nextOpen } from '../lib/shopHours'
@@ -2177,41 +2177,52 @@ export function customerOrderView(ctx) {
   return o ? publicOrderView(o, { owner: !!ctx.orderId }) : null
 }
 // ---------- ลุ้นโชคท้ายบิล (QR ท้ายใบเสร็จ POS) ----------
-// ออก token ให้บิลที่ขายเสร็จแล้ว ระหว่างช่วงเวลาที่เปิดลุ้น · เก็บเฉพาะ hash · คืน token เต็มและ URL ของ QR (ใช้ตอนพิมพ์/แสดงครั้งนี้เท่านั้น)
+// ออก token ให้บิลที่ขายเสร็จแล้ว ระหว่างช่วงเวลาที่เปิดลุ้น · จำนวนครั้งลุ้นตามยอดที่จ่ายจริงของสินค้าที่ร่วมรายการ
+// เก็บเฉพาะ hash ของ token · คืน token เต็มและ URL ของ QR (ใช้ตอนพิมพ์/แสดงครั้งนี้เท่านั้น) · ลุ้นได้ 0 ครั้งจะไม่ออก QR
 export async function issueLuckyToken(order) {
   const cfg = db.shop?.luckyDraw
   if (!luckyActive(cfg, Date.now()) || !order || order.channel !== 'pos' || order.status !== 'delivered' || !can('pos')) return null
+  const draws = luckyDrawsOf(order, cfg)
+  if (draws < 1) return null
   const token = genLuckyToken()
   db.luckyTokens.push({
     id: uid('lk'), tokenHash: await hashLuckyToken(token), orderId: order.id, orderCode: order.code, createdAt: now(),
-    expiresAt: new Date(Date.parse(cfg.to)).toISOString(), spunAt: null, prize: null, code: null, codeExpiresAt: null, redeemedAt: null, redeemedBy: null,
+    expiresAt: new Date(Date.parse(cfg.to)).toISOString(), draws, spinCount: 0, spins: [],
   })
-  return { token, url: luckyUrl(cfg.siteUrl, token) }
+  return { token, url: luckyUrl(cfg.siteUrl, token), draws }
 }
-// หาบิลลุ้นโชคจากรหัสรางวัลที่ลูกค้าแสดง (ไม่สนตัวพิมพ์เล็กใหญ่/ช่องว่าง)
-export function findLuckyByCode(code) {
+// หาการลุ้นจากรหัสรางวัลที่ลูกค้าแสดง (ไม่สนตัวพิมพ์เล็กใหญ่/ช่องว่าง) · คืน { rec, spin } หรือ null
+export function findLuckySpinByCode(code) {
   const c = normalizeLuckyCode(code)
-  return c ? db.luckyTokens.find((r) => r.code === c) || null : null
+  if (!c) return null
+  for (const rec of db.luckyTokens || []) {
+    const spin = (rec.spins || []).find((s) => s.code === c)
+    if (spin) return { rec, spin }
+  }
+  return null
 }
 // รับรางวัลที่ร้าน: ต้องมีรางวัล ยังไม่หมดอายุ และยังไม่เคยรับ · บันทึกผู้รับและเวลา
-export function redeemLuckyRecord(rec) {
+export function redeemLuckySpin(spin) {
   if (!can('pos')) return { error: 'ไม่มีสิทธิ์รับรางวัล' }
-  if (!rec) return { error: 'ไม่พบรหัสรางวัลนี้' }
-  if (!rec.prize || !rec.code) return { error: 'บิลนี้ไม่ได้รางวัล' }
-  if (rec.redeemedAt) return { error: 'รางวัลนี้รับไปแล้ว' }
-  if (!(Date.now() <= Date.parse(rec.codeExpiresAt))) return { error: 'รหัสรางวัลหมดอายุแล้ว' }
-  Object.assign(rec, { redeemedAt: now(), redeemedBy: session.role })
+  if (!spin) return { error: 'ไม่พบรหัสรางวัลนี้' }
+  if (!spin.prize || !spin.code) return { error: 'ครั้งนี้ไม่ได้รางวัล' }
+  if (spin.redeemedAt) return { error: 'รางวัลนี้รับไปแล้ว' }
+  if (!(Date.now() <= Date.parse(spin.codeExpiresAt))) return { error: 'รหัสรางวัลหมดอายุแล้ว' }
+  Object.assign(spin, { redeemedAt: now(), redeemedBy: session.role })
   return { ok: true }
 }
-// ตั้งค่าลุ้นโชคท้ายบิล (เฉพาะแอดมิน): รางวัลตรวจตามกติกาเดียวกับเซิร์ฟเวอร์ · ช่วงเวลาเริ่มก่อนสิ้นสุด · URL หน้าเว็บขึ้นต้น https
+// ตั้งค่าลุ้นโชคท้ายบิล (เฉพาะแอดมิน): ทุกกี่บาทลุ้นได้ 1 ครั้ง · สินค้าที่ร่วมรายการ · รางวัลตรวจตามกติกาเดียวกับเซิร์ฟเวอร์
+// ช่วงเวลาเริ่มก่อนสิ้นสุด · URL หน้าเว็บขึ้นต้น https
 export function saveLuckyDraw(d) {
   if (!can('manage')) return { error: 'เฉพาะแอดมินตั้งค่าลุ้นโชคได้' }
   const prizes = (d.prizes || []).map((p) => ({
     id: p.id || uid('lp'), name: String(p.name ?? '').trim(), kind: ['points', 'coupon', 'item'].includes(p.kind) ? p.kind : 'item',
     amount: Math.max(0, Number(p.amount) || 0), chance: Math.round((Number(p.chance) || 0) * 100) / 100,
   }))
-  const perr = validateLuckyPrizes(prizes)
-  if (perr) return { error: perr }
+  const itemIds = [...new Set((d.itemIds || []).map((x) => String(x)).filter(Boolean))]
+  const perBaht = Number(d.perBaht)
+  const cfgErr = validateLuckyConfig({ perBaht, enabled: !!d.enabled, itemIds, prizes })
+  if (cfgErr) return { error: cfgErr }
   const from = d.from ? new Date(d.from) : null
   const to = d.to ? new Date(d.to) : null
   const valid = from && to && !Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime()) && to > from
@@ -2220,7 +2231,7 @@ export function saveLuckyDraw(d) {
   if (!/^https:\/\/[^\s]+$/.test(siteUrl)) return { error: 'URL หน้าเว็บต้องขึ้นต้นด้วย https://' }
   const days = Math.round(Number(d.prizeDays))
   if (!(days >= 1 && days <= 365)) return { error: 'วันใช้รหัสรางวัลต้องอยู่ระหว่าง 1–365 วัน' }
-  db.shop.luckyDraw = { enabled: !!d.enabled, from: valid ? from.toISOString() : '', to: valid ? to.toISOString() : '', siteUrl, prizeDays: days, prizes }
+  db.shop.luckyDraw = { enabled: !!d.enabled, from: valid ? from.toISOString() : '', to: valid ? to.toISOString() : '', siteUrl, prizeDays: days, perBaht, itemIds, prizes }
   return { ok: true }
 }
 export function orderLinkUrl(token) {
