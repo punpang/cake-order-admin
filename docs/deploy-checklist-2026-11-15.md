@@ -7,11 +7,17 @@
 - [ ] ยืนยันว่ามีการสำรองข้อมูลล่าสุดของฐานข้อมูล
 - [ ] **ห้ามรัน** `20261114025000_punpang_tungngern_rename` บน production
 - [ ] ค่าลับตรงกัน: Edge secret `PUSH_SEND_KEY` = Vault `push_send_key` · Edge secret `SCHEDULED_KEY` = Vault `scheduled_key`
+- [ ] ยังไม่ merge เข้า main (ตามที่เลือก) · deploy จาก branch `claude/loving-sagan-ygzxt1` (66add52 หรือใหม่กว่า) · Vault `push_send_key` ยังไม่มีบน production (ตรวจเมื่อ 2026-11-15) ต้องสร้างก่อนข้อ 1
 
 ## 1) ลำดับ deploy (ห้ามสลับ)
 1. SQL รันทีเดียว: `supabase/deploy/2026-11-15-run-once.sql` (รวม `20261115000000`–`070000`, `090000`, `100000`, `110000` ในธุรกรรมเดียว · ก่อนรันต้องสำรองข้อมูลและสร้าง Vault secret `push_send_key` ตามหัวไฟล์) · ทดสอบบนฐานจำลองแล้ว รันซ้ำได้
-2. Edge Functions: `order-audit`, `quote-create`, `push-send`
-3. Worker `punpang-files`
+2. Edge Functions ที่ต้อง deploy (ตรวจแล้ว: Edge Function อื่นไม่มีการเปลี่ยนแปลงที่ต้องส่งขึ้นใหม่)
+   - `order-audit` (ใหม่): `supabase functions deploy order-audit --project-ref itleduijrckxdbhhuooi --no-verify-jwt --yes` (pg_cron เรียกด้วย `x-cron-key` ไม่มี JWT)
+   - `quote-create` (ใหม่): `supabase functions deploy quote-create --project-ref itleduijrckxdbhhuooi --yes` (เรียกด้วย JWT ของพนักงาน)
+   - `sms-send` (แก้ 2026-11-15): `supabase functions deploy sms-send --project-ref itleduijrckxdbhhuooi --yes`
+   - `push-send` (แก้): รัน workflow **Deploy push-send** (ต้องตั้ง secret `FCM_SERVICE_ACCOUNT` ก่อน) หรือ `supabase functions deploy push-send --project-ref itleduijrckxdbhhuooi --no-verify-jwt --yes`
+   - เมื่อรัน workflow บน GitHub ต้องเลือก branch `claude/loving-sagan-ygzxt1` ก่อน เพราะค่าเริ่มต้นคือ main ซึ่งยังไม่มีการเปลี่ยนแปลงนี้
+3. Worker `punpang-files` (แก้ `worker/src/index.js`) · deploy ตามวิธีเดิมของ Worker ในโฟลเดอร์ `worker/` (ชื่อใน `wrangler.jsonc`)
 4. หน้าเว็บ และ build แอป Android (`CustomerDisplayPlugin`)
 5. SQL: `20261115080000_punpang_quote_server.sql` (ปิด INSERT ใบเสนอจากเครื่องพนักงาน) — **หลังข้อ 4 เท่านั้น**
 
