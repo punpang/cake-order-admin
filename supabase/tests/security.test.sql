@@ -496,4 +496,23 @@ select test.ok('C5: พนักงานเรียกคิวตรวจบ
 select test.ok('C5: พนักงานที่เห็นออร์เดอร์ทั้งหมดอ่านผลตรวจได้',
   test.as_staff('99999999-9999-9999-9999-999999999999',
     $q$ select count(*) from public.punpang_order_audits $q$) = 'OK');
+-- C6) ประวัติการแก้ออร์เดอร์และแคตาล็อก (บันทึกที่ฐานข้อมูล · ไม่บล็อกการแก้ไข) · เขียนได้เฉพาะ trigger/เซิร์ฟเวอร์
+insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_hist', 'OR-HIST-1', 'c1', 'awaiting_payment', 'pickup', null, '{"items":[{"id":"h1","kind":"custom","qty":1,"unitPrice":100,"fullPrice":100,"discounts":[]},{"id":"h2","kind":"custom","qty":1,"unitPrice":50,"fullPrice":50,"discounts":[]}],"adjustment":{"amount":0,"reason":""},"payments":[]}');
+update public.punpang_orders set data = jsonb_set(data, '{items}', (select jsonb_agg(x) from jsonb_array_elements(data->'items') x where x->>'id' <> 'h2')) where id = 'o_hist';
+select test.ok('C6: การลบรายการออกจากออร์เดอร์ถูกบันทึกว่ารายการใดหายไป',
+  (select count(*) from public.punpang_order_changes c where c.order_id = 'o_hist' and c.summary->'removed' @> '[{"id":"h2"}]') = 1);
+insert into public.punpang_items (id, kind, name, price, active, data) values ('rt_hist', 'retail', 'สินค้าทดสอบประวัติ', 10, true, '{}');
+update public.punpang_items set price = 20 where id = 'rt_hist';
+select test.ok('C6: การเปลี่ยนราคาสินค้าหน้าร้านถูกเก็บประวัติทั้งค่าเดิมและค่าใหม่',
+  (select count(*) from public.punpang_catalog_history h where h.source = 'item' and h.key = 'rt_hist' and (h.old_data->>'price')::numeric = 10 and (h.new_data->>'price')::numeric = 20) = 1);
+insert into public.punpang_kv (collection, id, data) values ('config', 'priceLists', '{"v":[{"id":"p1"}]}') on conflict (collection, id) do update set data = excluded.data;
+update public.punpang_kv set data = '{"v":[{"id":"p2"}]}' where collection = 'config' and id = 'priceLists';
+select test.ok('C6: การแก้ชุดราคาพิเศษถูกเก็บประวัติ',
+  (select count(*) from public.punpang_catalog_history h where h.source = 'config' and h.key = 'priceLists' and h.old_data = '[{"id":"p1"}]'::jsonb and h.new_data = '[{"id":"p2"}]'::jsonb) >= 1);
+select test.ok('C6: พนักงานเขียนประวัติการแก้ไม่ได้',
+  test.as_staff('99999999-9999-9999-9999-999999999999',
+    $q$ insert into public.punpang_catalog_history (source, key) values ('item', 'x') $q$) like 'ERR:42501:%');
+select test.ok('C6: พนักงานเขียนบันทึกการแก้รายการไม่ได้',
+  test.as_staff('99999999-9999-9999-9999-999999999999',
+    $q$ insert into public.punpang_order_changes (order_id, summary) values ('o_hist', '{}') $q$) like 'ERR:42501:%');
 select 'ผ่านทั้งหมด' as security_tests;

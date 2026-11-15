@@ -7,6 +7,8 @@
 // ข้อจำกัด: ถ้าราคาในแคตาล็อกเปลี่ยนหลังสร้าง การตรวจจะรายงานเป็นรายการให้ดู — ดู docs/security.md
 import { buildQuotePayload } from './quotePrice.js'
 import { auditPosOrder } from './posAudit.js'
+import { deliveryFee } from './delivery.js'
+import { orderTotals } from './pricing.js'
 
 const ALLOWED_DISCOUNT = new Set(['special', 'bundle', 'promo', 'gift'])
 const EPS = 0.01
@@ -69,5 +71,25 @@ export function auditDirectOrder(order, catalog, { nowMs } = {}) {
   const adj = num(order.adjustment?.amount)
   if (adj > EPS) flag('adjustment_positive', 'check', `ปรับราคาเป็นบวก ${adj}`)
   if (-adj > subtotal + EPS) flag('adjustment_too_large', 'high', `ปรับราคา ${-adj} เกินยอดสินค้า ${r2(subtotal)}`)
+
+  // ค่าส่ง: ถ้าไม่ได้ตั้งเอง ต้องตรงกับสูตรจากระยะทางและการตั้งค่าการจัดส่งของร้าน ณ ตอนนี้ · รับที่ร้านต้องไม่มีค่าส่ง
+  const ship = num(order.shippingFee)
+  if (order.fulfillment !== 'delivery') {
+    if (ship > EPS) flag('shipping_on_pickup', 'high', `รับที่ร้านแต่มีค่าส่ง ${ship}`)
+  } else if (!order.feeManual) {
+    const km = order.distanceKm
+    const expShip = km == null || km === '' ? null : deliveryFee(km, catalog.shop?.delivery)
+    if (expShip == null) {
+      if (ship > EPS) flag('shipping_unverified', 'check', `มีค่าส่ง ${ship} แต่คิดจากระยะทางไม่ได้`)
+    } else if (Math.abs(ship - expShip) > EPS) flag('shipping_mismatch', 'high', `ค่าส่ง ${ship} ควรเป็น ${expShip} ตามระยะทาง ${km} กม.`)
+  }
+
+  // การรับชำระที่ยืนยันแล้ว (ตรวจภายในเท่านั้น ยังไม่ได้เทียบกับเงินเข้าบัญชีจริง): โอนเงินต้องมีสลิปแนบ · ยอดสุทธิที่รับต้องไม่เกินยอดบิล
+  if (order.status !== 'cancelled') {
+    const paid = (order.payments || []).filter((p) => p.status === 'confirmed')
+    for (const p of paid) if (p.method === 'โอนเงิน' && !p.slip) flag('transfer_without_slip', 'check', `ยืนยันโอนเงิน ${p.amount} โดยไม่มีสลิปแนบ`)
+    const t = orderTotals({ ...order, items: base, payments: order.payments || [] })
+    if (t.paidNet > t.total + 0.01) flag('overpaid', 'check', `รับชำระสุทธิ ${r2(t.paidNet)} มากกว่ายอดบิล ${r2(t.total)}`)
+  }
   return { ok: flags.length === 0, flags }
 }

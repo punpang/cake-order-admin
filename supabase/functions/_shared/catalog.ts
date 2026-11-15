@@ -3,7 +3,7 @@
 const CONFIG_IDS = ['shop', 'priceLists', 'bundles', 'optionGroups', 'posDiscounts', 'posBundles', 'posDeals', 'posModifiers']
 
 // อ่านทั้งชุดแบบแบ่งหน้า (API ส่งทีละไม่เกิน 1000 แถว) · path ต้องมีเครื่องหมาย ? แล้ว
-async function pages(url: string, headers: Record<string, string>, path: string): Promise<any[] | null> {
+export async function pages(url: string, headers: Record<string, string>, path: string): Promise<any[] | null> {
   const out: any[] = []
   for (let off = 0; ; off += 1000) {
     const r = await fetch(`${url}/rest/v1/${path}&limit=1000&offset=${off}`, { headers })
