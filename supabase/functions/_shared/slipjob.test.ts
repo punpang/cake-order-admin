@@ -6,6 +6,7 @@ import QRCode from 'npm:qrcode@1.5.4'
 import { PNG } from 'npm:pngjs@7.0.0'
 import { checkSlipImage, OCR_CHAT_DAILY_CAP, ocrChatUsed } from './slipjob.ts'
 import { cacheSlipFields } from './slipstore.ts'
+import { applyNotifyPayment } from './notifyconfirm.ts'
 
 const SLIP = '0037000600000101030040216A1B2C3D4E5F6G7H85102TH9104DE9E' // สลิปธนาคาร 004 เลขอ้างอิง A1B2C3D4E5F6G7H8
 const PROMPTPAY_540 = '00020101021229370016A000000677010111011300668123456785802TH53037645406540.0063048A50'
@@ -222,6 +223,51 @@ Deno.test('รหัสอ้างอิงชี้ออร์เดอร์
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
   assertEquals(sb.T.punpang_orders.find((o: any) => o.id === 'o0').data.payments.length, 0)
   assertEquals(sb.T.punpang_orders.find((o: any) => o.id === 'o1').data.payments.length, 1)
+})
+
+// ---- รายการเดียวต่อรหัสสุ่ม (Ref 2): ถุงเงินกับสลิปต้องเก็บไว้ที่รายการเดียวกัน ไม่ว่าอันไหนมาก่อน ----
+Deno.test('ถุงเงินยืนยันก่อน แล้วสลิปตามมา → สลิปเก็บไว้ที่รายการเดิม ไม่เปิดรายการใหม่', async () => {
+  const confirmed = reqPayment({ status: 'confirmed', confirmedBy: 'auto', confirmedAt: '2026-11-11T02:30:00.000Z' })
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [{ ...order({ payments: [confirmed] }), status: 'payment_confirmed' }], kv: AUTO_KV() })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'merged')
+  const o = sb.T.punpang_orders[0]
+  assertEquals(o.data.payments.length, 1)
+  const p = o.data.payments[0]
+  assertEquals([p.id, p.status, p.amount, p.qrRef], [confirmed.id, 'confirmed', 540, QR_REF])
+  assertEquals([p.slipKey, p.ref, p.bankCode], ['004:A1B2C3D4E5F6G7H8', 'A1B2C3D4E5F6G7H8', '004'])
+  assertEquals(p.slip, 'r2://private/o1/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png')
+  assertEquals(o.status, 'payment_confirmed')
+  assertEquals(o.data.history.at(-1).text.includes('เก็บสลิปไว้ที่รายการเดิม'), true)
+  const msg = sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1')
+  assertEquals([msg.slipCheck.status, msg.slipCheck.paymentId], ['merged', confirmed.id])
+})
+
+Deno.test('ลูกค้าแนบสลิปก่อน แล้วถุงเงินตามมา → แจ้งเตือนจับเข้ารายการเดิม (ไม่มีรายการที่สอง)', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [orderQr()], kv: AUTO_KV() })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
+  const res = await applyNotifyPayment(sb, { ref: QR_REF, amount: 540, receivedMs: NOW, autoOn: false, days: 3, nowIso: new Date(NOW).toISOString() })
+  assertEquals([res.done, res.code], [true, 'OR-111126-000010'])
+  const o = sb.T.punpang_orders[0]
+  assertEquals(o.data.payments.length, 1)
+  assertEquals([o.data.payments[0].customerSubmitted, o.data.payments[0].receiptVerified, o.data.payments[0].status], [true, true, 'reported'])
+  assertEquals(o.status, 'payment_reported')
+})
+
+Deno.test('ลูกค้าแนบสลิปก่อน แล้วถุงเงินตามมาและนัดรับห่างพอ → ยืนยันชำระอัตโนมัติที่รายการเดิม', async () => {
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ payments: [reqPayment()], pickupAt: '2026-11-20T10:00' })], kv: AUTO_KV() })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
+  const res = await applyNotifyPayment(sb, { ref: QR_REF, amount: 540, receivedMs: NOW, autoOn: true, days: 3, nowIso: new Date(NOW).toISOString() })
+  assertEquals([res.done, res.auto], [true, true])
+  const o = sb.T.punpang_orders[0]
+  assertEquals([o.status, o.data.payments.length, o.data.payments[0].status, o.data.payments[0].customerSubmitted], ['payment_confirmed', 1, 'confirmed', true])
+})
+
+Deno.test('รหัสสุ่มตรงแต่ยอดสลิปไม่ตรงกับรายการที่ยืนยันแล้ว → ไม่รวมเข้ารายการเดิม ส่งให้พนักงานตรวจ', async () => {
+  const confirmed = reqPayment({ status: 'confirmed', amount: 500, confirmedBy: 'auto' })
+  const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [{ ...order({ payments: [confirmed] }), status: 'payment_confirmed' }], kv: AUTO_KV() })
+  assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'manual')
+  const o = sb.T.punpang_orders[0]
+  assertEquals([o.data.payments.length, o.data.payments[0].slip], [1, undefined])
 })
 
 Deno.test('ไม่มีออร์เดอร์อ้างอิงในแชท → ไม่แนบ แจ้งพนักงานให้ผูกเอง', async () => {

@@ -52,6 +52,7 @@ const failed = (m) => mine(m) && (props.chat.channel === 'facebook' || props.cha
 // ผลตรวจสลิป QR ในรูปที่ลูกค้าส่ง (สถานะจาก _shared/slipjob.ts) · ยอดรอพนักงานตรวจ (ยกเว้นยืนยันอัตโนมัติ)
 const SLIP_CHIP = {
   matched: ['สลิปจับคู่กับออร์เดอร์แล้ว · รอตรวจยอด', 'bg-emerald-50 text-emerald-700'],
+  merged: ['สลิปรวมกับรายการที่ยืนยันแล้ว · เก็บไว้ที่รายการเดิม', 'bg-emerald-50 text-emerald-700'],
   auto_confirmed: ['สลิปยืนยันชำระอัตโนมัติแล้ว · ยังไม่ได้ตรวจกับธนาคาร', 'bg-emerald-50 text-emerald-700'],
   duplicate: ['สลิปนี้เคยส่งแล้ว · ไม่แนบซ้ำ', 'bg-rose-50 text-rose-700'],
   no_order: ['สลิป QR · ยังไม่มีออร์เดอร์ในแชท (เลือกออร์เดอร์แล้วรับชำระได้)', 'bg-amber-50 text-amber-700'],

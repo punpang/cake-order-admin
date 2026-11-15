@@ -4,6 +4,7 @@ import { orderNo, refOfCode } from '../_shared/slipref.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { PAY_MSG, bankByCode, checkCustomerTxn, normalizeRef, refTaken } from '../_shared/payfields.ts'
 import { autoConfirmOf, slipKeyOf } from '../_shared/slip.ts'
+import { mergeSlipIntoConfirmed, sameRefPayment } from '../_shared/sameref.ts'
 import { autoConfirmDecision, configuredAccountsOf, confirmSlipPayment } from '../_shared/slipautoconfirm.ts'
 import { notifyPaymentConfirmed } from '../_shared/payconfirm.ts'
 import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
@@ -330,6 +331,20 @@ Deno.serve(async (req) => {
       // ยอดที่ลูกค้าระบุเอง (ไม่ใช่ยอดที่ร้านแจ้งหรือ QR ของร้าน) ต้องไม่น้อยกว่ายอดขั้นต่ำ
       if (!b.paymentId && amt < minC - 1e-9 && !(fields?.qrRef && d.payments.some((p: any) => p.qrRef === fields.qrRef))) return json({ error: `ยอดต้องไม่น้อยกว่า ${minC.toFixed(2)} บาท` }, 400)
       const reqPay = fields?.qrRef ? (d.payments.find((p: any) => p.qrRef === fields.qrRef && p.status === 'reported' && p.customerSubmitted !== true) ?? null) : null
+      // รหัสสุ่ม (Ref 2) เดียวกับรายการที่ยืนยันแล้ว (เช่น ถุงเงินยืนยันไปก่อน) → เก็บสลิปไว้ที่รายการเดิม ไม่เปิดรายการรอตรวจซ้ำ
+      const sameDone = !reqPay && fields?.qrRef ? sameRefPayment(d.payments, fields.qrRef) : null
+      if (sameDone?.status === 'confirmed' && !sameDone.slip && Math.abs(amt - Number(sameDone.amount)) < 0.005) {
+        if (refTaken(d.payments, ref)) return json({ error: 'สลิปนี้เคยส่งมาแล้ว ไม่แนบซ้ำ' }, 400)
+        let upM: { key: string; ref: string }
+        try { upM = await svcUpload(filesEnv(), bytes, row.id) } catch { return json({ error: 'อัปโหลดสลิปไม่สำเร็จ กรุณาลองใหม่' }, 500) }
+        const mergedList = mergeSlipIntoConfirmed(d.payments, sameDone.id, { slip: upM.ref, ...txnFields }, nowIso())
+        if (!mergedList) { await svcDelete(filesEnv(), [upM.key]); return json({ error: 'ออร์เดอร์ถูกแก้ไขพร้อมกัน กรุณาลองใหม่' }, 409) }
+        d.payments = mergedList
+        logTo(d, 'ลูกค้าส่งสลิป (QR) ตรงกับรายการที่ยืนยันแล้ว · เก็บสลิปไว้ที่รายการเดิม')
+        const upD = await sb.from('punpang_orders').update({ data: d }).eq('id', row.id).eq('updated_at', row.updated_at).select('id')
+        if (upD?.error || !(upD?.data || []).length) { await svcDelete(filesEnv(), [upM.key]); return json({ error: 'ออร์เดอร์ถูกแก้ไขพร้อมกัน กรุณาลองใหม่' }, 409) }
+        return json({ ok: true, paymentId: sameDone.id, merged: true })
+      }
       const acCfg = await autoConfirmCfgOf()
       const autoDecision = autoConfirmDecision({ enabled: acCfg.auto.enabled, days: acCfg.auto.days, fields, order: { code: row.code, createdAt: d.createdAt, pickupAt: d.pickupAt }, configuredMerchantCode: acCfg.merchantCode, configuredAccounts: acCfg.accounts, balance: t.balance, nowMs: Date.now(), request: reqPay })
       let autoDone = false

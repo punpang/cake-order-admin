@@ -1,9 +1,11 @@
 // แจ้งเตือนรับเงินจากถุงเงิน → จับคู่งวดชำระของออร์เดอร์ (ฟังก์ชันล้วน + เขียนออร์เดอร์แบบเทียบ updated_at)
-// เงื่อนไขจับคู่: รหัสสุ่ม (Ref2 = qrRef) ตรงกับงวดที่รอตรวจ และยอดในแจ้งเตือนเท่ากับยอดของงวดนั้น
+// เงื่อนไขจับคู่: รหัสสุ่ม (Ref2 = qrRef) ตรงกับรายการที่ยังไม่ยืนยัน (ลูกค้าแนบสลิปแล้วหรือยังก็ได้) และยอดในแจ้งเตือนเท่ากับยอดของรายการนั้น
+// รหัสเดียวกันเก็บไว้รายการเดียว (sameref.ts) → สลิปมาก่อนหรือหลังแจ้งเตือนถุงเงินก็จับเข้ารายการเดิม
 // ยืนยันอัตโนมัติ: เปิดไว้ และวันนัดรับห่างจากเวลาที่รับเงินอย่างน้อยตามจำนวนวันที่ตั้ง (ครบจำนวนวัน = ผ่าน)
 // นัดรับใกล้กว่านั้น → ทำเครื่องหมาย "ผ่านการตรวจสอบแล้ว" และให้พนักงานกดยืนยันเอง
 import { confirmSlipPayment } from './slipautoconfirm.ts'
 import { daysUntilPickup } from './slip.ts'
+import { sameRefPayment } from './sameref.ts'
 
 export type NotifyDecision = { match: boolean; auto: boolean; daysLeft: number | null; reason: string }
 
@@ -19,7 +21,7 @@ export function notifyDecision(input: {
 }): NotifyDecision {
   const p = input.payment
   if (!p) return { match: false, auto: false, daysLeft: null, reason: 'ไม่พบรายการชำระที่รอตรวจของรหัสนี้' }
-  if (p.status !== 'reported' || p.customerSubmitted === true) return { match: false, auto: false, daysLeft: null, reason: 'รายการนี้ยืนยันหรือยกเลิกไปแล้ว' }
+  if (p.status !== 'reported') return { match: false, auto: false, daysLeft: null, reason: 'รายการนี้ยืนยันหรือยกเลิกไปแล้ว' }
   if (input.amount == null || r2(input.amount) !== r2(p.amount)) return { match: false, auto: false, daysLeft: null, reason: 'ยอดในแจ้งเตือนไม่ตรงกับยอดรายการ' }
   const daysLeft = daysUntilPickup(input.pickupAt, input.receivedMs)
   const auto = input.autoOn && daysLeft !== null && daysLeft >= input.days
@@ -40,7 +42,7 @@ export async function applyNotifyPayment(sb: any, opts: { ref: string; amount: n
     const row = rows[0]
     const d = row.data || {}
     const payments: any[] = Array.isArray(d.payments) ? d.payments : []
-    const p = payments.find((x: any) => x?.qrRef === opts.ref && x?.status === 'reported' && x?.customerSubmitted !== true) ?? null
+    const p = sameRefPayment(payments, opts.ref)
     const dec = notifyDecision({ payment: p, amount: opts.amount, receivedMs: opts.receivedMs, pickupAt: d.pickupAt, autoOn: opts.autoOn, days: opts.days })
     if (!dec.match) return { done: true, code: row.code, reason: dec.reason }
     let list: any[] = payments

@@ -13,11 +13,13 @@ import { readSlipOnce } from './slipstore.ts'
 import { notifyPaymentConfirmed } from './payconfirm.ts'
 import { codeOfRef, digitsOf, merchantMismatch, shopPartOf } from './slipref.ts'
 import { filesEnv, svcDelete, svcUpload, type FilesEnv } from './filesvc.ts'
+import { mergeSlipIntoConfirmed, sameRefPayment } from './sameref.ts'
 
 export type SlipOutcome =
   | 'matched' | 'duplicate' | 'no_order' | 'order_missing' | 'order_inactive' | 'order_paid' | 'pending_exists'
   | 'upload_failed' | 'busy' | 'chat_missing' | 'disabled' | 'no_slip' | 'error'
   | 'manual' // โหมดแมนนวล: เก็บสลิปไว้ให้พนักงานผูกออร์เดอร์เองในแชท (ยังไม่แนบ)
+  | 'merged' // รหัสสุ่มตรงกับรายการที่ยืนยันแล้ว → เก็บสลิปไว้ที่รายการเดิม (ไม่เปิดรายการใหม่)
 
 export const SLIP_REASON_TH: Partial<Record<SlipOutcome, string>> = {
   no_order: 'ยังไม่มีออร์เดอร์ในแชทนี้ — เลือกออร์เดอร์ในแชทแล้วรับชำระ',
@@ -208,6 +210,37 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   const reasons = checks.filter((c) => c.ok !== true).map((c) => `${c.ok === false ? '✗' : '–'} ${c.text}`)
   const capNote = chatCapped && !fields ? ' · ข้ามการอ่านยอดจากภาพ (แชทนี้ส่งสลิปถี่เกินกำหนด)' : ''
   const mismatchNote = (reasons.length ? ` · ${reasons.join(' · ')}` : '') + capNote
+
+  // รหัสสุ่ม (Ref 2) เดียวกับรายการที่ยืนยันแล้ว (เช่น ถุงเงินยืนยันไปก่อน) → เก็บสลิปไว้ที่รายการเดิม ไม่เปิดรายการรอตรวจซ้ำ
+  const sameDone = orderRow && !reqOfSlip && fields?.qrRef ? sameRefPayment(orderRow.data?.payments, fields.qrRef) : null
+  if (orderRow && sameDone?.status === 'confirmed' && !sameDone.slip && !['draft', 'cancelled'].includes(orderRow.status) && fields?.amount != null && Math.abs(Number(fields.amount) - Number(sameDone.amount)) < 0.005) {
+    if (refTaken(orderRow.data?.payments, ref)) return finish('duplicate', orderRow.code, orderRow.id)
+    let staged: { key: string; ref: string }
+    try { staged = await svcUpload(files, bytes, orderRow.id) } catch { return finish('upload_failed', orderRow.code, orderRow.id) }
+    const patch = {
+      slip: staged.ref, slipKey: key, bankCode, bankName, ref, refSource: 'qr',
+      paidAt: fields?.paidAt ?? paidAtFromMessage(msgAt, orderRow.data?.createdAt, now.getTime()),
+      ocrAmount: fields?.amount ?? undefined, ocrPaidAt: fields?.paidAt ?? undefined, ocrReceiverAccount: fields?.receiverAccount ?? undefined,
+    }
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const cur = await sb.from('punpang_orders').select('id,code,status,data,updated_at').eq('id', orderRow.id).maybeSingle()
+      if (cur?.error) { await svcDelete(files, [staged.key]); return 'error' }
+      if (!cur?.data) { await svcDelete(files, [staged.key]); return finish('order_missing') }
+      const cd = cur.data.data || {}
+      const cp: any[] = Array.isArray(cd.payments) ? cd.payments : []
+      const nextPayments = mergeSlipIntoConfirmed(cp, sameDone.id, patch, now.toISOString())
+      if (!nextPayments) { await svcDelete(files, [staged.key]); return finish('busy', cur.data.code, cur.data.id) }
+      const next = { ...cd, payments: nextPayments, history: [...(Array.isArray(cd.history) ? cd.history : []), { at: now.toISOString(), text: 'ลูกค้าส่งสลิป (QR) ตรงกับรายการที่ยืนยันแล้ว · เก็บสลิปไว้ที่รายการเดิม', by: 'customer' }] }
+      const up = await sb.from('punpang_orders').update({ data: next }).eq('id', cur.data.id).eq('updated_at', cur.data.updated_at).select('id')
+      if (up?.error) { await svcDelete(files, [staged.key]); return 'error' }
+      if ((up?.data || []).length) {
+        await annotate(sb, chatId, msgId, { status: 'merged', orderCode: cur.data.code, orderId: cur.data.id, paymentId: sameDone.id, slipRef: staged.ref, slipKey: key, bankCode, ...(bankName ? { bankName } : {}), ref, at: now.toISOString() })
+        return 'merged'
+      }
+    }
+    await svcDelete(files, [staged.key])
+    return finish('busy', orderRow.code, orderRow.id)
+  }
 
   if (!autoOk) {
     // ไม่ผูกอัตโนมัติ (โหมดแมนนวล หรือไม่ครบ 4 ข้อ): เก็บรูปไว้ก่อนแล้วให้พนักงานเลือกออร์เดอร์ในแชท (ที่แนะนำคือออร์เดอร์ที่รหัสอ้างอิงตรง หรือที่คุยล่าสุด) · ไม่สร้างรายการชำระ ไม่แตะออร์เดอร์

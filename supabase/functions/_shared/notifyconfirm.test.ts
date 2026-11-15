@@ -28,10 +28,15 @@ Deno.test('ยอดไม่ตรง / ไม่มียอด → ไม่�
   assertEquals(notifyDecision({ ...base, amount: null }).match, false)
 })
 
-Deno.test('ไม่มีงวดรอตรวจ หรืองวดยืนยันไปแล้ว → ไม่จับคู่', () => {
+Deno.test('ไม่มีรายการรอตรวจ หรือรายการยืนยัน/ยกเลิกไปแล้ว → ไม่จับคู่', () => {
   assertEquals(notifyDecision({ ...base, payment: null }).match, false)
   assertEquals(notifyDecision({ ...base, payment: { ...PAY, status: 'confirmed' } }).match, false)
-  assertEquals(notifyDecision({ ...base, payment: { ...PAY, customerSubmitted: true } }).match, false)
+  assertEquals(notifyDecision({ ...base, payment: { ...PAY, status: 'cancelled' } }).match, false)
+})
+
+Deno.test('ลูกค้าแนบสลิปแล้ว (รอร้านตรวจ) ยังจับคู่กับแจ้งเตือนถุงเงินเข้ารายการเดิม', () => {
+  const d = notifyDecision({ ...base, payment: { ...PAY, customerSubmitted: true } })
+  assertEquals([d.match, d.auto, d.daysLeft], [true, true, 3])
 })
 
 Deno.test('ไม่มีวันนัดรับ → ไม่ยืนยันอัตโนมัติ', () => {
