@@ -8,7 +8,7 @@ import { mergeSlipIntoConfirmed, sameRefPayment } from '../_shared/sameref.ts'
 import { autoConfirmDecision, configuredAccountsOf, confirmSlipPayment } from '../_shared/slipautoconfirm.ts'
 import { notifyPaymentConfirmed } from '../_shared/payconfirm.ts'
 import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
-import { customerChatList, customerChatPhoto, customerChatSend } from '../_shared/customerchat.ts'
+import { customerChatList, customerChatPhoto, customerChatRead, customerChatSend, customerChatTyping } from '../_shared/customerchat.ts'
 import { customerPushRegister } from '../_shared/customerpush.ts'
 import { clientIp, createLimiter } from '../_shared/ratelimit.ts'
 import { readSlipQr } from '../_shared/slipread.ts'
@@ -149,7 +149,10 @@ Deno.serve(async (req) => {
   // แชท/แจ้งเตือนของลูกค้าที่ล็อกอินโพลล์ถี่ (หน้าแชทอัปเดตทุก 3 วินาที) จึงไม่ใช้เพดานของงานชำระเงิน (40 ครั้ง/5 นาที/IP)
   // · ใช้เพดานของตัวเองต่อ IP (กว้างกว่า รองรับหลายเครื่องหลัง NAT) และต่อลูกค้า (ด้านล่าง)
   const isChatAction = ['chat_list', 'chat_send', 'chat_photo', 'push_register'].includes(String(b.action || ''))
-  if (isChatAction ? limited(`chat:${ip}`, 1500) : limited(ip, 40)) return json({ error: 'ลองบ่อยเกินไป กรุณารอสักครู่' }, 429)
+  const isPresence = ['chat_typing', 'chat_read'].includes(String(b.action || ''))
+  // สถานะพิมพ์/อ่านแล้วส่งถี่ จึงทิ้งคำขอที่เกินไป (ตอบ ok) แทนการตอบ 429 เพื่อไม่ให้กระทบการโพลล์แชท
+  if (isPresence) { if (limited(`pres:${ip}`, 2000)) return json({ ok: true }, 200) }
+  else if (isChatAction ? limited(`chat:${ip}`, 1500) : limited(ip, 40)) return json({ error: 'ลองบ่อยเกินไป กรุณารอสักครู่' }, 429)
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
   // อ่านยอดและวัน-เวลาจากภาพสลิป (เหมือนสลิปในแชท) · เฉพาะเมื่อร้านเปิดไว้และมีคีย์ · อ่านไม่ได้ = null (ไม่บล็อกการส่ง)
   // อ่านภาพเพียงครั้งเดียวต่อเลขอ้างอิงสลิป: ผลที่โมเดลตอบแล้วจำไว้ตามเลขอ้างอิง (ตามการตั้งค่าผลอ่านสลิป) ตอนแนบ/ตอนส่งใช้ผลเดียวกัน ไม่เรียกโมเดลซ้ำ
@@ -178,7 +181,7 @@ Deno.serve(async (req) => {
     return { auto: autoConfirmOf(sq), merchantCode: String(sh?.merchantCode ?? '').replace(/\D/g, ''), accounts: configuredAccountsOf(sh) }
   }
   const action = String(b.action || '')
-  if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel', 'qr_request', 'chat_list', 'chat_send', 'chat_photo', 'push_register'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
+  if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel', 'qr_request', 'chat_list', 'chat_send', 'chat_photo', 'chat_typing', 'chat_read', 'push_register'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
 
   // ---------- ระบุออร์เดอร์ + ตรวจสิทธิ์ ----------
   let orderId = ''
@@ -208,6 +211,11 @@ Deno.serve(async (req) => {
   }
 
   // ---------- แชทกับร้าน (เฉพาะลูกค้าที่ล็อกอินแล้ว · ไม่ผูกกับออร์เดอร์) ----------
+  if (action === 'chat_typing' || action === 'chat_read') {
+    if (!customerIdOfSession) return json({ error: 'กรุณาเข้าสู่ระบบก่อนใช้แชท' }, 401)
+    const r = action === 'chat_typing' ? await customerChatTyping(sb, customerIdOfSession) : await customerChatRead(sb, customerIdOfSession)
+    return json(r.body, r.status)
+  }
   if (action === 'chat_list' || action === 'chat_send' || action === 'chat_photo') {
     if (!customerIdOfSession) return json({ error: 'กรุณาเข้าสู่ระบบก่อนใช้แชท' }, 401)
     // ต่อลูกค้า: โพลล์ปกติ 20 ครั้ง/นาที (ทุก 3 วินาที) · เพดาน 40 ครั้ง/นาที เผื่อเปิดหลายแท็บ/ส่งข้อความสลับกัน

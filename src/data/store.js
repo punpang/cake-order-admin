@@ -3112,6 +3112,8 @@ export function saveBotSettings(d) {
     waiDailyLimit: Math.min(1000, Math.max(0, Math.round(Number(ai.waiDailyLimit) || 0))), // 0 = ไม่เรียก Workers AI
     claudeEnabled: ai.claudeEnabled !== false, // Claude เป็นตัวสำรอง (ค่าเริ่มต้นเปิด)
   }
+  // สถานะพิมพ์/อ่านแล้วที่ลูกค้าเห็นของร้าน (ร้านเห็นลูกค้าเสมอ)
+  b.presence = { typing: d.presence?.typing !== false, read: d.presence?.read !== false }
   return { ok: true }
 }
 export function saveBotRule(d) {

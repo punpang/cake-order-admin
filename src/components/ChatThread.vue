@@ -23,6 +23,8 @@ import { askConfirmEx } from '../lib/confirm'
 import { notifyBoxOf, notifyOf } from '../lib/notifyBox'
 import { prepareChatImage, uploadChatImage, MAX_CHAT_IMAGES } from '../lib/chatImage'
 import { imageErrorMessage } from '../lib/imageResize'
+import { getSupabase } from '../lib/supabase'
+import { isTypingNow, msOf, pingDue, PRESENCE_POLL_MS, readReceiptId } from '../lib/chatPresence'
 
 // เธรดแชทของศูนย์รวมแชท (ฝั่งพนักงาน) · ข้อความจากลูกค้ามาจาก LINE OA / Facebook
 // ผังล่าง: ข้อความ (เลื่อนได้) → แถบร่างบอท/แจ้งผล → เครื่องมือ → ช่องพิมพ์
@@ -97,6 +99,69 @@ function openSlipBind(m, order) {
 // Facebook เกิน 24 ชม. หลังลูกค้าทักล่าสุด → พิมพ์ตอบไม่ได้ (การ์ดออร์เดอร์/ยอดชำระยังส่งได้)
 const canType = computed(() => fbWindowOpen(props.chat))
 
+// ---------- สถานะพิมพ์/อ่านแล้ว (ตาราง punpang_chat_presence · แยกจากแถวแชท จึงไม่ชนการซิงก์ข้อความ) ----------
+const custTypingAt = ref(null) // เวลาที่ลูกค้าพิมพ์ล่าสุด (ISO)
+const custReadAt = ref(null) // เวลาที่ลูกค้าเปิดอ่านล่าสุด (ISO)
+const nowMs = ref(Date.now())
+const custTyping = computed(() => isTypingNow(msOf(custTypingAt.value), nowMs.value))
+const custReadId = computed(() => readReceiptId(props.chat.messages, 'staff', custReadAt.value)) // ข้อความของร้านที่ลูกค้าอ่านแล้ว
+// เขียนสถานะของพนักงาน (ไม่กระทบการส่ง/อ่านข้อความ)
+async function writePresence(patch) {
+  const id = props.chat.id
+  try {
+    const c = await getSupabase()
+    if (c) await c.from('punpang_chat_presence').upsert({ chat_id: id, ...patch, updated_at: new Date().toISOString() }, { onConflict: 'chat_id' })
+  } catch { /* สถานะเป็นของเสริม */ }
+}
+// ร้านเปิดอ่านแชทแล้ว (เปิดแชท / ข้อความใหม่ตอนอยู่ล่างสุด) → ลูกค้าเห็น "ร้านอ่านแล้ว"
+const readNow = () => writePresence({ staff_read_at: new Date().toISOString() })
+// พิมพ์อยู่ → แจ้งลูกค้าไม่ถี่กว่าทุก 3 วินาที · ช่องว่าง = ยกเลิกสถานะ
+let typingOn = false // ส่งสถานะพิมพ์ไปแล้วและยังไม่ได้ยกเลิก
+let typingAt = 0
+function onTyping(e) {
+  if (!e.target.value.trim()) return clearTyping()
+  const now = Date.now()
+  if (!pingDue(typingAt, now)) return
+  typingAt = now
+  typingOn = true
+  writePresence({ staff_typing_at: new Date(now).toISOString() })
+}
+function clearTyping() {
+  if (!typingOn) return
+  typingOn = false
+  typingAt = 0
+  writePresence({ staff_typing_at: null })
+}
+// โพลล์สถานะลูกค้าทุก 3 วินาทีตอนเปิดแชท (ข้ามตอนแท็บถูกซ่อน) · ตั้งเวลาใหม่ทุกครั้ง จึงมีวงวนเดียว
+let presenceTimer = null
+let presenceOff = true
+function presenceLoop(ms) {
+  clearTimeout(presenceTimer)
+  if (!presenceOff) presenceTimer = setTimeout(pollPresence, ms)
+}
+async function pollPresence() {
+  const id = props.chat.id
+  if (typeof document === 'undefined' || !document.hidden) {
+    try {
+      const c = await getSupabase()
+      const r = c ? await c.from('punpang_chat_presence').select('customer_typing_at,customer_read_at').eq('chat_id', id).maybeSingle() : null
+      if (r && !r.error && id === props.chat.id) {
+        nowMs.value = Date.now()
+        custTypingAt.value = r.data?.customer_typing_at || null
+        custReadAt.value = r.data?.customer_read_at || null
+      }
+    } catch { /* ไม่กระทบแชท */ }
+  }
+  presenceLoop(PRESENCE_POLL_MS)
+}
+watch(() => props.chat.id, () => {
+  custTypingAt.value = null
+  custReadAt.value = null
+  typingOn = false
+  typingAt = 0
+  presenceLoop(0) // แชทเปลี่ยน → ดึงสถานะของแชทใหม่ทันที
+})
+
 // ---------- เลื่อนลงล่าง / ข้อความใหม่ ----------
 function scrollEnd() {
   nextTick(() => {
@@ -112,7 +177,7 @@ function onScroll() {
   atBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 48
   if (atBottom.value) {
     unseen.value = 0
-    if (props.chat.unreadStaff) markRead(props.chat.id)
+    if (props.chat.unreadStaff) { markRead(props.chat.id); readNow() }
   }
 }
 function jumpEnd() {
@@ -120,6 +185,7 @@ function jumpEnd() {
   unseen.value = 0
   scrollEnd()
   markRead(props.chat.id)
+  readNow()
 }
 
 // ---------- รูปที่จะส่ง: เลือกจากอัลบั้มหรือถ่ายใหม่ → ดูตัวอย่างก่อนส่ง (ส่งพร้อมคำบรรยายได้) ----------
@@ -167,6 +233,7 @@ function send() {
   if (pics.value.length) return sendPics()
   const t = text.value
   sendChat(props.chat.id, 'staff', t, { replyTo: replyTo.value?.id })
+  clearTyping() // ส่งแล้ว = หยุดพิมพ์
   staffReplied(props.chat.id, t) // เรียนรู้คู่ ถาม→ตอบ + นับสถิติบอท
   text.value = ''
   replyTo.value = null
@@ -179,6 +246,7 @@ async function sendPics() {
     for (const p of pics.value) attachments.push(await uploadChatImage(props.chat, p.blob, p))
     const t = text.value
     sendChat(props.chat.id, 'staff', t, { replyTo: replyTo.value?.id, attachments })
+    clearTyping()
     if (t.trim()) staffReplied(props.chat.id, t)
     clearPics()
     text.value = ''
@@ -210,7 +278,7 @@ const count = computed(() => props.chat.messages.length)
 watch(count, (n, o) => {
   if (atBottom.value) {
     scrollEnd()
-    if (props.chat.unreadStaff) markRead(props.chat.id)
+    if (props.chat.unreadStaff) { markRead(props.chat.id); readNow() }
   } else if (n > o) {
     unseen.value += n - o
   }
@@ -219,7 +287,15 @@ watch(count, (n, o) => {
 watch(() => kb.open, () => scrollEnd())
 onMounted(() => {
   markRead(props.chat.id)
+  readNow()
   scrollEnd()
+  presenceOff = false
+  presenceLoop(0)
+})
+onBeforeUnmount(() => {
+  clearTyping()
+  presenceOff = true
+  clearTimeout(presenceTimer)
 })
 
 // ---------- ข้อความต่อเนื่อง: ผู้ส่งเดียวกันภายใน 5 นาที (วันเดียวกัน) = กลุ่มเดียว ----------
@@ -498,13 +574,15 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
               </div>
               <!-- เวลา/สถานะ: เฉพาะข้อความสุดท้ายของกลุ่ม · ปุ่มตอบกลับทุกข้อความ (บนคอมแสดงเมื่อเอาเมาส์ชี้) -->
               <div class="flex min-h-4 items-center gap-2 px-1 text-xs leading-4 text-stone-500" :class="mine(m) ? 'justify-end' : ''">
-                <span v-if="isTail(i)" :class="failed(m) ? 'font-medium text-rose-700' : ''" :title="dateTime(m.at)">{{ timeOnly(m.at) }}<template v-if="m.from === 'staff'"> · {{ sendState(m) }}<template v-if="m.by === 'ระบบ'"> · อัตโนมัติ</template></template><template v-if="m.ask"> · ถาม{{ ASK_FIELDS[m.ask]?.label.replace('ขอ', '') }}</template></span>
+                <span v-if="isTail(i)" :class="failed(m) ? 'font-medium text-rose-700' : ''" :title="dateTime(m.at)">{{ timeOnly(m.at) }}<template v-if="m.from === 'staff'"> · {{ sendState(m) }}<template v-if="m.by === 'ระบบ'"> · อัตโนมัติ</template><template v-if="m.id === custReadId"> · ลูกค้าอ่านแล้ว</template></template><template v-if="m.ask"> · ถาม{{ ASK_FIELDS[m.ask]?.label.replace('ขอ', '') }}</template></span>
                 <button v-if="canType" type="button" class="tap font-medium text-stone-600 hover:text-brand-700 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100" :aria-label="`ตอบกลับ: ${snippet(m)}`" @click="startReply(m)">ตอบกลับ</button>
               </div>
             </div>
           </div>
         </template>
       </div>
+      <!-- ลูกค้ากำลังพิมพ์ (ซ้อนบนข้อความ ไม่ดันเค้าโครง) -->
+      <div v-if="custTyping" class="pointer-events-none absolute bottom-2 left-3 z-10 rounded-full bg-white px-3 py-1 text-xs text-stone-500 shadow-sm ring-1 ring-stone-200" role="status">ลูกค้ากำลังพิมพ์…</div>
       <!-- ข้อความใหม่ (กำลังเลื่อนขึ้นไปอ่านของเก่า) -->
       <button v-if="!atBottom" type="button" class="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-700 shadow-md ring-1 ring-stone-200 hover:bg-brand-50" @click="jumpEnd">
         <AppIcon name="next" :size="14" class="rotate-90" />
@@ -613,7 +691,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
           <AppIcon name="plus" :size="20" class="transition-transform duration-200" :class="toolsOpen ? 'rotate-45' : ''" />
         </button>
         <div class="flex min-w-0 flex-1 items-end rounded-2xl border border-stone-200 bg-stone-50 transition focus-within:border-brand-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-brand-100">
-          <textarea ref="input" v-model="text" rows="1" class="max-h-40 min-h-11 w-full resize-none bg-transparent px-3.5 py-2.5 text-base leading-6 text-stone-900 outline-none placeholder:text-stone-400" :placeholder="`ตอบทาง ${channelLabel}`" aria-label="ข้อความถึงลูกค้า" @focus="toolsOpen = false" @keydown="onKey" />
+          <textarea ref="input" v-model="text" rows="1" class="max-h-40 min-h-11 w-full resize-none bg-transparent px-3.5 py-2.5 text-base leading-6 text-stone-900 outline-none placeholder:text-stone-400" :placeholder="`ตอบทาง ${channelLabel}`" aria-label="ข้อความถึงลูกค้า" @focus="toolsOpen = false" @keydown="onKey" @input="onTyping" />
         </div>
         <button type="submit" class="btn-primary h-11 w-11 shrink-0 rounded-full px-0" :disabled="!canSend" aria-label="ส่งข้อความ"><AppIcon name="send" :size="18" /></button>
       </form>

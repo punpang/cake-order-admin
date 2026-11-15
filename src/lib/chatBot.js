@@ -21,6 +21,8 @@ export const BOT_DEFAULTS = {
   // mode: suggest = ร่างให้พนักงานกดส่ง (ค่าเริ่มต้น) · auto = ส่งเอง · dailyLimit = จำนวนครั้งที่เรียกโมเดลต่อวัน (0 = ไม่เรียกเลย)
   // ลำดับผู้ตอบ: Workers AI (ถ้าเปิด) → Claude (ถ้าเปิด · สำรองเมื่อ Workers AI เต็มเพดานวันนี้) · waiEnabled/claudeEnabled เปิดปิดแยกกัน
   ai: { enabled: false, provider: 'anthropic', model: 'claude-sonnet-5-5', mode: 'suggest', dataMode: 'basic', dailyLimit: 50, maxTokens: 400, waiEnabled: false, waiModel: '@cf/openai/gpt-oss-120b', waiDailyLimit: 50, claudeEnabled: true },
+  // สถานะพิมพ์/อ่านแล้วที่ลูกค้าเห็นของร้าน · ร้านเปิดปิดได้ (ค่าเริ่มต้นเปิด) · ร้านเห็นสถานะของลูกค้าเสมอ
+  presence: { typing: true, read: true },
   rules: [],
   learned: [],
   stats: { suggested: 0, answered: 0, handoff: 0, staffEdited: 0 },

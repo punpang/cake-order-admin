@@ -14,7 +14,7 @@ import AppSwitch from '../../components/AppSwitch.vue'
 // บอทตอบแชท (กฎคีย์เวิร์ด + เรียนรู้จากพนักงาน · ในเบราว์เซอร์ ไม่ส่งข้อความลูกค้าออกนอก) · ค่าเริ่มต้นปิด
 // โหมดรายประเภท: ไม่เคยตั้งไว้ → ใช้โหมดรวมเดิม
 const srcInit = () => Object.fromEntries(AUTO_SOURCES.map((k) => [k, db.bot.sourceModes?.[k] || db.bot.mode]))
-const snap = () => JSON.parse(JSON.stringify({ enabled: db.bot.enabled, mode: db.bot.mode, channels: db.bot.channels, confidence: db.bot.confidence, delaySec: db.bot.delaySec, offHours: db.bot.offHours, closedNotice: db.bot.closedNotice, handoff: db.bot.handoff, sourceModes: srcInit(), ai: { ...BOT_DEFAULTS.ai, ...(db.bot.ai || {}) } }))
+const snap = () => JSON.parse(JSON.stringify({ enabled: db.bot.enabled, mode: db.bot.mode, channels: db.bot.channels, confidence: db.bot.confidence, delaySec: db.bot.delaySec, offHours: db.bot.offHours, closedNotice: db.bot.closedNotice, handoff: db.bot.handoff, sourceModes: srcInit(), ai: { ...BOT_DEFAULTS.ai, ...(db.bot.ai || {}) }, presence: { ...BOT_DEFAULTS.presence, ...(db.bot.presence || {}) } }))
 const st = reactive(snap())
 const msg = ref('')
 const err = ref('')
@@ -85,6 +85,11 @@ const tab = ref('settings')
         <p class="mt-1 text-xs text-stone-400">การส่งต่อพนักงาน และข้อความที่ยืนยันตัวตนไม่ได้ จะให้พนักงานตอบเสมอ · Facebook ส่งเองได้เฉพาะภายใน 24 ชม.</p>
       </div>
       <div class="flex flex-wrap gap-4"><AppSwitch v-model="st.channels.line" label="LINE OA" /><AppSwitch v-model="st.channels.facebook" label="Facebook (ภายใน 24 ชม.)" /><AppSwitch v-model="st.channels.instagram" label="Instagram (ภายใน 24 ชม.)" /></div>
+      <div class="space-y-2 rounded-xl border border-stone-200 bg-white p-3">
+        <h3 class="font-semibold text-stone-900">สถานะพิมพ์และอ่านแล้ว</h3>
+        <p class="text-xs text-stone-500">ร้านเห็นสถานะของลูกค้าเสมอ · สวิตช์ด้านล่างควบคุมเฉพาะว่าลูกค้าจะเห็นสถานะของร้านหรือไม่</p>
+        <div class="flex flex-wrap gap-4"><AppSwitch v-model="st.presence.typing" label="ลูกค้าเห็นว่าร้านกำลังพิมพ์" /><AppSwitch v-model="st.presence.read" label="ลูกค้าเห็นว่าร้านอ่านแล้ว" /></div>
+      </div>
       <div class="space-y-3 rounded-xl border border-violet-200 bg-violet-50/40 p-3">
         <div class="flex items-center justify-between"><h3 class="font-semibold text-stone-900">บอท AI</h3><AppSwitch v-model="st.ai.enabled" label="เปิดบอท AI" /></div>
         <p class="text-xs text-stone-600">ใช้เฉพาะเมื่อกฎเดิมตอบไม่ได้ (ไม่รวมเรื่องเงิน ร้องเรียน และเลขออร์เดอร์ — ส่งต่อพนักงานเสมอ) · ใช้ได้เฉพาะ Facebook · ข้อความที่มีข้อมูลส่วนตัวจะไม่ส่งให้ AI เลย</p>

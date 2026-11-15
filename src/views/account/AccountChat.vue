@@ -1,13 +1,14 @@
 <script setup>
 // แชทกับร้านของลูกค้าที่ล็อกอินแล้ว (ข้อความและรูปภาพ ไม่เกิน 5 รูปต่อข้อความ) · เปิดแท็บแล้วลงทะเบียนแจ้งเตือนของเครื่อง (Android)
 // อัปเดตแบบโพลล์: 3 วินาทีตอนกำลังคุยกัน แล้วห่างขึ้นเรื่อย ๆ (สูงสุด 15 วินาที) เมื่อไม่มีข้อความใหม่ · หยุดยิงขณะแท็บถูกซ่อน · ถูกจำกัดอัตรา (429) = ถอยไป 20 วินาที
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { remoteChat } from '../../lib/customerOrderRemote'
 import { startCustomerPush } from '../../lib/customerPush'
 import { PHOTO_MAX_COUNT, shrinkPhoto } from '../../lib/customerPhoto'
 import { dateTime } from '../../lib/format'
 import { quietly } from '../../lib/loading'
 import { safeHref } from '../../lib/safeUrl'
+import { lastFrom, pingDue, readReceiptId } from '../../lib/chatPresence'
 
 const MAX = 1000
 const LINK_KEEP_MS = 50 * 60e3 // ลิงก์รูปที่ออกให้มีอายุ 1 ชม. · เก็บใช้ต่อไม่เกิน 50 นาที
@@ -25,6 +26,10 @@ let stopped = false
 let idle = 0 // จำนวนรอบโพลล์ติดกันที่ไม่มีข้อความใหม่
 let loading = false
 let seq = 0
+const presence = ref({ shopTyping: false, shopReadAt: null }) // สถานะที่ร้านเปิดให้เห็น (จากเซิร์ฟเวอร์)
+const readId = computed(() => readReceiptId(messages.value, 'customer', presence.value.shopReadAt)) // ข้อความของลูกค้าที่ร้านอ่านแล้ว
+let ackedStaffId = null // ข้อความของร้านที่แจ้งไปแล้วว่าลูกค้าอ่าน
+let typedAt = 0 // เวลาที่ส่งสถานะพิมพ์ล่าสุด
 const POLL_MS = 3000
 const POLL_MAX_MS = 15000
 const BACKOFF_MS = 20000
@@ -75,12 +80,28 @@ async function load() {
     const grew = list.length > messages.value.length
     const changed = grew || list.at(-1)?.id !== messages.value.at(-1)?.id
     messages.value = list
+    presence.value = r.presence || { shopTyping: false, shopReadAt: null }
+    ackRead(list)
     err.value = ''
     if (grew) await toBottom()
     return { changed, limited: false }
   } finally { loading = false }
 }
 
+// เปิดหน้าแชทอยู่ → แจ้งว่าลูกค้าอ่านข้อความล่าสุดของร้านแล้ว (ส่งครั้งเดียวต่อข้อความ · แท็บถูกซ่อนไม่ส่ง)
+function ackRead(list) {
+  const s = lastFrom(list, 'staff')
+  if (!s || s.id === ackedStaffId || (typeof document !== 'undefined' && document.hidden)) return
+  remoteChat('chat_read').then((r) => { if (!r.error) ackedStaffId = s.id }).catch(() => {})
+}
+// กำลังพิมพ์ → แจ้งร้านไม่ถี่กว่าทุก 3 วินาที (ช่องว่างไม่ส่ง)
+function onTyping() {
+  if (!text.value.trim()) return
+  const now = Date.now()
+  if (!pingDue(typedAt, now)) return
+  typedAt = now
+  remoteChat('chat_typing').catch(() => {})
+}
 function schedule(ms) {
   clearTimeout(timer)
   if (!stopped) timer = setTimeout(tick, ms)
@@ -89,7 +110,7 @@ async function tick() {
   if (stopped) return
   if (typeof document !== 'undefined' && document.hidden) return schedule(nextDelay()) // แท็บถูกซ่อน = ไม่ยิงคำขอ
   const r = (await quietly(load)) || {}
-  idle = r.changed ? 0 : idle + 1
+  idle = (r.changed || presence.value.shopTyping) ? 0 : idle + 1 // ร้านกำลังพิมพ์ = โพลล์ถี่ไว้ ให้เห็นทันที
   schedule(r.limited ? BACKOFF_MS : nextDelay())
 }
 // กลับมาที่แท็บ: ดึงทันทีและกลับไปโพลล์ถี่
@@ -176,10 +197,11 @@ onBeforeUnmount(() => {
             </a>
           </div>
           <template v-if="m.text">{{ m.text }}</template>
-          <div class="mt-0.5 text-right text-[10px] opacity-70">{{ dateTime(m.at) }}</div>
+          <div class="mt-0.5 text-right text-[10px] opacity-70">{{ dateTime(m.at) }}<template v-if="m.id === readId"> · ร้านอ่านแล้ว</template></div>
         </div>
       </div>
     </div>
+    <p v-if="presence.shopTyping" class="px-1 text-xs text-stone-500" role="status">ร้านกำลังพิมพ์…</p>
     <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
     <div v-if="picks.length" class="flex flex-wrap gap-2">
       <div v-for="p in picks" :key="p.id" class="relative">
@@ -190,7 +212,7 @@ onBeforeUnmount(() => {
     <form class="flex items-end gap-2" @submit.prevent="send">
       <input ref="fileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple class="hidden" @change="onPick" />
       <button type="button" class="btn-outline h-11 shrink-0 px-3" :disabled="sending || picks.length >= PHOTO_MAX_COUNT" aria-label="แนบรูปภาพ" @click="fileInput?.click()">แนบรูป</button>
-      <textarea v-model="text" :maxlength="MAX" rows="2" class="input min-h-[2.75rem] flex-1 resize-none" placeholder="พิมพ์ข้อความถึงร้าน" aria-label="ข้อความถึงร้าน" />
+      <textarea v-model="text" :maxlength="MAX" rows="2" class="input min-h-[2.75rem] flex-1 resize-none" placeholder="พิมพ์ข้อความถึงร้าน" aria-label="ข้อความถึงร้าน" @input="onTyping" />
       <button type="submit" class="btn-primary h-11 shrink-0 px-4" :disabled="(!text.trim() && !picks.length) || sending">{{ sending ? 'กำลังส่ง…' : 'ส่ง' }}</button>
     </form>
     <p class="text-xs text-stone-500">แนบได้สูงสุด {{ PHOTO_MAX_COUNT }} รูปต่อข้อความ · รูปละไม่เกิน 2 MB (ระบบย่อรูปให้อัตโนมัติ)</p>

@@ -3,6 +3,7 @@
 // เขียนแบบเทียบ updated_at (CAS) เหมือนแชทอื่น · ทุกข้อความใหม่แจ้งกระดิ่งพนักงาน (สิทธิ์ chat)
 import { CHAT_PHOTO_KV, CHAT_PHOTO_UPLOAD_MAX, decodePhotoDataUrl, photoKeyOf, photoKeyOwned, photoPrefixOf, photoRefsOf } from './chatphoto.ts'
 import { type FilesEnv, svcDelete, svcUpload } from './filesvc.ts'
+import { shopPresenceOf } from './chatpresence.ts'
 
 export const CHAT_TEXT_MAX = 1000
 export const CHAT_RATE = { windowMs: 10 * 60e3, max: 20 } // ไม่เกิน 20 ข้อความต่อ 10 นาที ต่อลูกค้า
@@ -35,7 +36,7 @@ async function photosView(m: Json, sign: Signer, have: Set<string>): Promise<{ r
   return out
 }
 
-// ประวัติแชทของลูกค้า (ข้อความล่าสุดไม่เกิน 100 รายการ)
+// ประวัติแชทของลูกค้า (ข้อความล่าสุดไม่เกิน 100 รายการ) + สถานะพิมพ์/อ่านแล้วของร้าน (เฉพาะที่ร้านเปิดให้เห็น)
 export async function customerChatList(sb: any, customerId: string, sign: Signer, have: string[] = []): Promise<{ status: number; body: Json }> {
   const r = await sb.from('punpang_chats').select('id,data').eq('channel', 'web').eq('customer_id', customerId).maybeSingle()
   if (r?.error) return { status: 500, body: { error: 'อ่านแชทไม่สำเร็จ' } }
@@ -43,7 +44,29 @@ export async function customerChatList(sb: any, customerId: string, sign: Signer
   const visible = msgs.filter((m) => m && (m.from === 'customer' || m.from === 'staff') && (m.kind ?? 'text') === 'text')
   const haveSet = new Set(have.filter((x) => typeof x === 'string').slice(0, 500))
   const messages = await Promise.all(visible.slice(-100).map(async (m) => ({ ...toCustomerView(m), photos: await photosView(m, sign, haveSet) })))
-  return { status: 200, body: { messages } }
+  const presence = await shopPresenceFor(sb, r?.data?.id)
+  return { status: 200, body: { messages, presence } }
+}
+
+// สถานะของร้านที่ลูกค้าเห็น · ตารางยังไม่มี/อ่านไม่ได้ = ไม่แสดง (ไม่ทำให้รายการแชทล้มเหลว)
+async function shopPresenceFor(sb: any, chatId: string | undefined): Promise<{ shopTyping: boolean; shopReadAt: string | null }> {
+  const cfg = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'bot').maybeSingle()
+  const row = chatId ? await sb.from('punpang_chat_presence').select('staff_typing_at,staff_read_at').eq('chat_id', chatId).maybeSingle() : null
+  return shopPresenceOf(row && !row.error ? (row.data ?? null) : null, cfg?.data?.data?.v?.presence, Date.now())
+}
+
+// ลูกค้ากำลังพิมพ์ / อ่านแล้ว → เขียนแถวสถานะเล็ก ๆ (ไม่แตะแถวแชท) · ไม่มีกระทู้แชท หรือตารางยังไม่พร้อม = ไม่ทำอะไร (ยังตอบ ok)
+async function touchPresence(sb: any, customerId: string, patch: Json): Promise<{ status: number; body: Json }> {
+  const r = await sb.from('punpang_chats').select('id').eq('channel', 'web').eq('customer_id', customerId).maybeSingle()
+  if (r?.error || !r?.data?.id) return { status: 200, body: { ok: true } }
+  await sb.from('punpang_chat_presence').upsert({ chat_id: r.data.id, ...patch, updated_at: new Date().toISOString() }, { onConflict: 'chat_id' })
+  return { status: 200, body: { ok: true } }
+}
+export const customerChatTyping = (sb: any, customerId: string) => touchPresence(sb, customerId, { customer_typing_at: new Date().toISOString() })
+export const customerChatRead = (sb: any, customerId: string) => touchPresence(sb, customerId, { customer_read_at: new Date().toISOString() })
+// ส่งข้อความแล้ว = หยุดพิมพ์ (ล้างสถานะทันที ไม่รอให้หมดช่วง) · ไม่กระทบการส่ง
+async function stoppedTyping(sb: any, chatId: string): Promise<void> {
+  try { await sb.from('punpang_chat_presence').update({ customer_typing_at: null, updated_at: new Date().toISOString() }).eq('chat_id', chatId) } catch { /* สถานะเป็นของเสริม */ }
 }
 
 // ตรวจรูปที่แนบ: ต้องอยู่ในทะเบียนของลูกค้าคนนี้ · คืนรายการที่จะเก็บในข้อความ
@@ -88,7 +111,7 @@ export async function customerChatSend(sb: any, customerId: string, rawText: unk
       const chatId = newId('ch')
       const data = { id: chatId, profileName: name, messages: [msg], unreadStaff: 1, lastInboundAt: nowIso, updatedAt: nowIso, pendingAsk: null }
       const ins = await sb.from('punpang_chats').insert({ id: chatId, channel: 'web', external_id: customerId, customer_id: customerId, data })
-      if (!ins?.error) { await notifyStaff(sb, chatId, name, preview); return { status: 200, body: { ok: true, message: { ...toCustomerView(msg), photos: atts.list.map((a) => ({ ref: a.path, url: null })) } } } }
+      if (!ins?.error) { await notifyStaff(sb, chatId, name, preview); await stoppedTyping(sb, chatId); return { status: 200, body: { ok: true, message: { ...toCustomerView(msg), photos: atts.list.map((a) => ({ ref: a.path, url: null })) } } } }
       if (ins.error.code !== '23505') return { status: 500, body: { error: 'ส่งข้อความไม่สำเร็จ กรุณาลองใหม่' } }
       continue // มีกระทู้เกิดพร้อมกัน → ลองอ่านใหม่
     }
@@ -99,7 +122,7 @@ export async function customerChatSend(sb: any, customerId: string, rawText: unk
     if (recent >= CHAT_RATE.max) return { status: 429, body: { error: 'ส่งข้อความถี่เกินไป กรุณารอสักครู่' } }
     const next = { ...d, profileName: name, messages: [...msgs, msg], unreadStaff: (Number(d.unreadStaff) || 0) + 1, lastInboundAt: nowIso, updatedAt: nowIso }
     const up = await sb.from('punpang_chats').update({ data: next }).eq('id', cur.data.id).eq('updated_at', cur.data.updated_at).select('id')
-    if (!up?.error && (up?.data || []).length) { await notifyStaff(sb, cur.data.id, name, preview); return { status: 200, body: { ok: true, message: { ...toCustomerView(msg), photos: atts.list.map((a) => ({ ref: a.path, url: null })) } } } }
+    if (!up?.error && (up?.data || []).length) { await notifyStaff(sb, cur.data.id, name, preview); await stoppedTyping(sb, cur.data.id); return { status: 200, body: { ok: true, message: { ...toCustomerView(msg), photos: atts.list.map((a) => ({ ref: a.path, url: null })) } } } }
   }
   return { status: 409, body: { error: 'ส่งข้อความไม่สำเร็จ กรุณาลองใหม่' } }
 }
