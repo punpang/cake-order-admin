@@ -1,0 +1,28 @@
+name: Remove LINE functions
+
+# รันเองครั้งเดียว: GitHub → Actions → Remove LINE functions → Run workflow → พิมพ์ REMOVE ให้ตรง
+# ลบ Edge Function ของระบบ LINE OA (webhook-line, line-send) ออกจาก production
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'พิมพ์ REMOVE เพื่อยืนยัน'
+        required: true
+        type: string
+
+jobs:
+  remove:
+    if: github.event.inputs.confirm == 'REMOVE'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: ลบ webhook-line
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions delete webhook-line --remote=itleduijrckxdbhhuooi --yes
+      - name: ลบ line-send
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions delete line-send --remote=itleduijrckxdbhhuooi --yes
