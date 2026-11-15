@@ -9,14 +9,13 @@
 - [ ] ค่าลับตรงกัน: Edge secret `PUSH_SEND_KEY` = Vault `push_send_key` · Edge secret `SCHEDULED_KEY` = Vault `scheduled_key`
 
 ## 1) ลำดับ deploy (ห้ามสลับ)
-1. SQL: ไฟล์ `20261115000000` ถึง `20261115070000` ตามข้อ 2 ในเอกสาร (รันซ้ำได้)
-2. SQL: `20261115090000` → `20261115100000` → `20261115110000` (ด่านตรวจ) — ตรวจผลลัพธ์ทุกไฟล์ก่อนไปขั้นถัดไป
-3. Edge Functions: `order-audit`, `quote-create`, `push-send`
-4. Worker `punpang-files`
-5. หน้าเว็บ และ build แอป Android (`CustomerDisplayPlugin`)
-6. SQL: `20261115080000_punpang_quote_server.sql` (ปิด INSERT ใบเสนอจากเครื่องพนักงาน) — **หลังข้อ 5 เท่านั้น**
+1. SQL รันทีเดียว: `supabase/deploy/2026-11-15-run-once.sql` (รวม `20261115000000`–`070000`, `090000`, `100000`, `110000` ในธุรกรรมเดียว · ก่อนรันต้องสำรองข้อมูลและสร้าง Vault secret `push_send_key` ตามหัวไฟล์) · ทดสอบบนฐานจำลองแล้ว รันซ้ำได้
+2. Edge Functions: `order-audit`, `quote-create`, `push-send`
+3. Worker `punpang-files`
+4. หน้าเว็บ และ build แอป Android (`CustomerDisplayPlugin`)
+5. SQL: `20261115080000_punpang_quote_server.sql` (ปิด INSERT ใบเสนอจากเครื่องพนักงาน) — **หลังข้อ 4 เท่านั้น**
 
-หมายเหตุ: ข้อ 3 และ 5 ควรทำติดกัน และต้องทำหลังข้อ 2 เสร็จ เพราะหน้าเว็บใหม่เรียกฟังก์ชันด่านตรวจ และ `order-audit` เขียนธง `hold` ที่ต้องมีคอลัมน์จากข้อ 2
+หมายเหตุ: ข้อ 2 และ 4 ควรทำติดกัน และต้องทำหลังข้อ 1 เสร็จ เพราะหน้าเว็บใหม่เรียกฟังก์ชันด่านตรวจ และ `order-audit` เขียนธง `hold` ที่ต้องมีคอลัมน์จากข้อ 1
 
 ## 2) ตรวจหลัง deploy (ภายใน 15 นาที)
 - [ ] `select jobname, schedule, active from cron.job where jobname = 'punpang-order-audit';` → active และเวลา `*/10 * * * *`
