@@ -1,7 +1,7 @@
 <script setup>
 import MoneyInput from '../components/MoneyInput.vue'
 import { orderNo } from '../lib/format'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { loadOneOrder } from '../lib/staffAuth'
 import {
   can, findOrder, findCustomer, setStatus, reportPayment, confirmPayment, receivePaymentNow, revertStatus, setAdjustment, cancelOrder, countPickups,
@@ -10,6 +10,7 @@ import {
   saveOrderItem, removeOrderItem, orderDate,
   db, customerPoints, usableDiscountCoupons, applyPointsRemote, removePointsRemote, claimAndApplyCoupon, removeCoupon,
   setBirthday, depositOf, setDelivery, setOrderNotifyChannel,
+  refreshOrderGate, reviewOrderGate,
 } from '../data/store'
 import { orderTotals, shipNetOf } from '../lib/pricing'
 import { QUICK_DUE, quickDue, dueState, remainingText, dueBeforePickup, dueDaysBefore, isHHmm, customerPending } from '../lib/payDue'
@@ -51,10 +52,33 @@ import BirthdayFields from '../components/BirthdayFields.vue'
 import DeliveryFields from '../components/DeliveryFields.vue'
 import { checkMapUrl } from '../lib/delivery'
 import { parseBirthday, toForm, mdLabel } from '../lib/birthday'
+import { GATE_MESSAGE, gateBlocks } from '../lib/orderGate'
 
 const props = defineProps({ id: { type: String, required: true } })
 const order = computed(() => findOrder(props.id))
 onMounted(() => { if (!findOrder(props.id)) loadOneOrder(props.id) })
+// ---------- ด่านตรวจออร์เดอร์เสี่ยง: รายการที่ระบบพบว่าผิดต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ ----------
+const gate = ref(null) // สถานะด่านล่าสุดจากฐานข้อมูล (โหลดใหม่ก่อนทำรายการที่เกี่ยวข้อง)
+const gateBlocked = computed(() => order.value?.channel !== 'pos' && !!gate.value?.blocked)
+const gateHeld = computed(() => order.value?.channel !== 'pos' && !!gate.value?.hold)
+// การยืนยันชำระจากสถานะรอชำระ/แจ้งยอดแล้วจะเปลี่ยนเป็นยืนยันชำระ จึงต้องถูกด่านกั้น
+const gateLocksPay = computed(() => gateBlocked.value && ['awaiting_payment', 'payment_reported'].includes(order.value?.status))
+async function loadGate() {
+  const id = order.value?.id
+  if (!id) return { ok: false, error: 'ไม่พบออร์เดอร์' }
+  const r = await refreshOrderGate(id)
+  if (r.error) return { ok: false, error: r.error }
+  gate.value = r.gate
+  return { ok: true }
+}
+watch(() => order.value?.id, (id) => { if (id) loadGate() }, { immediate: true })
+async function doReviewGate() {
+  if (!(await askConfirm({ title: 'ผู้จัดการตรวจรายการเสี่ยงแล้ว', message: `ออร์เดอร์ ${order.value.code} · ยืนยันว่าตรวจรายการที่ระบบพบแล้ว`, okText: 'ตรวจแล้ว' }))) return
+  const r = await reviewOrderGate(order.value.id, '')
+  if (r.error) return showToast(r.error, 6000)
+  gate.value = r.gate
+  showToast('บันทึกการตรวจแล้ว · ยืนยันชำระหรือส่งมอบได้', 4000)
+}
 const customer = computed(() => order.value && findCustomer(order.value.customerId))
 const t = computed(() => orderTotals(order.value))
 // ข้อความแจ้งเตือนของออร์เดอร์นี้ (จำลอง)
@@ -115,7 +139,13 @@ const nowLocal = () => {
 const payOpen = ref(false)
 const payMode = ref('new') // new | edit | confirm | direct
 const payTarget = ref(null)
-function openPay(mode = 'new', p = null) {
+async function openPay(mode = 'new', p = null) {
+  // ยืนยันชำระ/รับชำระทันทีจากสถานะรอชำระจะเปลี่ยนเป็นยืนยันชำระ → ตรวจด่านใหม่ก่อนเปิดฟอร์ม
+  if ((mode === 'confirm' || mode === 'direct') && ['awaiting_payment', 'payment_reported'].includes(order.value?.status)) {
+    const g = await loadGate()
+    if (!g.ok) return showToast(g.error, 6000)
+    if (gateLocksPay.value) return showToast(GATE_MESSAGE, 6000)
+  }
   payMode.value = mode
   payTarget.value = p
   payOpen.value = true
@@ -187,10 +217,20 @@ function saveAdj() {
 // ---------- popup ยืนยัน ----------
 async function doStatus(status, text, title) {
   if (status === 'delivered' && t.value.balance > 0) return
+  // ส่งมอบต้องผ่านด่านตรวจ: โหลดสถานะใหม่ก่อนถามยืนยัน (ฐานข้อมูลตรวจซ้ำตอนบันทึก)
+  if (status === 'delivered') {
+    const g = await loadGate()
+    if (!g.ok) return showToast(g.error, 6000)
+    if (gateBlocks(order.value, status, gate.value)) return showToast(GATE_MESSAGE, 6000)
+  }
   // สถานะที่มีข้อความถึงลูกค้า: มีช่องติ๊ก "แจ้งลูกค้า" (ค่าเริ่มต้นติ๊ก)
   const tells = ['awaiting_payment', 'preparing', 'prepared', 'ready_to_ship', 'shipping', 'delivered'].includes(status) && order.value.channel !== 'pos' && !!customer.value
   const r = await askConfirmEx({ title, message: `ออร์เดอร์ ${order.value.code}`, okText: title, ...(tells ? { checkbox: { label: 'แจ้งลูกค้า', hint: 'ไม่ติ๊ก = ไม่ส่งข้อความถึงลูกค้า (ทีมยังได้รับตามปกติ)', value: true } } : {}), ...(tells && smsChoice(customer.value) ? { checkbox2: { label: 'ส่ง SMS ด้วย', hint: formatPhone(customer.value.phone), value: true } } : {}) })
-  if (r.ok) { setStatus(order.value, status, text, { notify: tells ? r.checked : true, sms: r.checked2 !== false }); toastSaved(`${title} แล้ว · ${order.value.code}`) }
+  if (r.ok) {
+    const sr = setStatus(order.value, status, text, { notify: tells ? r.checked : true, sms: r.checked2 !== false })
+    if (sr?.error) return showToast(sr.error, 6000)
+    toastSaved(`${title} แล้ว · ${order.value.code}`)
+  }
 }
 async function doConfirmUnpaid() {
   const r = await askConfirmEx({ title: 'ยืนยันการสั่งซื้อ (ยังไม่ชำระ)', message: `ออร์เดอร์ ${order.value.code} · คงค้าง ${money(t.value.balance)} ชำระได้ภายหลัง`, okText: 'ยืนยัน', checkbox: { label: 'แจ้งลูกค้า', value: true }, ...(customer.value && smsChoice(customer.value) ? { checkbox2: { label: 'ส่ง SMS ด้วย', hint: formatPhone(customer.value.phone), value: true } } : {}) })
@@ -338,6 +378,18 @@ async function saveCancel() {
         <PayDueBadge :order="order" />
         <StatusBadge :status="order.status" />
       </div>
+    </div>
+
+    <!-- ด่านตรวจออร์เดอร์เสี่ยง: รายการที่ระบบพบว่าผิด ต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ -->
+    <div v-if="gateHeld" class="mb-3 rounded-2xl p-3 text-sm" :class="gate.reviewed ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'">
+      <div class="flex flex-wrap items-center gap-2">
+        <AppIcon name="alert" :size="16" />
+        <span class="min-w-0 flex-1 font-semibold">{{ gate.reviewed ? 'ผู้จัดการตรวจรายการเสี่ยงแล้ว' : 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ' }}</span>
+        <button v-if="!gate.reviewed && can('manage')" class="btn-primary h-9 px-3" @click="doReviewGate">ผู้จัดการตรวจแล้ว</button>
+      </div>
+      <ul class="mt-1.5 list-disc space-y-0.5 pl-6 text-xs">
+        <li v-for="(f, i) in gate.flags.slice(0, 8)" :key="i">{{ f.detail }}</li>
+      </ul>
     </div>
 
     <!-- ขออนุมัติยืนยันการสั่งซื้อ (ยังไม่ชำระ) -->
@@ -553,7 +605,7 @@ async function saveCancel() {
             ><AppIcon name="plus" :size="16" /> แจ้งยอดชำระ</button>
             <button
               v-if="can('confirmPayment') && order.status !== 'draft' && order.status !== 'cancelled' && t.balance > 0"
-              class="btn-primary h-9 px-3" title="ลูกค้าจ่ายแล้วที่ร้าน/โอนแล้ว บันทึกยอดที่ได้รับจริง"
+              class="btn-primary h-9 px-3" :disabled="gateLocksPay" title="ลูกค้าจ่ายแล้วที่ร้าน/โอนแล้ว บันทึกยอดที่ได้รับจริง"
               @click="openPay('direct')"
             ><AppIcon name="check" :size="16" /> รับชำระทันที</button>
             <button v-if="canRefund" class="btn-outline h-9 px-3" @click="refundOpen = true"><AppIcon name="wallet" :size="16" /> คืนเงิน</button>
@@ -592,7 +644,7 @@ async function saveCancel() {
               <div v-if="p.status === 'reported' && order.status !== 'cancelled'" class="mt-2.5 flex flex-wrap gap-2">
                 <button v-if="can('reportPayment')" class="btn-outline h-9 px-3" @click="openPay('edit', p)"><AppIcon name="edit" :size="16" /> แก้ยอด</button>
                 <button v-if="can('reportPayment')" class="btn-danger h-9 px-3" @click="doCancelRequest(p)"><AppIcon name="x" :size="16" /> ยกเลิก</button>
-                <button v-if="can('confirmPayment')" class="btn-primary h-9 flex-1 px-3" @click="openPay('confirm', p)"><AppIcon name="check" :size="16" /> ยืนยันยอดชำระ</button>
+                <button v-if="can('confirmPayment')" class="btn-primary h-9 flex-1 px-3" :disabled="gateLocksPay" @click="openPay('confirm', p)"><AppIcon name="check" :size="16" /> ยืนยันยอดชำระ</button>
               </div>
             </li>
           </ul>
@@ -688,7 +740,7 @@ async function saveCancel() {
         <button
           v-if="shipAction === 'deliver'"
           class="btn-primary grow sm:ml-auto sm:grow-0 sm:px-8"
-          :disabled="t.balance > 0"
+          :disabled="t.balance > 0 || gateBlocked"
           @click="doStatus('delivered', 'ส่งมอบแล้ว', 'ส่งมอบแล้ว')"
         ><AppIcon name="check" :size="18" /> ส่งมอบแล้ว</button>
       </div>

@@ -35,6 +35,7 @@ import { payAccountsOf } from '../lib/payAccounts'
 import { customerTargets, withNewRules } from '../lib/notifyPlan'
 import { uploadChatImage } from '../lib/chatImage'
 import { billerIdOf, newQrSuffix, promptPayBillerPayload, qrRefOk, shopRefOfCode } from '../lib/promptpay'
+import { gateOf, gateBlocks, GATE_MESSAGE } from '../lib/orderGate'
 import { orderNo } from '../lib/format'
 import { callAuth, callLoyalty, readSessionToken, saveSessionToken, clearSessionToken, injectBundle, clearBundle } from '../lib/customerRemote'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
@@ -1082,7 +1083,31 @@ export function createOrder(payload, asDraft = false) {
 
 // ลำดับจัดส่ง (เฉพาะ fulfillment = delivery): เตรียมแล้ว → พร้อมจัดส่ง → กำลังจัดส่ง → ส่งมอบแล้ว · ข้ามขั้นไม่ได้ · รับที่ร้านไม่มีสองขั้นกลาง
 const SHIP_FROM = { ready_to_ship: 'prepared', shipping: 'ready_to_ship', delivered: 'shipping' }
+// ---------- ด่านตรวจออร์เดอร์เสี่ยง (แอปตรวจก่อนเปลี่ยนสถานะ · ฐานข้อมูลตรวจซ้ำเป็นด่านสุดท้าย) ----------
+// staffAuth ต่อให้: fetch(orderId) → { state } | { error } · review(orderId, note) → {} | { error }
+const gateCache = new Map()
+let gateServer = null
+export function setOrderGateServer(s) { gateServer = s }
+// โหลดสถานะด่านใหม่ก่อนทำรายการยืนยันชำระ/ส่งมอบ · ไม่ได้เชื่อมฐานข้อมูล (สาธิต) = ไม่มีด่าน · อ่านไม่ได้ = { error } ให้หยุดรายการนั้น
+export async function refreshOrderGate(orderId) {
+  if (!gateServer || !orderId) return { ok: true, gate: gateOf(null) }
+  const r = await gateServer.fetch(orderId)
+  if (r.error) return { error: r.error }
+  const gate = gateOf(r.state)
+  gateCache.set(orderId, gate)
+  return { ok: true, gate }
+}
+// ผู้จัดการตรวจแล้ว → โหลดสถานะด่านใหม่
+export async function reviewOrderGate(orderId, note = '') {
+  if (!gateServer) return { error: 'ยังไม่ได้เชื่อมต่อฐานข้อมูล' }
+  const r = await gateServer.review(orderId, note)
+  if (r.error) return { error: r.error }
+  return refreshOrderGate(orderId)
+}
+const gateStops = (order, next) => gateBlocks(order, next, gateCache.get(order.id))
+
 export function setStatus(order, status, text, opts = {}) {
+  if (gateStops(order, status)) return { error: GATE_MESSAGE }
   // ส่งมอบไม่ได้ถ้ายังชำระไม่ครบ
   if (status === 'delivered' && orderTotals(order).balance > 0) return
   const isShip = order.fulfillment === 'delivery'
@@ -1191,6 +1216,7 @@ export function confirmPayment(order, paymentId, data = null) {
   const p = order.payments.find((x) => x.id === paymentId)
   if (!p || p.status !== 'reported') return
   if (['draft', 'cancelled'].includes(order.status)) return { error: 'ออร์เดอร์นี้ยืนยันชำระไม่ได้' }
+  if (['awaiting_payment', 'payment_reported'].includes(order.status) && gateStops(order, 'payment_confirmed')) return { error: GATE_MESSAGE }
   if (data) {
     // ยอดที่ได้รับจริง: ต้องเป็นจำนวนบวก และไม่เกินยอดคงค้าง (ยอดที่ยืนยันแล้วของออร์เดอร์ไม่นับยอดนี้)
     if (!goodAmount(data.amount)) return { error: 'ยอดเงินไม่ถูกต้อง' }
@@ -1210,6 +1236,7 @@ export function confirmPayment(order, paymentId, data = null) {
 export function receivePaymentNow(order, p) {
   if (!can('confirmPayment')) return { error: 'ไม่มีสิทธิ์ยืนยันรับชำระ' }
   if (!order || ['draft', 'cancelled'].includes(order.status)) return { error: 'ออร์เดอร์นี้รับชำระไม่ได้' }
+  if (['awaiting_payment', 'payment_reported'].includes(order.status) && gateStops(order, 'payment_confirmed')) return { error: GATE_MESSAGE }
   const amount = round2(Number(p.amount))
   if (!(amount > 0)) return { error: 'กรอกยอดเงิน' }
   if (amount > round2(orderTotals(order).balance) + 0.004) return { error: 'ยอดเกินยอดคงค้าง' }
@@ -3301,6 +3328,7 @@ export function receiveChatSlip(chatId, msgId, orderId, data = {}) {
     refUsed: !!s?.ref && db.orders.some((o) => (o.id !== order.id || ['delivered', 'cancelled'].includes(order.status)) && refTaken(o.payments, s.ref)),
   })
   if (err) return { error: err }
+  if (['awaiting_payment', 'payment_reported'].includes(order.status) && gateStops(order, 'payment_confirmed')) return { error: GATE_MESSAGE }
   const stamp = now()
   // รับชำระทันที: ยืนยันยอดเลย (เหมือน receivePaymentNow) · สลิปเป็นหลักฐานอ้างอิงของรายการนี้
   const pay = {

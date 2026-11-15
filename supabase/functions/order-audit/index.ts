@@ -71,7 +71,8 @@ Deno.serve(async (req) => {
       const createdMs = Date.parse(order.createdAt)
       const at = Number.isFinite(createdMs) ? createdMs : Date.now()
       const res: any = auditOrder(order, catalogAt(catalog, changes, at), { nowMs: at, transfers })
-      return { order_id: b.id, checked_at: nowIso, ok: res.ok, flags: res.flags }
+      // hold = มีรายการ high → ด่านที่ฐานข้อมูลใช้บล็อกการยืนยันชำระ/ส่งมอบจนกว่าผู้จัดการตรวจ (ออร์เดอร์ตรงเท่านั้น)
+      return { order_id: b.id, checked_at: nowIso, ok: res.ok, flags: res.flags, hold: (res.flags || []).some((f: any) => f.severity === 'high') }
     })
     const up = await fetch(`${SUPABASE_URL}/rest/v1/punpang_order_audits`, {
       method: 'POST',

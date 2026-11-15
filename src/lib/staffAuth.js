@@ -275,6 +275,20 @@ async function startData(staff) {
   import('./chatMedia').then((m) => m.setChatMediaSigner(m.makeSigner(client))).catch(() => {})
   store.numbering.setAlloc(async (p, d, n) => { const r = await client.rpc('punpang_alloc_numbers', { p_prefix: p, p_day: d, p_n: n }); return r.error ? null : r.data })
   store.setQuoteServer((chatId, draft) => createQuoteRemote(client, chatId, draft))
+  // ด่านตรวจออร์เดอร์เสี่ยง: อ่านสถานะด่าน และให้ผู้จัดการบันทึกการตรวจ (ฐานข้อมูลเป็นผู้ตัดสินจริง)
+  store.setOrderGateServer({
+    fetch: async (id) => {
+      const r = await client.rpc('punpang_order_gate', { p_order: id })
+      return r.error ? { error: 'อ่านสถานะการตรวจไม่สำเร็จ ลองใหม่อีกครั้ง' } : { state: r.data }
+    },
+    review: async (id, note) => {
+      const r = await client.rpc('punpang_review_order', { p_order: id, p_note: note || '' })
+      if (!r.error) return {}
+      if (r.error.code === '42501') return { error: 'ต้องเป็นผู้จัดการจึงตรวจได้' }
+      if (r.error.code === 'P0002') return { error: 'ออร์เดอร์นี้ไม่มีรายการเสี่ยงให้ตรวจแล้ว' }
+      return { error: 'บันทึกการตรวจไม่สำเร็จ ลองใหม่อีกครั้ง' }
+    },
+  })
   // เริ่มซิงก์ทุกตารางพร้อมกัน (เดิมทีละตาราง ~35 คำขอต่อกัน = ช้า) แล้วรอทั้งชุดครั้งเดียว · ลำดับใน syncs คงเดิม
   const tasks = []
   tasks.push(items.startItemsSync({ client, db, canWrite: has('editItems'), onError }))

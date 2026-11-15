@@ -1,10 +1,12 @@
 <script setup>
 import { orderNo } from '../lib/format'
 import { computed, ref } from 'vue'
-import { db, can, orderVisible, findCustomer, cancelPaymentRequest, denyPayExtension } from '../data/store'
+import { db, can, orderVisible, findCustomer, cancelPaymentRequest, denyPayExtension, refreshOrderGate } from '../data/store'
 import { paymentQueue, paymentCounts, PAY_TABS } from '../lib/paymentsQueue'
 import { orderTotals } from '../lib/pricing'
 import { askConfirm, askConfirmEx } from '../lib/confirm'
+import { showToast } from '../lib/toast'
+import { GATE_MESSAGE } from '../lib/orderGate'
 import { notifyBoxOf, notifyOf } from '../lib/notifyBox'
 import { money, dateTime, dayLabel, formatPhone } from '../lib/format'
 import PayDueBadge from '../components/PayDueBadge.vue'
@@ -40,7 +42,15 @@ const refundRows = computed(() => {
 const pay = ref(null) // { order, mode, target }
 const ext = ref(null) // { order, payment }
 const refund = ref(null)
-const openPay = (order, mode, target = null) => { pay.value = { order, mode, target } }
+const openPay = async (order, mode, target = null) => {
+  // ยืนยันชำระจากรายการรอชำระจะเปลี่ยนสถานะ → ตรวจด่านใหม่ก่อนเปิดฟอร์ม (บิลหน้าร้านไม่เข้าด่าน)
+  if ((mode === 'confirm' || mode === 'direct') && ['awaiting_payment', 'payment_reported'].includes(order.status) && order.channel !== 'pos') {
+    const g = await refreshOrderGate(order.id)
+    if (g.error) return showToast(g.error, 6000)
+    if (g.gate.blocked) return showToast(GATE_MESSAGE, 6000)
+  }
+  pay.value = { order, mode, target }
+}
 async function doCancelRequest(o, p) {
   const r = await askConfirmEx({ title: 'ยกเลิกยอดที่แจ้ง', message: money(p.requested ?? p.amount), okText: 'ยกเลิกยอด', danger: true, reason: { label: 'เหตุผลที่ยกเลิก', required: true }, ...notifyBoxOf(findCustomer(o.customerId)) })
   if (r.ok) cancelPaymentRequest(o, p.id, { ...notifyOf(r), reason: r.reason })

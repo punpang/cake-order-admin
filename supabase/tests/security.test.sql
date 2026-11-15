@@ -515,4 +515,58 @@ select test.ok('C6: พนักงานเขียนประวัติก
 select test.ok('C6: พนักงานเขียนบันทึกการแก้รายการไม่ได้',
   test.as_staff('99999999-9999-9999-9999-999999999999',
     $q$ insert into public.punpang_order_changes (order_id, summary) values ('o_hist', '{}') $q$) like 'ERR:42501:%');
+-- C7) ด่านตรวจออร์เดอร์เสี่ยง (รอบ 2026-11-15 · ตัวเลือก B): ผลตรวจมี high และยังไม่มีผู้จัดการตรวจหลังผลตรวจล่าสุด → ยืนยันชำระ/ส่งมอบไม่ได้
+insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values
+  ('o_g1', 'OR-G-1', 'c1', 'awaiting_payment', 'pickup', null, '{"items":[{"id":"g1","kind":"custom","qty":1,"unitPrice":100,"fullPrice":100,"discounts":[]}],"adjustment":{"amount":0,"reason":""},"payments":[]}'),
+  ('o_g2', 'OR-G-2', 'c1', 'awaiting_payment', 'pickup', null, '{"items":[{"id":"g2","kind":"custom","qty":1,"unitPrice":100,"fullPrice":100,"discounts":[]}],"adjustment":{"amount":0,"reason":""},"payments":[]}'),
+  ('o_g3', 'OR-G-3', 'c1', 'awaiting_payment', 'pickup', null, '{"items":[{"id":"g3","kind":"custom","qty":1,"unitPrice":100,"fullPrice":100,"discounts":[]}],"adjustment":{"amount":0,"reason":""},"payments":[]}'),
+  ('o_gp', 'OR-G-P', 'c1', 'awaiting_payment', 'pickup', 'pos', '{"items":[{"id":"gp","kind":"custom","qty":1,"unitPrice":100,"fullPrice":100,"discounts":[]}],"adjustment":{"amount":0,"reason":""},"payments":[]}'),
+  ('o_gd', 'OR-G-D', 'c1', 'shipping', 'delivery', null, '{"items":[{"id":"gd","kind":"custom","qty":1,"unitPrice":100,"fullPrice":100,"discounts":[]}],"adjustment":{"amount":0,"reason":""},"payments":[]}');
+insert into public.punpang_order_audits (order_id, checked_at, ok, flags, hold) values
+  ('o_g1', now() - interval '1 hour', false, '[{"code":"shipping_mismatch","severity":"high","detail":"ทดสอบ"}]', true),
+  ('o_g2', now() - interval '1 hour', false, '[{"code":"shipping_mismatch","severity":"high","detail":"ทดสอบ"}]', true),
+  ('o_gp', now() - interval '1 hour', false, '[{"code":"shipping_on_pickup","severity":"high","detail":"ทดสอบ"}]', true),
+  ('o_gd', now() - interval '1 hour', false, '[{"code":"unit_price_mismatch","severity":"high","detail":"ทดสอบ"}]', true);
+
+select test.ok('C7: ผลตรวจมีรายการเสี่ยงที่ยังไม่มีผู้จัดการตรวจ ยืนยันชำระไม่ได้',
+  test.as_staff('55555555-5555-5555-5555-555555555555',
+    $q$ update public.punpang_orders set status = 'payment_confirmed' where id = 'o_g1' $q$) like 'ERR:P0001:%');
+select test.ok('C7: ส่งมอบออร์เดอร์ที่มีรายการเสี่ยงและยังไม่มีผู้จัดการตรวจไม่ได้',
+  test.as_staff('22222222-2222-2222-2222-222222222222',
+    $q$ update public.punpang_orders set status = 'delivered' where id = 'o_gd' $q$) like 'ERR:P0001:%');
+select test.ok('C7: พนักงานที่ไม่มีสิทธิ์ผู้จัดการตรวจออร์เดอร์ไม่ได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ select public.punpang_review_order('o_g1', 'x') $q$) like 'ERR:42501:%');
+select test.ok('C7: พนักงานเขียนผลการตรวจเองไม่ได้ (ต้องผ่าน RPC)',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ insert into public.punpang_order_reviews (order_id) values ('o_g1') $q$) like 'ERR:42501:%');
+select test.ok('C7: ผู้ไม่ล็อกอิน (anon) เรียกตรวจออร์เดอร์ไม่ได้',
+  test.as_anon($q$ select public.punpang_review_order('o_g1', 'x') $q$) like 'ERR:42501:%');
+select test.ok('C7: พนักงานที่เห็นออร์เดอร์อ่านสถานะด่านได้',
+  test.rpc_as('11111111-1111-1111-1111-111111111111', $q$ select public.punpang_order_gate('o_g1') $q$)->>'hold' = 'true');
+select test.ok('C7: พนักงานที่ไม่มีสิทธิ์ดูออร์เดอร์อ่านสถานะด่านไม่ได้',
+  test.rpc_as('66666666-6666-6666-6666-666666666666', $q$ select public.punpang_order_gate('o_g1') $q$) is null);
+select test.ok('C7: ออร์เดอร์ที่ไม่มีผลตรวจยืนยันชำระได้ตามปกติ',
+  test.as_staff('55555555-5555-5555-5555-555555555555',
+    $q$ update public.punpang_orders set status = 'payment_confirmed' where id = 'o_g3' $q$) = 'OK');
+select test.ok('C7: บิลหน้าร้านไม่เข้าด่านนี้',
+  test.as_staff('55555555-5555-5555-5555-555555555555',
+    $q$ update public.punpang_orders set status = 'payment_confirmed' where id = 'o_gp' $q$) = 'OK');
+select test.ok('C7: ผู้จัดการตรวจออร์เดอร์ที่มีรายการเสี่ยงได้',
+  test.as_staff('55555555-5555-5555-5555-555555555555',
+    $q$ select public.punpang_review_order('o_g1', 'ตรวจแล้ว') $q$) = 'OK');
+select test.ok('C7: หลังผู้จัดการตรวจ ยืนยันชำระได้',
+  test.as_staff('55555555-5555-5555-5555-555555555555',
+    $q$ update public.punpang_orders set status = 'payment_confirmed' where id = 'o_g1' $q$) = 'OK');
+select test.ok('C7: ผู้จัดการตรวจซ้ำได้ไม่ได้ เมื่อไม่มีรายการเสี่ยงแล้ว',
+  test.as_staff('55555555-5555-5555-5555-555555555555',
+    $q$ select public.punpang_review_order('o_g3', 'x') $q$) like 'ERR:P0002:%');
+select test.ok('C7: ผู้จัดการตรวจแล้วของออร์เดอร์ที่ผลตรวจเปลี่ยนภายหลัง ต้องตรวจซ้ำก่อนยืนยันชำระ',
+  test.as_staff('55555555-5555-5555-5555-555555555555',
+    $q$ select public.punpang_review_order('o_g2', 'ตรวจแล้ว') $q$) = 'OK');
+update public.punpang_order_audits set checked_at = now() + interval '1 minute' where order_id = 'o_g2';
+select test.ok('C7: ผลตรวจใหม่หลังการตรวจ ยืนยันชำระไม่ได้จนกว่าจะตรวจซ้ำ',
+  test.as_staff('55555555-5555-5555-5555-555555555555',
+    $q$ update public.punpang_orders set status = 'payment_confirmed' where id = 'o_g2' $q$) like 'ERR:P0001:%');
+
 select 'ผ่านทั้งหมด' as security_tests;

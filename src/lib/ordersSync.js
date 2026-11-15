@@ -111,7 +111,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 // ห้ามใช้ upsert: PostgREST ส่งเป็น INSERT ... ON CONFLICT และ Postgres ตรวจ policy ฝั่ง INSERT กับแถวที่ส่งด้วย
 // ทำให้ออร์เดอร์ที่สถานะไปไกลกว่า draft/awaiting_payment ถูกปฏิเสธ (403) ทุกครั้งที่แก้
 // FK ลูกค้ายังไม่ถูกซิงก์ (23503) → รอแล้วลองใหม่ · เลขซ้ำ (23505) → ออกเลขใหม่
-export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRecode = () => {}, numbering = null, known = new Set(), slips = new Map() } = {}) {
+export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRecode = () => {}, onGate = () => {}, numbering = null, known = new Set(), slips = new Map() } = {}) {
   const cache = new Map()
   const conflicts = []
   for (const o of upserts) {
@@ -137,6 +137,8 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
         break
       }
       const code = r.error.code
+      // ด่านตรวจออร์เดอร์เสี่ยง: ฐานข้อมูลไม่รับการยืนยันชำระ/ส่งมอบ → ไม่ค้างทั้งชุด · โหลดแถวจากฐานข้อมูลกลับมา (สถานะย้อนกลับ)
+      if (code === 'P0001' && r.error.hint === 'ORDER_REVIEW_REQUIRED') { onGate(`${o.code || o.id}: ต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ สถานะถูกคืนค่าเดิม`); conflicts.push(o.id); break }
       if (code === '23505' && !known.has(o.id) && /pkey/.test(r.error.message || '') && tries < 3) { tries++; known.add(o.id); continue } // มีอยู่แล้ว → แก้แทน
       if (code === '23503' && tries < 3) { tries++; await wait(retryDelay); continue }
       if (code === '23505' && tries < 3) {
@@ -171,7 +173,7 @@ export function startOrdersSync({ client, db, canWrite, onError, onRecode, numbe
     load: () => loadOrders(client),
     loadByIds: (ids) => loadOrdersByIds(client, ids),
     applyRows: (rows) => { for (const i of rows) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) } if (numbering) numbering.seen(rows.map((i) => i.code), { reset: false }) },
-    push: (changes) => pushOrders(client, changes, { onRecode, retryDelay, numbering, known, slips }),
+    push: (changes) => pushOrders(client, changes, { onRecode, retryDelay, numbering, known, slips, onGate: (m) => onError(m) }),
     canWrite, onError, debounceMs, label: 'ออร์เดอร์', poll: true,
   }).then((h) => { if (canWrite) backfillBalances(client, db).catch(() => {}); return h })
 }
