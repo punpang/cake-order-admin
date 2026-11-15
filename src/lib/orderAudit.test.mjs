@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { auditOrder, auditDirectOrder } from './orderAudit.js'
+import { orderTotals } from './pricing.js'
 
 const golden = JSON.parse(readFileSync(new URL('./quotePrice.golden.json', import.meta.url), 'utf8'))
 const posGolden = JSON.parse(readFileSync(new URL('./posAudit.golden.json', import.meta.url), 'utf8'))
@@ -116,6 +117,44 @@ check('บิลหน้าร้านถูกตรวจด้วย posAud
 // 13) ไม่มีรายการสินค้า → ไม่มีอะไรให้ตรวจ
 check('ไม่มีรายการสินค้าให้ตรวจ', () => {
   assert.equal(auditDirectOrder({ items: [] }, golden.catalog, { nowMs: golden.nowMs }).ok, true)
+})
+
+// 14) การโอนที่มีรหัสสุ่ม (QR) ต้องตรงกับแจ้งเตือนเงินเข้า · ไม่ส่ง transfers มา = ไม่จับคู่
+const cakeCase = golden.cases.find((c) => c.name === 'cake-pickup')
+const QR = 'ORD131126000741ABCDE'
+const bill = orderOf(cakeCase)
+const TOTAL = orderTotals(bill).total
+const qrOrder = (amount, extra = {}) => ({ ...bill, payments: [{ amount, status: 'confirmed', method: 'โอนเงิน', slip: 'slip-1', qrRef: QR, ...extra }] })
+const runT = (order, transfers) => auditDirectOrder(order, catFor(cakeCase), { nowMs: golden.nowMs, transfers })
+const flagOf = (r, code) => r.flags.find((f) => f.code === code)
+check('โอนมีรหัสสุ่มและยอดแจ้งเตือนตรงกัน → ผ่าน', () => {
+  assert.equal(runT(qrOrder(TOTAL), [{ amount: TOTAL, ref: QR }]).ok, true)
+})
+check('ยอดแจ้งเตือนต่างจากยอดที่ยืนยัน → transfer_amount_mismatch (high)', () => {
+  const r = runT(qrOrder(TOTAL), [{ amount: TOTAL - 100, ref: QR }])
+  assert.equal(flagOf(r, 'transfer_amount_mismatch')?.severity, 'high', codes(r).join(','))
+  assert.equal(r.ok, false)
+})
+check('ไม่พบแจ้งเตือนเงินเข้าของรหัสนี้ → transfer_unmatched (check)', () => {
+  const r = runT(qrOrder(TOTAL), [])
+  assert.equal(flagOf(r, 'transfer_unmatched')?.severity, 'check', codes(r).join(','))
+})
+check('ยอดต่างกันไม่เกิน 0.01 ถือว่าตรง', () => {
+  assert.equal(runT(qrOrder(TOTAL), [{ amount: TOTAL + 0.005, ref: QR }]).ok, true)
+})
+check('แจ้งเตือนใช้จับคู่ได้ครั้งเดียว: ยืนยันซ้ำรหัสเดียวกัน → transfer_amount_mismatch', () => {
+  const half = Math.round((TOTAL / 2) * 100) / 100
+  const o = { ...bill, payments: [0, 1].map(() => ({ amount: half, status: 'confirmed', method: 'โอนเงิน', slip: 's', qrRef: QR })) }
+  const r = runT(o, [{ amount: half, ref: QR }])
+  assert.ok(codes(r).includes('transfer_amount_mismatch'), codes(r).join(','))
+})
+check('โอนไม่มีรหัสสุ่ม หรือไม่ส่งแจ้งเตือนมา → ไม่จับคู่ (ผ่านเหมือนเดิม)', () => {
+  const noRef = { ...bill, payments: [{ amount: TOTAL, status: 'confirmed', method: 'โอนเงิน', slip: 's' }] }
+  assert.equal(runT(noRef, []).ok, true)
+  assert.equal(auditDirectOrder(qrOrder(TOTAL), catFor(cakeCase), { nowMs: golden.nowMs }).ok, true)
+})
+check('ออร์เดอร์ยกเลิกไม่จับคู่การโอน', () => {
+  assert.equal(runT({ ...qrOrder(TOTAL), status: 'cancelled' }, []).ok, true)
 })
 
 console.log(fail ? `\n✗ ไม่ผ่าน ${fail} ข้อ` : '\n✓ orderAudit: ผ่านทั้งหมด')

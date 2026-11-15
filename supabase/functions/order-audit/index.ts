@@ -48,13 +48,29 @@ Deno.serve(async (req) => {
     if (!hist) return json({ error: 'history' }, 502)
     const changes = hist.map((h) => ({ source: h.source, key: h.key, old: h.old_data, changedAt: h.changed_at }))
 
+    // 2b) แจ้งเตือนเงินเข้า (Thungngern) เฉพาะรหัสสุ่มของการโอนที่ยืนยันแล้วในออร์เดอร์ตรงของรอบนี้ (ตัดอักขระอื่นทิ้ง)
+    const refs = new Set<string>()
+    for (const b of orders) {
+      const d = b.data || {}
+      if (b.channel === 'pos' || b.status === 'cancelled' || d.quoteId) continue
+      for (const p of d.payments || []) if (p?.status === 'confirmed' && p.method === 'โอนเงิน' && typeof p.qrRef === 'string') refs.add(p.qrRef.replace(/[^A-Za-z0-9]/g, ''))
+    }
+    refs.delete('')
+    let transfers: { amount: number; ref: string }[] = []
+    if (refs.size) {
+      const list = [...refs].map((r) => `"${r}"`).join(',')
+      const tr = await pages(SUPABASE_URL, SERVICE_HEADERS, `tungngern_transfers?ref=in.(${encodeURIComponent(list)})&select=amount,ref`)
+      if (!tr) return json({ error: 'transfers' }, 502)
+      transfers = tr.map((t) => ({ amount: Number(t.amount), ref: String(t.ref ?? '') }))
+    }
+
     // 3) ตรวจแต่ละใบด้วยราคา ณ เวลาที่สร้าง แล้วบันทึกผล (ไม่แก้ออร์เดอร์)
     const nowIso = new Date().toISOString()
     const rows = orders.map((b) => {
       const order = { ...(b.data || {}), id: b.id, channel: b.channel, status: b.status, fulfillment: b.fulfillment }
       const createdMs = Date.parse(order.createdAt)
       const at = Number.isFinite(createdMs) ? createdMs : Date.now()
-      const res: any = auditOrder(order, catalogAt(catalog, changes, at), { nowMs: at })
+      const res: any = auditOrder(order, catalogAt(catalog, changes, at), { nowMs: at, transfers })
       return { order_id: b.id, checked_at: nowIso, ok: res.ok, flags: res.flags }
     })
     const up = await fetch(`${SUPABASE_URL}/rest/v1/punpang_order_audits`, {

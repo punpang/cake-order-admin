@@ -16,13 +16,13 @@ const num = (x) => (Number.isFinite(Number(x)) ? Number(x) : 0)
 const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100
 const vatKey = (v) => (v && Number(v.rate) > 0 ? `${Number(v.rate)}|${v.mode === 'exclusive' ? 'exclusive' : 'inclusive'}` : '')
 
-// จุดเข้าเดียว: แยกตามช่องทาง
-export function auditOrder(order, catalog, { nowMs } = {}) {
-  return order?.channel === 'pos' ? auditPosOrder(order, catalog) : auditDirectOrder(order, catalog, { nowMs })
+// จุดเข้าเดียว: แยกตามช่องทาง · transfers (ไม่บังคับ) = แจ้งเตือนเงินเข้า [{ amount, ref }] ใช้จับคู่การโอนที่มีรหัสสุ่มของออร์เดอร์ตรง
+export function auditOrder(order, catalog, { nowMs, transfers } = {}) {
+  return order?.channel === 'pos' ? auditPosOrder(order, catalog) : auditDirectOrder(order, catalog, { nowMs, transfers })
 }
 
 // ออร์เดอร์ตรง → { ok, flags: [{ code, severity, detail }] } · nowMs = เวลาที่สร้างออร์เดอร์ (ใช้เลือกโปรและราคาชุดที่ใช้ได้ ณ ตอนนั้น)
-export function auditDirectOrder(order, catalog, { nowMs } = {}) {
+export function auditDirectOrder(order, catalog, { nowMs, transfers } = {}) {
   const flags = []
   const flag = (code, severity, detail) => flags.push({ code, severity, detail })
   if (order?.quoteId) return { ok: true, flags: [{ code: 'skipped_quote', severity: 'info', detail: 'ออร์เดอร์จากใบเสนอ ราคาล็อกตอนบันทึกแล้ว' }] }
@@ -88,6 +88,20 @@ export function auditDirectOrder(order, catalog, { nowMs } = {}) {
   if (order.status !== 'cancelled') {
     const paid = (order.payments || []).filter((p) => p.status === 'confirmed')
     for (const p of paid) if (p.method === 'โอนเงิน' && !p.slip) flag('transfer_without_slip', 'check', `ยืนยันโอนเงิน ${p.amount} โดยไม่มีสลิปแนบ`)
+    // โอนที่มีรหัสสุ่ม (QR) ต้องตรงกับแจ้งเตือนเงินเข้า: จับคู่ทีละรายการ (รหัสเดียวกัน + ยอดห่างไม่เกิน 0.01 · แจ้งเตือนแต่ละรายการใช้ได้ครั้งเดียว)
+    // ไม่พบแจ้งเตือนของรหัสนี้เลย = check (อาจยังไม่เข้า) · พบรหัสแต่ยอดไม่ตรง = high
+    if (Array.isArray(transfers)) {
+      const pool = transfers.map((t) => ({ ref: String(t?.ref ?? ''), amount: num(t?.amount), used: false }))
+      for (const p of paid) {
+        if (p.method !== 'โอนเงิน' || !p.qrRef) continue
+        const ref = String(p.qrRef)
+        const same = pool.filter((t) => t.ref === ref)
+        const hit = same.find((t) => !t.used && Math.abs(t.amount - num(p.amount)) <= EPS)
+        if (hit) hit.used = true
+        else if (same.length) flag('transfer_amount_mismatch', 'high', `ยืนยันโอน ${num(p.amount)} รหัส ${ref} ไม่ตรงแจ้งเตือนธนาคาร [${same.map((t) => t.amount).join(', ')}]`)
+        else flag('transfer_unmatched', 'check', `ยังไม่พบแจ้งเตือนเงินเข้ารหัส ${ref} (ยอด ${num(p.amount)})`)
+      }
+    }
     const t = orderTotals({ ...order, items: base, payments: order.payments || [] })
     if (t.paidNet > t.total + 0.01) flag('overpaid', 'check', `รับชำระสุทธิ ${r2(t.paidNet)} มากกว่ายอดบิล ${r2(t.total)}`)
   }
