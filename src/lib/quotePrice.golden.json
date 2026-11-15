@@ -1,0 +1,2282 @@
+{
+ "nowMs": 1794711600000,
+ "catalog": {
+  "shop": {
+   "name": "ร้านเค้กตัวอย่าง",
+   "slotMinutes": 30,
+   "open": "09:00",
+   "close": "20:00",
+   "nearbyHours": 2,
+   "leadPickup": 60,
+   "leadDelivery": 120,
+   "depositPercent": 50,
+   "birthdayDays": 14,
+   "payDueMin": 30,
+   "posQrExpireMin": 10,
+   "orderAutoPayDaysBefore": 3,
+   "posAutoAcceptNow": false,
+   "payDueRule": {
+    "hoursBefore": 24,
+    "daysBefore": 1,
+    "atTime": "12:00"
+   },
+   "payReminderTime": "09:00",
+   "pickupRemindHours": 24,
+   "dueSoonHours": 2,
+   "pointsExpireDays": 30,
+   "installmentAlertDays": 1,
+   "merchantCode": "",
+   "billerId": "",
+   "delivery": {
+    "enabled": false,
+    "freeKm": 0,
+    "perKm": 10,
+    "minFee": 0,
+    "roundTo": 5
+   },
+   "closures": {
+    "weekly": [],
+    "ranges": [],
+    "hours": [
+     {
+      "days": [],
+      "from": "13:00",
+      "to": "14:00",
+      "reason": "พักเที่ยง"
+     }
+    ]
+   },
+   "payment": {
+    "accounts": [],
+    "note": ""
+   },
+   "vat": {
+    "enabled": true,
+    "rate": 7,
+    "mode": "inclusive"
+   },
+   "linkPolicy": {
+    "idleDays": 7,
+    "neverOpenedDays": 30
+   },
+   "linkAllowlist": [
+    "lin.ee",
+    "line.me",
+    "facebook.com",
+    "fb.me",
+    "maps.app.goo.gl",
+    "maps.google.com"
+   ]
+  },
+  "priceLists": [
+   {
+    "id": "pl1",
+    "name": "โปรเปิดร้าน",
+    "active": true,
+    "scheduled": true,
+    "from": "2026-11-14",
+    "to": "2026-11-22",
+    "types": {},
+    "typeSizes": {
+     "t1": {
+      "s1": 400
+     }
+    },
+    "flavors": {}
+   },
+   {
+    "id": "pl2",
+    "name": "ราคาสมาชิก",
+    "active": false,
+    "scheduled": false,
+    "from": "",
+    "to": "",
+    "types": {},
+    "typeSizes": {},
+    "flavors": {}
+   }
+  ],
+  "optionGroups": [
+   {
+    "id": "g_type",
+    "key": "type",
+    "name": "ประเภท",
+    "prepList": true,
+    "perTier": true,
+    "type": "single",
+    "required": true,
+    "appliesTo": [
+     "custom"
+    ],
+    "options": [
+     {
+      "id": "t1",
+      "name": "เค้กครีม",
+      "price": 0,
+      "sizePrices": {
+       "s1": 450,
+       "s2": 850,
+       "s3": 1250,
+       "s4": 2000
+      },
+      "active": true,
+      "images": []
+     },
+     {
+      "id": "t2",
+      "name": "เค้กหน้านิ่ม",
+      "price": 50,
+      "sizePrices": {
+       "s1": 450,
+       "s2": 850,
+       "s3": 1250,
+       "s4": 2000
+      },
+      "active": true,
+      "allow": {
+       "g_sponge": [
+        "sp2",
+        "sp3",
+        "sp4",
+        "sp5"
+       ]
+      },
+      "images": []
+     },
+     {
+      "id": "t3",
+      "name": "เค้กแยมมะพร้าวอ่อน",
+      "price": 100,
+      "sizePrices": {
+       "s1": 500,
+       "s2": 950,
+       "s3": 1400,
+       "s4": 2200
+      },
+      "active": true,
+      "allow": {
+       "g_size": [
+        "s1",
+        "s2",
+        "s3"
+       ]
+      },
+      "images": []
+     },
+     {
+      "id": "t4",
+      "name": "เค้กฟองดองท์",
+      "price": 200,
+      "sizePrices": {
+       "s1": 650,
+       "s2": 1250,
+       "s3": 1850,
+       "s4": 3000
+      },
+      "active": true,
+      "images": []
+     }
+    ],
+    "active": true
+   },
+   {
+    "id": "g_sponge",
+    "key": "flavor",
+    "name": "เนื้อเค้ก",
+    "perTier": true,
+    "type": "single",
+    "required": true,
+    "appliesTo": [
+     "custom"
+    ],
+    "options": [
+     {
+      "id": "sp1",
+      "name": "วานิลลา",
+      "price": 0,
+      "active": true
+     },
+     {
+      "id": "sp2",
+      "name": "ช็อกโกแลต",
+      "price": 30,
+      "active": true
+     },
+     {
+      "id": "sp3",
+      "name": "ใบเตย",
+      "price": 0,
+      "active": true
+     },
+     {
+      "id": "sp4",
+      "name": "เรดเวลเวท",
+      "price": 50,
+      "active": true
+     },
+     {
+      "id": "sp5",
+      "name": "ชาไทย",
+      "price": 30,
+      "active": true
+     }
+    ],
+    "active": true
+   },
+   {
+    "id": "g_size",
+    "key": "size",
+    "name": "ขนาด",
+    "perTier": true,
+    "type": "single",
+    "required": true,
+    "appliesTo": [
+     "custom"
+    ],
+    "options": [
+     {
+      "id": "s1",
+      "name": "1 ปอนด์",
+      "pounds": 1,
+      "active": true
+     },
+     {
+      "id": "s2",
+      "name": "2 ปอนด์",
+      "pounds": 2,
+      "active": true
+     },
+     {
+      "id": "s3",
+      "name": "3 ปอนด์",
+      "pounds": 3,
+      "active": true
+     },
+     {
+      "id": "s4",
+      "name": "5 ปอนด์",
+      "pounds": 5,
+      "active": true
+     }
+    ],
+    "active": true
+   },
+   {
+    "id": "g_style",
+    "key": "style",
+    "name": "รูปแบบตกแต่ง",
+    "perTier": true,
+    "type": "single",
+    "required": false,
+    "appliesTo": [
+     "custom"
+    ],
+    "active": true,
+    "options": []
+   },
+   {
+    "id": "g_shape",
+    "key": "shape",
+    "name": "รูปทรง",
+    "perTier": true,
+    "type": "single",
+    "required": true,
+    "appliesTo": [
+     "custom"
+    ],
+    "options": [
+     {
+      "id": "sh1",
+      "name": "กลม",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "sh2",
+      "name": "สี่เหลี่ยม",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "sh3",
+      "name": "หัวใจ",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 100,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "sh4",
+      "name": "ตัวเลข/ตัวอักษร",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 200,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     }
+    ],
+    "active": true
+   },
+   {
+    "id": "g_filling",
+    "name": "สอดไส้",
+    "prepList": true,
+    "perTier": true,
+    "type": "multi",
+    "required": false,
+    "appliesTo": [
+     "custom"
+    ],
+    "options": [
+     {
+      "id": "f1",
+      "name": "ครีมสด",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "f2",
+      "name": "สตรอว์เบอร์รี",
+      "priceType": "size",
+      "sizePrices": {
+       "s1": 60,
+       "s2": 110,
+       "s3": 160,
+       "s4": 250
+      },
+      "price": 0,
+      "types": [],
+      "typePrices": {
+       "t4": {
+        "s1": 80,
+        "s2": 140,
+        "s3": 200,
+        "s4": 320
+       }
+      },
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "f3",
+      "name": "บลูเบอร์รี",
+      "priceType": "size",
+      "sizePrices": {
+       "s1": 60,
+       "s2": 110,
+       "s3": 160,
+       "s4": 250
+      },
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "f4",
+      "name": "คัสตาร์ด",
+      "priceType": "size",
+      "sizePrices": {
+       "s1": 40,
+       "s2": 70,
+       "s3": 100,
+       "s4": 160
+      },
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "f5",
+      "name": "ช็อกโกแลตกานาช",
+      "priceType": "size",
+      "sizePrices": {
+       "s1": 50,
+       "s2": 90,
+       "s3": 130,
+       "s4": 200
+      },
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     }
+    ],
+    "active": true
+   },
+   {
+    "id": "g_color",
+    "name": "สีธีม",
+    "perTier": true,
+    "type": "text",
+    "required": false,
+    "appliesTo": [
+     "custom"
+    ],
+    "placeholder": "เช่น ชมพูพาสเทล + ขาว",
+    "active": true,
+    "options": []
+   },
+   {
+    "id": "g_topping",
+    "name": "On top / ท็อปปิ้ง",
+    "prepList": true,
+    "perTier": true,
+    "type": "multi",
+    "required": false,
+    "appliesTo": [
+     "custom"
+    ],
+    "options": [
+     {
+      "id": "tp1",
+      "name": "ผลไม้รวม",
+      "priceType": "size",
+      "sizePrices": {
+       "s1": 150,
+       "s2": 250,
+       "s3": 350,
+       "s4": 500
+      },
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "tp2",
+      "name": "สตรอว์เบอร์รีสด",
+      "priceType": "size",
+      "sizePrices": {
+       "s1": 180,
+       "s2": 300,
+       "s3": 420,
+       "s4": 600
+      },
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "tp3",
+      "name": "มาการอง",
+      "priceType": "size",
+      "sizePrices": {
+       "s1": 200,
+       "s2": 300,
+       "s3": 400,
+       "s4": 550
+      },
+      "price": 0,
+      "types": [
+       "t1",
+       "t4"
+      ],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "tp4",
+      "name": "ช็อกโกแลตแท่ง/ตกแต่ง",
+      "priceType": "size",
+      "sizePrices": {
+       "s1": 120,
+       "s2": 180,
+       "s3": 240,
+       "s4": 350
+      },
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "tp5",
+      "name": "เม็ดมุกน้ำตาล",
+      "priceType": "size",
+      "sizePrices": {
+       "s1": 50,
+       "s2": 80,
+       "s3": 110,
+       "s4": 160
+      },
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     }
+    ],
+    "active": true
+   },
+   {
+    "id": "g_deco",
+    "name": "ตกแต่ง",
+    "prepList": true,
+    "perTier": true,
+    "type": "multi",
+    "required": false,
+    "appliesTo": [
+     "custom"
+    ],
+    "options": [
+     {
+      "id": "d1",
+      "name": "ดอกไม้ครีม",
+      "priceType": "size",
+      "sizePrices": {
+       "s1": 150,
+       "s2": 200,
+       "s3": 250,
+       "s4": 350
+      },
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "d2",
+      "name": "ดอกไม้สด",
+      "priceType": "size",
+      "sizePrices": {
+       "s1": 350,
+       "s2": 450,
+       "s3": 550,
+       "s4": 750
+      },
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "d3",
+      "name": "ฟิกเกอร์",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 500,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {
+       "t4": 400
+      },
+      "active": true
+     },
+     {
+      "id": "d4",
+      "name": "ภาพพิมพ์ทานได้",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 250,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "d5",
+      "name": "โบว์/ริบบิ้น",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 80,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     }
+    ],
+    "active": true
+   },
+   {
+    "id": "g_message",
+    "name": "ข้อความบนเค้ก",
+    "type": "text",
+    "required": false,
+    "appliesTo": [
+     "custom",
+     "ready"
+    ],
+    "placeholder": "เช่น HBD แม่ 60 ปี",
+    "active": true,
+    "options": []
+   },
+   {
+    "id": "g_extra",
+    "name": "ของเสริม",
+    "type": "multi",
+    "required": false,
+    "appliesTo": [
+     "custom",
+     "ready"
+    ],
+    "options": [
+     {
+      "id": "x1",
+      "name": "เทียนวันเกิด",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "x2",
+      "name": "เทียนตัวเลข",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 20,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "x3",
+      "name": "ป้ายข้อความ",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 60,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "x4",
+      "name": "การ์ดอวยพร",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 30,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "x5",
+      "name": "กล่องพิเศษ",
+      "priceType": "size",
+      "sizePrices": {
+       "s1": 80,
+       "s2": 100,
+       "s3": 120,
+       "s4": 160
+      },
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "x6",
+      "name": "มีด + จาน",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     }
+    ],
+    "active": true
+   },
+   {
+    "id": "g_diet",
+    "name": "ข้อจำกัดอาหาร",
+    "type": "multi",
+    "required": false,
+    "appliesTo": [
+     "custom",
+     "ready"
+    ],
+    "options": [
+     {
+      "id": "dt1",
+      "name": "หวานน้อย",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "dt2",
+      "name": "ไม่ใส่ถั่ว",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "dt3",
+      "name": "ไม่มีแอลกอฮอล์",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     },
+     {
+      "id": "dt4",
+      "name": "ไม่ใส่นม",
+      "priceType": "fixed",
+      "sizePrices": {},
+      "price": 0,
+      "types": [],
+      "typePrices": {},
+      "typePrice": {},
+      "active": true
+     }
+    ],
+    "active": true
+   },
+   {
+    "id": "g_allergy",
+    "name": "แพ้อาหาร (ระบุ)",
+    "type": "text",
+    "sensitive": true,
+    "required": false,
+    "appliesTo": [
+     "custom",
+     "ready"
+    ],
+    "placeholder": "ถ้ามี",
+    "active": true,
+    "options": []
+   }
+  ],
+  "bundles": [
+   {
+    "id": "b1",
+    "name": "สตรอว์เบอร์รี + บลูเบอร์รี",
+    "items": [
+     {
+      "groupId": "g_filling",
+      "optionId": "f2"
+     },
+     {
+      "groupId": "g_filling",
+      "optionId": "f3"
+     }
+    ],
+    "discount": {
+     "s1": 20,
+     "s2": 30,
+     "s3": 40,
+     "s4": 60
+    },
+    "types": [],
+    "typeDiscount": {},
+    "active": true
+   },
+   {
+    "id": "b2",
+    "name": "ไส้สตรอว์เบอร์รี + สตรอว์เบอร์รีสด",
+    "items": [
+     {
+      "groupId": "g_filling",
+      "optionId": "f2"
+     },
+     {
+      "groupId": "g_topping",
+      "optionId": "tp2"
+     }
+    ],
+    "discount": {
+     "s1": 30,
+     "s2": 50,
+     "s3": 70,
+     "s4": 100
+    },
+    "types": [],
+    "typeDiscount": {
+     "t4": {
+      "s1": 40,
+      "s2": 60,
+      "s3": 90,
+      "s4": 130
+     }
+    },
+    "active": true
+   }
+  ],
+  "retailItems": [
+   {
+    "id": "rt1",
+    "name": "เค้กช็อกโกแลต (ชิ้น)",
+    "category": "เค้กชิ้น",
+    "price": 75,
+    "stock": 12,
+    "active": true,
+    "modifierIds": [],
+    "images": [],
+    "recipe": [],
+    "pinned": false,
+    "showInPos": true,
+    "showOnStore": false,
+    "description": "",
+    "typeId": null,
+    "flavorId": null,
+    "sizeId": null
+   },
+   {
+    "id": "rt2",
+    "name": "เค้กส้ม (ชิ้น)",
+    "category": "เค้กชิ้น",
+    "price": 70,
+    "stock": 8,
+    "active": true,
+    "modifierIds": [],
+    "images": [],
+    "recipe": [],
+    "pinned": false,
+    "showInPos": true,
+    "showOnStore": false,
+    "description": "",
+    "typeId": null,
+    "flavorId": null,
+    "sizeId": null
+   },
+   {
+    "id": "rt3",
+    "name": "คัพเค้กวานิลลา",
+    "category": "คัพเค้ก",
+    "price": 45,
+    "stock": 20,
+    "active": true,
+    "modifierIds": [],
+    "images": [],
+    "recipe": [],
+    "pinned": false,
+    "showInPos": true,
+    "showOnStore": false,
+    "description": "",
+    "typeId": null,
+    "flavorId": null,
+    "sizeId": null
+   },
+   {
+    "id": "rt4",
+    "name": "คัพเค้กเรดเวลเวท",
+    "category": "คัพเค้ก",
+    "price": 55,
+    "stock": 0,
+    "active": true,
+    "modifierIds": [],
+    "images": [],
+    "recipe": [],
+    "pinned": false,
+    "showInPos": true,
+    "showOnStore": false,
+    "description": "",
+    "typeId": null,
+    "flavorId": null,
+    "sizeId": null
+   },
+   {
+    "id": "rt5",
+    "name": "อเมริกาโน่เย็น",
+    "category": "เครื่องดื่ม",
+    "price": 60,
+    "stock": null,
+    "active": true,
+    "modifierIds": [
+     "md1",
+     "md2",
+     "md3"
+    ],
+    "images": [],
+    "recipe": [],
+    "pinned": false,
+    "showInPos": true,
+    "showOnStore": false,
+    "description": "",
+    "typeId": null,
+    "flavorId": null,
+    "sizeId": null
+   },
+   {
+    "id": "rt6",
+    "name": "ชาไทยเย็น",
+    "category": "เครื่องดื่ม",
+    "price": 55,
+    "stock": null,
+    "active": true,
+    "modifierIds": [
+     "md1",
+     "md2"
+    ],
+    "images": [],
+    "recipe": [],
+    "pinned": false,
+    "showInPos": true,
+    "showOnStore": false,
+    "description": "",
+    "typeId": null,
+    "flavorId": null,
+    "sizeId": null
+   },
+   {
+    "id": "rt7",
+    "name": "เทียนวันเกิด (แพ็ก)",
+    "category": "ของเสริม",
+    "price": 20,
+    "stock": 50,
+    "active": true,
+    "modifierIds": [],
+    "images": [],
+    "recipe": [],
+    "pinned": false,
+    "showInPos": true,
+    "showOnStore": false,
+    "description": "",
+    "typeId": null,
+    "flavorId": null,
+    "sizeId": null
+   },
+   {
+    "id": "rt8",
+    "name": "เค้กช็อกโกแลตฟัดจ์",
+    "category": "เค้กสำเร็จ",
+    "price": 480,
+    "stock": 3,
+    "active": true,
+    "showOnStore": true,
+    "typeId": "t1",
+    "flavorId": "sp2",
+    "sizeId": "s1",
+    "recipe": [
+     {
+      "ingredientId": "m1",
+      "qty": 150,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m2",
+      "qty": 120,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m3",
+      "qty": 3,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m4",
+      "qty": 80,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m6",
+      "qty": 40,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m8",
+      "qty": 1,
+      "per": "piece"
+     }
+    ],
+    "modifierIds": [],
+    "images": [],
+    "pinned": false,
+    "showInPos": true,
+    "description": ""
+   },
+   {
+    "id": "rt9",
+    "name": "เค้กส้ม",
+    "category": "เค้กสำเร็จ",
+    "price": 450,
+    "stock": null,
+    "active": true,
+    "showOnStore": true,
+    "typeId": "t1",
+    "flavorId": "sp1",
+    "sizeId": "s1",
+    "recipe": [
+     {
+      "ingredientId": "m1",
+      "qty": 160,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m2",
+      "qty": 130,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m3",
+      "qty": 3,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m4",
+      "qty": 70,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m8",
+      "qty": 1,
+      "per": "piece"
+     }
+    ],
+    "modifierIds": [],
+    "images": [],
+    "pinned": false,
+    "showInPos": true,
+    "description": ""
+   },
+   {
+    "id": "rt10",
+    "name": "เค้กใบเตยมะพร้าวอ่อน",
+    "category": "เค้กสำเร็จ",
+    "price": 1050,
+    "stock": null,
+    "active": true,
+    "showOnStore": true,
+    "typeId": "t3",
+    "flavorId": "sp3",
+    "sizeId": "s2",
+    "recipe": [
+     {
+      "ingredientId": "m1",
+      "qty": 150,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m2",
+      "qty": 110,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m3",
+      "qty": 3,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m5",
+      "qty": 150,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m8",
+      "qty": 1,
+      "per": "piece"
+     }
+    ],
+    "modifierIds": [],
+    "images": [],
+    "pinned": false,
+    "showInPos": true,
+    "description": ""
+   },
+   {
+    "id": "rt11",
+    "name": "เรดเวลเวท",
+    "category": "เค้กสำเร็จ",
+    "price": 550,
+    "stock": null,
+    "active": true,
+    "showOnStore": true,
+    "typeId": "t2",
+    "flavorId": "sp4",
+    "sizeId": "s1",
+    "recipe": [
+     {
+      "ingredientId": "m1",
+      "qty": 150,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m2",
+      "qty": 130,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m3",
+      "qty": 3,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m4",
+      "qty": 80,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m6",
+      "qty": 10,
+      "per": "pound"
+     },
+     {
+      "ingredientId": "m8",
+      "qty": 1,
+      "per": "piece"
+     }
+    ],
+    "modifierIds": [],
+    "images": [],
+    "pinned": false,
+    "showInPos": true,
+    "description": ""
+   }
+  ],
+  "posDiscounts": [
+   {
+    "id": "pd1",
+    "name": "เครื่องดื่มลด 10% (ตัวอย่าง)",
+    "type": "percent",
+    "value": 10,
+    "scope": "category",
+    "categories": [
+     "เครื่องดื่ม"
+    ],
+    "itemIds": [],
+    "minSpend": 0,
+    "active": true,
+    "schedule": {
+     "from": "",
+     "to": "",
+     "days": [],
+     "timeFrom": "",
+     "timeTo": ""
+    }
+   }
+  ],
+  "posBundles": [
+   {
+    "id": "pb1",
+    "name": "อเมริกาโน่เย็น + คัพเค้กวานิลลา (ตัวอย่าง)",
+    "items": [
+     {
+      "itemId": "rt5",
+      "qty": 1
+     },
+     {
+      "itemId": "rt3",
+      "qty": 1
+     }
+    ],
+    "price": 89,
+    "active": true,
+    "schedule": {
+     "from": "",
+     "to": "",
+     "days": [],
+     "timeFrom": "",
+     "timeTo": ""
+    }
+   }
+  ],
+  "posDeals": [
+   {
+    "id": "dl1",
+    "kind": "bogo",
+    "name": "ซื้อคัพเค้ก 3 แถม 1 (ตัวอย่าง)",
+    "active": true,
+    "schedule": {
+     "from": "",
+     "to": "",
+     "days": [],
+     "timeFrom": "",
+     "timeTo": ""
+    },
+    "scope": "category",
+    "categories": [
+     "คัพเค้ก"
+    ],
+    "itemIds": [],
+    "buyQty": 3,
+    "giftItemId": "",
+    "giftQty": 1,
+    "repeat": true,
+    "maxGifts": 0
+   },
+   {
+    "id": "dl2",
+    "kind": "spend_off",
+    "name": "ครบ 500 ลด 50 · ครบ 1,000 ลด 150 (ตัวอย่าง)",
+    "active": true,
+    "schedule": {
+     "from": "",
+     "to": "",
+     "days": [],
+     "timeFrom": "",
+     "timeTo": ""
+    },
+    "tiers": [
+     {
+      "min": 500,
+      "type": "amount",
+      "value": 50
+     },
+     {
+      "min": 1000,
+      "type": "amount",
+      "value": 150
+     }
+    ]
+   },
+   {
+    "id": "dl3",
+    "kind": "spend_free",
+    "name": "ครบ 800 ฟรีเทียนวันเกิด (ตัวอย่าง)",
+    "active": true,
+    "schedule": {
+     "from": "",
+     "to": "",
+     "days": [],
+     "timeFrom": "",
+     "timeTo": ""
+    },
+    "min": 800,
+    "giftItemId": "rt7",
+    "giftQty": 1
+   }
+  ]
+ },
+ "cases": [
+  {
+   "name": "cake-pickup",
+   "customerId": "golden-cust",
+   "draft": {
+    "fulfillment": "pickup",
+    "pickupAt": "2026-11-20T10:00",
+    "items": [
+     {
+      "id": "c1",
+      "kind": "custom",
+      "retailId": null,
+      "retailPrice": 0,
+      "sizeId": null,
+      "typeId": null,
+      "qty": 1,
+      "note": "ตามรูปตัวอย่าง",
+      "images": [],
+      "selections": {
+       "g_type": "t1",
+       "g_sponge": "sp1",
+       "g_size": "s1",
+       "g_shape": "sh1"
+      },
+      "tiers": []
+     }
+    ],
+    "birthday": {
+     "name": "น้องมิ้ว",
+     "md": "05-12"
+    }
+   },
+   "payload": {
+    "customerId": "golden-cust",
+    "pickupAt": "2026-11-20T10:00",
+    "fulfillment": "pickup",
+    "address": "",
+    "shippingFee": 0,
+    "placeName": "",
+    "mapUrl": "",
+    "detail": "",
+    "distanceKm": null,
+    "feeManual": false,
+    "birthday": {
+     "name": "น้องมิ้ว",
+     "md": "05-12"
+    },
+    "items": [
+     {
+      "id": "c1",
+      "kind": "custom",
+      "retailId": null,
+      "retailPrice": 0,
+      "sizeId": null,
+      "typeId": null,
+      "qty": 1,
+      "note": "ตามรูปตัวอย่าง",
+      "images": [],
+      "selections": {
+       "g_type": "t1",
+       "g_sponge": "sp1",
+       "g_size": "s1",
+       "g_shape": "sh1"
+      },
+      "tiers": [],
+      "unitPrice": 400,
+      "regularPrice": 450,
+      "fullPrice": 450,
+      "discounts": [
+       {
+        "kind": "special",
+        "name": "โปรเปิดร้าน",
+        "amount": 50
+       }
+      ],
+      "specials": [
+       "โปรเปิดร้าน"
+      ],
+      "bundles": []
+     }
+    ],
+    "shipPromo": null,
+    "promoOn": true,
+    "vat": {
+     "rate": 7,
+     "mode": "inclusive"
+    }
+   },
+   "shopVat": {
+    "enabled": true,
+    "rate": 7,
+    "mode": "inclusive"
+   }
+  },
+  {
+   "name": "retail-promos-and-gift",
+   "customerId": "golden-cust",
+   "draft": {
+    "fulfillment": "pickup",
+    "pickupAt": "2026-11-21T15:00",
+    "items": [
+     {
+      "id": "r-rt1",
+      "kind": "retail",
+      "retailId": "rt1",
+      "retailPrice": 75,
+      "sizeId": null,
+      "typeId": null,
+      "name": "เค้กช็อกโกแลต (ชิ้น)",
+      "qty": 4,
+      "note": "",
+      "images": [],
+      "selections": {}
+     },
+     {
+      "id": "r-rt2",
+      "kind": "retail",
+      "retailId": "rt2",
+      "retailPrice": 70,
+      "sizeId": null,
+      "typeId": null,
+      "name": "เค้กส้ม (ชิ้น)",
+      "qty": 2,
+      "note": "",
+      "images": [],
+      "selections": {}
+     },
+     {
+      "id": "r-rt3",
+      "kind": "retail",
+      "retailId": "rt3",
+      "retailPrice": 45,
+      "sizeId": null,
+      "typeId": null,
+      "name": "คัพเค้กวานิลลา",
+      "qty": 1,
+      "note": "",
+      "images": [],
+      "selections": {},
+      "promoGift": true
+     },
+     {
+      "id": "c2",
+      "kind": "custom",
+      "retailId": null,
+      "retailPrice": 0,
+      "sizeId": null,
+      "typeId": null,
+      "qty": 2,
+      "note": "ตามรูปตัวอย่าง",
+      "images": [],
+      "selections": {
+       "g_type": "t1",
+       "g_sponge": "sp1",
+       "g_size": "s1",
+       "g_shape": "sh1"
+      },
+      "tiers": []
+     }
+    ],
+    "birthday": null
+   },
+   "payload": {
+    "customerId": "golden-cust",
+    "pickupAt": "2026-11-21T15:00",
+    "fulfillment": "pickup",
+    "address": "",
+    "shippingFee": 0,
+    "placeName": "",
+    "mapUrl": "",
+    "detail": "",
+    "distanceKm": null,
+    "feeManual": false,
+    "birthday": null,
+    "items": [
+     {
+      "id": "r-rt1",
+      "kind": "retail",
+      "retailId": "rt1",
+      "retailPrice": 75,
+      "sizeId": null,
+      "typeId": null,
+      "name": "เค้กช็อกโกแลต (ชิ้น)",
+      "qty": 4,
+      "note": "",
+      "images": [],
+      "selections": {},
+      "unitPrice": 65.93,
+      "regularPrice": 75,
+      "fullPrice": 75,
+      "discounts": [
+       {
+        "kind": "promo",
+        "name": "ครบ 500 ลด 50 · ครบ 1,000 ลด 150 (ตัวอย่าง)",
+        "amount": 9.07
+       }
+      ],
+      "specials": [],
+      "bundles": []
+     },
+     {
+      "id": "r-rt2",
+      "kind": "retail",
+      "retailId": "rt2",
+      "retailPrice": 70,
+      "sizeId": null,
+      "typeId": null,
+      "name": "เค้กส้ม (ชิ้น)",
+      "qty": 2,
+      "note": "",
+      "images": [],
+      "selections": {},
+      "unitPrice": 61.53,
+      "regularPrice": 70,
+      "fullPrice": 70,
+      "discounts": [
+       {
+        "kind": "promo",
+        "name": "ครบ 500 ลด 50 · ครบ 1,000 ลด 150 (ตัวอย่าง)",
+        "amount": 8.47
+       }
+      ],
+      "specials": [],
+      "bundles": []
+     },
+     {
+      "id": "c2",
+      "kind": "custom",
+      "retailId": null,
+      "retailPrice": 0,
+      "sizeId": null,
+      "typeId": null,
+      "qty": 2,
+      "note": "ตามรูปตัวอย่าง",
+      "images": [],
+      "selections": {
+       "g_type": "t1",
+       "g_sponge": "sp1",
+       "g_size": "s1",
+       "g_shape": "sh1"
+      },
+      "tiers": [],
+      "unitPrice": 351.61,
+      "regularPrice": 450,
+      "fullPrice": 450,
+      "discounts": [
+       {
+        "kind": "special",
+        "name": "โปรเปิดร้าน",
+        "amount": 50
+       },
+       {
+        "kind": "promo",
+        "name": "ครบ 500 ลด 50 · ครบ 1,000 ลด 150 (ตัวอย่าง)",
+        "amount": 48.39
+       }
+      ],
+      "specials": [
+       "โปรเปิดร้าน"
+      ],
+      "bundles": []
+     },
+     {
+      "id": "gift:dl3:rt7",
+      "kind": "retail",
+      "retailId": "rt7",
+      "retailPrice": 20,
+      "sizeId": null,
+      "typeId": null,
+      "mods": [],
+      "name": "เทียนวันเกิด (แพ็ก)",
+      "qty": 1,
+      "selections": {},
+      "note": "",
+      "images": [],
+      "unitPrice": 0,
+      "regularPrice": 20,
+      "fullPrice": 20,
+      "discounts": [
+       {
+        "kind": "gift",
+        "name": "ครบ 800 ฟรีเทียนวันเกิด (ตัวอย่าง)",
+        "amount": 20
+       }
+      ],
+      "specials": [],
+      "bundles": [],
+      "promoGift": {
+       "dealId": "dl3",
+       "name": "ครบ 800 ฟรีเทียนวันเกิด (ตัวอย่าง)"
+      }
+     }
+    ],
+    "shipPromo": null,
+    "promoOn": true,
+    "vat": {
+     "rate": 7,
+     "mode": "inclusive"
+    }
+   },
+   "shopVat": {
+    "enabled": true,
+    "rate": 7,
+    "mode": "inclusive"
+   }
+  },
+  {
+   "name": "delivery-manual-fee",
+   "customerId": "golden-cust",
+   "draft": {
+    "fulfillment": "delivery",
+    "pickupAt": "2026-11-22T09:30",
+    "address": "12/3 ถนนตัวอย่าง",
+    "placeName": "บ้าน",
+    "mapUrl": "",
+    "detail": "ชั้น 2",
+    "distanceKm": "4.5",
+    "shippingFee": 60,
+    "feeManual": true,
+    "items": [
+     {
+      "id": "c1",
+      "kind": "custom",
+      "retailId": null,
+      "retailPrice": 0,
+      "sizeId": null,
+      "typeId": null,
+      "qty": 1,
+      "note": "ตามรูปตัวอย่าง",
+      "images": [],
+      "selections": {
+       "g_type": "t1",
+       "g_sponge": "sp1",
+       "g_size": "s1",
+       "g_shape": "sh1"
+      },
+      "tiers": []
+     },
+     {
+      "id": "r-rt1",
+      "kind": "retail",
+      "retailId": "rt1",
+      "retailPrice": 75,
+      "sizeId": null,
+      "typeId": null,
+      "name": "เค้กช็อกโกแลต (ชิ้น)",
+      "qty": 1,
+      "note": "",
+      "images": [],
+      "selections": {}
+     }
+    ],
+    "birthday": {
+     "name": "",
+     "md": "12-31"
+    }
+   },
+   "payload": {
+    "customerId": "golden-cust",
+    "pickupAt": "2026-11-22T09:30",
+    "fulfillment": "delivery",
+    "address": "12/3 ถนนตัวอย่าง",
+    "shippingFee": 60,
+    "placeName": "บ้าน",
+    "mapUrl": "",
+    "detail": "ชั้น 2",
+    "distanceKm": 4.5,
+    "feeManual": true,
+    "birthday": {
+     "name": "",
+     "md": "12-31"
+    },
+    "items": [
+     {
+      "id": "c1",
+      "kind": "custom",
+      "retailId": null,
+      "retailPrice": 0,
+      "sizeId": null,
+      "typeId": null,
+      "qty": 1,
+      "note": "ตามรูปตัวอย่าง",
+      "images": [],
+      "selections": {
+       "g_type": "t1",
+       "g_sponge": "sp1",
+       "g_size": "s1",
+       "g_shape": "sh1"
+      },
+      "tiers": [],
+      "unitPrice": 400,
+      "regularPrice": 450,
+      "fullPrice": 450,
+      "discounts": [
+       {
+        "kind": "special",
+        "name": "โปรเปิดร้าน",
+        "amount": 50
+       }
+      ],
+      "specials": [
+       "โปรเปิดร้าน"
+      ],
+      "bundles": []
+     },
+     {
+      "id": "r-rt1",
+      "kind": "retail",
+      "retailId": "rt1",
+      "retailPrice": 75,
+      "sizeId": null,
+      "typeId": null,
+      "name": "เค้กช็อกโกแลต (ชิ้น)",
+      "qty": 1,
+      "note": "",
+      "images": [],
+      "selections": {},
+      "unitPrice": 75,
+      "regularPrice": 75,
+      "fullPrice": 75,
+      "discounts": [],
+      "specials": [],
+      "bundles": []
+     }
+    ],
+    "shipPromo": null,
+    "promoOn": true,
+    "vat": {
+     "rate": 7,
+     "mode": "inclusive"
+    }
+   },
+   "shopVat": {
+    "enabled": true,
+    "rate": 7,
+    "mode": "inclusive"
+   }
+  },
+  {
+   "name": "delivery-computed-fee",
+   "customerId": "golden-cust",
+   "draft": {
+    "fulfillment": "delivery",
+    "pickupAt": "2026-11-22T11:00",
+    "address": "ซอย 5",
+    "placeName": "",
+    "mapUrl": "",
+    "detail": "",
+    "distanceKm": "",
+    "shippingFee": 0,
+    "feeManual": false,
+    "items": [
+     {
+      "id": "c1",
+      "kind": "custom",
+      "retailId": null,
+      "retailPrice": 0,
+      "sizeId": null,
+      "typeId": null,
+      "qty": 1,
+      "note": "ตามรูปตัวอย่าง",
+      "images": [],
+      "selections": {
+       "g_type": "t1",
+       "g_sponge": "sp1",
+       "g_size": "s1",
+       "g_shape": "sh1"
+      },
+      "tiers": []
+     }
+    ],
+    "birthday": null
+   },
+   "payload": {
+    "customerId": "golden-cust",
+    "pickupAt": "2026-11-22T11:00",
+    "fulfillment": "delivery",
+    "address": "ซอย 5",
+    "shippingFee": 0,
+    "placeName": "",
+    "mapUrl": "",
+    "detail": "",
+    "distanceKm": null,
+    "feeManual": false,
+    "birthday": null,
+    "items": [
+     {
+      "id": "c1",
+      "kind": "custom",
+      "retailId": null,
+      "retailPrice": 0,
+      "sizeId": null,
+      "typeId": null,
+      "qty": 1,
+      "note": "ตามรูปตัวอย่าง",
+      "images": [],
+      "selections": {
+       "g_type": "t1",
+       "g_sponge": "sp1",
+       "g_size": "s1",
+       "g_shape": "sh1"
+      },
+      "tiers": [],
+      "unitPrice": 400,
+      "regularPrice": 450,
+      "fullPrice": 450,
+      "discounts": [
+       {
+        "kind": "special",
+        "name": "โปรเปิดร้าน",
+        "amount": 50
+       }
+      ],
+      "specials": [
+       "โปรเปิดร้าน"
+      ],
+      "bundles": []
+     }
+    ],
+    "shipPromo": null,
+    "promoOn": true,
+    "vat": {
+     "rate": 7,
+     "mode": "inclusive"
+    }
+   },
+   "shopVat": {
+    "enabled": true,
+    "rate": 7,
+    "mode": "inclusive"
+   }
+  },
+  {
+   "name": "bundle-combo",
+   "customerId": "golden-cust",
+   "draft": {
+    "fulfillment": "pickup",
+    "pickupAt": "2026-11-24T10:30",
+    "items": [
+     {
+      "id": "r-rt5",
+      "kind": "retail",
+      "retailId": "rt5",
+      "retailPrice": 60,
+      "sizeId": null,
+      "typeId": null,
+      "name": "อเมริกาโน่เย็น",
+      "qty": 1,
+      "note": "",
+      "images": [],
+      "selections": {}
+     },
+     {
+      "id": "r-rt3",
+      "kind": "retail",
+      "retailId": "rt3",
+      "retailPrice": 45,
+      "sizeId": null,
+      "typeId": null,
+      "name": "คัพเค้กวานิลลา",
+      "qty": 1,
+      "note": "",
+      "images": [],
+      "selections": {}
+     },
+     {
+      "id": "r-rt5",
+      "kind": "retail",
+      "retailId": "rt5",
+      "retailPrice": 60,
+      "sizeId": null,
+      "typeId": null,
+      "name": "อเมริกาโน่เย็น",
+      "qty": 2,
+      "note": "",
+      "images": [],
+      "selections": {}
+     }
+    ],
+    "birthday": null
+   },
+   "payload": {
+    "customerId": "golden-cust",
+    "pickupAt": "2026-11-24T10:30",
+    "fulfillment": "pickup",
+    "address": "",
+    "shippingFee": 0,
+    "placeName": "",
+    "mapUrl": "",
+    "detail": "",
+    "distanceKm": null,
+    "feeManual": false,
+    "birthday": null,
+    "items": [
+     {
+      "id": "r-rt5",
+      "kind": "retail",
+      "retailId": "rt5",
+      "retailPrice": 60,
+      "sizeId": null,
+      "typeId": null,
+      "name": "อเมริกาโน่เย็น",
+      "qty": 1,
+      "note": "",
+      "images": [],
+      "selections": {},
+      "unitPrice": 50.86,
+      "regularPrice": 60,
+      "fullPrice": 60,
+      "discounts": [
+       {
+        "kind": "bundle",
+        "name": "อเมริกาโน่เย็น + คัพเค้กวานิลลา (ตัวอย่าง)",
+        "amount": 9.14
+       }
+      ],
+      "specials": [],
+      "bundles": []
+     },
+     {
+      "id": "r-rt3",
+      "kind": "retail",
+      "retailId": "rt3",
+      "retailPrice": 45,
+      "sizeId": null,
+      "typeId": null,
+      "name": "คัพเค้กวานิลลา",
+      "qty": 1,
+      "note": "",
+      "images": [],
+      "selections": {},
+      "unitPrice": 38.14,
+      "regularPrice": 45,
+      "fullPrice": 45,
+      "discounts": [
+       {
+        "kind": "bundle",
+        "name": "อเมริกาโน่เย็น + คัพเค้กวานิลลา (ตัวอย่าง)",
+        "amount": 6.86
+       }
+      ],
+      "specials": [],
+      "bundles": []
+     },
+     {
+      "id": "r-rt5",
+      "kind": "retail",
+      "retailId": "rt5",
+      "retailPrice": 60,
+      "sizeId": null,
+      "typeId": null,
+      "name": "อเมริกาโน่เย็น",
+      "qty": 2,
+      "note": "",
+      "images": [],
+      "selections": {},
+      "unitPrice": 54,
+      "regularPrice": 60,
+      "fullPrice": 60,
+      "discounts": [
+       {
+        "kind": "promo",
+        "name": "เครื่องดื่มลด 10% (ตัวอย่าง)",
+        "amount": 6
+       }
+      ],
+      "specials": [],
+      "bundles": []
+     }
+    ],
+    "shipPromo": null,
+    "promoOn": true,
+    "vat": {
+     "rate": 7,
+     "mode": "inclusive"
+    }
+   },
+   "shopVat": {
+    "enabled": true,
+    "rate": 7,
+    "mode": "inclusive"
+   }
+  },
+  {
+   "name": "spend-tiers",
+   "customerId": "golden-cust",
+   "draft": {
+    "fulfillment": "pickup",
+    "pickupAt": "2026-11-25T12:00",
+    "items": [
+     {
+      "id": "c3",
+      "kind": "custom",
+      "retailId": null,
+      "retailPrice": 0,
+      "sizeId": null,
+      "typeId": null,
+      "qty": 3,
+      "note": "ตามรูปตัวอย่าง",
+      "images": [],
+      "selections": {
+       "g_type": "t1",
+       "g_sponge": "sp1",
+       "g_size": "s1",
+       "g_shape": "sh1"
+      },
+      "tiers": []
+     },
+     {
+      "id": "c-b",
+      "kind": "custom",
+      "retailId": null,
+      "retailPrice": 0,
+      "sizeId": null,
+      "typeId": null,
+      "qty": 2,
+      "note": "ตามรูปตัวอย่าง",
+      "images": [],
+      "selections": {
+       "g_type": "t1",
+       "g_sponge": "sp1",
+       "g_size": "s1",
+       "g_shape": "sh1"
+      },
+      "tiers": []
+     },
+     {
+      "id": "r-rt1",
+      "kind": "retail",
+      "retailId": "rt1",
+      "retailPrice": 75,
+      "sizeId": null,
+      "typeId": null,
+      "name": "เค้กช็อกโกแลต (ชิ้น)",
+      "qty": 3,
+      "note": "",
+      "images": [],
+      "selections": {}
+     }
+    ],
+    "birthday": null
+   },
+   "payload": {
+    "customerId": "golden-cust",
+    "pickupAt": "2026-11-25T12:00",
+    "fulfillment": "pickup",
+    "address": "",
+    "shippingFee": 0,
+    "placeName": "",
+    "mapUrl": "",
+    "detail": "",
+    "distanceKm": null,
+    "feeManual": false,
+    "birthday": null,
+    "items": [
+     {
+      "id": "c3",
+      "kind": "custom",
+      "retailId": null,
+      "retailPrice": 0,
+      "sizeId": null,
+      "typeId": null,
+      "qty": 3,
+      "note": "ตามรูปตัวอย่าง",
+      "images": [],
+      "selections": {
+       "g_type": "t1",
+       "g_sponge": "sp1",
+       "g_size": "s1",
+       "g_shape": "sh1"
+      },
+      "tiers": [],
+      "unitPrice": 373.03,
+      "regularPrice": 450,
+      "fullPrice": 450,
+      "discounts": [
+       {
+        "kind": "special",
+        "name": "โปรเปิดร้าน",
+        "amount": 50
+       },
+       {
+        "kind": "promo",
+        "name": "ครบ 500 ลด 50 · ครบ 1,000 ลด 150 (ตัวอย่าง)",
+        "amount": 26.97
+       }
+      ],
+      "specials": [
+       "โปรเปิดร้าน"
+      ],
+      "bundles": []
+     },
+     {
+      "id": "c-b",
+      "kind": "custom",
+      "retailId": null,
+      "retailPrice": 0,
+      "sizeId": null,
+      "typeId": null,
+      "qty": 2,
+      "note": "ตามรูปตัวอย่าง",
+      "images": [],
+      "selections": {
+       "g_type": "t1",
+       "g_sponge": "sp1",
+       "g_size": "s1",
+       "g_shape": "sh1"
+      },
+      "tiers": [],
+      "unitPrice": 373.03,
+      "regularPrice": 450,
+      "fullPrice": 450,
+      "discounts": [
+       {
+        "kind": "special",
+        "name": "โปรเปิดร้าน",
+        "amount": 50
+       },
+       {
+        "kind": "promo",
+        "name": "ครบ 500 ลด 50 · ครบ 1,000 ลด 150 (ตัวอย่าง)",
+        "amount": 26.97
+       }
+      ],
+      "specials": [
+       "โปรเปิดร้าน"
+      ],
+      "bundles": []
+     },
+     {
+      "id": "r-rt1",
+      "kind": "retail",
+      "retailId": "rt1",
+      "retailPrice": 75,
+      "sizeId": null,
+      "typeId": null,
+      "name": "เค้กช็อกโกแลต (ชิ้น)",
+      "qty": 3,
+      "note": "",
+      "images": [],
+      "selections": {},
+      "unitPrice": 69.95,
+      "regularPrice": 75,
+      "fullPrice": 75,
+      "discounts": [
+       {
+        "kind": "promo",
+        "name": "ครบ 500 ลด 50 · ครบ 1,000 ลด 150 (ตัวอย่าง)",
+        "amount": 5.05
+       }
+      ],
+      "specials": [],
+      "bundles": []
+     },
+     {
+      "id": "gift:dl3:rt7",
+      "kind": "retail",
+      "retailId": "rt7",
+      "retailPrice": 20,
+      "sizeId": null,
+      "typeId": null,
+      "mods": [],
+      "name": "เทียนวันเกิด (แพ็ก)",
+      "qty": 1,
+      "selections": {},
+      "note": "",
+      "images": [],
+      "unitPrice": 0,
+      "regularPrice": 20,
+      "fullPrice": 20,
+      "discounts": [
+       {
+        "kind": "gift",
+        "name": "ครบ 800 ฟรีเทียนวันเกิด (ตัวอย่าง)",
+        "amount": 20
+       }
+      ],
+      "specials": [],
+      "bundles": [],
+      "promoGift": {
+       "dealId": "dl3",
+       "name": "ครบ 800 ฟรีเทียนวันเกิด (ตัวอย่าง)"
+      }
+     }
+    ],
+    "shipPromo": null,
+    "promoOn": true,
+    "vat": {
+     "rate": 7,
+     "mode": "inclusive"
+    }
+   },
+   "shopVat": {
+    "enabled": true,
+    "rate": 7,
+    "mode": "inclusive"
+   }
+  },
+  {
+   "name": "closed-slot",
+   "customerId": "golden-cust",
+   "draft": {
+    "fulfillment": "pickup",
+    "pickupAt": "2026-11-20T13:30",
+    "items": [
+     {
+      "id": "c1",
+      "kind": "custom",
+      "retailId": null,
+      "retailPrice": 0,
+      "sizeId": null,
+      "typeId": null,
+      "qty": 1,
+      "note": "ตามรูปตัวอย่าง",
+      "images": [],
+      "selections": {
+       "g_type": "t1",
+       "g_sponge": "sp1",
+       "g_size": "s1",
+       "g_shape": "sh1"
+      },
+      "tiers": []
+     }
+    ],
+    "birthday": null
+   },
+   "payload": null,
+   "shopVat": {
+    "enabled": true,
+    "rate": 7,
+    "mode": "inclusive"
+   }
+  },
+  {
+   "name": "no-vat",
+   "customerId": "golden-cust",
+   "draft": {
+    "fulfillment": "pickup",
+    "pickupAt": "2026-11-23T16:00",
+    "items": [
+     {
+      "id": "r-rt1",
+      "kind": "retail",
+      "retailId": "rt1",
+      "retailPrice": 75,
+      "sizeId": null,
+      "typeId": null,
+      "name": "เค้กช็อกโกแลต (ชิ้น)",
+      "qty": 1,
+      "note": "",
+      "images": [],
+      "selections": {}
+     }
+    ],
+    "birthday": null,
+    "_noVat": true
+   },
+   "payload": {
+    "customerId": "golden-cust",
+    "pickupAt": "2026-11-23T16:00",
+    "fulfillment": "pickup",
+    "address": "",
+    "shippingFee": 0,
+    "placeName": "",
+    "mapUrl": "",
+    "detail": "",
+    "distanceKm": null,
+    "feeManual": false,
+    "birthday": null,
+    "items": [
+     {
+      "id": "r-rt1",
+      "kind": "retail",
+      "retailId": "rt1",
+      "retailPrice": 75,
+      "sizeId": null,
+      "typeId": null,
+      "name": "เค้กช็อกโกแลต (ชิ้น)",
+      "qty": 1,
+      "note": "",
+      "images": [],
+      "selections": {},
+      "unitPrice": 75,
+      "regularPrice": 75,
+      "fullPrice": 75,
+      "discounts": [],
+      "specials": [],
+      "bundles": []
+     }
+    ],
+    "shipPromo": null,
+    "promoOn": true,
+    "vat": null
+   },
+   "shopVat": {
+    "enabled": false,
+    "rate": 7,
+    "mode": "inclusive"
+   }
+  }
+ ]
+}

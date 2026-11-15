@@ -7,6 +7,7 @@ import { publicState, setRestoring } from './dataStatus'
 import { syncRealtime, waitSaved } from './syncStatus'
 import { startRealtime, makeDebouncer } from './realtimeSync'
 import { startPush, stopPush } from './push'
+import { createQuoteRemote } from './quoteRemote'
 
 // สถานะพนักงานที่ล็อกอินจริง (ใช้เมื่อเปิด Supabase เท่านั้น)
 export const staffState = reactive({ ready: !supabaseEnabled, staff: null, loadFailed: [] })
@@ -273,6 +274,7 @@ async function startData(staff) {
   // ขอเลขเอกสารเป็นชุดล่วงหน้าจากฐานข้อมูล (ไม่ซ้ำข้ามเครื่อง)
   import('./chatMedia').then((m) => m.setChatMediaSigner(m.makeSigner(client))).catch(() => {})
   store.numbering.setAlloc(async (p, d, n) => { const r = await client.rpc('punpang_alloc_numbers', { p_prefix: p, p_day: d, p_n: n }); return r.error ? null : r.data })
+  store.setQuoteServer((chatId, draft) => createQuoteRemote(client, chatId, draft))
   // เริ่มซิงก์ทุกตารางพร้อมกัน (เดิมทีละตาราง ~35 คำขอต่อกัน = ช้า) แล้วรอทั้งชุดครั้งเดียว · ลำดับใน syncs คงเดิม
   const tasks = []
   tasks.push(items.startItemsSync({ client, db, canWrite: has('editItems'), onError }))

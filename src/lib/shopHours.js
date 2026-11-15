@@ -1,6 +1,6 @@
 // วัน-เวลาปิดร้าน (ฟังก์ชันล้วน) · closures = { weekly: [วันในสัปดาห์ 0=อา], ranges: [{ id, from, to, reason }], hours: [{ id, days: [dow] | [] (ทุกวัน), from: 'HH:mm', to: 'HH:mm', reason }] }
 // ปิดข้ามเที่ยงคืนไม่รองรับ (from ต้องน้อยกว่า to) — ถ้าปิดข้ามคืนให้ใช้ช่วงวัน
-import { dateOnly } from './format'
+import { dateOnly } from './format.js'
 
 const pad = (n) => String(n).padStart(2, '0')
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`

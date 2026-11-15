@@ -1,5 +1,4 @@
 import { startSync, selectAll } from './tableSync'
-import { parseNo } from './docNo'
 
 // ซิงก์แชท (db.chats) กับ punpang_chats และใบเสนอ (db.quotes) กับ punpang_quotes
 // ข้อความในแชท/ร่างบอท/ฯลฯ อยู่ใน data (jsonb) · ใช้สิทธิ์ 'chat' (ลบได้เฉพาะ 'manage' = ตอนอนุมัติลบข้อมูลลูกค้า)
@@ -174,21 +173,12 @@ export function purgeOldMessages(chats, months, now = Date.now()) {
 // ใบเสนอที่ลูกค้ากดยืนยันทาง Messenger แล้วรอสร้างออร์เดอร์ (webhook ตั้ง customer_ok)
 export const pendingQuoteConfirms = (quotes) => (quotes || []).filter((q) => q.status === 'customer_ok').map((q) => q.id)
 
-// ใบเสนอ: เลข QT ซ้ำ (23505) → ออกเลขใหม่ (เหมือนออร์เดอร์)
-export async function pushQuotes(client, { upserts, deletes }, { numbering = null, onRecode = () => {} } = {}) {
+// ใบเสนอ: แถวใหม่สร้างที่เซิร์ฟเวอร์ (quote-create) เท่านั้น → ที่นี่แก้ได้เฉพาะแถวที่มีอยู่แล้ว (สถานะ/ผูกออร์เดอร์/คำตอบ)
+export async function pushQuotes(client, { upserts, deletes }) {
   for (const q of upserts) {
-    let tries = 0
-    for (;;) {
-      const r = await client.from('punpang_quotes').upsert(quoteToRow(q))
-      if (!r.error) break
-      if (r.error.code === '23505' && numbering && tries < 3) {
-        tries++
-        q.code = numbering.next(parseNo(q.code)?.prefix || 'QT') // reactive: ปรับเลขในแอปด้วย
-        onRecode(q, q.code)
-        continue
-      }
-      return { error: `${q.code || q.id}: ${r.error.message}` }
-    }
+    const r = await client.from('punpang_quotes').update(quoteToRow(q)).eq('id', q.id).select('id')
+    if (r.error) return { error: `${q.code || q.id}: ${r.error.message}` }
+    if (!r.data?.length) return { error: `${q.code || q.id}: ไม่พบใบเสนอที่เซิร์ฟเวอร์` }
   }
   if (deletes.length) {
     const r = await client.from('punpang_quotes').delete().in('id', deletes)
@@ -223,7 +213,7 @@ export async function startChatSync({ client, db, canWrite, numbering, onError, 
       if (onQuoteConfirm) { const pend = pendingQuoteConfirms(items); if (pend.length) setTimeout(() => pend.forEach((id) => onQuoteConfirm(id)), 0) }
     },
     load: () => loadQuotes(client),
-    push: (c) => pushQuotes(client, c, { numbering, onRecode }),
+    push: (c) => pushQuotes(client, c),
     canWrite, onError, debounceMs, label: 'ใบเสนอ', poll: true, // ลูกค้ากดปุ่มบน Messenger เปลี่ยนสถานะที่เซิร์ฟเวอร์
   })
   const [a, b] = await Promise.all([pa, pb]) // แชทกับใบเสนอโหลดพร้อมกัน

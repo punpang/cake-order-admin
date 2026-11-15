@@ -478,4 +478,12 @@ select test.ok('C3: เปลี่ยนลูกค้าของใบเส
   test.as_staff('99999999-9999-9999-9999-999999999999',
     $q$ update public.punpang_quotes set customer_id = 'c2' where id = 'qt3' $q$) like 'ERR:42501:quote customer or chat cannot%');
 
+-- C4) ใบเสนอใหม่สร้างได้ทางเซิร์ฟเวอร์เท่านั้น (quote-create คิดราคาจากแคตาล็อก) · พนักงานที่มีสิทธิ์แชทก็ INSERT ตรง ๆ ไม่ได้
+select test.ok('C4: พนักงานสร้างแถวใบเสนอตรง ๆ ไม่ได้ (ต้องผ่าน quote-create)',
+  test.as_staff('99999999-9999-9999-9999-999999999999',
+    $q$ insert into public.punpang_quotes (id, code, chat_id, customer_id, status, data) values ('qt_direct', 'QT-DIRECT-1', 'ch1', 'c1', 'pending', '{"payload":{"items":[]}}') $q$) like 'ERR:42501:%');
+-- C4) แก้สถานะของใบเสนอที่มีอยู่แล้วยังได้ (ตามสิทธิ์แชท และการล็อกราคาไม่กระทบสถานะ)
+select test.ok('C4: พนักงานที่มีสิทธิ์แชทยังแก้สถานะใบเสนอที่มีอยู่ได้',
+  test.as_staff('99999999-9999-9999-9999-999999999999',
+    $q$ update public.punpang_quotes set status = status where id = 'qt3' $q$) = 'OK');
 select 'ผ่านทั้งหมด' as security_tests;

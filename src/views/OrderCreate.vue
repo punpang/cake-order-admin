@@ -229,7 +229,9 @@ async function submit(asDraft) {
   else router.replace(`/admin/orders/${o.id}`)
 }
 // ส่งใบเสนอเข้าแชท (ลูกค้ากดยืนยัน = เป็นออร์เดอร์)
-function quote() {
+const quoting = ref(false)
+async function quote() {
+  if (quoting.value) return
   for (let k = 0; k < 3; k++) {
     const e = validate(k)
     if (e) {
@@ -238,8 +240,12 @@ function quote() {
       return
     }
   }
-  const q = sendQuote(fromChat, { ...form, pickupAt: pickupAt.value, birthday: birthday.value })
-  if (q) emit('quoted', q)
+  error.value = ''
+  quoting.value = true
+  const r = await sendQuote(fromChat, { ...form, pickupAt: pickupAt.value, birthday: birthday.value })
+  quoting.value = false
+  if (r.error) return (error.value = r.error)
+  emit('quoted', r.quote)
 }
 </script>
 
@@ -524,7 +530,7 @@ function quote() {
             </p>
             <label class="flex w-full items-center gap-2 text-sm text-stone-700"><input v-model="notifyCustomer" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าเมื่อบันทึก·รอชำระ</label>
             <SmsTick v-model="smsToo" :customer="customer" :show="notifyCustomer" :class="'w-full'" />
-            <button class="btn-soft flex-1" @click="quote">ส่งใบเสนอ</button>
+            <button class="btn-soft flex-1" :disabled="quoting" @click="quote">ส่งใบเสนอ</button>
             <button class="btn-primary flex-1" :disabled="!!saveBlock || saving" @click="submit(false)"><span v-if="saving" class="brand-ring on-brand" aria-hidden="true"></span>{{ saving ? 'กำลังบันทึก…' : 'บันทึก · รอชำระ' }}</button>
           </template>
           <template v-else>

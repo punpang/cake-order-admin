@@ -4,7 +4,7 @@
 import {
   db, session, customerSession, createOrder, reportPayment, confirmPayment, receivePaymentNow, setStatus, cancelOrder, addWorkPhotos, publishWorkPhoto,
   customerRequestPhotoOptOut, saveGalleryImage, recordCakeClick, redeemReward, spinGacha, saveReview, submitReviewLocal, setReviewStatus, saveRetailItem, savePosDiscount, saveDeal,
-  openShift, closeShift, posSale, shiftSummary, receiveMessage, sendChat, postOrderCard, sendQuote, acceptQuote, reviseQuote, saveIngredient, saveShopSettings,
+  openShift, closeShift, posSale, shiftSummary, receiveMessage, sendChat, postOrderCard, sendQuoteLocal, acceptQuote, reviseQuote, saveIngredient, saveShopSettings,
   createOrderLink, sendOrderLinkToChat, saveUser, findCustomer, currentShift, priceItem, refundOrder, shiftBills,
 } from './store'
 import * as acct from './acct'
@@ -229,7 +229,7 @@ export function seedDemo() {
       const ch = chats[c.lineUserId]
       if (!ch) return
       if (!ch.customerId) ch.customerId = c.id
-      const q = sendQuote(ch.id, quoteDraft(k + 3))
+      const q = sendQuoteLocal(ch.id, quoteDraft(k + 3))
       if (!q) return
       if (k === 0) at(clock + 40 * M, () => { const r = acceptQuote(q.id); if (r.order) { orders.push(r.order); at(clock + 20 * M, () => receivePaymentNow(r.order, { amount: Math.round(orderTotals(r.order).total / 2 / 10) * 10, method: 'โอนเงิน', paidAt: local(clock) })) } })
       if (k === 1) at(clock + 60 * M, () => reviseQuote(q.id, 'ขอเปลี่ยนเป็นเนื้อช็อกโกแลตค่ะ'))

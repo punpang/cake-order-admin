@@ -25,6 +25,7 @@ import { deliveryFee, cleanDelivery, cleanDeliveryConfig, rememberPlace, DEFAULT
 import { dueState, overduePayments, orderDue, quickDue, isHHmm, remainingText } from '../lib/payDue'
 import { supabaseEnabled, getSupabase } from '../lib/supabase'
 import { sendClick } from '../lib/clicksSync'
+import { priceItemOn, giftRowOn, withPromosOn, dealCatalogOf, deliveryFieldsOf, vatOf, buildQuotePayload } from '../lib/quotePrice.js'
 import { createNumbering } from '../lib/docNo'
 import { staffState } from '../lib/staffAuth'
 import { remoteOrderAction, remoteReadSlip } from '../lib/customerOrderRemote'
@@ -1016,8 +1017,10 @@ export const customerOrderCount = (id) => db.orders.filter((o) => o.customerId =
 export const activeListsAt = (dateStr) => activeLists(db.priceLists, dateStr || toDateStr(new Date()))
 export const orderDate = (order) => toDateStr(new Date(order.createdAt))
 
+// แคตาล็อกที่ใช้คิดราคา (ค่าจาก db ณ ตอนนี้) · ตรรกะการคิดอยู่ที่ src/lib/quotePrice.js ชุดเดียวกับเซิร์ฟเวอร์
+const catalogOf = () => ({ shop: db.shop, priceLists: db.priceLists, optionGroups: db.optionGroups, retailItems: db.retailItems, bundles: db.bundles, posDiscounts: db.posDiscounts, posBundles: db.posBundles, posDeals: db.posDeals })
 export function priceItem(item, dateStr) {
-  return { ...item, ...priceDetail(item, db.optionGroups, db.retailItems, activeListsAt(dateStr), db.bundles) }
+  return priceItemOn(item, catalogOf(), dateStr || toDateStr(new Date()))
 }
 
 // บันทึกการเปลี่ยนแปลงออร์เดอร์ + แจ้งทีมทาง Telegram (team:false = เหตุการณ์นั้นมีข้อความทีมเฉพาะอยู่แล้ว ไม่ส่งซ้ำ)
@@ -1028,12 +1031,7 @@ function log(order, text, { team = true } = {}) {
 
 // ฟิลด์จัดส่งของออร์เดอร์ (รับหน้าร้าน = ว่างหมด) · url ที่ไม่ผ่านตรวจถูกตัดทิ้ง
 function deliveryFields(p) {
-  if (p.fulfillment !== 'delivery') return { address: '', shippingFee: 0, placeName: '', mapUrl: '', detail: '', distanceKm: null, feeManual: false }
-  const bad = (f) => cleanDelivery({ [f]: p[f] }).error
-  const v = cleanDelivery({
-    ...p, mapUrl: bad('mapUrl') ? '' : p.mapUrl, distanceKm: bad('distanceKm') ? '' : p.distanceKm, shippingFee: bad('shippingFee') ? 0 : p.shippingFee,
-  }).value
-  return { address: v.address, shippingFee: v.shippingFee, placeName: v.placeName, mapUrl: v.mapUrl, detail: v.detail, distanceKm: v.distanceKm, feeManual: v.feeManual }
+  return deliveryFieldsOf(p)
 }
 
 // จำสถานที่จัดส่งไว้กับลูกค้า (อัตโนมัติ)
@@ -1601,7 +1599,7 @@ export function saveShopSettings(d) {
   return { ok: true }
 }
 // snapshot VAT ตอนสร้างออร์เดอร์ (ปิดอยู่ = null → ไม่คิด VAT) แก้ค่าตั้งภายหลังไม่กระทบออร์เดอร์เดิม
-export const vatNow = () => (db.shop.vat?.enabled && Number(db.shop.vat.rate) > 0 ? { rate: Number(db.shop.vat.rate), mode: db.shop.vat.mode === 'exclusive' ? 'exclusive' : 'inclusive' } : null)
+export const vatNow = () => vatOf(db.shop)
 
 // แก้วันเวลานัด (หน้ารายละเอียด)
 export function setPickup(order, pickupAt, opts = {}) {
@@ -3358,21 +3356,34 @@ export function clearDraft(chatId) {
 
 // ---------- ใบเสนอในแชท ----------
 export const findQuote = (id) => db.quotes.find((q) => q.id === id)
-// ส่งใบเสนอจากร่าง: ราคาล็อก ณ ตอนส่ง · ใบเดิมที่ยังรออยู่ในแชทเดียวกัน → superseded
-export function sendQuote(chatId, draft) {
+// ใบเสนอ: ถ้าเชื่อมต่อเซิร์ฟเวอร์ (staffAuth) ใช้ quote-create — เซิร์ฟเวอร์คิดราคาจากแคตาล็อกแล้วบันทึกเอง
+// โหมดเดโม/ไม่เชื่อมต่อ คิดในเครื่องด้วยตรรกะชุดเดียวกัน · ใบเดิมที่ยังรออยู่ในแชทเดียวกัน → superseded
+function localQuote(chatId, draft) {
   const c = findChat(chatId)
-  if (!c) return null
-  if (pickupClosed(db.shop, draft.pickupAt)) return null // วัน-เวลานัดตรงช่วงปิดร้าน
+  if (!c) return { error: 'ไม่พบแชท' }
+  const r = buildQuotePayload({ draft, customerId: c.customerId, catalog: catalogOf(), nowMs: Date.now() })
+  if (!r.ok) return { error: r.error }
+  return { quote: { id: uid('qt'), code: numbering.next('QT'), chatId, customerId: c.customerId, payload: r.payload, status: 'pending', orderId: null, createdAt: now(), respondedAt: null } }
+}
+function commitQuote(chatId, q) {
   for (const old of db.quotes) if (old.chatId === chatId && old.status === 'pending') old.status = 'superseded'
-  const payload = JSON.parse(JSON.stringify({
-    customerId: c.customerId, pickupAt: draft.pickupAt, fulfillment: draft.fulfillment,
-    ...deliveryFields(draft),
-    birthday: draft.birthday || null, ...(() => { const w = withPromos(draft.items.filter((i) => !i.promoGift).map((i) => priceItem(i))); return { items: w.items, shipPromo: w.shipPromo, promoOn: true } })(), vat: vatNow(),
-  }))
-  const q = { id: uid('qt'), code: numbering.next('QT'), chatId, customerId: c.customerId, payload, status: 'pending', orderId: null, createdAt: now(), respondedAt: null }
   db.quotes.unshift(q)
   sendChat(chatId, 'staff', '', { kind: 'quote', quoteId: q.id })
   return q
+}
+let quoteServer = async (chatId, draft) => localQuote(chatId, draft)
+export const setQuoteServer = (fn) => { quoteServer = fn || (async (chatId, draft) => localQuote(chatId, draft)) }
+// ส่งใบเสนอ (ผู้เรียกต้องรอผล) · คืน { quote } | { error }
+export async function sendQuote(chatId, draft) {
+  if (!findChat(chatId)) return { error: 'ไม่พบแชท' }
+  const r = await quoteServer(chatId, draft)
+  if (r.error) return { error: r.error }
+  return { quote: commitQuote(chatId, r.quote) }
+}
+// โหมดเดโม (ซิงก์ ไม่รอ): คิดในเครื่อง · คืนใบเสนอ หรือ null
+export function sendQuoteLocal(chatId, draft) {
+  const r = localQuote(chatId, draft)
+  return r.error ? null : commitQuote(chatId, r.quote)
 }
 // ลูกค้ายืนยัน → สร้างออร์เดอร์ (รอชำระ) จากใบเสนอ
 // แชทพร้อมสร้างออร์เดอร์ไหม: ผูกลูกค้าแล้ว + ลูกค้ามีเบอร์ (คืนเหตุผลถ้ายังไม่พร้อม)
@@ -3496,11 +3507,9 @@ export const saveModifier = (d) =>
 // ตะกร้า → รายการออร์เดอร์ (ราคาตามปัจจุบัน + โปรโมชัน POS ที่ใช้อยู่ ณ เวลานั้น)
 // บรรทัดเดียวอาจแตกเป็นหลายรายการ ถ้าชิ้นได้ส่วนลดไม่เท่ากัน (เช่น บันเดิ้ลใช้แค่ 1 ใน 3 ชิ้น) · ส่วนลดเก็บใน item.discounts (kind promo | bundle)
 // ตะกร้า POS → { items (รายการ + แถวของแถม), hints, shipFree } · โปรส่วนลด/บันเดิ้ล/ดีล ณ เวลานั้น
-const dealCatalog = () => db.retailItems.filter((x) => x.active !== false).map((x) => ({ id: x.id, name: x.name, price: Number(x.price) || 0, stock: x.stock }))
+const dealCatalog = () => dealCatalogOf(db.retailItems)
 function giftRow(g) {
-  const r = db.retailItems.find((x) => x.id === g.retailId)
-  const it = priceItem({ id: `gift:${g.dealId}:${g.retailId}`, kind: 'retail', retailId: g.retailId, retailPrice: r?.price || 0, sizeId: r?.sizeId || null, typeId: r?.typeId || null, mods: [], name: r?.name || '', qty: g.qty, selections: {}, note: '', images: [] })
-  return { ...it, unitPrice: 0, discounts: [{ kind: 'gift', name: g.name, amount: it.unitPrice }], promoGift: { dealId: g.dealId, name: g.name } }
+  return giftRowOn(g, catalogOf(), toDateStr(new Date()))
 }
 export function posPromoInfo(cart, at = new Date()) {
   const raws = cart.map((l) => {
@@ -3526,23 +3535,7 @@ export const posItems = (cart, at = new Date()) => posPromoInfo(cart, at).items
 // items = รายการที่คิดราคาแล้ว (priceItem) → { items (ติดส่วนลด + แถวของแถม promoGift), shipPromo { name, free } | null, hints }
 // ไม่แยกรายการเมื่อชิ้นได้ส่วนลดไม่เท่ากัน (เฉลี่ยต่อชิ้น) เพื่อให้รหัสรายการ/รูปงานคงเดิม · เรียกซ้ำกับรายการชุดเดิมได้ผลเท่าเดิม
 export function withPromos(items, { at = new Date() } = {}) {
-  const base = (items || []).filter((i) => !i.promoGift)
-  const lines = base.map((i) => {
-    const r = i.kind === 'retail' ? db.retailItems.find((x) => x.id === i.retailId) : null
-    return { retailId: r ? i.retailId : null, category: r?.category || '', price: Number(i.unitPrice) || 0, qty: Number(i.qty) || 0, noItemPromo: !r }
-  })
-  const res = applyPosPromos(lines, { discounts: db.posDiscounts, bundles: db.posBundles, deals: db.posDeals, catalog: dealCatalog(), now: at })
-  const out = base.map((i, k) => {
-    const segs = res.lines[k]
-    const total = round2(segs.reduce((n, sg) => n + sg.perUnit * sg.qty, 0))
-    if (!(total > 0) || !(i.qty > 0)) return i
-    const by = new Map()
-    for (const sg of segs) for (const e of sg.entries) { const key = `${e.kind}|${e.name}`; by.set(key, { kind: e.kind, name: e.name, amount: (by.get(key)?.amount || 0) + e.amount * sg.qty }) }
-    const entries = [...by.values()].map((e) => ({ ...e, amount: round2(e.amount / i.qty) }))
-    return { ...i, unitPrice: round2(i.unitPrice - total / i.qty), discounts: [...(i.discounts || []), ...entries] }
-  })
-  const gifts = res.gifts.map(giftRow)
-  return { items: [...out, ...gifts], shipPromo: res.shipFree ? { name: res.shipFree.name, free: true } : null, hints: res.hints }
+  return withPromosOn(items, catalogOf(), { at, dateStr: toDateStr(new Date()) })
 }
 const stockOf = (l) => db.retailItems.find((x) => x.id === l.refId)
 // ขาย: สร้างบิล (ออร์เดอร์ channel 'pos') ส่งมอบทันที + ตัดสต็อก + คะแนน

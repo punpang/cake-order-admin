@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url'
 export const SCHEDLIB_FILES = [
   'constants.js', 'format.js', 'pricing.js', 'payDue.js', 'loyalty.js', 'birthday.js', 'notifyPlan.js', 'bell.js', 'orderLink.js',
   'acct/plan.js', 'acct/period.js', 'acct/money.js', 'slipChecks.js', 'promptpay.js',
+  // ราคาใบเสนอ (ฝั่งเซิร์ฟเวอร์ quote-create ใช้ตรรกะชุดเดียวกับแอป) และส่วนประกอบที่ใช้
+  'posPromo.js', 'delivery.js', 'shopHours.js', 'docNo.js', 'quotePrice.js',
 ]
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
