@@ -265,6 +265,12 @@ async function startData(staff) {
       it.enabled = was
     } else if (it.status === 'connected') store.disconnectIntegration('facebook')
   }, () => {})
+  // LINE OA: ส่งข้อความถึงลูกค้าผ่าน line-send (โทเค็นอยู่ฝั่งเซิร์ฟเวอร์เท่านั้น)
+  const lr = await import('./lineRemote')
+  store.lineHook.send = async (to, text) => {
+    const r = await lr.lineSendCall(client, to, text)
+    return r.ok ? { ok: true } : { ok: false, error: r.error || '' }
+  }
   const rmIdx = store.trashHooks.indexOf(trashHook)
   if (rmIdx >= 0) store.trashHooks.splice(rmIdx, 1)
   trashHook = (url) => { storage.removePublicCopy(client, url) }

@@ -2887,10 +2887,50 @@ export function sendChat(chatId, from, text, extra = {}) {
     } else if (m.kind === 'order') { const o = findOrder(m.orderId); if (o) { const lk = o.status !== 'draft' && o.channel !== 'pos' ? createOrderLink(o, { system: true }) : null; const k = orderCardMsg(o, orderTotals(o), db.shop.name, { image: cardImageOf(o.items), url: lk?.url }); deliverFb(c, m, k.text, extra.row, { card: k.card }) } }
     else if (m.kind === 'quote') { const q = findQuote(m.quoteId); if (q) { const k = quoteCardMsg(q, orderTotals({ ...q.payload, payments: [], adjustment: null, couponsUsed: [] }), db.shop.name, { image: cardImageOf(q.payload?.items) }); deliverFb(c, m, k.text, extra.row, { quoteId: q.id, card: k.card }) } }
   }
+  if (from === 'staff' && c.channel === 'line') sendToLine(c, m, extra)
   return m
 }
 // ส่ง Messenger จริงเมื่อพนักงาน/บอท/ระบบตอบในแชท Facebook (ผ่าน Edge Function fb-send · ตั้งโดยชั้นเชื่อม Supabase) · ไม่มีตัวส่ง = คงสถานะจำลอง
 export const fbHook = { send: null }
+// LINE OA: ส่งข้อความถึงลูกค้าจริงผ่าน Edge Function line-send (ตั้งโดยชั้นเชื่อม Supabase) · ไม่มีตัวส่ง = คงสถานะจำลอง
+export const lineHook = { send: null }
+// ข้อความตัวอักษร และการ์ดออร์เดอร์/ใบเสนอ (แปลงเป็นตัวอักษร) · รูปจากแชทยังไม่รองรับบน LINE
+function sendToLine(c, m, extra) {
+  if (m.kind === 'text') {
+    if (extra.attachments?.length) return deliverLine(c, m, '', extra.row, 'LINE ยังไม่รองรับการส่งรูปจากแชท')
+    return deliverLine(c, m, m.text, extra.row)
+  }
+  if (m.kind === 'order') {
+    const o = findOrder(m.orderId)
+    if (!o) return
+    const lk = o.status !== 'draft' && o.channel !== 'pos' ? createOrderLink(o, { system: true }) : null
+    const k = orderCardMsg(o, orderTotals(o), db.shop.name, { image: cardImageOf(o.items), url: lk?.url })
+    return deliverLine(c, m, lk?.url ? `${k.text}\n\nดูออร์เดอร์: ${lk.url}` : k.text, extra.row)
+  }
+  if (m.kind === 'quote') {
+    const q = findQuote(m.quoteId)
+    if (!q) return
+    const k = quoteCardMsg(q, orderTotals({ ...q.payload, payments: [], adjustment: null, couponsUsed: [] }), db.shop.name, { image: cardImageOf(q.payload?.items) })
+    return deliverLine(c, m, k.text, extra.row)
+  }
+}
+function deliverLine(chat, m, text = m.text, row = null, preError = '') {
+  if (!lineHook.send || !m || !chat.externalId) return
+  const fail = (err) => {
+    m.delivery = 'failed'; m.deliveryError = err || ''
+    if (row) { row.status = 'failed'; row.error = err || '' }
+    // ข้อความอัตโนมัติของระบบ (แจ้งลูกค้า) ส่งไม่ถึง → เตือนพนักงานให้ตามเอง
+    if (m.by === 'ระบบ') emitStaffBell('notify_failed', { text: `${chat.profileName || 'ลูกค้า'}: ส่งทาง LINE ไม่สำเร็จ${err ? ` (${err})` : ''}`, chatId: chat.id })
+  }
+  if (preError) return fail(preError)
+  m.delivery = 'sending'
+  if (row) row.status = 'sending'
+  lineHook.send(chat.externalId, text).then((r) => {
+    if (!r.ok) return fail(r.error)
+    m.delivery = 'sent'
+    if (row) row.status = 'sent'
+  }, () => fail('เชื่อมต่อไม่ได้'))
+}
 function deliverFb(chat, m, text = m.text, row = null, opts = {}) {
   if (!fbHook.send || !m || !chat.externalId) return
   const fail = (err) => {

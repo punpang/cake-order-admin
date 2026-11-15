@@ -44,14 +44,14 @@ const slipAcctState = (acc) => slipAccountCheck(acc, {
 })
 // สถานะการส่ง (Facebook/Instagram ส่งจริงและมีสถานะ · LINE ไม่มีสถานะการส่ง)
 function sendState(m) {
-  if (props.chat.channel === 'facebook' || props.chat.channel === 'instagram') {
+  if (props.chat.channel === 'facebook' || props.chat.channel === 'instagram' || props.chat.channel === 'line') {
     if (m.delivery === 'sending') return 'กำลังส่ง…'
     if (m.delivery === 'sent') return 'ส่งสำเร็จ'
     if (m.delivery === 'failed') return `ส่งไม่สำเร็จ${m.deliveryError ? `: ${m.deliveryError}` : ''}`
   }
   return `ส่งทาง ${channelLabel.value}`
 }
-const failed = (m) => mine(m) && (props.chat.channel === 'facebook' || props.chat.channel === 'instagram') && m.delivery === 'failed'
+const failed = (m) => mine(m) && (props.chat.channel === 'facebook' || props.chat.channel === 'instagram' || props.chat.channel === 'line') && m.delivery === 'failed'
 // ผลตรวจสลิป QR ในรูปที่ลูกค้าส่ง (สถานะจาก _shared/slipjob.ts) · ยอดรอพนักงานตรวจ (ยกเว้นยืนยันอัตโนมัติ)
 const SLIP_CHIP = {
   matched: ['สลิปจับคู่กับออร์เดอร์แล้ว · รอตรวจยอด', 'bg-emerald-50 text-emerald-700'],

@@ -3,6 +3,7 @@
 // เปลี่ยนจากแอปตรงที่หาแชท Facebook ด้วยรหัส PSID ได้ด้วย (ไม่ต้องผูก customer_id ไว้ก่อน)
 import { inFbWindow } from '../slipnotice.ts'
 import { genToken, hashToken } from '../schedlib/orderLink.js'
+import { isLineUserId, linePush } from '../line.ts'
 import { formatPhone } from '../schedlib/format.js'
 import {
   BELL_CUSTOMER, BELL_STAFF, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, bellText, customerAddr, customerTargets, effectiveChannels, escapeHtml, escapeVars, plainText, renderFor, type Plan,
@@ -189,9 +190,21 @@ async function pushOut(ctx: Ctx, m: Out): Promise<void> {
         if (!r.ok) msg.deliveryError = r.error || ''
         await appendChat(ctx, chat.id, msg)
       }
-    } else if (chat) {
-      // LINE: บันทึกในแชทเท่านั้น (เหมือนแอป) · สถานะคิวยังเป็น simulated
-      await appendChat(ctx, chat.id, staffMsg(ctx, m.text, m.orderId, 'simulated'))
+    } else if (m.channel === 'line') {
+      // LINE OA: ส่งจริงถึงผู้ใช้ที่ผูกไว้ (ต้องมี token และ userId) · ผลส่งลงแชทเป็นข้อความของระบบ
+      const token = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || ''
+      const uid = String(m.customer.lineUserId || '')
+      const profile = chat?.data?.profileName || name
+      if (!token || !isLineUserId(uid)) {
+        row.status = 'failed'
+        row.error = !token ? 'ยังไม่ได้ตั้งค่า LINE OA' : 'ลูกค้ายังไม่ได้ผูก LINE'
+      } else {
+        const r = await linePush(token, uid, m.text)
+        row.status = r.ok ? 'sent' : 'failed'
+        if (!r.ok) row.error = r.error || ''
+        if (!r.ok) await bellFail(ctx, `${profile}: ส่งทาง LINE ไม่สำเร็จ${r.error ? ` (${r.error})` : ''}`, chat?.id ?? null)
+        if (chat) await appendChat(ctx, chat.id, staffMsg(ctx, m.text, m.orderId, r.ok ? 'sent' : 'failed'))
+      }
     } else if (m.channel === 'facebook') {
       row.status = 'failed'
       row.error = 'ลูกค้ายังไม่มีแชท Facebook ที่ผูกไว้'

@@ -4,6 +4,7 @@
 import { fillTemplate, orderVars } from './scheduled/plan.ts'
 import { inFbWindow } from './slipnotice.ts'
 import { sendSmsGateway } from './sms.ts'
+import { sendLineToCustomer } from './linenotify.ts'
 
 // ข้อความค่าเริ่มต้น (เหมือน PAY_CONFIRMED_TPL ในแอป แต่ไม่มีลิงก์ออร์เดอร์)
 const PAY_CONFIRMED_V2 = 'ได้รับชำระ {ยอดที่ชำระ} ออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณค่ะ\nยอดรวม {ยอดรวม} · ชำระแล้ว {ชำระแล้ว} · คงค้าง {คงค้าง}\nนัด{ส่งมอบ} {วันนัด} {เวลานัด}\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
@@ -43,8 +44,10 @@ export async function notifyPaymentConfirmed(sb: any, n: { order: any; customerI
     if (!text) return false
 
     let sent = false
-    // Facebook: ต้องผูก PSID · อยู่ในช่วง 24 ชม. หลังลูกค้าทักล่าสุด · มี Page token
-    if (rule.channels.includes('facebook') && cfg.integrations?.facebook?.enabled !== false) {
+    // LINE OA ก่อน: ต้องผูก userId และกติกาเปิด LINE ไว้
+    if (rule.channels.includes('line') && cfg.integrations?.line?.enabled !== false) sent = await sendLineToCustomer(sb, customer.id, text, n.order.id)
+    // Facebook: ต้องผูก PSID · อยู่ในช่วง 24 ชม. หลังลูกค้าทักล่าสุด · มี Page token (ใช้เมื่อ LINE ไม่ได้ส่ง)
+    if (!sent && rule.channels.includes('facebook') && cfg.integrations?.facebook?.enabled !== false) {
       const psid = String(customer.fbPsid || '')
       const pg = await sb.from('punpang_fb_pages').select('token').limit(1).maybeSingle()
       const chat = /^\d{5,30}$/.test(psid) && pg?.data?.token ? await sb.from('punpang_chats').select('id,data,updated_at').eq('channel', 'facebook').eq('external_id', psid).maybeSingle() : null
