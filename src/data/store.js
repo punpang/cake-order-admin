@@ -3654,6 +3654,46 @@ export function addPosPartial(order, lines) {
   log(order, `รับชำระบางส่วน ${money(paidOf(lines))} (${posRowsText(lines)}) · คงเหลือ ${money(round2(bal - paidOf(lines)))}`)
   return { order }
 }
+// แก้รายการบิลค้าง POS (เฉพาะแอดมิน): เพิ่ม/ลบ/แก้จำนวนสินค้าได้ · คิดโปร/บันเดิ้ลรวมทั้งบิลตามตะกร้าใหม่
+// คูปองเพิ่มได้ (ต้องเป็นของลูกค้าคนนี้และกดแสดงอยู่) · เอาคูปองเดิมออกได้ · ยอดรวมหลังแก้ต้องไม่ต่ำกว่ายอดที่รับไปแล้ว
+// ยังไม่ตัดสต็อก/ไม่สะสมคะแนน (ทำตอนรับชำระครบและส่งมอบ)
+export function editPosPending(order, cart, { dropCouponIds = [], addCouponIds = [] } = {}) {
+  if (!order || order.channel !== 'pos' || order.status !== 'pos_pending') return { error: 'บิลนี้ไม่ได้รอชำระ' }
+  const shift = currentShift()
+  if (!shift || order.shiftId !== shift.id) return { error: 'แก้รายการได้เฉพาะในกะที่เปิดอยู่' }
+  if (!can('editItems')) return { error: 'เฉพาะแอดมินที่แก้รายการบิลค้างได้' }
+  if (!Array.isArray(cart) || !cart.length) return { error: 'ต้องมีสินค้าอย่างน้อย 1 รายการ (จะไม่ใช้บิลนี้ให้ยกเลิกบิล)' }
+  const before = orderTotals(order)
+  const items = posItems(cart, new Date())
+  const subtotalNow = items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
+  const adjustment = { ...(order.adjustment || { amount: 0, reason: '' }) }
+  if (adjustment.amount < -subtotalNow) adjustment.amount = -subtotalNow // ส่วนลดหน้าร้านไม่เกินยอดสินค้า (เหมือนตอนขาย)
+  const keep = (order.couponsUsed || []).filter((c) => !dropCouponIds.includes(c.couponId)).map((c) => ({ ...c }))
+  const draft = { ...order, items, adjustment, couponsUsed: keep }
+  for (const c of keep) {
+    const cp = db.coupons.find((x) => x.id === c.couponId)
+    if (cp && Number(cp.minSpend) > 0 && orderTotals(draft).subtotal < Number(cp.minSpend)) return { error: `คูปอง ${cp.name} ต้องยอดสินค้าถึง ${money(Number(cp.minSpend))} · เอาคูปองออกก่อนจึงบันทึกได้` }
+  }
+  if (addCouponIds.length) {
+    const problem = posCouponProblem({ customerId: order.customerId, couponIds: addCouponIds })
+    if (problem) return { error: problem }
+    for (const id of addCouponIds) {
+      const cp = db.coupons.find((x) => x.id === id)
+      if (!cp || cp.type !== 'discount' || !couponUsable(cp, today())) return { error: 'ใช้คูปองนี้ไม่ได้' }
+      if (Number(cp.minSpend) > 0 && orderTotals(draft).subtotal < Number(cp.minSpend)) return { error: `คูปอง ${cp.name} ต้องยอดสินค้าถึง ${money(Number(cp.minSpend))}` }
+      keep.push({ couponId: id, name: cp.name, amount: Math.min(Math.max(Number(cp.amount) || 0, 0), orderTotals(draft).total) })
+    }
+  }
+  const after = orderTotals(draft)
+  if (after.total + 0.005 < before.paidNet) return { error: `ยอดรวมหลังแก้ ${money(after.total)} ต่ำกว่าที่รับไปแล้ว ${money(before.paidNet)} · แก้ได้ไม่ต่ำกว่านี้` }
+  // ผ่านทุกเงื่อนไขแล้วจึงแก้จริง (การใช้คูปองที่เพิ่มผ่านเงื่อนไขเดียวกับ applyCoupon ไว้แล้ว)
+  order.items = items
+  order.adjustment = adjustment
+  for (const id of dropCouponIds) if ((order.couponsUsed || []).some((c) => c.couponId === id)) removeCoupon(order, id)
+  for (const id of addCouponIds) applyCoupon(order, id)
+  log(order, `แก้รายการบิลค้าง · ยอดรวม ${money(before.total)} → ${money(orderTotals(order).total)}`)
+  return { order }
+}
 // รับชำระส่วนที่เหลือของบิลค้าง → ตัดสต็อก ส่งมอบ สะสมคะแนนตามปกติ
 export function finishPosBill(order, lines) {
   if (!order || order.channel !== 'pos' || order.status !== 'pos_pending') return { error: 'บิลนี้ไม่ได้รอชำระ' }

@@ -3,7 +3,7 @@ import MoneyInput from '../components/MoneyInput.vue'
 import { orderNo } from '../lib/format'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
-  db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posPromoInfo, posSale, voidPosSale, addPosPartial, finishPosBill, pointsFor, quickMember, vatNow,
+  db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posPromoInfo, posSale, voidPosSale, addPosPartial, editPosPending, finishPosBill, pointsFor, quickMember, vatNow,
   customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons, claimPosCoupons, releaseCoupons,
   newPosQrRef, posQrExpired,
 } from '../data/store'
@@ -14,6 +14,7 @@ import { coBought, rankSellers, suggestBundles } from '../lib/posRec'
 import { POS_METHODS, ROLES } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
 import { isUnsaved, needBind, closeGuard, canBindCash } from '../lib/payBind'
+import { cartOfBill } from '../lib/billEdit'
 import { refreshLabels } from '../lib/staffAuth'
 import { waitSaved } from '../lib/syncStatus'
 import { showToast } from '../lib/toast'
@@ -246,10 +247,14 @@ const goods = computed(() => lineItems.value.reduce((n, i) => n + i.unitPrice * 
 const couponOk = (c) => !(Number(c.minSpend) > 0) || goods.value >= Number(c.minSpend)
 watch([goods, coupons], () => (couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id && couponOk(c)))))
 const usedPromos = computed(() => [...new Set(lineItems.value.flatMap((i) => (i.discounts || []).filter((d) => d.kind === 'promo' || d.kind === 'bundle' || d.kind === 'gift').map((d) => d.name)))])
+// แก้รายการบิลค้าง (แอดมิน): บิลที่กำลังแก้ · คูปองเดิมในบิลที่ยังไม่ได้เอาออก · ใช้คิดยอดตอนแก้
+const editBill = ref(null) // null = ขายใหม่จากตะกร้า
+const editDrop = ref([]) // คูปองเดิมในบิลที่เลือกเอาออก (มีผลตอนบันทึก)
+const billKept = computed(() => (editBill.value ? editBill.value.couponsUsed.filter((c) => !editDrop.value.includes(c.couponId)) : []))
 const orderLike = computed(() => ({
   items: lineItems.value, fulfillment: 'pickup', payments: [],
-  adjustment: { amount: -(Number(discount.value) || 0), reason: 'ส่วนลดหน้าร้าน' }, pointsUsed: null, vat: vatNow(),
-  couponsUsed: coupons.value.filter((c) => couponIds.value.includes(c.id)).map((c) => ({ couponId: c.id, name: c.name, amount: c.amount })),
+  adjustment: editBill.value ? editBill.value.adjustment : { amount: -(Number(discount.value) || 0), reason: 'ส่วนลดหน้าร้าน' }, pointsUsed: null, vat: editBill.value ? editBill.value.vat : vatNow(),
+  couponsUsed: [...billKept.value, ...coupons.value.filter((c) => couponIds.value.includes(c.id)).map((c) => ({ couponId: c.id, name: c.name, amount: c.amount }))],
 }))
 const preview = computed(() => orderTotals(orderLike.value))
 const resumeOrder = ref(null) // บิลค้างที่กำลังรับชำระส่วนที่เหลือ (null = ขายใหม่จากตะกร้า)
@@ -304,7 +309,7 @@ const changeOf = (l) => (Number(l.received) || 0) - lineAmt(l)
 const quickFor = (l) => { const a = lineAmt(l); return [...new Set([a, Math.ceil(a / 100) * 100, Math.ceil(a / 500) * 500, Math.ceil(a / 1000) * 1000])].filter((v) => v >= a) }
 const qrLeft = (l) => { const sec = Math.max(0, Math.ceil((new Date(l.qrExpiresAt).getTime() - payNow.value) / 1000)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` }
 function openPay() {
-  if (!cart.value.length) return
+  if (!cart.value.length || editBill.value) return
   payErr.value = ''
   payLines.value = []
   payNow.value = Date.now()
@@ -465,6 +470,7 @@ async function confirmPay() {
 const toPosLine = (l) => ({ method: l.method, amount: lineAmt(l), received: l.method === 'cash' ? Number(l.received) : null, qrRef: l.qrRef || null, qrExpiresAt: l.qrExpiresAt || null, confirmed: !!l.confirmed, maneeId: l.maneeId || '', acceptedBy: l.acceptedBy || '' })
 // เปิดบิลค้าง: ยอดที่รับแล้วแสดงเป็นรายการที่ล็อกไว้ · รับส่วนที่เหลือแล้วปิดบิล
 function resumeBill(o) {
+  if (editBill.value) return showToast('บันทึกหรือยกเลิกการแก้ไขบิลก่อน', 6000, 'error')
   payErr.value = ''
   resumeOrder.value = o
   payLines.value = o.payments.filter((p) => p.status === 'confirmed').map((p) => ({ key: newKey(), method: p.posMethod || 'cash', amount: String(p.amount), received: String(p.received ?? ''), qrRef: p.qrRef || '', qrExpiresAt: '', confirmed: true, locked: true, acceptedBy: p.qrAccept || 'staff', maneeId: p.maneeId || '' }))
@@ -545,6 +551,47 @@ function bindCash(l) {
 }
 function cancelCash(l) {
   Object.assign(l, { confirmed: false, acceptedBy: '' })
+}
+// ---------- แก้รายการบิลค้าง (แอดมิน) ----------
+// เปิดบิลค้างในหน้าขาย: ตะกร้าคือรายการเดิมของบิล · บันทึกแล้วคิดโปร/บันเดิ้ลรวมทั้งบิลใหม่ · ยอดที่รับไปแล้วไม่เปลี่ยน
+function startEdit(o) {
+  if (!can('editItems') || editBill.value || payOpen.value || resumeOrder.value) return
+  if (o.status !== 'pos_pending' || !shift.value || o.shiftId !== shift.value.id) return showToast('แก้รายการได้เฉพาะบิลค้างในกะที่เปิดอยู่', 6000, 'error')
+  payErr.value = ''
+  editBill.value = o
+  editDrop.value = []
+  cart.value = cartOfBill(o.items, lineKey)
+  member.value = (o.customerId && findCustomer(o.customerId)) || null
+  couponIds.value = []
+  discount.value = ''
+  cartOpen.value = false
+  tab.value = 'sell'
+}
+function exitEdit() {
+  editBill.value = null
+  editDrop.value = []
+  cart.value = []
+  member.value = null
+  couponIds.value = []
+  discount.value = ''
+}
+function toggleDrop(id) {
+  editDrop.value = editDrop.value.includes(id) ? editDrop.value.filter((x) => x !== id) : [...editDrop.value, id]
+}
+async function saveEdit() {
+  if (!editBill.value || selling) return
+  selling = true
+  try {
+    await refreshLabels(['สินค้า', 'กะ POS']) // สต็อก/ราคา/กะล่าสุดจากเซิร์ฟเวอร์ก่อนแก้บิล
+    const target = db.orders.find((o) => o.id === editBill.value.id) || editBill.value
+    const addIds = couponIds.value.filter((id) => !target.couponsUsed.some((c) => c.couponId === id))
+    const claim = addIds.length ? await claimPosCoupons(addIds) : { ok: true, claimed: [] }
+    if (claim.error) return showToast(claim.error, 8000, 'error')
+    const r = editPosPending(target, cart.value, { dropCouponIds: editDrop.value, addCouponIds: addIds })
+    if (r.error) { await releaseCoupons(claim.claimed); return showToast(r.error, 10000, 'error') }
+    showToast(`บันทึกการแก้ไขบิล ${r.order.code} แล้ว · ยอดรวม ${money(orderTotals(r.order).total)}`, 8000)
+    exitEdit()
+  } finally { selling = false }
 }
 async function sellNow(opts = {}) {
   payErr.value = member.value ? posCouponProblem({ customerId: member.value.id, couponIds: couponIds.value }) : ''
@@ -655,6 +702,13 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <!-- ขาย -->
     <div v-else-if="tab === 'sell'" class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div v-if="editBill" class="col-span-full flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900" role="status">
+        <span>กำลังแก้รายการบิลค้าง <b>{{ orderNo(editBill.code) }}</b> · รับไปแล้ว {{ money(orderTotals(editBill).paidNet) }} · ยอดรวมหลังแก้ต้องไม่ต่ำกว่านี้</span>
+        <span v-if="editBill.couponsUsed?.length" class="flex flex-wrap items-center gap-1.5">
+          <span class="text-xs text-amber-800">คูปองในบิล (แตะเพื่อเอาออก):</span>
+          <button v-for="c in editBill.couponsUsed" :key="c.couponId" type="button" class="chip h-auto py-1" :class="editDrop.includes(c.couponId) ? 'chip-off line-through' : 'chip-on'" :aria-pressed="editDrop.includes(c.couponId)" @click="toggleDrop(c.couponId)">{{ c.name }} −{{ money(c.amount) }}</button>
+        </span>
+      </div>
       <section class="min-w-0 pb-24 lg:pb-0">
         <div class="mb-3 flex gap-2">
           <label class="relative min-w-0 flex-1">
@@ -779,7 +833,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           </div>
 
           <p v-if="usedPromos.length" class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">โปรที่ใช้: {{ usedPromos.join(' · ') }}</p>
-          <div v-if="can('adjustPrice')">
+          <div v-if="can('adjustPrice') && !editBill">
             <label class="label">ส่วนลดบิล (บาท)</label>
             <MoneyInput v-model="discount" class="input h-10" placeholder="0" />
           </div>
@@ -789,7 +843,11 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <span class="text-sm text-stone-500">ยอดชำระ<span v-if="preview.vatMode" class="block text-xs text-stone-400">{{ preview.vatMode === 'exclusive' ? `รวม VAT ${preview.vatRate}% บวกเพิ่ม ${money(preview.vat)}` : `รวม VAT ${preview.vatRate}% แล้ว ${money(preview.vat)}` }}</span></span>
             <DiscountDetail :full="preview.fullAll" :final="total" :lines="preview.discountLines" size="lg" />
           </div>
-          <button type="button" class="btn-primary h-12 w-full text-base" :disabled="!cart.length" @click="openPay">ชำระเงิน</button>
+          <template v-if="editBill">
+            <button type="button" class="btn-primary h-12 w-full text-base" :disabled="!cart.length" @click="saveEdit">บันทึกการแก้ไขบิล {{ orderNo(editBill.code) }}</button>
+            <button type="button" class="btn-outline mt-2 h-11 w-full" @click="exitEdit">ยกเลิกการแก้ไข</button>
+          </template>
+          <button v-else type="button" class="btn-primary h-12 w-full text-base" :disabled="!cart.length" @click="openPay">ชำระเงิน</button>
         </div>
       </aside>
 
@@ -819,6 +877,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <span class="text-xs text-stone-500">{{ o.status === 'cancelled' ? 'ยกเลิกแล้ว' : o.status === 'pos_pending' ? `รอชำระ · คงเหลือ ${money(orderTotals(o).balance)}` : o.payments[0]?.method }}</span>
           </span>
           <button v-if="o.status === 'pos_pending' && can('pos')" type="button" class="btn-primary h-9 shrink-0 px-2.5 text-xs" @click="resumeBill(o)">รับชำระต่อ</button>
+          <button v-if="o.status === 'pos_pending' && can('editItems')" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" @click="startEdit(o)">แก้รายการ</button>
           <button v-if="can('posVoid') && o.status !== 'cancelled' && (orderTotals(o).paidNet > 0 || (o.returns || []).some((r) => !r.cancelled))" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" aria-label="คืนเงินบางส่วน" @click="refundFor = o">คืนเงิน</button>
           <button v-if="can('posVoid') && o.status !== 'cancelled'" type="button" class="btn-danger h-9 shrink-0 px-2.5" aria-label="ยกเลิกบิล" @click="openVoid(o)"><AppIcon name="x" :size="16" /></button>
           <button v-if="can('changeBuyer') && o.status !== 'cancelled'" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" @click="buyerFor = o">เปลี่ยนผู้ซื้อ</button>
