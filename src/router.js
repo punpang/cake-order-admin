@@ -20,6 +20,7 @@ import { whenSessionReady } from './lib/dataStatus'
 const LegalPage = () => import('./views/store/LegalPage.vue')
 const StoreCakeDesign = () => import('./views/store/StoreCakeDesign.vue')
 const OrderLink = () => import('./views/store/OrderLink.vue')
+const LuckyPage = () => import('./views/store/LuckyPage.vue')
 const ShortRedirect = () => import('./views/store/ShortRedirect.vue')
 
 // หน้าหลังบ้าน: โหลดเมื่อเข้าใช้งานเท่านั้น (ลูกค้าหน้าร้านไม่ต้องดาวน์โหลดโค้ดหลังบ้าน)
@@ -41,6 +42,7 @@ const ManagePriceLists = () => import('./views/manage/ManagePriceLists.vue')
 const ManageLoyalty = () => import('./views/manage/ManageLoyalty.vue')
 const ManageProfit = () => import('./views/manage/ManageProfit.vue')
 const ManageShop = () => import('./views/manage/ManageShop.vue')
+const ManageLucky = () => import('./views/manage/ManageLucky.vue')
 const Materials = () => import('./views/Materials.vue')
 const Production = () => import('./views/Production.vue')
 const ManageBirthdays = () => import('./views/manage/ManageBirthdays.vue')
@@ -84,6 +86,7 @@ const router = createRouter({
     { path: '/legal/:kind(privacy|terms|cookie)', component: LegalPage, props: true, meta: { store: true } },
     { path: '/member', redirect: '/account' },
     { path: '/o/:token', component: OrderLink, meta: { store: true } },
+    { path: '/luck/:token', component: LuckyPage, props: true, meta: { store: true } },
     { path: '/s/:code', component: ShortRedirect, meta: { store: true } },
     // ---------- หลังบ้าน ----------
     { path: '/admin', redirect: () => firstHome(can) },
@@ -118,6 +121,7 @@ const router = createRouter({
     { path: '/admin/settings/loyalty', component: ManageLoyalty },
     { path: '/admin/settings/profit', component: ManageProfit, meta: { data: ['ordersAll'] } },
     { path: '/admin/settings/shop', component: ManageShop },
+    { path: '/admin/settings/lucky', component: ManageLucky },
     { path: '/admin/settings/birthdays', component: ManageBirthdays, meta: { data: ['ordersAll'] } },
     { path: '/admin/settings/integrations', component: ManageIntegrations },
     { path: '/admin/settings/retail', component: ManageRetail },

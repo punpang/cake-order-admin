@@ -21,6 +21,7 @@ export const SETTINGS_PAGES = [
   { group: 'customers', to: '/admin/settings/customers', icon: 'users', title: 'ลูกค้า', keywords: 'สมาชิก เบอร์' },
   { group: 'customers', to: '/admin/settings/birthdays', icon: 'cake', title: 'เตือนวันเกิด', keywords: 'อวยพร' },
   { group: 'customers', to: '/admin/settings/loyalty', icon: 'wallet', title: 'คะแนน & รางวัล', keywords: 'แต้ม กาชา ของแลก' },
+  { group: 'shop', to: '/admin/settings/lucky', icon: 'star', title: 'ลุ้นโชคท้ายบิล', keywords: 'QR ใบเสร็จ ลุ้น รางวัล ช่วงเวลา' },
   { group: 'shop', to: '/admin/settings/shop', icon: 'clock', title: 'ตั้งค่าร้าน', keywords: 'เวลาเปิด บัญชีรับชำระ พร้อมเพย์ มัดจำ ภาษี vat ใบเสร็จ สลิป' },
   { group: 'shop', to: '/admin/settings/storefront', icon: 'store', title: 'หน้าร้าน (เว็บลูกค้า)', keywords: 'รีวิว เมนู' },
   { group: 'shop', to: '/admin/settings/gallery', icon: 'image', title: 'คลังรูปเค้กสั่งทำ', keywords: 'รูป แท็ก' },

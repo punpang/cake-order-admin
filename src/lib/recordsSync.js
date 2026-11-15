@@ -18,6 +18,7 @@ export const RECORD_SPECS = {
   orderLinks: { key: 'orderLinks', kind: 'list', order: 'asc', read: ['createOrder', 'viewAllOrders', 'sendToPayment'], write: ['createOrder', 'viewAllOrders', 'sendToPayment'] },
   consents: { key: 'consents', kind: 'list', order: 'asc', read: ['viewAllOrders', 'createOrder'], write: ['viewAllOrders', 'createOrder'] },
   chatDrafts: { key: 'chatDrafts', kind: 'map', read: ['chat'], write: ['chat'] },
+  luckyTokens: { key: 'luckyTokens', kind: 'list', order: 'desc', read: ['pos'], write: ['pos'], limit: 3000 },
 }
 export const specAllows = (rule, has) => rule === true || has('manage') || rule.some(has)
 

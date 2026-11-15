@@ -1,12 +1,16 @@
 <script setup>
 import { orderNo } from '../lib/format'
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
+import QRCode from 'qrcode'
 import { db, findCustomer, customerPoints } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime } from '../lib/format'
 
 // ใบเสร็จหน้าร้าน (พิมพ์ 80mm ด้วย window.print — ดู .receipt-print ใน style.css)
-const props = defineProps({ order: { type: Object, required: true } })
+const props = defineProps({ order: { type: Object, required: true }, luckyUrl: { type: String, default: '' } })
+// QR ลุ้นโชคท้ายบิล (ถ้ามี) แสดงเป็นรูปในใบเสร็จ
+const luckyQr = ref('')
+watch(() => props.luckyUrl, async (u) => { luckyQr.value = u ? await QRCode.toDataURL(u, { margin: 1, width: 200 }) : '' }, { immediate: true })
 const t = computed(() => orderTotals(props.order))
 const pay = computed(() => props.order.payments.find((p) => p.status === 'confirmed'))
 const customer = computed(() => findCustomer(props.order.customerId))
@@ -44,5 +48,10 @@ const customer = computed(() => findCustomer(props.order.customerId))
       <div v-if="order.status !== 'cancelled'">คะแนนคงเหลือ {{ customerPoints(customer) }}</div>
     </template>
     <div class="mt-3 text-center text-xs">ขอบคุณที่อุดหนุนค่ะ</div>
+    <div v-if="luckyQr" class="mt-3 flex flex-col items-center gap-1 text-center text-xs">
+      <div class="font-semibold">ลุ้นโชคท้ายบิล</div>
+      <img :src="luckyQr" alt="QR ลุ้นโชคท้ายบิล" class="h-40 w-40" />
+      <div>สแกน QR เพื่อลุ้นโชค</div>
+    </div>
   </div>
 </template>

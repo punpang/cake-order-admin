@@ -17,6 +17,7 @@ import { parseAnswer } from '../lib/chatParse'
 import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEFAULT_COOKIE, DEFAULT_LEGAL_CONTACT } from '../lib/legalDefaults'
 import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX, AUTO_SOURCES, LOCKED_SOURCES, AI_MODELS, AI_WAI_MODELS } from '../lib/chatBot'
 import { checkTelegram } from '../lib/integrationCheck'
+import { luckyActive, luckyDefaults, luckyUrl, genLuckyToken, hashLuckyToken, normalizeLuckyCode, validateLuckyPrizes, LUCKY_SITE_URL } from '../lib/luckyDraw'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
 import { DEFAULT_ACCOUNTS } from '../lib/acct/chart'
 import { cleanClosures, emptyClosures, slotClosed, pickupClosed, isClosedNow, nextOpen } from '../lib/shopHours'
@@ -329,7 +330,7 @@ export const db = reactive({
     // VAT: ฐาน = สินค้า+ค่าส่ง หลังส่วนลด · mode inclusive (ราคารวม VAT แล้ว) | exclusive (บวกเพิ่มท้ายยอด) · เก็บ snapshot {rate, mode} ในแต่ละออร์เดอร์ (order.vat)
     vat: { enabled: false, rate: 7, mode: 'inclusive', taxId: '', legalName: '', address: '', branch: '00000' },
     // ลิงก์ออร์เดอร์: หมดอายุ = เปิดล่าสุด + idleDays (เลื่อนทุกครั้งที่เปิด) · ไม่เคยเปิด = สร้าง + neverOpenedDays · linkAllowlist = โฮสต์ภายนอกที่ลิงก์ย่อชี้ไปได้ (https)
-    linkPolicy: { ...DEFAULT_LINK_POLICY }, linkAllowlist: ['facebook.com', 'fb.me', 'maps.app.goo.gl', 'maps.google.com'] },
+    linkPolicy: { ...DEFAULT_LINK_POLICY }, luckyDraw: luckyDefaults(), linkAllowlist: ['facebook.com', 'fb.me', 'maps.app.goo.gl', 'maps.google.com'] },
   // เตือนวันเกิด: key ที่กด "ทักแล้ว" (ลูกค้า|ชื่อ|MM-DD|ปี)
   birthdayGreeted: [],
   // เซิร์ฟเวอร์ส่งเตือนลูกค้า/ทีมตามเวลาแทนแอปเมื่อ server = true (punpang_kv: config/scheduled) · ค่าเริ่มต้นแอปยังทำเอง
@@ -505,6 +506,8 @@ export const db = reactive({
   bell: [],
   // orderLinks: [{ id, orderId, tokenHash, createdAt, lastOpenedAt, openCount, revokedAt }] เก็บเฉพาะ hash ของ token (token เต็มเห็นได้ครั้งเดียวตอนสร้าง)
   orderLinks: [],
+  // luckyTokens: [{ id, tokenHash, orderId, orderCode, createdAt, expiresAt, spunAt, prize, code, codeExpiresAt, redeemedAt, redeemedBy }] ลุ้นโชคท้ายบิล · เก็บเฉพาะ hash ของ token
+  luckyTokens: [],
   // บอทตอบแชท (ค่าเริ่มต้นปิด): rules = กฎคีย์เวิร์ด · learned = คู่ ถาม→ตอบ ที่เรียนจากพนักงาน (ตัดข้อมูลส่วนบุคคลแล้ว) · stats
   bot: JSON.parse(JSON.stringify(BOT_DEFAULTS)),
   // สลิปในแชท (config slipQr): enabled = ตรวจรูปสลิปในแชท · mode = auto (ผูกอัตโนมัติเมื่อรหัสอ้างอิงตรงกับออร์เดอร์และครบ 4 ข้อ รวมรหัสสุ่ม Ref 2 ที่ตรงกับรายการแจ้งชำระ) | manual (ร้านเลือกออร์เดอร์ผูกเองในแชท)
@@ -2172,6 +2175,53 @@ export function customerRequestExtension(ctx, paymentId, note = '') {
 export function customerOrderView(ctx) {
   const o = ctxOrder(ctx)
   return o ? publicOrderView(o, { owner: !!ctx.orderId }) : null
+}
+// ---------- ลุ้นโชคท้ายบิล (QR ท้ายใบเสร็จ POS) ----------
+// ออก token ให้บิลที่ขายเสร็จแล้ว ระหว่างช่วงเวลาที่เปิดลุ้น · เก็บเฉพาะ hash · คืน token เต็มและ URL ของ QR (ใช้ตอนพิมพ์/แสดงครั้งนี้เท่านั้น)
+export async function issueLuckyToken(order) {
+  const cfg = db.shop?.luckyDraw
+  if (!luckyActive(cfg, Date.now()) || !order || order.channel !== 'pos' || order.status !== 'delivered' || !can('pos')) return null
+  const token = genLuckyToken()
+  db.luckyTokens.push({
+    id: uid('lk'), tokenHash: await hashLuckyToken(token), orderId: order.id, orderCode: order.code, createdAt: now(),
+    expiresAt: new Date(Date.parse(cfg.to)).toISOString(), spunAt: null, prize: null, code: null, codeExpiresAt: null, redeemedAt: null, redeemedBy: null,
+  })
+  return { token, url: luckyUrl(cfg.siteUrl, token) }
+}
+// หาบิลลุ้นโชคจากรหัสรางวัลที่ลูกค้าแสดง (ไม่สนตัวพิมพ์เล็กใหญ่/ช่องว่าง)
+export function findLuckyByCode(code) {
+  const c = normalizeLuckyCode(code)
+  return c ? db.luckyTokens.find((r) => r.code === c) || null : null
+}
+// รับรางวัลที่ร้าน: ต้องมีรางวัล ยังไม่หมดอายุ และยังไม่เคยรับ · บันทึกผู้รับและเวลา
+export function redeemLuckyRecord(rec) {
+  if (!can('pos')) return { error: 'ไม่มีสิทธิ์รับรางวัล' }
+  if (!rec) return { error: 'ไม่พบรหัสรางวัลนี้' }
+  if (!rec.prize || !rec.code) return { error: 'บิลนี้ไม่ได้รางวัล' }
+  if (rec.redeemedAt) return { error: 'รางวัลนี้รับไปแล้ว' }
+  if (!(Date.now() <= Date.parse(rec.codeExpiresAt))) return { error: 'รหัสรางวัลหมดอายุแล้ว' }
+  Object.assign(rec, { redeemedAt: now(), redeemedBy: session.role })
+  return { ok: true }
+}
+// ตั้งค่าลุ้นโชคท้ายบิล (เฉพาะแอดมิน): รางวัลตรวจตามกติกาเดียวกับเซิร์ฟเวอร์ · ช่วงเวลาเริ่มก่อนสิ้นสุด · URL หน้าเว็บขึ้นต้น https
+export function saveLuckyDraw(d) {
+  if (!can('manage')) return { error: 'เฉพาะแอดมินตั้งค่าลุ้นโชคได้' }
+  const prizes = (d.prizes || []).map((p) => ({
+    id: p.id || uid('lp'), name: String(p.name ?? '').trim(), kind: ['points', 'coupon', 'item'].includes(p.kind) ? p.kind : 'item',
+    amount: Math.max(0, Number(p.amount) || 0), chance: Math.round((Number(p.chance) || 0) * 100) / 100,
+  }))
+  const perr = validateLuckyPrizes(prizes)
+  if (perr) return { error: perr }
+  const from = d.from ? new Date(d.from) : null
+  const to = d.to ? new Date(d.to) : null
+  const valid = from && to && !Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime()) && to > from
+  if (d.enabled && !valid) return { error: 'ตั้งช่วงเวลาให้ครบ และเวลาสิ้นสุดต้องหลังเวลาเริ่ม' }
+  const siteUrl = String(d.siteUrl || LUCKY_SITE_URL).trim().replace(/\/+$/, '')
+  if (!/^https:\/\/[^\s]+$/.test(siteUrl)) return { error: 'URL หน้าเว็บต้องขึ้นต้นด้วย https://' }
+  const days = Math.round(Number(d.prizeDays))
+  if (!(days >= 1 && days <= 365)) return { error: 'วันใช้รหัสรางวัลต้องอยู่ระหว่าง 1–365 วัน' }
+  db.shop.luckyDraw = { enabled: !!d.enabled, from: valid ? from.toISOString() : '', to: valid ? to.toISOString() : '', siteUrl, prizeDays: days, prizes }
+  return { ok: true }
 }
 export function orderLinkUrl(token) {
   const base = typeof location !== 'undefined' ? `${location.origin}${location.pathname}` : ''

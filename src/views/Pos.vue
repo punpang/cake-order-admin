@@ -5,7 +5,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posPromoInfo, posSale, voidPosSale, addPosPartial, editPosPending, finishPosBill, pointsFor, quickMember, vatNow,
   customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons, claimPosCoupons, releaseCoupons,
-  newPosQrRef, posQrExpired,
+  newPosQrRef, posQrExpired, issueLuckyToken, findLuckyByCode, redeemLuckyRecord,
 } from '../data/store'
 import { activeSecondsLeft } from '../lib/loyalty'
 import { orderTotals, discountLines } from '../lib/pricing'
@@ -218,6 +218,20 @@ const rdPending = computed(() => (rd.cust ? pendingRewards(rd.cust, nowIso.value
 const rdCoupons = computed(() => (rd.cust ? posCoupons(rd.cust, nowIso.value) : []))
 const rdHidden = computed(() => (rd.cust ? notShownCount(rd.cust, nowIso.value) : 0))
 function openRedeem() { Object.assign(rd, { open: true, q: '', cust: null, msg: '', err: '' }) }
+// รับรางวัลลุ้นโชคท้ายบิล: ลูกค้าแสดงรหัส 6 ตัว → ค้นหาบิล → ยืนยันรับที่ร้าน (ครั้งเดียว)
+const lk = reactive({ open: false, code: '', rec: null, msg: '', ok: false })
+function openLucky() { Object.assign(lk, { open: true, code: '', rec: null, msg: '', ok: false }) }
+function luckyLookup() {
+  lk.rec = findLuckyByCode(lk.code)
+  lk.ok = false
+  lk.msg = lk.rec ? '' : 'ไม่พบรหัสนี้ ตรวจรหัสอีกครั้ง'
+}
+function luckyRedeem() {
+  const r = redeemLuckyRecord(lk.rec)
+  if (r.error) { lk.msg = r.error; return }
+  lk.ok = true
+  lk.msg = 'รับรางวัลเรียบร้อย'
+}
 function rdPick(c) { Object.assign(rd, { cust: c, q: '', msg: '', err: '' }) }
 async function rdHand(cp) {
   rd.msg = rd.err = ''
@@ -453,6 +467,9 @@ const displayState = computed(() => {
 })
 watch(displayState, (st) => { if (native) pushDisplay(st) }, { deep: true })
 const receipt = ref(null)
+// QR ลุ้นโชคของใบเสร็จที่เพิ่งขาย (ผูกกับบิลนั้น ไม่ติดไปกับบิลอื่นตอนพิมพ์ซ้ำ)
+const receiptLucky = ref(null)
+const receiptLuckyUrl = computed(() => (receipt.value && receiptLucky.value?.orderId === receipt.value.id ? receiptLucky.value.url : ''))
 const taxFor = ref(null) // บิลที่กำลังออกใบกำกับภาษีเต็มรูป
 const taxable = (o) => can('taxInvoice') && o.status !== 'cancelled' && orderTotals(o).vat > 0
 const payErr = ref('')
@@ -611,12 +628,15 @@ async function sellNow(opts = {}) {
   if (opts.keepOpen) showToast(`บันทึกยอดที่รับแล้วเป็นบิลค้าง ${o.code} · รับส่วนที่เหลือต่อในหน้านี้`, 8000)
   else if (opts.partial) showToast(`บันทึกบิลค้าง ${o.code} แล้ว · รับชำระส่วนที่เหลือได้ที่แท็บบิล`, 8000)
   else receipt.value = o
+  // ลุ้นโชคท้ายบิล: ออก QR เฉพาะบิลที่ขายเสร็จ (ไม่ใช่บิลค้าง) และอยู่ในช่วงเวลาที่เปิดลุ้น
+  const lucky = opts.partial ? null : await issueLuckyToken(o)
+  receiptLucky.value = lucky ? { orderId: o.id, url: lucky.url } : null
   if (native && !opts.partial) {
     const oT = orderTotals(o)
     thanks.value = { until: Date.now() + 8000, total: oT.total, saved: (oT.discountLines || []).reduce((sum, l) => sum + (Number(l.amount) || 0), 0) }
     clearTimeout(thanksTimer)
     thanksTimer = setTimeout(() => { thanks.value = { until: 0, total: 0, saved: 0 } }, 8000)
-    if (getDeviceConfig().printer?.address) printOrderReceipt(o).catch((e) => showToast(`พิมพ์ใบเสร็จไม่สำเร็จ: ${e.message || e}`))
+    if (getDeviceConfig().printer?.address) printOrderReceipt(o, { luckyUrl: lucky?.url || '' }).catch((e) => showToast(`พิมพ์ใบเสร็จไม่สำเร็จ: ${e.message || e}`))
   }
   cart.value = []
   member.value = null
@@ -629,7 +649,7 @@ async function sellNow(opts = {}) {
 const print = () => {
   if (!native) return window.print()
   if (!receipt.value) return
-  printOrderReceipt(receipt.value).catch((e) => showToast(`พิมพ์ไม่สำเร็จ: ${e.message || e}`))
+  printOrderReceipt(receipt.value, { luckyUrl: receiptLuckyUrl.value }).catch((e) => showToast(`พิมพ์ไม่สำเร็จ: ${e.message || e}`))
 }
 
 // ---------- บิลของกะ ----------
@@ -678,6 +698,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <span v-if="shift" class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">กะเปิด {{ timeOnly(shift.openedAt) }} · {{ ROLES[shift.openedBy] }}</span>
       <button v-if="native" type="button" class="btn-soft ml-auto h-9 px-3 text-sm" @click="deviceOpen = true">เครื่องพิมพ์/จอ</button>
       <button v-if="shift && can('useLoyalty')" type="button" class="btn-soft ml-2 h-9 px-3 text-sm" @click="openRedeem"><AppIcon name="star" :size="15" /> มอบของรางวัล</button>
+      <button v-if="shift && can('pos')" type="button" class="btn-soft ml-2 h-9 px-3 text-sm" @click="openLucky"><AppIcon name="star" :size="15" /> รับรางวัลลุ้นโชค</button>
       <div v-if="shift" class="grid grid-cols-3 gap-1 seg-grid" :class="can('useLoyalty') ? '' : 'ml-auto'">
         <button v-for="t in [{ v: 'sell', l: 'ขาย' }, { v: 'bills', l: `บิล ${bills.length}` }, { v: 'shift', l: 'ปิดกะ' }]" :key="t.v" type="button" class="h-9 rounded-lg px-3 text-sm font-medium" :class="tab === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="tab = t.v">{{ t.l }}</button>
       </div>
@@ -1096,7 +1117,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <!-- ใบเสร็จ -->
     <AppModal v-if="receipt" :title="`ใบเสร็จ ${receipt.code}`" @close="receipt = null">
-      <Receipt :order="receipt" />
+      <Receipt :order="receipt" :lucky-url="receiptLuckyUrl" />
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="print"><AppIcon name="printer" :size="18" /> พิมพ์</button>
         <button v-if="taxable(receipt)" class="btn-outline flex-1 sm:flex-none" @click="taxFor = receipt">ใบกำกับภาษีเต็มรูป</button>
@@ -1104,6 +1125,27 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       </template>
     </AppModal>
     <TaxInvoiceModal v-if="taxFor" :order="taxFor" @close="taxFor = null" />
+    <AppModal v-if="lk.open" title="รับรางวัลลุ้นโชค (รหัสจากหน้าลุ้นโชค)" @close="lk.open = false">
+      <div class="space-y-3 text-sm">
+        <label class="label" for="lucky-code">รหัสรางวัล (6 ตัว)</label>
+        <div class="flex gap-2">
+          <input id="lucky-code" v-model="lk.code" class="input h-11 flex-1 font-mono text-lg uppercase" placeholder="เช่น AB3CD4" maxlength="12" autocomplete="off" @keyup.enter="luckyLookup" />
+          <button type="button" class="btn-primary h-11 px-4" @click="luckyLookup">ค้นหา</button>
+        </div>
+        <p v-if="lk.msg" class="rounded-xl p-2.5" :class="lk.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'" role="status">{{ lk.msg }}</p>
+        <div v-if="lk.rec" class="rounded-2xl border border-stone-200 p-3">
+          <div>บิล <b>{{ orderNo(lk.rec.orderCode) }}</b></div>
+          <div v-if="lk.rec.prize">รางวัล: <b>{{ lk.rec.prize.name }}</b></div>
+          <div v-else class="text-stone-600">บิลนี้ไม่ได้รางวัล</div>
+          <div v-if="lk.rec.codeExpiresAt" class="text-xs text-stone-500">ใช้ได้ถึง {{ dateTime(lk.rec.codeExpiresAt) }}</div>
+          <div v-if="lk.rec.redeemedAt" class="text-xs text-stone-500">รับแล้วเมื่อ {{ dateTime(lk.rec.redeemedAt) }}</div>
+        </div>
+      </div>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="lk.open = false">ปิด</button>
+        <button v-if="lk.rec && lk.rec.prize && !lk.rec.redeemedAt && !lk.ok" class="btn-primary flex-1 sm:flex-none" @click="luckyRedeem">ยืนยันรับรางวัล</button>
+      </template>
+    </AppModal>
     <AppModal v-if="rd.open" title="รับของรางวัลที่ร้าน (ลูกค้ากดแสดงแล้ว)" @close="rd.open = false">
       <div class="space-y-3 text-sm">
         <div v-if="!rd.cust">

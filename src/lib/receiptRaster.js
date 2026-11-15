@@ -4,6 +4,7 @@ import { db } from '../data/store'
 import { orderTotals } from './pricing'
 import { money, dateTime, orderNo } from './format'
 import { printBytes, getDeviceConfig } from './nativeDevices'
+import QRCode from 'qrcode'
 
 const PX = { 58: 384, 80: 576 } // ความกว้างจุดของกระดาษ 58 มม. / 80 มม.
 const FAMILY = 'Prompt, Mitr, Tahoma, sans-serif'
@@ -77,6 +78,11 @@ function writer(widthPx) {
       ops.push({ y, rule: true })
       y += 16
     },
+    // รูป (เช่น QR ลุ้นโชค) กึ่งกลางตามความกว้างกระดาษ · size = ด้านละกี่จุด
+    image(canvas, size) {
+      ops.push({ y, img: canvas, size, x: Math.round((widthPx - size) / 2) })
+      y += size + 6
+    },
     height() {
       return y + 16
     },
@@ -95,6 +101,10 @@ function draw(w) {
   for (const op of w.ops) {
     if (op.rule) {
       for (let x = w.pad; x < c.width - w.pad; x += 10) g.fillRect(x, op.y + 6, 6, 2)
+      continue
+    }
+    if (op.img) {
+      g.drawImage(op.img, op.x, op.y, op.size, op.size)
       continue
     }
     g.font = op.font
@@ -156,7 +166,14 @@ async function loadFont() {
 }
 
 // ใบเสร็จจากออเดอร์ (ข้อมูลเดียวกับใบเสร็จบนจอ)
-export async function buildReceiptBytes(order, widthMm) {
+// QR ลุ้นโชคท้ายบิล (ขาวดำ วาดลงผ้าใบแล้วแปลงเป็นบิตเหมือนข้อความ)
+async function luckyQrCanvas(url, px) {
+  const c = document.createElement('canvas')
+  await QRCode.toCanvas(c, url, { width: px, margin: 1 })
+  return c
+}
+
+export async function buildReceiptBytes(order, widthMm, opts = {}) {
   await loadFont()
   const shop = db.shop || {}
   const w = writer(PX[widthMm] || PX[58])
@@ -183,6 +200,12 @@ export async function buildReceiptBytes(order, widthMm) {
   }
   w.rule()
   w.text('ขอบคุณที่ใช้บริการค่ะ', { align: 'center' })
+  if (opts.luckyUrl) {
+    const qr = await luckyQrCanvas(opts.luckyUrl, 200)
+    w.text('ลุ้นโชคท้ายบิล', { align: 'center', kind: 'bold' })
+    w.image(qr, 200)
+    w.text('สแกน QR เพื่อลุ้นโชค', { align: 'center', kind: 'small' })
+  }
   return escpos(toRaster(draw(w)))
 }
 
@@ -202,10 +225,10 @@ export async function buildTestBytes(widthMm) {
 }
 
 // พิมพ์ใบเสร็จไปยังเครื่องที่เลือกไว้ (ใช้หลังขายครบทุกครั้ง)
-export async function printOrderReceipt(order) {
+export async function printOrderReceipt(order, opts = {}) {
   const cfg = getDeviceConfig()
   if (!cfg.printer?.address) throw new Error('ยังไม่ได้เลือกเครื่องพิมพ์')
-  await printBytes(cfg.printer.address, await buildReceiptBytes(order, cfg.widthMm))
+  await printBytes(cfg.printer.address, await buildReceiptBytes(order, cfg.widthMm, opts))
 }
 
 export async function printTestPage() {
