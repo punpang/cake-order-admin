@@ -5,7 +5,7 @@
 ## รอบแก้ 2026-11-15 (ต่อจากผลตรวจ main `0e38009`) — แก้ในรีโปแล้ว ยังไม่ได้ deploy
 
 **ผลตรวจซ้ำด้วยการรันจริง:** `supabase/tests/run.sh` บน Postgres 16 ผ่าน 80 migration และ 136 ข้อ · Deno ผ่าน 306 + 10 ข้อ และ `deno check` ทุก Edge Function (รวม `quote-create` และ `order-audit`) · `npm test` ผ่าน 30 ไฟล์ · `npm run build` ผ่าน
-**ยังไม่ได้รันบน production** — ทุกอย่างด้านล่างทดสอบกับฐานจำลองที่ประกอบจาก migration ของรีโป
+**ยังไม่ได้รันบน production** — ทุกอย่างด้านล่างทดสอบกับฐานจำลองที่ประกอบจาก migration ของรีโป · เช็กลิสต์ deploy และทดสอบด้วยมือ: `docs/deploy-checklist-2026-11-15.md`
 
 **ก่อนรัน SQL ใด ๆ ต้องตรวจสถานะจริงก่อน (ตรวจแล้ว 2026-11-15):** ประวัติ migration ของ production มี 60 เวอร์ชัน (ล่าสุด `20261114024149`) ไม่ตรงกับรีโป
 - ไฟล์ในรีโปที่ยังไม่มีชื่อในประวัติ 18 ไฟล์ · 11-11 ถึง 11-14: `20261111180000_punpang_prune_chat_media`, `20261112100000_punpang_prune_slip_read`, `20261112110000_punpang_run_retention`, `20261113100000_punpang_retention_slipread_180`, `20261114025000_punpang_tungngern_rename`, `20261114030000_punpang_tungngern_switch`, `20261114031000_punpang_push_devices`, `20261114040000_punpang_tungngern_title`, `20261114050000_punpang_customer_push` · 11-15: `20261115000000` ถึง `20261115080000` (9 ไฟล์)

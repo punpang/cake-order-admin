@@ -60,7 +60,9 @@ onMounted(() => { if (!findOrder(props.id)) loadOneOrder(props.id) })
 // ---------- ด่านตรวจออร์เดอร์เสี่ยง: รายการที่ระบบพบว่าผิดต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ ----------
 const gate = ref(null) // สถานะด่านล่าสุดจากฐานข้อมูล (โหลดใหม่ก่อนทำรายการที่เกี่ยวข้อง)
 const gateBlocked = computed(() => order.value?.channel !== 'pos' && !!gate.value?.blocked)
-const gateHeld = computed(() => order.value?.channel !== 'pos' && !!gate.value?.hold)
+const gateHeld = computed(() => order.value?.channel !== 'pos' && order.value?.status !== 'cancelled' && !!gate.value?.hold)
+// ยังไม่ชำระ → ด่านกั้นทั้งการยืนยันชำระและการส่งมอบ · ชำระแล้ว → ด่านกั้นเฉพาะการส่งมอบ
+const gateNeedsPayReview = computed(() => ['awaiting_payment', 'payment_reported'].includes(order.value?.status))
 // การยืนยันชำระจากสถานะรอชำระ/แจ้งยอดแล้วจะเปลี่ยนเป็นยืนยันชำระ จึงต้องถูกด่านกั้น
 const gateLocksPay = computed(() => gateBlocked.value && ['awaiting_payment', 'payment_reported'].includes(order.value?.status))
 async function loadGate() {
@@ -68,10 +70,10 @@ async function loadGate() {
   if (!id) return { ok: false, error: 'ไม่พบออร์เดอร์' }
   const r = await refreshOrderGate(id)
   if (r.error) return { ok: false, error: r.error }
-  gate.value = r.gate
-  return { ok: true }
+  if (order.value?.id === id) gate.value = r.gate // กันผลตอบกลับช้าของออร์เดอร์ก่อนหน้า
+  return { ok: true, gate: r.gate }
 }
-watch(() => order.value?.id, (id) => { if (id) loadGate() }, { immediate: true })
+watch(() => order.value?.id, (id) => { gate.value = null; if (id) loadGate() }, { immediate: true })
 async function doReviewGate() {
   if (!(await askConfirm({ title: 'ผู้จัดการตรวจรายการเสี่ยงแล้ว', message: `ออร์เดอร์ ${order.value.code} · ยืนยันว่าตรวจรายการที่ระบบพบแล้ว`, okText: 'ตรวจแล้ว' }))) return
   const r = await reviewOrderGate(order.value.id, '')
@@ -144,7 +146,7 @@ async function openPay(mode = 'new', p = null) {
   if ((mode === 'confirm' || mode === 'direct') && ['awaiting_payment', 'payment_reported'].includes(order.value?.status)) {
     const g = await loadGate()
     if (!g.ok) return showToast(g.error, 6000)
-    if (gateLocksPay.value) return showToast(GATE_MESSAGE, 6000)
+    if (gateBlocks(order.value, 'payment_confirmed', g.gate)) return showToast(GATE_MESSAGE, 6000)
   }
   payMode.value = mode
   payTarget.value = p
@@ -221,7 +223,7 @@ async function doStatus(status, text, title) {
   if (status === 'delivered') {
     const g = await loadGate()
     if (!g.ok) return showToast(g.error, 6000)
-    if (gateBlocks(order.value, status, gate.value)) return showToast(GATE_MESSAGE, 6000)
+    if (gateBlocks(order.value, status, g.gate)) return showToast(GATE_MESSAGE, 6000)
   }
   // สถานะที่มีข้อความถึงลูกค้า: มีช่องติ๊ก "แจ้งลูกค้า" (ค่าเริ่มต้นติ๊ก)
   const tells = ['awaiting_payment', 'preparing', 'prepared', 'ready_to_ship', 'shipping', 'delivered'].includes(status) && order.value.channel !== 'pos' && !!customer.value
@@ -384,7 +386,7 @@ async function saveCancel() {
     <div v-if="gateHeld" class="mb-3 rounded-2xl p-3 text-sm" :class="gate.reviewed ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'">
       <div class="flex flex-wrap items-center gap-2">
         <AppIcon name="alert" :size="16" />
-        <span class="min-w-0 flex-1 font-semibold">{{ gate.reviewed ? 'ผู้จัดการตรวจรายการเสี่ยงแล้ว' : 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ' }}</span>
+        <span class="min-w-0 flex-1 font-semibold">{{ gate.reviewed ? 'ผู้จัดการตรวจรายการเสี่ยงแล้ว' : (gateNeedsPayReview ? 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ' : 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนส่งมอบ') }}</span>
         <button v-if="!gate.reviewed && can('manage')" class="btn-primary h-9 px-3" @click="doReviewGate">ผู้จัดการตรวจแล้ว</button>
       </div>
       <ul class="mt-1.5 list-disc space-y-0.5 pl-6 text-xs">
