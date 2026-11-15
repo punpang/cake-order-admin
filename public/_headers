@@ -3,7 +3,7 @@
 # - Strict-Transport-Security: เบราว์เซอร์ที่เคยเข้าเว็บแล้วจะใช้ HTTPS เสมอ 1 ปี (ไม่ใส่ includeSubDomains/preload เผื่อโดเมนย่อยอื่นของร้าน)
 # - X-Frame-Options: สำรองของ frame-ancestors สำหรับเบราว์เซอร์เก่า
 # - Cross-Origin-Opener-Policy: เว็บอื่นที่เปิดหน้านี้ในแท็บใหม่เข้าถึงหน้าต่างของเราไม่ได้ (ระบบไม่ใช้ป๊อปอัปข้ามเว็บ · เชื่อม Facebook ใช้การเปลี่ยนหน้า)
-# CSP เต็มรูปแบบตั้งเป็น Report-Only ก่อน (ดู Console ของเบราว์เซอร์ว่ามีการบล็อกอะไรผิดพลาดหรือไม่) แล้วค่อยเปลี่ยนเป็น Content-Security-Policy
+# CSP เต็มรูปแบบบังคับใช้แล้ว (ทดสอบในเครื่องกับทุกหน้าสาธารณะ ไม่มีการละเมิด) (ดู Console ของเบราว์เซอร์ว่ามีการบล็อกอะไรผิดพลาดหรือไม่) แล้วค่อยเปลี่ยนเป็น Content-Security-Policy
 # ฟอนต์ฝังมากับเว็บแล้ว (src/fonts.css) จึงไม่มี Google Fonts ใน CSP อีก
 /*
   X-Content-Type-Options: nosniff
@@ -12,8 +12,7 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
   Strict-Transport-Security: max-age=31536000
   Cross-Origin-Opener-Policy: same-origin
-  Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'
-  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.workers.dev; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.workers.dev; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'
 
 # ไฟล์ที่ Vite สร้าง (สคริปต์ สไตล์ ฟอนต์) มี hash ในชื่อไฟล์ เนื้อหาไม่มีวันเปลี่ยนภายใต้ชื่อเดิม → ให้เบราว์เซอร์เก็บได้ 1 ปีโดยไม่ต้องถามซ้ำ
 # เปิดเว็บครั้งถัดไปจึงไม่ต้องดาวน์โหลดหรือตรวจไฟล์เหล่านี้ใหม่ (index.html ยังตรวจใหม่ทุกครั้งตามค่าเริ่มต้นของ Pages จึงได้เวอร์ชันล่าสุดเสมอ)

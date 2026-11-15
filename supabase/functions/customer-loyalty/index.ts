@@ -1,3 +1,4 @@
+import { corsWrap } from '../_shared/cors.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 // แลกของ/หมุนกาชาของลูกค้า (โหมด Supabase): ตรวจเซสชันลูกค้าก่อน แล้วเรียก RPC ฝั่งฐานข้อมูลด้วย service role
@@ -5,7 +6,6 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 // ตอบ { ok, customer, coupons, result } (ข้อมูลลูกค้าชุดเดียวกับ customer-auth · ไม่ส่งหมายเหตุพนักงาน) หรือ { error, code }
 // เซสชันเก็บเป็น hash ในตาราง punpang_customer_sessions (เหมือน customer-auth)
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
@@ -25,7 +25,7 @@ const MSG: Record<string, string> = {
   config_missing: 'ตั้งค่าของแลก/กาชายังไม่ครบ กรุณาแจ้งร้าน',
 }
 
-Deno.serve(async (req) => {
+Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   let b: Record<string, any> = {}
@@ -56,4 +56,4 @@ Deno.serve(async (req) => {
   const cp = await sb.from('punpang_records').select('id,data').eq('collection', 'coupons').eq('data->>customerId', cid)
   const coupons = (cp.data || []).map((x: any) => ({ ...(x.data || {}), id: x.id }))
   return json({ ok: true, customer, coupons, result: d })
-})
+}))

@@ -1,3 +1,4 @@
+import { corsWrap } from '../_shared/cors.ts'
 import { filesEnv, svcDelete, svcSign, svcUpload } from '../_shared/filesvc.ts'
 import { newQrSuffix } from '../_shared/payqr.ts'
 import { orderNo, refOfCode } from '../_shared/slipref.ts'
@@ -20,7 +21,7 @@ import { sendSmsGateway } from '../_shared/sms.ts'
 // การกระทำของลูกค้าบนออร์เดอร์ (ฝั่งเซิร์ฟเวอร์): แจ้งชำระ(แนบสลิป) · ขอขยายเวลา · ขอ/ยกเลิกขอไม่เผยแพร่รูป
 // ยืนยันตัวตนได้ 2 แบบ: ลิงก์ออร์เดอร์ (token 32 ตัวอักษร เก็บ hash ใน punpang_records) หรือเซสชันลูกค้า (+ orderId ที่เป็นของตัวเอง)
 // ใช้ service role ฟังก์ชันนี้จึงต้องตรวจสิทธิ์/เงื่อนไขเองทุกอย่าง · เขียนออร์เดอร์แบบเทียบ updated_at (กันทับกับพนักงานที่แก้พร้อมกัน)
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
+const CORS = { 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
 const DAY = 86400000
 const enc = new TextEncoder()
@@ -140,7 +141,7 @@ async function notifySlip(sb: any, n: SlipNotice): Promise<void> {
   if (!(await notifySlipFacebook(sb, n))) await notifySlipSms(sb, n)
 }
 
-Deno.serve(async (req) => {
+Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const ip = clientIp(req.headers) // cf-connecting-ip (ปลอมไม่ได้) · ไม่ใช้ค่าซ้ายสุดของ x-forwarded-for ที่ผู้เรียกใส่เองได้
@@ -497,4 +498,4 @@ Deno.serve(async (req) => {
     return json(result)
   }
   return json({ error: 'ออร์เดอร์กำลังถูกแก้ไขอยู่ กรุณาลองใหม่อีกครั้ง' }, 409)
-})
+}))

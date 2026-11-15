@@ -1,11 +1,12 @@
+import { corsWrap } from '../_shared/cors.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { isRefShape } from '../_shared/maneeforward.ts'
 
 // รายการรับเงินถุงเงินที่ตรงกับรหัสธุรกรรม (ORD/POS) ของ QR หนึ่งใบ · เฉพาะพนักงานที่ active
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
+const CORS = { 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 
-Deno.serve(async (req) => {
+Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
@@ -29,4 +30,4 @@ Deno.serve(async (req) => {
     .limit(20)
   if (error) return json({ error: 'อ่านข้อมูลไม่สำเร็จ' }, 500)
   return json({ rows: data ?? [] })
-})
+}))

@@ -1,3 +1,4 @@
+import { corsWrap } from '../_shared/cors.ts'
 import { reserveOtpAttempt, reservePinAttempt } from '../_shared/authguard.ts'
 import { filesEnv, isR2Ref, keyOfR2Ref, svcSign } from '../_shared/filesvc.ts'
 import { clientIp } from '../_shared/ratelimit.ts'
@@ -8,7 +9,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 // ตารางทั้งหมด (OTP/PIN/เซสชัน) เปิด RLS ไม่มี policy → เข้าถึงได้เฉพาะ service role ในฟังก์ชันนี้
 // รหัส OTP และ PIN เก็บเฉพาะ hash (OTP = sha256 + salt · PIN = PBKDF2-SHA256 210,000 รอบ) · เซสชันเป็น token สุ่ม เก็บ hash
 // การส่ง OTP ใช้ SMS Gateway API v1 เดียวกับ sms-send: POST {SMS_GATEWAY_URL}/v1/sms · Bearer SMS_API_KEY · Idempotency-Key = รหัส OTP (กันส่งซ้ำเมื่อลองใหม่)
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
+const CORS = { 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
 const MIN = 60000
 // perAllHour: เพดานรวมทั้งระบบต่อชั่วโมง (กันถูกยิงขอ OTP ถึงเบอร์คนอื่นเพื่อเผาโควตา SMS แม้ปลอม IP ได้)
@@ -45,7 +46,7 @@ export function weakPin(pin: string, phone = ''): string {
 const loginIpFails = new Map<string, number[]>()
 const ipBlocked = (ip: string) => { const now = Date.now(); const a = (loginIpFails.get(ip) || []).filter((t) => now - t < 10 * MIN); loginIpFails.set(ip, a); return a.length >= 30 }
 
-Deno.serve(async (req) => {
+Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const ip = clientIp(req.headers) // cf-connecting-ip → ค่าท้ายสุดของ x-forwarded-for (ค่าซ้ายสุดผู้เรียกใส่เองได้ จึงไม่ใช้)
@@ -416,4 +417,4 @@ Deno.serve(async (req) => {
     return json({ ok: true, ...data })
   }
   return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
-})
+}))

@@ -1,3 +1,4 @@
+import { corsWrap } from '../_shared/cors.ts'
 // Edge Function: ส่งใบเสนอ — เซิร์ฟเวอร์คิดราคาเองจากแคตาล็อก แล้วบันทึกใบเสนอ (แอปไม่ได้ส่งราคามาบันทึกตรง ๆ อีกแล้ว)
 // - ตรวจสิทธิ์: พนักงานที่ active และมีสิทธิ์ chat + createOrder (เหมือน can() ของแอป และสิทธิ์เขียนใบเสนอใน RLS)
 // - อ่านแคตาล็อก (punpang_kv config + punpang_items หน้าร้าน) ด้วยสิทธิ์เซิร์ฟเวอร์ แล้วคิดด้วย _shared/schedlib/quotePrice.js (ชุดเดียวกับแอป)
@@ -9,7 +10,6 @@ import { ddmmyy, formatNo } from '../_shared/schedlib/docNo.js'
 import { loadCatalog } from '../_shared/catalog.ts'
 
 const cors = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
@@ -56,7 +56,7 @@ async function allocQuoteSeq(token: string, day: string): Promise<number | null>
 
 const newQuoteId = () => 'qt' + Array.from(crypto.getRandomValues(new Uint8Array(9)), (b) => (b % 36).toString(36)).join('')
 
-Deno.serve(async (req) => {
+Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
   if (req.method !== 'POST') return json({ error: 'ไม่รองรับคำขอนี้' }, 405)
   if (!SUPABASE_URL || !ANON || !SERVICE) return json({ error: 'เซิร์ฟเวอร์ยังตั้งค่าไม่ครบ' }, 500)
@@ -109,4 +109,4 @@ Deno.serve(async (req) => {
     return json({ quote: Array.isArray(rows) ? rows[0] : rows })
   }
   return json({ error: 'ออกเลขใบเสนอไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
-})
+}))

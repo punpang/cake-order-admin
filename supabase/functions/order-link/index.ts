@@ -1,3 +1,4 @@
+import { corsWrap } from '../_shared/cors.ts'
 import { filesEnv, isR2Ref, keyOfR2Ref, svcSign } from '../_shared/filesvc.ts'
 import { publicPaymentOf } from '../_shared/shoppay.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
@@ -6,7 +7,7 @@ import { newTopic } from '../_shared/chattopic.ts'
 // ลิงก์ออร์เดอร์ของลูกค้า (ดูอย่างเดียว ไม่ต้องล็อกอิน): รับ token → คืนข้อมูลออร์เดอร์ที่ตัดข้อมูลภายในออกแล้ว
 // token สุ่ม 192 บิต เก็บเฉพาะ hash ใน punpang_records('orderLinks') · หมดอายุ/เพิกถอนตามนโยบายร้าน · รูปส่วนตัวแปลงเป็นลิงก์ชั่วคราว 1 ชม.
 // ตัดข้อมูลส่วนตัวที่ฝั่งเซิร์ฟเวอร์ (ที่อยู่/แผนที่/รายละเอียดจัดส่ง/วันเกิด/หมายเหตุสินค้า/เบอร์เต็ม) ไม่พึ่งการซ่อนที่หน้าเว็บ
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
+const CORS = { 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
 const DAY = 86400000
 const sha256Hex = async (s: string) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, '0')).join('')
@@ -33,7 +34,7 @@ async function orderTopicOf(sb: any, orderId: string): Promise<string | null> {
   } catch { return null }
 }
 
-Deno.serve(async (req) => {
+Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const ip = req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
@@ -92,4 +93,4 @@ Deno.serve(async (req) => {
     orderTopic: await orderTopicOf(sb, row.id),
     shop: { name: shop.data?.data?.v?.name || '', payment: publicPaymentOf(shop.data?.data?.v), depositPercent: Number(shop.data?.data?.v?.depositPercent) || 0 },
   })
-})
+}))

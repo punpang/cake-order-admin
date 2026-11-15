@@ -1,0 +1,34 @@
+name: Deploy telegram-send
+
+# รันเองเท่านั้น: GitHub → Actions → Deploy telegram-send → Run workflow
+# ขั้นเทสต์ต้องผ่านก่อน จึงจะ deploy · ถ้าเทสต์ล้มเหลว ฟังก์ชันบน production ไม่ถูกเปลี่ยน
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: เทสต์โมดูลที่ใช้ร่วมกัน (_shared)
+        run: deno test --no-prompt --no-lock --node-modules-dir=none supabase/functions/_shared/
+      - name: ตรวจชนิดข้อมูลของ telegram-send
+        run: deno check --no-lock --node-modules-dir=none supabase/functions/telegram-send/index.ts
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # ไม่ใส่ --no-verify-jwt: ตั้งค่าเดิมบน production คือเปิดตรวจ JWT (เรียกจากแอปพนักงานที่ล็อกอินแล้ว)
+      # --yes: ไม่มี TTY ใน Actions จึงต้องยืนยันล่วงหน้า
+      - name: Deploy telegram-send
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy telegram-send --project-ref itleduijrckxdbhhuooi --yes

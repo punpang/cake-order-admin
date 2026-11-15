@@ -1,10 +1,11 @@
+import { corsWrap } from '../_shared/cors.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 // เชื่อมเพจ Facebook แบบกดปุ่ม (Facebook Login for Business · OAuth) — token เก็บฝั่งเซิร์ฟเวอร์เท่านั้น
 // Secrets: FB_APP_ID, FB_APP_SECRET, FB_CONFIG_ID (ตัวเลือก: FB_GRAPH_VERSION, FB_APP_URL)
 // POST (พนักงานล็อกอิน · JWT ตรวจในฟังก์ชัน): status | start | pages | select | disconnect (start/pages/select/disconnect ต้องมีสิทธิ์ manage)
 // GET (Facebook เปลี่ยนเส้นทางกลับมา): ?code&state → แลก token → เก็บรายชื่อเพจชั่วคราว → กลับหน้าแอปให้เลือกเพจ
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' }
+const CORS = { 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' }
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
 const GRAPH = 'https://graph.facebook.com'
 const TTL_MS = 15 * 60 * 1000
@@ -31,7 +32,7 @@ async function gget(c: ReturnType<typeof cfg>, path: string, params: Record<stri
   return { ok: r.ok, status: r.status, body }
 }
 
-Deno.serve(async (req) => {
+Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
   const c = cfg()
@@ -162,4 +163,4 @@ Deno.serve(async (req) => {
     return json({ ok: true })
   }
   return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
-})
+}))

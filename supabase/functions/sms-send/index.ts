@@ -1,3 +1,4 @@
+import { corsWrap } from '../_shared/cors.ts'
 // Edge Function: ส่ง SMS ผ่าน SMS Gateway ที่รันบนโทรศัพท์ (HTTP API v1 · เอกสาร docs/sms-gateway-api.md · อัปเดต 2026-11-15)
 // - ตรวจสิทธิ์: ต้องเป็นพนักงานที่ active (punpang_staff) · gateway/lookup/messages ต้องมีสิทธิ์ manage · การส่งจำกัด 60 ครั้ง/ชม./คน (นับจาก punpang_sms_log)
 // - ความลับ (secret) อยู่ฝั่งเซิร์ฟเวอร์: SMS_GATEWAY_URL (ลิงก์ http/https ของเกตเวย์ หรือรีเลย์), SMS_API_KEY (สิทธิ์ "ส่งและลบ" เท่านั้น)
@@ -12,7 +13,6 @@
 import { ID, IDEM, MAX_TEXT, gatewayErrorText, mapGatewayStatus, normalizeNumber } from '../_shared/smsgateway.ts'
 
 const cors = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
@@ -86,7 +86,7 @@ async function gw(path: string, init: { method: string; body?: unknown; idem?: s
   }
 }
 
-Deno.serve(async (req) => {
+Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const staff = await staffOf(req)
@@ -162,4 +162,4 @@ Deno.serve(async (req) => {
   if (!r.ok) return json({ ok: false, error: r.error }, mapGatewayStatus(r.status))
   // เก็บเฉพาะข้อมูลที่หน้าเว็บใช้ (id/status) ไม่ส่งเบอร์หรือข้อความซ้ำกลับไป
   return json({ ok: true, id: r.data?.id ?? null, status: r.data?.status ?? null, created: r.status === 202 })
-})
+}))

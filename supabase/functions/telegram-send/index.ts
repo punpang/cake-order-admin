@@ -1,12 +1,13 @@
+import { corsWrap } from '../_shared/cors.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 // ส่งข้อความเข้ากลุ่มทีมทาง Telegram (secret ฝั่งเซิร์ฟเวอร์: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
 // เฉพาะพนักงานที่ล็อกอิน (JWT) และ active · จำกัดอัตรา · บันทึกประวัติ (ไม่เก็บ token/ข้อความ)
-const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
+const CORS = { 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
 const PER_MIN = 20, PER_HOUR = 300
 
-Deno.serve(async (req) => {
+Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
@@ -46,4 +47,4 @@ Deno.serve(async (req) => {
     await log('failed', String((e as Error)?.name || 'error'))
     return json({ error: 'เชื่อมต่อ Telegram ไม่ได้' }, 502)
   }
-})
+}))
