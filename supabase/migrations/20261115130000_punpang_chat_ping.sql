@@ -51,8 +51,7 @@ end;
 $$;
 revoke all on function public.punpang_chats_ping() from public, anon, authenticated;
 
-drop trigger if exists punpang_chats_ping_trg on public.punpang_chats;
-create trigger punpang_chats_ping_trg
+create or replace trigger punpang_chats_ping_trg
   after insert or update on public.punpang_chats
   for each row execute function public.punpang_chats_ping();
 
@@ -80,7 +79,6 @@ end;
 $$;
 revoke all on function public.punpang_presence_ping() from public, anon, authenticated;
 
-drop trigger if exists punpang_presence_ping_trg on public.punpang_chat_presence;
-create trigger punpang_presence_ping_trg
+create or replace trigger punpang_presence_ping_trg
   after insert or update on public.punpang_chat_presence
   for each row execute function public.punpang_presence_ping();
