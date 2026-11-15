@@ -1,6 +1,7 @@
 import { filesEnv, isR2Ref, keyOfR2Ref, svcSign } from '../_shared/filesvc.ts'
 import { publicPaymentOf } from '../_shared/shoppay.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { newTopic } from '../_shared/chattopic.ts'
 
 // ลิงก์ออร์เดอร์ของลูกค้า (ดูอย่างเดียว ไม่ต้องล็อกอิน): รับ token → คืนข้อมูลออร์เดอร์ที่ตัดข้อมูลภายในออกแล้ว
 // token สุ่ม 192 บิต เก็บเฉพาะ hash ใน punpang_records('orderLinks') · หมดอายุ/เพิกถอนตามนโยบายร้าน · รูปส่วนตัวแปลงเป็นลิงก์ชั่วคราว 1 ชม.
@@ -19,14 +20,28 @@ const fails = new Map<string, number[]>()
 const blocked = (ip: string) => { const now = Date.now(); const a = (fails.get(ip) || []).filter((t) => now - t < 300000); fails.set(ip, a); return a.length >= 20 }
 const fail = (ip: string) => { fails.set(ip, [...(fails.get(ip) || []), Date.now()]); return json(NOT_FOUND, 404) }
 
+// ชื่อช่องสัญญาณของออร์เดอร์ (สร้างครั้งแรกแล้วเก็บ) · ตารางยังไม่พร้อม = null (หน้าลูกค้าจะโหลดใหม่เองทุก 60 วินาที)
+async function orderTopicOf(sb: any, orderId: string): Promise<string | null> {
+  try {
+    const read = () => sb.from('punpang_order_topics').select('topic').eq('order_id', orderId).maybeSingle()
+    let r = await read()
+    if (!r?.data?.topic) {
+      await sb.from('punpang_order_topics').upsert({ order_id: orderId, topic: newTopic('order') }, { onConflict: 'order_id', ignoreDuplicates: true })
+      r = await read()
+    }
+    return r?.data?.topic ? String(r.data.topic) : null
+  } catch { return null }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const ip = req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
   if (blocked(ip)) return json({ error: 'ลองบ่อยเกินไป กรุณารอสักครู่' }, 429)
-  let body: { token?: string } = {}
+  let body: { token?: string; refresh?: boolean } = {}
   try { body = await req.json() } catch { return fail(ip) }
   const token = String(body.token ?? '')
+  const refresh = body.refresh === true // รีเฟรชเงียบของหน้าที่เปิดค้างไว้ (ไม่นับเป็นการเปิดดูใหม่)
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return fail(ip)
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
   const hash = await sha256Hex(`orderlink:${token}`)
@@ -64,13 +79,17 @@ Deno.serve(async (req) => {
     if (c.data) customer = { id: c.data.id, name: String(c.data.name || '').trim().split(/\s+/)[0], phone: phoneHint(c.data.phone), deleted: !!c.data.data?.deleted }
   }
   const now = new Date().toISOString()
-  const nextLink = { ...lr.data.data, lastOpenedAt: now, openCount: (Number(link.openCount) || 0) + 1 }
-  // อัปเดตเฉพาะเมื่อลิงก์ยังไม่ถูกเพิกถอน (พนักงานเพิกถอนพร้อมกันแล้ว ห้ามเขียนทับกลับ)
-  await sb.from('punpang_records').update({ data: nextLink }).eq('collection', 'orderLinks').eq('id', lr.data.id).filter('data->>revokedAt', 'is', null)
+  // รีเฟรชเงียบไม่นับเป็นการเปิดดูใหม่ (ไม่เลื่อนวันหมดอายุ ไม่นับจำนวนครั้ง)
+  const nextLink = refresh ? { ...lr.data.data } : { ...lr.data.data, lastOpenedAt: now, openCount: (Number(link.openCount) || 0) + 1 }
+  if (!refresh) {
+    // อัปเดตเฉพาะเมื่อลิงก์ยังไม่ถูกเพิกถอน (พนักงานเพิกถอนพร้อมกันแล้ว ห้ามเขียนทับกลับ)
+    await sb.from('punpang_records').update({ data: nextLink }).eq('collection', 'orderLinks').eq('id', lr.data.id).filter('data->>revokedAt', 'is', null)
+  }
   return json({
     order: { id: row.id, code: row.code, customer_id: row.customer_id, status: row.status, fulfillment: row.fulfillment, channel: row.channel, data: d },
     customer,
     link: { ...nextLink, id: lr.data.id },
+    orderTopic: await orderTopicOf(sb, row.id),
     shop: { name: shop.data?.data?.v?.name || '', payment: publicPaymentOf(shop.data?.data?.v), depositPercent: Number(shop.data?.data?.v?.depositPercent) || 0 },
   })
 })

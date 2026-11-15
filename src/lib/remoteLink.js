@@ -3,11 +3,11 @@ import { getSupabase } from './supabase'
 // ลิงก์ออร์เดอร์ข้ามเครื่อง (โหมด Supabase): ลูกค้าเปิดลิงก์ในเบราว์เซอร์ของตัวเอง → ถาม Edge Function 'order-link'
 // ได้ข้อมูลออร์เดอร์ที่ตัดข้อมูลภายในแล้ว → ใส่ในหน่วยความจำของเบราว์เซอร์นี้ (ดูอย่างเดียว · ไม่มีการเขียนกลับ)
 // ออร์เดอร์ที่ได้มาจากทางนี้ติดธง _remote → การแจ้งชำระ/ขอขยายเวลา/ขอไม่เผยแพร่รูปไปทำที่เซิร์ฟเวอร์ (customer-order)
-export async function fetchRemoteLink(token) {
+export async function fetchRemoteLink(token, { refresh = false } = {}) {
   const c = await getSupabase()
   if (!c) return null // ไม่ได้เปิด Supabase
   try {
-    const r = await c.functions.invoke('order-link', { body: { token } })
+    const r = await c.functions.invoke('order-link', { body: { token, refresh } })
     if (r.error) {
       const st = r.error.context?.status
       if (st === 429) return { error: 'ลองบ่อยเกินไป กรุณารอสักครู่', blocked: true }

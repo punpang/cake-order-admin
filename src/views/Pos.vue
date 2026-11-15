@@ -17,6 +17,7 @@ import { refreshLabels } from '../lib/staffAuth'
 import { waitSaved } from '../lib/syncStatus'
 import { showToast } from '../lib/toast'
 import { quietly } from '../lib/loading'
+import { watchTable } from '../lib/liveWatch'
 import { isNative, getDeviceConfig, pushDisplay, showDisplay } from '../lib/nativeDevices'
 import { printOrderReceipt } from '../lib/receiptRaster'
 import { billerIdOf, promptPayBillerPayload } from '../lib/promptpay'
@@ -276,6 +277,21 @@ const payNow = ref(Date.now())
 let payTimer = null
 let payTick = 0
 let maneePolling = false
+// รายการโอนเข้าใหม่ (Realtime บนตาราง tungngern_transfers) → ตรวจทันที · ไม่มี Realtime = โพลล์ทุก 5 วินาทีเหมือนเดิม
+let transferWatch = null
+let transferWatchOff = true
+const pollEvery = () => (transferWatch?.isLive() ? 30 : 5)
+async function startTransferWatch() {
+  transferWatchOff = false
+  if (transferWatch || !can('pos')) return
+  const w = await watchTable({ table: 'tungngern_transfers', event: 'INSERT' }, () => quietly(pollManee))
+  if (transferWatchOff) w.stop(); else transferWatch = w
+}
+function stopTransferWatch() {
+  transferWatchOff = true
+  transferWatch?.stop()
+  transferWatch = null
+}
 const lineAmt = (l) => Math.round((Number(l.amount) || 0) * 100) / 100
 const paidSum = computed(() => Math.round(payLines.value.reduce((s, l) => s + lineAmt(l), 0) * 100) / 100)
 const remaining = computed(() => Math.round((total.value - paidSum.value) * 100) / 100)
@@ -292,17 +308,20 @@ function openPay() {
   payLines.value = []
   payNow.value = Date.now()
   clearInterval(payTimer)
-  payTimer = setInterval(() => { payNow.value = Date.now(); tickLines(); if (++payTick % 5 === 0) quietly(pollManee) }, 1000)
+  payTimer = setInterval(() => { payNow.value = Date.now(); tickLines(); if (++payTick % pollEvery() === 0) quietly(pollManee) }, 1000)
   payOpen.value = true
+  startTransferWatch()
 }
 function closePay() {
   payOpen.value = false
   payLines.value = []
   resumeOrder.value = null
   clearInterval(payTimer)
+  stopTransferWatch()
 }
 onBeforeUnmount(() => {
   clearInterval(payTimer)
+  stopTransferWatch()
   clearTimeout(thanksTimer)
   // ออกจากหน้าขาย: จอลูกค้ากลับเป็นหน้ายินดีต้อนรับ (ไม่ค้างตะกร้า/การชำระ/QR)
   if (native) pushDisplay({ status: 'idle', shopName: db.shop?.name || '' })
@@ -444,8 +463,9 @@ function resumeBill(o) {
   payLines.value = o.payments.filter((p) => p.status === 'confirmed').map((p) => ({ key: newKey(), method: p.posMethod || 'cash', amount: String(p.amount), received: String(p.received ?? ''), qrRef: p.qrRef || '', qrExpiresAt: '', confirmed: true, locked: true, acceptedBy: p.qrAccept || 'staff', maneeId: p.maneeId || '' }))
   payNow.value = Date.now()
   clearInterval(payTimer)
-  payTimer = setInterval(() => { payNow.value = Date.now(); tickLines(); if (++payTick % 5 === 0) quietly(pollManee) }, 1000)
+  payTimer = setInterval(() => { payNow.value = Date.now(); tickLines(); if (++payTick % pollEvery() === 0) quietly(pollManee) }, 1000)
   payOpen.value = true
+  startTransferWatch()
 }
 function finishResume() {
   const r = finishPosBill(resumeOrder.value, payLines.value.filter((l) => !l.locked && lineAmt(l) > 0).map(toPosLine))

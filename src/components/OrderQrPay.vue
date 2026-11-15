@@ -2,9 +2,10 @@
 // รับชำระโอนหน้าร้านจากหน้าออร์เดอร์ · ทำงานเหมือน QR ของ POS: รอชำระ → ตรวจรายการถุงเงิน (ด้วยรหัสธุรกรรม) → ลูกค้าชำระแล้ว → รับชำระ
 // พบรายการที่ตรง (รหัส + ยอด) → ยืนยันอัตโนมัติทันที เฉพาะชำระก่อนวันนัด − X วัน (ตั้งค่าร้าน) · หลังจากนั้นพนักงานยืนยันเอง · หมดอายุตามตั้งค่า POS · ปิดหน้าก่อนชำระ = ยกเลิก QR
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { db, reportPayment, confirmPayment, cancelPaymentRequest } from '../data/store'
+import { db, can, reportPayment, confirmPayment, cancelPaymentRequest } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { listTransfersByRef } from '../lib/maneeRemote'
+import { watchTable } from '../lib/liveWatch'
 import { quietly } from '../lib/loading'
 import { money, dateTime } from '../lib/format'
 import BillerQr from './BillerQr.vue'
@@ -25,6 +26,8 @@ const detectedAt = ref(0)
 let timer = null
 let tickCount = 0
 let polling = false
+let watch = null // รายการโอนเข้าใหม่ (Realtime) · มีสิทธิ์ pos เท่านั้น
+let watchOff = true
 
 const pay = computed(() => props.order.payments.find((x) => x.id === pid.value) || null)
 const state = computed(() => {
@@ -84,12 +87,20 @@ function cancel() {
 
 function tick() {
   now.value = Date.now()
-  if (++tickCount % 5 === 0) quietly(poll)
+  if (++tickCount % (watch?.isLive() ? 30 : 5) === 0) quietly(poll)
 }
 
-onMounted(() => { timer = setInterval(tick, 1000) })
+onMounted(() => {
+  timer = setInterval(tick, 1000)
+  // รายการโอนเข้าใหม่ → ตรวจทันที (เฉพาะผู้มีสิทธิ์ pos · ไม่มีสิทธิ์ = โพลล์ทุก 5 วินาทีเหมือนเดิม)
+  watchOff = false
+  if (can('pos')) watchTable({ table: 'tungngern_transfers', event: 'INSERT' }, () => quietly(poll)).then((w) => { if (watchOff) w.stop(); else watch = w })
+})
 onBeforeUnmount(() => {
   clearInterval(timer)
+  watchOff = true
+  watch?.stop()
+  watch = null
   // ปิดหน้าก่อนลูกค้าชำระ = ยกเลิก QR ที่ยังค้าง (เหมือน POS)
   if (pay.value?.status === 'reported') cancelPaymentRequest(props.order, pid.value, { reason: 'ปิดหน้าชำระก่อนลูกค้าชำระ', notify: false, sms: false })
 })

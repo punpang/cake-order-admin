@@ -25,6 +25,7 @@ import { prepareChatImage, uploadChatImage, MAX_CHAT_IMAGES } from '../lib/chatI
 import { imageErrorMessage } from '../lib/imageResize'
 import { getSupabase } from '../lib/supabase'
 import { isTypingNow, msOf, pingDue, PRESENCE_POLL_MS, readReceiptId } from '../lib/chatPresence'
+import { watchTable } from '../lib/liveWatch'
 
 // เธรดแชทของศูนย์รวมแชท (ฝั่งพนักงาน) · ข้อความจากลูกค้ามาจาก LINE OA / Facebook
 // ผังล่าง: ข้อความ (เลื่อนได้) → แถบร่างบอท/แจ้งผล → เครื่องมือ → ช่องพิมพ์
@@ -132,12 +133,21 @@ function clearTyping() {
   typingAt = 0
   writePresence({ staff_typing_at: null })
 }
-// โพลล์สถานะลูกค้าทุก 3 วินาทีตอนเปิดแชท (ข้ามตอนแท็บถูกซ่อน) · ตั้งเวลาใหม่ทุกครั้ง จึงมีวงวนเดียว
+// สถานะลูกค้า: Realtime บนตาราง punpang_chat_presence ของแชทนี้ (เปลี่ยนแล้วได้ทันที) · ไม่มี Realtime = โพลล์ทุก 3 วินาที · มี = โพลล์สำรองทุก 30 วินาที
+let presenceWatch = null
+let presenceWatchSeq = 0
 let presenceTimer = null
 let presenceOff = true
+let nowTimer = null
 function presenceLoop(ms) {
   clearTimeout(presenceTimer)
   if (!presenceOff) presenceTimer = setTimeout(pollPresence, ms)
+}
+function applyCustomerRow(r, id) {
+  if (id !== props.chat.id) return
+  nowMs.value = Date.now()
+  custTypingAt.value = r?.customer_typing_at || null
+  custReadAt.value = r?.customer_read_at || null
 }
 async function pollPresence() {
   const id = props.chat.id
@@ -145,21 +155,28 @@ async function pollPresence() {
     try {
       const c = await getSupabase()
       const r = c ? await c.from('punpang_chat_presence').select('customer_typing_at,customer_read_at').eq('chat_id', id).maybeSingle() : null
-      if (r && !r.error && id === props.chat.id) {
-        nowMs.value = Date.now()
-        custTypingAt.value = r.data?.customer_typing_at || null
-        custReadAt.value = r.data?.customer_read_at || null
-      }
+      if (r && !r.error) applyCustomerRow(r.data, id)
     } catch { /* ไม่กระทบแชท */ }
   }
-  presenceLoop(PRESENCE_POLL_MS)
+  presenceLoop(presenceWatch?.isLive() ? 30000 : PRESENCE_POLL_MS)
+}
+// เริ่มฟังสถานะของแชทนี้ (แชทเปลี่ยน = เลิกฟังแชทเดิม) · อ่านค่าปัจจุบันทันทีด้วย
+async function startPresenceWatch() {
+  const seq = ++presenceWatchSeq
+  const id = props.chat.id
+  presenceWatch?.stop()
+  presenceWatch = null
+  const w = await watchTable({ table: 'punpang_chat_presence', event: '*', filter: `chat_id=eq.${id}` }, (payload) => applyCustomerRow(payload?.new, id))
+  if (seq === presenceWatchSeq && !presenceOff) presenceWatch = w
+  else w.stop()
+  presenceLoop(0)
 }
 watch(() => props.chat.id, () => {
   custTypingAt.value = null
   custReadAt.value = null
   typingOn = false
   typingAt = 0
-  presenceLoop(0) // แชทเปลี่ยน → ดึงสถานะของแชทใหม่ทันที
+  startPresenceWatch()
 })
 
 // ---------- เลื่อนลงล่าง / ข้อความใหม่ ----------
@@ -290,12 +307,16 @@ onMounted(() => {
   readNow()
   scrollEnd()
   presenceOff = false
-  presenceLoop(0)
+  startPresenceWatch()
+  nowTimer = setInterval(() => { nowMs.value = Date.now() }, 1000) // ตัวนับเวลา: สถานะพิมพ์หมดช่วงเองแม้ไม่มีสัญญาณใหม่
 })
 onBeforeUnmount(() => {
   clearTyping()
   presenceOff = true
   clearTimeout(presenceTimer)
+  presenceWatch?.stop()
+  presenceWatch = null
+  clearInterval(nowTimer)
 })
 
 // ---------- ข้อความต่อเนื่อง: ผู้ส่งเดียวกันภายใน 5 นาที (วันเดียวกัน) = กลุ่มเดียว ----------
