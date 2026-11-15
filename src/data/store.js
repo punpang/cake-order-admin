@@ -1056,6 +1056,7 @@ export function createOrder(payload, asDraft = false) {
     pickupAt: payload.pickupAt,
     fulfillment: payload.fulfillment,
     chatId: payload.chatId || null, // สร้างจากแชท
+    ...(payload.quoteId ? { quoteId: payload.quoteId } : {}), // ใบเสนอที่ออร์เดอร์นี้มาจาก (ราคาล็อกตามใบเสนอ)
     birthday: payload.birthday?.md ? { name: payload.birthday.name || '', md: payload.birthday.md } : null, // { name, md: 'MM-DD' }
     // โอกาสที่ลูกค้าบอกเอง · เก็บเฉพาะเมื่อลูกค้ายินยอม (ใช้เป็นสถิติรวมไม่ระบุตัวตนเท่านั้น)
     occasion: payload.occasionConsent && payload.occasionKind ? { kind: String(payload.occasionKind), consent: true } : null,
@@ -3384,7 +3385,7 @@ export function chatOrderBlock(chatId) {
 }
 function quoteToOrder(q) {
   const c = findChat(q.chatId)
-  const o = createOrder({ ...JSON.parse(JSON.stringify(q.payload)), customerId: c.customerId, chatId: q.chatId, quoteItems: true })
+  const o = createOrder({ ...JSON.parse(JSON.stringify(q.payload)), customerId: c.customerId, chatId: q.chatId, quoteItems: true, quoteId: q.id })
   if (o.error) return o
   Object.assign(q, { status: 'accepted', orderId: o.id })
   clearDraft(q.chatId)
