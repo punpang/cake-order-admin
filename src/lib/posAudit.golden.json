@@ -1,0 +1,653 @@
+{
+ "catalog": {
+  "retailItems": [
+   {
+    "id": "rt1",
+    "name": "เค้กช็อกโกแลต (ชิ้น)",
+    "price": 75,
+    "active": true
+   },
+   {
+    "id": "rt2",
+    "name": "เค้กส้ม (ชิ้น)",
+    "price": 70,
+    "active": true
+   },
+   {
+    "id": "rt3",
+    "name": "คัพเค้กวานิลลา",
+    "price": 45,
+    "active": true
+   },
+   {
+    "id": "rt4",
+    "name": "คัพเค้กเรดเวลเวท",
+    "price": 55,
+    "active": true
+   },
+   {
+    "id": "rt5",
+    "name": "อเมริกาโน่เย็น",
+    "price": 60,
+    "active": true
+   },
+   {
+    "id": "rt6",
+    "name": "ชาไทยเย็น",
+    "price": 55,
+    "active": true
+   },
+   {
+    "id": "rt7",
+    "name": "เทียนวันเกิด (แพ็ก)",
+    "price": 20,
+    "active": true
+   },
+   {
+    "id": "rt8",
+    "name": "เค้กช็อกโกแลตฟัดจ์",
+    "price": 480,
+    "active": true
+   },
+   {
+    "id": "rt9",
+    "name": "เค้กส้ม",
+    "price": 450,
+    "active": true
+   },
+   {
+    "id": "rt10",
+    "name": "เค้กใบเตยมะพร้าวอ่อน",
+    "price": 1050,
+    "active": true
+   },
+   {
+    "id": "rt11",
+    "name": "เรดเวลเวท",
+    "price": 550,
+    "active": true
+   }
+  ],
+  "posModifiers": [
+   {
+    "id": "md1",
+    "name": "ความหวาน",
+    "type": "single",
+    "required": true,
+    "active": true,
+    "options": [
+     {
+      "id": "o1",
+      "name": "ปกติ",
+      "price": 0
+     },
+     {
+      "id": "o2",
+      "name": "หวานน้อย",
+      "price": 0
+     },
+     {
+      "id": "o3",
+      "name": "ไม่หวาน",
+      "price": 0
+     }
+    ]
+   },
+   {
+    "id": "md2",
+    "name": "น้ำแข็ง",
+    "type": "single",
+    "required": true,
+    "active": true,
+    "options": [
+     {
+      "id": "o4",
+      "name": "ปกติ",
+      "price": 0
+     },
+     {
+      "id": "o5",
+      "name": "แยกน้ำแข็ง",
+      "price": 0
+     },
+     {
+      "id": "o6",
+      "name": "ไม่ใส่น้ำแข็ง",
+      "price": 0
+     }
+    ]
+   },
+   {
+    "id": "md3",
+    "name": "เพิ่ม",
+    "type": "multi",
+    "required": false,
+    "active": true,
+    "options": [
+     {
+      "id": "o7",
+      "name": "เพิ่มช็อต",
+      "price": 15
+     },
+     {
+      "id": "o8",
+      "name": "วิปครีม",
+      "price": 10
+     }
+    ]
+   }
+  ]
+ },
+ "bills": [
+  {
+   "id": "pos-drinks-promo",
+   "code": "POS-drinks-promo",
+   "channel": "pos",
+   "fulfillment": "pickup",
+   "items": [
+    {
+     "id": "i1065",
+     "kind": "retail",
+     "retailId": "rt5",
+     "retailPrice": 75,
+     "sizeId": null,
+     "typeId": null,
+     "mods": [
+      {
+       "groupId": "md3",
+       "optionId": "o7",
+       "group": "เพิ่ม",
+       "name": "เพิ่มช็อต",
+       "price": 15
+      }
+     ],
+     "name": "อเมริกาโน่เย็น",
+     "qty": 2,
+     "selections": {},
+     "note": "",
+     "images": [],
+     "unitPrice": 67.5,
+     "regularPrice": 75,
+     "fullPrice": 75,
+     "discounts": [
+      {
+       "kind": "promo",
+       "name": "เครื่องดื่มลด 10% (ตัวอย่าง)",
+       "amount": 7.5
+      }
+     ],
+     "specials": [],
+     "bundles": []
+    },
+    {
+     "id": "i1066",
+     "kind": "retail",
+     "retailId": "rt6",
+     "retailPrice": 55,
+     "sizeId": null,
+     "typeId": null,
+     "mods": [],
+     "name": "ชาไทยเย็น",
+     "qty": 1,
+     "selections": {},
+     "note": "",
+     "images": [],
+     "unitPrice": 49.5,
+     "regularPrice": 55,
+     "fullPrice": 55,
+     "discounts": [
+      {
+       "kind": "promo",
+       "name": "เครื่องดื่มลด 10% (ตัวอย่าง)",
+       "amount": 5.5
+      }
+     ],
+     "specials": [],
+     "bundles": []
+    }
+   ],
+   "adjustment": {
+    "amount": 0,
+    "reason": ""
+   },
+   "vat": {
+    "rate": 7,
+    "mode": "inclusive"
+   },
+   "status": "delivered",
+   "shipPromo": null,
+   "promoOn": true,
+   "pointsUsed": null,
+   "couponsUsed": [],
+   "payments": [
+    {
+     "id": "pay-drinks-promo",
+     "amount": 184.5,
+     "status": "confirmed",
+     "method": "เงินสด",
+     "posMethod": "cash",
+     "requested": 184.5,
+     "received": 184.5,
+     "change": 0
+    }
+   ],
+   "createdAt": "2026-11-15T10:00"
+  },
+  {
+   "id": "pos-bundle-cupcakes",
+   "code": "POS-bundle-cupcakes",
+   "channel": "pos",
+   "fulfillment": "pickup",
+   "items": [
+    {
+     "id": "i1067",
+     "kind": "retail",
+     "retailId": "rt5",
+     "retailPrice": 60,
+     "sizeId": null,
+     "typeId": null,
+     "mods": [],
+     "name": "อเมริกาโน่เย็น",
+     "qty": 1,
+     "selections": {},
+     "note": "",
+     "images": [],
+     "unitPrice": 50.86,
+     "regularPrice": 60,
+     "fullPrice": 60,
+     "discounts": [
+      {
+       "kind": "bundle",
+       "name": "อเมริกาโน่เย็น + คัพเค้กวานิลลา (ตัวอย่าง)",
+       "amount": 9.14
+      }
+     ],
+     "specials": [],
+     "bundles": []
+    },
+    {
+     "id": "i1068",
+     "kind": "retail",
+     "retailId": "rt3",
+     "retailPrice": 45,
+     "sizeId": null,
+     "typeId": null,
+     "mods": [],
+     "name": "คัพเค้กวานิลลา",
+     "qty": 1,
+     "selections": {},
+     "note": "",
+     "images": [],
+     "unitPrice": 38.14,
+     "regularPrice": 45,
+     "fullPrice": 45,
+     "discounts": [
+      {
+       "kind": "bundle",
+       "name": "อเมริกาโน่เย็น + คัพเค้กวานิลลา (ตัวอย่าง)",
+       "amount": 6.86
+      }
+     ],
+     "specials": [],
+     "bundles": []
+    },
+    {
+     "id": "i1069",
+     "kind": "retail",
+     "retailId": "rt3",
+     "retailPrice": 45,
+     "sizeId": null,
+     "typeId": null,
+     "mods": [],
+     "name": "คัพเค้กวานิลลา",
+     "qty": 2,
+     "selections": {},
+     "note": "",
+     "images": [],
+     "unitPrice": 45,
+     "regularPrice": 45,
+     "fullPrice": 45,
+     "discounts": [],
+     "specials": [],
+     "bundles": []
+    },
+    {
+     "id": "gift:dl1:rt3",
+     "kind": "retail",
+     "retailId": "rt3",
+     "retailPrice": 45,
+     "sizeId": null,
+     "typeId": null,
+     "mods": [],
+     "name": "คัพเค้กวานิลลา",
+     "qty": 1,
+     "selections": {},
+     "note": "",
+     "images": [],
+     "unitPrice": 0,
+     "regularPrice": 45,
+     "fullPrice": 45,
+     "discounts": [
+      {
+       "kind": "gift",
+       "name": "ซื้อคัพเค้ก 3 แถม 1 (ตัวอย่าง)",
+       "amount": 45
+      }
+     ],
+     "specials": [],
+     "bundles": [],
+     "promoGift": {
+      "dealId": "dl1",
+      "name": "ซื้อคัพเค้ก 3 แถม 1 (ตัวอย่าง)"
+     }
+    }
+   ],
+   "adjustment": {
+    "amount": 0,
+    "reason": ""
+   },
+   "vat": {
+    "rate": 7,
+    "mode": "inclusive"
+   },
+   "status": "delivered",
+   "shipPromo": null,
+   "promoOn": true,
+   "pointsUsed": null,
+   "couponsUsed": [],
+   "payments": [
+    {
+     "id": "pay-bundle-cupcakes",
+     "amount": 179,
+     "status": "confirmed",
+     "method": "เงินสด",
+     "posMethod": "cash",
+     "requested": 179,
+     "received": 179,
+     "change": 0
+    }
+   ],
+   "createdAt": "2026-11-15T10:00"
+  },
+  {
+   "id": "pos-spend-tier-gift",
+   "code": "POS-spend-tier-gift",
+   "channel": "pos",
+   "fulfillment": "pickup",
+   "items": [
+    {
+     "id": "i1070",
+     "kind": "retail",
+     "retailId": "rt8",
+     "retailPrice": 480,
+     "sizeId": "s1",
+     "typeId": "t1",
+     "mods": [],
+     "name": "เค้กช็อกโกแลตฟัดจ์",
+     "qty": 2,
+     "selections": {},
+     "note": "",
+     "images": [],
+     "unitPrice": 414.25,
+     "regularPrice": 480,
+     "fullPrice": 480,
+     "discounts": [
+      {
+       "kind": "promo",
+       "name": "ครบ 500 ลด 50 · ครบ 1,000 ลด 150 (ตัวอย่าง)",
+       "amount": 65.75
+      }
+     ],
+     "specials": [],
+     "bundles": []
+    },
+    {
+     "id": "i1071",
+     "kind": "retail",
+     "retailId": "rt3",
+     "retailPrice": 45,
+     "sizeId": null,
+     "typeId": null,
+     "mods": [],
+     "name": "คัพเค้กวานิลลา",
+     "qty": 2,
+     "selections": {},
+     "note": "",
+     "images": [],
+     "unitPrice": 38.84,
+     "regularPrice": 45,
+     "fullPrice": 45,
+     "discounts": [
+      {
+       "kind": "promo",
+       "name": "ครบ 500 ลด 50 · ครบ 1,000 ลด 150 (ตัวอย่าง)",
+       "amount": 6.16
+      }
+     ],
+     "specials": [],
+     "bundles": []
+    },
+    {
+     "id": "i1072",
+     "kind": "retail",
+     "retailId": "rt3",
+     "retailPrice": 45,
+     "sizeId": null,
+     "typeId": null,
+     "mods": [],
+     "name": "คัพเค้กวานิลลา",
+     "qty": 1,
+     "selections": {},
+     "note": "",
+     "images": [],
+     "unitPrice": 38.82,
+     "regularPrice": 45,
+     "fullPrice": 45,
+     "discounts": [
+      {
+       "kind": "promo",
+       "name": "ครบ 500 ลด 50 · ครบ 1,000 ลด 150 (ตัวอย่าง)",
+       "amount": 6.18
+      }
+     ],
+     "specials": [],
+     "bundles": []
+    },
+    {
+     "id": "gift:dl1:rt3",
+     "kind": "retail",
+     "retailId": "rt3",
+     "retailPrice": 45,
+     "sizeId": null,
+     "typeId": null,
+     "mods": [],
+     "name": "คัพเค้กวานิลลา",
+     "qty": 1,
+     "selections": {},
+     "note": "",
+     "images": [],
+     "unitPrice": 0,
+     "regularPrice": 45,
+     "fullPrice": 45,
+     "discounts": [
+      {
+       "kind": "gift",
+       "name": "ซื้อคัพเค้ก 3 แถม 1 (ตัวอย่าง)",
+       "amount": 45
+      }
+     ],
+     "specials": [],
+     "bundles": [],
+     "promoGift": {
+      "dealId": "dl1",
+      "name": "ซื้อคัพเค้ก 3 แถม 1 (ตัวอย่าง)"
+     }
+    },
+    {
+     "id": "gift:dl3:rt7",
+     "kind": "retail",
+     "retailId": "rt7",
+     "retailPrice": 20,
+     "sizeId": null,
+     "typeId": null,
+     "mods": [],
+     "name": "เทียนวันเกิด (แพ็ก)",
+     "qty": 1,
+     "selections": {},
+     "note": "",
+     "images": [],
+     "unitPrice": 0,
+     "regularPrice": 20,
+     "fullPrice": 20,
+     "discounts": [
+      {
+       "kind": "gift",
+       "name": "ครบ 800 ฟรีเทียนวันเกิด (ตัวอย่าง)",
+       "amount": 20
+      }
+     ],
+     "specials": [],
+     "bundles": [],
+     "promoGift": {
+      "dealId": "dl3",
+      "name": "ครบ 800 ฟรีเทียนวันเกิด (ตัวอย่าง)"
+     }
+    }
+   ],
+   "adjustment": {
+    "amount": 0,
+    "reason": ""
+   },
+   "vat": {
+    "rate": 7,
+    "mode": "inclusive"
+   },
+   "status": "delivered",
+   "shipPromo": null,
+   "promoOn": true,
+   "pointsUsed": null,
+   "couponsUsed": [],
+   "payments": [
+    {
+     "id": "pay-spend-tier-gift",
+     "amount": 945,
+     "status": "confirmed",
+     "method": "เงินสด",
+     "posMethod": "cash",
+     "requested": 945,
+     "received": 945,
+     "change": 0
+    }
+   ],
+   "createdAt": "2026-11-15T10:00"
+  },
+  {
+   "id": "pos-manual-discount",
+   "code": "POS-manual-discount",
+   "channel": "pos",
+   "fulfillment": "pickup",
+   "items": [
+    {
+     "id": "i1073",
+     "kind": "retail",
+     "retailId": "rt8",
+     "retailPrice": 480,
+     "sizeId": "s1",
+     "typeId": "t1",
+     "mods": [],
+     "name": "เค้กช็อกโกแลตฟัดจ์",
+     "qty": 1,
+     "selections": {},
+     "note": "",
+     "images": [],
+     "unitPrice": 480,
+     "regularPrice": 480,
+     "fullPrice": 480,
+     "discounts": [],
+     "specials": [],
+     "bundles": []
+    }
+   ],
+   "adjustment": {
+    "amount": -20,
+    "reason": "ลูกค้าประจำ"
+   },
+   "vat": {
+    "rate": 7,
+    "mode": "inclusive"
+   },
+   "status": "delivered",
+   "shipPromo": null,
+   "promoOn": true,
+   "pointsUsed": null,
+   "couponsUsed": [],
+   "payments": [
+    {
+     "id": "pay-manual-discount",
+     "amount": 460,
+     "status": "confirmed",
+     "method": "เงินสด",
+     "posMethod": "cash",
+     "requested": 460,
+     "received": 460,
+     "change": 0
+    }
+   ],
+   "createdAt": "2026-11-15T10:00"
+  },
+  {
+   "id": "pos-partial-pending",
+   "code": "POS-partial-pending",
+   "channel": "pos",
+   "fulfillment": "pickup",
+   "items": [
+    {
+     "id": "i1074",
+     "kind": "retail",
+     "retailId": "rt8",
+     "retailPrice": 480,
+     "sizeId": "s1",
+     "typeId": "t1",
+     "mods": [],
+     "name": "เค้กช็อกโกแลตฟัดจ์",
+     "qty": 1,
+     "selections": {},
+     "note": "",
+     "images": [],
+     "unitPrice": 480,
+     "regularPrice": 480,
+     "fullPrice": 480,
+     "discounts": [],
+     "specials": [],
+     "bundles": []
+    }
+   ],
+   "adjustment": {
+    "amount": 0,
+    "reason": ""
+   },
+   "vat": {
+    "rate": 7,
+    "mode": "inclusive"
+   },
+   "status": "pos_pending",
+   "shipPromo": null,
+   "promoOn": true,
+   "pointsUsed": null,
+   "couponsUsed": [],
+   "payments": [
+    {
+     "id": "pay-partial-pending",
+     "amount": 240,
+     "status": "confirmed",
+     "method": "เงินสด",
+     "posMethod": "cash",
+     "requested": 240,
+     "received": 240,
+     "change": 0
+    }
+   ],
+   "createdAt": "2026-11-15T10:00"
+  }
+ ]
+}

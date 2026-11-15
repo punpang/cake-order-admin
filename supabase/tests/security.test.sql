@@ -486,4 +486,14 @@ select test.ok('C4: พนักงานสร้างแถวใบเสน
 select test.ok('C4: พนักงานที่มีสิทธิ์แชทยังแก้สถานะใบเสนอที่มีอยู่ได้',
   test.as_staff('99999999-9999-9999-9999-999999999999',
     $q$ update public.punpang_quotes set status = status where id = 'qt3' $q$) = 'OK');
+-- C5) ตรวจบิลหน้าร้านหลังซิงก์ (ไม่บล็อกการขาย): ผลตรวจเขียนได้เฉพาะเซิร์ฟเวอร์ · คิวบิลเรียกได้เฉพาะเซิร์ฟเวอร์ · ผู้เห็นออร์เดอร์ทั้งหมดอ่านผลได้
+select test.ok('C5: พนักงานเขียนผลตรวจบิลเองไม่ได้',
+  test.as_staff('99999999-9999-9999-9999-999999999999',
+    $q$ insert into public.punpang_order_audits (order_id, ok, flags) values ('o_q2', true, '[]') $q$) like 'ERR:42501:%');
+select test.ok('C5: พนักงานเรียกคิวตรวจบิลไม่ได้ (เฉพาะเซิร์ฟเวอร์)',
+  test.as_staff('99999999-9999-9999-9999-999999999999',
+    $q$ select * from public.punpang_pos_unaudited(1) $q$) like 'ERR:42501:%');
+select test.ok('C5: พนักงานที่เห็นออร์เดอร์ทั้งหมดอ่านผลตรวจได้',
+  test.as_staff('99999999-9999-9999-9999-999999999999',
+    $q$ select count(*) from public.punpang_order_audits $q$) = 'OK');
 select 'ผ่านทั้งหมด' as security_tests;
