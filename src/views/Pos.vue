@@ -13,6 +13,7 @@ import { pointPromoFor } from '../lib/posPromo'
 import { coBought, rankSellers, suggestBundles } from '../lib/posRec'
 import { POS_METHODS, ROLES } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
+import { isUnsaved, needBind, closeGuard } from '../lib/payBind'
 import { refreshLabels } from '../lib/staffAuth'
 import { waitSaved } from '../lib/syncStatus'
 import { showToast } from '../lib/toast'
@@ -339,28 +340,34 @@ function removePayLine(i) {
 async function pollManee() {
   if (maneePolling) return
   maneePolling = true
+  let autoOk = false
   try {
     for (const l of payLines.value) {
       if (l.method !== 'transfer' || !l.qrRef || l.confirmed || l.detectedAt || l.status === 'cancelled' || expiredLine(l)) continue
       const r = await listTransfersByRef({ ref: l.qrRef, amount: lineAmt(l) })
       if (r.error) continue
       l.candidates = r.rows
-      if (r.rows.length === 1 && db.shop.posAutoAcceptNow) Object.assign(l, { detectedAt: Date.now(), maneeId: r.rows[0].id, confirmed: true, acceptedBy: 'auto' })
+      if (r.rows.length === 1 && db.shop.posAutoAcceptNow) { Object.assign(l, { detectedAt: Date.now(), maneeId: r.rows[0].id, confirmed: true, acceptedBy: 'auto' }); autoOk = true }
       else if (r.rows.length === 1) Object.assign(l, { detectedAt: Date.now(), maneeId: r.rows[0].id })
     }
   } finally { maneePolling = false }
+  if (autoOk) bindPaid()
 }
 // รับเองเมื่อครบ 3 นาทีหลังพบรายการ (เฉพาะกรณีพบรายการเดียว)
 function tickLines() {
+  let autoOk = false
   for (const l of payLines.value) {
-    if (l.method === 'transfer' && l.detectedAt && !l.confirmed && l.status !== 'cancelled' && Date.now() - l.detectedAt >= AUTO_ACCEPT_MS) Object.assign(l, { confirmed: true, acceptedBy: 'auto' })
+    if (l.method === 'transfer' && l.detectedAt && !l.confirmed && l.status !== 'cancelled' && Date.now() - l.detectedAt >= AUTO_ACCEPT_MS) { Object.assign(l, { confirmed: true, acceptedBy: 'auto' }); autoOk = true }
   }
+  if (autoOk) bindPaid()
 }
 function pickManee(l, c) {
   Object.assign(l, { confirmed: true, acceptedBy: 'staff', maneeId: c.id })
+  bindPaid()
 }
 function receiveNow(l) {
   Object.assign(l, { confirmed: true, acceptedBy: 'staff' })
+  bindPaid()
 }
 function cancelQr(l) {
   Object.assign(l, { status: 'cancelled', confirmed: false, detectedAt: 0, maneeId: '', candidates: [] })
@@ -487,6 +494,50 @@ async function saveBillPartial() {
     await sellNow({ partial: true, lines: payLines.value.filter((l) => l.confirmed && lineAmt(l) > 0).map(toPosLine) })
   } finally { selling = false }
 }
+// ---------- ผูกยอดโอนที่รับแล้วเป็นบิลค้างทันที ----------
+// รับชำระโอนแล้วและยังขาดยอด → บันทึกเป็นบิลค้างเลย (ยอดนี้ล็อกไว้ในบิล ปิดหน้าชำระหรือเพิ่มรายการก็ไม่หาย)
+// หน้าชำระยังเปิดอยู่ รับส่วนที่เหลือต่อได้ทันที · ครบยอดแล้วให้กดยืนยันรับเงินตามปกติ
+const binding = ref(false)
+async function bindOnce() {
+  const bound = payLines.value.filter(isUnsaved) // เฉพาะรายการที่ยังไม่ได้ผูก (รายการที่รับเพิ่มระหว่างผูกจะรอรอบถัดไป)
+  const lines = bound.map(toPosLine)
+  if (resumeOrder.value) {
+    const r = addPosPartial(resumeOrder.value, lines)
+    if (r.error) { payErr.value = r.error; return false }
+  } else {
+    await refreshLabels(['สินค้า', 'กะ POS']) // สต็อก/กะล่าสุดจากเซิร์ฟเวอร์ก่อนบันทึกบิลค้าง
+    const o = await sellNow({ partial: true, keepOpen: true, lines })
+    if (!o?.id) return false // ไม่สำเร็จ: sellNow ตั้งข้อความ payErr แล้ว
+    resumeOrder.value = o
+  }
+  bound.forEach((l) => { l.locked = true }) // ผูกแล้ว: ล็อกไว้ ยกเลิกการรับชำระไม่ได้
+  return true
+}
+// เรียกทุกครั้งที่มียอดรับแล้ว (กดเอง / ระบบรับเอง) · ผูกจนไม่มีรายการค้างผูก
+// ผูกไม่สำเร็จ → หยุดและเก็บรายการไว้ ให้กดบันทึกบิลค้างไว้ลองใหม่ (ไม่วนลองซ้ำเอง)
+async function bindPaid() {
+  if (binding.value || selling || !payOpen.value) return
+  binding.value = true
+  selling = true
+  payErr.value = ''
+  try {
+    while (payOpen.value && needBind(payLines.value, remaining.value)) {
+      if (!(await bindOnce())) break
+    }
+  } catch (e) {
+    payErr.value = `บันทึกบิลค้างไม่สำเร็จ: ${e.message || e}`
+  } finally {
+    binding.value = false
+    selling = false
+  }
+}
+// ปิดหน้าชำระ: ถ้ายังมียอดรับแล้วที่ไม่ได้ผูก ห้ามปิด (กันยอดหาย)
+function requestClose() {
+  if (binding.value) return
+  const g = closeGuard(payLines.value, remaining.value)
+  if (g.block) { payErr.value = g.message; return }
+  closePay()
+}
 async function sellNow(opts = {}) {
   payErr.value = member.value ? posCouponProblem({ customerId: member.value.id, couponIds: couponIds.value }) : ''
   if (payErr.value) { couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id)); return }
@@ -500,9 +551,10 @@ async function sellNow(opts = {}) {
   })
   if (!o) { await releaseCoupons(claim.claimed); return (payErr.value = 'ขายไม่สำเร็จ ตรวจกะ/ตะกร้า/คูปองอีกครั้ง') }
   // ผูกคูปองที่จองไว้ (pos-pending) เข้ากับบิลจริงบนเซิร์ฟเวอร์ผ่านการซิงก์แถวคูปองตามปกติ
-  closePay()
+  if (!opts.keepOpen) closePay() // ผูกยอดโอนเป็นบิลค้าง: หน้าชำระเปิดอยู่ต่อ
   cartOpen.value = false
-  if (opts.partial) showToast(`บันทึกบิลค้าง ${o.code} แล้ว · รับชำระส่วนที่เหลือได้ที่แท็บบิล`, 8000)
+  if (opts.keepOpen) showToast(`บันทึกยอดที่รับแล้วเป็นบิลค้าง ${o.code} · รับส่วนที่เหลือต่อในหน้านี้`, 8000)
+  else if (opts.partial) showToast(`บันทึกบิลค้าง ${o.code} แล้ว · รับชำระส่วนที่เหลือได้ที่แท็บบิล`, 8000)
   else receipt.value = o
   if (native && !opts.partial) {
     const oT = orderTotals(o)
@@ -517,6 +569,7 @@ async function sellNow(opts = {}) {
   discount.value = ''
   // ขายแล้ว (ใบเสร็จแสดงได้) แต่ต้องแจ้งตามจริงถ้ายังบันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ
   waitSaved().then((r) => { if (!r.ok) showToast(`บิล ${o.code} ยังบันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ (${r.error}) · ระบบจะลองส่งซ้ำเอง ดูสถานะที่แถบด้านบน`, 12000, 'error') })
+  return o
 }
 const print = () => {
   if (!native) return window.print()
@@ -858,7 +911,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · เลย์เอาต์ใหม่: สรุปยอด → เลือกวิธีชำระ → รายการชำระ → ยืนยันปุ่มล่าง -->
-    <AppModal v-if="payOpen" title="ชำระเงิน" wide @close="closePay">
+    <AppModal v-if="payOpen" title="ชำระเงิน" wide @close="requestClose">
       <div class="space-y-4">
         <div class="rounded-2xl bg-brand-50 p-4">
           <div class="flex items-end justify-between gap-3">
@@ -874,6 +927,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         </div>
         <p v-if="member && !coupons.length && hiddenCoupons" class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800" role="note">ลูกค้ามีคูปองที่ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" ({{ hiddenCoupons }} ใบ) — ให้ลูกค้ากดเองในบัญชีของตนก่อน คูปองจึงจะขึ้นที่นี่ (มีเวลาแสดง {{ db.loyalty.activationMin }} นาที)</p>
         <p v-if="payErr" class="rounded-xl bg-rose-50 p-2.5 text-sm text-rose-700" role="alert">{{ payErr }}</p>
+        <p v-if="binding" class="rounded-xl bg-emerald-50 p-2.5 text-center text-sm text-emerald-800" role="status">กำลังบันทึกยอดที่รับแล้วเป็นบิลค้าง…</p>
         <div v-if="member && coupons.length" class="rounded-2xl border border-stone-200 p-3" aria-label="คูปองส่วนลดในขั้นชำระเงิน">
           <div class="mb-1.5 text-sm font-semibold text-stone-800">คูปองที่ {{ member.name }} กดแสดงไว้ · กดเพื่อใช้แทนเงินสด</div>
           <div class="flex flex-wrap gap-1.5">
@@ -921,7 +975,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
             <div v-else-if="l.confirmed" class="mt-3 space-y-2">
               <div class="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800"><AppIcon name="check" :size="18" /> รับชำระแล้ว{{ l.acceptedBy === 'auto' ? ' (ระบบรับอัตโนมัติ)' : '' }}</div>
-              <button v-if="!l.locked" type="button" class="btn-outline h-11 w-full" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิกการรับชำระ</button>
+              <button v-if="!l.locked && !binding" type="button" class="btn-outline h-11 w-full" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิกการรับชำระ</button>
             </div>
 
             <div v-else class="mt-3 grid gap-3 sm:grid-cols-2 sm:items-start">
@@ -961,9 +1015,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       </div>
       <template #footer>
         <div class="flex w-full gap-2">
-          <button class="btn-outline h-12 flex-1" @click="closePay">ยกเลิก</button>
-          <button v-if="canSavePartial" class="btn-soft h-12 flex-1" @click="saveBillPartial">บันทึกบิลค้างไว้</button>
-          <button class="btn-primary h-12 flex-[1.4]" :disabled="!canConfirm" @click="confirmPay"><AppIcon name="check" :size="18" /> ยืนยันรับเงิน</button>
+          <button class="btn-outline h-12 flex-1" :disabled="binding" @click="requestClose">ยกเลิก</button>
+          <button v-if="canSavePartial" class="btn-soft h-12 flex-1" :disabled="binding" @click="saveBillPartial">บันทึกบิลค้างไว้</button>
+          <button class="btn-primary h-12 flex-[1.4]" :disabled="!canConfirm || binding" @click="confirmPay"><AppIcon name="check" :size="18" /> ยืนยันรับเงิน</button>
         </div>
       </template>
     </AppModal>
