@@ -32,13 +32,14 @@ as $$
 declare
   v_topic text;
 begin
-  if new.data is not distinct from old.data and new.status is not distinct from old.status
-     and new.pickup_at is not distinct from old.pickup_at and new.balance is not distinct from old.balance then
-    return null;
-  end if;
-  select t.topic into v_topic from public.punpang_order_topics t where t.order_id = new.id;
-  if v_topic is null then return null; end if;
+  -- ทั้งฟังก์ชันอยู่ใน exception: สัญญาณต้องไม่ทำให้การบันทึกออร์เดอร์ล้มเหลว
   begin
+    if new.data is not distinct from old.data and new.status is not distinct from old.status
+       and new.pickup_at is not distinct from old.pickup_at and new.balance is not distinct from old.balance then
+      return null;
+    end if;
+    select t.topic into v_topic from public.punpang_order_topics t where t.order_id = new.id;
+    if v_topic is null then return null; end if;
     perform realtime.send('{}'::jsonb, 'msg', v_topic, false); -- false = ช่องสาธารณะ (ลูกค้าไม่มี JWT ของ Supabase)
   exception when others then
     null;
