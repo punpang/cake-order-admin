@@ -19,13 +19,16 @@ export const BOT_DEFAULTS = {
   handoff: { notifyTelegram: true, text: 'ขอส่งต่อให้พนักงานช่วยดูแลต่อนะคะ รอสักครู่ค่ะ' },
   // บอท AI (ทำงานบนเซิร์ฟเวอร์ ช่อง Facebook เท่านั้น) · ปิดเป็นค่าเริ่มต้น · เรียกเฉพาะเมื่อกฎเดิมตอบไม่ได้ · ไม่ส่งข้อมูลออร์เดอร์/ลูกค้า
   // mode: suggest = ร่างให้พนักงานกดส่ง (ค่าเริ่มต้น) · auto = ส่งเอง · dailyLimit = จำนวนครั้งที่เรียกโมเดลต่อวัน (0 = ไม่เรียกเลย)
-  ai: { enabled: false, provider: 'anthropic', model: 'claude-sonnet-5-5', mode: 'suggest', dataMode: 'basic', dailyLimit: 50, maxTokens: 400 },
+  // ลำดับผู้ตอบ: Workers AI (ถ้าเปิด) → Claude (ถ้าเปิด · สำรองเมื่อ Workers AI เต็มเพดานวันนี้) · waiEnabled/claudeEnabled เปิดปิดแยกกัน
+  ai: { enabled: false, provider: 'anthropic', model: 'claude-sonnet-5-5', mode: 'suggest', dataMode: 'basic', dailyLimit: 50, maxTokens: 400, waiEnabled: false, waiModel: '@cf/openai/gpt-oss-120b', waiDailyLimit: 50, claudeEnabled: true },
   rules: [],
   learned: [],
   stats: { suggested: 0, answered: 0, handoff: 0, staffEdited: 0 },
 }
 // โมเดลของบอท AI ที่เลือกได้ในหน้าตั้งค่า (ชื่อต้องตรงกับที่ Anthropic ใช้)
 export const AI_MODELS = ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5', 'claude-fable-5-2']
+// โมเดล Workers AI ที่เลือกได้ · ผ่านการทดสอบว่าตอบ [HANDOFF] เมื่อไม่มีข้อมูล (โมเดลอื่นที่ทดสอบแล้วเดาคำตอบเอง จึงไม่ใส่ในรายการ)
+export const AI_WAI_MODELS = ['@cf/openai/gpt-oss-120b', '@cf/google/gemma-4-26b-a4b-it']
 export const LEARN_MAX = 200
 // ประเภทคำตอบที่ตั้ง ตอบเอง/แนะนำ ได้รายประเภท
 export const AUTO_SOURCES = ['hours', 'faq', 'offhours', 'order', 'rule', 'price', 'learned', 'ask']

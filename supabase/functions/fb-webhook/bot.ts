@@ -5,7 +5,8 @@
 // ค่าตั้งอ่านจาก punpang_kv (collection 'config': bot, shop) · ไม่มีค่า → ไม่ทำงาน
 
 import { orderNo } from '../_shared/slipref.ts'
-import { complete } from '../_shared/ai.ts'
+import { complete, isQuotaError } from '../_shared/ai.ts'
+import { aiChainOf } from '../_shared/aichain.ts'
 
 const GRAPH = 'https://graph.facebook.com'
 const STALE_MS = 5 * 60_000 // ข้อความเก่ากว่านี้ (เช่น Meta ส่งซ้ำนาน ๆ) ไม่ตอบ
@@ -47,7 +48,9 @@ export type BotInput = {
   mid: string
   text: string
   at: string // เวลาที่ลูกค้าส่ง (ISO)
-  aiKey?: string // คีย์ Claude API (จาก secret ANTHROPIC_API_KEY) · ไม่มี → บอท AI ไม่ทำงาน
+  aiKey?: string // คีย์ Claude API (จาก secret ANTHROPIC_API_KEY) · ไม่มี → ไม่ใช้ Claude
+  waiToken?: string // โทเค็น Cloudflare (จาก secret CLOUDFLARE_API_TOKEN) สำหรับ Workers AI · ไม่มี → ไม่ใช้ Workers AI
+  waiAccountId?: string // รหัสบัญชี Cloudflare (จาก secret CLOUDFLARE_ACCOUNT_ID)
   channel?: string // 'facebook' (ค่าเริ่มต้น) | 'instagram' · เปิดบอทแยกต่อช่องทางใน config.bot.channels
 }
 
@@ -224,9 +227,10 @@ async function tryAi(o: BotInput, bot: any, shop: any, storefront: any, profileN
   // ข้อความที่มีข้อมูลส่วนตัว (เบอร์/อีเมล/เลขออร์เดอร์/เลขยาว/ชื่อลูกค้า) → ไม่ส่งให้ AI เลย (ตรวจก่อนนับเพดาน)
   const full = String(o.text ?? '').trim()
   if (scrubPII(full, [profileName].filter((x) => String(x || '').trim().length >= 2)) !== full) return skip('มีข้อมูลส่วนตัวในข้อความ — ไม่ส่งให้ AI')
-  if (!o.aiKey) return skip('ยังไม่ได้ตั้งคีย์ AI')
-  if ((cfg.provider || 'anthropic') !== 'anthropic') return skip('ผู้ให้บริการ AI นี้ยังไม่รองรับ')
-  const model = String(cfg.model || 'claude-sonnet-5-5').slice(0, 80)
+  // ลำดับผู้ตอบ: Workers AI → Claude (เฉพาะผู้ให้บริการที่เปิดไว้และมีคีย์)
+  const day = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10)
+  const chain = aiChainOf(cfg, { workers: !!(o.waiToken && o.waiAccountId), anthropic: !!o.aiKey }, day)
+  if (!chain.length) return skip('ยังไม่ได้เปิดผู้ตอบ AI หรือยังไม่ได้ตั้งคีย์')
   // ออร์เดอร์ของลูกค้า (เฉพาะแชทที่ผูกลูกค้าแล้ว และเฉพาะคำถามเรื่องออร์เดอร์ในโหมด 100%)
   let orders: string[] | null = null
   if (orderTopic) {
@@ -234,35 +238,47 @@ async function tryAi(o: BotInput, bot: any, shop: any, storefront: any, profileN
     if (orders === null) return skip('โหลดข้อมูลออร์เดอร์ไม่สำเร็จ')
   }
 
-  // เพดานต่อวัน (เวลาไทย) · นับแบบอะตอมิกในฐานข้อมูล · ผิดพลาดหรือครบ → ไม่เรียกโมเดล
-  const day = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10)
-  const limit = clampInt(cfg.dailyLimit, 0, 1000, 0)
-  const took = await o.sb.rpc('punpang_ai_take', { p_day: day, p_limit: limit })
-  if (took.error || took.data !== true) { await logAi(o, { status: 'limit', model }); return skip('ครบเพดาน AI วันนี้') }
-
   // ส่งให้โมเดลเฉพาะข้อความปัจจุบันของลูกค้า (ไม่ส่งประวัติแชท ชื่อลูกค้า หรือข้อความพนักงาน) + ข้อมูลร้าน/สินค้า
   const catalog = await loadCatalog(o.sb)
-  if (!catalog) { await logAi(o, { status: 'error', model }); return skip('โหลดข้อมูลสินค้าไม่สำเร็จ') }
+  if (!catalog) { await logAi(o, { status: 'error', model: chain[0].model }); return skip('โหลดข้อมูลสินค้าไม่สำเร็จ') }
+  const system = aiSystemPrompt(shop, storefront, catalog, fullMode ? { orders } : undefined)
+  const messages = [{ role: 'user' as const, content: full.slice(0, AI_CHAR_CAP) }]
+  const maxTokens = clampInt(cfg.maxTokens, 50, 1024, 400)
 
-  const t0 = Date.now()
-  let reply = ''
-  try {
-    reply = await complete({
-      provider: 'anthropic', model, key: o.aiKey,
-      system: aiSystemPrompt(shop, storefront, catalog, fullMode ? { orders } : undefined), messages: [{ role: 'user', content: full.slice(0, AI_CHAR_CAP) }],
-      maxTokens: clampInt(cfg.maxTokens, 50, 1024, 400),
-    })
-  } catch {
-    await logAi(o, { status: 'error', model, ms: Date.now() - t0 })
-    return skip('AI ตอบไม่สำเร็จ')
+  // เพดานของแต่ละผู้ให้บริการนับแบบอะตอมิกในฐานข้อมูล · Workers AI เต็มเพดาน (หรือโควตา Cloudflare หมด) → ส่งต่อ Claude
+  // ข้อผิดพลาดอื่นของผู้ให้บริการไม่ส่งต่อ (ส่งต่อพนักงานตามเดิม)
+  for (const step of chain) {
+    const took = await o.sb.rpc('punpang_ai_take', { p_day: step.usageKey, p_limit: step.limit })
+    if (took.error || took.data !== true) { await logAi(o, { status: 'limit', model: step.model }); continue }
+    const t0 = Date.now()
+    let reply = ''
+    try {
+      reply = await complete({
+        provider: step.provider, model: step.model,
+        key: step.provider === 'workers' ? String(o.waiToken || '') : String(o.aiKey || ''),
+        accountId: step.provider === 'workers' ? o.waiAccountId : undefined,
+        system, messages, maxTokens,
+      })
+    } catch (e) {
+      if (step.provider === 'workers' && isQuotaError(e)) {
+        // ตั้งตัวนับวันนี้ของ Workers AI ให้เต็ม เพื่อไม่ลองเรียกซ้ำจนกว่าจะขึ้นวันใหม่
+        await o.sb.from('punpang_kv').upsert({ collection: 'aiUsage', id: step.usageKey, data: { n: step.limit } }, { onConflict: 'collection,id' })
+        await logAi(o, { status: 'quota', model: step.model, ms: Date.now() - t0 })
+        continue
+      }
+      await logAi(o, { status: 'error', model: step.model, ms: Date.now() - t0 })
+      return skip('AI ตอบไม่สำเร็จ')
+    }
+    const clean = String(reply || '').trim()
+    if (!clean || /\[HANDOFF\]/i.test(clean)) {
+      await logAi(o, { status: 'handoff', model: step.model, ms: Date.now() - t0 })
+      return skip('AI ส่งต่อพนักงาน')
+    }
+    await logAi(o, { status: 'ok', model: step.model, ms: Date.now() - t0 })
+    const label = step.provider === 'workers' ? 'Workers AI' : 'Claude'
+    return { reply: clean.slice(0, 1000), source: 'ai', handoff: false, reason: `ตอบโดย AI (${label} · ${step.model}) · ${dec0.reason}`, draftOnly: orderTopic }
   }
-  const clean = String(reply || '').trim()
-  if (!clean || /\[HANDOFF\]/i.test(clean)) {
-    await logAi(o, { status: 'handoff', model, ms: Date.now() - t0 })
-    return skip('AI ส่งต่อพนักงาน')
-  }
-  await logAi(o, { status: 'ok', model, ms: Date.now() - t0 })
-  return { reply: clean.slice(0, 1000), source: 'ai', handoff: false, reason: `ตอบโดย AI (${model}) · ${dec0.reason}`, draftOnly: orderTopic }
+  return skip('ครบเพดาน AI วันนี้')
 }
 
 // ออร์เดอร์ที่ใช้งานอยู่ของลูกค้าคนนี้ (สูงสุด 3 รายการ · ใช้ข้อความสรุปเดียวกับที่ลูกค้าเห็นจากกฎ) · null = โหลดไม่สำเร็จ

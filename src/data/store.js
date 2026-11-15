@@ -15,7 +15,7 @@ import { showToast } from '../lib/toast'
 import { nextBirthday, daysBetween } from '../lib/birthday'
 import { parseAnswer } from '../lib/chatParse'
 import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEFAULT_COOKIE, DEFAULT_LEGAL_CONTACT } from '../lib/legalDefaults'
-import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX, AUTO_SOURCES, LOCKED_SOURCES, AI_MODELS } from '../lib/chatBot'
+import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX, AUTO_SOURCES, LOCKED_SOURCES, AI_MODELS, AI_WAI_MODELS } from '../lib/chatBot'
 import { checkTelegram } from '../lib/integrationCheck'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
 import { DEFAULT_ACCOUNTS } from '../lib/acct/chart'
@@ -3107,6 +3107,10 @@ export function saveBotSettings(d) {
     dataMode: ai.dataMode === 'full' ? 'full' : 'basic', // basic = เฉพาะข้อความ+ข้อมูลร้าน · full = 100% (ตอบได้ทุกเรื่อง รวมออร์เดอร์ของลูกค้าคนนั้นเมื่อถามเรื่องออร์เดอร์ และเรื่องออร์เดอร์เป็นร่างเสมอ)
     dailyLimit: Math.min(1000, Math.max(0, Math.round(Number(ai.dailyLimit) || 0))),
     maxTokens: Math.min(1024, Math.max(50, Math.round(Number(ai.maxTokens) || BOT_DEFAULTS.ai.maxTokens))),
+    waiEnabled: ai.waiEnabled === true, // Workers AI ตอบก่อน (เปิดปิดแยกจาก Claude)
+    waiModel: AI_WAI_MODELS.includes(ai.waiModel) ? ai.waiModel : BOT_DEFAULTS.ai.waiModel,
+    waiDailyLimit: Math.min(1000, Math.max(0, Math.round(Number(ai.waiDailyLimit) || 0))), // 0 = ไม่เรียก Workers AI
+    claudeEnabled: ai.claudeEnabled !== false, // Claude เป็นตัวสำรอง (ค่าเริ่มต้นเปิด)
   }
   return { ok: true }
 }

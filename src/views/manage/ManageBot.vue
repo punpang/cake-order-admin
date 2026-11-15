@@ -3,7 +3,7 @@ import SectionTabs from '../../components/SectionTabs.vue'
 import { computed, reactive, ref } from 'vue'
 import { db, saveBotSettings, saveBotRule, removeBotRule, removeLearned, promoteLearned, testBot } from '../../data/store'
 import { dateOnly } from '../../lib/format'
-import { AUTO_SOURCES, BOT_DEFAULTS, AI_MODELS } from '../../lib/chatBot'
+import { AUTO_SOURCES, BOT_DEFAULTS, AI_MODELS, AI_WAI_MODELS } from '../../lib/chatBot'
 import { askConfirm } from '../../lib/confirm'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
@@ -25,7 +25,7 @@ function save() {
   Object.assign(st, snap())
   msg.value = 'บันทึกแล้ว'
 }
-const aiKeyHint = 'ต้องตั้งคีย์ ANTHROPIC_API_KEY เป็น secret ของ Supabase (Edge Function fb-webhook) ก่อน · ไม่มีคีย์ = บอทส่งต่อพนักงานเหมือนเดิม'
+const aiKeyHint = 'Workers AI ใช้ CLOUDFLARE_API_TOKEN และ CLOUDFLARE_ACCOUNT_ID ที่ตั้งไว้แล้วสำหรับอ่านสลิป · Claude ต้องตั้ง ANTHROPIC_API_KEY เป็น secret ของ Supabase (Edge Function fb-webhook) · ไม่มีคีย์ที่ใช้ได้ = บอทส่งต่อพนักงานเหมือนเดิม'
 const pct = computed({ get: () => Math.round(st.confidence * 100), set: (v) => (st.confidence = (Number(v) || 60) / 100) })
 
 // กฎ
@@ -98,13 +98,24 @@ const tab = ref('settings')
           <p v-else class="mt-1.5 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">ตอบได้ทุกเรื่องที่ลูกค้าถาม · เมื่อลูกค้าถามเรื่องออร์เดอร์ ระบบส่งรายการออร์เดอร์ที่ใช้งานอยู่ของลูกค้าคนนั้นให้ AI (รหัส สถานะ วันนัด ยอดค้าง · ไม่ส่งชื่อ เบอร์ หรือที่อยู่) และคำตอบเรื่องออร์เดอร์จะเป็นร่างให้พนักงานกดส่งเสมอ · ระบบสั่ง AI ว่าห้ามเก็บและห้ามนำไปฝึกโมเดล แต่การเก็บหรือไม่เก็บจริงขึ้นอยู่กับนโยบายของผู้ให้บริการ AI</p>
         </div>
         <p class="text-xs text-amber-700">{{ aiKeyHint }}</p>
+        <div class="rounded-lg border border-violet-200 bg-white p-2.5 text-xs text-stone-600">ลำดับผู้ตอบ: <b>1. Workers AI</b> → <b>2. Claude</b> · ถ้า Workers AI เต็มเพดานวันนี้ ระบบส่งต่อให้ Claude อัตโนมัติ</div>
+        <div class="grid gap-2 sm:grid-cols-2">
+          <div class="space-y-2 rounded-lg border border-stone-200 bg-white p-2.5">
+            <AppSwitch v-model="st.ai.waiEnabled" label="1. Workers AI" />
+            <div><label class="label">โมเดล Workers AI</label><select v-model="st.ai.waiModel" class="input" aria-label="โมเดล Workers AI"><option v-for="m in AI_WAI_MODELS" :key="m" :value="m">{{ m }}</option></select></div>
+            <div><label class="label">เพดาน Workers AI ต่อวัน (ครั้ง · 0 = ไม่เรียก)</label><input v-model.number="st.ai.waiDailyLimit" type="text" v-num class="input" /></div>
+          </div>
+          <div class="space-y-2 rounded-lg border border-stone-200 bg-white p-2.5">
+            <AppSwitch v-model="st.ai.claudeEnabled" label="2. Claude (สำรอง)" />
+            <div><label class="label">โมเดล Claude</label><select v-model="st.ai.model" class="input" aria-label="โมเดล Claude"><option v-for="m in AI_MODELS" :key="m" :value="m">{{ m }}</option></select></div>
+            <div><label class="label">เพดาน Claude ต่อวัน (ครั้ง · 0 = ไม่เรียก)</label><input v-model.number="st.ai.dailyLimit" type="text" v-num class="input" /></div>
+          </div>
+        </div>
         <div class="grid gap-2 sm:grid-cols-2">
           <div class="grid grid-cols-2 gap-1 seg-grid">
             <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.ai.mode === 'suggest' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.mode = 'suggest'">ร่างให้พนักงานกดส่ง</button>
             <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.ai.mode === 'auto' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.mode = 'auto'">ส่งเอง</button>
           </div>
-          <div><label class="label">เพดานต่อวัน (ครั้ง · 0 = ไม่เรียก)</label><input v-model.number="st.ai.dailyLimit" type="text" v-num class="input" /></div>
-          <div><label class="label">โมเดล</label><select v-model="st.ai.model" class="input" aria-label="โมเดล AI"><option v-for="m in AI_MODELS" :key="m" :value="m">{{ m }}</option></select></div>
           <div><label class="label">ความยาวคำตอบสูงสุด (โทเคน)</label><input v-model.number="st.ai.maxTokens" type="text" v-num class="input" /></div>
         </div>
         <p class="text-xs text-stone-400">เริ่มแนะนำให้ใช้โหมดร่างก่อน · โหมดส่งเองควรเปิดหลังทดสอบบนบัญชี Messenger ทดสอบแล้ว · ตั้งงบใช้จ่ายที่ผู้ให้บริการด้วย</p>
