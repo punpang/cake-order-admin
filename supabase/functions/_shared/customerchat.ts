@@ -4,6 +4,7 @@
 import { CHAT_PHOTO_KV, CHAT_PHOTO_UPLOAD_MAX, decodePhotoDataUrl, photoKeyOf, photoKeyOwned, photoPrefixOf, photoRefsOf } from './chatphoto.ts'
 import { type FilesEnv, svcDelete, svcUpload } from './filesvc.ts'
 import { shopPresenceOf } from './chatpresence.ts'
+import { newChatTopic } from './chattopic.ts'
 
 export const CHAT_TEXT_MAX = 1000
 export const CHAT_RATE = { windowMs: 10 * 60e3, max: 20 } // ไม่เกิน 20 ข้อความต่อ 10 นาที ต่อลูกค้า
@@ -36,7 +37,7 @@ async function photosView(m: Json, sign: Signer, have: Set<string>): Promise<{ r
   return out
 }
 
-// ประวัติแชทของลูกค้า (ข้อความล่าสุดไม่เกิน 100 รายการ) + สถานะพิมพ์/อ่านแล้วของร้าน (เฉพาะที่ร้านเปิดให้เห็น)
+// ประวัติแชทของลูกค้า (ข้อความล่าสุดไม่เกิน 100 รายการ) + สถานะพิมพ์/อ่านแล้วของร้าน (เฉพาะที่ร้านเปิดให้เห็น) + ชื่อช่องสัญญาณเรียลไทม์
 export async function customerChatList(sb: any, customerId: string, sign: Signer, have: string[] = []): Promise<{ status: number; body: Json }> {
   const r = await sb.from('punpang_chats').select('id,data').eq('channel', 'web').eq('customer_id', customerId).maybeSingle()
   if (r?.error) return { status: 500, body: { error: 'อ่านแชทไม่สำเร็จ' } }
@@ -45,7 +46,21 @@ export async function customerChatList(sb: any, customerId: string, sign: Signer
   const haveSet = new Set(have.filter((x) => typeof x === 'string').slice(0, 500))
   const messages = await Promise.all(visible.slice(-100).map(async (m) => ({ ...toCustomerView(m), photos: await photosView(m, sign, haveSet) })))
   const presence = await shopPresenceFor(sb, r?.data?.id)
-  return { status: 200, body: { messages, presence } }
+  const chatTopic = await chatTopicOf(sb, customerId)
+  return { status: 200, body: { messages, presence, chatTopic } }
+}
+
+// ชื่อช่องสัญญาณของลูกค้า: สร้างครั้งแรกแล้วเก็บ · ตารางยังไม่พร้อม/อ่านไม่ได้ = null (ลูกค้าใช้การโพลล์แทน)
+async function chatTopicOf(sb: any, customerId: string): Promise<string | null> {
+  try {
+    const read = () => sb.from('punpang_chat_topics').select('topic').eq('customer_id', customerId).maybeSingle()
+    let r = await read()
+    if (!r?.data?.topic) {
+      await sb.from('punpang_chat_topics').upsert({ customer_id: customerId, topic: newChatTopic() }, { onConflict: 'customer_id', ignoreDuplicates: true })
+      r = await read()
+    }
+    return r?.data?.topic ? String(r.data.topic) : null
+  } catch { return null }
 }
 
 // สถานะของร้านที่ลูกค้าเห็น · ตารางยังไม่มี/อ่านไม่ได้ = ไม่แสดง (ไม่ทำให้รายการแชทล้มเหลว)

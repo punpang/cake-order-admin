@@ -1,6 +1,7 @@
 <script setup>
 // แชทกับร้านของลูกค้าที่ล็อกอินแล้ว (ข้อความและรูปภาพ ไม่เกิน 5 รูปต่อข้อความ) · เปิดแท็บแล้วลงทะเบียนแจ้งเตือนของเครื่อง (Android)
 // อัปเดตแบบโพลล์: 3 วินาทีตอนกำลังคุยกัน แล้วห่างขึ้นเรื่อย ๆ (สูงสุด 15 วินาที) เมื่อไม่มีข้อความใหม่ · หยุดยิงขณะแท็บถูกซ่อน · ถูกจำกัดอัตรา (429) = ถอยไป 20 วินาที
+// มีสัญญาณเรียลไทม์ (ช่อง Broadcast ของลูกค้า) เมื่อเชื่อมได้ → โหลดทันทีที่มีสัญญาณ และโพลล์สำรองทุก 10 วินาที
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { remoteChat } from '../../lib/customerOrderRemote'
 import { startCustomerPush } from '../../lib/customerPush'
@@ -9,6 +10,8 @@ import { dateTime } from '../../lib/format'
 import { quietly } from '../../lib/loading'
 import { safeHref } from '../../lib/safeUrl'
 import { lastFrom, pingDue, readReceiptId } from '../../lib/chatPresence'
+import { getSupabase } from '../../lib/supabase'
+import { LIVE_POLL_MS, startChatPing } from '../../lib/chatPing'
 
 const MAX = 1000
 const LINK_KEEP_MS = 50 * 60e3 // ลิงก์รูปที่ออกให้มีอายุ 1 ชม. · เก็บใช้ต่อไม่เกิน 50 นาที
@@ -30,11 +33,14 @@ const presence = ref({ shopTyping: false, shopReadAt: null }) // สถานะ
 const readId = computed(() => readReceiptId(messages.value, 'customer', presence.value.shopReadAt)) // ข้อความของลูกค้าที่ร้านอ่านแล้ว
 let ackedStaffId = null // ข้อความของร้านที่แจ้งไปแล้วว่าลูกค้าอ่าน
 let typedAt = 0 // เวลาที่ส่งสถานะพิมพ์ล่าสุด
+let pingTopic = '' // ชื่อช่องสัญญาณของลูกค้า (จากเซิร์ฟเวอร์)
+let ping = null // การฟังสัญญาณของแชทนี้ (เมื่อเชื่อมได้)
+let pingTimer = null
 const POLL_MS = 3000
 const POLL_MAX_MS = 15000
 const BACKOFF_MS = 20000
 // 3 วินาทีใน 20 รอบแรก (1 นาที) แล้วเพิ่มทีละ 3 วินาทีทุก 20 รอบ จนถึงเพดาน
-const nextDelay = () => Math.min(POLL_MAX_MS, POLL_MS * (1 + Math.floor(idle / 20)))
+const nextDelay = () => (ping?.isLive() ? LIVE_POLL_MS : Math.min(POLL_MAX_MS, POLL_MS * (1 + Math.floor(idle / 20))))
 
 const toBottom = async () => {
   await nextTick()
@@ -82,6 +88,7 @@ async function load() {
     messages.value = list
     presence.value = r.presence || { shopTyping: false, shopReadAt: null }
     ackRead(list)
+    if (r.chatTopic && r.chatTopic !== pingTopic) { pingTopic = r.chatTopic; startPing(pingTopic) }
     err.value = ''
     if (grew) await toBottom()
     return { changed, limited: false }
@@ -101,6 +108,24 @@ function onTyping() {
   if (!pingDue(typedAt, now)) return
   typedAt = now
   remoteChat('chat_typing').catch(() => {})
+}
+// สัญญาณ "มีข้อความ/สถานะใหม่" → โหลดทันที (สัญญาณที่มาถี่ ๆ รวมเป็นครั้งเดียว · แท็บถูกซ่อนไม่โหลด)
+function onPing() {
+  if (stopped) return
+  clearTimeout(pingTimer)
+  pingTimer = setTimeout(() => { if (!(typeof document !== 'undefined' && document.hidden)) tick() }, 300)
+}
+// เริ่มฟังช่องของลูกค้า · เชื่อมไม่ได้ = โพลล์ตามเดิม
+async function startPing(topic) {
+  stopPing()
+  try {
+    const c = await getSupabase()
+    if (!stopped && topic === pingTopic) ping = startChatPing(c, topic, onPing)
+  } catch { /* เชื่อมไม่ได้ = โพลล์ตามเดิม */ }
+}
+function stopPing() {
+  ping?.stop()
+  ping = null
 }
 function schedule(ms) {
   clearTimeout(timer)
@@ -176,6 +201,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopped = true
   clearTimeout(timer)
+  clearTimeout(pingTimer)
+  stopPing()
   document.removeEventListener('visibilitychange', onVisible)
   for (const u of made) URL.revokeObjectURL(u)
   made.clear()
