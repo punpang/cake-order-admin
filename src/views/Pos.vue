@@ -13,7 +13,7 @@ import { pointPromoFor } from '../lib/posPromo'
 import { coBought, rankSellers, suggestBundles } from '../lib/posRec'
 import { POS_METHODS, ROLES } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
-import { isUnsaved, needBind, closeGuard } from '../lib/payBind'
+import { isUnsaved, needBind, closeGuard, canBindCash } from '../lib/payBind'
 import { refreshLabels } from '../lib/staffAuth'
 import { waitSaved } from '../lib/syncStatus'
 import { showToast } from '../lib/toast'
@@ -538,6 +538,14 @@ function requestClose() {
   if (g.block) { payErr.value = g.message; return }
   closePay()
 }
+// เงินสดที่รับไม่ครบยอด: กดผูกเป็นบิลค้างได้ (ยอดรับ ≥ ยอดชำระของรายการ) · ยกเลิกได้เฉพาะตอนยังไม่ผูก
+function bindCash(l) {
+  Object.assign(l, { confirmed: true, acceptedBy: 'staff' })
+  bindPaid()
+}
+function cancelCash(l) {
+  Object.assign(l, { confirmed: false, acceptedBy: '' })
+}
 async function sellNow(opts = {}) {
   payErr.value = member.value ? posCouponProblem({ customerId: member.value.id, couponIds: couponIds.value }) : ''
   if (payErr.value) { couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id)); return }
@@ -948,20 +956,25 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <div v-for="(l, i) in payLines" :key="l.key" class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
           <div class="flex items-center justify-between gap-2">
             <span class="text-base font-semibold text-stone-800">{{ POS_METHODS[l.method] }}</span>
-            <button v-if="!l.qrRef && !l.locked && (payLines.length > 1 || l.method !== 'cash')" type="button" class="rounded-full px-3 py-1 text-sm font-medium text-rose-700 hover:bg-rose-50" @click="removePayLine(i)">ลบ</button>
+            <button v-if="!l.qrRef && !l.locked && !l.confirmed && (payLines.length > 1 || l.method !== 'cash')" type="button" class="rounded-full px-3 py-1 text-sm font-medium text-rose-700 hover:bg-rose-50" @click="removePayLine(i)">ลบ</button>
           </div>
           <label class="label mt-3" :for="'amt-' + l.key">ยอด (บาท)</label>
-          <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input h-12 text-lg font-semibold" :readonly="!!l.qrRef || !!l.locked" />
+          <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input h-12 text-lg font-semibold" :readonly="!!l.qrRef || !!l.locked || !!l.confirmed" />
 
           <template v-if="l.method === 'cash'">
             <label class="label mt-3" :for="'rcv-' + l.key">รับเงินมา (บาท)</label>
-            <MoneyInput :id="'rcv-' + l.key" v-model="l.received" class="input h-12 text-xl font-semibold" placeholder="0" :readonly="!!l.locked" />
+            <MoneyInput :id="'rcv-' + l.key" v-model="l.received" class="input h-12 text-xl font-semibold" placeholder="0" :readonly="!!l.locked || !!l.confirmed" />
             <div class="mt-2 flex flex-wrap gap-2">
               <button v-for="v in quickFor(l)" :key="v" type="button" class="chip chip-off" @click="l.received = String(v)">{{ v === lineAmt(l) ? 'พอดี' : money(v) }}</button>
             </div>
             <div class="mt-3 flex items-center justify-between rounded-xl p-3" :class="changeOf(l) >= 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'">
               <span class="text-sm font-medium">{{ changeOf(l) >= 0 ? 'เงินทอน' : 'ยังขาด' }}</span>
               <span class="text-xl font-semibold">{{ money(Math.abs(changeOf(l))) }}</span>
+            </div>
+            <button v-if="canBindCash(l, remaining) && !binding" type="button" class="btn-primary mt-3 h-12 w-full" @click="bindCash(l)">ผูกเป็นบิลค้าง (รับ {{ money(lineAmt(l)) }})</button>
+            <div v-else-if="l.confirmed && !l.locked" class="mt-3 space-y-2">
+              <div class="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800"><AppIcon name="check" :size="18" /> รับเงินสดแล้ว (ยังไม่ผูกบิล)</div>
+              <button v-if="!binding" type="button" class="btn-outline h-11 w-full" @click="cancelCash(l)">ยกเลิกการรับชำระ</button>
             </div>
           </template>
 

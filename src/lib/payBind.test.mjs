@@ -1,6 +1,6 @@
 // ทดสอบกติกาผูกยอดโอนที่รับแล้วเข้าบิลค้าง · รัน: node src/lib/payBind.test.mjs
 import assert from 'node:assert/strict'
-import { isUnsaved, needBind, closeGuard } from './payBind.js'
+import { isUnsaved, needBind, closeGuard, canBindCash } from './payBind.js'
 
 let pass = 0
 const t = (name, fn) => { fn(); pass++; console.log('PASS', name) }
@@ -39,6 +39,19 @@ t('ปิดหน้าชำระ: ไม่มียอดรับแล้
   assert.deepEqual(closeGuard([], 500), { block: false, message: '' })
   assert.equal(closeGuard([{ amount: '300', confirmed: false }], 500).block, false)
   assert.equal(closeGuard([{ amount: '500', confirmed: true, locked: true }], 500).block, false)
+})
+
+t('เงินสดผูกเป็นบิลค้างได้: รับถึงยอดของรายการ และยอดรวมยังขาด', () => {
+  const cash = (over) => ({ method: 'cash', amount: '30', received: '30', ...over })
+  assert.equal(canBindCash(cash(), 45), true)
+  assert.equal(canBindCash(cash({ received: '50' }), 45), true) // รับมาเกินได้ ทอนตามจริง
+  assert.equal(canBindCash(cash({ received: '20' }), 45), false) // รับไม่ถึงยอดของรายการ
+  assert.equal(canBindCash(cash(), 0), false) // ครบยอดแล้ว ให้กดยืนยันรับเงินตามปกติ
+  assert.equal(canBindCash(cash({ method: 'transfer', qrRef: 'POS1' }), 45), false)
+  assert.equal(canBindCash(cash({ confirmed: true }), 45), false)
+  assert.equal(canBindCash(cash({ locked: true }), 45), false)
+  assert.equal(canBindCash(cash({ amount: '0' }), 45), false)
+  assert.equal(canBindCash(null, 45), false)
 })
 
 console.log(`ผ่าน ${pass} กรณี`)

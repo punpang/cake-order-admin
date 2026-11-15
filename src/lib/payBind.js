@@ -8,6 +8,9 @@ export const isUnsaved = (l) => !!l && !!l.confirmed && !l.locked && amountOf(l)
 // ต้องผูกทันที: ยังขาดยอด (ยอดรับยังไม่ครบ) และมียอดรับแล้วที่ยังไม่ได้ผูก
 export const needBind = (lines, remaining) => remaining > 0 && lines.some(isUnsaved)
 
+// เงินสดที่รับไม่ครบยอดกดผูกเป็นบิลค้างได้: ยอดรับ ≥ ยอดชำระของรายการ · ยังไม่ผูก · ยังขาดยอดรวม
+export const canBindCash = (l, remaining) => !!l && l.method === 'cash' && !l.confirmed && !l.locked && amountOf(l) > 0 && (Number(l.received) || 0) >= amountOf(l) && remaining > 0
+
 // ปิดหน้าชำระได้ไหม: ถ้ายังมียอดรับแล้วที่ไม่ได้ผูก ห้ามปิด และบอกว่าต้องทำอะไรก่อน
 export function closeGuard(lines, remaining) {
   if (!lines.some(isUnsaved)) return { block: false, message: '' }
