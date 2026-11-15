@@ -9,8 +9,14 @@ import AppIcon from '../../components/AppIcon.vue'
 // จัดการ SMS Gateway (แอปบนโทรศัพท์) ตาม SMS Gateway API v1
 // เรียกผ่าน Edge Function sms-send เท่านั้น · URL/คีย์เป็น secret ฝั่งเซิร์ฟเวอร์ หน้านี้ไม่แสดงค่าลับ
 const MAX_TEXT = 350
-const STATUS_TH = { QUEUED: 'รอส่ง', SENDING: 'กำลังส่ง', SENT: 'ส่งแล้ว', FAILED: 'ไม่สำเร็จ' }
-const STATUS_CLS = { QUEUED: 'text-stone-500', SENDING: 'text-sky-700', SENT: 'text-emerald-700', FAILED: 'text-rose-700' }
+// DELIVERED มีเฉพาะในรายการข้อความ (GET /v1/messages) · งานเดี่ยว (GET /v1/sms/{id}) ใช้ SENT + delivered_at แทน
+const STATUS_TH = { QUEUED: 'รอส่ง', SENDING: 'กำลังส่ง', SENT: 'ส่งแล้ว', DELIVERED: 'ถึงผู้รับแล้ว', FAILED: 'ไม่สำเร็จ' }
+const STATUS_CLS = { QUEUED: 'text-stone-500', SENDING: 'text-sky-700', SENT: 'text-emerald-700', DELIVERED: 'text-emerald-700', FAILED: 'text-rose-700' }
+// last_error ของงานที่ไม่สำเร็จและจะไม่ลองส่งซ้ำแล้ว (ตามเอกสารเกตเวย์) · ค่าอื่นแสดงตามที่เกตเวย์ส่งมา
+const LAST_ERROR_TH = {
+  partial_send: 'บางฉบับถึงระบบวิทยุแล้ว จึงไม่ลองส่งซ้ำ',
+  outcome_unknown: 'ไม่ได้รับผลกลับจากระบบวิทยุ จึงไม่ลองส่งซ้ำ',
+}
 const DIRECTIONS = { all: 'ทั้งหมด', out: 'ส่งออก', in: 'รับเข้า' }
 
 const sms = reactive({ configured: null, checking: false, statusErr: '', gateway: null })
@@ -157,7 +163,8 @@ const lookupFields = computed(() => {
     ['ซิม', d.sim ?? 'ค่าเริ่มต้น'],
     ['สร้างเมื่อ', d.created_at ? dateTime(d.created_at) : '-'],
     ['อัปเดตเมื่อ', d.updated_at ? dateTime(d.updated_at) : '-'],
-    ['ข้อผิดพลาดล่าสุด', d.last_error || '-'],
+    ['ถึงผู้รับเมื่อ', d.delivered_at ? dateTime(d.delivered_at) : 'ยังไม่มีรายงาน (ผู้ให้บริการบางรายไม่รองรับ)'],
+    ['ข้อผิดพลาดล่าสุด', LAST_ERROR_TH[d.last_error] || d.last_error || '-'],
   ]
 })
 

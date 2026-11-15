@@ -1,11 +1,15 @@
-// Edge Function: ส่ง SMS ผ่าน SMS Gateway ที่รันบนโทรศัพท์ (HTTP API v1 ตามเอกสาร SMS Gateway API)
+// Edge Function: ส่ง SMS ผ่าน SMS Gateway ที่รันบนโทรศัพท์ (HTTP API v1 · เอกสาร docs/sms-gateway-api.md · อัปเดต 2026-11-15)
 // - ตรวจสิทธิ์: ต้องเป็นพนักงานที่ active (punpang_staff) · gateway/lookup/messages ต้องมีสิทธิ์ manage · การส่งจำกัด 60 ครั้ง/ชม./คน (นับจาก punpang_sms_log)
 // - ความลับ (secret) อยู่ฝั่งเซิร์ฟเวอร์: SMS_GATEWAY_URL (ลิงก์ http/https ของเกตเวย์ หรือรีเลย์), SMS_API_KEY (สิทธิ์ "ส่งและลบ" เท่านั้น)
 //   ตั้งด้วย: supabase secrets set SMS_GATEWAY_URL=... SMS_API_KEY=...
-// - เกตเวย์รับคำขอเฉพาะจาก IP ใน LAN และตรวจ certificate pin ระบบบนคลาวด์ต้องผ่านรีเลย์/Tunnel ที่อยู่ใน LAN
+// - เกตเวย์รับคำขอเฉพาะจาก IP ใน LAN และใช้ใบรับรอง self-signed ที่ตรวจด้วย certificate pin · Edge ตรวจ pin ไม่ได้
+//   ดังนั้น SMS_GATEWAY_URL ต้องเป็นรีเลย์ที่ใบรับรองออกโดย CA ที่เชื่อถือได้ (ใบรับรองของแอปใช้ตรง ๆ จากคลาวด์ไม่ได้)
 // - การส่ง ต้องมี idempotencyKey จากฝั่งเรียก (8–64 ตัว A-Z a-z 0-9 _ -) เพื่อให้ลองซ้ำไม่ส่ง SMS ซ้ำ
-// - actions: status (ตั้งค่าครบหรือยัง) · gateway (สถานะเกตเวย์ GET /v1/status) · send (POST /v1/sms) · lookup (GET /v1/sms/{id}) · messages (GET /v1/messages)
-// - ไม่ส่งคีย์หรือ URL เกตเวย์กลับไปที่หน้าเว็บ
+//   429 rate_limited (เกิน 30 คำขอ/นาที/IP ของรีเลย์) ลองส่งซ้ำหนึ่งครั้งหลังรอ 3 วินาที · 429 daily_limit_reached ไม่ลองซ้ำ
+// - actions: status (ตั้งค่าครบหรือยัง) · gateway (GET /v1/status) · send (POST /v1/sms) · lookup (GET /v1/sms/{id}) · messages (GET /v1/messages)
+// - ข้อผิดพลาดของเกตเวย์ 400/404/409/429 ส่งต่อรหัสเดิม อื่น ๆ เป็น 502 · ไม่ส่งคีย์หรือ URL เกตเวย์กลับไปที่หน้าเว็บ
+
+import { ID, IDEM, MAX_TEXT, gatewayErrorText, mapGatewayStatus, normalizeNumber } from '../_shared/smsgateway.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -26,19 +30,6 @@ const configured = () => !!(GATEWAY_URL && GATEWAY_KEY)
 
 // ลิงก์ราก (ตัด /v1/... ที่ผู้ตั้งอาจใส่มาด้วย) เช่น https://relay.example.com:8443
 const root = () => GATEWAY_URL.replace(/\/+$/, '').replace(/\/v1(\/sms|\/messages|\/status|\/health)?$/i, '')
-
-// เบอร์: รับ 0xxxxxxxxx(x) · 66xxxxxxxxx · 0066xxxxxxxxx · +66 (ตัดช่องว่าง/ขีดออกก่อน) แล้วส่งเป็น 0… ให้เกตเวย์
-const normalizeNumber = (s: unknown) => {
-  let d = String(s ?? '').replace(/\D/g, '')
-  if (/^0066\d{8,9}$/.test(d)) d = '0' + d.slice(4)
-  else if (/^66\d{8,9}$/.test(d)) d = '0' + d.slice(2)
-  return /^0\d{8,9}$/.test(d) ? d : null
-}
-
-// เกตเวย์รับได้สูงสุด 5 ฉบับ (ภาษาไทยประมาณ 70 ตัว/ฉบับ) · เพดานนี้ตรงกับ 5 ฉบับ เกตเวย์เป็นผู้ตัดสินจริง
-const MAX_TEXT = 350
-const IDEM = /^[A-Za-z0-9_-]{8,64}$/
-const ID = /^[A-Za-z0-9_-]{1,64}$/
 
 // พนักงานที่ active จริง (active ต้องเป็น true เท่านั้น) พร้อมสิทธิ์ ใช้ตัดสินว่าทำ action ไหนได้
 type Staff = { id: string; perms: string[] }
@@ -74,42 +65,8 @@ async function logSend(userId: string, kind: string, to: string, status: 'sent' 
   }).catch(() => {})
 }
 
-// แปลงข้อผิดพลาดของเกตเวย์ (ตาราง error ของ API) เป็นข้อความไทย
-function gatewayError(status: number, code: string): string {
-  const C: Record<string, string> = {
-    invalid_json: 'เกตเวย์อ่านคำขอไม่ได้',
-    empty_body: 'คำขอว่างเปล่า',
-    invalid_to: 'เบอร์ปลายทางไม่ถูกต้องตามที่เกตเวย์รับ',
-    invalid_message: 'ข้อความไม่ถูกต้อง',
-    message_too_long: `ข้อความยาวเกินที่เกตเวย์รับ (สูงสุด ${MAX_TEXT} ตัวอักษร / 5 ฉบับ)`,
-    missing_idempotency_key: 'ไม่มีคีย์กันส่งซ้ำ',
-    invalid_idempotency_key: 'คีย์กันส่งซ้ำไม่ถูกรูปแบบ',
-    invalid_sim: 'เลขซิมไม่ถูกต้อง (ใช้ 1 หรือ 2)',
-    invalid_id: 'รหัสงานไม่ถูกต้อง',
-    chunked_not_supported: 'เกตเวย์ไม่รับการส่งแบบ chunked',
-    body_too_large: 'คำขอใหญ่เกินที่เกตเวย์รับ',
-    unauthorized: 'key ของเกตเวย์ไม่ถูกต้อง',
-    ip_not_allowed: 'IP นี้ไม่อยู่ในรายการที่เกตเวย์อนุญาตสำหรับ key นี้',
-    insufficient_scope: 'key ของเกตเวย์ไม่มีสิทธิ์ทำรายการนี้',
-    forbidden: 'เกตเวย์ปฏิเสธการเชื่อมต่อ (ไม่ได้อยู่ใน LAN ของเกตเวย์)',
-    not_found: 'ไม่พบรายการ หรือไม่มี endpoint นี้',
-    idempotency_key_reused: 'คีย์ส่งซ้ำกับข้อความอื่นที่ไม่ตรงกัน',
-    message_still_pending: 'ข้อความยังรอส่งอยู่',
-    rate_limited: 'เรียกเกตเวย์ถี่เกินไป ลองใหม่อีกครั้ง',
-    daily_limit_reached: 'ถึงโควตาการส่งต่อวันของเกตเวย์แล้ว',
-    internal_error: 'เกตเวย์เกิดข้อผิดพลาดภายใน',
-  }
-  if (code && C[code]) return C[code]
-  if (status === 401) return 'key ของเกตเวย์ไม่ถูกต้อง'
-  if (status === 403) return 'เกตเวย์ปฏิเสธการเชื่อมต่อ'
-  if (status === 404) return 'ไม่พบรายการ หรือไม่มี endpoint นี้ (ตรวจลิงก์)'
-  if (status === 409) return 'เกตเวย์ตอบขัดแย้ง ลองใหม่ภายหลัง'
-  if (status === 429) return 'เรียกเกตเวย์ถี่เกินไป ลองใหม่อีกครั้ง'
-  return `เกตเวย์ตอบ ${status}`
-}
-
-// เรียกเกตเวย์ทุก endpoint ผ่านที่เดียว (หมดเวลา 10 วินาที · ไม่ส่ง key กลับ)
-async function gw(path: string, init: { method: string; body?: unknown; idem?: string }): Promise<{ ok: boolean; status: number; data?: any; error?: string }> {
+// เรียกเกตเวย์ทุก endpoint ผ่านที่เดียว (หมดเวลา 10 วินาที · ไม่ส่ง key กลับ) · code = รหัสข้อผิดพลาดดิบของเกตเวย์ (ใช้ตัดสินการลองซ้ำ)
+async function gw(path: string, init: { method: string; body?: unknown; idem?: string }): Promise<{ ok: boolean; status: number; data?: any; code?: string; error?: string }> {
   const headers: Record<string, string> = { authorization: `Bearer ${GATEWAY_KEY}` }
   if (init.body !== undefined) headers['content-type'] = 'application/json'
   if (init.idem) headers['idempotency-key'] = init.idem
@@ -122,7 +79,8 @@ async function gw(path: string, init: { method: string; body?: unknown; idem?: s
     })
     const data = await r.json().catch(() => null)
     if (r.ok) return { ok: true, status: r.status, data }
-    return { ok: false, status: r.status, error: gatewayError(r.status, String(data?.error ?? '')) }
+    const code = String(data?.error ?? '')
+    return { ok: false, status: r.status, code, error: gatewayErrorText(r.status, code) }
   } catch {
     return { ok: false, status: 0, error: 'เชื่อมต่อเกตเวย์ไม่ได้ (หมดเวลาหรือเครือข่ายขัดข้อง)' }
   }
@@ -151,16 +109,16 @@ Deno.serve(async (req) => {
   // สถานะเกตเวย์: GET /v1/status (running, sms_counts, ...)
   if (action === 'gateway') {
     const r = await gw('/v1/status', { method: 'GET' })
-    return json(r.ok ? { ok: true, gateway: r.data } : { ok: false, error: r.error }, r.ok ? 200 : 502)
+    return json(r.ok ? { ok: true, gateway: r.data } : { ok: false, error: r.error }, r.ok ? 200 : mapGatewayStatus(r.status))
   }
 
-  // สถานะงานส่ง SMS รายการเดียว: GET /v1/sms/{id}
+  // สถานะงานส่ง SMS รายการเดียว: GET /v1/sms/{id} (มี delivered_at เมื่อผู้ให้บริการรายงานว่าถึงผู้รับ)
   if (action === 'lookup') {
     const id = String(body.id ?? '').trim()
     if (!ID.test(id)) return json({ ok: false, error: 'รหัสงานไม่ถูกต้อง' }, 400)
     const r = await gw(`/v1/sms/${encodeURIComponent(id)}`, { method: 'GET' })
     if (!r.ok && r.status === 404) return json({ ok: false, error: 'ไม่พบงานนี้ที่เกตเวย์' }, 404)
-    return json(r.ok ? { ok: true, sms: r.data } : { ok: false, error: r.error }, r.ok ? 200 : 502)
+    return json(r.ok ? { ok: true, sms: r.data } : { ok: false, error: r.error }, r.ok ? 200 : mapGatewayStatus(r.status))
   }
 
   // รายการข้อความ: GET /v1/messages?direction=all|in|out&limit=1..200&before=<ms>
@@ -174,7 +132,7 @@ Deno.serve(async (req) => {
       q.set('before', String(b))
     }
     const r = await gw(`/v1/messages?${q}`, { method: 'GET' })
-    return json(r.ok ? { ok: true, messages: r.data?.messages ?? [], next_before: r.data?.next_before ?? null } : { ok: false, error: r.error }, r.ok ? 200 : 502)
+    return json(r.ok ? { ok: true, messages: r.data?.messages ?? [], next_before: r.data?.next_before ?? null } : { ok: false, error: r.error }, r.ok ? 200 : mapGatewayStatus(r.status))
   }
 
   if (action !== 'send') return json({ ok: false, error: 'action ไม่รู้จัก' }, 400)
@@ -194,9 +152,14 @@ Deno.serve(async (req) => {
 
   const payload: Record<string, unknown> = { to, message: text }
   if (sim) payload.sim = sim
-  const r = await gw('/v1/sms', { method: 'POST', body: payload, idem })
+  let r = await gw('/v1/sms', { method: 'POST', body: payload, idem })
+  // เกินอัตราต่อนาทีของเกตเวย์: รอสั้น ๆ แล้วลองหนึ่งครั้ง (คีย์กันส่งซ้ำ จึงไม่สร้างงานซ้ำ)
+  if (!r.ok && r.status === 429 && r.code === 'rate_limited') {
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+    r = await gw('/v1/sms', { method: 'POST', body: payload, idem })
+  }
   await logSend(staff.id, body.kind === 'test' ? 'test' : 'notify', to, r.ok ? 'sent' : 'failed')
-  if (!r.ok) return json({ ok: false, error: r.error }, 502)
+  if (!r.ok) return json({ ok: false, error: r.error }, mapGatewayStatus(r.status))
   // เก็บเฉพาะข้อมูลที่หน้าเว็บใช้ (id/status) ไม่ส่งเบอร์หรือข้อความซ้ำกลับไป
   return json({ ok: true, id: r.data?.id ?? null, status: r.data?.status ?? null, created: r.status === 202 })
 })
