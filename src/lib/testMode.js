@@ -26,3 +26,9 @@ export const testModeOn = (connected = CONNECTED) => !!connected && readTestMode
 
 // รหัสเอกสารที่แสดง/บันทึก: โหมดทดสอบเติมคำนำหน้า TEST- (รหัสว่างหรือโหมดจริงไม่เปลี่ยน)
 export const docCode = (code, on) => (on && code ? TEST_CODE_PREFIX + code : code)
+
+// งานไฟล์ (Worker R2 และที่เก็บเดิม) ในโหมดทดสอบ: อ่านอย่างเดียว · ไม่ลบ ไม่ย้าย ไม่ตั้งค่า และไม่อัปโหลดไฟล์ เพื่อไม่แตะไฟล์จริง
+export const TEST_FILE_READ_PATHS = ['/sign', '/admin/list', '/admin/retention/get', '/admin/limits/get']
+export const fileApiAllowedInTest = (path) => TEST_FILE_READ_PATHS.includes(path)
+export const TEST_UPLOAD_MSG = 'อัปโหลดรูปไม่ได้ในโหมดทดสอบ'
+export const TEST_FILE_WRITE_MSG = 'แก้ไขไฟล์จริงไม่ได้ในโหมดทดสอบ'

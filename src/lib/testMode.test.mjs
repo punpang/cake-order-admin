@@ -1,6 +1,6 @@
 // ทดสอบกติกาโหมดทดสอบ (ฝั่งแอป) · รัน: node src/lib/testMode.test.mjs
 import assert from 'node:assert/strict'
-import { TEST_CODE_PREFIX, docCode, readTestMode, testModeOn, writeTestMode } from './testMode.js'
+import { TEST_CODE_PREFIX, docCode, fileApiAllowedInTest, readTestMode, testModeOn, writeTestMode } from './testMode.js'
 
 let pass = 0
 const t = (name, fn) => { fn(); pass++; console.log('PASS', name) }
@@ -37,6 +37,17 @@ t('รหัสเอกสาร: โหมดทดสอบเติม TEST-
   assert.equal(docCode('QT-261116-00001', false), 'QT-261116-00001')
   assert.equal(docCode('', true), '')
   assert.equal(docCode(undefined, true), undefined)
+})
+
+t('ไฟล์ในโหมดทดสอบ: อ่านรายการและรูปได้ ลบ ย้าย ตั้งค่า หรืออัปโหลดไม่ได้', () => {
+  assert.equal(fileApiAllowedInTest('/admin/list'), true)
+  assert.equal(fileApiAllowedInTest('/sign'), true)
+  assert.equal(fileApiAllowedInTest('/admin/delete'), false)
+  assert.equal(fileApiAllowedInTest('/admin/trash/restore'), false)
+  assert.equal(fileApiAllowedInTest('/admin/trash/purge'), false)
+  assert.equal(fileApiAllowedInTest('/admin/retention/set'), false)
+  assert.equal(fileApiAllowedInTest('/admin/limits/set'), false)
+  assert.equal(fileApiAllowedInTest('/upload'), false)
 })
 
 console.log(`ผ่าน ${pass} กรณี`)

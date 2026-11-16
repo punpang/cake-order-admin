@@ -2,6 +2,7 @@
 // รูปสาธารณะ (สินค้า/หน้าร้าน/ที่เผยแพร่) → /upload?bucket=public (ลิงก์ถาวร https) · รูปส่วนตัว (สลิป/รูปงาน/รูปอ้างอิง/รูปแชท) → /upload?bucket=private (อ้างอิง r2://private/…)
 // ไฟล์เดิมใน Supabase Storage (อ้างอิง sb://…) อ่านได้ตามเดิมจนหมดอายุ · ไม่มีการเขียนใหม่ลง Supabase
 // รูปที่เพิ่งเลือกจะเป็น data: / blob: (อยู่ในเบราว์เซอร์เท่านั้น) → ก่อนเขียนลงฐานข้อมูลต้องอัปโหลดแล้วแทนที่ด้วยลิงก์/อ้างอิง
+import { fileApiAllowedInTest, testModeOn, TEST_FILE_WRITE_MSG, TEST_UPLOAD_MSG } from './testMode.js'
 export const PUBLIC_BUCKET = 'punpang-public'
 const LOCAL = /^(data:image\/(png|jpe?g|webp|gif);base64,|blob:)/
 export const isLocalImage = (v) => typeof v === 'string' && LOCAL.test(v)
@@ -19,6 +20,7 @@ async function filesAuth(client) {
 // เรียก API ของ Worker ที่ต้องมีการยืนยันตัวตนพนักงาน (จัดการพื้นที่รูป)
 export async function filesApi(client, path, body = {}) {
   if (!FILES_URL) throw new Error(NO_FILES)
+  if (testModeOn() && !fileApiAllowedInTest(path)) throw new Error(TEST_FILE_WRITE_MSG) // โหมดทดสอบแก้ไฟล์จริงไม่ได้
   const r = await fetch(`${FILES_URL}${path}`, { method: 'POST', headers: { ...(await filesAuth(client)), 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   const j = await r.json().catch(() => ({}))
   if (!r.ok) throw new Error(j.error || 'เรียกเซิร์ฟเวอร์ไฟล์ไม่สำเร็จ')
@@ -26,6 +28,7 @@ export async function filesApi(client, path, body = {}) {
 }
 async function filesUpload(client, blob, type, bucket, prefix) {
   if (!FILES_URL) throw new Error(NO_FILES)
+  if (testModeOn()) throw new Error(TEST_UPLOAD_MSG) // โหมดทดสอบไม่อัปโหลดไฟล์ไปที่ R2 จริง
   const r = await fetch(`${FILES_URL}/upload?bucket=${bucket}&prefix=${encodeURIComponent(prefix)}`, { method: 'POST', headers: { ...(await filesAuth(client)), 'Content-Type': type }, body: blob })
   const j = await r.json().catch(() => ({}))
   if (!r.ok || (!j.url && !j.ref)) throw new Error(j.error || 'อัปโหลดรูปไม่สำเร็จ')
@@ -117,6 +120,7 @@ export const slipRefsOf = privateRefsOf
 
 // ลบไฟล์ที่ไม่มีข้อมูลอ้างถึงแล้ว (ทำได้ก็ดี ไม่ได้ก็ไม่กระทบข้อมูล) · r2 → Worker · sb (ไฟล์เดิม) → Supabase
 export async function removePrivate(client, refs) {
+  if (testModeOn()) return // โหมดทดสอบไม่ลบไฟล์จริง (ทั้ง R2 และที่เก็บเดิม)
   const by = {}
   for (const r of refs) { const x = parseRef(r); if (x) (by[x.bucket] ||= []).push(x.path) }
   if (by.r2?.length && filesEnabled()) { try { await fetch(`${FILES_URL}/delete`, { method: 'POST', headers: { ...(await filesAuth(client)), 'Content-Type': 'application/json' }, body: JSON.stringify({ keys: by.r2 }) }) } catch { /* ข้าม */ } }
@@ -156,6 +160,7 @@ export async function toPublicUrl(client, src) {
 }
 // ลบสำเนาสาธารณะที่เผยแพร่ไว้ใน Supabase (ไฟล์เดิม) · สำเนาใน R2 ยังไม่ลบจากที่นี่
 export async function removePublicCopy(client, url) {
+  if (testModeOn()) return false // โหมดทดสอบไม่ลบสำเนาสาธารณะจริง
   const m = typeof url === 'string' ? /\/object\/public\/punpang-public\/(published\/[^?#]+)$/.exec(url) : null
   if (!m) return false
   try { const r = await client.storage.from(PUBLIC_BUCKET).remove([m[1]]); return !r?.error } catch { return false }
