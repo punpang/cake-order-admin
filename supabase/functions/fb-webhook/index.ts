@@ -1,3 +1,4 @@
+import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { runFbBot } from './bot.ts'
 import { checkSlipImage } from '../_shared/slipjob.ts'
@@ -88,6 +89,8 @@ async function saveAttachments(sb: any, psid: string, mid: string, atts: any[]) 
 const KIND_TH: Record<string, string> = { image: 'รูปภาพ', video: 'วิดีโอ', audio: 'เสียง', file: 'ไฟล์' }
 
 Deno.serve(async (req) => {
+  const refused = refuseInTest(modeOf(req))
+  if (refused) return refused // โหมดทดสอบไม่ทำงานฟังก์ชันนี้ (ข้อมูลลูกค้า/งานตามเวลา/เว็บฮุกเป็นของจริงเท่านั้น)
   const secret = (Deno.env.get('FB_APP_SECRET') || '').trim()
   const verify = (Deno.env.get('FB_VERIFY_TOKEN') || '').trim()
   if (req.method === 'GET') {

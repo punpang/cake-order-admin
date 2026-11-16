@@ -1,3 +1,4 @@
+import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { corsWrap } from '../_shared/cors.ts'
 import { filesEnv, svcDelete, svcSign, svcUpload } from '../_shared/filesvc.ts'
 import { newQrSuffix } from '../_shared/payqr.ts'
@@ -142,6 +143,8 @@ async function notifySlip(sb: any, n: SlipNotice): Promise<void> {
 }
 
 Deno.serve(corsWrap(async (req) => {
+  const refused = refuseInTest(modeOf(req))
+  if (refused) return refused // โหมดทดสอบไม่ทำงานฟังก์ชันนี้ (ข้อมูลลูกค้า/งานตามเวลา/เว็บฮุกเป็นของจริงเท่านั้น)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const ip = clientIp(req.headers) // cf-connecting-ip (ปลอมไม่ได้) · ไม่ใช้ค่าซ้ายสุดของ x-forwarded-for ที่ผู้เรียกใส่เองได้

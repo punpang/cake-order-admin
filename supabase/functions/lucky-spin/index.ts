@@ -1,3 +1,4 @@
+import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { corsWrap } from '../_shared/cors.ts'
 import { isProjectId, isTokenShape, tallyByProject } from '../_shared/lucky.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
@@ -28,6 +29,8 @@ const blocked = (ip: string) => { const now = Date.now(); const a = (fails.get(i
 const fail = (ip: string) => { fails.set(ip, [...(fails.get(ip) || []), Date.now()]); return json(NOT_FOUND, 404) }
 
 Deno.serve(corsWrap(async (req) => {
+  const refused = refuseInTest(modeOf(req))
+  if (refused) return refused // โหมดทดสอบไม่ทำงานฟังก์ชันนี้ (ข้อมูลลูกค้า/งานตามเวลา/เว็บฮุกเป็นของจริงเท่านั้น)
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const ip = req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
   if (blocked(ip)) return json({ error: 'ลองบ่อยเกินไป กรุณารอสักครู่' }, 429)

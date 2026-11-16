@@ -43,6 +43,7 @@ const ManageLoyalty = () => import('./views/manage/ManageLoyalty.vue')
 const ManageProfit = () => import('./views/manage/ManageProfit.vue')
 const ManageShop = () => import('./views/manage/ManageShop.vue')
 const ManageLucky = () => import('./views/manage/ManageLucky.vue')
+const ManageTestMode = () => import('./views/manage/ManageTestMode.vue')
 const Materials = () => import('./views/Materials.vue')
 const Production = () => import('./views/Production.vue')
 const ManageBirthdays = () => import('./views/manage/ManageBirthdays.vue')
@@ -122,6 +123,7 @@ const router = createRouter({
     { path: '/admin/settings/profit', component: ManageProfit, meta: { data: ['ordersAll'] } },
     { path: '/admin/settings/shop', component: ManageShop },
     { path: '/admin/settings/lucky', component: ManageLucky },
+    { path: '/admin/settings/test', component: ManageTestMode },
     { path: '/admin/settings/birthdays', component: ManageBirthdays, meta: { data: ['ordersAll'] } },
     { path: '/admin/settings/integrations', component: ManageIntegrations },
     { path: '/admin/settings/retail', component: ManageRetail },

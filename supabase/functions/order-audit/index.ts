@@ -1,3 +1,4 @@
+import { modeOf, refuseInTest } from '../_shared/mode.ts'
 // Edge Function order-audit: ตรวจออร์เดอร์ที่บันทึกแล้ว (บิลหน้าร้าน และออร์เดอร์ตรงที่อัปเดตภายใน 2 วัน) — ไม่บล็อกการขาย/การบันทึก
 // pg_cron เรียกทุก 10 นาทีด้วยคีย์ x-cron-key เดียวกับ scheduled · ผลเก็บใน punpang_order_audits (เซิร์ฟเวอร์เขียนเท่านั้น)
 // ตรรกะชุดเดียวกับแอป: _shared/schedlib/orderAudit.js (บิลหน้าร้านใช้ posAudit.js) · ราคาที่ใช้เทียบคือราคา ณ เวลาที่สร้าง (ประวัติแคตาล็อก)
@@ -23,6 +24,8 @@ function sameKey(a: string, b: string): boolean {
 }
 
 Deno.serve(async (req) => {
+  const refused = refuseInTest(modeOf(req))
+  if (refused) return refused // โหมดทดสอบไม่ทำงานฟังก์ชันนี้ (ข้อมูลลูกค้า/งานตามเวลา/เว็บฮุกเป็นของจริงเท่านั้น)
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const key = (Deno.env.get('SCHEDULED_KEY') || '').trim()
   if (!key || !sameKey(key, req.headers.get('x-cron-key') || '')) return json({ error: 'forbidden' }, 403)

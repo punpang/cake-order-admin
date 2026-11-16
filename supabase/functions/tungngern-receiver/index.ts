@@ -1,3 +1,4 @@
+import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { verifyGatewaySignature, extractTransferRef, extractAmount } from '../_shared/maneeforward.ts'
 import { applyNotifyPayment } from '../_shared/notifyconfirm.ts'
@@ -9,6 +10,8 @@ import { autoConfirmOf } from '../_shared/slip.ts'
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'Content-Type': 'application/json' } })
 
 Deno.serve(async (req) => {
+  const refused = refuseInTest(modeOf(req))
+  if (refused) return refused // โหมดทดสอบไม่ทำงานฟังก์ชันนี้ (ข้อมูลลูกค้า/งานตามเวลา/เว็บฮุกเป็นของจริงเท่านั้น)
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const secret = Deno.env.get('MANEE_FORWARD_SECRET') || ''
   const raw = await req.text()

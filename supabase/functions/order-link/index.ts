@@ -1,7 +1,7 @@
 import { corsWrap } from '../_shared/cors.ts'
 import { filesEnv, isR2Ref, keyOfR2Ref, svcSign } from '../_shared/filesvc.ts'
 import { publicPaymentOf } from '../_shared/shoppay.ts'
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { serviceDb } from '../_shared/db.ts'
 import { newTopic } from '../_shared/chattopic.ts'
 
 // ลิงก์ออร์เดอร์ของลูกค้า (ดูอย่างเดียว ไม่ต้องล็อกอิน): รับ token → คืนข้อมูลออร์เดอร์ที่ตัดข้อมูลภายในออกแล้ว
@@ -44,7 +44,7 @@ Deno.serve(corsWrap(async (req) => {
   const token = String(body.token ?? '')
   const refresh = body.refresh === true // รีเฟรชเงียบของหน้าที่เปิดค้างไว้ (ไม่นับเป็นการเปิดดูใหม่)
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return fail(ip)
-  const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
+  const sb = serviceDb(req) // สคีมาตามโหมดของคำขอ
   const hash = await sha256Hex(`orderlink:${token}`)
   const lr = await sb.from('punpang_records').select('id,data').eq('collection', 'orderLinks').eq('data->>tokenHash', hash).maybeSingle()
   if (lr.error || !lr.data) return fail(ip)

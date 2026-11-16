@@ -174,4 +174,17 @@ begin
 end $$;
 drop table public.punpang_unclassified_probe;
 
+-- ---------- H) ปุ่มล้างข้อมูลทดสอบ: ล้างเฉพาะสำเนา ----------
+do $$
+declare live_before bigint;
+begin
+  select count(*) into live_before from public.punpang_records;
+  perform set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', true);
+  execute 'set local role authenticated';
+  perform punpang_test.punpang_reset_test_data();
+  execute 'reset role';
+  perform mt.ok('H1 ล้างข้อมูลทดสอบจนว่าง และข้อมูลจริงไม่เปลี่ยน',
+    (select count(*) from punpang_test.punpang_records) = 0 and (select count(*) from public.punpang_records) = live_before);
+end $$;
+
 select 'ผ่านทั้งหมด' as mirror_tests;

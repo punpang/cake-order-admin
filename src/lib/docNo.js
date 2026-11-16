@@ -7,8 +7,9 @@ const pad2 = (n) => String(n).padStart(2, '0')
 
 export const ddmmyy = (d = new Date()) => `${pad2(d.getDate())}${pad2(d.getMonth() + 1)}${pad2(d.getFullYear() % 100)}`
 export const formatNo = (prefix, day, seq) => `${prefix}-${day}-${String(seq).padStart(DOC_DIGITS[prefix], '0')}`
+// รหัสโหมดทดสอบมี TEST- นำหน้า (TEST_CODE_PREFIX ใน testMode.js) · ต้องอ่านได้ ตัวนับในเครื่องจะได้รู้เลขที่ใช้แล้ว
 export function parseNo(code) {
-  const m = /^([A-Z]+)-(\d{6})-(\d+)$/.exec(String(code || ''))
+  const m = /^(?:TEST-)?([A-Z]+)-(\d{6})-(\d+)$/.exec(String(code || ''))
   return m && DOC_DIGITS[m[1]] ? { prefix: m[1], day: m[2], seq: Number(m[3]) } : null
 }
 export const isDocNo = (code) => !!parseNo(code)
@@ -17,7 +18,8 @@ export const isDocNo = (code) => !!parseNo(code)
 // - โหมดออฟไลน์/เดโม: นับในเครื่อง เริ่ม 1 ใหม่ทุกวัน
 // - โหมด Supabase: ขอเลขเป็นชุดล่วงหน้าจากฐานข้อมูล (alloc) เก็บไว้ในคลังต่อวัน แล้วเบิกใช้ → หลายเครื่องไม่ซ้ำกัน
 //   คลังใกล้หมดจะเติมเอง · ถ้าเติมไม่ทัน/ออฟไลน์ ใช้ตัวนับในเครื่องแทน (ออร์เดอร์มีตัวกันเลขซ้ำตอนบันทึก)
-export function createNumbering({ alloc = null, batch = 20, low = 5, today = () => new Date() } = {}) {
+// decorate: ตกแต่งรหัสก่อนส่งออก (store ส่ง TEST- ในโหมดทดสอบ) · ค่าเริ่มต้นไม่เปลี่ยนรหัส
+export function createNumbering({ alloc = null, batch = 20, low = 5, today = () => new Date(), decorate = (code) => code } = {}) {
   const pools = new Map() // key → [{ next, end }, ...] (ชุดเลขที่ได้จากฐานข้อมูล อาจไม่ต่อเนื่องกัน)
   const local = new Map() // key → เลขล่าสุดที่ใช้ (ในเครื่อง)
   const pending = new Set()
@@ -53,7 +55,7 @@ export function createNumbering({ alloc = null, batch = 20, low = 5, today = () 
       local.set(k, seq)
       refill(prefix, day)
     }
-    return formatNo(prefix, day, seq)
+    return decorate(formatNo(prefix, day, seq))
   }
 
   // เบิกล่วงหน้าตอนเริ่มระบบ/ข้ามวัน (เรียกได้ซ้ำ)

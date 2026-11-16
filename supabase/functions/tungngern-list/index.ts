@@ -1,5 +1,5 @@
 import { corsWrap } from '../_shared/cors.ts'
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { serviceDb } from '../_shared/db.ts'
 import { isRefShape } from '../_shared/maneeforward.ts'
 
 // รายการรับเงินถุงเงินที่ตรงกับรหัสธุรกรรม (ORD/POS) ของ QR หนึ่งใบ · เฉพาะพนักงานที่ active
@@ -9,7 +9,7 @@ const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { sta
 Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
-  const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
+  const sb = serviceDb(req) // สคีมาตามโหมดของคำขอ
   const jwt = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
   const u = jwt ? await sb.auth.getUser(jwt) : null
   const uid = u?.data?.user?.id

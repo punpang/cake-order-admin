@@ -28,6 +28,6 @@ Deno.test('corsWrap: preflight OPTIONS ตอบ 200 โดยไม่เรี
   assertEquals(called, false)
   assertEquals(r.status, 200)
   assertEquals(r.headers.get('access-control-allow-origin'), PAGES)
-  assertEquals(r.headers.get('access-control-allow-headers'), 'authorization, x-client-info, apikey, content-type, x-region, x-supabase-api-version')
+  assertEquals(r.headers.get('access-control-allow-headers'), 'authorization, x-client-info, apikey, content-type, x-region, x-supabase-api-version, x-punpang-mode')
   assertEquals(r.headers.get('access-control-allow-methods')?.includes('POST'), true)
 })

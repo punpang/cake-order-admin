@@ -11,6 +11,7 @@ import { corsWrap } from '../_shared/cors.ts'
 // - ข้อผิดพลาดของเกตเวย์ 400/404/409/429 ส่งต่อรหัสเดิม อื่น ๆ เป็น 502 · ไม่ส่งคีย์หรือ URL เกตเวย์กลับไปที่หน้าเว็บ
 
 import { ID, IDEM, MAX_TEXT, gatewayErrorText, mapGatewayStatus, normalizeNumber } from '../_shared/smsgateway.ts'
+import { modeOf, recipientAllowed, restProfileHeaders } from '../_shared/mode.ts'
 
 const cors = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -41,7 +42,7 @@ async function staffOf(req: Request): Promise<Staff | null> {
   if (!u.ok) return null
   const user = await u.json().catch(() => null)
   if (!user?.id) return null
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/punpang_staff?user_id=eq.${encodeURIComponent(user.id)}&select=user_id,active,perms`, { headers: SERVICE_HEADERS })
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/punpang_staff?user_id=eq.${encodeURIComponent(user.id)}&select=user_id,active,perms`, { headers: { ...SERVICE_HEADERS, ...restProfileHeaders(modeOf(req)) } })
   const rows = r.ok ? await r.json() : []
   if (!rows[0] || rows[0].active !== true) return null
   return { id: String(user.id), perms: Array.isArray(rows[0].perms) ? rows[0].perms.map(String) : [] }
@@ -49,18 +50,18 @@ async function staffOf(req: Request): Promise<Staff | null> {
 
 // การส่งจากพนักงานแต่ละคนต่อชั่วโมง (กันบัญชีที่ถูกยึดหรือใช้ผิดวัตถุประสงค์ส่งถล่ม) · นับจาก punpang_sms_log
 const SEND_PER_HOUR = 60
-async function sentLastHour(userId: string): Promise<number> {
+async function sentLastHour(userId: string, rh: Record<string, string> = {}): Promise<number> {
   const since = new Date(Date.now() - 3_600_000).toISOString()
   const r = await fetch(`${SUPABASE_URL}/rest/v1/punpang_sms_log?user_id=eq.${encodeURIComponent(userId)}&at=gte.${encodeURIComponent(since)}&select=id&limit=1`, {
-    headers: { ...SERVICE_HEADERS, Prefer: 'count=exact', Range: '0-0' },
+    headers: { ...SERVICE_HEADERS, ...rh, Prefer: 'count=exact', Range: '0-0' },
   })
   const total = Number(/\/(\d+)$/.exec(r.headers.get('content-range') || '')?.[1])
   return Number.isFinite(total) ? total : 0
 }
-async function logSend(userId: string, kind: string, to: string, status: 'sent' | 'failed') {
+async function logSend(userId: string, kind: string, to: string, status: 'sent' | 'failed', rh: Record<string, string> = {}) {
   await fetch(`${SUPABASE_URL}/rest/v1/punpang_sms_log`, {
     method: 'POST',
-    headers: { ...SERVICE_HEADERS, 'content-type': 'application/json', Prefer: 'return=minimal' },
+    headers: { ...SERVICE_HEADERS, ...rh, 'content-type': 'application/json', Prefer: 'return=minimal' },
     body: JSON.stringify({ user_id: userId, kind, to_tail: to.slice(-4), status, detail: '' }),
   }).catch(() => {})
 }
@@ -91,6 +92,8 @@ Deno.serve(corsWrap(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const staff = await staffOf(req)
   if (!staff) return json({ error: 'unauthorized' }, 401)
+  const mode = modeOf(req)
+  const rh = restProfileHeaders(mode) // โหมดทดสอบ: อ่านเขียนสำเนาข้อมูลทดสอบเท่านั้น
 
   const body = await req.json().catch(() => null)
   if (!body || typeof body !== 'object') return json({ ok: false, error: 'คำขอไม่ถูกต้อง' }, 400)
@@ -148,7 +151,13 @@ Deno.serve(corsWrap(async (req) => {
   if (!IDEM.test(idem)) return json({ ok: false, error: 'คีย์กันส่งซ้ำต้องยาว 8–64 ตัว (A-Z a-z 0-9 _ -)' }, 400)
   const sim = body.sim === 1 || body.sim === 2 || body.sim === '1' || body.sim === '2' ? Number(body.sim) : undefined
 
-  if ((await sentLastHour(staff.id)) >= SEND_PER_HOUR) return json({ ok: false, error: 'ส่ง SMS บ่อยเกินไป กรุณารอสักครู่' }, 429)
+  if (mode === 'test') {
+    // โหมดทดสอบ: ส่งได้เฉพาะเบอร์ในรายชื่อทดสอบเท่านั้น (กันส่ง SMS ถึงลูกค้าจริง)
+    const rr = await fetch(`${SUPABASE_URL}/rest/v1/punpang_records?collection=eq.testRecipients&id=eq.list&select=data`, { headers: { ...SERVICE_HEADERS, ...rh } })
+    const rows = rr.ok ? await rr.json() : []
+    if (!recipientAllowed(rows?.[0]?.data?.items, 'sms', to)) return json({ ok: false, error: 'เบอร์นี้ไม่อยู่ในรายชื่อทดสอบ (โหมดทดสอบส่งได้เฉพาะรายชื่อที่กำหนด)' }, 403)
+  }
+  if ((await sentLastHour(staff.id, rh)) >= SEND_PER_HOUR) return json({ ok: false, error: 'ส่ง SMS บ่อยเกินไป กรุณารอสักครู่' }, 429)
 
   const payload: Record<string, unknown> = { to, message: text }
   if (sim) payload.sim = sim
@@ -158,7 +167,7 @@ Deno.serve(corsWrap(async (req) => {
     await new Promise((resolve) => setTimeout(resolve, 3000))
     r = await gw('/v1/sms', { method: 'POST', body: payload, idem })
   }
-  await logSend(staff.id, body.kind === 'test' ? 'test' : 'notify', to, r.ok ? 'sent' : 'failed')
+  await logSend(staff.id, body.kind === 'test' ? 'test' : 'notify', to, r.ok ? 'sent' : 'failed', rh)
   if (!r.ok) return json({ ok: false, error: r.error }, mapGatewayStatus(r.status))
   // เก็บเฉพาะข้อมูลที่หน้าเว็บใช้ (id/status) ไม่ส่งเบอร์หรือข้อความซ้ำกลับไป
   return json({ ok: true, id: r.data?.id ?? null, status: r.data?.status ?? null, created: r.status === 202 })

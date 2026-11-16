@@ -8,6 +8,7 @@ import { corsWrap } from '../_shared/cors.ts'
 import { buildQuotePayload, bkkWall } from '../_shared/schedlib/quotePrice.js'
 import { ddmmyy, formatNo } from '../_shared/schedlib/docNo.js'
 import { loadCatalog } from '../_shared/catalog.ts'
+import { modeOf, restProfileHeaders } from '../_shared/mode.ts'
 
 const cors = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -35,18 +36,18 @@ async function staffOf(token: string): Promise<{ id: string; perms: string[]; to
   return { id: s.user_id, perms: Array.isArray(s.perms) ? s.perms : [], token }
 }
 
-async function rest(path: string): Promise<any[] | null> {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: SERVICE_HEADERS })
+async function rest(path: string, rh: Record<string, string> = {}): Promise<any[] | null> {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { ...SERVICE_HEADERS, ...rh } })
   if (!r.ok) return null
   const rows = await r.json()
   return Array.isArray(rows) ? rows : null
 }
 
 // เลขใบเสนอ (QT-ddmmyy-xxxxx) จากตัวนับเดียวกับแอป · ใช้โทเค็นพนักงาน เพราะฟังก์ชันนับเลขตรวจ auth.uid()
-async function allocQuoteSeq(token: string, day: string): Promise<number | null> {
+async function allocQuoteSeq(token: string, day: string, rh: Record<string, string> = {}): Promise<number | null> {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/punpang_alloc_numbers`, {
     method: 'POST',
-    headers: { apikey: ANON, Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    headers: { apikey: ANON, Authorization: `Bearer ${token}`, 'content-type': 'application/json', ...rh },
     body: JSON.stringify({ p_prefix: 'QT', p_day: day, p_n: 1 }),
   })
   if (!r.ok) return null
@@ -64,13 +65,14 @@ Deno.serve(corsWrap(async (req) => {
   const m = /^Bearer (.+)$/.exec(req.headers.get('authorization') || '')
   const who = m ? await staffOf(m[1]) : null
   if (!who) return json({ error: 'ต้องเข้าสู่ระบบพนักงาน' }, 401)
+  const rh = restProfileHeaders(modeOf(req)) // โหมดทดสอบ: อ่านเขียนใบเสนอในสำเนาข้อมูลทดสอบเท่านั้น
   if (!who.perms.includes('chat') || !who.perms.includes('createOrder')) return json({ error: 'บทบาทนี้ส่งใบเสนอไม่ได้' }, 403)
 
   let body: any
   try { body = await req.json() } catch { return json({ error: 'ข้อมูลไม่ถูกต้อง' }, 400) }
   const chatId = typeof body?.chatId === 'string' ? body.chatId : ''
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(chatId)) return json({ error: 'ไม่พบแชท' }, 404)
-  const chats = await rest(`punpang_chats?id=eq.${chatId}&select=id,customer_id`)
+  const chats = await rest(`punpang_chats?id=eq.${chatId}&select=id,customer_id`, rh)
   if (!chats) return json({ error: 'อ่านข้อมูลแชทไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
   if (!chats.length) return json({ error: 'ไม่พบแชท' }, 404)
   const catalog = await loadCatalog(SUPABASE_URL, SERVICE_HEADERS)
@@ -82,12 +84,12 @@ Deno.serve(corsWrap(async (req) => {
 
   const day = ddmmyy(bkkWall(now))
   for (let tries = 0; tries < 3; tries++) {
-    const seq = await allocQuoteSeq(who.token, day)
+    const seq = await allocQuoteSeq(who.token, day, rh)
     if (seq == null) return json({ error: 'ออกเลขใบเสนอไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
     const id = newQuoteId()
     const ins = await fetch(`${SUPABASE_URL}/rest/v1/punpang_quotes`, {
       method: 'POST',
-      headers: { ...SERVICE_HEADERS, 'content-type': 'application/json', Prefer: 'return=representation' },
+      headers: { ...SERVICE_HEADERS, ...rh, 'content-type': 'application/json', Prefer: 'return=representation' },
       body: JSON.stringify([{
         id,
         code: formatNo('QT', day, seq),
@@ -103,7 +105,7 @@ Deno.serve(corsWrap(async (req) => {
     const rows = await ins.json()
     await fetch(`${SUPABASE_URL}/rest/v1/punpang_quotes?chat_id=eq.${chatId}&status=eq.pending&id=neq.${id}`, {
       method: 'PATCH',
-      headers: { ...SERVICE_HEADERS, 'content-type': 'application/json' },
+      headers: { ...SERVICE_HEADERS, ...rh, 'content-type': 'application/json' },
       body: JSON.stringify({ status: 'superseded' }),
     })
     return json({ quote: Array.isArray(rows) ? rows[0] : rows })

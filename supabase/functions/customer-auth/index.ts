@@ -1,3 +1,4 @@
+import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { corsWrap } from '../_shared/cors.ts'
 import { reserveOtpAttempt, reservePinAttempt } from '../_shared/authguard.ts'
 import { filesEnv, isR2Ref, keyOfR2Ref, svcSign } from '../_shared/filesvc.ts'
@@ -47,6 +48,8 @@ const loginIpFails = new Map<string, number[]>()
 const ipBlocked = (ip: string) => { const now = Date.now(); const a = (loginIpFails.get(ip) || []).filter((t) => now - t < 10 * MIN); loginIpFails.set(ip, a); return a.length >= 30 }
 
 Deno.serve(corsWrap(async (req) => {
+  const refused = refuseInTest(modeOf(req))
+  if (refused) return refused // โหมดทดสอบไม่ทำงานฟังก์ชันนี้ (ข้อมูลลูกค้า/งานตามเวลา/เว็บฮุกเป็นของจริงเท่านั้น)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const ip = clientIp(req.headers) // cf-connecting-ip → ค่าท้ายสุดของ x-forwarded-for (ค่าซ้ายสุดผู้เรียกใส่เองได้ จึงไม่ใช้)

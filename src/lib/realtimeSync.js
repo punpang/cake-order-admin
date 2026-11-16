@@ -2,11 +2,12 @@
 // → คงกติกาเดิมทั้งหมด: ข้ามเมื่อมีแก้ค้างในเครื่อง · เทียบ diff · ผลข้างเคียงของแชท/ใบเสนอ
 // bindings: [{ table, filter?, key }]  ·  onEvent(key, payload) = ผู้เรียกตัดสินใจว่าจะ refresh อะไร
 import { syncRealtime } from './syncStatus'
+import { testModeOn } from './testMode.js'
 
 const GRACE_MS = 8000 // หลุดเกินนี้ถึงจะแสดงว่า "ไม่เรียลไทม์"
 
 export function startRealtime({ client, name, bindings, onEvent, onLive, onDown }) {
-  if (!client?.channel) return { stop() {} }
+  if (!client?.channel || testModeOn()) return { stop() {} } // โหมดทดสอบไม่รับเหตุการณ์ของข้อมูลจริง
   let stopped = false
   let wasLive = false
   let downTimer = null

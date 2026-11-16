@@ -28,6 +28,7 @@ import { supabaseEnabled, getSupabase } from '../lib/supabase'
 import { sendClick } from '../lib/clicksSync'
 import { priceItemOn, giftRowOn, withPromosOn, dealCatalogOf, deliveryFieldsOf, vatOf, buildQuotePayload } from '../lib/quotePrice.js'
 import { createNumbering } from '../lib/docNo'
+import { docCode, testModeOn } from '../lib/testMode.js'
 import { staffState } from '../lib/staffAuth'
 import { remoteOrderAction, remoteReadSlip } from '../lib/customerOrderRemote'
 import { checkCustomerTxn, refTaken, bankByCode, PAY_MSG, thaiMinute } from '../lib/payFields'
@@ -635,7 +636,7 @@ for (const g of db.optionGroups) g.active = true
 
 // ---------- ฟังก์ชัน ----------
 // เลขที่เอกสาร: OR-ddmmyy-xxxxxx / POS-ddmmyy-xxxxx / QT-ddmmyy-xxxxx / PAY-ddmmyy-xxxxx (รันใหม่ทุกวัน) — ดู lib/docNo.js
-export const numbering = createNumbering()
+export const numbering = createNumbering({ decorate: (code) => docCode(code, testModeOn()) }) // โหมดทดสอบเติม TEST- ทุกเลขที่ออก
 const nextCode = () => numbering.next('OR')
 
 export const findOrder = (id) => db.orders.find((o) => o.id === id)

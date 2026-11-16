@@ -1,5 +1,6 @@
 import { corsWrap } from '../_shared/cors.ts'
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { modeOf, recipientAllowed } from '../_shared/mode.ts'
+import { serviceDb } from '../_shared/db.ts'
 
 // ส่งข้อความเข้ากลุ่มทีมทาง Telegram (secret ฝั่งเซิร์ฟเวอร์: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
 // เฉพาะพนักงานที่ล็อกอิน (JWT) และ active · จำกัดอัตรา · บันทึกประวัติ (ไม่เก็บ token/ข้อความ)
@@ -10,7 +11,7 @@ const PER_MIN = 20, PER_HOUR = 300
 Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
-  const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
+  const sb = serviceDb(req) // สคีมาตามโหมดของคำขอ
   const jwt = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
   const u = jwt ? await sb.auth.getUser(jwt) : null
   const uid = u?.data?.user?.id
@@ -38,6 +39,11 @@ Deno.serve(corsWrap(async (req) => {
   ])
   if ((m.count ?? 0) >= PER_MIN || (h.count ?? 0) >= PER_HOUR) { await log('blocked', 'rate'); return json({ error: 'ส่งบ่อยเกินไป กรุณารอสักครู่' }, 429) }
 
+  if (modeOf(req) === 'test') {
+    // โหมดทดสอบ: ส่งได้เฉพาะปลายทางในรายชื่อทดสอบเท่านั้น (กันส่งเข้ากลุ่มทีมจริง)
+    const rec = await sb.from('punpang_records').select('data').eq('collection', 'testRecipients').eq('id', 'list').maybeSingle()
+    if (!recipientAllowed(rec.data?.data?.items, 'telegram', chat)) { await log('blocked', 'test-recipient'); return json({ error: 'ปลายทางนี้ไม่อยู่ในรายชื่อทดสอบ (โหมดทดสอบส่งได้เฉพาะรายชื่อที่กำหนด)' }, 403) }
+  }
   try {
     const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true, ...(parseMode ? { parse_mode: parseMode } : {}) }), signal: AbortSignal.timeout(15000) })
     if (!r.ok) { await log('failed', `http ${r.status}`); return json({ error: 'Telegram ตอบกลับผิดพลาด', status: r.status }, 502) }
