@@ -1,7 +1,7 @@
 // แจ้งลูกค้าทันทีเมื่อระบบยืนยันชำระอัตโนมัติ (สลิปในแชท และสลิปจากหน้าออร์เดอร์) · ไม่รอรอบ scheduled
 // ใช้กติกา payment_confirmed ที่ร้านตั้งไว้ (config/notifyRules): ปิดไว้ = ไม่ส่ง · ส่งทุกช่องทางที่กติกาเปิดไว้ (เว็บ/แอป · Facebook · SMS)
 // งานพื้นหลัง: ไม่ทำให้การยืนยันล้มเหลว · ข้อความที่ส่งไม่ได้แจ้งกระดิ่งพนักงาน
-import { fillTemplate, orderVars, prepareRules } from './scheduled/plan.ts'
+import { effectiveChannels, fillTemplate, orderVars, prepareRules } from './scheduled/plan.ts'
 import { webChatFor } from './webchat.ts'
 import { inFbWindow } from './slipnotice.ts'
 import { sendSmsGateway } from './sms.ts'
@@ -25,6 +25,12 @@ export function paidNoticeRule(notifyRules: unknown): { template: string; channe
   return { template, channels }
 }
 
+// ช่องทางที่ส่งจริงของการแจ้งยืนยันชำระ: กติกา + การตั้งค่าของออร์เดอร์/ลูกค้า (ปิดเฉพาะรายการหรือลูกค้าได้ เหมือนแอปพนักงาน)
+export function paidNoticeChannels(channels: string[], customer: any, order: any): { web: boolean; facebook: boolean; sms: boolean } {
+  const e: any = effectiveChannels({ channels }, customer, order)
+  return { web: !!e.web, facebook: !!e.facebook, sms: !!e.sms }
+}
+
 // ข้อความที่ส่ง: ใส่ค่าตัวแปร แล้วลบตัวแปรที่ไม่มีค่าออก
 export function paidNoticeText(template: string, vars: Record<string, string>): string {
   return fillTemplate(template, vars).replace(/\{[^{}]+\}/g, '').replace(/[ \t]+\n/g, '\n').trim()
@@ -43,14 +49,15 @@ export async function notifyPaymentConfirmed(sb: any, n: { order: any; customerI
     const text = paidNoticeText(rule.template, orderVars(n.order, { paid: n.amount }, cfg.shop || {}, customer))
     if (!text) return false
 
+    const allowed = paidNoticeChannels(rule.channels, customer, n.order)
     let sent = false
     // เว็บ/แอป: ลงแชทเว็บของลูกค้า (มีบัญชีเว็บ → สร้างกระทู้ให้ถ้ายังไม่มี) · ทุกช่องที่กติกาเปิดไว้จะส่ง ไม่หยุดที่ช่องแรก
-    if (rule.channels.includes('web')) {
+    if (allowed.web) {
       const chat = await webChatFor(sb, String(customer.id), customer.name, new Date().toISOString())
       if (chat) { await appendChatMessage(sb, chat.id, text, n.order.id); sent = true }
     }
     // Facebook: ต้องผูก PSID · อยู่ในช่วง 24 ชม. หลังลูกค้าทักล่าสุด · มี Page token
-    if (rule.channels.includes('facebook') && cfg.integrations?.facebook?.enabled !== false) {
+    if (allowed.facebook && cfg.integrations?.facebook?.enabled !== false) {
       const psid = String(customer.fbPsid || '')
       const pg = await sb.from('punpang_fb_pages').select('token').limit(1).maybeSingle()
       const chat = /^\d{5,30}$/.test(psid) && pg?.data?.token ? await sb.from('punpang_chats').select('id,data,updated_at').eq('channel', 'facebook').eq('external_id', psid).maybeSingle() : null
@@ -65,7 +72,7 @@ export async function notifyPaymentConfirmed(sb: any, n: { order: any; customerI
       }
     }
     // SMS: ตามกติกาที่เปิดไว้ · เบอร์ต้องเป็นมือถือไทย
-    if (rule.channels.includes('sms')) {
+    if (allowed.sms) {
       const phone = String(customer.phone || '').replace(/\D/g, '')
       if (/^0[689]\d{8}$/.test(phone) && (await sendSmsGateway(phone, text, `paid-${n.order.id}-${Date.now().toString(36)}`))) sent = true
     }
