@@ -539,6 +539,14 @@ const receiptLucky = ref(null)
 const receiptLuckyUrl = computed(() => (receipt.value && receiptLucky.value?.orderId === receipt.value.id ? receiptLucky.value.url : ''))
 const taxFor = ref(null) // บิลที่กำลังออกใบกำกับภาษีเต็มรูป
 const taxable = (o) => can('taxInvoice') && o.status !== 'cancelled' && orderTotals(o).vat > 0
+// สรุปยอดใบเสร็จ: ยอดสุทธิ รับแล้ว และส่วนต่าง (ค้าง > 0 · เกิน < 0) ใช้แสดงสถานะที่หัวใบเสร็จ
+const receiptInfo = computed(() => {
+  if (!receipt.value) return null
+  const o = receipt.value
+  const total = orderTotals(o).total
+  const paid = Math.round((o.payments || []).filter((p) => p.status === 'confirmed').reduce((s, p) => s + (Number(p.amount) || 0), 0) * 100) / 100
+  return { total, paid, diff: Math.round((total - paid) * 100) / 100 }
+})
 const payErr = ref('')
 let selling = false
 async function confirmPay() {
@@ -1262,12 +1270,25 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     </AppModal>
 
     <!-- ใบเสร็จ -->
-    <AppModal v-if="receipt" :title="`ใบเสร็จ ${receipt.code}`" @close="receipt = null">
+    <AppModal v-if="receipt" title="ใบเสร็จรับเงิน" @close="receipt = null">
+      <div v-if="receiptInfo" class="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-2xl border border-stone-200 bg-white px-4 py-3">
+        <div class="min-w-0">
+          <div class="truncate font-mono text-xs text-stone-500">{{ receipt.code }}</div>
+          <div class="text-xl font-bold tabular-nums text-stone-900">{{ money(receiptInfo.total) }}</div>
+        </div>
+        <span class="shrink-0 rounded-full px-3 py-1 text-sm font-semibold" :class="receiptInfo.diff > 0 ? 'bg-amber-100 text-amber-800' : receiptInfo.diff < 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-800'">
+          {{ receiptInfo.diff > 0 ? `ยังค้าง ${money(receiptInfo.diff)}` : receiptInfo.diff < 0 ? `ชำระเกิน ${money(-receiptInfo.diff)}` : 'ชำระครบแล้ว' }}
+        </span>
+      </div>
       <Receipt :order="receipt" :lucky-url="receiptLuckyUrl" />
       <template #footer>
-        <button class="btn-outline flex-1 sm:flex-none" @click="print"><AppIcon name="printer" :size="18" /> พิมพ์</button>
-        <button v-if="taxable(receipt)" class="btn-outline flex-1 sm:flex-none" @click="taxFor = receipt">ใบกำกับภาษีเต็มรูป</button>
-        <button class="btn-primary flex-1 sm:flex-none" @click="receipt = null">ขายต่อ</button>
+        <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+          <div class="flex gap-2">
+            <button class="btn-soft h-11 flex-1 sm:flex-none sm:px-4" @click="print"><AppIcon name="printer" :size="18" /> พิมพ์</button>
+            <button v-if="taxable(receipt)" class="btn-soft h-11 flex-1 sm:flex-none sm:px-4" @click="taxFor = receipt">ใบกำกับภาษีเต็มรูป</button>
+          </div>
+          <button class="btn-primary h-12 w-full sm:min-w-[8rem] sm:flex-1" @click="receipt = null">ขายต่อ</button>
+        </div>
       </template>
     </AppModal>
     <TaxInvoiceModal v-if="taxFor" :order="taxFor" @close="taxFor = null" />

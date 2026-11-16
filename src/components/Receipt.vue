@@ -12,7 +12,10 @@ const props = defineProps({ order: { type: Object, required: true }, luckyUrl: {
 const luckyQr = ref('')
 watch(() => props.luckyUrl, async (u) => { luckyQr.value = u ? await QRCode.toDataURL(u, { margin: 1, width: 200 }) : '' }, { immediate: true })
 const t = computed(() => orderTotals(props.order))
-const pay = computed(() => props.order.payments.find((p) => p.status === 'confirmed'))
+// รายการรับชำระทั้งหมดที่ยืนยันแล้ว (ใบเสร็จต้องแสดงทุกวิธี ไม่ใช่แค่รายการแรก)
+const payments = computed(() => (props.order.payments || []).filter((p) => p.status === 'confirmed'))
+const paidTotal = computed(() => Math.round(payments.value.reduce((s, p) => s + (Number(p.amount) || 0), 0) * 100) / 100)
+const balance = computed(() => Math.round((t.value.total - paidTotal.value) * 100) / 100)
 const customer = computed(() => findCustomer(props.order.customerId))
 </script>
 
@@ -36,11 +39,17 @@ const customer = computed(() => findCustomer(props.order.customerId))
     <div v-for="l in t.discountLines" :key="l.label" class="flex justify-between gap-2"><span class="min-w-0 break-words">{{ l.label }}</span><span class="shrink-0">−{{ money(l.amount) }}</span></div>
     <div v-if="t.vatMode === 'exclusive'" class="flex justify-between"><span>VAT {{ t.vatRate }}% (บวกเพิ่ม)</span><span>{{ money(t.vat) }}</span></div>
     <div class="mt-1 flex justify-between text-base font-bold"><span>ยอดสุทธิ</span><span>{{ money(t.total) }}</span></div>
-    <div v-if="t.vatMode === 'inclusive'" class="flex justify-between text-xs"><span>รวม VAT {{ t.vatRate }}% แล้ว (ก่อน VAT {{ money(t.beforeVat) }})</span><span>{{ money(t.vat) }}</span></div>
-    <template v-if="pay">
-      <div class="flex justify-between"><span>{{ pay.method }}</span><span>{{ money(pay.received ?? pay.amount) }}</span></div>
-      <div v-if="pay.change" class="flex justify-between"><span>เงินทอน</span><span>{{ money(pay.change) }}</span></div>
+    <template v-if="t.vatMode === 'inclusive'">
+      <div class="flex justify-between text-xs"><span>ราคาก่อน VAT</span><span>{{ money(t.beforeVat) }}</span></div>
+      <div class="flex justify-between text-xs"><span>VAT {{ t.vatRate }}% (รวมในราคาแล้ว)</span><span>{{ money(t.vat) }}</span></div>
     </template>
+    <div class="my-2 border-t border-dashed border-black" />
+    <template v-for="p in payments" :key="p.id || p.code">
+      <div class="flex justify-between gap-2"><span class="min-w-0 break-words">{{ p.method }}</span><span class="shrink-0">{{ money(p.amount) }}</span></div>
+      <div v-if="p.change" class="flex justify-between text-xs"><span>รับเงินมา {{ money(p.received) }}</span><span>เงินทอน {{ money(p.change) }}</span></div>
+    </template>
+    <div v-if="payments.length > 1" class="flex justify-between font-bold"><span>รวมรับชำระ</span><span>{{ money(paidTotal) }}</span></div>
+    <div v-if="balance > 0" class="flex justify-between font-bold"><span>ยังค้างชำระ</span><span>{{ money(balance) }}</span></div>
     <template v-if="customer">
       <div class="my-2 border-t border-dashed border-black" />
       <div>สมาชิก: {{ customer.name }}</div>
