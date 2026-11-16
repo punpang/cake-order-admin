@@ -35,8 +35,8 @@ jobs:
           VITE_USE_SUPABASE: '1'
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
-          VITE_FILES_URL: ${{ vars.VITE_FILES_URL }}
-          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
+          VITE_FILES_URL: ${{ vars.VITE_FILES_URL || 'https://punpang-files.qpbdbdpq.workers.dev' }}
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAAGDvBxBOicWsJhZe' }}
         run: npm run build:android
       - name: คัดลอกไฟล์เว็บเข้าโปรเจกต์ Android
         run: npx cap sync android

@@ -35,14 +35,14 @@ jobs:
           VITE_USE_SUPABASE: '1'
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
-          VITE_FILES_URL: ${{ vars.VITE_FILES_URL }}
+          VITE_FILES_URL: ${{ vars.VITE_FILES_URL || 'https://punpang-files.qpbdbdpq.workers.dev' }}
         run: npm run build:android && npx cap sync android
       - name: สร้างไฟล์เว็บสำหรับแอปลูกค้า (โหมด customer)
         env:
           VITE_USE_SUPABASE: '1'
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
-          VITE_FILES_URL: ${{ vars.VITE_FILES_URL }}
+          VITE_FILES_URL: ${{ vars.VITE_FILES_URL || 'https://punpang-files.qpbdbdpq.workers.dev' }}
         run: npm run build:customer
       - name: สร้างโปรเจกต์ Android ของแอปลูกค้า
         run: node scripts/make-customer-android.mjs
