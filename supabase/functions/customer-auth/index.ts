@@ -318,7 +318,7 @@ Deno.serve(corsWrap(async (req) => {
   // ===== แอดมินตั้ง PIN ใหม่ให้ลูกค้า (ตรวจ JWT และสิทธิ์ manage ของพนักงานในฟังก์ชัน · ออกจากระบบทุกเครื่องของลูกค้า) =====
   if (action === 'admin_reset_pin') {
     const jwt = String(req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
-    const uid = jwt ? (await sb.auth.getUser(jwt)).data?.user?.id : null
+    const uid = jwt ? (await (sb as any).auth.getUser(jwt)).data?.user?.id : null
     const st = uid ? (await sb.from('punpang_staff').select('active,perms').eq('user_id', uid).maybeSingle()).data : null
     if (!st?.active || !(st.perms || []).includes('manage')) return json({ error: 'เฉพาะแอดมินตั้ง PIN ลูกค้าได้' }, 403)
     const ph = thaiPhone(b.phone)
