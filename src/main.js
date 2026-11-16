@@ -19,7 +19,8 @@ if (!supabaseEnabled) (await import('./data/demo')).seedDemo()
 // ลิงก์จาก LINE (LIFF) ที่มี ?line=link → เปิดหน้าเชื่อมบัญชี LINE
 // LIFF ส่งพารามิเตอร์มาในชื่อ liff.state (เช่น ?liff.state=%3Fline%3Dlink) จึงตรวจทั้งสองแบบ
 const lineQs = new URLSearchParams(location.search)
-const fromLine = lineQs.get('line') === 'link' || String(lineQs.get('liff.state') || '').includes('line=link')
+const liffState = String(lineQs.get('liff.state') || '')
+const fromLine = lineQs.get('line') === 'link' || /^\/?line(\?|\/|$)|line=link/.test(liffState)
 if (fromLine && !location.hash) location.replace(`${location.pathname}#/line`)
 
 await initStaff() // โหมด Supabase: อ่านเซสชันพนักงานที่ล็อกอินค้างไว้ก่อนเริ่มนำทาง
