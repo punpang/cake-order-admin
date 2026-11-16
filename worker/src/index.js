@@ -98,12 +98,12 @@ const STAFF_PREFIX_PERMS = [
 ]
 const needForStaffPrefix = (key) => STAFF_PREFIX_PERMS.find(([p]) => key.startsWith(p))?.[1] ?? null
 
-// สิทธิ์เห็นไฟล์: ไฟล์นอกออร์เดอร์ → พนักงานที่มีสิทธิ์ตามประเภท · ไฟล์ของออร์เดอร์ (<orderId>/...) → พนักงาน active / ลูกค้าเจ้าของ / ลิงก์ออร์เดอร์
+// สิทธิ์เห็นไฟล์: ไฟล์นอกออร์เดอร์ → พนักงานที่มีสิทธิ์ตามประเภท · ไฟล์ของออร์เดอร์ (<orderId>/...) → พนักงานที่มีสิทธิ์ตามประเภทไฟล์ (เหมือนตอนอัปโหลด) / ลูกค้าเจ้าของ / ลิงก์ออร์เดอร์
 async function allowedToSee(req, env, key, body) {
   const staff = await staffOf(req, env)
   const need = needForStaffPrefix(key)
   if (need) return !!staff && hasAnyPerm(staff, need)
-  if (staff) return true
+  if (staff) return hasAnyPerm(staff, needForPrivateKey(key))
   const orderId = key.split('/')[0]
   if (!orderId) return false
   const cid = await customerOf(env, body.session)

@@ -175,17 +175,17 @@ const signAs = (env: ReturnType<typeof makeEnv>, perms: string[] | null, key: st
   return worker.fetch(new Request('https://files.test/sign', { method: 'POST', headers: { Authorization: 'Bearer staff-jwt', 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) }), env)
 }
 
-Deno.test('/sign: ไฟล์นอกออร์เดอร์ (webchat/ manual/ pay-qr/ train/) ต้องมีสิทธิ์ตามประเภท · ไฟล์ของออร์เดอร์พนักงาน active ดูได้เหมือนเดิม', async () => {
+Deno.test('/sign: ไฟล์นอกออร์เดอร์ (webchat/ manual/ pay-qr/ train/) ต้องมีสิทธิ์ตามประเภท · ไฟล์ของออร์เดอร์ต้องมีสิทธิ์ตามประเภทไฟล์ (สลิป/รูปงาน)', async () => {
   stubFetch()
   const env = makeEnv()
   const KEYS = { webchat: 'webchat/c1/a.jpg', manual: 'manual/chat1/a.png', payqr: 'pay-qr/o1/a.png', train: 'train/a.jpg', chat: 'chat/x/a.jpg', staff: 'staff/123/a.jpg', order: 'o1/a.png', work: 'o1/work/a.jpg' }
   const status = async (perms: string[] | null) => Object.fromEntries(await Promise.all(Object.entries(KEYS).map(async ([n, k]) => [n, (await signAs(env, perms, k)).status])))
-  // พนักงานที่ไม่มีสิทธิ์แชท/รับชำระ: เห็นเฉพาะไฟล์ของออร์เดอร์
-  assertEquals(await status(['workPhoto']), { webchat: 403, manual: 403, payqr: 403, train: 403, chat: 403, staff: 403, order: 200, work: 200 })
+  // สิทธิ์รูปงานเท่านั้น: เห็นรูปงานของออร์เดอร์ · ไม่เห็นสลิป (ต้องมีสิทธิ์รับชำระ)
+  assertEquals(await status(['workPhoto']), { webchat: 403, manual: 403, payqr: 403, train: 403, chat: 403, staff: 403, order: 403, work: 200 })
   // สิทธิ์แชท: ไฟล์แชท + รูปลูกค้าในแชท + สลิปรอผูก + QR · ยังไม่เห็นรูปชุดเทรน
-  assertEquals(await status(['chat']), { webchat: 200, manual: 200, payqr: 200, train: 403, chat: 200, staff: 200, order: 200, work: 200 })
+  assertEquals(await status(['chat']), { webchat: 200, manual: 200, payqr: 200, train: 403, chat: 200, staff: 200, order: 403, work: 403 })
   // สิทธิ์รับชำระ: สลิปรอผูก + QR · ไม่เห็นรูปแชทของลูกค้า
-  assertEquals(await status(['reportPayment']), { webchat: 403, manual: 200, payqr: 200, train: 403, chat: 403, staff: 403, order: 200, work: 200 })
+  assertEquals(await status(['reportPayment']), { webchat: 403, manual: 200, payqr: 200, train: 403, chat: 403, staff: 403, order: 200, work: 403 })
   // manage: ทุกอย่างรวมรูปชุดเทรน
   assertEquals(await status(['manage']), { webchat: 200, manual: 200, payqr: 200, train: 200, chat: 200, staff: 200, order: 200, work: 200 })
   // ไม่ใช่พนักงาน (ไม่มีลิงก์/เซสชันลูกค้า): ไม่เห็นอะไรเลย
