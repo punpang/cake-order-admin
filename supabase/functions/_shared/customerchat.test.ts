@@ -1,6 +1,6 @@
 // ทดสอบส่วนที่เป็นฟังก์ชันล้วนของแชทลูกค้า: ตรวจความยาวข้อความ และข้อความที่ลูกค้าเห็นไม่มีข้อมูลภายใน
 import { assertEquals } from 'jsr:@std/assert@1'
-import { CHAT_TEXT_MAX, cleanChatText, cleanReplyTo, customerCardView, customerOrderView, customerQuoteView, isCustomerVisible, replySnippetOf, toCustomerView } from './customerchat.ts'
+import { CHAT_TEXT_MAX, cleanChatText, cleanReplyTo, customerCardView, customerOrderView, legacyOrderCardOf, customerQuoteView, isCustomerVisible, replySnippetOf, toCustomerView } from './customerchat.ts'
 
 Deno.test('ข้อความว่างหรือเกินความยาวไม่ผ่าน · ตัดช่องว่างหัวท้ายแล้วผ่าน', () => {
   assertEquals(cleanChatText(''), null)
@@ -76,4 +76,19 @@ Deno.test('การ์ดแจ้งเตือนในแชทลูกค
   const plain = customerCardView({ id: 'cm22', from: 'staff', kind: 'card', at: '2026-11-17T01:02:00.000Z', text: 'ข้อความสำรอง', card: null })
   assertEquals(plain.text, 'ข้อความสำรอง')
   assertEquals(plain.card, null)
+})
+
+Deno.test('ออร์เดอร์เดิมในแชทเว็บ: สร้างการ์ดสรุปจากข้อมูลออร์เดอร์ได้ (ไม่มีปุ่มลิงก์) และแสดงยอดค้าง', () => {
+  const order = {
+    id: 'o1', code: 'OR-161126-0007', status: 'prepared', fulfillment: 'pickup', pickupAt: '2026-11-17T02:00:00.000Z',
+    items: [{ name: 'เค้กช็อกโกแลต 6 นิ้ว', qty: 1, unitPrice: 650, fullPrice: 650, discounts: [] }],
+    payments: [], couponsUsed: [], returns: [],
+  }
+  const r = legacyOrderCardOf(order)
+  assertEquals(r.card.kind, 'order')
+  assertEquals(r.card.title, 'ออร์เดอร์ OR-161126-0007')
+  assertEquals(r.card.url, undefined)
+  assertEquals(String(r.card.subtitle).includes('คงค้าง'), true)
+  assertEquals(r.text.includes('เค้กช็อกโกแลต 6 นิ้ว'), true)
+  assertEquals(r.text.includes('ยอดรวม'), true)
 })
