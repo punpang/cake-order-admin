@@ -25,6 +25,40 @@ export function cleanChatText(v: unknown): string | null {
 // ข้อความที่ส่งให้ลูกค้าเห็น (ไม่มีข้อมูลภายในของพนักงาน)
 export const toCustomerView = (m: Json) => ({ id: String(m.id ?? ''), from: m.from === 'staff' ? 'staff' : 'customer', text: String(m.text ?? ''), at: String(m.at ?? '') })
 
+// ข้อความที่ลูกค้าเห็นได้ในแชท: ข้อความตัวอักษร ใบเสนอ และสรุปออร์เดอร์ (ชนิดอื่นเป็นของภายในหรือของช่องทางอื่น)
+export const isCustomerVisible = (m: Json) => !!m && (m.from === 'customer' || m.from === 'staff') && ['text', 'quote', 'order'].includes(String(m.kind ?? 'text'))
+
+// การตอบกลับ: รหัสข้อความที่อ้างถึงต้องเป็นรหัสรูปแบบปลอดภัย และต้องมีอยู่จริงในแชทนี้ (กันการอ้างถึงข้อความของผู้อื่น)
+const REPLY_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
+export const cleanReplyTo = (v: unknown): string | null => {
+  const s = typeof v === 'string' ? v.trim() : ''
+  return REPLY_ID_RE.test(s) ? s : null
+}
+// ข้อความอ้างอิงที่ลูกค้าเห็น: เฉพาะข้อความที่ลูกค้าเห็นได้อยู่แล้ว ตัดไม่เกิน 80 ตัวอักษร · ข้อความภายในไม่คืนเนื้อหา
+export function replySnippetOf(all: Json[], replyId: unknown): { id: string; from: 'customer' | 'staff'; text: string } | null {
+  const id = cleanReplyTo(replyId)
+  const m = id ? all.find((x) => x && x.id === id) : null
+  if (!m || !isCustomerVisible(m)) return null
+  const kind = String(m.kind ?? 'text')
+  const label = kind === 'quote' ? 'ใบเสนอราคา' : kind === 'order' ? 'สรุปออร์เดอร์' : ''
+  const text = String(m.text ?? '').trim() || (Array.isArray(m.attachments) && m.attachments.length ? '[รูปภาพ]' : '') || label
+  return { id: String(m.id), from: m.from === 'staff' ? 'staff' : 'customer', text: text.slice(0, 80) }
+}
+
+// สรุปออร์เดอร์ที่ร้านส่งในแชท: เหมือนการ์ดของ Facebook · ใช้เฉพาะการ์ดที่ร้านเก็บไว้ตอนส่ง (หัวข้อ รายการ ยอด และลิงก์ดูออร์เดอร์ https)
+export function customerOrderView(m: Json) {
+  const c = m.card && typeof m.card === 'object' ? (m.card as Json) : null
+  return {
+    id: String(m.id ?? ''),
+    from: 'staff' as const,
+    kind: 'order' as const,
+    text: c ? String(m.cardText ?? '').slice(0, 2000) : 'ร้านส่งสรุปออร์เดอร์ให้แล้ว',
+    card: c ? { title: String(c.title ?? '').slice(0, 80), subtitle: String(c.subtitle ?? '').slice(0, 80), image: httpsUrl(c.image), url: httpsUrl(c.url) } : null,
+    photos: [] as { ref: string; url: string | null }[],
+    at: String(m.at ?? ''),
+  }
+}
+
 // ใบเสนอที่ร้านส่งในแชท: ลูกค้าเห็นเป็นการ์ดอ่านอย่างเดียว · ใช้เฉพาะการ์ดที่ร้านเก็บไว้ตอนส่ง (หัวข้อ บรรทัดรอง รายการ/วันนัด/ยอดรวม และรูป https)
 // ใบเก่าที่ไม่มีการ์ด = แจ้งแค่ว่าร้านส่งใบเสนอแล้ว (ไม่มีข้อมูลภายใน)
 const httpsUrl = (u: unknown) => (typeof u === 'string' && /^https:\/\/\S+$/i.test(u) && u.length <= 500 ? u : null)
@@ -58,9 +92,12 @@ export async function customerChatList(sb: any, customerId: string, sign: Signer
   const r = await sb.from('punpang_chats').select('id,data').eq('channel', 'web').eq('customer_id', customerId).maybeSingle()
   if (r?.error) return { status: 500, body: { error: 'อ่านแชทไม่สำเร็จ' } }
   const msgs: Json[] = Array.isArray(r?.data?.data?.messages) ? r.data.data.messages : []
-  const visible = msgs.filter((m) => m && (m.from === 'customer' || m.from === 'staff') && ((m.kind ?? 'text') === 'text' || m.kind === 'quote'))
+  const visible = msgs.filter(isCustomerVisible)
   const haveSet = new Set(have.filter((x) => typeof x === 'string').slice(0, 500))
-  const messages = await Promise.all(visible.slice(-100).map(async (m) => (m.kind === 'quote' ? customerQuoteView(m) : { ...toCustomerView(m), photos: await photosView(m, sign, haveSet) })))
+  const messages = await Promise.all(visible.slice(-100).map(async (m) => {
+    const base = m.kind === 'quote' ? customerQuoteView(m) : m.kind === 'order' ? customerOrderView(m) : { ...toCustomerView(m), photos: await photosView(m, sign, haveSet) }
+    return { ...base, replyTo: replySnippetOf(msgs, m.replyTo) }
+  }))
   const presence = await shopPresenceFor(sb, r?.data?.id)
   const chatTopic = await chatTopicOf(sb, customerId)
   return { status: 200, body: { messages, presence, chatTopic } }
@@ -114,10 +151,13 @@ async function attachmentsOf(sb: any, customerId: string, refs: string[]): Promi
 }
 
 // ส่งข้อความจากลูกค้า: ตรวจบัญชี ข้อความ/รูป และความถี่ · บันทึกลงกระทู้ของลูกค้า แล้วแจ้งกระดิ่งพนักงาน
-export async function customerChatSend(sb: any, customerId: string, rawText: unknown, rawPhotos?: unknown): Promise<{ status: number; body: Json }> {
+export async function customerChatSend(sb: any, customerId: string, rawText: unknown, rawPhotos?: unknown, rawReplyTo?: unknown): Promise<{ status: number; body: Json }> {
   const hasText = String(rawText ?? '').trim() !== ''
   const text = hasText ? cleanChatText(rawText) : ''
   if (text === null) return { status: 400, body: { error: `ข้อความต้องมี 1–${CHAT_TEXT_MAX} ตัวอักษร` } }
+  const hasReply = rawReplyTo !== undefined && rawReplyTo !== null && String(rawReplyTo).trim() !== ''
+  const replyTo = hasReply ? cleanReplyTo(rawReplyTo) : null
+  if (hasReply && !replyTo) return { status: 400, body: { error: 'ข้อความที่ตอบกลับไม่ถูกต้อง' } }
   const refs = photoRefsOf(rawPhotos, customerId)
   if ('error' in refs) return { status: 400, body: { error: refs.error } }
   if (!text && !refs.refs.length) return { status: 400, body: { error: 'ส่งข้อความหรือรูปอย่างน้อยหนึ่งอย่าง' } }
@@ -135,10 +175,11 @@ export async function customerChatSend(sb: any, customerId: string, rawText: unk
     const cur = await sb.from('punpang_chats').select('id,data,updated_at').eq('channel', 'web').eq('customer_id', customerId).maybeSingle()
     if (cur?.error) return { status: 500, body: { error: 'ส่งข้อความไม่สำเร็จ กรุณาลองใหม่' } }
     const nowIso = new Date().toISOString()
-    const msg = { id: newId('cm'), from: 'customer', kind: 'text', text, orderId: null, quoteId: null, replyTo: null, ask: null, answerFor: null, filled: null, attachments: atts.list, at: nowIso, by: 'ลูกค้า', delivery: null }
+    const msg = { id: newId('cm'), from: 'customer', kind: 'text', text, orderId: null, quoteId: null, replyTo, ask: null, answerFor: null, filled: null, attachments: atts.list, at: nowIso, by: 'ลูกค้า', delivery: null }
 
     if (!cur?.data) {
-      // ยังไม่มีกระทู้เว็บของลูกค้ารายนี้ → สร้างใหม่
+      // ยังไม่มีกระทู้เว็บของลูกค้ารายนี้ → สร้างใหม่ (ยังไม่มีข้อความให้ตอบกลับ)
+      if (replyTo) return { status: 400, body: { error: 'ไม่พบข้อความที่ตอบกลับ' } }
       const chatId = newId('ch')
       const data = { id: chatId, profileName: name, messages: [msg], unreadStaff: 1, lastInboundAt: nowIso, updatedAt: nowIso, pendingAsk: null }
       const ins = await sb.from('punpang_chats').insert({ id: chatId, channel: 'web', external_id: customerId, customer_id: customerId, data })
@@ -149,11 +190,12 @@ export async function customerChatSend(sb: any, customerId: string, rawText: unk
 
     const d = cur.data.data || {}
     const msgs: Json[] = Array.isArray(d.messages) ? d.messages : []
+    if (replyTo && !msgs.some((m) => m?.id === replyTo && isCustomerVisible(m))) return { status: 400, body: { error: 'ไม่พบข้อความที่ตอบกลับ' } }
     const recent = msgs.filter((m) => m?.from === 'customer' && Date.now() - new Date(m.at).getTime() < CHAT_RATE.windowMs).length
     if (recent >= CHAT_RATE.max) return { status: 429, body: { error: 'ส่งข้อความถี่เกินไป กรุณารอสักครู่' } }
     const next = { ...d, profileName: name, messages: [...msgs, msg], unreadStaff: (Number(d.unreadStaff) || 0) + 1, lastInboundAt: nowIso, updatedAt: nowIso }
     const up = await sb.from('punpang_chats').update({ data: next }).eq('id', cur.data.id).eq('updated_at', cur.data.updated_at).select('id')
-    if (!up?.error && (up?.data || []).length) { await notifyStaff(sb, cur.data.id, name, preview); await stoppedTyping(sb, cur.data.id); return { status: 200, body: { ok: true, message: { ...toCustomerView(msg), photos: atts.list.map((a) => ({ ref: a.path, url: null })) } } } }
+    if (!up?.error && (up?.data || []).length) { await notifyStaff(sb, cur.data.id, name, preview); await stoppedTyping(sb, cur.data.id); return { status: 200, body: { ok: true, message: { ...toCustomerView(msg), photos: atts.list.map((a) => ({ ref: a.path, url: null })), replyTo: replySnippetOf(msgs, replyTo) } } } }
   }
   return { status: 409, body: { error: 'ส่งข้อความไม่สำเร็จ กรุณาลองใหม่' } }
 }

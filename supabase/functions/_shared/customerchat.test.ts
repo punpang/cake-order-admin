@@ -1,6 +1,6 @@
 // ทดสอบส่วนที่เป็นฟังก์ชันล้วนของแชทลูกค้า: ตรวจความยาวข้อความ และข้อความที่ลูกค้าเห็นไม่มีข้อมูลภายใน
 import { assertEquals } from 'jsr:@std/assert@1'
-import { CHAT_TEXT_MAX, cleanChatText, customerQuoteView, toCustomerView } from './customerchat.ts'
+import { CHAT_TEXT_MAX, cleanChatText, cleanReplyTo, customerOrderView, customerQuoteView, isCustomerVisible, replySnippetOf, toCustomerView } from './customerchat.ts'
 
 Deno.test('ข้อความว่างหรือเกินความยาวไม่ผ่าน · ตัดช่องว่างหัวท้ายแล้วผ่าน', () => {
   assertEquals(cleanChatText(''), null)
@@ -26,4 +26,37 @@ Deno.test('ใบเสนอในแชทลูกค้า: แสดงเ�
   })
   const old = customerQuoteView({ id: 'cm3', from: 'staff', kind: 'quote', quoteId: 'qt0', at: '2026-11-16T12:00:00.000Z', cost: 99 })
   assertEquals(old, { id: 'cm3', from: 'staff', kind: 'quote', text: 'ร้านส่งใบเสนอราคาให้แล้ว', at: '2026-11-16T12:00:00.000Z', photos: [], card: null })
+})
+
+Deno.test('การตอบกลับ: รหัสต้องปลอดภัยและอ้างถึงได้เฉพาะข้อความที่ลูกค้าเห็น', () => {
+  assertEquals(cleanReplyTo('cm_abc-1'), 'cm_abc-1')
+  assertEquals(cleanReplyTo('../x'), null)
+  assertEquals(cleanReplyTo(''), null)
+  assertEquals(cleanReplyTo(123), null)
+  const all = [
+    { id: 'a1', from: 'customer', kind: 'text', text: 'สั่งเค้กวันเสาร์ได้ไหม' },
+    { id: 'a2', from: 'staff', kind: 'text', text: 'ได้เลยค่ะ '.repeat(20) },
+    { id: 'a3', from: 'staff', kind: 'payreq', text: 'ข้อมูลภายใน', paymentId: 'p1' },
+    { id: 'a4', from: 'staff', kind: 'quote', text: '', card: null },
+  ]
+  assertEquals(replySnippetOf(all, 'a1'), { id: 'a1', from: 'customer', text: 'สั่งเค้กวันเสาร์ได้ไหม' })
+  assertEquals(replySnippetOf(all, 'a2')?.text.length, 80)
+  assertEquals(replySnippetOf(all, 'a3'), null)
+  assertEquals(replySnippetOf(all, 'a4')?.text, 'ใบเสนอราคา')
+  assertEquals(replySnippetOf(all, 'missing'), null)
+  assertEquals(isCustomerVisible({ from: 'staff', kind: 'payreq' }), false)
+  assertEquals(isCustomerVisible({ from: 'customer' }), true)
+})
+
+Deno.test('สรุปออร์เดอร์ในแชทลูกค้า: แสดงเฉพาะการ์ดที่เก็บไว้ · ลิงก์และรูปเฉพาะ https · ออร์เดอร์เก่าไม่มีข้อมูลภายใน', () => {
+  const v = customerOrderView({
+    id: 'cm9', from: 'staff', kind: 'order', at: '2026-11-16T13:00:00.000Z', orderId: 'o1', cost: 90,
+    cardText: 'สยพสพ\nยอดรวม: 650', card: { kind: 'order', title: 'ออร์เดอร์ ORD-1', subtitle: 'คงค้าง 650', image: 'javascript:alert(1)', url: 'https://example.test/o/abc' },
+  })
+  assertEquals(v, {
+    id: 'cm9', from: 'staff', kind: 'order', text: 'สยพสพ\nยอดรวม: 650', at: '2026-11-16T13:00:00.000Z', photos: [],
+    card: { title: 'ออร์เดอร์ ORD-1', subtitle: 'คงค้าง 650', image: null, url: 'https://example.test/o/abc' },
+  })
+  const old = customerOrderView({ id: 'cm8', from: 'staff', kind: 'order', at: '2026-11-16T12:00:00.000Z', orderId: 'o0', cost: 40 })
+  assertEquals(old, { id: 'cm8', from: 'staff', kind: 'order', text: 'ร้านส่งสรุปออร์เดอร์ให้แล้ว', at: '2026-11-16T12:00:00.000Z', photos: [], card: null })
 })

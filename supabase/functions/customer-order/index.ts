@@ -230,7 +230,7 @@ Deno.serve(corsWrap(async (req) => {
     }
     const r = action === 'chat_list'
       ? await customerChatList(sb, customerIdOfSession, (key: string) => svcSign(filesEnv(), key, 3600), Array.isArray(b.have) ? b.have : [])
-      : await customerChatSend(sb, customerIdOfSession, b.text, b.photos)
+      : await customerChatSend(sb, customerIdOfSession, b.text, b.photos, b.replyTo)
     return json(r.body, r.status)
   }
 
