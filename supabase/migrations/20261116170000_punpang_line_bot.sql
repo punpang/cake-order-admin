@@ -1,6 +1,6 @@
 -- LINE Official Account · บอทอย่างเดียว ไม่มีโหมดพนักงานตอบ
 -- ตารางผู้ใช้ LINE และประวัติข้อความ: เขียนโดย Edge Function line-webhook (service role) · พนักงานอ่านอย่างเดียวตามสิทธิ์แชท (chat)
--- ไฟล์นี้ยังไม่ได้นำขึ้นฐานข้อมูลจริง จะนำขึ้นเมื่อผู้ใช้สั่ง Merge deploy เท่านั้น
+-- นำขึ้นฐานข้อมูลจริงด้วย workflow "Deploy DB LINE" (พิมพ์ RUN) เท่านั้น ไม่ได้นำขึ้นตอน merge
 
 create table if not exists public.punpang_line_users (
   line_user_id text primary key,

@@ -26,6 +26,7 @@ declare
     'punpang_payments', 'punpang_counters', 'punpang_acct_entries', 'punpang_acct_invoices',
     'punpang_acct_counters', 'punpang_acct_state', 'punpang_acct_frozen', 'punpang_sms_log', 'punpang_tg_log',
     'punpang_cake_clicks'];
+  nocopy text[] := array['punpang_line_users', 'punpang_line_messages']; -- LINE: ไม่คัดลอกไปโหมดทดสอบ (ข้อมูลลูกค้า LINE ไม่เข้าสำเนา)
   shr text[] := array[
     'punpang_staff', 'punpang_kv', 'punpang_items', 'punpang_catalog_history', 'punpang_fb_pages',
     'punpang_fb_oauth', 'punpang_customer_auth', 'punpang_customer_sessions', 'punpang_otps',
@@ -41,7 +42,7 @@ begin
   -- 0) ตารางทุกตารางของ public ต้องจัดประเภทแล้ว
   for c in select r.relname::text as name from pg_class r join pg_namespace n on n.oid = r.relnamespace
             where n.nspname = 'public' and r.relkind in ('r', 'p') loop
-    if not (c.name = any (iso || shr)) then
+    if not (c.name = any (iso || shr || nocopy)) then
       raise exception 'ตาราง % ยังไม่ได้จัดประเภทสำหรับโหมดทดสอบ (แก้ punpang_test_sync)', c.name;
     end if;
   end loop;

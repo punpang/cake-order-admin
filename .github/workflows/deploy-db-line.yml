@@ -1,0 +1,56 @@
+name: Deploy DB LINE
+
+# รันเองเท่านั้น: GitHub → Actions → Deploy DB LINE → Run workflow
+#   เลือก branch claude/loving-sagan-ygzxt1 (หรือ main หลัง merge) · พิมพ์ RUN ให้ตรง
+# ต้องมี secret SUPABASE_DB_URL (connection string แบบ session pooler ของ production พร้อมรหัสผ่าน)
+# SQL (ธุรกรรมเดียว -1 ผิดพลาดขั้นใดย้อนกลับทั้งหมด):
+#   1) supabase/migrations/20261116170000_punpang_line_bot.sql — ตารางผู้ใช้ LINE และประวัติข้อความ (รันซ้ำได้)
+# ไม่แตะข้อมูลเดิม: สร้างตารางใหม่ 2 ตารางพร้อมนโยบายอ่านอย่างเดียว
+# ควรรันก่อนตั้ง Webhook URL ใน LINE Developers ไม่เช่นนั้นข้อความที่เข้ามาจะบันทึกไม่ได้
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'พิมพ์ RUN เพื่อยืนยัน'
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-db-line
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      CONFIRM: ${{ github.event.inputs.confirm }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PGSSLMODE: require
+    steps:
+      - name: ตรวจการยืนยันและ secret
+        run: |
+          if [ "$CONFIRM" != "RUN" ]; then echo "ยังไม่ได้พิมพ์ RUN เพื่อยืนยัน จึงไม่รัน"; exit 1; fi
+          if [ -z "$SUPABASE_DB_URL" ]; then echo "ยังไม่ได้ตั้ง secret SUPABASE_DB_URL"; exit 1; fi
+
+      - uses: actions/checkout@v4
+
+      - name: ติดตั้ง psql
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      - name: ตรวจสภาพฐานข้อมูลก่อนรัน
+        run: |
+          t=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from information_schema.tables where table_schema = 'public' and table_name = 'punpang_records'")
+          [ "$t" = "1" ] || { echo "ไม่พบตาราง punpang_records บน production"; exit 1; }
+          f=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'punpang_has_perm'")
+          [ "$f" -ge 1 ] || { echo "ไม่พบฟังก์ชัน punpang_has_perm บน production"; exit 1; }
+
+      - name: รัน SQL (ธุรกรรมเดียว)
+        run: psql "$SUPABASE_DB_URL" -X -q -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261116170000_punpang_line_bot.sql
+
+      - name: ตรวจผลหลังรัน
+        run: |
+          n=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from information_schema.tables where table_schema = 'public' and table_name in ('punpang_line_users', 'punpang_line_messages')")
+          r=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from pg_class c join pg_namespace s on s.oid = c.relnamespace where s.nspname = 'public' and c.relname in ('punpang_line_users', 'punpang_line_messages') and c.relrowsecurity")
+          [ "$n" = "2" ] && [ "$r" = "2" ] || { echo "ตาราง LINE ไม่ครบ หรือยังไม่เปิด RLS (ตาราง $n · RLS $r)"; exit 1; }
+          echo "ผ่าน: ตาราง LINE 2 ตารางพร้อม และเปิด RLS แล้ว"
