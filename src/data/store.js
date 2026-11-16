@@ -4183,6 +4183,8 @@ export async function registerAccount({ token, phone: phoneRaw, name = '', pin, 
 }
 // เข้าสู่ระบบ: เบอร์ + PIN · ผิด 5 ครั้งล็อก 15 นาที (ข้อความผิดทั่วไปไม่บอกว่าเบอร์มีในระบบไหม)
 export async function loginPin(phoneRaw, pin) {
+  // เบราว์เซอร์นี้ยังเปิดหลังบ้านพนักงานค้างอยู่ → ไม่ใช้เส้นทางลูกค้าบนเซิร์ฟเวอร์ (เดิมจะขึ้น "PIN ไม่ถูกต้อง" ทั้งที่ PIN ถูก)
+  if (supabaseEnabled && staffState.staff) return { error: 'เบราว์เซอร์นี้เปิดหลังบ้านพนักงานค้างอยู่ · ออกจากระบบพนักงานก่อน แล้วเข้าบัญชีลูกค้าใหม่' }
   if (remoteCust()) {
     const r = await callAuth('login', { phone: phoneDigits(phoneRaw), pin })
     if (!r.ok) return { error: r.error, ...(r.locked ? { locked: true } : {}) }
