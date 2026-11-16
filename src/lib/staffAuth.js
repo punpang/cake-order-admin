@@ -8,6 +8,7 @@ import { syncRealtime, waitSaved } from './syncStatus'
 import { startRealtime, makeDebouncer } from './realtimeSync'
 import { startPush, stopPush } from './push'
 import { createQuoteRemote } from './quoteRemote'
+import { signInCaptchaOptions } from './turnstile'
 
 // สถานะพนักงานที่ล็อกอินจริง (ใช้เมื่อเปิด Supabase เท่านั้น)
 export const staffState = reactive({ ready: !supabaseEnabled, staff: null, loadFailed: [] })
@@ -426,10 +427,11 @@ async function restoreSession() {
 
 // เข้าสู่ระบบพนักงานด้วย Supabase Auth (อีเมล+รหัสผ่าน) แล้วอ่านบทบาท/สิทธิ์จาก punpang_staff
 // สิทธิ์จริงบังคับที่ฝั่งฐานข้อมูล (RLS) — ค่าที่อ่านมาใช้แสดง/ซ่อนเมนูเท่านั้น
-export async function staffSignIn(email, password) {
+// captchaToken มาจาก Turnstile (ว่าง = ไม่ส่ง) ใช้เมื่อเปิด CAPTCHA ใน Supabase แล้วเท่านั้น
+export async function staffSignIn(email, password, captchaToken = '') {
   const supabase = await getSupabase()
   if (!supabase) return { error: 'ยังไม่ได้เปิดใช้ Supabase' }
-  const { error } = await supabase.auth.signInWithPassword({ email: String(email).trim(), password })
+  const { error } = await supabase.auth.signInWithPassword({ email: String(email).trim(), password, options: signInCaptchaOptions(captchaToken) })
   if (error) return { error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' } // ข้อความเดียว ไม่บอกว่าผิดช่องไหน
   const r = await currentStaff()
   if (r.staff) { staffState.staff = r.staff; await startData(r.staff) }
