@@ -26,6 +26,7 @@ const customer = computed(() => (current.value ? findCustomer(current.value.cust
 const CH = {
   facebook: { l: 'Facebook', cls: 'bg-[#166FE5] text-white' }, // น้ำเงิน Facebook เข้มขึ้นเล็กน้อยให้ตัวขาวอ่านได้ ≥4.5:1
   instagram: { l: 'Instagram', cls: 'bg-gradient-to-tr from-[#f58529] via-[#dd2a7b] to-[#8134af] text-white' },
+  web: { l: 'เว็บ/แอป', cls: 'bg-brand-600 text-white', mark: 'W' }, // แชทจากหน้าเว็บของลูกค้า · ไม่มีค่านี้แล้วรายการแชททั้งหมดจะขึ้นไม่ได้
 }
 const nameOf = (c) => findCustomer(c.customerId)?.name || c.profileName
 const initial = (name) => (name || '?').replace(/^คุณ/, '').trim().charAt(0) || '?'
@@ -230,7 +231,7 @@ function doCreate() {
               <span v-if="current?.id === c.id" class="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-500" aria-hidden="true" />
               <span class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-100 text-base font-semibold text-brand-800">
                 {{ initial(nameOf(c)) }}
-                <span class="absolute -right-1 -bottom-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[c.channel].cls">{{ 'f' }}</span>
+                <span class="absolute -right-1 -bottom-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[c.channel].cls">{{ CH[c.channel].mark || 'f' }}</span>
               </span>
               <span class="min-w-0 flex-1">
                 <span class="flex items-baseline gap-2">
@@ -261,7 +262,7 @@ function doCreate() {
           <button type="button" class="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1.5 text-left hover:bg-stone-50" :class="kb.open ? 'py-0' : 'py-1'" :aria-label="`ข้อมูลลูกค้า ${chName}`" @click="detailsOpen = true">
             <span class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-800">
               {{ initial(chName) }}
-              <span class="absolute -right-1 -bottom-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[current.channel].cls">{{ 'f' }}</span>
+              <span class="absolute -right-1 -bottom-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[current.channel].cls">{{ CH[current.channel].mark || 'f' }}</span>
             </span>
             <span class="min-w-0 flex-1">
               <span class="flex min-w-0 items-center gap-2">
@@ -332,7 +333,7 @@ function doCreate() {
           <div class="flex items-center gap-3">
             <span class="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-100 text-lg font-semibold text-brand-800">
               {{ initial(chName) }}
-              <span class="absolute -right-1 -bottom-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[current.channel].cls">{{ 'f' }}</span>
+              <span class="absolute -right-1 -bottom-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[current.channel].cls">{{ CH[current.channel].mark || 'f' }}</span>
             </span>
             <div class="min-w-0 flex-1">
               <div class="truncate text-base font-semibold text-stone-900">{{ chName }}</div>
