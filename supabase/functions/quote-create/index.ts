@@ -8,7 +8,7 @@ import { corsWrap } from '../_shared/cors.ts'
 import { buildQuotePayload, bkkWall } from '../_shared/schedlib/quotePrice.js'
 import { ddmmyy, formatNo } from '../_shared/schedlib/docNo.js'
 import { loadCatalog } from '../_shared/catalog.ts'
-import { modeOf, restProfileHeaders } from '../_shared/mode.ts'
+import { docCodeFor, modeOf, restProfileHeaders } from '../_shared/mode.ts'
 
 const cors = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -65,7 +65,8 @@ Deno.serve(corsWrap(async (req) => {
   const m = /^Bearer (.+)$/.exec(req.headers.get('authorization') || '')
   const who = m ? await staffOf(m[1]) : null
   if (!who) return json({ error: 'ต้องเข้าสู่ระบบพนักงาน' }, 401)
-  const rh = restProfileHeaders(modeOf(req)) // โหมดทดสอบ: อ่านเขียนใบเสนอในสำเนาข้อมูลทดสอบเท่านั้น
+  const mode = modeOf(req)
+  const rh = restProfileHeaders(mode) // โหมดทดสอบ: อ่านเขียนใบเสนอในสำเนาข้อมูลทดสอบเท่านั้น
   if (!who.perms.includes('chat') || !who.perms.includes('createOrder')) return json({ error: 'บทบาทนี้ส่งใบเสนอไม่ได้' }, 403)
 
   let body: any
@@ -92,7 +93,7 @@ Deno.serve(corsWrap(async (req) => {
       headers: { ...SERVICE_HEADERS, ...rh, 'content-type': 'application/json', Prefer: 'return=representation' },
       body: JSON.stringify([{
         id,
-        code: formatNo('QT', day, seq),
+        code: docCodeFor(formatNo('QT', day, seq), mode),
         chat_id: chatId,
         customer_id: built.payload.customerId,
         status: 'pending',

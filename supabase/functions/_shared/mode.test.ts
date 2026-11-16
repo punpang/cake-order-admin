@@ -1,6 +1,6 @@
 // ทดสอบกติกาโหมดทดสอบ (ฟังก์ชันล้วน) · รัน: deno test supabase/functions/_shared/
 import { assertEquals, assertNotEquals } from 'jsr:@std/assert@1'
-import { cleanRecipients, modeOf, recipientAllowed, refuseInTest, restProfileHeaders, schemaOf } from './mode.ts'
+import { cleanRecipients, docCodeFor, modeOf, recipientAllowed, refuseInTest, restProfileHeaders, schemaOf } from './mode.ts'
 
 const reqWith = (mode?: string) => new Request('https://x.test/fn', { headers: mode === undefined ? {} : { 'x-punpang-mode': mode } })
 
@@ -54,4 +54,10 @@ Deno.test('ผู้รับทดสอบ: รายการว่างห�
     { channel: 'telegram', to: '' }, // ว่าง
     'ผิดรูปแบบ',
   ]), [{ channel: 'sms', to: '0812345678' }])
+})
+
+Deno.test('เลขเอกสารฝั่งเซิร์ฟเวอร์: โหมดทดสอบเติม TEST- โหมดจริงไม่เปลี่ยน และรหัสว่างไม่เติม', () => {
+  assertEquals(docCodeFor('QT-161126-00001', 'test'), 'TEST-QT-161126-00001')
+  assertEquals(docCodeFor('QT-161126-00001', 'live'), 'QT-161126-00001')
+  assertEquals(docCodeFor('', 'test'), '')
 })

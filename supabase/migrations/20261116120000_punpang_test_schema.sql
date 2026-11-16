@@ -118,8 +118,9 @@ begin
   end loop;
 
   -- 4) ฟังก์ชันทุกตัวของ public → สำเนาใน punpang_test (ล้างของเดิมก่อน เพื่อให้เปลี่ยนชนิดผลลัพธ์ได้)
+  -- ยกเว้นตัวช่วยที่ไม่ได้มาจาก public: ฟังก์ชันของชุดตัวอย่าง (migration 20261116140000)
   for f in select p.oid::regprocedure::text as sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-            where n.nspname = 'punpang_test' and p.proname not in ('punpang_test_sync', 'punpang_test_readonly') loop
+            where n.nspname = 'punpang_test' and p.proname not in ('punpang_test_sync', 'punpang_test_readonly', 'punpang_test_shift', 'punpang_test_seed') loop
     execute format('drop function if exists %s', f.sig);
   end loop;
   for f in select p.proname::text as name, pg_get_functiondef(p.oid) as def

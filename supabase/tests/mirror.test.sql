@@ -37,7 +37,7 @@ select mt.ok('A5 ทริกเกอร์ของทุกตารางธ
 -- ฟังก์ชันของ public ที่อ้างตารางที่ถูกลบแล้ว (punpang_points) ไม่ถูกคัดลอก (ดูหมายเหตุในไฟล์ migration)
 select mt.ok('A6 ฟังก์ชันของสำเนาเท่ากับของ public ลบฟังก์ชันที่อ้างตารางที่ถูกลบ 7 ตัว',
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'punpang_test' and p.proname not in ('punpang_test_sync', 'punpang_test_readonly'))
+    where n.nspname = 'punpang_test' and p.proname not in ('punpang_test_sync', 'punpang_test_readonly', 'punpang_test_shift', 'punpang_test_seed'))
   = (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.prokind in ('f', 'p')
         and p.proname not in ('punpang__pts_take', 'punpang__pts_balance', 'punpang__pts_giveback',
@@ -174,17 +174,27 @@ begin
 end $$;
 drop table public.punpang_unclassified_probe;
 
--- ---------- H) ปุ่มล้างข้อมูลทดสอบ: ล้างเฉพาะสำเนา ----------
+-- ---------- H) ปุ่มล้างข้อมูลทดสอบ: ล้างเฉพาะสำเนา แล้วใส่ชุดตัวอย่าง ----------
 do $$
-declare live_before bigint;
+declare live_before bigint; live_orders_before bigint;
 begin
   select count(*) into live_before from public.punpang_records;
+  select count(*) into live_orders_before from public.punpang_orders;
   perform set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', true);
   execute 'set local role authenticated';
   perform punpang_test.punpang_reset_test_data();
   execute 'reset role';
-  perform mt.ok('H1 ล้างข้อมูลทดสอบจนว่าง และข้อมูลจริงไม่เปลี่ยน',
+  perform mt.ok('H1 ล้างข้อมูลทดสอบ: ไม่มีบันทึกทั่วไปค้าง และข้อมูลจริงไม่เปลี่ยน',
     (select count(*) from punpang_test.punpang_records) = 0 and (select count(*) from public.punpang_records) = live_before);
+  perform mt.ok('H2 หลังล้างใส่ชุดตัวอย่าง: มีลูกค้า ออร์เดอร์ ตัวนับ ทุกเลขขึ้นต้น TEST- และออร์เดอร์จริงไม่เปลี่ยน',
+    (select count(*) from punpang_test.punpang_customers) > 0
+    and (select count(*) from punpang_test.punpang_orders) > 0
+    and (select count(*) from punpang_test.punpang_counters) > 0
+    and not exists (select 1 from punpang_test.punpang_orders where code not like 'TEST-%')
+    and (select count(*) from public.punpang_orders) = live_orders_before);
+  perform mt.ok('H3 เลื่อนวันที่และเลขเอกสารของชุดตัวอย่างถูกต้องข้ามเดือน',
+    punpang_test.punpang_test_shift('{"at":"2026-11-29T10:00:00.000Z","d":"2026-11-16","code":"TEST-OR-291126-000001","pay":["TEST-PAY-161126-00002"],"n":5}'::jsonb, 3)
+    = '{"at":"2026-12-02T10:00:00.000Z","d":"2026-11-19","code":"TEST-OR-021226-000001","pay":["TEST-PAY-191126-00002"],"n":5}'::jsonb);
 end $$;
 
 select 'ผ่านทั้งหมด' as mirror_tests;

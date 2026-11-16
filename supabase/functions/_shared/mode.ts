@@ -46,3 +46,7 @@ export function cleanRecipients(list: unknown): TestRecipient[] {
   if (!Array.isArray(list)) return []
   return list.filter((r): r is TestRecipient => !!r && typeof r === 'object' && RECIPIENT_CHANNELS.includes((r as TestRecipient).channel) && !!cleanTo((r as TestRecipient).channel, (r as TestRecipient).to))
 }
+
+// เลขเอกสารที่ฝั่งเซิร์ฟเวอร์ออก: โหมดทดสอบเติม TEST- (ตรงกับฝั่งแอป · src/lib/testMode.js)
+export const TEST_CODE_PREFIX = 'TEST-'
+export const docCodeFor = (code: string, mode: Mode): string => (mode === 'test' && code ? TEST_CODE_PREFIX + code : code)
