@@ -1,6 +1,18 @@
 // ทดสอบตัวช่วย sms-send ตามกฎในเอกสาร SMS Gateway API (docs/sms-gateway-api.md) · รันผ่าน npm run test:deno
 import { assertEquals } from 'jsr:@std/assert@1'
-import { ID, IDEM, MAX_TEXT, gatewayErrorText, mapGatewayStatus, normalizeNumber } from './smsgateway.ts'
+import { ID, IDEM, MAX_TEXT, customerRecipientOk, gatewayErrorText, mapGatewayStatus, normalizeNumber } from './smsgateway.ts'
+
+Deno.test('ผู้รับ (โหมดจริง): ลูกค้าที่มีในระบบและไม่ถูกลบ → ส่งได้', () => {
+  assertEquals(customerRecipientOk([{ id: 'c1', data: { active: true } }]), true)
+  assertEquals(customerRecipientOk([{ id: 'c1', data: {} }]), true)
+})
+
+Deno.test('ผู้รับ (โหมดจริง): ไม่พบ / ถูกลบ / คำตอบผิดรูป → ส่งไม่ได้', () => {
+  assertEquals(customerRecipientOk([]), false)
+  assertEquals(customerRecipientOk([{ id: 'c1', data: { deleted: true } }]), false)
+  assertEquals(customerRecipientOk(null), false)
+  assertEquals(customerRecipientOk({ id: 'c1' }), false)
+})
 
 Deno.test('เบอร์: รูปแบบที่เอกสารเกตเวย์รับ แปลงเป็น 0… ได้', () => {
   assertEquals(normalizeNumber('0812345678'), '0812345678')

@@ -10,7 +10,7 @@ import { corsWrap } from '../_shared/cors.ts'
 // - actions: status (ตั้งค่าครบหรือยัง) · gateway (GET /v1/status) · send (POST /v1/sms) · lookup (GET /v1/sms/{id}) · messages (GET /v1/messages)
 // - ข้อผิดพลาดของเกตเวย์ 400/404/409/429 ส่งต่อรหัสเดิม อื่น ๆ เป็น 502 · ไม่ส่งคีย์หรือ URL เกตเวย์กลับไปที่หน้าเว็บ
 
-import { ID, IDEM, MAX_TEXT, gatewayErrorText, mapGatewayStatus, normalizeNumber } from '../_shared/smsgateway.ts'
+import { ID, IDEM, MAX_TEXT, customerRecipientOk, gatewayErrorText, mapGatewayStatus, normalizeNumber } from '../_shared/smsgateway.ts'
 import { modeOf, recipientAllowed, restProfileHeaders } from '../_shared/mode.ts'
 
 const cors = {
@@ -151,6 +151,13 @@ Deno.serve(corsWrap(async (req) => {
   if (!IDEM.test(idem)) return json({ ok: false, error: 'คีย์กันส่งซ้ำต้องยาว 8–64 ตัว (A-Z a-z 0-9 _ -)' }, 400)
   const sim = body.sim === 1 || body.sim === 2 || body.sim === '1' || body.sim === '2' ? Number(body.sim) : undefined
 
+  // ผู้รับโหมดจริง: ส่งได้เฉพาะเบอร์ลูกค้าที่มีในระบบและยังไม่ถูกลบ · ผู้จัดการทดสอบส่งเบอร์ของตัวเองได้ (kind=test) · กันการใช้ส่ง SMS ออกนอกร้าน
+  if (mode !== 'test' && !(body.kind === 'test' && staff.perms.includes('manage'))) {
+    const cr = await fetch(`${SUPABASE_URL}/rest/v1/punpang_customers?phone=eq.${to}&select=id,data&limit=1`, { headers: { ...SERVICE_HEADERS, ...rh } })
+    const rows = cr.ok ? await cr.json().catch(() => null) : null
+    if (!Array.isArray(rows)) return json({ ok: false, error: 'ตรวจทะเบียนลูกค้าไม่สำเร็จ กรุณาลองใหม่' }, 503)
+    if (!customerRecipientOk(rows)) return json({ ok: false, error: 'ส่งได้เฉพาะเบอร์ลูกค้าที่มีในระบบ' }, 403)
+  }
   if (mode === 'test') {
     // โหมดทดสอบ: ส่งได้เฉพาะเบอร์ในรายชื่อทดสอบเท่านั้น (กันส่ง SMS ถึงลูกค้าจริง)
     const rr = await fetch(`${SUPABASE_URL}/rest/v1/punpang_records?collection=eq.testRecipients&id=eq.list&select=data`, { headers: { ...SERVICE_HEADERS, ...rh } })

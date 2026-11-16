@@ -17,6 +17,13 @@ export function normalizeNumber(s: unknown): string | null {
   return /^0\d{8,9}$/.test(d) ? d : null
 }
 
+// ผู้รับที่ส่งได้ (โหมดจริง): ต้องพบลูกค้า 1 รายในทะเบียนและรายนั้นยังไม่ถูกลบ · รูปแบบคำตอบผิด = ไม่ผ่าน
+export function customerRecipientOk(rows: unknown): boolean {
+  if (!Array.isArray(rows) || rows.length === 0) return false
+  const r = rows[0] as { data?: { deleted?: unknown } } | null
+  return !!r && r.data?.deleted !== true
+}
+
 // สถานะที่เกตเวย์ตอบ: 400/404/409/429 ส่งต่อให้ผู้เรียกแก้ได้ · อื่น ๆ (401/403/5xx/เชื่อมต่อไม่ได้) เป็นการตั้งค่าหรือเกตเวย์ → 502
 export function mapGatewayStatus(gatewayStatus: number): number {
   return [400, 404, 409, 429].includes(gatewayStatus) ? gatewayStatus : 502
