@@ -206,3 +206,12 @@ Deno.test('ไฟล์ที่เสิร์ฟมี nosniff · path ที�
   assertEquals((await worker.fetch(new Request('https://files.test/p/%E0%A4%A'), env)).status, 404)
   assertEquals((await worker.fetch(new Request('https://files.test/f/%E0%A4%A?exp=9999999999&sig=x'), env)).status, 403)
 })
+
+Deno.test('/p/: ไฟล์ในถังขยะ (_trash/) ไม่เสิร์ฟแม้ยังอยู่ในบักเก็ตสาธารณะ · ไฟล์ปกติยังเสิร์ฟได้', async () => {
+  stubFetch()
+  const env = makeEnv()
+  env.FILES_PUBLIC.objs.set('_trash/shop/a.png', { key: '_trash/shop/a.png', body: PNG, uploaded: new Date() })
+  env.FILES_PUBLIC.objs.set('shop/b.png', { key: 'shop/b.png', body: PNG, uploaded: new Date() })
+  assertEquals((await worker.fetch(new Request('https://files.test/p/_trash/shop/a.png'), env)).status, 404)
+  assertEquals((await worker.fetch(new Request('https://files.test/p/shop/b.png'), env)).status, 200)
+})

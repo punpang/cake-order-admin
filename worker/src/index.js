@@ -140,7 +140,8 @@ export default {
     // ---- ไฟล์สาธารณะ ----
     if (req.method === 'GET' && path.startsWith('/p/')) {
       const key = safeDecode(path.slice(3))
-      if (key === null) return new Response('ไม่พบไฟล์', { status: 404, headers: corsHeaders(req, env) })
+      // ถังขยะ (_trash/) ไม่เสิร์ฟทาง /p/ แม้ไฟล์ยังอยู่ในบักเก็ต (กู้คืนได้เฉพาะพนักงาน)
+      if (key === null || key.startsWith('_trash/')) return new Response('ไม่พบไฟล์', { status: 404, headers: corsHeaders(req, env) })
       const obj = await env.FILES_PUBLIC.get(key)
       if (!obj) return new Response('ไม่พบไฟล์', { status: 404, headers: corsHeaders(req, env) })
       return new Response(obj.body, { headers: { ...corsHeaders(req, env), 'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=86400' } })
