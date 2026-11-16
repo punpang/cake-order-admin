@@ -43,4 +43,9 @@ code=$?
 "${PSQL[@]}" -d "$DB" -f supabase/tests/lucky.test.sql
 lcode=$?
 [ "$lcode" = "0" ] && echo "✓ lucky.test.sql ผ่านทั้งหมด" || echo "✗ lucky.test.sql ล้มเหลว"
-exit "$lcode"
+[ "$lcode" = "0" ] || exit "$lcode"
+
+"${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
+mcode=$?
+[ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"
+exit "$mcode"
