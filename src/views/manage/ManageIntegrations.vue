@@ -6,7 +6,7 @@ import { useRoute } from 'vue-router'
 import { supabaseEnabled, getSupabase } from '../../lib/supabase'
 import { fbConnectCall, FB_ERRORS } from '../../lib/fbRemote'
 import { db, findOrder, saveNotifyRule, clearOutbox, fillTemplate, connectIntegration, disconnectIntegration, sendIntegrationTest } from '../../data/store'
-import { CHANNELS, NOTIFY_EVENTS, NOTIFY_VARS } from '../../lib/constants'
+import { CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, NOTIFY_VARS, channelLabel } from '../../lib/constants'
 import { askConfirm } from '../../lib/confirm'
 import { dateTime } from '../../lib/format'
 import ManageShell from '../../components/ManageShell.vue'
@@ -17,7 +17,7 @@ import AppSwitch from '../../components/AppSwitch.vue'
 // การเชื่อมต่อ & แจ้งเตือน (จำลอง): ยังไม่ส่งจริง ทุกข้อความบันทึกลง "คิวข้อความ" · แผนต่อจริงดู docs/integrations.md
 const customerRules = computed(() => db.notifyRules.filter((r) => NOTIFY_EVENTS[r.event]?.audience === 'customer'))
 const teamRules = computed(() => db.notifyRules.filter((r) => NOTIFY_EVENTS[r.event]?.audience === 'team'))
-const customerChannels = Object.keys(CHANNELS).filter((k) => CHANNELS[k].audience === 'customer')
+const customerChannels = CUSTOMER_CHANNEL_ORDER
 
 function toggleChannel(r, ch) {
   const channels = r.channels.includes(ch) ? r.channels.filter((x) => x !== ch) : [...r.channels, ch]
@@ -232,7 +232,7 @@ async function disconnect(k) {
             <AppSwitch :model-value="r.enabled" :aria-label="`เปิดใช้กฎ ${NOTIFY_EVENTS[r.event].label || r.event}`" @update:model-value="setEnabled(r, $event)" />
           </div>
           <div class="mt-2 flex flex-wrap gap-1.5">
-            <button v-for="ch in customerChannels" :key="ch" type="button" class="chip" :class="r.channels.includes(ch) ? 'chip-on' : 'chip-off'" @click="toggleChannel(r, ch)">{{ CHANNELS[ch].label }}</button>
+            <button v-for="ch in customerChannels" :key="ch" type="button" class="chip" :class="r.channels.includes(ch) ? 'chip-on' : 'chip-off'" @click="toggleChannel(r, ch)">{{ channelLabel(ch) }}</button>
           </div>
         </li>
       </ul>
@@ -267,7 +267,7 @@ async function disconnect(k) {
       <ul class="space-y-2">
         <li v-for="m in outbox" :key="m.id" class="rounded-xl border border-stone-200 p-3">
           <div class="flex flex-wrap items-center gap-1.5 text-xs">
-            <span class="rounded-full px-2 py-0.5 font-semibold" :class="m.channel ? 'bg-brand-50 text-brand-800' : 'bg-rose-50 text-rose-700'">{{ m.channel ? CHANNELS[m.channel].label : 'ไม่มีช่องทาง' }}</span>
+            <span class="rounded-full px-2 py-0.5 font-semibold" :class="m.channel ? 'bg-brand-50 text-brand-800' : 'bg-rose-50 text-rose-700'">{{ m.channel ? channelLabel(m.channel) : 'ไม่มีช่องทาง' }}</span>
             <span class="text-stone-600">{{ NOTIFY_EVENTS[m.event]?.label || EXTRA_EVENT[m.event] }}</span>
             <span v-if="m.status === 'sent'" class="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">ส่งแล้ว</span>
             <span v-else-if="m.status === 'sending'" class="rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-700">กำลังส่ง</span>

@@ -113,6 +113,7 @@ const router = createRouter({
     { path: '/admin/settings', component: ManageHome, meta: { data: ['users'] } },
     { path: '/admin/settings/customers', component: ManageCustomers, meta: { data: ['ordersAll'] } },
     { path: '/admin/settings/promos', component: ManagePromos },
+    { path: '/admin/settings/campaigns', component: () => import('./views/manage/ManageCampaigns.vue'), meta: { perms: ['manage'] } },
     { path: '/admin/settings/products', redirect: '/admin/settings/retail' },
     { path: '/admin/settings/options', component: ManageOptions },
     { path: '/admin/settings/options/:id', component: ManageOptionGroup, props: true },

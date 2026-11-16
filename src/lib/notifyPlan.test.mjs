@@ -1,6 +1,7 @@
 // ทดสอบแผนการส่งข้อความถึงลูกค้า · รัน: node src/lib/notifyPlan.test.mjs
 import assert from 'node:assert/strict'
-import { customerTargets, withNewRules, NEW_CUSTOMER_RULES } from './notifyPlan.js'
+import { customerTargets, withNewRules, NEW_CUSTOMER_RULES, upgradeRules, prepareRules, CHANNEL_RULE_VERSION } from './notifyPlan.js'
+import { CUSTOMER_CHANNEL_ORDER } from './constants.js'
 
 let fail = 0
 const t = (name, fn) => { try { fn(); console.log(`PASS ${name}`) } catch (e) { fail++; console.log(`FAIL ${name}: ${e.message}`) } }
@@ -52,9 +53,6 @@ t('withNewRules ไม่แก้รายการเดิม และไม
   assert.equal(withNewRules(undefined).length, NEW_CUSTOMER_RULES.length)
 })
 
-if (fail) { console.log(`${fail} failed`); process.exit(1) }
-console.log('notifyPlan: all passed')
-
 t('ออร์เดอร์จากเว็บ/แอป: แจ้งผ่านเว็บและ SMS · ไม่มีที่อยู่หรือปิดช่องทางไหนก็ข้ามช่องนั้น', () => {
   const integrations = { web: { enabled: true }, sms: { enabled: true }, facebook: { enabled: true } }
   const addressOf = (k) => (k === 'web' ? 'c1' : k === 'sms' ? '0812345678' : '')
@@ -64,3 +62,39 @@ t('ออร์เดอร์จากเว็บ/แอป: แจ้งผ�
   assert.deepEqual(customerTargets({ order: ['web', 'sms'], allowed: { web: true, sms: true }, integrations, addressOf, noSms: true }), ['web'])
   assert.deepEqual(customerTargets({ order: ['web', 'sms'], allowed: { web: true, sms: true }, integrations, addressOf: () => '' }), [])
 })
+
+t('ค่าเริ่มต้นลูกค้า: เว็บ/แอปเป็นช่องทางแรก · ไม่มี Facebook ยกเว้น slip_received (ตอบกลับสลิปใน Messenger)', () => {
+  assert.equal(CUSTOMER_CHANNEL_ORDER[0], 'web')
+  assert.deepEqual(NEW_CUSTOMER_RULES.filter((r) => r.channels.includes('facebook')).map((r) => r.event), ['slip_received'])
+})
+t('ทุกออเดอร์: เว็บ/แอป (มีบัญชี) + SMS · ไม่มีบัญชีเว็บ → SMS · Facebook ส่งเฉพาะที่ร้านเปิดไว้', () => {
+  const integrations = { web: { enabled: true }, sms: { enabled: true }, facebook: { enabled: true } }
+  const addressOf = (k) => (k === 'web' ? 'c1' : k === 'sms' ? '0812345678' : k === 'facebook' ? 'P1' : '')
+  assert.deepEqual(customerTargets({ order: CUSTOMER_CHANNEL_ORDER, allowed: { web: true, sms: true, facebook: false }, integrations, addressOf }), ['web', 'sms'])
+  assert.deepEqual(customerTargets({ order: CUSTOMER_CHANNEL_ORDER, allowed: { web: true, sms: true, facebook: true }, integrations, addressOf }), ['web', 'facebook', 'sms'])
+  assert.deepEqual(customerTargets({ order: CUSTOMER_CHANNEL_ORDER, allowed: { web: true, sms: true }, integrations, addressOf: (k) => (k === 'sms' ? '0812345678' : '') }), ['sms'])
+})
+t('ข้อความการตลาดส่งช่องแรกที่ใช้ได้ช่องเดียว (เว็บก่อน)', () => {
+  const integrations = { web: { enabled: true }, sms: { enabled: true } }
+  assert.deepEqual(customerTargets({ order: CUSTOMER_CHANNEL_ORDER, allowed: { web: true, sms: true }, integrations, addressOf: (k) => (k === 'sms' ? '0812345678' : ''), marketing: true }), ['sms'])
+  assert.deepEqual(customerTargets({ order: CUSTOMER_CHANNEL_ORDER, allowed: { web: true, sms: true }, integrations, addressOf: (k) => (k === 'web' ? 'c1' : '0812345678'), marketing: true }), ['web'])
+})
+t('อัปเกรดกติกา: Facebook → เว็บ/แอป · ช่องอื่นคงเดิม · ทำซ้ำได้ผลเท่าเดิม', () => {
+  const up = upgradeRules([{ event: 'pickup_changed', channels: ['facebook', 'sms'], template: 'ของร้าน', enabled: true }])
+  assert.deepEqual(up[0], { event: 'pickup_changed', channels: ['web', 'sms'], template: 'ของร้าน', enabled: true, chv: CHANNEL_RULE_VERSION })
+  assert.deepEqual(upgradeRules(up), up)
+  assert.deepEqual(upgradeRules([{ event: 'team_new_order', channels: ['telegram'], enabled: true }])[0].channels, ['telegram'])
+})
+t('อัปเกรดกติกา: slip_received คงเป็น Facebook · กฎรุ่นปัจจุบันที่ร้านเปิด Facebook เองไม่ถูกแก้', () => {
+  assert.deepEqual(upgradeRules([{ event: 'slip_received', channels: ['facebook'], enabled: true }])[0].channels, ['facebook'])
+  const chosen = { event: 'pickup_changed', channels: ['web', 'facebook', 'sms'], enabled: true, chv: CHANNEL_RULE_VERSION }
+  assert.equal(upgradeRules([chosen])[0], chosen)
+})
+t('prepareRules: เติมกฎที่ขาดและเป็นรุ่นปัจจุบันทั้งหมด', () => {
+  const merged = prepareRules([])
+  assert.equal(merged.length, NEW_CUSTOMER_RULES.length)
+  assert.ok(merged.every((r) => r.chv === CHANNEL_RULE_VERSION))
+})
+
+if (fail) { console.log(`${fail} failed`); process.exit(1) }
+console.log('notifyPlan: all passed')

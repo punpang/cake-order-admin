@@ -4,9 +4,10 @@ import { modeOf, refuseInTest } from '../_shared/mode.ts'
 // เนื้อหา: เตือนนัดรับ · เตือนชำระ · วันเกิด · คะแนนใกล้หมดอายุ (ลูกค้า) · ใกล้เวลาต้องเสร็จ · เกินกำหนดชำระ (ทีม) · ค่าใช้จ่ายประจำที่ยังไม่บันทึก · งวดผ่อนชำระใกล้/เลยกำหนด (ทีม)
 // ยังไม่รวม: เตือน VAT และการบันทึกค่าใช้จ่ายประจำอัตโนมัติ (ต้องใช้ยอดขาย/เขียนบัญชี) และการลบคูปองหมดอายุ → ยังทำในแอปพนักงาน
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { planScheduled, todayBkk, withNewRules } from '../_shared/scheduled/plan.ts'
+import { planScheduled, todayBkk, prepareRules } from '../_shared/scheduled/plan.ts'
 import { accountingPlans } from '../_shared/scheduled/accounting.ts'
 import { runPlans, type Ctx } from '../_shared/scheduled/run.ts'
+import { dispatchDueCampaigns } from '../_shared/campaign.ts'
 
 // deno-lint-ignore no-explicit-any
 type Any = any
@@ -65,11 +66,14 @@ Deno.serve(async (req) => {
   const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
   const nowMs = Date.now()
   try {
+    // ประชาสัมพันธ์/โปรโมชั่นที่ตั้งเวลาไว้: ทำทุกรอบ (ไม่ขึ้นกับโหมดแอป/เซิร์ฟเวอร์ของร้าน) ใช้เวลาไม่เกิน 60 วินาที · ล้มเหลวไม่กระทบการแจ้งเตือนอื่น
+    let campaigns: unknown = null
+    try { campaigns = await dispatchDueCampaigns(sb, nowMs, 60_000) } catch (e) { campaigns = { error: String((e as Error)?.message || e).slice(0, 200) } }
     const kv = await sb.from('punpang_kv').select('id,data').eq('collection', 'config').in('id', ['shop', 'notifyRules', 'integrations', 'scheduled'])
     if (kv.error) throw new Error(kv.error.message)
     const cfg: Record<string, Any> = {}
     for (const r of kv.data || []) cfg[r.id] = r.data?.v
-    if (cfg.scheduled?.server !== true) return json({ ok: true, skipped: 'app-mode' })
+    if (cfg.scheduled?.server !== true) return json({ ok: true, skipped: 'app-mode', campaigns })
 
     const orderCols = 'id,code,customer_id,status,fulfillment,channel,pickup_at,data'
     const active = await fetchAll((x, y) => sb.from('punpang_orders').select(orderCols).not('status', 'in', '(draft,delivered,cancelled)').order('id').range(x, y))
@@ -92,7 +96,7 @@ Deno.serve(async (req) => {
     const tgToken = (Deno.env.get('TELEGRAM_BOT_TOKEN') || '').trim()
     const tgChat = (Deno.env.get('TELEGRAM_CHAT_ID') || '').trim()
 
-    const planned = planScheduled({ nowMs, shop: cfg.shop || {}, rules: withNewRules(cfg.notifyRules || []), orders, customers, sent })
+    const planned = planScheduled({ nowMs, shop: cfg.shop || {}, rules: prepareRules(cfg.notifyRules || []), orders, customers, sent })
     // ถ้าอ่านข้อมูลบัญชีไม่ได้ ให้เตือนส่วนอื่นต่อไปตามปกติ (รอบถัดไปจะเตือนรายการที่ยังค้างอยู่เอง)
     let acctPlans: Any[] = []
     let acctError = ''
@@ -105,7 +109,7 @@ Deno.serve(async (req) => {
     const ctx: Ctx = {
       sb,
       nowMs,
-      rules: withNewRules(cfg.notifyRules || []),
+      rules: prepareRules(cfg.notifyRules || []),
       integrations: cfg.integrations || {},
       chats,
       fb: pg.data?.token ? { token: String(pg.data.token), version: (Deno.env.get('FB_GRAPH_VERSION') || 'v24.0').trim() } : null,
@@ -114,7 +118,7 @@ Deno.serve(async (req) => {
       siteUrl: (Deno.env.get('SITE_URL') || 'https://cake-order-admin.pages.dev').trim().replace(/\/+$/, ''),
     }
     const res = await runPlans(ctx, plans)
-    return json({ ok: true, planned: plans.length, done: res.done, skipped: res.skipped, errors: res.errors.slice(0, 20), acctError })
+    return json({ ok: true, planned: plans.length, done: res.done, skipped: res.skipped, errors: res.errors.slice(0, 20), acctError, campaigns })
   } catch (e) {
     return json({ ok: false, error: String((e as Error)?.message || e).slice(0, 300) }, 500)
   }

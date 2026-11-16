@@ -1,9 +1,13 @@
 // ทดสอบกติกาและข้อความแจ้ง "ยืนยันชำระแล้ว" ตอนระบบยืนยันอัตโนมัติ
 import { assertEquals } from 'jsr:@std/assert@1'
-import { paidNoticeRule, paidNoticeText, PAY_CONFIRMED_DEFAULT } from './payconfirm.ts'
+import { paidNoticeChannels, paidNoticeRule, paidNoticeText, PAY_CONFIRMED_DEFAULT } from './payconfirm.ts'
 
-Deno.test('กติกา: ยังไม่มีกติกา = ใช้ค่าเริ่มต้นและทั้ง Facebook/SMS', () => {
-  assertEquals(paidNoticeRule(undefined), { template: PAY_CONFIRMED_DEFAULT, channels: ['facebook', 'sms'] })
+Deno.test('กติกา: ยังไม่มีกติกา = ใช้ค่าเริ่มต้นเป็นเว็บ/แอป + SMS', () => {
+  assertEquals(paidNoticeRule(undefined), { template: PAY_CONFIRMED_DEFAULT, channels: ['web', 'sms'] })
+})
+
+Deno.test('กติกาเดิมที่มี Facebook (ยังไม่เป็นรุ่นปัจจุบัน) → เปลี่ยนเป็นเว็บ/แอป', () => {
+  assertEquals(paidNoticeRule([{ event: 'payment_confirmed', enabled: true, channels: ['facebook', 'sms'], template: 'จ่ายแล้ว' }]), { template: 'จ่ายแล้ว', channels: ['web', 'sms'] })
 })
 
 Deno.test('กติกา: ร้านปิด payment_confirmed → ไม่ส่ง', () => {
@@ -12,6 +16,13 @@ Deno.test('กติกา: ร้านปิด payment_confirmed → ไม�
 
 Deno.test('กติกา: ใช้ข้อความและช่องทางที่ร้านตั้งไว้', () => {
   assertEquals(paidNoticeRule([{ event: 'payment_confirmed', enabled: true, channels: ['sms'], template: 'จ่ายแล้ว {เลขออร์เดอร์}' }]), { template: 'จ่ายแล้ว {เลขออร์เดอร์}', channels: ['sms'] })
+})
+
+Deno.test('ช่องทางตามการตั้งค่า: ปิดเว็บรายออร์เดอร์หรือรายลูกค้าได้ แม้กติกาเปิดไว้', () => {
+  assertEquals(paidNoticeChannels(['web', 'sms'], {}, {}), { web: true, facebook: false, sms: true })
+  assertEquals(paidNoticeChannels(['web', 'sms'], {}, { notifyChannels: { web: false } }), { web: false, facebook: false, sms: true })
+  assertEquals(paidNoticeChannels(['web', 'sms'], { notifyChannels: { sms: false } }, {}), { web: true, facebook: false, sms: false })
+  assertEquals(paidNoticeChannels(['facebook'], {}, { notifyChannels: { facebook: true } }), { web: false, facebook: true, sms: false })
 })
 
 Deno.test('ข้อความ: ใส่ค่าตัวแปร และลบตัวแปรที่ไม่มีค่า', () => {
