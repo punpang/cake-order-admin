@@ -1,5 +1,5 @@
 // ลุ้นโชคท้ายบิล (ฝั่งแอป): ค่าเริ่มต้น การตรวจตั้งค่า จำนวนครั้งลุ้นของบิล การสร้าง token/hash และ URL ของ QR
-// รางวัลออกตามลำดับที่ร้านตั้ง จนครบจำนวนของแต่ละรายการ (ตัดสินที่ฐานข้อมูล punpang_lucky_spin) · ลุ้นได้เฉพาะสมาชิกที่เข้าสู่ระบบ · token เต็มไม่เก็บในฐานข้อมูล
+// รางวัลวนตามลำดับที่ร้านตั้ง ไม่จำกัดจำนวน (ตัดสินที่ฐานข้อมูล punpang_lucky_spin) · ลุ้นได้เฉพาะสมาชิกที่เข้าสู่ระบบ · token เต็มไม่เก็บในฐานข้อมูล
 import { orderTotals } from './pricing.js'
 
 export const LUCKY_SITE_URL = 'https://cake-order-admin.pages.dev'
@@ -14,16 +14,15 @@ export const luckyDefaults = () => ({
   couponDays: 30, // อายุคูปองที่ได้จากการลุ้น (วัน นับจากวันที่ลุ้น)
   perBaht: 100, // ทุกกี่บาทของยอดที่จ่ายจริง (จากสินค้าที่ร่วมรายการ) ลุ้นได้ 1 ครั้ง
   itemIds: [], // สินค้าที่ร่วมรายการ (id ของสินค้าหน้าร้าน)
-  prizes: [], // เรียงตามลำดับที่ออก: { id, name, kind: 'discount' | 'reward', amount (ส่วนลดบาท), quota (จำนวนที่ออกได้) }
+  prizes: [], // เรียงตามลำดับที่วนออก: { id, name, kind: 'discount' | 'reward', amount (ส่วนลดบาท) }
 })
 
-// ตรวจรายการรางวัลก่อนบันทึก: ชื่อไม่ว่าง ประเภทถูกต้อง ส่วนลดมากกว่า 0 บาท จำนวนเป็นจำนวนเต็ม ≥ 0 และรหัสรางวัลไม่ซ้ำ
+// ตรวจรายการรางวัลก่อนบันทึก: ชื่อไม่ว่าง ประเภทถูกต้อง ส่วนลดมากกว่า 0 บาท และรหัสรางวัลไม่ซ้ำ (ไม่จำกัดจำนวนต่อรางวัล)
 export function validateLuckyPrizes(prizes) {
   if (!Array.isArray(prizes)) return 'รูปแบบรายการรางวัลไม่ถูกต้อง'
   if (prizes.some((p) => !String(p?.name ?? '').trim())) return 'ทุกรางวัลต้องมีชื่อ'
   if (prizes.some((p) => !PRIZE_KINDS.some((k) => k.v === p?.kind))) return 'ประเภทรางวัลต้องเป็นส่วนลดหรือของรางวัล'
   if (prizes.some((p) => p.kind === 'discount' && !(Number(p.amount) > 0))) return 'ส่วนลดต้องมากกว่า 0 บาท'
-  if (prizes.some((p) => !Number.isInteger(Number(p?.quota)) || Number(p.quota) < 0)) return 'จำนวนของแต่ละรางวัลต้องเป็นจำนวนเต็ม 0 ขึ้นไป'
   const ids = prizes.map((p) => String(p?.id ?? ''))
   if (ids.some((x) => !x) || new Set(ids).size !== ids.length) return 'รหัสรางวัลซ้ำหรือว่าง'
   return ''

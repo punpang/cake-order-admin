@@ -4,7 +4,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 
 // ลุ้นโชคท้ายบิล (เฉพาะสมาชิกที่ล็อกอิน) · รับ token ของบิล และเซสชันสมาชิก (ถ้ามี)
 // ดู (spin=false): ไม่ต้องล็อกอิน · ได้รายการรางวัล จำนวนที่ออกไปแล้วในช่วงเปิดลุ้น และผลการลุ้นของสมาชิกที่ล็อกอินอยู่ (ถ้ามี)
-// ลุ้น (spin=true): ต้องมีเซสชันสมาชิก → punpang_lucky_spin เลือกรางวัลตามลำดับและจำนวน แล้วสร้างคูปองในบัญชีสมาชิก
+// ลุ้น (spin=true): ต้องมีเซสชันสมาชิก → punpang_lucky_spin เลือกรางวัลวนตามลำดับที่ร้านตั้ง แล้วสร้างคูปองในบัญชีสมาชิก
 // token ของบิลสุ่ม 192 บิต เก็บเฉพาะ hash (punpang_records 'luckyTokens') · เซสชันเก็บเป็น hash เหมือน customer-loyalty
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
 const sha256Hex = async (s: string) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, '0')).join('')

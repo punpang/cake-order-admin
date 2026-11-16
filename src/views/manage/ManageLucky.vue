@@ -27,7 +27,7 @@ const st = reactive({
   siteUrl: base.siteUrl || LUCKY_SITE_URL, couponDays: base.couponDays || 30,
   perBaht: base.perBaht || 100,
   itemIds: [...(base.itemIds || [])],
-  prizes: (base.prizes || []).map((p) => ({ id: p.id, name: p.name, kind: p.kind === 'reward' ? 'reward' : 'discount', amount: p.amount || 0, quota: p.quota || 0 })),
+  prizes: (base.prizes || []).map((p) => ({ id: p.id, name: p.name, kind: p.kind === 'reward' ? 'reward' : 'discount', amount: p.amount || 0 })),
 })
 const msg = ref('')
 const ok = ref(false)
@@ -52,9 +52,8 @@ function togglePick(id) {
 }
 const pickedNames = computed(() => st.itemIds.map((id) => db.retailItems.find((x) => x.id === id)?.name || id))
 
-// ---------- รางวัลตามลำดับที่ออก (แต่ละรายการมีจำนวนที่ออกได้ในช่วงเปิดลุ้น) ----------
-const totalQuota = computed(() => st.prizes.reduce((s, p) => s + (Number(p.quota) || 0), 0))
-function addPrize() { st.prizes.push({ id: '', name: '', kind: 'discount', amount: 0, quota: 0 }) }
+// ---------- รางวัลวนตามลำดับที่ออก (ไม่จำกัดจำนวน) ----------
+function addPrize() { st.prizes.push({ id: '', name: '', kind: 'discount', amount: 0 }) }
 function removePrize(i) { st.prizes.splice(i, 1) }
 // เลื่อนลำดับขึ้น/ลง (dir = -1 ขึ้น · 1 ลง) · ลำดับนี้คือลำดับที่รางวัลถูกออก
 function movePrize(i, dir) {
@@ -142,7 +141,7 @@ function save() {
           <div class="card-title">รางวัลตามลำดับที่ออก</div>
           <button type="button" class="btn-soft h-10 px-3 text-sm" @click="addPrize"><AppIcon name="plus" :size="15" /> เพิ่มรางวัล</button>
         </div>
-        <p class="text-sm text-stone-600">ระบบออกรางวัลทีละรายการตามลำดับนี้ จนครบจำนวนของรายการนั้นในช่วงเปิดลุ้น แล้วไปรายการถัดไป · ครบทุกรายการแล้วลุ้นได้ "ไม่ได้รางวัล" · หน้าลุ้นโชคแสดงเฉพาะจำนวนที่ออกไปแล้ว</p>
+        <p class="text-sm text-stone-600">ระบบออกรางวัลวนตามลำดับนี้ทีละรายการไปเรื่อย ๆ ไม่จำกัดจำนวน จนหมดเวลาที่ตั้งไว้หรือปิดกิจกรรม · หน้าลุ้นโชคแสดงเฉพาะจำนวนที่ออกไปแล้ว</p>
         <p v-if="!st.prizes.length" class="rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-500">ยังไม่มีรางวัล ทุกครั้งที่ลุ้นจะได้ "ไม่ได้รางวัล"</p>
         <div v-for="(p, i) in st.prizes" :key="i" class="space-y-3 rounded-2xl border border-stone-200 p-3">
           <div class="flex items-center gap-2">
@@ -151,7 +150,7 @@ function save() {
             <button type="button" class="btn-outline h-11 w-11 shrink-0" :disabled="i === 0" :aria-label="`เลื่อนลำดับที่ ${i + 1} ขึ้น`" @click="movePrize(i, -1)"><span class="inline-flex rotate-90"><AppIcon name="back" :size="16" /></span></button>
             <button type="button" class="btn-outline h-11 w-11 shrink-0" :disabled="i === st.prizes.length - 1" :aria-label="`เลื่อนลำดับที่ ${i + 1} ลง`" @click="movePrize(i, 1)"><span class="inline-flex -rotate-90"><AppIcon name="back" :size="16" /></span></button>
           </div>
-          <div class="grid gap-2 sm:grid-cols-3">
+          <div class="grid gap-2 sm:grid-cols-2">
             <div>
               <label class="label" :for="'pk-' + i">ประเภท</label>
               <select :id="'pk-' + i" v-model="p.kind" class="input h-11">
@@ -161,18 +160,11 @@ function save() {
             <div v-if="p.kind === 'discount'">
               <label class="label" :for="'pa-' + i">มูลค่าส่วนลด (บาท)</label>
               <MoneyInput :id="'pa-' + i" v-model="p.amount" class="input h-11" placeholder="0" />
-            </div>
-            <div>
-              <label class="label" :for="'pq-' + i">จำนวนที่ออกได้</label>
-              <input :id="'pq-' + i" v-model.number="p.quota" type="number" min="0" step="1" class="input h-11" />
-            </div>
-          </div>
+            </div>          </div>
           <div class="flex justify-end">
             <button type="button" class="btn-danger h-10 px-3 text-sm" :aria-label="`ลบรางวัล ${p.name || i + 1}`" @click="removePrize(i)"><AppIcon name="trash" :size="15" /> ลบรางวัลนี้</button>
           </div>
-        </div>
-        <p class="rounded-xl bg-brand-50 p-2.5 text-sm text-brand-900" role="status">รวมจำนวนที่ออกได้ {{ totalQuota }} ครั้งในช่วงเปิดลุ้น</p>
-      </section>
+        </div>      </section>
 
       <p v-if="msg" class="rounded-xl p-3 text-sm" :class="ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'" role="status">{{ msg }}</p>
       <button type="button" class="btn-primary h-12 w-full" @click="save">บันทึกการตั้งค่า</button>

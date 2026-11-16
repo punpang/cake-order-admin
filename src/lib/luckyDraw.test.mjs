@@ -16,8 +16,8 @@ const bill = (extra = {}) => ({
 })
 
 const PR = [
-  { id: 'p1', name: 'ส่วนลด 50 บาท', kind: 'discount', amount: 50, quota: 10 },
-  { id: 'p2', name: 'คัพเค้ก 1 ชิ้น', kind: 'reward', amount: 0, quota: 20 },
+  { id: 'p1', name: 'ส่วนลด 50 บาท', kind: 'discount', amount: 50 },
+  { id: 'p2', name: 'คัพเค้ก 1 ชิ้น', kind: 'reward', amount: 0 },
 ]
 
 await t('ค่าเริ่มต้น: ปิดอยู่ ทุก 100 บาท ยังไม่เลือกสินค้า ยังไม่มีรางวัล อายุคูปอง 30 วัน และชี้ไปเว็บหลัก', () => {
@@ -30,14 +30,12 @@ await t('ค่าเริ่มต้น: ปิดอยู่ ทุก 100 
   assert.equal(d.couponDays, 30)
 })
 
-await t('ตรวจรายการรางวัล: ชื่อ ประเภท ส่วนลด จำนวน และรหัสรางวัล', () => {
+await t('ตรวจรายการรางวัล: ชื่อ ประเภท ส่วนลด และรหัสรางวัล (ไม่มีจำนวนจำกัด)', () => {
   assert.equal(validateLuckyPrizes(PR), '')
   assert.equal(validateLuckyPrizes([]), '')
   assert.notEqual(validateLuckyPrizes([{ ...PR[0], name: ' ' }]), '')
   assert.notEqual(validateLuckyPrizes([{ ...PR[0], kind: 'points' }]), '') // คะแนนสะสมไม่ใช้แล้ว
   assert.notEqual(validateLuckyPrizes([{ ...PR[0], amount: 0 }]), '') // ส่วนลดต้องมากกว่า 0
-  assert.notEqual(validateLuckyPrizes([{ ...PR[0], quota: -1 }]), '')
-  assert.notEqual(validateLuckyPrizes([{ ...PR[0], quota: 1.5 }]), '')
   assert.notEqual(validateLuckyPrizes([PR[0], { ...PR[1], id: 'p1' }]), '') // รหัสซ้ำ
   assert.notEqual(validateLuckyPrizes([{ ...PR[1], id: '' }]), '')
   assert.notEqual(validateLuckyPrizes(null), '')

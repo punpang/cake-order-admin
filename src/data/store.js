@@ -2191,13 +2191,13 @@ export async function issueLuckyToken(order) {
   })
   return { token, url: luckyUrl(cfg.siteUrl, token), draws }
 }
-// ตั้งค่าลุ้นโชคท้ายบิล (เฉพาะแอดมิน): ทุกกี่บาทลุ้นได้ 1 ครั้ง · สินค้าที่ร่วมรายการ · รางวัลเรียงตามลำดับที่ออก · อายุคูปอง
+// ตั้งค่าลุ้นโชคท้ายบิล (เฉพาะแอดมิน): ทุกกี่บาทลุ้นได้ 1 ครั้ง · สินค้าที่ร่วมรายการ · รางวัลวนตามลำดับที่ออก (ไม่จำกัดจำนวน) · อายุคูปอง
 // ช่วงเวลาเริ่มก่อนสิ้นสุด · URL หน้าเว็บขึ้นต้น https
 export function saveLuckyDraw(d) {
   if (!can('manage')) return { error: 'เฉพาะแอดมินตั้งค่าลุ้นโชคได้' }
   const prizes = (d.prizes || []).map((p) => ({
     id: p.id || uid('lp'), name: String(p.name ?? '').trim(), kind: p.kind === 'reward' ? 'reward' : 'discount',
-    amount: p.kind === 'reward' ? 0 : Number(p.amount) || 0, quota: Number(p.quota) || 0,
+    amount: p.kind === 'reward' ? 0 : Number(p.amount) || 0,
   }))
   const itemIds = [...new Set((d.itemIds || []).map((x) => String(x)).filter(Boolean))]
   const perBaht = Number(d.perBaht)

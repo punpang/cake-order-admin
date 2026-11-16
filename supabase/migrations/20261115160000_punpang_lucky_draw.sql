@@ -32,13 +32,13 @@ as $function$
 $function$;
 
 -- ลุ้นโชค (สมาชิก): ลุ้นทีละครั้งแบบอะตอมิก · เรียกด้วย service role จาก Edge Function lucky-spin หลังตรวจเซสชันสมาชิกแล้ว
--- รางวัลออกตามลำดับที่ร้านตั้ง: ตัวแรกที่ยังไม่ครบจำนวน (quota) · นับเฉพาะการลุ้นที่เวลาอยู่ในช่วงเปิดลุ้น (ชุด) · ครบทุกรางวัลแล้ว = ไม่ได้รางวัล
--- ได้รางวัล = สร้างคูปองในบัญชีสมาชิก (ส่วนลดบาท หรือของรางวัลรับที่ร้าน) อายุตาม couponDays · advisory lock เดียวกันการลุ้นพร้อมกันเกินจำนวน
+-- รางวัลวนตามลำดับที่ร้านตั้ง ไม่จำกัดจำนวน: การลุ้นที่ได้รางวัลแล้วในช่วงเปิดลุ้น (ชุด) นับเป็นตำแหน่งถัดไป · ลุ้นได้จนหมดเวลาหรือร้านปิดกิจกรรม
+-- ได้รางวัล = สร้างคูปองในบัญชีสมาชิก (ส่วนลดบาท หรือของรางวัลรับที่ร้าน) อายุตาม couponDays · advisory lock ทำให้การลุ้นพร้อมกันเรียงตำแหน่งถูกต้อง
 create or replace function public.punpang_lucky_spin(p_token_hash text, p_customer text)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
   cu record; rec record; d jsonb; cfg jsonb; prizes jsonb; spins jsonb; draws integer;
-  from_ts timestamptz; to_ts timestamptz; counts jsonb; chosen jsonb; prize_snap jsonb := null;
+  from_ts timestamptz; to_ts timestamptz; won bigint := 0; chosen jsonb; prize_snap jsonb := null;
   coupon_ jsonb := null; cp_id text := null; new_spin jsonb; nowz text;
   today_ text := public.punpang__pts_today();
 begin
@@ -70,24 +70,19 @@ begin
   if jsonb_array_length(spins) >= draws then return jsonb_build_object('error', 'done'); end if;
   prizes := coalesce(cfg->'prizes', '[]'::jsonb);
 
-  -- จำนวนที่ออกไปแล้วของแต่ละรางวัล (รหัสรางวัล) ในช่วงเปิดลุ้นนี้ ทุกบิล
-  select coalesce(jsonb_object_agg(q.pid, q.cnt), '{}'::jsonb) into counts from (
-    select s->'prize'->>'id' as pid, count(*) as cnt
-      from public.punpang_records r
-      cross join lateral jsonb_array_elements(coalesce(r.data->'spins', '[]'::jsonb)) s
-     where r.collection = 'luckyTokens'
-       and (r.data->>'expiresAt')::timestamptz >= from_ts
-       and jsonb_typeof(s->'prize') = 'object'
-       and s->'prize'->>'id' is not null
-       and (s->>'at')::timestamptz between from_ts and to_ts
-     group by 1
-  ) q;
+  -- การลุ้นที่ได้รางวัลแล้วในช่วงเปิดลุ้นนี้ (ทุกบิล) นับเป็นตำแหน่งถัดไปของการวน · ไม่จำกัดจำนวนแต่ละรางวัล
+  select count(*) into won
+    from public.punpang_records r
+    cross join lateral jsonb_array_elements(coalesce(r.data->'spins', '[]'::jsonb)) s
+   where r.collection = 'luckyTokens'
+     and (r.data->>'expiresAt')::timestamptz >= from_ts
+     and jsonb_typeof(s->'prize') = 'object'
+     and (s->>'at')::timestamptz between from_ts and to_ts;
 
-  select t.e into chosen
-    from jsonb_array_elements(prizes) with ordinality as t(e, ord)
-   where coalesce(trunc((t.e->>'quota')::numeric), 0) > coalesce((counts->>(t.e->>'id'))::integer, 0)
-   order by t.ord
-   limit 1;
+  -- รางวัลที่ออก = วนตามรายการที่ร้านตั้ง (รายการแรก → รายการสุดท้าย แล้ววนกลับไปรายการแรก)
+  if jsonb_array_length(prizes) > 0 then
+    chosen := prizes -> ((won % jsonb_array_length(prizes))::integer);
+  end if;
 
   if chosen is not null then
     prize_snap := jsonb_build_object('id', chosen->>'id', 'name', chosen->>'name', 'kind', chosen->>'kind',
