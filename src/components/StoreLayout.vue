@@ -5,6 +5,7 @@ import { formatPhone } from '../lib/format'
 import AppIcon from './AppIcon.vue'
 import BellMenu from './BellMenu.vue'
 import CookieBanner from './CookieBanner.vue'
+import ChatFab from './ChatFab.vue'
 import { openCookieSettings } from '../lib/consent'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
@@ -85,5 +86,6 @@ const hold = computed(() => !!route.meta.pub && loading.value)
     </div>
   </footer>
   <CookieBanner />
+  <ChatFab v-if="!loading && !failed" />
   </div>
 </template>
