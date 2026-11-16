@@ -47,6 +47,7 @@ const customer = computed(() => findCustomer(props.order.customerId))
     <template v-for="p in payments" :key="p.id || p.code">
       <div class="flex justify-between gap-2"><span class="min-w-0 break-words">{{ p.method }}</span><span class="shrink-0">{{ money(p.amount) }}</span></div>
       <div v-if="p.change" class="flex justify-between text-xs"><span>รับเงินมา {{ money(p.received) }}</span><span>เงินทอน {{ money(p.change) }}</span></div>
+      <div v-if="p.qrRef" class="break-all text-xs">Ref2 {{ p.qrRef }}</div>
     </template>
     <div v-if="payments.length > 1" class="flex justify-between font-bold"><span>รวมรับชำระ</span><span>{{ money(paidTotal) }}</span></div>
     <div v-if="balance > 0" class="flex justify-between font-bold"><span>ยังค้างชำระ</span><span>{{ money(balance) }}</span></div>
