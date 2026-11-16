@@ -46,21 +46,36 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
     <AppIcon name="chat" :size="26" />
   </button>
 
-  <div v-if="open" class="fixed inset-0 z-50 sm:inset-auto sm:right-6 sm:bottom-6" role="dialog" aria-modal="false" aria-label="แชทกับร้าน">
-    <div class="flex h-full flex-col overflow-hidden bg-cream shadow-2xl sm:h-[600px] sm:w-[380px] sm:rounded-3xl sm:border sm:border-stone-200">
-      <div class="flex shrink-0 items-center justify-between border-b border-stone-200 bg-white px-4 py-3">
-        <h2 class="font-display text-lg text-stone-900">แชทกับร้าน</h2>
-        <button type="button" class="rounded-full p-2 text-stone-600 hover:bg-stone-100" aria-label="ปิดแชท" @click="hide">
+  <div v-if="open" class="fixed inset-0 z-50 sm:inset-auto sm:right-6 sm:bottom-6" role="dialog" aria-modal="false" aria-labelledby="chat-panel-title">
+    <div class="flex h-full flex-col overflow-hidden bg-cream sm:h-[600px] sm:w-[380px] sm:rounded-3xl sm:border sm:border-stone-200 sm:shadow-2xl">
+      <header class="flex shrink-0 items-center gap-3 border-b border-stone-200 bg-white px-4 py-2.5">
+        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-600">
+          <AppIcon name="chat" :size="20" />
+        </span>
+        <div class="min-w-0 flex-1">
+          <h2 id="chat-panel-title" class="font-display text-lg leading-tight text-stone-900">แชทกับร้าน</h2>
+          <p class="truncate text-xs text-stone-500">ร้านจะตอบกลับในหน้านี้</p>
+        </div>
+        <button
+          type="button"
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-stone-600 hover:bg-stone-100"
+          aria-label="ปิดแชท"
+          @click="hide"
+        >
           <AppIcon name="x" :size="20" />
         </button>
-      </div>
+      </header>
 
       <div v-if="loggedIn" class="flex min-h-0 flex-1 flex-col">
         <AccountChat />
       </div>
-      <div v-else class="card m-4 space-y-3 text-center">
-        <p class="text-stone-700">เข้าสู่ระบบด้วยเบอร์และ PIN เพื่อคุยกับร้าน</p>
-        <RouterLink to="/account/login" class="btn-primary block w-full" @click="hide">เข้าสู่ระบบ</RouterLink>
+      <div v-else class="flex flex-1 flex-col items-center justify-center px-6 text-center">
+        <span class="flex h-16 w-16 items-center justify-center rounded-full bg-brand-100 text-brand-600">
+          <AppIcon name="lock" :size="30" />
+        </span>
+        <p class="mt-4 font-display text-lg text-stone-900">เข้าสู่ระบบก่อนคุยกับร้าน</p>
+        <p class="mt-1 text-sm text-stone-600">ใช้เบอร์โทรและ PIN ของคุณ</p>
+        <RouterLink to="/account/login" class="btn-primary mt-5 w-full max-w-xs" @click="hide">เข้าสู่ระบบ</RouterLink>
       </div>
     </div>
   </div>

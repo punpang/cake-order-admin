@@ -2,11 +2,12 @@
 // แชทกับร้านของลูกค้าที่ล็อกอินแล้ว (ข้อความและรูปภาพ ไม่เกิน 5 รูปต่อข้อความ) · เปิดแท็บแล้วลงทะเบียนแจ้งเตือนของเครื่อง (Android)
 // อัปเดตแบบโพลล์: 3 วินาทีตอนกำลังคุยกัน แล้วห่างขึ้นเรื่อย ๆ (สูงสุด 15 วินาที) เมื่อไม่มีข้อความใหม่ · หยุดยิงขณะแท็บถูกซ่อน · ถูกจำกัดอัตรา (429) = ถอยไป 20 วินาที
 // มีสัญญาณเรียลไทม์ (ช่อง Broadcast ของลูกค้า) เมื่อเชื่อมได้ → โหลดทันทีที่มีสัญญาณ และโพลล์สำรองทุก 10 วินาที
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { remoteChat } from '../../lib/customerOrderRemote'
 import { startCustomerPush } from '../../lib/customerPush'
 import { PHOTO_MAX_COUNT, shrinkPhoto } from '../../lib/customerPhoto'
-import { dateTime } from '../../lib/format'
+import { dayLabel, timeOnly } from '../../lib/format'
+import AppIcon from '../../components/AppIcon.vue'
 import { quietly } from '../../lib/loading'
 import { safeHref } from '../../lib/safeUrl'
 import { lastFrom, pingDue, readReceiptId } from '../../lib/chatPresence'
@@ -42,10 +43,27 @@ const BACKOFF_MS = 20000
 // 3 วินาทีใน 20 รอบแรก (1 นาที) แล้วเพิ่มทีละ 3 วินาทีทุก 20 รอบ จนถึงเพดาน
 const nextDelay = () => (ping?.isLive() ? LIVE_POLL_MS : Math.min(POLL_MAX_MS, POLL_MS * (1 + Math.floor(idle / 20))))
 
+// ยึดท้ายรายการ: ถ้าลูกค้าอยู่ท้ายสุดอยู่แล้ว เนื้อหาที่สูงขึ้นทีหลัง (รูปที่โหลดเสร็จ) จะเลื่อนตามให้ · ถ้าเลื่อนขึ้นไปอ่านเก่าอยู่ จะไม่กระโดด
+const inner = ref(null)
+let pinned = true
+let ro = null
+const onBoxScroll = () => {
+  const b = box.value
+  if (b) pinned = b.scrollHeight - b.scrollTop - b.clientHeight < 80
+}
+
 const toBottom = async () => {
   await nextTick()
   if (box.value) box.value.scrollTop = box.value.scrollHeight
 }
+
+// ตัวช่วยจัดกลุ่มข้อความสำหรับหน้าจอ: หัวข้อวันที่ · ป้าย "ร้าน" ตอนเริ่มกลุ่ม · เวลาท้ายกลุ่ม (ไม่กระทบข้อมูลที่ส่ง/รับ)
+const dayKey = (s) => String(s || '').slice(0, 10)
+const showDay = (i) => i === 0 || dayKey(messages.value[i - 1].at) !== dayKey(messages.value[i].at)
+const startsGroup = (i) => showDay(i) || messages.value[i - 1].from !== messages.value[i].from
+const endsGroup = (i) => i === messages.value.length - 1 || showDay(i + 1) || messages.value[i + 1].from !== messages.value[i].from
+// ร้านกำลังพิมพ์ → เลื่อนลงให้เห็นตัวบอกสถานะ
+watch(() => presence.value.shopTyping, (v) => { if (v) toBottom() })
 
 const previewOf = (file) => {
   const u = URL.createObjectURL(file)
@@ -196,12 +214,19 @@ onMounted(() => {
   stopped = false
   startCustomerPush()
   document.addEventListener('visibilitychange', onVisible)
+  box.value?.addEventListener('scroll', onBoxScroll, { passive: true })
+  if (typeof ResizeObserver !== 'undefined' && inner.value) {
+    ro = new ResizeObserver(() => { if (pinned && box.value) box.value.scrollTop = box.value.scrollHeight })
+    ro.observe(inner.value)
+  }
   schedule(0)
 })
 onBeforeUnmount(() => {
   stopped = true
   clearTimeout(timer)
   clearTimeout(pingTimer)
+  ro?.disconnect()
+  box.value?.removeEventListener('scroll', onBoxScroll)
   stopPing()
   document.removeEventListener('visibilitychange', onVisible)
   for (const u of made) URL.revokeObjectURL(u)
@@ -210,38 +235,103 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-3">
-    <p class="text-sm text-stone-600">ส่งข้อความหรือรูปถึงร้านได้ที่นี่ · ร้านจะตอบกลับในหน้านี้</p>
-    <div ref="box" class="max-h-[55vh] min-h-[12rem] space-y-2 overflow-y-auto rounded-2xl bg-white p-3" aria-live="polite">
-      <p v-if="!messages.length" class="py-6 text-center text-sm text-stone-500">ยังไม่มีข้อความ</p>
-      <div v-for="m in messages" :key="m.id" class="flex" :class="m.from === 'customer' ? 'justify-end' : 'justify-start'">
-        <div class="max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words" :class="m.from === 'customer' ? 'bg-brand-600 text-white' : 'bg-stone-100 text-stone-900'">
-          <div v-if="m.from === 'staff'" class="text-[11px] opacity-80">ร้าน</div>
-          <div v-if="m.photos?.length" class="mb-1 grid gap-1" :class="m.photos.length > 1 ? 'grid-cols-2' : ''">
-            <a v-for="p in m.photos" :key="p.ref" :href="safeHref(p.url) || undefined" target="_blank" rel="noopener" class="block">
-              <img v-if="p.url" :src="p.url" alt="รูปที่แนบ" class="max-h-48 w-full rounded-lg object-cover" loading="lazy" />
-              <span v-else class="flex h-24 items-center justify-center rounded-lg bg-stone-200 text-xs text-stone-500">โหลดรูปไม่ได้</span>
-            </a>
+  <div class="flex min-h-0 flex-1 flex-col">
+    <div ref="box" class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4" aria-live="polite">
+      <div ref="inner" class="flex min-h-full flex-col">
+      <div v-if="!messages.length" class="flex flex-1 flex-col items-center justify-center px-6 text-center">
+        <span class="flex h-16 w-16 items-center justify-center rounded-full bg-brand-100 text-brand-600">
+          <AppIcon name="chat" :size="30" />
+        </span>
+        <p class="mt-4 font-display text-lg text-stone-900">ยังไม่มีข้อความ</p>
+        <p class="mt-1 text-sm text-stone-600">ส่งข้อความหรือรูปถึงร้านได้เลย ร้านจะตอบกลับในหน้านี้</p>
+        <p class="mt-3 text-xs text-stone-500">แนบได้สูงสุด {{ PHOTO_MAX_COUNT }} รูปต่อข้อความ · รูปละไม่เกิน 2 MB</p>
+      </div>
+
+      <template v-for="(m, i) in messages" :key="m.id">
+        <div v-if="showDay(i)" class="my-4 flex justify-center">
+          <span class="rounded-full bg-stone-200/70 px-3 py-1 text-xs text-stone-600">{{ dayLabel(m.at) }}</span>
+        </div>
+        <div class="flex flex-col" :class="[m.from === 'customer' ? 'items-end' : 'items-start', endsGroup(i) ? 'mb-3' : 'mb-1']">
+          <span v-if="m.from === 'staff' && startsGroup(i)" class="mb-1 ml-1 text-[11px] text-stone-500">ร้าน</span>
+          <div
+            class="max-w-[80%] rounded-2xl text-[15px] leading-relaxed break-words whitespace-pre-wrap"
+            :class="[
+              m.photos?.length ? 'p-1.5' : 'px-3.5 py-2',
+              m.from === 'customer' ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md border border-stone-200 bg-white text-stone-900 shadow-sm',
+            ]"
+          >
+            <div v-if="m.photos?.length" class="mb-1.5 grid gap-1" :class="m.photos.length > 1 ? 'grid-cols-2' : ''">
+              <a v-for="p in m.photos" :key="p.ref" :href="safeHref(p.url) || undefined" target="_blank" rel="noopener" class="block">
+                <img v-if="p.url" :src="p.url" alt="รูปที่แนบ" class="max-h-56 w-full rounded-xl object-cover" loading="lazy" />
+                <span v-else class="flex h-24 items-center justify-center rounded-xl bg-stone-200 text-xs text-stone-500">โหลดรูปไม่ได้</span>
+              </a>
+            </div>
+            <div v-if="m.text" :class="m.photos?.length ? 'px-2 pt-1 pb-1' : ''">{{ m.text }}</div>
           </div>
-          <template v-if="m.text">{{ m.text }}</template>
-          <div class="mt-0.5 text-right text-[10px] opacity-70">{{ dateTime(m.at) }}<template v-if="m.id === readId"> · ร้านอ่านแล้ว</template></div>
+          <div v-if="endsGroup(i)" class="mt-1 flex items-center gap-1.5 px-1 text-[11px] text-stone-500">
+            <span>{{ timeOnly(m.at) }}</span>
+            <span v-if="m.id === readId">· ร้านอ่านแล้ว</span>
+          </div>
+        </div>
+      </template>
+
+      <div v-if="presence.shopTyping" class="mb-3 flex flex-col items-start" role="status">
+        <span class="mb-1 ml-1 text-[11px] text-stone-500">ร้าน</span>
+        <div class="flex items-center gap-1 rounded-2xl rounded-bl-md border border-stone-200 bg-white px-4 py-3 shadow-sm">
+          <span class="sr-only">ร้านกำลังพิมพ์</span>
+          <span class="h-2 w-2 animate-bounce rounded-full bg-stone-400"></span>
+          <span class="h-2 w-2 animate-bounce rounded-full bg-stone-400 [animation-delay:150ms]"></span>
+          <span class="h-2 w-2 animate-bounce rounded-full bg-stone-400 [animation-delay:300ms]"></span>
         </div>
       </div>
-    </div>
-    <p v-if="presence.shopTyping" class="px-1 text-xs text-stone-500" role="status">ร้านกำลังพิมพ์…</p>
-    <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
-    <div v-if="picks.length" class="flex flex-wrap gap-2">
-      <div v-for="p in picks" :key="p.id" class="relative">
-        <img :src="p.preview" alt="รูปที่เลือก" class="h-16 w-16 rounded-lg object-cover" />
-        <button type="button" class="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-stone-800 text-xs text-white" :aria-label="'เอารูปนี้ออก'" :disabled="sending" @click="removePick(p.id)">×</button>
       </div>
     </div>
-    <form class="flex items-end gap-2" @submit.prevent="send">
-      <input ref="fileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple class="hidden" @change="onPick" />
-      <button type="button" class="btn-outline h-11 shrink-0 px-3" :disabled="sending || picks.length >= PHOTO_MAX_COUNT" aria-label="แนบรูปภาพ" @click="fileInput?.click()">แนบรูป</button>
-      <textarea v-model="text" :maxlength="MAX" rows="2" class="input min-h-[2.75rem] flex-1 resize-none" placeholder="พิมพ์ข้อความถึงร้าน" aria-label="ข้อความถึงร้าน" @input="onTyping" />
-      <button type="submit" class="btn-primary h-11 shrink-0 px-4" :disabled="(!text.trim() && !picks.length) || sending">{{ sending ? 'กำลังส่ง…' : 'ส่ง' }}</button>
-    </form>
-    <p class="text-xs text-stone-500">แนบได้สูงสุด {{ PHOTO_MAX_COUNT }} รูปต่อข้อความ · รูปละไม่เกิน 2 MB (ระบบย่อรูปให้อัตโนมัติ)</p>
+
+    <div class="shrink-0 border-t border-stone-200 bg-white">
+      <p v-if="err" class="mx-3 mt-2 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">{{ err }}</p>
+      <div v-if="picks.length" class="flex gap-2 overflow-x-auto px-3 pt-2">
+        <div v-for="p in picks" :key="p.id" class="relative shrink-0">
+          <img :src="p.preview" alt="รูปที่เลือก" class="h-16 w-16 rounded-xl object-cover" />
+          <button
+            type="button"
+            class="absolute -top-1.5 -right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-stone-800 text-white shadow"
+            aria-label="เอารูปนี้ออก"
+            :disabled="sending"
+            @click="removePick(p.id)"
+          >
+            <AppIcon name="x" :size="14" />
+          </button>
+        </div>
+      </div>
+      <form class="flex items-end gap-2 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]" @submit.prevent="send">
+        <input ref="fileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple class="hidden" @change="onPick" />
+        <button
+          type="button"
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-stone-600 hover:bg-stone-100 disabled:opacity-40"
+          :disabled="sending || picks.length >= PHOTO_MAX_COUNT"
+          aria-label="แนบรูปภาพ"
+          @click="fileInput?.click()"
+        >
+          <AppIcon name="image" :size="22" />
+        </button>
+        <textarea
+          v-model="text"
+          :maxlength="MAX"
+          rows="1"
+          class="max-h-32 min-h-11 flex-1 resize-none rounded-2xl border border-stone-300 bg-stone-50 px-4 py-2.5 text-[15px] text-stone-900 placeholder:text-stone-400 focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-200 focus:outline-none"
+          placeholder="พิมพ์ข้อความถึงร้าน"
+          aria-label="ข้อความถึงร้าน"
+          @input="onTyping"
+        />
+        <button
+          type="submit"
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white shadow-sm transition hover:bg-brand-700 disabled:bg-stone-200 disabled:text-stone-400 disabled:shadow-none"
+          :disabled="(!text.trim() && !picks.length) || sending"
+          :aria-label="sending ? 'กำลังส่ง' : 'ส่งข้อความ'"
+        >
+          <AppIcon name="send" :size="20" />
+        </button>
+      </form>
+    </div>
   </div>
 </template>
