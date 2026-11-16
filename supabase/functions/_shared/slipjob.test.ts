@@ -640,21 +640,15 @@ Deno.test('ยอดเท่ากับยอดค้างพอดี → �
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts({ amount: 540 })), 'matched')
 })
 
-// ---- ยืนยันสลิปอัตโนมัติ: ครบ 4 ข้อ + นัดรับห่างอย่างน้อยตามที่ตั้ง → ยืนยันชำระทันที (ปิดไว้ = รอพนักงานยืนยัน) ----
+// ---- ยืนยันจากรูปสลิป: ปิดถาวร (IMAGE_AUTO_CONFIRM=false) · ตั้งค่าเปิดไว้ก็ไม่มีผล ----
 const AUTO_CONFIRM_KV = (days = 3, enabled = true) => [slipKv({ enabled: true, mode: 'auto', ocr: { wai: true, claude: true }, autoConfirm: { enabled, days } }), shopKv]
 
-Deno.test('ยืนยันอัตโนมัติ: เปิด และนัดรับห่างอย่างน้อยเท่าที่ตั้ง → ยืนยันชำระ ออร์เดอร์เป็นยืนยันชำระแล้ว และแจ้งทีม', async () => {
+Deno.test('ยืนยันจากรูปสลิปปิดถาวร: เปิดไว้และนัดรับห่างพอ + ครบ 4 ข้อ ก็ไม่ยืนยันชำระเอง → รอพนักงาน', async () => {
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ pickupAt: '2026-11-14T10:00', payments: [reqPayment()] })], kv: AUTO_CONFIRM_KV(3) })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
   const o = sb.T.punpang_orders[0]
-  assertEquals(o.status, 'payment_confirmed')
-  const p = o.data.payments[0]
-  assertEquals([p.status, p.amount, p.confirmedBy, p.customerSubmitted], ['confirmed', 540, 'auto', true])
-  assertEquals(o.data.history.at(-1).by, 'auto')
-  const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
-  assertEquals([bell.data.title, bell.data.text.includes('ยืนยันอัตโนมัติแล้ว'), bell.data.text.includes('ยังไม่ได้ตรวจกับธนาคาร')], ['ยืนยันชำระอัตโนมัติแล้ว', true, true])
-  const msg = sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1')
-  assertEquals([msg.slipCheck.status, msg.slipCheck.autoConfirmed], ['matched', true])
+  assertEquals([o.status, o.data.payments[0].status, o.data.payments[0].confirmedBy], ['payment_reported', 'reported', null])
+  assertEquals(sb.T.punpang_chats[0].data.messages.find((m: any) => m.id === 'm1').slipCheck.autoConfirmed, undefined)
 })
 
 Deno.test('ยืนยันอัตโนมัติ: นัดรับน้อยกว่าที่ตั้ง → ยังรอพนักงานยืนยัน (งวดรอตรวจ ออร์เดอร์แจ้งยอดแล้ว)', async () => {
@@ -677,31 +671,29 @@ Deno.test('ยืนยันอัตโนมัติ: ออร์เดอ�
   assertEquals(sb.T.punpang_orders[0].data.payments[0].status, 'reported')
 })
 
-Deno.test('ยืนยันอัตโนมัติ: ตั้ง 0 วัน → นัดรับวันนี้ยืนยันได้ · นัดวันที่ผ่านไปแล้วไม่ยืนยัน', async () => {
+Deno.test('ยืนยันจากรูปปิดถาวร: ตั้ง 0 วัน → นัดรับวันนี้ก็ยังไม่ยืนยันเอง · นัดวันที่ผ่านไปแล้วก็ไม่ยืนยัน', async () => {
   const sbToday = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ pickupAt: '2026-11-11T18:00', payments: [reqPayment()] })], kv: AUTO_CONFIRM_KV(0) })
   assertEquals(await runCheck(sbToday, await slipScreenshot(SLIP), autoOpts()), 'matched')
-  assertEquals(sbToday.T.punpang_orders[0].data.payments[0].status, 'confirmed')
+  assertEquals(sbToday.T.punpang_orders[0].data.payments[0].status, 'reported')
   const sbPast = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ pickupAt: '2026-11-10T18:00', payments: [reqPayment()] })], kv: AUTO_CONFIRM_KV(0) })
   assertEquals(await runCheck(sbPast, await slipScreenshot(SLIP), autoOpts()), 'matched')
   assertEquals(sbPast.T.punpang_orders[0].data.payments[0].status, 'reported')
 })
 
-Deno.test('ยืนยันอัตโนมัติ: ยอดบางส่วน → ยืนยันเฉพาะยอดนั้น ออร์เดอร์ยังค้างส่วนที่เหลือ', async () => {
+Deno.test('ยืนยันจากรูปปิดถาวร: ยอดบางส่วน → ยังไม่ยืนยันเอง (รอพนักงาน)', async () => {
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [order({ pickupAt: '2026-11-14T10:00', payments: [reqPayment({ amount: 200, requested: 200 })] })], kv: AUTO_CONFIRM_KV(3) })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts({ amount: 200 })), 'matched')
   const o = sb.T.punpang_orders[0]
-  assertEquals([o.status, o.data.payments[0].status, o.data.payments[0].amount], ['payment_confirmed', 'confirmed', 200])
+  assertEquals([o.status, o.data.payments[0].status, o.data.payments[0].amount], ['payment_reported', 'reported', 200])
 })
 
-Deno.test('ยืนยันอัตโนมัติ: ยกเลิกยอดที่ร้านแจ้งเดิมที่ยังรออยู่ของออร์เดอร์นั้น และบันทึกประวัติ/กระดิ่ง', async () => {
+Deno.test('ยืนยันจากรูปปิดถาวร: ไม่ยกเลิกยอดที่ร้านแจ้งเดิม แม้ตั้งเปิดไว้', async () => {
   const staff = { id: 'ps1', code: 'PAY-111126-00000', status: 'reported', requested: 540, amount: 540, method: 'โอนเงิน', dueAt: '', source: 'staff', customerSubmitted: false }
   const sb = fakeSb({ chats: [chatWith([staffRef('o1'), slipMsg])], orders: [{ ...order({ pickupAt: '2026-11-14T10:00', payments: [staff, reqPayment()] }), status: 'payment_reported' }], kv: AUTO_CONFIRM_KV(3) })
   assertEquals(await runCheck(sb, await slipScreenshot(SLIP), autoOpts()), 'matched')
   const o = sb.T.punpang_orders[0]
-  assertEquals([o.status, o.data.payments[0].status, o.data.payments[0].cancelledBy, o.data.payments[1].status], ['payment_confirmed', 'cancelled', 'auto', 'confirmed'])
-  assertEquals(o.data.history.some((h: any) => h.text.includes('ยกเลิกยอดที่แจ้งเดิม 1 รายการ')), true)
-  const bell = sb.T.punpang_records.find((r: any) => r.collection === 'bell')
-  assertEquals(bell.data.text.includes('ยกเลิกยอดที่แจ้งเดิม 1 รายการ'), true)
+  assertEquals([o.status, o.data.payments.map((p: any) => p.status)], ['payment_reported', ['reported', 'reported']])
+  assertEquals(sb.T.punpang_records.some((r: any) => r.collection === 'bell' && String(r.data.text).includes('ยกเลิกยอดที่แจ้งเดิม')), false)
 })
 
 Deno.test('ยืนยันอัตโนมัติปิดอยู่ → ยอดที่ร้านแจ้งเดิมยังอยู่ ไม่ถูกยกเลิก', async () => {

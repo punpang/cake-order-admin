@@ -8,6 +8,11 @@
 import { slipChecksOf } from './schedlib/slipChecks.js'
 import { daysUntilPickup } from './slip.ts'
 
+// สวิตช์ยืนยันชำระอัตโนมัติจาก "รูปสลิปที่ลูกค้าส่ง" (หน้าออร์เดอร์และแชท) · ปิดถาวรตามการตัดสินใจ (2026-11-16)
+// ปิด = รูปสลิปไม่ยืนยันชำระเอง รอพนักงาน · การยืนยันจากแจ้งเตือนรับเงินของแอพถุงเงิน (tungngern-receiver → notifyconfirm.ts) ไม่ใช้สวิตช์นี้ ยังทำงานตาม config/slipQr.autoConfirm
+// เปิดใหม่ได้ก็ต่อเมื่อมีการตรวจยอดกับธนาคาร/ผู้ให้บริการตรวจสลิปแล้ว และเจ้าของอนุมัติ
+export const IMAGE_AUTO_CONFIRM = false
+
 export type SlipCheck = { key: string; ok: boolean | null; text: string; info?: boolean }
 
 // เลขบัญชีของร้านที่ตั้งไว้ (บัญชีธนาคารใช้เลขบัญชี · พร้อมเพย์ใช้เลขที่ตั้งไว้) จาก config/shop

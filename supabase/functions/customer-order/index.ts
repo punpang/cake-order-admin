@@ -7,7 +7,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { PAY_MSG, bankByCode, checkCustomerTxn, normalizeRef, refTaken } from '../_shared/payfields.ts'
 import { autoConfirmOf, slipKeyOf } from '../_shared/slip.ts'
 import { mergeSlipIntoConfirmed, sameRefPayment } from '../_shared/sameref.ts'
-import { autoConfirmDecision, configuredAccountsOf, confirmSlipPayment } from '../_shared/slipautoconfirm.ts'
+import { IMAGE_AUTO_CONFIRM, autoConfirmDecision, configuredAccountsOf, confirmSlipPayment } from '../_shared/slipautoconfirm.ts'
 import { notifyPaymentConfirmed } from '../_shared/payconfirm.ts'
 import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
 import { customerChatList, customerChatPhoto, customerChatRead, customerChatSend, customerChatTyping } from '../_shared/customerchat.ts'
@@ -182,7 +182,7 @@ Deno.serve(corsWrap(async (req) => {
   const autoConfirmCfgOf = async () => {
     const sq = (await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()).data?.data?.v
     const sh = (await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'shop').maybeSingle()).data?.data?.v
-    return { auto: autoConfirmOf(sq), merchantCode: String(sh?.merchantCode ?? '').replace(/\D/g, ''), accounts: configuredAccountsOf(sh) }
+    return { auto: { ...autoConfirmOf(sq), enabled: IMAGE_AUTO_CONFIRM && autoConfirmOf(sq).enabled }, merchantCode: String(sh?.merchantCode ?? '').replace(/\D/g, ''), accounts: configuredAccountsOf(sh) }
   }
   const action = String(b.action || '')
   if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel', 'qr_request', 'chat_list', 'chat_send', 'chat_photo', 'chat_typing', 'chat_read', 'push_register'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)

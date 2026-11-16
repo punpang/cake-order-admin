@@ -5,7 +5,7 @@
 import { orderNo } from './slipref.ts'
 import { autoConfirmOf, buildSlipPayment, classifyThaiQr, daysUntilPickup, latestOrderId, orderTotals, planAttach, slipKeyOf } from './slip.ts'
 import { slipChecksOf } from './schedlib/slipChecks.js'
-import { accountCheckOf, configuredAccountsOf, confirmSlipPayment } from './slipautoconfirm.ts'
+import { IMAGE_AUTO_CONFIRM, accountCheckOf, configuredAccountsOf, confirmSlipPayment } from './slipautoconfirm.ts'
 import { readQrTexts } from './qrimage.ts'
 import { bankByCode, normalizeRef, paidAtFromMessage, refTaken } from './payfields.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine, type SlipFields } from './slipocr.ts'
@@ -73,7 +73,7 @@ async function slipConfig(sb: any): Promise<{ enabled: boolean; mode: SlipMode; 
   const v = r?.data?.data?.v
   // รหัสร้านค้า (ตั้งในหน้าตั้งค่าร้าน เก็บที่ config/shop) · ว่าง = ไม่ตรวจรหัสร้านค้า
   const sh = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'shop').maybeSingle()
-  return { enabled: v?.enabled !== false, mode: v?.mode === 'manual' ? 'manual' : 'auto', ocr: ocrFlagsOf(v?.ocr), merchantCode: digitsOf(sh?.data?.data?.v?.merchantCode), accounts: configuredAccountsOf(sh?.data?.data?.v), autoConfirm: autoConfirmOf(v) }
+  return { enabled: v?.enabled !== false, mode: v?.mode === 'manual' ? 'manual' : 'auto', ocr: ocrFlagsOf(v?.ocr), merchantCode: digitsOf(sh?.data?.data?.v?.merchantCode), accounts: configuredAccountsOf(sh?.data?.data?.v), autoConfirm: { ...autoConfirmOf(v), enabled: IMAGE_AUTO_CONFIRM && autoConfirmOf(v).enabled } }
 }
 
 // จับคู่ออร์เดอร์จากรหัสอ้างอิงร้านค้าบนสลิป (แปลงจากเลขเดิม ไม่เก็บเพิ่ม) · ไม่พบ = null
