@@ -2,7 +2,7 @@
 // LIFF ID = รหัสช่อง LINE Login ตามด้วย "-" และรหัสแอป (ค่านี้ไม่ใช่ความลับ)
 export const LINE_LOGIN_CHANNEL_ID = '2012641404'
 export const MENU_URL = 'https://cake-order-admin.pages.dev/#/menu'
-export const ACCOUNT_URL = 'https://liff.line.me/2012641404-DlSIXAZp/line'
+export const ACCOUNT_URL = 'https://liff.line.me/2012641404-DlSIXAZp'
 
 export type LinkRequest = { accessToken: string; session: string }
 
