@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import {
   LUCKY_SITE_URL, LEGACY_PROJECT_ID, MAX_DRAWS_PER_BILL, genLuckyToken, hashLuckyToken, luckyDefaults, luckyDrawsByProject,
-  luckyProjectsOf, luckyUrl, newLuckyProject, projectDrawsOf, projectOpenAt, validateLuckyConfig, validateLuckyPrizes, validateLuckyProject,
+  luckyBudgetOf, luckyProjectsOf, luckyUrl, newLuckyProject, prizeValueOf, projectDrawsOf, projectOpenAt, validateLuckyConfig, validateLuckyPrizes, validateLuckyProject, worstRoundValue,
 } from './luckyDraw.js'
 
 let pass = 0
@@ -20,11 +20,11 @@ const bill = (extra = {}) => ({
 
 const PR = [
   { id: 'p1', name: 'ส่วนลด 50 บาท', kind: 'discount', amount: 50 },
-  { id: 'p2', name: 'คัพเค้ก 1 ชิ้น', kind: 'reward', amount: 0 },
+  { id: 'p2', name: 'คัพเค้ก 1 ชิ้น', kind: 'reward', amount: 0, value: 30 },
 ]
 const OPEN = { from: '2026-11-15T00:00:00.000Z', to: '2026-11-30T23:59:59.000Z' }
 const items = (over = {}) => ({ id: 'j1', name: 'โครงการสินค้า', enabled: true, kind: 'items', itemIds: ['a'], everyBaht: null, ...OPEN, couponDays: 30, prizes: PR, ...over })
-const amount = (over = {}) => ({ id: 'j2', name: 'โครงการยอด', enabled: true, kind: 'amount', itemIds: [], everyBaht: 100, ...OPEN, couponDays: 30, prizes: PR, ...over })
+const amount = (over = {}) => ({ id: 'j2', name: 'โครงการยอด', enabled: true, kind: 'amount', itemIds: [], everyBaht: 100, roundDraws: 10, prizePct: 50, ...OPEN, couponDays: 30, prizes: PR, ...over })
 
 await t('ค่าเริ่มต้น: ไม่มีโครงการ อายุคูปอง 30 วัน และชี้ไปเว็บหลัก · โครงการใหม่ยังปิดอยู่', () => {
   const d = luckyDefaults()
@@ -157,6 +157,62 @@ await t('hash ของ token: กำหนดได้แน่นอน แล
 await t('URL ของ QR: ชี้ไปหน้าลุ้นโชคของบิล และตัด / ท้ายออก', () => {
   assert.equal(luckyUrl('https://example.com/', 'TOKEN'), 'https://example.com/#/luck/TOKEN')
   assert.equal(luckyUrl('', 'TOKEN'), `${LUCKY_SITE_URL}/#/luck/TOKEN`)
+})
+
+await t('โครงการใหม่แบบซื้อครบทุก X บาท: ค่าเริ่มต้น 100 ครั้งต่อรอบ และ 5% · แบบสินค้าไม่มีค่าเหล่านี้', () => {
+  const n = newLuckyProject('x', 'amount')
+  assert.equal(n.roundDraws, 100)
+  assert.equal(n.prizePct, 5)
+  assert.equal(newLuckyProject('y', 'items').roundDraws, null)
+  assert.equal(newLuckyProject('y', 'items').prizePct, null)
+})
+
+await t('งบรางวัลต่อรอบ: 100 บาท × 100 ครั้ง × 5% = เพดาน 500 บาท (ตัวอย่างจากโจทย์)', () => {
+  const noneRows = Array.from({ length: 99 }, (_, i) => ({ id: `n${i}`, name: 'ไม่ได้รางวัล', kind: 'none' }))
+  const ok500 = amount({ everyBaht: 100, roundDraws: 100, prizePct: 5, prizes: [{ id: 'd1', name: 'ส่วนลด 500 บาท', kind: 'discount', amount: 500 }, ...noneRows] })
+  const b = luckyBudgetOf(ok500)
+  assert.equal(b.ceiling, 500)
+  assert.equal(b.worst, 500)
+  assert.equal(b.over, false)
+  assert.equal(validateLuckyProject(ok500), '')
+
+  const over501 = amount({ everyBaht: 100, roundDraws: 100, prizePct: 5, prizes: [{ id: 'd1', name: 'ส่วนลด 501 บาท', kind: 'discount', amount: 501 }, ...noneRows] })
+  assert.equal(luckyBudgetOf(over501).over, true)
+  assert.match(validateLuckyProject(over501), /เกินเพดาน 500 บาท/)
+  assert.match(validateLuckyConfig({ projects: [items(), over501] }), /^โครงการที่ 2: .*เกินเพดาน 500 บาท/)
+})
+
+await t('งบรางวัลต่อรอบ: จำนวนครั้งในรอบ เปอร์เซ็นต์ และมูลค่าของแลกต้องถูกต้อง', () => {
+  assert.match(validateLuckyProject(amount({ roundDraws: 0 })), /จำนวนครั้งลุ้นต่อ 1 รอบ/)
+  assert.match(validateLuckyProject(amount({ roundDraws: 1.5 })), /จำนวนครั้งลุ้นต่อ 1 รอบ/)
+  assert.match(validateLuckyProject(amount({ prizePct: 0 })), /ต้องมากกว่า 0% และไม่เกิน 100%/)
+  assert.match(validateLuckyProject(amount({ prizePct: 101 })), /ต้องมากกว่า 0% และไม่เกิน 100%/)
+  assert.match(validateLuckyProject(amount({ prizes: [{ id: 'r', name: 'คัพเค้ก', kind: 'reward', amount: 0, value: 0 }] })), /ต้องใส่มูลค่า/)
+  // แบบซื้อสินค้าที่เลือกไม่คิดงบรางวัล
+  assert.equal(validateLuckyProject(items({ prizes: [{ id: 'd', name: 'ใหญ่มาก', kind: 'discount', amount: 1000000 }] })), '')
+})
+
+await t('มูลค่ารางวัลตามชนิด: ส่วนลด = บาท · ของแลก = มูลค่าที่กรอก · คะแนน = คะแนน × มูลค่าต่อคะแนน · ไม่ได้รางวัล = 0', () => {
+  assert.equal(prizeValueOf({ kind: 'discount', amount: 50 }), 50)
+  assert.equal(prizeValueOf({ kind: 'reward', value: 120 }), 120)
+  assert.equal(prizeValueOf({ kind: 'points', points: 100 }, 2), 200)
+  assert.equal(prizeValueOf({ kind: 'none' }), 0)
+})
+
+await t('รางวัลวนตามลำดับ: รอบเริ่มจุดไหนก็ได้ จึงคิดจุดเริ่มที่มูลค่ารวมมากที่สุด', () => {
+  assert.equal(worstRoundValue([300, 0, 0], 100), 10200) // 33 รอบเต็ม (9,900) + ครั้งที่เหลือ 1 ได้ 300 อีก
+  assert.equal(worstRoundValue([50, 30], 10), 400) // 5 รอบเต็ม × 80
+  assert.equal(worstRoundValue([100, 0, 0, 0], 2), 100) // จุดเริ่มท้ายลำดับ ได้ [100, 0]
+  assert.equal(worstRoundValue([], 10), 0)
+})
+
+await t('งบรางวัลด้วยคะแนน: คะแนนมีมูลค่าตามการตั้งค่าร้าน (มูลค่าต่อคะแนน)', () => {
+  const pts = amount({ everyBaht: 100, roundDraws: 10, prizePct: 5, prizes: [{ id: 'pt', name: 'คะแนน 100', kind: 'points', points: 100 }] })
+  // เพดาน 100 × 10 × 5% = 50 บาท · ถ้า 1 คะแนน = 1 บาท รอบละ 10 ครั้ง = 1,000 บาท
+  assert.equal(validateLuckyProject(pts, 0), '')
+  assert.match(validateLuckyProject(pts, 1), /เกินเพดาน 50 บาท/)
+  assert.match(validateLuckyConfig({ projects: [pts], pointValue: 1 }), /^โครงการที่ 1: /)
+  assert.equal(validateLuckyConfig({ projects: [pts], pointValue: 0 }), '')
 })
 
 console.log(`ผ่าน ${pass} กรณี`)

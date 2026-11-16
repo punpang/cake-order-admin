@@ -1,4 +1,5 @@
 <script setup>
+import { couponQuoteOf, quoteCouponList, couponTermsText } from '../lib/coupons'
 import MoneyInput from '../components/MoneyInput.vue'
 import { orderNo } from '../lib/format'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
@@ -243,19 +244,24 @@ const toggleCoupon = (id) => (couponIds.value = couponIds.value.includes(id) ? c
 const promoInfo = computed(() => posPromoInfo(cart.value))
 const lineItems = computed(() => promoInfo.value.items)
 const giftLines = computed(() => lineItems.value.filter((i) => i.promoGift))
-const goods = computed(() => lineItems.value.reduce((n, i) => n + i.unitPrice * i.qty, 0))
-const couponOk = (c) => !(Number(c.minSpend) > 0) || goods.value >= Number(c.minSpend)
-watch([goods, coupons], () => (couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id && couponOk(c)))))
 const usedPromos = computed(() => [...new Set(lineItems.value.flatMap((i) => (i.discounts || []).filter((d) => d.kind === 'promo' || d.kind === 'bundle' || d.kind === 'gift').map((d) => d.name)))])
 // แก้รายการบิลค้าง (แอดมิน): บิลที่กำลังแก้ · คูปองเดิมในบิลที่ยังไม่ได้เอาออก · ใช้คิดยอดตอนแก้
 const editBill = ref(null) // null = ขายใหม่จากตะกร้า
 const editDrop = ref([]) // คูปองเดิมในบิลที่เลือกเอาออก (มีผลตอนบันทึก)
 const billKept = computed(() => (editBill.value ? editBill.value.couponsUsed.filter((c) => !editDrop.value.includes(c.couponId)) : []))
-const orderLike = computed(() => ({
+// คูปองแบบ % / ซื้อสินค้าคิดจากรายการในตะกร้า จึงคิดใหม่ทุกครั้งที่รายการหรือคูปองที่เลือกเปลี่ยน (กติกาเดียวกับตอนบันทึกจริง)
+const billBase = computed(() => ({
   items: lineItems.value, fulfillment: 'pickup', payments: [],
   adjustment: editBill.value ? editBill.value.adjustment : { amount: -(Number(discount.value) || 0), reason: 'ส่วนลดหน้าร้าน' }, pointsUsed: null, vat: editBill.value ? editBill.value.vat : vatNow(),
-  couponsUsed: [...billKept.value, ...coupons.value.filter((c) => couponIds.value.includes(c.id)).map((c) => ({ couponId: c.id, name: c.name, amount: c.amount }))],
 }))
+const keptQ = computed(() => quoteCouponList({ ...billBase.value, couponsUsed: [] }, billKept.value.map((u) => db.coupons.find((x) => x.id === u.couponId)).filter(Boolean)))
+const keptProblem = computed(() => (keptQ.value.rejected[0] ? `คูปอง ${keptQ.value.rejected[0].coupon.name} ไม่เข้าเงื่อนไขแล้ว: ${keptQ.value.rejected[0].reason} · เอาออกก่อนจึงบันทึกได้` : ''))
+const billWithKept = computed(() => ({ ...billBase.value, couponsUsed: keptQ.value.used }))
+const couponOk = (c) => couponQuoteOf(c, billWithKept.value).ok
+const couponReason = (c) => couponQuoteOf(c, billWithKept.value).reason
+const pickedCoupons = computed(() => quoteCouponList(billWithKept.value, coupons.value.filter((c) => couponIds.value.includes(c.id))).used)
+watch([billWithKept, coupons], () => (couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id && couponOk(c)))))
+const orderLike = computed(() => ({ ...billWithKept.value, couponsUsed: [...billWithKept.value.couponsUsed, ...pickedCoupons.value] }))
 const preview = computed(() => orderTotals(orderLike.value))
 const resumeOrder = ref(null) // บิลค้างที่กำลังรับชำระส่วนที่เหลือ (null = ขายใหม่จากตะกร้า)
 const total = computed(() => (resumeOrder.value ? Math.max(orderTotals(resumeOrder.value).total, 0) : Math.max(preview.value.total, 0)))
@@ -1004,9 +1010,10 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <div v-if="member && coupons.length" class="rounded-2xl border border-stone-200 p-3" aria-label="คูปองส่วนลดในขั้นชำระเงิน">
           <div class="mb-1.5 text-sm font-semibold text-stone-800">คูปองที่ {{ member.name }} กดแสดงไว้ · กดเพื่อใช้แทนเงินสด</div>
           <div class="flex flex-wrap gap-1.5">
-            <button v-for="c in coupons" :key="c.id" type="button" class="chip h-auto max-w-full py-1.5 text-left whitespace-normal" :class="[couponIds.includes(c.id) ? 'chip-on' : 'chip-off', couponOk(c) ? '' : 'opacity-50']" :disabled="!couponOk(c)" :aria-pressed="couponIds.includes(c.id)" @click="toggleCoupon(c.id)">{{ c.name }} −{{ money(c.amount) }}<template v-if="c.minSpend"> · ขั้นต่ำ {{ money(c.minSpend) }}</template> · เหลือ {{ mmss(c) }}</button>
+            <button v-for="c in coupons" :key="c.id" type="button" class="chip h-auto max-w-full py-1.5 text-left whitespace-normal" :class="[couponIds.includes(c.id) ? 'chip-on' : 'chip-off', couponOk(c) ? '' : 'opacity-50']" :disabled="!couponOk(c)" :aria-pressed="couponIds.includes(c.id)" @click="toggleCoupon(c.id)">{{ c.name }} · {{ couponTermsText(c) }} · เหลือ {{ mmss(c) }}</button>
           </div>
-          <p v-for="c in coupons.filter((x) => !couponOk(x))" :key="'n' + c.id" class="mt-1 text-xs text-amber-700">{{ c.name }}: ยอดสินค้าต้องถึง {{ money(c.minSpend) }} (ตอนนี้ {{ money(goods) }})</p>
+          <p v-for="c in coupons.filter((x) => !couponOk(x))" :key="'n' + c.id" class="mt-1 text-xs text-amber-700">{{ c.name }}: {{ couponReason(c) }}</p>
+          <p v-if="keptProblem" class="mt-1 text-xs text-rose-700" role="alert">{{ keptProblem }}</p>
           <p v-if="couponIds.length" class="mt-1.5 text-xs text-emerald-700">ใช้คูปองลดแล้ว {{ money(preview.couponDiscount) }}</p>
         </div>
 

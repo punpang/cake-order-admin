@@ -3,6 +3,7 @@ import MoneyInput from '../../components/MoneyInput.vue'
 import { computed, reactive, ref } from 'vue'
 import { db, can, findCustomer, saveReward, savePrize, saveLoyaltySettings, markCouponDelivered, phaseOfCoupon, refundCoupon } from '../../data/store'
 import { chanceTotal } from '../../lib/loyalty'
+import { COUPON_MODES, couponTermsText, validateCouponReward } from '../../lib/coupons'
 import { money, dateOnly, toDateStr } from '../../lib/format'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
@@ -40,20 +41,27 @@ const FIELDS = [
 
 // ---------- ของแลก ----------
 const rwOpen = ref(false)
-const blankRw = () => ({ id: null, name: '', kind: 'item', points: 0, amount: '', minSpend: '', validDays: '', active: true })
+const blankRw = () => ({ id: null, name: '', kind: 'item', mode: 'fixed', points: 0, amount: '', minSpend: '', pct: '', cap: '', productId: '', validDays: '', active: true })
 const rw = reactive(blankRw())
 const rwError = ref('')
+const activeRetail = computed(() => db.retailItems.filter((x) => x.active !== false))
+// ตัวอย่างเงื่อนไขที่ลูกค้าจะเห็น (ชื่อสินค้าจากรายการที่เลือก)
+const rwPreview = computed(() => ({ ...rw, productName: activeRetail.value.find((x) => x.id === rw.productId)?.name || '' }))
 function editRw(r) {
-  Object.assign(rw, blankRw(), r ? { ...r, amount: r.amount ? String(r.amount) : '', minSpend: r.minSpend ? String(r.minSpend) : '', validDays: r.validDays ? String(r.validDays) : '' } : {})
+  Object.assign(rw, blankRw(), r ? { ...r, amount: r.amount ? String(r.amount) : '', minSpend: r.minSpend ? String(r.minSpend) : '', pct: r.pct ? String(r.pct) : '', cap: r.cap ? String(r.cap) : '', validDays: r.validDays ? String(r.validDays) : '' } : {})
   rwError.value = ''
   rwOpen.value = true
 }
 async function saveRw() {
   if (!rw.name.trim()) return (rwError.value = 'กรอกชื่อของ')
   if (!(rw.points > 0)) return (rwError.value = 'คะแนนต้องมากกว่า 0')
-  if (rw.kind === 'coupon' && !(Number(rw.amount) > 0)) return (rwError.value = 'กรอกมูลค่าส่วนลด (บาท)')
+  if (rw.kind === 'coupon') {
+    const err = validateCouponReward(rw)
+    if (err) return (rwError.value = err)
+  }
   if (!(await confirmDeactivate(db.rewards, rw, rw.name))) return
-  saveReward({ ...rw })
+  const r = saveReward({ ...rw })
+  if (r?.error) return (rwError.value = r.error)
   rwOpen.value = false
 }
 
@@ -149,7 +157,7 @@ function doRefund() {
         >
           <span class="min-w-0 flex-1">
             <span class="block truncate font-medium text-stone-900">{{ r.name }}</span>
-            <span class="block text-xs text-stone-500">{{ r.kind === 'coupon' ? `คูปองส่วนลด ${r.amount} ฿${r.minSpend ? ` · ขั้นต่ำ ${r.minSpend}` : ''}${r.validDays ? ` · อายุ ${r.validDays} วัน` : ''}` : 'ของรางวัล (รับที่ร้าน)' }}</span>
+            <span class="block text-xs text-stone-500">{{ r.kind === 'coupon' ? `คูปอง · ${couponTermsText(r)}${r.validDays ? ` · อายุ ${r.validDays} วัน` : ''}` : 'ของรางวัล (รับที่ร้าน)' }}</span>
           </span>
           <span class="shrink-0 text-sm font-semibold text-stone-700">{{ r.points }} คะแนน</span>
         </button>
@@ -193,7 +201,7 @@ function doRefund() {
         <div v-for="c in rewardCoupons" :key="c.id" class="card space-y-2 p-3.5">
           <div class="flex items-start gap-3">
             <span class="min-w-0 flex-1">
-              <span class="block font-medium break-words text-stone-900">{{ c.name }} <span class="text-xs font-normal text-stone-400">{{ c.type === 'reward' ? 'ของรางวัล' : `ส่วนลด ${c.amount} ฿` }}</span></span>
+              <span class="block font-medium break-words text-stone-900">{{ c.name }} <span class="text-xs font-normal text-stone-400">{{ c.type === 'reward' ? 'ของรางวัล' : couponTermsText(c) }}</span></span>
               <span class="block text-xs text-stone-500">
                 {{ findCustomer(c.customerId)?.name }} · {{ c.source === 'gacha' ? 'กาชา' : 'แลกคะแนน' }}<template v-if="c.points"> ({{ c.points }} คะแนน)</template>
                 <template v-if="c.expiresAt"> · หมดอายุ {{ dateOnly(c.expiresAt) }}</template>
@@ -228,11 +236,30 @@ function doRefund() {
           <button v-for="k in [{ v: 'item', l: 'ของรางวัล (รับที่ร้าน)' }, { v: 'coupon', l: 'คูปองส่วนลด' }]" :key="k.v" type="button" class="h-9 rounded-lg px-1 text-sm font-medium" :class="rw.kind === k.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="rw.kind = k.v">{{ k.l }}</button>
         </div>
         <template v-if="rw.kind === 'coupon'">
-          <div class="grid grid-cols-3 gap-3">
+          <div class="grid grid-cols-3 gap-1 seg-grid">
+            <button v-for="m in COUPON_MODES" :key="m.v" type="button" class="h-9 rounded-lg px-1 text-xs font-medium sm:text-sm" :class="rw.mode === m.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" :aria-pressed="rw.mode === m.v" @click="rw.mode = m.v">{{ m.l }}</button>
+          </div>
+          <div v-if="rw.mode === 'fixed'" class="grid grid-cols-3 gap-3">
             <div><label class="label">ลด (บาท)</label><MoneyInput v-model="rw.amount" class="input" /></div>
             <div><label class="label">ยอดขั้นต่ำ</label><MoneyInput v-model="rw.minSpend" class="input" placeholder="ไม่มี" /></div>
             <div><label class="label">อายุ (วัน)</label><input v-model="rw.validDays" type="text" v-num class="input" :placeholder="String(db.loyalty.couponExpireDays)" /></div>
           </div>
+          <div v-else class="space-y-3">
+            <div v-if="rw.mode === 'spend'"><label class="label">ซื้อครบ (บาท)</label><MoneyInput v-model="rw.minSpend" class="input" /></div>
+            <div v-else>
+              <label class="label" for="rw-product">สินค้าที่ต้องซื้อ</label>
+              <select id="rw-product" v-model="rw.productId" class="input h-11">
+                <option value="">เลือกสินค้า</option>
+                <option v-for="x in activeRetail" :key="x.id" :value="x.id">{{ x.name }}</option>
+              </select>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+              <div><label class="label">ลด (%)</label><input v-model="rw.pct" type="text" v-num.dec class="input" placeholder="เช่น 10" /></div>
+              <div><label class="label">ลดสูงสุด (บาท)</label><MoneyInput v-model="rw.cap" class="input" /></div>
+              <div><label class="label">อายุ (วัน)</label><input v-model="rw.validDays" type="text" v-num class="input" :placeholder="String(db.loyalty.couponExpireDays)" /></div>
+            </div>
+          </div>
+          <p class="rounded-xl bg-stone-50 p-2.5 text-sm text-stone-700">ลูกค้าจะเห็น: {{ couponTermsText(rwPreview) }}</p>
           <p class="text-xs text-stone-400">ลูกค้าแลกบนเว็บ (บัญชีของฉัน → คะแนน) แล้วนำคูปองมาใช้ที่ POS/ออร์เดอร์ · คะแนนที่แลกแล้วไม่คืน</p>
         </template>
         <div><label class="label">ใช้คะแนน</label><input v-model.number="rw.points" type="text" v-num min="1" class="input" /></div>

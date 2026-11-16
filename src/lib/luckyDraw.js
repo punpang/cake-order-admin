@@ -5,6 +5,8 @@ import { orderTotals } from './pricing.js'
 
 export const LUCKY_SITE_URL = 'https://cake-order-admin.pages.dev'
 export const MAX_DRAWS_PER_BILL = 10 // เพดานครั้งลุ้นต่อโครงการต่อบิล (แบบซื้อครบทุก X บาท)
+export const ROUND_DRAWS_DEFAULT = 100 // จำนวนครั้งลุ้นต่อ 1 รอบ (แบบซื้อครบทุก X บาท)
+export const PRIZE_PCT_DEFAULT = 5 // มูลค่ารางวัลต่อรอบ เป็น % ของยอดซื้อในรอบ (แบบซื้อครบทุก X บาท)
 export const LEGACY_PROJECT_ID = 'legacy' // รหัสโครงการที่ย้ายมาจากการตั้งค่าชุดเดิม (ต้องตรงกับ migration)
 export const PRIZE_KINDS = [
   { v: 'discount', l: 'ส่วนลด (บาท)' },
@@ -23,6 +25,7 @@ export const luckyDefaults = () => ({ siteUrl: LUCKY_SITE_URL, projects: [] })
 export const newLuckyProject = (id, kind = 'items') => ({
   id, name: '', enabled: false, kind,
   itemIds: [], everyBaht: kind === 'amount' ? 100 : null,
+  roundDraws: kind === 'amount' ? ROUND_DRAWS_DEFAULT : null, prizePct: kind === 'amount' ? PRIZE_PCT_DEFAULT : null,
   from: '', to: '', couponDays: 30, prizes: [],
 })
 
@@ -32,8 +35,8 @@ export function luckyProjectsOf(raw) {
   if (raw && ('perBaht' in raw || 'itemIds' in raw || 'prizes' in raw)) {
     return [{
       id: LEGACY_PROJECT_ID, name: 'ลุ้นโชคท้ายบิล', enabled: !!raw.enabled, kind: 'items',
-      itemIds: [...(raw.itemIds || [])], everyBaht: null, from: raw.from || '', to: raw.to || '',
-      couponDays: Number(raw.couponDays) || 30, prizes: raw.prizes || [],
+      itemIds: [...(raw.itemIds || [])], everyBaht: null, roundDraws: null, prizePct: null,
+      from: raw.from || '', to: raw.to || '', couponDays: Number(raw.couponDays) || 30, prizes: raw.prizes || [],
     }]
   }
   return []
@@ -51,8 +54,60 @@ export function validateLuckyPrizes(prizes) {
   return ''
 }
 
+// ---------- งบรางวัลต่อรอบ (โครงการแบบซื้อครบทุก X บาท) ----------
+// เพดานมูลค่ารางวัลต่อรอบ = ทุกกี่บาท × จำนวนครั้งลุ้นในรอบ × เปอร์เซ็นต์ ÷ 100 (เช่น 100 × 100 × 5% = 500 บาท)
+// มูลค่ารางวัล: ส่วนลด = จำนวนบาท · ของรางวัล = มูลค่าที่กรอก · คะแนน = คะแนน × มูลค่าต่อ 1 คะแนน · ไม่ได้รางวัล = 0
+const cents = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100
+
+export function prizeValueOf(x, pointValue = 0) {
+  if (x?.kind === 'discount') return Math.max(0, Number(x.amount) || 0)
+  if (x?.kind === 'reward') return Math.max(0, Number(x.value) || 0)
+  if (x?.kind === 'points') return Math.max(0, (Number(x.points) || 0) * (Number(pointValue) || 0))
+  return 0
+}
+
+// มูลค่ารางวัลรวมของการลุ้น n ครั้งติดกัน เมื่อรางวัลวนตามลำดับ (values = มูลค่าตามลำดับที่ออก)
+// รอบอาจเริ่มที่รางวัลลำดับใดก็ได้ จึงลองทุกจุดเริ่มแล้วเอามากสุด
+export function worstRoundValue(values, n) {
+  const L = values.length
+  const N = Math.floor(Number(n))
+  if (!L || !(N > 0)) return 0
+  const full = Math.floor(N / L) // จำนวนรอบเต็มของลำดับรางวัล
+  const rem = N % L // ที่เหลือหลังรอบเต็ม
+  const total = values.reduce((a, b) => a + b, 0)
+  const pre = [0]
+  for (let i = 0; i < 2 * L; i++) pre.push(pre[i] + values[i % L])
+  let best = 0
+  for (let s = 0; s < L; s++) best = Math.max(best, pre[s + rem] - pre[s])
+  return cents(full * total + best)
+}
+
+// งบของโครงการ: เพดานต่อรอบ · มูลค่ารางวัลสูงสุดในรอบ · เกินเพดานหรือไม่
+export function luckyBudgetOf(p, pointValue = 0) {
+  const per = Number(p?.everyBaht) || 0
+  const roundDraws = Math.floor(Number(p?.roundDraws)) || 0
+  const prizePct = Number(p?.prizePct) || 0
+  const ceiling = cents((per * roundDraws * prizePct) / 100)
+  const worst = worstRoundValue((p?.prizes || []).map((x) => prizeValueOf(x, pointValue)), roundDraws)
+  return { per, roundDraws, prizePct, ceiling, worst, over: worst > ceiling + 0.004 }
+}
+
+// ตรวจงบของโครงการแบบซื้อครบทุก X บาท: จำนวนครั้งในรอบ · เปอร์เซ็นต์ · ของรางวัลต้องมีมูลค่า · มูลค่าสูงสุดในรอบต้องไม่เกินเพดาน
+export function validateLuckyBudget(p, pointValue = 0) {
+  const n = Number(p.roundDraws)
+  if (!(Number.isInteger(n) && n >= 1)) return 'จำนวนครั้งลุ้นต่อ 1 รอบต้องเป็นจำนวนเต็มตั้งแต่ 1'
+  const pct = Number(p.prizePct)
+  if (!(pct > 0 && pct <= 100)) return 'มูลค่ารางวัลต่อรอบต้องมากกว่า 0% และไม่เกิน 100%'
+  const noValue = (p.prizes || []).findIndex((x) => x?.kind === 'reward' && !(Number(x.value) > 0))
+  if (noValue >= 0) return `ของรางวัลลำดับที่ ${noValue + 1} ต้องใส่มูลค่า (บาท) มากกว่า 0`
+  const b = luckyBudgetOf(p, pointValue)
+  if (b.over) return `รางวัลในรอบสูงสุด ${b.worst} บาท เกินเพดาน ${b.ceiling} บาท (${b.per} × ${b.roundDraws} × ${b.prizePct}%) · ลดมูลค่ารางวัลหรือเปอร์เซ็นต์ลง`
+  return ''
+}
+
 // ตรวจโครงการหนึ่ง: ชื่อ · เงื่อนไข · อายุคูปอง · ถ้าเปิดต้องมีสินค้า (แบบสินค้า) ช่วงวันที่ครบ และรางวัลอย่างน้อย 1
-export function validateLuckyProject(p) {
+// แบบซื้อครบทุก X บาท ต้องผ่านงบรางวัลต่อรอบด้วย (pointValue = มูลค่าต่อ 1 คะแนนจากการตั้งค่าร้าน)
+export function validateLuckyProject(p, pointValue = 0) {
   if (!String(p?.name ?? '').trim()) return 'ตั้งชื่อโครงการ'
   if (!PROJECT_KINDS.some((k) => k.v === p?.kind)) return 'เลือกเงื่อนไขของโครงการ'
   if (p.kind === 'items' && p.enabled && !(Array.isArray(p.itemIds) && p.itemIds.length)) return 'เลือกสินค้าที่ร่วมโครงการอย่างน้อย 1 รายการ'
@@ -65,16 +120,19 @@ export function validateLuckyProject(p) {
     if (Number.isNaN(f) || Number.isNaN(t) || t <= f) return 'ตั้งช่วงวันที่ให้ครบ และเวลาสิ้นสุดต้องหลังเวลาเริ่ม'
     if (!(p.prizes || []).length) return 'ตั้งรางวัลอย่างน้อย 1 รายการก่อนเปิดโครงการ'
   }
-  return validateLuckyPrizes(p.prizes || [])
+  const perr = validateLuckyPrizes(p.prizes || [])
+  if (perr) return perr
+  return p.kind === 'amount' ? validateLuckyBudget(p, pointValue) : ''
 }
 
-// ตรวจทั้งชุด: รหัสโครงการไม่ซ้ำหรือว่าง · แต่ละโครงการถูกต้อง (แจ้งลำดับโครงการที่ผิด)
+// ตรวจทั้งชุด: รหัสโครงการไม่ซ้ำหรือว่าง · แต่ละโครงการถูกต้อง (แจ้งลำดับโครงการที่ผิด) · cfg.pointValue = มูลค่าต่อ 1 คะแนน
 export function validateLuckyConfig(cfg) {
   const list = Array.isArray(cfg?.projects) ? cfg.projects : []
+  const pointValue = Number(cfg?.pointValue) || 0
   const ids = list.map((p) => String(p?.id ?? ''))
   if (ids.some((x) => !x) || new Set(ids).size !== ids.length) return 'รหัสโครงการซ้ำหรือว่าง'
   for (let i = 0; i < list.length; i++) {
-    const err = validateLuckyProject(list[i])
+    const err = validateLuckyProject(list[i], pointValue)
     if (err) return `โครงการที่ ${i + 1}: ${err}`
   }
   return ''

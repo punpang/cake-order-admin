@@ -13,6 +13,7 @@ import {
   refreshOrderGate, reviewOrderGate,
 } from '../data/store'
 import { orderTotals, shipNetOf } from '../lib/pricing'
+import { couponQuoteOf, couponTermsText } from '../lib/coupons'
 import { QUICK_DUE, quickDue, dueState, remainingText, dueBeforePickup, dueDaysBefore, isHHmm, customerPending } from '../lib/payDue'
 import { CHANNELS, NOTIFY_EVENTS } from '../lib/constants'
 import { askConfirm, askConfirmEx } from '../lib/confirm'
@@ -257,7 +258,10 @@ async function doCancelConfirmed(p) {
 }
 async function doRemoveItem(it) {
   const r = await askConfirmEx({ title: 'ลบสินค้า', message: `${it.name} × ${it.qty}`, okText: 'ลบ', danger: true, ...notifyBoxOf(customer.value) })
-  if (r.ok) removeOrderItem(order.value, it.id, notifyOf(r))
+  if (r.ok) {
+    const e = removeOrderItem(order.value, it.id, notifyOf(r))
+    if (e?.error) showToast(e.error, 6000, 'error')
+  }
 }
 async function doCancelRequest(p) {
   const r = await askConfirmEx({ title: 'ยกเลิกยอดที่แจ้ง', message: money(p.requested ?? p.amount), okText: 'ยกเลิกยอด', danger: true, reason: { label: 'เหตุผลที่ยกเลิก', required: true }, ...notifyBoxOf(customer.value) })
@@ -270,7 +274,9 @@ async function doRemovePoints() {
   if (r.error) showToast(r.error, 6000, 'error')
 }
 async function doApplyCoupon(c) {
-  const r0 = await askConfirmEx({ title: 'ใช้คูปอง', message: `${c.name} (−${money(c.amount)})`, okText: 'ใช้คูปอง', ...(customer.value ? { checkbox: { label: 'แจ้งลูกค้า', hint: 'ไม่ติ๊ก = ไม่ส่งข้อความถึงลูกค้า', value: true } } : {}), ...(customer.value && smsChoice(customer.value) ? { checkbox2: { label: 'ส่ง SMS ด้วย', hint: formatPhone(customer.value.phone), value: true } } : {}) })
+  const q = couponQuoteOf(c, order.value)
+  if (!q.ok) return showToast(`ใช้คูปองนี้ไม่ได้: ${q.reason}`, 6000, 'error')
+  const r0 = await askConfirmEx({ title: 'ใช้คูปอง', message: `${c.name} (−${money(q.amount)})`, okText: 'ใช้คูปอง', ...(customer.value ? { checkbox: { label: 'แจ้งลูกค้า', hint: 'ไม่ติ๊ก = ไม่ส่งข้อความถึงลูกค้า', value: true } } : {}), ...(customer.value && smsChoice(customer.value) ? { checkbox2: { label: 'ส่ง SMS ด้วย', hint: formatPhone(customer.value.phone), value: true } } : {}) })
   if (!r0.ok) return
   const r = await claimAndApplyCoupon(order.value, c.id, { notify: r0.checked, sms: r0.checked2 !== false })
   if (r.error) showToast(r.error, 6000, 'error')
@@ -282,7 +288,8 @@ async function doRemoveCoupon(u) {
 // ---------- แก้รายการสินค้า (แอดมิน) ----------
 const editing = ref(null) // null = ปิด, {} = เพิ่มใหม่, { item } = แก้ไข
 function onSaveItem(item, opts) {
-  saveOrderItem(order.value, item, opts || {})
+  const r = saveOrderItem(order.value, item, opts || {})
+  if (r?.error) return showToast(r.error, 6000, 'error')
   editing.value = null
 }
 
@@ -587,9 +594,10 @@ async function saveCancel() {
           <div v-if="canLoyalty && coupons.length" class="mt-3">
             <div class="label">คูปองส่วนลดที่ใช้ได้</div>
             <div class="flex flex-wrap gap-2">
-              <button v-for="c in coupons" :key="c.id" type="button" class="chip chip-off" @click="doApplyCoupon(c)">
-                <AppIcon name="plus" :size="14" /> {{ c.name }}
+              <button v-for="c in coupons" :key="c.id" type="button" class="chip chip-off h-auto max-w-full py-1.5 text-left whitespace-normal" :class="couponQuoteOf(c, order).ok ? '' : 'opacity-50'" :disabled="!couponQuoteOf(c, order).ok" @click="doApplyCoupon(c)">
+                <AppIcon name="plus" :size="14" /> {{ c.name }} · {{ couponTermsText(c) }}
               </button>
+              <p v-for="c in coupons.filter((x) => !couponQuoteOf(x, order).ok)" :key="'n' + c.id" class="w-full text-xs text-amber-700">{{ c.name }}: {{ couponQuoteOf(c, order).reason }}</p>
             </div>
           </div>
         </section>

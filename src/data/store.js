@@ -18,6 +18,7 @@ import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEF
 import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX, AUTO_SOURCES, LOCKED_SOURCES, AI_MODELS, AI_WAI_MODELS } from '../lib/chatBot'
 import { checkTelegram } from '../lib/integrationCheck'
 import { luckyDefaults, luckyDrawsByProject, luckyProjectsOf, luckyUrl, genLuckyToken, hashLuckyToken, validateLuckyConfig, LUCKY_SITE_URL } from '../lib/luckyDraw'
+import { couponQuoteOf, couponFieldsOf, quoteCouponList, validateCouponReward } from '../lib/coupons'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
 import { DEFAULT_ACCOUNTS } from '../lib/acct/chart'
 import { cleanClosures, emptyClosures, slotClosed, pickupClosed, isClosedNow, nextOpen } from '../lib/shopHours'
@@ -1364,23 +1365,39 @@ function repriceAll(order) {
   order.shipPromo = w.shipPromo
 }
 
+// ถ้าคูปองใดไม่เข้าเงื่อนไขหลังแก้ → คืนรายการเดิมและคืน error (ให้เอาคูปองออกก่อน)
 export function saveOrderItem(order, item, opts = {}) {
   const i = order.items.findIndex((x) => x.id === item.id)
+  const prev = { items: [...order.items], shipPromo: order.shipPromo }
   if (i >= 0) order.items[i] = item
   else order.items.push(item)
   repriceAll(order)
+  const bad = refreshCouponsAfterChange(order)
+  if (bad) {
+    order.items = prev.items
+    order.shipPromo = prev.shipPromo
+    return { error: bad }
+  }
   log(order, `${i >= 0 ? 'แก้ไข' : 'เพิ่ม'}สินค้า: ${item.name} × ${item.qty}`)
   notifyOrder('items_changed', order, { skip: opts.notify === false, noSms: opts.sms === false })
+  return { ok: true }
 }
 
 export function removeOrderItem(order, itemId, opts = {}) {
   const it = order.items.find((x) => x.id === itemId)
-  if (!it || it.promoGift || order.items.filter((x) => !x.promoGift).length <= 1) return false
+  if (!it || it.promoGift || order.items.filter((x) => !x.promoGift).length <= 1) return { error: 'ลบรายการนี้ไม่ได้' }
+  const prev = { items: order.items, shipPromo: order.shipPromo }
   order.items = order.items.filter((x) => x.id !== itemId)
   repriceAll(order)
+  const bad = refreshCouponsAfterChange(order)
+  if (bad) {
+    order.items = prev.items
+    order.shipPromo = prev.shipPromo
+    return { error: bad }
+  }
   log(order, `ลบสินค้า: ${it.name}`)
   notifyOrder('items_changed', order, { skip: opts.notify === false, noSms: opts.sms === false })
-  return true
+  return { ok: true }
 }
 
 export function setAdjustment(order, amount, reason, opts = {}) {
@@ -1862,13 +1879,36 @@ export function removePoints(order) {
   order.pointsUsed = null
 }
 
+// คิดส่วนลดคูปองทั้งชุดใหม่ตามรายการปัจจุบันของออร์เดอร์ (ทีละใบตามลำดับเหมือนตอนใช้จริง) · ใบที่ไม่เข้าเงื่อนไขแล้ว → error พร้อมชื่อใบ (ไม่แก้ข้อมูล)
+function recalcCoupons(order, ids) {
+  const objs = []
+  for (const id of ids) {
+    const cp = db.coupons.find((x) => x.id === id)
+    if (!cp) return { error: 'ไม่พบคูปองในออร์เดอร์' }
+    objs.push(cp)
+  }
+  const r = quoteCouponList({ ...order, couponsUsed: [] }, objs)
+  if (r.rejected.length) return { error: `คูปอง ${r.rejected[0].coupon.name} ใช้ไม่ได้แล้ว: ${r.rejected[0].reason} · เอาคูปองออกก่อนจึงแก้รายการได้` }
+  return { coupons: r.used }
+}
+// หลังแก้รายการของออร์เดอร์ทั่วไป: คิดส่วนลดคูปองใหม่ (แบบ % ตามยอดใหม่) · มีใบที่ใช้ไม่ได้แล้ว → คืนข้อความให้ผู้เรียกคืนรายการเดิม
+function refreshCouponsAfterChange(order) {
+  const ids = (order.couponsUsed || []).map((u) => u.couponId)
+  if (!ids.length) return ''
+  const r = recalcCoupons(order, ids)
+  if (r.error) return r.error
+  order.couponsUsed = order.couponsUsed.map((u) => ({ ...u, amount: r.coupons.find((x) => x.couponId === u.couponId)?.amount ?? u.amount }))
+  return ''
+}
+
+// ใช้คูปองกับออร์เดอร์ · ส่วนลดคิดตามประเภทคูปอง ณ ตอนใช้ (ลดเป็นบาท / ซื้อครบ % / ซื้อสินค้า %) · ไม่เข้าเงื่อนไข = ใช้ไม่ได้
 export function applyCoupon(order, couponId) {
   const cp = db.coupons.find((x) => x.id === couponId)
   if (!cp || cp.type !== 'discount' || !couponUsable(cp, today())) return false
-  if (Number(cp.minSpend) > 0 && orderTotals(order).subtotal < Number(cp.minSpend)) return false // ยอดสินค้าไม่ถึงขั้นต่ำของคูปอง
+  const q = couponQuoteOf(cp, order)
+  if (!q.ok) return false
   Object.assign(cp, { status: 'used', orderId: order.id, usedAt: now(), activatedAt: null, activatedUntil: null })
-  // ส่วนลดคูปองต้องไม่เกินยอดที่ต้องชำระ ณ ตอนใช้ (ยอดไม่ติดลบ)
-  order.couponsUsed.push({ couponId, name: cp.name, amount: Math.min(Math.max(Number(cp.amount) || 0, 0), orderTotals(order).total) })
+  order.couponsUsed.push({ couponId, name: cp.name, amount: q.amount })
   log(order, `ใช้คูปอง ${cp.name}`)
   return true
 }
@@ -1887,6 +1927,8 @@ export async function claimCoupon(couponId, orderId) {
 export async function claimAndApplyCoupon(order, couponId, opts = {}) {
   const cp = db.coupons.find((x) => x.id === couponId)
   if (!cp || cp.type !== 'discount' || !couponUsable(cp, today())) return { error: 'ใช้คูปองนี้ไม่ได้' }
+  const q = couponQuoteOf(cp, order)
+  if (!q.ok) return { error: `ใช้คูปองนี้ไม่ได้: ${q.reason}` } // ตรวจเงื่อนไขก่อนจองคูปองกับเซิร์ฟเวอร์
   const c = await claimCoupon(couponId, order.id)
   if (c.error) return c
   if (!applyCoupon(order, couponId)) return { error: 'ใช้คูปองนี้ไม่ได้' }
@@ -2212,6 +2254,8 @@ export function saveLuckyDraw(d) {
       kind,
       itemIds: kind === 'items' ? [...new Set((p.itemIds || []).map((x) => String(x)).filter(Boolean))] : [],
       everyBaht: kind === 'amount' ? Number(p.everyBaht) : null,
+      roundDraws: kind === 'amount' ? Math.round(Number(p.roundDraws)) : null,
+      prizePct: kind === 'amount' ? Number(p.prizePct) : null,
       from: valid ? from.toISOString() : '',
       to: valid ? to.toISOString() : '',
       couponDays: Math.round(Number(p.couponDays)),
@@ -2221,12 +2265,13 @@ export function saveLuckyDraw(d) {
           id: x.id || uid('lp'), kind: pk,
           name: String(x.name ?? '').trim() || (pk === 'none' ? 'ไม่ได้รางวัล' : ''),
           amount: pk === 'discount' ? Number(x.amount) || 0 : 0,
+          value: pk === 'reward' ? Number(x.value) || 0 : 0,
           points: pk === 'points' ? Number(x.points) || 0 : 0,
         }
       }),
     }
   })
-  const cfgErr = validateLuckyConfig({ projects })
+  const cfgErr = validateLuckyConfig({ projects, pointValue: db.loyalty.pointValue })
   if (cfgErr) return { error: cfgErr }
   db.shop.luckyDraw = { siteUrl, projects }
   return { ok: true }
@@ -2407,7 +2452,7 @@ export function redeemReward(c, rewardId) {
   if (!rw || !spendPoints(c, rw.points, `แลก ${rw.name}`)) return null
   // คูปองส่วนลด: นำไปใช้ที่ POS/ออร์เดอร์ (มีขั้นต่ำ/อายุตามที่ตั้ง) · ของรางวัล: รับที่ร้าน
   if (rw.kind === 'coupon') {
-    return newCoupon(c, { type: 'discount', rewardId: rw.id, points: rw.points, name: rw.name, amount: Number(rw.amount) || 0, minSpend: Number(rw.minSpend) || 0, source: 'redeem', ...(Number(rw.validDays) > 0 ? { expiresAt: addDays(today(), Number(rw.validDays)) } : {}) })
+    return newCoupon(c, { type: 'discount', rewardId: rw.id, points: rw.points, name: rw.name, ...couponFieldsOf(rw), source: 'redeem', ...(Number(rw.validDays) > 0 ? { expiresAt: addDays(today(), Number(rw.validDays)) } : {}) })
   }
   return newCoupon(c, { type: 'reward', rewardId: rw.id, points: rw.points, name: rw.name, source: 'redeem' })
 }
@@ -2529,8 +2574,17 @@ export function markCouponDelivered(cp) {
   Object.assign(cp, { status: 'delivered', deliveredAt: now(), deliveredBy: session.role })
 }
 
-export const saveReward = (d) =>
-  upsert(db.rewards, 'rw', { ...d, kind: d.kind === 'coupon' ? 'coupon' : 'item', points: Number(d.points) || 0, amount: Number(d.amount) || 0, minSpend: Number(d.minSpend) || 0, validDays: Number(d.validDays) || 0 })
+// บันทึกของแลก · คูปองแบบ % / ซื้อสินค้าเก็บชื่อสินค้าไว้ด้วย (ลูกค้าเห็นเงื่อนไขได้โดยไม่ต้องดึงรายการสินค้า) · ผิดกติกา = { error }
+export function saveReward(d) {
+  const kind = d.kind === 'coupon' ? 'coupon' : 'item'
+  if (kind === 'coupon') {
+    const err = validateCouponReward(d)
+    if (err) return { error: err }
+  }
+  const productName = db.retailItems.find((x) => x.id === String(d.productId || ''))?.name || ''
+  const fields = kind === 'coupon' ? couponFieldsOf({ ...d, productName }) : couponFieldsOf({ mode: 'fixed', amount: d.amount, minSpend: d.minSpend })
+  return upsert(db.rewards, 'rw', { ...d, ...fields, kind, points: Number(d.points) || 0, validDays: Number(d.validDays) || 0 })
+}
 export const savePrize = (d) => upsert(db.gachaPrizes, 'gp', { ...d, chance: Number(d.chance) || 0, value: Number(d.value) || 0 })
 export function saveLoyaltySettings(d) {
   for (const k of Object.keys(db.loyalty)) db.loyalty[k] = Math.max(Number(d[k]) || 0, 0)
@@ -3726,28 +3780,26 @@ export function editPosPending(order, cart, { dropCouponIds = [], addCouponIds =
   const subtotalNow = items.reduce((s, i) => s + i.unitPrice * i.qty, 0)
   const adjustment = { ...(order.adjustment || { amount: 0, reason: '' }) }
   if (adjustment.amount < -subtotalNow) adjustment.amount = -subtotalNow // ส่วนลดหน้าร้านไม่เกินยอดสินค้า (เหมือนตอนขาย)
-  const keep = (order.couponsUsed || []).filter((c) => !dropCouponIds.includes(c.couponId)).map((c) => ({ ...c }))
-  const draft = { ...order, items, adjustment, couponsUsed: keep }
-  for (const c of keep) {
-    const cp = db.coupons.find((x) => x.id === c.couponId)
-    if (cp && Number(cp.minSpend) > 0 && orderTotals(draft).subtotal < Number(cp.minSpend)) return { error: `คูปอง ${cp.name} ต้องยอดสินค้าถึง ${money(Number(cp.minSpend))} · เอาคูปองออกก่อนจึงบันทึกได้` }
-  }
+  const keepIds = (order.couponsUsed || []).filter((c) => !dropCouponIds.includes(c.couponId)).map((c) => c.couponId)
+  const draft = { ...order, items, adjustment }
   if (addCouponIds.length) {
     const problem = posCouponProblem({ customerId: order.customerId, couponIds: addCouponIds })
     if (problem) return { error: problem }
     for (const id of addCouponIds) {
       const cp = db.coupons.find((x) => x.id === id)
       if (!cp || cp.type !== 'discount' || !couponUsable(cp, today())) return { error: 'ใช้คูปองนี้ไม่ได้' }
-      if (Number(cp.minSpend) > 0 && orderTotals(draft).subtotal < Number(cp.minSpend)) return { error: `คูปอง ${cp.name} ต้องยอดสินค้าถึง ${money(Number(cp.minSpend))}` }
-      keep.push({ couponId: id, name: cp.name, amount: Math.min(Math.max(Number(cp.amount) || 0, 0), orderTotals(draft).total) })
     }
   }
-  const after = orderTotals(draft)
+  // ส่วนลดคูปองทั้งชุดคิดใหม่ตามรายการที่แก้ (แบบ % คิดจากยอดใหม่) · ใบที่ไม่เข้าเงื่อนไขแล้วบันทึกไม่ได้
+  const rc = recalcCoupons(draft, [...keepIds, ...addCouponIds])
+  if (rc.error) return { error: rc.error }
+  const after = orderTotals({ ...draft, couponsUsed: rc.coupons })
   if (after.total + 0.005 < before.paidNet) return { error: `ยอดรวมหลังแก้ ${money(after.total)} ต่ำกว่าที่รับไปแล้ว ${money(before.paidNet)} · แก้ได้ไม่ต่ำกว่านี้` }
   // ผ่านทุกเงื่อนไขแล้วจึงแก้จริง (การใช้คูปองที่เพิ่มผ่านเงื่อนไขเดียวกับ applyCoupon ไว้แล้ว)
   order.items = items
   order.adjustment = adjustment
   for (const id of dropCouponIds) if ((order.couponsUsed || []).some((c) => c.couponId === id)) removeCoupon(order, id)
+  order.couponsUsed = order.couponsUsed.map((u) => ({ ...u, amount: rc.coupons.find((x) => x.couponId === u.couponId)?.amount ?? u.amount }))
   for (const id of addCouponIds) applyCoupon(order, id)
   log(order, `แก้รายการบิลค้าง · ยอดรวม ${money(before.total)} → ${money(orderTotals(order).total)}`)
   return { order }

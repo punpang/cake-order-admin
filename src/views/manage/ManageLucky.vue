@@ -1,9 +1,11 @@
 <script setup>
 // ลุ้นโชคท้ายบิล (แอดมิน): หลายโครงการพร้อมกัน · แต่ละโครงการมีเงื่อนไขเดียว (ซื้อสินค้าที่เลือก หรือ ซื้อครบทุก X บาท)
 // ช่วงวันที่ซื้อบิล อายุคูปอง และรางวัลวนตามลำดับของโครงการนั้น · บิลที่เข้าหลายโครงการได้ลุ้นแยกกัน
+// แบบซื้อครบทุก X บาท: ระบบคิดเพดานมูลค่ารางวัลต่อรอบ (ทุกกี่บาท × ครั้งในรอบ × %) และบันทึกไม่ได้ถ้ารางวัลในรอบเกินเพดาน
 import { reactive, ref } from 'vue'
 import { db, saveLuckyDraw } from '../../data/store'
-import { LUCKY_SITE_URL, MAX_DRAWS_PER_BILL, PRIZE_KINDS, PROJECT_KINDS, luckyProjectsOf, newLuckyProject } from '../../lib/luckyDraw'
+import { LUCKY_SITE_URL, MAX_DRAWS_PER_BILL, PRIZE_KINDS, PROJECT_KINDS, ROUND_DRAWS_DEFAULT, PRIZE_PCT_DEFAULT, luckyBudgetOf, luckyProjectsOf, newLuckyProject, prizeValueOf } from '../../lib/luckyDraw'
+import { money } from '../../lib/format'
 import { askConfirm } from '../../lib/confirm'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
@@ -34,10 +36,12 @@ const formOf = (p) => ({
   kind: p.kind === 'amount' ? 'amount' : 'items',
   itemIds: [...(p.itemIds || [])],
   everyBaht: p.everyBaht ?? 100,
+  roundDraws: p.roundDraws ?? ROUND_DRAWS_DEFAULT,
+  prizePct: p.prizePct ?? PRIZE_PCT_DEFAULT,
   fromL: toLocal(p.from),
   toL: toLocal(p.to),
   couponDays: p.couponDays || 30,
-  prizes: (p.prizes || []).map((x) => ({ id: x.id, name: x.name, kind: x.kind || 'discount', amount: x.amount || 0, points: x.points || 10 })),
+  prizes: (p.prizes || []).map((x) => ({ id: x.id, name: x.name, kind: x.kind || 'discount', amount: x.amount || 0, value: x.value || 0, points: x.points || 10 })),
   q: '',
 })
 
@@ -81,8 +85,14 @@ async function removeProject(i) {
   if (yes) st.projects.splice(i, 1)
 }
 
+// ---------- งบรางวัลต่อรอบ (แบบซื้อครบทุก X บาท) ----------
+// คิดจากค่าในฟอร์มทันที ให้เห็นก่อนบันทึก · กติกาเดียวกับตอนบันทึกใน luckyDraw.js
+function budgetOf(p) {
+  return luckyBudgetOf({ everyBaht: p.everyBaht, roundDraws: p.roundDraws, prizePct: p.prizePct, prizes: p.prizes }, db.loyalty.pointValue)
+}
+
 // ---------- รางวัลของแต่ละโครงการ (ไม่จำกัดจำนวน · วนตามลำดับที่ออก) ----------
-function addPrize(p) { p.prizes.push({ id: '', name: '', kind: 'discount', amount: 0, points: 10 }) }
+function addPrize(p) { p.prizes.push({ id: '', name: '', kind: 'discount', amount: 0, value: 0, points: 10 }) }
 function removePrize(p, i) { p.prizes.splice(i, 1) }
 // เลื่อนลำดับขึ้น/ลง (dir = -1 ขึ้น · 1 ลง) · ลำดับนี้คือลำดับที่รางวัลถูกออก
 function movePrize(p, i, dir) {
@@ -105,6 +115,7 @@ function save() {
     siteUrl: st.siteUrl,
     projects: st.projects.map((p) => ({
       id: p.id, name: p.name, enabled: p.enabled, kind: p.kind, itemIds: p.itemIds, everyBaht: p.everyBaht,
+      roundDraws: p.roundDraws, prizePct: p.prizePct,
       from: toIso(p.fromL), to: toIso(p.toL), couponDays: p.couponDays, prizes: p.prizes,
     })),
   })
@@ -170,10 +181,26 @@ function save() {
           </details>
           <p class="text-xs text-stone-500">บิลที่มีสินค้าที่เลือกอย่างน้อย 1 ชิ้น ได้ลุ้น 1 ครั้ง ไม่ดูจำนวนหรือราคา</p>
         </div>
-        <div v-else>
-          <label class="label" :for="'pe-' + pi">ทุกกี่บาทลุ้นได้ 1 ครั้ง</label>
-          <input :id="'pe-' + pi" v-model.number="p.everyBaht" type="number" min="1" step="1" class="input h-11" />
-          <p class="mt-1 text-xs text-stone-500">นับจากยอดที่ลูกค้าจ่ายจริงทั้งบิล (หลังส่วนลดและคูปอง) สูงสุด {{ MAX_DRAWS_PER_BILL }} ครั้งต่อบิล</p>
+        <div v-else class="space-y-3">
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div>
+              <label class="label" :for="'pe-' + pi">ทุกกี่บาทลุ้นได้ 1 ครั้ง</label>
+              <input :id="'pe-' + pi" v-model.number="p.everyBaht" type="number" min="1" step="1" class="input h-11" />
+            </div>
+            <div>
+              <label class="label" :for="'prd-' + pi">ลุ้นกี่ครั้งต่อ 1 รอบ</label>
+              <input :id="'prd-' + pi" v-model.number="p.roundDraws" type="number" min="1" step="1" class="input h-11" />
+            </div>
+            <div>
+              <label class="label" :for="'ppc-' + pi">มูลค่ารางวัลต่อรอบ (%)</label>
+              <input :id="'ppc-' + pi" v-model.number="p.prizePct" type="number" min="0.01" max="100" step="0.01" class="input h-11" />
+            </div>
+          </div>
+          <div class="rounded-xl p-3 text-sm" :class="budgetOf(p).over ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'" role="status">
+            <div>เพดานรางวัลต่อ 1 รอบ = {{ budgetOf(p).per }} × {{ budgetOf(p).roundDraws }} × {{ budgetOf(p).prizePct }}% = <b>{{ money(budgetOf(p).ceiling) }}</b></div>
+            <div>รางวัลในรอบมากสุดตอนนี้ = <b>{{ money(budgetOf(p).worst) }}</b> · {{ budgetOf(p).over ? 'เกินเพดาน บันทึกไม่ได้' : 'ไม่เกินเพดาน' }}</div>
+          </div>
+          <p class="text-xs text-stone-500">นับจากยอดที่ลูกค้าจ่ายจริงทั้งบิล (หลังส่วนลดและคูปอง) สูงสุด {{ MAX_DRAWS_PER_BILL }} ครั้งต่อบิล · รางวัลวนตามลำดับ ระบบคิดรอบที่มีมูลค่ารวมมากที่สุด (นับทุกจุดเริ่มของรอบ)</p>
         </div>
 
         <div class="grid gap-3 sm:grid-cols-2">
@@ -216,9 +243,14 @@ function save() {
                 <label class="label" :for="'pa-' + pi + '-' + i">มูลค่าส่วนลด (บาท)</label>
                 <MoneyInput :id="'pa-' + pi + '-' + i" v-model="x.amount" class="input h-11" placeholder="0" />
               </div>
+              <div v-if="x.kind === 'reward'">
+                <label class="label" :for="'pv-' + pi + '-' + i">มูลค่าของรางวัล (บาท)</label>
+                <MoneyInput :id="'pv-' + pi + '-' + i" v-model="x.value" class="input h-11" placeholder="0" />
+              </div>
               <div v-if="x.kind === 'points'">
                 <label class="label" :for="'pp-' + pi + '-' + i">คะแนนที่ได้</label>
                 <input :id="'pp-' + pi + '-' + i" v-model.number="x.points" type="number" min="1" step="1" class="input h-11" />
+                <p class="mt-1 text-xs text-stone-500">มูลค่า {{ money(prizeValueOf(x, db.loyalty.pointValue)) }}</p>
               </div>
             </div>
             <div class="flex justify-end">

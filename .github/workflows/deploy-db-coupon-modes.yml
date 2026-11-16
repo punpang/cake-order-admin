@@ -1,0 +1,56 @@
+name: Deploy DB coupon modes
+
+# รันเองเท่านั้น: GitHub → Actions → Deploy DB coupon modes → Run workflow
+#   เลือก branch claude/loving-sagan-ygzxt1 (ไฟล์ migration อยู่บนสาขานี้จนกว่าจะ merge) · พิมพ์ RUN ให้ตรง
+# ต้องมี secret SUPABASE_DB_URL (connection string แบบ session pooler ของ production พร้อมรหัสผ่าน)
+# SQL (ธุรกรรมเดียว -1 ผิดพลาดขั้นใดย้อนกลับทั้งหมด):
+#   1) supabase/migrations/20261116160000_punpang_coupon_modes.sql — ตรวจคูปองซื้อครบ/ซื้อสินค้า (ส่วนลด %) และให้การแลกของคัดลอกฟิลด์คูปอง (รันซ้ำได้)
+# ไม่แตะข้อมูลจริง: เปลี่ยนเฉพาะฟังก์ชัน punpang__coupon_entry_ok และ punpang_cust_redeem
+# ควรรันหลัง merge และก่อนใช้คูปองแบบใหม่บนหน้าเว็บ (ไม่เช่นนั้นคูปอง % จะตรวจไม่ผ่านที่ฐานข้อมูล)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'พิมพ์ RUN เพื่อยืนยัน'
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-db-coupon-modes
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      CONFIRM: ${{ github.event.inputs.confirm }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PGSSLMODE: require
+    steps:
+      - name: ตรวจการยืนยันและ secret
+        run: |
+          if [ "$CONFIRM" != "RUN" ]; then echo "ยังไม่ได้พิมพ์ RUN เพื่อยืนยัน จึงไม่รัน"; exit 1; fi
+          if [ -z "$SUPABASE_DB_URL" ]; then echo "ยังไม่ได้ตั้ง secret SUPABASE_DB_URL"; exit 1; fi
+
+      - uses: actions/checkout@v4
+
+      - name: ติดตั้ง psql
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      - name: ตรวจสภาพฐานข้อมูลก่อนรัน
+        run: |
+          t=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from information_schema.tables where table_schema = 'public' and table_name = 'punpang_records'")
+          [ "$t" = "1" ] || { echo "ไม่พบตาราง punpang_records บน production"; exit 1; }
+          f=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('punpang__coupon_entry_ok', 'punpang_cust_redeem')")
+          [ "$f" = "2" ] || { echo "ยังไม่พบฟังก์ชันคูปองบน production"; exit 1; }
+
+      - name: รัน SQL (ธุรกรรมเดียว)
+        run: psql "$SUPABASE_DB_URL" -X -q -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261116160000_punpang_coupon_modes.sql
+
+      - name: ตรวจผลหลังรัน
+        run: |
+          g=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'punpang__coupon_entry_ok' and pg_get_functiondef(p.oid) like '%productId%'")
+          r=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'punpang_cust_redeem' and pg_get_functiondef(p.oid) like '%productName%'")
+          [ "$g" = "1" ] && [ "$r" = "1" ] || { echo "ฟังก์ชันคูปองยังไม่เป็นรุ่นใหม่"; exit 1; }
+          echo "ผ่าน: ตรวจคูปองซื้อครบ/ซื้อสินค้า (%) และการแลกของคัดลอกฟิลด์คูปองแล้ว"
