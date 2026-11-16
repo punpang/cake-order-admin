@@ -315,6 +315,24 @@ Deno.serve(corsWrap(async (req) => {
     return json({ ok: true })
   }
 
+  // ===== แอดมินตั้ง PIN ใหม่ให้ลูกค้า (ตรวจ JWT และสิทธิ์ manage ของพนักงานในฟังก์ชัน · ออกจากระบบทุกเครื่องของลูกค้า) =====
+  if (action === 'admin_reset_pin') {
+    const jwt = String(req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
+    const uid = jwt ? (await sb.auth.getUser(jwt)).data?.user?.id : null
+    const st = uid ? (await sb.from('punpang_staff').select('active,perms').eq('user_id', uid).maybeSingle()).data : null
+    if (!st?.active || !(st.perms || []).includes('manage')) return json({ error: 'เฉพาะแอดมินตั้ง PIN ลูกค้าได้' }, 403)
+    const ph = thaiPhone(b.phone)
+    if (!ph) return json({ error: 'กรอกเบอร์โทรให้ถูกต้อง' }, 400)
+    const a = (await sb.from('punpang_customer_auth').select('customer_id').eq('phone', ph.local).maybeSingle()).data
+    if (!a) return json({ error: 'เบอร์นี้ยังไม่มีบัญชีลูกค้า' }, 404)
+    const weak = weakPin(String(b.pin ?? ''), ph.local)
+    if (weak) return json({ error: weak }, 400)
+    const salt = randHex(16)
+    await sb.from('punpang_customer_auth').update({ pin_salt: salt, pin_hash: await pbkdf2(String(b.pin), salt), failed: 0, locked_until: null }).eq('customer_id', a.customer_id)
+    await sb.from('punpang_customer_sessions').delete().eq('customer_id', a.customer_id)
+    return json({ ok: true })
+  }
+
   // ===== คำสั่งของลูกค้าที่ล็อกอิน (ตรวจเซสชันทุกครั้ง · แก้ได้เฉพาะของตัวเอง) =====
   if (['update_profile', 'submit_review', 'accept_consent'].includes(action)) {
     const t = String(b.session ?? '')

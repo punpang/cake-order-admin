@@ -4197,6 +4197,12 @@ export async function loginPin(phoneRaw, pin) {
   return { ok: true }
 }
 // ลืม PIN (ยังไม่ล็อกอิน): ยืนยัน OTP แล้วตั้ง PIN ใหม่ ปลดล็อกบัญชี
+// แอดมินตั้ง PIN ใหม่ให้ลูกค้า (ต้องเข้าสู่ระบบพนักงานที่มีสิทธิ์จัดการ) · ลูกค้าจะถูกออกจากระบบทุกเครื่อง
+export async function adminResetCustomerPin(phoneRaw, pin) {
+  const r = await callAuth('admin_reset_pin', { phone: phoneDigits(phoneRaw), pin })
+  return r.ok ? { ok: true } : { error: r.error || 'ตั้ง PIN ไม่สำเร็จ' }
+}
+
 export async function resetPin({ token, phone: phoneRaw, pin }) {
   if (remoteCust()) {
     const r = await callAuth('reset', { token, phone: phoneDigits(phoneRaw), pin })

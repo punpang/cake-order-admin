@@ -4,7 +4,8 @@ import { orderNo } from '../../lib/format'
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import NotifyChannelPicker from '../../components/NotifyChannelPicker.vue'
-import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, can } from '../../data/store'
+import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, can, adminResetCustomerPin } from '../../data/store'
+import { isPin } from '../../lib/customerAuth'
 import { askConfirm } from '../../lib/confirm'
 import { orderTotals } from '../../lib/pricing'
 import { STATUS } from '../../lib/constants'
@@ -88,6 +89,23 @@ async function delPlace(p) {
   if (await askConfirm({ title: 'ลบสถานที่', message: p.name || p.address, okText: 'ลบ', danger: true })) removePlace(form.id, p.id)
 }
 
+// แอดมินตั้ง PIN ใหม่ให้ลูกค้าที่ลืม PIN (ใช้ได้เมื่อมีเบอร์และบันทึกแล้ว)
+const pinNew = ref('')
+const pinMsg = ref('')
+const pinBusy = ref(false)
+async function resetCustomerPin() {
+  pinMsg.value = ''
+  if (!isPin(pinNew.value)) return (pinMsg.value = 'PIN ต้องเป็นตัวเลข 6 หลัก')
+  if (!(await askConfirm({ title: 'ตั้ง PIN ใหม่ให้ลูกค้า', message: `ตั้ง PIN ใหม่ให้ ${form.name || 'ลูกค้า'} · ลูกค้าจะถูกออกจากระบบทุกเครื่อง`, okText: 'ตั้ง PIN' }))) return
+  pinBusy.value = true
+  const r = await adminResetCustomerPin(form.phone, pinNew.value)
+  pinBusy.value = false
+  if (r.ok) {
+    pinNew.value = ''
+    pinMsg.value = 'ตั้ง PIN ใหม่แล้ว'
+  } else pinMsg.value = r.error
+}
+
 async function save() {
   if (!form.name.trim()) return (error.value = 'กรอกชื่อลูกค้า')
   if (!phoneValid(form.phone)) return (error.value = 'กรอกเบอร์โทรให้ถูกต้อง (บังคับ)')
@@ -158,6 +176,15 @@ async function save() {
             <span class="rounded-full px-2 py-0.5" :class="form.phone ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'">SMS: {{ form.phone ? 'มีเบอร์' : 'ไม่มีเบอร์' }}</span>
           </div>
           <p class="mt-1 text-xs text-stone-400">ผูก Facebook ได้ในหน้าแชท (เมื่อลูกค้าทักมาทาง Facebook)</p>
+        </div>
+        <div v-if="form.id && form.phone && can('manage')" class="rounded-xl border border-stone-200/70 p-3">
+          <div class="text-sm font-semibold text-stone-800">PIN สำหรับเข้าบัญชีลูกค้า</div>
+          <p class="mt-1 text-xs text-stone-500">ใช้เมื่อลูกค้าลืม PIN · ลูกค้าจะถูกออกจากระบบทุกเครื่อง</p>
+          <div class="mt-2 flex gap-2">
+            <input v-model="pinNew" inputmode="numeric" maxlength="6" class="input" placeholder="PIN ใหม่ 6 หลัก" aria-label="PIN ใหม่ของลูกค้า" />
+            <button type="button" class="btn-soft h-11 shrink-0" :disabled="pinBusy" @click="resetCustomerPin">{{ pinBusy ? 'กำลังตั้ง…' : 'ตั้ง PIN' }}</button>
+          </div>
+          <p v-if="pinMsg" class="mt-2 text-sm" :class="pinMsg === 'ตั้ง PIN ใหม่แล้ว' ? 'text-emerald-700' : 'text-rose-700'" role="status">{{ pinMsg }}</p>
         </div>
         <div v-if="form.id && live" class="rounded-xl border border-stone-200/70 p-3">
           <div class="flex items-center justify-between gap-2">
