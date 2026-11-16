@@ -17,7 +17,7 @@ import { parseAnswer } from '../lib/chatParse'
 import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEFAULT_COOKIE, DEFAULT_LEGAL_CONTACT } from '../lib/legalDefaults'
 import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX, AUTO_SOURCES, LOCKED_SOURCES, AI_MODELS, AI_WAI_MODELS } from '../lib/chatBot'
 import { checkTelegram } from '../lib/integrationCheck'
-import { luckyActive, luckyDefaults, luckyDrawsOf, luckyUrl, genLuckyToken, hashLuckyToken, validateLuckyConfig, LUCKY_SITE_URL } from '../lib/luckyDraw'
+import { luckyDefaults, luckyDrawsByProject, luckyProjectsOf, luckyUrl, genLuckyToken, hashLuckyToken, validateLuckyConfig, LUCKY_SITE_URL } from '../lib/luckyDraw'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
 import { DEFAULT_ACCOUNTS } from '../lib/acct/chart'
 import { cleanClosures, emptyClosures, slotClosed, pickupClosed, isClosedNow, nextOpen } from '../lib/shopHours'
@@ -2177,46 +2177,57 @@ export function customerOrderView(ctx) {
   return o ? publicOrderView(o, { owner: !!ctx.orderId }) : null
 }
 // ---------- ลุ้นโชคท้ายบิล (QR ท้ายใบเสร็จ POS) ----------
-// ออก token ให้บิลที่ขายเสร็จแล้ว ระหว่างช่วงเวลาที่เปิดลุ้น · จำนวนครั้งลุ้นตามยอดที่จ่ายจริงของสินค้าที่ร่วมรายการ
-// เก็บเฉพาะ hash ของ token · คืน token เต็มและ URL ของ QR (ใช้ตอนพิมพ์/แสดงครั้งนี้เท่านั้น) · ลุ้นได้ 0 ครั้งจะไม่ออก QR
+// ออก token ให้บิลที่ขายเสร็จแล้ว · ได้ลุ้นแยกตามโครงการที่บิลนี้เข้าเงื่อนไข (ช่วงวันเช็กจากเวลาที่ขาย) · ลุ้นได้ถึงเวลาสิ้นสุดของโครงการที่ช้าที่สุด
+// เก็บเฉพาะ hash ของ token · คืน token เต็มและ URL ของ QR (ใช้ตอนพิมพ์/แสดงครั้งนี้เท่านั้น) · ไม่มีโครงการที่ได้ลุ้นจะไม่ออก QR
 export async function issueLuckyToken(order) {
   const cfg = db.shop?.luckyDraw
-  if (!luckyActive(cfg, Date.now()) || !order || order.channel !== 'pos' || order.status !== 'delivered' || !can('pos')) return null
-  const draws = luckyDrawsOf(order, cfg)
-  if (draws < 1) return null
+  if (!order || order.channel !== 'pos' || order.status !== 'delivered' || !can('pos')) return null
+  const byProject = luckyDrawsByProject(order, cfg, Date.now())
+  const total = Object.values(byProject).reduce((s, n) => s + n, 0)
+  if (total < 1) return null
+  const ends = luckyProjectsOf(cfg).filter((p) => byProject[p.id]).map((p) => Date.parse(p.to))
   const token = genLuckyToken()
   db.luckyTokens.push({
     id: uid('lk'), tokenHash: await hashLuckyToken(token), orderId: order.id, orderCode: order.code, createdAt: now(),
-    expiresAt: new Date(Date.parse(cfg.to)).toISOString(), draws, spinCount: 0, spins: [],
+    expiresAt: new Date(Math.max(...ends)).toISOString(), draws: byProject, spinCount: 0, spins: [],
   })
-  return { token, url: luckyUrl(cfg.siteUrl, token), draws }
+  return { token, url: luckyUrl(cfg.siteUrl, token), draws: total }
 }
-// ตั้งค่าลุ้นโชคท้ายบิล (เฉพาะแอดมิน): ทุกกี่บาทลุ้นได้ 1 ครั้ง · สินค้าที่ร่วมรายการ · รางวัลวนตามลำดับที่ออก (ไม่จำกัดจำนวน) · อายุคูปอง
-// ช่วงเวลาเริ่มก่อนสิ้นสุด · URL หน้าเว็บขึ้นต้น https
+// ตั้งค่าลุ้นโชคท้ายบิล (เฉพาะแอดมิน): รายการโครงการ (หลายรายการได้) · URL หน้าเว็บขึ้นต้น https
+// แต่ละโครงการ: ชื่อ · เปิด/ปิด · เงื่อนไข (ซื้อสินค้าที่เลือก หรือ ซื้อครบทุก X บาท) · ช่วงวัน · อายุคูปอง · รางวัลวนตามลำดับของโครงการนั้น (ไม่จำกัดจำนวน)
 export function saveLuckyDraw(d) {
   if (!can('manage')) return { error: 'เฉพาะแอดมินตั้งค่าลุ้นโชคได้' }
-  const prizes = (d.prizes || []).map((p) => {
-    const kind = ['discount', 'reward', 'points', 'none'].includes(p.kind) ? p.kind : 'discount'
-    return {
-      id: p.id || uid('lp'), kind,
-      name: String(p.name ?? '').trim() || (kind === 'none' ? 'ไม่ได้รางวัล' : ''),
-      amount: kind === 'discount' ? Number(p.amount) || 0 : 0,
-      points: kind === 'points' ? Number(p.points) || 0 : 0,
-    }
-  })
-  const itemIds = [...new Set((d.itemIds || []).map((x) => String(x)).filter(Boolean))]
-  const perBaht = Number(d.perBaht)
-  const cfgErr = validateLuckyConfig({ perBaht, enabled: !!d.enabled, itemIds, prizes })
-  if (cfgErr) return { error: cfgErr }
-  const from = d.from ? new Date(d.from) : null
-  const to = d.to ? new Date(d.to) : null
-  const valid = from && to && !Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime()) && to > from
-  if (d.enabled && !valid) return { error: 'ตั้งช่วงเวลาให้ครบ และเวลาสิ้นสุดต้องหลังเวลาเริ่ม' }
   const siteUrl = String(d.siteUrl || LUCKY_SITE_URL).trim().replace(/\/+$/, '')
   if (!/^https:\/\/[^\s]+$/.test(siteUrl)) return { error: 'URL หน้าเว็บต้องขึ้นต้นด้วย https://' }
-  const days = Math.round(Number(d.couponDays))
-  if (!(days >= 1 && days <= 365)) return { error: 'อายุคูปองต้องอยู่ระหว่าง 1–365 วัน' }
-  db.shop.luckyDraw = { enabled: !!d.enabled, from: valid ? from.toISOString() : '', to: valid ? to.toISOString() : '', siteUrl, couponDays: days, perBaht, itemIds, prizes }
+  const projects = (d.projects || []).map((p) => {
+    const kind = p.kind === 'amount' ? 'amount' : 'items'
+    const from = p.from ? new Date(p.from) : null
+    const to = p.to ? new Date(p.to) : null
+    const valid = from && to && !Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime()) && to > from
+    return {
+      id: String(p.id || uid('lpj')),
+      name: String(p.name ?? '').trim(),
+      enabled: !!p.enabled,
+      kind,
+      itemIds: kind === 'items' ? [...new Set((p.itemIds || []).map((x) => String(x)).filter(Boolean))] : [],
+      everyBaht: kind === 'amount' ? Number(p.everyBaht) : null,
+      from: valid ? from.toISOString() : '',
+      to: valid ? to.toISOString() : '',
+      couponDays: Math.round(Number(p.couponDays)),
+      prizes: (p.prizes || []).map((x) => {
+        const pk = ['discount', 'reward', 'points', 'none'].includes(x.kind) ? x.kind : 'discount'
+        return {
+          id: x.id || uid('lp'), kind: pk,
+          name: String(x.name ?? '').trim() || (pk === 'none' ? 'ไม่ได้รางวัล' : ''),
+          amount: pk === 'discount' ? Number(x.amount) || 0 : 0,
+          points: pk === 'points' ? Number(x.points) || 0 : 0,
+        }
+      }),
+    }
+  })
+  const cfgErr = validateLuckyConfig({ projects })
+  if (cfgErr) return { error: cfgErr }
+  db.shop.luckyDraw = { siteUrl, projects }
   return { ok: true }
 }
 export function orderLinkUrl(token) {

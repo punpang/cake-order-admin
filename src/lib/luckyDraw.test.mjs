@@ -1,6 +1,9 @@
-// ทดสอบกติกาฝั่งแอปของลุ้นโชคท้ายบิล · รัน: node src/lib/luckyDraw.test.mjs
+// ทดสอบกติกาฝั่งแอปของลุ้นโชคท้ายบิล (หลายโครงการ) · รัน: node src/lib/luckyDraw.test.mjs
 import assert from 'node:assert/strict'
-import { LUCKY_SITE_URL, MAX_DRAWS_PER_BILL, genLuckyToken, hashLuckyToken, luckyActive, luckyDefaults, luckyDrawsOf, luckyUrl, validateLuckyConfig, validateLuckyPrizes } from './luckyDraw.js'
+import {
+  LUCKY_SITE_URL, LEGACY_PROJECT_ID, MAX_DRAWS_PER_BILL, genLuckyToken, hashLuckyToken, luckyDefaults, luckyDrawsByProject,
+  luckyProjectsOf, luckyUrl, newLuckyProject, projectDrawsOf, projectOpenAt, validateLuckyConfig, validateLuckyPrizes, validateLuckyProject,
+} from './luckyDraw.js'
 
 let pass = 0
 const t = async (name, fn) => { await fn(); pass++; console.log('PASS', name) }
@@ -19,18 +22,34 @@ const PR = [
   { id: 'p1', name: 'ส่วนลด 50 บาท', kind: 'discount', amount: 50 },
   { id: 'p2', name: 'คัพเค้ก 1 ชิ้น', kind: 'reward', amount: 0 },
 ]
+const OPEN = { from: '2026-11-15T00:00:00.000Z', to: '2026-11-30T23:59:59.000Z' }
+const items = (over = {}) => ({ id: 'j1', name: 'โครงการสินค้า', enabled: true, kind: 'items', itemIds: ['a'], everyBaht: null, ...OPEN, couponDays: 30, prizes: PR, ...over })
+const amount = (over = {}) => ({ id: 'j2', name: 'โครงการยอด', enabled: true, kind: 'amount', itemIds: [], everyBaht: 100, ...OPEN, couponDays: 30, prizes: PR, ...over })
 
-await t('ค่าเริ่มต้น: ปิดอยู่ ทุก 100 บาท ยังไม่เลือกสินค้า ยังไม่มีรางวัล อายุคูปอง 30 วัน และชี้ไปเว็บหลัก', () => {
+await t('ค่าเริ่มต้น: ไม่มีโครงการ อายุคูปอง 30 วัน และชี้ไปเว็บหลัก · โครงการใหม่ยังปิดอยู่', () => {
   const d = luckyDefaults()
-  assert.equal(d.enabled, false)
-  assert.equal(d.perBaht, 100)
-  assert.deepEqual(d.itemIds, [])
-  assert.deepEqual(d.prizes, [])
+  assert.deepEqual(d.projects, [])
   assert.equal(d.siteUrl, LUCKY_SITE_URL)
-  assert.equal(d.couponDays, 30)
+  const n = newLuckyProject('x', 'amount')
+  assert.equal(n.enabled, false)
+  assert.equal(n.everyBaht, 100)
+  assert.equal(newLuckyProject('y', 'items').everyBaht, null)
+  assert.equal(n.couponDays, 30)
 })
 
-await t('ตรวจรายการรางวัล: ชื่อ ประเภท ส่วนลด และรหัสรางวัล (ไม่มีจำนวนจำกัด)', () => {
+await t('รายการโครงการ: รูปแบบใหม่ใช้ตามที่เก็บ · รูปแบบเดิมย้ายเป็นโครงการแรก legacy (ซื้อสินค้าที่เลือก) · ไม่มีค่าเลยได้ว่าง', () => {
+  assert.deepEqual(luckyProjectsOf({ projects: [items()] }), [items()])
+  const legacy = luckyProjectsOf({ enabled: true, from: OPEN.from, to: OPEN.to, couponDays: 14, perBaht: 100, itemIds: ['a'], prizes: PR })
+  assert.equal(legacy.length, 1)
+  assert.equal(legacy[0].id, LEGACY_PROJECT_ID)
+  assert.equal(legacy[0].kind, 'items')
+  assert.deepEqual(legacy[0].itemIds, ['a'])
+  assert.equal(legacy[0].couponDays, 14)
+  assert.deepEqual(luckyProjectsOf(undefined), [])
+  assert.deepEqual(luckyProjectsOf(luckyDefaults()), [])
+})
+
+await t('ตรวจรายการรางวัล: ชื่อ ประเภท ส่วนลด คะแนน และรหัสรางวัล (ไม่มีจำนวนจำกัด)', () => {
   assert.equal(validateLuckyPrizes(PR), '')
   assert.equal(validateLuckyPrizes([]), '')
   assert.notEqual(validateLuckyPrizes([{ ...PR[0], name: ' ' }]), '')
@@ -45,41 +64,77 @@ await t('ตรวจรายการรางวัล: ชื่อ ปร�
   assert.notEqual(validateLuckyPrizes(null), '')
 })
 
-await t('ตรวจการตั้งค่า: ทุกกี่บาทต้องมากกว่า 0 · เปิดใช้ต้องเลือกสินค้าและมีรางวัล', () => {
-  assert.match(validateLuckyConfig({ perBaht: 0, enabled: false, itemIds: ['a'], prizes: [] }), /มากกว่า 0/)
-  assert.match(validateLuckyConfig({ perBaht: 100, enabled: true, itemIds: [], prizes: PR }), /เลือกสินค้า/)
-  assert.match(validateLuckyConfig({ perBaht: 100, enabled: true, itemIds: ['a'], prizes: [] }), /ตั้งรางวัล/)
-  assert.equal(validateLuckyConfig({ perBaht: 100, enabled: false, itemIds: [], prizes: [] }), '')
-  assert.equal(validateLuckyConfig({ perBaht: 100, enabled: true, itemIds: ['a'], prizes: PR }), '')
+await t('ตรวจโครงการ: ชื่อ · เงื่อนไขสินค้า/ยอด · อายุคูปอง · เปิดแล้วต้องมีช่วงวันและรางวัล', () => {
+  assert.equal(validateLuckyProject(items()), '')
+  assert.equal(validateLuckyProject(amount()), '')
+  assert.match(validateLuckyProject(items({ name: ' ' })), /ตั้งชื่อ/)
+  assert.match(validateLuckyProject(items({ kind: 'other' })), /เลือกเงื่อนไข/)
+  assert.match(validateLuckyProject(items({ itemIds: [] })), /เลือกสินค้า/)
+  assert.equal(validateLuckyProject(items({ itemIds: [], enabled: false })), '') // ปิดอยู่ยังไม่ต้องเลือกสินค้า
+  assert.match(validateLuckyProject(amount({ everyBaht: 0 })), /มากกว่า 0/)
+  assert.match(validateLuckyProject(amount({ everyBaht: 0, enabled: false })), /มากกว่า 0/) // ค่าที่กรอกต้องถูกเสมอ
+  assert.match(validateLuckyProject(items({ couponDays: 0 })), /1–365/)
+  assert.match(validateLuckyProject(items({ couponDays: 366 })), /1–365/)
+  assert.match(validateLuckyProject(items({ from: '', to: '' })), /ช่วงวันที่/)
+  assert.match(validateLuckyProject(items({ from: OPEN.to, to: OPEN.from })), /ช่วงวันที่/)
+  assert.match(validateLuckyProject(items({ prizes: [] })), /รางวัล/)
+  assert.equal(validateLuckyProject(items({ prizes: [], enabled: false })), '')
 })
 
-await t('เปิดให้ลุ้น: ต้องเปิดใช้งานและอยู่ในช่วงเวลา', () => {
-  const cfg = { enabled: true, from: '2026-11-15T00:00:00.000Z', to: '2026-11-30T23:59:59.000Z' }
-  assert.equal(luckyActive(cfg, Date.parse('2026-11-14T23:59:00.000Z')), false)
-  assert.equal(luckyActive(cfg, Date.parse('2026-11-20T00:00:00.000Z')), true)
-  assert.equal(luckyActive(cfg, Date.parse('2026-12-01T00:00:00.000Z')), false)
-  assert.equal(luckyActive({ ...cfg, enabled: false }, Date.parse('2026-11-20T00:00:00.000Z')), false)
+await t('ตรวจทั้งชุด: รหัสโครงการไม่ซ้ำ และแจ้งลำดับโครงการที่ผิด', () => {
+  assert.equal(validateLuckyConfig({ projects: [items(), amount()] }), '')
+  assert.equal(validateLuckyConfig({ projects: [] }), '')
+  assert.match(validateLuckyConfig({ projects: [items(), amount({ id: 'j1' })] }), /รหัสโครงการซ้ำ/)
+  assert.match(validateLuckyConfig({ projects: [items(), amount({ everyBaht: 0 })] }), /^โครงการที่ 2: /)
 })
 
-await t('จำนวนครั้งลุ้น: นับเฉพาะสินค้าที่ร่วมรายการ ทุก X บาท ปัดลง', () => {
-  assert.equal(luckyDrawsOf(bill(), { perBaht: 100, itemIds: ['a'] }), 2) // a = 200 บาท → 2 ครั้ง
-  assert.equal(luckyDrawsOf(bill(), { perBaht: 100, itemIds: ['b'] }), 0) // b = 50 บาท ยังไม่ถึง 100
-  assert.equal(luckyDrawsOf(bill(), { perBaht: 50, itemIds: ['a', 'b'] }), 5) // 250 ÷ 50
-  assert.equal(luckyDrawsOf(bill(), { perBaht: 100, itemIds: [] }), 0) // ไม่เลือกสินค้า = ไม่มีบิลไหนลุ้น
-  assert.equal(luckyDrawsOf(bill(), { perBaht: 0, itemIds: ['a'] }), 0)
+await t('เปิดโครงการ: ต้องเปิดใช้งานและบิลถูกขายในช่วงเวลา', () => {
+  const p = items()
+  assert.equal(projectOpenAt(p, Date.parse('2026-11-14T23:59:00.000Z')), false)
+  assert.equal(projectOpenAt(p, Date.parse('2026-11-20T00:00:00.000Z')), true)
+  assert.equal(projectOpenAt(p, Date.parse('2026-12-01T00:00:00.000Z')), false)
+  assert.equal(projectOpenAt({ ...p, enabled: false }, Date.parse('2026-11-20T00:00:00.000Z')), false)
 })
 
-await t('จำนวนครั้งลุ้นใช้ยอดที่จ่ายจริง: ส่วนลดคูปองลดสัดส่วนของสินค้าที่ร่วมด้วย', () => {
-  const withCoupon = bill({ couponsUsed: [{ couponId: 'c1', name: 'คูปอง', amount: 50 }] }) // ยอดจ่าย 200 จาก 250
-  // สินค้า a = 200 × (200 ÷ 250) = 160 บาท → 1 ครั้ง (ไม่ใช่ 2 ครั้งตามราคาก่อนลด)
-  assert.equal(luckyDrawsOf(withCoupon, { perBaht: 100, itemIds: ['a'] }), 1)
+await t('ซื้อสินค้าที่เลือก: มีสินค้าที่เลือกอย่างน้อย 1 ชิ้น = 1 ครั้ง ไม่ดูจำนวนหรือราคา', () => {
+  assert.equal(projectDrawsOf(bill(), items({ itemIds: ['a'] })), 1) // a ซื้อ 2 ชิ้น = 1 ครั้ง
+  assert.equal(projectDrawsOf(bill(), items({ itemIds: ['b'] })), 1) // b ราคา 50 บาท ก็ได้ 1 ครั้ง
+  assert.equal(projectDrawsOf(bill(), items({ itemIds: ['x'] })), 0) // ไม่มีสินค้าที่เลือกในบิล
+  assert.equal(projectDrawsOf(bill(), items({ itemIds: [] })), 0)
+  const gift = bill({ items: [{ retailId: 'g', name: 'ของแถม', unitPrice: 0, qty: 1, promoGift: { dealId: 'd', name: 'แถม' } }] })
+  assert.equal(projectDrawsOf(gift, items({ itemIds: ['g'] })), 0) // ของแถมจากโปรไม่นับ
 })
 
-await t('ของแถมจากโปรไม่นับ และเพดานต่อบิลคือ 10 ครั้ง', () => {
-  const gift = bill({ items: [...bill().items, { retailId: 'g', name: 'ของแถม', unitPrice: 0, qty: 1, promoGift: { dealId: 'd', name: 'แถม' } }] })
-  assert.equal(luckyDrawsOf(gift, { perBaht: 100, itemIds: ['g'] }), 0)
+await t('ซื้อครบทุก X บาท: ยอดที่จ่ายจริงทั้งบิล ÷ X ปัดลง และไม่เกินเพดาน', () => {
+  assert.equal(projectDrawsOf(bill(), amount({ everyBaht: 100 })), 2) // 250 ÷ 100
+  assert.equal(projectDrawsOf(bill(), amount({ everyBaht: 50 })), 5) // 250 ÷ 50
+  assert.equal(projectDrawsOf(bill(), amount({ everyBaht: 300 })), 0) // ยังไม่ถึง 300
+  assert.equal(projectDrawsOf(bill(), amount({ everyBaht: 0 })), 0)
   const big = bill({ items: [{ retailId: 'a', name: 'เค้กใหญ่', unitPrice: 10000, qty: 1 }] })
-  assert.equal(luckyDrawsOf(big, { perBaht: 100, itemIds: ['a'] }), MAX_DRAWS_PER_BILL)
+  assert.equal(projectDrawsOf(big, amount({ everyBaht: 100 })), MAX_DRAWS_PER_BILL)
+})
+
+await t('ยอดซื้อครบใช้ยอดหลังหักส่วนลดและคูปอง', () => {
+  const withCoupon = bill({ couponsUsed: [{ couponId: 'c1', name: 'คูปอง', amount: 50 }] }) // ยอดจ่าย 200 จาก 250
+  assert.equal(projectDrawsOf(withCoupon, amount({ everyBaht: 100 })), 2) // 200 ÷ 100
+  assert.equal(projectDrawsOf(withCoupon, amount({ everyBaht: 150 })), 1) // 200 ÷ 150
+})
+
+await t('หลายโครงการ: แต่ละโครงการนับแยก · เฉพาะโครงการที่เปิดในช่วงเวลาขาย และมีครั้งลุ้นอย่างน้อย 1', () => {
+  const cfg = {
+    projects: [
+      items({ id: 'j1' }), // ซื้อสินค้า a → 1 ครั้ง
+      amount({ id: 'j2', everyBaht: 100 }), // 250 → 2 ครั้ง
+      amount({ id: 'j3', everyBaht: 300 }), // ยังไม่ถึง → ไม่มี
+      items({ id: 'j4', itemIds: ['x'] }), // ไม่มีสินค้าในบิล → ไม่มี
+      items({ id: 'j5', enabled: false }), // ปิดอยู่ → ไม่มี
+      amount({ id: 'j6', from: '2026-12-01T00:00:00.000Z', to: '2026-12-31T00:00:00.000Z' }), // ยังไม่ถึงช่วง → ไม่มี
+    ],
+  }
+  const now = Date.parse('2026-11-20T00:00:00.000Z')
+  assert.deepEqual(luckyDrawsByProject(bill(), cfg, now), { j1: 1, j2: 2 })
+  assert.deepEqual(luckyDrawsByProject(bill(), { projects: [] }, now), {})
+  assert.deepEqual(luckyDrawsByProject(bill(), undefined, now), {})
 })
 
 await t('token: 32 ตัว base64url และไม่ซ้ำกัน', () => {

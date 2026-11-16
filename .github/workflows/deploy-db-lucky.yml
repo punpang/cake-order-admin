@@ -3,8 +3,10 @@ name: Deploy DB lucky draw
 # รันเองเท่านั้น: GitHub → Actions → Deploy DB lucky draw → Run workflow
 #   เลือก branch claude/loving-sagan-ygzxt1 (ไฟล์ migration อยู่บนสาขานี้จนกว่าจะ merge) · พิมพ์ RUN ให้ตรง
 # ต้องมี secret SUPABASE_DB_URL (connection string แบบ session pooler ของ production พร้อมรหัสผ่าน)
-# SQL = supabase/migrations/20261115160000_punpang_lucky_draw.sql · ธุรกรรมเดียว (-1): ผิดพลาดขั้นใดย้อนกลับทั้งหมด
-# เพิ่ม collection luckyTokens ใน punpang_records + อัปเดต punpang_rec_can · รันก่อน deploy แอปที่ใช้ลุ้นโชค
+# SQL ตามลำดับ (ธุรกรรมเดียว -1 ผิดพลาดขั้นใดย้อนกลับทั้งหมด):
+#   1) supabase/migrations/20261115160000_punpang_lucky_draw.sql — collection luckyTokens + punpang_rec_can (รันซ้ำได้)
+#   2) supabase/migrations/20261116090000_punpang_lucky_projects.sql — หลายโครงการ: ย้ายชุดเดิม และ punpang_lucky_spin รับรหัสโครงการ
+# รันก่อน deploy Edge Function lucky-spin และก่อน deploy แอปที่ใช้ลุ้นโชค
 
 on:
   workflow_dispatch:
@@ -44,10 +46,12 @@ jobs:
           [ "$f" = "1" ] || { echo "ไม่พบฟังก์ชัน punpang_rec_can บน production"; exit 1; }
 
       - name: รัน SQL (ธุรกรรมเดียว)
-        run: psql "$SUPABASE_DB_URL" -X -q -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261115160000_punpang_lucky_draw.sql
+        run: psql "$SUPABASE_DB_URL" -X -q -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261115160000_punpang_lucky_draw.sql -f supabase/migrations/20261116090000_punpang_lucky_projects.sql
 
       - name: ตรวจผลหลังรัน
         run: |
           c=$(psql "$SUPABASE_DB_URL" -X -tA -c "select pg_get_constraintdef(oid) like '%luckyTokens%' from pg_constraint where conname = 'punpang_records_collection_check'")
           [ "$c" = "t" ] || { echo "ยังไม่พบ luckyTokens ใน constraint"; exit 1; }
-          echo "ผ่าน: เพิ่ม luckyTokens และอัปเดตสิทธิ์แล้ว"
+          p=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'punpang_lucky_spin' and p.pronargs = 3")
+          [ "$p" = "1" ] || { echo "ยังไม่พบ punpang_lucky_spin รุ่นหลายโครงการ"; exit 1; }
+          echo "ผ่าน: เพิ่ม luckyTokens อัปเดตสิทธิ์ และติดตั้งลุ้นหลายโครงการแล้ว"
