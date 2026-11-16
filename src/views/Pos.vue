@@ -1156,6 +1156,15 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                     </button>
                   </div>
 
+                  <div class="hidden flex-1 flex-col items-center justify-center rounded-2xl bg-amber-50 p-4 text-center sm:flex">
+                    <span class="relative grid h-10 w-10 place-items-center" aria-hidden="true">
+                      <span v-if="!expiredLine(l)" class="motion-safe:animate-ping absolute inset-0 rounded-full bg-amber-300/60" />
+                      <span class="relative h-3 w-3 rounded-full" :class="expiredLine(l) ? 'bg-rose-500' : 'bg-amber-500'" />
+                    </span>
+                    <div class="mt-3 text-sm text-stone-600">ยอดที่รอรับ</div>
+                    <div class="text-2xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</div>
+                    <p class="mt-2 max-w-xs text-xs text-stone-500">{{ expiredLine(l) ? 'QR หมดอายุแล้ว สร้าง QR ใหม่เพื่อรับชำระ' : 'รอการโอนเข้า ระบบจับคู่ให้อัตโนมัติเมื่อยอดและรหัสอ้างอิงตรงกัน' }}</p>
+                  </div>
                   <div class="mt-auto space-y-2">
                     <button v-if="expiredLine(l)" type="button" class="btn-primary h-12 w-full" @click="makeQr(l)">สร้าง QR ใหม่</button>
                     <button v-else type="button" class="btn-outline h-12 w-full" @click="receiveNow(l)">ลูกค้าชำระแล้ว (ไม่พบอัตโนมัติ)</button>
