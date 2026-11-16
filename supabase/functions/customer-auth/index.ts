@@ -162,7 +162,7 @@ Deno.serve(corsWrap(async (req) => {
     }
     if (!ph) return json({ error: 'กรอกเบอร์โทรให้ถูกต้อง' }, 400)
     const au = await sb.from('punpang_customer_auth').select('customer_id').eq('phone', ph.local).maybeSingle()
-    if (purpose === 'register' && au.data) return json({ error: 'เบอร์นี้สมัครแล้ว กรุณาเข้าสู่ระบบ' }, 409)
+    // สมัครใหม่: ไม่ตอบว่าเบอร์มีบัญชีแล้วก่อนยืนยัน OTP (กันการเดาเบอร์ที่มีบัญชี) · ตอบ 409 ได้เฉพาะหลังยืนยัน OTP ในขั้นสมัคร
     const last = await sb.from('punpang_otps').select('sent_at').eq('phone', ph.local).eq('purpose', purpose).order('sent_at', { ascending: false }).limit(1).maybeSingle()
     if (last.data) {
       const age = Date.now() - new Date(last.data.sent_at).getTime()
