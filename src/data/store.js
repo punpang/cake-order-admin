@@ -3203,7 +3203,7 @@ export function saveBotSettings(d) {
   b.enabled = !!d.enabled
   b.mode = ['suggest', 'auto'].includes(d.mode) ? d.mode : 'suggest'
   b.sourceModes = Object.fromEntries(AUTO_SOURCES.map((k) => [k, d.sourceModes?.[k] === 'auto' ? 'auto' : 'suggest']))
-  b.channels = { facebook: !!d.channels?.facebook, instagram: !!d.channels?.instagram }
+  b.channels = { facebook: !!d.channels?.facebook, instagram: !!d.channels?.instagram, line: !!d.channels?.line }
   b.confidence = Math.min(0.95, Math.max(0.3, Number(d.confidence) || 0.6))
   b.delaySec = Math.min(60, Math.max(0, Math.round(Number(d.delaySec) || 0)))
   b.offHours = { enabled: !!d.offHours?.enabled, text: String(d.offHours?.text ?? '').trim().slice(0, 300) || BOT_DEFAULTS.offHours.text }

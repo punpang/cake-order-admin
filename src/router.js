@@ -123,6 +123,7 @@ const router = createRouter({
     { path: '/admin/settings/profit', component: ManageProfit, meta: { data: ['ordersAll'] } },
     { path: '/admin/settings/shop', component: ManageShop },
     { path: '/admin/settings/lucky', component: ManageLucky },
+    { path: '/admin/settings/line-history', component: () => import('./views/manage/ManageLineHistory.vue'), meta: { perms: ['chat'] } },
     { path: '/admin/settings/test', component: ManageTestMode },
     { path: '/admin/settings/birthdays', component: ManageBirthdays, meta: { data: ['ordersAll'] } },
     { path: '/admin/settings/integrations', component: ManageIntegrations },

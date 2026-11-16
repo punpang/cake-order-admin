@@ -84,7 +84,7 @@ const tab = ref('settings')
         </ul>
         <p class="mt-1 text-xs text-stone-400">การส่งต่อพนักงาน และข้อความที่ยืนยันตัวตนไม่ได้ จะให้พนักงานตอบเสมอ · Facebook ส่งเองได้เฉพาะภายใน 24 ชม.</p>
       </div>
-      <div class="flex flex-wrap gap-4"><AppSwitch v-model="st.channels.facebook" label="Facebook (ภายใน 24 ชม.)" /><AppSwitch v-model="st.channels.instagram" label="Instagram (ภายใน 24 ชม.)" /></div>
+      <div class="flex flex-wrap gap-4"><AppSwitch v-model="st.channels.facebook" label="Facebook (ภายใน 24 ชม.)" /><AppSwitch v-model="st.channels.instagram" label="Instagram (ภายใน 24 ชม.)" /><AppSwitch v-model="st.channels.line" label="LINE (บอทอย่างเดียว ไม่มีพนักงานตอบ)" /><router-link to="/admin/settings/line-history" class="btn-soft inline-flex h-10 items-center px-4">ประวัติ LINE</router-link></div>
       <div class="space-y-2 rounded-xl border border-stone-200 bg-white p-3">
         <h3 class="font-semibold text-stone-900">สถานะพิมพ์และอ่านแล้ว</h3>
         <p class="text-xs text-stone-500">ร้านเห็นสถานะของลูกค้าเสมอ · สวิตช์ด้านล่างควบคุมเฉพาะว่าลูกค้าจะเห็นสถานะของร้านหรือไม่</p>

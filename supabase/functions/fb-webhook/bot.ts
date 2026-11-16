@@ -38,7 +38,7 @@ const pickFilled = (tpls: string[], vars: Record<string, string>, avoid?: string
 const MIN_DELAY_MS = 2000 // หน่วงก่อนตอบให้เหมือนพนักงานพิมพ์ (ไม่ตอบทันทีเกินไป)
 const MAX_DELAY_MS = 5000
 
-type Dec = { reply: string; source: string; handoff: boolean; reason: string; ruleId?: string; learnedId?: string; unsure?: boolean; draftOnly?: boolean }
+export type Dec = { reply: string; source: string; handoff: boolean; reason: string; ruleId?: string; learnedId?: string; unsure?: boolean; draftOnly?: boolean }
 export type BotInput = {
   sb: any
   token: string
@@ -152,7 +152,7 @@ export function decide(text: string, bot: any, shop: any, storefront: any, at: D
 }
 
 // ---- บอท AI (ไม่แน่ใจ → ถามโมเดล) ----
-const isSensitiveText = (t: string) => SENSITIVE.some((w) => lc(t).includes(w))
+export const isSensitiveText = (t: string) => SENSITIVE.some((w) => lc(t).includes(w))
 const AI_CHAR_CAP = 500 // ตัดข้อความแต่ละข้อความก่อนส่ง
 const clampInt = (v: unknown, lo: number, hi: number, d: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d }
 
@@ -224,7 +224,7 @@ async function takeAiQuota(o: BotInput, day: string, key: string, limit: number)
   const took = await o.sb.rpc('punpang_ai_take', { p_day: key, p_limit: limit })
   return !took.error && took.data === true
 }
-async function tryAi(o: BotInput, bot: any, shop: any, storefront: any, profileName: string, dec0: Dec, cid: string | null): Promise<Dec> {
+export async function tryAi(o: BotInput, bot: any, shop: any, storefront: any, profileName: string, dec0: Dec, cid: string | null): Promise<Dec> {
   const cfg = bot.ai
   const skip = (why: string): Dec => ({ ...dec0, reason: `${dec0.reason} · ${why}` })
   if (!cfg || cfg.enabled !== true) return dec0
@@ -307,7 +307,7 @@ async function logAi(o: BotInput, x: { status: string; model?: string; ms?: numb
 }
 
 // ผู้ช่วย: อ่านค่า config จาก punpang_kv (อ่านอย่างเดียว)
-async function loadConfig(sb: any) {
+export async function loadConfig(sb: any) {
   const [cfg, sf] = await Promise.all([
     sb.from('punpang_kv').select('id,data').eq('collection', 'config').in('id', ['bot', 'shop']),
     sb.from('punpang_kv').select('data').eq('collection', 'storefront').eq('id', 'storefront').maybeSingle(),
