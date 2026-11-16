@@ -3,6 +3,7 @@ import { corsWrap } from '../_shared/cors.ts'
 import { reserveOtpAttempt, reservePinAttempt } from '../_shared/authguard.ts'
 import { filesEnv, isR2Ref, keyOfR2Ref, svcSign } from '../_shared/filesvc.ts'
 import { clientIp } from '../_shared/ratelimit.ts'
+import { promoConsentPatch } from '../_shared/schedlib/promoConsent.js'
 import { publicPaymentOf } from '../_shared/shoppay.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -364,7 +365,7 @@ Deno.serve(corsWrap(async (req) => {
           cu = (await sb.from('punpang_customers').select(cuSel).eq('id', cid).maybeSingle()).data
           if (!cu || cu.data?.deleted) return json({ error: 'ไม่พบบัญชี' }, 401)
         }
-        const u = await sb.from('punpang_customers').update({ name, data: { ...(cu.data || {}), promoOptIn: !!b.promoOptIn } }).eq('id', cid).eq('updated_at', cu.updated_at).select('id')
+        const u = await sb.from('punpang_customers').update({ name, data: promoConsentPatch(cu.data || {}, !!b.promoOptIn, new Date().toISOString()) }).eq('id', cid).eq('updated_at', cu.updated_at).select('id')
         if (u.error) return json({ error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' }, 500)
         saved = (u.data || []).length > 0
       }

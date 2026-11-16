@@ -30,6 +30,7 @@ export const SETTINGS_PAGES = [
   { group: 'channels', to: '/admin/settings/integrations', icon: 'send', title: 'การเชื่อมต่อ & แจ้งเตือน', keywords: 'facebook telegram ข้อความ' },
   { group: 'channels', to: '/admin/settings/sms', icon: 'phone', title: 'SMS Gateway', keywords: 'ข้อความ โทรศัพท์' },
   { group: 'channels', to: '/admin/settings/bot', icon: 'chat', title: 'บอทตอบแชท', keywords: 'ai อัตโนมัติ คีย์เวิร์ด' },
+  { group: 'channels', to: '/admin/settings/campaigns', icon: 'send', title: 'ประชาสัมพันธ์ & โปรโมชั่น', keywords: 'ข่าว โฆษณา โปรโมชัน แจ้งเตือน เว็บ แอป push' },
   { group: 'privacy', to: '/admin/settings/legal', icon: 'shield', title: 'PDPA / คุกกี้ / เงื่อนไข', keywords: 'นโยบาย ความเป็นส่วนตัว' },
   { group: 'privacy', to: '/admin/settings/photo-requests', icon: 'alert', title: 'คำขอไม่เผยแพร่รูป', keywords: 'รูปงาน ลูกค้า' },
   { group: 'privacy', to: '/admin/settings/deletion-requests', icon: 'user', title: 'คำขอลบข้อมูลลูกค้า', keywords: 'pdpa ลบบัญชี' },

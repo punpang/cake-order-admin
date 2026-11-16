@@ -185,8 +185,10 @@ function cancelReply() {
   replyTo.value = null
 }
 // ชื่อประเภทการ์ดจากร้าน (การ์ดแจ้งยอด/ลิงก์/สรุปออร์เดอร์)
-const CARD_LABEL = { payreq: 'แจ้งยอดชำระ', order: 'สรุปออร์เดอร์', link: 'ลิงก์ออร์เดอร์', quote: 'ใบเสนอราคา', info: 'ข้อความจากร้าน' }
+const CARD_LABEL = { payreq: 'แจ้งยอดชำระ', order: 'สรุปออร์เดอร์', link: 'ลิงก์ออร์เดอร์', quote: 'ใบเสนอราคา', info: 'ข้อความจากร้าน', announce: 'ประชาสัมพันธ์', promo: 'โปรโมชั่น', ad: 'โฆษณา' }
 const cardLabel = (c) => CARD_LABEL[c?.kind] || CARD_LABEL.info
+// การ์ดประชาสัมพันธ์/โปรโมชั่น/โฆษณา: ปุ่มเปิดลิงก์เป็น "ดูรายละเอียด" (ไม่ใช่ "ดูออร์เดอร์")
+const PROMO_KINDS = ['announce', 'promo', 'ad']
 // ข้อความสั้น ๆ สำหรับแถบตอบกลับ (ตรงกับที่พนักงานเห็น)
 const snippetOf = (m) => {
   if (!m) return ''
@@ -307,7 +309,7 @@ onBeforeUnmount(() => {
               <p class="font-display text-base leading-snug text-stone-900">{{ m.card.title || cardLabel(m.card) }}</p>
               <p v-if="m.card.subtitle" class="mt-0.5 text-sm font-semibold text-stone-700">{{ m.card.subtitle }}</p>
               <p v-if="m.text" class="mt-2 text-sm leading-relaxed break-words whitespace-pre-wrap text-stone-700">{{ m.text }}</p>
-              <a v-if="safeHref(m.card.url)" :href="safeHref(m.card.url)" target="_blank" rel="noopener" class="btn-soft mt-3 h-10 w-full text-sm">{{ m.card.kind === 'payreq' || m.card.pay ? 'ดูและชำระเงิน' : 'ดูออร์เดอร์' }}</a>
+              <a v-if="safeHref(m.card.url)" :href="safeHref(m.card.url)" target="_blank" rel="noopener" class="btn-soft mt-3 h-10 w-full text-sm">{{ m.card.kind === 'payreq' || m.card.pay ? 'ดูและชำระเงิน' : PROMO_KINDS.includes(m.card.kind) ? 'ดูรายละเอียด' : 'ดูออร์เดอร์' }}</a>
             </div>
           </div>
           <div

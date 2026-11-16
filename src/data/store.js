@@ -36,6 +36,7 @@ import { checkCustomerTxn, refTaken, bankByCode, PAY_MSG, thaiMinute } from '../
 import { SLIP_RECEIVE_NOTE, slipRoom, slipChoices, slipBindError } from '../lib/slipBind'
 import { payAccountsOf } from '../lib/payAccounts'
 import { customerTargets, withNewRules, CHANNEL_RULE_VERSION } from '../lib/notifyPlan'
+import { promoConsentPatch } from '../lib/promoConsent'
 import { uploadChatImage } from '../lib/chatImage'
 import { billerIdOf, newQrSuffix, promptPayBillerPayload, qrRefOk, shopRefOfCode } from '../lib/promptpay'
 import { gateOf, gateBlocks, GATE_MESSAGE } from '../lib/orderGate'
@@ -701,6 +702,8 @@ export function saveCustomer(d) {
   const c = upsert(db.customers, 'c', { ...rest, ...tax, phone: phoneDigits(d.phone) })
   if (!c.ledger) Object.assign(c, { ledger: [], spins: 0 })
   if (!c.places) c.places = []
+  // ร้านปิดรับข่าวสารให้ลูกค้า → ล้างเวลายินยอม (ลูกค้าต้องกดเปิดรับเองใหม่ถึงจะนับ)
+  if (c.promoOptIn === false) delete c.promoConsentAt
   return c
 }
 // ตารางราคา { [k]: { [sizeId]: ราคา } } ตัดช่องว่าง
@@ -4315,7 +4318,11 @@ export function updateMyProfile({ name, promoOptIn }) {
   const n = String(name ?? c.name).trim()
   if (!n) return { error: 'กรอกชื่อ' }
   c.name = n.slice(0, 100)
-  c.promoOptIn = !!promoOptIn
+  // ลูกค้ากดเปิดรับเองเท่านั้นที่บันทึกเวลายินยอม (ตามกติกาประชาสัมพันธ์)
+  const consent = promoConsentPatch(c, !!promoOptIn, now())
+  c.promoOptIn = consent.promoOptIn
+  if (consent.promoConsentAt) c.promoConsentAt = consent.promoConsentAt
+  else delete c.promoConsentAt
   return { ok: true }
 }
 const reviewOfOrder = (id) => db.reviews.find((r) => r.orderId === id)

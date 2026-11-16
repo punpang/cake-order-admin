@@ -13,6 +13,8 @@ export const SCHEDLIB_FILES = [
   'posPromo.js', 'delivery.js', 'shopHours.js', 'docNo.js', 'quotePrice.js', 'posAudit.js', 'orderAudit.js', 'catalogHistory.js',
   // การ์ดสรุปออร์เดอร์ในแชท (ใช้สร้างการ์ดให้ออร์เดอร์เดิมตอนลูกค้าเปิดแชท)
   'chatCards.js',
+  // ประชาสัมพันธ์/โปรโมชั่น: เกณฑ์ความยินยอม (customer-auth) และการตรวจแคมเปญ/การ์ด (campaign, scheduled)
+  'promoConsent.js', 'campaigns.js',
 ]
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')

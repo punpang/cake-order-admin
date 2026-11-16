@@ -62,7 +62,8 @@ export function customerOrderView(m: Json) {
 }
 
 // การ์ดแจ้งเตือน/ลิงก์จากร้าน (เช่น แจ้งยอดชำระ ลิงก์ดูออร์เดอร์): ชนิดการ์ดต้องอยู่ในรายการที่กำหนด · ลิงก์และรูปเฉพาะ https
-const CARD_KINDS = ['order', 'payreq', 'link', 'quote']
+// ประชาสัมพันธ์/โปรโมชั่น/โฆษณาจากร้าน (campaign) ใช้ชนิดการ์ดของตัวเอง
+const CARD_KINDS = ['order', 'payreq', 'link', 'quote', 'announce', 'promo', 'ad']
 export function customerCardView(m: Json) {
   const c = m.card && typeof m.card === 'object' ? (m.card as Json) : null
   const kind = c && CARD_KINDS.includes(String(c.kind)) ? String(c.kind) : 'info'
