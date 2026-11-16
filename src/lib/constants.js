@@ -166,8 +166,10 @@ export const CHANNELS = {
   sms: { label: 'SMS', audience: 'customer', prep: 'ผู้ให้บริการ SMS ไทย + ชื่อผู้ส่ง (sender name) · คิดเงินต่อข้อความ (ไทย 70 ตัวอักษร/ข้อความ)' },
   facebook: { label: 'Facebook Page', audience: 'customer', prep: 'Meta App + Page access token · ต้องผ่าน App Review · ส่งได้ภายใน 24 ชม. หลังลูกค้าทักล่าสุด' },
 }
-// ลำดับเลือกช่องทางถึงลูกค้า
-export const CUSTOMER_CHANNEL_ORDER = ['facebook', 'sms']
+// ลำดับช่องทางถึงลูกค้า: เว็บ/แอป = ช่องทางหลักของทุกออเดอร์ · Facebook = ตัวเลือกเสริม (ไม่อยู่ในค่าเริ่มต้นแล้ว) · SMS
+export const CUSTOMER_CHANNEL_ORDER = ['web', 'facebook', 'sms']
+// ชื่อช่องทางที่แสดง (เว็บ/แอปไม่ใช่การเชื่อมต่อภายนอก จึงไม่อยู่ใน CHANNELS)
+export const channelLabel = (k) => (k === 'web' ? 'เว็บ/แอป' : CHANNELS[k]?.label || k)
 // เหตุการณ์: audience = customer (ส่งลูกค้า) | team (แจ้งทีมผ่าน Telegram), scheduled = ตรวจตามเวลา (ของจริงใช้ cron), marketing = ต้องให้ลูกค้ายินยอมรับข่าว
 export const NOTIFY_EVENTS = {
   order_created: { label: 'สร้างออร์เดอร์ (สรุป)', audience: 'customer' },

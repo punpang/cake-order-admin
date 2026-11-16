@@ -4,7 +4,7 @@ import { modeOf, refuseInTest } from '../_shared/mode.ts'
 // เนื้อหา: เตือนนัดรับ · เตือนชำระ · วันเกิด · คะแนนใกล้หมดอายุ (ลูกค้า) · ใกล้เวลาต้องเสร็จ · เกินกำหนดชำระ (ทีม) · ค่าใช้จ่ายประจำที่ยังไม่บันทึก · งวดผ่อนชำระใกล้/เลยกำหนด (ทีม)
 // ยังไม่รวม: เตือน VAT และการบันทึกค่าใช้จ่ายประจำอัตโนมัติ (ต้องใช้ยอดขาย/เขียนบัญชี) และการลบคูปองหมดอายุ → ยังทำในแอปพนักงาน
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { planScheduled, todayBkk, withNewRules } from '../_shared/scheduled/plan.ts'
+import { planScheduled, todayBkk, prepareRules } from '../_shared/scheduled/plan.ts'
 import { accountingPlans } from '../_shared/scheduled/accounting.ts'
 import { runPlans, type Ctx } from '../_shared/scheduled/run.ts'
 
@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
     const tgToken = (Deno.env.get('TELEGRAM_BOT_TOKEN') || '').trim()
     const tgChat = (Deno.env.get('TELEGRAM_CHAT_ID') || '').trim()
 
-    const planned = planScheduled({ nowMs, shop: cfg.shop || {}, rules: withNewRules(cfg.notifyRules || []), orders, customers, sent })
+    const planned = planScheduled({ nowMs, shop: cfg.shop || {}, rules: prepareRules(cfg.notifyRules || []), orders, customers, sent })
     // ถ้าอ่านข้อมูลบัญชีไม่ได้ ให้เตือนส่วนอื่นต่อไปตามปกติ (รอบถัดไปจะเตือนรายการที่ยังค้างอยู่เอง)
     let acctPlans: Any[] = []
     let acctError = ''
@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
     const ctx: Ctx = {
       sb,
       nowMs,
-      rules: withNewRules(cfg.notifyRules || []),
+      rules: prepareRules(cfg.notifyRules || []),
       integrations: cfg.integrations || {},
       chats,
       fb: pg.data?.token ? { token: String(pg.data.token), version: (Deno.env.get('FB_GRAPH_VERSION') || 'v24.0').trim() } : null,

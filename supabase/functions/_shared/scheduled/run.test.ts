@@ -7,7 +7,7 @@ import type { Plan } from './plan.ts'
 type Any = any
 
 // ไคลเอนต์จำลองของ punpang_records / punpang_chats: บันทึก insert/update และตอบ select แบบเรียบง่าย
-function fakeSb(chats: Any[] = []) {
+function fakeSb(chats: Any[] = [], accounts: Any[] = []) {
   const inserts: { table: string; row: Any }[] = []
   const updates: { table: string; patch: Any }[] = []
   const seen = new Set<string>()
@@ -16,7 +16,7 @@ function fakeSb(chats: Any[] = []) {
       eq() { return q },
       select() { return q },
       maybeSingle() {
-        const row = table === 'punpang_chats' ? chats[0] ?? null : null
+        const row = table === 'punpang_chats' ? chats[0] ?? null : table === 'punpang_customer_auth' ? accounts[0] ?? null : null
         return Promise.resolve({ data: row, error: null })
       },
       insert(row: Any) {
@@ -129,4 +129,26 @@ Deno.test('กันส่งซ้ำ: คีย์ที่จองไปแ�
   assertEquals([first.done, first.skipped], [1, 0])
   assertEquals([second.done, second.skipped], [0, 1])
   assertEquals(outbox(sb).length, 1)
+})
+
+Deno.test('ทุกออเดอร์: มีแชทเว็บ → ส่งเข้าแชทเว็บก่อน แล้วค่อย SMS (แม้ออร์เดอร์มาจาก Facebook)', async () => {
+  const chat = { id: 'chw1', channel: 'web', customer_id: 'c1', data: { messages: [] }, updated_at: '2026-11-14T10:00:00Z' }
+  const sb = fakeSb([chat])
+  await execPlan(ctxOf(sb, { rules: [{ ...RULES[0], channels: ['web', 'sms'] }], chats: [chat] }), plan({}))
+  assertEquals(outbox(sb).map((o: Any) => [o.channel, o.status]), [['web', 'sent'], ['sms', 'failed']])
+  assertEquals(sb.updates.some((u: Any) => u.table === 'punpang_chats'), true)
+})
+
+Deno.test('มีบัญชีเว็บแต่ยังไม่มีแชท → สร้างแชทเว็บให้ แล้วส่งเข้าแชท', async () => {
+  const sb = fakeSb([], [{ customer_id: 'c1' }])
+  await execPlan(ctxOf(sb, { rules: [{ ...RULES[0], channels: ['web'] }] }), plan({}))
+  assertEquals(sb.inserts.filter((i: Any) => i.table === 'punpang_chats').map((i: Any) => [i.row.channel, i.row.customer_id]), [['web', 'c1']])
+  assertEquals(outbox(sb).map((o: Any) => [o.channel, o.status]), [['web', 'sent']])
+})
+
+Deno.test('ไม่มีบัญชีเว็บและไม่มีแชท → ข้ามช่องเว็บ ส่งเฉพาะ SMS และไม่สร้างแชท', async () => {
+  const sb = fakeSb([], [])
+  await execPlan(ctxOf(sb, { rules: [{ ...RULES[0], channels: ['web', 'sms'] }] }), plan({}))
+  assertEquals(outbox(sb).map((o: Any) => o.channel), ['sms'])
+  assertEquals(sb.inserts.some((i: Any) => i.table === 'punpang_chats'), false)
 })

@@ -1,7 +1,8 @@
 // แจ้งลูกค้าทันทีเมื่อระบบยืนยันชำระอัตโนมัติ (สลิปในแชท และสลิปจากหน้าออร์เดอร์) · ไม่รอรอบ scheduled
-// ใช้กติกา payment_confirmed ที่ร้านตั้งไว้ (config/notifyRules): ปิดไว้ = ไม่ส่ง · ช่องทางตามกติกา (Facebook ก่อน ถ้าส่งไม่ได้ → SMS)
+// ใช้กติกา payment_confirmed ที่ร้านตั้งไว้ (config/notifyRules): ปิดไว้ = ไม่ส่ง · ส่งทุกช่องทางที่กติกาเปิดไว้ (เว็บ/แอป · Facebook · SMS)
 // งานพื้นหลัง: ไม่ทำให้การยืนยันล้มเหลว · ข้อความที่ส่งไม่ได้แจ้งกระดิ่งพนักงาน
-import { fillTemplate, orderVars } from './scheduled/plan.ts'
+import { fillTemplate, orderVars, prepareRules } from './scheduled/plan.ts'
+import { webChatFor } from './webchat.ts'
 import { inFbWindow } from './slipnotice.ts'
 import { sendSmsGateway } from './sms.ts'
 
@@ -14,13 +15,13 @@ type Rule = { event?: string; enabled?: boolean; channels?: string[]; template?:
 
 // กติกาที่ใช้ได้: null = ร้านปิดการแจ้งนี้ · ยังไม่มีกติกา = ใช้ค่าเริ่มต้นและช่องทางทั้งหมด
 export function paidNoticeRule(notifyRules: unknown): { template: string; channels: string[] } | null {
-  const list: Rule[] = Array.isArray(notifyRules) ? notifyRules : []
+  const list: Rule[] = prepareRules(Array.isArray(notifyRules) ? notifyRules : [])
   const r = list.find((x) => x?.event === 'payment_confirmed')
   if (r && r.enabled === false) return null
   const saved = typeof r?.template === 'string' ? r.template.trim() : ''
   // เทมเพลตเดิมที่ยังไม่มีข้อความสงวนสิทธิ์ → ใช้ค่าเริ่มต้นใหม่
   const template = saved && saved !== PAY_CONFIRMED_V2 ? r!.template! : PAY_CONFIRMED_DEFAULT
-  const channels = Array.isArray(r?.channels) ? r.channels : ['facebook', 'sms']
+  const channels = Array.isArray(r?.channels) ? r.channels : ['web', 'sms']
   return { template, channels }
 }
 
@@ -43,24 +44,30 @@ export async function notifyPaymentConfirmed(sb: any, n: { order: any; customerI
     if (!text) return false
 
     let sent = false
+    // เว็บ/แอป: ลงแชทเว็บของลูกค้า (มีบัญชีเว็บ → สร้างกระทู้ให้ถ้ายังไม่มี) · ทุกช่องที่กติกาเปิดไว้จะส่ง ไม่หยุดที่ช่องแรก
+    if (rule.channels.includes('web')) {
+      const chat = await webChatFor(sb, String(customer.id), customer.name, new Date().toISOString())
+      if (chat) { await appendChatMessage(sb, chat.id, text, n.order.id); sent = true }
+    }
     // Facebook: ต้องผูก PSID · อยู่ในช่วง 24 ชม. หลังลูกค้าทักล่าสุด · มี Page token
-    if (!sent && rule.channels.includes('facebook') && cfg.integrations?.facebook?.enabled !== false) {
+    if (rule.channels.includes('facebook') && cfg.integrations?.facebook?.enabled !== false) {
       const psid = String(customer.fbPsid || '')
       const pg = await sb.from('punpang_fb_pages').select('token').limit(1).maybeSingle()
       const chat = /^\d{5,30}$/.test(psid) && pg?.data?.token ? await sb.from('punpang_chats').select('id,data,updated_at').eq('channel', 'facebook').eq('external_id', psid).maybeSingle() : null
+      let fbOk = false
       if (chat?.data && inFbWindow(chat.data.data?.lastInboundAt, Date.now())) {
         const ver = (Deno.env.get('FB_GRAPH_VERSION') || 'v24.0').trim()
         try {
           const r = await fetch(`https://graph.facebook.com/${ver}/me/messages?${new URLSearchParams({ access_token: pg.data.token })}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipient: { id: psid }, messaging_type: 'RESPONSE', message: { text } }), signal: AbortSignal.timeout(10000) })
-          sent = r.ok
-        } catch { sent = false }
-        if (sent) await appendChatMessage(sb, chat.data.id, text, n.order.id)
+          fbOk = r.ok
+        } catch { fbOk = false }
+        if (fbOk) { sent = true; await appendChatMessage(sb, chat.data.id, text, n.order.id) }
       }
     }
-    // SMS: เมื่อ Facebook ส่งไม่ได้ และกติกาเปิด SMS ไว้ · เบอร์ต้องเป็นมือถือไทย
-    if (!sent && rule.channels.includes('sms')) {
+    // SMS: ตามกติกาที่เปิดไว้ · เบอร์ต้องเป็นมือถือไทย
+    if (rule.channels.includes('sms')) {
       const phone = String(customer.phone || '').replace(/\D/g, '')
-      if (/^0[689]\d{8}$/.test(phone)) sent = await sendSmsGateway(phone, text, `paid-${n.order.id}-${Date.now().toString(36)}`)
+      if (/^0[689]\d{8}$/.test(phone) && (await sendSmsGateway(phone, text, `paid-${n.order.id}-${Date.now().toString(36)}`))) sent = true
     }
     if (!sent) await bellFailed(sb, n.order, 'แจ้งลูกค้าว่ายืนยันชำระไม่สำเร็จ (ยืนยันแล้ว)')
     return sent

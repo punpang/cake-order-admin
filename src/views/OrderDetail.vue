@@ -15,7 +15,7 @@ import {
 import { orderTotals, shipNetOf } from '../lib/pricing'
 import { couponQuoteOf, couponTermsText } from '../lib/coupons'
 import { QUICK_DUE, quickDue, dueState, remainingText, dueBeforePickup, dueDaysBefore, isHHmm, customerPending } from '../lib/payDue'
-import { CHANNELS, NOTIFY_EVENTS } from '../lib/constants'
+import { channelLabel, NOTIFY_EVENTS } from '../lib/constants'
 import { askConfirm, askConfirmEx } from '../lib/confirm'
 import { showToast } from '../lib/toast'
 import { toastSaved } from '../lib/syncStatus'
@@ -678,7 +678,7 @@ async function saveCancel() {
           <ul v-show="msgOpen" id="order-messages" class="mt-3 space-y-2">
             <li v-for="m in messages" :key="m.id" class="rounded-xl bg-stone-50 p-2.5">
               <div class="flex flex-wrap items-center gap-1.5 text-xs">
-                <span class="rounded-full px-2 py-0.5 font-semibold" :class="m.channel ? 'bg-brand-50 text-brand-800' : 'bg-rose-50 text-rose-700'">{{ m.channel ? CHANNELS[m.channel].label : 'ไม่มีช่องทาง' }}</span>
+                <span class="rounded-full px-2 py-0.5 font-semibold" :class="m.channel ? 'bg-brand-50 text-brand-800' : 'bg-rose-50 text-rose-700'">{{ m.channel ? channelLabel(m.channel) : 'ไม่มีช่องทาง' }}</span>
                 <span class="text-stone-600">{{ NOTIFY_EVENTS[m.event]?.label }}</span>
                 <span class="ml-auto text-stone-400">{{ dateTime(m.at) }}</span>
               </div>

@@ -9,9 +9,9 @@ import { daysBetween, nextBirthday } from '../schedlib/birthday.js'
 import { dateOnly, formatPhone, money, pad, timeOnly, toDateStr } from '../schedlib/format.js'
 import { CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS } from '../schedlib/constants.js'
 import { BELL_CUSTOMER, BELL_STAFF, bellText } from '../schedlib/bell.js'
-import { customerTargets, withNewRules } from '../schedlib/notifyPlan.js'
+import { customerTargets, withNewRules, prepareRules } from '../schedlib/notifyPlan.js'
 
-export { CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, BELL_CUSTOMER, BELL_STAFF, bellText, customerTargets, withNewRules }
+export { CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, BELL_CUSTOMER, BELL_STAFF, bellText, customerTargets, withNewRules, prepareRules }
 
 // deno-lint-ignore no-explicit-any
 type Any = any

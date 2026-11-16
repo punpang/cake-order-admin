@@ -3,7 +3,7 @@
 import { RETENTION_CATS, validateRetention } from '../lib/retention'
 import { reactive } from 'vue'
 import { BELL_MAX, BELL_STAFF, BELL_CUSTOMER, bellText, visibleToStaff, visibleToCustomer, unreadStaff, unreadCustomer, isReadStaff } from '../lib/bell'
-import { ensureStyleGroup, STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
+import { ensureStyleGroup, STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, channelLabel, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
 import { orderCardMsg, quoteCardMsg, linkCardMsg, payCard, viewCard } from '../lib/chatCards'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
@@ -35,7 +35,7 @@ import { remoteOrderAction, remoteReadSlip } from '../lib/customerOrderRemote'
 import { checkCustomerTxn, refTaken, bankByCode, PAY_MSG, thaiMinute } from '../lib/payFields'
 import { SLIP_RECEIVE_NOTE, slipRoom, slipChoices, slipBindError } from '../lib/slipBind'
 import { payAccountsOf } from '../lib/payAccounts'
-import { customerTargets, withNewRules } from '../lib/notifyPlan'
+import { customerTargets, withNewRules, CHANNEL_RULE_VERSION } from '../lib/notifyPlan'
 import { uploadChatImage } from '../lib/chatImage'
 import { billerIdOf, newQrSuffix, promptPayBillerPayload, qrRefOk, shopRefOfCode } from '../lib/promptpay'
 import { gateOf, gateBlocks, GATE_MESSAGE } from '../lib/orderGate'
@@ -264,7 +264,7 @@ const DEFAULT_UPGRADES = {
 const tplOf = (r) => { const u = DEFAULT_UPGRADES[r.event]; return u && [].concat(u[0]).includes(String(r.template || '').trim()) ? u[1] : r.template }
 
 // channelTemplates (ไม่บังคับ): เทมเพลตแยกตามแพลตฟอร์ม { facebook?, sms? } · ไม่มี = ใช้ template หลัก
-const rule = (event, channels, template, channelTemplates = null) => ({ event, channels, template, enabled: true, ...(channelTemplates ? { channelTemplates } : {}) })
+const rule = (event, channels, template, channelTemplates = null) => ({ event, channels, template, enabled: true, chv: CHANNEL_RULE_VERSION, ...(channelTemplates ? { channelTemplates } : {}) })
 // เทมเพลตตามแพลตฟอร์มเริ่มต้นในโค้ด: กฎที่บันทึกไว้ (Supabase) อาจไม่มี channelTemplates → ใช้ค่านี้แทน
 // เทมเพลต Facebook ของทุกเหตุการณ์ที่ส่งถึงลูกค้า: ข้อความธรรมดา ไม่มีอีโมจิ · ลิงก์อยู่บรรทัดท้าย (การ์ดปุ่มตัดบรรทัดลิงก์ออกได้)
 const FB_TPL = {
@@ -470,20 +470,20 @@ export const db = reactive({
   // กฎแจ้งเตือน: event → ช่องทาง + ข้อความ (ตัวอย่าง)
   notifyRules: [
     ...withNewRules([]),
-    rule('order_created', ['facebook', 'sms'], ORDER_CREATED_TPL, { facebook: ORDER_CREATED_FB_TPL, sms: ORDER_CREATED_SMS_TPL }),
-    rule('payment_requested', ['facebook', 'sms'], PAY_REQ_TPL, { sms: PAY_REQ_SMS_TPL }),
-    rule('order_confirmed', ['facebook', 'sms'], 'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ คงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า'),
-    rule('payment_reminder', ['facebook', 'sms'], PAY_REMINDER_TPL),
-    rule('prepared', ['facebook', 'sms'], PREPARED_TPL),
-    rule('payment_confirmed', ['facebook', 'sms'], PAY_CONFIRMED_TPL),
-    rule('pickup_reminder', ['facebook', 'sms'], 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
-    rule('shipping', ['facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ กำหนดถึง {วันนัด} {เวลานัด}'),
-    rule('delivered', ['facebook'], DELIVERED_TPL),
-    rule('cancelled', ['facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว หากมีข้อสงสัยติดต่อร้านได้เลยค่ะ'),
-    rule('order_refund_cancelled', ['facebook', 'sms'], 'ร้านยกเลิกการคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} (ปรับรายการแล้ว) หากสงสัยติดต่อร้านได้เลยค่ะ'),
-    rule('order_refunded', ['facebook', 'sms'], 'ร้านคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} แล้วค่ะ'),
-    rule('birthday', ['facebook'], 'สุขสันต์วันเกิดล่วงหน้า {ชื่อวันเกิด} สั่งเค้กกับเราได้เลยค่ะ'),
-    rule('points_expiring', ['facebook'], '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ ใช้ก่อนหมดนะคะ'),
+    rule('order_created', ['web', 'sms'],ORDER_CREATED_TPL, { facebook: ORDER_CREATED_FB_TPL, sms: ORDER_CREATED_SMS_TPL }),
+    rule('payment_requested', ['web', 'sms'],PAY_REQ_TPL, { sms: PAY_REQ_SMS_TPL }),
+    rule('order_confirmed', ['web', 'sms'],'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ คงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า'),
+    rule('payment_reminder', ['web', 'sms'],PAY_REMINDER_TPL),
+    rule('prepared', ['web', 'sms'],PREPARED_TPL),
+    rule('payment_confirmed', ['web', 'sms'],PAY_CONFIRMED_TPL),
+    rule('pickup_reminder', ['web', 'sms'],'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
+    rule('shipping', ['web', 'sms'],'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ กำหนดถึง {วันนัด} {เวลานัด}'),
+    rule('delivered', ['web', 'sms'], DELIVERED_TPL),
+    rule('cancelled', ['web', 'sms'],'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว หากมีข้อสงสัยติดต่อร้านได้เลยค่ะ'),
+    rule('order_refund_cancelled', ['web', 'sms'],'ร้านยกเลิกการคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} (ปรับรายการแล้ว) หากสงสัยติดต่อร้านได้เลยค่ะ'),
+    rule('order_refunded', ['web', 'sms'],'ร้านคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} แล้วค่ะ'),
+    rule('birthday', ['web'], 'สุขสันต์วันเกิดล่วงหน้า {ชื่อวันเกิด} สั่งเค้กกับเราได้เลยค่ะ'),
+    rule('points_expiring', ['web'], '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ ใช้ก่อนหมดนะคะ'),
     rule('team_new_order', ['telegram'], TEAM_NEW_ORDER_TPL),
     rule('team_payment_confirmed', ['telegram'], TEAM_PAID_TPL),
     rule('team_due_soon', ['telegram'], DUE_SOON_TPL),
@@ -494,11 +494,11 @@ export const db = reactive({
     rule('team_expense_missing', ['telegram'], '[ค่าใช้จ่ายประจำ] {รายการ} เดือน {เดือนภาษี} ยังไม่ได้บันทึก (ครบกำหนด {วันที่})'),
     rule('team_installment_due', ['telegram'], '[ผ่อนชำระ] {รายการ} งวดที่ {งวด} ครบกำหนด {วันที่} ยอด {ยอดรวม}'),
     rule('team_vat_due', ['telegram'], '[ภ.พ.30] เดือนภาษี {เดือนภาษี} ครบกำหนดยื่น {ชำระก่อน} ยังไม่ได้บันทึกว่ายื่นแล้ว'),
-    rule('photo_ready', ['facebook', 'sms'], 'ออร์เดอร์ {เลขออร์เดอร์} มีรูปงานเสร็จให้ดูแล้วค่ะ ดูได้ที่ {ลิงก์ออร์เดอร์}'),
-    rule('photo_optout_done', ['facebook', 'sms'], 'ร้านลบรูปงานของออร์เดอร์ {เลขออร์เดอร์} ออกจากทุกที่ตามที่แจ้งแล้วค่ะ'),
-    rule('photo_optout_rejected', ['facebook', 'sms'], 'ร้านขอคุยเรื่องการใช้รูปงานของออร์เดอร์ {เลขออร์เดอร์} เพิ่มเติม รายละเอียดดูที่ {ลิงก์ออร์เดอร์}'),
+    rule('photo_ready', ['web', 'sms'],'ออร์เดอร์ {เลขออร์เดอร์} มีรูปงานเสร็จให้ดูแล้วค่ะ ดูได้ที่ {ลิงก์ออร์เดอร์}'),
+    rule('photo_optout_done', ['web', 'sms'],'ร้านลบรูปงานของออร์เดอร์ {เลขออร์เดอร์} ออกจากทุกที่ตามที่แจ้งแล้วค่ะ'),
+    rule('photo_optout_rejected', ['web', 'sms'],'ร้านขอคุยเรื่องการใช้รูปงานของออร์เดอร์ {เลขออร์เดอร์} เพิ่มเติม รายละเอียดดูที่ {ลิงก์ออร์เดอร์}'),
     rule('team_coupon_shown', ['telegram'], '[ลูกค้าแสดงคูปอง] {ชื่อลูกค้า} {รายการ} (ภายใน {นาที} นาที)'),
-    rule('coupon_refunded', ['facebook', 'sms'], '{ชื่อลูกค้า} ร้านคืน {คะแนน} คะแนนจาก {รายการ} ให้แล้วค่ะ'),
+    rule('coupon_refunded', ['web', 'sms'],'{ชื่อลูกค้า} ร้านคืน {คะแนน} คะแนนจาก {รายการ} ให้แล้วค่ะ'),
     rule('team_photo_optout', ['telegram'], '[ขอไม่เผยแพร่รูป] {เลขออร์เดอร์} {ชื่อลูกค้า} รอร้านตรวจสอบ'),
     rule('team_pay_extend_request', ['telegram'], '[ขอขยายเวลาชำระ] {เลขออร์เดอร์} {ชื่อลูกค้า} เดิมกำหนด {ชำระก่อน}'),
   ],
@@ -2824,15 +2824,6 @@ export const setCustomerNotifyChannel = (customer, ch, value) => setNotifyCh(cus
 // ส่งตามกฎของ event (คืนจำนวนข้อความที่เข้าคิว)
 // ตัดป้ายลิงก์ที่เหลือท้ายข้อความ (เช่น "ดูออร์เดอร์:") เมื่อช่องนั้นใช้ปุ่มแทน
 const stripLinkLabel = (s) => String(s).replace(/\s*(ดูออร์เดอร์|ดู\/ชำระที่|ชำระที่|ดูได้ที่)\s*:?\s*$/, '').trim()
-// ออร์เดอร์ที่มาจากเว็บ/แอป (ออร์เดอร์ระบุช่องทางเว็บ หรือสร้างจากแชทเว็บ/ใบเสนอในแชทเว็บ) → แจ้งผ่านแชทเว็บ/แอป และ SMS (ไม่ผ่าน Facebook)
-const WEB_ORDER_CHANNELS = ['web', 'sms']
-const WEB_LABEL = 'เว็บ/แอป'
-function orderOriginChannel(order) {
-  if (!order) return null
-  if (order.channel) return order.channel
-  const chatId = order.chatId || findQuote(order.quoteId)?.chatId || null
-  return chatId ? findChat(chatId)?.channel || null : null
-}
 const hasWebAccount = (customer) => !!customer && (db.customerAccounts.some((a) => a.customerId === customer.id) || !!chatFor(customer.id, 'web'))
 // การ์ดของ event ที่ส่งเข้าแชทเว็บ: การชำระเงินต้องมียอดของงวดที่แจ้ง (ไม่มียอด = ไม่แสดงการ์ด)
 function webCardOf(card, order, url) {
@@ -2881,13 +2872,12 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   }
   if (ev.marketing && customer && customer.promoOptIn === false) return 0
   // ส่งทุกช่องทางที่ลูกค้ามี (ตามกฎ + ช่องทางเปิดใช้ + มีข้อมูลติดต่อ) ไม่หยุดที่ช่องแรก · ข้อความการตลาดส่งช่องแรกช่องเดียว (เหมือนเดิม)
-  const web = !!order && orderOriginChannel(order) === 'web' && order.channel !== 'pos'
+  // ทุกออเดอร์: เว็บ/แอป (มีบัญชีหรือแชทเว็บ) → Facebook (ถ้าร้านเปิดไว้) → SMS · ตามกติกาของ event
   const allowed = effectiveChannels(r, customer, order)
-  if (web) { allowed.facebook = false; allowed.web = !ev.marketing }
   const targets = customerTargets({
-    order: web ? WEB_ORDER_CHANNELS : CUSTOMER_CHANNEL_ORDER,
+    order: CUSTOMER_CHANNEL_ORDER,
     allowed,
-    integrations: web ? { ...db.integrations, web: { enabled: true } } : db.integrations,
+    integrations: { ...db.integrations, web: { enabled: true } },
     addressOf: (k) => (k === 'web' ? (hasWebAccount(customer) ? String(customer.id) : '') : customerAddr(customer, k)),
     noSms,
     marketing: !!ev.marketing,
@@ -2900,7 +2890,7 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   // ข้อความของแต่ละช่อง (เทมเพลตตามแพลตฟอร์ม) · SMS/Facebook เป็นข้อความธรรมดา (ตัดอีโมจิ)
   const plainFor = (chKey, s) => (chKey === 'sms' || chKey === 'facebook' ? plainText(s) : s)
   for (const ch of targets) {
-    const to = `${ch === 'web' ? WEB_LABEL : CHANNELS[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}`
+    const to = `${channelLabel(ch)}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}`
     // Facebook/เว็บ: การ์ดปุ่ม "ดูออร์เดอร์" ด้านล่าง (card ที่ส่งมา หรือการ์ดลิงก์ที่สร้างให้) · SMS: ข้อความที่มีลิงก์
     const buttonCard = ch === 'facebook' ? (card || (orderMsg && url ? orderLinkCardOf(order, url) : null))
       : ch === 'web' ? webCardOf(card || (orderMsg && url ? orderLinkCardOf(order, url) : null), order, url) : null

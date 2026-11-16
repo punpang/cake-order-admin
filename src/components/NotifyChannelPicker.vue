@@ -1,13 +1,13 @@
 <script setup>
 import { computed } from 'vue'
-import { CHANNELS, CUSTOMER_CHANNEL_ORDER } from '../lib/constants'
+import { CHANNELS } from '../lib/constants'
 import { formatPhone } from '../lib/format'
 // เลือกช่องทางแจ้งเตือนรายช่อง (Facebook / SMS): ตามเดิม (สืบทอดระดับถัดไป) · เปิด · ปิด
 // model = notifyChannels { facebook?, sms? } · แสดงเฉพาะช่องที่ลูกค้ามีข้อมูลติดต่อ · เปลี่ยนแล้ว emit('set', ช่อง, true|false|null)
 const props = defineProps({ model: { type: Object, default: () => ({}) }, customer: { type: Object, default: null }, readonly: { type: Boolean, default: false } })
 const emit = defineEmits(['set'])
 const addr = (k) => (k === 'facebook' ? props.customer?.fbPsid : formatPhone(props.customer?.phone || '') || '')
-const rows = computed(() => CUSTOMER_CHANNEL_ORDER.filter((k) => addr(k)).map((k) => ({ k, label: CHANNELS[k].label, v: typeof props.model?.[k] === 'boolean' ? props.model[k] : null })))
+const rows = computed(() => ['facebook', 'sms'].filter((k) => addr(k)).map((k) => ({ k, label: CHANNELS[k].label, v: typeof props.model?.[k] === 'boolean' ? props.model[k] : null })))
 const OPTS = [[null, 'ตามเดิม'], [true, 'เปิด'], [false, 'ปิด']]
 </script>
 

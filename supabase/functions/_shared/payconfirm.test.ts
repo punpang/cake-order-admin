@@ -2,8 +2,12 @@
 import { assertEquals } from 'jsr:@std/assert@1'
 import { paidNoticeRule, paidNoticeText, PAY_CONFIRMED_DEFAULT } from './payconfirm.ts'
 
-Deno.test('กติกา: ยังไม่มีกติกา = ใช้ค่าเริ่มต้นและทั้ง Facebook/SMS', () => {
-  assertEquals(paidNoticeRule(undefined), { template: PAY_CONFIRMED_DEFAULT, channels: ['facebook', 'sms'] })
+Deno.test('กติกา: ยังไม่มีกติกา = ใช้ค่าเริ่มต้นเป็นเว็บ/แอป + SMS', () => {
+  assertEquals(paidNoticeRule(undefined), { template: PAY_CONFIRMED_DEFAULT, channels: ['web', 'sms'] })
+})
+
+Deno.test('กติกาเดิมที่มี Facebook (ยังไม่เป็นรุ่นปัจจุบัน) → เปลี่ยนเป็นเว็บ/แอป', () => {
+  assertEquals(paidNoticeRule([{ event: 'payment_confirmed', enabled: true, channels: ['facebook', 'sms'], template: 'จ่ายแล้ว' }]), { template: 'จ่ายแล้ว', channels: ['web', 'sms'] })
 })
 
 Deno.test('กติกา: ร้านปิด payment_confirmed → ไม่ส่ง', () => {
