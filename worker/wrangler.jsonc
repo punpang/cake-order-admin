@@ -15,6 +15,6 @@
   "triggers": { "crons": ["0 19 * * *"] },
   "vars": {
     "SUPABASE_URL": "https://itleduijrckxdbhhuooi.supabase.co",
-    "ALLOWED_ORIGINS": "https://cake-order-admin.pages.dev"
+    "ALLOWED_ORIGINS": "https://cake-order-admin.pages.dev,https://localhost"
   }
 }
