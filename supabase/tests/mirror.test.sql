@@ -195,6 +195,8 @@ begin
   perform mt.ok('H3 เลื่อนวันที่และเลขเอกสารของชุดตัวอย่างถูกต้องข้ามเดือน',
     punpang_test.punpang_test_shift('{"at":"2026-11-29T10:00:00.000Z","d":"2026-11-16","code":"TEST-OR-291126-000001","pay":["TEST-PAY-161126-00002"],"n":5}'::jsonb, 3)
     = '{"at":"2026-12-02T10:00:00.000Z","d":"2026-11-19","code":"TEST-OR-021226-000001","pay":["TEST-PAY-191126-00002"],"n":5}'::jsonb);
+  perform mt.ok('H4 หลังล้างมีแถวสถานะปิดงวดบัญชี (แอปโหลดบัญชีได้)',
+    (select count(*) from punpang_test.punpang_acct_state where id = 1) = 1);
 end $$;
 
 select 'ผ่านทั้งหมด' as mirror_tests;

@@ -8,6 +8,7 @@ name: Deploy DB test mode
 #   1) supabase/migrations/20261116120000_punpang_test_schema.sql — schema punpang_test (สำเนาตาราง ฟังก์ชัน นโยบาย) และ punpang_test_sync
 #   2) supabase/migrations/20261116130000_punpang_test_reset.sql — ปุ่มล้างข้อมูลทดสอบ และซิงก์สำเนา
 #   3) supabase/migrations/20261116140000_punpang_test_seed.sql — ชุดตัวอย่าง ~90 วัน (ใส่เมื่อกดล้างข้อมูล) และฟังก์ชันเลื่อนวัน
+#   4) supabase/migrations/20261116150000_punpang_test_reset_acct_state.sql — แถวสถานะปิดงวดบัญชีตั้งต้น (แอปต้องมี) และปุ่มล้างข้อมูลที่เติมแถวนี้
 # ไม่แตะข้อมูลจริง: ทุกคำสั่งสร้างหรือเขียนเฉพาะ schema punpang_test และฟังก์ชันใหม่ (ตรวจด้วยขั้นตอนตรวจหลังรัน)
 # หลังรันแล้วต้องเพิ่ม punpang_test ใน Exposed schemas ของ Supabase API ก่อนใช้โหมดทดสอบ (ทำในแดชบอร์ด)
 
@@ -49,7 +50,7 @@ jobs:
           [ "$l" = "1" ] || { echo "ยังไม่พบ punpang_lucky_spin รุ่นหลายโครงการ · ต้องรัน deploy-db-lucky ให้เสร็จก่อน"; exit 1; }
 
       - name: รัน SQL (ธุรกรรมเดียว)
-        run: psql "$SUPABASE_DB_URL" -X -q -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261116120000_punpang_test_schema.sql -f supabase/migrations/20261116130000_punpang_test_reset.sql -f supabase/migrations/20261116140000_punpang_test_seed.sql
+        run: psql "$SUPABASE_DB_URL" -X -q -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261116120000_punpang_test_schema.sql -f supabase/migrations/20261116130000_punpang_test_reset.sql -f supabase/migrations/20261116140000_punpang_test_seed.sql -f supabase/migrations/20261116150000_punpang_test_reset_acct_state.sql
 
       - name: ตรวจผลหลังรัน
         run: |
@@ -60,4 +61,6 @@ jobs:
           [ "$f" = "3" ] || { echo "ยังไม่พบฟังก์ชันของโหมดทดสอบครบ"; exit 1; }
           r=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'punpang_reset_test_data'")
           [ "$r" = "1" ] || { echo "ยังไม่พบปุ่มล้างข้อมูลทดสอบ"; exit 1; }
-          echo "ผ่าน: สำเนา punpang_test (23 ตาราง 14 มุมมอง) พร้อมชุดตัวอย่างและปุ่มล้างข้อมูลทดสอบแล้ว"
+          a=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from punpang_test.punpang_acct_state where id = 1")
+          [ "$a" = "1" ] || { echo "ยังไม่มีแถวสถานะปิดงวดบัญชีในสำเนาทดสอบ (แอปโหลดบัญชีไม่ได้)"; exit 1; }
+          echo "ผ่าน: สำเนา punpang_test (23 ตาราง 14 มุมมอง) พร้อมชุดตัวอย่าง ปุ่มล้างข้อมูลทดสอบ และแถวสถานะปิดงวดบัญชีแล้ว"
