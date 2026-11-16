@@ -26,7 +26,7 @@ export function cleanChatText(v: unknown): string | null {
 export const toCustomerView = (m: Json) => ({ id: String(m.id ?? ''), from: m.from === 'staff' ? 'staff' : 'customer', text: String(m.text ?? ''), at: String(m.at ?? '') })
 
 // ข้อความที่ลูกค้าเห็นได้ในแชท: ข้อความตัวอักษร ใบเสนอ และสรุปออร์เดอร์ (ชนิดอื่นเป็นของภายในหรือของช่องทางอื่น)
-export const isCustomerVisible = (m: Json) => !!m && (m.from === 'customer' || m.from === 'staff') && ['text', 'quote', 'order'].includes(String(m.kind ?? 'text'))
+export const isCustomerVisible = (m: Json) => !!m && (m.from === 'customer' || m.from === 'staff') && ['text', 'quote', 'order', 'card'].includes(String(m.kind ?? 'text'))
 
 // การตอบกลับ: รหัสข้อความที่อ้างถึงต้องเป็นรหัสรูปแบบปลอดภัย และต้องมีอยู่จริงในแชทนี้ (กันการอ้างถึงข้อความของผู้อื่น)
 const REPLY_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
@@ -54,6 +54,22 @@ export function customerOrderView(m: Json) {
     kind: 'order' as const,
     text: c ? String(m.cardText ?? '').slice(0, 2000) : 'ร้านส่งสรุปออร์เดอร์ให้แล้ว',
     card: c ? { title: String(c.title ?? '').slice(0, 80), subtitle: String(c.subtitle ?? '').slice(0, 80), image: httpsUrl(c.image), url: httpsUrl(c.url) } : null,
+    photos: [] as { ref: string; url: string | null }[],
+    at: String(m.at ?? ''),
+  }
+}
+
+// การ์ดแจ้งเตือน/ลิงก์จากร้าน (เช่น แจ้งยอดชำระ ลิงก์ดูออร์เดอร์): ชนิดการ์ดต้องอยู่ในรายการที่กำหนด · ลิงก์และรูปเฉพาะ https
+const CARD_KINDS = ['order', 'payreq', 'link', 'quote']
+export function customerCardView(m: Json) {
+  const c = m.card && typeof m.card === 'object' ? (m.card as Json) : null
+  const kind = c && CARD_KINDS.includes(String(c.kind)) ? String(c.kind) : 'info'
+  return {
+    id: String(m.id ?? ''),
+    from: 'staff' as const,
+    kind: 'card' as const,
+    text: String(c ? (m.cardText ?? m.text ?? '') : (m.text ?? '')).slice(0, 2000),
+    card: c ? { kind, title: String(c.title ?? '').slice(0, 80), subtitle: String(c.subtitle ?? '').slice(0, 80), image: httpsUrl(c.image), url: httpsUrl(c.url), pay: c.pay === true } : null,
     photos: [] as { ref: string; url: string | null }[],
     at: String(m.at ?? ''),
   }
@@ -95,7 +111,7 @@ export async function customerChatList(sb: any, customerId: string, sign: Signer
   const visible = msgs.filter(isCustomerVisible)
   const haveSet = new Set(have.filter((x) => typeof x === 'string').slice(0, 500))
   const messages = await Promise.all(visible.slice(-100).map(async (m) => {
-    const base = m.kind === 'quote' ? customerQuoteView(m) : m.kind === 'order' ? customerOrderView(m) : { ...toCustomerView(m), photos: await photosView(m, sign, haveSet) }
+    const base = m.kind === 'quote' ? customerQuoteView(m) : m.kind === 'order' ? customerOrderView(m) : m.kind === 'card' ? customerCardView(m) : { ...toCustomerView(m), photos: await photosView(m, sign, haveSet) }
     return { ...base, replyTo: replySnippetOf(msgs, m.replyTo) }
   }))
   const presence = await shopPresenceFor(sb, r?.data?.id)

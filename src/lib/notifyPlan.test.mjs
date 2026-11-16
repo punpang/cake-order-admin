@@ -54,3 +54,13 @@ t('withNewRules ไม่แก้รายการเดิม และไม
 
 if (fail) { console.log(`${fail} failed`); process.exit(1) }
 console.log('notifyPlan: all passed')
+
+t('ออร์เดอร์จากเว็บ/แอป: แจ้งผ่านเว็บและ SMS · ไม่มีที่อยู่หรือปิดช่องทางไหนก็ข้ามช่องนั้น', () => {
+  const integrations = { web: { enabled: true }, sms: { enabled: true }, facebook: { enabled: true } }
+  const addressOf = (k) => (k === 'web' ? 'c1' : k === 'sms' ? '0812345678' : '')
+  const got = customerTargets({ order: ['web', 'sms'], allowed: { web: true, sms: true, facebook: false }, integrations, addressOf })
+  assert.deepEqual(got, ['web', 'sms'])
+  assert.deepEqual(customerTargets({ order: ['web', 'sms'], allowed: { web: true, sms: false }, integrations, addressOf }), ['web'])
+  assert.deepEqual(customerTargets({ order: ['web', 'sms'], allowed: { web: true, sms: true }, integrations, addressOf, noSms: true }), ['web'])
+  assert.deepEqual(customerTargets({ order: ['web', 'sms'], allowed: { web: true, sms: true }, integrations, addressOf: () => '' }), [])
+})

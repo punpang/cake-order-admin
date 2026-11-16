@@ -1,6 +1,6 @@
 // ทดสอบส่วนที่เป็นฟังก์ชันล้วนของแชทลูกค้า: ตรวจความยาวข้อความ และข้อความที่ลูกค้าเห็นไม่มีข้อมูลภายใน
 import { assertEquals } from 'jsr:@std/assert@1'
-import { CHAT_TEXT_MAX, cleanChatText, cleanReplyTo, customerOrderView, customerQuoteView, isCustomerVisible, replySnippetOf, toCustomerView } from './customerchat.ts'
+import { CHAT_TEXT_MAX, cleanChatText, cleanReplyTo, customerCardView, customerOrderView, customerQuoteView, isCustomerVisible, replySnippetOf, toCustomerView } from './customerchat.ts'
 
 Deno.test('ข้อความว่างหรือเกินความยาวไม่ผ่าน · ตัดช่องว่างหัวท้ายแล้วผ่าน', () => {
   assertEquals(cleanChatText(''), null)
@@ -59,4 +59,21 @@ Deno.test('สรุปออร์เดอร์ในแชทลูกค้
   })
   const old = customerOrderView({ id: 'cm8', from: 'staff', kind: 'order', at: '2026-11-16T12:00:00.000Z', orderId: 'o0', cost: 40 })
   assertEquals(old, { id: 'cm8', from: 'staff', kind: 'order', text: 'ร้านส่งสรุปออร์เดอร์ให้แล้ว', at: '2026-11-16T12:00:00.000Z', photos: [], card: null })
+})
+
+Deno.test('การ์ดแจ้งเตือนในแชทลูกค้า: ชนิดการ์ดต้องอยู่ในรายการ · ลิงก์และรูปเฉพาะ https · ไม่มีการ์ดแสดงข้อความเดิม', () => {
+  const v = customerCardView({
+    id: 'cm20', from: 'staff', kind: 'card', at: '2026-11-17T01:00:00.000Z', cardText: 'ยอดที่แจ้ง 500 บาท',
+    card: { kind: 'payreq', title: 'แจ้งยอดชำระ', subtitle: 'ยอด 500.00 บาท', url: 'https://example.test/o/x', pay: true, image: 'http://x.test/a.png' },
+  })
+  assertEquals(v, {
+    id: 'cm20', from: 'staff', kind: 'card', text: 'ยอดที่แจ้ง 500 บาท', at: '2026-11-17T01:00:00.000Z', photos: [],
+    card: { kind: 'payreq', title: 'แจ้งยอดชำระ', subtitle: 'ยอด 500.00 บาท', image: null, url: 'https://example.test/o/x', pay: true },
+  })
+  const unknown = customerCardView({ id: 'cm21', from: 'staff', kind: 'card', at: '2026-11-17T01:01:00.000Z', text: 'ข้อความ', card: { kind: 'internal_secret', title: 'x', url: 'javascript:1' } })
+  assertEquals(unknown.card?.kind, 'info')
+  assertEquals(unknown.card?.url, null)
+  const plain = customerCardView({ id: 'cm22', from: 'staff', kind: 'card', at: '2026-11-17T01:02:00.000Z', text: 'ข้อความสำรอง', card: null })
+  assertEquals(plain.text, 'ข้อความสำรอง')
+  assertEquals(plain.card, null)
 })

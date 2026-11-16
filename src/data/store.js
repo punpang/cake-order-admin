@@ -2683,7 +2683,7 @@ function pushOut(event, channel, to, text, orderId = null, customer = null, opts
   db.outbox.unshift({ id: uid('msg'), at: now(), event, channel, to, text, orderId, status: channel ? 'simulated' : 'no_channel' })
   const row = db.outbox[0]
   // ส่งทาง Facebook: ลงเธรดของช่องทางนั้นในศูนย์รวมแชทด้วย (สร้างออร์เดอร์ = การ์ดสรุป) · Facebook ส่งถึง Messenger จริงและอัปเดตสถานะของรายการนี้
-  const chat = customer && channel === 'facebook' ? chatFor(customer.id, channel) : null
+  const chat = customer && channel === 'facebook' ? chatFor(customer.id, channel) : customer && channel === 'web' ? webChatFor(customer) : null
   if (chat) {
     const order = orderId ? findOrder(orderId) : null
     if (event === 'order_created' && order) postOrderCard(order, chat, row)
@@ -2824,6 +2824,34 @@ export const setCustomerNotifyChannel = (customer, ch, value) => setNotifyCh(cus
 // ส่งตามกฎของ event (คืนจำนวนข้อความที่เข้าคิว)
 // ตัดป้ายลิงก์ที่เหลือท้ายข้อความ (เช่น "ดูออร์เดอร์:") เมื่อช่องนั้นใช้ปุ่มแทน
 const stripLinkLabel = (s) => String(s).replace(/\s*(ดูออร์เดอร์|ดู\/ชำระที่|ชำระที่|ดูได้ที่)\s*:?\s*$/, '').trim()
+// ออร์เดอร์ที่มาจากเว็บ/แอป (ออร์เดอร์ระบุช่องทางเว็บ หรือสร้างจากแชทเว็บ/ใบเสนอในแชทเว็บ) → แจ้งผ่านแชทเว็บ/แอป และ SMS (ไม่ผ่าน Facebook)
+const WEB_ORDER_CHANNELS = ['web', 'sms']
+const WEB_LABEL = 'เว็บ/แอป'
+function orderOriginChannel(order) {
+  if (!order) return null
+  if (order.channel) return order.channel
+  const chatId = order.chatId || findQuote(order.quoteId)?.chatId || null
+  return chatId ? findChat(chatId)?.channel || null : null
+}
+const hasWebAccount = (customer) => !!customer && (db.customerAccounts.some((a) => a.customerId === customer.id) || !!chatFor(customer.id, 'web'))
+// การ์ดของ event ที่ส่งเข้าแชทเว็บ: การชำระเงินต้องมียอดของงวดที่แจ้ง (ไม่มียอด = ไม่แสดงการ์ด)
+function webCardOf(card, order, url) {
+  if (!card) return null
+  if (card.kind === 'payreq') {
+    const p = (order?.payments || []).find((x) => x.id === card.paymentId)
+    return { kind: 'payreq', title: 'แจ้งยอดชำระ', subtitle: p ? `ยอด ${money(p.amount)} บาท` : '', ...(url ? { url, pay: true } : {}) }
+  }
+  return card
+}
+// แชทเว็บของลูกค้า: ใช้แชทเดิม หรือสร้างใหม่ (ลูกค้ามีบัญชีแต่ยังไม่เคยคุยในแชท)
+function webChatFor(customer) {
+  const existing = chatFor(customer.id, 'web')
+  if (existing) return existing
+  const c = { id: uid('ch'), channel: 'web', externalId: customer.id, customerId: customer.id, profileName: customer.name || 'ลูกค้า', messages: [], unreadStaff: 0, lastInboundAt: null, updatedAt: now(), pendingAsk: null }
+  db.chats.unshift(c)
+  return c
+}
+
 export function notify(event, { customer = null, vars = {}, orderId = null, noSms = false, card = null } = {}) {
   emitBell(event, { customer, vars, orderId })
   const r = db.notifyRules.find((x) => x.event === event)
@@ -2853,8 +2881,17 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   }
   if (ev.marketing && customer && customer.promoOptIn === false) return 0
   // ส่งทุกช่องทางที่ลูกค้ามี (ตามกฎ + ช่องทางเปิดใช้ + มีข้อมูลติดต่อ) ไม่หยุดที่ช่องแรก · ข้อความการตลาดส่งช่องแรกช่องเดียว (เหมือนเดิม)
+  const web = !!order && orderOriginChannel(order) === 'web' && order.channel !== 'pos'
   const allowed = effectiveChannels(r, customer, order)
-  const targets = customerTargets({ order: CUSTOMER_CHANNEL_ORDER, allowed, integrations: db.integrations, addressOf: (k) => customerAddr(customer, k), noSms, marketing: !!ev.marketing })
+  if (web) { allowed.facebook = false; allowed.web = !ev.marketing }
+  const targets = customerTargets({
+    order: web ? WEB_ORDER_CHANNELS : CUSTOMER_CHANNEL_ORDER,
+    allowed,
+    integrations: web ? { ...db.integrations, web: { enabled: true } } : db.integrations,
+    addressOf: (k) => (k === 'web' ? (hasWebAccount(customer) ? String(customer.id) : '') : customerAddr(customer, k)),
+    noSms,
+    marketing: !!ev.marketing,
+  })
   // ไม่มีช่องทางไหนส่งได้ → บันทึกคิวไว้โดยไม่มีช่องทาง (เหมือนเดิม)
   if (!targets.length) {
     pushOut(event, null, customer?.name || '-', renderFor('web', vars).text, orderId, customer, {})
@@ -2863,9 +2900,10 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
   // ข้อความของแต่ละช่อง (เทมเพลตตามแพลตฟอร์ม) · SMS/Facebook เป็นข้อความธรรมดา (ตัดอีโมจิ)
   const plainFor = (chKey, s) => (chKey === 'sms' || chKey === 'facebook' ? plainText(s) : s)
   for (const ch of targets) {
-    const to = `${CHANNELS[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}`
-    // Facebook: การ์ดปุ่ม "ดูออร์เดอร์" ด้านล่าง (card ที่ส่งมา หรือการ์ดลิงก์ที่สร้างให้) · SMS: ข้อความที่มีลิงก์
-    const buttonCard = ch === 'facebook' ? (card || (orderMsg && url ? orderLinkCardOf(order, url) : null)) : null
+    const to = `${ch === 'web' ? WEB_LABEL : CHANNELS[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}`
+    // Facebook/เว็บ: การ์ดปุ่ม "ดูออร์เดอร์" ด้านล่าง (card ที่ส่งมา หรือการ์ดลิงก์ที่สร้างให้) · SMS: ข้อความที่มีลิงก์
+    const buttonCard = ch === 'facebook' ? (card || (orderMsg && url ? orderLinkCardOf(order, url) : null))
+      : ch === 'web' ? webCardOf(card || (orderMsg && url ? orderLinkCardOf(order, url) : null), order, url) : null
     const main = renderFor(ch, vars)
     const text = plainFor(ch, main.text)
     pushOut(event, ch, to, text, orderId, customer, buttonCard ? { card: { text, card: buttonCard } } : {})
@@ -2982,6 +3020,12 @@ export function sendChat(chatId, from, text, extra = {}) {
   if (!c || (!t && !hasImg && !['order', 'quote'].includes(extra.kind))) return null
   const at = extra.at || now()
   const m = { id: uid('cm'), from, kind: extra.kind || 'text', text: t, orderId: extra.orderId || null, quoteId: extra.quoteId || null, replyTo: extra.replyTo || null, ask: extra.ask || null, answerFor: extra.answerFor || null, filled: extra.filled || null, at, by: extra.by || (from === 'staff' ? session.role : 'ลูกค้า'), delivery: from === 'staff' ? 'simulated' : null, ...(hasImg ? { attachments: extra.attachments } : {}) }
+  // การ์ดแจ้งเตือน/ลิงก์ในแชทเว็บ: เก็บข้อความและการ์ดไว้ด้วยกัน (แสดงให้ลูกค้าเป็นการ์ดอ่านอย่างเดียว)
+  if (from === 'staff' && c.channel === 'web' && extra.fbCard && m.kind === 'text') {
+    m.kind = 'card'
+    m.card = extra.fbCard.card
+    m.cardText = extra.fbCard.text || t
+  }
   // สรุปออร์เดอร์ในแชทเว็บ: เก็บการ์ดแบบเดียวกับ Facebook (รายการ ยอด ลิงก์ดูออร์เดอร์) ไว้กับข้อความ
   if (from === 'staff' && c.channel === 'web' && m.kind === 'order') {
     const o = findOrder(m.orderId)

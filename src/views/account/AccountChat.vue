@@ -184,6 +184,9 @@ function pickReply(m) {
 function cancelReply() {
   replyTo.value = null
 }
+// ชื่อประเภทการ์ดจากร้าน (การ์ดแจ้งยอด/ลิงก์/สรุปออร์เดอร์)
+const CARD_LABEL = { payreq: 'แจ้งยอดชำระ', order: 'สรุปออร์เดอร์', link: 'ลิงก์ออร์เดอร์', quote: 'ใบเสนอราคา', info: 'ข้อความจากร้าน' }
+const cardLabel = (c) => CARD_LABEL[c?.kind] || CARD_LABEL.info
 // ข้อความสั้น ๆ สำหรับแถบตอบกลับ (ตรงกับที่พนักงานเห็น)
 const snippetOf = (m) => {
   if (!m) return ''
@@ -293,6 +296,18 @@ onBeforeUnmount(() => {
               <p v-if="m.card?.subtitle" class="mt-0.5 text-sm font-semibold text-stone-700">{{ m.card.subtitle }}</p>
               <p v-if="m.text" class="mt-2 text-sm leading-relaxed break-words whitespace-pre-wrap text-stone-700">{{ m.text }}</p>
               <a v-if="safeHref(m.card?.url)" :href="safeHref(m.card.url)" target="_blank" rel="noopener" class="btn-soft mt-3 h-10 w-full text-sm">ดูออร์เดอร์</a>
+            </div>
+          </div>
+          <!-- การ์ดแจ้งเตือน/ลิงก์จากร้าน: แจ้งยอดชำระ ลิงก์ออร์เดอร์ (อ่านอย่างเดียว มีปุ่มเปิดลิงก์) -->
+          <div v-else-if="m.kind === 'card' && m.card" class="w-72 max-w-[85%] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+            <div v-if="m.replyTo" class="m-3 mb-0 rounded-lg border-l-2 border-brand-300 bg-stone-100 px-2 py-1 text-xs leading-snug text-stone-600"><span class="block font-medium">{{ m.replyTo.from === 'customer' ? 'ข้อความของคุณ' : 'ร้าน' }}</span><span class="line-clamp-2 break-words">{{ m.replyTo.text }}</span></div>
+            <img v-if="m.card.image" :src="m.card.image" alt="" class="h-32 w-full object-cover" loading="lazy" />
+            <div class="p-3.5">
+              <p v-if="cardLabel(m.card) !== m.card.title" class="text-xs font-semibold text-brand-700">{{ cardLabel(m.card) }}</p>
+              <p class="font-display text-base leading-snug text-stone-900">{{ m.card.title || cardLabel(m.card) }}</p>
+              <p v-if="m.card.subtitle" class="mt-0.5 text-sm font-semibold text-stone-700">{{ m.card.subtitle }}</p>
+              <p v-if="m.text" class="mt-2 text-sm leading-relaxed break-words whitespace-pre-wrap text-stone-700">{{ m.text }}</p>
+              <a v-if="safeHref(m.card.url)" :href="safeHref(m.card.url)" target="_blank" rel="noopener" class="btn-soft mt-3 h-10 w-full text-sm">{{ m.card.kind === 'payreq' || m.card.pay ? 'ดูและชำระเงิน' : 'ดูออร์เดอร์' }}</a>
             </div>
           </div>
           <div
