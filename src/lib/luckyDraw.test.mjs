@@ -1,6 +1,6 @@
 // ทดสอบกติกาฝั่งแอปของลุ้นโชคท้ายบิล · รัน: node src/lib/luckyDraw.test.mjs
 import assert from 'node:assert/strict'
-import { LUCKY_SITE_URL, MAX_DRAWS_PER_BILL, genLuckyToken, hashLuckyToken, isLuckyCodeShape, luckyActive, luckyDefaults, luckyDrawsOf, luckyUrl, normalizeLuckyCode, validateLuckyConfig, validateLuckyPrizes } from './luckyDraw.js'
+import { LUCKY_SITE_URL, MAX_DRAWS_PER_BILL, genLuckyToken, hashLuckyToken, luckyActive, luckyDefaults, luckyDrawsOf, luckyUrl, validateLuckyConfig, validateLuckyPrizes } from './luckyDraw.js'
 
 let pass = 0
 const t = async (name, fn) => { await fn(); pass++; console.log('PASS', name) }
@@ -15,29 +15,40 @@ const bill = (extra = {}) => ({
   ...extra,
 })
 
-await t('ค่าเริ่มต้น: ปิดอยู่ ทุก 100 บาท ยังไม่เลือกสินค้า และชี้ไปเว็บหลัก', () => {
+const PR = [
+  { id: 'p1', name: 'ส่วนลด 50 บาท', kind: 'discount', amount: 50, quota: 10 },
+  { id: 'p2', name: 'คัพเค้ก 1 ชิ้น', kind: 'reward', amount: 0, quota: 20 },
+]
+
+await t('ค่าเริ่มต้น: ปิดอยู่ ทุก 100 บาท ยังไม่เลือกสินค้า ยังไม่มีรางวัล อายุคูปอง 30 วัน และชี้ไปเว็บหลัก', () => {
   const d = luckyDefaults()
   assert.equal(d.enabled, false)
   assert.equal(d.perBaht, 100)
   assert.deepEqual(d.itemIds, [])
   assert.deepEqual(d.prizes, [])
   assert.equal(d.siteUrl, LUCKY_SITE_URL)
-  assert.equal(d.prizeDays, 30)
+  assert.equal(d.couponDays, 30)
 })
 
-await t('ตรวจรายการรางวัล: ชื่อว่าง โอกาสติดลบ หรือรวมเกิน 100 ไม่ผ่าน', () => {
-  assert.equal(validateLuckyPrizes([{ name: 'ส่วนลด 50', chance: 10 }, { name: 'คัพเค้ก', chance: 30 }]), '')
-  assert.notEqual(validateLuckyPrizes([{ name: ' ', chance: 10 }]), '')
-  assert.notEqual(validateLuckyPrizes([{ name: 'ก', chance: -1 }]), '')
-  assert.match(validateLuckyPrizes([{ name: 'ก', chance: 60 }, { name: 'ข', chance: 41 }]), /เกิน 100/)
+await t('ตรวจรายการรางวัล: ชื่อ ประเภท ส่วนลด จำนวน และรหัสรางวัล', () => {
+  assert.equal(validateLuckyPrizes(PR), '')
+  assert.equal(validateLuckyPrizes([]), '')
+  assert.notEqual(validateLuckyPrizes([{ ...PR[0], name: ' ' }]), '')
+  assert.notEqual(validateLuckyPrizes([{ ...PR[0], kind: 'points' }]), '') // คะแนนสะสมไม่ใช้แล้ว
+  assert.notEqual(validateLuckyPrizes([{ ...PR[0], amount: 0 }]), '') // ส่วนลดต้องมากกว่า 0
+  assert.notEqual(validateLuckyPrizes([{ ...PR[0], quota: -1 }]), '')
+  assert.notEqual(validateLuckyPrizes([{ ...PR[0], quota: 1.5 }]), '')
+  assert.notEqual(validateLuckyPrizes([PR[0], { ...PR[1], id: 'p1' }]), '') // รหัสซ้ำ
+  assert.notEqual(validateLuckyPrizes([{ ...PR[1], id: '' }]), '')
   assert.notEqual(validateLuckyPrizes(null), '')
 })
 
-await t('ตรวจการตั้งค่า: ทุกกี่บาทต้องมากกว่า 0 และเปิดใช้ต้องเลือกสินค้า', () => {
-  assert.match(validateLuckyConfig({ perBaht: 0, enabled: false, itemIds: ['a'] }), /มากกว่า 0/)
-  assert.match(validateLuckyConfig({ perBaht: 100, enabled: true, itemIds: [] }), /เลือกสินค้า/)
-  assert.equal(validateLuckyConfig({ perBaht: 100, enabled: false, itemIds: [] }), '')
-  assert.equal(validateLuckyConfig({ perBaht: 100, enabled: true, itemIds: ['a'], prizes: [] }), '')
+await t('ตรวจการตั้งค่า: ทุกกี่บาทต้องมากกว่า 0 · เปิดใช้ต้องเลือกสินค้าและมีรางวัล', () => {
+  assert.match(validateLuckyConfig({ perBaht: 0, enabled: false, itemIds: ['a'], prizes: [] }), /มากกว่า 0/)
+  assert.match(validateLuckyConfig({ perBaht: 100, enabled: true, itemIds: [], prizes: PR }), /เลือกสินค้า/)
+  assert.match(validateLuckyConfig({ perBaht: 100, enabled: true, itemIds: ['a'], prizes: [] }), /ตั้งรางวัล/)
+  assert.equal(validateLuckyConfig({ perBaht: 100, enabled: false, itemIds: [], prizes: [] }), '')
+  assert.equal(validateLuckyConfig({ perBaht: 100, enabled: true, itemIds: ['a'], prizes: PR }), '')
 })
 
 await t('เปิดให้ลุ้น: ต้องเปิดใช้งานและอยู่ในช่วงเวลา', () => {
@@ -89,13 +100,6 @@ await t('hash ของ token: กำหนดได้แน่นอน แล
 await t('URL ของ QR: ชี้ไปหน้าลุ้นโชคของบิล และตัด / ท้ายออก', () => {
   assert.equal(luckyUrl('https://example.com/', 'TOKEN'), 'https://example.com/#/luck/TOKEN')
   assert.equal(luckyUrl('', 'TOKEN'), `${LUCKY_SITE_URL}/#/luck/TOKEN`)
-})
-
-await t('รหัสรางวัล: ตัดช่องว่างและแปลงเป็นพิมพ์ใหญ่ก่อนตรวจรูปแบบ', () => {
-  assert.equal(normalizeLuckyCode(' ab3 c4-x '), 'AB3C4-X')
-  assert.equal(isLuckyCodeShape('ab3c45'), true)
-  assert.equal(isLuckyCodeShape('AB0CDE'), false) // ไม่มี 0
-  assert.equal(isLuckyCodeShape('ABCDE'), false)
 })
 
 console.log(`ผ่าน ${pass} กรณี`)

@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { loginPin } from '../../data/store'
 import { phoneValid, phoneDigits } from '../../lib/format'
 import { isPin } from '../../lib/customerAuth'
@@ -11,6 +11,12 @@ import CakeArt from '../../components/art/CakeArt.vue'
 
 // เข้าสู่ระบบลูกค้า: เบอร์โทร + PIN 6 หลัก
 const router = useRouter()
+const route = useRoute()
+// หลังเข้าสู่ระบบกลับไปหน้าที่ขอไว้ (เช่น หน้าลุ้นโชค) · รับเฉพาะลิงก์ภายในของเว็บ
+const nextPath = () => {
+  const n = String(route.query.next ?? '')
+  return n.startsWith('/') && !n.startsWith('//') ? n : '/account'
+}
 const phone = ref('')
 const pin = ref('')
 const error = ref('')
@@ -22,7 +28,7 @@ async function submit() {
   busy.value = true
   const r = await loginPin(phoneDigits(phone.value), pin.value)
   busy.value = false
-  if (r.ok) router.replace('/account')
+  if (r.ok) router.replace(nextPath())
   else {
     error.value = r.error
     pin.value = ''

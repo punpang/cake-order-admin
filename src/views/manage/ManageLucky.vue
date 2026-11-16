@@ -1,8 +1,8 @@
 <script setup>
-// ลุ้นโชคท้ายบิล (แอดมิน): เปิด/ปิด ช่วงเวลา URL หน้าเว็บ อายุรหัสรางวัล · ทุกกี่บาทลุ้นได้ 1 ครั้ง · สินค้าที่ร่วมรายการ · รางวัลและโอกาส · สถิติ
+// ลุ้นโชคท้ายบิล (แอดมิน): เปิด/ปิด · ช่วงเวลา (ชุดที่นับรางวัล) · URL หน้าเว็บ (ทำ QR) · อายุคูปอง · ทุกกี่บาทลุ้นได้ 1 ครั้ง · สินค้าที่ร่วมรายการ · รางวัลตามลำดับที่ออก · สถิติ
 import { computed, reactive, ref } from 'vue'
 import { db, saveLuckyDraw } from '../../data/store'
-import { luckyDefaults, LUCKY_SITE_URL, MAX_DRAWS_PER_BILL } from '../../lib/luckyDraw'
+import { luckyDefaults, LUCKY_SITE_URL, MAX_DRAWS_PER_BILL, PRIZE_KINDS } from '../../lib/luckyDraw'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
@@ -24,10 +24,10 @@ const toIso = (v) => {
 const base = { ...luckyDefaults(), ...(db.shop.luckyDraw || {}) }
 const st = reactive({
   enabled: !!base.enabled, fromL: toLocal(base.from), toL: toLocal(base.to),
-  siteUrl: base.siteUrl || LUCKY_SITE_URL, prizeDays: base.prizeDays || 30,
+  siteUrl: base.siteUrl || LUCKY_SITE_URL, couponDays: base.couponDays || 30,
   perBaht: base.perBaht || 100,
   itemIds: [...(base.itemIds || [])],
-  prizes: (base.prizes || []).map((p) => ({ id: p.id, name: p.name, kind: p.kind || 'item', amount: p.amount || 0, chance: p.chance || 0 })),
+  prizes: (base.prizes || []).map((p) => ({ id: p.id, name: p.name, kind: p.kind === 'reward' ? 'reward' : 'discount', amount: p.amount || 0, quota: p.quota || 0 })),
 })
 const msg = ref('')
 const ok = ref(false)
@@ -52,28 +52,29 @@ function togglePick(id) {
 }
 const pickedNames = computed(() => st.itemIds.map((id) => db.retailItems.find((x) => x.id === id)?.name || id))
 
-// ---------- รางวัลและโอกาส ----------
-const sumChance = computed(() => st.prizes.reduce((s, p) => s + (Number(p.chance) || 0), 0))
-const noPrize = computed(() => Math.max(0, Math.round((100 - sumChance.value) * 100) / 100))
-const KINDS = [{ v: 'points', l: 'คะแนนสะสม' }, { v: 'coupon', l: 'คูปองส่วนลด' }, { v: 'item', l: 'ของ/อื่น ๆ' }]
-function addPrize() { st.prizes.push({ id: '', name: '', kind: 'item', amount: 0, chance: 0 }) }
+// ---------- รางวัลตามลำดับที่ออก (แต่ละรายการมีจำนวนที่ออกได้ในช่วงเปิดลุ้น) ----------
+const totalQuota = computed(() => st.prizes.reduce((s, p) => s + (Number(p.quota) || 0), 0))
+function addPrize() { st.prizes.push({ id: '', name: '', kind: 'discount', amount: 0, quota: 0 }) }
 function removePrize(i) { st.prizes.splice(i, 1) }
+// เลื่อนลำดับขึ้น/ลง (dir = -1 ขึ้น · 1 ลง) · ลำดับนี้คือลำดับที่รางวัลถูกออก
+function movePrize(i, dir) {
+  const j = i + dir
+  if (j < 0 || j >= st.prizes.length) return
+  const a = st.prizes[i]
+  st.prizes.splice(i, 1, st.prizes[j])
+  st.prizes.splice(j, 1, a)
+}
 
 // ---------- สถิติ ----------
 const stats = computed(() => {
   const recs = db.luckyTokens || []
   const spins = recs.flatMap((r) => r.spins || [])
-  return {
-    bills: recs.length,
-    spins: spins.length,
-    won: spins.filter((s) => s.prize).length,
-    redeemed: spins.filter((s) => s.redeemedAt).length,
-  }
+  return { bills: recs.length, spins: spins.length, won: spins.filter((s) => s.prize).length }
 })
 
 function save() {
   const r = saveLuckyDraw({
-    enabled: st.enabled, from: toIso(st.fromL), to: toIso(st.toL), siteUrl: st.siteUrl, prizeDays: st.prizeDays,
+    enabled: st.enabled, from: toIso(st.fromL), to: toIso(st.toL), siteUrl: st.siteUrl, couponDays: st.couponDays,
     perBaht: st.perBaht, itemIds: st.itemIds, prizes: st.prizes,
   })
   ok.value = !r.error
@@ -95,6 +96,7 @@ function save() {
           <div>
             <label class="label" for="lk-to">ถึงเวลา (สิ้นสุด)</label>
             <input id="lk-to" v-model="st.toL" type="datetime-local" class="input h-11" />
+            <p class="mt-1 text-xs text-stone-500">รางวัลนับแยกตามช่วงนี้ ช่วงใหม่เริ่มนับจำนวนใหม่</p>
           </div>
         </div>
         <div class="grid gap-3 sm:grid-cols-3">
@@ -108,8 +110,8 @@ function save() {
             <input id="lk-url" v-model="st.siteUrl" class="input h-11" placeholder="https://cake-order-admin.pages.dev" />
           </div>
           <div>
-            <label class="label" for="lk-days">วันใช้รหัสรางวัลหลังลุ้น</label>
-            <input id="lk-days" v-model.number="st.prizeDays" type="number" min="1" max="365" class="input h-11" />
+            <label class="label" for="lk-days">อายุคูปองที่ได้จากการลุ้น (วัน)</label>
+            <input id="lk-days" v-model.number="st.couponDays" type="number" min="1" max="365" class="input h-11" />
           </div>
         </div>
       </section>
@@ -137,34 +139,39 @@ function save() {
 
       <section class="card space-y-3">
         <div class="flex items-center justify-between gap-2">
-          <div class="card-title">รางวัลและโอกาส</div>
+          <div class="card-title">รางวัลตามลำดับที่ออก</div>
           <button type="button" class="btn-soft h-10 px-3 text-sm" @click="addPrize"><AppIcon name="plus" :size="15" /> เพิ่มรางวัล</button>
         </div>
-        <p v-if="!st.prizes.length" class="rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-500">ยังไม่มีรางวัล ทุกครั้งที่ลุ้นจะไม่ได้รางวัล</p>
-        <div v-for="(p, i) in st.prizes" :key="i" class="grid gap-2 rounded-2xl border border-stone-200 p-3 sm:grid-cols-[2fr_1.2fr_1fr_1fr_auto] sm:items-end">
-          <div>
-            <label class="label" :for="'pn-' + i">ชื่อรางวัล</label>
-            <input :id="'pn-' + i" v-model="p.name" class="input h-11" placeholder="เช่น ส่วนลด 50 บาท" />
+        <p class="text-sm text-stone-600">ระบบออกรางวัลทีละรายการตามลำดับนี้ จนครบจำนวนของรายการนั้นในช่วงเปิดลุ้น แล้วไปรายการถัดไป · ครบทุกรายการแล้วลุ้นได้ "ไม่ได้รางวัล" · หน้าลุ้นโชคแสดงเฉพาะจำนวนที่ออกไปแล้ว</p>
+        <p v-if="!st.prizes.length" class="rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-500">ยังไม่มีรางวัล ทุกครั้งที่ลุ้นจะได้ "ไม่ได้รางวัล"</p>
+        <div v-for="(p, i) in st.prizes" :key="i" class="space-y-3 rounded-2xl border border-stone-200 p-3">
+          <div class="flex items-center gap-2">
+            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-800">{{ i + 1 }}</span>
+            <input :id="'pn-' + i" v-model="p.name" class="input h-11 min-w-0 flex-1" placeholder="ชื่อรางวัล เช่น ส่วนลด 50 บาท" :aria-label="`ชื่อรางวัลลำดับที่ ${i + 1}`" />
+            <button type="button" class="btn-outline h-11 w-11 shrink-0" :disabled="i === 0" :aria-label="`เลื่อนลำดับที่ ${i + 1} ขึ้น`" @click="movePrize(i, -1)"><span class="inline-flex rotate-90"><AppIcon name="back" :size="16" /></span></button>
+            <button type="button" class="btn-outline h-11 w-11 shrink-0" :disabled="i === st.prizes.length - 1" :aria-label="`เลื่อนลำดับที่ ${i + 1} ลง`" @click="movePrize(i, 1)"><span class="inline-flex -rotate-90"><AppIcon name="back" :size="16" /></span></button>
           </div>
-          <div>
-            <label class="label" :for="'pk-' + i">ประเภท</label>
-            <select :id="'pk-' + i" v-model="p.kind" class="input h-11">
-              <option v-for="k in KINDS" :key="k.v" :value="k.v">{{ k.l }}</option>
-            </select>
+          <div class="grid gap-2 sm:grid-cols-3">
+            <div>
+              <label class="label" :for="'pk-' + i">ประเภท</label>
+              <select :id="'pk-' + i" v-model="p.kind" class="input h-11">
+                <option v-for="k in PRIZE_KINDS" :key="k.v" :value="k.v">{{ k.l }}</option>
+              </select>
+            </div>
+            <div v-if="p.kind === 'discount'">
+              <label class="label" :for="'pa-' + i">มูลค่าส่วนลด (บาท)</label>
+              <MoneyInput :id="'pa-' + i" v-model="p.amount" class="input h-11" placeholder="0" />
+            </div>
+            <div>
+              <label class="label" :for="'pq-' + i">จำนวนที่ออกได้</label>
+              <input :id="'pq-' + i" v-model.number="p.quota" type="number" min="0" step="1" class="input h-11" />
+            </div>
           </div>
-          <div>
-            <label class="label" :for="'pa-' + i">จำนวน</label>
-            <MoneyInput :id="'pa-' + i" v-model="p.amount" class="input h-11" placeholder="0" />
+          <div class="flex justify-end">
+            <button type="button" class="btn-danger h-10 px-3 text-sm" :aria-label="`ลบรางวัล ${p.name || i + 1}`" @click="removePrize(i)"><AppIcon name="trash" :size="15" /> ลบรางวัลนี้</button>
           </div>
-          <div>
-            <label class="label" :for="'pc-' + i">โอกาส (%)</label>
-            <input :id="'pc-' + i" v-model.number="p.chance" type="number" min="0" max="100" step="0.01" class="input h-11" />
-          </div>
-          <button type="button" class="btn-danger h-11 px-3" :aria-label="`ลบรางวัล ${p.name || i + 1}`" @click="removePrize(i)"><AppIcon name="trash" :size="16" /></button>
         </div>
-        <p class="rounded-xl p-2.5 text-sm" :class="sumChance > 100 ? 'bg-rose-50 text-rose-700' : 'bg-brand-50 text-brand-900'" role="status">
-          โอกาสรวม {{ sumChance.toFixed(2) }}% · ไม่ได้รางวัล {{ noPrize.toFixed(2) }}%
-        </p>
+        <p class="rounded-xl bg-brand-50 p-2.5 text-sm text-brand-900" role="status">รวมจำนวนที่ออกได้ {{ totalQuota }} ครั้งในช่วงเปิดลุ้น</p>
       </section>
 
       <p v-if="msg" class="rounded-xl p-3 text-sm" :class="ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'" role="status">{{ msg }}</p>
@@ -172,13 +179,12 @@ function save() {
 
       <section class="card">
         <div class="card-title">สถิติ</div>
-        <div class="mt-2 grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
+        <div class="mt-2 grid grid-cols-3 gap-3 text-center">
           <div class="rounded-xl bg-stone-50 p-3"><div class="text-xs text-stone-500">บิลที่มีสิทธิ์ลุ้น</div><div class="text-xl font-semibold">{{ stats.bills }}</div></div>
           <div class="rounded-xl bg-stone-50 p-3"><div class="text-xs text-stone-500">ลุ้นแล้ว (ครั้ง)</div><div class="text-xl font-semibold">{{ stats.spins }}</div></div>
           <div class="rounded-xl bg-stone-50 p-3"><div class="text-xs text-stone-500">ได้รางวัล</div><div class="text-xl font-semibold">{{ stats.won }}</div></div>
-          <div class="rounded-xl bg-stone-50 p-3"><div class="text-xs text-stone-500">รับรางวัลที่ร้านแล้ว</div><div class="text-xl font-semibold">{{ stats.redeemed }}</div></div>
         </div>
-        <p class="mt-3 text-xs text-stone-500">รับรางวัลที่ร้านด้วยปุ่ม "รับรางวัลลุ้นโชค" ในหน้าขาย · ลุ้นได้ตามจำนวนที่บิลมี แต่ละครั้งได้ผลแยกกัน</p>
+        <p class="mt-3 text-xs text-stone-500">รางวัลที่ได้เข้าเมนู "คูปอง" ของบัญชีสมาชิก ใช้ที่ร้านด้วยวิธีเดียวกับคูปองทั่วไป</p>
       </section>
     </div>
   </ManageShell>

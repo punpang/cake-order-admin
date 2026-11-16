@@ -1,31 +1,39 @@
 // ลุ้นโชคท้ายบิล (ฝั่งแอป): ค่าเริ่มต้น การตรวจตั้งค่า จำนวนครั้งลุ้นของบิล การสร้าง token/hash และ URL ของ QR
-// กติกาการสุ่มจริงอยู่ที่ Edge Function lucky-spin (supabase/functions/_shared/lucky.ts) · token เต็มไม่เก็บในฐานข้อมูล
+// รางวัลออกตามลำดับที่ร้านตั้ง จนครบจำนวนของแต่ละรายการ (ตัดสินที่ฐานข้อมูล punpang_lucky_spin) · ลุ้นได้เฉพาะสมาชิกที่เข้าสู่ระบบ · token เต็มไม่เก็บในฐานข้อมูล
 import { orderTotals } from './pricing.js'
 
 export const LUCKY_SITE_URL = 'https://cake-order-admin.pages.dev'
 export const MAX_DRAWS_PER_BILL = 10 // เพดานครั้งลุ้นต่อบิล (กันบิลยอดสูงมากได้ลุ้นจำนวนมากเกินไป)
+export const PRIZE_KINDS = [
+  { v: 'discount', l: 'ส่วนลด (บาท)' },
+  { v: 'reward', l: 'ของรางวัล (รับที่ร้าน)' },
+]
 
 export const luckyDefaults = () => ({
-  enabled: false, from: '', to: '', siteUrl: LUCKY_SITE_URL, prizeDays: 30,
+  enabled: false, from: '', to: '', siteUrl: LUCKY_SITE_URL,
+  couponDays: 30, // อายุคูปองที่ได้จากการลุ้น (วัน นับจากวันที่ลุ้น)
   perBaht: 100, // ทุกกี่บาทของยอดที่จ่ายจริง (จากสินค้าที่ร่วมรายการ) ลุ้นได้ 1 ครั้ง
   itemIds: [], // สินค้าที่ร่วมรายการ (id ของสินค้าหน้าร้าน)
-  prizes: [],
+  prizes: [], // เรียงตามลำดับที่ออก: { id, name, kind: 'discount' | 'reward', amount (ส่วนลดบาท), quota (จำนวนที่ออกได้) }
 })
 
-// ตรวจรายการรางวัลก่อนบันทึก (กติกาเดียวกับเซิร์ฟเวอร์): ชื่อไม่ว่าง โอกาส ≥ 0 และรวมไม่เกิน 100
+// ตรวจรายการรางวัลก่อนบันทึก: ชื่อไม่ว่าง ประเภทถูกต้อง ส่วนลดมากกว่า 0 บาท จำนวนเป็นจำนวนเต็ม ≥ 0 และรหัสรางวัลไม่ซ้ำ
 export function validateLuckyPrizes(prizes) {
   if (!Array.isArray(prizes)) return 'รูปแบบรายการรางวัลไม่ถูกต้อง'
   if (prizes.some((p) => !String(p?.name ?? '').trim())) return 'ทุกรางวัลต้องมีชื่อ'
-  if (prizes.some((p) => !(Number(p?.chance) >= 0))) return 'โอกาสต้องไม่ติดลบ'
-  const sum = prizes.reduce((s, p) => s + (Number(p.chance) || 0), 0)
-  if (sum > 100 + 1e-9) return `โอกาสรวมเกิน 100% (ตอนนี้ ${sum.toFixed(2)}%)`
+  if (prizes.some((p) => !PRIZE_KINDS.some((k) => k.v === p?.kind))) return 'ประเภทรางวัลต้องเป็นส่วนลดหรือของรางวัล'
+  if (prizes.some((p) => p.kind === 'discount' && !(Number(p.amount) > 0))) return 'ส่วนลดต้องมากกว่า 0 บาท'
+  if (prizes.some((p) => !Number.isInteger(Number(p?.quota)) || Number(p.quota) < 0)) return 'จำนวนของแต่ละรางวัลต้องเป็นจำนวนเต็ม 0 ขึ้นไป'
+  const ids = prizes.map((p) => String(p?.id ?? ''))
+  if (ids.some((x) => !x) || new Set(ids).size !== ids.length) return 'รหัสรางวัลซ้ำหรือว่าง'
   return ''
 }
 
-// ตรวจการตั้งค่าลุ้นโชคทั้งชุด: ทุกกี่บาทต้องมากกว่า 0 · เปิดใช้งานต้องเลือกสินค้าอย่างน้อย 1 รายการ · รางวัลถูกต้อง
+// ตรวจการตั้งค่าลุ้นโชคทั้งชุด: ทุกกี่บาทต้องมากกว่า 0 · เปิดใช้งานต้องเลือกสินค้าและมีรางวัลอย่างน้อย 1 รายการ · รางวัลถูกต้อง
 export function validateLuckyConfig(cfg) {
   if (!(Number(cfg?.perBaht) > 0)) return 'ทุกกี่บาทลุ้นได้ 1 ครั้ง ต้องมากกว่า 0'
   if (cfg?.enabled && !(Array.isArray(cfg?.itemIds) && cfg.itemIds.length)) return 'เลือกสินค้าที่ร่วมลุ้นอย่างน้อย 1 รายการ'
+  if (cfg?.enabled && !(cfg?.prizes || []).length) return 'ตั้งรางวัลอย่างน้อย 1 รายการก่อนเปิดลุ้น'
   return validateLuckyPrizes(cfg?.prizes || [])
 }
 
@@ -75,7 +83,3 @@ export function luckyUrl(siteUrl, token) {
   const base = String(siteUrl || LUCKY_SITE_URL).replace(/\/+$/, '')
   return `${base}/#/luck/${token}`
 }
-
-// รูปแบบรหัสรางวัลที่พนักงานกรอก (6 ตัวจากตัวอักษรที่กำหนด · ไม่สนตัวพิมพ์เล็กใหญ่และช่องว่าง)
-export const normalizeLuckyCode = (s) => String(s ?? '').replace(/\s+/g, '').toUpperCase()
-export const isLuckyCodeShape = (s) => /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/.test(normalizeLuckyCode(s))

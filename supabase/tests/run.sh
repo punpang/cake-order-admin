@@ -38,4 +38,9 @@ echo "✓ migration ทุกไฟล์ผ่าน ($(ls supabase/migrations/
 "${PSQL[@]}" -d "$DB" -f supabase/tests/security.test.sql
 code=$?
 [ "$code" = "0" ] && echo "✓ security.test.sql ผ่านทั้งหมด" || echo "✗ security.test.sql ล้มเหลว"
-exit "$code"
+[ "$code" = "0" ] || exit "$code"
+
+"${PSQL[@]}" -d "$DB" -f supabase/tests/lucky.test.sql
+lcode=$?
+[ "$lcode" = "0" ] && echo "✓ lucky.test.sql ผ่านทั้งหมด" || echo "✗ lucky.test.sql ล้มเหลว"
+exit "$lcode"
