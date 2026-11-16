@@ -7,6 +7,8 @@ export const MAX_DRAWS_PER_BILL = 10 // เพดานครั้งลุ้�
 export const PRIZE_KINDS = [
   { v: 'discount', l: 'ส่วนลด (บาท)' },
   { v: 'reward', l: 'ของรางวัล (รับที่ร้าน)' },
+  { v: 'points', l: 'คะแนนสะสม' },
+  { v: 'none', l: 'ไม่ได้รางวัล' },
 ]
 
 export const luckyDefaults = () => ({
@@ -14,7 +16,7 @@ export const luckyDefaults = () => ({
   couponDays: 30, // อายุคูปองที่ได้จากการลุ้น (วัน นับจากวันที่ลุ้น)
   perBaht: 100, // ทุกกี่บาทของยอดที่จ่ายจริง (จากสินค้าที่ร่วมรายการ) ลุ้นได้ 1 ครั้ง
   itemIds: [], // สินค้าที่ร่วมรายการ (id ของสินค้าหน้าร้าน)
-  prizes: [], // เรียงตามลำดับที่วนออก: { id, name, kind: 'discount' | 'reward', amount (ส่วนลดบาท) }
+  prizes: [], // เรียงตามลำดับที่วนออก: { id, name, kind: 'discount' | 'reward' | 'points' | 'none', amount (ส่วนลดบาท), points (คะแนนสะสม) }
 })
 
 // ตรวจรายการรางวัลก่อนบันทึก: ชื่อไม่ว่าง ประเภทถูกต้อง ส่วนลดมากกว่า 0 บาท และรหัสรางวัลไม่ซ้ำ (ไม่จำกัดจำนวนต่อรางวัล)
@@ -23,6 +25,7 @@ export function validateLuckyPrizes(prizes) {
   if (prizes.some((p) => !String(p?.name ?? '').trim())) return 'ทุกรางวัลต้องมีชื่อ'
   if (prizes.some((p) => !PRIZE_KINDS.some((k) => k.v === p?.kind))) return 'ประเภทรางวัลต้องเป็นส่วนลดหรือของรางวัล'
   if (prizes.some((p) => p.kind === 'discount' && !(Number(p.amount) > 0))) return 'ส่วนลดต้องมากกว่า 0 บาท'
+  if (prizes.some((p) => p.kind === 'points' && !(Number.isInteger(Number(p.points)) && Number(p.points) > 0))) return 'คะแนนที่ได้ต้องเป็นจำนวนเต็มมากกว่า 0'
   const ids = prizes.map((p) => String(p?.id ?? ''))
   if (ids.some((x) => !x) || new Set(ids).size !== ids.length) return 'รหัสรางวัลซ้ำหรือว่าง'
   return ''

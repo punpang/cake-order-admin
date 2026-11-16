@@ -21,11 +21,11 @@ const awarded = ref(null) // รางวัลที่ออกไปแล้
 const awardedLatest = ref(null) // ค่าล่าสุดจากเซิร์ฟเวอร์ (รวมบัตรที่กำลังขูด) · แสดงจริงเมื่อขูดเสร็จ เพื่อไม่ให้เผยผลก่อนขูด
 const session = ref(readSessionToken())
 const loggedIn = computed(() => !!session.value)
-const KIND = { discount: 'คูปองส่วนลด', reward: 'ของรางวัล · รับที่ร้าน' }
+const KIND = { discount: 'คูปองส่วนลด', reward: 'ของรางวัล · รับที่ร้าน', points: 'คะแนนสะสม' }
 
 const remaining = computed(() => data.value?.remaining ?? 0)
 const draws = computed(() => data.value?.draws ?? 0)
-const prizes = computed(() => data.value?.prizes || [])
+const prizes = computed(() => (data.value?.prizes || []).filter((p) => p.kind !== 'none')) // ไม่ได้รางวัลไม่แสดงในรายการรางวัล
 const doneCards = computed(() => (data.value?.spins || []).map((s, i) => ({ s, i })).filter(({ i }) => !pending.value || i !== pending.value.index))
 
 function fail(message) {
@@ -101,7 +101,7 @@ onMounted(load)
           <li v-for="(p, i) in prizes" :key="p.id || i" class="rounded-2xl border border-brand-200 bg-brand-50 p-3">
             <div class="font-semibold text-stone-900">{{ p.name }}</div>
             <div class="text-xs text-stone-600">
-              {{ KIND[p.kind] || 'รางวัล' }}<template v-if="p.kind === 'discount' && p.amount > 0"> · {{ money(p.amount) }}</template>
+              {{ KIND[p.kind] || 'รางวัล' }}<template v-if="p.kind === 'discount' && p.amount > 0"> · {{ money(p.amount) }}</template><template v-if="p.kind === 'points' && p.points > 0"> · {{ p.points }} คะแนน</template>
             </div>
           </li>
         </ul>
@@ -120,10 +120,11 @@ onMounted(load)
         <div class="text-center text-sm text-stone-600">บัตรใบที่ {{ pending.index + 1 }} จาก {{ draws }} · ขูดให้ทั่วเพื่อดูผล</div>
         <ScratchCard :covered="true" label="ขูดตรงนี้" @revealed="onRevealed">
           <div class="flex min-h-44 flex-col items-center justify-center gap-2 bg-gradient-to-br from-amber-300 via-amber-400 to-brand-600 p-6 text-center text-white">
-            <template v-if="pending.spin.prize">
+            <template v-if="pending.spin.prize && pending.spin.prize.kind !== 'none'">
               <div class="text-sm">ยินดีด้วย คุณได้รับ</div>
               <div class="text-2xl font-bold">{{ pending.spin.prize.name }}</div>
-              <div class="text-xs">ได้คูปองในบัญชีสมาชิกแล้ว<template v-if="pending.spin.couponExpiresAt"> · ใช้ได้ถึง {{ dateOnly(pending.spin.couponExpiresAt) }}</template></div>
+              <div v-if="pending.spin.prize.kind === 'points'" class="text-xs">ได้ {{ pending.spin.prize.points }} คะแนนสะสมในบัญชีแล้ว</div>
+              <div v-else class="text-xs">ได้คูปองในบัญชีสมาชิกแล้ว<template v-if="pending.spin.couponExpiresAt"> · ใช้ได้ถึง {{ dateOnly(pending.spin.couponExpiresAt) }}</template></div>
             </template>
             <template v-else>
               <div class="text-xl font-semibold">ยังไม่ได้รางวัล</div>
@@ -162,14 +163,15 @@ onMounted(load)
 
       <section v-for="{ s, i } in doneCards" :key="s.at + '-' + i" class="card space-y-2 text-center">
         <div class="text-xs text-stone-500">บัตรใบที่ {{ i + 1 }}</div>
-        <template v-if="s.prize">
+        <template v-if="s.prize && s.prize.kind !== 'none'">
           <p class="text-xl font-semibold text-brand-800">{{ s.prize.name }}</p>
-          <p class="text-sm text-stone-700">ได้คูปองในบัญชีสมาชิกแล้ว<template v-if="s.couponExpiresAt"> · ใช้ได้ถึง {{ dateOnly(s.couponExpiresAt) }}</template></p>
+          <p v-if="s.prize.kind === 'points'" class="text-sm text-stone-700">ได้ {{ s.prize.points }} คะแนนสะสมในบัญชีแล้ว</p>
+          <p v-else class="text-sm text-stone-700">ได้คูปองในบัญชีสมาชิกแล้ว<template v-if="s.couponExpiresAt"> · ใช้ได้ถึง {{ dateOnly(s.couponExpiresAt) }}</template></p>
         </template>
         <p v-else class="text-stone-700">ยังไม่ได้รางวัล</p>
       </section>
     </template>
 
-    <p class="text-center text-xs text-stone-500">รางวัลอยู่ในเมนู "คูปอง" ของบัญชีสมาชิก เมื่ออยู่ที่ร้านให้กด "ใช้ที่ร้านตอนนี้" เพื่อให้พนักงานเห็น</p>
+    <p class="text-center text-xs text-stone-500">คูปองอยู่ในเมนู "คูปอง" และคะแนนสะสมอยู่ในประวัติของบัญชีสมาชิก เมื่อจะใช้คูปองที่ร้านให้กด "ใช้ที่ร้านตอนนี้"</p>
   </main>
 </template>

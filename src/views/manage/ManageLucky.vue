@@ -27,7 +27,7 @@ const st = reactive({
   siteUrl: base.siteUrl || LUCKY_SITE_URL, couponDays: base.couponDays || 30,
   perBaht: base.perBaht || 100,
   itemIds: [...(base.itemIds || [])],
-  prizes: (base.prizes || []).map((p) => ({ id: p.id, name: p.name, kind: p.kind === 'reward' ? 'reward' : 'discount', amount: p.amount || 0 })),
+  prizes: (base.prizes || []).map((p) => ({ id: p.id, name: p.name, kind: p.kind || 'discount', amount: p.amount || 0, points: p.points || 10 })),
 })
 const msg = ref('')
 const ok = ref(false)
@@ -53,7 +53,7 @@ function togglePick(id) {
 const pickedNames = computed(() => st.itemIds.map((id) => db.retailItems.find((x) => x.id === id)?.name || id))
 
 // ---------- รางวัลวนตามลำดับที่ออก (ไม่จำกัดจำนวน) ----------
-function addPrize() { st.prizes.push({ id: '', name: '', kind: 'discount', amount: 0 }) }
+function addPrize() { st.prizes.push({ id: '', name: '', kind: 'discount', amount: 0, points: 10 }) }
 function removePrize(i) { st.prizes.splice(i, 1) }
 // เลื่อนลำดับขึ้น/ลง (dir = -1 ขึ้น · 1 ลง) · ลำดับนี้คือลำดับที่รางวัลถูกออก
 function movePrize(i, dir) {
@@ -160,6 +160,10 @@ function save() {
             <div v-if="p.kind === 'discount'">
               <label class="label" :for="'pa-' + i">มูลค่าส่วนลด (บาท)</label>
               <MoneyInput :id="'pa-' + i" v-model="p.amount" class="input h-11" placeholder="0" />
+            </div>
+            <div v-if="p.kind === 'points'">
+              <label class="label" :for="'pp-' + i">คะแนนที่ได้</label>
+              <input :id="'pp-' + i" v-model.number="p.points" type="number" min="1" step="1" class="input h-11" />
             </div>          </div>
           <div class="flex justify-end">
             <button type="button" class="btn-danger h-10 px-3 text-sm" :aria-label="`ลบรางวัล ${p.name || i + 1}`" @click="removePrize(i)"><AppIcon name="trash" :size="15" /> ลบรางวัลนี้</button>

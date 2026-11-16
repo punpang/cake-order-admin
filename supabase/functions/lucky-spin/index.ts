@@ -82,11 +82,11 @@ Deno.serve(corsWrap(async (req) => {
       remaining: Math.max(0, draws - spins.length),
       state: spins.length >= draws ? 'done' : 'ready',
       window: { from: String(cfg.from || ''), to: String(cfg.to || '') },
-      prizes: prizes.map((p) => ({ id: String(p.id), name: String(p.name), kind: String(p.kind), amount: Number(p.amount) || 0 })),
+      prizes: prizes.map((p) => ({ id: String(p.id), name: String(p.name), kind: String(p.kind), amount: Number(p.amount) || 0, points: Number(p.points) || 0 })),
       awarded: counts && prizes.map((p) => ({ id: String(p.id), name: String(p.name), count: counts[String(p.id)] ?? 0 })),
       spins: spins.filter((s) => cid && s.customerId === cid).map((s) => ({
         at: s.at,
-        prize: s.prize ? { name: String(s.prize.name), kind: String(s.prize.kind), amount: Number(s.prize.amount) || 0 } : null,
+        prize: s.prize ? { name: String(s.prize.name), kind: String(s.prize.kind), amount: Number(s.prize.amount) || 0, points: Number(s.prize.points) || 0 } : null,
         couponExpiresAt: s.couponExpiresAt || null,
       })),
     }

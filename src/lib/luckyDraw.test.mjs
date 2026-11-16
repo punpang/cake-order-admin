@@ -34,10 +34,14 @@ await t('ตรวจรายการรางวัล: ชื่อ ปร�
   assert.equal(validateLuckyPrizes(PR), '')
   assert.equal(validateLuckyPrizes([]), '')
   assert.notEqual(validateLuckyPrizes([{ ...PR[0], name: ' ' }]), '')
-  assert.notEqual(validateLuckyPrizes([{ ...PR[0], kind: 'points' }]), '') // คะแนนสะสมไม่ใช้แล้ว
+  assert.notEqual(validateLuckyPrizes([{ ...PR[0], kind: 'coupon' }]), '') // ประเภทคูปองไม่มีในรายการ
   assert.notEqual(validateLuckyPrizes([{ ...PR[0], amount: 0 }]), '') // ส่วนลดต้องมากกว่า 0
   assert.notEqual(validateLuckyPrizes([PR[0], { ...PR[1], id: 'p1' }]), '') // รหัสซ้ำ
   assert.notEqual(validateLuckyPrizes([{ ...PR[1], id: '' }]), '')
+  assert.equal(validateLuckyPrizes([{ id: 'x', name: 'คะแนน', kind: 'points', points: 10 }]), '')
+  assert.notEqual(validateLuckyPrizes([{ id: 'x', name: 'คะแนน', kind: 'points', points: 0 }]), '') // ต้องมากกว่า 0
+  assert.notEqual(validateLuckyPrizes([{ id: 'x', name: 'คะแนน', kind: 'points', points: 1.5 }]), '') // ต้องเป็นจำนวนเต็ม
+  assert.equal(validateLuckyPrizes([{ id: 'n', name: 'ไม่ได้รางวัล', kind: 'none' }]), '') // ไม่มีค่าเพิ่ม
   assert.notEqual(validateLuckyPrizes(null), '')
 })
 

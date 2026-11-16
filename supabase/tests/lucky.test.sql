@@ -127,6 +127,31 @@ select lt.ok('F1 ไม่มีรายการรางวัล → ไม�
 select lt.cfg(true, interval '-1 hour', interval '1 day',
   '[{"id":"pA","name":"ส่วนลด 50 บาท","kind":"discount","amount":50},{"id":"pB","name":"คัพเค้ก 1 ชิ้น","kind":"reward","amount":0}]'::jsonb);
 
+-- ---------- H) คะแนนสะสม และ "ไม่ได้รางวัล" เป็นตำแหน่งหนึ่งในการวน ----------
+-- ตำแหน่งที่วนไปแล้วในช่วงนี้ = 8 (hT1 6 + hT3 1 + hT5 1; ครั้งที่ไม่มีรางวัลในการตั้งค่าว่างไม่นับ) → ตำแหน่งถัดไปเป็นรายการแรก
+insert into public.punpang_kv (collection, id, data) values ('config', 'loyalty', '{"v": {"pointExpireDays": 365}}'::jsonb)
+  on conflict (collection, id) do update set data = excluded.data;
+select lt.cfg(true, interval '-1 hour', interval '1 day',
+  '[{"id":"pP","name":"คะแนนทดสอบ","kind":"points","points":10},
+    {"id":"pN","name":"ไม่ได้รางวัล","kind":"none"}]'::jsonb);
+select lt.token('hH', 3, interval '1 day', '[]'::jsonb);
+insert into lt_res values ('h1', lt.spin('hH', 'lc1'));
+select lt.ok('H1 ตำแหน่งถัดไปเป็นรายการแรก (คะแนนสะสม 10 คะแนน)',
+  (select r->'spin'->'prize'->>'kind' || '|' || (r->'spin'->'prize'->>'points') from lt_res where k = 'h1') = 'points|10');
+select lt.ok('H2 คะแนนสะสมไม่ได้คูปอง และได้ก้อนคะแนนใหม่ 10 คะแนน คงเหลือ 10 หมดอายุตามอายุคะแนนของร้าน (365 วัน)',
+  (select r->'coupon' from lt_res where k = 'h1') = 'null'::jsonb
+  and (select (data->'ledger'->0->>'delta') || '|' || (data->'ledger'->0->>'remaining') || '|' || (data->'ledger'->0->>'expiresAt') || '|' || (data->'ledger'->0->>'reason')
+         from public.punpang_customers where id = 'lc1') = '10|10|' || to_char(public.punpang__pts_today()::date + 365, 'YYYY-MM-DD') || '|ลุ้นโชค: คะแนนทดสอบ');
+insert into lt_res values ('h2', lt.spin('hH', 'lc1'));
+select lt.ok('H3 ตำแหน่งถัดไปเป็น "ไม่ได้รางวัล": ไม่มีคูปอง ไม่มีคะแนนเพิ่ม (สมุดคะแนนยังมี 1 ก้อน)',
+  (select r->'spin'->'prize'->>'kind' from lt_res where k = 'h2') = 'none'
+  and (select r->'coupon' from lt_res where k = 'h2') = 'null'::jsonb
+  and (select jsonb_array_length(data->'ledger') from public.punpang_customers where id = 'lc1') = 1);
+insert into lt_res values ('h3', lt.spin('hH', 'lc1'));
+select lt.ok('H4 วนกลับมาเป็นคะแนนสะสมอีกครั้ง (สมุดคะแนนมี 2 ก้อน)',
+  (select r->'spin'->'prize'->>'kind' from lt_res where k = 'h3') = 'points'
+  and (select jsonb_array_length(data->'ledger') from public.punpang_customers where id = 'lc1') = 2);
+
 -- ---------- G) สิทธิ์การเรียก: เฉพาะ service_role (Edge Function) ----------
 select lt.ok('G1 ผู้ไม่ได้ล็อกอิน (anon) เรียกลุ้นไม่ได้',
   not has_function_privilege('anon', 'public.punpang_lucky_spin(text,text)', 'EXECUTE'));

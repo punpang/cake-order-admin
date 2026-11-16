@@ -32,20 +32,20 @@ as $function$
 $function$;
 
 -- ลุ้นโชค (สมาชิก): ลุ้นทีละครั้งแบบอะตอมิก · เรียกด้วย service role จาก Edge Function lucky-spin หลังตรวจเซสชันสมาชิกแล้ว
--- รางวัลวนตามลำดับที่ร้านตั้ง ไม่จำกัดจำนวน: การลุ้นที่ได้รางวัลแล้วในช่วงเปิดลุ้น (ชุด) นับเป็นตำแหน่งถัดไป · ลุ้นได้จนหมดเวลาหรือร้านปิดกิจกรรม
--- ได้รางวัล = สร้างคูปองในบัญชีสมาชิก (ส่วนลดบาท หรือของรางวัลรับที่ร้าน) อายุตาม couponDays · advisory lock ทำให้การลุ้นพร้อมกันเรียงตำแหน่งถูกต้อง
+-- รางวัลวนตามลำดับที่ร้านตั้ง ไม่จำกัดจำนวน: ทุกการลุ้นในช่วงเปิดลุ้น (ชุด) นับเป็นตำแหน่งถัดไป · ลุ้นได้จนหมดเวลาหรือร้านปิดกิจกรรม
+-- ผลแต่ละแบบ: ส่วนลดบาท/ของรางวัล = คูปองในบัญชีสมาชิก (อายุตาม couponDays) · คะแนนสะสม = เพิ่มก้อนในสมุดคะแนน (อายุตามอายุคะแนนของร้าน) · ไม่ได้รางวัล = ไม่ให้อะไร · advisory lock ทำให้การลุ้นพร้อมกันเรียงตำแหน่งถูกต้อง
 create or replace function public.punpang_lucky_spin(p_token_hash text, p_customer text)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
-  cu record; rec record; d jsonb; cfg jsonb; prizes jsonb; spins jsonb; draws integer;
-  from_ts timestamptz; to_ts timestamptz; won bigint := 0; chosen jsonb; prize_snap jsonb := null;
-  coupon_ jsonb := null; cp_id text := null; new_spin jsonb; nowz text;
+  cu record; rec record; d jsonb; cfg jsonb; loy jsonb; prizes jsonb; spins jsonb; draws integer;
+  from_ts timestamptz; to_ts timestamptz; turns bigint := 0; chosen jsonb; prize_snap jsonb := null;
+  coupon_ jsonb := null; cp_id text := null; new_spin jsonb; nowz text; ledger jsonb; pts integer := 0;
   today_ text := public.punpang__pts_today();
 begin
   perform pg_advisory_xact_lock(hashtext('punpang_lucky_spin'));
   nowz := to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
 
-  select * into cu from public.punpang_customers where id = p_customer;
+  select * into cu from public.punpang_customers where id = p_customer for update;
   if not found or coalesce((cu.data->>'deleted')::boolean, false) then
     return jsonb_build_object('error', 'no_customer');
   end if;
@@ -69,9 +69,10 @@ begin
   draws := coalesce((d->>'draws')::integer, 0);
   if jsonb_array_length(spins) >= draws then return jsonb_build_object('error', 'done'); end if;
   prizes := coalesce(cfg->'prizes', '[]'::jsonb);
+  select data->'v' into loy from public.punpang_kv where collection = 'config' and id = 'loyalty';
 
-  -- การลุ้นที่ได้รางวัลแล้วในช่วงเปิดลุ้นนี้ (ทุกบิล) นับเป็นตำแหน่งถัดไปของการวน · ไม่จำกัดจำนวนแต่ละรางวัล
-  select count(*) into won
+  -- ทุกการลุ้นในช่วงเปิดลุ้นนี้ (ทุกบิล รวมที่ไม่ได้รางวัล) นับเป็นตำแหน่งถัดไปของการวน
+  select count(*) into turns
     from public.punpang_records r
     cross join lateral jsonb_array_elements(coalesce(r.data->'spins', '[]'::jsonb)) s
    where r.collection = 'luckyTokens'
@@ -81,22 +82,32 @@ begin
 
   -- รางวัลที่ออก = วนตามรายการที่ร้านตั้ง (รายการแรก → รายการสุดท้าย แล้ววนกลับไปรายการแรก)
   if jsonb_array_length(prizes) > 0 then
-    chosen := prizes -> ((won % jsonb_array_length(prizes))::integer);
+    chosen := prizes -> ((turns % jsonb_array_length(prizes))::integer);
   end if;
 
   if chosen is not null then
+    pts := case when chosen->>'kind' = 'points' then coalesce((chosen->>'points')::integer, 0) else 0 end;
     prize_snap := jsonb_build_object('id', chosen->>'id', 'name', chosen->>'name', 'kind', chosen->>'kind',
-                                     'amount', coalesce((chosen->>'amount')::numeric, 0));
+                                     'amount', coalesce((chosen->>'amount')::numeric, 0), 'points', pts);
     if chosen->>'kind' = 'discount' then
       cp_id := public.punpang__cust_new_coupon(p_customer,
         jsonb_build_object('type', 'discount', 'amount', coalesce((chosen->>'amount')::numeric, 0), 'name', chosen->>'name', 'source', 'lucky'),
         jsonb_build_object('couponExpireDays', coalesce((cfg->>'couponDays')::integer, 30)), today_);
-    else
+    elsif chosen->>'kind' = 'reward' then
       cp_id := public.punpang__cust_new_coupon(p_customer,
         jsonb_build_object('type', 'reward', 'name', chosen->>'name', 'source', 'lucky'),
         jsonb_build_object('couponExpireDays', coalesce((cfg->>'couponDays')::integer, 30)), today_);
+    elsif chosen->>'kind' = 'points' and pts > 0 then
+      -- คะแนนสะสม: เพิ่มก้อนในสมุดคะแนนของสมาชิก อายุตามอายุคะแนนของร้าน (ไม่ตัดคะแนนอื่น)
+      ledger := coalesce(cu.data->'ledger', '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+        'id', public.punpang__pts_newid(), 'at', nowz, 'delta', pts, 'reason', 'ลุ้นโชค: ' || (chosen->>'name'), 'orderId', null,
+        'expiresAt', to_char(today_::date + coalesce((loy->>'pointExpireDays')::integer, 365), 'YYYY-MM-DD'), 'remaining', pts));
+      update public.punpang_customers set data = jsonb_set(cu.data, '{ledger}', ledger), updated_at = now() where id = p_customer;
     end if;
-    select jsonb_build_object('id', r.id) || r.data into coupon_ from public.punpang_records r where r.collection = 'coupons' and r.id = cp_id;
+    -- ไม่ได้รางวัล (none): ไม่ให้คูปองหรือคะแนน แต่ยังนับเป็นตำแหน่งในการวนแล้ว
+    if cp_id is not null then
+      select jsonb_build_object('id', r.id) || r.data into coupon_ from public.punpang_records r where r.collection = 'coupons' and r.id = cp_id;
+    end if;
   end if;
 
   new_spin := jsonb_build_object('at', nowz, 'customerId', p_customer, 'prize', prize_snap,

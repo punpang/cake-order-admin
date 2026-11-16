@@ -2195,10 +2195,15 @@ export async function issueLuckyToken(order) {
 // ช่วงเวลาเริ่มก่อนสิ้นสุด · URL หน้าเว็บขึ้นต้น https
 export function saveLuckyDraw(d) {
   if (!can('manage')) return { error: 'เฉพาะแอดมินตั้งค่าลุ้นโชคได้' }
-  const prizes = (d.prizes || []).map((p) => ({
-    id: p.id || uid('lp'), name: String(p.name ?? '').trim(), kind: p.kind === 'reward' ? 'reward' : 'discount',
-    amount: p.kind === 'reward' ? 0 : Number(p.amount) || 0,
-  }))
+  const prizes = (d.prizes || []).map((p) => {
+    const kind = ['discount', 'reward', 'points', 'none'].includes(p.kind) ? p.kind : 'discount'
+    return {
+      id: p.id || uid('lp'), kind,
+      name: String(p.name ?? '').trim() || (kind === 'none' ? 'ไม่ได้รางวัล' : ''),
+      amount: kind === 'discount' ? Number(p.amount) || 0 : 0,
+      points: kind === 'points' ? Number(p.points) || 0 : 0,
+    }
+  })
   const itemIds = [...new Set((d.itemIds || []).map((x) => String(x)).filter(Boolean))]
   const perBaht = Number(d.perBaht)
   const cfgErr = validateLuckyConfig({ perBaht, enabled: !!d.enabled, itemIds, prizes })
