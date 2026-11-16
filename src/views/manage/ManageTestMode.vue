@@ -52,7 +52,7 @@ async function toggle(next) {
 async function resetData() {
   const yes = await askConfirm({
     title: 'ล้างข้อมูลทดสอบทั้งหมด?',
-    message: 'ลบออร์เดอร์ ลูกค้า การชำระ บัญชี และแชทในสำเนาทดสอบ · ข้อมูลจริงไม่ถูกลบ',
+    message: 'ลบออร์เดอร์ ลูกค้า การชำระ บัญชี และแชทในสำเนาทดสอบ แล้วใส่ชุดตัวอย่าง ~90 วันใหม่ · ข้อมูลจริงไม่ถูกลบ',
     okText: 'ล้างข้อมูลทดสอบ',
     danger: true,
   })
@@ -62,7 +62,8 @@ async function resetData() {
   const r = c ? await c.rpc('punpang_reset_test_data') : { error: { message: 'ยังไม่ได้เชื่อมฐานข้อมูล' } }
   busy.value = false
   if (r.error) return say(`ล้างไม่สำเร็จ: ${r.error.message}`, false)
-  say('ล้างข้อมูลทดสอบแล้ว (ข้อมูลตัวอย่างจะถูกใส่กลับในขั้นตอนถัดไป)', true)
+  newBotChat()
+  say('ล้างข้อมูลทดสอบแล้ว และใส่ชุดตัวอย่าง ~90 วันใหม่แล้ว', true)
 }
 
 async function saveRecipients() {
@@ -78,6 +79,47 @@ async function saveRecipients() {
 
 function addRecipient() { recipients.push({ channel: 'sms', to: '' }) }
 function removeRecipient(i) { recipients.splice(i, 1) }
+
+// ทดสอบบอท (AI): คุยเป็นลูกค้าทดสอบ · บอทตอบในแชททดสอบนี้เท่านั้น ไม่ส่งถึงลูกค้าจริง
+const botText = ref('')
+const botChatId = ref('')
+const botBusy = ref(false)
+const botErr = ref('')
+const botLog = reactive([])
+
+function newBotChat() {
+  botChatId.value = ''
+  botLog.splice(0, botLog.length)
+  botErr.value = ''
+}
+
+async function askBot() {
+  const text = botText.value.trim()
+  if (!text || botBusy.value) return
+  botBusy.value = true
+  botErr.value = ''
+  botLog.push({ from: 'customer', text })
+  botText.value = ''
+  try {
+    const c = await getSupabase()
+    if (!c) throw new Error('ยังไม่ได้เชื่อมฐานข้อมูล')
+    const r = await c.functions.invoke('bot-test', { body: { text, chatId: botChatId.value || undefined } })
+    if (r.error) {
+      let m = 'ทดสอบบอทไม่สำเร็จ'
+      try { const j = await r.error.context.json(); if (j?.error) m = j.error } catch { /* ใช้ข้อความทั่วไป */ }
+      throw new Error(m)
+    }
+    const d = r.data || {}
+    if (d.chatId) botChatId.value = d.chatId
+    if (d.reply) botLog.push({ from: 'bot', text: d.reply, note: d.replySource === 'ai' ? 'ตอบโดย AI' : 'ตอบตามกติกาของบอท' })
+    else if (d.draft) botLog.push({ from: 'bot', text: d.draft, note: 'เป็นร่างให้พนักงานกดส่ง ไม่ได้ส่งเอง' })
+    else botLog.push({ from: 'note', text: d.handoff ? 'บอทส่งต่อให้พนักงาน' : d.note || 'บอทไม่ได้ตอบ', note: d.handoffReason || d.draftReason || '' })
+  } catch (e) {
+    botErr.value = e.message || 'ทดสอบบอทไม่สำเร็จ'
+  } finally {
+    botBusy.value = false
+  }
+}
 
 onMounted(loadRecipients)
 </script>
@@ -111,6 +153,26 @@ onMounted(loadRecipients)
         <div class="flex gap-2">
           <button type="button" class="btn-soft h-10 px-3 text-sm" @click="addRecipient"><AppIcon name="plus" :size="15" /> เพิ่มผู้รับ</button>
           <button type="button" class="btn-primary h-10 flex-1" @click="saveRecipients">บันทึกผู้รับทดสอบ</button>
+        </div>
+      </section>
+
+      <section v-if="on" class="card space-y-3">
+        <div class="card-title">ทดสอบบอทตอบแชท (AI)</div>
+        <p class="text-sm text-stone-600">พิมพ์เป็นลูกค้าทดสอบ บอทตอบในแชททดสอบนี้เท่านั้น ไม่ส่งถึง Facebook หรือลูกค้าจริง · AI ใช้ได้ไม่เกิน 30 ครั้งต่อวัน</p>
+        <div class="max-h-80 space-y-2 overflow-y-auto" aria-live="polite">
+          <div v-for="(m, i) in botLog" :key="i" class="flex flex-col" :class="m.from === 'customer' ? 'items-end' : 'items-start'">
+            <div class="max-w-[85%] rounded-2xl px-3 py-2 text-sm" :class="m.from === 'customer' ? 'bg-sky-50 text-stone-800' : m.from === 'note' ? 'bg-stone-100 text-stone-600' : 'bg-white text-stone-800 ring-1 ring-stone-200'">{{ m.text }}</div>
+            <div v-if="m.note" class="mt-0.5 text-xs text-stone-500">{{ m.note }}</div>
+          </div>
+          <p v-if="!botLog.length" class="text-sm text-stone-500">ยังไม่มีข้อความ พิมพ์ด้านล่างเพื่อเริ่มทดสอบ</p>
+        </div>
+        <form class="flex gap-2" @submit.prevent="askBot">
+          <input v-model="botText" class="input h-11 flex-1" maxlength="1000" placeholder="เช่น เปิดกี่โมงคะ" aria-label="ข้อความทดสอบ" :disabled="botBusy" />
+          <button type="submit" class="btn-primary h-11 px-4" :disabled="botBusy || !botText.trim()">{{ botBusy ? 'กำลังตอบ…' : 'ส่ง' }}</button>
+        </form>
+        <div class="flex items-center justify-between gap-2">
+          <button type="button" class="btn-outline h-10 px-3 text-sm" @click="newBotChat">เริ่มแชทใหม่</button>
+          <span v-if="botErr" class="text-sm text-rose-700" role="alert">{{ botErr }}</span>
         </div>
       </section>
 

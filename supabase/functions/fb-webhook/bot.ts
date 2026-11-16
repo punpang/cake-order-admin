@@ -52,6 +52,8 @@ export type BotInput = {
   waiToken?: string // โทเค็น Cloudflare (จาก secret CLOUDFLARE_API_TOKEN) สำหรับ Workers AI · ไม่มี → ไม่ใช้ Workers AI
   waiAccountId?: string // รหัสบัญชี Cloudflare (จาก secret CLOUDFLARE_ACCOUNT_ID)
   channel?: string // 'facebook' (ค่าเริ่มต้น) | 'instagram' · เปิดบอทแยกต่อช่องทางใน config.bot.channels
+  dryRun?: boolean // โหมดทดสอบ: ไม่ส่งถึง Facebook และไม่หน่วงเวลา · คำตอบเก็บในแชททดสอบเท่านั้น (ทำเครื่องหมาย testOnly)
+  takeQuota?: (day: string, key: string, limit: number) => Promise<boolean> // เพดาน AI ของโหมดทดสอบ (แทน punpang_ai_take ที่เขียนข้อมูลร่วม)
 }
 
 const lc = (s: unknown) => String(s ?? '').toLowerCase().trim()
@@ -216,6 +218,12 @@ export function aiSystemPrompt(shop: any, storefront: any, cat: Catalog, full?: 
 }
 
 // ลองให้ AI ตอบ · คืน Dec ประเภท 'ai' เมื่อได้คำตอบ · ไม่ได้ → คืนการส่งต่อเดิม (พร้อมเหตุผล)
+// เพดาน AI รายวัน: โหมดปกติใช้ฟังก์ชันอะตอมิกในฐานข้อมูล · โหมดทดสอบใช้ตัวนับที่ผู้เรียกส่งมา (ไม่เขียนข้อมูลร่วม)
+async function takeAiQuota(o: BotInput, day: string, key: string, limit: number): Promise<boolean> {
+  if (o.takeQuota) return o.takeQuota(day, key, limit)
+  const took = await o.sb.rpc('punpang_ai_take', { p_day: key, p_limit: limit })
+  return !took.error && took.data === true
+}
 async function tryAi(o: BotInput, bot: any, shop: any, storefront: any, profileName: string, dec0: Dec, cid: string | null): Promise<Dec> {
   const cfg = bot.ai
   const skip = (why: string): Dec => ({ ...dec0, reason: `${dec0.reason} · ${why}` })
@@ -248,8 +256,7 @@ async function tryAi(o: BotInput, bot: any, shop: any, storefront: any, profileN
   // เพดานของแต่ละผู้ให้บริการนับแบบอะตอมิกในฐานข้อมูล · Workers AI เต็มเพดาน (หรือโควตา Cloudflare หมด) → ส่งต่อ Claude
   // ข้อผิดพลาดอื่นของผู้ให้บริการไม่ส่งต่อ (ส่งต่อพนักงานตามเดิม)
   for (const step of chain) {
-    const took = await o.sb.rpc('punpang_ai_take', { p_day: step.usageKey, p_limit: step.limit })
-    if (took.error || took.data !== true) { await logAi(o, { status: 'limit', model: step.model }); continue }
+    if (!(await takeAiQuota(o, day, step.usageKey, step.limit))) { await logAi(o, { status: 'limit', model: step.model }); continue }
     const t0 = Date.now()
     let reply = ''
     try {
@@ -262,7 +269,7 @@ async function tryAi(o: BotInput, bot: any, shop: any, storefront: any, profileN
     } catch (e) {
       if (step.provider === 'workers' && isQuotaError(e)) {
         // ตั้งตัวนับวันนี้ของ Workers AI ให้เต็ม เพื่อไม่ลองเรียกซ้ำจนกว่าจะขึ้นวันใหม่
-        await o.sb.from('punpang_kv').upsert({ collection: 'aiUsage', id: step.usageKey, data: { n: step.limit } }, { onConflict: 'collection,id' })
+        if (!o.dryRun) await o.sb.from('punpang_kv').upsert({ collection: 'aiUsage', id: step.usageKey, data: { n: step.limit } }, { onConflict: 'collection,id' })
         await logAi(o, { status: 'quota', model: step.model, ms: Date.now() - t0 })
         continue
       }
@@ -432,7 +439,7 @@ export async function runFbBot(o: BotInput): Promise<void> {
   if (!claimed) return
 
   // ตอบเอง: หน่วงเวลาสั้น ๆ ก่อนส่ง แล้วส่งทาง Graph API (ลูกค้าเพิ่งทักจึงอยู่ในหน้าต่าง 24 ชม.)
-  await new Promise((r) => setTimeout(r, MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS)))
+  if (!o.dryRun) await new Promise((r) => setTimeout(r, MIN_DELAY_MS + Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS)))
 
   // ตรวจอีกครั้งหลังหน่วง: ถ้าพนักงานตอบไปแล้ว หรือปิดบอทในระหว่างนั้น → ไม่ส่ง และคืนสิทธิ์จอง
   const after = await o.sb.from('punpang_chats').select('data').eq('id', o.chatId).maybeSingle()
@@ -448,7 +455,8 @@ export async function runFbBot(o: BotInput): Promise<void> {
   }
 
   let sent = false
-  try {
+  if (o.dryRun) sent = true // โหมดทดสอบ: ไม่ส่งถึง Facebook · นับว่าส่งแล้วเฉพาะในแชททดสอบ
+  else try {
     const r = await fetch(`${GRAPH}/${o.ver}/me/messages?${new URLSearchParams({ access_token: o.token })}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -463,7 +471,7 @@ export async function runFbBot(o: BotInput): Promise<void> {
     id: `cm${rand(6)}`, from: 'staff', kind: 'text', text: dec.reply,
     orderId: null, quoteId: null, replyTo: null, ask: null, answerFor: null, filled: null,
     at: nowIso, by: 'บอท', delivery: sent ? 'sent' : 'failed', ...(sent ? {} : { deliveryError: 'ส่งตอบลูกค้าไม่สำเร็จ' }),
-    botFor: o.mid, botSource: dec.source,
+    botFor: o.mid, botSource: dec.source, ...(o.dryRun ? { testOnly: true } : {}),
   }
   await appendToChat(o.sb, o.chatId, (d, msgs) => {
     if (msgs.some((x) => x?.botFor === o.mid)) return null

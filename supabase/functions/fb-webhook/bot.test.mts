@@ -471,5 +471,38 @@ const aiLogs = (records: any[]) => records.filter((r) => r.collection === 'aiLog
   check('100%: แชทไม่ได้ผูกลูกค้า → system บอกว่าไม่มีออร์เดอร์ และเป็นร่าง', aiCalls[0]?.body.system.includes('ยังไม่มีออร์เดอร์ที่ใช้งานอยู่') && fetchCalls.length === 0)
 }
 
+// 12) โหมดทดสอบ (dryRun): ตอบในแชททดสอบเท่านั้น · ไม่ส่งถึง Facebook
+{
+  fetchCalls = []; onDelay = null
+  const { sb, chats } = mk([inbound('d1', 'เปิดกี่โมงคะ')])
+  await runFbBot({ ...base, sb, mid: 'd1', text: 'เปิดกี่โมงคะ', dryRun: true })
+  const bm = chats[0].data.messages.find((x: any) => x.by === 'บอท' && x.botFor === 'd1')
+  check('โหมดทดสอบ: ไม่ส่งข้อความถึง Graph เลย', fetchCalls.length === 0)
+  check('โหมดทดสอบ: บันทึกคำตอบบอทในแชท และทำเครื่องหมาย testOnly', !!bm && bm.testOnly === true && bm.delivery === 'sent')
+}
+
+// 13) โหมดทดสอบ: เพดาน AI ใช้ตัวนับที่ส่งเข้ามา (ไม่เรียก punpang_ai_take ซึ่งเขียนข้อมูลร่วม)
+{
+  resetAi()
+  const a = mkAi('มีบริการจัดส่งไหมคะ', 'q1')
+  let rpcCalls = 0
+  const rpcA = a.sb.rpc.bind(a.sb)
+  a.sb.rpc = (n: string, args: any) => { rpcCalls++; return rpcA(n, args) }
+  let asked = 0
+  await runFbBot({ ...base, sb: a.sb, mid: 'q1', text: 'มีบริการจัดส่งไหมคะ', aiKey: 'key-x', dryRun: true, takeQuota: async () => { asked++; return false } })
+  check('เพดานทดสอบหมด: ไม่เรียก AI', aiCalls.length === 0 && asked >= 1)
+  check('เพดานทดสอบหมด: ไม่แตะ punpang_ai_take และไม่ส่งถึง Graph', rpcCalls === 0 && fetchCalls.length === 0)
+}
+{
+  resetAi()
+  const b = mkAi('มีบริการจัดส่งไหมคะ', 'q2')
+  let rpcCalls = 0
+  const rpcB = b.sb.rpc.bind(b.sb)
+  b.sb.rpc = (n: string, args: any) => { rpcCalls++; return rpcB(n, args) }
+  await runFbBot({ ...base, sb: b.sb, mid: 'q2', text: 'มีบริการจัดส่งไหมคะ', aiKey: 'key-x', dryRun: true, takeQuota: async () => true })
+  check('เพดานทดสอบยังมี: เรียก AI ได้ และไม่ส่งถึง Graph', aiCalls.length === 1 && fetchCalls.length === 0)
+  check('เพดานทดสอบยังมี: ไม่แตะ punpang_ai_take', rpcCalls === 0)
+}
+
 console.log(fail === 0 ? 'ALL PASS' : `${fail} FAILED`)
 process.exit(fail ? 1 : 0)
