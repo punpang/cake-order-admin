@@ -4055,7 +4055,8 @@ async function remoteAct(action, body = {}) {
   if (!t || !customerSession.customerId) return { error: 'กรุณาเข้าสู่ระบบ' }
   const r = await callAuth(action, { ...body, session: t })
   if (r.ok && r.customer) { injectBundle(db, r); return { ok: true } }
-  if (r.status === 401) { clearSessionToken(); clearBundle(db, customerSession.customerId); customerSession.customerId = null }
+  // 401 ของคำขอที่ใช้เซสชันเก่า ต้องไม่ลบเซสชันใหม่ที่เพิ่งเข้าสู่ระบบสำเร็จระหว่างนั้น
+  if (r.status === 401 && readSessionToken() === t) { clearSessionToken(); clearBundle(db, customerSession.customerId); customerSession.customerId = null }
   return { error: r.error }
 }
 function enterRemote(r) {
@@ -4068,7 +4069,7 @@ export async function restoreCustomerSession() {
   if (!t || !remoteCust() || customerSession.customerId) return false
   const r = await callAuth('session', { session: t })
   if (r.ok && r.customer) { customerSession.customerId = injectBundle(db, r); return true }
-  if (r.status === 401) clearSessionToken()
+  if (r.status === 401 && readSessionToken() === t) clearSessionToken() // ไม่ลบเซสชันใหม่ที่เพิ่งเข้าสู่ระบบระหว่างรอ
   return false
 }
 // ดึงข้อมูลบัญชีล่าสุดจากเซิร์ฟเวอร์ (คูปอง คะแนน ออร์เดอร์) หลังกิจกรรมที่สร้างคูปองนอกหน้าบัญชี เช่น ลุ้นโชคท้ายบิล

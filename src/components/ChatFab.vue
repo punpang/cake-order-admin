@@ -28,6 +28,10 @@ function fromLink() {
 
 watch(() => route.query.chat, (v) => { if (v === '1') fromLink() })
 
+// หน้าเข้าสู่ระบบ/สมัคร/ลืม PIN/ยินยอม: ไม่แสดงปุ่มแชท (ไม่ให้ทับปุ่มหลักของหน้า) และปิดแผงถ้าเปิดค้างไว้
+const onAuthPage = computed(() => /^\/account\/(login|register|forgot|consent)(\/|$)/.test(route.path))
+watch(onAuthPage, (v) => { if (v) hide() })
+
 onMounted(() => {
   fromLink()
   document.addEventListener('keydown', onKey)
@@ -37,7 +41,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
 
 <template>
   <button
-    v-if="!open"
+    v-if="!open && !onAuthPage"
     type="button"
     class="fixed right-4 bottom-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-300 bottom-40 sm:right-6 sm:bottom-6"
     aria-label="แชทกับร้าน"
