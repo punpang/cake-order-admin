@@ -1,19 +1,17 @@
 // LINE LIFF ของร้าน (ช่อง LINE Login) · LIFF ID ไม่ใช่ความลับ
 import { getSupabase } from './supabase'
 import { readSessionToken } from './customerRemote'
+import { LIFF_ID, startLiff } from './liffStart'
 
-export const LIFF_ID = '2012641404-DlSIXAZp'
+export { LIFF_ID }
+
 const NET = 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่'
 
 // เริ่มทำงาน LIFF (ตัวเชื่อมอยู่ในแอปเอง ไม่โหลดจากภายนอก) · คืน { ok, accessToken } หรือ { ok: false, error }
 export async function initLiff(liffId = LIFF_ID) {
   try {
-    const { default: liff } = await import('@line/liff')
-    await liff.init({ liffId })
-    if (!liff.isInClient() && !liff.isLoggedIn()) {
-      liff.login() // ใช้ URL กลับตามค่าเริ่มต้นของ LIFF (Endpoint URL) · กำหนดเองแล้ว LINE ตอบ 400
-      return { ok: false, error: 'กำลังพาไปเข้าสู่ระบบ LINE…' }
-    }
+    const { liff, redirecting } = await startLiff(liffId)
+    if (redirecting) return { ok: false, error: 'กำลังพาไปเข้าสู่ระบบ LINE…' }
     const accessToken = liff.getAccessToken()
     if (!accessToken) return { ok: false, error: 'เปิดหน้านี้จากแอป LINE เท่านั้น' }
     return { ok: true, accessToken }

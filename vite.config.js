@@ -38,6 +38,8 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     rollupOptions: {
+      // สองหน้า: แอปหลัก และหน้า Endpoint ของ LIFF (/line/) ที่รับโทเค็นจาก LINE
+      input: { main: 'index.html', line: 'line/index.html' },
       // แยกไลบรารีหลักออกจากโค้ดแอป: อัปเดตแอปแล้วผู้ใช้ไม่ต้องโหลด vue/router ใหม่ (เบราว์เซอร์จำแคชไว้)
       // supabase และ qrcode แยกเป็นชุดของตัวเอง (โหลดเฉพาะเมื่อจำเป็น และแคชแยกจากโค้ดแอป)
       output: {
