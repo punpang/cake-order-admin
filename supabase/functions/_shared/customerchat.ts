@@ -25,6 +25,22 @@ export function cleanChatText(v: unknown): string | null {
 // ข้อความที่ส่งให้ลูกค้าเห็น (ไม่มีข้อมูลภายในของพนักงาน)
 export const toCustomerView = (m: Json) => ({ id: String(m.id ?? ''), from: m.from === 'staff' ? 'staff' : 'customer', text: String(m.text ?? ''), at: String(m.at ?? '') })
 
+// ใบเสนอที่ร้านส่งในแชท: ลูกค้าเห็นเป็นการ์ดอ่านอย่างเดียว · ใช้เฉพาะการ์ดที่ร้านเก็บไว้ตอนส่ง (หัวข้อ บรรทัดรอง รายการ/วันนัด/ยอดรวม และรูป https)
+// ใบเก่าที่ไม่มีการ์ด = แจ้งแค่ว่าร้านส่งใบเสนอแล้ว (ไม่มีข้อมูลภายใน)
+const httpsUrl = (u: unknown) => (typeof u === 'string' && /^https:\/\/\S+$/i.test(u) && u.length <= 500 ? u : null)
+export function customerQuoteView(m: Json) {
+  const c = m.card && typeof m.card === 'object' ? (m.card as Json) : null
+  return {
+    id: String(m.id ?? ''),
+    from: 'staff' as const,
+    kind: 'quote' as const,
+    text: c ? String(m.cardText ?? '').slice(0, 2000) : 'ร้านส่งใบเสนอราคาให้แล้ว',
+    card: c ? { title: String(c.title ?? '').slice(0, 80), subtitle: String(c.subtitle ?? '').slice(0, 80), image: httpsUrl(c.image) } : null,
+    photos: [] as { ref: string; url: string | null }[],
+    at: String(m.at ?? ''),
+  }
+}
+
 // รูปในข้อความ: ลิงก์ชั่วคราวเฉพาะรูปที่ลูกค้ายังไม่มีในเครื่อง (have = ref ที่มีลิงก์ยังไม่หมดอายุแล้ว)
 async function photosView(m: Json, sign: Signer, have: Set<string>): Promise<{ ref: string; url: string | null }[]> {
   const out: { ref: string; url: string | null }[] = []
@@ -42,9 +58,9 @@ export async function customerChatList(sb: any, customerId: string, sign: Signer
   const r = await sb.from('punpang_chats').select('id,data').eq('channel', 'web').eq('customer_id', customerId).maybeSingle()
   if (r?.error) return { status: 500, body: { error: 'อ่านแชทไม่สำเร็จ' } }
   const msgs: Json[] = Array.isArray(r?.data?.data?.messages) ? r.data.data.messages : []
-  const visible = msgs.filter((m) => m && (m.from === 'customer' || m.from === 'staff') && (m.kind ?? 'text') === 'text')
+  const visible = msgs.filter((m) => m && (m.from === 'customer' || m.from === 'staff') && ((m.kind ?? 'text') === 'text' || m.kind === 'quote'))
   const haveSet = new Set(have.filter((x) => typeof x === 'string').slice(0, 500))
-  const messages = await Promise.all(visible.slice(-100).map(async (m) => ({ ...toCustomerView(m), photos: await photosView(m, sign, haveSet) })))
+  const messages = await Promise.all(visible.slice(-100).map(async (m) => (m.kind === 'quote' ? customerQuoteView(m) : { ...toCustomerView(m), photos: await photosView(m, sign, haveSet) })))
   const presence = await shopPresenceFor(sb, r?.data?.id)
   const chatTopic = await chatTopicOf(sb, customerId)
   return { status: 200, body: { messages, presence, chatTopic } }
