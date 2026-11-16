@@ -307,6 +307,7 @@ function stopTransferWatch() {
   transferWatch = null
 }
 const lineAmt = (l) => Math.round((Number(l.amount) || 0) * 100) / 100
+const compactLine = (l) => l.method === 'transfer' && !!l.confirmed // รายการโอนที่รับแล้วแสดงเป็นแถวเดียวในหน้าชำระ
 const paidSum = computed(() => Math.round(payLines.value.reduce((s, l) => s + reservedOf(l, lineAmt(l)), 0) * 100) / 100) // QR ที่ยกเลิกแล้วไม่กันยอด
 const remaining = computed(() => Math.round((total.value - paidSum.value) * 100) / 100)
 const newKey = () => Math.random().toString(36).slice(2)
@@ -1125,7 +1126,20 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         </div>
         <p v-if="!payLines.length" class="rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-500">เลือกวิธีชำระด้านบนเพื่อเริ่มรับเงิน</p>
 
-        <div v-for="(l, i) in payLines" :key="l.key" class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+        <template v-for="(l, i) in payLines" :key="l.key">
+          <!-- รายการโอนที่รับแล้ว: แถวเดียว (ยอดแก้ไม่ได้อยู่แล้ว จึงไม่มีช่องกรอกและป้ายซ้ำ) -->
+          <div v-if="compactLine(l)" class="pay-pop flex items-center gap-3 rounded-2xl bg-emerald-50 px-3 py-2.5">
+            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-600 text-white" aria-hidden="true">
+              <svg class="pay-check h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
+            </span>
+            <div class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+              <span class="text-base font-semibold text-stone-800">{{ POS_METHODS[l.method] }}</span>
+              <span v-if="l.acceptedBy === 'auto'" class="text-xs font-medium text-emerald-700">อัตโนมัติ</span>
+            </div>
+            <span class="text-lg font-bold tabular-nums text-emerald-900">{{ money(lineAmt(l)) }}</span>
+            <button v-if="!l.locked && !binding" type="button" class="btn-outline h-9 shrink-0 px-3 text-sm" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิก</button>
+          </div>
+          <div v-else class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
           <div class="flex items-center justify-between gap-2">
             <span class="text-base font-semibold text-stone-800">{{ POS_METHODS[l.method] }}</span>
             <button v-if="!l.qrRef && !l.locked && !l.confirmed && (payLines.length > 1 || l.method !== 'cash')" type="button" class="rounded-full px-3 py-1 text-sm font-medium text-rose-700 hover:bg-rose-50" @click="removePayLine(i)">ลบ</button>
@@ -1257,6 +1271,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           </template>
           <p v-else class="mt-3 text-sm text-stone-500">รับตามยอดที่ระบุ</p>
         </div>
+        </template>
 
         <p v-if="payLines.length && remaining !== 0" class="rounded-xl p-2.5 text-center text-sm" :class="remaining > 0 ? 'bg-amber-50 text-amber-800' : 'bg-rose-50 text-rose-700'">{{ remaining > 0 ? 'เพิ่มวิธีชำระให้ครบยอด' : 'ยอดเกิน ลดยอดของรายการใดรายการหนึ่ง' }}</p>
       </div>
