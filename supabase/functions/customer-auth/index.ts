@@ -324,13 +324,21 @@ Deno.serve(corsWrap(async (req) => {
     const ph = thaiPhone(b.phone)
     if (!ph) return json({ error: 'กรอกเบอร์โทรให้ถูกต้อง' }, 400)
     const a = (await sb.from('punpang_customer_auth').select('customer_id').eq('phone', ph.local).maybeSingle()).data
-    if (!a) return json({ error: 'เบอร์นี้ยังไม่มีบัญชีลูกค้า' }, 404)
     const weak = weakPin(String(b.pin ?? ''), ph.local)
     if (weak) return json({ error: weak }, 400)
     const salt = randHex(16)
-    await sb.from('punpang_customer_auth').update({ pin_salt: salt, pin_hash: await pbkdf2(String(b.pin), salt), failed: 0, locked_until: null }).eq('customer_id', a.customer_id)
-    await sb.from('punpang_customer_sessions').delete().eq('customer_id', a.customer_id)
-    return json({ ok: true })
+    const hash = await pbkdf2(String(b.pin), salt)
+    if (a) {
+      await sb.from('punpang_customer_auth').update({ pin_salt: salt, pin_hash: hash, failed: 0, locked_until: null }).eq('customer_id', a.customer_id)
+      await sb.from('punpang_customer_sessions').delete().eq('customer_id', a.customer_id)
+      return json({ ok: true })
+    }
+    // ยังไม่มีบัญชี: สร้างบัญชีให้จากข้อมูลลูกค้าที่ใช้เบอร์นี้
+    const cust = (await sb.from('punpang_customers').select('id,data').eq('phone', ph.local).maybeSingle()).data
+    if (!cust || cust.data?.deleted) return json({ error: 'ไม่พบลูกค้าที่ใช้เบอร์นี้' }, 404)
+    const ins = await sb.from('punpang_customer_auth').insert({ customer_id: cust.id, phone: ph.local, pin_salt: salt, pin_hash: hash, failed: 0 })
+    if (ins.error) return json({ error: 'สร้างบัญชีไม่สำเร็จ กรุณาลองใหม่' }, 500)
+    return json({ ok: true, created: true })
   }
 
   // ===== คำสั่งของลูกค้าที่ล็อกอิน (ตรวจเซสชันทุกครั้ง · แก้ได้เฉพาะของตัวเอง) =====

@@ -179,7 +179,7 @@ async function save() {
         </div>
         <div v-if="form.id && form.phone && can('manage')" class="rounded-xl border border-stone-200/70 p-3">
           <div class="text-sm font-semibold text-stone-800">PIN สำหรับเข้าบัญชีลูกค้า</div>
-          <p class="mt-1 text-xs text-stone-500">ใช้เมื่อลูกค้าลืม PIN · ลูกค้าจะถูกออกจากระบบทุกเครื่อง</p>
+          <p class="mt-1 text-xs text-stone-500">ตั้งหรือเปลี่ยน PIN ให้ลูกค้า (ถ้ายังไม่มีบัญชี ระบบจะสร้างให้) · ลูกค้าจะถูกออกจากระบบทุกเครื่อง</p>
           <div class="mt-2 flex gap-2">
             <input v-model="pinNew" inputmode="numeric" maxlength="6" class="input" placeholder="PIN ใหม่ 6 หลัก" aria-label="PIN ใหม่ของลูกค้า" />
             <button type="button" class="btn-soft h-11 shrink-0" :disabled="pinBusy" @click="resetCustomerPin">{{ pinBusy ? 'กำลังตั้ง…' : 'ตั้ง PIN' }}</button>
