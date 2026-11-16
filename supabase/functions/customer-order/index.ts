@@ -374,6 +374,8 @@ Deno.serve(corsWrap(async (req) => {
           if (target.status !== 'reported' || (target.source === 'customer' && !target.qrRequest)) return json({ error: 'ไม่พบยอดที่ร้านแจ้ง' }, 400)
           if (target.customerSubmitted) return json({ error: 'ส่งสลิปของยอดนี้แล้ว รอร้านตรวจสอบ' }, 400)
           if (target.qrRequest && amt !== r2(Number(target.amount))) return json({ error: 'ยอดต้องตรงกับ QR ที่สร้างไว้' }, 400)
+          // ยอดที่ร้านแจ้ง (ไม่ใช่ QR ที่ลูกค้าขอเอง) ลูกค้าแก้ไม่ได้ · ต้องเท่ากับ min(ยอดที่ร้านแจ้ง, ยอดที่ชำระได้) ตามที่หน้าเว็บคำนวณ
+          if (!target.qrRequest && Math.abs(amt - r2(Math.min(Number(target.requested ?? target.amount) || 0, room))) > 0.005) return json({ error: 'ยอดต้องตรงกับที่ร้านแจ้ง' }, 400)
         }
       }
       // อัปโหลดสลิปก่อน (ล้มเหลว = ไม่แตะออร์เดอร์) · ไฟล์ใหม่เก็บที่ R2 ผ่าน Worker เท่านั้น · แนบซ้ำตอนลองใหม่ใช้ไฟล์เดิม

@@ -654,7 +654,7 @@ const dupPhoneError = (cu) => ({ error: `เบอร์นี้เป็นข
 export function addCustomer(data) {
   const dup = phoneOwner(data.phone)
   if (dup) return dupPhoneError(dup)
-  const c = { id: uid('c'), name: data.name.trim(), phone: phoneDigits(data.phone), note: data.note?.trim() || '', active: true, ledger: [], spins: 0, fbPsid: '', promoOptIn: true, places: [] }
+  const c = { id: uid('c'), name: data.name.trim(), phone: phoneDigits(data.phone), note: data.note?.trim() || '', active: true, ledger: [], spins: 0, fbPsid: '', promoOptIn: false, places: [] }
   db.customers.push(c)
   return c
 }

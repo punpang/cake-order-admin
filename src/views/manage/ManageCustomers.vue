@@ -35,10 +35,10 @@ const list = computed(() => {
 const initial = (n) => (n || '').replace(/^คุณ/, '').trim().charAt(0)
 
 const open = ref(false)
-const form = reactive({ id: null, name: '', phone: '', note: '', active: true, promoOptIn: true, tax: { name: '', taxId: '', branch: '00000', address: '' } })
+const form = reactive({ id: null, name: '', phone: '', note: '', active: true, promoOptIn: false, tax: { name: '', taxId: '', branch: '00000', address: '' } })
 const error = ref('')
 function edit(c) {
-  Object.assign(form, c ? { promoOptIn: true, ...c } : { id: null, name: '', phone: '', note: '', active: true, promoOptIn: true, fbPsid: '' })
+  Object.assign(form, c ? { promoOptIn: false, ...c } : { id: null, name: '', phone: '', note: '', active: true, promoOptIn: false, fbPsid: '' })
   form.tax = { name: '', taxId: '', branch: '00000', address: '', ...(c?.tax || {}) }
   form.notifyChannels = { ...(c?.notifyChannels || {}) }
   error.value = ''
