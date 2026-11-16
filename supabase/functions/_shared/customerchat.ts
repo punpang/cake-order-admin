@@ -5,6 +5,8 @@ import { CHAT_PHOTO_KV, CHAT_PHOTO_UPLOAD_MAX, decodePhotoDataUrl, photoKeyOf, p
 import { type FilesEnv, svcDelete, svcUpload } from './filesvc.ts'
 import { shopPresenceOf } from './chatpresence.ts'
 import { newChatTopic } from './chattopic.ts'
+import { orderCardMsg } from './schedlib/chatCards.js'
+import { orderTotals } from './schedlib/pricing.js'
 
 export const CHAT_TEXT_MAX = 1000
 export const CHAT_RATE = { windowMs: 10 * 60e3, max: 20 } // ไม่เกิน 20 ข้อความต่อ 10 นาที ต่อลูกค้า
@@ -103,6 +105,28 @@ async function photosView(m: Json, sign: Signer, have: Set<string>): Promise<{ r
   return out
 }
 
+// ออร์เดอร์เดิม (ส่งก่อนมีการ์ดในแชทเว็บ): สร้างการ์ดสรุปจากข้อมูลออร์เดอร์ตอนอ่าน (เหมือนการ์ดที่ส่งตอนนี้ แต่ไม่มีปุ่มลิงก์)
+// ไม่สร้างลิงก์ใหม่ตอนอ่าน (กันการสร้างลิงก์ซ้ำทุกครั้งที่ลูกค้าเปิดแชท)
+export function legacyOrderCardOf(order: Json): { text: string; card: Json } {
+  const r = orderCardMsg(order, orderTotals(order), '', {})
+  return { text: String(r.text ?? ''), card: r.card as Json }
+}
+async function legacyOrderCards(sb: any, msgs: Json[]): Promise<Map<string, { text: string; card: Json }>> {
+  const out = new Map<string, { text: string; card: Json }>()
+  const ids = [...new Set(msgs.filter((m) => m && m.kind === 'order' && !m.card && typeof m.orderId === 'string' && m.orderId).map((m) => String(m.orderId)))].slice(0, 50)
+  if (!ids.length) return out
+  const r = await sb.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data').in('id', ids)
+  if (r?.error) return out
+  for (const row of Array.isArray(r?.data) ? r.data : []) {
+    try {
+      const d = (row.data || {}) as Json
+      const order = { ...d, id: String(row.id), code: row.code, customerId: row.customer_id || '', status: row.status, fulfillment: row.fulfillment, ...(row.channel ? { channel: row.channel } : {}) }
+      out.set(String(row.id), legacyOrderCardOf(order))
+    } catch { /* ข้อมูลออร์เดอร์ไม่ครบ → คงข้อความสำรองของการ์ด */ }
+  }
+  return out
+}
+
 // ประวัติแชทของลูกค้า (ข้อความล่าสุดไม่เกิน 100 รายการ) + สถานะพิมพ์/อ่านแล้วของร้าน (เฉพาะที่ร้านเปิดให้เห็น) + ชื่อช่องสัญญาณเรียลไทม์
 export async function customerChatList(sb: any, customerId: string, sign: Signer, have: string[] = []): Promise<{ status: number; body: Json }> {
   const r = await sb.from('punpang_chats').select('id,data').eq('channel', 'web').eq('customer_id', customerId).maybeSingle()
@@ -110,8 +134,11 @@ export async function customerChatList(sb: any, customerId: string, sign: Signer
   const msgs: Json[] = Array.isArray(r?.data?.data?.messages) ? r.data.data.messages : []
   const visible = msgs.filter(isCustomerVisible)
   const haveSet = new Set(have.filter((x) => typeof x === 'string').slice(0, 500))
-  const messages = await Promise.all(visible.slice(-100).map(async (m) => {
-    const base = m.kind === 'quote' ? customerQuoteView(m) : m.kind === 'order' ? customerOrderView(m) : m.kind === 'card' ? customerCardView(m) : { ...toCustomerView(m), photos: await photosView(m, sign, haveSet) }
+  const recent = visible.slice(-100)
+  const legacy = await legacyOrderCards(sb, recent)
+  const messages = await Promise.all(recent.map(async (m) => {
+    const lc = m.kind === 'order' && !m.card && m.orderId ? legacy.get(String(m.orderId)) : undefined
+    const base = m.kind === 'quote' ? customerQuoteView(m) : m.kind === 'order' ? customerOrderView(lc ? { ...m, card: lc.card, cardText: lc.text } : m) : m.kind === 'card' ? customerCardView(m) : { ...toCustomerView(m), photos: await photosView(m, sign, haveSet) }
     return { ...base, replyTo: replySnippetOf(msgs, m.replyTo) }
   }))
   const presence = await shopPresenceFor(sb, r?.data?.id)

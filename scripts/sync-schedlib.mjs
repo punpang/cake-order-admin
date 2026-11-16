@@ -11,6 +11,8 @@ export const SCHEDLIB_FILES = [
   'acct/plan.js', 'acct/period.js', 'acct/money.js', 'slipChecks.js', 'promptpay.js',
   // ราคาใบเสนอ (ฝั่งเซิร์ฟเวอร์ quote-create ใช้ตรรกะชุดเดียวกับแอป) และส่วนประกอบที่ใช้
   'posPromo.js', 'delivery.js', 'shopHours.js', 'docNo.js', 'quotePrice.js', 'posAudit.js', 'orderAudit.js', 'catalogHistory.js',
+  // การ์ดสรุปออร์เดอร์ในแชท (ใช้สร้างการ์ดให้ออร์เดอร์เดิมตอนลูกค้าเปิดแชท)
+  'chatCards.js',
 ]
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
