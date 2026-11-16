@@ -41,6 +41,7 @@ import { defaultRefundMethod } from '../lib/refund'
 import BillerQr from '../components/BillerQr.vue'
 import { listTransfersOfRef } from '../lib/maneeRemote'
 import { labelsFresh, LABEL_REFRESH_EVERY_S, PAID_FLASH_MS } from '../lib/payFresh'
+import { watchRefs, reservedOf, isWatched, canBindLine, adoptPatch, notDismissed } from '../lib/qrWatch'
 
 // POS หน้าร้าน: เปิดกะ → ขาย (ตะกร้า สมาชิก คูปอง ส่วนลด + โปรโมชัน/บันเดิ้ลอัตโนมัติ) → ชำระ (เงินสด/โอน/บัตร + ทอน) → ใบเสร็จ · บิล · ปิดกะ
 // สะสมคะแนนจากยอดสุทธิ (โปรคะแนนพิเศษคูณได้) · ไม่ใช้คะแนนตรง ๆ: ลูกค้าแลกคะแนนเป็นคูปองที่หน้าเว็บ แล้วใช้คูปองที่นี่
@@ -306,7 +307,7 @@ function stopTransferWatch() {
   transferWatch = null
 }
 const lineAmt = (l) => Math.round((Number(l.amount) || 0) * 100) / 100
-const paidSum = computed(() => Math.round(payLines.value.reduce((s, l) => s + lineAmt(l), 0) * 100) / 100)
+const paidSum = computed(() => Math.round(payLines.value.reduce((s, l) => s + reservedOf(l, lineAmt(l)), 0) * 100) / 100) // QR ที่ยกเลิกแล้วไม่กันยอด
 const remaining = computed(() => Math.round((total.value - paidSum.value) * 100) / 100)
 const newKey = () => Math.random().toString(36).slice(2)
 const expiredLine = (l) => !l.detectedAt && !l.confirmed && l.status !== 'cancelled' && posQrExpired(l, payNow.value)
@@ -374,6 +375,16 @@ async function labelsForAutoBind() {
 // พบรายการเดียว → ขึ้นสถานะ "ลูกค้าชำระแล้ว" (อนิเมชัน) รอพนักงานกดรับ · พบหลายรายการ → ให้พนักงานเลือกเอง
 // มีเหตุการณ์เข้ามาระหว่างรอบที่กำลังค้นหา → ค้นอีกรอบทันทีเมื่อรอบนั้นจบ (ไม่ทิ้งเหตุการณ์)
 let maneeAgain = false
+// ค้นรายการโอนของทุกรหัส QR ของรายการ (รหัสปัจจุบัน + รหัสเดิม) · ติด error = null (ข้ามรอบนี้)
+async function findTransfers(l) {
+  const found = []
+  for (const ref of watchRefs(l)) {
+    const r = await listTransfersOfRef({ ref, amount: lineAmt(l) })
+    if (r.error) return null
+    found.push(...r.rows.map((row) => ({ ...row, ref })))
+  }
+  return found
+}
 async function pollManee() {
   if (maneePolling) { maneeAgain = true; return }
   maneePolling = true
@@ -382,12 +393,16 @@ async function pollManee() {
       maneeAgain = false
       let autoOk = false
       for (const l of payLines.value) {
-        if (l.method !== 'transfer' || !l.qrRef || l.confirmed || l.detectedAt || l.status === 'cancelled' || expiredLine(l)) continue
-        const r = await listTransfersOfRef({ ref: l.qrRef, amount: lineAmt(l) })
-        if (r.error) continue
-        l.candidates = r.rows
-        if (r.rows.length === 1 && db.shop.posAutoAcceptNow) { Object.assign(l, { detectedAt: Date.now(), maneeId: r.rows[0].id, confirmed: true, acceptedBy: 'auto' }); autoOk = true }
-        else if (r.rows.length === 1) Object.assign(l, { detectedAt: Date.now(), maneeId: r.rows[0].id })
+        if (!isWatched(l, expiredLine(l))) continue
+        const got = await findTransfers(l)
+        if (!got) continue
+        const found = notDismissed(got, l.dismissed)
+        // บิลรับครบแล้วจากวิธีอื่น → ไม่ผูกเอง แจ้งให้พนักงานตัดสิน
+        if (!canBindLine(lineAmt(l), remaining.value, reservedOf(l, lineAmt(l)))) { l.lateNotice = found; continue }
+        if (found.length) l.candidates = found
+        if (found.length !== 1) continue
+        Object.assign(l, adoptPatch(l, found[0].ref, found[0]))
+        if (db.shop.posAutoAcceptNow) { Object.assign(l, { confirmed: true, acceptedBy: 'auto' }); autoOk = true }
       }
       if (autoOk) bindPaid(true)
     } while (maneeAgain && payOpen.value)
@@ -402,23 +417,41 @@ function tickLines() {
   if (autoOk) bindPaid(true)
 }
 function pickManee(l, c) {
-  Object.assign(l, { confirmed: true, acceptedBy: 'staff', maneeId: c.id })
+  if (!canBindLine(lineAmt(l), remaining.value, reservedOf(l, lineAmt(l)))) return (payErr.value = 'บิลนี้รับยอดครบแล้ว ให้พนักงานตัดสินเอง')
+  Object.assign(l, adoptPatch(l, c.ref, c), { confirmed: true, acceptedBy: 'staff' })
   bindPaid()
+}
+// ค้นการโอนของ QR เดิมด้วยมือ (ทุกรหัสที่เคยออก) · บิลรับครบแล้ว → แสดงให้พนักงานตัดสิน ไม่ให้ผูก
+async function searchLate(l) {
+  const found = await findTransfers(l)
+  if (!found) return (payErr.value = 'ดึงรายการโอนไม่สำเร็จ ลองอีกครั้ง')
+  l.searched = true
+  if (!canBindLine(lineAmt(l), remaining.value, reservedOf(l, lineAmt(l)))) { l.lateNotice = found; l.candidates = []; return }
+  l.lateNotice = []
+  l.candidates = found
+}
+// พนักงานปิดการแจ้งเตือนของการโอนที่ไม่ได้ผูก · จำไว้ไม่ให้แจ้งซ้ำ
+function dismissLate(l) {
+  l.dismissed = [...new Set([...(l.dismissed || []), ...l.lateNotice.map((r) => r.id)])]
+  l.lateNotice = []
 }
 function receiveNow(l) {
   Object.assign(l, { confirmed: true, acceptedBy: 'staff' })
   bindPaid()
 }
 function cancelQr(l) {
-  Object.assign(l, { status: 'cancelled', confirmed: false, detectedAt: 0, maneeId: '', candidates: [] })
+  // รายการที่เคยพบหรือเคยเสนอแล้ว ไม่จับคู่ซ้ำหลังยกเลิก (กันพบกลับทันที) · ค้นด้วยมือยังเห็นได้
+  const seen = [l.maneeId, ...(l.candidates || []).map((c) => c.id)].filter(Boolean)
+  Object.assign(l, { status: 'cancelled', confirmed: false, detectedAt: 0, maneeId: '', candidates: [], dismissed: [...new Set([...(l.dismissed || []), ...seen])] })
 }
 function makeQr(l) {
   const a = lineAmt(l)
-  if (!(a > 0) || a > remaining.value + lineAmt(l) + 0.005) return
+  if (!(a > 0) || !canBindLine(a, remaining.value, reservedOf(l, a))) return
   const ref = newPosQrRef()
   if (!ref) return (payErr.value = 'สร้างรหัส QR ไม่สำเร็จ ลองอีกครั้ง')
   const mins = db.shop.posQrExpireMin || 10
-  Object.assign(l, { qrRef: ref, qrCreatedAt: new Date().toISOString(), qrExpiresAt: new Date(Date.now() + mins * 60000).toISOString(), status: 'waiting', confirmed: false, detectedAt: 0, acceptedBy: '', maneeId: '', candidates: [] })
+  // เก็บรหัสเดิมไว้เฝ้าต่อ: ลูกค้าอาจยังจ่ายด้วย QR เดิม
+  Object.assign(l, { prevRefs: watchRefs(l), qrRef: ref, qrCreatedAt: new Date().toISOString(), qrExpiresAt: new Date(Date.now() + mins * 60000).toISOString(), status: 'waiting', confirmed: false, detectedAt: 0, acceptedBy: '', maneeId: '', candidates: [], lateNotice: [], searched: false })
 }
 const lineOk = (l) => {
   const a = lineAmt(l)
@@ -428,7 +461,7 @@ const lineOk = (l) => {
   return true
 }
 // รายการที่ยอด 0 ถูกข้าม (ไม่นับและไม่ส่งไปบันทึก)
-const activeLines = computed(() => payLines.value.filter((l) => lineAmt(l) > 0))
+const activeLines = computed(() => payLines.value.filter((l) => lineAmt(l) > 0 && l.status !== 'cancelled'))
 const canConfirm = computed(() => activeLines.value.length > 0 && remaining.value === 0 && activeLines.value.every(lineOk))
 // บันทึกบิลค้างได้เมื่อยังขาดยอดและมีรายการที่รับแล้วซึ่งยังไม่ได้บันทึก (รายการที่ยังไม่รับจะไม่ถูกบันทึก)
 const canSavePartial = computed(() => remaining.value > 0 && payLines.value.some((l) => l.confirmed && !l.locked && lineAmt(l) > 0))
@@ -538,7 +571,7 @@ function resumeBill(o) {
   startTransferWatch()
 }
 function finishResume() {
-  const r = finishPosBill(resumeOrder.value, payLines.value.filter((l) => !l.locked && lineAmt(l) > 0).map(toPosLine))
+  const r = finishPosBill(resumeOrder.value, payLines.value.filter((l) => !l.locked && lineAmt(l) > 0 && l.status !== 'cancelled').map(toPosLine))
   if (r.error) return (payErr.value = r.error)
   receipt.value = r.order
   closePay()
@@ -1103,7 +1136,23 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <button v-if="!l.qrRef" type="button" class="btn-primary mt-3 h-12 w-full" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
 
             <div v-else-if="l.status === 'cancelled'" class="mt-3 space-y-2">
-              <p class="text-center text-sm text-stone-600">ยกเลิก QR แล้ว</p>
+              <div class="rounded-xl bg-stone-100 p-3 text-center text-sm text-stone-600">
+                <p class="font-medium text-stone-800">ยกเลิก QR แล้ว · ยอดนี้ไม่ถูกกันไว้ รับด้วยวิธีอื่นได้</p>
+                <p class="mt-1 text-xs text-stone-500">ระบบยังจับคู่การโอนเข้า QR เดิมให้จนปิดหน้าชำระ</p>
+              </div>
+              <div v-if="(l.candidates || []).length" class="space-y-2">
+                <p class="text-center text-sm font-medium text-amber-800">พบการโอนเข้า QR เดิม เลือกรายการที่ใช่</p>
+                <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-12 w-full items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-4" @click="pickManee(l, c)">
+                  <span>{{ timeOnly(c.received_at) }}</span><span class="font-semibold">{{ money(c.amount) }} · เลือก</span>
+                </button>
+              </div>
+              <div v-if="(l.lateNotice || []).length" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+                <p class="font-semibold">พบการโอนเข้า QR เดิม {{ money(l.lateNotice[0].amount) }} แต่บิลนี้รับยอดครบแล้ว</p>
+                <p class="mt-1">ระบบไม่ผูกให้เอง · พนักงานตรวจสอบและจัดการนอกระบบ</p>
+                <button type="button" class="mt-2 font-medium underline" @click="dismissLate(l)">ปิดการแจ้งเตือน</button>
+              </div>
+              <p v-else-if="l.searched && !(l.candidates || []).length" class="text-center text-sm text-stone-500">ยังไม่พบการโอนเข้า QR เดิม</p>
+              <button type="button" class="btn-outline h-11 w-full" @click="searchLate(l)">ค้นการโอนของ QR เดิม</button>
               <button type="button" class="btn-primary h-12 w-full" @click="makeQr(l)">สร้าง QR ใหม่</button>
             </div>
 
