@@ -1108,7 +1108,23 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </div>
 
             <div v-else-if="l.confirmed" class="mt-3 space-y-2">
-              <div class="pay-pop flex items-center justify-center gap-2 rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800"><AppIcon name="check" :size="18" /> รับชำระแล้ว{{ l.acceptedBy === 'auto' ? ' (ระบบรับอัตโนมัติ)' : '' }}</div>
+              <!-- รับอัตโนมัติจากถุงเงิน: การ์ดเด้งเข้า เครื่องหมายถูกวาดเส้น วงแหวนขยาย และแสงกวาดผ่านครั้งเดียว · รับโดยพนักงานใช้แถบเดิม -->
+              <div v-if="l.acceptedBy === 'auto'" class="pay-pop relative overflow-hidden rounded-2xl bg-emerald-600 p-5 text-white">
+                <span class="pay-sweep" aria-hidden="true" />
+                <div class="relative flex items-center gap-4">
+                  <span class="relative grid h-14 w-14 shrink-0 place-items-center">
+                    <span class="pay-ring absolute inset-0 rounded-full bg-white/40" aria-hidden="true" />
+                    <span class="relative grid h-14 w-14 place-items-center rounded-full bg-white/20">
+                      <svg class="pay-check h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
+                    </span>
+                  </span>
+                  <div class="min-w-0">
+                    <div class="text-sm font-medium text-emerald-50">รับชำระอัตโนมัติผ่านถุงเงิน</div>
+                    <div class="text-3xl font-bold tabular-nums">{{ money(lineAmt(l)) }}</div>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="pay-pop flex items-center justify-center gap-2 rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800"><AppIcon name="check" :size="18" /> รับชำระแล้ว</div>
               <button v-if="!l.locked && !binding" type="button" class="btn-outline h-11 w-full" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิกการรับชำระ</button>
             </div>
 

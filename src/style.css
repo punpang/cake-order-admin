@@ -400,6 +400,15 @@ html.has-sticky-photo {
 .pay-ring {
   animation: pay-ring 1s ease-out 0.05s both;
 }
+/* แสงกวาดผ่านการ์ดรับชำระอัตโนมัติ ครั้งเดียวแล้วหยุด (ไม่วนซ้ำ) */
+.pay-sweep {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.4) 50%, transparent 65%);
+  transform: translateX(-100%);
+  animation: pay-sweep 0.9s ease-in-out 0.3s both;
+  pointer-events: none;
+}
 @keyframes pay-pop {
   from { opacity: 0; transform: scale(0.92) translateY(6px); }
   to { opacity: 1; transform: none; }
@@ -411,10 +420,16 @@ html.has-sticky-photo {
   from { opacity: 0.6; transform: scale(0.7); }
   to { opacity: 0; transform: scale(1.8); }
 }
+@keyframes pay-sweep {
+  to { transform: translateX(100%); }
+}
 @media (prefers-reduced-motion: reduce) {
   .pay-pop,
   .pay-ring {
     animation: none;
+  }
+  .pay-sweep {
+    display: none;
   }
   .pay-check path {
     animation: none;
