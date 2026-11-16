@@ -23,6 +23,8 @@ const sending = ref(false)
 const box = ref(null)
 const fileInput = ref(null)
 const picks = ref([]) // รูปที่เลือกแล้วแต่ยังไม่ส่ง: { id, file, preview, ref }
+const replyTo = ref(null) // ข้อความที่กำลังตอบกลับ (เหมือนฝั่งพนักงาน)
+const inputEl = ref(null)
 const urls = new Map() // ref รูป → { url, at } (ลิงก์ในเครื่องเท่านั้น)
 const made = new Set() // ลิงก์ blob ที่สร้างไว้ (เก็บเพื่อคืนหน่วยความจำตอนออกจากหน้า)
 let timer = null
@@ -174,6 +176,27 @@ function onPick(e) {
   }
 }
 
+// ตอบกลับข้อความ: เลือกข้อความแล้วพิมพ์ต่อได้ทันที
+function pickReply(m) {
+  replyTo.value = m
+  nextTick(() => inputEl.value?.focus())
+}
+function cancelReply() {
+  replyTo.value = null
+}
+// ชื่อประเภทการ์ดจากร้าน (การ์ดแจ้งยอด/ลิงก์/สรุปออร์เดอร์)
+const CARD_LABEL = { payreq: 'แจ้งยอดชำระ', order: 'สรุปออร์เดอร์', link: 'ลิงก์ออร์เดอร์', quote: 'ใบเสนอราคา', info: 'ข้อความจากร้าน' }
+const cardLabel = (c) => CARD_LABEL[c?.kind] || CARD_LABEL.info
+// ข้อความสั้น ๆ สำหรับแถบตอบกลับ (ตรงกับที่พนักงานเห็น)
+const snippetOf = (m) => {
+  if (!m) return ''
+  if (m.kind === 'quote') return 'ใบเสนอราคา'
+  if (m.kind === 'order') return 'สรุปออร์เดอร์'
+  const t = String(m.text || '').trim()
+  if (t) return t.length > 60 ? `${t.slice(0, 60)}…` : t
+  return m.photos?.length ? '[รูปภาพ]' : ''
+}
+
 function removePick(id) {
   const p = picks.value.find((x) => x.id === id)
   if (p && made.has(p.preview)) { URL.revokeObjectURL(p.preview); made.delete(p.preview) }
@@ -197,9 +220,10 @@ async function send() {
       urls.set(p.ref, { url: p.preview, at: Date.now() })
       refs.push(p.ref)
     }
-    const r = await remoteChat('chat_send', { text: t, photos: refs })
+    const r = await remoteChat('chat_send', { text: t, photos: refs, replyTo: replyTo.value?.id || null })
     if (r.error) { err.value = r.error; return }
     text.value = ''
+    replyTo.value = null
     picks.value = []
     if (r.message) messages.value = [...messages.value, withUrls(r.message)]
     idle = 0 // กำลังคุยกัน: โพลล์ถี่รอร้านตอบ
@@ -254,11 +278,36 @@ onBeforeUnmount(() => {
         <div class="flex flex-col" :class="[m.from === 'customer' ? 'items-end' : 'items-start', endsGroup(i) ? 'mb-3' : 'mb-1']">
           <span v-if="m.from === 'staff' && startsGroup(i)" class="mb-1 ml-1 text-[11px] text-stone-500">ร้าน</span>
           <div v-if="m.kind === 'quote'" class="w-72 max-w-[85%] overflow-hidden rounded-2xl border-2 border-brand-200 bg-white shadow-sm">
+            <div v-if="m.replyTo" class="m-3 mb-0 rounded-lg border-l-2 border-brand-300 bg-stone-100 px-2 py-1 text-xs leading-snug text-stone-600"><span class="block font-medium">{{ m.replyTo.from === 'customer' ? 'ข้อความของคุณ' : 'ร้าน' }}</span><span class="line-clamp-2 break-words">{{ m.replyTo.text }}</span></div>
             <img v-if="m.card?.image" :src="m.card.image" alt="" class="h-36 w-full object-cover" loading="lazy" />
             <div class="p-3.5">
               <p class="font-display text-base leading-snug text-stone-900">{{ m.card?.title || 'ใบเสนอราคา' }}</p>
               <p v-if="m.card?.subtitle" class="mt-0.5 text-sm font-semibold text-brand-700">{{ m.card.subtitle }}</p>
               <p v-if="m.text" class="mt-2 text-sm leading-relaxed break-words whitespace-pre-wrap text-stone-700">{{ m.text }}</p>
+            </div>
+          </div>
+          <!-- สรุปออร์เดอร์ (เหมือนการ์ดของ Facebook): รายการ ยอด และปุ่มดูออร์เดอร์ -->
+          <div v-else-if="m.kind === 'order'" class="w-72 max-w-[85%] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+            <div v-if="m.replyTo" class="m-3 mb-0 rounded-lg border-l-2 border-brand-300 bg-stone-100 px-2 py-1 text-xs leading-snug text-stone-600"><span class="block font-medium">{{ m.replyTo.from === 'customer' ? 'ข้อความของคุณ' : 'ร้าน' }}</span><span class="line-clamp-2 break-words">{{ m.replyTo.text }}</span></div>
+            <img v-if="m.card?.image" :src="m.card.image" alt="" class="h-32 w-full object-cover" loading="lazy" />
+            <div class="p-3.5">
+              <p class="text-xs font-semibold text-brand-700">สรุปออร์เดอร์</p>
+              <p class="font-display text-base leading-snug text-stone-900">{{ m.card?.title || 'สรุปออร์เดอร์' }}</p>
+              <p v-if="m.card?.subtitle" class="mt-0.5 text-sm font-semibold text-stone-700">{{ m.card.subtitle }}</p>
+              <p v-if="m.text" class="mt-2 text-sm leading-relaxed break-words whitespace-pre-wrap text-stone-700">{{ m.text }}</p>
+              <a v-if="safeHref(m.card?.url)" :href="safeHref(m.card.url)" target="_blank" rel="noopener" class="btn-soft mt-3 h-10 w-full text-sm">ดูออร์เดอร์</a>
+            </div>
+          </div>
+          <!-- การ์ดแจ้งเตือน/ลิงก์จากร้าน: แจ้งยอดชำระ ลิงก์ออร์เดอร์ (อ่านอย่างเดียว มีปุ่มเปิดลิงก์) -->
+          <div v-else-if="m.kind === 'card' && m.card" class="w-72 max-w-[85%] overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+            <div v-if="m.replyTo" class="m-3 mb-0 rounded-lg border-l-2 border-brand-300 bg-stone-100 px-2 py-1 text-xs leading-snug text-stone-600"><span class="block font-medium">{{ m.replyTo.from === 'customer' ? 'ข้อความของคุณ' : 'ร้าน' }}</span><span class="line-clamp-2 break-words">{{ m.replyTo.text }}</span></div>
+            <img v-if="m.card.image" :src="m.card.image" alt="" class="h-32 w-full object-cover" loading="lazy" />
+            <div class="p-3.5">
+              <p v-if="cardLabel(m.card) !== m.card.title" class="text-xs font-semibold text-brand-700">{{ cardLabel(m.card) }}</p>
+              <p class="font-display text-base leading-snug text-stone-900">{{ m.card.title || cardLabel(m.card) }}</p>
+              <p v-if="m.card.subtitle" class="mt-0.5 text-sm font-semibold text-stone-700">{{ m.card.subtitle }}</p>
+              <p v-if="m.text" class="mt-2 text-sm leading-relaxed break-words whitespace-pre-wrap text-stone-700">{{ m.text }}</p>
+              <a v-if="safeHref(m.card.url)" :href="safeHref(m.card.url)" target="_blank" rel="noopener" class="btn-soft mt-3 h-10 w-full text-sm">{{ m.card.kind === 'payreq' || m.card.pay ? 'ดูและชำระเงิน' : 'ดูออร์เดอร์' }}</a>
             </div>
           </div>
           <div
@@ -269,6 +318,10 @@ onBeforeUnmount(() => {
               m.from === 'customer' ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md border border-stone-200 bg-white text-stone-900 shadow-sm',
             ]"
           >
+            <div v-if="m.replyTo" class="mb-1.5 rounded-lg border-l-2 px-2 py-1 text-xs leading-snug" :class="m.from === 'customer' ? 'border-white/60 bg-white/15 text-white/90' : 'border-brand-300 bg-stone-100 text-stone-600'">
+              <span class="block font-medium">{{ m.replyTo.from === 'customer' ? 'ข้อความของคุณ' : 'ร้าน' }}</span>
+              <span class="line-clamp-2 break-words">{{ m.replyTo.text }}</span>
+            </div>
             <div v-if="m.photos?.length" class="mb-1.5 grid gap-1" :class="m.photos.length > 1 ? 'grid-cols-2' : ''">
               <a v-for="p in m.photos" :key="p.ref" :href="safeHref(p.url) || undefined" target="_blank" rel="noopener" class="block">
                 <img v-if="p.url" :src="p.url" alt="รูปที่แนบ" class="max-h-56 w-full rounded-xl object-cover" loading="lazy" />
@@ -277,6 +330,7 @@ onBeforeUnmount(() => {
             </div>
             <div v-if="m.text" :class="m.photos?.length ? 'px-2 pt-1 pb-1' : ''">{{ m.text }}</div>
           </div>
+          <button type="button" class="px-1 pt-0.5 text-[11px] font-medium text-stone-400 transition hover:text-brand-700" @click="pickReply(m)">ตอบกลับ</button>
           <div v-if="endsGroup(i)" class="mt-1 flex items-center gap-1.5 px-1 text-[11px] text-stone-500">
             <span>{{ timeOnly(m.at) }}</span>
             <span v-if="m.id === readId">· ร้านอ่านแล้ว</span>
@@ -298,6 +352,10 @@ onBeforeUnmount(() => {
 
     <div class="shrink-0 border-t border-stone-200 bg-white">
       <p v-if="err" class="mx-3 mt-2 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">{{ err }}</p>
+      <div v-if="replyTo" class="mx-3 mt-2 flex items-center gap-2 rounded-xl bg-stone-100 py-1.5 pr-1 pl-3 text-xs text-stone-700">
+        <span class="min-w-0 flex-1 truncate"><b class="font-medium">ตอบกลับ{{ replyTo.from === 'customer' ? 'ข้อความของคุณ' : 'ร้าน' }}:</b> {{ snippetOf(replyTo) }}</span>
+        <button type="button" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-stone-500 hover:bg-white" aria-label="ยกเลิกการตอบกลับ" @click="cancelReply"><AppIcon name="x" :size="14" /></button>
+      </div>
       <div v-if="picks.length" class="flex gap-2 overflow-x-auto px-3 pt-2">
         <div v-for="p in picks" :key="p.id" class="relative shrink-0">
           <img :src="p.preview" alt="รูปที่เลือก" class="h-16 w-16 rounded-xl object-cover" />
@@ -324,6 +382,7 @@ onBeforeUnmount(() => {
           <AppIcon name="image" :size="22" />
         </button>
         <textarea
+          ref="inputEl"
           v-model="text"
           :maxlength="MAX"
           rows="1"

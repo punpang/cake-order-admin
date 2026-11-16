@@ -82,7 +82,7 @@ function findChat(ctx: Ctx, customer: Any, channel: string): Any | null {
   return null
 }
 
-type StaffMsg = { id: string; from: 'staff'; kind: 'text'; text: string; orderId: string | null; quoteId: null; replyTo: null; ask: null; answerFor: null; filled: null; at: string; by: string; delivery: string; deliveryError?: string }
+type StaffMsg = { id: string; from: 'staff'; kind: 'text' | 'card'; text: string; orderId: string | null; quoteId: null; replyTo: null; ask: null; answerFor: null; filled: null; at: string; by: string; delivery: string; deliveryError?: string; card?: Any; cardText?: string }
 function staffMsg(ctx: Ctx, text: string, orderId: string | null, delivery: string): StaffMsg {
   return { id: `cm${rand()}`, from: 'staff', kind: 'text', text, orderId, quoteId: null, replyTo: null, ask: null, answerFor: null, filled: null, at: iso(ctx.nowMs), by: 'ระบบ', delivery }
 }
@@ -161,7 +161,20 @@ async function sendTg(ctx: Ctx, text: string, parseMode: string): Promise<{ ok: 
   }
 }
 
-type Out = { event: string; channel: string | null; to: string; text: string; orderId: string | null; customer: Any | null; parseMode?: string; url?: string }
+// ออร์เดอร์จากเว็บ/แอป → แจ้งผ่านแชทเว็บ/แอป และ SMS (ไม่ผ่าน Facebook) · ตรงกับกติกาใน store (ฝั่งพนักงาน)
+const WEB_ORDER_CHANNELS = ['web', 'sms']
+async function webChatOf(ctx: Ctx, customerId: string): Promise<Any | null> {
+  const r = await ctx.sb.from('punpang_chats').select('id,data,updated_at,customer_id').eq('channel', 'web').eq('customer_id', customerId).maybeSingle()
+  return r?.error ? null : (r?.data ?? null)
+}
+async function isWebOrder(ctx: Ctx, order: Any | null): Promise<boolean> {
+  if (!order || order.channel === 'pos') return false
+  if (order.channel) return order.channel === 'web'
+  if (!order.chatId) return false
+  const r = await ctx.sb.from('punpang_chats').select('channel').eq('id', order.chatId).maybeSingle()
+  return r?.data?.channel === 'web'
+}
+type Out = { event: string; channel: string | null; to: string; text: string; orderId: string | null; customer: Any | null; parseMode?: string; url?: string; card?: Any }
 
 // ส่งหนึ่งข้อความไปยังช่องทางหนึ่ง แล้วบันทึกคิวข้อความ (outbox) และแชท (ถ้ามี) — เหมือน pushOut ในแอป
 async function pushOut(ctx: Ctx, m: Out): Promise<void> {
@@ -192,6 +205,18 @@ async function pushOut(ctx: Ctx, m: Out): Promise<void> {
       row.status = 'failed'
       row.error = 'ลูกค้ายังไม่มีแชท Facebook ที่ผูกไว้'
       await bellFail(ctx, `${name}: ยังไม่มีแชท Facebook ที่ผูกไว้ แจ้งทางอื่นเอง`, null)
+    }
+  }
+  if (m.channel === 'web' && m.customer) {
+    const chat = await webChatOf(ctx, m.customer.id)
+    if (!chat) {
+      row.status = 'failed'
+      row.error = 'ลูกค้ายังไม่มีแชทเว็บ'
+    } else {
+      const msg = staffMsg(ctx, m.text, m.orderId, 'sent')
+      if (m.card) { msg.kind = 'card'; msg.card = m.card; msg.cardText = m.text }
+      await appendChat(ctx, chat.id, msg)
+      row.status = 'sent'
     }
   }
   if (m.channel === 'sms' && m.customer?.phone) {
@@ -230,12 +255,15 @@ export async function execPlan(ctx: Ctx, plan: Plan): Promise<void> {
     return
   }
   if (ev.marketing && customer && customer.promoOptIn === false) return
+  const web = !!customer && (await isWebOrder(ctx, order))
+  const webChat = web && customer ? await webChatOf(ctx, customer.id) : null
   const allowed = effectiveChannels(rule, customer, order)
+  if (web) { allowed.facebook = false; allowed.web = !ev.marketing && !!webChat }
   const targets: string[] = targetsOf({
-    order: CUSTOMER_CHANNEL_ORDER,
+    order: web ? WEB_ORDER_CHANNELS : CUSTOMER_CHANNEL_ORDER,
     allowed,
-    integrations: ctx.integrations,
-    addressOf: (k: string) => customerAddr(customer, k),
+    integrations: web ? { ...ctx.integrations, web: { enabled: true } } : ctx.integrations,
+    addressOf: (k: string) => (k === 'web' ? (webChat ? String(customer.id) : '') : customerAddr(customer, k)),
     noSms: false,
     marketing: !!ev.marketing,
   })
@@ -244,10 +272,10 @@ export async function execPlan(ctx: Ctx, plan: Plan): Promise<void> {
     return
   }
   for (const ch of targets) {
-    const to = `${CHN[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}`
+    const to = `${ch === 'web' ? 'เว็บ/แอป' : CHN[ch].label}: ${customer?.name || ''}${ch === 'sms' ? ` (${formatPhone(customer.phone)})` : ''}`
     const main = renderFor(rule, ch, plan.vars, url)
     const text = ch === 'sms' || ch === 'facebook' ? plainText(main.text) : main.text
-    await pushOut(ctx, { event: plan.event, channel: ch, to, text, orderId: plan.orderId, customer, ...(ch === 'facebook' && url ? { url } : {}) })
+    await pushOut(ctx, { event: plan.event, channel: ch, to, text, orderId: plan.orderId, customer, ...(ch === 'facebook' && url ? { url } : {}), ...(ch === 'web' && url ? { card: { kind: 'link', title: 'ดูออร์เดอร์', subtitle: '', url } } : {}) })
   }
 }
 
