@@ -35,8 +35,17 @@ const tabs = [
   { v: 'security', l: 'ความปลอดภัย' },
 ]
 
+function switchTab(v) {
+  tab.value = v
+  msg.value = ''
+  err.value = ''
+}
+const initial = computed(() => (me.value?.name || '?').trim().charAt(0) || '?')
+
 // ---------- ข้อมูลส่วนตัว ----------
 const form = reactive({ name: me.value?.name || '', promoOptIn: !!me.value?.promoOptIn })
+// ปุ่มบันทึกเปิดเฉพาะเมื่อมีการแก้ไข
+const profileDirty = computed(() => !!me.value && (form.name.trim() !== me.value.name || form.promoOptIn !== !!me.value.promoOptIn))
 const msg = ref('')
 const err = ref('')
 const savingProfile = ref(false)
@@ -52,13 +61,20 @@ async function saveProfile() {
 const birthdays = computed(() => myBirthdays())
 // ข้อมูลออกใบกำกับภาษี (เก็บได้ชุดเดียว)
 const tax = reactive({ name: '', taxId: '', branch: '00000', address: '', ...(myTaxProfile() || {}) })
+const hasTax = computed(() => !!(tax.name || tax.taxId || tax.address))
+const taxOpen = ref(false) // ปิดไว้เป็นค่าเริ่มต้น: ยังไม่มีข้อมูล → ปุ่ม "เพิ่ม" · มีแล้ว → สรุป กดแก้ไขจึงเปิดฟอร์ม
 const taxMsg = ref('')
 const taxErr = ref('')
 function saveTax() {
   taxMsg.value = taxErr.value = ''
   const r = saveMyTaxProfile(tax)
-  if (r.ok) taxMsg.value = 'บันทึกแล้ว'
+  if (r.ok) { taxMsg.value = 'บันทึกข้อมูลใบกำกับภาษีแล้ว'; taxOpen.value = false }
   else taxErr.value = r.error
+}
+function cancelTax() {
+  Object.assign(tax, { name: '', taxId: '', branch: '00000', address: '' }, myTaxProfile() || {})
+  taxErr.value = ''
+  taxOpen.value = false
 }
 
 // ---------- ออร์เดอร์ ----------
@@ -125,56 +141,121 @@ function logout() {
 </script>
 
 <template>
-  <div v-if="me" class="mx-auto max-w-2xl px-4 pt-6 pb-4">
-    <div class="mb-4 flex items-center justify-between gap-3">
-      <div class="min-w-0">
-        <h1 class="truncate text-[26px] text-stone-900">สวัสดี {{ me.name }}</h1>
-        <p class="text-sm text-stone-600">{{ formatPhone(me.phone) }} · {{ num(me.points) }} คะแนน</p>
+  <div v-if="me" class="mx-auto max-w-2xl space-y-4 px-4 pt-5 pb-10 md:max-w-4xl">
+    <!-- หัวบัญชี -->
+    <section class="card flex items-center gap-4">
+      <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-brand-100 font-display text-2xl text-brand-700" aria-hidden="true">{{ initial }}</span>
+      <div class="min-w-0 flex-1">
+        <p class="text-xs text-stone-500">สวัสดี</p>
+        <h1 class="truncate text-[22px] leading-tight text-stone-900">{{ me.name }}</h1>
+        <p class="mt-0.5 text-sm text-stone-600">{{ formatPhone(me.phone) }}</p>
       </div>
-      <button class="btn-outline h-10 px-3" @click="logout"><AppIcon name="logout" :size="16" /> ออก</button>
-    </div>
+      <button type="button" class="shrink-0 rounded-full bg-brand-50 px-3 py-1.5 text-sm font-semibold whitespace-nowrap text-brand-800 transition hover:bg-brand-100" @click="switchTab('rewards')">
+        {{ num(me.points) }} คะแนน
+      </button>
+    </section>
 
-    <div class="mb-4 grid grid-cols-5 gap-1 seg-grid">
-      <button v-for="t in tabs" :key="t.v" type="button" class="seg-item px-1 text-xs sm:text-sm" :class="tab === t.v ? 'seg-on' : ''" @click="tab = t.v; msg = err = ''">{{ t.l }}</button>
-    </div>
-    <p v-if="msg" class="mb-3 rounded-2xl bg-brand-50 p-3 text-sm text-brand-800">{{ msg }}</p>
+    <!-- เมนูแท็บ -->
+    <nav class="flex gap-1 overflow-x-auto rounded-2xl bg-stone-100 p-1 [scrollbar-width:none]" aria-label="เมนูบัญชี">
+      <button
+        v-for="t in tabs"
+        :key="t.v"
+        type="button"
+        class="h-10 min-w-max flex-1 rounded-xl px-3 text-[13px] font-medium whitespace-nowrap transition"
+        :class="tab === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600 hover:text-stone-900'"
+        :aria-current="tab === t.v ? 'page' : undefined"
+        @click="switchTab(t.v)"
+      >{{ t.l }}</button>
+    </nav>
+    <p v-if="msg" role="status" class="flex items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><AppIcon name="check" :size="16" /> {{ msg }}</p>
 
     <!-- ข้อมูล -->
-    <div v-if="tab === 'profile'" class="space-y-4">
-      <form class="card space-y-4" @submit.prevent="saveProfile">
-        <div class="card-title">ข้อมูลของฉัน</div>
-        <div><label class="label">ชื่อ</label><input v-model="form.name" class="input" maxlength="100" autocomplete="name" /></div>
+    <div v-if="tab === 'profile'" class="space-y-4 md:grid md:grid-cols-2 md:items-start md:gap-4 md:space-y-0">
+      <form class="card space-y-5" aria-labelledby="acct-personal" @submit.prevent="saveProfile">
+        <h2 id="acct-personal" class="card-title">ข้อมูลส่วนตัว</h2>
         <div>
-          <label class="label">เบอร์โทร</label>
-          <div class="flex gap-2">
-            <input :value="formatPhone(me.phone)" class="input flex-1 bg-stone-100" disabled aria-readonly="true" />
-            <button type="button" class="btn-outline" @click="start('phone')">เปลี่ยน</button>
-          </div>
-          <p class="mt-1 text-xs text-stone-400">การเปลี่ยนเบอร์ต้องยืนยัน OTP ที่เบอร์ใหม่</p>
+          <label class="label" for="acct-name">ชื่อ</label>
+          <input id="acct-name" v-model="form.name" class="input" maxlength="100" autocomplete="name" />
         </div>
-        <AppSwitch v-model="form.promoOptIn" label="รับข่าวสารและโปรโมชัน (รวมอวยพรวันเกิด)" />
-        <p v-if="err" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
-        <button class="btn-primary w-full" :disabled="savingProfile"><span v-if="savingProfile" class="brand-ring on-brand" aria-hidden="true"></span>{{ savingProfile ? 'กำลังบันทึก…' : 'บันทึก' }}</button>
+        <div>
+          <span class="label">เบอร์โทร</span>
+          <div class="flex items-center justify-between gap-3 rounded-xl bg-stone-50 px-4 py-3">
+            <span class="font-medium text-stone-900">{{ formatPhone(me.phone) }}</span>
+            <button type="button" class="text-sm font-semibold text-brand-700 underline underline-offset-4" @click="start('phone')">เปลี่ยนเบอร์</button>
+          </div>
+          <p class="mt-1.5 text-xs text-stone-500">การเปลี่ยนเบอร์ต้องยืนยันด้วยรหัส OTP ที่เบอร์ใหม่</p>
+        </div>
+        <div class="flex items-center justify-between gap-4 rounded-xl bg-stone-50 px-4 py-3">
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-stone-900">รับข่าวสารและโปรโมชัน</p>
+            <p class="text-xs text-stone-500">รวมข่าวอวยพรวันเกิด</p>
+          </div>
+          <AppSwitch v-model="form.promoOptIn" aria-label="รับข่าวสารและโปรโมชัน" />
+        </div>
+        <p v-if="err" role="alert" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
+        <button class="btn-primary w-full" :disabled="savingProfile || !profileDirty">
+          <span v-if="savingProfile" class="brand-ring on-brand" aria-hidden="true"></span>{{ savingProfile ? 'กำลังบันทึก…' : profileDirty ? 'บันทึกการเปลี่ยนแปลง' : 'บันทึก' }}
+        </button>
       </form>
 
-      <section class="card space-y-3" aria-label="ข้อมูลออกใบกำกับภาษี">
-        <div class="card-title">ข้อมูลออกใบกำกับภาษี <span class="text-xs font-normal text-stone-400">(จดจำได้ 1 ชุด)</span></div>
-        <div><label class="label">ชื่อผู้ซื้อ</label><input v-model="tax.name" class="input" maxlength="120" aria-label="ชื่อตามใบกำกับ" /></div>
-        <div class="grid grid-cols-3 gap-3"><div class="col-span-2"><label class="label">เลขประจำตัวผู้เสียภาษี</label><input v-model="tax.taxId" inputmode="numeric" maxlength="13" class="input" aria-label="เลขผู้เสียภาษีของฉัน" /></div><div><label class="label">สาขา</label><input v-model="tax.branch" inputmode="numeric" maxlength="5" class="input" aria-label="สาขาของฉัน" /></div></div>
-        <div><label class="label">ที่อยู่ตามใบกำกับ</label><TaxAddressField v-model="tax.address" label="ที่อยู่ใบกำกับของฉัน" :suggestions="myAddressChoices()" /></div>
-        <p v-if="taxErr" class="text-sm text-rose-700" role="alert">{{ taxErr }}</p>
-        <p v-if="taxMsg" class="text-sm text-emerald-700" role="status">{{ taxMsg }}</p>
-        <button type="button" class="btn-soft w-full" @click="saveTax">บันทึกข้อมูลใบกำกับภาษี</button>
-      </section>
+      <div class="space-y-4">
+        <!-- ใบกำกับภาษี: แสดงสรุปก่อน กดแก้ไขจึงเปิดฟอร์ม -->
+        <section class="card space-y-4" aria-labelledby="acct-tax">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h2 id="acct-tax" class="card-title">ข้อมูลใบกำกับภาษี</h2>
+              <p class="mt-0.5 text-xs text-stone-500">ใช้ออกใบกำกับภาษีให้ทุกครั้งที่สั่ง · บันทึกได้ 1 ชุด</p>
+            </div>
+            <button v-if="hasTax && !taxOpen" type="button" class="btn-outline h-9 shrink-0 px-4 text-sm" @click="taxOpen = true">แก้ไข</button>
+          </div>
+          <p v-if="taxMsg && !taxOpen" role="status" class="text-sm text-emerald-700">{{ taxMsg }}</p>
 
-      <section class="card">
-        <div class="card-title">วันเกิดที่เคยสั่ง</div>
-        <p v-if="!birthdays.length" class="text-sm text-stone-500">ยังไม่มี</p>
-        <ul v-else class="space-y-1 text-sm text-stone-700">
-          <li v-for="(b, i) in birthdays" :key="i">{{ b.name || 'ไม่ระบุชื่อ' }} · {{ mdLabel(b.md) }}</li>
-        </ul>
-        <p class="mt-2 text-xs text-stone-400">ข้อมูลนี้มาจากออร์เดอร์ แก้ไขได้โดยแจ้งร้าน</p>
-      </section>
+          <button v-if="!hasTax && !taxOpen" type="button" class="btn-soft w-full" @click="taxOpen = true">+ เพิ่มข้อมูลใบกำกับภาษี</button>
+
+          <dl v-else-if="!taxOpen" class="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl bg-stone-50 p-4 text-sm">
+            <div class="col-span-2"><dt class="text-xs text-stone-500">ชื่อผู้ซื้อ</dt><dd class="font-medium text-stone-900">{{ tax.name || '—' }}</dd></div>
+            <div><dt class="text-xs text-stone-500">เลขประจำตัวผู้เสียภาษี</dt><dd class="text-stone-900">{{ tax.taxId || '—' }}</dd></div>
+            <div><dt class="text-xs text-stone-500">สาขา</dt><dd class="text-stone-900">{{ tax.branch || '00000' }}</dd></div>
+            <div class="col-span-2"><dt class="text-xs text-stone-500">ที่อยู่ตามใบกำกับ</dt><dd class="whitespace-pre-line text-stone-900">{{ tax.address || '—' }}</dd></div>
+          </dl>
+
+          <form v-else class="space-y-4" @submit.prevent="saveTax">
+            <div>
+              <label class="label" for="tax-name">ชื่อผู้ซื้อ</label>
+              <input id="tax-name" v-model="tax.name" class="input" maxlength="120" />
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+              <div class="col-span-2">
+                <label class="label" for="tax-id">เลขประจำตัวผู้เสียภาษี</label>
+                <input id="tax-id" v-model="tax.taxId" inputmode="numeric" maxlength="13" class="input" />
+              </div>
+              <div>
+                <label class="label" for="tax-branch">สาขา</label>
+                <input id="tax-branch" v-model="tax.branch" inputmode="numeric" maxlength="5" class="input" />
+              </div>
+            </div>
+            <div>
+              <span class="label">ที่อยู่ตามใบกำกับ</span>
+              <TaxAddressField v-model="tax.address" label="ที่อยู่ใบกำกับของฉัน" :suggestions="myAddressChoices()" />
+            </div>
+            <p v-if="taxErr" role="alert" class="text-sm text-rose-700">{{ taxErr }}</p>
+            <div class="grid grid-cols-2 gap-2">
+              <button type="button" class="btn-outline" @click="cancelTax">ยกเลิก</button>
+              <button type="submit" class="btn-primary">บันทึก</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- วันเกิด -->
+        <section class="card space-y-3" aria-labelledby="acct-bday">
+          <h2 id="acct-bday" class="card-title">วันเกิดที่เคยสั่ง</h2>
+          <p v-if="!birthdays.length" class="text-sm text-stone-500">ยังไม่มี</p>
+          <ul v-else class="flex flex-wrap gap-2">
+            <li v-for="(b, i) in birthdays" :key="i" class="rounded-full bg-stone-100 px-3 py-1.5 text-sm text-stone-700">{{ b.name || 'ไม่ระบุชื่อ' }} · {{ mdLabel(b.md) }}</li>
+          </ul>
+          <p class="text-xs text-stone-500">ข้อมูลนี้มาจากออร์เดอร์ แก้ไขได้โดยแจ้งร้าน</p>
+        </section>
+      </div>
     </div>
 
     <!-- ออร์เดอร์ -->
@@ -208,24 +289,34 @@ function logout() {
     <!-- คะแนน / แลกของ / กาชา / คูปอง -->
     <AccountRewards v-else-if="tab === 'rewards'" />
 
-    <!-- แชทกับร้าน (เฉพาะลูกค้าที่ล็อกอิน) -->
-
     <!-- ความปลอดภัย -->
     <div v-else class="space-y-4">
-      <section class="card space-y-3">
-        <div class="card-title"><AppIcon name="lock" :size="16" /> PIN</div>
-        <p class="text-sm text-stone-600">เปลี่ยน PIN ต้องยืนยัน OTP ที่เบอร์ {{ formatPhone(me.phone) }} ก่อน</p>
-        <button class="btn-outline w-full" @click="start('pin')">เปลี่ยน PIN</button>
+      <section class="card p-0" aria-label="การรักษาความปลอดภัย">
+        <button type="button" class="flex w-full items-center gap-3 rounded-2xl px-4 py-4 text-left transition hover:bg-stone-50" @click="start('pin')">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700"><AppIcon name="lock" :size="18" /></span>
+          <span class="min-w-0 flex-1">
+            <span class="block font-medium text-stone-900">เปลี่ยน PIN</span>
+            <span class="block text-xs text-stone-500">ต้องยืนยัน OTP ที่เบอร์ {{ formatPhone(me.phone) }} ก่อน</span>
+          </span>
+          <AppIcon name="next" :size="18" class="shrink-0 text-stone-400" />
+        </button>
       </section>
 
-      <section class="card space-y-3">
-        <div class="card-title"><AppIcon name="shield" :size="16" /> ขอลบข้อมูลของฉัน</div>
+      <section class="card space-y-3 border border-rose-100" aria-labelledby="acct-delete">
+        <h2 id="acct-delete" class="card-title flex items-center gap-2"><AppIcon name="shield" :size="16" /> ขอลบข้อมูลของฉัน</h2>
         <p class="text-sm text-stone-600">เมื่อร้านอนุมัติ ร้านจะลบชื่อ เบอร์โทร และ Facebook ที่ผูกไว้ บัญชีและ PIN แชท คะแนน/คูปอง รีวิว และรายละเอียดส่วนตัวในออร์เดอร์ (ที่อยู่ วันเกิด รูปอ้างอิง สลิป ข้อความบนเค้ก)</p>
         <p class="text-sm text-stone-600">ร้านจะเก็บ <b>ออร์เดอร์และการชำระเงินแบบไม่ระบุตัวตน</b> เพื่อเป็นหลักฐานทางบัญชี · ลบได้เมื่อไม่มีออร์เดอร์ที่ยังไม่จบหรือยอดค้างชำระ</p>
         <div v-if="delReq?.status === 'pending'" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ส่งคำขอเมื่อ {{ dateTime(delReq.createdAt) }} · รอร้านตรวจสอบ</div>
         <div v-else-if="delReq?.status === 'rejected'" class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">คำขอก่อนหน้าไม่ได้รับอนุมัติ: {{ delReq.reason }}</div>
         <button v-if="delReq?.status !== 'pending'" class="btn-danger w-full" @click="start('delete')">ขอลบข้อมูลของฉัน</button>
       </section>
+    </div>
+
+    <!-- ออกจากระบบ: อยู่ท้ายทุกแท็บ ไม่แย่งความสำคัญจากเนื้อหา -->
+    <div class="pt-2 text-center">
+      <button type="button" class="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-stone-500 transition hover:bg-stone-100 hover:text-stone-800" @click="logout">
+        <AppIcon name="logout" :size="16" /> ออกจากระบบ
+      </button>
     </div>
   </div>
 
