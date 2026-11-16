@@ -23,7 +23,6 @@ import OtpStep from '../../components/OtpStep.vue'
 import AccountRewards from '../../components/AccountRewards.vue'
 import { myTaxProfile, saveMyTaxProfile, myAddressChoices } from '../../data/acct'
 import TaxAddressField from '../../components/TaxAddressField.vue'
-import AccountChat from './AccountChat.vue'
 
 // บัญชีของฉัน: เห็นข้อมูลของตัวเองทั้งหมด แก้ได้เฉพาะ ชื่อ / รับข่าวโปร · เบอร์และ PIN ต้องยืนยัน OTP
 const router = useRouter()
@@ -34,7 +33,6 @@ const tabs = [
   { v: 'orders', l: 'ออร์เดอร์' },
   { v: 'rewards', l: 'คะแนน' },
   { v: 'security', l: 'ความปลอดภัย' },
-  { v: 'chat', l: 'แชทร้าน' },
 ]
 
 // ---------- ข้อมูลส่วนตัว ----------
@@ -211,7 +209,6 @@ function logout() {
     <AccountRewards v-else-if="tab === 'rewards'" />
 
     <!-- แชทกับร้าน (เฉพาะลูกค้าที่ล็อกอิน) -->
-    <AccountChat v-else-if="tab === 'chat'" />
 
     <!-- ความปลอดภัย -->
     <div v-else class="space-y-4">
