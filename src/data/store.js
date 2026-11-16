@@ -2982,6 +2982,15 @@ export function sendChat(chatId, from, text, extra = {}) {
   if (!c || (!t && !hasImg && !['order', 'quote'].includes(extra.kind))) return null
   const at = extra.at || now()
   const m = { id: uid('cm'), from, kind: extra.kind || 'text', text: t, orderId: extra.orderId || null, quoteId: extra.quoteId || null, replyTo: extra.replyTo || null, ask: extra.ask || null, answerFor: extra.answerFor || null, filled: extra.filled || null, at, by: extra.by || (from === 'staff' ? session.role : 'ลูกค้า'), delivery: from === 'staff' ? 'simulated' : null, ...(hasImg ? { attachments: extra.attachments } : {}) }
+  // ใบเสนอในแชทเว็บ: เก็บการ์ดที่ลูกค้าเห็น (รายการ วันนัด ยอดรวม) ไว้กับข้อความ · ข้อมูลภายใน (ต้นทุน กำไร) ไม่ถูกเก็บ
+  if (from === 'staff' && c.channel === 'web' && m.kind === 'quote') {
+    const q = findQuote(m.quoteId)
+    if (q) {
+      const k = quoteCardMsg(q, orderTotals({ ...q.payload, payments: [], adjustment: null, couponsUsed: [] }), db.shop.name, { image: cardImageOf(q.payload?.items) })
+      m.card = k.card
+      m.cardText = k.text
+    }
+  }
   c.messages.push(m)
   c.updatedAt = at
   if (from === 'customer') {

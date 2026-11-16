@@ -253,7 +253,16 @@ onBeforeUnmount(() => {
         </div>
         <div class="flex flex-col" :class="[m.from === 'customer' ? 'items-end' : 'items-start', endsGroup(i) ? 'mb-3' : 'mb-1']">
           <span v-if="m.from === 'staff' && startsGroup(i)" class="mb-1 ml-1 text-[11px] text-stone-500">ร้าน</span>
+          <div v-if="m.kind === 'quote'" class="w-72 max-w-[85%] overflow-hidden rounded-2xl border-2 border-brand-200 bg-white shadow-sm">
+            <img v-if="m.card?.image" :src="m.card.image" alt="" class="h-36 w-full object-cover" loading="lazy" />
+            <div class="p-3.5">
+              <p class="font-display text-base leading-snug text-stone-900">{{ m.card?.title || 'ใบเสนอราคา' }}</p>
+              <p v-if="m.card?.subtitle" class="mt-0.5 text-sm font-semibold text-brand-700">{{ m.card.subtitle }}</p>
+              <p v-if="m.text" class="mt-2 text-sm leading-relaxed break-words whitespace-pre-wrap text-stone-700">{{ m.text }}</p>
+            </div>
+          </div>
           <div
+            v-else
             class="max-w-[80%] rounded-2xl text-[15px] leading-relaxed break-words whitespace-pre-wrap"
             :class="[
               m.photos?.length ? 'p-1.5' : 'px-3.5 py-2',
