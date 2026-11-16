@@ -60,6 +60,7 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
     return { stop() {}, loaded: false, label }
   }
   replace(loaded.items)
+  let loadedAt = Date.now() // เวลาโหลดสำเร็จล่าสุด (ใช้บอกว่าข้อมูลในเครื่องสดแค่ไหน)
   const snapshot = new Map(list().map((i) => [i.id, JSON.stringify(i)]))
   const key = label || `ซิงก์${++syncSeq}`
   let timer = null
@@ -73,6 +74,7 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
     const dirty = () => { const d = diffById(snapshot, list()); return d.upserts.length || d.deletes.length }
     if (busy || dirty()) return false
     const r = await load()
+    if (!r.error) loadedAt = Date.now()
     if (r.error || busy || dirty()) return false // โหลดไม่สำเร็จ หรือระหว่างโหลดมีการแก้ในเครื่อง → รอบหน้า
     const remote = diffById(snapshot, r.items)
     if (!remote.upserts.length && !remote.deletes.length) return false
@@ -99,7 +101,7 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
     for (const it of rows) { const cur = arr.find((i) => i.id === it.id); if (cur) snapshot.set(it.id, JSON.stringify(cur)) }
     return true
   } : undefined
-  if (!canWrite) return { stop() {}, loaded: true, label, refresh: poll ? refresh : undefined, refreshIds }
+  if (!canWrite) return { stop() {}, loaded: true, label, refresh: poll ? refresh : undefined, refreshIds, loadedAt: () => loadedAt }
   // คืน true เมื่อไม่มีอะไรค้าง/เขียนสำเร็จ · false เมื่อเขียนล้มเหลวหรือกำลังเขียนอยู่ (ให้ผู้เรียกที่ต้องเรียงลำดับรอแล้วลองใหม่)
   const flush = async () => {
     if (busy) { again = true; return false }
@@ -165,5 +167,5 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
     if (d.upserts.length || d.deletes.length) syncSet(key, busy ? 'saving' : 'pending', '', flush) // เปลี่ยนจากการรีเฟรชของเซิร์ฟเวอร์ ไม่นับเป็นรอบันทึก
     timer = setTimeout(flush, debounceMs)
   })
-  return { stop() { stopWatch(); clearTimeout(timer); clearTimeout(retryTimer); syncDrop(key) }, loaded: true, label, flush, refresh: poll ? refresh : undefined, refreshIds }
+  return { stop() { stopWatch(); clearTimeout(timer); clearTimeout(retryTimer); syncDrop(key) }, loaded: true, label, flush, refresh: poll ? refresh : undefined, refreshIds, loadedAt: () => loadedAt }
 }

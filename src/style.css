@@ -387,3 +387,37 @@ html.has-sticky-photo {
     scroll-padding-top: 6rem;
   }
 }
+
+/* อนิเมชันรับชำระ (หน้าชำระเงินของ POS และจอลูกค้า): การ์ดเด้งเข้า · เครื่องหมายถูกวาดเส้น · วงแหวนขยายครั้งเดียว · ปิดเมื่อผู้ใช้ตั้งค่าลดการเคลื่อนไหว */
+.pay-pop {
+  animation: pay-pop 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+}
+.pay-check path {
+  stroke-dasharray: 26;
+  stroke-dashoffset: 26;
+  animation: pay-draw 0.45s ease-out 0.16s forwards;
+}
+.pay-ring {
+  animation: pay-ring 1s ease-out 0.05s both;
+}
+@keyframes pay-pop {
+  from { opacity: 0; transform: scale(0.92) translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pay-draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes pay-ring {
+  from { opacity: 0.6; transform: scale(0.7); }
+  to { opacity: 0; transform: scale(1.8); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pay-pop,
+  .pay-ring {
+    animation: none;
+  }
+  .pay-check path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

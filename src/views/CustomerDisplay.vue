@@ -41,6 +41,7 @@ const THEME = {
   idle: { pill: 'bg-white text-brand-700', label: 'ยินดีต้อนรับ' },
   shopping: { pill: 'bg-white text-brand-700', label: 'กำลังเลือกสินค้า' },
   paying: { pill: 'bg-honey text-stone-900', label: 'กำลังชำระเงิน' },
+  paid: { pill: 'bg-matcha text-stone-900', label: 'รับชำระแล้ว' },
   thanks: { pill: 'bg-matcha text-stone-900', label: 'ชำระเรียบร้อย' },
 }
 const theme = computed(() => THEME[state.value.status] || THEME.idle)
@@ -247,10 +248,24 @@ watch(
         </section>
       </div>
 
+      <!-- รับชำระแล้ว (ฟลาชชั่วครู่): เครื่องหมายถูกและยอดที่รับ แล้วกลับไปหน้าการชำระเงิน -->
+      <div v-else-if="state.status === 'paid'" class="flex min-h-0 flex-1 flex-col items-center justify-center gap-[clamp(0.6rem,2vh,1.4rem)] rounded-3xl bg-white p-8 text-center shadow-md">
+        <div class="relative grid aspect-square h-[clamp(4rem,16vh,7rem)] place-items-center">
+          <span class="pay-ring absolute inset-0 rounded-full bg-matcha-soft" aria-hidden="true" />
+          <span class="pay-pop relative grid h-full w-full place-items-center rounded-full bg-matcha-soft text-stone-900">
+            <svg class="pay-check h-1/2 w-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
+          </span>
+        </div>
+        <div class="pay-pop font-display font-medium text-stone-900 text-[clamp(1.8rem,7vh,3.6rem)] leading-tight">รับชำระแล้ว</div>
+        <div class="pay-pop font-display font-semibold text-brand-700 text-[clamp(1.6rem,6vh,3rem)]">{{ money(state.amount) }}</div>
+        <div v-if="remaining > 0" class="rounded-full bg-honey px-5 py-2 font-bold text-stone-900 text-[clamp(0.9rem,2.8vh,1.2rem)]">ยังขาด {{ money(remaining) }}</div>
+        <div v-else class="rounded-full bg-matcha px-5 py-2 font-bold text-stone-900 text-[clamp(0.9rem,2.8vh,1.2rem)]">ครบแล้ว ✓</div>
+      </div>
+
       <!-- ชำระเรียบร้อย -->
       <div v-else-if="state.status === 'thanks'" class="flex min-h-0 flex-1 flex-col items-center justify-center gap-[clamp(0.6rem,2vh,1.4rem)] rounded-3xl bg-white p-8 text-center shadow-md">
-        <div class="grid aspect-square h-[clamp(3.5rem,14vh,6rem)] place-items-center rounded-full bg-matcha-soft text-stone-900">
-          <AppIcon name="check" :size="48" />
+        <div class="pay-pop grid aspect-square h-[clamp(3.5rem,14vh,6rem)] place-items-center rounded-full bg-matcha-soft text-stone-900">
+          <svg class="pay-check h-1/2 w-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
         </div>
         <div class="font-display font-medium text-stone-900 text-[clamp(2rem,9vh,4.5rem)] leading-tight">ขอบคุณค่ะ</div>
         <div class="text-stone-600 text-[clamp(0.95rem,3vh,1.4rem)]">ชำระเรียบร้อยแล้ว <span class="font-bold text-stone-900">{{ money(state.total) }}</span></div>

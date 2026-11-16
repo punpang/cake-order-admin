@@ -16,7 +16,7 @@ import { POS_METHODS, ROLES } from '../lib/constants'
 import { askConfirm } from '../lib/confirm'
 import { isUnsaved, needBind, closeGuard, canBindCash } from '../lib/payBind'
 import { cartOfBill } from '../lib/billEdit'
-import { refreshLabels } from '../lib/staffAuth'
+import { refreshLabels, labelsLoadedAt } from '../lib/staffAuth'
 import { waitSaved } from '../lib/syncStatus'
 import { showToast } from '../lib/toast'
 import { quietly } from '../lib/loading'
@@ -39,7 +39,8 @@ import TaxInvoiceModal from '../components/TaxInvoiceModal.vue'
 import { invoiceOfOrder } from '../data/acct'
 import { defaultRefundMethod } from '../lib/refund'
 import BillerQr from '../components/BillerQr.vue'
-import { listTransfersByRef } from '../lib/maneeRemote'
+import { listTransfersOfRef } from '../lib/maneeRemote'
+import { labelsFresh, LABEL_REFRESH_EVERY_S, PAID_FLASH_MS } from '../lib/payFresh'
 
 // POS หน้าร้าน: เปิดกะ → ขาย (ตะกร้า สมาชิก คูปอง ส่วนลด + โปรโมชัน/บันเดิ้ลอัตโนมัติ) → ชำระ (เงินสด/โอน/บัตร + ทอน) → ใบเสร็จ · บิล · ปิดกะ
 // สะสมคะแนนจากยอดสุทธิ (โปรคะแนนพิเศษคูณได้) · ไม่ใช้คะแนนตรง ๆ: ลูกค้าแลกคะแนนเป็นคูปองที่หน้าเว็บ แล้วใช้คูปองที่นี่
@@ -318,9 +319,15 @@ function openPay() {
   if (!cart.value.length || editBill.value) return
   payErr.value = ''
   payLines.value = []
+  seenPaid = []
   payNow.value = Date.now()
   clearInterval(payTimer)
-  payTimer = setInterval(() => { payNow.value = Date.now(); tickLines(); if (++payTick % pollEvery() === 0) quietly(pollManee) }, 1000)
+  payTimer = setInterval(() => {
+    payNow.value = Date.now(); tickLines()
+    if (++payTick % pollEvery() === 0) quietly(pollManee)
+    // ระหว่างรอการโอน โหลดสต็อก/กะล่วงหน้าเป็นช่วง ๆ เพื่อให้การยืนยันอัตโนมัติไม่ต้องรอ
+    if (payTick % LABEL_REFRESH_EVERY_S === 0 && waitingTransfer()) refreshLabelsNow()
+  }, 1000)
   payOpen.value = true
   startTransferWatch()
 }
@@ -346,23 +353,45 @@ function addPayLine(method) {
 function removePayLine(i) {
   payLines.value.splice(i, 1)
 }
-// ดึงรายการโอนถุงเงินที่มีรหัสธุรกรรมตรงกับ QR ที่ยังรอชำระ (ทุก 5 วินาที)
+// ข้อมูลสต็อก/กะที่โหลดไว้ล่าสุด: ระหว่างรอการโอนโหลดเบื้องหลังเป็นช่วง ๆ (ไม่ขึ้นหน้าจอหมุน) ให้การยืนยันอัตโนมัติไม่ต้องรอโหลดก่อนบันทึก
+const LABEL_NAMES = ['สินค้า', 'กะ POS']
+let labelsAt = 0
+let labelsLoading = null
+const waitingTransfer = () => payLines.value.some((l) => l.method === 'transfer' && l.qrRef && !l.confirmed && l.status !== 'cancelled')
+// รอบที่กำลังโหลดอยู่จะถูกใช้ร่วมกัน ไม่ยิงซ้ำ · เวลาที่ใช้ได้ = เวลาโหลดสำเร็จเก่าที่สุดของสองตาราง
+function refreshLabelsNow() {
+  if (!labelsLoading) {
+    labelsLoading = quietly(() => refreshLabels(LABEL_NAMES)).finally(() => { labelsAt = labelsLoadedAt(LABEL_NAMES); labelsLoading = null })
+  }
+  return labelsLoading
+}
+// ยืนยันอัตโนมัติ: ข้อมูลที่โหลดสำเร็จไม่เกิน 5 วินาทีใช้ได้เลย · ไม่สดจึงโหลดก่อน
+async function labelsForAutoBind() {
+  if (labelsFresh(labelsAt)) return
+  await refreshLabelsNow()
+}
+// ดึงรายการโอนที่มีรหัสธุรกรรมตรงกับ QR ที่ยังรอชำระ: เมื่อมีรายการเข้า (realtime) และสำรองตามรอบ (ทุก 5 วินาที · 30 วินาทีเมื่อ realtime ทำงาน)
 // พบรายการเดียว → ขึ้นสถานะ "ลูกค้าชำระแล้ว" (อนิเมชัน) รอพนักงานกดรับ · พบหลายรายการ → ให้พนักงานเลือกเอง
+// มีเหตุการณ์เข้ามาระหว่างรอบที่กำลังค้นหา → ค้นอีกรอบทันทีเมื่อรอบนั้นจบ (ไม่ทิ้งเหตุการณ์)
+let maneeAgain = false
 async function pollManee() {
-  if (maneePolling) return
+  if (maneePolling) { maneeAgain = true; return }
   maneePolling = true
-  let autoOk = false
   try {
-    for (const l of payLines.value) {
-      if (l.method !== 'transfer' || !l.qrRef || l.confirmed || l.detectedAt || l.status === 'cancelled' || expiredLine(l)) continue
-      const r = await listTransfersByRef({ ref: l.qrRef, amount: lineAmt(l) })
-      if (r.error) continue
-      l.candidates = r.rows
-      if (r.rows.length === 1 && db.shop.posAutoAcceptNow) { Object.assign(l, { detectedAt: Date.now(), maneeId: r.rows[0].id, confirmed: true, acceptedBy: 'auto' }); autoOk = true }
-      else if (r.rows.length === 1) Object.assign(l, { detectedAt: Date.now(), maneeId: r.rows[0].id })
-    }
+    do {
+      maneeAgain = false
+      let autoOk = false
+      for (const l of payLines.value) {
+        if (l.method !== 'transfer' || !l.qrRef || l.confirmed || l.detectedAt || l.status === 'cancelled' || expiredLine(l)) continue
+        const r = await listTransfersOfRef({ ref: l.qrRef, amount: lineAmt(l) })
+        if (r.error) continue
+        l.candidates = r.rows
+        if (r.rows.length === 1 && db.shop.posAutoAcceptNow) { Object.assign(l, { detectedAt: Date.now(), maneeId: r.rows[0].id, confirmed: true, acceptedBy: 'auto' }); autoOk = true }
+        else if (r.rows.length === 1) Object.assign(l, { detectedAt: Date.now(), maneeId: r.rows[0].id })
+      }
+      if (autoOk) bindPaid(true)
+    } while (maneeAgain && payOpen.value)
   } finally { maneePolling = false }
-  if (autoOk) bindPaid()
 }
 // รับเองเมื่อครบ 3 นาทีหลังพบรายการ (เฉพาะกรณีพบรายการเดียว)
 function tickLines() {
@@ -370,7 +399,7 @@ function tickLines() {
   for (const l of payLines.value) {
     if (l.method === 'transfer' && l.detectedAt && !l.confirmed && l.status !== 'cancelled' && Date.now() - l.detectedAt >= AUTO_ACCEPT_MS) { Object.assign(l, { confirmed: true, acceptedBy: 'auto' }); autoOk = true }
   }
-  if (autoOk) bindPaid()
+  if (autoOk) bindPaid(true)
 }
 function pickManee(l, c) {
   Object.assign(l, { confirmed: true, acceptedBy: 'staff', maneeId: c.id })
@@ -440,9 +469,22 @@ const displaySuggest = computed(() => {
   const best = topItem ? { name: topItem.name, price: Number(topItem.price) || 0 } : null
   return { hints, bundles, pairs, best }
 })
+// ฟลาช "รับชำระแล้ว" บนจอลูกค้า: เมื่อมีรายการถูกรับชำระ (โอนพบ / รับเอง / รับเงินสด) แสดงชั่วครู่ แล้วกลับไปหน้าการชำระเงิน
+const paidFlash = ref({ until: 0, amount: 0 })
+let paidFlashTimer = null
+let seenPaid = []
+watch(() => payLines.value.filter((l) => l.confirmed).map((l) => l.key), (keys) => {
+  const fresh = payLines.value.filter((l) => l.confirmed && !seenPaid.includes(l.key))
+  seenPaid = keys
+  if (!fresh.length || !payOpen.value) return
+  paidFlash.value = { until: Date.now() + PAID_FLASH_MS, amount: lineAmt(fresh[fresh.length - 1]) }
+  clearTimeout(paidFlashTimer)
+  paidFlashTimer = setTimeout(() => { paidFlash.value = { until: 0, amount: 0 } }, PAID_FLASH_MS)
+})
 const displayState = computed(() => {
   const shopName = db.shop?.name || ''
   if (thanks.value.until > Date.now()) return { status: 'thanks', shopName, total: thanks.value.total, saved: thanks.value.saved }
+  if (payOpen.value && paidFlash.value.until > Date.now()) return { status: 'paid', shopName, amount: paidFlash.value.amount, total: total.value, remaining: remaining.value }
   if (payOpen.value) {
     const bid = billerIdOf(db.shop?.billerId)
     const qrLine = payLines.value.find((l) => l.method === 'transfer' && l.qrRef && !l.confirmed && l.status !== 'cancelled')
@@ -483,9 +525,15 @@ function resumeBill(o) {
   payErr.value = ''
   resumeOrder.value = o
   payLines.value = o.payments.filter((p) => p.status === 'confirmed').map((p) => ({ key: newKey(), method: p.posMethod || 'cash', amount: String(p.amount), received: String(p.received ?? ''), qrRef: p.qrRef || '', qrExpiresAt: '', confirmed: true, locked: true, acceptedBy: p.qrAccept || 'staff', maneeId: p.maneeId || '' }))
+  // รับส่วนที่เหลือของบิลค้าง: รายการที่รับไว้แล้วไม่แสดงฟลาชซ้ำ
+  seenPaid = payLines.value.filter((l) => l.confirmed).map((l) => l.key)
   payNow.value = Date.now()
   clearInterval(payTimer)
-  payTimer = setInterval(() => { payNow.value = Date.now(); tickLines(); if (++payTick % pollEvery() === 0) quietly(pollManee) }, 1000)
+  payTimer = setInterval(() => {
+    payNow.value = Date.now(); tickLines()
+    if (++payTick % pollEvery() === 0) quietly(pollManee)
+    if (payTick % LABEL_REFRESH_EVERY_S === 0 && waitingTransfer()) refreshLabelsNow()
+  }, 1000)
   payOpen.value = true
   startTransferWatch()
 }
@@ -513,14 +561,15 @@ async function saveBillPartial() {
 // รับชำระโอนแล้วและยังขาดยอด → บันทึกเป็นบิลค้างเลย (ยอดนี้ล็อกไว้ในบิล ปิดหน้าชำระหรือเพิ่มรายการก็ไม่หาย)
 // หน้าชำระยังเปิดอยู่ รับส่วนที่เหลือต่อได้ทันที · ครบยอดแล้วให้กดยืนยันรับเงินตามปกติ
 const binding = ref(false)
-async function bindOnce() {
+async function bindOnce(auto = false) {
   const bound = payLines.value.filter(isUnsaved) // เฉพาะรายการที่ยังไม่ได้ผูก (รายการที่รับเพิ่มระหว่างผูกจะรอรอบถัดไป)
   const lines = bound.map(toPosLine)
   if (resumeOrder.value) {
     const r = addPosPartial(resumeOrder.value, lines)
     if (r.error) { payErr.value = r.error; return false }
   } else {
-    await refreshLabels(['สินค้า', 'กะ POS']) // สต็อก/กะล่าสุดจากเซิร์ฟเวอร์ก่อนบันทึกบิลค้าง
+    if (auto) await labelsForAutoBind() // ยืนยันอัตโนมัติ: ใช้ข้อมูลที่โหลดไว้ไม่เกิน 5 วินาทีได้ (ระหว่างรอโอนโหลดล่วงหน้าอยู่แล้ว)
+    else await refreshLabels(LABEL_NAMES) // รับด้วยมือ: โหลดสต็อก/กะล่าสุดจากเซิร์ฟเวอร์ก่อนบันทึกบิลค้างเสมอ
     const o = await sellNow({ partial: true, keepOpen: true, lines })
     if (!o?.id) return false // ไม่สำเร็จ: sellNow ตั้งข้อความ payErr แล้ว
     resumeOrder.value = o
@@ -530,14 +579,14 @@ async function bindOnce() {
 }
 // เรียกทุกครั้งที่มียอดรับแล้ว (กดเอง / ระบบรับเอง) · ผูกจนไม่มีรายการค้างผูก
 // ผูกไม่สำเร็จ → หยุดและเก็บรายการไว้ ให้กดบันทึกบิลค้างไว้ลองใหม่ (ไม่วนลองซ้ำเอง)
-async function bindPaid() {
+async function bindPaid(auto = false) {
   if (binding.value || selling || !payOpen.value) return
   binding.value = true
   selling = true
   payErr.value = ''
   try {
     while (payOpen.value && needBind(payLines.value, remaining.value)) {
-      if (!(await bindOnce())) break
+      if (!(await bindOnce(auto))) break
     }
   } catch (e) {
     payErr.value = `บันทึกบิลค้างไม่สำเร็จ: ${e.message || e}`
@@ -1059,36 +1108,60 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </div>
 
             <div v-else-if="l.confirmed" class="mt-3 space-y-2">
-              <div class="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800"><AppIcon name="check" :size="18" /> รับชำระแล้ว{{ l.acceptedBy === 'auto' ? ' (ระบบรับอัตโนมัติ)' : '' }}</div>
+              <div class="pay-pop flex items-center justify-center gap-2 rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800"><AppIcon name="check" :size="18" /> รับชำระแล้ว{{ l.acceptedBy === 'auto' ? ' (ระบบรับอัตโนมัติ)' : '' }}</div>
               <button v-if="!l.locked && !binding" type="button" class="btn-outline h-11 w-full" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิกการรับชำระ</button>
             </div>
 
-            <div v-else class="mt-3 grid gap-3 sm:grid-cols-2 sm:items-start">
-              <div v-if="l.detectedAt" class="animate-pulse rounded-2xl bg-emerald-600 p-4 text-center text-lg font-bold text-white">ลูกค้าชำระแล้ว · {{ money(lineAmt(l)) }}</div>
-              <BillerQr v-else :amount="lineAmt(l)" :ref1="db.shop.merchantCode || ''" :ref2="l.qrRef" />
-
-              <div class="space-y-3">
-                <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <span v-if="l.detectedAt" class="rounded-full bg-emerald-100 px-3 py-1 font-medium text-emerald-800">พบรายการโอนแล้ว</span>
-                  <span v-else-if="expiredLine(l)" class="rounded-full bg-rose-100 px-3 py-1 font-medium text-rose-700">QR หมดอายุแล้ว</span>
-                  <span v-else class="rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-800">รอลูกค้าชำระ</span>
-                  <span v-if="l.detectedAt" class="text-stone-600">ระบบรับเองใน <b class="tabular-nums">{{ autoLeft(l) }}</b></span>
-                  <span v-else-if="!expiredLine(l)" class="text-stone-600">หมดอายุใน <b class="tabular-nums">{{ qrLeft(l) }}</b></span>
+            <div v-else class="mt-3">
+              <!-- พบรายการโอนแล้ว: การ์ดสถานะเต็มความกว้าง แล้วปุ่มสองปุ่มขนาดเท่ากัน ไม่มีช่องว่างข้างการ์ด -->
+              <div v-if="l.detectedAt" class="space-y-3">
+                <div class="pay-pop relative overflow-hidden rounded-2xl bg-emerald-600 p-5 text-white">
+                  <div class="flex items-center gap-4">
+                    <span class="relative grid h-14 w-14 shrink-0 place-items-center">
+                      <span class="pay-ring absolute inset-0 rounded-full bg-white/40" aria-hidden="true" />
+                      <span class="relative grid h-14 w-14 place-items-center rounded-full bg-white/20">
+                        <svg class="pay-check h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
+                      </span>
+                    </span>
+                    <div class="min-w-0">
+                      <div class="text-sm font-medium text-emerald-50">ลูกค้าชำระแล้ว</div>
+                      <div class="text-3xl font-bold tabular-nums">{{ money(lineAmt(l)) }}</div>
+                    </div>
+                  </div>
+                  <div class="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span class="rounded-full bg-white/20 px-3 py-1 font-medium">พบรายการโอนแล้ว</span>
+                    <span class="text-emerald-50">ระบบรับเองใน <b class="tabular-nums text-white">{{ autoLeft(l) }}</b></span>
+                  </div>
                 </div>
-
-                <div v-if="!l.detectedAt && !expiredLine(l) && (l.candidates || []).length > 1" class="space-y-2">
-                  <p class="text-sm font-medium text-amber-800">พบหลายรายการที่ตรง เลือกรายการที่ใช่</p>
-                  <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-12 w-full items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-4" @click="pickManee(l, c)">
-                    <span>{{ timeOnly(c.received_at) }}</span><span class="font-semibold">เลือก</span>
-                  </button>
+                <div class="grid grid-cols-2 gap-2">
+                  <button type="button" class="btn-primary h-12" @click="receiveNow(l)"><AppIcon name="check" :size="16" /> รับชำระ</button>
+                  <button type="button" class="btn-outline h-12" @click="cancelQr(l)">ยกเลิก QR</button>
                 </div>
+              </div>
 
-                <div class="space-y-2">
-                  <button v-if="expiredLine(l)" type="button" class="btn-primary h-12 w-full" @click="makeQr(l)">สร้าง QR ใหม่</button>
-                  <button v-else-if="l.detectedAt" type="button" class="btn-primary h-12 w-full" @click="receiveNow(l)"><AppIcon name="check" :size="16" /> รับชำระ</button>
-                  <button v-else type="button" class="btn-outline h-12 w-full" @click="receiveNow(l)">ลูกค้าชำระแล้ว (ไม่พบอัตโนมัติ)</button>
-                  <button type="button" class="btn-outline h-11 w-full" @click="cancelQr(l)">ยกเลิก QR</button>
-                  <button v-if="!l.detectedAt" type="button" class="btn-soft h-11 w-full" @click="removePayLine(i)">ย้อนกลับ</button>
+              <!-- ยังไม่พบรายการ: QR (ซ้าย) กับสถานะและปุ่ม (ขวา) สูงเท่ากัน ปุ่มชิดล่าง -->
+              <div v-else class="grid gap-3 sm:grid-cols-2 sm:items-stretch">
+                <BillerQr :amount="lineAmt(l)" :ref1="db.shop.merchantCode || ''" :ref2="l.qrRef" />
+                <div class="flex flex-col gap-3">
+                  <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span v-if="expiredLine(l)" class="rounded-full bg-rose-100 px-3 py-1 font-medium text-rose-700">QR หมดอายุแล้ว</span>
+                    <span v-else class="rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-800">รอลูกค้าชำระ</span>
+                    <span v-if="!expiredLine(l)" class="text-stone-600">หมดอายุใน <b class="tabular-nums">{{ qrLeft(l) }}</b></span>
+                  </div>
+
+                  <div v-if="!expiredLine(l) && (l.candidates || []).length > 1" class="space-y-2">
+                    <p class="text-sm font-medium text-amber-800">พบหลายรายการที่ตรง เลือกรายการที่ใช่</p>
+                    <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-12 w-full items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-4" @click="pickManee(l, c)">
+                      <span>{{ timeOnly(c.received_at) }}</span><span class="font-semibold">เลือก</span>
+                    </button>
+                  </div>
+
+                  <div class="mt-auto space-y-2">
+                    <button v-if="expiredLine(l)" type="button" class="btn-primary h-12 w-full" @click="makeQr(l)">สร้าง QR ใหม่</button>
+                    <button v-else type="button" class="btn-outline h-12 w-full" @click="receiveNow(l)">ลูกค้าชำระแล้ว (ไม่พบอัตโนมัติ)</button>
+                    <button type="button" class="btn-outline h-11 w-full" @click="cancelQr(l)">ยกเลิก QR</button>
+                    <button type="button" class="btn-soft h-11 w-full" @click="removePayLine(i)">ย้อนกลับ</button>
+                  </div>
                 </div>
               </div>
             </div>

@@ -337,6 +337,17 @@ export async function loadOneOrder(id) {
 }
 export async function reloadStaffData() { if (staffState.staff) await startData(staffState.staff) }
 // ดึงข้อมูลล่าสุดของตารางที่ระบุจากเซิร์ฟเวอร์ทันที (เช่น ก่อนขาย POS: สต็อก/กะ) · ข้ามตารางที่มีแก้ค้างในเครื่อง
+// เวลาโหลดสำเร็จเก่าที่สุดของตารางที่ระบุ (ms) · ไม่มีตาราง หรือยังไม่เคยโหลดสำเร็จ = 0 (ถือว่าไม่สด)
+export function labelsLoadedAt(labels) {
+  let oldest = Infinity
+  for (const label of labels) {
+    const x = syncs.find((s) => s && s.label === label)
+    const at = typeof x?.loadedAt === 'function' ? x.loadedAt() : 0
+    if (!at) return 0
+    oldest = Math.min(oldest, at)
+  }
+  return oldest === Infinity ? 0 : oldest
+}
 export async function refreshLabels(labels) {
   try { for (const x of syncs) if (x.refresh && labels.includes(x.label)) await x.refresh() } catch (e) { console.warn('รีเฟรชข้อมูลไม่สำเร็จ:', e?.message) }
 }
