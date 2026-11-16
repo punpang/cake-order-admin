@@ -16,6 +16,9 @@ trackLoad(afterPaint().then(async () => {
 // ข้อมูลตัวอย่างสมจริง ~90 วัน (จำลองในหน่วยความจำ) — เฉพาะโหมดที่ไม่ต่อ Supabase · โหมด Supabase แสดงเฉพาะข้อมูลจริงจากเซิร์ฟเวอร์ (และไม่โหลดโค้ด demo)
 if (!supabaseEnabled) (await import('./data/demo')).seedDemo()
 
+// ลิงก์จาก LINE (LIFF) ที่มี ?line=link → เปิดหน้าเชื่อมบัญชี LINE
+if (new URLSearchParams(location.search).get('line') === 'link' && !location.hash) location.replace(`${location.pathname}#/line`)
+
 await initStaff() // โหมด Supabase: อ่านเซสชันพนักงานที่ล็อกอินค้างไว้ก่อนเริ่มนำทาง
 const app = createApp(App).use(router).directive('num', vNum)
 // รอให้เส้นทางแรกพร้อมก่อนวาดแอป: ถ้าวาดทันที เส้นทางยังว่าง (ไม่มี meta) แอปจะวาดโครงหลังบ้านแวบหนึ่งก่อนสลับเป็นหน้าร้าน/หน้าล็อกอิน

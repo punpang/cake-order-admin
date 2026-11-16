@@ -1,5 +1,6 @@
 // บอท LINE: ใช้กติกา AI และการตั้งค่าชุดเดียวกับ Facebook (../fb-webhook/bot.ts) แต่ตอบอัตโนมัติ ไม่มีโหมดพนักงานตอบ
 import { decide, isSensitiveText, loadConfig, tryAi, type BotInput } from '../fb-webhook/bot.ts'
+import { lineLinkReply } from '../_shared/lineliff.ts'
 
 export const FALLBACK_TEXT = 'ขออภัยค่ะ ตอนนี้ตอบเรื่องนี้ไม่ได้ ลองติดต่อร้านโดยตรงได้เลยนะคะ'
 export const GREETING_TEXT = 'สวัสดีค่ะ ยินดีต้อนรับ พิมพ์คำถามได้เลยนะคะ'
@@ -23,6 +24,9 @@ export type LineBotInput = {
 export async function answerLine(o: LineBotInput): Promise<{ text: string; source: string } | null> {
   const { bot, shop, storefront } = await loadConfig(o.sb)
   if (!bot || bot.enabled !== true || bot.mode === 'off' || bot.channels?.line !== true) return null
+  // ถามเรื่องสั่งเค้กหรือคะแนน → ส่งลิงก์ (ไม่ขึ้นกับเวลาร้าน)
+  const link = lineLinkReply(o.text)
+  if (link) return { text: link, source: 'liff' }
   if (!shop?.open || !shop?.close) return null
   const at = new Date(o.at)
   if (!(Date.now() - at.getTime() <= STALE_MS)) return null

@@ -62,6 +62,7 @@ const ManageGallery = () => import('./views/manage/ManageGallery.vue')
 const ManagePhotoRequests = () => import('./views/manage/ManagePhotoRequests.vue')
 const ManageFiles = () => import('./views/manage/ManageFiles.vue')
 const ManageBot = () => import('./views/manage/ManageBot.vue')
+const LineLink = () => import('./views/LineLink.vue')
 const ManageSms = () => import('./views/manage/ManageSms.vue')
 const ManeeTest = () => import('./views/ManeeTest.vue')
 const CustomerDisplay = () => import('./views/CustomerDisplay.vue')
@@ -83,6 +84,7 @@ const router = createRouter({
     { path: '/account/forgot', component: AccountForgot, meta: { store: true } },
     { path: '/account/consent', component: AccountConsent, meta: { store: true, needLogin: true } },
     { path: '/account/orders/:id', component: AccountOrder, meta: { store: true, customer: true } },
+    { path: '/line', component: LineLink, meta: { store: true, pub: true } },
     { path: '/account', component: Account, meta: { store: true, customer: true } },
     { path: '/legal/:kind(privacy|terms|cookie)', component: LegalPage, props: true, meta: { store: true } },
     { path: '/member', redirect: '/account' },
