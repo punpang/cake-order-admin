@@ -1,0 +1,37 @@
+name: Deploy Worker punpang-files
+
+# รันเองเท่านั้น: GitHub → Actions → Deploy Worker punpang-files → Run workflow (เลือก branch main)
+# ต้องมี secret: CLOUDFLARE_API_TOKEN (สิทธิ์ Workers Scripts: Edit + Account Settings: Read) และ CLOUDFLARE_ACCOUNT_ID
+# deploy จากโฟลเดอร์ worker/ · wrangler.jsonc ตั้ง keep_vars ไว้ จึงไม่ลบ secrets ที่ตั้งใน Dashboard (SIGN_KEY ฯลฯ)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: ตรวจว่าตั้ง secret ครบ
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "ยังไม่ได้ตั้ง secret CLOUDFLARE_API_TOKEN หรือ CLOUDFLARE_ACCOUNT_ID"
+            exit 1
+          fi
+      - name: ตรวจก่อนอัปโหลด (dry run)
+        working-directory: worker
+        run: npx --yes wrangler@4 deploy --dry-run
+      - name: Deploy punpang-files
+        working-directory: worker
+        run: npx --yes wrangler@4 deploy
