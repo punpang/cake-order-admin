@@ -404,7 +404,7 @@ async function pollManee() {
         Object.assign(l, adoptPatch(l, found[0].ref, found[0]))
         if (db.shop.posAutoAcceptNow) { Object.assign(l, { confirmed: true, acceptedBy: 'auto' }); autoOk = true }
       }
-      if (autoOk) bindPaid(true)
+      if (autoOk) autoBindAndFinish()
     } while (maneeAgain && payOpen.value)
   } finally { maneePolling = false }
 }
@@ -414,7 +414,7 @@ function tickLines() {
   for (const l of payLines.value) {
     if (l.method === 'transfer' && l.detectedAt && !l.confirmed && l.status !== 'cancelled' && Date.now() - l.detectedAt >= AUTO_ACCEPT_MS) { Object.assign(l, { confirmed: true, acceptedBy: 'auto' }); autoOk = true }
   }
-  if (autoOk) bindPaid(true)
+  if (autoOk) autoBindAndFinish()
 }
 function pickManee(l, c) {
   if (!canBindLine(lineAmt(l), remaining.value, reservedOf(l, lineAmt(l)))) return (payErr.value = 'บิลนี้รับยอดครบแล้ว ให้พนักงานตัดสินเอง')
@@ -626,6 +626,16 @@ async function bindPaid(auto = false) {
   } finally {
     binding.value = false
     selling = false
+  }
+}
+// ระบบรับอัตโนมัติแล้ว: ผูกยอดที่ค้าง แล้วถ้ายอดครบบิลให้ปิดบิลเอง (เหมือนกดยืนยันรับเงิน)
+// วิธีอื่นหรือรับเองยังต้องกดยืนยันรับเงิน · กันปิดซ้ำด้วย selling ใน confirmPay/bindPaid
+async function autoBindAndFinish() {
+  try {
+    await bindPaid(true)
+    if (payOpen.value && canConfirm.value) await confirmPay()
+  } catch (e) {
+    payErr.value = `ปิดบิลอัตโนมัติไม่สำเร็จ กดยืนยันรับเงินเองได้: ${e.message || e}`
   }
 }
 // ปิดหน้าชำระ: ถ้ายังมียอดรับแล้วที่ไม่ได้ผูก ห้ามปิด (กันยอดหาย)
