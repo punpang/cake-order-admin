@@ -11,7 +11,7 @@ export async function initLiff(liffId = LIFF_ID) {
     const { default: liff } = await import('@line/liff')
     await liff.init({ liffId })
     if (!liff.isInClient() && !liff.isLoggedIn()) {
-      liff.login({ redirectUri: 'https://cake-order-admin.pages.dev/line/' })
+      liff.login() // ใช้ URL กลับตามค่าเริ่มต้นของ LIFF (Endpoint URL) · กำหนดเองแล้ว LINE ตอบ 400
       return { ok: false, error: 'กำลังพาไปเข้าสู่ระบบ LINE…' }
     }
     const accessToken = liff.getAccessToken()
