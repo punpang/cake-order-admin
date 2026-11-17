@@ -1518,6 +1518,9 @@ export function cancelRefund(order, returnId, c = {}) {
   const r = (order.returns || []).find((x) => x.id === returnId)
   if (!r) return { error: 'ไม่พบรายการคืนเงิน' }
   if (r.cancelled) return { error: 'รายการนี้ยกเลิกไปแล้ว' }
+  // การคืนที่เกิดจากการแลกสินค้า: ต้องยกเลิกบิลใหม่ของการแลกก่อน มิฉะนั้นบิลใหม่ยังอยู่แต่การคืนถูกย้อน
+  const exchanged = r.exchangeTo ? db.orders.find((x) => x.id === r.exchangeTo) : null
+  if (exchanged && exchanged.status !== 'cancelled') return { error: `การคืนนี้เป็นส่วนของการแลกสินค้า ยกเลิกบิลใหม่ ${exchanged.code} ก่อน` }
   const reason = String(c.reason || '').trim().slice(0, 200)
   if (!reason) return { error: 'ระบุเหตุผลที่ยกเลิกการคืนเงิน' }
   if (order.status === 'cancelled') return { error: `${order.channel === 'pos' ? 'บิล' : 'ออร์เดอร์'}นี้ถูกยกเลิกแล้ว ยกเลิกการคืนเงินไม่ได้` }
