@@ -682,8 +682,6 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
         <span class="mx-0.5 hidden h-5 w-px bg-stone-200 lg:inline-block" aria-hidden="true" />
         <button v-if="custOrders.length && can('createOrder')" type="button" class="chip h-8 border-brand-300 bg-brand-50 px-3 text-xs whitespace-nowrap text-brand-800 hover:bg-brand-100" data-send-summary @click="openSummary">สรุปออร์เดอร์</button>
         <button type="button" class="chip chip-off h-8 px-3 text-xs whitespace-nowrap" @click="cannedOpen = true">ข้อความสำเร็จรูป</button>
-        <button type="button" class="chip chip-off h-8 px-3 text-xs whitespace-nowrap" @click="camInput?.click()">ถ่ายรูป</button>
-        <button type="button" class="chip chip-off h-8 px-3 text-xs whitespace-nowrap" @click="albumInput?.click()">รูปจากอัลบั้ม</button>
         <button v-if="recs.length" type="button" class="chip h-8 px-3 text-xs whitespace-nowrap" :class="recOpen ? 'chip-on' : 'chip-off'" :aria-expanded="recOpen" @click="recOpen = !recOpen">แนะนำสินค้า ({{ recs.length }})</button>
         <button v-if="db.bot.enabled" type="button" class="chip h-8 px-3 text-xs whitespace-nowrap" :class="chat.botOff ? 'chip-off' : 'border-violet-300 bg-violet-50 text-violet-800'" @click="setChatBot(chat.id, !!chat.botOff)">บอท: {{ chat.botOff ? 'ปิดในแชทนี้' : 'เปิด' }}</button>
       </div>
@@ -712,6 +710,8 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
           <AppIcon name="plus" :size="20" class="transition-transform duration-200" :class="toolsOpen ? 'rotate-45' : ''" />
         </button>
         <div class="flex min-w-0 flex-1 items-end rounded-2xl border border-stone-200 bg-stone-50 transition focus-within:border-brand-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-brand-100">
+          <button type="button" class="flex h-11 w-9 shrink-0 items-center justify-center text-stone-500 transition hover:text-brand-700 disabled:opacity-40" :disabled="picBusy || sendingPics || pics.length >= MAX_CHAT_IMAGES" aria-label="ถ่ายรูป" title="ถ่ายรูป" @click="camInput?.click()"><AppIcon name="camera" :size="20" /></button>
+          <button type="button" class="flex h-11 w-9 shrink-0 items-center justify-center text-stone-500 transition hover:text-brand-700 disabled:opacity-40" :disabled="picBusy || sendingPics || pics.length >= MAX_CHAT_IMAGES" aria-label="รูปจากอัลบั้ม" title="รูปจากอัลบั้ม" @click="albumInput?.click()"><AppIcon name="image" :size="20" /></button>
           <textarea ref="input" v-model="text" rows="1" class="max-h-40 min-h-11 w-full resize-none bg-transparent px-3.5 py-2.5 text-base leading-6 text-stone-900 outline-none placeholder:text-stone-400" :placeholder="`ตอบทาง ${channelLabel}`" aria-label="ข้อความถึงลูกค้า" @focus="toolsOpen = false" @keydown="onKey" @input="onTyping" />
         </div>
         <button type="submit" class="btn-primary h-11 w-11 shrink-0 rounded-full px-0" :disabled="!canSend" aria-label="ส่งข้อความ"><AppIcon name="send" :size="18" /></button>
