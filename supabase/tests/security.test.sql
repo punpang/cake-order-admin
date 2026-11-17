@@ -330,6 +330,8 @@ select test.ok('D9: กระดิ่งพนักงานประเภท
   and (select body->>'recordId' from test.net_calls order by id desc limit 1) = 'bl_ok');
 insert into public.punpang_records (collection, id, data) values ('bell', 'bl_other', '{"audience":"staff","event":"some_other_event","text":"x"}');
 select test.ok('D9: กระดิ่งประเภทอื่นไม่ยิง push', (select count(*) from test.net_calls) = 2);
+insert into public.punpang_records (collection, id, data) values ('bell', 'bl_cm', '{"audience":"staff","event":"team_customer_message","text":"x"}');
+select test.ok('D10: ข้อความลูกค้าจากเว็บ/แอป (team_customer_message) ยิง push-send ด้วย', (select count(*) from test.net_calls) = 3);
 
 
 -- ===== D2 (รอบ 2026-11-15): ราคา/ยอดของออร์เดอร์แก้ได้เฉพาะผู้มีสิทธิ์ (ผ่าน PostgREST) =====

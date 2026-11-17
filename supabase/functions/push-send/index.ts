@@ -6,14 +6,9 @@ import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { staffReplyOf } from '../_shared/chatpush.ts'
 import { checkPushKey } from '../_shared/pushauth.ts'
+import { ruleOf } from '../_shared/pushrules.ts'
 
-// ประเภทที่แจ้งเตือน → สิทธิ์ที่ต้องมี (พนักงานที่มีสิทธิ์อย่างน้อยหนึ่งข้อจะได้รับ) + ปลายทางเมื่อกดแจ้งเตือน
-const ALLOWED: Record<string, { perms: string[]; path: (d: Record<string, string>) => string }> = {
-  team_new_order: { perms: ['viewAllOrders'], path: (d) => (d.orderId ? `/admin/orders/${d.orderId}` : '/admin/orders') },
-  team_customer_paid: { perms: ['confirmPayment', 'reportPayment'], path: () => '/admin/payments' },
-  chat_inbound: { perms: ['chat'], path: (d) => (d.chatId ? `/admin/chat/${d.chatId}` : '/admin/chat') },
-  team_due_soon: { perms: ['viewAllOrders', 'viewPrepOrders'], path: (d) => (d.orderId ? `/admin/orders/${d.orderId}` : '/admin/orders') },
-}
+// กติกาแจ้งเตือนทุกประเภทของกระดิ่งพนักงานอยู่ที่ _shared/pushrules.ts
 const MAX_AGE_MS = 10 * 60 * 1000
 const STAFF_CHANNEL = 'staff-alerts'
 const CUSTOMER_CHANNEL = 'customer-alerts'
@@ -98,12 +93,13 @@ async function staffBell(db: Db, recordId: string): Promise<Response> {
   const { data: rec, error } = await db.from('punpang_records').select('id,collection,data,created_at').eq('collection', 'bell').eq('id', recordId).maybeSingle()
   if (error || !rec) return json(404, { error: 'record' })
   const d = (rec.data || {}) as Record<string, string>
-  const rule = ALLOWED[d.event]
+  const rule = ruleOf(d.event)
   if (d.audience !== 'staff' || !rule) return json(200, { skipped: 'event' })
   if (Date.now() - new Date(rec.created_at).getTime() > MAX_AGE_MS) return json(200, { skipped: 'old' })
 
   const { data: staff } = await db.from('punpang_staff').select('user_id,perms').eq('active', true)
-  const targets = (staff || []).filter((s: any) => (s.perms || []).some((p: string) => rule.perms.includes(p))).map((s: any) => s.user_id)
+  // 'manage' ผ่านทุกสิทธิ์ (เหมือน punpang_has_perm และกระดิ่งในแอป)
+  const targets = (staff || []).filter((s: any) => (s.perms || []).some((p: string) => p === 'manage' || rule.perms.includes(p))).map((s: any) => s.user_id)
   if (!targets.length) return json(200, { sent: 0 })
   const { data: devices } = await db.from('punpang_push_devices').select('token').in('staff_id', targets)
   const tokens: string[] = [...new Set<string>((devices || []).map((x: any) => x.token as string))]
