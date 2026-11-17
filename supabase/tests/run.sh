@@ -60,6 +60,11 @@ bcode=$?
 [ "$bcode" = "0" ] && echo "✓ payment_bill_parity.test.sql ผ่านทั้งหมด" || echo "✗ payment_bill_parity.test.sql ล้มเหลว"
 [ "$bcode" = "0" ] || exit "$bcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/credit_coupons.test.sql
+kcode=$?
+[ "$kcode" = "0" ] && echo "✓ credit_coupons.test.sql ผ่านทั้งหมด" || echo "✗ credit_coupons.test.sql ล้มเหลว"
+[ "$kcode" = "0" ] || exit "$kcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"

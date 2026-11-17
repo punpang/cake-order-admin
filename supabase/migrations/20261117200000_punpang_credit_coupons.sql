@@ -303,3 +303,6 @@ grant execute on function public.punpang_hold_credit(text, text, numeric) to aut
 revoke all on function public.punpang__convert_points(text) from public, anon, authenticated;
 revoke all on function public.punpang_convert_points_to_coupon(text) from public, anon;
 grant execute on function public.punpang_convert_points_to_coupon(text) to authenticated;
+
+-- สำเนาโหมดทดสอบ (punpang_test) ให้มีฟังก์ชันใหม่ด้วย (ดู supabase/tests/mirror.test.sql ข้อ A6)
+select punpang_test.punpang_test_sync();

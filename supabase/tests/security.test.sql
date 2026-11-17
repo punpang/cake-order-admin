@@ -212,8 +212,8 @@ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, c
 select test.ok('H3: คืนเงินเป็นคะแนนครั้งแรก 1,000 แต้ม (ชำระ 1,000 บาท) ได้',
   (test.rpc_as('44444444-4444-4444-4444-444444444444',
     $q$ select public.punpang_ledger_apply('c4', '[{"op":"earn","id":"e4a","points":1000,"reason":"คืนเงิน","orderId":"o_ref"}]'::jsonb) $q$)->>'ok')::boolean);
-select test.ok('H3: ใช้คะแนนทั้งหมดเป็นส่วนลดของออร์เดอร์อื่นแล้ว',
-  (test.rpc_as('11111111-1111-1111-1111-111111111111', $q$ select public.punpang_apply_points('o_ref2', 1000) $q$)->>'ok')::boolean);
+select test.ok('H3: ใช้คะแนนเป็นส่วนลดไม่ได้แล้ว (RPC ปิดการทำงาน ไม่ตัดคะแนน)',
+  test.rpc_as('11111111-1111-1111-1111-111111111111', $q$ select public.punpang_apply_points('o_ref2', 1000) $q$)->>'error' = 'retired');
 select test.ok('H3: คืนเงินเป็นคะแนนซ้ำหลังใช้คะแนนไปแล้วต้องถูกปฏิเสธ (เพดานสะสมต่อออร์เดอร์)',
   test.rpc_as('44444444-4444-4444-4444-444444444444',
     $q$ select public.punpang_ledger_apply('c4', '[{"op":"earn","id":"e4b","points":1000,"reason":"คืนเงิน","orderId":"o_ref"}]'::jsonb) $q$)->>'message' = 'cap_exceeded');
@@ -222,12 +222,12 @@ select test.ok('H3: คืนเงินให้ลูกค้าอีกค
     $q$ select public.punpang_ledger_apply('c2', '[{"op":"earn","id":"e4c","points":10,"reason":"คืนเงิน","orderId":"o_ref"}]'::jsonb) $q$)->>'exception' = '42501');
 
 -- ===== H2: ใช้คะแนนเป็นส่วนลด =====
-select test.ok('H2: ใช้คะแนนเป็นส่วนลดเกินยอดออร์เดอร์ (900) ไม่ได้',
-  test.rpc_as('11111111-1111-1111-1111-111111111111', $q$ select public.punpang_apply_points('o_prep', 901) $q$)->>'error' = 'exceeds_total');
-select test.ok('H2: ช่างเค้กใช้คะแนนไม่ได้',
-  test.rpc_as('33333333-3333-3333-3333-333333333333', $q$ select public.punpang_apply_points('o_prep', 10) $q$)->>'exception' = '42501');
-select test.ok('H2: ใช้คะแนนเท่ายอดออร์เดอร์ได้',
-  (test.rpc_as('11111111-1111-1111-1111-111111111111', $q$ select public.punpang_apply_points('o_prep', 900) $q$)->>'ok')::boolean);
+select test.ok('H2: ใช้คะแนนเป็นส่วนลดไม่ได้แล้ว แม้ยอดเกินหรือเท่ายอดออร์เดอร์ (RPC ปิดการทำงาน)',
+  test.rpc_as('11111111-1111-1111-1111-111111111111', $q$ select public.punpang_apply_points('o_prep', 901) $q$)->>'error' = 'retired'
+  and test.rpc_as('11111111-1111-1111-1111-111111111111', $q$ select public.punpang_apply_points('o_prep', 900) $q$)->>'error' = 'retired');
+select test.ok('H2: ช่างเค้กก็ได้รับ retired เช่นกัน และออร์เดอร์ไม่มี pointsUsed',
+  test.rpc_as('33333333-3333-3333-3333-333333333333', $q$ select public.punpang_apply_points('o_prep', 10) $q$)->>'error' = 'retired'
+  and (select data->'pointsUsed' is null from public.punpang_orders where id = 'o_prep'));
 
 -- ===== T6: สถานะออร์เดอร์ =====
 select test.ok('T6: ตั้งสถานะที่ไม่มีในระบบผ่าน punpang_set_status ไม่ได้',
