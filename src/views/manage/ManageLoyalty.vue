@@ -203,7 +203,7 @@ function doRefund() {
             <span class="min-w-0 flex-1">
               <span class="block font-medium break-words text-stone-900">{{ c.name }} <span class="text-xs font-normal text-stone-400">{{ c.type === 'reward' ? 'ของรางวัล' : couponTermsText(c) }}</span></span>
               <span class="block text-xs text-stone-500">
-                {{ findCustomer(c.customerId)?.name }} · {{ c.source === 'gacha' ? 'กาชา' : 'แลกคะแนน' }}<template v-if="c.points"> ({{ c.points }} คะแนน)</template>
+                {{ findCustomer(c.customerId)?.name }} · {{ c.source === 'gacha' ? 'กาชา' : c.source === 'refund' ? 'คืนเงิน' : c.source === 'convert' ? 'แปลงคะแนน' : 'แลกคะแนน' }}<template v-if="c.points"> ({{ c.points }} คะแนน)</template>
                 <template v-if="c.expiresAt"> · หมดอายุ {{ dateOnly(c.expiresAt) }}</template>
               </span>
             </span>

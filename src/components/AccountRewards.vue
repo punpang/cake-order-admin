@@ -204,7 +204,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
           <span class="min-w-0 flex-1">
             <span class="block font-semibold break-words text-stone-900">{{ c.name }}</span>
             <span class="block text-xs text-stone-500">
-              {{ c.type === 'reward' ? 'ของรางวัล' : couponTermsText(c) }} · {{ c.source === 'gacha' ? 'จากกาชา' : c.source === 'lucky' ? 'จากลุ้นโชค' : 'แลกคะแนน' }}
+              {{ c.type === 'reward' ? 'ของรางวัล' : couponTermsText(c) }} · {{ c.source === 'gacha' ? 'จากกาชา' : c.source === 'lucky' ? 'จากลุ้นโชค' : c.source === 'refund' ? 'คืนเงิน' : c.source === 'convert' ? 'แปลงคะแนน' : 'แลกคะแนน' }}
               <template v-if="c.expiresAt"> · หมดอายุ {{ dateOnly(c.expiresAt) }}</template>
             </span>
           </span>
