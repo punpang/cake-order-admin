@@ -14,7 +14,8 @@
     "test:deno": "deno test --no-prompt --no-lock --node-modules-dir=none supabase/functions/_shared/ worker/test/ && deno test -A --no-lock --node-modules-dir=none --import-map=supabase/tests/functions/customer-auth/importmap.json supabase/tests/functions/customer-auth/ && npm run test:fn",
     "test:fn": "deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/_fake/importmap.json supabase/tests/functions/order-create/ supabase/tests/functions/flows/ supabase/tests/functions/messaging/ supabase/tests/functions/sms-send/ supabase/tests/functions/order-link/ supabase/tests/functions/tungngern-receiver/",
     "test:db": "bash supabase/tests/run.sh",
-    "test:all": "npm test && npm run test:deno && npm run test:db"
+    "test:e2e": "node e2e/creditCoupons.ui.e2e.mjs",
+    "test:all": "npm test && npm run test:e2e && npm run test:deno && npm run test:db"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.10",
@@ -32,6 +33,7 @@
     "@capacitor/cli": "^7.6.10",
     "@tailwindcss/vite": "^4.1.0",
     "@vitejs/plugin-vue": "^6.0.0",
+    "playwright": "1.63.0",
     "tailwindcss": "^4.1.0",
     "vite": "^7.0.0"
   }
