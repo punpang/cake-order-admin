@@ -2,11 +2,20 @@
 // ปุ่มแชทลอยมุมขวาล่างของหน้าร้าน · กดแล้วเปิดแผงแชทกับร้าน (ใช้ AccountChat ตัวเดิม)
 // ลูกค้าที่ยังไม่เข้าสู่ระบบจะเห็นปุ่มให้ไปเข้าสู่ระบบในแผงเดียวกัน
 // ลิงก์ #/?chat=1 (ปุ่มใน rich menu) เปิดแผงนี้ทันที
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { customerSession } from '../data/store'
-import AccountChat from '../views/account/AccountChat.vue'
 import AppIcon from './AppIcon.vue'
+
+// โหลดโค้ดแชทเมื่อเปิดแผงครั้งแรกเท่านั้น (ไม่รวมในไฟล์หลักของหน้าร้าน → เปิดเว็บครั้งแรกเร็วขึ้น)
+// โหลดไม่สำเร็จ (เน็ตหลุด) แสดงข้อความให้ปิดแล้วเปิดใหม่ · ระหว่างโหลดแสดง "กำลังเปิดแชท…"
+const note = (text) => () => h('p', { class: 'flex flex-1 items-center justify-center px-6 text-center text-sm text-stone-500', role: 'status' }, text)
+const AccountChat = defineAsyncComponent({
+  loader: () => import('../views/account/AccountChat.vue'),
+  loadingComponent: note('กำลังเปิดแชท…'),
+  errorComponent: note('เปิดแชทไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ต แล้วปิดและเปิดแชทอีกครั้ง'),
+  delay: 150,
+})
 
 const route = useRoute()
 const router = useRouter()
