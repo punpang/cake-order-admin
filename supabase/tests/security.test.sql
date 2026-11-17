@@ -359,7 +359,8 @@ select test.ok('E1: ผู้ไม่ล็อกอินอ่านตาร
 select test.ok('E1: ผู้ไม่ล็อกอินเพิ่มอุปกรณ์ push ไม่ได้', test.as_anon($q$ insert into public.punpang_push_devices (token, staff_id) values ('x', '11111111-1111-1111-1111-111111111111') $q$) like 'ERR:42501:%');
 select test.ok('E1: ผู้ไม่ล็อกอินลงทะเบียน push ไม่ได้', test.as_anon($q$ select public.punpang_register_push_token('x') $q$) like 'ERR:42501:%');
 select test.ok('E1: ผู้ไม่ล็อกอินอ่านสินค้าที่เปิดขายได้ตามเดิม', test.as_anon($q$ select count(*) from public.punpang_items $q$) = 'OK');
-select test.ok('E1: ผู้ไม่ล็อกอินนับคลิกรูปแนะนำได้ตามเดิม', test.as_anon($q$ select public.punpang_click_pairs() $q$) = 'OK');
+select test.ok('E1: ผู้ไม่ล็อกอินอ่านยอดคลิกรวมสำหรับรูปแนะนำได้', test.as_anon($q$ select public.punpang_click_stats() $q$) = 'OK');
+select test.ok('E1: ผู้ไม่ล็อกอินอ่านข้อมูลคลิกดิบรายผู้เยี่ยมชมไม่ได้', test.as_anon($q$ select public.punpang_click_pairs() $q$) like 'ERR:42501:%');
 select test.ok('E1: ผู้ไม่ล็อกอินอ่านตารางยอดที่ออกจากออร์เดอร์ไม่ได้', test.as_anon($q$ select count(*) from public.punpang_order_issued $q$) like 'ERR:42501:%');
 select test.ok('E1: พนักงานที่ล็อกอินแล้วอ่านตารางยอดที่ออกจากออร์เดอร์ตรง ๆ ไม่ได้',
   test.as_staff('55555555-5555-5555-5555-555555555555', $q$ select 1 from public.punpang_order_issued $q$) like 'ERR:42501:%');

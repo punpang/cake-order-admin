@@ -150,7 +150,7 @@
   - `fb-send`: จำกัดโดเมนลิงก์การ์ด (ต้องรู้โดเมนใช้งานจริงก่อน), rate limit ต่อคน, กันส่งซ้ำ
   - `fb-connect`: ลบ page token ค้างหลัง OAuth ไม่สำเร็จ
 - **สิทธิ์เขียนคอลเลกชัน `consents`/`outbox`** ใน `punpang_rec_can` ยังเปิดให้พนักงานทุกคน (`outbox` จำเป็นต่อการแจ้งเตือนจากทุกบทบาท) ต้องไล่ดูทีละบทบาทก่อนจำกัด
-- `punpang_click_pairs` / `punpang_record_click` เรียกโดย anon ได้ตามการออกแบบ (คำนวณรูปแนะนำ) ข้อมูลเป็นแฮช
+- `punpang_click_stats` / `punpang_record_click` เรียกโดย anon ได้ตามการออกแบบ (ยอดรวมสำหรับรูปแนะนำ ไม่มีรหัสผู้เยี่ยมชม ตัดรายการที่น้อยกว่า 3 คนในฐานข้อมูล) · `punpang_click_pairs` (แถวดิบ) เพิกถอนสิทธิ์ anon แล้ว
 - สคีมาพื้นฐาน (ตาราง RLS storage policy) และ `config.toml` (`verify_jwt`) ยังไม่อยู่ในรีโป
 
 ## ข้อควรระวังในการ deploy
@@ -164,7 +164,7 @@
 - **หมายเหตุ:** ตาราง `punpang_customers` ยังไม่มี trigger ตั้ง `updated_at` การเขียนแถวลูกค้าแบบเทียบเวอร์ชันจึงยังไม่มีผล (เทียบกับค่าที่ไม่เปลี่ยน) ฟังก์ชันใหม่ตั้ง `updated_at` เองแล้ว
 - **รันแล้ว:** `20261110220000_punpang_customers_touch.sql` — trigger ตั้ง `updated_at` ให้ลูกค้า CAS ของลูกค้าจึงมีผล (ทดสอบในธุรกรรมที่ย้อนกลับแล้ว)
 - **รันแล้ว:** `20261110171801_punpang_revoke_unused_points_rpc.sql` — ปิด `execute` ของ `punpang_points_earn/spend/refund/cut/balance` จาก anon/authenticated (แอปไม่เรียกใช้ และเป็น security definer ที่เพิ่ม/ตัดแต้มได้โดยตรง) RPC ที่แอปใช้ (apply/remove/adjust) ยังเรียกได้ตามเดิม
-- **ผลจาก Supabase advisor (อ่านอย่างเดียว):** ตาราง RLS เปิดแต่ไม่มี policy 9 ตาราง (acct_counters, cake_clicks, counters, customer_auth, customer_sessions, fb_oauth, fb_pages, otps, tg_log) เข้าถึงผ่านฟังก์ชันฝั่งเซิร์ฟเวอร์/service role เท่านั้น จึงเป็นการออกแบบ · `punpang_click_pairs`, `punpang_record_click`, `punpang_resolve_short_link` ให้ anon เรียกได้ตามการออกแบบ · ฟังก์ชัน security definer ที่ authenticated เรียกได้ที่เหลือ (has_perm, rec_can, acct_can ใช้ใน RLS จึงห้ามปิด) ยังไม่ได้ตรวจทีละตัวว่าเช็กสิทธิ์ครบ · Leaked Password Protection ยังปิด (ต้องเปิดใน Dashboard)
+- **ผลจาก Supabase advisor (อ่านอย่างเดียว):** ตาราง RLS เปิดแต่ไม่มี policy 9 ตาราง (acct_counters, cake_clicks, counters, customer_auth, customer_sessions, fb_oauth, fb_pages, otps, tg_log) เข้าถึงผ่านฟังก์ชันฝั่งเซิร์ฟเวอร์/service role เท่านั้น จึงเป็นการออกแบบ · `punpang_click_stats`, `punpang_record_click`, `punpang_resolve_short_link` ให้ anon เรียกได้ตามการออกแบบ · ฟังก์ชัน security definer ที่ authenticated เรียกได้ที่เหลือ (has_perm, rec_can, acct_can ใช้ใน RLS จึงห้ามปิด) ยังไม่ได้ตรวจทีละตัวว่าเช็กสิทธิ์ครบ · Leaked Password Protection ยังปิด (ต้องเปิดใน Dashboard)
 - **เคลียร์แล้ว:** ลูกค้า `cmw7pyufngw3tx` และ `c2348` ที่มีรายการแต้มอ้างออร์เดอร์ทดสอบที่ลบไปแล้ว ถูกลบรายการเหล่านั้นออกจากสมุดแต้ม (ยอดหลังเคลียร์: `cmw7pyufngw3tx` = 0, `c2348` = 100 ซึ่งเป็นแต้มปรับโดยแอดมินที่ไม่เกี่ยวกับออร์เดอร์)
 - **รันแล้ว (ผ่าน SQL Editor):** `supabase/migrations/20261110240000_drop_punpang_points.sql` ลบตาราง `punpang_points` ที่ไม่ได้ใช้แล้ว (ตรวจแล้วว่าไม่มีตารางนี้) · ฟังก์ชัน `punpang_points_*` ที่อ้างตารางนี้ยังค้างอยู่ (ปิดสิทธิ์เรียกแล้ว ไม่ได้ใช้) ลบได้ภายหลังเมื่อต้องการ
 - **รันแล้ว:** `20261110174603_punpang_rec_consents_write.sql` (consents เขียนได้เฉพาะ viewAllOrders/createOrder) และ `20261110174623_punpang_loyalty_perms.sql` (RPC แต้มตรวจสิทธิ์ตามการกระทำ) · ตรวจแล้ว: แอดมิน (manage) ยังผ่าน และเมื่อไม่มีสิทธิ์ได้ `forbidden` (ทดสอบในธุรกรรมที่ย้อนกลับ)
