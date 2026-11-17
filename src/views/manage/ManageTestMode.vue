@@ -1,10 +1,11 @@
 <script setup>
 // โหมดทดสอบ (แอดมิน): เปิด/ปิดต่อเครื่องนี้ · ล้างข้อมูลทดสอบ · รายชื่อผู้รับที่ส่งจริงได้ในโหมดทดสอบ (SMS / Telegram / Facebook)
 // เปิดแล้วระบบโหลดใหม่ไปใช้สำเนาข้อมูลทดสอบบนฐานข้อมูลเดียวกัน · ข้อมูลจริงไม่ถูกแตะ
-import { onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { getSupabase, supabaseEnabled } from '../../lib/supabase'
 import { readTestMode, writeTestMode } from '../../lib/testMode'
 import { askConfirm } from '../../lib/confirm'
+import { RECIPIENT_CHANNEL_LABEL, addRecipients, recipientsOfCustomer } from '../../lib/testRecipients'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
@@ -31,7 +32,7 @@ async function loadRecipients() {
   if (!c) return
   const r = await c.from('punpang_records').select('data').eq('collection', 'testRecipients').eq('id', 'list').maybeSingle()
   const items = Array.isArray(r.data?.data?.items) ? r.data.data.items : []
-  recipients.splice(0, recipients.length, ...items.map((x) => ({ channel: x.channel, to: String(x.to ?? '') })))
+  recipients.splice(0, recipients.length, ...items.map((x) => ({ channel: x.channel, to: String(x.to ?? ''), name: String(x.name ?? '') })))
 }
 
 // เปิด/ปิดโหมดทดสอบ: ต้องยืนยันก่อนเปิด แล้วโหลดหน้าใหม่ให้ทั้งแอปใช้สำเนาข้อมูลทดสอบ (หรือกลับข้อมูลจริง)
@@ -68,7 +69,7 @@ async function resetData() {
 
 async function saveRecipients() {
   const items = recipients
-    .map((x) => ({ channel: x.channel, to: String(x.to ?? '').trim() }))
+    .map((x) => ({ channel: x.channel, to: String(x.to ?? '').trim(), ...(x.name ? { name: x.name } : {}) }))
     .filter((x) => x.to && CHANNELS.some((c) => c.v === x.channel))
   const c = await getSupabase()
   if (!c) return say('ยังไม่ได้เชื่อมฐานข้อมูล', false)
@@ -77,8 +78,57 @@ async function saveRecipients() {
   say(`บันทึกรายชื่อผู้รับทดสอบแล้ว ${items.length} รายการ`, true)
 }
 
-function addRecipient() { recipients.push({ channel: 'sms', to: '' }) }
+// ผู้รับ: เลือกจากลูกค้าจริง (SMS = เบอร์ · Facebook = PSID) · Telegram ยังพิมพ์รหัสกลุ่มเอง
+const picking = ref(false)
+const q = ref('')
+const found = reactive([])
+const pickBusy = ref(false)
+const pickErr = ref('')
+let searchSeq = 0
+let searchTimer = 0
+
+// อ่านรายชื่อลูกค้าจากฐานข้อมูลจริง (schema public) ไม่ใช่สำเนาทดสอบ · อ่านอย่างเดียว ไม่เขียนอะไรกลับ
+async function searchCustomers() {
+  const seq = ++searchSeq
+  pickErr.value = ''
+  const c = await getSupabase()
+  if (!c) { found.splice(0, found.length); pickErr.value = 'ยังไม่ได้เชื่อมฐานข้อมูล'; return }
+  const term = q.value.replace(/[,()*"\\%]/g, ' ').trim()
+  pickBusy.value = true
+  let query = c.schema('public').from('punpang_customers').select('id,name,phone,data').order('name').limit(30)
+  if (term) query = query.or(`name.ilike.*${term}*,phone.ilike.*${term}*`)
+  const r = await query
+  if (seq !== searchSeq) return
+  pickBusy.value = false
+  found.splice(0, found.length)
+  if (r.error) { pickErr.value = `อ่านรายชื่อลูกค้าไม่ได้: ${r.error.message}`; return }
+  found.push(...(r.data || []).filter((x) => !x.data?.deleted).map((x) => ({ id: x.id, name: x.name || '', phone: x.phone || '', fbPsid: x.data?.fbPsid || '' })))
+}
+function onSearchInput() {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(searchCustomers, 250)
+}
+function openPicker() {
+  picking.value = true
+  searchCustomers()
+}
+function closePicker() {
+  clearTimeout(searchTimer)
+  picking.value = false
+}
+const channelsOf = (c) => recipientsOfCustomer(c).map((r) => RECIPIENT_CHANNEL_LABEL[r.channel])
+function pickCustomer(c) {
+  const rows = recipientsOfCustomer(c)
+  const who = c.name || 'ลูกค้านี้'
+  if (!rows.length) return say(`${who} ไม่มีเบอร์หรือ Facebook ที่ส่งทดสอบได้`, false)
+  const r = addRecipients(recipients, rows)
+  if (!r.added) return say(`${who} อยู่ในรายชื่อแล้ว`, false)
+  recipients.splice(0, recipients.length, ...r.list)
+  say(`เพิ่ม ${who} ${r.added} ช่องทางแล้ว · กดบันทึกเพื่อใช้จริง`, true)
+}
+function addTelegram() { recipients.push({ channel: 'telegram', to: '', name: '' }) }
 function removeRecipient(i) { recipients.splice(i, 1) }
+onBeforeUnmount(() => clearTimeout(searchTimer))
 
 // ทดสอบบอท (AI): คุยเป็นลูกค้าทดสอบ · บอทตอบในแชททดสอบนี้เท่านั้น ไม่ส่งถึงลูกค้าจริง
 const botText = ref('')
@@ -143,15 +193,33 @@ onMounted(loadRecipients)
       <section v-if="on" class="card space-y-3">
         <div class="card-title">ผู้รับที่ส่งจริงได้ในโหมดทดสอบ</div>
         <p class="text-sm text-stone-600">ในโหมดทดสอบส่งข้อความได้เฉพาะปลายทางในรายชื่อนี้ (เช่น เบอร์ของพนักงาน) ปลายทางอื่นจะถูกปฏิเสธ</p>
+        <p class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">รายชื่อที่เลือกมาจากลูกค้าจริง · ข้อความทดสอบที่ส่งไปจะถึงลูกค้าคนนั้นจริง</p>
         <div v-for="(x, i) in recipients" :key="i" class="grid grid-cols-[7rem_1fr_auto] items-center gap-2">
-          <select v-model="x.channel" class="input h-11" :aria-label="`ช่องทางของผู้รับที่ ${i + 1}`">
-            <option v-for="c in CHANNELS" :key="c.v" :value="c.v">{{ c.l }}</option>
-          </select>
-          <input v-model="x.to" class="input h-11" :placeholder="x.channel === 'sms' ? 'เบอร์โทร' : 'รหัสผู้รับ'" :aria-label="`ผู้รับที่ ${i + 1}`" />
+          <span class="text-sm font-medium text-stone-700">{{ RECIPIENT_CHANNEL_LABEL[x.channel] || x.channel }}</span>
+          <input v-if="x.channel === 'telegram'" v-model="x.to" class="input h-11" placeholder="รหัสกลุ่มหรือผู้รับ" :aria-label="`รหัส Telegram ของผู้รับที่ ${i + 1}`" />
+          <div v-else class="min-w-0 truncate rounded-xl bg-stone-50 px-3 py-2.5 text-sm">{{ x.name ? `${x.name} · ` : '' }}{{ x.to }}</div>
           <button type="button" class="btn-outline h-11 w-11" :aria-label="`ลบผู้รับที่ ${i + 1}`" @click="removeRecipient(i)"><AppIcon name="trash" :size="15" /></button>
         </div>
+        <div v-if="picking" class="space-y-2 rounded-xl border border-stone-200 p-3">
+          <input v-model="q" class="input h-11 w-full" placeholder="ค้นหาชื่อหรือเบอร์ลูกค้า" aria-label="ค้นหาลูกค้า" @input="onSearchInput" />
+          <p v-if="pickErr" class="text-sm text-rose-700" role="alert">{{ pickErr }}</p>
+          <div class="max-h-72 space-y-1 overflow-y-auto" aria-live="polite">
+            <button v-for="c in found" :key="c.id" type="button" class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-stone-50 disabled:opacity-50" :disabled="!channelsOf(c).length" @click="pickCustomer(c)">
+              <span class="min-w-0">
+                <span class="block truncate text-sm font-medium">{{ c.name || 'ไม่มีชื่อ' }}</span>
+                <span class="block truncate text-xs text-stone-500">{{ c.phone || 'ไม่มีเบอร์' }}</span>
+              </span>
+              <span class="shrink-0 text-xs text-stone-600">{{ channelsOf(c).join(' · ') || 'ไม่มีช่องทาง' }}</span>
+            </button>
+            <p v-if="!found.length && !pickBusy && !pickErr" class="text-sm text-stone-500">ไม่พบลูกค้า</p>
+          </div>
+          <div class="flex gap-2">
+            <button type="button" class="btn-outline h-10 px-3 text-sm" @click="addTelegram">+ Telegram</button>
+            <button type="button" class="btn-soft h-10 flex-1 text-sm" @click="closePicker">เสร็จ</button>
+          </div>
+        </div>
         <div class="flex gap-2">
-          <button type="button" class="btn-soft h-10 px-3 text-sm" @click="addRecipient"><AppIcon name="plus" :size="15" /> เพิ่มผู้รับ</button>
+          <button type="button" class="btn-soft h-10 px-3 text-sm" :disabled="picking" @click="openPicker"><AppIcon name="plus" :size="15" /> เพิ่มผู้รับ</button>
           <button type="button" class="btn-primary h-10 flex-1" @click="saveRecipients">บันทึกผู้รับทดสอบ</button>
         </div>
       </section>
