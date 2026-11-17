@@ -25,13 +25,10 @@ export function recommendPhotos(db, { photoId = '', selectedIds = [] } = {}) {
   const w = (id) => W[idx.get(id)?.groupKey] ?? 1
   const cur = all.find((p) => p.id === photoId)
   const base = new Set([...(selectedIds || []), ...(cur ? cur.tags : [])])
-  const by = new Map()
-  for (const c of db.cakeClicks || []) { if (!by.has(c.v)) by.set(c.v, new Set()); by.get(c.v).add(c.photoId) }
-  const pop = new Map(), co = new Map()
-  for (const set of by.values()) {
-    for (const id of set) pop.set(id, (pop.get(id) || 0) + 1)
-    if (photoId && set.has(photoId)) for (const id of set) if (id !== photoId) co.set(id, (co.get(id) || 0) + 1)
-  }
+  // ยอดรวมจากเซิร์ฟเวอร์ (ผู้เยี่ยมชมไม่ซ้ำ · รายการที่น้อยกว่า 3 คนถูกตัดแล้วในฐานข้อมูล)
+  const st = db.clickStats || { photos: {}, pairs: {} }
+  const pop = new Map(Object.entries(st.photos || {}))
+  const co = new Map(Object.entries((photoId && st.pairs && st.pairs[photoId]) || {}))
   return all
     .filter((p) => p.id !== photoId)
     .map((p, i) => {
