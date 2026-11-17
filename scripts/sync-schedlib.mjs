@@ -15,6 +15,8 @@ export const SCHEDLIB_FILES = [
   'chatCards.js',
   // ประชาสัมพันธ์/โปรโมชั่น: เกณฑ์ความยินยอม (customer-auth) และการตรวจแคมเปญ/การ์ด (campaign, scheduled)
   'promoConsent.js', 'campaigns.js',
+  // ใบกำกับภาษีเต็มรูปฝั่งลูกค้า (Edge Function tax-invoice ใช้กติกาชุดเดียวกับแอป) · กรอบเวลา เลขผู้เสียภาษี ข้อความตัวเลขเป็นบาท
+  'taxInvoice.js', 'acct/taxWindow.js', 'acct/taxid.js', 'acct/thaiBaht.js',
 ]
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')

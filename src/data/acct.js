@@ -1,8 +1,10 @@
 // ระบบบัญชี (จำลองในหน่วยความจำ · จุดที่จะเปลี่ยนเป็น Supabase) · ตรรกะคำนวณอยู่ใน src/lib/acct (ฟังก์ชันล้วน)
 // หมายเหตุ: store.js ไม่ import ไฟล์นี้ (กัน import วน) — หน้าที่ต้องใช้ import จากไฟล์นี้โดยตรง
-import { supabaseEnabled } from '../lib/supabase'
+import { supabaseEnabled, getSupabase } from '../lib/supabase'
+import { reactive } from 'vue'
+import { readSessionToken } from '../lib/customerRemote'
+import { MAX_CUSTOMER_REVISIONS, cleanBuyer, buyerError, sellerCheck, customerInvoiceState } from '../lib/taxInvoice'
 import { db, session, can, ctxOrder, scheduledHooks, cancelHooks, notify, findCustomer, customerSession, myCustomer } from './store'
-import { invoiceDeadline, invoiceWindowOpen } from '../lib/acct/taxWindow'
 import { deriveAll } from '../lib/acct/derive'
 import { buildManualEntry } from '../lib/acct/manual'
 import { validateEntry, entryNo, entrySums } from '../lib/acct/journal'
@@ -11,7 +13,6 @@ import { accountMap, KIND_LABEL } from '../lib/acct/chart'
 import { toDateStr } from '../lib/format'
 import { toS, toB } from '../lib/acct/money'
 import { vatSummary, vatDue, vatStatus, prevMonth, nextMonth } from '../lib/acct/vat'
-import { validTaxId, validBranch } from '../lib/acct/taxid'
 import { bahtText } from '../lib/acct/thaiBaht'
 import { addressChoices } from '../lib/thaiAddress'
 import { orderTotals } from '../lib/pricing'
@@ -287,13 +288,7 @@ export function vatThreshold(year = new Date().getFullYear()) {
 const invs = () => (A().taxInvoices ||= [])
 export const taxInvoices = () => invs()
 export const invoiceOfOrder = (orderId) => invs().find((i) => i.type === 'invoice' && i.orderId === orderId && !i.voidedBy) || null
-const sellerOk = () => {
-  const v = db.shop.vat || {}
-  if (!v.enabled) return 'ร้านยังไม่เปิดใช้ VAT'
-  if (!validTaxId(v.taxId)) return 'เลขประจำตัวผู้เสียภาษีของร้านไม่ถูกต้อง (ตั้งค่าร้าน → VAT)'
-  if (!String(v.legalName || '').trim() || !String(v.address || '').trim()) return 'กรอกชื่อและที่อยู่ผู้ประกอบการในตั้งค่า VAT ก่อน'
-  return ''
-}
+const sellerOk = () => sellerCheck(db.shop.vat)
 // ตรวจก่อนออกใบ: คืนข้อความผิดพลาด หรือ ''
 export function invoiceBlock(order, buyer = null) {
   if (!order?.vat || !(Number(order.vat.rate) > 0)) return 'ออร์เดอร์นี้ไม่ได้คิด VAT'
@@ -306,14 +301,6 @@ export function invoiceBlock(order, buyer = null) {
   if (s) return s
   return buyerError(buyer || buyerOf(order))
 }
-export function buyerError(b) {
-  if (!String(b.name || '').trim()) return 'ไม่มีชื่อผู้ซื้อ'
-  if (!validTaxId(b.taxId)) return 'เลขประจำตัวผู้เสียภาษีผู้ซื้อไม่ถูกต้อง (13 หลัก)'
-  if (!validBranch(b.branch)) return 'รหัสสาขาผู้ซื้อต้อง 5 หลัก (สำนักงานใหญ่ = 00000)'
-  if (!String(b.address || '').trim()) return 'ไม่มีที่อยู่ผู้ซื้อ'
-  return ''
-}
-const cleanBuyer = (buyer) => ({ name: String(buyer.name || '').trim().slice(0, 120), taxId: String(buyer.taxId || '').replace(/\D/g, ''), branch: String(buyer.branch || '00000').replace(/\D/g, ''), address: String(buyer.address || '').trim().slice(0, 300) })
 export const buyerOf = (order) => {
   const c = findCustomer(order.customerId)
   return { name: c?.tax?.name || '', taxId: c?.tax?.taxId || '', branch: c?.tax?.branch || '00000', address: c?.tax?.address || '' }
@@ -373,7 +360,11 @@ cancelHooks.push((order) => {
 })
 
 // ---------- ลูกค้าขอ/แก้ใบกำกับภาษีเอง (ต้องล็อกอิน · เห็น/ทำได้เฉพาะออร์เดอร์ของตัวเอง) ----------
-export const MAX_CUSTOMER_REVISIONS = 3
+// โหมดฐานข้อมูล: สถานะ การขอ และการแก้ทำที่ Edge Function tax-invoice (ข้อมูลผู้ขาย ยอด และเลขที่อยู่ที่เซิร์ฟเวอร์) · แอปเก็บเฉพาะสำเนาสถานะล่าสุดใน taxCache
+// โหมดจำลอง: คำนวณในเครื่องด้วยกติกาชุดเดียวกัน (src/lib/taxInvoice.js)
+export { MAX_CUSTOMER_REVISIONS }
+export const taxCache = reactive({}) // orderId → { state } หรือ { error } · 'link:'+token → { state: { history } }
+const NET_TAX = 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่'
 const blankTax = () => ({ name: '', taxId: '', branch: '00000', address: '' })
 export const myTaxProfile = () => { const c = myCustomer(); return c ? { ...blankTax(), ...(c.tax || {}) } : null }
 // ข้อมูลสำหรับออกใบกำกับ จดจำได้ชุดเดียวต่อลูกค้า (บันทึกซ้ำ = ทับของเดิม)
@@ -391,14 +382,10 @@ const myOrderOf = (orderId) => {
   const o = db.orders.find((x) => x.id === orderId)
   return c && o && o.customerId === c.id ? o : null
 }
-const paidDateOf = (o) => {
-  const ps = o.payments.filter((p) => p.status === 'confirmed')
-  const last = ps.map((p) => String(p.confirmedAt || p.paidAt || '').slice(0, 10)).filter(Boolean).sort().at(-1)
-  return last || ''
-}
-// สถานะการขอใบของลูกค้า: { eligible, reason, deadline, invoice, canEdit, revisionsLeft }
+const cacheKeyOf = (ctx) => (ctx?.token ? `link:${ctx.token}` : ctx?.orderId)
 // เอกสารใบกำกับ/ใบลดหนี้ของออร์เดอร์ ตามสิทธิ์ลูกค้า: { orderId } (ล็อกอินเจ้าของ) หรือ { token } (ลิงก์ ดูอย่างเดียว) · ไม่มีสิทธิ์/ไม่เจอ = []
 export function customerInvoiceDocs(ctx) {
+  if (supabaseEnabled) return taxCache[cacheKeyOf(ctx)]?.state?.history || []
   const o = ctxOrder(ctx)
   if (!o) return []
   return invs().filter((i) => i.orderId === o.id).slice().sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')))
@@ -410,22 +397,50 @@ export function myAddressChoices(orderId = '') {
   const o = orderId ? myOrderOf(orderId) : null
   return addressChoices(c.places || [], o?.fulfillment === 'delivery' ? o.address : '')
 }
+// สถานะการขอใบของลูกค้า: { eligible, reason, deadline, invoice, history, canEdit, revisionsLeft } · โหมดฐานข้อมูลต้องโหลดก่อนด้วย loadMyTaxState
 export function myInvoiceState(orderId) {
+  if (supabaseEnabled) return taxCache[orderId]?.state || null
   const o = myOrderOf(orderId)
   if (!o) return null
-  const inv = invoiceOfOrder(o.id)
-  const paid = paidDateOf(o)
-  const deadline = invoiceDeadline(paid)
-  const base = { deadline, invoice: inv, history: invs().filter((i) => i.orderId === o.id) }
-  if (!o.vat || !(Number(o.vat.rate) > 0)) return { ...base, eligible: false, reason: 'ออร์เดอร์นี้ไม่ได้คิดภาษีมูลค่าเพิ่ม' }
-  if (o.status === 'cancelled' || o.status === 'draft') return { ...base, eligible: false, reason: 'ออร์เดอร์นี้ออกใบกำกับภาษีไม่ได้' }
-  if (orderTotals(o).balance > 0.004) return { ...base, eligible: false, reason: 'ชำระยังไม่ครบ ขอใบกำกับภาษีได้เมื่อชำระครบ' }
-  const open = invoiceWindowOpen(paid, today())
-  const left = Math.max(0, MAX_CUSTOMER_REVISIONS - (inv?.rev || 0))
-  if (!open) return { ...base, eligible: false, reason: `เลยกำหนดขอ/แก้ใบกำกับภาษีเอง (ภายใน ${deadline}) กรุณาติดต่อร้าน` }
-  return { ...base, eligible: true, reason: '', canEdit: !!inv && left > 0, revisionsLeft: left }
+  return customerInvoiceState(o, invs().filter((i) => i.orderId === o.id), today())
 }
+// เรียก Edge Function tax-invoice · คืนคำตอบ (มี ok) หรือ { error }
+async function callTax(action, body = {}) {
+  const c = await getSupabase()
+  if (!c) return { error: NET_TAX }
+  const payload = action === 'view' ? { action, ...body } : { action, session: readSessionToken(), ...body }
+  let r
+  try { r = await c.functions.invoke('tax-invoice', { body: payload }) } catch { return { error: NET_TAX } }
+  if (r.error) {
+    let d = null
+    try { d = await r.error.context?.json() } catch { d = null }
+    return { error: d?.error || NET_TAX }
+  }
+  return r.data?.ok ? r.data : { error: r.data?.error || NET_TAX }
+}
+// โหลดสถานะการขอใบของออร์เดอร์ (ต้องล็อกอินเป็นเจ้าของ)
+export async function loadMyTaxState(orderId) {
+  if (!supabaseEnabled || !orderId) return
+  const r = await callTax('state', { orderId })
+  taxCache[orderId] = r.error ? { error: r.error } : { state: r.state }
+}
+// โหลดเอกสารจากลิงก์ออร์เดอร์ (ดูอย่างเดียว ไม่ต้องล็อกอิน)
+export async function loadLinkTaxDocs(token) {
+  if (!supabaseEnabled || !token) return
+  const r = await callTax('view', { token })
+  taxCache[`link:${token}`] = r.error ? { error: r.error } : { state: { history: r.history } }
+}
+// ขอ/แก้ใบในโหมดฐานข้อมูล: ส่งไปเซิร์ฟเวอร์ แล้วใช้สถานะที่เซิร์ฟเวอร์ตอบกลับ
+async function serverTax(action, orderId, buyer, remember) {
+  const r = await callTax(action, { orderId, buyer: cleanBuyer(buyer), remember })
+  if (r.error) return { error: r.error }
+  taxCache[orderId] = { state: r.state }
+  if (remember && myCustomer()) myCustomer().tax = cleanBuyer(buyer)
+  return { ok: true, invoice: r.invoice }
+}
+// ขอใบกำกับภาษีเต็มรูป · โหมดฐานข้อมูลคืน Promise (ผลลัพธ์เทียบเท่าโหมดจำลอง)
 export function requestMyTaxInvoice(orderId, buyer, remember = true) {
+  if (supabaseEnabled) return serverTax('request', orderId, buyer, remember)
   const o = myOrderOf(orderId)
   const st = myInvoiceState(orderId)
   if (!o || !st) return { error: 'ไม่พบออร์เดอร์' }
@@ -435,8 +450,9 @@ export function requestMyTaxInvoice(orderId, buyer, remember = true) {
   if (r.ok && remember) myCustomer().tax = b
   return r
 }
-// แก้ไข = ออกใบลดหนี้ใบเดิม แล้วออกใบใหม่ด้วยข้อมูลใหม่ (ภายในกรอบเวลาเดียวกัน จำกัดจำนวนครั้ง)
+// แก้ใบ = ออกใบลดหนี้ใบเดิม แล้วออกใบใหม่ด้วยข้อมูลใหม่ (ภายในกรอบเวลาเดียวกัน จำกัดจำนวนครั้ง)
 export function editMyTaxInvoice(orderId, buyer, remember = true) {
+  if (supabaseEnabled) return serverTax('edit', orderId, buyer, remember)
   const o = myOrderOf(orderId)
   const st = myInvoiceState(orderId)
   if (!o || !st) return { error: 'ไม่พบออร์เดอร์' }

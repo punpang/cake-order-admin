@@ -1,6 +1,6 @@
 <script setup>
-import { computed, nextTick, reactive, ref, onBeforeUnmount } from 'vue'
-import { customerInvoiceDocs, myAddressChoices, myInvoiceState, myTaxProfile, requestMyTaxInvoice, editMyTaxInvoice, MAX_CUSTOMER_REVISIONS } from '../data/acct'
+import { computed, nextTick, reactive, ref, onBeforeUnmount, onMounted, watch } from 'vue'
+import { customerInvoiceDocs, myAddressChoices, myInvoiceState, myTaxProfile, requestMyTaxInvoice, editMyTaxInvoice, loadMyTaxState, loadLinkTaxDocs, taxCache, MAX_CUSTOMER_REVISIONS } from '../data/acct'
 import { dateOnly } from '../lib/format'
 import AppIcon from './AppIcon.vue'
 import A4Print from './A4Print.vue'
@@ -30,23 +30,32 @@ async function download(d) {
 onBeforeUnmount(() => { if (savedTitle.value) document.title = savedTitle.value })
 const f = reactive({ name: '', taxId: '', branch: '00000', address: '', remember: true })
 const err = ref('')
+const busy = ref(false)
+const loadErr = computed(() => (props.orderId ? taxCache[props.orderId]?.error : taxCache[`link:${props.token}`]?.error) || '')
 const editing = ref(false)
 const printer = ref(null)
 const doc = computed(() => (props.orderId ? st.value?.invoice : docs.value.find((d) => d.type === 'invoice' && !d.voidedBy)) || null)
 function fill(src) { Object.assign(f, { name: src?.name || '', taxId: src?.taxId || '', branch: src?.branch || '00000', address: src?.address || '' }); err.value = '' }
 fill(myTaxProfile())
 function startEdit() { fill(doc.value?.buyer); editing.value = true }
-function submit() {
+const loadAll = () => (props.orderId ? loadMyTaxState(props.orderId) : loadLinkTaxDocs(props.token))
+onMounted(loadAll)
+watch(() => [props.orderId, props.token], loadAll)
+async function submit() {
+  if (busy.value) return
   err.value = ''
-  const r = editing.value ? editMyTaxInvoice(props.orderId, f, f.remember) : requestMyTaxInvoice(props.orderId, f, f.remember)
+  busy.value = true
+  const r = editing.value ? await editMyTaxInvoice(props.orderId, f, f.remember) : await requestMyTaxInvoice(props.orderId, f, f.remember)
+  busy.value = false
   if (r.error) return (err.value = r.error)
   editing.value = false
 }
 </script>
 
 <template>
-  <section v-if="(st || docs.length) && !(cancelled && !docs.length)" class="card space-y-3" aria-label="ใบกำกับภาษี">
+  <section v-if="(st || docs.length || loadErr) && !(cancelled && !docs.length)" class="card space-y-3" aria-label="ใบกำกับภาษี">
     <div class="card-title"><AppIcon name="list" :size="16" /> ใบกำกับภาษีเต็มรูป</div>
+    <p v-if="loadErr" class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700" role="alert">{{ loadErr }}</p>
     <template v-if="doc && !editing">
       <div class="rounded-xl bg-emerald-50 p-3 text-emerald-800">ออกใบแล้ว <b>{{ doc.no }}</b> · {{ dateOnly(doc.date) }}<div class="text-xs">ผู้ซื้อ {{ doc.buyer.name }}</div></div>
       <div class="flex flex-wrap gap-2">
@@ -68,7 +77,7 @@ function submit() {
       <div><label class="label">ที่อยู่ตามใบกำกับ</label><TaxAddressField v-model="f.address" label="ที่อยู่ใบกำกับ" :suggestions="myAddressChoices(orderId)" /></div>
       <label class="flex items-center gap-2 text-stone-600"><input v-model="f.remember" type="checkbox" class="h-4 w-4" /> จดจำข้อมูลนี้ไว้ใช้ครั้งหน้า (เก็บได้ชุดเดียว ทับของเดิม)</label>
       <p v-if="err" class="text-rose-700" role="alert">{{ err }}</p>
-      <div class="flex gap-2"><button v-if="editing" class="btn-outline flex-1" @click="editing = false">ยกเลิก</button><button class="btn-primary flex-1" @click="submit">{{ editing ? 'บันทึกการแก้ไข' : 'ขอใบกำกับภาษี' }}</button></div>
+      <div class="flex gap-2"><button v-if="editing" class="btn-outline flex-1" @click="editing = false">ยกเลิก</button><button class="btn-primary flex-1" :disabled="busy" @click="submit">{{ busy ? 'กำลังส่ง…' : editing ? 'บันทึกการแก้ไข' : 'ขอใบกำกับภาษี' }}</button></div>
     </template>
     <p v-else-if="st && !others.length" class="text-stone-500">{{ st.reason }}</p>
     <div v-if="others.length && !editing" aria-label="ประวัติใบกำกับภาษีและใบลดหนี้">
