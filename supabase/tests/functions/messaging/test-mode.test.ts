@@ -1,6 +1,6 @@
 // ทดสอบการส่งข้อความในโหมดทดสอบครบทาง: Edge Function telegram-send และ fb-send ตัวจริง กับฐานข้อมูลจำลองที่แยกสคีมา
 // สิ่งที่ต้องเป็นจริง: โหมดทดสอบส่งออกได้เฉพาะผู้รับในรายชื่อทดสอบ (อ่านจาก punpang_test เท่านั้น) · ไม่อยู่ในรายชื่อ = ไม่มีการยิงออกไปข้างนอกเลย
-// รัน: deno test -A --no-lock --node-modules-dir=none --import-map=supabase/tests/functions/messaging/importmap.json supabase/tests/functions/messaging/
+// รัน (ทุกชุด): npm run test:fn · หรือ deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/_fake/importmap.json supabase/tests/functions/messaging/
 import { assert, assertEquals } from 'jsr:@std/assert@1'
 
 const TG_CHAT = '-1001234567'

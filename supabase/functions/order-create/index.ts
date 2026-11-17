@@ -39,10 +39,11 @@ async function rest(path: string, rh: Record<string, string> = {}): Promise<any[
 }
 
 // ตรรกะเดียวกับ trigger punpang_orders_insert_guard (ผ่านฟังก์ชันเจ้าของ punpang__quote_check)
-async function quoteCheck(order: any, quoteId: string): Promise<string> {
+// rh = หัวเลือกสคีมาตามโหมด: โหมดทดสอบต้องเรียกตัวใน punpang_test (อ่านใบเสนอทดสอบ) ไม่ใช่ตัวใน public
+async function quoteCheck(order: any, quoteId: string, rh: Record<string, string>): Promise<string> {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/punpang__quote_check`, {
     method: 'POST',
-    headers: { ...SERVICE_HEADERS, 'content-type': 'application/json' },
+    headers: { ...SERVICE_HEADERS, ...rh, 'content-type': 'application/json' },
     body: JSON.stringify({
       p_quote: quoteId, p_order: order.id, p_customer: order.customerId ?? null,
       p_items: order.items, p_vat: order.vat ?? null, p_shipping: Number(order.shippingFee) || 0,
@@ -103,7 +104,7 @@ Deno.serve(corsWrap(async (req) => {
     if (q.order_id && q.order_id !== id) return json({ error: 'ใบเสนอนี้ถูกแปลงเป็นออร์เดอร์แล้ว' }, 409)
     built = buildOrderFromDraft({ ...common, quotePayload: q.data?.payload ?? null, customerId: q.customer_id ?? null, quoteId })
     if (built.ok) {
-      const qc = await quoteCheck(built.order, quoteId)
+      const qc = await quoteCheck(built.order, quoteId, rh)
       if (qc !== 'ok') {
         const [status, msg] = QUOTE_ERR[qc] ?? [502, 'ตรวจใบเสนอไม่สำเร็จ ลองใหม่อีกครั้ง']
         return json({ error: msg, code: qc }, status)

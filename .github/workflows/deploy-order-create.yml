@@ -20,7 +20,7 @@ jobs:
         run: deno check --no-lock --node-modules-dir=none supabase/functions/order-create/index.ts
       # แอปตัวจริง (ตัวออกเลข + pushOrders) ยิงเข้า order-create ตัวจริง ทั้งโหมดจริงและโหมดทดสอบ (จำลองเฉพาะฐานข้อมูล)
       - name: เทสต์เส้นทางสร้างออร์เดอร์ครบทาง (แอป → order-create)
-        run: deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/order-create/importmap.json supabase/tests/functions/order-create/
+        run: deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/_fake/importmap.json supabase/tests/functions/order-create/ supabase/tests/functions/flows/
 
   deploy:
     needs: test

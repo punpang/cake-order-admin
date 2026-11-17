@@ -1,7 +1,7 @@
 // ทดสอบเส้นทางสร้างออร์เดอร์ครบทาง: โค้ดฝั่งแอปตัวจริง (ตัวออกเลข + pushOrders) → Edge Function order-create ตัวจริง
 // จำลองเฉพาะเครือข่ายไปฐานข้อมูล (fetch) · ไม่ต้องมีคีย์ ไม่แตะฐานข้อมูลจริง
 // เหตุที่ต้องมี: บั๊ก TEST-OR (17 พ.ย. 69) เกิดจากแอปเติม TEST- แต่เซิร์ฟเวอร์ไม่รับ — เทสต์แยกฝั่งผ่านทั้งคู่ แต่ใช้ร่วมกันพัง
-// รัน: deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/order-create/importmap.json supabase/tests/functions/order-create/
+// รัน (ทุกชุด): npm run test:fn · หรือ deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/_fake/importmap.json supabase/tests/functions/order-create/
 import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1'
 import golden from '../../../../src/lib/quotePrice.golden.json' with { type: 'json' }
 import { pushOrders as pushOrdersJs } from '../../../../src/lib/ordersSync.js'

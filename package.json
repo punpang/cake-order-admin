@@ -11,7 +11,8 @@
     "build:customer": "vite build --mode customer --outDir dist-customer",
     "android:sync": "npm run build:android && npx cap sync android",
     "test": "node scripts/run-tests.mjs",
-    "test:deno": "deno test --no-prompt --no-lock --node-modules-dir=none supabase/functions/_shared/ worker/test/ && deno test -A --no-lock --node-modules-dir=none --import-map=supabase/tests/functions/customer-auth/importmap.json supabase/tests/functions/customer-auth/ && deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/order-create/importmap.json supabase/tests/functions/order-create/ && deno test -A --no-lock --node-modules-dir=none --import-map=supabase/tests/functions/messaging/importmap.json supabase/tests/functions/messaging/",
+    "test:deno": "deno test --no-prompt --no-lock --node-modules-dir=none supabase/functions/_shared/ worker/test/ && deno test -A --no-lock --node-modules-dir=none --import-map=supabase/tests/functions/customer-auth/importmap.json supabase/tests/functions/customer-auth/ && npm run test:fn",
+    "test:fn": "deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/_fake/importmap.json supabase/tests/functions/order-create/ supabase/tests/functions/flows/ supabase/tests/functions/messaging/ supabase/tests/functions/sms-send/ supabase/tests/functions/order-link/ supabase/tests/functions/tungngern-receiver/",
     "test:db": "bash supabase/tests/run.sh",
     "test:all": "npm test && npm run test:deno && npm run test:db"
   },
