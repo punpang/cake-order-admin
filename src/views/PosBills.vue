@@ -1,13 +1,17 @@
 <script setup>
-// บิล POS ที่ปิดแล้วย้อนหลัง · ดูบิล · ใบเสร็จ · ใบกำกับภาษี · ยกเลิกบิล (ใช้ระบบยกเลิกบิล POS เดิม: คืนสต็อก/คะแนน/คูปอง และใบลดหนี้)
+// บิล POS ที่ปิดแล้วย้อนหลัง · ค้นหา/กรอง · สรุปยอดแยกวิธีชำระ · ดูบิล · พิมพ์ซ้ำ · ใบเสร็จ · ใบกำกับภาษี
+// คืนเงินบางส่วน · เปลี่ยนผู้ซื้อ · ยกเลิกบิล (ใช้ระบบเดิมของ POS ทั้งหมด)
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { db, can, findOrder, findCustomer, voidPosSale } from '../data/store'
 import { getSupabase } from '../lib/supabase'
 import { loadOrdersInRange } from '../lib/ordersSync'
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime, toDateStr, orderNo } from '../lib/format'
-import { closedPosBillsInRange } from '../lib/posBills'
+import { POS_METHODS } from '../lib/constants'
+import { closedPosBillsInRange, filterPosBills, payMethodsOf, posMethodTotals } from '../lib/posBills'
 import { defaultRefundMethod } from '../lib/refund'
+import { getDeviceConfig } from '../lib/nativeDevices'
+import { printOrderReceipt } from '../lib/receiptRaster'
 import { invoiceOfOrder } from '../data/acct'
 import { showToast } from '../lib/toast'
 import AppModal from '../components/AppModal.vue'
@@ -15,12 +19,21 @@ import AppIcon from '../components/AppIcon.vue'
 import Receipt from '../components/Receipt.vue'
 import TaxInvoiceModal from '../components/TaxInvoiceModal.vue'
 import RefundEditor from '../components/RefundEditor.vue'
+import RefundPartialDialog from '../components/RefundPartialDialog.vue'
+import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
 
 const PRESETS = [
   { v: 'today', l: 'วันนี้' },
   { v: 'week', l: '7 วันล่าสุด' },
   { v: 'month', l: 'เดือนนี้' },
 ]
+const STATUS_OPTS = [
+  { v: 'all', l: 'ทั้งหมด' },
+  { v: 'closed', l: 'ปิดแล้ว' },
+  { v: 'cancelled', l: 'ยกเลิก' },
+]
+const METHOD_OPTS = [{ v: '', l: 'ทุกวิธี' }, ...Object.entries(POS_METHODS).map(([v, l]) => ({ v, l }))]
+const NOT_IN_DEVICE = 'บิลนี้ยังไม่อยู่ในข้อมูลเครื่อง ลองรีเฟรชหน้าแล้วทำใหม่'
 
 const today = toDateStr(new Date())
 const from = ref(today)
@@ -30,7 +43,14 @@ const loading = ref(false)
 const error = ref('')
 const receipt = ref(null)
 const taxFor = ref(null)
+const refundFor = ref(null)
+const buyerFor = ref(null)
 let seq = 0
+
+// ตัวกรองในหน้า (ไม่กระทบการโหลดจากฐานข้อมูล)
+const q = ref('')
+const status = ref('all')
+const method = ref('')
 
 // ใช้อินสแตนซ์ใน db.orders เสมอ เพื่อให้การแก้ไขถูกซิงก์ขึ้นฐานข้อมูล
 const toLocal = (rows) => rows.map((x) => findOrder(x.id) || x)
@@ -85,9 +105,43 @@ const preset = computed(() => {
 const live = computed(() => items.value.filter((o) => o.status !== 'cancelled'))
 const totalMoney = computed(() => live.value.reduce((s, o) => s + (orderTotals(o).total || 0), 0))
 const cancelledCount = computed(() => items.value.length - live.value.length)
+const methodSum = computed(() => posMethodTotals(items.value))
+
+const nameOf = (o) => findCustomer(o.customerId)?.name || ''
+const textOf = (o) => [orderNo(o.code), o.code, nameOf(o), ...(o.items || []).map((i) => i.name)].join(' ')
+const shown = computed(() => filterPosBills(items.value, { q: q.value, status: status.value, method: method.value, textOf }))
+const filtering = computed(() => !!q.value.trim() || status.value !== 'all' || !!method.value)
+function clearFilters() { q.value = ''; status.value = 'all'; method.value = '' }
+
 const taxable = (o) => can('taxInvoice') && o.status !== 'cancelled' && orderTotals(o).vat > 0
 const canVoid = (o) => can('posVoid') && o.status !== 'cancelled'
+const canRefund = (o) => can('posVoid') && o.status !== 'cancelled' && (orderTotals(o).paidNet > 0 || (o.returns || []).some((r) => !r.cancelled))
+const canBuyer = (o) => can('changeBuyer') && o.status !== 'cancelled'
+const canPrint = (o) => o.status !== 'cancelled' && !!getDeviceConfig().printer?.address
 const itemsText = (o) => o.items.map((i) => `${i.name} ×${i.qty}`).join(', ')
+const payLabel = (o) => payMethodsOf(o).map((m) => POS_METHODS[m] || m).join(' + ') || 'ชำระแล้ว'
+
+// ---------- พิมพ์ซ้ำ ----------
+async function reprint(o) {
+  try {
+    await printOrderReceipt(findOrder(o.id) || o)
+    showToast('ส่งคำสั่งพิมพ์แล้ว')
+  } catch (e) {
+    showToast(`พิมพ์ไม่สำเร็จ: ${e.message || e}`, 6000, 'error')
+  }
+}
+
+// ---------- คืนเงินบางส่วน / เปลี่ยนผู้ซื้อ (แก้ในอินสแตนซ์ของเครื่อง แล้วโหลดใหม่เมื่อเสร็จ) ----------
+function openRefund(o) {
+  const target = findOrder(o.id)
+  if (!target) return showToast(NOT_IN_DEVICE, 6000, 'error')
+  refundFor.value = target
+}
+function openBuyer(o) {
+  const target = findOrder(o.id)
+  if (!target) return showToast(NOT_IN_DEVICE, 6000, 'error')
+  buyerFor.value = target
+}
 
 // ---------- ยกเลิกบิล ----------
 const voidFor = ref(null)
@@ -96,7 +150,7 @@ const voidPaid = computed(() => (voidFor.value ? orderTotals(voidFor.value).paid
 const voidDefault = computed(() => defaultRefundMethod(voidFor.value?.payments.find((p) => p.status === 'confirmed')?.posMethod))
 function openVoid(o) {
   const target = findOrder(o.id)
-  if (!target) return showToast('บิลนี้ยังไม่อยู่ในข้อมูลเครื่อง ลองรีเฟรชหน้าแล้วทำใหม่', 6000, 'error')
+  if (!target) return showToast(NOT_IN_DEVICE, 6000, 'error')
   const paid = orderTotals(target).paidNet
   Object.assign(vd, {
     reason: 'ยกเลิกบิล',
@@ -124,12 +178,12 @@ onMounted(() => load())
     <header class="flex items-start justify-between gap-3">
       <div class="min-w-0">
         <h1 class="page-title">บิล POS ที่ปิดแล้ว</h1>
-        <p class="meta mt-0.5 text-stone-500">ทุกกะ · ดูย้อนหลังและยกเลิกบิล</p>
+        <p class="meta mt-0.5 text-stone-500">ทุกกะ · ค้นหา ดูย้อนหลัง และจัดการบิล</p>
       </div>
       <RouterLink to="/admin/pos" class="btn-outline h-10 shrink-0 px-3 text-sm">← กลับ POS</RouterLink>
     </header>
 
-    <!-- ตัวกรองช่วงวันที่ -->
+    <!-- ตัวกรองช่วงวันที่ + ค้นหา + สถานะ + วิธีชำระ -->
     <section class="card space-y-4">
       <div class="seg" role="group" aria-label="ช่วงเวลาด่วน">
         <button
@@ -152,6 +206,35 @@ onMounted(() => load())
           <input id="pb-to" v-model="to" type="date" :min="from" class="input input-date" aria-label="ถึงวันที่" />
         </div>
       </div>
+
+      <div class="space-y-3 border-t border-stone-100 pt-4">
+        <div>
+          <label class="label" for="pb-q">ค้นหา</label>
+          <input id="pb-q" v-model="q" type="search" class="input" maxlength="60" placeholder="เลขบิล ชื่อลูกค้า หรือสินค้า" />
+        </div>
+        <div class="seg" role="group" aria-label="สถานะบิล">
+          <button
+            v-for="s in STATUS_OPTS"
+            :key="s.v"
+            type="button"
+            class="seg-item"
+            :class="status === s.v ? 'seg-on' : ''"
+            :aria-pressed="status === s.v"
+            @click="status = s.v"
+          >{{ s.l }}</button>
+        </div>
+        <div class="chip-row" role="group" aria-label="วิธีชำระ">
+          <button
+            v-for="m in METHOD_OPTS"
+            :key="m.v || 'all'"
+            type="button"
+            class="chip h-9"
+            :class="method === m.v ? 'chip-on' : 'chip-off'"
+            :aria-pressed="method === m.v"
+            @click="method = m.v"
+          >{{ m.l }}</button>
+        </div>
+      </div>
     </section>
 
     <!-- สรุปยอด -->
@@ -168,13 +251,24 @@ onMounted(() => load())
           <div class="text-lg font-semibold tabular-nums" :class="cancelledCount ? 'text-rose-700' : 'text-stone-900'">{{ cancelledCount }}</div>
         </div>
       </div>
+      <div class="mt-4 border-t border-stone-100 pt-3">
+        <div class="text-xs text-stone-500">เงินรับสุทธิแยกตามวิธีชำระ (หักคืนเงินแล้ว)</div>
+        <dl class="mt-2 grid grid-cols-3 gap-2 text-center">
+          <div v-for="m in METHOD_OPTS.slice(1)" :key="m.v" class="rounded-xl bg-stone-50 py-2">
+            <dt class="text-xs text-stone-500">{{ m.l }}</dt>
+            <dd class="text-sm font-semibold tabular-nums text-stone-900">{{ money(methodSum[m.v]) }}</dd>
+          </div>
+        </dl>
+      </div>
     </section>
 
     <!-- รายการบิล -->
     <section class="space-y-3">
       <div class="flex items-center justify-between px-1">
         <h2 class="text-sm font-semibold text-stone-700">รายการบิล</h2>
-        <span v-if="items.length" class="meta text-xs text-stone-500">{{ items.length }} รายการ</span>
+        <span v-if="items.length" class="meta text-xs text-stone-500">
+          {{ filtering ? `แสดง ${shown.length} จาก ${items.length}` : `${items.length} รายการ` }}
+        </span>
       </div>
 
       <div v-if="loading" class="card py-10 text-center text-sm text-stone-500">กำลังโหลดบิล…</div>
@@ -190,9 +284,15 @@ onMounted(() => load())
         <p class="text-sm text-stone-500">ลองเลือกช่วงวันที่อื่น</p>
       </div>
 
+      <div v-else-if="!shown.length" class="empty">
+        <AppIcon name="search" :size="28" class="text-stone-400" />
+        <p class="font-medium text-stone-800">ไม่พบบิลที่ตรงกับตัวกรอง</p>
+        <button type="button" class="btn-outline h-9 px-3 text-sm" @click="clearFilters">ล้างตัวกรอง</button>
+      </div>
+
       <ul v-else class="space-y-3">
         <li
-          v-for="o in items"
+          v-for="o in shown"
           :key="o.id"
           class="card space-y-3"
           :class="o.status === 'cancelled' ? 'bg-stone-50' : ''"
@@ -208,9 +308,10 @@ onMounted(() => load())
                 <span
                   v-else
                   class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
-                >{{ o.payments?.[0]?.method || 'ชำระแล้ว' }}</span>
+                >{{ payLabel(o) }}</span>
               </div>
               <div class="meta mt-1 text-xs text-stone-500">{{ dateTime(o.createdAt) }}</div>
+              <div v-if="nameOf(o)" class="meta mt-0.5 text-xs text-stone-500">ลูกค้า: {{ nameOf(o) }}</div>
             </div>
             <div
               class="shrink-0 text-right text-base font-bold tabular-nums"
@@ -222,7 +323,10 @@ onMounted(() => load())
 
           <div class="flex flex-wrap gap-2 border-t border-stone-100 pt-3">
             <button type="button" class="btn-outline h-9 px-3 text-sm" @click="receipt = o">ใบเสร็จ</button>
+            <button v-if="canPrint(o)" type="button" class="btn-outline h-9 px-3 text-sm" @click="reprint(o)">พิมพ์ซ้ำ</button>
             <button v-if="taxable(o)" type="button" class="btn-soft h-9 px-3 text-sm" @click="taxFor = o">ใบกำกับภาษี</button>
+            <button v-if="canRefund(o)" type="button" class="btn-outline h-9 px-3 text-sm" @click="openRefund(o)">คืนเงิน</button>
+            <button v-if="canBuyer(o)" type="button" class="btn-outline h-9 px-3 text-sm" @click="openBuyer(o)">เปลี่ยนผู้ซื้อ</button>
             <button v-if="canVoid(o)" type="button" class="btn-danger ml-auto h-9 px-3 text-sm" @click="openVoid(o)">ยกเลิกบิล</button>
           </div>
         </li>
@@ -234,6 +338,8 @@ onMounted(() => load())
       <template #footer><button class="btn-primary flex-1 sm:flex-none" @click="receipt = null">ปิด</button></template>
     </AppModal>
     <TaxInvoiceModal v-if="taxFor" :order="taxFor" @close="taxFor = null" />
+    <RefundPartialDialog v-if="refundFor" :order="refundFor" @close="refundFor = null" @done="load()" />
+    <ChangeBuyerModal v-if="buyerFor" :order="buyerFor" @close="buyerFor = null" @done="load()" />
 
     <AppModal v-if="voidFor" :title="`ยกเลิกบิล ${orderNo(voidFor.code)}`" @close="voidFor = null">
       <div class="space-y-4">
