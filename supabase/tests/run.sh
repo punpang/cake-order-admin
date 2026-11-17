@@ -50,6 +50,16 @@ lcode=$?
 [ "$lcode" = "0" ] && echo "✓ lucky.test.sql ผ่านทั้งหมด" || echo "✗ lucky.test.sql ล้มเหลว"
 [ "$lcode" = "0" ] || exit "$lcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/payment_over_bill.test.sql
+pcode=$?
+[ "$pcode" = "0" ] && echo "✓ payment_over_bill.test.sql ผ่านทั้งหมด" || echo "✗ payment_over_bill.test.sql ล้มเหลว"
+[ "$pcode" = "0" ] || exit "$pcode"
+
+"${PSQL[@]}" -d "$DB" -f supabase/tests/payment_bill_parity.test.sql
+bcode=$?
+[ "$bcode" = "0" ] && echo "✓ payment_bill_parity.test.sql ผ่านทั้งหมด" || echo "✗ payment_bill_parity.test.sql ล้มเหลว"
+[ "$bcode" = "0" ] || exit "$bcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"
