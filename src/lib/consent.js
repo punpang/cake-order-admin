@@ -6,7 +6,8 @@ const KEY = 'ck_consent'
 export const COOKIE_TTL_MS = 365 * 24 * 3600e3
 let memory = null // สำรองเมื่อ localStorage ใช้ไม่ได้ (หายเมื่อรีเฟรช → ถามใหม่)
 
-export const cookieUi = reactive({ open: false })
+// top = ระยะจากขอบล่างจอถึงขอบบนของแถบคุกกี้ (px) ขณะแถบแสดงอยู่ · 0 = ไม่มีแถบ (ปุ่มลอยใช้หลบแถบ)
+export const cookieUi = reactive({ open: false, top: 0 })
 export const openCookieSettings = () => (cookieUi.open = true)
 
 export function readCookieConsent() {

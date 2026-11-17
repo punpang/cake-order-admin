@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { db, recordCookieConsent } from '../data/store'
 import { cookieUi, readCookieConsent, writeCookieConsent, cookieNeedsAsk } from '../lib/consent'
 import AppSwitch from './AppSwitch.vue'
@@ -22,6 +22,22 @@ watch(
 )
 watch(version, () => (pending.value = cookieNeedsAsk(readCookieConsent(), version.value)))
 
+// บอกตำแหน่งขอบบนของแถบให้ปุ่มลอย (แชท) ขยับหนี ไม่ให้แถบบังปุ่ม · วัดใหม่เมื่อแถบเปลี่ยนขนาดหรือหมุนจอ
+const el = ref(null)
+const measure = () => { cookieUi.top = el.value ? Math.max(0, Math.round(window.innerHeight - el.value.getBoundingClientRect().top)) : 0 }
+const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
+watch(el, (n, o) => {
+  if (o) ro?.unobserve(o)
+  if (n) ro?.observe(n)
+  nextTick(measure)
+})
+window.addEventListener('resize', measure)
+onBeforeUnmount(() => {
+  ro?.disconnect()
+  window.removeEventListener('resize', measure)
+  cookieUi.top = 0
+})
+
 function save(choice) {
   const c = writeCookieConsent(version.value, choice)
   recordCookieConsent(c)
@@ -32,7 +48,7 @@ function save(choice) {
 </script>
 
 <template>
-  <section v-if="visible" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 p-3 md:bottom-0 md:pb-[calc(env(safe-area-inset-bottom)+0.75rem)]" role="region" aria-label="การตั้งค่าคุกกี้">
+  <section v-if="visible" ref="el" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 p-3 md:bottom-0 md:pb-[calc(env(safe-area-inset-bottom)+0.75rem)]" role="region" aria-label="การตั้งค่าคุกกี้">
     <div class="mx-auto max-w-2xl rounded-3xl bg-matcha-soft p-3.5 shadow-2xl sm:p-4">
       <div class="font-display text-base text-stone-900 sm:text-lg">Cookie Consent · เว็บไซต์นี้ใช้คุกกี้</div>
       <!-- มือถือ: ประโยคหลักบรรทัดเดียวกับลิงก์นโยบาย (แถบไม่บังสินค้าเกินครึ่งจอ) · จอ sm ขึ้นไปแสดงคำอธิบายเต็ม -->

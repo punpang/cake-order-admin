@@ -5,7 +5,11 @@
 import { computed, defineAsyncComponent, h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { customerSession } from '../data/store'
+import { cookieUi } from '../lib/consent'
 import AppIcon from './AppIcon.vue'
+
+// แถบคุกกี้แสดงอยู่: ยกปุ่มขึ้นไปเหนือแถบ (ไม่ให้ถูกบัง) · แถบปิดแล้วกลับตำแหน่งเดิม
+const fabStyle = computed(() => (cookieUi.top > 0 ? { bottom: `${cookieUi.top + 4}px` } : null))
 
 // โหลดโค้ดแชทเมื่อเปิดแผงครั้งแรกเท่านั้น (ไม่รวมในไฟล์หลักของหน้าร้าน → เปิดเว็บครั้งแรกเร็วขึ้น)
 // โหลดไม่สำเร็จ (เน็ตหลุด) แสดงข้อความให้ปิดแล้วเปิดใหม่ · ระหว่างโหลดแสดง "กำลังเปิดแชท…"
@@ -53,6 +57,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
     v-if="!open && !onAuthPage"
     type="button"
     class="chat-fab fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-300 md:right-6 md:bottom-6"
+    :style="fabStyle"
     aria-label="แชทกับร้าน"
     @click="show"
   >
