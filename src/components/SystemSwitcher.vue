@@ -19,8 +19,8 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', outside); do
 
 <template>
   <div v-if="systems.length > 1" ref="root" class="relative shrink-0" data-system-switcher>
-    <!-- จอใหญ่: ป้ายครบ 4 ระบบ -->
-    <div class="hidden items-center gap-1 rounded-full bg-white/70 p-1 xl:flex" aria-label="ระบบหลังบ้าน">
+    <!-- จอใหญ่ (1366px ขึ้นไป): ป้ายครบ 4 ระบบ · จอ 1280–1365 ใช้ปุ่มเดียว ไม่อย่างนั้นเมนูของระบบถูกดันจนบางเมนูหลุดกรอบ (เช่น ตารางผลิต) -->
+    <div class="hidden items-center gap-1 rounded-full bg-white/70 p-1 min-[1366px]:flex" aria-label="ระบบหลังบ้าน">
       <RouterLink
         v-for="s in systems"
         :key="s.key"
@@ -37,7 +37,7 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', outside); do
     <button
       type="button"
       data-system-button
-      class="inline-flex h-10 items-center gap-1.5 rounded-full bg-brand-600 px-3.5 text-sm font-semibold whitespace-nowrap text-white shadow-sm xl:hidden"
+      class="inline-flex h-10 items-center gap-1.5 rounded-full bg-brand-600 px-3.5 text-sm font-semibold whitespace-nowrap text-white shadow-sm min-[1366px]:hidden"
       aria-haspopup="menu"
       :aria-expanded="open"
       :aria-label="`${cur.label} เลือกระบบ`"
@@ -45,7 +45,7 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', outside); do
     >
       <AppIcon :name="cur.icon" :size="16" /> {{ cur.label }} <span aria-hidden="true" class="text-xs">▾</span>
     </button>
-    <div v-if="open" data-system-menu role="menu" class="absolute top-full left-0 z-40 mt-2 w-48 overflow-hidden rounded-2xl bg-white p-1.5 shadow-xl ring-1 ring-stone-200 xl:hidden">
+    <div v-if="open" data-system-menu role="menu" class="absolute top-full left-0 z-40 mt-2 w-48 overflow-hidden rounded-2xl bg-white p-1.5 shadow-xl ring-1 ring-stone-200 min-[1366px]:hidden">
       <RouterLink
         v-for="s in systems"
         :key="s.key"
