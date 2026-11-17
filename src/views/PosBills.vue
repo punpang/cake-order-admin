@@ -16,6 +16,12 @@ import Receipt from '../components/Receipt.vue'
 import TaxInvoiceModal from '../components/TaxInvoiceModal.vue'
 import RefundEditor from '../components/RefundEditor.vue'
 
+const PRESETS = [
+  { v: 'today', l: 'วันนี้' },
+  { v: 'week', l: '7 วันล่าสุด' },
+  { v: 'month', l: 'เดือนนี้' },
+]
+
 const today = toDateStr(new Date())
 const from = ref(today)
 const to = ref(today)
@@ -63,11 +69,25 @@ function setRange(kind) {
   if (kind === 'month') { from.value = toDateStr(new Date(now.getFullYear(), now.getMonth(), 1)); to.value = end }
 }
 
+// ช่วงที่เลือกตรงกับปุ่มด่วนไหน (ว่าง = กำหนดเอง)
+const preset = computed(() => {
+  const now = new Date()
+  const end = toDateStr(now)
+  if (to.value !== end) return ''
+  if (from.value === end) return 'today'
+  const w = new Date(now)
+  w.setDate(w.getDate() - 6)
+  if (from.value === toDateStr(w)) return 'week'
+  if (from.value === toDateStr(new Date(now.getFullYear(), now.getMonth(), 1))) return 'month'
+  return ''
+})
+
 const live = computed(() => items.value.filter((o) => o.status !== 'cancelled'))
 const totalMoney = computed(() => live.value.reduce((s, o) => s + (orderTotals(o).total || 0), 0))
 const cancelledCount = computed(() => items.value.length - live.value.length)
 const taxable = (o) => can('taxInvoice') && o.status !== 'cancelled' && orderTotals(o).vat > 0
 const canVoid = (o) => can('posVoid') && o.status !== 'cancelled'
+const itemsText = (o) => o.items.map((i) => `${i.name} ×${i.qty}`).join(', ')
 
 // ---------- ยกเลิกบิล ----------
 const voidFor = ref(null)
@@ -100,65 +120,111 @@ onMounted(() => load())
 </script>
 
 <template>
-  <div class="mx-auto max-w-3xl space-y-4 px-4 py-4">
-    <header class="flex flex-wrap items-center justify-between gap-2">
-      <div>
-        <h1 class="text-xl font-bold text-stone-900">บิล POS ที่ปิดแล้ว</h1>
-        <p class="text-sm text-stone-500">ดูย้อนหลังทุกกะ · ยกเลิกบิลได้</p>
+  <div class="mx-auto max-w-2xl space-y-4 px-4 pb-10 pt-4 lg:max-w-3xl">
+    <header class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <h1 class="page-title">บิล POS ที่ปิดแล้ว</h1>
+        <p class="meta mt-0.5 text-stone-500">ทุกกะ · ดูย้อนหลังและยกเลิกบิล</p>
       </div>
-      <RouterLink to="/admin/pos" class="btn-outline h-10 px-3 text-sm">← กลับ POS</RouterLink>
+      <RouterLink to="/admin/pos" class="btn-outline h-10 shrink-0 px-3 text-sm">← กลับ POS</RouterLink>
     </header>
 
-    <section class="card space-y-3">
-      <div class="flex flex-wrap gap-2">
-        <button type="button" class="btn-outline h-9 px-3 text-sm" @click="setRange('today')">วันนี้</button>
-        <button type="button" class="btn-outline h-9 px-3 text-sm" @click="setRange('week')">7 วันล่าสุด</button>
-        <button type="button" class="btn-outline h-9 px-3 text-sm" @click="setRange('month')">เดือนนี้</button>
+    <!-- ตัวกรองช่วงวันที่ -->
+    <section class="card space-y-4">
+      <div class="seg" role="group" aria-label="ช่วงเวลาด่วน">
+        <button
+          v-for="p in PRESETS"
+          :key="p.v"
+          type="button"
+          class="seg-item"
+          :class="preset === p.v ? 'seg-on' : ''"
+          :aria-pressed="preset === p.v"
+          @click="setRange(p.v)"
+        >{{ p.l }}</button>
       </div>
       <div class="grid grid-cols-2 gap-3">
-        <label class="block text-sm">
-          <span class="mb-1 block text-stone-600">ตั้งแต่วันที่</span>
-          <input v-model="from" type="date" class="input" aria-label="ตั้งแต่วันที่" />
-        </label>
-        <label class="block text-sm">
-          <span class="mb-1 block text-stone-600">ถึงวันที่</span>
-          <input v-model="to" type="date" :min="from" class="input" aria-label="ถึงวันที่" />
-        </label>
+        <div>
+          <label class="label" for="pb-from">ตั้งแต่วันที่</label>
+          <input id="pb-from" v-model="from" type="date" class="input input-date" aria-label="ตั้งแต่วันที่" />
+        </div>
+        <div>
+          <label class="label" for="pb-to">ถึงวันที่</label>
+          <input id="pb-to" v-model="to" type="date" :min="from" class="input input-date" aria-label="ถึงวันที่" />
+        </div>
       </div>
     </section>
 
-    <section class="card grid grid-cols-2 gap-3 text-center sm:grid-cols-3">
-      <div>
-        <div class="text-xs text-stone-500">จำนวนบิล</div>
-        <div class="text-lg font-bold tabular-nums">{{ live.length }}</div>
-      </div>
-      <div>
-        <div class="text-xs text-stone-500">ยอดรวม (ไม่รวมยกเลิก)</div>
-        <div class="text-lg font-bold tabular-nums">{{ money(totalMoney) }}</div>
-      </div>
-      <div>
-        <div class="text-xs text-stone-500">ยกเลิก</div>
-        <div class="text-lg font-bold tabular-nums">{{ cancelledCount }}</div>
-      </div>
-    </section>
-
+    <!-- สรุปยอด -->
     <section class="card">
-      <p v-if="loading" class="py-8 text-center text-sm text-stone-500">กำลังโหลด…</p>
-      <p v-else-if="error" class="py-8 text-center text-sm text-rose-700">โหลดบิลไม่สำเร็จ: {{ error }}</p>
-      <p v-else-if="!items.length" class="py-8 text-center text-sm text-stone-500">ไม่มีบิลที่ปิดแล้วในช่วงวันที่นี้</p>
-      <ul v-else class="divide-y divide-stone-100">
-        <li v-for="o in items" :key="o.id" class="flex flex-wrap items-center gap-x-3 gap-y-2 py-3" :class="o.status === 'cancelled' ? 'opacity-60' : ''">
-          <div class="min-w-0 flex-1 basis-48">
-            <span class="block font-medium text-stone-900">{{ orderNo(o.code) }} <span class="text-xs font-normal text-stone-500">{{ dateTime(o.createdAt) }}</span></span>
-            <span class="block truncate text-xs text-stone-500">{{ o.items.map((i) => `${i.name} ×${i.qty}`).join(', ') }}</span>
+      <div class="text-sm text-stone-500">ยอดรวม (ไม่รวมบิลที่ยกเลิก)</div>
+      <div class="mt-1 text-3xl font-bold tabular-nums tracking-tight text-stone-900">{{ money(totalMoney) }}</div>
+      <div class="mt-4 grid grid-cols-2 divide-x divide-stone-100 border-t border-stone-100 pt-3 text-center">
+        <div>
+          <div class="text-xs text-stone-500">จำนวนบิล</div>
+          <div class="text-lg font-semibold tabular-nums text-stone-900">{{ live.length }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-stone-500">ยกเลิก</div>
+          <div class="text-lg font-semibold tabular-nums" :class="cancelledCount ? 'text-rose-700' : 'text-stone-900'">{{ cancelledCount }}</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- รายการบิล -->
+    <section class="space-y-3">
+      <div class="flex items-center justify-between px-1">
+        <h2 class="text-sm font-semibold text-stone-700">รายการบิล</h2>
+        <span v-if="items.length" class="meta text-xs text-stone-500">{{ items.length }} รายการ</span>
+      </div>
+
+      <div v-if="loading" class="card py-10 text-center text-sm text-stone-500">กำลังโหลดบิล…</div>
+
+      <div v-else-if="error" class="card flex items-start gap-2 border-rose-200 bg-rose-50 text-sm text-rose-700">
+        <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0" />
+        <span>โหลดบิลไม่สำเร็จ: {{ error }}</span>
+      </div>
+
+      <div v-else-if="!items.length" class="empty">
+        <AppIcon name="history" :size="28" class="text-stone-400" />
+        <p class="font-medium text-stone-800">ไม่มีบิลที่ปิดแล้ว</p>
+        <p class="text-sm text-stone-500">ลองเลือกช่วงวันที่อื่น</p>
+      </div>
+
+      <ul v-else class="space-y-3">
+        <li
+          v-for="o in items"
+          :key="o.id"
+          class="card space-y-3"
+          :class="o.status === 'cancelled' ? 'bg-stone-50' : ''"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-semibold text-stone-900">{{ orderNo(o.code) }}</span>
+                <span
+                  v-if="o.status === 'cancelled'"
+                  class="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700"
+                >ยกเลิกแล้ว</span>
+                <span
+                  v-else
+                  class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
+                >{{ o.payments?.[0]?.method || 'ชำระแล้ว' }}</span>
+              </div>
+              <div class="meta mt-1 text-xs text-stone-500">{{ dateTime(o.createdAt) }}</div>
+            </div>
+            <div
+              class="shrink-0 text-right text-base font-bold tabular-nums"
+              :class="o.status === 'cancelled' ? 'text-stone-400 line-through' : 'text-stone-900'"
+            >{{ money(orderTotals(o).total) }}</div>
           </div>
-          <span class="shrink-0 text-right text-sm">
-            <b class="block text-stone-900">{{ money(orderTotals(o).total) }}</b>
-            <span class="text-xs text-stone-500">{{ o.status === 'cancelled' ? 'ยกเลิกแล้ว' : (o.payments?.[0]?.method || '') }}</span>
-          </span>
-          <button type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" @click="receipt = o">ใบเสร็จ</button>
-          <button v-if="taxable(o)" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" @click="taxFor = o">ใบกำกับภาษี</button>
-          <button v-if="canVoid(o)" type="button" class="btn-danger h-9 shrink-0 px-2.5 text-xs" @click="openVoid(o)">ยกเลิกบิล</button>
+
+          <p class="line-clamp-2 text-sm text-stone-600">{{ itemsText(o) }}</p>
+
+          <div class="flex flex-wrap gap-2 border-t border-stone-100 pt-3">
+            <button type="button" class="btn-outline h-9 px-3 text-sm" @click="receipt = o">ใบเสร็จ</button>
+            <button v-if="taxable(o)" type="button" class="btn-soft h-9 px-3 text-sm" @click="taxFor = o">ใบกำกับภาษี</button>
+            <button v-if="canVoid(o)" type="button" class="btn-danger ml-auto h-9 px-3 text-sm" @click="openVoid(o)">ยกเลิกบิล</button>
+          </div>
         </li>
       </ul>
     </section>
@@ -188,3 +254,14 @@ onMounted(() => load())
     </AppModal>
   </div>
 </template>
+
+<style scoped>
+/* ช่องวันที่ของ iOS/Android: ให้ข้อความอยู่กึ่งกลางแนวตั้งและสูงเท่าช่องอื่น */
+.input-date {
+  -webkit-appearance: none;
+  appearance: none;
+  line-height: 2.75rem;
+  padding-block: 0;
+  font-size: 0.9375rem;
+}
+</style>
