@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { buildQuotePayload } from './quotePrice.js'
-import { buildOrderFromDraft, orderRowOf, hasPerm, ORDER_CODE_RE } from './orderCreate.js'
+import { buildOrderFromDraft, orderRowOf, hasPerm, ORDER_CODE_RE, orderCodeOk } from './orderCreate.js'
 
 const golden = JSON.parse(readFileSync(new URL('./quotePrice.golden.json', import.meta.url), 'utf8'))
 const clone = (x) => JSON.parse(JSON.stringify(x))
@@ -92,6 +92,24 @@ check('รหัสออร์เดอร์/เลขออร์เดอร
   assert.equal(buildOrderFromDraft(base({ id: 'a b' })).ok, false)
   assert.equal(buildOrderFromDraft(base({ code: 'XX-1' })).ok, false)
   assert.equal(ORDER_CODE_RE.test(CODE), true)
+})
+
+check('โหมดทดสอบ: เลขออร์เดอร์ต้องมี TEST- นำหน้า · โหมดจริงไม่รับ TEST-', () => {
+  assert.equal(orderCodeOk('TEST-' + CODE, true), true)
+  assert.equal(orderCodeOk(CODE, true), false)
+  assert.equal(orderCodeOk(CODE), true)
+  assert.equal(orderCodeOk('TEST-' + CODE), false)
+  assert.equal(orderCodeOk('TEST-TEST-' + CODE, true), false)
+  assert.equal(orderCodeOk('TEST-', true), false)
+  assert.equal(orderCodeOk(undefined), false)
+})
+
+check('buildOrderFromDraft: ทดสอบรับ TEST-OR-… · จริงปฏิเสธ TEST-OR-… · ทดสอบปฏิเสธ OR-… เปล่า', () => {
+  const r = buildOrderFromDraft(base({ code: 'TEST-' + CODE, test: true }))
+  assert.equal(r.ok, true, r.error)
+  assert.equal(r.order.code, 'TEST-' + CODE)
+  assert.equal(buildOrderFromDraft(base({ code: 'TEST-' + CODE })).ok, false)
+  assert.equal(buildOrderFromDraft(base({ test: true })).ok, false)
 })
 
 check('ตัวช่วยสิทธิ์: manage ผ่านทุกอย่าง, ไม่มีสิทธิ์ที่ระบุ = ไม่ผ่าน', () => {

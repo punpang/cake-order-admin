@@ -13,6 +13,13 @@ const fail = (error, kind = '') => ({ ok: false, error, ...(kind ? { kind } : {}
 export const hasPerm = (perms, p) => Array.isArray(perms) && (perms.includes('manage') || perms.includes(p))
 export const ORDER_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 export const ORDER_CODE_RE = /^OR-\d{6}-\d{6}$/
+// โหมดทดสอบ: แอปเติม TEST- นำหน้าเลขออร์เดอร์ (ตรงกับ src/lib/testMode.js) · โหมดจริงต้องไม่มี TEST-
+export const TEST_ORDER_PREFIX = 'TEST-'
+// ตรวจเลขออร์เดอร์ตามโหมด: โหมดทดสอบต้องมี TEST- นำหน้า · โหมดจริงต้องเป็นรูปแบบปกติ (ไม่มี TEST-)
+export const orderCodeOk = (code, test = false) => {
+  const s = String(code || '')
+  return test ? s.startsWith(TEST_ORDER_PREFIX) && ORDER_CODE_RE.test(s.slice(TEST_ORDER_PREFIX.length)) : ORDER_CODE_RE.test(s)
+}
 const MAX_TEXT = 500
 
 // ยอดปรับราคาตอนสร้าง (ติดลบ = ส่วนลด): ต้องมีสิทธิ์ปรับราคา + เหตุผล + ไม่เกินยอดสินค้า
@@ -30,10 +37,10 @@ export function adjustmentOf(raw, perms, subtotal) {
 // ฟิลด์ที่แอปเก็บเมื่อกดบันทึกออร์เดอร์ (ตรงกับ createOrder)
 export function buildOrderFromDraft({
   draft = /** @type {any} */ (null), customerId = /** @type {any} */ (null), catalog = /** @type {any} */ (null), nowMs, perms = /** @type {string[]} */ ([]), asDraft = false,
-  id, code, chatId = null, quoteId = null, quotePayload = null, by = '', occasionKind = '', occasionConsent = false,
+  id, code, chatId = null, quoteId = null, quotePayload = null, by = '', occasionKind = '', occasionConsent = false, test = false,
 }) {
   if (!ORDER_ID_RE.test(String(id || ''))) return fail('รหัสออร์เดอร์ไม่ถูกต้อง')
-  if (!ORDER_CODE_RE.test(String(code || ''))) return fail('เลขออร์เดอร์ไม่ถูกต้อง')
+  if (!orderCodeOk(code, test)) return fail('เลขออร์เดอร์ไม่ถูกต้อง')
 
   // ใบเสนอที่ลูกค้ายืนยันแล้ว: ใช้ราคาที่เซิร์ฟเวอร์คิดไว้ตอนส่งใบเสนอ (ไม่คิดใหม่)
   let p

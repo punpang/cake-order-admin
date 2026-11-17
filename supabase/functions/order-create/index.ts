@@ -4,7 +4,7 @@ import { corsWrap } from '../_shared/cors.ts'
 // - ตรรกะราคาและกติกาเดิมของ trigger อยู่ใน _shared/schedlib/orderCreate.js (ชุดเดียวกับแอป)
 // - บันทึกด้วยบทบาทบริการ จึงตรวจกติกาที่ trigger เคยตรวจซ้ำที่นี่ (คะแนน/คูปอง/ออร์เดอร์จากใบเสนอ)
 // ดู docs/security.md (บัค "ราคาต่อรายการตอนสร้างออร์เดอร์") และ migration 20261117140000 (ปิดการ INSERT ตรงจากแอป)
-import { buildOrderFromDraft, orderRowOf, hasPerm, ORDER_CODE_RE, ORDER_ID_RE } from '../_shared/schedlib/orderCreate.js'
+import { buildOrderFromDraft, orderRowOf, hasPerm, orderCodeOk, ORDER_ID_RE } from '../_shared/schedlib/orderCreate.js'
 import { loadCatalog } from '../_shared/catalog.ts'
 import { modeOf, restProfileHeaders } from '../_shared/mode.ts'
 
@@ -78,7 +78,7 @@ Deno.serve(corsWrap(async (req) => {
   try { body = await req.json() } catch { return json({ error: 'ข้อมูลไม่ถูกต้อง' }, 400) }
   const id = typeof body?.id === 'string' ? body.id : ''
   const code = typeof body?.code === 'string' ? body.code : ''
-  if (!ORDER_ID_RE.test(id) || !ORDER_CODE_RE.test(code)) return json({ error: 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง' }, 422)
+  if (!ORDER_ID_RE.test(id) || !orderCodeOk(code, mode === 'test')) return json({ error: 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง' }, 422)
   const chatId = typeof body?.chatId === 'string' && body.chatId ? body.chatId : null
   if (chatId && !ID_RE.test(chatId)) return json({ error: 'ไม่พบแชท' }, 404)
   const quoteId = typeof body?.quoteId === 'string' && body.quoteId ? body.quoteId : null
@@ -86,7 +86,7 @@ Deno.serve(corsWrap(async (req) => {
 
   const nowMs = Date.now()
   const common = {
-    id, code, nowMs, perms: who.perms, asDraft: body?.asDraft === true, chatId,
+    id, code, nowMs, perms: who.perms, asDraft: body?.asDraft === true, chatId, test: mode === 'test',
     by: typeof body?.by === 'string' ? body.by : '',
     occasionKind: typeof body?.occasionKind === 'string' ? body.occasionKind : '',
     occasionConsent: body?.occasionConsent === true,
