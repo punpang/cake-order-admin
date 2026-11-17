@@ -50,7 +50,7 @@ jobs:
 
       - name: ลบแถวประวัติ 6 รายการ (reverted เฉพาะประวัติ ไม่รัน SQL)
         run: |
-          supabase migration repair --status reverted --db-url "$SUPABASE_DB_URL" \
+          supabase migration repair --status reverted --db-url "$SUPABASE_DB_URL" --yes \
             20261113120000 20261113130000 20261113150000 20261114000000 20261114010000 20261114020000
 
       - name: ตรวจผลหลังลบ
