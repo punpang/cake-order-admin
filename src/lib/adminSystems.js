@@ -1,7 +1,7 @@
 // ระบบหลังบ้าน 4 ระบบ (ออร์เดอร์ / POS / บัญชี / ตั้งค่า) · ฟังก์ชันล้วน ไม่ผูกกับ store
 // items: เมนูย่อยของระบบ · perms = มีข้อใดข้อหนึ่งจึงเห็น · exact = ไฮไลต์เฉพาะลิงก์ตรง · mobile = แสดงในเมนูล่างมือถือ · badge = ป้ายตัวเลข
 // โหมดแอป Android (VITE_APP_MODE=android): เหลือเฉพาะ POS และออร์เดอร์ (ออร์เดอร์ สร้างออร์เดอร์ ชำระเงิน) · ความปลอดภัยยังอยู่ที่ RLS
-// โหมดแอปลูกค้า (VITE_APP_MODE=customer): เปิดเฉพาะบัญชีลูกค้า และหน้าออร์เดอร์ผ่านลิงก์ (/o/...)
+// โหมดแอปลูกค้า (VITE_APP_MODE=customer): หน้าร้านเหมือนเว็บ (หน้าแรก เมนู ฯลฯ) + บัญชีลูกค้า + หน้าที่เปิดจากลิงก์ · ไม่มีหลังบ้าน
 export const APP_MODE = import.meta.env?.VITE_APP_MODE === 'android' ? 'android' : import.meta.env?.VITE_APP_MODE === 'customer' ? 'customer' : 'web'
 const ALL_SYSTEMS = [
   {
@@ -27,8 +27,9 @@ const ANDROID_PATHS = ['/admin/login', '/admin/no-access', '/admin/pos', '/admin
 export const SYSTEMS = APP_MODE === 'android'
   ? ALL_SYSTEMS.filter((s) => ANDROID_KEYS.includes(s.key)).map((s) => (s.key === 'orders' ? { ...s, items: s.items.filter((i) => ANDROID_ORDER_LINKS.includes(i.to)) } : s))
   : ALL_SYSTEMS
-// เส้นทางที่เปิดได้ในแอป (โหมดเว็บเปิดทุกเส้นทาง)
-const isCustomerPath = (path) => path === '/account' || path.startsWith('/account/') || path.startsWith('/o/')
+// เส้นทางที่เปิดได้ในแอป (โหมดเว็บเปิดทุกเส้นทาง) · หน้าแรกเป็น '' เมื่อผ่าน router (ตัด / ท้ายแล้ว)
+const CUSTOMER_PATHS = ['/menu', '/line', '/legal', '/account', '/o', '/luck', '/s']
+const isCustomerPath = (path) => ['', '/'].includes(path) || CUSTOMER_PATHS.some((p) => path === p || path.startsWith(p + '/'))
 export const allowedInApp = (path) => {
   if (APP_MODE === 'customer') return isCustomerPath(path)
   return APP_MODE !== 'android' || ANDROID_PATHS.some((p) => path === p || path.startsWith(p + '/'))
