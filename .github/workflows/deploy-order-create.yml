@@ -18,6 +18,9 @@ jobs:
         run: deno test --no-prompt --no-lock --node-modules-dir=none supabase/functions/_shared/
       - name: ตรวจชนิดข้อมูลของ order-create
         run: deno check --no-lock --node-modules-dir=none supabase/functions/order-create/index.ts
+      # แอปตัวจริง (ตัวออกเลข + pushOrders) ยิงเข้า order-create ตัวจริง ทั้งโหมดจริงและโหมดทดสอบ (จำลองเฉพาะฐานข้อมูล)
+      - name: เทสต์เส้นทางสร้างออร์เดอร์ครบทาง (แอป → order-create)
+        run: deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/order-create/importmap.json supabase/tests/functions/order-create/
 
   deploy:
     needs: test

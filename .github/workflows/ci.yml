@@ -47,6 +47,12 @@ jobs:
       # ยิงคำขอจริงเข้า handler ของ customer-auth กับฐานข้อมูลจำลอง (ใช้ import map แทน supabase-js เฉพาะตอนเทสต์ ไม่กระทบการ deploy)
       - name: เทสต์ customer-auth ทั้งฟังก์ชัน
         run: deno test -A --no-lock --node-modules-dir=none --import-map=supabase/tests/functions/customer-auth/importmap.json supabase/tests/functions/customer-auth/
+      # เส้นทางหลักครบทาง: โค้ดแอปตัวจริงยิงเข้า Edge Function ตัวจริง (จำลองเฉพาะฐานข้อมูล ไม่ใช้คีย์ ไม่แตะระบบจริง)
+      # จับบั๊กแบบที่แอปกับเซิร์ฟเวอร์ตกลงกันไม่ตรง เช่น เลข TEST-OR ในโหมดทดสอบ
+      - name: เทสต์เส้นทางสร้างออร์เดอร์ครบทาง (แอป → order-create · โหมดจริงและโหมดทดสอบ)
+        run: deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/order-create/importmap.json supabase/tests/functions/order-create/
+      - name: เทสต์การส่งข้อความในโหมดทดสอบ (telegram-send · fb-send ส่งได้เฉพาะรายชื่อทดสอบ)
+        run: deno test -A --no-lock --node-modules-dir=none --import-map=supabase/tests/functions/messaging/importmap.json supabase/tests/functions/messaging/
       - name: ตรวจชนิดข้อมูลของทุก Edge Function
         run: deno check --no-lock --node-modules-dir=none supabase/functions/*/index.ts
 

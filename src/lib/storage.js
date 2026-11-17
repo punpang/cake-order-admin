@@ -9,7 +9,8 @@ export const isLocalImage = (v) => typeof v === 'string' && LOCAL.test(v)
 const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 + 1024
 const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }
 // Worker punpang-files (R2): ต้องตั้ง VITE_FILES_URL จึงอัปโหลดได้
-const FILES_URL = (import.meta.env.VITE_FILES_URL || '').replace(/\/$/, '')
+// import.meta.env มีเฉพาะตอน build ด้วย Vite · เทสต์ที่รันนอก Vite (Deno/Node) ได้ค่าว่าง
+const FILES_URL = (import.meta.env?.VITE_FILES_URL || '').replace(/\/$/, '')
 export const filesEnabled = () => !!FILES_URL
 export const filesBase = () => FILES_URL
 const NO_FILES = 'ยังไม่ได้ตั้งค่าเซิร์ฟเวอร์ไฟล์ (VITE_FILES_URL)'

@@ -1,0 +1,159 @@
+// ทดสอบเส้นทางสร้างออร์เดอร์ครบทาง: โค้ดฝั่งแอปตัวจริง (ตัวออกเลข + pushOrders) → Edge Function order-create ตัวจริง
+// จำลองเฉพาะเครือข่ายไปฐานข้อมูล (fetch) · ไม่ต้องมีคีย์ ไม่แตะฐานข้อมูลจริง
+// เหตุที่ต้องมี: บั๊ก TEST-OR (17 พ.ย. 69) เกิดจากแอปเติม TEST- แต่เซิร์ฟเวอร์ไม่รับ — เทสต์แยกฝั่งผ่านทั้งคู่ แต่ใช้ร่วมกันพัง
+// รัน: deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/order-create/importmap.json supabase/tests/functions/order-create/
+import { assert, assertEquals, assertStringIncludes } from 'jsr:@std/assert@1'
+import golden from '../../../../src/lib/quotePrice.golden.json' with { type: 'json' }
+import { pushOrders as pushOrdersJs } from '../../../../src/lib/ordersSync.js'
+// ชนิดของ pushOrders อนุมานจากค่าเริ่มต้นในไฟล์ JS (numbering = null) จึงใช้แบบไม่ตรวจชนิด
+const pushOrders = pushOrdersJs as any
+import { createNumbering } from '../../../../src/lib/docNo.js'
+import { docCode, TEST_HEADER } from '../../../../src/lib/testMode.js'
+
+// ---------- ดึง handler ของ order-create ----------
+let handler: (r: Request) => Promise<Response> = null as any
+;(Deno as any).serve = (h: any) => { handler = h; return { finished: Promise.resolve(), shutdown: async () => {} } }
+Deno.env.set('SUPABASE_URL', 'http://db.fake')
+Deno.env.set('SUPABASE_ANON_KEY', 'anon')
+Deno.env.set('SUPABASE_SERVICE_ROLE_KEY', 'service')
+
+// ---------- ฐานข้อมูลจำลอง (ผ่าน fetch) ----------
+const ref: any = (golden as any).cases.find((c: any) => c.payload && c.payload.items?.length)
+const cat: any = (golden as any).catalog
+const USERS: Record<string, string> = { 'tok-staff': 'u-staff', 'tok-chat': 'u-chat' }
+const STAFF: Record<string, any> = {
+  'u-staff': { user_id: 'u-staff', active: true, perms: ['createOrder'] },
+  'u-chat': { user_id: 'u-chat', active: true, perms: ['chat'] },
+}
+type Row = { schema: string; [k: string]: any }
+let rows: Row[] = []
+let reads: { table: string; schema: string }[] = []
+const J = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } })
+const realFetch = globalThis.fetch
+globalThis.fetch = (async (input: Request | URL | string, init?: RequestInit) => {
+  const req = new Request(input, init)
+  const url = new URL(req.url)
+  if (url.host !== 'db.fake') return realFetch(input, init)
+  const p = url.pathname
+  const eq = (k: string) => decodeURIComponent((url.searchParams.get(k) || '').replace(/^eq\./, ''))
+  if (p === '/auth/v1/user') {
+    const id = USERS[(req.headers.get('authorization') || '').replace(/^Bearer /, '')]
+    return id ? J({ id }) : J({ msg: 'invalid token' }, 401)
+  }
+  if (p === '/rest/v1/punpang_staff') return J(STAFF[eq('user_id')] ? [STAFF[eq('user_id')]] : [])
+  if (p === '/rest/v1/punpang_customers') {
+    reads.push({ table: 'punpang_customers', schema: req.headers.get('accept-profile') || 'public' })
+    return J([{ id: eq('id'), deleted: false }])
+  }
+  if (p === '/rest/v1/punpang_kv') return J(Object.entries(cat).filter(([k]) => k !== 'retailItems').map(([id, v]) => ({ id, data: { v } })))
+  if (p === '/rest/v1/punpang_items') return J(cat.retailItems.map((x: any) => ({ id: x.id, name: x.name, price: x.price, active: x.active, data: x })))
+  if (p === '/rest/v1/punpang_orders' && req.method === 'POST') {
+    const schema = req.headers.get('content-profile') || 'public'
+    const [row] = await req.json()
+    if (rows.some((r) => r.schema === schema && r.id === row.id)) return J({ code: '23505', message: 'duplicate key value violates unique constraint "punpang_orders_pkey"' }, 409)
+    if (rows.some((r) => r.schema === schema && r.code === row.code)) return J({ code: '23505', message: 'duplicate key value violates unique constraint "punpang_orders_code_key"' }, 409)
+    rows.push({ schema, ...row })
+    return J([{ ...row, updated_at: '2026-11-17T00:00:00.000000+00:00' }], 201)
+  }
+  throw new Error(`fetch ที่ไม่ได้จำลอง: ${req.method} ${url}`)
+}) as typeof fetch
+
+await import('../../../functions/order-create/index.ts')
+
+// ---------- ฝั่งแอป ----------
+// ไคลเอนต์ supabase จำลองเท่าที่ pushOrders ใช้กับออร์เดอร์ใหม่ (functions.invoke)
+// โหมดทดสอบใส่หัวเดียวกับที่ src/lib/supabase.js ใส่ (global.headers[TEST_HEADER] = 'test')
+const appClient = (token: string | null, test: boolean) => ({
+  functions: {
+    invoke: async (name: string, { body }: { body: unknown }) => {
+      const headers: Record<string, string> = { 'content-type': 'application/json' }
+      if (token) headers.authorization = `Bearer ${token}`
+      if (test) headers[TEST_HEADER] = 'test'
+      const res = await handler(new Request(`http://fn.fake/functions/v1/${name}`, { method: 'POST', headers, body: JSON.stringify(body) }))
+      if (res.ok) return { data: await res.json(), error: null }
+      return { data: null, error: { message: 'Edge Function returned a non-2xx status code', context: res } }
+    },
+  },
+})
+// ตัวออกเลขแบบเดียวกับแอป (src/data/store.js: decorate = docCode(code, testModeOn()))
+const numberingFor = (test: boolean) => createNumbering({ decorate: (code: string) => docCode(code, test) })
+let seq = 0
+// ออร์เดอร์ใหม่หน้าตาแบบที่แอปสร้าง (รายการจากเคสอ้างอิงที่มีราคาแน่นอน)
+const newOrder = (code: string) => ({
+  id: `o_flow_${++seq}`, code, customerId: ref.customerId ?? 'golden-cust', fulfillment: ref.draft.fulfillment, pickupAt: ref.draft.pickupAt,
+  birthday: ref.draft.birthday, items: structuredClone(ref.draft.items), status: 'awaiting_payment', history: [{ at: '', text: '', by: 'ทดสอบ' }], payments: [],
+})
+const reset = () => { rows = []; reads = [] }
+// เวลาเซิร์ฟเวอร์ = เวลาของชุดข้อมูลอ้างอิง (วันนัดในเคสจะไม่กลายเป็นอดีตเมื่อเวลาผ่านไป)
+const realNow = Date.now
+Date.now = () => (golden as any).nowMs
+addEventListener('unload', () => { Date.now = realNow })
+
+Deno.test('โหมดทดสอบ: เลขที่แอปออก (TEST-OR-…) บันทึกผ่าน และเขียนลงสคีมาทดสอบเท่านั้น', async () => {
+  reset()
+  const numbering = numberingFor(true)
+  const o = newOrder(numbering.next('OR'))
+  assert(o.code.startsWith('TEST-OR-'), o.code)
+  const r = await pushOrders(appClient('tok-staff', true), { upserts: [o] }, { numbering })
+  assertEquals(r, { ok: true })
+  assertEquals(rows.length, 1)
+  assertEquals([rows[0].schema, rows[0].code], ['punpang_test', o.code])
+  assertEquals(reads, [{ table: 'punpang_customers', schema: 'punpang_test' }])
+})
+
+Deno.test('โหมดจริง: เลข OR-… บันทึกผ่าน และเขียนลงสคีมาจริง', async () => {
+  reset()
+  const numbering = numberingFor(false)
+  const o = newOrder(numbering.next('OR'))
+  assert(/^OR-\d{6}-\d{6}$/.test(o.code), o.code)
+  const r = await pushOrders(appClient('tok-staff', false), { upserts: [o] }, { numbering })
+  assertEquals(r, { ok: true })
+  assertEquals([rows[0].schema, rows[0].code], ['public', o.code])
+})
+
+Deno.test('ข้ามโหมด: เลขทดสอบส่งเข้าโหมดจริง และเลขจริงส่งเข้าโหมดทดสอบ → ถูกปฏิเสธ ไม่มีอะไรถูกเขียน', async () => {
+  reset()
+  const testCode = newOrder(numberingFor(true).next('OR'))
+  const r1: any = await pushOrders(appClient('tok-staff', false), { upserts: [testCode] })
+  assertStringIncludes(r1.error, 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง')
+  const liveCode = newOrder(numberingFor(false).next('OR'))
+  const r2: any = await pushOrders(appClient('tok-staff', true), { upserts: [liveCode] })
+  assertStringIncludes(r2.error, 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง')
+  assertEquals(rows.length, 0)
+})
+
+Deno.test('ราคา: ราคาที่เครื่องส่งมาถูกทิ้ง เซิร์ฟเวอร์คิดใหม่จากแคตาล็อก และแอปรับค่าที่บันทึกจริงกลับมา', async () => {
+  reset()
+  const numbering = numberingFor(true)
+  const o: any = newOrder(numbering.next('OR'))
+  for (const it of o.items) { it.price = 1; it.total = 1; it.net = 1 }
+  const r = await pushOrders(appClient('tok-staff', true), { upserts: [o] }, { numbering })
+  assertEquals(r, { ok: true })
+  assertEquals(rows[0].data.items, ref.payload.items)
+  assertEquals(o.items, ref.payload.items)
+})
+
+Deno.test('สิทธิ์: ไม่ได้ล็อกอิน หรือบทบาทไม่มีสิทธิ์สร้างออร์เดอร์ → ถูกปฏิเสธ ไม่มีอะไรถูกเขียน', async () => {
+  reset()
+  const numbering = numberingFor(true)
+  const r1: any = await pushOrders(appClient(null, true), { upserts: [newOrder(numbering.next('OR'))] })
+  assertStringIncludes(r1.error, 'ต้องเข้าสู่ระบบพนักงาน')
+  const r2: any = await pushOrders(appClient('tok-chat', true), { upserts: [newOrder(numbering.next('OR'))] })
+  assertStringIncludes(r2.error, 'บทบาทนี้สร้างออร์เดอร์ไม่ได้')
+  assertEquals(rows.length, 0)
+})
+
+Deno.test('เลขซ้ำในโหมดทดสอบ: แอปออกเลขใหม่ (ยังมี TEST-) แล้วบันทึกผ่าน', async () => {
+  reset()
+  const numbering = numberingFor(true)
+  const o = newOrder(numbering.next('OR'))
+  const taken = o.code
+  rows.push({ schema: 'punpang_test', id: 'o_other', code: taken })
+  const recoded: string[] = []
+  const r = await pushOrders(appClient('tok-staff', true), { upserts: [o] }, { numbering, onRecode: (_o: unknown, c: string) => recoded.push(c) })
+  assertEquals(r, { ok: true })
+  assertEquals(recoded.length, 1)
+  assert(recoded[0].startsWith('TEST-OR-') && recoded[0] !== taken, recoded[0])
+  assertEquals(rows.at(-1)?.code, recoded[0])
+})
+
