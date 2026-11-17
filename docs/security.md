@@ -2,6 +2,17 @@
 
 ผลตรวจโค้ดทั้งระบบ (ฟังก์ชันเซิร์ฟเวอร์ ฐานข้อมูลจริง ฝั่งแอป หน้าจอ/การตั้งค่า) และสิ่งที่แก้แล้ว · รอบล่าสุด 2026-11-14 อยู่ด้านบน รอบ 2026-11-10 อยู่ถัดลงไป
 
+## รอบแก้ 2026-11-17 (L-1, L-2, L-5, L-6 และสิทธิ์ฟังก์ชัน) — deploy แล้ว
+
+- **deploy จาก main `cc65544`:** `order-link` (v49), `lucky-spin` (v6), `customer-auth` (v55) · รอบแรกของ deploy order-link รายงานสำเร็จแต่เวอร์ชันบน Supabase ยังเป็นเวอร์ชันเก่า จึงสั่งซ้ำและยืนยันแล้วว่าเป็น v49
+- **L-1 (IP จำกัดอัตรา):** `order-link` และ `lucky-spin` ใช้ `clientIp` (cf-connecting-ip หรือค่าท้ายสุดของ x-forwarded-for) แทนค่าซ้ายสุดที่ผู้เรียกใส่เองได้
+- **L-2 (ฟิลด์ภายในลิงก์):** `order-link` ไม่ส่ง `tokenHash`, `openCount`, `revokedAt` ให้ผู้เรียก (หน้าลูกค้าไม่ได้ใช้ และหน้าร้านอ่านจากข้อมูลในเครื่องเดิม)
+- **L-5 (ความยินยอมโปรโมชั่น):** `update_profile` ที่ไม่ได้ส่ง `promoOptIn` คงค่าเดิมไว้ ไม่ถอนความยินยอมโดยไม่ตั้งใจ
+- **L-6 (รีวิวซ้ำ):** เพิ่ม unique index ของรีวิวต่อออร์เดอร์บน `punpang_records` (collection `reviews`) ตอนเพิ่มยังไม่มีรีวิวในระบบ จึงไม่มีรายการซ้ำต้องลบ
+- **สิทธิ์ฟังก์ชัน (migration `security_grants_review_index`, รันแล้ว):** เพิกถอน execute ของ trigger `punpang_push_on_bell` / `punpang_push_on_chat` และชุดทดสอบใน schema `punpang_test` จาก public/anon/authenticated · ฟังก์ชันที่แอปเรียกผ่าน RPC หรือ `pointsHook` ไม่เปลี่ยน
+- **L-3 (คงไว้ด้วยเหตุผล):** `punpang__coupon_entry_ok` และ `punpang__quote_check` ถูกเรียกจาก trigger `punpang_orders_insert_guard` / `punpang_orders_field_guard` ที่เป็น SECURITY INVOKER จึงทำงานด้วยสิทธิ์ของผู้บันทึกออร์เดอร์ (พนักงาน) ถ้าเพิกถอน authenticated จะบันทึกออร์เดอร์ไม่ได้ · ทางเลือกในอนาคต: เปลี่ยน trigger เป็น SECURITY DEFINER หลังทดสอบแยก
+- **S-05 (pg_net อยู่ใน schema public — ยังไม่ทำ, กำหนดทำนอกเวลาใช้งาน):** `extrelocatable = false` ย้ายด้วย `ALTER EXTENSION` ไม่ได้ · ทดสอบในธุรกรรมที่ย้อนกลับแล้ว: drop/create ใน schema `extensions` ได้ และ `net.http_post` ยังอยู่ใน schema `net` · คิวค้าง ณ วันบันทึกเป็น 0 · ฟังก์ชัน `net.http_post` ยังให้ anon และ authenticated เรียกได้ ควรเพิกถอนในขั้นเดียวกัน (ตัวที่เรียกคือ trigger แบบ definer เท่านั้น)
+
 ## รอบแก้ 2026-11-15 (ต่อจากผลตรวจ main `0e38009`) — แก้ในรีโปแล้ว ยังไม่ได้ deploy
 
 **ผลตรวจซ้ำด้วยการรันจริง:** `supabase/tests/run.sh` บน Postgres 16 ผ่าน 80 migration และ 136 ข้อ · Deno ผ่าน 306 + 10 ข้อ และ `deno check` ทุก Edge Function (รวม `quote-create` และ `order-audit`) · `npm test` ผ่าน 30 ไฟล์ · `npm run build` ผ่าน
