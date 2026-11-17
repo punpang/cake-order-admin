@@ -51,13 +51,22 @@ export function returnPoints(ledger, takes) {
 // pending = ยังไม่ใช้ · active = ลูกค้ากด "ใช้ที่ร้านตอนนี้" และยังไม่ครบเวลา (POS เห็น) · lapsed = ครบเวลาโดยไม่ได้มอบ/ใช้ (ถือว่าใช้แล้ว)
 // delivered/used = มอบ/ใช้แล้ว · refunded = หลังบ้านคืนคะแนน · expired = เกินวันหมดอายุของคูปอง
 export function couponPhase(c, today, nowIso = new Date().toISOString()) {
-  if (['delivered', 'used', 'refunded', 'lapsed'].includes(c.status)) return c.status
+  if (['delivered', 'used', 'refunded', 'lapsed', 'void'].includes(c.status)) return c.status
   if (c.expiresAt && c.expiresAt < today) return 'expired'
   if (c.activatedUntil) return c.activatedUntil > nowIso ? 'active' : 'lapsed'
   return 'pending'
 }
-// คูปองที่ใช้ได้ = pending หรือ active (lapsed/expired/ใช้แล้ว/คืนคะแนนแล้ว ใช้ไม่ได้)
-export const couponUsable = (c, today, nowIso) => ['pending', 'active'].includes(couponPhase(c, today, nowIso))
+// คูปองที่ใช้ได้ = pending หรือ active (lapsed/expired/ใช้แล้ว/คืนคะแนนแล้ว/ยกเลิกแล้ว ใช้ไม่ได้) · คูปองคืนเงินต้องมียอดคงเหลือ
+export const couponUsable = (c, today, nowIso) =>
+  ['pending', 'active'].includes(couponPhase(c, today, nowIso)) && (c.mode !== 'credit' || (Number(c.balance) || 0) > 0)
+
+// แผนแปลงคะแนนคงเหลือเป็นคูปองใบเดียว: คะแนนที่ใช้ได้ทั้งหมด × มูลค่าต่อคะแนน · ไม่มีคะแนนที่ใช้ได้ = null
+export function conversionPlan(ledger, today, pointValue = 1) {
+  const points = pointBalance(ledger, today)
+  if (!(points > 0)) return null
+  const pv = Number(pointValue) > 0 ? Number(pointValue) : 1
+  return { points, amount: Math.round(points * pv * 100) / 100 }
+}
 // วินาทีที่เหลือของการแสดงที่ร้าน (0 = ไม่ได้แสดง/หมดแล้ว)
 export const activeSecondsLeft = (c, nowMs = Date.now()) => (c.activatedUntil ? Math.max(0, Math.ceil((new Date(c.activatedUntil).getTime() - nowMs) / 1000)) : 0)
 

@@ -86,7 +86,7 @@ function save() {
       <div><label class="label" for="rf-reason">เหตุผล <span class="text-rose-600">*</span></label><input id="rf-reason" v-model="f.reason" class="input" maxlength="120" /></div>
       <div>
         <div class="label">คืนเงินให้ลูกค้า</div>
-        <RefundEditor v-model="f.refunds" :paid="t.paidNet" :can-points="!!customer && !customer.deleted" :default-method="defMethod" />
+        <RefundEditor v-model="f.refunds" :paid="t.paidNet" :can-credit="!!customer && !customer.deleted" :default-method="defMethod" />
       </div>
       <div><label class="label" for="rf-note">หมายเหตุ</label><input id="rf-note" v-model="f.note" class="input" maxlength="120" /></div>
       <label v-if="customer" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="f.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่าคืนเงินแล้ว" /> แจ้งลูกค้าว่าคืนเงินแล้ว</label>

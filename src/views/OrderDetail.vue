@@ -8,7 +8,7 @@ import {
   updatePaymentRequest, cancelPaymentRequest, cancelConfirmedPayment,
   requestConfirmUnpaid, confirmUnpaid, rejectConfirmUnpaid, grantPayExtension, denyPayExtension,
   saveOrderItem, removeOrderItem, orderDate,
-  db, customerPoints, usableDiscountCoupons, applyPointsRemote, removePointsRemote, claimAndApplyCoupon, removeCoupon,
+  db, customerPoints, usableDiscountCoupons, removePointsRemote, claimAndApplyCoupon, removeCoupon,
   setBirthday, depositOf, setDelivery, setOrderNotifyChannel,
   refreshOrderGate, reviewOrderGate,
 } from '../data/store'
@@ -295,28 +295,10 @@ function onSaveItem(item, opts) {
 }
 
 // ---------- คะแนน / คูปอง (พนักงาน) ----------
+// การใช้คะแนนลดราคาถูกถอดแล้ว (ใช้คูปองแทน) · ออร์เดอร์ค้างที่ใช้คะแนนไว้ก่อนยังยกเลิกการใช้ได้ด้านล่าง
 const canLoyalty = computed(() => can('useLoyalty') && !closed.value && !!customer.value)
 const points = computed(() => customerPoints(customer.value))
 const coupons = computed(() => usableDiscountCoupons(customer.value))
-const ptOpen = ref(false)
-const ptUse = ref(0)
-const ptError = ref('')
-// ใช้ได้ไม่เกินคะแนนที่มี และไม่เกินยอดที่ต้องจ่าย
-const ptMax = computed(() => Math.min(points.value, Math.floor(Math.max(t.value.total, 0) / (db.loyalty.pointValue || 1))))
-function openPoints() {
-  ptUse.value = ptMax.value
-  ptError.value = ''
-  ptOpen.value = true
-}
-async function savePoints() {
-  const n = Math.floor(Number(ptUse.value) || 0)
-  if (n <= 0 || n > ptMax.value) return (ptError.value = `ใช้ได้ 1 – ${ptMax.value} คะแนน`)
-  const r0 = await askConfirmEx({ title: 'ใช้คะแนน', message: `ใช้ ${n} คะแนน ลด ${money(n * db.loyalty.pointValue)}`, okText: 'ใช้คะแนน', ...notifyBoxOf(customer.value) })
-  if (!r0.ok) return
-  const r = await applyPointsRemote(order.value, n, notifyOf(r0))
-  if (r.error) return (ptError.value = r.error)
-  ptOpen.value = false
-}
 
 // ---------- ยกเลิก ----------
 const cancelOpen = ref(false)
@@ -586,7 +568,6 @@ async function saveCancel() {
             <span>ใช้ {{ order.pointsUsed.points }} คะแนน (−{{ money(order.pointsUsed.amount) }})</span>
             <button v-if="canLoyalty" class="text-rose-700 underline" @click="doRemovePoints">ยกเลิก</button>
           </div>
-          <button v-else-if="canLoyalty && ptMax > 0" class="btn-soft mt-3 w-full" @click="openPoints"><AppIcon name="tag" :size="16" /> ใช้คะแนนเป็นส่วนลด</button>
 
           <div v-for="u in order.couponsUsed" :key="u.couponId" class="mt-2 flex items-center justify-between gap-2 rounded-xl bg-brand-50 p-2.5 text-sm">
             <span class="min-w-0 break-words">คูปอง {{ u.name }} (−{{ money(u.amount) }})</span>
@@ -775,20 +756,6 @@ async function saveCancel() {
       </template>
     </AppModal>
 
-    <!-- modal ใช้คะแนน -->
-    <AppModal v-if="ptOpen" title="ใช้คะแนนเป็นส่วนลด" @close="ptOpen = false">
-      <div class="space-y-4">
-        <div class="rounded-xl bg-brand-50 p-3 text-sm text-brand-800">มี {{ points }} คะแนน · 1 คะแนน = {{ money(db.loyalty.pointValue) }} · ใช้ได้สูงสุด {{ ptMax }} คะแนน</div>
-        <div><label class="label">จำนวนคะแนน</label><input v-model.number="ptUse" type="text" v-num min="1" :max="ptMax" class="input text-lg font-semibold" /></div>
-        <div class="text-sm text-stone-600">ลด {{ money((Number(ptUse) || 0) * db.loyalty.pointValue) }}</div>
-        <p v-if="ptError" class="text-sm text-rose-700">{{ ptError }}</p>
-      </div>
-      <template #footer>
-        <button class="btn-outline flex-1 sm:flex-none" @click="ptOpen = false">ยกเลิก</button>
-        <button class="btn-primary flex-1 sm:flex-none" @click="savePoints">ใช้คะแนน</button>
-      </template>
-    </AppModal>
-
     <!-- modal แจ้งยอด / แก้ยอด / ยืนยันยอดจริง -->
     <AppModal v-if="dvOpen" title="ข้อมูลจัดส่ง" @close="dvOpen = false">
       <DeliveryFields :form="dv" :customer-id="order.customerId" />
@@ -841,7 +808,7 @@ async function saveCancel() {
         <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><textarea v-model="cxl.reason" rows="2" class="input" /></div>
         <div>
           <div class="label">คืนเงินให้ลูกค้า</div>
-          <RefundEditor v-model="cxl.refunds" :paid="t.paidNet":can-points="!!customer && !customer.deleted" :default-method="defaultRefundMethod(order.payments.filter((p) => p.status === 'confirmed').at(-1)?.method)" />
+          <RefundEditor v-model="cxl.refunds" :paid="t.paidNet":can-credit="!!customer && !customer.deleted" :default-method="defaultRefundMethod(order.payments.filter((p) => p.status === 'confirmed').at(-1)?.method)" />
         </div>
         <div><label class="label">หมายเหตุการคืนเงิน</label><input v-model="cxl.refundNote" class="input" /></div>
         <label v-if="customer" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="cxl.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่ายกเลิก" /> แจ้งลูกค้าว่ายกเลิกออร์เดอร์</label>

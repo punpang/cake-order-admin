@@ -4,7 +4,7 @@ import { orderNo } from '../../lib/format'
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import NotifyChannelPicker from '../../components/NotifyChannelPicker.vue'
-import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, can, adminResetCustomerPin } from '../../data/store'
+import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, convertPointsRemote, can, adminResetCustomerPin } from '../../data/store'
 import { isPin } from '../../lib/customerAuth'
 import { askConfirm } from '../../lib/confirm'
 import { orderTotals } from '../../lib/pricing'
@@ -72,6 +72,17 @@ async function saveAdj() {
   const r = await adjustPointsRemote(form.id, adj.sign * n, adj.reason)
   if (r.error) return (adj.error = r.error)
   adj.open = false
+}
+// แปลงคะแนนที่ใช้ได้ทั้งหมดเป็นคูปองใบเดียว (ใช้ครั้งเดียว มูลค่าเท่ายอดคะแนน หมดอายุ 30 วันนับจากวันแปลง)
+const conv = reactive({ msg: '', error: '' })
+async function convertPoints() {
+  conv.msg = ''
+  conv.error = ''
+  if (!(balance.value > 0)) return (conv.error = 'ไม่มีคะแนนที่ใช้ได้ให้แปลง')
+  if (!(await askConfirm({ title: 'แปลงคะแนนเป็นคูปอง', message: `${form.name}: ${balance.value} คะแนน → คูปอง ${money(balance.value)} ใช้ได้ครั้งเดียว หมดอายุใน 30 วัน`, okText: 'แปลงเป็นคูปอง', danger: true }))) return
+  const r = await convertPointsRemote(form.id)
+  if (r.error) return (conv.error = r.error)
+  conv.msg = `แปลง ${r.points} คะแนนเป็นคูปอง ${money(r.amount)} แล้ว`
 }
 
 // ---------- สถานที่จัดส่งที่จำไว้ ----------
@@ -189,8 +200,13 @@ async function save() {
         <div v-if="form.id && live" class="rounded-xl border border-stone-200/70 p-3">
           <div class="flex items-center justify-between gap-2">
             <div><div class="text-xs text-stone-500">คะแนนคงเหลือ</div><div class="text-xl font-semibold text-stone-900" aria-label="คะแนนคงเหลือ">{{ balance }}</div></div>
-            <button v-if="can('adjustPoints')" type="button" class="btn-soft h-9" @click="openAdj">ปรับคะแนน</button>
+            <div class="flex flex-wrap justify-end gap-2">
+              <button v-if="can('adjustPoints') && balance > 0" type="button" class="btn-soft h-9" @click="convertPoints">แปลงเป็นคูปอง</button>
+              <button v-if="can('adjustPoints')" type="button" class="btn-soft h-9" @click="openAdj">ปรับคะแนน</button>
+            </div>
           </div>
+          <p v-if="conv.error" class="mt-2 text-sm text-rose-700" role="alert">{{ conv.error }}</p>
+          <p v-if="conv.msg" class="mt-2 text-sm text-emerald-700" role="status">{{ conv.msg }}</p>
           <ul v-if="ledger.length" class="mt-2 divide-y divide-stone-100 text-xs">
             <li v-for="e in ledger" :key="e.id" class="flex items-start justify-between gap-2 py-1.5">
               <span class="min-w-0 break-words text-stone-600">{{ e.reason }}<span v-if="e.adjust" class="ml-1 rounded-full bg-amber-50 px-1.5 text-xs text-amber-700">ปรับเอง · {{ e.by === 'admin' ? 'แอดมิน' : e.by }}</span><span class="block text-stone-400">{{ dateTime(e.at) }}</span></span>

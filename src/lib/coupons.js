@@ -16,8 +16,11 @@ const num = (x) => {
 }
 const cents = (n) => Math.round((n + Number.EPSILON) * 100) / 100
 
-// ประเภทของคูปอง (ไม่มีค่า = ลดเป็นบาทเหมือนเดิม)
-export const modeOf = (x) => (x?.mode === 'spend' || x?.mode === 'product' ? x.mode : 'fixed')
+// ประเภทของคูปอง (ไม่มีค่า = ลดเป็นบาทเหมือนเดิม) · credit = คูปองคืนเงิน ใช้ได้หลายครั้งจนยอดคงเหลือหมด
+export const modeOf = (x) => (x?.mode === 'spend' || x?.mode === 'product' || x?.mode === 'credit' ? x.mode : 'fixed')
+export const isCredit = (x) => modeOf(x) === 'credit'
+// ยอดคงเหลือของคูปองคืนเงิน (ยอดที่ยังไม่ถูกจองกับออร์เดอร์ใด)
+export const creditBalanceOf = (x) => cents(Math.max(0, num(x?.balance)))
 
 // ยอดสินค้า = ราคาหลังส่วนลดรายการ × จำนวน (ไม่รวมค่าส่ง ปรับราคา คะแนน คูปอง)
 export const goodsOf = (order) => cents((order.items || []).reduce((s, i) => s + num(i.unitPrice) * num(i.qty), 0))
@@ -34,6 +37,11 @@ export function couponQuoteOf(cp, order) {
   const mode = modeOf(cp)
   const total = orderTotals(order).total
   const goods = goodsOf(order)
+  if (mode === 'credit') {
+    const available = creditBalanceOf(cp)
+    if (!(available > 0)) return { ok: false, amount: 0, reason: 'ยอดคงเหลือของคูปองหมดแล้ว' }
+    return { ok: true, amount: cents(Math.min(available, total)), reason: '' }
+  }
   if (mode === 'fixed') {
     const minSpend = num(cp.minSpend)
     if (minSpend > 0 && goods < minSpend) return { ok: false, amount: 0, reason: `ยอดสินค้าต้องถึง ${money(minSpend)}` }
@@ -76,6 +84,7 @@ export function quoteCouponList(order, coupons) {
 // ข้อความเงื่อนไขของคูปอง (ใช้ได้กับทั้งของแลกและคูปองที่แลกแล้ว)
 export function couponTermsText(x) {
   const mode = modeOf(x)
+  if (mode === 'credit') return `คูปองคืนเงิน ยอดคงเหลือ ${money(creditBalanceOf(x))} ใช้ได้หลายครั้งจนหมด`
   if (mode === 'spend') return `ซื้อครบ ${money(num(x.minSpend))} ลด ${num(x.pct)}% สูงสุด ${money(num(x.cap))}`
   if (mode === 'product') return `ซื้อ${x.productName ? ` ${x.productName}` : 'สินค้าที่กำหนด'} ลด ${num(x.pct)}% สูงสุด ${money(num(x.cap))}`
   return `ส่วนลด ${money(num(x.amount))}${num(x.minSpend) > 0 ? ` (ขั้นต่ำ ${money(num(x.minSpend))})` : ''}`

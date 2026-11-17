@@ -1,5 +1,8 @@
-// คืนเงินตอนยกเลิก (ฟังก์ชันล้วน): แบ่งยอดคืนได้หลายช่องทาง เงินสด / ธนาคาร(โอน) / คะแนนสะสม
-export const REFUND_METHODS = { cash: 'เงินสด', transfer: 'ธนาคาร (โอน)', points: 'คะแนนสะสม' }
+// คืนเงินตอนยกเลิก (ฟังก์ชันล้วน): แบ่งยอดคืนได้หลายช่องทาง เงินสด / ธนาคาร(โอน) / คูปองคืนเงิน
+// points = รายการคืนเป็นคะแนนแบบเดิม (แสดงประวัติได้ แต่คืนรายการใหม่เป็นคะแนนไม่ได้แล้ว)
+export const REFUND_METHODS = { cash: 'เงินสด', transfer: 'ธนาคาร (โอน)', credit: 'คูปองคืนเงิน', points: 'คะแนนสะสม (รายการเดิม)' }
+// ช่องทางที่เลือกได้ตอนคืนเงินรายการใหม่
+export const REFUND_CHOICES = ['cash', 'transfer', 'credit']
 const r2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100
 
 // ช่องทางคืนตั้งต้นจากวิธีที่ลูกค้าจ่าย (เงินสด → เงินสด · อื่น ๆ → โอน)
@@ -8,29 +11,26 @@ export const defaultRefundMethod = (payMethod) => (payMethod === 'เงิน�
 // รูปแบบเก่า { refundAmount, refundMethod } → รายการใหม่
 export function normalizeRefunds(c, paid = 0) {
   if (Array.isArray(c?.refunds)) {
-    return c.refunds.map((x) => ({ method: x.method, amount: r2(x.amount), ...(x.points != null ? { points: x.points } : {}) })).filter((x) => x.amount > 0)
+    return c.refunds.map((x) => ({ method: x.method, amount: r2(x.amount), ...(x.points != null ? { points: x.points } : {}), ...(x.couponId ? { couponId: x.couponId } : {}) })).filter((x) => x.amount > 0)
   }
   const amount = r2(c?.refundAmount)
   return amount > 0 ? [{ method: defaultRefundMethod(c?.refundMethod), amount }] : []
 }
 
 // ตรวจรายการคืน → ข้อความผิดพลาด ('' = ผ่าน)
-// opts: { paid, canPoints (ลูกค้ามีบัญชีสะสมคะแนน), pointValue (บาทต่อคะแนน) }
-export function refundErrors(rows, { paid = 0, canPoints = false, pointValue = 1 } = {}) {
+// opts: { paid, canCredit (ออร์เดอร์ผูกกับลูกค้า จึงออกคูปองคืนเงินได้) }
+export function refundErrors(rows, { paid = 0, canCredit = false } = {}) {
   const seen = new Set()
   let sum = 0
   for (const x of rows) {
     if (!REFUND_METHODS[x.method]) return 'ช่องทางคืนไม่ถูกต้อง'
+    if (!REFUND_CHOICES.includes(x.method)) return 'ช่องทางนี้คืนเงินรายการใหม่ไม่ได้แล้ว ใช้คูปองคืนเงินแทน'
     const a = Number(x.amount)
     if (!(a > 0)) return 'ยอดคืนแต่ละช่องทางต้องมากกว่า 0 (ลบแถวที่ไม่ใช้)'
     if (seen.has(x.method)) return 'ช่องทางเดียวกันใส่ซ้ำ รวมเป็นแถวเดียว'
     seen.add(x.method)
     sum += a
-    if (x.method === 'points') {
-      if (!canPoints) return 'คืนเป็นคะแนนไม่ได้ (ไม่มีลูกค้า/บัญชีสะสมคะแนนในออร์เดอร์นี้)'
-      const q = a / (pointValue || 1)
-      if (Math.abs(q - Math.round(q)) > 1e-9) return `ยอดคืนเป็นคะแนนต้องหารด้วย ${pointValue} ลงตัว (1 คะแนน = ${pointValue} บาท)`
-    }
+    if (x.method === 'credit' && !canCredit) return 'คืนเป็นคูปองไม่ได้ (ไม่มีลูกค้า/บัญชีในออร์เดอร์นี้)'
   }
   if (r2(sum) > r2(paid)) return `คืนรวมเกินยอดที่ชำระแล้ว (${r2(paid)} บาท)`
   return ''
@@ -43,7 +43,7 @@ export const returnsOf = (order) => allReturnsOf(order).filter((x) => !x.cancell
 export const returnedTotal = (order) => r2(returnsOf(order).reduce((s, x) => s + (Number(x.amount) || 0), 0))
 // ยอดคืนบางส่วนแยกช่องทาง { cash, transfer, points }
 export function returnedByMethod(order) {
-  const m = { cash: 0, transfer: 0, points: 0 }
+  const m = { cash: 0, transfer: 0, credit: 0, points: 0 }
   for (const r of returnsOf(order)) for (const x of r.refunds || []) m[x.method] = r2((m[x.method] || 0) + (Number(x.amount) || 0))
   return m
 }

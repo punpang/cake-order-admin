@@ -6,7 +6,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posPromoInfo, posSale, voidPosSale, addPosPartial, editPosPending, finishPosBill, pointsFor, quickMember, vatNow,
   customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons, claimPosCoupons, releaseCoupons,
-  newPosQrRef, posQrExpired, issueLuckyToken,
+  newPosQrRef, posQrExpired, issueLuckyToken, reserveBillId,
 } from '../data/store'
 import { activeSecondsLeft } from '../lib/loyalty'
 import { orderTotals, discountLines } from '../lib/pricing'
@@ -698,27 +698,30 @@ async function saveEdit() {
     await refreshLabels(['สินค้า', 'กะ POS']) // สต็อก/ราคา/กะล่าสุดจากเซิร์ฟเวอร์ก่อนแก้บิล
     const target = db.orders.find((o) => o.id === editBill.value.id) || editBill.value
     const addIds = couponIds.value.filter((id) => !target.couponsUsed.some((c) => c.couponId === id))
-    const claim = addIds.length ? await claimPosCoupons(addIds) : { ok: true, claimed: [] }
+    const claim = addIds.length ? await claimPosCoupons(addIds, { orderId: target.id, amounts: quotedAmounts() }) : { ok: true, claimed: [] }
     if (claim.error) return showToast(claim.error, 8000, 'error')
     const r = editPosPending(target, cart.value, { dropCouponIds: editDrop.value, addCouponIds: addIds })
-    if (r.error) { await releaseCoupons(claim.claimed); return showToast(r.error, 10000, 'error') }
+    if (r.error) { await releaseCoupons(claim.claimed, target.id); return showToast(r.error, 10000, 'error') }
     showToast(`บันทึกการแก้ไขบิล ${r.order.code} แล้ว · ยอดรวม ${money(orderTotals(r.order).total)}`, 8000)
     exitEdit()
   } finally { selling = false }
 }
+// ยอดที่คิดจริงของคูปองในบิลตอนนี้ { couponId: ยอด } ใช้จองยอดคูปองคืนเงินให้ตรงกับตอนขาย
+const quotedAmounts = () => Object.fromEntries(pickedCoupons.value.map((x) => [x.couponId, x.amount]))
 async function sellNow(opts = {}) {
   payErr.value = member.value ? posCouponProblem({ customerId: member.value.id, couponIds: couponIds.value }) : ''
   if (payErr.value) { couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id)); return }
-  // จองคูปองกับเซิร์ฟเวอร์ก่อน (อะตอมิก) · ขายไม่สำเร็จ = คืนคูปองที่จองไว้
-  const claim = couponIds.value.length ? await claimPosCoupons(couponIds.value) : { ok: true, claimed: [] }
+  // จองคูปองกับเซิร์ฟเวอร์ก่อนขาย (อะตอมิก) ด้วยรหัสบิลที่จะเกิดจริง · ขายไม่สำเร็จ = คืนคูปองที่จองไว้
+  const billId = reserveBillId()
+  const claim = couponIds.value.length ? await claimPosCoupons(couponIds.value, { orderId: billId, amounts: quotedAmounts() }) : { ok: true, claimed: [] }
   if (claim.error) return (payErr.value = claim.error)
   const o = posSale({
     cart: cart.value, customerId: member.value?.id || null, couponIds: couponIds.value,
     discount: can('adjustPrice') ? Number(discount.value) || 0 : 0,
-    lines: opts.lines || activeLines.value.map(toPosLine), partial: !!opts.partial,
+    lines: opts.lines || activeLines.value.map(toPosLine), partial: !!opts.partial, billId,
   })
-  if (!o) { await releaseCoupons(claim.claimed); return (payErr.value = 'ขายไม่สำเร็จ ตรวจกะ/ตะกร้า/คูปองอีกครั้ง') }
-  // ผูกคูปองที่จองไว้ (pos-pending) เข้ากับบิลจริงบนเซิร์ฟเวอร์ผ่านการซิงก์แถวคูปองตามปกติ
+  if (!o) { await releaseCoupons(claim.claimed, billId); return (payErr.value = 'ขายไม่สำเร็จ ตรวจกะ/ตะกร้า/คูปองอีกครั้ง') }
+  // คูปองที่จองไว้ผูกกับบิลจริงแล้ว (รหัสบิลเดียวกัน) และซิงก์แถวคูปองตามปกติ
   if (!opts.keepOpen) closePay() // ผูกยอดโอนเป็นบิลค้าง: หน้าชำระเปิดอยู่ต่อ
   cartOpen.value = false
   if (opts.keepOpen) showToast(`บันทึกยอดที่รับแล้วเป็นบิลค้าง ${o.code} · รับส่วนที่เหลือต่อในหน้านี้`, 8000)
@@ -1037,7 +1040,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><input v-model="vd.reason" class="input" maxlength="120" /></div>
         <div>
           <div class="label">คืนเงินให้ลูกค้า</div>
-          <RefundEditor v-model="vd.refunds" :paid="voidPaid" :can-points="!!voidFor.customerId && !!findCustomer(voidFor.customerId) && !findCustomer(voidFor.customerId).deleted" :default-method="voidDefault" />
+          <RefundEditor v-model="vd.refunds" :paid="voidPaid" :can-credit="!!voidFor.customerId && !!findCustomer(voidFor.customerId) && !findCustomer(voidFor.customerId).deleted" :default-method="voidDefault" />
         </div>
         <div><label class="label">หมายเหตุการคืนเงิน</label><input v-model="vd.note" class="input" maxlength="120" /></div>
         <p v-if="vd.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ vd.error }}</p>

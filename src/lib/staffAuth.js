@@ -219,8 +219,11 @@ async function startData(staff) {
     return r.data || {}
   }
   // จองคูปองแบบอะตอมิกบนเซิร์ฟเวอร์ (RPC punpang_claim_coupon / punpang_release_coupon)
-  store.couponHook.claim = async (couponId, orderId) => {
-    const r = await client.rpc('punpang_claim_coupon', { p_coupon: couponId, p_order: orderId })
+  // คูปองคืนเงิน (amount ส่งมา) จองเฉพาะยอดที่ใช้ผ่าน punpang_hold_credit · คูปองแบบอื่นจองทั้งใบผ่าน punpang_claim_coupon
+  store.couponHook.claim = async (couponId, orderId, amount = null) => {
+    const r = amount != null
+      ? await client.rpc('punpang_hold_credit', { p_coupon: couponId, p_order: orderId, p_amount: amount })
+      : await client.rpc('punpang_claim_coupon', { p_coupon: couponId, p_order: orderId })
     if (r.error) throw new Error(r.error.message)
     return String(r.data || '')
   }

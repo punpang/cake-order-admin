@@ -117,7 +117,7 @@ function save() {
       <!-- 2) คืนเงินสินค้าเดิม -->
       <section v-if="returnPicked.length" class="space-y-2">
         <div class="label">2. คืนเงินสินค้าเดิม · {{ money(returnAmount) }}</div>
-        <RefundEditor v-model="refunds" :paid="orderTotals(order).paidNet" :can-points="!!customer && !customer.deleted" :default-method="defMethod" />
+        <RefundEditor v-model="refunds" :paid="orderTotals(order).paidNet" :can-credit="!!customer && !customer.deleted" :default-method="defMethod" />
       </section>
 
       <!-- 3) สินค้าใหม่ -->

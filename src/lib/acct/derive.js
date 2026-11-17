@@ -4,7 +4,7 @@ import { orderTotals } from '../pricing'
 import { orderCost } from '../materials'
 import { toDateStr } from '../format'
 import { toS, toB, allocate } from './money'
-import { CASH, BANK, AR, INV, DEPOSIT, OUTPUT_VAT, POINTS_LIAB } from './chart'
+import { CASH, BANK, AR, INV, DEPOSIT, OUTPUT_VAT, POINTS_LIAB, COUPON_LIAB } from './chart'
 
 const dateOf = (ts) => (ts ? toDateStr(new Date(ts)) : '')
 const isCash = (p) => p.posMethod === 'cash' || p.method === 'เงินสด'
@@ -14,17 +14,20 @@ const cashAcc = (p) => (isCash(p) ? CASH : BANK)
 function pack(lines) {
   const m = new Map()
   for (const l of lines) {
-    const k = `${l.account}|${l.side}|${l.poolable ? 'p' : ''}`
-    const cur = m.get(k) || { account: l.account, side: l.side, s: 0, poolable: !!l.poolable }
+    // poolable = รหัสบัญชีภาระที่ตัดได้ (2310 / 2320) · เก็บรหัสไว้ทั้งก้อนเพื่อให้รู้ว่าตัดจากภาระบัญชีใด
+    const k = `${l.account}|${l.side}|${l.poolable || ''}`
+    const cur = m.get(k) || { account: l.account, side: l.side, s: 0, poolable: l.poolable || null }
     cur.s += l.s
     m.set(k, cur)
   }
-  return [...m.values()].filter((x) => x.s !== 0).map((x) => ({ account: x.account, [x.side]: toB(x.s), ...(x.poolable ? { poolable: true } : {}) }))
+  return [...m.values()].filter((x) => x.s !== 0).map((x) => ({ account: x.account, [x.side]: toB(x.s), ...(x.poolable ? { poolable: x.poolable } : {}) }))
 }
 const entry = (id, date, memo, source, lines, tax = null) => ({ id, date, memo, source, lines: pack(lines), auto: true, ...(tax && tax.length ? { tax } : {}) })
 const swap = (lines) => lines.map((l) => ({ ...l, side: l.side === 'dr' ? 'cr' : 'dr' }))
 const dr = (account, s, extra = {}) => ({ account, side: 'dr', s, ...extra })
 const cr = (account, s, extra = {}) => ({ account, side: 'cr', s, ...extra })
+// บัญชีที่ลงช่องทางคืนเงิน: คะแนน → 2310 · คูปองคืนเงิน → 2320 (ไม่ใช่เงินออก) · เงินสด → 1010 · โอน → 1020
+const refundAccount = (m) => (m === 'points' ? POINTS_LIAB : m === 'credit' ? COUPON_LIAB : m === 'cash' ? CASH : BANK)
 
 function deliveredAtOf(o) {
   if (o.deliveredAt) return o.deliveredAt
@@ -76,7 +79,7 @@ export function orderEntries(o, ctx) {
     const fn = F - fv
     if (!r.cancelled) retNet += fn // ที่ยกเลิกแล้วหักล้างกันเอง (ret + retx) ไม่ต้องนับ
     const lines = [dr('4950', fn), dr(OUTPUT_VAT, fv)]
-    for (const x of rows) lines.push(cr(x.method === 'points' ? POINTS_LIAB : x.method === 'cash' ? CASH : BANK, toS(x.amount)))
+    for (const x of rows) lines.push(cr(refundAccount(x.method), toS(x.amount)))
     out.push(entry(`ret:${o.id}:${r.id}`, dateOf(r.at) || dateOf(o.createdAt), `คืนเงินบางส่วน ${code}`, { type: 'order-return', orderId: o.id, returnId: r.id }, lines, fv > 0 ? tx('output', -fn, -fv) : null))
     // ยกเลิกการคืน: กลับรายการ (ลงวันที่ยกเลิก)
     if (r.cancelled) out.push(entry(`retx:${o.id}:${r.id}`, dateOf(r.cancelled.at) || dateOf(r.at), `ยกเลิกการคืนเงิน ${code}`, { type: 'order-return-void', orderId: o.id, returnId: r.id }, swap(lines), fv > 0 ? tx('output', fn, fv) : null))
@@ -92,6 +95,8 @@ export function orderEntries(o, ctx) {
   if (delivered && dAt) {
     const X = toS(t.pointsDiscount)
     const Y = toS(t.couponDiscount)
+    // ส่วนลดจากคูปองคืนเงิน (ตัดภาระ 2320 ที่คืนไว้) แยกจากส่วนลดคูปองทั่วไป (5420)
+    const Yc = Math.min(Y, (o.couponsUsed || []).filter((u) => u.credit).reduce((a, u) => a + toS(u.amount), 0))
     const netRev = Math.max(0, total - vatS)
     const R = netRev + X + Y
     const weights = [...o.items.map((i) => Math.max(0, toS(i.unitPrice * i.qty))), Math.max(0, toS(t.shipping))]
@@ -101,7 +106,7 @@ export function orderEntries(o, ctx) {
     rev.push(cr('4300', parts[o.items.length]))
     if (weights.reduce((a, b) => a + b, 0) <= 0 && R > 0) { rev.length = 0; rev.push(cr('4200', R)) }
     const unpaid = Math.max(0, total - sumAmt)
-    deliveryLines = [dr(DEPOSIT, sumNet), dr(AR, unpaid), dr('5410', X, { poolable: true }), dr('5420', Y), ...rev, cr(OUTPUT_VAT, vatS - sumVat)]
+    deliveryLines = [dr(DEPOSIT, sumNet), dr(AR, unpaid), dr('5410', X, { poolable: POINTS_LIAB }), dr('5420', Y - Yc), dr('5420', Yc, { poolable: COUPON_LIAB }), ...rev, cr(OUTPUT_VAT, vatS - sumVat)]
     const cost = toS(orderCost(o, ctx.groups, ctx.retail, ctx.ingredients))
     cogsLines = cost > 0 ? [dr('5100', cost), cr(INV, cost)] : []
     // ค่าส่ง: รับรู้เป็นรายได้ (4300) และเป็นค่าใช้จ่ายค่าขนส่ง (5500) ยอดเดียวกัน — ต้องจ่ายคนส่งเต็มจำนวน (จ่ายเงินสดตอนส่งมอบ) · อยู่ในชุดเดียวกับต้นทุนเพื่อกลับรายการพร้อมกันตอนยกเลิก
@@ -122,7 +127,7 @@ export function orderEntries(o, ctx) {
       const fv = Math.round((F * sumVat) / sumAmt)
       const fn = F - fv
       const lines = [dr(DEPOSIT, fn), dr(OUTPUT_VAT, fv)]
-      for (const r of refunds) lines.push(cr(r.method === 'points' ? POINTS_LIAB : r.method === 'cash' ? CASH : BANK, toS(r.amount)))
+      for (const r of refunds) lines.push(cr(refundAccount(r.method), toS(r.amount)))
       // ที่คืนบางส่วนไปก่อนแล้ว: กลับรายการ 4950 (ออร์เดอร์ถูกยกเลิก ไม่ใช่ส่วนลด) และไม่นับเป็นเงินมัดจำที่ริบ
       if (retNet > 0) lines.push(dr(DEPOSIT, retNet), cr('4950', retNet))
       const ret = sumNet - fn - retNet
@@ -154,16 +159,18 @@ export function deriveAll(ctx, extra = []) {
   all.push(...rewardEntries(ctx))
   for (const g of extra) all.push(...g(ctx))
   all.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1))
-  let pool = 0
+  // ภาระคงค้างตามบัญชี (2310 คะแนน · 2320 คูปองคืนเงิน): ส่วนลดที่ใช้ตัดภาระก่อน ส่วนที่เหลือไปค่าใช้จ่าย
+  const pools = { [POINTS_LIAB]: 0, [COUPON_LIAB]: 0 }
   for (const e of all) {
     const lines = []
     for (const l of e.lines) {
-      if (l.account === POINTS_LIAB && l.cr) pool += toS(l.cr)
-      if (l.account === POINTS_LIAB && l.dr) pool -= toS(l.dr)
+      if (pools[l.account] !== undefined && l.cr) pools[l.account] += toS(l.cr)
+      if (pools[l.account] !== undefined && l.dr) pools[l.account] -= toS(l.dr)
       if (l.poolable && l.dr) {
-        const take = Math.min(toS(l.dr), Math.max(0, pool))
-        pool -= take
-        if (take > 0) lines.push({ account: POINTS_LIAB, dr: toB(take) })
+        const liab = l.poolable === true ? POINTS_LIAB : l.poolable
+        const take = Math.min(toS(l.dr), Math.max(0, pools[liab]))
+        pools[liab] -= take
+        if (take > 0) lines.push({ account: liab, dr: toB(take) })
         if (toS(l.dr) - take > 0) lines.push({ account: l.account, dr: toB(toS(l.dr) - take) })
       } else { const { poolable, ...rest } = l; lines.push(rest) }
     }

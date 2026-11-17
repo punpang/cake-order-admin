@@ -10,7 +10,7 @@ import { orderCardMsg, quoteCardMsg, linkCardMsg, payCard, viewCard } from '../l
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { prevStatus } from '../lib/orderFlow'
 import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList, returnedByMethod, returnedQtyOf, restockedQtyOf, itemReturnAmount, restockUnits } from '../lib/refund'
-import { addDays, pointBalance, takePoints, returnPoints, couponUsable, couponPhase, pickPrize, expiringSoon } from '../lib/loyalty'
+import { addDays, pointBalance, takePoints, returnPoints, couponUsable, couponPhase, pickPrize, expiringSoon, conversionPlan } from '../lib/loyalty'
 import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, timeOnly } from '../lib/format'
 import { showToast } from '../lib/toast'
 import { nextBirthday, daysBetween } from '../lib/birthday'
@@ -19,7 +19,7 @@ import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEF
 import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX, AUTO_SOURCES, LOCKED_SOURCES, AI_MODELS, AI_WAI_MODELS } from '../lib/chatBot'
 import { checkTelegram } from '../lib/integrationCheck'
 import { luckyDefaults, luckyDrawsByProject, luckyProjectsOf, luckyUrl, genLuckyToken, hashLuckyToken, validateLuckyConfig, LUCKY_SITE_URL } from '../lib/luckyDraw'
-import { couponQuoteOf, couponFieldsOf, quoteCouponList, validateCouponReward } from '../lib/coupons'
+import { couponQuoteOf, couponFieldsOf, quoteCouponList, validateCouponReward, isCredit, creditBalanceOf } from '../lib/coupons'
 import { genToken, isTokenShape, hashToken, genCode, isCodeShape, cleanPolicy, cleanAllowlist, checkTarget, linkAlive, linkExpiresAt, failBlocked, DEFAULT_LINK_POLICY, LINK_ERROR } from '../lib/orderLink'
 import { DEFAULT_ACCOUNTS } from '../lib/acct/chart'
 import { cleanClosures, emptyClosures, slotClosed, pickupClosed, isClosedNow, nextOpen } from '../lib/shopHours'
@@ -1429,8 +1429,13 @@ export function setAdjustment(order, amount, reason, opts = {}) {
   notifyOrder('adjustment_changed', order, { skip: opts.notify === false, noSms: opts.sms === false })
 }
 
-// ยกเลิกออร์เดอร์ + คืนเงิน: c = { reason, refunds: [{ method: cash | transfer | points, amount }], refundNote }
-// (รูปแบบเก่า { refundAmount, refundMethod } ยังใช้ได้) · คืนเป็นคะแนน = ยอด ÷ มูลค่าต่อคะแนน (ต้องหารลงตัว) อายุตามค่าตั้งต้น
+// คูปองคืนเงิน: ยอดเท่าที่คืน ไม่มีวันหมดอายุ ใช้ได้หลายครั้งจนยอดหมด (balance = ยอดคงเหลือ · holds = ยอดที่จองกับแต่ละออร์เดอร์)
+function creditRefundCoupon(cu, order, amount) {
+  return newCoupon(cu, { type: 'discount', mode: 'credit', name: `คูปองคืนเงิน ${order.code}`, amount, balance: amount, holds: {}, minSpend: 0, pct: 0, cap: 0, productId: '', productName: '', source: 'refund', orderId: order.id, expiresAt: null })
+}
+
+// ยกเลิกออร์เดอร์ + คืนเงิน: c = { reason, refunds: [{ method: cash | transfer | credit, amount }], refundNote }
+// (รูปแบบเก่า { refundAmount, refundMethod } ยังใช้ได้) · คืนเป็นคูปองคืนเงิน = ออกคูปองยอดเท่าที่คืน (ไม่หมดอายุ)
 // ตรวจก่อนแก้ข้อมูลทุกอย่าง → คืน { ok } หรือ { error }
 // ตัวทำงานหลังยกเลิกออร์เดอร์ (เช่น บัญชีออกใบลดหนี้) ลงทะเบียนจากโมดูลอื่น — store ไม่ import โมดูลเหล่านั้น
 export const cancelHooks = []
@@ -1439,20 +1444,15 @@ export function cancelOrder(order, c) {
   const paid = orderTotals(order).paidNet // หักยอดที่คืนบางส่วนไปแล้ว
   const refunds = normalizeRefunds(c, paid)
   const cu = findCustomer(order.customerId)
-  const err = refundErrors(refunds, { paid, canPoints: !!cu && !cu.deleted, pointValue: db.loyalty.pointValue })
+  const err = refundErrors(refunds, { paid, canCredit: !!cu && !cu.deleted })
   if (err) return { error: err }
   const prevSt = order.status
   // ย้อนการยกเลิกได้เฉพาะ: ไม่มีเงินคืนจริง · ไม่เคยใช้คะแนน/คูปอง · ไม่ได้ยกเลิกจากสถานะส่งมอบแล้ว (undoLoyalty ถอนคะแนน/คูปองไปแล้ว)
   const restorable = !refunds.length && !order.pointsUsed && !order.couponsUsed.length && !order.loyalty && prevSt !== 'delivered'
   undoLoyalty(order)
-  for (const x of refunds) {
-    if (x.method !== 'points') continue
-    x.points = Math.round(x.amount / db.loyalty.pointValue)
-    if (pointsHook.call) { if (x.points > 0 && cu) ledgerRemote(cu.id, [{ op: 'earn', id: uid('pt'), points: x.points, reason: `คืนเงินจากการยกเลิก ${order.code}`, orderId: order.id }], order.id) }
-    else earnPoints(cu, x.points, `คืนเงินจากการยกเลิก ${order.code}`, order.id)
-  }
+  for (const x of refunds) if (x.method === 'credit') x.couponId = creditRefundCoupon(cu, order, x.amount).id
   const refundAmount = round2(refunds.reduce((n, x) => n + x.amount, 0))
-  const summary = refunds.map((x) => `${REFUND_METHODS[x.method]} ${money(x.amount)}${x.method === 'points' ? ` (${x.points} คะแนน)` : ''}`).join(' + ')
+  const summary = refunds.map((x) => `${REFUND_METHODS[x.method]} ${money(x.amount)}`).join(' + ')
   order.cancel = { reason: c.reason, refunds, refundAmount, refundMethod: refunds.map((x) => REFUND_METHODS[x.method]).join(' + '), refundNote: c.refundNote || '', at: now(), prevStatus: prevSt, restorable }
   setStatus(order, 'cancelled', `ยกเลิก: ${c.reason}${refundAmount ? ` / คืนเงิน ${summary}` : ''}`, { notify: c.notify, sms: c.sms })
   for (const h of cancelHooks) h(order)
@@ -1472,7 +1472,7 @@ export function refundOrder(order, c) {
   const refunds = normalizeRefunds({ refunds: c?.refunds || [] }, paidNet)
   if (!refunds.length) return { error: 'ระบุยอดคืนอย่างน้อย 1 ช่องทาง' }
   const cu = findCustomer(order.customerId)
-  const err = refundErrors(refunds, { paid: paidNet, canPoints: !!cu && !cu.deleted, pointValue: db.loyalty.pointValue })
+  const err = refundErrors(refunds, { paid: paidNet, canCredit: !!cu && !cu.deleted })
   if (err) return { error: err }
   // คืนสินค้ารายชิ้น (เฉพาะบิล POS): ไม่เกินจำนวนที่ซื้อและที่ยังไม่ได้คืน · ยอดคืนเงินตรวจด้านบนแล้ว
   const itemRows = []
@@ -1487,14 +1487,7 @@ export function refundOrder(order, c) {
     const restock = restockUnits(it, qty, restockedQtyOf(order, it.id), c.restock !== false)
     itemRows.push({ id: it.id, retailId: it.retailId || null, name: it.name, qty, amount: itemReturnAmount(it, qty), restock })
   }
-  for (const x of refunds) {
-    if (x.method !== 'points') continue
-    x.points = Math.round(x.amount / db.loyalty.pointValue)
-    if (pointsHook.call) {
-      x.lotId = x.points > 0 ? uid('pt') : null
-      if (x.lotId) ledgerRemote(cu.id, [{ op: 'earn', id: x.lotId, points: x.points, reason: `คืนเงิน ${order.code}`, orderId: order.id }], order.id)
-    } else x.lotId = earnPoints(cu, x.points, `คืนเงิน ${order.code}`, order.id)?.id
-  }
+  for (const x of refunds) if (x.method === 'credit') x.couponId = creditRefundCoupon(cu, order, x.amount).id
   const amount = round2(refunds.reduce((n, x) => n + x.amount, 0))
   const entry = { id: uid('rf'), at: now(), by: session.role, reason, note: String(c?.note || '').trim().slice(0, 200), refunds, amount }
   if (itemRows.length) entry.items = itemRows
@@ -1503,7 +1496,7 @@ export function refundOrder(order, c) {
     if (src && src.stock != null) src.stock += x.restock
   }
   ;(order.returns ||= []).push(entry)
-  const summary = refunds.map((x) => `${REFUND_METHODS[x.method]} ${money(x.amount)}${x.method === 'points' ? ` (${x.points} คะแนน)` : ''}`).join(' + ')
+  const summary = refunds.map((x) => `${REFUND_METHODS[x.method]} ${money(x.amount)}`).join(' + ')
   const itemsText = itemRows.length ? ` · คืนสินค้า ${itemRows.map((x) => `${x.name} ×${x.qty}`).join(', ')}` : ''
   log(order, `คืนเงินบางส่วน ${summary}${itemsText} · ${reason}`)
   notifyOrder('order_refunded', order, { requested: amount, skip: c?.notify === false, noSms: c?.sms === false })
@@ -1539,12 +1532,21 @@ export function cancelRefund(order, returnId, c = {}) {
     if (lot ? lot.remaining !== lot.delta : !pointsHook.call) return { error: 'คะแนนที่คืนให้ลูกค้าถูกใช้ไปแล้ว ยกเลิกการคืนไม่ได้' }
     lots.push({ lot, x })
   }
+  // คูปองคืนเงินที่ออกจากการคืนนี้ ต้องยังไม่ถูกใช้/จองเลย (ยอดคงเหลือเท่าเดิม ไม่มียอดจองค้าง) ตรวจก่อนแก้ข้อมูล
+  const credits = []
+  for (const x of (r.refunds || []).filter((y) => y.method === 'credit')) {
+    const cp = db.coupons.find((y) => y.id === x.couponId)
+    if (!cp) return { error: 'ไม่พบคูปองคืนเงินของการคืนนี้ (ยังไม่ซิงก์) ลองใหม่อีกครั้ง' }
+    if (Number(cp.balance) !== Number(x.amount) || Object.keys(cp.holds || {}).length) return { error: 'คูปองคืนเงินของการคืนนี้ถูกใช้ไปแล้ว ยกเลิกการคืนไม่ได้' }
+    credits.push(cp)
+  }
   // สินค้าที่คืนเข้าสต็อกไว้ ต้องยังมีสต็อกพอให้ตัดกลับ (ตรวจก่อนแก้ข้อมูล)
   const restocked = (r.items || []).filter((x) => x.restock > 0)
   for (const x of restocked) {
     const src = db.retailItems.find((y) => y.id === x.retailId)
     if (src && src.stock != null && src.stock < x.restock) return { error: `สต็อก ${x.name} ไม่พอให้ยกเลิกการคืนนี้ (เหลือ ${src.stock})` }
   }
+  for (const cp of credits) Object.assign(cp, { status: 'void', balance: 0, voidedAt: now(), voidReason: reason })
   if (pointsHook.call) {
     const ops = lots.map(({ lot, x }) => ({ op: 'cut_refund', lotId: lot?.id || x.lotId || null, points: x.points, label: `คืนเงิน ${order.code}`, reason: `ยกเลิกการคืนเงิน ${order.code}`, orderId: order.id }))
     if (ops.length) ledgerRemote(cu.id, ops, order.id)
@@ -1861,21 +1863,28 @@ function newCoupon(c, data) {
 export const customerCoupons = (c) => db.coupons.filter((x) => x.customerId === c?.id)
 export const usableDiscountCoupons = (c) => customerCoupons(c).filter((x) => x.type === 'discount' && couponUsable(x, today()))
 
-// ใช้คะแนน / คูปองเป็นส่วนลดในออร์เดอร์ (พนักงาน)
-export function applyPoints(order, points) {
-  const c = findCustomer(order.customerId)
-  if (!c || order.pointsUsed) return false
-  points = Math.floor(Number(points))
-  if (!(points > 0)) return false
-  if (points * db.loyalty.pointValue > orderTotals(order).total + 0.004) return false // ส่วนลดจากคะแนนต้องไม่เกินยอดที่ต้องชำระ
-  const e = spendPoints(c, points, `ใช้เป็นส่วนลด ${order.code}`, order.id)
-  if (!e) return false
-  order.pointsUsed = { points, amount: round2(points * db.loyalty.pointValue), entryId: e.id }
-  log(order, `ใช้ ${points} คะแนน ลด ${money(order.pointsUsed.amount)}`)
-  return true
+// ใช้/ยกเลิกใช้แต้มกับออร์เดอร์ผ่านเซิร์ฟเวอร์แบบอะตอมิก (ยกเลิกเฉพาะส่วนลดเดิมของออร์เดอร์ค้าง · การใช้คะแนนลดราคาใหม่ถูกถอดแล้ว) (กันใช้แต้มซ้ำจากสองเครื่อง) · ไม่มีตัวเรียก (โหมดจำลอง) = ใช้ฟังก์ชันในเครื่องเดิม
+// แปลงคะแนนที่ใช้ได้ทั้งหมดเป็นคูปองใบเดียว: มูลค่าเท่ายอดคะแนน · ใช้ครั้งเดียวทั้งใบ · หมดอายุ 30 วันนับจากวันแปลง
+// โหมดเซิร์ฟเวอร์ใช้ RPC punpang_convert_points_to_coupon (ตัดคะแนนกับสร้างคูปองในธุรกรรมเดียว) · โหมดจำลองทำในเครื่อง
+const CONVERT_MSG = { no_points: 'ไม่มีคะแนนที่ใช้ได้ให้แปลง', no_customer: 'ไม่พบลูกค้า', forbidden: 'ไม่มีสิทธิ์แปลงคะแนน' }
+export const CONVERT_DAYS = 30
+export async function convertPointsRemote(customerId) {
+  if (!can('adjustPoints')) return { error: CONVERT_MSG.forbidden }
+  const c = findCustomer(customerId)
+  if (!c || c.deleted) return { error: CONVERT_MSG.no_customer }
+  if (pointsHook.call) {
+    const r = await pointsHook.call('punpang_convert_points_to_coupon', { p_customer: c.id }, { customer: c.id })
+    if (r.error) return { error: CONVERT_MSG[r.error] || r.error }
+    return { ok: true, points: r.points, amount: r.amount }
+  }
+  const plan = conversionPlan(c.ledger, today(), db.loyalty.pointValue)
+  if (!plan) return { error: CONVERT_MSG.no_points }
+  const takes = takePoints(c.ledger, plan.points, today())
+  c.ledger.push({ id: uid('pt'), at: now(), delta: -plan.points, reason: 'แปลงเป็นคูปอง', orderId: null, takes })
+  const cp = newCoupon(c, { type: 'discount', mode: 'fixed', amount: plan.amount, minSpend: 0, pct: 0, cap: 0, productId: '', productName: '', name: `คูปองแปลงคะแนน ${plan.points} คะแนน`, source: 'convert', points: plan.points, expiresAt: addDays(today(), CONVERT_DAYS) })
+  return { ok: true, points: plan.points, amount: plan.amount, couponId: cp.id }
 }
 
-// ใช้/ยกเลิกใช้แต้มกับออร์เดอร์ผ่านเซิร์ฟเวอร์แบบอะตอมิก (กันใช้แต้มซ้ำจากสองเครื่อง) · ไม่มีตัวเรียก (โหมดจำลอง) = ใช้ฟังก์ชันในเครื่องเดิม
 export const pointsHook = { call: null }
 const PTS_MSG = {
   insufficient: 'คะแนนไม่พอ (อาจถูกใช้ไปจากอีกเครื่อง) กรุณารีเฟรช', already_used: 'ออร์เดอร์นี้ใช้คะแนนไปแล้ว', bad_status: 'ออร์เดอร์นี้ใช้คะแนนไม่ได้',
@@ -1884,20 +1893,9 @@ const PTS_MSG = {
 }
 // opts = { notify, sms } จากกล่องติ๊กในโมดัลยืนยัน · แจ้งลูกค้าหลังทำรายการสำเร็จเท่านั้น
 // ยอดคงค้างในข้อความคิดส่วนลดคะแนนแล้ว (ส่งสถานะที่คาดหลังทำรายการ ไม่รอการซิงก์)
-export async function applyPointsRemote(order, points, opts = {}) {
-  const n = Math.floor(Number(points))
-  if (!(n > 0)) return { error: 'จำนวนคะแนนไม่ถูกต้อง' }
-  if (!pointsHook.call) {
-    if (!applyPoints(order, n)) return { error: 'ใช้คะแนนไม่ได้' }
-  } else {
-    if (!can('useLoyalty')) return { error: 'ไม่มีสิทธิ์ใช้คะแนน' }
-    if (n * db.loyalty.pointValue > orderTotals(order).total + 0.004) return { error: 'ส่วนลดจากคะแนนต้องไม่เกินยอดที่ต้องชำระ' } // เพดานตรวจที่แอป (เซิร์ฟเวอร์ตรวจยอดคะแนน/สถานะ)
-    const r = await pointsHook.call('punpang_apply_points', { p_order: order.id, p_points: n }, { order: order.id, customer: order.customerId })
-    if (r.error) return { error: PTS_MSG[r.error] || r.error }
-  }
-  const amount = round2(n * db.loyalty.pointValue)
-  notifyOrder('points_applied', { ...order, pointsUsed: { points: n, amount } }, { skip: opts.notify === false, noSms: opts.sms === false, points: n, pointsAmount: amount })
-  return { ok: true }
+// ถอดการใช้คะแนนลดราคาแล้ว (1 คะแนน = 1 บาท ใช้ผ่านคูปองแทน) · ฟังก์ชันนี้ปฏิเสธทุกกรณี
+export async function applyPointsRemote() {
+  return { error: 'ไม่ใช้คะแนนลดราคาแล้ว ให้ใช้คูปองแทน' }
 }
 export async function removePointsRemote(order, opts = {}) {
   if (!order.pointsUsed) return { error: PTS_MSG.none }
@@ -1948,9 +1946,17 @@ function recalcCoupons(order, ids) {
 function refreshCouponsAfterChange(order) {
   const ids = (order.couponsUsed || []).map((u) => u.couponId)
   if (!ids.length) return ''
+  // คูปองคืนเงินที่จองกับออร์เดอร์นี้: คืนยอดจองชั่วคราวก่อนคิดใหม่ ไม่งั้นยอดคงเหลือจะถูกนับซ้ำ
+  const credits = ids.map((id) => db.coupons.find((x) => x.id === id)).filter((cp) => cp && isCredit(cp))
+  const oldAmount = (id) => order.couponsUsed.find((u) => u.couponId === id)?.amount ?? 0
+  for (const cp of credits) releaseCredit(cp, order.id)
   const r = recalcCoupons(order, ids)
-  if (r.error) return r.error
+  if (r.error) {
+    for (const cp of credits) holdCredit(cp, order.id, oldAmount(cp.id))
+    return r.error
+  }
   order.couponsUsed = order.couponsUsed.map((u) => ({ ...u, amount: r.coupons.find((x) => x.couponId === u.couponId)?.amount ?? u.amount }))
+  for (const cp of credits) holdCredit(cp, order.id, order.couponsUsed.find((u) => u.couponId === cp.id).amount)
   return ''
 }
 
@@ -1960,20 +1966,37 @@ export function applyCoupon(order, couponId) {
   if (!cp || cp.type !== 'discount' || !couponUsable(cp, today())) return false
   const q = couponQuoteOf(cp, order)
   if (!q.ok) return false
-  Object.assign(cp, { status: 'used', orderId: order.id, usedAt: now(), activatedAt: null, activatedUntil: null })
-  order.couponsUsed.push({ couponId, name: cp.name, amount: q.amount })
-  log(order, `ใช้คูปอง ${cp.name}`)
+  if (isCredit(cp)) holdCredit(cp, order.id, q.amount)
+  else Object.assign(cp, { status: 'used', orderId: order.id, usedAt: now(), activatedAt: null, activatedUntil: null })
+  order.couponsUsed.push({ couponId, name: cp.name, amount: q.amount, ...(isCredit(cp) ? { credit: true } : {}) })
+  log(order, `ใช้คูปอง ${cp.name}${isCredit(cp) ? ` ${money(q.amount)}` : ''}`)
   return true
+}
+// คูปองคืนเงิน: จองยอดกับออร์เดอร์ (ตัดยอดคงเหลือ · เก็บยอดที่จองไว้ตามรหัสออร์เดอร์) · ยอดหมด = used
+function holdCredit(cp, orderId, amount) {
+  cp.balance = round2(creditBalanceOf(cp) - amount)
+  cp.holds = { ...(cp.holds || {}), [orderId]: round2((Number(cp.holds?.[orderId]) || 0) + amount) }
+  if (cp.balance <= 0) cp.status = 'used'
+  Object.assign(cp, { activatedAt: null, activatedUntil: null })
+}
+// คืนยอดที่จองกับออร์เดอร์กลับคูปองคืนเงิน
+function releaseCredit(cp, orderId) {
+  cp.balance = round2(creditBalanceOf(cp) + (Number(cp.holds?.[orderId]) || 0))
+  const h = { ...(cp.holds || {}) }
+  delete h[orderId]
+  cp.holds = h
+  if (cp.balance > 0 && cp.status === 'used') cp.status = 'pending'
 }
 
 // จองคูปองกับเซิร์ฟเวอร์แบบอะตอมิกก่อนใช้ (กันสองเครื่องใช้คูปองใบเดียวกับสองออร์เดอร์) · ไม่มีตัวจอง (โหมดจำลอง) = ผ่านเลย
 // ผล: { ok } | { error } · เซิร์ฟเวอร์ตอบ missing (ยังไม่มีแถวในฐานข้อมูล) ถือว่าใช้ต่อในเครื่องได้เหมือนเดิม
 export const couponHook = { claim: null, release: null }
-const CLAIM_MSG = { used: 'คูปองใบนี้ถูกใช้ไปแล้ว (อาจจากอีกเครื่อง) กรุณารีเฟรช', expired: 'คูปองหมดอายุแล้ว', invalid: 'ใช้คูปองนี้ไม่ได้' }
-export async function claimCoupon(couponId, orderId) {
+const CLAIM_MSG = { used: 'คูปองใบนี้ถูกใช้ไปแล้ว (อาจจากอีกเครื่อง) กรุณารีเฟรช', expired: 'คูปองหมดอายุแล้ว', invalid: 'ใช้คูปองนี้ไม่ได้', insufficient: 'ยอดคงเหลือของคูปองไม่พอ (อาจถูกใช้จากอีกเครื่อง) กรุณารีเฟรช' }
+// amount = ยอดที่จองเฉพาะคูปองคืนเงิน (ของแบบอื่นไม่ส่ง) · เซิร์ฟเวอร์จองตามยอดนี้แบบอะตอมิก
+export async function claimCoupon(couponId, orderId, amount = null) {
   if (!couponHook.claim) return { ok: true }
   let r
-  try { r = await couponHook.claim(String(couponId), String(orderId)) } catch { r = 'error' }
+  try { r = await couponHook.claim(String(couponId), String(orderId), amount) } catch { r = 'error' }
   if (r === 'ok' || r === 'missing') return { ok: true }
   return { error: CLAIM_MSG[r] || 'ตรวจคูปองกับเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่' }
 }
@@ -1982,7 +2005,7 @@ export async function claimAndApplyCoupon(order, couponId, opts = {}) {
   if (!cp || cp.type !== 'discount' || !couponUsable(cp, today())) return { error: 'ใช้คูปองนี้ไม่ได้' }
   const q = couponQuoteOf(cp, order)
   if (!q.ok) return { error: `ใช้คูปองนี้ไม่ได้: ${q.reason}` } // ตรวจเงื่อนไขก่อนจองคูปองกับเซิร์ฟเวอร์
-  const c = await claimCoupon(couponId, order.id)
+  const c = await claimCoupon(couponId, order.id, isCredit(cp) ? q.amount : null)
   if (c.error) return c
   if (!applyCoupon(order, couponId)) return { error: 'ใช้คูปองนี้ไม่ได้' }
   notifyOrder('coupon_applied', order, { skip: opts.notify === false, noSms: opts.sms === false })
@@ -1990,14 +2013,18 @@ export async function claimAndApplyCoupon(order, couponId, opts = {}) {
 }
 // POS: จองทุกใบก่อนขาย · ใบใดไม่ผ่าน → คืนใบที่จองไปแล้วทั้งหมด (คืน { ok, claimed } เพื่อให้ผู้เรียกคืนได้ถ้าขายไม่สำเร็จ)
 export const POS_CLAIM_ORDER = 'pos-pending'
-export async function claimPosCoupons(ids) {
+// orderId = รหัสบิลที่จะขาย (ผูกการจองกับบิลจริงตั้งแต่ต้น) · amounts = { couponId: ยอดที่ใช้ } เฉพาะคูปองคืนเงิน
+export async function claimPosCoupons(ids, { orderId = POS_CLAIM_ORDER, amounts = {} } = {}) {
   const claimed = []
   for (const id of ids || []) {
-    const c = await claimCoupon(id, POS_CLAIM_ORDER)
-    if (c.error) { await releaseCoupons(claimed); return c }
+    const cp = db.coupons.find((x) => x.id === id)
+    const credit = !!cp && isCredit(cp)
+    if (credit && !(Number(amounts[id]) > 0)) { await releaseCoupons(claimed, orderId); return { error: 'คำนวณยอดคูปองคืนเงินไม่ได้ ลองใหม่' } }
+    const c = await claimCoupon(id, orderId, credit ? Number(amounts[id]) : null)
+    if (c.error) { await releaseCoupons(claimed, orderId); return c }
     claimed.push(id)
   }
-  return { ok: true, claimed }
+  return { ok: true, claimed, orderId }
 }
 export async function releaseCoupons(ids, orderId = POS_CLAIM_ORDER) {
   if (!couponHook.release) return
@@ -2006,7 +2033,8 @@ export async function releaseCoupons(ids, orderId = POS_CLAIM_ORDER) {
 
 export function removeCoupon(order, couponId) {
   const cp = db.coupons.find((x) => x.id === couponId)
-  if (cp) Object.assign(cp, { status: 'pending', orderId: null, usedAt: null, activatedAt: null, activatedUntil: null })
+  if (cp && isCredit(cp)) releaseCredit(cp, order.id)
+  else if (cp) Object.assign(cp, { status: 'pending', orderId: null, usedAt: null, activatedAt: null, activatedUntil: null })
   order.couponsUsed = order.couponsUsed.filter((x) => x.couponId !== couponId)
   log(order, `ยกเลิกการใช้คูปอง ${cp?.name || ''}`)
 }
@@ -2603,6 +2631,7 @@ export function refundCoupon(couponId, reason, opts = {}) {
   sweepCoupons()
   const cp = db.coupons.find((x) => x.id === couponId)
   if (!cp) return { error: 'ไม่พบคูปอง' }
+  if (isCredit(cp)) return { error: 'คูปองคืนเงินไม่ได้แลกด้วยคะแนน ไม่มีคะแนนให้คืน' }
   const c = findCustomer(cp.customerId)
   if (!c || c.deleted) return { error: 'ไม่พบลูกค้า' }
   if (!String(reason ?? '').trim()) return { error: 'ใส่เหตุผลที่คืนคะแนน' }
@@ -3811,13 +3840,16 @@ function posLinesOk(lines, total) {
   }
   return true
 }
-export function posSale({ cart, customerId = null, couponIds = [], discount = 0, method = 'cash', received = null, lines = null, partial = false }) {
+// รหัสบิลที่จองไว้ล่วงหน้า (ใช้จองคูปองก่อนขาย แล้วส่งเข้า posSale ให้รหัสตรงกัน)
+export const reserveBillId = () => uid('o')
+// billId = รหัสบิลที่จองคูปองไว้ล่วงหน้า (ให้รหัสตรงกับบิลจริง) · ไม่ส่ง = สร้างรหัสใหม่
+export function posSale({ cart, customerId = null, couponIds = [], discount = 0, method = 'cash', received = null, lines = null, partial = false, billId = null }) {
   const shift = currentShift()
   if (!shift || !cart.length) return null
   if (couponIds.length && (!customerId || posCouponProblem({ customerId, couponIds }))) return null // คูปองต้องที่ลูกค้ากดแสดงอยู่ (POS ตรวจก่อนด้วย posCouponProblem)
   const ts = now()
   const o = {
-    id: uid('o'), code: numbering.next('POS'), channel: 'pos', shiftId: shift.id, chatId: null,
+    id: billId || uid('o'), code: numbering.next('POS'), channel: 'pos', shiftId: shift.id, chatId: null,
     customerId, pickupAt: ts.slice(0, 16), fulfillment: 'pickup', birthday: null, address: '', shippingFee: 0,
     items: posItems(cart, new Date(ts)), adjustment: { amount: Number.isFinite(Number(discount)) && Number(discount) ? -Math.abs(Number(discount)) : 0, reason: Number.isFinite(Number(discount)) && Number(discount) ? 'ส่วนลดหน้าร้าน' : '' },
     pointsUsed: null, couponsUsed: [], loyalty: null, vat: vatNow(), status: 'payment_confirmed', payments: [], cancel: null, history: [], createdAt: ts,
