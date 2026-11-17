@@ -1,6 +1,7 @@
 // ข้อมูลตัวอย่าง (เก็บในหน่วยความจำ รีเฟรชแล้วหาย)
 // ขั้นต่อไปจะเปลี่ยนฟังก์ชันในไฟล์นี้ให้เรียก Supabase แทน
 import { RETENTION_CATS, validateRetention } from '../lib/retention'
+import { normalizeDisplayAds } from '../lib/displayAds'
 import { reactive } from 'vue'
 import { BELL_MAX, BELL_STAFF, BELL_CUSTOMER, bellText, visibleToStaff, visibleToCustomer, unreadStaff, unreadCustomer, isReadStaff } from '../lib/bell'
 import { ensureStyleGroup, STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, channelLabel, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
@@ -601,6 +602,8 @@ export const db = reactive({
       { title: 'ความเป็นส่วนตัว', text: 'ร้านเก็บชื่อ เบอร์โทร และข้อมูลออร์เดอร์เพื่อรับและจัดส่งเค้กเท่านั้น ขอลบข้อมูลได้ที่หน้าบัญชีของฉัน' },
     ],
     gallery: [],
+    // สื่อโฆษณาบนจอลูกค้า (จอที่สองของ POS) ตอนไม่มีการซื้อ · ดู src/lib/displayAds.js
+    displayAds: { enabled: false, seconds: 8, items: [] },
   },
   // รีวิว: source = admin (แอดมินกรอก อนุมัติทันที) | customer (ลูกค้าเขียนหลังรับสินค้า รออนุมัติ) status = pending | approved | rejected
   reviews: [],
@@ -4073,6 +4076,7 @@ export function saveStorefront(d) {
     hours: pairs(d.hours, ['days', 'time']), howToOrder: pairs(d.howToOrder, ['title', 'text']),
     faq: pairs(d.faq, ['q', 'a']), policies: pairs(d.policies, ['title', 'text']),
     gallery: (d.gallery || []).filter((g) => g.image).map((g) => ({ image: g.image, caption: String(g.caption ?? '').trim() })),
+    displayAds: normalizeDisplayAds(d.displayAds),
   })
 }
 const clampRating = (v) => Math.min(5, Math.max(1, Math.round(Number(v) || 0)))

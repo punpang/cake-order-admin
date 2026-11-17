@@ -2,6 +2,7 @@
 // ตั้งค่าเครื่องพิมพ์ใบเสร็จและจอลูกค้า (เฉพาะแอป Android) · ค่าเก็บในเครื่องนี้
 import { onMounted, ref } from 'vue'
 import AppModal from './AppModal.vue'
+import { can } from '../data/store'
 import { getDeviceConfig, setDeviceConfig, listPrinters, displayCount, showDisplay, hideDisplay } from '../lib/nativeDevices'
 import { printTestPage } from '../lib/receiptRaster'
 
@@ -113,6 +114,7 @@ onMounted(refresh)
           <button type="button" class="btn-primary h-12" :disabled="!displays" @click="openDisplay">เปิดจอลูกค้า</button>
           <button type="button" class="btn-outline h-12" @click="closeDisplay">ปิดจอลูกค้า</button>
         </div>
+        <RouterLink v-if="can('manage')" to="/admin/settings/storefront?tab=display" class="inline-flex min-h-10 items-center text-sm text-brand-700 underline" @click="emit('close')">ตั้งค่าสื่อโฆษณาบนจอลูกค้า (รูป/วิดีโอตอนว่าง)</RouterLink>
       </section>
 
       <p v-if="msg" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-900" role="status">{{ msg }}</p>

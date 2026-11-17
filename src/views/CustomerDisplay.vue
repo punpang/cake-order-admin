@@ -6,6 +6,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppIcon from '../components/AppIcon.vue'
 import FitBox from '../components/FitBox.vue'
 import { money } from '../lib/format'
+import { nextAdIndex } from '../lib/displayAds'
 
 const state = ref({ status: 'idle', shopName: '' })
 const qrBox = ref(null)
@@ -35,6 +36,56 @@ watch(qrBox, (el) => {
   })
   ro.observe(el)
 })
+
+// ---------- สื่อโฆษณาตอนว่าง (รูป/วิดีโอ วนแสดงเต็มจอ) ----------
+// POS ส่ง state.ads = { seconds, items: [{ type: 'image'|'video', url }] } มากับสถานะ idle (ดู src/lib/displayAds.js)
+// รูปแสดงตามเวลาที่ตั้ง · วิดีโอเล่นจนจบ (ปิดเสียง) · โหลดไม่ได้ = ข้าม · ทุกรายการโหลดไม่ได้ = กลับหน้ายินดีต้อนรับ
+const ads = computed(() => (state.value.status === 'idle' && Array.isArray(state.value.ads?.items) && state.value.ads.items.length ? state.value.ads : null))
+const adKey = computed(() => JSON.stringify(ads.value?.items || []))
+const adIndex = ref(0)
+const adTick = ref(0) // เปลี่ยนทุกครั้งที่ไปรายการถัดไป (แม้เป็นรายการเดิม) เพื่อเริ่มเล่นใหม่และทำภาพจาง
+const adFailed = ref(new Set())
+const adItem = computed(() => (ads.value && adIndex.value >= 0 ? ads.value.items[adIndex.value] || null : null))
+const adSingle = computed(() => (ads.value?.items.length || 0) - adFailed.value.size <= 1)
+let adTimer = 0
+const clearAdTimer = () => { clearTimeout(adTimer); adTimer = 0 }
+function nextAd() {
+  clearAdTimer()
+  if (!ads.value) return
+  adIndex.value = nextAdIndex(adIndex.value, ads.value.items.length, adFailed.value)
+  adTick.value++
+}
+function onAdError() {
+  adFailed.value = new Set([...adFailed.value, adIndex.value])
+  nextAd()
+}
+const AD_LOAD_TIMEOUT_MS = 15000
+function scheduleAd() {
+  clearAdTimer()
+  const it = adItem.value
+  if (!it) return
+  if (it.type === 'video') {
+    adTimer = setTimeout(onAdError, AD_LOAD_TIMEOUT_MS) // โหลดไม่ขึ้นในเวลานี้ = ข้าม (ตั้งใหม่ตามความยาววิดีโอเมื่อรู้ความยาว)
+    return
+  }
+  if (adSingle.value) return // รูปเดียว: แสดงค้างไว้
+  adTimer = setTimeout(nextAd, (Number(ads.value.seconds) || 8) * 1000)
+  const n = ads.value.items[nextAdIndex(adIndex.value, ads.value.items.length, adFailed.value)]
+  if (n?.type === 'image') new Image().src = n.url // โหลดรูปถัดไปไว้ก่อน เปลี่ยนภาพไม่กระตุก
+}
+// วิดีโอ: รู้ความยาวแล้ว → กันค้าง (ภาพนิ่งกลางทาง) ด้วยเวลาความยาว + 5 วินาที · วิดีโอเดียวเล่นวนเอง
+function onVideoMeta(e) {
+  clearAdTimer()
+  const d = Number(e.target?.duration)
+  if (!adSingle.value && Number.isFinite(d) && d > 0) adTimer = setTimeout(nextAd, (d + 5) * 1000)
+}
+function onVideoEnded() { if (!adSingle.value) nextAd() }
+// ปิดเสียงด้วยค่าคุณสมบัติ (เล่นอัตโนมัติได้แน่นอน) แล้วสั่งเล่น
+const setupVideo = (el) => { if (!el) return; el.muted = true; el.defaultMuted = true; el.play?.().catch(() => {}) }
+watch(adKey, () => { adFailed.value = new Set(); adIndex.value = 0; adTick.value++ }, { immediate: true })
+// ตั้งเวลาใหม่เมื่อเปลี่ยนรายการ เปลี่ยนเวลาต่อภาพ หรือกลับมาสถานะว่าง (ซื้อเสร็จแล้วสื่อชุดเดิมต้องเดินต่อ ไม่ค้างภาพเดิม)
+watch([adTick, () => (ads.value ? String(ads.value.seconds) : '')], scheduleAd, { immediate: true })
+onBeforeUnmount(clearAdTimer)
 
 // สถานะ: ป้ายบนหัวข้อ (หัวข้อเป็นสีแบรนด์ทุกสถานะ)
 const THEME = {
@@ -96,7 +147,43 @@ watch(
 </script>
 
 <template>
-  <div class="flex h-dvh flex-col overflow-hidden bg-cream text-stone-900">
+  <!-- ว่าง + มีสื่อโฆษณา: เต็มจอ · แถบล่างบาง ๆ ชื่อร้านและวิธีชำระที่รับ -->
+  <div v-if="adItem" class="flex h-dvh flex-col overflow-hidden bg-stone-950 text-white">
+    <div class="relative min-h-0 flex-1 overflow-hidden">
+      <Transition name="ad-fade">
+        <div :key="adTick" class="absolute inset-0">
+          <template v-if="adItem.type === 'image'">
+            <!-- พื้นหลังเบลอจากรูปเดียวกัน: รูปไม่ตรงสัดส่วนจอก็ไม่มีขอบดำ และไม่ถูกตัดเนื้อหา -->
+            <img :src="adItem.url" alt="" aria-hidden="true" class="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-xl" />
+            <img :src="adItem.url" alt="" class="relative h-full w-full object-contain" @error="onAdError" />
+          </template>
+          <video
+            v-else
+            :ref="setupVideo"
+            :src="adItem.url"
+            class="h-full w-full object-contain"
+            autoplay
+            muted
+            playsinline
+            preload="auto"
+            :loop="adSingle"
+            @loadedmetadata="onVideoMeta"
+            @ended="onVideoEnded"
+            @error="onAdError"
+          />
+        </div>
+      </Transition>
+    </div>
+    <footer class="flex shrink-0 items-center justify-between gap-3 bg-linear-to-br from-hero-1 via-hero-2 to-hero-3 px-[clamp(0.8rem,2.5vw,2rem)] py-[clamp(0.25rem,0.9vh,0.55rem)] shadow-[0_-2px_8px_rgb(0_0_0/0.15)]">
+      <div class="min-w-0 truncate font-display font-medium text-[clamp(0.9rem,2.8vh,1.3rem)] leading-tight">{{ state.shopName || 'ยินดีต้อนรับค่ะ' }}</div>
+      <div class="flex shrink-0 items-center gap-[clamp(0.3rem,0.8vw,0.6rem)] font-semibold leading-tight text-[clamp(0.65rem,1.8vh,0.85rem)]">
+        <span class="rounded-full bg-matcha-soft px-[clamp(0.5rem,1.2vw,0.9rem)] py-[clamp(0.1rem,0.4vh,0.25rem)] text-stone-900">เงินสด</span>
+        <span class="rounded-full bg-brand-100 px-[clamp(0.5rem,1.2vw,0.9rem)] py-[clamp(0.1rem,0.4vh,0.25rem)] text-brand-800">โอนเงิน QR</span>
+        <span class="rounded-full bg-honey px-[clamp(0.5rem,1.2vw,0.9rem)] py-[clamp(0.1rem,0.4vh,0.25rem)] text-stone-900">บัตร</span>
+      </div>
+    </footer>
+  </div>
+  <div v-else class="flex h-dvh flex-col overflow-hidden bg-cream text-stone-900">
     <!-- หัวข้อ: บาง ชื่อร้าน + สถานะ -->
     <header class="flex shrink-0 items-center justify-between gap-3 bg-linear-to-br from-hero-1 via-hero-2 to-hero-3 px-[clamp(0.8rem,2.5vw,2rem)] py-[clamp(0.2rem,0.5vh,0.35rem)] text-white shadow-md">
       <div class="min-w-0 truncate font-display font-medium text-[clamp(0.9rem,2.8vh,1.3rem)] leading-tight">{{ state.shopName || 'ยินดีต้อนรับ' }}</div>
@@ -289,3 +376,21 @@ watch(
     </main>
   </div>
 </template>
+
+<style scoped>
+/* เปลี่ยนสื่อโฆษณาแบบค่อย ๆ จาง (ภาพเก่าและใหม่ซ้อนกันชั่วครู่) */
+.ad-fade-enter-active,
+.ad-fade-leave-active {
+  transition: opacity 0.8s ease;
+}
+.ad-fade-enter-from,
+.ad-fade-leave-to {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ad-fade-enter-active,
+  .ad-fade-leave-active {
+    transition: none;
+  }
+}
+</style>

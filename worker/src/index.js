@@ -2,7 +2,8 @@
 //  - รูปสาธารณะ (สินค้า/หน้าร้าน): GET /p/<key> จาก FILES_PUBLIC (แคชได้)
 //  - รูปส่วนตัว (สลิป/รูปงาน/ไฟล์แนบแชท): เสิร์ฟด้วยลิงก์ลงลายเซ็นที่มีวันหมดอายุ GET /f/<key>?exp&sig จาก FILES_PRIVATE
 //  - POST /sign   : ตรวจสิทธิ์ แล้วออกลิงก์ชั่วคราว (พนักงาน / ลูกค้าเจ้าของออร์เดอร์ / ลิงก์ออร์เดอร์)
-//  - POST /upload : พนักงานที่ล็อกอินอัปโหลดรูป (ตรวจชนิดจากไบต์จริง ≤ 5 MB)
+//  - POST /upload : พนักงานที่ล็อกอินอัปโหลดรูป (ตรวจชนิดจากไบต์จริง ≤ 5 MB) · วิดีโอสื่อโฆษณา MP4/WebM ≤ 30 MB เฉพาะสาธารณะ/displayAds
+//  - GET /p/<key> รองรับขอเป็นช่วง (Range) สำหรับเล่นวิดีโอ
 //  - POST /delete : พนักงานลบไฟล์ส่วนตัวที่ไม่มีข้อมูลอ้างถึงแล้ว
 // คีย์ลับ (SIGN_KEY, SUPABASE_SERVICE_ROLE_KEY) อยู่ใน Secrets เท่านั้น
 
@@ -127,6 +128,24 @@ const extOf = (b) => {
   if (b.length > 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return { ext: 'webp', type: 'image/webp' }
   return null
 }
+// วิดีโอสื่อโฆษณาบนจอลูกค้า (เฉพาะบักเก็ตสาธารณะ โฟลเดอร์ displayAds): MP4 (กล่อง ftyp) · WebM (EBML)
+const VIDEO_PREFIX = 'displayAds'
+const VIDEO_MAX_MB = 30
+const videoOf = (b) => {
+  if (b.length > 12 && b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70) return { ext: 'mp4', type: 'video/mp4' }
+  if (b.length > 4 && b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return { ext: 'webm', type: 'video/webm' }
+  return null
+}
+// ขอไฟล์เป็นช่วง (Range: bytes=a-b | a- | -n) → { offset, length } หรือ { suffix } · รูปแบบอื่น = null (ส่งทั้งไฟล์)
+export function parseRange(h) {
+  const m = /^bytes=(\d*)-(\d*)$/.exec(String(h || '').trim())
+  if (!m || (m[1] === '' && m[2] === '')) return null
+  if (m[1] === '') return { suffix: Number(m[2]) }
+  const offset = Number(m[1])
+  if (m[2] === '') return { offset }
+  const end = Number(m[2])
+  return end >= offset ? { offset, length: end - offset + 1 } : null
+}
 const safePrefix = (p) => (/^[A-Za-z0-9_-]{1,40}(\/[A-Za-z0-9_-]{1,60})?$/.test(p) ? p : null)
 // ถอดรหัส %xx ใน path · เสีย (เช่น %E0%A4%A) คืน null แทนโยนข้อผิดพลาด (ไม่ให้ Worker ล้มเป็น 500)
 const safeDecode = (v) => { try { return decodeURIComponent(v) } catch { return null } }
@@ -142,9 +161,24 @@ export default {
       const key = safeDecode(path.slice(3))
       // ถังขยะ (_trash/) ไม่เสิร์ฟทาง /p/ แม้ไฟล์ยังอยู่ในบักเก็ต (กู้คืนได้เฉพาะพนักงาน)
       if (key === null || key.startsWith('_trash/')) return new Response('ไม่พบไฟล์', { status: 404, headers: corsHeaders(req, env) })
-      const obj = await env.FILES_PUBLIC.get(key)
+      // วิดีโอเล่นแบบขอเป็นช่วง (Range) · ตอบ 206 + Content-Range · ช่วงเกินไฟล์ = 416
+      const range = parseRange(req.headers.get('Range'))
+      let obj
+      try { obj = await env.FILES_PUBLIC.get(key, range ? { range } : undefined) } catch { obj = undefined }
+      if (obj === undefined) {
+        const head = await env.FILES_PUBLIC.head(key)
+        return new Response('ช่วงไฟล์ไม่ถูกต้อง', { status: head ? 416 : 404, headers: { ...corsHeaders(req, env), ...(head ? { 'Content-Range': `bytes */${head.size}` } : {}) } })
+      }
       if (!obj) return new Response('ไม่พบไฟล์', { status: 404, headers: corsHeaders(req, env) })
-      return new Response(obj.body, { headers: { ...corsHeaders(req, env), 'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=86400' } })
+      const base = { ...corsHeaders(req, env), 'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'public, max-age=86400', 'Accept-Ranges': 'bytes' }
+      if (range && obj.range) {
+        const size = obj.size
+        const start = 'suffix' in obj.range ? Math.max(0, size - obj.range.suffix) : obj.range.offset
+        const len = 'suffix' in obj.range ? size - start : Math.min(obj.range.length ?? size - start, size - start)
+        if (start >= size || len <= 0) return new Response('ช่วงไฟล์ไม่ถูกต้อง', { status: 416, headers: { ...corsHeaders(req, env), 'Content-Range': `bytes */${size}` } })
+        return new Response(obj.body, { status: 206, headers: { ...base, 'Content-Range': `bytes ${start}-${start + len - 1}/${size}`, 'Content-Length': String(len) } })
+      }
+      return new Response(obj.body, { headers: base })
     }
 
     // ---- ไฟล์ส่วนตัวด้วยลิงก์ลงลายเซ็น ----
@@ -182,11 +216,16 @@ export default {
       if (!prefix || !['public', 'private'].includes(bucket)) return json(req, env, { error: 'พารามิเตอร์ไม่ถูกต้อง' }, 400)
       const need = bucket === 'public' ? ['editItems'] : prefix.startsWith('staff/') ? ['chat'] : needForPrivateKey(`${prefix}/x`)
       if (!hasAnyPerm(staff, need)) return json(req, env, { error: 'ไม่มีสิทธิ์อัปโหลดไฟล์ประเภทนี้' }, 403)
+      // ไม่อ่านไฟล์ที่ใหญ่เกินเพดานสูงสุด (กันหน่วยความจำ Worker) · ตรวจละเอียดตามชนิดอีกชั้นหลังอ่าน
+      const declared = Number(req.headers.get('Content-Length') || 0)
+      if (declared > VIDEO_MAX_MB * 1024 * 1024) return json(req, env, { error: `ไฟล์ใหญ่เกิน ${VIDEO_MAX_MB} MB` }, 413)
       const bytes = new Uint8Array(await req.arrayBuffer())
-      const lim = await getImageLimits(env)
-      if (bytes.length === 0 || bytes.length > lim.maxMB * 1024 * 1024) return json(req, env, { error: `ไฟล์ว่างหรือใหญ่เกิน ${lim.maxMB} MB` }, 400)
-      const kind = extOf(bytes)
-      if (!kind) return json(req, env, { error: 'ไฟล์ไม่ใช่รูปภาพที่รองรับ (PNG / JPG / WEBP)' }, 400)
+      if (bytes.length === 0) return json(req, env, { error: 'ไฟล์ว่าง' }, 400)
+      const video = bucket === 'public' && prefix === VIDEO_PREFIX ? videoOf(bytes) : null
+      const kind = video || extOf(bytes)
+      if (!kind) return json(req, env, { error: prefix === VIDEO_PREFIX ? 'ไฟล์ไม่ใช่รูปหรือวิดีโอที่รองรับ (PNG / JPG / WEBP / MP4 / WebM)' : 'ไฟล์ไม่ใช่รูปภาพที่รองรับ (PNG / JPG / WEBP)' }, 400)
+      const maxMB = video ? VIDEO_MAX_MB : (await getImageLimits(env)).maxMB
+      if (bytes.length > maxMB * 1024 * 1024) return json(req, env, { error: `ไฟล์ใหญ่เกิน ${maxMB} MB` }, 400)
       const key = `${prefix}/${rand()}.${kind.ext}`
       const store = bucket === 'public' ? env.FILES_PUBLIC : env.FILES_PRIVATE
       await store.put(key, bytes, { httpMetadata: { contentType: kind.type } })

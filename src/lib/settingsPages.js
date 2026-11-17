@@ -24,7 +24,7 @@ export const SETTINGS_PAGES = [
   { group: 'shop', to: '/admin/settings/lucky', icon: 'star', title: 'ลุ้นโชคท้ายบิล', keywords: 'QR ใบเสร็จ ลุ้น รางวัล ช่วงเวลา' },
   { group: 'shop', to: '/admin/settings/test', icon: 'star', title: 'โหมดทดสอบ', keywords: 'ทดสอบ ล้างข้อมูล เดโม สำเนา TEST' },
   { group: 'shop', to: '/admin/settings/shop', icon: 'clock', title: 'ตั้งค่าร้าน', keywords: 'เวลาเปิด บัญชีรับชำระ พร้อมเพย์ มัดจำ ภาษี vat ใบเสร็จ สลิป' },
-  { group: 'shop', to: '/admin/settings/storefront', icon: 'store', title: 'หน้าร้าน (เว็บลูกค้า)', keywords: 'รีวิว เมนู' },
+  { group: 'shop', to: '/admin/settings/storefront', icon: 'store', title: 'หน้าร้าน (เว็บลูกค้า)', keywords: 'รีวิว เมนู จอลูกค้า โฆษณา วิดีโอ POS' },
   { group: 'shop', to: '/admin/settings/gallery', icon: 'image', title: 'คลังรูปเค้กสั่งทำ', keywords: 'รูป แท็ก' },
   { group: 'shop', to: '/admin/settings/links', icon: 'link', title: 'ลิงก์ย่อ & ลิงก์ออร์เดอร์', keywords: 'url หมดอายุ' },
   { group: 'channels', to: '/admin/settings/integrations', icon: 'send', title: 'การเชื่อมต่อ & แจ้งเตือน', keywords: 'facebook telegram ข้อความ' },

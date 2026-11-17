@@ -158,6 +158,8 @@ public class CustomerDisplayPlugin extends Plugin {
             WebSettings s = web.getSettings();
             s.setJavaScriptEnabled(true);
             s.setDomStorageEnabled(true);
+            // สื่อโฆษณาตอนว่าง: วิดีโอต้องเล่นเองได้ (จอลูกค้าไม่มีใครแตะ) · หน้าเว็บเล่นแบบปิดเสียงเสมอ
+            s.setMediaPlaybackRequiresUserGesture(false);
             web.setWebViewClient(new WebViewClient() {
                 @Override
                 public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {

@@ -42,6 +42,7 @@ import BillerQr from '../components/BillerQr.vue'
 import { listTransfersOfRef } from '../lib/maneeRemote'
 import { labelsFresh, LABEL_REFRESH_EVERY_S, PAID_FLASH_MS } from '../lib/payFresh'
 import { watchRefs, reservedOf, isWatched, canBindLine, adoptPatch, notDismissed } from '../lib/qrWatch'
+import { adsForDisplay } from '../lib/displayAds'
 
 // POS หน้าร้าน: เปิดกะ → ขาย (ตะกร้า สมาชิก คูปอง ส่วนลด + โปรโมชัน/บันเดิ้ลอัตโนมัติ) → ชำระ (เงินสด/โอน/บัตร + ทอน) → ใบเสร็จ · บิล · ปิดกะ
 // สะสมคะแนนจากยอดสุทธิ (โปรคะแนนพิเศษคูณได้) · ไม่ใช้คะแนนตรง ๆ: ลูกค้าแลกคะแนนเป็นคูปองที่หน้าเว็บ แล้วใช้คูปองที่นี่
@@ -345,7 +346,7 @@ onBeforeUnmount(() => {
   stopTransferWatch()
   clearTimeout(thanksTimer)
   // ออกจากหน้าขาย: จอลูกค้ากลับเป็นหน้ายินดีต้อนรับ (ไม่ค้างตะกร้า/การชำระ/QR)
-  if (native) pushDisplay({ status: 'idle', shopName: db.shop?.name || '' })
+  if (native) pushDisplay({ status: 'idle', shopName: db.shop?.name || '', ads: adsForDisplay(db.storefront?.displayAds) })
 })
 onMounted(() => { if (native) showDisplay().catch(() => {}) })
 function addPayLine(method) {
@@ -531,7 +532,8 @@ const displayState = computed(() => {
     }
   }
   if (cart.value.length) return { status: 'shopping', shopName, total: total.value, lines: displayLines.value, pricing: displayPricing.value, suggest: displaySuggest.value }
-  return { status: 'idle', shopName }
+  // ว่าง: ส่งสื่อโฆษณา (ถ้าเปิดใช้) ให้จอลูกค้าวนแสดง · มีสินค้าในตะกร้าเมื่อไรจอสลับเป็นรายการทันที
+  return { status: 'idle', shopName, ads: adsForDisplay(db.storefront?.displayAds) }
 })
 watch(displayState, (st) => { if (native) pushDisplay(st) }, { deep: true })
 const receipt = ref(null)

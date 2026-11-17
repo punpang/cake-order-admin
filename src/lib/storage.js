@@ -3,6 +3,7 @@
 // ไฟล์เดิมใน Supabase Storage (อ้างอิง sb://…) อ่านได้ตามเดิมจนหมดอายุ · ไม่มีการเขียนใหม่ลง Supabase
 // รูปที่เพิ่งเลือกจะเป็น data: / blob: (อยู่ในเบราว์เซอร์เท่านั้น) → ก่อนเขียนลงฐานข้อมูลต้องอัปโหลดแล้วแทนที่ด้วยลิงก์/อ้างอิง
 import { fileApiAllowedInTest, testModeOn, TEST_FILE_WRITE_MSG, TEST_UPLOAD_MSG } from './testMode.js'
+import { videoFileError } from './displayAds.js'
 export const PUBLIC_BUCKET = 'punpang-public'
 const LOCAL = /^(data:image\/(png|jpe?g|webp|gif);base64,|blob:)/
 export const isLocalImage = (v) => typeof v === 'string' && LOCAL.test(v)
@@ -32,7 +33,7 @@ async function filesUpload(client, blob, type, bucket, prefix) {
   if (testModeOn()) throw new Error(TEST_UPLOAD_MSG) // โหมดทดสอบไม่อัปโหลดไฟล์ไปที่ R2 จริง
   const r = await fetch(`${FILES_URL}/upload?bucket=${bucket}&prefix=${encodeURIComponent(prefix)}`, { method: 'POST', headers: { ...(await filesAuth(client)), 'Content-Type': type }, body: blob })
   const j = await r.json().catch(() => ({}))
-  if (!r.ok || (!j.url && !j.ref)) throw new Error(j.error || 'อัปโหลดรูปไม่สำเร็จ')
+  if (!r.ok || (!j.url && !j.ref)) throw new Error(j.error || 'อัปโหลดไฟล์ไม่สำเร็จ')
   return j
 }
 
@@ -41,6 +42,13 @@ export async function uploadPublicImage(client, src, prefix) {
   if (blob.size > MAX_UPLOAD_BYTES) throw new Error('รูปใหญ่เกิน 2 MB')
   const type = EXT[blob.type] ? blob.type : 'image/jpeg'
   return (await filesUpload(client, blob, type, 'public', prefix)).url
+}
+
+// อัปโหลดวิดีโอสาธารณะ (สื่อโฆษณาบนจอลูกค้า) ไป R2 ทันทีที่เลือก → คืนลิงก์ · ตรวจชนิด/ขนาดก่อน (Worker ตรวจไบต์จริงซ้ำ)
+export async function uploadPublicVideo(client, file, prefix) {
+  const err = videoFileError(file)
+  if (err) throw new Error(err)
+  return (await filesUpload(client, file, file.type, 'public', prefix)).url
 }
 
 // อัปโหลดรูปแชท (จาก Blob) ไป R2 → คืนอ้างอิง r2://private/<key> · ขนาดจำกัดโดย Worker

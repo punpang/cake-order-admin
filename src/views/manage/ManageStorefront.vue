@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { db, saveStorefront, saveReview, setReviewStatus, removeReview } from '../../data/store'
 import { dateTime } from '../../lib/format'
 import { askConfirm } from '../../lib/confirm'
@@ -7,22 +8,31 @@ import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import ImageUploader from '../../components/ImageUploader.vue'
 import PhoneInput from '../../components/PhoneInput.vue'
+import AppSwitch from '../../components/AppSwitch.vue'
+import { getSupabase } from '../../lib/supabase'
+import { filesEnabled, uploadPublicVideo } from '../../lib/storage'
+import { AD_SECONDS, MAX_AD_ITEMS, MAX_VIDEO_MB, normalizeDisplayAds } from '../../lib/displayAds'
 
 // เนื้อหาหน้าร้านสาธารณะ (หน้า "/" และ "/menu") · เมนูเค้กดึงจากสินค้า/ตัวเลือกที่เปิดใช้งานอยู่แล้ว ไม่ต้องกรอกที่นี่
 const st = reactive(JSON.parse(JSON.stringify(db.storefront)))
-const tab = ref('info')
+st.displayAds = normalizeDisplayAds(st.displayAds) // ร้านที่บันทึกไว้ก่อนมีหัวข้อนี้ = ค่าเริ่มต้น (ปิดอยู่)
+const route = useRoute()
+const TAB_IDS = ['info', 'guide', 'gallery', 'display', 'reviews']
+const tab = ref(TAB_IDS.includes(route.query.tab) ? route.query.tab : 'info')
 const saved = ref(false)
 const pending = computed(() => db.reviews.filter((r) => r.status === 'pending').length)
 const tabs = computed(() => [
   { v: 'info', l: 'ข้อมูลร้าน' },
   { v: 'guide', l: 'วิธีสั่ง/FAQ' },
   { v: 'gallery', l: 'แกลเลอรี' },
+  { v: 'display', l: 'จอลูกค้า' },
   { v: 'reviews', l: pending.value ? `รีวิว (${pending.value})` : 'รีวิว' },
 ])
 
 function save() {
   saveStorefront(st)
   Object.assign(st, JSON.parse(JSON.stringify(db.storefront)))
+  st.displayAds = normalizeDisplayAds(st.displayAds)
   saved.value = true
   setTimeout(() => (saved.value = false), 1500)
 }
@@ -32,6 +42,37 @@ const delRow = (list, i) => list.splice(i, 1)
 const MAX_GALLERY = 24
 function addGallery(images) {
   for (const image of images) if (st.gallery.length < MAX_GALLERY) st.gallery.push({ image, caption: '' })
+}
+
+// ---------- สื่อโฆษณาบนจอลูกค้า (จอที่สองของ POS) ----------
+// รูป: เก็บในเครื่องก่อน อัปโหลดตอนกดบันทึก (เหมือนรูปอื่นของหน้าร้าน) · วิดีโอ: อัปโหลดทันทีที่เลือก (ไฟล์ใหญ่ เก็บในข้อมูลร้านไม่ได้)
+const ads = computed(() => st.displayAds)
+const adRoom = computed(() => MAX_AD_ITEMS - ads.value.items.length)
+const vid = reactive({ busy: false, error: '' })
+function addAdImages(images) {
+  for (const url of images) if (ads.value.items.length < MAX_AD_ITEMS) ads.value.items.push({ type: 'image', url })
+}
+async function addAdVideo(e) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file || vid.busy || adRoom.value <= 0) return
+  vid.error = ''
+  vid.busy = true
+  try {
+    const c = await getSupabase()
+    const url = await uploadPublicVideo(c, file, 'displayAds')
+    ads.value.items.push({ type: 'video', url })
+  } catch (err) {
+    vid.error = err?.message || 'อัปโหลดวิดีโอไม่สำเร็จ'
+  } finally {
+    vid.busy = false
+  }
+}
+function moveAd(i, d) {
+  const j = i + d
+  const list = ads.value.items
+  if (j < 0 || j >= list.length) return
+  ;[list[i], list[j]] = [list[j], list[i]]
 }
 
 // ---------- รีวิว ----------
@@ -50,7 +91,7 @@ async function del(r) {
 
 <template>
   <ManageShell narrow guard title="หน้าร้าน (เว็บลูกค้า)" subtitle="ข้อมูลร้าน วิธีสั่ง แกลเลอรี รีวิว" :toolbar="false">
-    <div class="mb-4 grid grid-cols-4 gap-1 seg-grid">
+    <div class="mb-4 grid grid-cols-5 gap-1 seg-grid">
       <button v-for="t in tabs" :key="t.v" type="button" class="h-10 rounded-xl text-xs font-semibold transition sm:text-sm" :class="tab === t.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'" @click="tab = t.v">{{ t.l }}</button>
     </div>
 
@@ -111,7 +152,7 @@ async function del(r) {
       </div>
 
       <!-- แกลเลอรี -->
-      <section v-else class="card space-y-3">
+      <section v-else-if="tab === 'gallery'" class="card space-y-3">
         <div class="card-title">แกลเลอรีผลงาน ({{ st.gallery.length }}/{{ MAX_GALLERY }})</div>
         <div v-for="(g, i) in st.gallery" :key="i" class="flex items-center gap-2">
           <img :src="g.image" alt="" loading="lazy" decoding="async" class="h-16 w-16 shrink-0 rounded-xl border border-stone-200 object-cover" />
@@ -120,6 +161,60 @@ async function del(r) {
         </div>
         <ImageUploader v-if="st.gallery.length < MAX_GALLERY" :model-value="[]" :max="MAX_GALLERY - st.gallery.length" label="เพิ่มรูป" @update:model-value="addGallery" />
         <p class="text-xs text-stone-400">รูปเก็บในหน่วยความจำชั่วคราวจนกว่าจะต่อ Supabase Storage</p>
+      </section>
+
+      <!-- สื่อโฆษณาบนจอลูกค้า (จอที่สองของ POS) -->
+      <section v-else class="card space-y-4">
+        <div>
+          <div class="card-title">สื่อโฆษณาบนจอลูกค้า</div>
+          <p class="mt-1 text-sm text-stone-600">แสดงเต็มจอที่หันให้ลูกค้าตอนไม่มีการซื้อ วนตามลำดับ · พนักงานหยิบสินค้าเมื่อไร จอสลับเป็นรายการสินค้าทันที</p>
+        </div>
+        <label class="flex items-center justify-between gap-3">
+          <span class="font-medium text-stone-800">แสดงสื่อโฆษณาตอนว่าง</span>
+          <AppSwitch v-model="ads.enabled" aria-label="แสดงสื่อโฆษณาตอนว่าง" />
+        </label>
+        <label class="block">
+          <span class="label">แสดงรูปละ (วิดีโอเล่นจนจบ)</span>
+          <select v-model.number="ads.seconds" class="input">
+            <option v-for="sec in AD_SECONDS" :key="sec" :value="sec">{{ sec }} วินาที</option>
+          </select>
+        </label>
+
+        <div>
+          <div class="label">ลำดับการแสดง ({{ ads.items.length }}/{{ MAX_AD_ITEMS }})</div>
+          <p v-if="!ads.items.length" class="rounded-xl bg-stone-50 p-4 text-center text-sm text-stone-500">ยังไม่มีสื่อ · จอลูกค้าแสดงหน้ายินดีต้อนรับแบบเดิม</p>
+          <ul v-else class="space-y-2">
+            <li v-for="(a, i) in ads.items" :key="`${i}-${a.url.slice(-40)}`" class="flex items-center gap-2 rounded-xl border border-stone-200 p-2">
+              <span class="w-6 shrink-0 text-center text-sm font-semibold text-stone-500">{{ i + 1 }}</span>
+              <!-- ภาพย่อ + ป้ายชนิด (รูป/วิดีโอ) บนภาพ: จอแคบไม่ต้องมีข้อความแยกที่ถูกตัด -->
+              <div class="relative min-w-0 flex-1">
+                <video v-if="a.type === 'video'" :src="a.url" muted preload="metadata" class="h-14 w-full max-w-32 rounded-lg bg-stone-900 object-contain" />
+                <img v-else :src="a.url" alt="" loading="lazy" decoding="async" class="h-14 w-full max-w-32 rounded-lg border border-stone-200 object-cover" />
+                <span class="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 text-[11px] font-medium text-white">{{ a.type === 'video' ? 'วิดีโอ' : 'รูป' }}</span>
+              </div>
+              <button type="button" class="btn-outline h-10 w-10 shrink-0 px-0" :disabled="i === 0" aria-label="เลื่อนขึ้น" @click="moveAd(i, -1)">▲</button>
+              <button type="button" class="btn-outline h-10 w-10 shrink-0 px-0" :disabled="i === ads.items.length - 1" aria-label="เลื่อนลง" @click="moveAd(i, 1)">▼</button>
+              <button type="button" class="btn-danger h-10 w-10 shrink-0 px-0" :aria-label="`ลบสื่อลำดับ ${i + 1}`" @click="delRow(ads.items, i)"><AppIcon name="trash" :size="16" /></button>
+            </li>
+          </ul>
+        </div>
+
+        <div v-if="adRoom > 0" class="flex flex-wrap items-start gap-2">
+          <ImageUploader :model-value="[]" :max="adRoom" label="เพิ่มรูป" @update:model-value="addAdImages" />
+          <!-- ช่องเพิ่มวิดีโอ หน้าตาเดียวกับช่องเพิ่มรูป -->
+          <label class="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-stone-300 text-center text-xs text-stone-500 hover:bg-stone-50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-300" :class="{ 'pointer-events-none opacity-50': vid.busy || !filesEnabled() }">
+            <AppIcon name="video" :size="20" />
+            {{ vid.busy ? 'กำลังอัปโหลด…' : 'เพิ่มวิดีโอ' }}
+            <input type="file" accept="video/mp4,video/webm" class="sr-only" :disabled="vid.busy || !filesEnabled()" @change="addAdVideo" />
+          </label>
+        </div>
+        <p v-if="vid.error" class="text-sm text-red-700" role="alert">{{ vid.error }}</p>
+        <p v-if="!filesEnabled()" class="text-xs text-stone-500">เพิ่มวิดีโอได้เมื่อเชื่อมที่เก็บไฟล์แล้ว</p>
+        <ul class="list-disc space-y-0.5 pl-5 text-xs text-stone-500">
+          <li>แนะนำรูปและวิดีโอแนวนอน 16:9 · รูปที่สัดส่วนไม่ตรงจอแสดงครบ ไม่ถูกตัด</li>
+          <li>วิดีโอ MP4 หรือ WebM ไม่เกิน {{ MAX_VIDEO_MB }} MB · เล่นแบบปิดเสียง · ยาวไม่เกิน 30 วินาทีเหมาะที่สุด</li>
+          <li>วิดีโออัปโหลดทันทีที่เลือก · กด "บันทึก" ด้านล่างเพื่อให้จอลูกค้าใช้รายการใหม่</li>
+        </ul>
       </section>
 
       <div class="mt-4 flex items-center gap-3">
