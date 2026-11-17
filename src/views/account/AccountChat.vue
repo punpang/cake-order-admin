@@ -10,6 +10,7 @@ import { dayLabel, timeOnly } from '../../lib/format'
 import AppIcon from '../../components/AppIcon.vue'
 import { quietly } from '../../lib/loading'
 import { safeHref } from '../../lib/safeUrl'
+import { openLightbox } from '../../lib/lightbox'
 import { lastFrom, pingDue, readReceiptId } from '../../lib/chatPresence'
 import { getSupabase } from '../../lib/supabase'
 import { LIVE_POLL_MS, startChatPing } from '../../lib/chatPing'
@@ -325,10 +326,10 @@ onBeforeUnmount(() => {
               <span class="line-clamp-2 break-words">{{ m.replyTo.text }}</span>
             </div>
             <div v-if="m.photos?.length" class="mb-1.5 grid gap-1" :class="m.photos.length > 1 ? 'grid-cols-2' : ''">
-              <a v-for="p in m.photos" :key="p.ref" :href="safeHref(p.url) || undefined" target="_blank" rel="noopener" class="block">
+              <button v-for="p in m.photos" :key="p.ref" type="button" class="block" :disabled="!p.url" aria-label="ดูรูปขนาดใหญ่" @click="openLightbox(p.url, 'รูปที่แนบ')">
                 <img v-if="p.url" :src="p.url" alt="รูปที่แนบ" class="max-h-56 w-full rounded-xl object-cover" loading="lazy" />
                 <span v-else class="flex h-24 items-center justify-center rounded-xl bg-stone-200 text-xs text-stone-500">โหลดรูปไม่ได้</span>
-              </a>
+              </button>
             </div>
             <div v-if="m.text" :class="m.photos?.length ? 'px-2 pt-1 pb-1' : ''">{{ m.text }}</div>
           </div>
