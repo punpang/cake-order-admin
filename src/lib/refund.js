@@ -54,3 +54,18 @@ export function refundList(cancel) {
   const rows = Array.isArray(cancel.refunds) ? cancel.refunds : Number(cancel.refundAmount) > 0 ? [{ method: null, amount: cancel.refundAmount, legacy: cancel.refundMethod }] : []
   return rows.map((x) => ({ label: x.method ? REFUND_METHODS[x.method] || x.method : x.legacy || 'คืนเงิน', amount: Number(x.amount) || 0, points: x.points ?? null }))
 }
+
+// ---------- คืนสินค้ารายชิ้น (เฉพาะบิล POS) ----------
+// จำนวนที่คืนแล้วของรายการในบิล (นับเฉพาะการคืนที่ยังไม่ถูกยกเลิก)
+export const returnedQtyOf = (order, itemId) =>
+  returnsOf(order).reduce((n, r) => n + (r.items || []).filter((x) => x.id === itemId).reduce((s, x) => s + (Number(x.qty) || 0), 0), 0)
+// จำนวนที่คืนเข้าสต็อกแล้วของรายการในบิล (นับเฉพาะการคืนที่ยังไม่ถูกยกเลิก)
+export const restockedQtyOf = (order, itemId) =>
+  returnsOf(order).reduce((n, r) => n + (r.items || []).filter((x) => x.id === itemId).reduce((s, x) => s + (Number(x.restock) || 0), 0), 0)
+// ยอดคืนของรายการ = ราคาหลังส่วนลดของรายการ × จำนวนที่คืน
+export const itemReturnAmount = (item, qty) => r2((Number(item?.unitPrice) || 0) * (Number(qty) || 0))
+// จำนวนที่ควรคืนเข้าสต็อก: ไม่เกินจำนวนที่ตัดสต็อกไว้ตอนขาย ลบจำนวนที่คืนเข้าสต็อกไปแล้ว · ตอนขายไม่ได้ตัดสต็อก = 0
+export function restockUnits(item, qty, restockedSoFar = 0, restock = true) {
+  if (!restock || item?.stockTaken == null) return 0
+  return Math.max(0, Math.min(Number(qty) || 0, (Number(item.stockTaken) || 0) - (Number(restockedSoFar) || 0)))
+}

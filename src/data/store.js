@@ -9,7 +9,7 @@ import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } f
 import { orderCardMsg, quoteCardMsg, linkCardMsg, payCard, viewCard } from '../lib/chatCards'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { prevStatus } from '../lib/orderFlow'
-import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList, returnedByMethod } from '../lib/refund'
+import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList, returnedByMethod, returnedQtyOf, restockedQtyOf, itemReturnAmount, restockUnits } from '../lib/refund'
 import { addDays, pointBalance, takePoints, returnPoints, couponUsable, couponPhase, pickPrize, expiringSoon } from '../lib/loyalty'
 import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, timeOnly } from '../lib/format'
 import { showToast } from '../lib/toast'
@@ -1474,6 +1474,19 @@ export function refundOrder(order, c) {
   const cu = findCustomer(order.customerId)
   const err = refundErrors(refunds, { paid: paidNet, canPoints: !!cu && !cu.deleted, pointValue: db.loyalty.pointValue })
   if (err) return { error: err }
+  // คืนสินค้ารายชิ้น (เฉพาะบิล POS): ไม่เกินจำนวนที่ซื้อและที่ยังไม่ได้คืน · ยอดคืนเงินตรวจด้านบนแล้ว
+  const itemRows = []
+  for (const line of Array.isArray(c?.items) ? c.items : []) {
+    const qty = Math.floor(Number(line?.qty))
+    if (!(qty > 0)) continue
+    if (order.channel !== 'pos') return { error: 'คืนสินค้ารายชิ้นใช้ได้เฉพาะบิล POS' }
+    const it = order.items.find((x) => x.id === line.id)
+    if (!it) return { error: 'ไม่พบสินค้าในบิลนี้' }
+    const left = it.qty - returnedQtyOf(order, it.id)
+    if (qty > left) return { error: `คืน ${it.name} ได้ไม่เกิน ${left} ชิ้น` }
+    const restock = restockUnits(it, qty, restockedQtyOf(order, it.id), c.restock !== false)
+    itemRows.push({ id: it.id, retailId: it.retailId || null, name: it.name, qty, amount: itemReturnAmount(it, qty), restock })
+  }
   for (const x of refunds) {
     if (x.method !== 'points') continue
     x.points = Math.round(x.amount / db.loyalty.pointValue)
@@ -1484,9 +1497,15 @@ export function refundOrder(order, c) {
   }
   const amount = round2(refunds.reduce((n, x) => n + x.amount, 0))
   const entry = { id: uid('rf'), at: now(), by: session.role, reason, note: String(c?.note || '').trim().slice(0, 200), refunds, amount }
+  if (itemRows.length) entry.items = itemRows
+  for (const x of itemRows) {
+    const src = x.restock > 0 ? db.retailItems.find((y) => y.id === x.retailId) : null
+    if (src && src.stock != null) src.stock += x.restock
+  }
   ;(order.returns ||= []).push(entry)
   const summary = refunds.map((x) => `${REFUND_METHODS[x.method]} ${money(x.amount)}${x.method === 'points' ? ` (${x.points} คะแนน)` : ''}`).join(' + ')
-  log(order, `คืนเงินบางส่วน ${summary} · ${reason}`)
+  const itemsText = itemRows.length ? ` · คืนสินค้า ${itemRows.map((x) => `${x.name} ×${x.qty}`).join(', ')}` : ''
+  log(order, `คืนเงินบางส่วน ${summary}${itemsText} · ${reason}`)
   notifyOrder('order_refunded', order, { requested: amount, skip: c?.notify === false, noSms: c?.sms === false })
   return { ok: true, entry }
 }
@@ -1517,6 +1536,12 @@ export function cancelRefund(order, returnId, c = {}) {
     if (lot ? lot.remaining !== lot.delta : !pointsHook.call) return { error: 'คะแนนที่คืนให้ลูกค้าถูกใช้ไปแล้ว ยกเลิกการคืนไม่ได้' }
     lots.push({ lot, x })
   }
+  // สินค้าที่คืนเข้าสต็อกไว้ ต้องยังมีสต็อกพอให้ตัดกลับ (ตรวจก่อนแก้ข้อมูล)
+  const restocked = (r.items || []).filter((x) => x.restock > 0)
+  for (const x of restocked) {
+    const src = db.retailItems.find((y) => y.id === x.retailId)
+    if (src && src.stock != null && src.stock < x.restock) return { error: `สต็อก ${x.name} ไม่พอให้ยกเลิกการคืนนี้ (เหลือ ${src.stock})` }
+  }
   if (pointsHook.call) {
     const ops = lots.map(({ lot, x }) => ({ op: 'cut_refund', lotId: lot?.id || x.lotId || null, points: x.points, label: `คืนเงิน ${order.code}`, reason: `ยกเลิกการคืนเงิน ${order.code}`, orderId: order.id }))
     if (ops.length) ledgerRemote(cu.id, ops, order.id)
@@ -1525,6 +1550,10 @@ export function cancelRefund(order, returnId, c = {}) {
       lot.remaining = 0
       cu.ledger.push({ id: uid('pt'), at: now(), delta: -x.points, reason: `ยกเลิกการคืนเงิน ${order.code}`, orderId: order.id, takes: [{ lotId: lot.id, n: x.points }] })
     }
+  }
+  for (const x of restocked) {
+    const src = db.retailItems.find((y) => y.id === x.retailId)
+    if (src && src.stock != null) src.stock -= x.restock
   }
   r.cancelled = { at: now(), by: session.role, reason }
   log(order, `ยกเลิกการคืนเงิน ${money(r.amount)} · ${reason}`)
@@ -3916,11 +3945,13 @@ export function voidPosSale(order, reason = 'ยกเลิกบิล', refun
   const refundedNow = round2(rows.reduce((s, x) => s + (Number(x.amount) || 0), 0))
   if (refundedNow < round2(net) - 0.005 && !String(refundNote || '').trim()) return { error: 'คืนไม่เต็มจำนวน: ระบุเหตุผลในหมายเหตุการคืนเงิน' }
   const wasPending = order.status === 'pos_pending' // บิลค้างยังไม่ได้ตัดสต็อก จึงไม่คืน
+  // สินค้าที่คืนเข้าสต็อกไปแล้วตอนคืนเป็นชิ้น ต้องไม่คืนซ้ำตอนยกเลิกบิล
+  const restockedBefore = new Map(order.items.map((it) => [it.id, restockedQtyOf(order, it.id)]))
   const r = cancelOrder(order, { reason, refunds: rows, refundNote })
   if (r.error) return r
   if (!wasPending) for (const it of order.items) {
     const src = it.kind === 'retail' ? db.retailItems.find((x) => x.id === it.retailId) : null
-    if (src && src.stock != null) src.stock += it.stockTaken ?? it.qty
+    if (src && src.stock != null) src.stock += Math.max(0, (it.stockTaken ?? it.qty) - (restockedBefore.get(it.id) || 0))
   }
   return r
 }
