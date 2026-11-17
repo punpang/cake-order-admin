@@ -2,9 +2,11 @@
 // ยืนยันตัวตน 2 แบบ: เซสชันลูกค้า (state / request / edit) หรือ token ลิงก์ออร์เดอร์ (view = ดูเอกสารอย่างเดียว)
 // ใช้ service role จึงตรวจสิทธิ์ เงื่อนไข ยอด และข้อมูลผู้ขายเองทั้งหมด · ยอดใช้ orderTotals ชุดเดียวกับแอป (_shared/schedlib/taxInvoice.js)
 // ข้อมูลผู้ขายอ่านจากตั้งค่าร้านฝั่งเซิร์ฟเวอร์เท่านั้น (ไม่เปิดสาธารณะ) · เลขที่ใบออกโดยฐานข้อมูล (trigger ของ punpang_acct_invoices)
+// ออก/แก้ใบผ่าน punpang_customer_tax_invoice (ธุรกรรมเดียว กันกดซ้ำพร้อมกัน) · โหมดทดสอบไม่ทำงาน (409)
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsWrap } from '../_shared/cors.ts'
 import { createLimiter } from '../_shared/ratelimit.ts'
+import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { buildCreditNote, buildInvoice, cleanBuyer, customerInvoiceState, customerIssueBlock } from '../_shared/schedlib/taxInvoice.js'
 
 const DAY = 86400000
@@ -69,15 +71,10 @@ async function rememberTax(sb: any, customerId: string, buyer: Record<string, st
   await sb.from('punpang_customers').update({ data: { ...(r.data.data || {}), tax: buyer } }).eq('id', customerId)
 }
 
-// เพิ่มใบหรือใบลดหนี้ 1 ใบ · คืนเลขที่ที่ฐานข้อมูลออกให้ · null = บันทึกไม่สำเร็จ
-async function insertDoc(sb: any, id: string, kind: 'invoice' | 'credit', orderId: string, date: string, data: Record<string, any>): Promise<string | null> {
-  const r = await sb.from('punpang_acct_invoices').insert({ id, kind, order_id: orderId, doc_date: date, no: '', year: 0, seq: 0, data }).select('no').single()
-  if (r.error || !r.data) return null
-  return String(r.data.no)
-}
-
 Deno.serve(corsWrap(async (req) => {
   if (req.method !== 'POST') return json({ error: 'ใช้เมธอด POST' }, 405)
+  const refused = refuseInTest(modeOf(req))
+  if (refused) return refused
   try {
     const b = (await req.json().catch(() => null)) as Record<string, any> | null
     if (!b) return json({ error: 'คำขอไม่ถูกต้อง' }, 400)
@@ -117,23 +114,33 @@ Deno.serve(corsWrap(async (req) => {
     const block = customerIssueBlock(order, invoices, buyer, seller, today, { edit })
     if (block) return json({ error: block }, 400)
 
+    // customerIssueBlock รับรองแล้วว่ามีใบปัจจุบันและยังแก้ได้เมื่อ edit
+    const cur = edit ? (invoices.find((i) => i.type === 'invoice' && !i.voidedBy) as Doc) : null
     const by = `customer:${customerId}`
     const createdAt = new Date().toISOString()
-    let rev = 0
-    if (edit) {
-      // customerIssueBlock รับรองแล้วว่ามีใบปัจจุบันและยังแก้ได้
-      const cur = invoices.find((i) => i.type === 'invoice' && !i.voidedBy) as Doc
-      rev = (Number(cur.rev) || 0) + 1
-      const cnId = newId()
-      const cn = buildCreditNote({ inv: cur, id: cnId, date: today, reason: 'ลูกค้าแก้ไขข้อมูลผู้ซื้อ', by, createdAt })
-      if (!(await insertDoc(sb, cnId, 'credit', order.id, today, cn))) return json({ error: SAVE_FAIL }, 500)
-      const vo = await sb.from('punpang_acct_invoices').update({ data: { ...cur, voidedBy: cnId } }).eq('id', cur.id)
-      if (vo.error) return json({ error: SAVE_FAIL }, 500)
-    }
     const id = newId()
-    const inv = buildInvoice({ order, seller, buyer, id, by, rev, date: today, createdAt })
-    const no = await insertDoc(sb, id, 'invoice', order.id, today, inv)
-    if (!no) return json({ error: edit ? 'ออกใบใหม่ไม่สำเร็จ ใบเดิมถูกยกเลิกแล้ว กรุณาขอใบใหม่อีกครั้ง' : SAVE_FAIL }, 500)
+    const inv = buildInvoice({ order, seller, buyer, id, by, rev: cur ? (Number(cur.rev) || 0) + 1 : 0, date: today, createdAt })
+    const cnId = cur ? newId() : null
+    const cn = cur && cnId ? buildCreditNote({ inv: cur, id: cnId, date: today, reason: 'ลูกค้าแก้ไขข้อมูลผู้ซื้อ', by, createdAt }) : null
+    // แก้ไข = ใบลดหนี้ + ยกเลิกใบเดิม + ใบใหม่ ในธุรกรรมเดียวที่ฐานข้อมูล (ล็อกออร์เดอร์กันกดซ้ำพร้อมกัน)
+    const r = await sb.rpc('punpang_customer_tax_invoice', {
+      p_mode: edit ? 'edit' : 'request',
+      p_order_id: order.id,
+      p_date: today,
+      p_inv_id: id,
+      p_inv_data: inv,
+      p_cn_id: cnId,
+      p_cn_data: cn,
+      p_orig_id: cur ? cur.id : null,
+    })
+    if (r.error) {
+      // P0001 = ข้อความที่ฐานข้อมูลตั้งไว้ให้แสดงกับลูกค้าได้ (เช่น ใบเปลี่ยนไปแล้ว)
+      if (r.error.code === 'P0001') return json({ error: r.error.message }, 400)
+      console.error('tax-invoice rpc', r.error)
+      return json({ error: SAVE_FAIL }, 500)
+    }
+    const no = String((r.data as { no?: unknown } | null)?.no ?? '')
+    if (!no) return json({ error: SAVE_FAIL }, 500)
     if (b.remember === true) await rememberTax(sb, customerId, buyer)
     const after = await loadInvoices(sb, orderId)
     return json({ ok: true, invoice: { ...inv, no }, state: customerInvoiceState(order, after, today) })
