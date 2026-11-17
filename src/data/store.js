@@ -1086,8 +1086,21 @@ export function createOrder(payload, asDraft = false) {
   log(o, asDraft ? 'สร้างออร์เดอร์ (ร่าง)' : 'สร้างออร์เดอร์ → รอชำระ', { team: false })
   db.orders.unshift(o)
   if (o.fulfillment === 'delivery') rememberPlaceOf(o.customerId, o)
-  if (!asDraft) notifyOrder('order_created', o, { skip: payload.notify === false, noSms: payload.sms === false })
+  if (!asDraft) {
+    const opts = { skip: payload.notify === false, noSms: payload.sms === false }
+    // ในโหมดเซิร์ฟเวอร์: แจ้งหลังเซิร์ฟเวอร์บันทึกออร์เดอร์แล้วเท่านั้น (ราคาจริงอาจต่างจากที่แสดงในเครื่อง)
+    if (supabaseEnabled) Object.defineProperty(o, '_notifyCreated', { value: opts, writable: true, configurable: true })
+    else notifyOrder('order_created', o, opts)
+  }
   return o
+}
+
+// แจ้งลูกค้า/ทีมว่ามีออร์เดอร์ใหม่ เมื่อเซิร์ฟเวอร์บันทึกแล้ว (เรียกจาก ordersSync.pushOrders)
+export function flushOrderCreated(o) {
+  const opts = o?._notifyCreated
+  if (!opts) return
+  delete o._notifyCreated
+  notifyOrder('order_created', o, opts)
 }
 
 // ลำดับจัดส่ง (เฉพาะ fulfillment = delivery): เตรียมแล้ว → พร้อมจัดส่ง → กำลังจัดส่ง → ส่งมอบแล้ว · ข้ามขั้นไม่ได้ · รับที่ร้านไม่มีสองขั้นกลาง

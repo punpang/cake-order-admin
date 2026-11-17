@@ -97,6 +97,8 @@ function cleanSelections(s) {
 const cleanBirthday = (b) => (isObj(b) && typeof b.md === 'string' && MD_RE.test(b.md) ? { name: text(b.name, 80), md: b.md } : null)
 
 // รายการหนึ่งรายการ → ค่าที่ปลอดภัยและราคาจากแคตาล็อก (สินค้าหน้าร้าน: ราคา/ขนาด/ประเภท/ชื่อจากสินค้าในระบบ ไม่ใช่จากเครื่อง)
+// ฟิลด์นำเข้าของรายการสินค้า (ตรงกับที่แอปส่ง) · อย่างอื่นไม่รับ
+const ITEM_INPUT_KEYS = new Set(['id', 'images', 'kind', 'name', 'note', 'promoGift', 'qty', 'retailId', 'retailPrice', 'selections', 'sizeId', 'tiers', 'typeId'])
 function cleanItem(raw, cat) {
   if (!isObj(raw)) return { error: 'รายการสินค้าไม่ถูกต้อง' }
   const id = idStr(raw.id)
@@ -104,7 +106,9 @@ function cleanItem(raw, cat) {
   if (raw.kind !== 'retail' && raw.kind !== 'custom') return { error: 'ประเภทรายการไม่ถูกต้อง' }
   const qty = Number(raw.qty)
   if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) return { error: 'จำนวนสินค้าต้องเป็นจำนวนเต็ม 1–999' }
+  // เก็บเฉพาะฟิลด์นำเข้าที่แอปส่งจริง · ฟิลด์อื่นที่เครื่องส่งมา (เช่น price/total/net) ถูกทิ้ง ไม่ปนเข้าไปในรายการที่บันทึก
   const out = { ...raw, id, kind: raw.kind, qty }
+  for (const k of Object.keys(out)) if (!ITEM_INPUT_KEYS.has(k)) delete out[k]
   delete out.promoGift
   if (raw.note !== undefined) out.note = text(raw.note, 1000)
   if (raw.name !== undefined) out.name = text(raw.name, 200)

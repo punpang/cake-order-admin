@@ -300,7 +300,7 @@ async function startData(staff) {
     }
     return h
   }))
-  tasks.push(orders.startOrdersSync({ client, db, numbering: store.numbering, onError, onRecode: (o, c) => showToast(`เลขออร์เดอร์ซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000),
+  tasks.push(orders.startOrdersSync({ client, db, numbering: store.numbering, onError, onCreated: (o) => store.flushOrderCreated(o), onRecode: (o, c) => showToast(`เลขออร์เดอร์ซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000),
     canWrite: ['createOrder', 'pos', 'startPreparing', 'markPrepared', 'deliverPickup', 'deliverShipping', 'confirmPayment', 'reportPayment', 'cancel', 'editPickup', 'editItems', 'adjustPrice', 'changeBuyer', 'workPhoto'].some(has) }).then((h) => { store.numbering.prefetch(); return h }))
   tasks.push(customers.startCustomersSync({ client, db, canWrite: has('createOrder') || has('adjustPoints'), onError }))
   tasks.push(acct.startAcctSync({ client, db, has, onError }))

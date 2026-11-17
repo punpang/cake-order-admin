@@ -424,18 +424,18 @@ select test.ok('C2: สร้างออร์เดอร์ที่ตั้
 select test.ok('C2: สร้างออร์เดอร์ที่ตั้งส่วนลดเองไม่ได้ (ไม่มีสิทธิ์ปรับราคา)',
   test.as_staff('11111111-1111-1111-1111-111111111111',
     $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_c2b', 'OR-C2-2', 'c1', 'awaiting_payment', 'pickup', 'web', '{"items":[{"id":"q2","unitPrice":500,"qty":1}],"payments":[],"adjustment":{"amount":-400,"reason":"x"},"pointsUsed":null}') $q$) like 'ERR:42501:no permission to set a discount%');
-select test.ok('C2: สร้างออร์เดอร์ใหม่ที่ส่วนลดเป็นศูนย์และคะแนนว่างได้ (ค่าเริ่มต้นของแอป)',
+select test.ok('C2: ออร์เดอร์ปกติที่ส่วนลดเป็นศูนย์ก็เขียนตรงไม่ได้แล้ว (ต้องผ่านเซิร์ฟเวอร์ order-create)',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_c2c', 'OR-C2-3', 'c1', 'awaiting_payment', 'pickup', 'web', '{"items":[{"id":"q3","unitPrice":500,"qty":1}],"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null}') $q$) = 'OK');
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_c2c', 'OR-C2-3', 'c1', 'awaiting_payment', 'pickup', 'web', '{"items":[{"id":"q3","unitPrice":500,"qty":1}],"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null}') $q$) like 'ERR:42501:orders must be created through the server%');
 select test.ok('C2: บิลหน้าร้านที่ไม่มีสิทธิ์ปรับราคาให้ส่วนลดไม่ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
     $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_c2d', 'OR-C2-4', 'c1', 'payment_confirmed', 'pickup', 'pos', '{"items":[{"id":"q4","unitPrice":500,"qty":1}],"payments":[],"adjustment":{"amount":-50,"reason":"ส่วนลดหน้าร้าน"},"pointsUsed":null}') $q$) like 'ERR:42501:no permission to set a discount%');
 select test.ok('C2: ผู้ที่มีสิทธิ์ปรับราคาสร้างออร์เดอร์ที่มีส่วนลดได้ (ไม่ใช่ผู้จัดการ)',
   test.as_staff('88888888-8888-8888-8888-888888888888',
-    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_c2e', 'OR-C2-5', 'c1', 'awaiting_payment', 'pickup', 'web', '{"items":[{"id":"q5","unitPrice":500,"qty":1}],"payments":[],"adjustment":{"amount":-50,"reason":"ตกลงกับลูกค้า"},"pointsUsed":null}') $q$) = 'OK');
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_c2e', 'OR-C2-5', 'c1', 'awaiting_payment', 'pickup', 'pos', '{"items":[{"id":"q5","unitPrice":500,"qty":1}],"payments":[],"adjustment":{"amount":-50,"reason":"ตกลงกับลูกค้า"},"pointsUsed":null}') $q$) = 'OK');
 select test.ok('C2: ผู้จัดการสร้างออร์เดอร์ที่มีส่วนลดและคะแนนที่ใช้ได้ (ผู้จัดการผ่านทุกข้อ)',
   test.as_staff('55555555-5555-5555-5555-555555555555',
-    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_c2f', 'OR-C2-6', 'c1', 'awaiting_payment', 'pickup', 'web', '{"items":[{"id":"q6","unitPrice":500,"qty":1}],"payments":[],"adjustment":{"amount":-50,"reason":"แอดมิน"},"pointsUsed":{"points":10,"amount":10,"entryId":"x"}}') $q$) = 'OK');
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_c2f', 'OR-C2-6', 'c1', 'awaiting_payment', 'pickup', 'pos', '{"items":[{"id":"q6","unitPrice":500,"qty":1}],"payments":[],"adjustment":{"amount":-50,"reason":"แอดมิน"},"pointsUsed":{"points":10,"amount":10,"entryId":"x"}}') $q$) = 'OK');
 
 -- ===== C3 (รอบ 2026-11-15): ราคาในใบเสนอที่ส่งแล้วคือราคาที่ตกลง (ล็อก) =====
 insert into auth.users (id, email) values ('99999999-9999-9999-9999-999999999999', 'chat@example.test') on conflict do nothing;
@@ -451,30 +451,32 @@ select test.ok('C3: แก้ราคาในใบเสนอที่บั
 select test.ok('C3: เปลี่ยนสถานะใบเสนอได้ตามปกติ',
   test.as_staff('99999999-9999-9999-9999-999999999999',
     $q$ update public.punpang_quotes set status = 'converting' where id = 'qt1' $q$) = 'OK');
+-- ตรรกะตรวจใบเสนอของ trigger (ฉบับ 20261117140000 ยังทำงานกับการเขียนตรงของ POS) — ออร์เดอร์ปกติจากใบเสนอ
+-- ผ่าน order-create ซึ่งเรียกฟังก์ชันตรวจเดียวกัน (punpang__quote_check) จึงใช้ช่อง pos ในการทดสอบนี้
 select test.ok('C3: ออร์เดอร์จากใบเสนอที่รายการ VAT และค่าส่งตรงกับที่ลูกค้าเห็น สร้างได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_q1', 'OR-Q-1', 'c1', 'awaiting_payment', 'pickup', 'web', '{"quoteId":"qt1","items":[{"id":"qi1","unitPrice":500,"qty":1}],"vat":{"rate":0,"mode":"none"},"shippingFee":0,"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null,"couponsUsed":[]}') $q$) = 'OK');
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_q1', 'OR-Q-1', 'c1', 'awaiting_payment', 'pickup', 'pos', '{"quoteId":"qt1","items":[{"id":"qi1","unitPrice":500,"qty":1}],"vat":{"rate":0,"mode":"none"},"shippingFee":0,"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null,"couponsUsed":[]}') $q$) = 'OK');
 select test.ok('C3: ผูกใบเสนอกับออร์เดอร์ที่สร้างแล้ว',
   test.as_staff('99999999-9999-9999-9999-999999999999',
     $q$ update public.punpang_quotes set order_id = 'o_q1' where id = 'qt1' $q$) = 'OK');
 select test.ok('C3: ใบเสนอเดียวกันแปลงเป็นออร์เดอร์ซ้ำไม่ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_q2', 'OR-Q-2', 'c1', 'awaiting_payment', 'pickup', 'web', '{"quoteId":"qt1","items":[{"id":"qi1","unitPrice":500,"qty":1}],"vat":{"rate":0,"mode":"none"},"shippingFee":0,"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null,"couponsUsed":[]}') $q$) like 'ERR:42501:quote already converted%');
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_q2', 'OR-Q-2', 'c1', 'awaiting_payment', 'pickup', 'pos', '{"quoteId":"qt1","items":[{"id":"qi1","unitPrice":500,"qty":1}],"vat":{"rate":0,"mode":"none"},"shippingFee":0,"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null,"couponsUsed":[]}') $q$) like 'ERR:42501:quote already converted%');
 select test.ok('C3: ใบเสนอของลูกค้าอีกคนแปลงให้ลูกค้าคนนี้ไม่ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_q3', 'OR-Q-3', 'c1', 'awaiting_payment', 'pickup', 'web', '{"quoteId":"qt2","items":[{"id":"qi2","unitPrice":500,"qty":1}],"vat":{"rate":0,"mode":"none"},"shippingFee":0,"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null,"couponsUsed":[]}') $q$) like 'ERR:42501:quote customer mismatch%');
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_q3', 'OR-Q-3', 'c1', 'awaiting_payment', 'pickup', 'pos', '{"quoteId":"qt2","items":[{"id":"qi2","unitPrice":500,"qty":1}],"vat":{"rate":0,"mode":"none"},"shippingFee":0,"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null,"couponsUsed":[]}') $q$) like 'ERR:42501:quote customer mismatch%');
 select test.ok('C3: ตั้งราคาในออร์เดอร์ต่างจากใบเสนอ (เคส 1 บาท) สร้างไม่ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_q4', 'OR-Q-4', 'c1', 'awaiting_payment', 'pickup', 'web', '{"quoteId":"qt3","items":[{"id":"qi3","unitPrice":1,"qty":1}],"vat":{"rate":0,"mode":"none"},"shippingFee":0,"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null,"couponsUsed":[]}') $q$) like 'ERR:42501:order items differ%');
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_q4', 'OR-Q-4', 'c1', 'awaiting_payment', 'pickup', 'pos', '{"quoteId":"qt3","items":[{"id":"qi3","unitPrice":1,"qty":1}],"vat":{"rate":0,"mode":"none"},"shippingFee":0,"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null,"couponsUsed":[]}') $q$) like 'ERR:42501:order items differ%');
 select test.ok('C3: VAT ในออร์เดอร์ต่างจากใบเสนอ สร้างไม่ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_q5', 'OR-Q-5', 'c1', 'awaiting_payment', 'pickup', 'web', '{"quoteId":"qt3","items":[{"id":"qi3","unitPrice":500,"qty":1}],"vat":{"rate":7,"mode":"exclusive"},"shippingFee":0,"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null,"couponsUsed":[]}') $q$) like 'ERR:42501:order VAT differs%');
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_q5', 'OR-Q-5', 'c1', 'awaiting_payment', 'pickup', 'pos', '{"quoteId":"qt3","items":[{"id":"qi3","unitPrice":500,"qty":1}],"vat":{"rate":7,"mode":"exclusive"},"shippingFee":0,"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null,"couponsUsed":[]}') $q$) like 'ERR:42501:order VAT differs%');
 select test.ok('C3: ใบเสนอที่ลูกค้ายังไม่ยืนยัน แปลงเป็นออร์เดอร์ไม่ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_q6', 'OR-Q-6', 'c1', 'awaiting_payment', 'pickup', 'web', '{"quoteId":"qt4","items":[{"id":"qi4","unitPrice":500,"qty":1}],"vat":{"rate":0,"mode":"none"},"shippingFee":0,"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null,"couponsUsed":[]}') $q$) like 'ERR:42501:quote is not ready%');
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_q6', 'OR-Q-6', 'c1', 'awaiting_payment', 'pickup', 'pos', '{"quoteId":"qt4","items":[{"id":"qi4","unitPrice":500,"qty":1}],"vat":{"rate":0,"mode":"none"},"shippingFee":0,"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null,"couponsUsed":[]}') $q$) like 'ERR:42501:quote is not ready%');
 select test.ok('C3: อ้างใบเสนอที่ไม่มีอยู่ในระบบไม่ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_q7', 'OR-Q-7', 'c1', 'awaiting_payment', 'pickup', 'web', '{"quoteId":"no_such","items":[{"id":"qi5","unitPrice":500,"qty":1}],"vat":{"rate":0,"mode":"none"},"shippingFee":0,"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null,"couponsUsed":[]}') $q$) like 'ERR:42501:quote not found%');
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_q7', 'OR-Q-7', 'c1', 'awaiting_payment', 'pickup', 'pos', '{"quoteId":"no_such","items":[{"id":"qi5","unitPrice":500,"qty":1}],"vat":{"rate":0,"mode":"none"},"shippingFee":0,"payments":[],"adjustment":{"amount":0,"reason":""},"pointsUsed":null,"couponsUsed":[]}') $q$) like 'ERR:42501:quote not found%');
 select test.ok('C3: เปลี่ยนลูกค้าของใบเสนอไม่ได้',
   test.as_staff('99999999-9999-9999-9999-999999999999',
     $q$ update public.punpang_quotes set customer_id = 'c2' where id = 'qt3' $q$) like 'ERR:42501:quote customer or chat cannot%');
@@ -569,5 +571,13 @@ update public.punpang_order_audits set checked_at = now() + interval '1 minute' 
 select test.ok('C7: ผลตรวจใหม่หลังการตรวจ ยืนยันชำระไม่ได้จนกว่าจะตรวจซ้ำ',
   test.as_staff('55555555-5555-5555-5555-555555555555',
     $q$ update public.punpang_orders set status = 'payment_confirmed' where id = 'o_g2' $q$) like 'ERR:P0001:%');
+
+-- ราคาออร์เดอร์คิดที่เซิร์ฟเวอร์ (migration 20261117140000): แอปเขียนออร์เดอร์ที่ไม่ใช่ POS ตรงไม่ได้ทุกบทบาท รวมผู้จัดการ
+select test.ok('S1: พนักงานขายเขียนออร์เดอร์ปกติตรงไม่ได้ (ต้องผ่าน order-create)',
+  test.as_staff('11111111-1111-1111-1111-111111111111',
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_srv1', 'OR-171126-000901', 'c1', 'awaiting_payment', 'pickup', null, '{"items":[],"history":[]}') $q$) like 'ERR:42501:orders must be created through the server%');
+select test.ok('S1: ผู้จัดการเขียนออร์เดอร์ปกติตรงไม่ได้ (ไม่มีทางข้ามด่าน)',
+  test.as_staff('55555555-5555-5555-5555-555555555555',
+    $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_srv2', 'OR-171126-000902', 'c1', 'awaiting_payment', 'pickup', null, '{"items":[],"history":[]}') $q$) like 'ERR:42501:orders must be created through the server%');
 
 select 'ผ่านทั้งหมด' as security_tests;

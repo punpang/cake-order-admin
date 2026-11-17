@@ -1,4 +1,5 @@
 import { startSync, selectAll, withVer, casUpdate } from './tableSync'
+import { orderRowOf, balanceOf } from './orderCreate.js'
 import { parseNo } from './docNo'
 import { orderTotals } from './pricing'
 import { STATUS } from './constants'
@@ -16,12 +17,8 @@ export function clearPinnedOrders() { pinned.clear() }
 // สิทธิ์ตรวจที่ฐานข้อมูลด้วย trigger (เปลี่ยนสถานะ/ยืนยันชำระ/ยกเลิกยอด/แจ้งยอด) — ดู punpang_guard_status
 // ออร์เดอร์ไม่ถูกลบจริง (ใช้สถานะ cancelled) — ตารางไม่มี policy ลบ จึงข้ามการลบ
 // ยอดคงค้าง (คอลัมน์ balance) ใช้กรองการชำระเงินที่ฐานข้อมูล · คำนวณจากข้อมูลออร์เดอร์ตอนเขียน
-const balanceOf = (o) => { try { const b = orderTotals(o).balance; return Number.isFinite(b) ? Math.round(b * 100) / 100 : null } catch { return null } }
-export function orderToRow(o) {
-  const { id, code, customerId, status, fulfillment, channel, ...rest } = o
-  // pickupAt เป็นเวลาท้องถิ่นแบบไม่มีโซน เก็บฉบับจริงใน data · คอลัมน์ pickup_at ไว้เรียง/ค้นหาเท่านั้น
-  return { id, code, customer_id: customerId || null, status, fulfillment, channel: channel || null, pickup_at: o.pickupAt || null, balance: balanceOf(o), data: rest }
-}
+// แถวฐานข้อมูลของออร์เดอร์ใช้ตัวเดียวกับ Edge Function order-create (ดู orderCreate.js)
+export const orderToRow = orderRowOf
 export function rowToOrder(r) {
   const d = r.data || {}
   return withVer({ ...d, id: r.id, code: r.code, customerId: r.customer_id || '', status: r.status, fulfillment: r.fulfillment, ...(r.channel ? { channel: r.channel } : {}) }, r.updated_at)
@@ -107,11 +104,37 @@ export async function loadOrdersByIds(client, ids) {
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
+// ข้อมูลที่เซิร์ฟเวอร์ต้องการเพื่อคิดราคาและบันทึกออร์เดอร์ใหม่ (ราคาที่แอปคิดไว้ไม่ถูกส่งเป็นราคาจริง)
+const DELIVERY_KEYS = ['address', 'shippingFee', 'placeName', 'mapUrl', 'detail', 'distanceKm', 'feeManual']
+function draftOf(o) {
+  const d = { customerId: o.customerId || '', fulfillment: o.fulfillment, pickupAt: o.pickupAt, birthday: o.birthday ? { name: o.birthday.name || '', md: o.birthday.md } : null, items: (o.items || []).map((i) => ({ ...i })), adjustment: o.adjustment || null }
+  for (const k of DELIVERY_KEYS) if (o[k] !== undefined) d[k] = o[k]
+  return d
+}
+// เรียก Edge Function order-create: คืน { ok, row } หรือ { ok:false, code, message }
+async function createOrderRemote(client, o) {
+  const { data, error } = await client.functions.invoke('order-create', { body: {
+    id: o.id, code: o.code, asDraft: o.status === 'draft', chatId: o.chatId || null, quoteId: o.quoteId || null,
+    by: o.history?.[0]?.by || '', draft: draftOf(o), occasionKind: o.occasion?.kind || '', occasionConsent: !!o.occasion?.consent,
+  } })
+  if (!error && data?.row) return { ok: true, row: data.row }
+  if (!error) return { ok: false, code: '', message: 'ตอบกลับจากเซิร์ฟเวอร์ไม่ถูกต้อง' }
+  let j = {}
+  try { j = (await error.context?.json?.()) || {} } catch { j = {} }
+  return { ok: false, code: j.code || '', message: j.error || error.message || 'บันทึกออร์เดอร์ไม่สำเร็จ' }
+}
+// รับค่าที่เซิร์ฟเวอร์บันทึกจริงมาแสดง (ราคา รายการ ประวัติ) และตั้งเวอร์ชันสำหรับการแก้ครั้งต่อไป
+function mergeServerOrder(o, row) {
+  const fresh = rowToOrder(row)
+  for (const k of Object.keys(fresh)) o[k] = fresh[k]
+  withVer(o, row.updated_at)
+}
+
 // เขียนทีละรายการ: แถวใหม่ = insert · แถวที่มีในฐานข้อมูลแล้ว (known) = update
 // ห้ามใช้ upsert: PostgREST ส่งเป็น INSERT ... ON CONFLICT และ Postgres ตรวจ policy ฝั่ง INSERT กับแถวที่ส่งด้วย
 // ทำให้ออร์เดอร์ที่สถานะไปไกลกว่า draft/awaiting_payment ถูกปฏิเสธ (403) ทุกครั้งที่แก้
 // FK ลูกค้ายังไม่ถูกซิงก์ (23503) → รอแล้วลองใหม่ · เลขซ้ำ (23505) → ออกเลขใหม่
-export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRecode = () => {}, onGate = () => {}, numbering = null, known = new Set(), slips = new Map() } = {}) {
+export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRecode = () => {}, onGate = () => {}, onCreated = () => {}, numbering = null, known = new Set(), slips = new Map() } = {}) {
   const cache = new Map()
   const conflicts = []
   for (const o of upserts) {
@@ -127,9 +150,19 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
         if (c.conflict) { conflicts.push(o.id); break }
         r = c.error ? { error: c.error } : {}
         if (c.ok) withVer(o, c.ver)
-      } else r = await client.from('punpang_orders').insert(row)
+      } else if (o.channel === 'pos') {
+        r = await client.from('punpang_orders').insert(row) // บิลหน้าร้าน: เขียนตรง (ตรวจหลังบันทึกด้วย pos_audit)
+      } else {
+        // แถวใหม่: ส่งให้เซิร์ฟเวอร์คิดราคาและบันทึก (order-create) · รับแถวที่บันทึกจริงมาแสดง
+        const c = await createOrderRemote(client, o)
+        if (c.ok) { mergeServerOrder(o, c.row); r = {} }
+        else if (c.code === 'exists') { known.add(o.id); continue } // มีแถวนี้แล้ว → รอบถัดไปแก้แถวเดิม
+        else r = { error: { code: c.code === 'code' ? '23505' : c.code === 'fk' ? '23503' : (c.code || ''), message: c.message } }
+      }
       if (!r.error) {
+        const wasNew = !known.has(o.id)
         known.add(o.id)
+        if (wasNew) onCreated(o) // แจ้งลูกค้า/ทีมหลังเซิร์ฟเวอร์บันทึกแล้วเท่านั้น
         // รูปที่ไม่ถูกอ้างถึงแล้ว (เปลี่ยนรูป/ลบรูป/ล้างข้อมูลลูกค้า) → ลบไฟล์
         const cur = privateRefsOf(o), prev = slips.get(o.id)
         slips.set(o.id, cur)
@@ -155,7 +188,7 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
   return conflicts.length ? { ok: true, conflicts } : { ok: true }
 }
 
-export function startOrdersSync({ client, db, canWrite, onError, onRecode, numbering, debounceMs, retryDelay }) {
+export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCreated, numbering, debounceMs, retryDelay }) {
   const known = new Set()
   const slips = new Map()
   return startSync({
@@ -173,7 +206,7 @@ export function startOrdersSync({ client, db, canWrite, onError, onRecode, numbe
     load: () => loadOrders(client),
     loadByIds: (ids) => loadOrdersByIds(client, ids),
     applyRows: (rows) => { for (const i of rows) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) } if (numbering) numbering.seen(rows.map((i) => i.code), { reset: false }) },
-    push: (changes) => pushOrders(client, changes, { onRecode, retryDelay, numbering, known, slips, onGate: (m) => onError(m) }),
+    push: (changes) => pushOrders(client, changes, { onRecode, onCreated, retryDelay, numbering, known, slips, onGate: (m) => onError(m) }),
     canWrite, onError, debounceMs, label: 'ออร์เดอร์', poll: true,
   }).then((h) => { if (canWrite) backfillBalances(client, db).catch(() => {}); return h })
 }
