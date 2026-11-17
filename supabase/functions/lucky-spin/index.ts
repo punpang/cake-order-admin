@@ -2,6 +2,7 @@ import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { corsWrap } from '../_shared/cors.ts'
 import { isProjectId, isTokenShape, tallyByProject } from '../_shared/lucky.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { clientIp } from '../_shared/ratelimit.ts'
 
 // ลุ้นโชคท้ายบิล (เฉพาะสมาชิกที่ล็อกอิน) · รับ token ของบิล เซสชันสมาชิก (ถ้ามี) และรหัสโครงการที่จะลุ้น
 // ดู (spin=false): ไม่ต้องล็อกอิน · ได้โครงการที่บิลนี้ได้ลุ้น รางวัลของแต่ละโครงการ จำนวนที่ออกไปแล้ว และผลการลุ้นของสมาชิกที่ล็อกอินอยู่ (ถ้ามี)
@@ -32,7 +33,7 @@ Deno.serve(corsWrap(async (req) => {
   const refused = refuseInTest(modeOf(req))
   if (refused) return refused // โหมดทดสอบไม่ทำงานฟังก์ชันนี้ (ข้อมูลลูกค้า/งานตามเวลา/เว็บฮุกเป็นของจริงเท่านั้น)
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
-  const ip = req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const ip = clientIp(req.headers) // ไม่ใช้ค่าซ้ายสุดของ x-forwarded-for เพราะผู้เรียกใส่เองได้
   if (blocked(ip)) return json({ error: 'ลองบ่อยเกินไป กรุณารอสักครู่' }, 429)
   let body: { token?: string; spin?: boolean; session?: string; project?: string } = {}
   try { body = await req.json() } catch { return fail(ip) }

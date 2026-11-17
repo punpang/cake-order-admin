@@ -3,6 +3,7 @@ import { filesEnv, isR2Ref, keyOfR2Ref, svcSign } from '../_shared/filesvc.ts'
 import { publicPaymentOf } from '../_shared/shoppay.ts'
 import { serviceDb } from '../_shared/db.ts'
 import { newTopic } from '../_shared/chattopic.ts'
+import { clientIp } from '../_shared/ratelimit.ts'
 
 // ลิงก์ออร์เดอร์ของลูกค้า (ดูอย่างเดียว ไม่ต้องล็อกอิน): รับ token → คืนข้อมูลออร์เดอร์ที่ตัดข้อมูลภายในออกแล้ว
 // token สุ่ม 192 บิต เก็บเฉพาะ hash ใน punpang_records('orderLinks') · หมดอายุ/เพิกถอนตามนโยบายร้าน · รูปส่วนตัวแปลงเป็นลิงก์ชั่วคราว 1 ชม.
@@ -10,6 +11,8 @@ import { newTopic } from '../_shared/chattopic.ts'
 const CORS = { 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
 const DAY = 86400000
+// ฟิลด์ภายในของลิงก์ไม่ส่งให้ผู้เรียก: tokenHash = hash ของโทเค็น · openCount/revokedAt เป็นข้อมูลของร้าน
+const publicLink = (l: Record<string, any>) => { const out = { ...l }; delete out.tokenHash; delete out.openCount; delete out.revokedAt; return out }
 const sha256Hex = async (s: string) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map((b) => b.toString(16).padStart(2, '0')).join('')
 const days = (v: unknown, d: number) => { const x = Math.round(Number(v)); return Number.isFinite(x) && x >= 1 && x <= 365 ? x : d }
 const NOT_FOUND = { error: 'ลิงก์ไม่ถูกต้องหรือหมดอายุแล้ว' }
@@ -37,7 +40,7 @@ async function orderTopicOf(sb: any, orderId: string): Promise<string | null> {
 Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
-  const ip = req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const ip = clientIp(req.headers) // ไม่ใช้ค่าซ้ายสุดของ x-forwarded-for เพราะผู้เรียกใส่เองได้
   if (blocked(ip)) return json({ error: 'ลองบ่อยเกินไป กรุณารอสักครู่' }, 429)
   let body: { token?: string; refresh?: boolean } = {}
   try { body = await req.json() } catch { return fail(ip) }
@@ -89,7 +92,7 @@ Deno.serve(corsWrap(async (req) => {
   return json({
     order: { id: row.id, code: row.code, customer_id: row.customer_id, status: row.status, fulfillment: row.fulfillment, channel: row.channel, data: d },
     customer,
-    link: { ...nextLink, id: lr.data.id },
+    link: publicLink({ ...nextLink, id: lr.data.id }),
     orderTopic: await orderTopicOf(sb, row.id),
     shop: { name: shop.data?.data?.v?.name || '', payment: publicPaymentOf(shop.data?.data?.v), depositPercent: Number(shop.data?.data?.v?.depositPercent) || 0 },
   })

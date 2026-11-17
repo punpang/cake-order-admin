@@ -365,7 +365,9 @@ Deno.serve(corsWrap(async (req) => {
           cu = (await sb.from('punpang_customers').select(cuSel).eq('id', cid).maybeSingle()).data
           if (!cu || cu.data?.deleted) return json({ error: 'ไม่พบบัญชี' }, 401)
         }
-        const u = await sb.from('punpang_customers').update({ name, data: promoConsentPatch(cu.data || {}, !!b.promoOptIn, new Date().toISOString()) }).eq('id', cid).eq('updated_at', cu.updated_at).select('id')
+        // ถ้าไม่ได้ส่ง promoOptIn มา คงค่าเดิมไว้ (ไม่ใช่ถอนความยินยอมโดยไม่ตั้งใจ)
+        const optIn = typeof b.promoOptIn === 'boolean' ? b.promoOptIn : cu.data?.promoOptIn === true
+        const u = await sb.from('punpang_customers').update({ name, data: promoConsentPatch(cu.data || {}, optIn, new Date().toISOString()) }).eq('id', cid).eq('updated_at', cu.updated_at).select('id')
         if (u.error) return json({ error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' }, 500)
         saved = (u.data || []).length > 0
       }
