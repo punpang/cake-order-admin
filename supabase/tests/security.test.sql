@@ -99,9 +99,9 @@ select test.ok('T1: sales แก้ ledger ตรง ๆ ไม่ได้',
 select test.ok('H1: sales แก้ชื่อได้ตามเดิม',
   test.as_staff('11111111-1111-1111-1111-111111111111',
     $q$ update public.punpang_customers set name = 'Cust One X' where id = 'c1' $q$) = 'OK');
-select test.ok('H1: บันทึกซ้ำด้วย ledger/spins เดิมและเพิ่มฟิลด์อื่นได้',
+select test.ok('H1: sales เปลี่ยน promoOptIn ไม่ได้ (เฉพาะผู้จัดการ ตาม M-3)',
   test.as_staff('11111111-1111-1111-1111-111111111111',
-    $q$ update public.punpang_customers set data = data || '{"promoOptIn":true}'::jsonb where id = 'c1' $q$) = 'OK');
+    $q$ update public.punpang_customers set data = data || '{"promoOptIn":true}'::jsonb where id = 'c1' $q$) like 'ERR:42501:%');
 select test.ok('H1: ลูกค้าเก่าที่ยังไม่มี ledger/spins บันทึกด้วยสมุดว่างได้',
   test.as_staff('11111111-1111-1111-1111-111111111111',
     $q$ update public.punpang_customers set data = jsonb_build_object('ledger', '[]'::jsonb, 'spins', 0) where id = 'c_legacy' $q$) = 'OK');
