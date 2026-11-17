@@ -198,7 +198,7 @@ function logout() {
         </div>
         <p v-if="err" role="alert" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
         <button class="btn-primary w-full" :disabled="savingProfile || !profileDirty">
-          <span v-if="savingProfile" class="brand-ring on-brand" aria-hidden="true"></span>{{ savingProfile ? 'กำลังบันทึก…' : profileDirty ? 'บันทึกการเปลี่ยนแปลง' : 'บันทึก' }}
+          {{ savingProfile ? 'กำลังบันทึก…' : profileDirty ? 'บันทึกการเปลี่ยนแปลง' : 'บันทึก' }}
         </button>
       </form>
 

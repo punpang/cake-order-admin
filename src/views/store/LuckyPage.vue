@@ -156,7 +156,6 @@ onMounted(load)
         <p v-if="p.window?.to" class="text-center text-xs text-stone-500">ลุ้นได้ถึง {{ dateTime(p.window.to) }}</p>
 
         <div v-if="spinningId === p.id" class="space-y-3 text-center">
-          <div class="mx-auto h-16 w-16 animate-spin rounded-full border-8 border-brand-300 border-t-brand-700" aria-hidden="true" />
           <p class="text-stone-700">กำลังเตรียมบัตร...</p>
         </div>
 

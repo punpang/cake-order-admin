@@ -70,7 +70,7 @@ onUnmounted(() => clearInterval(timer))
       </div>
       <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       <div class="flex flex-wrap gap-2">
-        <button type="button" class="btn-primary flex-1" :disabled="code.length !== 6 || busy" @click="submit"><span v-if="busy" class="brand-ring on-brand" aria-hidden="true"></span>{{ busy ? 'กำลังตรวจสอบ…' : 'ยืนยัน' }}</button>
+        <button type="button" class="btn-primary flex-1" :disabled="code.length !== 6 || busy" @click="submit">{{ busy ? 'กำลังตรวจสอบ…' : 'ยืนยัน' }}</button>
         <button type="button" class="btn-outline" :disabled="wait > 0 || busy" @click="send">{{ wait > 0 ? `ขอใหม่ได้ใน ${wait} วิ` : 'ขอรหัสใหม่' }}</button>
       </div>
     </template>

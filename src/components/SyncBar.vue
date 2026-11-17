@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import { syncSummary, syncOnline, syncRetryAll, syncRealtime } from '../lib/syncStatus'
 import { staffState, reloadStaffData } from '../lib/staffAuth'
 import { supabaseEnabled } from '../lib/supabase'
@@ -8,7 +8,17 @@ import { supabaseEnabled } from '../lib/supabase'
 const sum = computed(() => syncSummary.value)
 const loadFailed = computed(() => staffState.loadFailed || [])
 const rtDown = computed(() => syncRealtime.state === 'down')
-const show = computed(() => supabaseEnabled && (loadFailed.value.length || !syncOnline.online || sum.value.state !== 'idle' || rtDown.value))
+// กำลังบันทึก/รอบันทึก: แสดงแถบเมื่อค้างเกิน 1.5 วินาทีเท่านั้น (งานที่เสร็จเร็วไม่ต้องกะพริบ)
+const busy = computed(() => sum.value.state === 'pending' || sum.value.state === 'saving')
+const slow = ref(false)
+let slowTimer = 0
+watch(busy, (on) => {
+  clearTimeout(slowTimer)
+  slow.value = false
+  if (on) slowTimer = setTimeout(() => { slow.value = true }, 1500)
+}, { immediate: true })
+onBeforeUnmount(() => clearTimeout(slowTimer))
+const show = computed(() => supabaseEnabled && (loadFailed.value.length || !syncOnline.online || (busy.value ? slow.value : (sum.value.state !== 'idle' || rtDown.value))))
 </script>
 
 <template>

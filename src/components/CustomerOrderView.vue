@@ -286,7 +286,7 @@ const beforeDiscount = computed(() => {
         <p v-else-if="p.extension === 'denied'" class="mt-2 rounded-lg bg-white/70 p-2 text-sm">ร้านไม่อนุมัติการขยายเวลา กรุณาติดต่อร้าน</p>
         <div v-else class="mt-2 space-y-2">
           <input v-model="extNote" class="input bg-white" maxlength="200" placeholder="เหตุผล (ไม่บังคับ)" aria-label="เหตุผลที่ขอขยายเวลา" />
-          <button class="btn-primary w-full" :disabled="extBusy" @click="askExtension(p)"><span v-if="extBusy" class="brand-ring on-brand" aria-hidden="true"></span>{{ extBusy ? 'กำลังส่งคำขอ…' : 'ขอขยายเวลาชำระ' }}</button>
+          <button class="btn-primary w-full" :disabled="extBusy" @click="askExtension(p)">{{ extBusy ? 'กำลังส่งคำขอ…' : 'ขอขยายเวลาชำระ' }}</button>
         </div>
       </template>
       <p v-if="extMsg" class="mt-2 text-sm text-rose-700">{{ extMsg }}</p>
@@ -354,7 +354,7 @@ const beforeDiscount = computed(() => {
           <textarea id="pc-note" v-model="pc.note" rows="2" maxlength="300" class="input" aria-label="หมายเหตุขอไม่เผยแพร่รูป"></textarea>
           <label class="flex items-start gap-2 py-1.5 text-stone-700"><input v-model="pc.agree" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" aria-label="ยืนยันไม่ให้ใช้รูป" /> ยืนยันไม่ให้ร้านนำรูปงานของออร์เดอร์นี้ไปเผยแพร่ในทุกช่องทาง และให้ลบรูปทิ้ง (ร้านจะตรวจสอบก่อนลบ)</label>
           <p v-if="pc.error" class="text-rose-700" role="alert">{{ pc.error }}</p>
-          <div class="flex gap-2"><button type="button" class="btn-outline flex-1" @click="pc.open = false">ยกเลิก</button><button type="button" class="btn-primary flex-1" :disabled="pc.busy" @click="askOptOut"><span v-if="pc.busy" class="brand-ring on-brand" aria-hidden="true"></span>{{ pc.busy ? 'กำลังส่ง…' : 'ส่งคำขอ' }}</button></div>
+          <div class="flex gap-2"><button type="button" class="btn-outline flex-1" @click="pc.open = false">ยกเลิก</button><button type="button" class="btn-primary flex-1" :disabled="pc.busy" @click="askOptOut">{{ pc.busy ? 'กำลังส่ง…' : 'ส่งคำขอ' }}</button></div>
         </div>
       </template>
       <p v-if="pc.ok" class="text-emerald-700" role="status">{{ pc.ok }}</p>
@@ -421,7 +421,7 @@ const beforeDiscount = computed(() => {
                 <p class="font-semibold">ก่อนชำระเงิน กรุณายินยอมตามข้อต่อไปนี้</p>
                 <label v-for="k in consentNeed" :key="k" class="flex items-start gap-2"><input v-model="consentOk[k]" type="checkbox" class="mt-0.5 h-4 w-4" :data-consent="k" /><span>{{ LEGAL_KINDS[k]?.label || k }}</span></label>
               </div>
-              <button v-else type="button" class="btn-soft mx-auto mt-2" :disabled="qrReq.busy || !(amount > 0) || belowMinimum || (consentNeed.length > 0 && !consentAll)" @click="makeQr"><span v-if="qrReq.busy" class="brand-ring" aria-hidden="true"></span>{{ qrReq.busy ? 'กำลังสร้าง QR…' : 'สร้าง QR สำหรับยอดนี้' }}</button>
+              <button v-else type="button" class="btn-soft mx-auto mt-2" :disabled="qrReq.busy || !(amount > 0) || belowMinimum || (consentNeed.length > 0 && !consentAll)" @click="makeQr">{{ qrReq.busy ? 'กำลังสร้าง QR…' : 'สร้าง QR สำหรับยอดนี้' }}</button>
               <p v-if="qrReq.error" class="mt-1 text-xs text-rose-700" role="alert">{{ qrReq.error }}</p>
             </div>
             <p v-if="amount > 0" class="text-center text-base font-semibold text-stone-900">{{ money(amount) }}</p>

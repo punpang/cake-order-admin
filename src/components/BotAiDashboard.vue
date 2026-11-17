@@ -47,7 +47,7 @@ const weekFrom = computed(() => (stats.value ? stats.value.byDay[0].day : shiftD
   <div class="space-y-3 rounded-xl border border-violet-200 bg-white p-3">
     <div class="flex items-center justify-between gap-2">
       <h4 class="font-semibold text-stone-900">สถิติการใช้งานบอท AI</h4>
-      <button type="button" class="btn-outline h-8 px-3 text-xs" :disabled="loading" @click="load"><span v-if="loading" class="brand-ring" aria-hidden="true"></span>{{ loading ? 'กำลังโหลด…' : 'รีเฟรช' }}</button>
+      <button type="button" class="btn-outline h-8 px-3 text-xs" :disabled="loading" @click="load">{{ loading ? 'กำลังโหลด…' : 'รีเฟรช' }}</button>
     </div>
     <p v-if="err" class="text-sm text-amber-700">{{ err }}</p>
 
