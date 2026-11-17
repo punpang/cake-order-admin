@@ -1,0 +1,36 @@
+name: Deploy tax-invoice
+
+# รันเองเท่านั้น: GitHub → Actions → Deploy tax-invoice → Run workflow
+# ลำดับ deploy: 1) migration 20261117160000 บน production ก่อน (ฟังก์ชันเรียก punpang_customer_tax_invoice) · 2) workflow นี้ (ฟังก์ชันใหม่) · 3) แล้วค่อยรวมหน้าเว็บ/แอปที่เรียกใช้ (ถ้าหน้าเว็บขึ้นก่อน ลูกค้าจะขอใบไม่ได้จนกว่าฟังก์ชันพร้อม)
+# workflow นี้ไม่รัน migration เอง · ฟังก์ชันใช้สิทธิ์เซิร์ฟเวอร์และตรวจสิทธิ์/เงื่อนไขเองทั้งหมด
+# ขั้นเทสต์ต้องผ่านก่อน จึงจะ deploy · ถ้าเทสต์ล้มเหลว ฟังก์ชันบน production ไม่ถูกเปลี่ยน
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: เทสต์โมดูลที่ใช้ร่วมกัน (_shared)
+        run: deno test --no-prompt --no-lock --node-modules-dir=none supabase/functions/_shared/
+      - name: ตรวจชนิดข้อมูลของ tax-invoice
+        run: deno check --no-lock --node-modules-dir=none supabase/functions/tax-invoice/index.ts
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # ไม่ตรวจ JWT ของ Supabase (ลูกค้าใช้เซสชันของร้านเอง) · ฟังก์ชันตรวจเซสชันและเงื่อนไขทุกคำขอเอง
+      # --yes: ไม่มี TTY ใน Actions จึงต้องยืนยันล่วงหน้า
+      - name: Deploy tax-invoice
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy tax-invoice --project-ref itleduijrckxdbhhuooi --no-verify-jwt --yes
