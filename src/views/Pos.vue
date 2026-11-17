@@ -34,10 +34,11 @@ import Receipt from '../components/Receipt.vue'
 import PhoneInput from '../components/PhoneInput.vue'
 import RefundEditor from '../components/RefundEditor.vue'
 import RefundPartialDialog from '../components/RefundPartialDialog.vue'
+import ExchangeModal from '../components/ExchangeModal.vue'
 import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
 import TaxInvoiceModal from '../components/TaxInvoiceModal.vue'
 import { invoiceOfOrder } from '../data/acct'
-import { defaultRefundMethod } from '../lib/refund'
+import { defaultRefundMethod, returnedQtyOf } from '../lib/refund'
 import BillerQr from '../components/BillerQr.vue'
 import { listTransfersOfRef } from '../lib/maneeRemote'
 import { labelsFresh, LABEL_REFRESH_EVERY_S, PAID_FLASH_MS } from '../lib/payFresh'
@@ -754,6 +755,14 @@ const voidFor = ref(null)
 const vd = reactive({ reason: 'ยกเลิกบิล', refunds: [], note: '', error: '' })
 const voidPaid = computed(() => (voidFor.value ? orderTotals(voidFor.value).paidNet : 0))
 const refundFor = ref(null) // คืนเงินบางส่วนโดยไม่ยกเลิกบิล
+// แลกสินค้า: คืนสินค้าเดิมในบิลนี้ + ขายสินค้าใหม่เป็นบิลใหม่ที่ผูกกัน (ดูหน้าต่าง ExchangeModal)
+const exchangeFor = ref(null)
+const canExchange = (o) => can('pos') && can('posVoid') && o.status !== 'cancelled' && o.status !== 'pos_pending'
+  && (o.items || []).some((i) => i.kind === 'retail' && i.qty - returnedQtyOf(o, i.id) > 0)
+function onExchanged(newOrder) {
+  receipt.value = newOrder
+  showToast(`แลกสินค้าแล้ว · บิลใหม่ ${newOrder.code}`, 8000)
+}
 const voidDefault = computed(() => defaultRefundMethod(voidFor.value?.payments.find((p) => p.status === 'confirmed')?.posMethod))
 function openVoid(o) {
   const paid = orderTotals(o).paidNet
@@ -995,6 +1004,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <button v-if="o.status === 'pos_pending' && can('pos')" type="button" class="btn-primary h-9 shrink-0 px-2.5 text-xs" @click="resumeBill(o)">รับชำระต่อ</button>
           <button v-if="o.status === 'pos_pending' && can('editItems')" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" @click="startEdit(o)">แก้รายการ</button>
           <button v-if="can('posVoid') && o.status !== 'cancelled' && (orderTotals(o).paidNet > 0 || (o.returns || []).some((r) => !r.cancelled))" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" aria-label="คืนเงินบางส่วน" @click="refundFor = o">คืนเงิน</button>
+          <button v-if="canExchange(o)" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" @click="exchangeFor = o">แลกสินค้า</button>
           <button v-if="can('posVoid') && o.status !== 'cancelled'" type="button" class="btn-danger h-9 shrink-0 px-2.5" aria-label="ยกเลิกบิล" @click="openVoid(o)"><AppIcon name="x" :size="16" /></button>
           <button v-if="can('changeBuyer') && o.status !== 'cancelled'" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" @click="buyerFor = o">เปลี่ยนผู้ซื้อ</button>
           <button v-if="taxable(o)" type="button" class="btn-outline h-9 shrink-0 px-2.5 text-xs" aria-label="ใบกำกับภาษี" @click="taxFor = o">ใบกำกับภาษี</button>
@@ -1038,6 +1048,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       </template>
     </AppModal>
     <RefundPartialDialog v-if="refundFor" :order="refundFor" @close="refundFor = null" />
+    <ExchangeModal v-if="exchangeFor" :order="exchangeFor" @close="exchangeFor = null" @done="onExchanged" />
     <ChangeBuyerModal v-if="buyerFor" :order="buyerFor" @close="buyerFor = null" />
 
     <!-- สมัครสมาชิกที่เคาน์เตอร์ -->

@@ -3923,6 +3923,34 @@ export function finishPosBill(order, lines) {
   awardOrderRemote(order)
   return { order }
 }
+// แลกสินค้า (POS · กะที่เปิดอยู่ · เฉพาะสินค้าปลีก): คืนสินค้าเดิมในบิลเดิม (คืนเงินตามช่องทางที่เลือก และคืนสต็อกได้)
+// แล้วขายสินค้าใหม่เป็นบิลใหม่ที่ผูกกับบิลเดิม (exchangeOf / exchangeTo) · ยอดสินค้าใหม่คิดโปร/ส่วนลด POS ปกติ
+// ตรวจยอดรับชำระของบิลใหม่ก่อนแก้ข้อมูล · ถ้าขายใหม่ไม่สำเร็จจะยกเลิกการคืนที่เพิ่งทำให้อัตโนมัติ
+export function exchangeSale({ order, returnItems = [], restock = true, refunds = [], newCart = [], method = 'cash', received = null, reason = '' } = {}) {
+  if (!order || order.channel !== 'pos' || ['cancelled', 'pos_pending', 'draft'].includes(order.status)) return { error: 'บิลนี้แลกสินค้าไม่ได้' }
+  if (!can('pos') || !can('posVoid')) return { error: 'ไม่มีสิทธิ์แลกสินค้า' }
+  const shift = currentShift()
+  if (!shift || order.shiftId !== shift.id) return { error: 'แลกสินค้าได้เฉพาะบิลในกะที่เปิดอยู่' }
+  if (!returnItems.length) return { error: 'เลือกสินค้าเดิมที่จะคืนอย่างน้อย 1 รายการ' }
+  if (!newCart.length) return { error: 'เลือกสินค้าใหม่อย่างน้อย 1 รายการ' }
+  if (newCart.some((l) => l.kind !== 'retail')) return { error: 'แลกได้เฉพาะสินค้าปลีก' }
+  const draft = { items: posItems(newCart, new Date()), adjustment: { amount: 0, reason: '' }, vat: vatNow(), couponsUsed: [], pointsUsed: null, shippingFee: 0, shipPromo: null, fulfillment: 'pickup', payments: [] }
+  const total = Math.max(orderTotals(draft).total, 0)
+  const rows = [{ method, amount: total, received }]
+  if (!(total > 0) || !posLinesOk(rows, total)) return { error: 'ยอดรับชำระของสินค้าใหม่ไม่ครบหรือไม่ถูกต้อง' }
+  const rf = refundOrder(order, { reason: reason || `แลกสินค้า ${order.code}`, refunds, items: returnItems, restock, notify: false, sms: false })
+  if (rf.error) return rf
+  const o = posSale({ cart: newCart, customerId: order.customerId || null, lines: rows })
+  if (!o) {
+    const back = cancelRefund(order, rf.entry.id, { reason: 'แลกสินค้าไม่สำเร็จ ยกเลิกการคืนอัตโนมัติ', notify: false })
+    return { error: back.error ? `ขายสินค้าใหม่ไม่สำเร็จ และยกเลิกการคืนไม่ได้: ${back.error}` : 'ขายสินค้าใหม่ไม่สำเร็จ ยกเลิกการคืนให้แล้ว' }
+  }
+  rf.entry.exchangeTo = o.id
+  o.exchangeOf = order.id
+  log(order, `แลกสินค้า → บิล ${o.code}`)
+  log(o, `แลกสินค้าจากบิล ${order.code}`)
+  return { ok: true, order: o, entry: rf.entry }
+}
 // เงื่อนไขรับบางส่วน: ยอดรวมต้องน้อยกว่ายอดบิล (ยังขาด) และแต่ละช่องทางถูกต้อง
 function partialLinesOk(lines, total) {
   if (!Array.isArray(lines) || !lines.length) return false
