@@ -6,7 +6,7 @@
 
 - **Migration:** รีโป 99 ไฟล์ ตรงกับประวัติ production ยกเว้น 2 รายการ: `20261117130000_restore_punpang_test_grants` อยู่ในรีโปแต่ไม่อยู่ในประวัติ production · `20261114024149` อยู่บน production แต่ไม่อยู่ในรีโป
 - **รอบ 2026-11-15:** deploy แล้ว (DB และ Edge ในช่วง 16 พ.ย.) · migration 17 เวอร์ชันอยู่ในประวัติ วัตถุหลักมีครบ · anon เหลือ SELECT 3 ตาราง (`punpang_items`, `punpang_kv`, `punpang_records`) ไม่มีสิทธิ์เขียน
-- **Edge Functions (21 ตัว):** ตรงกับ HEAD ทุก dependency 15 ตัว · ต่างเฉพาะส่วนที่ไม่กระทบการทำงาน 5 ตัว (`tungngern-receiver`, `quote-create`, `order-audit`, `line-link`, `bot-test`) · **`tungngern-list` ต่างและมีผลในโหมดทดสอบ** (ไม่รับ header `x-punpang-mode` และไม่แยกสคีมาทดสอบ) ยังไม่ได้ deploy ใหม่
+- **Edge Functions (21 ตัว):** ตรงกับ HEAD ทุก dependency 15 ตัว · ต่างเฉพาะส่วนที่ไม่กระทบการทำงาน 5 ตัว (`tungngern-receiver`, `quote-create`, `order-audit`, `line-link`, `bot-test`) · **`tungngern-list` ต่างและมีผลในโหมดทดสอบ** (ไม่รับ header `x-punpang-mode` และไม่แยกสคีมาทดสอบ) deploy ใหม่แล้ว 2026-11-17 (run `44015014322`, เวอร์ชัน 15) ตรงกับ HEAD
 - **Worker `punpang-files`:** deploy สำเร็จ 16 พ.ย. (run `43909161121`) ตรงกับ HEAD
 - **บัค #7, #9, click_pairs:** ใช้งานบน production แล้ว · anon เรียก `punpang__items_money`, `punpang_customers_touch`, `punpang_guard_status`, `punpang_click_pairs()` ไม่ได้ · `punpang_customers_guard` มีโค้ดแก้แล้ว
 - **ยืนยันชำระอัตโนมัติ:** production `slipQr.autoConfirm` = `{enabled: true, days: 3}` · ทางรูปสลิปถูกกั้นด้วย `IMAGE_AUTO_CONFIRM = false` (`783bfbf`) · ทางแจ้งเตือนถุงเงินทำงานตามที่ออกแบบ
