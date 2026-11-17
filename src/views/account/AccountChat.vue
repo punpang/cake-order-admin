@@ -278,7 +278,7 @@ onBeforeUnmount(() => {
           <span class="rounded-full bg-stone-200/70 px-3 py-1 text-xs text-stone-600">{{ dayLabel(m.at) }}</span>
         </div>
         <div class="flex flex-col" :class="[m.from === 'customer' ? 'items-end' : 'items-start', endsGroup(i) ? 'mb-3' : 'mb-1']">
-          <span v-if="m.from === 'staff' && startsGroup(i)" class="mb-1 ml-1 text-[11px] text-stone-500">ร้าน</span>
+          <span v-if="m.from === 'staff' && startsGroup(i)" class="mb-1 ml-1 text-xs text-stone-500">ร้าน</span>
           <div v-if="m.kind === 'quote'" class="w-72 max-w-[85%] overflow-hidden rounded-2xl border-2 border-brand-200 bg-white shadow-sm">
             <div v-if="m.replyTo" class="m-3 mb-0 rounded-lg border-l-2 border-brand-300 bg-stone-100 px-2 py-1 text-xs leading-snug text-stone-600"><span class="block font-medium">{{ m.replyTo.from === 'customer' ? 'ข้อความของคุณ' : 'ร้าน' }}</span><span class="line-clamp-2 break-words">{{ m.replyTo.text }}</span></div>
             <img v-if="m.card?.image" :src="m.card.image" alt="" class="h-36 w-full object-cover" loading="lazy" />
@@ -332,8 +332,8 @@ onBeforeUnmount(() => {
             </div>
             <div v-if="m.text" :class="m.photos?.length ? 'px-2 pt-1 pb-1' : ''">{{ m.text }}</div>
           </div>
-          <button type="button" class="px-1 pt-0.5 text-[11px] font-medium text-stone-400 transition hover:text-brand-700" @click="pickReply(m)">ตอบกลับ</button>
-          <div v-if="endsGroup(i)" class="mt-1 flex items-center gap-1.5 px-1 text-[11px] text-stone-500">
+          <button type="button" class="px-1 pt-0.5 text-xs font-medium text-stone-500 transition hover:text-brand-700" @click="pickReply(m)">ตอบกลับ</button>
+          <div v-if="endsGroup(i)" class="mt-1 flex items-center gap-1.5 px-1 text-xs text-stone-500">
             <span>{{ timeOnly(m.at) }}</span>
             <span v-if="m.id === readId">· ร้านอ่านแล้ว</span>
           </div>
@@ -341,7 +341,7 @@ onBeforeUnmount(() => {
       </template>
 
       <div v-if="presence.shopTyping" class="mb-3 flex flex-col items-start" role="status">
-        <span class="mb-1 ml-1 text-[11px] text-stone-500">ร้าน</span>
+        <span class="mb-1 ml-1 text-xs text-stone-500">ร้าน</span>
         <div class="flex items-center gap-1 rounded-2xl rounded-bl-md border border-stone-200 bg-white px-4 py-3 shadow-sm">
           <span class="sr-only">ร้านกำลังพิมพ์</span>
           <span class="h-2 w-2 animate-bounce rounded-full bg-stone-400"></span>
@@ -388,7 +388,7 @@ onBeforeUnmount(() => {
           v-model="text"
           :maxlength="MAX"
           rows="1"
-          class="max-h-32 min-h-11 flex-1 resize-none rounded-2xl border border-stone-300 bg-stone-50 px-4 py-2.5 text-[15px] text-stone-900 placeholder:text-stone-400 focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-200 focus:outline-none"
+          class="max-h-32 min-h-11 flex-1 resize-none rounded-2xl border border-stone-300 bg-stone-50 px-4 py-2.5 text-base text-stone-900 placeholder:text-stone-400 focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-200 focus:outline-none"
           placeholder="พิมพ์ข้อความถึงร้าน"
           aria-label="ข้อความถึงร้าน"
           @input="onTyping"

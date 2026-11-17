@@ -46,10 +46,11 @@ async function submit() {
       <div><label class="label">PIN 6 หลัก</label><PinInput v-model="pin" /></div>
       <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       <button class="btn-primary w-full" :disabled="busy">{{ busy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ' }}</button>
-      <div class="flex justify-between text-sm">
-        <RouterLink to="/account/forgot" class="text-stone-500 underline">ลืม PIN</RouterLink>
-        <RouterLink to="/account/register" class="text-brand-700 underline">สมัครสมาชิก</RouterLink>
-      </div>
+      <RouterLink to="/account/forgot" class="block text-center text-sm text-stone-600 underline">ลืม PIN?</RouterLink>
     </form>
+    <div class="mt-6 text-center">
+      <p class="text-sm text-stone-600">ยังไม่มีบัญชี?</p>
+      <RouterLink to="/account/register" class="btn-outline mt-2 w-full">สมัครสมาชิก</RouterLink>
+    </div>
   </div>
 </template>

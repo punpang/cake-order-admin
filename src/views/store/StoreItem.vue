@@ -54,11 +54,14 @@ const item = computed(() => {
 
 // แถบสั่งติดล่าง: แสดงเฉพาะเมื่อร้านตั้งช่องทางสั่งไว้ (ไม่มีช่องทาง = ไม่มีปุ่มให้กด จึงไม่แสดงแถบว่าง)
 const fbHref = computed(() => safeHref(db.storefront.facebookUrl))
-const barOn = computed(() => !!item.value && !!(fbHref.value || db.storefront.phone))
+// เค้กสั่งทำมีแถบราคา+คัดลอกติดล่างในฟอร์มเอง จึงไม่ซ้อนแถบนี้
+const barOn = computed(() => !!item.value && !item.value.custom && !!(fbHref.value || db.storefront.phone))
+// ปุ่มแชทลอยต้องยกพ้นแถบล่าง: แถบสั่ง (สินค้าสำเร็จรูป) หรือแถบราคาในฟอร์ม (เค้กสั่งทำ)
+const ctaOn = computed(() => barOn.value || !!item.value?.custom)
 // รูปเค้กสั่งทำติดบน: เลื่อนโฟกัส/ปุ่มไม่ให้ไปอยู่ใต้รูป
 onMounted(() => document.documentElement.classList.add('has-sticky-photo'))
 onBeforeUnmount(() => document.documentElement.classList.remove('has-sticky-photo', 'has-cta-bar'))
-watch(barOn, (v) => document.documentElement.classList.toggle('has-cta-bar', v), { immediate: true })
+watch(ctaOn, (v) => document.documentElement.classList.toggle('has-cta-bar', v), { immediate: true })
 // แบบที่แนะนำ: 4 แบบแรก โหลดเพิ่มทีละ 4 (กดดูเพิ่ม/เลื่อนลงสุด)
 const REC = 4
 const recAll = computed(() => (props.kind === 'custom' ? recommendPhotos(db, { photoId: photoId.value, selectedIds: selIds.value }) : []))

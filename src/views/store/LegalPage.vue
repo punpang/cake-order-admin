@@ -15,7 +15,7 @@ const doc = computed(() => (LEGAL_KINDS[props.kind] ? db.legal.docs[props.kind] 
     <div v-if="!doc" class="card py-12 text-center text-stone-500">ไม่พบเอกสาร <RouterLink to="/" class="text-brand-700 underline">กลับหน้าแรก</RouterLink></div>
     <article v-else class="card">
       <h1 class="text-xl font-semibold text-stone-900">{{ doc.title }}</h1>
-      <p class="text-xs text-stone-400">เวอร์ชัน {{ doc.version }} · ปรับปรุงล่าสุด {{ dateOnly(doc.updatedAt) }}</p>
+      <p class="text-xs text-stone-500">เวอร์ชัน {{ doc.version }} · ปรับปรุงล่าสุด {{ dateOnly(doc.updatedAt) }}</p>
       <LegalText :kind="kind" :level="2" class="mt-3" />
       <nav class="mt-6 flex flex-wrap gap-x-4 gap-y-2 border-t border-stone-100 pt-3 text-sm" aria-label="เอกสารนโยบายอื่น">
         <RouterLink v-for="(k, key) in LEGAL_KINDS" :key="key" :to="`/legal/${key}`" class="text-brand-700 underline">{{ k.short }}</RouterLink>

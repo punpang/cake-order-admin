@@ -78,7 +78,7 @@ function refresh() {
 
 <template>
   <div class="mx-auto max-w-xl px-4 py-6">
-    <div v-if="!res" class="flex flex-col items-center gap-3 py-16 text-stone-400"><span class="brand-ring lg" aria-hidden="true"></span>กำลังโหลด…</div>
+    <div v-if="!res" class="flex flex-col items-center gap-3 py-16 text-stone-500"><span class="brand-ring lg" aria-hidden="true"></span>กำลังโหลด…</div>
     <div v-else-if="res.netError" class="card py-12 text-center" role="alert">
       <AppIcon name="alert" :size="28" class="mx-auto text-stone-300" />
       <p class="mt-3 font-medium text-stone-700">เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ในขณะนี้</p>
@@ -92,7 +92,7 @@ function refresh() {
     </div>
     <template v-else>
       <CustomerOrderView :order="o" :ctx="ctx" @refresh="refresh" />
-      <p class="mt-4 text-center text-xs text-stone-400">ลิงก์นี้ใช้ดูออร์เดอร์และแจ้งชำระเท่านั้น · จะหมดอายุเมื่อไม่ได้เปิดดูเกินกำหนด</p>
+      <p class="mt-4 text-center text-xs text-stone-500">ลิงก์นี้ใช้ดูออร์เดอร์และแจ้งชำระเท่านั้น · จะหมดอายุเมื่อไม่ได้เปิดดูเกินกำหนด</p>
     </template>
   </div>
 </template>

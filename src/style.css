@@ -390,7 +390,7 @@ html.has-sticky-photo {
 /* หน้าสินค้า (มือถือ): แถบสั่งติดล่างสูงกว่าปกติ → ปุ่มแชทลอยขยับขึ้นเหนือแถบ ไม่ทับปุ่มสั่ง */
 @media (max-width: 767px) {
   html.has-cta-bar .chat-fab {
-    bottom: calc(9.5rem + env(safe-area-inset-bottom));
+    bottom: calc(11.5rem + env(safe-area-inset-bottom));
   }
 }
 

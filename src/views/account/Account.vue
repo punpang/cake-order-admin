@@ -284,7 +284,7 @@ function logout() {
         <span class="min-w-0 flex-1">
           <span class="flex items-center gap-2"><b class="text-stone-900">{{ orderNo(o.code) }}</b><span v-if="CHANNEL[o.channel]" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{{ CHANNEL[o.channel] }}</span></span>
           <span class="block text-xs text-stone-500">{{ o.channel === 'pos' ? dateTime(o.createdAt) : `นัดรับ ${dateTime(o.pickupAt)}` }}</span>
-          <span class="block truncate text-xs text-stone-400">{{ o.items[0]?.name }}<template v-if="o.items.length > 1"> +{{ o.items.length - 1 }}</template></span>
+          <span class="block truncate text-xs text-stone-500">{{ o.items[0]?.name }}<template v-if="o.items.length > 1"> +{{ o.items.length - 1 }}</template></span>
         </span>
         <span class="shrink-0 text-right"><StatusBadge :status="o.status" /><span class="mt-1 block"><PayDueBadge :due="o.payDue" short /></span><span class="mt-1 block text-sm font-semibold text-stone-900">{{ money(o.total) }}</span><span v-if="o.balance > 0 && o.status !== 'cancelled'" class="block text-xs text-amber-700">ค้าง {{ money(o.balance) }}</span></span>
       </RouterLink>
@@ -302,7 +302,7 @@ function logout() {
             <span class="block font-medium text-stone-900">เปลี่ยน PIN</span>
             <span class="block text-xs text-stone-500">ต้องยืนยัน OTP ที่เบอร์ {{ formatPhone(me.phone) }} ก่อน</span>
           </span>
-          <AppIcon name="next" :size="18" class="shrink-0 text-stone-400" />
+          <AppIcon name="next" :size="18" class="shrink-0 text-stone-500" />
         </button>
       </section>
 

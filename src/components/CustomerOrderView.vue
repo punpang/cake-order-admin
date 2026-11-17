@@ -2,7 +2,7 @@
 import MoneyInput from './MoneyInput.vue'
 import { orderNo } from '../lib/format'
 import { safeHref } from '../lib/safeUrl'
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { customerPay, customerReadSlip, customerRequestExtension, customerRequestPhotoOptOut, customerCancelPhotoOptOut, customerRequestQr } from '../data/store'
 import { BANKS, PAY_MSG, bankByCode, checkCustomerTxn } from '../lib/payFields'
 import { billerIdOf, promptPayBillerPayload, shopCodeOf, shopRefOfCode } from '../lib/promptpay'
@@ -237,6 +237,14 @@ async function cancelOptOut() {
   else { pc.ok = 'ยกเลิกคำขอแล้ว'; if (r.stale) staleNote.value = true; emit('refresh') }
 }
 const canPayUi = computed(() => !cancelled.value && o.value.status !== 'draft' && o.value.balance > 0)
+// แถบชำระติดล่าง (มือถือ): ปุ่มชำระอยู่ท้ายหน้า ลูกค้าต้องเลื่อนหา → ติดล่างไว้ให้กดได้ทุกตำแหน่ง · ซ่อนเมื่อเปิดฟอร์มชำระแล้ว
+const payBar = computed(() => canPayUi.value && !o.value.pay.block && !open.value)
+watch(payBar, (v) => document.documentElement.classList.toggle('has-cta-bar', v), { immediate: true })
+onBeforeUnmount(() => document.documentElement.classList.remove('has-cta-bar'))
+function goPay() {
+  openPay()
+  nextTick(() => document.getElementById('pay-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+}
 // ราคาก่อนลด = ยอดรวมหลังลด + ส่วนลด (ถ้า VAT แยกนอก ส่วนลดต้องคูณ VAT ด้วย)
 const beforeDiscount = computed(() => {
   const d = Number(o.value.discountTotal) || 0
@@ -247,7 +255,7 @@ const beforeDiscount = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-3 text-sm">
+  <div class="space-y-3 text-sm" :class="payBar ? 'pb-16 md:pb-0' : ''">
     <p v-if="staleNote" class="rounded-xl bg-amber-50 p-3 text-amber-800" role="status">ทำรายการสำเร็จแล้ว แต่ยังโหลดข้อมูลล่าสุดจากเซิร์ฟเวอร์ไม่ได้ ข้อมูลบนจออาจยังไม่อัปเดต <button type="button" class="ml-1 underline" @click="reload">โหลดหน้าใหม่</button></p>
     <!-- สรุป + ขั้นตอน -->
     <section class="card">
@@ -263,7 +271,7 @@ const beforeDiscount = computed(() => {
           <span class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold" :class="i < step ? 'bg-matcha text-stone-900' : i === step ? 'bg-brand-600 text-white ring-4 ring-brand-100' : 'bg-stone-100 text-stone-500'">
             <AppIcon v-if="i < step" name="check" :size="14" /><template v-else>{{ i + 1 }}</template>
           </span>
-          <span class="text-[11px] leading-tight" :class="i === step ? 'font-semibold text-stone-900' : 'text-stone-600'">{{ label }}</span>
+          <span class="text-xs leading-tight" :class="i === step ? 'font-semibold text-stone-900' : 'text-stone-600'">{{ label }}</span>
         </li>
       </ol>
       <p v-else class="mt-3 rounded-xl bg-rose-50 p-3 text-rose-700">ออร์เดอร์นี้ถูกยกเลิกแล้ว · หากมีข้อสงสัยติดต่อร้านได้เลย</p>
@@ -375,7 +383,7 @@ const beforeDiscount = computed(() => {
     </section>
 
     <!-- การชำระเงิน -->
-    <section v-if="!cancelled && o.status !== 'draft'" class="card">
+    <section v-if="!cancelled && o.status !== 'draft'" id="pay-section" class="card scroll-mt-20">
       <div class="mb-2 flex items-center gap-2 text-[15px] font-semibold text-stone-900"><AppIcon name="wallet" class="text-brand-600" /> การชำระเงิน</div>
       <ul v-if="o.payments.length" class="mb-3 space-y-2">
         <li v-for="p in o.payments" :key="p.id" class="flex items-start justify-between gap-2 rounded-xl border border-stone-200/70 p-3">
@@ -423,7 +431,7 @@ const beforeDiscount = computed(() => {
                 <div class="mt-0.5 font-semibold text-stone-900">{{ a.kind === 'bank' ? a.bankName : 'พร้อมเพย์' }}</div>
                 <div class="mt-1 flex flex-wrap items-center gap-2 text-stone-700">
                   <span class="text-base font-semibold text-stone-900">{{ a.kind === 'bank' ? a.accountNo : a.promptpayId }}</span>
-                  <button type="button" class="chip chip-off h-7 px-2 text-xs" @click="copy(a.kind === 'bank' ? a.accountNo : a.promptpayId, 'acc-' + a.id)">{{ copied === 'acc-' + a.id ? 'คัดลอกแล้ว' : (a.kind === 'bank' ? 'คัดลอกเลขบัญชี' : 'คัดลอก') }}</button>
+                  <button type="button" class="chip chip-off tap h-8 px-2.5 text-xs" @click="copy(a.kind === 'bank' ? a.accountNo : a.promptpayId, 'acc-' + a.id)">{{ copied === 'acc-' + a.id ? 'คัดลอกแล้ว' : (a.kind === 'bank' ? 'คัดลอกเลขบัญชี' : 'คัดลอก') }}</button>
                 </div>
                 <div v-if="a.accountName" class="mt-1 text-xs text-stone-500">ชื่อบัญชี: <span class="text-stone-800">{{ a.accountName }}</span></div>
               </div>
@@ -447,16 +455,16 @@ const beforeDiscount = computed(() => {
               <div><label class="label" for="pay-date">วันที่โอน</label><input id="pay-date" v-model="f.txnDate" type="date" class="input" :max="thaiNow().date" /></div>
               <div><label class="label" for="pay-time">เวลาที่โอน</label><input id="pay-time" v-model="f.txnTime" type="time" class="input" /></div>
             </div>
-            <div><label class="label" for="pay-bank">ธนาคารของผู้โอน <span class="font-normal text-stone-400">(ไม่บังคับ)</span></label>
+            <div><label class="label" for="pay-bank">ธนาคารของผู้โอน <span class="font-normal text-stone-500">(ไม่บังคับ)</span></label>
               <select id="pay-bank" v-model="f.bankCode" class="input">
                 <option value="">ไม่ระบุ</option>
                 <option v-for="b in bankOptions" :key="b.code" :value="b.code">{{ b.name }}</option>
               </select>
             </div>
-            <div><label class="label" for="pay-ref">เลขอ้างอิงรายการ <span class="font-normal text-stone-400">(ไม่บังคับ)</span></label><input id="pay-ref" v-model="f.ref" class="input" maxlength="40" autocomplete="off" placeholder="ไม่ต้องกรอกก็ได้ ร้านตรวจจากสลิปให้" /></div>
+            <div><label class="label" for="pay-ref">เลขอ้างอิงรายการ <span class="font-normal text-stone-500">(ไม่บังคับ)</span></label><input id="pay-ref" v-model="f.ref" class="input" maxlength="40" autocomplete="off" placeholder="ไม่ต้องกรอกก็ได้ ร้านตรวจจากสลิปให้" /></div>
             <p v-if="f.qrNote" class="text-xs text-stone-500" role="status">{{ f.qrNote }}</p>
           </div>
-          <div><label class="label">หมายเหตุ <span class="font-normal text-stone-400">(ไม่บังคับ · ใส่เลขออร์เดอร์ {{ orderNo(o.code) }} เพื่อให้ร้านตรวจได้ง่าย)</span></label><input v-model="f.note" class="input" maxlength="200" :placeholder="o.code" /></div>
+          <div><label class="label">หมายเหตุ <span class="font-normal text-stone-500">(ไม่บังคับ · ใส่เลขออร์เดอร์ {{ orderNo(o.code) }} เพื่อให้ร้านตรวจได้ง่าย)</span></label><input v-model="f.note" class="input" maxlength="200" :placeholder="o.code" /></div>
           <p v-if="f.error" class="text-rose-700" role="alert">{{ f.error }}</p>
           <!-- ยินยอมก่อนชำระ: แสดงเฉพาะเมื่อร้านขอ · ต้องติ๊กทุกข้อจึงส่งได้ -->
           <div v-if="consentNeed.length" class="space-y-2 rounded-xl bg-amber-50 p-3 text-sm text-stone-700" role="group" aria-label="ยินยอมก่อนชำระ">
@@ -467,7 +475,7 @@ const beforeDiscount = computed(() => {
             <button class="btn-outline flex-1" @click="open = false">ยกเลิก</button>
             <button class="btn-primary flex-1" :disabled="f.busy || f.reading || !(amount > 0) || belowMinimum || (consentNeed.length > 0 && !consentAll)" @click="submit">{{ f.reading ? 'กำลังอ่านสลิป…' : 'ส่งสลิปแจ้งชำระ' }}</button>
           </div>
-          <p class="text-xs text-stone-400">ร้านจะตรวจสลิปแล้วยืนยันยอดให้ (ยังไม่ตัดเงินอัตโนมัติ)</p>
+          <p class="text-xs text-stone-500">ร้านจะตรวจสลิปแล้วยืนยันยอดให้ (ยังไม่ตัดเงินอัตโนมัติ)</p>
         </div>
       </template>
     </section>
@@ -478,5 +486,16 @@ const beforeDiscount = computed(() => {
       <p v-if="o.review" class="text-stone-500">รีวิวของคุณ: {{ '★'.repeat(o.review.rating) }}</p>
       <button v-else class="btn-soft h-10" @click="emit('review', o)"><AppIcon name="star" :size="16" /> เขียนรีวิว</button>
     </section>
+
+    <!-- มือถือ: แถบชำระติดล่างเหนือแถบเมนู · กดแล้วเลื่อนไปส่วนชำระเงิน -->
+    <div v-if="payBar" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 border-t border-stone-200 bg-white/95 px-4 py-2.5 shadow-[0_-6px_16px_-10px_rgb(63_46_46/0.35)] backdrop-blur-xl md:hidden">
+      <div class="mx-auto flex max-w-xl items-center gap-3">
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-xs text-stone-600">คงค้าง · {{ orderNo(o.code) }}</div>
+          <b class="block text-lg leading-tight text-stone-900">{{ money(o.balance) }}</b>
+        </div>
+        <button type="button" class="btn-primary h-11 shrink-0 px-5" @click="goPay"><AppIcon name="wallet" :size="16" /> ชำระเงิน</button>
+      </div>
+    </div>
   </div>
 </template>

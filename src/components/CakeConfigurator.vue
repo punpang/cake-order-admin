@@ -193,12 +193,12 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
     </template>
 
     <div class="rounded-3xl bg-white p-3.5 shadow-md">
-      <label class="label" for="cfg-note">หมายเหตุถึงร้าน <span class="font-normal text-stone-400">(ไม่บังคับ)</span></label>
+      <label class="label" for="cfg-note">หมายเหตุถึงร้าน <span class="font-normal text-stone-500">(ไม่บังคับ)</span></label>
       <textarea id="cfg-note" v-model="form.note" rows="2" maxlength="300" class="input" placeholder="รายละเอียดเพิ่มเติม"></textarea>
     </div>
 
     <!-- ราคา + ส่ง -->
-    <div class="sticky bottom-2 z-10 rounded-2xl bg-white p-2.5 shadow-xl ring-1 ring-stone-200/70">
+    <div class="sticky bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] z-10 rounded-2xl bg-white p-2.5 shadow-xl ring-1 ring-stone-200/70 md:bottom-2">
       <div class="flex items-center gap-2">
         <div class="min-w-0 flex-1 text-left leading-tight" aria-live="polite">
           <div v-if="qty > 1" class="text-xs text-stone-500">{{ money(detail.unitPrice) }} × {{ qty }}</div>

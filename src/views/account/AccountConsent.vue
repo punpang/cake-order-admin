@@ -33,7 +33,7 @@ function decline() {
     <div class="mt-4 space-y-2">
       <div v-for="k in kinds" :key="k" class="card p-0">
         <button type="button" class="flex w-full items-center justify-between gap-3 px-4 py-3 text-left" @click="open = open === k ? null : k">
-          <span><b class="text-stone-900">{{ LEGAL_KINDS[k].label }}</b><span class="block text-xs text-stone-400">เวอร์ชัน {{ db.legal.docs[k].version }}</span></span>
+          <span><b class="text-stone-900">{{ LEGAL_KINDS[k].label }}</b><span class="block text-xs text-stone-500">เวอร์ชัน {{ db.legal.docs[k].version }}</span></span>
           <span class="text-sm text-brand-700">{{ open === k ? 'ซ่อน' : 'อ่าน' }}</span>
         </button>
         <div v-if="open === k" class="max-h-80 overflow-y-auto border-t border-stone-100 px-4 py-3"><LegalText :kind="k" /></div>

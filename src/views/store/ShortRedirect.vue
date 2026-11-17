@@ -35,6 +35,6 @@ onMounted(async () => {
       <p class="mt-3 font-medium text-stone-700">{{ error }}</p>
       <RouterLink to="/" class="mt-3 inline-block text-sm text-brand-700 underline">กลับหน้าแรก</RouterLink>
     </template>
-    <p v-else class="text-stone-400">กำลังพาไป…</p>
+    <p v-else class="text-stone-500">กำลังพาไป…</p>
   </div>
 </template>
