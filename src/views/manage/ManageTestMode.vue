@@ -96,7 +96,9 @@ async function searchCustomers() {
   const term = q.value.replace(/[,()*"\\%]/g, ' ').trim()
   pickBusy.value = true
   let query = c.schema('public').from('punpang_customers').select('id,name,phone,data').order('name').limit(30)
-  if (term) query = query.or(`name.ilike.*${term}*,phone.ilike.*${term}*`)
+  // เบอร์ในฐานข้อมูลเก็บเป็นตัวเลขล้วน: ค้นเบอร์ด้วยตัวเลขที่พิมพ์ (ตัดขีด/ช่องว่าง) · ไม่มีตัวเลข = ค้นชื่ออย่างเดียว
+  const digits = term.replace(/\D/g, '')
+  if (term) query = query.or(digits ? `name.ilike.*${term}*,phone.ilike.*${digits}*` : `name.ilike.*${term}*`)
   const r = await query
   if (seq !== searchSeq) return
   pickBusy.value = false
