@@ -78,7 +78,7 @@ const tabs = computed(() => [
     </ul>
   </nav>
 
-  <footer v-if="!loading && !failed" class="mt-10 bg-choco pb-[calc(4rem+env(safe-area-inset-bottom))] text-cream md:mt-12 md:pb-0">
+  <footer v-if="!loading && !failed" class="mt-10 bg-choco pb-[calc(8rem+env(safe-area-inset-bottom))] text-cream md:mt-12 md:pb-0">
     <div class="mx-auto grid max-w-page gap-6 px-4 py-8 text-sm text-cream sm:grid-cols-3 lg:px-8">
       <div>
         <div class="mb-2 flex items-center gap-2 font-display text-xl"><AppIcon name="cake" :size="18" /> {{ db.shop.name || 'ร้านของคุณ' }}</div>
