@@ -43,7 +43,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
   <button
     v-if="!open && !onAuthPage"
     type="button"
-    class="fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-300 md:right-6 md:bottom-6"
+    class="chat-fab fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/30 transition hover:bg-brand-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-300 md:right-6 md:bottom-6"
     aria-label="แชทกับร้าน"
     @click="show"
   >

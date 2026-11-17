@@ -51,7 +51,8 @@ const tabs = computed(() => [
         <button type="button" class="chip" :class="!occasion ? 'chip-on' : 'chip-off'" @click="occasion = ''">ทั้งหมด</button>
         <button v-for="o in OCCASIONS" :key="o.key" type="button" class="chip" :class="occasion === o.key ? 'chip-on' : 'chip-off'" @click="occasion = o.key">{{ o.label }}</button>
       </div>
-      <nav v-if="sections.length > 1" class="chip-row mb-4" aria-label="หมวดสินค้า">
+      <!-- มือถือ: แถบหมวดติดใต้หัวเว็บ กดข้ามหมวดได้ระหว่างเลื่อน -->
+      <nav v-if="sections.length > 1" class="chip-row sticky top-14 z-10 -mx-4 mb-4 bg-cream/95 px-4 py-2 backdrop-blur-xl md:static md:mx-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-none" aria-label="หมวดสินค้า">
         <a v-for="s in sections" :key="s.key" :href="`#cat-${s.key}`" class="chip chip-off" @click.prevent="jump(s.key)">{{ s.category }} <span class="opacity-60">{{ s.items.length }}</span></a>
       </nav>
       <section v-for="s in sections" :id="`cat-${s.key}`" :key="s.key" class="mb-7" :aria-label="`หมวด ${s.category}`">

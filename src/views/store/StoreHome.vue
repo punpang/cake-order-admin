@@ -40,8 +40,10 @@ const morePromos = ref(false)
     <div class="relative mx-auto max-w-page px-5 py-9 sm:py-20 lg:px-8">
       <h1 class="max-w-[15rem] text-[2rem] leading-[1.22] sm:max-w-xl sm:text-5xl">{{ s.heroTitle }}</h1>
       <p class="mt-2.5 max-w-[15rem] text-base leading-snug font-medium sm:max-w-lg sm:text-lg">{{ s.heroText }}</p>
-      <div class="mt-5 flex flex-wrap gap-2">
-        <RouterLink to="/menu" class="inline-flex h-12 items-center gap-1.5 rounded-full bg-white px-6 font-display text-base text-stone-800 shadow-lg hover:bg-brand-50">ดูเมนูเค้ก <AppIcon name="next" :size="16" /></RouterLink>
+      <!-- มือถือ: ปุ่มเรียงลงกันและไม่ทับภาพเค้กด้านขวา · จอกว้างเรียงแถว -->
+      <div class="mt-5 flex flex-col items-start gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+        <RouterLink to="/menu" class="inline-flex h-12 w-full max-w-[15rem] items-center justify-center gap-1.5 rounded-full bg-white px-6 font-display text-base text-stone-800 shadow-lg hover:bg-brand-50 sm:w-auto sm:max-w-none">ดูเมนูเค้ก <AppIcon name="next" :size="16" /></RouterLink>
+        <RouterLink to="/menu/custom" class="inline-flex h-12 w-full max-w-[15rem] items-center justify-center rounded-full border-2 border-white/90 px-6 font-display text-base text-white hover:bg-white/10 sm:w-auto sm:max-w-none">ออกแบบเค้กสั่งทำ</RouterLink>
       </div>
     </div>
   </section>
@@ -53,8 +55,9 @@ const morePromos = ref(false)
         <h2 class="text-2xl text-stone-900">สินค้าที่กำลังมีโปรโมชั่น</h2>
         <RouterLink v-if="promoItems.total > promoItems.items.length" to="/menu" class="btn-peach h-10 px-4">ดูทั้งหมด</RouterLink>
       </div>
-      <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6">
-        <li v-for="r in promoItems.items" :key="r.product.id">
+      <!-- มือถือ: เลื่อนแนวนอนด้วยนิ้ว (ไม่ยาวลงหน้า) · sm ขึ้นไปเป็นตาราง -->
+      <ul class="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-6">
+        <li v-for="r in promoItems.items" :key="r.product.id" class="w-[44%] shrink-0 snap-start sm:w-auto">
           <RouterLink :to="`/menu/ready/${r.product.id}`" class="group block overflow-hidden rounded-2xl bg-white shadow-md transition hover:shadow-lg">
             <div class="relative aspect-[1/0.95] overflow-hidden"><CakeImage :src="r.product.images?.[0]" :alt="r.product.name" />
               <span class="absolute top-1.5 left-1.5 rounded-full bg-brand-600 px-2 py-0.5 text-xs font-semibold text-white">โปร</span>
@@ -75,8 +78,8 @@ const morePromos = ref(false)
         <h2 class="text-2xl text-stone-900">สินค้าขายดี</h2>
         <RouterLink to="/menu" class="btn-peach h-10 px-4">ดูทั้งหมด</RouterLink>
       </div>
-      <div class="grid grid-cols-3 gap-2.5 sm:gap-4 md:grid-cols-6 2xl:grid-cols-8">
-        <RouterLink v-for="b in best" :key="b.product.id" :to="`/menu/ready/${b.product.id}`" class="group overflow-hidden rounded-2xl bg-white shadow-md transition hover:shadow-lg">
+      <div class="-mx-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:gap-4 md:mx-0 md:grid md:grid-cols-6 md:overflow-visible md:px-0 md:pb-0 2xl:grid-cols-8">
+        <RouterLink v-for="b in best" :key="b.product.id" :to="`/menu/ready/${b.product.id}`" class="group w-[36%] shrink-0 snap-start overflow-hidden rounded-2xl bg-white shadow-md transition hover:shadow-lg sm:w-[24%] md:w-auto">
           <div class="relative aspect-[1/0.95] overflow-hidden"><CakeImage :src="b.product.images?.[0]" :alt="b.product.name" />
             <span class="absolute top-1.5 left-1.5 rounded-full bg-brand-600 px-2 py-0.5 text-xs font-semibold text-white">ยอดฮิต</span>
           </div>
@@ -190,7 +193,7 @@ const morePromos = ref(false)
     </section>
 
     <!-- FAQ + นโยบาย -->
-    <section v-if="s.faq.length || s.policies.length" class="grid grid-cols-2 gap-3.5 sm:gap-8">
+    <section v-if="s.faq.length || s.policies.length" class="grid gap-6 md:grid-cols-2 md:gap-8">
       <div v-if="s.faq.length" class="min-w-0">
         <h2 class="mb-2.5 text-xl text-stone-900 sm:text-2xl">คำถามที่พบบ่อย</h2>
         <details v-for="(f, i) in s.faq" :key="i" class="card mb-2.5 rounded-2xl p-0 shadow-md">

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { safeHref } from '../../lib/safeUrl'
 import { db } from '../../data/store'
 import { readyMenu, customMenu, alsoBoughtFor } from '../../lib/storefront'
 import { money } from '../../lib/format'
@@ -51,9 +52,13 @@ const item = computed(() => {
   return { title: 'เค้กสั่งทำ', images: [], sub: t?.type.name || '', price: t ? t.from : low('from'), regular: t ? t.regularFrom : low('regularFrom'), from: true, custom: t || true, text: t ? `สนใจสั่งเค้กสั่งทำ ${t.type.name}` : 'สนใจสั่งเค้กสั่งทำ' }
 })
 
+// แถบสั่งติดล่าง: แสดงเฉพาะเมื่อร้านตั้งช่องทางสั่งไว้ (ไม่มีช่องทาง = ไม่มีปุ่มให้กด จึงไม่แสดงแถบว่าง)
+const fbHref = computed(() => safeHref(db.storefront.facebookUrl))
+const barOn = computed(() => !!item.value && !!(fbHref.value || db.storefront.phone))
 // รูปเค้กสั่งทำติดบน: เลื่อนโฟกัส/ปุ่มไม่ให้ไปอยู่ใต้รูป
 onMounted(() => document.documentElement.classList.add('has-sticky-photo'))
-onBeforeUnmount(() => document.documentElement.classList.remove('has-sticky-photo'))
+onBeforeUnmount(() => document.documentElement.classList.remove('has-sticky-photo', 'has-cta-bar'))
+watch(barOn, (v) => document.documentElement.classList.toggle('has-cta-bar', v), { immediate: true })
 // แบบที่แนะนำ: 4 แบบแรก โหลดเพิ่มทีละ 4 (กดดูเพิ่ม/เลื่อนลงสุด)
 const REC = 4
 const recAll = computed(() => (props.kind === 'custom' ? recommendPhotos(db, { photoId: photoId.value, selectedIds: selIds.value }) : []))
@@ -82,7 +87,7 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
 </script>
 
 <template>
-  <div class="mx-auto max-w-6xl px-4 pt-6 lg:px-8">
+  <div class="mx-auto max-w-6xl px-4 pt-6 lg:px-8" :class="barOn ? 'pb-40 md:pb-0' : ''">
     <RouterLink to="/menu" class="tap mb-4 inline-flex items-center gap-1 text-sm text-stone-600 hover:text-brand-700"><AppIcon name="back" :size="16" /> กลับเมนู</RouterLink>
 
     <div v-if="!item" class="empty">ไม่พบเมนูนี้ (อาจปิดการขายแล้ว) <RouterLink to="/menu" class="text-brand-700 underline">กลับไปเมนู</RouterLink></div>
@@ -188,5 +193,17 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
         </li>
       </ul>
     </section>
+
+    <!-- มือถือ: แถบสั่งติดล่าง (ราคา + สั่งทาง Facebook) อยู่เหนือแถบเมนูล่าง ไม่ต้องเลื่อนหาปุ่ม -->
+    <div v-if="barOn" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 border-t border-stone-200 bg-white/95 px-4 py-2.5 shadow-[0_-6px_16px_-10px_rgb(63_46_46/0.35)] backdrop-blur-xl md:hidden">
+      <div class="mx-auto flex max-w-page items-center gap-3">
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-xs text-stone-600">{{ item.title }}</div>
+          <StorePrice :price="item.price" :regular="item.regular" :from="item.from" />
+        </div>
+        <a v-if="fbHref" :href="fbHref" target="_blank" rel="noopener" class="btn-primary h-11 shrink-0 px-5"><AppIcon name="chat" :size="16" /> สั่งทาง Facebook</a>
+        <a v-else-if="db.storefront.phone" :href="`tel:${db.storefront.phone}`" class="btn-primary h-11 shrink-0 px-5"><AppIcon name="phone" :size="16" /> โทรสั่ง</a>
+      </div>
+    </div>
   </div>
 </template>
