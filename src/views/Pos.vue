@@ -980,6 +980,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <!-- บิลของกะ -->
     <section v-else-if="tab === 'bills'" class="card">
+      <div class="mb-2 flex justify-end"><RouterLink to="/admin/pos/bills" class="text-sm font-medium text-brand-700 underline">ดูบิลที่ปิดแล้วทุกกะ →</RouterLink></div>
       <p v-if="!bills.length" class="py-8 text-center text-sm text-stone-500">ยังไม่มีบิลในกะนี้</p>
       <ul class="divide-y divide-stone-100">
         <li v-for="o in bills" :key="o.id" class="flex flex-wrap items-center gap-x-3 gap-y-2 py-3" :class="o.status === 'cancelled' ? 'opacity-60' : ''">

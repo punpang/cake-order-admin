@@ -50,6 +50,7 @@ const ManageBirthdays = () => import('./views/manage/ManageBirthdays.vue')
 const ManageIntegrations = () => import('./views/manage/ManageIntegrations.vue')
 const Chat = () => import('./views/Chat.vue')
 const Pos = () => import('./views/Pos.vue')
+const PosBills = () => import('./views/PosBills.vue')
 const ManageRetail = () => import('./views/manage/ManageRetail.vue')
 const ManageStorefront = () => import('./views/manage/ManageStorefront.vue')
 const ManageDeletionRequests = () => import('./views/manage/ManageDeletionRequests.vue')
@@ -106,6 +107,7 @@ const router = createRouter({
     { path: '/admin/chat', component: Chat, meta: { perms: ['chat'], lock: true, data: ['chats'] } },
     { path: '/admin/chat/:id', component: Chat, props: true, meta: { focus: true, perms: ['chat'], lock: true, data: ['chats'] } },
     { path: '/admin/pos', component: Pos, meta: { focus: true, perms: ['pos'], data: ['shifts'] } },
+    { path: '/admin/pos/bills', component: PosBills, meta: { focus: true, perms: ['pos'] } },
     { path: '/admin/manee-test', component: ManeeTest, meta: { perms: ['pos'] } },
     { path: '/admin/materials', component: Materials, meta: { perms: ['viewMaterials'] } },
     { path: '/admin/production', component: Production, meta: { perms: ['viewMaterials'] } },

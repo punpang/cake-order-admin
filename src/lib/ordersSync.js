@@ -43,7 +43,7 @@ const applyPay = (qy, payState) => {
   qy = qy.neq('status', 'cancelled')
   return payState === 'due' ? qy.gt('balance', 0) : payState === 'paid' ? qy.eq('balance', 0) : payState === 'over' ? qy.lt('balance', 0) : qy
 }
-export async function loadOrdersInRange(client, { from = '', to = '', status = '', fulfillment = '', includePos = true, openOnly = false, payState = '' } = {}) {
+export async function loadOrdersInRange(client, { from = '', to = '', status = '', fulfillment = '', includePos = true, onlyPos = false, openOnly = false, payState = '' } = {}) {
   const a = await selectAll((x, y) => {
     let qy = client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data,updated_at')
     if (openOnly) qy = qy.not('status', 'in', '(cancelled,delivered)') // ไม่เลือกช่วงวันที่ = ทุกออร์เดอร์ที่ยังไม่ยกเลิก/ส่งมอบ
@@ -53,6 +53,7 @@ export async function loadOrdersInRange(client, { from = '', to = '', status = '
     if (status) qy = qy.eq('status', status)
     if (fulfillment) qy = qy.eq('fulfillment', fulfillment)
     if (!includePos) qy = qy.or('channel.is.null,channel.neq.pos')
+    if (onlyPos) qy = qy.eq('channel', 'pos') // หน้าบิลหน้าร้านย้อนหลัง: เฉพาะบิล POS
     return qy.order('code').order('id').range(x, y)
   })
   if (a.error) return { error: a.error.message }
