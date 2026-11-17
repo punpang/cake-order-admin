@@ -6,14 +6,14 @@ import { autoConfirmOf } from '../_shared/slip.ts'
 
 // รับ notification.forwarded จากแอปส่งต่อ (ถุงเงิน) → บันทึกรหัสธุรกรรม ORD/POS ลงตาราง tungngern_transfers เพื่อจับคู่กับ QR หน้าร้าน
 // ทุกคำขอที่ผ่านลายเซ็นจะบันทึกลง tungngern_inbox (แอป · ข้อความ · ผ่าน/ไม่ผ่าน · เหตุผล) เพื่อดูรายงานแอปที่ส่งเข้ามา
-// ค่าลับ: MANEE_FORWARD_SECRET (ค่าเดียวกับกฎส่งต่อ) · MANEE_APP_IDS (ไม่บังคับ) · ไม่มีการตอบข้อมูลภายในให้ผู้เรียก
+// ค่าลับ: TUNGNGERN_FORWARD_SECRET (ค่าเดียวกับกฎส่งต่อ · ถ้าไม่ได้ตั้งจะอ่านชื่อเก่า MANEE_FORWARD_SECRET แทนระหว่างย้ายชื่อ) · MANEE_APP_IDS (ไม่บังคับ) · ไม่มีการตอบข้อมูลภายในให้ผู้เรียก
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'Content-Type': 'application/json' } })
 
 Deno.serve(async (req) => {
   const refused = refuseInTest(modeOf(req))
   if (refused) return refused // โหมดทดสอบไม่ทำงานฟังก์ชันนี้ (ข้อมูลลูกค้า/งานตามเวลา/เว็บฮุกเป็นของจริงเท่านั้น)
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
-  const secret = Deno.env.get('MANEE_FORWARD_SECRET') || ''
+  const secret = Deno.env.get('TUNGNGERN_FORWARD_SECRET') || Deno.env.get('MANEE_FORWARD_SECRET') || ''
   const raw = await req.text()
   const ok = await verifyGatewaySignature(secret, req.headers.get('X-Gateway-Timestamp') || '', raw, req.headers.get('X-Gateway-Signature') || '', Math.floor(Date.now() / 1000))
   if (!ok) return json({ error: 'signature' }, 401)

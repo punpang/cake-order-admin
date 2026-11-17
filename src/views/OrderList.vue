@@ -13,6 +13,7 @@ import AppModal from '../components/AppModal.vue'
 import BirthdayList from '../components/BirthdayList.vue'
 import { getSupabase } from '../lib/supabase'
 import { loadOrdersInRange, searchOrdersRemote, countOrders } from '../lib/ordersSync'
+import { fetchPendingPosHoldIds, loadPendingPosOrders } from '../lib/posHold'
 import { quietly } from '../lib/loading'
 
 const status = ref('')
@@ -67,6 +68,17 @@ const bdOpen = ref(false)
 
 // บิลหน้าร้าน (POS) ซ่อนไว้ก่อน กดชิปเพื่อแสดง
 const showPos = ref(false)
+// คิวบิลหน้าร้านที่ผลตรวจพบรายการเสี่ยงและยังไม่มีผู้จัดการตรวจ (ผู้จัดการเท่านั้น · ไม่กันการขาย)
+const posHoldIds = ref([])
+const posHoldSet = computed(() => new Set(posHoldIds.value))
+const posReview = ref(false)
+async function refreshPosHolds() {
+  if (!can('manage')) return
+  const client = await getSupabase()
+  if (!client) return
+  const r = await fetchPendingPosHoldIds(client)
+  if (!r.error) posHoldIds.value = r.ids
+}
 // ตัวเลขจากฐานข้อมูลตามตัวกรองปัจจุบัน (null = นับจากรายการที่โหลด เช่น ตอนค้นหา/โหมดสาธิต)
 const serverCounts = ref(null)
 const posTotal = computed(() => (serverCounts.value ? serverCounts.value.pos : db.orders.filter((o) => o.channel === 'pos').length))
@@ -81,7 +93,7 @@ const source = computed(() => {
   return serverRows.value.map((o) => dbById.value.get(o.id) || o)
 })
 const visible = computed(() => {
-  return source.value.filter((o) => (showPos.value || o.channel !== 'pos') && orderVisible(o))
+  return source.value.filter((o) => (posReview.value ? posHoldSet.value.has(o.id) : (showPos.value || o.channel !== 'pos')) && orderVisible(o))
 })
 
 // ดึงจากฐานข้อมูลเฉพาะตามตัวกรอง (ไม่ดึงทั้งหมดแล้วกรองเอง) · ค้นข้อความ → RPC ทุกวัน
@@ -98,6 +110,18 @@ async function runFetch() {
   const seq = ++reqSeq
   const client = await getSupabase()
   if (!client) { serverRows.value = null; searchedServer.value = false; return }
+  if (posReview.value) { // คิวรอตรวจ: โหลดเฉพาะบิลในคิว (ตัวกรองวันและสถานะยังใช้กับรายการที่โหลดแล้ว)
+    const pending = await fetchPendingPosHoldIds(client)
+    if (seq !== reqSeq) return
+    if (pending.error) { serverRows.value = null; searchedServer.value = false; serverCounts.value = null; return }
+    posHoldIds.value = pending.ids
+    const items = await loadPendingPosOrders(client, pending.ids)
+    if (seq !== reqSeq) return
+    serverRows.value = items.error ? null : items.items
+    searchedServer.value = false
+    serverCounts.value = null
+    return
+  }
   const term = q.value.trim()
   const scope = { from: from.value, to: to.value, openOnly: !from.value && !to.value, fulfillment: fulfill.value, includePos: showPos.value, payState: payState.value }
   const [r, cnt] = term
@@ -110,11 +134,11 @@ async function runFetch() {
   serverCounts.value = cnt && !cnt.error ? cnt : null
 }
 const scheduleFetch = (ms) => { clearTimeout(fetchTimer); fetchTimer = setTimeout(() => quietly(fetchRows), ms) }
-watch([from, to, status, fulfill, showPos, payState], () => scheduleFetch(200))
+watch([from, to, status, fulfill, showPos, payState, posReview], () => scheduleFetch(200))
 watch(q, () => scheduleFetch(350))
 // ข้อมูลในเครื่องเปลี่ยน (แก้/สร้าง/ซิงก์) → โหลดตัวเลขและรายการใหม่
 watch(() => db.orders.map((o) => `${o.id}|${o.status}|${o.pickupAt}|${o.fulfillment}|${o.channel}|${orderTotals(o).balance}`).join(';'), () => scheduleFetch(800))
-onMounted(() => quietly(fetchRows))
+onMounted(() => { quietly(fetchRows); quietly(refreshPosHolds) })
 onBeforeUnmount(() => clearTimeout(fetchTimer))
 
 const counts = computed(() => {
@@ -285,6 +309,9 @@ function clearAll() {
     <div class="-mx-4 mb-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0" role="group" aria-label="กรองตามสถานะ">
       <button v-if="posTotal && can('pos')" class="chip" :class="showPos ? 'chip-on' : 'chip-off'" :aria-pressed="showPos" @click="showPos = !showPos">
         บิลหน้าร้าน <span class="font-normal">{{ posTotal }}</span>
+      </button>
+      <button v-if="can('manage') && (posHoldIds.length || posReview)" class="chip" :class="posReview ? 'chip-on' : 'chip-off'" :aria-pressed="posReview" data-pos-review @click="posReview = !posReview">
+        รอตรวจบิลหน้าร้าน <span class="font-normal">{{ posHoldIds.length }}</span>
       </button>
       <button class="chip" :class="!status ? 'chip-on' : 'chip-off'" :aria-pressed="!status" @click="status = ''">
         ทั้งหมด <span class="font-normal">{{ totalCount }}</span>

@@ -61,7 +61,8 @@ onMounted(() => { if (!findOrder(props.id)) loadOneOrder(props.id) })
 // ---------- ด่านตรวจออร์เดอร์เสี่ยง: รายการที่ระบบพบว่าผิดต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ ----------
 const gate = ref(null) // สถานะด่านล่าสุดจากฐานข้อมูล (โหลดใหม่ก่อนทำรายการที่เกี่ยวข้อง)
 const gateBlocked = computed(() => order.value?.channel !== 'pos' && !!gate.value?.blocked)
-const gateHeld = computed(() => order.value?.channel !== 'pos' && order.value?.status !== 'cancelled' && !!gate.value?.hold)
+const gateHeld = computed(() => order.value?.status !== 'cancelled' && !!gate.value?.hold)
+const gateIsPos = computed(() => order.value?.channel === 'pos') // บิลหน้าร้าน: แจ้งให้ตรวจ ไม่กันการขาย
 // ยังไม่ชำระ → ด่านกั้นทั้งการยืนยันชำระและการส่งมอบ · ชำระแล้ว → ด่านกั้นเฉพาะการส่งมอบ
 const gateNeedsPayReview = computed(() => ['awaiting_payment', 'payment_reported'].includes(order.value?.status))
 // การยืนยันชำระจากสถานะรอชำระ/แจ้งยอดแล้วจะเปลี่ยนเป็นยืนยันชำระ จึงต้องถูกด่านกั้น
@@ -76,11 +77,11 @@ async function loadGate() {
 }
 watch(() => order.value?.id, (id) => { gate.value = null; if (id) loadGate() }, { immediate: true })
 async function doReviewGate() {
-  if (!(await askConfirm({ title: 'ผู้จัดการตรวจรายการเสี่ยงแล้ว', message: `ออร์เดอร์ ${order.value.code} · ยืนยันว่าตรวจรายการที่ระบบพบแล้ว`, okText: 'ตรวจแล้ว' }))) return
+  if (!(await askConfirm({ title: 'ผู้จัดการตรวจรายการเสี่ยงแล้ว', message: `${gateIsPos.value ? 'บิล' : 'ออร์เดอร์'} ${order.value.code} · ยืนยันว่าตรวจรายการที่ระบบพบแล้ว`, okText: 'ตรวจแล้ว' }))) return
   const r = await reviewOrderGate(order.value.id, '')
   if (r.error) return showToast(r.error, 6000)
   gate.value = r.gate
-  showToast('บันทึกการตรวจแล้ว · ยืนยันชำระหรือส่งมอบได้', 4000)
+  showToast(gateIsPos.value ? 'บันทึกการตรวจแล้ว' : 'บันทึกการตรวจแล้ว · ยืนยันชำระหรือส่งมอบได้', 4000)
 }
 const customer = computed(() => order.value && findCustomer(order.value.customerId))
 const t = computed(() => orderTotals(order.value))
@@ -389,11 +390,11 @@ async function saveCancel() {
       </div>
     </div>
 
-    <!-- ด่านตรวจออร์เดอร์เสี่ยง: รายการที่ระบบพบว่าผิด ต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ -->
+    <!-- รายการเสี่ยงจากการตรวจอัตโนมัติ: ออร์เดอร์ตรงต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ · บิลหน้าร้านแค่แจ้งให้ตรวจ -->
     <div v-if="gateHeld" class="mb-3 rounded-2xl p-3 text-sm" :class="gate.reviewed ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'">
       <div class="flex flex-wrap items-center gap-2">
         <AppIcon name="alert" :size="16" />
-        <span class="min-w-0 flex-1 font-semibold">{{ gate.reviewed ? 'ผู้จัดการตรวจรายการเสี่ยงแล้ว' : (gateNeedsPayReview ? 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ' : 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนส่งมอบ') }}</span>
+        <span class="min-w-0 flex-1 font-semibold">{{ gate.reviewed ? 'ผู้จัดการตรวจรายการเสี่ยงแล้ว' : (gateIsPos ? 'มีรายการเสี่ยงในบิลหน้าร้าน · ขายไปแล้ว ระบบไม่ได้กันการขาย' : (gateNeedsPayReview ? 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ' : 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนส่งมอบ')) }}</span>
         <button v-if="!gate.reviewed && can('manage')" class="btn-primary h-9 px-3" @click="doReviewGate">ผู้จัดการตรวจแล้ว</button>
       </div>
       <ul class="mt-1.5 list-disc space-y-0.5 pl-6 text-xs">
