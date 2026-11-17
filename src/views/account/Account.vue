@@ -1,7 +1,7 @@
 <script setup>
 import { orderNo } from '../../lib/format'
-import { computed, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   db, myProfile, updateMyProfile, myOrders, myBirthdays, submitReview, customerLogout, changePin, changePhone, requestDeletion, myDeletionRequest,
 } from '../../data/store'
@@ -27,7 +27,11 @@ import TaxAddressField from '../../components/TaxAddressField.vue'
 // บัญชีของฉัน: เห็นข้อมูลของตัวเองทั้งหมด แก้ได้เฉพาะ ชื่อ / รับข่าวโปร · เบอร์และ PIN ต้องยืนยัน OTP
 const router = useRouter()
 const me = computed(() => myProfile())
-const tab = ref('profile')
+const route = useRoute()
+const TAB_KEYS = ['profile', 'orders', 'rewards', 'security']
+// แถบเมนูล่างของหน้าร้านลิงก์มาที่แท็บด้วย ?tab= (เปลี่ยนตาม query ได้ด้วย)
+const tab = ref(TAB_KEYS.includes(String(route.query.tab)) ? String(route.query.tab) : 'profile')
+watch(() => route.query.tab, (v) => { if (TAB_KEYS.includes(String(v))) tab.value = String(v) })
 const tabs = [
   { v: 'profile', l: 'ข้อมูล' },
   { v: 'orders', l: 'ออร์เดอร์' },

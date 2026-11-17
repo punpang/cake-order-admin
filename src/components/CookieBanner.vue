@@ -32,7 +32,7 @@ function save(choice) {
 </script>
 
 <template>
-  <section v-if="visible" class="fixed inset-x-0 bottom-0 z-40 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]" role="region" aria-label="การตั้งค่าคุกกี้">
+  <section v-if="visible" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 p-3 md:bottom-0 md:pb-[calc(env(safe-area-inset-bottom)+0.75rem)]" role="region" aria-label="การตั้งค่าคุกกี้">
     <div class="mx-auto max-w-2xl rounded-3xl bg-matcha-soft p-3.5 shadow-2xl sm:p-4">
       <div class="font-display text-base text-stone-900 sm:text-lg">Cookie Consent · เว็บไซต์นี้ใช้คุกกี้</div>
       <!-- มือถือ: ประโยคหลักบรรทัดเดียวกับลิงก์นโยบาย (แถบไม่บังสินค้าเกินครึ่งจอ) · จอ sm ขึ้นไปแสดงคำอธิบายเต็ม -->

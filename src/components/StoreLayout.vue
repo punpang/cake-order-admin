@@ -12,6 +12,7 @@ import { useRoute } from 'vue-router'
 import { supabaseEnabled } from '../lib/supabase'
 import { publicState } from '../lib/dataStatus'
 import { loadPublicNow } from '../lib/staffAuth'
+import { allowedInApp } from '../lib/adminSystems'
 
 // โครงหน้าร้าน + ระบบลูกค้า (สาธารณะ) · ธีมเดียวกับหลังบ้าน
 const link = 'rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap text-stone-600 hover:bg-white'
@@ -21,6 +22,13 @@ const route = useRoute()
 const loading = computed(() => supabaseEnabled && publicState.status === 'loading')
 const failed = computed(() => supabaseEnabled && publicState.status === 'error' && !!route.meta.pub)
 const hold = computed(() => !!route.meta.pub && loading.value)
+// แถบเมนูล่าง (มือถือ): 4 ปุ่มที่นิ้วโป้งกดถึง · ซ่อนปุ่มที่โหมดแอปนั้นเปิดไม่ได้ (เช่นแอปลูกค้าไม่มีหน้าร้าน)
+const tabs = computed(() => [
+  { to: '/', label: 'หน้าแรก', icon: 'store', on: route.path === '/' },
+  { to: '/menu', label: 'เมนู', icon: 'cake', on: route.path.startsWith('/menu') },
+  { to: '/account?tab=orders', label: 'ออร์เดอร์', icon: 'list', on: route.path.startsWith('/account/orders') || (route.path === '/account' && route.query.tab === 'orders') },
+  { to: '/account', label: 'บัญชี', icon: 'user', on: route.path.startsWith('/account') && !route.path.startsWith('/account/orders') && route.query.tab !== 'orders' },
+].filter((t) => allowedInApp(t.to.split('?')[0])))
 </script>
 
 <template>
@@ -32,17 +40,20 @@ const hold = computed(() => !!route.meta.pub && loading.value)
         <svg viewBox="0 0 48 48" class="h-10 w-10 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2" stroke-linejoin="round"><ellipse cx="24" cy="40" rx="18" ry="4" fill="#fff" /><rect x="9" y="22" width="30" height="16" rx="4" fill="#ffd05c" /><path d="M8 22c0-7 7-10 16-10s16 3 16 10c-3 3-5 0-8 3s-5 0-8 3-5 0-8-3-5 0-8-3z" fill="#ff8fa6" /><circle cx="24" cy="9" r="4" fill="#e0314f" /></svg>
         <span class="truncate font-display text-xl text-brand-700">{{ loading || failed ? '' : db.shop.name || 'ร้านของคุณ' }}</span>
       </RouterLink>
-      <nav class="ml-auto flex items-center gap-1" aria-label="เมนูหน้าร้าน">
-        <RouterLink to="/" :class="[link, 'max-sm:hidden']" exact-active-class="bg-white text-brand-700 shadow-sm">หน้าแรก</RouterLink>
+      <!-- มือถือใช้แถบเมนูล่างแทน · ลิงก์บนแสดงตั้งแต่ md -->
+      <nav class="hidden items-center gap-1 md:ml-auto md:flex" aria-label="เมนูหน้าร้าน">
+        <RouterLink to="/" :class="link" exact-active-class="bg-white text-brand-700 shadow-sm">หน้าแรก</RouterLink>
         <RouterLink to="/menu" :class="link" :active-class="active">เมนู</RouterLink>
         <RouterLink v-if="customerSession.customerId" to="/account" :class="link" :active-class="active">บัญชีของฉัน</RouterLink>
         <RouterLink v-else to="/account/login" class="btn-matcha h-10 px-4 whitespace-nowrap">เข้าสู่ระบบ</RouterLink>
-        <BellMenu v-if="customerSession.customerId" audience="customer" class="ml-1" />
       </nav>
+      <div class="ml-auto flex items-center md:ml-1">
+        <BellMenu v-if="customerSession.customerId" audience="customer" />
+      </div>
     </div>
   </header>
 
-  <main id="main-content" tabindex="-1" class="min-h-[60vh] flex-1 outline-none">
+  <main id="main-content" tabindex="-1" class="min-h-[60vh] flex-1 pb-[calc(5rem+env(safe-area-inset-bottom))] outline-none md:pb-0">
     <div v-if="hold" class="mx-auto max-w-page space-y-4 px-4 py-8 lg:px-8" role="status" aria-live="polite" aria-busy="true">
       <span class="sr-only">กำลังโหลดข้อมูลร้านจากเซิร์ฟเวอร์</span>
       <div class="h-40 skeleton rounded-3xl bg-stone-200 sm:h-56"></div>
@@ -56,7 +67,18 @@ const hold = computed(() => !!route.meta.pub && loading.value)
     <RouterView v-else :key="$route.fullPath" />
   </main>
 
-  <footer v-if="!loading && !failed" class="mt-12 bg-choco text-cream">
+  <nav v-if="tabs.length" class="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden" aria-label="เมนูหลัก">
+    <ul class="mx-auto grid max-w-md grid-cols-4">
+      <li v-for="t in tabs" :key="t.to">
+        <RouterLink :to="t.to" class="flex h-16 flex-col items-center justify-center gap-0.5 text-xs font-medium" :class="t.on ? 'text-brand-700' : 'text-stone-500'" :aria-current="t.on ? 'page' : undefined">
+          <span class="flex h-8 w-14 items-center justify-center rounded-full transition" :class="t.on ? 'bg-brand-100' : ''"><AppIcon :name="t.icon" :size="20" /></span>
+          <span>{{ t.label }}</span>
+        </RouterLink>
+      </li>
+    </ul>
+  </nav>
+
+  <footer v-if="!loading && !failed" class="mt-10 bg-choco text-cream md:mt-12">
     <div class="mx-auto grid max-w-page gap-6 px-4 py-8 text-sm text-cream sm:grid-cols-3 lg:px-8">
       <div>
         <div class="mb-2 flex items-center gap-2 font-display text-xl"><AppIcon name="cake" :size="18" /> {{ db.shop.name || 'ร้านของคุณ' }}</div>
