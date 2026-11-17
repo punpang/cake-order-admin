@@ -96,3 +96,7 @@ $function$;
 
 revoke all on function public.punpang_customer_tax_invoice(text, text, date, text, jsonb, text, jsonb, text) from public, anon, authenticated;
 grant execute on function public.punpang_customer_tax_invoice(text, text, date, text, jsonb, text, jsonb, text) to service_role;
+
+-- ซิงก์สำเนาโหมดทดสอบ (punpang_test) ให้มีฟังก์ชันใหม่ด้วย: ฟังก์ชันของ public ทุกตัวต้องมีสำเนา (ดู supabase/tests/mirror.test.sql ข้อ A6)
+-- สำเนาอ้างตารางของโหมดทดสอบเท่านั้น · Edge Function ตรวจโหมดทดสอบก่อนเรียกฟังก์ชันนี้ จึงไม่มีการเรียกจากโหมดทดสอบ
+select punpang_test.punpang_test_sync();
