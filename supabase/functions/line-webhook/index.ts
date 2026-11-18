@@ -53,10 +53,10 @@ async function handleEvent(c: Ctx, ev: LineEvent) {
   const text = ev.type === 'postback' ? String(ev.postback?.data || '') : (isText ? String(ev.message?.text || '') : '')
   const name = await touchUser(c, userId, ts)
 
-  // บันทึกข้อความเข้า · LINE ส่งเหตุการณ์เดิมซ้ำ (webhookEventId เดิม) → ประมวลผลแล้ว จึงไม่ตอบซ้ำ
+  // บันทึกเหตุการณ์เข้า แต่ไม่เก็บเนื้อหาที่ลูกค้าพิมพ์ · LINE ส่งเหตุการณ์เดิมซ้ำ (webhookEventId เดิม) → ประมวลผลแล้ว จึงไม่ตอบซ้ำ
   const ins = await c.sb.from('punpang_line_messages')
     .upsert(
-      { line_user_id: userId, direction: 'in', kind, text: text || `[${kind}]`, source: '', webhook_event_id: ev.webhookEventId || null, created_at: ts },
+      { line_user_id: userId, direction: 'in', kind, text: '', source: '', webhook_event_id: ev.webhookEventId || null, created_at: ts },
       { onConflict: 'webhook_event_id', ignoreDuplicates: true },
     )
     .select('id')
