@@ -106,7 +106,7 @@ const router = createRouter({
     { path: '/admin/qr', component: PayQr, meta: { perms: ['reportPayment'] } },
     { path: '/admin/chat', component: Chat, meta: { perms: ['chat'], lock: true, data: ['chats'] } },
     { path: '/admin/chat/:id', component: Chat, props: true, meta: { focus: true, perms: ['chat'], lock: true, data: ['chats'] } },
-    { path: '/admin/pos', component: Pos, meta: { focus: true, perms: ['pos'], data: ['shifts'] } },
+    { path: '/admin/pos', component: Pos, meta: { focus: true, lock: true, perms: ['pos'], data: ['shifts'] } },
     { path: '/admin/pos/bills', component: PosBills, meta: { focus: true, perms: ['pos'] } },
     { path: '/admin/manee-test', component: ManeeTest, meta: { perms: ['pos'] } },
     { path: '/admin/materials', component: Materials, meta: { perms: ['viewMaterials'] } },
