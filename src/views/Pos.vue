@@ -347,6 +347,8 @@ const lineAmt = (l) => Math.round((Number(l.amount) || 0) * 100) / 100
 const compactLine = (l) => l.method === 'transfer' && !!l.confirmed // รายการโอนที่รับแล้วแสดงเป็นแถวเดียวในหน้าชำระ
 const paidSum = computed(() => Math.round(payLines.value.reduce((s, l) => s + reservedOf(l, lineAmt(l)), 0) * 100) / 100) // QR ที่ยกเลิกแล้วไม่กันยอด
 const remaining = computed(() => Math.round((total.value - paidSum.value) * 100) / 100)
+// เปลี่ยนสมาชิกได้จนกว่าจะมีรายการที่สร้าง QR หรือรับชำระแล้ว (กันยอดที่แจ้งไปแล้วเปลี่ยน)
+const memberLocked = computed(() => payLines.value.some((l) => l.qrRef || l.confirmed || l.locked))
 const newKey = () => Math.random().toString(36).slice(2)
 const expiredLine = (l) => !l.detectedAt && !l.confirmed && l.status !== 'cancelled' && posQrExpired(l, payNow.value)
 const AUTO_ACCEPT_MS = 3 * 60 * 1000 // พบรายการโอนแล้ว พนักงานไม่กดรับภายใน 3 นาที ระบบรับเอง
@@ -1160,7 +1162,22 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </div>
           </div>
         </div>
-        <p v-if="member && !coupons.length && hiddenCoupons" class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800" role="note">ลูกค้ามีคูปองที่ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" ({{ hiddenCoupons }} ใบ) — ให้ลูกค้ากดเองในบัญชีของตนก่อน คูปองจึงจะขึ้นที่นี่ (มีเวลาแสดง {{ db.loyalty.activationMin }} นาที)</p>
+        <!-- แนวนอนเท่านั้น: ค้นหาสมาชิกเพื่อสะสมแต้มในฝั่งซ้าย (เปลี่ยนได้จนกว่าจะสร้าง QR หรือรับชำระรายการแรก เพื่อกันยอดที่แจ้งไปแล้วเปลี่ยน) -->
+        <div v-if="!member && !memberLocked" class="hidden space-y-1.5 rounded-2xl border border-stone-200 p-3 landscape:block landscape:col-start-1" aria-label="เบอร์สะสมแต้ม">
+          <div class="text-sm font-semibold text-stone-800">เบอร์สะสมแต้ม</div>
+          <input v-model="memberQ" type="search" class="input h-10" placeholder="เบอร์ / ชื่อ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
+          <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
+          <div v-if="memberMatches.length" class="space-y-1">
+            <button v-for="c in memberMatches" :key="c.id" type="button" class="flex w-full justify-between gap-2 rounded-lg border border-stone-200 px-3 py-2 text-left text-sm hover:border-brand-300" @click="pickMember(c)">
+              <span class="truncate">{{ c.name }}</span><span class="shrink-0 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
+            </button>
+          </div>
+        </div>
+        <div v-else-if="member && !memberLocked" class="hidden items-center justify-between gap-2 rounded-2xl border border-stone-200 p-3 landscape:flex landscape:col-start-1">
+          <div class="min-w-0"><div class="truncate font-semibold text-stone-800">{{ member.name }}</div><div class="text-xs text-stone-500">{{ member.phone ? formatPhone(member.phone) : '' }}</div></div>
+          <button type="button" class="shrink-0 text-xs text-stone-500 underline" @click="member = null; couponIds = []">เปลี่ยนสมาชิก</button>
+        </div>
+        <p v-if="member && !coupons.length && hiddenCoupons" class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800 landscape:col-start-1" role="note">ลูกค้ามีคูปองที่ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" ({{ hiddenCoupons }} ใบ) — ให้ลูกค้ากดเองในบัญชีของตนก่อน คูปองจึงจะขึ้นที่นี่ (มีเวลาแสดง {{ db.loyalty.activationMin }} นาที)</p>
         <p v-if="payErr" class="rounded-xl bg-rose-50 p-2.5 text-sm text-rose-700 landscape:col-span-2" role="alert">{{ payErr }}</p>
         <p v-if="binding" class="rounded-xl bg-emerald-50 p-2.5 text-center text-sm text-emerald-800" role="status">กำลังบันทึกยอดที่รับแล้วเป็นบิลค้าง…</p>
         <div v-if="member && coupons.length" class="rounded-2xl border border-stone-200 p-3 landscape:col-start-1" aria-label="คูปองส่วนลดในขั้นชำระเงิน">
@@ -1194,7 +1211,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <span class="text-lg font-bold tabular-nums text-emerald-900">{{ money(lineAmt(l)) }}</span>
             <button v-if="!l.locked && !binding" type="button" class="btn-outline h-9 shrink-0 px-3 text-sm" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิก</button>
           </div>
-          <div v-else class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm landscape:p-3 lx-card landscape:col-start-2">
+          <div v-else class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm landscape:p-3 lx-card landscape:col-start-2 landscape:row-start-1 landscape:row-span-4">
           <div class="flex items-center justify-between gap-2">
             <span class="text-base font-semibold text-stone-800">{{ POS_METHODS[l.method] }}</span>
             <button v-if="!l.qrRef && !l.locked && !l.confirmed && (payLines.length > 1 || l.method !== 'cash')" type="button" class="rounded-full px-3 py-1 text-sm font-medium text-rose-700 hover:bg-rose-50" @click="removePayLine(i)">ลบ</button>
