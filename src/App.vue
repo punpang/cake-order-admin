@@ -49,7 +49,7 @@ const badges = computed(() => ({ chat: unread.value, pay: paySlips.value }))
 // ระบบอื่น (หน้าเดียว) แสดงชื่อระบบนั้น + ปุ่ม "ระบบ" สำหรับสลับ (ปุ่ม "ระบบ" มีเสมอเมื่อเห็นมากกว่า 1 ระบบ)
 const bottomItems = computed(() => (current.value === 'orders' ? items.value.filter((i) => i.mobile) : items.value))
 const hasSwitch = computed(() => systems.value.length > 1)
-const showBottom = computed(() => !route.meta.focus && bottomItems.value.length + (hasSwitch.value ? 1 : 0) >= 2)
+const showBottom = computed(() => !route.meta.focus)
 // ตามขนาดส่วนที่มองเห็นจริงเมื่อแป้นพิมพ์เปิด ทุกหน้า (ป็อปอัป/แถบล่างไม่ถูกแป้นพิมพ์บัง) · หน้าล็อก (แชท) ซ่อนแถบเมนูล่างระหว่างพิมพ์
 const stopVv = watchViewport()
 onBeforeUnmount(() => stopVv())
@@ -88,14 +88,14 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
 
   <template v-else>
   <!-- ปุ่มลอยมุมขวาบน: แทนแถบบนเดิม เพื่อให้เนื้อหาใช้พื้นที่เต็มจอ -->
-  <div v-show="!kbLock" class="fixed top-2 right-2 z-[60] flex items-center gap-2">
+  <div v-if="$route.meta.focus" v-show="!kbLock" class="fixed top-2 right-2 z-[60] flex items-center gap-2">
     <BellMenu audience="staff" />
     <button type="button" class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-stone-700 shadow-md ring-1 ring-stone-200" aria-label="เมนู" aria-controls="app-menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
       <AppIcon :name="menuOpen ? 'x' : 'menu'" :size="20" />
     </button>
   </div>
   <div v-if="menuOpen" class="fixed inset-0 z-[55]" aria-hidden="true" @click="menuOpen = false" />
-  <nav v-if="menuOpen" id="app-menu" class="fixed top-14 right-2 z-[60] max-h-[80dvh] w-64 overflow-y-auto rounded-2xl bg-white p-2 shadow-xl ring-1 ring-stone-200" aria-label="เมนูระบบ">
+  <nav v-if="menuOpen" id="app-menu" class="fixed right-2 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-[60] max-h-[70dvh] w-64 overflow-y-auto rounded-2xl bg-white p-2 shadow-xl ring-1 ring-stone-200" aria-label="เมนูระบบ">
     <RouterLink to="/" class="block rounded-xl px-3 py-2.5 text-sm text-stone-700 hover:bg-stone-100" @click="menuOpen = false">หน้าร้าน</RouterLink>
     <div class="px-3 pt-3 pb-1 text-xs font-medium text-stone-500">ระบบ</div>
     <RouterLink v-for="sy in systems" :key="sy.key" :to="homeOf(sy, can)" class="block rounded-xl px-3 py-2.5 text-sm text-stone-800 hover:bg-stone-100" :class="sy.key === current ? 'bg-brand-50 font-semibold text-brand-700' : ''" @click="menuOpen = false">{{ sy.label }}</RouterLink>
@@ -117,7 +117,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     tabindex="-1"
     class="mx-auto max-w-page outline-none px-4 lg:px-8"
     :style="lockStyle"
-    :class="$route.meta.lock ? ['fixed inset-x-0 overflow-hidden', kbLock ? 'px-0! pt-0 pb-0' : 'px-0! pt-0', kbLock ? '' : $route.meta.focus || !navShow ? 'pb-0' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)] lg:pb-0'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)] lg:pb-10', 'pt-5 pr-28']"
+    :class="$route.meta.lock ? ['fixed inset-x-0 overflow-hidden', kbLock ? 'px-0! pt-0 pb-0' : 'px-0! pt-0', kbLock ? '' : $route.meta.focus || !navShow ? 'pb-0' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)]'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)]', 'pt-5']"
   >
     <RouterView :key="$route.fullPath" />
   </main>
@@ -125,10 +125,10 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
   <!-- แถบเมนูล่าง (มือถือ + แท็บเล็ตแนวตั้ง < lg): แถบบนไม่พอวางเมนูย่อยทั้งหมดจนกว่าจะกว้าง 1024px -->
   <nav
     v-if="navShow"
-    class="fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_rgb(63_46_46/0.10)] lg:hidden"
+    class="fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_rgb(63_46_46/0.10)]"
     aria-label="เมนูล่าง"
   >
-    <div class="mx-auto grid h-16 max-w-md items-center" :style="{ gridTemplateColumns: `repeat(${bottomCols}, minmax(0, 1fr))` }">
+    <div class="mx-auto grid h-16 max-w-3xl items-center" :style="{ gridTemplateColumns: `repeat(${bottomCols + 2}, minmax(0, 1fr))` }">
       <RouterLink
         v-for="i in bottomItems"
         :key="i.to"
@@ -145,6 +145,11 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
         <AppIcon name="grid" :size="22" />
         ระบบ
         <span class="sr-only">ปัจจุบัน {{ curLabel }}</span>
+      </button>
+      <BellMenu audience="staff" variant="tab" placement="up" />
+      <button type="button" data-bottom-menu class="flex min-h-14 flex-col items-center justify-center gap-0.5 text-[12px] font-medium text-stone-600" aria-controls="app-menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
+        <AppIcon :name="menuOpen ? 'x' : 'menu'" :size="22" />
+        เมนู
       </button>
     </div>
     <div v-if="sysOpen" data-bottom-system data-system-sheet role="menu" class="absolute inset-x-3 bottom-[calc(100%+0.5rem)] overflow-hidden rounded-2xl bg-white p-1.5 shadow-xl ring-1 ring-stone-200">
