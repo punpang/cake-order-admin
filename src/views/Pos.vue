@@ -1206,17 +1206,17 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · หน้าเดียว: ซ้าย/บน = ยอดและวิธีชำระ · ขวา/ล่าง = รายการที่กำลังทำ (แนวนอน ≥1024px เป็นสองคอลัมน์) -->
-    <AppModal v-if="payOpen" title="ชำระเงิน" wide wider @close="requestClose">
+    <AppModal v-if="payOpen" title="ชำระเงิน" wide wider full @close="requestClose">
       <div class="grid gap-4 md:grid-cols-[17rem_minmax(0,1fr)] md:items-start">
         <!-- ซ้าย / บน -->
         <div class="space-y-3">
-          <div class="rounded-2xl p-4" :class="canConfirm ? 'bg-emerald-50' : 'bg-brand-50'">
-            <div class="text-sm" :class="canConfirm ? 'text-emerald-800' : 'text-brand-800'">{{ canConfirm ? 'รับเงินครบแล้ว' : remaining < 0 ? 'รับเกินยอด' : listedLines.length ? 'ยังต้องรับอีก' : 'ยอดชำระ' }}</div>
-            <div class="text-4xl font-bold tabular-nums" :class="canConfirm ? 'text-emerald-900' : remaining < 0 ? 'text-rose-700' : 'text-brand-900'">{{ money(total) }}</div>
-            <div class="mt-3 space-y-1 border-t border-brand-200/70 pt-2 text-sm text-brand-800">
+          <div class="rounded-3xl bg-linear-to-br from-hero-1 via-hero-2 to-hero-3 p-4 text-white shadow-md">
+            <div class="text-sm text-white/90">{{ canConfirm ? 'รับเงินครบแล้ว' : remaining < 0 ? 'รับเกินยอด' : listedLines.length ? 'ยังต้องรับอีก' : 'ยอดชำระ' }}</div>
+            <div class="text-4xl font-bold tabular-nums">{{ money(total) }}</div>
+            <div class="mt-3 space-y-1 border-t border-white/30 pt-2 text-sm text-white">
               <div v-for="k in ['transfer', 'cash', 'card']" :key="k" class="flex justify-between"><span>{{ POS_METHODS[k] }}</span><b class="tabular-nums">{{ money(methodSums[k]) }}</b></div>
               <div class="flex justify-between font-semibold" :class="dueAmt < 0 ? 'text-rose-700' : ''"><span>{{ dueAmt < 0 ? 'เกิน' : 'คงค้าง' }}</span><b class="tabular-nums">{{ money(Math.abs(dueAmt)) }}</b></div>
-              <div class="flex justify-between text-xs text-brand-700"><span>รับแล้ว</span><span class="tabular-nums">{{ money(receivedSum) }}</span></div>
+              <div class="flex justify-between text-xs text-white/80"><span>รับแล้ว</span><span class="tabular-nums">{{ money(receivedSum) }}</span></div>
             </div>
           </div>
 
@@ -1254,7 +1254,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <!-- ขวา / ล่าง -->
         <div class="min-w-0 space-y-3">
           <div v-if="remaining > 0 || focusLine" class="grid grid-cols-3 gap-2" aria-label="เลือกวิธีชำระ">
-            <button v-for="(label, k) in POS_METHODS" :key="k" type="button" class="h-14 rounded-2xl border-2 border-brand-200 bg-white text-lg font-semibold text-brand-800 active:scale-[0.98] disabled:opacity-40" :disabled="binding || !!focusLine" @click="startMethod(k)">{{ label }}</button>
+            <button v-for="(label, k) in POS_METHODS" :key="k" type="button" class="h-14 rounded-3xl bg-white text-lg font-semibold text-stone-900 shadow-md ring-1 ring-stone-200 active:scale-[0.98] disabled:opacity-40" :disabled="binding || !!focusLine" @click="startMethod(k)">{{ label }}</button>
           </div>
 
           <!-- รายการที่กำลังทำ -->
