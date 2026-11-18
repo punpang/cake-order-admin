@@ -18,7 +18,7 @@ const shopAddrChoices = computed(() => [
   { label: 'ใช้ที่อยู่ร้านหน้าเว็บ', text: /ตัวอย่าง/.test(db.storefront?.address || '') ? '' : db.storefront?.address },
   { label: 'ใช้ที่อยู่ตามข้อมูลกฎหมาย', text: db.legal?.contact?.address },
 ])
-const st = reactive({ ...db.shop, pickupRemindHours: db.shop.pickupRemindHours ?? 24, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, merchantCode: db.shop.merchantCode ?? '', billerId: db.shop.billerId ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
+const st = reactive({ ...db.shop, pickupRemindHours: db.shop.pickupRemindHours ?? 24, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, lineRetentionDays: db.shop.lineRetentionDays ?? 180, merchantCode: db.shop.merchantCode ?? '', billerId: db.shop.billerId ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
 // ---- วัน-เวลาปิดร้าน ----
 const DOWS = [1, 2, 3, 4, 5, 6, 0] // จันทร์เริ่ม
 const flip = (arr, d) => (arr.includes(d) ? arr.splice(arr.indexOf(d), 1) : arr.push(d))
@@ -59,6 +59,7 @@ function save() {
   if (![st.leadPickup, st.leadDelivery, st.birthdayDays].every(num)) return (error.value = 'กรอกตัวเลขตั้งแต่ 0 ขึ้นไป')
   const mcDigits = String(st.merchantCode || '').replace(/\D/g, '')
   if (mcDigits && !/^\d{6,20}$/.test(mcDigits)) return (error.value = 'รหัสร้านค้าต้องเป็นตัวเลข 6–20 หลัก (เว้นว่างถ้าไม่ตรวจสลิป)')
+  if (!(Number.isInteger(st.lineRetentionDays) && st.lineRetentionDays >= 7 && st.lineRetentionDays <= 365)) return (error.value = 'เก็บข้อความ LINE ได้ 7–365 วัน')
   if (!(st.pickupRemindHours >= 1 && st.pickupRemindHours <= 72) || !(st.dueSoonHours >= 1 && st.dueSoonHours <= 12) || !(st.pointsExpireDays >= 1 && st.pointsExpireDays <= 90) || !(st.installmentAlertDays >= 0 && st.installmentAlertDays <= 30)) return (error.value = 'ตรวจเวลาแจ้งเตือน (นัดรับ 1–72 ชม. · งานใกล้เวลา 1–12 ชม. · คะแนนหมดอายุ 1–90 วัน · ผ่อนชำระ 0–30 วัน)')
   if (!(Number(st.payDueMin) >= 1) || Number(st.payDueMin) > 10080) return (error.value = 'กำหนดชำระเริ่มต้นต้องอยู่ระหว่าง 1–10080 นาที')
   if (!(Number(st.posQrExpireMin) >= 1) || Number(st.posQrExpireMin) > 60) return (error.value = 'QR หน้าร้าน (POS) หมดอายุต้องอยู่ระหว่าง 1–60 นาที')
@@ -142,6 +143,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
           <div><label class="label">คะแนนใกล้หมดอายุ (วันล่วงหน้า)</label><input v-model.number="st.pointsExpireDays" type="text" v-num min="1" max="90" class="input" /></div>
           <div><label class="label">งานใกล้เวลาต้องเสร็จ (ชม.)</label><input v-model.number="st.dueSoonHours" type="text" v-num min="1" max="12" class="input" /></div>
           <div><label class="label">งวดผ่อนชำระ (วันก่อนครบกำหนด)</label><input v-model.number="st.installmentAlertDays" type="text" v-num min="0" max="30" class="input" /></div>
+          <div><label class="label">เก็บข้อความ LINE (วัน, 7–365)</label><input v-model.number="st.lineRetentionDays" type="text" v-num min="7" max="365" class="input" aria-label="เก็บข้อความ LINE กี่วัน" /></div>
         </div>
       </div>
       <div class="border-t border-stone-100 pt-4">

@@ -87,3 +87,33 @@ Deno.test('ผูกสำเร็จ → บันทึก userId ของ L
   assertEquals(rows.length, 1)
   assertEquals([rows[0].line_user_id, rows[0].customer_id, rows[0].display_name], [LINE_UID, 'c1', 'ลูกค้าทดสอบ'])
 })
+
+Deno.test('สถานะการเชื่อม (action=status): ยังไม่ผูก → linked=false · ผูกแล้ว → linked=true พร้อมชื่อ LINE', async () => {
+  await seed()
+  assertEquals(await call({ action: 'status', session: SESSION }), { status: 200, body: { linked: false, displayName: '' } })
+  await call(ok)
+  assertEquals(await call({ action: 'status', session: SESSION }), { status: 200, body: { linked: true, displayName: 'ลูกค้าทดสอบ' } })
+})
+
+Deno.test('ยกเลิกการเชื่อม (action=unlink): ลบการผูก ชื่อ LINE และประวัติข้อความของบัญชีนั้นทันที · คนอื่นไม่โดนลบ', async () => {
+  await seed()
+  await call(ok)
+  const db = (globalThis as any).__DB.t
+  db['public.punpang_line_messages'] = [
+    { line_user_id: LINE_UID, direction: 'in', text: 'สวัสดี' },
+    { line_user_id: 'U' + '2'.repeat(32), direction: 'in', text: 'ของคนอื่น' },
+  ]
+  db['public.punpang_line_users'].push({ line_user_id: 'U' + '2'.repeat(32), customer_id: 'c2', display_name: 'คนอื่น' })
+  assertEquals(await call({ action: 'unlink', session: SESSION }), { status: 200, body: { ok: true, unlinked: 1 } })
+  assertEquals(db['public.punpang_line_users'].map((r: any) => r.customer_id), ['c2'])
+  assertEquals(db['public.punpang_line_messages'].map((r: any) => r.text), ['ของคนอื่น'])
+  assertEquals(await call({ action: 'status', session: SESSION }), { status: 200, body: { linked: false, displayName: '' } })
+})
+
+Deno.test('ยกเลิกการเชื่อม/ดูสถานะ ต้องมีเซสชันลูกค้าที่ยังไม่หมดอายุ → 401', async () => {
+  await seed()
+  assertEquals((await call({ action: 'unlink' })).status, 401)
+  assertEquals((await call({ action: 'status', session: 'b'.repeat(64) })).status, 401)
+  await seed(new Date(Date.now() - 1000).toISOString())
+  assertEquals((await call({ action: 'unlink', session: SESSION })).status, 401)
+})

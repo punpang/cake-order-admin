@@ -1,6 +1,6 @@
 <script setup>
 import { orderNo } from '../../lib/format'
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   db, myProfile, updateMyProfile, myOrders, myBirthdays, submitReview, customerLogout, changePin, changePhone, requestDeletion, myDeletionRequest, ensureMyScanCode,
@@ -24,6 +24,8 @@ import OtpStep from '../../components/OtpStep.vue'
 import AccountRewards from '../../components/AccountRewards.vue'
 import { myTaxProfile, saveMyTaxProfile, myAddressChoices } from '../../data/acct'
 import TaxAddressField from '../../components/TaxAddressField.vue'
+import { lineStatus, lineUnlink } from '../../lib/line'
+import { askConfirm } from '../../lib/confirm'
 
 // บัญชีของฉัน: เห็นข้อมูลของตัวเองทั้งหมด แก้ได้เฉพาะ ชื่อ / รับข่าวโปร · เบอร์และ PIN ต้องยืนยัน OTP
 const router = useRouter()
@@ -109,6 +111,28 @@ const picks = computed(() => {
 const CHANNEL = { pos: 'หน้าร้าน' }
 
 // ---------- ขั้นตอนที่ต้องยืนยัน OTP (เปลี่ยน PIN / เปลี่ยนเบอร์ / ขอลบข้อมูล) ----------
+// การเชื่อม LINE: ดูสถานะและยกเลิกได้ (ยกเลิกแล้วลบชื่อ LINE และประวัติข้อความทันที)
+const lineInfo = ref(null)
+const lineMsg = ref('')
+const lineErr = ref('')
+const lineBusy = ref(false)
+async function loadLine() {
+  const r = await lineStatus()
+  lineInfo.value = typeof r.linked === 'boolean' ? r : null // ไม่แสดงการ์ดถ้าโหลดไม่ได้ (เช่น โหมดทดสอบ)
+}
+async function unlinkLine() {
+  lineMsg.value = lineErr.value = ''
+  if (!(await askConfirm({ title: 'ยกเลิกการเชื่อม LINE', message: 'ระบบจะลบชื่อ LINE และประวัติข้อความ LINE ของคุณทันที', okText: 'ยกเลิกการเชื่อม', danger: true }))) return
+  lineBusy.value = true
+  const r = await lineUnlink()
+  lineBusy.value = false
+  if (r.ok) {
+    lineMsg.value = 'ยกเลิกการเชื่อม LINE แล้ว'
+    await loadLine()
+  } else lineErr.value = r.error || 'ยกเลิกไม่สำเร็จ กรุณาลองใหม่'
+}
+onMounted(loadLine)
+
 const flow = ref('') // '' | pin | phone | delete
 const step = ref(1)
 const token = ref('')
@@ -210,6 +234,13 @@ function logout() {
 
     <!-- ข้อมูล -->
     <div v-if="tab === 'profile'" class="space-y-4 md:grid md:grid-cols-2 md:items-start md:gap-4 md:space-y-0">
+      <section v-if="lineInfo" class="card space-y-3" aria-labelledby="acct-line">
+        <h2 id="acct-line" class="card-title">LINE</h2>
+        <p class="text-sm text-stone-600">{{ lineInfo.linked ? `เชื่อมกับ LINE แล้ว${lineInfo.displayName ? ` (${lineInfo.displayName})` : ''}` : 'ยังไม่ได้เชื่อมกับ LINE' }}</p>
+        <p v-if="lineErr" role="alert" class="text-sm text-rose-700">{{ lineErr }}</p>
+        <p v-if="lineMsg" role="status" class="text-sm text-emerald-800">{{ lineMsg }}</p>
+        <button v-if="lineInfo.linked" type="button" class="btn-outline w-full" :disabled="lineBusy" @click="unlinkLine">{{ lineBusy ? 'กำลังยกเลิก…' : 'ยกเลิกการเชื่อม LINE' }}</button>
+      </section>
       <form class="card space-y-5" aria-labelledby="acct-personal" @submit.prevent="saveProfile">
         <h2 id="acct-personal" class="card-title">ข้อมูลส่วนตัว</h2>
         <div>

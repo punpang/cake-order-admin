@@ -8,6 +8,7 @@ import { planScheduled, todayBkk, prepareRules } from '../_shared/scheduled/plan
 import { accountingPlans } from '../_shared/scheduled/accounting.ts'
 import { runPlans, type Ctx } from '../_shared/scheduled/run.ts'
 import { dispatchDueCampaigns } from '../_shared/campaign.ts'
+import { lineRetentionDays, retentionCutoffIso } from '../_shared/linepush.ts'
 
 // deno-lint-ignore no-explicit-any
 type Any = any
@@ -73,6 +74,8 @@ Deno.serve(async (req) => {
     if (kv.error) throw new Error(kv.error.message)
     const cfg: Record<string, Any> = {}
     for (const r of kv.data || []) cfg[r.id] = r.data?.v
+    // เก็บข้อความ LINE ตามระยะที่ร้านตั้ง (ค่าเริ่มต้น 180 วัน) · ทำทุกรอบ ไม่ขึ้นกับโหมดแอป · ล้มเหลวไม่กระทบงานอื่น (รอบถัดไปลบอีก)
+    await sb.from('punpang_line_messages').delete().lt('created_at', retentionCutoffIso(lineRetentionDays(cfg.shop?.lineRetentionDays), nowMs))
     if (cfg.scheduled?.server !== true) return json({ ok: true, skipped: 'app-mode', campaigns })
 
     const orderCols = 'id,code,customer_id,status,fulfillment,channel,pickup_at,data'

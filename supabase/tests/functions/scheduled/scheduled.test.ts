@@ -64,3 +64,30 @@ Deno.test('โหมดเซิร์ฟเวอร์ ไม่มีข้�
   assertEquals(r.body.done ?? 0, 0)
   assertEquals(r.body.errors ?? [], [])
 })
+
+Deno.test('เก็บข้อความ LINE: ลบเฉพาะข้อความที่เกินระยะที่ร้านตั้ง · ทำแม้โหมดแอป (ไม่เปิดงานเซิร์ฟเวอร์)', async () => {
+  const DAY = 86400000
+  const old = new Date(Date.now() - 200 * DAY).toISOString()
+  const recent = new Date(Date.now() - 10 * DAY).toISOString()
+  seed(false)
+  const db = (globalThis as any).__DB.t
+  db['public.punpang_kv'][0].data.v = { lineRetentionDays: 180 }
+  db['public.punpang_line_messages'] = [
+    { line_user_id: 'U1', text: 'เก่า', created_at: old },
+    { line_user_id: 'U1', text: 'ใหม่', created_at: recent },
+  ]
+  assertEquals((await call()).body.skipped, 'app-mode')
+  assertEquals(db['public.punpang_line_messages'].map((r: any) => r.text), ['ใหม่'])
+})
+
+Deno.test('เก็บข้อความ LINE: ไม่ได้ตั้งค่า → ใช้ 180 วัน', async () => {
+  const DAY = 86400000
+  seed(false)
+  const db = (globalThis as any).__DB.t
+  db['public.punpang_line_messages'] = [
+    { line_user_id: 'U1', text: 'เก่า 170 วัน', created_at: new Date(Date.now() - 170 * DAY).toISOString() },
+    { line_user_id: 'U1', text: 'เก่า 200 วัน', created_at: new Date(Date.now() - 200 * DAY).toISOString() },
+  ]
+  await call()
+  assertEquals(db['public.punpang_line_messages'].map((r: any) => r.text), ['เก่า 170 วัน'])
+})
