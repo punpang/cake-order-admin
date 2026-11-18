@@ -343,7 +343,7 @@ Deno.serve(corsWrap(async (req) => {
   }
 
   // ===== คำสั่งของลูกค้าที่ล็อกอิน (ตรวจเซสชันทุกครั้ง · แก้ได้เฉพาะของตัวเอง) =====
-  if (['update_profile', 'submit_review', 'accept_consent'].includes(action)) {
+  if (['update_profile', 'submit_review', 'accept_consent', 'ensure_scan_code'].includes(action)) {
     const t = String(b.session ?? '')
     if (!/^[a-f0-9]{64}$/.test(t)) return json({ error: 'ยังไม่ได้เข้าสู่ระบบ' }, 401)
     const h = await sha256Hex(`custsess:${t}`)
@@ -368,6 +368,21 @@ Deno.serve(corsWrap(async (req) => {
         // ถ้าไม่ได้ส่ง promoOptIn มา คงค่าเดิมไว้ (ไม่ใช่ถอนความยินยอมโดยไม่ตั้งใจ)
         const optIn = typeof b.promoOptIn === 'boolean' ? b.promoOptIn : cu.data?.promoOptIn === true
         const u = await sb.from('punpang_customers').update({ name, data: promoConsentPatch(cu.data || {}, optIn, new Date().toISOString()) }).eq('id', cid).eq('updated_at', cu.updated_at).select('id')
+        if (u.error) return json({ error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' }, 500)
+        saved = (u.data || []).length > 0
+      }
+      if (!saved) return json({ error: 'บันทึกไม่สำเร็จ มีการแก้ข้อมูลพร้อมกัน กรุณาลองใหม่' }, 409)
+    } else if (action === 'ensure_scan_code') {
+      // รหัสสมาชิกแบบสุ่ม (บาร์โค้ดให้พนักงานสแกน) · สร้างครั้งเดียวแล้วเก็บใน data.scanCode · เขียนแบบเทียบ updated_at เหมือน update_profile
+      let saved = !!cu.data?.scanCode
+      for (let i = 0; i < 4 && !saved; i++) {
+        if (i > 0) {
+          await new Promise((r) => setTimeout(r, 40 + Math.floor(Math.random() * 120)))
+          cu = (await sb.from('punpang_customers').select(cuSel).eq('id', cid).maybeSingle()).data
+          if (!cu || cu.data?.deleted) return json({ error: 'ไม่พบบัญชี' }, 401)
+          if (cu.data?.scanCode) { saved = true; break }
+        }
+        const u = await sb.from('punpang_customers').update({ data: { ...(cu.data || {}), scanCode: randHex(16) } }).eq('id', cid).eq('updated_at', cu.updated_at).select('id')
         if (u.error) return json({ error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' }, 500)
         saved = (u.data || []).length > 0
       }

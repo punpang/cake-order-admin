@@ -88,6 +88,25 @@ async function sessionFor(cid = 'c1') {
   D().t.punpang_customer_sessions.push({ token_hash: await sha(`custsess:${token}`), customer_id: cid, expires_at: new Date(Date.now() + 3600000).toISOString() })
   return token
 }
+Deno.test('ensure_scan_code: สร้างรหัสสมาชิก 32 ตัวอักษร (hex) ครั้งเดียว · เรียกซ้ำได้รหัสเดิม · ไม่แตะแต้ม', async () => {
+  await seed(); const s = await sessionFor()
+  const r1 = await call({ action: 'ensure_scan_code', session: s })
+  assertEquals(r1.status, 200)
+  const code = D().t.punpang_customers[0].data.scanCode
+  assert(/^[0-9a-f]{32}$/.test(code), code)
+  assertEquals(r1.body.customer.scanCode, code)
+  const r2 = await call({ action: 'ensure_scan_code', session: s })
+  assertEquals(r2.status, 200)
+  assertEquals(D().t.punpang_customers[0].data.scanCode, code)
+  assertEquals(D().t.punpang_customers[0].data.ledger.length, 1)
+})
+Deno.test('ensure_scan_code: เซสชันไม่ถูกต้อง → 401 และไม่สร้างรหัส', async () => {
+  await seed()
+  const r = await call({ action: 'ensure_scan_code', session: 'x'.repeat(64) })
+  assertEquals(r.status, 401)
+  assertEquals(D().t.punpang_customers[0].data.scanCode, undefined)
+})
+
 Deno.test('update_profile: บันทึกชื่อ/โปรโมชัน และไม่แตะแต้ม', async () => {
   await seed(); const s = await sessionFor()
   const r = await call({ action: 'update_profile', session: s, name: 'ชื่อใหม่', promoOptIn: true })
