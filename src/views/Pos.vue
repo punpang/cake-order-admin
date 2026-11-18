@@ -1168,10 +1168,12 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <div class="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4 md:grid-cols-[18rem_minmax(0,1fr)] md:grid-rows-1">
         <!-- ซ้าย: สรุป -->
         <aside class="flex min-h-0 flex-col gap-3 overflow-y-auto p-0.5 max-md:max-h-[45dvh]" aria-label="สรุปการชำระ">
-          <div class="rounded-3xl bg-stone-900 p-4 text-white">
+          <div class="rounded-3xl bg-stone-900 p-4 text-white max-md:flex max-md:items-center max-md:justify-between max-md:gap-3 max-md:p-3">
+            <div>
             <div class="text-sm text-stone-300">ยอดชำระ</div>
-            <div class="text-4xl font-bold tabular-nums">{{ money(total) }}</div>
-            <dl class="mt-3 grid grid-cols-2 gap-2 text-sm">
+            <div class="text-4xl font-bold tabular-nums max-md:text-2xl">{{ money(total) }}</div>
+            </div>
+            <dl class="mt-3 grid grid-cols-2 gap-2 text-sm max-md:mt-0 max-md:w-[58%] max-md:gap-1.5">
               <div class="rounded-2xl bg-white/10 px-3 py-2"><dt class="text-stone-300">รับแล้ว</dt><dd class="text-lg font-semibold tabular-nums">{{ money(receivedSum) }}</dd></div>
               <div class="rounded-2xl px-3 py-2" :class="total - receivedSum < 0 ? 'bg-rose-500/30' : total - receivedSum > 0 ? 'bg-amber-400/25' : 'bg-emerald-500/30'">
                 <dt class="text-stone-200">{{ total - receivedSum < 0 ? 'เกิน' : 'คงค้าง' }}</dt><dd class="text-lg font-semibold tabular-nums">{{ money(Math.abs(total - receivedSum)) }}</dd>
@@ -1180,8 +1182,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           </div>
 
           <!-- สมาชิกสะสมแต้ม: เปลี่ยนได้จนกว่าจะสร้าง QR หรือรับชำระรายการแรก -->
-          <div v-if="!member && !memberLocked" class="space-y-1.5 rounded-2xl bg-white p-3 ring-1 ring-stone-200" aria-label="เบอร์สะสมแต้ม">
-            <div class="text-sm font-semibold text-stone-800">เบอร์สะสมแต้ม <span class="font-normal text-stone-400">(ไม่บังคับ)</span></div>
+          <div v-if="!member && !memberLocked" class="space-y-1.5 rounded-2xl bg-white p-3 ring-1 ring-stone-200 max-md:flex max-md:items-center max-md:gap-2 max-md:space-y-0 max-md:p-2" aria-label="เบอร์สะสมแต้ม">
+            <div class="text-sm font-semibold text-stone-800 max-md:shrink-0">เบอร์สะสมแต้ม <span class="font-normal text-stone-400">(ไม่บังคับ)</span></div>
             <input v-model="memberQ" type="search" class="input h-11" placeholder="เบอร์ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
             <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
             <div v-if="memberMatches.length" class="space-y-1">
@@ -1245,7 +1247,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         </aside>
 
         <!-- ขวา: วิธีชำระ -->
-        <section class="flex min-h-0 flex-col gap-3 overflow-y-auto p-0.5" aria-label="รับชำระ">
+        <section class="flex min-h-0 flex-col gap-3 overflow-y-auto p-0.5 max-md:gap-2" aria-label="รับชำระ">
           <p v-if="payErr" class="rounded-xl bg-rose-50 p-2.5 text-sm text-rose-700" role="alert">{{ payErr }}</p>
           <p v-if="binding" class="rounded-xl bg-emerald-50 p-2.5 text-center text-sm text-emerald-800" role="status">กำลังบันทึกยอดที่รับแล้ว…</p>
 
@@ -1285,38 +1287,40 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <!-- เงินสด -->
             <div v-if="l.method === 'cash'" class="grid min-h-0 flex-1 content-start gap-3 landscape:grid-cols-2">
               <div class="flex flex-col gap-3">
-                <div class="rounded-3xl bg-white p-4 ring-1 ring-stone-200">
-                  <div class="flex items-center justify-between gap-2 text-sm">
+                <div class="rounded-3xl bg-white p-4 ring-1 ring-stone-200 max-md:p-3">
+                  <div class="flex items-center justify-between gap-2 text-sm" :class="l.split ? 'max-md:hidden' : ''">
                     <span class="text-stone-500">ยอดเงินสด <b class="tabular-nums text-stone-800">{{ money(lineAmt(l)) }}</b></span>
                     <button v-if="!l.locked && !l.confirmed && !l.split" type="button" class="font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
                   </div>
-                  <button v-if="l.split && !l.locked && !l.confirmed" type="button" class="mt-2 flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left ring-1 ring-stone-300" :class="padField(l) === 'amount' ? 'bg-brand-50 ring-2 ring-brand-600' : 'bg-stone-50'" :aria-pressed="padField(l) === 'amount'" @click="l.padTarget = 'amount'; l.padFresh = true">
+                  <button v-if="l.split && !l.locked && !l.confirmed" type="button" class="mt-2 flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left max-md:py-1.5 ring-1 ring-stone-300" :class="padField(l) === 'amount' ? 'bg-brand-50 ring-2 ring-brand-600' : 'bg-stone-50'" :aria-pressed="padField(l) === 'amount'" @click="l.padTarget = 'amount'; l.padFresh = true">
                     <span class="text-sm text-stone-600">ยอดเงินสดครั้งนี้</span>
                     <span class="text-2xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</span>
                   </button>
                   <button type="button" class="mt-3 flex w-full flex-col rounded-2xl px-3 py-2 text-left ring-1 ring-stone-300" :class="padField(l) === 'received' ? 'bg-brand-50 ring-2 ring-brand-600' : 'bg-stone-50'" :aria-pressed="padField(l) === 'received'" :disabled="!!l.locked || !!l.confirmed" @click="l.padTarget = 'received'; l.padFresh = true">
                     <span class="text-sm text-stone-600">รับเงินมา</span>
-                    <span class="text-5xl font-bold tabular-nums text-stone-900" aria-live="polite">{{ money(Number(l.received) || 0) }}</span>
+                    <span class="text-5xl font-bold tabular-nums text-stone-900 max-md:text-4xl" aria-live="polite">{{ money(Number(l.received) || 0) }}</span>
                   </button>
                 </div>
-                <div class="flex items-center justify-between rounded-3xl px-4 py-3" :class="changeOf(l) >= 0 ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-900'">
+                <div class="flex items-center justify-between rounded-3xl px-4 py-3 max-md:py-2" :class="changeOf(l) >= 0 ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-900'">
                   <span class="text-base font-semibold">{{ changeOf(l) >= 0 ? 'เงินทอน' : 'ยังขาด' }}</span>
                   <span class="text-3xl font-bold tabular-nums">{{ money(Math.abs(changeOf(l))) }}</span>
                 </div>
-                <div class="grid grid-cols-2 gap-2" aria-label="จำนวนเงินด่วน">
-                  <button v-for="v in quickFor(l)" :key="v" type="button" class="h-12 rounded-2xl bg-white text-base font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40" :class="Number(l.received) === v ? 'ring-2 ring-brand-600' : ''" :disabled="!!l.locked || !!l.confirmed" @click="l.received = String(v)">{{ v === lineAmt(l) ? 'พอดี' : money(v) }}</button>
+                <div class="grid grid-cols-2 gap-2 max-md:grid-cols-4" aria-label="จำนวนเงินด่วน">
+                  <button v-for="v in quickFor(l)" :key="v" type="button" class="h-12 rounded-2xl bg-white text-base font-semibold max-md:h-10 max-md:px-1 max-md:text-sm text-stone-800 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40" :class="Number(l.received) === v ? 'ring-2 ring-brand-600' : ''" :disabled="!!l.locked || !!l.confirmed" @click="l.received = String(v)">{{ v === lineAmt(l) ? 'พอดี' : money(v) }}</button>
                 </div>
-                <button v-if="remaining > 0 && changeOf(l) >= 0 && !binding" type="button" class="btn-outline h-11 w-full" @click="keepAndAddMore">รับส่วนที่เหลือ {{ money(remaining) }} ด้วยวิธีอื่น</button>
-                <button v-if="canBindCash(l, remaining) && !binding" type="button" class="btn-soft h-11 w-full" @click="bindCash(l)">บันทึกเงินสดนี้เป็นบิลค้าง</button>
+                <div v-if="(remaining > 0 && changeOf(l) >= 0 && !binding) || (canBindCash(l, remaining) && !binding)" class="grid gap-2 max-md:grid-cols-2">
+                  <button v-if="remaining > 0 && changeOf(l) >= 0 && !binding" type="button" class="btn-outline h-11 w-full max-md:h-10 max-md:text-sm" @click="keepAndAddMore">รับส่วนที่เหลือ {{ money(remaining) }} ด้วยวิธีอื่น</button>
+                  <button v-if="canBindCash(l, remaining) && !binding" type="button" class="btn-soft h-11 w-full max-md:h-10 max-md:text-sm" @click="bindCash(l)">บันทึกเงินสดนี้เป็นบิลค้าง</button>
+                </div>
                 <div v-if="l.confirmed && !l.locked" class="space-y-2">
                   <div class="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800"><AppIcon name="check" :size="18" /> รับเงินสดแล้ว</div>
                   <button v-if="!binding" type="button" class="btn-outline h-11 w-full" @click="cancelCash(l)">ยกเลิกการรับชำระ</button>
                 </div>
               </div>
-              <div class="grid grid-cols-3 content-start gap-2" aria-label="แป้นตัวเลขรับเงิน">
-                <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100 disabled:opacity-40" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" :disabled="!!l.locked || !!l.confirmed" @click="padInput(l, padField(l), k)">{{ k === 'back' ? '⌫' : k }}</button>
-                <button type="button" class="col-span-3 h-11 rounded-2xl text-sm font-medium text-stone-600 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40" :disabled="!!l.locked || !!l.confirmed" @click="l[padField(l)] = ''">ล้าง{{ padField(l) === 'amount' ? 'ยอดเงินสดครั้งนี้' : 'รับเงินมา' }}</button>
-                <button v-if="!l.locked && !l.confirmed && lineAmt(l) > 0 && changeOf(l) >= 0 && !binding" type="button" class="btn-primary col-span-3 h-14 w-full text-lg" @click="keepAndAddMore">บันทึกยอดเงินสดนี้</button>
+              <div class="grid grid-cols-3 content-start gap-2 max-md:gap-1.5" aria-label="แป้นตัวเลขรับเงิน">
+                <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100 disabled:opacity-40 max-md:h-10 max-md:text-xl" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" :disabled="!!l.locked || !!l.confirmed" @click="padInput(l, padField(l), k)">{{ k === 'back' ? '⌫' : k }}</button>
+                <button type="button" class="col-span-1 h-11 rounded-2xl text-sm font-medium text-stone-600 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40 max-md:h-10 max-md:text-xs" :disabled="!!l.locked || !!l.confirmed" @click="l[padField(l)] = ''">ล้าง{{ padField(l) === 'amount' ? 'ยอดเงินสดครั้งนี้' : 'รับเงินมา' }}</button>
+                <button v-if="!l.locked && !l.confirmed && lineAmt(l) > 0 && changeOf(l) >= 0 && !binding" type="button" class="btn-primary col-span-2 h-14 w-full text-lg max-md:h-10 max-md:text-base" @click="keepAndAddMore">บันทึกยอดเงินสดนี้</button>
               </div>
             </div>
 
