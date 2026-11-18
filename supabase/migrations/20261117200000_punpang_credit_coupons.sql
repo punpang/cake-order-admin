@@ -1,10 +1,18 @@
 -- คูปองคืนเงิน (mode = credit) ใช้ได้หลายครั้งจนยอดคงเหลือหมด · ถอดการใช้คะแนนลดราคา (1 คะแนน = 1 บาท ใช้ผ่านคูปองแทน)
--- ไฟล์นี้ยังไม่ได้รันบนฐานข้อมูลใด · ต้องได้รับอนุมัติก่อนรัน (ห้าม merge ให้ db push อัตโนมัติก่อนอนุมัติ)
+-- รันบน production แล้ว (2026-11-18 ตามที่อนุมัติ) · ไม่แปลงข้อมูลลูกค้า (สคริปต์แปลงคะแนนแยกอยู่ที่ supabase/deploy และยังไม่ได้รัน)
 -- รันซ้ำได้ปลอดภัย · ไม่แตะข้อมูลที่มีอยู่ (การแปลงคะแนนของลูกค้าเดิมอยู่ในไฟล์ supabase/deploy แยก)
 --
 -- โครงของคูปองคืนเงิน: mode = 'credit', balance = ยอดคงเหลือที่ยังไม่ถูกจอง, holds = { [รหัสออร์เดอร์/บิล]: ยอดที่จองไว้ }
 --   จอง (punpang_hold_credit) ตัด balance เข้า holds · ยกเลิกการจอง (punpang_release_coupon) คืนยอดจาก holds กลับ balance
 --   ตรวจรายการในออร์เดอร์ (punpang__coupon_entry_ok) ต้องมียอดจองไว้กับออร์เดอร์นั้นพอ
+
+-- ============================================================================
+-- 0) ให้ public รับ collection 'testRecipients' (รายชื่อผู้รับทดสอบ) · punpang_test_sync คัดลอก constraint นี้มาทับสำเนาทดสอบ
+--    ถ้า public ไม่มีค่านี้ แถวทดสอบ testRecipients จะทำให้ sync ล้มเหลว
+-- ============================================================================
+alter table public.punpang_records drop constraint if exists punpang_records_collection_check;
+alter table public.punpang_records add constraint punpang_records_collection_check
+  check (collection = any (array['reviews','coupons','spinLog','photoRequests','deletionRequests','birthdayGreeted','notifySent','shortLinks','outbox','bell','orderLinks','consents','chatDrafts','aiLog','retentionLog','slipRead','slipTrain','fileDeletions','luckyTokens','testRecipients']::text[]));
 
 -- ============================================================================
 -- 1) ตรวจรายการคูปองหนึ่งรายการ (กติกาเดียวกับ src/lib/coupons.js) · เพิ่มกรณี credit
