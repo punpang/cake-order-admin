@@ -102,6 +102,24 @@ t('จำกัดออเดอร์ต่อวัน: ครบแล้ว
   } finally { await page.context().close() }
 })
 
+t('หน้าตั้งค่าร้าน: ตั้งจำนวนออเดอร์ต่อวันได้ · ค่าไม่ถูกต้องถูกปฏิเสธ · บันทึกแล้วมีผลจริง', async () => {
+  const { page, errors } = await openPage('/admin/settings/shop')
+  try {
+    const input = page.getByLabel('จำนวนออเดอร์สูงสุดต่อวัน')
+    await input.waitFor({ state: 'visible', timeout: 20000 })
+    // ค่าเกินช่วง (ช่องตัวเลขจำนวนเต็มตัดจุดทิ้งเอง จึงใช้ค่ามากกว่า 9999) → ข้อความผิดพลาด และไม่บันทึก
+    await input.fill('99999')
+    await page.getByRole('button', { name: 'บันทึก', exact: true }).click()
+    await page.getByText('จำนวนออเดอร์สูงสุดต่อวันต้องเป็นจำนวนเต็ม 0–9999').waitFor({ timeout: 5000 })
+    assert.equal(await ev(page, () => window.__store.db.shop.dailyOrderCap), 0, 'ค่าไม่ถูกต้องต้องไม่ถูกบันทึก')
+    // ค่าที่ถูกต้อง → บันทึกและมีผลกับ store
+    await input.fill('7')
+    await page.getByRole('button', { name: 'บันทึก', exact: true }).click()
+    await page.waitForFunction(() => window.__store.db.shop.dailyOrderCap === 7, null, { timeout: 5000 })
+    assert.deepEqual(errors, [], `หน้าเว็บโยนข้อผิดพลาด: ${errors.join(' | ')}`)
+  } finally { await page.context().close() }
+})
+
 let fails = 0
 for (const [name, fn] of cases) {
   try {

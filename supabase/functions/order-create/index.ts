@@ -6,6 +6,7 @@ import { corsWrap } from '../_shared/cors.ts'
 // ดู docs/security.md (บัค "ราคาต่อรายการตอนสร้างออร์เดอร์") และ migration 20261117140000 (ปิดการ INSERT ตรงจากแอป)
 import { buildOrderFromDraft, orderRowOf, hasPerm, orderCodeOk, ORDER_ID_RE } from '../_shared/schedlib/orderCreate.js'
 import { loadCatalog } from '../_shared/catalog.ts'
+import { capFull, countOnDay, dayOfPickup, shopCap } from '../_shared/ordercap.ts'
 import { modeOf, restProfileHeaders } from '../_shared/mode.ts'
 
 const env = (k: string) => Deno.env.get(k) ?? ''
@@ -125,6 +126,21 @@ Deno.serve(corsWrap(async (req) => {
   if (!built.ok) {
     const status = built.kind === 'forbidden' ? 403 : 422
     return json({ error: built.error, code: built.kind || 'invalid' }, status)
+  }
+
+  // จำกัดออเดอร์ต่อวันตามการตั้งค่าร้าน (เฉพาะออเดอร์ใหม่ที่ไม่ใช่ร่างและไม่ใช่ POS)
+  if (built.ok && !common.asDraft && built.order.channel !== 'pos') {
+    const day = dayOfPickup(built.order.pickupAt)
+    const hdrs = { ...SERVICE_HEADERS, ...rh }
+    if (day) {
+      const cap = await shopCap(SUPABASE_URL, hdrs)
+      if (cap === null) return json({ error: 'อ่านการตั้งค่าร้านไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
+      if (cap > 0) {
+        const n = await countOnDay(SUPABASE_URL, hdrs, day)
+        if (n === null) return json({ error: 'นับออเดอร์ของวันนั้นไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
+        if (capFull(cap, n)) return json({ error: `วันนี้รับออเดอร์เต็มแล้ว (ครบ ${cap} ออเดอร์) กรุณาเลือกวันอื่นค่ะ`, code: 'cap_full' }, 409)
+      }
+    }
   }
 
   const row = orderRowOf(built.order)
