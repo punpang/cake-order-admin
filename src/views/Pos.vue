@@ -201,8 +201,9 @@ const member = ref(null)
 const memberMatches = computed(() => {
   const s = memberQ.value.trim().toLowerCase()
   if (s.length < 2) return []
-  const d = phoneDigits(s)
-  return db.customers.filter((c) => c.active !== false && (c.name.toLowerCase().includes(s) || (d.length >= 3 && c.phone?.includes(d)))).slice(0, 5)
+  // เบอร์ต้องพิมพ์ครบจึงค้นได้ (ไม่ค้นจากเลขบางส่วน) · รหัสสแกนที่มีตัวอักษรไม่ถูกตีความเป็นเบอร์
+  const d = /^[\d\s-]+$/.test(s) ? phoneDigits(s) : ''
+  return db.customers.filter((c) => c.active !== false && phoneValid(d) && c.phone === d).slice(0, 5)
 })
 // ---------- แลกของรางวัล (ต้องค้นหาลูกค้าก่อนจึงแสดงรายการ) ----------
 const rd = reactive({ open: false, q: '', cust: null, msg: '', err: '' })
@@ -241,6 +242,17 @@ function pickMember(c) {
   memberQ.value = ''
   couponIds.value = []
 }
+// พิมพ์เบอร์ครบแล้วหยุดพิมพ์ → เลือกสมาชิกทันที (ไม่ต้องกด Enter)
+// หน่วงสั้น ๆ เพื่อให้เครื่องสแกนที่ส่งรหัสยาวทีเดียวไม่ถูกจับเป็นเบอร์ระหว่างทาง
+let phoneTimer = null
+watch(memberQ, (v) => {
+  clearTimeout(phoneTimer)
+  phoneTimer = setTimeout(() => {
+    if (memberQ.value !== v || member.value || memberLocked.value || !/^[\d\s-]+$/.test(v) || !phoneValid(v)) return
+    const c = db.customers.find((x) => x.active !== false && !x.deleted && x.phone === phoneDigits(v))
+    if (c) pickMember(c)
+  }, 300)
+})
 // เครื่องสแกน USB ส่งรหัสคูปองมาแล้วกด Enter: เลือกลูกค้าเจ้าของคูปองและเลือกคูปองนั้นให้เลย (เฉพาะที่ลูกค้ากดแสดงที่ร้านอยู่)
 const scanMsg = ref('')
 // สแกนคูปองของสมาชิกที่เลือกอยู่: เลือกคูปองนั้นเข้าบิล (ถ้าผ่านเงื่อนไข) · ไม่ใช่ของลูกค้าคนนี้หรือยังไม่กดแสดงจะไม่เลือก
@@ -555,14 +567,6 @@ function padInput(l, field, k) {
   if (cur.replace('.', '').length >= 9) return
   l[field] = cur === '0' ? k : cur + k
 }
-// ยอดรวมแยกตามวิธี (ไม่นับรายการที่ยกเลิก)
-// ยอดที่ยังไม่ได้รับจริง (นับเฉพาะที่ยืนยันแล้ว) ต่างจาก remaining ซึ่งนับรายการที่เริ่มทำไว้ด้วย
-const dueAmt = computed(() => Math.round((total.value - receivedSum.value) * 100) / 100)
-const methodSums = computed(() => {
-  const s = { cash: 0, transfer: 0, card: 0 }
-  for (const l of payLines.value) if (l.status !== 'cancelled' && lineAmt(l) > 0) s[l.method] = Math.round((s[l.method] + lineAmt(l)) * 100) / 100
-  return s
-})
 // ---------- เครื่องพิมพ์และจอลูกค้า (แอป Android) ----------
 const native = isNative()
 const deviceOpen = ref(false)
@@ -1046,7 +1050,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               </div>
             </div>
             <template v-else>
-              <input v-model="memberQ" type="search" class="input h-10" placeholder="ค้นหาเบอร์ / ชื่อ / สแกนบาร์โค้ด" aria-label="ค้นหาลูกค้า หรือสแกนบาร์โค้ด" @keydown.enter.prevent="onMemberScan" />
+              <input v-model="memberQ" type="search" class="input h-10" placeholder="ค้นหาเบอร์ / สแกนบาร์โค้ด" aria-label="ค้นหาลูกค้า หรือสแกนบาร์โค้ด" @keydown.enter.prevent="onMemberScan" />
               <p v-if="scanMsg" class="mt-1 text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
               <div v-if="memberMatches.length" class="mt-1.5 space-y-1">
                 <button v-for="c in memberMatches" :key="c.id" type="button" class="flex w-full justify-between gap-2 rounded-lg border border-stone-200 px-3 py-2 text-left text-sm hover:border-brand-300" @click="pickMember(c)">
@@ -1206,27 +1210,17 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · หน้าเดียว: ซ้าย/บน = ยอดและวิธีชำระ · ขวา/ล่าง = รายการที่กำลังทำ (แนวนอน ≥1024px เป็นสองคอลัมน์) -->
-    <AppModal v-if="payOpen" title="ชำระเงิน" wide wider full @close="requestClose">
+    <AppModal v-if="payOpen" title="ชำระเงิน" wide wider full fit @close="requestClose">
       <div class="grid gap-4 md:grid-cols-[17rem_minmax(0,1fr)] md:items-start">
         <!-- ซ้าย / บน -->
         <div class="space-y-3">
-          <div class="rounded-3xl bg-linear-to-br from-hero-1 via-hero-2 to-hero-3 p-4 text-white shadow-md">
-            <div class="text-sm text-white/90">{{ canConfirm ? 'รับเงินครบแล้ว' : remaining < 0 ? 'รับเกินยอด' : listedLines.length ? 'ยังต้องรับอีก' : 'ยอดชำระ' }}</div>
-            <div class="text-4xl font-bold tabular-nums">{{ money(total) }}</div>
-            <div class="mt-3 space-y-1 border-t border-white/30 pt-2 text-sm text-white">
-              <div v-for="k in ['transfer', 'cash', 'card']" :key="k" class="flex justify-between"><span>{{ POS_METHODS[k] }}</span><b class="tabular-nums">{{ money(methodSums[k]) }}</b></div>
-              <div class="flex justify-between font-semibold" :class="dueAmt < 0 ? 'text-rose-700' : ''"><span>{{ dueAmt < 0 ? 'เกิน' : 'คงค้าง' }}</span><b class="tabular-nums">{{ money(Math.abs(dueAmt)) }}</b></div>
-              <div class="flex justify-between text-xs text-white/80"><span>รับแล้ว</span><span class="tabular-nums">{{ money(receivedSum) }}</span></div>
-            </div>
-          </div>
-
           <p v-if="payErr" class="rounded-xl bg-rose-50 p-2.5 text-sm text-rose-700" role="alert">{{ payErr }}</p>
           <p v-if="binding" class="rounded-xl bg-emerald-50 p-2.5 text-center text-sm text-emerald-800" role="status">กำลังบันทึกยอดที่รับแล้ว…</p>
 
           <!-- สมาชิกสะสมแต้ม: เปลี่ยนได้จนกว่าจะสร้าง QR หรือรับชำระรายการแรก -->
           <div v-if="!member && !memberLocked" class="space-y-1.5 rounded-2xl border border-stone-200 bg-white p-3" aria-label="เบอร์สะสมแต้ม">
             <div class="text-sm font-semibold text-stone-800">เบอร์สะสมแต้ม <span class="font-normal text-stone-400">(ไม่บังคับ)</span></div>
-            <input v-model="memberQ" type="search" class="input h-10" placeholder="เบอร์ / ชื่อ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
+            <input v-model="memberQ" type="search" class="input h-10" placeholder="เบอร์ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
             <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
             <div v-if="memberMatches.length" class="space-y-1">
               <button v-for="c in memberMatches" :key="c.id" type="button" class="flex w-full justify-between gap-2 rounded-lg border border-stone-200 px-3 py-2 text-left text-sm hover:border-brand-300" @click="pickMember(c)">

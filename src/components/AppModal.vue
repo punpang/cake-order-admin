@@ -4,7 +4,7 @@ import { useDialogA11y } from '../lib/dialogA11y'
 import { kb } from '../lib/viewportFit'
 import AppIcon from './AppIcon.vue'
 
-defineProps({ title: { type: String, default: '' }, wide: { type: Boolean, default: false }, wider: { type: Boolean, default: false }, full: { type: Boolean, default: false } }) // full: เต็มจอ (ไม่มีขอบมุมและไม่เว้นขอบ) // wider: กว้างขึ้นบนจอ lg สำหรับเลย์เอาต์สองคอลัมน์
+defineProps({ title: { type: String, default: '' }, wide: { type: Boolean, default: false }, wider: { type: Boolean, default: false }, full: { type: Boolean, default: false }, fit: { type: Boolean, default: false } }) // full: เต็มจอ · fit: ไม่มีการเลื่อนทั้งแนวตั้งและแนวนอน (เนื้อหาต้องพอดีกรอบ) // wider: กว้างขึ้นบนจอ lg สำหรับเลย์เอาต์สองคอลัมน์
 const emit = defineEmits(['close'])
 const box = ref(null)
 const titleId = `dlg-${useId()}`
@@ -23,7 +23,7 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
     <!-- ความสูงอ้างอิงจาก overlay (fixed inset-0) ไม่ใช้ dvh: กล่องไม่เกินจอทุกเบราว์เซอร์/สเกล · overlay เลื่อนได้เป็นทางหนี -->
     <!-- แป้นพิมพ์เปิด (iOS ไม่ลดขนาด layout viewport): ยึดกรอบกับส่วนที่มองเห็นจริง เพื่อให้ช่องกรอกและปุ่มล่างไม่ถูกบัง -->
     <div
-      class="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-stone-900/45 backdrop-blur-[2px]"
+      class="fixed inset-0 z-50 overscroll-contain bg-stone-900/45 backdrop-blur-[2px]" :class="fit ? 'overflow-hidden' : 'overflow-y-auto'"
       :style="kb.open ? { top: 'var(--vvt, 0px)', bottom: 'auto', height: 'var(--vvh, 100%)' } : undefined"
     >
     <div class="flex h-full items-end justify-center sm:items-center" :class="full ? 'pt-0 sm:p-0' : 'pt-8 sm:p-6'" @click.self="backdrop">
@@ -46,7 +46,7 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
             <AppIcon name="x" :size="20" />
           </button>
         </div>
-        <div data-dialog-body class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-1 pb-5">
+        <div data-dialog-body class="min-h-0 flex-1 overscroll-contain px-5 pt-1 pb-5" :class="fit ? 'overflow-hidden' : 'overflow-y-auto'">
           <slot />
         </div>
         <div
