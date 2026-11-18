@@ -1146,9 +1146,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · เลย์เอาต์ใหม่: สรุปยอด → เลือกวิธีชำระ → รายการชำระ → ยืนยันปุ่มล่าง -->
-    <AppModal v-if="payOpen" title="ชำระเงิน" wide @close="requestClose">
-      <div class="space-y-4">
-        <div class="rounded-2xl bg-brand-50 p-4 landscape:p-3">
+    <AppModal v-if="payOpen" title="ชำระเงิน" wide xwide @close="requestClose">
+      <div class="space-y-4 landscape:grid landscape:grid-cols-2 landscape:items-start landscape:gap-x-4 landscape:gap-y-3">
+        <div class="rounded-2xl bg-brand-50 p-4 landscape:p-3 landscape:col-start-1">
           <div class="flex items-end justify-between gap-3">
             <div>
               <div class="text-sm text-brand-800">ยอดชำระ</div>
@@ -1161,9 +1161,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           </div>
         </div>
         <p v-if="member && !coupons.length && hiddenCoupons" class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800" role="note">ลูกค้ามีคูปองที่ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" ({{ hiddenCoupons }} ใบ) — ให้ลูกค้ากดเองในบัญชีของตนก่อน คูปองจึงจะขึ้นที่นี่ (มีเวลาแสดง {{ db.loyalty.activationMin }} นาที)</p>
-        <p v-if="payErr" class="rounded-xl bg-rose-50 p-2.5 text-sm text-rose-700" role="alert">{{ payErr }}</p>
+        <p v-if="payErr" class="rounded-xl bg-rose-50 p-2.5 text-sm text-rose-700 landscape:col-span-2" role="alert">{{ payErr }}</p>
         <p v-if="binding" class="rounded-xl bg-emerald-50 p-2.5 text-center text-sm text-emerald-800" role="status">กำลังบันทึกยอดที่รับแล้วเป็นบิลค้าง…</p>
-        <div v-if="member && coupons.length" class="rounded-2xl border border-stone-200 p-3" aria-label="คูปองส่วนลดในขั้นชำระเงิน">
+        <div v-if="member && coupons.length" class="rounded-2xl border border-stone-200 p-3 landscape:col-start-1" aria-label="คูปองส่วนลดในขั้นชำระเงิน">
           <div class="mb-1.5 text-sm font-semibold text-stone-800">คูปองที่ {{ member.name }} กดแสดงไว้ · กดเพื่อใช้แทนเงินสด</div>
           <div class="flex flex-wrap gap-1.5">
             <button v-for="c in coupons" :key="c.id" type="button" class="chip h-auto max-w-full py-1.5 text-left whitespace-normal" :class="[couponIds.includes(c.id) ? 'chip-on' : 'chip-off', couponOk(c) ? '' : 'opacity-50']" :disabled="!couponOk(c)" :aria-pressed="couponIds.includes(c.id)" @click="toggleCoupon(c.id)">{{ c.name }} · {{ couponTermsText(c) }} · เหลือ {{ mmss(c) }}</button>
@@ -1173,7 +1173,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <p v-if="couponIds.length" class="mt-1.5 text-xs text-emerald-700">ใช้คูปองลดแล้ว {{ money(preview.couponDiscount) }}</p>
         </div>
 
-        <div v-if="remaining > 0" class="space-y-2">
+        <div v-if="remaining > 0" class="space-y-2 landscape:col-start-1">
           <div class="text-sm font-semibold text-stone-700">{{ payLines.length ? 'เพิ่มวิธีชำระอีก' : 'เลือกวิธีชำระ' }}</div>
           <div class="grid grid-cols-3 gap-2">
             <button v-for="(label, k) in POS_METHODS" :key="k" type="button" class="h-14 landscape:h-11 rounded-2xl border-2 border-brand-200 bg-white text-base font-semibold text-brand-800 active:scale-[0.98]" @click="addPayLine(k)">{{ label }}</button>
@@ -1183,7 +1183,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
         <template v-for="(l, i) in payLines" :key="l.key">
           <!-- รายการโอนที่รับแล้ว: แถวเดียว (ยอดแก้ไม่ได้อยู่แล้ว จึงไม่มีช่องกรอกและป้ายซ้ำ) -->
-          <div v-if="compactLine(l)" class="pay-pop flex items-center gap-3 rounded-2xl bg-emerald-50 px-3 py-2.5">
+          <div v-if="compactLine(l)" class="pay-pop flex items-center gap-3 rounded-2xl bg-emerald-50 px-3 py-2.5 landscape:col-start-2">
             <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-600 text-white" aria-hidden="true">
               <svg class="pay-check h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
             </span>
@@ -1194,7 +1194,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <span class="text-lg font-bold tabular-nums text-emerald-900">{{ money(lineAmt(l)) }}</span>
             <button v-if="!l.locked && !binding" type="button" class="btn-outline h-9 shrink-0 px-3 text-sm" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิก</button>
           </div>
-          <div v-else class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm landscape:p-3">
+          <div v-else class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm landscape:p-3 landscape:col-start-2">
           <div class="flex items-center justify-between gap-2">
             <span class="text-base font-semibold text-stone-800">{{ POS_METHODS[l.method] }}</span>
             <button v-if="!l.qrRef && !l.locked && !l.confirmed && (payLines.length > 1 || l.method !== 'cash')" type="button" class="rounded-full px-3 py-1 text-sm font-medium text-rose-700 hover:bg-rose-50" @click="removePayLine(i)">ลบ</button>

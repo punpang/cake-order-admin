@@ -4,7 +4,7 @@ import { useDialogA11y } from '../lib/dialogA11y'
 import { kb } from '../lib/viewportFit'
 import AppIcon from './AppIcon.vue'
 
-defineProps({ title: { type: String, default: '' }, wide: { type: Boolean, default: false } })
+defineProps({ title: { type: String, default: '' }, wide: { type: Boolean, default: false }, xwide: { type: Boolean, default: false } }) // xwide: ในแนวนอนกว้างขึ้นสำหรับเลย์เอาต์สองคอลัมน์
 const emit = defineEmits(['close'])
 const box = ref(null)
 const titleId = `dlg-${useId()}`
@@ -35,7 +35,7 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
         @input.capture="dirty = true"
         @change.capture="dirty = true"
         class="flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-t-[2rem] bg-cream shadow-2xl outline-none sm:rounded-[2rem]"
-        :class="wide ? 'sm:max-w-2xl' : 'sm:max-w-md'"
+        :class="xwide ? 'sm:max-w-2xl landscape:sm:max-w-5xl' : wide ? 'sm:max-w-2xl' : 'sm:max-w-md'"
         role="dialog"
         aria-modal="true"
       >
