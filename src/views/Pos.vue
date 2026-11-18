@@ -1290,9 +1290,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               </div>
 
               <!-- ยังไม่พบรายการ: QR (ซ้าย) กับสถานะและปุ่ม (ขวา) สูงเท่ากัน ปุ่มชิดล่าง -->
-              <div v-else class="grid gap-3 sm:grid-cols-2 sm:items-stretch">
-                <BillerQr :amount="lineAmt(l)" :ref1="db.shop.merchantCode || ''" :ref2="l.qrRef" />
-                <div class="flex flex-col gap-3">
+              <div v-else class="grid gap-3 sm:grid-cols-2 sm:items-stretch landscape:gap-x-4 landscape:gap-y-2">
+                <BillerQr :amount="lineAmt(l)" :ref1="db.shop.merchantCode || ''" :ref2="l.qrRef" compact />
+                <div class="flex flex-col gap-3 landscape:gap-2">
                   <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
                     <span v-if="expiredLine(l)" class="rounded-full bg-rose-100 px-3 py-1 font-medium text-rose-700">QR หมดอายุแล้ว</span>
                     <span v-else class="rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-800">รอลูกค้าชำระ</span>
@@ -1306,18 +1306,18 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                     </button>
                   </div>
 
-                  <div class="hidden flex-1 flex-col items-center justify-center rounded-2xl bg-amber-50 p-4 text-center sm:flex">
+                  <div class="hidden flex-1 flex-col items-center justify-center rounded-2xl bg-amber-50 p-4 text-center sm:flex landscape:p-2.5">
                     <span class="relative grid h-10 w-10 place-items-center" aria-hidden="true">
                       <span v-if="!expiredLine(l)" class="motion-safe:animate-ping absolute inset-0 rounded-full bg-amber-300/60" />
                       <span class="relative h-3 w-3 rounded-full" :class="expiredLine(l) ? 'bg-rose-500' : 'bg-amber-500'" />
                     </span>
-                    <div class="mt-3 text-sm text-stone-600">ยอดที่รอรับ</div>
-                    <div class="text-2xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</div>
-                    <p class="mt-2 max-w-xs text-xs text-stone-500">{{ expiredLine(l) ? 'QR หมดอายุแล้ว สร้าง QR ใหม่เพื่อรับชำระ' : 'รอการโอนเข้า ระบบจับคู่ให้อัตโนมัติเมื่อยอดและรหัสอ้างอิงตรงกัน' }}</p>
+                    <div class="mt-3 text-sm text-stone-600 landscape:mt-1">ยอดที่รอรับ</div>
+                    <div class="text-2xl font-bold tabular-nums text-stone-900 landscape:text-xl">{{ money(lineAmt(l)) }}</div>
+                    <p class="mt-2 max-w-xs text-xs text-stone-500 landscape:mt-1">{{ expiredLine(l) ? 'QR หมดอายุแล้ว สร้าง QR ใหม่เพื่อรับชำระ' : 'รอการโอนเข้า ระบบจับคู่ให้อัตโนมัติเมื่อยอดและรหัสอ้างอิงตรงกัน' }}</p>
                   </div>
                   <div class="mt-auto space-y-2">
-                    <button v-if="expiredLine(l)" type="button" class="btn-primary h-12 w-full" @click="makeQr(l)">สร้าง QR ใหม่</button>
-                    <button v-else type="button" class="btn-outline h-12 w-full" @click="receiveNow(l)">ลูกค้าชำระแล้ว (ไม่พบอัตโนมัติ)</button>
+                    <button v-if="expiredLine(l)" type="button" class="btn-primary h-12 w-full landscape:h-11" @click="makeQr(l)">สร้าง QR ใหม่</button>
+                    <button v-else type="button" class="btn-outline h-12 w-full landscape:h-11" @click="receiveNow(l)">ลูกค้าชำระแล้ว (ไม่พบอัตโนมัติ)</button>
                     <button type="button" class="btn-outline h-11 w-full" @click="cancelQr(l)">ยกเลิก QR</button>
                   </div>
                 </div>
