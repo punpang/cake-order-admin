@@ -5,6 +5,7 @@ import { expiringSoon, chanceTotal, activeSecondsLeft } from '../lib/loyalty'
 import { money, dateOnly, dateTime, toDateStr, num } from '../lib/format'
 import AppIcon from './AppIcon.vue'
 import AppModal from './AppModal.vue'
+import CouponBarcode from './CouponBarcode.vue'
 import { askConfirm } from '../lib/confirm'
 import { couponTermsText } from '../lib/coupons'
 
@@ -200,7 +201,8 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
         <p v-else class="rounded-xl bg-stone-50 p-3 text-xs text-stone-600" role="note">จะใช้คูปอง/รับของที่ร้าน ให้กด "ใช้ที่ร้านตอนนี้" เมื่ออยู่ที่ร้านแล้ว พนักงานจึงจะเห็นบนเครื่อง POS ({{ db.loyalty.activationMin || 15 }} นาที) · ครบเวลาถือว่าใช้ไปแล้ว ใช้ซ้ำและยกเลิกไม่ได้</p>
         <p v-if="useErr" class="text-sm text-rose-700" role="alert">{{ useErr }}</p>
         <p v-if="useMsg" class="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800" role="status">{{ useMsg }}</p>
-        <div v-for="c in coupons" :key="c.id" class="card flex items-center gap-3">
+        <template v-for="c in coupons" :key="c.id">
+        <div class="card flex items-center gap-3">
           <span class="min-w-0 flex-1">
             <span class="block font-semibold break-words text-stone-900">{{ c.name }}</span>
             <span class="block text-xs text-stone-500">
@@ -210,6 +212,8 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
           </span>
           <span class="flex shrink-0 flex-col items-end gap-1.5"><span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="couponState(c).cls">{{ couponState(c).t }}</span><button v-if="phase(c) === 'pending'" type="button" class="btn-primary h-8 px-3 text-xs" @click="useAtStore(c)">ใช้ที่ร้านตอนนี้</button></span>
         </div>
+        <CouponBarcode v-if="phase(c) === 'active'" :value="c.id" />
+        </template>
       </div>
 
       <!-- ประวัติคะแนน -->

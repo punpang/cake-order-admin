@@ -1,5 +1,6 @@
 <script setup>
 import { couponQuoteOf, quoteCouponList, couponTermsText } from '../lib/coupons'
+import { resolveCouponScan } from '../lib/scan'
 import MoneyInput from '../components/MoneyInput.vue'
 import { orderNo } from '../lib/format'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
@@ -237,6 +238,22 @@ function pickMember(c) {
   member.value = c
   memberQ.value = ''
   couponIds.value = []
+}
+// เครื่องสแกน USB ส่งรหัสคูปองมาแล้วกด Enter: เลือกลูกค้าเจ้าของคูปองและเลือกคูปองนั้นให้เลย (เฉพาะที่ลูกค้ากดแสดงที่ร้านอยู่)
+const scanMsg = ref('')
+function onMemberScan() {
+  scanMsg.value = ''
+  const hit = resolveCouponScan(memberQ.value, db.coupons)
+  if (!hit) return
+  const cust = findCustomer(hit.customerId)
+  if (!cust) return
+  if (!posCoupons(cust, nowIso.value).some((c) => c.id === hit.id)) {
+    memberQ.value = ''
+    scanMsg.value = `คูปอง ${hit.name} ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" หรือหมดเวลาแล้ว`
+    return
+  }
+  pickMember(cust)
+  couponIds.value = [hit.id]
 }
 // คูปองส่วนลดของสมาชิก (ได้จากการแลกคะแนนบนเว็บ/กาชา) · ใช้ได้เมื่อยอดสินค้าถึงขั้นต่ำ
 // POS เห็นเฉพาะคูปองที่ลูกค้ากดแสดงที่ร้านอยู่ (ยังไม่หมดเวลา) · ที่ยังไม่ได้กดแสดงลูกค้าต้องกดเองในบัญชีของตน
@@ -949,7 +966,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               </div>
             </div>
             <template v-else>
-              <input v-model="memberQ" type="search" class="input h-10" placeholder="ค้นหาเบอร์ / ชื่อ" />
+              <input v-model="memberQ" type="search" class="input h-10" placeholder="ค้นหาเบอร์ / ชื่อ / สแกนบาร์โค้ดคูปอง" aria-label="ค้นหาลูกค้า หรือสแกนบาร์โค้ดคูปอง" @keydown.enter.prevent="onMemberScan" />
+              <p v-if="scanMsg" class="mt-1 text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
               <div v-if="memberMatches.length" class="mt-1.5 space-y-1">
                 <button v-for="c in memberMatches" :key="c.id" type="button" class="flex w-full justify-between gap-2 rounded-lg border border-stone-200 px-3 py-2 text-left text-sm hover:border-brand-300" @click="pickMember(c)">
                   <span class="truncate">{{ c.name }}</span><span class="shrink-0 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>

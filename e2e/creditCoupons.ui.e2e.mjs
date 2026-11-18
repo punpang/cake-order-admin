@@ -108,6 +108,63 @@ t('บัญชีลูกค้าแสดงคูปองคืนเง�
   } finally { await page.close() }
 })
 
+// ใส่คูปองทดสอบสองใบให้ลูกค้าคนแรก: ใบแรกกดใช้ที่ร้านแล้ว (ยังนับเวลา) ใบที่สองยังไม่ได้กด · คืนชื่อลูกค้า
+async function seedBarcodeCoupons(page) {
+  return page.evaluate(() => {
+    const S = window.__store
+    const c = (() => { const all = window.__store.db.customers; return all.find((x) => !x.deleted && x.active !== false && all.filter((o) => o.name.includes(x.name)).length === 1) })()
+    if (!c) return null
+    for (const k of S.needsConsent(c.id)) S.db.consents.push({ id: 'e2e-bc-' + k + c.id, customerId: c.id, kind: k, version: S.db.legal.docs[k].version, detail: null, at: new Date().toISOString(), via: 'e2e' })
+    if (S.needsConsent(c.id).length) return null
+    const nowIso = new Date().toISOString()
+    const until = new Date(Date.now() + 10 * 60e3).toISOString()
+    const base = { customerId: c.id, type: 'discount', mode: 'fixed', amount: 30, minSpend: 0, status: 'pending', expiresAt: '2099-12-31', source: 'redeem', createdAt: nowIso }
+    S.db.coupons.unshift(
+      { ...base, id: 'cpe2eactive', name: 'คูปองบาร์โค้ดทดสอบ', activatedAt: nowIso, activatedUntil: until },
+      { ...base, id: 'cpe2epending', name: 'คูปองยังไม่กดทดสอบ', activatedAt: null, activatedUntil: null },
+    )
+    S.customerSession.customerId = c.id
+    return { name: c.name, activePhase: S.phaseOfCoupon(S.db.coupons.find((x) => x.id === 'cpe2eactive')), pendingPhase: S.phaseOfCoupon(S.db.coupons.find((x) => x.id === 'cpe2epending')) }
+  })
+}
+
+t('บัญชีลูกค้าแสดงบาร์โค้ดเฉพาะคูปองที่กดใช้ที่ร้านแล้ว', async () => {
+  const { page, errors } = await openPage('/admin/settings/customers')
+  try {
+    await page.evaluate(async () => { window.__store = await import('/src/data/store.js') })
+    const info = await seedBarcodeCoupons(page)
+    assert.ok(info, 'ไม่มีลูกค้าสำหรับทดสอบ')
+    assert.equal(info.activePhase, 'active', 'คูปองที่กดแล้วไม่ได้สถานะใช้งาน')
+    assert.equal(info.pendingPhase, 'pending', 'คูปองที่ยังไม่กดไม่ได้สถานะรอใช้')
+    await page.evaluate(() => { window.location.hash = '#/account' })
+    await page.getByRole('button', { name: 'คะแนน', exact: true }).click()
+    await page.getByRole('button', { name: 'คูปอง', exact: true }).waitFor({ state: 'visible', timeout: 15000 })
+    await page.getByRole('button', { name: 'คูปอง', exact: true }).click()
+    await page.locator('svg[data-scan="cpe2eactive"]').waitFor({ state: 'visible', timeout: 15000 })
+    assert.equal(await page.locator('svg[data-scan="cpe2epending"]').count(), 0, 'แสดงบาร์โค้ดของคูปองที่ยังไม่กดใช้')
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
+t('POS: สแกนบาร์โค้ดคูปองที่ลูกค้ากดแสดงแล้ว เลือกลูกค้าและคูปองนั้นให้อัตโนมัติ (ใบที่ยังไม่กดถูกปฏิเสธ)', async () => {
+  const { page, errors } = await openPage('/admin/pos')
+  try {
+    await page.evaluate(async () => { window.__store = await import('/src/data/store.js') })
+    const info = await seedBarcodeCoupons(page)
+    assert.ok(info, 'ไม่มีลูกค้าสำหรับทดสอบ')
+    const input = page.getByLabel('ค้นหาลูกค้า หรือสแกนบาร์โค้ดคูปอง')
+    await input.waitFor({ state: 'visible', timeout: 15000 })
+    await input.fill('cpe2epending')
+    await input.press('Enter')
+    await page.getByText('ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" หรือหมดเวลาแล้ว').waitFor({ state: 'visible', timeout: 5000 })
+    await input.fill('cpe2eactive')
+    await input.press('Enter')
+    await page.getByText('(เลือกแล้ว 1)').waitFor({ state: 'visible', timeout: 5000 })
+    assert.equal(await page.getByLabel('ค้นหาลูกค้า หรือสแกนบาร์โค้ดคูปอง').count(), 0, 'ช่องค้นหายังอยู่ทั้งที่เลือกลูกค้าแล้ว')
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
 try {
   for (const [name, fn] of cases) {
     try { await fn(); console.log(`PASS ${name}`) } catch (e) { fails++; console.log(`FAIL ${name}: ${e.message}`) }
