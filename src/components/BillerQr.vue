@@ -9,7 +9,8 @@ const props = defineProps({
   amount: { type: Number, required: true },
   ref1: { type: String, required: true },
   ref2: { type: String, required: true },
-  compact: { type: Boolean, default: false }, // ขนาดเล็กสำหรับการ์ดที่ต้องพอดีจอแนวนอน
+  compact: { type: Boolean, default: false }, // ขนาดสำหรับหน้าชำระ POS (ปรับตามความสูงจอแนวนอน)
+  showAmount: { type: Boolean, default: true }, // หน้าที่แสดงยอดตัวใหญ่อยู่แล้วไม่ต้องแสดงซ้ำใต้ QR
 })
 
 const biller = computed(() => billerIdOf(db.shop?.billerId))
@@ -32,10 +33,10 @@ watch(payload, async (p) => {
   <div class="text-center">
     <p v-if="!biller" class="text-left text-xs text-amber-700">ยังไม่ได้ตั้ง Biller ID ของร้าน (ตั้งค่าร้าน › ช่องทางรับชำระ) จึงสร้าง QR ไม่ได้</p>
     <template v-else-if="payload">
-      <img v-if="qr" :src="qr" alt="QR พร้อมเพย์ (Biller)" class="mx-auto" :class="compact ? 'h-40 w-40' : 'h-48 w-48 sm:h-56 sm:w-56'" />
+      <img v-if="qr" :src="qr" alt="QR พร้อมเพย์ (Biller)" class="mx-auto" :class="compact ? 'h-48 w-48 landscape:h-44 landscape:w-44 lx-qr lx-qr-big' : 'h-48 w-48 sm:h-56 sm:w-56'" />
       <p v-else class="flex items-center justify-center gap-2 py-8 text-stone-400">กำลังสร้าง QR…</p>
-      <p class="text-base font-semibold text-stone-900">{{ money(amount) }}</p>
-      <p class="text-xs text-stone-500">รหัสร้านค้า {{ ref1 }} · รหัสอ้างอิง {{ ref2 }}</p>
+      <p v-if="showAmount" class="text-base font-semibold text-stone-900">{{ money(amount) }}</p>
+      <p class="text-xs text-stone-500" :class="compact ? 'lx-caption' : ''">รหัสร้านค้า {{ ref1 }} · รหัสอ้างอิง {{ ref2 }}</p>
     </template>
     <p v-else class="text-left text-xs text-rose-700">ข้อมูล QR ไม่ครบ (ยอด รหัสร้านค้า หรือรหัสอ้างอิง)</p>
   </div>

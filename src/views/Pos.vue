@@ -347,6 +347,8 @@ const lineAmt = (l) => Math.round((Number(l.amount) || 0) * 100) / 100
 const compactLine = (l) => l.method === 'transfer' && !!l.confirmed // รายการโอนที่รับแล้วแสดงเป็นแถวเดียวในหน้าชำระ
 const paidSum = computed(() => Math.round(payLines.value.reduce((s, l) => s + reservedOf(l, lineAmt(l)), 0) * 100) / 100) // QR ที่ยกเลิกแล้วไม่กันยอด
 const remaining = computed(() => Math.round((total.value - paidSum.value) * 100) / 100)
+// เปลี่ยนสมาชิกได้จนกว่าจะมีรายการที่สร้าง QR หรือรับชำระแล้ว (กันยอดที่แจ้งไปแล้วเปลี่ยน)
+const memberLocked = computed(() => payLines.value.some((l) => l.qrRef || l.confirmed || l.locked))
 const newKey = () => Math.random().toString(36).slice(2)
 const expiredLine = (l) => !l.detectedAt && !l.confirmed && l.status !== 'cancelled' && posQrExpired(l, payNow.value)
 const AUTO_ACCEPT_MS = 3 * 60 * 1000 // พบรายการโอนแล้ว พนักงานไม่กดรับภายใน 3 นาที ระบบรับเอง
@@ -358,6 +360,7 @@ function openPay() {
   if (!cart.value.length || editBill.value) return
   payErr.value = ''
   payLines.value = []
+  focusKey.value = ''
   seenPaid = []
   payNow.value = Date.now()
   clearInterval(payTimer)
@@ -373,6 +376,7 @@ function openPay() {
 function closePay() {
   payOpen.value = false
   payLines.value = []
+  focusKey.value = ''
   resumeOrder.value = null
   clearInterval(payTimer)
   stopTransferWatch()
@@ -503,6 +507,37 @@ const activeLines = computed(() => payLines.value.filter((l) => lineAmt(l) > 0 &
 const canConfirm = computed(() => activeLines.value.length > 0 && remaining.value === 0 && activeLines.value.every(lineOk))
 // บันทึกบิลค้างได้เมื่อยังขาดยอดและมีรายการที่รับแล้วซึ่งยังไม่ได้บันทึก (รายการที่ยังไม่รับจะไม่ถูกบันทึก)
 const canSavePartial = computed(() => remaining.value > 0 && payLines.value.some((l) => l.confirmed && !l.locked && lineAmt(l) > 0))
+// ---------- หน้าชำระแบบเป็นขั้น: เลือกวิธี → ทำรายการนั้นทีละอย่าง → ยืนยัน (ตรรกะรับเงินเดิมไม่เปลี่ยน) ----------
+const focusKey = ref('')
+// รายการที่จบแล้ว (ไม่ต้องทำอะไรต่อในขั้นนั้น): ผูกบิลแล้ว · โอนที่รับแล้วหรือยกเลิก QR แล้ว
+const lineDone = (l) => !!l.locked || (l.method === 'transfer' && (!!l.confirmed || l.status === 'cancelled'))
+// รายการที่กำลังทำ: ที่เลือกไว้ หรือ QR ที่ยังรอโอนอยู่ (ต้องเห็น QR จนกว่าจะรับหรือยกเลิก)
+const focusLine = computed(() => payLines.value.find((l) => l.key === focusKey.value && !lineDone(l)) || payLines.value.find((l) => l.method === 'transfer' && l.qrRef && !lineDone(l)) || null)
+const receivedSum = computed(() => Math.round(payLines.value.filter((l) => l.confirmed && l.status !== 'cancelled').reduce((s, l) => s + lineAmt(l), 0) * 100) / 100)
+const listedLines = computed(() => payLines.value.filter((l) => l !== focusLine.value && l.status !== 'cancelled' && lineAmt(l) > 0))
+const cancelledQrs = computed(() => payLines.value.filter((l) => l.method === 'transfer' && l.status === 'cancelled'))
+function startMethod(k) {
+  if (remaining.value <= 0 || binding.value) return
+  addPayLine(k)
+  const l = payLines.value[payLines.value.length - 1]
+  focusKey.value = l.key
+  if (k === 'transfer') makeQr(l) // โอนเงิน: แสดง QR ยอดคงเหลือทันที (แบ่งจ่ายได้จากปุ่มในหน้า QR)
+}
+// กลับไปเลือกวิธีอื่น: QR ที่รออยู่ถูกยกเลิก (ยังเฝ้าการโอนเข้า QR เดิมจนปิดหน้า) · รายการที่ยังไม่รับถูกลบ
+function backToMethods(l) {
+  if (l && !l.locked && !l.confirmed) {
+    if (l.qrRef) { if (l.status !== 'cancelled') cancelQr(l) } else removePayLine(payLines.value.indexOf(l))
+  }
+  focusKey.value = ''
+}
+// แบ่งจ่ายด้วยโอน: ยกเลิก QR ยอดเต็ม แล้วให้ใส่ยอดใหม่ก่อนสร้าง QR
+function splitTransfer(l) {
+  if (l.qrRef && l.status !== 'cancelled') cancelQr(l)
+  addPayLine('transfer')
+  focusKey.value = payLines.value[payLines.value.length - 1].key
+}
+// เก็บยอดเงินสดหรือบัตรนี้ไว้ แล้วไปรับส่วนที่เหลือด้วยวิธีอื่น
+const keepAndAddMore = () => { focusKey.value = '' }
 // ---------- เครื่องพิมพ์และจอลูกค้า (แอป Android) ----------
 const native = isNative()
 const deviceOpen = ref(false)
@@ -607,6 +642,7 @@ function resumeBill(o) {
   payLines.value = o.payments.filter((p) => p.status === 'confirmed').map((p) => ({ key: newKey(), method: p.posMethod || 'cash', amount: String(p.amount), received: String(p.received ?? ''), qrRef: p.qrRef || '', qrExpiresAt: '', confirmed: true, locked: true, acceptedBy: p.qrAccept || 'staff', maneeId: p.maneeId || '' }))
   // รับส่วนที่เหลือของบิลค้าง: รายการที่รับไว้แล้วไม่แสดงฟลาชซ้ำ
   seenPaid = payLines.value.filter((l) => l.confirmed).map((l) => l.key)
+  focusKey.value = ''
   payNow.value = Date.now()
   clearInterval(payTimer)
   payTimer = setInterval(() => {
@@ -1145,196 +1181,223 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     </AppModal>
 
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
-    <!-- ชำระเงิน · เลย์เอาต์ใหม่: สรุปยอด → เลือกวิธีชำระ → รายการชำระ → ยืนยันปุ่มล่าง -->
-    <AppModal v-if="payOpen" title="ชำระเงิน" wide @close="requestClose">
-      <div class="space-y-4">
-        <div class="rounded-2xl bg-brand-50 p-4">
-          <div class="flex items-end justify-between gap-3">
-            <div>
-              <div class="text-sm text-brand-800">ยอดชำระ</div>
-              <div class="text-3xl font-semibold text-brand-900">{{ money(total) }}</div>
-            </div>
-            <div class="text-right">
-              <div class="text-sm font-medium" :class="remaining > 0 ? 'text-amber-800' : remaining < 0 ? 'text-rose-700' : 'text-emerald-800'">{{ remaining > 0 ? 'ยังขาด' : remaining < 0 ? 'เกินยอด' : 'ครบแล้ว' }}</div>
-              <div class="text-xl font-semibold" :class="remaining > 0 ? 'text-amber-900' : remaining < 0 ? 'text-rose-700' : 'text-emerald-800'">{{ money(Math.abs(remaining)) }}</div>
-            </div>
-          </div>
-        </div>
-        <p v-if="member && !coupons.length && hiddenCoupons" class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800" role="note">ลูกค้ามีคูปองที่ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" ({{ hiddenCoupons }} ใบ) — ให้ลูกค้ากดเองในบัญชีของตนก่อน คูปองจึงจะขึ้นที่นี่ (มีเวลาแสดง {{ db.loyalty.activationMin }} นาที)</p>
+    <!-- ชำระเงิน · เป็นขั้น: (1) เลือกวิธีชำระ (สมาชิก คูปอง) → (2) ทำรายการนั้นอย่างเดียว (เงินสด / QR โอน / บัตร) → ยืนยันรับเงิน -->
+    <AppModal v-if="payOpen" title="ชำระเงิน" wide xwide @close="requestClose">
+      <div class="space-y-3">
         <p v-if="payErr" class="rounded-xl bg-rose-50 p-2.5 text-sm text-rose-700" role="alert">{{ payErr }}</p>
-        <p v-if="binding" class="rounded-xl bg-emerald-50 p-2.5 text-center text-sm text-emerald-800" role="status">กำลังบันทึกยอดที่รับแล้วเป็นบิลค้าง…</p>
-        <div v-if="member && coupons.length" class="rounded-2xl border border-stone-200 p-3" aria-label="คูปองส่วนลดในขั้นชำระเงิน">
-          <div class="mb-1.5 text-sm font-semibold text-stone-800">คูปองที่ {{ member.name }} กดแสดงไว้ · กดเพื่อใช้แทนเงินสด</div>
-          <div class="flex flex-wrap gap-1.5">
-            <button v-for="c in coupons" :key="c.id" type="button" class="chip h-auto max-w-full py-1.5 text-left whitespace-normal" :class="[couponIds.includes(c.id) ? 'chip-on' : 'chip-off', couponOk(c) ? '' : 'opacity-50']" :disabled="!couponOk(c)" :aria-pressed="couponIds.includes(c.id)" @click="toggleCoupon(c.id)">{{ c.name }} · {{ couponTermsText(c) }} · เหลือ {{ mmss(c) }}</button>
-          </div>
-          <p v-for="c in coupons.filter((x) => !couponOk(x))" :key="'n' + c.id" class="mt-1 text-xs text-amber-700">{{ c.name }}: {{ couponReason(c) }}</p>
-          <p v-if="keptProblem" class="mt-1 text-xs text-rose-700" role="alert">{{ keptProblem }}</p>
-          <p v-if="couponIds.length" class="mt-1.5 text-xs text-emerald-700">ใช้คูปองลดแล้ว {{ money(preview.couponDiscount) }}</p>
-        </div>
+        <p v-if="binding" class="rounded-xl bg-emerald-50 p-2.5 text-center text-sm text-emerald-800" role="status">กำลังบันทึกยอดที่รับแล้ว…</p>
 
-        <div v-if="remaining > 0" class="space-y-2">
-          <div class="text-sm font-semibold text-stone-700">{{ payLines.length ? 'เพิ่มวิธีชำระอีก' : 'เลือกวิธีชำระ' }}</div>
-          <div class="grid grid-cols-3 gap-2">
-            <button v-for="(label, k) in POS_METHODS" :key="k" type="button" class="h-14 rounded-2xl border-2 border-brand-200 bg-white text-base font-semibold text-brand-800 active:scale-[0.98]" @click="addPayLine(k)">{{ label }}</button>
+        <!-- ขั้น 2: ทำรายการที่เลือก -->
+        <template v-for="l in focusLine ? [focusLine] : []" :key="l.key">
+          <div class="flex items-center justify-between gap-3">
+            <button v-if="!l.detectedAt && !l.locked && !l.confirmed && !binding" type="button" class="inline-flex h-9 items-center gap-1 rounded-full pr-3 text-sm font-medium text-stone-600 hover:text-stone-900" @click="backToMethods(l)">
+              <span aria-hidden="true" class="text-lg leading-none">‹</span> {{ l.qrRef ? 'ยกเลิก QR · เลือกวิธีอื่น' : 'เลือกวิธีอื่น' }}
+            </button>
+            <span v-else />
+            <span class="rounded-full bg-stone-100 px-3 py-1 text-sm font-semibold text-stone-700">{{ POS_METHODS[l.method] }}</span>
           </div>
-        </div>
-        <p v-if="!payLines.length" class="rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-500">เลือกวิธีชำระด้านบนเพื่อเริ่มรับเงิน</p>
 
-        <template v-for="(l, i) in payLines" :key="l.key">
-          <!-- รายการโอนที่รับแล้ว: แถวเดียว (ยอดแก้ไม่ได้อยู่แล้ว จึงไม่มีช่องกรอกและป้ายซ้ำ) -->
-          <div v-if="compactLine(l)" class="pay-pop flex items-center gap-3 rounded-2xl bg-emerald-50 px-3 py-2.5">
-            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-600 text-white" aria-hidden="true">
-              <svg class="pay-check h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
-            </span>
-            <div class="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
-              <span class="text-base font-semibold text-stone-800">{{ POS_METHODS[l.method] }}</span>
-              <span v-if="l.acceptedBy === 'auto'" class="text-xs font-medium text-emerald-700">อัตโนมัติ</span>
-            </div>
-            <span class="text-lg font-bold tabular-nums text-emerald-900">{{ money(lineAmt(l)) }}</span>
-            <button v-if="!l.locked && !binding" type="button" class="btn-outline h-9 shrink-0 px-3 text-sm" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิก</button>
-          </div>
-          <div v-else class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-base font-semibold text-stone-800">{{ POS_METHODS[l.method] }}</span>
-            <button v-if="!l.qrRef && !l.locked && !l.confirmed && (payLines.length > 1 || l.method !== 'cash')" type="button" class="rounded-full px-3 py-1 text-sm font-medium text-rose-700 hover:bg-rose-50" @click="removePayLine(i)">ลบ</button>
-          </div>
-          <label class="label mt-3" :for="'amt-' + l.key">ยอด (บาท)</label>
-          <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input h-12 text-lg font-semibold" :readonly="!!l.qrRef || !!l.locked || !!l.confirmed" />
-
+          <!-- เงินสด -->
           <template v-if="l.method === 'cash'">
-            <label class="label mt-3" :for="'rcv-' + l.key">รับเงินมา (บาท)</label>
-            <MoneyInput :id="'rcv-' + l.key" v-model="l.received" class="input h-12 text-xl font-semibold" placeholder="0" :readonly="!!l.locked || !!l.confirmed" />
-            <div class="mt-2 flex flex-wrap gap-2">
-              <button v-for="v in quickFor(l)" :key="v" type="button" class="chip chip-off" @click="l.received = String(v)">{{ v === lineAmt(l) ? 'พอดี' : money(v) }}</button>
-            </div>
-            <div class="mt-3 flex items-center justify-between rounded-xl p-3" :class="changeOf(l) >= 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'">
-              <span class="text-sm font-medium">{{ changeOf(l) >= 0 ? 'เงินทอน' : 'ยังขาด' }}</span>
-              <span class="text-xl font-semibold">{{ money(Math.abs(changeOf(l))) }}</span>
-            </div>
-            <button v-if="canBindCash(l, remaining) && !binding" type="button" class="btn-primary mt-3 h-12 w-full" @click="bindCash(l)">ผูกเป็นบิลค้าง (รับ {{ money(lineAmt(l)) }})</button>
-            <div v-else-if="l.confirmed && !l.locked" class="mt-3 space-y-2">
-              <div class="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800"><AppIcon name="check" :size="18" /> รับเงินสดแล้ว (ยังไม่ผูกบิล)</div>
-              <button v-if="!binding" type="button" class="btn-outline h-11 w-full" @click="cancelCash(l)">ยกเลิกการรับชำระ</button>
+            <div class="grid gap-3 landscape:grid-cols-2">
+              <div class="space-y-3">
+                <div class="rounded-2xl bg-brand-50 p-4 text-center lx-card">
+                  <div class="text-sm text-brand-800">รับเงินสด</div>
+                  <div class="text-4xl font-bold tabular-nums text-brand-900">{{ money(lineAmt(l)) }}</div>
+                  <button v-if="!l.locked && !l.confirmed && !l.split" type="button" class="mt-1 text-xs font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
+                  <div v-if="l.split && !l.locked && !l.confirmed" class="mx-auto mt-2 max-w-48">
+                    <label class="sr-only" :for="'amt-' + l.key">ยอดเงินสด</label>
+                    <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input h-10 text-center text-lg font-semibold" />
+                  </div>
+                </div>
+                <div class="flex items-center justify-between rounded-2xl p-4 lx-card" :class="changeOf(l) >= 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'">
+                  <span class="text-base font-medium">{{ changeOf(l) >= 0 ? 'เงินทอน' : 'ยังขาด' }}</span>
+                  <span class="text-3xl font-bold tabular-nums">{{ money(Math.abs(changeOf(l))) }}</span>
+                </div>
+              </div>
+              <div class="space-y-3">
+                <div>
+                  <label class="label" :for="'rcv-' + l.key">รับเงินมา (บาท)</label>
+                  <MoneyInput :id="'rcv-' + l.key" v-model="l.received" class="input h-14 text-2xl font-semibold lx-input" placeholder="0" :readonly="!!l.locked || !!l.confirmed" />
+                </div>
+                <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <button v-for="v in quickFor(l)" :key="v" type="button" class="h-12 rounded-xl border-2 border-stone-200 bg-white text-base font-semibold text-stone-800 active:scale-[0.98] lx-footer-btn" :disabled="!!l.locked || !!l.confirmed" @click="l.received = String(v)">{{ v === lineAmt(l) ? 'พอดี' : money(v) }}</button>
+                </div>
+                <button v-if="remaining > 0 && changeOf(l) >= 0 && !l.confirmed && !binding" type="button" class="btn-outline h-12 w-full lx-footer-btn" @click="keepAndAddMore">รับส่วนที่เหลือ {{ money(remaining) }} ด้วยวิธีอื่น</button>
+                <button v-if="canBindCash(l, remaining) && !binding" type="button" class="btn-soft h-11 w-full lx-footer-btn" @click="bindCash(l)">บันทึกเงินสดนี้เป็นบิลค้าง</button>
+                <div v-if="l.confirmed && !l.locked" class="space-y-2">
+                  <div class="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800"><AppIcon name="check" :size="18" /> รับเงินสดแล้ว (ยังไม่บันทึกบิล)</div>
+                  <button v-if="!binding" type="button" class="btn-outline h-11 w-full" @click="cancelCash(l)">ยกเลิกการรับชำระ</button>
+                </div>
+              </div>
             </div>
           </template>
 
-          <template v-else-if="l.method === 'transfer'">
-            <button v-if="!l.qrRef" type="button" class="btn-primary mt-3 h-12 w-full" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
-
-            <div v-else-if="l.status === 'cancelled'" class="mt-3 space-y-2">
-              <div class="rounded-xl bg-stone-100 p-3 text-center text-sm text-stone-600">
-                <p class="font-medium text-stone-800">ยกเลิก QR แล้ว · ยอดนี้ไม่ถูกกันไว้ รับด้วยวิธีอื่นได้</p>
-                <p class="mt-1 text-xs text-stone-500">ระบบยังจับคู่การโอนเข้า QR เดิมให้จนปิดหน้าชำระ</p>
+          <!-- บัตร -->
+          <template v-else-if="l.method === 'card'">
+            <div class="rounded-2xl bg-brand-50 p-5 text-center lx-card">
+              <div class="text-sm text-brand-800">รับชำระด้วยบัตร</div>
+              <div class="text-4xl font-bold tabular-nums text-brand-900">{{ money(lineAmt(l)) }}</div>
+              <p class="mt-2 text-sm text-brand-800">รูดบัตรที่เครื่องรับบัตรให้สำเร็จ แล้วกด "ยืนยันรับเงิน"</p>
+              <button v-if="!l.locked && !l.confirmed && !l.split" type="button" class="mt-1 text-xs font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
+              <div v-if="l.split && !l.locked && !l.confirmed" class="mx-auto mt-2 max-w-48">
+                <label class="sr-only" :for="'amt-' + l.key">ยอดบัตร</label>
+                <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input h-10 text-center text-lg font-semibold" />
               </div>
-              <div v-if="(l.candidates || []).length" class="space-y-2">
-                <p class="text-center text-sm font-medium text-amber-800">พบการโอนเข้า QR เดิม เลือกรายการที่ใช่</p>
-                <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-12 w-full items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-4" @click="pickManee(l, c)">
-                  <span>{{ timeOnly(c.received_at) }}</span><span class="font-semibold">{{ money(c.amount) }} · เลือก</span>
-                </button>
-              </div>
-              <div v-if="(l.lateNotice || []).length" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
-                <p class="font-semibold">พบการโอนเข้า QR เดิม {{ money(l.lateNotice[0].amount) }} แต่บิลนี้รับยอดครบแล้ว</p>
-                <p class="mt-1">ระบบไม่ผูกให้เอง · พนักงานตรวจสอบและจัดการนอกระบบ</p>
-                <button type="button" class="mt-2 font-medium underline" @click="dismissLate(l)">ปิดการแจ้งเตือน</button>
-              </div>
-              <p v-else-if="l.searched && !(l.candidates || []).length" class="text-center text-sm text-stone-500">ยังไม่พบการโอนเข้า QR เดิม</p>
-              <button type="button" class="btn-outline h-11 w-full" @click="searchLate(l)">ค้นการโอนของ QR เดิม</button>
-              <button type="button" class="btn-primary h-12 w-full" @click="makeQr(l)">สร้าง QR ใหม่</button>
             </div>
+            <button v-if="remaining > 0 && !binding" type="button" class="btn-outline h-12 w-full lx-footer-btn" @click="keepAndAddMore">รับส่วนที่เหลือ {{ money(remaining) }} ด้วยวิธีอื่น</button>
+          </template>
 
-            <div v-else-if="l.confirmed" class="mt-3 space-y-2">
-              <!-- รับอัตโนมัติจากถุงเงิน: การ์ดเด้งเข้า เครื่องหมายถูกวาดเส้น วงแหวนขยาย และแสงกวาดผ่านครั้งเดียว · รับโดยพนักงานใช้แถบเดิม -->
-              <div v-if="l.acceptedBy === 'auto'" class="pay-pop relative flex items-center gap-3 overflow-hidden rounded-xl bg-emerald-600 px-3 py-2 text-white">
-                <span class="pay-sweep" aria-hidden="true" />
-                <span class="relative grid h-9 w-9 shrink-0 place-items-center">
+          <!-- โอนเงิน: ยังไม่มี QR (แบ่งจ่าย) → ใส่ยอดแล้วสร้าง QR -->
+          <template v-else-if="!l.qrRef">
+            <div class="rounded-2xl bg-brand-50 p-4 text-center lx-card">
+              <label class="text-sm text-brand-800" :for="'amt-' + l.key">ยอดโอนครั้งนี้ (บาท)</label>
+              <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input mx-auto mt-1 h-14 max-w-60 text-center text-2xl font-semibold lx-input" />
+            </div>
+            <button type="button" class="btn-primary h-14 w-full text-lg lx-footer-btn" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">แสดง QR ยอด {{ money(lineAmt(l)) }}</button>
+          </template>
+
+          <!-- โอนเงิน: ระบบพบการโอนแล้ว รอพนักงานกดรับ (ระบบรับเองเมื่อครบเวลา) -->
+          <template v-else-if="l.detectedAt">
+            <div class="pay-pop relative overflow-hidden rounded-2xl bg-emerald-600 p-5 text-white">
+              <div class="flex items-center gap-4">
+                <span class="relative grid h-14 w-14 shrink-0 place-items-center">
                   <span class="pay-ring absolute inset-0 rounded-full bg-white/40" aria-hidden="true" />
-                  <span class="relative grid h-9 w-9 place-items-center rounded-full bg-white/20">
-                    <svg class="pay-check h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
+                  <span class="relative grid h-14 w-14 place-items-center rounded-full bg-white/20">
+                    <svg class="pay-check h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
                   </span>
                 </span>
-                <div class="relative flex min-w-0 flex-1 flex-wrap items-baseline justify-between gap-x-3">
-                  <span class="text-sm font-medium text-emerald-50">รับชำระอัตโนมัติผ่านถุงเงิน</span>
-                  <span class="text-xl font-bold tabular-nums">{{ money(lineAmt(l)) }}</span>
+                <div class="min-w-0">
+                  <div class="text-base font-medium text-emerald-50">ลูกค้าโอนแล้ว · พบรายการโอน</div>
+                  <div class="text-4xl font-bold tabular-nums">{{ money(lineAmt(l)) }}</div>
                 </div>
               </div>
-              <div v-else class="pay-pop flex items-center justify-center gap-2 rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800"><AppIcon name="check" :size="18" /> รับชำระแล้ว</div>
-              <button v-if="!l.locked && !binding" type="button" class="btn-outline h-11 w-full" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิกการรับชำระ</button>
+              <p class="mt-3 text-sm text-emerald-50">ระบบรับให้เองใน <b class="tabular-nums text-white">{{ autoLeft(l) }}</b></p>
             </div>
+            <button type="button" class="btn-primary h-14 w-full text-lg" :disabled="binding" @click="receiveNow(l)"><AppIcon name="check" :size="18" /> รับชำระ</button>
+          </template>
 
-            <div v-else class="mt-3">
-              <!-- พบรายการโอนแล้ว: การ์ดสถานะเต็มความกว้าง แล้วปุ่มสองปุ่มขนาดเท่ากัน ไม่มีช่องว่างข้างการ์ด -->
-              <div v-if="l.detectedAt" class="space-y-3">
-                <div class="pay-pop relative overflow-hidden rounded-2xl bg-emerald-600 p-5 text-white">
-                  <div class="flex items-center gap-4">
-                    <span class="relative grid h-14 w-14 shrink-0 place-items-center">
-                      <span class="pay-ring absolute inset-0 rounded-full bg-white/40" aria-hidden="true" />
-                      <span class="relative grid h-14 w-14 place-items-center rounded-full bg-white/20">
-                        <svg class="pay-check h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" /></svg>
-                      </span>
-                    </span>
-                    <div class="min-w-0">
-                      <div class="text-sm font-medium text-emerald-50">ลูกค้าชำระแล้ว</div>
-                      <div class="text-3xl font-bold tabular-nums">{{ money(lineAmt(l)) }}</div>
-                    </div>
-                  </div>
-                  <div class="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm">
-                    <span class="rounded-full bg-white/20 px-3 py-1 font-medium">พบรายการโอนแล้ว</span>
-                    <span class="text-emerald-50">ระบบรับเองใน <b class="tabular-nums text-white">{{ autoLeft(l) }}</b></span>
-                  </div>
+          <!-- โอนเงิน: แสดง QR รอโอน -->
+          <template v-else>
+            <div class="grid items-center gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+              <BillerQr :amount="lineAmt(l)" :ref1="db.shop.merchantCode || ''" :ref2="l.qrRef" compact :show-amount="false" />
+              <div class="space-y-3 text-center sm:text-left">
+                <div>
+                  <div class="text-sm text-stone-500">ยอดโอน</div>
+                  <div class="text-4xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</div>
                 </div>
-                <div class="grid grid-cols-2 gap-2">
-                  <button type="button" class="btn-primary h-12" @click="receiveNow(l)"><AppIcon name="check" :size="16" /> รับชำระ</button>
-                  <button type="button" class="btn-outline h-12" @click="cancelQr(l)">ยกเลิก QR</button>
+                <div v-if="expiredLine(l)" class="space-y-2">
+                  <p class="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700">QR หมดอายุแล้ว สร้าง QR ใหม่ให้ลูกค้าสแกน</p>
+                  <button type="button" class="btn-primary h-12 w-full lx-footer-btn" @click="makeQr(l)">สร้าง QR ใหม่</button>
                 </div>
-              </div>
-
-              <!-- ยังไม่พบรายการ: QR (ซ้าย) กับสถานะและปุ่ม (ขวา) สูงเท่ากัน ปุ่มชิดล่าง -->
-              <div v-else class="grid gap-3 sm:grid-cols-2 sm:items-stretch landscape:gap-x-4 landscape:gap-y-2">
-                <BillerQr :amount="lineAmt(l)" :ref1="db.shop.merchantCode || ''" :ref2="l.qrRef" compact />
-                <div class="flex flex-col gap-3 landscape:gap-2">
-                  <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
-                    <span v-if="expiredLine(l)" class="rounded-full bg-rose-100 px-3 py-1 font-medium text-rose-700">QR หมดอายุแล้ว</span>
-                    <span v-else class="rounded-full bg-amber-100 px-3 py-1 font-medium text-amber-800">รอลูกค้าชำระ</span>
-                    <span v-if="!expiredLine(l)" class="text-stone-600">หมดอายุใน <b class="tabular-nums">{{ qrLeft(l) }}</b></span>
-                  </div>
-
-                  <div v-if="!expiredLine(l) && (l.candidates || []).length > 1" class="space-y-2">
-                    <p class="text-sm font-medium text-amber-800">พบหลายรายการที่ตรง เลือกรายการที่ใช่</p>
-                    <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-12 w-full items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-4" @click="pickManee(l, c)">
-                      <span>{{ timeOnly(c.received_at) }}</span><span class="font-semibold">เลือก</span>
-                    </button>
-                  </div>
-
-                  <div class="hidden flex-1 flex-col items-center justify-center rounded-2xl bg-amber-50 p-4 text-center sm:flex landscape:p-2.5">
-                    <span class="relative grid h-10 w-10 place-items-center" aria-hidden="true">
-                      <span v-if="!expiredLine(l)" class="motion-safe:animate-ping absolute inset-0 rounded-full bg-amber-300/60" />
-                      <span class="relative h-3 w-3 rounded-full" :class="expiredLine(l) ? 'bg-rose-500' : 'bg-amber-500'" />
-                    </span>
-                    <div class="mt-3 text-sm text-stone-600 landscape:mt-1">ยอดที่รอรับ</div>
-                    <div class="text-2xl font-bold tabular-nums text-stone-900 landscape:text-xl">{{ money(lineAmt(l)) }}</div>
-                    <p class="mt-2 max-w-xs text-xs text-stone-500 landscape:mt-1">{{ expiredLine(l) ? 'QR หมดอายุแล้ว สร้าง QR ใหม่เพื่อรับชำระ' : 'รอการโอนเข้า ระบบจับคู่ให้อัตโนมัติเมื่อยอดและรหัสอ้างอิงตรงกัน' }}</p>
-                  </div>
-                  <div class="mt-auto space-y-2">
-                    <button v-if="expiredLine(l)" type="button" class="btn-primary h-12 w-full landscape:h-11" @click="makeQr(l)">สร้าง QR ใหม่</button>
-                    <button v-else type="button" class="btn-outline h-12 w-full landscape:h-11" @click="receiveNow(l)">ลูกค้าชำระแล้ว (ไม่พบอัตโนมัติ)</button>
-                    <button type="button" class="btn-outline h-11 w-full" @click="cancelQr(l)">ยกเลิก QR</button>
-                  </div>
+                <div v-else class="flex items-center justify-center gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-amber-900 sm:justify-start">
+                  <span class="relative grid h-3 w-3 place-items-center" aria-hidden="true"><span class="motion-safe:animate-ping absolute inset-0 rounded-full bg-amber-400/70" /><span class="relative h-2.5 w-2.5 rounded-full bg-amber-500" /></span>
+                  <span class="font-semibold">รอลูกค้าโอน</span>
+                  <span class="text-sm">· หมดอายุใน <b class="tabular-nums">{{ qrLeft(l) }}</b></span>
+                </div>
+                <p v-if="!expiredLine(l)" class="text-xs text-stone-500">ระบบตรวจการโอนเข้าให้อัตโนมัติ ไม่ต้องกดอะไร</p>
+                <div v-if="!expiredLine(l) && (l.candidates || []).length > 1" class="space-y-2">
+                  <p class="text-sm font-medium text-amber-800">พบหลายรายการที่ตรง เลือกรายการที่ใช่</p>
+                  <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-11 w-full items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-4" @click="pickManee(l, c)">
+                    <span>{{ timeOnly(c.received_at) }}</span><span class="font-semibold">เลือก</span>
+                  </button>
+                </div>
+                <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm sm:justify-start">
+                  <button v-if="!expiredLine(l) && !binding" type="button" class="font-medium text-stone-700 underline" @click="receiveNow(l)">ลูกค้าโอนแล้วแต่ระบบยังไม่พบ (ตรวจสลิปแล้ว)</button>
+                  <button v-if="!binding" type="button" class="font-medium text-stone-500 underline" @click="splitTransfer(l)">แบ่งจ่าย (เปลี่ยนยอด)</button>
                 </div>
               </div>
             </div>
           </template>
-          <p v-else class="mt-3 text-sm text-stone-500">รับตามยอดที่ระบุ</p>
-        </div>
         </template>
 
-        <p v-if="payLines.length && remaining !== 0" class="rounded-xl p-2.5 text-center text-sm" :class="remaining > 0 ? 'bg-amber-50 text-amber-800' : 'bg-rose-50 text-rose-700'">{{ remaining > 0 ? 'เพิ่มวิธีชำระให้ครบยอด' : 'ยอดเกิน ลดยอดของรายการใดรายการหนึ่ง' }}</p>
+        <!-- ขั้น 1: เลือกวิธีชำระ -->
+        <template v-if="!focusLine">
+          <div class="rounded-2xl p-4 lx-card" :class="canConfirm ? 'bg-emerald-50' : 'bg-brand-50'">
+            <div class="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <div class="text-sm" :class="canConfirm ? 'text-emerald-800' : 'text-brand-800'">{{ canConfirm ? 'รับเงินครบแล้ว' : remaining < 0 ? 'รับเกินยอด' : listedLines.length ? 'ยังต้องรับอีก' : 'ยอดชำระ' }}</div>
+                <div class="text-4xl font-bold tabular-nums" :class="canConfirm ? 'text-emerald-900' : remaining < 0 ? 'text-rose-700' : 'text-brand-900'">{{ money(canConfirm ? total : Math.abs(remaining)) }}</div>
+              </div>
+              <div v-if="listedLines.length && !canConfirm" class="text-right text-sm text-brand-800">ยอดบิล {{ money(total) }}</div>
+              <div v-if="canConfirm" class="text-sm text-emerald-800">กด "ยืนยันรับเงิน" เพื่อปิดบิล</div>
+            </div>
+          </div>
+
+          <ul v-if="listedLines.length" class="space-y-2" aria-label="รายการชำระของบิลนี้">
+            <li v-for="l in listedLines" :key="l.key" class="flex items-center gap-3 rounded-2xl border border-stone-200 bg-white px-3 py-2.5">
+              <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full" :class="l.confirmed || l.locked || lineOk(l) ? 'bg-emerald-600 text-white' : 'bg-stone-200 text-stone-600'" aria-hidden="true"><AppIcon name="check" :size="16" /></span>
+              <div class="min-w-0 flex-1">
+                <div class="font-semibold text-stone-800">{{ POS_METHODS[l.method] }} <span v-if="l.acceptedBy === 'auto'" class="text-xs font-medium text-emerald-700">· รับอัตโนมัติ</span><span v-if="l.locked" class="text-xs font-medium text-stone-500"> · บันทึกแล้ว</span></div>
+                <div v-if="l.method === 'cash' && !l.locked" class="text-xs text-stone-500">รับมา {{ money(Number(l.received) || 0) }} · ทอน {{ money(Math.max(changeOf(l), 0)) }}</div>
+              </div>
+              <span class="text-lg font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</span>
+              <button v-if="!l.locked && !l.confirmed && l.method !== 'transfer' && !binding" type="button" class="btn-outline h-9 shrink-0 px-3 text-sm" @click="focusKey = l.key">แก้</button>
+              <button v-if="!l.locked && l.confirmed && !binding" type="button" class="btn-outline h-9 shrink-0 px-3 text-sm" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิก</button>
+              <button v-else-if="!l.locked && !l.qrRef && !binding" type="button" class="h-9 shrink-0 rounded-full px-2 text-sm font-medium text-rose-700 hover:bg-rose-50" @click="removePayLine(payLines.indexOf(l))">ลบ</button>
+            </li>
+          </ul>
+
+          <div v-if="remaining > 0" class="grid grid-cols-3 gap-2" aria-label="เลือกวิธีชำระ">
+            <button v-for="(label, k) in POS_METHODS" :key="k" type="button" class="h-16 rounded-2xl border-2 border-brand-200 bg-white text-lg font-semibold text-brand-800 active:scale-[0.98] lx-footer-btn" :disabled="binding" @click="startMethod(k)">{{ label }}</button>
+          </div>
+
+          <div class="grid gap-3 landscape:grid-cols-2">
+            <!-- สมาชิกสะสมแต้ม: เปลี่ยนได้จนกว่าจะสร้าง QR หรือรับชำระรายการแรก (กันยอดที่แจ้งไปแล้วเปลี่ยน) -->
+            <div v-if="!member && !memberLocked" class="space-y-1.5 rounded-2xl border border-stone-200 bg-white p-3" aria-label="เบอร์สะสมแต้ม">
+              <div class="text-sm font-semibold text-stone-800">เบอร์สะสมแต้ม <span class="font-normal text-stone-400">(ไม่บังคับ)</span></div>
+              <input v-model="memberQ" type="search" class="input h-10" placeholder="เบอร์ / ชื่อ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
+              <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
+              <div v-if="memberMatches.length" class="space-y-1">
+                <button v-for="c in memberMatches" :key="c.id" type="button" class="flex w-full justify-between gap-2 rounded-lg border border-stone-200 px-3 py-2 text-left text-sm hover:border-brand-300" @click="pickMember(c)">
+                  <span class="truncate">{{ c.name }}</span><span class="shrink-0 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
+                </button>
+              </div>
+            </div>
+            <div v-else-if="member" class="flex items-center justify-between gap-2 rounded-2xl border border-stone-200 bg-white p-3">
+              <div class="min-w-0"><div class="text-xs text-stone-500">สมาชิกสะสมแต้ม</div><div class="truncate font-semibold text-stone-800">{{ member.name }}</div><div class="text-xs text-stone-500">{{ member.phone ? formatPhone(member.phone) : '' }}</div></div>
+              <button v-if="!memberLocked" type="button" class="shrink-0 text-xs text-stone-500 underline" @click="member = null; couponIds = []">เปลี่ยน</button>
+            </div>
+
+            <div v-if="member && coupons.length" class="rounded-2xl border border-stone-200 bg-white p-3" aria-label="คูปองส่วนลดในขั้นชำระเงิน">
+              <div class="mb-1.5 text-sm font-semibold text-stone-800">คูปอง · กดเพื่อใช้</div>
+              <div class="flex flex-wrap gap-1.5">
+                <button v-for="c in coupons" :key="c.id" type="button" class="chip h-auto max-w-full py-1.5 text-left whitespace-normal" :class="[couponIds.includes(c.id) ? 'chip-on' : 'chip-off', couponOk(c) ? '' : 'opacity-50']" :disabled="!couponOk(c) || memberLocked" :aria-pressed="couponIds.includes(c.id)" @click="toggleCoupon(c.id)">{{ c.name }} · {{ couponTermsText(c) }} · เหลือ {{ mmss(c) }}</button>
+              </div>
+              <p v-for="c in coupons.filter((x) => !couponOk(x))" :key="'n' + c.id" class="mt-1 text-xs text-amber-700">{{ c.name }}: {{ couponReason(c) }}</p>
+              <p v-if="keptProblem" class="mt-1 text-xs text-rose-700" role="alert">{{ keptProblem }}</p>
+              <p v-if="couponIds.length" class="mt-1.5 text-xs text-emerald-700">ใช้คูปองลดแล้ว {{ money(preview.couponDiscount) }}</p>
+            </div>
+            <p v-else-if="member && hiddenCoupons" class="rounded-2xl bg-amber-50 p-3 text-xs text-amber-800" role="note">ลูกค้ามีคูปอง {{ hiddenCoupons }} ใบที่ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" ให้ลูกค้ากดในบัญชีของตนก่อน คูปองจึงจะขึ้นที่นี่ (มีเวลาแสดง {{ db.loyalty.activationMin }} นาที)</p>
+          </div>
+
+          <!-- QR ที่ยกเลิกแล้ว: ระบบยังเฝ้าการโอนเข้า QR เดิมจนปิดหน้าชำระ -->
+          <div v-for="l in cancelledQrs" :key="'x' + l.key" class="space-y-2 rounded-2xl border border-stone-200 bg-stone-50 p-3 text-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span class="text-stone-700">QR ที่ยกเลิก {{ money(lineAmt(l)) }} · ระบบยังตรวจการโอนเข้าให้</span>
+              <button type="button" class="font-medium text-stone-700 underline" @click="searchLate(l)">ค้นการโอนของ QR นี้</button>
+            </div>
+            <div v-if="(l.candidates || []).length" class="space-y-2">
+              <p class="font-medium text-amber-800">พบการโอนเข้า QR เดิม เลือกรายการที่ใช่</p>
+              <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-11 w-full items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-4" @click="pickManee(l, c)">
+                <span>{{ timeOnly(c.received_at) }}</span><span class="font-semibold">{{ money(c.amount) }} · เลือก</span>
+              </button>
+            </div>
+            <div v-if="(l.lateNotice || []).length" class="rounded-xl bg-amber-50 p-3 text-amber-900">
+              <p class="font-semibold">พบการโอนเข้า QR เดิม {{ money(l.lateNotice[0].amount) }} แต่บิลนี้รับยอดครบแล้ว</p>
+              <p class="mt-1">ระบบไม่ผูกให้เอง · พนักงานตรวจสอบและจัดการนอกระบบ</p>
+              <button type="button" class="mt-2 font-medium underline" @click="dismissLate(l)">ปิดการแจ้งเตือน</button>
+            </div>
+            <p v-else-if="l.searched && !(l.candidates || []).length" class="text-stone-500">ยังไม่พบการโอนเข้า QR เดิม</p>
+          </div>
+        </template>
       </div>
-      <template #footer>
+
+      <template v-if="!focusLine || focusLine.method !== 'transfer'" #footer>
         <div class="flex w-full gap-2">
-          <button class="btn-outline h-12 flex-1" :disabled="binding" @click="requestClose">ยกเลิก</button>
-          <button v-if="canSavePartial" class="btn-soft h-12 flex-1" :disabled="binding" @click="saveBillPartial">บันทึกบิลค้างไว้</button>
-          <button class="btn-primary h-12 flex-[1.4]" :disabled="!canConfirm || binding" @click="confirmPay"><AppIcon name="check" :size="18" /> ยืนยันรับเงิน</button>
+          <button class="btn-outline h-12 flex-1 lx-footer-btn" :disabled="binding" @click="requestClose">ยกเลิก</button>
+          <button v-if="canSavePartial" class="btn-soft h-12 flex-1 lx-footer-btn" :disabled="binding" @click="saveBillPartial">บันทึกบิลค้างไว้</button>
+          <button v-if="canConfirm" class="btn-primary h-12 flex-[1.4] lx-footer-btn" :disabled="binding" @click="confirmPay"><AppIcon name="check" :size="18" /> ยืนยันรับเงิน</button>
         </div>
       </template>
     </AppModal>
