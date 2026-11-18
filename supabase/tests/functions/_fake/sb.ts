@@ -15,12 +15,22 @@ class Q {
   eq(c: string, v: any) { this.f.push((r) => get(r, c) === v); return this }
   neq(c: string, v: any) { this.f.push((r) => get(r, c) !== v); return this }
   gte(c: string, v: any) { this.f.push((r) => get(r, c) != null && String(get(r, c)) >= String(v)); return this }
+  gt(c: string, v: any) { this.f.push((r) => get(r, c) != null && String(get(r, c)) > String(v)); return this }
+  lte(c: string, v: any) { this.f.push((r) => get(r, c) != null && String(get(r, c)) <= String(v)); return this }
+  lt(c: string, v: any) { this.f.push((r) => get(r, c) != null && String(get(r, c)) < String(v)); return this }
+  in(c: string, vs: any[]) { this.f.push((r) => vs.map(String).includes(String(get(r, c)))); return this }
+  not(c: string, op: string, v: any) {
+    if (op === 'is') { this.f.push((r) => (get(r, c) ?? null) !== v); return this }
+    if (op === 'in') { const set = String(v).replace(/^\(|\)$/g, '').split(',').map((x) => x.replace(/^"|"$/g, '')); this.f.push((r) => !set.includes(String(get(r, c)))); return this }
+    throw new Error(`not ${op} ไม่ได้จำลอง`)
+  }
   is(c: string, v: any) { this.f.push((r) => (get(r, c) ?? null) === v); return this }
   contains(c: string, v: any) { this.f.push((r) => containsJson(r[c], v)); return this }
   filter(c: string, op: string, v: any) { if (op === 'is') return this.is(c, v); if (op === 'eq') return this.eq(c, v); throw new Error(`filter ${op} ไม่ได้จำลอง`) }
   order(..._a: any[]) { return this }
   limit(n: number) { this.lim = n; return this }
   range(from: number, to: number) { this.off = from; this.lim = to - from + 1; return this }
+  delete() { this.op = 'delete'; return this }
   insert(p: any) { this.op = 'insert'; this.patch = p; return this }
   update(p: any) { this.op = 'update'; this.patch = p; return this }
   upsert(p: any, o?: any) { this.op = 'upsert'; this.patch = p; this.conflict = o?.onConflict || 'id'; this.ignoreDup = !!o?.ignoreDuplicates; return this }
@@ -41,6 +51,7 @@ class Q {
       return { data: written, error: null }
     }
     let hit = list.filter((r) => this.f.every((g) => g(r)))
+    if (this.op === 'delete') { const keep = list.filter((r) => !hit.includes(r)); list.length = 0; list.push(...keep); return { data: structuredClone(hit), error: null } }
     if (this.op === 'update') { for (const r of hit) Object.assign(r, structuredClone(this.patch)); return { data: structuredClone(hit), error: null } }
     if (this.lim != null) hit = hit.slice(this.off, this.off + this.lim)
     if (this.head) return { data: null, count: hit.length, error: null }
