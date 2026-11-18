@@ -1199,8 +1199,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <span class="text-base font-semibold text-stone-800">{{ POS_METHODS[l.method] }}</span>
             <button v-if="!l.qrRef && !l.locked && !l.confirmed && (payLines.length > 1 || l.method !== 'cash')" type="button" class="rounded-full px-3 py-1 text-sm font-medium text-rose-700 hover:bg-rose-50" @click="removePayLine(i)">ลบ</button>
           </div>
-          <label class="label mt-3" :for="'amt-' + l.key">ยอด (บาท)</label>
-          <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input h-12 text-lg font-semibold" :readonly="!!l.qrRef || !!l.locked || !!l.confirmed" />
+          <label class="label mt-3" :class="l.method === 'transfer' ? 'landscape:mt-1' : ''" :for="'amt-' + l.key">ยอด (บาท)</label>
+          <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input h-12 text-lg font-semibold" :class="l.method === 'transfer' ? 'landscape:h-10' : ''" :readonly="!!l.qrRef || !!l.locked || !!l.confirmed" />
 
           <template v-if="l.method === 'cash'">
             <label class="label mt-3" :for="'rcv-' + l.key">รับเงินมา (บาท)</label>
