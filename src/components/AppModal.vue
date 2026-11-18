@@ -4,7 +4,7 @@ import { useDialogA11y } from '../lib/dialogA11y'
 import { kb } from '../lib/viewportFit'
 import AppIcon from './AppIcon.vue'
 
-defineProps({ title: { type: String, default: '' }, wide: { type: Boolean, default: false }, wider: { type: Boolean, default: false } }) // wider: กว้างขึ้นบนจอ lg สำหรับเลย์เอาต์สองคอลัมน์
+defineProps({ title: { type: String, default: '' }, wide: { type: Boolean, default: false }, wider: { type: Boolean, default: false }, full: { type: Boolean, default: false } }) // full: เต็มจอ (ไม่มีขอบมุมและไม่เว้นขอบ) // wider: กว้างขึ้นบนจอ lg สำหรับเลย์เอาต์สองคอลัมน์
 const emit = defineEmits(['close'])
 const box = ref(null)
 const titleId = `dlg-${useId()}`
@@ -26,7 +26,7 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
       class="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-stone-900/45 backdrop-blur-[2px]"
       :style="kb.open ? { top: 'var(--vvt, 0px)', bottom: 'auto', height: 'var(--vvh, 100%)' } : undefined"
     >
-    <div class="flex h-full items-end justify-center pt-8 sm:items-center sm:p-6" @click.self="backdrop">
+    <div class="flex h-full items-end justify-center sm:items-center" :class="full ? 'pt-0 sm:p-0' : 'pt-8 sm:p-6'" @click.self="backdrop">
       <div
         ref="box"
         data-dialog
@@ -35,7 +35,7 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
         @input.capture="dirty = true"
         @change.capture="dirty = true"
         class="flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-t-[2rem] bg-cream shadow-2xl outline-none sm:rounded-[2rem]"
-        :class="wider ? 'sm:max-w-2xl lg:max-w-5xl' : wide ? 'sm:max-w-2xl' : 'sm:max-w-md'"
+        :class="full ? 'h-full rounded-none sm:h-full sm:max-w-none sm:rounded-none' : wider ? 'sm:max-w-2xl lg:max-w-5xl' : wide ? 'sm:max-w-2xl' : 'sm:max-w-md'"
         role="dialog"
         aria-modal="true"
       >
