@@ -1148,11 +1148,11 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <!-- ชำระเงิน · เลย์เอาต์ใหม่: สรุปยอด → เลือกวิธีชำระ → รายการชำระ → ยืนยันปุ่มล่าง -->
     <AppModal v-if="payOpen" title="ชำระเงิน" wide @close="requestClose">
       <div class="space-y-4">
-        <div class="rounded-2xl bg-brand-50 p-4">
+        <div class="rounded-2xl bg-brand-50 p-4 landscape:p-3">
           <div class="flex items-end justify-between gap-3">
             <div>
               <div class="text-sm text-brand-800">ยอดชำระ</div>
-              <div class="text-3xl font-semibold text-brand-900">{{ money(total) }}</div>
+              <div class="text-3xl font-semibold text-brand-900 landscape:text-2xl">{{ money(total) }}</div>
             </div>
             <div class="text-right">
               <div class="text-sm font-medium" :class="remaining > 0 ? 'text-amber-800' : remaining < 0 ? 'text-rose-700' : 'text-emerald-800'">{{ remaining > 0 ? 'ยังขาด' : remaining < 0 ? 'เกินยอด' : 'ครบแล้ว' }}</div>
@@ -1176,7 +1176,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <div v-if="remaining > 0" class="space-y-2">
           <div class="text-sm font-semibold text-stone-700">{{ payLines.length ? 'เพิ่มวิธีชำระอีก' : 'เลือกวิธีชำระ' }}</div>
           <div class="grid grid-cols-3 gap-2">
-            <button v-for="(label, k) in POS_METHODS" :key="k" type="button" class="h-14 rounded-2xl border-2 border-brand-200 bg-white text-base font-semibold text-brand-800 active:scale-[0.98]" @click="addPayLine(k)">{{ label }}</button>
+            <button v-for="(label, k) in POS_METHODS" :key="k" type="button" class="h-14 landscape:h-11 rounded-2xl border-2 border-brand-200 bg-white text-base font-semibold text-brand-800 active:scale-[0.98]" @click="addPayLine(k)">{{ label }}</button>
           </div>
         </div>
         <p v-if="!payLines.length" class="rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-500">เลือกวิธีชำระด้านบนเพื่อเริ่มรับเงิน</p>
@@ -1313,7 +1313,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                     </span>
                     <div class="mt-3 text-sm text-stone-600 landscape:mt-0">ยอดที่รอรับ</div>
                     <div class="text-2xl font-bold tabular-nums text-stone-900 landscape:text-xl">{{ money(lineAmt(l)) }}</div>
-                    <p class="mt-2 max-w-xs text-xs text-stone-500 landscape:mt-0.5 landscape:leading-snug">{{ expiredLine(l) ? 'QR หมดอายุแล้ว สร้าง QR ใหม่เพื่อรับชำระ' : 'รอการโอนเข้า ระบบจับคู่ให้อัตโนมัติเมื่อยอดและรหัสอ้างอิงตรงกัน' }}</p>
+                    <p class="mt-2 max-w-xs text-xs text-stone-500 landscape:hidden">{{ expiredLine(l) ? 'QR หมดอายุแล้ว สร้าง QR ใหม่เพื่อรับชำระ' : 'รอการโอนเข้า ระบบจับคู่ให้อัตโนมัติเมื่อยอดและรหัสอ้างอิงตรงกัน' }}</p>
                   </div>
                   <div class="mt-auto space-y-2">
                     <button v-if="expiredLine(l)" type="button" class="btn-primary h-12 w-full landscape:h-10" @click="makeQr(l)">สร้าง QR ใหม่</button>
