@@ -1,0 +1,35 @@
+name: Deploy line-push
+
+# รันเองเท่านั้น: GitHub → Actions → Deploy line-push → Run workflow
+# ขั้นเทสต์ต้องผ่านก่อน จึงจะ deploy · ถ้าเทสต์ล้มเหลว ฟังก์ชันบน production ไม่ถูกเปลี่ยน
+# ต้องมี LINE_CHANNEL_ACCESS_TOKEN บนเซิร์ฟเวอร์ (ตั้งไว้แล้วสำหรับ line-webhook)
+# ใช้ JWT ของพนักงาน (ไม่ใช้ --no-verify-jwt) และตรวจสิทธิ์พนักงานซ้ำในฟังก์ชัน
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: เทสต์โมดูลที่ใช้ร่วมกัน (_shared รวม linepush)
+        run: deno test --no-prompt --no-lock --node-modules-dir=none supabase/functions/_shared/
+      - name: ตรวจชนิดข้อมูลของ line-push
+        run: deno check --no-lock --node-modules-dir=none supabase/functions/line-push/index.ts
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # --yes: ไม่มี TTY ใน Actions จึงต้องยืนยันล่วงหน้า
+      - name: Deploy line-push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy line-push --project-ref itleduijrckxdbhhuooi --yes
