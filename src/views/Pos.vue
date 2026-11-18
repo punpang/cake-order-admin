@@ -1194,7 +1194,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <span class="text-lg font-bold tabular-nums text-emerald-900">{{ money(lineAmt(l)) }}</span>
             <button v-if="!l.locked && !binding" type="button" class="btn-outline h-9 shrink-0 px-3 text-sm" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิก</button>
           </div>
-          <div v-else class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+          <div v-else class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm landscape:p-3">
           <div class="flex items-center justify-between gap-2">
             <span class="text-base font-semibold text-stone-800">{{ POS_METHODS[l.method] }}</span>
             <button v-if="!l.qrRef && !l.locked && !l.confirmed && (payLines.length > 1 || l.method !== 'cash')" type="button" class="rounded-full px-3 py-1 text-sm font-medium text-rose-700 hover:bg-rose-50" @click="removePayLine(i)">ลบ</button>
@@ -1262,7 +1262,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               <button v-if="!l.locked && !binding" type="button" class="btn-outline h-11 w-full" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิกการรับชำระ</button>
             </div>
 
-            <div v-else class="mt-3">
+            <div v-else class="mt-3 landscape:mt-2">
               <!-- พบรายการโอนแล้ว: การ์ดสถานะเต็มความกว้าง แล้วปุ่มสองปุ่มขนาดเท่ากัน ไม่มีช่องว่างข้างการ์ด -->
               <div v-if="l.detectedAt" class="space-y-3">
                 <div class="pay-pop relative overflow-hidden rounded-2xl bg-emerald-600 p-5 text-white">
@@ -1307,18 +1307,18 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                   </div>
 
                   <div class="hidden flex-1 flex-col items-center justify-center rounded-2xl bg-amber-50 p-4 text-center sm:flex landscape:p-2.5">
-                    <span class="relative grid h-10 w-10 place-items-center" aria-hidden="true">
+                    <span class="relative grid h-10 w-10 place-items-center landscape:hidden" aria-hidden="true">
                       <span v-if="!expiredLine(l)" class="motion-safe:animate-ping absolute inset-0 rounded-full bg-amber-300/60" />
                       <span class="relative h-3 w-3 rounded-full" :class="expiredLine(l) ? 'bg-rose-500' : 'bg-amber-500'" />
                     </span>
-                    <div class="mt-3 text-sm text-stone-600 landscape:mt-1">ยอดที่รอรับ</div>
+                    <div class="mt-3 text-sm text-stone-600 landscape:mt-0">ยอดที่รอรับ</div>
                     <div class="text-2xl font-bold tabular-nums text-stone-900 landscape:text-xl">{{ money(lineAmt(l)) }}</div>
-                    <p class="mt-2 max-w-xs text-xs text-stone-500 landscape:mt-1">{{ expiredLine(l) ? 'QR หมดอายุแล้ว สร้าง QR ใหม่เพื่อรับชำระ' : 'รอการโอนเข้า ระบบจับคู่ให้อัตโนมัติเมื่อยอดและรหัสอ้างอิงตรงกัน' }}</p>
+                    <p class="mt-2 max-w-xs text-xs text-stone-500 landscape:mt-0.5 landscape:leading-snug">{{ expiredLine(l) ? 'QR หมดอายุแล้ว สร้าง QR ใหม่เพื่อรับชำระ' : 'รอการโอนเข้า ระบบจับคู่ให้อัตโนมัติเมื่อยอดและรหัสอ้างอิงตรงกัน' }}</p>
                   </div>
                   <div class="mt-auto space-y-2">
-                    <button v-if="expiredLine(l)" type="button" class="btn-primary h-12 w-full landscape:h-11" @click="makeQr(l)">สร้าง QR ใหม่</button>
-                    <button v-else type="button" class="btn-outline h-12 w-full landscape:h-11" @click="receiveNow(l)">ลูกค้าชำระแล้ว (ไม่พบอัตโนมัติ)</button>
-                    <button type="button" class="btn-outline h-11 w-full" @click="cancelQr(l)">ยกเลิก QR</button>
+                    <button v-if="expiredLine(l)" type="button" class="btn-primary h-12 w-full landscape:h-10" @click="makeQr(l)">สร้าง QR ใหม่</button>
+                    <button v-else type="button" class="btn-outline h-12 w-full landscape:h-10" @click="receiveNow(l)">ลูกค้าชำระแล้ว (ไม่พบอัตโนมัติ)</button>
+                    <button type="button" class="btn-outline h-11 w-full landscape:h-10" @click="cancelQr(l)">ยกเลิก QR</button>
                   </div>
                 </div>
               </div>
