@@ -296,13 +296,14 @@ async function orderContext(o: BotInput, cid: string | null): Promise<string[] |
   return (r.data || []).filter((x: any) => x?.status !== 'cancelled').slice(0, 3).map(orderLine)
 }
 
-// บันทึกผลการเรียก AI (ไม่เก็บคีย์ · ข้อความลูกค้าตัดเหลือ 200 ตัวอักษรและตัดข้อมูลส่วนตัวแล้ว)
+// ข้อมูลที่บันทึกใน aiLog · ไม่เก็บข้อความลูกค้าทุกช่องทาง (LINE และ Messenger) เก็บเฉพาะรหัสแชท สถานะ โมเดล และเวลา
+export function aiLogData(o: { chatId: string }, x: { status: string; model?: string; ms?: number }) {
+  return { chatId: o.chatId, status: x.status, model: x.model ?? null, ms: x.ms ?? null, at: new Date().toISOString() }
+}
+
 async function logAi(o: BotInput, x: { status: string; model?: string; ms?: number }) {
   try {
-    await o.sb.from('punpang_records').insert({
-      collection: 'aiLog', id: `ai${rand(6)}`,
-      data: { chatId: o.chatId, status: x.status, model: x.model ?? null, ms: x.ms ?? null, customer: scrubPII(o.text).slice(0, 200), at: new Date().toISOString() },
-    })
+    await o.sb.from('punpang_records').insert({ collection: 'aiLog', id: `ai${rand(6)}`, data: aiLogData(o, x) })
   } catch { /* บันทึก log ไม่สำเร็จ ไม่กระทบการตอบ */ }
 }
 

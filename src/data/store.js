@@ -619,7 +619,7 @@ export const db = reactive({
     docs: {
       privacy: { version: 1, title: LEGAL_KINDS.privacy.label, text: DEFAULT_PRIVACY, updatedAt: new Date().toISOString() },
       terms: { version: 1, title: LEGAL_KINDS.terms.label, text: DEFAULT_TERMS, updatedAt: new Date().toISOString() },
-      cookie: { version: 1, title: LEGAL_KINDS.cookie.label, text: DEFAULT_COOKIE, updatedAt: new Date().toISOString() },
+      cookie: { version: 2, title: LEGAL_KINDS.cookie.label, text: DEFAULT_COOKIE, updatedAt: new Date().toISOString() },
     },
   },
   consents: [],

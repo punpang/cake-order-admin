@@ -39,6 +39,7 @@ async function open(u) {
     const r = await c.from('punpang_line_messages')
       .select('direction,kind,text,source,created_at')
       .eq('line_user_id', u.line_user_id)
+      .eq('direction', 'out')
       .order('created_at', { ascending: true })
       .limit(300)
     if (r.error) throw r.error

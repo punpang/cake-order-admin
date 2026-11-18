@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { db, recordCakeClick } from '../../data/store'
 import { latestCustomPhotos } from '../../lib/cakeSearch'
 import { tagsByGroup, visitorId } from '../../lib/cakeReco'
+import { cookieAllowed } from '../../lib/consent'
 import { dateOnly } from '../../lib/format'
 import AppIcon from '../../components/AppIcon.vue'
 import CakeArt from '../../components/art/CakeArt.vue'
@@ -13,8 +14,10 @@ const p = computed(() => latestCustomPhotos(db).find((x) => x.id === props.id) |
 const groups = computed(() => (p.value ? tagsByGroup(db, p.value.tags) : []))
 const show = ref(false)
 watch(() => props.id, () => (show.value = false))
-onMounted(() => recordCakeClick(props.id, visitorId()))
-watch(() => props.id, (v) => recordCakeClick(v, visitorId()))
+// บันทึกการคลิกเฉพาะเมื่อลูกค้ายินยอมคุกกี้วิเคราะห์ (ไม่ยินยอม → ไม่สร้างรหัสในเบราว์เซอร์และไม่บันทึกการคลิก)
+const trackClick = (id) => recordCakeClick(id, cookieAllowed('analytics', db.legal.docs.cookie.version) ? visitorId() : null)
+onMounted(() => trackClick(props.id))
+watch(() => props.id, (v) => trackClick(v))
 const altOf = (x) => x.caption || [x.typeName, ...x.tagNames.filter((t) => t.groupKey !== 'type').map((t) => t.name)].filter(Boolean).join(' ') || 'เค้กสั่งทำ'
 const copied = ref(false)
 async function copyRef() {
