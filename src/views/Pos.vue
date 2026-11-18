@@ -883,9 +883,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 <template>
   <div v-if="!can('pos')" class="card py-10 text-center text-stone-500">บทบาทนี้ใช้ POS ไม่ได้</div>
 
-  <div v-else class="mx-auto max-w-page">
+  <div v-else class="mx-auto max-w-page px-4 pt-3 lg:px-8" :class="tab === 'sell' && shift ? 'flex h-full flex-col overflow-hidden' : 'h-full overflow-y-auto'">
     <!-- หัว -->
-    <div class="mb-3 flex flex-wrap items-center gap-2">
+    <div class="mb-3 flex shrink-0 flex-wrap items-center gap-2">
       <RouterLink to="/admin/orders" class="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 md:hidden" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
       <h1 class="page-title">POS หน้าร้าน</h1>
       <span v-if="shift" class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">กะเปิด {{ timeOnly(shift.openedAt) }} · {{ ROLES[shift.openedBy] }}</span>
@@ -914,7 +914,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     </section>
 
     <!-- ขาย -->
-    <div v-else-if="tab === 'sell'" class="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
+    <div v-else-if="tab === 'sell'" class="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px]" :class="editBill ? 'grid-rows-[auto_minmax(0,1fr)]' : 'grid-rows-[minmax(0,1fr)]'">
       <div v-if="editBill" class="col-span-full flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900" role="status">
         <span>กำลังแก้รายการบิลค้าง <b>{{ orderNo(editBill.code) }}</b> · รับไปแล้ว {{ money(orderTotals(editBill).paidNet) }} · ยอดรวมหลังแก้ต้องไม่ต่ำกว่านี้</span>
         <span v-if="editBill.couponsUsed?.length" class="flex flex-wrap items-center gap-1.5">
@@ -922,19 +922,20 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <button v-for="c in editBill.couponsUsed" :key="c.couponId" type="button" class="chip h-auto py-1" :class="editDrop.includes(c.couponId) ? 'chip-off line-through' : 'chip-on'" :aria-pressed="editDrop.includes(c.couponId)" @click="toggleDrop(c.couponId)">{{ c.name }} −{{ money(c.amount) }}</button>
         </span>
       </div>
-      <section class="min-w-0 pb-24 lg:pb-0">
-        <div class="mb-3 flex gap-2">
+      <section class="flex min-h-0 min-w-0 flex-col">
+        <div class="mb-3 flex shrink-0 gap-2">
           <label class="relative min-w-0 flex-1">
             <span class="sr-only">ค้นหาสินค้า</span>
             <AppIcon name="search" class="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-stone-400" />
             <input v-model="q" type="search" class="input bg-white pl-10" placeholder="ค้นหาสินค้า" />
           </label>
         </div>
-        <div class="-mx-4 mb-3 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0">
+        <div class="-mx-4 mb-3 flex shrink-0 gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0">
           <button type="button" class="chip" :class="!cat ? 'chip-on' : 'chip-off'" @click="cat = ''">ทั้งหมด</button>
           <button v-for="c in categories" :key="c" type="button" class="chip whitespace-nowrap" :class="cat === c ? 'chip-on' : 'chip-off'" @click="cat = c">{{ c }}</button>
           <button type="button" class="chip ml-auto whitespace-nowrap" :class="sortBest ? 'chip-on' : 'chip-off'" :aria-pressed="sortBest" @click="sortBest = !sortBest"><AppIcon name="star" :size="13" /> เรียงขายดี</button>
         </div>
+        <div class="min-h-0 flex-1 overflow-y-auto pb-24 lg:pb-4">
         <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           <div v-for="x in shown" :key="x.kind + x.id" class="relative">
           <button
@@ -958,6 +959,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           </div>
         </div>
         <p v-if="!shown.length" class="empty py-8 text-sm">ไม่พบสินค้า</p>
+        </div>
       </section>
 
       <!-- ตะกร้า (คอม = แผงขวา · มือถือ = bottom sheet) -->
