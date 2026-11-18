@@ -1332,15 +1332,19 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <!-- โอน: ยังไม่มี QR · ยอดเต็มกดสร้างได้ทันที แบ่งจ่ายจึงแสดงแป้นตัวเลข -->
             <div v-else-if="!l.qrRef" class="grid min-h-0 flex-1 content-start gap-3" :class="l.split ? 'landscape:grid-cols-2' : ''">
               <div class="flex flex-col gap-3">
-                <div class="rounded-3xl bg-white p-6 text-center ring-1 ring-stone-200">
-                  <div class="text-sm text-stone-500">ยอดโอนครั้งนี้</div>
-                  <div class="text-5xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</div>
+                <div class="flex flex-col justify-center rounded-3xl bg-white p-6 text-center ring-1 ring-stone-200" :class="l.split ? 'min-h-64 flex-1 p-8' : ''">
+                  <div class="text-base text-stone-500">ยอดโอนครั้งนี้</div>
+                  <div class="font-bold tabular-nums text-stone-900" :class="l.split ? 'text-5xl whitespace-nowrap' : 'text-5xl'">{{ money(lineAmt(l)) }}</div>
                   <button v-if="!l.split" type="button" class="mt-2 text-sm font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
                 </div>
-                <button type="button" class="btn-primary h-16 w-full text-xl" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
+                <button v-if="!l.split" type="button" class="btn-primary h-16 w-full text-xl" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
               </div>
-              <div v-if="l.split" class="grid grid-cols-3 content-start gap-2" aria-label="แป้นตัวเลขยอดโอน">
-                <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" @click="padInput(l, 'amount', k)">{{ k === 'back' ? '⌫' : k }}</button>
+              <div v-if="l.split" class="flex flex-col gap-2">
+                <div class="grid grid-cols-3 gap-2" aria-label="แป้นตัวเลขยอดโอน">
+                  <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" @click="padInput(l, 'amount', k)">{{ k === 'back' ? '⌫' : k }}</button>
+                </div>
+                <button type="button" class="btn-primary h-16 w-full text-xl" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
+                <button type="button" class="btn-outline h-11 w-full" @click="l.amount = ''">ล้างค่า</button>
               </div>
             </div>
 
@@ -1390,9 +1394,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                   </button>
                 </div>
                 <button v-if="!expiredLine(l) && !binding" type="button" class="btn-outline h-auto min-h-11 w-full py-2 whitespace-normal" @click="receiveNow(l)">ลูกค้าโอนแล้วแต่ระบบยังไม่พบ (ตรวจสลิปแล้ว)</button>
-                <div class="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-sm landscape:justify-start">
-                  <button v-if="!binding" type="button" class="font-medium text-stone-600 underline" @click="splitTransfer(l)">แบ่งจ่าย (เปลี่ยนยอด)</button>
-                  <button v-if="!l.detectedAt && !l.confirmed && !binding" type="button" class="font-medium text-rose-700 underline" @click="backToMethods(l)">ยกเลิก QR</button>
+                <div class="grid grid-cols-2 gap-2">
+                  <button v-if="!binding" type="button" class="btn-outline h-11" @click="splitTransfer(l)">แบ่งจ่าย (เปลี่ยนยอด)</button>
+                  <button v-if="!l.detectedAt && !l.confirmed && !binding" type="button" class="btn-outline h-11 text-rose-700" @click="backToMethods(l)">ยกเลิก QR</button>
                 </div>
               </div>
             </div>
