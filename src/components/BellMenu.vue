@@ -6,7 +6,7 @@ import { BELL_STAFF, relTime } from '../lib/bell'
 import AppIcon from './AppIcon.vue'
 
 // กระดิ่งแจ้งเตือนในแอป · audience: 'staff' (หลังบ้าน) | 'customer' (หน้าร้าน ลูกค้าที่ล็อกอิน)
-const props = defineProps({ audience: { type: String, default: 'staff' } })
+const props = defineProps({ audience: { type: String, default: 'staff' }, variant: { type: String, default: 'circle' }, placement: { type: String, default: 'down' } })
 const router = useRouter()
 const open = ref(false)
 const root = ref(null)
@@ -38,13 +38,14 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', outside); do
     <button
       type="button"
       data-bell
-      class="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-stone-600 shadow-sm hover:text-brand-700"
-      :aria-label="unread ? `แจ้งเตือน ยังไม่อ่าน ${unread} รายการ` : 'แจ้งเตือน'"
+      :class="variant === 'tab' ? 'relative flex min-h-14 w-full flex-col items-center justify-center gap-0.5 text-[12px] font-medium text-stone-600' : 'relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-stone-600 shadow-sm hover:text-brand-700'"
+      :aria-label="variant === 'tab' ? undefined : unread ? `แจ้งเตือน ยังไม่อ่าน ${unread} รายการ` : 'แจ้งเตือน'"
       :aria-expanded="open"
       @click="open = !open"
     >
-      <AppIcon name="bell" :size="20" />
-      <span v-if="unread" data-bell-badge class="absolute -top-1 -right-1 min-w-5 rounded-full bg-brand-600 px-1 text-center text-[11px] leading-5 font-semibold text-white">{{ badge }}</span>
+      <AppIcon name="bell" :size="variant === 'tab' ? 22 : 20" />
+      <template v-if="variant === 'tab'">แจ้งเตือน</template>
+      <span v-if="unread" data-bell-badge class="absolute -top-1 right-1 min-w-5 rounded-full bg-brand-600 px-1 text-center text-[11px] leading-5 font-semibold text-white" :class="variant === 'tab' ? 'left-1/2 ml-3 right-auto' : '-right-1'">{{ badge }}</span>
     </button>
 
     <div
@@ -52,7 +53,8 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', outside); do
       data-bell-panel
       role="dialog"
       aria-label="แจ้งเตือน"
-      class="fixed inset-x-2 top-16 z-40 flex max-h-[min(32rem,calc(100vh-5rem))] flex-col overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-stone-200 sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:mt-2 sm:w-[24rem]"
+      class="fixed inset-x-2 top-3 z-40 flex max-h-[min(32rem,calc(100vh-6rem))] flex-col overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-stone-200 sm:absolute sm:inset-x-auto sm:right-0 sm:w-[24rem]"
+      :class="placement === 'up' ? 'sm:bottom-full sm:mb-2' : 'sm:top-full sm:mt-2'"
     >
       <div class="flex items-center justify-between gap-2 border-b border-stone-100 px-4 py-2.5">
         <div class="font-semibold text-stone-800">แจ้งเตือน</div>
