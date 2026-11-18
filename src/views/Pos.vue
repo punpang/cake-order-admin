@@ -5,7 +5,7 @@ import MoneyInput from '../components/MoneyInput.vue'
 import { orderNo } from '../lib/format'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
-  db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posPromoInfo, posSale, voidPosSale, addPosPartial, editPosPending, finishPosBill, pointsFor, quickMember, vatNow,
+  db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posPromoInfo, posSale, voidPosSale, addPosPartial, editPosPending, finishPosBill, pointsFor, vatNow,
   customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons, claimPosCoupons, releaseCoupons,
   newPosQrRef, posQrExpired, issueLuckyToken, reserveBillId,
 } from '../data/store'
@@ -26,13 +26,12 @@ import { isNative, getDeviceConfig, pushDisplay, showDisplay, displayCount } fro
 import { printOrderReceipt } from '../lib/receiptRaster'
 import { billerIdOf, promptPayBillerPayload } from '../lib/promptpay'
 import DeviceSettings from '../components/DeviceSettings.vue'
-import { money, dateTime, timeOnly, phoneDigits, formatPhone, phoneValid } from '../lib/format'
+import { money, dateTime, timeOnly, phoneDigits, formatPhone } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
 import { kb } from '../lib/viewportFit'
 import AppModal from '../components/AppModal.vue'
 import DiscountDetail from '../components/DiscountDetail.vue'
 import Receipt from '../components/Receipt.vue'
-import PhoneInput from '../components/PhoneInput.vue'
 import RefundEditor from '../components/RefundEditor.vue'
 import RefundPartialDialog from '../components/RefundPartialDialog.vue'
 import ExchangeModal from '../components/ExchangeModal.vue'
@@ -306,19 +305,6 @@ const resumeOrder = ref(null) // บิลค้างที่กำลัง�
 const total = computed(() => (resumeOrder.value ? Math.max(orderTotals(resumeOrder.value).total, 0) : Math.max(preview.value.total, 0)))
 // คะแนนที่สมาชิกจะได้จากบิลนี้ (ยอดสุทธิ + โปรคะแนนพิเศษ)
 const earn = computed(() => (member.value && cart.value.length ? pointsFor(orderLike.value, new Date()) : null))
-
-// ---------- สมัครสมาชิกที่เคาน์เตอร์ ----------
-const signup = reactive({ open: false, name: '', phone: '', agreed: false, error: '' })
-function openSignup() {
-  Object.assign(signup, { open: true, name: '', phone: phoneValid(memberQ.value) ? memberQ.value : '', agreed: false, error: '' })
-}
-function doSignup() {
-  const r = quickMember({ name: signup.name, phone: signup.phone, agreed: signup.agreed })
-  if (r.ok) {
-    pickMember(r.customer)
-    signup.open = false
-  } else signup.error = r.error
-}
 
 // ---------- ชำระเงิน ----------
 const payOpen = ref(false)
@@ -1053,7 +1039,6 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                   <span class="truncate">{{ c.name }}</span><span class="shrink-0 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
                 </button>
               </div>
-              <button type="button" class="btn-soft mt-1.5 h-9 w-full text-sm" @click="openSignup"><AppIcon name="plus" :size="14" /> สมัครสมาชิกใหม่ (สะสมคะแนน)</button>
             </template>
           </div>
 
@@ -1152,23 +1137,6 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <ExchangeModal v-if="exchangeFor" :order="exchangeFor" @close="exchangeFor = null" @done="onExchanged" />
     <ChangeBuyerModal v-if="buyerFor" :order="buyerFor" @close="buyerFor = null" />
 
-    <!-- สมัครสมาชิกที่เคาน์เตอร์ -->
-    <AppModal v-if="signup.open" title="สมัครสมาชิก (สะสมคะแนน)" @close="signup.open = false">
-      <div class="space-y-4">
-        <div><label class="label">เบอร์โทร <span class="text-rose-600">*</span></label><PhoneInput v-model="signup.phone" /></div>
-        <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="signup.name" class="input" maxlength="100" autocomplete="off" /></div>
-        <p class="text-xs text-stone-500">เบอร์ที่มีในระบบแล้วจะใช้ข้อมูลเดิม · ลูกค้าตั้ง PIN เข้าเว็บทีหลังได้ด้วยเบอร์เดิม (ต้องยืนยัน OTP)</p>
-        <label class="flex items-start gap-2 text-sm text-stone-700">
-          <input v-model="signup.agreed" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" />
-          <span>ลูกค้ารับทราบ <RouterLink to="/legal/privacy" target="_blank" class="text-brand-700 underline">นโยบายความเป็นส่วนตัว</RouterLink> และ <RouterLink to="/legal/terms" target="_blank" class="text-brand-700 underline">เงื่อนไขคะแนนสะสม</RouterLink> แล้ว</span>
-        </label>
-        <p v-if="signup.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ signup.error }}</p>
-      </div>
-      <template #footer>
-        <button class="btn-outline flex-1 sm:flex-none" @click="signup.open = false">ยกเลิก</button>
-        <button class="btn-primary flex-1 sm:flex-none" @click="doSignup">สมัครและใช้เลย</button>
-      </template>
-    </AppModal>
 
     <!-- ตัวเลือกสินค้า -->
     <AppModal v-if="modFor" :title="modFor.x.name" @close="modFor = null">
