@@ -225,6 +225,8 @@ const rdCoupons = computed(() => (rd.cust ? posCoupons(rd.cust, nowIso.value) : 
 const rdHidden = computed(() => (rd.cust ? notShownCount(rd.cust, nowIso.value) : 0))
 function openRedeem() { Object.assign(rd, { open: true, q: '', cust: null, msg: '', err: '' }) }
 function rdPick(c) { Object.assign(rd, { cust: c, q: '', msg: '', err: '' }) }
+// สแกนรหัสสมาชิกในช่องแลกของรางวัล = เลือกลูกค้าให้ทันที
+watch(() => rd.q, (v) => { const c = resolveMemberScan(v, db.customers); if (c) rdPick(c) })
 async function rdHand(cp) {
   rd.msg = rd.err = ''
   if (!(await askConfirm({ title: 'มอบของรางวัล', message: `${cp.name} ให้ ${rd.cust.name} · มอบแล้วถือว่าใช้แล้ว`, okText: 'มอบแล้ว' }))) return
@@ -241,6 +243,20 @@ function pickMember(c) {
 }
 // เครื่องสแกน USB ส่งรหัสคูปองมาแล้วกด Enter: เลือกลูกค้าเจ้าของคูปองและเลือกคูปองนั้นให้เลย (เฉพาะที่ลูกค้ากดแสดงที่ร้านอยู่)
 const scanMsg = ref('')
+// สแกนคูปองของสมาชิกที่เลือกอยู่: เลือกคูปองนั้นเข้าบิล (ถ้าผ่านเงื่อนไข) · ไม่ใช่ของลูกค้าคนนี้หรือยังไม่กดแสดงจะไม่เลือก
+const cpScanQ = ref('')
+const cpScanMsg = ref('')
+function onCouponScan() {
+  const raw = cpScanQ.value
+  cpScanQ.value = ''
+  cpScanMsg.value = ''
+  if (!String(raw).trim()) return
+  const hit = resolveCouponScan(raw, db.coupons)
+  if (!hit || !member.value || hit.customerId !== member.value.id) { cpScanMsg.value = 'ไม่พบคูปองนี้ของลูกค้าคนนี้'; return }
+  if (!coupons.value.some((c) => c.id === hit.id)) { cpScanMsg.value = `คูปอง ${hit.name} ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" หรือหมดเวลาแล้ว`; return }
+  if (!couponOk(hit)) { cpScanMsg.value = couponReason(hit) || `คูปอง ${hit.name} ใช้กับบิลนี้ไม่ได้`; return }
+  if (!couponIds.value.includes(hit.id)) couponIds.value = [...couponIds.value, hit.id]
+}
 function onMemberScan() {
   scanMsg.value = ''
   const mem = resolveMemberScan(memberQ.value, db.customers)
@@ -961,6 +977,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                 <button type="button" class="text-xs text-stone-500 underline" @click="member = null">เอาออก</button>
               </div>
               <p v-if="earn" class="mt-1.5 text-xs text-brand-800">บิลนี้จะได้ <b>{{ earn.points }}</b> คะแนน<template v-if="earn.bonus > 0"> (โบนัสโปร +{{ earn.bonus }})</template></p>
+              <input v-model="cpScanQ" type="search" class="input mt-2 h-10" placeholder="สแกนบาร์โค้ดคูปองของลูกค้า" aria-label="สแกนบาร์โค้ดคูปองของลูกค้า" @keydown.enter.prevent="onCouponScan" />
+              <p v-if="cpScanMsg" class="mt-1 text-xs text-rose-700" role="alert">{{ cpScanMsg }}</p>
               <div class="mt-2">
                 <p v-if="coupons.length" class="text-xs text-brand-800">ลูกค้ากดแสดงคูปองไว้ <b>{{ coupons.length }}</b> ใบ · เลือกใช้ได้ในขั้นตอนชำระเงิน<template v-if="couponIds.length"> (เลือกแล้ว {{ couponIds.length }})</template></p>
                 <p v-if="hiddenCoupons" class="text-xs text-amber-700">ลูกค้ามีคูปอง/ของรางวัลอีก {{ hiddenCoupons }} รายการ ที่ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" — ให้ลูกค้ากดเองในบัญชีของตน (ยืนยันว่าลูกค้าทำรายการเอง)</p>

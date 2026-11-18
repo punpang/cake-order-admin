@@ -6,6 +6,7 @@ import { getSupabase, supabaseEnabled } from '../../lib/supabase'
 import { readTestMode, writeTestMode } from '../../lib/testMode'
 import { askConfirm } from '../../lib/confirm'
 import { RECIPIENT_CHANNEL_LABEL, addRecipients, recipientsOfCustomer } from '../../lib/testRecipients'
+import { MEMBER_SCAN_RE } from '../../lib/scan'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
@@ -98,7 +99,8 @@ async function searchCustomers() {
   let query = c.schema('public').from('punpang_customers').select('id,name,phone,data').order('name').limit(30)
   // เบอร์ในฐานข้อมูลเก็บเป็นตัวเลขล้วน: ค้นเบอร์ด้วยตัวเลขที่พิมพ์ (ตัดขีด/ช่องว่าง) · ไม่มีตัวเลข = ค้นชื่ออย่างเดียว
   const digits = term.replace(/\D/g, '')
-  if (term) query = query.or(digits ? `name.ilike.*${term}*,phone.ilike.*${digits}*` : `name.ilike.*${term}*`)
+  if (MEMBER_SCAN_RE.test(term)) query = query.eq('data->>scanCode', term) // สแกนรหัสสมาชิก
+  else if (term) query = query.or(digits ? `name.ilike.*${term}*,phone.ilike.*${digits}*` : `name.ilike.*${term}*`)
   const r = await query
   if (seq !== searchSeq) return
   pickBusy.value = false

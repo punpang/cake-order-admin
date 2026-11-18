@@ -204,6 +204,51 @@ t('POS: สแกนรหัสสมาชิกแล้วเลือกล
   } finally { await page.close() }
 })
 
+t('POS: เมื่อเลือกสมาชิกแล้ว สแกนคูปองของลูกค้าคนนั้นเพื่อเลือกเข้าบิลได้', async () => {
+  const { page, errors } = await openPage('/admin/pos')
+  try {
+    await page.evaluate(async () => { window.__store = await import('/src/data/store.js') })
+    const info = await seedBarcodeCoupons(page)
+    assert.ok(info, 'ไม่มีลูกค้าสำหรับทดสอบ')
+    const member = 'e2e1e2e1e2e1e2e1e2e1e2e1e2e1e2e1'
+    await page.evaluate((code) => { window.__store.myCustomer().scanCode = code }, member)
+    const input = page.getByLabel('ค้นหาลูกค้า หรือสแกนบาร์โค้ด')
+    await input.waitFor({ state: 'visible', timeout: 15000 })
+    await input.fill(member)
+    await input.press('Enter')
+    await input.waitFor({ state: 'detached', timeout: 5000 })
+    const cp = page.getByLabel('สแกนบาร์โค้ดคูปองของลูกค้า')
+    await cp.waitFor({ state: 'visible', timeout: 5000 })
+    await cp.fill('cpe2epending')
+    await cp.press('Enter')
+    await page.getByText('ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" หรือหมดเวลาแล้ว').waitFor({ state: 'visible', timeout: 5000 })
+    await cp.fill('cpe2eactive')
+    await cp.press('Enter')
+    await page.getByText('(เลือกแล้ว 1)').waitFor({ state: 'visible', timeout: 5000 })
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
+t('จัดการลูกค้า: สแกนรหัสสมาชิกในช่องค้นหาแล้วเปิดข้อมูลลูกค้านั้น', async () => {
+  const { page, errors } = await openPage('/admin/settings/customers')
+  try {
+    await page.evaluate(async () => { window.__store = await import('/src/data/store.js') })
+    const name = await page.evaluate(() => {
+      const S = window.__store
+      const c = S.db.customers.find((x) => !x.deleted && x.active !== false)
+      c.scanCode = 'e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3'
+      return c.name
+    })
+    const search = page.getByPlaceholder('ค้นหา ชื่อ / เบอร์')
+    await search.waitFor({ state: 'visible', timeout: 15000 })
+    await search.fill('e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3')
+    await search.press('Enter')
+    await page.waitForFunction((n) => Array.from(document.querySelectorAll('input')).some((i) => i.value === n), name, { timeout: 5000 })
+    assert.equal(await search.inputValue(), '', 'ช่องค้นหาไม่ถูกล้าง')
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
 try {
   for (const [name, fn] of cases) {
     try { await fn(); console.log(`PASS ${name}`) } catch (e) { fails++; console.log(`FAIL ${name}: ${e.message}`) }

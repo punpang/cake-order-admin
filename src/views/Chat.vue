@@ -4,6 +4,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { db, can, findCustomer, findChat, draftOf, hasDraft, clearDraft, linkChat, createCustomerFromChat, fbWindowLeft } from '../data/store'
 import OrderCreate from './OrderCreate.vue'
 import { formatPhone, phoneDigits, phoneValid, timeOnly, dateOnly, toDateStr } from '../lib/format'
+import { resolveMemberScan } from '../lib/scan'
 import PhoneInput from '../components/PhoneInput.vue'
 import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
@@ -139,6 +140,8 @@ const cardCls = 'min-h-0 min-w-0 flex-col overflow-hidden bg-white'
 // ผูกแชทกับลูกค้า (จำ FB PSID)
 const linkOpen = ref(false)
 const lq = ref('')
+// สแกนรหัสสมาชิกในช่องค้นหา = กรองให้เหลือลูกค้าคนนั้น (พนักงานกดผูกเอง)
+watch(lq, (v) => { const c = resolveMemberScan(v, db.customers); if (c) lq.value = c.phone || c.name })
 const linkList = computed(() => {
   const s = lq.value.trim().toLowerCase()
   const d = phoneDigits(s)

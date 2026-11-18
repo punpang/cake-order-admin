@@ -2,7 +2,8 @@
 import MoneyInput from '../../components/MoneyInput.vue'
 import { orderNo } from '../../lib/format'
 import { confirmDeactivate } from '../../lib/confirm'
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { resolveMemberScan } from '../../lib/scan'
 import NotifyChannelPicker from '../../components/NotifyChannelPicker.vue'
 import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, convertPointsRemote, can, adminResetCustomerPin } from '../../data/store'
 import { isPin } from '../../lib/customerAuth'
@@ -21,6 +22,8 @@ import TaxAddressField from '../../components/TaxAddressField.vue'
 import { addressChoices } from '../../lib/thaiAddress'
 
 const q = ref('')
+// สแกนรหัสสมาชิกในช่องค้นหา = เปิดข้อมูลลูกค้านั้นทันที
+watch(q, (v) => { const c = resolveMemberScan(v, db.customers); if (c) { q.value = ''; edit(c) } })
 const inactive = ref(false)
 
 const list = computed(() => {
