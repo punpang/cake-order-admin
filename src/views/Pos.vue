@@ -1211,7 +1211,15 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · หน้าเดียว: ซ้าย/บน = ยอดและวิธีชำระ · ขวา/ล่าง = รายการที่กำลังทำ (แนวนอน ≥1024px เป็นสองคอลัมน์) -->
     <AppModal v-if="payOpen" title="ชำระเงิน" wide wider full fit @close="requestClose">
-      <div class="grid gap-4 md:grid-cols-[17rem_minmax(0,1fr)] md:items-start">
+      <!-- แถบยอดหลัก: เห็นยอดที่ต้องชำระและยอดคงค้างตลอดเวลา -->
+      <div class="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-2xl bg-white px-4 py-2.5 shadow-sm ring-1 ring-stone-200">
+        <div class="flex items-baseline gap-2"><span class="text-sm text-stone-500">ยอดชำระ</span><span class="text-2xl font-bold tabular-nums text-stone-900">{{ money(total) }}</span></div>
+        <div class="flex flex-wrap gap-x-4 text-sm text-stone-600">
+          <span>รับแล้ว <b class="tabular-nums text-stone-900">{{ money(receivedSum) }}</b></span>
+          <span :class="total - receivedSum < 0 ? 'text-rose-700' : 'text-stone-600'">{{ total - receivedSum < 0 ? 'เกิน' : 'คงค้าง' }} <b class="tabular-nums">{{ money(Math.abs(total - receivedSum)) }}</b></span>
+        </div>
+      </div>
+      <div class="grid min-h-0 gap-4 md:grid-cols-[17rem_minmax(0,1fr)] md:items-start">
         <!-- ซ้าย / บน -->
         <div class="space-y-3">
           <p v-if="payErr" class="rounded-xl bg-rose-50 p-2.5 text-sm text-rose-700" role="alert">{{ payErr }}</p>
@@ -1285,7 +1293,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                     <div class="text-3xl font-bold tabular-nums text-stone-900">{{ money(Number(l.received) || 0) }}</div>
                   </div>
                   <div class="grid grid-cols-3 gap-2" aria-label="แป้นตัวเลขรับเงิน">
-                    <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-12 rounded-xl border-2 border-stone-200 bg-white text-xl font-semibold text-stone-800 active:scale-[0.98] disabled:opacity-40" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" :disabled="!!l.locked || !!l.confirmed" @click="padInput(l, 'received', k)">{{ k === 'back' ? '⌫' : k }}</button>
+                    <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-11 rounded-xl border-2 border-stone-200 bg-white text-xl font-semibold text-stone-800 active:scale-[0.98] disabled:opacity-40" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" :disabled="!!l.locked || !!l.confirmed" @click="padInput(l, 'received', k)">{{ k === 'back' ? '⌫' : k }}</button>
                   </div>
                   <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-2">
                     <button v-for="v in quickFor(l)" :key="v" type="button" class="h-12 rounded-xl border-2 border-stone-200 bg-white text-base font-semibold text-stone-800 active:scale-[0.98] disabled:opacity-40" :disabled="!!l.locked || !!l.confirmed" @click="l.received = String(v)">{{ v === lineAmt(l) ? 'พอดี' : money(v) }}</button>
@@ -1326,7 +1334,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                 <div class="text-4xl font-bold tabular-nums text-brand-900">{{ money(lineAmt(l)) }}</div>
               </div>
               <div class="grid grid-cols-3 gap-2" aria-label="แป้นตัวเลขยอดโอน">
-                <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-12 rounded-xl border-2 border-stone-200 bg-white text-xl font-semibold text-stone-800 active:scale-[0.98] disabled:opacity-40" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" @click="padInput(l, 'amount', k)">{{ k === 'back' ? '⌫' : k }}</button>
+                <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-11 rounded-xl border-2 border-stone-200 bg-white text-xl font-semibold text-stone-800 active:scale-[0.98] disabled:opacity-40" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" @click="padInput(l, 'amount', k)">{{ k === 'back' ? '⌫' : k }}</button>
               </div>
               <button type="button" class="btn-primary h-14 w-full text-lg" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
             </template>
