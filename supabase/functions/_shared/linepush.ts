@@ -20,3 +20,17 @@ export function pickFollowedLineUser(rows: unknown): string | null {
     .sort((a, b) => String(b.updated_at ?? '').localeCompare(String(a.updated_at ?? '')))
   return live.length ? String(live[0].line_user_id) : null
 }
+
+// ระยะเก็บข้อความ LINE (วัน) · ร้านตั้งได้ที่ตั้งค่าร้าน (shop.lineRetentionDays) · ค่าไม่ถูกต้อง/ไม่มี → ค่าเริ่มต้น 180 วัน
+export const LINE_RETENTION_DEFAULT = 180
+export const LINE_RETENTION_MIN = 7
+export const LINE_RETENTION_MAX = 365
+export function lineRetentionDays(v: unknown): number {
+  const n = Math.round(Number(v))
+  return Number.isFinite(n) && n >= LINE_RETENTION_MIN && n <= LINE_RETENTION_MAX ? n : LINE_RETENTION_DEFAULT
+}
+
+// เวลาตัดข้อความ: ข้อความที่สร้างก่อนเวลานี้ต้องลบ (ISO 8601 ตามเขตเวลา UTC)
+export function retentionCutoffIso(days: number, nowMs: number): string {
+  return new Date(nowMs - days * 86400000).toISOString()
+}

@@ -1,6 +1,6 @@
 // ทดสอบตัวช่วยของ line-push · รัน: deno test supabase/functions/_shared/linepush.test.ts
 import { assertEquals } from 'jsr:@std/assert@1'
-import { LINE_TEXT_MAX, pickFollowedLineUser, pushPayload } from './linepush.ts'
+import { LINE_RETENTION_DEFAULT, LINE_TEXT_MAX, lineRetentionDays, pickFollowedLineUser, pushPayload, retentionCutoffIso } from './linepush.ts'
 
 Deno.test('pushPayload: ข้อความปกติ → ข้อความเดียวแบบ text (ตัดช่องว่างหัวท้าย)', () => {
   assertEquals(pushPayload('  พร้อมรับแล้วค่ะ  '), { ok: true, messages: [{ type: 'text', text: 'พร้อมรับแล้วค่ะ' }] })
@@ -26,4 +26,20 @@ Deno.test('pickFollowedLineUser: ไม่มีคนติดตาม/ข้�
   assertEquals(pickFollowedLineUser([{ line_user_id: 'U1', followed: false }]), null)
   assertEquals(pickFollowedLineUser([]), null)
   assertEquals(pickFollowedLineUser(null), null)
+})
+Deno.test('lineRetentionDays: ค่าที่ใช้ได้ → คืนค่านั้น · ไม่ถูกต้อง/นอกช่วง → 180 วัน', () => {
+  assertEquals(lineRetentionDays(90), 90)
+  assertEquals(lineRetentionDays('30'), 30)
+  assertEquals(lineRetentionDays(7), 7)
+  assertEquals(lineRetentionDays(365), 365)
+  assertEquals(lineRetentionDays(6), LINE_RETENTION_DEFAULT)
+  assertEquals(lineRetentionDays(366), LINE_RETENTION_DEFAULT)
+  assertEquals(lineRetentionDays(undefined), LINE_RETENTION_DEFAULT)
+  assertEquals(lineRetentionDays('abc'), LINE_RETENTION_DEFAULT)
+  assertEquals(LINE_RETENTION_DEFAULT, 180)
+})
+Deno.test('retentionCutoffIso: ย้อนกลับตามจำนวนวันเป็นมิลลิวินาที', () => {
+  const now = Date.parse('2026-11-18T00:00:00.000Z')
+  assertEquals(retentionCutoffIso(1, now), '2026-11-17T00:00:00.000Z')
+  assertEquals(retentionCutoffIso(180, now), new Date(now - 180 * 86400000).toISOString())
 })

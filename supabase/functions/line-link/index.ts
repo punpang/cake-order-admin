@@ -11,12 +11,39 @@ const enc = new TextEncoder()
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('')
 const sha256Hex = async (s: string) => hex(await crypto.subtle.digest('SHA-256', enc.encode(s)))
 
+// ฝั่งลูกค้า (ใช้เซสชันเดียวกับหน้าบัญชี ไม่ต้องใช้โทเค็น LINE):
+// status = ดูว่าเชื่อม LINE แล้วหรือยัง · unlink = ยกเลิกการเชื่อม แล้วลบชื่อ LINE และประวัติข้อความของบัญชีนี้ทันที
+async function manageLink(session: unknown, action: 'status' | 'unlink'): Promise<Response> {
+  if (typeof session !== 'string' || !session) return json({ error: 'กรุณาเข้าสู่ระบบบัญชีก่อน' }, 401)
+  const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } })
+  const s = (await sb.from('punpang_customer_sessions').select('customer_id, expires_at')
+    .eq('token_hash', await sha256Hex(`custsess:${session}`)).maybeSingle()).data
+  if (!s || new Date(s.expires_at).getTime() <= Date.now()) return json({ error: 'กรุณาเข้าสู่ระบบบัญชีก่อน' }, 401)
+
+  const rows = await sb.from('punpang_line_users').select('line_user_id, display_name').eq('customer_id', s.customer_id)
+  if (rows.error) return json({ error: 'อ่านข้อมูลการเชื่อม LINE ไม่สำเร็จ' }, 500)
+  const list = rows.data || []
+  if (action === 'status') {
+    return json({ linked: list.length > 0, displayName: String(list[0]?.display_name || '') })
+  }
+  const ids: string[] = list.map((r: { line_user_id: string }) => r.line_user_id)
+  if (ids.length) {
+    const m = await sb.from('punpang_line_messages').delete().in('line_user_id', ids)
+    if (m.error) return json({ error: 'ยกเลิกการเชื่อมไม่สำเร็จ กรุณาลองใหม่' }, 500)
+    const u = await sb.from('punpang_line_users').delete().in('line_user_id', ids)
+    if (u.error) return json({ error: 'ยกเลิกการเชื่อมไม่สำเร็จ กรุณาลองใหม่' }, 500)
+  }
+  return json({ ok: true, unlinked: ids.length })
+}
+
 Deno.serve(corsWrap(async (req) => {
   const refused = refuseInTest(modeOf(req))
   if (refused) return refused // โหมดทดสอบไม่เชื่อมบัญชี LINE จริง
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   let body: unknown = null
   try { body = await req.json() } catch { return json({ error: 'คำขอไม่ถูกต้อง' }, 400) }
+  const act = (body as { action?: unknown } | null)?.action
+  if (act === 'status' || act === 'unlink') return manageLink((body as { session?: unknown }).session, act)
   const r = parseLinkRequest(body)
   if (!r) return json({ error: 'ข้อมูลไม่ถูกต้อง' }, 400)
 

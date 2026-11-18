@@ -38,3 +38,37 @@ export async function linkLine(accessToken) {
     return { error: NET }
   }
 }
+
+// สถานะการเชื่อม LINE ของลูกค้าที่เข้าสู่ระบบแล้ว · คืน { linked, displayName } หรือ { error } / { needLogin }
+export async function lineStatus() {
+  const session = readSessionToken()
+  if (!session) return { needLogin: true }
+  const c = await getSupabase()
+  if (!c) return { error: NET }
+  try {
+    const r = await c.functions.invoke('line-link', { body: { action: 'status', session } })
+    if (r.error) return { error: NET }
+    return r.data && typeof r.data.linked === 'boolean' ? { linked: r.data.linked, displayName: String(r.data.displayName || '') } : { error: NET }
+  } catch {
+    return { error: NET }
+  }
+}
+
+// ยกเลิกการเชื่อม LINE (ลบชื่อ LINE และประวัติข้อความของบัญชีนี้ทันที) · คืน { ok } หรือ { error }
+export async function lineUnlink() {
+  const session = readSessionToken()
+  if (!session) return { needLogin: true, error: 'กรุณาเข้าสู่ระบบบัญชีก่อน' }
+  const c = await getSupabase()
+  if (!c) return { error: NET }
+  try {
+    const r = await c.functions.invoke('line-link', { body: { action: 'unlink', session } })
+    if (r.error) {
+      let d = null
+      try { d = await r.error.context?.json() } catch { d = null }
+      return { error: d?.error || NET }
+    }
+    return r.data?.ok ? { ok: true } : { error: r.data?.error || NET }
+  } catch {
+    return { error: NET }
+  }
+}
