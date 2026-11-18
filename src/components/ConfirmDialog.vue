@@ -41,7 +41,7 @@ watch(() => route.path, () => { if (confirmState.open) closeConfirm(false) })
 
 <template>
   <Teleport to="body">
-    <div v-if="confirmState.open" class="fixed inset-0 z-[60] overflow-y-auto overscroll-contain bg-stone-900/50" :style="kb.open ? { top: 'var(--vvt, 0px)', bottom: 'auto', height: 'var(--vvh, 100%)' } : undefined">
+    <div v-if="confirmState.open" class="fixed inset-0 z-[64] overflow-y-auto overscroll-contain bg-stone-900/50" :style="kb.open ? { top: 'var(--vvt, 0px)', bottom: 'auto', height: 'var(--vvh, 100%)' } : undefined">
     <div class="flex h-full items-center justify-center p-6" @click.self="closeConfirm(false)">
       <div class="max-h-full w-full max-w-sm overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl" ref="box" data-dialog role="alertdialog" aria-modal="true" :aria-labelledby="titleId" :aria-describedby="confirmState.message ? 'confirm-desc' : undefined">
         <div class="flex items-start gap-3">

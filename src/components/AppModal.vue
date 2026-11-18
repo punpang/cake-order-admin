@@ -23,7 +23,7 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
     <!-- ความสูงอ้างอิงจาก overlay (fixed inset-0) ไม่ใช้ dvh: กล่องไม่เกินจอทุกเบราว์เซอร์/สเกล · overlay เลื่อนได้เป็นทางหนี -->
     <!-- แป้นพิมพ์เปิด (iOS ไม่ลดขนาด layout viewport): ยึดกรอบกับส่วนที่มองเห็นจริง เพื่อให้ช่องกรอกและปุ่มล่างไม่ถูกบัง -->
     <div
-      class="fixed inset-0 z-50 overscroll-contain bg-stone-900/45 backdrop-blur-[2px]" :class="fit ? 'overflow-hidden' : 'overflow-y-auto'"
+      class="fixed inset-0 z-[62] overscroll-contain bg-stone-900/45 backdrop-blur-[2px]" :class="fit ? 'overflow-hidden' : 'overflow-y-auto'"
       :style="kb.open ? { top: 'var(--vvt, 0px)', bottom: 'auto', height: 'var(--vvh, 100%)' } : undefined"
     >
     <div class="flex h-full items-end justify-center sm:items-center" :class="full ? 'pt-0 sm:p-0' : 'pt-8 sm:p-6'" @click.self="backdrop">
