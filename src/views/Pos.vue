@@ -26,7 +26,7 @@ import { isNative, getDeviceConfig, pushDisplay, showDisplay, displayCount } fro
 import { printOrderReceipt } from '../lib/receiptRaster'
 import { billerIdOf, promptPayBillerPayload } from '../lib/promptpay'
 import DeviceSettings from '../components/DeviceSettings.vue'
-import { money, dateTime, timeOnly, phoneDigits, formatPhone } from '../lib/format'
+import { money, dateTime, timeOnly, phoneDigits, formatPhone, phoneValid } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
 import { kb } from '../lib/viewportFit'
 import AppModal from '../components/AppModal.vue'
