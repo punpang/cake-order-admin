@@ -935,7 +935,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <button v-for="c in categories" :key="c" type="button" class="chip whitespace-nowrap" :class="cat === c ? 'chip-on' : 'chip-off'" @click="cat = c">{{ c }}</button>
           <button type="button" class="chip ml-auto whitespace-nowrap" :class="sortBest ? 'chip-on' : 'chip-off'" :aria-pressed="sortBest" @click="sortBest = !sortBest"><AppIcon name="star" :size="13" /> เรียงขายดี</button>
         </div>
-        <div class="min-h-0 flex-1 overflow-y-auto pb-24 lg:pb-4">
+        <div class="min-h-0 flex-1 overflow-y-auto px-2 pt-3 pb-24 lg:pb-4">
         <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           <div v-for="x in shown" :key="x.kind + x.id" class="relative">
           <button
