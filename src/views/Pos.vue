@@ -1284,8 +1284,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                     <span class="text-stone-500">ยอดเงินสด <b class="tabular-nums text-stone-800">{{ money(lineAmt(l)) }}</b></span>
                     <button v-if="!l.locked && !l.confirmed && !l.split" type="button" class="font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
                   </div>
-                  <div v-if="l.split && !l.locked && !l.confirmed" class="mt-2">
-                    <label class="text-xs text-stone-500" :for="'amt-' + l.key">ยอดเงินสดครั้งนี้</label>
+                  <div v-if="l.split && !l.locked && !l.confirmed" class="mt-3">
+                    <label class="mb-1.5 block text-sm font-medium text-stone-600" :for="'amt-' + l.key">ยอดเงินสดครั้งนี้</label>
                     <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input h-11 text-center text-lg font-semibold" />
                   </div>
                   <div class="mt-3 text-sm text-stone-500">รับเงินมา</div>
