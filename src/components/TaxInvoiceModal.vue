@@ -5,6 +5,7 @@ import { taxInvoices, invoiceOfOrder, invoiceBlock, buyerOf, issueTaxInvoice, vo
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
 import TaxInvoiceDoc from './TaxInvoiceDoc.vue'
+import { printTaxInvoice } from '../lib/receiptRaster'
 import TaxAddressField from './TaxAddressField.vue'
 import { addressChoices } from '../lib/thaiAddress'
 
@@ -22,6 +23,7 @@ const current = computed(() => invoiceOfOrder(props.order.id))
 const shown = computed(() => docs.value.find((d) => d.id === viewId.value) || current.value || docs.value.at(-1) || null)
 const block = computed(() => (current.value ? '' : invoiceBlock(props.order, buyer)))
 const copyLabel = ref('ต้นฉบับ')
+const pick = ref(null) // null = ยังไม่เลือกขนาด · true/false = กำลังเลือกขนาด (สำเนา/ต้นฉบับ)
 function issue() {
   error.value = ''
   const r = issueTaxInvoice(props.order.id, buyer)
@@ -38,10 +40,24 @@ function doVoid() {
   reason.value = ''
   viewId.value = r.creditNote.id
 }
-function print(copy) {
+function startPrint(copy) {
+  error.value = ''
+  pick.value = copy
+}
+async function printAs(size) {
+  const copy = pick.value
+  pick.value = null
   if (!shown.value) return
   copyLabel.value = copy ? 'สำเนา' : 'ต้นฉบับ'
   if (copy) markInvoiceCopy(shown.value.id)
+  if (size === 'A4') return printA4()
+  try {
+    await printTaxInvoice(shown.value, size, copyLabel.value)
+  } catch (e) {
+    error.value = `พิมพ์ไม่สำเร็จ: ${e.message || e}`
+  }
+}
+function printA4() {
   document.body.classList.add('print-a4')
   const done = () => { document.body.classList.remove('print-a4'); window.removeEventListener('afterprint', done) }
   window.addEventListener('afterprint', done)
@@ -71,6 +87,16 @@ function print(copy) {
       </template>
       <p v-if="shown?.pending" class="flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800"><AppIcon name="alert" :size="16" /> กำลังรับเลขที่จากฐานข้อมูล (รอสักครู่ แล้วเปิดใหม่) · ยังพิมพ์ไม่ได้</p>
       <div v-if="shown" class="overflow-x-auto rounded-2xl border border-stone-200"><TaxInvoiceDoc :invoice="shown" :label="copyLabel" /></div>
+      <div v-if="pick !== null" class="space-y-2 rounded-2xl border border-stone-200 p-3">
+        <div class="text-sm font-semibold text-stone-800">เลือกขนาดกระดาษ{{ pick ? ' (สำเนา)' : '' }}</div>
+        <div class="grid grid-cols-3 gap-2">
+          <button type="button" class="btn-soft" @click="printAs('A4')">A4</button>
+          <button type="button" class="btn-soft" @click="printAs(58)">58 มม. (เครื่องพิมพ์ความร้อน)</button>
+          <button type="button" class="btn-soft" @click="printAs(88)">88 มม. (เครื่องพิมพ์ความร้อน)</button>
+        </div>
+        <p class="text-xs text-stone-500">58 / 88 มม. ส่งไปเครื่องพิมพ์ Bluetooth ที่ตั้งไว้ · A4 ใช้เครื่องพิมพ์ของเบราว์เซอร์</p>
+        <button type="button" class="btn-outline w-full" @click="pick = null">ยกเลิก</button>
+      </div>
       <div v-if="voiding" class="space-y-2 rounded-2xl border border-rose-200 bg-rose-50 p-3">
         <label class="label">เหตุผลที่ยกเลิก (ออกใบลดหนี้เต็มจำนวน)</label>
         <input v-model="reason" class="input" maxlength="200" aria-label="เหตุผลยกเลิกใบกำกับ" />
@@ -81,8 +107,8 @@ function print(copy) {
     <template #footer>
       <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ปิด</button>
       <template v-if="shown">
-        <button class="btn-soft flex-1 sm:flex-none" :disabled="!!shown.pending" @click="print(false)"><AppIcon name="printer" :size="16" /> พิมพ์</button>
-        <button class="btn-soft flex-1 sm:flex-none" :disabled="!!shown.pending" @click="print(true)">พิมพ์สำเนา</button>
+        <button class="btn-soft flex-1 sm:flex-none" :disabled="!!shown.pending || pick !== null" @click="startPrint(false)"><AppIcon name="printer" :size="16" /> พิมพ์</button>
+        <button class="btn-soft flex-1 sm:flex-none" :disabled="!!shown.pending || pick !== null" @click="startPrint(true)">พิมพ์สำเนา</button>
         <button v-if="current && shown.id === current.id && can('taxInvoice') && !voiding" class="btn-outline flex-1 text-rose-700 sm:flex-none" @click="voiding = true">ยกเลิกใบ</button>
       </template>
       <button v-if="!current && can('taxInvoice')" class="btn-primary flex-1 sm:flex-none" :disabled="!!block" @click="issue">ออกใบกำกับภาษี</button>
