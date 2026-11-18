@@ -1,4 +1,4 @@
-import { runFbBot, offWindowStartMs, scrubPII, decide, learnedMatch } from './bot.ts'
+import { runFbBot, offWindowStartMs, scrubPII, decide, learnedMatch, aiLogData } from './bot.ts'
 import { normalizeMessages } from '../_shared/ai.ts'
 
 // ---- ฐานข้อมูลจำลองแบบ CAS (updated_at) ----
@@ -502,6 +502,16 @@ const aiLogs = (records: any[]) => records.filter((r) => r.collection === 'aiLog
   await runFbBot({ ...base, sb: b.sb, mid: 'q2', text: 'มีบริการจัดส่งไหมคะ', aiKey: 'key-x', dryRun: true, takeQuota: async () => true })
   check('เพดานทดสอบยังมี: เรียก AI ได้ และไม่ส่งถึง Graph', aiCalls.length === 1 && fetchCalls.length === 0)
   check('เพดานทดสอบยังมี: ไม่แตะ punpang_ai_take', rpcCalls === 0)
+}
+
+// 14) aiLog: LINE ไม่เก็บข้อความลูกค้า · Messenger เก็บได้เฉพาะข้อความที่ตัดเหลือ 200 ตัวอักษรและตัดเบอร์แล้ว
+{
+  const lineLog = aiLogData({ chatId: 'U0123456789abcdef0123456789abcdef', text: 'โทร 0812345678 ขอราคาเค้ก', channel: 'line' }, { status: 'ok', model: 'm1', ms: 5 })
+  check('aiLog LINE: ไม่มีคีย์ customer (ไม่เก็บข้อความ)', !('customer' in lineLog))
+  check('aiLog LINE: ยังมีสถานะ โมเดล รหัสแชท และเวลา', lineLog.status === 'ok' && lineLog.model === 'm1' && lineLog.chatId.startsWith('U') && typeof lineLog.at === 'string')
+  const fbLog = aiLogData({ chatId: '123', text: 'โทร 0812345678 '.repeat(30), channel: undefined }, { status: 'ok' })
+  check('aiLog Messenger: มีข้อความตัดไม่เกิน 200 ตัวอักษร', typeof fbLog.customer === 'string' && fbLog.customer.length <= 200)
+  check('aiLog Messenger: เบอร์โทรถูกตัดออก', typeof fbLog.customer === 'string' && !fbLog.customer.includes('0812345678'))
 }
 
 console.log(fail === 0 ? 'ALL PASS' : `${fail} FAILED`)
