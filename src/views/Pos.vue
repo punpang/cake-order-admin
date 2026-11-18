@@ -1017,42 +1017,6 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </div>
           </div>
 
-          <!-- สมาชิก -->
-          <div class="border-t border-stone-100 pt-3">
-            <div class="label">สมาชิก (ไม่บังคับ)</div>
-            <div v-if="member" class="rounded-xl bg-brand-50 p-2.5">
-              <div class="flex items-center justify-between gap-2">
-                <span class="min-w-0">
-                  <span class="block truncate text-sm font-semibold text-brand-900">{{ member.name }}</span>
-                  <span class="block text-xs text-brand-800">{{ member.phone ? formatPhone(member.phone) : '' }} · {{ customerPoints(member) }} คะแนน</span>
-                </span>
-                <button type="button" class="text-xs text-stone-500 underline" @click="member = null">เอาออก</button>
-              </div>
-              <p v-if="earn" class="mt-1.5 text-xs text-brand-800">บิลนี้จะได้ <b>{{ earn.points }}</b> คะแนน<template v-if="earn.bonus > 0"> (โบนัสโปร +{{ earn.bonus }})</template></p>
-              <input v-model="cpScanQ" type="search" class="input mt-2 h-10" placeholder="สแกนบาร์โค้ดคูปองของลูกค้า" aria-label="สแกนบาร์โค้ดคูปองของลูกค้า" @keydown.enter.prevent="onCouponScan" />
-              <p v-if="cpScanMsg" class="mt-1 text-xs text-rose-700" role="alert">{{ cpScanMsg }}</p>
-              <div class="mt-2">
-                <p v-if="coupons.length" class="text-xs text-brand-800">ลูกค้ากดแสดงคูปองไว้ <b>{{ coupons.length }}</b> ใบ · เลือกใช้ได้ในขั้นตอนชำระเงิน<template v-if="couponIds.length"> (เลือกแล้ว {{ couponIds.length }})</template></p>
-                <p v-if="hiddenCoupons" class="text-xs text-amber-700">ลูกค้ามีคูปอง/ของรางวัลอีก {{ hiddenCoupons }} รายการ ที่ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" — ให้ลูกค้ากดเองในบัญชีของตน (ยืนยันว่าลูกค้าทำรายการเอง)</p>
-                <p v-if="!coupons.length && !hiddenCoupons" class="text-xs text-stone-400">ไม่มีคูปองที่ใช้ได้</p>
-              </div>
-            </div>
-            <template v-else>
-              <input v-model="memberQ" type="search" class="input h-10" placeholder="ค้นหาเบอร์ / สแกนบาร์โค้ด" aria-label="ค้นหาลูกค้า หรือสแกนบาร์โค้ด" @keydown.enter.prevent="onMemberScan" />
-              <p v-if="scanMsg" class="mt-1 text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
-              <div v-if="memberMatches.length" class="mt-1.5 space-y-1">
-                <button v-for="c in memberMatches" :key="c.id" type="button" class="flex w-full justify-between gap-2 rounded-lg border border-stone-200 px-3 py-2 text-left text-sm hover:border-brand-300" @click="pickMember(c)">
-                  <span class="truncate">{{ c.name }}</span><span class="shrink-0 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
-                </button>
-              </div>
-            </template>
-          </div>
-
-          <p v-if="usedPromos.length" class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">โปรที่ใช้: {{ usedPromos.join(' · ') }}</p>
-          <div v-if="can('adjustPrice') && !editBill">
-            <label class="label">ส่วนลดบิล (บาท)</label>
-            <MoneyInput v-model="discount" class="input h-10" placeholder="0" />
-          </div>
         </div>
         <div class="border-t border-stone-100 p-4">
           <div class="mb-3 flex items-start justify-between gap-2">
