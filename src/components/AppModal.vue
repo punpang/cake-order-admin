@@ -26,7 +26,7 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
       class="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-stone-900/45 backdrop-blur-[2px]"
       :style="kb.open ? { top: 'var(--vvt, 0px)', bottom: 'auto', height: 'var(--vvh, 100%)' } : undefined"
     >
-    <div class="flex h-full items-end justify-center pt-8 sm:items-center sm:p-6" @click.self="backdrop">
+    <div class="flex h-full items-end justify-center pt-8 sm:items-center sm:p-6" :class="xwide ? 'lx-overlay' : ''" @click.self="backdrop">
       <div
         ref="box"
         data-dialog
@@ -34,19 +34,19 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
         :aria-labelledby="title ? titleId : undefined"
         @input.capture="dirty = true"
         @change.capture="dirty = true"
-        class="flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-t-[2rem] bg-cream shadow-2xl outline-none sm:rounded-[2rem]"
+        class="flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-t-[2rem] bg-cream shadow-2xl outline-none sm:rounded-[2rem]" :data-compact-landscape="xwide || undefined"
         :class="xwide ? 'sm:max-w-2xl landscape:sm:max-w-5xl' : wide ? 'sm:max-w-2xl' : 'sm:max-w-md'"
         role="dialog"
         aria-modal="true"
       >
         <div class="mx-auto mt-2 h-1.5 w-10 shrink-0 rounded-full bg-stone-300 sm:hidden" />
-        <div class="flex shrink-0 items-center justify-between gap-2 px-5 pt-3 pb-2 sm:pt-5">
+        <div class="flex shrink-0 items-center justify-between gap-2 px-5 pt-3 pb-2 sm:pt-5" :class="xwide ? 'lx-header' : ''">
           <h2 :id="titleId" class="min-w-0 truncate text-lg text-stone-900">{{ title }}</h2>
           <button type="button" class="flex h-9 w-9 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100" aria-label="ปิด" @click="emit('close')">
             <AppIcon name="x" :size="20" />
           </button>
         </div>
-        <div data-dialog-body class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-1 pb-5">
+        <div data-dialog-body class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-1 pb-5" :class="xwide ? 'lx-body' : ''">
           <slot />
         </div>
         <div

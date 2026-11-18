@@ -1148,7 +1148,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <!-- ชำระเงิน · เลย์เอาต์ใหม่: สรุปยอด → เลือกวิธีชำระ → รายการชำระ → ยืนยันปุ่มล่าง -->
     <AppModal v-if="payOpen" title="ชำระเงิน" wide xwide @close="requestClose">
       <div class="space-y-4 landscape:grid landscape:grid-cols-2 landscape:items-start landscape:gap-x-4 landscape:gap-y-3">
-        <div class="rounded-2xl bg-brand-50 p-4 landscape:p-3 landscape:col-start-1">
+        <div class="rounded-2xl bg-brand-50 p-4 landscape:p-3 lx-card landscape:col-start-1">
           <div class="flex items-end justify-between gap-3">
             <div>
               <div class="text-sm text-brand-800">ยอดชำระ</div>
@@ -1194,13 +1194,13 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <span class="text-lg font-bold tabular-nums text-emerald-900">{{ money(lineAmt(l)) }}</span>
             <button v-if="!l.locked && !binding" type="button" class="btn-outline h-9 shrink-0 px-3 text-sm" @click="l.confirmed = false; l.acceptedBy = ''; l.maneeId = ''; l.detectedAt = 0">ยกเลิก</button>
           </div>
-          <div v-else class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm landscape:p-3 landscape:col-start-2">
+          <div v-else class="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm landscape:p-3 lx-card landscape:col-start-2">
           <div class="flex items-center justify-between gap-2">
             <span class="text-base font-semibold text-stone-800">{{ POS_METHODS[l.method] }}</span>
             <button v-if="!l.qrRef && !l.locked && !l.confirmed && (payLines.length > 1 || l.method !== 'cash')" type="button" class="rounded-full px-3 py-1 text-sm font-medium text-rose-700 hover:bg-rose-50" @click="removePayLine(i)">ลบ</button>
           </div>
           <label class="label mt-3" :class="l.method === 'transfer' ? 'landscape:mt-1' : ''" :for="'amt-' + l.key">ยอด (บาท)</label>
-          <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input h-12 text-lg font-semibold" :class="l.method === 'transfer' ? 'landscape:h-10' : ''" :readonly="!!l.qrRef || !!l.locked || !!l.confirmed" />
+          <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input h-12 text-lg font-semibold" :class="l.method === 'transfer' ? 'landscape:h-10 lx-input' : ''" :readonly="!!l.qrRef || !!l.locked || !!l.confirmed" />
 
           <template v-if="l.method === 'cash'">
             <label class="label mt-3" :for="'rcv-' + l.key">รับเงินมา (บาท)</label>
