@@ -296,10 +296,9 @@ async function orderContext(o: BotInput, cid: string | null): Promise<string[] |
   return (r.data || []).filter((x: any) => x?.status !== 'cancelled').slice(0, 3).map(orderLine)
 }
 
-// ข้อมูลที่บันทึกใน aiLog (ไม่เก็บคีย์) · ข้อความลูกค้าตัดเหลือ 200 ตัวอักษรและตัดข้อมูลส่วนตัวแล้ว · LINE ไม่เก็บข้อความลูกค้าเลย (เก็บเฉพาะสถานะ โมเดล เวลา)
-export function aiLogData(o: Pick<BotInput, 'chatId' | 'text' | 'channel'>, x: { status: string; model?: string; ms?: number }) {
-  const base = { chatId: o.chatId, status: x.status, model: x.model ?? null, ms: x.ms ?? null, at: new Date().toISOString() }
-  return o.channel === 'line' ? base : { ...base, customer: scrubPII(o.text).slice(0, 200) }
+// ข้อมูลที่บันทึกใน aiLog · ไม่เก็บข้อความลูกค้าทุกช่องทาง (LINE และ Messenger) เก็บเฉพาะรหัสแชท สถานะ โมเดล และเวลา
+export function aiLogData(o: { chatId: string }, x: { status: string; model?: string; ms?: number }) {
+  return { chatId: o.chatId, status: x.status, model: x.model ?? null, ms: x.ms ?? null, at: new Date().toISOString() }
 }
 
 async function logAi(o: BotInput, x: { status: string; model?: string; ms?: number }) {

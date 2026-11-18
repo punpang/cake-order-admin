@@ -504,14 +504,14 @@ const aiLogs = (records: any[]) => records.filter((r) => r.collection === 'aiLog
   check('เพดานทดสอบยังมี: ไม่แตะ punpang_ai_take', rpcCalls === 0)
 }
 
-// 14) aiLog: LINE ไม่เก็บข้อความลูกค้า · Messenger เก็บได้เฉพาะข้อความที่ตัดเหลือ 200 ตัวอักษรและตัดเบอร์แล้ว
+// 14) aiLog: ไม่เก็บข้อความลูกค้าทั้ง LINE และ Messenger · เก็บเฉพาะรหัสแชท สถานะ โมเดล และเวลา
 {
-  const lineLog = aiLogData({ chatId: 'U0123456789abcdef0123456789abcdef', text: 'โทร 0812345678 ขอราคาเค้ก', channel: 'line' }, { status: 'ok', model: 'm1', ms: 5 })
+  const lineLog = aiLogData({ chatId: 'U0123456789abcdef0123456789abcdef' }, { status: 'ok', model: 'm1', ms: 5 })
   check('aiLog LINE: ไม่มีคีย์ customer (ไม่เก็บข้อความ)', !('customer' in lineLog))
   check('aiLog LINE: ยังมีสถานะ โมเดล รหัสแชท และเวลา', lineLog.status === 'ok' && lineLog.model === 'm1' && lineLog.chatId.startsWith('U') && typeof lineLog.at === 'string')
-  const fbLog = aiLogData({ chatId: '123', text: 'โทร 0812345678 '.repeat(30), channel: undefined }, { status: 'ok' })
-  check('aiLog Messenger: มีข้อความตัดไม่เกิน 200 ตัวอักษร', typeof fbLog.customer === 'string' && fbLog.customer.length <= 200)
-  check('aiLog Messenger: เบอร์โทรถูกตัดออก', typeof fbLog.customer === 'string' && !fbLog.customer.includes('0812345678'))
+  const fbLog = aiLogData({ chatId: '123' }, { status: 'ok' })
+  check('aiLog Messenger: ไม่มีคีย์ customer (ไม่เก็บข้อความ)', !('customer' in fbLog))
+  check('aiLog Messenger: ยังมีสถานะ รหัสแชท และเวลา', fbLog.status === 'ok' && fbLog.chatId === '123' && typeof fbLog.at === 'string')
 }
 
 console.log(fail === 0 ? 'ALL PASS' : `${fail} FAILED`)
