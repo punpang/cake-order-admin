@@ -1206,7 +1206,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · หน้าเดียว: ซ้าย/บน = ยอดและวิธีชำระ · ขวา/ล่าง = รายการที่กำลังทำ (แนวนอน ≥1024px เป็นสองคอลัมน์) -->
-    <AppModal v-if="payOpen" title="ชำระเงิน" wide wider @close="requestClose">
+    <AppModal v-if="payOpen" title="ชำระเงิน" wide wider full @close="requestClose">
       <div class="grid gap-4 md:grid-cols-[17rem_minmax(0,1fr)] md:items-start">
         <!-- ซ้าย / บน -->
         <div class="space-y-3">
