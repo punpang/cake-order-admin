@@ -228,6 +228,14 @@ async function startData(staff) {
     return String(r.data || '')
   }
   store.couponHook.release = async (couponId, orderId) => { await client.rpc('punpang_release_coupon', { p_coupon: couponId, p_order: orderId }) }
+  // LINE (ช่องทางเสริม) ผ่าน Edge Function line-push · ไม่ผูก LINE → code no_line
+  store.lineHook.send = async (customerId, text) => {
+    const r = await client.functions.invoke('line-push', { body: { customer_id: customerId, text } })
+    if (!r.error) return r.data?.ok ? { ok: true } : { ok: false, error: r.data?.error || '' }
+    let j = {}
+    try { j = (await r.error.context?.json?.()) || {} } catch { /* ข้าม */ }
+    return { ok: false, code: j.code || '', error: j.error || 'ส่ง LINE ไม่สำเร็จ' }
+  }
   // SMS จริงผ่านเกตเวย์ของร้าน (Edge Function sms-send · URL เกตเวย์เก็บเป็น secret ฝั่งเซิร์ฟเวอร์) · ตั้งค่าไว้ = ถือว่าเชื่อมช่องทาง SMS แล้ว
   store.smsHook.send = async (number, text, kind, idempotencyKey) => {
     const r = await client.functions.invoke('sms-send', { body: { number, text, kind, idempotencyKey } })

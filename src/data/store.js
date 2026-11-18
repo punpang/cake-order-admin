@@ -2725,7 +2725,8 @@ nearLot.expiresAt = addDays(today(), 10)
 // ---------- การเชื่อมต่อ & แจ้งเตือน (จำลอง) ----------
 // ทีม = Telegram · ลูกค้า = ทุกช่องทางที่มี (Facebook, SMS) ที่กฎอนุญาต + เปิดใช้ช่องทาง + ลูกค้ามีข้อมูลติดต่อ
 const TEAM_OF = { order_created: 'team_new_order', payment_confirmed: 'team_payment_confirmed', cancelled: 'team_cancelled' }
-const customerAddr = (c, ch) => (ch === 'facebook' ? c?.fbPsid : ch === 'sms' ? c?.phone : '')
+// LINE: ไม่รู้ล่วงหน้าว่าผูกหรือยัง → ใช้รหัสลูกค้าเป็นที่อยู่ (เซิร์ฟเวอร์ตอบ no_line ถ้ายังไม่ผูก)
+const customerAddr = (c, ch) => (ch === 'facebook' ? c?.fbPsid : ch === 'sms' ? c?.phone : ch === 'line' ? c?.id : '')
 export function fillTemplate(tpl, vars) {
   return Object.entries(vars).reduce((s, [k, v]) => s.split(`{${k}}`).join(v ?? ''), tpl || '')
 }
@@ -2783,6 +2784,18 @@ function pushOut(event, channel, to, text, orderId = null, customer = null, opts
   }
   if (channel === 'sms' && customer?.phone) deliverSms(db.outbox[0], customer.phone, text, 'notify', customer.name)
   if (channel === 'telegram') deliverTg(db.outbox[0], text, 'notify', opts.parseMode || '')
+  if (channel === 'line' && customer) deliverLine(db.outbox[0], customer, text)
+}
+// ส่ง LINE จริงผ่าน Edge Function line-push (ตั้งโดยชั้นเชื่อม Supabase) · ไม่ผูก LINE = ไม่ใช่ข้อผิดพลาด (สถานะ no_line)
+export const lineHook = { send: null }
+function deliverLine(row, customer, text) {
+  if (!lineHook.send) return
+  row.status = 'sending'
+  lineHook.send(customer.id, text).then((r) => {
+    if (r.ok) row.status = 'sent'
+    else if (r.code === 'no_line') row.status = 'no_line'
+    else { row.status = 'failed'; row.error = r.error || '' }
+  }, () => { row.status = 'failed' })
 }
 // ส่ง SMS จริงผ่านเกตเวย์ (ตั้งโดยชั้นเชื่อม Supabase) · ไม่มีตัวส่ง = คงสถานะจำลองไว้
 export const smsHook = { send: null }

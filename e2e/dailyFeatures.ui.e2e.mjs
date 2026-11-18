@@ -102,6 +102,35 @@ t('จำกัดออเดอร์ต่อวัน: ครบแล้ว
   } finally { await page.context().close() }
 })
 
+t('LINE (ช่องทางเสริม): กฎเปิด LINE → คิวส่ง LINE · ลูกค้าไม่ได้ผูก = no_line (ไม่ใช่ข้อผิดพลาด) · SMS ยังอยู่', async () => {
+  const { page, errors } = await openPage('/admin/orders')
+  try {
+    const r = await ev(page, async () => {
+      const S = window.__store
+      const tpl = S.db.orders.find((o) => o.customerId && o.channel !== 'pos' && o.items?.length)
+      const c = S.addCustomer({ name: 'ลูกค้าทดสอบ LINE', phone: '0866660001', note: 'e2e' })
+      const d = JSON.parse(JSON.stringify(tpl))
+      const o = S.createOrder({ customerId: c.id, pickupAt: '2027-02-10T10:00', fulfillment: 'pickup', items: d.items, vat: d.vat, promoOn: false, quoteItems: true, shipPromo: null, birthday: null }, false)
+      S.db.integrations.line = { ...(S.db.integrations.line || {}), enabled: true }
+      const rule = S.db.notifyRules.find((x) => x.event === 'prepared')
+      rule.channels = [...new Set([...(rule.channels || []), 'line'])]
+      rule.enabled = true
+      S.lineHook.send = async () => ({ ok: false, code: 'no_line', error: 'ลูกค้ายังไม่ได้ผูก LINE' })
+      S.db.outbox.splice(0)
+      S.notify('prepared', { customer: c, orderId: o.id ?? o.order?.id, vars: {} })
+      await new Promise((res) => setTimeout(res, 50))
+      const rows = S.db.outbox.filter((x) => x.channel === 'line')
+      const noLine = rows.map((x) => x.status)
+      const smsRows = S.db.outbox.filter((x) => x.channel === 'sms').length
+      return { lineRows: rows.length, noLine, smsRows }
+    })
+    assert.ok(r.lineRows >= 1, 'ควรมีคิวช่อง LINE')
+    assert.ok(r.noLine.every((s) => s === 'no_line'), `สถานะควรเป็น no_line: ${r.noLine}`)
+    assert.ok(r.smsRows >= 1, 'SMS ควรยังถูกส่งตามปกติ')
+    assert.deepEqual(errors, [], `หน้าเว็บโยนข้อผิดพลาด: ${errors.join(' | ')}`)
+  } finally { await page.context().close() }
+})
+
 t('หน้าตั้งค่าร้าน: ตั้งจำนวนออเดอร์ต่อวันได้ · ค่าไม่ถูกต้องถูกปฏิเสธ · บันทึกแล้วมีผลจริง', async () => {
   const { page, errors } = await openPage('/admin/settings/shop')
   try {
