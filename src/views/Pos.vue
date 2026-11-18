@@ -22,7 +22,7 @@ import { waitSaved } from '../lib/syncStatus'
 import { showToast } from '../lib/toast'
 import { quietly } from '../lib/loading'
 import { watchTable } from '../lib/liveWatch'
-import { isNative, getDeviceConfig, pushDisplay, showDisplay } from '../lib/nativeDevices'
+import { isNative, getDeviceConfig, pushDisplay, showDisplay, displayCount } from '../lib/nativeDevices'
 import { printOrderReceipt } from '../lib/receiptRaster'
 import { billerIdOf, promptPayBillerPayload } from '../lib/promptpay'
 import DeviceSettings from '../components/DeviceSettings.vue'
@@ -356,7 +356,14 @@ const autoLeft = (l) => { const sec = Math.max(0, Math.ceil((l.detectedAt + AUTO
 const changeOf = (l) => (Number(l.received) || 0) - lineAmt(l)
 const quickFor = (l) => { const a = lineAmt(l); return [...new Set([a, Math.ceil(a / 100) * 100, Math.ceil(a / 500) * 500, Math.ceil(a / 1000) * 1000])].filter((v) => v >= a) }
 const qrLeft = (l) => { const sec = Math.max(0, Math.ceil((new Date(l.qrExpiresAt).getTime() - payNow.value) / 1000)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` }
+// มีจอลูกค้าต่ออยู่ (แอปเครื่อง) → QR แสดงที่จอลูกค้าเท่านั้น ฝั่งร้านไม่แสดง · ไม่มีจอ → แสดง QR ฝั่งร้านเป็นทางสำรอง
+const customerScreen = ref(false)
+async function checkCustomerScreen() {
+  if (!native) return
+  customerScreen.value = (await displayCount().catch(() => 0)) > 0
+}
 function openPay() {
+  checkCustomerScreen()
   if (!cart.value.length || editBill.value) return
   payErr.value = ''
   payLines.value = []
@@ -1279,8 +1286,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
           <!-- โอนเงิน: แสดง QR รอโอน -->
           <template v-else>
-            <div class="grid items-center gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
-              <BillerQr :amount="lineAmt(l)" :ref1="db.shop.merchantCode || ''" :ref2="l.qrRef" compact :show-amount="false" />
+            <div class="grid items-center gap-4" :class="customerScreen ? '' : 'sm:grid-cols-[auto_minmax(0,1fr)]'">
+              <BillerQr v-if="!customerScreen" :amount="lineAmt(l)" :ref1="db.shop.merchantCode || ''" :ref2="l.qrRef" compact :show-amount="false" />
               <div class="space-y-3 text-center sm:text-left">
                 <div>
                   <div class="text-sm text-stone-500">ยอดโอน</div>
@@ -1295,6 +1302,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                   <span class="font-semibold">รอลูกค้าโอน</span>
                   <span class="text-sm">· หมดอายุใน <b class="tabular-nums">{{ qrLeft(l) }}</b></span>
                 </div>
+                <p v-if="customerScreen && !expiredLine(l)" class="rounded-xl bg-brand-50 p-2.5 text-sm font-medium text-brand-800">QR แสดงที่จอลูกค้าแล้ว ให้ลูกค้าสแกนที่จอนั้น</p>
                 <p v-if="!expiredLine(l)" class="text-xs text-stone-500">ระบบตรวจการโอนเข้าให้อัตโนมัติ ไม่ต้องกดอะไร</p>
                 <div v-if="!expiredLine(l) && (l.candidates || []).length > 1" class="space-y-2">
                   <p class="text-sm font-medium text-amber-800">พบหลายรายการที่ตรง เลือกรายการที่ใช่</p>
