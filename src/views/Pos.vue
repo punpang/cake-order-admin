@@ -951,11 +951,11 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto px-2 pt-3 pb-24 lg:pb-4">
         <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-          <div v-for="x in shown" :key="x.kind + x.id" class="relative">
+          <div v-for="x in shown" :key="x.kind + x.id" class="relative h-full">
           <button
             type="button"
-            class="relative flex min-h-24 w-full flex-col justify-between rounded-3xl border-2 bg-white p-3 text-left shadow-sm transition active:scale-[0.98] disabled:opacity-50"
-            :class="inCart(x) ? 'border-brand-500 bg-brand-50/60 pb-5' : 'border-transparent hover:border-brand-300'"
+            class="relative flex h-full min-h-24 w-full flex-col justify-between rounded-3xl border-2 bg-white p-3 text-left shadow-sm transition active:scale-[0.98] disabled:opacity-50"
+            :class="inCart(x) ? 'border-brand-500 bg-brand-50/60' : 'border-transparent hover:border-brand-300'"
             :disabled="!canAdd(x)"
             @click="add(x)"
           >
