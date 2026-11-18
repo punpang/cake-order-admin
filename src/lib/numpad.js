@@ -8,7 +8,8 @@ import { setVirtualKeyboardHeight } from './viewportFit.js'
 export const numpad = reactive({ open: false, mode: 'int', target: null })
 
 const FIELD = 'input[data-numpad]'
-const isTouch = () => typeof window !== 'undefined' && ((navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window)
+// อุปกรณ์สัมผัสจริง (มือถือ/แท็บเล็ต: ตัวชี้หลักคือนิ้ว ไม่มีเมาส์) · คอมพิวเตอร์ที่มีจอสัมผัสยังใช้แป้นพิมพ์ปกติ
+const isTouch = () => typeof window !== 'undefined' && (window.matchMedia?.('(hover: none) and (pointer: coarse)').matches ?? (navigator.maxTouchPoints || 0) > 0)
 const isNumpadField = (el) => el instanceof HTMLInputElement && el.matches(FIELD) && !el.disabled
 
 // ล็อกเฉพาะช่องที่แก้ไขได้อยู่แล้ว (ช่องที่ readonly โดยตั้งใจจะไม่เปิดแป้น)
