@@ -518,7 +518,9 @@ const focusKey = ref('')
 const lineDone = (l) => !!l.locked || (l.method === 'transfer' && (!!l.confirmed || l.status === 'cancelled')) || ((l.method === 'cash' || l.method === 'card') && !!l.confirmed)
 // รายการที่กำลังทำ: ที่เลือกไว้ หรือ QR ที่ยังรอโอนอยู่ (ต้องเห็น QR จนกว่าจะรับหรือยกเลิก)
 const focusLine = computed(() => payLines.value.find((l) => l.key === focusKey.value && !lineDone(l)) || payLines.value.find((l) => l.method === 'transfer' && l.qrRef && !lineDone(l)) || null)
-const receivedSum = computed(() => Math.round(payLines.value.filter((l) => l.confirmed && l.status !== 'cancelled').reduce((s, l) => s + lineAmt(l), 0) * 100) / 100)
+// รับแล้ว: เงินสดที่รับครบยอดนับทันที (ไม่ต้องกดยืนยันแยก) · บัตร/โอนนับเมื่อกดยืนยันรับแล้ว
+const isReceived = (l) => l.status !== 'cancelled' && lineAmt(l) > 0 && (l.confirmed || (l.method === 'cash' && lineOk(l)))
+const receivedSum = computed(() => Math.round(payLines.value.filter(isReceived).reduce((s, l) => s + lineAmt(l), 0) * 100) / 100)
 const listedLines = computed(() => payLines.value.filter((l) => l !== focusLine.value && l.status !== 'cancelled' && lineAmt(l) > 0))
 const cancelledQrs = computed(() => payLines.value.filter((l) => l.method === 'transfer' && l.status === 'cancelled'))
 function startMethod(k) {
