@@ -28,6 +28,15 @@ async function openPage(hash) {
   return { page, errors }
 }
 
+// ช่องเบอร์สมาชิกอยู่ในหน้าชำระเงินเท่านั้น: เพิ่มสินค้า 1 ชิ้น → ชำระเงิน → คืนช่องค้นหาสมาชิก
+async function openMemberInput(page) {
+  await page.getByRole('button', { name: /คัพเค้กวานิลลา/ }).first().click()
+  await page.getByRole('button', { name: 'ชำระเงิน', exact: true }).first().click()
+  const input = page.getByLabel('ค้นหาสมาชิกสะสมแต้ม')
+  await input.waitFor({ state: 'visible', timeout: 15000 })
+  return input
+}
+
 t('พนักงานขายเปิดแก้ลูกค้าได้แต่ไม่เห็นปุ่มแปลงคะแนนเป็นคูปอง (แอดมินเห็น)', async () => {
   const { page, errors } = await openPage('/admin/settings/customers')
   try {
@@ -152,15 +161,14 @@ t('POS: สแกนบาร์โค้ดคูปองที่ลูกค
     await page.evaluate(async () => { window.__store = await import('/src/data/store.js') })
     const info = await seedBarcodeCoupons(page)
     assert.ok(info, 'ไม่มีลูกค้าสำหรับทดสอบ')
-    const input = page.getByLabel('ค้นหาลูกค้า หรือสแกนบาร์โค้ด')
-    await input.waitFor({ state: 'visible', timeout: 15000 })
+    const input = await openMemberInput(page)
     await input.fill('cpe2epending')
     await input.press('Enter')
     await page.getByText('ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" หรือหมดเวลาแล้ว').waitFor({ state: 'visible', timeout: 5000 })
     await input.fill('cpe2eactive')
     await input.press('Enter')
-    await page.getByText('(เลือกแล้ว 1)').waitFor({ state: 'visible', timeout: 5000 })
-    assert.equal(await page.getByLabel('ค้นหาลูกค้า หรือสแกนบาร์โค้ด').count(), 0, 'ช่องค้นหายังอยู่ทั้งที่เลือกลูกค้าแล้ว')
+    await page.getByText('ใช้คูปองลดแล้ว').waitFor({ state: 'visible', timeout: 5000 })
+    assert.equal(await page.getByLabel('ค้นหาสมาชิกสะสมแต้ม').count(), 0, 'ช่องค้นหายังอยู่ทั้งที่เลือกลูกค้าแล้ว')
     assert.deepEqual(errors, [])
   } finally { await page.close() }
 })
@@ -194,37 +202,11 @@ t('POS: สแกนรหัสสมาชิกแล้วเลือกล
     assert.ok(info, 'ไม่มีลูกค้าสำหรับทดสอบ')
     const member = 'e2e0e2e0e2e0e2e0e2e0e2e0e2e0e2e0'
     await page.evaluate((code) => { window.__store.myCustomer().scanCode = code }, member)
-    const input = page.getByLabel('ค้นหาลูกค้า หรือสแกนบาร์โค้ด')
-    await input.waitFor({ state: 'visible', timeout: 15000 })
+    const input = await openMemberInput(page)
     await input.fill(member)
     await input.press('Enter')
     await input.waitFor({ state: 'detached', timeout: 5000 })
-    assert.equal(await page.getByLabel('ค้นหาลูกค้า หรือสแกนบาร์โค้ด').count(), 0, 'ช่องค้นหายังอยู่ทั้งที่เลือกลูกค้าแล้ว')
-    assert.deepEqual(errors, [])
-  } finally { await page.close() }
-})
-
-t('POS: เมื่อเลือกสมาชิกแล้ว สแกนคูปองของลูกค้าคนนั้นเพื่อเลือกเข้าบิลได้', async () => {
-  const { page, errors } = await openPage('/admin/pos')
-  try {
-    await page.evaluate(async () => { window.__store = await import('/src/data/store.js') })
-    const info = await seedBarcodeCoupons(page)
-    assert.ok(info, 'ไม่มีลูกค้าสำหรับทดสอบ')
-    const member = 'e2e1e2e1e2e1e2e1e2e1e2e1e2e1e2e1'
-    await page.evaluate((code) => { window.__store.myCustomer().scanCode = code }, member)
-    const input = page.getByLabel('ค้นหาลูกค้า หรือสแกนบาร์โค้ด')
-    await input.waitFor({ state: 'visible', timeout: 15000 })
-    await input.fill(member)
-    await input.press('Enter')
-    await input.waitFor({ state: 'detached', timeout: 5000 })
-    const cp = page.getByLabel('สแกนบาร์โค้ดคูปองของลูกค้า')
-    await cp.waitFor({ state: 'visible', timeout: 5000 })
-    await cp.fill('cpe2epending')
-    await cp.press('Enter')
-    await page.getByText('ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" หรือหมดเวลาแล้ว').waitFor({ state: 'visible', timeout: 5000 })
-    await cp.fill('cpe2eactive')
-    await cp.press('Enter')
-    await page.getByText('(เลือกแล้ว 1)').waitFor({ state: 'visible', timeout: 5000 })
+    assert.equal(await page.getByLabel('ค้นหาสมาชิกสะสมแต้ม').count(), 0, 'ช่องค้นหายังอยู่ทั้งที่เลือกลูกค้าแล้ว')
     assert.deepEqual(errors, [])
   } finally { await page.close() }
 })
