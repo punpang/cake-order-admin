@@ -973,9 +973,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <!-- ตะกร้า (คอม = แผงขวา · มือถือ = bottom sheet) -->
       <div v-if="cartOpen" class="fixed inset-0 z-40 bg-stone-900/40 lg:hidden" @click="cartOpen = false" />
       <aside
-        class="z-50 flex-col rounded-t-3xl border border-stone-200 bg-white lg:sticky lg:top-20 lg:flex lg:max-h-[calc(100dvh-7rem)] lg:rounded-2xl"
-        :class="cartOpen ? 'fixed inset-x-0 bottom-0 flex max-h-[88dvh] pb-[env(safe-area-inset-bottom)]' : 'hidden'"
-        :style="cartOpen && kb.open ? { bottom: 'var(--kbh, 0px)', maxHeight: 'calc(var(--vvh, 100dvh) * 0.88)' } : undefined"
+        class="z-50 flex-col rounded-2xl border border-stone-200 bg-white shadow-2xl lg:sticky lg:top-20 lg:flex lg:max-h-[calc(100dvh-7rem)] lg:shadow-none"
+        :class="cartOpen ? 'fixed inset-x-4 top-1/2 flex max-h-[80dvh] -translate-y-1/2 sm:mx-auto sm:w-full sm:max-w-md' : 'hidden'"
       >
         <div class="flex items-center justify-between border-b border-stone-100 px-4 py-3">
           <span class="font-semibold text-stone-900">ตะกร้า <span class="text-stone-400">{{ count }}</span></span>
