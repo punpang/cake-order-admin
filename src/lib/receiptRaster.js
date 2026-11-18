@@ -2,11 +2,12 @@
 // ข้อดี: ภาษาไทยแสดงได้ถูกต้องโดยไม่ต้องรู้ code page ของเครื่องพิมพ์
 import { db } from '../data/store'
 import { orderTotals } from './pricing'
-import { money, dateTime, orderNo } from './format'
+import { money, dateTime, dateOnly, orderNo } from './format'
+import { branchLabel } from './acct/taxid'
 import { printBytes, getDeviceConfig } from './nativeDevices'
 import QRCode from 'qrcode'
 
-const PX = { 58: 384, 80: 576 } // ความกว้างจุดของกระดาษ 58 มม. / 80 มม.
+const PX = { 58: 384, 80: 576, 88: 640 } // ความกว้างจุดของกระดาษ 58 / 80 / 88 มม. (88 มม. ยังไม่ได้ทดสอบกับเครื่องจริง)
 const FAMILY = 'Prompt, Mitr, Tahoma, sans-serif'
 const BAND_ROWS = 240 // ส่งภาพทีละช่วงแถว กันบัฟเฟอร์ของเครื่องพิมพ์ล้น
 
@@ -229,6 +230,51 @@ export async function printOrderReceipt(order, opts = {}) {
   const cfg = getDeviceConfig()
   if (!cfg.printer?.address) throw new Error('ยังไม่ได้เลือกเครื่องพิมพ์')
   await printBytes(cfg.printer.address, await buildReceiptBytes(order, cfg.widthMm, opts))
+}
+
+// ใบกำกับภาษีเต็มรูปแบบกระดาษความร้อน (58 / 88 มม.) · label = ต้นฉบับ / สำเนา
+export async function buildTaxInvoiceBytes(inv, widthMm, label = 'ต้นฉบับ') {
+  await loadFont()
+  const w = writer(PX[widthMm] || PX[58])
+  const credit = inv.type === 'credit'
+  const sign = credit ? -1 : 1
+  const m = (n) => money(sign * n)
+  w.text(inv.seller.name, { align: 'center', kind: 'title' })
+  if (inv.seller.address) w.text(inv.seller.address, { align: 'center', kind: 'small' })
+  w.text(`เลขประจำตัวผู้เสียภาษี ${inv.seller.taxId} · ${branchLabel(inv.seller.branch)}`, { align: 'center', kind: 'small' })
+  w.rule()
+  w.text(credit ? 'ใบลดหนี้ / ใบกำกับภาษี' : 'ใบกำกับภาษี', { align: 'center', kind: 'bold' })
+  w.text(`(${label}) เลขที่ ${inv.no}`, { align: 'center' })
+  w.text(`วันที่ ${dateOnly(inv.date)}`, { align: 'center' })
+  if (credit) w.text(`อ้างถึงใบกำกับภาษีเลขที่ ${inv.refNo}`, { align: 'center', kind: 'small' })
+  w.rule()
+  w.text(`ผู้ซื้อ: ${inv.buyer.name}`, { kind: 'bold' })
+  if (inv.buyer.address) w.text(inv.buyer.address, { kind: 'small' })
+  w.text(`เลขประจำตัวผู้เสียภาษี ${inv.buyer.taxId} · ${branchLabel(inv.buyer.branch)}`, { kind: 'small' })
+  w.text(`อ้างอิงออร์เดอร์ ${inv.orderCode}`, { kind: 'small' })
+  w.rule()
+  for (const l of inv.lines || []) {
+    w.pair(`${l.qty} × ${l.name}`, m(l.amount))
+    w.text(`   @ ${m(l.unitPrice)}`, { kind: 'small' })
+  }
+  for (const d of inv.discounts || []) w.pair(`ส่วนลด: ${d.label}`, m(-d.amount))
+  w.rule()
+  w.pair('มูลค่าก่อนภาษีมูลค่าเพิ่ม', m(inv.beforeVat))
+  w.pair(`ภาษีมูลค่าเพิ่ม ${inv.rate}%`, m(inv.vat))
+  w.pair(credit ? 'ยอดลดหนี้รวมภาษี' : 'รวมทั้งสิ้น', m(inv.total), { kind: 'bold' })
+  w.text(inv.mode === 'exclusive' ? '(ราคาไม่รวมภาษี บวกภาษีท้ายยอด)' : '(ราคารวมภาษีมูลค่าเพิ่มแล้ว)', { kind: 'small' })
+  w.text(`ตัวอักษร: ${credit ? 'ลบ' : ''}${inv.totalText || ''}`)
+  w.rule()
+  w.text('ผู้รับสินค้า/บริการ ________________', { kind: 'small' })
+  w.text('ผู้มีอำนาจลงนาม ________________', { kind: 'small' })
+  return escpos(toRaster(draw(w)))
+}
+
+// พิมพ์ใบกำกับภาษีไปยังเครื่องพิมพ์ความร้อนที่เลือกไว้ (ขนาดกระดาษเลือกทุกครั้งที่พิมพ์)
+export async function printTaxInvoice(inv, widthMm, label = 'ต้นฉบับ') {
+  const cfg = getDeviceConfig()
+  if (!cfg.printer?.address) throw new Error('ยังไม่ได้เลือกเครื่องพิมพ์')
+  await printBytes(cfg.printer.address, await buildTaxInvoiceBytes(inv, widthMm, label))
 }
 
 export async function printTestPage() {

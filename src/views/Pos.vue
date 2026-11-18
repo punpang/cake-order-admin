@@ -527,8 +527,7 @@ function startMethod(k) {
   if (remaining.value <= 0 || binding.value) return
   addPayLine(k)
   const l = payLines.value[payLines.value.length - 1]
-  focusKey.value = l.key
-  if (k === 'transfer') makeQr(l) // โอนเงิน: แสดง QR ยอดคงเหลือทันที (แบ่งจ่ายได้จากปุ่มในหน้า QR)
+  focusKey.value = l.key // โอนเงิน: ใส่ยอดแล้วกด "สร้าง QR" เอง
 }
 // กลับไปเลือกวิธีอื่น: QR ที่รออยู่ถูกยกเลิก (ยังเฝ้าการโอนเข้า QR เดิมจนปิดหน้า) · รายการที่ยังไม่รับถูกลบ
 function backToMethods(l) {
@@ -545,6 +544,25 @@ function splitTransfer(l) {
 }
 // เก็บยอดเงินสดหรือบัตรนี้ไว้ แล้วไปรับส่วนที่เหลือด้วยวิธีอื่น
 const keepAndAddMore = () => { focusKey.value = '' }
+// แป้นตัวเลข (เงินสด: รับเงินมา · โอน: ยอดก่อนสร้าง QR) · ค่าเป็นข้อความเพื่อให้พิมพ์จุดทศนิยมได้
+const PAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'back']
+function padInput(l, field, k) {
+  if (l.locked || l.confirmed) return
+  const cur = String(l[field] ?? '')
+  if (k === 'back') return (l[field] = cur.slice(0, -1))
+  if (k === '.') return (l[field] = cur.includes('.') ? cur : (cur || '0') + '.')
+  if (cur.includes('.') && cur.split('.')[1].length >= 2) return
+  if (cur.replace('.', '').length >= 9) return
+  l[field] = cur === '0' ? k : cur + k
+}
+// ยอดรวมแยกตามวิธี (ไม่นับรายการที่ยกเลิก)
+// ยอดที่ยังไม่ได้รับจริง (นับเฉพาะที่ยืนยันแล้ว) ต่างจาก remaining ซึ่งนับรายการที่เริ่มทำไว้ด้วย
+const dueAmt = computed(() => Math.round((total.value - receivedSum.value) * 100) / 100)
+const methodSums = computed(() => {
+  const s = { cash: 0, transfer: 0, card: 0 }
+  for (const l of payLines.value) if (l.status !== 'cancelled' && lineAmt(l) > 0) s[l.method] = Math.round((s[l.method] + lineAmt(l)) * 100) / 100
+  return s
+})
 // ---------- เครื่องพิมพ์และจอลูกค้า (แอป Android) ----------
 const native = isNative()
 const deviceOpen = ref(false)
@@ -1189,26 +1207,21 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · หน้าเดียว: ซ้าย/บน = ยอดและวิธีชำระ · ขวา/ล่าง = รายการที่กำลังทำ (แนวนอน ≥1024px เป็นสองคอลัมน์) -->
     <AppModal v-if="payOpen" title="ชำระเงิน" wide wider @close="requestClose">
-      <div class="grid gap-4 lg:grid-cols-[17rem_minmax(0,1fr)] lg:items-start">
+      <div class="grid gap-4 md:grid-cols-[17rem_minmax(0,1fr)] md:items-start">
         <!-- ซ้าย / บน -->
         <div class="space-y-3">
           <div class="rounded-2xl p-4" :class="canConfirm ? 'bg-emerald-50' : 'bg-brand-50'">
             <div class="text-sm" :class="canConfirm ? 'text-emerald-800' : 'text-brand-800'">{{ canConfirm ? 'รับเงินครบแล้ว' : remaining < 0 ? 'รับเกินยอด' : listedLines.length ? 'ยังต้องรับอีก' : 'ยอดชำระ' }}</div>
             <div class="text-4xl font-bold tabular-nums" :class="canConfirm ? 'text-emerald-900' : remaining < 0 ? 'text-rose-700' : 'text-brand-900'">{{ money(total) }}</div>
-            <div class="mt-1 flex flex-wrap gap-x-3 text-sm text-brand-800">
-              <span>รับแล้ว <b class="tabular-nums">{{ money(receivedSum) }}</b></span>
-              <span v-if="paidSum - receivedSum > 0">รอรับ <b class="tabular-nums">{{ money(paidSum - receivedSum) }}</b></span>
-              <span v-if="remaining > 0">ค้าง <b class="tabular-nums">{{ money(remaining) }}</b></span>
-              <span v-if="remaining < 0" class="text-rose-700">เกิน {{ money(-remaining) }}</span>
+            <div class="mt-3 space-y-1 border-t border-brand-200/70 pt-2 text-sm text-brand-800">
+              <div v-for="k in ['transfer', 'cash', 'card']" :key="k" class="flex justify-between"><span>{{ POS_METHODS[k] }}</span><b class="tabular-nums">{{ money(methodSums[k]) }}</b></div>
+              <div class="flex justify-between font-semibold" :class="dueAmt < 0 ? 'text-rose-700' : ''"><span>{{ dueAmt < 0 ? 'เกิน' : 'คงค้าง' }}</span><b class="tabular-nums">{{ money(Math.abs(dueAmt)) }}</b></div>
+              <div class="flex justify-between text-xs text-brand-700"><span>รับแล้ว</span><span class="tabular-nums">{{ money(receivedSum) }}</span></div>
             </div>
           </div>
 
           <p v-if="payErr" class="rounded-xl bg-rose-50 p-2.5 text-sm text-rose-700" role="alert">{{ payErr }}</p>
           <p v-if="binding" class="rounded-xl bg-emerald-50 p-2.5 text-center text-sm text-emerald-800" role="status">กำลังบันทึกยอดที่รับแล้ว…</p>
-
-          <div v-if="remaining > 0" class="grid grid-cols-3 gap-2 lg:grid-cols-1" aria-label="เลือกวิธีชำระ">
-            <button v-for="(label, k) in POS_METHODS" :key="k" type="button" class="h-14 rounded-2xl border-2 border-brand-200 bg-white text-lg font-semibold text-brand-800 active:scale-[0.98] disabled:opacity-40" :disabled="binding || !!focusLine" @click="startMethod(k)">{{ label }}</button>
-          </div>
 
           <!-- สมาชิกสะสมแต้ม: เปลี่ยนได้จนกว่าจะสร้าง QR หรือรับชำระรายการแรก -->
           <div v-if="!member && !memberLocked" class="space-y-1.5 rounded-2xl border border-stone-200 bg-white p-3" aria-label="เบอร์สะสมแต้ม">
@@ -1240,6 +1253,10 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
         <!-- ขวา / ล่าง -->
         <div class="min-w-0 space-y-3">
+          <div v-if="remaining > 0 || focusLine" class="grid grid-cols-3 gap-2" aria-label="เลือกวิธีชำระ">
+            <button v-for="(label, k) in POS_METHODS" :key="k" type="button" class="h-14 rounded-2xl border-2 border-brand-200 bg-white text-lg font-semibold text-brand-800 active:scale-[0.98] disabled:opacity-40" :disabled="binding || !!focusLine" @click="startMethod(k)">{{ label }}</button>
+          </div>
+
           <!-- รายการที่กำลังทำ -->
           <template v-for="l in focusLine ? [focusLine] : []" :key="l.key">
             <div class="flex items-center justify-between gap-3">
@@ -1269,9 +1286,12 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                   </div>
                 </div>
                 <div class="space-y-3">
-                  <div>
-                    <label class="label" :for="'rcv-' + l.key">รับเงินมา (บาท)</label>
-                    <MoneyInput :id="'rcv-' + l.key" v-model="l.received" class="input h-14 text-2xl font-semibold" placeholder="0" :readonly="!!l.locked || !!l.confirmed" />
+                  <div class="rounded-2xl bg-stone-50 p-4 text-center">
+                    <div class="text-sm text-stone-600">รับเงินมา (บาท)</div>
+                    <div class="text-3xl font-bold tabular-nums text-stone-900">{{ money(Number(l.received) || 0) }}</div>
+                  </div>
+                  <div class="grid grid-cols-3 gap-2" aria-label="แป้นตัวเลขรับเงิน">
+                    <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-12 rounded-xl border-2 border-stone-200 bg-white text-xl font-semibold text-stone-800 active:scale-[0.98] disabled:opacity-40" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" :disabled="!!l.locked || !!l.confirmed" @click="padInput(l, 'received', k)">{{ k === 'back' ? '⌫' : k }}</button>
                   </div>
                   <div class="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-2">
                     <button v-for="v in quickFor(l)" :key="v" type="button" class="h-12 rounded-xl border-2 border-stone-200 bg-white text-base font-semibold text-stone-800 active:scale-[0.98] disabled:opacity-40" :disabled="!!l.locked || !!l.confirmed" @click="l.received = String(v)">{{ v === lineAmt(l) ? 'พอดี' : money(v) }}</button>
@@ -1308,10 +1328,13 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <!-- โอน: ยังไม่มี QR -->
             <template v-else-if="!l.qrRef">
               <div class="rounded-2xl bg-brand-50 p-4 text-center">
-                <label class="text-sm text-brand-800" :for="'amt-' + l.key">ยอดโอนครั้งนี้ (บาท)</label>
-                <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input mx-auto mt-1 h-14 max-w-60 text-center text-2xl font-semibold" />
+                <div class="text-sm text-brand-800">ยอดโอนครั้งนี้ (บาท)</div>
+                <div class="text-4xl font-bold tabular-nums text-brand-900">{{ money(lineAmt(l)) }}</div>
               </div>
-              <button type="button" class="btn-primary h-14 w-full text-lg" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">แสดง QR ยอด {{ money(lineAmt(l)) }}</button>
+              <div class="grid grid-cols-3 gap-2" aria-label="แป้นตัวเลขยอดโอน">
+                <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-12 rounded-xl border-2 border-stone-200 bg-white text-xl font-semibold text-stone-800 active:scale-[0.98] disabled:opacity-40" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" @click="padInput(l, 'amount', k)">{{ k === 'back' ? '⌫' : k }}</button>
+              </div>
+              <button type="button" class="btn-primary h-14 w-full text-lg" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
             </template>
 
             <!-- โอน: พบการโอนแล้ว รอพนักงานกดรับ (ระบบรับเองเมื่อครบเวลา) -->
