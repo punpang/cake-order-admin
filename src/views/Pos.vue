@@ -1,6 +1,6 @@
 <script setup>
 import { couponQuoteOf, quoteCouponList, couponTermsText } from '../lib/coupons'
-import { resolveCouponScan } from '../lib/scan'
+import { resolveCouponScan, resolveMemberScan } from '../lib/scan'
 import MoneyInput from '../components/MoneyInput.vue'
 import { orderNo } from '../lib/format'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
@@ -243,6 +243,8 @@ function pickMember(c) {
 const scanMsg = ref('')
 function onMemberScan() {
   scanMsg.value = ''
+  const mem = resolveMemberScan(memberQ.value, db.customers)
+  if (mem) { pickMember(mem); return }
   const hit = resolveCouponScan(memberQ.value, db.coupons)
   if (!hit) return
   const cust = findCustomer(hit.customerId)
@@ -966,7 +968,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               </div>
             </div>
             <template v-else>
-              <input v-model="memberQ" type="search" class="input h-10" placeholder="ค้นหาเบอร์ / ชื่อ / สแกนบาร์โค้ดคูปอง" aria-label="ค้นหาลูกค้า หรือสแกนบาร์โค้ดคูปอง" @keydown.enter.prevent="onMemberScan" />
+              <input v-model="memberQ" type="search" class="input h-10" placeholder="ค้นหาเบอร์ / ชื่อ / สแกนบาร์โค้ด" aria-label="ค้นหาลูกค้า หรือสแกนบาร์โค้ด" @keydown.enter.prevent="onMemberScan" />
               <p v-if="scanMsg" class="mt-1 text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
               <div v-if="memberMatches.length" class="mt-1.5 space-y-1">
                 <button v-for="c in memberMatches" :key="c.id" type="button" class="flex w-full justify-between gap-2 rounded-lg border border-stone-200 px-3 py-2 text-left text-sm hover:border-brand-300" @click="pickMember(c)">

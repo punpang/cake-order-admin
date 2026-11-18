@@ -10,3 +10,19 @@ export function resolveCouponScan(raw, coupons = []) {
   if (!COUPON_SCAN_RE.test(v)) return null
   return coupons.find((c) => c.id === v) || null
 }
+
+// รหัสสมาชิก (ค่าสุ่ม 32 ตัว hex เก็บใน customer.scanCode) สำหรับบาร์โค้ดให้พนักงานสแกนที่ POS
+export const MEMBER_SCAN_RE = /^[0-9a-f]{32}$/
+
+export function newMemberScanCode() {
+  const b = new Uint8Array(16)
+  crypto.getRandomValues(b)
+  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
+}
+
+// คืนลูกค้าที่มีรหัสสมาชิกตรงกับค่าที่สแกน (ไม่รวมบัญชีที่ลบหรือปิดใช้งาน) หรือ null
+export function resolveMemberScan(raw, customers = []) {
+  const v = String(raw ?? '').trim()
+  if (!MEMBER_SCAN_RE.test(v)) return null
+  return customers.find((c) => c.scanCode === v && !c.deleted && c.active !== false) || null
+}

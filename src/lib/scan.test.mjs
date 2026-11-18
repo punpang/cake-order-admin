@@ -1,6 +1,6 @@
 // เทสต์การสแกนบาร์โค้ดคูปอง · รัน: node src/lib/scan.test.mjs
 import assert from 'node:assert/strict'
-import { COUPON_SCAN_RE, couponScanValue, resolveCouponScan } from './scan.js'
+import { COUPON_SCAN_RE, MEMBER_SCAN_RE, couponScanValue, newMemberScanCode, resolveCouponScan, resolveMemberScan } from './scan.js'
 
 const coupons = [
   { id: 'cpabc123', name: 'คูปอง A', customerId: 'c1' },
@@ -34,6 +34,32 @@ t('รหัสที่ไม่ใช่รูปแบบคูปอง ห�
 
 t('ไม่สนตัวพิมพ์ใหญ่ในค่าที่สแกนไม่ได้ (รหัสคูปองเป็นตัวเล็กเท่านั้น)', () => {
   assert.equal(resolveCouponScan('CPABC123', coupons), null)
+})
+
+t('รหัสสมาชิกที่สร้างเป็น 32 ตัว hex และไม่ซ้ำกันในการเรียกติดกัน', () => {
+  const a = newMemberScanCode(), b = newMemberScanCode()
+  assert.match(a, MEMBER_SCAN_RE)
+  assert.match(b, MEMBER_SCAN_RE)
+  assert.notEqual(a, b)
+})
+
+t('สแกนรหัสสมาชิกหาลูกค้าที่ตรงได้ และไม่รวมบัญชีที่ลบหรือปิดใช้งาน', () => {
+  const list = [
+    { id: 'm1', scanCode: 'a'.repeat(32) },
+    { id: 'm2', scanCode: 'b'.repeat(32), deleted: true },
+    { id: 'm3', scanCode: 'c'.repeat(32), active: false },
+  ]
+  assert.equal(resolveMemberScan(' ' + 'a'.repeat(32) + '\n', list), list[0])
+  assert.equal(resolveMemberScan('b'.repeat(32), list), null)
+  assert.equal(resolveMemberScan('c'.repeat(32), list), null)
+  assert.equal(resolveMemberScan('d'.repeat(32), list), null)
+})
+
+t('รหัสสมาชิกที่รูปแบบผิด (ไม่ใช่ hex 32 ตัว) ไม่ถูกจับคู่', () => {
+  const list = [{ id: 'm1', scanCode: 'a'.repeat(32) }]
+  assert.equal(resolveMemberScan('A'.repeat(32), list), null)
+  assert.equal(resolveMemberScan('a'.repeat(31), list), null)
+  assert.equal(resolveMemberScan('', list), null)
 })
 
 let fails = 0

@@ -42,6 +42,7 @@ import { uploadChatImage } from '../lib/chatImage'
 import { billerIdOf, newQrSuffix, promptPayBillerPayload, qrRefOk, shopRefOfCode } from '../lib/promptpay'
 import { gateOf, gateBlocks, GATE_MESSAGE } from '../lib/orderGate'
 import { orderNo } from '../lib/format'
+import { newMemberScanCode } from '../lib/scan'
 import { callAuth, callLoyalty, readSessionToken, saveSessionToken, clearSessionToken, injectBundle, clearBundle } from '../lib/customerRemote'
 import { OTP, PIN, OTP_PURPOSE, isPin, isOtpCode, weakPin, randomHex, hashPin, safeEqual, genOtp } from '../lib/customerAuth'
 
@@ -4421,7 +4422,16 @@ export function changePhone({ token, phone: phoneRaw }) {
 // ข้อมูลของฉัน (เฉพาะช่องที่ลูกค้าเห็นได้ ไม่รวมหมายเหตุของพนักงาน)
 export function myProfile() {
   const c = myCustomer()
-  return c ? { id: c.id, name: c.name, phone: c.phone, promoOptIn: !!c.promoOptIn, spins: c.spins || 0, points: customerPoints(c) } : null
+  return c ? { id: c.id, name: c.name, phone: c.phone, promoOptIn: !!c.promoOptIn, spins: c.spins || 0, points: customerPoints(c), scanCode: c.scanCode || '' } : null
+}
+// รหัสสมาชิกสำหรับบาร์โค้ด: ออนไลน์ให้เซิร์ฟเวอร์สร้าง (ensure_scan_code) · โหมดเครื่องเดียวสร้างในเครื่อง
+export async function ensureMyScanCode() {
+  const c = myCustomer()
+  if (!c) return { error: 'กรุณาเข้าสู่ระบบ' }
+  if (c.scanCode) return { ok: true }
+  if (remoteCust()) return remoteAct('ensure_scan_code')
+  c.scanCode = newMemberScanCode()
+  return { ok: true }
 }
 // แก้ได้เฉพาะ ชื่อ / รับข่าว-โปร (เบอร์แก้ผ่าน changePhone ที่ต้องยืนยัน OTP)
 export function updateMyProfile({ name, promoOptIn }) {

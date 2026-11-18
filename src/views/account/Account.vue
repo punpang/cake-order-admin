@@ -3,8 +3,9 @@ import { orderNo } from '../../lib/format'
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  db, myProfile, updateMyProfile, myOrders, myBirthdays, submitReview, customerLogout, changePin, changePhone, requestDeletion, myDeletionRequest,
+  db, myProfile, updateMyProfile, myOrders, myBirthdays, submitReview, customerLogout, changePin, changePhone, requestDeletion, myDeletionRequest, ensureMyScanCode,
 } from '../../data/store'
+import CouponBarcode from '../../components/CouponBarcode.vue'
 import { describeSelections } from '../../lib/pricing'
 import { isPin } from '../../lib/customerAuth'
 import { forBoughtIds } from '../../lib/storefront'
@@ -28,6 +29,23 @@ import TaxAddressField from '../../components/TaxAddressField.vue'
 const router = useRouter()
 const me = computed(() => myProfile())
 const route = useRoute()
+
+// ส่วนสมาชิก: บอกเบอร์ (อ่านให้พนักงานฟัง) หรือแสดงบาร์โค้ดให้พนักงานสแกน · จำการเลือกไว้ในเครื่องนี้
+const MEMBER_VIEW_KEY = 'punpang_member_view'
+const readMemberView = () => { try { return localStorage.getItem(MEMBER_VIEW_KEY) === 'scan' ? 'scan' : 'phone' } catch { return 'phone' } }
+const memberView = ref(readMemberView())
+const scanErr = ref('')
+async function loadScanCode() {
+  scanErr.value = ''
+  const r = await ensureMyScanCode()
+  if (r.error) scanErr.value = r.error
+}
+async function setMemberView(v) {
+  memberView.value = v
+  try { localStorage.setItem(MEMBER_VIEW_KEY, v) } catch { /* ไม่มีที่เก็บในเครื่อง ไม่กระทบการใช้งาน */ }
+  if (v === 'scan') await loadScanCode()
+}
+if (memberView.value === 'scan') loadScanCode()
 const TAB_KEYS = ['profile', 'orders', 'rewards', 'security']
 // แถบเมนูล่างของหน้าร้านลิงก์มาที่แท็บด้วย ?tab= (เปลี่ยนตาม query ได้ด้วย)
 const tab = ref(TAB_KEYS.includes(String(route.query.tab)) ? String(route.query.tab) : 'profile')
@@ -157,6 +175,23 @@ function logout() {
       <button type="button" class="shrink-0 rounded-full bg-brand-50 px-3 py-1.5 text-sm font-semibold whitespace-nowrap text-brand-800 transition hover:bg-brand-100" @click="switchTab('rewards')">
         {{ num(me.points) }} คะแนน
       </button>
+    </section>
+
+    <!-- สมาชิก: บอกเบอร์ หรือแสดงบาร์โค้ดให้พนักงานสแกน -->
+    <section class="card space-y-3" aria-labelledby="member-title">
+      <div class="flex items-center justify-between gap-2">
+        <h2 id="member-title" class="card-title">สมาชิก</h2>
+        <div class="inline-flex rounded-full bg-stone-100 p-1 text-sm" role="group" aria-label="วิธีแสดงสมาชิก">
+          <button type="button" class="rounded-full px-3 py-1.5 transition" :class="memberView === 'phone' ? 'bg-white font-semibold text-stone-900 shadow-sm' : 'text-stone-600'" :aria-pressed="memberView === 'phone'" @click="setMemberView('phone')">บอกเบอร์</button>
+          <button type="button" class="rounded-full px-3 py-1.5 transition" :class="memberView === 'scan' ? 'bg-white font-semibold text-stone-900 shadow-sm' : 'text-stone-600'" :aria-pressed="memberView === 'scan'" @click="setMemberView('scan')">แสดงบาร์โค้ด</button>
+        </div>
+      </div>
+      <p v-if="memberView === 'phone'" class="text-center text-2xl font-semibold tracking-wide text-stone-900">{{ formatPhone(me.phone) }}</p>
+      <div v-else class="space-y-2">
+        <CouponBarcode v-if="me.scanCode" :value="me.scanCode" label="บาร์โค้ดสมาชิก" />
+        <p v-else-if="scanErr" class="text-sm text-rose-700" role="alert">{{ scanErr }}</p>
+        <p v-else class="text-sm text-stone-500">กำลังเตรียมบาร์โค้ด…</p>
+      </div>
     </section>
 
     <!-- เมนูแท็บ -->
