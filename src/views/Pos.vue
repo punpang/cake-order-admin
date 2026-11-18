@@ -202,7 +202,8 @@ const memberMatches = computed(() => {
   const s = memberQ.value.trim().toLowerCase()
   if (s.length < 2) return []
   const d = phoneDigits(s)
-  return db.customers.filter((c) => c.active !== false && (c.name.toLowerCase().includes(s) || (d.length >= 3 && c.phone?.includes(d)))).slice(0, 5)
+  // เบอร์ต้องพิมพ์ครบจึงค้นได้ (ไม่ค้นจากเลขบางส่วน)
+  return db.customers.filter((c) => c.active !== false && (c.name.toLowerCase().includes(s) || (phoneValid(d) && c.phone === d))).slice(0, 5)
 })
 // ---------- แลกของรางวัล (ต้องค้นหาลูกค้าก่อนจึงแสดงรายการ) ----------
 const rd = reactive({ open: false, q: '', cust: null, msg: '', err: '' })
@@ -241,6 +242,12 @@ function pickMember(c) {
   memberQ.value = ''
   couponIds.value = []
 }
+// พิมพ์เบอร์ครบแล้ว → เลือกสมาชิกทันที (ไม่ต้องกด Enter)
+watch(memberQ, (v) => {
+  if (member.value || memberLocked.value || !phoneValid(v)) return
+  const c = db.customers.find((x) => x.active !== false && !x.deleted && x.phone === phoneDigits(v))
+  if (c) pickMember(c)
+})
 // เครื่องสแกน USB ส่งรหัสคูปองมาแล้วกด Enter: เลือกลูกค้าเจ้าของคูปองและเลือกคูปองนั้นให้เลย (เฉพาะที่ลูกค้ากดแสดงที่ร้านอยู่)
 const scanMsg = ref('')
 // สแกนคูปองของสมาชิกที่เลือกอยู่: เลือกคูปองนั้นเข้าบิล (ถ้าผ่านเงื่อนไข) · ไม่ใช่ของลูกค้าคนนี้หรือยังไม่กดแสดงจะไม่เลือก
