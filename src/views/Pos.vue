@@ -1315,7 +1315,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                     <div class="text-2xl font-bold tabular-nums text-stone-900 landscape:text-xl">{{ money(lineAmt(l)) }}</div>
                     <p class="mt-2 max-w-xs text-xs text-stone-500 landscape:hidden">{{ expiredLine(l) ? 'QR หมดอายุแล้ว สร้าง QR ใหม่เพื่อรับชำระ' : 'รอการโอนเข้า ระบบจับคู่ให้อัตโนมัติเมื่อยอดและรหัสอ้างอิงตรงกัน' }}</p>
                   </div>
-                  <div class="mt-auto space-y-2">
+                  <div class="mt-auto space-y-2 lx-btns">
                     <button v-if="expiredLine(l)" type="button" class="btn-primary h-12 w-full landscape:h-10" @click="makeQr(l)">สร้าง QR ใหม่</button>
                     <button v-else type="button" class="btn-outline h-12 w-full landscape:h-10" @click="receiveNow(l)">ลูกค้าชำระแล้ว (ไม่พบอัตโนมัติ)</button>
                     <button type="button" class="btn-outline h-11 w-full landscape:h-10" @click="cancelQr(l)">ยกเลิก QR</button>
@@ -1332,9 +1332,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       </div>
       <template #footer>
         <div class="flex w-full gap-2">
-          <button class="btn-outline h-12 flex-1" :disabled="binding" @click="requestClose">ยกเลิก</button>
-          <button v-if="canSavePartial" class="btn-soft h-12 flex-1" :disabled="binding" @click="saveBillPartial">บันทึกบิลค้างไว้</button>
-          <button class="btn-primary h-12 flex-[1.4]" :disabled="!canConfirm || binding" @click="confirmPay"><AppIcon name="check" :size="18" /> ยืนยันรับเงิน</button>
+          <button class="btn-outline h-12 flex-1 lx-footer-btn" :disabled="binding" @click="requestClose">ยกเลิก</button>
+          <button v-if="canSavePartial" class="btn-soft h-12 flex-1 lx-footer-btn" :disabled="binding" @click="saveBillPartial">บันทึกบิลค้างไว้</button>
+          <button class="btn-primary h-12 flex-[1.4] lx-footer-btn" :disabled="!canConfirm || binding" @click="confirmPay"><AppIcon name="check" :size="18" /> ยืนยันรับเงิน</button>
         </div>
       </template>
     </AppModal>

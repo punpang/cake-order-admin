@@ -52,6 +52,7 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
         <div
           v-if="$slots.footer"
           class="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-stone-200/70 bg-cream px-5 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:pb-4"
+          :class="xwide ? 'lx-footer' : ''"
         >
           <slot name="footer" />
         </div>

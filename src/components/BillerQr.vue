@@ -35,7 +35,7 @@ watch(payload, async (p) => {
       <img v-if="qr" :src="qr" alt="QR พร้อมเพย์ (Biller)" class="mx-auto" :class="compact ? 'h-40 w-40 landscape:h-36 landscape:w-36 lx-qr' : 'h-48 w-48 sm:h-56 sm:w-56'" />
       <p v-else class="flex items-center justify-center gap-2 py-8 text-stone-400">กำลังสร้าง QR…</p>
       <p class="text-base font-semibold text-stone-900">{{ money(amount) }}</p>
-      <p class="text-xs text-stone-500">รหัสร้านค้า {{ ref1 }} · รหัสอ้างอิง {{ ref2 }}</p>
+      <p class="text-xs text-stone-500" :class="compact ? 'lx-caption' : ''">รหัสร้านค้า {{ ref1 }} · รหัสอ้างอิง {{ ref2 }}</p>
     </template>
     <p v-else class="text-left text-xs text-rose-700">ข้อมูล QR ไม่ครบ (ยอด รหัสร้านค้า หรือรหัสอ้างอิง)</p>
   </div>
