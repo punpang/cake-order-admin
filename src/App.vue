@@ -27,8 +27,10 @@ import { attachNumPad } from './lib/numpad'
 import StoreLayout from './components/StoreLayout.vue'
 
 const roleOpen = ref(false)
+const menuOpen = ref(false)
 // 4 ระบบหลังบ้าน (lib/adminSystems.js): ตัวสลับระบบ + เมนูย่อยของระบบปัจจุบัน
 const route = useRoute()
+watch(() => route.path, () => { menuOpen.value = false })
 // ชื่อร้านจากตั้งค่าร้าน (ไม่ฝังชื่อไว้ในโค้ด) · แท็บเบราว์เซอร์แสดงชื่อร้านอย่างเดียว
 const shopName = computed(() => (db.shop.name || '').trim() || 'ร้านของคุณ')
 watchEffect(() => { document.title = shopName.value })
@@ -56,7 +58,7 @@ const stopNumPad = attachNumPad()
 onBeforeUnmount(() => stopNumPad())
 // แป้นพิมพ์เปิดบนหน้าล็อก: ซ่อนแถบบน ใช้พื้นที่ทั้งหมดที่เหลือให้แชท
 const kbLock = computed(() => !!route.meta.lock && kb.open)
-const lockStyle = computed(() => (route.meta.lock ? (kbLock.value ? { top: 'var(--vvt, 0px)', height: 'var(--vvh, 100dvh)' } : { top: 'calc(3.5rem + var(--vvt, 0px))', height: 'calc(var(--vvh, 100dvh) - 3.5rem)' }) : null))
+const lockStyle = computed(() => (route.meta.lock ? (kbLock.value ? { top: 'var(--vvt, 0px)', height: 'var(--vvh, 100dvh)' } : { top: 'var(--vvt, 0px)', height: 'var(--vvh, 100dvh)' }) : null))
 const navShow = computed(() => showBottom.value && !(route.meta.lock && kb.open))
 const sysOpen = ref(false)
 const bottomCols = computed(() => bottomItems.value.length + (hasSwitch.value ? 1 : 0))
@@ -85,42 +87,28 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
   <main v-else-if="$route.meta.bare" id="main-content" tabindex="-1" class="outline-none"><RouterView /></main>
 
   <template v-else>
-  <!-- แถบบน -->
-  <header v-show="!kbLock" class="sticky top-0 z-20 bg-cream shadow-[0_1px_0_rgb(63_46_46/0.06)]">
-    <!-- จอแคบ: ระยะห่างเล็กลง โลโก้ไม่ถูกบีบ (เดิมปุ่มเลือกระบบทับโลโก้) และลิงก์หน้าร้านเป็นไอคอน (< 375px)
-         จอแคบกว่า 360px ซ่อนโลโก้ (ปุ่มเลือกระบบพาไปหน้าแรกของแต่ละระบบได้อยู่แล้ว) ไม่อย่างนั้นปุ่มผู้ใช้ล้นขอบขวา -->
-    <div class="mx-auto flex h-14 max-w-page items-center gap-2 px-4 sm:gap-3 lg:px-8">
-      <RouterLink :to="firstHome(can)" class="flex shrink-0 items-center gap-2.5 max-[359px]:hidden" :aria-label="`${shopName} หน้าแรกหลังบ้าน`">
-        <svg viewBox="0 0 48 48" class="h-10 w-10 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2" stroke-linejoin="round"><ellipse cx="24" cy="40" rx="18" ry="4" fill="#fff" /><rect x="9" y="22" width="30" height="16" rx="4" fill="#ffd05c" /><path d="M8 22c0-7 7-10 16-10s16 3 16 10c-3 3-5 0-8 3s-5 0-8 3-5 0-8-3-5 0-8-3z" fill="#ff8fa6" /><circle cx="24" cy="9" r="4" fill="#e0314f" /></svg>
-        <span class="hidden max-w-40 truncate font-display text-xl text-brand-700 2xl:inline">{{ shopName }}</span>
-      </RouterLink>
-
-      <SystemSwitcher :systems="systems" :current="current" />
-
-      <nav v-if="items.length > 1" class="ml-1 hidden min-w-0 gap-1 overflow-x-auto [scrollbar-width:none] lg:flex" aria-label="เมนูของระบบ">
-        <RouterLink
-          v-for="i in items"
-          :key="i.to"
-          :to="i.to"
-          class="relative rounded-full px-3 py-1.5 text-sm font-medium whitespace-nowrap text-stone-600 hover:bg-white xl:px-3.5"
-          :active-class="i.exact ? '' : 'bg-white text-brand-700 shadow-sm'"
-          :exact-active-class="i.exact ? 'bg-white text-brand-700 shadow-sm' : ''"
-        >
-          {{ i.label }}<span v-if="i.badge && badges[i.badge]" class="ml-1 rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{{ badges[i.badge] }}</span>
-        </RouterLink>
-      </nav>
-
-      <RouterLink to="/" class="ml-auto inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center px-1.5 text-sm whitespace-nowrap text-stone-600 underline" aria-label="หน้าร้าน">
-        <AppIcon name="store" :size="20" class="min-[375px]:hidden" />
-        <span class="hidden min-[375px]:inline">หน้าร้าน</span>
-      </RouterLink>
-      <BellMenu audience="staff" />
-      <button class="inline-flex h-10 max-w-40 items-center gap-2 rounded-full bg-white px-3 text-sm shadow-sm lg:px-3.5" :aria-label="`ผู้ใช้ ${me?.name || ROLES[session.role]}`" @click="supabaseEnabled && (roleOpen = true)">
-        <AppIcon name="user" :size="16" class="shrink-0 text-stone-500" />
-        <span class="hidden truncate lg:inline">{{ me?.name || ROLES[session.role] }}</span>
+  <!-- ปุ่มลอยมุมขวาบน: แทนแถบบนเดิม เพื่อให้เนื้อหาใช้พื้นที่เต็มจอ -->
+  <div v-show="!kbLock" class="fixed top-2 right-2 z-[60] flex items-center gap-2">
+    <BellMenu audience="staff" />
+    <button type="button" class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-stone-700 shadow-md ring-1 ring-stone-200" aria-label="เมนู" aria-controls="app-menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
+      <AppIcon :name="menuOpen ? 'x' : 'menu'" :size="20" />
+    </button>
+  </div>
+  <div v-if="menuOpen" class="fixed inset-0 z-[55]" aria-hidden="true" @click="menuOpen = false" />
+  <nav v-if="menuOpen" id="app-menu" class="fixed top-14 right-2 z-[60] max-h-[80dvh] w-64 overflow-y-auto rounded-2xl bg-white p-2 shadow-xl ring-1 ring-stone-200" aria-label="เมนูระบบ">
+    <RouterLink to="/" class="block rounded-xl px-3 py-2.5 text-sm text-stone-700 hover:bg-stone-100" @click="menuOpen = false">หน้าร้าน</RouterLink>
+    <div class="px-3 pt-3 pb-1 text-xs font-medium text-stone-500">ระบบ</div>
+    <RouterLink v-for="sy in systems" :key="sy.key" :to="homeOf(sy, can)" class="block rounded-xl px-3 py-2.5 text-sm text-stone-800 hover:bg-stone-100" :class="sy.key === current ? 'bg-brand-50 font-semibold text-brand-700' : ''" @click="menuOpen = false">{{ sy.label }}</RouterLink>
+    <template v-if="items.length > 1">
+      <div class="px-3 pt-3 pb-1 text-xs font-medium text-stone-500">เมนูของระบบ</div>
+      <RouterLink v-for="i in items" :key="i.to" :to="i.to" class="block rounded-xl px-3 py-2.5 text-sm text-stone-800 hover:bg-stone-100" @click="menuOpen = false">{{ i.label }}</RouterLink>
+    </template>
+    <div class="mt-2 border-t border-stone-100 pt-2">
+      <button type="button" class="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-stone-700 hover:bg-stone-100" :aria-label="`ผู้ใช้ ${me?.name || ROLES[session.role]}`" @click="supabaseEnabled && (roleOpen = true, menuOpen = false)">
+        บัญชี: {{ me?.name || ROLES[session.role] }}
       </button>
     </div>
-  </header>
+  </nav>
   <SyncBar />
 
   <!-- lock = ล็อกหน้า (เช่น แชท): main ตรึงใต้แถบบน ไม่ให้หน้าเว็บเลื่อน แต่ละกรอบข้างในเลื่อนเอง · ไม่พึ่ง dvh -->
