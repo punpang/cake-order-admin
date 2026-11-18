@@ -37,6 +37,8 @@ import { checkCustomerTxn, refTaken, bankByCode, PAY_MSG, thaiMinute } from '../
 import { SLIP_RECEIVE_NOTE, slipRoom, slipChoices, slipBindError } from '../lib/slipBind'
 import { payAccountsOf } from '../lib/payAccounts'
 import { customerTargets, withNewRules, CHANNEL_RULE_VERSION } from '../lib/notifyPlan'
+import { ordersOnDay, capState, capFullMsg, capDayKey } from '../lib/orderCap'
+import { dailySummaryVars } from '../lib/dailySummary'
 import { promoConsentPatch } from '../lib/promoConsent'
 import { uploadChatImage } from '../lib/chatImage'
 import { billerIdOf, newQrSuffix, promptPayBillerPayload, qrRefOk, shopRefOfCode } from '../lib/promptpay'
@@ -309,7 +311,7 @@ export const db = reactive({
 
   // ตั้งค่าร้าน: เวลานัดรับ ทุก slotMinutes นาที ระหว่าง open–close, nearbyHours = ค่าเริ่มต้นช่วงดูออร์เดอร์ก่อน/หลัง (0 = ทั้งวัน)
   // leadPickup / leadDelivery = ต้องเสร็จก่อนนัดกี่นาที (ตารางผลิต), depositPercent = มัดจำขั้นต่ำ % (0 = ไม่ใช้), birthdayDays = เตือนวันเกิดล่วงหน้ากี่วัน
-  shop: { name: 'ร้านเค้กตัวอย่าง', slotMinutes: 30, open: '09:00', close: '20:00', nearbyHours: 2, leadPickup: 60, leadDelivery: 120, depositPercent: 50, birthdayDays: 14,
+  shop: { name: 'ร้านเค้กตัวอย่าง', slotMinutes: 30, dailyOrderCap: 0, open: '09:00', close: '20:00', nearbyHours: 2, leadPickup: 60, leadDelivery: 120, depositPercent: 50, birthdayDays: 14,
     // กำหนดชำระเริ่มต้นตอนแจ้งยอด (นาที) · 0 = ไม่กำหนด
     payDueMin: 30,
     posQrExpireMin: 10, // QR โอนหน้าร้าน (POS) หมดอายุ (นาที)
@@ -479,7 +481,7 @@ export const db = reactive({
     rule('payment_requested', ['web', 'sms'],PAY_REQ_TPL, { sms: PAY_REQ_SMS_TPL }),
     rule('order_confirmed', ['web', 'sms'],'ยืนยันการสั่งซื้อออร์เดอร์ {เลขออร์เดอร์} แล้วค่ะ คงค้าง {คงค้าง} ชำระได้ตอนรับสินค้า'),
     rule('payment_reminder', ['web', 'sms'],PAY_REMINDER_TPL),
-    rule('prepared', ['web', 'sms'],PREPARED_TPL),
+    rule('prepared', ['web', 'facebook', 'sms'], PREPARED_TPL),
     rule('payment_confirmed', ['web', 'sms'],PAY_CONFIRMED_TPL),
     rule('pickup_reminder', ['web', 'sms'],'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
     rule('shipping', ['web', 'sms'],'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ กำหนดถึง {วันนัด} {เวลานัด}'),
@@ -1058,6 +1060,8 @@ function rememberPlaceOf(customerId, d) {
 export function createOrder(payload, asDraft = false) {
   const closed = pickupClosed(db.shop, payload.pickupAt)
   if (closed) return { error: closedMsg(closed) }
+  const cap = capState(db.shop.dailyOrderCap, ordersOnDay(db.orders, capDayKey(payload.pickupAt)))
+  if (cap.full) return { error: capFullMsg(db.shop.dailyOrderCap) }
   const promo = payload.quoteItems
     ? { items: payload.items, shipPromo: payload.shipPromo || null, on: !!payload.promoOn }
     : (() => { const w = withPromos(payload.items.filter((i) => !i.promoGift).map((i) => priceItem(i))); return { items: w.items, shipPromo: w.shipPromo, on: true } })()
@@ -1645,6 +1649,7 @@ const intIn = (v, lo, hi, fallback) => { const n = Math.round(Number(v)); return
 export function saveShopSettings(d) {
   db.shop.name = (d.name || '').trim() || db.shop.name
   db.shop.slotMinutes = Math.max(5, Number(d.slotMinutes) || 30)
+  db.shop.dailyOrderCap = Math.min(9999, Math.max(0, Math.round(Number(d.dailyOrderCap) || 0)))
   db.shop.open = d.open || '09:00'
   db.shop.close = d.close || '20:00'
   db.shop.nearbyHours = Math.max(0, Number(d.nearbyHours) || 0)
@@ -3767,6 +3772,7 @@ export function closeShift(counted, note = '') {
   const s = currentShift()
   if (!s) return null
   Object.assign(s, { closedAt: now(), closedBy: session.role, counted: Number(counted) || 0, note, summary: shiftSummary(s) })
+  notify('team_daily_summary', { vars: dailySummaryVars({ shopName: db.shop.name, shift: s, summary: s.summary, counted: s.counted, closedBy: session.role, closedAt: s.closedAt }) })
   return s
 }
 // ตัวเลือกที่เลือก [{ groupId, optionId }] → สำเนา { group, name, price } (เก็บในรายการ ไม่เปลี่ยนตามการแก้ภายหลัง)

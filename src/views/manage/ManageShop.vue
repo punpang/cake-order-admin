@@ -55,6 +55,7 @@ function setBank(a, code) { a.bankCode = code; a.bankName = bankByCode(code)?.na
 function save() {
   if (!st.open || !st.close || st.close <= st.open) return (error.value = 'เวลาปิดต้องหลังเวลาเปิด')
   if (!(Number(st.slotMinutes) >= 5)) return (error.value = 'ช่วงเวลาต้องอย่างน้อย 5 นาที')
+  if (!(Number(st.dailyOrderCap) >= 0 && Number.isInteger(Number(st.dailyOrderCap)) && Number(st.dailyOrderCap) <= 9999)) return (error.value = 'จำนวนออเดอร์สูงสุดต่อวันต้องเป็นจำนวนเต็ม 0–9999')
   if (![st.leadPickup, st.leadDelivery, st.birthdayDays].every(num)) return (error.value = 'กรอกตัวเลขตั้งแต่ 0 ขึ้นไป')
   const mcDigits = String(st.merchantCode || '').replace(/\D/g, '')
   if (mcDigits && !/^\d{6,20}$/.test(mcDigits)) return (error.value = 'รหัสร้านค้าต้องเป็นตัวเลข 6–20 หลัก (เว้นว่างถ้าไม่ตรวจสลิป)')
@@ -100,6 +101,10 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
           <button v-for="m in STEPS" :key="m" type="button" class="chip" :class="Number(st.slotMinutes) === m ? 'chip-on' : 'chip-off'" @click="st.slotMinutes = m">{{ m }}</button>
           <input v-model.number="st.slotMinutes" type="text" v-num min="5" class="input w-24" aria-label="ช่วงเวลานัดรับ (นาที) กำหนดเอง" />
         </div>
+      </div>
+      <div>
+        <div class="label">จำนวนออเดอร์สูงสุดต่อวัน <span class="font-normal text-stone-400">(นับตามวันที่นัด · 0 = ไม่จำกัด)</span></div>
+        <input v-model.number="st.dailyOrderCap" type="text" v-num min="0" class="input w-24" aria-label="จำนวนออเดอร์สูงสุดต่อวัน" />
       </div>
       <div>
         <div class="label">ค่าเริ่มต้น ช่วงดูออร์เดอร์ก่อน/หลัง ตอนเลือกเวลา</div>

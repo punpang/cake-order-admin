@@ -205,6 +205,7 @@ export const NOTIFY_EVENTS = {
   team_new_order: { label: 'ออร์เดอร์ใหม่', audience: 'team' },
   team_payment_confirmed: { label: 'ยืนยันชำระแล้ว', audience: 'team' },
   team_due_soon: { label: 'งานใกล้เวลาต้องเสร็จ', audience: 'team', scheduled: true },
+  team_daily_summary: { label: 'สรุปยอดประจำวัน (หลังปิดกะ)', audience: 'team' },
   team_cancelled: { label: 'ยกเลิกออร์เดอร์', audience: 'team' },
   team_approval_request: { label: 'ขออนุมัติยืนยันสั่งซื้อ (ยังไม่ชำระ)', audience: 'team' },
   team_pay_overdue: { label: 'เกินกำหนดชำระ', audience: 'team', scheduled: true },

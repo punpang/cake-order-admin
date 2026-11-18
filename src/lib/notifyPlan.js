@@ -6,6 +6,17 @@ export function customerTargets({ order = [], allowed = {}, integrations = {}, a
   return marketing ? list.slice(0, 1) : list
 }
 
+// สรุปยอดประจำวันสำหรับทีม (Telegram HTML) · ค่าที่ต้องมี: ร้าน วันที่ บิล ยกเลิก ช่องทาง ยอดสุทธิ เงินสดคาด เงินสดนับได้ ส่วนต่าง ปิดกะโดย
+export const DAILY_SUMMARY_TPL = [
+  '📊 <b>สรุปยอดประจำวัน {ร้าน}</b>',
+  '━━━━━━━━━━━━━━',
+  '📅 {วันที่} · ปิดกะโดย {ปิดกะโดย}',
+  '🧾 บิล {บิล} ใบ · ยกเลิก {ยกเลิก} ใบ',
+  '{ช่องทาง}',
+  '💰 ยอดสุทธิ <b>{ยอดสุทธิ}</b>',
+  '💵 เงินสดควรมี {เงินสดคาด} · นับได้ {เงินสดนับได้} · ส่วนต่าง {ส่วนต่าง}',
+].join('\n')
+
 // กฎของการเปลี่ยนแปลงที่เพิ่มภายหลัง (เปลี่ยนวันนัด/แก้ข้อมูลจัดส่ง/ใช้คูปองในออร์เดอร์ที่มีอยู่)
 export const NEW_CUSTOMER_RULES = [
   { event: 'pickup_changed', channels: ['web', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} เปลี่ยนวันนัดเป็น {วันนัด} เวลา {เวลานัด} แล้วค่ะ', enabled: true },
@@ -27,9 +38,14 @@ export const NEW_CUSTOMER_RULES = [
   { event: 'slip_cancelled', channels: ['web', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} ร้านยกเลิกสลิปที่ส่งมาแล้วค่ะ\nเหตุผล: {เหตุผล}\nกรุณาส่งสลิปใหม่หรือแจ้งชำระใหม่ค่ะ', enabled: true },
 ]
 // เติมกฎที่ยังไม่มีในรายการ (กฎที่ร้านแก้ไว้แล้วไม่ถูกทับ) · คืนรายการใหม่ ไม่แก้รายการเดิม
+// กฎของทีมที่เพิ่มภายหลัง (ส่งเข้ากลุ่มทีม ไม่ใช่ลูกค้า) · สรุปยอดหลังปิดกะ POS · ตัวแปรมาจาก src/lib/dailySummary.js
+export const NEW_TEAM_RULES = [
+  { event: 'team_daily_summary', channels: ['telegram'], template: DAILY_SUMMARY_TPL, enabled: true },
+]
+
 export function withNewRules(list) {
   const have = new Set((list || []).map((r) => r.event))
-  return [...(list || []), ...NEW_CUSTOMER_RULES.filter((r) => !have.has(r.event)).map((r) => ({ ...r, channels: [...r.channels] }))]
+  return [...(list || []), ...[...NEW_CUSTOMER_RULES, ...NEW_TEAM_RULES].filter((r) => !have.has(r.event)).map((r) => ({ ...r, channels: [...r.channels] }))]
 }
 // รุ่นกติกาช่องทางลูกค้า 2: เว็บ/แอปเป็นช่องทางหลักของทุกออเดอร์ · Facebook ไม่อยู่ในค่าเริ่มต้นแล้ว (ร้านเปิดเลือกเองได้)
 export const CHANNEL_RULE_VERSION = 2

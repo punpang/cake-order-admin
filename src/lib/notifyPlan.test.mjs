@@ -1,6 +1,6 @@
 // ทดสอบแผนการส่งข้อความถึงลูกค้า · รัน: node src/lib/notifyPlan.test.mjs
 import assert from 'node:assert/strict'
-import { customerTargets, withNewRules, NEW_CUSTOMER_RULES, upgradeRules, prepareRules, CHANNEL_RULE_VERSION } from './notifyPlan.js'
+import { customerTargets, withNewRules, NEW_CUSTOMER_RULES, NEW_TEAM_RULES, upgradeRules, prepareRules, CHANNEL_RULE_VERSION } from './notifyPlan.js'
 import { CUSTOMER_CHANNEL_ORDER } from './constants.js'
 
 let fail = 0
@@ -40,7 +40,7 @@ t('ไม่มีรายการช่องทาง/ค่าว่าง 
 t('กฎที่ยังไม่มีในฐานข้อมูลถูกเติม และกฎที่ร้านแก้ไว้แล้วไม่ถูกทับ', () => {
   const saved = [{ event: 'pickup_changed', channels: [], template: 'ของร้าน', enabled: false }]
   const merged = withNewRules(saved)
-  assert.equal(merged.length, NEW_CUSTOMER_RULES.length)
+  assert.equal(merged.length, NEW_CUSTOMER_RULES.length + NEW_TEAM_RULES.length - 0)
   const pickup = merged.find((r) => r.event === 'pickup_changed')
   assert.deepEqual(pickup, { event: 'pickup_changed', channels: [], template: 'ของร้าน', enabled: false })
   assert.ok(merged.some((r) => r.event === 'delivery_changed' && r.enabled === true))
@@ -50,7 +50,7 @@ t('withNewRules ไม่แก้รายการเดิม และไม
   const once = withNewRules([])
   const twice = withNewRules(once)
   assert.equal(twice.length, once.length)
-  assert.equal(withNewRules(undefined).length, NEW_CUSTOMER_RULES.length)
+  assert.equal(withNewRules(undefined).length, NEW_CUSTOMER_RULES.length + NEW_TEAM_RULES.length)
 })
 
 t('ออร์เดอร์จากเว็บ/แอป: แจ้งผ่านเว็บและ SMS · ไม่มีที่อยู่หรือปิดช่องทางไหนก็ข้ามช่องนั้น', () => {
@@ -92,7 +92,7 @@ t('อัปเกรดกติกา: slip_received คงเป็น Facebo
 })
 t('prepareRules: เติมกฎที่ขาดและเป็นรุ่นปัจจุบันทั้งหมด', () => {
   const merged = prepareRules([])
-  assert.equal(merged.length, NEW_CUSTOMER_RULES.length)
+  assert.equal(merged.length, NEW_CUSTOMER_RULES.length + NEW_TEAM_RULES.length)
   assert.ok(merged.every((r) => r.chv === CHANNEL_RULE_VERSION))
 })
 
