@@ -62,6 +62,7 @@ function editMod(m) {
 async function saveM() {
   if (!mf.name.trim()) return (mError.value = 'กรอกชื่อกลุ่ม')
   if (!mf.options.some((o) => o.name.trim())) return (mError.value = 'เพิ่มตัวเลือกอย่างน้อย 1 อย่าง')
+  if (mf.options.some((o) => o.adjustIngredientId && !(String(o.adjustPct).trim() !== '' && Number(o.adjustPct) >= 0 && Number(o.adjustPct) <= 300))) return (mError.value = 'สัดส่วนวัตถุดิบต้องอยู่ระหว่าง 0–300%')
   if (!(await confirmDeactivate(db.posModifiers, mf, mf.name))) return
   saveModifier({ ...mf, options: mf.options.map((o) => ({ ...o })) })
   mOpen.value = false
@@ -136,10 +137,20 @@ function doAdd() {
         <div>
           <div class="label">ตัวเลือก + ราคาบวกเพิ่ม (บาท)</div>
           <div class="space-y-2">
-            <div v-for="(o, i) in mf.options" :key="i" class="flex items-center gap-2">
+            <div v-for="(o, i) in mf.options" :key="i" class="rounded-xl border border-stone-200 p-2">
+            <div class="flex items-center gap-2">
               <input v-model="o.name" class="input min-w-0 flex-1" placeholder="เช่น หวานน้อย" />
               <MoneyInput v-model="o.price" class="input w-24 shrink-0" placeholder="0" />
               <button type="button" class="btn-danger h-11 w-11 shrink-0 px-0" aria-label="ลบตัวเลือก" @click="mf.options.splice(i, 1)"><AppIcon name="trash" :size="16" /></button>
+            </div>
+            <div class="mt-2 flex items-center gap-2 text-sm">
+              <span class="shrink-0 text-stone-500">ปรับสูตร</span>
+              <select v-model="o.adjustIngredientId" class="input min-w-0 flex-1" :aria-label="`วัตถุดิบที่ปรับของ ${o.name || 'ตัวเลือก'}`">
+                <option value="">ไม่ปรับ</option>
+                <option v-for="m in db.ingredients" :key="m.id" :value="m.id">{{ m.name }}</option>
+              </select>
+              <input v-if="o.adjustIngredientId" v-model="o.adjustPct" type="text" inputmode="numeric" class="input w-20 shrink-0" placeholder="%" aria-label="สัดส่วน %" />
+            </div>
             </div>
           </div>
           <button type="button" class="btn-soft mt-2 h-9 w-full" @click="mf.options.push({ id: null, name: '', price: '' })"><AppIcon name="plus" :size="16" /> เพิ่มตัวเลือก</button>
