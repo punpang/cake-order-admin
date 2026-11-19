@@ -18,7 +18,9 @@ const shopAddrChoices = computed(() => [
   { label: 'ใช้ที่อยู่ร้านหน้าเว็บ', text: /ตัวอย่าง/.test(db.storefront?.address || '') ? '' : db.storefront?.address },
   { label: 'ใช้ที่อยู่ตามข้อมูลกฎหมาย', text: db.legal?.contact?.address },
 ])
-const st = reactive({ ...db.shop, pickupRemindHours: db.shop.pickupRemindHours ?? 24, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, lineRetentionDays: db.shop.lineRetentionDays ?? 180, merchantCode: db.shop.merchantCode ?? '', billerId: db.shop.billerId ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
+const prepCats = [...new Set(db.retailItems.map((x) => x.category).filter(Boolean))]
+const togglePrep = (c) => { const a = st.prepCategories || []; st.prepCategories = a.includes(c) ? a.filter((x) => x !== c) : [...a, c] }
+const st = reactive({ ...db.shop, prepCategories: [...(db.shop.prepCategories || [])], pickupRemindHours: db.shop.pickupRemindHours ?? 24, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, lineRetentionDays: db.shop.lineRetentionDays ?? 180, merchantCode: db.shop.merchantCode ?? '', billerId: db.shop.billerId ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
 // ---- วัน-เวลาปิดร้าน ----
 const DOWS = [1, 2, 3, 4, 5, 6, 0] // จันทร์เริ่ม
 const flip = (arr, d) => (arr.includes(d) ? arr.splice(arr.indexOf(d), 1) : arr.push(d))
@@ -86,6 +88,13 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
 
 <template>
   <ManageShell narrow guard title="ตั้งค่าร้าน" :toolbar="false">
+    <section class="card mb-4">
+      <label class="label">หมวดที่ต้องเตรียม (ขึ้นคิว "คิว" ใน POS) <span class="font-normal text-stone-400">ว่าง = ไม่ใช้คิว</span></label>
+      <div v-if="prepCats.length" class="flex flex-wrap gap-2">
+        <button v-for="c in prepCats" :key="c" type="button" class="chip" :class="st.prepCategories.includes(c) ? 'chip-on' : 'chip-off'" :aria-pressed="st.prepCategories.includes(c)" @click="togglePrep(c)">{{ c }}</button>
+      </div>
+      <p v-else class="text-sm text-stone-500">ยังไม่มีหมวดสินค้า</p>
+    </section>
     <section class="card mb-4">
       <label class="label">ชื่อร้าน (แสดงบนใบเสร็จ)</label>
       <input v-model="st.name" class="input" />
