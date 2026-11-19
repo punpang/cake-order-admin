@@ -3776,7 +3776,9 @@ export function prepQueue() {
         const recipe = (src.recipe || []).filter((l) => l.ingredientId).map((l) => {
           const m = db.ingredients.find((x) => x.id === l.ingredientId)
           const base = Number(l.qty) || 0
-          return { name: m?.name || '(ไม่พบวัตถุดิบ)', unit: m?.unit || '', per: l.per, amount: Math.round((l.per === 'piece' ? base * it.qty : base) * 100) / 100 }
+          // ตัวเลือกที่ปรับวัตถุดิบนี้ (เช่น ความหวาน) คูณสัดส่วนเข้าไป
+          const factor = (it.mods || []).reduce((f, md) => (md.adjust?.ingredientId === l.ingredientId ? f * (md.adjust.pct / 100) : f), 1)
+          return { name: m?.name || '(ไม่พบวัตถุดิบ)', unit: m?.unit || '', per: l.per, amount: Math.round((l.per === 'piece' ? base * it.qty : base) * factor * 100) / 100 }
         })
         out.push({ orderId: o.id, orderCode: o.code, itemId: it.id, name: it.name, qty: it.qty, mods: it.mods || [], recipe, at: o.deliveredAt || o.createdAt })
       }
@@ -3827,7 +3829,7 @@ export function modsOf(sel = []) {
     .map((x) => {
       const g = db.posModifiers.find((m) => m.id === x.groupId)
       const o = g?.options.find((y) => y.id === x.optionId)
-      return o ? { groupId: g.id, optionId: o.id, group: g.name, name: o.name, price: Number(o.price) || 0 } : null
+      return o ? { groupId: g.id, optionId: o.id, group: g.name, name: o.name, price: Number(o.price) || 0, adjust: o.adjustIngredientId ? { ingredientId: o.adjustIngredientId, pct: Number(o.adjustPct) } : null } : null
     })
     .filter(Boolean)
 }
@@ -3835,7 +3837,11 @@ export const modsText = (mods) => (mods || []).map((m) => m.name).join(' · ')
 // key ของบรรทัดตะกร้า: สินค้า + ชุดตัวเลือก
 export const lineKey = (l) => `${l.kind}|${l.refId}|${(l.mods || []).map((m) => `${m.groupId}:${m.optionId}`).sort().join(',')}`
 export const saveModifier = (d) =>
-  upsert(db.posModifiers, 'md', { ...d, options: (d.options || []).filter((o) => o.name?.trim()).map((o) => ({ id: o.id || uid('mo'), name: o.name.trim(), price: Number(o.price) || 0 })) })
+  upsert(db.posModifiers, 'md', { ...d, options: (d.options || []).filter((o) => o.name?.trim()).map((o) => {
+    // ปรับวัตถุดิบในสูตรตามตัวเลือก เช่น หวานน้อย = น้ำตาล 50% (ไม่กรอก = ไม่ปรับ)
+    const adj = o.adjustIngredientId && String(o.adjustPct).trim() !== '' ? { adjustIngredientId: o.adjustIngredientId, adjustPct: Number(o.adjustPct) } : {}
+    return { id: o.id || uid('mo'), name: o.name.trim(), price: Number(o.price) || 0, ...adj }
+  }) })
 
 // ตะกร้า → รายการออร์เดอร์ (ราคาตามปัจจุบัน + โปรโมชัน POS ที่ใช้อยู่ ณ เวลานั้น)
 // บรรทัดเดียวอาจแตกเป็นหลายรายการ ถ้าชิ้นได้ส่วนลดไม่เท่ากัน (เช่น บันเดิ้ลใช้แค่ 1 ใน 3 ชิ้น) · ส่วนลดเก็บใน item.discounts (kind promo | bundle)
