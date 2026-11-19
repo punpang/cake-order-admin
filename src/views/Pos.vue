@@ -7,7 +7,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import {
   db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posPromoInfo, posSale, voidPosSale, addPosPartial, editPosPending, finishPosBill, pointsFor, vatNow,
   customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons, claimPosCoupons, releaseCoupons,
-  newPosQrRef, posQrExpired, issueLuckyToken, reserveBillId, prepQueue, markPrepDone,
+  newPosQrRef, posQrExpired, issueLuckyToken, reserveBillId, prepQueue, markPrepDone, remoteCustomerSearch, searchCustomersNow,
 } from '../data/store'
 import { activeSecondsLeft, expiringSoon, pointBalance, conversionPlan } from '../lib/loyalty'
 import { orderTotals, discountLines } from '../lib/pricing'
@@ -286,7 +286,8 @@ const rdHidden = computed(() => (rd.cust ? notShownCount(rd.cust, nowIso.value) 
 function openRedeem() { Object.assign(rd, { open: true, q: '', cust: null, msg: '', err: '' }) }
 function rdPick(c) { Object.assign(rd, { cust: c, q: '', msg: '', err: '' }) }
 // สแกนรหัสสมาชิกในช่องแลกของรางวัล = เลือกลูกค้าให้ทันที
-watch(() => rd.q, (v) => { const c = resolveMemberScan(v, db.customers); if (c) rdPick(c) })
+watch([() => rd.q, () => db.customers.length], ([v]) => { remoteCustomerSearch(v); const c = resolveMemberScan(v, db.customers); if (c) rdPick(c) })
+watch(memberQ, (v) => remoteCustomerSearch(v)) // โหมดโหลดลูกค้าเฉพาะที่ใช้: ค้นที่เซิร์ฟเวอร์ด้วย
 async function rdHand(cp) {
   rd.msg = rd.err = ''
   if (!(await askConfirm({ title: 'มอบของรางวัล', message: `${cp.name} ให้ ${rd.cust.name} · มอบแล้วถือว่าใช้แล้ว`, okText: 'มอบแล้ว' }))) return
@@ -321,8 +322,9 @@ function onCouponScan() {
   if (!couponOk(hit)) { cpScanMsg.value = couponReason(hit) || `คูปอง ${hit.name} ใช้กับบิลนี้ไม่ได้`; return }
   if (!couponIds.value.includes(hit.id)) couponIds.value = [...couponIds.value, hit.id]
 }
-function onMemberScan() {
+async function onMemberScan() {
   scanMsg.value = ''
+  if (!resolveMemberScan(memberQ.value, db.customers)) await searchCustomersNow(memberQ.value) // ยังไม่มีในเครื่อง → ค้นที่เซิร์ฟเวอร์ก่อน
   const mem = resolveMemberScan(memberQ.value, db.customers)
   if (mem) { pickMember(mem); return }
   const hit = resolveCouponScan(memberQ.value, db.coupons)

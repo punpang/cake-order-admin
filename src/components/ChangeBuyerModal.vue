@@ -1,6 +1,6 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { db, changeBuyerPreview, changeBuyer } from '../data/store'
+import { computed, ref, watch } from 'vue'
+import { db, changeBuyerPreview, changeBuyer, remoteCustomerSearch } from '../data/store'
 import { money, formatPhone, phoneDigits, phoneValid } from '../lib/format'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
@@ -12,6 +12,7 @@ const q = ref('')
 const picked = ref(null)
 const reason = ref('')
 const error = ref('')
+watch(q, (v) => remoteCustomerSearch(v)) // โหมดโหลดลูกค้าเฉพาะที่ใช้: ค้นที่เซิร์ฟเวอร์ด้วย
 const results = computed(() => {
   const s = q.value.trim().toLowerCase()
   if (s.length < 2) return []

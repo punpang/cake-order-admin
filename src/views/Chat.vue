@@ -1,7 +1,7 @@
 <script setup>
 import { orderNo } from '../lib/format'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { db, can, findCustomer, findChat, draftOf, hasDraft, clearDraft, linkChat, createCustomerFromChat, fbWindowLeft, setChatHidden, setChatPinned, markRead } from '../data/store'
+import { db, can, findCustomer, findChat, draftOf, hasDraft, clearDraft, linkChat, createCustomerFromChat, fbWindowLeft, setChatHidden, setChatPinned, markRead, remoteCustomerSearch } from '../data/store'
 import { STATUS } from '../lib/constants'
 import { isHidden, awaitingReply, openOrdersByCustomer, orderBadgeOf, NO_REPLY_HOURS } from '../lib/chatVisibility'
 import OrderCreate from './OrderCreate.vue'
@@ -177,7 +177,7 @@ const cardCls = 'min-h-0 min-w-0 flex-col overflow-hidden bg-white'
 const linkOpen = ref(false)
 const lq = ref('')
 // สแกนรหัสสมาชิกในช่องค้นหา = กรองให้เหลือลูกค้าคนนั้น (พนักงานกดผูกเอง)
-watch(lq, (v) => { const c = resolveMemberScan(v, db.customers); if (c) lq.value = c.phone || c.name })
+watch([lq, () => db.customers.length], ([v]) => { remoteCustomerSearch(v); const c = resolveMemberScan(v, db.customers); if (c) lq.value = c.phone || c.name })
 const linkList = computed(() => {
   const s = lq.value.trim().toLowerCase()
   const d = phoneDigits(s)

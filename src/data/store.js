@@ -652,7 +652,49 @@ export const numbering = createNumbering({ decorate: (code) => docCode(code, tes
 const nextCode = () => numbering.next('OR')
 
 export const findOrder = (id) => db.orders.find((o) => o.id === id)
-export const findCustomer = (id) => db.customers.find((c) => c.id === id)
+// โหมดโหลดเฉพาะลูกค้าที่ใช้ (ตั้งโดยชั้นเชื่อม Supabase เมื่อเปิดโหมดนี้): ไม่พบในเครื่อง → ดึงจากเซิร์ฟเวอร์เบื้องหลัง แล้วหน้าจออัปเดตเอง
+// byIds(ids) → Promise<boolean> · searchIds(q) → Promise<void> (รวมผลเข้ารายการลูกค้า) · ไม่ตั้ง = มีลูกค้าครบในเครื่องแล้ว
+export const customerFetch = { byIds: null, search: null }
+const askedCustomers = new Set()
+let missQueue = new Set()
+let missTimer = null
+function queueCustomers(ids) {
+  for (const id of ids) if (id && !askedCustomers.has(id) && !db.customers.some((c) => c.id === id)) { askedCustomers.add(id); missQueue.add(id) }
+  if (!missQueue.size || missTimer) return
+  missTimer = setTimeout(async () => {
+    const batch = [...missQueue]
+    missQueue = new Set()
+    missTimer = null
+    for (let i = 0; i < batch.length; i += 100) {
+      const part = batch.slice(i, i + 100)
+      const ok = await customerFetch.byIds?.(part).catch(() => false)
+      if (!ok) for (const id of part) askedCustomers.delete(id) // ไม่สำเร็จ → ครั้งหน้าลองใหม่
+    }
+  }, 30)
+}
+export const findCustomer = (id) => {
+  const c = db.customers.find((x) => x.id === id)
+  if (!c && id && customerFetch.byIds) queueCustomers([id])
+  return c
+}
+// ให้แน่ใจว่าลูกค้าของออร์เดอร์/แชทที่โหลดอยู่มีในเครื่อง (คะแนน/คูปองตอนส่งมอบต้องเห็นลูกค้า)
+export function ensureCustomers(ids) {
+  if (customerFetch.byIds) queueCustomers(ids)
+}
+// ค้นลูกค้าที่เซิร์ฟเวอร์ตามคำที่พิมพ์ (หน่วง 300 ms) แล้วรวมผลเข้ารายการ · หน้าจอกรองจากรายการในเครื่องเหมือนเดิม
+let searchTimer = null
+let lastSearch = ''
+// ค้นที่เซิร์ฟเวอร์ทันทีแล้วรอผล (เช่น สแกนบาร์โค้ดสมาชิกแล้วกด Enter ต้องได้ผลในครั้งเดียว)
+export async function searchCustomersNow(q) {
+  const t = String(q ?? '').trim()
+  if (customerFetch.search && t.length >= 2) await customerFetch.search(t).catch(() => {})
+}
+export function remoteCustomerSearch(q) {
+  const t = String(q ?? '').trim()
+  if (!customerFetch.search || t.length < 2 || t === lastSearch) return
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => { lastSearch = t; customerFetch.search(t).catch(() => {}) }, 300)
+}
 
 // เบอร์ห้ามซ้ำในลูกค้าที่ยังใช้งาน (เทียบเฉพาะตัวเลข) · คืนลูกค้าที่ใช้เบอร์นี้อยู่ ถ้ามี
 export const phoneOwner = (phone, exceptId = null) => {
@@ -1656,6 +1698,7 @@ export function saveShopSettings(d) {
   db.shop.close = d.close || '20:00'
   db.shop.nearbyHours = Math.max(0, Number(d.nearbyHours) || 0)
   { const h = Math.round(Number(d.chatAutoHideHours)); db.shop.chatAutoHideHours = Number.isFinite(h) ? Math.min(720, Math.max(0, h)) : 24 }
+  db.shop.customerLazy = d.customerLazy === true && db.scheduled?.server === true // โหลดลูกค้าเฉพาะที่ใช้ (มีผลเมื่อเข้าสู่ระบบใหม่)
   db.shop.leadPickup = Math.max(0, Number(d.leadPickup) || 0)
   db.shop.leadDelivery = Math.max(0, Number(d.leadDelivery) || 0)
   db.shop.depositPercent = Math.min(100, Math.max(0, Number(d.depositPercent) || 0))
@@ -4687,6 +4730,15 @@ function scrubCustomer(id) {
     for (const p of o.payments) Object.assign(p, { slip: '', note: '' })
     if (o.cancel) o.cancel.refundNote = ''
   }
+  dropCustomerLinked(id, orderIds, chatIds, addrs)
+  db.customerAccounts = db.customerAccounts.filter((a) => a.customerId !== id)
+  // OTP: ลบของเจ้าของบัญชีนี้ + ที่ใช้แล้ว/หมดอายุทั้งหมด (กันเบอร์เก่าตกค้างหลังเปลี่ยนเบอร์)
+  db.otps = db.otps.filter((o) => !addrs.has(o.phone) && o.accountId !== id && !o.used && o.expiresAt > Date.now())
+  Object.assign(cu, { name: 'ลูกค้าที่ลบแล้ว', phone: '', note: '', fbPsid: '', promoOptIn: false, active: false, deleted: true, deletedAt: now(), ledger: [], spins: 0 })
+  delete cu.tax
+}
+// เอาข้อมูลที่ผูกกับลูกค้าออกจากเครื่อง (แชท ใบเสนอ คูปอง รีวิว คิวข้อความ ลิงก์ กันส่งซ้ำ) · ใช้ทั้งโหมดตัวอย่าง และหลังเซิร์ฟเวอร์ลบแล้ว (การซิงก์ลบซ้ำได้ไม่เป็นไร)
+function dropCustomerLinked(id, orderIds, chatIds, addrs) {
   db.orderLinks = db.orderLinks.filter((l) => !orderIds.has(l.orderId)) // ลิงก์ออร์เดอร์ของลูกค้านี้ใช้ไม่ได้อีก
   for (let i = db.chats.length - 1; i >= 0; i--) if (chatIds.has(db.chats[i].id)) db.chats.splice(i, 1)
   for (const k of chatIds) delete db.chatDrafts[k]
@@ -4696,19 +4748,33 @@ function scrubCustomer(id) {
   for (let i = db.outbox.length - 1; i >= 0; i--) if (orderIds.has(db.outbox[i].orderId) || addrs.has(db.outbox[i].to)) db.outbox.splice(i, 1)
   db.birthdayGreeted = db.birthdayGreeted.filter((k) => !k.startsWith(`${id}|`))
   db.notifySent = db.notifySent.filter((k) => !k.includes(`|${id}|`))
-  db.customerAccounts = db.customerAccounts.filter((a) => a.customerId !== id)
-  // OTP: ลบของเจ้าของบัญชีนี้ + ที่ใช้แล้ว/หมดอายุทั้งหมด (กันเบอร์เก่าตกค้างหลังเปลี่ยนเบอร์)
-  db.otps = db.otps.filter((o) => !addrs.has(o.phone) && o.accountId !== id && !o.used && o.expiresAt > Date.now())
-  Object.assign(cu, { name: 'ลูกค้าที่ลบแล้ว', phone: '', note: '', fbPsid: '', promoOptIn: false, active: false, deleted: true, deletedAt: now(), ledger: [], spins: 0 })
   if (customerSession.customerId === id) customerSession.customerId = null
 }
-export function approveDeletion(requestId) {
+// ลบที่ฐานข้อมูล (ตั้งโดยชั้นเชื่อม Supabase: RPC punpang_purge_customer + ลบไฟล์ + โหลดแถวที่ถูกแก้กลับมา)
+// purge(customerId, textGroupIds) → { ok, orderIds, chatIds } | { error } · ไม่ตั้ง = โหมดตัวอย่าง ลบในเครื่อง
+export const deletionServer = { purge: null }
+const PURGE_ERRORS = { open_orders: 'มีออร์เดอร์ที่ยังไม่จบ', balance_due: 'มียอดค้างชำระ', no_customer: 'ไม่พบลูกค้านี้' }
+// รูปงานที่เผยแพร่แล้วของออร์เดอร์ (แถวจากฐานข้อมูลก่อนลบ): เอาออกจากแกลเลอรี/หน้าสินค้า และลบไฟล์สาธารณะ
+export function unpublishOrderPhotos(orders) {
+  for (const o of orders) for (const it of o.items || []) for (const p of it.workPhotos || []) unpublishPhoto(o, it, p)
+}
+export async function approveDeletion(requestId) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
   const r = db.deletionRequests.find((x) => x.id === requestId)
   if (!r || r.status !== 'pending') return { error: 'คำขอนี้ดำเนินการแล้ว' }
   const blockers = deletionBlockers(r.customerId)
   if (blockers.length) return { error: blockers.join(' · '), blockers }
-  scrubCustomer(r.customerId)
+  if (deletionServer.purge) {
+    const textGroups = db.optionGroups.filter((g) => g.type === 'text').map((g) => g.id)
+    const cu = findCustomer(r.customerId)
+    const addrs = new Set([cu?.phone, cu?.fbPsid].filter(Boolean))
+    const res = await deletionServer.purge(r.customerId, textGroups)
+    if (res.error) return { error: PURGE_ERRORS[res.error] || `ลบข้อมูลที่ฐานข้อมูลไม่สำเร็จ: ${res.error}` }
+    if (r.status !== 'pending') return { ok: true } // ระหว่างรอมีอีกเครื่องดำเนินการแล้ว
+    const orderIds = new Set([...(res.orderIds || []), ...db.orders.filter((o) => o.customerId === r.customerId).map((o) => o.id)])
+    const chatIds = new Set([...(res.chatIds || []), ...db.chats.filter((c) => c.customerId === r.customerId).map((c) => c.id)])
+    dropCustomerLinked(r.customerId, orderIds, chatIds, addrs)
+  } else scrubCustomer(r.customerId)
   Object.assign(r, { status: 'approved', decidedAt: now(), decidedBy: session.role })
   return { ok: true }
 }

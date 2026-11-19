@@ -198,7 +198,7 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
   return conflicts.length ? { ok: true, conflicts } : { ok: true }
 }
 
-export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCreated, numbering, debounceMs, retryDelay }) {
+export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCreated, numbering, debounceMs, retryDelay, onCustomerIds = null }) {
   const known = new Set()
   const slips = new Map()
   return startSync({
@@ -213,12 +213,13 @@ export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCre
       for (const i of items) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) }
       // ตัวนับเลข: ล้างเลขจากข้อมูลตัวอย่าง แล้วตั้งตามเลขที่มีอยู่จริง
       if (numbering) numbering.seen(items.map((i) => i.code), { reset: !refresh }) // รีเฟรชระหว่างใช้งาน: ห้ามล้างตัวนับ/ชุดเลขที่ขอไว้
+      onCustomerIds?.(items.map((i) => i.customerId)) // โหมดโหลดลูกค้าเฉพาะที่ใช้: ดึงลูกค้าของออร์เดอร์ที่ยังไม่มีในเครื่อง
     },
     load: () => loadOrders(client),
     loadSince: (since) => loadOrdersSince(client, since),
     keep: keepOrder,
     loadByIds: (ids) => loadOrdersByIds(client, ids),
-    applyRows: (rows) => { for (const i of rows) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) } if (numbering) numbering.seen(rows.map((i) => i.code), { reset: false }) },
+    applyRows: (rows) => { for (const i of rows) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) } if (numbering) numbering.seen(rows.map((i) => i.code), { reset: false }); onCustomerIds?.(rows.map((i) => i.customerId)) },
     push: (changes) => pushOrders(client, changes, { onRecode, onCreated, retryDelay, numbering, known, slips, onGate: (m) => onError(m) }),
     canWrite, onError, debounceMs, label: 'ออร์เดอร์', poll: true,
   }).then((h) => { if (canWrite) backfillBalances(client, db).catch(() => {}); return h })

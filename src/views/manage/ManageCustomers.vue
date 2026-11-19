@@ -3,9 +3,10 @@ import MoneyInput from '../../components/MoneyInput.vue'
 import { orderNo } from '../../lib/format'
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref, watch } from 'vue'
+import { customerScale, CUSTOMER_WARN_AT } from '../../lib/customersSync'
 import { resolveMemberScan } from '../../lib/scan'
 import NotifyChannelPicker from '../../components/NotifyChannelPicker.vue'
-import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, convertPointsRemote, can, adminResetCustomerPin } from '../../data/store'
+import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, convertPointsRemote, can, adminResetCustomerPin, remoteCustomerSearch } from '../../data/store'
 import { isPin } from '../../lib/customerAuth'
 import { askConfirm } from '../../lib/confirm'
 import { orderTotals } from '../../lib/pricing'
@@ -23,7 +24,7 @@ import { addressChoices } from '../../lib/thaiAddress'
 
 const q = ref('')
 // สแกนรหัสสมาชิกในช่องค้นหา = เปิดข้อมูลลูกค้านั้นทันที
-watch(q, (v) => { const c = resolveMemberScan(v, db.customers); if (c) { q.value = ''; edit(c) } })
+watch([q, () => db.customers.length], ([v]) => { remoteCustomerSearch(v); const c = resolveMemberScan(v, db.customers); if (c) { q.value = ''; edit(c) } })
 const inactive = ref(false)
 
 const list = computed(() => {
@@ -142,6 +143,8 @@ async function save() {
     search-placeholder="ค้นหา ชื่อ / เบอร์"
     @add="edit(null)"
   >
+    <p v-if="customerScale.lazy" class="mb-3 rounded-xl bg-sky-50 p-3 text-sm text-sky-900">แสดงเฉพาะลูกค้าที่โหลดไว้ในเครื่อง (ลูกค้าทั้งหมด {{ customerScale.count?.toLocaleString() ?? '–' }} ราย) · พิมพ์ชื่อหรือเบอร์ในช่องค้นหาเพื่อดึงลูกค้าคนอื่น</p>
+    <p v-else-if="customerScale.count >= CUSTOMER_WARN_AT && can('manage')" class="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">ลูกค้าในระบบ {{ customerScale.count.toLocaleString() }} ราย ใกล้เกณฑ์ที่ควรเปิด "โหลดข้อมูลลูกค้าเฉพาะที่ใช้" (ตั้งค่าร้าน) · ควรทดสอบกับข้อมูลจำนวนมากก่อนเปิด</p>
     <p v-if="!list.length" class="card py-10 text-center text-stone-500">ไม่พบลูกค้า</p>
 
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">

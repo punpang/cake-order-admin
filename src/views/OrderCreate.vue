@@ -1,12 +1,12 @@
 <script setup>
 import ThaiDateField from '../components/ThaiDateField.vue'
 import { askConfirm } from '../lib/confirm'
-import { computed, reactive, ref, toRef } from 'vue'
+import { computed, reactive, ref, toRef, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useLeaveGuard } from '../lib/leaveGuard'
 import { showToast } from '../lib/toast'
 import { waitSaved } from '../lib/syncStatus'
-import { db, can, vatNow, addCustomer, saveCustomer, findCustomer, createOrder, countPickups, pickupSlots, pickupSlotsInfo, pickupClosure, nearbyOrders, sendQuote, findChat, linkChat, createCustomerFromChat, chatOrderBlock, withPromos, priceItem } from '../data/store'
+import { db, can, vatNow, addCustomer, saveCustomer, findCustomer, createOrder, countPickups, pickupSlots, pickupSlotsInfo, pickupClosure, nearbyOrders, sendQuote, findChat, linkChat, createCustomerFromChat, chatOrderBlock, withPromos, priceItem, remoteCustomerSearch } from '../data/store'
 import { orderTotals } from '../lib/pricing'
 import { money, dateTime, timeOnly, toDateStr, formatPhone, phoneDigits, phoneValid } from '../lib/format'
 import PhoneInput from '../components/PhoneInput.vue'
@@ -86,6 +86,9 @@ function pickCustomer(c) {
   if (!props.embedded && phoneValid(c.phone)) step.value = 1 // เลือกแล้วไปขั้นนัดรับต่อเลย (ลูกค้าที่ยังไม่มีเบอร์ต้องกรอกเบอร์ในขั้นนี้ก่อน)
 }
 // ข้อมูลที่ได้จากแชท (ปุ่มถาม/ชิป): ชื่อ เบอร์ ข้อความบนเค้ก
+watch(q, (v) => remoteCustomerSearch(v)) // โหมดโหลดลูกค้าเฉพาะที่ใช้: ค้นที่เซิร์ฟเวอร์ด้วย
+watch(() => form.contactPhone, (v) => remoteCustomerSearch(v)) // เบอร์จากแชท: ให้เจอลูกค้าเดิมก่อนสร้างใหม่
+watch(() => newCus.phone, (v) => { if (phoneDigits(v).length >= 9) remoteCustomerSearch(v) }) // กันสร้างลูกค้าเบอร์ซ้ำ
 const contactMatch = computed(() => (form.contactPhone && !customer.value ? db.customers.find((c) => c.phone === form.contactPhone) : null))
 const itemDefaults = computed(() => {
   const g = db.optionGroups.find((x) => x.type === 'text' && x.name.includes('ข้อความ'))
