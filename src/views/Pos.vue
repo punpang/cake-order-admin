@@ -1014,6 +1014,17 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <span class="font-semibold text-stone-900">ตะกร้า <span class="text-stone-400">{{ count }}</span></span>
           <span class="flex items-center gap-3"><button v-if="cart.length" type="button" class="text-sm text-rose-700 underline" aria-label="ล้างตะกร้า" @click="clearCart">ล้างตะกร้า</button><button type="button" class="text-sm text-stone-500 lg:hidden" @click="cartOpen = false">ปิด</button></span>
         </div>
+        <div class="border-b border-stone-100 p-4">
+          <div class="mb-3 flex items-start justify-between gap-2">
+            <span class="text-sm text-stone-500">ยอดชำระ<span v-if="preview.vatMode" class="block text-xs text-stone-400">{{ preview.vatMode === 'exclusive' ? `รวม VAT ${preview.vatRate}% บวกเพิ่ม ${money(preview.vat)}` : `รวม VAT ${preview.vatRate}% แล้ว ${money(preview.vat)}` }}</span></span>
+            <DiscountDetail :full="preview.fullAll" :final="total" :lines="preview.discountLines" size="lg" />
+          </div>
+          <template v-if="editBill">
+            <button type="button" class="btn-primary h-12 w-full text-base" :disabled="!cart.length" @click="saveEdit">บันทึกการแก้ไขบิล {{ orderNo(editBill.code) }}</button>
+            <button type="button" class="btn-outline mt-2 h-11 w-full" @click="exitEdit">ยกเลิกการแก้ไข</button>
+          </template>
+          <button v-else type="button" class="btn-primary h-12 w-full text-base" :disabled="!cart.length" @click="openPay">ชำระเงิน</button>
+        </div>
         <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
           <p v-if="!cart.length" class="py-6 text-center text-sm text-stone-400">แตะสินค้าเพื่อเพิ่ม</p>
           <ul class="space-y-2">
@@ -1059,17 +1070,6 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </div>
           </div>
 
-        </div>
-        <div class="border-t border-stone-100 p-4">
-          <div class="mb-3 flex items-start justify-between gap-2">
-            <span class="text-sm text-stone-500">ยอดชำระ<span v-if="preview.vatMode" class="block text-xs text-stone-400">{{ preview.vatMode === 'exclusive' ? `รวม VAT ${preview.vatRate}% บวกเพิ่ม ${money(preview.vat)}` : `รวม VAT ${preview.vatRate}% แล้ว ${money(preview.vat)}` }}</span></span>
-            <DiscountDetail :full="preview.fullAll" :final="total" :lines="preview.discountLines" size="lg" />
-          </div>
-          <template v-if="editBill">
-            <button type="button" class="btn-primary h-12 w-full text-base" :disabled="!cart.length" @click="saveEdit">บันทึกการแก้ไขบิล {{ orderNo(editBill.code) }}</button>
-            <button type="button" class="btn-outline mt-2 h-11 w-full" @click="exitEdit">ยกเลิกการแก้ไข</button>
-          </template>
-          <button v-else type="button" class="btn-primary h-12 w-full text-base" :disabled="!cart.length" @click="openPay">ชำระเงิน</button>
         </div>
       </aside>
 
