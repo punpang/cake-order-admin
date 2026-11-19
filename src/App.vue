@@ -109,6 +109,24 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
       </button>
     </div>
   </nav>
+  <!-- แถบเมนูบนสำหรับคอมพิวเตอร์ (lg ขึ้นไป) · มือถือ/แท็บเล็ตแนวตั้งใช้แถบล่างแทน -->
+  <nav
+    v-if="items.length > 1 && !$route.meta.lock"
+    v-show="!kbLock"
+    class="sticky top-0 z-20 hidden items-center gap-1 overflow-x-auto bg-cream px-8 py-2 pr-32 [scrollbar-width:none] lg:flex"
+    aria-label="เมนูของระบบ"
+  >
+    <RouterLink
+      v-for="i in items"
+      :key="i.to"
+      :to="i.to"
+      class="relative rounded-full px-3.5 py-1.5 text-sm font-medium whitespace-nowrap text-stone-600 hover:bg-white"
+      :active-class="i.exact ? '' : 'bg-white text-brand-700 shadow-sm'"
+      :exact-active-class="i.exact ? 'bg-white text-brand-700 shadow-sm' : ''"
+    >
+      {{ i.label }}<span v-if="i.badge && badges[i.badge]" class="ml-1 rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{{ badges[i.badge] }}</span>
+    </RouterLink>
+  </nav>
   <SyncBar />
 
   <!-- lock = ล็อกหน้า (เช่น แชท): main ตรึงใต้แถบบน ไม่ให้หน้าเว็บเลื่อน แต่ละกรอบข้างในเลื่อนเอง · ไม่พึ่ง dvh -->
