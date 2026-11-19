@@ -1013,9 +1013,17 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
           <div v-if="memberMatches.length" class="space-y-2">
             <div v-for="c in memberMatches" :key="c.id" class="flex w-full items-stretch gap-2 rounded-xl border border-stone-200 bg-white text-sm hover:border-brand-300">
-              <button type="button" class="flex min-w-0 flex-1 flex-col gap-0.5 px-4 py-3 text-left" @click="pickMember(c)">
-                <span class="truncate text-base font-semibold text-stone-900">{{ c.name }}</span>
-                <span class="text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
+              <button v-for="r in [redeemInfo(c)]" :key="'gp' + c.id" type="button" class="flex min-w-0 flex-1 flex-col gap-1 px-4 py-3 text-left" @click="pickMember(c)">
+                <span class="flex items-baseline justify-between gap-2">
+                  <span class="truncate text-base font-semibold text-stone-900">{{ c.name }}</span>
+                  <span class="shrink-0 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
+                </span>
+                <span class="flex flex-wrap items-baseline gap-x-3 text-sm">
+                  <span class="font-semibold tabular-nums text-stone-900">{{ r.pts.toLocaleString() }} แต้ม</span>
+                  <span v-if="r.value > 0" class="text-emerald-800">ลดได้ <b class="tabular-nums">{{ money(r.value) }}</b></span>
+                  <span v-if="r.soon" class="text-amber-800">หมดอายุ {{ r.soon.points.toLocaleString() }} แต้ม · {{ dateOnly(r.soon.date) }}</span>
+                  <span v-if="r.coupons.length" class="text-stone-600">คูปอง {{ r.coupons.length }} ใบ</span>
+                </span>
               </button>
             </div>
           </div>
