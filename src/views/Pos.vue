@@ -9,7 +9,7 @@ import {
   customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons, claimPosCoupons, releaseCoupons,
   newPosQrRef, posQrExpired, issueLuckyToken, reserveBillId,
 } from '../data/store'
-import { activeSecondsLeft } from '../lib/loyalty'
+import { activeSecondsLeft, expiringSoon, pointBalance } from '../lib/loyalty'
 import { orderTotals, discountLines } from '../lib/pricing'
 import { pointPromoFor } from '../lib/posPromo'
 import { coBought, rankSellers, suggestBundles } from '../lib/posRec'
@@ -26,7 +26,7 @@ import { isNative, getDeviceConfig, pushDisplay, showDisplay, displayCount } fro
 import { printOrderReceipt } from '../lib/receiptRaster'
 import { billerIdOf, promptPayBillerPayload } from '../lib/promptpay'
 import DeviceSettings from '../components/DeviceSettings.vue'
-import { money, dateTime, timeOnly, phoneDigits, formatPhone, phoneValid } from '../lib/format'
+import { money, dateTime, timeOnly, dateOnly, toDateStr, phoneDigits, formatPhone, phoneValid } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
 import { kb } from '../lib/viewportFit'
 import AppModal from '../components/AppModal.vue'
@@ -196,6 +196,9 @@ const cartOpen = ref(false) // มือถือ: แผงตะกร้า�
 
 // สมาชิก / คะแนน / คูปอง / ส่วนลด
 const memberQ = ref('')
+// ข้อมูลคะแนนของสมาชิกที่เลือก: คะแนนที่มี และคะแนนที่จะหมดอายุภายในจำนวนวันตั้งค่า
+const memberPts = computed(() => (member.value ? pointBalance(member.value.ledger || [], toDateStr(new Date())) : 0))
+const memberSoon = computed(() => (member.value ? expiringSoon(member.value.ledger || [], toDateStr(new Date()), Number(db.shop.pointsExpireDays ?? 30)) : null))
 const memberSearchOpen = ref(false) // กดปุ่ม "สมาชิก" ก่อน แล้วจึงแสดงช่องค้นหา
 const member = ref(null)
 const memberMatches = computed(() => {
@@ -1234,10 +1237,14 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </div>
             </template>
           </div>
-          <div v-else-if="member" class="flex items-center gap-3 rounded-2xl bg-white p-3 ring-1 ring-stone-200">
+          <div v-else-if="member" class="flex flex-wrap items-center gap-3 rounded-2xl bg-white p-3 ring-1 ring-stone-200">
             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-100 text-brand-800" aria-hidden="true"><AppIcon name="user" :size="18" /></span>
             <div class="min-w-0 flex-1"><div class="truncate font-semibold text-stone-800">{{ member.name }}</div><div class="text-xs text-stone-500">{{ member.phone ? formatPhone(member.phone) : '' }}</div></div>
             <button v-if="!memberLocked" type="button" class="shrink-0 rounded-full px-2 py-1 text-xs font-medium text-stone-500 underline" @click="member = null; couponIds = []">เปลี่ยน</button>
+            <div class="grid basis-full grid-cols-2 gap-2 text-sm" aria-label="คะแนนสมาชิก">
+              <div class="rounded-xl bg-stone-50 px-3 py-2"><div class="text-xs text-stone-500">คะแนนที่มี</div><div class="font-semibold tabular-nums text-stone-900">{{ memberPts.toLocaleString() }} แต้ม</div></div>
+              <div class="rounded-xl px-3 py-2" :class="memberSoon ? 'bg-amber-100 text-amber-950' : 'bg-stone-50'"><div class="text-xs" :class="memberSoon ? 'text-amber-900' : 'text-stone-500'">คะแนนที่จะหมดอายุ</div><div class="font-semibold tabular-nums">{{ memberSoon ? `${memberSoon.points.toLocaleString()} แต้ม · ${dateOnly(memberSoon.date)}` : 'ไม่มี' }}</div></div>
+            </div>
           </div>
 
           <div v-if="member && coupons.length" class="rounded-2xl bg-white p-3 ring-1 ring-stone-200" aria-label="คูปองส่วนลด">
