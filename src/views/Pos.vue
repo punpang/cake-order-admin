@@ -228,7 +228,7 @@ const memberMatches = computed(() => {
   if (s.length < 2) return []
   // เบอร์ต้องพิมพ์ครบจึงค้นได้ (ไม่ค้นจากเลขบางส่วน) · รหัสสแกนที่มีตัวอักษรไม่ถูกตีความเป็นเบอร์
   const d = /^[\d\s-]+$/.test(s) ? phoneDigits(s) : ''
-  if (d.length < 3) return []
+  if (d.length < 10) return [] // เบอร์มือถือ 10 หลัก: แสดงผลเมื่อพิมพ์ครบ
   return db.customers.filter((c) => c.active !== false && c.phone && c.phone.includes(d)).slice(0, 5)
 })
 // ---------- แลกของรางวัล (ต้องค้นหาลูกค้าก่อนจึงแสดงรายการ) ----------
@@ -1027,7 +1027,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               </button>
             </div>
           </div>
-          <p v-else-if="memberQ.length >= 3" class="text-sm text-stone-500">ไม่พบสมาชิกเบอร์นี้</p>
+          <p v-else-if="memberQ.length >= 10" class="text-sm text-stone-500">ไม่พบสมาชิกเบอร์นี้</p>
         </div>
         <div class="mb-3 flex shrink-0 gap-2">
           <label class="relative min-w-0 flex-1">
