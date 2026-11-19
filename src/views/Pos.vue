@@ -1372,21 +1372,18 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </div>
 
             <!-- โอน: ยังไม่มี QR · ยอดเต็มกดสร้างได้ทันที แบ่งจ่ายจึงแสดงแป้นตัวเลข -->
-            <div v-else-if="!l.qrRef" class="grid min-h-0 flex-1 content-start gap-3" :class="l.split ? 'landscape:grid-cols-2' : ''">
-              <div class="flex flex-col gap-3">
-                <div class="flex flex-col justify-center rounded-3xl bg-white p-6 text-center ring-1 ring-stone-200" :class="l.split ? 'min-h-64 flex-1 p-8' : ''">
-                  <div class="text-base text-stone-500">ยอดโอนครั้งนี้</div>
-                  <div class="font-bold tabular-nums text-stone-900" :class="l.split ? 'text-4xl whitespace-nowrap' : 'text-4xl'">{{ money(lineAmt(l)) }}</div>
-                  <button v-if="!l.split" type="button" class="mt-2 text-sm font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
-                </div>
-                <button v-if="!l.split" type="button" class="btn-primary h-16 w-full text-xl" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
+            <div v-else-if="!l.qrRef" class="flex min-h-0 flex-1 flex-col gap-3">
+              <div class="flex min-h-0 flex-1 flex-col items-center justify-center rounded-3xl bg-white p-6 text-center ring-1 ring-stone-200">
+                <div class="text-base text-stone-500">ยอดโอนครั้งนี้</div>
+                <div class="text-4xl font-bold tabular-nums whitespace-nowrap text-stone-900">{{ money(lineAmt(l)) }}</div>
+                <button v-if="!l.split" type="button" class="mt-2 text-sm font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
+                <p v-else class="mt-2 text-sm text-stone-500">พิมพ์ยอดด้วยคีย์บอร์ด · ล้างค่าเพื่อเริ่มใหม่</p>
               </div>
-              <div v-if="l.split" class="flex flex-col gap-2">
-                <button type="button" class="btn-primary h-16 w-full text-xl" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
-                <button type="button" class="btn-outline h-11 w-full" @click="l.amount = ''">ล้างค่า</button>
+              <div class="grid gap-2" :class="l.split ? 'grid-cols-[1fr_2fr]' : 'grid-cols-1'">
+                <button v-if="l.split" type="button" class="btn-outline h-14" @click="l.amount = ''">ล้างค่า</button>
+                <button type="button" class="btn-primary h-14 w-full text-lg" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
               </div>
             </div>
-
             <!-- โอน: พบการโอนแล้ว รอพนักงานกดรับ (ระบบรับเองเมื่อครบเวลา) -->
             <div v-else-if="l.detectedAt" class="flex min-h-0 flex-1 flex-col gap-3">
               <div class="pay-pop relative overflow-hidden rounded-3xl bg-emerald-600 p-6 text-white">
