@@ -58,7 +58,9 @@ const stopNumPad = attachNumPad()
 onBeforeUnmount(() => stopNumPad())
 // แป้นพิมพ์เปิดบนหน้าล็อก: ซ่อนแถบบน ใช้พื้นที่ทั้งหมดที่เหลือให้แชท
 const kbLock = computed(() => !!route.meta.lock && kb.open)
-const lockStyle = computed(() => (route.meta.lock ? (kbLock.value ? { top: 'var(--vvt, 0px)', height: 'var(--vvh, 100dvh)' } : { top: 'var(--vvt, 0px)', height: 'var(--vvh, 100dvh)' }) : null))
+const isPos = computed(() => route.path.startsWith('/admin/pos'))
+const showTopBar = computed(() => !!items.value.length && !isPos.value)
+const lockStyle = computed(() => (route.meta.lock && kbLock.value ? { top: 'var(--vvt, 0px)', height: 'var(--vvh, 100dvh)' } : null))
 const navShow = computed(() => showBottom.value && !(route.meta.lock && kb.open))
 const sysOpen = ref(false)
 const bottomCols = computed(() => bottomItems.value.length + (hasSwitch.value ? 1 : 0))
@@ -88,20 +90,21 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
 
   <template v-else>
   <!-- ปุ่มลอยมุมขวาบน: แทนแถบบนเดิม เพื่อให้เนื้อหาใช้พื้นที่เต็มจอ -->
-  <div v-if="$route.meta.focus" v-show="!kbLock" class="fixed top-2 right-2 z-[60] flex items-center gap-2">
+  <div v-if="$route.meta.focus" v-show="!kbLock" class="fixed top-2 right-2 z-[60] items-center gap-2" :class="isPos ? 'flex' : 'flex landscape:hidden'">
     <BellMenu audience="staff" />
     <button type="button" class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-stone-700 shadow-md ring-1 ring-stone-200" aria-label="เมนู" aria-controls="app-menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
       <AppIcon :name="menuOpen ? 'x' : 'menu'" :size="20" />
     </button>
   </div>
   <div v-if="menuOpen" class="fixed inset-0 z-[55]" aria-hidden="true" @click="menuOpen = false" />
-  <nav v-if="menuOpen" id="app-menu" class="fixed right-2 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-[60] max-h-[70dvh] w-64 overflow-y-auto rounded-2xl bg-white p-2 shadow-xl ring-1 ring-stone-200" aria-label="เมนูระบบ">
+  <nav v-if="menuOpen" id="app-menu" class="fixed right-2 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-[60] max-h-[70dvh] w-64 overflow-y-auto lg:top-[4.5rem] lg:bottom-auto lg:max-h-[calc(100dvh-5.5rem)] rounded-2xl bg-white p-2 shadow-xl ring-1 ring-stone-200" aria-label="เมนูระบบ">
     <RouterLink to="/" class="block rounded-xl px-3 py-2.5 text-sm text-stone-700 hover:bg-stone-100" @click="menuOpen = false">หน้าร้าน</RouterLink>
     <div class="px-3 pt-3 pb-1 text-xs font-medium text-stone-500">ระบบ</div>
     <RouterLink v-for="sy in systems" :key="sy.key" :to="homeOf(sy, can)" class="block rounded-xl px-3 py-2.5 text-sm text-stone-800 hover:bg-stone-100" :class="sy.key === current ? 'bg-brand-50 font-semibold text-brand-700' : ''" @click="menuOpen = false">{{ sy.label }}</RouterLink>
+    <!-- บนคอมพิวเตอร์ (lg) เมนูย่อยอยู่บนแถบบนแล้ว จึงซ่อนในเมนูนี้ -->
     <template v-if="items.length > 1">
-      <div class="px-3 pt-3 pb-1 text-xs font-medium text-stone-500">เมนูของระบบ</div>
-      <RouterLink v-for="i in items" :key="i.to" :to="i.to" class="block rounded-xl px-3 py-2.5 text-sm text-stone-800 hover:bg-stone-100" @click="menuOpen = false">{{ i.label }}</RouterLink>
+      <div class="px-3 pt-3 pb-1 text-xs font-medium text-stone-500 lg:hidden">เมนูของระบบ</div>
+      <RouterLink v-for="i in items" :key="i.to" :to="i.to" class="block rounded-xl px-3 py-2.5 text-sm text-stone-800 hover:bg-stone-100 lg:hidden" @click="menuOpen = false">{{ i.label }}</RouterLink>
     </template>
     <div class="mt-2 border-t border-stone-100 pt-2">
       <button type="button" class="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-stone-700 hover:bg-stone-100" :aria-label="`ผู้ใช้ ${me?.name || ROLES[session.role]}`" @click="supabaseEnabled && (roleOpen = true, menuOpen = false)">
@@ -111,18 +114,18 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
   </nav>
   <!-- แถบเมนูบนสำหรับคอมพิวเตอร์ (lg ขึ้นไป) · มือถือ/แท็บเล็ตแนวตั้งใช้แถบล่างแทน -->
   <nav
-    v-if="items.length && !$route.meta.lock && !$route.meta.focus"
+    v-if="showTopBar"
     v-show="!kbLock"
-    class="sticky top-0 z-20 hidden items-center gap-1 overflow-x-auto bg-cream px-8 py-2 [scrollbar-width:none] lg:flex"
+    class="sticky top-0 z-20 hidden h-14 items-center gap-1 overflow-x-auto border-b border-stone-200 bg-white px-6 [scrollbar-width:none] landscape:flex"
     aria-label="เมนูของระบบ"
   >
     <RouterLink
       v-for="i in items"
       :key="i.to"
       :to="i.to"
-      class="relative rounded-full px-3.5 py-1.5 text-sm font-medium whitespace-nowrap text-stone-600 hover:bg-white"
-      :active-class="i.exact ? '' : 'bg-white text-brand-700 shadow-sm'"
-      :exact-active-class="i.exact ? 'bg-white text-brand-700 shadow-sm' : ''"
+      class="flex h-full items-center border-b-2 border-transparent px-3.5 text-sm font-medium whitespace-nowrap text-stone-600 hover:bg-stone-50 hover:text-stone-900"
+      :active-class="i.exact ? '' : 'border-brand-600 bg-brand-50/60 font-semibold text-brand-700'"
+      :exact-active-class="i.exact ? 'border-brand-600 bg-brand-50/60 font-semibold text-brand-700' : ''"
     >
       {{ i.label }}<span v-if="i.badge && badges[i.badge]" class="ml-1 rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{{ badges[i.badge] }}</span>
     </RouterLink>
@@ -141,7 +144,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     tabindex="-1"
     class="mx-auto max-w-page outline-none px-4 lg:px-8"
     :style="lockStyle"
-    :class="$route.meta.lock ? ['fixed inset-x-0 overflow-hidden', kbLock ? 'px-0! pt-0 pb-0' : 'px-0! pt-0', kbLock ? '' : $route.meta.focus || !navShow ? 'pb-0' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)]'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)]', 'pt-5']"
+    :class="$route.meta.lock ? ['fixed inset-x-0 overflow-hidden', kbLock ? 'px-0! pt-0 pb-0' : ['px-0! pt-0 top-0 h-[var(--vvh,100dvh)]', showTopBar ? 'landscape:top-14 landscape:h-[calc(var(--vvh,100dvh)-3.5rem)]' : ''], kbLock ? '' : $route.meta.focus || !navShow ? 'pb-0' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)] landscape:pb-0'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)]', 'pt-5']"
   >
     <RouterView :key="$route.fullPath" />
   </main>
