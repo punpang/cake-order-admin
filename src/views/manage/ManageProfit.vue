@@ -3,7 +3,7 @@ import ThaiDateField from '../../components/ThaiDateField.vue'
 import { orderNo } from '../../lib/format'
 import SectionTabs from '../../components/SectionTabs.vue'
 import { computed, ref, watch } from 'vue'
-import { db, findCustomer } from '../../data/store'
+import { db, findCustomer, ensureOrders } from '../../data/store'
 import { orderTotals, shipNetOf } from '../../lib/pricing'
 import { orderCost } from '../../lib/materials'
 import { STATUS, MAIN_KEYS } from '../../lib/constants'
@@ -17,6 +17,11 @@ const d = new Date()
 const to = ref(toDateStr(d))
 d.setDate(1)
 const from = ref(toDateStr(d))
+// ดึงเฉพาะออร์เดอร์ที่ใช้ในช่วงนี้ (แทนประวัติทั้งหมด): นัดรับในช่วง + ที่แก้ตั้งแต่ต้นช่วง (งวดที่ชำระในช่วง · เผื่อ 1 วันเรื่องเขตเวลา)
+watch([from, to], ([f, t]) => {
+  ensureOrders({ pickupFrom: f, pickupTo: t })
+  ensureOrders({ updatedSince: new Date(new Date(`${f}T00:00:00Z`).getTime() - 86400e3).toISOString() })
+}, { immediate: true })
 function setFrom(v) {
   from.value = v
   if (to.value < v) to.value = v

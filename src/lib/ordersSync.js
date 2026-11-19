@@ -11,7 +11,7 @@ export function setOrdersFullHistory(on) { fullHistory = !!on }
 // ออร์เดอร์ที่เปิดดูเฉพาะรายการ (นอกช่วง) ต้องคงอยู่ในเครื่องระหว่างรีเฟรช
 const pinned = new Set()
 export function pinOrderId(id) { pinned.add(id) }
-export function clearPinnedOrders() { pinned.clear() }
+export function clearPinnedOrders() { pinned.clear(); keepSince = 0 }
 
 // ซิงก์ออร์เดอร์ (db.orders) กับ punpang_orders · ชำระเงิน/รายการ/ประวัติ ฯลฯ อยู่ใน data (jsonb)
 // สิทธิ์ตรวจที่ฐานข้อมูลด้วย trigger (เปลี่ยนสถานะ/ยืนยันชำระ/ยกเลิกยอด/แจ้งยอด) — ดู punpang_guard_status
@@ -40,8 +40,46 @@ export async function loadOrdersSince(client, since) {
   if (a.error) return { error: a.error.message }
   return { items: (a.data || []).map(rowToOrder) }
 }
+// ดึงเฉพาะออร์เดอร์ที่หน้านั้นต้องใช้ (แทนการโหลดประวัติทั้งหมด) · เงื่อนไขในชุดเดียวกัน = ต้องตรงทุกข้อ
+// customerId / customerIds · pickupFrom–pickupTo (YYYY-MM-DD วันนัด รวมทั้งสองวัน) · updatedSince / createdSince / createdBefore (ISO)
+// birthdays = มีวันเกิดและไม่ยกเลิก · deliveredReported = ส่งมอบแล้วแต่ยังมีงวดที่แจ้งรอตรวจ
+const ORDER_COLS = 'id,code,customer_id,status,fulfillment,channel,data,updated_at'
+const WHERE_KEYS = ['customerId', 'customerIds', 'pickupFrom', 'pickupTo', 'updatedSince', 'createdSince', 'createdBefore', 'birthdays', 'deliveredReported']
+export async function loadOrdersWhere(client, spec = {}) {
+  if (!WHERE_KEYS.some((k) => spec[k])) return { error: 'ต้องระบุเงื่อนไขอย่างน้อยหนึ่งข้อ (ห้ามดึงออร์เดอร์ทั้งตาราง)' }
+  if (spec.customerIds && !spec.customerIds.length) return { items: [] }
+  const a = await selectAll((x, y) => {
+    let qy = client.from('punpang_orders').select(ORDER_COLS)
+    if (spec.customerId) qy = qy.eq('customer_id', spec.customerId)
+    if (spec.customerIds) qy = qy.in('customer_id', spec.customerIds)
+    if (spec.pickupFrom) qy = qy.gte('pickup_at', spec.pickupFrom)
+    if (spec.pickupTo) qy = qy.lt('pickup_at', nextDay(spec.pickupTo))
+    if (spec.updatedSince) qy = qy.gte('updated_at', spec.updatedSince)
+    if (spec.createdSince) qy = qy.gte('created_at', spec.createdSince)
+    if (spec.createdBefore) qy = qy.lt('created_at', spec.createdBefore)
+    if (spec.birthdays) qy = qy.not('data->birthday->>md', 'is', null).neq('status', 'cancelled')
+    if (spec.deliveredReported) qy = qy.eq('status', 'delivered').filter('data->payments', 'cs', JSON.stringify([{ status: 'reported' }])) // ต้องเป็นข้อความ JSON (อาร์เรย์ของอ็อบเจกต์ใน contains() ถูกแปลงผิด)
+    return qy.order('id').range(x, y)
+  })
+  if (a.error) return { error: a.error.message }
+  return { items: (a.data || []).map(rowToOrder) }
+}
+// จำนวนออร์เดอร์ของลูกค้าแต่ละคน (ทุกสถานะ) · ดึงเฉพาะคอลัมน์ customer_id ทีละ 100 คน
+export async function loadOrderCounts(client, customerIds) {
+  const out = new Map(customerIds.map((id) => [id, 0]))
+  for (let i = 0; i < customerIds.length; i += 100) {
+    const part = customerIds.slice(i, i + 100)
+    const a = await selectAll((x, y) => client.from('punpang_orders').select('id,customer_id').in('customer_id', part).order('id').range(x, y))
+    if (a.error) return { error: a.error.message }
+    for (const r of a.data || []) out.set(r.customer_id, (out.get(r.customer_id) || 0) + 1)
+  }
+  return { counts: out }
+}
 // อยู่ในชุดที่โหลดไว้ไหม: โหมดประวัติเต็ม = ทุกแถว · ปกติ = ยังไม่ปิด หรือถูกปักหมุดเปิดดูอยู่
-export const keepOrder = (o) => fullHistory || pinned.has(o.id) || !['cancelled', 'delivered'].includes(o.status)
+// keepSince (ISO): หน้าที่ใช้ข้อมูลตั้งแต่ช่วงหนึ่ง (บัญชี กำไร แดชบอร์ด) ให้คงออร์เดอร์ที่แก้ตั้งแต่เวลานั้นไว้ แม้ปิดแล้ว (เช่น เพิ่งส่งมอบระหว่างเปิดหน้า)
+let keepSince = 0 // ms · 0 = ไม่คง (เทียบด้วยเวลา ไม่เทียบข้อความ: รูปแบบเวลาจากฐานข้อมูลต่างจาก toISOString)
+export function keepOrdersSince(iso) { const t = Date.parse(iso); if (Number.isFinite(t) && (!keepSince || t < keepSince)) keepSince = t }
+export const keepOrder = (o) => fullHistory || pinned.has(o.id) || !['cancelled', 'delivered'].includes(o.status) || (!!keepSince && !!o._v && Date.parse(o._v) >= keepSince)
 
 // หน้าออเดอร์: ดึงเฉพาะแถวตามตัวกรอง (กรองที่ฐานข้อมูล) · from/to = YYYY-MM-DD ของวันนัด (รวมทั้งสองวัน) · ว่าง = ไม่จำกัด
 // pickup_at เป็น timestamptz แต่แอปเก็บเวลานัดแบบท้องถิ่นไม่มีโซน → เทียบด้วยโซนเดียวกับตอนเขียน (ช่วง [from, to+1 วัน))

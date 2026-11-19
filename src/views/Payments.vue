@@ -1,7 +1,7 @@
 <script setup>
 import { orderNo } from '../lib/format'
-import { computed, ref } from 'vue'
-import { db, can, orderVisible, findCustomer, cancelPaymentRequest, denyPayExtension, refreshOrderGate } from '../data/store'
+import { computed, ref, watch } from 'vue'
+import { db, can, orderVisible, findCustomer, cancelPaymentRequest, denyPayExtension, refreshOrderGate, ensureOrders } from '../data/store'
 import { paymentQueue, paymentCounts, PAY_TABS } from '../lib/paymentsQueue'
 import { orderTotals } from '../lib/pricing'
 import { askConfirm, askConfirmEx } from '../lib/confirm'
@@ -20,6 +20,16 @@ import RefundPartialDialog from '../components/RefundPartialDialog.vue'
 // จัดการการชำระเงินของออร์เดอร์แบบง่าย (ไม่รวมบิล POS): ตรวจ/ยืนยันยอดที่แจ้ง · รับชำระทันที · แจ้งยอด/ขยายเวลา · คืนเงินบางส่วน โดยไม่ต้องเข้าหน้าออร์เดอร์
 const tab = ref('review')
 const q = ref('')
+// ออร์เดอร์ที่ยังไม่ปิดอยู่ในเครื่องแล้ว · เพิ่ม: ส่งมอบแล้วแต่ยังมีงวดแจ้งรอตรวจ (แทนการโหลดประวัติทั้งหมด)
+ensureOrders({ deliveredReported: true })
+// แท็บคืนเงิน: ค้นที่เซิร์ฟเวอร์ (ออร์เดอร์เก่าที่ส่งมอบแล้วไม่ได้อยู่ในเครื่อง) · หน่วงหลังพิมพ์
+let refundT = null
+watch([q, tab], ([v, t]) => {
+  clearTimeout(refundT)
+  const s = v.trim()
+  if (t !== 'refund' || s.length < 2) return
+  refundT = setTimeout(() => ensureOrders({ search: s }), 400)
+})
 const orders = computed(() => db.orders.filter(orderVisible))
 const counts = computed(() => paymentCounts(orders.value))
 const textOf = (o) => { const c = findCustomer(o.customerId); return [o.code, orderNo(o.code), c?.name, c?.phone, c?.phone && formatPhone(c.phone)].filter(Boolean).join(' ') }

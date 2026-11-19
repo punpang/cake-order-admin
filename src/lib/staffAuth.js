@@ -144,6 +144,20 @@ const GROUP_LOADERS = {
     if (h?.refresh) await h.refresh({ full: true }) // ต้องโหลดทั้งตาราง (การดึงเฉพาะที่เปลี่ยนไม่ได้แถวเก่าที่ปิดแล้ว)
     return null
   },
+  // หน้าบัญชี: ปิดงวดแล้ว = รายการก่อนปิดงวดมาจากที่แช่แข็งไว้ → ต้องการเฉพาะออร์เดอร์ที่แก้หลังวันปิดงวด (วันที่ของรายการมาจากเหตุการณ์ ชำระ/ส่งมอบ/ยกเลิก/คืนเงิน ซึ่งทำให้ updated_at ขยับเสมอ)
+  // ยังไม่เคยปิดงวด = ต้องใช้ประวัติทั้งหมด · ถอยวันปิดงวด/ยกเลิกปิดงวด → โหลดตามวันใหม่
+  ordersAcct: async (c) => {
+    const closedOf = () => c.store.db.acct?.closedThrough || ''
+    const load = async (closed) => {
+      if (!closed || !c.store.orderFetch.pull) return GROUP_LOADERS.ordersAll(c)
+      const since = new Date(Date.parse(`${closed}T00:00:00Z`) - 2 * 86400e3).toISOString() // เผื่อเขตเวลา (วันปิดงวดเป็นวันไทย)
+      await c.store.ensureOrders({ updatedSince: since })
+    }
+    await load(closedOf())
+    const { watch } = await import('vue')
+    const stop = watch(closedOf, (v, old) => { if (!v || (old && v < old)) quietly(() => load(v)) })
+    return { stop }
+  },
   shifts: async (c) => {
     if (!['pos', 'viewAllOrders', 'manage'].some(c.has)) return null
     const m = await import('./shiftsSync')
@@ -155,12 +169,17 @@ const GROUP_LOADERS = {
     return m.startChatSync({ client: c.client, db: c.store.db, canWrite: true, numbering: c.store.numbering, onError: c.onError, ...chatHooks(c.client, c.store, c.has),
       onRecode: (q, n) => showToast(`เลขใบเสนอซ้ำ ระบบเปลี่ยนเป็น ${n}`, 8000) })
   },
-  // สถิติสินค้าพร้อมขายสำหรับหน้าร้าน: ต้องมีประวัติออร์เดอร์ครบก่อนคำนวณ · เผยแพร่เฉพาะผู้ที่แก้การตั้งค่าได้
+  // สถิติสินค้าพร้อมขายสำหรับหน้าร้าน: ดึงออร์เดอร์ 31 วันล่าสุดก่อนคำนวณทุกรอบ · เผยแพร่เฉพาะผู้ที่แก้การตั้งค่าได้
   retailStats: async (c) => {
     if (!c.has('manage')) return null
-    await GROUP_LOADERS.ordersAll(c)
+    if (!c.store.orderFetch.pull) return null // ดึงเฉพาะช่วงไม่ได้ → ไม่เผยแพร่ (กันสถิติจากข้อมูลไม่ครบ)
     const m = await import('./retailStatsSync')
-    return m.startRetailStatsSync({ client: c.client, db: c.store.db, canWrite: true })
+    const ensure = async () => {
+      const since = new Date(Date.now() - m.STATS_WINDOW_DAYS * 86400e3).toISOString()
+      const n = await c.store.orderFetch.pull({ createdSince: since }) // ดึงทุกรอบ (ออร์เดอร์ที่เพิ่งส่งมอบต้องนับด้วย)
+      if (typeof n !== 'number') throw new Error('pull failed')
+    }
+    return m.startRetailStatsSync({ client: c.client, db: c.store.db, canWrite: true, ensure })
   },
   users: async (c) => {
     if (!c.has('manageUsers')) return null
@@ -357,6 +376,24 @@ async function startData(staff) {
   }
   for (const r of await Promise.all(tasks)) { if (Array.isArray(r)) syncs.push(...r); else syncs.push(r) }
   store.ensureCustomers([...db.orders.map((o) => o.customerId), ...db.quotes.map((q) => q.customerId)]) // ออร์เดอร์อาจโหลดเสร็จก่อนตัวดึงลูกค้าพร้อม
+  // ดึงออร์เดอร์เฉพาะที่หน้าต้องใช้ (แทนประวัติทั้งหมด): ปักหมุดไว้ให้อยู่ในเครื่อง แล้วรวมเข้ารายการ
+  {
+    const oh = syncs.find((x) => x && x.label === 'ออร์เดอร์')
+    if (oh?.merge) {
+      store.orderFetch.pull = async (spec) => {
+        const r = spec.search ? await orders.searchOrdersRemote(client, spec.search) : await orders.loadOrdersWhere(client, spec)
+        if (r.error) throw new Error(r.error)
+        for (const o of r.items) orders.pinOrderId(o.id)
+        // หน้าที่ใช้ข้อมูลตั้งแต่ช่วงหนึ่ง: คงออร์เดอร์ที่แก้หลังจากนั้นไว้ด้วย (ออร์เดอร์ใหม่ที่ส่งมอบระหว่างเปิดหน้าไม่หายจากรายงาน)
+        orders.keepOrdersSince(spec.updatedSince || spec.createdSince || '')
+        if (!oh.merge(r.items)) { await waitSaved(); oh.merge(r.items) } // กำลังบันทึก → รอแล้วรวมใหม่
+        store.ensureCustomers(r.items.map((o) => o.customerId))
+        return r.items.length
+      }
+      store.orderFetch.counts = async (ids) => { const r = await orders.loadOrderCounts(client, ids); if (r.error) throw new Error(r.error); return r.counts }
+      store.replayOrderPulls()
+    }
+  }
   import('./clicksSync').then((m) => m.applyClicks(client, db)).catch(() => {})
   // ตารางที่โหลดจากเซิร์ฟเวอร์ไม่สำเร็จ → แจ้งบนแถบสถานะ (ข้อมูลที่เห็นอาจไม่ครบ) พร้อมปุ่มลองโหลดใหม่
   staffState.loadFailed = syncs.filter((x) => x && x.loaded === false).map((x) => x.label || 'ข้อมูล')
@@ -486,4 +523,4 @@ export async function currentStaff() {
   return { staff: data }
 }
 
-export async function staffSignOut() { await stopPush(); staffState.staff = null; staffState.loadFailed = []; dataCtx = null; groupLoads.clear(); { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1); m.deletionServer.purge = null; m.customerFetch.byIds = null; m.customerFetch.search = null }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
+export async function staffSignOut() { await stopPush(); staffState.staff = null; staffState.loadFailed = []; dataCtx = null; groupLoads.clear(); { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1); m.deletionServer.purge = null; m.customerFetch.byIds = null; m.customerFetch.search = null; m.orderFetch.pull = null; m.orderFetch.counts = null; m.orderCounts.clear() }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
