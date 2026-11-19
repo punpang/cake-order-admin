@@ -399,6 +399,7 @@ function openPay() {
   }, 1000)
   payOpen.value = true
   startTransferWatch()
+  if (!payLines.value.length && remaining.value > 0) startMethod('transfer') // ค่าเริ่มต้น: QR
 }
 function closePay() {
   payOpen.value = false
@@ -545,6 +546,8 @@ const isReceived = (l) => l.status !== 'cancelled' && lineAmt(l) > 0 && (l.confi
 const receivedSum = computed(() => Math.round(payLines.value.filter(isReceived).reduce((s, l) => s + lineAmt(l), 0) * 100) / 100)
 const listedLines = computed(() => payLines.value.filter((l) => l !== focusLine.value && l.status !== 'cancelled' && lineAmt(l) > 0))
 const cancelledQrs = computed(() => payLines.value.filter((l) => l.method === 'transfer' && l.status === 'cancelled'))
+// แท็บวิธีชำระ: QR (ค่าเริ่มต้น) · เงินสด · อื่น ๆ (ไว้เพิ่มช่องทางในอนาคต)
+const PAY_TABS = [['transfer', 'QR'], ['cash', 'เงินสด'], ['card', 'อื่น ๆ']]
 function startMethod(k) {
   if (remaining.value <= 0 || binding.value) return
   addPayLine(k)
@@ -1276,7 +1279,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <!-- แท็บวิธีชำระ: แท็บที่เลือกเป็นสีเข้ม · เปลี่ยนวิธีได้จนกว่าจะสร้าง QR หรือรับเงิน -->
           <div v-if="remaining > 0 || focusLine" class="grid shrink-0 grid-cols-3 gap-2 rounded-3xl bg-stone-200/60 p-1.5" role="group" aria-label="เลือกวิธีชำระ">
             <button
-              v-for="(label, k) in POS_METHODS" :key="k" type="button"
+              v-for="[k, label] in PAY_TABS" :key="k" type="button"
               class="h-12 rounded-2xl text-lg font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed"
               :class="focusLine?.method === k ? 'bg-brand-600 text-white shadow-md' : 'text-stone-700 hover:bg-white/70 disabled:opacity-40'"
               :aria-pressed="focusLine?.method === k"
