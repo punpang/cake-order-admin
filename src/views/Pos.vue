@@ -3,7 +3,7 @@ import { couponQuoteOf, quoteCouponList, couponTermsText } from '../lib/coupons'
 import { resolveCouponScan, resolveMemberScan } from '../lib/scan'
 import MoneyInput from '../components/MoneyInput.vue'
 import { orderNo } from '../lib/format'
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posPromoInfo, posSale, voidPosSale, addPosPartial, editPosPending, finishPosBill, pointsFor, vatNow,
   customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons, claimPosCoupons, releaseCoupons,
@@ -214,6 +214,8 @@ const redeemInfo = (c) => {
   }
 }
 const memberSearchOpen = ref(false)
+const memberInputEl = ref(null)
+watch(memberSearchOpen, (v) => { if (v) nextTick(() => memberInputEl.value?.focus()) })
 const memberInfoOf = ref(null) // สมาชิกที่เปิดดูข้อมูลในไดอะล็อกแยก // กดปุ่ม "สมาชิก" ก่อน แล้วจึงแสดงช่องค้นหา
 const member = ref(null)
 const memberMatches = computed(() => {
@@ -221,7 +223,8 @@ const memberMatches = computed(() => {
   if (s.length < 2) return []
   // เบอร์ต้องพิมพ์ครบจึงค้นได้ (ไม่ค้นจากเลขบางส่วน) · รหัสสแกนที่มีตัวอักษรไม่ถูกตีความเป็นเบอร์
   const d = /^[\d\s-]+$/.test(s) ? phoneDigits(s) : ''
-  return db.customers.filter((c) => c.active !== false && phoneValid(d) && c.phone === d).slice(0, 5)
+  if (d.length < 3) return []
+  return db.customers.filter((c) => c.active !== false && c.phone && c.phone.includes(d)).slice(0, 5)
 })
 // ---------- แลกของรางวัล (ต้องค้นหาลูกค้าก่อนจึงแสดงรายการ) ----------
 const rd = reactive({ open: false, q: '', cust: null, msg: '', err: '' })
@@ -1212,15 +1215,18 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <AppModal v-if="memberSearchOpen" title="ค้นหาสมาชิก" @close="memberSearchOpen = false; memberQ = ''">
       <div class="space-y-3">
               <div class="flex gap-2">
-          <input :value="memberQ" @input="(e) => { e.target.value = e.target.value.replace(/\D/g, ''); memberQ = e.target.value }" type="text" inputmode="numeric" data-numpad="int" class="input h-11 min-w-0 flex-1" placeholder="เบอร์ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
-          <button type="button" class="shrink-0 rounded-full px-2 text-sm font-medium text-stone-500 underline" @click="memberSearchOpen = false; memberQ = ''">ปิด</button>
+          <input ref="memberInputEl" :value="memberQ" @input="(e) => { e.target.value = e.target.value.replace(/\D/g, ''); memberQ = e.target.value }" type="text" inputmode="numeric" data-numpad="int" class="input h-11 min-w-0 flex-1" placeholder="เบอร์ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
+          <button v-if="memberQ" type="button" class="shrink-0 rounded-full px-2 text-sm font-medium text-stone-500 underline" @click="memberQ = ''; memberInputEl?.focus()">ล้าง</button>
         </div>
         <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
         <div v-if="memberMatches.length" class="w-full space-y-2 max-md:basis-full">
-        <button v-for="c in memberMatches" :key="c.id" type="button" class="flex w-full items-center justify-between gap-2 rounded-xl border border-stone-200 px-3 py-2.5 text-left text-sm hover:border-brand-300" @click="memberInfoOf = c">
-          <span class="truncate font-semibold">{{ c.name }}</span>
-          <span class="flex shrink-0 items-center gap-2 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }} <span class="text-brand-700">ดูข้อมูล ›</span></span>
-        </button>
+        <div v-for="c in memberMatches" :key="c.id" class="flex w-full items-stretch gap-2 rounded-xl border border-stone-200 text-sm hover:border-brand-300">
+          <button type="button" class="flex min-w-0 flex-1 items-center justify-between gap-2 px-3 py-2.5 text-left" @click="pickMember(c)">
+            <span class="truncate font-semibold">{{ c.name }}</span>
+            <span class="shrink-0 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
+          </button>
+          <button type="button" class="shrink-0 border-l border-stone-200 px-3 text-brand-700" :aria-label="'ดูข้อมูลของ ' + c.name" @click="memberInfoOf = c">ข้อมูล ›</button>
+        </div>
         </div>
       </div>
     </AppModal>
@@ -1246,9 +1252,18 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           </div>
           <div class="rounded-2xl bg-white px-4 py-3 ring-1 ring-stone-200">
             <div class="text-xs text-stone-500">แลกได้ตอนนี้</div>
-            <div class="font-semibold text-emerald-800">{{ r.rewards.filter((x) => x.ok).map((x) => x.name).join(' · ') || 'ยังไม่มี' }}</div>
-            <div v-if="r.rewards.some((x) => !x.ok)" class="mt-2 text-xs text-stone-500">อีกนิดจะแลกได้</div>
-            <div v-if="r.rewards.some((x) => !x.ok)" class="text-stone-700">{{ r.rewards.filter((x) => !x.ok).map((x) => `${x.name} (ขาดอีก ${x.need} แต้ม)`).join(' · ') }}</div>
+            <div class="mb-3 mt-1 space-y-1">
+              <div v-for="x in r.rewards.filter((x) => x.ok)" :key="'ok' + x.id" class="flex items-center justify-between gap-2 font-semibold text-emerald-800">
+                <span>{{ x.name }}</span>
+                <span class="text-xs">แลกได้</span>
+              </div>
+              <div v-if="!r.rewards.some((x) => x.ok)" class="font-semibold text-stone-700">ยังไม่มี</div>
+            </div>
+            <div v-if="r.rewards.some((x) => !x.ok)" class="text-xs text-stone-500">อีกนิดจะแลกได้</div>
+            <div v-for="x in r.rewards.filter((x) => !x.ok)" :key="'no' + x.id" class="mt-1 flex items-center justify-between gap-2 text-stone-700">
+              <span>{{ x.name }}</span>
+              <span class="shrink-0 text-xs tabular-nums text-stone-500">ขาดอีก {{ x.need }} แต้ม</span>
+            </div>
           </div>
           <div class="rounded-2xl bg-white px-4 py-3 ring-1 ring-stone-200">
             <div class="text-xs text-stone-500">คูปองที่มี</div>
