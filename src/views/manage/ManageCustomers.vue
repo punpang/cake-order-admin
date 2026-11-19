@@ -3,10 +3,10 @@ import MoneyInput from '../../components/MoneyInput.vue'
 import { orderNo } from '../../lib/format'
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref, watch } from 'vue'
-import { customerScale, CUSTOMER_WARN_AT } from '../../lib/customersSync'
+import { customerScale, CUSTOMER_WARN_AT, CUSTOMER_PAGE } from '../../lib/customersSync'
 import { resolveMemberScan } from '../../lib/scan'
 import NotifyChannelPicker from '../../components/NotifyChannelPicker.vue'
-import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, ensureOrders, ensureOrderCounts, orderCounts, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, convertPointsRemote, can, adminResetCustomerPin, remoteCustomerSearch } from '../../data/store'
+import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, ensureOrders, ensureOrderCounts, orderCounts, loadMoreCustomers, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, convertPointsRemote, can, adminResetCustomerPin, remoteCustomerSearch } from '../../data/store'
 import { isPin } from '../../lib/customerAuth'
 import { askConfirm } from '../../lib/confirm'
 import { orderTotals } from '../../lib/pricing'
@@ -53,6 +53,20 @@ function edit(c) {
 orderCounts.clear()
 watch(() => list.value.map((c) => c.id), (ids) => ensureOrderCounts(ids), { immediate: true })
 watch(() => form.id, (id) => { if (id) ensureOrders({ customerId: id }) })
+// หน้าถัดไปจากเซิร์ฟเวอร์ (โหมดโหลดเฉพาะที่ใช้) · ได้น้อยกว่าขนาดหน้า = ครบแล้ว
+const pageOffset = ref(0)
+const pageDone = ref(false)
+const pageBusy = ref(false)
+const pageErr = ref('')
+async function nextPage() {
+  pageBusy.value = true
+  pageErr.value = ''
+  try {
+    const n = await loadMoreCustomers(pageOffset.value)
+    pageOffset.value += n
+    if (n < CUSTOMER_PAGE) pageDone.value = true
+  } catch { pageErr.value = 'โหลดลูกค้าไม่สำเร็จ ลองใหม่อีกครั้ง' } finally { pageBusy.value = false }
+}
 const history = computed(() => {
   if (!form.id) return null
   const orders = db.orders
@@ -170,6 +184,11 @@ async function save() {
         </span>
         <span class="shrink-0 rounded-lg bg-stone-50 px-2 py-1 text-xs text-stone-500">{{ customerOrderCount(c.id) }} ออร์เดอร์</span>
       </button>
+    </div>
+    <!-- โหมดโหลดเฉพาะที่ใช้: ดึงลูกค้าทีละหน้าจากเซิร์ฟเวอร์ (เรียงตามชื่อ) -->
+    <div v-if="customerScale.lazy && !pageDone" class="mt-4 text-center">
+      <button type="button" class="btn-outline h-11 px-5" :disabled="pageBusy" @click="nextPage">{{ pageBusy ? 'กำลังโหลด…' : 'โหลดลูกค้าเพิ่ม (เรียงตามชื่อ)' }}</button>
+      <p v-if="pageErr" class="mt-2 text-sm text-rose-700" role="alert">{{ pageErr }}</p>
     </div>
 
     <AppModal v-if="open" :title="form.id ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้า'" @close="open = false">

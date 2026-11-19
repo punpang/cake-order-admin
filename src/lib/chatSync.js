@@ -7,8 +7,9 @@ export function chatToRow(c) {
   const { id, channel, externalId, customerId, ...rest } = c
   return { id, channel, external_id: externalId || null, customer_id: customerId || null, data: rest }
 }
+// _v = updated_at ของแถว (ไม่เข้า JSON) ใช้เป็นจุดเริ่มดึงเฉพาะที่เปลี่ยน และเวอร์ชันสำหรับบันทึกแบบเทียบเวอร์ชัน
 export function rowToChat(r) {
-  return { ...(r.data || {}), id: r.id, channel: r.channel, externalId: r.external_id || '', customerId: r.customer_id || null }
+  return withVer({ ...(r.data || {}), id: r.id, channel: r.channel, externalId: r.external_id || '', customerId: r.customer_id || null }, r.updated_at)
 }
 export { quoteToRow, rowToQuote } from './quoteRow.js'
 import { quoteToRow, rowToQuote } from './quoteRow.js'
@@ -37,6 +38,12 @@ async function loadChatRows(client, ids) {
   const r = await client.from('punpang_chats').select(CHAT_COLS).in('id', ids)
   if (r.error) return { error: r.error.message }
   return { data: r.data || [] }
+}
+// ดึงเฉพาะแชทที่แก้หลังเวลา since (ข้อความใหม่จาก webhook / อีกเครื่องตอบ)
+export async function loadChatsSince(client, since) {
+  const a = await selectAll((x, y) => client.from('punpang_chats').select(CHAT_COLS).gte('updated_at', since).order('updated_at').order('id').range(x, y))
+  if (a.error) return { error: a.error.message }
+  return { items: (a.data || []).map(rowToChat) }
 }
 // ดึงแชทตามรหัส (ใช้กับแชทเก่าที่ถูกเปิด/ค้นเจอ และการแจ้งเตือนจาก Realtime)
 export async function loadChatsByIds(client, ids) {
@@ -215,15 +222,24 @@ export async function startChatSync({ client, db, canWrite, numbering, onError, 
   let vers = new Map() // version ของแถวที่ข้อมูลในเครื่องอิงอยู่ (เปลี่ยนเมื่อแทนที่ข้อมูลจริงเท่านั้น — ถ้าโหลดแล้วข้ามเพราะมีการแก้ค้าง ต้องไม่เลื่อน version)
   const pinned = new Set() // แชทนอกชุดล่าสุดที่ผู้ใช้เปิด/ค้นเจอ/Realtime แจ้ง → ซิงก์ต่อในรอบถัดไปด้วย
   const pin = (ids) => { for (const id of ids) pinned.add(id); return ids }
+  // ข้อความ Facebook ใหม่ → ให้ผู้เรียกจองสิทธิ์แล้วเรียกบอท (หน่วงเล็กน้อยให้ snapshot ของ sync ตั้งเสร็จก่อน กันการแก้ของบอทถูกนับเป็นข้อมูลเดิม)
+  const botPending = (rows) => { if (onInbound) { const pend = pendingBotMessages(rows); if (pend.length) setTimeout(() => pend.forEach((x) => onInbound(x.chatId, x.mid)), 0) } }
   const pa = startSync({
     list: () => db.chats,
     replace: (items) => {
       vers = new Map(lastVers)
-      db.chats.splice(0, db.chats.length, ...items)
-      // ข้อความ Facebook ใหม่ → ให้ผู้เรียกจองสิทธิ์แล้วเรียกบอท (หน่วงเล็กน้อยให้ snapshot ของ sync ตั้งเสร็จก่อน กันการแก้ของบอทถูกนับเป็นข้อมูลเดิม)
-      if (onInbound) { const pend = pendingBotMessages(items); if (pend.length) setTimeout(() => pend.forEach((x) => onInbound(x.chatId, x.mid)), 0) }
+      fillArray(db.chats, items)
+      botPending(items)
     },
     load: async () => { const r = await loadChats(client, [...pinned]); if (!r.error) lastVers = r.vers; return r },
+    // ดึงเฉพาะแชทที่เปลี่ยน (แทนโหลด 150 แชทซ้ำทุกรอบ) · โหลดเต็มทุก 30 นาทีคืนเป็นชุดล่าสุด + ที่ปักหมุด
+    loadSince: (since) => loadChatsSince(client, since),
+    // แถวที่ได้มาภายหลัง (delta / Realtime): เวอร์ชันใหม่สำหรับบันทึก · เรียงแชทล่าสุดขึ้นบน · ข้อความลูกค้าใหม่ → บอท
+    applyRows: (rows) => {
+      for (const r of rows) if (r._v) vers.set(r.id, r._v)
+      db.chats.sort(byDesc('updatedAt'))
+      botPending(rows)
+    },
     push: (c) => pushChats(client, c, vers),
     canWrite, onError, debounceMs, label: 'แชท', poll: true, // ข้อความจาก Facebook เข้าผ่าน webhook ระหว่างที่เปิดแอปอยู่
     loadByIds: (ids) => loadChatsByIds(client, pin(ids)),

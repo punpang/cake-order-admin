@@ -1,7 +1,7 @@
 // ทดสอบโหมดโหลดลูกค้าเฉพาะที่ใช้ + ค้นที่เซิร์ฟเวอร์ + เบอร์ซ้ำ · รัน: node src/lib/customersSync.lazy.test.mjs
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { loadCustomersLazy, searchCustomerIds, lazyWanted, pushCustomers, LAZY_RECENT } from './customersSync.js'
+import { loadCustomersLazy, searchCustomerIds, lazyWanted, pushCustomers, LAZY_RECENT, pageCustomerIds, CUSTOMER_PAGE } from './customersSync.js'
 
 // ตัวสร้างคำสั่งจำลองแบบต่อกัน: จดเงื่อนไขไว้ แล้วกรองข้อมูลในหน่วยความจำ
 function fakeClient(tables, { insertError = null } = {}) {
@@ -79,4 +79,15 @@ test('เพิ่มลูกค้าเบอร์ซ้ำกับที�
   const c = fakeClient({}, { insertError: { code: '23505', message: 'duplicate key value violates unique constraint "punpang_customers_phone_digits_uniq"' } })
   const r = await pushCustomers(c, { upserts: [{ id: 'cnew', name: 'ใหม่', phone: '0811111111' }] }, { known: new Set() })
   assert.match(r.error, /เบอร์นี้มีลูกค้าในระบบแล้ว/)
+})
+
+test('หน้ารายชื่อลูกค้า: ดึงทีละหน้า (ขนาดคงที่) จนหมด', async () => {
+  const c = fakeClient({ punpang_customers: Array.from({ length: 120 }, (_, i) => cust(i)) })
+  const a = await pageCustomerIds(c, 0)
+  const b = await pageCustomerIds(c, CUSTOMER_PAGE)
+  const d = await pageCustomerIds(c, CUSTOMER_PAGE * 2)
+  assert.equal(a.ids.length, CUSTOMER_PAGE)
+  assert.equal(b.ids.length, CUSTOMER_PAGE)
+  assert.equal(d.ids.length, 120 - CUSTOMER_PAGE * 2, 'หน้าสุดท้ายน้อยกว่าขนาดหน้า = หมดแล้ว')
+  assert.equal(new Set([...a.ids, ...b.ids, ...d.ids]).size, 120, 'ไม่ซ้ำ ไม่ตกหล่น')
 })

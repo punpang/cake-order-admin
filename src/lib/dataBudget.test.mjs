@@ -23,6 +23,7 @@ const ALLOW = [
   ['src/lib/ordersSync.js', "let qy = client.from('punpang_orders').select(ORDER_COLS)", 'loadOrdersWhere: ปฏิเสธเมื่อไม่มีเงื่อนไข'],
   ['src/lib/customersSync.js', "let qy = client.from('punpang_customers').select('id')", 'searchCustomerIds: เงื่อนไขอยู่บรรทัดถัดไป · ไม่มีคำค้น = ไม่ค้น'],
   ['src/lib/aiStats.js', ".from('punpang_records')", 'สถิติบอท: เงื่อนไขอยู่บรรทัดถัดไป'],
+  ['src/lib/customersSync.js', "from('punpang_customers').select('id').order('name').order('id').range(offset", 'หน้ารายชื่อลูกค้า: คำขอเดียวหน้าละ 50 รหัส (range) ไม่ใช่วนอ่านทั้งตาราง'],
 ]
 
 test('คำสั่งอ่านตารางใหญ่ทุกจุดมีเงื่อนไขจำกัด หรืออยู่ในรายการยกเว้น', () => {

@@ -5,6 +5,7 @@ name: CI
 #   node     : เทสต์ฝั่ง Node (รวมไฟล์ schedlib ที่คัดลอกต้องตรงต้นฉบับ) + สร้างเว็บ + ตรวจขนาดไฟล์
 #   deno     : เทสต์ Edge Function / Worker + ตรวจชนิดข้อมูลของทุกฟังก์ชัน
 #   database : migration ทั้งหมดรันบน Postgres จริง แล้วทดสอบนโยบายความปลอดภัย (supabase/tests)
+#   e2e      : เทสต์หน้าจอในเบราว์เซอร์ (Playwright) ยกเว้นเทียบภาพ
 on:
   push:
     branches: [main]
@@ -35,6 +36,25 @@ jobs:
         run: npm run build
       - name: ตรวจขนาดไฟล์ (งบต่อไฟล์และงบรวมหลัง gzip · scripts/bundle-budget.mjs)
         run: npm run test:bundle
+
+  # หน้าจอจริงในเบราว์เซอร์ (Playwright · โหมดข้อมูลตัวอย่าง ไม่แตะระบบจริง): เส้นทางหลัก POS คูปอง สิทธิ์ ทุกหน้าเปิดได้ จอมือถือ a11y XSS
+  # ไม่รวมการเทียบภาพ (visual) เพราะผูกกับฟอนต์/การเรนเดอร์ของเครื่องที่สร้างภาพอ้างอิง · รันเองได้ด้วย npm run test:e2e
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: ติดตั้ง Chromium ของ Playwright และฟอนต์ไทย (ให้ความกว้างข้อความใกล้เครื่องพัฒนา)
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y fonts-thai-tlwg
+      - name: เทสต์หน้าจอ (e2e ยกเว้นเทียบภาพ)
+        run: npm run test:e2e:ci
 
   deno:
     runs-on: ubuntu-latest

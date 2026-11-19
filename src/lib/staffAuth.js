@@ -356,7 +356,14 @@ async function startData(staff) {
     if (h?.lazy && h.refreshIds) {
       store.customerFetch.byIds = (ids) => h.refreshIds(ids)
       store.customerFetch.search = async (q) => { const r = await customers.searchCustomerIds(client, q); if (r.ids?.length) await h.refreshIds(r.ids.filter((id) => !db.customers.some((c) => c.id === id))) }
-    } else { store.customerFetch.byIds = null; store.customerFetch.search = null }
+      store.customerFetch.page = async (offset) => {
+        const r = await customers.pageCustomerIds(client, offset)
+        if (r.error) throw new Error(r.error)
+        const miss = r.ids.filter((id) => !db.customers.some((c) => c.id === id))
+        if (miss.length) await h.refreshIds(miss)
+        return r.ids.length
+      }
+    } else { store.customerFetch.byIds = null; store.customerFetch.search = null; store.customerFetch.page = null }
     return h
   }))
   tasks.push(acct.startAcctSync({ client, db, has, onError, onFetchers: async (f) => { const m = await import('../data/acct'); Object.assign(m.acctFetch, f) } }))
@@ -523,4 +530,4 @@ export async function currentStaff() {
   return { staff: data }
 }
 
-export async function staffSignOut() { await stopPush(); staffState.staff = null; staffState.loadFailed = []; dataCtx = null; groupLoads.clear(); { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1); m.deletionServer.purge = null; m.customerFetch.byIds = null; m.customerFetch.search = null; m.orderFetch.pull = null; m.orderFetch.counts = null; m.orderCounts.clear(); const ac = await import('../data/acct'); Object.assign(ac.acctFetch, { extend: null, orderInvoices: null, invoiceYear: null }) }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
+export async function staffSignOut() { await stopPush(); staffState.staff = null; staffState.loadFailed = []; dataCtx = null; groupLoads.clear(); { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1); m.deletionServer.purge = null; m.customerFetch.byIds = null; m.customerFetch.search = null; m.customerFetch.page = null; m.orderFetch.pull = null; m.orderFetch.counts = null; m.orderCounts.clear(); const ac = await import('../data/acct'); Object.assign(ac.acctFetch, { extend: null, orderInvoices: null, invoiceYear: null }) }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
