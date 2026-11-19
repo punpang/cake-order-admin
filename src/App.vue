@@ -88,7 +88,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
 
   <template v-else>
   <!-- ปุ่มลอยมุมขวาบน: แทนแถบบนเดิม เพื่อให้เนื้อหาใช้พื้นที่เต็มจอ -->
-  <div v-if="$route.meta.focus" v-show="!kbLock" class="fixed top-2 right-2 z-[60] flex items-center gap-2">
+  <div v-if="$route.meta.focus || $route.meta.lock" v-show="!kbLock" class="fixed top-2 right-2 z-[60] items-center gap-2" :class="$route.meta.focus ? 'flex' : 'hidden landscape:flex'">
     <BellMenu audience="staff" />
     <button type="button" class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-stone-700 shadow-md ring-1 ring-stone-200" aria-label="เมนู" aria-controls="app-menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
       <AppIcon :name="menuOpen ? 'x' : 'menu'" :size="20" />
@@ -141,7 +141,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     tabindex="-1"
     class="mx-auto max-w-page outline-none px-4 lg:px-8"
     :style="lockStyle"
-    :class="$route.meta.lock ? ['fixed inset-x-0 overflow-hidden', kbLock ? 'px-0! pt-0 pb-0' : 'px-0! pt-0', kbLock ? '' : $route.meta.focus || !navShow ? 'pb-0' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)]'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)]', 'pt-5']"
+    :class="$route.meta.lock ? ['fixed inset-x-0 overflow-hidden', kbLock ? 'px-0! pt-0 pb-0' : 'px-0! pt-0', kbLock ? '' : $route.meta.focus || !navShow ? 'pb-0' : 'pb-[calc(env(safe-area-inset-bottom)+4.5rem)] landscape:pb-0'] : [$route.meta.focus || !showBottom ? 'pb-8' : 'pb-[calc(env(safe-area-inset-bottom)+6rem)]', 'pt-5']"
   >
     <RouterView :key="$route.fullPath" />
   </main>
