@@ -114,6 +114,10 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
       </button>
     </div>
   </nav>
+  <!-- มือถือแนวตั้ง: กระดิ่งอยู่มุมขวาบน (แถบล่างไม่มีกระดิ่งแล้ว) · แนวนอนที่มีแถบบนใช้กระดิ่งในแถบบนแทน -->
+  <div v-if="!$route.meta.focus" v-show="!kbLock" class="fixed top-2 right-2 z-[60]" :class="showTopBar ? 'landscape:hidden' : ''">
+    <BellMenu audience="staff" />
+  </div>
   <!-- แถบเมนูบนสำหรับคอมพิวเตอร์ (lg ขึ้นไป) · มือถือ/แท็บเล็ตแนวตั้งใช้แถบล่างแทน -->
   <nav
     v-if="showTopBar"
@@ -157,7 +161,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     class="landscape:hidden fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_rgb(63_46_46/0.10)]"
     aria-label="เมนูล่าง"
   >
-    <div class="mx-auto grid h-16 max-w-3xl items-center" :style="{ gridTemplateColumns: `repeat(${bottomCols + 2}, minmax(0, 1fr))` }">
+    <div class="mx-auto grid h-16 max-w-3xl items-center" :style="{ gridTemplateColumns: `repeat(${bottomCols + 1}, minmax(0, 1fr))` }">
       <RouterLink
         v-for="i in bottomItems"
         :key="i.to"
@@ -175,7 +179,6 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
         ระบบ
         <span class="sr-only">ปัจจุบัน {{ curLabel }}</span>
       </button>
-      <BellMenu audience="staff" variant="tab" placement="up" />
       <button type="button" data-bottom-menu class="flex min-h-14 flex-col items-center justify-center gap-0.5 text-[12px] font-medium text-stone-600" aria-controls="app-menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
         <AppIcon :name="menuOpen ? 'x' : 'menu'" :size="22" />
         เมนู
