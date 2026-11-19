@@ -205,6 +205,7 @@ const redeemInfo = (c) => {
   return {
     pts,
     value: conversionPlan(c.ledger || [], toDateStr(new Date()), db.loyalty.pointValue)?.amount ?? 0,
+    soon: expiringSoon(c.ledger || [], toDateStr(new Date()), Number(db.shop.pointsExpireDays ?? 30)),
     coupons: posCoupons(c, nowIso.value).map((x) => x.name),
     rewards: db.rewards.filter((r) => r.active !== false).map((r) => {
       const points = Number(r.points) || 0
@@ -212,7 +213,8 @@ const redeemInfo = (c) => {
     }).sort((a, b) => a.points - b.points),
   }
 }
-const memberSearchOpen = ref(false) // กดปุ่ม "สมาชิก" ก่อน แล้วจึงแสดงช่องค้นหา
+const memberSearchOpen = ref(false)
+const memberInfoOf = ref(null) // สมาชิกที่เปิดดูข้อมูลในไดอะล็อกแยก // กดปุ่ม "สมาชิก" ก่อน แล้วจึงแสดงช่องค้นหา
 const member = ref(null)
 const memberMatches = computed(() => {
   const s = memberQ.value.trim().toLowerCase()
@@ -1206,6 +1208,35 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · เต็มจอ ไม่เลื่อน: ซ้าย = สรุปยอด สมาชิก คูปอง และรายการที่รับแล้ว · ขวา = เลือกวิธี และทำรายการนั้น -->
+    <!-- ข้อมูลสมาชิก: ไดอะล็อกแยก เปิดจากผลค้นหา · กดเลือกสมาชิกจากในไดอะล็อก -->
+    <AppModal v-if="memberInfoOf" title="ข้อมูลสมาชิก" @close="memberInfoOf = null">
+      <template v-for="r in [redeemInfo(memberInfoOf)]" :key="'mi' + memberInfoOf.id">
+        <div class="space-y-3 text-sm">
+          <div>
+            <div class="text-lg font-semibold text-stone-900">{{ memberInfoOf.name }}</div>
+            <div class="text-stone-500">{{ memberInfoOf.phone ? formatPhone(memberInfoOf.phone) : '' }}</div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div class="rounded-xl bg-stone-50 px-3 py-2"><div class="text-xs text-stone-500">คะแนนที่มี</div><div class="font-semibold tabular-nums text-stone-900">{{ r.pts.toLocaleString() }} แต้ม</div></div>
+            <div class="rounded-xl px-3 py-2" :class="r.soon ? 'bg-amber-100 text-amber-950' : 'bg-stone-50'"><div class="text-xs" :class="r.soon ? 'text-amber-900' : 'text-stone-500'">คะแนนที่จะหมดอายุ</div><div class="font-semibold tabular-nums">{{ r.soon ? `${r.soon.points.toLocaleString()} แต้ม · ${dateOnly(r.soon.date)}` : 'ไม่มี' }}</div></div>
+          </div>
+          <div v-if="r.value > 0">แปลงเป็นส่วนลดได้ <b class="tabular-nums">{{ money(r.value) }}</b></div>
+          <div class="rounded-xl bg-white p-3 ring-1 ring-stone-200">
+            <div class="mb-1 font-semibold text-stone-800">คูปองที่มี</div>
+            <div class="text-stone-700">{{ r.coupons.length ? r.coupons.join(' · ') : 'ไม่มี' }}</div>
+          </div>
+          <div class="rounded-xl bg-white p-3 ring-1 ring-stone-200">
+            <div class="mb-1 font-semibold text-stone-800">ของรางวัลที่แลกได้ด้วยคะแนน</div>
+            <div class="text-emerald-800">แลกได้ตอนนี้: {{ r.rewards.filter((x) => x.ok).map((x) => x.name).join(' · ') || 'ยังไม่มี' }}</div>
+            <div v-if="r.rewards.some((x) => !x.ok)" class="mt-1 text-stone-500">อีก: {{ r.rewards.filter((x) => !x.ok).map((x) => `${x.name} (ขาด ${x.need})`).join(' · ') }}</div>
+          </div>
+        </div>
+      </template>
+      <template #footer>
+        <button type="button" class="btn-outline h-12 flex-1" @click="memberInfoOf = null">ปิด</button>
+        <button type="button" class="btn-primary h-12 flex-1" @click="pickMember(memberInfoOf); memberInfoOf = null">เลือกสมาชิกนี้</button>
+      </template>
+    </AppModal>
     <AppModal v-if="payOpen" title="ชำระเงิน" big fit @close="requestClose">
       <div class="flex h-full min-h-0 flex-col gap-3">
       <div class="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:grid-rows-1">
@@ -1234,20 +1265,10 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               </div>
             <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
             <div v-if="memberMatches.length" class="w-full space-y-2 max-md:basis-full">
-              <div v-for="c in memberMatches" :key="c.id" class="space-y-2 rounded-xl border border-stone-200 p-3">
-                <button type="button" class="flex w-full justify-between gap-2 rounded-lg text-left text-sm hover:text-brand-700" @click="pickMember(c)">
-                  <span class="truncate font-semibold">{{ c.name }}</span><span class="shrink-0 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
-                </button>
-                <div v-for="r in [redeemInfo(c)]" :key="'ri' + c.id" class="space-y-1.5 text-sm" aria-label="สิทธิ์ของสมาชิก">
-                  <div class="flex flex-wrap gap-x-3 text-stone-800">
-                    <span>คะแนนที่มี <b class="tabular-nums">{{ r.pts.toLocaleString() }}</b> แต้ม</span>
-                    <span v-if="r.value > 0">แปลงเป็นส่วนลดได้ <b class="tabular-nums">{{ money(r.value) }}</b></span>
-                  </div>
-                  <div class="text-stone-700">คูปองที่มี: {{ r.coupons.length ? r.coupons.join(', ') : 'ไม่มี' }}</div>
-                  <div class="text-emerald-800">แลกได้ตอนนี้: {{ r.rewards.filter((x) => x.ok).map((x) => x.name).join(' · ') || 'ยังไม่มี' }}</div>
-                  <div v-if="r.rewards.some((x) => !x.ok)" class="text-stone-500">อีก: {{ r.rewards.filter((x) => !x.ok).map((x) => `${x.name} (ขาด ${x.need})`).join(' · ') }}</div>
-                </div>
-              </div>
+              <button v-for="c in memberMatches" :key="c.id" type="button" class="flex w-full items-center justify-between gap-2 rounded-xl border border-stone-200 px-3 py-2.5 text-left text-sm hover:border-brand-300" @click="memberInfoOf = c">
+                <span class="truncate font-semibold">{{ c.name }}</span>
+                <span class="flex shrink-0 items-center gap-2 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }} <span class="text-brand-700">ดูข้อมูล ›</span></span>
+              </button>
             </div>
             </template>
           </div>
