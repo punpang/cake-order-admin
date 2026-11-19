@@ -359,7 +359,7 @@ async function startData(staff) {
     } else { store.customerFetch.byIds = null; store.customerFetch.search = null }
     return h
   }))
-  tasks.push(acct.startAcctSync({ client, db, has, onError }))
+  tasks.push(acct.startAcctSync({ client, db, has, onError, onFetchers: async (f) => { const m = await import('../data/acct'); Object.assign(m.acctFetch, f) } }))
   // แชท/ใบเสนอ/กะ POS/ผู้ใช้: โหลดเมื่อเปิดหน้าที่ใช้ (ensureData) · ไม่มีสิทธิ์ = ล้างข้อมูลตัวอย่างทิ้ง
   if (!has('chat')) { db.chats.splice(0); db.quotes.splice(0) }
   store.session.userId = staff.user_id
@@ -523,4 +523,4 @@ export async function currentStaff() {
   return { staff: data }
 }
 
-export async function staffSignOut() { await stopPush(); staffState.staff = null; staffState.loadFailed = []; dataCtx = null; groupLoads.clear(); { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1); m.deletionServer.purge = null; m.customerFetch.byIds = null; m.customerFetch.search = null; m.orderFetch.pull = null; m.orderFetch.counts = null; m.orderCounts.clear() }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
+export async function staffSignOut() { await stopPush(); staffState.staff = null; staffState.loadFailed = []; dataCtx = null; groupLoads.clear(); { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1); m.deletionServer.purge = null; m.customerFetch.byIds = null; m.customerFetch.search = null; m.orderFetch.pull = null; m.orderFetch.counts = null; m.orderCounts.clear(); const ac = await import('../data/acct'); Object.assign(ac.acctFetch, { extend: null, orderInvoices: null, invoiceYear: null }) }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }

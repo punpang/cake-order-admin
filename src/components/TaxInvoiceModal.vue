@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { db, can, findCustomer, saveCustomer } from '../data/store'
-import { taxInvoices, invoiceOfOrder, invoiceBlock, buyerOf, issueTaxInvoice, voidTaxInvoice, markInvoiceCopy } from '../data/acct'
+import { taxInvoices, invoiceOfOrder, invoiceBlock, buyerOf, issueTaxInvoice, voidTaxInvoice, markInvoiceCopy, ensureOrderInvoices } from '../data/acct'
 import AppModal from './AppModal.vue'
 import AppIcon from './AppIcon.vue'
 import TaxInvoiceDoc from './TaxInvoiceDoc.vue'
@@ -24,8 +24,11 @@ const shown = computed(() => docs.value.find((d) => d.id === viewId.value) || cu
 const block = computed(() => (current.value ? '' : invoiceBlock(props.order, buyer)))
 const copyLabel = ref('ต้นฉบับ')
 const pick = ref(null) // null = ยังไม่เลือกขนาด · true/false = กำลังเลือกขนาด (สำเนา/ต้นฉบับ)
-function issue() {
+// ใบของออร์เดอร์นี้ที่ออกไว้นาน (เกินช่วงที่โหลด) → ดึงก่อน ทั้งเพื่อแสดง และกันออกใบซ้ำ
+const invLoaded = ensureOrderInvoices(props.order.id)
+async function issue() {
   error.value = ''
+  if (!(await invLoaded)) return (error.value = 'โหลดใบกำกับภาษีของออร์เดอร์นี้ไม่สำเร็จ ลองใหม่อีกครั้ง')
   const r = issueTaxInvoice(props.order.id, buyer)
   if (r.error) return (error.value = r.error)
   const c = findCustomer(props.order.customerId)

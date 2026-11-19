@@ -40,17 +40,35 @@ const ctx = () => ({
 export const derivedEntries = () => deriveAll(ctx(), extraGenerators)
 
 // รายการทั้งหมดที่ใช้ในรายงาน = บันทึกเอง + ที่แช่แข็งตอนปิดงวด + ดึงอัตโนมัติหลังวันที่ปิดงวด (เรียงตามวัน พร้อมเลขที่)
+// ---------- โหลดรายละเอียดเฉพาะช่วงล่าสุด (ตั้งโดย lib/acctSync.js ผ่าน onFetchers) ----------
+// A().loadedCut = รายการบันทึกเอง/แช่แข็งที่ลงวันที่ถึงวันนี้ อยู่ในรูปยอดยกมา A().opening · '' = มีรายละเอียดครบ
+// extend(newCut) → Promise · orderInvoices(id) · invoiceYear(y) · ไม่ตั้ง = โหมดตัวอย่าง (ข้อมูลครบในเครื่อง)
+export const acctFetch = { extend: null, orderInvoices: null, invoiceYear: null }
+const prevDayOf = (ymd) => { const d = new Date(`${ymd}T00:00:00Z`); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10) }
+// รายงานที่ต้องการรายละเอียดถึงวันที่ maxCut ('' = ทั้งหมด) → ดึงเพิ่มเบื้องหลัง แล้วหน้าจอคำนวณใหม่เอง
+export function needCut(maxCut = '') {
+  const cut = A().loadedCut
+  if (!cut || !acctFetch.extend) return Promise.resolve(true)
+  if (maxCut && maxCut >= cut) return Promise.resolve(true)
+  return acctFetch.extend(maxCut)
+}
+export const needFrom = (from) => needCut(from ? prevDayOf(from) : '')
+// มีรายละเอียดครบตั้งแต่วันที่ from หรือยัง (ใช้ตัดสินก่อนทำรายการที่ต้องเห็นรายการเก่า เช่น เปิดงวดย้อน)
+export const loadedFrom = (from) => !A().loadedCut || (!!from && prevDayOf(from) >= A().loadedCut)
+export const ensureOrderInvoices = (orderId) => (acctFetch.orderInvoices ? acctFetch.orderInvoices(orderId) : Promise.resolve(true))
+export const ensureInvoiceYear = (year) => (acctFetch.invoiceYear ? acctFetch.invoiceYear(year) : Promise.resolve(true))
+
 export function allEntries() {
   const closed = A().closedThrough
   const auto = derivedEntries().filter((e) => !closed || e.date > closed)
-  const rows = [...A().entries.map((e) => ({ ...e, no: e.no })), ...A().frozen, ...auto]
+  const rows = [...(A().opening ? [A().opening] : []), ...A().entries.map((e) => ({ ...e, no: e.no })), ...A().frozen, ...auto]
   rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.createdAt || a.id) < (b.createdAt || b.id) ? -1 : 1))
   return rows
 }
 export const activeAccounts = () => A().accounts.filter((a) => a.active !== false)
 export const accountOf = (id) => accountMap(A().accounts).get(id)
 export const locked = (date) => !!A().closedThrough && date <= A().closedThrough
-export const sourceLabel = (e) => ({ 'asset-depr': 'ค่าเสื่อมราคา', 'asset-dispose': 'จำหน่ายสินทรัพย์', deferral: 'ตัดจำหน่ายล่วงหน้า', manual: 'บันทึกเอง', 'order-pay': 'รับชำระออร์เดอร์', 'order-payx': 'ยกเลิกยอดชำระ', 'order-deliver': 'ส่งมอบ/รับรู้รายได้', 'order-cancel': 'ยกเลิก/คืนเงิน', 'order-cancel-rev': 'ยกเลิก/กลับรายการ', reward: 'ของรางวัล' }[e.source?.type] || e.source?.type || '')
+export const sourceLabel = (e) => ({ 'asset-depr': 'ค่าเสื่อมราคา', 'asset-dispose': 'จำหน่ายสินทรัพย์', deferral: 'ตัดจำหน่ายล่วงหน้า', manual: 'บันทึกเอง', 'order-pay': 'รับชำระออร์เดอร์', 'order-payx': 'ยกเลิกยอดชำระ', 'order-deliver': 'ส่งมอบ/รับรู้รายได้', 'order-cancel': 'ยกเลิก/คืนเงิน', 'order-cancel-rev': 'ยกเลิก/กลับรายการ', reward: 'ของรางวัล', opening: 'ยอดยกมา' }[e.source?.type] || e.source?.type || '')
 
 const LINKED = ['asset', 'deferral', 'loan', 'installment']
 function nextNo(prefix, date) {
@@ -204,16 +222,19 @@ export function reopenPeriod(toDate = '') {
   const g = guard('acctClose')
   if (g) return g
   if (toDate && toDate >= A().closedThrough) return { error: 'ต้องถอยวันที่ปิดงวดไปก่อนหน้าเดิม' }
+  // รายการแช่แข็งหลังวันใหม่ต้องอยู่ในเครื่องครบก่อน (ไม่งั้นลบไม่ครบ) → ดึงก่อน แล้วให้ทำซ้ำ
+  if (!loadedFrom(toDate ? addDays(toDate, 1) : '')) { needCut(toDate); return { error: 'กำลังโหลดรายการบัญชีช่วงนั้น ลองอีกครั้งในอีกสักครู่' } }
   A().frozen = A().frozen.filter((e) => !!toDate && e.date <= toDate)
   A().closedThrough = toDate
   return { ok: true }
 }
 
 // ---------- รายงาน (ห่อฟังก์ชันล้วนด้วยข้อมูลปัจจุบัน) ----------
-export const reportTrialBalance = (asOf = '') => trialBalance(allEntries(), A().accounts, asOf)
-export const reportIncome = (from, to) => incomeStatement(allEntries(), A().accounts, from, to)
-export const reportLedger = (accountId, from = '', to = '') => ledger(allEntries(), A().accounts, accountId, from, to)
+export const reportTrialBalance = (asOf = '') => { if (asOf) needCut(asOf); return trialBalance(allEntries(), A().accounts, asOf) }
+export const reportIncome = (from, to) => { if (from) needFrom(from); return incomeStatement(allEntries(), A().accounts, from, to) }
+export const reportLedger = (accountId, from = '', to = '') => { needFrom(from); return ledger(allEntries(), A().accounts, accountId, from, to) } // ไม่ระบุวันเริ่ม = แสดงทุกรายการ → ต้องมีรายละเอียดครบ
 export function cashPosition(asOf = '') {
+  if (asOf) needCut(asOf)
   const m = sums(allEntries(), '', asOf)
   const bal = (id) => balanceOf(accountOf(id), m.get(id))
   return { cash: bal('1010'), bank: bal('1020'), total: toB(toS(bal('1010')) + toS(bal('1020'))) }
@@ -223,7 +244,10 @@ export function cashPosition(asOf = '') {
 const filings = () => (A().vatFilings ||= {})
 export const vatFiled = (ym) => !!filings()[ym]?.filedAt
 export const vatFilingOf = (ym) => filings()[ym] || null
+// VAT: ต้องมีรายละเอียดของเดือนนั้น และย้อนได้ถึง 25 เดือน (ยอดเกินยกมาคำนวณย้อนสูงสุด 24 เดือน)
+const needVat = (ym) => needFrom(`${addMonths(ym, -25)}-01`)
 export const vatReport = (ym) => {
+  needVat(ym)
   const prev = filings()[prevMonth(ym)]
   // ภาษีเกินยกมา = ยอดเกินของเดือนก่อน (คำนวณสดตามข้อมูลปัจจุบัน ถ้าเดือนก่อนยื่นแล้วใช้ตัวเลขที่ยื่น)
   const carry = prev?.filedAt ? prev.excess : vatSummary(allEntries(), prevMonth(ym), { prevExcess: carryIn(prevMonth(ym)) }).excess
@@ -245,6 +269,7 @@ export function vatSetExtra(ym, extra) {
 }
 // บันทึกว่ายื่นแล้ว: เก็บตัวเลข ณ วันที่ยื่น (snapshot) และล็อกเดือนภาษี
 export function vatMarkFiled(ym, { filedAt = today(), ref = '', paid = 0 } = {}) {
+  if (!loadedFrom(`${addMonths(ym, -25)}-01`)) { needVat(ym); return { error: 'กำลังโหลดรายการบัญชีช่วงก่อนหน้า ลองอีกครั้งในอีกสักครู่' } } // ภาพบันทึกตอนยื่นต้องมาจากข้อมูลครบ
   const g = guard('acctTax')
   if (g) return g
   if (!/^\d{4}-\d{2}$/.test(ym)) return { error: 'เดือนภาษีไม่ถูกต้อง' }
@@ -670,7 +695,8 @@ export function removeRecurring(id) {
   const t = recurring().find((x) => x.id === id)
   if (!t) return { error: 'ไม่พบรายการ' }
   // ไม่ลบประวัติ: ถ้าเคยบันทึกแล้วให้ปิดใช้งานแทน
-  if (A().entries.some((e) => e.source?.recurringId === id)) { t.active = false; return { ok: true, deactivated: true } }
+  // มีรายละเอียดไม่ครบ (รายการเก่าอยู่ในยอดยกมา) → ปิดใช้งานแทนการลบเสมอ (กันลบรายการที่เคยบันทึกแล้ว)
+  if (A().loadedCut || A().entries.some((e) => e.source?.recurringId === id)) { t.active = false; return { ok: true, deactivated: true } }
   A().recurring = recurring().filter((x) => x.id !== id)
   return { ok: true }
 }
@@ -807,12 +833,13 @@ export function saveAcctSettings(d) {
   return { ok: true }
 }
 
-export const reportBalanceSheet = (asOf) => balanceSheet(allEntries(), A().accounts, asOf, fiscalStartOf(asOf))
-export const reportCashFlow = (from, to) => cashFlow(allEntries(), A().accounts, from, to)
-export const reportEquity = (from, to) => equityStatement(allEntries(), A().accounts, from, to)
-export const reportCompare = (kind, ref) => compareStatements(allEntries(), A().accounts, comparePeriods(kind, ref))
+export const reportBalanceSheet = (asOf) => { const fy = fiscalStartOf(asOf); needCut(prevDayOf(fy) < asOf ? prevDayOf(fy) : asOf); return balanceSheet(allEntries(), A().accounts, asOf, fy) }
+export const reportCashFlow = (from, to) => { needFrom(from); return cashFlow(allEntries(), A().accounts, from, to) }
+export const reportEquity = (from, to) => { needFrom(from); return equityStatement(allEntries(), A().accounts, from, to) }
+export const reportCompare = (kind, ref) => { const ps = comparePeriods(kind, ref); const froms = ps.map((p) => p.from).filter(Boolean).sort(); needFrom(froms[0] || ''); return compareStatements(allEntries(), A().accounts, ps) }
 // สรุปรายงานประจำเดือน/ปี
 export function periodSummary(from, to) {
+  needFrom(from)
   const entries = allEntries()
   const pl = reportIncome(from, to)
   const m = sums(entries, from, to)
