@@ -51,6 +51,13 @@ export async function loadCustomersLazy(client, keepIds = []) {
   }
   return { items: [...have.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).map(rowToCustomer) }
 }
+// หน้ารายชื่อลูกค้า (โหมดโหลดเฉพาะที่ใช้): ดึงทีละหน้าเรียงตามชื่อ · คืนเฉพาะรหัส แล้วให้ตัวซิงก์ดึงแถวมารวม
+export const CUSTOMER_PAGE = 50
+export async function pageCustomerIds(client, offset = 0, size = CUSTOMER_PAGE) {
+  const r = await client.from('punpang_customers').select('id').order('name').order('id').range(offset, offset + size - 1)
+  if (r.error) return { error: r.error.message }
+  return { ids: (r.data || []).map((x) => x.id) }
+}
 // ค้นลูกค้าที่เซิร์ฟเวอร์ (คืนเฉพาะรหัส แล้วให้ตัวซิงก์ดึงแถวมารวม) · เบอร์ ≥ 3 หลัก / รหัสสมาชิก 32 ตัว / ชื่อ ≥ 2 ตัวอักษร
 const likeSafe = (s) => s.replace(/[%_\\,()*"]/g, ' ').trim()
 export async function searchCustomerIds(client, q, limit = 30) {

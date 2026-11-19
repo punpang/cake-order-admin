@@ -654,7 +654,7 @@ const nextCode = () => numbering.next('OR')
 export const findOrder = (id) => db.orders.find((o) => o.id === id)
 // โหมดโหลดเฉพาะลูกค้าที่ใช้ (ตั้งโดยชั้นเชื่อม Supabase เมื่อเปิดโหมดนี้): ไม่พบในเครื่อง → ดึงจากเซิร์ฟเวอร์เบื้องหลัง แล้วหน้าจออัปเดตเอง
 // byIds(ids) → Promise<boolean> · searchIds(q) → Promise<void> (รวมผลเข้ารายการลูกค้า) · ไม่ตั้ง = มีลูกค้าครบในเครื่องแล้ว
-export const customerFetch = { byIds: null, search: null }
+export const customerFetch = { byIds: null, search: null, page: null }
 const askedCustomers = new Set()
 let missQueue = new Set()
 let missTimer = null
@@ -684,6 +684,8 @@ export function ensureCustomers(ids) {
 // ค้นลูกค้าที่เซิร์ฟเวอร์ตามคำที่พิมพ์ (หน่วง 300 ms) แล้วรวมผลเข้ารายการ · หน้าจอกรองจากรายการในเครื่องเหมือนเดิม
 let searchTimer = null
 let lastSearch = ''
+// หน้ารายชื่อลูกค้า: ดึงหน้าถัดไปจากเซิร์ฟเวอร์ (เรียงตามชื่อ) · คืนจำนวนที่ได้ (น้อยกว่าขนาดหน้า = หมดแล้ว) · ไม่ตั้ง = มีครบในเครื่อง
+export const loadMoreCustomers = (offset) => (customerFetch.page ? customerFetch.page(offset) : Promise.resolve(0))
 // ค้นที่เซิร์ฟเวอร์ทันทีแล้วรอผล (เช่น สแกนบาร์โค้ดสมาชิกแล้วกด Enter ต้องได้ผลในครั้งเดียว)
 export async function searchCustomersNow(q) {
   const t = String(q ?? '').trim()
