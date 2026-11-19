@@ -99,7 +99,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     </button>
   </div>
   <div v-if="menuOpen" class="fixed inset-0 z-[55]" aria-hidden="true" @click="menuOpen = false" />
-  <nav v-if="menuOpen" id="app-menu" class="fixed right-2 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-[60] max-h-[70dvh] w-64 overflow-y-auto lg:top-[4.5rem] lg:bottom-auto lg:max-h-[calc(100dvh-5.5rem)] rounded-2xl bg-white p-2 shadow-xl ring-1 ring-stone-200" aria-label="เมนูระบบ">
+  <nav v-if="menuOpen" id="app-menu" class="fixed right-2 top-14 z-[60] max-h-[calc(100dvh-4.5rem)] w-64 overflow-y-auto lg:top-[4.5rem] lg:bottom-auto lg:max-h-[calc(100dvh-5.5rem)] rounded-2xl bg-white p-2 shadow-xl ring-1 ring-stone-200" aria-label="เมนูระบบ">
     <RouterLink to="/" class="block rounded-xl px-3 py-2.5 text-sm text-stone-700 hover:bg-stone-100" @click="menuOpen = false">หน้าร้าน</RouterLink>
     <div class="px-3 pt-3 pb-1 text-xs font-medium text-stone-500">ระบบ</div>
     <RouterLink v-for="sy in systems" :key="sy.key" :to="homeOf(sy, can)" class="block rounded-xl px-3 py-2.5 text-sm text-stone-800 hover:bg-stone-100" :class="sy.key === current ? 'bg-brand-50 font-semibold text-brand-700' : ''" @click="menuOpen = false">{{ sy.label }}</RouterLink>
@@ -114,6 +114,13 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
       </button>
     </div>
   </nav>
+  <!-- มือถือแนวตั้ง: กระดิ่งอยู่มุมขวาบน (แถบล่างไม่มีกระดิ่งแล้ว) · แนวนอนที่มีแถบบนใช้กระดิ่งในแถบบนแทน -->
+  <div v-if="!$route.meta.focus" v-show="!kbLock" class="fixed top-2 right-2 z-[60] flex items-center gap-2" :class="showTopBar ? 'landscape:hidden' : ''">
+    <BellMenu audience="staff" />
+    <button type="button" class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-stone-700 shadow-md ring-1 ring-stone-200" aria-label="เมนู" aria-controls="app-menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
+      <AppIcon :name="menuOpen ? 'x' : 'menu'" :size="20" />
+    </button>
+  </div>
   <!-- แถบเมนูบนสำหรับคอมพิวเตอร์ (lg ขึ้นไป) · มือถือ/แท็บเล็ตแนวตั้งใช้แถบล่างแทน -->
   <nav
     v-if="showTopBar"
@@ -157,7 +164,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     class="landscape:hidden fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_rgb(63_46_46/0.10)]"
     aria-label="เมนูล่าง"
   >
-    <div class="mx-auto grid h-16 max-w-3xl items-center" :style="{ gridTemplateColumns: `repeat(${bottomCols + 2}, minmax(0, 1fr))` }">
+    <div class="mx-auto grid h-16 max-w-3xl items-center" :style="{ gridTemplateColumns: `repeat(${bottomCols}, minmax(0, 1fr))` }">
       <RouterLink
         v-for="i in bottomItems"
         :key="i.to"
@@ -174,11 +181,6 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
         <AppIcon name="grid" :size="22" />
         ระบบ
         <span class="sr-only">ปัจจุบัน {{ curLabel }}</span>
-      </button>
-      <BellMenu audience="staff" variant="tab" placement="up" />
-      <button type="button" data-bottom-menu class="flex min-h-14 flex-col items-center justify-center gap-0.5 text-[12px] font-medium text-stone-600" aria-controls="app-menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
-        <AppIcon :name="menuOpen ? 'x' : 'menu'" :size="22" />
-        เมนู
       </button>
     </div>
     <div v-if="sysOpen" data-bottom-system data-system-sheet role="menu" class="absolute inset-x-3 bottom-[calc(100%+0.5rem)] overflow-hidden rounded-2xl bg-white p-1.5 shadow-xl ring-1 ring-stone-200">
