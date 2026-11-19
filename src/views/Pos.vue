@@ -1031,11 +1031,11 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
           <p v-if="!cart.length" class="py-6 text-center text-sm text-stone-400">แตะสินค้าเพื่อเพิ่ม</p>
           <ul class="space-y-2">
-            <li v-for="l in cart" :key="lineKey(l)" class="flex items-center gap-2" @touchstart.passive="swipeStart" @touchend.passive="swipeEnd($event, l)">
+            <li v-for="l in cart" :key="lineKey(l)" class="flex items-center gap-2 rounded-2xl bg-white p-2.5 ring-1 ring-stone-200" @touchstart.passive="swipeStart" @touchend.passive="swipeEnd($event, l)">
               <button type="button" class="min-w-0 flex-1 text-left" :disabled="!groupsOf(itemOf(l) || {}).length" @click="openMods(itemOf(l), l)">
-                <span class="block truncate text-sm font-medium text-stone-900">{{ itemOf(l)?.name }}</span>
-                <span v-if="l.mods?.length" class="block truncate text-xs text-brand-700">{{ modsText(modsOf(l.mods)) }}</span>
-                <span class="block text-xs text-stone-500">{{ money(linePrice(l)) }}</span>
+                <span class="block truncate text-base font-semibold text-stone-900">{{ itemOf(l)?.name }}</span>
+                <span v-if="l.mods?.length" class="block truncate text-xs font-medium text-brand-700">{{ modsText(modsOf(l.mods)) }}</span>
+                <span class="block text-sm font-semibold tabular-nums text-stone-700">{{ money(linePrice(l)) }}</span>
               </button>
               <span class="flex h-9 items-center rounded-xl border border-stone-200">
                 <button type="button" class="h-full w-9 text-stone-600" aria-label="ลด" @click="step(l, -1)"><AppIcon name="minus" :size="16" class="mx-auto" /></button>
@@ -1054,19 +1054,20 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               <span class="max-w-[40%] shrink-0 truncate text-xs text-emerald-800">{{ g.promoGift.name }}</span>
             </li>
           </ul>
-          <ul v-if="promoInfo.hints.length" class="space-y-1 rounded-xl bg-sky-50 p-2.5 text-xs text-sky-900" aria-label="โปรที่ใกล้ถึง">
-            <li v-for="h in promoInfo.hints" :key="h.text">💡 {{ h.text }}</li>
+          <ul v-if="promoInfo.hints.length" class="space-y-1.5" aria-label="โปรที่ใกล้ถึง">
+            <li v-for="h in promoInfo.hints" :key="h.text" class="rounded-xl border-l-4 border-sky-500 bg-sky-100 px-3 py-2 text-sm font-medium text-sky-950">💡 {{ h.text }}</li>
           </ul>
 
           <!-- แนะนำขายต่อ -->
-          <div v-if="bundleSug.length || pairSug.length" class="space-y-2 rounded-xl bg-amber-50/70 p-2.5" aria-label="แนะนำขายต่อ">
-            <div v-for="s in bundleSug" :key="s.bundle.id" class="rounded-lg bg-white p-2 text-sm">
-              <div class="font-medium text-stone-900">ชุด {{ s.bundle.name }} · {{ money(s.bundle.price) }} <s class="text-xs font-normal text-stone-400">ราคาเต็ม {{ money(s.setRegular) }}</s></div>
+          <div v-if="bundleSug.length || pairSug.length" class="space-y-2" aria-label="แนะนำขายต่อ">
+            <div class="text-xs font-bold uppercase tracking-wide text-amber-800">แนะนำขายต่อ</div>
+            <div v-for="s in bundleSug" :key="s.bundle.id" class="rounded-2xl border-2 border-amber-400 bg-amber-100 p-3 text-sm">
+              <div class="font-semibold text-stone-900">ชุด {{ s.bundle.name }} · {{ money(s.bundle.price) }} <s class="text-xs font-normal text-stone-400">ราคาเต็ม {{ money(s.setRegular) }}</s></div>
               <div class="text-xs text-stone-600">เพิ่ม {{ s.missing.map((m) => `${m.name} ×${m.qty}`).join(', ') }} ได้ราคาชุด · ประหยัด <b class="text-rose-700">{{ money(s.saving) }}</b></div>
               <button type="button" class="btn-soft mt-1.5 h-8 px-3 text-xs" @click="addMissing(s)"><AppIcon name="plus" :size="14" /> เพิ่มให้ครบชุด</button>
             </div>
             <div v-if="pairSug.length">
-              <div class="mb-1 text-xs font-semibold text-amber-800">ลูกค้ามักซื้อคู่กัน</div>
+              <div class="mb-1.5 text-xs font-bold text-amber-900">ลูกค้ามักซื้อคู่กัน</div>
               <div class="flex flex-wrap gap-1.5">
                 <button v-for="r in pairSug" :key="r.retailId" type="button" class="chip chip-off max-w-full" :aria-label="`เพิ่ม ${r.item.name}`" @click="add(r.item)"><AppIcon name="plus" :size="13" /> <span class="truncate">{{ r.item.name }}</span> <span class="text-stone-400">{{ money(r.item.price) }}</span></button>
               </div>
