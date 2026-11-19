@@ -1186,18 +1186,18 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · เต็มจอ ไม่เลื่อน: ซ้าย = สรุปยอด สมาชิก คูปอง และรายการที่รับแล้ว · ขวา = เลือกวิธี และทำรายการนั้น -->
-    <AppModal v-if="payOpen" title="ชำระเงิน" wide wider full fit @close="requestClose">
+    <AppModal v-if="payOpen" title="ชำระเงิน" wider fit @close="requestClose">
       <div class="flex h-full min-h-0 flex-col gap-3">
       <div class="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 md:grid-cols-[18rem_minmax(0,1fr)] md:grid-rows-1">
         <!-- ซ้าย: สมาชิก คูปอง รายการ -->
         <aside class="flex min-h-0 flex-col gap-3 overflow-y-auto p-0.5 max-md:max-h-[40dvh]" aria-label="ข้อมูลลูกค้าและรายการชำระ">
           <!-- สรุป: ยอดชำระ · รับแล้ว · คงค้าง/เกิน -->
           <div class="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-stone-200 max-md:p-3" aria-label="สรุปการชำระ">
-            <div class="text-sm text-stone-500">ยอดชำระ</div>
+            <div class="text-sm font-medium text-stone-700">ยอดชำระ</div>
             <div class="text-3xl font-bold tabular-nums text-stone-900 max-md:text-2xl">{{ money(total) }}</div>
             <dl class="mt-3 grid grid-cols-2 gap-2 text-sm max-md:mt-2 max-md:gap-1.5">
-              <div class="rounded-2xl bg-stone-100 px-3 py-2"><dt class="text-stone-500">รับแล้ว</dt><dd class="text-lg font-semibold tabular-nums text-stone-900">{{ money(receivedSum) }}</dd></div>
-              <div class="rounded-2xl px-3 py-2" :class="total - receivedSum < 0 ? 'bg-rose-100 text-rose-800' : total - receivedSum > 0 ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'">
+              <div class="rounded-2xl bg-stone-200 px-3 py-2"><dt class="text-stone-700">รับแล้ว</dt><dd class="text-lg font-semibold tabular-nums text-stone-950">{{ money(receivedSum) }}</dd></div>
+              <div class="rounded-2xl px-3 py-2" :class="total - receivedSum < 0 ? 'bg-rose-200 text-rose-950 ring-1 ring-rose-400' : total - receivedSum > 0 ? 'bg-amber-200 text-amber-950 ring-1 ring-amber-400' : 'bg-emerald-200 text-emerald-950 ring-1 ring-emerald-500'">
                 <dt class="opacity-80">{{ total - receivedSum < 0 ? 'เกิน' : 'คงค้าง' }}</dt><dd class="text-lg font-semibold tabular-nums">{{ money(Math.abs(total - receivedSum)) }}</dd>
               </div>
             </dl>
@@ -1323,7 +1323,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                     <span class="text-4xl font-bold tabular-nums text-stone-900 max-md:text-3xl" aria-live="polite">{{ money(Number(l.received) || 0) }}</span>
                   </button>
                 </div>
-                <div class="flex items-center justify-between rounded-3xl px-4 py-3 max-md:py-2" :class="changeOf(l) >= 0 ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-900'">
+                <div class="flex items-center justify-between rounded-3xl px-4 py-3 max-md:py-2" :class="changeOf(l) >= 0 ? 'bg-emerald-600 text-white' : 'bg-amber-200 text-amber-950 ring-1 ring-amber-400'">
                   <span class="text-base font-semibold">{{ changeOf(l) >= 0 ? 'เงินทอน' : 'ยังขาด' }}</span>
                   <span class="text-3xl font-bold tabular-nums">{{ money(Math.abs(changeOf(l))) }}</span>
                 </div>
