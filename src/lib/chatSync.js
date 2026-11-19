@@ -1,4 +1,4 @@
-import { startSync, selectAll } from './tableSync'
+import { startSync, selectAll, withVer, fillArray } from './tableSync.js'
 
 // ซิงก์แชท (db.chats) กับ punpang_chats และใบเสนอ (db.quotes) กับ punpang_quotes
 // ข้อความในแชท/ร่างบอท/ฯลฯ อยู่ใน data (jsonb) · ใช้สิทธิ์ 'chat' (ลบได้เฉพาะ 'manage' = ตอนอนุมัติลบข้อมูลลูกค้า)
@@ -69,10 +69,38 @@ export async function searchChatIds(client, { text = '', customerIds = [], chatI
 // ตัวช่วยให้หน้าแชทเรียกใช้ (ตั้งค่าเมื่อเริ่มซิงก์แชท)
 // ก่อนซิงก์แชทเสร็จ คำขอ ensure ถูกเก็บคิวไว้แล้วทำทีหลัง
 export const chatRemote = { queue: [], ensure: async (ids) => { chatRemote.queue.push(...ids) }, search: async () => {} }
-export async function loadQuotes(client) {
-  const a = await selectAll((x, y) => client.from('punpang_quotes').select('id,code,chat_id,customer_id,status,order_id,data').order('id').range(x, y))
+// ใบเสนอที่ยังต้องดำเนินการ (ไม่ว่าแชทจะโหลดอยู่หรือไม่) · สถานะอื่น (รับแล้ว/ถูกแทน ฯลฯ) โหลดเฉพาะของแชทที่อยู่ในเครื่อง
+export const OPEN_QUOTE_STATUSES = ['pending', 'customer_ok', 'converting', 'need_phone', 'revise']
+const QUOTE_COLS = 'id,code,chat_id,customer_id,status,order_id,data,updated_at'
+const quoteRow = (r) => withVer(rowToQuote(r), r.updated_at)
+export async function loadQuotesFor(client, chatIds = [], { open = true } = {}) {
+  const rows = new Map()
+  if (open) {
+    const a = await selectAll((x, y) => client.from('punpang_quotes').select(QUOTE_COLS).in('status', OPEN_QUOTE_STATUSES).order('id').range(x, y))
+    if (a.error) return { error: a.error.message }
+    for (const r of a.data || []) rows.set(r.id, r)
+  }
+  const ids = [...new Set(chatIds)].filter(Boolean)
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const part = ids.slice(i, i + IN_CHUNK)
+    const b = await selectAll((x, y) => client.from('punpang_quotes').select(QUOTE_COLS).in('chat_id', part).order('id').range(x, y))
+    if (b.error) return { error: b.error.message }
+    for (const r of b.data || []) rows.set(r.id, r)
+  }
+  return { items: [...rows.values()].map(quoteRow).sort(byDesc('createdAt')) }
+}
+export async function loadQuotesSince(client, since) {
+  const a = await selectAll((x, y) => client.from('punpang_quotes').select(QUOTE_COLS).gte('updated_at', since).order('updated_at').order('id').range(x, y))
   if (a.error) return { error: a.error.message }
-  return { items: (a.data || []).map(rowToQuote).sort(byDesc('createdAt')) }
+  return { items: (a.data || []).map(quoteRow) }
+}
+// เลขใบเสนอที่ค้น → แชทของใบเสนอนั้น (ใบเสนอเก่าที่ไม่ได้อยู่ในเครื่อง)
+export async function searchQuoteChatIds(client, text) {
+  const t = clean(text)
+  if (t.length < 3) return { ids: [] }
+  const r = await client.from('punpang_quotes').select('chat_id').ilike('code', `%${t}%`).limit(20)
+  if (r.error) return { error: r.error.message }
+  return { ids: [...new Set((r.data || []).map((x) => x.chat_id).filter(Boolean))] }
 }
 
 const ts = (v) => { const n = Date.parse(v); return Number.isFinite(n) ? n : 0 }
@@ -205,18 +233,23 @@ export async function startChatSync({ client, db, canWrite, numbering, onError, 
     canWrite, onError, debounceMs, label: 'แชท', poll: true, // ข้อความจาก Facebook เข้าผ่าน webhook ระหว่างที่เปิดแอปอยู่
     loadByIds: (ids) => loadChatsByIds(client, pin(ids)),
   })
-  const pb = startSync({
+  // ใบเสนอโหลดหลังแชท: เฉพาะของแชทที่อยู่ในเครื่อง + ที่ยังต้องดำเนินการ (แทนทั้งตาราง)
+  const a = await pa
+  const confirmPending = (rows) => { if (onQuoteConfirm) { const pend = pendingQuoteConfirms(rows); if (pend.length) setTimeout(() => pend.forEach((id) => onQuoteConfirm(id)), 0) } }
+  const b = await startSync({
     list: () => db.quotes,
     replace: (items) => {
-      db.quotes.splice(0, db.quotes.length, ...items)
+      fillArray(db.quotes, items)
       if (numbering) numbering.seen(items.map((i) => i.code))
-      if (onQuoteConfirm) { const pend = pendingQuoteConfirms(items); if (pend.length) setTimeout(() => pend.forEach((id) => onQuoteConfirm(id)), 0) }
+      confirmPending(items)
     },
-    load: () => loadQuotes(client),
+    load: () => loadQuotesFor(client, db.chats.map((c) => c.id)),
+    loadSince: (since) => loadQuotesSince(client, since),
+    keep: (q) => OPEN_QUOTE_STATUSES.includes(q.status) || db.chats.some((c) => c.id === q.chatId),
+    applyRows: (rows) => { if (numbering) numbering.seen(rows.map((i) => i.code)); confirmPending(rows) }, // ลูกค้ากดยืนยันบน Messenger (ได้มาจากรอบดึงเฉพาะที่เปลี่ยน)
     push: (c) => pushQuotes(client, c),
     canWrite, onError, debounceMs, label: 'ใบเสนอ', poll: true, // ลูกค้ากดปุ่มบน Messenger เปลี่ยนสถานะที่เซิร์ฟเวอร์
   })
-  const [a, b] = await Promise.all([pa, pb]) // แชทกับใบเสนอโหลดพร้อมกัน
   a.kind = 'chats' // ให้ชั้นล็อกอินเลือกรีเฟรชเฉพาะแชทถี่ ๆ ตอนเปิดหน้าแชท
   b.kind = 'chats'
   // ล้างข้อความเก่าเกินระยะเก็บ (การเปลี่ยนแปลงจะถูกซิงก์กลับเซิร์ฟเวอร์โดยอัตโนมัติ)
@@ -230,11 +263,17 @@ export async function startChatSync({ client, db, canWrite, numbering, onError, 
   chatRemote.ensure = async (ids) => {
     const missing = pin(ids).filter((id) => !db.chats.some((c) => c.id === id))
     if (!missing.length) return true
-    return a.refreshIds ? a.refreshIds(missing) : false
+    const ok = a.refreshIds ? await a.refreshIds(missing) : false
+    // ใบเสนอของแชทเก่าที่เพิ่งดึงมา (ปิดแล้วก็ต้องเห็นในเธรด)
+    const qs = await loadQuotesFor(client, missing, { open: false })
+    if (!qs.error && b.merge) b.merge(qs.items)
+    return ok
   }
   const queued = chatRemote.queue.splice(0)
   if (queued.length) await chatRemote.ensure(queued)
   chatRemote.search = async (keys) => {
+    const qc = keys.text ? await searchQuoteChatIds(client, keys.text) : { ids: [] } // ค้นด้วยเลขใบเสนอเก่า
+    if (qc.ids?.length) keys = { ...keys, chatIds: [...new Set([...(keys.chatIds || []), ...qc.ids])] }
     const r = await searchChatIds(client, keys)
     if (r.error) return r
     await chatRemote.ensure(r.ids)
