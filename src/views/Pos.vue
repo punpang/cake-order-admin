@@ -1189,17 +1189,17 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <AppModal v-if="payOpen" title="ชำระเงิน" wide wider full fit @close="requestClose">
       <div class="flex h-full min-h-0 flex-col gap-3">
       <!-- แถบสรุปบนสุด: ยอดชำระ · รับแล้ว · คงค้าง/เกิน ในแถวเดียวทุกขนาดจอ -->
-      <div class="flex shrink-0 items-center gap-3 rounded-3xl bg-stone-900 px-4 py-2 text-white max-md:gap-2 max-md:px-3 max-md:py-1.5" aria-label="สรุปการชำระ">
+      <div class="flex shrink-0 items-center gap-3 rounded-3xl bg-white px-4 py-2 text-stone-900 shadow-sm ring-1 ring-stone-200 max-md:gap-2 max-md:px-3 max-md:py-1.5" aria-label="สรุปการชำระ">
         <div class="min-w-0 flex-1">
-          <div class="text-xs text-stone-300 md:text-sm">ยอดชำระ</div>
+          <div class="text-xs text-stone-500 md:text-sm">ยอดชำระ</div>
           <div class="truncate text-3xl font-bold tabular-nums max-md:text-2xl">{{ money(total) }}</div>
         </div>
-        <div class="rounded-2xl bg-white/10 px-3 py-1.5 text-right max-md:px-2">
-          <div class="text-xs text-stone-300">รับแล้ว</div>
+        <div class="rounded-2xl bg-stone-100 px-3 py-1.5 text-right max-md:px-2">
+          <div class="text-xs text-stone-500">รับแล้ว</div>
           <div class="text-lg font-semibold tabular-nums">{{ money(receivedSum) }}</div>
         </div>
-        <div class="rounded-2xl px-3 py-1.5 text-right max-md:px-2" :class="total - receivedSum < 0 ? 'bg-rose-500/30' : total - receivedSum > 0 ? 'bg-amber-400/25' : 'bg-emerald-500/30'">
-          <div class="text-xs text-stone-200">{{ total - receivedSum < 0 ? 'เกิน' : 'คงค้าง' }}</div>
+        <div class="rounded-2xl px-3 py-1.5 text-right max-md:px-2" :class="total - receivedSum < 0 ? 'bg-rose-100 text-rose-800' : total - receivedSum > 0 ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'">
+          <div class="text-xs opacity-80">{{ total - receivedSum < 0 ? 'เกิน' : 'คงค้าง' }}</div>
           <div class="text-lg font-semibold tabular-nums">{{ money(Math.abs(total - receivedSum)) }}</div>
         </div>
       </div>
