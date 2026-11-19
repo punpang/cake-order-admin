@@ -2,7 +2,7 @@ name: CI
 
 # ตรวจทุกครั้งที่ push เข้า main และทุก Pull Request (รันเองได้จากแท็บ Actions ด้วย)
 # ไม่ deploy อะไรทั้งสิ้น · deploy ใช้ workflow แยก (Deploy ...) ที่รันเองเท่านั้น
-#   node     : เทสต์ฝั่ง Node (รวมไฟล์ schedlib ที่คัดลอกต้องตรงต้นฉบับ) + สร้างเว็บ
+#   node     : เทสต์ฝั่ง Node (รวมไฟล์ schedlib ที่คัดลอกต้องตรงต้นฉบับ) + สร้างเว็บ + ตรวจขนาดไฟล์
 #   deno     : เทสต์ Edge Function / Worker + ตรวจชนิดข้อมูลของทุกฟังก์ชัน
 #   database : migration ทั้งหมดรันบน Postgres จริง แล้วทดสอบนโยบายความปลอดภัย (supabase/tests)
 on:
@@ -33,6 +33,8 @@ jobs:
         run: npm test
       - name: สร้างเว็บ
         run: npm run build
+      - name: ตรวจขนาดไฟล์ (งบต่อไฟล์และงบรวมหลัง gzip · scripts/bundle-budget.mjs)
+        run: npm run test:bundle
 
   deno:
     runs-on: ubuntu-latest
