@@ -63,6 +63,13 @@ watch(() => numpad.open, async (open) => {
           @mousedown.prevent
         ><AppIcon name="back" :size="20" /></button>
       </div>
+      <button
+        type="button"
+        tabindex="-1"
+        class="mt-2 h-12 w-full rounded-xl bg-brand-700 text-base font-semibold text-white active:bg-brand-800"
+        @pointerdown.prevent="pressNumpadKey('done')"
+        @mousedown.prevent
+      >เสร็จ</button>
     </div>
   </Teleport>
 </template>
