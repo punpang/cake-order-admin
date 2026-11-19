@@ -352,6 +352,44 @@ const giftLines = computed(() => lineItems.value.filter((i) => i.promoGift))
 const usedPromos = computed(() => [...new Set(lineItems.value.flatMap((i) => (i.discounts || []).filter((d) => d.kind === 'promo' || d.kind === 'bundle' || d.kind === 'gift').map((d) => d.name)))])
 // แก้รายการบิลค้าง (แอดมิน): บิลที่กำลังแก้ · คูปองเดิมในบิลที่ยังไม่ได้เอาออก · ใช้คิดยอดตอนแก้
 const editBill = ref(null) // null = ขายใหม่จากตะกร้า
+// กันข้อมูลหายตอนรีเฟรช/เปลี่ยนหน้า: เก็บบิลที่กำลังขาย (ตะกร้า สมาชิก คูปอง ส่วนลด) ไว้ใน sessionStorage ของแท็บนี้ แล้วคืนให้หลังโหลดใหม่
+const DRAFT_KEY = 'pos-draft-v1'
+function readDraft() { try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null') } catch { return null } }
+let draftReady = false // ยังไม่ได้ลองคืนบิลเดิม → ห้ามเขียนทับ/ลบบิลที่เก็บไว้
+function writeDraft() {
+  if (!draftReady) return
+  try {
+    const empty = !cart.value.length && !member.value && !couponIds.value.length && !discount.value
+    if (empty || editBill.value || !shift.value) sessionStorage.removeItem(DRAFT_KEY)
+    else sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ shiftId: shift.value.id, cart: cart.value, memberId: member.value?.id || null, memberChoice: memberChoice.value, couponIds: couponIds.value, discount: discount.value }))
+  } catch { /* เบราว์เซอร์ไม่ให้เก็บ: ใช้งานต่อได้ตามปกติ */ }
+}
+function restoreDraft() {
+  const d = readDraft()
+  draftReady = true
+  if (!d || d.shiftId !== shift.value?.id || cart.value.length) return // บิลของกะอื่น หรือเริ่มขายใหม่ไปแล้ว
+  cart.value = (d.cart || []).filter((l) => catalog.value.some((x) => x.id === l.refId && x.kind === l.kind))
+  memberChoice.value = d.memberChoice || null
+  couponIds.value = Array.isArray(d.couponIds) ? d.couponIds : []
+  discount.value = d.discount || ''
+  if (!d.memberId) return
+  const c = findCustomer(d.memberId)
+  if (c) { member.value = c; return }
+  // ลูกค้ายังไม่อยู่ในเครื่อง (โหมดโหลดลูกค้าเฉพาะที่ใช้ → findCustomer สั่งดึงแล้ว) → ใส่เมื่อมาถึง ถ้ายังไม่ได้เปลี่ยนสมาชิก
+  let stopMember = null
+  stopMember = watch(() => findCustomer(d.memberId), (x) => { if (x && !member.value) member.value = x; if (x) stopMember?.() })
+  setTimeout(() => stopMember?.(), 15000)
+}
+// คืนบิลเมื่อกะและรายการสินค้าพร้อม (หลังรีเฟรช ข้อมูลกะ/สินค้าอาจมาหลังหน้าเปิด · คืนก่อนพร้อม = รายการในตะกร้าหายหมด)
+let stopRestore = null
+let restoreDone = false
+stopRestore = watch(() => !!shift.value && catalog.value.length > 0, (ready) => {
+  if (!ready || restoreDone) return
+  restoreDone = true
+  restoreDraft()
+  stopRestore?.()
+}, { immediate: true })
+watch([cart, member, memberChoice, couponIds, discount, editBill], writeDraft, { deep: true })
 const needMemberChoice = computed(() => !!shift.value && tab.value === 'sell' && !memberChoice.value && !editBill.value)
 watch(needMemberChoice, (v) => { if (v) nextTick(() => gateInputEl.value?.focus()) })
 const editDrop = ref([]) // คูปองเดิมในบิลที่เลือกเอาออก (มีผลตอนบันทึก)
