@@ -11,12 +11,12 @@ const ALL_SYSTEMS = [
       { to: '/admin/orders/new', label: 'สร้างออร์เดอร์', icon: 'plus', perms: ['createOrder'], exact: true },
       { to: '/admin/chat', label: 'แชท', icon: 'chat', perms: ['chat'], badge: 'chat', mobile: true },
       { to: '/admin/payments', label: 'ชำระเงิน', icon: 'wallet', perms: ['reportPayment', 'confirmPayment'], badge: 'pay', mobile: true },
-      { to: '/admin/materials', label: 'วัตถุดิบ', mobileLabel: 'ครัว', icon: 'basket', perms: ['viewMaterials'], exact: true, mobile: true },
+      { to: '/admin/materials', label: 'ครัว', icon: 'basket', perms: ['viewMaterials'], exact: true, mobile: true },
       { to: '/admin/production', label: 'ตารางผลิต', icon: 'cake', perms: ['viewMaterials'], exact: true },
     ],
   },
   { key: 'pos', label: 'POS', icon: 'pos', home: '/admin/pos', perms: ['pos'], items: [{ to: '/admin/pos', label: 'POS', icon: 'pos', perms: ['pos'] }] },
-  { key: 'manee', label: 'ถุงเงิน', icon: 'wallet', home: '/admin/manee-test', perms: ['pos'], items: [{ to: '/admin/manee-test', label: 'ถุงเงิน', icon: 'wallet', perms: ['pos'], exact: true, mobile: true }] },
+  { key: 'manee', label: 'ถุงเงิน', icon: 'wallet', home: '/admin/manee-test', perms: ['pos'], hidden: true, items: [{ to: '/admin/manee-test', label: 'ถุงเงิน', icon: 'wallet', perms: ['pos'], exact: true, mobile: true }] },
   { key: 'accounting', label: 'บัญชี', icon: 'wallet', home: '/admin/accounting', perms: ['acctView'], items: [{ to: '/admin/accounting', label: 'บัญชี', icon: 'wallet', perms: ['acctView'] }] },
   { key: 'settings', label: 'ตั้งค่า', icon: 'settings', home: '/admin/settings', perms: ['manage', 'manageUsers'], items: [{ to: '/admin/settings', label: 'ตั้งค่า', icon: 'settings', perms: ['manage', 'manageUsers'] }] },
 ]
@@ -49,7 +49,7 @@ export function systemOf(path) {
 const any = (perms, can) => perms.some((p) => can(p))
 export const visibleItems = (sys, can) => sys.items.filter((i) => any(i.perms, can))
 // ระบบที่เห็น: ระบบออร์เดอร์ดูจากเมนูย่อย ระบบอื่นดูจากสิทธิ์ของระบบ
-export const visibleSystems = (can) => SYSTEMS.filter((s) => (s.key === 'orders' ? visibleItems(s, can).length > 0 : any(s.perms, can)))
+export const visibleSystems = (can) => SYSTEMS.filter((s) => !s.hidden && (s.key === 'orders' ? visibleItems(s, can).length > 0 : any(s.perms, can)))
 export const systemByKey = (key) => SYSTEMS.find((s) => s.key === key) || null
 // หน้าแรกของระบบ: ระบบออร์เดอร์ใช้เมนูย่อยแรกที่มีสิทธิ์
 export function homeOf(sys, can) {
