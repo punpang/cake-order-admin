@@ -217,12 +217,10 @@ const redeemInfo = (c) => {
 const memberSearchOpen = ref(false)
 // ทุกการขายต้องเลือกก่อนว่า มีสมาชิก หรือ ไม่มี (null = ยังไม่เลือก → ยังเพิ่มสินค้าไม่ได้)
 const memberChoice = ref(null)
-const needMemberChoice = computed(() => !!shift.value && tab.value === 'sell' && !memberChoice.value && !editBill.value)
 function chooseNoMember() { member.value = null; couponIds.value = []; memberQ.value = ''; memberChoice.value = 'none' }
 const memberInputEl = ref(null)
 const gateInputEl = ref(null)
 watch(memberSearchOpen, (v) => { if (v) nextTick(() => memberInputEl.value?.focus()) })
-watch(needMemberChoice, (v) => { if (v) nextTick(() => gateInputEl.value?.focus()) })
 const memberInfoOf = ref(null) // สมาชิกที่เปิดดูข้อมูลในไดอะล็อกแยก // กดปุ่ม "สมาชิก" ก่อน แล้วจึงแสดงช่องค้นหา
 const member = ref(null)
 const memberMatches = computed(() => {
@@ -349,6 +347,8 @@ const giftLines = computed(() => lineItems.value.filter((i) => i.promoGift))
 const usedPromos = computed(() => [...new Set(lineItems.value.flatMap((i) => (i.discounts || []).filter((d) => d.kind === 'promo' || d.kind === 'bundle' || d.kind === 'gift').map((d) => d.name)))])
 // แก้รายการบิลค้าง (แอดมิน): บิลที่กำลังแก้ · คูปองเดิมในบิลที่ยังไม่ได้เอาออก · ใช้คิดยอดตอนแก้
 const editBill = ref(null) // null = ขายใหม่จากตะกร้า
+const needMemberChoice = computed(() => !!shift.value && tab.value === 'sell' && !memberChoice.value && !editBill.value)
+watch(needMemberChoice, (v) => { if (v) nextTick(() => gateInputEl.value?.focus()) })
 const editDrop = ref([]) // คูปองเดิมในบิลที่เลือกเอาออก (มีผลตอนบันทึก)
 const billKept = computed(() => (editBill.value ? editBill.value.couponsUsed.filter((c) => !editDrop.value.includes(c.couponId)) : []))
 // คูปองแบบ % / ซื้อสินค้าคิดจากรายการในตะกร้า จึงคิดใหม่ทุกครั้งที่รายการหรือคูปองที่เลือกเปลี่ยน (กติกาเดียวกับตอนบันทึกจริง)
