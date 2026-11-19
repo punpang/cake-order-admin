@@ -9,7 +9,7 @@ import {
   customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons, claimPosCoupons, releaseCoupons,
   newPosQrRef, posQrExpired, issueLuckyToken, reserveBillId,
 } from '../data/store'
-import { activeSecondsLeft, expiringSoon, pointBalance } from '../lib/loyalty'
+import { activeSecondsLeft, expiringSoon, pointBalance, conversionPlan } from '../lib/loyalty'
 import { orderTotals, discountLines } from '../lib/pricing'
 import { pointPromoFor } from '../lib/posPromo'
 import { coBought, rankSellers, suggestBundles } from '../lib/posRec'
@@ -199,6 +199,19 @@ const memberQ = ref('')
 // ข้อมูลคะแนนของสมาชิกที่เลือก: คะแนนที่มี และคะแนนที่จะหมดอายุภายในจำนวนวันตั้งค่า
 const memberPts = computed(() => (member.value ? pointBalance(member.value.ledger || [], toDateStr(new Date())) : 0))
 const memberSoon = computed(() => (member.value ? expiringSoon(member.value.ledger || [], toDateStr(new Date()), Number(db.shop.pointsExpireDays ?? 30)) : null))
+// ข้อมูลก่อนเลือกสมาชิก: คูปองที่มี · ของรางวัลที่แลกได้จากคะแนน · รางวัลที่ยังขาดอีกกี่แต้ม · คะแนนแปลงเป็นส่วนลดได้เท่าไร
+const redeemInfo = (c) => {
+  const pts = customerPoints(c)
+  return {
+    pts,
+    value: conversionPlan(c.ledger || [], toDateStr(new Date()), db.loyalty.pointValue)?.amount ?? 0,
+    coupons: posCoupons(c, nowIso.value).map((x) => x.name),
+    rewards: db.rewards.filter((r) => r.active !== false).map((r) => {
+      const points = Number(r.points) || 0
+      return { id: r.id, name: r.name, points, ok: pts >= points, need: Math.max(0, points - pts) }
+    }).sort((a, b) => a.points - b.points),
+  }
+}
 const memberSearchOpen = ref(false) // กดปุ่ม "สมาชิก" ก่อน แล้วจึงแสดงช่องค้นหา
 const member = ref(null)
 const memberMatches = computed(() => {
@@ -276,17 +289,7 @@ function pickMember(c) {
   memberSearchOpen.value = false
   couponIds.value = []
 }
-// พิมพ์เบอร์ครบแล้วหยุดพิมพ์ → เลือกสมาชิกทันที (ไม่ต้องกด Enter)
-// หน่วงสั้น ๆ เพื่อให้เครื่องสแกนที่ส่งรหัสยาวทีเดียวไม่ถูกจับเป็นเบอร์ระหว่างทาง
-let phoneTimer = null
-watch(memberQ, (v) => {
-  clearTimeout(phoneTimer)
-  phoneTimer = setTimeout(() => {
-    if (memberQ.value !== v || member.value || memberLocked.value || !/^[\d\s-]+$/.test(v) || !phoneValid(v)) return
-    const c = db.customers.find((x) => x.active !== false && !x.deleted && x.phone === phoneDigits(v))
-    if (c) pickMember(c)
-  }, 300)
-})
+// พิมพ์เบอร์ครบ: แสดงผลค้นหาพร้อมข้อมูลสิทธิ์ให้ดูก่อน แล้วกดเลือกเอง (ไม่เลือกอัตโนมัติ) · เครื่องสแกนยังเลือกด้วย Enter (onMemberScan)
 // เครื่องสแกน USB ส่งรหัสคูปองมาแล้วกด Enter: เลือกลูกค้าเจ้าของคูปองและเลือกคูปองนั้นให้เลย (เฉพาะที่ลูกค้ากดแสดงที่ร้านอยู่)
 const scanMsg = ref('')
 // สแกนคูปองของสมาชิกที่เลือกอยู่: เลือกคูปองนั้นเข้าบิล (ถ้าผ่านเงื่อนไข) · ไม่ใช่ของลูกค้าคนนี้หรือยังไม่กดแสดงจะไม่เลือก
@@ -1221,7 +1224,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           </div>
 
           <!-- สมาชิกสะสมแต้ม: เปลี่ยนได้จนกว่าจะสร้าง QR หรือรับชำระรายการแรก -->
-          <div v-if="!member && !memberLocked" class="space-y-1.5 rounded-2xl bg-white p-3 ring-1 ring-stone-200 max-md:flex max-md:items-center max-md:gap-2 max-md:space-y-0 max-md:p-2" aria-label="เบอร์สะสมแต้ม">
+          <div v-if="!member && !memberLocked" class="space-y-1.5 rounded-2xl bg-white p-3 ring-1 ring-stone-200 max-md:flex max-md:flex-wrap max-md:items-center max-md:gap-2 max-md:space-y-0 max-md:p-2" aria-label="เบอร์สะสมแต้ม">
             <div class="text-sm font-semibold text-stone-800 max-md:shrink-0">เบอร์สะสมแต้ม <span class="font-normal text-stone-400">(ไม่บังคับ)</span></div>
             <button v-if="!memberSearchOpen" type="button" class="btn-outline h-11 max-md:flex-1" @click="memberSearchOpen = true">สมาชิก · กดเพื่อค้นหา</button>
             <template v-else>
@@ -1230,10 +1233,21 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                 <button type="button" class="shrink-0 rounded-full px-2 text-sm font-medium text-stone-500 underline" @click="memberSearchOpen = false; memberQ = ''">ปิด</button>
               </div>
             <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
-            <div v-if="memberMatches.length" class="space-y-1">
-              <button v-for="c in memberMatches" :key="c.id" type="button" class="flex w-full justify-between gap-2 rounded-lg border border-stone-200 px-3 py-2 text-left text-sm hover:border-brand-300" @click="pickMember(c)">
-                <span class="truncate">{{ c.name }}</span><span class="shrink-0 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
-              </button>
+            <div v-if="memberMatches.length" class="w-full space-y-2 max-md:basis-full">
+              <div v-for="c in memberMatches" :key="c.id" class="space-y-2 rounded-xl border border-stone-200 p-3">
+                <button type="button" class="flex w-full justify-between gap-2 rounded-lg text-left text-sm hover:text-brand-700" @click="pickMember(c)">
+                  <span class="truncate font-semibold">{{ c.name }}</span><span class="shrink-0 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
+                </button>
+                <div v-for="r in [redeemInfo(c)]" :key="'ri' + c.id" class="space-y-1.5 text-sm" aria-label="สิทธิ์ของสมาชิก">
+                  <div class="flex flex-wrap gap-x-3 text-stone-800">
+                    <span>คะแนนที่มี <b class="tabular-nums">{{ r.pts.toLocaleString() }}</b> แต้ม</span>
+                    <span v-if="r.value > 0">แปลงเป็นส่วนลดได้ <b class="tabular-nums">{{ money(r.value) }}</b></span>
+                  </div>
+                  <div class="text-stone-700">คูปองที่มี: {{ r.coupons.length ? r.coupons.join(', ') : 'ไม่มี' }}</div>
+                  <div class="text-emerald-800">แลกได้ตอนนี้: {{ r.rewards.filter((x) => x.ok).map((x) => x.name).join(' · ') || 'ยังไม่มี' }}</div>
+                  <div v-if="r.rewards.some((x) => !x.ok)" class="text-stone-500">อีก: {{ r.rewards.filter((x) => !x.ok).map((x) => `${x.name} (ขาด ${x.need})`).join(' · ') }}</div>
+                </div>
+              </div>
             </div>
             </template>
           </div>
