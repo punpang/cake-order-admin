@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { db, upcomingBirthdays, pendingDeletions, pendingPhotoRequests, can } from '../../data/store'
 import ManageShell from '../../components/ManageShell.vue'
+import { customerScale } from '../../lib/customersSync'
 import AppIcon from '../../components/AppIcon.vue'
 import { SETTINGS_PAGES, groupSettings } from '../../lib/settingsPages'
 import { retentionSummary } from '../../lib/retention'
@@ -10,7 +11,7 @@ const activeCount = (list) => list.filter((x) => x.active !== false).length
 
 const DESC = computed(() => ({
   '/admin/dashboard': 'ออร์เดอร์ค้าง · แชท Facebook · การเข้าชมหน้าเว็บ · งานค้าง',
-  '/admin/settings/customers': `${activeCount(db.customers)} รายการที่ใช้งาน`,
+  '/admin/settings/customers': customerScale.lazy && customerScale.count != null ? `${customerScale.count.toLocaleString()} รายการทั้งหมด` : `${activeCount(db.customers)} รายการที่ใช้งาน`,
   '/admin/settings/options': `${activeCount(db.optionGroups)} กลุ่มที่ใช้งาน`,
   '/admin/settings/bundles': `${activeCount(db.bundles)} ชุดที่ใช้งาน`,
   '/admin/settings/pricing': `${activeCount(db.priceLists)} แบบราคาพิเศษที่ใช้งาน`,

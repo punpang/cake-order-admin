@@ -652,7 +652,49 @@ export const numbering = createNumbering({ decorate: (code) => docCode(code, tes
 const nextCode = () => numbering.next('OR')
 
 export const findOrder = (id) => db.orders.find((o) => o.id === id)
-export const findCustomer = (id) => db.customers.find((c) => c.id === id)
+// โหมดโหลดเฉพาะลูกค้าที่ใช้ (ตั้งโดยชั้นเชื่อม Supabase เมื่อเปิดโหมดนี้): ไม่พบในเครื่อง → ดึงจากเซิร์ฟเวอร์เบื้องหลัง แล้วหน้าจออัปเดตเอง
+// byIds(ids) → Promise<boolean> · searchIds(q) → Promise<void> (รวมผลเข้ารายการลูกค้า) · ไม่ตั้ง = มีลูกค้าครบในเครื่องแล้ว
+export const customerFetch = { byIds: null, search: null }
+const askedCustomers = new Set()
+let missQueue = new Set()
+let missTimer = null
+function queueCustomers(ids) {
+  for (const id of ids) if (id && !askedCustomers.has(id) && !db.customers.some((c) => c.id === id)) { askedCustomers.add(id); missQueue.add(id) }
+  if (!missQueue.size || missTimer) return
+  missTimer = setTimeout(async () => {
+    const batch = [...missQueue]
+    missQueue = new Set()
+    missTimer = null
+    for (let i = 0; i < batch.length; i += 100) {
+      const part = batch.slice(i, i + 100)
+      const ok = await customerFetch.byIds?.(part).catch(() => false)
+      if (!ok) for (const id of part) askedCustomers.delete(id) // ไม่สำเร็จ → ครั้งหน้าลองใหม่
+    }
+  }, 30)
+}
+export const findCustomer = (id) => {
+  const c = db.customers.find((x) => x.id === id)
+  if (!c && id && customerFetch.byIds) queueCustomers([id])
+  return c
+}
+// ให้แน่ใจว่าลูกค้าของออร์เดอร์/แชทที่โหลดอยู่มีในเครื่อง (คะแนน/คูปองตอนส่งมอบต้องเห็นลูกค้า)
+export function ensureCustomers(ids) {
+  if (customerFetch.byIds) queueCustomers(ids)
+}
+// ค้นลูกค้าที่เซิร์ฟเวอร์ตามคำที่พิมพ์ (หน่วง 300 ms) แล้วรวมผลเข้ารายการ · หน้าจอกรองจากรายการในเครื่องเหมือนเดิม
+let searchTimer = null
+let lastSearch = ''
+// ค้นที่เซิร์ฟเวอร์ทันทีแล้วรอผล (เช่น สแกนบาร์โค้ดสมาชิกแล้วกด Enter ต้องได้ผลในครั้งเดียว)
+export async function searchCustomersNow(q) {
+  const t = String(q ?? '').trim()
+  if (customerFetch.search && t.length >= 2) await customerFetch.search(t).catch(() => {})
+}
+export function remoteCustomerSearch(q) {
+  const t = String(q ?? '').trim()
+  if (!customerFetch.search || t.length < 2 || t === lastSearch) return
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => { lastSearch = t; customerFetch.search(t).catch(() => {}) }, 300)
+}
 
 // เบอร์ห้ามซ้ำในลูกค้าที่ยังใช้งาน (เทียบเฉพาะตัวเลข) · คืนลูกค้าที่ใช้เบอร์นี้อยู่ ถ้ามี
 export const phoneOwner = (phone, exceptId = null) => {
@@ -1656,6 +1698,7 @@ export function saveShopSettings(d) {
   db.shop.close = d.close || '20:00'
   db.shop.nearbyHours = Math.max(0, Number(d.nearbyHours) || 0)
   { const h = Math.round(Number(d.chatAutoHideHours)); db.shop.chatAutoHideHours = Number.isFinite(h) ? Math.min(720, Math.max(0, h)) : 24 }
+  db.shop.customerLazy = d.customerLazy === true && db.scheduled?.server === true // โหลดลูกค้าเฉพาะที่ใช้ (มีผลเมื่อเข้าสู่ระบบใหม่)
   db.shop.leadPickup = Math.max(0, Number(d.leadPickup) || 0)
   db.shop.leadDelivery = Math.max(0, Number(d.leadDelivery) || 0)
   db.shop.depositPercent = Math.min(100, Math.max(0, Number(d.depositPercent) || 0))

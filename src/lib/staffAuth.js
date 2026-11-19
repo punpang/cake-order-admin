@@ -330,9 +330,16 @@ async function startData(staff) {
     }
     return h
   }))
-  tasks.push(orders.startOrdersSync({ client, db, numbering: store.numbering, onError, onCreated: (o) => store.flushOrderCreated(o), onRecode: (o, c) => showToast(`เลขออร์เดอร์ซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000),
+  tasks.push(orders.startOrdersSync({ client, db, numbering: store.numbering, onError, onCustomerIds: (ids) => store.ensureCustomers(ids), onCreated: (o) => store.flushOrderCreated(o), onRecode: (o, c) => showToast(`เลขออร์เดอร์ซ้ำ ระบบเปลี่ยนเป็น ${c}`, 8000),
     canWrite: ['createOrder', 'pos', 'startPreparing', 'markPrepared', 'deliverPickup', 'deliverShipping', 'confirmPayment', 'reportPayment', 'cancel', 'editPickup', 'editItems', 'adjustPrice', 'changeBuyer', 'workPhoto'].some(has) }).then((h) => { store.numbering.prefetch(); return h }))
-  tasks.push(customers.startCustomersSync({ client, db, canWrite: has('createOrder') || has('adjustPoints'), onError }))
+  tasks.push(customers.startCustomersSync({ client, db, canWrite: has('createOrder') || has('adjustPoints'), onError }).then((h) => {
+    // โหมดโหลดเฉพาะลูกค้าที่ใช้: ลูกค้าที่ไม่มีในเครื่อง → ดึงทีละชุด · ค้นหา → ค้นที่เซิร์ฟเวอร์แล้วดึงแถวที่เจอ
+    if (h?.lazy && h.refreshIds) {
+      store.customerFetch.byIds = (ids) => h.refreshIds(ids)
+      store.customerFetch.search = async (q) => { const r = await customers.searchCustomerIds(client, q); if (r.ids?.length) await h.refreshIds(r.ids.filter((id) => !db.customers.some((c) => c.id === id))) }
+    } else { store.customerFetch.byIds = null; store.customerFetch.search = null }
+    return h
+  }))
   tasks.push(acct.startAcctSync({ client, db, has, onError }))
   // แชท/ใบเสนอ/กะ POS/ผู้ใช้: โหลดเมื่อเปิดหน้าที่ใช้ (ensureData) · ไม่มีสิทธิ์ = ล้างข้อมูลตัวอย่างทิ้ง
   if (!has('chat')) { db.chats.splice(0); db.quotes.splice(0) }
@@ -349,6 +356,7 @@ async function startData(staff) {
     else rec.clearRecords(db, name)
   }
   for (const r of await Promise.all(tasks)) { if (Array.isArray(r)) syncs.push(...r); else syncs.push(r) }
+  store.ensureCustomers([...db.orders.map((o) => o.customerId), ...db.quotes.map((q) => q.customerId)]) // ออร์เดอร์อาจโหลดเสร็จก่อนตัวดึงลูกค้าพร้อม
   import('./clicksSync').then((m) => m.applyClicks(client, db)).catch(() => {})
   // ตารางที่โหลดจากเซิร์ฟเวอร์ไม่สำเร็จ → แจ้งบนแถบสถานะ (ข้อมูลที่เห็นอาจไม่ครบ) พร้อมปุ่มลองโหลดใหม่
   staffState.loadFailed = syncs.filter((x) => x && x.loaded === false).map((x) => x.label || 'ข้อมูล')
@@ -478,4 +486,4 @@ export async function currentStaff() {
   return { staff: data }
 }
 
-export async function staffSignOut() { await stopPush(); staffState.staff = null; staffState.loadFailed = []; dataCtx = null; groupLoads.clear(); { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1); m.deletionServer.purge = null }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
+export async function staffSignOut() { await stopPush(); staffState.staff = null; staffState.loadFailed = []; dataCtx = null; groupLoads.clear(); { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1); m.deletionServer.purge = null; m.customerFetch.byIds = null; m.customerFetch.search = null }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }

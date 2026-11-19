@@ -4,6 +4,7 @@ import MoneyInput from '../../components/MoneyInput.vue'
 import { validTaxId, validBranch } from '../../lib/acct/taxid'
 import { computed, reactive, ref } from 'vue'
 import { db, saveShopSettings, saveSlipQrSettings, pickupSlots } from '../../data/store'
+import { customerScale, CUSTOMER_WARN_AT } from '../../lib/customersSync'
 import { toDateStr, money } from '../../lib/format'
 import { deliveryFee } from '../../lib/delivery'
 import { BANKS, bankByCode } from '../../lib/payFields'
@@ -21,7 +22,8 @@ const shopAddrChoices = computed(() => [
 ])
 const prepCats = [...new Set(db.retailItems.map((x) => x.category).filter(Boolean))]
 const togglePrep = (c) => { const a = st.prepCategories || []; st.prepCategories = a.includes(c) ? a.filter((x) => x !== c) : [...a, c] }
-const st = reactive({ ...db.shop, prepCategories: [...(db.shop.prepCategories || [])], pickupRemindHours: db.shop.pickupRemindHours ?? 24, chatAutoHideHours: db.shop.chatAutoHideHours ?? 24, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, lineRetentionDays: db.shop.lineRetentionDays ?? 180, merchantCode: db.shop.merchantCode ?? '', billerId: db.shop.billerId ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
+const serverScheduled = computed(() => db.scheduled?.server === true)
+const st = reactive({ ...db.shop, prepCategories: [...(db.shop.prepCategories || [])], pickupRemindHours: db.shop.pickupRemindHours ?? 24, chatAutoHideHours: db.shop.chatAutoHideHours ?? 24, customerLazy: db.shop.customerLazy === true, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, lineRetentionDays: db.shop.lineRetentionDays ?? 180, merchantCode: db.shop.merchantCode ?? '', billerId: db.shop.billerId ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
 // ---- วัน-เวลาปิดร้าน ----
 const DOWS = [1, 2, 3, 4, 5, 6, 0] // จันทร์เริ่ม
 const flip = (arr, d) => (arr.includes(d) ? arr.splice(arr.indexOf(d), 1) : arr.push(d))
@@ -59,6 +61,7 @@ function save() {
   if (!st.open || !st.close || st.close <= st.open) return (error.value = 'เวลาปิดต้องหลังเวลาเปิด')
   if (!(Number(st.slotMinutes) >= 5)) return (error.value = 'ช่วงเวลาต้องอย่างน้อย 5 นาที')
   if (!(Number(st.dailyOrderCap) >= 0 && Number.isInteger(Number(st.dailyOrderCap)) && Number(st.dailyOrderCap) <= 9999)) return (error.value = 'จำนวนออเดอร์สูงสุดต่อวันต้องเป็นจำนวนเต็ม 0–9999')
+  if (st.customerLazy && !serverScheduled.value) return (error.value = 'โหมดโหลดลูกค้าเฉพาะที่ใช้: ต้องให้เซิร์ฟเวอร์ส่งเตือนตามเวลาก่อน')
   if (!(Number.isInteger(Number(st.chatAutoHideHours)) && Number(st.chatAutoHideHours) >= 0 && Number(st.chatAutoHideHours) <= 720)) return (error.value = 'ซ่อนแชทอัตโนมัติ: กรอก 0–720 ชั่วโมง (0 = ไม่ซ่อน)')
   if (![st.leadPickup, st.leadDelivery, st.birthdayDays].every(num)) return (error.value = 'กรอกตัวเลขตั้งแต่ 0 ขึ้นไป')
   const mcDigits = String(st.merchantCode || '').replace(/\D/g, '')
@@ -124,6 +127,12 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
           <input v-model.number="st.chatAutoHideHours" type="text" v-num min="0" class="input w-24" aria-label="ซ่อนแชทอัตโนมัติหลังไม่มีความเคลื่อนไหว (ชั่วโมง)" />
           <span class="text-sm text-stone-500">ชม.</span>
         </div>
+      </div>
+      <div>
+        <div class="label">โหลดข้อมูลลูกค้าเฉพาะที่ใช้ <span class="font-normal text-stone-400">(สำหรับร้านที่มีลูกค้าจำนวนมาก · มีผลเมื่อเข้าสู่ระบบใหม่)</span></div>
+        <p class="mb-2 text-xs text-stone-500">ลูกค้าในระบบ {{ customerScale.count ?? '–' }} ราย · แนะนำเปิดเมื่อเกิน {{ CUSTOMER_WARN_AT.toLocaleString() }} ราย หลังทดสอบกับข้อมูลจำนวนมากแล้ว · ปิดอยู่ = โหลดลูกค้าทั้งหมดเหมือนเดิม</p>
+        <p v-if="!serverScheduled" class="mb-2 text-xs text-amber-700">เปิดได้เมื่อให้เซิร์ฟเวอร์ส่งเตือนตามเวลาแล้วเท่านั้น (รอบเตือนวันเกิดในแอปต้องเห็นลูกค้าทุกคน) · ติดต่อผู้ดูแลระบบ</p>
+        <AppSwitch v-model="st.customerLazy" label="เปิดโหมดโหลดเฉพาะที่ใช้" class="flex" />
       </div>
       <div>
         <div class="label">ค่าเริ่มต้น ช่วงดูออร์เดอร์ก่อน/หลัง ตอนเลือกเวลา</div>
