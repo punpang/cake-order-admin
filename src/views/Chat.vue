@@ -1,7 +1,9 @@
 <script setup>
 import { orderNo } from '../lib/format'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { db, can, findCustomer, findChat, draftOf, hasDraft, clearDraft, linkChat, createCustomerFromChat, fbWindowLeft } from '../data/store'
+import { db, can, findCustomer, findChat, draftOf, hasDraft, clearDraft, linkChat, createCustomerFromChat, fbWindowLeft, setChatHidden, setChatPinned, markRead } from '../data/store'
+import { STATUS } from '../lib/constants'
+import { isHidden, awaitingReply, openOrdersByCustomer, orderBadgeOf, NO_REPLY_HOURS } from '../lib/chatVisibility'
 import OrderCreate from './OrderCreate.vue'
 import { formatPhone, phoneDigits, phoneValid, timeOnly, dateOnly, toDateStr } from '../lib/format'
 import { resolveMemberScan } from '../lib/scan'
@@ -43,12 +45,42 @@ const FILTERS = [
   { v: 'web', l: 'เว็บ/แอป' },
   { v: 'unread', l: 'ยังไม่อ่าน' },
   { v: 'unlinked', l: 'ยังไม่ผูก' },
+  { v: 'waiting', l: `รอตอบเกิน ${NO_REPLY_HOURS} ชม.` },
+  { v: 'hidden', l: 'ที่ซ่อน' },
 ]
+// ซ่อน/รอตอบ/ออร์เดอร์ค้าง (ตรรกะอยู่ใน lib/chatVisibility.js) · tick ขยับทุกนาที ให้การซ่อนอัตโนมัติอัปเดตเอง
+const tick = ref(Date.now())
+let tickT = null // เริ่มเมื่อเปิดหน้าเท่านั้น (ไม่ค้างตัวจับเวลาตอนเรนเดอร์บนเซิร์ฟเวอร์/ทดสอบ)
+const menuId = ref(null) // แถวที่เปิดเมนู ⋯ อยู่
+const autoHours = computed(() => db.shop.chatAutoHideHours ?? 24)
+const openByCustomer = computed(() => openOrdersByCustomer(db.orders))
+const openFor = (c) => (c.customerId ? openByCustomer.value.get(c.customerId) || [] : [])
+const hiddenOf = (c) => isHidden(c, { hours: autoHours.value, now: tick.value, openCount: openFor(c).length })
+const badgeOf = (c) => {
+  const b = orderBadgeOf(openFor(c))
+  if (!b) return null
+  return { label: STATUS[b.status]?.label || b.status, cls: STATUS[b.status]?.cls || 'bg-stone-100 text-stone-600', more: b.more }
+}
+function toggleHidden(c) {
+  setChatHidden(c.id, !hiddenOf(c))
+  menuId.value = null
+}
+function togglePin(c) {
+  setChatPinned(c.id, !c.pinnedAt)
+  menuId.value = null
+}
+function readChat(c) {
+  markRead(c.id)
+  menuId.value = null
+}
+
 // จำนวนต่อตัวกรอง (นับจากแชทที่โหลดในเครื่อง)
 const counts = computed(() => {
   const all = db.chats
   return {
-    '': all.length,
+    '': all.filter((c) => !hiddenOf(c)).length,
+    waiting: all.filter((c) => awaitingReply(c, tick.value)).length,
+    hidden: all.filter((c) => hiddenOf(c)).length,
     facebook: all.filter((c) => c.channel === 'facebook').length,
     web: all.filter((c) => c.channel === 'web').length,
     instagram: all.filter((c) => c.channel === 'instagram').length,
@@ -70,18 +102,22 @@ watch(q, (v) => {
 })
 const searchIndex = computed(() => (q.value.trim() ? buildChatIndex(db.chats, db.customers, db.orders, db.quotes) : null))
 const matched = computed(() => db.chats.filter((c) => {
+  // แชทที่ซ่อนไม่แสดงในรายการปกติ · ตัวกรอง "ที่ซ่อน" หรือการค้นหาจะแสดง
+  const hid = hiddenOf(c)
+  if (filter.value === 'hidden') { if (!hid) return false } else if (hid && !q.value.trim()) return false
+  if (filter.value === 'waiting' && !awaitingReply(c, tick.value)) return false
   if (filter.value === 'facebook' || filter.value === 'instagram' || filter.value === 'web') { if (c.channel !== filter.value) return false }
   if (filter.value === 'unread' && !c.unreadStaff) return false
   if (filter.value === 'unlinked' && c.customerId) return false
   return !searchIndex.value || chatMatchesQuery(searchIndex.value, c.id, q.value)
-}))
+}).sort((a, b) => (b.pinnedAt ? 1 : 0) - (a.pinnedAt ? 1 : 0)))
 const list = computed(() => matched.value.slice(0, shown.value))
 const moreCount = computed(() => Math.max(0, matched.value.length - shown.value))
 // สถานะช่องทาง (แสดงที่หัวรายการแทนแถบข้อความท้ายหน้า)
 const fbOn = computed(() => db.integrations.facebook.status === 'connected')
 // เปิดหน้าแชท = รีเฟรชแชทถี่ขึ้น (~10 วิ) · ออกจากหน้าคืนเป็นปกติ
-onMounted(() => setChatFastPoll(true))
-onUnmounted(() => setChatFastPoll(false))
+onMounted(() => { setChatFastPoll(true); tickT = setInterval(() => { tick.value = Date.now() }, 60000) })
+onUnmounted(() => { setChatFastPoll(false); clearInterval(tickT) })
 // แนะนำลูกค้าให้แชทที่ยังไม่ผูก (พนักงานกดผูกเอง)
 const suggestions = computed(() => (current.value ? suggestCustomers(current.value, db.customers) : []))
 const detectedPhone = computed(() => (current.value && !current.value.customerId ? phonesInChat(current.value)[0] || '' : ''))
@@ -230,7 +266,7 @@ function doCreate() {
           </li>
           <li v-if="moreCount" class="p-3"><button type="button" class="btn-outline h-9 w-full text-sm" @click="shown += PAGE">โหลดเพิ่ม (อีก {{ moreCount }} แชท)</button></li>
           <li v-for="c in list" :key="c.id" class="relative">
-            <RouterLink :to="`/admin/chat/${c.id}`" class="flex items-center gap-3 px-3.5 py-3 transition hover:bg-stone-50" :class="current?.id === c.id ? 'bg-brand-50/70' : ''">
+            <RouterLink :to="`/admin/chat/${c.id}`" class="flex items-center gap-3 py-3 pr-12 pl-3.5 transition hover:bg-stone-50" :class="current?.id === c.id ? 'bg-brand-50/70' : ''">
               <span v-if="current?.id === c.id" class="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-500" aria-hidden="true" />
               <span class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-100 text-base font-semibold text-brand-800">
                 {{ initial(nameOf(c)) }}
@@ -241,6 +277,9 @@ function doCreate() {
                   <span class="flex min-w-0 flex-1 items-center gap-1.5">
                     <span class="truncate text-[15px]" :class="c.unreadStaff ? 'font-semibold text-stone-900' : 'font-medium text-stone-800'">{{ nameOf(c) }}</span>
                     <span v-if="!c.customerId" class="shrink-0 rounded bg-amber-50 px-1.5 text-xs leading-5 font-medium text-amber-700">ยังไม่ผูก</span>
+                    <span v-if="badgeOf(c)" class="shrink-0 rounded px-1.5 text-xs leading-5 font-medium" :class="badgeOf(c).cls">{{ badgeOf(c).label }}<template v-if="badgeOf(c).more"> +{{ badgeOf(c).more }}</template></span>
+                    <span v-if="c.pinnedAt" class="shrink-0 rounded bg-stone-100 px-1.5 text-xs leading-5 font-medium text-stone-600">ปักหมุด</span>
+                    <span v-if="hiddenOf(c)" class="shrink-0 rounded bg-stone-200 px-1.5 text-xs leading-5 font-medium text-stone-700">ซ่อนอยู่</span>
                   </span>
                   <span class="shrink-0 text-xs tabular-nums" :class="c.unreadStaff ? 'font-semibold text-brand-700' : 'text-stone-400'">{{ whenText(last(c).at) }}</span>
                 </span>
@@ -252,8 +291,17 @@ function doCreate() {
                 </span>
               </span>
             </RouterLink>
+            <button type="button" class="absolute top-1/2 right-2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100" :aria-label="`จัดการแชท ${nameOf(c)}`" :aria-expanded="menuId === c.id" @click="menuId = menuId === c.id ? null : c.id">
+              <AppIcon name="menu" :size="18" />
+            </button>
+            <div v-if="menuId === c.id" class="absolute top-11 right-2 z-20 w-56 rounded-xl border border-stone-200 bg-white py-1 text-sm shadow-lg" role="menu" :aria-label="`เมนูแชท ${nameOf(c)}`">
+              <button type="button" role="menuitem" class="block w-full px-3.5 py-2.5 text-left hover:bg-stone-50" @click="togglePin(c)">{{ c.pinnedAt ? 'เลิกปักหมุด' : 'ปักหมุดไว้บนสุด' }}</button>
+              <button v-if="c.unreadStaff" type="button" role="menuitem" class="block w-full px-3.5 py-2.5 text-left hover:bg-stone-50" @click="readChat(c)">ทำเครื่องหมายว่าอ่านแล้ว</button>
+              <button type="button" role="menuitem" class="block w-full px-3.5 py-2.5 text-left hover:bg-stone-50" @click="toggleHidden(c)">{{ hiddenOf(c) ? 'แสดงแชทนี้อีกครั้ง' : 'ซ่อนแชทนี้' }}</button>
+            </div>
           </li>
         </ul>
+        <div v-if="menuId" class="fixed inset-0 z-10" aria-hidden="true" @click="menuId = null" />
       </aside>
 
       <!-- เธรด -->
