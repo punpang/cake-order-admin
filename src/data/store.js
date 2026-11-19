@@ -3770,8 +3770,16 @@ export function prepQueue() {
     if (o.channel !== 'pos' || o.shiftId !== shift.id || o.cancel || o.status !== 'delivered') continue
     for (const it of o.items) {
       if (it.prepDone || it.kind !== 'retail') continue
-      const cat = db.retailItems.find((x) => x.id === it.retailId)?.category
-      if (cat && cats.includes(cat)) out.push({ orderId: o.id, orderCode: o.code, itemId: it.id, name: it.name, qty: it.qty, mods: it.mods || [], at: o.deliveredAt || o.createdAt })
+      const src = db.retailItems.find((x) => x.id === it.retailId)
+      if (src?.category && cats.includes(src.category)) {
+        // สูตรเตรียม: ต่อชิ้น = คูณจำนวนที่สั่ง · ต่อปอนด์ = ไม่คูณ (ตามที่ตั้งไว้ในสูตร)
+        const recipe = (src.recipe || []).filter((l) => l.ingredientId).map((l) => {
+          const m = db.ingredients.find((x) => x.id === l.ingredientId)
+          const base = Number(l.qty) || 0
+          return { name: m?.name || '(ไม่พบวัตถุดิบ)', unit: m?.unit || '', per: l.per, amount: Math.round((l.per === 'piece' ? base * it.qty : base) * 100) / 100 }
+        })
+        out.push({ orderId: o.id, orderCode: o.code, itemId: it.id, name: it.name, qty: it.qty, mods: it.mods || [], recipe, at: o.deliveredAt || o.createdAt })
+      }
     }
   }
   return out.sort((a, b) => a.at.localeCompare(b.at))

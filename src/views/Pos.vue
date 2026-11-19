@@ -1187,6 +1187,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <div class="min-w-0 flex-1">
             <div class="truncate text-base font-semibold text-stone-900">{{ p.name }} × {{ p.qty }}</div>
             <div v-if="p.mods?.length" class="truncate text-xs font-medium text-brand-700">{{ modsText(p.mods) }}</div>
+            <ul v-if="p.recipe?.length" class="mt-1 space-y-0.5 rounded-lg bg-stone-50 px-2.5 py-1.5 text-sm text-stone-700" aria-label="สูตรเตรียม">
+              <li v-for="(x, i) in p.recipe" :key="i" class="flex justify-between gap-2"><span class="truncate">{{ x.name }}</span><span class="shrink-0 tabular-nums">{{ x.amount }} {{ x.unit }}<span v-if="x.per === 'pound'" class="text-xs text-stone-400"> ต่อปอนด์</span></span></li>
+            </ul>
             <div class="text-xs text-stone-500">{{ orderNo(p.orderCode) }} · {{ timeOnly(p.at) }}</div>
           </div>
           <button type="button" class="btn-primary h-12 shrink-0 px-5" @click="prepDone(p)">เสร็จ</button>
