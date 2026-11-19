@@ -1187,21 +1187,25 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · เต็มจอ ไม่เลื่อน: ซ้าย = สรุปยอด สมาชิก คูปอง และรายการที่รับแล้ว · ขวา = เลือกวิธี และทำรายการนั้น -->
     <AppModal v-if="payOpen" title="ชำระเงิน" wide wider full fit @close="requestClose">
-      <div class="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4 md:grid-cols-[18rem_minmax(0,1fr)] md:grid-rows-1">
-        <!-- ซ้าย: สรุป -->
-        <aside class="flex min-h-0 flex-col gap-3 overflow-y-auto p-0.5 max-md:max-h-[45dvh]" aria-label="สรุปการชำระ">
-          <div class="rounded-3xl bg-stone-900 p-4 text-white max-md:flex max-md:items-center max-md:justify-between max-md:gap-3 max-md:p-3">
-            <div>
-            <div class="text-sm text-stone-300">ยอดชำระ</div>
-            <div class="text-4xl font-bold tabular-nums max-md:text-2xl">{{ money(total) }}</div>
-            </div>
-            <dl class="mt-3 grid grid-cols-2 gap-2 text-sm max-md:mt-0 max-md:w-[58%] max-md:gap-1.5">
-              <div class="rounded-2xl bg-white/10 px-3 py-2"><dt class="text-stone-300">รับแล้ว</dt><dd class="text-lg font-semibold tabular-nums">{{ money(receivedSum) }}</dd></div>
-              <div class="rounded-2xl px-3 py-2" :class="total - receivedSum < 0 ? 'bg-rose-500/30' : total - receivedSum > 0 ? 'bg-amber-400/25' : 'bg-emerald-500/30'">
-                <dt class="text-stone-200">{{ total - receivedSum < 0 ? 'เกิน' : 'คงค้าง' }}</dt><dd class="text-lg font-semibold tabular-nums">{{ money(Math.abs(total - receivedSum)) }}</dd>
-              </div>
-            </dl>
-          </div>
+      <div class="flex h-full min-h-0 flex-col gap-3">
+      <!-- แถบสรุปบนสุด: ยอดชำระ · รับแล้ว · คงค้าง/เกิน ในแถวเดียวทุกขนาดจอ -->
+      <div class="flex shrink-0 items-center gap-3 rounded-3xl bg-stone-900 px-4 py-2 text-white max-md:gap-2 max-md:px-3 max-md:py-1.5" aria-label="สรุปการชำระ">
+        <div class="min-w-0 flex-1">
+          <div class="text-xs text-stone-300 md:text-sm">ยอดชำระ</div>
+          <div class="truncate text-3xl font-bold tabular-nums max-md:text-2xl">{{ money(total) }}</div>
+        </div>
+        <div class="rounded-2xl bg-white/10 px-3 py-1.5 text-right max-md:px-2">
+          <div class="text-xs text-stone-300">รับแล้ว</div>
+          <div class="text-lg font-semibold tabular-nums">{{ money(receivedSum) }}</div>
+        </div>
+        <div class="rounded-2xl px-3 py-1.5 text-right max-md:px-2" :class="total - receivedSum < 0 ? 'bg-rose-500/30' : total - receivedSum > 0 ? 'bg-amber-400/25' : 'bg-emerald-500/30'">
+          <div class="text-xs text-stone-200">{{ total - receivedSum < 0 ? 'เกิน' : 'คงค้าง' }}</div>
+          <div class="text-lg font-semibold tabular-nums">{{ money(Math.abs(total - receivedSum)) }}</div>
+        </div>
+      </div>
+      <div class="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 md:grid-cols-[18rem_minmax(0,1fr)] md:grid-rows-1">
+        <!-- ซ้าย: สมาชิก คูปอง รายการ -->
+        <aside class="flex min-h-0 flex-col gap-3 overflow-y-auto p-0.5 max-md:max-h-[40dvh]" aria-label="ข้อมูลลูกค้าและรายการชำระ">
 
           <!-- สมาชิกสะสมแต้ม: เปลี่ยนได้จนกว่าจะสร้าง QR หรือรับชำระรายการแรก -->
           <div v-if="!member && !memberLocked" class="space-y-1.5 rounded-2xl bg-white p-3 ring-1 ring-stone-200 max-md:flex max-md:items-center max-md:gap-2 max-md:space-y-0 max-md:p-2" aria-label="เบอร์สะสมแต้ม">
@@ -1277,7 +1281,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <div v-if="remaining > 0 || focusLine" class="grid shrink-0 grid-cols-3 gap-2 rounded-3xl bg-stone-200/60 p-1.5" role="group" aria-label="เลือกวิธีชำระ">
             <button
               v-for="(label, k) in POS_METHODS" :key="k" type="button"
-              class="h-14 rounded-2xl text-lg font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed"
+              class="h-12 rounded-2xl text-lg font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed"
               :class="focusLine?.method === k ? 'bg-brand-600 text-white shadow-md' : 'text-stone-700 hover:bg-white/70 disabled:opacity-40'"
               :aria-pressed="focusLine?.method === k"
               :disabled="binding || (!!focusLine && focusLine.method !== k && !canSwitch(focusLine))"
@@ -1327,12 +1331,12 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                   <span class="text-base font-semibold">{{ changeOf(l) >= 0 ? 'เงินทอน' : 'ยังขาด' }}</span>
                   <span class="text-3xl font-bold tabular-nums">{{ money(Math.abs(changeOf(l))) }}</span>
                 </div>
-                <div v-if="kbMode === 'keyboard'" class="grid grid-cols-2 gap-2 rounded-2xl bg-stone-100 p-3 text-sm text-stone-700" aria-label="ปุ่มลัดคีย์บอร์ด">
-                  <div class="flex items-center gap-2"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">0–9</kbd> พิมพ์จำนวน</div>
-                  <div class="flex items-center gap-2"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">Enter</kbd> ยืนยันรับเงิน</div>
-                  <div class="flex items-center gap-2"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">.</kbd> จุดทศนิยม</div>
-                  <div class="flex items-center gap-2"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">⌫</kbd> ลบตัวอักษร</div>
-                  <p class="col-span-2 text-xs text-stone-500">แตะหน้าจอเพื่อกลับเป็นแป้นบนจอ</p>
+                <div v-if="kbMode === 'keyboard'" class="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-2xl bg-stone-100 px-3 py-2 text-sm text-stone-700" aria-label="ปุ่มลัดคีย์บอร์ด">
+                  <div class="flex items-center gap-1.5"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">0–9</kbd> พิมพ์จำนวน</div>
+                  <div class="flex items-center gap-1.5"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">Enter</kbd> ยืนยันรับเงิน</div>
+                  <div class="flex items-center gap-1.5"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">.</kbd> จุดทศนิยม</div>
+                  <div class="flex items-center gap-1.5"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">⌫</kbd> ลบตัวอักษร</div>
+                  <p class="basis-full text-xs text-stone-500">แตะหน้าจอเพื่อกลับเป็นแป้นบนจอ</p>
                 </div>
                 <div v-if="kbMode !== 'keyboard'" class="grid grid-cols-2 gap-2 max-md:grid-cols-4" aria-label="จำนวนเงินด่วน">
                   <button v-for="v in quickFor(l)" :key="v" type="button" class="h-12 rounded-2xl bg-white text-base font-semibold max-md:h-10 max-md:px-1 max-md:text-sm text-stone-800 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40" :class="Number(l.received) === v ? 'ring-2 ring-brand-600' : ''" :disabled="!!l.locked || !!l.confirmed" @click="l.received = String(v)">{{ v === lineAmt(l) ? 'พอดี' : money(v) }}</button>
@@ -1445,6 +1449,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </div>
           </template>
         </section>
+      </div>
       </div>
 
       <template #footer>
