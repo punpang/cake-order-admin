@@ -41,6 +41,22 @@ function fakeDb(tables, rpc = {}) {
         if (op === 'is') f.push((r) => get(r, c) != null)
         return q
       },
+      // .or('a.eq.x,b.gte."y",c.not.in.(p,q),d.is.null') แบบที่ recordsSync ใช้
+      or(expr) {
+        const parts = []
+        let depth = 0, cur = ''
+        for (const ch of expr) { if (ch === '(') depth++; if (ch === ')') depth--; if (ch === ',' && !depth) { parts.push(cur); cur = '' } else cur += ch }
+        parts.push(cur)
+        const tests = parts.map((p) => {
+          const m = p.match(/^(.+?)\.(not\.in|in|eq|gte|is)\.(.*)$/)
+          const [, c, op, raw] = m
+          const v = raw.replace(/^"|"$/g, '')
+          const set = v.replace(/[()]/g, '').split(',')
+          return (r) => { const x = get(r, c); return op === 'eq' ? x === v : op === 'gte' ? String(x) >= v : op === 'is' ? (x ?? null) === null : op === 'in' ? set.includes(x) : x != null && !set.includes(x) }
+        })
+        f.push((r) => tests.some((t) => t(r)))
+        return q
+      },
       order(c, o) { ord.push([c, o?.ascending !== false]); return q },
       limit(n) { lim = n; return q },
       range(a, b) { return Promise.resolve(run(a, b)) },
@@ -56,6 +72,19 @@ function fakeDb(tables, rpc = {}) {
 const N = { orders: 50000, openEvery: 50, customers: 30000, chats: 3000, quotes: 5000, quoteOpenEvery: 50, shifts: 1500, entries: 20000 }
 const iso = (d) => new Date(Date.UTC(2020, 0, 1) + d * 86400e3).toISOString()
 const day = (d) => iso(d).slice(0, 10)
+// ช่วง 5: ชุดที่โตตามลูกค้า/ออร์เดอร์ (สร้างกระจายตลอด 2020–2026 · ส่วนใหญ่ปิดแล้ว)
+const LAZY = { consents: 9000, notifySent: 8000, birthdayGreeted: 3000, reviews: 3000, photoRequests: 1000, deletionRequests: 500, coupons: 6000 }
+const COUPON_DONE = ['delivered', 'used', 'refunded', 'lapsed', 'void']
+function lazyRecs() {
+  const out = []
+  for (const [collection, n] of Object.entries(LAZY)) {
+    for (let i = 0; i < n; i++) {
+      const status = collection === 'coupons' ? (i % 40 === 0 ? 'pending' : COUPON_DONE[i % 5]) : i % 50 === 0 ? 'pending' : 'done'
+      out.push({ collection, id: `${collection}${i}`, data: { status, customerId: `c${i}` }, created_at: iso(Math.floor((i / n) * 2500)) })
+    }
+  }
+  return out
+}
 function bigData() {
   const customers = Array.from({ length: N.customers }, (_, i) => ({ id: `c${String(i).padStart(6, '0')}`, name: `ลูกค้า ${i}`, phone: `08${String(10000000 + i)}`, note: '', data: {}, updated_at: iso(i % 2500) }))
   const orders = Array.from({ length: N.orders }, (_, i) => ({ id: `o${String(i).padStart(6, '0')}`, code: `OR-${i}`, customer_id: customers[i % N.customers].id, status: i % N.openEvery === 0 ? 'preparing' : 'delivered', fulfillment: 'pickup', channel: null, data: { createdAt: iso(i % 2500), items: [], payments: [] }, updated_at: iso(i % 2500) }))
@@ -63,7 +92,7 @@ function bigData() {
   const quotes = Array.from({ length: N.quotes }, (_, i) => ({ id: `q${i}`, code: `QT-${i}`, chat_id: `ch${i % N.chats}`, customer_id: null, status: i % N.quoteOpenEvery === 0 ? 'pending' : 'accepted', order_id: null, data: { createdAt: iso(i) }, updated_at: iso(i) }))
   const shifts = Array.from({ length: N.shifts }, (_, i) => ({ id: `s${i}`, opened_at: iso(i), closed_at: i === N.shifts - 1 ? null : iso(i), data: {}, updated_at: iso(i) }))
   const recs = (collection, n) => Array.from({ length: n }, (_, i) => ({ collection, id: `${collection}${i}`, data: {}, created_at: iso(i % 2500) }))
-  const records = [...recs('bell', 5000), ...recs('outbox', 3000), ...recs('spinLog', 4000), ...recs('luckyTokens', 6000)]
+  const records = [...recs('bell', 5000), ...recs('outbox', 3000), ...recs('spinLog', 4000), ...recs('luckyTokens', 6000), ...lazyRecs()]
   const entries = Array.from({ length: N.entries }, (_, i) => ({ id: `e${i}`, no: `JV-${i}`, entry_date: day(Math.floor((i / N.entries) * 2500)), data: { lines: [] }, created_at: iso(i % 2500) }))
   return { punpang_customers: customers, punpang_orders: orders, punpang_chats: chats, punpang_quotes: quotes, punpang_shifts: shifts, punpang_records: records, punpang_acct_entries: entries, punpang_acct_frozen: entries.slice(0, 5000).map((e) => ({ ...e, id: 'f' + e.id })) }
 }
@@ -120,6 +149,59 @@ test('records ที่มีเพดาน ไม่เกินเพดา�
     const r = await loadRecords(db, name, spec)
     assert.ok(r.items.length <= spec.limit, `${name}: ${r.items.length} > ${spec.limit}`)
   }
+})
+
+test('records ที่โตตามลูกค้า/ออร์เดอร์ (ช่วง 5): ตอนล็อกอินโหลดเฉพาะที่จำเป็น · ขอแบบเต็มได้ทั้งหมด', async () => {
+  const rec = await load('/src/lib/recordsSync.js')
+  const data = bigData()
+  const nowMs = Date.parse('2026-11-19T00:00:00Z')
+  rec.resetRecordsScope(nowMs)
+  const cut = (d) => new Date(nowMs - d * 86400e3).toISOString()
+  const expect = {
+    consents: () => false,
+    notifySent: (r) => r.created_at >= cut(400),
+    birthdayGreeted: (r) => r.created_at >= cut(400),
+    reviews: (r) => r.data.status === 'pending' || r.created_at >= cut(180),
+    photoRequests: (r) => r.data.status === 'pending' || r.created_at >= cut(180),
+    deletionRequests: (r) => r.data.status === 'pending' || r.created_at >= cut(180),
+    coupons: (r) => !COUPON_DONE.includes(r.data.status) || r.created_at >= cut(400),
+  }
+  for (const [name, n] of Object.entries(LAZY)) {
+    const db = fakeDb(data)
+    const r = await rec.loadRecords(db, name, rec.RECORD_SPECS[name], nowMs)
+    const want = data.punpang_records.filter((x) => x.collection === name && expect[name](x)).length
+    assert.equal(r.items.length, want, name)
+    assert.ok(r.items.length < n / 5, `${name}: ${r.items.length} จาก ${n}`)
+  }
+  // หน้าที่ขอแบบเต็ม → ได้ทั้งชุด
+  rec.recordsFull.add('reviews')
+  const full = await rec.loadRecords(fakeDb(data), 'reviews', rec.RECORD_SPECS.reviews, nowMs)
+  assert.equal(full.items.length, LAZY.reviews)
+  rec.resetRecordsScope(nowMs)
+})
+
+test('คูปองที่ออร์เดอร์อ้างถึง: ปักหมุดแล้วรีเฟรชไม่หาย · แก้แถวอื่นแล้วไม่ลบแถวที่ไม่ได้โหลด', async () => {
+  const rec = await load('/src/lib/recordsSync.js')
+  const data = bigData()
+  rec.resetRecordsScope()
+  const old = data.punpang_records.find((x) => x.collection === 'coupons' && x.data.status === 'used' && x.created_at < '2023-01-01')
+  const orders = [{ id: 'o1', couponsUsed: [{ couponId: old.id }], refunds: [{ method: 'credit', couponId: 'coupons5999' }] }]
+  assert.deepEqual(rec.orderCouponIds(orders), [old.id, 'coupons5999'])
+  rec.pinRecordIds('coupons', rec.orderCouponIds(orders))
+  const db = { coupons: [] }
+  const client = fakeDb(data)
+  const pushed = []
+  client.from = ((orig) => (t) => { const q = orig(t); q.upsert = (rows) => { pushed.push(...rows); return Promise.resolve({ error: null }) }; q.delete = () => { pushed.push('DELETE'); return q }; return q })(client.from)
+  const h = await rec.startRecordsSync({ client, db, collection: 'coupons', canWrite: true, debounceMs: 5, onError: (m) => { throw new Error(m) } })
+  assert.ok(db.coupons.some((c) => c.id === old.id), 'คูปองเก่าที่ปักหมุดอยู่ในเครื่อง')
+  assert.ok(db.coupons.length < LAZY.coupons / 5)
+  db.coupons[0].note = 'แก้'
+  assert.equal(await h.flush(), true)
+  assert.equal(pushed.length, 1, 'เขียนเฉพาะแถวที่แก้ ไม่ลบแถวที่ไม่ได้โหลด')
+  await h.refresh({ full: true }) // เซิร์ฟเวอร์จำลองไม่เก็บที่เขียน → โหลดแทนที่ทั้งชุด
+  assert.ok(db.coupons.some((c) => c.id === old.id), 'รีเฟรชแล้วยังอยู่')
+  h.stop()
+  rec.resetRecordsScope()
 })
 
 test('บัญชี: ปิดงวดแล้ว → โหลดเฉพาะรายการหลังจุดตัด (ไม่ใช่ทั้ง 20,000 รายการ)', async () => {

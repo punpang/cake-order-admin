@@ -135,6 +135,29 @@ function chatHooks(client, store, has) {
 }
 
 // กลุ่มข้อมูลที่โหลดตามหน้า (ไม่โหลดตอนเปิดแอป) · คืน handle/array/null ของการซิงก์
+async function recordsFullLoad(name) {
+  const rec = await import('./recordsSync')
+  rec.recordsFull.add(name)
+  const h = syncs.find((x) => x && x.label === name)
+  if (!h?.refresh) return null // ไม่มีสิทธิ์อ่านชุดนี้
+  if (h.flush) await h.flush() // มีงานแก้ค้าง = รีเฟรชข้าม → บันทึกก่อน (ถ้ายังค้าง รอบรีเฟรชถัดไปโหลดเต็มเอง)
+  await h.refresh({ full: true })
+  return null
+}
+// คูปองที่ออร์เดอร์ในเครื่องอ้างถึง: ปักหมุดไว้ (รีเฟรชไม่ทิ้ง) + ดึงที่ยังไม่มีมารวม
+async function pinOrderCoupons(client, db, orders) {
+  const rec = await import('./recordsSync')
+  const ids = rec.orderCouponIds(orders)
+  if (!ids.length) return
+  rec.pinRecordIds('coupons', ids)
+  const h = syncs.find((x) => x && x.label === 'coupons')
+  if (!h?.merge) return
+  const miss = ids.filter((id) => !db.coupons.some((c) => c.id === id))
+  if (!miss.length) return
+  const r = await rec.fetchRecordIds(client, 'coupons', rec.RECORD_SPECS.coupons, miss)
+  if (r.error) return
+  if (!h.merge(r.items)) { await waitSaved(); h.merge(r.items) }
+}
 const GROUP_LOADERS = {
   // ประวัติออร์เดอร์ทั้งหมด (บัญชี/กำไร/ลูกค้า/วันเกิด/ชำระเงิน): เปิดโหมดเต็มแล้วรีเฟรชตารางออร์เดอร์
   ordersAll: async () => {
@@ -146,7 +169,14 @@ const GROUP_LOADERS = {
   },
   // หน้าบัญชี: ปิดงวดแล้ว = รายการก่อนปิดงวดมาจากที่แช่แข็งไว้ → ต้องการเฉพาะออร์เดอร์ที่แก้หลังวันปิดงวด (วันที่ของรายการมาจากเหตุการณ์ ชำระ/ส่งมอบ/ยกเลิก/คืนเงิน ซึ่งทำให้ updated_at ขยับเสมอ)
   // ยังไม่เคยปิดงวด = ต้องใช้ประวัติทั้งหมด · ถอยวันปิดงวด/ยกเลิกปิดงวด → โหลดตามวันใหม่
+  // ช่วง 5: หน้าที่ต้องใช้ records ทั้งชุด (ตอนล็อกอินโหลดเฉพาะที่จำเป็น) → เปิดโหมดเต็มแล้วโหลดใหม่
+  'rec:consents': () => recordsFullLoad('consents'),
+  'rec:reviews': () => recordsFullLoad('reviews'),
+  'rec:photoRequests': () => recordsFullLoad('photoRequests'),
+  'rec:deletionRequests': () => recordsFullLoad('deletionRequests'),
+  'rec:coupons': () => recordsFullLoad('coupons'),
   ordersAcct: async (c) => {
+    await recordsFullLoad('coupons') // บัญชีใช้คูปองของรางวัลที่มอบแล้ว (ทุกช่วงเวลา)
     const closedOf = () => c.store.db.acct?.closedThrough || ''
     const load = async (closed) => {
       if (!closed || !c.store.orderFetch.pull) return GROUP_LOADERS.ordersAll(c)
@@ -213,6 +243,7 @@ async function startData(staff) {
   stopPublicRefresh(); publicState.status = 'idle'
   groupLoads.clear()
   { const os = await import('./ordersSync'); os.setOrdersFullHistory(false); os.clearPinnedOrders() }
+  ;(await import('./recordsSync')).resetRecordsScope()
   coreReady = new Promise((r) => (coreDone = r))
   dataCtx = null
   ;(await import('./tableSync')).syncOptions.clearOnLoadFail = true
@@ -383,6 +414,7 @@ async function startData(staff) {
   }
   for (const r of await Promise.all(tasks)) { if (Array.isArray(r)) syncs.push(...r); else syncs.push(r) }
   store.ensureCustomers([...db.orders.map((o) => o.customerId), ...db.quotes.map((q) => q.customerId)]) // ออร์เดอร์อาจโหลดเสร็จก่อนตัวดึงลูกค้าพร้อม
+  quietly(() => pinOrderCoupons(client, db, db.orders))
   // ดึงออร์เดอร์เฉพาะที่หน้าต้องใช้ (แทนประวัติทั้งหมด): ปักหมุดไว้ให้อยู่ในเครื่อง แล้วรวมเข้ารายการ
   {
     const oh = syncs.find((x) => x && x.label === 'ออร์เดอร์')
@@ -395,6 +427,7 @@ async function startData(staff) {
         orders.keepOrdersSince(spec.updatedSince || spec.createdSince || '')
         if (!oh.merge(r.items)) { await waitSaved(); oh.merge(r.items) } // กำลังบันทึก → รอแล้วรวมใหม่
         store.ensureCustomers(r.items.map((o) => o.customerId))
+        await pinOrderCoupons(client, db, r.items)
         return r.items.length
       }
       store.orderFetch.counts = async (ids) => { const r = await orders.loadOrderCounts(client, ids); if (r.error) throw new Error(r.error); return r.counts }
