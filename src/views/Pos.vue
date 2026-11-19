@@ -1233,18 +1233,26 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <div class="text-stone-500">{{ memberInfoOf.phone ? formatPhone(memberInfoOf.phone) : '' }}</div>
           </div>
           <div class="grid grid-cols-2 gap-2">
-            <div class="rounded-xl bg-stone-50 px-3 py-2"><div class="text-xs text-stone-500">คะแนนที่มี</div><div class="font-semibold tabular-nums text-stone-900">{{ r.pts.toLocaleString() }} แต้ม</div></div>
-            <div class="rounded-xl px-3 py-2" :class="r.soon ? 'bg-amber-100 text-amber-950' : 'bg-stone-50'"><div class="text-xs" :class="r.soon ? 'text-amber-900' : 'text-stone-500'">คะแนนที่จะหมดอายุ</div><div class="font-semibold tabular-nums">{{ r.soon ? `${r.soon.points.toLocaleString()} แต้ม · ${dateOnly(r.soon.date)}` : 'ไม่มี' }}</div></div>
+            <div class="rounded-2xl bg-stone-900 px-4 py-3 text-white">
+              <div class="text-xs text-stone-300">คะแนนที่มี</div>
+              <div class="text-3xl font-bold tabular-nums">{{ r.pts.toLocaleString() }}</div>
+              <div v-if="r.value > 0" class="mt-1 text-xs text-stone-300">ใช้เป็นส่วนลดได้ <b class="tabular-nums text-white">{{ money(r.value) }}</b></div>
+            </div>
+            <div class="rounded-2xl px-4 py-3" :class="r.soon ? 'bg-amber-100 text-amber-950' : 'bg-stone-100 text-stone-600'">
+              <div class="text-xs" :class="r.soon ? 'text-amber-900' : 'text-stone-500'">จะหมดอายุ</div>
+              <div class="text-3xl font-bold tabular-nums">{{ r.soon ? r.soon.points.toLocaleString() : '0' }}</div>
+              <div class="mt-1 text-xs">{{ r.soon ? `วันที่ ${dateOnly(r.soon.date)}` : 'ไม่มีคะแนนใกล้หมดอายุ' }}</div>
+            </div>
           </div>
-          <div v-if="r.value > 0">แปลงเป็นส่วนลดได้ <b class="tabular-nums">{{ money(r.value) }}</b></div>
-          <div class="rounded-xl bg-white p-3 ring-1 ring-stone-200">
-            <div class="mb-1 font-semibold text-stone-800">คูปองที่มี</div>
-            <div class="text-stone-700">{{ r.coupons.length ? r.coupons.join(' · ') : 'ไม่มี' }}</div>
+          <div class="rounded-2xl bg-white px-4 py-3 ring-1 ring-stone-200">
+            <div class="text-xs text-stone-500">แลกได้ตอนนี้</div>
+            <div class="font-semibold text-emerald-800">{{ r.rewards.filter((x) => x.ok).map((x) => x.name).join(' · ') || 'ยังไม่มี' }}</div>
+            <div v-if="r.rewards.some((x) => !x.ok)" class="mt-2 text-xs text-stone-500">อีกนิดจะแลกได้</div>
+            <div v-if="r.rewards.some((x) => !x.ok)" class="text-stone-700">{{ r.rewards.filter((x) => !x.ok).map((x) => `${x.name} (ขาดอีก ${x.need} แต้ม)`).join(' · ') }}</div>
           </div>
-          <div class="rounded-xl bg-white p-3 ring-1 ring-stone-200">
-            <div class="mb-1 font-semibold text-stone-800">ของรางวัลที่แลกได้ด้วยคะแนน</div>
-            <div class="text-emerald-800">แลกได้ตอนนี้: {{ r.rewards.filter((x) => x.ok).map((x) => x.name).join(' · ') || 'ยังไม่มี' }}</div>
-            <div v-if="r.rewards.some((x) => !x.ok)" class="mt-1 text-stone-500">อีก: {{ r.rewards.filter((x) => !x.ok).map((x) => `${x.name} (ขาด ${x.need})`).join(' · ') }}</div>
+          <div class="rounded-2xl bg-white px-4 py-3 ring-1 ring-stone-200">
+            <div class="text-xs text-stone-500">คูปองที่มี</div>
+            <div class="font-semibold text-stone-800">{{ r.coupons.length ? r.coupons.join(' · ') : 'ไม่มี' }}</div>
           </div>
         </div>
       </template>
