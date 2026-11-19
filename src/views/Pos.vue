@@ -1208,6 +1208,22 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · เต็มจอ ไม่เลื่อน: ซ้าย = สรุปยอด สมาชิก คูปอง และรายการที่รับแล้ว · ขวา = เลือกวิธี และทำรายการนั้น -->
+    <!-- ค้นหาสมาชิก: ไดอะล็อกแยก เปิดจากปุ่ม "สมาชิก" · พิมพ์เบอร์หรือสแกนแล้วกดเลือกรายการ -->
+    <AppModal v-if="memberSearchOpen" title="ค้นหาสมาชิก" @close="memberSearchOpen = false; memberQ = ''">
+      <div class="space-y-3">
+              <div class="flex gap-2">
+          <input :value="memberQ" @input="(e) => { e.target.value = e.target.value.replace(/\D/g, ''); memberQ = e.target.value }" type="text" inputmode="numeric" data-numpad="int" class="input h-11 min-w-0 flex-1" placeholder="เบอร์ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
+          <button type="button" class="shrink-0 rounded-full px-2 text-sm font-medium text-stone-500 underline" @click="memberSearchOpen = false; memberQ = ''">ปิด</button>
+        </div>
+        <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
+        <div v-if="memberMatches.length" class="w-full space-y-2 max-md:basis-full">
+        <button v-for="c in memberMatches" :key="c.id" type="button" class="flex w-full items-center justify-between gap-2 rounded-xl border border-stone-200 px-3 py-2.5 text-left text-sm hover:border-brand-300" @click="memberInfoOf = c">
+          <span class="truncate font-semibold">{{ c.name }}</span>
+          <span class="flex shrink-0 items-center gap-2 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }} <span class="text-brand-700">ดูข้อมูล ›</span></span>
+        </button>
+        </div>
+      </div>
+    </AppModal>
     <!-- ข้อมูลสมาชิก: ไดอะล็อกแยก เปิดจากผลค้นหา · กดเลือกสมาชิกจากในไดอะล็อก -->
     <AppModal v-if="memberInfoOf" title="ข้อมูลสมาชิก" @close="memberInfoOf = null">
       <template v-for="r in [redeemInfo(memberInfoOf)]" :key="'mi' + memberInfoOf.id">
@@ -1257,20 +1273,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <!-- สมาชิกสะสมแต้ม: เปลี่ยนได้จนกว่าจะสร้าง QR หรือรับชำระรายการแรก -->
           <div v-if="!member && !memberLocked" class="space-y-1.5 rounded-2xl bg-white p-3 ring-1 ring-stone-200 max-md:flex max-md:flex-wrap max-md:items-center max-md:gap-2 max-md:space-y-0 max-md:p-2" aria-label="เบอร์สะสมแต้ม">
             <div class="text-sm font-semibold text-stone-800 max-md:shrink-0">เบอร์สะสมแต้ม <span class="font-normal text-stone-400">(ไม่บังคับ)</span></div>
-            <button v-if="!memberSearchOpen" type="button" class="btn-outline h-11 max-md:flex-1" @click="memberSearchOpen = true">สมาชิก · กดเพื่อค้นหา</button>
-            <template v-else>
-              <div class="flex gap-2 max-md:flex-1">
-                <input :value="memberQ" @input="(e) => { e.target.value = e.target.value.replace(/\D/g, ''); memberQ = e.target.value }" type="text" inputmode="numeric" data-numpad="int" class="input h-11 min-w-0 flex-1" placeholder="เบอร์ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
-                <button type="button" class="shrink-0 rounded-full px-2 text-sm font-medium text-stone-500 underline" @click="memberSearchOpen = false; memberQ = ''">ปิด</button>
-              </div>
-            <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
-            <div v-if="memberMatches.length" class="w-full space-y-2 max-md:basis-full">
-              <button v-for="c in memberMatches" :key="c.id" type="button" class="flex w-full items-center justify-between gap-2 rounded-xl border border-stone-200 px-3 py-2.5 text-left text-sm hover:border-brand-300" @click="memberInfoOf = c">
-                <span class="truncate font-semibold">{{ c.name }}</span>
-                <span class="flex shrink-0 items-center gap-2 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }} <span class="text-brand-700">ดูข้อมูล ›</span></span>
-              </button>
-            </div>
-            </template>
+            <button type="button" class="btn-outline h-11 max-md:flex-1" @click="memberSearchOpen = true">สมาชิก · กดเพื่อค้นหา</button>
           </div>
           <div v-else-if="member" class="flex flex-wrap items-center gap-3 rounded-2xl bg-white p-3 ring-1 ring-stone-200">
             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-100 text-brand-800" aria-hidden="true"><AppIcon name="user" :size="18" /></span>
