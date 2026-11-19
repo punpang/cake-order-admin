@@ -1292,14 +1292,16 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                     <span class="text-stone-500">ยอดเงินสด <b class="tabular-nums text-stone-800">{{ money(lineAmt(l)) }}</b></span>
                     <button v-if="!l.locked && !l.confirmed && !l.split" type="button" class="font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
                   </div>
-                  <button v-if="l.split && !l.locked && !l.confirmed" type="button" class="mt-2 flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left max-md:py-1.5 ring-1 ring-stone-300" :class="padField(l) === 'amount' ? 'bg-brand-50 ring-2 ring-brand-600' : 'bg-stone-50'" :aria-pressed="padField(l) === 'amount'" @click="l.padTarget = 'amount'; l.padFresh = true">
+                  <div :class="l.split && !l.locked && !l.confirmed ? 'max-md:grid max-md:grid-cols-2 max-md:gap-2' : ''">
+                  <button v-if="l.split && !l.locked && !l.confirmed" type="button" class="mt-2 flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left max-md:mt-0 max-md:flex-col max-md:items-start max-md:justify-center max-md:py-2 ring-1 ring-stone-300" :class="padField(l) === 'amount' ? 'bg-brand-50 ring-2 ring-brand-600' : 'bg-stone-50'" :aria-pressed="padField(l) === 'amount'" @click="l.padTarget = 'amount'; l.padFresh = true">
                     <span class="text-sm text-stone-600">ยอดเงินสดครั้งนี้</span>
                     <span class="text-2xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</span>
                   </button>
-                  <button type="button" class="mt-3 flex w-full flex-col rounded-2xl px-3 py-2 text-left ring-1 ring-stone-300" :class="padField(l) === 'received' ? 'bg-brand-50 ring-2 ring-brand-600' : 'bg-stone-50'" :aria-pressed="padField(l) === 'received'" :disabled="!!l.locked || !!l.confirmed" @click="l.padTarget = 'received'; l.padFresh = true">
+                  <button type="button" class="mt-3 flex w-full flex-col rounded-2xl px-3 py-2 text-left ring-1 ring-stone-300 max-md:mt-0 max-md:py-2" :class="padField(l) === 'received' ? 'bg-brand-50 ring-2 ring-brand-600' : 'bg-stone-50'" :aria-pressed="padField(l) === 'received'" :disabled="!!l.locked || !!l.confirmed" @click="l.padTarget = 'received'; l.padFresh = true">
                     <span class="text-sm text-stone-600">รับเงินมา</span>
-                    <span class="text-5xl font-bold tabular-nums text-stone-900 max-md:text-4xl" aria-live="polite">{{ money(Number(l.received) || 0) }}</span>
+                    <span class="text-5xl font-bold tabular-nums text-stone-900 max-md:text-3xl" aria-live="polite">{{ money(Number(l.received) || 0) }}</span>
                   </button>
+                  </div>
                 </div>
                 <div class="flex items-center justify-between rounded-3xl px-4 py-3 max-md:py-2" :class="changeOf(l) >= 0 ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-900'">
                   <span class="text-base font-semibold">{{ changeOf(l) >= 0 ? 'เงินทอน' : 'ยังขาด' }}</span>
@@ -1318,9 +1320,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                 </div>
               </div>
               <div class="grid grid-cols-3 content-start gap-2 max-md:gap-1.5" aria-label="แป้นตัวเลขรับเงิน">
-                <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100 disabled:opacity-40 max-md:h-10 max-md:text-xl" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" :disabled="!!l.locked || !!l.confirmed" @click="padInput(l, padField(l), k)">{{ k === 'back' ? '⌫' : k }}</button>
-                <button type="button" class="col-span-1 h-11 rounded-2xl text-sm font-medium text-stone-600 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40 max-md:h-10 max-md:text-xs" :disabled="!!l.locked || !!l.confirmed" @click="l[padField(l)] = ''">ล้าง{{ padField(l) === 'amount' ? 'ยอดเงินสดครั้งนี้' : 'รับเงินมา' }}</button>
-                <button v-if="!l.locked && !l.confirmed && lineAmt(l) > 0 && changeOf(l) >= 0 && !binding" type="button" class="btn-primary col-span-2 h-14 w-full text-lg max-md:h-10 max-md:text-base" @click="keepAndAddMore">บันทึกยอดเงินสดนี้</button>
+                <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100 disabled:opacity-40 max-md:h-12 max-md:text-xl" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" :disabled="!!l.locked || !!l.confirmed" @click="padInput(l, padField(l), k)">{{ k === 'back' ? '⌫' : k }}</button>
+                <button type="button" class="col-span-1 h-11 rounded-2xl text-sm font-medium text-stone-600 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40 max-md:h-12 max-md:text-xs" :disabled="!!l.locked || !!l.confirmed" @click="l[padField(l)] = ''">ล้าง{{ padField(l) === 'amount' ? 'ยอดเงินสดครั้งนี้' : 'รับเงินมา' }}</button>
+                <button v-if="!l.locked && !l.confirmed && lineAmt(l) > 0 && changeOf(l) >= 0 && !binding" type="button" class="btn-primary col-span-2 h-14 w-full text-lg max-md:h-12 max-md:text-base" @click="keepAndAddMore">บันทึกยอดเงินสดนี้</button>
               </div>
             </div>
 
