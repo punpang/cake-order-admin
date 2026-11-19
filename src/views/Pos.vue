@@ -1373,7 +1373,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                 <button v-if="!l.locked && !l.confirmed && !l.split" type="button" class="mt-2 text-sm font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
                 <div v-if="l.split && !l.locked && !l.confirmed" class="mx-auto mt-2 max-w-48">
                   <label class="sr-only" :for="'amt-' + l.key">ยอดบัตร</label>
-                  <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input h-11 text-center text-lg font-semibold" />
+                  <MoneyInput :id="'amt-' + l.key" v-model="l.amount" data-numpad="dec" class="input h-11 text-center text-lg font-semibold" />
                 </div>
               </div>
               <button v-if="!l.confirmed && !binding" type="button" class="btn-primary h-14 w-full text-lg" @click="l.confirmed = true; l.acceptedBy = 'staff'">รับชำระด้วยบัตรแล้ว</button>
@@ -1387,9 +1387,10 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <div v-else-if="!l.qrRef" class="flex min-h-0 flex-1 flex-col gap-3">
               <div class="flex min-h-0 flex-1 flex-col items-center justify-center rounded-3xl bg-white p-6 text-center ring-1 ring-stone-200">
                 <div class="text-base text-stone-500">ยอดโอนครั้งนี้</div>
-                <div class="text-4xl font-bold tabular-nums whitespace-nowrap text-stone-900">{{ money(lineAmt(l)) }}</div>
+                <div v-if="!l.split" class="text-4xl font-bold tabular-nums whitespace-nowrap text-stone-900">{{ money(lineAmt(l)) }}</div>
+                <MoneyInput v-else v-model="l.amount" data-numpad="dec" aria-label="ยอดโอนครั้งนี้" class="input h-14 max-w-56 text-center text-3xl font-bold" />
                 <button v-if="!l.split" type="button" class="mt-2 text-sm font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
-                <p v-else class="mt-2 text-sm text-stone-500">พิมพ์ยอดด้วยคีย์บอร์ด · ล้างค่าเพื่อเริ่มใหม่</p>
+                <p v-else class="mt-2 text-sm text-stone-500">แตะช่องเพื่อกรอกยอดด้วยแป้นตัวเลข · ล้างค่าเพื่อเริ่มใหม่</p>
               </div>
               <div class="grid gap-2" :class="l.split ? 'grid-cols-[1fr_2fr]' : 'grid-cols-1'">
                 <button v-if="l.split" type="button" class="btn-outline h-14" @click="l.amount = ''">ล้างค่า</button>

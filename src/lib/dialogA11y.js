@@ -30,7 +30,9 @@ export function useDialogA11y(root, onEscape) {
     if (!el) return
     // โฟกัสช่องกรอกแรก (ถ้ามี) ไม่เช่นนั้นปุ่มแรกในเนื้อหา · ไม่โฟกัสปุ่ม "ปิด" ก่อน
     const body = el.querySelector('[data-dialog-body]') || el
-    const target = focusables(body).find((x) => /^(INPUT|SELECT|TEXTAREA)$/.test(x.tagName)) || focusables(body)[0] || focusables(el)[0] || el
+    // ช่องที่มี data-numpad ไม่ถูกโฟกัสอัตโนมัติ (ไม่ให้แป้นตัวเลขเด้งขึ้นตอนเปิดป็อปอัป)
+    const auto = (x) => !x.hasAttribute('data-numpad')
+    const target = focusables(body).find((x) => /^(INPUT|SELECT|TEXTAREA)$/.test(x.tagName) && auto(x)) || focusables(body).find(auto) || focusables(el).find(auto) || focusables(body)[0] || focusables(el)[0] || el
     target.focus({ preventScroll: true })
   })
   onBeforeUnmount(() => {
