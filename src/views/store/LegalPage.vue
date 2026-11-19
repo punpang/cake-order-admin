@@ -18,7 +18,7 @@ const doc = computed(() => (LEGAL_KINDS[props.kind] ? db.legal.docs[props.kind] 
       <p class="text-xs text-stone-500">เวอร์ชัน {{ doc.version }} · ปรับปรุงล่าสุด {{ dateOnly(doc.updatedAt) }}</p>
       <LegalText :kind="kind" :level="2" class="mt-3" />
       <nav class="mt-6 flex flex-wrap gap-x-4 gap-y-2 border-t border-stone-100 pt-3 text-sm" aria-label="เอกสารนโยบายอื่น">
-        <RouterLink v-for="(k, key) in LEGAL_KINDS" :key="key" :to="`/legal/${key}`" class="text-brand-700 underline">{{ k.short }}</RouterLink>
+        <RouterLink v-for="(k, key) in LEGAL_KINDS" :key="key" :to="`/legal/${key}`" class="inline-block py-2.5 text-brand-700 underline">{{ k.short }}</RouterLink>
       </nav>
     </article>
   </div>

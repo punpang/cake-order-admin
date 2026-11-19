@@ -1,7 +1,7 @@
 <script setup>
 import ThaiDateField from '../components/ThaiDateField.vue'
 import { orderNo } from '../lib/format'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, defineAsyncComponent } from 'vue'
 import { db, can, orderVisible, findCustomer, upcomingBirthdays } from '../data/store'
 import { STATUS } from '../lib/constants'
 import { orderTotals, describeSelections } from '../lib/pricing'
@@ -12,6 +12,8 @@ import { customerPending } from '../lib/payDue'
 import AppIcon from '../components/AppIcon.vue'
 import AppModal from '../components/AppModal.vue'
 import BirthdayList from '../components/BirthdayList.vue'
+// ปุ่มลัดช่วงวันที่: อยู่ในแผงตัวกรอง (เปิดเมื่อกด) → โหลดเมื่อใช้ ไม่เพิ่มขนาดไฟล์หลัก
+const DatePresets = defineAsyncComponent(() => import('../components/DatePresets.vue'))
 import { getSupabase } from '../lib/supabase'
 import { loadOrdersInRange, searchOrdersRemote, countOrders } from '../lib/ordersSync'
 import { fetchPendingPosHoldIds, loadPendingPosOrders } from '../lib/posHold'
@@ -246,6 +248,7 @@ function clearAll() {
     <div v-if="filtersOpen" id="order-filters" class="card mb-3 space-y-4">
       <div>
         <div class="label">วันนัดรับ</div>
+        <DatePresets class="mb-2" :from="from" :to="to" @set="([f, t]) => { from = f; to = t }" />
         <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
           <ThaiDateField :model-value="from" label="ตั้งแต่วันที่" :past="3" @update:model-value="setFrom" />
           <span class="shrink-0 text-stone-400 max-sm:hidden">–</span>

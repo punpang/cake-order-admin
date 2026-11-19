@@ -102,7 +102,7 @@ const contactMissing = computed(() => ['controller', 'address', 'email', 'phone'
         <span>ปรับปรุง {{ dateOnly(doc.updatedAt) }}</span>
         <span v-if="stats && stats.total != null">ยอมรับเวอร์ชันนี้แล้ว <b>{{ stats.accepted }}</b> / {{ stats.total }} บัญชี</span>
         <span v-else-if="stats">ผู้เลือกคุกกี้เวอร์ชันนี้ <b>{{ stats.accepted }}</b> ครั้ง</span>
-        <RouterLink :to="`/legal/${tab}`" target="_blank" class="ml-auto text-brand-700 underline">ดูหน้าลูกค้า</RouterLink>
+        <RouterLink :to="`/legal/${tab}`" target="_blank" class="ml-auto inline-block py-2.5 text-brand-700 underline">ดูหน้าลูกค้า</RouterLink>
       </div>
 
       <section class="card space-y-3">
@@ -117,7 +117,7 @@ const contactMissing = computed(() => ['controller', 'address', 'email', 'phone'
           <p class="mt-1 text-xs text-stone-400">รูปแบบ: <code>## หัวข้อ</code> · <code>- รายการ</code> · เว้นบรรทัดเพื่อขึ้นย่อหน้าใหม่ · ตัวแปรแทนค่าอัตโนมัติ เช่น {ชื่อร้าน} {อัตราสะสม} {อายุคะแนน}</p>
         </div>
         <details class="rounded-xl bg-stone-50 p-3 text-xs text-stone-600">
-          <summary class="cursor-pointer py-2 font-medium">ตัวแปรที่ใช้ได้</summary>
+          <summary class="cursor-pointer py-2.5 font-medium">ตัวแปรที่ใช้ได้</summary>
           <ul class="mt-2 space-y-0.5"><li v-for="(d, k) in LEGAL_VARS" :key="k"><code>{{ tag(k) }}</code> · {{ d }}</li></ul>
         </details>
         <p v-if="missing.length" class="text-sm text-amber-700">ตัวแปรที่ยังไม่มีค่า: {{ missingText }} → ไปกรอกที่แท็บ "ผู้ควบคุมข้อมูล"</p>

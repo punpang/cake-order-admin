@@ -11,6 +11,7 @@ import { tiersOf } from '../../lib/pricing'
 import { daysBetween } from '../../lib/birthday'
 import { money, dateTime, toDateStr, dateOnly } from '../../lib/format'
 import ManageShell from '../../components/ManageShell.vue'
+import DatePresets from '../../components/DatePresets.vue'
 
 // สรุปกำไรตามวันนัดรับ (ไม่นับออร์เดอร์ที่ยกเลิก) กำไร = ยอดรวม − ต้นทุนวัตถุดิบ
 const d = new Date()
@@ -67,6 +68,12 @@ const buckets = computed(() => {
   return list
 })
 const chartMax = computed(() => Math.max(1, ...buckets.value.map((b) => Math.max(b.sales, b.profit))))
+// เลือกวันตามตำแหน่งนิ้ว/เมาส์บนกราฟ
+function scrub(e) {
+  const r = e.currentTarget.getBoundingClientRect()
+  if (!r.width || !buckets.value.length) return
+  hover.value = Math.min(buckets.value.length - 1, Math.max(0, Math.floor(((e.clientX - r.left) / r.width) * buckets.value.length)))
+}
 const barH = (v) => `${Math.max(0, (v / chartMax.value) * 100)}%`
 const bucketLabel = (k) => (monthly.value ? `${TH_MONTH[Number(k.slice(5, 7)) - 1]} ${String(Number(k.slice(0, 4)) + 543).slice(2)}` : String(Number(k.slice(8, 10))))
 const bucketTitle = (k) => (monthly.value ? bucketLabel(k) : dateOnly(k))
@@ -143,6 +150,7 @@ watch([from, to], () => { rowLimit.value = 50 })
 <template>
   <ManageShell title="ยอดขาย & กำไร" subtitle="ตามวันนัดรับ · ไม่นับออร์เดอร์ที่ยกเลิก" :toolbar="false">
     <section class="card mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <DatePresets class="sm:col-span-2" :from="from" :to="to" :presets="['today', 'last7', 'month']" @set="([f, t]) => { from = f; to = t }" />
       <div><label class="label">ตั้งแต่วันที่</label><ThaiDateField :model-value="from" label="ตั้งแต่วันที่" :past="5" @update:model-value="setFrom" /></div>
       <div><label class="label">ถึงวันที่</label><ThaiDateField v-model="to" :min="from" :past="5" label="ถึงวันที่" /></div>
     </section>
@@ -168,10 +176,11 @@ watch([from, to], () => { rowLimit.value = 50 })
       </div>
       <div class="mb-2 h-5 text-sm text-stone-600">
         <template v-if="hovered">{{ bucketTitle(hovered.key) }} · ยอดขาย <b class="text-stone-900">{{ money(hovered.sales) }}</b> · กำไร <b :class="hovered.profit >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ money(hovered.profit) }}</b> · {{ hovered.count }} ออร์เดอร์</template>
-        <span v-else class="text-stone-400">แตะหรือชี้ที่แท่งเพื่อดูตัวเลข</span>
+        <span v-else class="text-stone-400">แตะหรือลากนิ้วบนกราฟเพื่อดูตัวเลขรายวัน</span>
       </div>
       <div class="overflow-x-auto pb-1" @mouseleave="hover = -1">
-        <div class="flex h-40 items-end gap-0.5 border-b border-stone-200" :style="{ minWidth: `${buckets.length * 14}px` }">
+        <!-- แตะหรือลากนิ้วผ่านกราฟเพื่อเลือกวัน (แท่งแคบเกินกว่าจะกดทีละแท่งบนมือถือ) -->
+        <div class="flex h-40 touch-pan-y items-end gap-0.5 border-b border-stone-200" :style="{ minWidth: `${buckets.length * 14}px` }" @pointerdown="scrub" @pointermove="(e) => { if (e.pointerType !== 'mouse' || e.buttons) scrub(e) }">
           <button
             v-for="(b, i) in buckets"
             :key="b.key"
