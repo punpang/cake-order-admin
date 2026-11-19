@@ -1327,6 +1327,13 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                   <span class="text-base font-semibold">{{ changeOf(l) >= 0 ? 'เงินทอน' : 'ยังขาด' }}</span>
                   <span class="text-3xl font-bold tabular-nums">{{ money(Math.abs(changeOf(l))) }}</span>
                 </div>
+                <div v-if="kbMode === 'keyboard'" class="grid grid-cols-2 gap-2 rounded-2xl bg-stone-100 p-3 text-sm text-stone-700" aria-label="ปุ่มลัดคีย์บอร์ด">
+                  <div class="flex items-center gap-2"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">0–9</kbd> พิมพ์จำนวน</div>
+                  <div class="flex items-center gap-2"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">Enter</kbd> ยืนยันรับเงิน</div>
+                  <div class="flex items-center gap-2"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">.</kbd> จุดทศนิยม</div>
+                  <div class="flex items-center gap-2"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">⌫</kbd> ลบตัวอักษร</div>
+                  <p class="col-span-2 text-xs text-stone-500">แตะหน้าจอเพื่อกลับเป็นแป้นบนจอ</p>
+                </div>
                 <div v-if="kbMode !== 'keyboard'" class="grid grid-cols-2 gap-2 max-md:grid-cols-4" aria-label="จำนวนเงินด่วน">
                   <button v-for="v in quickFor(l)" :key="v" type="button" class="h-12 rounded-2xl bg-white text-base font-semibold max-md:h-10 max-md:px-1 max-md:text-sm text-stone-800 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40" :class="Number(l.received) === v ? 'ring-2 ring-brand-600' : ''" :disabled="!!l.locked || !!l.confirmed" @click="l.received = String(v)">{{ v === lineAmt(l) ? 'พอดี' : money(v) }}</button>
                 </div>
@@ -1339,16 +1346,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                   <button v-if="!binding" type="button" class="btn-outline h-11 w-full" @click="cancelCash(l)">ยกเลิกการรับชำระ</button>
                 </div>
               </div>
-              <div class="grid grid-cols-3 content-start gap-2 max-md:gap-1.5" aria-label="แป้นตัวเลขรับเงิน">
+              <div class="gap-2 max-md:gap-1.5" :class="kbMode === 'keyboard' ? 'flex h-full flex-col' : 'grid grid-cols-3 content-start'" aria-label="แป้นตัวเลขรับเงิน">
                 <button v-for="k in PAD_KEYS" :key="k" type="button" :class="kbMode === 'keyboard' ? 'hidden' : ''" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100 disabled:opacity-40 max-md:h-10 max-md:text-xl" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" :disabled="!!l.locked || !!l.confirmed" @click="padInput(l, padField(l), k)">{{ k === 'back' ? '⌫' : k }}</button>
-                <div v-if="kbMode === 'keyboard'" class="col-span-3 grid grid-cols-2 gap-2 rounded-2xl bg-stone-100 p-3 text-sm text-stone-700" aria-label="ปุ่มลัดคีย์บอร์ด">
-                  <div class="flex items-center gap-2"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">0–9</kbd> พิมพ์จำนวน</div>
-                  <div class="flex items-center gap-2"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">Enter</kbd> ยืนยันรับเงิน</div>
-                  <div class="flex items-center gap-2"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">.</kbd> จุดทศนิยม</div>
-                  <div class="flex items-center gap-2"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">⌫</kbd> ลบตัวอักษร</div>
-                  <p class="col-span-2 text-xs text-stone-500">แตะหน้าจอเพื่อกลับเป็นแป้นบนจอ</p>
-                </div>
-                <button type="button" class="col-span-1 h-11 rounded-2xl text-sm font-medium text-stone-600 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40 max-md:h-10 max-md:text-xs" :disabled="!!l.locked || !!l.confirmed" @click="l[padField(l)] = ''">ล้าง{{ padField(l) === 'amount' ? 'ยอดเงินสดครั้งนี้' : 'รับเงินมา' }}</button>
+                <button type="button" class="rounded-2xl text-sm font-medium text-stone-600 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40 max-md:text-xs" :class="kbMode === 'keyboard' ? 'flex-1' : 'col-span-1 h-11 max-md:h-10'" :disabled="!!l.locked || !!l.confirmed" @click="l[padField(l)] = ''">ล้าง{{ padField(l) === 'amount' ? 'ยอดเงินสดครั้งนี้' : 'รับเงินมา' }}</button>
                 <button v-if="!l.locked && !l.confirmed && lineAmt(l) > 0 && changeOf(l) >= 0 && !binding" type="button" class="btn-primary col-span-2 h-14 w-full text-lg max-md:h-10 max-md:text-base" @click="keepAndAddMore">บันทึกยอดเงินสดนี้</button>
               </div>
             </div>
