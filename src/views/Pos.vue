@@ -1382,9 +1382,6 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                 <button v-if="!l.split" type="button" class="btn-primary h-16 w-full text-xl" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
               </div>
               <div v-if="l.split" class="flex flex-col gap-2">
-                <div class="grid grid-cols-3 gap-2" aria-label="แป้นตัวเลขยอดโอน">
-                  <button v-for="k in PAD_KEYS" :key="k" type="button" :class="kbMode === 'keyboard' ? 'hidden' : ''" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" @click="padInput(l, 'amount', k)">{{ k === 'back' ? '⌫' : k }}</button>
-                </div>
                 <button type="button" class="btn-primary h-16 w-full text-xl" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
                 <button type="button" class="btn-outline h-11 w-full" @click="l.amount = ''">ล้างค่า</button>
               </div>
