@@ -1188,24 +1188,20 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <!-- ชำระเงิน · เต็มจอ ไม่เลื่อน: ซ้าย = สรุปยอด สมาชิก คูปอง และรายการที่รับแล้ว · ขวา = เลือกวิธี และทำรายการนั้น -->
     <AppModal v-if="payOpen" title="ชำระเงิน" wide wider full fit @close="requestClose">
       <div class="flex h-full min-h-0 flex-col gap-3">
-      <!-- แถบสรุปบนสุด: ยอดชำระ · รับแล้ว · คงค้าง/เกิน ในแถวเดียวทุกขนาดจอ -->
-      <div class="flex shrink-0 items-center gap-3 rounded-3xl bg-white px-4 py-2 text-stone-900 shadow-sm ring-1 ring-stone-200 max-md:gap-2 max-md:px-3 max-md:py-1.5" aria-label="สรุปการชำระ">
-        <div class="min-w-0 flex-1">
-          <div class="text-xs text-stone-500 md:text-sm">ยอดชำระ</div>
-          <div class="truncate text-3xl font-bold tabular-nums max-md:text-2xl">{{ money(total) }}</div>
-        </div>
-        <div class="rounded-2xl bg-stone-100 px-3 py-1.5 text-right max-md:px-2">
-          <div class="text-xs text-stone-500">รับแล้ว</div>
-          <div class="text-lg font-semibold tabular-nums">{{ money(receivedSum) }}</div>
-        </div>
-        <div class="rounded-2xl px-3 py-1.5 text-right max-md:px-2" :class="total - receivedSum < 0 ? 'bg-rose-100 text-rose-800' : total - receivedSum > 0 ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'">
-          <div class="text-xs opacity-80">{{ total - receivedSum < 0 ? 'เกิน' : 'คงค้าง' }}</div>
-          <div class="text-lg font-semibold tabular-nums">{{ money(Math.abs(total - receivedSum)) }}</div>
-        </div>
-      </div>
       <div class="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 md:grid-cols-[18rem_minmax(0,1fr)] md:grid-rows-1">
         <!-- ซ้าย: สมาชิก คูปอง รายการ -->
         <aside class="flex min-h-0 flex-col gap-3 overflow-y-auto p-0.5 max-md:max-h-[40dvh]" aria-label="ข้อมูลลูกค้าและรายการชำระ">
+          <!-- สรุป: ยอดชำระ · รับแล้ว · คงค้าง/เกิน -->
+          <div class="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-stone-200 max-md:p-3" aria-label="สรุปการชำระ">
+            <div class="text-sm text-stone-500">ยอดชำระ</div>
+            <div class="text-4xl font-bold tabular-nums text-stone-900 max-md:text-2xl">{{ money(total) }}</div>
+            <dl class="mt-3 grid grid-cols-2 gap-2 text-sm max-md:mt-2 max-md:gap-1.5">
+              <div class="rounded-2xl bg-stone-100 px-3 py-2"><dt class="text-stone-500">รับแล้ว</dt><dd class="text-lg font-semibold tabular-nums text-stone-900">{{ money(receivedSum) }}</dd></div>
+              <div class="rounded-2xl px-3 py-2" :class="total - receivedSum < 0 ? 'bg-rose-100 text-rose-800' : total - receivedSum > 0 ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'">
+                <dt class="opacity-80">{{ total - receivedSum < 0 ? 'เกิน' : 'คงค้าง' }}</dt><dd class="text-lg font-semibold tabular-nums">{{ money(Math.abs(total - receivedSum)) }}</dd>
+              </div>
+            </dl>
+          </div>
 
           <!-- สมาชิกสะสมแต้ม: เปลี่ยนได้จนกว่าจะสร้าง QR หรือรับชำระรายการแรก -->
           <div v-if="!member && !memberLocked" class="space-y-1.5 rounded-2xl bg-white p-3 ring-1 ring-stone-200 max-md:flex max-md:items-center max-md:gap-2 max-md:space-y-0 max-md:p-2" aria-label="เบอร์สะสมแต้ม">
@@ -1311,7 +1307,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <!-- รายการที่กำลังทำ -->
           <template v-for="l in focusLine ? [focusLine] : []" :key="l.key">
             <!-- เงินสด -->
-            <div v-if="l.method === 'cash'" class="grid min-h-0 flex-1 content-start gap-3 landscape:grid-cols-2">
+            <div v-if="l.method === 'cash'" class="flex min-h-0 flex-1 flex-col gap-3">
               <div class="flex flex-col gap-3">
                 <div class="rounded-3xl bg-white p-4 ring-1 ring-stone-200 max-md:p-3">
                   <div class="flex items-center justify-between gap-2 text-sm" :class="l.split ? 'max-md:hidden' : ''">
@@ -1338,10 +1334,10 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                   <div class="flex items-center gap-1.5"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">⌫</kbd> ลบตัวอักษร</div>
                   <p class="basis-full text-xs text-stone-500">แตะหน้าจอเพื่อกลับเป็นแป้นบนจอ</p>
                 </div>
-                <div v-if="kbMode !== 'keyboard'" class="grid grid-cols-2 gap-2 max-md:grid-cols-4" aria-label="จำนวนเงินด่วน">
+                <div v-if="kbMode !== 'keyboard'" class="grid grid-cols-4 gap-2" aria-label="จำนวนเงินด่วน">
                   <button v-for="v in quickFor(l)" :key="v" type="button" class="h-12 rounded-2xl bg-white text-base font-semibold max-md:h-10 max-md:px-1 max-md:text-sm text-stone-800 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40" :class="Number(l.received) === v ? 'ring-2 ring-brand-600' : ''" :disabled="!!l.locked || !!l.confirmed" @click="l.received = String(v)">{{ v === lineAmt(l) ? 'พอดี' : money(v) }}</button>
                 </div>
-                <div v-if="(remaining > 0 && changeOf(l) >= 0 && !binding) || (canBindCash(l, remaining) && !binding)" class="grid gap-2 max-md:grid-cols-2">
+                <div v-if="(remaining > 0 && changeOf(l) >= 0 && !binding) || (canBindCash(l, remaining) && !binding)" class="grid grid-cols-2 gap-2">
                   <button v-if="remaining > 0 && changeOf(l) >= 0 && !binding" type="button" class="btn-outline h-11 w-full max-md:h-10 max-md:text-sm" @click="keepAndAddMore">รับส่วนที่เหลือ {{ money(remaining) }} ด้วยวิธีอื่น</button>
                   <button v-if="canBindCash(l, remaining) && !binding" type="button" class="btn-soft h-11 w-full max-md:h-10 max-md:text-sm" @click="bindCash(l)">บันทึกเงินสดนี้เป็นบิลค้าง</button>
                 </div>
@@ -1350,8 +1346,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                   <button v-if="!binding" type="button" class="btn-outline h-11 w-full" @click="cancelCash(l)">ยกเลิกการรับชำระ</button>
                 </div>
               </div>
-              <div class="gap-2 max-md:gap-1.5" :class="kbMode === 'keyboard' ? 'flex h-full flex-col' : 'grid grid-cols-3 content-start'" aria-label="แป้นตัวเลขรับเงิน">
-                <button v-for="k in PAD_KEYS" :key="k" type="button" :class="kbMode === 'keyboard' ? 'hidden' : ''" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100 disabled:opacity-40 max-md:h-10 max-md:text-xl" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" :disabled="!!l.locked || !!l.confirmed" @click="padInput(l, padField(l), k)">{{ k === 'back' ? '⌫' : k }}</button>
+              <div class="gap-2 max-md:gap-1.5" :class="kbMode === 'keyboard' ? 'flex flex-col' : 'grid grid-cols-3 content-start'" aria-label="แป้นตัวเลขรับเงิน">
+                <button v-for="k in PAD_KEYS" :key="k" type="button" :class="kbMode === 'keyboard' ? 'hidden' : ''" class="h-11 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100 disabled:opacity-40 max-md:h-10 max-md:text-xl md:h-10 md:text-xl" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" :disabled="!!l.locked || !!l.confirmed" @click="padInput(l, padField(l), k)">{{ k === 'back' ? '⌫' : k }}</button>
                 <button type="button" class="rounded-2xl text-sm font-medium text-stone-600 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40 max-md:text-xs" :class="kbMode === 'keyboard' ? 'flex-1' : 'col-span-1 h-11 max-md:h-10'" :disabled="!!l.locked || !!l.confirmed" @click="l[padField(l)] = ''">ล้าง{{ padField(l) === 'amount' ? 'ยอดเงินสดครั้งนี้' : 'รับเงินมา' }}</button>
                 <button v-if="!l.locked && !l.confirmed && lineAmt(l) > 0 && changeOf(l) >= 0 && !binding" type="button" class="btn-primary col-span-2 h-14 w-full text-lg max-md:h-10 max-md:text-base" @click="keepAndAddMore">บันทึกยอดเงินสดนี้</button>
               </div>
