@@ -1,4 +1,4 @@
-import { startSync, selectAll, withVer, casUpdate } from './tableSync'
+import { startSync, selectAll, withVer, casUpdate, fillArray } from './tableSync'
 
 // ซิงก์ลูกค้า (db.customers) กับ punpang_customers · ข้อมูลทั่วไป/คะแนน/ที่อยู่ ฯลฯ เก็บใน data (jsonb)
 // ลูกค้าไม่ถูกลบจริง (ใช้ธง deleted/active) — ตารางไม่มี policy ลบ จึงข้ามการลบ
@@ -40,6 +40,12 @@ export async function pushCustomers(client, { upserts }, { known = new Set() } =
   for (const c of old) { const r = await upd(c); if (r.error) return r }
   return conflicts.length ? { ok: true, conflicts } : { ok: true }
 }
+// ดึงเฉพาะลูกค้าที่แก้หลังเวลา since
+export async function loadCustomersSince(client, since) {
+  const a = await selectAll((x, y) => client.from('punpang_customers').select('id,name,phone,note,data,updated_at').gte('updated_at', since).order('updated_at').order('id').range(x, y))
+  if (a.error) return { error: a.error.message }
+  return { items: (a.data || []).map(rowToCustomer) }
+}
 export async function loadCustomersByIds(client, ids) {
   const r = await client.from('punpang_customers').select('id,name,phone,note,data,updated_at').in('id', ids)
   if (r.error) return { error: r.error.message }
@@ -49,8 +55,10 @@ export function startCustomersSync({ client, db, canWrite, onError, debounceMs }
   const known = new Set()
   return startSync({
     list: () => db.customers,
-    replace: (items) => { db.customers.splice(0, db.customers.length, ...items); known.clear(); for (const i of items) known.add(i.id) },
+    replace: (items) => { fillArray(db.customers, items); known.clear(); for (const i of items) known.add(i.id) },
     load: () => loadCustomers(client),
+    loadSince: (since) => loadCustomersSince(client, since),
+    applyRows: (rows) => { for (const i of rows) known.add(i.id) },
     loadByIds: (ids) => loadCustomersByIds(client, ids),
     push: (changes) => pushCustomers(client, changes, { known }),
     canWrite, onError, debounceMs, label: 'ลูกค้า', poll: true,
