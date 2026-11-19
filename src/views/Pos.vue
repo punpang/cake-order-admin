@@ -350,6 +350,27 @@ const giftLines = computed(() => lineItems.value.filter((i) => i.promoGift))
 const usedPromos = computed(() => [...new Set(lineItems.value.flatMap((i) => (i.discounts || []).filter((d) => d.kind === 'promo' || d.kind === 'bundle' || d.kind === 'gift').map((d) => d.name)))])
 // แก้รายการบิลค้าง (แอดมิน): บิลที่กำลังแก้ · คูปองเดิมในบิลที่ยังไม่ได้เอาออก · ใช้คิดยอดตอนแก้
 const editBill = ref(null) // null = ขายใหม่จากตะกร้า
+// กันข้อมูลหายตอนรีเฟรช/เปลี่ยนหน้า: เก็บบิลที่กำลังขาย (ตะกร้า สมาชิก คูปอง ส่วนลด) ไว้ใน sessionStorage ของแท็บนี้ แล้วคืนให้หลังโหลดใหม่
+const DRAFT_KEY = 'pos-draft-v1'
+function readDraft() { try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null') } catch { return null } }
+function writeDraft() {
+  try {
+    const empty = !cart.value.length && !member.value && !couponIds.value.length && !discount.value
+    if (empty || editBill.value || !shift.value) sessionStorage.removeItem(DRAFT_KEY)
+    else sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ shiftId: shift.value.id, cart: cart.value, memberId: member.value?.id || null, memberChoice: memberChoice.value, couponIds: couponIds.value, discount: discount.value }))
+  } catch { /* เบราว์เซอร์ไม่ให้เก็บ: ใช้งานต่อได้ตามปกติ */ }
+}
+function restoreDraft() {
+  const d = readDraft()
+  if (!d || !shift.value || d.shiftId !== shift.value.id) return
+  cart.value = (d.cart || []).filter((l) => catalog.value.some((x) => x.id === l.refId && x.kind === l.kind))
+  member.value = d.memberId ? findCustomer(d.memberId) || null : null
+  memberChoice.value = d.memberChoice || null
+  couponIds.value = Array.isArray(d.couponIds) ? d.couponIds : []
+  discount.value = d.discount || ''
+}
+restoreDraft()
+watch([cart, member, memberChoice, couponIds, discount, editBill], writeDraft, { deep: true })
 const needMemberChoice = computed(() => !!shift.value && tab.value === 'sell' && !memberChoice.value && !editBill.value)
 watch(needMemberChoice, (v) => { if (v) nextTick(() => gateInputEl.value?.focus()) })
 const editDrop = ref([]) // คูปองเดิมในบิลที่เลือกเอาออก (มีผลตอนบันทึก)
