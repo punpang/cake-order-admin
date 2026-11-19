@@ -215,6 +215,28 @@ const rdMatches = computed(() => {
 // เวลาปัจจุบันเดินทุกวินาที (นับถอยหลังของคูปองที่ลูกค้ากดแสดง · หมดเวลาแล้วหายเอง)
 const nowTick = ref(Date.now())
 let tickTimer = null
+// ---------- โหมดแป้นพิมพ์ (หน้าชำระเงิน): กดคีย์บอร์ด → โหมดแป้นพิมพ์ · แตะหน้าจอ → กลับเป็นแป้นบนจอ ----------
+const kbMode = ref('touch')
+const payField = () => {
+  const l = focusLine.value
+  if (!l || l.locked || l.confirmed) return null
+  if (l.method === 'cash') return { l, field: padField(l) }
+  if (l.method === 'transfer' && !l.qrRef) return { l, field: 'amount' }
+  return null
+}
+function onPayKey(e) {
+  if (!payOpen.value || e.ctrlKey || e.metaKey || e.altKey) return
+  const t = e.target
+  if (t && t.closest && t.closest('input, textarea, select, [contenteditable]')) return // ช่องค้นหาสมาชิกยังพิมพ์ได้ตามปกติ
+  if (e.key === 'Enter') { if (canConfirm.value) { e.preventDefault(); kbMode.value = 'keyboard'; confirmPay() } return }
+  const f = payField()
+  if (!f) return
+  if (/^[0-9]$/.test(e.key) || e.key === '.') { e.preventDefault(); kbMode.value = 'keyboard'; padInput(f.l, f.field, e.key) }
+  else if (e.key === 'Backspace') { e.preventDefault(); kbMode.value = 'keyboard'; padInput(f.l, f.field, 'back') }
+}
+function onPayTouch() { if (payOpen.value) kbMode.value = 'touch' }
+onMounted(() => { window.addEventListener('keydown', onPayKey); window.addEventListener('pointerdown', onPayTouch) })
+onBeforeUnmount(() => { window.removeEventListener('keydown', onPayKey); window.removeEventListener('pointerdown', onPayTouch) })
 onMounted(() => { tickTimer = setInterval(() => { nowTick.value = Date.now(); sweepCoupons() }, 1000) })
 onBeforeUnmount(() => clearInterval(tickTimer))
 const nowIso = computed(() => new Date(nowTick.value).toISOString())
@@ -1318,7 +1340,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                 </div>
               </div>
               <div class="grid grid-cols-3 content-start gap-2 max-md:gap-1.5" aria-label="แป้นตัวเลขรับเงิน">
-                <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100 disabled:opacity-40 max-md:h-10 max-md:text-xl" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" :disabled="!!l.locked || !!l.confirmed" @click="padInput(l, padField(l), k)">{{ k === 'back' ? '⌫' : k }}</button>
+                <button v-for="k in PAD_KEYS" :key="k" type="button" :class="kbMode === 'keyboard' ? 'hidden' : ''" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100 disabled:opacity-40 max-md:h-10 max-md:text-xl" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" :disabled="!!l.locked || !!l.confirmed" @click="padInput(l, padField(l), k)">{{ k === 'back' ? '⌫' : k }}</button>
+                <p v-if="kbMode === 'keyboard'" class="col-span-3 rounded-2xl bg-stone-100 px-3 py-3 text-center text-sm text-stone-600">พิมพ์ตัวเลขจากคีย์บอร์ดได้เลย · Enter ยืนยัน · Backspace ลบ · แตะหน้าจอเพื่อกลับเป็นแป้นบนจอ</p>
                 <button type="button" class="col-span-1 h-11 rounded-2xl text-sm font-medium text-stone-600 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40 max-md:h-10 max-md:text-xs" :disabled="!!l.locked || !!l.confirmed" @click="l[padField(l)] = ''">ล้าง{{ padField(l) === 'amount' ? 'ยอดเงินสดครั้งนี้' : 'รับเงินมา' }}</button>
                 <button v-if="!l.locked && !l.confirmed && lineAmt(l) > 0 && changeOf(l) >= 0 && !binding" type="button" class="btn-primary col-span-2 h-14 w-full text-lg max-md:h-10 max-md:text-base" @click="keepAndAddMore">บันทึกยอดเงินสดนี้</button>
               </div>
@@ -1355,7 +1378,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               </div>
               <div v-if="l.split" class="flex flex-col gap-2">
                 <div class="grid grid-cols-3 gap-2" aria-label="แป้นตัวเลขยอดโอน">
-                  <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" @click="padInput(l, 'amount', k)">{{ k === 'back' ? '⌫' : k }}</button>
+                  <button v-for="k in PAD_KEYS" :key="k" type="button" :class="kbMode === 'keyboard' ? 'hidden' : ''" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" @click="padInput(l, 'amount', k)">{{ k === 'back' ? '⌫' : k }}</button>
                 </div>
                 <button type="button" class="btn-primary h-16 w-full text-xl" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
                 <button type="button" class="btn-outline h-11 w-full" @click="l.amount = ''">ล้างค่า</button>
