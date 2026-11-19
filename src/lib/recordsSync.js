@@ -22,22 +22,85 @@ export const RECORD_SPECS = {
 }
 export const specAllows = (rule, has) => rule === true || has('manage') || rule.some(has)
 
+// ช่วง 5: ชุดที่โตตามลูกค้า/ออร์เดอร์ โหลดตอนล็อกอินเฉพาะที่จำเป็น (recent) · หน้าที่ต้องใช้ทั้งหมดขอแบบเต็ม (recordsFull)
+// ตาราง records ไม่มี updated_at → รีเฟรชโหลดทั้งชุดเสมอ ตัวกรองจึงช่วยทุกรอบ · แถวที่ไม่ได้โหลดไม่ถูกลบ (diff ลบเฉพาะแถวที่อยู่ในสแนปช็อต)
+const DAY = 86400e3
+const ago = (nowMs, days) => new Date(nowMs - days * DAY).toISOString()
+const pendingOrSince = (days) => (q, nowMs) => q.or(`data->>status.eq.pending,created_at.gte."${ago(nowMs, days)}"`)
+const sinceDays = (days) => (q, nowMs) => q.gte('created_at', ago(nowMs, days))
+export const RECORD_RECENT = {
+  consents: (q, nowMs, startedAt) => q.gte('created_at', new Date(startedAt).toISOString()), // สถิติความยินยอมโหลดเมื่อเปิดหน้ากฎหมาย
+  notifySent: sinceDays(400), // ครอบคลุมวันเกิดที่วนทุกปี
+  birthdayGreeted: sinceDays(400),
+  reviews: pendingOrSince(180),
+  photoRequests: pendingOrSince(180),
+  deletionRequests: pendingOrSince(180),
+  // ยังใช้ได้ หรือ 400 วันล่าสุด · คูปองที่ออร์เดอร์ในเครื่องอ้างถึงปักหมุดแยก (pinRecordIds)
+  coupons: (q, nowMs) => q.or(`data->>status.is.null,data->>status.not.in.(delivered,used,refunded,lapsed,void),created_at.gte."${ago(nowMs, 400)}"`),
+}
+export const recordsFull = new Set()
+export const pinnedRecords = new Map()
+let startedAt = Date.now()
+export function resetRecordsScope(nowMs = Date.now()) { recordsFull.clear(); pinnedRecords.clear(); startedAt = nowMs }
+export function pinRecordIds(collection, ids) {
+  const set = pinnedRecords.get(collection) || new Set()
+  pinnedRecords.set(collection, set)
+  for (const id of ids) if (id) set.add(id)
+}
+// คูปองที่ออร์เดอร์อ้างถึง (ใช้ส่วนลด + คูปองคืนเงินที่ออกจากการคืน) → ต้องอยู่ในเครื่องเพื่อแก้/ยกเลิกออร์เดอร์ได้
+export const orderCouponIds = (orders) => {
+  const ids = new Set()
+  for (const o of orders || []) {
+    for (const u of o.couponsUsed || []) if (u?.couponId) ids.add(u.couponId)
+    for (const r of o.refunds || []) if (r?.couponId) ids.add(r.couponId)
+  }
+  return [...ids]
+}
+
 const rowToItem = (kind, r) => (kind === 'strings' ? r.id : { ...(r.data || {}), id: r.id })
 const itemToRow = (collection, kind, it) => (kind === 'strings' ? { collection, id: it.id, data: {} } : (({ id, ...rest }) => ({ collection, id, data: rest }))(it))
 
-export async function loadRecords(client, collection, spec) {
-  const asc = spec.order === 'asc'
-  const r = spec.limit
-    ? await client.from('punpang_records').select('id,data').eq('collection', collection).order('created_at', { ascending: asc }).order('id', { ascending: asc }).limit(spec.limit)
-    : await selectAll((a, b) => client.from('punpang_records').select('id,data').eq('collection', collection).order('created_at', { ascending: asc }).order('id', { ascending: asc }).range(a, b))
-  if (r.error) return { error: r.error.message }
-  const items = (r.data || []).map((x) => rowToItem(spec.kind, x))
+const baseQuery = (client, collection, asc) => client.from('punpang_records').select('id,data').eq('collection', collection).order('created_at', { ascending: asc }).order('id', { ascending: asc })
+const sortItems = (spec, items) => {
   // แถวที่เพิ่มพร้อมกันมี created_at เท่ากัน → เรียงซ้ำด้วยเวลาในข้อมูล (createdAt/at) ให้ตรงลำดับในแอป
   if (spec.kind === 'list') {
+    const asc = spec.order === 'asc'
     const t = (x) => String(x.createdAt || x.at || '')
     if (items.some((x) => t(x))) items.sort((a, b) => (asc ? t(a).localeCompare(t(b)) : t(b).localeCompare(t(a))))
   }
-  return { items }
+  return items
+}
+// ดึงตาม id (ทีละ 100 · ความยาว URL)
+export async function fetchRecordIds(client, collection, spec, ids) {
+  const out = []
+  for (let i = 0; i < ids.length; i += 100) {
+    const r = await client.from('punpang_records').select('id,data').eq('collection', collection).in('id', ids.slice(i, i + 100))
+    if (r.error) return { error: r.error.message }
+    out.push(...(r.data || []))
+  }
+  return { items: sortItems(spec, out.map((x) => rowToItem(spec.kind, x))) }
+}
+
+export async function loadRecords(client, collection, spec, nowMs = Date.now()) {
+  const asc = spec.order === 'asc'
+  const recent = recordsFull.has(collection) ? null : RECORD_RECENT[collection]
+  const r = spec.limit
+    ? await baseQuery(client, collection, asc).limit(spec.limit)
+    : await selectAll((a, b) => (recent ? recent(baseQuery(client, collection, asc), nowMs, startedAt) : baseQuery(client, collection, asc)).range(a, b))
+  if (r.error) return { error: r.error.message }
+  const rows = r.data || []
+  // แถวที่ปักหมุดไว้แต่ไม่ผ่านตัวกรอง → ดึงเพิ่ม (กันรีเฟรชรอบถัดไปเอาออกจากเครื่อง)
+  const pins = recent ? [...(pinnedRecords.get(collection) || [])] : []
+  if (pins.length) {
+    const have = new Set(rows.map((x) => x.id))
+    const miss = pins.filter((id) => !have.has(id))
+    for (let i = 0; i < miss.length; i += 100) {
+      const p = await client.from('punpang_records').select('id,data').eq('collection', collection).in('id', miss.slice(i, i + 100))
+      if (p.error) return { error: p.error.message }
+      rows.push(...(p.data || []))
+    }
+  }
+  return { items: sortItems(spec, rows.map((x) => rowToItem(spec.kind, x))) }
 }
 
 export async function pushRecords(client, collection, spec, { upserts, deletes }) {
