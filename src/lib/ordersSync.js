@@ -44,7 +44,9 @@ export async function loadOrdersSince(client, since) {
 // customerId / customerIds · pickupFrom–pickupTo (YYYY-MM-DD วันนัด รวมทั้งสองวัน) · updatedSince / createdSince / createdBefore (ISO)
 // birthdays = มีวันเกิดและไม่ยกเลิก · deliveredReported = ส่งมอบแล้วแต่ยังมีงวดที่แจ้งรอตรวจ
 const ORDER_COLS = 'id,code,customer_id,status,fulfillment,channel,data,updated_at'
+const WHERE_KEYS = ['customerId', 'customerIds', 'pickupFrom', 'pickupTo', 'updatedSince', 'createdSince', 'createdBefore', 'birthdays', 'deliveredReported']
 export async function loadOrdersWhere(client, spec = {}) {
+  if (!WHERE_KEYS.some((k) => spec[k])) return { error: 'ต้องระบุเงื่อนไขอย่างน้อยหนึ่งข้อ (ห้ามดึงออร์เดอร์ทั้งตาราง)' }
   if (spec.customerIds && !spec.customerIds.length) return { items: [] }
   const a = await selectAll((x, y) => {
     let qy = client.from('punpang_orders').select(ORDER_COLS)
