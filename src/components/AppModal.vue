@@ -4,7 +4,7 @@ import { useDialogA11y } from '../lib/dialogA11y'
 import { kb } from '../lib/viewportFit'
 import AppIcon from './AppIcon.vue'
 
-defineProps({ title: { type: String, default: '' }, wide: { type: Boolean, default: false }, wider: { type: Boolean, default: false }, full: { type: Boolean, default: false }, big: { type: Boolean, default: false }, fit: { type: Boolean, default: false } }) // full: เต็มจอ · fit: ไม่มีการเลื่อนทั้งแนวตั้งและแนวนอน (เนื้อหาต้องพอดีกรอบ) // wider: กว้างขึ้นบนจอ lg สำหรับเลย์เอาต์สองคอลัมน์
+defineProps({ top: { type: Boolean, default: false }, title: { type: String, default: '' }, wide: { type: Boolean, default: false }, wider: { type: Boolean, default: false }, full: { type: Boolean, default: false }, big: { type: Boolean, default: false }, fit: { type: Boolean, default: false } }) // full: เต็มจอ · fit: ไม่มีการเลื่อนทั้งแนวตั้งและแนวนอน (เนื้อหาต้องพอดีกรอบ) // wider: กว้างขึ้นบนจอ lg สำหรับเลย์เอาต์สองคอลัมน์ · top: วางกล่องชิดด้านบนของพื้นที่ที่มองเห็น (ใช้กับ dialog ที่มีแป้นตัวเลขอยู่ล่าง)
 const emit = defineEmits(['close'])
 const box = ref(null)
 const titleId = `dlg-${useId()}`
@@ -26,7 +26,7 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
       class="fixed inset-0 z-[62] overscroll-contain bg-stone-900/45 backdrop-blur-[2px]" :class="fit ? 'overflow-hidden' : 'overflow-y-auto'"
       :style="kb.open ? { top: 'var(--vvt, 0px)', bottom: 'auto', height: 'var(--vvh, 100%)' } : undefined"
     >
-    <div class="flex h-full justify-center" :class="full ? 'items-end pt-0 sm:items-center sm:p-0' : 'items-center p-4 sm:p-6'" @click.self="backdrop">
+    <div class="flex h-full justify-center" :class="full ? 'items-end pt-0 sm:items-center sm:p-0' : top ? 'items-start p-4 pt-6 sm:p-6' : 'items-center p-4 sm:p-6'" @click.self="backdrop">
       <div
         ref="box"
         data-dialog

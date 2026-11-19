@@ -1212,20 +1212,20 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · เต็มจอ ไม่เลื่อน: ซ้าย = สรุปยอด สมาชิก คูปอง และรายการที่รับแล้ว · ขวา = เลือกวิธี และทำรายการนั้น -->
     <!-- ค้นหาสมาชิก: ไดอะล็อกแยก เปิดจากปุ่ม "สมาชิก" · พิมพ์เบอร์หรือสแกนแล้วกดเลือกรายการ -->
-    <AppModal v-if="memberSearchOpen" title="ค้นหาสมาชิก" @close="memberSearchOpen = false; memberQ = ''">
+    <AppModal v-if="memberSearchOpen" top title="ค้นหาสมาชิก" @close="memberSearchOpen = false; memberQ = ''">
       <div class="space-y-3">
               <div class="flex gap-2">
           <input ref="memberInputEl" :value="memberQ" @input="(e) => { e.target.value = e.target.value.replace(/\D/g, ''); memberQ = e.target.value }" type="text" inputmode="numeric" data-numpad="int" class="input h-11 min-w-0 flex-1" placeholder="เบอร์ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
-          <button v-if="memberQ" type="button" class="shrink-0 rounded-full px-2 text-sm font-medium text-stone-500 underline" @click="memberQ = ''; memberInputEl?.focus()">ล้าง</button>
+          <button v-if="memberQ" type="button" class="btn-outline h-11 shrink-0 px-4" @click="memberQ = ''; memberInputEl?.focus()">ล้าง</button>
         </div>
         <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
         <div v-if="memberMatches.length" class="w-full space-y-2 max-md:basis-full">
         <div v-for="c in memberMatches" :key="c.id" class="flex w-full items-stretch gap-2 rounded-xl border border-stone-200 text-sm hover:border-brand-300">
-          <button type="button" class="flex min-w-0 flex-1 items-center justify-between gap-2 px-3 py-2.5 text-left" @click="pickMember(c)">
-            <span class="truncate font-semibold">{{ c.name }}</span>
-            <span class="shrink-0 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
+          <button type="button" class="flex min-w-0 flex-1 flex-col gap-0.5 px-4 py-3 text-left" @click="pickMember(c)">
+            <span class="truncate text-base font-semibold text-stone-900">{{ c.name }}</span>
+            <span class="text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
           </button>
-          <button type="button" class="shrink-0 border-l border-stone-200 px-3 text-brand-700" :aria-label="'ดูข้อมูลของ ' + c.name" @click="memberInfoOf = c">ข้อมูล ›</button>
+          <button type="button" class="shrink-0 border-l border-stone-200 px-4 text-sm font-semibold text-brand-700" :aria-label="'ดูข้อมูลของ ' + c.name" @click="memberInfoOf = c">ข้อมูล ›</button>
         </div>
         </div>
       </div>
