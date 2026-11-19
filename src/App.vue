@@ -143,7 +143,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
   <!-- แถบเมนูล่าง (มือถือ + แท็บเล็ตแนวตั้ง < lg): แถบบนไม่พอวางเมนูย่อยทั้งหมดจนกว่าจะกว้าง 1024px -->
   <nav
     v-if="navShow"
-    class="fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_rgb(63_46_46/0.10)]"
+    class="landscape:hidden fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_rgb(63_46_46/0.10)]"
     aria-label="เมนูล่าง"
   >
     <div class="mx-auto grid h-16 max-w-3xl items-center" :style="{ gridTemplateColumns: `repeat(${bottomCols + 2}, minmax(0, 1fr))` }">
