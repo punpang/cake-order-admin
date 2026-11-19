@@ -69,7 +69,7 @@ function startStaffRealtime(client, recNames) {
           // ข้อมูลที่เปลี่ยนจาก Realtime ดึงเบื้องหลัง: ไม่ขึ้นหน้าจอหมุนโหลด
           const byIds = await quietly(() => (p && !p.full && p.ids.size && x.refreshIds && p.ids.size <= 50 ? x.refreshIds([...p.ids]) : false))
           if (byIds) continue
-          await quietly(() => x.refresh())
+          await quietly(() => x.refresh({ full: !!p?.full })) // แถวถูกลบ/ไม่รู้ id → โหลดเต็ม · ไม่งั้นดึงเฉพาะที่เปลี่ยน
         } catch (e) { console.warn('รีเฟรชข้อมูลไม่สำเร็จ:', e?.message) }
       }
     })
@@ -141,7 +141,7 @@ const GROUP_LOADERS = {
     const m = await import('./ordersSync')
     m.setOrdersFullHistory(true)
     const h = syncs.find((x) => x && x.label === 'ออร์เดอร์')
-    if (h?.refresh) await h.refresh()
+    if (h?.refresh) await h.refresh({ full: true }) // ต้องโหลดทั้งตาราง (การดึงเฉพาะที่เปลี่ยนไม่ได้แถวเก่าที่ปิดแล้ว)
     return null
   },
   shifts: async (c) => {

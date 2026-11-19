@@ -1,4 +1,4 @@
-import { startSync, selectAll, withVer, casUpdate } from './tableSync'
+import { startSync, selectAll, withVer, casUpdate, fillArray } from './tableSync'
 import { orderRowOf, balanceOf } from './orderCreate.js'
 import { parseNo } from './docNo'
 import { orderTotals } from './pricing'
@@ -33,6 +33,15 @@ export async function loadOrders(client) {
   if (a.error) return { error: a.error.message }
   return { items: (a.data || []).map(rowToOrder) }
 }
+
+// ดึงเฉพาะแถวที่แก้หลังเวลา since (ทุกสถานะ: ออร์เดอร์ที่เพิ่งปิดต้องถูกเอาออกจากเครื่องด้วย keep ของ startOrdersSync)
+export async function loadOrdersSince(client, since) {
+  const a = await selectAll((x, y) => client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data,updated_at').gte('updated_at', since).order('updated_at').order('id').range(x, y))
+  if (a.error) return { error: a.error.message }
+  return { items: (a.data || []).map(rowToOrder) }
+}
+// อยู่ในชุดที่โหลดไว้ไหม: โหมดประวัติเต็ม = ทุกแถว · ปกติ = ยังไม่ปิด หรือถูกปักหมุดเปิดดูอยู่
+export const keepOrder = (o) => fullHistory || pinned.has(o.id) || !['cancelled', 'delivered'].includes(o.status)
 
 // หน้าออเดอร์: ดึงเฉพาะแถวตามตัวกรอง (กรองที่ฐานข้อมูล) · from/to = YYYY-MM-DD ของวันนัด (รวมทั้งสองวัน) · ว่าง = ไม่จำกัด
 // pickup_at เป็น timestamptz แต่แอปเก็บเวลานัดแบบท้องถิ่นไม่มีโซน → เทียบด้วยโซนเดียวกับตอนเขียน (ช่วง [from, to+1 วัน))
@@ -196,8 +205,9 @@ export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCre
     list: () => db.orders,
     replace: (items, { refresh = false } = {}) => {
       // คงออร์เดอร์ที่เปิดดูเฉพาะรายการ (ปักหมุดไว้) แม้อยู่นอกช่วง
-      const keep = db.orders.filter((o) => pinned.has(o.id) && !items.some((i) => i.id === o.id))
-      db.orders.splice(0, db.orders.length, ...items, ...keep)
+      const ids = new Set(items.map((i) => i.id))
+      const stay = db.orders.filter((o) => pinned.has(o.id) && !ids.has(o.id))
+      fillArray(db.orders, items, stay)
       known.clear()
       slips.clear()
       for (const i of items) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) }
@@ -205,6 +215,8 @@ export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCre
       if (numbering) numbering.seen(items.map((i) => i.code), { reset: !refresh }) // รีเฟรชระหว่างใช้งาน: ห้ามล้างตัวนับ/ชุดเลขที่ขอไว้
     },
     load: () => loadOrders(client),
+    loadSince: (since) => loadOrdersSince(client, since),
+    keep: keepOrder,
     loadByIds: (ids) => loadOrdersByIds(client, ids),
     applyRows: (rows) => { for (const i of rows) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) } if (numbering) numbering.seen(rows.map((i) => i.code), { reset: false }) },
     push: (changes) => pushOrders(client, changes, { onRecode, onCreated, retryDelay, numbering, known, slips, onGate: (m) => onError(m) }),

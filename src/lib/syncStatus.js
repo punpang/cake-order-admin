@@ -1,5 +1,5 @@
 import { reactive, computed, nextTick } from 'vue'
-import { showToast } from './toast'
+import { showToast } from './toast.js'
 
 // สถานะการบันทึกข้อมูลขึ้นเซิร์ฟเวอร์ (ฝั่งพนักงาน) — pending = รอบันทึก · saving = กำลังบันทึก · failed = บันทึกไม่สำเร็จ (ระบบลองใหม่เอง)
 // ทุกตัวซิงก์ลงทะเบียนด้วยชื่อ (key) ของตัวเอง · แถบสถานะใน admin shell และตัวกันปิดแท็บอ่านจากที่นี่

@@ -1,5 +1,5 @@
 import { watch } from 'vue'
-import { syncSet, syncOk, syncDrop } from './syncStatus'
+import { syncSet, syncOk, syncDrop } from './syncStatus.js'
 
 // เครื่องยนต์ซิงก์กลาง: โหลดรายการจาก Supabase เข้า db แล้วเขียนกลับเมื่อมีการแก้ (write-through)
 // - โหลดไม่สำเร็จ = ไม่เริ่มตัวเขียนกลับ (กันเขียนทับข้อมูลจริงด้วยรายการว่าง/ตัวอย่าง)
@@ -46,12 +46,41 @@ export async function casUpdate(client, table, id, values, ver) {
   return { ok: true, ver: v.data?.updated_at || null }
 }
 
+// แทนที่เนื้อในอาร์เรย์แบบไม่ใช้ spread (splice(0, n, ...items) เกิน ~100k รายการ = call stack ล้น)
+export function fillArray(arr, ...parts) {
+  arr.length = 0
+  for (const part of parts) for (let i = 0; i < part.length; i++) arr.push(part[i])
+  return arr
+}
+
+// สถิติการดึงข้อมูลต่อตาราง (ช่วง 0 ของแผนลดการดึงข้อมูล): ครั้ง/แถว/เวลา แยกโหลดเต็มกับดึงเฉพาะที่เปลี่ยน
+// ดูในเบราว์เซอร์ได้ที่ window.__syncMetrics
+export const syncMetrics = {}
+export function noteSync(label, mode, rows, ms) {
+  const m = (syncMetrics[label || 'ไม่มีชื่อ'] ||= { full: { count: 0, rows: 0, ms: 0 }, delta: { count: 0, rows: 0, ms: 0 }, last: null })
+  const x = m[mode]
+  x.count++; x.rows += rows; x.ms += Math.round(ms)
+  m.last = { mode, rows, ms: Math.round(ms), at: new Date().toISOString() }
+}
+if (typeof window !== 'undefined') window.__syncMetrics = syncMetrics
+const clock = () => (typeof performance !== 'undefined' ? performance.now() : Date.now())
+
+// ดึงเฉพาะแถวที่เปลี่ยน (ใช้ updated_at ที่ trigger ฐานข้อมูลตั้งทุกครั้งที่แก้)
+// - ย้อนหลังเผื่อ DELTA_OVERLAP_MS: now() ของ Postgres = เวลาเริ่มธุรกรรม แถวที่ commit ช้าอาจมีเวลาเก่ากว่ารอบก่อน
+// - โหลดเต็มเป็นตาข่ายสำรองทุก FULL_EVERY_MS (เก็บแถวที่ถูกลบ/หลุดรอบ) · ไม่มี loadSince = โหลดเต็มทุกครั้งเหมือนเดิม
+export const DELTA_OVERLAP_MS = 120000
+export const FULL_EVERY_MS = 30 * 60000
+const verOf = (it) => it?._v || null
+const later = (a, b) => (!a ? b : !b ? a : Date.parse(b) > Date.parse(a) ? b : a)
+export const maxVer = (items, start = null) => items.reduce((m, it) => later(m, verOf(it)), start)
+
 // ลองเขียนซ้ำเองเมื่อเขียนไม่สำเร็จ: 5 → 15 → 60 วินาที (ค้างที่ 60)
 export const RETRY_MS = [5000, 15000, 60000]
 // แอปจริง (staffAuth) เปิดไว้: โหลดไม่สำเร็จ = ล้างรายการตัวอย่างในเครื่อง ไม่ให้ดูเหมือนข้อมูลจริง · ค่าเริ่มต้นปิด (เทสต์/การใช้งานอื่นคงข้อมูลเดิม)
 export const syncOptions = { clearOnLoadFail: false }
 let syncSeq = 0
-export async function startSync({ list, replace, load, push, canWrite, onError = () => {}, label = '', debounceMs = 600, poll = false, loadByIds = null, applyRows = null }) {
+export async function startSync({ list, replace, load, push, canWrite, onError = () => {}, label = '', debounceMs = 600, poll = false, loadByIds = null, applyRows = null, loadSince = null, keep = null, fullEveryMs = FULL_EVERY_MS, now = () => Date.now() }) {
+  const t0 = clock()
   const loaded = await load()
   if (loaded.error) {
     onError(`โหลด${label}จากฐานข้อมูลไม่สำเร็จ: ${loaded.error}`)
@@ -60,7 +89,10 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
     return { stop() {}, loaded: false, label }
   }
   replace(loaded.items)
+  noteSync(label, 'full', loaded.items.length, clock() - t0)
   let loadedAt = Date.now() // เวลาโหลดสำเร็จล่าสุด (ใช้บอกว่าข้อมูลในเครื่องสดแค่ไหน)
+  let mark = maxVer(loaded.items) // updated_at ล่าสุดที่เห็น (จุดเริ่มของการดึงเฉพาะที่เปลี่ยน)
+  let lastFullAt = now()
   const snapshot = new Map(list().map((i) => [i.id, JSON.stringify(i)]))
   const key = label || `ซิงก์${++syncSeq}`
   let timer = null
@@ -70,12 +102,42 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
   let again = false
   // ดึงข้อมูลล่าสุดจากฐานข้อมูลมาแทนที่ (เมื่อคนอื่น/ลูกค้าแก้) — ทำเฉพาะเมื่อไม่มีการแก้ค้างอยู่ในเครื่อง (กันทับงานที่กำลังแก้)
   // คืน true เมื่อมีการอัปเดตจริง
-  const refresh = async () => {
-    const dirty = () => { const d = diffById(snapshot, list()); return d.upserts.length || d.deletes.length }
+  const dirty = () => { const d = diffById(snapshot, list()); return d.upserts.length || d.deletes.length }
+  // ดึงเฉพาะแถวที่ updated_at ใหม่กว่ารอบก่อน แล้วรวมเข้ารายการ (แถวที่ keep() = false → เอาออกจากเครื่อง เช่น ออร์เดอร์ที่ปิดแล้ว)
+  const refreshDelta = async () => {
+    const t = clock()
+    const r = await loadSince(new Date(Date.parse(mark) - DELTA_OVERLAP_MS).toISOString())
+    if (r.error || busy || dirty()) return false
+    loadedAt = Date.now()
+    noteSync(label, 'delta', r.items.length, clock() - t)
+    const arr = list()
+    const at = new Map(arr.map((it, i) => [it.id, i]))
+    const kept = []
+    const gone = new Set()
+    let changed = false
+    for (const it of r.items) {
+      const k = at.get(it.id)
+      if (keep && !keep(it)) { if (k !== undefined) { gone.add(it.id); changed = true } continue }
+      kept.push(it)
+      if (k === undefined) { arr.push(it); at.set(it.id, arr.length - 1); changed = true } else if (JSON.stringify(arr[k]) !== JSON.stringify(it)) { arr.splice(k, 1, it); changed = true }
+    }
+    for (const it of kept) snapshot.set(it.id, JSON.stringify(arr[at.get(it.id)]))
+    if (gone.size) { for (let i = arr.length - 1; i >= 0; i--) if (gone.has(arr[i].id)) arr.splice(i, 1); for (const id of gone) snapshot.delete(id) }
+    if (kept.length) applyRows?.(kept)
+    mark = maxVer(r.items, mark)
+    return changed
+  }
+  // full = true บังคับโหลดทั้งตาราง (เช่น Realtime แจ้งว่ามีแถวถูกลบ)
+  const refresh = async ({ full = false } = {}) => {
     if (busy || dirty()) return false
+    if (loadSince && mark && !full && now() - lastFullAt < fullEveryMs) return refreshDelta()
+    const t = clock()
     const r = await load()
     if (!r.error) loadedAt = Date.now()
     if (r.error || busy || dirty()) return false // โหลดไม่สำเร็จ หรือระหว่างโหลดมีการแก้ในเครื่อง → รอบหน้า
+    noteSync(label, 'full', r.items.length, clock() - t)
+    lastFullAt = now()
+    mark = maxVer(r.items, mark)
     const remote = diffById(snapshot, r.items)
     if (!remote.upserts.length && !remote.deletes.length) return false
     replace(r.items, { refresh: true })
