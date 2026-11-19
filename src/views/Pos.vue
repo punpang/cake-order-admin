@@ -92,6 +92,7 @@ function addLine(x, mods, qty) {
   else cart.value.push({ kind: x.kind, refId: x.id, qty, mods })
 }
 function add(x) {
+  if (!memberChoice.value && !editBill.value) return
   if (!canAdd(x)) return
   if (groupsOf(x).length) return openMods(x)
   addLine(x, [], 1)
@@ -214,6 +215,13 @@ const redeemInfo = (c) => {
   }
 }
 const memberSearchOpen = ref(false)
+// ทุกการขายต้องเลือกก่อนว่า มีสมาชิก หรือ ไม่มี (null = ยังไม่เลือก → ยังเพิ่มสินค้าไม่ได้)
+const memberChoice = ref(null)
+const needMemberChoice = computed(() => !!shift.value && tab.value === 'sell' && !memberChoice.value && !editBill.value)
+// กดมีสมาชิกแล้วปิดค้นหาโดยไม่ได้เลือกใคร → กลับไปให้เลือกใหม่
+watch(memberSearchOpen, (open) => { if (!open && memberChoice.value === 'yes' && !member.value) memberChoice.value = null })
+function chooseNoMember() { member.value = null; couponIds.value = []; memberChoice.value = 'none' }
+function chooseMember() { memberChoice.value = 'yes'; memberSearchOpen.value = true }
 const memberInputEl = ref(null)
 watch(memberSearchOpen, (v) => { if (v) nextTick(() => memberInputEl.value?.focus()) })
 const memberInfoOf = ref(null) // สมาชิกที่เปิดดูข้อมูลในไดอะล็อกแยก // กดปุ่ม "สมาชิก" ก่อน แล้วจึงแสดงช่องค้นหา
@@ -288,9 +296,10 @@ async function rdHand(cp) {
 }
 const couponIds = ref([])
 const discount = ref('')
-function clearMemberPick() { member.value = null; couponIds.value = [] }
+function clearMemberPick() { chooseNoMember() }
 function pickMember(c) {
   member.value = c
+  memberChoice.value = 'yes'
   memberQ.value = ''
   memberSearchOpen.value = false
   couponIds.value = []
@@ -828,6 +837,7 @@ function startEdit(o) {
   editDrop.value = []
   cart.value = cartOfBill(o.items, lineKey)
   member.value = (o.customerId && findCustomer(o.customerId)) || null
+  memberChoice.value = member.value ? 'yes' : 'none'
   couponIds.value = []
   discount.value = ''
   cartOpen.value = false
@@ -838,6 +848,7 @@ function exitEdit() {
   editDrop.value = []
   cart.value = []
   member.value = null
+  memberChoice.value = null
   couponIds.value = []
   discount.value = ''
 }
@@ -892,6 +903,7 @@ async function sellNow(opts = {}) {
   }
   cart.value = []
   member.value = null
+  memberChoice.value = null
   couponIds.value = []
   discount.value = ''
   // ขายแล้ว (ใบเสร็จแสดงได้) แต่ต้องแจ้งตามจริงถ้ายังบันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ
@@ -993,7 +1005,15 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <button v-for="c in editBill.couponsUsed" :key="c.couponId" type="button" class="chip h-auto py-1" :class="editDrop.includes(c.couponId) ? 'chip-off line-through' : 'chip-on'" :aria-pressed="editDrop.includes(c.couponId)" @click="toggleDrop(c.couponId)">{{ c.name }} −{{ money(c.amount) }}</button>
         </span>
       </div>
-      <section class="flex min-h-0 min-w-0 flex-col">
+      <section class="relative flex min-h-0 min-w-0 flex-col">
+        <div v-if="needMemberChoice" class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 rounded-3xl bg-cream/95 p-6 text-center">
+          <p class="text-lg font-semibold text-stone-900">ลูกค้ามีสมาชิกหรือไม่?</p>
+          <p class="text-sm text-stone-500">เลือกก่อนเริ่มขาย</p>
+          <div class="grid w-full max-w-sm grid-cols-2 gap-3">
+            <button type="button" class="btn-primary h-14 text-base" @click="chooseMember">มีสมาชิก</button>
+            <button type="button" class="btn-outline h-14 text-base" @click="chooseNoMember">ไม่มี</button>
+          </div>
+        </div>
         <div class="mb-3 flex shrink-0 gap-2">
           <label class="relative min-w-0 flex-1">
             <span class="sr-only">ค้นหาสินค้า</span>
