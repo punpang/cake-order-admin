@@ -70,6 +70,11 @@ kcode=$?
 [ "$kcode" = "0" ] && echo "✓ member_scan.test.sql ผ่านทั้งหมด" || echo "✗ member_scan.test.sql ล้มเหลว"
 [ "$kcode" = "0" ] || exit "$kcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/purge_customer.test.sql
+gcode=$?
+[ "$gcode" = "0" ] && echo "✓ purge_customer.test.sql ผ่านทั้งหมด" || echo "✗ purge_customer.test.sql ล้มเหลว"
+[ "$gcode" = "0" ] || exit "$gcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"

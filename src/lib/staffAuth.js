@@ -287,6 +287,25 @@ async function startData(staff) {
   import('./chatMedia').then((m) => m.setChatMediaSigner(m.makeSigner(client))).catch(() => {})
   store.numbering.setAlloc(async (p, d, n) => { const r = await client.rpc('punpang_alloc_numbers', { p_prefix: p, p_day: d, p_n: n }); return r.error ? null : r.data })
   store.setQuoteServer((chatId, draft) => createQuoteRemote(client, chatId, draft))
+  // ลบข้อมูลลูกค้าตามคำขอ (PDPA) ที่ฐานข้อมูล: อ่านไฟล์ของออร์เดอร์ก่อน → RPC ลบ → ลบไฟล์/รูปที่เผยแพร่ → โหลดแถวที่ถูกแก้กลับมา
+  store.deletionServer.purge = async (customerId, textGroups) => {
+    const os = await import('./ordersSync')
+    const pre = await client.from('punpang_orders').select('id,code,customer_id,status,fulfillment,channel,data,updated_at').eq('customer_id', customerId)
+    if (pre.error) return { error: pre.error.message }
+    const before = (pre.data || []).map(os.rowToOrder)
+    const r = await client.rpc('punpang_purge_customer', { p_customer: customerId, p_text_groups: textGroups })
+    if (r.error) return { error: r.error.code === '42501' ? 'เฉพาะแอดมิน' : r.error.message }
+    if (r.data?.error) return { error: r.data.error }
+    const refs = new Set()
+    for (const o of before) for (const x of storage.privateRefsOf(o)) refs.add(x)
+    if (refs.size) storage.removePrivate(client, [...refs]).catch(() => {})
+    store.unpublishOrderPhotos(before)
+    const h = (label) => syncs.find((x) => x && x.label === label)
+    const localOrders = before.map((o) => o.id).filter((id) => store.db.orders.some((o) => o.id === id))
+    if (localOrders.length) await h('ออร์เดอร์')?.refreshIds?.(localOrders)
+    await h('ลูกค้า')?.refreshIds?.([customerId])
+    return { ok: true, orderIds: r.data?.orderIds || [], chatIds: r.data?.chatIds || [] }
+  }
   // ด่านตรวจออร์เดอร์เสี่ยง: อ่านสถานะด่าน และให้ผู้จัดการบันทึกการตรวจ (ฐานข้อมูลเป็นผู้ตัดสินจริง)
   store.setOrderGateServer({
     fetch: async (id) => {
@@ -459,4 +478,4 @@ export async function currentStaff() {
   return { staff: data }
 }
 
-export async function staffSignOut() { await stopPush(); staffState.staff = null; staffState.loadFailed = []; dataCtx = null; groupLoads.clear(); { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1) }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
+export async function staffSignOut() { await stopPush(); staffState.staff = null; staffState.loadFailed = []; dataCtx = null; groupLoads.clear(); { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1); m.deletionServer.purge = null }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }

@@ -4687,6 +4687,15 @@ function scrubCustomer(id) {
     for (const p of o.payments) Object.assign(p, { slip: '', note: '' })
     if (o.cancel) o.cancel.refundNote = ''
   }
+  dropCustomerLinked(id, orderIds, chatIds, addrs)
+  db.customerAccounts = db.customerAccounts.filter((a) => a.customerId !== id)
+  // OTP: ลบของเจ้าของบัญชีนี้ + ที่ใช้แล้ว/หมดอายุทั้งหมด (กันเบอร์เก่าตกค้างหลังเปลี่ยนเบอร์)
+  db.otps = db.otps.filter((o) => !addrs.has(o.phone) && o.accountId !== id && !o.used && o.expiresAt > Date.now())
+  Object.assign(cu, { name: 'ลูกค้าที่ลบแล้ว', phone: '', note: '', fbPsid: '', promoOptIn: false, active: false, deleted: true, deletedAt: now(), ledger: [], spins: 0 })
+  delete cu.tax
+}
+// เอาข้อมูลที่ผูกกับลูกค้าออกจากเครื่อง (แชท ใบเสนอ คูปอง รีวิว คิวข้อความ ลิงก์ กันส่งซ้ำ) · ใช้ทั้งโหมดตัวอย่าง และหลังเซิร์ฟเวอร์ลบแล้ว (การซิงก์ลบซ้ำได้ไม่เป็นไร)
+function dropCustomerLinked(id, orderIds, chatIds, addrs) {
   db.orderLinks = db.orderLinks.filter((l) => !orderIds.has(l.orderId)) // ลิงก์ออร์เดอร์ของลูกค้านี้ใช้ไม่ได้อีก
   for (let i = db.chats.length - 1; i >= 0; i--) if (chatIds.has(db.chats[i].id)) db.chats.splice(i, 1)
   for (const k of chatIds) delete db.chatDrafts[k]
@@ -4696,19 +4705,33 @@ function scrubCustomer(id) {
   for (let i = db.outbox.length - 1; i >= 0; i--) if (orderIds.has(db.outbox[i].orderId) || addrs.has(db.outbox[i].to)) db.outbox.splice(i, 1)
   db.birthdayGreeted = db.birthdayGreeted.filter((k) => !k.startsWith(`${id}|`))
   db.notifySent = db.notifySent.filter((k) => !k.includes(`|${id}|`))
-  db.customerAccounts = db.customerAccounts.filter((a) => a.customerId !== id)
-  // OTP: ลบของเจ้าของบัญชีนี้ + ที่ใช้แล้ว/หมดอายุทั้งหมด (กันเบอร์เก่าตกค้างหลังเปลี่ยนเบอร์)
-  db.otps = db.otps.filter((o) => !addrs.has(o.phone) && o.accountId !== id && !o.used && o.expiresAt > Date.now())
-  Object.assign(cu, { name: 'ลูกค้าที่ลบแล้ว', phone: '', note: '', fbPsid: '', promoOptIn: false, active: false, deleted: true, deletedAt: now(), ledger: [], spins: 0 })
   if (customerSession.customerId === id) customerSession.customerId = null
 }
-export function approveDeletion(requestId) {
+// ลบที่ฐานข้อมูล (ตั้งโดยชั้นเชื่อม Supabase: RPC punpang_purge_customer + ลบไฟล์ + โหลดแถวที่ถูกแก้กลับมา)
+// purge(customerId, textGroupIds) → { ok, orderIds, chatIds } | { error } · ไม่ตั้ง = โหมดตัวอย่าง ลบในเครื่อง
+export const deletionServer = { purge: null }
+const PURGE_ERRORS = { open_orders: 'มีออร์เดอร์ที่ยังไม่จบ', balance_due: 'มียอดค้างชำระ', no_customer: 'ไม่พบลูกค้านี้' }
+// รูปงานที่เผยแพร่แล้วของออร์เดอร์ (แถวจากฐานข้อมูลก่อนลบ): เอาออกจากแกลเลอรี/หน้าสินค้า และลบไฟล์สาธารณะ
+export function unpublishOrderPhotos(orders) {
+  for (const o of orders) for (const it of o.items || []) for (const p of it.workPhotos || []) unpublishPhoto(o, it, p)
+}
+export async function approveDeletion(requestId) {
   if (!can('manage')) return { error: 'เฉพาะแอดมิน' }
   const r = db.deletionRequests.find((x) => x.id === requestId)
   if (!r || r.status !== 'pending') return { error: 'คำขอนี้ดำเนินการแล้ว' }
   const blockers = deletionBlockers(r.customerId)
   if (blockers.length) return { error: blockers.join(' · '), blockers }
-  scrubCustomer(r.customerId)
+  if (deletionServer.purge) {
+    const textGroups = db.optionGroups.filter((g) => g.type === 'text').map((g) => g.id)
+    const cu = findCustomer(r.customerId)
+    const addrs = new Set([cu?.phone, cu?.fbPsid].filter(Boolean))
+    const res = await deletionServer.purge(r.customerId, textGroups)
+    if (res.error) return { error: PURGE_ERRORS[res.error] || `ลบข้อมูลที่ฐานข้อมูลไม่สำเร็จ: ${res.error}` }
+    if (r.status !== 'pending') return { ok: true } // ระหว่างรอมีอีกเครื่องดำเนินการแล้ว
+    const orderIds = new Set([...(res.orderIds || []), ...db.orders.filter((o) => o.customerId === r.customerId).map((o) => o.id)])
+    const chatIds = new Set([...(res.chatIds || []), ...db.chats.filter((c) => c.customerId === r.customerId).map((c) => c.id)])
+    dropCustomerLinked(r.customerId, orderIds, chatIds, addrs)
+  } else scrubCustomer(r.customerId)
   Object.assign(r, { status: 'approved', decidedAt: now(), decidedBy: session.role })
   return { ok: true }
 }

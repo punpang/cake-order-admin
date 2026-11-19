@@ -25,6 +25,7 @@ const rows = computed(() =>
 const count = (v) => db.deletionRequests.filter((r) => !v || r.status === v).length
 
 const msg = ref('')
+const busy = ref('') // คำขอที่กำลังลบ (กันกดซ้ำระหว่างรอฐานข้อมูล)
 const err = ref('')
 async function approve(row) {
   msg.value = err.value = ''
@@ -35,9 +36,12 @@ async function approve(row) {
     danger: true,
   })
   if (!ok) return
-  const res = approveDeletion(row.r.id)
-  if (res.ok) msg.value = 'ลบข้อมูลแล้ว'
-  else err.value = res.error
+  busy.value = row.r.id
+  try {
+    const res = await approveDeletion(row.r.id)
+    if (res.ok) msg.value = 'ลบข้อมูลแล้ว'
+    else err.value = res.error
+  } finally { busy.value = '' }
 }
 
 const rej = reactive({ row: null, reason: '', error: '' })
@@ -72,7 +76,7 @@ function reject() {
             <li class="text-xs">อนุมัติได้เมื่อออร์เดอร์จบและไม่มียอดค้าง · หรือปฏิเสธพร้อมแจ้งเหตุผล</li>
           </ul>
           <div class="flex gap-2">
-            <button class="btn-danger flex-1" :disabled="row.blockers.length > 0" @click="approve(row)">อนุมัติและลบข้อมูล</button>
+            <button class="btn-danger flex-1" :disabled="row.blockers.length > 0 || !!busy" @click="approve(row)">{{ busy === row.r.id ? 'กำลังลบข้อมูล…' : 'อนุมัติและลบข้อมูล' }}</button>
             <button class="btn-outline flex-1" @click="openReject(row)">ปฏิเสธ</button>
           </div>
         </template>
