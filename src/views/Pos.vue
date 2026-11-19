@@ -9,7 +9,7 @@ import {
   customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons, claimPosCoupons, releaseCoupons,
   newPosQrRef, posQrExpired, issueLuckyToken, reserveBillId,
 } from '../data/store'
-import { activeSecondsLeft } from '../lib/loyalty'
+import { activeSecondsLeft, expiringSoon, pointBalance } from '../lib/loyalty'
 import { orderTotals, discountLines } from '../lib/pricing'
 import { pointPromoFor } from '../lib/posPromo'
 import { coBought, rankSellers, suggestBundles } from '../lib/posRec'
@@ -26,7 +26,7 @@ import { isNative, getDeviceConfig, pushDisplay, showDisplay, displayCount } fro
 import { printOrderReceipt } from '../lib/receiptRaster'
 import { billerIdOf, promptPayBillerPayload } from '../lib/promptpay'
 import DeviceSettings from '../components/DeviceSettings.vue'
-import { money, dateTime, timeOnly, phoneDigits, formatPhone, phoneValid } from '../lib/format'
+import { money, dateTime, timeOnly, dateOnly, toDateStr, phoneDigits, formatPhone, phoneValid } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
 import { kb } from '../lib/viewportFit'
 import AppModal from '../components/AppModal.vue'
@@ -196,6 +196,10 @@ const cartOpen = ref(false) // มือถือ: แผงตะกร้า�
 
 // สมาชิก / คะแนน / คูปอง / ส่วนลด
 const memberQ = ref('')
+// ข้อมูลคะแนนของสมาชิกที่เลือก: คะแนนที่มี และคะแนนที่จะหมดอายุภายในจำนวนวันตั้งค่า
+const memberPts = computed(() => (member.value ? pointBalance(member.value.ledger || [], toDateStr(new Date())) : 0))
+const memberSoon = computed(() => (member.value ? expiringSoon(member.value.ledger || [], toDateStr(new Date()), Number(db.shop.pointsExpireDays ?? 30)) : null))
+const memberSearchOpen = ref(false) // กดปุ่ม "สมาชิก" ก่อน แล้วจึงแสดงช่องค้นหา
 const member = ref(null)
 const memberMatches = computed(() => {
   const s = memberQ.value.trim().toLowerCase()
@@ -269,6 +273,7 @@ const discount = ref('')
 function pickMember(c) {
   member.value = c
   memberQ.value = ''
+  memberSearchOpen.value = false
   couponIds.value = []
 }
 // พิมพ์เบอร์ครบแล้วหยุดพิมพ์ → เลือกสมาชิกทันที (ไม่ต้องกด Enter)
@@ -1218,18 +1223,28 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <!-- สมาชิกสะสมแต้ม: เปลี่ยนได้จนกว่าจะสร้าง QR หรือรับชำระรายการแรก -->
           <div v-if="!member && !memberLocked" class="space-y-1.5 rounded-2xl bg-white p-3 ring-1 ring-stone-200 max-md:flex max-md:items-center max-md:gap-2 max-md:space-y-0 max-md:p-2" aria-label="เบอร์สะสมแต้ม">
             <div class="text-sm font-semibold text-stone-800 max-md:shrink-0">เบอร์สะสมแต้ม <span class="font-normal text-stone-400">(ไม่บังคับ)</span></div>
-            <input :value="memberQ" @input="(e) => { e.target.value = e.target.value.replace(/\D/g, ''); memberQ = e.target.value }" type="text" inputmode="numeric" data-numpad="int" class="input h-11" placeholder="เบอร์ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
+            <button v-if="!memberSearchOpen" type="button" class="btn-outline h-11 max-md:flex-1" @click="memberSearchOpen = true">สมาชิก · กดเพื่อค้นหา</button>
+            <template v-else>
+              <div class="flex gap-2 max-md:flex-1">
+                <input :value="memberQ" @input="(e) => { e.target.value = e.target.value.replace(/\D/g, ''); memberQ = e.target.value }" type="text" inputmode="numeric" data-numpad="int" class="input h-11 min-w-0 flex-1" placeholder="เบอร์ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
+                <button type="button" class="shrink-0 rounded-full px-2 text-sm font-medium text-stone-500 underline" @click="memberSearchOpen = false; memberQ = ''">ปิด</button>
+              </div>
             <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
             <div v-if="memberMatches.length" class="space-y-1">
               <button v-for="c in memberMatches" :key="c.id" type="button" class="flex w-full justify-between gap-2 rounded-lg border border-stone-200 px-3 py-2 text-left text-sm hover:border-brand-300" @click="pickMember(c)">
                 <span class="truncate">{{ c.name }}</span><span class="shrink-0 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
               </button>
             </div>
+            </template>
           </div>
-          <div v-else-if="member" class="flex items-center gap-3 rounded-2xl bg-white p-3 ring-1 ring-stone-200">
+          <div v-else-if="member" class="flex flex-wrap items-center gap-3 rounded-2xl bg-white p-3 ring-1 ring-stone-200">
             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-100 text-brand-800" aria-hidden="true"><AppIcon name="user" :size="18" /></span>
             <div class="min-w-0 flex-1"><div class="truncate font-semibold text-stone-800">{{ member.name }}</div><div class="text-xs text-stone-500">{{ member.phone ? formatPhone(member.phone) : '' }}</div></div>
             <button v-if="!memberLocked" type="button" class="shrink-0 rounded-full px-2 py-1 text-xs font-medium text-stone-500 underline" @click="member = null; couponIds = []">เปลี่ยน</button>
+            <div class="grid basis-full grid-cols-2 gap-2 text-sm" aria-label="คะแนนสมาชิก">
+              <div class="rounded-xl bg-stone-50 px-3 py-2"><div class="text-xs text-stone-500">คะแนนที่มี</div><div class="font-semibold tabular-nums text-stone-900">{{ memberPts.toLocaleString() }} แต้ม</div></div>
+              <div class="rounded-xl px-3 py-2" :class="memberSoon ? 'bg-amber-100 text-amber-950' : 'bg-stone-50'"><div class="text-xs" :class="memberSoon ? 'text-amber-900' : 'text-stone-500'">คะแนนที่จะหมดอายุ</div><div class="font-semibold tabular-nums">{{ memberSoon ? `${memberSoon.points.toLocaleString()} แต้ม · ${dateOnly(memberSoon.date)}` : 'ไม่มี' }}</div></div>
+            </div>
           </div>
 
           <div v-if="member && coupons.length" class="rounded-2xl bg-white p-3 ring-1 ring-stone-200" aria-label="คูปองส่วนลด">
@@ -1326,14 +1341,14 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                     <span class="text-stone-500">ยอดเงินสด <b class="tabular-nums text-stone-800">{{ money(lineAmt(l)) }}</b></span>
                     <button v-if="!l.locked && !l.confirmed && !l.split" type="button" class="font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
                   </div>
-                  <button v-if="l.split && !l.locked && !l.confirmed" type="button" class="mt-2 flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left max-md:py-1.5 ring-1 ring-stone-300" :class="padField(l) === 'amount' ? 'bg-brand-50 ring-2 ring-brand-600' : 'bg-stone-50'" :aria-pressed="padField(l) === 'amount'" @click="l.padTarget = 'amount'; l.padFresh = true">
-                    <span class="text-sm text-stone-600">ยอดเงินสดครั้งนี้</span>
-                    <span class="text-2xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</span>
-                  </button>
-                  <button type="button" class="mt-3 flex w-full flex-col rounded-2xl px-3 py-2 text-left ring-1 ring-stone-300" :class="padField(l) === 'received' ? 'bg-brand-50 ring-2 ring-brand-600' : 'bg-stone-50'" :aria-pressed="padField(l) === 'received'" :disabled="!!l.locked || !!l.confirmed" @click="l.padTarget = 'received'; l.padFresh = true">
-                    <span class="text-sm text-stone-600">รับเงินมา</span>
-                    <span class="text-4xl font-bold tabular-nums text-stone-900 max-md:text-3xl" aria-live="polite">{{ money(Number(l.received) || 0) }}</span>
-                  </button>
+                  <div v-if="l.split && !l.locked && !l.confirmed" class="mt-2 rounded-2xl bg-stone-50 px-3 py-2 ring-1 ring-stone-300">
+                    <label class="block text-sm text-stone-600" :for="'cash-amt-' + l.key">ยอดเงินสดครั้งนี้</label>
+                    <MoneyInput :id="'cash-amt-' + l.key" v-model="l.amount" data-numpad="dec" class="input h-12 text-2xl font-bold" />
+                  </div>
+                  <div class="mt-3 rounded-2xl bg-stone-50 px-3 py-2 ring-1 ring-stone-300">
+                    <label class="block text-sm text-stone-600" :for="'cash-rec-' + l.key">รับเงินมา</label>
+                    <MoneyInput :id="'cash-rec-' + l.key" v-model="l.received" data-numpad="dec" :disabled="!!l.locked || !!l.confirmed" class="input h-14 text-4xl font-bold max-md:h-12 max-md:text-3xl" />
+                  </div>
                 </div>
                 <div class="flex items-center justify-between rounded-3xl px-4 py-3 max-md:py-2" :class="changeOf(l) >= 0 ? 'bg-emerald-600 text-white' : 'bg-amber-200 text-amber-950 ring-1 ring-amber-400'">
                   <span class="text-base font-semibold">{{ changeOf(l) >= 0 ? 'เงินทอน' : 'ยังขาด' }}</span>
