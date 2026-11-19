@@ -123,6 +123,9 @@ try {
       if (process.env.DEBUG) console.log('DBG', JSON.stringify(mock.log.filter((x) => x.table === 'punpang_orders')), await page.evaluate(async () => { const s = await import('/src/data/store.js'); return [s.db.orders.map((o) => o.id), location.href] }))
       throw e
     }
+    await page.waitForTimeout(1500)
+    const wrote = mock.log.filter((x) => (x.fn === 'order-create' && x.id === 'o2') || (x.method === 'PATCH' && x.ids?.includes('o2')))
+    assert.equal(wrote.length, 0, `เปิดดูอย่างเดียวต้องไม่เขียนออร์เดอร์กลับ: ${JSON.stringify(wrote)}`)
   })
   await step('7. POS: ค้นสมาชิกด้วยเบอร์ → เจอ', async () => {
     const c = customers[2850]
