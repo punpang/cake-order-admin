@@ -144,6 +144,20 @@ const GROUP_LOADERS = {
     if (h?.refresh) await h.refresh({ full: true }) // ต้องโหลดทั้งตาราง (การดึงเฉพาะที่เปลี่ยนไม่ได้แถวเก่าที่ปิดแล้ว)
     return null
   },
+  // หน้าบัญชี: ปิดงวดแล้ว = รายการก่อนปิดงวดมาจากที่แช่แข็งไว้ → ต้องการเฉพาะออร์เดอร์ที่แก้หลังวันปิดงวด (วันที่ของรายการมาจากเหตุการณ์ ชำระ/ส่งมอบ/ยกเลิก/คืนเงิน ซึ่งทำให้ updated_at ขยับเสมอ)
+  // ยังไม่เคยปิดงวด = ต้องใช้ประวัติทั้งหมด · ถอยวันปิดงวด/ยกเลิกปิดงวด → โหลดตามวันใหม่
+  ordersAcct: async (c) => {
+    const closedOf = () => c.store.db.acct?.closedThrough || ''
+    const load = async (closed) => {
+      if (!closed || !c.store.orderFetch.pull) return GROUP_LOADERS.ordersAll(c)
+      const since = new Date(Date.parse(`${closed}T00:00:00Z`) - 2 * 86400e3).toISOString() // เผื่อเขตเวลา (วันปิดงวดเป็นวันไทย)
+      await c.store.ensureOrders({ updatedSince: since })
+    }
+    await load(closedOf())
+    const { watch } = await import('vue')
+    const stop = watch(closedOf, (v, old) => { if (!v || (old && v < old)) quietly(() => load(v)) })
+    return { stop }
+  },
   shifts: async (c) => {
     if (!['pos', 'viewAllOrders', 'manage'].some(c.has)) return null
     const m = await import('./shiftsSync')
@@ -370,6 +384,8 @@ async function startData(staff) {
         const r = spec.search ? await orders.searchOrdersRemote(client, spec.search) : await orders.loadOrdersWhere(client, spec)
         if (r.error) throw new Error(r.error)
         for (const o of r.items) orders.pinOrderId(o.id)
+        // หน้าที่ใช้ข้อมูลตั้งแต่ช่วงหนึ่ง: คงออร์เดอร์ที่แก้หลังจากนั้นไว้ด้วย (ออร์เดอร์ใหม่ที่ส่งมอบระหว่างเปิดหน้าไม่หายจากรายงาน)
+        orders.keepOrdersSince(spec.updatedSince || spec.createdSince || '')
         if (!oh.merge(r.items)) { await waitSaved(); oh.merge(r.items) } // กำลังบันทึก → รอแล้วรวมใหม่
         store.ensureCustomers(r.items.map((o) => o.customerId))
         return r.items.length

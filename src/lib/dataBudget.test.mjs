@@ -46,10 +46,10 @@ test('รายการยกเว้นยังตรงกับโค้�
   assert.deepEqual(stale, [])
 })
 
-test('หน้าที่โหลดประวัติออร์เดอร์ทั้งหมด (ordersAll) มีเฉพาะที่อนุญาต', () => {
+test('ไม่มีหน้าที่โหลดประวัติออร์เดอร์ทั้งหมด (ordersAll) โดยตรง', () => {
   const router = readFileSync(join(SRC, 'router.js'), 'utf8')
   const paths = router.split('\n').filter((l) => /data:\s*\[[^\]]*'ordersAll'/.test(l)).map((l) => (l.match(/path:\s*'([^']+)'/) || [])[1])
-  assert.deepEqual(paths, ['/admin/accounting'])
+  assert.deepEqual(paths, []) // หน้าบัญชีใช้ ordersAcct (ดึงเฉพาะหลังวันปิดงวด · ยังไม่เคยปิดงวดจึงโหลดทั้งหมด)
 })
 
 test('records ที่ไม่มีเพดาน (limit) มีเฉพาะที่รู้แล้ว · ชุดใหม่ต้องตั้ง limit หรือเพิ่มพร้อมเหตุผล', () => {

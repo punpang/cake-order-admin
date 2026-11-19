@@ -11,7 +11,7 @@ export function setOrdersFullHistory(on) { fullHistory = !!on }
 // ออร์เดอร์ที่เปิดดูเฉพาะรายการ (นอกช่วง) ต้องคงอยู่ในเครื่องระหว่างรีเฟรช
 const pinned = new Set()
 export function pinOrderId(id) { pinned.add(id) }
-export function clearPinnedOrders() { pinned.clear() }
+export function clearPinnedOrders() { pinned.clear(); keepSince = 0 }
 
 // ซิงก์ออร์เดอร์ (db.orders) กับ punpang_orders · ชำระเงิน/รายการ/ประวัติ ฯลฯ อยู่ใน data (jsonb)
 // สิทธิ์ตรวจที่ฐานข้อมูลด้วย trigger (เปลี่ยนสถานะ/ยืนยันชำระ/ยกเลิกยอด/แจ้งยอด) — ดู punpang_guard_status
@@ -76,7 +76,10 @@ export async function loadOrderCounts(client, customerIds) {
   return { counts: out }
 }
 // อยู่ในชุดที่โหลดไว้ไหม: โหมดประวัติเต็ม = ทุกแถว · ปกติ = ยังไม่ปิด หรือถูกปักหมุดเปิดดูอยู่
-export const keepOrder = (o) => fullHistory || pinned.has(o.id) || !['cancelled', 'delivered'].includes(o.status)
+// keepSince (ISO): หน้าที่ใช้ข้อมูลตั้งแต่ช่วงหนึ่ง (บัญชี กำไร แดชบอร์ด) ให้คงออร์เดอร์ที่แก้ตั้งแต่เวลานั้นไว้ แม้ปิดแล้ว (เช่น เพิ่งส่งมอบระหว่างเปิดหน้า)
+let keepSince = 0 // ms · 0 = ไม่คง (เทียบด้วยเวลา ไม่เทียบข้อความ: รูปแบบเวลาจากฐานข้อมูลต่างจาก toISOString)
+export function keepOrdersSince(iso) { const t = Date.parse(iso); if (Number.isFinite(t) && (!keepSince || t < keepSince)) keepSince = t }
+export const keepOrder = (o) => fullHistory || pinned.has(o.id) || !['cancelled', 'delivered'].includes(o.status) || (!!keepSince && !!o._v && Date.parse(o._v) >= keepSince)
 
 // หน้าออเดอร์: ดึงเฉพาะแถวตามตัวกรอง (กรองที่ฐานข้อมูล) · from/to = YYYY-MM-DD ของวันนัด (รวมทั้งสองวัน) · ว่าง = ไม่จำกัด
 // pickup_at เป็น timestamptz แต่แอปเก็บเวลานัดแบบท้องถิ่นไม่มีโซน → เทียบด้วยโซนเดียวกับตอนเขียน (ช่วง [from, to+1 วัน))

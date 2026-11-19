@@ -98,7 +98,7 @@ const router = createRouter({
     { path: '/admin/manage/:rest(.*)*', redirect: (to) => to.fullPath.replace('/admin/manage', '/admin/settings') },
     { path: '/admin/login', component: StaffLogin, meta: { bare: true } },
     { path: '/admin/no-access', component: NoAccess },
-    { path: '/admin/accounting', component: Accounting, meta: { perms: ['acctView'], data: ['ordersAll'] } },
+    { path: '/admin/accounting', component: Accounting, meta: { perms: ['acctView'], data: ['ordersAcct'] } },
     { path: '/admin/orders', component: OrderList, meta: { perms: ['viewAllOrders', 'viewPrepOrders', 'viewDeliveryOrders'] } },
     { path: '/admin/orders/new', component: OrderCreate, meta: { focus: true, perms: ['createOrder'], data: ['chats'] } },
     { path: '/admin/orders/:id', component: OrderDetail, props: true, meta: { focus: true, data: ['chats'] } },
