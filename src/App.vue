@@ -48,6 +48,8 @@ const badges = computed(() => ({ chat: unread.value, pay: paySlips.value }))
 // เมนูล่างมือถือ: เมนูย่อยของระบบปัจจุบัน (เฉพาะที่ติด mobile) เมื่อมี ≥ 2 รายการ
 // ระบบอื่น (หน้าเดียว) แสดงชื่อระบบนั้น + ปุ่ม "ระบบ" สำหรับสลับ (ปุ่ม "ระบบ" มีเสมอเมื่อเห็นมากกว่า 1 ระบบ)
 const bottomItems = computed(() => (current.value === 'orders' ? items.value.filter((i) => i.mobile) : items.value))
+// เมนูย่อยในเมนู ☰ เฉพาะที่ไม่อยู่บนแถบล่างแล้ว (กันรายการซ้ำ)
+const menuItems = computed(() => items.value.filter((i) => !bottomItems.value.includes(i)))
 const hasSwitch = computed(() => systems.value.length > 1)
 const showBottom = computed(() => !route.meta.focus)
 // ตามขนาดส่วนที่มองเห็นจริงเมื่อแป้นพิมพ์เปิด ทุกหน้า (ป็อปอัป/แถบล่างไม่ถูกแป้นพิมพ์บัง) · หน้าล็อก (แชท) ซ่อนแถบเมนูล่างระหว่างพิมพ์
@@ -102,9 +104,9 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     <div class="px-3 pt-3 pb-1 text-xs font-medium text-stone-500">ระบบ</div>
     <RouterLink v-for="sy in systems" :key="sy.key" :to="homeOf(sy, can)" class="block rounded-xl px-3 py-2.5 text-sm text-stone-800 hover:bg-stone-100" :class="sy.key === current ? 'bg-brand-50 font-semibold text-brand-700' : ''" @click="menuOpen = false">{{ sy.label }}</RouterLink>
     <!-- บนคอมพิวเตอร์ (lg) เมนูย่อยอยู่บนแถบบนแล้ว จึงซ่อนในเมนูนี้ -->
-    <template v-if="items.length > 1">
+    <template v-if="menuItems.length">
       <div class="px-3 pt-3 pb-1 text-xs font-medium text-stone-500 lg:hidden">เมนูของระบบ</div>
-      <RouterLink v-for="i in items" :key="i.to" :to="i.to" class="block rounded-xl px-3 py-2.5 text-sm text-stone-800 hover:bg-stone-100 lg:hidden" @click="menuOpen = false">{{ i.label }}</RouterLink>
+      <RouterLink v-for="i in menuItems" :key="i.to" :to="i.to" class="block rounded-xl px-3 py-2.5 text-sm text-stone-800 hover:bg-stone-100 lg:hidden" @click="menuOpen = false">{{ i.label }}</RouterLink>
     </template>
     <div class="mt-2 border-t border-stone-100 pt-2">
       <button type="button" class="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-stone-700 hover:bg-stone-100" :aria-label="`ผู้ใช้ ${me?.name || ROLES[session.role]}`" @click="supabaseEnabled && (roleOpen = true, menuOpen = false)">
