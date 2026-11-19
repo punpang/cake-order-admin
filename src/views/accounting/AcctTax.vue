@@ -1,8 +1,8 @@
 <script setup>
 import MoneyInput from '../../components/MoneyInput.vue'
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { can, db } from '../../data/store'
-import { allEntries, vatReport, vatSetExtra, vatMarkFiled, vatReopen, vatDiff, vatThreshold, taxInvoices } from '../../data/acct'
+import { allEntries, vatReport, vatSetExtra, vatMarkFiled, vatReopen, vatDiff, vatThreshold, taxInvoices, ensureInvoiceYear } from '../../data/acct'
 import { thisMonth } from '../../lib/acct/period'
 import { VAT_FORM_LABELS, salesTaxRows, purchaseTaxRows } from '../../lib/acct/vat'
 import { downloadCsv } from '../../lib/acct/csv'
@@ -56,9 +56,14 @@ function exportTax(kind) {
   const rows = kind === 'sales' ? sales.value : buys.value
   downloadCsv(`${kind === 'sales' ? 'sales' : 'purchase'}-tax-${ym.value}.csv`, ['วันที่', 'เลขที่เอกสาร', kind === 'sales' ? 'ชื่อผู้ซื้อ' : 'ชื่อผู้ขาย', 'เลขผู้เสียภาษี', 'มูลค่าก่อนภาษี', 'ภาษีมูลค่าเพิ่ม'], rows.map((r) => [r.date, docNo(r), r.party || '', r.taxId || '', r.base, r.vat]))
 }
-const invoices = computed(() => (tick.value, taxInvoices().slice().reverse()))
+// ใบกำกับภาษีแยกตามปี (ระบบโหลดไว้ตั้งแต่ต้นปีก่อน · ปีเก่ากว่านั้นดึงเมื่อเลือก)
+const thisYear = new Date().getFullYear()
+const invYear = ref(thisYear)
+const invYears = Array.from({ length: 6 }, (_, i) => thisYear - i)
+watch(invYear, (y) => ensureInvoiceYear(y), { immediate: true })
+const invoices = computed(() => (tick.value, taxInvoices().filter((i) => String(i.date || '').startsWith(String(invYear.value))).slice().reverse()))
 function exportInvoices() {
-  downloadCsv('tax-invoices.csv', ['เลขที่', 'ประเภท', 'วันที่', 'ออร์เดอร์', 'ผู้ซื้อ', 'เลขผู้เสียภาษี', 'ก่อนภาษี', 'ภาษี', 'รวม', 'อ้างอิง', 'สถานะ'], taxInvoices().map((i) => [i.no, i.type === 'credit' ? 'ใบลดหนี้' : 'ใบกำกับภาษี', i.date, i.orderCode, i.buyer.name, i.buyer.taxId, i.type === 'credit' ? -i.beforeVat : i.beforeVat, i.type === 'credit' ? -i.vat : i.vat, i.type === 'credit' ? -i.total : i.total, i.refNo || '', i.voidedBy ? 'ยกเลิกแล้ว' : '']))
+  downloadCsv(`tax-invoices-${invYear.value}.csv`, ['เลขที่', 'ประเภท', 'วันที่', 'ออร์เดอร์', 'ผู้ซื้อ', 'เลขผู้เสียภาษี', 'ก่อนภาษี', 'ภาษี', 'รวม', 'อ้างอิง', 'สถานะ'], taxInvoices().map((i) => [i.no, i.type === 'credit' ? 'ใบลดหนี้' : 'ใบกำกับภาษี', i.date, i.orderCode, i.buyer.name, i.buyer.taxId, i.type === 'credit' ? -i.beforeVat : i.beforeVat, i.type === 'credit' ? -i.vat : i.vat, i.type === 'credit' ? -i.total : i.total, i.refNo || '', i.voidedBy ? 'ยกเลิกแล้ว' : '']))
 }
 </script>
 
@@ -98,7 +103,7 @@ function exportInvoices() {
 
     <template v-else-if="sub === 'inv'">
       <section class="card text-sm">
-        <div class="mb-2 flex items-center justify-between"><div class="card-title mb-0">ใบกำกับภาษีที่ออก ({{ invoices.length }})</div><button class="btn-soft" @click="exportInvoices"><AppIcon name="list" :size="16" /> CSV</button></div>
+        <div class="mb-2 flex items-center justify-between gap-2"><div class="card-title mb-0">ใบกำกับภาษีที่ออก ({{ invoices.length }})</div><select v-model.number="invYear" class="input ml-auto h-10 w-auto" aria-label="ปีของใบกำกับภาษี"><option v-for="y in invYears" :key="y" :value="y">ปี {{ y + 543 }}</option></select><button class="btn-soft" @click="exportInvoices"><AppIcon name="list" :size="16" /> CSV</button></div>
         <p v-if="!invoices.length" class="py-6 text-center text-stone-400">ยังไม่มี · ออกจากหน้ารายละเอียดออร์เดอร์ (ปุ่ม "ใบกำกับภาษีเต็มรูป")</p>
         <ul class="divide-y divide-stone-100">
           <li v-for="i in invoices" :key="i.id" class="flex items-center justify-between gap-3 py-2">

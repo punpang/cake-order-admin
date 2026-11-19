@@ -1,6 +1,6 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { allEntries, sourceLabel, accountOf } from '../../data/acct'
+import { computed, ref, watch } from 'vue'
+import { allEntries, sourceLabel, accountOf, needFrom } from '../../data/acct'
 import { entrySums } from '../../lib/acct/journal'
 import { thisMonth, monthRange } from '../../lib/acct/period'
 import { money, dateOnly } from '../../lib/format'
@@ -9,6 +9,7 @@ import { money, dateOnly } from '../../lib/format'
 const r0 = monthRange(thisMonth())
 const from = ref(r0.from)
 const to = ref(r0.to)
+watch(from, (v) => needFrom(v), { immediate: true }) // ดูช่วงก่อนรายละเอียดที่โหลดไว้ → ดึงเพิ่ม
 const src = ref('all')
 const q = ref('')
 const rows = computed(() =>

@@ -47,7 +47,7 @@ import OrderLinkModal from '../components/OrderLinkModal.vue'
 import QrPaymentPanel from '../components/QrPaymentPanel.vue'
 import TaxInvoiceModal from '../components/TaxInvoiceModal.vue'
 import WorkPhotos from '../components/WorkPhotos.vue'
-import { invoiceOfOrder } from '../data/acct'
+import { invoiceOfOrder, ensureOrderInvoices } from '../data/acct'
 import { defaultRefundMethod, refundList } from '../lib/refund'
 import BirthdayFields from '../components/BirthdayFields.vue'
 import DeliveryFields from '../components/DeliveryFields.vue'
@@ -58,6 +58,8 @@ import { GATE_MESSAGE, gateBlocks } from '../lib/orderGate'
 const props = defineProps({ id: { type: String, required: true } })
 const order = computed(() => findOrder(props.id))
 onMounted(() => { if (!findOrder(props.id)) loadOneOrder(props.id) })
+// ใบกำกับภาษีของออร์เดอร์เก่า (นอกช่วงที่โหลด) → ดึงมาก่อน ใช้แสดงสถานะใบ และกันย้อนสถานะออร์เดอร์ที่ออกใบแล้ว
+watch(() => props.id, (id) => ensureOrderInvoices(id), { immediate: true })
 // ---------- ด่านตรวจออร์เดอร์เสี่ยง: รายการที่ระบบพบว่าผิดต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ ----------
 const gate = ref(null) // สถานะด่านล่าสุดจากฐานข้อมูล (โหลดใหม่ก่อนทำรายการที่เกี่ยวข้อง)
 const gateBlocked = computed(() => order.value?.channel !== 'pos' && !!gate.value?.blocked)

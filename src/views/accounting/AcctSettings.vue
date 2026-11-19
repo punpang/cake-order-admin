@@ -2,7 +2,7 @@
 import MoneyInput from '../../components/MoneyInput.vue'
 import { reactive, ref } from 'vue'
 import { db, can } from '../../data/store'
-import { closePeriod, reopenPeriod, saveAcctSettings } from '../../data/acct'
+import { closePeriod, reopenPeriod, saveAcctSettings, needCut } from '../../data/acct'
 import { askConfirm } from '../../lib/confirm'
 import { toDateStr, dateOnly } from '../../lib/format'
 
@@ -27,6 +27,7 @@ async function close() {
 async function reopen() {
   f.error = f.ok = ''
   if (!(await askConfirm({ title: 'เปิดงวดกลับ', message: reopenTo.value ? `ถอยวันที่ปิดงวดเป็น ${dateOnly(reopenTo.value)}` : 'เปิดงวดทั้งหมด', okText: 'เปิดงวด', danger: true }))) return
+  await needCut(reopenTo.value) // รายการแช่แข็งช่วงนั้นต้องอยู่ในเครื่องครบก่อน
   const r = reopenPeriod(reopenTo.value)
   if (r.error) return (f.error = r.error)
   f.ok = 'เปิดงวดกลับแล้ว'

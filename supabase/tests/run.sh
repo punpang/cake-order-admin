@@ -75,6 +75,11 @@ gcode=$?
 [ "$gcode" = "0" ] && echo "✓ purge_customer.test.sql ผ่านทั้งหมด" || echo "✗ purge_customer.test.sql ล้มเหลว"
 [ "$gcode" = "0" ] || exit "$gcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/acct_opening.test.sql
+ocode=$?
+[ "$ocode" = "0" ] && echo "✓ acct_opening.test.sql ผ่านทั้งหมด" || echo "✗ acct_opening.test.sql ล้มเหลว"
+[ "$ocode" = "0" ] || exit "$ocode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"
