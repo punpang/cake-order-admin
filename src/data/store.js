@@ -324,6 +324,7 @@ export const db = reactive({
     payReminderTime: '09:00',
     // เวลาแจ้งเตือนอัตโนมัติ (ค่าเริ่มต้นเท่าการทำงานเดิม): นัดรับ = ชม.ก่อนนัด · งานใกล้เวลา = ชม.ก่อนเวลาผลิต · คะแนนหมดอายุ = วันล่วงหน้า · งวดผ่อนชำระ = วันก่อนครบกำหนด
     pickupRemindHours: 24, dueSoonHours: 2, pointsExpireDays: 30, installmentAlertDays: 1,
+    prepCategories: [], // หมวดสินค้าที่ต้องเตรียม (เช่น เครื่องดื่ม) → ขึ้นคิวไปทำหลังขาย · ค่าเริ่มต้นว่าง
     lineRetentionDays: 180, // เก็บข้อความ LINE กี่วัน (7–365) · เกินกำหนดระบบลบอัตโนมัติ
     // รหัสร้านค้า (ผู้รับชำระ) ใช้ตรวจรหัสร้านค้าในสลิปโอนเงิน และเป็น Ref 1 ของ QR · ว่าง = ไม่ตรวจ
     merchantCode: '',
@@ -1661,6 +1662,7 @@ export function saveShopSettings(d) {
   db.shop.pickupRemindHours = intIn(d.pickupRemindHours, 1, 72, db.shop.pickupRemindHours ?? 24)
   db.shop.dueSoonHours = intIn(d.dueSoonHours, 1, 12, db.shop.dueSoonHours ?? 2)
   db.shop.pointsExpireDays = intIn(d.pointsExpireDays, 1, 90, db.shop.pointsExpireDays ?? 30)
+  if (Array.isArray(d.prepCategories)) db.shop.prepCategories = [...new Set(d.prepCategories.map((x) => String(x).trim()).filter(Boolean))]
   db.shop.installmentAlertDays = intIn(d.installmentAlertDays, 0, 30, db.shop.installmentAlertDays ?? 1)
   db.shop.lineRetentionDays = intIn(d.lineRetentionDays, 7, 365, db.shop.lineRetentionDays ?? 180)
   db.shop.merchantCode = String(d.merchantCode ?? db.shop.merchantCode ?? '').replace(/\D/g, '').slice(0, 20)
@@ -3758,6 +3760,27 @@ export const unreadChats = () => db.chats.filter((c) => c.unreadStaff > 0).lengt
 
 // ---------- POS หน้าร้าน ----------
 export const currentShift = () => db.shifts.find((s) => !s.closedAt) || null
+// คิวไปทำ: รายการที่ขายแล้วในกะปัจจุบัน และหมวดอยู่ในรายการ "หมวดที่ต้องเตรียม" · ยังไม่กดเสร็จ · เรียงตามเวลาขาย
+export function prepQueue() {
+  const shift = currentShift()
+  const cats = db.shop.prepCategories || []
+  if (!shift || !cats.length) return []
+  const out = []
+  for (const o of db.orders) {
+    if (o.channel !== 'pos' || o.shiftId !== shift.id || o.cancel || o.status !== 'delivered') continue
+    for (const it of o.items) {
+      if (it.prepDone || it.kind !== 'retail') continue
+      const cat = db.retailItems.find((x) => x.id === it.retailId)?.category
+      if (cat && cats.includes(cat)) out.push({ orderId: o.id, orderCode: o.code, itemId: it.id, name: it.name, qty: it.qty, mods: it.mods || [], at: o.deliveredAt || o.createdAt })
+    }
+  }
+  return out.sort((a, b) => a.at.localeCompare(b.at))
+}
+// กดเสร็จรายการในคิว (ไม่กระทบยอดขาย/สต็อก)
+export function markPrepDone(orderId, itemId) {
+  const it = db.orders.find((x) => x.id === orderId)?.items.find((x) => x.id === itemId)
+  if (it) { it.prepDone = true; it.prepDoneAt = now() }
+}
 export function openShift(float) {
   if (currentShift()) return currentShift()
   const s = { id: uid('sh'), openedAt: now(), openedBy: session.role, float: Number(float) || 0, closedAt: null, counted: null, note: '' }

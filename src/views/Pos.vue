@@ -7,7 +7,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import {
   db, can, currentShift, openShift, closeShift, shiftSummary, shiftBills, posPromoInfo, posSale, voidPosSale, addPosPartial, editPosPending, finishPosBill, pointsFor, vatNow,
   customerPoints, posCoupons, findCustomer, modsOf, modsText, lineKey, pendingRewards, notShownCount, posHandOver, posCouponProblem, sweepCoupons, claimPosCoupons, releaseCoupons,
-  newPosQrRef, posQrExpired, issueLuckyToken, reserveBillId,
+  newPosQrRef, posQrExpired, issueLuckyToken, reserveBillId, prepQueue, markPrepDone,
 } from '../data/store'
 import { activeSecondsLeft, expiringSoon, pointBalance, conversionPlan } from '../lib/loyalty'
 import { orderTotals, discountLines } from '../lib/pricing'
@@ -215,6 +215,9 @@ const redeemInfo = (c) => {
   }
 }
 const memberSearchOpen = ref(false)
+// คิวไปทำ (หมวดที่ตั้งว่าต้องเตรียม) · อัปเดตเมื่อขาย/กดเสร็จ
+const prepList = computed(() => (db.shop.prepCategories?.length ? prepQueue() : []))
+function prepDone(p) { markPrepDone(p.orderId, p.itemId) }
 // ทุกการขายต้องเลือกก่อนว่า มีสมาชิก หรือ ไม่มี (null = ยังไม่เลือก → ยังเพิ่มสินค้าไม่ได้)
 const memberChoice = ref(null)
 function chooseNoMember() { member.value = null; couponIds.value = []; memberQ.value = ''; memberChoice.value = 'none' }
@@ -973,8 +976,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <button type="button" class="btn-soft ml-2 h-9 max-w-[12rem] truncate px-3 text-sm" :aria-label="member ? 'เปลี่ยนสมาชิก' : 'เลือกสมาชิก'" @click="memberSearchOpen = true">{{ member ? `สมาชิก: ${member.name}` : '+ สมาชิก' }}</button>
         <button v-if="member" type="button" class="btn-soft h-9 w-9 shrink-0 text-sm" aria-label="เอาสมาชิกออก" @click="clearMemberPick">✕</button>
       </template>
-      <div v-if="shift" class="grid grid-cols-3 gap-1 seg-grid" :class="can('useLoyalty') ? '' : 'ml-auto'">
-        <button v-for="t in [{ v: 'sell', l: 'ขาย' }, { v: 'bills', l: `บิล ${bills.length}` }, { v: 'shift', l: 'ปิดกะ' }]" :key="t.v" type="button" class="h-9 rounded-lg px-3 text-sm font-medium" :class="tab === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="tab = t.v">{{ t.l }}</button>
+      <div v-if="shift" class="grid grid-cols-4 gap-1 seg-grid" :class="can('useLoyalty') ? '' : 'ml-auto'">
+        <button v-for="t in [{ v: 'sell', l: 'ขาย' }, { v: 'bills', l: `บิล ${bills.length}` }, { v: 'queue', l: `คิว ${prepList.length}` }, { v: 'shift', l: 'ปิดกะ' }]" :key="t.v" type="button" class="h-9 rounded-lg px-3 text-sm font-medium" :class="tab === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="tab = t.v">{{ t.l }}</button>
       </div>
     </div>
 
@@ -1176,6 +1179,20 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     </section>
 
     <!-- ปิดกะ -->
+    <section v-if="tab === 'queue' && shift" class="mx-auto w-full max-w-2xl">
+      <p v-if="!db.shop.prepCategories?.length" class="card text-sm text-stone-500">ยังไม่ได้ตั้งหมวดที่ต้องเตรียม (ตั้งที่ ตั้งค่าร้าน)</p>
+      <p v-else-if="!prepList.length" class="card py-10 text-center text-stone-500">ไม่มีรายการรอเตรียม</p>
+      <ul v-else class="space-y-2">
+        <li v-for="p in prepList" :key="p.orderId + p.itemId" class="card flex items-center gap-3 p-3">
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-base font-semibold text-stone-900">{{ p.name }} × {{ p.qty }}</div>
+            <div v-if="p.mods?.length" class="truncate text-xs font-medium text-brand-700">{{ modsText(p.mods) }}</div>
+            <div class="text-xs text-stone-500">{{ orderNo(p.orderCode) }} · {{ timeOnly(p.at) }}</div>
+          </div>
+          <button type="button" class="btn-primary h-12 shrink-0 px-5" @click="prepDone(p)">เสร็จ</button>
+        </li>
+      </ul>
+    </section>
     <section v-else-if="tab === 'shift' && summary" class="card mx-auto max-w-md">
       <div class="card-title">สรุปกะ</div>
       <dl class="space-y-1.5 text-sm">
