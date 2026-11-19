@@ -218,12 +218,11 @@ const memberSearchOpen = ref(false)
 // ทุกการขายต้องเลือกก่อนว่า มีสมาชิก หรือ ไม่มี (null = ยังไม่เลือก → ยังเพิ่มสินค้าไม่ได้)
 const memberChoice = ref(null)
 const needMemberChoice = computed(() => !!shift.value && tab.value === 'sell' && !memberChoice.value && !editBill.value)
-// กดมีสมาชิกแล้วปิดค้นหาโดยไม่ได้เลือกใคร → กลับไปให้เลือกใหม่
-watch(memberSearchOpen, (open) => { if (!open && memberChoice.value === 'yes' && !member.value) memberChoice.value = null })
-function chooseNoMember() { member.value = null; couponIds.value = []; memberChoice.value = 'none' }
-function chooseMember() { memberChoice.value = 'yes'; memberSearchOpen.value = true }
+function chooseNoMember() { member.value = null; couponIds.value = []; memberQ.value = ''; memberChoice.value = 'none' }
 const memberInputEl = ref(null)
+const gateInputEl = ref(null)
 watch(memberSearchOpen, (v) => { if (v) nextTick(() => memberInputEl.value?.focus()) })
+watch(needMemberChoice, (v) => { if (v) nextTick(() => gateInputEl.value?.focus()) })
 const memberInfoOf = ref(null) // สมาชิกที่เปิดดูข้อมูลในไดอะล็อกแยก // กดปุ่ม "สมาชิก" ก่อน แล้วจึงแสดงช่องค้นหา
 const member = ref(null)
 const memberMatches = computed(() => {
@@ -1006,13 +1005,21 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         </span>
       </div>
       <section class="relative flex min-h-0 min-w-0 flex-col">
-        <div v-if="needMemberChoice" class="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 rounded-3xl bg-cream/95 p-6 text-center">
-          <p class="text-lg font-semibold text-stone-900">ลูกค้ามีสมาชิกหรือไม่?</p>
-          <p class="text-sm text-stone-500">เลือกก่อนเริ่มขาย</p>
-          <div class="grid w-full max-w-sm grid-cols-2 gap-3">
-            <button type="button" class="btn-primary h-14 text-base" @click="chooseMember">มีสมาชิก</button>
-            <button type="button" class="btn-outline h-14 text-base" @click="chooseNoMember">ไม่มี</button>
+        <div v-if="needMemberChoice" class="absolute inset-0 z-20 flex flex-col gap-3 rounded-3xl bg-cream/95 p-4">
+          <div class="flex gap-2">
+            <input ref="gateInputEl" :value="memberQ" @input="(e) => { e.target.value = e.target.value.replace(/\D/g, ''); memberQ = e.target.value }" type="text" inputmode="numeric" data-numpad="int" class="input h-14 min-w-0 flex-1 text-lg" placeholder="กรอกเบอร์สมาชิก" aria-label="เบอร์สมาชิก" @keydown.enter.prevent="onMemberScan" />
+            <button type="button" class="btn-outline h-14 shrink-0 px-5 text-base" @click="chooseNoMember">ไม่มี</button>
           </div>
+          <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
+          <div v-if="memberMatches.length" class="space-y-2">
+            <div v-for="c in memberMatches" :key="c.id" class="flex w-full items-stretch gap-2 rounded-xl border border-stone-200 bg-white text-sm hover:border-brand-300">
+              <button type="button" class="flex min-w-0 flex-1 flex-col gap-0.5 px-4 py-3 text-left" @click="pickMember(c)">
+                <span class="truncate text-base font-semibold text-stone-900">{{ c.name }}</span>
+                <span class="text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
+              </button>
+            </div>
+          </div>
+          <p v-else-if="memberQ.length >= 3" class="text-sm text-stone-500">ไม่พบสมาชิกเบอร์นี้</p>
         </div>
         <div class="mb-3 flex shrink-0 gap-2">
           <label class="relative min-w-0 flex-1">
