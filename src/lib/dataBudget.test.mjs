@@ -23,7 +23,6 @@ const ALLOW = [
   ['src/lib/ordersSync.js', "let qy = client.from('punpang_orders').select(ORDER_COLS)", 'loadOrdersWhere: ปฏิเสธเมื่อไม่มีเงื่อนไข'],
   ['src/lib/customersSync.js', "let qy = client.from('punpang_customers').select('id')", 'searchCustomerIds: เงื่อนไขอยู่บรรทัดถัดไป · ไม่มีคำค้น = ไม่ค้น'],
   ['src/lib/shiftsSync.js', "from('punpang_shifts').select('id,opened_at,closed_at,data').order('id')", 'กะ POS ~1 แถวต่อวัน (ควรจำกัดช่วงเมื่อเกินหลายพันกะ)'],
-  ['src/lib/chatSync.js', "from('punpang_quotes').select('id,code,chat_id,customer_id,status,order_id,data').order('id')", 'ใบเสนอ: ยังโหลดทั้งหมด (ควรจำกัดตามแชทที่โหลด)'],
   ['src/lib/aiStats.js', ".from('punpang_records')", 'สถิติบอท: เงื่อนไขอยู่บรรทัดถัดไป'],
 ]
 
