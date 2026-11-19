@@ -1194,7 +1194,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <!-- สรุป: ยอดชำระ · รับแล้ว · คงค้าง/เกิน -->
           <div class="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-stone-200 max-md:p-3" aria-label="สรุปการชำระ">
             <div class="text-sm text-stone-500">ยอดชำระ</div>
-            <div class="text-4xl font-bold tabular-nums text-stone-900 max-md:text-2xl">{{ money(total) }}</div>
+            <div class="text-3xl font-bold tabular-nums text-stone-900 max-md:text-2xl">{{ money(total) }}</div>
             <dl class="mt-3 grid grid-cols-2 gap-2 text-sm max-md:mt-2 max-md:gap-1.5">
               <div class="rounded-2xl bg-stone-100 px-3 py-2"><dt class="text-stone-500">รับแล้ว</dt><dd class="text-lg font-semibold tabular-nums text-stone-900">{{ money(receivedSum) }}</dd></div>
               <div class="rounded-2xl px-3 py-2" :class="total - receivedSum < 0 ? 'bg-rose-100 text-rose-800' : total - receivedSum > 0 ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'">
@@ -1320,7 +1320,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                   </button>
                   <button type="button" class="mt-3 flex w-full flex-col rounded-2xl px-3 py-2 text-left ring-1 ring-stone-300" :class="padField(l) === 'received' ? 'bg-brand-50 ring-2 ring-brand-600' : 'bg-stone-50'" :aria-pressed="padField(l) === 'received'" :disabled="!!l.locked || !!l.confirmed" @click="l.padTarget = 'received'; l.padFresh = true">
                     <span class="text-sm text-stone-600">รับเงินมา</span>
-                    <span class="text-5xl font-bold tabular-nums text-stone-900 max-md:text-4xl" aria-live="polite">{{ money(Number(l.received) || 0) }}</span>
+                    <span class="text-4xl font-bold tabular-nums text-stone-900 max-md:text-3xl" aria-live="polite">{{ money(Number(l.received) || 0) }}</span>
                   </button>
                 </div>
                 <div class="flex items-center justify-between rounded-3xl px-4 py-3 max-md:py-2" :class="changeOf(l) >= 0 ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-900'">
@@ -1356,7 +1356,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <div v-else-if="l.method === 'card'" class="flex min-h-0 flex-1 flex-col gap-3">
               <div class="rounded-3xl bg-white p-6 text-center ring-1 ring-stone-200">
                 <div class="text-sm text-stone-500">รับชำระด้วยบัตร</div>
-                <div class="text-5xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</div>
+                <div class="text-4xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</div>
                 <p class="mt-2 text-sm text-stone-600">รูดบัตรที่เครื่องรับบัตรให้สำเร็จ แล้วกดปุ่มด้านล่าง</p>
                 <button v-if="!l.locked && !l.confirmed && !l.split" type="button" class="mt-2 text-sm font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
                 <div v-if="l.split && !l.locked && !l.confirmed" class="mx-auto mt-2 max-w-48">
@@ -1376,7 +1376,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               <div class="flex flex-col gap-3">
                 <div class="flex flex-col justify-center rounded-3xl bg-white p-6 text-center ring-1 ring-stone-200" :class="l.split ? 'min-h-64 flex-1 p-8' : ''">
                   <div class="text-base text-stone-500">ยอดโอนครั้งนี้</div>
-                  <div class="font-bold tabular-nums text-stone-900" :class="l.split ? 'text-5xl whitespace-nowrap' : 'text-5xl'">{{ money(lineAmt(l)) }}</div>
+                  <div class="font-bold tabular-nums text-stone-900" :class="l.split ? 'text-4xl whitespace-nowrap' : 'text-4xl'">{{ money(lineAmt(l)) }}</div>
                   <button v-if="!l.split" type="button" class="mt-2 text-sm font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
                 </div>
                 <button v-if="!l.split" type="button" class="btn-primary h-16 w-full text-xl" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
@@ -1416,7 +1416,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               <div class="w-full space-y-3 text-center landscape:text-left">
                 <div>
                   <div class="text-sm text-stone-500">ยอดโอน</div>
-                  <div class="text-5xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</div>
+                  <div class="text-4xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</div>
                 </div>
                 <div v-if="expiredLine(l)" class="space-y-2">
                   <p class="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700">QR หมดอายุแล้ว สร้าง QR ใหม่ให้ลูกค้าสแกน</p>
