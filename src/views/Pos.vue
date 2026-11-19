@@ -1246,9 +1246,18 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           </div>
           <div class="rounded-2xl bg-white px-4 py-3 ring-1 ring-stone-200">
             <div class="text-xs text-stone-500">แลกได้ตอนนี้</div>
-            <div class="font-semibold text-emerald-800">{{ r.rewards.filter((x) => x.ok).map((x) => x.name).join(' · ') || 'ยังไม่มี' }}</div>
-            <div v-if="r.rewards.some((x) => !x.ok)" class="mt-2 text-xs text-stone-500">อีกนิดจะแลกได้</div>
-            <div v-if="r.rewards.some((x) => !x.ok)" class="text-stone-700">{{ r.rewards.filter((x) => !x.ok).map((x) => `${x.name} (ขาดอีก ${x.need} แต้ม)`).join(' · ') }}</div>
+            <div class="mb-3 mt-1 space-y-1">
+              <div v-for="x in r.rewards.filter((x) => x.ok)" :key="'ok' + x.id" class="flex items-center justify-between gap-2 font-semibold text-emerald-800">
+                <span>{{ x.name }}</span>
+                <span class="text-xs">แลกได้</span>
+              </div>
+              <div v-if="!r.rewards.some((x) => x.ok)" class="font-semibold text-stone-700">ยังไม่มี</div>
+            </div>
+            <div v-if="r.rewards.some((x) => !x.ok)" class="text-xs text-stone-500">อีกนิดจะแลกได้</div>
+            <div v-for="x in r.rewards.filter((x) => !x.ok)" :key="'no' + x.id" class="mt-1 flex items-center justify-between gap-2 text-stone-700">
+              <span>{{ x.name }}</span>
+              <span class="shrink-0 text-xs tabular-nums text-stone-500">ขาดอีก {{ x.need }} แต้ม</span>
+            </div>
           </div>
           <div class="rounded-2xl bg-white px-4 py-3 ring-1 ring-stone-200">
             <div class="text-xs text-stone-500">คูปองที่มี</div>
