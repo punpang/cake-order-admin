@@ -111,9 +111,9 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
   </nav>
   <!-- แถบเมนูบนสำหรับคอมพิวเตอร์ (lg ขึ้นไป) · มือถือ/แท็บเล็ตแนวตั้งใช้แถบล่างแทน -->
   <nav
-    v-if="items.length > 1 && !$route.meta.lock"
+    v-if="items.length && !$route.meta.lock && !$route.meta.focus"
     v-show="!kbLock"
-    class="sticky top-0 z-20 hidden items-center gap-1 overflow-x-auto bg-cream px-8 py-2 pr-32 [scrollbar-width:none] lg:flex"
+    class="sticky top-0 z-20 hidden items-center gap-1 overflow-x-auto bg-cream px-8 py-2 [scrollbar-width:none] lg:flex"
     aria-label="เมนูของระบบ"
   >
     <RouterLink
@@ -126,6 +126,12 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     >
       {{ i.label }}<span v-if="i.badge && badges[i.badge]" class="ml-1 rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{{ badges[i.badge] }}</span>
     </RouterLink>
+    <div class="ml-auto flex shrink-0 items-center gap-2 pl-2">
+      <BellMenu audience="staff" />
+      <button type="button" class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-stone-700 shadow-md ring-1 ring-stone-200" aria-label="เมนู" aria-controls="app-menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
+        <AppIcon :name="menuOpen ? 'x' : 'menu'" :size="20" />
+      </button>
+    </div>
   </nav>
   <SyncBar />
 
