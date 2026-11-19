@@ -24,18 +24,24 @@ watch(version, () => (pending.value = cookieNeedsAsk(readCookieConsent(), versio
 
 // บอกตำแหน่งขอบบนของแถบให้ปุ่มลอย (แชท) ขยับหนี ไม่ให้แถบบังปุ่ม · วัดใหม่เมื่อแถบเปลี่ยนขนาดหรือหมุนจอ
 const el = ref(null)
-const measure = () => { cookieUi.top = el.value ? Math.max(0, Math.round(window.innerHeight - el.value.getBoundingClientRect().top)) : 0 }
+const measure = () => {
+  cookieUi.top = el.value ? Math.max(0, Math.round(window.innerHeight - el.value.getBoundingClientRect().top)) : 0
+  // เว้นที่ท้ายหน้าเท่าความสูงแถบ เพื่อเลื่อนดูเนื้อหา/ปุ่มที่อยู่ใต้แถบได้ (เช่น ลิงก์สมัครสมาชิก)
+  document.body.style.paddingBottom = cookieUi.top ? `${cookieUi.top}px` : ''
+}
 const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null
 watch(el, (n, o) => {
   if (o) ro?.unobserve(o)
   if (n) ro?.observe(n)
   nextTick(measure)
+  if (!n) { cookieUi.top = 0; document.body.style.paddingBottom = '' }
 })
 window.addEventListener('resize', measure)
 onBeforeUnmount(() => {
   ro?.disconnect()
   window.removeEventListener('resize', measure)
   cookieUi.top = 0
+  document.body.style.paddingBottom = ''
 })
 
 function save(choice) {
@@ -50,9 +56,9 @@ function save(choice) {
 <template>
   <section v-if="visible" ref="el" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 p-3 md:bottom-0 md:pb-[calc(env(safe-area-inset-bottom)+0.75rem)]" role="region" aria-label="การตั้งค่าคุกกี้">
     <div class="mx-auto max-w-2xl rounded-3xl bg-matcha-soft p-3.5 shadow-2xl sm:p-4">
-      <div class="font-display text-base text-stone-900 sm:text-lg">Cookie Consent · เว็บไซต์นี้ใช้คุกกี้</div>
-      <!-- ประโยคเดียวกันทุกขนาดจอ เพื่อให้เห็นทางเลือกคุกกี้วิเคราะห์ก่อนกดยอมรับ -->
-      <p class="mt-1 text-sm text-stone-800">
+      <!-- ประโยคเดียวกันทุกขนาดจอ เพื่อให้เห็นทางเลือกคุกกี้วิเคราะห์ก่อนกดยอมรับ · หัวข้ออยู่ในบรรทัดเดียวกับคำอธิบาย ให้แถบเตี้ย -->
+      <p class="text-sm text-stone-800">
+        <b class="font-display text-stone-900">เว็บไซต์นี้ใช้คุกกี้</b> ·
         เราใช้คุกกี้ที่จำเป็นเพื่อให้เว็บทำงาน และคุกกี้วิเคราะห์ที่คุณเลือกเปิดเองได้
         <RouterLink to="/legal/cookie" class="ml-1 font-medium text-stone-900 underline">อ่านนโยบายคุกกี้</RouterLink>
       </p>

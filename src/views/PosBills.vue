@@ -1,4 +1,5 @@
 <script setup>
+import ThaiDateField from '../components/ThaiDateField.vue'
 // บิล POS ที่ปิดแล้วย้อนหลัง · ค้นหา/กรอง · สรุปยอดแยกวิธีชำระ · ดูบิล · พิมพ์ซ้ำ · ใบเสร็จ · ใบกำกับภาษี
 // คืนเงินบางส่วน · เปลี่ยนผู้ซื้อ · ยกเลิกบิล (ใช้ระบบเดิมของ POS ทั้งหมด)
 import { computed, onMounted, reactive, ref, watch } from 'vue'
@@ -175,7 +176,7 @@ onMounted(() => load())
 
 <template>
   <div class="mx-auto max-w-2xl space-y-4 px-4 pb-10 pt-4 lg:max-w-3xl">
-    <header class="flex items-start justify-between gap-3">
+    <header class="head-safe flex items-start justify-between gap-3">
       <div class="min-w-0">
         <h1 class="page-title">บิล POS ที่ปิดแล้ว</h1>
         <p class="meta mt-0.5 text-stone-500">ทุกกะ · ค้นหา ดูย้อนหลัง และจัดการบิล</p>
@@ -196,14 +197,14 @@ onMounted(() => load())
           @click="setRange(p.v)"
         >{{ p.l }}</button>
       </div>
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label class="label" for="pb-from">ตั้งแต่วันที่</label>
-          <input id="pb-from" v-model="from" type="date" class="input input-date" aria-label="ตั้งแต่วันที่" />
+          <ThaiDateField id="pb-from" v-model="from" :past="3" label="ตั้งแต่วันที่" />
         </div>
         <div>
           <label class="label" for="pb-to">ถึงวันที่</label>
-          <input id="pb-to" v-model="to" type="date" :min="from" class="input input-date" aria-label="ถึงวันที่" />
+          <ThaiDateField id="pb-to" v-model="to" :min="from" :past="3" label="ถึงวันที่" />
         </div>
       </div>
 

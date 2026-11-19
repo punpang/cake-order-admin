@@ -225,8 +225,8 @@ async function saveO() {
             <span class="shrink-0 text-sm font-semibold" :class="isSize || isType || opt.price || hasPrice(opt) ? 'text-stone-900' : 'text-stone-400'">{{ priceText(opt) }}</span>
           </button>
           <span class="flex shrink-0 flex-col">
-            <button type="button" class="flex h-6 w-7 lg:h-8 lg:w-8 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="group.options.indexOf(opt) === 0" aria-label="เลื่อนขึ้น" @click="move(opt, -1)">▲</button>
-            <button type="button" class="flex h-6 w-7 lg:h-8 lg:w-8 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="group.options.indexOf(opt) === group.options.length - 1" aria-label="เลื่อนลง" @click="move(opt, 1)">▼</button>
+            <button type="button" class="flex h-10 w-10 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="group.options.indexOf(opt) === 0" aria-label="เลื่อนขึ้น" @click="move(opt, -1)">▲</button>
+            <button type="button" class="flex h-10 w-10 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="group.options.indexOf(opt) === group.options.length - 1" aria-label="เลื่อนลง" @click="move(opt, 1)">▼</button>
           </span>
         </div>
       </div>

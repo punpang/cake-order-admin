@@ -93,8 +93,8 @@ function save() {
         </div>
       </RouterLink>
       <span class="flex shrink-0 flex-col justify-center">
-        <button type="button" class="flex h-7 w-7 lg:h-8 lg:w-8 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.optionGroups.indexOf(g) === 0" aria-label="เลื่อนขึ้น" @click="moveGroup(g, -1)">▲</button>
-        <button type="button" class="flex h-7 w-7 lg:h-8 lg:w-8 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.optionGroups.indexOf(g) === db.optionGroups.length - 1" aria-label="เลื่อนลง" @click="moveGroup(g, 1)">▼</button>
+        <button type="button" class="flex h-10 w-10 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.optionGroups.indexOf(g) === 0" aria-label="เลื่อนขึ้น" @click="moveGroup(g, -1)">▲</button>
+        <button type="button" class="flex h-10 w-10 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 hover:text-stone-700 disabled:opacity-30" :disabled="db.optionGroups.indexOf(g) === db.optionGroups.length - 1" aria-label="เลื่อนลง" @click="moveGroup(g, 1)">▼</button>
       </span>
       </div>
     </div>

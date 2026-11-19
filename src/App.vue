@@ -136,7 +136,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
       :active-class="i.exact ? '' : 'border-brand-600 bg-brand-50/60 font-semibold text-brand-700'"
       :exact-active-class="i.exact ? 'border-brand-600 bg-brand-50/60 font-semibold text-brand-700' : ''"
     >
-      {{ i.label }}<span v-if="i.badge && badges[i.badge]" class="ml-1 rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{{ badges[i.badge] }}</span>
+      {{ i.label }}<span v-if="i.badge && badges[i.badge]" class="ml-1 rounded-full bg-brand-600 px-1.5 text-xs font-semibold text-white">{{ badges[i.badge] }}</span>
     </RouterLink>
     <div class="ml-auto flex shrink-0 items-center gap-2 pl-2">
       <BellMenu audience="staff" />
@@ -175,7 +175,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
       >
         <AppIcon :name="i.icon" :size="22" />
         {{ i.mobileLabel || i.label }}
-        <span v-if="i.badge && badges[i.badge]" class="absolute -top-1 left-1/2 ml-2 min-w-4 rounded-full bg-brand-600 px-1 text-center text-[10px] leading-4 font-semibold text-white">{{ badges[i.badge] }}</span>
+        <span v-if="i.badge && badges[i.badge]" class="absolute -top-1 left-1/2 ml-2 min-w-4 rounded-full bg-brand-600 px-1 text-center text-xs leading-4 font-semibold text-white">{{ badges[i.badge] }}</span>
       </RouterLink>
       <button v-if="hasSwitch" type="button" data-bottom-system class="relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[12px] font-medium text-stone-600" aria-haspopup="menu" :aria-expanded="sysOpen" @click="sysOpen = !sysOpen">
         <AppIcon name="grid" :size="22" />

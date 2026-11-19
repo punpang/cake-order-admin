@@ -190,7 +190,7 @@ async function del(r) {
               <div class="relative min-w-0 flex-1">
                 <video v-if="a.type === 'video'" :src="a.url" muted preload="metadata" class="h-14 w-full max-w-32 rounded-lg bg-stone-900 object-contain" />
                 <img v-else :src="a.url" alt="" loading="lazy" decoding="async" class="h-14 w-full max-w-32 rounded-lg border border-stone-200 object-cover" />
-                <span class="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 text-[11px] font-medium text-white">{{ a.type === 'video' ? 'วิดีโอ' : 'รูป' }}</span>
+                <span class="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 text-xs font-medium text-white">{{ a.type === 'video' ? 'วิดีโอ' : 'รูป' }}</span>
               </div>
               <button type="button" class="btn-outline h-10 w-10 shrink-0 px-0" :disabled="i === 0" aria-label="เลื่อนขึ้น" @click="moveAd(i, -1)">▲</button>
               <button type="button" class="btn-outline h-10 w-10 shrink-0 px-0" :disabled="i === ads.items.length - 1" aria-label="เลื่อนลง" @click="moveAd(i, 1)">▼</button>

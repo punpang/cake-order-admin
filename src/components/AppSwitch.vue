@@ -9,7 +9,7 @@ const on = defineModel({ type: Boolean, default: false })
     role="switch"
     :aria-checked="on"
     :aria-label="label ? undefined : ariaLabel || undefined"
-    class="inline-flex items-center gap-2.5 text-sm text-stone-700"
+    class="inline-flex min-h-11 items-center gap-2.5 text-sm text-stone-700"
     @click="on = !on"
   >
     <span class="relative h-6 w-11 shrink-0 rounded-full transition" :class="on ? 'bg-brand-600' : 'bg-stone-300'">

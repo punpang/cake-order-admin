@@ -3,7 +3,8 @@ import { computed, ref, watch } from 'vue'
 
 // ช่องวันที่แบบไทย: วัน · เดือน · ปี พ.ศ. (ไม่ขึ้นกับภาษาของเบราว์เซอร์) · ค่า = 'YYYY-MM-DD' (ค.ศ.) หรือ '' (ว่าง)
 const model = defineModel({ type: String, default: '' })
-defineProps({ label: { type: String, default: 'วันที่' } })
+// min/max = 'YYYY-MM-DD' (เลือกเกินแล้วปรับเป็นขอบ) · past/future = จำนวนปีที่ให้เลือกย้อนหลัง/ล่วงหน้า
+const props = defineProps({ label: { type: String, default: 'วันที่' }, min: { type: String, default: '' }, max: { type: String, default: '' }, past: { type: Number, default: 1 }, future: { type: Number, default: 6 } })
 const MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
 const parse = (v) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v || ''); return m ? { y: +m[1], m: +m[2], d: +m[3] } : { y: 0, m: 0, d: 0 } }
 const part = ref(parse(model.value))
@@ -13,15 +14,17 @@ const build = (p) => (p.y && p.m && p.d ? `${String(p.y).padStart(4, '0')}-${Str
 function set(k, v) {
   const p = { ...part.value, [k]: Number(v) || 0 }
   if (p.y && p.m && p.d > dim(p.y, p.m)) p.d = dim(p.y, p.m)
-  part.value = p
-  const out = build(p)
+  let out = build(p)
+  if (out && props.min && out < props.min) out = props.min
+  if (out && props.max && out > props.max) out = props.max
+  part.value = out ? parse(out) : p
   if (out !== model.value) model.value = out
 }
 const days = computed(() => Array.from({ length: dim(part.value.y, part.value.m) }, (_, i) => i + 1))
 const years = computed(() => {
   const now = new Date().getFullYear()
   const list = []
-  for (let y = now - 1; y <= now + 6; y++) list.push(y)
+  for (let y = now - props.past; y <= now + props.future; y++) list.push(y)
   if (part.value.y && !list.includes(part.value.y)) list.push(part.value.y)
   return list.sort((a, b) => a - b)
 })

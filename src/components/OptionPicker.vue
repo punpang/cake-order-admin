@@ -119,13 +119,13 @@ const isOn = (g, o) =>
           :data-locked="isLocked(g, o) || null"
           @click="g.type === 'multi' ? toggle(g.id, o.id) : pick(g.id, o.id, g.required)"
         >
-          <span v-if="tagOf(g, o)" class="pointer-events-none max-w-full rounded-full px-2 py-0.5 text-[11px] leading-tight font-bold shadow-sm" :class="tagOf(g, o).state === 'done' ? 'bg-emerald-700 text-white' : 'bg-amber-600 text-white'">{{ tagText(tagOf(g, o)) }}</span>
+          <span v-if="tagOf(g, o)" class="pointer-events-none max-w-full rounded-full px-2 py-0.5 text-xs leading-tight font-bold shadow-sm" :class="tagOf(g, o).state === 'done' ? 'bg-emerald-700 text-white' : 'bg-amber-600 text-white'">{{ tagText(tagOf(g, o)) }}</span>
           <span class="inline-flex min-w-0 items-center gap-1.5">
             <AppIcon v-if="isOn(g, o)" name="check" :size="14" class="text-brand-600" />
             <span class="min-w-0 break-words">{{ o.name }}</span>
             <span v-if="regularText(g, o)" class="text-xs whitespace-nowrap text-stone-400 line-through">{{ regularText(g, o) }}</span>
             <span v-if="priceText(g, o)" class="text-xs whitespace-nowrap" :class="regularText(g, o) ? 'font-medium text-rose-700' : 'text-stone-500'">{{ priceText(g, o) }}</span>
-            <span v-if="isLocked(g, o)" class="rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-bold text-white">บังคับ</span>
+            <span v-if="isLocked(g, o)" class="rounded-full bg-brand-600 px-1.5 py-0.5 text-xs font-bold text-white">บังคับ</span>
           </span>
         </button>
       </div>

@@ -1,4 +1,5 @@
 <script setup>
+import ThaiDateField from '../../components/ThaiDateField.vue'
 import { computed, reactive, ref } from 'vue'
 import { db, saveLinkSettings, saveShortLink, removeShortLink, shortLinkUrl, purgeOrderLinks, findOrder } from '../../data/store'
 import { linkExpiresAt } from '../../lib/orderLink'
@@ -113,7 +114,7 @@ const shownOrderLinks = computed(() => orderLinks.value.slice().reverse().slice(
         <div><label class="label">ปลายทาง <span class="text-rose-600">*</span></label><input v-model="form.target" class="input" placeholder="/menu หรือ https://lin.ee/xxxx" maxlength="2000" /></div>
         <div><label class="label">รหัสลิงก์ (เว้นว่าง = สุ่ม)</label><input v-model="form.code" class="input font-mono" maxlength="10" placeholder="เช่น promo" /></div>
         <div><label class="label">หมายเหตุ</label><input v-model="form.note" class="input" maxlength="120" /></div>
-        <div><label class="label">หมดอายุ (เว้นว่าง = ไม่หมด)</label><input v-model="form.expiresAt" type="date" class="input" /></div>
+        <div><label class="label">หมดอายุ (เว้นว่าง = ไม่หมด)</label><ThaiDateField v-model="form.expiresAt" label="วันหมดอายุ" /></div>
         <AppSwitch v-model="form.active" label="เปิดใช้งาน" />
         <p v-if="ferr" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ ferr }}</p>
       </div>

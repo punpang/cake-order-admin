@@ -77,7 +77,7 @@ onMounted(loadUsers)
         <div v-for="(m, i) in msgs" :key="i" class="flex" :class="m.direction === 'out' ? 'justify-end' : 'justify-start'">
           <div class="max-w-[80%] rounded-2xl px-3 py-2 text-sm" :class="m.direction === 'out' ? 'bg-brand-100 text-stone-900' : 'bg-stone-100 text-stone-800'">
             <div class="whitespace-pre-wrap break-words">{{ m.text }}</div>
-            <div class="mt-1 text-[11px] text-stone-500">{{ dateTime(m.created_at) }}<span v-if="m.direction === 'out' && m.source"> · {{ m.source }}</span></div>
+            <div class="mt-1 text-xs text-stone-500">{{ dateTime(m.created_at) }}<span v-if="m.direction === 'out' && m.source"> · {{ m.source }}</span></div>
           </div>
         </div>
       </div>

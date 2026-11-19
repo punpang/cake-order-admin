@@ -1,4 +1,5 @@
 <script setup>
+import ThaiDateField from '../../components/ThaiDateField.vue'
 import MoneyInput from '../../components/MoneyInput.vue'
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
@@ -164,9 +165,9 @@ async function save() {
       <div class="space-y-4">
         <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" placeholder="เช่น ราคาสมาชิก, โปรวันแม่" /></div>
         <AppSwitch v-model="form.scheduled" label="กำหนดช่วงเวลา (นับจากวันที่สร้างออร์เดอร์)" class="flex" />
-        <div v-if="form.scheduled" class="grid grid-cols-2 gap-3">
-          <div><label class="label">วันเริ่ม</label><input v-model="form.from" type="date" class="input" /></div>
-          <div><label class="label">วันสิ้นสุด</label><input v-model="form.to" type="date" :min="form.from" class="input" /></div>
+        <div v-if="form.scheduled" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div><label class="label">วันเริ่ม</label><ThaiDateField v-model="form.from" label="วันเริ่ม" /></div>
+          <div><label class="label">วันสิ้นสุด</label><ThaiDateField v-model="form.to" :min="form.from" label="วันสิ้นสุด" /></div>
         </div>
         <AppSwitch v-model="form.active" label="ใช้งาน" class="flex" />
         <div>

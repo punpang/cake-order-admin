@@ -29,10 +29,9 @@ async function openPage(hash) {
 }
 
 // ช่องเบอร์สมาชิกอยู่ในหน้าชำระเงินเท่านั้น: เพิ่มสินค้า 1 ชิ้น → ชำระเงิน → คืนช่องค้นหาสมาชิก
+// หน้าขายเริ่มด้วยช่องกรอกเบอร์สมาชิก (หรือกด "ไม่มี") ก่อนเพิ่มสินค้า · สแกนรหัสในช่องนี้ได้
 async function openMemberInput(page) {
-  await page.getByRole('button', { name: /คัพเค้กวานิลลา/ }).first().click()
-  await page.getByRole('button', { name: 'ชำระเงิน', exact: true }).first().click()
-  const input = page.getByLabel('ค้นหาสมาชิกสะสมแต้ม')
+  const input = page.getByLabel('เบอร์สมาชิก')
   await input.waitFor({ state: 'visible', timeout: 15000 })
   return input
 }
@@ -167,8 +166,10 @@ t('POS: สแกนบาร์โค้ดคูปองที่ลูกค
     await page.getByText('ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" หรือหมดเวลาแล้ว').waitFor({ state: 'visible', timeout: 5000 })
     await input.fill('cpe2eactive')
     await input.press('Enter')
+    await input.waitFor({ state: 'detached', timeout: 5000 })
+    await page.getByRole('button', { name: /คัพเค้กวานิลลา/ }).first().click()
+    await page.getByRole('button', { name: 'ชำระเงิน', exact: true }).first().click()
     await page.getByText('ใช้คูปองลดแล้ว').waitFor({ state: 'visible', timeout: 5000 })
-    assert.equal(await page.getByLabel('ค้นหาสมาชิกสะสมแต้ม').count(), 0, 'ช่องค้นหายังอยู่ทั้งที่เลือกลูกค้าแล้ว')
     assert.deepEqual(errors, [])
   } finally { await page.close() }
 })
@@ -206,7 +207,7 @@ t('POS: สแกนรหัสสมาชิกแล้วเลือกล
     await input.fill(member)
     await input.press('Enter')
     await input.waitFor({ state: 'detached', timeout: 5000 })
-    assert.equal(await page.getByLabel('ค้นหาสมาชิกสะสมแต้ม').count(), 0, 'ช่องค้นหายังอยู่ทั้งที่เลือกลูกค้าแล้ว')
+    assert.equal(await page.getByLabel('เบอร์สมาชิก').count(), 0, 'ช่องกรอกเบอร์ยังอยู่ทั้งที่เลือกลูกค้าแล้ว')
     assert.deepEqual(errors, [])
   } finally { await page.close() }
 })
