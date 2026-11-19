@@ -26,7 +26,7 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
       class="fixed inset-0 z-[62] overscroll-contain bg-stone-900/45 backdrop-blur-[2px]" :class="fit ? 'overflow-hidden' : 'overflow-y-auto'"
       :style="kb.open ? { top: 'var(--vvt, 0px)', bottom: 'auto', height: 'var(--vvh, 100%)' } : undefined"
     >
-    <div class="flex h-full justify-center" :class="[big ? 'items-center p-4 sm:p-6' : 'items-end sm:items-center', full ? 'pt-0 sm:p-0' : big ? '' : 'pt-8 sm:p-6']" @click.self="backdrop">
+    <div class="flex h-full justify-center" :class="full ? 'items-end pt-0 sm:items-center sm:p-0' : 'items-center p-4 sm:p-6'" @click.self="backdrop">
       <div
         ref="box"
         data-dialog
@@ -35,11 +35,11 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
         @input.capture="dirty = true"
         @change.capture="dirty = true"
         class="flex max-h-full min-h-0 w-full flex-col overflow-hidden bg-cream shadow-2xl outline-none"
-        :class="full ? 'h-full rounded-none sm:h-full sm:max-w-none sm:rounded-none' : big ? 'max-h-[calc(100dvh-2rem)] rounded-[2rem] sm:h-[90dvh] sm:w-[80vw] sm:max-w-none sm:max-h-none' : ['rounded-t-[2rem] sm:rounded-[2rem]', wider ? 'sm:max-w-2xl lg:max-w-5xl' : wide ? 'sm:max-w-2xl' : 'sm:max-w-md']"
+        :class="full ? 'h-full rounded-none sm:h-full sm:max-w-none sm:rounded-none' : big ? 'max-h-[calc(100dvh-2rem)] rounded-[2rem] sm:h-[90dvh] sm:w-[80vw] sm:max-w-none sm:max-h-none' : ['rounded-[2rem]', wider ? 'sm:max-w-2xl lg:max-w-5xl' : wide ? 'sm:max-w-2xl' : 'sm:max-w-md']"
         role="dialog"
         aria-modal="true"
       >
-        <div class="mx-auto mt-2 h-1.5 w-10 shrink-0 rounded-full bg-stone-300" :class="big ? 'hidden' : 'sm:hidden'" />
+        <div class="mx-auto mt-2 h-1.5 w-10 shrink-0 rounded-full bg-stone-300" :class="full ? 'sm:hidden' : 'hidden'" />
         <div class="flex shrink-0 items-center justify-between gap-2 px-5 pt-3 pb-2 sm:pt-5">
           <h2 :id="titleId" class="min-w-0 truncate text-lg text-stone-900">{{ title }}</h2>
           <button type="button" class="flex h-9 w-9 items-center justify-center rounded-full text-stone-500 hover:bg-stone-100" aria-label="ปิด" @click="emit('close')">
