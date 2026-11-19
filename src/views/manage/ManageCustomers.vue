@@ -6,7 +6,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { customerScale, CUSTOMER_WARN_AT } from '../../lib/customersSync'
 import { resolveMemberScan } from '../../lib/scan'
 import NotifyChannelPicker from '../../components/NotifyChannelPicker.vue'
-import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, convertPointsRemote, can, adminResetCustomerPin, remoteCustomerSearch } from '../../data/store'
+import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, ensureOrders, ensureOrderCounts, orderCounts, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, convertPointsRemote, can, adminResetCustomerPin, remoteCustomerSearch } from '../../data/store'
 import { isPin } from '../../lib/customerAuth'
 import { askConfirm } from '../../lib/confirm'
 import { orderTotals } from '../../lib/pricing'
@@ -49,6 +49,10 @@ function edit(c) {
   open.value = true
 }
 // ประวัติลูกค้า: ออร์เดอร์ทั้งหมด (ใหม่สุดก่อน), ยอดซื้อรวม (ไม่นับยกเลิก), วันเกิดที่เคยสั่ง
+// จำนวนออร์เดอร์บนการ์ดลูกค้า: นับที่เซิร์ฟเวอร์ (เข้าหน้านี้ใหม่ = นับใหม่) · ประวัติของลูกค้าที่เปิดดู: ดึงเฉพาะของลูกค้าคนนั้น
+orderCounts.clear()
+watch(() => list.value.map((c) => c.id), (ids) => ensureOrderCounts(ids), { immediate: true })
+watch(() => form.id, (id) => { if (id) ensureOrders({ customerId: id }) })
 const history = computed(() => {
   if (!form.id) return null
   const orders = db.orders

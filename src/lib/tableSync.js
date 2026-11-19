@@ -147,23 +147,32 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
   }
   // รีเฟรชเฉพาะแถวที่ระบุ (จาก Realtime) · คืน true=จัดการแล้ว, false=ให้ผู้เรียกรีเฟรชทั้งตารางแทน
   // แถวที่แก้ค้างในเครื่อง = ข้าม (ไม่ทับงาน) · ไม่ลบแถวใด (ออร์เดอร์ไม่ถูกลบจริง)
+  // รวมแถวจากเซิร์ฟเวอร์เข้ารายการ (เพิ่ม/แทนที่) · แถวที่แก้ค้างในเครื่อง = ข้าม (ไม่ทับงาน)
+  const mergeRows = (items) => {
+    const at = new Map(list().map((it, i) => [it.id, i]))
+    const isClean = (id) => { const k = at.get(id); return k === undefined || snapshot.get(id) === JSON.stringify(list()[k]) }
+    const rows = items.filter((it) => isClean(it.id))
+    const arr = list()
+    for (const it of rows) {
+      const k = at.get(it.id)
+      if (k !== undefined) { if (JSON.stringify(arr[k]) !== JSON.stringify(it)) arr.splice(k, 1, it) } else { arr.push(it); at.set(it.id, arr.length - 1) }
+    }
+    applyRows?.(rows)
+    for (const it of rows) snapshot.set(it.id, JSON.stringify(arr[at.get(it.id)]))
+    return rows.length
+  }
+  // แถวที่ดึงมาเอง (เช่น ตามช่วงวันที่ของหน้ารายงาน) → รวมเข้ารายการ · คืน false ถ้ากำลังเขียนอยู่ (ให้ลองใหม่)
+  const merge = (items) => (busy ? false : (mergeRows(items), true))
   const refreshIds = loadByIds ? async (ids) => {
     if (busy || !ids.length) return false
     const clean = ids.filter((id) => { const cur = list().find((i) => i.id === id); return !cur || snapshot.get(id) === JSON.stringify(cur) })
     if (!clean.length) return true
     const r = await loadByIds(clean)
     if (r.error || busy) return false
-    const rows = r.items.filter((it) => { const cur = list().find((i) => i.id === it.id); return !cur || snapshot.get(it.id) === JSON.stringify(cur) }) // ระหว่างโหลดมีแก้ในเครื่อง → ข้ามแถวนั้น
-    const arr = list()
-    for (const it of rows) {
-      const k = arr.findIndex((i) => i.id === it.id)
-      if (k >= 0) { if (JSON.stringify(arr[k]) !== JSON.stringify(it)) arr.splice(k, 1, it) } else arr.push(it)
-    }
-    applyRows?.(rows)
-    for (const it of rows) { const cur = arr.find((i) => i.id === it.id); if (cur) snapshot.set(it.id, JSON.stringify(cur)) }
+    mergeRows(r.items) // ระหว่างโหลดมีแก้ในเครื่อง → ข้ามแถวนั้น
     return true
   } : undefined
-  if (!canWrite) return { stop() {}, loaded: true, label, refresh: poll ? refresh : undefined, refreshIds, loadedAt: () => loadedAt }
+  if (!canWrite) return { stop() {}, loaded: true, label, refresh: poll ? refresh : undefined, refreshIds, merge, loadedAt: () => loadedAt }
   // คืน true เมื่อไม่มีอะไรค้าง/เขียนสำเร็จ · false เมื่อเขียนล้มเหลวหรือกำลังเขียนอยู่ (ให้ผู้เรียกที่ต้องเรียงลำดับรอแล้วลองใหม่)
   const flush = async () => {
     if (busy) { again = true; return false }
@@ -229,5 +238,5 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
     if (d.upserts.length || d.deletes.length) syncSet(key, busy ? 'saving' : 'pending', '', flush) // เปลี่ยนจากการรีเฟรชของเซิร์ฟเวอร์ ไม่นับเป็นรอบันทึก
     timer = setTimeout(flush, debounceMs)
   })
-  return { stop() { stopWatch(); clearTimeout(timer); clearTimeout(retryTimer); syncDrop(key) }, loaded: true, label, flush, refresh: poll ? refresh : undefined, refreshIds, loadedAt: () => loadedAt }
+  return { stop() { stopWatch(); clearTimeout(timer); clearTimeout(retryTimer); syncDrop(key) }, loaded: true, label, flush, refresh: poll ? refresh : undefined, refreshIds, merge, loadedAt: () => loadedAt }
 }

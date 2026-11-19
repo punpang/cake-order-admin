@@ -1071,7 +1071,35 @@ export function moveItemTo(list, from, to) {
 }
 
 // จำนวนออร์เดอร์ของลูกค้า
-export const customerOrderCount = (id) => db.orders.filter((o) => o.customerId === id).length
+// ดึงออร์เดอร์เฉพาะที่หน้านั้นต้องใช้ (ตั้งโดยชั้นเชื่อม Supabase) แทนการโหลดประวัติทั้งหมด · ไม่ตั้ง = โหมดตัวอย่าง มีครบในเครื่องแล้ว
+// pull(spec) → Promise (ดึงแล้วรวมเข้า db.orders และปักหมุดไว้) · counts(ids) → Promise<Map id→จำนวน>
+export const orderFetch = { pull: null, counts: null }
+const pulled = new Map() // spec (JSON) → Promise · ดึงซ้ำเงื่อนไขเดิมไม่ได้ภายใน 60 วินาที
+const waitingPulls = new Map() // เปิดหน้าก่อนข้อมูลพื้นฐานพร้อม → เก็บไว้ดึงตอนตัวดึงพร้อม (replayOrderPulls)
+export function replayOrderPulls() {
+  const specs = [...waitingPulls.values()]; waitingPulls.clear(); for (const sp of specs) ensureOrders(sp)
+  const ids = [...waitingCounts]; waitingCounts.clear(); if (ids.length) ensureOrderCounts(ids)
+}
+export function ensureOrders(spec) {
+  if (!orderFetch.pull) { waitingPulls.set(JSON.stringify(spec), spec); return Promise.resolve() }
+  const k = JSON.stringify(spec)
+  const hit = pulled.get(k)
+  if (hit && Date.now() - hit.at < 60000) return hit.p
+  const p = orderFetch.pull(spec).catch(() => { pulled.delete(k) })
+  pulled.set(k, { p, at: Date.now() })
+  return p
+}
+// จำนวนออร์เดอร์ต่อลูกค้าจากเซิร์ฟเวอร์ (ทุกสถานะ) · ยังไม่ได้ = นับจากในเครื่อง
+export const orderCounts = reactive(new Map())
+const waitingCounts = new Set()
+export function ensureOrderCounts(ids) {
+  if (!orderFetch.counts) { for (const id of ids) if (id) waitingCounts.add(id); return }
+  const need = [...new Set(ids)].filter((id) => id && !orderCounts.has(id))
+  if (!need.length) return
+  for (const id of need) orderCounts.set(id, null) // กำลังดึง (กันดึงซ้ำ)
+  orderFetch.counts(need).then((m) => { for (const [id, n] of m) orderCounts.set(id, n) }, () => { for (const id of need) orderCounts.delete(id) })
+}
+export const customerOrderCount = (id) => orderCounts.get(id) ?? db.orders.filter((o) => o.customerId === id).length
 
 // คิดราคาตามราคาพิเศษที่ใช้งาน ณ วันที่สร้างออร์เดอร์ (ค่าเริ่มต้น = วันนี้)
 export const activeListsAt = (dateStr) => activeLists(db.priceLists, dateStr || toDateStr(new Date()))

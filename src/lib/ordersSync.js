@@ -40,6 +40,39 @@ export async function loadOrdersSince(client, since) {
   if (a.error) return { error: a.error.message }
   return { items: (a.data || []).map(rowToOrder) }
 }
+// ดึงเฉพาะออร์เดอร์ที่หน้านั้นต้องใช้ (แทนการโหลดประวัติทั้งหมด) · เงื่อนไขในชุดเดียวกัน = ต้องตรงทุกข้อ
+// customerId / customerIds · pickupFrom–pickupTo (YYYY-MM-DD วันนัด รวมทั้งสองวัน) · updatedSince / createdSince / createdBefore (ISO)
+// birthdays = มีวันเกิดและไม่ยกเลิก · deliveredReported = ส่งมอบแล้วแต่ยังมีงวดที่แจ้งรอตรวจ
+const ORDER_COLS = 'id,code,customer_id,status,fulfillment,channel,data,updated_at'
+export async function loadOrdersWhere(client, spec = {}) {
+  if (spec.customerIds && !spec.customerIds.length) return { items: [] }
+  const a = await selectAll((x, y) => {
+    let qy = client.from('punpang_orders').select(ORDER_COLS)
+    if (spec.customerId) qy = qy.eq('customer_id', spec.customerId)
+    if (spec.customerIds) qy = qy.in('customer_id', spec.customerIds)
+    if (spec.pickupFrom) qy = qy.gte('pickup_at', spec.pickupFrom)
+    if (spec.pickupTo) qy = qy.lt('pickup_at', nextDay(spec.pickupTo))
+    if (spec.updatedSince) qy = qy.gte('updated_at', spec.updatedSince)
+    if (spec.createdSince) qy = qy.gte('created_at', spec.createdSince)
+    if (spec.createdBefore) qy = qy.lt('created_at', spec.createdBefore)
+    if (spec.birthdays) qy = qy.not('data->birthday->>md', 'is', null).neq('status', 'cancelled')
+    if (spec.deliveredReported) qy = qy.eq('status', 'delivered').filter('data->payments', 'cs', JSON.stringify([{ status: 'reported' }])) // ต้องเป็นข้อความ JSON (อาร์เรย์ของอ็อบเจกต์ใน contains() ถูกแปลงผิด)
+    return qy.order('id').range(x, y)
+  })
+  if (a.error) return { error: a.error.message }
+  return { items: (a.data || []).map(rowToOrder) }
+}
+// จำนวนออร์เดอร์ของลูกค้าแต่ละคน (ทุกสถานะ) · ดึงเฉพาะคอลัมน์ customer_id ทีละ 100 คน
+export async function loadOrderCounts(client, customerIds) {
+  const out = new Map(customerIds.map((id) => [id, 0]))
+  for (let i = 0; i < customerIds.length; i += 100) {
+    const part = customerIds.slice(i, i + 100)
+    const a = await selectAll((x, y) => client.from('punpang_orders').select('id,customer_id').in('customer_id', part).order('id').range(x, y))
+    if (a.error) return { error: a.error.message }
+    for (const r of a.data || []) out.set(r.customer_id, (out.get(r.customer_id) || 0) + 1)
+  }
+  return { counts: out }
+}
 // อยู่ในชุดที่โหลดไว้ไหม: โหมดประวัติเต็ม = ทุกแถว · ปกติ = ยังไม่ปิด หรือถูกปักหมุดเปิดดูอยู่
 export const keepOrder = (o) => fullHistory || pinned.has(o.id) || !['cancelled', 'delivered'].includes(o.status)
 

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { db, can } from '../../data/store'
+import { db, can, ensureOrders } from '../../data/store'
 import { STATUS } from '../../lib/constants'
 import { computeDashboard } from '../../lib/dashboardStats'
 import { fetchPageViews } from '../../lib/pageViews'
@@ -39,6 +39,15 @@ async function loadViews() {
   }
 }
 onMounted(loadViews)
+// ดึงเฉพาะที่แดชบอร์ดใช้ (แทนประวัติทั้งหมด): นัดรับวันนี้ (ทุกสถานะ) · ออร์เดอร์ 8 วันล่าสุด · ออร์เดอร์ก่อนหน้าของลูกค้ากลุ่มนั้น (ตัดสินว่าเป็นลูกค้าใหม่ไหม)
+onMounted(async () => {
+  const today = d.value.today
+  ensureOrders({ pickupFrom: today, pickupTo: today })
+  const since = new Date(Date.now() - 8 * 86400e3).toISOString()
+  await ensureOrders({ createdSince: since })
+  const ids = [...new Set(db.orders.filter((o) => o.customerId && String(o.createdAt || '') >= since).map((o) => o.customerId))].sort()
+  for (let i = 0; i < ids.length; i += 100) ensureOrders({ customerIds: ids.slice(i, i + 100), createdBefore: since })
+})
 
 const viewsToday = computed(() => (views.value ? views.value[views.value.length - 1].n : null))
 const views7 = computed(() => (views.value ? views.value.reduce((s, x) => s + x.n, 0) : null))
