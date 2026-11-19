@@ -187,7 +187,7 @@ async function save() {
               v-for="n in RETENTION_PRESETS.filter((x) => x >= c.min)"
               :key="n"
               type="button"
-              class="h-8 rounded-full border px-3 text-xs font-medium transition"
+              class="h-8 rounded-full border px-3 text-xs font-medium transition pointer-coarse:h-10 pointer-coarse:text-sm"
               :class="Number(form[c.key].days) === n ? 'border-brand-500 bg-brand-600 text-white' : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-100'"
               :aria-pressed="Number(form[c.key].days) === n"
               @click="setDays(c.key, n)"

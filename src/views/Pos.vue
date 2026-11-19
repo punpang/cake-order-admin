@@ -979,7 +979,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <button v-if="member" type="button" class="btn-soft h-9 w-9 shrink-0 text-sm" aria-label="เอาสมาชิกออก" @click="clearMemberPick">✕</button>
       </template>
       <div v-if="shift" class="grid grid-cols-4 gap-1 seg-grid max-sm:order-last max-sm:w-full" :class="can('useLoyalty') ? '' : 'ml-auto'">
-        <button v-for="t in [{ v: 'sell', l: 'ขาย' }, { v: 'bills', l: `บิล ${bills.length}` }, { v: 'queue', l: `คิว ${prepList.length}` }, { v: 'shift', l: 'ปิดกะ' }]" :key="t.v" type="button" class="h-9 rounded-lg px-3 text-sm font-medium" :class="tab === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="tab = t.v">{{ t.l }}</button>
+        <button v-for="t in [{ v: 'sell', l: 'ขาย' }, { v: 'bills', l: `บิล ${bills.length}` }, { v: 'queue', l: `คิว ${prepList.length}` }, { v: 'shift', l: 'สรุปกะ' }]" :key="t.v" type="button" class="h-9 rounded-lg px-2 text-sm font-medium whitespace-nowrap sm:px-3" :class="tab === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="tab = t.v">{{ t.l }}</button>
       </div>
     </div>
 
@@ -1016,6 +1016,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <button type="button" class="btn-outline h-14 shrink-0 px-5 text-base" @click="chooseNoMember">ไม่มี</button>
           </div>
           <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
+          <p v-else-if="!memberQ" class="text-sm text-stone-600">เริ่มขาย: กรอกเบอร์สมาชิก 10 หลัก หรือสแกนบาร์โค้ดสมาชิก · ลูกค้าทั่วไปกด "ไม่มี"</p>
           <div v-if="memberMatches.length" class="space-y-2">
             <div v-for="c in memberMatches" :key="c.id" class="flex w-full items-stretch gap-2 rounded-xl border border-stone-200 bg-white text-sm hover:border-brand-300">
               <button v-for="r in [redeemInfo(c)]" :key="'gp' + c.id" type="button" class="flex min-w-0 flex-1 flex-col gap-1 px-4 py-3 text-left" @click="pickMember(c)">
@@ -1149,7 +1150,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <div v-if="cart.length" class="-mx-1 mb-2 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]" aria-label="รายการในตะกร้า (แตะ ✕ เพื่อลบ)">
           <span v-for="l in cart" :key="'q' + lineKey(l)" class="flex shrink-0 items-center gap-1 rounded-full border border-stone-200 bg-white py-1 pr-1 pl-3 text-xs text-stone-700"><span class="max-w-32 truncate">{{ lineName(l) }} ×{{ l.qty }}</span><button type="button" class="flex h-7 w-7 items-center justify-center rounded-full text-rose-700 hover:bg-rose-50" :aria-label="`ลบ ${itemOf(l)?.name} ออกจากตะกร้า`" @click="removeLine(l)">✕</button></span>
         </div>
-        <button type="button" class="btn-primary h-12 w-full justify-between px-5 text-base" @click="cartOpen = true">
+        <button type="button" class="h-12 w-full justify-between px-5 text-base" :class="cart.length ? 'btn-primary' : 'btn-soft'" @click="cartOpen = true">
           <span>ตะกร้า {{ count }} ชิ้น</span><span>{{ money(total) }}</span>
         </button>
       </div>

@@ -1,10 +1,11 @@
 <script setup>
 import ThaiDateField from '../components/ThaiDateField.vue'
+import DatePresets from '../components/DatePresets.vue'
 import { computed, ref } from 'vue'
 import { db, can, findCustomer, dueAt } from '../data/store'
 import { MATERIAL_STATUSES, STATUS } from '../lib/constants'
 import { describeSelections } from '../lib/pricing'
-import { toDateStr, pad, dayLabel } from '../lib/format'
+import { toDateStr, pad, dayLabel, dateOnly } from '../lib/format'
 import StatusBadge from '../components/StatusBadge.vue'
 import KitchenTabs from '../components/KitchenTabs.vue'
 import AppIcon from '../components/AppIcon.vue'
@@ -13,6 +14,8 @@ import AppIcon from '../components/AppIcon.vue'
 const today = toDateStr(new Date())
 const from = ref(today)
 const to = ref(today)
+const showFilter = ref(false) // ตัวกรองละเอียด (พับไว้ก่อน)
+const rangeText = computed(() => (from.value === to.value ? dateOnly(from.value) : `${dateOnly(from.value)} – ${dateOnly(to.value)}`))
 function setFrom(v) {
   from.value = v
   if (to.value < v) to.value = v
@@ -70,25 +73,33 @@ const details = (it) => describeSelections(it, db.optionGroups)
     <KitchenTabs />
     <h1 class="page-title mb-4">ตารางผลิต</h1>
 
-    <section class="card mb-4 space-y-3">
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div><label class="label">ตั้งแต่วันที่</label><ThaiDateField :model-value="from" label="ตั้งแต่วันที่" @update:model-value="setFrom" /></div>
-        <div><label class="label">ถึงวันที่</label><ThaiDateField v-model="to" :min="from" label="ถึงวันที่" /></div>
+    <section class="card mb-4 space-y-3" aria-label="ตัวกรอง">
+      <!-- แถวสรุป + ปุ่มลัด (ตัวกรองละเอียดพับไว้: คนครัวเห็นงานวันนี้ได้ทันทีโดยไม่ต้องเลื่อน) -->
+      <div class="flex items-center gap-2">
+        <p class="min-w-0 flex-1 text-sm text-stone-600">{{ rangeText }} · สถานะ {{ picked.length }}/{{ MATERIAL_STATUSES.length }}</p>
+        <button type="button" class="btn-outline h-10 shrink-0 px-3 text-sm" :aria-expanded="showFilter" aria-controls="kitchen-filter" @click="showFilter = !showFilter"><AppIcon name="filter" :size="16" /> {{ showFilter ? 'ซ่อนตัวกรอง' : 'ตัวกรอง' }}</button>
       </div>
-      <div>
-        <div class="mb-1.5 flex items-center justify-between gap-2">
-          <div class="label mb-0">สถานะออร์เดอร์ <span class="font-normal text-stone-500">· เลือก {{ picked.length }}/{{ MATERIAL_STATUSES.length }}</span></div>
-          <button type="button" class="h-9 rounded-lg px-2 text-sm font-medium text-brand-700 underline" @click="picked = picked.length === MATERIAL_STATUSES.length ? [] : [...MATERIAL_STATUSES]">{{ picked.length === MATERIAL_STATUSES.length ? 'ล้างทั้งหมด' : 'เลือกทั้งหมด' }}</button>
+      <DatePresets :from="from" :to="to" :presets="['today', 'tomorrow', 'next7']" @set="([f, t]) => { from = f; to = t }" />
+      <div v-show="showFilter" id="kitchen-filter" class="space-y-3 border-t border-stone-100 pt-3">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div><label class="label">ตั้งแต่วันที่</label><ThaiDateField :model-value="from" label="ตั้งแต่วันที่" @update:model-value="setFrom" /></div>
+          <div><label class="label">ถึงวันที่</label><ThaiDateField v-model="to" :min="from" label="ถึงวันที่" /></div>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <button v-for="s in MATERIAL_STATUSES" :key="s" type="button" class="chip" :class="picked.includes(s) ? 'chip-on' : 'chip-off'" :aria-pressed="picked.includes(s)" @click="toggle(s)">
-            <span v-if="picked.includes(s)" aria-hidden="true">✓</span>
-            <span v-else class="h-2 w-2 rounded-full" :class="STATUS[s].dot"></span>
-            {{ STATUS[s].label }} ({{ countOf(s) }})
-          </button>
+        <div>
+          <div class="mb-1.5 flex items-center justify-between gap-2">
+            <div class="label mb-0">สถานะออร์เดอร์ <span class="font-normal text-stone-500">· เลือก {{ picked.length }}/{{ MATERIAL_STATUSES.length }}</span></div>
+            <button type="button" class="h-9 rounded-lg px-2 text-sm font-medium text-brand-700 underline" @click="picked = picked.length === MATERIAL_STATUSES.length ? [] : [...MATERIAL_STATUSES]">{{ picked.length === MATERIAL_STATUSES.length ? 'ล้างทั้งหมด' : 'เลือกทั้งหมด' }}</button>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="s in MATERIAL_STATUSES" :key="s" type="button" class="chip" :class="picked.includes(s) ? 'chip-on' : 'chip-off'" :aria-pressed="picked.includes(s)" @click="toggle(s)">
+              <span v-if="picked.includes(s)" aria-hidden="true">✓</span>
+              <span v-else class="h-2 w-2 rounded-full" :class="STATUS[s].dot"></span>
+              {{ STATUS[s].label }} ({{ countOf(s) }})
+            </button>
+          </div>
         </div>
+        <p class="text-xs text-stone-500">นับจากวันนัดรับ · ต้องเสร็จก่อนนัด: รับที่ร้าน {{ db.shop.leadPickup }} นาที / จัดส่ง {{ db.shop.leadDelivery }} นาที</p>
       </div>
-      <p class="text-xs text-stone-500">นับจากวันนัดรับ · ต้องเสร็จก่อนนัด: รับที่ร้าน {{ db.shop.leadPickup }} นาที / จัดส่ง {{ db.shop.leadDelivery }} นาที</p>
     </section>
 
     <p v-if="!rows.length" class="card py-10 text-center text-stone-500">ไม่มีงานในช่วงนี้</p>

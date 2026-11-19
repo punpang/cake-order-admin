@@ -1,4 +1,4 @@
-import { rowToQuote } from './chatSync'
+import { rowToQuote } from './quoteRow.js'
 
 // ส่งใบเสนอผ่าน Edge Function quote-create: เซิร์ฟเวอร์คิดราคาจากแคตาล็อกและบันทึกใบเสนอเอง · คืน { quote } | { error } (ไม่ throw)
 export async function createQuoteRemote(client, chatId, draft) {

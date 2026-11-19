@@ -104,7 +104,7 @@ const tabs = computed(() => [
       · <button type="button" class="inline-block py-1.5 underline" @click="openCookieSettings">ตั้งค่าคุกกี้</button>
     </div>
     <div class="pb-3 text-center text-xs text-cream/80">
-      <RouterLink to="/account" class="inline-block py-1.5 underline">บัญชีของฉัน</RouterLink>
+      <RouterLink to="/account" class="inline-block py-2.5 underline">บัญชีของฉัน</RouterLink>
     </div>
   </footer>
   <CookieBanner />

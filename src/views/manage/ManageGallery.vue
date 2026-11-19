@@ -81,7 +81,7 @@ const itemLimit = ref(24) // รูปเยอะ: แสดงทีละ 24
               <img :src="it.image" :alt="it.caption || 'รูปเค้ก'" class="aspect-square w-full object-cover" loading="lazy" decoding="async" />
               <span class="block space-y-1 px-2 pt-2"><span class="flex flex-wrap gap-1"><span v-for="t in it.tags" :key="t" class="rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-800">{{ nameOf(t) }}</span></span><span v-if="it.caption" class="block truncate text-xs text-stone-500">{{ it.caption }}</span></span>
             </button>
-            <div class="p-2 pt-1"><RouterLink v-if="it.source" :to="`/admin/orders/${it.source.orderId}`" class="block text-xs text-brand-700 underline">จากออร์เดอร์ {{ codeOf(it.source.orderId) }}</RouterLink></div>
+            <div class="p-2 pt-1"><RouterLink v-if="it.source" :to="`/admin/orders/${it.source.orderId}`" class="block py-1 text-xs text-brand-700 underline pointer-coarse:py-2.5">จากออร์เดอร์ {{ codeOf(it.source.orderId) }}</RouterLink></div>
           </div>
         </div>
         <button v-if="items.length > itemLimit" type="button" class="btn-outline mt-3 w-full" @click="itemLimit += 48">ดูเพิ่ม (เหลืออีก {{ items.length - itemLimit }})</button>

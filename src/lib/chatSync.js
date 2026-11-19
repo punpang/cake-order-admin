@@ -10,13 +10,8 @@ export function chatToRow(c) {
 export function rowToChat(r) {
   return { ...(r.data || {}), id: r.id, channel: r.channel, externalId: r.external_id || '', customerId: r.customer_id || null }
 }
-export function quoteToRow(q) {
-  const { id, code, chatId, customerId, status, orderId, ...rest } = q
-  return { id, code, chat_id: chatId, customer_id: customerId || null, status, order_id: orderId || null, data: rest }
-}
-export function rowToQuote(r) {
-  return { ...(r.data || {}), id: r.id, code: r.code, chatId: r.chat_id, customerId: r.customer_id || null, status: r.status, orderId: r.order_id || null }
-}
+export { quoteToRow, rowToQuote } from './quoteRow.js'
+import { quoteToRow, rowToQuote } from './quoteRow.js'
 
 const byDesc = (f) => (a, b) => String(b[f] || '').localeCompare(String(a[f] || ''))
 

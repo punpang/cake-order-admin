@@ -216,7 +216,7 @@ onMounted(() => {
         </div>
         <p v-if="sms.statusErr" class="mt-2 text-xs text-rose-700">{{ sms.statusErr }}</p>
         <p v-else-if="sms.configured === false" class="mt-2 text-xs text-stone-500">ตั้ง secret ที่ Supabase: <code>SMS_GATEWAY_URL</code> (ลิงก์รีเลย์) และ <code>SMS_API_KEY</code> (สิทธิ์ส่งและลบ) · ตั้งชื่อ/URL ที่หน้า "การเชื่อมต่อ &amp; แจ้งเตือน"</p>
-        <RouterLink to="/admin/settings/integrations" class="mt-2 inline-block text-xs text-brand-700 underline">ไปหน้าการเชื่อมต่อ</RouterLink>
+        <RouterLink to="/admin/settings/integrations" class="mt-1 inline-block py-2.5 text-sm text-brand-700 underline">ไปหน้าการเชื่อมต่อ</RouterLink>
         <p v-if="!hasGateway" class="mt-1 text-xs text-stone-400">ยังไม่ได้บันทึกการเชื่อมในระบบ (ตั้งที่หน้าการเชื่อมต่อ)</p>
       </section>
 
@@ -267,7 +267,7 @@ onMounted(() => {
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h2 class="font-semibold">รายการข้อความ</h2>
           <div class="flex gap-1">
-            <button v-for="(label, d) in DIRECTIONS" :key="d" type="button" class="h-8 rounded-full px-3 text-xs" :class="list.direction === d ? 'bg-brand-600 text-white' : 'bg-stone-100 text-stone-600'" @click="setDirection(d)">{{ label }}</button>
+            <button v-for="(label, d) in DIRECTIONS" :key="d" type="button" class="h-8 rounded-full px-3 text-xs pointer-coarse:h-10 pointer-coarse:text-sm" :class="list.direction === d ? 'bg-brand-600 text-white' : 'bg-stone-100 text-stone-600'" @click="setDirection(d)">{{ label }}</button>
           </div>
         </div>
         <p v-if="list.err" class="mt-2 text-sm text-rose-700">{{ list.err }}</p>
