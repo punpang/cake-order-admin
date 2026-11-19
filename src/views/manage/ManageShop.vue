@@ -21,7 +21,7 @@ const shopAddrChoices = computed(() => [
 ])
 const prepCats = [...new Set(db.retailItems.map((x) => x.category).filter(Boolean))]
 const togglePrep = (c) => { const a = st.prepCategories || []; st.prepCategories = a.includes(c) ? a.filter((x) => x !== c) : [...a, c] }
-const st = reactive({ ...db.shop, prepCategories: [...(db.shop.prepCategories || [])], pickupRemindHours: db.shop.pickupRemindHours ?? 24, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, lineRetentionDays: db.shop.lineRetentionDays ?? 180, merchantCode: db.shop.merchantCode ?? '', billerId: db.shop.billerId ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
+const st = reactive({ ...db.shop, prepCategories: [...(db.shop.prepCategories || [])], pickupRemindHours: db.shop.pickupRemindHours ?? 24, chatAutoHideHours: db.shop.chatAutoHideHours ?? 24, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, lineRetentionDays: db.shop.lineRetentionDays ?? 180, merchantCode: db.shop.merchantCode ?? '', billerId: db.shop.billerId ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
 // ---- วัน-เวลาปิดร้าน ----
 const DOWS = [1, 2, 3, 4, 5, 6, 0] // จันทร์เริ่ม
 const flip = (arr, d) => (arr.includes(d) ? arr.splice(arr.indexOf(d), 1) : arr.push(d))
@@ -59,6 +59,7 @@ function save() {
   if (!st.open || !st.close || st.close <= st.open) return (error.value = 'เวลาปิดต้องหลังเวลาเปิด')
   if (!(Number(st.slotMinutes) >= 5)) return (error.value = 'ช่วงเวลาต้องอย่างน้อย 5 นาที')
   if (!(Number(st.dailyOrderCap) >= 0 && Number.isInteger(Number(st.dailyOrderCap)) && Number(st.dailyOrderCap) <= 9999)) return (error.value = 'จำนวนออเดอร์สูงสุดต่อวันต้องเป็นจำนวนเต็ม 0–9999')
+  if (!(Number.isInteger(Number(st.chatAutoHideHours)) && Number(st.chatAutoHideHours) >= 0 && Number(st.chatAutoHideHours) <= 720)) return (error.value = 'ซ่อนแชทอัตโนมัติ: กรอก 0–720 ชั่วโมง (0 = ไม่ซ่อน)')
   if (![st.leadPickup, st.leadDelivery, st.birthdayDays].every(num)) return (error.value = 'กรอกตัวเลขตั้งแต่ 0 ขึ้นไป')
   const mcDigits = String(st.merchantCode || '').replace(/\D/g, '')
   if (mcDigits && !/^\d{6,20}$/.test(mcDigits)) return (error.value = 'รหัสร้านค้าต้องเป็นตัวเลข 6–20 หลัก (เว้นว่างถ้าไม่ตรวจสลิป)')
@@ -116,6 +117,13 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
       <div>
         <div class="label">จำนวนออเดอร์สูงสุดต่อวัน <span class="font-normal text-stone-400">(นับตามวันที่นัด · 0 = ไม่จำกัด)</span></div>
         <input v-model.number="st.dailyOrderCap" type="text" v-num min="0" class="input w-24" aria-label="จำนวนออเดอร์สูงสุดต่อวัน" />
+      </div>
+      <div>
+        <div class="label">ซ่อนแชทอัตโนมัติ เมื่อไม่มีความเคลื่อนไหว <span class="font-normal text-stone-400">(นับจากข้อความล่าสุด · ไม่ซ่อนแชทที่ยังไม่อ่านหรือมีออร์เดอร์ค้าง · 0 = ไม่ซ่อน)</span></div>
+        <div class="flex items-center gap-2">
+          <input v-model.number="st.chatAutoHideHours" type="text" v-num min="0" class="input w-24" aria-label="ซ่อนแชทอัตโนมัติหลังไม่มีความเคลื่อนไหว (ชั่วโมง)" />
+          <span class="text-sm text-stone-500">ชม.</span>
+        </div>
       </div>
       <div>
         <div class="label">ค่าเริ่มต้น ช่วงดูออร์เดอร์ก่อน/หลัง ตอนเลือกเวลา</div>

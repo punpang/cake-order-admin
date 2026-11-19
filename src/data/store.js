@@ -1655,6 +1655,7 @@ export function saveShopSettings(d) {
   db.shop.open = d.open || '09:00'
   db.shop.close = d.close || '20:00'
   db.shop.nearbyHours = Math.max(0, Number(d.nearbyHours) || 0)
+  { const h = Math.round(Number(d.chatAutoHideHours)); db.shop.chatAutoHideHours = Number.isFinite(h) ? Math.min(720, Math.max(0, h)) : 24 }
   db.shop.leadPickup = Math.max(0, Number(d.leadPickup) || 0)
   db.shop.leadDelivery = Math.max(0, Number(d.leadDelivery) || 0)
   db.shop.depositPercent = Math.min(100, Math.max(0, Number(d.depositPercent) || 0))
@@ -3539,6 +3540,17 @@ export function sendIntegrationTest(key) {
 export function markRead(chatId) {
   const c = findChat(chatId)
   if (c) c.unreadStaff = 0
+}
+// ซ่อน/แสดงแชท (ทีมเห็นตรงกัน) · ลูกค้าทักมาใหม่หลังซ่อน → แสดงกลับเอง (ดู chatVisibility.js)
+export function setChatHidden(chatId, hidden) {
+  const c = findChat(chatId)
+  if (!c) return
+  c.hiddenAt = hidden ? now() : null
+  c.showAt = hidden ? null : now()
+}
+export function setChatPinned(chatId, on) {
+  const c = findChat(chatId)
+  if (c) c.pinnedAt = on ? now() : null
 }
 // ผูกแชทกับลูกค้า (จำ FB PSID ไว้กับลูกค้า)
 export function linkChat(chatId, customerId) {
