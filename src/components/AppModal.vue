@@ -4,7 +4,7 @@ import { useDialogA11y } from '../lib/dialogA11y'
 import { kb } from '../lib/viewportFit'
 import AppIcon from './AppIcon.vue'
 
-defineProps({ title: { type: String, default: '' }, wide: { type: Boolean, default: false }, wider: { type: Boolean, default: false }, full: { type: Boolean, default: false }, fit: { type: Boolean, default: false } }) // full: เต็มจอ · fit: ไม่มีการเลื่อนทั้งแนวตั้งและแนวนอน (เนื้อหาต้องพอดีกรอบ) // wider: กว้างขึ้นบนจอ lg สำหรับเลย์เอาต์สองคอลัมน์
+defineProps({ title: { type: String, default: '' }, wide: { type: Boolean, default: false }, wider: { type: Boolean, default: false }, full: { type: Boolean, default: false }, big: { type: Boolean, default: false }, fit: { type: Boolean, default: false } }) // full: เต็มจอ · fit: ไม่มีการเลื่อนทั้งแนวตั้งและแนวนอน (เนื้อหาต้องพอดีกรอบ) // wider: กว้างขึ้นบนจอ lg สำหรับเลย์เอาต์สองคอลัมน์
 const emit = defineEmits(['close'])
 const box = ref(null)
 const titleId = `dlg-${useId()}`
@@ -35,7 +35,7 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
         @input.capture="dirty = true"
         @change.capture="dirty = true"
         class="flex max-h-full min-h-0 w-full flex-col overflow-hidden rounded-t-[2rem] bg-cream shadow-2xl outline-none sm:rounded-[2rem]"
-        :class="full ? 'h-full rounded-none sm:h-full sm:max-w-none sm:rounded-none' : wider ? 'sm:max-w-2xl lg:max-w-5xl' : wide ? 'sm:max-w-2xl' : 'sm:max-w-md'"
+        :class="full ? 'h-full rounded-none sm:h-full sm:max-w-none sm:rounded-none' : big ? 'sm:h-[90dvh] sm:w-[80vw] sm:max-w-none' : wider ? 'sm:max-w-2xl lg:max-w-5xl' : wide ? 'sm:max-w-2xl' : 'sm:max-w-md'"
         role="dialog"
         aria-modal="true"
       >

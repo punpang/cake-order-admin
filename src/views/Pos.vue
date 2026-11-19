@@ -1186,7 +1186,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · เต็มจอ ไม่เลื่อน: ซ้าย = สรุปยอด สมาชิก คูปอง และรายการที่รับแล้ว · ขวา = เลือกวิธี และทำรายการนั้น -->
-    <AppModal v-if="payOpen" title="ชำระเงิน" wider fit @close="requestClose">
+    <AppModal v-if="payOpen" title="ชำระเงิน" big fit @close="requestClose">
       <div class="flex h-full min-h-0 flex-col gap-3">
       <div class="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:grid-rows-1">
         <!-- ซ้าย: สมาชิก คูปอง รายการ -->
