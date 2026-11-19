@@ -1389,7 +1389,11 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                 <div class="text-base text-stone-500">ยอดโอนครั้งนี้</div>
                 <div class="text-4xl font-bold tabular-nums whitespace-nowrap text-stone-900">{{ money(lineAmt(l)) }}</div>
                 <button v-if="!l.split" type="button" class="mt-2 text-sm font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
-                <p v-else class="mt-2 text-sm text-stone-500">พิมพ์ยอดด้วยคีย์บอร์ด · ล้างค่าเพื่อเริ่มใหม่</p>
+                <p v-else class="mt-2 text-sm text-stone-500">{{ kbMode === 'keyboard' ? 'พิมพ์ยอดด้วยคีย์บอร์ด · ล้างค่าเพื่อเริ่มใหม่' : 'กรอกยอดด้วยแป้นตัวเลข · ล้างค่าเพื่อเริ่มใหม่' }}</p>
+              </div>
+              <!-- ไม่ได้เชื่อมคีย์บอร์ด: แสดงแป้นตัวเลขบนจอ (แบ่งจ่ายโอน) -->
+              <div v-if="l.split && kbMode !== 'keyboard'" class="grid grid-cols-3 gap-2" aria-label="แป้นตัวเลขยอดโอน">
+                <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-11 rounded-2xl bg-white text-xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.98]" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" @click="padInput(l, 'amount', k)">{{ k === 'back' ? '⌫' : k }}</button>
               </div>
               <div class="grid gap-2" :class="l.split ? 'grid-cols-[1fr_2fr]' : 'grid-cols-1'">
                 <button v-if="l.split" type="button" class="btn-outline h-14" @click="l.amount = ''">ล้างค่า</button>
