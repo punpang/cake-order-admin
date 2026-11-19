@@ -27,9 +27,9 @@ const total = (e) => entrySums(e).dr / 100
 <template>
   <div class="space-y-4">
     <div class="flex items-center justify-between gap-2">
-      <button class="btn-outline h-10 px-3" aria-label="เดือนก่อน" @click="ym = addMonths(ym, -1)">‹</button>
+      <button class="btn-outline h-11 w-11 px-0" aria-label="เดือนก่อน" @click="ym = addMonths(ym, -1)">‹</button>
       <div class="text-center"><div class="font-semibold text-stone-900">{{ monthLabel(ym) }}</div><div class="text-xs text-stone-500">{{ dateOnly(range.from) }} – {{ dateOnly(range.to) }}</div></div>
-      <button class="btn-outline h-10 px-3" aria-label="เดือนถัดไป" @click="ym = addMonths(ym, 1)">›</button>
+      <button class="btn-outline h-11 w-11 px-0" aria-label="เดือนถัดไป" @click="ym = addMonths(ym, 1)">›</button>
     </div>
     <div class="grid grid-cols-2 gap-3">
       <div v-for="c in cards" :key="c.l" class="card"><div class="text-xs text-stone-500">{{ c.l }}</div><div class="mt-1 text-lg font-semibold" :class="c.cls">{{ money(c.v) }}</div></div>

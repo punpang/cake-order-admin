@@ -184,7 +184,7 @@ function doCreate() {
     <div class="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] gap-3 lg:gap-4" :class="gridCls">
       <!-- รายการแชท -->
       <aside :class="[cardCls, asideCls]" aria-label="รายการแชท">
-        <div class="flex items-center justify-between gap-2 px-4 pt-3.5 pb-2.5">
+        <div class="head-safe flex items-center justify-between gap-2 px-4 pt-3.5 pb-2.5">
           <h1 class="page-title">แชท</h1>
           <div class="flex min-w-0 items-center gap-1.5">
             <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium" :class="fbOn ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'" :title="fbOn ? `Facebook ${db.integrations.facebook.accountName}` : 'ยังไม่ได้เชื่อม Facebook'">
@@ -234,7 +234,7 @@ function doCreate() {
               <span v-if="current?.id === c.id" class="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-500" aria-hidden="true" />
               <span class="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-100 text-base font-semibold text-brand-800">
                 {{ initial(nameOf(c)) }}
-                <span class="absolute -right-1 -bottom-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[c.channel].cls">{{ CH[c.channel].mark || 'f' }}</span>
+                <span class="absolute -right-1 -bottom-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-xs leading-none font-bold ring-2 ring-white" :class="CH[c.channel].cls">{{ CH[c.channel].mark || 'f' }}</span>
               </span>
               <span class="min-w-0 flex-1">
                 <span class="flex items-baseline gap-2">
@@ -248,7 +248,7 @@ function doCreate() {
                   <span class="min-w-0 flex-1 truncate text-sm" :class="c.unreadStaff ? 'font-medium text-stone-900' : 'text-stone-500'">{{ last(c).text }}</span>
                   <span v-if="c.botHandoff" class="shrink-0 rounded bg-violet-50 px-1.5 text-xs leading-5 font-medium text-violet-700">บอทส่งต่อ</span>
                   <span v-else-if="c.botDraft && !c.botDraft.editing" class="shrink-0 rounded bg-violet-50 px-1.5 text-xs leading-5 font-medium text-violet-700">มีร่างบอท</span>
-                  <span v-if="c.unreadStaff" class="shrink-0 rounded-full bg-brand-600 px-1.5 text-[11px] leading-5 font-semibold text-white tabular-nums">{{ c.unreadStaff }}</span>
+                  <span v-if="c.unreadStaff" class="shrink-0 rounded-full bg-brand-600 px-1.5 text-xs leading-5 font-semibold text-white tabular-nums">{{ c.unreadStaff }}</span>
                 </span>
               </span>
             </RouterLink>
@@ -265,7 +265,7 @@ function doCreate() {
           <button type="button" class="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1.5 text-left hover:bg-stone-50" :class="kb.open ? 'py-0' : 'py-1'" :aria-label="`ข้อมูลลูกค้า ${chName}`" @click="detailsOpen = true">
             <span class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-800">
               {{ initial(chName) }}
-              <span class="absolute -right-1 -bottom-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[current.channel].cls">{{ CH[current.channel].mark || 'f' }}</span>
+              <span class="absolute -right-1 -bottom-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-xs leading-none font-bold ring-2 ring-white" :class="CH[current.channel].cls">{{ CH[current.channel].mark || 'f' }}</span>
             </span>
             <span class="min-w-0 flex-1">
               <span class="flex min-w-0 items-center gap-2">
@@ -336,7 +336,7 @@ function doCreate() {
           <div class="flex items-center gap-3">
             <span class="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand-100 text-lg font-semibold text-brand-800">
               {{ initial(chName) }}
-              <span class="absolute -right-1 -bottom-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] leading-none font-bold ring-2 ring-white" :class="CH[current.channel].cls">{{ CH[current.channel].mark || 'f' }}</span>
+              <span class="absolute -right-1 -bottom-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs leading-none font-bold ring-2 ring-white" :class="CH[current.channel].cls">{{ CH[current.channel].mark || 'f' }}</span>
             </span>
             <div class="min-w-0 flex-1">
               <div class="truncate text-base font-semibold text-stone-900">{{ chName }}</div>

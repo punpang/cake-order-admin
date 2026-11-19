@@ -177,7 +177,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
               <span
                 v-for="l in labels"
                 :key="l.id"
-                class="absolute top-1/2 left-1/2 w-24 origin-left -translate-y-1/2 pl-8 text-[11px] font-semibold text-stone-800"
+                class="absolute top-1/2 left-1/2 w-24 origin-left -translate-y-1/2 pl-8 text-xs font-semibold text-stone-800"
                 :style="{ transform: `rotate(${l.angle - 90}deg)` }"
               >{{ l.name }}</span>
             </div>

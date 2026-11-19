@@ -1,4 +1,5 @@
 <script setup>
+import ThaiDateField from '../../components/ThaiDateField.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import ManageShell from '../../components/ManageShell.vue'
 import { getSupabase } from '../../lib/supabase'
@@ -157,12 +158,12 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
         </div>
         <details class="text-sm">
           <summary class="cursor-pointer py-2 text-stone-600">ตัวกรองเพิ่มเติม</summary>
-          <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <select v-model="filter.status" class="input" aria-label="สถานะออเดอร์"><option v-for="s in STATUSES" :key="s.v" :value="s.v">{{ s.l }}</option></select>
-            <input v-model="filter.uploadedFrom" type="date" class="input" aria-label="อัปโหลดตั้งแต่" />
-            <input v-model="filter.uploadedTo" type="date" class="input" aria-label="อัปโหลดถึง" />
-            <input v-model="filter.closedFrom" type="date" class="input" aria-label="ออเดอร์ปิดตั้งแต่" />
-            <input v-model="filter.closedTo" type="date" class="input" aria-label="ออเดอร์ปิดถึง" />
+            <ThaiDateField v-model="filter.uploadedFrom" :past="5" label="อัปโหลดตั้งแต่" />
+            <ThaiDateField v-model="filter.uploadedTo" :past="5" label="อัปโหลดถึง" />
+            <ThaiDateField v-model="filter.closedFrom" :past="5" label="ออเดอร์ปิดตั้งแต่" />
+            <ThaiDateField v-model="filter.closedTo" :past="5" label="ออเดอร์ปิดถึง" />
           </div>
         </details>
       </section>
@@ -190,7 +191,7 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
           <li v-for="it in items" :key="it.key" class="flex items-center gap-2.5 py-1.5 text-sm">
             <input type="checkbox" class="h-4 w-4 shrink-0" :checked="picked.has(it.key)" :disabled="!deletable(it)" :aria-label="`เลือก ${it.key}`" @change="toggle(it.key)" />
             <button v-if="thumbs[it.key]" type="button" class="shrink-0 cursor-zoom-in" aria-label="ดูรูปขนาดใหญ่" @click="openLightbox(thumbs[it.key], it.code || it.key)"><img :src="thumbs[it.key]" alt="" loading="lazy" class="h-11 w-11 rounded-lg object-cover" /></button>
-            <span v-else class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-[10px] text-stone-400">ไม่มีรูป</span>
+            <span v-else class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-xs text-stone-400">ไม่มีรูป</span>
             <div class="min-w-0 flex-1">
               <div class="truncate font-medium text-stone-900">{{ it.type === 'public' ? it.key : (it.code || it.orderId) + ' · ' + (it.type === 'slip' ? 'สลิป' : it.type === 'ref' ? 'รูปอ้างอิง' : 'รูปงาน') }}</div>
               <div class="truncate text-xs text-stone-500">{{ it.status || 'ไม่พบออร์เดอร์' }} · {{ fmtSize(it.size) }}<span v-if="it.uploaded"> · {{ dateTime(it.uploaded) }}</span></div>

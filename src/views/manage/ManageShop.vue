@@ -1,4 +1,5 @@
 <script setup>
+import ThaiDateField from '../../components/ThaiDateField.vue'
 import MoneyInput from '../../components/MoneyInput.vue'
 import { validTaxId, validBranch } from '../../lib/acct/taxid'
 import { computed, reactive, ref } from 'vue'
@@ -163,9 +164,9 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
           <button v-for="d in DOWS" :key="d" type="button" class="chip" :class="st.closures.weekly.includes(d) ? 'chip-on' : 'chip-off'" :aria-pressed="st.closures.weekly.includes(d)" @click="flip(st.closures.weekly, d)">{{ DOW_NAMES[d] }}</button>
         </div>
         <div class="mb-1.5 flex items-center justify-between"><div class="label mb-0">ปิดวันที่เจาะจง / ช่วงวัน (หยุดยาว)</div><button type="button" class="text-sm text-brand-700 underline" :disabled="st.closures.ranges.length >= MAX_ROWS" @click="addRange">+ เพิ่ม</button></div>
-        <div v-for="(r, i) in st.closures.ranges" :key="r.id" class="mb-2 grid grid-cols-2 gap-2 rounded-xl border border-stone-200/70 p-2.5">
-          <div><label class="label">ตั้งแต่</label><input v-model="r.from" type="date" class="input h-10" :aria-label="`วันเริ่มปิด ${i + 1}`" /></div>
-          <div><label class="label">ถึง</label><input v-model="r.to" type="date" class="input h-10" :min="r.from" :aria-label="`วันสิ้นสุดปิด ${i + 1}`" /></div>
+        <div v-for="(r, i) in st.closures.ranges" :key="r.id" class="mb-2 grid grid-cols-1 gap-2 rounded-xl border border-stone-200/70 p-2.5 sm:grid-cols-2">
+          <div><label class="label">ตั้งแต่</label><ThaiDateField v-model="r.from" :label="`วันเริ่มปิด ${i + 1}`" /></div>
+          <div><label class="label">ถึง</label><ThaiDateField v-model="r.to" :min="r.from" :label="`วันสิ้นสุดปิด ${i + 1}`" /></div>
           <div class="col-span-2 flex gap-2"><input v-model="r.reason" class="input h-10 min-w-0 flex-1" maxlength="80" placeholder="เหตุผล (เช่น สงกรานต์)" :aria-label="`เหตุผลปิด ${i + 1}`" /><button type="button" class="btn-danger h-10 px-3" :aria-label="`ลบช่วงวันปิด ${i + 1}`" @click="st.closures.ranges.splice(i, 1)"><AppIcon name="trash" :size="16" /></button></div>
         </div>
         <div class="mt-3 mb-1.5 flex items-center justify-between"><div class="label mb-0">ปิดบางช่วงเวลาในวัน (เช่น พักเที่ยง)</div><button type="button" class="text-sm text-brand-700 underline" :disabled="st.closures.hours.length >= MAX_ROWS" @click="addHours">+ เพิ่ม</button></div>
@@ -184,7 +185,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
           <div v-for="(a, i) in st.payment.accounts" :key="a.id" class="space-y-2 rounded-2xl border border-stone-200 bg-white p-3">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <span class="text-sm font-semibold text-stone-800">{{ a.kind === 'bank' ? 'บัญชีธนาคาร' : 'พร้อมเพย์' }} {{ i + 1 }}</span>
-              <div class="flex items-center gap-3"><AppSwitch v-model="a.show" label="แสดงให้ลูกค้า" /><button type="button" class="btn-outline h-8 px-3 text-xs" @click="removePayAccount(i)">ลบ</button></div>
+              <div class="flex items-center gap-3"><AppSwitch v-model="a.show" label="แสดงให้ลูกค้า" /><button type="button" class="btn-outline h-10 px-3 text-sm" @click="removePayAccount(i)">ลบ</button></div>
             </div>
             <div v-if="a.kind === 'bank'" class="grid grid-cols-2 gap-2">
               <div class="col-span-2"><label class="label">ธนาคาร</label><select class="input" :value="a.bankCode" @change="setBank(a, $event.target.value)"><option value="">เลือกธนาคาร</option><option v-for="b in BANKS" :key="b.code" :value="b.code">{{ b.name }}</option></select></div>

@@ -45,7 +45,7 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', outside); do
     >
       <AppIcon name="bell" :size="variant === 'tab' ? 22 : 20" />
       <template v-if="variant === 'tab'">แจ้งเตือน</template>
-      <span v-if="unread" data-bell-badge class="absolute -top-1 right-1 min-w-5 rounded-full bg-brand-600 px-1 text-center text-[11px] leading-5 font-semibold text-white" :class="variant === 'tab' ? 'left-1/2 ml-3 right-auto' : '-right-1'">{{ badge }}</span>
+      <span v-if="unread" data-bell-badge class="absolute -top-1 right-1 min-w-5 rounded-full bg-brand-600 px-1 text-center text-xs leading-5 font-semibold text-white" :class="variant === 'tab' ? 'left-1/2 ml-3 right-auto' : '-right-1'">{{ badge }}</span>
     </button>
 
     <div

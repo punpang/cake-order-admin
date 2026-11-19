@@ -61,10 +61,16 @@ const tab = ref('settings')
 </script>
 
 <template>
-  <ManageShell narrow guard :toolbar="false" title="บอทตอบแชท" subtitle="กฎคีย์เวิร์ด + เรียนรู้จากพนักงาน · ในเบราว์เซอร์">
+  <ManageShell narrow guard :toolbar="false" title="บอทตอบแชท" subtitle="ตอบตามกฎคำสำคัญ + เรียนรู้จากที่พนักงานตอบ">
     <div class="mb-3 flex gap-2 rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">
       <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0" />
-      <p>บอทไม่ตอบเรื่องเงิน/คืนเงิน/ร้องเรียน (ส่งต่อพนักงานเสมอ) และบอกสถานะออร์เดอร์เฉพาะเมื่อแชทผูกลูกค้าและออร์เดอร์เป็นของลูกค้าคนนั้น · ข้อความลูกค้าประมวลผลในเบราว์เซอร์ ไม่ส่งออกภายนอก · ของจริงรับแชทผ่าน webhook ต้องต่อเซิร์ฟเวอร์</p>
+      <div class="min-w-0">
+        <p>บอทจะไม่ตอบเรื่องเงิน การคืนเงิน และการร้องเรียน (ส่งต่อพนักงานเสมอ) และบอกสถานะออร์เดอร์ได้เฉพาะลูกค้าที่ผูกแชทกับบัญชีแล้ว</p>
+        <details class="mt-1">
+          <summary class="inline-flex min-h-10 cursor-pointer items-center font-medium underline">รายละเอียดทางเทคนิค</summary>
+          <p class="mt-1 text-xs">ข้อความลูกค้าประมวลผลในเบราว์เซอร์ ไม่ส่งออกภายนอก · ของจริงรับแชทผ่าน webhook ต้องต่อเซิร์ฟเวอร์</p>
+        </details>
+      </div>
     </div>
 
     <SectionTabs v-model="tab" :tabs="[{ key: 'settings', label: 'ตั้งค่า' }, { key: 'test', label: 'ทดสอบ & สถิติ' }, { key: 'rules', label: 'กฎ', badge: db.bot.rules.length }, { key: 'learned', label: 'ที่เรียนรู้', badge: db.bot.learned.length }]" />
@@ -77,8 +83,8 @@ const tab = ref('settings')
           <li v-for="k in AUTO_SOURCES" :key="k" class="flex items-center justify-between gap-2 p-2.5">
             <span class="text-sm text-stone-800">{{ SRC[k] }}</span>
             <div class="grid w-56 grid-cols-2 gap-1 seg-grid">
-              <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.sourceModes[k] === 'suggest' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.sourceModes[k] = 'suggest'">แนะนำ</button>
-              <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.sourceModes[k] === 'auto' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.sourceModes[k] = 'auto'">ตอบเอง</button>
+              <button type="button" class="min-h-10 rounded-lg py-2 text-sm font-medium" :class="st.sourceModes[k] === 'suggest' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.sourceModes[k] = 'suggest'">แนะนำ</button>
+              <button type="button" class="min-h-10 rounded-lg py-2 text-sm font-medium" :class="st.sourceModes[k] === 'auto' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.sourceModes[k] = 'auto'">ตอบเอง</button>
             </div>
           </li>
         </ul>
@@ -96,8 +102,8 @@ const tab = ref('settings')
         <div>
           <div class="label">ข้อมูลที่ส่งให้ AI</div>
           <div class="grid grid-cols-2 gap-1 seg-grid">
-            <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.ai.dataMode !== 'full' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.dataMode = 'basic'">แบบเดิม</button>
-            <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.ai.dataMode === 'full' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.dataMode = 'full'">100%</button>
+            <button type="button" class="min-h-10 rounded-lg py-2 text-sm font-medium" :class="st.ai.dataMode !== 'full' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.dataMode = 'basic'">แบบเดิม</button>
+            <button type="button" class="min-h-10 rounded-lg py-2 text-sm font-medium" :class="st.ai.dataMode === 'full' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.dataMode = 'full'">100%</button>
           </div>
           <p v-if="st.ai.dataMode !== 'full'" class="mt-1.5 text-xs text-stone-500">ส่งเฉพาะข้อความปัจจุบันของลูกค้า พร้อมชื่อร้าน เวลาทำการ คำถามที่พบบ่อย และสินค้าพร้อมราคา · ไม่ส่งข้อมูลออร์เดอร์ ประวัติแชท หรือข้อมูลลูกค้า</p>
           <p v-else class="mt-1.5 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">ตอบได้ทุกเรื่องที่ลูกค้าถาม · เมื่อลูกค้าถามเรื่องออร์เดอร์ ระบบส่งรายการออร์เดอร์ที่ใช้งานอยู่ของลูกค้าคนนั้นให้ AI (รหัส สถานะ วันนัด ยอดค้าง · ไม่ส่งชื่อ เบอร์ หรือที่อยู่) และคำตอบเรื่องออร์เดอร์จะเป็นร่างให้พนักงานกดส่งเสมอ · ระบบสั่ง AI ว่าห้ามเก็บและห้ามนำไปฝึกโมเดล แต่การเก็บหรือไม่เก็บจริงขึ้นอยู่กับนโยบายของผู้ให้บริการ AI</p>
@@ -118,8 +124,8 @@ const tab = ref('settings')
         </div>
         <div class="grid gap-2 sm:grid-cols-2">
           <div class="grid grid-cols-2 gap-1 seg-grid">
-            <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.ai.mode === 'suggest' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.mode = 'suggest'">ร่างให้พนักงานกดส่ง</button>
-            <button type="button" class="rounded-lg py-1.5 text-xs font-medium" :class="st.ai.mode === 'auto' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.mode = 'auto'">ส่งเอง</button>
+            <button type="button" class="min-h-10 rounded-lg py-2 text-sm font-medium" :class="st.ai.mode === 'suggest' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.mode = 'suggest'">ร่างให้พนักงานกดส่ง</button>
+            <button type="button" class="min-h-10 rounded-lg py-2 text-sm font-medium" :class="st.ai.mode === 'auto' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.mode = 'auto'">ส่งเอง</button>
           </div>
           <div><label class="label">ความยาวคำตอบสูงสุด (โทเคน)</label><input v-model.number="st.ai.maxTokens" type="text" v-num class="input" /></div>
         </div>

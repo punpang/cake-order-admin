@@ -966,17 +966,17 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
   <div v-else class="mx-auto max-w-page px-4 pt-3 lg:px-8" :class="tab === 'sell' && shift ? 'flex h-full flex-col overflow-hidden' : 'h-full overflow-y-auto'">
     <!-- หัว -->
-    <div class="mb-3 flex shrink-0 flex-wrap items-center gap-2">
+    <div class="head-safe mb-3 flex shrink-0 flex-wrap items-center gap-2">
       <RouterLink to="/admin/orders" class="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 md:hidden" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
       <h1 class="page-title">POS หน้าร้าน</h1>
-      <span v-if="shift" class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">กะเปิด {{ timeOnly(shift.openedAt) }} · {{ ROLES[shift.openedBy] }}</span>
+      <span v-if="shift" class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 max-sm:hidden">กะเปิด {{ timeOnly(shift.openedAt) }} · {{ ROLES[shift.openedBy] }}</span>
       <button v-if="native" type="button" class="btn-soft ml-auto h-9 px-3 text-sm" @click="deviceOpen = true">เครื่องพิมพ์/จอ</button>
-      <button v-if="shift && can('useLoyalty')" type="button" class="btn-soft ml-2 h-9 px-3 text-sm" @click="openRedeem"><AppIcon name="star" :size="15" /> มอบของรางวัล</button>
-      <template v-if="shift && tab === 'sell' && can('useLoyalty')">
+      <button v-if="shift && can('useLoyalty')" type="button" class="btn-soft ml-2 h-10 px-3 text-sm max-sm:ml-auto max-sm:w-10 max-sm:px-0" aria-label="มอบของรางวัล" @click="openRedeem"><AppIcon name="star" :size="16" /> <span class="max-sm:sr-only">มอบของรางวัล</span></button>
+      <template v-if="shift && tab === 'sell' && can('useLoyalty') && !needMemberChoice">
         <button type="button" class="btn-soft ml-2 h-9 max-w-[12rem] truncate px-3 text-sm" :aria-label="member ? 'เปลี่ยนสมาชิก' : 'เลือกสมาชิก'" @click="memberSearchOpen = true">{{ member ? `สมาชิก: ${member.name}` : '+ สมาชิก' }}</button>
         <button v-if="member" type="button" class="btn-soft h-9 w-9 shrink-0 text-sm" aria-label="เอาสมาชิกออก" @click="clearMemberPick">✕</button>
       </template>
-      <div v-if="shift" class="grid grid-cols-4 gap-1 seg-grid" :class="can('useLoyalty') ? '' : 'ml-auto'">
+      <div v-if="shift" class="grid grid-cols-4 gap-1 seg-grid max-sm:order-last max-sm:w-full" :class="can('useLoyalty') ? '' : 'ml-auto'">
         <button v-for="t in [{ v: 'sell', l: 'ขาย' }, { v: 'bills', l: `บิล ${bills.length}` }, { v: 'queue', l: `คิว ${prepList.length}` }, { v: 'shift', l: 'ปิดกะ' }]" :key="t.v" type="button" class="h-9 rounded-lg px-3 text-sm font-medium" :class="tab === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="tab = t.v">{{ t.l }}</button>
       </div>
     </div>
@@ -1008,9 +1008,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         </span>
       </div>
       <section class="relative flex min-h-0 min-w-0 flex-col">
-        <div v-if="needMemberChoice" class="absolute inset-0 z-20 flex flex-col gap-3 rounded-3xl bg-cream/95 p-4">
+        <div v-if="needMemberChoice" class="absolute inset-y-0 -inset-x-4 z-20 flex flex-col gap-3 bg-cream p-4 md:inset-x-0 md:rounded-3xl">
           <div class="flex gap-2">
-            <input ref="gateInputEl" :value="memberQ" @input="(e) => { e.target.value = e.target.value.replace(/\D/g, ''); memberQ = e.target.value }" type="text" inputmode="numeric" data-numpad="int" class="input h-14 min-w-0 flex-1 text-lg" placeholder="กรอกเบอร์สมาชิก" aria-label="เบอร์สมาชิก" @keydown.enter.prevent="onMemberScan" />
+            <input ref="gateInputEl" :value="memberQ" @input="(e) => { e.target.value = e.target.value.replace(/[^0-9a-z]/gi, ''); memberQ = e.target.value }" type="text" inputmode="numeric" data-numpad="int" class="input h-14 min-w-0 flex-1 text-lg" placeholder="กรอกเบอร์สมาชิก" aria-label="เบอร์สมาชิก" @keydown.enter.prevent="onMemberScan" />
             <button type="button" class="btn-outline h-14 shrink-0 px-5 text-base" @click="chooseNoMember">ไม่มี</button>
           </div>
           <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
@@ -1090,7 +1090,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <button type="button" class="btn-primary h-12 w-full text-base" :disabled="!cart.length" @click="saveEdit">บันทึกการแก้ไขบิล {{ orderNo(editBill.code) }}</button>
             <button type="button" class="btn-outline mt-2 h-11 w-full" @click="exitEdit">ยกเลิกการแก้ไข</button>
           </template>
-          <button v-else type="button" class="btn-primary h-12 w-full text-base" :disabled="!cart.length" @click="openPay">ชำระเงิน</button>
+          <button v-else type="button" class="h-12 w-full text-base" :class="cart.length ? 'btn-primary' : 'btn bg-stone-200 text-stone-500 opacity-100!'" :disabled="!cart.length" @click="openPay">{{ cart.length ? 'ชำระเงิน' : 'เพิ่มสินค้าก่อนชำระเงิน' }}</button>
         </div>
         <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
           <p v-if="!cart.length" class="py-6 text-center text-sm text-stone-400">แตะสินค้าเพื่อเพิ่ม</p>
@@ -1275,7 +1275,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <AppModal v-if="memberSearchOpen" top title="ค้นหาสมาชิก" @close="memberSearchOpen = false; memberQ = ''">
       <div class="space-y-3">
               <div class="flex gap-2">
-          <input ref="memberInputEl" :value="memberQ" @input="(e) => { e.target.value = e.target.value.replace(/\D/g, ''); memberQ = e.target.value }" type="text" inputmode="numeric" data-numpad="int" class="input h-11 min-w-0 flex-1" placeholder="เบอร์ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
+          <input ref="memberInputEl" :value="memberQ" @input="(e) => { e.target.value = e.target.value.replace(/[^0-9a-z]/gi, ''); memberQ = e.target.value }" type="text" inputmode="numeric" data-numpad="int" class="input h-11 min-w-0 flex-1" placeholder="เบอร์ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
           <button v-if="memberQ" type="button" class="btn-outline h-11 shrink-0 px-4" @click="memberQ = ''; memberInputEl?.focus()">ล้าง</button>
         </div>
         <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>

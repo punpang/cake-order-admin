@@ -158,6 +158,18 @@
       max-width: 40rem;
     }
   }
+  /* แถวหัวของหน้าหลังบ้าน: เว้นที่ด้านขวาให้ปุ่มกระดิ่ง + เมนูที่ลอยอยู่มุมขวาบน (แนวตั้ง) ไม่ให้ทับปุ่มของหน้า */
+  @media (orientation: portrait) {
+    .head-safe {
+      padding-right: 6.25rem !important;
+    }
+  }
+  /* จอสัมผัส: ปุ่มข้อความแบบขีดเส้นใต้ (เช่น "+ เพิ่ม" "ดูทั้งหมด") ให้พื้นที่กดสูงอย่างน้อย 40px โดยตัวอักษรขนาดเท่าเดิม */
+  @media (pointer: coarse) {
+    button.underline {
+      min-height: 2.5rem;
+    }
+  }
   /* หัวข้อหน้าหลังบ้าน: ขนาดเดียวทั้งระบบ */
   .page-title {
     @apply text-xl font-semibold tracking-tight text-stone-900 lg:text-2xl;

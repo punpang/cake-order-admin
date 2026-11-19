@@ -1,4 +1,5 @@
 <script setup>
+import ThaiDateField from '../components/ThaiDateField.vue'
 import { orderNo } from '../lib/format'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { db, can, orderVisible, findCustomer, upcomingBirthdays } from '../data/store'
@@ -205,7 +206,7 @@ function clearAll() {
 <template>
   <div>
     <!-- หัวข้อ -->
-    <div class="mb-4 flex items-end justify-between gap-3">
+    <div class="head-safe mb-4 flex items-end justify-between gap-3">
       <div class="min-w-0">
         <h1 class="page-title">ออร์เดอร์</h1>
         <p class="text-sm text-stone-500">แสดง {{ list.length }} จาก {{ totalCount }} รายการ<span v-if="loadingRows" class="ml-2 inline-flex items-center gap-1.5 align-middle text-stone-400">กำลังโหลด…</span></p>
@@ -245,10 +246,10 @@ function clearAll() {
     <div v-if="filtersOpen" id="order-filters" class="card mb-3 space-y-4">
       <div>
         <div class="label">วันนัดรับ</div>
-        <div class="flex min-w-0 items-center gap-2">
-          <input :value="from" type="date" class="input" aria-label="ตั้งแต่วันที่" @input="setFrom($event.target.value)" />
-          <span class="shrink-0 text-stone-400">–</span>
-          <input v-model="to" type="date" :min="from" class="input" aria-label="ถึงวันที่" />
+        <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+          <ThaiDateField :model-value="from" label="ตั้งแต่วันที่" :past="3" @update:model-value="setFrom" />
+          <span class="shrink-0 text-stone-400 max-sm:hidden">–</span>
+          <ThaiDateField v-model="to" :min="from" :past="3" label="ถึงวันที่" />
         </div>
       </div>
       <div>
@@ -430,6 +431,8 @@ function clearAll() {
       </div>
     </section>
 
+    <!-- เว้นที่ท้ายรายการ ไม่ให้ปุ่มลอยบังรายการสุดท้าย (มือถือ) -->
+    <div v-if="can('createOrder')" class="h-20 md:hidden" aria-hidden="true" />
     <!-- ปุ่มลอยสร้างออร์เดอร์ (มือถือ) -->
     <RouterLink
       v-if="can('createOrder')"

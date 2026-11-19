@@ -1,4 +1,5 @@
 <script setup>
+import ThaiDateField from './ThaiDateField.vue'
 import { computed, ref } from 'vue'
 import { db, countPickups, pickupSlots, pickupSlotsInfo, setPickup, findCustomer } from '../data/store'
 import { dayClosed } from '../lib/shopHours'
@@ -38,7 +39,7 @@ function save() {
 <template>
   <AppModal title="แก้วันเวลานัด" @close="emit('close')">
     <div class="space-y-4">
-      <div><label class="label">วันที่</label><input v-model="date" type="date" :min="toDateStr(new Date())" class="input" @change="onDate" /></div>
+      <div><label class="label">วันที่</label><ThaiDateField v-model="date" :min="toDateStr(new Date())" label="วันที่" @update:model-value="onDate" /></div>
       <div>
         <div class="label">เวลา <span class="font-normal text-stone-400">(ทุก {{ db.shop.slotMinutes }} นาที)</span></div>
         <p v-if="dayClosure" class="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700" role="alert">ร้านปิด: {{ dayClosure.reason }} · เลือกวันอื่น</p>

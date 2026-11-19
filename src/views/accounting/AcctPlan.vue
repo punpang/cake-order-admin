@@ -71,9 +71,9 @@ const SET = [['cash', 'เงินสด'], ['bank', 'ธนาคาร/โอ
 
     <template v-if="sub === 'rec'">
       <div class="flex items-center justify-between gap-2">
-        <button class="btn-outline h-10 px-3" aria-label="เดือนก่อน" @click="ym = addMonths(ym, -1)">‹</button>
+        <button class="btn-outline h-11 w-11 px-0" aria-label="เดือนก่อน" @click="ym = addMonths(ym, -1)">‹</button>
         <div class="font-semibold text-stone-900">{{ monthLabel(ym) }}</div>
-        <button class="btn-outline h-10 px-3" aria-label="เดือนถัดไป" @click="ym = addMonths(ym, 1)">›</button>
+        <button class="btn-outline h-11 w-11 px-0" aria-label="เดือนถัดไป" @click="ym = addMonths(ym, 1)">›</button>
       </div>
       <section class="card text-sm" aria-label="ค่าใช้จ่ายประจำเดือน">
         <div class="mb-2 flex items-center justify-between"><div class="card-title mb-0">รายการประจำ</div><button v-if="canRec" class="btn-soft h-9 px-3" @click="rEdit()"><AppIcon name="plus" :size="16" /> เพิ่ม</button></div>

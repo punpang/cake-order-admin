@@ -51,6 +51,7 @@ t('POS: ขายเงินสดหนึ่งชิ้น แล้วค�
   const { page, errors } = await openPage('/admin/pos')
   try {
     const before = await storeOf(page, () => window.__store.db.orders.filter((o) => o.channel === 'pos').length)
+    await page.getByRole('button', { name: 'ไม่มี', exact: true }).first().click() // ขายแบบไม่มีสมาชิก
     await page.getByRole('button', { name: /คัพเค้กวานิลลา/ }).first().click()
     await page.getByRole('button', { name: 'ชำระเงิน', exact: true }).first().click()
     await page.getByRole('button', { name: 'เงินสด', exact: true }).first().click()

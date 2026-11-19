@@ -18,7 +18,7 @@ const ALL_SYSTEMS = [
   { key: 'pos', label: 'POS', icon: 'pos', home: '/admin/pos', perms: ['pos'], items: [{ to: '/admin/pos', label: 'POS', icon: 'pos', perms: ['pos'] }] },
   { key: 'manee', label: 'ถุงเงิน', icon: 'wallet', home: '/admin/manee-test', perms: ['pos'], items: [{ to: '/admin/manee-test', label: 'ถุงเงิน', icon: 'wallet', perms: ['pos'], exact: true, mobile: true }] },
   { key: 'accounting', label: 'บัญชี', icon: 'wallet', home: '/admin/accounting', perms: ['acctView'], items: [{ to: '/admin/accounting', label: 'บัญชี', icon: 'wallet', perms: ['acctView'] }] },
-  { key: 'settings', label: 'ตั้งค่า', icon: 'grid', home: '/admin/settings', perms: ['manage', 'manageUsers'], items: [{ to: '/admin/settings', label: 'ตั้งค่า', icon: 'grid', perms: ['manage', 'manageUsers'] }] },
+  { key: 'settings', label: 'ตั้งค่า', icon: 'settings', home: '/admin/settings', perms: ['manage', 'manageUsers'], items: [{ to: '/admin/settings', label: 'ตั้งค่า', icon: 'settings', perms: ['manage', 'manageUsers'] }] },
 ]
 
 const ANDROID_KEYS = ['orders', 'pos']

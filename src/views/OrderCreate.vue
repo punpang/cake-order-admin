@@ -1,4 +1,5 @@
 <script setup>
+import ThaiDateField from '../components/ThaiDateField.vue'
 import { askConfirm } from '../lib/confirm'
 import { computed, reactive, ref, toRef } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
@@ -254,7 +255,7 @@ async function quote() {
 
   <div v-else :class="embedded ? 'pb-2' : 'mx-auto max-w-2xl pb-[calc(env(safe-area-inset-bottom)+6rem)] md:max-w-none'">
     <!-- หัว -->
-    <div v-if="!embedded" class="mb-4 flex items-center gap-2">
+    <div v-if="!embedded" class="head-safe mb-4 flex items-center gap-2">
       <RouterLink to="/admin/orders" class="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
         <AppIcon name="back" :size="20" />
       </RouterLink>
@@ -352,7 +353,7 @@ async function quote() {
       <div class="card">
         <div class="card-title"><AppIcon name="calendar" class="text-brand-600" /> วันเวลานัดรับ</div>
         <div class="grid grid-cols-2 gap-3">
-          <div class="col-span-2 min-w-0"><label class="label">วันที่</label><input v-model="form.date" type="date" :min="toDateStr(new Date())" class="input" @change="form.time = slots.includes(form.time) ? form.time : ''" /></div>
+          <div class="col-span-2 min-w-0"><label class="label">วันที่</label><ThaiDateField v-model="form.date" :min="toDateStr(new Date())" label="วันที่" @update:model-value="form.time = slots.includes(form.time) ? form.time : ''" /></div>
         </div>
         <div class="mt-3">
           <div class="label">เวลา <span class="font-normal text-stone-400">(ทุก {{ db.shop.slotMinutes }} นาที)</span></div>

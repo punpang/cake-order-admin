@@ -13,7 +13,7 @@ const found = computed(() => (shopRefOk(refUp.value) ? db.orders.find((o) => sho
 
 <template>
   <div>
-    <div class="mb-3 min-w-0">
+    <div class="head-safe mb-3 min-w-0">
       <h1 class="page-title">สร้าง QR ชำระเงิน</h1>
       <p class="text-sm text-stone-500">กรอกรหัสอ้างอิงร้านค้า (POS / ORD) ของออร์เดอร์ แล้วกำหนดยอด ระบบจะสร้างรายการแจ้งชำระและรหัสสุ่มให้ แล้วแสดง QR</p>
     </div>

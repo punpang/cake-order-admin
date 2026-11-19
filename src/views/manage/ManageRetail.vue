@@ -121,8 +121,8 @@ function doAdd() {
             <span class="mt-0.5 block truncate text-xs text-stone-500">{{ m.options.map((o) => o.name + (o.price ? ` +${o.price}` : '')).join(' · ') }}</span>
           </button>
           <span class="flex shrink-0 flex-col justify-center">
-            <button type="button" class="flex h-6 w-7 lg:h-8 lg:w-8 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 disabled:opacity-30" :disabled="i === 0" aria-label="เลื่อนขึ้น" @click="moveItem(db.posModifiers, i, -1)">▲</button>
-            <button type="button" class="flex h-6 w-7 lg:h-8 lg:w-8 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 disabled:opacity-30" :disabled="i === db.posModifiers.length - 1" aria-label="เลื่อนลง" @click="moveItem(db.posModifiers, i, 1)">▼</button>
+            <button type="button" class="flex h-10 w-10 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 disabled:opacity-30" :disabled="i === 0" aria-label="เลื่อนขึ้น" @click="moveItem(db.posModifiers, i, -1)">▲</button>
+            <button type="button" class="flex h-10 w-10 items-center justify-center rounded-md text-stone-400 hover:bg-stone-100 disabled:opacity-30" :disabled="i === db.posModifiers.length - 1" aria-label="เลื่อนลง" @click="moveItem(db.posModifiers, i, 1)">▼</button>
           </span>
         </div>
       </div>

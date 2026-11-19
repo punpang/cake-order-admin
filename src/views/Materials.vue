@@ -1,4 +1,5 @@
 <script setup>
+import ThaiDateField from '../components/ThaiDateField.vue'
 import { computed, ref } from 'vue'
 import { db, can } from '../data/store'
 import { MATERIAL_STATUSES, STATUS } from '../lib/constants'
@@ -59,15 +60,19 @@ function setFrom(v) {
     <h1 class="page-title mb-4">วัตถุดิบที่ต้องเตรียม</h1>
 
     <section class="card mb-4 space-y-3">
-      <div class="grid grid-cols-2 gap-3">
-        <div><label class="label">ตั้งแต่วันที่</label><input :value="from" type="date" class="input" @input="setFrom($event.target.value)" /></div>
-        <div><label class="label">ถึงวันที่</label><input v-model="to" type="date" :min="from" class="input" /></div>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div><label class="label">ตั้งแต่วันที่</label><ThaiDateField :model-value="from" label="ตั้งแต่วันที่" @update:model-value="setFrom" /></div>
+        <div><label class="label">ถึงวันที่</label><ThaiDateField v-model="to" :min="from" label="ถึงวันที่" /></div>
       </div>
       <div>
-        <div class="label">สถานะออร์เดอร์</div>
+        <div class="mb-1.5 flex items-center justify-between gap-2">
+          <div class="label mb-0">สถานะออร์เดอร์ <span class="font-normal text-stone-500">· เลือก {{ picked.length }}/{{ MATERIAL_STATUSES.length }}</span></div>
+          <button type="button" class="h-9 rounded-lg px-2 text-sm font-medium text-brand-700 underline" @click="picked = picked.length === MATERIAL_STATUSES.length ? [] : [...MATERIAL_STATUSES]">{{ picked.length === MATERIAL_STATUSES.length ? 'ล้างทั้งหมด' : 'เลือกทั้งหมด' }}</button>
+        </div>
         <div class="flex flex-wrap gap-2">
-          <button v-for="s in MATERIAL_STATUSES" :key="s" type="button" class="chip" :class="picked.includes(s) ? 'chip-on' : 'chip-off'" @click="toggle(s)">
-            <span class="h-2 w-2 rounded-full" :class="STATUS[s].dot"></span>
+          <button v-for="s in MATERIAL_STATUSES" :key="s" type="button" class="chip" :class="picked.includes(s) ? 'chip-on' : 'chip-off'" :aria-pressed="picked.includes(s)" @click="toggle(s)">
+            <span v-if="picked.includes(s)" aria-hidden="true">✓</span>
+            <span v-else class="h-2 w-2 rounded-full" :class="STATUS[s].dot"></span>
             {{ STATUS[s].label }} ({{ countOf(s) }})
           </button>
         </div>

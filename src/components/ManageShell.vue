@@ -61,7 +61,7 @@ const showInactive = defineModel('inactive', { type: Boolean, default: false })
       </div>
     </nav>
     <div :class="narrow ? 'mx-auto w-full max-w-4xl xl:max-w-5xl' : 'min-w-0'">
-    <div class="mb-4 flex items-center gap-2">
+    <div class="head-safe mb-4 flex items-center gap-2">
       <RouterLink :to="back" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-stone-700 shadow-sm hover:bg-brand-50" aria-label="กลับ">
         <AppIcon name="back" :size="20" />
       </RouterLink>

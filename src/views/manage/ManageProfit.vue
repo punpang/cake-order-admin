@@ -1,4 +1,5 @@
 <script setup>
+import ThaiDateField from '../../components/ThaiDateField.vue'
 import { orderNo } from '../../lib/format'
 import SectionTabs from '../../components/SectionTabs.vue'
 import { computed, ref, watch } from 'vue'
@@ -136,9 +137,9 @@ watch([from, to], () => { rowLimit.value = 50 })
 
 <template>
   <ManageShell title="ยอดขาย & กำไร" subtitle="ตามวันนัดรับ · ไม่นับออร์เดอร์ที่ยกเลิก" :toolbar="false">
-    <section class="card mb-4 grid grid-cols-2 gap-3">
-      <div><label class="label">ตั้งแต่วันที่</label><input :value="from" type="date" class="input" @input="setFrom($event.target.value)" /></div>
-      <div><label class="label">ถึงวันที่</label><input v-model="to" type="date" :min="from" class="input" /></div>
+    <section class="card mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div><label class="label">ตั้งแต่วันที่</label><ThaiDateField :model-value="from" label="ตั้งแต่วันที่" :past="5" @update:model-value="setFrom" /></div>
+      <div><label class="label">ถึงวันที่</label><ThaiDateField v-model="to" :min="from" :past="5" label="ถึงวันที่" /></div>
     </section>
 
     <div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">

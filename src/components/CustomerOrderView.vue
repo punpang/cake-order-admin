@@ -1,4 +1,5 @@
 <script setup>
+import ThaiDateField from './ThaiDateField.vue'
 import MoneyInput from './MoneyInput.vue'
 import { orderNo } from '../lib/format'
 import { safeHref } from '../lib/safeUrl'
@@ -452,7 +453,7 @@ const beforeDiscount = computed(() => {
           <div class="space-y-2 rounded-2xl border border-stone-200 p-3">
             <div class="text-xs text-stone-500">รายละเอียดการโอน (ให้ตรงกับสลิป) <span class="text-rose-600">*</span></div>
             <div class="grid grid-cols-2 gap-2">
-              <div><label class="label" for="pay-date">วันที่โอน</label><input id="pay-date" v-model="f.txnDate" type="date" class="input" :max="thaiNow().date" /></div>
+              <div><div class="label">วันที่โอน</div><ThaiDateField v-model="f.txnDate" :max="thaiNow().date" label="วันที่โอน" /></div>
               <div><label class="label" for="pay-time">เวลาที่โอน</label><input id="pay-time" v-model="f.txnTime" type="time" class="input" /></div>
             </div>
             <div><label class="label" for="pay-bank">ธนาคารของผู้โอน <span class="font-normal text-stone-500">(ไม่บังคับ)</span></label>

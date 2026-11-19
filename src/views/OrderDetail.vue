@@ -360,7 +360,7 @@ async function saveCancel() {
   <div v-else :class="hasActions ? 'pb-[calc(env(safe-area-inset-bottom)+6rem)]' : ''">
     <!-- หัว -->
     <!-- จอเล็ก (< sm): ป้ายสถานะลงแถวของตัวเองใต้เลขออร์เดอร์ เลขออร์เดอร์จึงแสดงครบไม่ถูกตัด · sm ขึ้นไปอยู่แถวเดียวกัน -->
-    <div class="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+    <div class="head-safe mb-4 flex flex-wrap items-center gap-x-2 gap-y-1.5">
       <RouterLink to="/admin/orders" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-stone-700 shadow-sm ring-1 ring-stone-200/70" aria-label="กลับ">
         <AppIcon name="back" :size="20" />
       </RouterLink>

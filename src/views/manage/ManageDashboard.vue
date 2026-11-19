@@ -63,14 +63,14 @@ function refresh() {
 </script>
 
 <template>
-  <ManageShell title="ภาพรวมระบบ" :subtitle="`ข้อมูล ณ วันที่ ${fmtDay(d.today)} · ตามข้อมูลที่โหลดอยู่ในเครื่อง`" perm="viewAllOrders" :toolbar="false">
+  <ManageShell title="ภาพรวมระบบ" :subtitle="`ข้อมูล ณ วันที่ ${fmtDay(d.today)}`" perm="viewAllOrders" :toolbar="false">
     <div class="mb-3 flex justify-end">
-      <button type="button" class="btn-outline h-9 px-3 text-sm" @click="refresh">รีเฟรช</button>
+      <button type="button" class="btn-outline h-10 px-3 text-sm" @click="refresh">รีเฟรช</button>
     </div>
 
     <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-      <!-- การเข้าชมหน้าเว็บลูกค้า -->
-      <section class="card space-y-3 rounded-2xl">
+      <!-- การเข้าชมหน้าเว็บลูกค้า (ข้อมูลประกอบ ไว้ท้าย · ยังไม่มีข้อมูลย่อเหลือบรรทัดเดียว) -->
+      <section class="card order-5 rounded-2xl" :class="views ? 'space-y-3' : 'py-3'">
         <h2 class="text-sm font-semibold text-stone-700">การเข้าชมหน้าเว็บลูกค้า</h2>
         <template v-if="views">
           <div class="flex items-end gap-6">
@@ -80,15 +80,15 @@ function refresh() {
           <div class="flex h-20 items-end gap-1" aria-label="กราฟการเข้าชม 7 วัน">
             <div v-for="x in views" :key="x.day" class="flex flex-1 flex-col items-center gap-1">
               <div class="w-full rounded-t bg-brand-400" :style="{ height: Math.max(4, Math.round((x.n / maxView) * 64)) + 'px' }" :title="`${fmtDay(x.day)}: ${x.n}`" />
-              <span class="text-[10px] text-stone-400">{{ fmtDay(x.day) }}</span>
+              <span class="text-xs text-stone-500">{{ fmtDay(x.day) }}</span>
             </div>
           </div>
         </template>
-        <p v-else class="text-sm text-stone-500">{{ viewsErr }}</p>
+        <p v-else class="text-xs text-stone-500">{{ viewsErr }}</p>
       </section>
 
       <!-- ลูกค้าในเพจ (Facebook) -->
-      <section class="card space-y-3 rounded-2xl">
+      <section class="card order-4 space-y-3 rounded-2xl">
         <h2 class="text-sm font-semibold text-stone-700">ลูกค้าในเพจ (ทักแชท Facebook)</h2>
         <template v-if="d.chats">
           <div><div class="text-xs text-stone-500">ทั้งหมด</div><div class="text-3xl font-semibold text-stone-900">{{ d.chats.facebookTotal }}</div></div>
@@ -98,7 +98,7 @@ function refresh() {
       </section>
 
       <!-- แชทรอตอบ -->
-      <section class="card space-y-3 rounded-2xl">
+      <section class="card order-2 space-y-3 rounded-2xl">
         <h2 class="text-sm font-semibold text-stone-700">แชทที่รอตอบ</h2>
         <template v-if="d.chats">
           <div><div class="text-xs text-stone-500">รวมทุกช่องทาง</div><div class="text-3xl font-semibold text-stone-900">{{ d.chats.awaitingReply }}</div></div>
@@ -107,8 +107,8 @@ function refresh() {
         <p v-else class="text-sm text-stone-500">ไม่มีสิทธิ์ดูแชท</p>
       </section>
 
-      <!-- ออร์เดอร์ -->
-      <section class="card space-y-3 rounded-2xl">
+      <!-- ออร์เดอร์ (งานวันนี้ อยู่บนสุด) -->
+      <section class="card order-1 space-y-3 rounded-2xl">
         <h2 class="text-sm font-semibold text-stone-700">ออร์เดอร์ที่ยังไม่ปิด</h2>
         <div class="flex items-end gap-6">
           <div><div class="text-xs text-stone-500">ทั้งหมด</div><div class="text-3xl font-semibold text-stone-900">{{ d.orders.open }}</div></div>
@@ -122,7 +122,7 @@ function refresh() {
       </section>
 
       <!-- งานค้าง -->
-      <section class="card space-y-3 rounded-2xl md:col-span-2 xl:col-span-3">
+      <section class="card order-3 space-y-3 rounded-2xl md:col-span-2 xl:col-span-3">
         <h2 class="text-sm font-semibold text-stone-700">งานค้างที่ต้องตรวจ</h2>
         <ul class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
           <li v-for="r in pendingRows" :key="r.key" class="rounded-xl p-3" :class="r.n > 0 ? 'bg-amber-50 text-amber-900' : 'bg-stone-50 text-stone-500'">
