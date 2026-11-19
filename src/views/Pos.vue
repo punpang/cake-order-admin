@@ -1341,14 +1341,14 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                     <span class="text-stone-500">ยอดเงินสด <b class="tabular-nums text-stone-800">{{ money(lineAmt(l)) }}</b></span>
                     <button v-if="!l.locked && !l.confirmed && !l.split" type="button" class="font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
                   </div>
-                  <button v-if="l.split && !l.locked && !l.confirmed" type="button" class="mt-2 flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left max-md:py-1.5 ring-1 ring-stone-300" :class="padField(l) === 'amount' ? 'bg-brand-50 ring-2 ring-brand-600' : 'bg-stone-50'" :aria-pressed="padField(l) === 'amount'" @click="l.padTarget = 'amount'; l.padFresh = true">
-                    <span class="text-sm text-stone-600">ยอดเงินสดครั้งนี้</span>
-                    <span class="text-2xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</span>
-                  </button>
-                  <button type="button" class="mt-3 flex w-full flex-col rounded-2xl px-3 py-2 text-left ring-1 ring-stone-300" :class="padField(l) === 'received' ? 'bg-brand-50 ring-2 ring-brand-600' : 'bg-stone-50'" :aria-pressed="padField(l) === 'received'" :disabled="!!l.locked || !!l.confirmed" @click="l.padTarget = 'received'; l.padFresh = true">
-                    <span class="text-sm text-stone-600">รับเงินมา</span>
-                    <span class="text-4xl font-bold tabular-nums text-stone-900 max-md:text-3xl" aria-live="polite">{{ money(Number(l.received) || 0) }}</span>
-                  </button>
+                  <div v-if="l.split && !l.locked && !l.confirmed" class="mt-2 rounded-2xl bg-stone-50 px-3 py-2 ring-1 ring-stone-300">
+                    <label class="block text-sm text-stone-600" :for="'cash-amt-' + l.key">ยอดเงินสดครั้งนี้</label>
+                    <MoneyInput :id="'cash-amt-' + l.key" v-model="l.amount" data-numpad="dec" class="input h-12 text-2xl font-bold" />
+                  </div>
+                  <div class="mt-3 rounded-2xl bg-stone-50 px-3 py-2 ring-1 ring-stone-300">
+                    <label class="block text-sm text-stone-600" :for="'cash-rec-' + l.key">รับเงินมา</label>
+                    <MoneyInput :id="'cash-rec-' + l.key" v-model="l.received" data-numpad="dec" :disabled="!!l.locked || !!l.confirmed" class="input h-14 text-4xl font-bold max-md:h-12 max-md:text-3xl" />
+                  </div>
                 </div>
                 <div class="flex items-center justify-between rounded-3xl px-4 py-3 max-md:py-2" :class="changeOf(l) >= 0 ? 'bg-emerald-600 text-white' : 'bg-amber-200 text-amber-950 ring-1 ring-amber-400'">
                   <span class="text-base font-semibold">{{ changeOf(l) >= 0 ? 'เงินทอน' : 'ยังขาด' }}</span>
