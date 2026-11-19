@@ -95,13 +95,14 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     </button>
   </div>
   <div v-if="menuOpen" class="fixed inset-0 z-[55]" aria-hidden="true" @click="menuOpen = false" />
-  <nav v-if="menuOpen" id="app-menu" class="fixed right-2 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-[60] max-h-[70dvh] w-64 overflow-y-auto rounded-2xl bg-white p-2 shadow-xl ring-1 ring-stone-200" aria-label="เมนูระบบ">
+  <nav v-if="menuOpen" id="app-menu" class="fixed right-2 bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] z-[60] max-h-[70dvh] w-64 overflow-y-auto lg:top-[4.5rem] lg:bottom-auto lg:max-h-[calc(100dvh-5.5rem)] rounded-2xl bg-white p-2 shadow-xl ring-1 ring-stone-200" aria-label="เมนูระบบ">
     <RouterLink to="/" class="block rounded-xl px-3 py-2.5 text-sm text-stone-700 hover:bg-stone-100" @click="menuOpen = false">หน้าร้าน</RouterLink>
     <div class="px-3 pt-3 pb-1 text-xs font-medium text-stone-500">ระบบ</div>
     <RouterLink v-for="sy in systems" :key="sy.key" :to="homeOf(sy, can)" class="block rounded-xl px-3 py-2.5 text-sm text-stone-800 hover:bg-stone-100" :class="sy.key === current ? 'bg-brand-50 font-semibold text-brand-700' : ''" @click="menuOpen = false">{{ sy.label }}</RouterLink>
+    <!-- บนคอมพิวเตอร์ (lg) เมนูย่อยอยู่บนแถบบนแล้ว จึงซ่อนในเมนูนี้ -->
     <template v-if="items.length > 1">
-      <div class="px-3 pt-3 pb-1 text-xs font-medium text-stone-500">เมนูของระบบ</div>
-      <RouterLink v-for="i in items" :key="i.to" :to="i.to" class="block rounded-xl px-3 py-2.5 text-sm text-stone-800 hover:bg-stone-100" @click="menuOpen = false">{{ i.label }}</RouterLink>
+      <div class="px-3 pt-3 pb-1 text-xs font-medium text-stone-500 lg:hidden">เมนูของระบบ</div>
+      <RouterLink v-for="i in items" :key="i.to" :to="i.to" class="block rounded-xl px-3 py-2.5 text-sm text-stone-800 hover:bg-stone-100 lg:hidden" @click="menuOpen = false">{{ i.label }}</RouterLink>
     </template>
     <div class="mt-2 border-t border-stone-100 pt-2">
       <button type="button" class="block w-full rounded-xl px-3 py-2.5 text-left text-sm text-stone-700 hover:bg-stone-100" :aria-label="`ผู้ใช้ ${me?.name || ROLES[session.role]}`" @click="supabaseEnabled && (roleOpen = true, menuOpen = false)">
