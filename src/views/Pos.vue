@@ -232,7 +232,9 @@ function onPayKey(e) {
   if (e.key === 'Enter') {
     const q = focusLine.value
     if (q && q.method === 'transfer' && !q.qrRef && !q.locked && !q.confirmed) { e.preventDefault(); kbMode.value = 'keyboard'; makeQr(q); return } // โอน: Enter = สร้าง QR
-    if (canConfirm.value) { e.preventDefault(); kbMode.value = 'keyboard'; confirmPay() }
+    if (canConfirm.value) { e.preventDefault(); kbMode.value = 'keyboard'; confirmPay(); return }
+    // เงินสดที่กรอกยอดแล้ว: Enter = กดปุ่ม "บันทึกยอดเงินสดนี้" (ตรงกับคำแนะนำ "Enter ยืนยันรับเงิน")
+    if (q && q.method === 'cash' && !q.locked && !q.confirmed && lineAmt(q) > 0 && changeOf(q) >= 0 && !binding.value) { e.preventDefault(); kbMode.value = 'keyboard'; keepAndAddMore() }
     return
   }
   const f = payField()
