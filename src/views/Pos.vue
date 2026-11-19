@@ -215,6 +215,28 @@ const rdMatches = computed(() => {
 // เวลาปัจจุบันเดินทุกวินาที (นับถอยหลังของคูปองที่ลูกค้ากดแสดง · หมดเวลาแล้วหายเอง)
 const nowTick = ref(Date.now())
 let tickTimer = null
+// ---------- โหมดแป้นพิมพ์ (หน้าชำระเงิน): กดคีย์บอร์ด → โหมดแป้นพิมพ์ · แตะหน้าจอ → กลับเป็นแป้นบนจอ ----------
+const kbMode = ref('touch')
+const payField = () => {
+  const l = focusLine.value
+  if (!l || l.locked || l.confirmed) return null
+  if (l.method === 'cash') return { l, field: padField(l) }
+  if (l.method === 'transfer' && !l.qrRef) return { l, field: 'amount' }
+  return null
+}
+function onPayKey(e) {
+  if (!payOpen.value || e.ctrlKey || e.metaKey || e.altKey) return
+  const t = e.target
+  if (t && t.closest && t.closest('input, textarea, select, [contenteditable]')) return // ช่องค้นหาสมาชิกยังพิมพ์ได้ตามปกติ
+  if (e.key === 'Enter') { if (canConfirm.value) { e.preventDefault(); kbMode.value = 'keyboard'; confirmPay() } return }
+  const f = payField()
+  if (!f) return
+  if (/^[0-9]$/.test(e.key) || e.key === '.') { e.preventDefault(); kbMode.value = 'keyboard'; padInput(f.l, f.field, e.key) }
+  else if (e.key === 'Backspace') { e.preventDefault(); kbMode.value = 'keyboard'; padInput(f.l, f.field, 'back') }
+}
+function onPayTouch() { if (payOpen.value) kbMode.value = 'touch' }
+onMounted(() => { window.addEventListener('keydown', onPayKey); window.addEventListener('pointerdown', onPayTouch) })
+onBeforeUnmount(() => { window.removeEventListener('keydown', onPayKey); window.removeEventListener('pointerdown', onPayTouch) })
 onMounted(() => { tickTimer = setInterval(() => { nowTick.value = Date.now(); sweepCoupons() }, 1000) })
 onBeforeUnmount(() => clearInterval(tickTimer))
 const nowIso = computed(() => new Date(nowTick.value).toISOString())
@@ -1164,19 +1186,19 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · เต็มจอ ไม่เลื่อน: ซ้าย = สรุปยอด สมาชิก คูปอง และรายการที่รับแล้ว · ขวา = เลือกวิธี และทำรายการนั้น -->
-    <AppModal v-if="payOpen" title="ชำระเงิน" wide wider full fit @close="requestClose">
-      <div class="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-4 md:grid-cols-[18rem_minmax(0,1fr)] md:grid-rows-1">
-        <!-- ซ้าย: สรุป -->
-        <aside class="flex min-h-0 flex-col gap-3 overflow-y-auto p-0.5 max-md:max-h-[45dvh]" aria-label="สรุปการชำระ">
-          <div class="rounded-3xl bg-stone-900 p-4 text-white max-md:flex max-md:items-center max-md:justify-between max-md:gap-3 max-md:p-3">
-            <div>
-            <div class="text-sm text-stone-300">ยอดชำระ</div>
-            <div class="text-4xl font-bold tabular-nums max-md:text-2xl">{{ money(total) }}</div>
-            </div>
-            <dl class="mt-3 grid grid-cols-2 gap-2 text-sm max-md:mt-0 max-md:w-[58%] max-md:gap-1.5">
-              <div class="rounded-2xl bg-white/10 px-3 py-2"><dt class="text-stone-300">รับแล้ว</dt><dd class="text-lg font-semibold tabular-nums">{{ money(receivedSum) }}</dd></div>
-              <div class="rounded-2xl px-3 py-2" :class="total - receivedSum < 0 ? 'bg-rose-500/30' : total - receivedSum > 0 ? 'bg-amber-400/25' : 'bg-emerald-500/30'">
-                <dt class="text-stone-200">{{ total - receivedSum < 0 ? 'เกิน' : 'คงค้าง' }}</dt><dd class="text-lg font-semibold tabular-nums">{{ money(Math.abs(total - receivedSum)) }}</dd>
+    <AppModal v-if="payOpen" title="ชำระเงิน" wider fit @close="requestClose">
+      <div class="flex h-full min-h-0 flex-col gap-3">
+      <div class="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-3 md:grid-cols-[18rem_minmax(0,1fr)] md:grid-rows-1">
+        <!-- ซ้าย: สมาชิก คูปอง รายการ -->
+        <aside class="flex min-h-0 flex-col gap-3 overflow-y-auto p-0.5 max-md:max-h-[40dvh]" aria-label="ข้อมูลลูกค้าและรายการชำระ">
+          <!-- สรุป: ยอดชำระ · รับแล้ว · คงค้าง/เกิน -->
+          <div class="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-stone-200 max-md:p-3" aria-label="สรุปการชำระ">
+            <div class="text-sm font-medium text-stone-700">ยอดชำระ</div>
+            <div class="text-3xl font-bold tabular-nums text-stone-900 max-md:text-2xl">{{ money(total) }}</div>
+            <dl class="mt-3 grid grid-cols-2 gap-2 text-sm max-md:mt-2 max-md:gap-1.5">
+              <div class="rounded-2xl bg-stone-200 px-3 py-2"><dt class="text-stone-700">รับแล้ว</dt><dd class="text-lg font-semibold tabular-nums text-stone-950">{{ money(receivedSum) }}</dd></div>
+              <div class="rounded-2xl px-3 py-2" :class="total - receivedSum < 0 ? 'bg-rose-200 text-rose-950 ring-1 ring-rose-400' : total - receivedSum > 0 ? 'bg-amber-200 text-amber-950 ring-1 ring-amber-400' : 'bg-emerald-200 text-emerald-950 ring-1 ring-emerald-500'">
+                <dt class="opacity-80">{{ total - receivedSum < 0 ? 'เกิน' : 'คงค้าง' }}</dt><dd class="text-lg font-semibold tabular-nums">{{ money(Math.abs(total - receivedSum)) }}</dd>
               </div>
             </dl>
           </div>
@@ -1255,7 +1277,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <div v-if="remaining > 0 || focusLine" class="grid shrink-0 grid-cols-3 gap-2 rounded-3xl bg-stone-200/60 p-1.5" role="group" aria-label="เลือกวิธีชำระ">
             <button
               v-for="(label, k) in POS_METHODS" :key="k" type="button"
-              class="h-14 rounded-2xl text-lg font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed"
+              class="h-12 rounded-2xl text-lg font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed"
               :class="focusLine?.method === k ? 'bg-brand-600 text-white shadow-md' : 'text-stone-700 hover:bg-white/70 disabled:opacity-40'"
               :aria-pressed="focusLine?.method === k"
               :disabled="binding || (!!focusLine && focusLine.method !== k && !canSwitch(focusLine))"
@@ -1285,7 +1307,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <!-- รายการที่กำลังทำ -->
           <template v-for="l in focusLine ? [focusLine] : []" :key="l.key">
             <!-- เงินสด -->
-            <div v-if="l.method === 'cash'" class="grid min-h-0 flex-1 content-start gap-3 landscape:grid-cols-2">
+            <div v-if="l.method === 'cash'" class="flex min-h-0 flex-1 flex-col gap-3">
               <div class="flex flex-col gap-3">
                 <div class="rounded-3xl bg-white p-4 ring-1 ring-stone-200 max-md:p-3">
                   <div class="flex items-center justify-between gap-2 text-sm" :class="l.split ? 'max-md:hidden' : ''">
@@ -1298,17 +1320,24 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                   </button>
                   <button type="button" class="mt-3 flex w-full flex-col rounded-2xl px-3 py-2 text-left ring-1 ring-stone-300" :class="padField(l) === 'received' ? 'bg-brand-50 ring-2 ring-brand-600' : 'bg-stone-50'" :aria-pressed="padField(l) === 'received'" :disabled="!!l.locked || !!l.confirmed" @click="l.padTarget = 'received'; l.padFresh = true">
                     <span class="text-sm text-stone-600">รับเงินมา</span>
-                    <span class="text-5xl font-bold tabular-nums text-stone-900 max-md:text-4xl" aria-live="polite">{{ money(Number(l.received) || 0) }}</span>
+                    <span class="text-4xl font-bold tabular-nums text-stone-900 max-md:text-3xl" aria-live="polite">{{ money(Number(l.received) || 0) }}</span>
                   </button>
                 </div>
-                <div class="flex items-center justify-between rounded-3xl px-4 py-3 max-md:py-2" :class="changeOf(l) >= 0 ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-900'">
+                <div class="flex items-center justify-between rounded-3xl px-4 py-3 max-md:py-2" :class="changeOf(l) >= 0 ? 'bg-emerald-600 text-white' : 'bg-amber-200 text-amber-950 ring-1 ring-amber-400'">
                   <span class="text-base font-semibold">{{ changeOf(l) >= 0 ? 'เงินทอน' : 'ยังขาด' }}</span>
                   <span class="text-3xl font-bold tabular-nums">{{ money(Math.abs(changeOf(l))) }}</span>
                 </div>
-                <div class="grid grid-cols-2 gap-2 max-md:grid-cols-4" aria-label="จำนวนเงินด่วน">
+                <div v-if="kbMode === 'keyboard'" class="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-2xl bg-stone-100 px-3 py-2 text-sm text-stone-700" aria-label="ปุ่มลัดคีย์บอร์ด">
+                  <div class="flex items-center gap-1.5"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">0–9</kbd> พิมพ์จำนวน</div>
+                  <div class="flex items-center gap-1.5"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">Enter</kbd> ยืนยันรับเงิน</div>
+                  <div class="flex items-center gap-1.5"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">.</kbd> จุดทศนิยม</div>
+                  <div class="flex items-center gap-1.5"><kbd class="rounded-md bg-white px-2 py-0.5 font-semibold ring-1 ring-stone-300">⌫</kbd> ลบตัวอักษร</div>
+                  <p class="basis-full text-xs text-stone-500">แตะหน้าจอเพื่อกลับเป็นแป้นบนจอ</p>
+                </div>
+                <div v-if="kbMode !== 'keyboard'" class="grid grid-cols-4 gap-2" aria-label="จำนวนเงินด่วน">
                   <button v-for="v in quickFor(l)" :key="v" type="button" class="h-12 rounded-2xl bg-white text-base font-semibold max-md:h-10 max-md:px-1 max-md:text-sm text-stone-800 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40" :class="Number(l.received) === v ? 'ring-2 ring-brand-600' : ''" :disabled="!!l.locked || !!l.confirmed" @click="l.received = String(v)">{{ v === lineAmt(l) ? 'พอดี' : money(v) }}</button>
                 </div>
-                <div v-if="(remaining > 0 && changeOf(l) >= 0 && !binding) || (canBindCash(l, remaining) && !binding)" class="grid gap-2 max-md:grid-cols-2">
+                <div v-if="(remaining > 0 && changeOf(l) >= 0 && !binding) || (canBindCash(l, remaining) && !binding)" class="grid grid-cols-2 gap-2">
                   <button v-if="remaining > 0 && changeOf(l) >= 0 && !binding" type="button" class="btn-outline h-11 w-full max-md:h-10 max-md:text-sm" @click="keepAndAddMore">รับส่วนที่เหลือ {{ money(remaining) }} ด้วยวิธีอื่น</button>
                   <button v-if="canBindCash(l, remaining) && !binding" type="button" class="btn-soft h-11 w-full max-md:h-10 max-md:text-sm" @click="bindCash(l)">บันทึกเงินสดนี้เป็นบิลค้าง</button>
                 </div>
@@ -1317,10 +1346,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                   <button v-if="!binding" type="button" class="btn-outline h-11 w-full" @click="cancelCash(l)">ยกเลิกการรับชำระ</button>
                 </div>
               </div>
-              <div class="grid grid-cols-3 content-start gap-2 max-md:gap-1.5" aria-label="แป้นตัวเลขรับเงิน">
-                <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100 disabled:opacity-40 max-md:h-10 max-md:text-xl" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" :disabled="!!l.locked || !!l.confirmed" @click="padInput(l, padField(l), k)">{{ k === 'back' ? '⌫' : k }}</button>
-                <button type="button" class="col-span-1 h-11 rounded-2xl text-sm font-medium text-stone-600 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40 max-md:h-10 max-md:text-xs" :disabled="!!l.locked || !!l.confirmed" @click="l[padField(l)] = ''">ล้าง{{ padField(l) === 'amount' ? 'ยอดเงินสดครั้งนี้' : 'รับเงินมา' }}</button>
-                <button v-if="!l.locked && !l.confirmed && lineAmt(l) > 0 && changeOf(l) >= 0 && !binding" type="button" class="btn-primary col-span-2 h-14 w-full text-lg max-md:h-10 max-md:text-base" @click="keepAndAddMore">บันทึกยอดเงินสดนี้</button>
+              <div class="grid grid-cols-2 gap-2" aria-label="ล้างหรือบันทึกยอดเงินสด">
+                <button type="button" class="h-11 rounded-2xl text-sm font-medium text-stone-600 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40 max-md:h-10 max-md:text-xs" :disabled="!!l.locked || !!l.confirmed" @click="l[padField(l)] = ''">ล้าง{{ padField(l) === 'amount' ? 'ยอดเงินสดครั้งนี้' : 'รับเงินมา' }}</button>
+                <button v-if="!l.locked && !l.confirmed && lineAmt(l) > 0 && changeOf(l) >= 0 && !binding" type="button" class="btn-primary h-12 w-full text-lg max-md:h-10 max-md:text-base" @click="keepAndAddMore">บันทึกยอดเงินสดนี้</button>
               </div>
             </div>
 
@@ -1328,7 +1356,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <div v-else-if="l.method === 'card'" class="flex min-h-0 flex-1 flex-col gap-3">
               <div class="rounded-3xl bg-white p-6 text-center ring-1 ring-stone-200">
                 <div class="text-sm text-stone-500">รับชำระด้วยบัตร</div>
-                <div class="text-5xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</div>
+                <div class="text-4xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</div>
                 <p class="mt-2 text-sm text-stone-600">รูดบัตรที่เครื่องรับบัตรให้สำเร็จ แล้วกดปุ่มด้านล่าง</p>
                 <button v-if="!l.locked && !l.confirmed && !l.split" type="button" class="mt-2 text-sm font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
                 <div v-if="l.split && !l.locked && !l.confirmed" class="mx-auto mt-2 max-w-48">
@@ -1348,14 +1376,14 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               <div class="flex flex-col gap-3">
                 <div class="flex flex-col justify-center rounded-3xl bg-white p-6 text-center ring-1 ring-stone-200" :class="l.split ? 'min-h-64 flex-1 p-8' : ''">
                   <div class="text-base text-stone-500">ยอดโอนครั้งนี้</div>
-                  <div class="font-bold tabular-nums text-stone-900" :class="l.split ? 'text-5xl whitespace-nowrap' : 'text-5xl'">{{ money(lineAmt(l)) }}</div>
+                  <div class="font-bold tabular-nums text-stone-900" :class="l.split ? 'text-4xl whitespace-nowrap' : 'text-4xl'">{{ money(lineAmt(l)) }}</div>
                   <button v-if="!l.split" type="button" class="mt-2 text-sm font-medium text-brand-700 underline" @click="l.split = true">แบ่งจ่าย (เปลี่ยนยอด)</button>
                 </div>
                 <button v-if="!l.split" type="button" class="btn-primary h-16 w-full text-xl" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
               </div>
               <div v-if="l.split" class="flex flex-col gap-2">
                 <div class="grid grid-cols-3 gap-2" aria-label="แป้นตัวเลขยอดโอน">
-                  <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" @click="padInput(l, 'amount', k)">{{ k === 'back' ? '⌫' : k }}</button>
+                  <button v-for="k in PAD_KEYS" :key="k" type="button" :class="kbMode === 'keyboard' ? 'hidden' : ''" class="h-14 rounded-2xl bg-white text-2xl font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.97] active:bg-stone-100" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" @click="padInput(l, 'amount', k)">{{ k === 'back' ? '⌫' : k }}</button>
                 </div>
                 <button type="button" class="btn-primary h-16 w-full text-xl" :disabled="!(lineAmt(l) > 0) || lineAmt(l) > remaining + lineAmt(l) + 0.005" @click="makeQr(l)">สร้าง QR ยอด {{ money(lineAmt(l)) }}</button>
                 <button type="button" class="btn-outline h-11 w-full" @click="l.amount = ''">ล้างค่า</button>
@@ -1388,7 +1416,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               <div class="w-full space-y-3 text-center landscape:text-left">
                 <div>
                   <div class="text-sm text-stone-500">ยอดโอน</div>
-                  <div class="text-5xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</div>
+                  <div class="text-4xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</div>
                 </div>
                 <div v-if="expiredLine(l)" class="space-y-2">
                   <p class="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700">QR หมดอายุแล้ว สร้าง QR ใหม่ให้ลูกค้าสแกน</p>
@@ -1416,6 +1444,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </div>
           </template>
         </section>
+      </div>
       </div>
 
       <template #footer>

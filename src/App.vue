@@ -109,6 +109,30 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
       </button>
     </div>
   </nav>
+  <!-- แถบเมนูบนสำหรับคอมพิวเตอร์ (lg ขึ้นไป) · มือถือ/แท็บเล็ตแนวตั้งใช้แถบล่างแทน -->
+  <nav
+    v-if="items.length && !$route.meta.lock && !$route.meta.focus"
+    v-show="!kbLock"
+    class="sticky top-0 z-20 hidden items-center gap-1 overflow-x-auto bg-cream px-8 py-2 [scrollbar-width:none] lg:flex"
+    aria-label="เมนูของระบบ"
+  >
+    <RouterLink
+      v-for="i in items"
+      :key="i.to"
+      :to="i.to"
+      class="relative rounded-full px-3.5 py-1.5 text-sm font-medium whitespace-nowrap text-stone-600 hover:bg-white"
+      :active-class="i.exact ? '' : 'bg-white text-brand-700 shadow-sm'"
+      :exact-active-class="i.exact ? 'bg-white text-brand-700 shadow-sm' : ''"
+    >
+      {{ i.label }}<span v-if="i.badge && badges[i.badge]" class="ml-1 rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">{{ badges[i.badge] }}</span>
+    </RouterLink>
+    <div class="ml-auto flex shrink-0 items-center gap-2 pl-2">
+      <BellMenu audience="staff" />
+      <button type="button" class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-stone-700 shadow-md ring-1 ring-stone-200" aria-label="เมนู" aria-controls="app-menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
+        <AppIcon :name="menuOpen ? 'x' : 'menu'" :size="20" />
+      </button>
+    </div>
+  </nav>
   <SyncBar />
 
   <!-- lock = ล็อกหน้า (เช่น แชท): main ตรึงใต้แถบบน ไม่ให้หน้าเว็บเลื่อน แต่ละกรอบข้างในเลื่อนเอง · ไม่พึ่ง dvh -->
@@ -125,7 +149,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
   <!-- แถบเมนูล่าง (มือถือ + แท็บเล็ตแนวตั้ง < lg): แถบบนไม่พอวางเมนูย่อยทั้งหมดจนกว่าจะกว้าง 1024px -->
   <nav
     v-if="navShow"
-    class="fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_rgb(63_46_46/0.10)]"
+    class="landscape:hidden fixed inset-x-0 bottom-0 z-30 rounded-t-3xl bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_20px_rgb(63_46_46/0.10)]"
     aria-label="เมนูล่าง"
   >
     <div class="mx-auto grid h-16 max-w-3xl items-center" :style="{ gridTemplateColumns: `repeat(${bottomCols + 2}, minmax(0, 1fr))` }">
