@@ -227,8 +227,14 @@ const payField = () => {
 function onPayKey(e) {
   if (!payOpen.value || e.ctrlKey || e.metaKey || e.altKey) return
   const t = e.target
-  if (t && t.closest && t.closest('input, textarea, select, [contenteditable]')) return // ช่องค้นหาสมาชิกยังพิมพ์ได้ตามปกติ
-  if (e.key === 'Enter') { if (canConfirm.value) { e.preventDefault(); kbMode.value = 'keyboard'; confirmPay() } return }
+  const inMemberBox = t && t.getAttribute && t.getAttribute('aria-label') === 'ค้นหาสมาชิกสะสมแต้ม' && !memberQ.value.trim()
+  if (t && t.closest && t.closest('input, textarea, select, [contenteditable]') && !(e.key === 'Enter' && inMemberBox)) return // ช่องค้นหาสมาชิกยังพิมพ์ได้ตามปกติ · Enter ในช่องว่างใช้เป็นคำสั่งชำระ
+  if (e.key === 'Enter') {
+    const q = focusLine.value
+    if (q && q.method === 'transfer' && !q.qrRef && !q.locked && !q.confirmed) { e.preventDefault(); kbMode.value = 'keyboard'; makeQr(q); return } // โอน: Enter = สร้าง QR
+    if (canConfirm.value) { e.preventDefault(); kbMode.value = 'keyboard'; confirmPay() }
+    return
+  }
   const f = payField()
   if (!f) return
   if (/^[0-9]$/.test(e.key) || e.key === '.') { e.preventDefault(); kbMode.value = 'keyboard'; padInput(f.l, f.field, e.key) }
