@@ -1349,6 +1349,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                 <div v-if="kbMode !== 'keyboard'" class="grid grid-cols-4 gap-2" aria-label="จำนวนเงินด่วน">
                   <button v-for="v in quickFor(l)" :key="v" type="button" class="h-12 rounded-2xl bg-white text-base font-semibold max-md:h-10 max-md:px-1 max-md:text-sm text-stone-800 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40" :class="Number(l.received) === v ? 'ring-2 ring-brand-600' : ''" :disabled="!!l.locked || !!l.confirmed" @click="l.received = String(v)">{{ v === lineAmt(l) ? 'พอดี' : money(v) }}</button>
                 </div>
+                <div v-if="kbMode !== 'keyboard'" class="grid grid-cols-6 gap-1.5" aria-label="แป้นตัวเลข">
+                  <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-9 rounded-xl bg-white text-base font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40" :disabled="!!l.locked || !!l.confirmed" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" @click="padInput(l, padField(l), k)">{{ k === 'back' ? '⌫' : k }}</button>
+                </div>
                 <div v-if="(remaining > 0 && changeOf(l) >= 0 && !binding) || (canBindCash(l, remaining) && !binding)" class="grid grid-cols-2 gap-2">
                   <button v-if="remaining > 0 && changeOf(l) >= 0 && !binding" type="button" class="btn-outline h-11 w-full max-md:h-10 max-md:text-sm" @click="keepAndAddMore">รับส่วนที่เหลือ {{ money(remaining) }} ด้วยวิธีอื่น</button>
                   <button v-if="canBindCash(l, remaining) && !binding" type="button" class="btn-soft h-11 w-full max-md:h-10 max-md:text-sm" @click="bindCash(l)">บันทึกเงินสดนี้เป็นบิลค้าง</button>
@@ -1374,6 +1377,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                 <div v-if="l.split && !l.locked && !l.confirmed" class="mx-auto mt-2 max-w-48">
                   <label class="sr-only" :for="'amt-' + l.key">ยอดบัตร</label>
                   <MoneyInput :id="'amt-' + l.key" v-model="l.amount" class="input h-11 text-center text-lg font-semibold" />
+                </div>
+                <div v-if="l.split && !l.locked && !l.confirmed && kbMode !== 'keyboard'" class="grid grid-cols-6 gap-1.5" aria-label="แป้นตัวเลขยอดบัตร">
+                  <button v-for="k in PAD_KEYS" :key="k" type="button" class="h-10 rounded-xl bg-white text-lg font-semibold text-stone-800 ring-1 ring-stone-300 active:scale-[0.98]" :aria-label="k === 'back' ? 'ลบตัวอักษร' : k" @click="padInput(l, 'amount', k)">{{ k === 'back' ? '⌫' : k }}</button>
                 </div>
               </div>
               <button v-if="!l.confirmed && !binding" type="button" class="btn-primary h-14 w-full text-lg" @click="l.confirmed = true; l.acceptedBy = 'staff'">รับชำระด้วยบัตรแล้ว</button>
