@@ -196,6 +196,7 @@ const cartOpen = ref(false) // มือถือ: แผงตะกร้า�
 
 // สมาชิก / คะแนน / คูปอง / ส่วนลด
 const memberQ = ref('')
+const memberSearchOpen = ref(false) // กดปุ่ม "สมาชิก" ก่อน แล้วจึงแสดงช่องค้นหา
 const member = ref(null)
 const memberMatches = computed(() => {
   const s = memberQ.value.trim().toLowerCase()
@@ -269,6 +270,7 @@ const discount = ref('')
 function pickMember(c) {
   member.value = c
   memberQ.value = ''
+  memberSearchOpen.value = false
   couponIds.value = []
 }
 // พิมพ์เบอร์ครบแล้วหยุดพิมพ์ → เลือกสมาชิกทันที (ไม่ต้องกด Enter)
@@ -1218,13 +1220,19 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <!-- สมาชิกสะสมแต้ม: เปลี่ยนได้จนกว่าจะสร้าง QR หรือรับชำระรายการแรก -->
           <div v-if="!member && !memberLocked" class="space-y-1.5 rounded-2xl bg-white p-3 ring-1 ring-stone-200 max-md:flex max-md:items-center max-md:gap-2 max-md:space-y-0 max-md:p-2" aria-label="เบอร์สะสมแต้ม">
             <div class="text-sm font-semibold text-stone-800 max-md:shrink-0">เบอร์สะสมแต้ม <span class="font-normal text-stone-400">(ไม่บังคับ)</span></div>
-            <input :value="memberQ" @input="(e) => { e.target.value = e.target.value.replace(/\D/g, ''); memberQ = e.target.value }" type="text" inputmode="numeric" data-numpad="int" class="input h-11" placeholder="เบอร์ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
+            <button v-if="!memberSearchOpen" type="button" class="btn-outline h-11 max-md:flex-1" @click="memberSearchOpen = true">สมาชิก · กดเพื่อค้นหา</button>
+            <template v-else>
+              <div class="flex gap-2 max-md:flex-1">
+                <input :value="memberQ" @input="(e) => { e.target.value = e.target.value.replace(/\D/g, ''); memberQ = e.target.value }" type="text" inputmode="numeric" data-numpad="int" class="input h-11 min-w-0 flex-1" placeholder="เบอร์ / สแกนบาร์โค้ด" aria-label="ค้นหาสมาชิกสะสมแต้ม" @keydown.enter.prevent="onMemberScan" />
+                <button type="button" class="shrink-0 rounded-full px-2 text-sm font-medium text-stone-500 underline" @click="memberSearchOpen = false; memberQ = ''">ปิด</button>
+              </div>
             <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
             <div v-if="memberMatches.length" class="space-y-1">
               <button v-for="c in memberMatches" :key="c.id" type="button" class="flex w-full justify-between gap-2 rounded-lg border border-stone-200 px-3 py-2 text-left text-sm hover:border-brand-300" @click="pickMember(c)">
                 <span class="truncate">{{ c.name }}</span><span class="shrink-0 text-stone-500">{{ c.phone ? formatPhone(c.phone) : '' }}</span>
               </button>
             </div>
+            </template>
           </div>
           <div v-else-if="member" class="flex items-center gap-3 rounded-2xl bg-white p-3 ring-1 ring-stone-200">
             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-100 text-brand-800" aria-hidden="true"><AppIcon name="user" :size="18" /></span>
