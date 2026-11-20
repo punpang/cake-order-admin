@@ -26,8 +26,12 @@ const pick = (c) => {
   picked.value = c
   error.value = ''
 }
-function confirm() {
-  const r = changeBuyer(props.order, picked.value.id, reason.value)
+const busy = ref(false)
+async function confirm() {
+  if (busy.value) return
+  busy.value = true
+  const r = await changeBuyer(props.order, picked.value.id, reason.value) // โหมดเซิร์ฟเวอร์รอคืนคะแนนก่อนเปลี่ยนผู้ซื้อ
+  busy.value = false
   if (r.error) return (error.value = r.error)
   emit('done', r)
   emit('close')
@@ -72,7 +76,7 @@ function confirm() {
     </div>
     <template #footer>
       <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ยกเลิก</button>
-      <button v-if="picked && pv?.ok" class="btn-primary flex-1 sm:flex-none" @click="confirm">ยืนยันเปลี่ยนผู้ซื้อ</button>
+      <button v-if="picked && pv?.ok" class="btn-primary flex-1 sm:flex-none" :disabled="busy" @click="confirm">ยืนยันเปลี่ยนผู้ซื้อ</button>
     </template>
   </AppModal>
 </template>

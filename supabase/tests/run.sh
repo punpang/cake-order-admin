@@ -110,6 +110,11 @@ obscode=$?
 [ "$obscode" = "0" ] && echo "✓ over_bill_shipping.test.sql ผ่านทั้งหมด" || echo "✗ over_bill_shipping.test.sql ล้มเหลว"
 [ "$obscode" = "0" ] || exit "$obscode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/points_clear_guard.test.sql
+pccode=$?
+[ "$pccode" = "0" ] && echo "✓ points_clear_guard.test.sql ผ่านทั้งหมด" || echo "✗ points_clear_guard.test.sql ล้มเหลว"
+[ "$pccode" = "0" ] || exit "$pccode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"

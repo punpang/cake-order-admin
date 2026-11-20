@@ -2573,16 +2573,24 @@ export function changeBuyerPreview(order, newId) {
     oldTotal: t.total, newTotal: after.total, newBalance: after.balance, transfer: order.loyalty ? { points: order.loyalty.points, spins: order.loyalty.spins } : null,
   }
 }
-export function changeBuyer(order, newId, reason = '') {
+export async function changeBuyer(order, newId, reason = '') {
   if (!can('changeBuyer')) return { error: 'ไม่มีสิทธิ์เปลี่ยนผู้ซื้อ' }
   const pv = changeBuyerPreview(order, newId)
   if (pv.error) return pv
   const { from, to } = pv
   const remote = !!pointsHook.call
   if (order.pointsUsed) {
-    // โหมดเซิร์ฟเวอร์: คืนคะแนนที่ใช้ให้ผู้ซื้อเดิม (ตามรายการ takes) · ไม่ผ่านออร์เดอร์เพราะผู้ซื้อในออร์เดอร์กำลังจะเปลี่ยน
-    if (remote) { if (from) ledgerRemote(from.id, [{ op: 'refund_spend', entryId: order.pointsUsed.entryId, reason: `คืนคะแนน ${order.code} (เปลี่ยนผู้ซื้อ)` }], order.id); order.pointsUsed = null }
-    else removePoints(order)
+    if (remote) {
+      // โหมดเซิร์ฟเวอร์: คืนคะแนนด้วย RPC เดียวกับตอนยกเลิกการใช้คะแนน (คืนเข้าสมุดของผู้ซื้อเดิมและล้าง pointsUsed ในธุรกรรมเดียว)
+      // ต้องสำเร็จก่อนเปลี่ยนผู้ซื้อ มิฉะนั้นคะแนนจะไปคืนให้ผู้ซื้อใหม่ · ไม่สำเร็จ = ไม่เปลี่ยนผู้ซื้อ
+      let r
+      try { r = await pointsHook.call('punpang_remove_points', { p_order: order.id }, { order: order.id, customer: order.customerId }) }
+      catch (e) { return { error: e?.message || 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้' } }
+      if (r?.error && r.error !== 'none') return { error: PTS_MSG[r.error] || r.error }
+      // รีเฟรชหลังคืนคะแนนอาจแทนที่อ็อบเจกต์ของออร์เดอร์ในรายการ → ใช้อ็อบเจกต์ที่อยู่ในรายการ มิฉะนั้นการเปลี่ยนผู้ซื้อจะไม่ถูกบันทึก
+      order = db.orders.find((x) => x.id === order.id) || order
+      order.pointsUsed = null
+    } else removePoints(order)
   }
   for (const u of [...(order.couponsUsed || [])]) removeCoupon(order, u.couponId)
   const l = order.loyalty
