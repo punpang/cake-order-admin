@@ -4036,11 +4036,12 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
 }
 const paidOf = (rows) => round2(rows.reduce((s, l) => s + round2(Number(l.amount)), 0))
 const posRowsText = (rows) => rows.map((l) => POS_METHODS[l.method]).join(' + ')
+// บัตรที่นับเป็นยอดรับต้องผ่านการกดยืนยันรับบัตรแล้ว (ด่านหน้าจอ) → บันทึกธง cardConfirmed ให้ด่านฐานข้อมูลตรวจได้
 function pushPosPayments(o, rows, ts) {
   for (const l of rows) {
     const amt = round2(Number(l.amount))
     const got = l.method === 'cash' ? Math.max(Number(l.received) || 0, amt) : amt
-    o.payments.push({ id: uid('pay'), code: numbering.next('PAY'), requested: amt, amount: amt, method: POS_METHODS[l.method], posMethod: l.method, received: got, change: round2(got - amt), paidAt: ts.slice(0, 16), slip: '', note: '', status: 'confirmed', reportedBy: session.role, confirmedBy: session.role, ...(l.method === 'transfer' && l.qrRef ? { qrRef: l.qrRef, ...(l.maneeId ? { maneeId: l.maneeId } : {}), qrAccept: l.acceptedBy || 'staff' } : {}) })
+    o.payments.push({ id: uid('pay'), code: numbering.next('PAY'), requested: amt, amount: amt, method: POS_METHODS[l.method], posMethod: l.method, received: got, change: round2(got - amt), paidAt: ts.slice(0, 16), slip: '', note: '', status: 'confirmed', reportedBy: session.role, confirmedBy: session.role, ...(l.method === 'card' ? { cardConfirmed: true } : {}), ...(l.method === 'transfer' && l.qrRef ? { qrRef: l.qrRef, ...(l.maneeId ? { maneeId: l.maneeId } : {}), qrAccept: l.acceptedBy || 'staff' } : {}) })
   }
 }
 function takePosStock(o) {

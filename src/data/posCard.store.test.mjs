@@ -47,6 +47,7 @@ try {
     assert.equal(o.status, 'delivered')
     assert.equal(o.payments[0].posMethod, 'card')
     assert.equal(o.payments[0].status, 'confirmed')
+    assert.equal(o.payments[0].cardConfirmed, true)
   })
   check('เงินสดรับไม่ครบ → ปฏิเสธ (ควบคุม)', () => {
     assert.equal(posSale({ cart: cart(), lines: [{ method: 'cash', amount: total, received: total - 1 }] }), null)

@@ -115,6 +115,11 @@ pccode=$?
 [ "$pccode" = "0" ] && echo "✓ points_clear_guard.test.sql ผ่านทั้งหมด" || echo "✗ points_clear_guard.test.sql ล้มเหลว"
 [ "$pccode" = "0" ] || exit "$pccode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/card_gate.test.sql
+cgcode=$?
+[ "$cgcode" = "0" ] && echo "✓ card_gate.test.sql ผ่านทั้งหมด" || echo "✗ card_gate.test.sql ล้มเหลว"
+[ "$cgcode" = "0" ] || exit "$cgcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"
