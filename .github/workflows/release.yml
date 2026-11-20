@@ -1,0 +1,133 @@
+name: Release (DB + Edge Functions · อนุมัติครั้งเดียว)
+
+# รันเองเท่านั้น: GitHub → Actions → Release → Run workflow · เลือก branch main เท่านั้น
+#   db_migrations: ชื่อไฟล์ migration ใน supabase/migrations คั่นด้วยเว้นวรรค (เว้นว่าง = ไม่รัน DB)
+#   functions: ชื่อ Edge Function คั่นด้วยเว้นวรรค (เว้นว่าง = ไม่ deploy)
+#   ทุกขั้นที่ใช้ secret ของ production อยู่ในงาน release เดียว จึงอนุมัติ environment production แค่ครั้งเดียว
+#   ลำดับในงาน: ตรวจ → migration (ธุรกรรมเดียว) → บันทึกประวัติ migration → deploy ฟังก์ชัน
+#   งาน test (ไม่ใช้ secret) รันก่อนเสมอ · ถ้าเทสต์ล้มเหลว จะไม่ถึงขั้นอนุมัติและไม่มีการเปลี่ยน production
+#   หมายเหตุ: ถ้า migration รันสำเร็จแต่ deploy ฟังก์ชันล้มเหลว ฐานข้อมูลจะเปลี่ยนแล้ว ต้องแก้ด้วยการ deploy ใหม่
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'พิมพ์ RUN เพื่อยืนยัน'
+        required: true
+        type: string
+      db_migrations:
+        description: 'ไฟล์ migration ที่จะรัน เช่น 20261120190000_punpang_over_bill_shipping.sql (เว้นว่าง = ไม่รัน)'
+        required: false
+        type: string
+        default: ''
+      functions:
+        description: 'Edge Function ที่จะ deploy เช่น customer-auth tax-invoice (เว้นว่าง = ไม่ deploy)'
+        required: false
+        type: string
+        default: ''
+
+concurrency:
+  group: release-production
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: รันจาก main เท่านั้น
+        run: '[ "$GITHUB_REF" = "refs/heads/main" ] || { echo "รันได้เฉพาะจาก main"; exit 1; }'
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: เทสต์โมดูลร่วมและ Worker
+        run: deno test --no-prompt --no-lock --node-modules-dir=none supabase/functions/_shared/ worker/test/
+      - name: เทสต์ customer-auth ทั้งฟังก์ชัน
+        run: deno test -A --no-lock --node-modules-dir=none --import-map=supabase/tests/functions/customer-auth/importmap.json supabase/tests/functions/customer-auth/
+      - name: เทสต์ Edge Function ทุกโฟลเดอร์
+        run: deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/_fake/importmap.json supabase/tests/functions/order-create/ supabase/tests/functions/flows/ supabase/tests/functions/messaging/ supabase/tests/functions/sms-send/ supabase/tests/functions/order-link/ supabase/tests/functions/tungngern-receiver/ supabase/tests/functions/loyalty/ supabase/tests/functions/lucky/ supabase/tests/functions/tungngern-list/ supabase/tests/functions/chat-photo-prune/ supabase/tests/functions/line-link/ supabase/tests/functions/campaign/ supabase/tests/functions/scheduled/ supabase/tests/functions/order-audit/ supabase/tests/functions/tax-invoice/ supabase/tests/functions/line-webhook/ supabase/tests/functions/push-send/ supabase/tests/functions/bot-test/ supabase/tests/functions/customer-order/ supabase/tests/functions/fb-connect/ supabase/tests/functions/fb-webhook/
+      - name: ตรวจชนิดข้อมูลของ Edge Function ที่จะ deploy
+        run: deno check --no-lock --node-modules-dir=none supabase/functions/*/index.ts
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      CONFIRM: ${{ github.event.inputs.confirm }}
+      DB_MIGRATIONS: ${{ github.event.inputs.db_migrations }}
+      FUNCTIONS: ${{ github.event.inputs.functions }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PGSSLMODE: require
+    steps:
+      - name: รันจาก main เท่านั้น
+        run: '[ "$GITHUB_REF" = "refs/heads/main" ] || { echo "รันได้เฉพาะจาก main"; exit 1; }'
+
+      - name: ตรวจการยืนยันและรายการที่จะรัน
+        run: |
+          if [ "$CONFIRM" != "RUN" ]; then echo "ยังไม่ได้พิมพ์ RUN เพื่อยืนยัน จึงไม่รัน"; exit 1; fi
+          if [ -z "$DB_MIGRATIONS" ] && [ -z "$FUNCTIONS" ]; then echo "ไม่มีรายการให้รัน (ต้องระบุ db_migrations หรือ functions)"; exit 1; fi
+          for f in $DB_MIGRATIONS; do
+            [[ "$f" =~ ^[0-9]{14}_[a-z0-9_]+\.sql$ ]] || { echo "ชื่อ migration ไม่ถูกรูปแบบ: $f"; exit 1; }
+          done
+          for fn in $FUNCTIONS; do
+            [[ "$fn" =~ ^[a-z0-9-]+$ ]] || { echo "ชื่อฟังก์ชันไม่ถูกรูปแบบ: $fn"; exit 1; }
+          done
+          if [ -n "$DB_MIGRATIONS" ] && [ -z "$SUPABASE_DB_URL" ]; then echo "ยังไม่ได้ตั้ง secret SUPABASE_DB_URL ใน environment production"; exit 1; fi
+          if [ -n "$FUNCTIONS" ] && [ -z "$SUPABASE_ACCESS_TOKEN" ]; then echo "ยังไม่ได้ตั้ง secret SUPABASE_ACCESS_TOKEN ใน environment production"; exit 1; fi
+
+      - uses: actions/checkout@v4
+
+      - name: ติดตั้ง psql
+        if: ${{ github.event.inputs.db_migrations != '' }}
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      - name: ตรวจ migration และฐานข้อมูลก่อนรัน
+        if: ${{ github.event.inputs.db_migrations != '' }}
+        run: |
+          s=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from information_schema.schemata where schema_name = 'punpang_test'")
+          [ "$s" = "1" ] || { echo "ไม่พบสคีมา punpang_test บน production"; exit 1; }
+          for f in $DB_MIGRATIONS; do
+            [ -f "supabase/migrations/$f" ] || { echo "ไม่พบไฟล์ supabase/migrations/$f ในรีโป (รันจาก main แล้วหรือยัง)"; exit 1; }
+            v="${f%%_*}"
+            n=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from supabase_migrations.schema_migrations where version = '$v'")
+            [ "$n" = "0" ] || { echo "migration $v ถูกบันทึกแล้ว จึงไม่รันซ้ำ"; exit 1; }
+          done
+
+      - name: รัน migration (ธุรกรรมเดียว)
+        if: ${{ github.event.inputs.db_migrations != '' }}
+        run: |
+          args=""
+          for f in $DB_MIGRATIONS; do args="$args -f supabase/migrations/$f"; done
+          psql "$SUPABASE_DB_URL" -X -q -v ON_ERROR_STOP=1 -1 $args
+
+      - name: บันทึกประวัติ migration
+        if: ${{ github.event.inputs.db_migrations != '' }}
+        run: |
+          for f in $DB_MIGRATIONS; do
+            v="${f%%_*}"
+            name="${f#*_}"
+            name="${name%.sql}"
+            psql "$SUPABASE_DB_URL" -X -q -v ON_ERROR_STOP=1 -c "insert into supabase_migrations.schema_migrations (version, name) select '$v', '$name' where not exists (select 1 from supabase_migrations.schema_migrations where version = '$v')"
+          done
+
+      - uses: supabase/setup-cli@v1
+        if: ${{ github.event.inputs.functions != '' }}
+        with:
+          version: latest
+
+      - name: deploy Edge Function
+        if: ${{ github.event.inputs.functions != '' }}
+        run: |
+          for fn in $FUNCTIONS; do
+            case "$fn" in
+              bot-test|campaign|fb-send|line-push|order-create|telegram-send) flag="" ;;
+              chat-photo-prune|customer-auth|customer-loyalty|customer-order|fb-connect|fb-webhook|line-link|line-webhook|lucky-spin|order-link|push-send|scheduled|tax-invoice|tungngern-list|tungngern-receiver) flag="--no-verify-jwt" ;;
+              *) echo "ไม่รู้จักฟังก์ชัน $fn (ยังไม่มีในรายการ deploy)"; exit 1 ;;
+            esac
+            echo "deploy $fn"
+            supabase functions deploy "$fn" --project-ref itleduijrckxdbhhuooi $flag --yes
+          done
