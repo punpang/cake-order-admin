@@ -22,6 +22,10 @@ const f = computed(() => {
       <div class="text-base font-bold">{{ f.shopName }}</div>
       <div v-if="f.shopAddress" class="break-words text-xs">{{ f.shopAddress }}</div>
       <div v-if="f.shopPhone" class="text-xs">โทร {{ f.shopPhone }}</div>
+      <div v-if="f.shopHours.length" class="text-xs">
+        <div>เวลาเปิด</div>
+        <div v-for="(h, i) in f.shopHours" :key="i">{{ h.days }} {{ h.time }}</div>
+      </div>
       <div>ใบเสร็จรับเงิน</div>
       <div class="text-xs">{{ orderNo(order.code) }} · {{ dateTime(order.createdAt) }}</div>
       <div v-if="f.vatLegalName" class="text-xs">{{ f.vatLegalName }}</div>

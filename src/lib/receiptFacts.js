@@ -14,6 +14,13 @@ export function maskPhone(s) {
   return `${d.slice(0, d.length === 10 ? 3 : 2)}-xxx-${d.slice(-4)}`
 }
 
+// เวลาเปิด-ปิดบนใบเสร็จ: ใช้ตารางหน้าร้าน (storefront.hours) · ถ้าไม่มีตาราง ใช้เวลาเปิด-ปิดของร้าน
+function hoursOf(storefront, shop) {
+  const rows = (storefront.hours || []).map((h) => ({ days: clean(h.days), time: clean(h.time) })).filter((h) => h.days && h.time)
+  if (rows.length) return rows
+  return shop.open && shop.close ? [{ days: 'ทุกวัน', time: `${shop.open}–${shop.close}` }] : []
+}
+
 export function receiptFacts(order, { shop = {}, legal = {}, storefront = {}, customer = null, points = null } = {}) {
   const t = orderTotals(order)
   const isOrder = order.channel !== 'pos'
@@ -30,6 +37,7 @@ export function receiptFacts(order, { shop = {}, legal = {}, storefront = {}, cu
     shopName: clean(shop.name) || 'ร้าน',
     shopAddress: clean(legal.contact?.address) || (SAMPLE_ADDRESS.test(storeAddress) ? '' : storeAddress),
     shopPhone: clean(legal.contact?.phone),
+    shopHours: hoursOf(storefront, shop),
     cancelled,
     vatMode: t.vatMode,
     vatRate: t.vatRate,

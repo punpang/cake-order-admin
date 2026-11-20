@@ -183,6 +183,10 @@ export async function buildReceiptBytes(order, widthMm, opts = {}) {
   w.text(f.shopName, { align: 'center', kind: 'title' })
   if (f.shopAddress) w.text(f.shopAddress, { align: 'center', kind: 'small' })
   if (f.shopPhone) w.text(`โทร ${f.shopPhone}`, { align: 'center', kind: 'small' })
+  if (f.shopHours.length) {
+    w.text('เวลาเปิด', { align: 'center', kind: 'small' })
+    for (const h of f.shopHours) w.text(`${h.days} ${h.time}`, { align: 'center', kind: 'small' })
+  }
   w.text('ใบเสร็จรับเงิน', { align: 'center' })
   w.text(`${orderNo(order.code)} · ${dateTime(order.createdAt)}`, { align: 'center', kind: 'small' })
   if (f.vatLegalName) w.text(f.vatLegalName, { align: 'center', kind: 'small' })

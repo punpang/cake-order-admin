@@ -93,4 +93,12 @@ t('เบอร์ลูกค้าบนใบที่พิมพ์: ซ่
   assert.equal(maskPhone(''), '')
 })
 
+t('เวลาเปิด-ปิด: ใช้ตารางหน้าร้าน ถ้าไม่มีตารางใช้เวลาเปิด-ปิดของร้าน', () => {
+  const f = receiptFacts(order(), { storefront: { hours: [{ days: 'จันทร์–ศุกร์', time: '09:00–18:00' }, { days: '', time: '' }, { days: 'เสาร์–อาทิตย์', time: '10:00–20:00' }] } })
+  assert.deepEqual(f.shopHours, [{ days: 'จันทร์–ศุกร์', time: '09:00–18:00' }, { days: 'เสาร์–อาทิตย์', time: '10:00–20:00' }])
+  const g = receiptFacts(order(), { shop: { open: '09:00', close: '20:00' }, storefront: { hours: [] } })
+  assert.deepEqual(g.shopHours, [{ days: 'ทุกวัน', time: '09:00–20:00' }])
+  assert.deepEqual(receiptFacts(order()).shopHours, [])
+})
+
 console.log(`\n✓ ผ่านทั้งหมด ${pass} กรณี`)
