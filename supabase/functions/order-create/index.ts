@@ -115,7 +115,8 @@ Deno.serve(corsWrap(async (req) => {
     // ออร์เดอร์ปกติ: คิดราคาทั้งหมดที่เซิร์ฟเวอร์จากแคตาล็อก
     const customerId = typeof body?.draft?.customerId === 'string' ? body.draft.customerId : ''
     if (!ID_RE.test(customerId)) return json({ error: 'ต้องเลือกลูกค้า' }, 422)
-    const cs = await rest(`punpang_customers?id=eq.${encodeURIComponent(customerId)}&select=id,deleted`, rh)
+    // punpang_customers ไม่มีคอลัมน์ deleted (ค่าลบลูกค้าอยู่ใน data) → ขอ data->deleted เป็นค่า JSON
+    const cs = await rest(`punpang_customers?id=eq.${encodeURIComponent(customerId)}&select=id,deleted:data->deleted`, rh)
     if (!cs) return json({ error: 'อ่านข้อมูลลูกค้าไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
     if (!cs.length || cs[0].deleted) return json({ error: 'ไม่พบลูกค้า' }, 422)
     const catalog = await loadCatalog(SUPABASE_URL, SERVICE_HEADERS)

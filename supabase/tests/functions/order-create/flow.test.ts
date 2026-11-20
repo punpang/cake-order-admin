@@ -28,6 +28,7 @@ const STAFF: Record<string, any> = {
 type Row = { schema: string; [k: string]: any }
 let rows: Row[] = []
 let reads: { table: string; schema: string }[] = []
+const deletedCustomers = new Set<string>() // ลูกค้าที่ถูกลบ (data.deleted = true) สำหรับเคสทดสอบ
 const J = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } })
 const realFetch = globalThis.fetch
 globalThis.fetch = (async (input: Request | URL | string, init?: RequestInit) => {
@@ -43,7 +44,17 @@ globalThis.fetch = (async (input: Request | URL | string, init?: RequestInit) =>
   if (p === '/rest/v1/punpang_staff') return J(STAFF[eq('user_id')] ? [STAFF[eq('user_id')]] : [])
   if (p === '/rest/v1/punpang_customers') {
     reads.push({ table: 'punpang_customers', schema: req.headers.get('accept-profile') || 'public' })
-    return J([{ id: eq('id'), deleted: false }])
+    const id = eq('id')
+    const cols = (url.searchParams.get('select') || '*').split(',').map((c) => c.trim())
+    // ตอบเหมือน PostgREST: ขอคอลัมน์ที่ตารางไม่มี → 400 (บั๊กจริงขอ `deleted` ทั้งที่ค่านี้อยู่ใน data)
+    const bad = cols.find((c) => !/^(?:\w+:)?(?:id|name|phone|note|created_at|updated_at)$|^(?:\w+:)?data->deleted$/.test(c))
+    if (bad) return J({ code: '42703', message: `column punpang_customers.${bad.replace(/^\w+:/, '')} does not exist` }, 400)
+    const row: Record<string, unknown> = {}
+    for (const c of cols) {
+      const [alias, expr] = c.includes(':') ? (c.split(':') as [string, string]) : (['', c] as [string, string])
+      row[alias || expr] = expr === 'id' ? id : expr === 'data->deleted' ? deletedCustomers.has(id) : null
+    }
+    return J([row])
   }
   if (p === '/rest/v1/punpang_kv') return J(Object.entries(cat).filter(([k]) => k !== 'retailItems').map(([id, v]) => ({ id, data: { v } })))
   if (p === '/rest/v1/punpang_items') return J(cat.retailItems.map((x: any) => ({ id: x.id, name: x.name, price: x.price, active: x.active, data: x })))
@@ -83,7 +94,7 @@ const newOrder = (code: string) => ({
   id: `o_flow_${++seq}`, code, customerId: ref.customerId ?? 'golden-cust', fulfillment: ref.draft.fulfillment, pickupAt: ref.draft.pickupAt,
   birthday: ref.draft.birthday, items: structuredClone(ref.draft.items), status: 'awaiting_payment', history: [{ at: '', text: '', by: 'ทดสอบ' }], payments: [],
 })
-const reset = () => { rows = []; reads = [] }
+const reset = () => { rows = []; reads = []; deletedCustomers.clear() }
 // เวลาเซิร์ฟเวอร์ = เวลาของชุดข้อมูลอ้างอิง (วันนัดในเคสจะไม่กลายเป็นอดีตเมื่อเวลาผ่านไป)
 const realNow = Date.now
 Date.now = () => (golden as any).nowMs
@@ -157,3 +168,12 @@ Deno.test('เลขซ้ำในโหมดทดสอบ: แอปออ�
   assertEquals(rows.at(-1)?.code, recoded[0])
 })
 
+Deno.test('ลูกค้าที่ถูกลบแล้ว: ออร์เดอร์ถูกปฏิเสธ (ไม่พบลูกค้า) และไม่มีอะไรถูกเขียน', async () => {
+  reset()
+  const numbering = numberingFor(false)
+  const o = newOrder(numbering.next('OR'))
+  deletedCustomers.add(o.customerId)
+  const r: any = await pushOrders(appClient('tok-staff', false), { upserts: [o] }, { numbering })
+  assertStringIncludes(r.error, 'ไม่พบลูกค้า')
+  assertEquals(rows.length, 0)
+})
