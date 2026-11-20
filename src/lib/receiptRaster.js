@@ -1,7 +1,7 @@
 // ใบเสร็จและใบทดสอบแบบภาพ (raster ESC/POS) · วาดด้วยฟอนต์ของแอปแล้วส่งเป็นภาพ
 // ข้อดี: ภาษาไทยแสดงได้ถูกต้องโดยไม่ต้องรู้ code page ของเครื่องพิมพ์
 import { db, findCustomer, customerPoints } from '../data/store'
-import { receiptFacts } from './receiptFacts'
+import { receiptFacts, maskPhone } from './receiptFacts'
 import { money, dateTime, dateOnly, orderNo } from './format'
 import { branchLabel } from './acct/taxid'
 import { printBytes, getDeviceConfig } from './nativeDevices'
@@ -221,7 +221,7 @@ export async function buildReceiptBytes(order, widthMm, opts = {}) {
   if (f.customer) {
     w.rule()
     w.text(`${f.customer.label}: ${f.customer.name}`)
-    if (f.customer.phone) w.text(`โทร ${f.customer.phone}`, { kind: 'small' })
+    if (f.customer.phone) w.text(`โทร ${maskPhone(f.customer.phone)}`, { kind: 'small' })
     if (f.customer.earned) w.text(`ได้รับ ${f.customer.earned} คะแนน${f.customer.bonus ? ` (โบนัสโปร +${f.customer.bonus})` : ''}`, { kind: 'small' })
     if (f.customer.pointsLeft != null) w.text(`คะแนนคงเหลือ ${f.customer.pointsLeft}`, { kind: 'small' })
   }

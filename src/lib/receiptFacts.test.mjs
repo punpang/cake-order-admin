@@ -1,6 +1,6 @@
 // ทดสอบข้อมูลใบเสร็จร่วม (จอ + เครื่องพิมพ์) · รัน: node src/lib/receiptFacts.test.mjs
 import assert from 'node:assert/strict'
-import { receiptFacts } from './receiptFacts.js'
+import { receiptFacts, maskPhone } from './receiptFacts.js'
 
 let pass = 0
 const t = (name, fn) => { fn(); pass++; console.log('PASS', name) }
@@ -84,6 +84,13 @@ t('VAT แบบบวกเพิ่ม: แสดงชื่อและเ�
   assert.equal(f.vatLegalName, 'บริษัท ตัวอย่าง')
   assert.equal(f.vatTaxId, '0105555555555')
   assert.ok(f.vat > 0)
+})
+
+t('เบอร์ลูกค้าบนใบที่พิมพ์: ซ่อนเลขกลาง', () => {
+  assert.equal(maskPhone('089-123-2018'), '089-xxx-2018')
+  assert.equal(maskPhone('0891232018'), '089-xxx-2018')
+  assert.equal(maskPhone('021234567'), '02-xxx-4567')
+  assert.equal(maskPhone(''), '')
 })
 
 console.log(`\n✓ ผ่านทั้งหมด ${pass} กรณี`)

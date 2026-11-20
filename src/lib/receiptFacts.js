@@ -2,10 +2,17 @@
 // ฟังก์ชันล้วน: ผู้เรียกส่งข้อมูลร้าน/ลูกค้าเข้ามาเอง ไม่อ่าน store
 // ฟิลด์เฉพาะออเดอร์ (นัดรับ/จัดส่ง, ลูกค้าโทร, กำหนดชำระ) จะว่างเมื่อ channel = pos
 import { orderTotals } from './pricing.js'
-import { money, dateTime } from './format.js'
+import { money, dateTime, phoneDigits } from './format.js'
 
 const SAMPLE_ADDRESS = /ตัวอย่าง/ // ที่อยู่ตัวอย่างจากค่าเริ่มต้นของหน้าตั้งค่าร้าน ไม่พิมพ์ลงใบเสร็จ
 const clean = (s) => String(s ?? '').trim()
+// เบอร์ลูกค้าบนใบที่พิมพ์: ซ่อนเลขกลาง เช่น 089-123-2018 → 089-xxx-2018 (บนจอยังแสดงเต็มตามเดิม)
+export function maskPhone(s) {
+  const d = phoneDigits(s)
+  if (!d) return ''
+  if (d.length < 9) return 'xxx-xxxx'
+  return `${d.slice(0, d.length === 10 ? 3 : 2)}-xxx-${d.slice(-4)}`
+}
 
 export function receiptFacts(order, { shop = {}, legal = {}, storefront = {}, customer = null, points = null } = {}) {
   const t = orderTotals(order)
