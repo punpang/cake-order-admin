@@ -240,9 +240,18 @@ export default {
       const body = await req.json().catch(() => ({}))
       const keys = (Array.isArray(body.keys) ? body.keys : []).map(String).filter((k) => k && !k.includes('..') && !k.startsWith('/')).slice(0, 100)
       if (keys.some((k) => !hasAnyPerm(staff, needForDelete(k)))) return json(req, env, { error: 'ไม่มีสิทธิ์ลบไฟล์ประเภทนี้' }, 403)
+      // ไฟล์ที่ยังถูกออร์เดอร์อ้างอิงอยู่หรืออยู่ในถังแล้ว ไม่ลบ · อ่านออเดอร์ไม่สำเร็จ = ไม่ลบเลย
+      let ords
+      try { ords = await ordersById(env, keys.map((k) => k.split('/')[0]), true) } catch { return json(req, env, { error: 'ตรวจการอ้างอิงไม่สำเร็จ ยังไม่ได้ลบไฟล์' }, 503) }
+      const refused = [], toDelete = []
+      for (const k of keys) {
+        if (k.startsWith(TRASH)) refused.push({ key: k, reason: 'ไฟล์อยู่ในถังขยะแล้ว' })
+        else if (referencedIn(ords.get(k.split('/')[0]) || null, k)) refused.push({ key: k, reason: 'ยังถูกอ้างอิงอยู่ในออเดอร์' })
+        else toDelete.push(k)
+      }
       // ทุกการลบต้องผ่านถังขยะก่อน (กู้คืนได้จนกว่าจะครบจำนวนวันในถัง)
-      if (keys.length) await moveToTrash(env.FILES_PRIVATE, keys.map((key) => ({ key })), staff.user_id, 'app')
-      return json(req, env, { ok: true, deleted: keys.length })
+      if (toDelete.length) await moveToTrash(env.FILES_PRIVATE, toDelete.map((key) => ({ key })), staff.user_id, 'app')
+      return json(req, env, { ok: true, deleted: toDelete.length, refused })
     }
 
     // ---- จัดการพื้นที่รูป (พนักงานที่มีสิทธิ์ manage) ----
@@ -438,12 +447,13 @@ async function sbWrite(env, method, path, rows, prefer) {
   return fetch(`${env.SUPABASE_URL}${path}`, { method, headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json', Prefer: prefer }, body: JSON.stringify(rows) })
 }
 // ดึงข้อมูลออเดอร์ของ key ทั้งหมดเป็นชุด → Map(orderId → {code, status, updated_at, data})
-async function ordersById(env, ids) {
+async function ordersById(env, ids, strict = false) {
   const map = new Map()
   const uniq = [...new Set(ids.filter(Boolean))]
   for (let i = 0; i < uniq.length; i += 50) {
     const chunk = uniq.slice(i, i + 50).map((x) => `"${String(x).replace(/"/g, '')}"`).join(',')
     const r = await sbFetch(env, `/rest/v1/punpang_orders?id=in.(${encodeURIComponent(chunk)})&select=id,code,status,updated_at,data`)
+    if (!r.ok && strict) throw new Error(`อ่านออเดอร์ไม่สำเร็จ (${r.status})`)
     for (const o of r.ok ? await r.json() : []) map.set(o.id, o)
   }
   return map

@@ -126,6 +126,48 @@ Deno.test('ลบสลิปของออร์เดอร์ได้เฉ
   staffPerms = null
 })
 
+Deno.test('ลบไฟล์ที่ยังถูกออร์เดอร์อ้างอิงอยู่ไม่ได้ (ตอบ refused และไฟล์ยังอยู่)', async () => {
+  const orderRow = { id: 'o9', code: 'A9', status: 'payment_reported', updated_at: new Date().toISOString(), data: { payments: [{ slip: 'r2://private/o9/slip.png' }] } }
+  globalThis.fetch = (async (input: any) => {
+    const url = String(input)
+    if (url.includes('/auth/v1/user')) return new Response(JSON.stringify({ id: 'u1' }), { status: 200 })
+    if (url.includes('/rest/v1/punpang_staff')) return new Response(JSON.stringify([{ user_id: 'u1', active: true, perms: ['confirmPayment'] }]), { status: 200 })
+    if (url.includes('/rest/v1/punpang_orders')) return new Response(JSON.stringify([orderRow]), { status: 200 })
+    return new Response('[]', { status: 200 })
+  }) as typeof fetch
+  const env = makeEnv()
+  env.FILES_PRIVATE.objs.set('o9/slip.png', { key: 'o9/slip.png', body: PNG, uploaded: new Date() })
+  const r = await worker.fetch(new Request('https://files.test/delete', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer staff-jwt', 'content-type': 'application/json' },
+    body: JSON.stringify({ keys: ['o9/slip.png'] }),
+  }), env)
+  const j = await r.json()
+  assertEquals(r.status, 200)
+  assertEquals(j.deleted, 0)
+  assertEquals(j.refused[0].reason, 'ยังถูกอ้างอิงอยู่ในออเดอร์')
+  assert(env.FILES_PRIVATE.objs.has('o9/slip.png'))
+})
+
+Deno.test('อ่านออเดอร์ไม่สำเร็จ → ไม่ลบไฟล์เลย (ตอบ 503)', async () => {
+  globalThis.fetch = (async (input: any) => {
+    const url = String(input)
+    if (url.includes('/auth/v1/user')) return new Response(JSON.stringify({ id: 'u1' }), { status: 200 })
+    if (url.includes('/rest/v1/punpang_staff')) return new Response(JSON.stringify([{ user_id: 'u1', active: true, perms: ['confirmPayment'] }]), { status: 200 })
+    if (url.includes('/rest/v1/punpang_orders')) return new Response('{}', { status: 500 })
+    return new Response('[]', { status: 200 })
+  }) as typeof fetch
+  const env = makeEnv()
+  env.FILES_PRIVATE.objs.set('o9/slip.png', { key: 'o9/slip.png', body: PNG, uploaded: new Date() })
+  const r = await worker.fetch(new Request('https://files.test/delete', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer staff-jwt', 'content-type': 'application/json' },
+    body: JSON.stringify({ keys: ['o9/slip.png'] }),
+  }), env)
+  assertEquals(r.status, 503)
+  assert(env.FILES_PRIVATE.objs.has('o9/slip.png'))
+})
+
 Deno.test('รูปสาธารณะที่ถูกอ้างในแถวที่ 1,001 ขึ้นไปยังนับว่าถูกใช้ (อ่านข้อมูลทุกหน้า)', async () => {
   const requested: string[] = []
   globalThis.fetch = (async (input: any) => {

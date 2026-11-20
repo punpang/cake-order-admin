@@ -271,7 +271,10 @@ async function doDenyExt(p) {
 }
 async function doCancelConfirmed(p) {
   const r = await askConfirmEx({ title: 'ยกเลิกยอดที่ยืนยันแล้ว', message: `${money(p.amount)} (${p.method})`, okText: 'ยกเลิกยอด', danger: true, ...notifyBoxOf(customer.value) })
-  if (r.ok) cancelConfirmedPayment(order.value, p.id, notifyOf(r))
+  if (r.ok) {
+    const e = cancelConfirmedPayment(order.value, p.id, notifyOf(r))
+    if (e?.error) showToast(e.error, 6000, 'error')
+  }
 }
 async function doRemoveItem(it) {
   const r = await askConfirmEx({ title: 'ลบสินค้า', message: `${it.name} × ${it.qty}`, okText: 'ลบ', danger: true, ...notifyBoxOf(customer.value) })
