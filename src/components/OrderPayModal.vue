@@ -20,7 +20,7 @@ import SmsTick from './SmsTick.vue'
 // โมดัลแจ้งยอดชำระ / แก้ยอดที่แจ้ง / ยืนยันยอดจริง / รับชำระทันที (ใช้ร่วมกันที่หน้ารายละเอียดออร์เดอร์และหน้าชำระเงิน)
 // mode = new | edit | confirm | direct | slip · target = งวดที่แก้/ยืนยัน (new/direct ไม่ต้องส่ง) · slip = สลิปที่รอผูกในแชท { chatId, msgId, at, slip, bankCode, bankName, ref } · เปิดด้วย v-if ใหม่ทุกครั้ง
 const props = defineProps({ order: { type: Object, required: true }, mode: { type: String, default: 'new' }, target: { type: Object, default: null } })
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'paid']) // paid = รับชำระ/ยืนยันยอดสำเร็จ (หน้าออร์เดอร์ใช้เปิดใบเสร็จ) · ส่งก่อน close
 const customer = computed(() => findCustomer(props.order.customerId))
 const t = computed(() => orderTotals(props.order))
 // โหมดสลิป: ยอดที่ผูกได้ = คงค้างหักยอดที่ลูกค้าแจ้งรอตรวจอยู่แล้ว
@@ -115,6 +115,7 @@ async function savePay() {
     try { r = receiveChatSlip(payTarget.chatId, payTarget.msgId, props.order.id, { ...pay }) } finally { saving = false }
     if (r?.error) return (payError.value = r.error)
     toastSaved(`รับชำระ ${money(pay.amount)} แล้ว · ${props.order.code}`)
+    emit('paid')
     emit('close')
     return
   }
@@ -125,6 +126,7 @@ async function savePay() {
     const r = receivePaymentNow(props.order, { ...pay })
     if (r.error) return (payError.value = r.error)
     toastSaved(`รับชำระ ${money(pay.amount)} แล้ว · ${props.order.code}`)
+    emit('paid')
     emit('close')
     return
   }
@@ -141,6 +143,7 @@ async function savePay() {
   } finally { saving = false }
   if (r?.error) return (payError.value = r.error)
   toastSaved(payMode === 'confirm' ? `ยืนยันยอดชำระ ${money(pay.amount)} แล้ว · ${props.order.code}` : payMode === 'edit' ? `แก้ยอดที่แจ้งแล้ว · ${props.order.code}` : `แจ้งยอดชำระ ${money(pay.amount)} แล้ว · ${props.order.code}`)
+  if (payMode === 'confirm') emit('paid') // ยืนยันยอดที่ลูกค้าแจ้ง = รับเงินจริงแล้ว (แจ้ง/แก้ยอดยังไม่ใช่การรับเงิน)
   emit('close')
 }
 </script>
@@ -186,7 +189,7 @@ async function savePay() {
         <button v-for="m in PAYMENT_METHODS" :key="m" type="button" class="chip" :class="pay.method === m ? 'chip-on' : 'chip-off'" @click="pay.method = m">{{ m }}</button>
       </div>
     </div>
-    <OrderQrPay v-if="qrMode" :order="order" :amount="pay.amount" @done="emit('close')" />
+    <OrderQrPay v-if="qrMode" :order="order" :amount="pay.amount" @done="emit('paid'); emit('close')" />
     <div v-if="customer && order.channel !== 'pos'" class="space-y-2 rounded-xl border border-stone-200 bg-white p-3">
       <label class="flex items-center gap-2 text-sm text-stone-700"><input v-model="pay.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> {{ payMode === 'new' ? 'แจ้งยอดชำระให้ลูกค้าทราบ' : payMode === 'edit' ? 'แจ้งลูกค้าว่ายอดที่แจ้งเปลี่ยนแล้ว' : 'แจ้งลูกค้าว่าได้รับชำระแล้ว' }}</label>
       <SmsTick v-model="pay.sms" :customer="customer" :order="order" :show="pay.notify" />

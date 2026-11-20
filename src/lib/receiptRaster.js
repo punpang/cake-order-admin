@@ -1,7 +1,7 @@
 // ใบเสร็จและใบทดสอบแบบภาพ (raster ESC/POS) · วาดด้วยฟอนต์ของแอปแล้วส่งเป็นภาพ
 // ข้อดี: ภาษาไทยแสดงได้ถูกต้องโดยไม่ต้องรู้ code page ของเครื่องพิมพ์
-import { db } from '../data/store'
-import { orderTotals } from './pricing'
+import { db, findCustomer, customerPoints } from '../data/store'
+import { receiptFacts } from './receiptFacts'
 import { money, dateTime, dateOnly, orderNo } from './format'
 import { branchLabel } from './acct/taxid'
 import { printBytes, getDeviceConfig } from './nativeDevices'
@@ -176,28 +176,54 @@ async function luckyQrCanvas(url, px) {
 
 export async function buildReceiptBytes(order, widthMm, opts = {}) {
   await loadFont()
-  const shop = db.shop || {}
+  const customer = findCustomer(order.customerId)
+  // ข้อมูลชุดเดียวกับใบเสร็จบนจอ (receiptFacts) เพื่อให้กระดาษกับหน้าจอตรงกัน
+  const f = receiptFacts(order, { shop: db.shop, legal: db.legal, storefront: db.storefront, customer, points: customer ? customerPoints(customer) : null })
   const w = writer(PX[widthMm] || PX[58])
-  const t = orderTotals(order)
-  w.text(shop.name || 'ร้าน', { align: 'center', kind: 'title' })
+  w.text(f.shopName, { align: 'center', kind: 'title' })
+  if (f.shopAddress) w.text(f.shopAddress, { align: 'center', kind: 'small' })
+  if (f.shopPhone) w.text(`โทร ${f.shopPhone}`, { align: 'center', kind: 'small' })
   w.text('ใบเสร็จรับเงิน', { align: 'center' })
   w.text(`${orderNo(order.code)} · ${dateTime(order.createdAt)}`, { align: 'center', kind: 'small' })
-  if (t.vatMode && shop.vat?.legalName) w.text(shop.vat.legalName, { align: 'center', kind: 'small' })
-  if (t.vatMode && shop.vat?.taxId) w.text(`เลขประจำตัวผู้เสียภาษี ${shop.vat.taxId}`, { align: 'center', kind: 'small' })
+  if (f.vatLegalName) w.text(f.vatLegalName, { align: 'center', kind: 'small' })
+  if (f.vatTaxId) w.text(`เลขประจำตัวผู้เสียภาษี ${f.vatTaxId}`, { align: 'center', kind: 'small' })
+  if (f.cancelled) w.text('** ยกเลิกแล้ว **', { align: 'center', kind: 'bold' })
   w.rule()
   for (const it of order.items || []) {
     w.pair(`${it.qty} × ${it.name}`, money((it.fullPrice ?? it.unitPrice) * it.qty))
     for (const m of it.mods || []) w.text(`   ${m.name}${m.price ? ` +${m.price}` : ''}`, { kind: 'small' })
   }
   w.rule()
-  w.pair('รวม', money(t.full))
-  for (const l of t.discountLines || []) w.pair(l.label, `−${money(l.amount)}`)
-  if (t.vatMode === 'exclusive') w.pair(`VAT ${t.vatRate}% (บวกเพิ่ม)`, money(t.vat))
-  w.pair('ยอดสุทธิ', money(t.total), { kind: 'bold' })
-  if (t.vatMode === 'inclusive') w.text(`รวม VAT ${t.vatRate}% แล้ว ${money(t.vat)}`, { kind: 'small' })
-  for (const p of (order.payments || []).filter((x) => x.status === 'confirmed')) {
-    w.pair(p.method, money(p.received ?? p.amount))
-    if (p.change) w.pair('เงินทอน', money(p.change))
+  w.pair('รวม', money(f.full))
+  for (const l of f.discountLines) w.pair(l.label, `−${money(l.amount)}`)
+  if (f.vatMode === 'exclusive') w.pair(`VAT ${f.vatRate}% (บวกเพิ่ม)`, money(f.vat))
+  w.pair('ยอดสุทธิ', money(f.total), { kind: 'bold' })
+  if (f.vatMode === 'inclusive') {
+    w.pair('ราคาก่อน VAT', money(f.beforeVat), { kind: 'small' })
+    w.pair(`VAT ${f.vatRate}% (รวมในราคาแล้ว)`, money(f.vat), { kind: 'small' })
+  }
+  for (const p of f.payments) {
+    w.pair(p.method, money(p.amount))
+    if (p.change) {
+      w.pair('   รับเงินมา', money(p.received), { kind: 'small' })
+      w.pair('   เงินทอน', money(p.change), { kind: 'small' })
+    }
+    if (p.qrRef) w.text(`Ref2 ${p.qrRef}`, { kind: 'small' })
+  }
+  if (f.payments.length > 1) w.pair('รวมรับชำระ', money(f.paidTotal), { kind: 'bold' })
+  if (f.balance > 0) w.pair('ยังค้างชำระ', money(f.balance), { kind: 'bold' })
+  if (f.nextDue) w.text(`ชำระก่อน ${f.nextDue.at} · ${f.nextDue.amount}`, { kind: 'small' })
+  if (f.fulfillment) {
+    w.rule()
+    w.text(`${f.fulfillment.label}${f.fulfillment.at ? ` · ${f.fulfillment.at}` : ''}`, { kind: 'bold' })
+    if (f.fulfillment.address) w.text(f.fulfillment.address, { kind: 'small' })
+  }
+  if (f.customer) {
+    w.rule()
+    w.text(`${f.customer.label}: ${f.customer.name}`)
+    if (f.customer.phone) w.text(`โทร ${f.customer.phone}`, { kind: 'small' })
+    if (f.customer.earned) w.text(`ได้รับ ${f.customer.earned} คะแนน${f.customer.bonus ? ` (โบนัสโปร +${f.customer.bonus})` : ''}`, { kind: 'small' })
+    if (f.customer.pointsLeft != null) w.text(`คะแนนคงเหลือ ${f.customer.pointsLeft}`, { kind: 'small' })
   }
   w.rule()
   w.text('ขอบคุณที่ใช้บริการค่ะ', { align: 'center' })
