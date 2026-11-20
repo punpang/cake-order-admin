@@ -45,6 +45,11 @@ ccode=$?
 [ "$ccode" = "0" ] && echo "✓ coupon_modes.test.sql ผ่านทั้งหมด" || echo "✗ coupon_modes.test.sql ล้มเหลว"
 [ "$ccode" = "0" ] || exit "$ccode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/points_coupon.test.sql
+pcc=$?
+[ "$pcc" = "0" ] && echo "✓ points_coupon.test.sql ผ่านทั้งหมด" || echo "✗ points_coupon.test.sql ล้มเหลว"
+[ "$pcc" = "0" ] || exit "$pcc"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/lucky.test.sql
 lcode=$?
 [ "$lcode" = "0" ] && echo "✓ lucky.test.sql ผ่านทั้งหมด" || echo "✗ lucky.test.sql ล้มเหลว"
