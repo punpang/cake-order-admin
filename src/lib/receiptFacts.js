@@ -6,6 +6,7 @@ import { money, dateTime, phoneDigits } from './format.js'
 
 const SAMPLE_ADDRESS = /ตัวอย่าง/ // ที่อยู่ตัวอย่างจากค่าเริ่มต้นของหน้าตั้งค่าร้าน ไม่พิมพ์ลงใบเสร็จ
 const clean = (s) => String(s ?? '').trim()
+const norm = (s) => clean(s).replace(/\s+/g, ' ') // เทียบชื่อหลังยุบช่องว่างซ้ำ
 // เบอร์ลูกค้าบนใบที่พิมพ์: ซ่อนเลขกลาง เช่น 089-123-2018 → 089-xxx-2018 (บนจอยังแสดงเต็มตามเดิม)
 export function maskPhone(s) {
   const d = phoneDigits(s)
@@ -41,7 +42,7 @@ export function receiptFacts(order, { shop = {}, legal = {}, storefront = {}, cu
     cancelled,
     vatMode: t.vatMode,
     vatRate: t.vatRate,
-    vatLegalName: t.vatMode ? clean(shop.vat?.legalName) : '',
+    vatLegalName: t.vatMode && norm(shop.vat?.legalName) !== norm(shop.name) ? clean(shop.vat?.legalName) : '', // ซ้ำกับชื่อร้านบนสุดให้ซ่อน
     vatTaxId: t.vatMode ? clean(shop.vat?.taxId) : '',
     full: t.full,
     discountLines: t.discountLines,

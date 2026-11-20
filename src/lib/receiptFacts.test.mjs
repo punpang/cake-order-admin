@@ -101,4 +101,15 @@ t('เวลาเปิด-ปิด: ใช้ตารางหน้าร�
   assert.deepEqual(receiptFacts(order()).shopHours, [])
 })
 
+t('ชื่อนิติบุคคลซ้ำกับชื่อร้าน: ซ่อนบรรทัดชื่อซ้ำ แต่ยังแสดงเลขผู้เสียภาษี', () => {
+  const vat = { rate: 7, mode: 'exclusive' }
+  const same = receiptFacts(order({ vat }), { shop: { name: 'ปั้นแป้ง  เบเกอรี่', vat: { legalName: 'ปั้นแป้ง เบเกอรี่', taxId: '1809900322496' } } })
+  assert.equal(same.vatLegalName, '')
+  assert.equal(same.vatTaxId, '1809900322496')
+  const diff = receiptFacts(order({ vat }), { shop: { name: 'ร้านปั้นแป้ง', vat: { legalName: 'บริษัท ปั้นแป้ง จำกัด', taxId: '1809900322496' } } })
+  assert.equal(diff.vatLegalName, 'บริษัท ปั้นแป้ง จำกัด')
+  const noName = receiptFacts(order({ vat }), { shop: { vat: { legalName: 'บริษัท ตัวอย่าง' } } })
+  assert.equal(noName.vatLegalName, 'บริษัท ตัวอย่าง')
+})
+
 console.log(`\n✓ ผ่านทั้งหมด ${pass} กรณี`)
