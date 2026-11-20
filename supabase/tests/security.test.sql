@@ -582,4 +582,24 @@ select test.ok('S1: ผู้จัดการเขียนออร์เด
   test.as_staff('55555555-5555-5555-5555-555555555555',
     $q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('o_srv2', 'OR-171126-000902', 'c1', 'awaiting_payment', 'pickup', null, '{"items":[],"history":[]}') $q$) like 'ERR:42501:orders must be created through the server%');
 
+-- ===== SD1–SD4: ฟังก์ชัน SECURITY DEFINER (migration 20261120100000) =====
+insert into auth.users (id, email) values ('aaaaaaaa-0000-0000-0000-00000000000a', 'outsider-sd@t');
+select test.ok('SD1: บัญชีที่ล็อกอินแต่ไม่ใช่พนักงาน ตรวจใบเสนอไม่ได้',
+  test.rpc_as('aaaaaaaa-0000-0000-0000-00000000000a', $q$ select to_jsonb(public.punpang__quote_check('q_none', 'o1', null, '[]', null, 0)) $q$) = '"forbidden"'::jsonb);
+select test.ok('SD1: พนักงานยังตรวจใบเสนอได้ตามเดิม',
+  test.rpc_as('11111111-1111-1111-1111-111111111111', $q$ select to_jsonb(public.punpang__quote_check('q_none', 'o1', null, '[]', null, 0)) $q$) = '"not_found"'::jsonb);
+select test.ok('SD1: งานฝั่งเซิร์ฟเวอร์ (ไม่มี uid) ยังตรวจใบเสนอได้',
+  public.punpang__quote_check('q_none', 'o1', null, '[]', null, 0) = 'not_found');
+select test.ok('SD2: บัญชีที่ไม่ใช่พนักงาน เปลี่ยนสถานะไม่ได้ และไม่รู้ว่ามีออร์เดอร์ไหม',
+  test.as_staff('aaaaaaaa-0000-0000-0000-00000000000a', $q$ select public.punpang_set_status('o_none', 'cancelled') $q$) like 'ERR:42501:%');
+select test.ok('SD3: ผู้ที่ล็อกอินเรียก punpang_click_pairs ไม่ได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111', $q$ select public.punpang_click_pairs() $q$) like 'ERR:42501:%');
+insert into public.punpang_kv (collection, id, data)
+  values ('pageViews', to_char((now() at time zone 'Asia/Bangkok')::date, 'YYYY-MM-DD'), '{"n":100000}')
+  on conflict (collection, id) do update set data = excluded.data;
+select test.ok('SD4: ผู้ไม่ล็อกอินนับยอดเข้าชมได้',
+  test.as_anon($q$ select public.punpang_record_pageview('2026-11-20') $q$) = 'OK');
+select test.ok('SD4: ยอดเข้าชมไม่เกินเพดานต่อวัน',
+  (select (data->>'n')::int from public.punpang_kv where collection = 'pageViews' and id = to_char((now() at time zone 'Asia/Bangkok')::date, 'YYYY-MM-DD')) = 100000);
+
 select 'ผ่านทั้งหมด' as security_tests;
