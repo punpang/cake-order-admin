@@ -40,9 +40,29 @@ jobs:
         run: npm run build:android
       - name: คัดลอกไฟล์เว็บเข้าโปรเจกต์ Android
         run: npx cap sync android
+      # กุญแจเซ็นแอปประจำร้าน (สร้างครั้งเดียวด้วย Create Android keystore) → ติดตั้งเวอร์ชันใหม่ทับของเดิมได้ ไม่ต้องถอนแอป
+      # Gradle เซ็น debug build ด้วย ~/.android/debug.keystore อัตโนมัติ · ไม่มี secret = ใช้กุญแจสุ่มแบบเดิม (แจ้งเตือน)
+      - name: ใช้กุญแจเซ็นแอปประจำร้าน
+        env:
+          KS: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
+        run: |
+          if [ -z "$KS" ]; then echo "::warning::ยังไม่มี ANDROID_DEBUG_KEYSTORE · แอปจะเซ็นด้วยกุญแจสุ่ม (ติดตั้งทับเวอร์ชันเดิมไม่ได้)"; exit 0; fi
+          for dir in "$HOME/.android" ${ANDROID_USER_HOME:+"$ANDROID_USER_HOME"}; do
+            mkdir -p "$dir" && printf '%s' "$KS" | base64 -d > "$dir/debug.keystore"
+          done
       - name: สร้าง APK (debug)
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
+      - name: ตรวจว่า APK เซ็นด้วยกุญแจประจำร้าน
+        env:
+          KS: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
+        run: |
+          if [ -z "$KS" ]; then exit 0; fi
+          want="$(keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | grep -E '^\s*SHA256:' | awk '{print $2}' | tr -d ':' | tr 'A-F' 'a-f')"
+          SIGNER="$(ls -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}"/build-tools/*/apksigner | sort -V | tail -n 1)"
+          got="$("$SIGNER" verify --print-certs "android/app/build/outputs/apk/debug/app-debug.apk" | grep -m1 'SHA-256 digest' | awk '{print $NF}')"
+          echo "ใบรับรองของ APK: $got"
+          [ -n "$want" ] && [ "$want" = "$got" ] || { echo "::error::APK ไม่ได้เซ็นด้วยกุญแจประจำร้าน"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: cake-admin-debug-apk
