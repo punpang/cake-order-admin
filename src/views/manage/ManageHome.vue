@@ -30,6 +30,7 @@ const DESC = computed(() => ({
   '/admin/settings/bot': `${db.bot.enabled ? (db.bot.mode === 'auto' ? 'เปิด · ตอบเอง' : 'เปิด · แนะนำให้กดส่ง') : 'ปิดอยู่'} · ที่เรียนรู้ ${db.bot.learned.length}`,
   '/admin/settings/links': `ลิงก์ย่อ ${db.shortLinks.length} · ลิงก์ออร์เดอร์ที่ใช้อยู่ ${db.orderLinks.length}`,
   '/admin/settings/retention': retentionSummary(db.retention),
+  '/admin/settings/errors': 'แอปพนักงานส่งข้อผิดพลาดมาเก็บอัตโนมัติ · เก็บ 30 วัน',
   '/admin/settings/deletion-requests': `${pendingDeletions()} รอตรวจสอบ`,
   '/admin/settings/ingredients': `${activeCount(db.ingredients)} รายการที่ใช้งาน`,
   '/admin/settings/users': `${activeCount(db.users)} คนที่ใช้งาน · ติ๊กสิทธิ์รายคน`,

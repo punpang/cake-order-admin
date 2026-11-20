@@ -5,7 +5,7 @@ export const STATIC = [
   '/admin/materials', '/admin/no-access', '/admin/orders', '/admin/orders/new', '/admin/payments',
   '/admin/pos', '/admin/pos/bills', '/admin/production', '/admin/qr', '/admin/settings',
   '/admin/settings/birthdays', '/admin/settings/bot', '/admin/settings/bundles', '/admin/settings/campaigns',
-  '/admin/settings/customers', '/admin/settings/deletion-requests', '/admin/settings/files', '/admin/settings/gallery',
+  '/admin/settings/customers', '/admin/settings/deletion-requests', '/admin/settings/errors', '/admin/settings/files', '/admin/settings/gallery',
   '/admin/settings/ingredients', '/admin/settings/integrations', '/admin/settings/legal', '/admin/settings/line-history',
   '/admin/settings/links', '/admin/settings/loyalty', '/admin/settings/lucky', '/admin/settings/options',
   '/admin/settings/photo-requests', '/admin/settings/pricing', '/admin/settings/products', '/admin/settings/profit',
