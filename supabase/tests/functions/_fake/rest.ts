@@ -36,6 +36,31 @@ function quoteCheck(quotes: any[], a: any): string {
   return 'ok'
 }
 
+// จำลอง punpang_quote_order_create: ตรวจ แทรกออร์เดอร์ และผูกใบเสนอในที่เดียว · รหัสผลลัพธ์เหมือนฟังก์ชันจริง
+// ดัชนีกันซ้ำ (punpang_orders_quote_uniq): ใบเสนอเดียวมีออร์เดอร์ได้ไม่เกินหนึ่งใบ ทุกสถานะ
+function quoteOrderCreate(fake: Fake, schema: string, a: any): any {
+  const quotes = fake.t[`${schema}.punpang_quotes`] || []
+  const orders = (fake.t[`${schema}.punpang_orders`] ||= [])
+  const row = a.p_row || {}
+  const oid = String(row.id || '')
+  if (!oid) return { code: 'invalid' }
+  const q = quotes.find((x: any) => x.id === a.p_quote)
+  if (!q) return { code: 'not_found' }
+  if (orders.some((o: any) => o.id === oid)) return { code: 'exists' }
+  if (q.order_id != null && q.order_id !== oid) return { code: 'converted' }
+  const code = quoteCheck([q], {
+    p_quote: a.p_quote, p_order: oid, p_customer: row.customer_id ?? null,
+    p_items: row.data?.items, p_vat: row.data?.vat ?? null, p_shipping: Number(row.data?.shippingFee) || 0,
+  })
+  if (code !== 'ok') return { code }
+  if (orders.some((o: any) => o.data?.quoteId === a.p_quote)) return { code: 'converted' }
+  const saved = { ...row, updated_at: new Date().toISOString() }
+  orders.push(saved)
+  q.order_id = oid
+  q.status = 'accepted'
+  return { code: 'ok', row: saved }
+}
+
 export function installFakeRest(opts: { host?: string; users: Record<string, string>; staff: Record<string, any> }): Fake {
   const host = opts.host || 'db.fake'
   const fake: Fake = { t: {}, calls: [], seq: {}, reset() { this.t = {}; this.calls = []; this.seq = {} } }
@@ -61,6 +86,7 @@ export function installFakeRest(opts: { host?: string; users: Record<string, str
         return J(start)
       }
       if (fn === 'punpang__quote_check') return J(quoteCheck(fake.t[`${schema}.punpang_quotes`] || [], a))
+      if (fn === 'punpang_quote_order_create') return J(quoteOrderCreate(fake, schema, a))
       throw new Error(`RPC ที่ไม่ได้จำลอง: ${fn}`)
     }
     const table = p.replace('/rest/v1/', '')

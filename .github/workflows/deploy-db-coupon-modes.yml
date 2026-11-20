@@ -1,7 +1,7 @@
 name: Deploy DB coupon modes
 
 # รันเองเท่านั้น: GitHub → Actions → Deploy DB coupon modes → Run workflow
-#   เลือก branch claude/loving-sagan-ygzxt1 (ไฟล์ migration อยู่บนสาขานี้จนกว่าจะ merge) · พิมพ์ RUN ให้ตรง
+#   เลือก branch main (รันได้เฉพาะ main) · พิมพ์ RUN ให้ตรง
 # ต้องมี secret SUPABASE_DB_URL (connection string แบบ session pooler ของ production พร้อมรหัสผ่าน)
 # SQL (ธุรกรรมเดียว -1 ผิดพลาดขั้นใดย้อนกลับทั้งหมด):
 #   1) supabase/migrations/20261116160000_punpang_coupon_modes.sql — ตรวจคูปองซื้อครบ/ซื้อสินค้า (ส่วนลด %) และให้การแลกของคัดลอกฟิลด์คูปอง (รันซ้ำได้)
@@ -23,11 +23,14 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
+    environment: production
     env:
       CONFIRM: ${{ github.event.inputs.confirm }}
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       PGSSLMODE: require
     steps:
+      - name: รันจาก main เท่านั้น
+        run: '[ "$GITHUB_REF" = "refs/heads/main" ] || { echo "รันได้เฉพาะจาก main"; exit 1; }'
       - name: ตรวจการยืนยันและ secret
         run: |
           if [ "$CONFIRM" != "RUN" ]; then echo "ยังไม่ได้พิมพ์ RUN เพื่อยืนยัน จึงไม่รัน"; exit 1; fi

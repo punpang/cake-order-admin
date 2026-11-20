@@ -39,7 +39,7 @@ import { payAccountsOf } from '../lib/payAccounts'
 import { customerTargets, withNewRules, CHANNEL_RULE_VERSION } from '../lib/notifyPlan'
 import { ordersOnDay, capState, capFullMsg, capDayKey } from '../lib/orderCap'
 import { dailySummaryVars } from '../lib/dailySummary'
-import { promoConsentPatch } from '../lib/promoConsent'
+import { marketingAllowed, promoConsentPatch } from '../lib/promoConsent'
 import { uploadChatImage } from '../lib/chatImage'
 import { billerIdOf, newQrSuffix, promptPayBillerPayload, qrRefOk, shopRefOfCode } from '../lib/promptpay'
 import { gateOf, gateBlocks, GATE_MESSAGE } from '../lib/orderGate'
@@ -1520,6 +1520,8 @@ function creditRefundCoupon(cu, order, amount) {
 export const cancelHooks = []
 export function cancelOrder(order, c) {
   if (!order || order.status === 'cancelled') return { error: 'ออร์เดอร์นี้ยกเลิกแล้ว' }
+  // ยกเลิกออร์เดอร์ที่ส่งมอบแล้วคือการย้อนสถานะ (รวมการ void บิลหน้าร้าน) ต้องมีสิทธิ์ย้อนสถานะ
+  if (order.status === 'delivered' && !can('revertStatus')) return { error: 'ยกเลิกบิลที่ส่งมอบแล้วต้องมีสิทธิ์ย้อนสถานะ' }
   const paid = orderTotals(order).paidNet // หักยอดที่คืนบางส่วนไปแล้ว
   const refunds = normalizeRefunds(c, paid)
   const cu = findCustomer(order.customerId)
@@ -2933,7 +2935,7 @@ function emitBell(event, { customer = null, vars = {}, orderId = null } = {}) {
   }
   const d = BELL_CUSTOMER[event]
   if (!d || !customer || customer.deleted) return
-  if (d.marketing && customer.promoOptIn === false) return
+  if (d.marketing && !marketingAllowed(customer)) return
   bellPush({ audience: 'customer', customerId: customer.id, event, title: d.title, text: bellText(event, vars), orderId, read: false })
 }
 // แชท/คำขอระบบที่ไม่ผ่าน notify()
@@ -3049,7 +3051,7 @@ export function notify(event, { customer = null, vars = {}, orderId = null, noSm
     pushOut(event, 'telegram', 'กลุ่มทีม', text, orderId, null, { parseMode: 'HTML' })
     return 1
   }
-  if (ev.marketing && customer && customer.promoOptIn === false) return 0
+  if (ev.marketing && customer && !marketingAllowed(customer)) return 0
   // ส่งทุกช่องทางที่ลูกค้ามี (ตามกฎ + ช่องทางเปิดใช้ + มีข้อมูลติดต่อ) ไม่หยุดที่ช่องแรก · ข้อความการตลาดส่งช่องแรกช่องเดียว (เหมือนเดิม)
   // ทุกออเดอร์: เว็บ/แอป (มีบัญชีหรือแชทเว็บ) → Facebook (ถ้าร้านเปิดไว้) → SMS · ตามกติกาของ event
   const allowed = effectiveChannels(r, customer, order)
@@ -3981,6 +3983,7 @@ function posLinesOk(lines, total) {
   for (const l of lines) {
     if (l.method === 'cash' && (Number(l.received) || 0) < round2(Number(l.amount))) return false
     if (l.method === 'transfer' && (!l.qrRef || !l.confirmed)) return false // หมดอายุตรวจตอนรับชำระแล้ว (รับเองหลังเวลา 3 นาทีได้)
+    if (l.method === 'card' && !l.confirmed) return false // บัตรต้องยืนยันรับแล้วก่อนปิดบิล
   }
   return true
 }
@@ -4105,7 +4108,7 @@ export function finishPosBill(order, lines) {
 // แลกสินค้า (POS · กะที่เปิดอยู่ · เฉพาะสินค้าปลีก): คืนสินค้าเดิมในบิลเดิม (คืนเงินตามช่องทางที่เลือก และคืนสต็อกได้)
 // แล้วขายสินค้าใหม่เป็นบิลใหม่ที่ผูกกับบิลเดิม (exchangeOf / exchangeTo) · ยอดสินค้าใหม่คิดโปร/ส่วนลด POS ปกติ
 // ตรวจยอดรับชำระของบิลใหม่ก่อนแก้ข้อมูล · ถ้าขายใหม่ไม่สำเร็จจะยกเลิกการคืนที่เพิ่งทำให้อัตโนมัติ
-export function exchangeSale({ order, returnItems = [], restock = true, refunds = [], newCart = [], method = 'cash', received = null, reason = '' } = {}) {
+export function exchangeSale({ order, returnItems = [], restock = true, refunds = [], newCart = [], method = 'cash', received = null, confirmed = false, reason = '' } = {}) {
   if (!order || order.channel !== 'pos' || ['cancelled', 'pos_pending', 'draft'].includes(order.status)) return { error: 'บิลนี้แลกสินค้าไม่ได้' }
   if (!can('pos') || !can('posVoid')) return { error: 'ไม่มีสิทธิ์แลกสินค้า' }
   const shift = currentShift()
@@ -4115,7 +4118,7 @@ export function exchangeSale({ order, returnItems = [], restock = true, refunds 
   if (newCart.some((l) => l.kind !== 'retail')) return { error: 'แลกได้เฉพาะสินค้าปลีก' }
   const draft = { items: posItems(newCart, new Date()), adjustment: { amount: 0, reason: '' }, vat: vatNow(), couponsUsed: [], pointsUsed: null, shippingFee: 0, shipPromo: null, fulfillment: 'pickup', payments: [] }
   const total = Math.max(orderTotals(draft).total, 0)
-  const rows = [{ method, amount: total, received }]
+  const rows = [{ method, amount: total, received, confirmed }]
   if (!(total > 0) || !posLinesOk(rows, total)) return { error: 'ยอดรับชำระของสินค้าใหม่ไม่ครบหรือไม่ถูกต้อง' }
   const rf = refundOrder(order, { reason: reason || `แลกสินค้า ${order.code}`, refunds, items: returnItems, restock, notify: false, sms: false })
   if (rf.error) return rf
@@ -4139,6 +4142,7 @@ function partialLinesOk(lines, total) {
   for (const l of lines) {
     if (l.method === 'cash' && (Number(l.received) || 0) < round2(Number(l.amount))) return false
     if (l.method === 'transfer' && (!l.qrRef || !l.confirmed)) return false
+    if (l.method === 'card' && !l.confirmed) return false // รับบางส่วนด้วยบัตรต้องยืนยันก่อนนับเป็นยอดรับแล้ว
   }
   return true
 }

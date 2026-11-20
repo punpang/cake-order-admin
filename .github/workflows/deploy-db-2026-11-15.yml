@@ -1,7 +1,7 @@
 name: Deploy DB 2026-11-15
 
 # รันเองเท่านั้น: GitHub → Actions → Deploy DB 2026-11-15 → Run workflow
-#   เลือก branch claude/loving-sagan-ygzxt1 · เลือกขั้น · พิมพ์ RUN ให้ตรง
+#   เลือก branch main (รันได้เฉพาะ main) · เลือกขั้น · พิมพ์ RUN ให้ตรง
 # ต้องมี secret SUPABASE_DB_URL (connection string แบบ session pooler ของ production พร้อมรหัสผ่าน)
 #   ตั้งที่ GitHub → Settings → Secrets and variables → Actions → New repository secret
 # ขั้น run-once = supabase/deploy/2026-11-15-run-once.sql (ธุรกรรมเดียว: ผิดพลาดขั้นใดย้อนกลับทั้งหมด)
@@ -29,12 +29,15 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
+    environment: production
     env:
       STEP: ${{ github.event.inputs.step }}
       CONFIRM: ${{ github.event.inputs.confirm }}
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       PGSSLMODE: require
     steps:
+      - name: รันจาก main เท่านั้น
+        run: '[ "$GITHUB_REF" = "refs/heads/main" ] || { echo "รันได้เฉพาะจาก main"; exit 1; }'
       - name: ตรวจการยืนยันและ secret
         run: |
           if [ "$CONFIRM" != "RUN" ]; then echo "ยังไม่ได้พิมพ์ RUN เพื่อยืนยัน จึงไม่รัน"; exit 1; fi

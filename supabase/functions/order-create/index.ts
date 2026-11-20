@@ -145,14 +145,32 @@ Deno.serve(corsWrap(async (req) => {
   }
 
   const row = orderRowOf(built.order)
-  const ins = await fetch(`${SUPABASE_URL}/rest/v1/punpang_orders`, {
-    method: 'POST',
-    headers: { ...SERVICE_HEADERS, ...rh, 'content-type': 'application/json', Prefer: 'return=representation' },
-    body: JSON.stringify([row]),
-  })
-  if (ins.ok) {
-    const rows = await ins.json()
-    return json({ row: Array.isArray(rows) ? rows[0] : rows })
+  let ins: Response
+  if (quoteId) {
+    // ออร์เดอร์จากใบเสนอ: แทรกออร์เดอร์และผูกใบเสนอในธุรกรรมเดียว (ฟังก์ชันล็อกแถวใบเสนอ = จองใบเสนอ กันการแปลงซ้ำ)
+    const rr = await fetch(`${SUPABASE_URL}/rest/v1/rpc/punpang_quote_order_create`, {
+      method: 'POST',
+      headers: { ...SERVICE_HEADERS, ...rh, 'content-type': 'application/json' },
+      body: JSON.stringify({ p_quote: quoteId, p_row: row }),
+    })
+    if (rr.ok) {
+      const res: any = await rr.json().catch(() => ({}))
+      if (res?.code === 'ok') return json({ row: res.row })
+      if (res?.code === 'exists') return json({ error: 'ออร์เดอร์นี้บันทึกแล้ว', code: 'exists' }, 409)
+      const [status, msg] = QUOTE_ERR[res?.code] ?? [502, 'ตรวจใบเสนอไม่สำเร็จ ลองใหม่อีกครั้ง']
+      return json({ error: msg, code: res?.code }, status)
+    }
+    ins = rr
+  } else {
+    ins = await fetch(`${SUPABASE_URL}/rest/v1/punpang_orders`, {
+      method: 'POST',
+      headers: { ...SERVICE_HEADERS, ...rh, 'content-type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify([row]),
+    })
+    if (ins.ok) {
+      const rows = await ins.json()
+      return json({ row: Array.isArray(rows) ? rows[0] : rows })
+    }
   }
   const err = await ins.json().catch(() => ({}))
   const msg = String(err?.message || '')

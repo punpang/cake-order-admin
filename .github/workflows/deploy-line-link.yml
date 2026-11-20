@@ -20,7 +20,10 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
+    environment: production
     steps:
+      - name: รันจาก main เท่านั้น
+        run: '[ "$GITHUB_REF" = "refs/heads/main" ] || { echo "รันได้เฉพาะจาก main"; exit 1; }'
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
         with:

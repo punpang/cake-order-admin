@@ -65,9 +65,12 @@ const newCount = computed(() => newCart.value.reduce((s, l) => s + l.qty, 0))
 // ---------- 4) ชำระเงินของบิลใหม่ (เงินสด / บัตร · โอนต้องใช้ QR ในหน้าชำระปกติ) ----------
 const method = ref('cash')
 const received = ref('')
+const cardConfirmed = ref(false) // บัตรต้องกดยืนยัน "รับชำระด้วยบัตรแล้ว" ก่อนบันทึกการแลก (ยอดเปลี่ยนหรือเปลี่ยนวิธีจ่ายต้องยืนยันใหม่)
+watch([method, newTotal], () => { cardConfirmed.value = false })
 const change = computed(() => r2((Number(received.value) || 0) - newTotal.value))
 const diff = computed(() => r2(newTotal.value - returnAmount.value))
 const cashOk = computed(() => method.value !== 'cash' || (Number(received.value) || 0) >= newTotal.value)
+const cardOk = computed(() => method.value !== 'card' || cardConfirmed.value)
 
 // ---------- บันทึก ----------
 const err = ref('')
@@ -84,6 +87,7 @@ function save() {
     newCart: newCart.value,
     method: method.value,
     received: method.value === 'cash' ? Number(received.value) || 0 : null,
+    confirmed: method.value === 'card' && cardConfirmed.value,
     reason: `แลกสินค้า ${props.order.code}`,
   })
   saving.value = false
@@ -157,6 +161,10 @@ function save() {
             <MoneyInput v-model="received" class="input" placeholder="รับเงินมา (บาท)" aria-label="รับเงินมา" />
             <p class="text-xs" :class="cashOk ? 'text-stone-500' : 'text-rose-700'">{{ cashOk ? `ทอน ${money(Math.max(change, 0))}` : 'รับเงินมายังไม่พอ' }}</p>
           </div>
+          <div v-if="method === 'card'" class="space-y-2">
+            <button v-if="!cardConfirmed" type="button" class="btn-primary h-11 w-full" @click="cardConfirmed = true">รับชำระด้วยบัตรแล้ว</button>
+            <div v-else class="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800">รับชำระด้วยบัตรแล้ว</div>
+          </div>
           <p class="text-xs text-stone-500">โอนเงินต้องใช้ QR ในหน้าชำระปกติ จึงแลกด้วยการโอนที่นี่ไม่ได้</p>
         </div>
       </section>
@@ -165,7 +173,7 @@ function save() {
     </div>
     <template #footer>
       <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ปิด</button>
-      <button class="btn-primary flex-1 sm:flex-none" :disabled="saving || !returnPicked.length || !newCart.length || !cashOk" @click="save">ยืนยันแลกสินค้า</button>
+      <button class="btn-primary flex-1 sm:flex-none" :disabled="saving || !returnPicked.length || !newCart.length || !cashOk || !cardOk" @click="save">ยืนยันแลกสินค้า</button>
     </template>
   </AppModal>
 </template>

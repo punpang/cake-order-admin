@@ -73,6 +73,17 @@ for (const test of [true, false]) {
     assertEquals(fake.t[`${schemaOf(test)}.punpang_orders`] ?? [], [])
   })
 
+  Deno.test(`${label}: แปลงใบเสนอเดียวกันเป็นออร์เดอร์ที่สอง → ถูกปฏิเสธ และมีออร์เดอร์เดียว`, async () => {
+    setup(test)
+    const r = await createQuoteRemote(client(), 'ch1', structuredClone(ref.draft))
+    confirm(test, r.quote.id)
+    assertEquals(await pushOrders(client(), { upserts: [orderFromQuote(r.quote, numbering.next('OR'))] }, { numbering }), { ok: true })
+    // ออร์เดอร์ที่สองจากใบเดิม (เช่น สองแท็บ/สองเครื่องแปลงพร้อมกัน หรือกดแปลงซ้ำก่อนผูกใบเสนอ)
+    const p = await pushOrders(client(), { upserts: [orderFromQuote(r.quote, numbering.next('OR'))] }, { numbering })
+    assertStringIncludes(p.error, 'ถูกแปลงเป็นออร์เดอร์แล้ว')
+    assertEquals(fake.t[`${schemaOf(test)}.punpang_orders`].length, 1)
+  })
+
   Deno.test(`${label}: แก้ราคาในออร์เดอร์ที่มาจากใบเสนอ → เซิร์ฟเวอร์ใช้ราคาตามใบเสนอ`, async () => {
     setup(test)
     const r = await createQuoteRemote(client(), 'ch1', structuredClone(ref.draft))

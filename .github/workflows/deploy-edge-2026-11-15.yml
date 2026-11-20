@@ -1,7 +1,7 @@
 name: Deploy Edge 2026-11-15
 
 # รันเองเท่านั้น: GitHub → Actions → Deploy Edge 2026-11-15 → Run workflow
-#   เลือก branch claude/loving-sagan-ygzxt1 · เลือกฟังก์ชันทีละตัว
+#   เลือก branch main (รันได้เฉพาะ main) · เลือกฟังก์ชันทีละตัว
 # ใช้ secret SUPABASE_ACCESS_TOKEN ที่มีอยู่แล้ว · ขั้นเทสต์และตรวจชนิดข้อมูลต้องผ่านก่อนจึงจะ deploy
 # order-audit ใช้ --no-verify-jwt เพราะ pg_cron เรียกด้วย x-cron-key (ไม่มี JWT)
 # push-send มี workflow แยกอยู่แล้ว (Deploy push-send)
@@ -36,10 +36,13 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
+    environment: production
     env:
       FUNCTION: ${{ github.event.inputs.function }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
     steps:
+      - name: รันจาก main เท่านั้น
+        run: '[ "$GITHUB_REF" = "refs/heads/main" ] || { echo "รันได้เฉพาะจาก main"; exit 1; }'
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
         with:

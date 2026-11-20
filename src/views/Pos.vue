@@ -613,6 +613,7 @@ const lineOk = (l) => {
   if (!(a > 0)) return false
   if (l.method === 'cash') return (Number(l.received) || 0) >= a
   if (l.method === 'transfer') return !!l.qrRef && l.confirmed
+  if (l.method === 'card') return !!l.confirmed // บัตรต้องกดยืนยัน "รับชำระด้วยบัตรแล้ว" ก่อนปิดบิล
   return true
 }
 // รายการที่ยอด 0 ถูกข้าม (ไม่นับและไม่ส่งไปบันทึก)

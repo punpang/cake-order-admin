@@ -113,6 +113,43 @@ Deno.test('ลูกค้าไม่รับข่าวสาร → ไม�
   assertEquals(bells(sb).length, 0)
 })
 
+// ข้อความการตลาดต้องมี promoOptIn === true และเวลายินยอม · ข้อมูลเดิมที่ไม่มีคีย์หรือไม่มีเวลาต้องไม่ถูกนับเป็นความยินยอม
+const MKT_VARS = { ชื่อลูกค้า: 'คุณมะลิ', คะแนน: '120' }
+Deno.test('ลูกค้าไม่มีคีย์ความยินยอม (ข้อมูลเดิม) → ไม่ส่งและไม่ขึ้นกระดิ่งเมื่อเป็นข้อความการตลาด', async () => {
+  const sb = fakeSb([])
+  const cust: Any = { ...CUST }
+  delete cust.promoOptIn
+  await execPlan(ctxOf(sb), plan({ event: 'points_expiring', order: null, orderId: null, customer: cust, vars: MKT_VARS }))
+  assertEquals(outbox(sb).length, 0)
+  assertEquals(bells(sb).length, 0)
+})
+
+Deno.test('เปิดรับแต่ไม่มีเวลายินยอม → ไม่ส่งข้อความการตลาด', async () => {
+  const sb = fakeSb([])
+  const cust: Any = { ...CUST, promoOptIn: true }
+  delete cust.promoConsentAt
+  await execPlan(ctxOf(sb), plan({ event: 'points_expiring', order: null, orderId: null, customer: cust, vars: MKT_VARS }))
+  assertEquals(outbox(sb).length, 0)
+  assertEquals(bells(sb).length, 0)
+})
+
+Deno.test('เปิดรับและมีเวลายินยอม → ข้อความการตลาดถูกส่งเข้าคิว', async () => {
+  const chat = { id: 'ch1', channel: 'facebook', external_id: CUST.fbPsid, customer_id: 'c1', data: { lastInboundAt: new Date(NOW - 3600e3).toISOString(), messages: [] }, updated_at: '2026-11-14T10:00:00Z' }
+  const sb = fakeSb([chat])
+  const cust = { ...CUST, promoOptIn: true, promoConsentAt: '2026-11-01T10:00:00.000Z' }
+  await execPlan(ctxOf(sb, { chats: [chat] }), plan({ event: 'points_expiring', order: null, orderId: null, customer: cust, vars: MKT_VARS }))
+  assertEquals(outbox(sb).length, 1)
+})
+
+Deno.test('ข้อความที่ไม่ใช่การตลาด (เตือนนัดรับ) ยังส่งได้แม้ลูกค้าไม่มีคีย์ความยินยอม', async () => {
+  const chat = { id: 'ch1', channel: 'facebook', external_id: CUST.fbPsid, customer_id: 'c1', data: { lastInboundAt: new Date(NOW - 3600e3).toISOString(), messages: [] }, updated_at: '2026-11-14T10:00:00Z' }
+  const sb = fakeSb([chat])
+  const cust: Any = { ...CUST }
+  delete cust.promoOptIn
+  await execPlan(ctxOf(sb, { chats: [chat] }), plan({ customer: cust }))
+  assertEquals(outbox(sb).length > 0, true) // เตือนนัดรับมีหลายช่องทาง (Facebook/SMS) ขอแค่ไม่ถูกบล็อก
+})
+
 Deno.test('ทีม: Telegram ปิดอยู่ → ไม่ส่ง (มีแค่กระดิ่งทีม)', async () => {
   const sb = fakeSb([])
   await execPlan(ctxOf(sb, { integrations: { ...INTEG, telegram: { enabled: false } } }), plan({ kind: 'team', event: 'team_due_soon', customer: null }))

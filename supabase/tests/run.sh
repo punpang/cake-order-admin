@@ -85,6 +85,16 @@ ocode=$?
 [ "$ocode" = "0" ] && echo "✓ acct_opening.test.sql ผ่านทั้งหมด" || echo "✗ acct_opening.test.sql ล้มเหลว"
 [ "$ocode" = "0" ] || exit "$ocode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/status_reversal.test.sql
+scode=$?
+[ "$scode" = "0" ] && echo "✓ status_reversal.test.sql ผ่านทั้งหมด" || echo "✗ status_reversal.test.sql ล้มเหลว"
+[ "$scode" = "0" ] || exit "$scode"
+
+"${PSQL[@]}" -d "$DB" -f supabase/tests/quote_order.test.sql
+qcode=$?
+[ "$qcode" = "0" ] && echo "✓ quote_order.test.sql ผ่านทั้งหมด" || echo "✗ quote_order.test.sql ล้มเหลว"
+[ "$qcode" = "0" ] || exit "$qcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"

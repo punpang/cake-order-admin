@@ -5,6 +5,7 @@ import { inFbWindow } from '../slipnotice.ts'
 import { webChatFor } from '../webchat.ts'
 import { genToken, hashToken } from '../schedlib/orderLink.js'
 import { formatPhone } from '../schedlib/format.js'
+import { marketingAllowed } from '../schedlib/promoConsent.js'
 import {
   BELL_CUSTOMER, BELL_STAFF, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, bellText, customerAddr, customerTargets, effectiveChannels, escapeHtml, escapeVars, plainText, renderFor, type Plan,
 } from './plan.ts'
@@ -63,7 +64,7 @@ async function emitBell(ctx: Ctx, plan: Plan): Promise<void> {
   const d = BCUST[plan.event]
   const c = plan.customer
   if (!d || !c || c.deleted) return
-  if (d.marketing && c.promoOptIn === false) return
+  if (d.marketing && !marketingAllowed(c)) return
   await bellPush(ctx, { audience: 'customer', customerId: c.id, event: plan.event, title: d.title, text: bellText(plan.event, plan.vars), orderId: plan.orderId, read: false, at: iso(ctx.nowMs) })
 }
 
@@ -246,7 +247,7 @@ export async function execPlan(ctx: Ctx, plan: Plan): Promise<void> {
     await pushOut(ctx, { event: plan.event, channel: 'telegram', to: 'กลุ่มทีม', text, orderId: plan.orderId, customer: null, parseMode: 'HTML' })
     return
   }
-  if (ev.marketing && customer && customer.promoOptIn === false) return
+  if (ev.marketing && customer && !marketingAllowed(customer)) return
   // ทุกออเดอร์: เว็บ/แอป (มีบัญชีหรือแชทเว็บ) → Facebook (ถ้าร้านเปิดไว้) → SMS · ตามกติกาของ event
   const allowed = effectiveChannels(rule, customer, order)
   const webChat = customer && allowed.web ? await webChatOf(ctx, customer) : null

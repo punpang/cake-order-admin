@@ -1,6 +1,6 @@
 // ทดสอบความยินยอมรับข่าวสาร · รัน: node src/lib/promoConsent.test.mjs
 import assert from 'node:assert/strict'
-import { promoConsentPatch } from './promoConsent.js'
+import { marketingAllowed, promoConsentPatch } from './promoConsent.js'
 
 let fail = 0
 const t = (name, fn) => { try { fn(); console.log(`PASS ${name}`) } catch (e) { fail++; console.log(`FAIL ${name}: ${e.message}`) } }
@@ -27,6 +27,29 @@ t('ฟิลด์อื่นคงเดิม และไม่แก้ข�
   assert.equal(r.fbPsid, 'P1')
   assert.deepEqual(r.ledger, [1])
   assert.deepEqual(prev, { promoOptIn: false, fbPsid: 'P1', ledger: [1] })
+})
+
+t('ข้อความการตลาด: ไม่มีคีย์ความยินยอม → ไม่ส่ง', () => {
+  assert.equal(marketingAllowed({ name: 'ก' }), false)
+  assert.equal(marketingAllowed(undefined), false)
+})
+
+t('ข้อความการตลาด: เปิดรับแต่ไม่มีเวลายินยอม → ไม่ส่ง', () => {
+  assert.equal(marketingAllowed({ promoOptIn: true }), false)
+  assert.equal(marketingAllowed({ promoOptIn: true, promoConsentAt: '' }), false)
+})
+
+t('ข้อความการตลาด: ปิดรับ → ไม่ส่งแม้มีเวลาเก่า', () => {
+  assert.equal(marketingAllowed({ promoOptIn: false, promoConsentAt: NOW }), false)
+})
+
+t('ข้อความการตลาด: เปิดรับและมีเวลายินยอม → ส่งได้', () => {
+  assert.equal(marketingAllowed({ promoOptIn: true, promoConsentAt: NOW }), true)
+})
+
+t('ลูกค้าที่กดเปิดรับเองในหน้าบัญชี → ผ่านเกณฑ์การตลาด', () => {
+  const r = promoConsentPatch({ name: 'ก' }, true, NOW)
+  assert.equal(marketingAllowed(r), true)
 })
 
 if (fail) { console.log(`${fail} failed`); process.exit(1) }

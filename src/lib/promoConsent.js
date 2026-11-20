@@ -10,3 +10,8 @@ export function promoConsentPatch(prev, promoOptIn, nowIso) {
   if (typeof prev.promoConsentAt === 'string' && prev.promoConsentAt) return { ...base, promoOptIn: true, promoConsentAt: prev.promoConsentAt } // เปิดอยู่แล้ว คงเวลาเดิม
   return { ...base, promoOptIn: true } // เปิดอยู่แต่ไม่มีเวลายินยอม (ข้อมูลเดิม)
 }
+
+// ส่งข้อความการตลาดได้เฉพาะลูกค้าที่ยินยอมจริง: ต้องเปิดรับ (true) และมีเวลายินยอม · ไม่มีคีย์ = ไม่ยินยอม
+export function marketingAllowed(c) {
+  return c?.promoOptIn === true && typeof c.promoConsentAt === 'string' && c.promoConsentAt !== ''
+}
