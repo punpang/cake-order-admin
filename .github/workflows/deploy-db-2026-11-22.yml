@@ -1,0 +1,63 @@
+name: Deploy DB 2026-11-22 (ด่านยอดชำระเกินบิลนับค่าส่ง)
+
+# รันเองเท่านั้น: GitHub → Actions → Deploy DB 2026-11-22 → Run workflow · เลือก branch main เท่านั้น
+#   batch E: 20261120190000 (ด่านยอดชำระเกินบิลนับค่าส่งของออร์เดอร์จัดส่ง · แทนฟังก์ชันด่าน ไม่เปลี่ยนตาราง)
+# ต้องมี secret SUPABASE_DB_URL ใน environment production · พิมพ์ RUN ให้ตรง
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'พิมพ์ RUN เพื่อยืนยัน'
+        required: true
+        type: string
+      batch:
+        description: 'ชุดที่รัน (E)'
+        required: true
+        type: choice
+        options:
+          - E
+
+concurrency:
+  group: deploy-db-2026-11-22
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CONFIRM: ${{ github.event.inputs.confirm }}
+      BATCH: ${{ github.event.inputs.batch }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PGSSLMODE: require
+    steps:
+      - name: รันจาก main เท่านั้น
+        run: '[ "$GITHUB_REF" = "refs/heads/main" ] || { echo "รันได้เฉพาะจาก main"; exit 1; }'
+
+      - name: ตรวจการยืนยันและ secret
+        run: |
+          if [ "$CONFIRM" != "RUN" ]; then echo "ยังไม่ได้พิมพ์ RUN เพื่อยืนยัน จึงไม่รัน"; exit 1; fi
+          if [ -z "$SUPABASE_DB_URL" ]; then echo "ยังไม่ได้ตั้ง secret SUPABASE_DB_URL ใน environment production"; exit 1; fi
+
+      - uses: actions/checkout@v4
+
+      - name: ติดตั้ง psql
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      - name: ตรวจสภาพฐานข้อมูลก่อนรัน
+        run: |
+          f=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('punpang__bill_total', 'punpang__paid_confirmed', 'punpang_guard_payment_over_bill')")
+          [ "$f" = "3" ] || { echo "ฟังก์ชันที่ migration ต้องใช้ไม่ครบ (พบ $f จาก 3)"; exit 1; }
+          t=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'punpang_orders' and column_name = 'fulfillment'")
+          [ "$t" = "1" ] || { echo "ไม่พบคอลัมน์ fulfillment ของ punpang_orders"; exit 1; }
+
+      - name: รัน SQL (ธุรกรรมเดียว)
+        run: |
+          psql "$SUPABASE_DB_URL" -X -q -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261120190000_punpang_over_bill_shipping.sql
+
+      - name: ตรวจผลหลังรัน
+        run: |
+          g=$(psql "$SUPABASE_DB_URL" -X -tA -c "select position('fulfillment' in pg_get_functiondef('public.punpang_guard_payment_over_bill()'::regprocedure)) > 0")
+          [ "$g" = "t" ] || { echo "ด่านยอดชำระเกินบิลยังไม่ได้นับค่าส่งหลังรัน"; exit 1; }
+          echo "ผ่าน: ชุด $BATCH รันเสร็จ"

@@ -105,6 +105,11 @@ bscode=$?
 [ "$bscode" = "0" ] && echo "✓ balance_sync.test.sql ผ่านทั้งหมด" || echo "✗ balance_sync.test.sql ล้มเหลว"
 [ "$bscode" = "0" ] || exit "$bscode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/over_bill_shipping.test.sql
+obscode=$?
+[ "$obscode" = "0" ] && echo "✓ over_bill_shipping.test.sql ผ่านทั้งหมด" || echo "✗ over_bill_shipping.test.sql ล้มเหลว"
+[ "$obscode" = "0" ] || exit "$obscode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"
