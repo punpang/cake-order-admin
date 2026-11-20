@@ -328,10 +328,10 @@
   .skeleton::after { display: none; }
 }
 
-/* พิมพ์ใบเสร็จหน้าร้าน (POS): พิมพ์เฉพาะ .receipt-print กว้าง 80mm */
+/* พิมพ์ใบเสร็จหน้าร้าน (POS และออเดอร์): พิมพ์เฉพาะ .receipt-print · กว้างตามกระดาษที่เครื่องพิมพ์ตั้งไว้ (58 หรือ 80 มม.) */
 @media print {
   @page {
-    size: 80mm auto;
+    size: auto;
     margin: 0;
   }
   body * {
@@ -345,8 +345,8 @@
     position: fixed;
     top: 0;
     left: 0;
-    width: 80mm;
-    max-width: 80mm;
+    width: 100%;
+    max-width: none;
   }
 }
 

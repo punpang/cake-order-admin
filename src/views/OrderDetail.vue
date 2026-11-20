@@ -46,6 +46,9 @@ import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
 import OrderLinkModal from '../components/OrderLinkModal.vue'
 import QrPaymentPanel from '../components/QrPaymentPanel.vue'
 import TaxInvoiceModal from '../components/TaxInvoiceModal.vue'
+import Receipt from '../components/Receipt.vue'
+import { isNative, getDeviceConfig } from '../lib/nativeDevices'
+import { printOrderReceipt } from '../lib/receiptRaster'
 import WorkPhotos from '../components/WorkPhotos.vue'
 import { invoiceOfOrder, ensureOrderInvoices } from '../data/acct'
 import { defaultRefundMethod, refundList } from '../lib/refund'
@@ -155,6 +158,17 @@ async function openPay(mode = 'new', p = null) {
   payMode.value = mode
   payTarget.value = p
   payOpen.value = true
+}
+// ใบเสร็จหลังรับชำระ: เปิดทุกครั้งที่รับชำระ · แอป Android ที่ตั้งเครื่องพิมพ์ไว้จะพิมพ์อัตโนมัติ (เหมือนหน้าขาย POS)
+const receiptOpen = ref(false)
+function onPaid() {
+  receiptOpen.value = true
+  if (isNative() && getDeviceConfig().printer?.address) printReceipt()
+}
+// เว็บ: เปิดหน้าพิมพ์ของเบราว์เซอร์ (ใบเสร็จอยู่ในโมดัล) · แอป Android: ส่งไปเครื่องพิมพ์ Bluetooth ที่ตั้งไว้
+function printReceipt() {
+  if (!isNative()) return window.print()
+  printOrderReceipt(order.value).catch((e) => showToast(`พิมพ์ใบเสร็จไม่สำเร็จ: ${e.message || e}`))
 }
 const PAY_BADGE = {
   reported: { t: 'รอลูกค้าชำระ', cls: 'bg-sky-100 text-sky-800' },
@@ -631,8 +645,9 @@ async function saveCancel() {
               <div class="mt-0.5 text-sm text-stone-500">{{ p.method }} · {{ dateTime(p.paidAt) }}</div>
               <div v-if="p.note" class="text-sm break-words text-stone-500">{{ p.note }}</div>
               <SecureImg v-if="p.slip" :src="p.slip" alt="สลิป" link class="mt-2 block" img-class="h-24 w-auto rounded-lg object-cover" />
-              <div v-if="p.status === 'confirmed' && !closed && !t.returned && can('cancelConfirmedPayment')" class="mt-2.5 flex justify-end">
-                <button class="btn-danger h-9 px-3" @click="doCancelConfirmed(p)"><AppIcon name="x" :size="16" /> ยกเลิกยอด</button>
+              <div v-if="p.status === 'confirmed'" class="mt-2.5 flex flex-wrap justify-end gap-2">
+                <button class="btn-soft h-9 px-3" @click="receiptOpen = true"><AppIcon name="printer" :size="16" /> พิมพ์ใบเสร็จ</button>
+                <button v-if="!closed && !t.returned && can('cancelConfirmedPayment')" class="btn-danger h-9 px-3" @click="doCancelConfirmed(p)"><AppIcon name="x" :size="16" /> ยกเลิกยอด</button>
               </div>
               <div v-if="p.status === 'reported' && order.status !== 'cancelled'" class="mt-2.5 flex flex-wrap gap-2">
                 <button v-if="can('reportPayment')" class="btn-outline h-9 px-3" @click="openPay('edit', p)"><AppIcon name="edit" :size="16" /> แก้ยอด</button>
@@ -770,7 +785,7 @@ async function saveCancel() {
       </template>
     </AppModal>
 
-    <OrderPayModal v-if="payOpen" :order="order" :mode="payMode" :target="payTarget" @close="payOpen = false" />
+    <OrderPayModal v-if="payOpen" :order="order" :mode="payMode" :target="payTarget" @paid="onPaid" @close="payOpen = false" />
     <PayExtendModal v-if="extFor" :order="order" :payment="extFor" @close="extFor = null" />
 
     <!-- modal ปรับราคา -->
@@ -829,6 +844,15 @@ async function saveCancel() {
   <ChangeBuyerModal v-if="buyerOpen && order" :order="order" @close="buyerOpen = false" />
   <OrderLinkModal v-if="linkOpen && order" :order="order" @close="linkOpen = false" />
   <TaxInvoiceModal v-if="taxOpen && order" :order="order" @close="taxOpen = false" />
+  <AppModal v-if="receiptOpen && order" title="ใบเสร็จรับเงิน" @close="receiptOpen = false">
+    <Receipt :order="order" />
+    <template #footer>
+      <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+        <button class="btn-soft h-11 sm:px-4" @click="printReceipt"><AppIcon name="printer" :size="18" /> พิมพ์</button>
+        <button class="btn-primary h-12 w-full sm:min-w-[8rem] sm:flex-1" @click="receiptOpen = false">ปิด</button>
+      </div>
+    </template>
+  </AppModal>
   <AppModal v-if="qrOpen && order" title="สร้าง QR ชำระ" @close="qrOpen = false"><QrPaymentPanel :order="order" :default-amount="String(t.balance)" /></AppModal>
   <ItemEditor v-if="editing" :item="editing.item || null" :price-date="orderDate(order)" :customer="customer" :order="order" @save="onSaveItem" @close="editing = null" />
   <PickupModal v-if="pickupOpen && order" :order="order" @close="pickupOpen = false" />
