@@ -174,6 +174,29 @@ t('POS: สแกนบาร์โค้ดคูปองที่ลูกค
   } finally { await page.close() }
 })
 
+t('POS: หน้าชำระเงินสแกนคูปองของลูกค้า · ยังไม่เลือกลูกค้า → เลือกเจ้าของคูปองและคูปองให้อัตโนมัติ · ใบที่ยังไม่กดแสดงใช้ไม่ได้', async () => {
+  const { page, errors } = await openPage('/admin/pos')
+  try {
+    await page.evaluate(async () => { window.__store = await import('/src/data/store.js') })
+    const info = await seedBarcodeCoupons(page)
+    assert.ok(info, 'ไม่มีลูกค้าสำหรับทดสอบ')
+    await page.getByRole('button', { name: 'ไม่มี', exact: true }).first().click()
+    await page.getByRole('button', { name: /คัพเค้กวานิลลา/ }).first().click()
+    await page.getByRole('button', { name: 'ชำระเงิน', exact: true }).first().click()
+    await page.getByRole('button', { name: 'สแกนบาร์โค้ดคูปองของลูกค้า' }).click()
+    const input = page.getByLabel('สแกนบาร์โค้ดคูปอง')
+    await input.fill('cpe2epending')
+    await input.press('Enter')
+    await page.getByText('ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" หรือหมดเวลาแล้ว').waitFor({ state: 'visible', timeout: 5000 })
+    await input.fill('cpe2eactive')
+    await input.press('Enter')
+    await input.waitFor({ state: 'detached', timeout: 5000 })
+    await page.getByText('ใช้คูปองลดแล้ว').waitFor({ state: 'visible', timeout: 5000 })
+    await page.getByText(info.name, { exact: true }).first().waitFor({ state: 'visible', timeout: 5000 })
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
 t('บัญชีลูกค้า: ส่วนสมาชิกสลับระหว่างบอกเบอร์กับบาร์โค้ด และบาร์โค้ดใช้รหัสสมาชิกที่สร้างให้', async () => {
   const { page, errors } = await openPage('/admin/settings/customers')
   try {

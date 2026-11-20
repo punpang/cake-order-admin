@@ -308,19 +308,31 @@ function pickMember(c) {
 // พิมพ์เบอร์ครบ: แสดงผลค้นหาพร้อมข้อมูลสิทธิ์ให้ดูก่อน แล้วกดเลือกเอง (ไม่เลือกอัตโนมัติ) · เครื่องสแกนยังเลือกด้วย Enter (onMemberScan)
 // เครื่องสแกน USB ส่งรหัสคูปองมาแล้วกด Enter: เลือกลูกค้าเจ้าของคูปองและเลือกคูปองนั้นให้เลย (เฉพาะที่ลูกค้ากดแสดงที่ร้านอยู่)
 const scanMsg = ref('')
-// สแกนคูปองของสมาชิกที่เลือกอยู่: เลือกคูปองนั้นเข้าบิล (ถ้าผ่านเงื่อนไข) · ไม่ใช่ของลูกค้าคนนี้หรือยังไม่กดแสดงจะไม่เลือก
+// สแกนคูปองของลูกค้าในหน้าชำระเงิน (ไดอะล็อกจากปุ่ม · เครื่องสแกน USB ยิงรหัสแล้วกด Enter)
+// ยังไม่ได้เลือกลูกค้า → เลือกเจ้าของคูปองให้เลย (เหมือนช่องสแกนหน้าเริ่มขาย) · ใช้ได้เฉพาะคูปองที่ลูกค้ากดแสดงที่ร้านแล้วและยังไม่หมดเวลา
+// หลังเริ่มรับชำระแล้ว เพิ่มคูปองหรือเปลี่ยนลูกค้าไม่ได้
 const cpScanQ = ref('')
 const cpScanMsg = ref('')
+const cpScanOpen = ref(false)
+const cpScanInputEl = ref(null)
+watch(cpScanOpen, (v) => { if (v) nextTick(() => cpScanInputEl.value?.focus()) })
 function onCouponScan() {
   const raw = cpScanQ.value
   cpScanQ.value = ''
   cpScanMsg.value = ''
   if (!String(raw).trim()) return
+  if (resumeOrder.value) { cpScanMsg.value = 'บิลค้างรับส่วนที่เหลือ ใช้คูปองเพิ่มไม่ได้'; return }
+  if (memberLocked.value) { cpScanMsg.value = 'เริ่มรับชำระแล้ว เพิ่มคูปองหรือเปลี่ยนลูกค้าไม่ได้'; return }
   const hit = resolveCouponScan(raw, db.coupons)
-  if (!hit || !member.value || hit.customerId !== member.value.id) { cpScanMsg.value = 'ไม่พบคูปองนี้ของลูกค้าคนนี้'; return }
-  if (!coupons.value.some((c) => c.id === hit.id)) { cpScanMsg.value = `คูปอง ${hit.name} ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" หรือหมดเวลาแล้ว`; return }
+  if (!hit) { cpScanMsg.value = 'ไม่พบคูปองนี้'; return }
+  if (member.value && hit.customerId !== member.value.id) { cpScanMsg.value = 'ไม่พบคูปองนี้ของลูกค้าคนนี้'; return }
+  const owner = member.value || findCustomer(hit.customerId)
+  if (!owner) { cpScanMsg.value = 'กำลังโหลดข้อมูลลูกค้า ลองสแกนอีกครั้ง'; return }
+  if (!posCoupons(owner, nowIso.value).some((c) => c.id === hit.id)) { cpScanMsg.value = `คูปอง ${hit.name} ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" หรือหมดเวลาแล้ว`; return }
   if (!couponOk(hit)) { cpScanMsg.value = couponReason(hit) || `คูปอง ${hit.name} ใช้กับบิลนี้ไม่ได้`; return }
+  if (!member.value) pickMember(owner)
   if (!couponIds.value.includes(hit.id)) couponIds.value = [...couponIds.value, hit.id]
+  cpScanOpen.value = false
 }
 async function onMemberScan() {
   scanMsg.value = ''
@@ -1312,6 +1324,14 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <DeviceSettings v-if="deviceOpen" @close="deviceOpen = false" />
     <!-- ชำระเงิน · เต็มจอ ไม่เลื่อน: ซ้าย = สรุปยอด สมาชิก คูปอง และรายการที่รับแล้ว · ขวา = เลือกวิธี และทำรายการนั้น -->
+    <!-- สแกนคูปองของลูกค้าในหน้าชำระเงิน: ไดอะล็อกแยกจากปุ่ม (เหมือนค้นหาสมาชิก) · เครื่องสแกน USB ยิงรหัสแล้วกด Enter -->
+    <AppModal v-if="cpScanOpen" top title="สแกนคูปองของลูกค้า" @close="cpScanOpen = false; cpScanQ = ''; cpScanMsg = ''">
+      <div class="space-y-3">
+        <input ref="cpScanInputEl" v-model="cpScanQ" type="text" inputmode="none" autocomplete="off" class="input h-14 w-full text-lg" placeholder="ยิงบาร์โค้ดจากโทรศัพท์ของลูกค้า" aria-label="สแกนบาร์โค้ดคูปอง" @keydown.enter.prevent="onCouponScan" />
+        <p v-if="cpScanMsg" class="text-sm text-rose-700" role="alert">{{ cpScanMsg }}</p>
+        <p v-else class="text-sm text-stone-600">ให้ลูกค้าเปิดบาร์โค้ดคูปองในหน้าสมาชิกของเขา (ต้องกด "ใช้ที่ร้านตอนนี้" ก่อน)</p>
+      </div>
+    </AppModal>
     <!-- ค้นหาสมาชิก: ไดอะล็อกแยก เปิดจากปุ่ม "สมาชิก" · พิมพ์เบอร์หรือสแกนแล้วกดเลือกรายการ -->
     <AppModal v-if="memberSearchOpen" top title="ค้นหาสมาชิก" @close="memberSearchOpen = false; memberQ = ''">
       <div class="space-y-3">
@@ -1409,6 +1429,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </div>
           </div>
 
+          <button v-if="!memberLocked && !resumeOrder" type="button" class="btn-outline h-11 w-full" @click="cpScanOpen = true">สแกนบาร์โค้ดคูปองของลูกค้า</button>
           <div v-if="member && coupons.length" class="rounded-2xl bg-white p-3 ring-1 ring-stone-200" aria-label="คูปองส่วนลด">
             <div class="mb-1.5 text-sm font-semibold text-stone-800">คูปอง · กดเพื่อใช้</div>
             <div class="flex flex-wrap gap-1.5">

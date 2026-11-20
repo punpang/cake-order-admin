@@ -3,7 +3,7 @@ import { corsWrap } from '../_shared/cors.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 // แลกของ/หมุนกาชาของลูกค้า (โหมด Supabase): ตรวจเซสชันลูกค้าก่อน แล้วเรียก RPC ฝั่งฐานข้อมูลด้วย service role
-// action: redeem { rewardId } · spin { usePoints }
+// action: redeem { rewardId } · spin { usePoints } · make_coupon { amount } (สร้างคูปองลดเป็นบาทจากคะแนน)
 // ตอบ { ok, customer, coupons, result } (ข้อมูลลูกค้าชุดเดียวกับ customer-auth · ไม่ส่งหมายเหตุพนักงาน) หรือ { error, code }
 // เซสชันเก็บเป็น hash ในตาราง punpang_customer_sessions (เหมือน customer-auth)
 const CORS = {
@@ -24,6 +24,7 @@ const MSG: Record<string, string> = {
   no_spin: 'ไม่มีสิทธิ์หมุนเหลือ',
   no_prize: 'ยังไม่มีรางวัลกาชาที่เปิดใช้',
   config_missing: 'ตั้งค่าของแลก/กาชายังไม่ครบ กรุณาแจ้งร้าน',
+  not_divisible: 'มูลค่านี้แปลงเป็นคะแนนไม่ลงตัว กรุณาเลือกมูลค่าอื่น',
 }
 
 Deno.serve(corsWrap(async (req) => {
@@ -47,6 +48,10 @@ Deno.serve(corsWrap(async (req) => {
   let r
   if (action === 'redeem') r = await sb.rpc('punpang_cust_redeem', { p_customer: cid, p_reward: String(b.rewardId ?? '') })
   else if (action === 'spin') r = await sb.rpc('punpang_cust_spin', { p_customer: cid, p_use_points: b.usePoints === true })
+  else if (action === 'make_coupon') {
+    const amt = Number(b.amount)
+    r = await sb.rpc('punpang_cust_make_coupon', { p_customer: cid, p_amount: Number.isFinite(amt) ? amt : null })
+  }
   else return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
   if (r.error) return json({ error: 'ทำรายการไม่สำเร็จ กรุณาลองใหม่' }, 500)
 

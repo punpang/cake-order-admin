@@ -1,6 +1,8 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { db, customerPoints, customerCoupons, redeemReward, spinGacha, redeemRewardRemote, spinGachaRemote, usesServerLoyalty, myCustomer, activateCouponAtStore, phaseOfCoupon, sweepCoupons } from '../data/store'
+import { pointsCouponQuote, POINTS_COUPON, POINTS_COUPON_MSG } from '../lib/pointsCoupon'
+import { makeCouponRemote, makePointsCouponLocal } from '../lib/pointsCouponActions'
 import { expiringSoon, chanceTotal, activeSecondsLeft } from '../lib/loyalty'
 import { money, dateOnly, dateTime, toDateStr, num } from '../lib/format'
 import AppIcon from './AppIcon.vue'
@@ -38,6 +40,16 @@ async function redeem() {
   }
   const cp = redeemReward(me.value, id)
   msg.value = cp ? `แลก ${cp.name} แล้ว รับได้ที่ร้าน (ดูในแท็บคูปอง)` : 'คะแนนไม่พอ'
+}
+
+// ---------- สร้างคูปองจากคะแนน (ลูกค้าเลือกมูลค่าเอง ขั้นต่ำ 10 บาท ทวีคูณ 10) ----------
+const couponAmt = ref(POINTS_COUPON.min)
+const amtQuote = computed(() => pointsCouponQuote(couponAmt.value, db.loyalty.pointValue, points.value))
+async function makeCoupon() {
+  if (!amtQuote.value.ok) return
+  const amt = Number(couponAmt.value)
+  const r = usesServerLoyalty() ? await makeCouponRemote(amt) : makePointsCouponLocal(me.value, amt)
+  msg.value = r.error ? (POINTS_COUPON_MSG[r.error] || r.error) : `สร้างคูปอง ${money(amt)} แล้ว ใช้ได้ภายใน ${POINTS_COUPON.days} วัน (ดูในแท็บคูปอง)`
 }
 
 // ---------- กาชา ----------
@@ -153,6 +165,16 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
 
       <!-- แลกของ -->
       <div v-if="tab === 'rewards'" class="space-y-2.5">
+        <div class="card space-y-3">
+          <p class="font-semibold text-stone-900">สร้างคูปองจากคะแนน</p>
+          <p class="text-sm text-stone-500">ขั้นต่ำ {{ POINTS_COUPON.min }} บาท เป็นทวีคูณของ {{ POINTS_COUPON.step }} · ใช้ได้ครั้งเดียว · หมดอายุใน {{ POINTS_COUPON.days }} วัน</p>
+          <div class="flex flex-wrap items-center gap-2">
+            <button v-for="v in [10, 20, 50, 100]" :key="v" type="button" class="btn-outline h-9 px-3" :class="Number(couponAmt) === v ? 'ring-2 ring-brand-400' : ''" @click="couponAmt = v">{{ v }} บาท</button>
+            <input v-model.number="couponAmt" type="number" :min="POINTS_COUPON.min" :step="POINTS_COUPON.step" inputmode="numeric" class="input h-9 w-28" aria-label="มูลค่าคูปอง (บาท)" />
+          </div>
+          <p class="text-sm" :class="amtQuote.ok ? 'text-stone-600' : 'text-rose-700'" aria-live="polite">{{ amtQuote.ok ? `ใช้ ${num(amtQuote.points)} คะแนน` : POINTS_COUPON_MSG[amtQuote.reason] }}</p>
+          <button type="button" class="btn-primary h-11 w-full" :disabled="!amtQuote.ok" :class="!amtQuote.ok ? 'opacity-40' : ''" @click="makeCoupon">สร้างคูปอง {{ money(Number(couponAmt) || 0) }}</button>
+        </div>
         <p v-if="!rewards.length" class="card py-10 text-center text-stone-500">ยังไม่มีของให้แลก</p>
         <div v-for="r in rewards" :key="r.id" class="card flex items-center gap-3">
           <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-600"><AppIcon name="cake" :size="24" /></span>
@@ -206,7 +228,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
           <span class="min-w-0 flex-1">
             <span class="block font-semibold break-words text-stone-900">{{ c.name }}</span>
             <span class="block text-xs text-stone-500">
-              {{ c.type === 'reward' ? 'ของรางวัล' : couponTermsText(c) }} · {{ c.source === 'gacha' ? 'จากกาชา' : c.source === 'lucky' ? 'จากลุ้นโชค' : c.source === 'refund' ? 'คืนเงิน' : c.source === 'convert' ? 'แปลงคะแนน' : 'แลกคะแนน' }}
+              {{ c.type === 'reward' ? 'ของรางวัล' : couponTermsText(c) }} · {{ c.source === 'gacha' ? 'จากกาชา' : c.source === 'lucky' ? 'จากลุ้นโชค' : c.source === 'refund' ? 'คืนเงิน' : c.source === 'convert' ? 'แปลงคะแนน' : c.source === 'points_coupon' ? 'สร้างเองจากคะแนน' : 'แลกคะแนน' }}
               <template v-if="c.expiresAt"> · หมดอายุ {{ dateOnly(c.expiresAt) }}</template>
             </span>
           </span>

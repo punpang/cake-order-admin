@@ -86,3 +86,32 @@ Deno.test('โหมดทดสอบ → ถูกปฏิเสธ (409) ไ
   const r = await call({ action: 'redeem', rewardId: 'r1', session: TOKEN }, { 'x-punpang-mode': 'test' })
   assertEquals(r.status, 409)
 })
+
+Deno.test('สร้างคูปองจากคะแนน: ส่ง p_customer จากเซสชันและมูลค่าเป็นตัวเลข', async () => {
+  await seed()
+  const calls: any[] = []
+  ;(globalThis as any).__RPC.punpang_cust_make_coupon = async (a: any) => { calls.push(a); return { data: { ok: true, coupon: { id: 'cp9', name: 'คูปองจากคะแนน 50 บาท' }, balance: 10 }, error: null } }
+  const r = await call({ action: 'make_coupon', amount: '50', session: TOKEN, customer: 'c2' })
+  assertEquals(r.status, 200)
+  assertEquals(calls, [{ p_customer: 'c1', p_amount: 50 }])
+  assertEquals(r.body.result.coupon.name, 'คูปองจากคะแนน 50 บาท')
+})
+
+Deno.test('สร้างคูปองจากคะแนน: มูลค่าไม่ใช่ตัวเลข → ส่ง null ให้ฐานข้อมูลปฏิเสธ', async () => {
+  await seed()
+  const calls: any[] = []
+  ;(globalThis as any).__RPC.punpang_cust_make_coupon = async (a: any) => { calls.push(a); return { data: { error: 'invalid' }, error: null } }
+  const r = await call({ action: 'make_coupon', amount: 'abc', session: TOKEN })
+  assertEquals(calls, [{ p_customer: 'c1', p_amount: null }])
+  assertEquals(r.status, 400)
+  assertEquals(r.body.error, 'ข้อมูลไม่ถูกต้อง')
+})
+
+Deno.test('สร้างคูปองจากคะแนน: คะแนนไม่ลงตัว → 400 พร้อมข้อความไทย', async () => {
+  await seed()
+  ;(globalThis as any).__RPC.punpang_cust_make_coupon = async () => ({ data: { error: 'not_divisible' }, error: null })
+  const r = await call({ action: 'make_coupon', amount: 10, session: TOKEN })
+  assertEquals(r.status, 400)
+  assertEquals(r.body.code, 'not_divisible')
+  assertEquals(r.body.error, 'มูลค่านี้แปลงเป็นคะแนนไม่ลงตัว กรุณาเลือกมูลค่าอื่น')
+})
