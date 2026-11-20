@@ -1,6 +1,15 @@
 import { runFbBot, offWindowStartMs, scrubPII, decide, learnedMatch, aiLogData } from './bot.ts'
 import { normalizeMessages } from '../_shared/ai.ts'
 
+// ---- นาฬิกาคงที่ของเทสต์ ----
+// ทุก new Date() และ Date.now() คืนเวลาเดียวกันเสมอ = 10:00 น. เวลาไทย (ช่วงเปิดร้าน) ไม่อ่านนาฬิกาจริง
+// ผลเทสต์จึงเหมือนเดิมทุกเวลาที่รัน (เดิมผลเปลี่ยนตามเวลาที่รัน: ช่วง 23:59 น. ไทย เทสต์ AI ล้มเหลว 26 ข้อ)
+const FIXED_NOW = Date.parse('2026-11-11T03:00:00.000Z')
+globalThis.Date = new Proxy(Date, {
+  construct: (target, args) => Reflect.construct(target, args.length ? args : [FIXED_NOW]),
+  get: (target, prop) => (prop === 'now' ? () => FIXED_NOW : Reflect.get(target, prop)),
+}) as any
+
 // ---- ฐานข้อมูลจำลองแบบ CAS (updated_at) ----
 type Row = { id: string; data: any; updated_at: string }
 function makeSb(tables: { chats: Row[]; kv: any[]; records: any[]; items?: any[]; orders?: any[] }) {
@@ -71,9 +80,8 @@ const shopCfg = { id: 'shop', collection: 'config', data: { v: { open: '09:00', 
 const botCfg = { id: 'bot', collection: 'config', data: { v: { enabled: true, mode: 'auto', channels: { facebook: true }, sourceModes: { hours: 'auto', offhours: 'auto', faq: 'auto', rule: 'auto' }, rules: [], offHours: { enabled: true } } } }
 const sfRow = { id: 'storefront', collection: 'storefront', data: { v: { faq: [] } } }
 
-// เวลาในแอป: 10:00 น. ไทย = 03:00 UTC (เปิดร้าน)
-const OPEN_AT = new Date().toISOString()
-const NOW_MS = Date.now()
+// เวลาในแอป: 10:00 น. ไทย = 03:00 UTC (เปิดร้าน) = FIXED_NOW
+const OPEN_AT = new Date(FIXED_NOW).toISOString()
 
 let fetchCalls: any[] = [] // ข้อความที่ส่งผ่าน Graph (ถึงลูกค้า)
 let aiCalls: any[] = [] // คำขอไปยัง Claude API
