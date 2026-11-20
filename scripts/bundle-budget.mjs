@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const DIST = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'assets')
-const PER_FILE_GZIP_KB = 165 // ไฟล์เดียวหลัง gzip (ตัวใหญ่สุดปัจจุบันคือ main ~158 KB)
+const PER_FILE_GZIP_KB = 166 // ไฟล์เดียวหลัง gzip (ตัวใหญ่สุดปัจจุบันคือ main ~165 KB · เพิ่มจาก 165 เพราะการล้างคะแนนค้างผ่าน RPC ดู commit)
 const TOTAL_GZIP_KB = 865 // รวม JS + CSS ทั้งหมดหลัง gzip (ปัจจุบันประมาณ 822 KB)
 
 if (!existsSync(DIST)) { console.log('ไม่พบ dist/assets · รัน npm run build ก่อน'); process.exit(1) }
