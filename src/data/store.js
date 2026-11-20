@@ -1305,8 +1305,8 @@ export function cancelPaymentRequest(order, paymentId, opts = {}) {
 // ยกเลิกยอดที่ยืนยันแล้ว (แอดมิน) · ไม่เหลือยอดที่ยืนยัน → ถอยสถานะเป็น แจ้งยอดแล้ว (ถ้ามีงวดที่แจ้งค้าง) หรือ รอชำระ
 export function cancelConfirmedPayment(order, paymentId, opts = {}) {
   const p = order.payments.find((x) => x.id === paymentId)
-  if (!p || p.status !== 'confirmed') return { error: 'ยอดนี้ไม่ได้อยู่ในสถานะยืนยันแล้ว (อาจถูกเปลี่ยนไปแล้ว) รีเฟรชหน้าแล้วลองใหม่' }
-  if (['delivered', 'cancelled'].includes(order.status)) return { error: 'ออร์เดอร์ส่งมอบหรือยกเลิกแล้ว ยกเลิกยอดไม่ได้' }
+  if (!p || p.status !== 'confirmed') return { code: 'stale' }
+  if (['delivered', 'cancelled'].includes(order.status)) return { code: 'closed' }
   if (orderTotals(order).paidNet - p.amount < -0.004) return { error: 'ยกเลิกยอดนี้ไม่ได้ เพราะคืนเงินบางส่วนไปแล้ว' }
   Object.assign(p, { status: 'cancelled', cancelledAt: now(), cancelledBy: session.role })
   log(order, `ยกเลิกยอดที่ยืนยันแล้ว ${money(p.amount)}`)

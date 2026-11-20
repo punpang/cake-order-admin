@@ -273,7 +273,8 @@ async function doCancelConfirmed(p) {
   const r = await askConfirmEx({ title: 'ยกเลิกยอดที่ยืนยันแล้ว', message: `${money(p.amount)} (${p.method})`, okText: 'ยกเลิกยอด', danger: true, ...notifyBoxOf(customer.value) })
   if (r.ok) {
     const e = cancelConfirmedPayment(order.value, p.id, notifyOf(r))
-    if (e?.error) showToast(e.error, 6000, 'error')
+    const msg = { stale: 'ยอดนี้เปลี่ยนสถานะแล้ว รีเฟรชหน้าแล้วลองใหม่', closed: 'ออร์เดอร์ปิดแล้ว ยกเลิกยอดไม่ได้' }[e?.code] || e?.error
+    if (msg) showToast(msg, 6000, 'error')
   }
 }
 async function doRemoveItem(it) {
