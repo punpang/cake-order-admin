@@ -59,6 +59,14 @@ jobs:
       - name: สร้าง APK (debug)
         working-directory: android-customer
         run: ./gradlew assembleDebug --no-daemon
+      # เซ็นซ้ำด้วยกุญแจประจำร้านโดยตรง (ไม่พึ่งการเลือกกุญแจอัตโนมัติของ Gradle) แล้วค่อยตรวจด้านล่าง
+      - name: เซ็น APK ด้วยกุญแจประจำร้าน
+        env:
+          KS: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
+        run: |
+          if [ -z "$KS" ]; then exit 0; fi
+          SIGNER="$(ls -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}"/build-tools/*/apksigner | sort -V | tail -n 1)"
+          "$SIGNER" sign --ks "$HOME/.android/debug.keystore" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android "android-customer/app/build/outputs/apk/debug/app-debug.apk"
       - name: ตรวจว่า APK เซ็นด้วยกุญแจประจำร้าน
         env:
           KS: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
