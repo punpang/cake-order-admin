@@ -602,4 +602,30 @@ select test.ok('SD4: ผู้ไม่ล็อกอินนับยอด�
 select test.ok('SD4: ยอดเข้าชมไม่เกินเพดานต่อวัน',
   (select (data->>'n')::int from public.punpang_kv where collection = 'pageViews' and id = to_char((now() at time zone 'Asia/Bangkok')::date, 'YYYY-MM-DD')) = 100000);
 
+-- ===== EL1–EL4: บันทึกข้อผิดพลาดของแอป (migration 20261120110000) =====
+-- (ตรวจผลในคำสั่งถัดไป: คำสั่งเดียวกันมองไม่เห็นแถวที่ฟังก์ชันเพิ่งเขียน)
+select test.ok('EL1: บัญชีที่ไม่ใช่พนักงาน เรียกได้แต่ไม่ถูกบันทึก',
+  test.as_staff('aaaaaaaa-0000-0000-0000-00000000000a', $q$ select public.punpang_log_error('x boom', null, '/', 'ua', 'b1') $q$) = 'OK');
+select test.ok('EL1: (ผล) ไม่มีแถวจากบัญชีที่ไม่ใช่พนักงาน', not exists (select 1 from public.punpang_error_log where message = 'x boom'));
+select test.ok('EL1: ผู้ไม่ล็อกอินเรียกไม่ได้',
+  test.as_anon($q$ select public.punpang_log_error('anon boom', null, '/', 'ua', 'b1') $q$) like 'ERR:42501:%');
+select test.ok('EL2: พนักงานส่งข้อผิดพลาดได้',
+  test.as_staff('33333333-3333-3333-3333-333333333333', $q$ select public.punpang_log_error('โหลดลูกค้า 0812345678 ไม่สำเร็จ', 'at a (x.js:1)', '/#/admin/orders?q=0812345678', 'ua', 'b1') $q$) = 'OK');
+select test.ok('EL2: (ผล) บันทึกแล้ว และตัดเบอร์โทรออกทั้งข้อความและ url',
+  exists (select 1 from public.punpang_error_log where message = 'โหลดลูกค้า [ตัวเลข] ไม่สำเร็จ' and url = '/#/admin/orders?q=[ตัวเลข]' and staff_id = '33333333-3333-3333-3333-333333333333'));
+select test.ok('EL2: ข้อผิดพลาดเดิมซ้ำ (เบอร์ต่างกัน) ส่งได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111', $q$ select public.punpang_log_error('โหลดลูกค้า 0899999999 ไม่สำเร็จ', 'at a (x.js:1)', '/', 'ua', 'b1') $q$) = 'OK');
+select test.ok('EL2: (ผล) นับรวมแถวเดียว n = 2',
+  (select n from public.punpang_error_log where message = 'โหลดลูกค้า [ตัวเลข] ไม่สำเร็จ') = 2
+  and (select count(*) from public.punpang_error_log where message = 'โหลดลูกค้า [ตัวเลข] ไม่สำเร็จ') = 1);
+select test.ok('EL3: พนักงานทั่วไปอ่านบันทึกไม่ได้ (เห็น 0 แถว)',
+  test.rpc_as('11111111-1111-1111-1111-111111111111', $q$ select to_jsonb(count(*)) from public.punpang_error_log $q$) = '0'::jsonb);
+select test.ok('EL3: ผู้จัดการอ่านบันทึกได้',
+  test.rpc_as('55555555-5555-5555-5555-555555555555', $q$ select to_jsonb(count(*)) from public.punpang_error_log $q$) = '1'::jsonb);
+select test.ok('EL3: พนักงานทั่วไปแก้บันทึกไม่ได้',
+  test.as_staff('11111111-1111-1111-1111-111111111111', $q$ update public.punpang_error_log set message = 'x' $q$) like 'ERR:42501:%');
+select test.ok('EL4: ผู้จัดการล้างบันทึกได้',
+  test.as_staff('55555555-5555-5555-5555-555555555555', $q$ delete from public.punpang_error_log where true $q$) = 'OK');
+select test.ok('EL4: (ผล) บันทึกว่างแล้ว', not exists (select 1 from public.punpang_error_log));
+
 select 'ผ่านทั้งหมด' as security_tests;

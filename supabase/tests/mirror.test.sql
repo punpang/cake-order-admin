@@ -13,8 +13,8 @@ end $$;
 -- ---------- A) โครงสร้าง ----------
 select mt.ok('A1 ตารางธุรกิจทุกตาราง (23) มีสำเนาเป็นตารางใน punpang_test',
   (select count(*) from information_schema.tables where table_schema = 'punpang_test' and table_type = 'BASE TABLE') = 23);
-select mt.ok('A2 ตารางข้อมูลร่วม (14) เป็น view ใน punpang_test',
-  (select count(*) from information_schema.views where table_schema = 'punpang_test') = 14);
+select mt.ok('A2 ตารางข้อมูลร่วม (15 · รวมบันทึกข้อผิดพลาด) เป็น view ใน punpang_test',
+  (select count(*) from information_schema.views where table_schema = 'punpang_test') = 15);
 select mt.ok('A3 คอลัมน์ของทุกตารางธุรกิจเท่ากับต้นฉบับ',
   not exists (
     select 1 from information_schema.columns c
@@ -106,9 +106,9 @@ begin
   end;
   perform mt.ok('E2 เขียนการตั้งค่าร้านจากโหมดทดสอบไม่ได้ (ปฏิเสธด้วย 42501)', caught = '42501');
 end $$;
-select mt.ok('E3 ทุก view ของข้อมูลร่วมมีทริกเกอร์ปฏิเสธการเขียน (14 รายการ)',
+select mt.ok('E3 ทุก view ของข้อมูลร่วมมีทริกเกอร์ปฏิเสธการเขียน (15 รายการ)',
   (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'punpang_test' and t.tgname = 'punpang_test_readonly') = 14);
+    where n.nspname = 'punpang_test' and t.tgname = 'punpang_test_readonly') = 15);
 select mt.ok('E4 ข้อมูลร่วมในฐานจริงไม่ถูกแตะ (ไม่มีแถว test_try)',
   not exists (select 1 from public.punpang_kv where id = 'test_try'));
 

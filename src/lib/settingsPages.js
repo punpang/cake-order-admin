@@ -35,6 +35,7 @@ export const SETTINGS_PAGES = [
   { group: 'privacy', to: '/admin/settings/photo-requests', icon: 'alert', title: 'คำขอไม่เผยแพร่รูป', keywords: 'รูปงาน ลูกค้า' },
   { group: 'privacy', to: '/admin/settings/deletion-requests', icon: 'user', title: 'คำขอลบข้อมูลลูกค้า', keywords: 'pdpa ลบบัญชี' },
   { group: 'privacy', to: '/admin/settings/files', icon: 'filter', title: 'พื้นที่รูป & การลบรูป', keywords: 'storage ไฟล์' },
+  { group: 'privacy', to: '/admin/settings/errors', icon: 'alert', title: 'ข้อผิดพลาดของแอป', keywords: 'error บั๊ก แอปพัง ปัญหา log' },
   { group: 'privacy', to: '/admin/settings/retention', icon: 'trash', title: 'จัดการข้อมูลที่เป็นขยะ', keywords: 'ลบอัตโนมัติ ข้อมูลเก่า' },
   { group: 'team', to: '/admin/settings/users', icon: 'lock', title: 'ผู้ใช้ & สิทธิ์', perm: 'manageUsers', keywords: 'พนักงาน รหัสผ่าน' },
 ]

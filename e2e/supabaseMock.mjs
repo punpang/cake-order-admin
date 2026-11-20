@@ -136,7 +136,7 @@ export function startSupabaseMock(tables = {}) {
     }
     if (p.startsWith('/rest/v1/rpc/')) {
       const fn = p.slice('/rest/v1/rpc/'.length)
-      log.push({ rpc: fn })
+      log.push({ rpc: fn, body })
       return send(200, rpc[fn] ? rpc[fn](body || {}) : null)
     }
     if (!p.startsWith('/rest/v1/')) return send(404, { message: 'not found' })
@@ -157,7 +157,7 @@ export function startSupabaseMock(tables = {}) {
       if (range) { from = Number(range[1]); to = Math.min(to, Number(range[2])) }
       out = out.slice(from, to + 1)
       const headers = { 'content-range': `${out.length ? `${from}-${from + out.length - 1}` : '*'}/${wantCount ? match.length : '*'}` }
-      log.push({ table, method: 'GET', sent: req.method === 'HEAD' ? 0 : out.length })
+      log.push({ table, method: 'GET', sent: req.method === 'HEAD' ? 0 : out.length, q: url.search })
       const accept = String(req.headers.accept || '')
       if (req.method === 'HEAD') return send(200, undefined, headers)
       const data = out.map((r) => project(r, q.select))
