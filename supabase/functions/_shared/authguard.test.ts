@@ -1,7 +1,8 @@
 import { assert, assertEquals } from 'jsr:@std/assert@1'
-import { type OtpRow, type OtpStore, type PinRow, type PinStore, reserveOtpAttempt, reservePinAttempt } from './authguard.ts'
+import { bangkokDay, type OtpRow, type OtpStore, type PinRow, type PinStore, reserveOtpAttempt, reservePinAttempt } from './authguard.ts'
 
-const T0 = Date.UTC(2026, 10, 14, 3, 0, 0)
+const T0 = Date.UTC(2026, 10, 14, 3, 0, 0) // 10:00 เวลาไทย
+const MIDNIGHT_BKK = Date.UTC(2026, 10, 14, 17, 0, 0) // เที่ยงคืนเวลาไทยของวันเดียวกัน (เริ่มวันถัดไป)
 const PIN = { maxFails: 5, lockMs: 15 * 60_000 }
 // หน่วงแบบสุ่มระหว่างอ่าน/เขียน เพื่อให้คำขอสลับกันทำงานเหมือนหลายคำขอพร้อมกันจริง
 const jitter = () => new Promise<void>((r) => setTimeout(r, Math.floor(Math.random() * 4)))
@@ -15,21 +16,21 @@ function memPin(init: PinRow) {
       await jitter()
       // ตรวจและเขียนในก้อนเดียว (ไม่มี await คั่น) = เหมือน UPDATE ... WHERE failed = expect ของฐานข้อมูล
       if ((st.failed ?? 0) !== expect) return false
-      st.failed = patch.failed; st.locked_until = patch.locked_until; stats.writes++
+      Object.assign(st, patch); stats.writes++
       return true
     },
   }
   return { st, store, stats }
 }
 
-Deno.test('PIN: จองทีละครั้ง 1-4 ผ่านโดยยังไม่ล็อก · ครั้งที่ 5 ผ่านและล็อกไว้ล่วงหน้า · ครั้งที่ 6 ถูกล็อก', async () => {
+Deno.test('PIN: จองทีละครั้ง 1-4 ผ่านโดยยังไม่ล็อก · ครั้งที่ 5 ผ่านและล็อก 15 นาที · ครั้งที่ 6 ถูกล็อก', async () => {
   const { st, store } = memPin({ failed: 0, locked_until: null })
   const now = () => T0
   for (let i = 1; i <= 4; i++) {
     assertEquals(await reservePinAttempt(store, { ...PIN, now }), { ok: true, n: i })
     assertEquals(st.locked_until, null)
   }
-  assertEquals(await reservePinAttempt(store, { ...PIN, now }), { ok: true, n: 5 })
+  assertEquals(await reservePinAttempt(store, { ...PIN, now }), { ok: true, n: 5, lockMs: PIN.lockMs })
   assertEquals(st.locked_until, new Date(T0 + PIN.lockMs).toISOString())
   assertEquals(await reservePinAttempt(store, { ...PIN, now }), { ok: false, reason: 'locked', until: T0 + PIN.lockMs })
 })
@@ -38,7 +39,7 @@ Deno.test('PIN: ยิงพร้อมกัน 100 คำขอ → ได้
   for (let round = 0; round < 5; round++) {
     const { st, store } = memPin({ failed: 0, locked_until: null })
     const out = await Promise.all(Array.from({ length: 100 }, () => reservePinAttempt(store, PIN)))
-    const ok = out.filter((r): r is { ok: true; n: number } => r.ok)
+    const ok = out.filter((r): r is { ok: true; n: number; lockMs?: number } => r.ok)
     assertEquals(ok.map((r) => r.n).sort(), [1, 2, 3, 4, 5])
     assertEquals(out.filter((r) => !r.ok && r.reason === 'locked').length, 95)
     assertEquals(out.filter((r) => !r.ok && r.reason === 'busy').length, 0)
@@ -53,21 +54,55 @@ Deno.test('PIN: เริ่มที่ 3 ครั้งแล้ว ยิง
   assertEquals(out.filter((r) => r.ok).map((r) => (r.ok ? r.n : 0)).sort(), [4, 5])
 })
 
-Deno.test('PIN: ล็อกยังไม่หมดเวลา → ถูกล็อกโดยไม่เขียนอะไร · ล็อกหมดเวลาแล้ว → เริ่มนับใหม่จาก 1 และล้างเวลาล็อก', async () => {
+Deno.test('PIN: ล็อกยังไม่หมดเวลา → ถูกล็อกโดยไม่เขียนอะไร · หมดเวลาแล้วผิดอีก → นับต่อจากเดิม (ไม่รีเซ็ต) และล็อกนานขึ้นเป็นสองเท่า', async () => {
   const future = new Date(T0 + 5 * 60_000).toISOString()
-  const a = memPin({ failed: 0, locked_until: future }) // รูปแบบเดิม (ล็อกพร้อม failed = 0)
+  const a = memPin({ failed: 5, locked_until: future })
   assertEquals(await reservePinAttempt(a.store, { ...PIN, now: () => T0 }), { ok: false, reason: 'locked', until: T0 + 5 * 60_000 })
   assertEquals(a.stats.writes, 0)
 
   const expired = new Date(T0 - 1000).toISOString()
   const b = memPin({ failed: 5, locked_until: expired })
-  assertEquals(await reservePinAttempt(b.store, { ...PIN, now: () => T0 }), { ok: true, n: 1 })
-  assertEquals(b.st, { failed: 1, locked_until: null })
+  assertEquals(await reservePinAttempt(b.store, { ...PIN, now: () => T0 }), { ok: true, n: 6, lockMs: 2 * PIN.lockMs })
+  assertEquals(b.st.failed, 6)
+  assertEquals(b.st.locked_until, new Date(T0 + 2 * PIN.lockMs).toISOString())
+})
+
+Deno.test('PIN: ผิดซ้ำทุกครั้งที่หมดเวลาล็อก → เวลาล็อก 15 30 60 120 240 480 960 นาที แล้วคงที่ 24 ชม. (ไม่รีเซ็ตเป็น 15 นาที)', async () => {
+  const { store } = memPin({ failed: 0, locked_until: null })
+  let t = T0
+  const minutes: number[] = []
+  while (minutes.length < 12) {
+    const r = await reservePinAttempt(store, { ...PIN, now: () => t })
+    if (r.ok && r.lockMs !== undefined) { minutes.push(r.lockMs / 60_000); t += r.lockMs } // หมดเวลาล็อกแล้วลองใหม่
+    else assertEquals(r.ok, true) // ก่อนถึงเกณฑ์ล็อกต้องจองได้ปกติ
+  }
+  assertEquals(minutes, [15, 30, 60, 120, 240, 480, 960, 1440, 1440, 1440, 1440, 1440])
+})
+
+Deno.test('PIN: ลองผิดครบ 10 ครั้งในวันเดียว → ถูกล็อกถึงเที่ยงคืนเวลาไทย · วันถัดไปเริ่มนับวันใหม่', async () => {
+  const { store } = memPin({ failed: 0, locked_until: null })
+  const big = { maxFails: 100, lockMs: 15 * 60_000 } // ไม่ให้ล็อกเพราะจำนวนรวม เพื่อทดสอบเพดานรายวันโดยเฉพาะ
+  for (let i = 1; i <= 10; i++) assertEquals(await reservePinAttempt(store, { ...big, now: () => T0 }), { ok: true, n: i })
+  assertEquals(await reservePinAttempt(store, { ...big, now: () => T0 }), { ok: false, reason: 'daily', until: MIDNIGHT_BKK })
+  assertEquals(await reservePinAttempt(store, { ...big, now: () => MIDNIGHT_BKK + 1000 }), { ok: true, n: 11 })
+})
+
+Deno.test('PIN: ตัวนับรายวันของวันก่อนไม่นับในวันใหม่ · ตัวนับรายวันตรงวันเดียวกันนับต่อ', async () => {
+  const yesterday = memPin({ failed: 0, locked_until: null, day_key: '2026-11-13', day_fails: 10 })
+  assertEquals(await reservePinAttempt(yesterday.store, { ...PIN, now: () => T0 }), { ok: true, n: 1 })
+  assertEquals(yesterday.st.day_key, '2026-11-14')
+  assertEquals(yesterday.st.day_fails, 1)
+})
+
+Deno.test('วันตามเวลาไทย: 16:59 UTC ยังเป็นวันเดิม · 17:00 UTC เริ่มวันถัดไป', () => {
+  assertEquals(bangkokDay(Date.UTC(2026, 10, 14, 16, 59, 0)).key, '2026-11-14')
+  assertEquals(bangkokDay(Date.UTC(2026, 10, 14, 17, 0, 0)).key, '2026-11-15')
+  assertEquals(bangkokDay(T0).endMs, MIDNIGHT_BKK)
 })
 
 Deno.test('PIN: ตัวนับเต็มแต่ไม่มีเวลาล็อก (ข้อมูลผิดปกติ) → ผ่านได้อีกครั้งเดียวแล้วล็อก ไม่ปล่อยให้เดาต่อไม่จำกัด', async () => {
   const { st, store } = memPin({ failed: 5, locked_until: null })
-  assertEquals(await reservePinAttempt(store, { ...PIN, now: () => T0 }), { ok: true, n: 6 })
+  assertEquals(await reservePinAttempt(store, { ...PIN, now: () => T0 }), { ok: true, n: 6, lockMs: 2 * PIN.lockMs })
   assert(st.locked_until)
   assertEquals((await reservePinAttempt(store, { ...PIN, now: () => T0 })).ok, false)
 })

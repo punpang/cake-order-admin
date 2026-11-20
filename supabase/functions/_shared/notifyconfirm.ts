@@ -6,6 +6,7 @@
 import { confirmSlipPayment } from './slipautoconfirm.ts'
 import { daysUntilPickup } from './slip.ts'
 import { sameRefPayment } from './sameref.ts'
+import { balanceOf } from './schedlib/orderCreate.js'
 
 export type NotifyDecision = { match: boolean; auto: boolean; daysLeft: number | null; reason: string }
 
@@ -34,7 +35,7 @@ export function notifyDecision(input: {
 // ใช้แจ้งเตือนถุงเงิน 1 รายการกับออร์เดอร์ที่มีงวดรหัสนี้ · ลองเขียนใหม่เมื่อชนกับการแก้ไขอื่น
 export async function applyNotifyPayment(sb: any, opts: { ref: string; amount: number | null; receivedMs: number; autoOn: boolean; days: number; nowIso: string }): Promise<{ done: boolean; code?: string; auto?: boolean; reason: string }> {
   for (let attempt = 0; attempt < 3; attempt++) {
-    const r = await sb.from('punpang_orders').select('id,code,status,data,updated_at').contains('data', { payments: [{ qrRef: opts.ref }] }).limit(2)
+    const r = await sb.from('punpang_orders').select('id,code,status,fulfillment,data,updated_at').contains('data', { payments: [{ qrRef: opts.ref }] }).limit(2)
     if (r?.error) return { done: false, reason: 'อ่านออร์เดอร์ไม่สำเร็จ' }
     const rows: any[] = r?.data || []
     if (!rows.length) return { done: false, reason: 'ไม่พบออร์เดอร์ของรหัสนี้' }
@@ -64,7 +65,7 @@ export async function applyNotifyPayment(sb: any, opts: { ref: string; amount: n
     const status = dec.auto
       ? (['awaiting_payment', 'payment_reported'].includes(row.status) ? 'payment_confirmed' : row.status)
       : (row.status === 'awaiting_payment' ? 'payment_reported' : row.status)
-    const up = await sb.from('punpang_orders').update({ data: next, status }).eq('id', row.id).eq('updated_at', row.updated_at).select('id')
+    const up = await sb.from('punpang_orders').update({ data: next, status, balance: balanceOf({ ...next, fulfillment: row.fulfillment }) }).eq('id', row.id).eq('updated_at', row.updated_at).select('id')
     if (up?.error) return { done: false, reason: 'บันทึกออร์เดอร์ไม่สำเร็จ' }
     if ((up?.data || []).length) return { done: true, code: row.code, auto: dec.auto, reason: dec.reason }
   }

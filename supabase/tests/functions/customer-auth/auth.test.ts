@@ -53,6 +53,32 @@ Deno.test('login: ยิง PIN ผิดพร้อมกัน 60 คำข�
   assertEquals(locked.length, 55)
   assertEquals(out.filter((r) => r.status === 429).length, 0)
 })
+
+Deno.test('login: ผิดซ้ำหลังล็อกหมดเวลา → นับต่อจากเดิม และล็อกนานขึ้นเป็น 30 นาที (ไม่กลับไป 15 นาที)', async () => {
+  await seed(5, new Date(Date.now() - 1000).toISOString())
+  const r = await call(bad)
+  assertEquals(r.status, 423)
+  assert(r.body.error.includes('ผิดครบ 6 ครั้ง') && r.body.error.includes('ล็อก 30 นาที'), r.body.error)
+  assertEquals(D().t.punpang_customer_auth[0].failed, 6)
+})
+
+Deno.test('login: ลองผิดครบ 10 ครั้งของวันเดียวกัน → ถูกปฏิเสธแม้ PIN ถูก · ตัวนับเป็นของวันนี้ (เวลาไทย)', async () => {
+  await seed(0, null)
+  const today = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10)
+  Object.assign(D().t.punpang_customer_auth[0], { day_key: today, day_fails: 10 })
+  const r = await call(good)
+  assertEquals(r.status, 423)
+  assert(r.body.locked && r.body.error.includes('ลองผิดครบ 10 ครั้ง'), r.body.error)
+})
+
+Deno.test('login: เข้าสำเร็จแล้วล้างตัวนับรายวันด้วย', async () => {
+  await seed(0, null)
+  const today = new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10)
+  Object.assign(D().t.punpang_customer_auth[0], { day_key: today, day_fails: 4 })
+  const r = await call(good)
+  assertEquals(r.status, 200)
+  assertEquals(D().t.punpang_customer_auth[0].day_fails, 0)
+})
 Deno.test('login: เบอร์ไม่มีบัญชี → ข้อความเดียวกับ PIN ผิด (ไม่เผยว่ามีบัญชีหรือไม่)', async () => {
   await seed()
   const r = await call({ action: 'login', phone: '0899999999', pin: '135792' })

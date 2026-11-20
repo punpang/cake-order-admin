@@ -16,7 +16,7 @@ const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { sta
 const MIN = 60000
 // perAllHour: เพดานรวมทั้งระบบต่อชั่วโมง (กันถูกยิงขอ OTP ถึงเบอร์คนอื่นเพื่อเผาโควตา SMS แม้ปลอม IP ได้)
 const OTP = { ttlMs: 5 * MIN, resendMs: MIN, maxTries: 5, verifiedMs: 10 * MIN, perPhoneHour: 5, perIpHour: 20, perAllHour: 120 }
-const PIN = { maxFails: 5, lockMs: 15 * MIN }
+const PIN = { maxFails: 5, lockMs: 15 * MIN, dailyMax: 10 } // ล็อกนานขึ้นเมื่อผิดซ้ำ (ดู _shared/authguard.ts) · ลองผิดได้ dailyMax ครั้งต่อวัน
 const SESSION_MS = 14 * 24 * 3600 * 1000
 const PBKDF2_ITER = 210000
 const enc = new TextEncoder()
@@ -280,7 +280,7 @@ Deno.serve(corsWrap(async (req) => {
     if (!a) { await pbkdf2(pin, '00'.repeat(16)); return fail() } // เวลาตอบใกล้เคียงกรณีมีบัญชี
     // จองครั้งที่ลองก่อนตรวจ PIN (เขียนแบบมีเงื่อนไข) · ยิงพร้อมกันกี่คำขอก็ได้ตรวจจริงไม่เกิน PIN.maxFails ครั้งต่อรอบ (ดู _shared/authguard.ts)
     const gate = await reservePinAttempt({
-      read: async () => (await sb.from('punpang_customer_auth').select('failed,locked_until').eq('customer_id', a.customer_id).maybeSingle()).data ?? null,
+      read: async () => (await sb.from('punpang_customer_auth').select('failed,locked_until,day_key,day_fails').eq('customer_id', a.customer_id).maybeSingle()).data ?? null,
       casFailed: async (expect, patch) => {
         const r = await sb.from('punpang_customer_auth').update(patch).eq('customer_id', a.customer_id).eq('failed', expect).select('customer_id')
         return !r.error && (r.data || []).length > 0
@@ -288,14 +288,15 @@ Deno.serve(corsWrap(async (req) => {
     }, PIN, a)
     if (!gate.ok) {
       if (gate.reason === 'locked') return json({ error: `ลองผิดเกินกำหนด ล็อกอีก ${Math.max(1, Math.ceil((gate.until - Date.now()) / MIN))} นาที หรือใช้ "ลืม PIN"`, locked: true }, 423)
+      if (gate.reason === 'daily') return json({ error: `ลองผิดครบ ${PIN.dailyMax} ครั้งของวันนี้แล้ว ลองใหม่หลังเที่ยงคืน หรือใช้ "ลืม PIN"`, locked: true }, 423)
       return json({ error: 'มีการเข้าสู่ระบบหลายคำขอพร้อมกัน กรุณารอสักครู่แล้วลองใหม่' }, 429)
     }
     if (!safeEq(await pbkdf2(pin, a.pin_salt), a.pin_hash)) {
       loginIpFails.set(ip, [...(loginIpFails.get(ip) || []), Date.now()])
-      if (gate.n >= PIN.maxFails) return json({ error: `ใส่ PIN ผิดครบ ${PIN.maxFails} ครั้ง ล็อก ${PIN.lockMs / MIN} นาที หรือใช้ "ลืม PIN"`, locked: true }, 423) // ล็อกถูกตั้งไว้ตอนจองครั้งสุดท้ายแล้ว
+      if (gate.lockMs) return json({ error: `ใส่ PIN ผิดครบ ${gate.n} ครั้ง ล็อก ${Math.ceil(gate.lockMs / MIN)} นาที หรือใช้ "ลืม PIN"`, locked: true }, 423) // ล็อกถูกตั้งไว้ตอนจองครั้งนี้แล้ว (เวลาล็อกนานขึ้นเมื่อผิดซ้ำ)
       return json({ error: `เบอร์โทรหรือ PIN ไม่ถูกต้อง (เหลือ ${PIN.maxFails - gate.n} ครั้ง)` }, 401)
     }
-    await sb.from('punpang_customer_auth').update({ failed: 0, locked_until: null }).eq('customer_id', a.customer_id)
+    await sb.from('punpang_customer_auth').update({ failed: 0, locked_until: null, day_fails: 0 }).eq('customer_id', a.customer_id)
     const session = await newSession(a.customer_id)
     return json({ ok: true, session, ...(await bundle(a.customer_id)) })
   }
@@ -310,7 +311,7 @@ Deno.serve(corsWrap(async (req) => {
     const weak = weakPin(String(b.pin ?? ''), ph.local)
     if (weak) return json({ error: weak }, 400)
     const salt = randHex(16)
-    await sb.from('punpang_customer_auth').update({ pin_salt: salt, pin_hash: await pbkdf2(String(b.pin), salt), failed: 0, locked_until: null }).eq('customer_id', a.customer_id)
+    await sb.from('punpang_customer_auth').update({ pin_salt: salt, pin_hash: await pbkdf2(String(b.pin), salt), failed: 0, locked_until: null, day_fails: 0 }).eq('customer_id', a.customer_id)
     await sb.from('punpang_otps').update({ used: true }).eq('id', o.id)
     await sb.from('punpang_customer_sessions').delete().eq('customer_id', a.customer_id) // ออกจากระบบทุกเครื่อง
     return json({ ok: true })
@@ -330,7 +331,7 @@ Deno.serve(corsWrap(async (req) => {
     const salt = randHex(16)
     const hash = await pbkdf2(String(b.pin), salt)
     if (a) {
-      await sb.from('punpang_customer_auth').update({ pin_salt: salt, pin_hash: hash, failed: 0, locked_until: null }).eq('customer_id', a.customer_id)
+      await sb.from('punpang_customer_auth').update({ pin_salt: salt, pin_hash: hash, failed: 0, locked_until: null, day_fails: 0 }).eq('customer_id', a.customer_id)
       await sb.from('punpang_customer_sessions').delete().eq('customer_id', a.customer_id)
       return json({ ok: true })
     }
@@ -424,7 +425,7 @@ Deno.serve(corsWrap(async (req) => {
       const weak = weakPin(String(b.pin ?? ''), me.phone)
       if (weak) return json({ error: weak }, 400)
       const salt = randHex(16)
-      await sb.from('punpang_customer_auth').update({ pin_salt: salt, pin_hash: await pbkdf2(String(b.pin), salt), failed: 0, locked_until: null }).eq('customer_id', cid)
+      await sb.from('punpang_customer_auth').update({ pin_salt: salt, pin_hash: await pbkdf2(String(b.pin), salt), failed: 0, locked_until: null, day_fails: 0 }).eq('customer_id', cid)
       await sb.from('punpang_otps').update({ used: true }).eq('id', o.id)
       await sb.from('punpang_customer_sessions').delete().eq('customer_id', cid).neq('token_hash', await sha256Hex(`custsess:${String(b.session)}`)) // ออกจากเครื่องอื่น เหลือเครื่องนี้
     } else if (action === 'change_phone') {

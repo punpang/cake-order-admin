@@ -1,0 +1,70 @@
+name: Deploy DB 2026-11-21 (PIN รายวัน · เวลานัดรับ · ยอดคงค้าง)
+
+# รันเองเท่านั้น: GitHub → Actions → Deploy DB 2026-11-21 → Run workflow · เลือก branch main เท่านั้น
+#   batch D: 20261120160000 (ตัวนับ PIN รายวัน) + 20261120170000 (กติกาเวลานัดรับ) + 20261120180000 (ยอดคงค้างคำนวณที่ฐานข้อมูล) ในธุรกรรมเดียว
+# ลำดับ deploy: ชุดนี้ก่อน แล้วค่อย deploy customer-auth (ฟังก์ชันอ่านคอลัมน์ตัวนับรายวันใหม่)
+# ต้องมี secret SUPABASE_DB_URL ใน environment production · พิมพ์ RUN ให้ตรง
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'พิมพ์ RUN เพื่อยืนยัน'
+        required: true
+        type: string
+      batch:
+        description: 'ชุดที่รัน (D)'
+        required: true
+        type: choice
+        options:
+          - D
+
+concurrency:
+  group: deploy-db-2026-11-21
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CONFIRM: ${{ github.event.inputs.confirm }}
+      BATCH: ${{ github.event.inputs.batch }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PGSSLMODE: require
+    steps:
+      - name: รันจาก main เท่านั้น
+        run: '[ "$GITHUB_REF" = "refs/heads/main" ] || { echo "รันได้เฉพาะจาก main"; exit 1; }'
+
+      - name: ตรวจการยืนยันและ secret
+        run: |
+          if [ "$CONFIRM" != "RUN" ]; then echo "ยังไม่ได้พิมพ์ RUN เพื่อยืนยัน จึงไม่รัน"; exit 1; fi
+          if [ -z "$SUPABASE_DB_URL" ]; then echo "ยังไม่ได้ตั้ง secret SUPABASE_DB_URL ใน environment production"; exit 1; fi
+
+      - uses: actions/checkout@v4
+
+      - name: ติดตั้ง psql
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+
+      - name: ตรวจสภาพฐานข้อมูลก่อนรัน
+        run: |
+          s=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from information_schema.schemata where schema_name = 'punpang_test'")
+          [ "$s" = "1" ] || { echo "ไม่พบสคีมา punpang_test บน production (migration นี้ต้องการ)"; exit 1; }
+          t=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'punpang_customer_auth' and column_name = 'locked_until'")
+          [ "$t" = "1" ] || { echo "ไม่พบตาราง punpang_customer_auth ที่มีคอลัมน์ locked_until"; exit 1; }
+          b=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'punpang_orders' and column_name = 'balance'")
+          [ "$b" = "1" ] || { echo "ไม่พบคอลัมน์ balance ของ punpang_orders"; exit 1; }
+          f=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname in ('punpang__bill_total', 'punpang__paid_confirmed', 'punpang_has_perm', 'punpang_orders_field_guard')")
+          [ "$f" = "4" ] || { echo "ฟังก์ชันที่ migration ต้องใช้ไม่ครบ (พบ $f จาก 4)"; exit 1; }
+
+      - name: รัน SQL (ธุรกรรมเดียว)
+        run: |
+          psql "$SUPABASE_DB_URL" -X -q -v ON_ERROR_STOP=1 -1 -f supabase/migrations/20261120160000_punpang_pin_daily_cap.sql -f supabase/migrations/20261120170000_punpang_pickup_guard.sql -f supabase/migrations/20261120180000_punpang_orders_balance_sync.sql
+
+      - name: ตรวจผลหลังรัน
+        run: |
+          c=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'punpang_customer_auth' and column_name in ('day_key', 'day_fails')")
+          [ "$c" = "2" ] || { echo "คอลัมน์ตัวนับรายวันไม่ครบ (พบ $c จาก 2)"; exit 1; }
+          g=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from pg_trigger t join pg_class r on r.oid = t.tgrelid join pg_namespace n on n.oid = r.relnamespace where n.nspname = 'public' and r.relname = 'punpang_orders' and t.tgname = 'zz_punpang_orders_balance' and not t.tgisinternal")
+          [ "$g" = "1" ] || { echo "ไม่พบทริกเกอร์ยอดคงค้าง zz_punpang_orders_balance"; exit 1; }
+          echo "ผ่าน: ชุด $BATCH รันเสร็จ"

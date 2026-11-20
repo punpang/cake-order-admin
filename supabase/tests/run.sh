@@ -95,6 +95,16 @@ qcode=$?
 [ "$qcode" = "0" ] && echo "✓ quote_order.test.sql ผ่านทั้งหมด" || echo "✗ quote_order.test.sql ล้มเหลว"
 [ "$qcode" = "0" ] || exit "$qcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/pickup_guard.test.sql
+pgcode=$?
+[ "$pgcode" = "0" ] && echo "✓ pickup_guard.test.sql ผ่านทั้งหมด" || echo "✗ pickup_guard.test.sql ล้มเหลว"
+[ "$pgcode" = "0" ] || exit "$pgcode"
+
+"${PSQL[@]}" -d "$DB" -f supabase/tests/balance_sync.test.sql
+bscode=$?
+[ "$bscode" = "0" ] && echo "✓ balance_sync.test.sql ผ่านทั้งหมด" || echo "✗ balance_sync.test.sql ล้มเหลว"
+[ "$bscode" = "0" ] || exit "$bscode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"

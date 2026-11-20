@@ -5,6 +5,7 @@
 import { orderNo } from './slipref.ts'
 import { autoConfirmOf, buildSlipPayment, classifyThaiQr, daysUntilPickup, latestOrderId, orderTotals, planAttach, slipKeyOf } from './slip.ts'
 import { slipChecksOf } from './schedlib/slipChecks.js'
+import { balanceOf } from './schedlib/orderCreate.js'
 import { IMAGE_AUTO_CONFIRM, accountCheckOf, configuredAccountsOf, confirmSlipPayment } from './slipautoconfirm.ts'
 import { readQrTexts } from './qrimage.ts'
 import { bankByCode, normalizeRef, paidAtFromMessage, refTaken } from './payfields.ts'
@@ -270,7 +271,7 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
   const discardStaged = async () => { if (stagedKey) await svcDelete(files, [stagedKey]) }
 
   for (let attempt = 0; attempt < 3; attempt++) {
-    const or = await sb.from('punpang_orders').select('id,code,status,customer_id,data,updated_at').eq('id', orderId).maybeSingle()
+    const or = await sb.from('punpang_orders').select('id,code,status,customer_id,fulfillment,data,updated_at').eq('id', orderId).maybeSingle()
     if (or?.error) { await discardStaged(); return 'error' }
     if (!or?.data) { await discardStaged(); return finish('order_missing') }
     const row = or.data
@@ -330,7 +331,8 @@ export async function checkSlipImage(input: SlipJobInput): Promise<SlipOutcome> 
     const status = autoConfirm
       ? (['awaiting_payment', 'payment_reported'].includes(row.status) ? 'payment_confirmed' : row.status)
       : (row.status === 'awaiting_payment' ? 'payment_reported' : row.status)
-    const up = await sb.from('punpang_orders').update({ data: next, status }).eq('id', row.id).eq('updated_at', row.updated_at).select('id')
+    // ยอดคงค้างคำนวณด้วยสูตรเดียวกับแอป (ค่าส่งอยู่ที่คอลัมน์ fulfillment จึงส่งเข้าไปด้วย)
+    const up = await sb.from('punpang_orders').update({ data: next, status, balance: balanceOf({ ...next, fulfillment: row.fulfillment }) }).eq('id', row.id).eq('updated_at', row.updated_at).select('id')
     if (up?.error) {
       await discardStaged()
       // ชนกับตัวกันเลขอ้างอิงซ้ำระดับฐานข้อมูล (SQLSTATE 23505) = สลิปซ้ำจริง ไม่ใช่ระบบขัดข้อง

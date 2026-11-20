@@ -10,6 +10,7 @@ import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { buildCreditNote, buildInvoice, cleanBuyer, customerInvoiceState, customerIssueBlock } from '../_shared/schedlib/taxInvoice.js'
 
 const DAY = 86400000
+const TAX_VIEW_MAX_DAYS = 30 // ลิงก์ดูใบกำกับภาษีหมดอายุเด็ดขาดหลังสร้างกี่วัน (นอกจากหมดอายุแบบไม่ได้เปิดดูตาม linkPolicy)
 const enc = new TextEncoder()
 const hex = (b: ArrayBuffer | Uint8Array) => [...new Uint8Array(b as ArrayBuffer)].map((x) => x.toString(16).padStart(2, '0')).join('')
 const sha256Hex = async (s: string) => hex(await crypto.subtle.digest('SHA-256', enc.encode(s)))
@@ -60,7 +61,8 @@ async function linkOrderId(sb: any, token: string): Promise<string | null> {
   const idle = days(pol.idleDays, 7)
   const never = days(pol.neverOpenedDays, 30)
   const expires = link.lastOpenedAt ? new Date(link.lastOpenedAt).getTime() + idle * DAY : new Date(link.createdAt).getTime() + never * DAY
-  if (link.revokedAt || !(Date.now() <= expires)) return null
+  const absoluteEnd = new Date(link.createdAt).getTime() + TAX_VIEW_MAX_DAYS * DAY
+  if (link.revokedAt || !(Date.now() <= expires) || !(Date.now() <= absoluteEnd)) return null
   return String(link.orderId)
 }
 
@@ -89,7 +91,11 @@ Deno.serve(corsWrap(async (req) => {
       if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return json({ error: LINK_GONE }, 404)
       const orderId = await linkOrderId(sb, token)
       if (!orderId) return json({ error: LINK_GONE }, 404)
-      const history = (await loadInvoices(sb, orderId)).sort((x, y) => String(x.createdAt || '').localeCompare(String(y.createdAt || '')))
+      // ลิงก์ลูกค้าเห็นเฉพาะใบกำกับภาษีที่ใช้งานอยู่ (ไม่รวมใบที่ถูกยกเลิกหรือใบลดหนี้) และไม่ส่งข้อมูลภายในของระบบ
+      const history = (await loadInvoices(sb, orderId))
+        .sort((x, y) => String(x.createdAt || '').localeCompare(String(y.createdAt || '')))
+        .filter((x) => x.type === 'invoice' && !x.voidedBy)
+        .map(({ by: _by, orderId: _oid, refId: _ref, rev: _rev, copies: _copies, createdAt: _at, ...doc }) => doc)
       return json({ ok: true, history })
     }
 

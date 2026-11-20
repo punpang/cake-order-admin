@@ -78,6 +78,30 @@ Deno.test('ลิงก์ออร์เดอร์ที่ถูกต้อ
   assertEquals(r.body.history, [])
 })
 
+Deno.test('ลิงก์ดูได้เฉพาะใบกำกับภาษีที่ใช้งานอยู่ (ไม่รวมใบที่ยกเลิกและใบลดหนี้) และไม่ส่งข้อมูลภายในของระบบ', async () => {
+  await seed()
+  const db = (globalThis as any).__DB
+  db.t['public.punpang_acct_invoices'] = [
+    { id: 'i1', no: 'TI-1', order_id: ORDER, data: { type: 'invoice', date: '2026-11-10', buyer: { name: 'เก่า' }, orderId: ORDER, by: 'staff-1', rev: 1, copies: 0, createdAt: '2026-11-10T01:00:00.000Z', voidedBy: 'staff-2' } },
+    { id: 'i2', no: 'TI-2', order_id: ORDER, data: { type: 'invoice', date: '2026-11-11', buyer: { name: 'ใหม่' }, orderId: ORDER, by: 'cust-1', rev: 2, copies: 0, createdAt: '2026-11-11T01:00:00.000Z' } },
+    { id: 'c1', no: 'CN-1', order_id: ORDER, data: { type: 'credit', refId: 'i2', refNo: 'TI-2', date: '2026-11-12', buyer: { name: 'ใหม่' }, orderId: ORDER, by: 'staff-1', copies: 0, createdAt: '2026-11-12T01:00:00.000Z' } },
+  ]
+  const r = await call({ action: 'view', token: LINK })
+  assertEquals(r.status, 200)
+  assertEquals(r.body.history.map((d: any) => d.no), ['TI-2'])
+  for (const f of ['by', 'orderId', 'rev', 'copies', 'createdAt', 'refId']) assert(!(f in r.body.history[0]), f)
+  assertEquals(r.body.history[0].buyer.name, 'ใหม่')
+})
+
+Deno.test('ลิงก์ดูใบกำกับภาษีหมดอายุเด็ดขาด 30 วันหลังสร้าง แม้เพิ่งเปิดดูเมื่อวานก็ตาม', async () => {
+  await seed()
+  const rec = (globalThis as any).__DB.t['public.punpang_records'][0]
+  rec.data = { ...rec.data, createdAt: new Date(Date.now() - 31 * 86400e3).toISOString(), lastOpenedAt: new Date(Date.now() - 3600e3).toISOString() }
+  const r = await call({ action: 'view', token: LINK })
+  assertEquals(r.status, 404)
+  assertEquals(r.body.error, 'ลิงก์ไม่ถูกต้องหรือหมดอายุแล้ว')
+})
+
 Deno.test('ไม่มีเซสชันลูกค้า → 401 ให้เข้าสู่ระบบก่อน', async () => {
   await seed()
   assertEquals((await call({ action: 'state', orderId: ORDER })).status, 401)

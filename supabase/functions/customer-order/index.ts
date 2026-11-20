@@ -12,6 +12,7 @@ import { notifyPaymentConfirmed } from '../_shared/payconfirm.ts'
 import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
 import { customerChatList, customerChatPhoto, customerChatRead, customerChatSend, customerChatTyping } from '../_shared/customerchat.ts'
 import { customerPushRegister } from '../_shared/customerpush.ts'
+import { balanceOf } from '../_shared/schedlib/orderCreate.js'
 import { clientIp, createLimiter } from '../_shared/ratelimit.ts'
 import { readSlipQr } from '../_shared/slipread.ts'
 import { ocrFlagsOf, readSlipFields, readSlipFieldsWorkersAI, type OcrEngine } from '../_shared/slipocr.ts'
@@ -476,7 +477,7 @@ Deno.serve(corsWrap(async (req) => {
     }
 
     // เขียนแบบเทียบ updated_at: ถ้าพนักงานแก้ออร์เดอร์พร้อมกัน แถวไม่ตรง → อ่านใหม่แล้วทำซ้ำ
-    const up = await sb.from('punpang_orders').update({ data: d, status: newStatus }).eq('id', row.id).eq('updated_at', row.updated_at).select('id')
+    const up = await sb.from('punpang_orders').update({ data: d, status: newStatus, balance: balanceOf({ ...d, fulfillment: row.fulfillment }) }).eq('id', row.id).eq('updated_at', row.updated_at).select('id')
     if (up.error || !(up.data || []).length) {
       if (newSlipPath) await svcDelete(filesEnv(), [newSlipPath]) // รอบหน้าอัปโหลดใหม่ (ไม่ทิ้งไฟล์ค้าง)
       if (up.error) return json({ error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' }, 500)

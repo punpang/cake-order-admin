@@ -260,6 +260,7 @@ Deno.test('ลูกค้าแนบสลิปก่อน แล้วถ�
   assertEquals([res.done, res.auto], [true, true])
   const o = sb.T.punpang_orders[0]
   assertEquals([o.status, o.data.payments.length, o.data.payments[0].status, o.data.payments[0].customerSubmitted], ['payment_confirmed', 1, 'confirmed', true])
+  assertEquals(o.balance, 0) // ยืนยันจนครบยอด → ยอดคงค้างต้องอัปเดตตามทันที (เดิมค้างค่าเดิม)
 })
 
 Deno.test('รหัสสุ่มตรงแต่ยอดสลิปไม่ตรงกับรายการที่ยืนยันแล้ว → ไม่รวมเข้ารายการเดิม ส่งให้พนักงานตรวจ', async () => {
