@@ -449,7 +449,10 @@ export async function loadOneOrder(id) {
   const r = await m.loadOrdersByIds(client, [id])
   if (r.error || !r.items?.length) return
   m.pinOrderId(id)
-  store.db.orders.push(...r.items)
+  // รวมผ่านตัวซิงก์ (ถือเป็นแถวที่มีบนเซิร์ฟเวอร์แล้ว) · ใส่ตรง ๆ = ตัวซิงก์เข้าใจว่าเป็นออร์เดอร์ใหม่แล้วเขียนกลับโดยไม่จำเป็น
+  const oh = syncs.find((x) => x && x.label === 'ออร์เดอร์')
+  if (!oh?.merge) { store.db.orders.push(...r.items); return }
+  if (!oh.merge(r.items)) { await waitSaved(); oh.merge(r.items) } // กำลังบันทึก → รอแล้วรวมใหม่
 }
 export async function reloadStaffData() { if (staffState.staff) await startData(staffState.staff) }
 // ดึงข้อมูลล่าสุดของตารางที่ระบุจากเซิร์ฟเวอร์ทันที (เช่น ก่อนขาย POS: สต็อก/กะ) · ข้ามตารางที่มีแก้ค้างในเครื่อง

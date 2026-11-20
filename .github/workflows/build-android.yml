@@ -48,3 +48,4 @@ jobs:
           name: cake-admin-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 7 # ลบเองหลัง 7 วัน (กันพื้นที่เก็บไฟล์ของ Actions เกินโควตา)
