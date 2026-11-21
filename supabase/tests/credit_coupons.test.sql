@@ -92,7 +92,7 @@ select test.ok('C13: แปลงซ้ำเมื่อไม่มีคะ�
   and test.rpc_as('55555555-5555-5555-5555-555555555555', $q$ select public.punpang_convert_points_to_coupon('cc_c2') $q$)->>'error' = 'no_points'
   and test.rpc_as('55555555-5555-5555-5555-555555555555', $q$ select public.punpang_convert_points_to_coupon('cc_nobody') $q$)->>'error' = 'no_customer');
 select test.ok('C14: RPC ใช้คะแนนลดราคาเดิมถูกปิดแล้ว (retired)',
-  test.rpc_as('55555555-5555-5555-5555-555555555555', $q$ select public.punpang_apply_points('cc_leg', 10) $q$)->>'error' = 'retired');
+  test.rpc_as('55555555-5555-5555-5555-555555555555', $q$ select public.punpang_apply_points('cc_leg', 10) $q$)->>'exception' = '42501');
 select test.ok('C14: RPC ที่ปิดแล้วไม่ตัดคะแนนของลูกค้า (ยังเหลือ 60)',
   (select sum((e->>'remaining')::int) = 60 from public.punpang_customers c, jsonb_array_elements(c.data->'ledger') e where c.id = 'cc_c3' and (e->>'delta')::int > 0));
 
