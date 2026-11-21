@@ -69,7 +69,8 @@ for (const test of [true, false]) {
     setup(test)
     const r = await createQuoteRemote(client(), 'ch1', structuredClone(ref.draft))
     const p = await pushOrders(client(), { upserts: [orderFromQuote(r.quote, numbering.next('OR'))] }, { numbering })
-    assertStringIncludes(p.error, 'ยังไม่พร้อมแปลงเป็นออร์เดอร์')
+    assertEquals(p.error, undefined) // การปฏิเสธถาวรไม่คืน error (ไม่บล็อกชุด) แต่รายงานใน rejected
+    assertStringIncludes(p.rejected?.[0]?.message ?? '', 'ยังไม่พร้อมแปลงเป็นออร์เดอร์')
     assertEquals(fake.t[`${schemaOf(test)}.punpang_orders`] ?? [], [])
   })
 
@@ -80,7 +81,8 @@ for (const test of [true, false]) {
     assertEquals(await pushOrders(client(), { upserts: [orderFromQuote(r.quote, numbering.next('OR'))] }, { numbering }), { ok: true })
     // ออร์เดอร์ที่สองจากใบเดิม (เช่น สองแท็บ/สองเครื่องแปลงพร้อมกัน หรือกดแปลงซ้ำก่อนผูกใบเสนอ)
     const p = await pushOrders(client(), { upserts: [orderFromQuote(r.quote, numbering.next('OR'))] }, { numbering })
-    assertStringIncludes(p.error, 'ถูกแปลงเป็นออร์เดอร์แล้ว')
+    assertEquals(p.error, undefined)
+    assertStringIncludes(p.rejected?.[0]?.message ?? '', 'ถูกแปลงเป็นออร์เดอร์แล้ว')
     assertEquals(fake.t[`${schemaOf(test)}.punpang_orders`].length, 1)
   })
 
@@ -99,7 +101,8 @@ for (const test of [true, false]) {
     const r = await createQuoteRemote(client(), 'ch1', structuredClone(ref.draft))
     confirm(test, r.quote.id)
     const p = await pushOrders(client(), { upserts: [orderFromQuote(r.quote, numbering.next('OR'), 'ch2')] }, { numbering })
-    assertStringIncludes(p.error, 'ไม่ใช่ของแชทนี้')
+    assertEquals(p.error, undefined)
+    assertStringIncludes(p.rejected?.[0]?.message ?? '', 'ไม่ใช่ของแชทนี้')
   })
 }
 

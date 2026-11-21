@@ -126,10 +126,12 @@ Deno.test('ข้ามโหมด: เลขทดสอบส่งเข้�
   reset()
   const testCode = newOrder(numberingFor(true).next('OR'))
   const r1: any = await pushOrders(appClient('tok-staff', false), { upserts: [testCode] })
-  assertStringIncludes(r1.error, 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง')
+  assertEquals(r1.error, undefined) // การปฏิเสธถาวรไม่คืน error (ไม่บล็อกชุด) แต่รายงานใน rejected
+  assertStringIncludes(r1.rejected?.[0]?.message ?? '', 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง')
   const liveCode = newOrder(numberingFor(false).next('OR'))
   const r2: any = await pushOrders(appClient('tok-staff', true), { upserts: [liveCode] })
-  assertStringIncludes(r2.error, 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง')
+  assertEquals(r2.error, undefined)
+  assertStringIncludes(r2.rejected?.[0]?.message ?? '', 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง')
   assertEquals(rows.length, 0)
 })
 
@@ -150,7 +152,8 @@ Deno.test('สิทธิ์: ไม่ได้ล็อกอิน หรื
   const r1: any = await pushOrders(appClient(null, true), { upserts: [newOrder(numbering.next('OR'))] })
   assertStringIncludes(r1.error, 'ต้องเข้าสู่ระบบพนักงาน')
   const r2: any = await pushOrders(appClient('tok-chat', true), { upserts: [newOrder(numbering.next('OR'))] })
-  assertStringIncludes(r2.error, 'บทบาทนี้สร้างออร์เดอร์ไม่ได้')
+  assertEquals(r2.error, undefined)
+  assertStringIncludes(r2.rejected?.[0]?.message ?? '', 'บทบาทนี้สร้างออร์เดอร์ไม่ได้')
   assertEquals(rows.length, 0)
 })
 
@@ -174,6 +177,7 @@ Deno.test('ลูกค้าที่ถูกลบแล้ว: ออร์�
   const o = newOrder(numbering.next('OR'))
   deletedCustomers.add(o.customerId)
   const r: any = await pushOrders(appClient('tok-staff', false), { upserts: [o] }, { numbering })
-  assertStringIncludes(r.error, 'ไม่พบลูกค้า')
+  assertEquals(r.error, undefined)
+  assertStringIncludes(r.rejected?.[0]?.message ?? '', 'ไม่พบลูกค้า')
   assertEquals(rows.length, 0)
 })
