@@ -31,4 +31,26 @@ select test.ok('CDG3: ออร์เดอร์ที่ไม่ผูกล�
   test.cdg_try($q$ insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values
     ('cdg_o3', 'OR-CDG-3', null, 'pos_pending', 'pickup', 'pos', '{"items":[{"unitPrice":100,"qty":1}],"payments":[]}') $q$) = 'OK');
 
+-- I-2: UPDATE ที่เปลี่ยน customer_id ไปหาลูกค้าที่ถูกลบแล้วต้องถูกบล็อก (เดิมด่านตรวจเฉพาะการแทรก)
+
+-- CDG4: ย้ายออร์เดอร์ที่มีอยู่ (ไม่มีลูกค้า) ไปหาลูกค้าที่ถูกลบแล้ว → ถูกบล็อก
+select test.ok('CDG4: ย้ายออร์เดอร์ที่มีอยู่ไปหาลูกค้าที่ถูกลบแล้ว ถูกบล็อก',
+  test.cdg_try($q$ update public.punpang_orders set customer_id = 'cdg_deleted' where id = 'cdg_o3' $q$) like 'ERR:P0001:punpang_customer_deleted:%');
+
+-- CDG5: ย้ายออร์เดอร์ที่มีอยู่ไปหาลูกค้าปกติ → ทำได้
+select test.ok('CDG5: ย้ายออร์เดอร์ที่มีอยู่ไปหาลูกค้าปกติ ทำได้',
+  test.cdg_try($q$ update public.punpang_orders set customer_id = 'cdg_active' where id = 'cdg_o3' $q$) = 'OK');
+
+-- CDG6: ลูกค้าถูกลบหลังมีออร์เดอร์แล้ว → แก้ข้อมูลอื่นของออร์เดอร์เดิมได้ และส่ง customer_id เดิมซ้ำได้ (แอปส่งค่านี้ทุกครั้งที่บันทึก)
+update public.punpang_customers set data = '{"deleted": true}' where id = 'cdg_active';
+select test.ok('CDG6: ออร์เดอร์เดิมของลูกค้าที่ถูกลบแล้ว แก้ข้อมูลอื่นได้',
+  test.cdg_try($q$ update public.punpang_orders set data = jsonb_set(data, '{note}', '"ทดสอบ"') where id = 'cdg_o2' $q$) = 'OK');
+select test.ok('CDG6: ส่ง customer_id เดิมของลูกค้าที่ถูกลบแล้วซ้ำ ไม่ถูกบล็อก',
+  test.cdg_try($q$ update public.punpang_orders set customer_id = 'cdg_active' where id = 'cdg_o2' $q$) = 'OK');
+
+-- CDG7: ย้ายออร์เดอร์จากลูกค้าที่ถูกลบแล้วไปหาลูกค้าปกติ → ทำได้ (แก้ไขให้หลุดจากลูกค้าที่ถูกลบได้)
+insert into public.punpang_customers (id, name, data) values ('cdg_active2', 'ลูกค้าปกติ 2', '{}');
+select test.ok('CDG7: ย้ายออร์เดอร์จากลูกค้าที่ถูกลบแล้วไปหาลูกค้าปกติ ทำได้',
+  test.cdg_try($q$ update public.punpang_orders set customer_id = 'cdg_active2' where id = 'cdg_o2' $q$) = 'OK');
+
 rollback;
