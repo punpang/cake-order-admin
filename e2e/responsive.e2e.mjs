@@ -25,11 +25,23 @@ try {
   await page.evaluate(() => document.getElementById('e2e-wide')?.remove())
   if (!control) { console.log('FAIL ตัวควบคุม: การตรวจไม่พบการเลื่อนแนวนอนที่ตั้งใจให้เกิด'); process.exitCode = 1; await browser.close(); await server.close(); process.exit() }
   console.log('PASS ตัวควบคุม (ตรวจพบกล่องกว้าง 600px)')
+  // หน้าอาจนำทางระหว่างวัดขนาด (เช่น ส่งไปหน้าล็อกอิน) ทำให้บริบทถูกทำลาย → รอโหลดเสร็จแล้ววัดใหม่ (สูงสุด 3 ครั้ง)
+  const measure = async (fn) => {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await page.evaluate(fn)
+      } catch (e) {
+        if (attempt >= 3 || !/Execution context was destroyed|navigat/i.test(String(e.message))) throw e
+        await page.waitForLoadState('load').catch(() => {})
+        await page.waitForTimeout(250)
+      }
+    }
+  }
   for (const route of STATIC) {
     await page.evaluate((r) => { location.hash = r }, route)
     await page.waitForFunction(() => !document.body.innerText.includes('กำลังเตรียมข้อมูล'), null, { timeout: 60000 })
     await page.waitForTimeout(250)
-    const m = await page.evaluate(() => {
+    const m = await measure(() => {
       const el = document.documentElement
       // ตัวการที่ทำให้กว้างเกิน (ช่วยหาจุดแก้): องค์ประกอบที่ขวาเกินจอ 375px
       const over = [...document.querySelectorAll('body *')]
