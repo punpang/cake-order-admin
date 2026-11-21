@@ -7,6 +7,7 @@ import { dateTime, money } from '../../lib/format'
 import { askConfirm } from '../../lib/confirm'
 import { getSupabase, supabaseEnabled } from '../../lib/supabase.js'
 import { fetchReview, resendReview, saveEditedReview, closeReview, paymentsOf, withPayments, paymentsError, resendBlockers, reviewExtras, needsConfirm } from '../../lib/syncReview'
+import { reasonText, ageText, balanceText, itemsText, billSummary, customerNames } from '../../lib/reviewView.js'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
@@ -23,6 +24,7 @@ const STATUS = {
 }
 const filter = ref('open')
 const rows = ref([])
+const names = ref(new Map()) // รหัสลูกค้า → ชื่อ (ว่าง = อ่านไม่ได้ตามสิทธิ์ ให้แสดงรหัสแทน)
 const loading = ref(false)
 const err = ref('')
 const msg = ref('')
@@ -33,20 +35,30 @@ const shut = reactive({ row: null, note: '', error: '' })
 
 const staffName = (id) => (id ? db.users.find((u) => u.id === id)?.name || 'พนักงาน' : '-')
 const channelName = (c) => (c === 'pos' ? 'หน้าร้าน' : c || '-')
+const customerOf = (r) => names.value.get(r.payload?.customerId) || r.payload?.customerId || '-'
+const reasonOf = (r) => reasonText(r.reason_message)
+const itemsOf = (r) => itemsText(r.edited_payload || r.payload)
+const balanceOf = (r) => balanceText(billSummary(r.edited_payload || r.payload))
 const payOf = (r) => (r.edited_payload || r.payload)?.payments || []
 const blockersOf = (r) => resendBlockers(r.edited_payload || r.payload)
 const extrasOf = (r) => reviewExtras(r.edited_payload || r.payload)
 const confirmNeeded = (r) => needsConfirm(r.edited_payload || r.payload)
 const canResend = (r) => r.channel === 'pos' && !blockersOf(r).length && (!confirmNeeded(r) || !!confirmed[r.id])
+// ข้อความใต้ปุ่มเมื่อปุ่มส่งซ้ำยังกดไม่ได้เพราะยังไม่ได้ติ๊กยืนยัน (เหตุอื่นมีข้อความของตัวเองอยู่แล้ว)
+const sendHint = (r) => (r.status === 'open' && r.channel === 'pos' && !blockersOf(r).length && confirmNeeded(r) && !confirmed[r.id]
+  ? 'ติ๊กช่อง "ตรวจคูปองและส่วนลดของรายการนี้แล้ว" ก่อน จึงส่งซ้ำได้'
+  : '')
 
 async function load() {
   loading.value = true
   err.value = ''
   try {
     if (!supabaseEnabled) { rows.value = []; err.value = 'ต้องเชื่อมต่อฐานข้อมูลจึงจะดูคิวนี้ได้'; return }
-    const r = await fetchReview(await getSupabase(), filter.value)
-    if (r.error) err.value = r.error
-    else rows.value = r.items
+    const client = await getSupabase()
+    const r = await fetchReview(client, filter.value)
+    if (r.error) { err.value = r.error; return }
+    rows.value = r.items
+    names.value = await customerNames(client, r.items.map((x) => x.payload?.customerId))
   } finally { loading.value = false }
 }
 watch(filter, load)
@@ -109,7 +121,7 @@ async function doClose() {
 <template>
   <ManageShell title="คิวรอตรวจออร์เดอร์" :subtitle="`${rows.length} รายการ`" :toolbar="false">
     <div class="mb-4 flex gap-2 overflow-x-auto pb-1">
-      <button v-for="f in FILTERS" :key="f.v" type="button" class="chip" :class="filter === f.v ? 'chip-on' : 'chip-off'" @click="filter = f.v">{{ f.l }}</button>
+      <button v-for="f in FILTERS" :key="f.v" type="button" class="chip" :class="filter === f.v ? 'chip-on' : 'chip-off'" :aria-pressed="filter === f.v" @click="filter = f.v">{{ f.l }}</button>
     </div>
     <p class="mb-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-600">ออร์เดอร์เหล่านี้ระบบไม่รับและมีการเงิน จึงเก็บไว้ที่นี่ก่อนเอาออกจากเครื่องพนักงาน · ตรวจก่อนส่งซ้ำหรือปิดพร้อมเหตุผล</p>
     <p v-if="msg" class="mb-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800" role="status">{{ msg }}</p>
@@ -122,8 +134,12 @@ async function doClose() {
           <b class="min-w-0 flex-1 truncate text-stone-900">{{ r.order_code || r.order_id }}</b>
           <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium" :class="STATUS[r.status][1]">{{ STATUS[r.status][0] }}</span>
         </div>
-        <p class="text-xs text-stone-500">{{ channelName(r.channel) }} · เข้าคิว {{ dateTime(r.created_at) }} · โดย {{ staffName(r.created_by) }}</p>
-        <p class="rounded-xl bg-rose-50 p-2.5 text-sm text-rose-800"><span class="font-medium">ระบบไม่รับ:</span> {{ r.reason_message }}</p>
+        <p class="text-xs text-stone-500">{{ channelName(r.channel) }} · ลูกค้า {{ customerOf(r) }} · เข้าคิว {{ ageText(r.created_at) }} · โดย {{ staffName(r.created_by) }}</p>
+        <div class="rounded-xl bg-rose-50 p-2.5 text-sm text-rose-800">
+          <p class="font-medium">{{ reasonOf(r).label }}</p>
+          <p v-if="reasonOf(r).detail" class="mt-0.5 break-words text-xs">{{ reasonOf(r).detail }}</p>
+        </div>
+        <p v-if="itemsOf(r)" class="text-sm text-stone-600">{{ itemsOf(r) }}</p>
         <ul class="space-y-1 text-sm text-stone-700">
           <li v-for="(p, i) in payOf(r)" :key="'p' + i" class="flex justify-between gap-2">
             <span>{{ p.posMethod || 'ชำระ' }}<template v-if="p.cardConfirmed"> · ยืนยันบัตรแล้ว</template></span>
@@ -139,6 +155,11 @@ async function doClose() {
             <span>ปรับราคาเอง</span><b>{{ money(extrasOf(r).adjustment) }}</b>
           </li>
         </ul>
+        <div v-if="balanceOf(r)" class="space-y-1 border-t border-stone-100 pt-2 text-sm">
+          <p class="flex justify-between gap-2"><span class="text-stone-500">ยอดบิลหลังส่วนลด</span><b>{{ money(billSummary(r.edited_payload || r.payload).total) }}</b></p>
+          <p class="flex justify-between gap-2"><span class="text-stone-500">ชำระแล้ว</span><b>{{ money(billSummary(r.edited_payload || r.payload).paid) }}</b></p>
+          <p class="text-right text-sm font-semibold" :class="balanceOf(r).tone">{{ balanceOf(r).text }}</p>
+        </div>
         <p v-if="blockersOf(r).length && r.status === 'open'" class="rounded-xl bg-amber-50 p-2.5 text-sm text-amber-800">ส่งซ้ำจากคิวไม่ได้: {{ blockersOf(r).join(' · ') }} · ให้ปิดพร้อมเหตุผลแล้วบันทึกใหม่</p>
         <p v-if="r.edited_payload && r.status === 'open'" class="text-xs text-amber-700">แก้การชำระไว้แล้ว ยังไม่ส่ง</p>
 
@@ -152,6 +173,7 @@ async function doClose() {
             <button type="button" class="btn-outline" :disabled="!!acting || r.channel !== 'pos' || blockersOf(r).length > 0" @click="openEdit(r)">แก้การชำระแล้วส่ง</button>
             <button type="button" class="btn-outline" :disabled="!!acting" @click="openClose(r)">ปิดพร้อมเหตุผล</button>
           </div>
+          <p v-if="sendHint(r)" class="text-xs text-stone-600">{{ sendHint(r) }}</p>
         </template>
         <p v-else class="text-xs text-stone-500">
           <template v-if="r.status === 'resent'">ส่งซ้ำเมื่อ {{ dateTime(r.resolved_at) }} โดย {{ staffName(r.resolved_by) }}</template>
