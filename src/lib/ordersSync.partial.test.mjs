@@ -18,7 +18,10 @@ function fakeClient(script) {
       return {
         insert: async (row) => {
           calls.push(row.id)
-          return script[row.id] ? { error: script[row.id] } : { error: null }
+          const s = script[row.id]
+          if (!s) return { error: null }
+          const { httpStatus, ...err } = s // httpStatus = สถานะ HTTP ที่ PostgREST คืนมาในผลลัพธ์
+          return { error: err, status: httpStatus ?? 0 }
         },
       }
     },
@@ -64,6 +67,16 @@ test('ลูกค้ายังไม่ซิงก์ (23503) ลองซ�
   assert.equal(r.rejected, undefined)
   assert.equal(held.size, 0)
   assert.ok(client.calls.every((id) => id === 'fk'))
+})
+
+test('เซสชันหมดอายุ (HTTP 401) เป็นข้อผิดพลาดชั่วคราว: หยุดชุดแล้วลองใหม่ ไม่ปฏิเสธถาวร', async () => {
+  const client = fakeClient({ jwt: { httpStatus: 401, code: 'PGRST301', message: 'JWT expired' } })
+  const held = new Map()
+  const r = await pushOrders(client, { upserts: [order('jwt'), order('later')] }, { held, known: new Set(), slips: new Map() })
+  assert.ok(r.error)
+  assert.equal(r.rejected, undefined)
+  assert.equal(held.size, 0)
+  assert.deepEqual(client.calls, ['jwt'])
 })
 
 test('ข้อผิดพลาดชั่วคราว (เน็ตหลุด) หยุดชุดนี้ และไม่ส่งแถวที่เหลือ', async () => {

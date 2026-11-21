@@ -197,10 +197,11 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
         // แก้แถวเดิมแบบเทียบเวอร์ชัน: มีคนอื่น/ระบบ (เช่น ลูกค้าแจ้งชำระ) แก้ไปก่อน = ไม่เขียนทับ รายงาน conflict
         const c = await casUpdate(client, 'punpang_orders', o.id, (({ id, ...rest }) => rest)(row), o._v)
         if (c.conflict) { conflicts.push(o.id); break }
-        r = c.error ? { error: c.error } : {}
+        r = c.error ? { error: { ...c.error, status: c.status } } : {}
         if (c.ok) withVer(o, c.ver)
       } else if (o.channel === 'pos') {
         r = await client.from('punpang_orders').insert(row) // บิลหน้าร้าน: เขียนตรง (ตรวจหลังบันทึกด้วย pos_audit)
+        if (r.error) r = { error: { ...r.error, status: r.status } } // ส่ง HTTP status ให้ตัวจัดประเภท (401/5xx = ชั่วคราว)
       } else {
         // แถวใหม่: ส่งให้เซิร์ฟเวอร์คิดราคาและบันทึก (order-create) · รับแถวที่บันทึกจริงมาแสดง
         const c = await createOrderRemote(client, o)
@@ -271,6 +272,8 @@ export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCre
     load: () => loadOrders(client),
     loadSince: (since) => loadOrdersSince(client, since),
     keep: keepOrder,
+    // ออร์เดอร์ที่ถูกปฏิเสธยังค้าง → สถานะซิงก์คงเป็นล้มเหลว ให้พนักงานเห็นจนกว่าจะแก้หรือส่งสำเร็จ
+    statusHook: () => (held.size ? `ออร์เดอร์ ${held.size} รายการยังไม่ถูกบันทึกขึ้นเซิร์ฟเวอร์ — แก้ไขหรือยกเลิกแล้วบันทึกใหม่` : null),
     loadByIds: (ids) => loadOrdersByIds(client, ids),
     applyRows: (rows) => { for (const i of rows) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) } if (numbering) numbering.seen(rows.map((i) => i.code), { reset: false }); onCustomerIds?.(rows.map((i) => i.customerId)) },
     push: (changes) => pushOrders(client, changes, {

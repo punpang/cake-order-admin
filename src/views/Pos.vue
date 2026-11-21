@@ -962,7 +962,7 @@ async function sellNow(opts = {}) {
   couponIds.value = []
   discount.value = ''
   // ขายแล้ว (ใบเสร็จแสดงได้) แต่ต้องแจ้งตามจริงถ้ายังบันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ
-  waitSaved().then((r) => { if (!r.ok) showToast(`บิล ${o.code} ยังบันทึกขึ้นเซิร์ฟเวอร์ไม่สำเร็จ (${r.error}) · ระบบจะลองส่งซ้ำเอง ดูสถานะที่แถบด้านบน`, 12000, 'error') })
+  waitSaved().then((r) => { if (!r.ok) showToast(`บิล ${o.code} ยังไม่ถูกบันทึกขึ้นเซิร์ฟเวอร์ (${r.error}) · ตรวจสอบบิลนี้ก่อนปิดการขาย ดูสถานะที่แถบด้านบน`, 12000, 'error') })
   return o
 }
 const print = () => {

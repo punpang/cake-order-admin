@@ -40,7 +40,7 @@ export async function casUpdate(client, table, id, values, ver) {
   let q = client.from(table).update(values, { count: 'exact' }).eq('id', id)
   if (ver) q = q.eq('updated_at', ver)
   const r = await q
-  if (r.error) return { error: r.error }
+  if (r.error) return { error: r.error, status: r.status }
   if (ver && !r.count) return { conflict: true }
   const v = await client.from(table).select('updated_at').eq('id', id).maybeSingle()
   return { ok: true, ver: v.data?.updated_at || null }
@@ -84,6 +84,7 @@ export function tsMs(s) {
 const TRANSIENT_SQLSTATE = new Set(['40001', '40P01', '57014', '53300', '08000', '08003', '08006'])
 export function isTransientError(e) {
   const status = Number(e?.status) || 0
+  if (status === 401) return true // เซสชันหมดอายุ: ต่ออายุหรือเข้าสู่ระบบใหม่แล้วลองใหม่ได้ (ไม่ใช่การปฏิเสธถาวร)
   if (status) return status >= 500 || status === 408 || status === 429
   const code = String(e?.code || '')
   return !code || TRANSIENT_SQLSTATE.has(code)
@@ -96,7 +97,7 @@ export const RETRY_MS = [5000, 15000, 60000]
 // แอปจริง (staffAuth) เปิดไว้: โหลดไม่สำเร็จ = ล้างรายการตัวอย่างในเครื่อง ไม่ให้ดูเหมือนข้อมูลจริง · ค่าเริ่มต้นปิด (เทสต์/การใช้งานอื่นคงข้อมูลเดิม)
 export const syncOptions = { clearOnLoadFail: false }
 let syncSeq = 0
-export async function startSync({ list, replace, load, push, canWrite, onError = () => {}, label = '', debounceMs = 600, poll = false, loadByIds = null, applyRows = null, loadSince = null, keep = null, fullEveryMs = FULL_EVERY_MS, now = () => Date.now() }) {
+export async function startSync({ list, replace, load, push, canWrite, onError = () => {}, label = '', debounceMs = 600, poll = false, loadByIds = null, applyRows = null, loadSince = null, keep = null, fullEveryMs = FULL_EVERY_MS, now = () => Date.now(), statusHook = null }) {
   const t0 = clock()
   const loaded = await load()
   if (loaded.error) {
@@ -112,6 +113,8 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
   let lastFullAt = now()
   const snapshot = new Map(list().map((i) => [i.id, JSON.stringify(i)]))
   const key = label || `ซิงก์${++syncSeq}`
+  // ไม่มีรายการค้าง → สถานะปกติ · statusHook คืนข้อความ (เช่น ออร์เดอร์ที่ถูกปฏิเสธยังค้างอยู่) → คงสถานะล้มเหลว ไม่กลับเป็นปกติเงียบ ๆ
+  const reportOk = () => { const m = statusHook?.(); if (m) syncSet(key, 'failed', m, flush); else syncOk(key) }
   let timer = null
   let retryTimer = null
   let fails = 0
@@ -240,9 +243,9 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
         fails = 0
         // ระหว่างเขียนมีการแก้ใหม่ → เขียนต่ออีกรอบ
         if (diffById(snapshot, list()).upserts.length) again = true
-        syncOk(key)
+        reportOk()
       }
-    } else if (fails) { fails = 0; syncOk(key) } else syncOk(key)
+    } else if (fails) { fails = 0; reportOk() } else reportOk()
     } finally {
       busy = false
     }
