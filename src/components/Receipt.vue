@@ -3,7 +3,7 @@ import { orderNo, money, dateTime } from '../lib/format'
 import { computed, ref, watch } from 'vue'
 import QRCode from 'qrcode'
 import { db, findCustomer, customerPoints } from '../data/store'
-import { receiptFacts } from '../lib/receiptFacts'
+import { receiptFacts, maskPhone } from '../lib/receiptFacts'
 import { getDevice } from '../lib/nativeDevices'
 import { webWidthFor } from '../lib/printConfig'
 
@@ -70,7 +70,10 @@ const f = computed(() => {
     <template v-if="f.customer">
       <div class="my-2 border-t border-dashed border-black" />
       <div class="break-words">{{ f.customer.label }}: {{ f.customer.name }}</div>
-      <div v-if="f.customer.phone">โทร {{ f.customer.phone }}</div>
+      <div v-if="f.customer.phone">
+        <span class="print:hidden">โทร {{ f.customer.phone }}</span>
+        <span class="hidden print:inline">โทร {{ maskPhone(f.customer.phone) }}</span>
+      </div>
       <div v-if="f.customer.earned">ได้รับ {{ f.customer.earned }} คะแนน<template v-if="f.customer.bonus"> (โบนัสโปร +{{ f.customer.bonus }})</template></div>
       <div v-if="f.customer.pointsLeft != null">คะแนนคงเหลือ {{ f.customer.pointsLeft }}</div>
     </template>
