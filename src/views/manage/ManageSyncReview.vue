@@ -126,7 +126,7 @@ async function doClose() {
 <template>
   <ManageShell title="คิวรอตรวจออร์เดอร์" :subtitle="`${rows.length} รายการ`" :toolbar="false">
     <div class="mb-4 flex gap-2 overflow-x-auto pb-1">
-      <button v-for="f in FILTERS" :key="f.v" type="button" class="chip" :class="filter === f.v ? 'chip-on' : 'chip-off'" :aria-pressed="filter === f.v" @click="filter = f.v">{{ f.l }}</button>
+      <button v-for="f in FILTERS" :key="f.v" type="button" class="chip min-h-11" :class="filter === f.v ? 'chip-on' : 'chip-off'" :aria-pressed="filter === f.v" @click="filter = f.v">{{ f.l }}</button>
     </div>
     <p class="mb-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-600">ออร์เดอร์เหล่านี้ระบบไม่รับและมีการเงิน จึงเก็บไว้ที่นี่ก่อนเอาออกจากเครื่องพนักงาน · ตรวจก่อนส่งซ้ำหรือปิดพร้อมเหตุผล</p>
     <p v-if="msg" class="mb-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800" role="status">{{ msg }}</p>
@@ -170,7 +170,7 @@ async function doClose() {
 
         <template v-if="r.status === 'open'">
           <p v-if="r.channel !== 'pos'" class="text-xs text-stone-500">ช่องทางนี้ส่งซ้ำจากหน้านี้ไม่ได้ · ปิดพร้อมเหตุผลแล้วสร้างใหม่ในระบบ</p>
-          <label v-if="confirmNeeded(r)" class="flex items-center gap-2 text-sm text-stone-700">
+          <label v-if="confirmNeeded(r)" class="flex min-h-11 items-center gap-2 text-sm text-stone-700">
             <input v-model="confirmed[r.id]" type="checkbox" class="h-5 w-5" /> ตรวจคูปองและส่วนลดของรายการนี้แล้ว
           </label>
           <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -198,7 +198,7 @@ async function doClose() {
             <span class="text-sm text-stone-500">฿</span>
             <button type="button" class="btn-outline h-11 px-3" :class="edit.off[i] ? 'text-emerald-700' : 'text-rose-700'" :aria-pressed="!!edit.off[i]" @click="edit.off[i] = !edit.off[i]">{{ edit.off[i] ? 'เลิกทำ' : 'ขีดฆ่า' }}</button>
           </div>
-          <label v-if="p.posMethod === 'card' && !edit.off[i]" class="flex items-center gap-2 text-sm text-stone-700">
+          <label v-if="p.posMethod === 'card' && !edit.off[i]" class="flex min-h-11 items-center gap-2 text-sm text-stone-700">
             <input v-model="p.cardConfirmed" type="checkbox" class="h-5 w-5" /> ตรวจสลิปบัตรแล้ว ยืนยันว่ารับเงินบัตรจริง
           </label>
         </div>
