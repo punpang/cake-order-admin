@@ -1,5 +1,5 @@
 import { corsWrap } from '../_shared/cors.ts'
-import { modeOf, restProfileHeaders } from '../_shared/mode.ts'
+import { modeOf, refuseInTest, restProfileHeaders } from '../_shared/mode.ts'
 import { pickFollowedLineUser, pushPayload } from '../_shared/linepush.ts'
 
 // Edge Function: ส่งข้อความ LINE ถึงลูกค้าที่ผูก LINE แล้ว (ช่องทางเสริม · SMS ยังเป็นช่องทางหลัก)
@@ -33,6 +33,9 @@ async function activeStaff(req: Request, mode: string): Promise<boolean> {
 
 Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok')
+  // โหมดทดสอบห้ามส่ง LINE ถึงลูกค้าจริง (LINE ไม่มีรายชื่อผู้รับทดสอบ) · ตอบก่อนอ่านข้อมูลหรือเรียก LINE
+  const refused = refuseInTest(modeOf(req))
+  if (refused) return refused
   if (req.method !== 'POST') return json({ error: 'ไม่รองรับคำขอนี้' }, 405)
   if (!SUPABASE_URL || !ANON || !SERVICE) return json({ error: 'เซิร์ฟเวอร์ยังตั้งค่าไม่ครบ' }, 500)
   if (!LINE_TOKEN) return json({ error: 'ยังไม่ได้ตั้งค่า LINE' }, 500)

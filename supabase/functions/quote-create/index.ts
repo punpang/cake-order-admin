@@ -76,7 +76,7 @@ Deno.serve(corsWrap(async (req) => {
   const chats = await rest(`punpang_chats?id=eq.${chatId}&select=id,customer_id`, rh)
   if (!chats) return json({ error: 'อ่านข้อมูลแชทไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
   if (!chats.length) return json({ error: 'ไม่พบแชท' }, 404)
-  const catalog = await loadCatalog(SUPABASE_URL, SERVICE_HEADERS)
+  const catalog = await loadCatalog(SUPABASE_URL, { ...SERVICE_HEADERS, ...rh }) // โหมดทดสอบ: ราคาจากสำเนาทดสอบ
   if (!catalog) return json({ error: 'อ่านแคตาล็อกไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
 
   const now = Date.now()

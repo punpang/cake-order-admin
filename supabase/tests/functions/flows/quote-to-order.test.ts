@@ -33,6 +33,9 @@ function setup(test: boolean) {
   fake.reset()
   reviews.length = 0
   seedCatalog(fake, (golden as any).catalog)
+  // สำเนาทดสอบมีแคตาล็อกชุดเดียวกับจริง (การซิงก์คัดลอกค่าตั้งค่าและสินค้า) · ใบเสนอในโหมดทดสอบคิดราคาจากสำเนานี้
+  fake.t['punpang_test.punpang_kv'] = structuredClone(fake.t['public.punpang_kv'])
+  fake.t['punpang_test.punpang_items'] = structuredClone(fake.t['public.punpang_items'])
   fake.t[`${schemaOf(test)}.punpang_chats`] = [{ id: 'ch1', customer_id: CUST }, { id: 'ch2', customer_id: 'other-cust' }]
   fake.t[`${schemaOf(test)}.punpang_customers`] = [{ id: CUST, deleted: false }]
 }
