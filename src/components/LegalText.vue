@@ -1,6 +1,6 @@
 <script setup>
-import { computed } from 'vue'
-import { db, legalVars } from '../data/store'
+import { computed, ref } from 'vue'
+import { db, legalVars, loadLegalDefaultTexts } from '../data/store'
 import { fillLegal, parseLegal } from '../lib/legalDefaults'
 
 // แสดงข้อความกฎหมาย (ไม่ใช้ v-html) · mark = ไฮไลต์ช่องที่ยังไม่ได้กรอก (หน้าแอดมิน)
@@ -8,12 +8,16 @@ import { fillLegal, parseLegal } from '../lib/legalDefaults'
 const props = defineProps({ kind: { type: String, default: '' }, text: { type: String, default: '' }, mark: { type: Boolean, default: false }, level: { type: Number, default: 3 } })
 const filled = computed(() => fillLegal(props.kind ? db.legal.docs[props.kind]?.text : props.text, legalVars(), props.mark))
 const blocks = computed(() => parseLegal(filled.value.text))
+// ข้อความฉบับมาตรฐานโหลดเมื่อหน้านี้แสดงเอกสาร (ไม่โหลดตอนเปิดแอป)
+const loading = ref(!!props.kind)
+if (props.kind) loadLegalDefaultTexts().catch(() => {}).finally(() => { loading.value = false })
 defineExpose({ missing: computed(() => filled.value.missing) })
 const parts = (s) => s.split(/(【[^】]+】)/).filter(Boolean)
 </script>
 
 <template>
   <div class="space-y-2 text-sm leading-relaxed text-stone-700">
+    <p v-if="loading && !blocks.length" class="text-stone-400">กำลังโหลดข้อความ…</p>
     <template v-for="(b, i) in blocks" :key="i">
       <component :is="`h${level === 2 ? 2 : 3}`" v-if="b.t === 'h'" class="pt-3 text-base font-semibold text-stone-900">{{ b.s }}</component>
       <ul v-else-if="b.t === 'ul'" class="list-disc space-y-1 pl-5">

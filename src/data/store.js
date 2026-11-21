@@ -4658,18 +4658,22 @@ export function quickMember({ name, phone, agreed }) {
 
 // ---------- ข้อความกฎหมาย + การยินยอม ----------
 export const legalDoc = (kind) => db.legal.docs[kind]
-// ข้อความฉบับมาตรฐานอยู่ในไฟล์แยก (legalTexts.js) ไม่ฝังในโค้ดหลัก: main.js โหลดก่อนวาดแอป · ใส่เฉพาะฉบับที่ยังว่าง (ข้อความที่ร้านบันทึกไว้ไม่ถูกทับ)
+// ข้อความฉบับมาตรฐานอยู่ในไฟล์แยก (legalTexts.js) ไม่ฝังในโค้ดหลัก · โหลดเมื่อหน้าที่แสดงข้อความกฎหมายเปิด (LegalText / ManageLegal) · ใส่เฉพาะฉบับที่ยังว่าง (ข้อความที่ร้านบันทึกไว้ไม่ถูกทับ)
 const LEGAL_DEFAULT_NAMES = { privacy: 'DEFAULT_PRIVACY', terms: 'DEFAULT_TERMS', cookie: 'DEFAULT_COOKIE' }
 export async function legalDefaultText(kind) {
   const name = LEGAL_DEFAULT_NAMES[kind]
   return name ? (await import('../lib/legalTexts.js'))[name] : ''
 }
-export async function loadLegalDefaultTexts() {
-  const t = await import('../lib/legalTexts.js')
-  for (const [k, name] of Object.entries(LEGAL_DEFAULT_NAMES)) {
-    const d = db.legal?.docs?.[k]
-    if (d && !d.text) d.text = t[name]
-  }
+let legalDefaultsLoad = null // โหลดครั้งเดียว เรียกซ้ำได้โดยไม่โหลดซ้ำ
+export function loadLegalDefaultTexts() {
+  legalDefaultsLoad ||= (async () => {
+    const t = await import('../lib/legalTexts.js')
+    for (const [k, name] of Object.entries(LEGAL_DEFAULT_NAMES)) {
+      const d = db.legal?.docs?.[k]
+      if (d && !d.text) d.text = t[name]
+    }
+  })().catch((e) => { legalDefaultsLoad = null; throw e })
+  return legalDefaultsLoad
 }
 // ค่าที่แทนตัวแปร {ชื่อ} ในข้อความ (ดู LEGAL_VARS ใน legalDefaults.js)
 export function legalVars() {

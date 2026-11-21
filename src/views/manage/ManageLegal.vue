@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { db, saveLegal, saveLegalContact, legalVars, consentStats, legalDefaultText } from '../../data/store'
+import { db, saveLegal, saveLegalContact, legalVars, consentStats, legalDefaultText, loadLegalDefaultTexts } from '../../data/store'
 import { LEGAL_KINDS, LEGAL_VARS, fillLegal } from '../../lib/legalDefaults'
 import { dateOnly } from '../../lib/format'
 import { askConfirm } from '../../lib/confirm'
@@ -24,7 +24,9 @@ function load() {
   preview.value = false
   msg.value = err.value = ''
 }
-watch(tab, load, { immediate: true })
+// ข้อความฉบับมาตรฐานโหลดเมื่อเปิดหน้านี้ (ก่อนแสดงช่องแก้ไข)
+async function loadTab() { await loadLegalDefaultTexts().catch(() => {}); load() }
+watch(tab, loadTab, { immediate: true })
 const doc = computed(() => db.legal.docs[tab.value])
 const stats = computed(() => (doc.value ? consentStats(tab.value) : null))
 const missing = computed(() => fillLegal(form.text, legalVars(), true).missing)

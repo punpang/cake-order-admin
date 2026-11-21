@@ -7,7 +7,6 @@ import { supabaseEnabled } from './lib/supabase'
 import { startAutoLabel } from './lib/autoLabel'
 import { startAutoTitle } from './lib/a11yNav'
 import { initStaff } from './lib/staffAuth'
-import { loadLegalDefaultTexts } from './data/store'
 import { installErrorReporting } from './lib/errorReport'
 import './fonts.css' // ฟอนต์ฝังมากับเว็บ (ต้องมาก่อน style.css)
 import './style.css'
@@ -25,14 +24,12 @@ const liffState = String(lineQs.get('liff.state') || '')
 const fromLine = lineQs.get('line') === 'link' || /^\/?line(\?|\/|$)|line=link/.test(liffState)
 if (fromLine && !location.hash) location.replace(`${location.pathname}#/line`)
 
-const legalReady = loadLegalDefaultTexts().catch(() => {}) // ข้อความกฎหมายฉบับมาตรฐานโหลดขนานกับการอ่านเซสชัน
 await initStaff() // โหมด Supabase: อ่านเซสชันพนักงานที่ล็อกอินค้างไว้ก่อนเริ่มนำทาง
 const app = createApp(App).use(router).directive('num', vNum)
 installErrorReporting(app) // ข้อผิดพลาดของแอปพนักงาน → ฐานข้อมูลของร้าน (โหมด Supabase เท่านั้น)
 // รอให้เส้นทางแรกพร้อมก่อนวาดแอป: ถ้าวาดทันที เส้นทางยังว่าง (ไม่มี meta) แอปจะวาดโครงหลังบ้านแวบหนึ่งก่อนสลับเป็นหน้าร้าน/หน้าล็อกอิน
 // ระหว่างรอ ผู้ใช้เห็นข้อความ "กำลังเตรียมข้อมูล…" ใน index.html ต่อไป · นำทางครั้งแรกผิดพลาดก็ยังวาดแอป (ให้ router จัดการต่อ)
 await router.isReady().catch(() => {})
-await legalReady // ข้อความกฎหมายพร้อมก่อนวาดแอป
 app.mount('#app')
 startAutoLabel()
 startAutoTitle()
