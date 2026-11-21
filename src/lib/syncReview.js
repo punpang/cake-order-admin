@@ -53,16 +53,36 @@ async function setOpen(client, id, values) {
 }
 // บันทึกฉบับที่ผู้จัดการแก้การชำระไว้ (ยังไม่ส่ง)
 export const saveEditedReview = (client, row, edited) => setOpen(client, row.id, { edited_payload: edited })
-// ปิดพร้อมเหตุผล (ต้องมีเหตุผล · ฐานข้อมูลตรวจซ้ำอีกชั้น)
-export const closeReview = (client, row, note) => setOpen(client, row.id, { status: 'closed', resolution_note: String(note || '').trim() })
+// ปิดพร้อมเหตุผล: ฐานข้อมูลคืนคูปองที่จองไว้กับออร์เดอร์นี้ให้ลูกค้าใช้ได้อีก และตรวจว่ารายการยังเปิดอยู่
+export async function closeReview(client, row, note) {
+  const r = await client.rpc('punpang_review_close', { p_id: row.id, p_note: String(note || '').trim() })
+  if (r.error) return { error: r.error.message || 'ปิดรายการไม่สำเร็จ' }
+  return { ok: true }
+}
 
 // ส่งซ้ำ: ฐานข้อมูลอ่านต้นฉบับหรือฉบับที่แก้จากคิวเอง (เบราว์เซอร์ไม่ส่งออร์เดอร์) และทำทั้งหมดในธุรกรรมเดียว
-// ผู้จัดการไม่ต้องมีสิทธิ์ pos · ด่านของฐานข้อมูลปฏิเสธเมื่อไม่ผ่าน และรายการยังอยู่ในคิว
-export async function resendReview(client, row) {
-  const r = await client.rpc('punpang_review_resend', { p_id: row.id })
+// confirmed = ผู้จัดการตรวจคูปองและส่วนลดแล้ว (จำเป็นเมื่อมี) · ฐานข้อมูลตรวจซ้ำทุกด่านและปฏิเสธเมื่อไม่ผ่าน รายการยังอยู่ในคิว
+export async function resendReview(client, row, confirmed = false) {
+  const r = await client.rpc('punpang_review_resend', { p_id: row.id, p_confirmed: !!confirmed })
   if (r.error) return { error: r.error.message || 'ส่งซ้ำไม่สำเร็จ' }
   return { ok: true }
 }
+// เหตุที่ส่งซ้ำจากคิวไม่ได้ (แสดงให้ผู้จัดการเห็นก่อนกด · ฐานข้อมูลตรวจซ้ำเสมอ)
+export function resendBlockers(src) {
+  const out = []
+  if (src?.pointsUsed) out.push('มีแต้มที่ใช้')
+  if (src?.loyalty) out.push('มีสิทธิ์สมาชิก')
+  if (src?.quoteId) out.push('มาจากใบเสนอราคา')
+  if ((src?.returns || []).length) out.push('มีการคืนสินค้า')
+  if (src?.cancel) out.push('มีการยกเลิก')
+  return out
+}
+// คูปองและส่วนลดปรับเองที่ผู้จัดการต้องตรวจก่อนส่งซ้ำ
+export function reviewExtras(src) {
+  const coupons = Array.isArray(src?.couponsUsed) ? src.couponsUsed : []
+  return { coupons, adjustment: Number(src?.adjustment?.amount) || 0 }
+}
+export const needsConfirm = (src) => { const x = reviewExtras(src); return x.coupons.length > 0 || x.adjustment !== 0 }
 
 // การชำระเงินที่ผู้จัดการแก้ได้: ยอดและการยืนยันบัตร · ลบรายการได้ · ส่วนอื่นของออร์เดอร์ไม่แก้ที่หน้านี้
 export const paymentsOf = (src) => (src?.payments || []).map((p) => ({ ...p }))

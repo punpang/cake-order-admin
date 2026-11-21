@@ -1,12 +1,12 @@
 <script setup>
-// คิวรอตรวจของผู้จัดการ: ออร์เดอร์ใหม่ที่ระบบไม่รับและมีการเงิน/แต้ม/คูปอง (เก็บจากเครื่องพนักงานก่อนเอาออก)
-// ส่งซ้ำ (บิลหน้าร้าน) · แก้การชำระแล้วส่ง · ปิดพร้อมเหตุผล · ทุกการทำงานบันทึกโดยฐานข้อมูลพร้อมผู้ทำและเวลา
+// คิวรอตรวจของผู้จัดการ: ออร์เดอร์ใหม่ที่ระบบไม่รับและมีการเงิน/คูปอง (เก็บจากเครื่องพนักงานก่อนเอาออก)
+// ส่งซ้ำ (บิลหน้าร้าน) · แก้การชำระแล้วส่ง · ปิดพร้อมเหตุผล (คืนคูปองที่จองไว้) · ทุกการทำงานตรวจและบันทึกโดยฐานข้อมูล
 import { onMounted, reactive, ref, watch } from 'vue'
 import { db } from '../../data/store'
 import { dateTime, money } from '../../lib/format'
 import { askConfirm } from '../../lib/confirm'
 import { getSupabase, supabaseEnabled } from '../../lib/supabase.js'
-import { fetchReview, resendReview, saveEditedReview, closeReview, paymentsOf, withPayments, paymentsError } from '../../lib/syncReview'
+import { fetchReview, resendReview, saveEditedReview, closeReview, paymentsOf, withPayments, paymentsError, resendBlockers, reviewExtras, needsConfirm } from '../../lib/syncReview'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
@@ -27,12 +27,17 @@ const loading = ref(false)
 const err = ref('')
 const msg = ref('')
 const acting = ref('') // รายการที่กำลังดำเนินการ (กันกดซ้ำระหว่างรอฐานข้อมูล)
+const confirmed = reactive({}) // ผู้จัดการติ๊กว่าตรวจคูปอง/ส่วนลดของรายการนี้แล้ว (รายการ id → true)
 const edit = reactive({ row: null, payments: [], error: '' })
 const shut = reactive({ row: null, note: '', error: '' })
 
 const staffName = (id) => (id ? db.users.find((u) => u.id === id)?.name || 'พนักงาน' : '-')
 const channelName = (c) => (c === 'pos' ? 'หน้าร้าน' : c || '-')
 const payOf = (r) => (r.edited_payload || r.payload)?.payments || []
+const blockersOf = (r) => resendBlockers(r.edited_payload || r.payload)
+const extrasOf = (r) => reviewExtras(r.edited_payload || r.payload)
+const confirmNeeded = (r) => needsConfirm(r.edited_payload || r.payload)
+const canResend = (r) => r.channel === 'pos' && !blockersOf(r).length && (!confirmNeeded(r) || !!confirmed[r.id])
 
 async function load() {
   loading.value = true
@@ -47,7 +52,7 @@ async function load() {
 watch(filter, load)
 onMounted(load)
 
-// ทำงานกับรายการหนึ่ง: สำเร็จ → โหลดคิวใหม่ · ไม่สำเร็จ → แสดงเหตุผล (รายการยังอยู่ในคิว ทำซ้ำได้)
+// ทำงานกับรายการหนึ่ง: สำเร็จ → โหลดคิวใหม่ · ไม่สำเร็จ → แสดงเหตุผลจากฐานข้อมูล (รายการยังอยู่ในคิว ทำซ้ำได้)
 async function run(row, job) {
   acting.value = row.id
   msg.value = err.value = ''
@@ -66,10 +71,10 @@ async function run(row, job) {
 async function resend(row) {
   const ok = await askConfirm({
     title: 'ส่งซ้ำออร์เดอร์',
-    message: `ส่ง ${row.order_code || row.order_id} เข้าระบบอีกครั้งตามข้อมูลที่เก็บไว้ · ถ้ายังไม่ผ่านกติกาเดิม ระบบจะแจ้งเหตุผลให้`,
+    message: `ส่ง ${row.order_code || row.order_id} เข้าระบบอีกครั้งตามข้อมูลที่เก็บไว้ · ฐานข้อมูลตรวจกติกาทั้งหมดอีกครั้ง ถ้าไม่ผ่านจะแจ้งเหตุผลให้`,
     okText: 'ส่งซ้ำ',
   })
-  if (ok) await run(row, (c) => resendReview(c, row))
+  if (ok) await run(row, (c) => resendReview(c, row, !!confirmed[row.id]))
 }
 
 function openEdit(row) {
@@ -82,7 +87,7 @@ async function saveEdit() {
   const next = withPayments(row.edited_payload || row.payload, edit.payments)
   const ok = await run(row, async (c) => {
     const s = await saveEditedReview(c, row, next)
-    return s.error ? s : resendReview(c, row)
+    return s.error ? s : resendReview(c, row, !!confirmed[row.id])
   })
   if (ok) edit.row = null
   else edit.error = err.value
@@ -120,19 +125,31 @@ async function doClose() {
         <p class="text-xs text-stone-500">{{ channelName(r.channel) }} · เข้าคิว {{ dateTime(r.created_at) }} · โดย {{ staffName(r.created_by) }}</p>
         <p class="rounded-xl bg-rose-50 p-2.5 text-sm text-rose-800"><span class="font-medium">ระบบไม่รับ:</span> {{ r.reason_message }}</p>
         <ul class="space-y-1 text-sm text-stone-700">
-          <li v-for="(p, i) in payOf(r)" :key="i" class="flex justify-between gap-2">
+          <li v-for="(p, i) in payOf(r)" :key="'p' + i" class="flex justify-between gap-2">
             <span>{{ p.posMethod || 'ชำระ' }}<template v-if="p.cardConfirmed"> · ยืนยันบัตรแล้ว</template></span>
             <b>{{ money(p.amount) }}</b>
           </li>
           <li v-if="!payOf(r).length" class="text-stone-500">ไม่มีรายการชำระเงิน</li>
         </ul>
+        <ul v-if="extrasOf(r).coupons.length || extrasOf(r).adjustment" class="space-y-1 rounded-xl bg-stone-50 p-2.5 text-sm text-stone-700">
+          <li v-for="(u, i) in extrasOf(r).coupons" :key="'c' + i" class="flex justify-between gap-2">
+            <span>คูปอง {{ u.name }}</span><b class="text-rose-700">−{{ money(u.amount) }}</b>
+          </li>
+          <li v-if="extrasOf(r).adjustment" class="flex justify-between gap-2">
+            <span>ปรับราคาเอง</span><b>{{ money(extrasOf(r).adjustment) }}</b>
+          </li>
+        </ul>
+        <p v-if="blockersOf(r).length && r.status === 'open'" class="rounded-xl bg-amber-50 p-2.5 text-sm text-amber-800">ส่งซ้ำจากคิวไม่ได้: {{ blockersOf(r).join(' · ') }} · ให้ปิดพร้อมเหตุผลแล้วบันทึกใหม่</p>
         <p v-if="r.edited_payload && r.status === 'open'" class="text-xs text-amber-700">แก้การชำระไว้แล้ว ยังไม่ส่ง</p>
 
         <template v-if="r.status === 'open'">
           <p v-if="r.channel !== 'pos'" class="text-xs text-stone-500">ช่องทางนี้ส่งซ้ำจากหน้านี้ไม่ได้ · ปิดพร้อมเหตุผลแล้วสร้างใหม่ในระบบ</p>
+          <label v-if="confirmNeeded(r)" class="flex items-center gap-2 text-sm text-stone-700">
+            <input v-model="confirmed[r.id]" type="checkbox" class="h-5 w-5" /> ตรวจคูปองและส่วนลดของรายการนี้แล้ว
+          </label>
           <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <button type="button" class="btn-primary" :disabled="!!acting || r.channel !== 'pos'" @click="resend(r)">{{ acting === r.id ? 'กำลังทำ…' : 'ส่งซ้ำ' }}</button>
-            <button type="button" class="btn-outline" :disabled="!!acting || r.channel !== 'pos'" @click="openEdit(r)">แก้การชำระแล้วส่ง</button>
+            <button type="button" class="btn-primary" :disabled="!!acting || !canResend(r)" @click="resend(r)">{{ acting === r.id ? 'กำลังทำ…' : 'ส่งซ้ำ' }}</button>
+            <button type="button" class="btn-outline" :disabled="!!acting || r.channel !== 'pos' || blockersOf(r).length > 0" @click="openEdit(r)">แก้การชำระแล้วส่ง</button>
             <button type="button" class="btn-outline" :disabled="!!acting" @click="openClose(r)">ปิดพร้อมเหตุผล</button>
           </div>
         </template>
@@ -168,6 +185,7 @@ async function doClose() {
     <AppModal v-if="shut.row" title="ปิดรายการพร้อมเหตุผล" @close="shut.row = null">
       <div class="space-y-3">
         <p class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ระบบจะไม่บันทึกออร์เดอร์นี้ ถ้ามีการรับเงินไว้แล้ว ต้องจัดการเงินนั้นเอง (คืนเงิน หรือบันทึกในบัญชี)</p>
+        <p class="text-sm text-stone-600">คูปองที่จองไว้กับออร์เดอร์นี้จะถูกคืนให้ลูกค้าใช้ได้อีก</p>
         <textarea v-model="shut.note" rows="3" maxlength="300" class="input" placeholder="เหตุผล เช่น ลูกค้ายกเลิกและโอนคืนแล้ว"></textarea>
         <p v-if="shut.error" class="flex items-center gap-2 text-sm text-rose-700" role="alert"><AppIcon name="alert" :size="16" /> {{ shut.error }}</p>
       </div>

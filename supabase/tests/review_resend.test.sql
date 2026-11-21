@@ -61,13 +61,13 @@ select test.ok('RR13 รายการที่มีแต้มส่งซ�
   left(test.as_staff('55555555-5555-5555-5555-555555555555', $q$
     select public.punpang_review_resend('eeeeeeee-0000-4000-8000-000000000003') $q$), 10) = 'ERR:22023:'
   and not exists (select 1 from public.punpang_orders where id = 'rr_o3'));
-select test.ok('RR14 ส่วนลดที่ไม่ใช่ศูนย์ส่งซ้ำจากคิวไม่ได้',
+select test.ok('RR14 ส่วนลดปรับเองต้องมีสิทธิ์ปรับราคา (ผู้จัดการทั่วไปส่งซ้ำไม่ได้ → 42501)',
   test.as_staff('11111111-1111-1111-1111-111111111111', $q$
     insert into public.punpang_sync_review (id, order_id, order_code, channel, reason_code, reason_message, payload) values
     ('eeeeeeee-0000-4000-8000-000000000004', 'rr_o4', 'OR-RR-4', 'pos', 'P0001', 'ทดสอบ',
      '{"id":"rr_o4","code":"OR-RR-4","customerId":"c1","status":"pos_pending","fulfillment":"pickup","channel":"pos","adjustment":{"amount":-20},"items":[{"id":"i4","name":"คัพเค้ก","qty":1,"unitPrice":100}],"payments":[],"history":[]}') $q$) = 'OK'
   and left(test.as_staff('55555555-5555-5555-5555-555555555555', $q$
-    select public.punpang_review_resend('eeeeeeee-0000-4000-8000-000000000004') $q$), 10) = 'ERR:22023:');
+    select public.punpang_review_resend('eeeeeeee-0000-4000-8000-000000000004') $q$), 10) = 'ERR:42501:');
 select test.ok('RR15 ช่องทางอื่นส่งซ้ำจากคิวไม่ได้',
   test.as_staff('11111111-1111-1111-1111-111111111111', $q$
     insert into public.punpang_sync_review (id, order_id, order_code, channel, reason_code, reason_message, payload) values
@@ -94,6 +94,74 @@ select test.ok('RR17 ยอดชำระเกินยอดบิล: ด่
 select test.ok('RR18 หลังด่านปฏิเสธ ไม่มีออร์เดอร์ rr_o7 และรายการในคิวยังเปิด',
   not exists (select 1 from public.punpang_orders where id = 'rr_o7')
   and (select status from public.punpang_sync_review where id = 'eeeeeeee-0000-4000-8000-000000000007') = 'open');
+
+-- ---------- F) คูปองที่จองไว้กับออร์เดอร์ ส่วนลดปรับเอง การยืนยัน และการคืนคูปองตอนปิด ----------
+-- คูปองถูกจองบนเซิร์ฟเวอร์ตอนกดใช้ (status used + orderId) · คูปองคืนเงินจองเป็น holds ตามรหัสออร์เดอร์
+insert into public.punpang_records (collection, id, data) values
+  ('coupons', 'rc_cp1', '{"type":"discount","mode":"fixed","name":"ลด 30","amount":30,"minSpend":0,"status":"used","orderId":"rc_o1","customerId":"c1"}'),
+  ('coupons', 'rc_cp2', '{"type":"discount","mode":"fixed","name":"ลด 30 อื่น","amount":30,"minSpend":0,"status":"used","orderId":"rc_other","customerId":"c1"}'),
+  ('coupons', 'rc_cp3', '{"type":"discount","mode":"fixed","name":"ลด 30 ปิด","amount":30,"minSpend":0,"status":"used","orderId":"rc_o6","customerId":"c1"}'),
+  ('coupons', 'rc_cr1', '{"type":"discount","mode":"credit","name":"คืนเงิน","balance":60,"holds":{"rc_o3":40},"status":"pending","customerId":"c1"}');
+
+select test.ok('RC1 เพิ่มรายการในคิว: คูปองที่จองไว้กับออร์เดอร์นี้ คูปองของออร์เดอร์อื่น คูปองคืนเงิน ส่วนลดปรับเอง และรายการปกติ',
+  test.as_staff('11111111-1111-1111-1111-111111111111', $q$
+    insert into public.punpang_sync_review (id, order_id, order_code, channel, reason_code, reason_message, payload) values
+    ('ffffffff-0000-4000-8000-000000000001', 'rc_o1', 'OR-RC-1', 'pos', 'P0001', 'ทดสอบ',
+     '{"id":"rc_o1","code":"OR-RC-1","customerId":"c1","status":"pos_pending","fulfillment":"pickup","channel":"pos","items":[{"id":"ic1","name":"คัพเค้ก","qty":1,"unitPrice":100}],"couponsUsed":[{"couponId":"rc_cp1","name":"ลด 30","amount":30}],"payments":[{"id":"rcp1","status":"confirmed","amount":70,"posMethod":"cash"}],"history":[]}'),
+    ('ffffffff-0000-4000-8000-000000000003', 'rc_o3', 'OR-RC-3', 'pos', 'P0001', 'ทดสอบ',
+     '{"id":"rc_o3","code":"OR-RC-3","customerId":"c1","status":"pos_pending","fulfillment":"pickup","channel":"pos","items":[{"id":"ic3","name":"คัพเค้ก","qty":1,"unitPrice":100}],"couponsUsed":[{"couponId":"rc_cr1","name":"คืนเงิน","amount":40,"credit":true}],"payments":[{"id":"rcp3","status":"confirmed","amount":60,"posMethod":"cash"}],"history":[]}'),
+    ('ffffffff-0000-4000-8000-000000000004', 'rc_o4', 'OR-RC-4', 'pos', 'P0001', 'ทดสอบ',
+     '{"id":"rc_o4","code":"OR-RC-4","customerId":"c1","status":"pos_pending","fulfillment":"pickup","channel":"pos","items":[{"id":"ic4","name":"คัพเค้ก","qty":1,"unitPrice":100}],"couponsUsed":[{"couponId":"rc_cp2","name":"ลด 30 อื่น","amount":30}],"payments":[{"id":"rcp4","status":"confirmed","amount":70,"posMethod":"cash"}],"history":[]}'),
+    ('ffffffff-0000-4000-8000-000000000005', 'rc_o5', 'OR-RC-5', 'pos', 'P0001', 'ทดสอบ',
+     '{"id":"rc_o5","code":"OR-RC-5","customerId":"c1","status":"pos_pending","fulfillment":"pickup","channel":"pos","items":[{"id":"ic5","name":"คัพเค้ก","qty":1,"unitPrice":100}],"adjustment":{"amount":-10,"reason":"ทดสอบ"},"payments":[{"id":"rcp5","status":"confirmed","amount":90,"posMethod":"cash"}],"history":[]}'),
+    ('ffffffff-0000-4000-8000-000000000006', 'rc_o6', 'OR-RC-6', 'pos', 'P0001', 'ทดสอบ',
+     '{"id":"rc_o6","code":"OR-RC-6","customerId":"c1","status":"pos_pending","fulfillment":"pickup","channel":"pos","items":[{"id":"ic6","name":"คัพเค้ก","qty":1,"unitPrice":100}],"couponsUsed":[{"couponId":"rc_cp3","name":"ลด 30 ปิด","amount":30}],"payments":[{"id":"rcp6","status":"confirmed","amount":70,"posMethod":"cash"}],"history":[]}'),
+    ('ffffffff-0000-4000-8000-000000000007', 'rc_o7', 'OR-RC-7', 'pos', 'P0001', 'ทดสอบ',
+     '{"id":"rc_o7","code":"OR-RC-7","customerId":"c1","status":"pos_pending","fulfillment":"pickup","channel":"pos","items":[{"id":"ic7","name":"คัพเค้ก","qty":1,"unitPrice":100}],"payments":[{"id":"rcp7","status":"confirmed","amount":100,"posMethod":"cash"}],"history":[]}') $q$) = 'OK');
+
+select test.ok('RC2 มีคูปองแต่ยังไม่ยืนยันว่าตรวจแล้ว → ส่งซ้ำไม่ได้',
+  left(test.as_staff('55555555-5555-5555-5555-555555555555', $q$
+    select public.punpang_review_resend('ffffffff-0000-4000-8000-000000000001') $q$), 10) = 'ERR:22023:');
+select test.ok('RC3 ยืนยันแล้ว: คูปองที่จองไว้กับออร์เดอร์นี้ผ่านการตรวจ ส่งซ้ำได้',
+  test.as_staff('55555555-5555-5555-5555-555555555555', $q$
+    select public.punpang_review_resend('ffffffff-0000-4000-8000-000000000001', true) $q$) = 'OK');
+select test.ok('RC4 ออร์เดอร์ถูกสร้าง และคูปองยังผูกกับออร์เดอร์นี้ (ไม่ถูกจองซ้ำหรือคืน)',
+  exists (select 1 from public.punpang_orders where id = 'rc_o1')
+  and (select (data->>'status') || ':' || (data->>'orderId') from public.punpang_records where collection = 'coupons' and id = 'rc_cp1') = 'used:rc_o1');
+select test.ok('RC5 คูปองที่จองไว้กับออร์เดอร์อื่น ส่งซ้ำไม่ได้ แม้ยืนยันแล้ว และไม่สร้างออร์เดอร์',
+  left(test.as_staff('55555555-5555-5555-5555-555555555555', $q$
+    select public.punpang_review_resend('ffffffff-0000-4000-8000-000000000004', true) $q$), 10) = 'ERR:22023:'
+  and not exists (select 1 from public.punpang_orders where id = 'rc_o4'));
+select test.ok('RC6 ส่วนลดปรับเองต้องมีสิทธิ์ปรับราคา (ผู้จัดการทั่วไปส่งซ้ำไม่ได้)',
+  left(test.as_staff('55555555-5555-5555-5555-555555555555', $q$
+    select public.punpang_review_resend('ffffffff-0000-4000-8000-000000000005', true) $q$), 10) = 'ERR:42501:');
+insert into auth.users (id, email) values ('cccccccc-0000-4000-8000-000000000009', 'adj@t') on conflict do nothing;
+insert into public.punpang_staff (user_id, name, role, perms, active) values
+  ('cccccccc-0000-4000-8000-000000000009', 'ปรับราคา', 'admin', array['manage', 'adjustPrice'], true) on conflict do nothing;
+select test.ok('RC7 ผู้จัดการที่มีสิทธิ์ปรับราคาส่งซ้ำรายการที่มีส่วนลดปรับเองได้เมื่อยืนยันแล้ว',
+  test.as_staff('cccccccc-0000-4000-8000-000000000009', $q$
+    select public.punpang_review_resend('ffffffff-0000-4000-8000-000000000005', true) $q$) = 'OK');
+select test.ok('RC8 ปิดโดยไม่มีเหตุผลไม่ได้ (รายการยังเปิด)',
+  left(test.as_staff('55555555-5555-5555-5555-555555555555', $q$
+    select public.punpang_review_close('ffffffff-0000-4000-8000-000000000007', '   ') $q$), 10) = 'ERR:22023:'
+  and (select status from public.punpang_sync_review where id = 'ffffffff-0000-4000-8000-000000000007') = 'open');
+select test.ok('RC9 พนักงานขายปิดรายการจากคิวไม่ได้ ต้องเป็นผู้จัดการ',
+  left(test.as_staff('11111111-1111-1111-1111-111111111111', $q$
+    select public.punpang_review_close('ffffffff-0000-4000-8000-000000000007', 'เหตุผล') $q$), 10) = 'ERR:42501:');
+select test.ok('RC10 ปิดพร้อมเหตุผล คืนคูปองที่จองไว้กับออร์เดอร์นั้นให้ใช้ได้อีก',
+  test.as_staff('55555555-5555-5555-5555-555555555555', $q$
+    select public.punpang_review_close('ffffffff-0000-4000-8000-000000000006', 'ลูกค้ายกเลิก') $q$) = 'OK');
+select test.ok('RC11 คูปองที่ถูกคืนกลับเป็นพร้อมใช้ และคูปองของออร์เดอร์อื่นไม่ถูกแตะ',
+  (select data->>'status' || ':' || coalesce(data->>'orderId', 'null') from public.punpang_records where collection = 'coupons' and id = 'rc_cp3') = 'pending:null'
+  and (select data->>'orderId' from public.punpang_records where collection = 'coupons' and id = 'rc_cp1') = 'rc_o1');
+select test.ok('RC12 ปิดรายการคูปองคืนเงิน: ยอดคืนเข้าคูปอง และยกเลิกการจองของออร์เดอร์นั้น',
+  test.as_staff('55555555-5555-5555-5555-555555555555', $q$
+    select public.punpang_review_close('ffffffff-0000-4000-8000-000000000003', 'ยกเลิกการขาย') $q$) = 'OK');
+select test.ok('RC13 คูปองคืนเงินกลับมามียอดเต็มและไม่มีการจองค้างของออร์เดอร์นั้น',
+  (select (data->>'balance')::numeric = 100 and not (data->'holds' ? 'rc_o3') and data->>'status' = 'pending' from public.punpang_records where collection = 'coupons' and id = 'rc_cr1'));
+select test.ok('RC14 ปิดแล้วบันทึกเหตุผลและผู้ปิดเป็นผู้จัดการ',
+  (select status || ':' || resolution_note || ':' || resolved_by from public.punpang_sync_review where id = 'ffffffff-0000-4000-8000-000000000006')
+    = 'closed:ลูกค้ายกเลิก:55555555-5555-5555-5555-555555555555');
 
 rollback;
 select 'ผ่านทั้งหมด' as review_resend_tests;

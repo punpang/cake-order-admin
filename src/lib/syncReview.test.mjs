@@ -1,5 +1,5 @@
 // ทดสอบคิวรอตรวจของผู้จัดการ: ฝั่งเครื่องพนักงาน (ออร์เดอร์ใหม่ที่มีการเงินถูกปฏิเสธถาวร → เก็บลงคิวก่อน แล้วจึงเอาออกจากเครื่อง · ชั่วคราว/ถาวรของการเก็บคิว · ออร์เดอร์ที่เคยบันทึกแล้วไม่เข้าคิว)
-// และฝั่งผู้จัดการ (ส่งซ้ำเรียกฟังก์ชันฐานข้อมูลด้วยรหัสในคิว · ปิดต้องมีเหตุผล · ค่าการชำระแก้ได้เฉพาะยอดและการยืนยันบัตร) · รัน: node src/lib/syncReview.test.mjs
+// และฝั่งผู้จัดการ (ส่งซ้ำเรียกฟังก์ชันฐานข้อมูลด้วยรหัสและค่าการยืนยัน · เหตุที่ส่งซ้ำไม่ได้ · ปิดเรียกฟังก์ชันคืนคูปอง · ค่าการชำระแก้ได้เฉพาะยอดและการยืนยันบัตร) · รัน: node src/lib/syncReview.test.mjs
 import { fileURLToPath } from 'node:url'
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -8,7 +8,7 @@ import { createServer } from 'vite'
 const ROOT = fileURLToPath(new URL('../..', import.meta.url))
 const server = await createServer({ root: ROOT, server: { middlewareMode: true, hmr: false }, appType: 'custom', logLevel: 'error' })
 after(() => server.close())
-const { reviewRowOf, queueForReview, resendReview, closeReview, paymentsOf, withPayments, paymentsError } = await server.ssrLoadModule('/src/lib/syncReview.js')
+const { reviewRowOf, queueForReview, resendReview, resendBlockers, reviewExtras, needsConfirm, closeReview, paymentsOf, withPayments, paymentsError } = await server.ssrLoadModule('/src/lib/syncReview.js')
 const { pushOrders } = await server.ssrLoadModule('/src/lib/ordersSync.js')
 
 const REJECT = { error: { code: 'P0001', message: 'punpang_customer_deleted: ลูกค้าถูกลบแล้ว' }, status: 400 }
@@ -41,27 +41,14 @@ function fakeClient({ orderErr = null, reviewErr = null } = {}) {
   }
 }
 
-// ไคลเอนต์จำลองฝั่งผู้จัดการ: rpc ตอบตามผลที่กำหนด · การปิดรายการบันทึกค่าที่ส่งและตัวกรอง id/status
-function fakeManagerClient({ rpcError = null, updateCount = 1, updateErr = null } = {}) {
-  const calls = { rpc: [], update: [] }
+// ไคลเอนต์จำลองฝั่งผู้จัดการ: rpc ตอบตามผลที่กำหนด และบันทึกชื่อฟังก์ชันกับพารามิเตอร์ที่ส่ง
+function fakeManagerClient({ rpcError = null } = {}) {
+  const calls = { rpc: [] }
   return {
     calls,
     rpc(name, args) {
       calls.rpc.push({ name, args })
-      return Promise.resolve({ data: rpcError ? null : 'resent', error: rpcError })
-    },
-    from() {
-      return {
-        update: (values, opts) => {
-          const rec = { values, count: opts?.count }
-          calls.update.push(rec)
-          const b = {
-            eq: (col, val) => { rec[col] = val; return b },
-            then: (res, rej) => Promise.resolve({ error: updateErr, count: updateErr ? null : updateCount }).then(res, rej),
-          }
-          return b
-        },
-      }
+      return Promise.resolve({ data: rpcError ? null : 'ok', error: rpcError })
     },
   }
 }
@@ -179,17 +166,18 @@ test('ออร์เดอร์ใหม่ที่ไม่มีการ�
   assert.equal(c2.calls.review.length, 0)
 })
 
-// ---------- ฝั่งผู้จัดการ ----------
-test('ส่งซ้ำ: เรียกฟังก์ชันฐานข้อมูลด้วยรหัสรายการในคิว (เบราว์เซอร์ไม่ส่งออร์เดอร์เอง)', async () => {
+// ---------- ฝั่งผู้จัดการ: ส่งซ้ำ ----------
+test('ส่งซ้ำ: เรียกฟังก์ชันฐานข้อมูลด้วยรหัสรายการและค่าการยืนยัน (เบราว์เซอร์ไม่ส่งออร์เดอร์เอง)', async () => {
   const client = fakeManagerClient()
   assert.deepEqual(await resendReview(client, { id: 'rv1' }), { ok: true })
-  assert.deepEqual(client.calls.rpc, [{ name: 'punpang_review_resend', args: { p_id: 'rv1' } }])
-  assert.equal(client.calls.update.length, 0)
+  assert.deepEqual(client.calls.rpc, [{ name: 'punpang_review_resend', args: { p_id: 'rv1', p_confirmed: false } }])
+  await resendReview(client, { id: 'rv1' }, true)
+  assert.equal(client.calls.rpc[1].args.p_confirmed, true)
 })
 
-test('ส่งซ้ำ: ฐานข้อมูลปฏิเสธ → แสดงเหตุผลนั้น (ไม่ปรับสถานะในแอป)', async () => {
-  const client = fakeManagerClient({ rpcError: { code: '22023', message: 'punpang_review: มีแต้ม คูปอง หรือส่วนลด ส่งซ้ำจากคิวไม่ได้' } })
-  assert.deepEqual(await resendReview(client, { id: 'rv2' }), { error: 'punpang_review: มีแต้ม คูปอง หรือส่วนลด ส่งซ้ำจากคิวไม่ได้' })
+test('ส่งซ้ำ: ฐานข้อมูลปฏิเสธ → แสดงเหตุผลนั้น', async () => {
+  const client = fakeManagerClient({ rpcError: { code: '22023', message: 'punpang_review: คูปองไม่ผ่านการตรวจ ส่งซ้ำไม่ได้' } })
+  assert.deepEqual(await resendReview(client, { id: 'rv2' }, true), { error: 'punpang_review: คูปองไม่ผ่านการตรวจ ส่งซ้ำไม่ได้' })
 })
 
 test('ส่งซ้ำ: ไม่มีสิทธิ์หรือรายการถูกเปลี่ยนไปแล้ว → แสดงข้อความจากฐานข้อมูล', async () => {
@@ -199,13 +187,36 @@ test('ส่งซ้ำ: ไม่มีสิทธิ์หรือราย
   assert.match((await resendReview(gone, { id: 'rv4' })).error, /ไม่พบรายการ/)
 })
 
-test('ปิดพร้อมเหตุผล: ตัดช่องว่างหัวท้าย และไม่ปิดถ้ารายการถูกเปลี่ยนไปแล้ว', async () => {
-  const ok = fakeManagerClient()
-  assert.deepEqual(await closeReview(ok, { id: 'c1' }, '  โอนคืนแล้ว  '), { ok: true })
-  assert.equal(ok.calls.update[0].values.status, 'closed')
-  assert.equal(ok.calls.update[0].values.resolution_note, 'โอนคืนแล้ว')
-  const gone = fakeManagerClient({ updateCount: 0 })
-  assert.match((await closeReview(gone, { id: 'c2' }, 'x')).error, /เปลี่ยนไปแล้ว/)
+test('เหตุที่ส่งซ้ำจากคิวไม่ได้: แต้ม สมาชิก ใบเสนอ การคืน การยกเลิก · รายการปกติไม่มีเหตุ', () => {
+  assert.deepEqual(resendBlockers(order('b0')), [])
+  assert.deepEqual(resendBlockers({ ...order('b1'), pointsUsed: { points: 10, amount: 10 } }), ['มีแต้มที่ใช้'])
+  assert.deepEqual(resendBlockers({ ...order('b2'), loyalty: { id: 'l1' } }), ['มีสิทธิ์สมาชิก'])
+  assert.deepEqual(resendBlockers({ ...order('b3'), quoteId: 'q1' }), ['มาจากใบเสนอราคา'])
+  assert.deepEqual(resendBlockers({ ...order('b4'), returns: [{ id: 'r' }] }), ['มีการคืนสินค้า'])
+  assert.deepEqual(resendBlockers({ ...order('b5'), cancel: { at: 'x' } }), ['มีการยกเลิก'])
+  assert.deepEqual(resendBlockers({ ...order('b6'), pointsUsed: null, couponsUsed: [] }), [])
+})
+
+test('คูปองและส่วนลดปรับเอง: ต้องให้ผู้จัดการยืนยันก่อนส่งซ้ำ · ไม่มีอะไรก็ไม่ต้องยืนยัน', () => {
+  assert.equal(needsConfirm(order('c0')), false)
+  assert.equal(needsConfirm({ ...order('c1'), couponsUsed: [{ couponId: 'k', name: 'ลด 30', amount: 30 }] }), true)
+  assert.equal(needsConfirm({ ...order('c2'), adjustment: { amount: -10, reason: 'x' } }), true)
+  assert.equal(needsConfirm({ ...order('c3'), adjustment: { amount: 0, reason: '' } }), false)
+  const x = reviewExtras({ ...order('c4'), couponsUsed: [{ couponId: 'k', name: 'ลด 30', amount: 30 }], adjustment: { amount: -10 } })
+  assert.equal(x.coupons.length, 1)
+  assert.equal(x.adjustment, -10)
+})
+
+// ---------- ฝั่งผู้จัดการ: ปิด ----------
+test('ปิดพร้อมเหตุผล: เรียกฟังก์ชันคืนคูปอง พร้อมเหตุผลที่ตัดช่องว่างหัวท้ายแล้ว', async () => {
+  const client = fakeManagerClient()
+  assert.deepEqual(await closeReview(client, { id: 'c1' }, '  โอนคืนแล้ว  '), { ok: true })
+  assert.deepEqual(client.calls.rpc, [{ name: 'punpang_review_close', args: { p_id: 'c1', p_note: 'โอนคืนแล้ว' } }])
+})
+
+test('ปิดพร้อมเหตุผล: ฐานข้อมูลปฏิเสธ (ไม่มีเหตุผล/ไม่มีสิทธิ์/รายการเปลี่ยนไปแล้ว) → แสดงข้อความจากฐานข้อมูล', async () => {
+  const gone = fakeManagerClient({ rpcError: { code: 'P0002', message: 'punpang_review: ไม่พบรายการที่รอตรวจ' } })
+  assert.match((await closeReview(gone, { id: 'c2' }, 'x')).error, /ไม่พบรายการ/)
 })
 
 test('การชำระที่แก้ได้: ยอดต้องมากกว่า 0 และแปลงยอดเป็นตัวเลข', () => {
