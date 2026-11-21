@@ -186,7 +186,9 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
   const cache = new Map()
   const conflicts = []
   const rejected = [] // ถูกปฏิเสธถาวร: ข้ามแถวนี้ ส่งแถวอื่นต่อ (ไม่บล็อกทั้งชุด)
+  const discarded = [] // ยกเลิกทั้งที่ถูกปฏิเสธและไม่เคยบันทึกขึ้นเซิร์ฟเวอร์: ทิ้งจากเครื่อง ไม่ส่งซ้ำ
   for (const o of upserts) {
+    if (o.status === 'cancelled' && held.has(o.id) && !known.has(o.id)) { held.delete(o.id); discarded.push(o); continue }
     // รูปในเครื่อง (สลิป/รูปงาน/รูปตัวอย่าง) → อัปโหลดไป bucket ส่วนตัวก่อน (ไม่เขียนออร์เดอร์นี้จนกว่าจะอัปโหลดได้)
     try { await externalize(client, o, cache) } catch (e) {
       const msg = `อัปโหลดรูปไม่สำเร็จ: ${e.message}`
@@ -253,13 +255,22 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
     }
   }
   if (rejected.length) onRejected(rejected)
-  return conflicts.length || rejected.length ? { ok: true, conflicts, rejected } : { ok: true }
+  const extra = discarded.length ? { discarded } : {}
+  return conflicts.length || rejected.length ? { ok: true, conflicts, rejected, ...extra } : { ok: true, ...extra }
 }
 
 export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCreated, numbering, debounceMs, retryDelay, onCustomerIds = null }) {
   const known = new Set()
   const slips = new Map()
   const held = new Set() // ออร์เดอร์ (id) ที่ฐานข้อมูลปฏิเสธถาวรหรืออัปโหลดรูปไม่ได้ ยังไม่ซิงก์ จนกว่าจะแก้ไข
+  // ออร์เดอร์ที่ทิ้ง (ยกเลิกทั้งที่ไม่เคยบันทึกขึ้นเซิร์ฟเวอร์): เอาออกจากเครื่องและลบรูปที่อัปโหลดค้างไว้ (ลบไม่สำเร็จไม่กระทบการทำงาน)
+  const dropDiscarded = async (orders) => {
+    const gone = new Set(orders.map((o) => o.id))
+    fillArray(db.orders, db.orders.filter((o) => !gone.has(o.id)))
+    for (const id of gone) { slips.delete(id); held.delete(id) }
+    const refs = [...new Set(orders.flatMap((o) => [...privateRefsOf(o)]))]
+    if (refs.length) await removePrivate(client, refs)
+  }
   return startSync({
     list: () => db.orders,
     replace: (items, { refresh = false } = {}) => {
@@ -284,11 +295,11 @@ export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCre
     loadByIds: (ids) => loadOrdersByIds(client, ids),
     isHeld: (id) => held.has(id), // ฉบับที่ค้างในเครื่องไม่ถูกทับด้วยฉบับเซิร์ฟเวอร์ตอนดึงข้อมูล (W-5)
     applyRows: (rows) => { for (const i of rows) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) } if (numbering) numbering.seen(rows.map((i) => i.code), { reset: false }); onCustomerIds?.(rows.map((i) => i.customerId)) },
-    push: (changes) => pushOrders(client, changes, {
+    push: async (changes) => { const r = await pushOrders(client, changes, {
       onRecode, onCreated, retryDelay, numbering, known, slips, held,
       onGate: (m) => onError(m),
       onRejected: (list) => onError(`ซิงก์ออร์เดอร์ไม่สำเร็จ ${list.length} รายการ: ${list.map((x) => `${x.ref} (${x.message})`).join(' · ')} — ระบบส่งออร์เดอร์อื่นต่อแล้ว · แก้ไขหรือยกเลิกออร์เดอร์นั้นแล้วบันทึกใหม่`),
-    }),
+    }); if (r.discarded?.length) await dropDiscarded(r.discarded); return r },
     canWrite, onError, debounceMs, label: 'ออร์เดอร์', poll: true,
   }).then((h) => { if (canWrite) backfillBalances(client, db).catch(() => {}); return h })
 }
