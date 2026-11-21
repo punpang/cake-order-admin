@@ -29,6 +29,15 @@ export async function queueForReview(client, o, err) {
 
 // ---------- ฝั่งผู้จัดการ ----------
 
+// จำนวนรายการที่ยังรอตรวจ (ป้ายบนหน้าตั้งค่า) · ไม่มีสิทธิ์อ่านคิวหรือไม่ได้เชื่อมต่อ = 0
+export async function countOpenReview(client) {
+  if (!client) return 0
+  try {
+    const r = await client.from(REVIEW_TABLE).select('id', { count: 'exact', head: true }).eq('status', 'open')
+    return r.error ? 0 : (r.count || 0)
+  } catch { return 0 }
+}
+
 // รายการในคิวตามสถานะ (เก่าสุดขึ้นก่อน)
 export async function fetchReview(client, status = 'open', limit = 200) {
   const r = await client.from(REVIEW_TABLE).select(REVIEW_COLS).eq('status', status).order('created_at').limit(limit)

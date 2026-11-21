@@ -1,13 +1,17 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { db, upcomingBirthdays, pendingDeletions, pendingPhotoRequests, can } from '../../data/store'
 import ManageShell from '../../components/ManageShell.vue'
 import { customerScale } from '../../lib/customersSync'
 import AppIcon from '../../components/AppIcon.vue'
 import { SETTINGS_PAGES, groupSettings } from '../../lib/settingsPages'
 import { retentionSummary } from '../../lib/retention'
+import { countOpenReview } from '../../lib/syncReview'
+import { getSupabase, supabaseEnabled } from '../../lib/supabase.js'
 
 const activeCount = (list) => list.filter((x) => x.active !== false).length
+const syncOpen = ref(0) // รายการรอตรวจในคิวออร์เดอร์ (ไม่มีสิทธิ์ผู้จัดการ/ไม่ต่อฐานข้อมูล = 0)
+onMounted(async () => { if (supabaseEnabled && can('manage')) syncOpen.value = await countOpenReview(await getSupabase()) })
 
 const DESC = computed(() => ({
   '/admin/dashboard': 'ออร์เดอร์ค้าง · แชท Facebook · การเข้าชมหน้าเว็บ · งานค้าง',
@@ -31,7 +35,7 @@ const DESC = computed(() => ({
   '/admin/settings/links': `ลิงก์ย่อ ${db.shortLinks.length} · ลิงก์ออร์เดอร์ที่ใช้อยู่ ${db.orderLinks.length}`,
   '/admin/settings/retention': retentionSummary(db.retention),
   '/admin/settings/errors': 'แอปพนักงานส่งข้อผิดพลาดมาเก็บอัตโนมัติ · เก็บ 30 วัน',
-  '/admin/settings/sync-review': 'ออร์เดอร์ที่ระบบไม่รับและมีการเงิน · ตรวจ ส่งซ้ำ หรือปิดพร้อมเหตุผล',
+  '/admin/settings/sync-review': syncOpen.value ? `${syncOpen.value} รายการรอตรวจ · ส่งซ้ำ หรือปิดพร้อมเหตุผล` : 'ออร์เดอร์ที่ระบบไม่รับและมีการเงิน · ตรวจ ส่งซ้ำ หรือปิดพร้อมเหตุผล',
   '/admin/settings/deletion-requests': `${pendingDeletions()} รอตรวจสอบ`,
   '/admin/settings/ingredients': `${activeCount(db.ingredients)} รายการที่ใช้งาน`,
   '/admin/settings/users': `${activeCount(db.users)} คนที่ใช้งาน · ติ๊กสิทธิ์รายคน`,
@@ -41,6 +45,7 @@ const BADGE = computed(() => ({
   '/admin/settings/photo-requests': pendingPhotoRequests(),
   '/admin/settings/deletion-requests': pendingDeletions(),
   '/admin/settings/storefront': db.reviews.filter((r) => r.status === 'pending').length,
+  '/admin/settings/sync-review': syncOpen.value,
 }))
 const q = ref('')
 const items = computed(() => SETTINGS_PAGES.filter((x) => can(x.perm || 'manage')).map((x) => ({ ...x, desc: DESC.value[x.to], badge: BADGE.value[x.to] || 0 })))
