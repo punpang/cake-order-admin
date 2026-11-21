@@ -119,7 +119,7 @@ Deno.serve(corsWrap(async (req) => {
     const cs = await rest(`punpang_customers?id=eq.${encodeURIComponent(customerId)}&select=id,deleted:data->deleted`, rh)
     if (!cs) return json({ error: 'อ่านข้อมูลลูกค้าไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
     if (!cs.length || cs[0].deleted) return json({ error: 'ไม่พบลูกค้า' }, 422)
-    const catalog = await loadCatalog(SUPABASE_URL, SERVICE_HEADERS)
+    const catalog = await loadCatalog(SUPABASE_URL, { ...SERVICE_HEADERS, ...rh }) // โหมดทดสอบ: ราคาจากสำเนาทดสอบ
     if (!catalog) return json({ error: 'อ่านแคตาล็อกไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
     built = buildOrderFromDraft({ ...common, draft: body.draft, customerId, catalog })
   }

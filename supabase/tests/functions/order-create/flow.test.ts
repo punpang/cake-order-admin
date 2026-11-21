@@ -28,6 +28,7 @@ const STAFF: Record<string, any> = {
 type Row = { schema: string; [k: string]: any }
 let rows: Row[] = []
 let reads: { table: string; schema: string }[] = []
+const catalogReads: { table: string; schema: string }[] = [] // การอ่านแคตาล็อก (ตามสคีมาที่หัวคำขอระบุ)
 const deletedCustomers = new Set<string>() // ลูกค้าที่ถูกลบ (data.deleted = true) สำหรับเคสทดสอบ
 const J = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'content-type': 'application/json' } })
 const realFetch = globalThis.fetch
@@ -56,6 +57,7 @@ globalThis.fetch = (async (input: Request | URL | string, init?: RequestInit) =>
     }
     return J([row])
   }
+  if (p === '/rest/v1/punpang_kv' || p === '/rest/v1/punpang_items') catalogReads.push({ table: p.replace('/rest/v1/', ''), schema: req.headers.get('accept-profile') || 'public' })
   if (p === '/rest/v1/punpang_kv') return J(Object.entries(cat).filter(([k]) => k !== 'retailItems').map(([id, v]) => ({ id, data: { v } })))
   if (p === '/rest/v1/punpang_items') return J(cat.retailItems.map((x: any) => ({ id: x.id, name: x.name, price: x.price, active: x.active, data: x })))
   if (p === '/rest/v1/punpang_orders' && req.method === 'POST') {
@@ -103,7 +105,7 @@ const newOrder = (code: string) => ({
   id: `o_flow_${++seq}`, code, customerId: ref.customerId ?? 'golden-cust', fulfillment: ref.draft.fulfillment, pickupAt: ref.draft.pickupAt,
   birthday: ref.draft.birthday, items: structuredClone(ref.draft.items), status: 'awaiting_payment', history: [{ at: '', text: '', by: 'ทดสอบ' }], payments: [],
 })
-const reset = () => { rows = []; reads = []; deletedCustomers.clear(); reviews = [] }
+const reset = () => { rows = []; reads = []; catalogReads.length = 0; deletedCustomers.clear(); reviews = [] }
 // เวลาเซิร์ฟเวอร์ = เวลาของชุดข้อมูลอ้างอิง (วันนัดในเคสจะไม่กลายเป็นอดีตเมื่อเวลาผ่านไป)
 const realNow = Date.now
 Date.now = () => (golden as any).nowMs
@@ -119,6 +121,8 @@ Deno.test('โหมดทดสอบ: เลขที่แอปออก (TE
   assertEquals(rows.length, 1)
   assertEquals([rows[0].schema, rows[0].code], ['punpang_test', o.code])
   assertEquals(reads, [{ table: 'punpang_customers', schema: 'punpang_test' }])
+  // แคตาล็อกในโหมดทดสอบอ่านจากสำเนาทดสอบเท่านั้น (ไม่แตะแคตาล็อกจริง)
+  assert(catalogReads.length > 0 && catalogReads.every((c) => c.schema === 'punpang_test'), JSON.stringify(catalogReads))
 })
 
 Deno.test('โหมดจริง: เลข OR-… บันทึกผ่าน และเขียนลงสคีมาจริง', async () => {
@@ -129,6 +133,7 @@ Deno.test('โหมดจริง: เลข OR-… บันทึกผ่�
   const r = await pushOrders(appClient('tok-staff', false), { upserts: [o] }, { numbering })
   assertEquals(r, { ok: true })
   assertEquals([rows[0].schema, rows[0].code], ['public', o.code])
+  assert(catalogReads.length > 0 && catalogReads.every((c) => c.schema === 'public'), JSON.stringify(catalogReads))
 })
 
 Deno.test('ข้ามโหมด: เลขทดสอบส่งเข้าโหมดจริง และเลขจริงส่งเข้าโหมดทดสอบ → ถูกปฏิเสธ ไม่มีอะไรถูกเขียน', async () => {
