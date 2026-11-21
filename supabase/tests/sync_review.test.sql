@@ -96,5 +96,16 @@ select test.ok('SR21b ผู้จัดการแก้ค่าการป�
 select test.ok('SR21c ระบบล้างค่าการปิดของรายการที่ยังเปิดอยู่',
   (select resolved_by is null and resolved_at is null and resolution_note = '' from public.punpang_sync_review where order_id = 'sr_o2'));
 
+-- ---------- F) ปุ่มล้างข้อมูลทดสอบล้างคิวในสำเนา (นิยามที่แอปเรียกในโหมดทดสอบ) และไม่แตะคิวจริง ----------
+insert into punpang_test.punpang_sync_review (order_id, payload) values ('sr_t1', '{"id":"sr_t1"}');
+select test.ok('SR22 มีรายการทดสอบอยู่ในสำเนาก่อนล้าง',
+  (select count(*) = 1 from punpang_test.punpang_sync_review where order_id = 'sr_t1'));
+select test.ok('SR23 ผู้จัดการล้างข้อมูลทดสอบ (สำเนา) ได้',
+  test.as_staff('55555555-5555-5555-5555-555555555555', $q$ select punpang_test.punpang_reset_test_data() $q$) = 'OK');
+select test.ok('SR24 หลังล้าง คิวในสำเนาว่าง',
+  (select count(*) = 0 from punpang_test.punpang_sync_review));
+select test.ok('SR25 การล้างสำเนาไม่แตะคิวจริง',
+  exists (select 1 from public.punpang_sync_review where order_id = 'sr_o2'));
+
 rollback;
 select 'ผ่านทั้งหมด' as sync_review_tests;
