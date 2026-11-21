@@ -6,7 +6,7 @@
 - ทุกชุดเทสต์ผ่านทั้งหมด (unit 92 ไฟล์ · Deno 174 เทสต์ · e2e 183 ข้อ + 4 กรณีใหม่ `settingsCrud` · DB 22 ไฟล์บน Postgres จริง รวม `shifts_guard` ใหม่ · CI main #315 ผ่าน)
 - production ตรงกับโค้ดที่ทดสอบ: migration 135/135 · Edge Function 24/24 · โครงสร้างฐานข้อมูลตรงทุกหมวดที่เทียบ (column 530 · constraint 152 · policy 121 · trigger 78 · relation 82 · index 176) ความต่างที่เหลือเป็นเรื่องแพลตฟอร์ม/เวอร์ชัน PG (ดูข้อ 2)
 - ทดสอบพฤติกรรมบน production 38 ข้อ (ด่านยอดเกินบิล · ย้อนสถานะ · แต้ม · คิวผู้จัดการ + กระดิ่ง + push · สิทธิ์ตามบทบาท · งวดบัญชีที่ปิดแล้ว) ผ่านทั้งหมด และไม่มีข้อมูลค้าง
-- ไม่พบฟังก์ชันที่ใช้ไม่ได้ในสิ่งที่ตรวจ · ช่องว่าง 14 ข้อ: แก้แล้ว 9 ข้อ (B1, B2, B3, B4, B5, B7, B9, B12, B13) · แก้บางส่วน 1 (B10) · รอการอนุมัติหรือการตัดสินใจ (B10 ส่วนที่เหลือ) · ตรวจการอนุมัติ environment production (ดูข้อ 10) · B7 ยืนยัน header แล้ว แต่เพดานต่อ IP ข้ามได้ (ดูข้อ 10) · ดูข้อ 4 และ 9–10
+- ไม่พบฟังก์ชันที่ใช้ไม่ได้ในสิ่งที่ตรวจ · ช่องว่าง 14 ข้อ: แก้แล้ว 9 ข้อ (B1, B2, B3, B4, B5, B7, B9, B12, B13) · แก้บางส่วน 1 (B10) · รอการอนุมัติหรือการตัดสินใจ (B10 ส่วนที่เหลือ) · B7 ยืนยัน header แล้ว แต่เพดานต่อ IP ข้ามได้ (ดูข้อ 10) · ดูข้อ 4 และ 9–10
 - **รับประกัน "100%" ไม่ได้** · รายงานนี้บอกว่าแต่ละส่วนผ่านการตรวจชั้นไหน และช่องไหนไม่ได้ตรวจ (ข้อ 4)
 
 ## 1. ผลตามชั้นการตรวจ
@@ -134,14 +134,14 @@
 - **เทสต์หน้าตั้งค่าความเสี่ยงสูง** `e2e/settingsPages.ui.e2e.mjs` (6 กรณี ผ่านในเครื่อง 6/6 · ราคา/วัตถุดิบ · ตัวเลือก/ชุดสินค้า · การเชื่อมต่อ Telegram · คำขอลบข้อมูล · คำขอไม่ให้ใช้รูป · พนักงานที่ไม่มีสิทธิ์ manage · เพิ่มในสคริปต์ `test:e2e` และ `test:e2e:ci` แล้ว)
 - **การตั้งค่าในฐานข้อมูลจริง (ไม่ผ่าน migration)**: `punpang_kv` config/integrations `sms.enabled` = false (ก่อนหน้า true) เพื่อหยุดการเรียก sms-send ที่ตอบ 503
 - **`punpang-scheduled`**: ไม่รันตั้งแต่สร้าง (14:14Z) จนถึง 15:00Z · รอบ 15:00 และ 15:15 รันสำเร็จ 200 · สาเหตุของช่วงแรกยังไม่ทราบ
-- **Release #14** (main `5d17a64`, run `44921549957`): deploy `bot-test`, `scheduled`, `customer-order`, `fb-webhook`, `line-push`, `line-webhook` · version เพิ่ม 1 ทุกตัว · verify_jwt เดิม · งาน test ผ่าน · งาน release ไม่หยุดรอการกด Approve ที่ environment (ดูข้อ 10) · ไม่มี migration
+- **Release #14** (main `5d17a64`, run `44921549957`): deploy `bot-test`, `scheduled`, `customer-order`, `fb-webhook`, `line-push`, `line-webhook` · version เพิ่ม 1 ทุกตัว · verify_jwt เดิม · งาน test ผ่าน · งาน release ไม่หยุดรอการกด Approve ที่ environment · ไม่มี migration
 - **Release #15** (main `efca447`, run `44922750953` · 16:06:45–16:10:23Z): เพิ่ม order-audit และ quote-create ใน `release.yml` · งาน test ผ่าน · งาน release ผ่านหลังอนุมัติ environment `production` · deploy สองฟังก์ชัน · ตรวจหลัง deploy ด้วย list_edge_functions: order-audit version 15 verify_jwt = false (ตรง production) · quote-create version 16 verify_jwt = true (ตรง production) · updated_at ของทั้งสองอยู่ในขั้น deploy (16:10:18Z และ 16:10:20Z)
 - **ทดสอบ production แบบ rollback รอบล่าสุด** (หลัง Release #14): ดูหัวข้อ 3 ส่วนรอบล่าสุด
 
 ## 10. ที่ต้องอนุมัติหรือตัดสินใจ
 - **B7 เพดานอัตรา `record_*`**: แนวทางในฐานข้อมูลได้รับอนุมัติแล้ว · merge เข้า main และ Release #13 แล้ว (`3678c69`) · **ยืนยัน header แล้ว** (HTTP จริง 1 ครั้ง · ลบข้อมูลทดสอบและคืนตัวนับ pageViews แล้ว) · **ข้อจำกัด:** เพดานต่อ IP ข้ามได้ด้วยการส่ง X-Forwarded-For ต่างกัน เพราะค่าแรกมาจากผู้ส่ง · รอการตัดสินใจเรื่อง header ที่ edge ตั้งเอง
 - **Release #15** (main `efca447`, run `44922750953`): deploy สองฟังก์ชันแล้ว (ดูข้อ 9) · งาน release หยุดรอ Approve ที่ environment `production` ก่อนทำงาน และผ่านหลังผู้ใช้อนุมัติ
-- **ตรวจ environment `production`**: Release #14 ไม่หยุดรอการกด Approve แต่ Release #15 หยุดรอ (ไม่สม่ำเสมอ) ควรตรวจว่ามี required reviewer หรือไม่ (**ผู้ใช้ตรวจ**)
+- **environment `production` (ยกเลิกประเด็นนี้แล้ว)**: Release #14 ไม่หยุดรอการกด Approve แต่ Release #15 หยุดรอ (ไม่สม่ำเสมอ) ผู้ใช้ยกเลิกประเด็นนี้แล้ว ไม่ต้องอนุมัติ environment อีก
 - **B10 ส่วนที่เหลือ** (หน้าที่ยังไม่มี e2e พฤติกรรม) · ไฟล์ทดสอบ `settingsPages` และรายงานถูก merge เข้า main แล้ว (`5d17a64`)
 - **ทดสอบบนเครื่องจริง** (ผู้ใช้): checklist ข้อ 3–4 และ queue ข้อ 3 (`docs/device-test-checklist.md`)
 - **ผู้ใช้ตรวจเอง**: Leaked password protection (B6) และ deployment ของ Cloudflare Pages ว่าตรงกับ main
