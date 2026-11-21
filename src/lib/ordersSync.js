@@ -4,6 +4,8 @@ import { parseNo } from './docNo'
 import { orderTotals } from './pricing'
 import { STATUS } from './constants'
 import { externalizeOrderImages, isLocalImage, privateRefsOf, removePrivate } from './storage'
+import { queueForReview } from './syncReview.js'
+import { showToast } from './toast.js'
 
 // ตารางออร์เดอร์ในเครื่อง = ทุกออร์เดอร์ที่สถานะไม่ใช่ยกเลิก/ส่งมอบแล้ว (ไม่จำกัดช่วงเวลา) · หน้าที่ต้องใช้ประวัติทั้งหมดเปิดโหมดเต็ม (setOrdersFullHistory)
 let fullHistory = false
@@ -185,11 +187,12 @@ function mergeServerOrder(o, row) {
 // ทิ้งออร์เดอร์ได้เฉพาะที่ไม่มีการเงิน (ชำระ/คืน) แต้ม คูปอง หรือรูปผูกอยู่ · ที่เหลือคงสถานะค้างให้เห็นเพื่อตรวจ
 const localPhoto = (o) => (o.items || []).some((it) => (it.images || []).some(isLocalImage) || (it.workPhotos || []).some((w) => isLocalImage(w.image)))
 const hasMoneyOrLinks = (o) => (o.payments || []).length > 0 || (o.returns || []).length > 0 || !!o.cancel?.refunds?.length || !!o.pointsUsed || (o.couponsUsed || []).length > 0 || !!o.loyalty || privateRefsOf(o).size > 0 || localPhoto(o)
-export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRecode = () => {}, onGate = () => {}, onCreated = () => {}, numbering = null, known = new Set(), slips = new Map(), held = new Set(), onRejected = () => {}, externalize = externalizeOrderImages } = {}) {
+export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRecode = () => {}, onGate = () => {}, onCreated = () => {}, numbering = null, known = new Set(), slips = new Map(), held = new Set(), onRejected = () => {}, externalize = externalizeOrderImages, reviewQueue = true } = {}) {
   const cache = new Map()
   const conflicts = []
   const rejected = [] // ถูกปฏิเสธถาวร: ข้ามแถวนี้ ส่งแถวอื่นต่อ (ไม่บล็อกทั้งชุด)
   const discarded = [] // ยกเลิกทั้งที่ถูกปฏิเสธ ไม่เคยบันทึกขึ้นเซิร์ฟเวอร์ และไม่มีการเงินหรือรูปผูกอยู่: ทิ้งจากเครื่อง ไม่ส่งซ้ำ
+  const queued = [] // ออร์เดอร์ใหม่ที่ระบบปฏิเสธถาวรและมีการเงิน: เก็บลงคิวผู้จัดการแล้ว จึงเอาออกจากเครื่อง
   for (const o of upserts) {
     if (o.status === 'cancelled' && held.has(o.id) && !known.has(o.id) && !hasMoneyOrLinks(o)) { held.delete(o.id); discarded.push(o); continue }
     // รูปในเครื่อง (สลิป/รูปงาน/รูปตัวอย่าง) → อัปโหลดไป bucket ส่วนตัวก่อน (ไม่เขียนออร์เดอร์นี้จนกว่าจะอัปโหลดได้)
@@ -251,23 +254,35 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
       if (code === '23503' || code === '23505') return { error: `${o.code || o.id}: ${r.error.message}` }
       // ข้อผิดพลาดชั่วคราว (เน็ตหลุด/เซิร์ฟเวอร์ล่ม) → หยุดชุดนี้แล้วลองใหม่ตามรอบ (แถวที่เหลือยังไม่ถูกส่ง)
       if (isTransientError(r.error)) return { error: `${o.code || o.id}: ${r.error.message}` }
-      // ถูกปฏิเสธถาวร (กติกา/สิทธิ์/ข้อมูลไม่ผ่าน) → ลองซ้ำไม่ช่วย: ข้ามแถวนี้ ส่งแถวอื่นต่อ แล้วรายงาน (ส่งใหม่เมื่อแก้ไขแถวนี้)
+      // ถูกปฏิเสธถาวร (กติกา/สิทธิ์/ข้อมูลไม่ผ่าน) → ลองซ้ำไม่ช่วย: ข้ามแถวนี้ ส่งแถวอื่นต่อ
+      // ออร์เดอร์ใหม่ที่มีการเงิน/แต้ม/คูปอง/รูปที่อัปโหลดแล้ว: เก็บลงคิวผู้จัดการก่อน แล้วจึงเอาออกจากเครื่อง (ไม่ทิ้งเงียบ)
+      if (reviewQueue && !known.has(o.id) && hasMoneyOrLinks(o) && !localPhoto(o)) {
+        const q = await queueForReview(client, o, r.error)
+        if (q.ok) { queued.push(o); held.delete(o.id); break }
+        if (q.transient) return { error: `${o.code || o.id}: ${q.message}` } // เก็บคิวไม่ได้ชั่วคราว → ออร์เดอร์ยังอยู่ในเครื่อง ลองใหม่ตามรอบ
+        rejected.push({ id: o.id, ref: o.code || o.id, errCode: 'review', message: `เก็บเข้าคิวผู้จัดการไม่สำเร็จ: ${q.message}` })
+        held.add(o.id)
+        break
+      }
       rejected.push({ id: o.id, ref: o.code || o.id, errCode: String(r.error.code || r.error.status || ''), message: r.error.message || 'ไม่ผ่านการตรวจ' })
       held.add(o.id)
       break
     }
   }
   if (rejected.length) onRejected(rejected)
-  const extra = discarded.length ? { discarded } : {}
+  const extra = { ...(discarded.length ? { discarded } : {}), ...(queued.length ? { queued } : {}) }
   return conflicts.length || rejected.length ? { ok: true, conflicts, rejected, ...extra } : { ok: true, ...extra }
 }
 
-export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCreated, numbering, debounceMs, retryDelay, onCustomerIds = null }) {
+// แจ้งพนักงานทันทีเมื่อออร์เดอร์ถูกเอาออกจากเครื่องเพราะเก็บเข้าคิวผู้จัดการ (ไม่ให้หายเงียบ)
+const notifyQueued = (list) => showToast(`ระบบไม่รับออร์เดอร์ ${list.map((o) => o.code || o.id).join(', ')} จึงส่งเข้าคิวให้ผู้จัดการตรวจแล้ว และเอาออกจากเครื่องนี้ · ผู้จัดการจะส่งซ้ำหรือปิดรายการ`, 12000, 'error')
+
+export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCreated, numbering, debounceMs, retryDelay, onCustomerIds = null, onQueued = notifyQueued }) {
   const known = new Set()
   const slips = new Map()
   const held = new Set() // ออร์เดอร์ (id) ที่ฐานข้อมูลปฏิเสธถาวรหรืออัปโหลดรูปไม่ได้ ยังไม่ซิงก์ จนกว่าจะแก้ไข
-  // ออร์เดอร์ที่ทิ้ง (ไม่มีการเงิน แต้ม คูปอง หรือรูปผูกอยู่และไม่เคยบันทึกขึ้นเซิร์ฟเวอร์): เอาออกจากเครื่อง
-  const dropDiscarded = (orders) => { const gone = new Set(orders.map((o) => o.id)); fillArray(db.orders, db.orders.filter((o) => !gone.has(o.id))); for (const id of gone) { slips.delete(id); held.delete(id) } }
+  // เอาออกจากเครื่อง: ออร์เดอร์ที่ทิ้ง (ไม่มีการเงิน แต้ม คูปอง หรือรูปผูกอยู่ และไม่เคยบันทึกขึ้นเซิร์ฟเวอร์) หรือเก็บเข้าคิวผู้จัดการแล้ว
+  const dropOrders = (orders) => { const gone = new Set(orders.map((o) => o.id)); fillArray(db.orders, db.orders.filter((o) => !gone.has(o.id))); for (const id of gone) { slips.delete(id); held.delete(id) } }
   return startSync({
     list: () => db.orders,
     replace: (items, { refresh = false } = {}) => {
@@ -296,7 +311,7 @@ export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCre
       onRecode, onCreated, retryDelay, numbering, known, slips, held,
       onGate: (m) => onError(m),
       onRejected: (list) => onError(`ซิงก์ออร์เดอร์ไม่สำเร็จ ${list.length} รายการ: ${list.map((x) => `${x.ref} (${x.message})`).join(' · ')} — ระบบส่งออร์เดอร์อื่นต่อแล้ว · แก้ไขหรือยกเลิกออร์เดอร์นั้นแล้วบันทึกใหม่`),
-    }); if (r.discarded?.length) dropDiscarded(r.discarded); return r },
+    }); if (r.discarded?.length) dropOrders(r.discarded); if (r.queued?.length) { dropOrders(r.queued); onQueued(r.queued) } return r },
     canWrite, onError, debounceMs, label: 'ออร์เดอร์', poll: true,
   }).then((h) => { if (canWrite) backfillBalances(client, db).catch(() => {}); return h })
 }

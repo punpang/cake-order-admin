@@ -154,6 +154,11 @@ blockcode=$?
 wait "$hold"
 [ "$blockcode" != "0" ] && echo "$blockerr" | grep -qi "lock" && echo "✓ W-4: การลบยังกันการแทรกออร์เดอร์ได้" || { echo "✗ W-4: การแทรกออร์เดอร์ไม่ถูกกันระหว่างการลบ"; exit 1; }
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/sync_review.test.sql
+srcode=$?
+[ "$srcode" = "0" ] && echo "✓ sync_review.test.sql ผ่านทั้งหมด" || echo "✗ sync_review.test.sql ล้มเหลว"
+[ "$srcode" = "0" ] || exit "$srcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"

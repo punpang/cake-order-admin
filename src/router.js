@@ -63,6 +63,7 @@ const ManageRetention = () => import('./views/manage/ManageRetention.vue')
 const ManageGallery = () => import('./views/manage/ManageGallery.vue')
 const ManagePhotoRequests = () => import('./views/manage/ManagePhotoRequests.vue')
 const ManageErrors = () => import('./views/manage/ManageErrors.vue')
+const ManageSyncReview = () => import('./views/manage/ManageSyncReview.vue')
 const ManageFiles = () => import('./views/manage/ManageFiles.vue')
 const ManageBot = () => import('./views/manage/ManageBot.vue')
 const LineLink = () => import('./views/LineLink.vue')
@@ -146,6 +147,7 @@ const router = createRouter({
     { path: '/admin/settings/bot', component: ManageBot },
     { path: '/admin/settings/retention', component: ManageRetention },
     { path: '/admin/settings/errors', component: ManageErrors, meta: { data: ['users'] } },
+    { path: '/admin/settings/sync-review', component: ManageSyncReview, meta: { data: ['users'], perms: ['manage'] } },
     { path: '/admin/settings/sms', component: ManageSms },
     // ลิงก์หลังบ้านเดิม (ก่อนย้ายไป /admin)
     { path: '/:old(orders|manage|chat|pos|materials|production)/:rest(.*)*', redirect: (to) => `/admin${to.fullPath}` },

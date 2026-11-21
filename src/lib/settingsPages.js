@@ -12,6 +12,7 @@ export const SETTINGS_GROUPS = [
 export const SETTINGS_PAGES = [
   { group: 'overview', to: '/admin/dashboard', icon: 'grid', title: 'ภาพรวมระบบ', perm: 'viewAllOrders', keywords: 'dashboard สถิติ' },
   { group: 'overview', to: '/admin/settings/profit', icon: 'history', title: 'ยอดขาย & กำไร', keywords: 'รายงาน กราฟ ต้นทุน' },
+  { group: 'overview', to: '/admin/settings/sync-review', icon: 'alert', title: 'คิวรอตรวจออร์เดอร์', keywords: 'ซิงก์ ปฏิเสธ ส่งซ้ำ ปิดรายการ ออร์เดอร์ค้าง คิว' },
   { group: 'catalog', to: '/admin/settings/options', icon: 'tag', title: 'ตัวเลือก + ราคา', keywords: 'เค้ก ขนาด รสชาติ' },
   { group: 'catalog', to: '/admin/settings/bundles', icon: 'tag', title: 'บันเดิ้ล (ชุดลดราคา)', keywords: 'ชุด ลด ส่วนลด ราคาชุด เลือกครบชุด combo' },
   { group: 'catalog', to: '/admin/settings/pricing', icon: 'calendar', title: 'การกำหนดราคา', keywords: 'ราคาพิเศษ ช่วงวัน โปร' },

@@ -57,8 +57,8 @@ test('ไม่มีการเงิน แต้ม คูปอง หร�
 test('มีรายการรับเงินผูกอยู่: ยกเลิกหลังถูกปฏิเสธ → ไม่ทิ้ง ส่งซ้ำและยังค้างให้เห็น', async () => {
   const client = fakeClient({ m1: REJECT })
   const held = new Set()
-  await pushOrders(client, { upserts: [order('m1', { payments: [cash] })] }, { held, known: new Set(), slips: new Map() })
-  const r = await pushOrders(client, { upserts: [order('m1', { status: 'cancelled', payments: [cash] })] }, { held, known: new Set(), slips: new Map() })
+  await pushOrders(client, { upserts: [order('m1', { payments: [cash] })] }, { held, known: new Set(), slips: new Map(), reviewQueue: false })
+  const r = await pushOrders(client, { upserts: [order('m1', { status: 'cancelled', payments: [cash] })] }, { held, known: new Set(), slips: new Map(), reviewQueue: false })
   assert.equal(r.discarded, undefined)
   assert.equal(client.calls.insert.length, 2)
   assert.ok(held.has('m1'))
@@ -93,17 +93,21 @@ test('ไม่เคยถูกปฏิเสธ: ยกเลิกแล้
 
 // ตารางจำลองสำหรับทดสอบทั้งเส้นทางผ่าน startOrdersSync
 function fakeOrdersClient(scriptFor) {
-  const state = { rows: [], calls: [] }
-  const builder = () => {
+  const state = { rows: [], calls: [], review: [] }
+  const builder = (table) => {
     const b = {
       select: () => b, not: () => b, is: () => b, limit: () => b, order: () => b,
       range: async () => ({ data: state.rows.map((r) => ({ ...r })), error: null }),
       then: (res, rej) => Promise.resolve({ data: [], error: null }).then(res, rej),
-      insert: async (row) => { state.calls.push(row.id); return scriptFor(row.id) },
+      insert: async (row) => {
+        if (table === 'punpang_sync_review') { state.review.push(row); return { error: null } }
+        state.calls.push(row.id)
+        return scriptFor(row.id)
+      },
     }
     return b
   }
-  return { state, from: () => builder() }
+  return { state, from: (table) => builder(table) }
 }
 
 test('ยกเลิกออร์เดอร์ค้างที่ไม่มีการเงิน → ออกจากเครื่อง ไม่ส่งซ้ำ และสถานะซิงก์กลับเป็นปกติ', async () => {
@@ -125,15 +129,16 @@ test('ยกเลิกออร์เดอร์ค้างที่ไม�
   h.stop()
 })
 
-test('ยกเลิกออร์เดอร์ค้างที่มีรายการรับเงิน → คงอยู่และสถานะยังล้มเหลวให้เห็น', async () => {
+test('ออร์เดอร์รับเงินที่ระบบปฏิเสธ → เข้าคิวผู้จัดการ ออกจากเครื่อง และไม่ค้างเป็นล้มเหลว', async () => {
   const client = fakeOrdersClient(() => REJECT)
   const db = { orders: [] }
-  const h = await startOrdersSync({ client, db, canWrite: true, onError: () => {}, onRecode() {}, onCreated() {}, numbering: null, debounceMs: 60000, retryDelay: 1 })
+  const queuedNotes = []
+  const h = await startOrdersSync({ client, db, canWrite: true, onError: () => {}, onRecode() {}, onCreated() {}, onQueued: (list) => queuedNotes.push(list.map((o) => o.id)), numbering: null, debounceMs: 60000, retryDelay: 1 })
   db.orders.push(order('p2', { payments: [cash] }))
   await h.flush()
-  db.orders.find((o) => o.id === 'p2').status = 'cancelled'
-  await h.flush()
-  assert.equal(db.orders.some((o) => o.id === 'p2'), true)
-  assert.equal(syncEntries['ออร์เดอร์']?.state, 'failed')
+  assert.deepEqual(client.state.review.map((r) => r.order_id), ['p2'])
+  assert.equal(db.orders.some((o) => o.id === 'p2'), false)
+  assert.deepEqual(queuedNotes, [['p2']])
+  assert.notEqual(syncEntries['ออร์เดอร์']?.state, 'failed')
   h.stop()
 })

@@ -31,6 +31,7 @@ const DESC = computed(() => ({
   '/admin/settings/links': `ลิงก์ย่อ ${db.shortLinks.length} · ลิงก์ออร์เดอร์ที่ใช้อยู่ ${db.orderLinks.length}`,
   '/admin/settings/retention': retentionSummary(db.retention),
   '/admin/settings/errors': 'แอปพนักงานส่งข้อผิดพลาดมาเก็บอัตโนมัติ · เก็บ 30 วัน',
+  '/admin/settings/sync-review': 'ออร์เดอร์ที่ระบบไม่รับและมีการเงิน · ตรวจ ส่งซ้ำ หรือปิดพร้อมเหตุผล',
   '/admin/settings/deletion-requests': `${pendingDeletions()} รอตรวจสอบ`,
   '/admin/settings/ingredients': `${activeCount(db.ingredients)} รายการที่ใช้งาน`,
   '/admin/settings/users': `${activeCount(db.users)} คนที่ใช้งาน · ติ๊กสิทธิ์รายคน`,
