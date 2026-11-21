@@ -15,7 +15,7 @@ import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, 
 import { showToast } from '../lib/toast'
 import { nextBirthday, daysBetween } from '../lib/birthday'
 import { parseAnswer } from '../lib/chatParse'
-import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEFAULT_COOKIE, DEFAULT_LEGAL_CONTACT } from '../lib/legalDefaults'
+import { LEGAL_KINDS, ACCOUNT_CONSENT_KINDS, DEFAULT_LEGAL_CONTACT } from '../lib/legalDefaults'
 import { BOT_DEFAULTS, botReply, scrubPII, similarity, isSensitive, LEARN_MAX, AUTO_SOURCES, LOCKED_SOURCES, AI_MODELS, AI_WAI_MODELS } from '../lib/chatBot'
 import { checkTelegram } from '../lib/integrationCheck'
 import { luckyDefaults, luckyDrawsByProject, luckyProjectsOf, luckyUrl, genLuckyToken, hashLuckyToken, validateLuckyConfig, LUCKY_SITE_URL } from '../lib/luckyDraw'
@@ -618,9 +618,9 @@ export const db = reactive({
   legal: {
     contact: { ...DEFAULT_LEGAL_CONTACT },
     docs: {
-      privacy: { version: 2, title: LEGAL_KINDS.privacy.label, text: DEFAULT_PRIVACY, updatedAt: new Date().toISOString() },
-      terms: { version: 2, title: LEGAL_KINDS.terms.label, text: DEFAULT_TERMS, updatedAt: new Date().toISOString() },
-      cookie: { version: 2, title: LEGAL_KINDS.cookie.label, text: DEFAULT_COOKIE, updatedAt: new Date().toISOString() },
+      privacy: { version: 2, title: LEGAL_KINDS.privacy.label, text: '', updatedAt: new Date().toISOString() },
+      terms: { version: 2, title: LEGAL_KINDS.terms.label, text: '', updatedAt: new Date().toISOString() },
+      cookie: { version: 2, title: LEGAL_KINDS.cookie.label, text: '', updatedAt: new Date().toISOString() },
     },
   },
   consents: [],
@@ -4658,6 +4658,19 @@ export function quickMember({ name, phone, agreed }) {
 
 // ---------- ข้อความกฎหมาย + การยินยอม ----------
 export const legalDoc = (kind) => db.legal.docs[kind]
+// ข้อความฉบับมาตรฐานอยู่ในไฟล์แยก (legalTexts.js) ไม่ฝังในโค้ดหลัก: main.js โหลดก่อนวาดแอป · ใส่เฉพาะฉบับที่ยังว่าง (ข้อความที่ร้านบันทึกไว้ไม่ถูกทับ)
+const LEGAL_DEFAULT_NAMES = { privacy: 'DEFAULT_PRIVACY', terms: 'DEFAULT_TERMS', cookie: 'DEFAULT_COOKIE' }
+export async function legalDefaultText(kind) {
+  const name = LEGAL_DEFAULT_NAMES[kind]
+  return name ? (await import('../lib/legalTexts.js'))[name] : ''
+}
+export async function loadLegalDefaultTexts() {
+  const t = await import('../lib/legalTexts.js')
+  for (const [k, name] of Object.entries(LEGAL_DEFAULT_NAMES)) {
+    const d = db.legal?.docs?.[k]
+    if (d && !d.text) d.text = t[name]
+  }
+}
 // ค่าที่แทนตัวแปร {ชื่อ} ในข้อความ (ดู LEGAL_VARS ใน legalDefaults.js)
 export function legalVars() {
   const c = db.legal.contact

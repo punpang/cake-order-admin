@@ -1,7 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
-import { db, saveLegal, saveLegalContact, legalVars, consentStats } from '../../data/store'
-import { LEGAL_KINDS, LEGAL_VARS, DEFAULT_PRIVACY, DEFAULT_TERMS, DEFAULT_COOKIE, fillLegal } from '../../lib/legalDefaults'
+import { db, saveLegal, saveLegalContact, legalVars, consentStats, legalDefaultText } from '../../data/store'
+import { LEGAL_KINDS, LEGAL_VARS, fillLegal } from '../../lib/legalDefaults'
 import { dateOnly } from '../../lib/format'
 import { askConfirm } from '../../lib/confirm'
 import ManageShell from '../../components/ManageShell.vue'
@@ -11,7 +11,6 @@ import PhoneInput from '../../components/PhoneInput.vue'
 import LegalText from '../../components/LegalText.vue'
 
 // PDPA / คุกกี้ / เงื่อนไขการใช้งาน (ฉบับมาตรฐานของระบบ) · แก้แล้วขึ้นเวอร์ชันได้ → ลูกค้าต้องกดยอมรับใหม่ · เก็บหลักฐานเวอร์ชัน+เวลาที่ยอมรับ
-const DEFAULTS = { privacy: DEFAULT_PRIVACY, terms: DEFAULT_TERMS, cookie: DEFAULT_COOKIE }
 const tab = ref('privacy')
 const tabs = [{ v: 'privacy', l: 'PDPA' }, { v: 'terms', l: 'เงื่อนไข' }, { v: 'cookie', l: 'คุกกี้' }, { v: 'contact', l: 'ผู้ควบคุมข้อมูล' }]
 
@@ -47,7 +46,7 @@ async function save() {
 }
 async function reset() {
   if (!(await askConfirm({ title: 'คืนค่าฉบับมาตรฐาน', message: 'ข้อความในช่องแก้ไขจะถูกแทนด้วยฉบับมาตรฐานของระบบ (ยังไม่บันทึกจนกว่าจะกดบันทึก)', okText: 'คืนค่า', danger: true }))) return
-  form.text = DEFAULTS[tab.value]
+  form.text = await legalDefaultText(tab.value)
 }
 
 // ---------- ผู้ควบคุมข้อมูล ----------
