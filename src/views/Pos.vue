@@ -22,7 +22,7 @@ import { waitSaved } from '../lib/syncStatus'
 import { showToast } from '../lib/toast'
 import { quietly } from '../lib/loading'
 import { watchTable } from '../lib/liveWatch'
-import { isNative, getDeviceConfig, pushDisplay, showDisplay, displayCount } from '../lib/nativeDevices'
+import { isNative, canAutoPrint, pushDisplay, showDisplay, displayCount } from '../lib/nativeDevices'
 import { printOrderReceipt } from '../lib/receiptRaster'
 import { billerIdOf, promptPayBillerPayload } from '../lib/promptpay'
 import DeviceSettings from '../components/DeviceSettings.vue'
@@ -954,7 +954,7 @@ async function sellNow(opts = {}) {
     thanks.value = { until: Date.now() + 8000, total: oT.total, saved: (oT.discountLines || []).reduce((sum, l) => sum + (Number(l.amount) || 0), 0) }
     clearTimeout(thanksTimer)
     thanksTimer = setTimeout(() => { thanks.value = { until: 0, total: 0, saved: 0 } }, 8000)
-    if (getDeviceConfig().printer?.address) printOrderReceipt(o, { luckyUrl: lucky?.url || '' }).catch((e) => showToast(`พิมพ์ใบเสร็จไม่สำเร็จ: ${e.message || e}`))
+    if (canAutoPrint('posReceipt')) printOrderReceipt(o, { section: 'posReceipt', luckyUrl: lucky?.url || '' }).catch((e) => showToast(`พิมพ์ใบเสร็จไม่สำเร็จ: ${e.message || e}`))
   }
   cart.value = []
   member.value = null
@@ -968,7 +968,7 @@ async function sellNow(opts = {}) {
 const print = () => {
   if (!native) return window.print()
   if (!receipt.value) return
-  printOrderReceipt(receipt.value, { luckyUrl: receiptLuckyUrl.value }).catch((e) => showToast(`พิมพ์ไม่สำเร็จ: ${e.message || e}`))
+  printOrderReceipt(receipt.value, { section: 'posReceipt', luckyUrl: receiptLuckyUrl.value }).catch((e) => showToast(`พิมพ์ไม่สำเร็จ: ${e.message || e}`))
 }
 
 // ---------- บิลของกะ ----------
@@ -1672,7 +1672,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           {{ receiptInfo.diff > 0 ? `ยังค้าง ${money(receiptInfo.diff)}` : receiptInfo.diff < 0 ? `ชำระเกิน ${money(-receiptInfo.diff)}` : 'ชำระครบแล้ว' }}
         </span>
       </div>
-      <Receipt :order="receipt" :lucky-url="receiptLuckyUrl" />
+      <Receipt :order="receipt" :lucky-url="receiptLuckyUrl" section="posReceipt" />
       <template #footer>
         <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
           <div class="flex gap-2">

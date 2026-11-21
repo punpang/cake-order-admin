@@ -11,7 +11,7 @@ import { money, dateTime, toDateStr, orderNo } from '../lib/format'
 import { POS_METHODS } from '../lib/constants'
 import { closedPosBillsInRange, filterPosBills, payMethodsOf, posMethodTotals } from '../lib/posBills'
 import { defaultRefundMethod } from '../lib/refund'
-import { getDeviceConfig } from '../lib/nativeDevices'
+import { hasPrinter } from '../lib/nativeDevices'
 import { printOrderReceipt } from '../lib/receiptRaster'
 import { invoiceOfOrder } from '../data/acct'
 import { showToast } from '../lib/toast'
@@ -118,14 +118,14 @@ const taxable = (o) => can('taxInvoice') && o.status !== 'cancelled' && orderTot
 const canVoid = (o) => can('posVoid') && o.status !== 'cancelled'
 const canRefund = (o) => can('posVoid') && o.status !== 'cancelled' && (orderTotals(o).paidNet > 0 || (o.returns || []).some((r) => !r.cancelled))
 const canBuyer = (o) => can('changeBuyer') && o.status !== 'cancelled'
-const canPrint = (o) => o.status !== 'cancelled' && !!getDeviceConfig().printer?.address
+const canPrint = (o) => o.status !== 'cancelled' && hasPrinter('orderReceipt')
 const itemsText = (o) => o.items.map((i) => `${i.name} ×${i.qty}`).join(', ')
 const payLabel = (o) => payMethodsOf(o).map((m) => POS_METHODS[m] || m).join(' + ') || 'ชำระแล้ว'
 
 // ---------- พิมพ์ซ้ำ ----------
 async function reprint(o) {
   try {
-    await printOrderReceipt(findOrder(o.id) || o)
+    await printOrderReceipt(findOrder(o.id) || o, { section: 'orderReceipt' })
     showToast('ส่งคำสั่งพิมพ์แล้ว')
   } catch (e) {
     showToast(`พิมพ์ไม่สำเร็จ: ${e.message || e}`, 6000, 'error')
@@ -335,7 +335,7 @@ onMounted(() => load())
     </section>
 
     <AppModal v-if="receipt" title="ใบเสร็จรับเงิน" @close="receipt = null">
-      <Receipt :order="receipt" />
+      <Receipt :order="receipt" section="orderReceipt" />
       <template #footer><button class="btn-primary flex-1 sm:flex-none" @click="receipt = null">ปิด</button></template>
     </AppModal>
     <TaxInvoiceModal v-if="taxFor" :order="taxFor" @close="taxFor = null" />

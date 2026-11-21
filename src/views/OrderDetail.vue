@@ -47,7 +47,7 @@ import OrderLinkModal from '../components/OrderLinkModal.vue'
 import QrPaymentPanel from '../components/QrPaymentPanel.vue'
 import TaxInvoiceModal from '../components/TaxInvoiceModal.vue'
 import Receipt from '../components/Receipt.vue'
-import { isNative, getDeviceConfig } from '../lib/nativeDevices'
+import { isNative, canAutoPrint } from '../lib/nativeDevices'
 import { printOrderReceipt } from '../lib/receiptRaster'
 import WorkPhotos from '../components/WorkPhotos.vue'
 import { invoiceOfOrder, ensureOrderInvoices } from '../data/acct'
@@ -163,12 +163,12 @@ async function openPay(mode = 'new', p = null) {
 const receiptOpen = ref(false)
 function onPaid() {
   receiptOpen.value = true
-  if (isNative() && getDeviceConfig().printer?.address) printReceipt()
+  if (isNative() && canAutoPrint('orderReceipt')) printReceipt()
 }
 // เว็บ: เปิดหน้าพิมพ์ของเบราว์เซอร์ (ใบเสร็จอยู่ในโมดัล) · แอป Android: ส่งไปเครื่องพิมพ์ Bluetooth ที่ตั้งไว้
 function printReceipt() {
   if (!isNative()) return window.print()
-  printOrderReceipt(order.value).catch((e) => showToast(`พิมพ์ใบเสร็จไม่สำเร็จ: ${e.message || e}`))
+  printOrderReceipt(order.value, { section: 'orderReceipt' }).catch((e) => showToast(`พิมพ์ใบเสร็จไม่สำเร็จ: ${e.message || e}`))
 }
 const PAY_BADGE = {
   reported: { t: 'รอลูกค้าชำระ', cls: 'bg-sky-100 text-sky-800' },
@@ -849,7 +849,7 @@ async function saveCancel() {
   <OrderLinkModal v-if="linkOpen && order" :order="order" @close="linkOpen = false" />
   <TaxInvoiceModal v-if="taxOpen && order" :order="order" @close="taxOpen = false" />
   <AppModal v-if="receiptOpen && order" title="ใบเสร็จรับเงิน" @close="receiptOpen = false">
-    <Receipt :order="order" />
+    <Receipt :order="order" section="orderReceipt" />
     <template #footer>
       <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
         <button class="btn-soft h-11 sm:px-4" @click="printReceipt"><AppIcon name="printer" :size="18" /> พิมพ์</button>

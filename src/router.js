@@ -57,6 +57,7 @@ const ManageDeletionRequests = () => import('./views/manage/ManageDeletionReques
 const StaffLogin = () => import('./views/StaffLogin.vue')
 const Accounting = () => import('./views/accounting/Accounting.vue')
 const ManageLegal = () => import('./views/manage/ManageLegal.vue')
+const ManagePrinting = () => import('./views/manage/ManagePrinting.vue')
 const ManageLinks = () => import('./views/manage/ManageLinks.vue')
 const ManageRetention = () => import('./views/manage/ManageRetention.vue')
 const ManageGallery = () => import('./views/manage/ManageGallery.vue')
@@ -129,6 +130,7 @@ const router = createRouter({
     { path: '/admin/settings/profit', component: ManageProfit },
     { path: '/admin/settings/shop', component: ManageShop },
     { path: '/admin/settings/lucky', component: ManageLucky },
+    { path: '/admin/settings/printing', component: ManagePrinting },
     { path: '/admin/settings/line-history', component: () => import('./views/manage/ManageLineHistory.vue'), meta: { perms: ['chat'] } },
     { path: '/admin/settings/test', component: ManageTestMode },
     { path: '/admin/settings/birthdays', component: ManageBirthdays },

@@ -309,6 +309,9 @@ export const db = reactive({
     { id: 'c3', name: 'บริษัท ขนมหวาน จำกัด', phone: '021234567', note: 'ขอใบกำกับภาษี' },
   ],
 
+  // การพิมพ์ (ซิงก์ทั้งร้าน): จำนวนชุดใบเสร็จ · ค่าเฉพาะเครื่อง (เครื่องพิมพ์ ความกว้าง) อยู่ในเครื่อง ดู printConfig.js
+  printing: { copies: { posReceipt: 1, orderReceipt: 1 } },
+
   // ตั้งค่าร้าน: เวลานัดรับ ทุก slotMinutes นาที ระหว่าง open–close, nearbyHours = ค่าเริ่มต้นช่วงดูออร์เดอร์ก่อน/หลัง (0 = ทั้งวัน)
   // leadPickup / leadDelivery = ต้องเสร็จก่อนนัดกี่นาที (ตารางผลิต), depositPercent = มัดจำขั้นต่ำ % (0 = ไม่ใช้), birthdayDays = เตือนวันเกิดล่วงหน้ากี่วัน
   shop: { name: 'ร้านเค้กตัวอย่าง', slotMinutes: 30, dailyOrderCap: 0, open: '09:00', close: '20:00', nearbyHours: 2, leadPickup: 60, leadDelivery: 120, depositPercent: 50, birthdayDays: 14,

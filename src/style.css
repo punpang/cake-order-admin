@@ -371,6 +371,45 @@
   }
 }
 
+/* ใบเสร็จบนเว็บตามความกว้างกระดาษที่ตั้งไว้ในเครื่อง (paper-58 / paper-80 · auto = ตามไดรเวอร์) */
+@media print {
+  @page r58 {
+    size: 58mm auto;
+    margin: 0;
+  }
+  @page r80 {
+    size: 80mm auto;
+    margin: 0;
+  }
+  .receipt-print.paper-58,
+  .print-test-sheet.paper-58 {
+    page: r58;
+  }
+  .receipt-print.paper-80,
+  .print-test-sheet.paper-80 {
+    page: r80;
+  }
+}
+
+/* ทดสอบพิมพ์บนเว็บ (หน้าตั้งค่าการพิมพ์): แสดงเฉพาะ .print-test-sheet ตัวเดียวตามกระดาษที่เลือก */
+@media print {
+  .print-test-sheet.sheet-a4 {
+    page: a4;
+  }
+  body.print-test > *:not(.print-test-sheet) {
+    display: none !important;
+  }
+  body.print-test .print-test-sheet {
+    display: block !important;
+    position: static !important;
+    width: 100%;
+  }
+  body.print-test .print-test-sheet,
+  body.print-test .print-test-sheet * {
+    visibility: visible !important;
+  }
+}
+
 /* ปุ่มในแท็บ segmented ต้องมนเต็มตามกรอบ (นอก layer เพื่อชนะ rounded-xl/lg ที่เขียนไว้ในแต่ละปุ่ม) */
 .seg-grid > button,
 .seg-grid > a,

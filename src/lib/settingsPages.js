@@ -22,6 +22,7 @@ export const SETTINGS_PAGES = [
   { group: 'customers', to: '/admin/settings/birthdays', icon: 'cake', title: 'เตือนวันเกิด', keywords: 'อวยพร' },
   { group: 'customers', to: '/admin/settings/loyalty', icon: 'wallet', title: 'คะแนน & รางวัล', keywords: 'แต้ม กาชา ของแลก' },
   { group: 'shop', to: '/admin/settings/lucky', icon: 'star', title: 'ลุ้นโชคท้ายบิล', keywords: 'QR ใบเสร็จ ลุ้น รางวัล ช่วงเวลา' },
+  { group: 'shop', to: '/admin/settings/printing', icon: 'printer', title: 'การพิมพ์', keywords: 'ใบเสร็จ ใบกำกับ เครื่องพิมพ์ bluetooth กระดาษ สลิป 58 80 ทดสอบพิมพ์ จำนวนชุด พิมพ์ซ้ำ' },
   { group: 'shop', to: '/admin/settings/test', icon: 'star', title: 'โหมดทดสอบ', keywords: 'ทดสอบ ล้างข้อมูล เดโม สำเนา TEST' },
   { group: 'shop', to: '/admin/settings/shop', icon: 'clock', title: 'ตั้งค่าร้าน', keywords: 'เวลาเปิด บัญชีรับชำระ พร้อมเพย์ มัดจำ ภาษี vat ใบเสร็จ สลิป' },
   { group: 'shop', to: '/admin/settings/storefront', icon: 'store', title: 'หน้าร้าน (เว็บลูกค้า)', keywords: 'รีวิว เมนู จอลูกค้า โฆษณา วิดีโอ POS' },

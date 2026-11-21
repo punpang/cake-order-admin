@@ -4,9 +4,16 @@ import { computed, ref, watch } from 'vue'
 import QRCode from 'qrcode'
 import { db, findCustomer, customerPoints } from '../data/store'
 import { receiptFacts } from '../lib/receiptFacts'
+import { getDevice } from '../lib/nativeDevices'
+import { webWidthFor } from '../lib/printConfig'
 
 // ใบเสร็จหน้าร้าน (พิมพ์ด้วย window.print ผ่าน .receipt-print ใน style.css · เครื่องพิมพ์ความร้อนใช้ข้อมูลชุดเดียวกันจาก receiptFacts)
-const props = defineProps({ order: { type: Object, required: true }, luckyUrl: { type: String, default: '' } })
+// section = ส่วนการพิมพ์ (posReceipt | orderReceipt) · ความกว้างบนเว็บตั้งแยกตามส่วนในหน้าตั้งค่าการพิมพ์
+const props = defineProps({ order: { type: Object, required: true }, luckyUrl: { type: String, default: '' }, section: { type: String, default: 'posReceipt' } })
+const paperClass = computed(() => {
+  const w = webWidthFor(getDevice(), props.section)
+  return w === 'auto' ? '' : `paper-${w}`
+})
 // QR ลุ้นโชคท้ายบิล (ถ้ามี) แสดงเป็นรูปในใบเสร็จ
 const luckyQr = ref('')
 watch(() => props.luckyUrl, async (u) => { luckyQr.value = u ? await QRCode.toDataURL(u, { margin: 1, width: 200 }) : '' }, { immediate: true })
@@ -17,7 +24,7 @@ const f = computed(() => {
 </script>
 
 <template>
-  <div class="receipt-print mx-auto w-full max-w-[80mm] bg-white p-3 font-mono text-[13px] leading-snug text-black">
+  <div class="receipt-print mx-auto w-full max-w-[80mm] bg-white p-3 font-mono text-[13px] leading-snug text-black" :class="paperClass">
     <div class="text-center">
       <div class="text-base font-bold">{{ f.shopName }}</div>
       <div v-if="f.shopAddress" class="break-words text-xs">{{ f.shopAddress }}</div>

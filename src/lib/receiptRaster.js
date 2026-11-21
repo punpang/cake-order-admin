@@ -4,10 +4,10 @@ import { db, findCustomer, customerPoints } from '../data/store'
 import { receiptFacts, maskPhone } from './receiptFacts'
 import { money, dateTime, dateOnly, orderNo } from './format'
 import { branchLabel } from './acct/taxid'
-import { printBytes, getDeviceConfig } from './nativeDevices'
+import { printBytes, getDevice } from './nativeDevices'
+import { pxFor, printerFor, widthFor, normalizePrinting, SECTION_LABEL } from './printConfig'
 import QRCode from 'qrcode'
 
-const PX = { 58: 384, 80: 576, 88: 640 } // ความกว้างจุดของกระดาษ 58 / 80 / 88 มม. (88 มม. ยังไม่ได้ทดสอบกับเครื่องจริง)
 const FAMILY = 'Prompt, Mitr, Tahoma, sans-serif'
 const BAND_ROWS = 240 // ส่งภาพทีละช่วงแถว กันบัฟเฟอร์ของเครื่องพิมพ์ล้น
 
@@ -179,7 +179,7 @@ export async function buildReceiptBytes(order, widthMm, opts = {}) {
   const customer = findCustomer(order.customerId)
   // ข้อมูลชุดเดียวกับใบเสร็จบนจอ (receiptFacts) เพื่อให้กระดาษกับหน้าจอตรงกัน
   const f = receiptFacts(order, { shop: db.shop, legal: db.legal, storefront: db.storefront, customer, points: customer ? customerPoints(customer) : null })
-  const w = writer(PX[widthMm] || PX[58])
+  const w = writer(pxFor(widthMm))
   w.text(f.shopName, { align: 'center', kind: 'title' })
   if (f.shopAddress) w.text(f.shopAddress, { align: 'center', kind: 'small' })
   if (f.shopPhone) w.text(`โทร ${f.shopPhone}`, { align: 'center', kind: 'small' })
@@ -240,11 +240,12 @@ export async function buildReceiptBytes(order, widthMm, opts = {}) {
   return escpos(toRaster(draw(w)))
 }
 
-// ใบทดสอบ: ดูว่าเครื่องพิมพ์ได้และภาษาไทยอ่านออก
-export async function buildTestBytes(widthMm) {
+// ใบทดสอบ: ดูว่าเครื่องพิมพ์ได้และภาษาไทยอ่านออก · label = ชื่อส่วนที่ทดสอบ
+export async function buildTestBytes(widthMm, label = '') {
   await loadFont()
-  const w = writer(PX[widthMm] || PX[58])
+  const w = writer(pxFor(widthMm))
   w.text('ทดสอบเครื่องพิมพ์', { align: 'center', kind: 'title' })
+  if (label) w.text(label, { align: 'center', kind: 'bold' })
   w.text(db.shop?.name || '', { align: 'center' })
   w.rule()
   w.text('ภาษาไทย: กขฃคฅฆงจฉชซฌญฎฏฐฑฒณดตถทธนบปผฝพฟภมยรลวศษสหฬอฮ')
@@ -255,17 +256,27 @@ export async function buildTestBytes(widthMm) {
   return escpos(toRaster(draw(w)))
 }
 
-// พิมพ์ใบเสร็จไปยังเครื่องที่เลือกไว้ (ใช้หลังขายครบทุกครั้ง)
+// พิมพ์ใบเสร็จของส่วนที่ระบุ (posReceipt | orderReceipt) ตามเครื่องพิมพ์ ความกว้าง และจำนวนชุดของส่วนนั้น
+// ชุดที่ 2 ขึ้นไปไม่พิมพ์ QR ลุ้นโชค (กันสแกนซ้ำ) · ทุกชุดส่งเป็นงานเดียว
 export async function printOrderReceipt(order, opts = {}) {
-  const cfg = getDeviceConfig()
-  if (!cfg.printer?.address) throw new Error('ยังไม่ได้เลือกเครื่องพิมพ์')
-  await printBytes(cfg.printer.address, await buildReceiptBytes(order, cfg.widthMm, opts))
+  const section = opts.section || 'posReceipt'
+  const device = getDevice()
+  const address = printerFor(device, section)?.address
+  if (!address) throw new Error('ยังไม่ได้เลือกเครื่องพิมพ์')
+  const width = widthFor(device, section)
+  const copies = normalizePrinting(db.printing).copies[section] || 1
+  const parts = [await buildReceiptBytes(order, width, opts)]
+  if (copies > 1) {
+    const again = await buildReceiptBytes(order, width, { ...opts, luckyUrl: '' })
+    for (let i = 1; i < copies; i++) parts.push(again)
+  }
+  await printBytes(address, concat(parts))
 }
 
-// ใบกำกับภาษีเต็มรูปแบบกระดาษความร้อน (58 / 88 มม.) · label = ต้นฉบับ / สำเนา
+// ใบกำกับภาษีเต็มรูปแบบกระดาษความร้อน (58 / 80 มม.) · label = ต้นฉบับ / สำเนา
 export async function buildTaxInvoiceBytes(inv, widthMm, label = 'ต้นฉบับ') {
   await loadFont()
-  const w = writer(PX[widthMm] || PX[58])
+  const w = writer(pxFor(widthMm))
   const credit = inv.type === 'credit'
   const sign = credit ? -1 : 1
   const m = (n) => money(sign * n)
@@ -300,15 +311,18 @@ export async function buildTaxInvoiceBytes(inv, widthMm, label = 'ต้นฉ�
   return escpos(toRaster(draw(w)))
 }
 
-// พิมพ์ใบกำกับภาษีไปยังเครื่องพิมพ์ความร้อนที่เลือกไว้ (ขนาดกระดาษเลือกทุกครั้งที่พิมพ์)
-export async function printTaxInvoice(inv, widthMm, label = 'ต้นฉบับ') {
-  const cfg = getDeviceConfig()
-  if (!cfg.printer?.address) throw new Error('ยังไม่ได้เลือกเครื่องพิมพ์')
-  await printBytes(cfg.printer.address, await buildTaxInvoiceBytes(inv, widthMm, label))
+// พิมพ์ใบกำกับภาษีไปยังเครื่องพิมพ์ความร้อนของส่วนใบกำกับ (ความกว้างตามหน้าตั้งค่า)
+export async function printTaxInvoice(inv, label = 'ต้นฉบับ') {
+  const device = getDevice()
+  const address = printerFor(device, 'taxInvoice')?.address
+  if (!address) throw new Error('ยังไม่ได้เลือกเครื่องพิมพ์ใบกำกับ')
+  await printBytes(address, await buildTaxInvoiceBytes(inv, widthFor(device, 'taxInvoice'), label))
 }
 
-export async function printTestPage() {
-  const cfg = getDeviceConfig()
-  if (!cfg.printer?.address) throw new Error('ยังไม่ได้เลือกเครื่องพิมพ์')
-  await printBytes(cfg.printer.address, await buildTestBytes(cfg.widthMm))
+// ใบทดสอบของส่วนที่ระบุ: ใช้เครื่องพิมพ์และความกว้างของส่วนนั้น
+export async function printTestPage(section = 'posReceipt') {
+  const device = getDevice()
+  const address = printerFor(device, section)?.address
+  if (!address) throw new Error('ยังไม่ได้เลือกเครื่องพิมพ์')
+  await printBytes(address, await buildTestBytes(widthFor(device, section), SECTION_LABEL[section] || ''))
 }
