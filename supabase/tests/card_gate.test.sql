@@ -66,4 +66,16 @@ select test.ok('CGT7: บัตรที่รออยู่ เปลี่ย
 select test.ok('CGT8: รายการบัตรที่ยืนยันอยู่แล้วแก้ไขได้โดยไม่ถูกบล็อก',
   test.cgt_try($q$ update public.punpang_orders set data = jsonb_set(data, '{payments}', '[{"id":"cgt_p2","status":"confirmed","amount":100,"posMethod":"card"}]'::jsonb) where id = 'cgt_2' $q$) = 'OK');
 
+-- CGT9: รายการเงินสดที่ยืนยันแล้ว เปลี่ยนวิธีชำระเป็นบัตรโดยไม่มีธงยืนยันบัตร → ถูกบล็อก (W-3: เดิมรหัสเดิมได้รับการยกเว้น)
+select test.ok('CGT9: เปลี่ยนวิธีชำระของรายการที่ยืนยันแล้วเป็นบัตรโดยไม่ยืนยันใหม่ ถูกบล็อก',
+  test.cgt_try($q$ update public.punpang_orders set data = jsonb_set(data, '{payments}', '[{"id":"cgt_pc","status":"confirmed","amount":100,"posMethod":"card"}]'::jsonb) where id = 'cgt_base' $q$) like 'ERR:P0001:punpang_card_unconfirmed:%');
+
+-- CGT10: แก้ยอดรายการบัตรที่ยืนยันแล้วโดยไม่มีธงยืนยันบัตร → ถูกบล็อก (W-3)
+select test.ok('CGT10: แก้ยอดรายการบัตรที่ยืนยันแล้วโดยไม่ยืนยันใหม่ ถูกบล็อก',
+  test.cgt_try($q$ update public.punpang_orders set data = jsonb_set(data, '{payments}', '[{"id":"cgt_p6","status":"confirmed","amount":60,"posMethod":"card"}]'::jsonb) where id = 'cgt_open' $q$) like 'ERR:P0001:punpang_card_unconfirmed:%');
+
+-- CGT11: แก้ยอดรายการบัตรที่ยืนยันแล้วพร้อมธงยืนยันบัตรใหม่ → บันทึกได้
+select test.ok('CGT11: แก้ยอดรายการบัตรที่ยืนยันแล้วพร้อมธงยืนยันบัตรใหม่ บันทึกได้',
+  test.cgt_try($q$ update public.punpang_orders set data = jsonb_set(data, '{payments}', '[{"id":"cgt_p6","status":"confirmed","amount":60,"posMethod":"card","cardConfirmed":true}]'::jsonb) where id = 'cgt_open' $q$) = 'OK');
+
 rollback;

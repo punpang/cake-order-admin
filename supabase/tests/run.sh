@@ -125,6 +125,35 @@ cdgcode=$?
 [ "$cdgcode" = "0" ] && echo "✓ customer_deleted_guard.test.sql ผ่านทั้งหมด" || echo "✗ customer_deleted_guard.test.sql ล้มเหลว"
 [ "$cdgcode" = "0" ] || exit "$cdgcode"
 
+# W-4 (ด่านลูกค้า FOR KEY SHARE): ทดสอบด้วยสองเซสชันจริง · ข้อมูลต้อง commit ให้เซสชันอื่นเห็น (ฐานทดสอบถูกทิ้งเมื่อจบ)
+"${PSQL[@]}" -d "$DB" -c "insert into public.punpang_customers (id, name, data) values ('cdg_lock', 'ลูกค้าทดสอบล็อก', '{}')" >/dev/null || { echo "✗ เตรียมลูกค้าทดสอบ W-4 ไม่ได้"; exit 1; }
+# รอจนเซสชันที่ถือล็อกเข้าสู่ pg_sleep แล้ว (ตอนนั้นล็อกได้ถูกถือไว้แล้วอย่างแน่นอน)
+w4_wait_hold() {
+  local n
+  for _ in $(seq 1 50); do
+    n=$("${PSQL[@]}" -d "$DB" -tA -c "select count(*) from pg_stat_activity where datname = current_database() and pid <> pg_backend_pid() and wait_event = 'PgSleep'")
+    [ "${n:-0}" -ge 1 ] && return 0
+    sleep 0.2
+  done
+  return 1
+}
+# (ก) การแก้ข้อมูลลูกค้า (NO KEY UPDATE) ต้องไม่รอออร์เดอร์ที่กำลังแทรก เพราะ FOR KEY SHARE ไม่ชนกับ NO KEY UPDATE
+"${PSQL[@]}" -d "$DB" -c "begin; insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('cdg_lock_o1', 'OR-CDG-L1', 'cdg_lock', 'pos_pending', 'pickup', 'pos', '{\"items\":[{\"unitPrice\":100,\"qty\":1}],\"payments\":[]}'); select pg_sleep(4); rollback;" >/dev/null 2>&1 &
+hold=$!
+w4_wait_hold || { echo "✗ W-4: เซสชันทดสอบไม่ได้ถือล็อกของการแทรก"; wait "$hold"; exit 1; }
+"${PSQL[@]}" -d "$DB" -c "set lock_timeout = '1s'; update public.punpang_customers set name = 'ลูกค้าทดสอบล็อก (แก้)' where id = 'cdg_lock'" >/dev/null 2>&1
+upd=$?
+wait "$hold"
+[ "$upd" = "0" ] && echo "✓ W-4: การแก้ข้อมูลลูกค้าไม่รอออร์เดอร์ที่กำลังแทรก" || { echo "✗ W-4: การแก้ข้อมูลลูกค้ารอหรือถูกล็อกเกิน 1 วินาที"; exit 1; }
+# (ข) การลบ (FOR UPDATE ของ purge) ต้องยังกันการแทรกออร์เดอร์ระหว่างลบได้เหมือนเดิม
+"${PSQL[@]}" -d "$DB" -c "begin; select 1 from public.punpang_customers where id = 'cdg_lock' for update; select pg_sleep(4); rollback;" >/dev/null 2>&1 &
+hold=$!
+w4_wait_hold || { echo "✗ W-4: เซสชันทดสอบไม่ได้ถือล็อกของการลบ"; wait "$hold"; exit 1; }
+blockerr=$("${PSQL[@]}" -d "$DB" -c "set lock_timeout = '1s'; insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('cdg_lock_o2', 'OR-CDG-L2', 'cdg_lock', 'pos_pending', 'pickup', 'pos', '{\"items\":[{\"unitPrice\":100,\"qty\":1}],\"payments\":[]}')" 2>&1 >/dev/null)
+blockcode=$?
+wait "$hold"
+[ "$blockcode" != "0" ] && echo "$blockerr" | grep -qi "lock" && echo "✓ W-4: การลบยังกันการแทรกออร์เดอร์ได้" || { echo "✗ W-4: การแทรกออร์เดอร์ไม่ถูกกันระหว่างการลบ"; exit 1; }
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"
