@@ -159,6 +159,11 @@ srcode=$?
 [ "$srcode" = "0" ] && echo "✓ sync_review.test.sql ผ่านทั้งหมด" || echo "✗ sync_review.test.sql ล้มเหลว"
 [ "$srcode" = "0" ] || exit "$srcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/review_resend.test.sql
+rscode=$?
+[ "$rscode" = "0" ] && echo "✓ review_resend.test.sql ผ่านทั้งหมด" || echo "✗ review_resend.test.sql ล้มเหลว"
+[ "$rscode" = "0" ] || exit "$rscode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"

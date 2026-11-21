@@ -1,7 +1,6 @@
 // คิวรอตรวจของผู้จัดการ (ตาราง punpang_sync_review) · ออร์เดอร์ใหม่ที่ระบบไม่รับถาวรและมีการเงิน/แต้ม/คูปอง/รูปที่อัปโหลดแล้ว
 // เครื่องพนักงานเก็บลงคิวก่อน แล้วค่อยเอาออกจากเครื่อง · ผู้จัดการอ่านได้ทุกเครื่อง แล้วส่งซ้ำ แก้ไขการชำระแล้วส่ง หรือปิดพร้อมเหตุผล
 import { isTransientError } from './tableSync'
-import { orderRowOf } from './orderCreate.js'
 
 export const REVIEW_TABLE = 'punpang_sync_review'
 const REVIEW_COLS = 'id,order_id,order_code,channel,reason_code,reason_message,payload,edited_payload,status,created_by,created_at,resolved_by,resolved_at,resolution_note'
@@ -57,14 +56,12 @@ export const saveEditedReview = (client, row, edited) => setOpen(client, row.id,
 // ปิดพร้อมเหตุผล (ต้องมีเหตุผล · ฐานข้อมูลตรวจซ้ำอีกชั้น)
 export const closeReview = (client, row, note) => setOpen(client, row.id, { status: 'closed', resolution_note: String(note || '').trim() })
 
-// ส่งซ้ำเป็นบิลหน้าร้านใหม่ (เขียนตรงเหมือนบิล POS) · ใช้ฉบับที่แก้ไว้ถ้ามี
-// ออร์เดอร์นี้มีอยู่แล้ว (pkey ซ้ำ) = เคยส่งไปแล้ว → ปรับสถานะต่อ · ช่องทางอื่นไม่รองรับที่นี่
-export async function resendReview(client, row, source) {
-  if (row.channel !== 'pos') return { error: 'ส่งซ้ำได้เฉพาะบิลหน้าร้าน · ช่องทางนี้ให้ปิดพร้อมเหตุผลแล้วสร้างใหม่ในระบบ' }
-  const ins = await client.from('punpang_orders').insert(orderRowOf(source))
-  const existed = String(ins.error?.code) === '23505' && /pkey/.test(ins.error?.message || '')
-  if (ins.error && !existed) return { error: ins.error.message || 'ส่งซ้ำไม่สำเร็จ' }
-  return setOpen(client, row.id, { status: 'resent' })
+// ส่งซ้ำ: ฐานข้อมูลอ่านต้นฉบับหรือฉบับที่แก้จากคิวเอง (เบราว์เซอร์ไม่ส่งออร์เดอร์) และทำทั้งหมดในธุรกรรมเดียว
+// ผู้จัดการไม่ต้องมีสิทธิ์ pos · ด่านของฐานข้อมูลปฏิเสธเมื่อไม่ผ่าน และรายการยังอยู่ในคิว
+export async function resendReview(client, row) {
+  const r = await client.rpc('punpang_review_resend', { p_id: row.id })
+  if (r.error) return { error: r.error.message || 'ส่งซ้ำไม่สำเร็จ' }
+  return { ok: true }
 }
 
 // การชำระเงินที่ผู้จัดการแก้ได้: ยอดและการยืนยันบัตร · ลบรายการได้ · ส่วนอื่นของออร์เดอร์ไม่แก้ที่หน้านี้

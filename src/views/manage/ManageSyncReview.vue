@@ -69,7 +69,7 @@ async function resend(row) {
     message: `ส่ง ${row.order_code || row.order_id} เข้าระบบอีกครั้งตามข้อมูลที่เก็บไว้ · ถ้ายังไม่ผ่านกติกาเดิม ระบบจะแจ้งเหตุผลให้`,
     okText: 'ส่งซ้ำ',
   })
-  if (ok) await run(row, (c) => resendReview(c, row, row.edited_payload || row.payload))
+  if (ok) await run(row, (c) => resendReview(c, row))
 }
 
 function openEdit(row) {
@@ -82,7 +82,7 @@ async function saveEdit() {
   const next = withPayments(row.edited_payload || row.payload, edit.payments)
   const ok = await run(row, async (c) => {
     const s = await saveEditedReview(c, row, next)
-    return s.error ? s : resendReview(c, { ...row, edited_payload: next }, next)
+    return s.error ? s : resendReview(c, row)
   })
   if (ok) edit.row = null
   else edit.error = err.value
