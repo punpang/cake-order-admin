@@ -4,7 +4,7 @@ import { getSupabase, supabaseEnabled } from './supabase'
 import { showToast } from './toast'
 import { quietly } from './loading'
 import { publicState, setRestoring } from './dataStatus'
-import { syncRealtime, waitSaved } from './syncStatus'
+import { syncRealtime, waitSaved, clearQueuedNotices } from './syncStatus'
 import { startRealtime, makeDebouncer } from './realtimeSync'
 import { startPush, stopPush } from './push'
 import { createQuoteRemote } from './quoteRemote'
@@ -566,4 +566,4 @@ export async function currentStaff() {
   return { staff: data }
 }
 
-export async function staffSignOut() { await stopPush(); staffState.staff = null; staffState.loadFailed = []; dataCtx = null; groupLoads.clear(); { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1); m.deletionServer.purge = null; m.customerFetch.byIds = null; m.customerFetch.search = null; m.customerFetch.page = null; m.orderFetch.pull = null; m.orderFetch.counts = null; m.orderCounts.clear(); const ac = await import('../data/acct'); Object.assign(ac.acctFetch, { extend: null, orderInvoices: null, invoiceYear: null }) }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }
+export async function staffSignOut() { clearQueuedNotices(); await stopPush(); staffState.staff = null; staffState.loadFailed = []; dataCtx = null; groupLoads.clear(); { const m = await import('../data/store'); const i = m.trashHooks.indexOf(trashHook); if (i >= 0) m.trashHooks.splice(i, 1); m.deletionServer.purge = null; m.customerFetch.byIds = null; m.customerFetch.search = null; m.customerFetch.page = null; m.orderFetch.pull = null; m.orderFetch.counts = null; m.orderCounts.clear(); const ac = await import('../data/acct'); Object.assign(ac.acctFetch, { extend: null, orderInvoices: null, invoiceYear: null }) }; stopPolling(); syncs.forEach((x) => x.stop()); syncs = []; const supabase = await getSupabase(); if (supabase) await supabase.auth.signOut() }

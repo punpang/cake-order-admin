@@ -25,6 +25,7 @@ export const STAFF_PUSH_RULES: Record<string, PushRule> = {
   team_vat_due: { perms: ['acctView'], path: fixed('/admin/accounting') },
   team_expense_missing: { perms: ['acctView'], path: fixed('/admin/accounting') },
   team_installment_due: { perms: ['acctView'], path: fixed('/admin/accounting') },
+  team_order_review: { perms: ['manage'], path: fixed('/admin/settings/sync-review') },
 }
 
 // มีกติกาของประเภทนี้หรือไม่ (ใช้ hasOwn กันชื่อที่ซ้ำกับ prototype เช่น constructor)

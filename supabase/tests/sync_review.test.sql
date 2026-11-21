@@ -107,5 +107,22 @@ select test.ok('SR24 หลังล้าง คิวในสำเนาว�
 select test.ok('SR25 การล้างสำเนาไม่แตะคิวจริง',
   exists (select 1 from public.punpang_sync_review where order_id = 'sr_o2'));
 
+-- ---------- G) แจ้งกระดิ่งผู้จัดการเมื่อเข้าคิว (ทริกเกอร์ punpang_sync_review_notify) ----------
+select test.ok('SR26 พนักงานขายเพิ่มรายการเปิดได้ (ทดสอบกระดิ่ง)',
+  test.as_staff('11111111-1111-1111-1111-111111111111', $q$
+    insert into public.punpang_sync_review (order_id, order_code, channel, reason_code, reason_message, payload)
+    values ('sr_b1', 'OR-SR-B1', 'pos', 'P0001', 'ยอดเกินบิล', '{"id":"sr_b1"}') $q$) = 'OK');
+select test.ok('SR26b การเข้าคิวแจ้งกระดิ่งผู้จัดการ 1 แถวประเภท team_order_review',
+  (select count(*) = 1 from public.punpang_records where collection = 'bell' and data->>'event' = 'team_order_review' and data->>'text' like 'OR-SR-B1%'));
+select test.ok('SR27 ข้อความกระดิ่งมีเฉพาะรหัสออร์เดอร์ (ไม่มีข้อมูลลูกค้าหรือ payload)',
+  (select data->>'text' = 'OR-SR-B1 · รอผู้จัดการตรวจ' and data->>'audience' = 'staff' and position('sr_b1' in data::text) = 0
+     from public.punpang_records where collection = 'bell' and data->>'event' = 'team_order_review' and data->>'text' like 'OR-SR-B1%'));
+select test.ok('SR28 รหัสออร์เดอร์ว่างก็ยังเข้าคิวและแจ้งได้ (การเข้าคิวไม่ล้ม)',
+  test.as_staff('11111111-1111-1111-1111-111111111111', $q$
+    insert into public.punpang_sync_review (order_id, payload) values ('sr_b2', '{"id":"sr_b2"}') $q$) = 'OK');
+select test.ok('SR28b กระดิ่งของรายการที่ไม่มีรหัสใช้ข้อความทั่วไป (ตรวจเฉพาะแถวของ sr_b2)',
+  (select count(*) = 1 from public.punpang_records r join public.punpang_sync_review q on r.id = 'bl_rv_' || replace(q.id::text, '-', '')
+     where q.order_id = 'sr_b2' and r.data->>'text' = 'ออร์เดอร์ · รอผู้จัดการตรวจ'));
+
 rollback;
 select 'ผ่านทั้งหมด' as sync_review_tests;

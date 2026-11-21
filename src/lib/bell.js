@@ -22,6 +22,7 @@ export const BELL_STAFF = {
   team_vat_due: { title: 'ครบกำหนดยื่น ภ.พ.30', perms: ['acctView'], tone: 'rose', to: () => '/admin/accounting' },
   team_expense_missing: { title: 'ค่าใช้จ่ายที่ยังไม่ได้บันทึก', perms: ['acctView'], tone: 'amber', to: () => '/admin/accounting' },
   team_installment_due: { title: 'งวดผ่อนชำระใกล้/เลยกำหนด', perms: ['acctView'], tone: 'amber', to: () => '/admin/accounting' },
+  team_order_review: { title: 'ออร์เดอร์รอตรวจ', perms: ['manage'], tone: 'rose', to: () => '/admin/settings/sync-review' },
 }
 
 // ฝั่งลูกค้า (เฉพาะที่ผูกกับลูกค้า) · อวยพรวันเกิดไม่ขึ้นกระดิ่ง

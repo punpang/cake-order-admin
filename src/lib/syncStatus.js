@@ -11,6 +11,29 @@ export const syncLastOk = reactive({ at: 0 })
 // สถานะ Realtime (แยกจากคิวเขียน ไม่กระทบ beforeunload) · off | connecting | live | down
 export const syncRealtime = reactive({ state: 'off', everLive: false, lastLiveAt: 0 })
 
+// แถบค้าง: รหัสออร์เดอร์ที่เครื่องนี้ส่งเข้าคิวผู้จัดการ · เก็บในเครื่องจนกดรับทราบหรือออกจากระบบ (เก็บเฉพาะรหัสและเวลา ไม่มีข้อมูลลูกค้า)
+const NOTICE_KEY = 'punpang_queued_notices'
+function readNotices() {
+  try {
+    const v = JSON.parse(localStorage.getItem(NOTICE_KEY) || '[]')
+    return Array.isArray(v) ? v.filter((x) => x && typeof x.code === 'string') : []
+  } catch { return [] }
+}
+function saveNotices(list) {
+  try { localStorage.setItem(NOTICE_KEY, JSON.stringify(list)) } catch { /* เขียนไม่ได้ (เช่นโหมดส่วนตัว) = อยู่ได้เฉพาะหน้านี้ */ }
+}
+export const queuedNotices = reactive({ list: readNotices() })
+export function addQueuedNotice(codes) {
+  const have = new Set(queuedNotices.list.map((x) => x.code))
+  const at = new Date().toISOString()
+  const fresh = [...new Set(codes.filter(Boolean).map((c) => String(c).slice(0, 40)))].filter((c) => !have.has(c))
+  if (!fresh.length) return
+  queuedNotices.list = [...queuedNotices.list, ...fresh.map((code) => ({ code, at }))]
+  saveNotices(queuedNotices.list)
+}
+export function ackQueuedNotices() { queuedNotices.list = []; saveNotices([]) }
+export function clearQueuedNotices() { ackQueuedNotices() }
+
 export function syncSet(key, state, msg = '', retry = null) {
   syncEntries[key] = { state, msg }
   if (retry) retryFns.set(key, retry)

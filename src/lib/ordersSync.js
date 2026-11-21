@@ -6,6 +6,7 @@ import { STATUS } from './constants'
 import { externalizeOrderImages, isLocalImage, privateRefsOf, removePrivate } from './storage'
 import { queueForReview } from './syncReview.js'
 import { showToast } from './toast.js'
+import { addQueuedNotice } from './syncStatus.js'
 
 // ตารางออร์เดอร์ในเครื่อง = ทุกออร์เดอร์ที่สถานะไม่ใช่ยกเลิก/ส่งมอบแล้ว (ไม่จำกัดช่วงเวลา) · หน้าที่ต้องใช้ประวัติทั้งหมดเปิดโหมดเต็ม (setOrdersFullHistory)
 let fullHistory = false
@@ -276,7 +277,11 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
 }
 
 // แจ้งพนักงานทันทีเมื่อออร์เดอร์ถูกเอาออกจากเครื่องเพราะเก็บเข้าคิวผู้จัดการ (ไม่ให้หายเงียบ)
-const notifyQueued = (list) => showToast(`ระบบไม่รับออร์เดอร์ ${list.map((o) => o.code || o.id).join(', ')} จึงส่งเข้าคิวให้ผู้จัดการตรวจแล้ว และเอาออกจากเครื่องนี้ · ผู้จัดการจะส่งซ้ำหรือปิดรายการ`, 12000, 'error')
+const notifyQueued = (list) => {
+  const codes = list.map((o) => o.code || o.id)
+  addQueuedNotice(codes) // แถบค้างบนทุกหน้า จนกดรับทราบหรือออกจากระบบ (รายการยังอยู่ในคิวผู้จัดการเสมอ)
+  showToast(`ระบบไม่รับออร์เดอร์ ${codes.join(', ')} จึงส่งเข้าคิวให้ผู้จัดการตรวจแล้ว และเอาออกจากเครื่องนี้ · ผู้จัดการจะส่งซ้ำหรือปิดรายการ`, 12000, 'error')
+}
 
 export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCreated, numbering, debounceMs, retryDelay, onCustomerIds = null, onQueued = notifyQueued }) {
   const known = new Set()
