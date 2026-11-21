@@ -4039,7 +4039,7 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
 }
 const paidOf = (rows) => round2(rows.reduce((s, l) => s + round2(Number(l.amount)), 0))
 const posRowsText = (rows) => rows.map((l) => POS_METHODS[l.method]).join(' + ')
-// บัตรที่นับเป็นยอดรับต้องผ่านการกดยืนยันรับบัตรแล้ว (ด่านหน้าจอ) → บันทึกธง cardConfirmed ให้ด่านฐานข้อมูลตรวจได้
+// บัตรที่นับเป็นยอดรับต้องผ่านการกดยืนยันรับบัตรแล้ว (ด่านหน้าจอ) → บันทึกธง cardConfirmed ให้ด่านฐานข้อมูลตรวจความสอดคล้อง (ธงนี้แอปตั้งเอง ไม่ใช่การยืนยันจากเซิร์ฟเวอร์)
 function pushPosPayments(o, rows, ts) {
   for (const l of rows) {
     const amt = round2(Number(l.amount))
