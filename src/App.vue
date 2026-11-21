@@ -125,9 +125,11 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
   <nav
     v-if="showTopBar"
     v-show="!kbLock"
-    class="sticky top-0 z-20 hidden h-14 items-center gap-1 overflow-x-auto border-b border-stone-200 bg-white px-6 [scrollbar-width:none] landscape:flex"
+    class="sticky top-0 z-20 hidden h-14 items-center gap-1 border-b border-stone-200 bg-white px-6 landscape:flex"
     aria-label="เมนูของระบบ"
   >
+    <!-- เฉพาะรายการเมนูที่เลื่อนแนวนอนได้ · กระดิ่งและปุ่มเมนูอยู่นอกกรอบนี้ ไม่ให้หน้าต่างกระดิ่งที่ยื่นลงมาถูกตัด -->
+    <div class="flex h-full min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none]">
     <RouterLink
       v-for="i in items"
       :key="i.to"
@@ -138,6 +140,7 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
     >
       {{ i.label }}<span v-if="i.badge && badges[i.badge]" class="ml-1 rounded-full bg-brand-600 px-1.5 text-xs font-semibold text-white">{{ badges[i.badge] }}</span>
     </RouterLink>
+    </div>
     <div class="ml-auto flex shrink-0 items-center gap-2 pl-2">
       <BellMenu audience="staff" />
       <button type="button" class="flex h-10 w-10 items-center justify-center rounded-full bg-white text-stone-700 shadow-md ring-1 ring-stone-200" aria-label="เมนู" aria-controls="app-menu" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
