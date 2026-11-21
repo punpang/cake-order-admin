@@ -45,6 +45,11 @@ shcode=$?
 [ "$shcode" = "0" ] && echo "✓ shifts_guard.test.sql ผ่านทั้งหมด" || echo "✗ shifts_guard.test.sql ล้มเหลว"
 [ "$shcode" = "0" ] || exit "$shcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/rate_limit.test.sql
+rlcode=$?
+[ "$rlcode" = "0" ] && echo "✓ rate_limit.test.sql ผ่านทั้งหมด" || echo "✗ rate_limit.test.sql ล้มเหลว"
+[ "$rlcode" = "0" ] || exit "$rlcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/coupon_modes.test.sql
 ccode=$?
 [ "$ccode" = "0" ] && echo "✓ coupon_modes.test.sql ผ่านทั้งหมด" || echo "✗ coupon_modes.test.sql ล้มเหลว"
