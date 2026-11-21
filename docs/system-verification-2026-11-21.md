@@ -47,7 +47,8 @@
 
 หลังรัน: แถว `QA-` ทุกตาราง = 0 · ตัวนับ (`punpang_counters`, `punpang_acct_counters`) ตรงก่อน/หลัง · คิว pg_net = 0 · จำนวนแถวตารางหลักเท่าเดิม
 
-## 4. ช่องว่างและข้อสังเกต (เรียงตามความเสี่ยง · ยังไม่ได้แก้)
+## 4. ช่องว่างและข้อสังเกต (เรียงตามความเสี่ยง)
+สถานะ: **B3, B12, B13 แก้แล้วบน dev** (migration `20261121160000_punpang_scheduled_timeout_phone_uniq.sql` + e2e route) รอ merge และ Release · ข้ออื่นยังไม่ได้แก้
 | ID | ระดับ | พบ | ทางแก้ที่แนะนำ |
 |---|---|---|---|
 | B13 | เตือน | cron `punpang-scheduled` (ทุก 15 นาที) ถูก pg_net ตัดที่ 5 วินาที 11 จาก 24 รอบ (08:00–13:50Z) · รอบที่สำเร็จใช้ 3.6–4.9 วินาที (ใกล้เพดาน) · รอบที่ถูกตัดฟังก์ชันบูตปกติ แต่ผลสุดท้ายยืนยันจาก log ไม่ได้ | เพิ่ม `timeout_milliseconds` (เช่น 30000) หรือลดเวลาทำงานของฟังก์ชัน |
@@ -87,11 +88,11 @@
 - พิมพ์ Bluetooth / `window.print` / iOS / Android บนเครื่องจริง
 - สมัครลูกค้าด้วย OTP จริง (ต้องส่ง SMS) · เรียก Edge Function ด้วยบัญชีพนักงานจริง (ไม่มีรหัสผ่าน) — ชั้นนี้อาศัยเทสต์ Deno และ e2e
 
-## 7. ลำดับแก้ที่แนะนำ (ยังไม่ทำ · ทุกข้อที่แตะ production ต้องอนุมัติ)
-1. B13 — เพิ่ม timeout ของ cron `punpang-scheduled`
-2. B12 — เพิ่ม migration สำหรับ unique index เบอร์ให้ตรง production
+## 7. ลำดับแก้ที่แนะนำ (ทุกข้อที่แตะ production ต้องอนุมัติ · ข้อ 1, 2, 4 แก้แล้วบน dev รอ Release)
+1. B13 — เพิ่ม timeout ของ cron `punpang-scheduled` เป็น 30 วินาที (แก้แล้วบน dev)
+2. B12 — เพิ่ม migration สำหรับ unique index เบอร์ให้ตรง production (แก้แล้วบน dev · ทดสอบชุดข้อมูลทดสอบ purge ที่เบอร์ซ้ำด้วย)
 3. B6 — เปิด Leaked password protection (ตั้งค่าใน Dashboard)
-4. B3 — เพิ่ม `/admin/settings/sync-review` ใน STATIC (1 บรรทัด)
+4. B3 — เพิ่ม `/admin/settings/sync-review` ใน STATIC (แก้แล้วบน dev)
 5. B1, B2 — ทำสคีมาทดสอบให้เท่าสคีมาจริง (FK ของ order_audits และตาราง LINE)
 6. B7 — ตรวจเพดานอัตราของ RPC สาธารณะ · เพิกถอนสิทธิ์ `punpang_apply_points`
 7. B4 — deploy `bot-test` ในรอบ Release ถัดไป

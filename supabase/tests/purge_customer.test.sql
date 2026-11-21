@@ -5,8 +5,8 @@ begin;
 -- ใช้พนักงานจาก security.test.sql: 5555… = Admin (manage) · 1111… = Sales (ไม่มี manage)
 
 insert into public.punpang_customers (id, name, phone, note, data) values
-  ('pc_c1', 'ลูกค้าทดสอบ', '0811111111', 'โน้ตส่วนตัว', '{"ledger":[{"pts":5}],"spins":1,"fbPsid":"PSID-pc","tax":{"name":"บริษัท","taxId":"1234567890123"},"places":[{"name":"บ้าน"}],"promoOptIn":false}'),
-  ('pc_c2', 'ลูกค้าค้าง', '0822222222', '', '{"ledger":[]}');
+  ('pc_c1', 'ลูกค้าทดสอบ', '0855500001', 'โน้ตส่วนตัว', '{"ledger":[{"pts":5}],"spins":1,"fbPsid":"PSID-pc","tax":{"name":"บริษัท","taxId":"1234567890123"},"places":[{"name":"บ้าน"}],"promoOptIn":false}'),
+  ('pc_c2', 'ลูกค้าค้าง', '0855500002', '', '{"ledger":[]}');
 
 insert into public.punpang_orders (id, code, customer_id, status, fulfillment, data, balance) values
   ('pc_o1', 'PC-0001', 'pc_c1', 'delivered', 'pickup',
@@ -23,14 +23,14 @@ insert into public.punpang_records (collection, id, data) values
   ('coupons', 'pc_cp1', '{"customerId":"pc_c1"}'),
   ('reviews', 'pc_rv1', '{"customerId":"pc_c1"}'),
   ('outbox', 'pc_ob1', '{"orderId":"pc_o1"}'),
-  ('outbox', 'pc_ob2', '{"to":"0811111111"}'),
+  ('outbox', 'pc_ob2', '{"to":"0855500001"}'),
   ('chatDrafts', 'pc_ch1', '{}'),
   ('orderLinks', 'pc_ol1', '{"orderId":"pc_o1"}'),
   ('birthdayGreeted', 'pc_c1|ลูกค้า|0101|2026', '{}'),
   ('notifySent', 'bd|pc_c1|2026', '{}'),
   ('consents', 'pc_cs1', '{"customerId":"pc_c1","kind":"privacy","version":1}'),
   ('reviews', 'pc_rv2', '{"customerId":"pc_c2"}');
-insert into public.punpang_customer_auth (customer_id, pin_hash, pin_salt, phone) values ('pc_c1', 'h', 's', '0811111111');
+insert into public.punpang_customer_auth (customer_id, pin_hash, pin_salt, phone) values ('pc_c1', 'h', 's', '0855500001');
 insert into public.punpang_customer_sessions (token_hash, customer_id, expires_at) values ('pc_tok', 'pc_c1', now() + interval '1 day');
 
 -- สิทธิ์: ไม่ใช่แอดมิน = ไม่ได้
