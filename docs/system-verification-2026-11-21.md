@@ -48,7 +48,7 @@
 หลังรัน: แถว `QA-` ทุกตาราง = 0 · ตัวนับ (`punpang_counters`, `punpang_acct_counters`) ตรงก่อน/หลัง · คิว pg_net = 0 · จำนวนแถวตารางหลักเท่าเดิม
 
 ## 4. ช่องว่างและข้อสังเกต (เรียงตามความเสี่ยง)
-สถานะ: **B3, B12, B13 แก้แล้วบน dev** (migration `20261121160000_punpang_scheduled_timeout_phone_uniq.sql` + e2e route) รอ merge และ Release · ข้ออื่นยังไม่ได้แก้
+สถานะ: **B3, B12, B13 แก้แล้วและ Release แล้ว** (main `b85d8f8` · migration `20261121160000_punpang_scheduled_timeout_phone_uniq.sql` · Release #11 ผ่าน) · B8 ตรวจสาเหตุแล้ว (ดูแถว B8) · ข้ออื่นยังไม่ได้แก้
 | ID | ระดับ | พบ | ทางแก้ที่แนะนำ |
 |---|---|---|---|
 | B13 | เตือน | cron `punpang-scheduled` (ทุก 15 นาที) ถูก pg_net ตัดที่ 5 วินาที 11 จาก 24 รอบ (08:00–13:50Z) · รอบที่สำเร็จใช้ 3.6–4.9 วินาที (ใกล้เพดาน) · รอบที่ถูกตัดฟังก์ชันบูตปกติ แต่ผลสุดท้ายยืนยันจาก log ไม่ได้ | เพิ่ม `timeout_milliseconds` (เช่น 30000) หรือลดเวลาทำงานของฟังก์ชัน |
@@ -60,7 +60,7 @@
 | B7 | ข้อมูล | RPC ที่ anon เรียกได้ 4 ตัว (click_stats / record_click / record_pageview / resolve_short_link) ตั้งใจสำหรับหน้าร้านสาธารณะ · click_stats คืนค่ารวมที่มี ≥3 ผู้เข้าชม · record_* เขียนจากผู้ไม่ล็อกอิน (ยังไม่ได้ตรวจเพดานอัตรา) · `punpang_apply_points` ปลดระวางแล้ว (คืน retired) แต่ authenticated ยัง execute ได้ (ไม่มีผล) | ตรวจเพดานอัตราของ record_* · เพิกถอนสิทธิ์ apply_points |
 | B4 | ปรับปรุง | `bot-test` บน production ยังเป็นโค้ดก่อนแก้ aiLog (63cc98d ไม่เก็บข้อความลูกค้า) · เป็นเครื่องมือทดสอบ ข้อมูลอยู่สคีมาทดสอบ ข้อความผ่าน scrubPII ตัดสั้น → ความเสี่ยงต่ำ | deploy `bot-test` ใหม่ผ่าน Release (ต้องอนุมัติ) |
 | B10 | ครอบคลุม | หน้าตั้งค่าย่อย 30 หน้า: smoke + 375px + สิทธิ์ เท่านั้น ไม่มี e2e พฤติกรรม CRUD (products / pricing / options / bundles / ingredients / gallery / storefront / links / legal / integrations / photo-requests / deletion-requests ฯลฯ) → พึ่ง unit test ของ lib | เพิ่ม e2e ตามความเสี่ยง (ต้องอนุมัติ) |
-| B8 | ต้องดูเพิ่ม | storage sign 400 ×9 (รูปแชท Messenger 04:21Z — ยังไม่ได้ยืนยันว่า UI แสดง placeholder เมื่อรูปหมดอายุ) · sms-send 503 ×2 · telegram-send 403 ×2 · push-send 404 ×4 / 405 ×1 · fb-connect 409 ×20 (โหมดทดสอบถูกปฏิเสธโดยออกแบบ ไม่ใช่ข้อผิดพลาด) | ดูสาเหตุ sms/telegram/push เมื่อมีโอกาส |
+| B8 | ตรวจสาเหตุแล้ว | ส่วนใหญ่เกิด 10:20–10:37Z ซึ่งเป็นช่วงทดสอบ push วันนี้ · push-send 404 ×4 (`record`) = ไม่มีแถวกระดิ่งในช่วงนั้นเหลืออยู่ (แถวทดสอบถูกลบแล้ว) · push-send 405 ×1 (11:06Z) = เรียกด้วยวิธีที่ไม่ใช่ POST · sms-send 503 ×2 = โค้ดตอบ "ยังไม่ได้ตั้งค่าเกตเวย์ SMS" · telegram-send 403 ×2 = ไม่ใช่ปลายทางถูกบล็อกในโหมดทดสอบ (ไม่มีแถว blocked) สาเหตุยังไม่ยืนยัน · storage sign 400 ×9 (รูป Messenger 04:21Z) = หน้าแชทแสดง "โหลดไม่ได้" ตามออกแบบ (ตรวจโค้ดแล้ว) · fb-connect 409 = โหมดทดสอบปฏิเสธตามออกแบบ | ค้างคำถาม: SMS ควรเปิดใช้หรือยัง · telegram 403 ต้องดูเพิ่มถ้าต้องการ |
 | B5 | ข้อมูล | โค้ดใน main ใหม่กว่าที่ deploy แต่ไม่กระทบพฤติกรรม: scheduled / customer-order / fb-webhook (ขาด bell `team_order_review` ที่ตัวมันไม่สร้าง) · order-audit / quote-create (ขาดค่าคงที่ช่อง LINE และ `team_daily_summary` ที่ไม่ได้ใช้) · line-push (ขาดฟังก์ชันอายุข้อความที่ไม่ได้ใช้) · line-webhook (ส่วนที่เปลี่ยนใช้กับ Messenger เท่านั้น) | ไม่ต้องทำอะไร (รวมใน Release ครั้งหน้า) |
 | B14 | ข้อมูล | function ใน production: 14 ตัว (×2 สคีมา) มี CR (CRLF) ต่าง repo เฉพาะช่องว่าง · 3 ตัว (`punpang_cust_spin`, `punpang_log_error`, `punpang_purge_customer`) ขาดบรรทัดคอมเมนต์ไทยเทียบ repo · `rls_auto_enable` เป็นฟังก์ชันแพลตฟอร์ม → ไม่มีความต่างเชิงตรรกะ | — |
 | B9 | เล็กน้อย | cron `punpang-manee-inbox-purge` ลบ `public.tungngern_inbox` (ชื่อไม่ตรงงาน) | เปลี่ยนชื่อ |
@@ -88,7 +88,7 @@
 - พิมพ์ Bluetooth / `window.print` / iOS / Android บนเครื่องจริง
 - สมัครลูกค้าด้วย OTP จริง (ต้องส่ง SMS) · เรียก Edge Function ด้วยบัญชีพนักงานจริง (ไม่มีรหัสผ่าน) — ชั้นนี้อาศัยเทสต์ Deno และ e2e
 
-## 7. ลำดับแก้ที่แนะนำ (ทุกข้อที่แตะ production ต้องอนุมัติ · ข้อ 1, 2, 4 แก้แล้วบน dev รอ Release)
+## 7. ลำดับแก้ที่แนะนำ (ทุกข้อที่แตะ production ต้องอนุมัติ · ข้อ 1, 2, 4 แก้แล้วและ Release แล้ว)
 1. B13 — เพิ่ม timeout ของ cron `punpang-scheduled` เป็น 30 วินาที (แก้แล้วบน dev)
 2. B12 — เพิ่ม migration สำหรับ unique index เบอร์ให้ตรง production (แก้แล้วบน dev · ทดสอบชุดข้อมูลทดสอบ purge ที่เบอร์ซ้ำด้วย)
 3. B6 — เปิด Leaked password protection (ตั้งค่าใน Dashboard)
