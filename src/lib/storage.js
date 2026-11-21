@@ -15,6 +15,8 @@ const FILES_URL = (import.meta.env?.VITE_FILES_URL || '').replace(/\/$/, '')
 export const filesEnabled = () => !!FILES_URL
 export const filesBase = () => FILES_URL
 const NO_FILES = 'ยังไม่ได้ตั้งค่าเซิร์ฟเวอร์ไฟล์ (VITE_FILES_URL)'
+// ข้อผิดพลาดพร้อมรหัสหรือสถานะ HTTP ให้ตัวจัดประเภทในเครื่องยนต์ซิงก์แยกชั่วคราว (ลองใหม่ได้) กับถาวร (ต้องแก้รูป) ได้
+const fail = (msg, props = {}) => Object.assign(new Error(msg), props)
 async function filesAuth(client) {
   const sess = (await client.auth.getSession()).data.session
   return sess?.access_token ? { Authorization: `Bearer ${sess.access_token}` } : {}
@@ -29,11 +31,12 @@ export async function filesApi(client, path, body = {}) {
   return j
 }
 async function filesUpload(client, blob, type, bucket, prefix) {
-  if (!FILES_URL) throw new Error(NO_FILES)
-  if (testModeOn()) throw new Error(TEST_UPLOAD_MSG) // โหมดทดสอบไม่อัปโหลดไฟล์ไปที่ R2 จริง
+  if (!FILES_URL) throw fail(NO_FILES, { code: 'NO_FILES' })
+  if (testModeOn()) throw fail(TEST_UPLOAD_MSG, { code: 'TEST_MODE' }) // โหมดทดสอบไม่อัปโหลดไฟล์ไปที่ R2 จริง
   const r = await fetch(`${FILES_URL}/upload?bucket=${bucket}&prefix=${encodeURIComponent(prefix)}`, { method: 'POST', headers: { ...(await filesAuth(client)), 'Content-Type': type }, body: blob })
   const j = await r.json().catch(() => ({}))
-  if (!r.ok || (!j.url && !j.ref)) throw new Error(j.error || 'อัปโหลดไฟล์ไม่สำเร็จ')
+  // มีสถานะ HTTP ให้ตัวจัดประเภท: 401/5xx/408/429 = ชั่วคราว · 403/413 ฯลฯ = ถาวร · ตอบ 2xx แต่ไม่มีลิงก์ = ฝั่งเซิร์ฟเวอร์ผิดปกติ → ลองใหม่
+  if (!r.ok || (!j.url && !j.ref)) throw fail(j.error || 'อัปโหลดไฟล์ไม่สำเร็จ', { status: r.ok ? 502 : r.status })
   return j
 }
 
@@ -92,10 +95,14 @@ export const parseRef = (v) => {
   return m ? { bucket: m[1], path: m[2] } : null
 }
 
+// รูปในเครื่อง (data:/blob:) อ่านไม่ได้ = ถาวร (ไม่ใช่ปัญหาเครือข่าย) จึงไม่ค้างทั้งชุดซิงก์
+const readLocal = async (src) => {
+  try { return await (await fetch(src)).blob() } catch { throw fail('อ่านรูปในเครื่องไม่ได้ (ลองเลือกรูปใหม่)', { code: 'IMAGE_UNREADABLE' }) }
+}
 // รูปส่วนตัวของออร์เดอร์ (สลิป/รูปงาน/รูปอ้างอิง) → R2 ผ่าน Worker · คืนอ้างอิง r2://private/<key> · ล้มเหลว = โยน error
 export async function uploadPrivateImage(client, src, prefix) {
-  const blob = await (await fetch(src)).blob()
-  if (blob.size > MAX_UPLOAD_BYTES) throw new Error('รูปใหญ่เกิน 2 MB')
+  const blob = await readLocal(src)
+  if (blob.size > MAX_UPLOAD_BYTES) throw fail('รูปใหญ่เกิน 2 MB', { code: 'IMAGE_TOO_LARGE' })
   const type = EXT[blob.type] ? blob.type : 'image/jpeg'
   return (await filesUpload(client, blob, type, 'private', prefix)).ref
 }

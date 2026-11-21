@@ -35,7 +35,7 @@ const order = (id, qty = 1) => ({
 
 test('แถวที่ถูกปฏิเสธถาวร 1 แถว → แถวถัดไปยังถูกส่ง และแถวนั้นถูกรายงานว่าค้าง', async () => {
   const client = fakeClient({ bad: { code: 'P0001', message: 'punpang_over_bill: ยอดเกินบิล' } })
-  const held = new Map()
+  const held = new Set()
   const known = new Set()
   let reported = null
   const r = await pushOrders(client, { upserts: [order('bad'), order('good')] }, { held, known, slips: new Map(), onRejected: (list) => { reported = list } })
@@ -52,7 +52,7 @@ test('แถวที่ถูกปฏิเสธถาวร 1 แถว → 
 
 test('แก้แถวที่ถูกปฏิเสธแล้วส่งใหม่สำเร็จ → หลุดจากรายการค้าง', async () => {
   const client = fakeClient({})
-  const held = new Map([['bad', 'ฉบับเดิมที่ถูกปฏิเสธ']])
+  const held = new Set(['bad'])
   const r = await pushOrders(client, { upserts: [order('bad', 2)] }, { held, known: new Set(), slips: new Map() })
   assert.equal(r.error, undefined)
   assert.equal(r.rejected, undefined)
@@ -61,7 +61,7 @@ test('แก้แถวที่ถูกปฏิเสธแล้วส่�
 
 test('ลูกค้ายังไม่ซิงก์ (23503) ลองซ้ำครบแล้ว → ยังไม่ปฏิเสธถาวร หยุดชุดแล้วลองใหม่ตามรอบ', async () => {
   const client = fakeClient({ fk: { code: '23503', message: 'customer not synced yet' } })
-  const held = new Map()
+  const held = new Set()
   const r = await pushOrders(client, { upserts: [order('fk'), order('later')] }, { held, known: new Set(), slips: new Map(), retryDelay: 1 })
   assert.ok(r.error)
   assert.equal(r.rejected, undefined)
@@ -71,7 +71,7 @@ test('ลูกค้ายังไม่ซิงก์ (23503) ลองซ�
 
 test('เซสชันหมดอายุ (HTTP 401) เป็นข้อผิดพลาดชั่วคราว: หยุดชุดแล้วลองใหม่ ไม่ปฏิเสธถาวร', async () => {
   const client = fakeClient({ jwt: { httpStatus: 401, code: 'PGRST301', message: 'JWT expired' } })
-  const held = new Map()
+  const held = new Set()
   const r = await pushOrders(client, { upserts: [order('jwt'), order('later')] }, { held, known: new Set(), slips: new Map() })
   assert.ok(r.error)
   assert.equal(r.rejected, undefined)
@@ -81,7 +81,7 @@ test('เซสชันหมดอายุ (HTTP 401) เป็นข้อ�
 
 test('ข้อผิดพลาดชั่วคราว (เน็ตหลุด) หยุดชุดนี้ และไม่ส่งแถวที่เหลือ', async () => {
   const client = fakeClient({ net: { message: 'Failed to fetch' } }) // ไม่มีรหัส = ชั่วคราว
-  const held = new Map()
+  const held = new Set()
   const r = await pushOrders(client, { upserts: [order('net'), order('later')] }, { held, known: new Set(), slips: new Map() })
   assert.ok(r.error)
   assert.deepEqual(client.calls, ['net'])

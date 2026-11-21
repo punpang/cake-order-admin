@@ -97,7 +97,7 @@ export const RETRY_MS = [5000, 15000, 60000]
 // แอปจริง (staffAuth) เปิดไว้: โหลดไม่สำเร็จ = ล้างรายการตัวอย่างในเครื่อง ไม่ให้ดูเหมือนข้อมูลจริง · ค่าเริ่มต้นปิด (เทสต์/การใช้งานอื่นคงข้อมูลเดิม)
 export const syncOptions = { clearOnLoadFail: false }
 let syncSeq = 0
-export async function startSync({ list, replace, load, push, canWrite, onError = () => {}, label = '', debounceMs = 600, poll = false, loadByIds = null, applyRows = null, loadSince = null, keep = null, fullEveryMs = FULL_EVERY_MS, now = () => Date.now(), statusHook = null }) {
+export async function startSync({ list, replace, load, push, canWrite, onError = () => {}, label = '', debounceMs = 600, poll = false, loadByIds = null, applyRows = null, loadSince = null, keep = null, fullEveryMs = FULL_EVERY_MS, now = () => Date.now(), statusHook = null, isHeld = null }) {
   const t0 = clock()
   const loaded = await load()
   if (loaded.error) {
@@ -136,6 +136,7 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
     const gone = new Set()
     let changed = false
     for (const it of r.items) {
+      if (isHeld?.(it.id)) continue // ฉบับที่ค้างจากการถูกปฏิเสธ (ยังไม่ซิงก์) คงไว้ในเครื่อง ไม่ทับด้วยฉบับเซิร์ฟเวอร์ (W-5)
       const k = at.get(it.id)
       if (keep && !keep(it)) { if (k !== undefined) { gone.add(it.id); changed = true } continue }
       kept.push(it)
@@ -170,7 +171,7 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
   // รวมแถวจากเซิร์ฟเวอร์เข้ารายการ (เพิ่ม/แทนที่) · แถวที่แก้ค้างในเครื่อง = ข้าม (ไม่ทับงาน)
   const mergeRows = (items) => {
     const at = new Map(list().map((it, i) => [it.id, i]))
-    const isClean = (id) => { const k = at.get(id); return k === undefined || snapshot.get(id) === JSON.stringify(list()[k]) }
+    const isClean = (id) => { if (isHeld?.(id)) return false; const k = at.get(id); return k === undefined || snapshot.get(id) === JSON.stringify(list()[k]) }
     const rows = items.filter((it) => isClean(it.id))
     const arr = list()
     for (const it of rows) {
@@ -185,7 +186,7 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
   const merge = (items) => (busy ? false : (mergeRows(items), true))
   const refreshIds = loadByIds ? async (ids) => {
     if (busy || !ids.length) return false
-    const clean = ids.filter((id) => { const cur = list().find((i) => i.id === id); return !cur || snapshot.get(id) === JSON.stringify(cur) })
+    const clean = ids.filter((id) => { if (isHeld?.(id)) return false; const cur = list().find((i) => i.id === id); return !cur || snapshot.get(id) === JSON.stringify(cur) })
     if (!clean.length) return true
     const r = await loadByIds(clean)
     if (r.error || busy) return false

@@ -182,13 +182,20 @@ function mergeServerOrder(o, row) {
 // ห้ามใช้ upsert: PostgREST ส่งเป็น INSERT ... ON CONFLICT และ Postgres ตรวจ policy ฝั่ง INSERT กับแถวที่ส่งด้วย
 // ทำให้ออร์เดอร์ที่สถานะไปไกลกว่า draft/awaiting_payment ถูกปฏิเสธ (403) ทุกครั้งที่แก้
 // FK ลูกค้ายังไม่ถูกซิงก์ (23503) → รอแล้วลองใหม่ · เลขซ้ำ (23505) → ออกเลขใหม่
-export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRecode = () => {}, onGate = () => {}, onCreated = () => {}, numbering = null, known = new Set(), slips = new Map(), held = new Map(), onRejected = () => {} } = {}) {
+export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRecode = () => {}, onGate = () => {}, onCreated = () => {}, numbering = null, known = new Set(), slips = new Map(), held = new Set(), onRejected = () => {}, externalize = externalizeOrderImages } = {}) {
   const cache = new Map()
   const conflicts = []
   const rejected = [] // ถูกปฏิเสธถาวร: ข้ามแถวนี้ ส่งแถวอื่นต่อ (ไม่บล็อกทั้งชุด)
   for (const o of upserts) {
-    // รูปในเครื่อง (สลิป/รูปงาน/รูปตัวอย่าง) → อัปโหลดไป bucket ส่วนตัวก่อน (ล้มเหลว = ไม่เขียนออร์เดอร์นี้)
-    try { await externalizeOrderImages(client, o, cache) } catch (e) { return { error: `${o.code || o.id}: อัปโหลดรูปไม่สำเร็จ: ${e.message}` } }
+    // รูปในเครื่อง (สลิป/รูปงาน/รูปตัวอย่าง) → อัปโหลดไป bucket ส่วนตัวก่อน (ไม่เขียนออร์เดอร์นี้จนกว่าจะอัปโหลดได้)
+    try { await externalize(client, o, cache) } catch (e) {
+      const msg = `อัปโหลดรูปไม่สำเร็จ: ${e.message}`
+      if (isTransientError(e)) return { error: `${o.code || o.id}: ${msg}` } // ชั่วคราว (เน็ตหลุด/401/5xx) → หยุดชุดนี้แล้วลองใหม่ตามรอบ
+      // ถาวร (รูปใหญ่/อ่านไม่ได้/ไม่มีสิทธิ์) → ข้ามเฉพาะออร์เดอร์นี้ ส่งอื่นต่อ แล้วรายงานให้แก้รูป
+      rejected.push({ id: o.id, ref: o.code || o.id, errCode: String(e.code || e.status || ''), message: msg })
+      held.add(o.id)
+      continue
+    }
     let tries = 0
     for (;;) {
       const row = orderToRow(o)
@@ -241,7 +248,7 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
       if (isTransientError(r.error)) return { error: `${o.code || o.id}: ${r.error.message}` }
       // ถูกปฏิเสธถาวร (กติกา/สิทธิ์/ข้อมูลไม่ผ่าน) → ลองซ้ำไม่ช่วย: ข้ามแถวนี้ ส่งแถวอื่นต่อ แล้วรายงาน (ส่งใหม่เมื่อแก้ไขแถวนี้)
       rejected.push({ id: o.id, ref: o.code || o.id, errCode: String(r.error.code || r.error.status || ''), message: r.error.message || 'ไม่ผ่านการตรวจ' })
-      held.set(o.id, JSON.stringify(o))
+      held.add(o.id)
       break
     }
   }
@@ -252,7 +259,7 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
 export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCreated, numbering, debounceMs, retryDelay, onCustomerIds = null }) {
   const known = new Set()
   const slips = new Map()
-  const held = new Map() // ออร์เดอร์ที่ฐานข้อมูลปฏิเสธถาวร (id → ฉบับที่ถูกปฏิเสธ) ยังไม่ซิงก์ จนกว่าจะแก้ไข
+  const held = new Set() // ออร์เดอร์ (id) ที่ฐานข้อมูลปฏิเสธถาวรหรืออัปโหลดรูปไม่ได้ ยังไม่ซิงก์ จนกว่าจะแก้ไข
   return startSync({
     list: () => db.orders,
     replace: (items, { refresh = false } = {}) => {
@@ -275,6 +282,7 @@ export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCre
     // ออร์เดอร์ที่ถูกปฏิเสธยังค้าง → สถานะซิงก์คงเป็นล้มเหลว ให้พนักงานเห็นจนกว่าจะแก้หรือส่งสำเร็จ
     statusHook: () => (held.size ? `ออร์เดอร์ ${held.size} รายการยังไม่ถูกบันทึกขึ้นเซิร์ฟเวอร์ — แก้ไขหรือยกเลิกแล้วบันทึกใหม่` : null),
     loadByIds: (ids) => loadOrdersByIds(client, ids),
+    isHeld: (id) => held.has(id), // ฉบับที่ค้างในเครื่องไม่ถูกทับด้วยฉบับเซิร์ฟเวอร์ตอนดึงข้อมูล (W-5)
     applyRows: (rows) => { for (const i of rows) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) } if (numbering) numbering.seen(rows.map((i) => i.code), { reset: false }); onCustomerIds?.(rows.map((i) => i.customerId)) },
     push: (changes) => pushOrders(client, changes, {
       onRecode, onCreated, retryDelay, numbering, known, slips, held,
