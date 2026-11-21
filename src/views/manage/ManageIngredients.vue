@@ -8,6 +8,7 @@ import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
 import { unitCost } from '../../lib/materials'
+import { qty } from '../../lib/format'
 
 const q = ref('')
 const inactive = ref(false)
@@ -22,8 +23,9 @@ const list = computed(() => {
 const UNITS = ['g', 'kg', 'ml', 'l', 'ฟอง', 'ชิ้น', 'ใบ']
 
 const open = ref(false)
-const blank = () => ({ id: null, name: '', unit: 'g', packSize: 0, packPrice: 0, active: true })
+const blank = () => ({ id: null, name: '', unit: 'g', packSize: 0, packPrice: 0, stock: null, active: true })
 const costText = (m) => (m.packSize > 0 ? `${unitCost(m).toLocaleString('th-TH', { maximumFractionDigits: 4 })} ฿/${m.unit}` : 'ยังไม่ตั้งต้นทุน')
+const stockText = (m) => (m.stock == null ? 'ยังไม่นับคงเหลือ' : `คงเหลือ ${qty(m.stock)} ${m.unit}`)
 const form = reactive(blank())
 const error = ref('')
 function edit(m) {
@@ -67,6 +69,7 @@ async function save() {
         <span class="shrink-0 text-right text-sm leading-tight">
           <span class="block text-stone-500">{{ m.unit }}</span>
           <span class="block text-xs" :class="m.packSize > 0 ? 'text-stone-400' : 'text-amber-700'">{{ costText(m) }}</span>
+          <span class="block text-xs" :class="m.stock == null ? 'text-stone-400' : 'text-stone-600'">{{ stockText(m) }}</span>
         </span>
       </button>
     </div>
@@ -86,6 +89,10 @@ async function save() {
             <div><label class="text-xs text-stone-500">ราคาต่อแพ็ก (บาท)</label><MoneyInput v-model.number="form.packPrice" min="0" class="input" /></div>
           </div>
           <p class="mt-1 text-xs text-stone-500">= {{ costText(form) }}</p>
+        </div>
+        <div>
+          <label class="label">คงเหลือ ({{ form.unit || 'หน่วย' }}) <span class="font-normal text-stone-500">· ว่าง = ยังไม่นับ</span></label>
+          <input v-model="form.stock" type="number" min="0" step="any" inputmode="decimal" class="input" />
         </div>
         <AppSwitch v-model="form.active" label="ใช้งาน (เลือกใส่สูตรได้)" />
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>

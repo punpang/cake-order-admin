@@ -1,8 +1,8 @@
 <template>
-  <!-- สลับหน้าในครัว: วัตถุดิบ / ตารางผลิต -->
+  <!-- สลับหน้าในครัว: รายการเตรียม / ตารางผลิต -->
   <div class="head-safe"><nav class="mb-4 grid grid-cols-2 gap-1 seg-grid">
     <RouterLink
-      v-for="t in [{ to: '/admin/materials', l: 'วัตถุดิบ' }, { to: '/admin/production', l: 'ตารางผลิต' }]"
+      v-for="t in [{ to: '/admin/materials', l: 'รายการเตรียม' }, { to: '/admin/production', l: 'ตารางผลิต' }]"
       :key="t.to"
       :to="t.to"
       class="flex h-10 items-center justify-center rounded-xl text-sm font-semibold text-stone-500 transition"

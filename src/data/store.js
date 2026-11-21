@@ -986,7 +986,8 @@ export function allowPhotosAgain(orderId) {
   return { ok: true }
 }
 
-export const saveIngredient = (d) => upsert(db.ingredients, 'm', { ...d, packSize: Number(d.packSize) || 0, packPrice: Number(d.packPrice) || 0 })
+// stock = คงเหลือที่นับไว้ (ว่าง = ยังไม่นับ) · ไม่ติดลบ
+export const saveIngredient = (d) => upsert(db.ingredients, 'm', { ...d, packSize: Number(d.packSize) || 0, packPrice: Number(d.packPrice) || 0, stock: d.stock === '' || d.stock == null ? null : Math.max(0, Number(d.stock) || 0) })
 // ผู้ใช้ + สิทธิ์ที่ติ๊ก · คืน { ok, user } | { error } · ต้องมีอย่างน้อย 1 คนที่ใช้งานอยู่และมี manageUsers
 export function saveUser(d) {
   if (!can('manageUsers')) return { error: 'ไม่มีสิทธิ์จัดการผู้ใช้' }

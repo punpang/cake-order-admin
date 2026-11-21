@@ -1,6 +1,6 @@
 // คำนวณวัตถุดิบที่ต้องใช้
 // ต่อปอนด์ = ปริมาณ × ปอนด์ของสินค้า, ต่อชิ้น = ปริมาณคงที่ แล้วคูณจำนวนชิ้นของรายการ
-import { itemBase, tiersOf, isTierGroup } from './pricing'
+import { itemBase, tiersOf, isTierGroup } from './pricing.js'
 
 function addRecipe(into, recipe, pounds, qty) {
   for (const line of recipe || []) {
@@ -94,6 +94,30 @@ export function prepList(orders, groups, products) {
     groups: prepGroups.filter((g) => sets[g.id]).map((g) => ({ id: g.id, name: g.name, rows: sort(Object.values(sets[g.id])) })),
   }
 }
+
+// สินค้า/ตัวเลือกที่ยังไม่มีสูตร → วัตถุดิบของรายการนั้นไม่ถูกนับในยอดรวม (แจ้งให้ทราบ · บางตัวเลือกอาจตั้งใจไม่ใช้วัตถุดิบ)
+// นับเฉพาะกลุ่มที่เข้ารายการเตรียมและเนื้อเค้ก (ขนาด/ข้อความไม่ใช้วัตถุดิบ) · สินค้าสำเร็จรูปดูที่สูตรของตัวสินค้า
+export function missingRecipes(orders, groups, products) {
+  const names = new Set()
+  const used = groups.filter((g) => g.type !== 'text' && g.key !== 'size' && (g.prepList || g.key === 'flavor'))
+  for (const o of orders) {
+    for (const it of o.items) {
+      if (it.kind === 'retail') {
+        if (!products.find((x) => x.id === it.retailId)?.recipe?.length) names.add(it.name)
+        continue
+      }
+      const tiers = tiersOf(it)
+      for (const g of used) {
+        const sels = isTierGroup(g, it) ? tiers.map((t) => t.selections?.[g.id]) : [it.selections?.[g.id]]
+        for (const sel of sels) for (const opt of optNames(g, sel)) if (!opt.recipe?.length) names.add(opt.name)
+      }
+    }
+  }
+  return [...names]
+}
+
+// ต้องซื้อเพิ่ม = ต้องใช้ − คงเหลือ (ไม่ติดลบ) · ยังไม่ได้นับคงเหลือ (null) = ไม่คำนวณ
+export const shortfall = (need, stock) => (stock == null ? null : Math.max(0, (Number(need) || 0) - (Number(stock) || 0)))
 
 // ---------- ต้นทุน ----------
 // ต้นทุนต่อ 1 หน่วยของวัตถุดิบ = ราคาต่อแพ็ก / ขนาดแพ็ก

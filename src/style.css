@@ -391,6 +391,36 @@
   }
 }
 
+/* พิมพ์หน้าครัว (รายการเตรียม/ตารางผลิต): เปิดด้วย body.print-kitchen · พิมพ์เฉพาะ .kitchen-print-area (ไม่มีเมนู ตัวกรอง ปุ่ม) */
+@media print {
+  @page kitchen {
+    size: A4;
+    margin: 10mm;
+  }
+  body.print-kitchen * {
+    visibility: hidden !important;
+  }
+  body.print-kitchen .kitchen-print-area,
+  body.print-kitchen .kitchen-print-area * {
+    visibility: visible !important;
+  }
+  body.print-kitchen .kitchen-print-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    page: kitchen;
+    background: #fff;
+  }
+  body.print-kitchen .kitchen-print-area .no-print {
+    display: none !important;
+  }
+  body.print-kitchen .kitchen-print-area .card {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+}
+
 /* ทดสอบพิมพ์บนเว็บ (หน้าตั้งค่าการพิมพ์): แสดงเฉพาะ .print-test-sheet ตัวเดียวตามกระดาษที่เลือก */
 @media print {
   .print-test-sheet.sheet-a4 {
