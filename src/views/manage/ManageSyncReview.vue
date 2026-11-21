@@ -1,13 +1,13 @@
 <script setup>
 // คิวรอตรวจของผู้จัดการ: ออร์เดอร์ใหม่ที่ระบบไม่รับและมีการเงิน/คูปอง (เก็บจากเครื่องพนักงานก่อนเอาออก)
 // ส่งซ้ำ (บิลหน้าร้าน) · แก้การชำระแล้วส่ง · ปิดพร้อมเหตุผล (คืนคูปองที่จองไว้) · ทุกการทำงานตรวจและบันทึกโดยฐานข้อมูล
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { db } from '../../data/store'
 import { dateTime, money } from '../../lib/format'
 import { askConfirm } from '../../lib/confirm'
 import { getSupabase, supabaseEnabled } from '../../lib/supabase.js'
 import { fetchReview, resendReview, saveEditedReview, closeReview, paymentsOf, withPayments, paymentsError, resendBlockers, reviewExtras, needsConfirm } from '../../lib/syncReview'
-import { reasonText, ageText, balanceText, itemsText, billSummary, customerNames } from '../../lib/reviewView.js'
+import { reasonText, ageText, balanceText, itemsText, billSummary, customerNames, activePays } from '../../lib/reviewView.js'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
@@ -30,7 +30,7 @@ const err = ref('')
 const msg = ref('')
 const acting = ref('') // รายการที่กำลังดำเนินการ (กันกดซ้ำระหว่างรอฐานข้อมูล)
 const confirmed = reactive({}) // ผู้จัดการติ๊กว่าตรวจคูปอง/ส่วนลดของรายการนี้แล้ว (รายการ id → true)
-const edit = reactive({ row: null, payments: [], error: '' })
+const edit = reactive({ row: null, payments: [], off: {}, error: '' }) // off = การชำระที่ขีดฆ่าไว้ (index → true)
 const shut = reactive({ row: null, note: '', error: '' })
 
 const staffName = (id) => (id ? db.users.find((u) => u.id === id)?.name || 'พนักงาน' : '-')
@@ -38,7 +38,8 @@ const channelName = (c) => (c === 'pos' ? 'หน้าร้าน' : c || '-')
 const customerOf = (r) => names.value.get(r.payload?.customerId) || r.payload?.customerId || '-'
 const reasonOf = (r) => reasonText(r.reason_message)
 const itemsOf = (r) => itemsText(r.edited_payload || r.payload)
-const balanceOf = (r) => balanceText(billSummary(r.edited_payload || r.payload))
+const sumOf = (r) => billSummary(r.edited_payload || r.payload)
+const balanceOf = (r) => balanceText(sumOf(r))
 const payOf = (r) => (r.edited_payload || r.payload)?.payments || []
 const blockersOf = (r) => resendBlockers(r.edited_payload || r.payload)
 const extrasOf = (r) => reviewExtras(r.edited_payload || r.payload)
@@ -90,13 +91,17 @@ async function resend(row) {
 }
 
 function openEdit(row) {
-  Object.assign(edit, { row, payments: paymentsOf(row.edited_payload || row.payload), error: '' })
+  Object.assign(edit, { row, payments: paymentsOf(row.edited_payload || row.payload), off: {}, error: '' })
 }
+// ยอดบิลและส่วนต่างแบบสด: คำนวณจากการชำระที่ยังไม่ถูกขีดฆ่า (ค่าเดียวกับที่จะบันทึก)
+const editSummary = computed(() => (edit.row ? billSummary(withPayments(edit.row.edited_payload || edit.row.payload, activePays(edit.payments, edit.off))) : null))
+const editBalance = computed(() => balanceText(editSummary.value))
 async function saveEdit() {
-  const bad = paymentsError(edit.payments)
-  if (bad) return (edit.error = bad)
   const row = edit.row
-  const next = withPayments(row.edited_payload || row.payload, edit.payments)
+  const active = activePays(edit.payments, edit.off)
+  const bad = paymentsError(active)
+  if (bad) return (edit.error = bad)
+  const next = withPayments(row.edited_payload || row.payload, active)
   const ok = await run(row, async (c) => {
     const s = await saveEditedReview(c, row, next)
     return s.error ? s : resendReview(c, row, !!confirmed[row.id])
@@ -156,8 +161,8 @@ async function doClose() {
           </li>
         </ul>
         <div v-if="balanceOf(r)" class="space-y-1 border-t border-stone-100 pt-2 text-sm">
-          <p class="flex justify-between gap-2"><span class="text-stone-500">ยอดบิลหลังส่วนลด</span><b>{{ money(billSummary(r.edited_payload || r.payload).total) }}</b></p>
-          <p class="flex justify-between gap-2"><span class="text-stone-500">ชำระแล้ว</span><b>{{ money(billSummary(r.edited_payload || r.payload).paid) }}</b></p>
+          <p class="flex justify-between gap-2"><span class="text-stone-500">ยอดบิลหลังส่วนลด</span><b>{{ money(sumOf(r).total) }}</b></p>
+          <p class="flex justify-between gap-2"><span class="text-stone-500">ชำระแล้ว</span><b>{{ money(sumOf(r).paid) }}</b></p>
           <p class="text-right text-sm font-semibold" :class="balanceOf(r).tone">{{ balanceOf(r).text }}</p>
         </div>
         <p v-if="blockersOf(r).length && r.status === 'open'" class="rounded-xl bg-amber-50 p-2.5 text-sm text-amber-800">ส่งซ้ำจากคิวไม่ได้: {{ blockersOf(r).join(' · ') }} · ให้ปิดพร้อมเหตุผลแล้วบันทึกใหม่</p>
@@ -184,17 +189,23 @@ async function doClose() {
 
     <AppModal v-if="edit.row" title="แก้การชำระแล้วส่ง" @close="edit.row = null">
       <div class="space-y-3">
-        <p class="text-sm text-stone-600">แก้ได้เฉพาะยอดและการยืนยันบัตร · ลบรายการชำระได้ · ส่วนอื่น (แต้ม คูปอง ลูกค้า) แก้ที่นี่ไม่ได้ ถ้าปัญหาอยู่ตรงนั้นให้ปิดพร้อมเหตุผล</p>
+        <p class="text-sm text-stone-600">แก้ได้เฉพาะยอดและการยืนยันบัตร · ขีดฆ่ารายการที่ไม่ควรนับได้ (กดเลิกทำได้) · ส่วนอื่น (แต้ม คูปอง ลูกค้า) แก้ที่นี่ไม่ได้ ถ้าปัญหาอยู่ตรงนั้นให้ปิดพร้อมเหตุผล</p>
         <p v-if="!edit.payments.length" class="text-sm text-stone-500">ไม่มีรายการชำระเงิน</p>
-        <div v-for="(p, i) in edit.payments" :key="i" class="space-y-2 rounded-xl border border-stone-200 p-3">
+        <div v-for="(p, i) in edit.payments" :key="i" class="space-y-2 rounded-xl border border-stone-200 p-3" :class="edit.off[i] ? 'bg-stone-50' : ''">
           <div class="flex items-center gap-2">
-            <span class="min-w-0 flex-1 text-sm text-stone-700">{{ p.posMethod || 'ชำระ' }}</span>
-            <input v-model.number="p.amount" type="number" inputmode="decimal" min="0" step="any" class="input w-32 text-right" :aria-label="`ยอดรายการที่ ${i + 1}`" />
-            <button type="button" class="btn-outline h-11 px-3 text-rose-700" @click="edit.payments.splice(i, 1)">ลบ</button>
+            <span class="min-w-0 flex-1 text-sm text-stone-700" :class="edit.off[i] ? 'text-stone-400 line-through' : ''">{{ p.posMethod || 'ชำระ' }}</span>
+            <input v-model.number="p.amount" :disabled="!!edit.off[i]" type="number" inputmode="decimal" min="0" step="any" class="input w-32 text-right" :aria-label="`ยอดรายการที่ ${i + 1}`" />
+            <span class="text-sm text-stone-500">฿</span>
+            <button type="button" class="btn-outline h-11 px-3" :class="edit.off[i] ? 'text-emerald-700' : 'text-rose-700'" :aria-pressed="!!edit.off[i]" @click="edit.off[i] = !edit.off[i]">{{ edit.off[i] ? 'เลิกทำ' : 'ขีดฆ่า' }}</button>
           </div>
-          <label v-if="p.posMethod === 'card'" class="flex items-center gap-2 text-sm text-stone-700">
+          <label v-if="p.posMethod === 'card' && !edit.off[i]" class="flex items-center gap-2 text-sm text-stone-700">
             <input v-model="p.cardConfirmed" type="checkbox" class="h-5 w-5" /> ตรวจสลิปบัตรแล้ว ยืนยันว่ารับเงินบัตรจริง
           </label>
+        </div>
+        <div v-if="editSummary" class="space-y-1 border-t border-stone-100 pt-2 text-sm">
+          <p class="flex justify-between gap-2"><span class="text-stone-500">ยอดบิลหลังส่วนลด</span><b>{{ money(editSummary.total) }}</b></p>
+          <p class="flex justify-between gap-2"><span class="text-stone-500">ชำระแล้ว (หลังแก้)</span><b>{{ money(editSummary.paid) }}</b></p>
+          <p class="text-right font-semibold" :class="editBalance?.tone">{{ editBalance?.text }}</p>
         </div>
         <p v-if="edit.error" class="flex items-center gap-2 text-sm text-rose-700" role="alert"><AppIcon name="alert" :size="16" /> {{ edit.error }}</p>
       </div>

@@ -46,6 +46,9 @@ export function billSummary(src) {
   }
 }
 
+// การชำระที่ยังไม่ถูกขีดฆ่า (off = รายการ index → true) · ใช้ทั้งยอดสด และตอนบันทึก เพื่อให้สองค่าตรงกัน
+export const activePays = (list, off) => list.filter((_, i) => !off[i])
+
 // ข้อความและสีของส่วนต่างยอด (เกิน = แดง · ขาด = เหลือง · ครบ = เขียว)
 export function balanceText(s) {
   if (!s) return null

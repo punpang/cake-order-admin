@@ -7,7 +7,7 @@ import { createServer } from 'vite'
 const ROOT = fileURLToPath(new URL('../..', import.meta.url))
 const server = await createServer({ root: ROOT, server: { middlewareMode: true, hmr: false }, appType: 'custom', logLevel: 'error' })
 after(() => server.close())
-const { reasonText, ageText, billSummary, balanceText, itemsText, customerNames } = await server.ssrLoadModule('/src/lib/reviewView.js')
+const { reasonText, ageText, billSummary, balanceText, itemsText, customerNames, activePays } = await server.ssrLoadModule('/src/lib/reviewView.js')
 
 const items = [{ id: 'a', name: 'เค้กช็อกโกแลต', unitPrice: 150, qty: 1 }, { id: 'b', name: 'คุกกี้', unitPrice: 30, qty: 1 }]
 const pay = (amount) => [{ id: 'p', status: 'confirmed', amount, posMethod: 'cash' }]
@@ -62,6 +62,14 @@ test('balanceText: ข้อความและสีตามส่วนต�
   assert.deepEqual(balanceText({ state: 'short', diff: -30 }), { tone: 'text-amber-700', text: 'ขาดอีก 30.00 ฿' })
   assert.deepEqual(balanceText({ state: 'ok', diff: 0 }), { tone: 'text-emerald-700', text: 'ชำระครบพอดี' })
   assert.equal(balanceText(null), null)
+})
+
+test('activePays: รายการที่ขีดฆ่าไม่นับ และเลิกขีดฆ่าได้ (ไม่ใช้ตำแหน่งที่เลื่อน)', () => {
+  const list = [{ amount: 1 }, { amount: 2 }, { amount: 3 }]
+  assert.deepEqual(activePays(list, {}), list)
+  assert.deepEqual(activePays(list, { 1: true }), [{ amount: 1 }, { amount: 3 }])
+  assert.deepEqual(activePays(list, { 1: true, 1.5: true }), [{ amount: 1 }, { amount: 3 }])
+  assert.deepEqual(activePays(list, { 1: false }), list)
 })
 
 test('itemsText: แสดงสูงสุด 3 รายการและบอกจำนวนที่เหลือ', () => {
