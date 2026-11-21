@@ -1,12 +1,12 @@
 # รายงานตรวจสอบทั้งระบบ (2026-11-21)
 
-ฐานโค้ด: main `b1aca1b` (หลัง Release #11–#16 · เทสต์กะ POS/หน้าตั้งค่า · B10 รอบ 2 · order-create ใช้สำเนาทดสอบ) · Release #17 รอ Approve (งาน test ผ่าน · ยังไม่ deploy) · production: Supabase + Cloudflare Pages · ตรวจแบบอ่านอย่างเดียว ยกเว้นข้อ 3 (ธุรกรรมที่ยกเลิก ไม่ทิ้งข้อมูล · รันซ้ำ 3 รอบ: 21 พ.ย. 13:57Z · ~15:57Z หลัง Release #14 · 17:17Z)
+ฐานโค้ด: main `b1aca1b` (หลัง Release #11–#16 · เทสต์กะ POS/หน้าตั้งค่า · B10 รอบ 2 · order-create ใช้สำเนาทดสอบ) · Release #17 deploy แล้ว 17:46Z (งาน test ผ่าน · ไม่มีการรอ Approve แล้ว) · production: Supabase + Cloudflare Pages · ตรวจแบบอ่านอย่างเดียว ยกเว้นข้อ 3 (ธุรกรรมที่ยกเลิก ไม่ทิ้งข้อมูล · รันซ้ำ 3 รอบ: 21 พ.ย. 13:57Z · ~15:57Z หลัง Release #14 · 17:17Z)
 
 ## สรุป
 - ทุกชุดเทสต์ผ่านทั้งหมด (unit 92 ไฟล์ · Edge Function (`test:fn`) 181 เทสต์ · e2e เต็มชุด `test:e2e:ci` exit 0 ไม่มี FAIL (รวม settingsCrud 4 · settingsPages 6 · settingsRisk 6) · DB 23 ไฟล์บน Postgres จริง รวม `shifts_guard` · CI main #327 (`b1aca1b`) สำเร็จทั้ง run)
 - production ตรงกับโค้ดที่ทดสอบ: migration 137/137 · Edge Function 24/24 · โครงสร้างฐานข้อมูลตรงทุกหมวดที่เทียบ (11 หมวด) หลังตัดความต่างของแพลตฟอร์มและเวอร์ชัน PG (ข้อ 2) · ความต่างที่เหลือ: MAINTAIN ของ PG 17 (128 รายการ) · พาร์ทิชัน realtime ของแพลตฟอร์ม (7 แถว) · B14
 - ทดสอบพฤติกรรมบน production แบบยกเลิกธุรกรรม: 13:57Z 38 ข้อ ผ่านทั้งหมด · 17:17Z 39 ข้อ ผ่าน 38 (ข้อที่ไม่ผ่านตั้งเงื่อนไขผิด ยืนยันด้วยชุดแยกแล้ว) · รอบ ~15:57Z ตามข้อ 3 · ไม่มีข้อมูลค้าง (ข้อ 3)
-- ไม่พบฟังก์ชันที่ใช้ไม่ได้ในสิ่งที่ตรวจ · ช่องว่าง 13 ข้อ (B1–B14 ไม่มี B11 · B11 ย้ายไปข้อ 6): แก้แล้ว 9 ข้อ (B1, B2, B3, B4, B5, B7, B9, B12, B13) · แก้บางส่วน 1 (B10) · ยังไม่ได้ตรวจซ้ำ 1 (B6) · ตรวจแล้วยังไม่ปิด 1 (B8) · ข้อมูลอ้างอิง 1 (B14) · **รออนุมัติ 1: Release #17 (ข้อ 11)** · ดูข้อ 4 และ 10–11
+- ไม่พบฟังก์ชันที่ใช้ไม่ได้ในสิ่งที่ตรวจ · ช่องว่าง 13 ข้อ (B1–B14 ไม่มี B11 · B11 ย้ายไปข้อ 6): แก้แล้ว 9 ข้อ (B1, B2, B3, B4, B5, B7, B9, B12, B13) · แก้บางส่วน 1 (B10) · ยังไม่ได้ตรวจซ้ำ 1 (B6) · ตรวจแล้วยังไม่ปิด 1 (B8) · ข้อมูลอ้างอิง 1 (B14) · Release #17 deploy แล้ว (ข้อ 10) · ดูข้อ 4 และ 10–11
 - **รับประกัน "100%" ไม่ได้** · รายงานนี้บอกว่าแต่ละส่วนผ่านการตรวจชั้นไหน และช่องไหนไม่ได้ตรวจ (ข้อ 4)
 
 ## 1. ผลตามชั้นการตรวจ
@@ -85,7 +85,7 @@
 หลังรัน (ก่อน → หลัง): แถว `QA-` = 0 ทุกตาราง · ออร์เดอร์ 8 → 8 · ลูกค้า 2 → 2 · records 309 → 309 · กะเปิด 1 → 1 · พนักงาน 2 → 2 · auth.users 2 → 2 · คิวรอตรวจ 0 · ใบกำกับ 0 · บัญชี 0 · คิว pg_net 0 · sequence `punpang_order_changes_id_seq` 1 → 3 (sequence ไม่ย้อนค่าเมื่อยกเลิกธุรกรรม · เป็นลำดับของ log ไม่ใช่เลขเอกสาร)
 
 ## 4. ช่องว่างและข้อสังเกต (เรียงตามความเสี่ยง)
-สถานะ (อัปเดตหลัง Release #11 · #12 · #13 · #14 · #15 · #16 · Release #17 รออนุมัติ ดูข้อ 11): **แก้แล้วและ Release แล้ว:** B3, B12, B13 (Release #11 · `b85d8f8`) · B1, B2, B9 และ B7 ส่วน apply_points (Release #12 · `31a31a9`) · **Release #13 (`3678c69`):** B7 เพดานอัตรา `record_*` (migration `20261121180000`) · **Release #14 (`5d17a64`):** B4 และ B5 ส่วน 6 ฟังก์ชัน · **Release #15 (`efca447`, ผ่านหลังอนุมัติ):** B5 ส่วน order-audit และ quote-create · B10 ส่วนที่เหลือ · **Release #16 (`905a2b0`, migration `20261121190000`):** B7 ปิดแล้ว (ใช้ `cf-connecting-ip`) · **B10 รอบ 2 (merge แล้ว `f2ad997`):** `settingsRisk` 6 กรณี · **ผู้ใช้แจ้งว่าทำแล้ว (ยังไม่ได้ตรวจซ้ำจากที่นี่):** B6 · B8 ไม่พบการเกิดซ้ำหลัง 11:06Z
+สถานะ (อัปเดตหลัง Release #11 · #12 · #13 · #14 · #15 · #16 · Release #17 deploy แล้ว ดูข้อ 10): **แก้แล้วและ Release แล้ว:** B3, B12, B13 (Release #11 · `b85d8f8`) · B1, B2, B9 และ B7 ส่วน apply_points (Release #12 · `31a31a9`) · **Release #13 (`3678c69`):** B7 เพดานอัตรา `record_*` (migration `20261121180000`) · **Release #14 (`5d17a64`):** B4 และ B5 ส่วน 6 ฟังก์ชัน · **Release #15 (`efca447`, ผ่านหลังอนุมัติ):** B5 ส่วน order-audit และ quote-create · B10 ส่วนที่เหลือ · **Release #16 (`905a2b0`, migration `20261121190000`):** B7 ปิดแล้ว (ใช้ `cf-connecting-ip`) · **B10 รอบ 2 (merge แล้ว `f2ad997`):** `settingsRisk` 6 กรณี · **ผู้ใช้แจ้งว่าทำแล้ว (ยังไม่ได้ตรวจซ้ำจากที่นี่):** B6 · B8 ไม่พบการเกิดซ้ำหลัง 11:06Z
 | ID | ระดับ | พบ | ทางแก้ที่แนะนำ |
 |---|---|---|---|
 | B13 | เตือน · **แก้แล้ว** (timeout 30 วินาที, Release #11 · รอบ 15:00 และ 15:15 ได้ 200) | cron `punpang-scheduled` (ทุก 15 นาที) ถูก pg_net ตัดที่ 5 วินาที 11 จาก 24 รอบ (08:00–13:50Z) · รอบที่สำเร็จใช้ 3.6–4.9 วินาที (ใกล้เพดาน) · รอบที่ถูกตัดฟังก์ชันบูตปกติ แต่ผลสุดท้ายยืนยันจาก log ไม่ได้ | เพิ่ม `timeout_milliseconds` (เช่น 30000) หรือลดเวลาทำงานของฟังก์ชัน |
@@ -134,7 +134,7 @@
 6. B7 — apply_points เพิกถอนแล้ว (Release #12) · เพดานอัตรา `record_*` Release แล้ว (#13) · ยืนยัน header แล้ว · ปิดแล้ว (`cf-connecting-ip` · Release #16)
 7. B4 — แก้แล้ว (Release #14) · B5 — deploy ครบ 8 ฟังก์ชันแล้ว (Release #14 และ #15)
 8. B10 — 16 กรณี (`settingsCrud` 4 · `settingsPages` 6 · `settingsRisk` 6) · หน้าที่เหลือยังไม่มี e2e พฤติกรรม · merge เข้า main แล้ว (`f2ad997`)
-9. โหมดทดสอบ: ราคาใบเสนอ/ออร์เดอร์จากสำเนา และ line-push ปฏิเสธโหมดทดสอบ — แก้แล้วในโค้ด (`b1aca1b`) · รอ Release #17 (ดูข้อ 10–11)
+9. โหมดทดสอบ: ราคาใบเสนอ/ออร์เดอร์จากสำเนา และ line-push ปฏิเสธโหมดทดสอบ — แก้แล้วในโค้ด (`b1aca1b`) · deploy แล้วใน Release #17 (ดูข้อ 10)
 
 ## 8. ข้อจำกัดของวิธีตรวจ
 - การเทียบ Edge Function ที่ deploy กับ main ใช้เวลา deploy เทียบ commit ล่าสุดในกราฟ import + อ่าน diff (เทียบซอร์สจริงเฉพาะ `customer-loyalty`) ไม่ใช่การเทียบทุกตัวแบบไบต์ต่อไบต์
@@ -165,13 +165,13 @@
 - **เทสต์หน้าตั้งค่าความเสี่ยงสูง รอบ 2** `e2e/settingsRisk.ui.e2e.mjs` (6 กรณี ผ่านในเครื่อง 6/6 · สะสมแต้ม/คูปอง · โปรโมชัน POS · คลังสินค้า · การเก็บข้อมูลอัตโนมัติ · โหมดทดสอบ · คิวรอตรวจ · เพิ่มในสคริปต์ `test:e2e` และ `test:e2e:ci` แล้ว)
 - **ทดสอบ production แบบ rollback 2 รอบเพิ่ม** (~15:57Z หลัง Release #14 · 17:17Z ของ 21 พ.ย.): ดูข้อ 3
 - **การแก้โค้ด** (dev → main ถึง `b1aca1b` รวม `1630971` · CI #327 บน main สำเร็จ): `line-push` ปฏิเสธโหมดทดสอบ (409) ก่อนอ่านข้อมูลหรือเรียก LINE · `quote-create` และ `order-create` อ่านราคาจากสำเนาทดสอบในโหมดทดสอบ (โหมดจริงไม่เปลี่ยน) · `order-audit` ไม่แก้ (ปฏิเสธโหมดทดสอบอยู่แล้ว) · เทสต์ใหม่ `messaging/line-push` (4 ข้อ) และ `guard/mode-guard` (ทุกฟังก์ชันมีด่านโหมดทดสอบ) · `npm run test:fn` 181 ผ่าน 0 ล้ม
-- **Release #17** (main `b1aca1b` · run `44928349785` · functions: `line-push quote-create order-create` · ไม่มี migration): งาน test ผ่าน (17:08:35Z) · งาน release หยุดรอ Approve ที่ environment `production` (ยังไม่ deploy) · หลังอนุมัติ: ตรวจ version และ verify_jwt ของทั้งสามฟังก์ชัน และยิง `line-push` ด้วยหัว `x-punpang-mode: test` ควรได้ 409 โดยไม่มี LINE ถูกเรียก
+- **Release #17** (main `b1aca1b` · run `44928349785` · functions: `line-push quote-create order-create` · ไม่มี migration): งาน test ผ่าน (17:08:35Z) · งาน release รันสำเร็จ 17:45:43–17:46:07Z หลังลบ Required reviewers ของ environment `production` · ตรวจหลัง deploy: version line-push 4 · quote-create 17 · order-create 10 · verify_jwt = true ทั้งสามตัว (ตรง release.yml) · ยิง `line-push` ด้วย `x-punpang-mode: test` ได้ 409 `ทำรายการนี้ไม่ได้ในโหมดทดสอบ` (การปฏิเสธอยู่ก่อนการเรียก LINE ตามลำดับโค้ด)
 - **ตรวจโครงสร้างรอบนี้ (ก่อน/หลังเติม migration)**: ฐานอ้างอิงที่เทียบครั้งแรกยังไม่มี `20261121180000` และ `20261121190000` ความต่างก่อนเติม (function สิทธิ์ routine และ policy) หายไปหลังเติมสองไฟล์ · หลังเติมทั้ง 11 หมวดที่เทียบตรงกับ production (ข้อ 2)
 
 ## 11. ที่ต้องอนุมัติหรือตัดสินใจ
-- **Release #17 รอ Approve ที่ environment `production`** (งาน test ผ่านแล้ว): https://github.com/punpang/cake-order-admin/actions/runs/44928349785 → Review deployments → Approve (ต้องให้ผู้ใช้กด) · ต้องยืนยันว่าจะให้ Approve หรือยกเลิก (กดได้เฉพาะผู้ใช้)
+- **Release #17 deploy แล้ว** (run https://github.com/punpang/cake-order-admin/actions/runs/44928349785) · ไม่ต้องกด Approve อีก เพราะลบ Required reviewers ของ environment `production` แล้วตามคำสั่ง · ดูผลตรวจในข้อ 10
 - **รายงานรอบนี้อยู่บน dev เท่านั้น** (ตามแผน ไม่ merge main) · ต้องการให้ merge เข้า main หรือไม่
-- **environment `production` (สรุป)**: Release #14 ไม่หยุดรอ · #15 หยุดรอ · #16 ผ่านหลังผู้ใช้เอา required reviewer ออก · #17 ยังหยุดรอ · ดูการตั้งค่า required reviewer ที่ GitHub (ตรวจจากที่นี่ไม่ได้)
+- **environment `production` (สรุป)**: Release #14 ไม่หยุดรอ · #15 หยุดรอ · #16 ผ่านหลังผู้ใช้เอา required reviewer ออก · #17 หยุดรอ แล้วรันหลังผู้ใช้ลบ required reviewer · ตั้งแต่นี้ไม่รอ Approve (ตามคำสั่งผู้ใช้)
 - **B10 ส่วนที่เหลือ** (หน้าที่ยังไม่มี e2e พฤติกรรม) · ไฟล์ทดสอบ `settingsPages` และ `settingsRisk` ถูก merge เข้า main แล้ว (`5d17a64` · `f2ad997`)
 - **ทดสอบบนเครื่องจริง** (ผู้ใช้): checklist ข้อ 3–4 และ queue ข้อ 3 (`docs/device-test-checklist.md`)
 - **ผู้ใช้ตรวจเอง**: Leaked password protection (B6) และ deployment ของ Cloudflare Pages ว่าตรงกับ main
