@@ -36,7 +36,9 @@ async function filesUpload(client, blob, type, bucket, prefix) {
   const r = await fetch(`${FILES_URL}/upload?bucket=${bucket}&prefix=${encodeURIComponent(prefix)}`, { method: 'POST', headers: { ...(await filesAuth(client)), 'Content-Type': type }, body: blob })
   const j = await r.json().catch(() => ({}))
   // มีสถานะ HTTP ให้ตัวจัดประเภท: 401/5xx/408/429 = ชั่วคราว · 403/413 ฯลฯ = ถาวร · ตอบ 2xx แต่ไม่มีลิงก์ = ฝั่งเซิร์ฟเวอร์ผิดปกติ → ลองใหม่
-  if (!r.ok || (!j.url && !j.ref)) throw fail(j.error || 'อัปโหลดไฟล์ไม่สำเร็จ', { status: r.ok ? 502 : r.status })
+  if (!r.ok) throw fail(j.error || 'อัปโหลดไฟล์ไม่สำเร็จ', { status: r.status })
+  // ตอบ 2xx แต่ไม่มีลิงก์ = สัญญากับเซิร์ฟเวอร์ไม่ตรงกัน ลองซ้ำก็ไม่หาย → ถาวรเฉพาะออร์เดอร์นี้ (ไม่ค้างทั้งชุด)
+  if (!j.url && !j.ref) throw fail('เซิร์ฟเวอร์ไฟล์ตอบกลับไม่ถูกต้อง', { code: 'BAD_RESPONSE' })
   return j
 }
 

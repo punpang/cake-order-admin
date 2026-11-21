@@ -62,8 +62,8 @@ if (typeof window !== 'undefined') {
   window.addEventListener('offline', () => { syncOnline.online = false })
   // ปิด/รีเฟรชแท็บทั้งที่ยังมีข้อมูลไม่ได้บันทึกขึ้นเซิร์ฟเวอร์ → ให้เบราว์เซอร์เตือน
   window.addEventListener('beforeunload', (e) => { if (hasUnsaved()) { e.preventDefault(); e.returnValue = '' } })
-  // แท็บถูกซ่อนหรือปิดหน้า: ส่งรายการที่รอหรือค้างทันที (ไม่รอหน่วงเวลา) ให้มีโอกาสถึงเซิร์ฟเวอร์ก่อนหน้าจะหยุดทำงาน
-  const flushPending = () => { for (const [k, v] of Object.entries(syncEntries)) if (v.state === 'pending' || v.state === 'failed') retryFns.get(k)?.() }
+  // แท็บถูกซ่อนหรือปิดหน้า: ส่งรายการที่รอทันที (ไม่รอหน่วงเวลา) ให้มีโอกาสถึงเซิร์ฟเวอร์ก่อนหน้าจะหยุดทำงาน · รายการค้างลองใหม่ตามรอบและเมื่อกลับออนไลน์
+  const flushPending = () => { for (const [k, v] of Object.entries(syncEntries)) if (v.state === 'pending') retryFns.get(k)?.() }
   window.addEventListener('pagehide', flushPending)
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushPending() })
 }

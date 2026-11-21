@@ -22,7 +22,7 @@ test('เตือนก่อนปิดเมื่อยังมีรา�
   assert.equal(quiet.prevented, false)
 })
 
-test('แท็บถูกซ่อน → ส่งรายการที่รอและค้างทันที แต่ไม่แตะรายการที่กำลังส่ง', () => {
+test('แท็บถูกซ่อน → ส่งเฉพาะรายการที่รอทันที ไม่ส่งซ้ำรายการที่ค้างหรือกำลังส่ง', () => {
   const calls = []
   S.syncSet('ทดสอบ-รอ', 'pending', '', () => calls.push('รอ'))
   S.syncSet('ทดสอบ-ค้าง', 'failed', 'ทดสอบ', () => calls.push('ค้าง'))
@@ -30,7 +30,7 @@ test('แท็บถูกซ่อน → ส่งรายการที่
   document.visibilityState = 'hidden'
   fire(docHandlers, 'visibilitychange')
   document.visibilityState = 'visible'
-  assert.deepEqual(calls.sort(), ['ค้าง', 'รอ'])
+  assert.deepEqual(calls, ['รอ'])
   for (const k of ['ทดสอบ-รอ', 'ทดสอบ-ค้าง', 'ทดสอบ-กำลังส่ง']) S.syncDrop(k)
 })
 
