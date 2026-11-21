@@ -120,6 +120,11 @@ cgcode=$?
 [ "$cgcode" = "0" ] && echo "✓ card_gate.test.sql ผ่านทั้งหมด" || echo "✗ card_gate.test.sql ล้มเหลว"
 [ "$cgcode" = "0" ] || exit "$cgcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/customer_deleted_guard.test.sql
+cdgcode=$?
+[ "$cdgcode" = "0" ] && echo "✓ customer_deleted_guard.test.sql ผ่านทั้งหมด" || echo "✗ customer_deleted_guard.test.sql ล้มเหลว"
+[ "$cdgcode" = "0" ] || exit "$cdgcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"

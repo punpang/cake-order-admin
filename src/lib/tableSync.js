@@ -71,7 +71,24 @@ const clock = () => (typeof performance !== 'undefined' ? performance.now() : Da
 export const DELTA_OVERLAP_MS = 120000
 export const FULL_EVERY_MS = 30 * 60000
 const verOf = (it) => it?._v || null
-const later = (a, b) => (!a ? b : !b ? a : Date.parse(b) > Date.parse(a) ? b : a)
+// เวลาเวอร์ชันจาก PostgREST มีทศนิยม 0–6 หลัก (ตามค่าที่บันทึก) และ Safari แปลงทศนิยมเกิน 3 หลักไม่ได้ (NaN)
+// → ตัดเป็นมิลลิวินาทีก่อนแปลงทุกครั้ง · รูปแบบผิดคืน NaN (ผู้เรียกต้องกันเอง)
+export function tsMs(s) {
+  const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?(.*)$/.exec(String(s ?? ''))
+  if (!m) return NaN
+  const frac = (m[2] || '').padEnd(3, '0').slice(0, 3)
+  return Date.parse(`${m[1]}.${frac}${m[3]}`)
+}
+// ข้อผิดพลาดชั่วคราว (เน็ตหลุด / เซิร์ฟเวอร์ล่ม / หมดเวลา / ฐานข้อมูลชนกันชั่วคราว) ลองใหม่ได้
+// ที่เหลือคือถูกปฏิเสธจริง (กติกา สิทธิ์ ข้อมูลไม่ผ่าน) ลองซ้ำไม่ช่วย
+const TRANSIENT_SQLSTATE = new Set(['40001', '40P01', '57014', '53300', '08000', '08003', '08006'])
+export function isTransientError(e) {
+  const status = Number(e?.status) || 0
+  if (status) return status >= 500 || status === 408 || status === 429
+  const code = String(e?.code || '')
+  return !code || TRANSIENT_SQLSTATE.has(code)
+}
+const later = (a, b) => (!a ? b : !b ? a : Number.isFinite(tsMs(a)) && (!Number.isFinite(tsMs(b)) || tsMs(a) >= tsMs(b)) ? a : b)
 export const maxVer = (items, start = null) => items.reduce((m, it) => later(m, verOf(it)), start)
 
 // ลองเขียนซ้ำเองเมื่อเขียนไม่สำเร็จ: 5 → 15 → 60 วินาที (ค้างที่ 60)
@@ -106,7 +123,7 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
   // ดึงเฉพาะแถวที่ updated_at ใหม่กว่ารอบก่อน แล้วรวมเข้ารายการ (แถวที่ keep() = false → เอาออกจากเครื่อง เช่น ออร์เดอร์ที่ปิดแล้ว)
   const refreshDelta = async () => {
     const t = clock()
-    const r = await loadSince(new Date(Date.parse(mark) - DELTA_OVERLAP_MS).toISOString())
+    const r = await loadSince(new Date(tsMs(mark) - DELTA_OVERLAP_MS).toISOString())
     if (r.error || busy || dirty()) return false
     loadedAt = Date.now()
     noteSync(label, 'delta', r.items.length, clock() - t)
@@ -130,7 +147,7 @@ export async function startSync({ list, replace, load, push, canWrite, onError =
   // full = true บังคับโหลดทั้งตาราง (เช่น Realtime แจ้งว่ามีแถวถูกลบ)
   const refresh = async ({ full = false } = {}) => {
     if (busy || dirty()) return false
-    if (loadSince && mark && !full && now() - lastFullAt < fullEveryMs) return refreshDelta()
+    if (loadSince && mark && !full && now() - lastFullAt < fullEveryMs && Number.isFinite(tsMs(mark))) return refreshDelta()
     const t = clock()
     const r = await load()
     if (!r.error) loadedAt = Date.now()

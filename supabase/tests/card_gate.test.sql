@@ -58,4 +58,12 @@ select test.ok('CGT6: เพิ่มรายการบัตรใหม่�
   test.as_staff('55555555-5555-5555-5555-555555555555',
     $q$ update public.punpang_orders set data = jsonb_set(data, '{payments}', '[{"id":"cgt_p6","status":"confirmed","amount":100,"posMethod":"card","cardConfirmed":true}]'::jsonb) where id = 'cgt_open' $q$) = 'OK');
 
+-- CGT7: รายการบัตรที่ยังรอ (reported) เปลี่ยนเป็นยืนยันโดยไม่มีธงยืนยันบัตร → ถูกบล็อก (เดิมรหัสเดิมได้รับการยกเว้น จึงผ่าน)
+select test.ok('CGT7: บัตรที่รออยู่ เปลี่ยนเป็นยืนยันโดยไม่มีธงยืนยันบัตร ถูกบล็อก',
+  test.cgt_try($q$ update public.punpang_orders set data = jsonb_set(data, '{payments}', '[{"id":"cgt_p4","status":"confirmed","amount":40,"posMethod":"card"}]'::jsonb) where id = 'cgt_4' $q$) like 'ERR:P0001:punpang_card_unconfirmed:%');
+
+-- CGT8: รายการบัตรที่ยืนยันอยู่แล้วแก้ไขได้ (ข้อมูลเดิมไม่มีธง จึงไม่ถูกบล็อก)
+select test.ok('CGT8: รายการบัตรที่ยืนยันอยู่แล้วแก้ไขได้โดยไม่ถูกบล็อก',
+  test.cgt_try($q$ update public.punpang_orders set data = jsonb_set(data, '{payments}', '[{"id":"cgt_p2","status":"confirmed","amount":100,"posMethod":"card"}]'::jsonb) where id = 'cgt_2' $q$) = 'OK');
+
 rollback;

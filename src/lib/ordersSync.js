@@ -1,4 +1,4 @@
-import { startSync, selectAll, withVer, casUpdate, fillArray } from './tableSync'
+import { startSync, selectAll, withVer, casUpdate, fillArray, tsMs, isTransientError } from './tableSync'
 import { orderRowOf, balanceOf } from './orderCreate.js'
 import { parseNo } from './docNo'
 import { orderTotals } from './pricing'
@@ -79,7 +79,7 @@ export async function loadOrderCounts(client, customerIds) {
 // keepSince (ISO): หน้าที่ใช้ข้อมูลตั้งแต่ช่วงหนึ่ง (บัญชี กำไร แดชบอร์ด) ให้คงออร์เดอร์ที่แก้ตั้งแต่เวลานั้นไว้ แม้ปิดแล้ว (เช่น เพิ่งส่งมอบระหว่างเปิดหน้า)
 let keepSince = 0 // ms · 0 = ไม่คง (เทียบด้วยเวลา ไม่เทียบข้อความ: รูปแบบเวลาจากฐานข้อมูลต่างจาก toISOString)
 export function keepOrdersSince(iso) { const t = Date.parse(iso); if (Number.isFinite(t) && (!keepSince || t < keepSince)) keepSince = t }
-export const keepOrder = (o) => fullHistory || pinned.has(o.id) || !['cancelled', 'delivered'].includes(o.status) || (!!keepSince && !!o._v && Date.parse(o._v) >= keepSince)
+export const keepOrder = (o) => fullHistory || pinned.has(o.id) || !['cancelled', 'delivered'].includes(o.status) || (!!keepSince && !!o._v && tsMs(o._v) >= keepSince)
 
 // หน้าออเดอร์: ดึงเฉพาะแถวตามตัวกรอง (กรองที่ฐานข้อมูล) · from/to = YYYY-MM-DD ของวันนัด (รวมทั้งสองวัน) · ว่าง = ไม่จำกัด
 // pickup_at เป็น timestamptz แต่แอปเก็บเวลานัดแบบท้องถิ่นไม่มีโซน → เทียบด้วยโซนเดียวกับตอนเขียน (ช่วง [from, to+1 วัน))
@@ -169,7 +169,7 @@ async function createOrderRemote(client, o) {
   if (!error) return { ok: false, code: '', message: 'ตอบกลับจากเซิร์ฟเวอร์ไม่ถูกต้อง' }
   let j = {}
   try { j = (await error.context?.json?.()) || {} } catch { j = {} }
-  return { ok: false, code: j.code || '', message: j.error || error.message || 'บันทึกออร์เดอร์ไม่สำเร็จ' }
+  return { ok: false, code: j.code || '', message: j.error || error.message || 'บันทึกออร์เดอร์ไม่สำเร็จ', status: error.context?.status || 0 }
 }
 // รับค่าที่เซิร์ฟเวอร์บันทึกจริงมาแสดง (ราคา รายการ ประวัติ) และตั้งเวอร์ชันสำหรับการแก้ครั้งต่อไป
 function mergeServerOrder(o, row) {
@@ -182,9 +182,10 @@ function mergeServerOrder(o, row) {
 // ห้ามใช้ upsert: PostgREST ส่งเป็น INSERT ... ON CONFLICT และ Postgres ตรวจ policy ฝั่ง INSERT กับแถวที่ส่งด้วย
 // ทำให้ออร์เดอร์ที่สถานะไปไกลกว่า draft/awaiting_payment ถูกปฏิเสธ (403) ทุกครั้งที่แก้
 // FK ลูกค้ายังไม่ถูกซิงก์ (23503) → รอแล้วลองใหม่ · เลขซ้ำ (23505) → ออกเลขใหม่
-export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRecode = () => {}, onGate = () => {}, onCreated = () => {}, numbering = null, known = new Set(), slips = new Map() } = {}) {
+export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRecode = () => {}, onGate = () => {}, onCreated = () => {}, numbering = null, known = new Set(), slips = new Map(), held = new Map(), onRejected = () => {} } = {}) {
   const cache = new Map()
   const conflicts = []
+  const rejected = [] // ถูกปฏิเสธถาวร: ข้ามแถวนี้ ส่งแถวอื่นต่อ (ไม่บล็อกทั้งชุด)
   for (const o of upserts) {
     // รูปในเครื่อง (สลิป/รูปงาน/รูปตัวอย่าง) → อัปโหลดไป bucket ส่วนตัวก่อน (ล้มเหลว = ไม่เขียนออร์เดอร์นี้)
     try { await externalizeOrderImages(client, o, cache) } catch (e) { return { error: `${o.code || o.id}: อัปโหลดรูปไม่สำเร็จ: ${e.message}` } }
@@ -205,11 +206,12 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
         const c = await createOrderRemote(client, o)
         if (c.ok) { mergeServerOrder(o, c.row); r = {} }
         else if (c.code === 'exists') { known.add(o.id); continue } // มีแถวนี้แล้ว → รอบถัดไปแก้แถวเดิม
-        else r = { error: { code: c.code === 'code' ? '23505' : c.code === 'fk' ? '23503' : (c.code || ''), message: c.message } }
+        else r = { error: { code: c.code === 'code' ? '23505' : c.code === 'fk' ? '23503' : (c.code || ''), message: c.message, status: c.status } }
       }
       if (!r.error) {
         const wasNew = !known.has(o.id)
         known.add(o.id)
+        held.delete(o.id) // ส่งสำเร็จแล้ว → ไม่ใช่แถวที่ค้างจากการถูกปฏิเสธอีก
         if (wasNew) onCreated(o) // แจ้งลูกค้า/ทีมหลังเซิร์ฟเวอร์บันทึกแล้วเท่านั้น
         // รูปที่ไม่ถูกอ้างถึงแล้ว (เปลี่ยนรูป/ลบรูป/ล้างข้อมูลลูกค้า) → ลบไฟล์
         const cur = privateRefsOf(o), prev = slips.get(o.id)
@@ -232,22 +234,33 @@ export async function pushOrders(client, { upserts }, { retryDelay = 1200, onRec
         onRecode(o, fresh)
         continue
       }
-      return { error: `${o.code || o.id}: ${r.error.message}` }
+      // ลูกค้ายังไม่ซิงก์ (23503) / เลขซ้ำที่ลองออกเลขใหม่ครบแล้ว → ยังไม่ใช่การปฏิเสธถาวร: หยุดชุดนี้แล้วลองใหม่ตามรอบ
+      if (code === '23503' || code === '23505') return { error: `${o.code || o.id}: ${r.error.message}` }
+      // ข้อผิดพลาดชั่วคราว (เน็ตหลุด/เซิร์ฟเวอร์ล่ม) → หยุดชุดนี้แล้วลองใหม่ตามรอบ (แถวที่เหลือยังไม่ถูกส่ง)
+      if (isTransientError(r.error)) return { error: `${o.code || o.id}: ${r.error.message}` }
+      // ถูกปฏิเสธถาวร (กติกา/สิทธิ์/ข้อมูลไม่ผ่าน) → ลองซ้ำไม่ช่วย: ข้ามแถวนี้ ส่งแถวอื่นต่อ แล้วรายงาน (ส่งใหม่เมื่อแก้ไขแถวนี้)
+      rejected.push({ id: o.id, ref: o.code || o.id, errCode: String(r.error.code || r.error.status || ''), message: r.error.message || 'ไม่ผ่านการตรวจ' })
+      held.set(o.id, JSON.stringify(o))
+      break
     }
   }
-  return conflicts.length ? { ok: true, conflicts } : { ok: true }
+  if (rejected.length) onRejected(rejected)
+  return conflicts.length || rejected.length ? { ok: true, conflicts, rejected } : { ok: true }
 }
 
 export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCreated, numbering, debounceMs, retryDelay, onCustomerIds = null }) {
   const known = new Set()
   const slips = new Map()
+  const held = new Map() // ออร์เดอร์ที่ฐานข้อมูลปฏิเสธถาวร (id → ฉบับที่ถูกปฏิเสธ) ยังไม่ซิงก์ จนกว่าจะแก้ไข
   return startSync({
     list: () => db.orders,
     replace: (items, { refresh = false } = {}) => {
+      // ออร์เดอร์ที่ยังไม่ซิงก์ (held) คงฉบับในเครื่องไว้ ไม่ให้หายหรือถูกทับด้วยฉบับเซิร์ฟเวอร์
       // คงออร์เดอร์ที่เปิดดูเฉพาะรายการ (ปักหมุดไว้) แม้อยู่นอกช่วง
+      const local = new Map(db.orders.filter((o) => held.has(o.id)).map((o) => [o.id, o]))
       const ids = new Set(items.map((i) => i.id))
-      const stay = db.orders.filter((o) => pinned.has(o.id) && !ids.has(o.id))
-      fillArray(db.orders, items, stay)
+      const stay = db.orders.filter((o) => (pinned.has(o.id) || local.has(o.id)) && !ids.has(o.id))
+      fillArray(db.orders, items.map((i) => local.get(i.id) || i), stay)
       known.clear()
       slips.clear()
       for (const i of items) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) }
@@ -260,7 +273,11 @@ export function startOrdersSync({ client, db, canWrite, onError, onRecode, onCre
     keep: keepOrder,
     loadByIds: (ids) => loadOrdersByIds(client, ids),
     applyRows: (rows) => { for (const i of rows) { known.add(i.id); slips.set(i.id, privateRefsOf(i)) } if (numbering) numbering.seen(rows.map((i) => i.code), { reset: false }); onCustomerIds?.(rows.map((i) => i.customerId)) },
-    push: (changes) => pushOrders(client, changes, { onRecode, onCreated, retryDelay, numbering, known, slips, onGate: (m) => onError(m) }),
+    push: (changes) => pushOrders(client, changes, {
+      onRecode, onCreated, retryDelay, numbering, known, slips, held,
+      onGate: (m) => onError(m),
+      onRejected: (list) => onError(`ซิงก์ออร์เดอร์ไม่สำเร็จ ${list.length} รายการ: ${list.map((x) => `${x.ref} (${x.message})`).join(' · ')} — ระบบส่งออร์เดอร์อื่นต่อแล้ว · แก้ไขหรือยกเลิกออร์เดอร์นั้นแล้วบันทึกใหม่`),
+    }),
     canWrite, onError, debounceMs, label: 'ออร์เดอร์', poll: true,
   }).then((h) => { if (canWrite) backfillBalances(client, db).catch(() => {}); return h })
 }
