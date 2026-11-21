@@ -57,3 +57,15 @@ test('localStorage ใช้ไม่ได้ ไม่ทำให้แอป
     globalThis.localStorage = real
   }
 })
+
+test('รีโหลดหน้า: แถบค้างยังอยู่จนกว่าจะรับทราบ และรับทราบแล้วรีโหลดไม่กลับมา (อ่านค่ากลับจากเครื่อง)', async () => {
+  let n = 0
+  const reload = () => import(`./syncStatus.js?reload=${++n}`) // โมดูลใหม่ = หน้าที่ถูกโหลดใหม่ ค่าเริ่มต้นอ่านจากเครื่อง
+  S.ackQueuedNotices()
+  S.addQueuedNotice(['OR-R1', 'OR-R2'])
+  const afterReload = await reload()
+  assert.deepEqual(afterReload.queuedNotices.list.map((x) => x.code), ['OR-R1', 'OR-R2'])
+  afterReload.ackQueuedNotices()
+  const afterAck = await reload()
+  assert.deepEqual(afterAck.queuedNotices.list, [])
+})
