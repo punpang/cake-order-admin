@@ -1,12 +1,12 @@
 # รายงานตรวจสอบทั้งระบบ (2026-11-21)
 
-ฐานโค้ด: main `5d17a64` (อัปเดตหลัง Release #11 · #12 · #13 · #14 และเทสต์กะ POS/หน้าตั้งค่า · รายงานชุดแรกอิง main `5809310`) · production: Supabase + Cloudflare Pages · ตรวจแบบอ่านอย่างเดียว ยกเว้นข้อ 3 (ธุรกรรมที่ยกเลิก ไม่ทิ้งข้อมูล · รันซ้ำในรอบล่าสุดหลัง Release #14)
+ฐานโค้ด: main `6135883` (อัปเดตหลัง Release #11 · #12 · #13 · #14 · #15 และเทสต์กะ POS/หน้าตั้งค่า · รายงานชุดแรกอิง main `5809310`) · production: Supabase + Cloudflare Pages · ตรวจแบบอ่านอย่างเดียว ยกเว้นข้อ 3 (ธุรกรรมที่ยกเลิก ไม่ทิ้งข้อมูล · รันซ้ำในรอบล่าสุดหลัง Release #14)
 
 ## สรุป
 - ทุกชุดเทสต์ผ่านทั้งหมด (unit 92 ไฟล์ · Deno 174 เทสต์ · e2e 183 ข้อ + 4 กรณีใหม่ `settingsCrud` · DB 22 ไฟล์บน Postgres จริง รวม `shifts_guard` ใหม่ · CI main #315 ผ่าน)
 - production ตรงกับโค้ดที่ทดสอบ: migration 135/135 · Edge Function 24/24 · โครงสร้างฐานข้อมูลตรงทุกหมวดที่เทียบ (column 530 · constraint 152 · policy 121 · trigger 78 · relation 82 · index 176) ความต่างที่เหลือเป็นเรื่องแพลตฟอร์ม/เวอร์ชัน PG (ดูข้อ 2)
 - ทดสอบพฤติกรรมบน production 38 ข้อ (ด่านยอดเกินบิล · ย้อนสถานะ · แต้ม · คิวผู้จัดการ + กระดิ่ง + push · สิทธิ์ตามบทบาท · งวดบัญชีที่ปิดแล้ว) ผ่านทั้งหมด และไม่มีข้อมูลค้าง
-- ไม่พบฟังก์ชันที่ใช้ไม่ได้ในสิ่งที่ตรวจ · ช่องว่าง 14 ข้อ: แก้แล้ว 8 ข้อ (B1, B2, B3, B4, B7, B9, B12, B13) · แก้บางส่วน 1 (B5) · รอการอนุมัติหรือการตัดสินใจ (B5 ส่วน order-audit/quote-create, B10 ส่วนที่เหลือ) · ตรวจการอนุมัติ environment production (ดูข้อ 10) · B7 ยืนยัน header แล้ว แต่เพดานต่อ IP ข้ามได้ (ดูข้อ 10) · ดูข้อ 4 และ 9–10
+- ไม่พบฟังก์ชันที่ใช้ไม่ได้ในสิ่งที่ตรวจ · ช่องว่าง 14 ข้อ: แก้แล้ว 9 ข้อ (B1, B2, B3, B4, B5, B7, B9, B12, B13) · แก้บางส่วน 1 (B10) · รอการอนุมัติหรือการตัดสินใจ (B10 ส่วนที่เหลือ) · ตรวจการอนุมัติ environment production (ดูข้อ 10) · B7 ยืนยัน header แล้ว แต่เพดานต่อ IP ข้ามได้ (ดูข้อ 10) · ดูข้อ 4 และ 9–10
 - **รับประกัน "100%" ไม่ได้** · รายงานนี้บอกว่าแต่ละส่วนผ่านการตรวจชั้นไหน และช่องไหนไม่ได้ตรวจ (ข้อ 4)
 
 ## 1. ผลตามชั้นการตรวจ
@@ -23,7 +23,7 @@
 | หัวข้อ | ผล |
 |---|---|
 | Migration | 135/135 ตรง repo (เทียบ md5 ของเวอร์ชัน+ชื่อ ได้ค่าเดียวกันทั้งสองฝั่ง) |
-| Edge Function | 24/24 ACTIVE ชื่อตรง repo · ฟังก์ชันที่โค้ดใน main ใหม่กว่าที่ deploy ไม่กระทบพฤติกรรม (B5) · เทียบซอร์สจริง `customer-loyalty` ตรง |
+| Edge Function | 24/24 ACTIVE ชื่อตรง repo · ฟังก์ชันที่ B4/B5 ระบุ (8 ตัว) deploy จาก main แล้ว (Release #14 และ #15) · ยืนยัน version และ verify_jwt หลัง Release #15 แล้ว (ข้อ 9) · เทียบซอร์สจริง `customer-loyalty` ตรง |
 | โครงสร้าง DB (public + punpang_test) เทียบฐานจาก migration (วิธีเดียวกันทั้งสองฝั่ง) | column 530/530 · constraint 152/152 · policy 121/121 · trigger 78/78 · relation (ตาราง/วิว/RLS) 82/82 · สิทธิ์ execute ฟังก์ชัน 501/501 · publication public 10/10 (production มีเพิ่ม 7 พาร์ทิชันของแพลตฟอร์ม) · index 176/176 (4 ตัวต่างแค่การแสดงผล `extensions.gin_trgm_ops`) · function 215: 6 ต่างเพราะ production ไม่มีบรรทัดคอมเมนต์ (ตรรกะตรงเมื่อตัดคอมเมนต์ ดู B14) + `rls_auto_enable` 2 ตัวเป็นฟังก์ชันแพลตฟอร์ม · สิทธิ์ตาราง 1273 ตรง ส่วนต่าง 128 = สิทธิ์ MAINTAIN (มีใน PG 17 ของ production) · production = PG 17.11, ฐานอ้างอิง = PG 16.15 |
 | โค้ด ↔ DB | RPC 29/29 · ตาราง 30/30 · trigger 12/12 มีบน production · สคีมาทดสอบขาด 2 ตาราง (B2) |
 | Cron | 5 งาน active (งานลบกล่องเข้าเปลี่ยนชื่อเป็น `punpang-tungngern-inbox-purge` แล้ว) · `manee-inbox-purge` ล้ม 2 ครั้ง (15–16 พ.ย.) แก้แล้ว · `punpang-scheduled` ไม่มีประวัติรันตั้งแต่สร้างใน Release #11 (14:14Z) จนถึง 15:00Z แล้วรันสำเร็จ และได้ 200 ทั้งรอบ 15:00 และ 15:15 (ดู B13) |
@@ -63,7 +63,7 @@
 หลังรัน: แถว `QA-` = 0 ทุกตาราง · กะเปิด 1 เท่าเดิม · ออร์เดอร์ 8 · บัญชี 0 · คิวรอตรวจ 0 · กระดิ่ง 158 เท่าเดิม · คิว pg_net = 0 · หลังรอบเพิ่มเติม: คูปอง QA = 0 และกะเปิดยังเป็น 1
 
 ## 4. ช่องว่างและข้อสังเกต (เรียงตามความเสี่ยง)
-สถานะ (อัปเดตหลัง Release #11 · #12 · #13 · #14): **แก้แล้วและ Release แล้ว:** B3, B12, B13 (Release #11 · `b85d8f8`) · B1, B2, B9 และ B7 ส่วน apply_points (Release #12 · `31a31a9`) · **Release #13 (`3678c69`):** B7 เพดานอัตรา `record_*` (migration `20261121180000`) · **Release #14 (`5d17a64`):** B4 และ B5 ส่วน 6 ฟังก์ชัน · **Release #15 (`efca447`, รอ Approve):** B5 ส่วน order-audit และ quote-create · B10 ส่วนที่เหลือ · **ผู้ใช้แจ้งว่าทำแล้ว (ยังไม่ได้ตรวจซ้ำจากที่นี่):** B6 · B8 ไม่พบการเกิดซ้ำหลัง 11:06Z
+สถานะ (อัปเดตหลัง Release #11 · #12 · #13 · #14): **แก้แล้วและ Release แล้ว:** B3, B12, B13 (Release #11 · `b85d8f8`) · B1, B2, B9 และ B7 ส่วน apply_points (Release #12 · `31a31a9`) · **Release #13 (`3678c69`):** B7 เพดานอัตรา `record_*` (migration `20261121180000`) · **Release #14 (`5d17a64`):** B4 และ B5 ส่วน 6 ฟังก์ชัน · **Release #15 (`efca447`, ผ่านหลังอนุมัติ):** B5 ส่วน order-audit และ quote-create · B10 ส่วนที่เหลือ · **ผู้ใช้แจ้งว่าทำแล้ว (ยังไม่ได้ตรวจซ้ำจากที่นี่):** B6 · B8 ไม่พบการเกิดซ้ำหลัง 11:06Z
 | ID | ระดับ | พบ | ทางแก้ที่แนะนำ |
 |---|---|---|---|
 | B13 | เตือน · **แก้แล้ว** (timeout 30 วินาที, Release #11 · รอบ 15:00 และ 15:15 ได้ 200) | cron `punpang-scheduled` (ทุก 15 นาที) ถูก pg_net ตัดที่ 5 วินาที 11 จาก 24 รอบ (08:00–13:50Z) · รอบที่สำเร็จใช้ 3.6–4.9 วินาที (ใกล้เพดาน) · รอบที่ถูกตัดฟังก์ชันบูตปกติ แต่ผลสุดท้ายยืนยันจาก log ไม่ได้ | เพิ่ม `timeout_milliseconds` (เช่น 30000) หรือลดเวลาทำงานของฟังก์ชัน |
@@ -76,7 +76,7 @@
 | B4 | ปรับปรุง · **แก้แล้ว** (Release #14) | `bot-test` บน production ยังเป็นโค้ดก่อนแก้ aiLog (63cc98d ไม่เก็บข้อความลูกค้า) · เป็นเครื่องมือทดสอบ ข้อมูลอยู่สคีมาทดสอบ ข้อความผ่าน scrubPII ตัดสั้น → ความเสี่ยงต่ำ | deploy แล้วใน Release #14 (version 8 · verify_jwt เดิม) |
 | B10 | ครอบคลุม · **บางส่วน** (`settingsCrud` 4 กรณี: ลิงก์ย่อ · สิทธิ์ · เอกสารกฎหมาย · หน้าร้าน · `settingsPages` 6 กรณี: ราคา/วัตถุดิบ · ตัวเลือก/ชุดสินค้า · การเชื่อมต่อ · คำขอลบ · คำขอรูป · สิทธิ์พนักงาน · หน้าที่เหลือยังไม่มี e2e พฤติกรรม) | หน้าตั้งค่าย่อย 30 หน้า: smoke + 375px + สิทธิ์ เท่านั้น ไม่มี e2e พฤติกรรม CRUD (products / pricing / options / bundles / ingredients / gallery / storefront / links / legal / integrations / photo-requests / deletion-requests ฯลฯ) → พึ่ง unit test ของ lib | เพิ่ม e2e ตามความเสี่ยง (ต้องอนุมัติ) |
 | B8 | ตรวจสาเหตุแล้ว · ไม่พบการเกิดซ้ำหลัง 11:06Z | ส่วนใหญ่เกิด 10:20–10:37Z ซึ่งเป็นช่วงทดสอบ push วันนี้ · push-send 404 ×4 (`record`) = ไม่มีแถวกระดิ่งในช่วงนั้นเหลืออยู่ (แถวทดสอบถูกลบแล้ว) · push-send 405 ×1 (11:06Z) = เรียกด้วยวิธีที่ไม่ใช่ POST · sms-send 503 ×2 = โค้ดตอบ "ยังไม่ได้ตั้งค่าเกตเวย์ SMS" · telegram-send 403 ×2 = ไม่ใช่ปลายทางถูกบล็อกในโหมดทดสอบ (ไม่มีแถว blocked) สาเหตุยังไม่ยืนยัน · storage sign 400 ×9 (รูป Messenger 04:21Z) = หน้าแชทแสดง "โหลดไม่ได้" ตามออกแบบ (ตรวจโค้ดแล้ว) · fb-connect 409 = โหมดทดสอบปฏิเสธตามออกแบบ | ค้างคำถาม: SMS ควรเปิดใช้หรือยัง · telegram 403 ต้องดูเพิ่มถ้าต้องการ |
-| B5 | ข้อมูล · **แก้บางส่วน** (Release #14) | โค้ดใน main ใหม่กว่าที่ deploy แต่ไม่กระทบพฤติกรรม: scheduled / customer-order / fb-webhook (ขาด bell `team_order_review` ที่ตัวมันไม่สร้าง) · order-audit / quote-create (ขาดค่าคงที่ช่อง LINE และ `team_daily_summary` ที่ไม่ได้ใช้) · line-push (ขาดฟังก์ชันอายุข้อความที่ไม่ได้ใช้) · line-webhook (ส่วนที่เปลี่ยนใช้กับ Messenger เท่านั้น) | deploy 6 ฟังก์ชันแล้ว (Release #14) · order-audit และ quote-create ยังไม่ deploy เพราะ `release.yml` ไม่มีชื่อสองตัวนี้ (ต้องแก้บน main ก่อน · รอการอนุมัติ) |
+| B5 | ข้อมูล · **แก้แล้ว** (Release #14 และ #15) | โค้ดใน main ใหม่กว่าที่ deploy แต่ไม่กระทบพฤติกรรม: scheduled / customer-order / fb-webhook (ขาด bell `team_order_review` ที่ตัวมันไม่สร้าง) · order-audit / quote-create (ขาดค่าคงที่ช่อง LINE และ `team_daily_summary` ที่ไม่ได้ใช้) · line-push (ขาดฟังก์ชันอายุข้อความที่ไม่ได้ใช้) · line-webhook (ส่วนที่เปลี่ยนใช้กับ Messenger เท่านั้น) | deploy ครบ 8 ฟังก์ชัน: 6 ใน Release #14 · order-audit และ quote-create ใน Release #15 หลังเพิ่มชื่อใน `release.yml` (ดูข้อ 9) |
 | B14 | ข้อมูล | function ใน production: 14 ตัว (×2 สคีมา) มี CR (CRLF) ต่าง repo เฉพาะช่องว่าง · 3 ตัว (`punpang_cust_spin`, `punpang_log_error`, `punpang_purge_customer`) ขาดบรรทัดคอมเมนต์ไทยเทียบ repo · `rls_auto_enable` เป็นฟังก์ชันแพลตฟอร์ม → ไม่มีความต่างเชิงตรรกะ | — |
 | B9 | เล็กน้อย · **แก้แล้ว** (Release #12) | cron `punpang-manee-inbox-purge` ลบ `public.tungngern_inbox` (ชื่อไม่ตรงงาน) | เปลี่ยนชื่อ |
 
@@ -110,7 +110,7 @@
 4. B3 — แก้แล้ว (Release #11)
 5. B1, B2 — แก้แล้ว (Release #12)
 6. B7 — apply_points เพิกถอนแล้ว (Release #12) · เพดานอัตรา `record_*` Release แล้ว (#13) · ยืนยัน header แล้ว · เพดานต่อ IP ข้ามได้ (ดูข้อ 10)
-7. B4 — แก้แล้ว (Release #14) · B5 — deploy 6 ฟังก์ชันแล้ว (Release #14) · order-audit / quote-create รอแก้ `release.yml` (**รอการอนุมัติ**)
+7. B4 — แก้แล้ว (Release #14) · B5 — deploy ครบ 8 ฟังก์ชันแล้ว (Release #14 และ #15)
 8. B10 — เริ่มแล้ว 10 กรณี (`settingsCrud` 4 · `settingsPages` 6) · หน้าที่เหลือยังไม่มี e2e พฤติกรรม (**การ merge เข้า main รอการอนุมัติ**)
 
 ## 8. ข้อจำกัดของวิธีตรวจ
@@ -135,11 +135,12 @@
 - **การตั้งค่าในฐานข้อมูลจริง (ไม่ผ่าน migration)**: `punpang_kv` config/integrations `sms.enabled` = false (ก่อนหน้า true) เพื่อหยุดการเรียก sms-send ที่ตอบ 503
 - **`punpang-scheduled`**: ไม่รันตั้งแต่สร้าง (14:14Z) จนถึง 15:00Z · รอบ 15:00 และ 15:15 รันสำเร็จ 200 · สาเหตุของช่วงแรกยังไม่ทราบ
 - **Release #14** (main `5d17a64`, run `44921549957`): deploy `bot-test`, `scheduled`, `customer-order`, `fb-webhook`, `line-push`, `line-webhook` · version เพิ่ม 1 ทุกตัว · verify_jwt เดิม · งาน test ผ่าน · งาน release ไม่หยุดรอการกด Approve ที่ environment (ดูข้อ 10) · ไม่มี migration
+- **Release #15** (main `efca447`, run `44922750953` · 16:06:45–16:10:23Z): เพิ่ม order-audit และ quote-create ใน `release.yml` · งาน test ผ่าน · งาน release ผ่านหลังอนุมัติ environment `production` · deploy สองฟังก์ชัน · ตรวจหลัง deploy ด้วย list_edge_functions: order-audit version 15 verify_jwt = false (ตรง production) · quote-create version 16 verify_jwt = true (ตรง production) · updated_at ของทั้งสองอยู่ในขั้น deploy (16:10:18Z และ 16:10:20Z)
 - **ทดสอบ production แบบ rollback รอบล่าสุด** (หลัง Release #14): ดูหัวข้อ 3 ส่วนรอบล่าสุด
 
 ## 10. ที่ต้องอนุมัติหรือตัดสินใจ
 - **B7 เพดานอัตรา `record_*`**: แนวทางในฐานข้อมูลได้รับอนุมัติแล้ว · merge เข้า main และ Release #13 แล้ว (`3678c69`) · **ยืนยัน header แล้ว** (HTTP จริง 1 ครั้ง · ลบข้อมูลทดสอบและคืนตัวนับ pageViews แล้ว) · **ข้อจำกัด:** เพดานต่อ IP ข้ามได้ด้วยการส่ง X-Forwarded-For ต่างกัน เพราะค่าแรกมาจากผู้ส่ง · รอการตัดสินใจเรื่อง header ที่ edge ตั้งเอง
-- **Release #15** (main `efca447`, run `44922750953`): แก้ `release.yml` ให้รองรับ order-audit และ quote-create · งาน test ผ่าน · **งาน release รอ Approve ที่ environment `production`** · ยังไม่ deploy สองฟังก์ชันนี้
+- **Release #15** (main `efca447`, run `44922750953`): deploy สองฟังก์ชันแล้ว (ดูข้อ 9) · งาน release หยุดรอ Approve ที่ environment `production` ก่อนทำงาน และผ่านหลังผู้ใช้อนุมัติ
 - **ตรวจ environment `production`**: Release #14 ไม่หยุดรอการกด Approve แต่ Release #15 หยุดรอ (ไม่สม่ำเสมอ) ควรตรวจว่ามี required reviewer หรือไม่ (**ผู้ใช้ตรวจ**)
 - **B10 ส่วนที่เหลือ** (หน้าที่ยังไม่มี e2e พฤติกรรม) · ไฟล์ทดสอบ `settingsPages` และรายงานถูก merge เข้า main แล้ว (`5d17a64`)
 - **ทดสอบบนเครื่องจริง** (ผู้ใช้): checklist ข้อ 3–4 และ queue ข้อ 3 (`docs/device-test-checklist.md`)
