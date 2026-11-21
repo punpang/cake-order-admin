@@ -19,10 +19,16 @@ test('reasonText: รหัสที่เข้าคิวได้จริ�
 })
 
 test('reasonText: รหัสที่ไม่รู้จักไม่เดาความหมาย แสดงข้อความเดิมทั้งหมด · ค่าว่างไม่พัง', () => {
-  const raw = 'coupon is not claimed for this order or the discount is too large'
+  const raw = 'some other rule failed'
   assert.deepEqual(reasonText(raw), { label: 'ระบบไม่รับออร์เดอร์', detail: raw })
   assert.deepEqual(reasonText(''), { label: 'ระบบไม่รับออร์เดอร์', detail: '' })
   assert.deepEqual(reasonText(undefined), { label: 'ระบบไม่รับออร์เดอร์', detail: '' })
+})
+
+test('reasonText: ด่านคูปองที่เข้าคิวได้มีหัวข้อภาษาไทย ไม่แสดงข้อความอังกฤษ', () => {
+  const r = reasonText('coupon is not claimed for this order or the discount is too large')
+  assert.equal(r.label, 'คูปองใช้ไม่ได้: ถูกใช้ไปแล้วหรือส่วนลดเกินที่คูปองให้')
+  assert.equal(r.detail, '')
 })
 
 test('ageText: แสดงอายุเป็นข้อความสั้น', () => {

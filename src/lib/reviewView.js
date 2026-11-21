@@ -9,8 +9,13 @@ const REASON_LABELS = {
   punpang_card_unconfirmed: 'รับบัตรแต่ยังไม่ยืนยันรับบัตร',
   punpang_customer_deleted: 'ลูกค้าถูกลบแล้ว',
 }
+// ข้อความที่ไม่มีคำนำหน้า แต่เข้าคิวได้จริงจากด่านคูปองของตารางออร์เดอร์ (รหัสสิทธิ์ 42501)
+const EXACT_LABELS = {
+  'coupon is not claimed for this order or the discount is too large': 'คูปองใช้ไม่ได้: ถูกใช้ไปแล้วหรือส่วนลดเกินที่คูปองให้',
+}
 export function reasonText(message) {
   const text = String(message || '')
+  if (EXACT_LABELS[text]) return { label: EXACT_LABELS[text], detail: '' }
   const m = /^(punpang_[a-z_]+):\s*([\s\S]*)$/.exec(text)
   if (m && REASON_LABELS[m[1]]) return { label: REASON_LABELS[m[1]], detail: m[2].trim() }
   return { label: 'ระบบไม่รับออร์เดอร์', detail: text }
