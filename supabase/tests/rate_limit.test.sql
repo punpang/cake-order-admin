@@ -1,4 +1,4 @@
--- ทดสอบการจำกัดอัตราของ RPC สาธารณะที่เขียนข้อมูล (B7): ต่อ IP ต่อนาที · IP อื่นไม่ได้รับผลกระทบ · ไม่มี IP ใช้ถังรวม · ข้อมูลไม่ถูกต้องไม่กินโควตา · แยกโควตาระหว่าง click กับ pageview
+-- ทดสอบการจำกัดอัตราของ RPC สาธารณะที่เขียนข้อมูล (B7): ต่อ IP ต่อนาที · IP อื่นไม่ได้รับผลกระทบ · ไม่มี IP ใช้ถังรวม · ข้อมูลไม่ถูกต้องไม่กินโควตา · แยกโควตาระหว่าง click กับ pageview · ใช้ cf-connecting-ip (x-forwarded-for ที่ผู้เรียกใส่เองไม่มีผล)
 -- รันโดย run.sh หลัง security.test.sql (ใช้ test.as_anon) · ทั้งหมดอยู่ในธุรกรรมเดียวเพื่อให้ now() คงที่ตลอดการทดสอบ (ไม่ข้ามนาที) และยกเลิกเมื่อจบ
 -- แต่ละข้อใช้ rl.ok(ชื่อ, เงื่อนไข) · เงื่อนไขไม่เป็นจริง = ล้มทันที
 
@@ -35,7 +35,7 @@ create function rl.hits(fn text, who text) returns integer language sql as $$
 $$;
 
 -- R1 IP เดียวกันเรียกได้ 60 ครั้งต่อนาที ครั้งที่ 61 ถูกเงียบ (จำนวนนับหยุดที่ 60)
-select set_config('request.headers', '{"x-forwarded-for":"198.51.100.7"}', true);
+select set_config('request.headers', '{"cf-connecting-ip":"198.51.100.7"}', true);
 do $$
 begin
   for i in 1..61 loop
@@ -47,27 +47,27 @@ select rl.ok('R1 IP เดียวกันเรียกได้ 60 คร�
 select rl.ok('R1 ตัวนับของ IP นับความพยายามทั้งหมด (61) ส่วนจำนวน pageview หยุดที่ 60', rl.hits('pageview', '198.51.100.7') = 61 and rl.pv_n() = 60);
 
 -- R2 IP อื่นยังเรียกได้ตามปกติ
-select set_config('request.headers', '{"x-forwarded-for":"198.51.100.8"}', true);
+select set_config('request.headers', '{"cf-connecting-ip":"198.51.100.8"}', true);
 select test.as_anon($q$ select public.punpang_record_pageview('2026-03-14') $q$);
 select rl.ok('R2 IP อื่นไม่ถูกกระทบ (จำนวนนับเป็น 61)', rl.pv_n() = 61);
 
 -- R3 IP แรกยังถูกจำกัดต่อ (ยังไม่เพิ่มจำนวนนับ)
-select set_config('request.headers', '{"x-forwarded-for":"198.51.100.7"}', true);
+select set_config('request.headers', '{"cf-connecting-ip":"198.51.100.7"}', true);
 select test.as_anon($q$ select public.punpang_record_pageview('2026-03-14') $q$);
 select rl.ok('R3 IP ที่เต็มโควตาแล้วยังไม่เพิ่มจำนวนนับ', rl.pv_n() = 61);
 
--- R4 รายการ IP หลายตัวในหัวคำขอ: ใช้ตัวแรก (ตัวนับของ 198.51.100.8 เพิ่มเป็น 2 ไม่ไปที่ตัวนับของ 10.0.0.1)
-select set_config('request.headers', '{"x-forwarded-for":"198.51.100.8, 10.0.0.1"}', true);
+-- R4 x-forwarded-for ที่ผู้เรียกใส่เองไม่มีผล: ใช้เฉพาะ cf-connecting-ip (ตัวนับของ 10.0.0.1 ต้องไม่เกิด)
+select set_config('request.headers', '{"x-forwarded-for":"10.0.0.1","cf-connecting-ip":"198.51.100.8"}', true);
 select test.as_anon($q$ select public.punpang_record_pageview('2026-03-14') $q$);
-select rl.ok('R4 ใช้ IP แรกในรายการ x-forwarded-for', rl.hits('pageview', '198.51.100.8') = 2 and rl.hits('pageview', '10.0.0.1') is null);
+select rl.ok('R4 ใช้ cf-connecting-ip และไม่นับ x-forwarded-for', rl.hits('pageview', '198.51.100.8') = 2 and rl.hits('pageview', '10.0.0.1') is null and rl.pv_n() = 62);
 
--- R5 ไม่มี IP ในคำขอ: ใช้ถังรวม noip
+-- R5 ไม่มี IP ในคำขอ: ใช้ถังรวม noip (x-forwarded-for อย่างเดียวไม่นับเป็น IP)
 select set_config('request.headers', '', true);
 select test.as_anon($q$ select public.punpang_record_pageview('2026-03-14') $q$);
 select rl.ok('R5 ไม่มี IP ใช้ถังรวม noip', rl.hits('pageview', 'noip') = 1 and rl.pv_n() = 63);
 
 -- R6 ข้อมูลไม่ถูกต้องไม่กินโควตา (ไม่สร้างตัวนับ และไม่เพิ่มจำนวนนับ)
-select set_config('request.headers', '{"x-forwarded-for":"198.51.100.9"}', true);
+select set_config('request.headers', '{"cf-connecting-ip":"198.51.100.9"}', true);
 do $$
 begin
   for i in 1..60 loop
@@ -82,7 +82,7 @@ select rl.ok('R6 หลังข้อมูลไม่ถูกต้อง �
 -- security.test.sql เติมตารางคลิกถึง 50,000 แถวไว้ (เพดานทั้งระบบ) จึงล้างตารางและวิเคราะห์สถิติใหม่ก่อน (ยกเลิกเมื่อจบธุรกรรม)
 delete from public.punpang_cake_clicks;
 analyze public.punpang_cake_clicks;
-select set_config('request.headers', '{"x-forwarded-for":"198.51.100.7"}', true);
+select set_config('request.headers', '{"cf-connecting-ip":"198.51.100.7"}', true);
 do $$
 begin
   for i in 1..61 loop
