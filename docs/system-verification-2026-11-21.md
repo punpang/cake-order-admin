@@ -170,7 +170,7 @@
 
 ## 11. ที่ต้องอนุมัติหรือตัดสินใจ
 - **Release #17 deploy แล้ว** (run https://github.com/punpang/cake-order-admin/actions/runs/44928349785) · ไม่ต้องกด Approve อีก เพราะลบ Required reviewers ของ environment `production` แล้วตามคำสั่ง · ดูผลตรวจในข้อ 10
-- **รายงานรอบนี้อยู่บน dev เท่านั้น** (ตามแผน ไม่ merge main) · ต้องการให้ merge เข้า main หรือไม่
+- **รายงานนี้อยู่บน main แล้ว** (ผู้ใช้สั่ง merge · ไม่มีการเปลี่ยนโค้ดแอป)
 - **environment `production` (สรุป)**: Release #14 ไม่หยุดรอ · #15 หยุดรอ · #16 ผ่านหลังผู้ใช้เอา required reviewer ออก · #17 หยุดรอ แล้วรันหลังผู้ใช้ลบ required reviewer · ตั้งแต่นี้ไม่รอ Approve (ตามคำสั่งผู้ใช้)
 - **B10 ส่วนที่เหลือ** (หน้าที่ยังไม่มี e2e พฤติกรรม) · ไฟล์ทดสอบ `settingsPages` และ `settingsRisk` ถูก merge เข้า main แล้ว (`5d17a64` · `f2ad997`)
 - **ทดสอบบนเครื่องจริง** (ผู้ใช้): checklist ข้อ 3–4 และ queue ข้อ 3 (`docs/device-test-checklist.md`)
