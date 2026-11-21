@@ -59,7 +59,7 @@
 | B3 | ปรับปรุง · **แก้แล้ว** (Release #11) | `e2e/_routes.mjs` STATIC ขาด `/admin/settings/sync-review` (route คงที่ ไม่มีพารามิเตอร์) → ไม่ถูก smoke/375px ครอบคลุม · เส้นทางมีพารามิเตอร์/redirect อีก 14 เส้น ไม่มี e2e | เพิ่ม 1 บรรทัดใน STATIC |
 | B7 | ข้อมูล · **แก้แล้วบน dev รอ Release** (migration `20261121180000`: จำกัด 60 ครั้งต่อนาทีต่อ IP สำหรับ `record_click` และ `record_pageview` · apply_points เพิกถอนแล้วใน Release #12) | RPC ที่ anon เรียกได้ 4 ตัว (click_stats / record_click / record_pageview / resolve_short_link) ตั้งใจสำหรับหน้าร้านสาธารณะ · click_stats คืนค่ารวมที่มี ≥3 ผู้เข้าชม · record_* เขียนจากผู้ไม่ล็อกอิน (ยังไม่ได้ตรวจเพดานอัตรา) · `punpang_apply_points` ปลดระวางแล้ว (คืน retired) แต่ authenticated ยัง execute ได้ (ไม่มีผล) | ตรวจเพดานอัตราของ record_* · เพิกถอนสิทธิ์ apply_points |
 | B4 | ปรับปรุง | `bot-test` บน production ยังเป็นโค้ดก่อนแก้ aiLog (63cc98d ไม่เก็บข้อความลูกค้า) · เป็นเครื่องมือทดสอบ ข้อมูลอยู่สคีมาทดสอบ ข้อความผ่าน scrubPII ตัดสั้น → ความเสี่ยงต่ำ | deploy `bot-test` ใหม่ผ่าน Release (ต้องอนุมัติ) |
-| B10 | ครอบคลุม · **บางส่วน** (`settingsCrud` 4 กรณี: ลิงก์ย่อ · สิทธิ์ · เอกสารกฎหมาย · หน้าร้าน · ที่เหลือ 26 หน้า) | หน้าตั้งค่าย่อย 30 หน้า: smoke + 375px + สิทธิ์ เท่านั้น ไม่มี e2e พฤติกรรม CRUD (products / pricing / options / bundles / ingredients / gallery / storefront / links / legal / integrations / photo-requests / deletion-requests ฯลฯ) → พึ่ง unit test ของ lib | เพิ่ม e2e ตามความเสี่ยง (ต้องอนุมัติ) |
+| B10 | ครอบคลุม · **บางส่วน** (`settingsCrud` 4 กรณี: ลิงก์ย่อ · สิทธิ์ · เอกสารกฎหมาย · หน้าร้าน · `settingsPages` 6 กรณี: ราคา/วัตถุดิบ · ตัวเลือก/ชุดสินค้า · การเชื่อมต่อ · คำขอลบ · คำขอรูป · สิทธิ์พนักงาน · หน้าที่เหลือยังไม่มี e2e พฤติกรรม) | หน้าตั้งค่าย่อย 30 หน้า: smoke + 375px + สิทธิ์ เท่านั้น ไม่มี e2e พฤติกรรม CRUD (products / pricing / options / bundles / ingredients / gallery / storefront / links / legal / integrations / photo-requests / deletion-requests ฯลฯ) → พึ่ง unit test ของ lib | เพิ่ม e2e ตามความเสี่ยง (ต้องอนุมัติ) |
 | B8 | ตรวจสาเหตุแล้ว · ไม่พบการเกิดซ้ำหลัง 11:06Z | ส่วนใหญ่เกิด 10:20–10:37Z ซึ่งเป็นช่วงทดสอบ push วันนี้ · push-send 404 ×4 (`record`) = ไม่มีแถวกระดิ่งในช่วงนั้นเหลืออยู่ (แถวทดสอบถูกลบแล้ว) · push-send 405 ×1 (11:06Z) = เรียกด้วยวิธีที่ไม่ใช่ POST · sms-send 503 ×2 = โค้ดตอบ "ยังไม่ได้ตั้งค่าเกตเวย์ SMS" · telegram-send 403 ×2 = ไม่ใช่ปลายทางถูกบล็อกในโหมดทดสอบ (ไม่มีแถว blocked) สาเหตุยังไม่ยืนยัน · storage sign 400 ×9 (รูป Messenger 04:21Z) = หน้าแชทแสดง "โหลดไม่ได้" ตามออกแบบ (ตรวจโค้ดแล้ว) · fb-connect 409 = โหมดทดสอบปฏิเสธตามออกแบบ | ค้างคำถาม: SMS ควรเปิดใช้หรือยัง · telegram 403 ต้องดูเพิ่มถ้าต้องการ |
 | B5 | ข้อมูล | โค้ดใน main ใหม่กว่าที่ deploy แต่ไม่กระทบพฤติกรรม: scheduled / customer-order / fb-webhook (ขาด bell `team_order_review` ที่ตัวมันไม่สร้าง) · order-audit / quote-create (ขาดค่าคงที่ช่อง LINE และ `team_daily_summary` ที่ไม่ได้ใช้) · line-push (ขาดฟังก์ชันอายุข้อความที่ไม่ได้ใช้) · line-webhook (ส่วนที่เปลี่ยนใช้กับ Messenger เท่านั้น) | ไม่ต้องทำอะไร (รวมใน Release ครั้งหน้า) |
 | B14 | ข้อมูล | function ใน production: 14 ตัว (×2 สคีมา) มี CR (CRLF) ต่าง repo เฉพาะช่องว่าง · 3 ตัว (`punpang_cust_spin`, `punpang_log_error`, `punpang_purge_customer`) ขาดบรรทัดคอมเมนต์ไทยเทียบ repo · `rls_auto_enable` เป็นฟังก์ชันแพลตฟอร์ม → ไม่มีความต่างเชิงตรรกะ | — |
@@ -96,7 +96,7 @@
 5. B1, B2 — แก้แล้ว (Release #12)
 6. B7 — apply_points เพิกถอนแล้ว (Release #12) · เพดานอัตรา `record_*` ทำแล้วบน dev รอ Release (ดูข้อ 9–10)
 7. B4 — deploy `bot-test` ผ่าน Release ถัดไป (**รอการอนุมัติ**)
-8. B10 — เริ่มแล้ว 4 กรณี (`settingsCrud`) · ที่เหลือ 26 หน้า (**รอการอนุมัติ merge เมื่อพร้อม**)
+8. B10 — เริ่มแล้ว 10 กรณี (`settingsCrud` 4 · `settingsPages` 6) · หน้าที่เหลือยังไม่มี e2e พฤติกรรม (**การ merge เข้า main รอการอนุมัติ**)
 
 ## 8. ข้อจำกัดของวิธีตรวจ
 - การเทียบ Edge Function ที่ deploy กับ main ใช้เวลา deploy เทียบ commit ล่าสุดในกราฟ import + อ่าน diff (เทียบซอร์สจริงเฉพาะ `customer-loyalty`) ไม่ใช่การเทียบทุกตัวแบบไบต์ต่อไบต์
@@ -116,13 +116,14 @@
 - **Release #12** (main `31a31a9` · migration `20261121170000`): timeout `punpang-order-audit` 30 วินาที · เปลี่ยนชื่องานลบกล่องเข้า · เพิกถอน execute `punpang_apply_points` · สำเนาโหมดทดสอบ: FK ของ `order_audits` และตาราง LINE ว่าง 2 ตาราง · ผ่าน
 - **เทสต์กะ POS** (main `d6844af`, CI #315 ผ่าน): `supabase/tests/shifts_guard.test.sql` 14 ข้อผ่าน · ข้อความ commit เขียนว่า 19 ข้อ จำนวนที่ถูกคือ 14 ข้อ
 - **เทสต์หน้าตั้งค่า** `e2e/settingsCrud.ui.e2e.mjs` (4 กรณี ผ่านในเครื่อง · เพิ่มในสคริปต์ `test:e2e` และ `test:e2e:ci` แล้ว)
+- **เทสต์หน้าตั้งค่าความเสี่ยงสูง** `e2e/settingsPages.ui.e2e.mjs` (6 กรณี ผ่านในเครื่อง 6/6 · ราคา/วัตถุดิบ · ตัวเลือก/ชุดสินค้า · การเชื่อมต่อ Telegram · คำขอลบข้อมูล · คำขอไม่ให้ใช้รูป · พนักงานที่ไม่มีสิทธิ์ manage · เพิ่มในสคริปต์ `test:e2e` และ `test:e2e:ci` แล้ว)
 - **การตั้งค่าในฐานข้อมูลจริง (ไม่ผ่าน migration)**: `punpang_kv` config/integrations `sms.enabled` = false (ก่อนหน้า true) เพื่อหยุดการเรียก sms-send ที่ตอบ 503
 - **`punpang-scheduled`**: ไม่รันตั้งแต่สร้าง (14:14Z) จนถึง 15:00Z · รอบ 15:00 และ 15:15 รันสำเร็จ 200 · สาเหตุของช่วงแรกยังไม่ทราบ
 
 ## 10. ที่ต้องอนุมัติหรือตัดสินใจ
 - **B7 เพดานอัตรา `record_*`**: แนวทางในฐานข้อมูลได้รับอนุมัติแล้วและทำบน dev แล้ว · **รอการอนุมัติ merge เข้า main และ Release migration `20261121180000`**
 - **B4 และ B5**: deploy Edge Functions ที่เก่ากว่า main ผ่าน Release รอบถัดไป (**รอการอนุมัติ**)
-- **B10 ส่วนที่เหลือ 26 หน้า** และการ merge ไฟล์ทดสอบที่เพิ่มเข้า main (**รอการอนุมัติ**)
+- **B10 ส่วนที่เหลือ** (หน้าที่ยังไม่มี e2e พฤติกรรม) และการ merge ไฟล์ทดสอบที่เพิ่มเข้า main (**รอการอนุมัติ**)
 - **ทดสอบบนเครื่องจริง** (ผู้ใช้): checklist ข้อ 3–4 และ queue ข้อ 3 (`docs/device-test-checklist.md`)
 - **ผู้ใช้ตรวจเอง**: Leaked password protection (B6) และ deployment ของ Cloudflare Pages ว่าตรงกับ main
 - **B7 (migration `20261121180000` บน dev)**: `punpang__rate_ok` นับต่อ IP ต่อฟังก์ชันในแต่ละนาที · เกินแล้วคืนค่าเงียบ (ไม่บอกว่าถูกจำกัด) · ไม่พบ IP ในคำขอ ใช้ถัง `noip` ที่ 3,000 ต่อนาที · เก็บแฮช sha256 ของ IP ไม่เก็บ IP ดิบ · ล้างแถวที่เก่ากว่า 1 ชั่วโมงราว 2% ของการเรียก
