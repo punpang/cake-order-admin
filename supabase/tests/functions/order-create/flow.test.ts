@@ -74,7 +74,16 @@ await import('../../../functions/order-create/index.ts')
 // ---------- ฝั่งแอป ----------
 // ไคลเอนต์ supabase จำลองเท่าที่ pushOrders ใช้กับออร์เดอร์ใหม่ (functions.invoke)
 // โหมดทดสอบใส่หัวเดียวกับที่ src/lib/supabase.js ใส่ (global.headers[TEST_HEADER] = 'test')
+// ช่องคิวรอตรวจของผู้จัดการ (punpang_sync_review): ออร์เดอร์ใหม่ที่ระบบปฏิเสธถาวรเข้าคิวที่นี่
+let reviews: any[] = []
 const appClient = (token: string | null, test: boolean) => ({
+  from: (table: string) => ({
+    insert: async (row: any) => {
+      if (table !== 'punpang_sync_review') throw new Error(`ไม่มีตาราง ${table} ในชุดทดสอบนี้`)
+      reviews.push(row)
+      return { error: null }
+    },
+  }),
   functions: {
     invoke: async (name: string, { body }: { body: unknown }) => {
       const headers: Record<string, string> = { 'content-type': 'application/json' }
@@ -94,7 +103,7 @@ const newOrder = (code: string) => ({
   id: `o_flow_${++seq}`, code, customerId: ref.customerId ?? 'golden-cust', fulfillment: ref.draft.fulfillment, pickupAt: ref.draft.pickupAt,
   birthday: ref.draft.birthday, items: structuredClone(ref.draft.items), status: 'awaiting_payment', history: [{ at: '', text: '', by: 'ทดสอบ' }], payments: [],
 })
-const reset = () => { rows = []; reads = []; deletedCustomers.clear() }
+const reset = () => { rows = []; reads = []; deletedCustomers.clear(); reviews = [] }
 // เวลาเซิร์ฟเวอร์ = เวลาของชุดข้อมูลอ้างอิง (วันนัดในเคสจะไม่กลายเป็นอดีตเมื่อเวลาผ่านไป)
 const realNow = Date.now
 Date.now = () => (golden as any).nowMs
@@ -126,12 +135,14 @@ Deno.test('ข้ามโหมด: เลขทดสอบส่งเข้�
   reset()
   const testCode = newOrder(numberingFor(true).next('OR'))
   const r1: any = await pushOrders(appClient('tok-staff', false), { upserts: [testCode] })
-  assertEquals(r1.error, undefined) // การปฏิเสธถาวรไม่คืน error (ไม่บล็อกชุด) แต่รายงานใน rejected
-  assertStringIncludes(r1.rejected?.[0]?.message ?? '', 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง')
+  assertEquals(r1.error, undefined) // การปฏิเสธถาวรไม่คืน error (ไม่บล็อกชุด) · ออร์เดอร์ใหม่ที่ถูกปฏิเสธเข้าคิวผู้จัดการ
+  assertEquals(r1.queued?.length, 1)
+  assertStringIncludes(reviews[0]?.reason_message ?? '', 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง')
   const liveCode = newOrder(numberingFor(false).next('OR'))
   const r2: any = await pushOrders(appClient('tok-staff', true), { upserts: [liveCode] })
   assertEquals(r2.error, undefined)
-  assertStringIncludes(r2.rejected?.[0]?.message ?? '', 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง')
+  assertEquals(r2.queued?.length, 1)
+  assertStringIncludes(reviews[1]?.reason_message ?? '', 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง')
   assertEquals(rows.length, 0)
 })
 
@@ -153,7 +164,8 @@ Deno.test('สิทธิ์: ไม่ได้ล็อกอิน หรื
   assertStringIncludes(r1.error, 'ต้องเข้าสู่ระบบพนักงาน')
   const r2: any = await pushOrders(appClient('tok-chat', true), { upserts: [newOrder(numbering.next('OR'))] })
   assertEquals(r2.error, undefined)
-  assertStringIncludes(r2.rejected?.[0]?.message ?? '', 'บทบาทนี้สร้างออร์เดอร์ไม่ได้')
+  assertEquals(r2.queued?.length, 1)
+  assertStringIncludes(reviews.at(-1)?.reason_message ?? '', 'บทบาทนี้สร้างออร์เดอร์ไม่ได้')
   assertEquals(rows.length, 0)
 })
 
@@ -178,6 +190,7 @@ Deno.test('ลูกค้าที่ถูกลบแล้ว: ออร์�
   deletedCustomers.add(o.customerId)
   const r: any = await pushOrders(appClient('tok-staff', false), { upserts: [o] }, { numbering })
   assertEquals(r.error, undefined)
-  assertStringIncludes(r.rejected?.[0]?.message ?? '', 'ไม่พบลูกค้า')
+  assertEquals(r.queued?.length, 1)
+  assertStringIncludes(reviews[0]?.reason_message ?? '', 'ไม่พบลูกค้า')
   assertEquals(rows.length, 0)
 })

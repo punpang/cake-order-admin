@@ -8,6 +8,9 @@ import { pushOrders as pushOrdersJs } from '../../../../src/lib/ordersSync.js'
 import { createNumbering } from '../../../../src/lib/docNo.js'
 import { docCode } from '../../../../src/lib/testMode.js'
 import { appClient, installFakeRest, loadHandler, seedCatalog } from '../_fake/rest.ts'
+// ช่องคิวรอตรวจของผู้จัดการ (punpang_sync_review): ออร์เดอร์ใหม่ที่ระบบปฏิเสธถาวรเข้าคิวที่นี่
+const reviews: any[] = []
+const withReviewQueue = (c: any) => ({ ...c, from: (table: string) => ({ insert: async (row: any) => { if (table !== 'punpang_sync_review') throw new Error(`ไม่มีตาราง ${table} ในชุดทดสอบนี้`); reviews.push(row); return { error: null } } }) })
 
 const pushOrders = pushOrdersJs as any // ชนิดอนุมานจากค่าเริ่มต้นในไฟล์ JS
 Deno.env.set('SUPABASE_URL', 'http://db.fake')
@@ -28,6 +31,7 @@ Date.now = () => (golden as any).nowMs // วันนัดในเคสอ�
 const schemaOf = (test: boolean) => (test ? 'punpang_test' : 'public')
 function setup(test: boolean) {
   fake.reset()
+  reviews.length = 0
   seedCatalog(fake, (golden as any).catalog)
   fake.t[`${schemaOf(test)}.punpang_chats`] = [{ id: 'ch1', customer_id: CUST }, { id: 'ch2', customer_id: 'other-cust' }]
   fake.t[`${schemaOf(test)}.punpang_customers`] = [{ id: CUST, deleted: false }]
@@ -44,7 +48,7 @@ const orderFromQuote = (q: any, code: string, chatId = q.chatId) => ({
 for (const test of [true, false]) {
   const label = test ? 'โหมดทดสอบ' : 'โหมดจริง'
   const numbering = createNumbering({ decorate: (c: string) => docCode(c, test) })
-  const client = () => appClient(handlers, 'tok-staff', test)
+  const client = () => withReviewQueue(appClient(handlers, 'tok-staff', test))
 
   Deno.test(`${label}: ส่งใบเสนอ → ลูกค้ายืนยัน → แปลงเป็นออร์เดอร์ ผ่านครบ และอยู่ในสคีมาเดียวกันทั้งเส้นทาง`, async () => {
     setup(test)
@@ -69,8 +73,9 @@ for (const test of [true, false]) {
     setup(test)
     const r = await createQuoteRemote(client(), 'ch1', structuredClone(ref.draft))
     const p = await pushOrders(client(), { upserts: [orderFromQuote(r.quote, numbering.next('OR'))] }, { numbering })
-    assertEquals(p.error, undefined) // การปฏิเสธถาวรไม่คืน error (ไม่บล็อกชุด) แต่รายงานใน rejected
-    assertStringIncludes(p.rejected?.[0]?.message ?? '', 'ยังไม่พร้อมแปลงเป็นออร์เดอร์')
+    assertEquals(p.error, undefined) // การปฏิเสธถาวรไม่คืน error (ไม่บล็อกชุด) · ออร์เดอร์ใหม่ที่ถูกปฏิเสธเข้าคิวผู้จัดการ
+    assertEquals(p.queued?.length, 1)
+    assertStringIncludes(reviews[0]?.reason_message ?? '', 'ยังไม่พร้อมแปลงเป็นออร์เดอร์')
     assertEquals(fake.t[`${schemaOf(test)}.punpang_orders`] ?? [], [])
   })
 
@@ -82,7 +87,8 @@ for (const test of [true, false]) {
     // ออร์เดอร์ที่สองจากใบเดิม (เช่น สองแท็บ/สองเครื่องแปลงพร้อมกัน หรือกดแปลงซ้ำก่อนผูกใบเสนอ)
     const p = await pushOrders(client(), { upserts: [orderFromQuote(r.quote, numbering.next('OR'))] }, { numbering })
     assertEquals(p.error, undefined)
-    assertStringIncludes(p.rejected?.[0]?.message ?? '', 'ถูกแปลงเป็นออร์เดอร์แล้ว')
+    assertEquals(p.queued?.length, 1)
+    assertStringIncludes(reviews[0]?.reason_message ?? '', 'ถูกแปลงเป็นออร์เดอร์แล้ว')
     assertEquals(fake.t[`${schemaOf(test)}.punpang_orders`].length, 1)
   })
 
@@ -102,7 +108,8 @@ for (const test of [true, false]) {
     confirm(test, r.quote.id)
     const p = await pushOrders(client(), { upserts: [orderFromQuote(r.quote, numbering.next('OR'), 'ch2')] }, { numbering })
     assertEquals(p.error, undefined)
-    assertStringIncludes(p.rejected?.[0]?.message ?? '', 'ไม่ใช่ของแชทนี้')
+    assertEquals(p.queued?.length, 1)
+    assertStringIncludes(reviews[0]?.reason_message ?? '', 'ไม่ใช่ของแชทนี้')
   })
 }
 
