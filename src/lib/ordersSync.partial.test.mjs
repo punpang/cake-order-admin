@@ -38,7 +38,8 @@ test('แถวที่ถูกปฏิเสธถาวร 1 แถว → 
   const held = new Set()
   const known = new Set()
   let reported = null
-  const r = await pushOrders(client, { upserts: [order('bad'), order('good')] }, { held, known, slips: new Map(), onRejected: (list) => { reported = list } })
+  // ทดสอบการค้างในเครื่องของแถวที่ถูกปฏิเสธ (ปิดการเก็บคิวเพื่อไม่ให้แถวนั้นเข้าคิวผู้จัดการ)
+  const r = await pushOrders(client, { upserts: [order('bad'), order('good')] }, { held, known, slips: new Map(), reviewQueue: false, onRejected: (list) => { reported = list } })
   assert.equal(r.error, undefined)
   assert.deepEqual(client.calls, ['bad', 'good']) // แถวปกติถูกส่งต่อ ไม่ถูกบล็อก
   assert.equal(r.rejected.length, 1)

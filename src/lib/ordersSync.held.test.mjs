@@ -25,7 +25,9 @@ function fakeOrdersClient(script = {}) {
     }
     return b
   }
-  return { state, from: () => builder() }
+  // ช่องเก็บคิวถูกปฏิเสธด้วยสิทธิ์ → ออร์เดอร์ที่ถูกปฏิเสธค้างในเครื่องเหมือนเดิม
+  const reviewDenied = { insert: async () => ({ error: { code: '42501', message: 'permission denied' }, status: 403 }) }
+  return { state, from: (table) => (table === 'punpang_sync_review' ? reviewDenied : builder()) }
 }
 const ITEMS = [{ id: 'i-1', name: 'คัพเค้ก', qty: 1, unitPrice: 100 }]
 const posOrder = (id, status = 'pos_pending') => ({ id, code: 'OR-' + id, customerId: 'c1', status, fulfillment: 'pickup', channel: 'pos', items: ITEMS, payments: [], history: [] })

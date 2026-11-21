@@ -44,9 +44,10 @@ const order = (id, extra = {}) => ({
 test('ไม่มีการเงิน แต้ม คูปอง หรือรูป: ยกเลิกหลังถูกปฏิเสธ → ทิ้ง ไม่ส่งซ้ำ และไม่ค้างเป็นรายการปฏิเสธ', async () => {
   const client = fakeClient({ d1: REJECT })
   const held = new Set()
-  await pushOrders(client, { upserts: [order('d1')] }, { held, known: new Set(), slips: new Map() })
+  // ปิดการเก็บคิวเพื่อให้ออร์เดอร์ค้างในเครื่องก่อนยกเลิก (เมื่อเปิดคิว ออร์เดอร์ไม่มีการเงินจะเข้าคิวผู้จัดการแทน)
+  await pushOrders(client, { upserts: [order('d1')] }, { held, known: new Set(), slips: new Map(), reviewQueue: false })
   assert.ok(held.has('d1'))
-  const r = await pushOrders(client, { upserts: [order('d1', { status: 'cancelled' })] }, { held, known: new Set(), slips: new Map() })
+  const r = await pushOrders(client, { upserts: [order('d1', { status: 'cancelled' })] }, { held, known: new Set(), slips: new Map(), reviewQueue: false })
   assert.deepEqual(client.calls.insert, ['d1']) // รอบยกเลิกไม่ส่งซ้ำ
   assert.equal(r.error, undefined)
   assert.equal(r.rejected, undefined)
@@ -92,7 +93,7 @@ test('ไม่เคยถูกปฏิเสธ: ยกเลิกแล้
 })
 
 // ตารางจำลองสำหรับทดสอบทั้งเส้นทางผ่าน startOrdersSync
-function fakeOrdersClient(scriptFor) {
+function fakeOrdersClient(scriptFor, { reviewErr = null } = {}) {
   const state = { rows: [], calls: [], review: [] }
   const builder = (table) => {
     const b = {
@@ -100,7 +101,7 @@ function fakeOrdersClient(scriptFor) {
       range: async () => ({ data: state.rows.map((r) => ({ ...r })), error: null }),
       then: (res, rej) => Promise.resolve({ data: [], error: null }).then(res, rej),
       insert: async (row) => {
-        if (table === 'punpang_sync_review') { state.review.push(row); return { error: null } }
+        if (table === 'punpang_sync_review') { state.review.push(row); return reviewErr ? { error: reviewErr.error, status: reviewErr.status } : { error: null } }
         state.calls.push(row.id)
         return scriptFor(row.id)
       },
@@ -111,7 +112,8 @@ function fakeOrdersClient(scriptFor) {
 }
 
 test('ยกเลิกออร์เดอร์ค้างที่ไม่มีการเงิน → ออกจากเครื่อง ไม่ส่งซ้ำ และสถานะซิงก์กลับเป็นปกติ', async () => {
-  const client = fakeOrdersClient(() => REJECT)
+  // ช่องเก็บคิวถูกปฏิเสธด้วยสิทธิ์ → ออร์เดอร์ค้างในเครื่องก่อนยกเลิก (เมื่อเก็บคิวได้ ออร์เดอร์ไม่มีการเงินเข้าคิวแทน)
+  const client = fakeOrdersClient(() => REJECT, { reviewErr: { error: { code: '42501', message: 'permission denied' }, status: 403 } })
   const db = { orders: [] }
   const errors = []
   const h = await startOrdersSync({ client, db, canWrite: true, onError: (m) => errors.push(m), onRecode() {}, onCreated() {}, numbering: null, debounceMs: 60000, retryDelay: 1 })

@@ -1,5 +1,5 @@
 <script setup>
-// คิวรอตรวจของผู้จัดการ: ออร์เดอร์ใหม่ที่ระบบไม่รับและมีการเงิน/คูปอง (เก็บจากเครื่องพนักงานก่อนเอาออก)
+// คิวรอตรวจของผู้จัดการ: ออร์เดอร์ใหม่ที่ระบบไม่รับ (เก็บจากเครื่องพนักงานก่อนเอาออก)
 // ส่งซ้ำ (บิลหน้าร้าน) · แก้การชำระแล้วส่ง · ปิดพร้อมเหตุผล (คืนคูปองที่จองไว้) · ทุกการทำงานตรวจและบันทึกโดยฐานข้อมูล
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { db } from '../../data/store'
@@ -128,7 +128,7 @@ async function doClose() {
     <div class="mb-4 flex gap-2 overflow-x-auto pb-1">
       <button v-for="f in FILTERS" :key="f.v" type="button" class="chip min-h-11" :class="filter === f.v ? 'chip-on' : 'chip-off'" :aria-pressed="filter === f.v" @click="filter = f.v">{{ f.l }}</button>
     </div>
-    <p class="mb-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-600">ออร์เดอร์เหล่านี้ระบบไม่รับและมีการเงิน จึงเก็บไว้ที่นี่ก่อนเอาออกจากเครื่องพนักงาน · ตรวจก่อนส่งซ้ำหรือปิดพร้อมเหตุผล</p>
+    <p class="mb-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-600">ออร์เดอร์เหล่านี้ระบบไม่รับ จึงเก็บไว้ที่นี่ก่อนเอาออกจากเครื่องพนักงาน · ตรวจก่อนส่งซ้ำหรือปิดพร้อมเหตุผล</p>
     <p v-if="msg" class="mb-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800" role="status">{{ msg }}</p>
     <p v-if="err" class="mb-3 flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-700" role="alert"><AppIcon name="alert" :size="16" /> {{ err }}</p>
     <p v-if="!loading && !rows.length && !err" class="card py-10 text-center text-stone-500">ไม่มีรายการ</p>

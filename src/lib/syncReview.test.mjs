@@ -1,4 +1,4 @@
-// ทดสอบคิวรอตรวจของผู้จัดการ: ฝั่งเครื่องพนักงาน (ออร์เดอร์ใหม่ที่มีการเงินถูกปฏิเสธถาวร → เก็บลงคิวก่อน แล้วจึงเอาออกจากเครื่อง · ชั่วคราว/ถาวรของการเก็บคิว · ออร์เดอร์ที่เคยบันทึกแล้วไม่เข้าคิว)
+// ทดสอบคิวรอตรวจของผู้จัดการ: ฝั่งเครื่องพนักงาน (ออร์เดอร์ใหม่ที่ถูกปฏิเสธถาวร → เก็บลงคิวก่อน แล้วจึงเอาออกจากเครื่อง · ชั่วคราว/ถาวรของการเก็บคิว · ออร์เดอร์ที่เคยบันทึกแล้วไม่เข้าคิว)
 // และฝั่งผู้จัดการ (ส่งซ้ำเรียกฟังก์ชันฐานข้อมูลด้วยรหัสและค่าการยืนยัน · เหตุที่ส่งซ้ำไม่ได้ · ปิดเรียกฟังก์ชันคืนคูปอง · ค่าการชำระแก้ได้เฉพาะยอดและการยืนยันบัตร) · รัน: node src/lib/syncReview.test.mjs
 import { fileURLToPath } from 'node:url'
 import test, { after } from 'node:test'
@@ -125,19 +125,24 @@ test('เก็บเข้าคิวถาวรไม่ได้ (ไม่
   assert.equal(d.held.has('m3'), true)
 })
 
-test('ปิดการเก็บคิว (reviewQueue:false) หรือไม่มีการเงิน → ค้างในเครื่องตามเดิม ไม่เก็บคิว', async () => {
+test('ปิดการเก็บคิว (reviewQueue:false) → ค้างในเครื่องตามเดิม ไม่เก็บคิว', async () => {
   const c1 = fakeClient({ orderErr: REJECT })
   const d1 = deps()
   const r1 = await pushOrders(c1, { upserts: [order('m4', { payments: [cash] })] }, { ...d1, reviewQueue: false })
   assert.equal(r1.rejected[0].id, 'm4')
   assert.equal(d1.held.has('m4'), true)
   assert.equal(c1.calls.review.length, 0)
-  const c2 = fakeClient({ orderErr: REJECT })
-  const d2 = deps()
-  const r2 = await pushOrders(c2, { upserts: [order('n4')] }, d2)
-  assert.equal(r2.rejected[0].id, 'n4')
-  assert.equal(d2.held.has('n4'), true)
-  assert.equal(c2.calls.review.length, 0)
+})
+
+test('ออร์เดอร์ใหม่ที่ไม่มีการเงินถูกปฏิเสธถาวร → เข้าคิวด้วย (ไม่ค้างเฉพาะในหน่วยความจำ)', async () => {
+  const client = fakeClient({ orderErr: REJECT })
+  const d = deps()
+  const r = await pushOrders(client, { upserts: [order('n4')] }, d)
+  assert.equal(r.rejected, undefined)
+  assert.deepEqual(r.queued.map((o) => o.id), ['n4'])
+  assert.equal(d.held.has('n4'), false)
+  assert.equal(client.calls.review.length, 1)
+  assert.deepEqual(client.calls.review[0].payload.payments, [])
 })
 
 test('ออร์เดอร์ที่เคยบันทึกขึ้นเซิร์ฟเวอร์แล้วไม่เข้าคิว (ฉบับบนเซิร์ฟเวอร์ยังอยู่)', async () => {
@@ -150,13 +155,7 @@ test('ออร์เดอร์ที่เคยบันทึกขึ้�
   assert.equal(client.calls.review.length, 0)
 })
 
-test('ออร์เดอร์ใหม่ที่ไม่มีการเงิน หรือมีรูปในเครื่องที่ยังไม่อัปโหลด → ไม่เข้าคิว', async () => {
-  const c1 = fakeClient({ orderErr: REJECT })
-  const d1 = deps()
-  const r1 = await pushOrders(c1, { upserts: [order('n5')] }, d1)
-  assert.equal(r1.queued, undefined)
-  assert.equal(d1.held.has('n5'), true)
-  assert.equal(c1.calls.review.length, 0)
+test('ออร์เดอร์ใหม่ที่มีรูปในเครื่องที่ยังไม่อัปโหลด → ไม่เข้าคิว (ค้างในเครื่องให้แก้)', async () => {
   const withPhoto = order('p5', { payments: [cash], items: [{ id: 'i-p5', name: 'คัพเค้ก', qty: 1, unitPrice: 100, images: ['data:image/png;base64,iVBORw0KGgo='] }] })
   const c2 = fakeClient({ orderErr: REJECT })
   const d2 = deps()

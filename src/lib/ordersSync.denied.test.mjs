@@ -1,4 +1,4 @@
-// ทดสอบออร์เดอร์ที่ถูกปฏิเสธด้วยสิทธิ์หรือด่าน (42501): ออร์เดอร์ใหม่ที่มีการเงินเข้าคิวผู้จัดการ · ออร์เดอร์ใหม่ไม่มีการเงินค้างให้แก้ไข (ไม่หายเงียบ) · ออร์เดอร์ที่เคยบันทึกแล้วยังโหลดแถวกลับตามเดิม
+// ทดสอบออร์เดอร์ที่ถูกปฏิเสธด้วยสิทธิ์หรือด่าน (42501): ออร์เดอร์ใหม่ที่มีการเงินเข้าคิวผู้จัดการ · ออร์เดอร์ใหม่ไม่มีการเงินก็เข้าคิวผู้จัดการ (ไม่หายเงียบ) · ออร์เดอร์ที่เคยบันทึกแล้วยังโหลดแถวกลับตามเดิม
 // รัน: node src/lib/ordersSync.denied.test.mjs
 import { fileURLToPath } from 'node:url'
 import test, { after } from 'node:test'
@@ -54,16 +54,16 @@ test('ออร์เดอร์ใหม่มีการเงินถู�
   assert.equal(d.held.has('x1'), false)
 })
 
-test('ออร์เดอร์ใหม่ไม่มีการเงินถูกปฏิเสธด้วย 42501 → ค้างในเครื่องเป็นรายการปฏิเสธให้แก้ไขหรือยกเลิก (ไม่หายเงียบ ไม่เข้าคิว)', async () => {
+test('ออร์เดอร์ใหม่ไม่มีการเงินถูกปฏิเสธด้วย 42501 → เข้าคิวผู้จัดการ (ไม่หายเงียบ)', async () => {
   const client = fakeClient({ orderErr: DENIED })
   const d = deps()
   const r = await pushOrders(client, { upserts: [order('x2')] }, d)
   assert.equal((r.conflicts || []).length, 0)
-  assert.equal(r.queued, undefined)
-  assert.equal(r.rejected[0].id, 'x2')
-  assert.equal(r.rejected[0].errCode, '42501')
-  assert.equal(d.held.has('x2'), true)
-  assert.equal(client.calls.review.length, 0)
+  assert.equal(r.rejected, undefined)
+  assert.deepEqual(r.queued.map((o) => o.id), ['x2'])
+  assert.equal(client.calls.review.length, 1)
+  assert.equal(client.calls.review[0].reason_code, '42501')
+  assert.equal(d.held.has('x2'), false)
 })
 
 test('ออร์เดอร์ที่เคยบันทึกขึ้นเซิร์ฟเวอร์แล้วถูกปฏิเสธด้วย 42501 → ยังโหลดแถวกลับตามเดิม (ไม่เข้าคิว)', async () => {
