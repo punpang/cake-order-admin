@@ -13,6 +13,16 @@
 
 ---
 
+## 2026-11-22 · [ลูกค้า][POS][ระบบ] ระดับสมาชิก: e2e แท็บระดับ ป้ายหน้าชำระเงิน และการ์ดลูกค้า · ข้อ 8 VAT มีตัวคูณ · ยังไม่ merge/Release
+
+**ทำอะไร:** เพิ่ม `e2e/memberTiers.supabase.e2e.mjs` 7 ข้อ (แท็บระดับ · ป้ายระดับหน้าชำระเงิน POS ใช้จริง/ทดลอง/ปิด · การ์ดลูกค้าใช้จริง/ทดลองและปิดซ่อน · ไม่มี error) · `_supabaseApp.mjs` เพิ่ม `guestPage()` · `supabaseMock.mjs` รับตัวตอบทับ RPC/Edge Function · เพิ่มในสคริปต์ `test:e2e` และ `test:e2e:ci` · `docs/vat-refund-buyer.md` ข้อ 8 เพิ่มตัวคูณระดับ
+**เหตุผล:** ผู้ใช้สั่ง "ทำเลย" (ยังไม่มี e2e ของแท็บ/การ์ด/ป้าย และข้อ 8 ยังไม่กล่าวถึงตัวคูณ)
+**ผล:** memberTiers 7/7 ผ่าน · flows.supabase 5/5 ผ่าน · ตรวจ SQL แล้ว: ตัวคูณใช้เฉพาะโหมดใช้จริง · สิทธิ์หมุนไม่คูณ · พบระหว่างทำ: ป้ายระดับอยู่ในหน้าชำระเงิน ไม่ใช่หน้าขาย · บัญชีลูกค้าไม่กู้ในเครื่องที่ล็อกอินพนักงานอยู่ (เทสต์ใช้บริบทแยก)
+**รอ:** ผู้ใช้ยืนยันถ้อยคำข้อ 8 ManageLegal และร่างข้อ 3 PDPA (ยังไม่แก้) · อนุมัติโหมดทดลองแยก
+**งานค้าง:** commit + push `claude/member-tiers-phase1` (สาขาที่ตั้งไว้ `claude/zen-gauss-5qbmyh` มี commit SMS ไม่เกี่ยว จึงไม่ใช้) · `src/lib/legalTexts.js` ข้อ 8 ยังไม่มีตัวคูณ (แก้ก่อนเปิดใช้จริง)
+
+---
+
 ## 2026-11-22 · [ลูกค้า][Release] merge main 8991fac: แก้ช่อง OTP ใช้แป้นเครื่อง + แถวสมาชิกข้อ 2 · CI ผ่าน · โหมดยังปิด
 
 **ทำอะไร:** `OtpStep.vue` เอา `v-num` ออก ช่อง OTP ใช้แป้นของเครื่อง (`inputmode=numeric`) และกรองเฉพาะตัวเลข 6 หลัก (`8cc2ae0`) · ประกาศข้อ 2 เพิ่มแถว "สมาชิก (ระดับ)" ฐาน "สัญญา" (`e92520b`) · merge เข้า main → `8991fac` · `docs/loyalty-tiers.md` ขั้นเปิดใช้ข้อ 1 อัปเดตให้ตรงสถานะจริง
@@ -61,6 +71,8 @@
 **รอ:** ผู้ใช้ตัดสิน 4 ข้อ: (1) ถ้อยคำบรรทัดสิทธิ์พัก/วันทองของบัตรระดับ (2) ร่างถ้อยคำ ManageLegal ข้อ 8 (ยังไม่แก้) (3) อนุมัติ merge + Release 3 migration + deploy customer-auth (4) ตั้งอัตรา 10 / 0.10 ก่อนใช้จริง
 **งานค้าง:** ยังไม่มีเทสต์ e2e ของแท็บระดับ · เฟส 2–3 ตามเดิม
 
+---
+
 ## 2026-11-22 · [ลูกค้า][POS][DB] ระดับสมาชิก เฟส 1 (หน้าจอ): แท็บระดับ ป้าย POS การ์ดลูกค้า · โหมดเริ่มต้นปิด · ไม่ merge ไม่ Release
 
 **ทำอะไร:** แท็บ "ระดับ" ในคะแนน & รางวัล (`ManageTiers.vue` โหลดแบบ lazy: โหมด · ระดับ/ตัวคูณ · รอบสมาชิก · รายงาน · ตัวจำลองต้นทุน) · `src/lib/memberLevels.js` (ค่าเริ่มต้น ตรวจค่าให้ตรง SQL ข้อความบัตร ต้นทุน) · `src/lib/memberRemote.js` + migration `20261122110200` (`punpang_member_staff_card` `punpang_member_quote` `punpang_member_report` เฉพาะผู้จัดการ) · POS: ป้ายระดับ และแต้มที่จะได้ (เฉพาะใช้จริง) · บัญชีลูกค้า: การ์ดระดับ (เฉพาะใช้จริง) · `store.js`: ขอตัวคูณจาก `punpang_member_preview` ก่อนให้แต้ม · customer-auth แนบ `tier` (allow-list ไม่มียอดสะสม ล้มเหลวเป็นปิด) · งบบันเดิล 876 → 886 KB · `docs/loyalty-tiers.md` ใหม่ (แทนฉบับ dev เดิม)
@@ -68,6 +80,8 @@
 **ผล:** `npm test` 95 ไฟล์ผ่าน · `build` ผ่าน · `test:bundle` 882.1 / 886 KB · Deno 634 ผ่าน 0 ไม่ผ่าน · `test:db` ผ่านทั้งชุด (รวม member_levels, member_staff, mirror) · `test:e2e:ci` จบโดยไม่มีรายการไม่ผ่าน · visual (`e2e/visual.e2e.mjs`) ผ่าน 5 หน้า ไม่ได้อัปเดตภาพอ้างอิง · **ต้นทุนในหน้าจอคิดเฉพาะส่วนเพิ่ม (x3 = 0.8%)** ต่างจากเอกสาร dev เดิมและแผน (สูตรเต็ม x3 = 1.2%)
 **รอ:** ผู้ใช้ตัดสิน 6 ข้อ: (1) สูตรต้นทุน ส่วนเพิ่มหรือสูตรเต็ม (2) ถ้อยคำบัตรระดับ สิทธิ์พัก/วันทอง (3) ความหมาย "กฎสื่อสาร 3 บรรทัด" (หาในเอกสารรีโปไม่พบ) (4) ถ้อยคำ ManageLegal ข้อ 8 (ยังไม่แก้) (5) อนุมัติ merge + Release 3 migration + deploy customer-auth (6) ตั้งอัตรา 10 / 0.10 ก่อนใช้จริง
 **งานค้าง:** เฟส 2 (สิทธิประโยชน์ เดือนเกิด โหมดคูปองใหม่) · เฟส 3 (ข้อความอัตโนมัติ ด่านหน้าจ่ายเงิน) · รายงานต้องรอข้อมูลจากโหมดทดลอง
+
+---
 
 ## 2026-11-22 · [DB][ลูกค้า] ระดับสมาชิก เฟส 1 (ฐานข้อมูล): เครื่องยนต์ระดับ + ตัวคูณแต้ม · โหมดเริ่มต้นปิด · ไม่ merge ไม่ Release
 
@@ -77,6 +91,8 @@
 **รอ:** ผู้ใช้อนุมัติแล้ว: push ไป `claude/member-tiers-phase1` · งบบันเดิล +10 KB (ใช้ตอนทำ frontend) · ตัด toNext · วันครบ 365 ใช้ระดับก่อนลด · นับ 90 วันจากวันซื้อแรก · ยังรอ: สั่งเริ่ม frontend
 **งานค้าง:** frontend ระดับ (`src/lib/memberLevels.js`, แท็บ "ระดับ" ใน ManageLoyalty, ป้ายใน POS, การ์ดในบัญชีลูกค้า, customer-auth ส่งบัตรระดับ) · `punpang_member_report` (รายงานโหมดทดลอง) · อัตราแต้ม 10 บาท = 1 แต้ม (0.10 บาท) ผ่านหน้าตั้งค่า · docs/loyalty-tiers.md และถ้อยคำข้อ 8 บน ManageLegal (ผู้ใช้ยืนยันก่อนเปิดใช้จริง) · ตรวจ production แบบ rollback และ Release ต้องอนุมัติแยก
 
+---
+
 ## 2026-11-22 · [ระบบ][LIFF][ลูกค้า] ย้ายลิงก์หลักเป็น punpang.com: Worker, เมนู ถุงเงิน, เมนูใน LINE, ลิงก์สุ่มรางวัล · อยู่บน main แล้ว
 
 **ทำอะไร:** ตั้งค่า ALLOWED_ORIGINS ของ punpang-files ใน `worker/wrangler.jsonc` ให้มี punpang.com และ www.punpang.com (ตรงกับ dashboard) · เอาการซ่อนเมนู "ถุงเงิน" ออก (`src/lib/adminSystems.js`) · MENU_URL ของบอท LINE (`supabase/functions/_shared/lineliff.ts`) และ LUCKY_SITE_URL (`src/lib/luckyDraw.js`) เป็น punpang.com · deploy Worker punpang-files (run #4), line-webhook (run #6), line-link (run #6) สำเร็จ · ผู้ใช้ลบ Worker `sms-tls-probe` และเพิ่ม www.punpang.com ใน Turnstile กับ ALLOWED_ORIGINS ใน dashboard แล้ว · commit `262c98d` `d05e6b8` `2cf9d35` `cde7b68` `ce61551`
@@ -84,16 +100,3 @@
 **ผล:** deploy-worker run #4 (`cde7b68`) และ run #5 (`7733361`), deploy-line-webhook และ deploy-line-link run #6 (`2cf9d35`) สำเร็จ · หลัง run #5 Worker อนุญาต www.punpang.com แล้ว (ก่อนหน้านั้น Worker ตอบ CORS เป็น pages.dev สำหรับ www) · โดเมนอื่นในรายการไม่เปลี่ยน · CI บน main สำเร็จ (`cde7b68`) · ผู้ใช้ยืนยันว่าล็อกอินและส่ง SMS ได้แล้ว
 **รอ:** ไม่มี · ผู้ใช้ตรวจ 4 ข้อบน punpang.com เรียบร้อยแล้ว (เมนูถุงเงิน, อัปโหลดรูป/สลิปทั้งสองโดเมน, เมนูบอท LINE, ลิงก์สุ่มรางวัล)
 **งานค้าง:** WAF ที่ sms.punpang.com (ผู้ใช้ต้องสร้างเอง) · เอกสาร docs ที่ยังเขียน pages.dev (pdpa.md, integrations.md, security.md) · ข้อความตัวอย่างใน ManageLucky.vue ยังเป็น pages.dev · สาขา dev `claude/zen-gauss-5qbmyh` ยังแยกจาก main · ระบบระดับสมาชิก 4 ระดับ: ยังไม่เริ่ม รอผู้ใช้ตอบ
-
-## 2026-11-22 · [SMS][ระบบ] ผู้ใช้สั่ง merge เฉพาะงาน SMS → ย้าย URL เกตเวย์เข้าโค้ดเข้า main · ยังไม่ deploy
-- **ทำอะไร:** cherry-pick `80e8a1e` ลง main เฉพาะไฟล์โค้ด SMS (`_shared/gwfetch.ts` ค่า `SMS_GATEWAY_URL` คงที่ · `_shared/sms.ts` · `sms-send` · `customer-auth` เฉพาะส่วน SMS · `scheduled` · เทสต์ sms-send · หน้า ManageSms/ManageIntegrations · docs/integrations.md) · ไม่เอา dev ส่วนระดับสมาชิก/migration/tools
-- **เหตุผล:** ผู้ใช้เลือก "merge เฉพาะงาน SMS" · main มี SMS ส่วนใหญ่แล้ว (eab1dd4, cb3d6e5, 8352901) เหลือเฉพาะการย้าย URL · ไม่ย้อนโค้ด SMS ที่ main ใหม่กว่า
-- **ผล:** เทสต์ sms-send 23/23 · `_shared` 401/401 · `deno check` sms-send/customer-auth/scheduled ผ่าน · หน้าเว็บ build บน Vercel ตรวจหลัง push
-- **รอ:** อนุมัติ deploy `sms-send`, `customer-auth`, `scheduled` แยกต่างหาก (ยังไม่ deploy) · หลัง deploy secret `SMS_GATEWAY_URL` ไม่ต้องใช้แล้ว (ลบเมื่อผู้ใช้สั่ง)
-- **งานค้าง:** ลบ `sms-probe` ใน Supabase Dashboard (ผู้ใช้ยังไม่ยืนยัน) · งานระดับสมาชิก (dev) ยังไม่ merge
-
-## 2026-11-22 · [ระบบ][Release] ผู้ใช้เลือกข้อ 1: เพิ่มกฎ push main แบบแคบในเครื่อง · ยังไม่ push
-
-**ทำอะไร:** ตรวจก่อน: ไม่มีโฟลเดอร์ `.claude/` ในโปรเจกต์ (ไม่มี deny ระดับโปรเจกต์) · `origin/main` = `2ae7cb3` และ `origin/claude/zen-gauss-5qbmyh` = `46c2a60` ตรงกับเครื่อง · สร้าง `.claude/settings.local.json` มีกฎ allow เดียว `Bash(git push origin claude/zen-gauss-5qbmyh:refs/heads/main)` (ตรงตัวอักษร) · เพิ่มไฟล์นี้ใน `.git/info/exclude` (ระดับเครื่อง ไม่แก้ `.gitignore` จึงไม่เข้า commit) · ย้าย "ทำขั้น 1" ไป archive ให้ไฟล์หลักไม่เกิน 10 รายการ
-**ผล:** ยังไม่ push ไม่ merge ไม่ Release · ตรวจแล้ว: JSON ถูกต้อง · ไฟล์ถูก ignore · git status เห็นเฉพาะไฟล์ worklog
-**รอ:** ผู้ใช้สั่ง "merge + Release" อีกครั้ง · กฎยังไม่ได้ทดสอบ (ยืนยันตอน push) · ถ้ากฎไม่มีผลในเซสชันนี้ อาจต้องเปิด /hooks หรือเริ่มเซสชันใหม่ · หลัง push สำเร็จ ลบกฎนี้ออกและแจ้งผู้ใช้

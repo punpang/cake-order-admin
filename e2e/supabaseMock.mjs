@@ -95,7 +95,8 @@ function project(r, select) {
   return o
 }
 
-export function startSupabaseMock(tables = {}) {
+// rpcOverride / fnOverride = ตัวตอบจำลองเพิ่มเติมต่อชื่อ RPC หรือ Edge Function (ไม่ระบุ = ค่าเดิม)
+export function startSupabaseMock(tables = {}, { rpc: rpcOverride = {}, fn: fnOverride = {} } = {}) {
   const db = tables
   const log = []
   let seq = 0
@@ -104,6 +105,7 @@ export function startSupabaseMock(tables = {}) {
   const keysOf = (t) => (t === 'punpang_kv' || t === 'punpang_records' ? ['collection', 'id'] : t === 'punpang_staff' ? ['user_id'] : ['id'])
   const rpc = {
     punpang_alloc_numbers: ({ p_n }) => { const s = ++seq * 1000; return Array.from({ length: p_n || 1 }, (_, i) => s + i) },
+    ...rpcOverride,
   }
 
   const server = http.createServer(async (req, res) => {
@@ -130,6 +132,7 @@ export function startSupabaseMock(tables = {}) {
     if (p.startsWith('/functions/v1/')) {
       const fn = p.slice('/functions/v1/'.length)
       log.push({ fn, id: body?.id })
+      if (fnOverride[fn]) return send(200, fnOverride[fn](body || {}))
       // order-create กับออร์เดอร์ที่มีแล้ว = 409 exists (เหมือนของจริง) · อื่น ๆ คืน {}
       if (fn === 'order-create' && (db.punpang_orders || []).some((r) => r.id === body?.id)) return send(409, { error: 'ออร์เดอร์นี้บันทึกแล้ว', code: 'exists' })
       return send(200, {})
