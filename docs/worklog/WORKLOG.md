@@ -1,10 +1,10 @@
 # บันทึกงาน cake-order-admin
 
 ## ดูก่อน (อ่านแค่ส่วนนี้ = Read offset 1, limit 20)
-- ล่าสุด 2026-11-22 · main = ดู `git log -1 origin/main` (รวม SMS ย้าย URL เข้าโค้ดแล้ว · ยังไม่ deploy) · dev = `46c2a60` (ยังไม่ merge · ไม่ได้ Release) · sms-send v50 verify_jwt=true · Cloudflare build ตรวจไม่ได้ (connector ต้องเชื่อมใหม่)
-- **รอผู้ใช้:** สั่ง "merge + Release" อีกครั้ง (เลือกข้อ 1 แล้ว: เพิ่มกฎ push main แคบในเครื่อง · ยังไม่ได้ทดสอบว่ามีผล) · จากนั้น push dev→main แล้ว Release migration `20261122100000` (confirm=RUN จาก main) · ยังไม่ merge ยังไม่ Release
-- **ปิดแล้ว:** B13 cron timeout (ตรวจ 22 พ.ย.: HTTP 200 ทุกรอบที่ยังเก็บผล) · B12 ดัชนีเบอร์ลูกค้ามีบน production · B6 แผนฟรี ยอมรับความเสี่ยง ไม่ถามซ้ำ
-- งบบันเดิล 875.8/876 KB (เหลือ 0.2 KB · เกินให้หยุดถามก่อนขอเพิ่ม) · ขั้น 2 (ขันเพดานเซิร์ฟเวอร์ก่อน VAT) ทำทีหลังได้ ต้อง Release · ค้างไว้: หัวกลุ่มวันที่ตารางผลิตโปร่งแสง 90% (เสนอให้ทึบ)
+- ล่าสุด 2026-11-22 · main = ดู `git log -1 origin/main` (ส่ง SMS ได้แล้ว · ลิงก์หลักเป็น punpang.com) · dev = `80e8a1e` (ยังไม่ merge · ไม่ได้ Release) · sms-send v50 verify_jwt=true · Cloudflare build ตรวจไม่ได้ (connector ขอสิทธิ์เพิ่ม)
+- **รอผู้ใช้:** สั่ง "merge + Release" อีกครั้ง (เลือกข้อ 1: เพิ่มกฎ push main แคบในเครื่อง · ยังไม่ทดสอบว่ามีผล) · จากนั้น push dev→main แล้ว Release migration `20261122100000` (confirm=RUN จาก main)
+- **ปิดแล้ว:** B13 cron timeout (ตรวจ 22 พ.ย.: HTTP 200 ทุกรอบที่ยังเก็บผล) · B12 ดัชนีเบอร์ลูกค้ามีบน production · B6 แผนฟรี ยอมรับความเสี่ยง ไม่ถามซ้ำ · ลบ Worker sms-tls-probe · www.punpang.com ใน Turnstile และ ALLOWED_ORIGINS แล้ว
+- งบบันเดิล 875.8/876 KB (เหลือ 0.2 KB · เกินให้หยุดถามก่อนขอเพิ่ม) · ขั้น 2 อยู่บน dev แล้ว (ต้อง Release) · ค้างไว้: หัวกลุ่มวันที่ตารางผลิตโปร่งแสง 90% (เสนอให้ทึบ)
 - URL ทดสอบ (ไม่ใช่ production): https://claude-zen-gauss-5qbmyh.cake-order-admin.pages.dev
 - **กติกา:** รายการใหม่อยู่บนสุด (ทำอะไร · ทำไม · รอ) · commit พร้อมงานรอบนั้น (dev เท่านั้น) · compact แล้วต้องจดก่อนทำต่อ
 - **ขนาด:** บล็อกนี้ ≤ 3 KB · ไฟล์นี้ ≤ 30 KB หรือ ≤ 10 รายการ · เกินให้ย้ายรายการเก่าไป `WORKLOG-archive-YYYY-MM.md`
@@ -12,6 +12,14 @@
 - **การถามผู้ใช้:** ถามเป็นข้อ ๆ (หน้าต่างคำถาม) ข้อละ 2–4 ตัวเลือก · ตัวเลือกที่ดีที่สุดอยู่ข้อแรกพร้อม "(แนะนำ)" และเหตุผลสั้น ๆ · ถามเฉพาะเรื่องที่ผู้ใช้ต้องตัดสิน
 
 ---
+
+## 2026-11-22 · [ระบบ][LIFF][ลูกค้า] ย้ายลิงก์หลักเป็น punpang.com: Worker, เมนู ถุงเงิน, เมนูใน LINE, ลิงก์สุ่มรางวัล · อยู่บน main แล้ว
+
+**ทำอะไร:** ตั้งค่า ALLOWED_ORIGINS ของ punpang-files ใน `worker/wrangler.jsonc` ให้มี punpang.com และ www.punpang.com (ตรงกับ dashboard) · เอาการซ่อนเมนู "ถุงเงิน" ออก (`src/lib/adminSystems.js`) · MENU_URL ของบอท LINE (`supabase/functions/_shared/lineliff.ts`) และ LUCKY_SITE_URL (`src/lib/luckyDraw.js`) เป็น punpang.com · deploy Worker punpang-files (run #4), line-webhook (run #6), line-link (run #6) สำเร็จ · ผู้ใช้ลบ Worker `sms-tls-probe` และเพิ่ม www.punpang.com ใน Turnstile กับ ALLOWED_ORIGINS ใน dashboard แล้ว · commit `262c98d` `d05e6b8` `2cf9d35` `cde7b68` `ce61551`
+**เหตุผล:** เว็บใช้ punpang.com เป็นโดเมนหลัก · ค่าใน `wrangler.jsonc` ทับค่า dashboard ทุกครั้งที่ deploy จึงต้องเก็บให้ตรงกันในไฟล์ · ผู้ใช้สั่ง "merge deploy" และ "ทำเลย"
+**ผล:** deploy-worker run #4 (`cde7b68`), deploy-line-webhook และ deploy-line-link run #6 (`2cf9d35`) สำเร็จ · CI บน main สำเร็จ (`cde7b68`) · ผู้ใช้ยืนยันว่าล็อกอินและส่ง SMS ได้แล้ว · ยังไม่ deploy Worker รอบ www เพราะค่า dashboard ตรงกับไฟล์แล้ว
+**รอ:** ผู้ใช้ตรวจบน punpang.com: เห็นเมนู "ถุงเงิน" · อัปโหลดรูปและเปิดสลิปไม่มี CORS error · ลิงก์เมนูในบอท LINE ไป punpang.com · ตั้งลิงก์สุ่มรางวัลใน `/#/admin/settings/lucky` เป็น https://punpang.com ถ้ายังเป็น pages.dev (ค่าที่บันทึกทับค่าในโค้ด) · ตรวจ punpang.com จากเซสชันนี้ไม่ได้ (proxy บล็อกโดเมน)
+**งานค้าง:** WAF ที่ sms.punpang.com (ผู้ใช้ต้องสร้างเอง) · เอกสาร docs ที่ยังเขียน pages.dev (pdpa.md, integrations.md, security.md) · ข้อความตัวอย่างใน ManageLucky.vue ยังเป็น pages.dev · สาขา dev `claude/zen-gauss-5qbmyh` ยังแยกจาก main · ระบบระดับสมาชิก 4 ระดับ: ยังไม่เริ่ม รอผู้ใช้ตอบ
 
 ## 2026-11-22 · [SMS][ระบบ] ผู้ใช้สั่ง merge เฉพาะงาน SMS → ย้าย URL เกตเวย์เข้าโค้ดเข้า main · ยังไม่ deploy
 - **ทำอะไร:** cherry-pick `80e8a1e` ลง main เฉพาะไฟล์โค้ด SMS (`_shared/gwfetch.ts` ค่า `SMS_GATEWAY_URL` คงที่ · `_shared/sms.ts` · `sms-send` · `customer-auth` เฉพาะส่วน SMS · `scheduled` · เทสต์ sms-send · หน้า ManageSms/ManageIntegrations · docs/integrations.md) · ไม่เอา dev ส่วนระดับสมาชิก/migration/tools
@@ -69,9 +77,3 @@
 **ทำอะไร:** ผู้ใช้ถาม "ควรทำอะไรก่อน" · ตอบเป็นลำดับ: (1) เชื่อม Cloudflare ใหม่แล้วดู build ของ main `2ae7cb3` (2) ทดสอบ LIFF บนมือถือที่ `/line/` (3) ตรวจงาน `punpang-scheduled` ที่ถูกตัดที่ 5 วินาที (รายงาน 21 พ.ย. พบ 11/24 รอบ) (4) เปิด Leaked password protection ใน Supabase Auth · ขั้น 2 ค่อยทำหลังข้อ 1–2 ผ่าน
 **ผล:** ยังไม่ได้แก้อะไร · ไม่ได้ตรวจซ้ำวันนี้ อ้างจากรายงานและสถานะ git ล่าสุด
 **รอ:** ผู้ใช้เลือกให้เริ่มข้อ 3 (อ่านอย่างเดียว) หรือไม่
-
-## 2026-11-22 · [DB][ลูกค้า] วางแผนขั้น 2: ขันเพดานเซิร์ฟเวอร์ให้เป็นก่อน VAT (ยังไม่ทำ)
-
-**ทำอะไร:** ผู้ใช้สั่ง "ขั้นที่ 2 วางแผนก่อน ยังไม่ต้องทำ" · อ่านอย่างเดียว ไม่แก้โค้ด/ไม่ Release · อ่าน `punpang_award_order` (hardening 20261115000000 บรรทัด 127–187 · ไม่มี migration หลังจากนั้นที่นิยามใหม่) · ตัวช่วย `punpang__order_goods` ใช้กับ award_order บรรทัด 157 และกับ coupon_guard/coupon_modes/credit_coupons/order_max_total ด้วย (ห้ามแก้ตัวนี้) · `punpang_ledger_apply` ใช้เพดานจาก "ยอดที่ชำระแล้ว" ไม่เกี่ยวกับขั้นนี้ · แอปเมื่อถูกปฏิเสธ แสดง toast แล้วให้ย้อนสถานะส่งมอบใหม่ (ไม่ทำให้ออร์เดอร์พัง)
-**แผน:** migration ใหม่ 1 ไฟล์ เพิ่มฟังก์ชันใหม่ `punpang__order_goods_exvat` (= goods × 100÷(100+อัตรา) เมื่อ VAT ใน · อื่น ๆ = goods) แล้ว `create or replace` `punpang_award_order` เปลี่ยนเฉพาะบรรทัดเพดานฐาน · เพิ่มเทสต์ใน `supabase/tests/` · Release (db_migrations) ต้องรออนุมัติ
-**รอ:** ผู้ใช้ตัดสินใจตัวเลือกในแผน แล้วอนุมัติ Release
