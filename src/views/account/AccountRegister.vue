@@ -1,8 +1,9 @@
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { registerAccount } from '../../data/store'
 import { phoneValid, phoneDigits } from '../../lib/format'
+import { safeNext } from '../../lib/safeUrl'
 import PhoneInput from '../../components/PhoneInput.vue'
 import PinInput from '../../components/PinInput.vue'
 import OtpStep from '../../components/OtpStep.vue'
@@ -12,6 +13,9 @@ import CakeArt from '../../components/art/CakeArt.vue'
 // สมัคร: กรอกเบอร์ → ยืนยัน OTP → (ชื่อ ถ้าเป็นเบอร์ใหม่) ตั้ง PIN
 // เบอร์ที่ร้านมีในระบบอยู่แล้ว จะผูกกับลูกค้าเดิมหลังยืนยัน OTP (เห็นออร์เดอร์/คะแนนเดิม)
 const router = useRouter()
+const route = useRoute()
+// หลังสมัครกลับไปหน้าที่ขอไว้ (เช่น เชื่อมบัญชี LINE) · ไม่มีก็ไปหน้าบัญชี
+const next = computed(() => safeNext(route.query.next))
 const step = ref(1)
 const phone = ref('')
 const token = ref('')
@@ -41,7 +45,7 @@ async function submit() {
   busy.value = true
   const r = await registerAccount({ token: token.value, phone: phoneDigits(phone.value), name: name.value, pin: pin.value, consent: agree.value })
   busy.value = false
-  if (r.ok) router.replace('/account')
+  if (r.ok) router.replace(next.value || '/account')
   else error.value = r.error
 }
 </script>
@@ -57,7 +61,7 @@ async function submit() {
         <div><label class="label">เบอร์โทร</label><PhoneInput v-model="phone" /></div>
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
         <button class="btn-primary w-full">ขอรหัสยืนยัน (OTP)</button>
-        <p class="text-center text-sm text-stone-500">มีบัญชีแล้ว? <RouterLink to="/account/login" class="text-brand-700 underline">เข้าสู่ระบบ</RouterLink></p>
+        <p class="text-center text-sm text-stone-500">มีบัญชีแล้ว? <RouterLink :to="{ path: '/account/login', query: next ? { next } : {} }" class="inline-flex min-h-11 items-center text-brand-700 underline">เข้าสู่ระบบ</RouterLink></p>
       </form>
 
       <OtpStep v-else-if="step === 2" :phone="phoneDigits(phone)" purpose="register" @verified="verified" @cancel="step = 1" />

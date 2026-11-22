@@ -11,3 +11,9 @@ export function safeHref(v) {
     return ''
   }
 }
+
+// ลิงก์ต่อจากการเข้าสู่ระบบ/สมัคร/ลืม PIN (?next=) · รับเฉพาะพาธภายในเว็บ (ขึ้นต้นด้วย / ไม่ใช่ // หรือ /\) · คืน '' เมื่อใช้ไม่ได้
+export function safeNext(v) {
+  const s = String(v ?? '')
+  return s.startsWith('/') && !s.startsWith('//') && !s.startsWith('/\\') ? s : ''
+}

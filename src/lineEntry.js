@@ -7,5 +7,6 @@ startLiff()
   .then((r) => { if (!r.redirecting) location.replace('/#/line') })
   .catch(() => {
     document.getElementById('line-msg').textContent = 'เปิด LINE ไม่สำเร็จ กรุณาลองใหม่'
-    document.getElementById('line-retry').hidden = false
+    document.getElementById('line-dots').remove()
+    document.getElementById('line-actions').hidden = false
   })

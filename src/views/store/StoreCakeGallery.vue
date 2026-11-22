@@ -40,7 +40,7 @@ const altOf = (p) => p.caption || [p.typeName, ...p.tagNames.filter((t) => t.gro
 
 <template>
   <div class="mx-auto max-w-page px-4 pt-6 pb-4 lg:px-8">
-    <RouterLink to="/menu" class="tap mb-3 inline-flex min-h-10 items-center gap-1 text-sm text-stone-600 hover:text-brand-700"><AppIcon name="back" :size="16" /> กลับเมนู</RouterLink>
+    <RouterLink to="/menu" class="tap mb-3 inline-flex min-h-11 items-center gap-1 text-sm text-stone-600 hover:text-brand-700"><AppIcon name="back" :size="16" /> กลับเมนู</RouterLink>
     <h1 class="text-[28px] text-stone-900">เค้กสั่งทำล่าสุด</h1>
     <p class="mt-1 text-sm text-stone-600">ผลงานที่ส่งมอบแล้ว พิมพ์ค้นหาแบบที่ชอบ ระบบจะเสนอแบบที่ใกล้เคียงที่สุด</p>
 

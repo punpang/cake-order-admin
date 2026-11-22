@@ -7,17 +7,24 @@ export { LIFF_ID }
 
 const NET = 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่'
 
-// เริ่มทำงาน LIFF (ตัวเชื่อมอยู่ในแอปเอง ไม่โหลดจากภายนอก) · คืน { ok, accessToken } หรือ { ok: false, error }
+// เริ่มทำงาน LIFF (ตัวเชื่อมอยู่ในแอปเอง ไม่โหลดจากภายนอก)
+// คืน { ok, accessToken, inClient } · { ok: false, redirecting: true } = กำลังพาไปเข้าสู่ระบบ LINE (ไม่ใช่ข้อผิดพลาด) · { ok: false, error }
 export async function initLiff(liffId = LIFF_ID) {
   try {
     const { liff, redirecting } = await startLiff(liffId)
-    if (redirecting) return { ok: false, error: 'กำลังพาไปเข้าสู่ระบบ LINE…' }
+    if (redirecting) return { ok: false, redirecting: true }
     const accessToken = liff.getAccessToken()
     if (!accessToken) return { ok: false, error: 'เปิดหน้านี้จากแอป LINE เท่านั้น' }
-    return { ok: true, accessToken }
+    return { ok: true, accessToken, inClient: liff.isInClient() }
   } catch {
     return { ok: false, error: 'เปิด LINE ไม่สำเร็จ กรุณาลองใหม่' }
   }
+}
+
+// ปิดหน้าต่าง LIFF กลับไปที่แชท LINE · เรียกเมื่อ inClient เท่านั้น (เปิดจากแอป LINE)
+export async function closeLineWindow() {
+  const { default: liff } = await import('@line/liff')
+  liff.closeWindow()
 }
 
 // ผูกบัญชี LINE กับลูกค้าที่เข้าสู่ระบบแล้ว (Edge Function line-link)

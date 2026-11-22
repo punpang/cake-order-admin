@@ -15,7 +15,7 @@ import { loadPublicNow } from '../lib/staffAuth'
 import { allowedInApp } from '../lib/adminSystems'
 
 // โครงหน้าร้าน + ระบบลูกค้า (สาธารณะ) · ธีมเดียวกับหลังบ้าน
-const link = 'rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap text-stone-600 hover:bg-white'
+const link = 'inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium whitespace-nowrap text-stone-600 hover:bg-white'
 const active = 'bg-white text-brand-700 shadow-sm'
 // โหมด Supabase: ข้อมูลร้านมาจากเซิร์ฟเวอร์เท่านั้น → ระหว่างโหลดแสดงโครงรอ · โหลดไม่ได้แสดงข้อผิดพลาดพร้อมปุ่มลองใหม่ (ไม่แสดงค่าตั้งต้นแทน)
 const route = useRoute()
@@ -36,7 +36,7 @@ const tabs = computed(() => [
   <div class="store-theme flex min-h-dvh flex-col">
   <header class="sticky top-0 z-20 bg-cream/90 backdrop-blur-xl">
     <div class="mx-auto flex h-14 max-w-page items-center gap-2 px-4 lg:px-8">
-      <RouterLink to="/" class="flex min-w-0 items-center gap-2.5">
+      <RouterLink to="/" class="flex min-h-11 min-w-0 items-center gap-2.5">
         <svg viewBox="0 0 48 48" class="h-10 w-10 shrink-0" aria-hidden="true" fill="none" stroke="#3f2e2e" stroke-width="2" stroke-linejoin="round"><ellipse cx="24" cy="40" rx="18" ry="4" fill="#fff" /><rect x="9" y="22" width="30" height="16" rx="4" fill="#ffd05c" /><path d="M8 22c0-7 7-10 16-10s16 3 16 10c-3 3-5 0-8 3s-5 0-8 3-5 0-8-3-5 0-8-3z" fill="#ff8fa6" /><circle cx="24" cy="9" r="4" fill="#e0314f" /></svg>
         <span class="truncate font-display text-xl text-brand-700">{{ loading || failed ? '' : db.shop.name || 'ร้านของคุณ' }}</span>
       </RouterLink>
@@ -45,7 +45,7 @@ const tabs = computed(() => [
         <RouterLink to="/" :class="link" exact-active-class="bg-white text-brand-700 shadow-sm">หน้าแรก</RouterLink>
         <RouterLink to="/menu" :class="link" :active-class="active">เมนู</RouterLink>
         <RouterLink v-if="customerSession.customerId" to="/account" :class="link" :active-class="active">บัญชีของฉัน</RouterLink>
-        <RouterLink v-else to="/account/login" class="btn-matcha h-10 px-4 whitespace-nowrap">เข้าสู่ระบบ</RouterLink>
+        <RouterLink v-else to="/account/login" class="btn-matcha h-11 px-4 whitespace-nowrap">เข้าสู่ระบบ</RouterLink>
       </nav>
       <div class="ml-auto flex items-center md:ml-1">
         <BellMenu v-if="customerSession.customerId" audience="customer" />
@@ -87,9 +87,9 @@ const tabs = computed(() => [
       <div class="space-y-1.5">
         <div class="mb-1 font-display text-lg">ติดต่อ</div>
         <p v-if="db.storefront.address" class="flex gap-2"><AppIcon name="pin" :size="16" class="mt-0.5 text-cream/70" /> {{ db.storefront.address }}</p>
-        <p v-if="db.storefront.phone" class="flex gap-2"><AppIcon name="phone" :size="16" class="mt-0.5 text-cream/70" /> <a :href="`tel:${db.storefront.phone}`" class="underline">{{ formatPhone(db.storefront.phone) }}</a></p>
+        <p v-if="db.storefront.phone" class="flex gap-2"><AppIcon name="phone" :size="16" class="mt-0.5 text-cream/70" /> <a :href="`tel:${db.storefront.phone}`" class="-my-3 py-3 underline">{{ formatPhone(db.storefront.phone) }}</a></p>
         <p class="flex flex-wrap gap-x-4">
-          <a v-if="safeHref(db.storefront.facebookUrl)" :href="safeHref(db.storefront.facebookUrl)" target="_blank" rel="noopener" class="underline">Facebook</a>
+          <a v-if="safeHref(db.storefront.facebookUrl)" :href="safeHref(db.storefront.facebookUrl)" target="_blank" rel="noopener" class="-my-3 py-3 underline">Facebook</a>
         </p>
       </div>
       <div class="space-y-1.5">
@@ -97,14 +97,18 @@ const tabs = computed(() => [
         <p v-for="(h, i) in db.storefront.hours" :key="i" class="flex justify-between gap-3"><span>{{ h.days }}</span><span>{{ h.time }}</span></p>
       </div>
     </div>
-    <div class="border-t border-cream/15 py-3 text-center text-xs text-cream/80">
-      <RouterLink to="/legal/privacy" class="underline inline-block py-2.5">ความเป็นส่วนตัว (PDPA)</RouterLink>
-      · <RouterLink to="/legal/terms" class="underline inline-block py-2.5">เงื่อนไขการใช้งาน</RouterLink>
-      · <RouterLink to="/legal/cookie" class="underline inline-block py-2.5">คุกกี้</RouterLink>
-      · <button type="button" class="inline-block py-1.5 underline" @click="openCookieSettings">ตั้งค่าคุกกี้</button>
+    <!-- ลิงก์กฎหมาย: แยกเป็นรายการที่ขึ้นบรรทัดใหม่ได้ทั้งแถว (จอ 320px ข้อความยาวจะล้นถ้าเป็นข้อความเรียงต่อกัน) -->
+    <div class="flex flex-wrap items-center justify-center gap-x-2 border-t border-cream/15 px-4 py-3 text-center text-xs text-cream/80">
+      <RouterLink to="/legal/privacy" class="-my-3.5 py-3.5 whitespace-nowrap underline">ความเป็นส่วนตัว (PDPA)</RouterLink>
+      <span aria-hidden="true">·</span>
+      <RouterLink to="/legal/terms" class="-my-3.5 py-3.5 whitespace-nowrap underline">เงื่อนไขการใช้งาน</RouterLink>
+      <span aria-hidden="true">·</span>
+      <RouterLink to="/legal/cookie" class="-my-3.5 py-3.5 whitespace-nowrap underline">คุกกี้</RouterLink>
+      <span aria-hidden="true">·</span>
+      <button type="button" class="-my-3.5 py-3.5 whitespace-nowrap underline" @click="openCookieSettings">ตั้งค่าคุกกี้</button>
     </div>
     <div class="pb-3 text-center text-xs text-cream/80">
-      <RouterLink to="/account" class="inline-block py-2.5 underline">บัญชีของฉัน</RouterLink>
+      <RouterLink to="/account" class="inline-block py-3.5 -my-3.5 underline">บัญชีของฉัน</RouterLink>
     </div>
   </footer>
   <CookieBanner />

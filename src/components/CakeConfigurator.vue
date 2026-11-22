@@ -172,7 +172,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
         <p v-show="open" class="text-sm text-stone-600">ราคาตรงกับระบบของร้าน กดคัดลอกแล้ววางส่งในแชทได้เลย</p>
         <p v-show="open" class="mt-0.5 text-sm font-medium text-stone-800">เค้กหลายชั้น สั่งโดยตรงกับร้านทางแชทเท่านั้น</p>
       </div>
-      <button type="button" class="btn-soft h-9 shrink-0 px-3" :aria-expanded="open" aria-controls="cfg-body" aria-label="ซ่อน/แสดงส่วนเลือกแบบ" @click="open = !open">
+      <button type="button" class="btn-soft h-11 shrink-0 px-3" :aria-expanded="open" aria-controls="cfg-body" aria-label="ซ่อน/แสดงส่วนเลือกแบบ" @click="open = !open">
         {{ open ? 'ซ่อน' : 'แสดง' }} <AppIcon name="next" :size="14" class="transition" :class="open ? 'rotate-90' : ''" />
       </button>
     </div>
@@ -204,7 +204,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
           <div v-if="qty > 1" class="text-xs text-stone-500">{{ money(detail.unitPrice) }} × {{ qty }}</div>
           <DiscountDetail :full="detail.fullPrice * qty" :final="detail.unitPrice * qty" :lines="discountLines(detail.discounts, qty)" size="lg" align="left" />
         </div>
-        <button type="button" class="btn-primary h-10 shrink-0 whitespace-nowrap px-3.5 text-sm" :disabled="!ready" @click="copy"><AppIcon :name="copied ? 'check' : 'send'" :size="16" /> {{ copied ? 'คัดลอกแล้ว' : 'คัดลอกส่งร้าน' }}</button>
+        <button type="button" class="btn-primary h-11 shrink-0 whitespace-nowrap px-3.5 text-sm" :disabled="!ready" @click="copy"><AppIcon :name="copied ? 'check' : 'send'" :size="16" /> {{ copied ? 'คัดลอกแล้ว' : 'คัดลอกส่งร้าน' }}</button>
       </div>
       <p v-if="!ready" class="mt-1.5 truncate text-xs text-stone-800">เลือกให้ครบ: {{ missing.join(', ') }}</p>
       <p v-else class="mt-1 text-center text-xs text-stone-500">ราคาเบื้องต้น ร้านจะยืนยันราคาสุดท้ายในใบเสนอ</p>

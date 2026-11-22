@@ -110,7 +110,7 @@ const isOn = (g, o) =>
           v-for="o in g.options.filter((x) => (x.active !== false || isOn(g, x)) && (!allow || allow(g, x)) && (isMain(g) || forType(x, typeOpt?.id)))"
           :key="o.id"
           type="button"
-          class="relative inline-flex max-w-full gap-1.5 rounded-xl border px-3 py-2 text-left text-sm transition active:scale-[0.98]"
+          class="relative inline-flex min-h-11 max-w-full gap-1.5 rounded-xl border px-3 py-2 text-left text-sm transition active:scale-[0.98]"
           :class="[isOn(g, o) ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : (tagOf(g, o) ? (tagOf(g, o).state === 'partner' ? 'border-amber-500 bg-amber-50 text-stone-800 ring-2 ring-amber-300 motion-safe:animate-pulse' : 'border-dashed border-amber-500 bg-amber-50/40 text-stone-800') : 'border-stone-200 bg-white text-stone-700 hover:border-brand-300'), tagOf(g, o) ? 'flex-col items-start' : 'items-center']"
           :title="tagOf(g, o) ? `${tagOf(g, o).single ? 'ลดเพิ่ม' : 'บันเดิ้ล'}: ${tagOf(g, o).names.join(', ')}` : null"
           :data-bundle-tag="tagOf(g, o)?.state || null"

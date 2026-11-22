@@ -1,9 +1,10 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { loginPin } from '../../data/store'
 import { phoneValid, phoneDigits } from '../../lib/format'
 import { isPin } from '../../lib/customerAuth'
+import { safeNext } from '../../lib/safeUrl'
 import PhoneInput from '../../components/PhoneInput.vue'
 import PinInput from '../../components/PinInput.vue'
 import AppIcon from '../../components/AppIcon.vue'
@@ -12,11 +13,8 @@ import CakeArt from '../../components/art/CakeArt.vue'
 // เข้าสู่ระบบลูกค้า: เบอร์โทร + PIN 6 หลัก
 const router = useRouter()
 const route = useRoute()
-// หลังเข้าสู่ระบบกลับไปหน้าที่ขอไว้ (เช่น หน้าลุ้นโชค) · รับเฉพาะลิงก์ภายในของเว็บ
-const nextPath = () => {
-  const n = String(route.query.next ?? '')
-  return n.startsWith('/') && !n.startsWith('//') ? n : '/account'
-}
+// หลังเข้าสู่ระบบกลับไปหน้าที่ขอไว้ (เช่น หน้าลุ้นโชค หรือเชื่อมบัญชี LINE) · ลิงก์สมัคร/ลืม PIN ส่งต่อค่านี้ไปด้วย
+const next = computed(() => safeNext(route.query.next))
 const phone = ref('')
 const pin = ref('')
 const error = ref('')
@@ -28,7 +26,7 @@ async function submit() {
   busy.value = true
   const r = await loginPin(phoneDigits(phone.value), pin.value)
   busy.value = false
-  if (r.ok) router.replace(nextPath())
+  if (r.ok) router.replace(next.value || '/account')
   else {
     error.value = r.error
     pin.value = ''
@@ -46,11 +44,11 @@ async function submit() {
       <div><label class="label">PIN 6 หลัก</label><PinInput v-model="pin" /></div>
       <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       <button class="btn-primary w-full" :disabled="busy">{{ busy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ' }}</button>
-      <RouterLink to="/account/forgot" class="mx-auto block w-fit py-2.5 text-center text-sm text-stone-600 underline">ลืม PIN?</RouterLink>
+      <RouterLink :to="{ path: '/account/forgot', query: next ? { next } : {} }" class="mx-auto block w-fit py-3 text-center text-sm text-stone-600 underline">ลืม PIN?</RouterLink>
     </form>
     <div class="mt-6 text-center">
       <p class="text-sm text-stone-600">ยังไม่มีบัญชี?</p>
-      <RouterLink to="/account/register" class="btn-outline mt-2 w-full">สมัครสมาชิก</RouterLink>
+      <RouterLink :to="{ path: '/account/register', query: next ? { next } : {} }" class="btn-outline mt-2 w-full">สมัครสมาชิก</RouterLink>
     </div>
   </div>
 </template>

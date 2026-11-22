@@ -91,7 +91,7 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
 
 <template>
   <div class="mx-auto max-w-6xl px-4 pt-6 lg:px-8" :class="barOn ? 'pb-40 md:pb-0' : ''">
-    <RouterLink to="/menu" class="tap mb-4 inline-flex min-h-10 items-center gap-1 text-sm text-stone-600 hover:text-brand-700"><AppIcon name="back" :size="16" /> กลับเมนู</RouterLink>
+    <RouterLink to="/menu" class="tap mb-4 inline-flex min-h-11 items-center gap-1 text-sm text-stone-600 hover:text-brand-700"><AppIcon name="back" :size="16" /> กลับเมนู</RouterLink>
 
     <div v-if="!item" class="empty">ไม่พบเมนูนี้ (อาจปิดการขายแล้ว) <RouterLink to="/menu" class="text-brand-700 underline">กลับไปเมนู</RouterLink></div>
 
@@ -140,7 +140,7 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
                   v-for="t in types"
                   :key="t.type.id"
                   type="button"
-                  class="inline-flex max-w-full items-center gap-1.5 rounded-xl border px-3 py-2 text-left text-sm transition active:scale-[0.98]"
+                  class="inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-xl border px-3 py-2 text-left text-sm transition active:scale-[0.98]"
                   :class="typeId === t.type.id ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : 'border-stone-200 bg-white text-stone-700 hover:border-brand-300'"
                   :aria-pressed="typeId === t.type.id"
                   @click="typeId = t.type.id"

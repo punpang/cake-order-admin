@@ -35,7 +35,7 @@ const tabs = computed(() => [
 
     <div v-if="promos.length" class="relative mt-4 overflow-hidden rounded-3xl border-2 border-[#f3e3c7] bg-white px-4 pt-7 pb-3 text-sm text-stone-800 shadow-md"><Bunting />
       <p :class="promoOpen ? '' : 'line-clamp-2 md:line-clamp-none'">โปรโมชันตอนนี้: <b>{{ promos.map((p) => p.name).join(' · ') }}</b> (ราคาที่แสดงรวมโปรแล้ว)</p>
-      <button v-if="promos.length > 2" type="button" class="mt-1 text-sm font-medium text-brand-700 underline md:hidden" :aria-expanded="promoOpen" @click="promoOpen = !promoOpen">{{ promoOpen ? 'ย่อ' : `ดูโปรทั้งหมด (${promos.length})` }}</button>
+      <button v-if="promos.length > 2" type="button" class="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-brand-700 underline md:hidden" :aria-expanded="promoOpen" @click="promoOpen = !promoOpen">{{ promoOpen ? 'ย่อ' : `ดูโปรทั้งหมด (${promos.length})` }}</button>
     </div>
 
     <div class="mt-5 grid max-w-sm grid-cols-2 seg-grid">
@@ -89,7 +89,7 @@ const tabs = computed(() => [
           <div class="text-xs text-stone-600">รูปตัวอย่างเปลี่ยนตามสิ่งที่เลือก · กดเพื่อเลือกแบบและดูราคา</div>
         </div>
       </RouterLink>
-      <div v-if="custom.length" class="mt-3 text-center"><RouterLink to="/menu/gallery" class="text-sm font-medium text-brand-700 underline">ดูผลงานเค้กสั่งทำล่าสุด</RouterLink></div>
+      <div v-if="custom.length" class="mt-3 text-center"><RouterLink to="/menu/gallery" class="inline-flex min-h-11 items-center text-sm font-medium text-brand-700 underline">ดูผลงานเค้กสั่งทำล่าสุด</RouterLink></div>
     </div>
 
     <section class="card relative mt-10 overflow-hidden pt-8"><Bunting /><h2 class="mb-2 text-xl text-stone-900">สั่งเค้ก</h2><StoreOrderButtons /></section>

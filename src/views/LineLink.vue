@@ -3,7 +3,7 @@ import { onMounted, ref } from 'vue'
 import { loginPin } from '../data/store'
 import { phoneValid, phoneDigits } from '../lib/format'
 import { isPin } from '../lib/customerAuth'
-import { initLiff, linkLine } from '../lib/line'
+import { closeLineWindow, initLiff, linkLine } from '../lib/line'
 import { readSessionToken } from '../lib/customerRemote'
 import PhoneInput from '../components/PhoneInput.vue'
 import PinInput from '../components/PinInput.vue'
@@ -14,6 +14,7 @@ const error = ref('')
 const phone = ref('')
 const pin = ref('')
 const busy = ref(false)
+const inClient = ref(false) // เปิดจากแอป LINE → แสดงปุ่มกลับไปแชท
 let accessToken = ''
 
 async function linkNow() {
@@ -27,12 +28,14 @@ async function linkNow() {
 
 onMounted(async () => {
   const r = await initLiff()
+  if (r.redirecting) return // กำลังพาไปหน้าเข้าสู่ระบบ LINE: คงสถานะกำลังโหลดไว้ ไม่ใช่ข้อผิดพลาด
   if (!r.ok) {
     error.value = r.error
     phase.value = 'error'
     return
   }
   accessToken = r.accessToken
+  inClient.value = r.inClient
   if (readSessionToken()) await linkNow()
   else phase.value = 'login'
 })
@@ -67,11 +70,17 @@ async function submit() {
       <div><label class="label">PIN 6 หลัก</label><PinInput v-model="pin" /></div>
       <p v-if="error" class="text-sm text-rose-700" role="alert">{{ error }}</p>
       <button class="btn-primary w-full" :disabled="busy">{{ busy ? 'กำลังเชื่อมบัญชี…' : 'เข้าสู่ระบบและเชื่อมบัญชี' }}</button>
+      <!-- ลูกค้าใหม่หรือลืม PIN ไปต่อได้จากหน้านี้ · สมัคร/ตั้ง PIN ใหม่เสร็จแล้วกลับมาที่นี่ทันที -->
+      <div class="flex items-center justify-between">
+        <RouterLink :to="{ path: '/account/register', query: { next: '/line' } }" class="inline-flex min-h-11 items-center text-sm font-medium text-brand-700 underline">สมัครสมาชิก</RouterLink>
+        <RouterLink :to="{ path: '/account/forgot', query: { next: '/line' } }" class="inline-flex min-h-11 items-center text-sm text-stone-600 underline">ลืม PIN?</RouterLink>
+      </div>
     </form>
 
     <div v-else-if="phase === 'done'" class="card mt-5 space-y-3 text-center">
       <p class="font-semibold text-emerald-800">เชื่อมบัญชี LINE แล้วค่ะ</p>
-      <RouterLink to="/account" class="btn-primary block w-full">ดูคะแนนและบัญชี</RouterLink>
+      <button v-if="inClient" class="btn-primary block w-full" @click="closeLineWindow">กลับไปแชท LINE</button>
+      <RouterLink to="/account" :class="inClient ? 'btn-outline' : 'btn-primary'" class="block w-full">ดูคะแนนและบัญชี</RouterLink>
       <RouterLink to="/menu" class="btn-outline block w-full">สั่งเค้ก</RouterLink>
     </div>
 

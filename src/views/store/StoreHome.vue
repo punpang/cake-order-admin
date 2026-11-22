@@ -53,7 +53,7 @@ const morePromos = ref(false)
     <section v-if="promoItems.items.length" aria-label="สินค้าที่กำลังมีโปรโมชั่น">
       <div class="mb-3 flex items-center justify-between gap-3">
         <h2 class="text-2xl text-stone-900">สินค้าที่กำลังมีโปรโมชั่น</h2>
-        <RouterLink v-if="promoItems.total > promoItems.items.length" to="/menu" class="btn-peach h-10 px-4">ดูทั้งหมด</RouterLink>
+        <RouterLink v-if="promoItems.total > promoItems.items.length" to="/menu" class="btn-peach h-11 px-4">ดูทั้งหมด</RouterLink>
       </div>
       <!-- มือถือ: เลื่อนแนวนอนด้วยนิ้ว (ไม่ยาวลงหน้า) · sm ขึ้นไปเป็นตาราง -->
       <ul class="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-6">
@@ -76,7 +76,7 @@ const morePromos = ref(false)
     <section v-if="best.length">
       <div class="mb-3 flex items-center justify-between gap-3">
         <h2 class="text-2xl text-stone-900">สินค้าขายดี</h2>
-        <RouterLink to="/menu" class="btn-peach h-10 px-4">ดูทั้งหมด</RouterLink>
+        <RouterLink to="/menu" class="btn-peach h-11 px-4">ดูทั้งหมด</RouterLink>
       </div>
       <div class="-mx-4 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:gap-4 md:mx-0 md:grid md:grid-cols-6 md:overflow-visible md:px-0 md:pb-0 2xl:grid-cols-8">
         <RouterLink v-for="b in best" :key="b.product.id" :to="`/menu/ready/${b.product.id}`" class="group w-[36%] shrink-0 snap-start overflow-hidden rounded-2xl bg-white shadow-md transition hover:shadow-lg sm:w-[24%] md:w-auto">
@@ -93,11 +93,11 @@ const morePromos = ref(false)
 
     <!-- เค้กสั่งทำ: รูปล่าสุดที่ส่งมอบแล้ว 6 แบบ (การ์ดแบบเดียวกับแกลเลอรี) (ไม่มี → การ์ดประเภทเดิม) -->
     <section v-if="types.length || recent.length" class="relative">
-      <div class="mb-3 flex items-center justify-between gap-3">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <h2 class="text-2xl text-stone-900">เค้กสั่งทำตามใจ</h2>
         <div class="flex shrink-0 flex-wrap justify-end gap-2">
-          <RouterLink to="/menu/custom" class="btn-peach h-10 px-4" aria-label="ออกแบบที่ต้องการ เค้กสั่งทำ">ออกแบบที่ต้องการ</RouterLink>
-          <RouterLink to="/menu/gallery" class="btn-peach h-10 px-4" aria-label="ดูทั้งหมด ผลงานเค้กสั่งทำ">ดูทั้งหมด</RouterLink>
+          <RouterLink to="/menu/custom" class="btn-peach h-11 px-4" aria-label="ออกแบบที่ต้องการ เค้กสั่งทำ">ออกแบบที่ต้องการ</RouterLink>
+          <RouterLink to="/menu/gallery" class="btn-peach h-11 px-4" aria-label="ดูทั้งหมด ผลงานเค้กสั่งทำ">ดูทั้งหมด</RouterLink>
         </div>
       </div>
       <template v-if="recent.length">
@@ -112,7 +112,7 @@ const morePromos = ref(false)
             </RouterLink>
           </li>
         </ul>
-        <div class="mt-3 text-center"><RouterLink to="/menu/gallery" class="text-sm font-medium text-brand-700 underline">ดูผลงานเค้กสั่งทำทั้งหมด · ค้นหาแบบที่ชอบ</RouterLink></div>
+        <div class="mt-3 text-center"><RouterLink to="/menu/gallery" class="inline-flex min-h-11 items-center text-sm font-medium text-brand-700 underline">ดูผลงานเค้กสั่งทำทั้งหมด · ค้นหาแบบที่ชอบ</RouterLink></div>
       </template>
       <div v-else class="grid grid-cols-4 gap-2 sm:gap-4">
         <RouterLink v-for="t in types" :key="t.type.id" :to="`/menu/custom/${t.type.id}`" class="overflow-hidden rounded-2xl bg-white shadow-md transition hover:shadow-lg">
@@ -164,12 +164,12 @@ const morePromos = ref(false)
               <div v-if="p.from || p.to" class="text-sm text-stone-600">{{ p.from ? dateOnly(p.from) : '' }} – {{ p.to ? dateOnly(p.to) : '' }}</div>
               <ul v-if="p.products.length" class="mt-2 space-y-1.5 text-sm">
                 <li v-for="x in p.products" :key="x.product.id" class="flex justify-between gap-3">
-                  <RouterLink :to="`/menu/ready/${x.product.id}`" class="-my-1 truncate py-1 text-stone-700 underline-offset-2 hover:underline">{{ x.product.name }}</RouterLink>
+                  <RouterLink :to="`/menu/ready/${x.product.id}`" class="-my-3 truncate py-3 text-stone-700 underline-offset-2 hover:underline">{{ x.product.name }}</RouterLink>
                   <span class="shrink-0"><b class="text-stone-900">{{ money(x.price) }}</b> <s class="text-stone-500">{{ money(x.regular) }}</s></span>
                 </li>
               </ul>
               <p v-if="p.text" class="mt-1 text-sm text-stone-700">{{ p.text }}</p>
-              <p v-if="p.custom" class="mt-2 text-sm text-stone-600">ราคาพิเศษใช้กับเค้กสั่งทำบางแบบ ดูราคาล่าสุดที่หน้า <RouterLink to="/menu" class="text-brand-700 underline">เมนู</RouterLink></p>
+              <p v-if="p.custom" class="mt-2 text-sm text-stone-600">ราคาพิเศษใช้กับเค้กสั่งทำบางแบบ ดูราคาล่าสุดที่หน้า <RouterLink to="/menu" class="inline-block py-3 -my-3 text-brand-700 underline">เมนู</RouterLink></p>
             </div>
           </div>
         </div>
@@ -178,7 +178,7 @@ const morePromos = ref(false)
     </section>
 
     <!-- วิธีสั่ง (timeline) -->
-    <section v-if="s.howToOrder.length" class="relative">
+    <section v-if="s.howToOrder.length" class="relative overflow-hidden">
       <Doodles side="right" class="opacity-70" />
       <h2 class="mb-3 text-2xl text-stone-900">วิธีสั่งซื้อ</h2>
       <ol class="relative mx-auto max-w-xl space-y-3.5 pr-6">

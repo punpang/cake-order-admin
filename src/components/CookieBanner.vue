@@ -55,23 +55,23 @@ function save(choice) {
 
 <template>
   <section v-if="visible" ref="el" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 px-3 pb-2 sm:p-3 md:bottom-0 md:pb-[calc(env(safe-area-inset-bottom)+0.75rem)]" role="region" aria-label="การตั้งค่าคุกกี้">
-    <div class="mx-auto max-w-2xl rounded-3xl bg-matcha-soft p-3 shadow-2xl sm:p-4">
+    <div class="mx-auto max-w-2xl rounded-3xl bg-matcha-soft p-2.5 shadow-2xl sm:p-4">
       <!-- ประโยคเดียวกันทุกขนาดจอ เพื่อให้เห็นทางเลือกคุกกี้วิเคราะห์ก่อนกดยอมรับ · หัวข้ออยู่ในบรรทัดเดียวกับคำอธิบาย ให้แถบเตี้ย -->
       <p class="text-sm text-stone-800">
         <b class="font-display text-stone-900">เว็บไซต์นี้ใช้คุกกี้</b> ·
         <!-- มือถือ: ข้อความสั้นลงแต่ยังบอกครบทั้งคุกกี้ที่จำเป็นและคุกกี้วิเคราะห์ที่เลือกได้ (แถบบางลง ไม่บังปุ่มหลักของหน้า) -->
         <span class="sm:hidden">ใช้คุกกี้ที่จำเป็น และคุกกี้วิเคราะห์ที่เลือกเปิดเองได้</span>
         <span class="max-sm:hidden">เราใช้คุกกี้ที่จำเป็นเพื่อให้เว็บทำงาน และคุกกี้วิเคราะห์ที่คุณเลือกเปิดเองได้</span>
-        <RouterLink to="/legal/cookie" class="ml-1 font-medium text-stone-900 underline"><span class="sm:hidden">นโยบาย</span><span class="max-sm:hidden">อ่านนโยบายคุกกี้</span></RouterLink>
+        <RouterLink to="/legal/cookie" class="ml-1 inline-block py-3 -my-3 font-medium text-stone-900 underline"><span class="sm:hidden">นโยบาย</span><span class="max-sm:hidden">อ่านนโยบายคุกกี้</span></RouterLink>
       </p>
       <div v-if="detail" class="mt-3 space-y-2.5 rounded-xl bg-white/70 p-3 text-sm">
         <div class="flex items-center justify-between gap-3"><span><b>จำเป็น</b> · เปิดตลอด</span><span class="rounded-full bg-stone-200 px-2 py-0.5 text-xs">เปิด</span></div>
         <div class="flex items-center justify-between gap-3"><span><b>วิเคราะห์</b> · ช่วยแนะนำแบบเค้กจากการดูของคุณ</span><AppSwitch v-model="pick.analytics" /></div>
       </div>
       <div class="mt-2 flex flex-wrap gap-2 sm:mt-3">
-        <button class="btn-primary flex-1 bg-choco! hover:bg-stone-700! max-sm:h-10" @click="save({ analytics: true })">ยอมรับทั้งหมด</button>
-        <button class="btn-outline flex-1 border-0! max-sm:h-10" title="ใช้เฉพาะคุกกี้ที่จำเป็น" @click="save({ analytics: false })">ปฏิเสธ</button>
-        <button v-if="!detail" class="btn-outline border-0! max-sm:h-10" @click="detail = true">ตั้งค่า</button>
+        <button class="btn-primary flex-1 bg-choco! hover:bg-stone-700! max-sm:h-11" @click="save({ analytics: true })">ยอมรับทั้งหมด</button>
+        <button class="btn-outline flex-1 border-0! max-sm:h-11" title="ใช้เฉพาะคุกกี้ที่จำเป็น" @click="save({ analytics: false })">ปฏิเสธ</button>
+        <button v-if="!detail" class="btn-outline border-0! max-sm:h-11" @click="detail = true">ตั้งค่า</button>
         <button v-else class="btn-outline border-0!" @click="save({ ...pick })">บันทึกการเลือก</button>
       </div>
     </div>
