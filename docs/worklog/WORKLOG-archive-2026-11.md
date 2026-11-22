@@ -1,3 +1,11 @@
+## 2026-11-22 · [ระบบ][LIFF][Cloudflare] ผู้ใช้ยืนยันผ่าน: build main และ LIFF บนมือถือ
+
+**ทำอะไร:** ผู้ใช้แจ้งผลข้อ 1 ผ่าน (build main ใน Cloudflare) และข้อ 2 ผ่าน (LIFF บนมือถือที่ `/line/`) · ผลนี้ผู้ใช้แจ้ง ยืนยันเองจากเซสชันนี้ไม่ได้
+**ผล:** main = `2ae7cb3` · งานค้างข้อ 1–2 ปิดแล้ว
+**รอ:** ข้อ 5 (ขั้น 2 เพดานก่อน VAT) รอคำสั่ง
+
+---
+
 ## 2026-11-22 · [ระบบ][Cloudflare] ผู้ใช้ทำข้อ 1–2 แล้ว · ตรวจ build main จากเซสชันนี้ไม่ได้
 
 **ทำอะไร:** ผู้ใช้แจ้ง "1 ทำแล้ว 2 ทำแล้ว 5 รอ" · ตรวจ commit `2ae7cb3` ผ่าน GitHub ได้ข้อมูล commit แต่ไม่มีสถานะ build · ลองดู deployment ของ Cloudflare Pages (project cake-order-admin) ได้ข้อผิดพลาด "requires additional permissions" จึงยังไม่รู้ผล build
