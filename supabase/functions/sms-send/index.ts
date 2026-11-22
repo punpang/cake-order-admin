@@ -1,10 +1,11 @@
 import { corsWrap } from '../_shared/cors.ts'
+import { gwFetch } from '../_shared/gwfetch.ts'
 // Edge Function: ส่ง SMS ผ่าน SMS Gateway ที่รันบนโทรศัพท์ (HTTP API v1 · เอกสาร docs/sms-gateway-api.md · อัปเดต 2026-11-15)
 // - ตรวจสิทธิ์: ต้องเป็นพนักงานที่ active (punpang_staff) · gateway/lookup/messages ต้องมีสิทธิ์ manage · การส่งจำกัด 60 ครั้ง/ชม./คน (นับจาก punpang_sms_log)
 // - ความลับ (secret) อยู่ฝั่งเซิร์ฟเวอร์: SMS_GATEWAY_URL (ลิงก์ http/https ของเกตเวย์ หรือรีเลย์), SMS_API_KEY (สิทธิ์ "ส่งและลบ" เท่านั้น)
 //   ตั้งด้วย: supabase secrets set SMS_GATEWAY_URL=... SMS_API_KEY=...
 // - เกตเวย์รับคำขอเฉพาะจาก IP ใน LAN และใช้ใบรับรอง self-signed ที่ตรวจด้วย certificate pin · Edge ตรวจ pin ไม่ได้
-//   ดังนั้น SMS_GATEWAY_URL ต้องเป็นรีเลย์ที่ใบรับรองออกโดย CA ที่เชื่อถือได้ (ใบรับรองของแอปใช้ตรง ๆ จากคลาวด์ไม่ได้)
+//   ต่อตรงได้เมื่อตั้ง SMS_GATEWAY_CERT = PEM ของใบรับรองโทรศัพท์ (gwFetch เชื่อเฉพาะใบนี้ · ดู _shared/gwfetch.ts) · ไม่ตั้ง = fetch ปกติ (ต้องเป็นรีเลย์ที่ CA เชื่อถือได้)
 // - การส่ง ต้องมี idempotencyKey จากฝั่งเรียก (8–64 ตัว A-Z a-z 0-9 _ -) เพื่อให้ลองซ้ำไม่ส่ง SMS ซ้ำ
 //   429 rate_limited (เกิน 30 คำขอ/นาที/IP ของรีเลย์) ลองส่งซ้ำหนึ่งครั้งหลังรอ 3 วินาที · 429 daily_limit_reached ไม่ลองซ้ำ
 // - actions: status (ตั้งค่าครบหรือยัง) · gateway (GET /v1/status) · send (POST /v1/sms) · lookup (GET /v1/sms/{id}) · messages (GET /v1/messages)
@@ -72,7 +73,7 @@ async function gw(path: string, init: { method: string; body?: unknown; idem?: s
   if (init.body !== undefined) headers['content-type'] = 'application/json'
   if (init.idem) headers['idempotency-key'] = init.idem
   try {
-    const r = await fetch(`${root()}${path}`, {
+    const r = await gwFetch(`${root()}${path}`, {
       method: init.method,
       headers,
       body: init.body !== undefined ? JSON.stringify(init.body) : undefined,

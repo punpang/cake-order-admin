@@ -1,5 +1,6 @@
 import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { corsWrap } from '../_shared/cors.ts'
+import { gwFetch } from '../_shared/gwfetch.ts'
 import { reserveOtpAttempt, reservePinAttempt } from '../_shared/authguard.ts'
 import { filesEnv, isR2Ref, keyOfR2Ref, svcSign } from '../_shared/filesvc.ts'
 import { clientIp } from '../_shared/ratelimit.ts'
@@ -70,7 +71,7 @@ Deno.serve(corsWrap(async (req) => {
     if (!root || !key) return false
     let ok = false
     try {
-      const r = await fetch(`${root}/v1/sms`, {
+      const r = await gwFetch(`${root}/v1/sms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json; charset=utf-8', Authorization: `Bearer ${key}`, 'Idempotency-Key': idem },
         body: JSON.stringify({ to: local, message: text }),

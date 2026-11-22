@@ -1,4 +1,5 @@
 // ส่งข้อความตามแผนงานตามเวลา (ฝั่ง IO) — เขียนผลลง punpang_records (outbox, bell, notifySent, orderLinks) และแชท (punpang_chats) เหมือนที่แอปทำ
+import { gwFetch } from '../gwfetch.ts'
 // ช่องทาง: Facebook (Graph API ภายใน 24 ชม. หลังลูกค้าทัก) · SMS (เกตเวย์ของร้าน)
 // เปลี่ยนจากแอปตรงที่หาแชท Facebook ด้วยรหัส PSID ได้ด้วย (ไม่ต้องผูก customer_id ไว้ก่อน)
 import { inFbWindow } from '../slipnotice.ts'
@@ -136,7 +137,7 @@ async function sendSms(ctx: Ctx, number: string, text: string, idem: string): Pr
   if (!to) return { ok: false, error: 'เบอร์โทรไม่ถูกต้อง' }
   if (text.length > SMS_MAX_TEXT) return { ok: false, error: `ข้อความยาวเกิน ${SMS_MAX_TEXT} ตัวอักษร` }
   try {
-    const r = await fetch(`${ctx.gw.url}/v1/sms`, {
+    const r = await gwFetch(`${ctx.gw.url}/v1/sms`, {
       method: 'POST',
       headers: { authorization: `Bearer ${ctx.gw.key}`, 'content-type': 'application/json', 'idempotency-key': idem },
       body: JSON.stringify({ to, message: text }),
