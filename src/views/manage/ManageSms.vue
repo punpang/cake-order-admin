@@ -30,7 +30,7 @@ const gatewayHost = computed(() => db.integrations.sms?.accountId || '-')
 const textLen = computed(() => test.text.length)
 const counts = computed(() => sms.gateway?.sms_counts || null)
 
-const fnClient = () => (supabaseEnabled ? getSupabase() : null)
+const fnClient = async () => (supabaseEnabled ? await getSupabase() : null)
 
 // error จาก Edge Function มาเป็นข้อความไทยใน body แล้ว
 async function invokeError(r) {
@@ -42,7 +42,7 @@ async function checkStatus() {
   sms.checking = true
   sms.statusErr = ''
   sms.gateway = null
-  const c = fnClient()
+  const c = await fnClient()
   if (!c) { sms.configured = false; sms.checking = false; sms.statusErr = 'ยังไม่ได้เชื่อมระบบฐานข้อมูล'; return }
   try {
     const r = await c.functions.invoke('sms-send', { body: { action: 'status' } })
@@ -63,7 +63,7 @@ async function checkStatus() {
 
 // รายการข้อความจากเกตเวย์: GET /v1/messages (direction, limit ≤ 200, before เพื่อแบ่งหน้า)
 async function loadMessages(more = false) {
-  const c = fnClient()
+  const c = await fnClient()
   if (!c) return
   list.busy = true
   list.err = ''
@@ -99,7 +99,7 @@ async function sendTest() {
   if (!phoneValid(test.phone)) { test.ok = false; test.msg = 'กรอกเบอร์โทร 9–10 หลัก (ขึ้นต้น 0)'; return }
   if (!test.text.trim()) { test.ok = false; test.msg = 'ไม่มีข้อความ'; return }
   if (textLen.value > MAX_TEXT) { test.ok = false; test.msg = `ข้อความยาวเกิน ${MAX_TEXT} ตัวอักษร (สูงสุด 5 ฉบับ)`; return }
-  const c = fnClient()
+  const c = await fnClient()
   if (!c) { test.ok = false; test.msg = 'ยังไม่ได้เชื่อมระบบฐานข้อมูล'; return }
   test.busy = true
   test.key = test.key || newKey()
@@ -133,7 +133,7 @@ async function lookupStatus() {
   look.data = null
   const id = look.id.trim()
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) { look.ok = false; look.msg = 'รหัสงานไม่ถูกต้อง'; return }
-  const c = fnClient()
+  const c = await fnClient()
   if (!c) { look.ok = false; look.msg = 'ยังไม่ได้เชื่อมระบบฐานข้อมูล'; return }
   look.busy = true
   try {
