@@ -1,10 +1,9 @@
 
 
-## 2026-11-22 · [Release] Merge dev→main (fast-forward) · main = `91ec629`
+## 2026-11-22 · [ระบบ] ย้าย WORKLOG เข้า repo + แบ่งไฟล์
 
-**ทำอะไร:** ผู้ใช้ตอบ "Merge" (อนุมัติ merge dev→main) · ตรวจก่อน push: main `96f294e` เป็นบรรพบุรุษของ dev `91ec629` (fast-forward ได้) · มี 2 คอมมิต (`3c1e2b1`, `91ec629`) · ไม่มีการเปลี่ยน `supabase/` หรือ `worker/` · push `91ec629:refs/heads/main` แบบปกติ ไม่ใช้ force · ตรวจ remote แล้ว: main = dev = `91ec629`
-**ผลกระทบ:** push main ทำให้ Cloudflare Pages build production อัตโนมัติ (ตรวจสถานะ build ไม่ได้ เพราะ connector Cloudflare ยังไม่พร้อม) · ไม่รัน Release เพราะไม่มีการเปลี่ยนฐานข้อมูลหรือ Edge Function
-**ทำไมถึงคิดแบบนั้น:** คำตอบ "Merge" ตรงกับการอนุมัติที่รอไว้ ขอบเขตคือ merge อย่างเดียว จึงไม่ทำอย่างอื่นต่อ
-**รอ:** ผู้ใช้ทดสอบ LIFF บนมือถือ (หน้า `/line/` บน production) · เชื่อม Cloudflare ใหม่เพื่อยืนยัน build ของ `91ec629`
+**ทำอะไร:** ย้ายจาก scratchpad (ล้างได้เมื่อจบเซสชัน) มาที่ `docs/worklog/WORKLOG.md` (สถานะ + 5 รายการล่าสุด) · รายการเก่าไป `docs/worklog/WORKLOG-archive-2026-11.md` · ย่อบล็อก "ดูก่อน" · ผู้ใช้เลือกข้อ ก
+**ทำไมถึงคิดแบบนั้น:** อ่านทุกครั้งแค่ 20 บรรทัดแรก (~1–2 KB) ประหยัดโทเคน · archive ค้นด้วย grep เมื่อจำเป็น · อยู่ใน git จึงไม่หายข้ามเซสชัน · ไม่มีข้อมูลลับในไฟล์
+**รอ:** เหมือนเดิม (ทดสอบ LIFF บนมือถือ · เชื่อม Cloudflare ใหม่)
 
 ---
