@@ -189,6 +189,11 @@ msfcode=$?
 [ "$msfcode" = "0" ] && echo "✓ member_staff.test.sql ผ่านทั้งหมด" || echo "✗ member_staff.test.sql ล้มเหลว"
 [ "$msfcode" = "0" ] || exit "$msfcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/retention5y.test.sql
+rtcode=$?
+[ "$rtcode" = "0" ] && echo "✓ retention5y.test.sql ผ่านทั้งหมด" || echo "✗ retention5y.test.sql ล้มเหลว"
+[ "$rtcode" = "0" ] || exit "$rtcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"

@@ -11,8 +11,8 @@ begin
 end $$;
 
 -- ---------- A) โครงสร้าง ----------
-select mt.ok('A1 ตารางธุรกิจทุกตาราง (25) มีสำเนาเป็นตารางใน punpang_test + ตาราง LINE ว่าง 2 ตาราง (27 ตาราง · ไม่คัดลอกข้อมูล LINE)',
-  (select count(*) from information_schema.tables where table_schema = 'punpang_test' and table_type = 'BASE TABLE') = 27);
+select mt.ok('A1 ตารางธุรกิจทุกตาราง (26) มีสำเนาเป็นตารางใน punpang_test + ตาราง LINE ว่าง 2 ตาราง (28 ตาราง · ไม่คัดลอกข้อมูล LINE)',
+  (select count(*) from information_schema.tables where table_schema = 'punpang_test' and table_type = 'BASE TABLE') = 28);
 select mt.ok('A2 ตารางข้อมูลร่วม (15 · รวมบันทึกข้อผิดพลาด) เป็น view ใน punpang_test',
   (select count(*) from information_schema.views where table_schema = 'punpang_test') = 15);
 select mt.ok('A3 คอลัมน์ของทุกตารางธุรกิจเท่ากับต้นฉบับ',
@@ -35,13 +35,15 @@ select mt.ok('A5 ทริกเกอร์ของทุกตารางธ
          where n.nspname = 'punpang_test' and not t.tgisinternal and c.relname in (
            select table_name from information_schema.views where table_schema = 'punpang_test')));
 -- ฟังก์ชันของ public ที่อ้างตารางที่ถูกลบแล้ว (punpang_points) ไม่ถูกคัดลอก (ดูหมายเหตุในไฟล์ migration)
-select mt.ok('A6 ฟังก์ชันของสำเนาเท่ากับของ public ลบฟังก์ชันที่อ้างตารางที่ถูกลบ 7 ตัว',
+-- งานระยะเก็บ 5 ปี (punpang_retention5y_run) อ้าง public โดยตรงในคำสั่งแบบไดนามิก จึงไม่ถูกคัดลอก (กันการแตะ public จากโหมดทดสอบ) · Edge Function ปฏิเสธโหมดทดสอบอยู่แล้ว
+select mt.ok('A6 ฟังก์ชันของสำเนาเท่ากับของ public ยกเว้นฟังก์ชันที่ไม่คัดลอก 8 ตัว (punpang_points 7 ตัว + งานระยะเก็บ 1 ตัว)',
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'punpang_test' and p.proname not in ('punpang_test_sync', 'punpang_test_readonly', 'punpang_test_shift', 'punpang_test_seed'))
   = (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public' and p.prokind in ('f', 'p')
         and p.proname not in ('punpang__pts_take', 'punpang__pts_balance', 'punpang__pts_giveback',
-                              'punpang_points_earn', 'punpang_points_spend', 'punpang_points_cut', 'punpang_points_refund')
+                              'punpang_points_earn', 'punpang_points_spend', 'punpang_points_cut', 'punpang_points_refund',
+                              'punpang_retention5y_run')
         and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')));
 
 -- ---------- B) ไม่มีการอ้างอิง public ค้างในสำเนา (กันการแตะข้อมูลจริง) ----------
