@@ -101,7 +101,10 @@ Deno.serve(corsWrap(async (req) => {
 
   if (action === 'status') return json({ configured: configured() })
 
-  if (!configured()) return json({ ok: false, error: 'ยังไม่ได้ตั้งค่าเกตเวย์ SMS ของร้าน' }, 503)
+  if (!configured()) {
+    console.warn('[sms-send] 503 gateway_not_configured')
+    return json({ ok: false, error: 'ยังไม่ได้ตั้งค่าเกตเวย์ SMS ของร้าน' }, 503)
+  }
 
   // อ่านกล่องข้อความ/สถานะเกตเวย์ (มีข้อความเข้าของร้าน เช่น รหัส OTP) เฉพาะผู้ดูแล · การส่งแจ้งเตือนลูกค้าเปิดให้พนักงานทุกคนที่ active
   // เพราะระบบส่งจากการกระทำของทุกบทบาท (เตรียมเสร็จ ส่งมอบ ฯลฯ) แต่จำกัดอัตราต่อคน
@@ -155,7 +158,10 @@ Deno.serve(corsWrap(async (req) => {
   if (mode !== 'test' && !(body.kind === 'test' && staff.perms.includes('manage'))) {
     const cr = await fetch(`${SUPABASE_URL}/rest/v1/punpang_customers?phone=eq.${to}&select=id,data&limit=1`, { headers: { ...SERVICE_HEADERS, ...rh } })
     const rows = cr.ok ? await cr.json().catch(() => null) : null
-    if (!Array.isArray(rows)) return json({ ok: false, error: 'ตรวจทะเบียนลูกค้าไม่สำเร็จ กรุณาลองใหม่' }, 503)
+    if (!Array.isArray(rows)) {
+      console.warn('[sms-send] 503 customer_lookup_failed http=' + cr.status) // บันทึกเฉพาะรหัสสถานะ ไม่บันทึกเบอร์
+      return json({ ok: false, error: 'ตรวจทะเบียนลูกค้าไม่สำเร็จ กรุณาลองใหม่' }, 503)
+    }
     if (!customerRecipientOk(rows)) return json({ ok: false, error: 'ส่งได้เฉพาะเบอร์ลูกค้าที่มีในระบบ' }, 403)
   }
   if (mode === 'test') {
