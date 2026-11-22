@@ -10,6 +10,7 @@ import {
   newPosQrRef, posQrExpired, issueLuckyToken, reserveBillId, prepQueue, markPrepDone, remoteCustomerSearch, searchCustomersNow,
 } from '../data/store'
 import { activeSecondsLeft, expiringSoon, pointBalance, conversionPlan } from '../lib/loyalty'
+import { staffCardRemote, quoteRemote } from '../lib/memberRemote'
 import { orderTotals, discountLines } from '../lib/pricing'
 import { pointPromoFor } from '../lib/posPromo'
 import { coBought, rankSellers, suggestBundles } from '../lib/posRec'
@@ -424,6 +425,25 @@ const resumeOrder = ref(null) // บิลค้างที่กำลัง�
 const total = computed(() => (resumeOrder.value ? Math.max(orderTotals(resumeOrder.value).total, 0) : Math.max(preview.value.total, 0)))
 // คะแนนที่สมาชิกจะได้จากบิลนี้ (ยอดสุทธิ + โปรคะแนนพิเศษ)
 const earn = computed(() => (member.value && cart.value.length ? pointsFor(orderLike.value, new Date()) : null))
+// ระดับสมาชิก: ป้ายของพนักงาน (ไม่มียอดสะสม) · ตัวอย่างแต้มรวมตัวคูณเฉพาะโหมดใช้จริง (เซิร์ฟเวอร์ตัดสิน)
+const staffCard = ref({ enabled: false })
+const quoteMult = ref({ applied: false, mult: 1 })
+watch(() => member.value?.id, async (id) => {
+  const card = await staffCardRemote(id)
+  if (member.value?.id === id) staffCard.value = card
+})
+let quoteTimer = null
+let quoteSeq = 0
+watch(() => [member.value?.id, earn.value?.base, orderLike.value.vat?.rate], ([id, base, rate]) => {
+  clearTimeout(quoteTimer)
+  quoteTimer = setTimeout(async () => {
+    const seq = ++quoteSeq
+    const q = id && base > 0 ? await quoteRemote(id, base, Number(rate) || 0) : { applied: false, mult: 1 }
+    if (seq === quoteSeq) quoteMult.value = q
+  }, 300)
+})
+onBeforeUnmount(() => clearTimeout(quoteTimer))
+const earnShown = computed(() => (earn.value && quoteMult.value.applied ? pointsFor(orderLike.value, new Date(), Number(quoteMult.value.mult) || 1) : null))
 
 // ---------- ชำระเงิน ----------
 const payOpen = ref(false)
@@ -1430,6 +1450,13 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </div>
           </div>
 
+          <div v-if="member && staffCard.enabled" class="flex flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-3 py-2 text-sm text-brand-900" aria-label="ระดับสมาชิก">
+            <span class="font-semibold">{{ staffCard.levelName }}</span>
+            <span>· แต้มคูณ x{{ staffCard.mult }}</span>
+            <span v-if="staffCard.status !== 'active'" class="text-stone-600">· สิทธิ์พัก (แต้มปกติ)</span>
+            <span v-if="staffCard.mode === 'shadow'" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">โหมดทดลอง · แต้มยังไม่คูณ</span>
+            <span v-if="earnShown" class="basis-full text-stone-700">จะได้รับ <b class="tabular-nums">{{ earnShown.points.toLocaleString() }}</b> แต้ม (รวมตัวคูณระดับ)</span>
+          </div>
           <button v-if="!memberLocked && !resumeOrder" type="button" class="btn-outline h-11 w-full" @click="cpScanOpen = true">สแกนบาร์โค้ดคูปองของลูกค้า</button>
           <div v-if="member && coupons.length" class="rounded-2xl bg-white p-3 ring-1 ring-stone-200" aria-label="คูปองส่วนลด">
             <div class="mb-1.5 text-sm font-semibold text-stone-800">คูปอง · กดเพื่อใช้</div>

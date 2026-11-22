@@ -12,7 +12,7 @@ import { prepareRules } from './notifyPlan'
 // (อ่านได้เฉพาะ manage / viewProfit / viewMaterials) ส่วน optionGroups ที่เหลือ (ชื่อ/ราคาขาย) อยู่ 'config' ให้พนักงานขายอ่านได้
 // storefront/legal ใช้ collection ของตัวเอง เพื่อให้หน้าร้านสาธารณะอ่านได้ภายหลัง (นโยบาย kv_public_read)
 export const CONFIG_KEYS = [
-  'shop', 'loyalty', 'rewards', 'gachaPrizes', 'priceLists', 'bundles', 'ingredients', 'optionGroups',
+  'shop', 'loyalty', 'memberLevels', 'rewards', 'gachaPrizes', 'priceLists', 'bundles', 'ingredients', 'optionGroups',
   'cannedReplies', 'bot', 'slipQr', 'notifyRules', 'posModifiers', 'posDiscounts', 'posBundles', 'posDeals', 'pointPromos',
   'storefront', 'legal', 'cakeGallery', 'integrations', 'retention', 'scheduled', 'printing',
 ]

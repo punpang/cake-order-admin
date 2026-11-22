@@ -11,6 +11,7 @@ import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/p
 import { prevStatus } from '../lib/orderFlow'
 import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList, returnedByMethod, returnedQtyOf, restockedQtyOf, itemReturnAmount, restockUnits } from '../lib/refund'
 import { addDays, pointBalance, takePoints, returnPoints, couponUsable, couponPhase, pickPrize, expiringSoon, conversionPlan } from '../lib/loyalty'
+import { DEFAULT_MEMBER_CFG, memberCfgErrors } from '../lib/memberLevels'
 import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, timeOnly } from '../lib/format'
 import { showToast } from '../lib/toast'
 import { nextBirthday, daysBetween } from '../lib/birthday'
@@ -351,6 +352,8 @@ export const db = reactive({
   // ---------- คะแนนสะสม / แลกของ / กาชา ----------
   // earnPer = ทุกกี่บาทได้ 1 คะแนน, pointValue = 1 คะแนนลดได้กี่บาท, spinCost = คะแนนต่อการหมุน 1 ครั้ง, spinPer = ทุกกี่บาทได้สิทธิ์หมุน 1 ครั้ง
   loyalty: { earnPer: 100, pointValue: 1, pointExpireDays: 365, couponExpireDays: 30, spinCost: 50, spinPer: 500, activationMin: 15 },
+  memberLevels: { ...DEFAULT_MEMBER_CFG, levels: DEFAULT_MEMBER_CFG.levels.map((l) => ({ ...l })) }, // ระดับสมาชิก (ซิงก์ผ่าน CONFIG_KEYS)
+  memberCard: null, // บัตรระดับของลูกค้าที่ล็อกอิน (ฝั่งลูกค้า · ไม่ซิงก์)
   rewards: [
     { id: 'rw1', name: 'เทียนวันเกิดเซ็ต', points: 30, active: true },
     { id: 'rw2', name: 'คัพเค้ก 1 ชิ้น', points: 80, active: true },
@@ -2132,7 +2135,8 @@ export function removeCoupon(order, couponId) {
 
 // คะแนน + สิทธิ์หมุนที่ออร์เดอร์นี้จะได้ จาก "ยอดสินค้าสุทธิ" (หลังส่วนลดทุกประเภท ไม่รวมค่าส่ง/VAT)
 // โปรคะแนนพิเศษคูณรายสินค้า (ช่วงเวลานับตาม at = เวลาสร้างออร์เดอร์) · ใช้ทั้งตอนให้จริงและแสดงตัวอย่างใน POS
-export function pointsFor(order, at = new Date(order.createdAt || Date.now())) {
+// mult = ตัวคูณระดับสมาชิกของบิลนี้ (1 = ไม่คูณ) · โบนัสโปรไม่รวมตัวคูณระดับ
+export function pointsFor(order, at = new Date(order.createdAt || Date.now()), mult = 1) {
   const nets = itemNets(order)
   // ฐานแต้ม/สิทธิ์หมุน = ยอดสินค้าสุทธิ "ก่อน VAT" (ตรงกับข้อกำหนดข้อ 8) · VAT ใน: ยอดรวม VAT แล้วจึงหารออก · VAT นอก/ไม่มี VAT: ไม่มี VAT ในยอดอยู่แล้ว · ใช้ VAT ที่บันทึกไว้ในออร์เดอร์นั้น
   const vr = Number(order.vat?.rate) || 0
@@ -2145,8 +2149,9 @@ export function pointsFor(order, at = new Date(order.createdAt || Date.now())) {
     base += net
     weighted += net * pointMultiplier({ retailId: it.retailId, category: cat }, db.pointPromos, at)
   })
-  const points = Math.floor(weighted / db.loyalty.earnPer + 1e-9)
-  return { points, bonus: points - Math.floor(base / db.loyalty.earnPer + 1e-9), spins: Math.floor(base / db.loyalty.spinPer + 1e-9), base: round2(base) }
+  const promo = Math.floor(weighted / db.loyalty.earnPer + 1e-9)
+  const points = Math.floor((weighted * mult) / db.loyalty.earnPer + 1e-9)
+  return { points, bonus: promo - Math.floor(base / db.loyalty.earnPer + 1e-9), spins: Math.floor(base / db.loyalty.spinPer + 1e-9), base: round2(base) }
 }
 // ส่งมอบ: ได้คะแนน + สิทธิ์หมุน (ดู pointsFor)
 function awardOrder(order) {
@@ -2177,15 +2182,27 @@ function loyaltyQueue(fn) {
 export function awardOrderRemote(order) {
   if (!pointsHook.call) return awardOrder(order)
   if (!order.customerId || !findCustomer(order.customerId) || order.loyalty) return
-  const { points, bonus, spins, base } = pointsFor(order)
   return loyaltyQueue(async () => {
     try {
+      const { points, bonus, spins, base } = pointsFor(order, undefined, await memberMultFor(order))
       const r = await pointsHook.call('punpang_award_order', { p_order: order.id, p_points: points, p_bonus: bonus, p_spins: spins, p_base: base }, { order: order.id, customer: order.customerId })
       if (r.error && r.error !== 'already_awarded') showToast(`ให้คะแนนออร์เดอร์ ${order.code} ไม่สำเร็จ: ${PTS_MSG[r.error] || r.error} · ย้อนสถานะแล้วส่งมอบใหม่เพื่อลองอีกครั้ง`, 10000, 'error')
     } catch (e) {
       showToast(`ให้คะแนนออร์เดอร์ ${order.code} ไม่สำเร็จ: ${e?.message || 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้'} · ย้อนสถานะแล้วส่งมอบใหม่เพื่อลองอีกครั้ง`, 10000, 'error')
     }
   })
+}
+// ตัวคูณระดับของบิลนี้: เซิร์ฟเวอร์ตัดสิน (ใช้เฉพาะเมื่อ applied = โหมดใช้จริง) · ตอบไม่ได้ = 1 (แต้มปกติ ไม่เกินเพดาน) + แจ้งเตือน
+async function memberMultFor(order) {
+  const { base } = pointsFor(order)
+  try {
+    const pv = await pointsHook.call('punpang_member_preview', { p_order: order.id, p_base: base }, { order: order.id, customer: order.customerId })
+    if (!pv?.error) return pv?.applied === true && Number(pv.mult) >= 1 ? Number(pv.mult) : 1
+    showToast(`ตัวคูณระดับของออร์เดอร์ ${order.code} ไม่ได้ใช้ (${PTS_MSG[pv.error] || pv.error}) · ให้แต้มปกติ`, 8000, 'error')
+  } catch {
+    showToast(`ตัวคูณระดับของออร์เดอร์ ${order.code} ไม่ได้ใช้ (เชื่อมต่อไม่ได้) · ให้แต้มปกติ`, 8000, 'error')
+  }
+  return 1
 }
 // สมุดแต้มผ่านเซิร์ฟเวอร์ (RPC punpang_ledger_apply): รายการหลายอย่างของลูกค้าหนึ่งคนทำในธุรกรรมเดียว · ผิดพลาดทั้งชุดไม่เกิด
 const LEDGER_MSG = { lot_missing: 'ไม่พบก้อนคะแนนเดิม', lot_used: 'คะแนนที่คืนให้ถูกใช้ไปแล้ว', dup_id: 'รหัสรายการซ้ำ', no_customer: 'ไม่พบลูกค้า', invalid_op: 'ข้อมูลไม่ถูกต้อง', forbidden: 'ไม่มีสิทธิ์', cap_exceeded: 'คะแนน/สิทธิ์หมุนเกินที่ออร์เดอร์นี้ให้ได้' }
@@ -2775,6 +2792,19 @@ export function saveLoyaltySettings(d) {
   for (const k of Object.keys(db.loyalty)) db.loyalty[k] = Math.max(Number(d[k]) || 0, 0)
   // เวลาที่คูปองแสดงที่ร้านหลังลูกค้ากด "ใช้ที่ร้านตอนนี้" (นาที) 1–120
   db.loyalty.activationMin = Number.isFinite(Number(d.activationMin)) && d.activationMin !== '' && d.activationMin != null ? Math.min(120, Math.max(1, Math.round(Number(d.activationMin)))) : 15
+}
+
+// ตั้งค่าระดับสมาชิก: ตรวจกติกาเดียวกับเซิร์ฟเวอร์ก่อนบันทึก (ค่าไม่ถูกต้อง = ไม่บันทึก · คืนรายการข้อผิดพลาด)
+export function saveMemberLevels(d) {
+  const c = {
+    mode: d.mode,
+    levels: (d.levels || []).map((l) => ({ name: String(l?.name ?? '').trim(), min: l?.min, mult: l?.mult })),
+    renewGross: d.renewGross, inactiveDays: d.inactiveDays, goldenDays: d.goldenDays, downgradeDays: d.downgradeDays, bigBill: d.bigBill,
+  }
+  const errors = memberCfgErrors(c)
+  if (errors.length) return { errors }
+  Object.assign(db.memberLevels, structuredClone(c))
+  return { ok: true }
 }
 
 // ---------- ออร์เดอร์ตัวอย่าง ----------

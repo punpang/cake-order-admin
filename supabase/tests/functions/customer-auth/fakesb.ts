@@ -39,5 +39,10 @@ class Q {
 }
 export const createClient = (_u: string, _k: string, _o?: any) => ({
   from: (t: string) => new Q(t),
+  // rpc: เรียก hooks['rpc:<ชื่อฟังก์ชัน>'] ของเทสต์ · ไม่มี hook = ตอบ error (เหมือนฟังก์ชันไม่มีในฐานข้อมูล)
+  rpc: async (fn: string, args: any) => {
+    const h = db().hooks[`rpc:${fn}`]
+    return h ? h(args) : { data: null, error: { message: `ไม่มีฟังก์ชัน ${fn} ในตัวจำลอง` } }
+  },
   storage: { from: (_bucket: string) => ({ createSignedUrl: async (_path: string, _sec: number) => ({ data: { signedUrl: 'x' } }) }) },
 })
