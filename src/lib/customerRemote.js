@@ -47,10 +47,12 @@ export function injectBundle(db, b) {
   for (const c of b.consents || []) put(db.consents, c)
   for (const c of b.reviews || []) put(db.reviews, c)
   for (const c of b.deletionRequests || []) put(db.deletionRequests, c)
+  db.memberCard = b.tier?.enabled === true ? b.tier : null // ระดับสมาชิก (เซิร์ฟเวอร์เปิดให้เฉพาะโหมดใช้จริง)
   return b.customer.id
 }
 // ออกจากระบบ: ล้างข้อมูลของลูกค้ารายนั้นออกจากหน่วยความจำ (เครื่องใช้ร่วมกัน)
 export function clearBundle(db, customerId) {
+  db.memberCard = null
   if (!customerId) return
   const drop = (list, f) => { for (let i = list.length - 1; i >= 0; i--) if (f(list[i])) list.splice(i, 1) }
   drop(db.orders, (o) => o._remote && o.customerId === customerId)

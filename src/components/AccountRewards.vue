@@ -10,12 +10,14 @@ import AppModal from './AppModal.vue'
 import CouponBarcode from './CouponBarcode.vue'
 import { askConfirm } from '../lib/confirm'
 import { couponTermsText } from '../lib/coupons'
+import { tierLines } from '../lib/memberLevels'
 
 // คะแนน / แลกของ / กาชา / คูปอง ของลูกค้าที่ล็อกอินอยู่ (ย้ายมาจากหน้าลูกค้าจำลองเดิม) ใช้ได้เฉพาะของตัวเอง
 const me = computed(() => myCustomer())
 const today = toDateStr(new Date())
 const points = computed(() => customerPoints(me.value))
 const soon = computed(() => expiringSoon(me.value?.ledger, today, 30))
+const tierCard = computed(() => (db.memberCard?.enabled ? tierLines(db.memberCard) : []))
 
 const tab = ref('rewards')
 const tabs = [
@@ -148,6 +150,11 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
         </div>
         <div v-if="soon" class="mt-1 text-xs">{{ soon.points }} คะแนนจะหมดอายุ {{ dateOnly(soon.date) }}</div>
         <div class="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-sm">สิทธิ์หมุนกาชา {{ me.spins }} ครั้ง</div>
+      </section>
+      <!-- ระดับสมาชิก (เซิร์ฟเวอร์ส่งให้เฉพาะโหมดใช้จริง · ไม่มียอดสะสม) -->
+      <section v-if="tierCard.length" class="mb-4 rounded-[2rem] bg-white p-5 shadow ring-1 ring-stone-200" aria-label="ระดับสมาชิก">
+        <div class="font-semibold text-stone-800">{{ tierCard[0] }}</div>
+        <div v-for="(l, i) in tierCard.slice(1)" :key="i" class="mt-1 text-sm text-stone-600">{{ l }}</div>
       </section>
 
       <div class="mb-4 grid grid-cols-4 gap-1 seg-grid">

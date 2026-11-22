@@ -1,6 +1,6 @@
 <script setup>
 import MoneyInput from '../../components/MoneyInput.vue'
-import { computed, reactive, ref } from 'vue'
+import { computed, defineAsyncComponent, reactive, ref } from 'vue'
 import { db, can, findCustomer, saveReward, savePrize, saveLoyaltySettings, markCouponDelivered, phaseOfCoupon, refundCoupon } from '../../data/store'
 import { chanceTotal } from '../../lib/loyalty'
 import { COUPON_MODES, couponTermsText, validateCouponReward } from '../../lib/coupons'
@@ -10,10 +10,12 @@ import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
 import { askConfirm, confirmDeactivate } from '../../lib/confirm'
+const ManageTiers = defineAsyncComponent(() => import('./ManageTiers.vue')) // โหลดเมื่อเปิดแท็บ "ระดับ"
 
 const tab = ref('settings')
 const tabs = [
   { v: 'settings', l: 'ตั้งค่า' },
+  { v: 'tiers', l: 'ระดับ' },
   { v: 'rewards', l: 'ของแลก' },
   { v: 'gacha', l: 'กาชา' },
   { v: 'coupons', l: 'คูปอง & มอบของ' },
@@ -120,7 +122,7 @@ function doRefund() {
 
 <template>
   <ManageShell narrow guard title="คะแนน & รางวัล" :toolbar="false">
-    <div class="mb-4 grid grid-cols-4 gap-1 seg-grid">
+    <div class="mb-4 grid grid-cols-5 gap-1 seg-grid">
       <button
         v-for="t in tabs"
         :key="t.v"
@@ -142,6 +144,11 @@ function doRefund() {
       </div>
       <button class="btn-primary w-full" @click="saveSettings"><AppIcon name="check" :size="18" /> {{ saved ? 'บันทึกแล้ว' : 'บันทึก' }}</button>
     </section>
+
+    <!-- ระดับสมาชิก -->
+    <template v-else-if="tab === 'tiers'">
+      <ManageTiers />
+    </template>
 
     <!-- ของแลก -->
     <template v-else-if="tab === 'rewards'">

@@ -111,7 +111,18 @@ Deno.serve(corsWrap(async (req) => {
     const dr = await sb.from('punpang_records').select('id,data').eq('collection', 'deletionRequests').eq('data->>customerId', customerId)
     const rec = (r: any) => ({ ...(r.data || {}), id: r.id })
     const sh = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'shop').maybeSingle()
-    return { customer, orders, coupons: (cp.data || []).map(rec), consents: (cs.data || []).map(rec), reviews: (rv.data || []).map(rec), deletionRequests: (dr.data || []).map(rec), shop: { payment: publicPaymentOf(sh.data?.data?.v) } }
+    // ระดับสมาชิก: เปิดเฉพาะโหมดใช้จริง · ส่งเฉพาะฟิลด์ที่อนุญาต (ไม่มียอดสะสม) · ล้มเหลวแล้วไม่กระทบการเข้าสู่ระบบ
+    let tier: Record<string, unknown> = { enabled: false }
+    try {
+      const t = await sb.rpc('punpang_member_card', { p_customer: customerId })
+      if (!t.error && t.data && typeof t.data === 'object') {
+        const d = t.data as Record<string, unknown>
+        if (d.enabled === true) {
+          tier = { enabled: true, levelNo: d.levelNo, levelName: d.levelName, mult: d.mult, status: d.status, golden: d.golden, renewAt: d.renewAt, activeUntil: d.activeUntil, downgradeAt: d.downgradeAt }
+        }
+      }
+    } catch (_e) { /* ระดับเป็นส่วนเสริม */ }
+    return { customer, orders, coupons: (cp.data || []).map(rec), consents: (cs.data || []).map(rec), reviews: (rv.data || []).map(rec), deletionRequests: (dr.data || []).map(rec), tier, shop: { payment: publicPaymentOf(sh.data?.data?.v) } }
   }
   async function newSession(customerId: string) {
     const token = randHex(32)
