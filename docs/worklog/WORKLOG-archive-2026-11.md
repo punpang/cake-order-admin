@@ -1,3 +1,11 @@
+## 2026-11-22 · [Release][DB] ผู้ใช้สั่ง "ทำตามคำแนะนำ" (merge + Release) · merge ถูกปฏิเสธ · ยังไม่ Release
+
+**ทำอะไร:** ตรวจก่อน merge: main `2ae7cb3` เป็นบรรพบุรุษของ dev · ไฟล์ต่างกันเฉพาะ migration/เทสต์/docs/worklog ตามที่คาด · ไม่มี `functions` ต้อง deploy · จากนั้นสั่ง fast-forward main → dev (`f49ccd7`) ระบบความปลอดภัยของ Claude Code (auto mode) ปฏิเสธคำสั่ง push ไป main จึงไม่ได้ทำต่อ และไม่ลองวิธีอื่นเพื่อข้ามการปฏิเสธ
+**ผล:** main ยังเป็น `2ae7cb3` · dev ยังเป็น `f49ccd7` · ไม่ได้รัน Release (workflow รันได้เฉพาะจาก main)
+**รอ:** ผู้ใช้เลือกวิธี: (1) เพิ่มสิทธิ์ Bash ให้ push main แล้วสั่งใหม่ (2) ผู้ใช้ merge เอง แล้วให้ผม trigger Release · ขั้นตรวจ rollback บน production หลัง Release ยังต้องอนุมัติแยก
+
+---
+
 ## 2026-11-22 · [DB][ลูกค้า] ขั้น 2 (ตามแผนปรับ ข้อ 1): เพดานฐานแต้มก่อน VAT · commit dev · ยังไม่ merge/Release
 
 **ทำอะไร:** ผู้ใช้สั่ง "ทำตามข้อ 1" · migration ใหม่ `20261122100000_punpang_award_exvat_ceiling.sql`: เพิ่ม `punpang__order_goods_exvat` (VAT ใน หารออก สูตรเดียวกับ pointsFor · VAT นอก/ไม่มี VAT = เดิม · ไม่มี mode = ใน) แล้ว `create or replace` `punpang_award_order` โดยเปลี่ยนบรรทัดเพดานบรรทัดเดียว (ตรวจด้วยการเทียบกับต้นฉบับแล้ว) · ปิดท้ายด้วย `punpang_test_sync()` ให้สำเนาโหมดทดสอบตรง public (ตามแพตเทิร์นเดิม) · เทสต์ใหม่ `supabase/tests/points_vat.test.sql` 12 กรณี (PV1–PV12) ต่อใน run.sh · แก้ `docs/vat-refund-buyer.md` บรรทัดข้อ 8

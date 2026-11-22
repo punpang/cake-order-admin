@@ -1,8 +1,8 @@
 # บันทึกงาน cake-order-admin
 
 ## ดูก่อน (อ่านแค่ส่วนนี้ = Read offset 1, limit 20)
-- ล่าสุด 2026-11-22 · main = `90b8ac9` (ระดับสมาชิกเฟส 1 อยู่บน main · โหมดปิด) · สาขาทำงาน `claude/member-tiers-phase1` · production: migration สมาชิก 3 ไฟล์ (Release #21) · customer-auth v75 (Release #22) · sms-send v50 verify_jwt=true · sms-probe verify_jwt=false ยังอยู่ · Cloudflare build ตรวจไม่ได้ (connector ขอสิทธิ์เพิ่ม)
-- **รอผู้ใช้:** อนุมัติเปิดโหมดทดลอง (shadow) บน production แยกต่างหาก · ยืนยันถ้อยคำประกาศความเป็นส่วนตัวข้อ 2 (เลือกแล้ว: เพิ่มแถว) · ถ้อยคำข้อ 8 ManageLegal และอัตรา 10/0.10 ก่อนใช้จริง · ตัดสิน `sms-probe`
+- ล่าสุด 2026-11-22 · main = `8991fac` (ระดับสมาชิกเฟส 1 + แก้ OTP + แถวข้อ 2 · โหมดปิด) · สาขาทำงาน `claude/member-tiers-phase1` · production: migration สมาชิก 3 ไฟล์ (Release #21) · customer-auth v75 (Release #22) · sms-send v50 verify_jwt=true · sms-probe verify_jwt=false ยังอยู่ · Cloudflare build ตรวจไม่ได้ (connector ขอสิทธิ์เพิ่ม)
+- **รอผู้ใช้:** ยืนยันร่างประกาศข้อ 3 (ระยะเก็บแถวสมาชิก) และถ้อยคำข้อ 8 ManageLegal (ยังไม่แก้ไฟล์) · อนุมัติเปิดโหมดทดลอง (shadow) แยกต่างหาก · ถ้อยคำข้อ 8 และอัตรา 10/0.10 ก่อนใช้จริง · `sms-probe` ผู้ใช้ลบเองใน Dashboard
 - **ปิดแล้ว:** B13 cron timeout · B12 ดัชนีเบอร์ลูกค้ามีบน production · B6 แผนฟรี ยอมรับความเสี่ยง ไม่ถามซ้ำ
 - งบบันเดิล 882.0/886 KB (เกินให้หยุดถามก่อนขอเพิ่ม) · ค้างไว้: หัวกลุ่มวันที่ตารางผลิตโปร่งแสง 90% (เสนอให้ทึบ)
 - URL ทดสอบ (ไม่ใช่ production): https://claude-zen-gauss-5qbmyh.cake-order-admin.pages.dev
@@ -10,6 +10,16 @@
 - **ขนาด:** บล็อกนี้ ≤ 3 KB · ไฟล์นี้ ≤ 30 KB หรือ ≤ 10 รายการ · เกินให้ย้ายรายการเก่าไป `WORKLOG-archive-YYYY-MM.md`
 - **ป้ายระบบ:** ใส่ในหัวรายการ [ลูกค้า] [LIFF] [ครัว] [POS] [ออร์เดอร์] [SMS] [Release] [DB] [ระบบ] · ค้นงานระบบเดียว: `grep -n '\[ครัว\]' docs/worklog/*.md`
 - **การถามผู้ใช้:** ถามเป็นข้อ ๆ (หน้าต่างคำถาม) ข้อละ 2–4 ตัวเลือก · ตัวเลือกที่ดีที่สุดอยู่ข้อแรกพร้อม "(แนะนำ)" และเหตุผลสั้น ๆ · ถามเฉพาะเรื่องที่ผู้ใช้ต้องตัดสิน
+
+---
+
+## 2026-11-22 · [ลูกค้า][Release] merge main 8991fac: แก้ช่อง OTP ใช้แป้นเครื่อง + แถวสมาชิกข้อ 2 · CI ผ่าน · โหมดยังปิด
+
+**ทำอะไร:** `OtpStep.vue` เอา `v-num` ออก ช่อง OTP ใช้แป้นของเครื่อง (`inputmode=numeric`) และกรองเฉพาะตัวเลข 6 หลัก (`8cc2ae0`) · ประกาศข้อ 2 เพิ่มแถว "สมาชิก (ระดับ)" ฐาน "สัญญา" (`e92520b`) · merge เข้า main → `8991fac` · `docs/loyalty-tiers.md` ขั้นเปิดใช้ข้อ 1 อัปเดตให้ตรงสถานะจริง
+**เหตุผล:** ผู้ใช้สั่ง "Merge deploy" และเลือกทำตามแผนแป้น OTP กับร่างแถวข้อ 2 · รอบนี้ไม่มีการเปลี่ยน migration หรือ edge function จึงไม่ Release Supabase
+**ผล:** `npm test` 95 ไฟล์ผ่าน · build ผ่าน · CI บน `8991fac` ผ่าน (node · deno · database · Cloudflare Pages) · e2e ถูกข้าม · ยังไม่ได้ทดสอบ OTP บนมือถือจริง (ต้องใช้ SMS จริง)
+**รอ:** ผู้ใช้ยืนยันร่างข้อ 3 (ระยะเก็บ) และถ้อยคำข้อ 8 (ยังไม่แก้ไฟล์) · อนุมัติเปิดโหมดทดลองแยก · `sms-probe` ผู้ใช้ลบเองใน Dashboard
+**งานค้าง:** `/push2.log` ผู้ใช้ลบเอง (`rm -f /push2.log`) · ข้อ 8 เดิมยังเขียน "1 คะแนนต่อ {อัตราสะสม} บาท" ไม่มีตัวคูณ ต้องแก้ตอนเปิดใช้จริง · เฟส 2–3 ตามเดิม
 
 ---
 
@@ -87,9 +97,3 @@
 **ทำอะไร:** ตรวจก่อน: ไม่มีโฟลเดอร์ `.claude/` ในโปรเจกต์ (ไม่มี deny ระดับโปรเจกต์) · `origin/main` = `2ae7cb3` และ `origin/claude/zen-gauss-5qbmyh` = `46c2a60` ตรงกับเครื่อง · สร้าง `.claude/settings.local.json` มีกฎ allow เดียว `Bash(git push origin claude/zen-gauss-5qbmyh:refs/heads/main)` (ตรงตัวอักษร) · เพิ่มไฟล์นี้ใน `.git/info/exclude` (ระดับเครื่อง ไม่แก้ `.gitignore` จึงไม่เข้า commit) · ย้าย "ทำขั้น 1" ไป archive ให้ไฟล์หลักไม่เกิน 10 รายการ
 **ผล:** ยังไม่ push ไม่ merge ไม่ Release · ตรวจแล้ว: JSON ถูกต้อง · ไฟล์ถูก ignore · git status เห็นเฉพาะไฟล์ worklog
 **รอ:** ผู้ใช้สั่ง "merge + Release" อีกครั้ง · กฎยังไม่ได้ทดสอบ (ยืนยันตอน push) · ถ้ากฎไม่มีผลในเซสชันนี้ อาจต้องเปิด /hooks หรือเริ่มเซสชันใหม่ · หลัง push สำเร็จ ลบกฎนี้ออกและแจ้งผู้ใช้
-
-## 2026-11-22 · [Release][DB] ผู้ใช้สั่ง "ทำตามคำแนะนำ" (merge + Release) · merge ถูกปฏิเสธ · ยังไม่ Release
-
-**ทำอะไร:** ตรวจก่อน merge: main `2ae7cb3` เป็นบรรพบุรุษของ dev · ไฟล์ต่างกันเฉพาะ migration/เทสต์/docs/worklog ตามที่คาด · ไม่มี `functions` ต้อง deploy · จากนั้นสั่ง fast-forward main → dev (`f49ccd7`) ระบบความปลอดภัยของ Claude Code (auto mode) ปฏิเสธคำสั่ง push ไป main จึงไม่ได้ทำต่อ และไม่ลองวิธีอื่นเพื่อข้ามการปฏิเสธ
-**ผล:** main ยังเป็น `2ae7cb3` · dev ยังเป็น `f49ccd7` · ไม่ได้รัน Release (workflow รันได้เฉพาะจาก main)
-**รอ:** ผู้ใช้เลือกวิธี: (1) เพิ่มสิทธิ์ Bash ให้ push main แล้วสั่งใหม่ (2) ผู้ใช้ merge เอง แล้วให้ผม trigger Release · ขั้นตรวจ rollback บน production หลัง Release ยังต้องอนุมัติแยก
