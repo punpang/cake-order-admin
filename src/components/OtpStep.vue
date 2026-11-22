@@ -43,6 +43,11 @@ async function send() {
     else if (!sentTo.value) fatal.value = true
   }
 }
+// ใช้แป้นของเครื่องปกติ (ไม่ใช้ v-num เพราะจะเปิดแป้นของแอปและตั้ง autocomplete=off ทับการรับรหัส SMS)
+function onCode(e) {
+  code.value = e.target.value.replace(/\D/g, '').slice(0, 6)
+  e.target.value = code.value
+}
 async function submit() {
   if (busy.value) return
   busy.value = true
@@ -66,7 +71,7 @@ onUnmounted(() => clearInterval(timer))
     <template v-if="!fatal">
       <div>
         <label class="label" for="otp-code">รหัส OTP</label>
-        <input id="otp-code" v-model="code" type="text" v-num maxlength="6" autocomplete="one-time-code" placeholder="••••••" class="input text-center tracking-[0.5em]" @keyup.enter="submit" />
+        <input id="otp-code" :value="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="••••••" class="input text-center tracking-[0.5em]" @input="onCode" @keyup.enter="submit" />
       </div>
       <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       <div class="flex flex-wrap gap-2">
