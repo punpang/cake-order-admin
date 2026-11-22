@@ -21,16 +21,21 @@ const retail = (qty) => ({ kind: 'retail', name: 'เค้กส้ม', retail
 
 t('prepList: เค้กสั่งทำนับเป็นก้อนต่อชั้น แยกตามเนื้อเค้กและขนาด', () => {
   const p = prepList([{ items: [custom(2)] }], groups, [])
-  assert.deepEqual(p.cakes, [{ name: 'สั่งทำ · วานิลลา', pounds: 2, count: 2 }])
+  assert.deepEqual(p.cakes, [{ name: 'สั่งทำ · วานิลลา', pounds: 2, count: 2, kind: 'custom', flavor: 'วานิลลา' }])
 })
 
 t('prepList: ไม่ระบุเนื้อเค้กแสดงเป็นไม่ระบุ', () => {
   const p = prepList([{ items: [custom(1, { g_sponge: undefined })] }], groups, [])
-  assert.deepEqual(p.cakes, [{ name: 'สั่งทำ · ไม่ระบุเนื้อเค้ก', pounds: 2, count: 1 }])
+  assert.deepEqual(p.cakes, [{ name: 'สั่งทำ · ไม่ระบุเนื้อเค้ก', pounds: 2, count: 1, kind: 'custom', flavor: 'ไม่ระบุเนื้อเค้ก' }])
 })
 
 t('prepList: เค้กสำเร็จรูปนับตามชื่อและขนาด', () => {
-  assert.deepEqual(prepList([{ items: [retail(1)] }], groups, []).cakes, [{ name: 'เค้กส้ม', pounds: 1, count: 1 }])
+  assert.deepEqual(prepList([{ items: [retail(1)] }], groups, []).cakes, [{ name: 'เค้กส้ม', pounds: 1, count: 1, kind: 'ready' }])
+})
+
+t('prepList: แยกเค้กสั่งทำ (custom) กับสำเร็จ (ready) ด้วยฟิลด์ kind', () => {
+  const p = prepList([{ items: [custom(1), retail(2)] }], groups, [])
+  assert.deepEqual(p.cakes.map((x) => `${x.kind}:${x.name}`).sort(), ['custom:สั่งทำ · วานิลลา', 'ready:เค้กส้ม'])
 })
 
 t('prepList: กลุ่มที่เปิดรายการเตรียมนับเป็นชุด เฉพาะตัวเลือกที่เลือก', () => {

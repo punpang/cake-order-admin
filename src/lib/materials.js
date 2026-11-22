@@ -65,14 +65,15 @@ export function prepList(orders, groups, products) {
       const n = Number(it.qty) || 1
       if (it.kind === 'retail') {
         const name = it.name
-        bump(cakes, `r|${name}|${pounds}`, { name, pounds }, n)
+        bump(cakes, `r|${name}|${pounds}`, { name, pounds, kind: 'ready' }, n)
       } else {
         // แต่ละชั้น = 1 ก้อน
         tiers.forEach((t, i) => {
           const sel = flavor ? (isTierGroup(flavor, it) ? t.selections : it.selections)?.[flavor.id] : null
           const names = flavor ? optNames(flavor, sel).map((x) => x.name) : []
-          const name = `สั่งทำ · ${names.length ? names.join(' + ') : 'ไม่ระบุเนื้อเค้ก'}`
-          bump(cakes, `c|${name}|${tierPounds[i]}`, { name, pounds: tierPounds[i] }, n)
+          const flavorLabel = names.length ? names.join(' + ') : 'ไม่ระบุเนื้อเค้ก'
+          const name = `สั่งทำ · ${flavorLabel}`
+          bump(cakes, `c|${name}|${tierPounds[i]}`, { name, pounds: tierPounds[i], kind: 'custom', flavor: flavorLabel }, n)
         })
       }
       const addSet = (g, sel, lb) => {

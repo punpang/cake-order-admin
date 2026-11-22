@@ -35,6 +35,8 @@ const inRange = computed(() =>
 const countOf = (s) => inRange.value.filter((o) => o.status === s).length
 const orders = computed(() => inRange.value.filter((o) => picked.value.includes(o.status)))
 
+// วัตถุดิบ: ต้องซื้อเพิ่มขึ้นก่อน → ยังไม่ได้นับ → พอแล้ว (ในแต่ละกลุ่มเรียงตามชื่อ)
+const rawRank = (r) => (r.short > 0 ? 0 : r.stock == null ? 1 : 2)
 const rows = computed(() => {
   const total = ordersMaterials(orders.value, db.optionGroups, db.retailItems)
   return Object.entries(total)
@@ -43,11 +45,20 @@ const rows = computed(() => {
       const stock = m?.stock ?? null
       return { id, name: m?.name || 'ไม่พบวัตถุดิบ', unit: m?.unit || '', amount, stock, short: shortfall(amount, stock) }
     })
-    .sort((a, b) => a.name.localeCompare(b.name, 'th'))
+    .sort((a, b) => rawRank(a) - rawRank(b) || a.name.localeCompare(b.name, 'th'))
 })
 
 const prep = computed(() => prepList(orders.value, db.optionGroups, db.retailItems))
 const noRecipe = computed(() => missingRecipes(orders.value, db.optionGroups, db.retailItems))
+// ตัวเค้กแยกสั่งทำ/สำเร็จ · สั่งทำแสดงเฉพาะชื่อเนื้อเค้กในหัวข้อย่อย
+const cakeSplit = computed(() => ({
+  custom: prep.value.cakes.filter((r) => r.kind === 'custom'),
+  ready: prep.value.cakes.filter((r) => r.kind === 'ready'),
+}))
+const sumCount = (list) => list.reduce((s, r) => s + r.count, 0)
+const cakeTotal = computed(() => sumCount(prep.value.cakes))
+const cakeName = (r) => (r.kind === 'custom' ? r.flavor : r.name)
+const showMissing = ref(false)
 
 function setFrom(v) {
   from.value = v
@@ -96,7 +107,16 @@ function setFrom(v) {
       </div>
     </section>
 
-    <div class="mb-3 text-sm text-stone-600">ออร์เดอร์ที่นับ {{ orders.length }} รายการ</div>
+    <section class="card mb-3 flex items-center gap-3 py-3" aria-label="สรุปรายการเตรียม">
+      <div class="min-w-0 flex-1">
+        <div class="text-sm text-stone-600">ออร์เดอร์ที่นับ {{ orders.length }} รายการ</div>
+        <div class="text-xs text-stone-500">{{ rangeText }}</div>
+      </div>
+      <div v-if="tab === 'prep'" class="shrink-0 text-right">
+        <div class="text-2xl leading-none font-bold tabular-nums text-stone-900">{{ cakeTotal }} <span class="text-sm font-medium text-stone-500">ก้อน</span></div>
+        <div class="mt-1 text-xs text-stone-500">สั่งทำ {{ sumCount(cakeSplit.custom) }} · สำเร็จ {{ sumCount(cakeSplit.ready) }}</div>
+      </div>
+    </section>
 
     <div class="mb-4 grid grid-cols-2 gap-1 seg-grid">
       <button
@@ -111,9 +131,12 @@ function setFrom(v) {
 
     <div class="kitchen-print-area">
       <h2 class="mb-2 hidden text-base font-semibold text-stone-900 print:block">{{ tab === 'prep' ? 'รายการเตรียม' : 'วัตถุดิบรวม' }} · {{ rangeText }}</h2>
-      <section v-if="noRecipe.length" class="no-print mb-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200">
-        <div class="font-semibold">ยังไม่มีสูตร {{ noRecipe.length }} รายการ · วัตถุดิบของรายการเหล่านี้ไม่ถูกนับ</div>
-        <div class="mt-1 text-xs break-words">{{ noRecipe.slice(0, 10).join(', ') }}<span v-if="noRecipe.length > 10"> และอีก {{ noRecipe.length - 10 }} รายการ</span></div>
+      <section v-if="noRecipe.length" class="no-print mb-3 overflow-hidden rounded-2xl bg-amber-50 text-sm text-amber-900 ring-1 ring-amber-200">
+        <button type="button" class="flex min-h-11 w-full items-center gap-2 px-4 py-3 text-left font-semibold" :aria-expanded="showMissing" aria-controls="missing-list" @click="showMissing = !showMissing">
+          <span class="min-w-0 flex-1">ยังไม่มีสูตร {{ noRecipe.length }} รายการ · วัตถุดิบไม่ถูกนับ</span>
+          <span class="shrink-0 text-xs font-medium underline">{{ showMissing ? 'ซ่อน' : 'ดูรายการ' }}</span>
+        </button>
+        <div v-show="showMissing" id="missing-list" class="border-t border-amber-200 px-4 py-2 text-xs break-words">{{ noRecipe.slice(0, 10).join(', ') }}<span v-if="noRecipe.length > 10"> และอีก {{ noRecipe.length - 10 }} รายการ</span></div>
       </section>
 
       <template v-if="tab === 'prep'">
@@ -121,15 +144,17 @@ function setFrom(v) {
         <template v-else>
           <section class="card mb-3 p-0">
             <div class="card-title mb-0 border-b border-stone-100 px-4 py-3"><AppIcon name="cake" :size="18" class="text-brand-600" /> ตัวเค้ก</div>
-            <div class="divide-y divide-stone-100">
-              <div v-for="row in prep.cakes" :key="row.name + row.pounds" class="flex items-center gap-3 px-4 py-3">
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate font-medium text-stone-900">{{ row.name }}</span>
-                  <span class="block text-xs text-stone-500">{{ qty(row.pounds) }} ปอนด์</span>
-                </span>
-                <span class="shrink-0 font-semibold text-stone-900">{{ row.count }}</span>
-                <span class="w-10 shrink-0 text-sm text-stone-500">ก้อน</span>
-              </div>
+            <div v-for="sub in [{ k: 'custom', l: 'สั่งทำ', list: cakeSplit.custom }, { k: 'ready', l: 'สำเร็จ', list: cakeSplit.ready }]" :key="sub.k">
+              <template v-if="sub.list.length">
+                <div class="flex items-center justify-between bg-stone-50 px-4 py-1.5 text-xs font-semibold text-stone-600"><span>{{ sub.l }}</span><span>{{ sumCount(sub.list) }} ก้อน</span></div>
+                <div class="divide-y divide-stone-100">
+                  <div v-for="row in sub.list" :key="row.name + row.pounds" class="flex items-center gap-3 px-4 py-3">
+                    <span class="min-w-0 flex-1 truncate font-medium text-stone-900">{{ cakeName(row) }}</span>
+                    <span class="shrink-0 rounded-md bg-stone-100 px-1.5 py-0.5 text-xs text-stone-600">{{ qty(row.pounds) }} ปอนด์</span>
+                    <span class="w-8 shrink-0 text-right text-lg font-bold tabular-nums text-stone-900">{{ row.count }}</span>
+                  </div>
+                </div>
+              </template>
             </div>
           </section>
           <section v-for="g in prep.groups" :key="g.id" class="card mb-3 p-0">
