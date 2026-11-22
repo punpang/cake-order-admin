@@ -2134,12 +2134,16 @@ export function removeCoupon(order, couponId) {
 // โปรคะแนนพิเศษคูณรายสินค้า (ช่วงเวลานับตาม at = เวลาสร้างออร์เดอร์) · ใช้ทั้งตอนให้จริงและแสดงตัวอย่างใน POS
 export function pointsFor(order, at = new Date(order.createdAt || Date.now())) {
   const nets = itemNets(order)
+  // ฐานแต้ม/สิทธิ์หมุน = ยอดสินค้าสุทธิ "ก่อน VAT" (ตรงกับข้อกำหนดข้อ 8) · VAT ใน: ยอดรวม VAT แล้วจึงหารออก · VAT นอก/ไม่มี VAT: ไม่มี VAT ในยอดอยู่แล้ว · ใช้ VAT ที่บันทึกไว้ในออร์เดอร์นั้น
+  const vr = Number(order.vat?.rate) || 0
+  const exVat = (n) => (vr > 0 && order.vat.mode !== 'exclusive' ? (n * 100) / (100 + vr) : n)
   let base = 0
   let weighted = 0
   order.items.forEach((it, i) => {
     const cat = it.kind === 'retail' ? db.retailItems.find((r) => r.id === it.retailId)?.category || '' : 'เค้กสั่งทำ'
-    base += nets[i]
-    weighted += nets[i] * pointMultiplier({ retailId: it.retailId, category: cat }, db.pointPromos, at)
+    const net = exVat(nets[i])
+    base += net
+    weighted += net * pointMultiplier({ retailId: it.retailId, category: cat }, db.pointPromos, at)
   })
   const points = Math.floor(weighted / db.loyalty.earnPer + 1e-9)
   return { points, bonus: points - Math.floor(base / db.loyalty.earnPer + 1e-9), spins: Math.floor(base / db.loyalty.spinPer + 1e-9), base: round2(base) }

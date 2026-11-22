@@ -1,5 +1,28 @@
 # บันทึกงานย้อนหลัง 2026-11 (ค้นด้วย grep · ไม่ต้องอ่านทั้งไฟล์)
 
+## 2026-11-22 · [ลูกค้า][LIFF][Release] P1–P4 ลูกค้า + LIFF · commit dev · ตรวจ Release/sms-send · Cloudflare ตรวจไม่ได้
+
+**ทำอะไร:** commit `3c1e2b1` บน dev (21 ไฟล์) push แล้ว (`96f294e..3c1e2b1`) · ไม่แตะ main · ตรวจ Release `44975293482` และ sms-send บน Supabase · เทียบ main กับ dev ว่ามีการเปลี่ยน `supabase/` หรือ `worker/` หรือไม่ · หยุด Vite พอร์ต 5179 (PID 2179 ออกแล้ว) · ตรวจ Cloudflare build main ไม่ได้ (connector ปฏิเสธ)
+**ผล:**
+- P1 LIFF: หลังสมัคร/ลืม PIN ต่อกลับมาเชื่อมได้ผ่าน `?next=` (`safeNext` กัน open redirect) · ระหว่างพาไปล็อกอินแสดงสถานะกำลังโหลด ไม่ขึ้น error · ปุ่ม "กลับไปแชท LINE" ใช้ `closeWindow` เฉพาะในแอป LINE
+- P2 หน้า `/line/`: ใช้หน้าโหลดแบบเดียวกับแอป มีลองใหม่และไปหน้าร้านเมื่อผิดพลาด
+- P3 320px: ฟุตเตอร์ลิงก์กฎหมายขึ้นบรรทัดได้ · หัวหน้าแรกไม่ดันให้ล้น
+- P4 e2e 11 หน้า × 5 ความกว้าง: ไม่ล้นทุกจุด · บนจอสัมผัส (≤1024px) เป้าสัมผัสสูง ≥44px
+- Release `44975293482`: completed/success · head `96f294e` · 02:16:10Z–02:17:19Z
+- sms-send production: ACTIVE · version 50 (เดิม 49) · verify_jwt=true · อัปเดต 02:17:15Z ตรงกับ Release
+- main vs dev: `supabase/` และ `worker/` ไม่เปลี่ยน → merge ครั้งนี้ไม่ต้องรัน Release มีแค่ Cloudflare Pages build อัตโนมัติ
+- Cloudflare Pages `96f294e`: ยังไม่ได้ยืนยัน build (connector ตอบ "requires additional permissions")
+**ทำไมถึงคิดแบบนั้น:**
+- ไม่ merge main เอง เพราะ merge ต้องได้รับอนุมัติ · LIFF บนมือถือต้องอยู่บน main จึงขออนุมัติก่อน
+- ไม่ลองเรียก Cloudflare ซ้ำ เพราะเป็นปัญหาสิทธิ์ของ connector ไม่ใช่ข้อมูล · ไม่ใช้ผลจำลองแทน
+- ตรวจ `supabase/` และ `worker/` ก่อนสรุปว่าไม่ต้อง Release (ผลคือไม่มีการเปลี่ยน)
+- commit นี้ไม่มีบรรทัด Co-Authored-By เพราะกติกาห้ามใส่ชื่อโมเดลใน commit (มีเฉพาะ Claude-Session)
+- ยืนยัน Vite ปิดแล้วก่อนรายงาน
+**รอ:** อนุมัติ merge dev→main · ผู้ใช้เชื่อม Cloudflare ใหม่แล้วเปิดเซสชันใหม่ เพื่อยืนยัน build · การ์ดคุกกี้ 121 px รอการตัดสินใจ · งบบันเดิลเหลือ 0.3 KB (เพิ่มโค้ดต้องขอเพิ่มงบพร้อมเหตุผล)
+
+
+---
+
 ## 2026-11-22 · [ลูกค้า][LIFF] ตรวจการออกแบบหน้าลูกค้า + LIFF หลังล็อกอิน (อ่านอย่างเดียว ไม่แก้โค้ด)
 
 **ทำอะไร:** วัดอัตโนมัติ 8 หน้า × 5 ความกว้าง (320/390/768/1024/1440) ด้วย Playwright บน dev server (`scratchpad/ux-audit.mjs`) · ดูภาพ 390 และ 1440 · อ่านโค้ด LIFF (`src/lib/liffStart.js`, `src/lib/line.js`, `src/views/LineLink.vue`, `line/index.html`, `src/lineEntry.js`) · เขียนรายงาน `scratchpad/ux-review-customer.md`
