@@ -100,7 +100,8 @@ begin
     rows_ := rows_ || jsonb_build_array(jsonb_build_object(
       'levelNo', i, 'levelName', cfg->'levels'->(i - 1)->>'name', 'members', mem[i],
       'base', round(bas[i], 2), 'extraPoints', round(ext[i] / earn_per, 2),
-      'costPct', case when bas[i] > 0 then round(ext[i] / earn_per * pt_val * p_redeem / bas[i] * 100, 2) else 0 end));
+      'costPct', case when bas[i] > 0 then round(ext[i] / earn_per * pt_val * p_redeem / bas[i] * 100, 2) else 0 end,
+      'fullCostPct', case when bas[i] > 0 then round((ext[i] + bas[i]) / earn_per * pt_val * p_redeem / bas[i] * 100, 2) else 0 end));
     tot_mem := tot_mem + mem[i];
     tot_base := tot_base + bas[i];
     tot_extra := tot_extra + ext[i];
@@ -110,7 +111,8 @@ begin
     'levels', rows_,
     'total', jsonb_build_object(
       'members', tot_mem, 'base', round(tot_base, 2), 'extraPoints', round(tot_extra / earn_per, 2),
-      'costPct', case when tot_base > 0 then round(tot_extra / earn_per * pt_val * p_redeem / tot_base * 100, 2) else 0 end));
+      'costPct', case when tot_base > 0 then round(tot_extra / earn_per * pt_val * p_redeem / tot_base * 100, 2) else 0 end,
+      'fullCostPct', case when tot_base > 0 then round((tot_extra + tot_base) / earn_per * pt_val * p_redeem / tot_base * 100, 2) else 0 end));
 end $$;
 revoke all on function public.punpang_member_report(int, numeric) from public, anon;
 grant execute on function public.punpang_member_report(int, numeric) to authenticated;

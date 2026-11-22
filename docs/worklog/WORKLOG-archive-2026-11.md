@@ -1,3 +1,9 @@
+## 2026-11-22 · [ระบบ][Cloudflare] ผู้ใช้ทำข้อ 1–2 แล้ว · ตรวจ build main จากเซสชันนี้ไม่ได้
+
+**ทำอะไร:** ผู้ใช้แจ้ง "1 ทำแล้ว 2 ทำแล้ว 5 รอ" · ตรวจ commit `2ae7cb3` ผ่าน GitHub ได้ข้อมูล commit แต่ไม่มีสถานะ build · ลองดู deployment ของ Cloudflare Pages (project cake-order-admin) ได้ข้อผิดพลาด "requires additional permissions" จึงยังไม่รู้ผล build
+**ผล:** ยังไม่ทราบผล build ของ main และผลทดสอบ LIFF (ผู้ใช้ยังไม่ได้แจ้งผล)
+**รอ:** ผลสองข้อจากผู้ใช้ · ถ้า connector ยังใช้ไม่ได้ ให้เปิดเซสชันใหม่หลังเชื่อมแล้วให้ผมตรวจอีกครั้ง · ข้อ 5 (ขั้น 2) รอ
+
 ## 2026-11-22 · [DB][ระบบ] ตรวจ cron punpang-scheduled (อ่านอย่างเดียว) · B13 ใช้ได้แล้ว
 
 **ทำอะไร:** ผู้ใช้ตอบลำดับ: ข้อ 1–2 ยืนยันลำดับ (ยังไม่ทำ) · ข้อ 3 ตรวจ · ข้อ 4 ใช้แผนฟรี ห้ามถามอีก · ข้อ 5 รอ · ตรวจ production ด้วย SELECT อย่างเดียว: migration `20261121160000` อยู่ในรายการ production แล้ว · cron jobid 9 `*/15` active มี `timeout_milliseconds := 30000` · ดัชนี `punpang_customers_phone_digits_uniq` มีบน production

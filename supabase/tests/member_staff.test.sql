@@ -104,6 +104,11 @@ select test.ok('R4 ต้นทุนรวม (%) ตรงกับสูต�
   (select abs((j->'total'->>'costPct')::numeric
             - (j->'total'->>'extraPoints')::numeric * (j->>'pointValue')::numeric * (j->>'redeem')::numeric / (j->'total'->>'base')::numeric * 100) <= 0.02
      from msf_snap where k = 'after'));
+select test.ok('R4b ต้นทุนสูตรเต็มรวม = (แต้มเพิ่ม + แต้มปกติ) × มูลค่าแต้ม × อัตราแลกคืน ÷ ยอดฐาน × 100 (ต่างไม่เกิน 0.02)',
+  (select abs((j->'total'->>'fullCostPct')::numeric
+            - ((j->'total'->>'extraPoints')::numeric + (j->'total'->>'base')::numeric / (j->>'earnPer')::numeric)
+              * (j->>'pointValue')::numeric * (j->>'redeem')::numeric / (j->'total'->>'base')::numeric * 100) <= 0.02
+     from msf_snap where k = 'after'));
 select test.ok('R5 จำนวนวันไม่ถูกต้อง (0) = invalid',
   (pg_temp.msf_report(0)->>'error') = 'invalid');
 

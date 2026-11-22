@@ -69,5 +69,12 @@ function fmtDate(s) {
 export function levelCost({ mult, base, earnPer, pointValue, redeem }) {
   const extraPoints = earnPer > 0 ? ((mult - 1) * base) / earnPer : 0
   const costBaht = extraPoints * pointValue * redeem
-  return { extraPoints, costBaht, costPct: base > 0 ? (costBaht / base) * 100 : 0 }
+  // สูตรเต็ม = รวมแต้มปกติทั้งหมด (ตัวคูณ × ยอดฐาน) · ส่วนเพิ่ม = เฉพาะแต้มที่เกินแต้มปกติ
+  const fullCostBaht = earnPer > 0 ? (mult * base * pointValue * redeem) / earnPer : 0
+  return {
+    extraPoints,
+    costBaht,
+    costPct: base > 0 ? (costBaht / base) * 100 : 0,
+    fullCostPct: base > 0 ? (fullCostBaht / base) * 100 : 0,
+  }
 }

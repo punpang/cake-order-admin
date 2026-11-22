@@ -71,6 +71,14 @@ t('ต้นทุนประมาณการ LV4 (x10) ต่อยอด 1,
   assert.equal(Math.round(r.costBaht * 100) / 100, 36)
   assert.equal(Math.round(r.costPct * 100) / 100, 3.6)
 })
+t('สูตรเต็ม: LV4 (x10) = 4% · x3 = 1.2% · ส่วนเพิ่ม x3 = 0.8% · ตัวคูณ 1 ยังมีต้นทุนพื้นฐาน 0.4%', () => {
+  const p = { base: 1000, earnPer: 10, pointValue: 0.1, redeem: 0.4 }
+  const pct = (x) => Math.round(x * 100) / 100
+  assert.equal(pct(levelCost({ mult: 10, ...p }).fullCostPct), 4)
+  assert.equal(pct(levelCost({ mult: 3, ...p }).fullCostPct), 1.2)
+  assert.equal(pct(levelCost({ mult: 3, ...p }).costPct), 0.8)
+  assert.equal(pct(levelCost({ mult: 1, ...p }).fullCostPct), 0.4)
+})
 t('ตัวคูณ 1 ไม่มีต้นทุนเพิ่ม และยอด 0 ไม่หารศูนย์', () => {
   assert.equal(levelCost({ mult: 1, base: 1000, earnPer: 10, pointValue: 0.1, redeem: 0.4 }).costBaht, 0)
   assert.equal(levelCost({ mult: 3, base: 0, earnPer: 10, pointValue: 0.1, redeem: 0.4 }).costPct, 0)

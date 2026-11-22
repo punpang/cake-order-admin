@@ -167,19 +167,25 @@ const sim = computed(() => d.levels.map((l, i) => ({
               <td class="py-2 pr-2 text-right">{{ r.members }}</td>
               <td class="py-2 pr-2 text-right">{{ money(r.base) }}</td>
               <td class="py-2 pr-2 text-right">{{ r.extraPoints }}</td>
-              <td class="py-2 text-right">{{ r.costPct }}%</td>
+              <td class="py-2 text-right whitespace-nowrap">
+                <div>ส่วนเพิ่ม {{ r.costPct }}%</div>
+                <div class="text-xs text-stone-500">สูตรเต็ม {{ r.fullCostPct }}%</div>
+              </td>
             </tr>
             <tr class="border-t border-stone-300 font-semibold">
               <td class="py-2 pr-2">รวม</td>
               <td class="py-2 pr-2 text-right">{{ rep.total.members }}</td>
               <td class="py-2 pr-2 text-right">{{ money(rep.total.base) }}</td>
               <td class="py-2 pr-2 text-right">{{ rep.total.extraPoints }}</td>
-              <td class="py-2 text-right">{{ rep.total.costPct }}%</td>
+              <td class="py-2 text-right whitespace-nowrap">
+                <div>ส่วนเพิ่ม {{ rep.total.costPct }}%</div>
+                <div class="text-xs text-stone-500 font-normal">สูตรเต็ม {{ rep.total.fullCostPct }}%</div>
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
-      <p class="text-xs text-stone-500">ต้นทุนประมาณการเฉพาะแต้มจากตัวคูณ ยังไม่รวมคูปองรายเดือนและค่าส่ง</p>
+      <p class="text-xs text-stone-500">ต้นทุนประมาณการเฉพาะแต้มจากตัวคูณ · ส่วนเพิ่ม = แต้มที่เกินแต้มปกติ · สูตรเต็ม = รวมแต้มปกติทั้งหมด · ยังไม่รวมคูปองรายเดือนและค่าส่ง</p>
     </section>
 
     <section class="card space-y-3">
@@ -191,7 +197,7 @@ const sim = computed(() => d.levels.map((l, i) => ({
       <ul class="space-y-1 text-sm">
         <li v-for="s in sim" :key="s.name" class="flex justify-between gap-2">
           <span>{{ s.name }} · x{{ s.mult }}</span>
-          <span class="text-stone-600">แต้มเพิ่ม {{ s.extraPoints.toFixed(1) }} · ต้นทุน {{ s.costPct.toFixed(2) }}%</span>
+          <span class="text-right text-stone-600">แต้มเพิ่ม {{ s.extraPoints.toFixed(1) }}<br />ส่วนเพิ่ม {{ s.costPct.toFixed(2) }}% · สูตรเต็ม {{ s.fullCostPct.toFixed(2) }}%</span>
         </li>
       </ul>
       <p class="text-xs text-stone-500">คิดจากตั้งค่าคะแนน (ทุกกี่บาทได้ 1 แต้ม {{ db.loyalty.earnPer }} บาท · มูลค่า 1 แต้ม {{ db.loyalty.pointValue }} บาท) และอัตราแลกคืนด้านบน</p>
