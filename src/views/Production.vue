@@ -16,7 +16,7 @@ import StatusBadge from '../components/StatusBadge.vue'
 import KitchenTabs from '../components/KitchenTabs.vue'
 import AppIcon from '../components/AppIcon.vue'
 
-// ตารางผลิต: จัดกลุ่มตามชั่วโมงที่ต้องทำเสร็จ (เวลานัด − เวลาเผื่อในตั้งค่าร้าน) ช่วงวันนับจากวันนัดรับ
+// ตารางผลิต: งานเรียงตามเวลาที่ต้องเสร็จ · งานที่เลยเวลาขึ้นบนสุด · แตะสรุปด้านบนเพื่อกรองตามสถานะ
 const today = toDateStr(new Date())
 const from = ref(today)
 const to = ref(today)
@@ -49,30 +49,100 @@ onMounted(() => { tick = setInterval(() => { now.value = Date.now() }, 60_000) }
 onUnmounted(() => clearInterval(tick))
 
 const hm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`
+
+// สถานะในครัว: รอเริ่ม / กำลังทำ / เสร็จ / รอชำระ (ยังไม่ถึงขั้นเตรียม)
+function stateOf(o) {
+  if (o.status === 'prepared') return 'done'
+  if (o.status === 'preparing') return 'doing'
+  if (['payment_confirmed', 'order_confirmed'].includes(o.status)) return 'todo'
+  return 'unpaid'
+}
+// สีขอบซ้ายของการ์ดบอกสถานะ · เสร็จแล้วจางลง
+const TONE = {
+  todo: 'border-l-stone-300',
+  doing: 'border-l-amber-400',
+  done: 'border-l-emerald-500 opacity-60',
+  unpaid: 'border-l-stone-200',
+}
+const toneOf = (o) => TONE[stateOf(o)]
+
 const rows = computed(() =>
   inRange.value
     .filter((o) => picked.value.includes(o.status))
     .map((o) => {
       const due = dueAt(o)
       // ออร์เดอร์ที่เตรียมเสร็จแล้วไม่ขึ้นว่าเลยเวลา
-      return { o, due, c: findCustomer(o.customerId), late: o.status !== 'prepared' && due.getTime() < now.value }
+      return { o, due, c: findCustomer(o.customerId), state: stateOf(o), late: o.status !== 'prepared' && due.getTime() < now.value }
     })
     .sort((a, b) => a.due - b.due),
 )
 
-// กลุ่ม: วัน (ของเวลาที่ต้องเสร็จ) > ชั่วโมง
-const groups = computed(() => {
-  const map = new Map()
+// แถบสรุป: กดกลุ่มเพื่อดูเฉพาะกลุ่มนั้น กดซ้ำเพื่อดูทั้งหมด
+const focus = ref(null)
+const counts = computed(() => {
+  const c = { todo: 0, doing: 0, done: 0, unpaid: 0, late: 0 }
   for (const r of rows.value) {
+    c[r.state]++
+    if (r.late) c.late++
+  }
+  return c
+})
+const CHIPS = [
+  { key: 'todo', label: 'รอเริ่ม', dot: 'bg-stone-400' },
+  { key: 'doing', label: 'กำลังทำ', dot: 'bg-amber-400' },
+  { key: 'done', label: 'เสร็จแล้ว', dot: 'bg-emerald-500' },
+  { key: 'late', label: 'เลยเวลา', dot: 'bg-rose-500' },
+  { key: 'unpaid', label: 'รอชำระ', dot: 'bg-stone-300' },
+]
+const chips = computed(() => CHIPS.filter((c) => c.key !== 'unpaid' || counts.value.unpaid > 0))
+const toggleFocus = (k) => { focus.value = focus.value === k ? null : k }
+// กลุ่มที่เลือกไว้หายไป (เช่น รอชำระหมดแล้ว) → ไม่กรอง
+const activeFocus = computed(() => (chips.value.some((c) => c.key === focus.value) ? focus.value : null))
+const shown = computed(() =>
+  rows.value.filter((r) => (!activeFocus.value ? true : activeFocus.value === 'late' ? r.late : r.state === activeFocus.value)),
+)
+
+// ส่วนแสดงผล: เลยเวลาแล้วก่อนเสมอ · ที่เหลือแบ่งตามวันและชั่วโมงที่ต้องเสร็จ
+const sections = computed(() => {
+  const out = []
+  const late = shown.value.filter((r) => r.late)
+  if (late.length) out.push({ key: 'late', late: true, rows: late })
+  const map = new Map()
+  for (const r of shown.value.filter((x) => !x.late)) {
     const day = toDateStr(r.due)
     const key = `${day} ${pad(r.due.getHours())}`
     if (!map.has(key)) map.set(key, { key, day, hour: `${pad(r.due.getHours())}:00`, rows: [] })
     map.get(key).rows.push(r)
   }
-  return [...map.values()]
+  return [...out, ...map.values()]
 })
-const showDay = (g, i) => i === 0 || groups.value[i - 1].day !== g.day
+const showDay = (s, i) => !s.late && (i === 0 || sections.value[i - 1].late || sections.value[i - 1].day !== s.day)
+
+// เลยกี่นาที (อย่างน้อย 1 นาที) · เกินชั่วโมงแสดงเป็นชั่วโมง
+function lateText(r) {
+  const m = Math.max(1, Math.floor((now.value - r.due.getTime()) / 60000))
+  return m >= 60 ? `${Math.floor(m / 60)} ชม. ${m % 60} นาที` : `${m} นาที`
+}
+
+// รายการสินค้า: สรุปหนึ่งบรรทัดต่อชั้น · ข้อความบนเค้กไฮไลต์ · รายละเอียดเต็มพับไว้
 const details = (it) => describeSelections(it, db.optionGroups)
+const isTextGroup = (name) => db.optionGroups.some((g) => g.name === name && g.type === 'text')
+function summaryOf(it) {
+  const lines = new Map()
+  const texts = []
+  const tiered = details(it).some((d) => /^ชั้น \d+ · /.test(d.group))
+  for (const d of details(it)) {
+    const m = d.group.match(/^ชั้น (\d+) · (.+)$/)
+    const name = m ? m[2] : d.group
+    if (isTextGroup(name)) {
+      texts.push({ label: name, value: d.value })
+      continue
+    }
+    const tier = m ? `ชั้น ${m[1]}` : tiered ? 'ทั้งหมด' : ''
+    lines.set(tier, [...(lines.get(tier) || []), d.value])
+  }
+  return { lines: [...lines].map(([tier, vals]) => ({ tier, text: vals.join(' · ') })), texts }
+}
 
 // ปุ่มเปลี่ยนสถานะ = สถานะเดียวกับหน้าออร์เดอร์ (เริ่มเตรียม → เตรียมเสร็จ) ตามสิทธิ์ของผู้ใช้
 const STEP = {
@@ -142,50 +212,92 @@ async function act(r) {
       </div>
     </section>
 
+    <!-- แถบสรุป: แตะเพื่อกรอง แตะซ้ำเพื่อดูทั้งหมด -->
+    <div class="no-print mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5" role="group" aria-label="สรุปตามสถานะ">
+      <button
+        v-for="c in chips"
+        :key="c.key"
+        type="button"
+        class="flex min-h-14 flex-col items-start justify-center rounded-2xl bg-white px-3 py-2 text-left ring-1 transition"
+        :class="activeFocus === c.key ? 'ring-2 ring-brand-500' : 'ring-stone-200'"
+        :aria-pressed="activeFocus === c.key"
+        @click="toggleFocus(c.key)"
+      >
+        <span class="flex items-center gap-1.5 text-xs font-medium text-stone-600"><span class="h-2 w-2 rounded-full" :class="c.dot"></span>{{ c.label }}</span>
+        <span class="text-xl font-bold tabular-nums text-stone-900">{{ counts[c.key] }}</span>
+      </button>
+    </div>
+
     <div class="kitchen-print-area">
       <h2 class="mb-2 hidden text-base font-semibold text-stone-900 print:block">ตารางผลิต · {{ rangeText }}</h2>
-      <p v-if="!rows.length" class="card py-10 text-center text-stone-500">ไม่มีงานในช่วงนี้</p>
+      <p v-if="!sections.length" class="card py-10 text-center text-stone-500">{{ activeFocus ? 'ไม่มีออร์เดอร์ในกลุ่มนี้ · แตะสรุปอีกครั้งเพื่อดูทั้งหมด' : 'ไม่มีงานในช่วงนี้' }}</p>
 
-      <template v-for="(g, gi) in groups" :key="g.key">
-        <h2 v-if="showDay(g, gi)" class="sticky top-14 z-10 -mx-4 mt-5 mb-2 flex items-baseline gap-2 bg-cream/90 px-5 py-2 backdrop-blur first:mt-0">
-          <span class="text-base font-semibold text-stone-900">{{ dayLabel(g.day) }}</span>
+      <template v-for="(s, si) in sections" :key="s.key">
+        <h2 v-if="showDay(s, si)" class="sticky top-14 z-10 -mx-4 mt-5 mb-2 flex items-baseline gap-2 bg-cream/90 px-5 py-2 backdrop-blur first:mt-0">
+          <span class="text-base font-semibold text-stone-900">{{ dayLabel(s.day) }}</span>
         </h2>
         <section class="mb-4">
-          <div class="mb-2 flex items-center gap-2 px-1 text-sm font-semibold text-brand-800">
-            <AppIcon name="clock" :size="16" /> ต้องเสร็จช่วง {{ g.hour }} น.
-            <span class="ml-auto text-xs font-medium text-stone-400">{{ g.rows.length }} ออร์เดอร์</span>
+          <div v-if="s.late" class="mb-2 flex items-center gap-2 px-1 text-sm font-semibold text-rose-700">
+            <AppIcon name="alert" :size="16" /> เลยเวลาแล้ว
+            <span class="ml-auto text-xs font-medium">{{ s.rows.length }} ออร์เดอร์</span>
           </div>
+          <div v-else class="mb-2 flex items-center gap-2 px-1 text-xs font-semibold text-stone-500">
+            <span>{{ s.hour }} น.</span>
+            <span class="h-px flex-1 bg-stone-200"></span>
+            <span class="font-medium text-stone-400">{{ s.rows.length }} ออร์เดอร์</span>
+          </div>
+
           <div class="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
-            <div v-for="r in g.rows" :key="r.o.id" class="card p-3.5 transition hover:border-brand-300" :class="[r.late ? 'border-rose-300' : '', r.o.status === 'prepared' ? 'opacity-60' : '']">
-              <RouterLink :to="`/admin/orders/${r.o.id}`" class="block rounded-lg focus-visible:ring-4 focus-visible:ring-brand-200 focus-visible:outline-none">
-                <div class="flex items-start gap-3">
-                  <div class="flex w-16 shrink-0 flex-col items-center rounded-xl py-2" :class="r.late ? 'bg-rose-50 text-rose-700' : 'bg-brand-50 text-brand-800'">
-                    <span class="text-xs font-medium">เสร็จก่อน</span>
-                    <span class="text-base leading-tight font-semibold tabular-nums">{{ hm(r.due) }}</span>
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-start justify-between gap-2">
-                      <div class="min-w-0">
-                        <div class="truncate font-semibold text-stone-900">{{ r.c?.name }}</div>
-                        <div class="text-xs text-stone-500">{{ r.o.code }} · นัด {{ r.o.pickupAt.slice(11, 16) }} · {{ r.o.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }}</div>
-                      </div>
-                      <StatusBadge :status="r.o.status" />
-                    </div>
-                    <div v-if="r.late" class="mt-1 text-xs font-semibold text-rose-700">เลยเวลาที่ต้องเสร็จแล้ว</div>
-                  </div>
+            <article v-for="r in s.rows" :key="r.o.id" class="card overflow-hidden border-l-4 p-0 transition" :class="toneOf(r.o)">
+              <!-- หัวการ์ดบรรทัดเดียว: เวลาเสร็จ · ชื่อ · รับที่ร้าน/จัดส่ง · ป้ายเลยเวลา -->
+              <RouterLink :to="`/admin/orders/${r.o.id}`" class="flex items-center gap-3 px-4 pt-3 focus-visible:ring-4 focus-visible:ring-brand-200 focus-visible:outline-none">
+                <div class="flex w-16 shrink-0 flex-col items-center rounded-xl py-1.5" :class="r.late ? 'bg-rose-50 text-rose-700' : 'bg-stone-100 text-stone-800'">
+                  <span class="text-[11px] leading-none font-medium">เสร็จ</span>
+                  <span class="text-lg leading-tight font-bold tabular-nums">{{ hm(r.due) }}</span>
                 </div>
-                <ul class="mt-3 space-y-2 border-t border-stone-100 pt-3 text-sm">
-                  <li v-for="it in r.o.items" :key="it.id">
-                    <div class="font-medium break-words text-stone-900">{{ it.name }} × {{ it.qty }}</div>
-                    <div v-for="d in details(it)" :key="d.group" class="text-xs break-words text-stone-600"><span class="text-stone-400">{{ d.group }}:</span> {{ d.value }}</div>
-                    <div v-if="it.note" class="text-xs break-words text-stone-600"><span class="text-stone-400">หมายเหตุ:</span> {{ it.note }}</div>
-                  </li>
-                </ul>
+                <div class="flex min-w-0 flex-1 items-center gap-2">
+                  <span class="truncate font-semibold text-stone-900">{{ r.c?.name || 'ไม่ระบุชื่อ' }}</span>
+                  <span class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-600">{{ r.o.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }}</span>
+                </div>
+                <span v-if="r.late" class="shrink-0 rounded-full bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white">เลย {{ lateText(r) }}</span>
               </RouterLink>
-              <div v-if="actionOf(r.o)" class="no-print mt-3 flex justify-end border-t border-stone-100 pt-3">
-                <button type="button" class="btn-primary h-11 px-5 text-sm" @click="act(r)">{{ actionOf(r.o).label }}</button>
+
+              <ul class="space-y-3 px-4 py-3 text-sm">
+                <li v-for="it in r.o.items" :key="it.id" class="space-y-1">
+                  <div class="font-semibold break-words text-stone-900">{{ it.name }} × {{ it.qty }}</div>
+                  <div v-for="line in summaryOf(it).lines" :key="line.tier + line.text" class="break-words text-stone-700">
+                    <span v-if="line.tier" class="text-stone-400">{{ line.tier }}:</span> {{ line.text }}
+                  </div>
+                  <div v-for="t in summaryOf(it).texts" :key="t.label" class="rounded-lg bg-amber-50 px-2 py-1 text-xs break-words text-amber-900">
+                    <span class="font-semibold">{{ t.label }}:</span> {{ t.value }}
+                  </div>
+                  <div v-if="it.note" class="rounded-lg bg-amber-50 px-2 py-1 text-xs break-words text-amber-900">
+                    <span class="font-semibold">หมายเหตุ:</span> {{ it.note }}
+                  </div>
+                  <details v-if="details(it).length" class="text-xs">
+                    <summary class="cursor-pointer py-1 font-medium text-brand-700">ดูรายละเอียด</summary>
+                    <div class="space-y-0.5 pb-1 text-stone-600">
+                      <div v-for="d in details(it)" :key="d.group" class="break-words"><span class="text-stone-400">{{ d.group }}:</span> {{ d.value }}</div>
+                    </div>
+                  </details>
+                </li>
+              </ul>
+
+              <!-- ท้ายการ์ด: สถานะ · เลขออร์เดอร์ · ปุ่มขั้นตอนเต็มความกว้าง -->
+              <div class="border-t border-stone-100 px-4 py-3">
+                <div class="mb-2 flex items-center gap-2 text-xs text-stone-500">
+                  <StatusBadge :status="r.o.status" />
+                  <span class="truncate">{{ r.o.code }} · นัด {{ r.o.pickupAt.slice(11, 16) }}<span v-if="r.o.pickupAt.slice(0, 10) !== today"> · {{ dateOnly(r.o.pickupAt.slice(0, 10)) }}</span></span>
+                </div>
+                <button
+                  v-if="actionOf(r.o)"
+                  type="button"
+                  class="no-print flex h-12 w-full items-center justify-center rounded-2xl text-base font-semibold text-white transition active:scale-[0.99]"
+                  :class="actionOf(r.o).to === 'prepared' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-brand-600 hover:bg-brand-700'"
+                  @click="act(r)"
+                >{{ actionOf(r.o).label }}</button>
               </div>
-            </div>
+            </article>
           </div>
         </section>
       </template>
