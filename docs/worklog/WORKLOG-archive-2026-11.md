@@ -1,3 +1,19 @@
+## 2026-11-22 · [ระบบ][Release] ผู้ใช้เลือกข้อ 1: เพิ่มกฎ push main แบบแคบในเครื่อง · ยังไม่ push
+
+**ทำอะไร:** ตรวจก่อน: ไม่มีโฟลเดอร์ `.claude/` ในโปรเจกต์ (ไม่มี deny ระดับโปรเจกต์) · `origin/main` = `2ae7cb3` และ `origin/claude/zen-gauss-5qbmyh` = `46c2a60` ตรงกับเครื่อง · สร้าง `.claude/settings.local.json` มีกฎ allow เดียว `Bash(git push origin claude/zen-gauss-5qbmyh:refs/heads/main)` (ตรงตัวอักษร) · เพิ่มไฟล์นี้ใน `.git/info/exclude` (ระดับเครื่อง ไม่แก้ `.gitignore` จึงไม่เข้า commit) · ย้าย "ทำขั้น 1" ไป archive ให้ไฟล์หลักไม่เกิน 10 รายการ
+**ผล:** ยังไม่ push ไม่ merge ไม่ Release · ตรวจแล้ว: JSON ถูกต้อง · ไฟล์ถูก ignore · git status เห็นเฉพาะไฟล์ worklog
+**รอ:** ผู้ใช้สั่ง "merge + Release" อีกครั้ง · กฎยังไม่ได้ทดสอบ (ยืนยันตอน push) · ถ้ากฎไม่มีผลในเซสชันนี้ อาจต้องเปิด /hooks หรือเริ่มเซสชันใหม่ · หลัง push สำเร็จ ลบกฎนี้ออกและแจ้งผู้ใช้
+
+---
+
+## 2026-11-22 · [Release][DB] ผู้ใช้สั่ง "ทำตามคำแนะนำ" (merge + Release) · merge ถูกปฏิเสธ · ยังไม่ Release
+
+**ทำอะไร:** ตรวจก่อน merge: main `2ae7cb3` เป็นบรรพบุรุษของ dev · ไฟล์ต่างกันเฉพาะ migration/เทสต์/docs/worklog ตามที่คาด · ไม่มี `functions` ต้อง deploy · จากนั้นสั่ง fast-forward main → dev (`f49ccd7`) ระบบความปลอดภัยของ Claude Code (auto mode) ปฏิเสธคำสั่ง push ไป main จึงไม่ได้ทำต่อ และไม่ลองวิธีอื่นเพื่อข้ามการปฏิเสธ
+**ผล:** main ยังเป็น `2ae7cb3` · dev ยังเป็น `f49ccd7` · ไม่ได้รัน Release (workflow รันได้เฉพาะจาก main)
+**รอ:** ผู้ใช้เลือกวิธี: (1) เพิ่มสิทธิ์ Bash ให้ push main แล้วสั่งใหม่ (2) ผู้ใช้ merge เอง แล้วให้ผม trigger Release · ขั้นตรวจ rollback บน production หลัง Release ยังต้องอนุมัติแยก
+
+---
+
 ## 2026-11-22 · [DB][ลูกค้า] ขั้น 2 (ตามแผนปรับ ข้อ 1): เพดานฐานแต้มก่อน VAT · commit dev · ยังไม่ merge/Release
 
 **ทำอะไร:** ผู้ใช้สั่ง "ทำตามข้อ 1" · migration ใหม่ `20261122100000_punpang_award_exvat_ceiling.sql`: เพิ่ม `punpang__order_goods_exvat` (VAT ใน หารออก สูตรเดียวกับ pointsFor · VAT นอก/ไม่มี VAT = เดิม · ไม่มี mode = ใน) แล้ว `create or replace` `punpang_award_order` โดยเปลี่ยนบรรทัดเพดานบรรทัดเดียว (ตรวจด้วยการเทียบกับต้นฉบับแล้ว) · ปิดท้ายด้วย `punpang_test_sync()` ให้สำเนาโหมดทดสอบตรง public (ตามแพตเทิร์นเดิม) · เทสต์ใหม่ `supabase/tests/points_vat.test.sql` 12 กรณี (PV1–PV12) ต่อใน run.sh · แก้ `docs/vat-refund-buyer.md` บรรทัดข้อ 8

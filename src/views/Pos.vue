@@ -429,6 +429,7 @@ const earn = computed(() => (member.value && cart.value.length ? pointsFor(order
 const staffCard = ref({ enabled: false })
 const quoteMult = ref({ applied: false, mult: 1 })
 watch(() => member.value?.id, async (id) => {
+  staffCard.value = { enabled: false } // ไม่ให้ป้ายของสมาชิกคนก่อนค้างระหว่างโหลดคนใหม่
   const card = await staffCardRemote(id)
   if (member.value?.id === id) staffCard.value = card
 })
