@@ -1,4 +1,4 @@
-// ระดับสมาชิก (เฟส 1) บนแอปจริงที่เชื่อม Supabase: แท็บระดับ (รายงาน) · ป้ายระดับที่ POS (หน้าชำระเงิน) · การ์ดระดับในบัญชีลูกค้า
+// ระดับสมาชิก (เฟส 1) บนแอปจริงที่เชื่อม Supabase: แท็บระดับ (รายงาน) · ป้ายระดับที่ POS (หน้าขายและหน้าชำระเงิน) · การ์ดระดับในบัญชีลูกค้า
 // เซิร์ฟเวอร์จำลองในเครื่อง (RPC/Edge Function ตอบตามรูปแบบของ migration 20261122110200 และ customer-auth) · ไม่แตะฐานข้อมูลจริง
 // ข้อจำกัด: ค่าที่ตอบเป็นตัวอย่างจำลอง การคำนวณระดับจริงทดสอบใน supabase/tests/member_levels.test.sql
 // รัน: node e2e/memberTiers.supabase.e2e.mjs
@@ -61,10 +61,16 @@ try {
     assert.ok((await page.locator('body').innerText()).includes('สูตรเต็ม 0.8%'), 'ต้องเห็นต้นทุนสูตรเต็มของแถวรวม')
   })
 
-  await step('2. POS (ใช้จริง): เลือกสมาชิก → หน้าชำระเงินแสดงป้ายระดับและตัวคูณ', async () => {
+  await step('2. POS (ใช้จริง): ป้ายที่หน้าขายและหน้าชำระเงินแสดงระดับและตัวคูณ', async () => {
     state.mode = 'live'
     state.card = LIVE_CARD
-    await openPaymentWithMember()
+    await openSaleWithMember()
+    const chip = page.getByLabel('ระดับสมาชิกที่หน้าขาย', { exact: true })
+    await chip.getByText('LV2', { exact: true }).waitFor({ timeout: 15000 })
+    const sale = await chip.innerText()
+    assert.ok(sale.includes('x3'), 'หน้าขายต้องแสดงตัวคูณ x3')
+    assert.ok(!sale.includes('ทดลอง'), 'โหมดใช้จริงต้องไม่มีคำว่าทดลองที่หน้าขาย')
+    await goPay()
     const badge = page.getByLabel('ระดับสมาชิก', { exact: true })
     await badge.getByText('LV2', { exact: true }).waitFor({ timeout: 15000 })
     const txt = await badge.innerText()
@@ -72,17 +78,21 @@ try {
     assert.ok(!txt.includes('โหมดทดลอง'), 'โหมดใช้จริงต้องไม่มีป้ายโหมดทดลอง')
   })
 
-  await step('3. POS (ทดลอง): ป้ายแสดงว่าแต้มยังไม่คูณ', async () => {
+  await step('3. POS (ทดลอง): ป้ายบอกว่าแต้มยังไม่คูณทั้งที่หน้าขายและหน้าชำระเงิน', async () => {
     state.mode = 'shadow'
-    await openPaymentWithMember()
+    await openSaleWithMember()
+    await page.getByLabel('ระดับสมาชิกที่หน้าขาย', { exact: true }).getByText('ทดลอง', { exact: true }).waitFor({ timeout: 15000 })
+    await goPay()
     await page.getByText('โหมดทดลอง · แต้มยังไม่คูณ', { exact: true }).waitFor({ timeout: 15000 })
   })
 
-  await step('4. POS (ปิด/ไม่มีสิทธิ์): ไม่แสดงป้ายระดับ', async () => {
+  await step('4. POS (ปิด/ไม่มีสิทธิ์): ไม่แสดงป้ายระดับทั้งที่หน้าขายและหน้าชำระเงิน', async () => {
     state.card = null
-    await openPaymentWithMember()
+    await openSaleWithMember()
     await page.waitForTimeout(800) // ให้การ์ดสมาชิกตอบกลับก่อนตรวจว่าไม่มีป้าย
-    assert.equal(await page.getByLabel('ระดับสมาชิก', { exact: true }).count(), 0, 'ต้องไม่มีป้ายระดับเมื่อเซิร์ฟเวอร์ไม่เปิดให้เห็น')
+    assert.equal(await page.getByLabel('ระดับสมาชิกที่หน้าขาย', { exact: true }).count(), 0, 'หน้าขายต้องไม่มีป้ายระดับเมื่อเซิร์ฟเวอร์ไม่เปิดให้เห็น')
+    await goPay()
+    assert.equal(await page.getByLabel('ระดับสมาชิก', { exact: true }).count(), 0, 'หน้าชำระเงินต้องไม่มีป้ายระดับเมื่อเซิร์ฟเวอร์ไม่เปิดให้เห็น')
   })
 
   await step('5. บัญชีลูกค้า (ใช้จริง): การ์ดระดับแสดงขั้นและตัวคูณ', async () => {
@@ -115,8 +125,8 @@ try {
 }
 
 // เริ่มขายใหม่ (ออกจากหน้าไปก่อน และล้างบิลค้างของแท็บนี้) → เปิดกะถ้ายังไม่เปิด → กรอกเบอร์สมาชิกแล้วกดเลือกผลค้นหา
-// → หยิบสินค้า 1 ชิ้น → กดชำระเงิน · ป้ายระดับของพนักงานอยู่ในหน้าชำระเงิน (ข้อมูลลูกค้าและรายการชำระ)
-async function openPaymentWithMember() {
+// → หยิบสินค้า 1 ชิ้น · ป้ายระดับของพนักงานอยู่ที่หน้าขาย (ถัดจากชื่อสมาชิก) และในหน้าชำระเงิน
+async function openSaleWithMember() {
   await go('/admin/settings/loyalty')
   await page.evaluate(() => sessionStorage.removeItem('pos-draft-v1'))
   await go('/admin/pos')
@@ -129,6 +139,10 @@ async function openPaymentWithMember() {
   await gate.waitFor({ state: 'detached', timeout: 15000 }) // ช่องเบอร์หายเมื่อเลือกลูกค้าแล้ว
   await page.getByRole('button', { name: 'เปลี่ยนสมาชิก', exact: true }).waitFor({ timeout: 15000 })
   await page.getByRole('button', { name: /คัพเค้กวานิลลา/ }).first().click()
+}
+
+// กดชำระเงินแล้วรอให้หน้าชำระเงินขึ้น (มีชื่อลูกค้าในหน้า)
+async function goPay() {
   await page.getByRole('button', { name: 'ชำระเงิน', exact: true }).first().click()
   await page.getByText(CUSTOMER.name, { exact: true }).first().waitFor({ timeout: 15000 })
 }
