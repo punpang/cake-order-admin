@@ -158,15 +158,12 @@ function setFrom(v) {
             </div>
           </section>
           <section v-for="g in prep.groups" :key="g.id" class="card mb-3 p-0">
-            <div class="card-title mb-0 border-b border-stone-100 px-4 py-3"><AppIcon name="tag" :size="18" class="text-brand-600" /> {{ g.name }}</div>
+            <div class="card-title mb-0 border-b border-stone-100 px-4 py-3"><AppIcon name="tag" :size="18" class="text-brand-600" /> {{ g.name }} · {{ sumCount(g.rows) }} ชุด</div>
             <div class="divide-y divide-stone-100">
               <div v-for="row in g.rows" :key="row.name + row.pounds" class="flex items-center gap-3 px-4 py-3">
-                <span class="min-w-0 flex-1">
-                  <span class="block truncate font-medium text-stone-900">{{ row.name }}</span>
-                  <span class="block text-xs text-stone-500">{{ qty(row.pounds) }} ปอนด์</span>
-                </span>
-                <span class="shrink-0 font-semibold text-stone-900">{{ row.count }}</span>
-                <span class="w-10 shrink-0 text-sm text-stone-500">ชุด</span>
+                <span class="min-w-0 flex-1 truncate font-medium text-stone-900">{{ row.name }}</span>
+                <span class="shrink-0 rounded-md bg-stone-100 px-1.5 py-0.5 text-xs text-stone-600">{{ qty(row.pounds) }} ปอนด์</span>
+                <span class="w-8 shrink-0 text-right text-lg font-bold tabular-nums text-stone-900">{{ row.count }}</span>
               </div>
             </div>
           </section>
