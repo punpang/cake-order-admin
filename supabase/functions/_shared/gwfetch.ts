@@ -5,7 +5,7 @@
 // - คืน Response เหมือน fetch เพื่อให้จุดเรียกเดิมเปลี่ยนแค่ชื่อฟังก์ชัน
 
 // ที่อยู่ของแอป SMS Gateway บนโทรศัพท์ · ฝังในโค้ดเพราะไม่เปลี่ยน (ไม่ใช้ secret) · ทุกจุดที่ส่ง SMS ใช้ค่านี้ร่วมกัน
-export const SMS_GATEWAY_URL = 'https://isname.thddns.net:6330'
+export const SMS_GATEWAY_URL = 'https://sms.punpang.com'
 
 const MAX_REPLY = 64 * 1024
 

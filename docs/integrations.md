@@ -99,7 +99,7 @@ pg_cron (ทุก 15 นาที, migration punpang_scheduled_cron) ──▶ 
 ## Checklist เปิดใช้งานจริง
 1. ต่อ Supabase (ตาราง + RLS + Edge Functions `dispatch`, `scheduled`) และย้าย `notify()` จาก `src/data/store.js` ไปเขียนแถว outbox
 2. **Telegram:** สร้างบอท → ใส่ `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` ใน secrets → ทดสอบส่ง
-4. **SMS:** ตั้งแอป SMS Gateway บนโทรศัพท์ → ตั้ง `SMS_API_KEY` (สิทธิ์ส่งและลบ) → ทดสอบ (ที่อยู่เกตเวย์ `https://isname.thddns.net:6330` ฝังในโค้ด `_shared/gwfetch.ts`)
+4. **SMS:** ตั้งแอป SMS Gateway บนโทรศัพท์ → ตั้ง `SMS_API_KEY` (สิทธิ์ส่งและลบ) → ทดสอบ (ที่อยู่เกตเวย์ `https://sms.punpang.com` ฝังในโค้ด `_shared/gwfetch.ts` = `https://sms.punpang.com` ผ่าน Cloudflare Full)
 5. **Facebook:** สร้าง Meta App (Facebook Login for Business + Config ID) → ขอ App Review `pages_messaging`, `pages_show_list`, `pages_manage_metadata` → ตั้ง secrets `FB_APP_ID`, `FB_APP_SECRET`, `FB_CONFIG_ID`, `FB_VERIFY_TOKEN` (ดูหัวข้อ "ฝั่งเซิร์ฟเวอร์ Facebook") → ตั้ง Webhook URL → เชื่อมเพจจากหน้า /admin/settings/integrations (ไม่ต้องใส่ Page token เอง)
 6. เปิด pg_cron สำหรับเหตุการณ์ตามเวลา
 7. ทำหน้าแชท (ระยะถัดไป)
