@@ -124,7 +124,7 @@ jobs:
         run: |
           for fn in $FUNCTIONS; do
             case "$fn" in
-              bot-test|campaign|fb-send|line-push|order-create|quote-create|telegram-send) flag="" ;;
+              bot-test|campaign|fb-send|line-push|order-create|quote-create|sms-send|telegram-send) flag="" ;;
               chat-photo-prune|customer-auth|customer-loyalty|customer-order|fb-connect|fb-webhook|line-link|line-webhook|lucky-spin|order-audit|order-link|push-send|scheduled|tax-invoice|tungngern-list|tungngern-receiver) flag="--no-verify-jwt" ;;
               *) echo "ไม่รู้จักฟังก์ชัน $fn (ยังไม่มีในรายการ deploy)"; exit 1 ;;
             esac
