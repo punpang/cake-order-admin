@@ -1,15 +1,25 @@
 # บันทึกงาน cake-order-admin
 
 ## ดูก่อน (อ่านแค่ส่วนนี้ = Read offset 1, limit 20)
-- ล่าสุด 2026-11-22 · main = ดู `git log -1 origin/main` (SMS ใช้ได้ · ลิงก์หลัก punpang.com) · dev = `80e8a1e` (ไม่ merge · ไม่ Release) · ระดับสมาชิก `claude/member-tiers-phase1`: ไม่ merge · production มี migration สมาชิก 3 ไฟล์แล้ว (Release #21) · โหมดปิด · sms-send v50 verify_jwt=true · Cloudflare build ตรวจไม่ได้ (connector ขอสิทธิ์เพิ่ม)
-- **รอผู้ใช้:** อนุมัติ merge `claude/member-tiers-phase1` → main + deploy customer-auth · อนุมัติตรวจ rollback บน production ก่อนเปิดโหมดทดลอง · ถ้อยคำข้อ 8 และอัตรา 10/0.10 ตอนเปิดใช้จริง · ประกาศความเป็นส่วนตัวข้อ 2 (ยังไม่ตัดสิน)
+- ล่าสุด 2026-11-22 · main = `90b8ac9` (ระดับสมาชิกเฟส 1 อยู่บน main · โหมดปิด) · สาขาทำงาน `claude/member-tiers-phase1` · production: migration สมาชิก 3 ไฟล์ (Release #21) · customer-auth v75 (Release #22) · sms-send v50 verify_jwt=true · sms-probe verify_jwt=false ยังอยู่ · Cloudflare build ตรวจไม่ได้ (connector ขอสิทธิ์เพิ่ม)
+- **รอผู้ใช้:** อนุมัติเปิดโหมดทดลอง (shadow) บน production แยกต่างหาก · ยืนยันถ้อยคำประกาศความเป็นส่วนตัวข้อ 2 (เลือกแล้ว: เพิ่มแถว) · ถ้อยคำข้อ 8 ManageLegal และอัตรา 10/0.10 ก่อนใช้จริง · ตัดสิน `sms-probe`
 - **ปิดแล้ว:** B13 cron timeout · B12 ดัชนีเบอร์ลูกค้ามีบน production · B6 แผนฟรี ยอมรับความเสี่ยง ไม่ถามซ้ำ
-- งบบันเดิล 882.0/886 KB (เกินให้หยุดถามก่อนขอเพิ่ม) · ขั้น 2 อยู่บน dev แล้ว (ต้อง Release) · ค้างไว้: หัวกลุ่มวันที่ตารางผลิตโปร่งแสง 90% (เสนอให้ทึบ)
+- งบบันเดิล 882.0/886 KB (เกินให้หยุดถามก่อนขอเพิ่ม) · ค้างไว้: หัวกลุ่มวันที่ตารางผลิตโปร่งแสง 90% (เสนอให้ทึบ)
 - URL ทดสอบ (ไม่ใช่ production): https://claude-zen-gauss-5qbmyh.cake-order-admin.pages.dev
 - **กติกา:** รายการใหม่อยู่บนสุด (ทำอะไร · ทำไม · รอ) · commit พร้อมงานรอบนั้น (dev เท่านั้น) · compact แล้วต้องจดก่อนทำต่อ
 - **ขนาด:** บล็อกนี้ ≤ 3 KB · ไฟล์นี้ ≤ 30 KB หรือ ≤ 10 รายการ · เกินให้ย้ายรายการเก่าไป `WORKLOG-archive-YYYY-MM.md`
 - **ป้ายระบบ:** ใส่ในหัวรายการ [ลูกค้า] [LIFF] [ครัว] [POS] [ออร์เดอร์] [SMS] [Release] [DB] [ระบบ] · ค้นงานระบบเดียว: `grep -n '\[ครัว\]' docs/worklog/*.md`
 - **การถามผู้ใช้:** ถามเป็นข้อ ๆ (หน้าต่างคำถาม) ข้อละ 2–4 ตัวเลือก · ตัวเลือกที่ดีที่สุดอยู่ข้อแรกพร้อม "(แนะนำ)" และเหตุผลสั้น ๆ · ถามเฉพาะเรื่องที่ผู้ใช้ต้องตัดสิน
+
+---
+
+## 2026-11-22 · [Release][DB][ลูกค้า] ระดับสมาชิก: merge เข้า main + Release #22 (customer-auth v75) · ตรวจ rollback production ผ่าน
+
+**ทำอะไร:** ผู้ใช้สั่ง "ทำเลยทุกข้อ" · merge `claude/member-tiers-phase1` → main (`aa1507f..90b8ac9`) · CI main ผ่าน (`45036841535`) · Release #22 (`45036845443`) ผ่านทุกขั้น test · release · deploy customer-auth → v75 verify_jwt=false · ตรวจ rollback บน production ผ่าน · e2e `routes.smoke` ล้มเหลวเพราะ node_modules ของ worktree เป็น symlink นอก root ของ Vite → เปลี่ยนเป็นสำเนา hardlink (`cp -al`) แล้วผ่าน 69/69
+**เหตุผล:** ผู้ใช้อนุมัติ merge + deploy และขอให้ตรวจ rollback ก่อนเปิดโหมดทดลอง · การเปิดโหมดทดลองยังต้องอนุมัติแยก
+**ผล:** test และ release ผ่าน · production (ตรวจอย่างเดียว): โหมด `off` (ไม่มีแถว config) · `punpang_member_events` = 0 · ลูกค้า 2 · ออร์เดอร์ 10 · สิทธิ์แอดมินครบทั้งสองคน · ไม่มีข้อมูลค้างหลังตรวจ
+**รอ:** อนุมัติเปิดโหมดทดลอง (shadow) แยกต่างหาก · ยืนยันถ้อยคำประกาศความเป็นส่วนตัวข้อ 2 · ถ้อยคำข้อ 8 ManageLegal และอัตรา 10/0.10 ก่อนใช้จริง · ตัดสินว่าจะลบ `sms-probe` (v5 verify_jwt=false ไม่ได้มาจากรอบนี้ ไม่มีโค้ดในรีโป)
+**งานค้าง:** `/push2.log` ผู้ใช้ลบเอง (`rm -f /push2.log`) · `docs/loyalty-tiers.md` ขั้นเปิดใช้ข้อ 1 ยังเป็นแผน · เฟส 2–3 ตามเดิม
 
 ---
 
@@ -83,10 +93,3 @@
 **ทำอะไร:** ตรวจก่อน merge: main `2ae7cb3` เป็นบรรพบุรุษของ dev · ไฟล์ต่างกันเฉพาะ migration/เทสต์/docs/worklog ตามที่คาด · ไม่มี `functions` ต้อง deploy · จากนั้นสั่ง fast-forward main → dev (`f49ccd7`) ระบบความปลอดภัยของ Claude Code (auto mode) ปฏิเสธคำสั่ง push ไป main จึงไม่ได้ทำต่อ และไม่ลองวิธีอื่นเพื่อข้ามการปฏิเสธ
 **ผล:** main ยังเป็น `2ae7cb3` · dev ยังเป็น `f49ccd7` · ไม่ได้รัน Release (workflow รันได้เฉพาะจาก main)
 **รอ:** ผู้ใช้เลือกวิธี: (1) เพิ่มสิทธิ์ Bash ให้ push main แล้วสั่งใหม่ (2) ผู้ใช้ merge เอง แล้วให้ผม trigger Release · ขั้นตรวจ rollback บน production หลัง Release ยังต้องอนุมัติแยก
-
-## 2026-11-22 · [DB][ลูกค้า] ขั้น 2 (ตามแผนปรับ ข้อ 1): เพดานฐานแต้มก่อน VAT · commit dev · ยังไม่ merge/Release
-
-**ทำอะไร:** ผู้ใช้สั่ง "ทำตามข้อ 1" · migration ใหม่ `20261122100000_punpang_award_exvat_ceiling.sql`: เพิ่ม `punpang__order_goods_exvat` (VAT ใน หารออก สูตรเดียวกับ pointsFor · VAT นอก/ไม่มี VAT = เดิม · ไม่มี mode = ใน) แล้ว `create or replace` `punpang_award_order` โดยเปลี่ยนบรรทัดเพดานบรรทัดเดียว (ตรวจด้วยการเทียบกับต้นฉบับแล้ว) · ปิดท้ายด้วย `punpang_test_sync()` ให้สำเนาโหมดทดสอบตรง public (ตามแพตเทิร์นเดิม) · เทสต์ใหม่ `supabase/tests/points_vat.test.sql` 12 กรณี (PV1–PV12) ต่อใน run.sh · แก้ `docs/vat-refund-buyer.md` บรรทัดข้อ 8
-**ผล:** `run.sh` บน Postgres 16 ในเครื่อง ผ่านทั้งชุด (138 migration + ทุกเทสต์ รวม mirror) · เทสต์ PV1 ล้มเมื่อใช้เพดานเดิม (ยืนยันว่าเทสต์จับความต่างได้) · ไม่มีการแก้โค้ดแอป จึงไม่รัน unit/e2e ซ้ำ
-**ข้อสังเกต:** production ยังไม่มีออร์เดอร์ที่ให้แต้มเลย (ตรวจก่อนหน้า) จึงยังไม่มีข้อมูลจริงให้เทียบ
-**รอ:** อนุมัติ merge และ Release (ดูบรรทัดรอผู้ใช้) · หลัง Release ตรวจ rollback บน production ต้องอนุมัติแยก
