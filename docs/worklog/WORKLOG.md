@@ -2,7 +2,7 @@
 
 ## ดูก่อน (อ่านแค่ส่วนนี้ = Read offset 1, limit 20)
 - ล่าสุด 2026-11-22 · main = `8991fac` (ระดับสมาชิกเฟส 1 + แก้ OTP + แถวข้อ 2 · โหมดปิด) · สาขาทำงาน `claude/member-tiers-phase1` · production: migration สมาชิก 3 ไฟล์ (Release #21) · customer-auth v75 (Release #22) · sms-send v50 verify_jwt=true · sms-probe verify_jwt=false ยังอยู่ · Cloudflare build ตรวจไม่ได้ (connector ขอสิทธิ์เพิ่ม)
-- **รอผู้ใช้:** ยืนยันร่างประกาศข้อ 3 (ระยะเก็บแถวสมาชิก) และถ้อยคำข้อ 8 ManageLegal (ยังไม่แก้ไฟล์) · อนุมัติเปิดโหมดทดลอง (shadow) แยกต่างหาก · ถ้อยคำข้อ 8 และอัตรา 10/0.10 ก่อนใช้จริง · `sms-probe` ผู้ใช้ลบเองใน Dashboard
+- **รอผู้ใช้:** เจ้าของวางข้อความฉบับลูกค้า ข้อ 2, 3, 7 ที่ `/admin/settings/legal` (ร่างใน `docs/pdpa.md` §7 รอยืนยันถ้อยคำ) · เลือกเวลาและวิธีเปิดโหมดทดลอง (อนุมัติแล้ว) · ถ้อยคำข้อ 8 ManageLegal และอัตรา 10/0.10 ก่อนใช้จริง · `sms-probe` ผู้ใช้ลบเองใน Dashboard · เฟส 2 แผนแล้ว รอคำสั่ง "ทำ" (`docs/loyalty-tiers-phase2.md`)
 - **ปิดแล้ว:** B13 cron timeout · B12 ดัชนีเบอร์ลูกค้ามีบน production · B6 แผนฟรี ยอมรับความเสี่ยง ไม่ถามซ้ำ
 - งบบันเดิล 882.0/886 KB (เกินให้หยุดถามก่อนขอเพิ่ม) · ค้างไว้: หัวกลุ่มวันที่ตารางผลิตโปร่งแสง 90% (เสนอให้ทึบ)
 - URL ทดสอบ (ไม่ใช่ production): https://claude-zen-gauss-5qbmyh.cake-order-admin.pages.dev
@@ -10,6 +10,16 @@
 - **ขนาด:** บล็อกนี้ ≤ 3 KB · ไฟล์นี้ ≤ 30 KB หรือ ≤ 10 รายการ · เกินให้ย้ายรายการเก่าไป `WORKLOG-archive-YYYY-MM.md`
 - **ป้ายระบบ:** ใส่ในหัวรายการ [ลูกค้า] [LIFF] [ครัว] [POS] [ออร์เดอร์] [SMS] [Release] [DB] [ระบบ] · ค้นงานระบบเดียว: `grep -n '\[ครัว\]' docs/worklog/*.md`
 - **การถามผู้ใช้:** ถามเป็นข้อ ๆ (หน้าต่างคำถาม) ข้อละ 2–4 ตัวเลือก · ตัวเลือกที่ดีที่สุดอยู่ข้อแรกพร้อม "(แนะนำ)" และเหตุผลสั้น ๆ · ถามเฉพาะเรื่องที่ผู้ใช้ต้องตัดสิน
+
+---
+
+## 2026-11-22 · [DB][ลูกค้า][ระบบ] ระดับสมาชิก: ยืนยันร่างข้อ 3 PDPA · วางแผนเฟส 2 (ยังไม่ทำ) · เปิดโหมดทดลองรอคำตอบ
+
+**ทำอะไร:** `docs/pdpa.md` §3 เพิ่มแถว "สมาชิก (ระดับ)" ตามร่างที่ผู้ใช้ยืนยัน · §7 เพิ่มข้อความฉบับลูกค้า 3 จุด (ร่าง) และงานค้างเรื่องลบตามอายุ · `docs/loyalty-tiers.md` แก้สถานะให้ตรงจริง (merge / Release / rollback เสร็จแล้ว) และขั้นเปิดใช้ · ใหม่ `docs/loyalty-tiers-phase2.md` แผนเฟส 2 (ยังไม่ทำ)
+**เหตุผล:** ผู้ใช้สั่ง "ทำเลย" ให้ยืนยันร่างข้อ 3 และ "ทำเลย วางแผนก่อน แล้วรอคำสั่งว่าทำ" สำหรับเฟส 2 · ผู้ใช้อนุมัติเปิดโหมดทดลองบน production แล้ว โดยระบุว่าต้องชัดก่อนเปิด
+**ผล:** ตรวจแล้ว: ลบแถวสมาชิกทำงานผ่าน trigger `punpang_customers_member_purge` เมื่อ `data.deleted` เป็นจริง · แก้หรือลบแถวไม่ได้ (`punpang_member_events_guard`) · ฉบับต้นแบบ `src/lib/legalTexts.js` ยังไม่มีเรื่องสมาชิกในข้อ 2, 3, 7 (ฉบับที่ร้านบันทึกใน DB ยังไม่ได้ตรวจ) · ไม่พบงานลบตามอายุของออร์เดอร์และแถวสมาชิก · แก้เฉพาะเอกสาร ไม่แตะโค้ด DB หรือ production
+**รอ:** ผู้ใช้ยืนยันถ้อยคำฉบับลูกค้า 3 จุดใน `docs/pdpa.md` §7 · เลือกเวลาเปิดโหมดทดลอง (หลังเจ้าของวางข้อความ หรือเปิดเลย) และวิธีเปิด (เจ้าของกดในหน้าแอดมิน หรือให้ผมเขียน SQL) · ตอบข้อ 1–5 ของแผนเฟส 2 ก่อนเริ่ม
+**งานค้าง:** ระยะเก็บ 5 ปี (ออร์เดอร์และแถวสมาชิก) ยังไม่มีงานลบอัตโนมัติ · ถ้อยคำข้อ 8 ManageLegal และอัตรา 10/0.10 ก่อนใช้จริง · งบบันเดิลเหลือ ~3.6 KB (เฟส 2 ต้องขอเพิ่ม) · `sms-probe` ผู้ใช้ลบเองใน Dashboard (ยังไม่ยืนยัน)
 
 ---
 
@@ -90,13 +100,3 @@
 **ผล:** `run.sh` ผ่านทั้งชุด EXIT=0 (migration 140 ไฟล์ · security · ... · points_vat · member_levels 60/60 · mirror) · ตรวจแล้ว test.ok ล้มเมื่อเงื่อนไขไม่จริง · โหมดปิดไม่เปลี่ยนแต้มเดิม (points_vat ผ่าน) · ไม่แก้โค้ดแอป จึงไม่รัน unit/e2e/build · ไม่ merge/Release · ไม่แตะ production
 **รอ:** ผู้ใช้อนุมัติแล้ว: push ไป `claude/member-tiers-phase1` · งบบันเดิล +10 KB (ใช้ตอนทำ frontend) · ตัด toNext · วันครบ 365 ใช้ระดับก่อนลด · นับ 90 วันจากวันซื้อแรก · ยังรอ: สั่งเริ่ม frontend
 **งานค้าง:** frontend ระดับ (`src/lib/memberLevels.js`, แท็บ "ระดับ" ใน ManageLoyalty, ป้ายใน POS, การ์ดในบัญชีลูกค้า, customer-auth ส่งบัตรระดับ) · `punpang_member_report` (รายงานโหมดทดลอง) · อัตราแต้ม 10 บาท = 1 แต้ม (0.10 บาท) ผ่านหน้าตั้งค่า · docs/loyalty-tiers.md และถ้อยคำข้อ 8 บน ManageLegal (ผู้ใช้ยืนยันก่อนเปิดใช้จริง) · ตรวจ production แบบ rollback และ Release ต้องอนุมัติแยก
-
----
-
-## 2026-11-22 · [ระบบ][LIFF][ลูกค้า] ย้ายลิงก์หลักเป็น punpang.com: Worker, เมนู ถุงเงิน, เมนูใน LINE, ลิงก์สุ่มรางวัล · อยู่บน main แล้ว
-
-**ทำอะไร:** ตั้งค่า ALLOWED_ORIGINS ของ punpang-files ใน `worker/wrangler.jsonc` ให้มี punpang.com และ www.punpang.com (ตรงกับ dashboard) · เอาการซ่อนเมนู "ถุงเงิน" ออก (`src/lib/adminSystems.js`) · MENU_URL ของบอท LINE (`supabase/functions/_shared/lineliff.ts`) และ LUCKY_SITE_URL (`src/lib/luckyDraw.js`) เป็น punpang.com · deploy Worker punpang-files (run #4), line-webhook (run #6), line-link (run #6) สำเร็จ · ผู้ใช้ลบ Worker `sms-tls-probe` และเพิ่ม www.punpang.com ใน Turnstile กับ ALLOWED_ORIGINS ใน dashboard แล้ว · commit `262c98d` `d05e6b8` `2cf9d35` `cde7b68` `ce61551`
-**เหตุผล:** เว็บใช้ punpang.com เป็นโดเมนหลัก · ค่าใน `wrangler.jsonc` ทับค่า dashboard ทุกครั้งที่ deploy จึงต้องเก็บให้ตรงกันในไฟล์ · ผู้ใช้สั่ง "merge deploy" และ "ทำเลย"
-**ผล:** deploy-worker run #4 (`cde7b68`) และ run #5 (`7733361`), deploy-line-webhook และ deploy-line-link run #6 (`2cf9d35`) สำเร็จ · หลัง run #5 Worker อนุญาต www.punpang.com แล้ว (ก่อนหน้านั้น Worker ตอบ CORS เป็น pages.dev สำหรับ www) · โดเมนอื่นในรายการไม่เปลี่ยน · CI บน main สำเร็จ (`cde7b68`) · ผู้ใช้ยืนยันว่าล็อกอินและส่ง SMS ได้แล้ว
-**รอ:** ไม่มี · ผู้ใช้ตรวจ 4 ข้อบน punpang.com เรียบร้อยแล้ว (เมนูถุงเงิน, อัปโหลดรูป/สลิปทั้งสองโดเมน, เมนูบอท LINE, ลิงก์สุ่มรางวัล)
-**งานค้าง:** WAF ที่ sms.punpang.com (ผู้ใช้ต้องสร้างเอง) · เอกสาร docs ที่ยังเขียน pages.dev (pdpa.md, integrations.md, security.md) · ข้อความตัวอย่างใน ManageLucky.vue ยังเป็น pages.dev · สาขา dev `claude/zen-gauss-5qbmyh` ยังแยกจาก main · ระบบระดับสมาชิก 4 ระดับ: ยังไม่เริ่ม รอผู้ใช้ตอบ
