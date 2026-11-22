@@ -62,6 +62,20 @@ Deno.test('PEM ที่เก็บแบบ \\n ในบรรทัดเด
   await r.body?.cancel()
 }))
 
+Deno.test('PEM ที่เว้นวรรคแทนการขึ้นบรรทัด หรือไม่มีตัวคั่น ก็ใช้ได้', async () => {
+  for (const pem of [phone.cert.replace(/\n/g, ' '), phone.cert.replace(/\n/g, '')]) {
+    await withCert(pem, async () => {
+      const r = await gwFetch(`${base}/v1/status`, { signal: AbortSignal.timeout(5000) })
+      assertEquals(r.status, 404)
+      await r.body?.cancel()
+    })
+  }
+})
+
+Deno.test('ค่า SMS_GATEWAY_CERT ที่อ่านไม่ได้: โยน gateway_cert_invalid (ไม่ลดเป็น fetch ปกติ)', () => withCert('ไม่ใช่ใบรับรอง', async () => {
+  await assertRejects(() => gwFetch(`${base}/v1/status`), Error, 'gateway_cert_invalid')
+}))
+
 Deno.test('ใบรับรองไม่ตรง: ปฏิเสธ และไม่มีคำขอถึงเซิร์ฟเวอร์', () => withCert(other.cert, async () => {
   const n0 = seen.length
   await assertRejects(() => gwFetch(`${base}/v1/sms`, { method: 'POST', headers: { Authorization: 'Bearer k1' }, body: '{}', signal: AbortSignal.timeout(5000) }))
@@ -99,6 +113,36 @@ Deno.test('แยกคำตอบ chunked และ content-length', async () 
   try { parseHttpResponse(enc.encode('HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nshort')) } catch { threw = true }
   assert(threw)
 })
+
+Deno.test({ name: 'เซิร์ฟเวอร์ไม่ปิดการเชื่อมต่อหลังตอบ: คืนคำตอบทันทีเมื่อครบตามความยาวที่ประกาศ', sanitizeOps: false, sanitizeResources: false, fn: () => withCert(phone.cert, async () => {
+  const listener = Deno.listenTls({ hostname: '127.0.0.1', port: 0, cert: phone.cert, key: phone.key })
+  const lport = (listener.addr as Deno.NetAddr).port
+  const payload = new TextEncoder().encode(JSON.stringify({ id: 2, status: 'QUEUED' }))
+  const hold = (async () => {
+    const conn = await listener.accept()
+    const buf = new Uint8Array(4096)
+    let got = ''
+    while (!got.includes('\r\n\r\n')) {
+      const n = await conn.read(buf)
+      if (n === null) break
+      got += new TextDecoder().decode(buf.subarray(0, n))
+    }
+    await conn.write(new TextEncoder().encode(`HTTP/1.1 202 Accepted\r\nContent-Type: application/json\r\nContent-Length: ${payload.length}\r\n\r\n`))
+    await conn.write(payload)
+    await new Promise((r) => setTimeout(r, 3000)) // ไม่ปิดการเชื่อมต่อ (จำลองเซิร์ฟเวอร์ที่ค้างไว้)
+    try { conn.close() } catch { /* ปิดแล้ว */ }
+  })()
+  try {
+    const t0 = Date.now()
+    const r = await gwFetch(`https://127.0.0.1:${lport}/v1/sms`, { method: 'POST', headers: { Authorization: 'Bearer k1' }, body: '{}', signal: AbortSignal.timeout(1000) })
+    assertEquals(r.status, 202)
+    assertEquals(await r.json(), { id: 2, status: 'QUEUED' })
+    assert(Date.now() - t0 < 900)
+  } finally {
+    listener.close()
+    await hold.catch(() => {})
+  }
+}) })
 
 Deno.test({ name: 'ปิดเซิร์ฟเวอร์ทดสอบ', sanitizeOps: false, sanitizeResources: false, fn: async () => {
   ac.abort()

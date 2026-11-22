@@ -5,9 +5,15 @@
 // - คืน Response เหมือน fetch เพื่อให้จุดเรียกเดิมเปลี่ยนแค่ชื่อฟังก์ชัน
 const MAX_REPLY = 64 * 1024
 
+// อ่าน PEM จาก secret โดยยอมรับรูปแบบที่มักวางมา: บรรทัดเดียวมี \n · ขึ้นบรรทัดจริง · เว้นวรรคแทนการขึ้นบรรทัด · ไม่มีตัวคั่น
+// แล้วจัดใหม่เป็น PEM มาตรฐาน (ขึ้นบรรทัดจริง ทุก 64 ตัว) · ตั้งค่าไว้แต่อ่านไม่ได้ = โยน gateway_cert_invalid (ไม่ลดเป็น fetch ปกติ)
 export function gatewayCert(): string {
-  const raw = (Deno.env.get('SMS_GATEWAY_CERT') || '').trim().replace(/\\n/g, '\n')
-  return /-----BEGIN CERTIFICATE-----[\s\S]+-----END CERTIFICATE-----/.test(raw) ? raw : ''
+  const raw = (Deno.env.get('SMS_GATEWAY_CERT') || '').trim()
+  if (!raw) return ''
+  const m = /-----BEGIN CERTIFICATE-----([\s\S]+?)-----END CERTIFICATE-----/.exec(raw.replace(/\\n/g, '\n'))
+  const b64 = m ? m[1].replace(/[^A-Za-z0-9+/=]/g, '') : ''
+  if (!b64) throw new Error('gateway_cert_invalid')
+  return `-----BEGIN CERTIFICATE-----\n${b64.match(/.{1,64}/g)!.join('\n')}\n-----END CERTIFICATE-----\n`
 }
 
 type Init = { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal }
@@ -77,6 +83,20 @@ export function parseHttpResponse(raw: Uint8Array): Response {
   return new Response(status === 204 || status === 304 ? null : new Uint8Array(body), { status, headers })
 }
 
+// ตอบครบแล้วหรือยัง: ครบเมื่อได้หัวและเนื้อครบตาม Content-Length (หรือถึงช่อง chunked สุดท้าย)
+// ไม่รอให้เซิร์ฟเวอร์ปิดการเชื่อมต่อ เพราะเซิร์ฟเวอร์อาจไม่ปิดทันทีแม้ส่ง Connection: close ทำให้รอจนหมดเวลา
+function replyComplete(b: Uint8Array): boolean {
+  const h = indexOfCrlf2(b)
+  if (h < 0) return false
+  const head = new TextDecoder().decode(b.subarray(0, h))
+  const status = Number(/^HTTP\/1\.[01] (\d{3})/.exec(head)?.[1] ?? 0)
+  if (status === 204 || status === 304) return true
+  const body = b.subarray(h + 4)
+  if (/^transfer-encoding:\s*chunked/im.test(head)) return dechunk(body) !== null
+  const m = /^content-length:\s*(\d+)/im.exec(head)
+  return m ? body.length >= Number(m[1]) : false
+}
+
 async function tlsRequest(u: URL, init: Init, cert: string): Promise<Response> {
   const port = Number(u.port || 443)
   const body = new TextEncoder().encode(init.body ?? '')
@@ -105,6 +125,7 @@ async function tlsRequest(u: URL, init: Init, cert: string): Promise<Response> {
       size += n
       if (size > MAX_REPLY) throw new Error('reply_too_large')
       parts.push(buf.slice(0, n))
+      if (replyComplete(concat(parts))) break
     }
     if (signal?.aborted) throw new DOMException('aborted', 'AbortError')
     return parseHttpResponse(concat(parts))

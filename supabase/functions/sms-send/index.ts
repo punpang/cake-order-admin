@@ -83,7 +83,10 @@ async function gw(path: string, init: { method: string; body?: unknown; idem?: s
     if (r.ok) return { ok: true, status: r.status, data }
     const code = String(data?.error ?? '')
     return { ok: false, status: r.status, code, error: gatewayErrorText(r.status, code) }
-  } catch {
+  } catch (e) {
+    // บันทึกชื่อและข้อความของข้อผิดพลาดการเชื่อมต่อ (ไม่มีเบอร์ คีย์ หรือเนื้อ SMS) เพื่อให้เห็นสาเหตุใน log
+    const err = e as Error
+    console.warn(`[sms-send] gateway_error ${err?.name ?? 'unknown'}: ${String(err?.message ?? '').slice(0, 200)}`)
     return { ok: false, status: 0, error: 'เชื่อมต่อเกตเวย์ไม่ได้ (หมดเวลาหรือเครือข่ายขัดข้อง)' }
   }
 }
