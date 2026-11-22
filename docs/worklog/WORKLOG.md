@@ -1,7 +1,7 @@
 # บันทึกงาน cake-order-admin
 
 ## ดูก่อน (อ่านแค่ส่วนนี้ = Read offset 1, limit 20)
-- ล่าสุด 2026-11-22 · **dev = main = `91ec629`** (P1–P4 + แถบคุกกี้มือถือ · merge แล้วแบบ fast-forward) · Release `44975293482` สำเร็จ · sms-send production v50 verify_jwt=true · Cloudflare build main ตรวจไม่ได้ (connector ต้องเชื่อมใหม่)
+- ล่าสุด 2026-11-22 · **dev = main = `645ad97`** (P1–P4 + แถบคุกกี้ + บันทึกงาน · merge แล้วแบบ fast-forward) · Release `44975293482` สำเร็จ · sms-send production v50 verify_jwt=true · Cloudflare build main ตรวจไม่ได้ (connector ต้องเชื่อมใหม่)
 - **รอผู้ใช้:** (1) ทดสอบ LIFF บนมือถือ (หน้า `/line/` บน production · รอ Cloudflare build ของ main) (2) เชื่อม Cloudflare ใหม่ที่ claude.ai/customize/connectors แล้วเปิดเซสชันใหม่เพื่อยืนยัน build · แถบคุกกี้: 390px = 100 px · 320px = 120 px (ยอมรับแล้ว)
 - งบบันเดิล 875.9/876 KB (เหลือ 0.1 KB ต้องขอเพิ่มงบก่อนเพิ่มโค้ด) · ค้างไว้: หัวกลุ่มวันที่ตารางผลิตโปร่งแสง 90% (เสนอให้ทึบ)
 - URL ทดสอบ (ไม่ใช่ production): https://claude-zen-gauss-5qbmyh.cake-order-admin.pages.dev
