@@ -3,7 +3,7 @@
 // ลุ้นได้เฉพาะสมาชิกที่เข้าสู่ระบบ · token เต็มไม่เก็บในฐานข้อมูล
 import { orderTotals } from './pricing.js'
 
-export const LUCKY_SITE_URL = 'https://cake-order-admin.pages.dev'
+export const LUCKY_SITE_URL = 'https://punpang.com'
 export const MAX_DRAWS_PER_BILL = 10 // เพดานครั้งลุ้นต่อโครงการต่อบิล (แบบซื้อครบทุก X บาท)
 export const ROUND_DRAWS_DEFAULT = 100 // จำนวนครั้งลุ้นต่อ 1 รอบ (แบบซื้อครบทุก X บาท)
 export const PRIZE_PCT_DEFAULT = 5 // มูลค่ารางวัลต่อรอบ เป็น % ของยอดซื้อในรอบ (แบบซื้อครบทุก X บาท)
