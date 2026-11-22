@@ -15,11 +15,11 @@
 
 ## 2026-11-22 · [Release][DB][ลูกค้า] ระดับสมาชิก: merge เข้า main + Release #22 (customer-auth v75) · ตรวจ rollback production ผ่าน
 
-**ทำอะไร:** ผู้ใช้สั่ง "ทำเลยทุกข้อ" · merge `claude/member-tiers-phase1` → main (`aa1507f..90b8ac9`) · CI main ผ่าน (`45036841535`) · Release #22 (`45036845443`) ผ่านทุกขั้น test · release · deploy customer-auth → v75 verify_jwt=false · ตรวจ rollback บน production ผ่าน · e2e `routes.smoke` ล้มเหลวเพราะ node_modules ของ worktree เป็น symlink นอก root ของ Vite → เปลี่ยนเป็นสำเนา hardlink (`cp -al`) แล้วผ่าน 69/69
+**ทำอะไร:** ผู้ใช้สั่ง "ทำเลยทุกข้อ" · merge `claude/member-tiers-phase1` → main (`aa1507f..90b8ac9`) · CI main ผ่าน (`45036841535`) · Release #22 (`45036845443`) ผ่านทุกขั้น test · release · deploy customer-auth → v75 verify_jwt=false · ตรวจ rollback บน production ผ่าน · e2e `routes.smoke` ล้มเหลวเพราะ node_modules ของ worktree เป็น symlink นอก root ของ Vite → เปลี่ยนเป็นสำเนา hardlink (`cp -al`) แล้วผ่าน 69/69 · ประกาศความเป็นส่วนตัวข้อ 2: เพิ่มแถว 'สมาชิก (ระดับ)' ฐาน 'สัญญา' ตามที่ผู้ใช้ยืนยัน (`docs/pdpa.md`)
 **เหตุผล:** ผู้ใช้อนุมัติ merge + deploy และขอให้ตรวจ rollback ก่อนเปิดโหมดทดลอง · การเปิดโหมดทดลองยังต้องอนุมัติแยก
 **ผล:** test และ release ผ่าน · production (ตรวจอย่างเดียว): โหมด `off` (ไม่มีแถว config) · `punpang_member_events` = 0 · ลูกค้า 2 · ออร์เดอร์ 10 · สิทธิ์แอดมินครบทั้งสองคน · ไม่มีข้อมูลค้างหลังตรวจ
-**รอ:** อนุมัติเปิดโหมดทดลอง (shadow) แยกต่างหาก · ยืนยันถ้อยคำประกาศความเป็นส่วนตัวข้อ 2 · ถ้อยคำข้อ 8 ManageLegal และอัตรา 10/0.10 ก่อนใช้จริง · ตัดสินว่าจะลบ `sms-probe` (v5 verify_jwt=false ไม่ได้มาจากรอบนี้ ไม่มีโค้ดในรีโป)
-**งานค้าง:** `/push2.log` ผู้ใช้ลบเอง (`rm -f /push2.log`) · `docs/loyalty-tiers.md` ขั้นเปิดใช้ข้อ 1 ยังเป็นแผน · เฟส 2–3 ตามเดิม
+**รอ:** อนุมัติเปิดโหมดทดลอง (shadow) แยกต่างหาก · ถ้อยคำข้อ 8 ManageLegal และอัตรา 10/0.10 ก่อนใช้จริง · `sms-probe` (v5 verify_jwt=false ไม่ได้มาจากรอบนี้ ไม่มีโค้ดในรีโป): ผู้ใช้เลือกลบใน Supabase Dashboard เอง ยังไม่ยืนยันว่าลบแล้ว
+**งานค้าง:** `/push2.log` ผู้ใช้ลบเอง (`rm -f /push2.log`) · ประกาศข้อ 3 ยังไม่มีระยะเก็บของ 'สมาชิก (ระดับ)' (ยังไม่ทำ รอคำสั่ง) · `docs/loyalty-tiers.md` ขั้นเปิดใช้ข้อ 1 ยังเป็นแผน · เฟส 2–3 ตามเดิม
 
 ---
 
