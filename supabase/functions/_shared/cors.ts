@@ -2,6 +2,8 @@
 // ห่อ handler ด้วย corsWrap ใน Deno.serve · คำขอจากเซิร์ฟเวอร์ (ไม่มีหัว Origin) ไม่ได้รับหัว CORS
 export const ALLOWED_ORIGINS = [
   'https://cake-order-admin.pages.dev', // หน้าเว็บ (Cloudflare Pages)
+  'https://punpang.com', // โดเมนหลักของร้าน (Cloudflare)
+  'https://www.punpang.com', // โดเมนหลักของร้าน (www)
   'https://localhost', // แอป Android (Capacitor 7 ค่าเริ่มต้น androidScheme = https)
   'capacitor://localhost', // แอป iOS (Capacitor)
   'http://localhost:5173', // พัฒนาในเครื่อง (vite dev)
