@@ -179,6 +179,11 @@ pvcode=$?
 [ "$pvcode" = "0" ] && echo "✓ points_vat.test.sql ผ่านทั้งหมด" || echo "✗ points_vat.test.sql ล้มเหลว"
 [ "$pvcode" = "0" ] || exit "$pvcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/member_levels.test.sql
+mlcode=$?
+[ "$mlcode" = "0" ] && echo "✓ member_levels.test.sql ผ่านทั้งหมด" || echo "✗ member_levels.test.sql ล้มเหลว"
+[ "$mlcode" = "0" ] || exit "$mlcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"
