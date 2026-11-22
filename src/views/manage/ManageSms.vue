@@ -215,7 +215,7 @@ onMounted(() => {
           <div class="rounded-xl bg-rose-50 p-2"><div class="text-base font-semibold text-rose-700">{{ counts.failed ?? 0 }}</div>ไม่สำเร็จ</div>
         </div>
         <p v-if="sms.statusErr" class="mt-2 text-xs text-rose-700">{{ sms.statusErr }}</p>
-        <p v-else-if="sms.configured === false" class="mt-2 text-xs text-stone-500">ตั้ง secret ที่ Supabase: <code>SMS_GATEWAY_URL</code> (ลิงก์รีเลย์) และ <code>SMS_API_KEY</code> (สิทธิ์ส่งและลบ) · ตั้งชื่อ/URL ที่หน้า "การเชื่อมต่อ &amp; แจ้งเตือน"</p>
+        <p v-else-if="sms.configured === false" class="mt-2 text-xs text-stone-500">ตั้ง secret ที่ Supabase: <code>SMS_API_KEY</code> (สิทธิ์ส่งและลบ)</p>
         <RouterLink to="/admin/settings/integrations" class="mt-1 inline-block py-2.5 text-sm text-brand-700 underline">ไปหน้าการเชื่อมต่อ</RouterLink>
         <p v-if="!hasGateway" class="mt-1 text-xs text-stone-400">ยังไม่ได้บันทึกการเชื่อมในระบบ (ตั้งที่หน้าการเชื่อมต่อ)</p>
       </section>

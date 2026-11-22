@@ -9,6 +9,7 @@ import { accountingPlans } from '../_shared/scheduled/accounting.ts'
 import { runPlans, type Ctx } from '../_shared/scheduled/run.ts'
 import { dispatchDueCampaigns } from '../_shared/campaign.ts'
 import { lineRetentionDays, retentionCutoffIso } from '../_shared/linepush.ts'
+import { SMS_GATEWAY_URL } from '../_shared/gwfetch.ts'
 
 // deno-lint-ignore no-explicit-any
 type Any = any
@@ -94,7 +95,6 @@ Deno.serve(async (req) => {
     const chats = await fetchAll((x, y) => sb.from('punpang_chats').select('id,channel,external_id,customer_id,data').in('channel', ['facebook']).order('id').range(x, y))
     const pg = await sb.from('punpang_fb_pages').select('token').limit(1).maybeSingle()
 
-    const gwUrl = (Deno.env.get('SMS_GATEWAY_URL') || '').trim()
     const gwKey = (Deno.env.get('SMS_API_KEY') || '').trim()
     const tgToken = (Deno.env.get('TELEGRAM_BOT_TOKEN') || '').trim()
     const tgChat = (Deno.env.get('TELEGRAM_CHAT_ID') || '').trim()
@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
       integrations: cfg.integrations || {},
       chats,
       fb: pg.data?.token ? { token: String(pg.data.token), version: (Deno.env.get('FB_GRAPH_VERSION') || 'v24.0').trim() } : null,
-      gw: gwUrl && gwKey ? { url: gwUrl.replace(/\/+$/, '').replace(/\/v1(\/sms|\/messages|\/status|\/health)?$/i, ''), key: gwKey } : null,
+      gw: gwKey ? { url: SMS_GATEWAY_URL, key: gwKey } : null,
       tg: /^\d{5,}:[A-Za-z0-9_-]{20,}$/.test(tgToken) && /^(-?\d{5,20}|@[A-Za-z0-9_]{4,64})$/.test(tgChat) ? { token: tgToken, chat: tgChat } : null,
       siteUrl: (Deno.env.get('SITE_URL') || 'https://cake-order-admin.pages.dev').trim().replace(/\/+$/, ''),
     }

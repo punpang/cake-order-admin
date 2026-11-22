@@ -1,9 +1,9 @@
 import { corsWrap } from '../_shared/cors.ts'
-import { gwFetch } from '../_shared/gwfetch.ts'
+import { gwFetch, SMS_GATEWAY_URL } from '../_shared/gwfetch.ts'
 // Edge Function: ส่ง SMS ผ่าน SMS Gateway ที่รันบนโทรศัพท์ (HTTP API v1 · เอกสาร docs/sms-gateway-api.md · อัปเดต 2026-11-15)
 // - ตรวจสิทธิ์: ต้องเป็นพนักงานที่ active (punpang_staff) · gateway/lookup/messages ต้องมีสิทธิ์ manage · การส่งจำกัด 60 ครั้ง/ชม./คน (นับจาก punpang_sms_log)
-// - ความลับ (secret) อยู่ฝั่งเซิร์ฟเวอร์: SMS_GATEWAY_URL (ลิงก์ http/https ของเกตเวย์ หรือรีเลย์), SMS_API_KEY (สิทธิ์ "ส่งและลบ" เท่านั้น)
-//   ตั้งด้วย: supabase secrets set SMS_GATEWAY_URL=... SMS_API_KEY=...
+// - ที่อยู่เกตเวย์ฝังในโค้ด (SMS_GATEWAY_URL ใน _shared/gwfetch.ts) · ความลับ (secret) มีแค่ SMS_API_KEY (สิทธิ์ "ส่งและลบ" เท่านั้น)
+//   ตั้งด้วย: supabase secrets set SMS_API_KEY=...
 // - เกตเวย์รับคำขอเฉพาะจาก IP ใน LAN และใช้ใบรับรอง self-signed ที่ตรวจด้วย certificate pin · Edge ตรวจ pin ไม่ได้
 //   ต่อตรงได้เมื่อตั้ง SMS_GATEWAY_CERT = PEM ของใบรับรองโทรศัพท์ (gwFetch เชื่อเฉพาะใบนี้ · ดู _shared/gwfetch.ts) · ไม่ตั้ง = fetch ปกติ (ต้องเป็นรีเลย์ที่ CA เชื่อถือได้)
 // - การส่ง ต้องมี idempotencyKey จากฝั่งเรียก (8–64 ตัว A-Z a-z 0-9 _ -) เพื่อให้ลองซ้ำไม่ส่ง SMS ซ้ำ
@@ -25,13 +25,9 @@ const env = (k: string) => Deno.env.get(k) ?? ''
 const SUPABASE_URL = env('SUPABASE_URL')
 const ANON = env('SUPABASE_ANON_KEY')
 const SERVICE = env('SUPABASE_SERVICE_ROLE_KEY')
-const GATEWAY_URL = env('SMS_GATEWAY_URL').trim()
 const GATEWAY_KEY = env('SMS_API_KEY').trim()
 
-const configured = () => !!(GATEWAY_URL && GATEWAY_KEY)
-
-// ลิงก์ราก (ตัด /v1/... ที่ผู้ตั้งอาจใส่มาด้วย) เช่น https://relay.example.com:8443
-const root = () => GATEWAY_URL.replace(/\/+$/, '').replace(/\/v1(\/sms|\/messages|\/status|\/health)?$/i, '')
+const configured = () => !!GATEWAY_KEY
 
 // พนักงานที่ active จริง (active ต้องเป็น true เท่านั้น) พร้อมสิทธิ์ ใช้ตัดสินว่าทำ action ไหนได้
 type Staff = { id: string; perms: string[] }
@@ -73,7 +69,7 @@ async function gw(path: string, init: { method: string; body?: unknown; idem?: s
   if (init.body !== undefined) headers['content-type'] = 'application/json'
   if (init.idem) headers['idempotency-key'] = init.idem
   try {
-    const r = await gwFetch(`${root()}${path}`, {
+    const r = await gwFetch(`${SMS_GATEWAY_URL}${path}`, {
       method: init.method,
       headers,
       body: init.body !== undefined ? JSON.stringify(init.body) : undefined,

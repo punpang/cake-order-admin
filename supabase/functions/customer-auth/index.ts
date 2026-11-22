@@ -1,6 +1,6 @@
 import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { corsWrap } from '../_shared/cors.ts'
-import { gwFetch } from '../_shared/gwfetch.ts'
+import { gwFetch, SMS_GATEWAY_URL } from '../_shared/gwfetch.ts'
 import { reserveOtpAttempt, reservePinAttempt } from '../_shared/authguard.ts'
 import { filesEnv, isR2Ref, keyOfR2Ref, svcSign } from '../_shared/filesvc.ts'
 import { clientIp } from '../_shared/ratelimit.ts'
@@ -11,7 +11,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 // ระบบบัญชีลูกค้าฝั่งเซิร์ฟเวอร์: OTP ทาง SMS (เกตเวย์ของร้าน) + PIN 6 หลัก + เซสชัน
 // ตารางทั้งหมด (OTP/PIN/เซสชัน) เปิด RLS ไม่มี policy → เข้าถึงได้เฉพาะ service role ในฟังก์ชันนี้
 // รหัส OTP และ PIN เก็บเฉพาะ hash (OTP = sha256 + salt · PIN = PBKDF2-SHA256 210,000 รอบ) · เซสชันเป็น token สุ่ม เก็บ hash
-// การส่ง OTP ใช้ SMS Gateway API v1 เดียวกับ sms-send: POST {SMS_GATEWAY_URL}/v1/sms · Bearer SMS_API_KEY · Idempotency-Key = รหัส OTP (กันส่งซ้ำเมื่อลองใหม่)
+// การส่ง OTP ใช้ SMS Gateway API v1 เดียวกับ sms-send: POST {SMS_GATEWAY_URL ใน _shared/gwfetch.ts}/v1/sms · Bearer SMS_API_KEY · Idempotency-Key = รหัส OTP (กันส่งซ้ำเมื่อลองใหม่)
 const CORS = { 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
 const MIN = 60000
@@ -64,14 +64,11 @@ Deno.serve(corsWrap(async (req) => {
 
   // ---------- SMS (SMS Gateway API v1) ----------
   async function sendSms(local: string, text: string, idem: string): Promise<boolean> {
-    const g = (Deno.env.get('SMS_GATEWAY_URL') || '').trim()
     const key = (Deno.env.get('SMS_API_KEY') || '').trim()
-    let root = ''
-    try { const u = new URL(g); if (/^https?:$/.test(u.protocol)) root = g.replace(/\/+$/, '').replace(/\/v1(\/sms|\/messages|\/status|\/health)?$/i, '') } catch { root = '' }
-    if (!root || !key) return false
+    if (!key) return false
     let ok = false
     try {
-      const r = await gwFetch(`${root}/v1/sms`, {
+      const r = await gwFetch(`${SMS_GATEWAY_URL}/v1/sms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json; charset=utf-8', Authorization: `Bearer ${key}`, 'Idempotency-Key': idem },
         body: JSON.stringify({ to: local, message: text }),

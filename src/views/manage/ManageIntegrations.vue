@@ -198,7 +198,7 @@ async function disconnect(k) {
         <template v-else-if="k === 'sms'">
           <div class="mt-3 space-y-2 text-xs text-stone-500">
             <p v-if="db.integrations.sms.status === 'connected'">เชื่อมผ่านเกตเวย์ของร้านแล้ว (ตั้งค่าที่เซิร์ฟเวอร์)</p>
-            <p v-else>ยังไม่พร้อม: ตั้ง secret <code>SMS_GATEWAY_URL</code> และ <code>SMS_API_KEY</code> ที่ Supabase</p>
+            <p v-else>ยังไม่พร้อม: ตั้ง secret <code>SMS_API_KEY</code> ที่ Supabase</p>
             <RouterLink to="/admin/settings/sms" class="btn-primary inline-flex h-10 w-full items-center justify-center">ไปหน้า SMS Gateway</RouterLink>
           </div>
         </template>

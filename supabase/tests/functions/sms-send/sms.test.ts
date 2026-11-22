@@ -5,11 +5,11 @@
 // รัน (ทุกชุด): npm run test:fn · หรือ deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/_fake/importmap.json supabase/tests/functions/sms-send/
 import { assertEquals, assertStringIncludes } from 'jsr:@std/assert@1'
 import { installFakeRest, loadHandler } from '../_fake/rest.ts'
+import { SMS_GATEWAY_URL } from '../../../functions/_shared/gwfetch.ts'
 
 Deno.env.set('SUPABASE_URL', 'http://db.fake')
 Deno.env.set('SUPABASE_ANON_KEY', 'anon')
 Deno.env.set('SUPABASE_SERVICE_ROLE_KEY', 'service')
-Deno.env.set('SMS_GATEWAY_URL', 'https://sms.fake')
 Deno.env.set('SMS_API_KEY', 'gw-key')
 const fake = installFakeRest({
   users: { 'tok-staff': 'u-staff', 'tok-mgr': 'u-mgr' },
@@ -20,7 +20,7 @@ let sent: { to: string; idem: string | null }[] = []
 const dbFetch = globalThis.fetch
 globalThis.fetch = (async (input: Request | URL | string, init?: RequestInit) => {
   const req = new Request(input, init)
-  if (new URL(req.url).host !== 'sms.fake') return dbFetch(input, init)
+  if (new URL(req.url).host !== new URL(SMS_GATEWAY_URL).host) return dbFetch(input, init)
   if (req.method === 'POST') { const b = await req.json(); sent.push({ to: b.to, idem: req.headers.get('idempotency-key') }); return new Response(JSON.stringify({ id: 'job1', status: 'queued' }), { status: 202 }) }
   return new Response(JSON.stringify({ messages: [] }), { status: 200 })
 }) as typeof fetch

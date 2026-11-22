@@ -1,7 +1,7 @@
 # บันทึกงาน cake-order-admin
 
 ## ดูก่อน (อ่านแค่ส่วนนี้ = Read offset 1, limit 20)
-- ล่าสุด 2026-11-22 · main = `2ae7cb3` (รวมแต้มก่อน VAT แล้ว) · dev = `46c2a60` (ยังไม่ merge · ไม่ได้ Release) · sms-send v50 verify_jwt=true · Cloudflare build ตรวจไม่ได้ (connector ต้องเชื่อมใหม่)
+- ล่าสุด 2026-11-22 · main = ดู `git log -1 origin/main` (รวม SMS ย้าย URL เข้าโค้ดแล้ว · ยังไม่ deploy) · dev = `46c2a60` (ยังไม่ merge · ไม่ได้ Release) · sms-send v50 verify_jwt=true · Cloudflare build ตรวจไม่ได้ (connector ต้องเชื่อมใหม่)
 - **รอผู้ใช้:** สั่ง "merge + Release" อีกครั้ง (เลือกข้อ 1 แล้ว: เพิ่มกฎ push main แคบในเครื่อง · ยังไม่ได้ทดสอบว่ามีผล) · จากนั้น push dev→main แล้ว Release migration `20261122100000` (confirm=RUN จาก main) · ยังไม่ merge ยังไม่ Release
 - **ปิดแล้ว:** B13 cron timeout (ตรวจ 22 พ.ย.: HTTP 200 ทุกรอบที่ยังเก็บผล) · B12 ดัชนีเบอร์ลูกค้ามีบน production · B6 แผนฟรี ยอมรับความเสี่ยง ไม่ถามซ้ำ
 - งบบันเดิล 875.8/876 KB (เหลือ 0.2 KB · เกินให้หยุดถามก่อนขอเพิ่ม) · ขั้น 2 (ขันเพดานเซิร์ฟเวอร์ก่อน VAT) ทำทีหลังได้ ต้อง Release · ค้างไว้: หัวกลุ่มวันที่ตารางผลิตโปร่งแสง 90% (เสนอให้ทึบ)
@@ -12,6 +12,13 @@
 - **การถามผู้ใช้:** ถามเป็นข้อ ๆ (หน้าต่างคำถาม) ข้อละ 2–4 ตัวเลือก · ตัวเลือกที่ดีที่สุดอยู่ข้อแรกพร้อม "(แนะนำ)" และเหตุผลสั้น ๆ · ถามเฉพาะเรื่องที่ผู้ใช้ต้องตัดสิน
 
 ---
+
+## 2026-11-22 · [SMS][ระบบ] ผู้ใช้สั่ง merge เฉพาะงาน SMS → ย้าย URL เกตเวย์เข้าโค้ดเข้า main · ยังไม่ deploy
+- **ทำอะไร:** cherry-pick `80e8a1e` ลง main เฉพาะไฟล์โค้ด SMS (`_shared/gwfetch.ts` ค่า `SMS_GATEWAY_URL` คงที่ · `_shared/sms.ts` · `sms-send` · `customer-auth` เฉพาะส่วน SMS · `scheduled` · เทสต์ sms-send · หน้า ManageSms/ManageIntegrations · docs/integrations.md) · ไม่เอา dev ส่วนระดับสมาชิก/migration/tools
+- **เหตุผล:** ผู้ใช้เลือก "merge เฉพาะงาน SMS" · main มี SMS ส่วนใหญ่แล้ว (eab1dd4, cb3d6e5, 8352901) เหลือเฉพาะการย้าย URL · ไม่ย้อนโค้ด SMS ที่ main ใหม่กว่า
+- **ผล:** เทสต์ sms-send 23/23 · `_shared` 401/401 · `deno check` sms-send/customer-auth/scheduled ผ่าน · หน้าเว็บ build บน Vercel ตรวจหลัง push
+- **รอ:** อนุมัติ deploy `sms-send`, `customer-auth`, `scheduled` แยกต่างหาก (ยังไม่ deploy) · หลัง deploy secret `SMS_GATEWAY_URL` ไม่ต้องใช้แล้ว (ลบเมื่อผู้ใช้สั่ง)
+- **งานค้าง:** ลบ `sms-probe` ใน Supabase Dashboard (ผู้ใช้ยังไม่ยืนยัน) · งานระดับสมาชิก (dev) ยังไม่ merge
 
 ## 2026-11-22 · [ระบบ][Release] ผู้ใช้เลือกข้อ 1: เพิ่มกฎ push main แบบแคบในเครื่อง · ยังไม่ push
 
@@ -68,11 +75,3 @@
 **ทำอะไร:** ผู้ใช้สั่ง "ขั้นที่ 2 วางแผนก่อน ยังไม่ต้องทำ" · อ่านอย่างเดียว ไม่แก้โค้ด/ไม่ Release · อ่าน `punpang_award_order` (hardening 20261115000000 บรรทัด 127–187 · ไม่มี migration หลังจากนั้นที่นิยามใหม่) · ตัวช่วย `punpang__order_goods` ใช้กับ award_order บรรทัด 157 และกับ coupon_guard/coupon_modes/credit_coupons/order_max_total ด้วย (ห้ามแก้ตัวนี้) · `punpang_ledger_apply` ใช้เพดานจาก "ยอดที่ชำระแล้ว" ไม่เกี่ยวกับขั้นนี้ · แอปเมื่อถูกปฏิเสธ แสดง toast แล้วให้ย้อนสถานะส่งมอบใหม่ (ไม่ทำให้ออร์เดอร์พัง)
 **แผน:** migration ใหม่ 1 ไฟล์ เพิ่มฟังก์ชันใหม่ `punpang__order_goods_exvat` (= goods × 100÷(100+อัตรา) เมื่อ VAT ใน · อื่น ๆ = goods) แล้ว `create or replace` `punpang_award_order` เปลี่ยนเฉพาะบรรทัดเพดานฐาน · เพิ่มเทสต์ใน `supabase/tests/` · Release (db_migrations) ต้องรออนุมัติ
 **รอ:** ผู้ใช้ตัดสินใจตัวเลือกในแผน แล้วอนุมัติ Release
-
-## 2026-11-22 · [ลูกค้า][ระบบ] Merge dev→main: แต้ม/สิทธิ์หมุนก่อน VAT · main = `2ae7cb3`
-
-**ทำอะไร:** ผู้ใช้สั่ง "Merge" · fast-forward main `c35c373` → `2ae7cb3` (ไม่ force) · ตรวจก่อน: main เป็นบรรพบุรุษของ dev · ไฟล์ต่างกัน 7 ไฟล์ตามที่คาด · ไม่มีการเปลี่ยน `supabase/` หรือ `worker/` จึงไม่ต้อง Release
-**ผล:** main = `2ae7cb3` ตรงกับ remote แล้ว · ยังไม่ได้ทดสอบกับออร์เดอร์จริงบน production · Cloudflare build ตรวจไม่ได้ (connector ต้องเชื่อมใหม่)
-**รอ:** ทดสอบ LIFF บนมือถือ · เชื่อม Cloudflare ใหม่ · ขั้น 2 (ขันเพดานเซิร์ฟเวอร์ก่อน VAT) ยังไม่ทำ ต้อง Release และอนุมัติก่อน
-
----
