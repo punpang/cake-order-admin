@@ -56,11 +56,11 @@ function save(choice) {
 <template>
   <section v-if="visible" ref="el" class="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 px-3 pb-2 sm:p-3 md:bottom-0 md:pb-[calc(env(safe-area-inset-bottom)+0.75rem)]" role="region" aria-label="การตั้งค่าคุกกี้">
     <div class="mx-auto max-w-2xl rounded-3xl bg-matcha-soft p-2.5 shadow-2xl sm:p-4">
-      <!-- ประโยคเดียวกันทุกขนาดจอ เพื่อให้เห็นทางเลือกคุกกี้วิเคราะห์ก่อนกดยอมรับ · หัวข้ออยู่ในบรรทัดเดียวกับคำอธิบาย ให้แถบเตี้ย -->
+      <!-- เดสก์ท็อปแสดงประโยคเต็มพร้อมหัวข้อ · มือถือใช้ประโยคสั้นที่ยังบอกทางเลือกคุกกี้วิเคราะห์ก่อนกดยอมรับ เพื่อให้แถบเตี้ย -->
       <p class="text-sm text-stone-800">
-        <b class="font-display text-stone-900">เว็บไซต์นี้ใช้คุกกี้</b> ·
-        <!-- มือถือ: ข้อความสั้นลงแต่ยังบอกครบทั้งคุกกี้ที่จำเป็นและคุกกี้วิเคราะห์ที่เลือกได้ (แถบบางลง ไม่บังปุ่มหลักของหน้า) -->
-        <span class="sm:hidden">ใช้คุกกี้ที่จำเป็น และคุกกี้วิเคราะห์ที่เลือกเปิดเองได้</span>
+        <!-- มือถือ: ซ่อนหัวข้อ ใช้ประโยคสั้นที่ยังบอกครบทั้งคุกกี้ที่จำเป็นและคุกกี้วิเคราะห์ที่เลือกได้ (แถบบางลง ไม่บังปุ่มหลักของหน้า) -->
+        <span class="max-sm:hidden"><b class="font-display text-stone-900">เว็บไซต์นี้ใช้คุกกี้</b> · </span>
+        <span class="sm:hidden">ใช้คุกกี้ที่จำเป็น · เลือกเปิดคุกกี้วิเคราะห์ได้</span>
         <span class="max-sm:hidden">เราใช้คุกกี้ที่จำเป็นเพื่อให้เว็บทำงาน และคุกกี้วิเคราะห์ที่คุณเลือกเปิดเองได้</span>
         <RouterLink to="/legal/cookie" class="ml-1 inline-block py-3 -my-3 font-medium text-stone-900 underline"><span class="sm:hidden">นโยบาย</span><span class="max-sm:hidden">อ่านนโยบายคุกกี้</span></RouterLink>
       </p>
