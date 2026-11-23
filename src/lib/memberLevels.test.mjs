@@ -2,6 +2,16 @@
 import assert from 'node:assert/strict'
 import { DEFAULT_MEMBER_CFG, levelCost, memberCfgErrors, tierLines } from './memberLevels.js'
 
+// บัตร: ส่วนลดเค้กเดือนเกิด (เฉพาะเมื่อครบ 30 วัน Active และร้านเลือกเค้กแล้ว)
+{
+  const base = { enabled: true, levelNo: 4, levelName: 'LV4', mult: 10, status: 'active', activeUntil: '2026-12-31' }
+  const withBirth = tierLines({ ...base, birth: { eligible: true, active: true, cakeSet: true, rate: 10, cap: 50 } })
+  assert.ok(withBirth.some((l) => l.includes('ส่วนลดหมวดเค้กเดือนเกิด 10%') && l.includes('50 บาท')))
+  assert.ok(!tierLines({ ...base, birth: { eligible: false, active: true, cakeSet: true, rate: 0, cap: 0 } }).some((l) => l.includes('ส่วนลดหมวดเค้ก')))
+  assert.ok(!tierLines({ ...base, birth: { eligible: true, active: true, cakeSet: false, rate: 10, cap: 50 } }).some((l) => l.includes('ส่วนลดหมวดเค้ก')))
+  console.log('PASS บัตรแสดงส่วนลดเค้กเดือนเกิดเฉพาะเมื่อมีสิทธิและร้านเลือกเค้กแล้ว')
+}
+
 let fail = 0
 const t = (name, fn) => {
   try {

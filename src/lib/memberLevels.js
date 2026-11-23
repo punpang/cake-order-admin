@@ -61,7 +61,11 @@ export function tierLines(t) {
   else if (t.downgradeAt) lines.push(`รักษาระดับถึง ${fmtDate(t.downgradeAt)}`)
   // LV4 Active ได้คูปองส่วนลด 10 บาททุกเดือน (ตามสเปก) · แทรกเป็นบรรทัดที่ 2 ให้เห็นก่อนบรรทัดรอง
   if (t.levelNo === 4 && t.status === 'active') lines.splice(1, 0, 'คูปองส่วนลด 10 บาททุกเดือน (ซื้อเดือนก่อนครบ 150 บาท)')
-  return lines.slice(0, 3)
+  // ส่วนลดเค้กเดือนเกิด: แสดงเมื่อครบ 30 วัน อยู่ในเดือนเกิด Active และร้านเลือกสินค้าเค้กแล้ว
+  const out = lines.slice(0, 3)
+  const b = t.birth
+  if (b?.eligible && b?.active && b?.cakeSet && Number(b.rate) > 0) out.push(`ส่วนลดหมวดเค้กเดือนเกิด ${b.rate}% (สูงสุด ${b.cap} บาท)`)
+  return out
 }
 function fmtDate(s) {
   if (!s) return '-'
