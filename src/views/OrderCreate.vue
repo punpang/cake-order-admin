@@ -469,7 +469,8 @@ async function quote() {
     </section>
 
     <!-- 3 สินค้า -->
-    <section v-if="step === 2" class="space-y-3">
+    <section v-if="step === 2" class="space-y-3" :class="!embedded && cashKinds.length && 'lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0'">
+      <div class="space-y-3">
       <ItemCard v-for="(it, i) in shownItems" :key="it.id" :item="it">
         <template v-if="!it.promoGift">
           <button class="btn-outline h-9 px-3" @click="editing = { item: form.items[i], index: i }"><AppIcon name="edit" :size="16" /> แก้ไข</button>
@@ -495,6 +496,8 @@ async function quote() {
         <b class="text-lg text-stone-900">{{ money(goodsTotals.subtotal) }}</b>
       </div>
 
+      </div>
+      <div class="space-y-3">
       <!-- บริการเกี่ยวกับเงิน (ไม่บังคับ) · เงินพักไม่ใช่รายได้ -->
       <div v-if="cashKinds.length" class="card space-y-3">
         <div class="card-title"><AppIcon name="wallet" class="text-brand-600" /> บริการเกี่ยวกับเงิน <span class="font-normal text-stone-400">(ไม่บังคับ)</span></div>
@@ -519,6 +522,7 @@ async function quote() {
           <p v-if="cashErr" class="text-sm text-rose-700">{{ cashErr }}</p>
           <button type="button" class="btn-outline ml-auto h-9 px-3" @click="form.cashService = undefined">ไม่ใช้บริการ</button>
         </div>
+      </div>
       </div>
     </section>
 

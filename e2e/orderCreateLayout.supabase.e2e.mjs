@@ -43,4 +43,29 @@ try {
   await app.close()
 }
 fails += finish()
+
+// ขั้นสินค้า: มีบริการเกี่ยวกับเงินเปิดอยู่ → บริการอยู่คอลัมน์ขวา · ไม่มีบริการ → คอลัมน์เดียว
+const shopCash = { cashService: { maxNotes: 5, services: { hide: { fee: 50, show: true }, pull: { fee: 40, show: false }, stash: { fee: 30, show: false } } } }
+const app2 = await startApp({ tables: { punpang_customers: [cust], punpang_items: [cake] }, shop: shopCash })
+const s2 = stepper(app2.page)
+try {
+  const p2 = app2.page
+  await app2.go('/admin/orders/new')
+  await p2.getByRole('button', { name: /มาลี ทดสอบ/ }).first().click()
+  await p2.getByRole('button', { name: 'ถัดไป' }).click()
+  await p2.getByRole('button', { name: '14:00', exact: true }).click()
+  await p2.getByRole('button', { name: 'ถัดไป' }).click()
+  await p2.getByRole('button', { name: 'ถัดไป' }).click()
+  await p2.getByText('บริการเกี่ยวกับเงิน').waitFor({ timeout: 10000 })
+  await s2.step('1280×800 ขั้นสินค้า: บริการเกี่ยวกับเงินอยู่คอลัมน์ขวา', async () => {
+    await p2.setViewportSize({ width: 1280, height: 800 })
+    const l = await p2.getByText('เพิ่มสินค้า', { exact: true }).boundingBox()
+    const r = await p2.getByText('บริการเกี่ยวกับเงิน').first().boundingBox()
+    assert.ok(l && r && r.x > l.x + l.width - 1, `บริการไม่ได้อยู่คอลัมน์ขวา: ${JSON.stringify({ l, r })}`)
+  })
+  await s2.step('ขั้นสินค้า: ไม่มีข้อผิดพลาดในหน้า', async () => assert.deepEqual(app2.pageErrors().slice(0, 3), []))
+} finally {
+  await app2.close()
+}
+fails += s2.finish()
 process.exit(fails ? 1 : 0)
