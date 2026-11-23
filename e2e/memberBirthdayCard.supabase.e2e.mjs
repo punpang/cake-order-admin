@@ -14,8 +14,8 @@ const cust = { id: 'c1', name: 'มาลี ทดสอบ', phone: '085000111
 const LINE = 'ส่วนลดหมวดเค้กเดือนเกิด 5% (สูงสุด 25 บาท)'
 
 // เปิดเว็บแบบลูกค้า: เซิร์ฟเวอร์จำลอง + Vite + เบราว์เซอร์ (ไม่ล็อกอินพนักงาน)
-async function startCustomerApp(tables) {
-  const mock = await startSupabaseMock({ punpang_kv: [{ collection: 'config', id: 'shop', data: { v: {} }, updated_at: at(10), created_at: at(10) }], punpang_customers: [cust], ...tables })
+async function startCustomerApp(tables, opts = {}) {
+  const mock = await startSupabaseMock({ punpang_kv: [{ collection: 'config', id: 'shop', data: { v: {} }, updated_at: at(10), created_at: at(10) }], punpang_customers: [cust], ...tables }, opts)
   for (const [k, v] of Object.entries({ VITE_USE_SUPABASE: '1', VITE_SUPABASE_URL: mock.url, VITE_SUPABASE_ANON_KEY: 'test-anon-key' })) process.env[k] = v
   const server = await createServer({ root: ROOT, logLevel: 'error', server: { host: '127.0.0.1', port: 0 } })
   await server.listen()
@@ -53,7 +53,7 @@ const cases = [
 
 let fails = 0
 for (const c of cases) {
-  const app = await startCustomerApp({ __functions: { 'customer-auth': accountOf(c.birth) } })
+  const app = await startCustomerApp({}, { fn: { 'customer-auth': accountOf(c.birth) } })
   const { page } = app
   const { step, finish } = stepper(page)
   try {

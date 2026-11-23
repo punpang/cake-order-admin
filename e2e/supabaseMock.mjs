@@ -95,16 +95,17 @@ function project(r, select) {
   return o
 }
 
-export function startSupabaseMock({ __rpc = {}, __functions = {}, ...tables } = {}) {
+// rpcOverride / fnOverride = ตัวตอบจำลองเพิ่มเติมต่อชื่อ RPC หรือ Edge Function (ไม่ระบุ = ค่าเดิม)
+export function startSupabaseMock(tables = {}, { rpc: rpcOverride = {}, fn: fnOverride = {} } = {}) {
   const db = tables
   const log = []
   let seq = 0
   let clock = Date.now()
   const stamp = () => new Date((clock = Math.max(clock + 1, Date.now()))).toISOString()
   const keysOf = (t) => (t === 'punpang_kv' || t === 'punpang_records' ? ['collection', 'id'] : t === 'punpang_staff' ? ['user_id'] : ['id'])
-  const rpc = { // __rpc = คำตอบ RPC ที่เทสต์กำหนดเอง (ใช้แทนของเดิมที่ชื่อเดียวกัน)
+  const rpc = {
     punpang_alloc_numbers: ({ p_n }) => { const s = ++seq * 1000; return Array.from({ length: p_n || 1 }, (_, i) => s + i) },
-    ...__rpc,
+    ...rpcOverride,
   }
 
   const server = http.createServer(async (req, res) => {
@@ -131,10 +132,9 @@ export function startSupabaseMock({ __rpc = {}, __functions = {}, ...tables } = 
     if (p.startsWith('/functions/v1/')) {
       const fn = p.slice('/functions/v1/'.length)
       log.push({ fn, id: body?.id })
+      if (fnOverride[fn]) return send(200, fnOverride[fn](body || {}))
       // order-create กับออร์เดอร์ที่มีแล้ว = 409 exists (เหมือนของจริง) · อื่น ๆ คืน {}
       if (fn === 'order-create' && (db.punpang_orders || []).some((r) => r.id === body?.id)) return send(409, { error: 'ออร์เดอร์นี้บันทึกแล้ว', code: 'exists' })
-      // คำตอบของ Edge Function ที่เทสต์กำหนดเอง (เช่น customer-auth ของบัญชีลูกค้า)
-      if (__functions[fn]) return send(200, __functions[fn](body || {}))
       return send(200, {})
     }
     if (p.startsWith('/rest/v1/rpc/')) {

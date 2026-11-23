@@ -12,13 +12,13 @@ export const kv = (id, v) => ({ collection: 'config', id, data: { v }, updated_a
 export const STAFF = { user_id: 'u-staff', name: 'พนักงานทดสอบ', role: 'owner', perms: ALL_PERMS, active: true, email: 'staff@test.local' }
 
 // tables = ข้อมูลตั้งต้น (เพิ่มเติมจากพนักงาน + ค่าตั้งร้าน) · shop = ค่าตั้งร้านที่ทับค่าเริ่มต้นของแอป
-export async function startApp({ tables = {}, shop = {}, scheduled = { server: true } } = {}) {
+export async function startApp({ tables = {}, shop = {}, scheduled = { server: true }, rpc, fn } = {}) {
   const mock = await startSupabaseMock({
     punpang_staff: [STAFF],
     punpang_kv: [kv('shop', {}), kv('scheduled', scheduled)],
     punpang_acct_state: [{ id: 1, closed_through: null }],
     ...tables,
-  })
+  }, { rpc, fn })
   for (const [k, v] of Object.entries({ VITE_USE_SUPABASE: '1', VITE_SUPABASE_URL: mock.url, VITE_SUPABASE_ANON_KEY: 'test-anon-key' })) process.env[k] = v
   const server = await createServer({ root: ROOT, logLevel: 'error', server: { host: '127.0.0.1', port: 0 } })
   await server.listen()
@@ -47,8 +47,16 @@ export async function startApp({ tables = {}, shop = {}, scheduled = { server: t
   }
   // ข้อผิดพลาดเครือข่ายที่ตั้งใจ (Realtime ปฏิเสธ · 4xx ที่เซิร์ฟเวอร์จำลองตอบตามจริง) ไม่นับ
   const pageErrors = () => errors.filter((e) => !/WebSocket connection|Failed to load resource/.test(e))
+  // หน้าลูกค้า: บริบทเบราว์เซอร์ใหม่ (ไม่มีการล็อกอินพนักงาน) ขนาดมือถือ · เครื่องที่ล็อกอินพนักงานอยู่จะไม่กู้บัญชีลูกค้า
+  const guestPage = async () => {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } })
+    const p = await ctx.newPage()
+    p.on('pageerror', (e) => errors.push(process.env.DEBUG ? e.stack : e.message))
+    p.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`) })
+    return p
+  }
   const close = async () => { await browser.close(); await server.close(); await mock.close() }
-  return { page, mock, base, go, errors, pageErrors, close }
+  return { page, mock, base, go, errors, pageErrors, guestPage, close }
 }
 
 // รันทีละข้อ เก็บผล · ภาพหน้าจอเมื่อไม่ผ่าน (SHOT_DIR)

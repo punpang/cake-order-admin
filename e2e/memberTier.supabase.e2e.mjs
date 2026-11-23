@@ -18,10 +18,10 @@ const BADGE = { live: 'แต้มคูณ x3', shadow: 'โหมดทดล
 
 let fails = 0
 for (const mode of ['live', 'shadow']) {
-  const app = await startApp({ tables: { punpang_customers: [cust], punpang_items: [cake], __rpc: memberRpc(mode) } })
+  const app = await startApp({ tables: { punpang_customers: [cust], punpang_items: [cake] }, rpc: memberRpc(mode) })
   const { page, go } = app
   const { step, finish } = stepper(page)
-  const card = () => page.getByLabel('ระดับสมาชิก')
+  const card = () => page.getByLabel('ระดับสมาชิก', { exact: true }) // exact: ไม่จับป้ายแถบหน้าขาย "ระดับสมาชิกที่หน้าขาย"
   const tile = () => page.getByText(/จะได้รับ/).first()
   try {
     await step(`${mode}: เลือกสมาชิกที่หน้าขาย`, async () => {
