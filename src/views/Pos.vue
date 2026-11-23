@@ -424,8 +424,8 @@ watch([billWithKept, coupons], () => (couponIds.value = couponIds.value.filter((
 // ส่วนลดเดือนเกิด (หมวดเค้กที่ร้านเลือก · ตามสิทธิ์จากเซิร์ฟเวอร์ของลูกค้าคนนี้) · ไม่ซ้อนคูปอง: ได้มากกว่าจึงใช้
 const birthCalc = computed(() => {
   if (!member.value || !staffCard.value?.enabled || editBill.value) return { amount: 0, base: 0 }
-  const items = billBase.value.items.map((i) => ({ category: db.retailItems.find((r) => r.id === i.retailId)?.category || '', unitPrice: i.unitPrice, qty: i.qty }))
-  return birthCakeDiscount({ items, cakeCategories: db.memberLevels.cakeCategories || [], birth: staffCard.value.birth })
+  const items = billBase.value.items.map((i) => ({ id: i.retailId || '', category: db.retailItems.find((r) => r.id === i.retailId)?.category || '', unitPrice: i.unitPrice, qty: i.qty }))
+  return birthCakeDiscount({ items, cakeCategories: db.memberLevels.cakeCategories || [], cakeItemIds: db.memberLevels.cakeItemIds || [], birth: staffCard.value.birth })
 })
 const couponSum = computed(() => [...billWithKept.value.couponsUsed, ...pickedCoupons.value].reduce((s, c) => s + (Number(c.amount) || 0), 0))
 const birthWins = computed(() => birthCalc.value.amount > 0 && pickBirthOrCoupons(birthCalc.value.amount, couponSum.value) === 'birth')

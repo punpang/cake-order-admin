@@ -3,13 +3,16 @@
 // ไม่ซ้อนคูปอง: เลือกส่วนลดที่ได้มากกว่า
 const r2 = (n) => Math.round((Number(n) || 0) * 100 + Number.EPSILON) / 100
 
-// birth = ค่า birth จาก punpang_member_card / staff card · cakeCategories = หมวดที่ร้านนับเป็นเค้ก
-export function birthCakeDiscount({ items = [], cakeCategories = [], birth = null }) {
+// birth = ค่า birth จาก punpang_member_card / staff card · cakeCategories = หมวดที่ร้านนับเป็นเค้ก · cakeItemIds = สินค้าที่ร้านเลือกเอง (นับเพิ่มจากหมวด)
+// items: { id (รหัสสินค้า retail), category, unitPrice, qty }
+export function birthCakeDiscount({ items = [], cakeCategories = [], cakeItemIds = [], birth = null }) {
   const rate = Number(birth?.rate) || 0
   const cap = Number(birth?.cap) || 0
   if (!birth?.eligible || !birth?.active || rate <= 0 || cap <= 0) return { amount: 0, base: 0 }
   const cats = new Set(cakeCategories)
-  const base = r2(items.reduce((s, i) => (cats.has(i.category) ? s + (Number(i.unitPrice) || 0) * (Number(i.qty) || 0) : s), 0))
+  const ids = new Set(cakeItemIds)
+  const isCake = (i) => cats.has(i.category) || (!!i.id && ids.has(i.id))
+  const base = r2(items.reduce((s, i) => (isCake(i) ? s + (Number(i.unitPrice) || 0) * (Number(i.qty) || 0) : s), 0))
   return { amount: Math.min(r2((base * rate) / 100), cap), base }
 }
 

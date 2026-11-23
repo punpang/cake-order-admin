@@ -162,8 +162,8 @@ export function buildQuotePayload({ draft, customerId, catalog, nowMs, checkClos
   const w = withPromosOn(items.map((it) => priceItemOn(it, cat, dateStr)), cat, { at: wall, dateStr })
   // ส่วนลดเดือนเกิด (หมวดเค้กที่ร้านเลือก) คิดตอนออกใบเสนอ ใบเสนอจึงเก็บยอดนี้ไว้
   const bd = birth ? birthCakeDiscount({
-    items: w.items.map((i) => ({ category: (cat.retailItems || []).find((r) => r.id === i.retailId)?.category || '', unitPrice: i.unitPrice, qty: i.qty })),
-    cakeCategories: birth.cakeCategories || [], birth,
+    items: w.items.map((i) => ({ id: i.retailId || '', category: (cat.retailItems || []).find((r) => r.id === i.retailId)?.category || '', unitPrice: i.unitPrice, qty: i.qty })),
+    cakeCategories: birth.cakeCategories || [], cakeItemIds: birth.cakeItemIds || [], birth,
   }) : { amount: 0, base: 0 }
   const payload = JSON.parse(JSON.stringify({
     ...(bd.amount > 0 ? { birthdayDiscount: { amount: bd.amount, rate: birth.rate, cap: birth.cap, base: bd.base } } : {}),
