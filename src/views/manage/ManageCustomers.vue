@@ -191,8 +191,8 @@ async function save() {
       <p v-if="pageErr" class="mt-2 text-sm text-rose-700" role="alert">{{ pageErr }}</p>
     </div>
 
-    <AppModal v-if="open" :title="form.id ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้า'" @close="open = false">
-      <div class="space-y-4">
+    <AppModal v-if="open" :title="form.id ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้า'" wider @close="open = false">
+      <div class="space-y-4 dlg-cols">
         <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" /></div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div><label class="label">เบอร์โทร <span class="text-rose-600">*</span></label><PhoneInput v-model="form.phone" /></div>

@@ -272,7 +272,8 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
 </script>
 
 <template>
-  <AppModal :title="item ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'" wide @close="emit('close')">
+  <AppModal :title="item ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'" split @close="emit('close')">
+    <template #left>
     <!-- ประเภท -->
     <div class="mb-4 grid grid-cols-2 gap-1 seg-grid">
       <button
@@ -336,6 +337,34 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
       <p v-if="errors.product" class="mt-2 text-sm text-rose-700">{{ errors.product }}</p>
     </div>
 
+    <!-- รูป + หมายเหตุ -->
+    <div class="mt-3 rounded-2xl border border-stone-200/70 bg-white p-3.5">
+      <div class="mb-2.5 text-sm font-semibold text-stone-800">รูปตัวอย่าง</div>
+      <div class="flex flex-wrap gap-2">
+        <div v-for="(src, i) in form.images" :key="src" class="relative">
+          <SecureImg :src="src" class="h-20 w-20 rounded-xl object-cover" />
+          <button type="button" class="absolute -top-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-stone-900 text-white shadow" aria-label="ลบรูป" @click="form.images.splice(i, 1)">
+            <AppIcon name="x" :size="14" />
+          </button>
+        </div>
+        <label v-if="form.images.length < MAX_REF_IMAGES" class="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-stone-200 text-xs text-stone-400 hover:border-brand-300 hover:text-brand-600">
+          <AppIcon name="image" :size="20" />
+          เพิ่มรูป
+          <input type="file" accept="image/*" multiple class="hidden" @change="onImages" />
+        </label>
+      </div>
+      <p v-if="imgError" class="mt-1 text-xs text-rose-700">{{ imgError }}</p>
+      <div class="mt-4">
+        <div class="label">หมายเหตุ</div>
+        <textarea v-model="form.note" rows="2" class="input" placeholder="รายละเอียดเพิ่มเติม" />
+      </div>
+      <div v-if="customer" class="mt-4 space-y-2 rounded-xl border border-stone-200 bg-white p-3">
+        <label class="flex items-center gap-2 text-sm text-stone-700"><input v-model="notifyCust" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าว่ามีการแก้ไขรายการ</label>
+        <SmsTick v-model="smsCust" :customer="customer" :order="order" :show="notifyCust" />
+      </div>
+    </div>
+    </template>
+    <template #right>
     <!-- ชั้นของเค้ก (สั่งทำ) -->
     <template v-if="tierGroups.length">
       <!-- เค้กปกติ / เค้กชั้น -->
@@ -379,32 +408,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
       <p v-if="errors.health" class="mt-1.5 text-sm text-rose-700" role="alert">{{ errors.health }}</p>
     </div>
 
-    <!-- รูป + หมายเหตุ -->
-    <div class="mt-3 rounded-2xl border border-stone-200/70 bg-white p-3.5">
-      <div class="mb-2.5 text-sm font-semibold text-stone-800">รูปตัวอย่าง</div>
-      <div class="flex flex-wrap gap-2">
-        <div v-for="(src, i) in form.images" :key="src" class="relative">
-          <SecureImg :src="src" class="h-20 w-20 rounded-xl object-cover" />
-          <button type="button" class="absolute -top-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-stone-900 text-white shadow" aria-label="ลบรูป" @click="form.images.splice(i, 1)">
-            <AppIcon name="x" :size="14" />
-          </button>
-        </div>
-        <label v-if="form.images.length < MAX_REF_IMAGES" class="flex h-20 w-20 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-stone-200 text-xs text-stone-400 hover:border-brand-300 hover:text-brand-600">
-          <AppIcon name="image" :size="20" />
-          เพิ่มรูป
-          <input type="file" accept="image/*" multiple class="hidden" @change="onImages" />
-        </label>
-      </div>
-      <p v-if="imgError" class="mt-1 text-xs text-rose-700">{{ imgError }}</p>
-      <div class="mt-4">
-        <div class="label">หมายเหตุ</div>
-        <textarea v-model="form.note" rows="2" class="input" placeholder="รายละเอียดเพิ่มเติม" />
-      </div>
-      <div v-if="customer" class="mt-4 space-y-2 rounded-xl border border-stone-200 bg-white p-3">
-        <label class="flex items-center gap-2 text-sm text-stone-700"><input v-model="notifyCust" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าว่ามีการแก้ไขรายการ</label>
-        <SmsTick v-model="smsCust" :customer="customer" :order="order" :show="notifyCust" />
-      </div>
-    </div>
+    </template>
 
     <template #footer>
       <div class="flex w-full flex-wrap items-center gap-3">

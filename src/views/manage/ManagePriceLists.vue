@@ -161,8 +161,8 @@ async function save() {
       </button>
     </div>
 
-    <AppModal v-if="open" :title="form.id ? 'แก้ไขราคาพิเศษ' : 'เพิ่มราคาพิเศษ'" @close="open = false">
-      <div class="space-y-4">
+    <AppModal v-if="open" :title="form.id ? 'แก้ไขราคาพิเศษ' : 'เพิ่มราคาพิเศษ'" wider @close="open = false">
+      <div class="space-y-4 dlg-cols">
         <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" placeholder="เช่น ราคาสมาชิก, โปรวันแม่" /></div>
         <AppSwitch v-model="form.scheduled" label="กำหนดช่วงเวลา (นับจากวันที่สร้างออร์เดอร์)" class="flex" />
         <div v-if="form.scheduled" class="grid grid-cols-1 gap-3 sm:grid-cols-2">

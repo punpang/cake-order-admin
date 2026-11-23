@@ -531,3 +531,9 @@ html.has-sticky-photo {
 
 
 
+
+/* dialog แนวนอน (จอกว้าง ≥1024px + แนวนอน): เนื้อหาแบ่งสองคอลัมน์ · แถวไม่ถูกตัดกลางคอลัมน์ */
+@media (orientation: landscape) and (min-width: 1024px) {
+  .dlg-cols { column-count: 2; column-gap: 1.5rem; }
+  .dlg-cols > * { break-inside: avoid; }
+}
