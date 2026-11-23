@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase'
+import { shapeRemoteLink } from './remoteLinkShape'
 
 // ลิงก์ออร์เดอร์ข้ามเครื่อง (โหมด Supabase): ลูกค้าเปิดลิงก์ในเบราว์เซอร์ของตัวเอง → ถาม Edge Function 'order-link'
 // ได้ข้อมูลออร์เดอร์ที่ตัดข้อมูลภายในแล้ว → ใส่ในหน่วยความจำของเบราว์เซอร์นี้ (ดูอย่างเดียว · ไม่มีการเขียนกลับ)
@@ -15,7 +16,7 @@ export async function fetchRemoteLink(token, { refresh = false } = {}) {
       if (!Number.isInteger(st) || st >= 500) return { netError: true }
       return { error: null }
     }
-    return r.data?.order ? r.data : { error: null }
+    return shapeRemoteLink(r.data, token) // ใส่ tokenHash ก่อนส่งต่อ (ดู shapeRemoteLink)
   } catch { return { netError: true } }
 }
 
