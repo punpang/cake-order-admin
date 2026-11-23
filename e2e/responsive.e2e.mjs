@@ -39,7 +39,8 @@ try {
   }
   for (const route of STATIC) {
     await page.evaluate((r) => { location.hash = r }, route)
-    await page.waitForFunction(() => !document.body.innerText.includes('กำลังเตรียมข้อมูล'), null, { timeout: 60000 })
+    // ระหว่างนำทาง document.body อาจว่างชั่วครู่ จึงรอให้มี body ก่อนอ่านข้อความ (กัน TypeError ใน CI)
+    await page.waitForFunction(() => !!document.body && !document.body.innerText.includes('กำลังเตรียมข้อมูล'), null, { timeout: 60000 })
     await page.waitForTimeout(250)
     const m = await measure(() => {
       const el = document.documentElement
