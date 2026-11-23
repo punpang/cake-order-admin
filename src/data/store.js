@@ -4062,7 +4062,7 @@ function notifyPosSale(o, rows) {
   const adj = Number(o.adjustment?.amount) || 0
   notify('team_pos_sale', { orderId: o.id, vars: { ...orderVars(o), วิธีชำระ: posMoneyRows(rows), บรรทัดส่วนลด: adj < 0 ? `🏷 ส่วนลดหน้าร้าน ${money(-adj)}` : '', พนักงาน: posStaffNow(), เวลา: posWhenNow() } })
 }
-export function posSale({ cart, customerId = null, couponIds = [], discount = 0, method = 'cash', received = null, lines = null, partial = false, billId = null, quiet = false }) {
+export function posSale({ cart, customerId = null, couponIds = [], discount = 0, method = 'cash', received = null, lines = null, partial = false, billId = null, quiet = false, birthDiscount = null }) {
   const shift = currentShift()
   if (!shift || !cart.length) return null
   if (couponIds.length && (!customerId || posCouponProblem({ customerId, couponIds }))) return null // คูปองต้องที่ลูกค้ากดแสดงอยู่ (POS ตรวจก่อนด้วย posCouponProblem)
@@ -4074,6 +4074,9 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
     pointsUsed: null, couponsUsed: [], loyalty: null, vat: vatNow(), status: 'payment_confirmed', payments: [], cancel: null, history: [], createdAt: ts,
   }
   if (o.adjustment.amount < -orderTotals(o).subtotal) o.adjustment.amount = -orderTotals(o).subtotal // ส่วนลดหน้าร้านไม่เกินยอดสินค้า
+  // ส่วนลดเดือนเกิด (ไม่ซ้อนคูปอง · เซิร์ฟเวอร์ตรวจยอดซ้ำอีกครั้งตอนบันทึก)
+  const bd = Number(birthDiscount?.amount) || 0
+  if (bd > 0 && customerId && !couponIds.length) o.birthdayDiscount = { amount: Math.round(bd * 100) / 100, rate: Number(birthDiscount.rate) || 0, cap: Number(birthDiscount.cap) || 0, base: Number(birthDiscount.base) || 0 }
   // หลายช่องทาง: lines = [{ method, amount, received?, qrRef?, qrExpiresAt?, confirmed? }] ยอดรวมต้องเท่ายอดบิลพอดี · โอนที่มี QR ต้องยืนยันแล้วและยังไม่หมดอายุ
   db.orders.unshift(o)
   log(o, 'ขายหน้าร้าน (POS)')

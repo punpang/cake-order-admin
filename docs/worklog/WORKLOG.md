@@ -14,6 +14,16 @@
 
 ---
 
+## 2026-11-23 · [DB][POS][ลูกค้า][ระบบ] ส่วนลดเดือนเกิดหน้าร้าน (รอบ 1): คิดที่เซิร์ฟเวอร์ตรวจซ้ำตอนบันทึก · ไม่ซ้อนคูปอง · ยังไม่ merge · ยังไม่ Release
+
+**ทำอะไร:** migration `20261123150000` (`punpang__birth_discount_expected` + ด่านตรวจใน `punpang_orders_insert_guard`: เฉพาะ POS · ไม่มีคูปองในบิล · ยอดต้องตรงกับที่เซิร์ฟเวอร์คิด) · POS แสดงและรับส่วนลดเดือนเกิดเมื่อได้มากกว่าคูปอง · `orderTotals` (แอป, schedlib, slip.ts, customer-order) หักส่วนลดเดือนเกิด
+**เหตุผล:** ผู้ใช้อนุมัติรอบ 1 เฉพาะหน้าร้าน · นับเฉพาะสินค้าหมวดที่ร้านเลือก (ไม่นับเค้กสั่งทำ)
+**ผล:** `run.sh` ผ่าน (รวม birthday_pos BD1–BD7) · `npm test` 102 ไฟล์ผ่าน · build ผ่าน · งบ 886.5/887 KB · deno (`npx -y deno@2 test`) ผ่าน
+**ยังไม่ทำ:** ส่วนลดเดือนเกิดบนเว็บและใบเสนอ (รอบ 2) · ยังไม่ได้ทดสอบ POS บนเบราว์เซอร์จริง
+**รอ:** อนุมัติ merge และ Release (migration ใหม่ 3 ไฟล์ · deploy `customer-loyalty`, `customer-auth`, `order-create`/`customer-order` ตามที่แก้) · ลำดับ: deploy แอปและ Edge Function ก่อน แล้วค่อยรัน migration
+
+---
+
 ## 2026-11-23 · [DB][ลูกค้า][POS][ระบบ] สิทธิวันเกิดสมาชิก: บัญชีลูกค้าตั้งเดือนเกิด + ยินยอมแยก · บัตรแสดงตัวคูณเดือนเกิด · ส่วนลดเค้กเป็นตรรกะที่ทดสอบแล้ว · ยังไม่ merge · ยังไม่ Release
 
 **ทำอะไร:** migration `20261123140000_punpang_birthday_card_discount.sql`: ล้างเดือนเกิด · มุมมองสิทธิวันเกิด (LV3 5% เพดาน 25 · LV4 10% เพดาน 50 เฉพาะ Active และครบ 30 วัน) · บัตรลูกค้าและบัตรพนักงานรวมตัวคูณเดือนเกิด · `customer-loyalty` รับ `set_birth` / `clear_birth` · หน้าบัญชี (แท็บแต้ม/คูปอง) มีช่องเดือนเกิดและช่องยินยอมแยก · `src/lib/birthdayBenefit.js` (ส่วนลดเค้ก + ไม่ซ้อนคูปอง) พร้อมเทสต์
@@ -104,14 +114,3 @@
 **งานค้าง:** migration `20261122110100` ของ zen ยังไม่ merge · `docs/vat-refund-buyer.md` รอถ้อยคำกฎหมาย · ff `052bf36` เข้า main ยังไม่ตัดสินใจ · sms_log id 36 (failed) ยังไม่ทราบสาเหตุ
 
 ---
-
-## 2026-11-23 · [SMS][Release][ระบบ] ทดสอบ sms-send บน production สำเร็จ · แยกเทสต์ zen เป็น PR #114 รอ CI
-
-**ทำอะไร:** ผู้ใช้กดส่งทดสอบ 1 ข้อความจาก `/admin/settings/sms` ไปเบอร์ทดสอบ · อ่าน `punpang_sms_log` (อ่านอย่างเดียว): id 37 kind `test` status `sent` 05:18 UTC · หน้าจอแสดง "ถึงผู้รับแล้ว" · ผู้ใช้ยืนยันได้รับข้อความแล้ว · ตรวจ zen `80e8a1e` ใน worktree ชั่วคราว: `npm test` 96 ไฟล์ผ่าน · e2e `memberTier` live 3/3 shadow 3/3 · สร้างสาขา `claude/zen-tests-only` จาก main ดึง 3 ไฟล์เทสต์ (`ca0117b`) · เปิด PR #114 ไป main (ยังไม่ merge)
-**เหตุผล:** ผู้ใช้สั่งทดสอบ sms-send ก่อน · zen แยกเฉพาะเทสต์ เพราะ migration `20261122110100` เลขชนกับไฟล์ที่รันบน production แล้ว และ docs รอถ้อยคำกฎหมาย
-**ผล:** sms-send ทำงานบน production (ทดสอบ 1 ข้อความสำเร็จ) · แถว `punpang_sms_log` id 36 (kind `notify`, 04:50 UTC) status `failed` ยังไม่ทราบสาเหตุ
-**รอ:** CI ของ PR #114 (node, deno, database, e2e ยัง in_progress ตอนตรวจล่าสุด) · ผู้ใช้สั่ง merge หลัง CI เขียว
-**งานค้าง:** migration `20261122110100` และ `docs/vat-refund-buyer.md` ยังไม่ merge · ff `052bf36` เข้า main ยังไม่ตัดสินใจ · ตรวจสาเหตุ sms_log id 36 ได้ถ้าต้องการ
-
----
-

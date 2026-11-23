@@ -1,3 +1,13 @@
+## 2026-11-23 · [SMS][Release][ระบบ] ทดสอบ sms-send บน production สำเร็จ · แยกเทสต์ zen เป็น PR #114 รอ CI
+
+**ทำอะไร:** ผู้ใช้กดส่งทดสอบ 1 ข้อความจาก `/admin/settings/sms` ไปเบอร์ทดสอบ · อ่าน `punpang_sms_log` (อ่านอย่างเดียว): id 37 kind `test` status `sent` 05:18 UTC · หน้าจอแสดง "ถึงผู้รับแล้ว" · ผู้ใช้ยืนยันได้รับข้อความแล้ว · ตรวจ zen `80e8a1e` ใน worktree ชั่วคราว: `npm test` 96 ไฟล์ผ่าน · e2e `memberTier` live 3/3 shadow 3/3 · สร้างสาขา `claude/zen-tests-only` จาก main ดึง 3 ไฟล์เทสต์ (`ca0117b`) · เปิด PR #114 ไป main (ยังไม่ merge)
+**เหตุผล:** ผู้ใช้สั่งทดสอบ sms-send ก่อน · zen แยกเฉพาะเทสต์ เพราะ migration `20261122110100` เลขชนกับไฟล์ที่รันบน production แล้ว และ docs รอถ้อยคำกฎหมาย
+**ผล:** sms-send ทำงานบน production (ทดสอบ 1 ข้อความสำเร็จ) · แถว `punpang_sms_log` id 36 (kind `notify`, 04:50 UTC) status `failed` ยังไม่ทราบสาเหตุ
+**รอ:** CI ของ PR #114 (node, deno, database, e2e ยัง in_progress ตอนตรวจล่าสุด) · ผู้ใช้สั่ง merge หลัง CI เขียว
+**งานค้าง:** migration `20261122110100` และ `docs/vat-refund-buyer.md` ยังไม่ merge · ff `052bf36` เข้า main ยังไม่ตัดสินใจ · ตรวจสาเหตุ sms_log id 36 ได้ถ้าต้องการ
+
+---
+
 ## 2026-11-23 · [ระบบ][Release] สรุปส่งต่อแชท: merge/deploy เสร็จ · งานค้างและเจ้าของงาน
 
 **ทำอะไร:** merge zen บางส่วนเข้า main (`fc042fe`) · ลบแถว pickup บน production (ตรวจซ้ำแล้ว) · ผู้ใช้ลบ sms-probe เองใน Dashboard · จดว่าไม่ใช้ Vercel (`274f096` บนสาขา `claude/fix-order-link-token` ยังไม่ ff เข้า main)
