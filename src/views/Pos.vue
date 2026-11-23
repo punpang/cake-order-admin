@@ -1,4 +1,5 @@
 <script setup>
+import { openPriceOk } from '../lib/openPrice.js'
 import { couponQuoteOf, quoteCouponList, couponTermsText } from '../lib/coupons'
 import { birthCakeDiscount, pickBirthOrCoupons } from '../lib/birthdayBenefit'
 import { resolveCouponScan, resolveMemberScan } from '../lib/scan'
@@ -63,7 +64,7 @@ function doOpen() {
 // ---------- สินค้า ----------
 // สินค้าที่แสดงใน POS = สินค้าที่เปิดใช้งาน + เปิด "แสดงใน POS" (สวิตช์แยกจากหน้าร้านเว็บ)
 const catalog = computed(() =>
-  db.retailItems.filter((r) => r.active !== false && r.showInPos !== false).map((r) => ({ kind: 'retail', id: r.id, name: r.name, category: r.category || 'อื่น ๆ', price: r.price, stock: r.stock ?? null, modifierIds: r.modifierIds || [], image: r.images?.[0] || '' })),
+  db.retailItems.filter((r) => r.active !== false && r.showInPos !== false).map((r) => ({ kind: 'retail', id: r.id, name: r.name, category: r.category || 'อื่น ๆ', price: r.price, stock: r.stock ?? null, openPrice: !!r.openPrice, modifierIds: r.modifierIds || [], image: r.images?.[0] || '' })),
 )
 const pointTag = (x) => pointPromoFor({ retailId: x.id, category: x.category }, db.pointPromos)
 const categories = computed(() => [...new Set(catalog.value.map((x) => x.category))])
@@ -87,16 +88,17 @@ const inCart = (x) => cart.value.filter((l) => l.kind === x.kind && l.refId === 
 const canAdd = (x, n = 1) => x.stock == null || inCart(x) + n <= x.stock
 const itemOf = (l) => catalog.value.find((c) => c.kind === l.kind && c.id === l.refId)
 const groupsOf = (x) => (x.modifierIds || []).map((id) => db.posModifiers.find((m) => m.id === id)).filter((g) => g && g.active !== false && g.options.length)
-const linePrice = (l) => (itemOf(l)?.price || 0) + modsOf(l.mods).reduce((s, m) => s + m.price, 0)
-function addLine(x, mods, qty) {
-  const key = lineKey({ kind: x.kind, refId: x.id, mods })
+const linePrice = (l) => (itemOf(l)?.openPrice ? Number(l.price) || 0 : (itemOf(l)?.price || 0) + modsOf(l.mods).reduce((s, m) => s + m.price, 0))
+function addLine(x, mods, qty, price = null) {
+  const key = lineKey({ kind: x.kind, refId: x.id, mods, price })
   const l = cart.value.find((y) => lineKey(y) === key)
   if (l) l.qty += qty
-  else cart.value.push({ kind: x.kind, refId: x.id, qty, mods })
+  else cart.value.push({ kind: x.kind, refId: x.id, qty, mods, ...(price != null ? { price } : {}) })
 }
 function add(x) {
   if (!memberChoice.value && !editBill.value) return
   if (!canAdd(x)) return
+  if (x.openPrice) return openPricePrompt.value = { x, price: '', error: '' }
   if (groupsOf(x).length) return openMods(x)
   addLine(x, [], 1)
 }
@@ -178,6 +180,15 @@ function saveMods() {
   addLine(f.x, modSel.value, f.qty)
   modFor.value = null
 }
+// ---------- สินค้าไม่กำหนดราคา: กรอกราคาตอนขาย ----------
+const openPricePrompt = ref(null) // { x, price, error }
+function saveOpenPrice() {
+  const f = openPricePrompt.value
+  const chk = openPriceOk(f.price)
+  if (!chk.ok) return (f.error = chk.error)
+  addLine(f.x, [], 1, chk.value)
+  openPricePrompt.value = null
+}
 const count = computed(() => cart.value.reduce((s, l) => s + l.qty, 0))
 // แนะนำขายต่อ: ชุดบันเดิ้ลที่ใกล้ครบ + สินค้าที่ลูกค้ามักซื้อคู่กัน
 const cartRetail = computed(() => cart.value.filter((l) => l.kind === 'retail').map((l) => ({ retailId: l.refId, qty: l.qty })))
@@ -185,13 +196,13 @@ const cartRetail = computed(() => cart.value.filter((l) => l.kind === 'retail').
 const bundleUsed = computed(() => { const u = {}; for (const i of lineItems.value) if ((i.discounts || []).some((d) => d.kind === 'bundle')) u[i.retailId] = (u[i.retailId] || 0) + i.qty; return u })
 const bundleSug = computed(() => suggestBundles(cartRetail.value, db.posBundles, catalog.value, { now: new Date(), used: bundleUsed.value }))
 const pairSug = computed(() => {
-  const ok = new Set(catalog.value.filter((x) => canAdd(x)).map((x) => x.id))
+  const ok = new Set(catalog.value.filter((x) => canAdd(x) && !x.openPrice).map((x) => x.id))
   return coBought(db.orders, cartRetail.value.map((l) => l.retailId), { eligible: ok }).map((r) => ({ ...r, item: catalog.value.find((x) => x.id === r.retailId) })).filter((r) => r.item)
 })
 function addMissing(sug) {
   for (const m of sug.missing) {
     const x = catalog.value.find((c) => c.id === m.itemId)
-    if (!x || !canAdd(x, m.qty)) continue
+    if (!x || x.openPrice || !canAdd(x, m.qty)) continue
     if (groupsOf(x).length) return openMods(x)
     addLine(x, [], m.qty)
   }
@@ -1342,6 +1353,19 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
 
     <!-- ตัวเลือกสินค้า -->
+    <AppModal v-if="openPricePrompt" :title="openPricePrompt.x.name" @close="openPricePrompt = null">
+      <div class="space-y-2">
+        <label class="label" for="open-price-input">ราคาขาย (บาท)</label>
+        <MoneyInput id="open-price-input" v-model="openPricePrompt.price" class="input text-lg" placeholder="0" autofocus @keyup.enter="saveOpenPrice" />
+        <p v-if="openPricePrompt.error" class="text-sm text-rose-700">{{ openPricePrompt.error }}</p>
+        <p class="text-xs text-stone-500">สินค้านี้ไม่มีราคาตั้งไว้ ผู้ขายกรอกราคาตอนขาย (ใช้คูปองและสะสมแต้มไม่ได้)</p>
+      </div>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="openPricePrompt = null">ยกเลิก</button>
+        <button class="btn-primary flex-[1.6] sm:flex-none" @click="saveOpenPrice">ใส่ตะกร้า</button>
+      </template>
+    </AppModal>
+
     <AppModal v-if="modFor" :title="modFor.x.name" @close="modFor = null">
       <div class="space-y-4">
         <div v-for="g in groupsOf(modFor.x)" :key="g.id">

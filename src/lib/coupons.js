@@ -24,28 +24,32 @@ export const creditBalanceOf = (x) => cents(Math.max(0, num(x?.balance)))
 
 // ยอดสินค้า = ราคาหลังส่วนลดรายการ × จำนวน (ไม่รวมค่าส่ง ปรับราคา คะแนน คูปอง)
 export const goodsOf = (order) => cents((order.items || []).reduce((s, i) => s + num(i.unitPrice) * num(i.qty), 0))
+// ยอดสินค้าที่ใช้คูปองได้ = ไม่รวมสินค้าไม่คำนวณแต้ม (noPoints · ใช้คูปองส่วนลดไม่ได้ทุกแบบ)
+export const couponGoodsOf = (order) => cents((order.items || []).filter((i) => !i?.noPoints).reduce((s, i) => s + num(i.unitPrice) * num(i.qty), 0))
 
 // ยอดของสินค้าที่กำหนด (ไม่นับของแถม) · ไม่กำหนดสินค้า = 0
 export function productGoodsOf(order, productId) {
   const id = String(productId ?? '')
   if (!id) return 0
-  return cents((order.items || []).filter((i) => i && !i.promoGift && String(i.retailId ?? '') === id).reduce((s, i) => s + num(i.unitPrice) * num(i.qty), 0))
+  return cents((order.items || []).filter((i) => i && !i.promoGift && !i.noPoints && String(i.retailId ?? '') === id).reduce((s, i) => s + num(i.unitPrice) * num(i.qty), 0))
 }
 
 // ส่วนลดของคูปองใบหนึ่งกับออร์เดอร์นี้ · ok = เข้าเงื่อนไข · amount = ส่วนลด (บาท) · reason = เหตุผลเมื่อไม่เข้าเงื่อนไข
 export function couponQuoteOf(cp, order) {
   const mode = modeOf(cp)
   const total = orderTotals(order).total
-  const goods = goodsOf(order)
+  const goods = couponGoodsOf(order)
+  // ส่วนที่ใช้คูปองไม่ได้ (สินค้าไม่คำนวณแต้ม) ไม่ถูกลด จึงเป็นเพดานของส่วนลดด้วย
+  const room = cents(Math.max(0, total - (goodsOf(order) - goods)))
   if (mode === 'credit') {
     const available = creditBalanceOf(cp)
     if (!(available > 0)) return { ok: false, amount: 0, reason: 'ยอดคงเหลือของคูปองหมดแล้ว' }
-    return { ok: true, amount: cents(Math.min(available, total)), reason: '' }
+    return { ok: true, amount: cents(Math.min(available, room)), reason: '' }
   }
   if (mode === 'fixed') {
     const minSpend = num(cp.minSpend)
     if (minSpend > 0 && goods < minSpend) return { ok: false, amount: 0, reason: `ยอดสินค้าต้องถึง ${money(minSpend)}` }
-    return { ok: true, amount: cents(Math.min(Math.max(num(cp.amount), 0), total)), reason: '' }
+    return { ok: true, amount: cents(Math.min(Math.max(num(cp.amount), 0), room)), reason: '' }
   }
   const pct = num(cp.pct)
   const cap = num(cp.cap)
@@ -59,7 +63,7 @@ export function couponQuoteOf(cp, order) {
     base = productGoodsOf(order, cp.productId)
     if (!(base > 0)) return { ok: false, amount: 0, reason: `ต้องมี${cp.productName ? ` ${cp.productName}` : 'สินค้าที่กำหนด'}ในออร์เดอร์` }
   }
-  return { ok: true, amount: cents(Math.min((base * pct) / 100, cap, total)), reason: '' }
+  return { ok: true, amount: cents(Math.min((base * pct) / 100, cap, room)), reason: '' }
 }
 
 // คิดส่วนลดคูปองหลายใบตามลำดับ (ใบก่อนหักยอดก่อนใบถัดไป เหมือนตอนบันทึกจริง) · เริ่มจากคูปองที่อยู่ในออร์เดอร์แล้ว (order.couponsUsed)

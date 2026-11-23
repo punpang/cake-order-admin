@@ -19,6 +19,8 @@ export const RECORD_SPECS = {
   consents: { key: 'consents', kind: 'list', order: 'asc', read: ['viewAllOrders', 'createOrder'], write: ['viewAllOrders', 'createOrder'] },
   chatDrafts: { key: 'chatDrafts', kind: 'map', read: ['chat'], write: ['chat'] },
   luckyTokens: { key: 'luckyTokens', kind: 'list', order: 'desc', read: ['pos'], write: ['pos'], limit: 3000 },
+  // สรุปยอดฝากขาย: อ่านได้ผู้ดูยอดออร์เดอร์ · เขียน (สรุป/จ่าย) เฉพาะผู้จัดการ
+  consignRounds: { key: 'consignRounds', kind: 'list', order: 'desc', read: ['viewAllOrders'], write: ['manage'], limit: 1000 },
 }
 export const specAllows = (rule, has) => rule === true || has('manage') || rule.some(has)
 

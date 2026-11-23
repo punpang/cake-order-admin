@@ -199,6 +199,16 @@ msfcode=$?
 [ "$msfcode" = "0" ] && echo "✓ member_staff.test.sql ผ่านทั้งหมด" || echo "✗ member_staff.test.sql ล้มเหลว"
 [ "$msfcode" = "0" ] || exit "$msfcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/no_points.test.sql
+npcode2=0
+"${PSQL[@]}" -d "$DB" -f supabase/tests/consign_rounds.test.sql
+npcode2=$?
+[ "$npcode2" = "0" ] && echo "✓ consign_rounds.test.sql ผ่านทั้งหมด" || echo "✗ consign_rounds.test.sql ล้มเหลว"
+[ "$npcode2" = "0" ] || exit "$npcode2"
+npcode=$?
+[ "$npcode" = "0" ] && echo "✓ no_points.test.sql ผ่านทั้งหมด" || echo "✗ no_points.test.sql ล้มเหลว"
+[ "$npcode" = "0" ] || exit "$npcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"
