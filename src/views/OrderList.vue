@@ -385,7 +385,7 @@ function clearAll() {
           </span>
         </RouterLink>
       </div>
-      <div v-else class="grid grid-cols-1 gap-2.5 lg:grid-cols-2 2xl:grid-cols-3">
+      <div v-else class="grid grid-cols-1 gap-2.5 lg:grid-cols-3 2xl:grid-cols-4">
         <RouterLink
           v-for="{ o, c, t } in g.orders"
           :key="o.id"
