@@ -364,7 +364,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
       </div>
     </div>
     </template>
-    <template #right>
+    <template #center>
     <!-- ชั้นของเค้ก (สั่งทำ) -->
     <template v-if="tierGroups.length">
       <!-- เค้กปกติ / เค้กชั้น -->
@@ -396,6 +396,8 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
       </div>
     </template>
 
+    </template>
+    <template #right>
     <div v-if="form.kind === 'custom' && wholeGroups.length" class="mb-2 text-sm font-semibold text-stone-500">ตัวเลือกเพิ่มเติม</div>
     <OptionPicker v-model="form.selections" :scopes="scopesFor(form.tiers[0])" :bundles="form.kind === 'custom' ? db.bundles : []" :context="form.tiers[0]?.selections || {}" :groups="wholeGroups" :all-groups="groups" :errors="errors" :active="active" :allow="form.kind === 'custom' ? allowFor(form.tiers[0]) : null" :size-ids="allSizeIds" :type-opt="form.kind === 'custom' ? typeOptOf(form.tiers[0]) : readyTypeOpt" />
     <BundleHint v-if="form.kind === 'custom'" scope="whole" :bundles="db.bundles" :groups="groups" :tier-sels="form.tiers[0]?.selections || null" :whole-sels="form.selections" :size-ids="allSizeIds" :type-id="typeOptOf(form.tiers[0])?.id || null" :style-id="styleIdOf(form.tiers[0])" :allow="allowFor(form.tiers[0])" />
