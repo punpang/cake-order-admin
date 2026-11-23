@@ -5,6 +5,7 @@ export type Fake = {
   t: Record<string, any[]>
   calls: { method: string; path: string; schema: string }[]
   seq: Record<string, number>
+  birth?: Record<string, unknown> // สิทธิเดือนเกิดที่ punpang_member_birth_for_quote คืน (ไม่ตั้ง = ไม่มีสิทธิ)
   reset: () => void
 }
 
@@ -87,6 +88,8 @@ export function installFakeRest(opts: { host?: string; users: Record<string, str
       }
       if (fn === 'punpang__quote_check') return J(quoteCheck(fake.t[`${schema}.punpang_quotes`] || [], a))
       if (fn === 'punpang_quote_order_create') return J(quoteOrderCreate(fake, schema, a))
+      // สิทธิเดือนเกิด (punpang_member_birth_for_quote): ค่าเริ่มต้นไม่มีสิทธิ · เทสต์ที่ต้องการส่วนลดตั้ง fake.birth ได้
+      if (fn === 'punpang_member_birth_for_quote') return J(fake.birth ?? { eligible: false, active: false, rate: 0, cap: 0, birthMult: null, cakeCategories: [] })
       throw new Error(`RPC ที่ไม่ได้จำลอง: ${fn}`)
     }
     const table = p.replace('/rest/v1/', '')
