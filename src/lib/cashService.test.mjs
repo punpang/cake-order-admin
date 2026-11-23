@@ -125,10 +125,15 @@ t('ออร์เดอร์หน้าร้าน (ไม่ใช่ใบ
   assert.equal(cashServiceOf({ kind: 'stash' }, shop).ok, true)
 })
 
-t('ใบเสนอลูกค้า: บริการที่ยังไม่เปิดให้ลูกค้าเห็นถูกปฏิเสธที่เซิร์ฟเวอร์คิดราคาด้วย', () => {
-  const r = buildQuotePayload({ draft: retailDraft({ cashService: { kind: 'hide', notes: { 1000: 1 } } }), customerId: 'c1', catalog: { ...golden.catalog, shop: { ...golden.catalog.shop, ...hideShop() } }, nowMs: golden.nowMs })
+t('ใบเสนอลูกค้า: บริการที่ยังไม่เปิดให้ลูกค้าเห็นถูกปฏิเสธ · ออร์เดอร์หน้าร้านไม่ถูกปฏิเสธ', () => {
+  const r = buildQuotePayload({ draft: retailDraft({ cashService: { kind: 'hide', notes: { 1000: 1 } } }), customerId: 'c1', catalog: { ...golden.catalog, shop: { ...golden.catalog.shop, ...hideShop() } }, nowMs: golden.nowMs, customerFacing: true })
   assert.equal(r.ok, false)
   assert.match(r.error, /ยังไม่เปิดให้ลูกค้าเห็น/)
+})
+
+t('ออร์เดอร์หน้าร้าน (buildQuotePayload ไม่ตั้ง customerFacing): บริการที่ยังไม่ให้ลูกค้าเห็นยังผ่าน', () => {
+  const r = buildQuotePayload({ draft: retailDraft({ cashService: { kind: 'hide', notes: { 1000: 1 } } }), customerId: 'c1', catalog: { ...golden.catalog, shop: { ...golden.catalog.shop, ...hideShop() } }, nowMs: golden.nowMs })
+  assert.equal(r.ok, true, r.error)
 })
 
 if (fail) { console.log(`ล้ม ${fail} รายการ`); process.exit(1) }

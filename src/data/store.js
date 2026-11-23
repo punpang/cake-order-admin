@@ -3877,7 +3877,7 @@ export const findQuote = (id) => db.quotes.find((q) => q.id === id)
 function localQuote(chatId, draft) {
   const c = findChat(chatId)
   if (!c) return { error: 'ไม่พบแชท' }
-  const r = buildQuotePayload({ draft, customerId: c.customerId, catalog: catalogOf(), nowMs: Date.now() })
+  const r = buildQuotePayload({ draft, customerId: c.customerId, catalog: catalogOf(), nowMs: Date.now(), customerFacing: true })
   if (!r.ok) return { error: r.error }
   return { quote: { id: uid('qt'), code: numbering.next('QT'), chatId, customerId: c.customerId, payload: r.payload, status: 'pending', orderId: null, createdAt: now(), respondedAt: null } }
 }
