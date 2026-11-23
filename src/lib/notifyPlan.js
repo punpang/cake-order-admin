@@ -31,7 +31,6 @@ export const NEW_CUSTOMER_RULES = [
   { event: 'adjustment_changed', channels: ['web', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} มีการปรับราคาแล้วค่ะ ยอดรวม {ยอดรวม} คงค้าง {คงค้าง}', enabled: true },
   { event: 'preparing', channels: ['web', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} เริ่มเตรียมสินค้าแล้วค่ะ', enabled: true },
   { event: 'ready_to_ship', channels: ['web', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} พร้อมจัดส่งแล้วค่ะ', enabled: true },
-  { event: 'points_applied', channels: ['web', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} ใช้คะแนนสะสม {คะแนน} คะแนนเป็นส่วนลด {ส่วนลดคะแนน} แล้วค่ะ ยอดรวม {ยอดรวม} คงค้าง {คงค้าง}', enabled: true },
   { event: 'points_removed', channels: ['web', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} ยกเลิกการใช้คะแนนสะสม {คะแนน} คะแนนแล้วค่ะ ยอดรวม {ยอดรวม} คงค้าง {คงค้าง}', enabled: true },
   { event: 'points_earned', channels: ['web', 'sms'], template: 'คุณได้รับคะแนนใหม่ {คะแนนใหม่} คะแนน มีคะแนนสะสมอยู่ {คะแนนสะสม} คะแนน{คะแนนหมดอายุ}', enabled: true },
   // ส่งจากเซิร์ฟเวอร์ (customer-order) เฉพาะ Facebook · ข้อความต้องตรงกับ SLIP_RECEIVED_TPL ใน supabase/functions/_shared/slipnotice.ts
