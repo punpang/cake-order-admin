@@ -1091,6 +1091,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <template v-if="shift && tab === 'sell' && can('useLoyalty') && !needMemberChoice">
         <button type="button" class="btn-soft ml-2 h-9 max-w-[12rem] truncate px-3 text-sm" :aria-label="member ? 'เปลี่ยนสมาชิก' : 'เลือกสมาชิก'" @click="memberSearchOpen = true">{{ member ? `สมาชิก: ${member.name}` : '+ สมาชิก' }}</button>
         <button v-if="member" type="button" class="btn-soft h-9 w-9 shrink-0 text-sm" aria-label="เอาสมาชิกออก" @click="clearMemberPick">✕</button>
+        <span v-if="member && staffCard.enabled" role="group" aria-label="ระดับสมาชิกที่หน้าขาย" class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-brand-50 px-3 text-sm text-brand-900"><b>{{ staffCard.levelName }}</b><span>· x{{ staffCard.mult }}</span><span v-if="staffCard.mode === 'shadow'" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">ทดลอง</span></span>
       </template>
       <div v-if="shift" class="grid grid-cols-4 gap-1 seg-grid max-sm:order-last max-sm:w-full" :class="can('useLoyalty') ? '' : 'ml-auto'">
         <button v-for="t in [{ v: 'sell', l: 'ขาย' }, { v: 'bills', l: `บิล ${bills.length}` }, { v: 'queue', l: `คิว ${prepList.length}` }, { v: 'shift', l: 'สรุปกะ' }]" :key="t.v" type="button" class="h-9 rounded-lg px-2 text-sm font-medium whitespace-nowrap sm:px-3" :class="tab === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="tab = t.v">{{ t.l }}</button>
