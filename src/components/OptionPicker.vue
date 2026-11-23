@@ -17,6 +17,7 @@ const props = defineProps({
   typeOpt: { type: Object, default: null }, // ประเภทที่เลือกในชั้นนี้ (ราคาขนาดขึ้นกับประเภท)
   bundles: { type: Array, default: () => [] }, // บันเดิ้ลตัวเลือก → ติดป้ายบนชิป
   context: { type: Object, default: () => ({}) }, // ตัวเลือกของอีกส่วน (ชั้น/ทั้งก้อน) ที่ใช้รวมตรวจบันเดิ้ลข้ามกลุ่ม
+  compact: { type: Boolean, default: false }, // ชั้นเค้กในหน้าแก้ไขสินค้า: ระยะห่างและชิปเล็กลงให้พอดีจอแนวนอน
   invalid: { type: Array, default: () => [] }, // id ของหัวข้อที่เลือกไว้แต่ไม่เข้ากับตัวเลือกอื่น → แสดงข้อความใต้หัวข้อนั้น
 })
 const selections = defineModel({ type: Object, required: true })
@@ -84,14 +85,14 @@ const isOn = (g, o) =>
 </script>
 
 <template>
-  <div class="space-y-3">
+  <div :class="compact ? 'space-y-2' : 'space-y-3'">
     <div
       v-for="g in groups.filter((x) => (x.key !== 'style' || x.options.some((o) => o.active !== false)) && (!allow || allow(x, null)))"
       :key="g.id"
-      class="rounded-2xl border bg-white p-3.5"
-      :class="errors[g.id] ? 'border-rose-300 ring-4 ring-rose-50' : 'border-stone-200/70'"
+      class="rounded-2xl border bg-white"
+      :class="[compact ? 'p-2.5' : 'p-3.5', errors[g.id] ? 'border-rose-300 ring-4 ring-rose-50' : 'border-stone-200/70']"
     >
-      <div class="mb-2.5 flex flex-wrap items-baseline gap-x-2">
+      <div class="flex flex-wrap items-baseline gap-x-2" :class="compact ? 'mb-1.5' : 'mb-2.5'">
         <span class="text-sm font-semibold text-stone-800">{{ g.name }}</span>
         <span v-if="g.required" class="text-xs font-medium text-rose-700">จำเป็น</span>
         <span v-else-if="g.type === 'multi'" class="text-xs text-stone-400">เลือกได้หลายอย่าง</span>
@@ -105,13 +106,13 @@ const isOn = (g, o) =>
         :placeholder="g.placeholder || ''"
       />
 
-      <div v-else class="flex flex-wrap gap-2">
+      <div v-else class="flex flex-wrap" :class="compact ? 'gap-1.5' : 'gap-2'">
         <button
           v-for="o in g.options.filter((x) => (x.active !== false || isOn(g, x)) && (!allow || allow(g, x)) && (isMain(g) || forType(x, typeOpt?.id)))"
           :key="o.id"
           type="button"
-          class="relative inline-flex min-h-11 max-w-full gap-1.5 rounded-xl border px-3 py-2 text-left text-sm transition active:scale-[0.98]"
-          :class="[isOn(g, o) ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : (tagOf(g, o) ? (tagOf(g, o).state === 'partner' ? 'border-amber-500 bg-amber-50 text-stone-800 ring-2 ring-amber-300 motion-safe:animate-pulse' : 'border-dashed border-amber-500 bg-amber-50/40 text-stone-800') : 'border-stone-200 bg-white text-stone-700 hover:border-brand-300'), tagOf(g, o) ? 'flex-col items-start' : 'items-center']"
+          class="relative inline-flex max-w-full gap-1.5 rounded-xl border text-left transition active:scale-[0.98]"
+          :class="[compact ? 'min-h-9 px-2.5 py-1 text-[0.8125rem]' : 'min-h-11 px-3 py-2 text-sm', isOn(g, o) ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : (tagOf(g, o) ? (tagOf(g, o).state === 'partner' ? 'border-amber-500 bg-amber-50 text-stone-800 ring-2 ring-amber-300 motion-safe:animate-pulse' : 'border-dashed border-amber-500 bg-amber-50/40 text-stone-800') : 'border-stone-200 bg-white text-stone-700 hover:border-brand-300'), tagOf(g, o) ? 'flex-col items-start' : 'items-center']"
           :title="tagOf(g, o) ? `${tagOf(g, o).single ? 'ลดเพิ่ม' : 'บันเดิ้ล'}: ${tagOf(g, o).names.join(', ')}` : null"
           :data-bundle-tag="tagOf(g, o)?.state || null"
           :disabled="isLocked(g, o)"
