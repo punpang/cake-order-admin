@@ -95,15 +95,16 @@ function project(r, select) {
   return o
 }
 
-export function startSupabaseMock(tables = {}) {
+export function startSupabaseMock({ __rpc = {}, ...tables } = {}) {
   const db = tables
   const log = []
   let seq = 0
   let clock = Date.now()
   const stamp = () => new Date((clock = Math.max(clock + 1, Date.now()))).toISOString()
   const keysOf = (t) => (t === 'punpang_kv' || t === 'punpang_records' ? ['collection', 'id'] : t === 'punpang_staff' ? ['user_id'] : ['id'])
-  const rpc = {
+  const rpc = { // __rpc = คำตอบ RPC ที่เทสต์กำหนดเอง (ใช้แทนของเดิมที่ชื่อเดียวกัน)
     punpang_alloc_numbers: ({ p_n }) => { const s = ++seq * 1000; return Array.from({ length: p_n || 1 }, (_, i) => s + i) },
+    ...__rpc,
   }
 
   const server = http.createServer(async (req, res) => {
