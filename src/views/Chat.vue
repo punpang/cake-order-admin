@@ -164,7 +164,7 @@ watch(current, (c) => {
 
 // คลาสตามสถานะ: รายการแชท / เธรด / แผงออร์เดอร์
 const gridCls = computed(() => (orderOpen.value
-  ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)] xl:grid-cols-[300px_minmax(0,1fr)_440px]'
+  ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)] xl:grid-cols-[280px_minmax(0,1fr)_360px]'
   : 'md:grid-cols-[280px_minmax(0,1fr)]'))
 const asideCls = computed(() => {
   if (orderOpen.value) return 'hidden xl:flex'

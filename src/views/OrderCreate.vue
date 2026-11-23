@@ -297,9 +297,9 @@ async function quote() {
             <AppIcon v-if="i < step" name="check" :size="14" />
             <template v-else>{{ i + 1 }}</template>
           </span>
-          <span class="truncate text-xs font-medium sm:text-sm" :class="i === step ? 'text-brand-700' : 'text-stone-500'">{{ s }}</span>
+          <span class="truncate text-xs font-medium sm:text-sm" :class="[i === step ? 'text-brand-700' : 'text-stone-500', embedded && i !== step && 'sr-only']">{{ s }}</span>
         </button>
-        <span v-if="i < steps.length - 1" class="hidden h-px w-4 shrink-0 bg-stone-200 sm:block" />
+        <span v-if="i < steps.length - 1" class="h-px w-4 shrink-0 bg-stone-200" :class="embedded ? 'hidden' : 'hidden sm:block'" />
       </li>
     </ol>
 

@@ -9,3 +9,4 @@ tests/slip-samples/
 # ผลการสร้างแอปลูกค้า (สร้างใหม่ทุกครั้งใน CI)
 dist-customer/
 android-customer/
+.claude/settings.local.json
