@@ -95,7 +95,7 @@ function project(r, select) {
   return o
 }
 
-export function startSupabaseMock({ __rpc = {}, ...tables } = {}) {
+export function startSupabaseMock({ __rpc = {}, __functions = {}, ...tables } = {}) {
   const db = tables
   const log = []
   let seq = 0
@@ -133,6 +133,8 @@ export function startSupabaseMock({ __rpc = {}, ...tables } = {}) {
       log.push({ fn, id: body?.id })
       // order-create กับออร์เดอร์ที่มีแล้ว = 409 exists (เหมือนของจริง) · อื่น ๆ คืน {}
       if (fn === 'order-create' && (db.punpang_orders || []).some((r) => r.id === body?.id)) return send(409, { error: 'ออร์เดอร์นี้บันทึกแล้ว', code: 'exists' })
+      // คำตอบของ Edge Function ที่เทสต์กำหนดเอง (เช่น customer-auth ของบัญชีลูกค้า)
+      if (__functions[fn]) return send(200, __functions[fn](body || {}))
       return send(200, {})
     }
     if (p.startsWith('/rest/v1/rpc/')) {
