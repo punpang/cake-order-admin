@@ -165,5 +165,24 @@ select pg_temp.mbn_ev('mbn_b3', 'ob3a', pg_temp.mbn_d(40), 5000);
 select pg_temp.mbn_ev('mbn_b3', 'ob3b', pg_temp.mbn_d(0), 100);
 select test.ok('G11 ยอดซื้อนอกเดือนเกิดไม่นับ และยอดเดือนเกิดไม่ถึง 300 จึงไม่ได้คูปอง', pg_temp.mbn_bday_coupons('mbn_b3') = 0);
 
+-- ---------- H) มุมมองสิทธิวันเกิด · บัตร · ถอนเดือนเกิด ----------
+select pg_temp.mbn_cust('mbn_h1');
+select public.punpang_cust_set_birth('mbn_h1', extract(month from (now() at time zone 'Asia/Bangkok'))::int, true);
+select pg_temp.mbn_backdate('mbn_h1', 31);
+select pg_temp.mbn_ev('mbn_h1', 'oh1', pg_temp.mbn_d(40), 5000);                 -- LV4 (ก่อนเดือนเกิด)
+select test.ok('H1 LV4 ครบ 30 วัน: มุมมองเดือนเกิดให้ส่วนลดเค้ก 10% เพดาน 50 และตัวคูณเดือนเกิด 10',
+  (public.punpang__member_birth_view(public.punpang__member_fold('mbn_h1', now())) ->> 'rate')::int = 10
+  and (public.punpang__member_birth_view(public.punpang__member_fold('mbn_h1', now())) ->> 'cap')::int = 50
+  and (public.punpang__member_birth_view(public.punpang__member_fold('mbn_h1', now())) ->> 'birthMult')::numeric = 10);
+select test.ok('H2 บัตรลูกค้า (โหมดใช้จริง) แสดงตัวคูณรวมเดือนเกิด = 10',
+  (public.punpang_member_card('mbn_h1') ->> 'mult')::numeric = 10);
+select test.ok('H3 ยังไม่ครบ 30 วัน: ไม่มีส่วนลดเดือนเกิด (rate 0)',
+  (public.punpang__member_birth_view(public.punpang__member_fold('mbn_b1', now())) ->> 'rate')::int = 0);
+select public.punpang_cust_clear_birth('mbn_h1');
+select test.ok('H4 ถอนเดือนเกิดแล้วไม่มีข้อมูลเดือนเกิดในบัญชี',
+  not exists (select 1 from public.punpang_customers c where c.id = 'mbn_h1' and c.data ? 'birth'));
+select test.ok('H5 ถอนแล้วตัวคูณเดือนเกิดหายไป (ตัวคูณระดับปกติ 5)',
+  (public.punpang_member_card('mbn_h1') ->> 'mult')::numeric = 5);
+
 rollback;
 select 'ผ่านทั้งหมด' as member_benefits_tests;

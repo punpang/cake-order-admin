@@ -1,3 +1,18 @@
+## 2026-11-23 · [ระบบ][Release] สรุปส่งต่อแชท: merge/deploy เสร็จ · งานค้างและเจ้าของงาน
+
+**ทำอะไร:** merge zen บางส่วนเข้า main (`fc042fe`) · ลบแถว pickup บน production (ตรวจซ้ำแล้ว) · ผู้ใช้ลบ sms-probe เองใน Dashboard · จดว่าไม่ใช้ Vercel (`274f096` บนสาขา `claude/fix-order-link-token` ยังไม่ ff เข้า main)
+**เหตุผล:** ผู้ใช้สั่ง merge/deploy ทั้งหมดที่ค้าง · เลือก zen เฉพาะส่วนที่ไม่ชนกัน · ผู้ใช้ไม่ใช้ Vercel แล้ว
+**ผล:** Release `45115185945` ผ่าน (migration `20261123100000` + function 8 ตัว + sms-send) · production: กฎแจ้งเตือน 47 ข้อ ไม่มี `pickup_reminder` · `shop` ไม่มี `pickupRemindHours` · `npm test` 100 ไฟล์ผ่าน · build ผ่าน · bundle 884.6 / 886 KB · trigger ตรวจ Release ทำงานแล้วและปิดตัวเอง
+**รอ:** ผู้ใช้ตัดสิน zen ที่ยังไม่ merge · ร้านเปิดใช้ระดับสมาชิกจริงเองตามคู่มือ
+**งานค้าง:**
+- sms-send บน production ยังไม่ได้ทดสอบจริง
+- ตรวจสถานะ Release run ผ่าน GitHub ไม่ได้ (MCP เชื่อมต่อไม่ได้) ใช้ผลจากบันทึก
+- zen ที่ยังไม่ merge: migration `20261122110100_punpang_member_award.sql` (เลขเวอร์ชันชนกับ migration ที่รันแล้ว) · `docs/vat-refund-buyer.md` (ต้องยืนยันถ้อยคำกฎหมาย) · `package.json` และ e2e `memberTier`/`supabaseMock` (ยังไม่ตรวจ)
+- main ยังไม่มี commit `274f096` ถ้าต้องการให้ ff ได้
+
+---
+
+
 ## 2026-11-23 · [Release][DB][POS][ลูกค้า][SMS] รวมงาน Telegram POS + ตัดเตือนนัดรับ + จอลูกค้าแสดงสมาชิก + zen บางส่วน · Release ผ่านแล้ว
 
 **ทำอะไร:** commit `12fbaf2` (แจ้งทีม Telegram เมื่อ POS ปิดบิล/ยกเลิก/แลกคืนเงิน/ปิดบิลมีส่วนลด · ตัดเตือนนัดรับ · จอลูกค้าแสดงแถบสมาชิก) + แก้ `displayMember` ไม่ให้ขึ้น "ระดับสูงสุด" เมื่อป้ายยังเป็น RPC รุ่นเดิม · migration `20261123100000_punpang_member_card_progress.sql` (ป้ายระดับมี nextName/toNext/pct) · merge zen เฉพาะที่ไม่ชนกัน: `tools/sms-relay/` (README, relay.mjs, relay.test.mjs) · ถอน `memberLevels.store.test.mjs` (ทดสอบ API ของ zen ที่ไม่ตรงกับ main) · ไม่เอา migration `20261122110100_punpang_member_award.sql` (เวอร์ชันชนกับ migration ที่รันแล้ว), `docs/vat-refund-buyer.md` (ถ้อยคำกฎหมายรอยืนยัน), `package.json` และ e2e `memberTier`/`supabaseMock` (ยังไม่ตรวจ)
