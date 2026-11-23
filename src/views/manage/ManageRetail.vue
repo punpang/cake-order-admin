@@ -2,7 +2,8 @@
 import MoneyInput from '../../components/MoneyInput.vue'
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
-import { db, saveRetailItem, addStock, saveModifier, moveItem } from '../../data/store'
+import { db, saveRetailItem, addStock, saveModifier, moveItem, createConsignRound, markConsignPaid, can } from '../../data/store'
+import { CONSIGN_PAYOUTS, consignTermsError, bkkDay } from '../../lib/consignment'
 import { money } from '../../lib/format'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
@@ -22,7 +23,7 @@ const list = computed(() => {
 const categories = computed(() => [...new Set(db.retailItems.map((x) => x.category).filter(Boolean))])
 
 const open = ref(false)
-const blank = () => ({ id: null, name: '', category: '', price: '', stock: '', active: true, modifierIds: [], images: [], recipe: [], pinned: false, showInPos: true, showOnStore: false, noPoints: false, openPrice: false, description: '', typeId: null, flavorId: null, sizeId: null })
+const blank = () => ({ id: null, name: '', category: '', price: '', stock: '', active: true, modifierIds: [], images: [], recipe: [], pinned: false, showInPos: true, showOnStore: false, noPoints: false, openPrice: false, consignment: false, consignorName: '', consignPayout: 'percent', consignPercent: '', consignFixed: '', description: '', typeId: null, flavorId: null, sizeId: null })
 const form = reactive(blank())
 const error = ref('')
 function edit(x) {
@@ -33,9 +34,25 @@ function edit(x) {
 async function save() {
   if (!form.name.trim()) return (error.value = 'กรอกชื่อสินค้า')
   if (!form.openPrice && (!(Number(form.price) >= 0) || form.price === '')) return (error.value = 'กรอกราคา')
+  const ce = consignTermsError(form)
+  if (ce) return (error.value = ce)
   if (!(await confirmDeactivate(db.retailItems, form, form.name))) return
   saveRetailItem({ ...form })
   open.value = false
+}
+
+// ---------- สินค้าฝากขาย: สรุปยอดเป็นรอบ ----------
+const consignorNames = computed(() => [...new Set(db.retailItems.filter((x) => x.consignment && String(x.consignorName || '').trim()).map((x) => x.consignorName.trim()))])
+const consignRounds = computed(() => [...(db.consignRounds || [])].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)))
+const settle = reactive({ consignor: '', from: bkkDay(new Date().toISOString()).slice(0, 8) + '01', to: bkkDay(new Date().toISOString()), error: '' })
+function doSettle() {
+  settle.error = ''
+  const r = createConsignRound({ consignor: settle.consignor || consignorNames.value[0], from: settle.from, to: settle.to })
+  if (!r.ok) settle.error = r.error
+}
+function paid(r) {
+  const res = markConsignPaid(r.id)
+  if (!res.ok) settle.error = res.error
 }
 
 // ข้อมูลเค้ก (ไม่บังคับ): ประเภท/เนื้อ/ขนาด ใช้แสดงประกอบและคิดราคาตัวเลือกตามขนาดตอนสร้างออร์เดอร์ · ราคาสินค้าเป็นราคาคงที่ ไม่คำนวณจากโครงสร้างนี้
@@ -81,6 +98,25 @@ function doAdd() {
 
 <template>
   <ManageShell v-model:q="q" v-model:inactive="inactive" title="สินค้า (POS / สินค้าสำเร็จ)" :subtitle="`${list.length} รายการ`" add-label="เพิ่มสินค้า" search-placeholder="ค้นหาชื่อ / หมวด" @add="edit(null)">
+    <!-- สรุปยอดฝากขาย: เลือกผู้ฝากขาย + ช่วงวันที่ → สรุปเป็นรอบ · จ่ายแล้วกดยืนยัน (ล็อกรอบ) -->
+    <section v-if="consignorNames.length" class="card mb-3 space-y-3 p-3" aria-label="สรุปยอดฝากขาย">
+      <h2 class="font-semibold text-stone-900">สรุปยอดฝากขาย</h2>
+      <div class="grid grid-cols-1 gap-2 sm:grid-cols-4">
+        <div class="sm:col-span-2"><label class="label" for="cs-consignor">ผู้ฝากขาย</label>
+          <select id="cs-consignor" v-model="settle.consignor" class="input"><option v-for="n in consignorNames" :key="n" :value="n">{{ n }}</option></select></div>
+        <div><label class="label" for="cs-from">จากวันที่</label><input id="cs-from" v-model="settle.from" type="date" class="input" /></div>
+        <div><label class="label" for="cs-to">ถึงวันที่</label><input id="cs-to" v-model="settle.to" type="date" class="input" /></div>
+      </div>
+      <p v-if="settle.error" class="text-sm text-rose-700">{{ settle.error }}</p>
+      <button type="button" class="btn-primary h-10" :disabled="!can('manage')" @click="doSettle">สรุปรอบ</button>
+      <ul class="divide-y divide-stone-100" aria-label="รอบที่สรุปแล้ว">
+        <li v-for="r in consignRounds" :key="r.id" class="flex flex-wrap items-center gap-2 py-2 text-sm">
+          <span class="min-w-0 flex-1">{{ r.consignor }} · {{ r.from }} ถึง {{ r.to }} · ยอดขาย {{ money(r.sales) }} · จ่าย {{ money(r.payout) }} · ร้านได้ {{ money(r.shop) }}</span>
+          <span v-if="r.paidAt" class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">จ่ายแล้ว {{ r.paidAt.slice(0, 10) }} (ล็อก)</span>
+          <button v-else type="button" class="btn-outline h-8" :disabled="!can('manage')" @click="paid(r)">ยืนยันจ่ายแล้ว</button>
+        </li>
+      </ul>
+    </section>
     <p v-if="!list.length" class="card py-10 text-center text-stone-500">ไม่พบสินค้า</p>
     <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
       <div v-for="x in list" :key="x.id" class="card flex items-center gap-2 p-2" :class="x.active === false ? 'opacity-60' : ''">
@@ -207,6 +243,14 @@ function doAdd() {
           <AppSwitch v-model="form.showOnStore" label="แสดงที่หน้าร้านเว็บ (ลูกค้าเห็น)" class="flex" />
           <AppSwitch v-model="form.pinned" label="ปักหมุดในสินค้าขายดีของหน้าร้านเว็บ" class="flex" />
           <AppSwitch v-model="form.openPrice" label="ไม่กำหนดราคา (ผู้ขายกรอกราคาตอนขายที่ POS · ไม่ขายผ่านเว็บ)" class="flex" />
+          <AppSwitch v-model="form.consignment" label="สินค้าฝากขาย (ของผู้อื่นวางขายให้ร้าน)" class="flex" />
+          <div v-if="form.consignment" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div><label class="label" for="cs-name">ชื่อผู้ฝากขาย <span class="text-rose-600">*</span></label><input id="cs-name" v-model="form.consignorName" class="input" maxlength="120" /></div>
+            <div><label class="label" for="cs-payout">วิธีจ่ายผู้ฝากขาย</label>
+              <select id="cs-payout" v-model="form.consignPayout" class="input"><option v-for="p in CONSIGN_PAYOUTS" :key="p.v" :value="p.v">{{ p.l }}</option></select></div>
+            <div v-if="form.consignPayout !== 'fixed'"><label class="label" for="cs-pct">ส่วนแบ่งผู้ฝากขาย (%)</label><MoneyInput id="cs-pct" v-model="form.consignPercent" class="input" /></div>
+            <div v-else><label class="label" for="cs-fixed">ค่าคงที่ต่อรอบ (บาท)</label><MoneyInput id="cs-fixed" v-model="form.consignFixed" class="input" /></div>
+          </div>
           <AppSwitch v-model="form.noPoints" label="ไม่คำนวณแต้ม (ใช้คูปองส่วนลดไม่ได้ทุกแบบ · ไม่นับยอดสมาชิก)" class="flex" />
         </div>
         <AppSwitch v-model="form.active" label="ใช้งาน (ปิด = ไม่แสดงทุกที่)" />

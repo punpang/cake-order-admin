@@ -47,7 +47,10 @@ export const dealCatalogOf = (retailItems) => (retailItems || []).filter((x) => 
 
 export function priceItemOn(item, cat, dateStr) {
   const r = item.kind === 'retail' ? (cat.retailItems || []).find((x) => x.id === item.retailId) : null
-  return { ...item, ...(r?.noPoints ? { noPoints: true } : {}), ...priceDetail(item, cat.optionGroups || [], cat.retailItems || [], activeLists(cat.priceLists || [], dateStr), cat.bundles || []) }
+  const consign = r?.consignment && String(r.consignorName ?? '').trim()
+    ? { name: String(r.consignorName).trim(), payout: r.consignPayout === 'fixed' ? 'fixed' : 'percent', percent: Number(r.consignPercent) || 0, fixed: Number(r.consignFixed) || 0 }
+    : null
+  return { ...item, ...(r?.noPoints ? { noPoints: true } : {}), ...(consign ? { consign } : {}), ...priceDetail(item, cat.optionGroups || [], cat.retailItems || [], activeLists(cat.priceLists || [], dateStr), cat.bundles || []) }
 }
 
 export function giftRowOn(g, cat, dateStr) {
