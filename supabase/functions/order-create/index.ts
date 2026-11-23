@@ -41,6 +41,17 @@ async function rest(path: string, rh: Record<string, string> = {}): Promise<any[
 
 // ตรรกะเดียวกับ trigger punpang_orders_insert_guard (ผ่านฟังก์ชันเจ้าของ punpang__quote_check)
 // rh = หัวเลือกสคีมาตามโหมด: โหมดทดสอบต้องเรียกตัวใน punpang_test (อ่านใบเสนอทดสอบ) ไม่ใช่ตัวใน public
+// สิทธิเดือนเกิดของลูกค้า (ฟังก์ชันเจ้าของ · null = อ่านไม่สำเร็จ)
+async function birthForQuote(customerId: string | null, rh: Record<string, string>): Promise<Record<string, unknown> | null> {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/punpang_member_birth_for_quote`, {
+    method: 'POST', headers: { ...SERVICE_HEADERS, ...rh, 'content-type': 'application/json' },
+    body: JSON.stringify({ p_customer: customerId || null }),
+  })
+  if (!r.ok) return null
+  const d = await r.json()
+  return d && typeof d === 'object' ? d : null
+}
+
 async function quoteCheck(order: any, quoteId: string, rh: Record<string, string>): Promise<string> {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/punpang__quote_check`, {
     method: 'POST',
@@ -121,7 +132,9 @@ Deno.serve(corsWrap(async (req) => {
     if (!cs.length || cs[0].deleted) return json({ error: 'ไม่พบลูกค้า' }, 422)
     const catalog = await loadCatalog(SUPABASE_URL, { ...SERVICE_HEADERS, ...rh }) // โหมดทดสอบ: ราคาจากสำเนาทดสอบ
     if (!catalog) return json({ error: 'อ่านแคตาล็อกไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
-    built = buildOrderFromDraft({ ...common, draft: body.draft, customerId, catalog })
+    const birth = await birthForQuote(customerId, rh)
+    if (!birth) return json({ error: 'อ่านสิทธิสมาชิกไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
+    built = buildOrderFromDraft({ ...common, draft: body.draft, customerId, catalog, birth })
   }
 
   if (!built.ok) {

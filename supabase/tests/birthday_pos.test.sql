@@ -54,5 +54,13 @@ select test.ok('BD7 ช่องทางเว็บ ไม่รับส่�
     values ('bdp_o4', 'BDP-004', 'bdp_c1', 'payment_confirmed', 'pickup', 'web',
       '{"items":[{"retailId":"bdp_cake","unitPrice":500,"qty":2}],"couponsUsed":[],"adjustment":{"amount":0},"birthdayDiscount":{"amount":50}}'::jsonb)$$) like 'ERR:42501%');
 
+-- รอบ 2: สิทธิสำหรับ order-create / quote-create
+select test.ok('BD8 สิทธิเดือนเกิดสำหรับใบเสนอ: LV4 ใช้ได้ rate 10 เพดาน 50 และมีหมวดเค้กของร้าน',
+  (public.punpang_member_birth_for_quote('bdp_c1') ->> 'rate')::int = 10
+  and (public.punpang_member_birth_for_quote('bdp_c1') ->> 'cap')::int = 50
+  and public.punpang_member_birth_for_quote('bdp_c1') -> 'cakeCategories' = '["bdp-เค้กเต็มใบ"]'::jsonb);
+select test.ok('BD9 ลูกค้าไม่มีสิทธิ์/ไม่มีลูกค้า: rate 0', (public.punpang_member_birth_for_quote('bdp_none') ->> 'rate')::int = 0
+  and (public.punpang_member_birth_for_quote(null) ->> 'rate')::int = 0);
+
 rollback;
 select 'ผ่านทั้งหมด' as birthday_pos_tests;

@@ -8,6 +8,7 @@ import { applyPosPromos, round2 } from './posPromo.js'
 import { cleanDelivery } from './delivery.js'
 import { closureAt } from './shopHours.js'
 import { toDateStr } from './format.js'
+import { birthCakeDiscount } from './birthdayBenefit.js'
 
 const TH_MS = 7 * 3600000
 const TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/ // เวลานัดไม่มีโซน (เวลาไทย)
@@ -134,7 +135,8 @@ const fail = (error, code = 'invalid') => ({ ok: false, code, error })
 
 // ใบเสนอ 1 ใบ → payload ที่ส่งให้ลูกค้า (ราคาคิดจากแคตาล็อกล้วน) · ไม่ได้ข้อมูล/ร้านปิดรับนัด = { ok: false, error, code }
 // draft: ข้อมูลที่พนักงานกรอก (fulfillment, pickupAt, items, birthday, ค่าจัดส่ง) · customerId: ลูกค้าของแชท · nowMs: เวลาปัจจุบัน (ms)
-export function buildQuotePayload({ draft, customerId, catalog, nowMs, checkClosure = true }) {
+// birth = สิทธิเดือนเกิดจากเซิร์ฟเวอร์ (punpang_member_birth_for_quote) · ไม่มี = ไม่คิดส่วนลดเดือนเกิด
+export function buildQuotePayload({ draft, customerId, catalog, nowMs, checkClosure = true, birth = null }) {
   const d = isObj(draft) ? draft : {}
   const cat = catalog || {}
   if (d.fulfillment !== 'pickup' && d.fulfillment !== 'delivery') return fail('รูปแบบการรับสินค้าไม่ถูกต้อง')
@@ -158,7 +160,13 @@ export function buildQuotePayload({ draft, customerId, catalog, nowMs, checkClos
   const wall = bkkWall(nowMs)
   const dateStr = toDateStr(wall)
   const w = withPromosOn(items.map((it) => priceItemOn(it, cat, dateStr)), cat, { at: wall, dateStr })
+  // ส่วนลดเดือนเกิด (หมวดเค้กที่ร้านเลือก) คิดตอนออกใบเสนอ ใบเสนอจึงเก็บยอดนี้ไว้
+  const bd = birth ? birthCakeDiscount({
+    items: w.items.map((i) => ({ category: (cat.retailItems || []).find((r) => r.id === i.retailId)?.category || '', unitPrice: i.unitPrice, qty: i.qty })),
+    cakeCategories: birth.cakeCategories || [], birth,
+  }) : { amount: 0, base: 0 }
   const payload = JSON.parse(JSON.stringify({
+    ...(bd.amount > 0 ? { birthdayDiscount: { amount: bd.amount, rate: birth.rate, cap: birth.cap, base: bd.base } } : {}),
     customerId: customerId ?? null,
     pickupAt: d.pickupAt,
     fulfillment: d.fulfillment,

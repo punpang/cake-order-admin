@@ -1,3 +1,13 @@
+## 2026-11-23 · [Release][ลูกค้า] merge PR #114 (เทสต์ memberTier) เข้า main แล้ว · ระดับสมาชิกยังปิดใช้งาน
+
+**ทำอะไร:** แก้ `memberTier.supabase.e2e.mjs` ให้ตรงสัญญา RPC จริง (`enabled`, `applied`, `status`) และอ่านป้ายจากกล่อง "ระดับสมาชิก" ของ POS (commit `ca845cd`) · CI ทั้งหมดผ่าน (node, deno, database, e2e, Cloudflare Pages) · merge เข้า main เป็น `d52d6b8` · ปิดการติดตาม PR และลบการตรวจที่ตั้งไว้ 2 รายการ
+**เหตุผล:** ผู้ใช้สั่ง "merge เมื่อผ่าน" · เทสต์เดิม mock ตอบรูปแบบเก่าทำให้ป้ายไม่ขึ้นบน main (ไม่ใช่ปัญหาของ UI)
+**ผล:** main มีเทสต์ระดับสมาชิกแล้ว · ยังไม่มี migration หรือ Release ใหม่ · ระบบระดับยังเป็นโหมด `off` บน production
+**รอ:** อนุมัติแยกเพื่อเปิดโหมดทดลอง (shadow) บน production · ผู้ใช้ตอบเฟส 2 แนวทางใด (ยังไม่เริ่ม)
+**งานค้าง:** migration `20261122110100` ของ zen ยังไม่ merge · `docs/vat-refund-buyer.md` รอถ้อยคำกฎหมาย · ff `052bf36` เข้า main ยังไม่ตัดสินใจ · sms_log id 36 (failed) ยังไม่ทราบสาเหตุ
+
+---
+
 ## 2026-11-23 · [SMS][Release][ระบบ] ทดสอบ sms-send บน production สำเร็จ · แยกเทสต์ zen เป็น PR #114 รอ CI
 
 **ทำอะไร:** ผู้ใช้กดส่งทดสอบ 1 ข้อความจาก `/admin/settings/sms` ไปเบอร์ทดสอบ · อ่าน `punpang_sms_log` (อ่านอย่างเดียว): id 37 kind `test` status `sent` 05:18 UTC · หน้าจอแสดง "ถึงผู้รับแล้ว" · ผู้ใช้ยืนยันได้รับข้อความแล้ว · ตรวจ zen `80e8a1e` ใน worktree ชั่วคราว: `npm test` 96 ไฟล์ผ่าน · e2e `memberTier` live 3/3 shadow 3/3 · สร้างสาขา `claude/zen-tests-only` จาก main ดึง 3 ไฟล์เทสต์ (`ca0117b`) · เปิด PR #114 ไป main (ยังไม่ merge)
