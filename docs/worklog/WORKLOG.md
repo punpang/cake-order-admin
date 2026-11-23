@@ -1,7 +1,7 @@
 # บันทึกงาน cake-order-admin
 
 ## ดูก่อน (อ่านแค่ส่วนนี้ = Read offset 1, limit 20)
-- ล่าสุด 2026-11-23 · main = `fc042fe` · สาขาทำงาน `claude/fix-order-link-token` · PR #114 (`claude/zen-tests-only`, เทสต์ zen) รอ CI ยังไม่ merge · sms-send ทดสอบ production ผ่านแล้ว · production: migration สมาชิก 3 ไฟล์ (Release #21) · customer-auth v75 (Release #22) · migration `20261123100000` + sms-send ผ่าน Release `45115185945` · sms-probe ลบแล้ว (ผู้ใช้ลบเอง) · Cloudflare build ตรวจไม่ได้ (connector ขอสิทธิ์เพิ่ม)
+- ล่าสุด 2026-11-23 · main = `d52d6b8` · สาขาทำงาน `claude/fix-order-link-token` · PR #114 (`claude/zen-tests-only`, เทสต์ zen) รอ CI ยังไม่ merge · sms-send ทดสอบ production ผ่านแล้ว · production: migration สมาชิก 3 ไฟล์ (Release #21) · customer-auth v75 (Release #22) · migration `20261123100000` + sms-send ผ่าน Release `45115185945` · sms-probe ลบแล้ว (ผู้ใช้ลบเอง) · Cloudflare build ตรวจไม่ได้ (connector ขอสิทธิ์เพิ่ม)
 - **ไม่ใช้ Vercel แล้ว** (ผู้ใช้แจ้ง 2026-11-23) · ไม่ต้องตรวจ deploy ผ่าน Vercel
 - **รอผู้ใช้:** ร้านเปิดใช้จริงเองตามคู่มือ (ข้ามทดลอง · อัตรา 25/0.10 และระดับ ร้านตั้งเอง · ข้อ 8 ข้อความยาว) · ตัดสิน zen ส่วนที่ยังไม่ merge (ดู 2026-11-23)
 - **ปิดแล้ว:** B13 cron timeout · B12 ดัชนีเบอร์ลูกค้ามีบน production · B6 แผนฟรี ยอมรับความเสี่ยง ไม่ถามซ้ำ
@@ -11,6 +11,16 @@
 - **ขนาด:** บล็อกนี้ ≤ 3 KB · ไฟล์นี้ ≤ 30 KB หรือ ≤ 10 รายการ · เกินให้ย้ายรายการเก่าไป `WORKLOG-archive-YYYY-MM.md`
 - **ป้ายระบบ:** ใส่ในหัวรายการ [ลูกค้า] [LIFF] [ครัว] [POS] [ออร์เดอร์] [SMS] [Release] [DB] [ระบบ] · ค้นงานระบบเดียว: `grep -n '\[ครัว\]' docs/worklog/*.md`
 - **การถามผู้ใช้:** ถามเป็นข้อ ๆ (หน้าต่างคำถาม) ข้อละ 2–4 ตัวเลือก · ตัวเลือกที่ดีที่สุดอยู่ข้อแรกพร้อม "(แนะนำ)" และเหตุผลสั้น ๆ · ถามเฉพาะเรื่องที่ผู้ใช้ต้องตัดสิน
+
+---
+
+## 2026-11-23 · [Release][ลูกค้า] merge PR #114 (เทสต์ memberTier) เข้า main แล้ว · ระดับสมาชิกยังปิดใช้งาน
+
+**ทำอะไร:** แก้ `memberTier.supabase.e2e.mjs` ให้ตรงสัญญา RPC จริง (`enabled`, `applied`, `status`) และอ่านป้ายจากกล่อง "ระดับสมาชิก" ของ POS (commit `ca845cd`) · CI ทั้งหมดผ่าน (node, deno, database, e2e, Cloudflare Pages) · merge เข้า main เป็น `d52d6b8` · ปิดการติดตาม PR และลบการตรวจที่ตั้งไว้ 2 รายการ
+**เหตุผล:** ผู้ใช้สั่ง "merge เมื่อผ่าน" · เทสต์เดิม mock ตอบรูปแบบเก่าทำให้ป้ายไม่ขึ้นบน main (ไม่ใช่ปัญหาของ UI)
+**ผล:** main มีเทสต์ระดับสมาชิกแล้ว · ยังไม่มี migration หรือ Release ใหม่ · ระบบระดับยังเป็นโหมด `off` บน production
+**รอ:** อนุมัติแยกเพื่อเปิดโหมดทดลอง (shadow) บน production · ผู้ใช้ตอบเฟส 2 แนวทางใด (ยังไม่เริ่ม)
+**งานค้าง:** migration `20261122110100` ของ zen ยังไม่ merge · `docs/vat-refund-buyer.md` รอถ้อยคำกฎหมาย · ff `052bf36` เข้า main ยังไม่ตัดสินใจ · sms_log id 36 (failed) ยังไม่ทราบสาเหตุ
 
 ---
 
