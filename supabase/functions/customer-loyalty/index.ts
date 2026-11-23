@@ -3,7 +3,7 @@ import { corsWrap } from '../_shared/cors.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 // แลกของ/หมุนกาชาของลูกค้า (โหมด Supabase): ตรวจเซสชันลูกค้าก่อน แล้วเรียก RPC ฝั่งฐานข้อมูลด้วย service role
-// action: redeem { rewardId } · spin { usePoints } · make_coupon { amount } (สร้างคูปองลดเป็นบาทจากคะแนน)
+// action: redeem { rewardId } · spin { usePoints } · make_coupon { amount } · set_birth { month, consent } · clear_birth (สร้างคูปองลดเป็นบาทจากคะแนน)
 // ตอบ { ok, customer, coupons, result } (ข้อมูลลูกค้าชุดเดียวกับ customer-auth · ไม่ส่งหมายเหตุพนักงาน) หรือ { error, code }
 // เซสชันเก็บเป็น hash ในตาราง punpang_customer_sessions (เหมือน customer-auth)
 const CORS = {
@@ -52,11 +52,17 @@ Deno.serve(corsWrap(async (req) => {
     const amt = Number(b.amount)
     r = await sb.rpc('punpang_cust_make_coupon', { p_customer: cid, p_amount: Number.isFinite(amt) ? amt : null })
   }
+  else if (action === 'set_birth') {
+    const m = Number(b.month)
+    r = await sb.rpc('punpang_cust_set_birth', { p_customer: cid, p_month: Number.isInteger(m) ? m : null, p_consent: b.consent === true })
+  }
+  else if (action === 'clear_birth') r = await sb.rpc('punpang_cust_clear_birth', { p_customer: cid })
   else return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
   if (r.error) return json({ error: 'ทำรายการไม่สำเร็จ กรุณาลองใหม่' }, 500)
 
   const d = (r.data || {}) as Record<string, any>
   if (d.error) return json({ error: MSG[d.error] || 'ทำรายการไม่ได้', code: d.error }, 400)
+  if (d.ok === false) return json({ error: 'ข้อมูลไม่ถูกต้อง กรุณาเลือกเดือนเกิดและยินยอมก่อนบันทึก', code: d.error || 'invalid' }, 400)
 
   const cu = (await sb.from('punpang_customers').select('id,name,phone,data').eq('id', cid).maybeSingle()).data
   if (!cu) return json({ error: 'ไม่พบบัญชี' }, 401)

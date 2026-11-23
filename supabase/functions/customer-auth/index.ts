@@ -118,7 +118,7 @@ Deno.serve(corsWrap(async (req) => {
       if (!t.error && t.data && typeof t.data === 'object') {
         const d = t.data as Record<string, unknown>
         if (d.enabled === true) {
-          tier = { enabled: true, levelNo: d.levelNo, levelName: d.levelName, mult: d.mult, status: d.status, golden: d.golden, renewAt: d.renewAt, activeUntil: d.activeUntil, downgradeAt: d.downgradeAt }
+          tier = { enabled: true, levelNo: d.levelNo, levelName: d.levelName, mult: d.mult, status: d.status, golden: d.golden, renewAt: d.renewAt, activeUntil: d.activeUntil, downgradeAt: d.downgradeAt, ...(d.birth ? { birth: d.birth } : {}) }
         }
       }
     } catch (_e) { /* ระดับเป็นส่วนเสริม */ }

@@ -9,15 +9,17 @@ export const DEFAULT_MEMBER_CFG = {
   mode: 'off',
   levels: [
     { name: 'LV1', min: 0, mult: 1 },
-    { name: 'LV2', min: 1000, mult: 3 },
-    { name: 'LV3', min: 3000, mult: 5 },
-    { name: 'LV4', min: 7000, mult: 10 },
+    { name: 'LV2', min: 500, mult: 2 },
+    { name: 'LV3', min: 2500, mult: 3 },
+    { name: 'LV4', min: 5000, mult: 5 },
   ],
   renewGross: 150, // ยอดรายวันก่อน VAT ที่ต่ออายุ (ถ้ามี VAT 7% เหลือ 140)
   inactiveDays: 90, // ช่วงใช้งาน (วัน) หลังต่ออายุ
   goldenDays: 14, // วันทอง: ช่วงพักสิทธิ์ที่ปลุกสิทธิ์เต็มได้ทันที
   downgradeDays: 365, // ครบรอบนี้โดยไม่ต่ออายุ = ลด 1 ขั้น
   bigBill: 500, // บิลใหญ่ (ก่อน VAT) ที่ปลุกสิทธิ์เต็มได้ทันที
+  cakeCategories: [], // หมวดสินค้าที่นับเป็น "เค้ก" สำหรับส่วนลดเดือนเกิด (ร้านเลือกเอง · ว่าง = ยังไม่มีส่วนลด)
+  cakeItemIds: [], // สินค้าที่ร้านเลือกเองนับเป็นเค้ก (เพิ่มจากหมวด)
 }
 
 const isNum = (x) => typeof x === 'number' && Number.isFinite(x)
@@ -57,7 +59,13 @@ export function tierLines(t) {
   else lines.push('สิทธิ์พัก · ซื้อตามเกณฑ์ในวันเดียวเพื่อต่ออายุ')
   if (t.golden) lines.push('ช่วงพิเศษ · ซื้อตามเกณฑ์วันนี้ได้สิทธิ์เต็มทันที')
   else if (t.downgradeAt) lines.push(`รักษาระดับถึง ${fmtDate(t.downgradeAt)}`)
-  return lines.slice(0, 3)
+  // LV4 Active ได้คูปองส่วนลด 10 บาททุกเดือน (ตามสเปก) · แทรกเป็นบรรทัดที่ 2 ให้เห็นก่อนบรรทัดรอง
+  if (t.levelNo === 4 && t.status === 'active') lines.splice(1, 0, 'คูปองส่วนลด 10 บาททุกเดือน (ซื้อเดือนก่อนครบ 150 บาท)')
+  // ส่วนลดเค้กเดือนเกิด: แสดงเมื่อครบ 30 วัน อยู่ในเดือนเกิด Active และร้านเลือกสินค้าเค้กแล้ว
+  const out = lines.slice(0, 3)
+  const b = t.birth
+  if (b?.eligible && b?.active && b?.cakeSet && Number(b.rate) > 0) out.push(`ส่วนลดหมวดเค้กเดือนเกิด ${b.rate}% (สูงสุด ${b.cap} บาท)`)
+  return out
 }
 function fmtDate(s) {
   if (!s) return '-'

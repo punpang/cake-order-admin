@@ -11,6 +11,8 @@ import CouponBarcode from './CouponBarcode.vue'
 import { askConfirm } from '../lib/confirm'
 import { couponTermsText } from '../lib/coupons'
 import { tierLines } from '../lib/memberLevels'
+import { birthEligibleDate, setBirthRemote, clearBirthRemote } from '../lib/birthdayRemote'
+import { MONTHS } from '../lib/birthday'
 
 // คะแนน / แลกของ / กาชา / คูปอง ของลูกค้าที่ล็อกอินอยู่ (ย้ายมาจากหน้าลูกค้าจำลองเดิม) ใช้ได้เฉพาะของตัวเอง
 const me = computed(() => myCustomer())
@@ -18,6 +20,28 @@ const today = toDateStr(new Date())
 const points = computed(() => customerPoints(me.value))
 const soon = computed(() => expiringSoon(me.value?.ledger, today, 30))
 const tierCard = computed(() => (db.memberCard?.enabled ? tierLines(db.memberCard) : []))
+
+// ---------- เดือนเกิดสมาชิก (ยินยอมแยกต่างหาก · ใช้สิทธิได้หลังกรอกครบ 30 วัน) ----------
+const birthMonth = ref(me.value?.birth?.month ? String(me.value.birth.month) : '')
+const birthConsent = ref(false)
+const birthBusy = ref(false)
+const birthEligible = computed(() => birthEligibleDate(me.value?.birth))
+const birthDateTxt = computed(() => (birthEligible.value ? dateOnly(birthEligible.value.toISOString()) : ''))
+async function saveBirth() {
+  if (!birthMonth.value || !birthConsent.value || birthBusy.value) return
+  birthBusy.value = true
+  const r = await setBirthRemote(birthMonth.value, birthConsent.value)
+  birthBusy.value = false
+  msg.value = r.error ? r.error : 'บันทึกเดือนเกิดแล้ว สิทธิในเดือนเกิดใช้ได้หลังครบ 30 วัน'
+  if (!r.error) birthConsent.value = false
+}
+async function removeBirth() {
+  birthBusy.value = true
+  const r = await clearBirthRemote()
+  birthBusy.value = false
+  msg.value = r.error ? r.error : 'ถอนเดือนเกิดและความยินยอมแล้ว'
+  if (!r.error) birthMonth.value = ''
+}
 
 const tab = ref('rewards')
 const tabs = [
@@ -155,6 +179,28 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
       <section v-if="tierCard.length" class="mb-4 rounded-[2rem] bg-white p-5 shadow ring-1 ring-stone-200" aria-label="ระดับสมาชิก">
         <div class="font-semibold text-stone-800">{{ tierCard[0] }}</div>
         <div v-for="(l, i) in tierCard.slice(1)" :key="i" class="mt-1 text-sm text-stone-600">{{ l }}</div>
+      </section>
+
+      <section v-if="tierCard.length && usesServerLoyalty()" class="card mb-4 space-y-3" aria-label="วันเกิดสมาชิก">
+        <p class="font-semibold text-stone-900">เดือนเกิดของคุณ</p>
+        <p class="text-sm text-stone-500">ใช้คำนวณสิทธิในเดือนเกิด (ตัวคูณแต้ม คูปองส่วนลด และส่วนลดหมวดเค้กที่ร้านกำหนด) ร้านไม่เก็บวันเกิดเต็มหรือปีเกิด</p>
+        <p v-if="me.birth?.month" class="text-sm text-stone-700">
+          ตอนนี้ตั้งเป็นเดือน {{ MONTHS[Number(me.birth.month) - 1] }}<template v-if="birthDateTxt"> · ใช้สิทธิได้ตั้งแต่ {{ birthDateTxt }}</template>
+        </p>
+        <div class="flex flex-wrap items-center gap-2">
+          <select v-model="birthMonth" class="input h-11 w-40" aria-label="เดือนเกิด">
+            <option value="">เลือกเดือน</option>
+            <option v-for="(m, i) in MONTHS" :key="m" :value="String(i + 1)">{{ m }}</option>
+          </select>
+        </div>
+        <label class="flex items-start gap-2 text-sm text-stone-700">
+          <input v-model="birthConsent" type="checkbox" class="mt-1 h-4 w-4" />
+          <span>ยินยอมให้ร้านเก็บเดือนเกิดของฉันเพื่อใช้สิทธิในเดือนเกิด (ดูประกาศความเป็นส่วนตัวข้อ 2)</span>
+        </label>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="btn-primary h-11 px-4" :disabled="!birthMonth || !birthConsent || birthBusy" :class="!birthMonth || !birthConsent ? 'opacity-40' : ''" @click="saveBirth">บันทึกเดือนเกิด</button>
+          <button v-if="me.birth?.month" type="button" class="btn-outline h-11 px-4" :disabled="birthBusy" @click="removeBirth">ถอนเดือนเกิด</button>
+        </div>
       </section>
 
       <div class="mb-4 grid grid-cols-4 gap-1 seg-grid">

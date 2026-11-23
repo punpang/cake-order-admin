@@ -436,9 +436,11 @@ export function orderTotals(order) {
   // ส่วนลดจากคะแนน / คูปอง
   const pointsDiscount = Number(order.pointsUsed?.amount) || 0
   const couponDiscount = (order.couponsUsed || []).reduce((s, c) => s + (Number(c.amount) || 0), 0)
+  // ส่วนลดเดือนเกิด (หน้าร้าน) ไม่ซ้อนคูปอง: ผู้เรียกต้องไม่ใส่คูปองในบิลเดียวกัน
+  const birthDiscount = Number(order.birthdayDiscount?.amount) || 0
   const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100
   // ปัดเป็นสตางค์ทันที: 3 × 33.33 = 99.99000000000001 ไม่ทำให้ยอดค้างเศษ 1e-14 (ส่งมอบ/แจ้งชำระไม่ได้)
-  const gross = r2(subtotal + shipping + adjustment - pointsDiscount - couponDiscount)
+  const gross = r2(subtotal + shipping + adjustment - pointsDiscount - couponDiscount - birthDiscount)
   // VAT: order.vat = { rate, mode: 'inclusive' | 'exclusive' } (snapshot ตอนสร้างออร์เดอร์ ไม่มี = ไม่คิด VAT)
   // ฐานภาษี = สินค้า + ค่าส่ง หลังส่วนลดทุกประเภท · ใน = ราคารวม VAT แล้ว (แยกบรรทัดแสดง) · นอก = บวกเพิ่มท้ายยอด
   const rate = Number(order.vat?.rate) || 0
@@ -464,6 +466,7 @@ export function orderTotals(order) {
     ...(adjustment < 0 ? [{ label: `ปรับราคา${order.adjustment?.reason ? ` (${order.adjustment.reason})` : ''}`, amount: -adjustment }] : []),
     ...(pointsDiscount ? [{ label: `ใช้ ${order.pointsUsed.points} คะแนน`, amount: pointsDiscount }] : []),
     ...(order.couponsUsed || []).filter((c) => Number(c.amount)).map((c) => ({ label: `คูปอง: ${c.name}`, amount: Number(c.amount) })),
+    ...(birthDiscount ? [{ label: 'ส่วนลดเดือนเกิด (หมวดเค้ก)', amount: birthDiscount }] : []),
   ]
   const discountTotal = discountLinesAll.reduce((s, l) => s + l.amount, 0) + (full - subtotal - itemDiscounts.reduce((s, l) => s + l.amount, 0))
   const netGoods = itemNets(order).reduce((a, b) => a + b, 0)

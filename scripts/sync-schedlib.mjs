@@ -10,7 +10,7 @@ export const SCHEDLIB_FILES = [
   'constants.js', 'format.js', 'pricing.js', 'payDue.js', 'loyalty.js', 'birthday.js', 'notifyPlan.js', 'bell.js', 'orderLink.js',
   'acct/plan.js', 'acct/period.js', 'acct/money.js', 'slipChecks.js', 'promptpay.js',
   // ราคาใบเสนอ (ฝั่งเซิร์ฟเวอร์ quote-create ใช้ตรรกะชุดเดียวกับแอป) และส่วนประกอบที่ใช้
-  'posPromo.js', 'delivery.js', 'shopHours.js', 'docNo.js', 'quotePrice.js', 'orderCreate.js', 'posAudit.js', 'orderAudit.js', 'catalogHistory.js',
+  'posPromo.js', 'delivery.js', 'shopHours.js', 'docNo.js', 'quotePrice.js', 'birthdayBenefit.js', 'orderCreate.js', 'posAudit.js', 'orderAudit.js', 'catalogHistory.js',
   // การ์ดสรุปออร์เดอร์ในแชท (ใช้สร้างการ์ดให้ออร์เดอร์เดิมตอนลูกค้าเปิดแชท)
   'chatCards.js',
   // ประชาสัมพันธ์/โปรโมชั่น: เกณฑ์ความยินยอม (customer-auth) และการตรวจแคมเปญ/การ์ด (campaign, scheduled)

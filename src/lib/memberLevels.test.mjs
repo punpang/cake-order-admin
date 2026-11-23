@@ -2,6 +2,16 @@
 import assert from 'node:assert/strict'
 import { DEFAULT_MEMBER_CFG, levelCost, memberCfgErrors, tierLines } from './memberLevels.js'
 
+// บัตร: ส่วนลดเค้กเดือนเกิด (เฉพาะเมื่อครบ 30 วัน Active และร้านเลือกเค้กแล้ว)
+{
+  const base = { enabled: true, levelNo: 4, levelName: 'LV4', mult: 10, status: 'active', activeUntil: '2026-12-31' }
+  const withBirth = tierLines({ ...base, birth: { eligible: true, active: true, cakeSet: true, rate: 10, cap: 50 } })
+  assert.ok(withBirth.some((l) => l.includes('ส่วนลดหมวดเค้กเดือนเกิด 10%') && l.includes('50 บาท')))
+  assert.ok(!tierLines({ ...base, birth: { eligible: false, active: true, cakeSet: true, rate: 0, cap: 0 } }).some((l) => l.includes('ส่วนลดหมวดเค้ก')))
+  assert.ok(!tierLines({ ...base, birth: { eligible: true, active: true, cakeSet: false, rate: 10, cap: 50 } }).some((l) => l.includes('ส่วนลดหมวดเค้ก')))
+  console.log('PASS บัตรแสดงส่วนลดเค้กเดือนเกิดเฉพาะเมื่อมีสิทธิและร้านเลือกเค้กแล้ว')
+}
+
 let fail = 0
 const t = (name, fn) => {
   try {
@@ -14,6 +24,16 @@ const t = (name, fn) => {
 }
 const cfg = (over = {}) => ({ ...structuredClone(DEFAULT_MEMBER_CFG), ...over })
 
+t('บัตร LV4 Active แสดงสิทธิคูปองรายเดือน และไม่เกิน 3 บรรทัด', () => {
+  const lines = tierLines({ enabled: true, levelNo: 4, levelName: 'LV4', mult: 5, status: 'active', activeUntil: '2026-12-31', golden: false, downgradeAt: '2027-12-31' })
+  assert.ok(lines.length <= 3)
+  assert.ok(lines[1].includes('คูปองส่วนลด 10 บาท'))
+  assert.equal(tierLines({ enabled: true, levelNo: 2, levelName: 'LV2', mult: 2, status: 'active', activeUntil: '2026-12-31' }).some((l) => l.includes('คูปอง')), false)
+})
+t('ค่าตั้งต้นตามสเปก: เกณฑ์ 0/500/2500/5000 และตัวคูณ 1/2/3/5 ต่ออายุ 150 (รวม VAT)', () => {
+  assert.deepEqual(DEFAULT_MEMBER_CFG.levels.map((l) => [l.min, l.mult]), [[0, 1], [500, 2], [2500, 3], [5000, 5]])
+  assert.equal(DEFAULT_MEMBER_CFG.renewGross, 150)
+})
 t('ค่าตั้งต้นใช้ได้ (ไม่มีข้อผิดพลาด)', () => {
   assert.deepEqual(memberCfgErrors(DEFAULT_MEMBER_CFG), [])
 })

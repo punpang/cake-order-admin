@@ -25,11 +25,15 @@ create function pg_temp.mlv_bm(p_c text, p_n int, p_amt numeric, p_rmin numeric)
   select public.punpang__member_bill_mult(public.punpang__member_fold(p_c, pg_temp.mlv_at(pg_temp.mlv_d(p_n), '00:01')), p_amt, p_rmin, public.punpang__member_cfg())
 $$;
 create function pg_temp.mlv_mode(m text) returns void language sql as $$
-  insert into public.punpang_kv (collection, id, data) values ('config', 'memberLevels', jsonb_build_object('v', jsonb_build_object('mode', m)))
+  insert into public.punpang_kv (collection, id, data) values ('config', 'memberLevels', jsonb_build_object('v',
+    jsonb_build_object('levels', '[{"name":"LV1","min":0,"mult":1},{"name":"LV2","min":1000,"mult":3},{"name":"LV3","min":3000,"mult":5},{"name":"LV4","min":7000,"mult":10}]'::jsonb) || jsonb_build_object('mode', m)))
   on conflict (collection, id) do update set data = excluded.data
 $$;
+-- เกณฑ์เฟส 1 (500/1,500/3,000 → ค่าเดิมของชุดนี้ 1,000/3,000/7,000) ใส่เป็นค่าพื้นฐานของทุกกรณี
+-- เพราะค่าตั้งต้นตามสเปกเปลี่ยนแล้ว (ทดสอบค่าตั้งต้นใหม่ใน member_benefits.test.sql)
 create function pg_temp.mlv_cfg(v jsonb) returns void language sql as $$
-  insert into public.punpang_kv (collection, id, data) values ('config', 'memberLevels', jsonb_build_object('v', v))
+  insert into public.punpang_kv (collection, id, data) values ('config', 'memberLevels', jsonb_build_object('v',
+    jsonb_build_object('levels', '[{"name":"LV1","min":0,"mult":1},{"name":"LV2","min":1000,"mult":3},{"name":"LV3","min":3000,"mult":5},{"name":"LV4","min":7000,"mult":10}]'::jsonb) || v))
   on conflict (collection, id) do update set data = excluded.data
 $$;
 

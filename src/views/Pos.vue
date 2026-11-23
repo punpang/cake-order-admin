@@ -1,5 +1,6 @@
 <script setup>
 import { couponQuoteOf, quoteCouponList, couponTermsText } from '../lib/coupons'
+import { birthCakeDiscount, pickBirthOrCoupons } from '../lib/birthdayBenefit'
 import { resolveCouponScan, resolveMemberScan } from '../lib/scan'
 import MoneyInput from '../components/MoneyInput.vue'
 import { orderNo } from '../lib/format'
@@ -420,7 +421,17 @@ const couponOk = (c) => couponQuoteOf(c, billWithKept.value).ok
 const couponReason = (c) => couponQuoteOf(c, billWithKept.value).reason
 const pickedCoupons = computed(() => quoteCouponList(billWithKept.value, coupons.value.filter((c) => couponIds.value.includes(c.id))).used)
 watch([billWithKept, coupons], () => (couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id && couponOk(c)))))
-const orderLike = computed(() => ({ ...billWithKept.value, couponsUsed: [...billWithKept.value.couponsUsed, ...pickedCoupons.value] }))
+// ส่วนลดเดือนเกิด (หมวดเค้กที่ร้านเลือก · ตามสิทธิ์จากเซิร์ฟเวอร์ของลูกค้าคนนี้) · ไม่ซ้อนคูปอง: ได้มากกว่าจึงใช้
+const birthCalc = computed(() => {
+  if (!member.value || !staffCard.value?.enabled || editBill.value) return { amount: 0, base: 0 }
+  const items = billBase.value.items.map((i) => ({ id: i.retailId || '', category: db.retailItems.find((r) => r.id === i.retailId)?.category || '', unitPrice: i.unitPrice, qty: i.qty }))
+  return birthCakeDiscount({ items, cakeCategories: db.memberLevels.cakeCategories || [], cakeItemIds: db.memberLevels.cakeItemIds || [], birth: staffCard.value.birth })
+})
+const couponSum = computed(() => [...billWithKept.value.couponsUsed, ...pickedCoupons.value].reduce((s, c) => s + (Number(c.amount) || 0), 0))
+const birthWins = computed(() => birthCalc.value.amount > 0 && pickBirthOrCoupons(birthCalc.value.amount, couponSum.value) === 'birth')
+const orderLike = computed(() => (birthWins.value
+  ? { ...billWithKept.value, couponsUsed: [], birthdayDiscount: { ...birthCalc.value, amount: birthCalc.value.amount } }
+  : { ...billWithKept.value, couponsUsed: [...billWithKept.value.couponsUsed, ...pickedCoupons.value] }))
 const preview = computed(() => orderTotals(orderLike.value))
 const resumeOrder = ref(null) // บิลค้างที่กำลังรับชำระส่วนที่เหลือ (null = ขายใหม่จากตะกร้า)
 const total = computed(() => (resumeOrder.value ? Math.max(orderTotals(resumeOrder.value).total, 0) : Math.max(preview.value.total, 0)))
@@ -954,14 +965,16 @@ async function saveEdit() {
 // ยอดที่คิดจริงของคูปองในบิลตอนนี้ { couponId: ยอด } ใช้จองยอดคูปองคืนเงินให้ตรงกับตอนขาย
 const quotedAmounts = () => Object.fromEntries(pickedCoupons.value.map((x) => [x.couponId, x.amount]))
 async function sellNow(opts = {}) {
-  payErr.value = member.value ? posCouponProblem({ customerId: member.value.id, couponIds: couponIds.value }) : ''
+  payErr.value = member.value ? posCouponProblem({ customerId: member.value.id, couponIds: birthWins.value ? [] : couponIds.value }) : ''
   if (payErr.value) { couponIds.value = couponIds.value.filter((id) => coupons.value.some((c) => c.id === id)); return }
   // จองคูปองกับเซิร์ฟเวอร์ก่อนขาย (อะตอมิก) ด้วยรหัสบิลที่จะเกิดจริง · ขายไม่สำเร็จ = คืนคูปองที่จองไว้
   const billId = reserveBillId()
-  const claim = couponIds.value.length ? await claimPosCoupons(couponIds.value, { orderId: billId, amounts: quotedAmounts() }) : { ok: true, claimed: [] }
+  const useCoupons = birthWins.value ? [] : couponIds.value // ไม่ซ้อน: ได้ส่วนลดเดือนเกิดแล้วไม่ใช้คูปอง
+  const claim = useCoupons.length ? await claimPosCoupons(useCoupons, { orderId: billId, amounts: quotedAmounts() }) : { ok: true, claimed: [] }
   if (claim.error) return (payErr.value = claim.error)
   const o = posSale({
-    cart: cart.value, customerId: member.value?.id || null, couponIds: couponIds.value,
+    cart: cart.value, customerId: member.value?.id || null, couponIds: useCoupons,
+    birthDiscount: birthWins.value ? birthCalc.value : null,
     discount: can('adjustPrice') ? Number(discount.value) || 0 : 0,
     lines: opts.lines || activeLines.value.map(toPosLine), partial: !!opts.partial, billId,
   })
