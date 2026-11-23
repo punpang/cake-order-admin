@@ -27,6 +27,7 @@ export const DEFAULT_ACCOUNTS = [
   A('4100', 'รายได้ขายเค้กสั่งทำ', 'revenue', { system: true }),
   A('4200', 'รายได้ขายหน้าร้าน / สินค้าสำเร็จ', 'revenue', { system: true }),
   A('4300', 'รายได้ค่าจัดส่ง', 'revenue', { system: true }),
+  A('4400', 'รายได้ค่าบริการเกี่ยวกับเงิน (ซ่อนเงิน/ดึงเงิน/ซ่อนของ)', 'revenue', { system: true }),
   A('4950', 'คืนเงิน/ส่วนลดให้ลูกค้าหลังขาย (หักรายได้)', 'revenue', { system: true, contra: true }),
   A('4800', 'รายได้อื่น (ดอกเบี้ยรับ ฯลฯ)', 'revenue', { quick: true }),
   A('4810', 'กำไรจากการจำหน่ายสินทรัพย์', 'revenue', { system: true }),

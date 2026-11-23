@@ -120,7 +120,7 @@ export function orderEntries(o, ctx) {
     const weights = [...o.items.map((i) => Math.max(0, toS(i.unitPrice * i.qty))), Math.max(0, toS(t.shipping))]
     const parts = weights.reduce((a, b) => a + b, 0) > 0 ? allocate(R, weights) : [R, ...Array(weights.length - 1).fill(0)]
     const rev = []
-    o.items.forEach((i, k) => rev.push(cr(i.kind === 'retail' ? '4200' : '4100', parts[k])))
+    o.items.forEach((i, k) => rev.push(cr(i.kind === 'service' ? '4400' : i.kind === 'retail' ? '4200' : '4100', parts[k])))
     rev.push(cr('4300', parts[o.items.length]))
     if (weights.reduce((a, b) => a + b, 0) <= 0 && R > 0) { rev.length = 0; rev.push(cr('4200', R)) }
     const unpaid = Math.max(0, total - sumGoods)
