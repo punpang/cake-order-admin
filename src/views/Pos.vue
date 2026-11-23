@@ -78,7 +78,7 @@ const sortBest = ref(false)
 const shown = computed(() => {
   const s = q.value.trim().toLowerCase()
   const list = catalog.value.filter((x) => (!cat.value || x.category === cat.value) && (!s || x.name.toLowerCase().includes(s)))
-  if (!sortBest.value) return list
+  if (!sortBest.value) return list.slice().sort((a, b) => (a.category || '').localeCompare(b.category || '', 'th') || a.name.localeCompare(b.name, 'th'))
   const r = (x) => ranks.value.get(x.id)?.rank ?? Infinity
   return list.slice().sort((a, b) => r(a) - r(b))
 })
@@ -98,7 +98,7 @@ function addLine(x, mods, qty, price = null) {
   else cart.value.push({ kind: x.kind, refId: x.id, qty, mods, ...(price != null ? { price } : {}) })
 }
 function add(x) {
-  if (!memberChoice.value && !editBill.value) return
+  if (!memberChoice.value && !editBill.value) { showToast('เลือกลูกค้าหรือกด "ลูกค้าทั่วไป" ก่อนเพิ่มสินค้า', 4000, 'error'); gateInputEl.value?.focus(); return }
   if (!canAdd(x)) return
   if (x.openPrice) return openPricePrompt.value = { x, price: '', error: '' }
   if (groupsOf(x).length) return openMods(x)
@@ -681,7 +681,7 @@ const receivedSum = computed(() => Math.round(payLines.value.filter(isReceived).
 const listedLines = computed(() => payLines.value.filter((l) => l !== focusLine.value && l.status !== 'cancelled' && lineAmt(l) > 0))
 const cancelledQrs = computed(() => payLines.value.filter((l) => l.method === 'transfer' && l.status === 'cancelled'))
 // แท็บวิธีชำระ: QR (ค่าเริ่มต้น) · เงินสด · อื่น ๆ (ไว้เพิ่มช่องทางในอนาคต)
-const PAY_TABS = [['transfer', 'QR'], ['cash', 'เงินสด'], ['card', 'อื่น ๆ']]
+const PAY_TABS = [['transfer', 'QR'], ['cash', 'เงินสด'], ['card', 'บัตร']]
 function startMethod(k) {
   if (remaining.value <= 0 || binding.value) return
   addPayLine(k)
@@ -1104,7 +1104,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
     <section v-if="!shift" class="card mx-auto max-w-md">
       <div class="card-title"><AppIcon name="pos" class="text-brand-600" /> เปิดกะก่อนขาย</div>
       <label class="label">เงินทอนตั้งต้นในลิ้นชัก (บาท)</label>
-      <MoneyInput v-model="float" class="input text-lg font-semibold" placeholder="0" />
+      <MoneyInput v-model="float" class="input text-lg font-semibold" placeholder="ระบุยอด" />
       <button type="button" class="btn-primary mt-3 w-full" @click="doOpen">เปิดกะ</button>
       <div v-if="closedShifts.length" class="mt-5 border-t border-stone-100 pt-4">
         <div class="label">กะที่ผ่านมา</div>
@@ -1127,13 +1127,13 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         </span>
       </div>
       <section class="relative flex min-h-0 min-w-0 flex-col">
-        <div v-if="needMemberChoice" class="absolute inset-y-0 -inset-x-4 z-20 flex flex-col gap-3 bg-cream p-4 md:inset-x-0 md:rounded-3xl">
+        <div v-if="needMemberChoice" class="mb-3 flex shrink-0 flex-col gap-3 rounded-2xl bg-white p-3 ring-1 ring-stone-200" aria-label="เลือกลูกค้า">
           <div class="flex gap-2">
             <input ref="gateInputEl" :value="memberQ" @input="(e) => { e.target.value = e.target.value.replace(/[^0-9a-z]/gi, ''); memberQ = e.target.value }" type="text" inputmode="numeric" data-numpad="int" class="input h-14 min-w-0 flex-1 text-lg" placeholder="กรอกเบอร์สมาชิก" aria-label="เบอร์สมาชิก" @keydown.enter.prevent="onMemberScan" />
-            <button type="button" class="btn-outline h-14 shrink-0 px-5 text-base" @click="chooseNoMember">ไม่มี</button>
+            <button type="button" class="btn-outline h-14 shrink-0 px-5 text-base" @click="chooseNoMember">ลูกค้าทั่วไป</button>
           </div>
           <p v-if="scanMsg" class="text-xs text-rose-700" role="alert">{{ scanMsg }}</p>
-          <p v-else-if="!memberQ" class="text-sm text-stone-600">เริ่มขาย: กรอกเบอร์สมาชิก 10 หลัก หรือสแกนบาร์โค้ดสมาชิก · ลูกค้าทั่วไปกด "ไม่มี"</p>
+          <p v-else-if="!memberQ" class="text-sm text-stone-600">เริ่มขาย: กรอกเบอร์สมาชิก 10 หลัก หรือสแกนบาร์โค้ดสมาชิก · กดปุ่ม "ลูกค้าทั่วไป"</p>
           <div v-if="memberMatches.length" class="space-y-2">
             <div v-for="c in memberMatches" :key="c.id" class="flex w-full items-stretch gap-2 rounded-xl border border-stone-200 bg-white text-sm hover:border-brand-300">
               <button v-for="r in [redeemInfo(c)]" :key="'gp' + c.id" type="button" class="flex min-w-0 flex-1 flex-col gap-1 px-4 py-3 text-left" @click="pickMember(c)">
@@ -1172,6 +1172,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             class="relative flex h-full min-h-24 w-full flex-col justify-between rounded-3xl border-2 bg-white p-3 text-left shadow-sm transition active:scale-[0.98] disabled:opacity-50"
             :class="inCart(x) ? 'border-brand-500 bg-brand-50/60' : 'border-transparent hover:border-brand-300'"
             :disabled="!canAdd(x)"
+            :title="x.stock != null && x.stock - inCart(x) <= 0 ? 'สต็อกหมด ขายไม่ได้จนกว่าจะเพิ่มสต็อก' : undefined"
             @click="add(x)"
           >
             <span class="line-clamp-2 text-sm font-medium break-words text-stone-900">{{ x.name }}</span>
@@ -1180,7 +1181,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <span v-if="ranks.get(x.id)?.star" class="mt-0.5 inline-flex items-center gap-0.5 text-xs font-semibold text-amber-700" :aria-label="`ขายดีอันดับ ${ranks.get(x.id).rank}`"><AppIcon name="star" :size="12" /> ขายดี #{{ ranks.get(x.id).rank }}</span>
             <span class="mt-2 flex items-end justify-between gap-1">
               <span class="text-base font-semibold text-stone-900">{{ money(x.price) }}</span>
-              <span v-if="x.stock != null" class="text-xs" :class="x.stock - inCart(x) <= 0 ? 'font-semibold text-rose-700' : 'text-stone-500'">{{ x.stock - inCart(x) <= 0 ? 'หมด' : `เหลือ ${x.stock - inCart(x)}` }}</span>
+              <span v-if="x.stock != null" class="text-xs" :class="x.stock - inCart(x) <= 0 ? 'font-semibold text-rose-700' : 'text-stone-500'">{{ x.stock - inCart(x) <= 0 ? 'หมดแล้ว' : `เหลือ ${x.stock - inCart(x)}` }}</span>
             </span>
             <span v-if="inCart(x)" class="absolute -top-2 -right-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand-600 px-1 text-xs font-semibold text-white">{{ inCart(x) }}</span>
           </button>
@@ -1195,7 +1196,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <div v-if="cartOpen" class="fixed inset-0 z-40 bg-stone-900/40 lg:hidden" @click="cartOpen = false" />
       <aside
         class="z-50 flex-col rounded-2xl border border-stone-200 bg-white shadow-2xl lg:sticky lg:top-20 lg:flex lg:max-h-[calc(100dvh-7rem)] lg:shadow-none"
-        :class="cartOpen ? 'fixed inset-x-4 top-1/2 flex max-h-[80dvh] -translate-y-1/2 sm:mx-auto sm:w-full sm:max-w-md' : 'hidden'"
+        :class="cartOpen ? 'fixed inset-x-0 bottom-0 flex max-h-[calc(100dvh-10rem)] rounded-t-3xl rounded-b-none sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:max-h-[80dvh] sm:w-full sm:max-w-md sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl' : 'hidden'"
       >
         <div class="flex items-center justify-between border-b border-stone-100 px-4 py-3">
           <span class="font-semibold text-stone-900">ตะกร้า <span class="text-stone-400">{{ count }}</span></span>
@@ -1238,9 +1239,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               <span class="max-w-[40%] shrink-0 truncate text-xs text-emerald-800">{{ g.promoGift.name }}</span>
             </li>
           </ul>
-          <ul v-if="promoInfo.hints.length" class="space-y-1.5" aria-label="โปรที่ใกล้ถึง">
+          <details v-if="promoInfo.hints.length" open class="group"><summary class="mb-1.5 cursor-pointer list-none text-xs font-semibold text-sky-900">โปรที่ใกล้ถึง · {{ promoInfo.hints.length }} รายการ (แตะเพื่อซ่อน/แสดง)</summary><ul class="space-y-1.5" aria-label="โปรที่ใกล้ถึง">
             <li v-for="h in promoInfo.hints" :key="h.text" class="rounded-xl border-l-4 border-sky-500 bg-sky-100 px-3 py-2 text-sm font-medium text-sky-950">💡 {{ h.text }}</li>
-          </ul>
+          </ul></details>
 
           <!-- แนะนำขายต่อ -->
           <div v-if="bundleSug.length || pairSug.length" class="space-y-2" aria-label="แนะนำขายต่อ">
@@ -1327,8 +1328,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <div class="flex justify-between font-semibold"><dt>เงินสดที่ควรมีในลิ้นชัก</dt><dd>{{ money(summary.expectedCash) }}</dd></div>
       </dl>
       <label class="label mt-4">เงินสดที่นับได้ (บาท)</label>
-      <MoneyInput v-model="counted" class="input text-lg font-semibold" placeholder="0" />
+      <MoneyInput v-model="counted" class="input text-lg font-semibold" placeholder="ระบุยอด" />
       <p v-if="counted !== ''" class="mt-1 text-sm" :class="Number(counted) - summary.expectedCash === 0 ? 'text-emerald-700' : 'text-amber-700'">ส่วนต่าง {{ money(Number(counted) - summary.expectedCash) }}</p>
+      <p v-if="counted === ''" class="mt-2 text-sm text-stone-500">กรอกเงินสดที่นับได้ก่อน จึงจะปิดกะได้</p>
       <button type="button" class="btn-primary mt-3 w-full" :disabled="counted === ''" @click="doClose">ปิดกะ</button>
     </section>
 
@@ -1346,8 +1348,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <p v-if="vd.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ vd.error }}</p>
       </div>
       <template #footer>
-        <button class="btn-outline flex-1 sm:flex-none" @click="voidFor = null">ปิด</button>
-        <button class="btn-danger flex-1 sm:flex-none" @click="doVoid">ยืนยันยกเลิกบิล</button>
+        <button class="btn-outline flex-1 sm:flex-none" @click="voidFor = null">ไม่ยกเลิก</button>
+        <button class="btn-danger flex-[1.6] sm:flex-none" @click="doVoid">ยืนยันยกเลิกบิล</button>
       </template>
     </AppModal>
     <RefundPartialDialog v-if="refundFor" :order="refundFor" @close="refundFor = null" />
@@ -1526,7 +1528,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <p v-if="keptProblem" class="mt-1 text-xs text-rose-700" role="alert">{{ keptProblem }}</p>
             <p v-if="couponIds.length" class="mt-1.5 text-xs text-emerald-700">ใช้คูปองลดแล้ว {{ money(preview.couponDiscount) }}</p>
           </div>
-          <p v-else-if="member && hiddenCoupons" class="rounded-2xl bg-amber-50 p-3 text-xs text-amber-800" role="note">ลูกค้ามีคูปอง {{ hiddenCoupons }} ใบที่ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" ให้ลูกค้ากดในบัญชีของตนก่อน คูปองจึงจะขึ้นที่นี่ (มีเวลาแสดง {{ db.loyalty.activationMin }} นาที)</p>
+          <p v-else-if="member && hiddenCoupons" class="rounded-2xl bg-amber-50 p-3 text-xs leading-relaxed break-words text-amber-800" role="note">ลูกค้ามีคูปอง {{ hiddenCoupons }} ใบที่ยังไม่ได้กด "ใช้ที่ร้านตอนนี้" ให้ลูกค้ากดในบัญชีของตนก่อน คูปองจึงจะขึ้นที่นี่ (มีเวลาแสดง {{ db.loyalty.activationMin }} นาที)</p>
 
           <!-- รายการชำระของบิลนี้ -->
           <ul v-if="listedLines.length" class="space-y-2" aria-label="รายการชำระของบิลนี้">
@@ -1645,7 +1647,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               </div>
               <div class="grid grid-cols-2 gap-2" aria-label="ล้างหรือบันทึกยอดเงินสด">
                 <button type="button" class="h-11 rounded-2xl text-sm font-medium text-stone-600 ring-1 ring-stone-300 active:scale-[0.98] disabled:opacity-40 max-md:h-10 max-md:text-xs" :disabled="!!l.locked || !!l.confirmed" @click="l[padField(l)] = ''">ล้าง{{ padField(l) === 'amount' ? 'ยอดเงินสดครั้งนี้' : 'รับเงินมา' }}</button>
-                <button v-if="!l.locked && !l.confirmed && lineAmt(l) > 0 && changeOf(l) >= 0 && !binding" type="button" class="btn-primary h-12 w-full text-lg max-md:h-10 max-md:text-base" @click="keepAndAddMore">บันทึกยอดเงินสดนี้</button>
+                <button v-if="!l.locked && !l.confirmed && lineAmt(l) > 0 && lineAmt(l) < remaining && changeOf(l) >= 0 && !binding" type="button" class="btn-primary h-12 w-full text-lg max-md:h-10 max-md:text-base" @click="keepAndAddMore">บันทึกยอดเงินสดนี้</button>
+                <p v-else-if="!l.locked && !l.confirmed && lineAmt(l) > 0 && changeOf(l) >= 0 && !binding" class="col-span-2 text-center text-sm font-medium text-emerald-800">รับครบแล้ว · กด "ยืนยันรับเงิน" ด้านล่างเพื่อปิดบิล</p>
               </div>
             </div>
 
@@ -1702,20 +1705,20 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </div>
 
             <!-- โอน: รอลูกค้าโอน (QR แสดงที่จอลูกค้าถ้ามี) -->
-            <div v-else class="grid min-h-0 flex-1 content-center items-center justify-items-center gap-4 rounded-3xl bg-white p-4 ring-1 ring-stone-200 landscape:grid-cols-2">
+            <div v-else class="grid min-h-0 flex-1 content-start items-center justify-items-center gap-3 overflow-y-auto rounded-3xl bg-white p-4 ring-1 ring-stone-200 landscape:grid-cols-2">
               <BillerQr v-if="!customerScreen" :amount="lineAmt(l)" :ref1="db.shop.merchantCode || ''" :ref2="l.qrRef" :show-amount="false" />
               <div class="w-full space-y-3 text-center landscape:text-left">
                 <div>
                   <div class="text-sm text-stone-500 md:text-base">ยอดโอน</div>
-                  <div class="text-4xl font-bold tabular-nums text-stone-900 md:text-6xl">{{ money(lineAmt(l)) }}</div>
+                  <div class="text-4xl font-bold tabular-nums text-stone-900 md:text-5xl">{{ money(lineAmt(l)) }}</div>
                 </div>
                 <div v-if="expiredLine(l)" class="space-y-2">
                   <p class="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700">QR หมดอายุแล้ว สร้าง QR ใหม่ให้ลูกค้าสแกน</p>
                   <button type="button" class="btn-primary h-12 w-full" @click="makeQr(l)">สร้าง QR ใหม่</button>
                 </div>
-                <div v-else class="flex items-center justify-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-amber-900 md:py-4 landscape:justify-start">
+                <div v-else class="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl bg-amber-50 px-4 py-3 text-amber-900 md:py-4 landscape:justify-start">
                   <span class="relative grid h-3 w-3 place-items-center" aria-hidden="true"><span class="motion-safe:animate-ping absolute inset-0 rounded-full bg-amber-400/70" /><span class="relative h-2.5 w-2.5 rounded-full bg-amber-500" /></span>
-                  <span class="text-lg font-semibold md:text-2xl">รอลูกค้าโอน</span>
+                  <span class="text-lg font-semibold whitespace-nowrap md:text-2xl">รอลูกค้าโอน</span>
                   <span class="text-base md:text-xl">· หมดอายุใน <b class="text-lg tabular-nums md:text-3xl">{{ qrLeft(l) }}</b></span>
                 </div>
                 <p v-if="customerScreen && !expiredLine(l)" class="rounded-xl bg-brand-50 p-2.5 text-sm font-medium text-brand-800 md:p-4 md:text-lg">QR แสดงที่จอลูกค้าแล้ว ให้ลูกค้าสแกนที่จอนั้น</p>

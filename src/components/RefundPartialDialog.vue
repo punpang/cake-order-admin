@@ -70,6 +70,7 @@ function save() {
       <p v-if="t.hold > 0" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">เงินพัก {{ money(t.hold) }} ไม่รวมในการคืนนี้ · แก้เงินพักได้ที่ "แก้เงินพัก" ในหน้าออร์เดอร์</p>
       <p v-if="invoice" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ออกใบกำกับภาษีไว้แล้ว ({{ invoice.no }}) · การคืนบางส่วนยังไม่ออกใบลดหนี้ให้อัตโนมัติ (ยกเลิกทั้งใบจึงจะออก) กรุณาตรวจกับผู้ทำบัญชี</p>
       <template v-if="more">
+      <div><label class="label" for="rf-reason">เหตุผล <span class="text-rose-600">*</span></label><input id="rf-reason" v-model="f.reason" class="input" maxlength="120" /></div>
       <div v-if="showItems" class="space-y-2">
         <div class="label">สินค้าที่คืน (ไม่บังคับ)</div>
         <div v-for="l in lines" :key="l.it.id" class="flex items-center justify-between gap-3 rounded-xl border border-stone-200 p-2.5">
@@ -85,7 +86,6 @@ function save() {
         </div>
         <label v-if="canRestockAny" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="restock" type="checkbox" class="h-4 w-4" aria-label="คืนจำนวนนี้เข้าสต็อก" /> คืนจำนวนนี้เข้าสต็อก</label>
       </div>
-      <div><label class="label" for="rf-reason">เหตุผล <span class="text-rose-600">*</span></label><input id="rf-reason" v-model="f.reason" class="input" maxlength="120" /></div>
       <div>
         <div class="label">คืนเงินให้ลูกค้า</div>
         <RefundEditor v-model="f.refunds" :paid="t.goodsPaidNet" :can-credit="!!customer && !customer.deleted" :default-method="defMethod" />
