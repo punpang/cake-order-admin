@@ -1749,7 +1749,7 @@ export function saveShopSettings(d) {
   if (Array.isArray(d.prepCategories)) db.shop.prepCategories = [...new Set(d.prepCategories.map((x) => String(x).trim()).filter(Boolean))]
   db.shop.installmentAlertDays = intIn(d.installmentAlertDays, 0, 30, db.shop.installmentAlertDays ?? 1)
   db.shop.lineRetentionDays = intIn(d.lineRetentionDays, 7, 365, db.shop.lineRetentionDays ?? 180)
-  db.shop.merchantCode = String(d.merchantCode ?? db.shop.merchantCode ?? '').replace(/\D/g, '').slice(0, 20)
+  db.shop.merchantCode = String(d.merchantCode ?? db.shop.merchantCode ?? '').replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 20)
   db.shop.billerId = String(d.billerId ?? db.shop.billerId ?? '').replace(/\D/g, '').slice(0, 15)
   if (d.posQrExpireMin !== undefined) {
     const m = Math.round(Number(d.posQrExpireMin))

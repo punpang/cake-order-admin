@@ -30,12 +30,20 @@ t('billerIdOf รับเฉพาะตัวเลข 15 หลัก', () =>
   assert.equal(billerIdOf(''), '')
 })
 
-t('shopCodeOf รับเฉพาะตัวเลข 1–20 หลัก (ตัดช่องว่างและขีด) · POS/ORD ไม่ใช่รหัสร้านค้า', () => {
+t('shopCodeOf รับตัวอักษรและตัวเลข 1–20 ตัว (ตัดช่องว่างและขีด · พิมพ์เล็กเป็นใหญ่) · POS/ORD ไม่ใช่รหัสร้านค้า', () => {
   assert.equal(shopCodeOf('014 000 000 517 185'), SHOP)
+  assert.equal(shopCodeOf('tz180990hu0322496dx'), 'TZ180990HU0322496DX')
   assert.equal(shopCodeOf('12345678901234567890'), '12345678901234567890')
   assert.equal(shopCodeOf('123456789012345678901'), '')
+  assert.equal(shopCodeOf('TZ-180990@'), '')
   assert.equal(shopCodeOf(ORDER), '')
   assert.equal(shopCodeOf(''), '')
+})
+
+t('promptPayBillerPayload ใส่รหัสร้านค้าที่มีตัวอักษรใน Ref 1 ได้', () => {
+  const p = promptPayBillerPayload(BILLER, 1, 'TZ180990HU0322496DX', QR)
+  assert.ok(p)
+  assert.equal(parse(parse(p).get('30')).get('02'), 'TZ180990HU0322496DX')
 })
 
 t('shopRefOfCode แปลงรหัสมีขีดเป็นรหัสอ้างอิงไม่มีขีด', () => {

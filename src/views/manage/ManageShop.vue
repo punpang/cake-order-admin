@@ -64,8 +64,8 @@ function save() {
   if (st.customerLazy && !serverScheduled.value) return (error.value = 'โหมดโหลดลูกค้าเฉพาะที่ใช้: ต้องให้เซิร์ฟเวอร์ส่งเตือนตามเวลาก่อน')
   if (!(Number.isInteger(Number(st.chatAutoHideHours)) && Number(st.chatAutoHideHours) >= 0 && Number(st.chatAutoHideHours) <= 720)) return (error.value = 'ซ่อนแชทอัตโนมัติ: กรอก 0–720 ชั่วโมง (0 = ไม่ซ่อน)')
   if (![st.leadPickup, st.leadDelivery, st.birthdayDays].every(num)) return (error.value = 'กรอกตัวเลขตั้งแต่ 0 ขึ้นไป')
-  const mcDigits = String(st.merchantCode || '').replace(/\D/g, '')
-  if (mcDigits && !/^\d{6,20}$/.test(mcDigits)) return (error.value = 'รหัสร้านค้าต้องเป็นตัวเลข 6–20 หลัก (เว้นว่างถ้าไม่ตรวจสลิป)')
+  const mcCode = String(st.merchantCode || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+  if (mcCode && !/^[A-Z0-9]{6,20}$/.test(mcCode)) return (error.value = 'รหัสร้านค้าต้องเป็นตัวอักษรหรือตัวเลข 6–20 ตัว (เว้นว่างถ้าไม่ตรวจสลิป)')
   if (!(Number.isInteger(st.lineRetentionDays) && st.lineRetentionDays >= 7 && st.lineRetentionDays <= 365)) return (error.value = 'เก็บข้อความ LINE ได้ 7–365 วัน')
   if (!(st.pickupRemindHours >= 1 && st.pickupRemindHours <= 72) || !(st.dueSoonHours >= 1 && st.dueSoonHours <= 12) || !(st.pointsExpireDays >= 1 && st.pointsExpireDays <= 90) || !(st.installmentAlertDays >= 0 && st.installmentAlertDays <= 30)) return (error.value = 'ตรวจเวลาแจ้งเตือน (นัดรับ 1–72 ชม. · งานใกล้เวลา 1–12 ชม. · คะแนนหมดอายุ 1–90 วัน · ผ่อนชำระ 0–30 วัน)')
   if (!(Number(st.payDueMin) >= 1) || Number(st.payDueMin) > 10080) return (error.value = 'กำหนดชำระเริ่มต้นต้องอยู่ระหว่าง 1–10080 นาที')
@@ -197,7 +197,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
       <div class="border-t border-stone-100 pt-4">
         <div class="card-title mb-3"><AppIcon name="wallet" class="text-brand-600" /> ช่องทางรับชำระ (แสดงให้ลูกค้า)</div>
         <div class="mb-4 max-w-md"><label class="label">Biller ID (ผู้เรียกเก็บเงิน 15 หลัก) <span class="font-normal text-stone-400">ใช้สร้าง QR พร้อมเพย์แบบ Biller · เว้นว่าง = ไม่มี QR</span></label><input v-model="st.billerId" type="text" inputmode="numeric" maxlength="15" class="input" placeholder="เช่น 010753600010286" /></div>
-        <div class="mb-4 max-w-md"><label class="label">รหัสร้านค้า (ผู้รับชำระ) <span class="font-normal text-stone-400">ใส่ใน QR เป็น Ref 1 และใช้ตรวจสลิป · เว้นว่าง = ไม่มี QR และไม่ตรวจรหัสร้านค้า</span></label><input v-model="st.merchantCode" type="text" inputmode="numeric" class="input" placeholder="เช่น 014000000517185" /></div>
+        <div class="mb-4 max-w-md"><label class="label">รหัสร้านค้า (ผู้รับชำระ) <span class="font-normal text-stone-400">ใส่ใน QR เป็น Ref 1 และใช้ตรวจสลิป · เว้นว่าง = ไม่มี QR และไม่ตรวจรหัสร้านค้า</span></label><input v-model="st.merchantCode" type="text" class="input" placeholder="เช่น TZ180990HU0322496DX" /></div>
         <div class="space-y-3">
           <div v-for="(a, i) in st.payment.accounts" :key="a.id" class="space-y-2 rounded-2xl border border-stone-200 bg-white p-3">
             <div class="flex flex-wrap items-center justify-between gap-2">

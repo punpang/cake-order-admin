@@ -77,10 +77,10 @@ export function newQrSuffix() {
 // Ref 2 = ORD + 12 หลักตามเลขออร์เดอร์ (ORD+ddmmyy+xxxxxx) หรือ POS + เลขสุ่ม 12 หลัก (newPosQrRef ใน store.js · ไม่ใช่เลขที่บิล) แล้วต่อด้วยรหัสสุ่ม 5 ตัว
 export const qrRefOk = (v) => /^(?:ORD\d{12}|POS\d{12})[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{5}$/.test(String(v ?? ''))
 
-// รหัสร้านค้า (Ref 1): ตัวเลข 1–20 หลัก (ตัดช่องว่างและขีด) · ไม่ใช่ตัวเลข = ''
+// รหัสร้านค้า (Ref 1): ตัวอักษร A–Z และตัวเลข 1–20 ตัว (ตัดช่องว่างและขีด · ตัวพิมพ์เล็กเป็นพิมพ์ใหญ่) · ขึ้นต้นด้วย POS/ORD = ไม่ใช่รหัสร้านค้า · ไม่ตรงรูปแบบ = ''
 export const shopCodeOf = (s) => {
-  const v = String(s ?? '').replace(/[\s-]/g, '')
-  return /^\d{1,20}$/.test(v) ? v : ''
+  const v = String(s ?? '').replace(/[\s-]/g, '').toUpperCase()
+  return /^[A-Z0-9]{1,20}$/.test(v) && !/^(POS|ORD)\d/.test(v) ? v : ''
 }
 
 // QR พร้อมเพย์แบบ Biller · ยอดว่าง = ไม่ล็อกยอด · ข้อมูลไม่ถูกต้อง (Biller ID / รหัสร้านค้า / รหัสอ้างอิง / ยอด) = null

@@ -183,7 +183,7 @@ Deno.serve(corsWrap(async (req) => {
   const autoConfirmCfgOf = async () => {
     const sq = (await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()).data?.data?.v
     const sh = (await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'shop').maybeSingle()).data?.data?.v
-    return { auto: { ...autoConfirmOf(sq), enabled: IMAGE_AUTO_CONFIRM && autoConfirmOf(sq).enabled }, merchantCode: String(sh?.merchantCode ?? '').replace(/\D/g, ''), accounts: configuredAccountsOf(sh) }
+    return { auto: { ...autoConfirmOf(sq), enabled: IMAGE_AUTO_CONFIRM && autoConfirmOf(sq).enabled }, merchantCode: String(sh?.merchantCode ?? '').replace(/[^A-Za-z0-9]/g, '').toUpperCase(), accounts: configuredAccountsOf(sh) }
   }
   const action = String(b.action || '')
   if (!['pay', 'read_slip', 'extend', 'photo_optout', 'photo_optout_cancel', 'qr_request', 'chat_list', 'chat_send', 'chat_photo', 'chat_typing', 'chat_read', 'push_register'].includes(action)) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
