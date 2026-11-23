@@ -1291,6 +1291,7 @@ export function reportPayment(order, p) {
     reportedBy: session.role,
     confirmedBy: null,
     qrRef, // Ref 2 ของ QR งวดนี้ (POS/ORD + รหัสสุ่ม)
+    ...(p.orderQr === true ? { orderQr: true } : {}), // QR จากหน้าออร์เดอร์ → ยืนยันอัตโนมัติจากถุงเงินโดยไม่รอวันนัด
   }
   order.payments.push(pay)
   const due = pay.dueAt
@@ -3877,7 +3878,7 @@ export const findQuote = (id) => db.quotes.find((q) => q.id === id)
 function localQuote(chatId, draft) {
   const c = findChat(chatId)
   if (!c) return { error: 'ไม่พบแชท' }
-  const r = buildQuotePayload({ draft, customerId: c.customerId, catalog: catalogOf(), nowMs: Date.now() })
+  const r = buildQuotePayload({ draft, customerId: c.customerId, catalog: catalogOf(), nowMs: Date.now(), customerFacing: true })
   if (!r.ok) return { error: r.error }
   return { quote: { id: uid('qt'), code: numbering.next('QT'), chatId, customerId: c.customerId, payload: r.payload, status: 'pending', orderId: null, createdAt: now(), respondedAt: null } }
 }

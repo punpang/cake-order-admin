@@ -272,7 +272,8 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
 </script>
 
 <template>
-  <AppModal :title="item ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'" wide @close="emit('close')">
+  <AppModal :title="item ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'" split @close="emit('close')">
+    <template #left>
     <!-- ประเภท -->
     <div class="mb-4 grid grid-cols-2 gap-1 seg-grid">
       <button
@@ -336,49 +337,6 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
       <p v-if="errors.product" class="mt-2 text-sm text-rose-700">{{ errors.product }}</p>
     </div>
 
-    <!-- ชั้นของเค้ก (สั่งทำ) -->
-    <template v-if="tierGroups.length">
-      <!-- เค้กปกติ / เค้กชั้น -->
-      <div class="mb-3 grid grid-cols-2 gap-1 seg-grid">
-        <button
-          v-for="k in [{ v: false, t: 'เค้กปกติ' }, { v: true, t: 'เค้กชั้น' }]"
-          :key="k.t"
-          type="button"
-          class="h-10 rounded-xl text-sm font-semibold transition"
-          :class="layered === k.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'"
-          @click="setLayered(k.v)"
-        >{{ k.t }}</button>
-      </div>
-
-      <template v-if="layered">
-        <div v-for="(tier, i) in form.tiers" :key="i" class="mb-3 rounded-2xl border border-brand-200 bg-brand-50/40 p-3">
-          <div class="mb-2.5 flex items-center justify-between gap-2">
-            <span class="font-semibold text-brand-800">ชั้นที่ {{ i + 1 }}</span>
-            <button v-if="form.tiers.length > 1" type="button" class="btn-danger h-8 px-2.5 text-sm" @click="removeTier(i)"><AppIcon name="trash" :size="14" /> ลบชั้น</button>
-          </div>
-          <OptionPicker v-model="tier.selections" :locked="lockedOf(tier)" :scopes="scopesFor(tier)" :bundles="form.kind === 'custom' ? db.bundles : []" :context="form.selections" :groups="tierGroups" :all-groups="groups" :errors="errors['t' + i] || {}" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" :type-opt="typeOptOf(tier)" />
-          <BundleHint scope="tier" :bundles="db.bundles" :groups="groups" :tier-sels="tier.selections" :whole-sels="form.selections" :size-ids="sizeIdsOf(tier)" :type-id="typeOptOf(tier)?.id || null" :style-id="styleIdOf(tier)" :allow="allowFor(tier)" />
-        </div>
-        <button type="button" class="btn-soft mb-3 w-full" @click="form.tiers.push({ selections: {} })"><AppIcon name="plus" :size="16" /> เพิ่มชั้น</button>
-      </template>
-      <div v-else class="mb-3">
-        <OptionPicker v-model="form.tiers[0].selections" :locked="lockedOf(form.tiers[0])" :scopes="scopesFor(form.tiers[0])" :bundles="form.kind === 'custom' ? db.bundles : []" :context="form.selections" :groups="tierGroups" :all-groups="groups" :errors="errors.t0 || {}" :active="active" :allow="allowFor(form.tiers[0])" :size-ids="sizeIdsOf(form.tiers[0])" :type-opt="typeOptOf(form.tiers[0])" />
-        <BundleHint scope="tier" :bundles="db.bundles" :groups="groups" :tier-sels="form.tiers[0].selections" :whole-sels="form.selections" :size-ids="sizeIdsOf(form.tiers[0])" :type-id="typeOptOf(form.tiers[0])?.id || null" :style-id="styleIdOf(form.tiers[0])" :allow="allowFor(form.tiers[0])" />
-      </div>
-    </template>
-
-    <div v-if="form.kind === 'custom' && wholeGroups.length" class="mb-2 text-sm font-semibold text-stone-500">ตัวเลือกเพิ่มเติม</div>
-    <OptionPicker v-model="form.selections" :scopes="scopesFor(form.tiers[0])" :bundles="form.kind === 'custom' ? db.bundles : []" :context="form.tiers[0]?.selections || {}" :groups="wholeGroups" :all-groups="groups" :errors="errors" :active="active" :allow="form.kind === 'custom' ? allowFor(form.tiers[0]) : null" :size-ids="allSizeIds" :type-opt="form.kind === 'custom' ? typeOptOf(form.tiers[0]) : readyTypeOpt" />
-    <BundleHint v-if="form.kind === 'custom'" scope="whole" :bundles="db.bundles" :groups="groups" :tier-sels="form.tiers[0]?.selections || null" :whole-sels="form.selections" :size-ids="allSizeIds" :type-id="typeOptOf(form.tiers[0])?.id || null" :style-id="styleIdOf(form.tiers[0])" :allow="allowFor(form.tiers[0])" />
-
-    <div v-if="healthText()" class="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3.5">
-      <label class="flex items-start gap-2 text-sm text-amber-900">
-        <input v-model="healthOk" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0" />
-        <span>ลูกค้ายินยอมโดยชัดแจ้งให้ร้านเก็บและใช้ข้อมูลแพ้อาหารนี้ เพื่อทำสินค้าเท่านั้น (ข้อมูลสุขภาพตาม PDPA) — ถามลูกค้าในแชทก่อนติ๊ก</span>
-      </label>
-      <p v-if="errors.health" class="mt-1.5 text-sm text-rose-700" role="alert">{{ errors.health }}</p>
-    </div>
-
     <!-- รูป + หมายเหตุ -->
     <div class="mt-3 rounded-2xl border border-stone-200/70 bg-white p-3.5">
       <div class="mb-2.5 text-sm font-semibold text-stone-800">รูปตัวอย่าง</div>
@@ -405,6 +363,54 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
         <SmsTick v-model="smsCust" :customer="customer" :order="order" :show="notifyCust" />
       </div>
     </div>
+    </template>
+    <template #center>
+    <!-- ชั้นของเค้ก (สั่งทำ) -->
+    <template v-if="tierGroups.length">
+      <!-- เค้กปกติ / เค้กชั้น -->
+      <div class="mb-3 grid grid-cols-2 gap-1 seg-grid">
+        <button
+          v-for="k in [{ v: false, t: 'เค้กปกติ' }, { v: true, t: 'เค้กชั้น' }]"
+          :key="k.t"
+          type="button"
+          class="h-10 rounded-xl text-sm font-semibold transition"
+          :class="layered === k.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'"
+          @click="setLayered(k.v)"
+        >{{ k.t }}</button>
+      </div>
+
+      <template v-if="layered">
+        <div v-for="(tier, i) in form.tiers" :key="i" class="mb-3 rounded-2xl border border-brand-200 bg-brand-50/40 p-3">
+          <div class="mb-2.5 flex items-center justify-between gap-2">
+            <span class="font-semibold text-brand-800">ชั้นที่ {{ i + 1 }}</span>
+            <button v-if="form.tiers.length > 1" type="button" class="btn-danger h-8 px-2.5 text-sm" @click="removeTier(i)"><AppIcon name="trash" :size="14" /> ลบชั้น</button>
+          </div>
+          <OptionPicker compact v-model="tier.selections" :locked="lockedOf(tier)" :scopes="scopesFor(tier)" :bundles="form.kind === 'custom' ? db.bundles : []" :context="form.selections" :groups="tierGroups" :all-groups="groups" :errors="errors['t' + i] || {}" :active="active" :allow="allowFor(tier)" :size-ids="sizeIdsOf(tier)" :type-opt="typeOptOf(tier)" />
+          <BundleHint scope="tier" :bundles="db.bundles" :groups="groups" :tier-sels="tier.selections" :whole-sels="form.selections" :size-ids="sizeIdsOf(tier)" :type-id="typeOptOf(tier)?.id || null" :style-id="styleIdOf(tier)" :allow="allowFor(tier)" />
+        </div>
+        <button type="button" class="btn-soft mb-3 w-full" @click="form.tiers.push({ selections: {} })"><AppIcon name="plus" :size="16" /> เพิ่มชั้น</button>
+      </template>
+      <div v-else class="mb-3">
+        <OptionPicker compact v-model="form.tiers[0].selections" :locked="lockedOf(form.tiers[0])" :scopes="scopesFor(form.tiers[0])" :bundles="form.kind === 'custom' ? db.bundles : []" :context="form.selections" :groups="tierGroups" :all-groups="groups" :errors="errors.t0 || {}" :active="active" :allow="allowFor(form.tiers[0])" :size-ids="sizeIdsOf(form.tiers[0])" :type-opt="typeOptOf(form.tiers[0])" />
+        <BundleHint scope="tier" :bundles="db.bundles" :groups="groups" :tier-sels="form.tiers[0].selections" :whole-sels="form.selections" :size-ids="sizeIdsOf(form.tiers[0])" :type-id="typeOptOf(form.tiers[0])?.id || null" :style-id="styleIdOf(form.tiers[0])" :allow="allowFor(form.tiers[0])" />
+      </div>
+    </template>
+
+    </template>
+    <template #right>
+    <div v-if="form.kind === 'custom' && wholeGroups.length" class="mb-2 text-sm font-semibold text-stone-500">ตัวเลือกเพิ่มเติม</div>
+    <OptionPicker compact v-model="form.selections" :scopes="scopesFor(form.tiers[0])" :bundles="form.kind === 'custom' ? db.bundles : []" :context="form.tiers[0]?.selections || {}" :groups="wholeGroups" :all-groups="groups" :errors="errors" :active="active" :allow="form.kind === 'custom' ? allowFor(form.tiers[0]) : null" :size-ids="allSizeIds" :type-opt="form.kind === 'custom' ? typeOptOf(form.tiers[0]) : readyTypeOpt" />
+    <BundleHint v-if="form.kind === 'custom'" scope="whole" :bundles="db.bundles" :groups="groups" :tier-sels="form.tiers[0]?.selections || null" :whole-sels="form.selections" :size-ids="allSizeIds" :type-id="typeOptOf(form.tiers[0])?.id || null" :style-id="styleIdOf(form.tiers[0])" :allow="allowFor(form.tiers[0])" />
+
+    <div v-if="healthText()" class="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3.5">
+      <label class="flex items-start gap-2 text-sm text-amber-900">
+        <input v-model="healthOk" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0" />
+        <span>ลูกค้ายินยอมโดยชัดแจ้งให้ร้านเก็บและใช้ข้อมูลแพ้อาหารนี้ เพื่อทำสินค้าเท่านั้น (ข้อมูลสุขภาพตาม PDPA) — ถามลูกค้าในแชทก่อนติ๊ก</span>
+      </label>
+      <p v-if="errors.health" class="mt-1.5 text-sm text-rose-700" role="alert">{{ errors.health }}</p>
+    </div>
+
+    </template>
 
     <template #footer>
       <div class="flex w-full flex-wrap items-center gap-3">

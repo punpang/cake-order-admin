@@ -149,8 +149,8 @@ async function savePay() {
 </script>
 
 <template>
-<AppModal :title="PAY_TITLE[payMode]" @close="emit('close')">
-  <div class="space-y-4">
+<AppModal wider :title="PAY_TITLE[payMode]" @close="emit('close')">
+  <div class="space-y-4 dlg-cols">
     <div v-if="payMode === 'confirm'" class="rounded-xl bg-sky-50 p-3 text-sm text-sky-800">
       ยอดที่แจ้งไป <b>{{ money(payTarget.requested ?? payTarget.amount) }}</b> · ใส่ยอดที่ได้รับจริง
     </div>

@@ -26,7 +26,8 @@ export function cashSettingsOf(shop) {
 
 // ตรวจและคิดบริการเกี่ยวกับเงิน · input = { kind, notes? } (ไม่มี = ไม่ใช้บริการ)
 // คืน { ok, item, holdMoney } · item = รายการค่าบริการ (ราคาจากการตั้งค่า) · holdMoney = เงินพัก (เฉพาะซ่อนเงิน/ดึงเงิน)
-export function cashServiceOf(input, shop) {
+// customerFacing = ใบเสนอที่ร้านส่งให้ลูกค้า: รับเฉพาะบริการที่เปิด "ให้ลูกค้าเห็น" ไว้ (ไม่มียอดที่ลูกค้ามองไม่เห็น)
+export function cashServiceOf(input, shop, { customerFacing = false } = {}) {
   if (input === undefined || input === null) return { ok: true, item: null, holdMoney: null }
   if (!isObj(input)) return fail('บริการเกี่ยวกับเงินไม่ถูกต้อง')
   const kind = input.kind
@@ -34,6 +35,7 @@ export function cashServiceOf(input, shop) {
   const settings = cashSettingsOf(shop)
   const svc = settings.services[kind]
   if (!svc.show) return fail(`ยังไม่เปิดให้บริการ${CASH_LABEL[kind]}`)
+  if (customerFacing && !svc.customer) return fail(`ยังไม่เปิดให้ลูกค้าเห็น${CASH_LABEL[kind]}`)
 
   let holdMoney = null
   if (kind === 'stash') {

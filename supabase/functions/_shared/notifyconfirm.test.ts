@@ -39,6 +39,21 @@ Deno.test('ลูกค้าแนบสลิปแล้ว (รอร้า�
   assertEquals([d.match, d.auto, d.daysLeft], [true, true, 3])
 })
 
+Deno.test('QR จากหน้าออร์เดอร์ (orderQr) ยืนยันอัตโนมัติแม้นัดรับใกล้กว่า 3 วัน', () => {
+  const d = notifyDecision({ ...base, payment: { ...PAY, orderQr: true }, pickupAt: '2026-11-12T10:00' })
+  assertEquals([d.match, d.auto], [true, true])
+})
+
+Deno.test('QR จากหน้าออร์เดอร์ที่ปิดยืนยันอัตโนมัติไว้ → ไม่ยืนยัน', () => {
+  const d = notifyDecision({ ...base, payment: { ...PAY, orderQr: true }, autoOn: false })
+  assertEquals([d.match, d.auto], [true, false])
+})
+
+Deno.test('QR ปกติที่นัดใกล้กว่า 3 วัน → ยังไม่ยืนยันอัตโนมัติ (กติกาเดิม)', () => {
+  const d = notifyDecision({ ...base, pickupAt: '2026-11-12T10:00' })
+  assertEquals([d.match, d.auto], [true, false])
+})
+
 Deno.test('ไม่มีวันนัดรับ → ไม่ยืนยันอัตโนมัติ', () => {
   const d = notifyDecision({ ...base, pickupAt: undefined })
   assertEquals([d.match, d.auto], [true, false])

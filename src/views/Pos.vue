@@ -26,7 +26,9 @@ import { waitSaved } from '../lib/syncStatus'
 import { showToast } from '../lib/toast'
 import { quietly } from '../lib/loading'
 import { watchTable } from '../lib/liveWatch'
-import { isNative, canAutoPrint, pushDisplay, showDisplay, displayCount } from '../lib/nativeDevices'
+import { isNative, canAutoPrint, showDisplay, displayCount } from '../lib/nativeDevices'
+import { refreshDisplay, customerScreenOff } from '../lib/customerDisplayQr'
+import { idleDisplay } from '../lib/customerDisplayState'
 import { printOrderReceipt } from '../lib/receiptRaster'
 import { billerIdOf, promptPayBillerPayload } from '../lib/promptpay'
 import DeviceSettings from '../components/DeviceSettings.vue'
@@ -545,9 +547,9 @@ onBeforeUnmount(() => {
   stopTransferWatch()
   clearTimeout(thanksTimer)
   // ออกจากหน้าขาย: จอลูกค้ากลับเป็นหน้ายินดีต้อนรับ (ไม่ค้างตะกร้า/การชำระ/QR)
-  if (native) pushDisplay({ status: 'idle', shopName: db.shop?.name || '', ads: adsForDisplay(db.storefront?.displayAds) })
+  if (native) refreshDisplay(idleDisplay(db.shop?.name || '', adsForDisplay(db.storefront?.displayAds)))
 })
-onMounted(() => { if (native) showDisplay().catch(() => {}) })
+onMounted(() => { if (native && !customerScreenOff()) showDisplay().catch(() => {}) })
 function addPayLine(method) {
   if (remaining.value <= 0) return
   payLines.value.push({ key: newKey(), method, amount: String(remaining.value), received: '', qrRef: '', qrExpiresAt: '', confirmed: false })
@@ -800,7 +802,7 @@ const displayState = computed(() => {
   if (member.value) return { status: 'idle', shopName, member: memberOnDisplay.value }
   return { status: 'idle', shopName, ads: adsForDisplay(db.storefront?.displayAds) }
 })
-watch(displayState, (st) => { if (native) pushDisplay(st) }, { deep: true })
+watch(displayState, (st) => { if (native) refreshDisplay(st) }, { deep: true })
 const receipt = ref(null)
 // QR ลุ้นโชคของใบเสร็จที่เพิ่งขาย (ผูกกับบิลนั้น ไม่ติดไปกับบิลอื่นตอนพิมพ์ซ้ำ)
 const receiptLucky = ref(null)

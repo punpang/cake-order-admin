@@ -95,8 +95,8 @@ const itemLimit = ref(24) // รูปเยอะ: แสดงทีละ 24
       </section>
     </div>
 
-    <AppModal v-if="ed.open" title="แก้ไขรูปในคลัง" @close="ed.open = false">
-      <div class="space-y-3">
+    <AppModal v-if="ed.open" wider title="แก้ไขรูปในคลัง" @close="ed.open = false">
+      <div class="space-y-3 dlg-cols">
         <img :src="ed.image" alt="รูปที่แก้ไข" class="mx-auto max-h-56 rounded-2xl object-cover" />
         <div v-for="g in groups" :key="g.id"><div class="mb-1 text-xs font-semibold text-stone-600">{{ g.name }}</div><div class="flex flex-wrap gap-1.5"><button v-for="o in g.options.filter((x) => x.active !== false)" :key="o.id" type="button" class="chip" :class="ed.tags.includes(o.id) ? 'chip-on' : 'chip-off'" @click="toggle(ed.tags, o.id)">{{ o.name }}</button></div></div>
         <div><label class="label">คำอธิบาย</label><input v-model="ed.caption" class="input" maxlength="120" aria-label="คำอธิบายรูปที่แก้ไข" /></div>

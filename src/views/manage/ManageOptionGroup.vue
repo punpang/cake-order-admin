@@ -271,8 +271,8 @@ async function saveO() {
     </AppModal>
 
     <!-- modal ตัวเลือก -->
-    <AppModal v-if="oOpen" :title="o.id ? 'แก้ไขตัวเลือก' : 'เพิ่มตัวเลือก'" @close="oOpen = false">
-      <div class="space-y-4">
+    <AppModal v-if="oOpen" :title="o.id ? 'แก้ไขตัวเลือก' : 'เพิ่มตัวเลือก'" wider @close="oOpen = false">
+      <div class="space-y-4 dlg-cols">
         <div><label class="label">ชื่อตัวเลือก <span class="text-rose-600">*</span></label><input v-model="o.name" class="input" /></div>
 
         <div v-if="isFlavor">

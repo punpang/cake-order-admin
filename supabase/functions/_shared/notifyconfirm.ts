@@ -25,7 +25,8 @@ export function notifyDecision(input: {
   if (p.status !== 'reported') return { match: false, auto: false, daysLeft: null, reason: 'รายการนี้ยืนยันหรือยกเลิกไปแล้ว' }
   if (input.amount == null || r2(input.amount) !== r2(p.amount)) return { match: false, auto: false, daysLeft: null, reason: 'ยอดในแจ้งเตือนไม่ตรงกับยอดรายการ' }
   const daysLeft = daysUntilPickup(input.pickupAt, input.receivedMs)
-  const auto = input.autoOn && daysLeft !== null && daysLeft >= input.days
+  // QR ที่พนักงานสร้างจากหน้าออร์เดอร์ (orderQr) ไม่ต้องรอวันนัด · ที่เหลือใช้กติกาจำนวนวันเดิม
+  const auto = input.autoOn && (p.orderQr === true || (daysLeft !== null && daysLeft >= input.days))
   if (auto) return { match: true, auto: true, daysLeft, reason: 'ยืนยันอัตโนมัติ' }
   if (!input.autoOn) return { match: true, auto: false, daysLeft, reason: 'ปิดการยืนยันอัตโนมัติไว้' }
   if (daysLeft === null) return { match: true, auto: false, daysLeft, reason: 'ไม่มีวันนัดรับ' }
