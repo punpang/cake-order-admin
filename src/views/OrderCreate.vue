@@ -370,7 +370,8 @@ async function quote() {
     </section>
 
     <!-- 2 นัดรับ -->
-    <section v-if="step === 1" class="space-y-3">
+    <section v-if="step === 1" class="space-y-3" :class="!embedded && 'lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0'">
+      <div class="space-y-3">
       <div class="card">
         <div class="card-title"><AppIcon name="calendar" class="text-brand-600" /> วันเวลานัดรับ</div>
         <div class="grid grid-cols-2 gap-3">
@@ -427,7 +428,9 @@ async function quote() {
           </div>
         </div>
       </div>
+      </div>
 
+      <div class="space-y-3">
       <div class="card">
         <div class="card-title"><AppIcon name="truck" class="text-brand-600" /> การส่งมอบ</div>
         <div class="grid grid-cols-2 gap-2">
@@ -454,7 +457,7 @@ async function quote() {
 
       <div class="card space-y-3">
         <div class="card-title">โอกาสของการสั่ง <span class="font-normal text-stone-400">(ไม่บังคับ · ถามลูกค้าได้)</span></div>
-        <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3" role="radiogroup" aria-label="โอกาสของการสั่ง">
+        <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-2 2xl:grid-cols-3" role="radiogroup" aria-label="โอกาสของการสั่ง">
           <button v-for="o in OCCASIONS" :key="o.key" type="button" class="chip" :class="form.occasionKind === o.key ? 'chip-on' : 'chip-off'" role="radio" :aria-checked="form.occasionKind === o.key" @click="form.occasionKind = form.occasionKind === o.key ? '' : o.key; if (!form.occasionKind) form.occasionConsent = false">{{ o.label }}</button>
         </div>
         <label v-if="form.occasionKind" class="flex items-start gap-2 text-sm text-stone-700">
@@ -462,10 +465,12 @@ async function quote() {
           <span>ลูกค้ายินยอมให้ร้านใช้โอกาสนี้เป็นสถิติรวมไม่ระบุตัวตน เพื่อแนะนำสินค้า (ไม่เก็บเพศ อายุ หรือข้อมูลของผู้รับ)</span>
         </label>
       </div>
+      </div>
     </section>
 
     <!-- 3 สินค้า -->
-    <section v-if="step === 2" class="space-y-3">
+    <section v-if="step === 2" class="space-y-3" :class="!embedded && cashKinds.length && 'lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0'">
+      <div class="space-y-3">
       <ItemCard v-for="(it, i) in shownItems" :key="it.id" :item="it">
         <template v-if="!it.promoGift">
           <button class="btn-outline h-9 px-3" @click="editing = { item: form.items[i], index: i }"><AppIcon name="edit" :size="16" /> แก้ไข</button>
@@ -491,6 +496,8 @@ async function quote() {
         <b class="text-lg text-stone-900">{{ money(goodsTotals.subtotal) }}</b>
       </div>
 
+      </div>
+      <div class="space-y-3">
       <!-- บริการเกี่ยวกับเงิน (ไม่บังคับ) · เงินพักไม่ใช่รายได้ -->
       <div v-if="cashKinds.length" class="card space-y-3">
         <div class="card-title"><AppIcon name="wallet" class="text-brand-600" /> บริการเกี่ยวกับเงิน <span class="font-normal text-stone-400">(ไม่บังคับ)</span></div>
@@ -516,11 +523,13 @@ async function quote() {
           <button type="button" class="btn-outline ml-auto h-9 px-3" @click="form.cashService = undefined">ไม่ใช้บริการ</button>
         </div>
       </div>
+      </div>
     </section>
 
     <!-- 4 สรุป -->
-    <section v-if="step === 3" class="space-y-3">
-      <div class="card grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <section v-if="step === 3" class="space-y-3" :class="!embedded && 'lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0'">
+      <div class="space-y-3">
+      <div class="card grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
         <div class="flex min-w-0 gap-3">
           <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><AppIcon name="user" /></span>
           <div class="min-w-0">
@@ -541,7 +550,8 @@ async function quote() {
       </div>
 
       <ItemCard v-for="it in shownItems" :key="it.id" :item="it" />
-
+      </div>
+      <div class="space-y-3">
       <div class="card space-y-2 text-sm">
         <div v-if="totals.discountTotal" class="flex items-start justify-between gap-2 rounded-xl bg-emerald-50/60 p-2.5">
           <span class="text-stone-600">ราคาเต็ม → ยอดสุทธิ</span>
@@ -560,6 +570,7 @@ async function quote() {
           <div class="flex justify-between text-amber-800"><span>เงินพัก (ไม่ใช่รายได้)</span><span>{{ money(totals.hold) }}</span></div>
           <div class="flex items-center justify-between font-semibold"><span>ยอดที่ลูกค้าต้องชำระ</span><span>{{ money(totals.payable) }}</span></div>
         </template>
+      </div>
       </div>
     </section>
 
