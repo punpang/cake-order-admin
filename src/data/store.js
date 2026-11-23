@@ -10,7 +10,7 @@ import { orderCardMsg, quoteCardMsg, linkCardMsg, payCard, viewCard } from '../l
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { prevStatus } from '../lib/orderFlow'
 import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList, returnedByMethod, returnedQtyOf, restockedQtyOf, itemReturnAmount, restockUnits } from '../lib/refund'
-import { addDays, pointBalance, takePoints, returnPoints, couponUsable, couponPhase, pickPrize, expiringSoon, conversionPlan, pointsEarnedVars } from '../lib/loyalty'
+import { addDays, pointBalance, takePoints, returnPoints, couponUsable, couponPhase, pickPrize, expiringSoon, conversionPlan, pointsEarnedVars, pointsLineOf } from '../lib/loyalty'
 import { DEFAULT_MEMBER_CFG, memberCfgErrors } from '../lib/memberLevels'
 import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, timeOnly } from '../lib/format'
 import { showToast } from '../lib/toast'
@@ -108,6 +108,8 @@ const PREPARED_TPL = 'ออร์เดอร์ {เลขออร์เด�
 // ส่งมอบแล้ว: ขอบคุณ + (ถ้ามีรูปงาน) ขออนุญาตใช้ภาพสินค้า หากไม่ยินยอมแจ้งได้ + ลิงก์ดูออร์เดอร์ (ปุ่มบนการ์ด)
 const DELIVERED_OLD = 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ'
 const DELIVERED_TPL = 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ\n{ข้อความขอใช้ภาพ}\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
+// ฉบับมีบรรทัดคะแนน (ออร์เดอร์ปกติที่ได้แต้ม) · บรรทัดว่าง (ไม่ได้แต้ม) ถูกตัดทิ้งตอนส่ง
+const DELIVERED_PTS_TPL = 'ส่งมอบออร์เดอร์ {เลขออร์เดอร์} แล้ว ขอบคุณที่อุดหนุนค่ะ\n{ข้อความคะแนน}\n{ข้อความขอใช้ภาพ}\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
 // เตือนชำระ: ครั้งเดียวตอน 9 โมงเช้า ของออร์เดอร์พรุ่งนี้ที่แจ้งชำระแล้วแต่ยังไม่ชำระเลย (ยกเว้นยืนยันโดยไม่ชำระ) · ข้อความตามที่ร้านกำหนด + ลิงก์ดูออร์เดอร์
 const PAY_REMINDER_OLD = 'พรุ่งนี้มีนัดออร์เดอร์ {เลขออร์เดอร์} ({วันนัด} {เวลานัด}) ยังไม่ได้ชำระ คงค้าง {คงค้าง} ชำระก่อน {ชำระก่อน} ชำระที่ {ลิงก์ออร์เดอร์}'
 const PAY_REMINDER_TPL = 'โปรดชำระเงินก่อน {ชำระก่อน} เพื่อยืนยันการสั่งซื้อ {เลขออร์เดอร์} {วันนัด} {เวลานัด} เพื่อยืนยันการสั่งซื้อ หากชำระแล้ว ต้องขออภัย และสามารถแจ้งเพื่อตรวจสอบอีกครั้ง ขอบคุณค่ะ\nดูออร์เดอร์: {ลิงก์ออร์เดอร์}'
@@ -259,7 +261,7 @@ const DUE_SOON_TPL = '[ใกล้เวลา] {เลขออร์เดอ
 const PAY_REQ_CANCEL_OLD = 'ออร์เดอร์ {เลขออร์เดอร์} ยกเลิกยอดที่แจ้งชำระ {ยอดที่แจ้ง} แล้วค่ะ'
 const PAY_REQ_CANCEL_TPL = 'ออร์เดอร์ {เลขออร์เดอร์} ยกเลิกยอดที่แจ้งชำระ {ยอดที่แจ้ง} แล้วค่ะ\nเหตุผล: {เหตุผล}\nกรุณาแจ้งชำระยอดใหม่ค่ะ'
 const DEFAULT_UPGRADES = {
-  payment_confirmed: [[PAY_CONFIRMED_OLD, PAY_CONFIRMED_V2], PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL], delivered: [DELIVERED_OLD, DELIVERED_TPL], payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL],
+  payment_confirmed: [[PAY_CONFIRMED_OLD, PAY_CONFIRMED_V2], PAY_CONFIRMED_TPL], prepared: [PREPARED_OLD, PREPARED_TPL], delivered: [[DELIVERED_OLD, DELIVERED_TPL], DELIVERED_PTS_TPL], payment_reminder: [PAY_REMINDER_OLD, PAY_REMINDER_TPL],
   order_created: [ORDER_CREATED_OLD, ORDER_CREATED_TPL],
   team_due_soon: [DUE_SOON_OLD, DUE_SOON_TPL],
   payment_requested: [PAY_REQ_OLD, PAY_REQ_TPL],
@@ -281,7 +283,7 @@ const FB_TPL = {
   payment_reminder: PAY_REMINDER_TPL,
   pickup_reminder: 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์}\nวันที่ {วันนัด} เวลา {เวลานัด}',
   shipping: 'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ\nกำหนดถึง {วันนัด} {เวลานัด}',
-  delivered: DELIVERED_TPL,
+  delivered: DELIVERED_PTS_TPL,
   cancelled: 'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว\nหากมีข้อสงสัยติดต่อร้านได้เลยค่ะ',
   order_refund_cancelled: 'ร้านยกเลิกการคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} (ปรับรายการแล้ว)\nหากสงสัยติดต่อร้านได้เลยค่ะ',
   order_refunded: 'ร้านคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} แล้วค่ะ',
@@ -493,7 +495,7 @@ export const db = reactive({
     rule('payment_confirmed', ['web', 'sms'],PAY_CONFIRMED_TPL),
     rule('pickup_reminder', ['web', 'sms'],'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
     rule('shipping', ['web', 'sms'],'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ กำหนดถึง {วันนัด} {เวลานัด}'),
-    rule('delivered', ['web', 'sms'], DELIVERED_TPL),
+    rule('delivered', ['web', 'sms'], DELIVERED_PTS_TPL),
     rule('cancelled', ['web', 'sms'],'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว หากมีข้อสงสัยติดต่อร้านได้เลยค่ะ'),
     rule('order_refund_cancelled', ['web', 'sms'],'ร้านยกเลิกการคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} (ปรับรายการแล้ว) หากสงสัยติดต่อร้านได้เลยค่ะ'),
     rule('order_refunded', ['web', 'sms'],'ร้านคืนเงินออร์เดอร์ {เลขออร์เดอร์} จำนวน {ยอดที่แจ้ง} แล้วค่ะ'),
@@ -1229,10 +1231,9 @@ export function setStatus(order, status, text, opts = {}) {
   // ชำระแล้ว/ยกเลิก/ร่างไปรอชำระ มีข้อความทีมเฉพาะอยู่แล้ว (team_payment_confirmed, team_cancelled, team_new_order)
   log(order, text, { team: !(['payment_confirmed', 'cancelled'].includes(status) || prev === 'draft') })
   if (status === 'delivered') order.deliveredAt = now()
-  if (status === 'delivered') awardOrderRemote(order)
   const skip = opts.notify === false
   const noSms = opts.sms === false
-  if (status === 'delivered') notifyOrder('delivered', order, { skip, noSms })
+  if (status === 'delivered') notifyDelivered(order, { skip, noSms })
   if (status === 'prepared') notifyOrder('prepared', order, { skip, noSms })
   if (status === 'shipping') notifyOrder('shipping', order, { skip, noSms })
   if (status === 'preparing') notifyOrder('preparing', order, { skip, noSms })
@@ -2188,6 +2189,7 @@ export function awardOrderRemote(order, onAwarded = null) {
       const r = await pointsHook.call('punpang_award_order', { p_order: order.id, p_points: points, p_bonus: bonus, p_spins: spins, p_base: base }, { order: order.id, customer: order.customerId })
       if (r.ok && r.points > 0 && onAwarded) onAwarded(r.points) // รายการลูกค้าถูกรีเฟรชแล้ว (pointsHook.call)
       if (r.error && r.error !== 'already_awarded') showToast(`ให้คะแนนออร์เดอร์ ${order.code} ไม่สำเร็จ: ${PTS_MSG[r.error] || r.error} · ย้อนสถานะแล้วส่งมอบใหม่เพื่อลองอีกครั้ง`, 10000, 'error')
+      return r.ok ? Number(r.points) || 0 : 0 // คืนจำนวนแต้มที่ได้ (ใช้ทำบรรทัดคะแนนในข้อความส่งมอบ)
     } catch (e) {
       showToast(`ให้คะแนนออร์เดอร์ ${order.code} ไม่สำเร็จ: ${e?.message || 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้'} · ย้อนสถานะแล้วส่งมอบใหม่เพื่อลองอีกครั้ง`, 10000, 'error')
     }
@@ -2199,6 +2201,18 @@ function notifyPointsEarned(order, earned) {
   if (!c) return
   const vars = pointsEarnedVars(c.ledger || [], toDateStr(new Date()), earned, Number(db.shop.pointsExpireDays ?? 30))
   notify('points_earned', { customer: c, vars, orderId: order.id })
+}
+// ส่งมอบออร์เดอร์ปกติ: รอผลการให้แต้มก่อน (ไม่เกิน DELIVERED_WAIT_MS) แล้วส่งข้อความส่งมอบฉบับเดียว · มีบรรทัดคะแนนเมื่อได้แต้ม · เกินเวลา = ส่งโดยไม่มีบรรทัดคะแนน
+const DELIVERED_WAIT_MS = 8000
+function notifyDelivered(order, extra) {
+  const award = awardOrderRemote(order)
+  if (!award || typeof award.then !== 'function') return notifyOrder('delivered', order, { ...extra, pointsEarned: 0 })
+  let timer
+  const wait = new Promise((resolve) => { timer = setTimeout(() => resolve(0), DELIVERED_WAIT_MS) })
+  Promise.race([award.then((n) => Number(n) || 0, () => 0), wait]).then((n) => {
+    clearTimeout(timer)
+    notifyOrder('delivered', order, { ...extra, pointsEarned: n })
+  })
 }
 // ตัวคูณระดับของบิลนี้: เซิร์ฟเวอร์ตัดสิน (ใช้เฉพาะเมื่อ applied = โหมดใช้จริง) · ตอบไม่ได้ = 1 (แต้มปกติ ไม่เกินเพดาน) + แจ้งเตือน
 async function memberMultFor(order) {
@@ -2892,6 +2906,7 @@ function orderVars(order, extra = {}) {
     ชื่อวันเกิด: order.birthday?.name || c?.name || '',
     คะแนน: extra.points != null ? String(extra.points) : '',
     ส่วนลดคะแนน: extra.pointsAmount != null ? money(extra.pointsAmount) : '',
+    ข้อความคะแนน: c && extra.pointsEarned > 0 ? pointsLineOf(c.ledger || [], toDateStr(new Date()), extra.pointsEarned, Number(db.shop.pointsExpireDays ?? 30)) : '',
     ลิงก์ออร์เดอร์: '',
     // รายละเอียดครบชุดสำหรับสรุป (ว่างได้ · บรรทัดที่ว่างถูกตัดทิ้งตอนส่ง)
     เบอร์ลูกค้า: formatPhone(c?.phone || ''),

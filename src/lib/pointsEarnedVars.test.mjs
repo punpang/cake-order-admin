@@ -1,6 +1,6 @@
 // ทดสอบข้อความแจ้งคะแนนหลังปิดบิล POS · รัน: node src/lib/pointsEarnedVars.test.mjs
 import assert from 'node:assert/strict'
-import { pointsEarnedVars } from './loyalty.js'
+import { pointsEarnedVars, pointsLineOf } from './loyalty.js'
 
 let fail = 0
 const t = (name, fn) => { try { fn(); console.log(`PASS ${name}`) } catch (e) { fail++; console.log(`FAIL ${name}: ${e.message}`) } }
@@ -23,6 +23,15 @@ t('ไม่มีคะแนนใกล้หมดอายุ: ส่วน
 
 t('ไม่มีสมุดคะแนน: คะแนนสะสม 0 และเว้นว่างส่วนหมดอายุ', () => {
   assert.deepEqual(pointsEarnedVars([], TODAY, 0, 30), { คะแนนใหม่: 0, คะแนนสะสม: 0, คะแนนหมดอายุ: '' })
+})
+
+t('บรรทัดคะแนนส่งมอบ: ไม่ได้แต้ม = ว่าง', () => {
+  assert.equal(pointsLineOf([{ id: 'b', delta: 50, remaining: 50, expiresAt: '2027-11-23' }], TODAY, 0, 30), '')
+})
+
+t('บรรทัดคะแนนส่งมอบ: ได้แต้มและมีคะแนนใกล้หมดอายุ', () => {
+  const ledger = [{ id: 'a', delta: 100, remaining: 100, expiresAt: '2026-12-10' }]
+  assert.equal(pointsLineOf(ledger, TODAY, 20, 30), 'คุณได้รับคะแนนใหม่ 20 คะแนน มีคะแนนสะสมอยู่ 100 คะแนน และ 100 คะแนน จะหมดอายุ 10-12-2026')
 })
 
 if (fail) {

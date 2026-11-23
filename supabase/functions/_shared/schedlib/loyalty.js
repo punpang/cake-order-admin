@@ -32,6 +32,12 @@ export function pointsEarnedVars(ledger, today, earned, days = 30) {
     คะแนนหมดอายุ: soon ? ` และ ${soon.points} คะแนน จะหมดอายุ ${soon.date.split('-').reverse().join('-')}` : '',
   }
 }
+// บรรทัดแจ้งคะแนนในข้อความส่งมอบ (ออร์เดอร์ปกติ) · ไม่ได้แต้ม = '' (บรรทัดว่างถูกตัดทิ้งตอนส่ง)
+export function pointsLineOf(ledger, today, earned, days = 30) {
+  if (!(earned > 0)) return ''
+  const v = pointsEarnedVars(ledger, today, earned, days)
+  return `คุณได้รับคะแนนใหม่ ${v.คะแนนใหม่} คะแนน มีคะแนนสะสมอยู่ ${v.คะแนนสะสม} คะแนน${v.คะแนนหมดอายุ}`
+}
 
 // ตัดคะแนน n จากก้อนที่ใกล้หมดอายุก่อน → takes (คืน null ถ้าไม่พอ) — แก้ remaining ของก้อนโดยตรง
 export function takePoints(ledger, n, today) {
