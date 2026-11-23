@@ -57,6 +57,39 @@ const cases = [
       assert.equal(t.total, 350)
     },
   },
+  {
+    name: 'ลดเงินพักและคืนส่วนเกินแล้ว: ยอดค้างไม่เปิดใหม่ (balance = 0)',
+    run: () => {
+      // ชำระ 1400 (เงินพัก 1000 + สินค้า 400) → ลดเงินพักเหลือ 700 และคืนส่วนเกิน 300 เป็นเงินสด
+      const t = orderTotals(base({
+        holdMoney: { kind: 'hide', amount: 700, notes: { 500: 1, 100: 2 } },
+        payments: [{ id: 'p1', amount: 1400, status: 'confirmed' }],
+        returns: [{ id: 'r1', kind: 'hold', at: '2026-11-02T10:00:00', refunds: [{ method: 'cash', amount: 300 }], amount: 300 }],
+      }))
+      assert.equal(t.hold, 700)
+      assert.equal(t.payable, 1100)
+      assert.equal(t.holdReturned, 300)
+      assert.equal(t.balance, 0)
+    },
+  },
+  {
+    name: 'ยอดชำระที่ไม่ใช่เงินพัก: 1400 − เงินพัก 1000 = 400 (ก่อนคืนสินค้า)',
+    run: () => {
+      const t = orderTotals(base({ holdMoney: { kind: 'pull', amount: 1000, notes: { 1000: 1 } }, payments: [{ id: 'p1', amount: 1400, status: 'confirmed' }] }))
+      assert.equal(t.goodsPaidNet, 400)
+    },
+  },
+  {
+    name: 'คืนเงินพักไม่ถูกนับเป็นการคืนสินค้า: goodsPaidNet ไม่ลด',
+    run: () => {
+      const t = orderTotals(base({
+        holdMoney: { kind: 'hide', amount: 700, notes: { 500: 1, 100: 2 } },
+        payments: [{ id: 'p1', amount: 1400, status: 'confirmed' }],
+        returns: [{ id: 'r1', kind: 'hold', at: '2026-11-02T10:00:00', refunds: [{ method: 'cash', amount: 300 }], amount: 300 }],
+      }))
+      assert.equal(t.goodsPaidNet, 400)
+    },
+  },
 ]
 
 let fails = 0

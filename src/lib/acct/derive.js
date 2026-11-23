@@ -78,11 +78,22 @@ export function orderEntries(o, ctx) {
 
   // ---- คืนเงินบางส่วน (ไม่ยกเลิก): Dr 4950 (หักรายได้) + Dr ภาษีขายส่วนที่คืน / Cr เงินสด|ธนาคาร|หนี้คะแนน · ใช้ได้ทั้งก่อน/หลังส่งมอบ ---
   let retNet = 0 // ส่วนสุทธิ (ไม่รวม VAT) ที่คืนบางส่วนไปแล้วทั้งหมด
+  let holdRetDep = 0 // เงินพักที่คืนตอนลดเงินพัก (ดึงจากส่วนเกินในเงินรับล่วงหน้า 2300) · ไม่มี VAT
   for (const r of o.returns || []) {
     const rows = (r.refunds || []).filter((x) => Number(x.amount) > 0)
     const F = rows.reduce((a, x) => a + toS(x.amount), 0)
-    if (!(F > 0) || !(sumAmt > 0)) continue
-    const fv = Math.round((F * sumVat) / sumAmt)
+    if (!(F > 0)) continue
+    if (r.kind === 'hold') {
+      // ลดเงินพัก: ส่วนเกินที่คืนอยู่ฝั่งสินค้า (2300) เพราะเงินพักจัดสรรใหม่ตามยอดปัจจุบัน
+      if (!r.cancelled) holdRetDep += F
+      const hl = [dr(DEPOSIT, F)]
+      for (const x of rows) hl.push(cr(refundAccount(x.method), toS(x.amount)))
+      out.push(entry(`ret:${o.id}:${r.id}`, dateOf(r.at) || dateOf(o.createdAt), `ลดเงินพัก ${code}`, { type: 'order-hold-return', orderId: o.id, returnId: r.id }, hl, null))
+      if (r.cancelled) out.push(entry(`retx:${o.id}:${r.id}`, dateOf(r.cancelled.at) || dateOf(r.at), `ยกเลิกการลดเงินพัก ${code}`, { type: 'order-return-void', orderId: o.id, returnId: r.id }, swap(hl), null))
+      continue
+    }
+    if (!(sumAmt > 0)) continue
+    const fv = sumGoods > 0 ? Math.round((F * sumVat) / sumGoods) : 0
     const fn = F - fv
     if (!r.cancelled) retNet += fn // ที่ยกเลิกแล้วหักล้างกันเอง (ret + retx) ไม่ต้องนับ
     const lines = [dr('4950', fn), dr(OUTPUT_VAT, fv)]
@@ -133,20 +144,21 @@ export function orderEntries(o, ctx) {
     const refunds = (o.cancel?.refunds || []).filter((r) => Number(r.amount) > 0)
     const F = refunds.reduce((a, r) => a + toS(r.amount), 0)
     if (sumAmt > 0) {
-      const fv = Math.round((F * sumVat) / sumAmt)
+      const fv = sumGoods > 0 ? Math.round((F * sumVat) / sumGoods) : 0
       const fn = F - fv
       const lines = [dr(DEPOSIT, fn), dr(OUTPUT_VAT, fv)]
       for (const r of refunds) lines.push(cr(refundAccount(r.method), toS(r.amount)))
       // ที่คืนบางส่วนไปก่อนแล้ว: กลับรายการ 4950 (ออร์เดอร์ถูกยกเลิก ไม่ใช่ส่วนลด) และไม่นับเป็นเงินมัดจำที่ริบ
       if (retNet > 0) lines.push(dr(DEPOSIT, retNet), cr('4950', retNet))
-      // เงินพัก: คืนตาม cancel.holdRefund (เงินสด) · ส่วนที่เหลือโอนเข้า 2300 (มี VAT ตามส่วนนั้น) แล้วริบเหมือนมัดจำ
-      const holdRefund = Math.min(holdPaid, toS(o.cancel?.holdRefund))
+      // เงินพัก: คืนตาม cancel.holdRefunds (เงินสด/โอน) · ส่วนที่เหลือโอนเข้า 2300 (มี VAT ตามส่วนนั้น) แล้วริบเหมือนมัดจำ
+      const holdRows = (Array.isArray(o.cancel?.holdRefunds) ? o.cancel.holdRefunds : []).filter((x) => toS(x.amount) > 0)
+      const holdRefund = holdRows.reduce((a, x) => a + toS(x.amount), 0)
       const holdRest = holdPaid - holdRefund
       const vatT = holdRest > 0 && total > 0 ? Math.min(Math.round((holdRest * vatS) / total), vatS - sumVat) : 0
-      const transferNet = holdRest - vatT
-      if (holdRefund > 0) lines.push(dr(HOLD, holdRefund), cr(CASH, holdRefund))
+      const transferNet = holdRest > 0 ? holdRest - vatT : 0
+      for (const x of holdRows) lines.push(dr(HOLD, toS(x.amount)), cr(refundAccount(x.method), toS(x.amount)))
       if (holdRest > 0) lines.push(dr(HOLD, holdRest), cr(DEPOSIT, transferNet), cr(OUTPUT_VAT, vatT))
-      const ret = sumNet + transferNet - fn - retNet
+      const ret = sumNet - holdRetDep + transferNet - fn - retNet
       if (ret > 0) lines.push(dr(DEPOSIT, ret), cr('4900', ret))
       const taxRows = [...(fv > 0 ? tx('output', -fn, -fv) : []), ...(vatT > 0 ? tx('output', transferNet, vatT) : [])]
       out.push(entry(`cxl:${o.id}`, cDate, `ยกเลิก ${code} คืนเงิน/ริบมัดจำ`, { type: 'order-cancel', orderId: o.id }, lines, taxRows))

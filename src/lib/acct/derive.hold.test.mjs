@@ -10,7 +10,7 @@ const server = await createServer({ root: ROOT, server: { middlewareMode: true, 
 let fails = 0
 try {
   const { deriveAll } = await server.ssrLoadModule('/src/lib/acct/derive.js')
-  const { CASH, DEPOSIT, OUTPUT_VAT, AR, HOLD } = await server.ssrLoadModule('/src/lib/acct/chart.js')
+  const { CASH, BANK, DEPOSIT, OUTPUT_VAT, AR, HOLD } = await server.ssrLoadModule('/src/lib/acct/chart.js')
 
   const item = (price, qty = 1) => ({ id: 'i' + price, kind: 'retail', retailId: 'x', name: 'สินค้า', unitPrice: price, regularPrice: price, fullPrice: price, qty, mods: [], discounts: [], specials: [], bundles: [] })
   const base = { channel: 'web', fulfillment: 'pickup', shippingFee: 0, vat: undefined, adjustment: { amount: 0, reason: '' }, couponsUsed: [], pointsUsed: null, createdAt: '2026-11-01T09:00:00' }
@@ -86,7 +86,7 @@ try {
   })
 
   t('ยกเลิกก่อนส่งมอบ: คืนเงินพัก 600 · ส่วนที่เหลือ 400 โอนเข้า 2300 แล้วริบเป็น 4900 · 2330 เหลือ 0', () => {
-    const A = { ...base, id: 'A', code: 'A1', status: 'cancelled', cancel: { at: '2026-11-02T10:00:00', refunds: [], refundAmount: 600, holdRefund: 600 }, ...holdOf(1000), items: [item(400)], payments: [cash('pa', 1000, '2026-11-01T10:05:00')] }
+    const A = { ...base, id: 'A', code: 'A1', status: 'cancelled', cancel: { at: '2026-11-02T10:00:00', refunds: [], refundAmount: 600, holdRefunds: [{ method: 'cash', amount: 600 }] }, ...holdOf(1000), items: [item(400)], payments: [cash('pa', 1000, '2026-11-01T10:05:00')] }
     const es = deriveAll(ctx([A]), [])
     const all = es.flatMap((e) => e.lines)
     assert.equal(net(all, HOLD), 0)
@@ -97,7 +97,40 @@ try {
   })
 
   t('ยกเลิกหลังชำระครบ: คืนเฉพาะเงินพัก 1000 · สินค้า 400 ริบเป็น 4900', () => {
-    const A = { ...base, id: 'A', code: 'A1', status: 'cancelled', cancel: { at: '2026-11-02T10:00:00', refunds: [], refundAmount: 1000, holdRefund: 1000 }, ...holdOf(1000), items: [item(400)], payments: [cash('pa', 1400, '2026-11-01T10:05:00')] }
+    const A = { ...base, id: 'A', code: 'A1', status: 'cancelled', cancel: { at: '2026-11-02T10:00:00', refunds: [], refundAmount: 1000, holdRefunds: [{ method: 'cash', amount: 1000 }] }, ...holdOf(1000), items: [item(400)], payments: [cash('pa', 1400, '2026-11-01T10:05:00')] }
+    const es = deriveAll(ctx([A]), [])
+    const all = es.flatMap((e) => e.lines)
+    assert.equal(net(all, HOLD), 0)
+    assert.equal(net(all, DEPOSIT), 0)
+    assert.equal(net(all, '4900'), -400)
+    assert.equal(net(all, CASH), 400)
+    assert.ok(balanced(es))
+  })
+
+  t('ลดเงินพักแล้วคืนส่วนเกินเงินสด 300: เดบิต 2300 (ลดส่วนที่เกินจากสินค้า) · 2330 = เงินพักใหม่ 700', () => {
+    const A = { ...base, id: 'A', code: 'A1', status: 'payment_confirmed', ...holdOf(700), items: [item(400)], payments: [cash('pa', 1400, '2026-11-01T10:05:00')], returns: [{ id: 'h1', kind: 'hold', at: '2026-11-02T10:00:00', by: 'admin', reason: 'ลดเงินพัก', refunds: [{ method: 'cash', amount: 300 }], amount: 300 }] }
+    const es = deriveAll(ctx([A]), [])
+    const all = es.flatMap((e) => e.lines)
+    assert.equal(net(all, HOLD), -700)
+    assert.equal(net(all, DEPOSIT), -400)
+    assert.equal(net(all, CASH), 1100)
+    assert.ok(balanced(es))
+  })
+
+  t('ยกเลิกแบ่งคืนเงินพัก: เงินสด 300 + โอน 300 · ส่วนที่เหลือ 400 โอนเข้า 2300 แล้วริบ 4900', () => {
+    const A = { ...base, id: 'A', code: 'A1', status: 'cancelled', cancel: { at: '2026-11-02T10:00:00', refunds: [], refundAmount: 600, holdRefunds: [{ method: 'cash', amount: 300 }, { method: 'transfer', amount: 300 }] }, ...holdOf(1000), items: [item(400)], payments: [cash('pa', 1000, '2026-11-01T10:05:00')] }
+    const es = deriveAll(ctx([A]), [])
+    const all = es.flatMap((e) => e.lines)
+    assert.equal(net(all, HOLD), 0)
+    assert.equal(net(all, DEPOSIT), 0)
+    assert.equal(net(all, '4900'), -400)
+    assert.equal(net(all, CASH), 700)
+    assert.equal(net(all, BANK), -300)
+    assert.ok(balanced(es))
+  })
+
+  t('ลดเงินพักแล้วยกเลิก: คืนเงินพักที่เหลือ 700 เงินสด · สินค้าริบ 400 · 2300 และ 2330 เป็น 0', () => {
+    const A = { ...base, id: 'A', code: 'A1', status: 'cancelled', cancel: { at: '2026-11-02T10:00:00', refunds: [], refundAmount: 700, holdRefunds: [{ method: 'cash', amount: 700 }] }, ...holdOf(700), items: [item(400)], payments: [cash('pa', 1400, '2026-11-01T10:05:00')], returns: [{ id: 'h1', kind: 'hold', at: '2026-11-02T09:00:00', by: 'admin', reason: 'ลดเงินพัก', refunds: [{ method: 'cash', amount: 300 }], amount: 300 }] }
     const es = deriveAll(ctx([A]), [])
     const all = es.flatMap((e) => e.lines)
     assert.equal(net(all, HOLD), 0)
