@@ -407,28 +407,35 @@ async function saveCancel() {
     </div>
 
     <!-- รายการเสี่ยงจากการตรวจอัตโนมัติ: ออร์เดอร์ตรงต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ · บิลหน้าร้านแค่แจ้งให้ตรวจ -->
-    <div v-if="gateHeld" class="mb-3 rounded-2xl p-3 text-sm" :class="gate.reviewed ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'">
+    <!-- แบนเนอร์สถานะออร์เดอร์: บนจอกว้างวางเคียงกัน · บนมือถือเรียงลงมา · ไม่มีแบนเนอร์ = ไม่กินพื้นที่ -->
+    <div class="mb-3 grid gap-2 empty:hidden lg:grid-cols-2">
+    <div v-if="gateHeld" class="rounded-2xl p-3 text-sm" :class="gate.reviewed ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'">
       <div class="flex flex-wrap items-center gap-2">
         <AppIcon name="alert" :size="16" />
-        <span class="min-w-0 flex-1 font-semibold">{{ gate.reviewed ? 'ผู้จัดการตรวจรายการเสี่ยงแล้ว' : (gateIsPos ? 'มีรายการเสี่ยงในบิลหน้าร้าน · ขายไปแล้ว ระบบไม่ได้กันการขาย' : (gateNeedsPayReview ? 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ' : 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนส่งมอบ')) }}</span>
+        <span class="min-w-0 basis-full font-semibold sm:flex-1 sm:basis-auto">{{ gate.reviewed ? 'ผู้จัดการตรวจรายการเสี่ยงแล้ว' : (gateIsPos ? 'มีรายการเสี่ยงในบิลหน้าร้าน · ขายไปแล้ว ระบบไม่ได้กันการขาย' : (gateNeedsPayReview ? 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ' : 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนส่งมอบ')) }}</span>
         <button v-if="!gate.reviewed && can('manage')" class="btn-primary h-9 px-3" @click="doReviewGate">ผู้จัดการตรวจแล้ว</button>
+        <!-- รายการย่อยพับได้: ปิดอยู่ = อยู่แถวเดียวกับหัวข้อ · เปิด = ขยายเต็มแถว -->
+        <details v-if="gate.flags?.length" class="group text-xs open:basis-full">
+          <summary class="inline-flex h-9 cursor-pointer list-none items-center gap-1 rounded-lg px-2 font-medium underline decoration-dotted underline-offset-4 select-none [&::-webkit-details-marker]:hidden">รายการ {{ gate.flags.length }} ข้อ</summary>
+          <ul class="mt-1 list-disc space-y-0.5 pl-6">
+            <li v-for="(f, i) in gate.flags.slice(0, 8)" :key="i">{{ f.detail }}</li>
+          </ul>
+        </details>
       </div>
-      <ul class="mt-1.5 list-disc space-y-0.5 pl-6 text-xs">
-        <li v-for="(f, i) in gate.flags.slice(0, 8)" :key="i">{{ f.detail }}</li>
-      </ul>
     </div>
 
     <!-- ขออนุมัติยืนยันการสั่งซื้อ (ยังไม่ชำระ) -->
-    <div v-if="order.approval?.status === 'pending' && unpaidStage(order.status)" class="mb-3 flex flex-wrap items-center gap-2 rounded-2xl bg-indigo-50 p-3 text-sm text-indigo-800">
+    <div v-if="order.approval?.status === 'pending' && unpaidStage(order.status)" class="flex flex-wrap items-center gap-2 rounded-2xl bg-indigo-50 p-3 text-sm text-indigo-800">
       <AppIcon name="alert" :size="16" />
-      <span class="min-w-0 flex-1">มีคำขออนุมัติยืนยันการสั่งซื้อ (ยังไม่ชำระ) · คงค้าง {{ money(t.balance) }}<span v-if="order.approval.note"> · {{ order.approval.note }}</span></span>
+      <span class="min-w-0 basis-full sm:flex-1 sm:basis-auto">มีคำขออนุมัติยืนยันการสั่งซื้อ (ยังไม่ชำระ) · คงค้าง {{ money(t.balance) }}<span v-if="order.approval.note"> · {{ order.approval.note }}</span></span>
       <template v-if="can('confirmUnpaid')">
         <button class="btn-primary h-9 px-3" @click="doConfirmUnpaid">อนุมัติ</button>
         <button class="btn-outline h-9 px-3" @click="doRejectUnpaid">ไม่อนุมัติ</button>
       </template>
       <span v-else class="text-xs">รอแอดมินอนุมัติ</span>
     </div>
-    <div v-else-if="order.approval?.status === 'rejected' && unpaidStage(order.status)" class="mb-3 rounded-2xl bg-rose-50 p-3 text-sm text-rose-700">ไม่อนุมัติยืนยันแบบยังไม่ชำระ<span v-if="order.approval.decisionNote"> · {{ order.approval.decisionNote }}</span></div>
+    <div v-else-if="order.approval?.status === 'rejected' && unpaidStage(order.status)" class="rounded-2xl bg-rose-50 p-3 text-sm text-rose-700">ไม่อนุมัติยืนยันแบบยังไม่ชำระ<span v-if="order.approval.decisionNote"> · {{ order.approval.decisionNote }}</span></div>
+    </div>
 
     <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-4 2xl:grid-cols-[minmax(0,1fr)_440px]">
       <!-- ซ้าย -->
