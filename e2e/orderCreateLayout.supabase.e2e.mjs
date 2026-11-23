@@ -63,6 +63,17 @@ try {
     const r = await p2.getByText('บริการเกี่ยวกับเงิน').first().boundingBox()
     assert.ok(l && r && r.x > l.x + l.width - 1, `บริการไม่ได้อยู่คอลัมน์ขวา: ${JSON.stringify({ l, r })}`)
   })
+  await s2.step('1280×800 ขั้นสรุป: รายการสินค้าซ้าย · ยอดรวมขวา', async () => {
+    await p2.getByRole('button', { name: 'เพิ่มสินค้า', exact: true }).click()
+    await p2.getByRole('dialog').waitFor({ timeout: 10000 })
+    await p2.getByRole('dialog').getByRole('button', { name: /เค้กทดสอบ/ }).first().click()
+    await p2.getByRole('dialog').getByRole('button', { name: /บันทึก|เพิ่ม/ }).last().click()
+    await p2.getByRole('button', { name: 'ถัดไป' }).click()
+    await p2.getByText('ตรวจก่อนบันทึก').first().waitFor({ timeout: 10000 })
+    const item = await p2.getByText('เค้กทดสอบ').first().boundingBox()
+    const total = await p2.getByText('ยอดรวม', { exact: true }).boundingBox()
+    assert.ok(item && total && total.x > item.x + item.width - 1, `ยอดรวมไม่ได้อยู่คอลัมน์ขวา: ${JSON.stringify({ item, total })}`)
+  })
   await s2.step('ขั้นสินค้า: ไม่มีข้อผิดพลาดในหน้า', async () => assert.deepEqual(app2.pageErrors().slice(0, 3), []))
 } finally {
   await app2.close()

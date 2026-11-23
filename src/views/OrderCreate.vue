@@ -527,8 +527,9 @@ async function quote() {
     </section>
 
     <!-- 4 สรุป -->
-    <section v-if="step === 3" class="space-y-3">
-      <div class="card grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <section v-if="step === 3" class="space-y-3" :class="!embedded && 'lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0'">
+      <div class="space-y-3">
+      <div class="card grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-1">
         <div class="flex min-w-0 gap-3">
           <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><AppIcon name="user" /></span>
           <div class="min-w-0">
@@ -549,7 +550,8 @@ async function quote() {
       </div>
 
       <ItemCard v-for="it in shownItems" :key="it.id" :item="it" />
-
+      </div>
+      <div class="space-y-3">
       <div class="card space-y-2 text-sm">
         <div v-if="totals.discountTotal" class="flex items-start justify-between gap-2 rounded-xl bg-emerald-50/60 p-2.5">
           <span class="text-stone-600">ราคาเต็ม → ยอดสุทธิ</span>
@@ -568,6 +570,7 @@ async function quote() {
           <div class="flex justify-between text-amber-800"><span>เงินพัก (ไม่ใช่รายได้)</span><span>{{ money(totals.hold) }}</span></div>
           <div class="flex items-center justify-between font-semibold"><span>ยอดที่ลูกค้าต้องชำระ</span><span>{{ money(totals.payable) }}</span></div>
         </template>
+      </div>
       </div>
     </section>
 
