@@ -68,6 +68,8 @@ globalThis.fetch = (async (input: Request | URL | string, init?: RequestInit) =>
     rows.push({ schema, ...row })
     return J([{ ...row, updated_at: '2026-11-17T00:00:00.000000+00:00' }], 201)
   }
+  // สิทธิเดือนเกิด: เทสต์นี้ไม่มีสิทธิ (ส่วนลดเดือนเกิดไม่เกี่ยวกับการทดสอบนี้)
+  if (p === '/rest/v1/rpc/punpang_member_birth_for_quote') return J({ eligible: false, active: false, rate: 0, cap: 0, birthMult: null, cakeCategories: [] })
   throw new Error(`fetch ที่ไม่ได้จำลอง: ${req.method} ${url}`)
 }) as typeof fetch
 

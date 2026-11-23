@@ -37,7 +37,7 @@ export function adjustmentOf(raw, perms, subtotal) {
 // ฟิลด์ที่แอปเก็บเมื่อกดบันทึกออร์เดอร์ (ตรงกับ createOrder)
 export function buildOrderFromDraft({
   draft = /** @type {any} */ (null), customerId = /** @type {any} */ (null), catalog = /** @type {any} */ (null), nowMs, perms = /** @type {string[]} */ ([]), asDraft = false,
-  id, code, chatId = null, quoteId = null, quotePayload = null, by = '', occasionKind = '', occasionConsent = false, test = false, birth = null,
+  id, code, chatId = null, quoteId = null, quotePayload = null, by = '', occasionKind = '', occasionConsent = false, test = false, birth = /** @type {any} */ (null),
 }) {
   if (!ORDER_ID_RE.test(String(id || ''))) return fail('รหัสออร์เดอร์ไม่ถูกต้อง')
   if (!orderCodeOk(code, test)) return fail('เลขออร์เดอร์ไม่ถูกต้อง')
