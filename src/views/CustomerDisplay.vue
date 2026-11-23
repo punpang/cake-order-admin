@@ -207,13 +207,13 @@ watch(
           <span class="shrink-0 rounded-full bg-brand-100 px-3 py-0.5 font-semibold text-brand-800 text-[clamp(0.75rem,2vh,0.95rem)]">
             {{ tier.levelName }}<template v-if="tier.mult > 1"> · x{{ tier.mult }}</template>
           </span>
-          <div v-if="tier.nextName" class="flex min-w-0 flex-1 basis-48 items-center gap-2">
+          <div v-if="tier.progress && tier.nextName" class="flex min-w-0 flex-1 basis-48 items-center gap-2">
             <div class="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-stone-200" role="progressbar" aria-label="ความคืบหน้าสู่ระดับถัดไป" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="tier.pct">
               <div class="h-full rounded-full bg-brand-500 transition-[width] duration-500" :style="{ width: tier.pct + '%' }" />
             </div>
             <span class="shrink-0 whitespace-nowrap text-stone-700 text-[clamp(0.75rem,2vh,0.95rem)]">อีก <b class="text-stone-900">{{ money(tier.toNext) }}</b> ถึง {{ tier.nextName }}</span>
           </div>
-          <span v-else class="shrink-0 font-semibold text-stone-700 text-[clamp(0.75rem,2vh,0.95rem)]">ระดับสูงสุด</span>
+          <span v-else-if="tier.progress" class="shrink-0 font-semibold text-stone-700 text-[clamp(0.75rem,2vh,0.95rem)]">ระดับสูงสุด</span>
         </template>
         <span v-if="member.points > 0" class="ml-auto shrink-0 rounded-full bg-matcha-soft px-3 py-0.5 font-semibold text-stone-900 text-[clamp(0.75rem,2vh,0.95rem)]">
           {{ state.status === 'thanks' ? 'ได้รับ' : 'จะได้รับ' }} {{ member.points.toLocaleString() }} แต้ม

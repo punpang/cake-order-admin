@@ -20,7 +20,7 @@ t('ข้อมูลที่ส่งไปจอไม่มีชื่อ/�
 })
 t('โหมดใช้จริง: มีระดับ ตัวคูณ และหลอดเลื่อนขั้น', () => {
   const d = displayMember(cust, liveCard, 25)
-  assert.deepEqual(d.tier, { levelName: 'LV2', mult: 3, nextName: 'LV3', toNext: 2000, pct: 50 })
+  assert.deepEqual(d.tier, { levelName: 'LV2', mult: 3, progress: true, nextName: 'LV3', toNext: 2000, pct: 50 })
   assert.equal(d.points, 25)
 })
 t('โหมดทดลอง: ไม่มีระดับ (ลูกค้าไม่เห็น)', () => {
@@ -36,6 +36,13 @@ t('ระดับสูงสุด: nextName ว่าง', () => {
   const d = displayMember(cust, { ...liveCard, levelName: 'LV4', mult: 10, nextName: null, toNext: null, pct: 100 }, 0)
   assert.equal(d.tier.nextName, '')
   assert.equal(d.tier.pct, 100)
+})
+t('RPC รุ่นเดิม (ไม่มี pct): แสดงระดับ แต่ไม่มีความคืบหน้า', () => {
+  const old = { enabled: true, mode: 'live', levelName: 'LV1', mult: 2, status: 'active' }
+  const d = displayMember(cust, old, 10)
+  assert.equal(d.tier.progress, false)
+  assert.equal(d.tier.nextName, '')
+  assert.equal(d.tier.levelName, 'LV1')
 })
 t('ค่าผิดปกติถูกบีบให้อยู่ในช่วง (pct 0–100, toNext ≥ 0, แต้ม ≥ 0 จำนวนเต็ม)', () => {
   const d = displayMember(cust, { ...liveCard, pct: 250, toNext: -5 }, -3.7)

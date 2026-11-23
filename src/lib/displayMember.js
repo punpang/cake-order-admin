@@ -19,10 +19,13 @@ export function displayMember(customer, card, points) {
     points: Math.max(0, Math.floor(Number(points) || 0)),
   }
   if (card?.enabled && card.mode === 'live') {
+    // progress = false เมื่อ RPC ยังเป็นรุ่นเดิม (ไม่มีความคืบหน้า) → แสดงแค่ชื่อระดับ ไม่ขึ้น "ระดับสูงสุด" ผิด ๆ
+    const progress = card.pct !== undefined
     out.tier = {
       levelName: String(card.levelName || ''),
       mult: Number(card.mult) || 1,
-      nextName: card.nextName ? String(card.nextName) : '',
+      progress,
+      nextName: progress && card.nextName ? String(card.nextName) : '',
       toNext: Math.max(0, Number(card.toNext) || 0),
       pct: Math.min(100, Math.max(0, Math.round(Number(card.pct) || 0))),
     }
