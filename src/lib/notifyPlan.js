@@ -33,6 +33,7 @@ export const NEW_CUSTOMER_RULES = [
   { event: 'ready_to_ship', channels: ['web', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} พร้อมจัดส่งแล้วค่ะ', enabled: true },
   { event: 'points_applied', channels: ['web', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} ใช้คะแนนสะสม {คะแนน} คะแนนเป็นส่วนลด {ส่วนลดคะแนน} แล้วค่ะ ยอดรวม {ยอดรวม} คงค้าง {คงค้าง}', enabled: true },
   { event: 'points_removed', channels: ['web', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} ยกเลิกการใช้คะแนนสะสม {คะแนน} คะแนนแล้วค่ะ ยอดรวม {ยอดรวม} คงค้าง {คงค้าง}', enabled: true },
+  { event: 'points_earned', channels: ['web', 'sms'], template: 'คุณได้รับคะแนนใหม่ {คะแนนใหม่} คะแนน มีคะแนนสะสมอยู่ {คะแนนสะสม} คะแนน{คะแนนหมดอายุ}', enabled: true },
   // ส่งจากเซิร์ฟเวอร์ (customer-order) เฉพาะ Facebook · ข้อความต้องตรงกับ SLIP_RECEIVED_TPL ใน supabase/functions/_shared/slipnotice.ts
   { event: 'slip_received', channels: ['facebook'], template: 'ร้านได้รับสลิปการชำระเงินของออร์เดอร์ {เลขออร์เดอร์} ยอด {ยอดที่แจ้ง} บาทแล้วค่ะ ร้านจะตรวจสอบและยืนยันให้เร็ว ๆ นี้ ขอบคุณค่ะ', enabled: true },
   { event: 'slip_cancelled', channels: ['web', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} ร้านยกเลิกสลิปที่ส่งมาแล้วค่ะ\nเหตุผล: {เหตุผล}\nกรุณาส่งสลิปใหม่หรือแจ้งชำระใหม่ค่ะ', enabled: true },

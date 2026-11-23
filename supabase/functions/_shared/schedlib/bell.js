@@ -54,6 +54,7 @@ export const BELL_CUSTOMER = {
   ready_to_ship: { title: 'พร้อมจัดส่ง' },
   points_applied: { title: 'ใช้คะแนนเป็นส่วนลด' },
   points_removed: { title: 'ยกเลิกการใช้คะแนน' },
+  points_earned: { title: 'ได้รับคะแนนสะสม' },
   photo_ready: { title: 'มีรูปงานเสร็จให้ดู' },
   photo_optout_done: { title: 'ลบรูปตามคำขอแล้ว' },
   photo_optout_rejected: { title: 'ร้านไม่อนุมัติคำขอไม่เผยแพร่รูป' },

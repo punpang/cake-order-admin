@@ -23,6 +23,16 @@ export function expiringSoon(ledger, today, days = 30) {
   return { points: lots.reduce((s, l) => s + l.remaining, 0), date: first.expiresAt }
 }
 
+// ข้อความแจ้งคะแนนหลังปิดบิล POS: earned = คะแนนที่เพิ่งได้ · คะแนนสะสม = ที่ใช้ได้ทั้งหมด · คะแนนหมดอายุ = ที่จะหมดภายใน days วัน (ไม่มี = เว้นว่าง)
+export function pointsEarnedVars(ledger, today, earned, days = 30) {
+  const soon = expiringSoon(ledger, today, days)
+  return {
+    คะแนนใหม่: earned,
+    คะแนนสะสม: pointBalance(ledger, today),
+    คะแนนหมดอายุ: soon ? ` และ ${soon.points} คะแนน จะหมดอายุ ${soon.date.split('-').reverse().join('-')}` : '',
+  }
+}
+
 // ตัดคะแนน n จากก้อนที่ใกล้หมดอายุก่อน → takes (คืน null ถ้าไม่พอ) — แก้ remaining ของก้อนโดยตรง
 export function takePoints(ledger, n, today) {
   if (n <= 0 || pointBalance(ledger, today) < n) return null

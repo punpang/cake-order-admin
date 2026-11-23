@@ -10,7 +10,7 @@ import { orderCardMsg, quoteCardMsg, linkCardMsg, payCard, viewCard } from '../l
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { prevStatus } from '../lib/orderFlow'
 import { REFUND_METHODS, normalizeRefunds, refundErrors, defaultRefundMethod, refundList, returnedByMethod, returnedQtyOf, restockedQtyOf, itemReturnAmount, restockUnits } from '../lib/refund'
-import { addDays, pointBalance, takePoints, returnPoints, couponUsable, couponPhase, pickPrize, expiringSoon, conversionPlan } from '../lib/loyalty'
+import { addDays, pointBalance, takePoints, returnPoints, couponUsable, couponPhase, pickPrize, expiringSoon, conversionPlan, pointsEarnedVars } from '../lib/loyalty'
 import { DEFAULT_MEMBER_CFG, memberCfgErrors } from '../lib/memberLevels'
 import { pad, toDateStr, money, phoneDigits, phoneValid, formatPhone, dateOnly, timeOnly } from '../lib/format'
 import { showToast } from '../lib/toast'
@@ -2179,18 +2179,26 @@ function loyaltyQueue(fn) {
 }
 // ส่งมอบ: ให้แต้มผ่านเซิร์ฟเวอร์ (RPC punpang_award_order กันให้ซ้ำด้วย data.loyalty ของออร์เดอร์) · ไม่มีตัวเรียก/ไม่มีลูกค้า = ทำแบบเดิมในเครื่อง
 // ไม่ return ผลลัพธ์ให้ผู้เรียก: ผิดพลาดจะแจ้งด้วย toast (ออร์เดอร์ยังส่งมอบอยู่)
-export function awardOrderRemote(order) {
+export function awardOrderRemote(order, onAwarded = null) {
   if (!pointsHook.call) return awardOrder(order)
   if (!order.customerId || !findCustomer(order.customerId) || order.loyalty) return
   return loyaltyQueue(async () => {
     try {
       const { points, bonus, spins, base } = pointsFor(order, undefined, await memberMultFor(order))
       const r = await pointsHook.call('punpang_award_order', { p_order: order.id, p_points: points, p_bonus: bonus, p_spins: spins, p_base: base }, { order: order.id, customer: order.customerId })
+      if (r.ok && r.points > 0 && onAwarded) onAwarded(r.points) // รายการลูกค้าถูกรีเฟรชแล้ว (pointsHook.call)
       if (r.error && r.error !== 'already_awarded') showToast(`ให้คะแนนออร์เดอร์ ${order.code} ไม่สำเร็จ: ${PTS_MSG[r.error] || r.error} · ย้อนสถานะแล้วส่งมอบใหม่เพื่อลองอีกครั้ง`, 10000, 'error')
     } catch (e) {
       showToast(`ให้คะแนนออร์เดอร์ ${order.code} ไม่สำเร็จ: ${e?.message || 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้'} · ย้อนสถานะแล้วส่งมอบใหม่เพื่อลองอีกครั้ง`, 10000, 'error')
     }
   })
+}
+// แจ้งคะแนนหลังปิดบิล POS (เรียกหลังเซิร์ฟเวอร์ให้แต้มแล้ว) · X = แต้มที่ได้ · Y/Z คิดจากสมุดคะแนนที่รีเฟรชแล้ว
+function notifyPointsEarned(order, earned) {
+  const c = findCustomer(order.customerId)
+  if (!c) return
+  const vars = pointsEarnedVars(c.ledger || [], toDateStr(new Date()), earned, Number(db.shop.pointsExpireDays ?? 30))
+  notify('points_earned', { customer: c, vars, orderId: order.id })
 }
 // ตัวคูณระดับของบิลนี้: เซิร์ฟเวอร์ตัดสิน (ใช้เฉพาะเมื่อ applied = โหมดใช้จริง) · ตอบไม่ได้ = 1 (แต้มปกติ ไม่เกินเพดาน) + แจ้งเตือน
 async function memberMultFor(order) {
@@ -4069,7 +4077,7 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
   o.status = 'delivered'
   o.deliveredAt = ts
   log(o, `รับชำระ ${money(total)} (${posRowsText(rows)}) · ส่งมอบ`)
-  awardOrderRemote(o)
+  awardOrderRemote(o, (n) => notifyPointsEarned(o, n))
   return o
 }
 const paidOf = (rows) => round2(rows.reduce((s, l) => s + round2(Number(l.amount)), 0))
@@ -4150,7 +4158,7 @@ export function finishPosBill(order, lines) {
   order.status = 'delivered'
   order.deliveredAt = ts
   log(order, `รับชำระส่วนที่เหลือ ${money(bal)} (${posRowsText(lines)}) · ส่งมอบ`)
-  awardOrderRemote(order)
+  awardOrderRemote(order, (n) => notifyPointsEarned(order, n))
   return { order }
 }
 // แลกสินค้า (POS · กะที่เปิดอยู่ · เฉพาะสินค้าปลีก): คืนสินค้าเดิมในบิลเดิม (คืนเงินตามช่องทางที่เลือก และคืนสต็อกได้)
