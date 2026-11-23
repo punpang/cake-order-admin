@@ -164,7 +164,8 @@ export function buildQuotePayload({ draft, customerId, catalog, nowMs, checkClos
   }
   if (!items.length) return fail('ใบเสนอต้องมีรายการสินค้า')
   // บริการเกี่ยวกับเงิน: ค่าบริการเป็นรายการ (ราคาจากการตั้งค่าร้าน) · เงินพักคิดจากธนบัตรที่นี่ · รายการ kind 'service' จากเครื่องถูกปฏิเสธแล้วด้านบน
-  const cash = cashServiceOf(d.cashService, cat.shop)
+  // ใบเสนอส่งให้ลูกค้าเสมอ → บริการต้องเปิด "ให้ลูกค้าเห็น"
+  const cash = cashServiceOf(d.cashService, cat.shop, { customerFacing: true })
   if (!cash.ok) return fail(cash.error)
 
   const wall = bkkWall(nowMs)

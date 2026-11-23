@@ -38,7 +38,7 @@ Deno.test('ธนบัตรผิดรูปแบบ/เกินเพด�
 })
 
 Deno.test('ใบเสนอฝั่งเซิร์ฟเวอร์: มีรายการค่าบริการและเงินพัก · ยอดรวมรวมค่าบริการ ไม่รวมเงินพัก', () => {
-  const catalog = { ...golden.catalog, shop: { ...golden.catalog.shop, cashService: shop.cashService } }
+  const catalog = { ...golden.catalog, shop: { ...golden.catalog.shop, cashService: { ...shop.cashService, services: { ...shop.cashService.services, hide: { fee: 50, show: true, customer: true } } } } }
   const draft = {
     fulfillment: 'pickup',
     pickupAt: '2026-11-30T10:00',
