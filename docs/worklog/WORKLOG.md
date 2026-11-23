@@ -14,6 +14,14 @@
 
 ---
 
+## 2026-11-24 · [POS][DB][ORDER][ระบบ] สินค้าไม่คำนวณแต้ม (noPoints): ใช้คูปองไม่ได้ทุกแบบ · ไม่นับแต้ม/ยอดสมาชิก · ยังไม่ merge · ยังไม่ Release
+
+**ทำอะไร:** แอป: สวิตช์ในหน้าจัดการสินค้า · `coupons.js` ไม่นับ/ไม่ลดสินค้านี้ทุกแบบคูปอง · `pointsFor` ข้ามสินค้านี้ · migration `20261124100000` (`punpang__order_goods_coupon`, `punpang__order_goods_exvat_points`, `punpang__coupon_entry_ok`, `punpang_award_order`) · `run.sh` เพิ่ม `no_points.test.sql` (NP1–NP8)
+**เหตุผล:** ผู้ใช้ยืนยันนิยาม "ไม่คำนวณแต้ม = ใช้คูปองส่วนลดไม่ได้ทุกรูปแบบ" และ "ซื้อครบ x บาท นับเฉพาะสินค้าปกติ"
+**ผล:** `run.sh` ผ่านทั้งหมด (150 migration + ทุกเทสต์) · `npm test` 104 ไฟล์ผ่าน (`noPoints.test.mjs` 5 ข้อ)
+**ยังไม่ทำ:** สินค้าฝากขาย · สินค้าไม่กำหนดราคา (ดูแผนที่สรุปแล้ว) · เทสต์ e2e ของ POS
+**รอ:** อนุมัติ merge และ Release (migration ใหม่ 1 ไฟล์ · Edge Functions ไม่เปลี่ยน)
+
 ## 2026-11-23 · [SMS][ลูกค้า][ระบบ] เทสต์รอบตามเวลาของแจ้งเตือนสิทธิ์สมาชิก (planLoyalty → runPlans) · ผ่าน 2 ข้อ
 
 - **ทำ:** `loyaltyRun.test.ts` จำลองลูกค้า 2 คน (ยังไม่ยินยอม SMS / ยินยอมแล้ว) ยืนยันว่า SMS ไม่เข้าคิวของคนแรก และเข้าคิวของคนที่สอง
@@ -87,25 +95,5 @@
 **ผล:** `run.sh` ผ่าน (BD1–BD9) · `npm test` 102 ไฟล์ผ่าน · deno ผ่าน · build ผ่าน · งบ 886.7/887 KB
 **ยังไม่ทำ:** ยังไม่ได้ทดสอบเว็บและ LINE จริง · `fb-webhook` ไม่ได้ส่ง `birth` (ใบเสนอในแชทที่สร้างจากตัวนั้นจะไม่มีส่วนลดเดือนเกิด) · ยังไม่ได้ตรวจลำดับ deploy จริง
 **รอ:** อนุมัติ merge และ Release (migration 4 ไฟล์ · deploy `order-create`, `quote-create`, `customer-loyalty`, `customer-auth`, `customer-order`) · ลำดับ: migration `20261123160000` ก่อน แล้วค่อย deploy Edge Function
-
----
-
-## 2026-11-23 · [DB][POS][ลูกค้า][ระบบ] ส่วนลดเดือนเกิดหน้าร้าน (รอบ 1): คิดที่เซิร์ฟเวอร์ตรวจซ้ำตอนบันทึก · ไม่ซ้อนคูปอง · ยังไม่ merge · ยังไม่ Release
-
-**ทำอะไร:** migration `20261123150000` (`punpang__birth_discount_expected` + ด่านตรวจใน `punpang_orders_insert_guard`: เฉพาะ POS · ไม่มีคูปองในบิล · ยอดต้องตรงกับที่เซิร์ฟเวอร์คิด) · POS แสดงและรับส่วนลดเดือนเกิดเมื่อได้มากกว่าคูปอง · `orderTotals` (แอป, schedlib, slip.ts, customer-order) หักส่วนลดเดือนเกิด
-**เหตุผล:** ผู้ใช้อนุมัติรอบ 1 เฉพาะหน้าร้าน · นับเฉพาะสินค้าหมวดที่ร้านเลือก (ไม่นับเค้กสั่งทำ)
-**ผล:** `run.sh` ผ่าน (รวม birthday_pos BD1–BD7) · `npm test` 102 ไฟล์ผ่าน · build ผ่าน · งบ 886.5/887 KB · deno (`npx -y deno@2 test`) ผ่าน
-**ยังไม่ทำ:** ส่วนลดเดือนเกิดบนเว็บและใบเสนอ (รอบ 2) · ยังไม่ได้ทดสอบ POS บนเบราว์เซอร์จริง
-**รอ:** อนุมัติ merge และ Release (migration ใหม่ 3 ไฟล์ · deploy `customer-loyalty`, `customer-auth`, `order-create`/`customer-order` ตามที่แก้) · ลำดับ: deploy แอปและ Edge Function ก่อน แล้วค่อยรัน migration
-
----
-
----
-
----
-
----
-
----
 
 ---
