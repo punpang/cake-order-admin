@@ -7,6 +7,7 @@ import { webChatFor } from '../webchat.ts'
 import { genToken, hashToken } from '../schedlib/orderLink.js'
 import { formatPhone } from '../schedlib/format.js'
 import { marketingAllowed } from '../schedlib/promoConsent.js'
+import { LOYALTY_EVENTS, smsAllowed } from '../schedlib/memberNotify.js'
 import {
   BELL_CUSTOMER, BELL_STAFF, CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, bellText, customerAddr, customerTargets, effectiveChannels, escapeHtml, escapeVars, plainText, renderFor, type Plan,
 } from './plan.ts'
@@ -257,7 +258,7 @@ export async function execPlan(ctx: Ctx, plan: Plan): Promise<void> {
     allowed,
     integrations: { ...ctx.integrations, web: { enabled: true } },
     addressOf: (k: string) => (k === 'web' ? (webChat ? String(customer.id) : '') : customerAddr(customer, k)),
-    noSms: false,
+    noSms: LOYALTY_EVENTS.includes(plan.event) && !smsAllowed(customer), // สิทธิ์สมาชิก: SMS ต้องยินยอมแยก
     marketing: !!ev.marketing,
   })
   if (!targets.length) {

@@ -36,6 +36,10 @@ export const NEW_CUSTOMER_RULES = [
   { event: 'points_earned', channels: ['web', 'sms'], template: 'คุณได้รับคะแนนใหม่ {คะแนนใหม่} คะแนน มีคะแนนสะสมอยู่ {คะแนนสะสม} คะแนน{คะแนนหมดอายุ}', enabled: true },
   // ส่งจากเซิร์ฟเวอร์ (customer-order) เฉพาะ Facebook · ข้อความต้องตรงกับ SLIP_RECEIVED_TPL ใน supabase/functions/_shared/slipnotice.ts
   { event: 'slip_received', channels: ['facebook'], template: 'ร้านได้รับสลิปการชำระเงินของออร์เดอร์ {เลขออร์เดอร์} ยอด {ยอดที่แจ้ง} บาทแล้วค่ะ ร้านจะตรวจสอบและยืนยันให้เร็ว ๆ นี้ ขอบคุณค่ะ', enabled: true },
+  // สิทธิ์สมาชิก (ปิดไว้ก่อน: ร้านอนุมัติข้อความแล้วค่อยเปิด · ลูกค้า SMS ต้องยินยอม SMS แยก)
+  { event: 'tier_up', channels: ['web', 'line', 'sms'], template: 'ยินดีด้วยค่ะ คุณ{ชื่อลูกค้า}เลื่อนเป็นระดับ {ระดับ} แล้ว รับโบนัส {โบนัส} คะแนน', enabled: false },
+  { event: 'member_bonus', channels: ['web', 'line', 'sms'], template: 'คุณ{ชื่อลูกค้า}ได้รับโบนัสสมาชิก {โบนัส} คะแนน', enabled: false },
+  { event: 'birthday_coupon', channels: ['web', 'line', 'sms'], template: 'สุขสันต์วันเกิดค่ะ คุณ{ชื่อลูกค้า} ได้รับ {ชื่อคูปอง} ใช้ได้ถึง {หมดอายุ}', enabled: false },
   { event: 'slip_cancelled', channels: ['web', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} ร้านยกเลิกสลิปที่ส่งมาแล้วค่ะ\nเหตุผล: {เหตุผล}\nกรุณาส่งสลิปใหม่หรือแจ้งชำระใหม่ค่ะ', enabled: true },
 ]
 // เติมกฎที่ยังไม่มีในรายการ (กฎที่ร้านแก้ไว้แล้วไม่ถูกทับ) · คืนรายการใหม่ ไม่แก้รายการเดิม

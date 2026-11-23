@@ -59,6 +59,9 @@ export const BELL_CUSTOMER = {
   photo_optout_rejected: { title: 'ร้านไม่อนุมัติคำขอไม่เผยแพร่รูป' },
   coupon_refunded: { title: 'ร้านคืนคะแนนจากคูปอง' },
   points_expiring: { title: 'คะแนนใกล้หมดอายุ', marketing: true },
+  tier_up: { title: 'เลื่อนระดับสมาชิก' },
+  member_bonus: { title: 'ได้รับโบนัสคะแนนสมาชิก' },
+  birthday_coupon: { title: 'ได้รับคูปองวันเกิดสมาชิก', marketing: true },
 }
 
 const v = (vars, k) => (vars && vars[k] ? String(vars[k]) : '')

@@ -23,3 +23,11 @@ export async function clearBirthRemote() {
   injectBundle(db, r)
   return { ok: true }
 }
+
+// ยินยอม/ถอน SMS แจ้งสิทธิ์สมาชิก (แยกจากข่าวโปรโมชัน) · กติกาที่ customer-loyalty action set_sms
+export async function setSmsRemote(optIn) {
+  const r = await callLoyalty('set_sms', { session: readSessionToken(), optIn: optIn === true })
+  if (r.error) return { error: r.error }
+  injectBundle(db, r)
+  return { ok: true }
+}
