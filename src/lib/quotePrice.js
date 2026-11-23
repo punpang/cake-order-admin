@@ -125,6 +125,8 @@ function cleanItem(raw, cat) {
     const rid = idStr(raw.retailId)
     const r = rid ? (cat.retailItems || []).find((x) => x.id === rid) : null
     if (!r || r.active === false) return { error: `สินค้า "${text(raw.name, 200) || rid || ''}" ไม่พร้อมขายในระบบ` }
+    // สินค้าไม่กำหนดราคา (openPrice) ขายได้เฉพาะหน้าร้าน (POS) · ราคาตั้งตอนขาย ไม่มีราคาตั้งต้นให้เซิร์ฟเวอร์คิด
+    if (r.openPrice) return { error: `สินค้า "${text(raw.name, 200) || rid || ''}" กำหนดราคาที่หน้าร้านเท่านั้น สั่งผ่านเว็บไม่ได้` }
     // สินค้าหน้าร้านคิดจากราคาตั้งต้นของสินค้าเท่านั้น (ไม่มีตัวเลือกเค้ก/ชั้น เหมือนการขายหน้าร้าน)
     delete out.tiers
     Object.assign(out, { retailId: rid, retailPrice: Number(r.price) || 0, sizeId: r.sizeId || null, typeId: r.typeId || null, name: r.name || '', selections: {} })

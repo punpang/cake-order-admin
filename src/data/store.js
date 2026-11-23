@@ -1,5 +1,6 @@
 // ข้อมูลตัวอย่าง (เก็บในหน่วยความจำ รีเฟรชแล้วหาย)
 // ขั้นต่อไปจะเปลี่ยนฟังก์ชันในไฟล์นี้ให้เรียก Supabase แทน
+import { openPriceOk } from '../lib/openPrice.js'
 import { RETENTION_CATS, validateRetention } from '../lib/retention'
 import { normalizeDisplayAds } from '../lib/displayAds'
 import { reactive } from 'vue'
@@ -644,7 +645,7 @@ export const db = reactive({
 
 // ทุกรายการเริ่มต้นเป็น "ใช้งาน" + สมุดคะแนน / สิทธิ์หมุน
 for (const o of db.optionGroups.find((g) => g.key === 'type')?.options || []) o.images = o.images || []
-for (const r of db.retailItems) Object.assign(r, { modifierIds: r.modifierIds || [], images: r.images || [], recipe: r.recipe || [], pinned: !!r.pinned, showInPos: r.showInPos ?? true, showOnStore: r.showOnStore ?? false, noPoints: !!r.noPoints, description: r.description || '', typeId: r.typeId || null, flavorId: r.flavorId || null, sizeId: r.sizeId || null })
+for (const r of db.retailItems) Object.assign(r, { modifierIds: r.modifierIds || [], images: r.images || [], recipe: r.recipe || [], pinned: !!r.pinned, showInPos: r.showInPos ?? true, showOnStore: (r.showOnStore ?? false) && !r.openPrice, noPoints: !!r.noPoints, openPrice: !!r.openPrice, description: r.description || '', typeId: r.typeId || null, flavorId: r.flavorId || null, sizeId: r.sizeId || null })
 for (const u of db.users) u.perms = rolePreset(u.role) // ผู้ใช้ตัวอย่างเริ่มด้วยสิทธิ์ตามบทบาท
 for (const c of db.customers) Object.assign(c, { active: true, ledger: [], spins: 0, fbPsid: '', promoOptIn: true, places: [] })
 // ตัวอย่าง: ลูกค้าคนแรกผูก Facebook แล้ว (จำลอง)
@@ -3988,7 +3989,7 @@ export function modsOf(sel = []) {
 }
 export const modsText = (mods) => (mods || []).map((m) => m.name).join(' · ')
 // key ของบรรทัดตะกร้า: สินค้า + ชุดตัวเลือก
-export const lineKey = (l) => `${l.kind}|${l.refId}|${(l.mods || []).map((m) => `${m.groupId}:${m.optionId}`).sort().join(',')}`
+export const lineKey = (l) => `${l.kind}|${l.refId}|${(l.mods || []).map((m) => `${m.groupId}:${m.optionId}`).sort().join(',')}${l.price != null ? `|p${l.price}` : ''}`
 export const saveModifier = (d) =>
   upsert(db.posModifiers, 'md', { ...d, options: (d.options || []).filter((o) => o.name?.trim()).map((o) => {
     // ปรับวัตถุดิบในสูตรตามตัวเลือก เช่น หวานน้อย = น้ำตาล 50% (ไม่กรอก = ไม่ปรับ)
@@ -4007,7 +4008,8 @@ export function posPromoInfo(cart, at = new Date()) {
   const raws = cart.map((l) => {
     const r = db.retailItems.find((x) => x.id === l.refId)
     const mods = modsOf(l.mods)
-    return { l, r, mods, price: (r?.price || 0) + mods.reduce((s, m) => s + m.price, 0) }
+    // สินค้าไม่กำหนดราคา: ใช้ราคาที่ผู้ขายกรอกตอนขาย (ต้องผ่านการตรวจ openPriceOk)
+    return { l, r, mods, price: r?.openPrice ? Number(l.price) || 0 : (r?.price || 0) + mods.reduce((s, m) => s + m.price, 0) }
   })
   const res = applyPosPromos(
     raws.map((x) => ({ retailId: x.l.refId, category: x.r?.category || '', price: x.price, qty: x.l.qty })),
@@ -4067,6 +4069,8 @@ function notifyPosSale(o, rows) {
 export function posSale({ cart, customerId = null, couponIds = [], discount = 0, method = 'cash', received = null, lines = null, partial = false, billId = null, quiet = false, birthDiscount = null }) {
   const shift = currentShift()
   if (!shift || !cart.length) return null
+  // สินค้าไม่กำหนดราคาต้องมีราคาที่ผ่านการตรวจทุกบรรทัด (กันบิลราคา 0 หลุดเข้าระบบ)
+  if (cart.some((l) => db.retailItems.find((x) => x.id === l.refId)?.openPrice && !openPriceOk(l.price).ok)) return null
   if (couponIds.length && (!customerId || posCouponProblem({ customerId, couponIds }))) return null // คูปองต้องที่ลูกค้ากดแสดงอยู่ (POS ตรวจก่อนด้วย posCouponProblem)
   const ts = now()
   const o = {
@@ -4252,7 +4256,7 @@ export function voidPosSale(order, reason = 'ยกเลิกบิล', refun
 export const saveRetailItem = (d) =>
   upsert(db.retailItems, 'rt', {
     ...d, modifierIds: [...(d.modifierIds || [])], price: Number(d.price) || 0, stock: d.stock === '' || d.stock == null ? null : Math.max(0, Number(d.stock) || 0),
-    images: [...(d.images || [])], recipe: cleanRecipe(d.recipe), pinned: !!d.pinned, showInPos: d.showInPos !== false, showOnStore: !!d.showOnStore, noPoints: !!d.noPoints,
+    images: [...(d.images || [])], recipe: cleanRecipe(d.recipe), pinned: !!d.pinned, showInPos: d.showInPos !== false, showOnStore: !!d.showOnStore && !d.openPrice, noPoints: !!d.noPoints, openPrice: !!d.openPrice,
     description: String(d.description ?? '').trim().slice(0, 300), typeId: d.typeId || null, flavorId: d.flavorId || null, sizeId: d.sizeId || null,
   })
 // ---------- โปรโมชัน POS (เฉพาะแอดมิน) ----------

@@ -22,7 +22,7 @@ const list = computed(() => {
 const categories = computed(() => [...new Set(db.retailItems.map((x) => x.category).filter(Boolean))])
 
 const open = ref(false)
-const blank = () => ({ id: null, name: '', category: '', price: '', stock: '', active: true, modifierIds: [], images: [], recipe: [], pinned: false, showInPos: true, showOnStore: false, noPoints: false, description: '', typeId: null, flavorId: null, sizeId: null })
+const blank = () => ({ id: null, name: '', category: '', price: '', stock: '', active: true, modifierIds: [], images: [], recipe: [], pinned: false, showInPos: true, showOnStore: false, noPoints: false, openPrice: false, description: '', typeId: null, flavorId: null, sizeId: null })
 const form = reactive(blank())
 const error = ref('')
 function edit(x) {
@@ -32,7 +32,7 @@ function edit(x) {
 }
 async function save() {
   if (!form.name.trim()) return (error.value = 'กรอกชื่อสินค้า')
-  if (!(Number(form.price) >= 0) || form.price === '') return (error.value = 'กรอกราคา')
+  if (!form.openPrice && (!(Number(form.price) >= 0) || form.price === '')) return (error.value = 'กรอกราคา')
   if (!(await confirmDeactivate(db.retailItems, form, form.name))) return
   saveRetailItem({ ...form })
   open.value = false
@@ -96,7 +96,7 @@ function doAdd() {
             <span class="block text-xs text-stone-500">{{ x.category || '-' }} · {{ x.stock == null ? 'ไม่นับสต็อก' : `คงเหลือ ${x.stock}` }}</span>
             <span v-if="x.modifierIds?.length" class="block truncate text-xs text-brand-700">ตัวเลือก: {{ x.modifierIds.map(modName).join(', ') }}</span>
           </span>
-          <span class="shrink-0 font-semibold text-stone-900">{{ money(x.price) }}</span>
+          <span class="shrink-0 font-semibold text-stone-900">{{ x.openPrice ? 'ตามตอนขาย' : money(x.price) }}</span>
         </button>
         <button v-if="x.stock != null" type="button" class="btn-soft h-9 shrink-0 px-3 text-sm" @click="stockOpen = x; stockAdd = ''"><AppIcon name="plus" :size="14" /> สต็อก</button>
       </div>
@@ -175,7 +175,7 @@ function doAdd() {
           <datalist id="retail-cats"><option v-for="c in categories" :key="c" :value="c" /></datalist>
         </div>
         <div class="grid grid-cols-2 gap-4">
-          <div><label class="label">ราคา (บาท) <span class="text-rose-600">*</span></label><MoneyInput v-model="form.price" class="input" /></div>
+          <div><label class="label">ราคา (บาท) <span v-if="!form.openPrice" class="text-rose-600">*</span></label><MoneyInput v-model="form.price" class="input" /></div>
           <div><label class="label">สต็อก</label><input v-model="form.stock" type="text" v-num class="input" placeholder="ไม่นับ" /></div>
         </div>
         <p class="text-xs text-stone-400">สต็อกเว้นว่าง = ไม่นับสต็อก (เช่น เครื่องดื่มชงสด) · ขายใน POS แล้วตัดสต็อกอัตโนมัติ</p>
@@ -206,6 +206,7 @@ function doAdd() {
           <AppSwitch v-model="form.showInPos" label="แสดงใน POS และตอนสร้างออร์เดอร์/แชท" class="flex" />
           <AppSwitch v-model="form.showOnStore" label="แสดงที่หน้าร้านเว็บ (ลูกค้าเห็น)" class="flex" />
           <AppSwitch v-model="form.pinned" label="ปักหมุดในสินค้าขายดีของหน้าร้านเว็บ" class="flex" />
+          <AppSwitch v-model="form.openPrice" label="ไม่กำหนดราคา (ผู้ขายกรอกราคาตอนขายที่ POS · ไม่ขายผ่านเว็บ)" class="flex" />
           <AppSwitch v-model="form.noPoints" label="ไม่คำนวณแต้ม (ใช้คูปองส่วนลดไม่ได้ทุกแบบ · ไม่นับยอดสมาชิก)" class="flex" />
         </div>
         <AppSwitch v-model="form.active" label="ใช้งาน (ปิด = ไม่แสดงทุกที่)" />
