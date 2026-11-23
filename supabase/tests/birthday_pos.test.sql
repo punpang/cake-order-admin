@@ -72,5 +72,10 @@ select test.ok('BD10 สินค้าที่เลือกเองนั�
 select test.ok('BD11 สินค้าอื่นนอกหมวดและนอกรายการ ไม่นับ',
   public.punpang__birth_discount_expected('bdp_c1', '[{"retailId":"bdp_other","unitPrice":70,"qty":1}]'::jsonb) = 0);
 
+-- รอบ 4: บัตรบอกว่ามีส่วนลดเค้กเดือนเกิด (เมื่อร้านเลือกเค้กแล้ว)
+select test.ok('BD12 บัตรลูกค้าบอกว่าร้านเลือกเค้กแล้ว (cakeSet) และมีสิทธิเดือนเกิด',
+  (public.punpang_member_card('bdp_c1') -> 'birth' ->> 'cakeSet')::boolean = true
+  and (public.punpang_member_card('bdp_c1') -> 'birth' ->> 'rate')::int = 10);
+
 rollback;
 select 'ผ่านทั้งหมด' as birthday_pos_tests;
