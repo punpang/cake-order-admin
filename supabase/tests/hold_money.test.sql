@@ -158,6 +158,25 @@ select test.ok('PH3: ยอดคืนทุกชนิดที่ไม่�
 select test.ok('PH4: งวดแรกที่ยืนยันแล้วคือรายการแรกในอาร์เรย์ที่ยืนยัน (700)',
   public.punpang__first_confirmed('{"payments":[{"status":"reported","amount":500},{"status":"confirmed","amount":700},{"status":"confirmed","amount":300}]}'::jsonb) = 700);
 
+-- ---------- HM10: การคำนวณยอดค้างย้อนหลังของออร์เดอร์วันเกิด (คำสั่งเดียวกับ migration 20261126110000) ----------
+-- จำลองแถวเดิมที่ยอดค้างไม่ถูกคำนวณใหม่ (ปิดทริกเกอร์ยอดค้างชั่วคราวในธุรกรรมนี้เท่านั้น)
+alter table public.punpang_orders disable trigger zz_punpang_orders_balance;
+insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, balance, data) values
+  ('hm_bf1', 'OR-HM-30', 'c1', 'awaiting_payment', 'pickup', 'pos', 1000,
+   '{"items":[{"unitPrice":500,"qty":2}],"payments":[],"birthdayDiscount":{"amount":50}}'),
+  ('hm_bf2', 'OR-HM-31', 'c1', 'awaiting_payment', 'pickup', 'web', 999,
+   '{"items":[{"unitPrice":400,"qty":1}],"payments":[]}');
+alter table public.punpang_orders enable trigger zz_punpang_orders_balance;
+select test.ok('HM10: ก่อน backfill ยอดค้างวันเกิดยังเป็นค่าเดิม (1000)',
+  (select balance from public.punpang_orders where id = 'hm_bf1') = 1000);
+update public.punpang_orders set data = data
+ where jsonb_typeof(data->'birthdayDiscount') = 'object'
+   and balance is distinct from public.punpang__balance_of(data, fulfillment);
+select test.ok('HM10: หลัง backfill ออร์เดอร์วันเกิดได้ยอดค้าง 950 (หักส่วนลดตามแอป)',
+  (select balance from public.punpang_orders where id = 'hm_bf1') = 950);
+select test.ok('HM10: ออร์เดอร์ที่ไม่มีส่วนลดเดือนเกิดไม่ถูกแตะ (ยอดค้างเดิม 999)',
+  (select balance from public.punpang_orders where id = 'hm_bf2') = 999);
+
 -- ---------- HM9: การติดตั้งและสิทธิ์ ----------
 select test.ok('SEC1: ทริกเกอร์ด่านเงินพักติดตั้งบน punpang_orders',
   (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
