@@ -87,7 +87,7 @@ Deno.serve(corsWrap(async (req) => {
   })
   if (!br.ok) return json({ error: 'อ่านสิทธิสมาชิกไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
   const birth = await br.json()
-  const built = buildQuotePayload({ draft: body?.draft, customerId: qcust, catalog, nowMs: now, birth }) as { ok: boolean; error?: string; payload?: any }
+  const built = buildQuotePayload({ draft: body?.draft, customerId: qcust, catalog, nowMs: now, birth, customerFacing: true }) as { ok: boolean; error?: string; payload?: any }
   if (!built.ok) return json({ error: built.error }, 422)
 
   const day = ddmmyy(bkkWall(now))

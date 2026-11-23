@@ -143,7 +143,8 @@ const fail = (error, code = 'invalid') => ({ ok: false, code, error })
 // ใบเสนอ 1 ใบ → payload ที่ส่งให้ลูกค้า (ราคาคิดจากแคตาล็อกล้วน) · ไม่ได้ข้อมูล/ร้านปิดรับนัด = { ok: false, error, code }
 // draft: ข้อมูลที่พนักงานกรอก (fulfillment, pickupAt, items, birthday, ค่าจัดส่ง) · customerId: ลูกค้าของแชท · nowMs: เวลาปัจจุบัน (ms)
 // birth = สิทธิเดือนเกิดจากเซิร์ฟเวอร์ (punpang_member_birth_for_quote) · ไม่มี = ไม่คิดส่วนลดเดือนเกิด
-export function buildQuotePayload({ draft, customerId, catalog, nowMs, checkClosure = true, birth = null }) {
+// customerFacing = ใบเสนอที่ส่งลูกค้า (รับเฉพาะบริการที่เปิดให้ลูกค้าเห็น) · ออร์เดอร์หน้าร้าน/ตรวจย้อนหลังไม่ตั้ง
+export function buildQuotePayload({ draft, customerId, catalog, nowMs, checkClosure = true, birth = null, customerFacing = false }) {
   const d = isObj(draft) ? draft : {}
   const cat = catalog || {}
   if (d.fulfillment !== 'pickup' && d.fulfillment !== 'delivery') return fail('รูปแบบการรับสินค้าไม่ถูกต้อง')
@@ -164,8 +165,7 @@ export function buildQuotePayload({ draft, customerId, catalog, nowMs, checkClos
   }
   if (!items.length) return fail('ใบเสนอต้องมีรายการสินค้า')
   // บริการเกี่ยวกับเงิน: ค่าบริการเป็นรายการ (ราคาจากการตั้งค่าร้าน) · เงินพักคิดจากธนบัตรที่นี่ · รายการ kind 'service' จากเครื่องถูกปฏิเสธแล้วด้านบน
-  // ใบเสนอส่งให้ลูกค้าเสมอ → บริการต้องเปิด "ให้ลูกค้าเห็น"
-  const cash = cashServiceOf(d.cashService, cat.shop, { customerFacing: true })
+  const cash = cashServiceOf(d.cashService, cat.shop, { customerFacing })
   if (!cash.ok) return fail(cash.error)
 
   const wall = bkkWall(nowMs)
