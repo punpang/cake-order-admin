@@ -65,13 +65,13 @@ t('ซ่อนของ: ไม่มีธนบัตรและไม่ม
 })
 
 // ใบเสนอ: รายการค่าบริการ + เงินพักอยู่ในใบเสนอที่เซิร์ฟเวอร์คิด · ไม่รับรายการ kind 'service' จากเครื่อง
-const catalog = { ...golden.catalog, shop: { ...golden.catalog.shop, ...hideShop() } }
+const catalog = { ...golden.catalog, shop: { ...golden.catalog.shop, ...hideShop({ services: { ...shop.cashService.services, hide: { fee: 50, show: true, customer: true } } }) } }
 const retailDraft = (extra = {}) => ({
   fulfillment: 'pickup', pickupAt: '2026-11-30T10:00',
   items: [{ id: 'b1', kind: 'retail', retailId: 'rt1', retailPrice: 75, sizeId: null, typeId: null, mods: [], qty: 4, selections: {}, note: '', images: [], tiers: [] }],
   ...extra,
 })
-t('ใบเสนอมีค่าบริการซ่อนเงินเป็นรายการและมีเงินพัก (ยอดรวมรวมค่าบริการ)', () => {
+t('ใบเสนอมีค่าบริการซ่อนเงินเป็นรายการและมีเงินพัก (ยอดรวมรวมค่าบริการ · เปิดให้ลูกค้าเห็นแล้ว)', () => {
   const r = buildQuotePayload({ draft: retailDraft({ cashService: { kind: 'hide', notes: { 1000: 1 } } }), customerId: 'c1', catalog, nowMs: golden.nowMs })
   assert.equal(r.ok, true, r.error)
   const svc = r.payload.items.find((i) => i.kind === 'service')
@@ -108,6 +108,27 @@ t('ให้ลูกค้าเห็น (customer): ค่าเริ่ม�
 t('customer ไม่เปลี่ยนกติกาฝั่งพนักงาน: บริการที่เปิดให้บริการ (show) รับได้แม้ปิดให้ลูกค้าเห็น', () => {
   const r = cashServiceOf({ kind: 'hide', notes: { 100: 1 } }, { cashService: { services: { hide: { fee: 50, show: true, customer: false } } } })
   assert.equal(r.ok, true)
+})
+
+t('ใบเสนอลูกค้า: บริการที่ยังไม่เปิดให้ลูกค้าเห็น → ไม่ผ่าน (ค่าเริ่มต้นปิด)', () => {
+  const r = cashServiceOf({ kind: 'hide', notes: { 100: 1 } }, shop, { customerFacing: true })
+  assert.equal(r.ok, false)
+  assert.match(r.error, /ยังไม่เปิดให้ลูกค้าเห็น/)
+})
+t('ใบเสนอลูกค้า: บริการที่เปิดให้ลูกค้าเห็น → ผ่านและคิดค่าบริการเหมือนเดิม', () => {
+  const s = hideShop({ services: { ...shop.cashService.services, hide: { fee: 50, show: true, customer: true } } })
+  const r = cashServiceOf({ kind: 'hide', notes: { 100: 1 } }, s, { customerFacing: true })
+  assert.equal(r.ok, true)
+  assert.equal(r.item.unitPrice, 50)
+})
+t('ออร์เดอร์หน้าร้าน (ไม่ใช่ใบเสนอลูกค้า): ไม่ต้องเปิดให้ลูกค้าเห็นก็ได้', () => {
+  assert.equal(cashServiceOf({ kind: 'stash' }, shop).ok, true)
+})
+
+t('ใบเสนอลูกค้า: บริการที่ยังไม่เปิดให้ลูกค้าเห็นถูกปฏิเสธที่เซิร์ฟเวอร์คิดราคาด้วย', () => {
+  const r = buildQuotePayload({ draft: retailDraft({ cashService: { kind: 'hide', notes: { 1000: 1 } } }), customerId: 'c1', catalog: { ...golden.catalog, shop: { ...golden.catalog.shop, ...hideShop() } }, nowMs: golden.nowMs })
+  assert.equal(r.ok, false)
+  assert.match(r.error, /ยังไม่เปิดให้ลูกค้าเห็น/)
 })
 
 if (fail) { console.log(`ล้ม ${fail} รายการ`); process.exit(1) }
