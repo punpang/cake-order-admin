@@ -1,7 +1,7 @@
 # บันทึกงาน cake-order-admin
 
 ## ดูก่อน (อ่านแค่ส่วนนี้ = Read offset 1, limit 20)
-- ล่าสุด 2026-11-23 · main = `fc042fe` · สาขาทำงาน `claude/fix-order-link-token` · production: migration สมาชิก 3 ไฟล์ (Release #21) · customer-auth v75 (Release #22) · migration `20261123100000` + sms-send ผ่าน Release `45115185945` · sms-probe ลบแล้ว (ผู้ใช้ลบเอง) · Cloudflare build ตรวจไม่ได้ (connector ขอสิทธิ์เพิ่ม)
+- ล่าสุด 2026-11-23 · main = `fc042fe` · สาขาทำงาน `claude/fix-order-link-token` · PR #114 (`claude/zen-tests-only`, เทสต์ zen) รอ CI ยังไม่ merge · sms-send ทดสอบ production ผ่านแล้ว · production: migration สมาชิก 3 ไฟล์ (Release #21) · customer-auth v75 (Release #22) · migration `20261123100000` + sms-send ผ่าน Release `45115185945` · sms-probe ลบแล้ว (ผู้ใช้ลบเอง) · Cloudflare build ตรวจไม่ได้ (connector ขอสิทธิ์เพิ่ม)
 - **ไม่ใช้ Vercel แล้ว** (ผู้ใช้แจ้ง 2026-11-23) · ไม่ต้องตรวจ deploy ผ่าน Vercel
 - **รอผู้ใช้:** ร้านเปิดใช้จริงเองตามคู่มือ (ข้ามทดลอง · อัตรา 25/0.10 และระดับ ร้านตั้งเอง · ข้อ 8 ข้อความยาว) · ตัดสิน zen ส่วนที่ยังไม่ merge (ดู 2026-11-23)
 - **ปิดแล้ว:** B13 cron timeout · B12 ดัชนีเบอร์ลูกค้ามีบน production · B6 แผนฟรี ยอมรับความเสี่ยง ไม่ถามซ้ำ
@@ -11,6 +11,16 @@
 - **ขนาด:** บล็อกนี้ ≤ 3 KB · ไฟล์นี้ ≤ 30 KB หรือ ≤ 10 รายการ · เกินให้ย้ายรายการเก่าไป `WORKLOG-archive-YYYY-MM.md`
 - **ป้ายระบบ:** ใส่ในหัวรายการ [ลูกค้า] [LIFF] [ครัว] [POS] [ออร์เดอร์] [SMS] [Release] [DB] [ระบบ] · ค้นงานระบบเดียว: `grep -n '\[ครัว\]' docs/worklog/*.md`
 - **การถามผู้ใช้:** ถามเป็นข้อ ๆ (หน้าต่างคำถาม) ข้อละ 2–4 ตัวเลือก · ตัวเลือกที่ดีที่สุดอยู่ข้อแรกพร้อม "(แนะนำ)" และเหตุผลสั้น ๆ · ถามเฉพาะเรื่องที่ผู้ใช้ต้องตัดสิน
+
+---
+
+## 2026-11-23 · [SMS][Release][ระบบ] ทดสอบ sms-send บน production สำเร็จ · แยกเทสต์ zen เป็น PR #114 รอ CI
+
+**ทำอะไร:** ผู้ใช้กดส่งทดสอบ 1 ข้อความจาก `/admin/settings/sms` ไปเบอร์ทดสอบ · อ่าน `punpang_sms_log` (อ่านอย่างเดียว): id 37 kind `test` status `sent` 05:18 UTC · หน้าจอแสดง "ถึงผู้รับแล้ว" · ผู้ใช้ยืนยันได้รับข้อความแล้ว · ตรวจ zen `80e8a1e` ใน worktree ชั่วคราว: `npm test` 96 ไฟล์ผ่าน · e2e `memberTier` live 3/3 shadow 3/3 · สร้างสาขา `claude/zen-tests-only` จาก main ดึง 3 ไฟล์เทสต์ (`ca0117b`) · เปิด PR #114 ไป main (ยังไม่ merge)
+**เหตุผล:** ผู้ใช้สั่งทดสอบ sms-send ก่อน · zen แยกเฉพาะเทสต์ เพราะ migration `20261122110100` เลขชนกับไฟล์ที่รันบน production แล้ว และ docs รอถ้อยคำกฎหมาย
+**ผล:** sms-send ทำงานบน production (ทดสอบ 1 ข้อความสำเร็จ) · แถว `punpang_sms_log` id 36 (kind `notify`, 04:50 UTC) status `failed` ยังไม่ทราบสาเหตุ
+**รอ:** CI ของ PR #114 (node, deno, database, e2e ยัง in_progress ตอนตรวจล่าสุด) · ผู้ใช้สั่ง merge หลัง CI เขียว
+**งานค้าง:** migration `20261122110100` และ `docs/vat-refund-buyer.md` ยังไม่ merge · ff `052bf36` เข้า main ยังไม่ตัดสินใจ · ตรวจสาเหตุ sms_log id 36 ได้ถ้าต้องการ
 
 ---
 
@@ -77,42 +87,3 @@
 **งานค้าง:** ประกาศความเป็นส่วนตัวหัวข้อ 2 (ยังไม่ตัดสิน ยังไม่แก้) · เฟส 2–3 ตามเดิม
 
 ---
-
-## 2026-11-22 · [DB][ระบบ] ระดับสมาชิก: แท็บระดับแสดงต้นทุน 2 ค่า (ส่วนเพิ่ม/สูตรเต็ม) · กฎสื่อสารใช้ข้อความปัจจุบันชั่วคราว
-
-**ทำอะไร:** `punpang_member_report` เพิ่ม `fullCostPct` ต่อระดับและแถวรวม (แก้ migration `20261122110200` ซึ่งยังไม่ Release) · แท็บ "ระดับ": รายงานและตัวจำลองแสดงต้นทุน 2 ค่า (ส่วนเพิ่ม · สูตรเต็ม) · `levelCost` คืนค่า `fullCostPct` · เทสต์ใหม่ DB R4b และ `memberLevels.test.mjs` · อัปเดต docs/loyalty-tiers.md
-**เหตุผล:** ผู้ใช้เลือก "แสดงทั้งสองค่า" ตามข้อเสนอแนะ · ผู้ใช้เลือก "ใช้ข้อความปัจจุบันไปก่อน" สำหรับกฎสื่อสาร 3 บรรทัด (หาในเอกสารรีโปไม่พบ)
-**ผล:** `npm test` 95 ไฟล์ผ่าน · `memberLevels.test.mjs` ผ่านทั้งหมด · build ผ่าน · `test:bundle` 882.4 / 886 KB · `test:db` ผ่านทั้งชุด (R4 · R4b · member_levels · member_staff · mirror) · ไม่ได้รัน e2e ซ้ำ (ค้นแล้วไม่มีเทสต์ใดอ้างแท็บนี้) · ยังไม่ได้เปิดแท็บในเบราว์เซอร์
-**รอ:** ผู้ใช้ตัดสิน 4 ข้อ: (1) ถ้อยคำบรรทัดสิทธิ์พัก/วันทองของบัตรระดับ (2) ร่างถ้อยคำ ManageLegal ข้อ 8 (ยังไม่แก้) (3) อนุมัติ merge + Release 3 migration + deploy customer-auth (4) ตั้งอัตรา 10 / 0.10 ก่อนใช้จริง
-**งานค้าง:** ยังไม่มีเทสต์ e2e ของแท็บระดับ · เฟส 2–3 ตามเดิม
-
-## 2026-11-22 · [ลูกค้า][POS][DB] ระดับสมาชิก เฟส 1 (หน้าจอ): แท็บระดับ ป้าย POS การ์ดลูกค้า · โหมดเริ่มต้นปิด · ไม่ merge ไม่ Release
-
-**ทำอะไร:** แท็บ "ระดับ" ในคะแนน & รางวัล (`ManageTiers.vue` โหลดแบบ lazy: โหมด · ระดับ/ตัวคูณ · รอบสมาชิก · รายงาน · ตัวจำลองต้นทุน) · `src/lib/memberLevels.js` (ค่าเริ่มต้น ตรวจค่าให้ตรง SQL ข้อความบัตร ต้นทุน) · `src/lib/memberRemote.js` + migration `20261122110200` (`punpang_member_staff_card` `punpang_member_quote` `punpang_member_report` เฉพาะผู้จัดการ) · POS: ป้ายระดับ และแต้มที่จะได้ (เฉพาะใช้จริง) · บัญชีลูกค้า: การ์ดระดับ (เฉพาะใช้จริง) · `store.js`: ขอตัวคูณจาก `punpang_member_preview` ก่อนให้แต้ม · customer-auth แนบ `tier` (allow-list ไม่มียอดสะสม ล้มเหลวเป็นปิด) · งบบันเดิล 876 → 886 KB · `docs/loyalty-tiers.md` ใหม่ (แทนฉบับ dev เดิม)
-**เหตุผล:** ผู้ใช้สั่ง "เริ่มเลย" (ไม่ merge · ไม่ Release · ไม่แตะ production) · ลูกค้าเห็นระดับเฉพาะโหมดใช้จริง · เซิร์ฟเวอร์คิดตัวคูณเอง หน้าจอแสดงผลอย่างเดียว
-**ผล:** `npm test` 95 ไฟล์ผ่าน · `build` ผ่าน · `test:bundle` 882.1 / 886 KB · Deno 634 ผ่าน 0 ไม่ผ่าน · `test:db` ผ่านทั้งชุด (รวม member_levels, member_staff, mirror) · `test:e2e:ci` จบโดยไม่มีรายการไม่ผ่าน · visual (`e2e/visual.e2e.mjs`) ผ่าน 5 หน้า ไม่ได้อัปเดตภาพอ้างอิง · **ต้นทุนในหน้าจอคิดเฉพาะส่วนเพิ่ม (x3 = 0.8%)** ต่างจากเอกสาร dev เดิมและแผน (สูตรเต็ม x3 = 1.2%)
-**รอ:** ผู้ใช้ตัดสิน 6 ข้อ: (1) สูตรต้นทุน ส่วนเพิ่มหรือสูตรเต็ม (2) ถ้อยคำบัตรระดับ สิทธิ์พัก/วันทอง (3) ความหมาย "กฎสื่อสาร 3 บรรทัด" (หาในเอกสารรีโปไม่พบ) (4) ถ้อยคำ ManageLegal ข้อ 8 (ยังไม่แก้) (5) อนุมัติ merge + Release 3 migration + deploy customer-auth (6) ตั้งอัตรา 10 / 0.10 ก่อนใช้จริง
-**งานค้าง:** เฟส 2 (สิทธิประโยชน์ เดือนเกิด โหมดคูปองใหม่) · เฟส 3 (ข้อความอัตโนมัติ ด่านหน้าจ่ายเงิน) · รายงานต้องรอข้อมูลจากโหมดทดลอง
-
-## 2026-11-22 · [DB][ลูกค้า] ระดับสมาชิก เฟส 1 (ฐานข้อมูล): เครื่องยนต์ระดับ + ตัวคูณแต้ม · โหมดเริ่มต้นปิด · ไม่ merge ไม่ Release
-
-**ทำอะไร:** เริ่มใหม่จาก origin/main `8f86305` บนสาขา `claude/member-tiers-phase1` (ไม่ต่อจาก dev เดิม `80e8a1e`) · migration `20261122110000_punpang_member_levels.sql`: ตาราง `punpang_member_events` (เพิ่มอย่างเดียว · ลบได้เฉพาะตอนลบข้อมูลลูกค้า), ตั้งค่า `config/memberLevels` (off/shadow/live, ค่าเริ่มต้น LV1–LV4), คำนวณระดับรายวัน (ต่ออายุเมื่อยอดวันถึง 150 ก่อน VAT · Active 90 วัน · พักสิทธิ์ 91–364 · โปรทอง 91–104 · ลดขั้นทุก 365 วันจนถึง LV1), ทริกเกอร์ถอนยอด/ย้ายผู้ซื้อ/ลบลูกค้า, RPC `punpang_member_preview` และ `punpang_member_card` (service_role) · migration `20261122110100_punpang_member_award_cap.sql`: `punpang_award_order` คิดตัวคูณ · เพดานแต้มคูณตัวคูณเฉพาะโหมดใช้จริง · บันทึกยอดคู่กับการให้แต้ม · เทสต์ `member_levels.test.sql` 60 กรณี ต่อใน run.sh · mirror นับ 27 ตาราง · ตัด toNext ออกจากบัตรระดับ · วันครบ 365 วัน: บิลต่ออายุใช้ตัวคูณระดับก่อนลด (preMult)
-**เหตุผล:** ผู้ใช้สั่ง "เริ่มใหม่" และ "ทำเลย" ตามแผนเฟส 1 · โหมด off/shadow/live ให้เปิดทดลองก่อนคูณจริง · เก็บยอดสะสมฝั่งเซิร์ฟเวอร์ เพราะ `customer.data` ส่งให้ลูกค้าทั้งก้อน · เซิร์ฟเวอร์คิดตัวคูณเอง เพราะถ้าแค่ยกเพดานเป็น 10 พนักงานจะให้ x10 กับทุกระดับได้
-**ผล:** `run.sh` ผ่านทั้งชุด EXIT=0 (migration 140 ไฟล์ · security · ... · points_vat · member_levels 60/60 · mirror) · ตรวจแล้ว test.ok ล้มเมื่อเงื่อนไขไม่จริง · โหมดปิดไม่เปลี่ยนแต้มเดิม (points_vat ผ่าน) · ไม่แก้โค้ดแอป จึงไม่รัน unit/e2e/build · ไม่ merge/Release · ไม่แตะ production
-**รอ:** ผู้ใช้อนุมัติแล้ว: push ไป `claude/member-tiers-phase1` · งบบันเดิล +10 KB (ใช้ตอนทำ frontend) · ตัด toNext · วันครบ 365 ใช้ระดับก่อนลด · นับ 90 วันจากวันซื้อแรก · ยังรอ: สั่งเริ่ม frontend
-**งานค้าง:** frontend ระดับ (`src/lib/memberLevels.js`, แท็บ "ระดับ" ใน ManageLoyalty, ป้ายใน POS, การ์ดในบัญชีลูกค้า, customer-auth ส่งบัตรระดับ) · `punpang_member_report` (รายงานโหมดทดลอง) · อัตราแต้ม 10 บาท = 1 แต้ม (0.10 บาท) ผ่านหน้าตั้งค่า · docs/loyalty-tiers.md และถ้อยคำข้อ 8 บน ManageLegal (ผู้ใช้ยืนยันก่อนเปิดใช้จริง) · ตรวจ production แบบ rollback และ Release ต้องอนุมัติแยก
-
-## 2026-11-22 · [ระบบ][LIFF][ลูกค้า] ย้ายลิงก์หลักเป็น punpang.com: Worker, เมนู ถุงเงิน, เมนูใน LINE, ลิงก์สุ่มรางวัล · อยู่บน main แล้ว
-
-**ทำอะไร:** ตั้งค่า ALLOWED_ORIGINS ของ punpang-files ใน `worker/wrangler.jsonc` ให้มี punpang.com และ www.punpang.com (ตรงกับ dashboard) · เอาการซ่อนเมนู "ถุงเงิน" ออก (`src/lib/adminSystems.js`) · MENU_URL ของบอท LINE (`supabase/functions/_shared/lineliff.ts`) และ LUCKY_SITE_URL (`src/lib/luckyDraw.js`) เป็น punpang.com · deploy Worker punpang-files (run #4), line-webhook (run #6), line-link (run #6) สำเร็จ · ผู้ใช้ลบ Worker `sms-tls-probe` และเพิ่ม www.punpang.com ใน Turnstile กับ ALLOWED_ORIGINS ใน dashboard แล้ว · commit `262c98d` `d05e6b8` `2cf9d35` `cde7b68` `ce61551`
-**เหตุผล:** เว็บใช้ punpang.com เป็นโดเมนหลัก · ค่าใน `wrangler.jsonc` ทับค่า dashboard ทุกครั้งที่ deploy จึงต้องเก็บให้ตรงกันในไฟล์ · ผู้ใช้สั่ง "merge deploy" และ "ทำเลย"
-**ผล:** deploy-worker run #4 (`cde7b68`) และ run #5 (`7733361`), deploy-line-webhook และ deploy-line-link run #6 (`2cf9d35`) สำเร็จ · หลัง run #5 Worker อนุญาต www.punpang.com แล้ว (ก่อนหน้านั้น Worker ตอบ CORS เป็น pages.dev สำหรับ www) · โดเมนอื่นในรายการไม่เปลี่ยน · CI บน main สำเร็จ (`cde7b68`) · ผู้ใช้ยืนยันว่าล็อกอินและส่ง SMS ได้แล้ว
-**รอ:** ไม่มี · ผู้ใช้ตรวจ 4 ข้อบน punpang.com เรียบร้อยแล้ว (เมนูถุงเงิน, อัปโหลดรูป/สลิปทั้งสองโดเมน, เมนูบอท LINE, ลิงก์สุ่มรางวัล)
-**งานค้าง:** WAF ที่ sms.punpang.com (ผู้ใช้ต้องสร้างเอง) · เอกสาร docs ที่ยังเขียน pages.dev (pdpa.md, integrations.md, security.md) · ข้อความตัวอย่างใน ManageLucky.vue ยังเป็น pages.dev · สาขา dev `claude/zen-gauss-5qbmyh` ยังแยกจาก main · ระบบระดับสมาชิก 4 ระดับ: ยังไม่เริ่ม รอผู้ใช้ตอบ
-
-## 2026-11-22 · [SMS][ระบบ] ผู้ใช้สั่ง merge เฉพาะงาน SMS → ย้าย URL เกตเวย์เข้าโค้ดเข้า main · ยังไม่ deploy
-- **ทำอะไร:** cherry-pick `80e8a1e` ลง main เฉพาะไฟล์โค้ด SMS (`_shared/gwfetch.ts` ค่า `SMS_GATEWAY_URL` คงที่ · `_shared/sms.ts` · `sms-send` · `customer-auth` เฉพาะส่วน SMS · `scheduled` · เทสต์ sms-send · หน้า ManageSms/ManageIntegrations · docs/integrations.md) · ไม่เอา dev ส่วนระดับสมาชิก/migration/tools
-- **เหตุผล:** ผู้ใช้เลือก "merge เฉพาะงาน SMS" · main มี SMS ส่วนใหญ่แล้ว (eab1dd4, cb3d6e5, 8352901) เหลือเฉพาะการย้าย URL · ไม่ย้อนโค้ด SMS ที่ main ใหม่กว่า
-- **ผล:** เทสต์ sms-send 23/23 · `_shared` 401/401 · `deno check` sms-send/customer-auth/scheduled ผ่าน · หน้าเว็บ build บน Vercel ตรวจหลัง push
-- **รอ:** อนุมัติ deploy `sms-send`, `customer-auth`, `scheduled` แยกต่างหาก (ยังไม่ deploy) · หลัง deploy secret `SMS_GATEWAY_URL` ไม่ต้องใช้แล้ว (ลบเมื่อผู้ใช้สั่ง)
-- **งานค้าง:** ลบ `sms-probe` ใน Supabase Dashboard (ผู้ใช้ยังไม่ยืนยัน) · งานระดับสมาชิก (dev) ยังไม่ merge
