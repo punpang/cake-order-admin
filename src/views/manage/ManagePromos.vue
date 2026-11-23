@@ -115,7 +115,7 @@ async function flip(x) {
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div><label class="label">{{ f.type === 'percent' ? 'เปอร์เซ็นต์' : 'บาท' }}</label><MoneyInput v-model="f.value" class="input" /></div>
-            <div><label class="label">ยอดสินค้าขั้นต่ำ (บาท)</label><MoneyInput v-model="f.minSpend" class="input" placeholder="ไม่มี" /></div>
+            <div><label class="label">ยอดสินค้าขั้นต่ำ (บาท)</label><MoneyInput v-model="f.minSpend" class="input" placeholder="ไม่มีขั้นต่ำ" /></div>
           </div>
         </template>
 
@@ -227,8 +227,11 @@ async function flip(x) {
           <div v-if="f.scope === 'items'" class="mt-2 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
             <button v-for="p in items" :key="p.id" type="button" class="chip" :class="f.itemIds.includes(p.id) ? 'chip-on' : 'chip-off'" @click="toggle(f.itemIds, p.id)">{{ p.name }}</button>
           </div>
-          <div v-else-if="f.scope === 'category'" class="mt-2 flex flex-wrap gap-1.5">
-            <button v-for="c in categories" :key="c" type="button" class="chip" :class="f.categories.includes(c) ? 'chip-on' : 'chip-off'" @click="toggle(f.categories, c)">{{ c }}</button>
+          <div v-else-if="f.scope === 'category'" class="mt-2">
+            <div class="label">เลือกหมวดที่ใช้</div>
+            <div class="flex flex-wrap gap-1.5">
+              <button v-for="c in categories" :key="c" type="button" class="chip" :class="f.categories.includes(c) ? 'chip-on' : 'chip-off'" @click="toggle(f.categories, c)">{{ c }}</button>
+            </div>
           </div>
         </div>
 
@@ -237,7 +240,7 @@ async function flip(x) {
         <p v-if="err" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
       </div>
       <template #footer>
-        <button v-if="f.id" class="btn-danger" @click="del(f)">ลบ</button>
+        <button v-if="f.id" class="btn-danger mr-auto" @click="del(f)">ลบ</button>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>
         <button class="btn-primary flex-1 sm:flex-none" @click="save">บันทึก</button>
       </template>
