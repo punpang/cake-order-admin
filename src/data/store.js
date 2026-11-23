@@ -2383,7 +2383,7 @@ export function publicOrderView(o, { owner = false } = {}) {
     birthday: owner && o.birthday ? { ...o.birthday } : null,
     items: o.items.map((i) => ({ id: i.id, name: i.name, qty: i.qty, unitPrice: i.unitPrice, lines: describeSelections(i, db.optionGroups), note: owner ? i.note || '' : '', workPhotos: (i.workPhotos || []).map((p) => ({ id: p.id, image: p.image, at: p.at })) })),
     photoConsent: photoStatusOf(o),
-    total: t.total, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal, vat: t.vat, vatRate: t.vatRate, vatMode: t.vatMode,
+    total: t.total, hold: t.hold, payable: t.payable, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal, vat: t.vat, vatRate: t.vatRate, vatMode: t.vatMode,
     refunds: o.status === 'cancelled' ? refundList(o.cancel) : [],
     returns: (o.returns || []).filter((r) => !r.cancelled).map((r) => ({ id: r.id, at: r.at, amount: r.amount, items: r.refunds.map((x) => ({ label: REFUND_METHODS[x.method] || x.method, amount: x.amount, points: x.points ?? null })) })),
     payments: pays, payDue: orderDue(o), unpaidApproved: o.status === 'order_confirmed',

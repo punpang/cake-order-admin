@@ -15,13 +15,13 @@ const t = (name, fn) => { try { fn(); console.log('ok -', name) } catch (e) { fa
 t('ค่าเริ่มต้น: ไม่มีการตั้งค่า = ไม่เปิดบริการ ค่าบริการ 0 ไม่จำกัดธนบัตร', () => {
   const s = cashSettingsOf(undefined)
   assert.equal(s.maxNotes, 0)
-  for (const k of ['hide', 'pull', 'stash']) assert.deepEqual(s.services[k], { fee: 0, show: false })
+  for (const k of ['hide', 'pull', 'stash']) assert.deepEqual(s.services[k], { fee: 0, show: false, customer: false })
 })
 t('ค่าตั้งผิดรูปแบบ (ค่าบริการติดลบ/ข้อความ) ถูกปรับเป็น 0 และ maxNotes ติดลบเป็น 0', () => {
   const s = cashSettingsOf({ cashService: { maxNotes: -3, services: { hide: { fee: -5, show: 'yes' }, pull: { fee: 'abc', show: true } } } })
   assert.equal(s.maxNotes, 0)
-  assert.deepEqual(s.services.hide, { fee: 0, show: false })
-  assert.deepEqual(s.services.pull, { fee: 0, show: true })
+  assert.deepEqual(s.services.hide, { fee: 0, show: false, customer: false })
+  assert.deepEqual(s.services.pull, { fee: 0, show: true, customer: false })
 })
 t('ไม่ใช้บริการ (ไม่มี input) → ไม่มีรายการและไม่มีเงินพัก', () => {
   assert.deepEqual(cashServiceOf(undefined, shop), { ok: true, item: null, holdMoney: null })
@@ -95,6 +95,19 @@ t('ไม่ใช้บริการ: ใบเสนอเหมือนเ
 t('บริการที่ปิดอยู่ในการตั้งค่า → ใบเสนอไม่ผ่าน', () => {
   const off = { ...golden.catalog, shop: { ...golden.catalog.shop, ...hideShop({ services: { hide: { fee: 50, show: false } } }) } }
   assert.equal(buildQuotePayload({ draft: retailDraft({ cashService: { kind: 'hide', notes: { 100: 1 } } }), customerId: 'c1', catalog: off, nowMs: golden.nowMs }).ok, false)
+})
+
+t('ให้ลูกค้าเห็น (customer): ค่าเริ่มต้นปิด · เปิดได้เฉพาะเมื่อเปิดให้บริการแล้ว · ค่าผิดรูปแบบเป็นปิด', () => {
+  const none = cashSettingsOf(undefined)
+  for (const k of ['hide', 'pull', 'stash']) assert.equal(none.services[k].customer, false)
+  const s = cashSettingsOf({ cashService: { services: { hide: { fee: 50, show: true, customer: true }, pull: { fee: 40, show: false, customer: true }, stash: { fee: 30, show: true, customer: 'yes' } } } })
+  assert.equal(s.services.hide.customer, true)
+  assert.equal(s.services.pull.customer, false, 'ปิดบริการแล้วต้องไม่ให้ลูกค้าเห็น')
+  assert.equal(s.services.stash.customer, false, 'ค่าที่ไม่ใช่ true ต้องเป็นปิด')
+})
+t('customer ไม่เปลี่ยนกติกาฝั่งพนักงาน: บริการที่เปิดให้บริการ (show) รับได้แม้ปิดให้ลูกค้าเห็น', () => {
+  const r = cashServiceOf({ kind: 'hide', notes: { 100: 1 } }, { cashService: { services: { hide: { fee: 50, show: true, customer: false } } } })
+  assert.equal(r.ok, true)
 })
 
 if (fail) { console.log(`ล้ม ${fail} รายการ`); process.exit(1) }

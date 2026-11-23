@@ -11,13 +11,15 @@ const fail = (error) => ({ ok: false, error })
 const money = (v) => Math.max(0, Math.round((Number(v) || 0) * 100) / 100)
 
 // การตั้งค่าที่ใช้ได้จริง (ค่าที่ไม่ถูกต้อง/ไม่มี = ไม่เปิดให้บริการ · ค่าบริการ 0 · ไม่จำกัดธนบัตร)
-// config.shop.cashService = { maxNotes, services: { hide: { fee, show }, pull: {...}, stash: {...} } }
+// config.shop.cashService = { maxNotes, services: { hide: { fee, show, customer }, pull: {...}, stash: {...} } }
+// show = เปิดให้บริการ (พนักงานและเซิร์ฟเวอร์รับได้) · customer = แสดงให้ลูกค้าเห็นบริการนี้ (ต้อง show ก่อน) · ค่าเริ่มต้น customer = ปิด
 export function cashSettingsOf(shop) {
   const c = isObj(shop?.cashService) ? shop.cashService : {}
   const services = {}
   for (const k of CASH_KINDS) {
     const s = isObj(c.services?.[k]) ? c.services[k] : {}
-    services[k] = { fee: money(s.fee), show: s.show === true }
+    const show = s.show === true
+    services[k] = { fee: money(s.fee), show, customer: show && s.customer === true }
   }
   return { maxNotes: Math.max(0, Math.floor(Number(c.maxNotes) || 0)), services }
 }

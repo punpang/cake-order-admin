@@ -37,6 +37,8 @@ t('หน้าตั้งค่าร้าน: เปิดบริการ
     await maxNotes.waitFor({ state: 'visible', timeout: 20000 })
     await maxNotes.fill('5')
     await page.getByRole('switch', { name: 'เปิดให้บริการซ่อนเงิน' }).click()
+    // สวิตช์ "ให้ลูกค้าเห็น" โผล่หลังเปิดให้บริการเท่านั้น
+    await page.getByRole('switch', { name: 'ให้ลูกค้าเห็นซ่อนเงิน' }).click()
     const fee = page.getByLabel('ค่าบริการซ่อนเงิน (บาท)')
     await fee.fill('50')
     await fee.press('Tab')
@@ -49,6 +51,7 @@ t('หน้าตั้งค่าร้าน: เปิดบริการ
     assert.equal(saved.maxNotes, 5)
     assert.equal(saved.services.hide.show, true)
     assert.equal(saved.services.hide.fee, 50)
+    assert.equal(saved.services.hide.customer, true, 'สวิตช์ให้ลูกค้าเห็นต้องถูกบันทึก')
     assert.equal(saved.services.pull.show, false, 'บริการที่ไม่ได้เปิดต้องยังปิดอยู่')
     assert.deepEqual(errors, [], `หน้าเว็บโยนข้อผิดพลาด: ${errors.join(' | ')}`)
   } finally { await page.close() }
@@ -81,6 +84,29 @@ t('ออร์เดอร์ซ่อนเงิน: แสดงรายก
     await page.getByLabel('เหตุผล *').fill('ลูกค้าเพิ่มเงินพัก')
     await page.getByRole('button', { name: 'บันทึกเงินพัก', exact: true }).click()
     await page.waitForFunction((id) => window.__store.db.orders.find((o) => o.id === id)?.holdMoney?.amount === 1100, seeded.id, { timeout: 5000 })
+    assert.deepEqual(errors, [], `หน้าเว็บโยนข้อผิดพลาด: ${errors.join(' | ')}`)
+  } finally { await page.close() }
+})
+
+t('ลูกค้าเห็นเงินพักและยอดที่ต้องชำระในหน้าออร์เดอร์ (ผ่านลิงก์ของออร์เดอร์)', async () => {
+  const { page, errors } = await openPage('/admin/orders')
+  try {
+    const link = await ev(page, () => {
+      const S = window.__store
+      const tpl = S.db.orders.find((o) => o.customerId && o.channel !== 'pos' && o.status === 'awaiting_payment')
+      if (!tpl) return { error: 'ไม่มีออร์เดอร์ตัวอย่าง' }
+      S.saveShopSettings({ ...JSON.parse(JSON.stringify(S.db.shop)), cashService: { maxNotes: 5, services: { hide: { fee: 50, show: true, customer: true }, pull: { fee: 40, show: false }, stash: { fee: 30, show: false } } } })
+      const d = JSON.parse(JSON.stringify(tpl))
+      const r = S.createOrder({ customerId: d.customerId, pickupAt: '2030-04-10T10:00', fulfillment: 'pickup', items: d.items, vat: d.vat, promoOn: false, quoteItems: false, shipPromo: null, birthday: null, cashService: { kind: 'hide', notes: { 500: 2 } } }, false)
+      if (r.error) return { error: r.error }
+      const l = S.createOrderLink(r)
+      return l.error ? { error: l.error } : { token: l.token }
+    })
+    assert.ok(!link.error, `เตรียมลิงก์ไม่ได้: ${link.error}`)
+    await page.goto(`${base}/#/o/${link.token}`, { waitUntil: 'domcontentloaded' })
+    await page.waitForFunction(() => !document.body.innerText.includes('กำลังเตรียมข้อมูล'), null, { timeout: 60000 })
+    await page.getByText('เงินพัก (ไม่ใช่รายได้ของร้าน)').waitFor({ state: 'visible', timeout: 15000 })
+    await page.getByText('ยอดที่ต้องชำระ (รวมเงินพัก)').waitFor({ state: 'visible' })
     assert.deepEqual(errors, [], `หน้าเว็บโยนข้อผิดพลาด: ${errors.join(' | ')}`)
   } finally { await page.close() }
 })

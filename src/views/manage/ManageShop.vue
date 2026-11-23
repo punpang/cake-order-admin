@@ -242,6 +242,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         </div>
         <div v-for="k in CASH_KINDS" :key="k" class="mt-3 space-y-2 rounded-xl border border-stone-200 p-3">
           <AppSwitch v-model="st.cashService.services[k].show" :label="`เปิดให้บริการ${CASH_LABEL[k]}`" class="flex" />
+          <AppSwitch v-if="st.cashService.services[k].show" v-model="st.cashService.services[k].customer" :label="`ให้ลูกค้าเห็น${CASH_LABEL[k]}`" class="flex" />
           <div><label class="label" :for="`cash-fee-${k}`">ค่าบริการ{{ CASH_LABEL[k] }} (บาท)</label><MoneyInput :id="`cash-fee-${k}`" v-model.number="st.cashService.services[k].fee" min="0" class="input" /></div>
         </div>
       </div>

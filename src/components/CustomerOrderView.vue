@@ -378,6 +378,10 @@ const beforeDiscount = computed(() => {
         <template v-for="rt in o.returns || []" :key="rt.id"><div v-for="(r, i) in rt.items" :key="rt.id + i" class="flex justify-between gap-3 text-xs text-rose-700"><span class="min-w-0 break-words">คืนเงินบางส่วน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span class="shrink-0">{{ money(r.amount) }}</span></div></template>
       </div>
       <div class="mt-3 flex justify-between border-t border-stone-100 pt-3 text-stone-600"><span>ชำระแล้ว</span><span>{{ money(o.paid) }}</span></div>
+      <template v-if="!cancelled && o.hold > 0">
+        <div class="mt-2 flex justify-between gap-3 text-amber-800"><span>เงินพัก (ไม่ใช่รายได้ของร้าน)</span><span>{{ money(o.hold) }}</span></div>
+        <div class="mt-1 flex justify-between gap-3 font-semibold text-stone-800"><span>ยอดที่ต้องชำระ (รวมเงินพัก)</span><span>{{ money(o.payable) }}</span></div>
+      </template>
       <div v-if="!cancelled" class="mt-3 flex items-center justify-between gap-3 rounded-2xl px-4 py-3" :class="o.balance > 0 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'">
         <span class="font-semibold">คงค้าง</span><b class="text-lg">{{ money(o.balance) }}</b>
       </div>

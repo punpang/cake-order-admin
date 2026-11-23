@@ -12,7 +12,7 @@ import golden from '../../../src/lib/quotePrice.golden.json' with { type: 'json'
 Deno.test('ค่าบริการ/ธนบัตรเริ่มต้นเมื่อไม่มีการตั้งค่า', () => {
   const s: any = cashSettingsOf(undefined)
   assertEquals(s.maxNotes, 0)
-  assertEquals(s.services.hide, { fee: 0, show: false })
+  assertEquals(s.services.hide, { fee: 0, show: false, customer: false })
 })
 
 Deno.test('ซ่อนเงิน: เงินพักคิดจากธนบัตร ค่าบริการจากการตั้งค่า (ค่าที่ client ส่งมาถูกละเลย)', () => {
