@@ -51,7 +51,6 @@ export const BELL_CUSTOMER = {
   adjustment_changed: { title: 'ปรับราคาออร์เดอร์' },
   preparing: { title: 'เริ่มเตรียมสินค้า' },
   ready_to_ship: { title: 'พร้อมจัดส่ง' },
-  points_applied: { title: 'ใช้คะแนนเป็นส่วนลด' },
   points_removed: { title: 'ยกเลิกการใช้คะแนน' },
   points_earned: { title: 'ได้รับคะแนนสะสม' },
   photo_ready: { title: 'มีรูปงานเสร็จให้ดู' },
