@@ -281,7 +281,6 @@ const FB_TPL = {
   payment_confirmed: PAY_CONFIRMED_TPL,
   prepared: PREPARED_TPL,
   payment_reminder: PAY_REMINDER_TPL,
-  pickup_reminder: 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์}\nวันที่ {วันนัด} เวลา {เวลานัด}',
   shipping: 'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ\nกำหนดถึง {วันนัด} {เวลานัด}',
   delivered: DELIVERED_PTS_TPL,
   cancelled: 'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว\nหากมีข้อสงสัยติดต่อร้านได้เลยค่ะ',
@@ -328,8 +327,8 @@ export const db = reactive({
     // ตัวเลือกกำหนดชำระตามนัด: ก่อนนัด hoursBefore ชม. · ล่วงหน้า daysBefore วัน ก่อน atTime · เตือนลูกค้าที่ยังไม่ชำระของพรุ่งนี้ตอน payReminderTime
     payDueRule: { hoursBefore: 24, daysBefore: 1, atTime: '12:00' },
     payReminderTime: '09:00',
-    // เวลาแจ้งเตือนอัตโนมัติ (ค่าเริ่มต้นเท่าการทำงานเดิม): นัดรับ = ชม.ก่อนนัด · งานใกล้เวลา = ชม.ก่อนเวลาผลิต · คะแนนหมดอายุ = วันล่วงหน้า · งวดผ่อนชำระ = วันก่อนครบกำหนด
-    pickupRemindHours: 24, dueSoonHours: 2, pointsExpireDays: 30, installmentAlertDays: 1,
+    // เวลาแจ้งเตือนอัตโนมัติ (ค่าเริ่มต้นเท่าการทำงานเดิม): งานใกล้เวลา = ชม.ก่อนเวลาผลิต · คะแนนหมดอายุ = วันล่วงหน้า · งวดผ่อนชำระ = วันก่อนครบกำหนด
+    dueSoonHours: 2, pointsExpireDays: 30, installmentAlertDays: 1,
     prepCategories: [], // หมวดสินค้าที่ต้องเตรียม (เช่น เครื่องดื่ม) → ขึ้นคิวไปทำหลังขาย · ค่าเริ่มต้นว่าง
     lineRetentionDays: 180, // เก็บข้อความ LINE กี่วัน (7–365) · เกินกำหนดระบบลบอัตโนมัติ
     // รหัสร้านค้า (ผู้รับชำระ) ใช้ตรวจรหัสร้านค้าในสลิปโอนเงิน และเป็น Ref 1 ของ QR · ว่าง = ไม่ตรวจ
@@ -493,7 +492,6 @@ export const db = reactive({
     rule('payment_reminder', ['web', 'sms'],PAY_REMINDER_TPL),
     rule('prepared', ['web', 'facebook', 'sms'], PREPARED_TPL),
     rule('payment_confirmed', ['web', 'sms'],PAY_CONFIRMED_TPL),
-    rule('pickup_reminder', ['web', 'sms'],'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}'),
     rule('shipping', ['web', 'sms'],'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ กำหนดถึง {วันนัด} {เวลานัด}'),
     rule('delivered', ['web', 'sms'], DELIVERED_PTS_TPL),
     rule('cancelled', ['web', 'sms'],'ออร์เดอร์ {เลขออร์เดอร์} ถูกยกเลิกแล้ว หากมีข้อสงสัยติดต่อร้านได้เลยค่ะ'),
@@ -1744,7 +1742,6 @@ export function saveShopSettings(d) {
   db.shop.leadDelivery = Math.max(0, Number(d.leadDelivery) || 0)
   db.shop.depositPercent = Math.min(100, Math.max(0, Number(d.depositPercent) || 0))
   db.shop.birthdayDays = Math.max(0, Number(d.birthdayDays) || 0)
-  db.shop.pickupRemindHours = intIn(d.pickupRemindHours, 1, 72, db.shop.pickupRemindHours ?? 24)
   db.shop.dueSoonHours = intIn(d.dueSoonHours, 1, 12, db.shop.dueSoonHours ?? 2)
   db.shop.pointsExpireDays = intIn(d.pointsExpireDays, 1, 90, db.shop.pointsExpireDays ?? 30)
   if (Array.isArray(d.prepCategories)) db.shop.prepCategories = [...new Set(d.prepCategories.map((x) => String(x).trim()).filter(Boolean))]
@@ -3193,7 +3190,7 @@ function payReminder(o, nowD, once) {
   const open = asked.filter((p) => p.status === 'reported').sort((a, b) => String(a.dueAt).localeCompare(String(b.dueAt)))[0]
   once(`payrem|${o.id}|${tmrStr}`, () => { notifyOrder('payment_reminder', o, { dueAt: open?.dueAt || '' }); return 1 })
 }
-// จำลองรอบตรวจตามเวลา (ของจริงใช้ cron): เตือนนัดรับ, งานใกล้เวลา, วันเกิด, คะแนนใกล้หมดอายุ (ตามที่ร้านตั้งไว้) · ส่งครั้งเดียวต่อ key
+// จำลองรอบตรวจตามเวลา (ของจริงใช้ cron): งานใกล้เวลา, วันเกิด, คะแนนใกล้หมดอายุ (ตามที่ร้านตั้งไว้) · ส่งครั้งเดียวต่อ key
 // ตัวตรวจตามเวลาจากโมดูลอื่น (เช่นบัญชี) ลงทะเบียนที่นี่ — store ไม่ import โมดูลเหล่านั้นเพื่อกัน import วน
 export const scheduledHooks = []
 export function runScheduledChecks() {
@@ -3201,7 +3198,6 @@ export function runScheduledChecks() {
   const nowMs = Date.now()
   // server = true → เซิร์ฟเวอร์ (Edge Function scheduled) ส่งเตือนลูกค้าและทีมแล้ว แอปข้ามส่วนนั้น (บัญชีและคูปองยังทำในแอป)
   const serverRuns = db.scheduled?.server === true
-  const pickupHours = Number(db.shop.pickupRemindHours ?? 24)
   const dueHours = Number(db.shop.dueSoonHours ?? 2)
   const pointsDays = Number(db.shop.pointsExpireDays ?? 30)
   const once = (key, fn) => {
@@ -3211,9 +3207,6 @@ export function runScheduledChecks() {
   }
   for (const o of serverRuns ? [] : db.orders) {
     if (['draft', 'delivered', 'cancelled'].includes(o.status)) continue
-    const toPickup = new Date(o.pickupAt).getTime() - nowMs
-    // กฎ "เตือนก่อนนัดรับ" ปิดอยู่ → ไม่เตือนนัดรับเลย (เหมือนฝั่งเซิร์ฟเวอร์)
-    if (db.notifyRules.find((r) => r.event === 'pickup_reminder')?.enabled !== false && toPickup > 0 && toPickup <= pickupHours * 3600e3) once(`pickup|${o.id}`, () => { notifyOrder('pickup_reminder', o); return 1 })
     for (const p of overduePayments(o, new Date(nowMs))) once(`overdue|${p.id}|${p.dueAt}`, () => notify('team_pay_overdue', { vars: { ...orderVars(o), ชำระก่อน: dueText(p.dueAt) }, orderId: o.id }))
     payReminder(o, new Date(nowMs), once)
     const toDue = dueAt(o).getTime() - nowMs
@@ -4060,7 +4053,15 @@ function posLinesOk(lines, total) {
 // รหัสบิลที่จองไว้ล่วงหน้า (ใช้จองคูปองก่อนขาย แล้วส่งเข้า posSale ให้รหัสตรงกัน)
 export const reserveBillId = () => uid('o')
 // billId = รหัสบิลที่จองคูปองไว้ล่วงหน้า (ให้รหัสตรงกับบิลจริง) · ไม่ส่ง = สร้างรหัสใหม่
-export function posSale({ cart, customerId = null, couponIds = [], discount = 0, method = 'cash', received = null, lines = null, partial = false, billId = null }) {
+// แจ้งทีม (Telegram) ทันทีเมื่อ POS ปิดบิล/ยกเลิกบิล/แลกสินค้ามีคืนเงิน (กันทุจริตของพนักงาน) · ตัวแปรของ NEW_TEAM_RULES
+const posStaffNow = () => db.users?.find((u) => u.id === session.userId)?.name || session.role || ''
+const posWhenNow = () => { const t = now(); return `${dateOnly(t)} ${timeOnly(t)}` }
+const posMoneyRows = (rows) => (rows || []).map((x) => `${REFUND_METHODS[x.method] || POS_METHODS[x.method] || x.method} ${money(x.amount)}`).join(' + ')
+function notifyPosSale(o, rows) {
+  const adj = Number(o.adjustment?.amount) || 0
+  notify('team_pos_sale', { orderId: o.id, vars: { ...orderVars(o), วิธีชำระ: posMoneyRows(rows), บรรทัดส่วนลด: adj < 0 ? `🏷 ส่วนลดหน้าร้าน ${money(-adj)}` : '', พนักงาน: posStaffNow(), เวลา: posWhenNow() } })
+}
+export function posSale({ cart, customerId = null, couponIds = [], discount = 0, method = 'cash', received = null, lines = null, partial = false, billId = null, quiet = false }) {
   const shift = currentShift()
   if (!shift || !cart.length) return null
   if (couponIds.length && (!customerId || posCouponProblem({ customerId, couponIds }))) return null // คูปองต้องที่ลูกค้ากดแสดงอยู่ (POS ตรวจก่อนด้วย posCouponProblem)
@@ -4092,6 +4093,7 @@ export function posSale({ cart, customerId = null, couponIds = [], discount = 0,
   o.status = 'delivered'
   o.deliveredAt = ts
   log(o, `รับชำระ ${money(total)} (${posRowsText(rows)}) · ส่งมอบ`)
+  if (!quiet) notifyPosSale(o, rows)
   awardOrderRemote(o, (n) => notifyPointsEarned(o, n))
   return o
 }
@@ -4173,6 +4175,7 @@ export function finishPosBill(order, lines) {
   order.status = 'delivered'
   order.deliveredAt = ts
   log(order, `รับชำระส่วนที่เหลือ ${money(bal)} (${posRowsText(lines)}) · ส่งมอบ`)
+  notifyPosSale(order, lines)
   awardOrderRemote(order, (n) => notifyPointsEarned(order, n))
   return { order }
 }
@@ -4193,7 +4196,7 @@ export function exchangeSale({ order, returnItems = [], restock = true, refunds 
   if (!(total > 0) || !posLinesOk(rows, total)) return { error: 'ยอดรับชำระของสินค้าใหม่ไม่ครบหรือไม่ถูกต้อง' }
   const rf = refundOrder(order, { reason: reason || `แลกสินค้า ${order.code}`, refunds, items: returnItems, restock, notify: false, sms: false })
   if (rf.error) return rf
-  const o = posSale({ cart: newCart, customerId: order.customerId || null, lines: rows })
+  const o = posSale({ cart: newCart, customerId: order.customerId || null, lines: rows, quiet: true })
   if (!o) {
     const back = cancelRefund(order, rf.entry.id, { reason: 'แลกสินค้าไม่สำเร็จ ยกเลิกการคืนอัตโนมัติ', notify: false })
     return { error: back.error ? `ขายสินค้าใหม่ไม่สำเร็จ และยกเลิกการคืนไม่ได้: ${back.error}` : 'ขายสินค้าใหม่ไม่สำเร็จ ยกเลิกการคืนให้แล้ว' }
@@ -4202,6 +4205,7 @@ export function exchangeSale({ order, returnItems = [], restock = true, refunds 
   o.exchangeOf = order.id
   log(order, `แลกสินค้า → บิล ${o.code}`)
   log(o, `แลกสินค้าจากบิล ${order.code}`)
+  notify('team_pos_exchange', { orderId: order.id, vars: { ...orderVars(order, { reason: rf.entry.reason }), เลขบิลใหม่: orderNo(o.code), ยอดคืน: money(rf.entry.amount), วิธีคืน: posMoneyRows(rf.entry.refunds), ยอดบิลใหม่: money(orderTotals(o).total), พนักงาน: posStaffNow(), เวลา: posWhenNow() } })
   return { ok: true, order: o, entry: rf.entry }
 }
 // เงื่อนไขรับบางส่วน: ยอดรวมต้องน้อยกว่ายอดบิล (ยังขาด) และแต่ละช่องทางถูกต้อง
@@ -4235,6 +4239,8 @@ export function voidPosSale(order, reason = 'ยกเลิกบิล', refun
     const src = it.kind === 'retail' ? db.retailItems.find((x) => x.id === it.retailId) : null
     if (src && src.stock != null) src.stock += Math.max(0, (it.stockTaken ?? it.qty) - (restockedBefore.get(it.id) || 0))
   }
+  const note = String(refundNote || '').trim()
+  notify('team_pos_cancel', { orderId: order.id, vars: { ...orderVars(order, { reason }), บรรทัดคืนเงิน: refundedNow > 0 ? `↩️ คืนเงิน ${money(refundedNow)} (${posMoneyRows(rows)})` : '↩️ ไม่มีการคืนเงิน', บรรทัดหมายเหตุ: note ? `📝 หมายเหตุคืนเงิน ${note}` : '', พนักงาน: posStaffNow(), เวลา: posWhenNow() } })
   return r
 }
 export const saveRetailItem = (d) =>

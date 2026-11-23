@@ -93,7 +93,6 @@ const TPL_UPGRADES: Record<string, [string, string]> = { payment_reminder: [PAY_
 // เทมเพลตเฉพาะ Facebook ของเหตุการณ์ตามเวลา (ตรงกับ FB_TPL ในแอป)
 const FB_TPL: Record<string, string> = {
   payment_reminder: PAY_REMINDER_TPL,
-  pickup_reminder: 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์}\nวันที่ {วันนัด} เวลา {เวลานัด}',
   birthday: 'สุขสันต์วันเกิดล่วงหน้า {ชื่อวันเกิด}\nสั่งเค้กกับเราได้เลยค่ะ',
   points_expiring: '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ\nใช้ก่อนหมดนะคะ',
 }
@@ -218,18 +217,10 @@ export function planScheduled(inp: PlanInput): Plan[] {
   const varsOf = (o: Any, extra: Any = {}) => orderVars(o, extra, inp.shop, custFor(o))
 
   // ค่าเวลาแจ้งเตือนที่ร้านตั้งไว้ (ค่าเริ่มต้นเท่าการทำงานเดิม)
-  const pickupHours = Number(inp.shop?.pickupRemindHours ?? 24)
   const dueHours = Number(inp.shop?.dueSoonHours ?? 2)
   const pointsDays = Number(inp.shop?.pointsExpireDays ?? 30)
-  // กฎ "เตือนก่อนนัดรับ" ปิดอยู่ → ไม่วางแผนเตือนนัดรับเลย (ไม่ส่งและไม่ขึ้นกระดิ่งลูกค้า) · ไม่มีกฎ = เปิด
-  const pickupOn = inp.rules.find((r) => r?.event === 'pickup_reminder')?.enabled !== false
   for (const o of inp.orders) {
     if (['draft', 'delivered', 'cancelled'].includes(o.status)) continue
-    // เตือนนัดรับ: ภายในจำนวนชั่วโมงที่ร้านตั้งไว้ก่อนนัด
-    const toPickup = instantOf(o.pickupAt) - inp.nowMs
-    if (pickupOn && toPickup > 0 && toPickup <= pickupHours * HOUR) {
-      add(`pickup|${o.id}`, { kind: 'customer', event: 'pickup_reminder', orderId: o.id, order: o, customer: custFor(o), vars: varsOf(o) })
-    }
     // ยืนยันสลิปอัตโนมัติ: แจ้งลูกค้าว่ายืนยันชำระแล้ว (ตามกฎ payment_confirmed ของร้าน) · เฉพาะงวดที่ระบบยืนยันเอง ภายใน 24 ชม. · ส่งครั้งเดียวต่องวด
     for (const p of Array.isArray(o.payments) ? o.payments : []) {
       if (p?.status !== 'confirmed' || p.confirmedBy !== 'auto' || p.autoNotified === true) continue // autoNotified = ระบบแจ้งลูกค้าไปแล้วตอนยืนยัน

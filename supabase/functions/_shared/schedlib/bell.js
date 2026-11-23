@@ -33,7 +33,6 @@ export const BELL_CUSTOMER = {
   order_confirmed: { title: 'ยืนยันการสั่งซื้อแล้ว' },
   prepared: { title: 'เตรียมสินค้าเสร็จแล้ว' },
   payment_reminder: { title: 'เตือนชำระเงิน' },
-  pickup_reminder: { title: 'เตือนนัดรับ' },
   shipping: { title: 'ออกจัดส่งแล้ว' },
   delivered: { title: 'ส่งมอบแล้ว' },
   cancelled: { title: 'ยกเลิกออร์เดอร์' },
@@ -81,8 +80,7 @@ export function bellText(event, vars = {}) {
     case 'order_refunded': return `${code} · คืน ${v(vars, 'ยอดที่แจ้ง')}`
     case 'points_expiring': return `คะแนน ${v(vars, 'คะแนน')} แต้มใกล้หมดอายุ`
     case 'coupon_refunded': return `${v(vars, 'รายการ')} · คืน ${v(vars, 'คะแนน')} คะแนน`
-    case 'pickup_changed':
-    case 'pickup_reminder': return `${code} · นัด ${v(vars, 'วันนัด')} ${v(vars, 'เวลานัด')}`
+    case 'pickup_changed': return `${code} · นัด ${v(vars, 'วันนัด')} ${v(vars, 'เวลานัด')}`
     default: return head || code
   }
 }

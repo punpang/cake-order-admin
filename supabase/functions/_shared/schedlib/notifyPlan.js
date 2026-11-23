@@ -40,8 +40,34 @@ export const NEW_CUSTOMER_RULES = [
 ]
 // เติมกฎที่ยังไม่มีในรายการ (กฎที่ร้านแก้ไว้แล้วไม่ถูกทับ) · คืนรายการใหม่ ไม่แก้รายการเดิม
 // กฎของทีมที่เพิ่มภายหลัง (ส่งเข้ากลุ่มทีม ไม่ใช่ลูกค้า) · สรุปยอดหลังปิดกะ POS · ตัวแปรมาจาก src/lib/dailySummary.js
+// ทีม (Telegram) เมื่อ POS ปิดบิล/ยกเลิกบิล/แลกสินค้ามีคืนเงิน · ตัวแปรมาจาก store.js (notifyPosSale และที่เรียกจาก voidPosSale/exchangeSale)
+const TEAM_POS_SALE_TPL = [
+  '🧾 <b>ปิดบิล POS {เลขออร์เดอร์}</b>',
+  '👤 พนักงาน {พนักงาน} · {เวลา}',
+  '🛒 ยอดรวม <b>{ยอดรวม}</b>',
+  '{บรรทัดส่วนลด}',
+  '💳 รับชำระ {วิธีชำระ}',
+].join('\n')
+const TEAM_POS_CANCEL_TPL = [
+  '❌ <b>ยกเลิกบิล POS {เลขออร์เดอร์}</b>',
+  '👤 พนักงาน {พนักงาน} · {เวลา}',
+  '🛒 ยอดบิล <b>{ยอดรวม}</b>',
+  '{บรรทัดคืนเงิน}',
+  '📝 เหตุผล {เหตุผล}',
+  '{บรรทัดหมายเหตุ}',
+].join('\n')
+const TEAM_POS_EXCHANGE_TPL = [
+  '🔁 <b>แลกสินค้า POS {เลขออร์เดอร์}</b>',
+  '👤 พนักงาน {พนักงาน} · {เวลา}',
+  '↩️ คืนเงิน <b>{ยอดคืน}</b> ({วิธีคืน})',
+  '🧾 บิลใหม่ {เลขบิลใหม่} ยอด {ยอดบิลใหม่}',
+  '📝 เหตุผล {เหตุผล}',
+].join('\n')
 export const NEW_TEAM_RULES = [
   { event: 'team_daily_summary', channels: ['telegram'], template: DAILY_SUMMARY_TPL, enabled: true },
+  { event: 'team_pos_sale', channels: ['telegram'], template: TEAM_POS_SALE_TPL, enabled: true },
+  { event: 'team_pos_cancel', channels: ['telegram'], template: TEAM_POS_CANCEL_TPL, enabled: true },
+  { event: 'team_pos_exchange', channels: ['telegram'], template: TEAM_POS_EXCHANGE_TPL, enabled: true },
 ]
 
 export function withNewRules(list) {

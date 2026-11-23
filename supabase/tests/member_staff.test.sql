@@ -112,4 +112,31 @@ select test.ok('R4b ต้นทุนสูตรเต็มรวม = (แ�
 select test.ok('R5 จำนวนวันไม่ถูกต้อง (0) = invalid',
   (pg_temp.msf_report(0)->>'error') = 'invalid');
 
+-- ---------- P) ความคืบหน้าขั้นถัดไปบนป้ายระดับ (migration 20261123100000) ----------
+insert into public.punpang_member_events (customer_id, order_id, kind, at, day, amount, renew_min, mult) values
+  ('msf_lv2', 'msf_o4', 'spend', now(), pg_temp.msf_today(), 1000, 140, 1);
+insert into public.punpang_customers (id, name, data) values ('msf_top', 'สมาชิกทดสอบ msf LV4', '{"ledger":[],"spins":0}');
+insert into public.punpang_member_events (customer_id, order_id, kind, at, day, amount, renew_min, mult) values
+  ('msf_top', 'msf_o5', 'spend', now(), pg_temp.msf_today(), 7000, 140, 1);
+
+select test.ok('P1 LV2 ยอดสะสม 2100: ขั้นถัดไป LV3 · ต้องซื้ออีก 900 · ความคืบหน้า 55%',
+  (pg_temp.msf_card('msf_lv2')->>'nextName') = 'LV3'
+  and (pg_temp.msf_card('msf_lv2')->>'toNext')::numeric = 900
+  and (pg_temp.msf_card('msf_lv2')->>'pct')::int = 55);
+select test.ok('P2 LV1 ยอดสะสม 500: ขั้นถัดไป LV2 · ต้องซื้ออีก 500 · ความคืบหน้า 50%',
+  (pg_temp.msf_card('msf_new')->>'nextName') = 'LV2'
+  and (pg_temp.msf_card('msf_new')->>'toNext')::numeric = 500
+  and (pg_temp.msf_card('msf_new')->>'pct')::int = 50);
+select test.ok('P3 ระดับสูงสุด LV4: ไม่มีขั้นถัดไป (nextName/toNext เป็น null) และความคืบหน้า 100%',
+  (pg_temp.msf_card('msf_top')->>'levelNo')::int = 4
+  and (pg_temp.msf_card('msf_top')->>'nextName') is null
+  and (pg_temp.msf_card('msf_top')->>'toNext') is null
+  and (pg_temp.msf_card('msf_top')->>'pct')::int = 100);
+select test.ok('P4 ป้ายระดับที่มีความคืบหน้ายังไม่มียอดสะสม (ไม่มีคีย์ cum)',
+  not (pg_temp.msf_card('msf_lv2') ? 'cum') and not (pg_temp.msf_card('msf_top') ? 'cum'));
+select pg_temp.msf_mode('off');
+select test.ok('P5 โหมดปิด: ไม่ส่งความคืบหน้า (enabled = false และไม่มีคีย์ nextName)',
+  (pg_temp.msf_card('msf_lv2')->>'enabled')::boolean = false
+  and not (pg_temp.msf_card('msf_lv2') ? 'nextName'));
+
 rollback;

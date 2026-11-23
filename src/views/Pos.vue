@@ -11,6 +11,7 @@ import {
 } from '../data/store'
 import { activeSecondsLeft, expiringSoon, pointBalance, conversionPlan } from '../lib/loyalty'
 import { staffCardRemote, quoteRemote } from '../lib/memberRemote'
+import { displayMember } from '../lib/displayMember'
 import { orderTotals, discountLines } from '../lib/pricing'
 import { pointPromoFor } from '../lib/posPromo'
 import { coBought, rankSellers, suggestBundles } from '../lib/posRec'
@@ -445,6 +446,8 @@ watch(() => [member.value?.id, earn.value?.base, orderLike.value.vat?.rate], ([i
 })
 onBeforeUnmount(() => clearTimeout(quoteTimer))
 const earnShown = computed(() => (earn.value && quoteMult.value.applied ? pointsFor(orderLike.value, new Date(), Number(quoteMult.value.mult) || 1) : null))
+// ข้อมูลสมาชิกบนจอลูกค้า (ปิดบังแล้ว) · แต้มที่บิลนี้จะได้ (รวมตัวคูณเมื่อใช้จริง)
+const memberOnDisplay = computed(() => (member.value ? displayMember(member.value, staffCard.value, earnShown.value?.points ?? earn.value?.points ?? 0) : null))
 
 // ---------- ชำระเงิน ----------
 const payOpen = ref(false)
@@ -756,21 +759,23 @@ watch(() => payLines.value.filter((l) => l.confirmed).map((l) => l.key), (keys) 
 })
 const displayState = computed(() => {
   const shopName = db.shop?.name || ''
-  if (thanks.value.until > Date.now()) return { status: 'thanks', shopName, total: thanks.value.total, saved: thanks.value.saved }
-  if (payOpen.value && paidFlash.value.until > Date.now()) return { status: 'paid', shopName, amount: paidFlash.value.amount, total: total.value, remaining: remaining.value }
+  if (thanks.value.until > Date.now()) return { status: 'thanks', shopName, total: thanks.value.total, saved: thanks.value.saved, member: thanks.value.member || null }
+  if (payOpen.value && paidFlash.value.until > Date.now()) return { status: 'paid', shopName, amount: paidFlash.value.amount, total: total.value, remaining: remaining.value, member: memberOnDisplay.value }
   if (payOpen.value) {
     const bid = billerIdOf(db.shop?.billerId)
     const qrLine = payLines.value.find((l) => l.method === 'transfer' && l.qrRef && !l.confirmed && l.status !== 'cancelled')
     const qrAmount = qrLine ? lineAmt(qrLine) : 0
     return {
-      status: 'paying', shopName, total: total.value, remaining: remaining.value,
+      status: 'paying', shopName, member: memberOnDisplay.value, total: total.value, remaining: remaining.value,
       lines: displayLines.value, pricing: displayPricing.value,
       payLines: payLines.value.map((l) => ({ method: POS_METHODS[l.method], amount: lineAmt(l), done: !!l.confirmed })),
       qr: qrLine && bid && qrAmount > 0 ? { amount: qrAmount, payload: promptPayBillerPayload(bid, qrAmount, db.shop?.merchantCode || '', qrLine.qrRef) } : null,
     }
   }
-  if (cart.value.length) return { status: 'shopping', shopName, total: total.value, lines: displayLines.value, pricing: displayPricing.value, suggest: displaySuggest.value }
-  // ว่าง: ส่งสื่อโฆษณา (ถ้าเปิดใช้) ให้จอลูกค้าวนแสดง · มีสินค้าในตะกร้าเมื่อไรจอสลับเป็นรายการทันที
+  if (cart.value.length) return { status: 'shopping', shopName, member: memberOnDisplay.value, total: total.value, lines: displayLines.value, pricing: displayPricing.value, suggest: displaySuggest.value }
+  // ว่าง: เลือกสมาชิกแล้วแต่ยังไม่มีสินค้า → แสดงข้อมูลสมาชิก (ไม่เล่นโฆษณาทับ) · ไม่มีสมาชิก: ส่งสื่อโฆษณา (ถ้าเปิดใช้) ให้จอวนแสดง
+  // มีสินค้าในตะกร้าเมื่อไรจอสลับเป็นรายการทันที
+  if (member.value) return { status: 'idle', shopName, member: memberOnDisplay.value }
   return { status: 'idle', shopName, ads: adsForDisplay(db.storefront?.displayAds) }
 })
 watch(displayState, (st) => { if (native) pushDisplay(st) }, { deep: true })
@@ -972,7 +977,9 @@ async function sellNow(opts = {}) {
   receiptLucky.value = lucky ? { orderId: o.id, url: lucky.url } : null
   if (native && !opts.partial) {
     const oT = orderTotals(o)
-    thanks.value = { until: Date.now() + 8000, total: oT.total, saved: (oT.discountLines || []).reduce((sum, l) => sum + (Number(l.amount) || 0), 0) }
+    // สมาชิก: เก็บแต้มของบิลนี้ไว้ก่อนล้างตะกร้า · ไม่เก็บความคืบหน้า (ยังไม่รู้ยอดสะสมหลังบิลนี้)
+    const mem = memberOnDisplay.value
+    thanks.value = { until: Date.now() + 8000, total: oT.total, saved: (oT.discountLines || []).reduce((sum, l) => sum + (Number(l.amount) || 0), 0), member: mem ? { ...mem, tier: null } : null }
     clearTimeout(thanksTimer)
     thanksTimer = setTimeout(() => { thanks.value = { until: 0, total: 0, saved: 0 } }, 8000)
     if (canAutoPrint('posReceipt')) printOrderReceipt(o, { section: 'posReceipt', luckyUrl: lucky?.url || '' }).catch((e) => showToast(`พิมพ์ใบเสร็จไม่สำเร็จ: ${e.message || e}`))

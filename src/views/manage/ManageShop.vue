@@ -23,7 +23,7 @@ const shopAddrChoices = computed(() => [
 const prepCats = [...new Set(db.retailItems.map((x) => x.category).filter(Boolean))]
 const togglePrep = (c) => { const a = st.prepCategories || []; st.prepCategories = a.includes(c) ? a.filter((x) => x !== c) : [...a, c] }
 const serverScheduled = computed(() => db.scheduled?.server === true)
-const st = reactive({ ...db.shop, prepCategories: [...(db.shop.prepCategories || [])], pickupRemindHours: db.shop.pickupRemindHours ?? 24, chatAutoHideHours: db.shop.chatAutoHideHours ?? 24, customerLazy: db.shop.customerLazy === true, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, lineRetentionDays: db.shop.lineRetentionDays ?? 180, merchantCode: db.shop.merchantCode ?? '', billerId: db.shop.billerId ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
+const st = reactive({ ...db.shop, prepCategories: [...(db.shop.prepCategories || [])], chatAutoHideHours: db.shop.chatAutoHideHours ?? 24, customerLazy: db.shop.customerLazy === true, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, lineRetentionDays: db.shop.lineRetentionDays ?? 180, merchantCode: db.shop.merchantCode ?? '', billerId: db.shop.billerId ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
 // ---- วัน-เวลาปิดร้าน ----
 const DOWS = [1, 2, 3, 4, 5, 6, 0] // จันทร์เริ่ม
 const flip = (arr, d) => (arr.includes(d) ? arr.splice(arr.indexOf(d), 1) : arr.push(d))
@@ -67,7 +67,7 @@ function save() {
   const mcCode = String(st.merchantCode || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase()
   if (mcCode && !/^[A-Z0-9]{6,20}$/.test(mcCode)) return (error.value = 'รหัสร้านค้าต้องเป็นตัวอักษรหรือตัวเลข 6–20 ตัว (เว้นว่างถ้าไม่ตรวจสลิป)')
   if (!(Number.isInteger(st.lineRetentionDays) && st.lineRetentionDays >= 7 && st.lineRetentionDays <= 365)) return (error.value = 'เก็บข้อความ LINE ได้ 7–365 วัน')
-  if (!(st.pickupRemindHours >= 1 && st.pickupRemindHours <= 72) || !(st.dueSoonHours >= 1 && st.dueSoonHours <= 12) || !(st.pointsExpireDays >= 1 && st.pointsExpireDays <= 90) || !(st.installmentAlertDays >= 0 && st.installmentAlertDays <= 30)) return (error.value = 'ตรวจเวลาแจ้งเตือน (นัดรับ 1–72 ชม. · งานใกล้เวลา 1–12 ชม. · คะแนนหมดอายุ 1–90 วัน · ผ่อนชำระ 0–30 วัน)')
+  if (!(st.dueSoonHours >= 1 && st.dueSoonHours <= 12) || !(st.pointsExpireDays >= 1 && st.pointsExpireDays <= 90) || !(st.installmentAlertDays >= 0 && st.installmentAlertDays <= 30)) return (error.value = 'ตรวจเวลาแจ้งเตือน (งานใกล้เวลา 1–12 ชม. · คะแนนหมดอายุ 1–90 วัน · ผ่อนชำระ 0–30 วัน)')
   if (!(Number(st.payDueMin) >= 1) || Number(st.payDueMin) > 10080) return (error.value = 'กำหนดชำระเริ่มต้นต้องอยู่ระหว่าง 1–10080 นาที')
   if (!(Number(st.posQrExpireMin) >= 1) || Number(st.posQrExpireMin) > 60) return (error.value = 'QR หน้าร้าน (POS) หมดอายุต้องอยู่ระหว่าง 1–60 นาที')
   if (!(Number(st.orderAutoPayDaysBefore) >= 0) || Number(st.orderAutoPayDaysBefore) > 30) return (error.value = 'ยืนยันออเดอร์อัตโนมัติ: ชำระก่อนวันนัดได้ 0–30 วัน')
@@ -165,7 +165,6 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         <p class="mb-3 text-xs text-stone-500">ค่าเริ่มต้นเท่าการทำงานเดิม · เกินกำหนดชำระใช้กำหนดชำระของออร์เดอร์ · ค่าใช้จ่ายประจำตั้งผ่อนผันรายการที่หน้าบัญชี</p>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="label">เตือนชำระ (พรุ่งนี้มีนัด) เวลา</label><input v-model="st.payReminderTime" type="time" class="input" /></div>
-          <div><label class="label">เตือนก่อนนัดรับ (ชม.)</label><input v-model.number="st.pickupRemindHours" type="text" v-num min="1" max="72" class="input" /></div>
           <div><label class="label">เตือนวันเกิดล่วงหน้า (วัน)</label><input v-model.number="st.birthdayDays" type="text" v-num min="0" class="input" /></div>
           <div><label class="label">คะแนนใกล้หมดอายุ (วันล่วงหน้า)</label><input v-model.number="st.pointsExpireDays" type="text" v-num min="1" max="90" class="input" /></div>
           <div><label class="label">งานใกล้เวลาต้องเสร็จ (ชม.)</label><input v-model.number="st.dueSoonHours" type="text" v-num min="1" max="12" class="input" /></div>

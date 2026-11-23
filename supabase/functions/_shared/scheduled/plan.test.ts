@@ -27,12 +27,6 @@ Deno.test('เวลาติดผนังของกรุงเทพอ่
   assert(Number.isNaN(instantOf('')))
 })
 
-Deno.test('เตือนนัดรับ: ภายใน 24 ชม. ก่อนนัดเท่านั้น', () => {
-  assertEquals(keys(run({ orders: [order({ pickupAt: '2026-11-15T10:00' })] })).includes('pickup|o1'), true) // 15.5 ชม.
-  assertEquals(keys(run({ orders: [order({ pickupAt: '2026-11-15T19:00' })] })).includes('pickup|o1'), false) // 24.5 ชม.
-  assertEquals(keys(run({ orders: [order({ pickupAt: '2026-11-14T10:00' })] })).includes('pickup|o1'), false) // นัดไปแล้ว
-})
-
 Deno.test('ใกล้เวลาต้องเสร็จ (ทีม): นัด − เวลาผลิต ภายใน 2 ชม.', () => {
   const soon = run({ orders: [order({ pickupAt: '2026-11-14T21:00' })] }).find((p) => p.key === 'due|o1')
   assertEquals(soon?.kind, 'team')
@@ -76,15 +70,16 @@ Deno.test('คะแนนใกล้หมดอายุ (ภายใน 30 
 })
 
 Deno.test('กันส่งซ้ำ: คีย์ที่ส่งแล้วไม่ถูกวางแผนซ้ำ', () => {
-  assertEquals(keys(run({ orders: [order({ pickupAt: '2026-11-15T10:00' })], sent: new Set(['pickup|o1']) })).includes('pickup|o1'), false)
+  assertEquals(keys(run({ orders: [order({ pickupAt: '2026-11-14T21:00' })], sent: new Set(['due|o1']) })).includes('due|o1'), false)
 })
 
-Deno.test('ข้อความ: เทมเพลต Facebook/SMS, ลิงก์ต่อท้าย, ตัดอีโมจิ, escape ของทีม', () => {
-  const rule = { event: 'pickup_reminder', channels: ['facebook', 'sms'], template: 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}', enabled: true }
+Deno.test('ข้อความ: เทมเพลต, ลิงก์ต่อท้าย (SMS), ตัดอีโมจิ, escape ของทีม', () => {
+  const rule = { event: 'shipping', channels: ['facebook', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ\nกำหนดถึง {วันนัด} เวลา {เวลานัด}', enabled: true }
   const v = orderVars(order(), {}, SHOP, CUSTOMER)
-  assertEquals(renderFor(rule, 'sms', v, '').text, 'เตือนนัดรับออร์เดอร์ OR-1 วันที่ 15-11-2569 เวลา 10:00')
-  assertEquals(renderFor(rule, 'facebook', v, '').text, 'เตือนนัดรับออร์เดอร์ OR-1\nวันที่ 15-11-2569 เวลา 10:00')
-  assertEquals(renderFor(rule, 'sms', v, 'https://x.test/#/o/T').text, 'เตือนนัดรับออร์เดอร์ OR-1 วันที่ 15-11-2569 เวลา 10:00\nดูออร์เดอร์: https://x.test/#/o/T')
+  const text = 'ออร์เดอร์ OR-1 ออกจัดส่งแล้วค่ะ\nกำหนดถึง 15-11-2569 เวลา 10:00'
+  assertEquals(renderFor(rule, 'sms', v, '').text, text)
+  assertEquals(renderFor(rule, 'facebook', v, '').text, text)
+  assertEquals(renderFor(rule, 'sms', v, 'https://x.test/#/o/T').text, text + '\nดูออร์เดอร์: https://x.test/#/o/T')
   assertEquals(channelTplOf(rule, 'sms'), rule.template)
   assertEquals(plainText('📍 ตรวจ ━━'), 'ตรวจ')
   assertEquals(escapeVars({ a: '<b> & c' }).a, '&lt;b&gt; &amp; c')

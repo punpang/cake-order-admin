@@ -41,7 +41,7 @@ const NOW = Date.parse('2026-11-14T18:30+07:00')
 const SHOP = { close: '20:00', leadPickup: 60, leadDelivery: 120, birthdayDays: 14, payReminderTime: '09:00' }
 const INTEG = { facebook: { enabled: true }, sms: { enabled: true }, telegram: { enabled: true } }
 const RULES = [
-  { event: 'pickup_reminder', channels: ['facebook', 'sms'], template: 'เตือนนัด{ส่งมอบ}ออร์เดอร์ {เลขออร์เดอร์} วันที่ {วันนัด} เวลา {เวลานัด}', enabled: true },
+  { event: 'shipping', channels: ['facebook', 'sms'], template: 'ออร์เดอร์ {เลขออร์เดอร์} ออกจัดส่งแล้วค่ะ กำหนดถึง {วันนัด} {เวลานัด}', enabled: true },
   { event: 'points_expiring', channels: ['facebook'], template: '{ชื่อลูกค้า} มี {คะแนน} คะแนนใกล้หมดอายุ', enabled: true },
   { event: 'team_due_soon', channels: ['telegram'], template: '[ใกล้เวลา] {เลขออร์เดอร์} ต้องเสร็จภายใน 2 ชม.', enabled: true },
   { event: 'pickup_off', channels: ['facebook'], template: 'x', enabled: false },
@@ -55,7 +55,7 @@ const CUST: Any = { id: 'c1', name: 'คุณมะลิ', phone: '0812345678'
 function ctxOf(sb: Any, over: Partial<Ctx> = {}): Ctx {
   return { sb, nowMs: NOW, rules: RULES, integrations: INTEG, chats: [], fb: null, gw: null, tg: null, siteUrl: 'https://site.test', ...over }
 }
-const plan = (over: Partial<Plan>): Plan => ({ key: 'k', kind: 'customer', event: 'pickup_reminder', orderId: 'o1', order: ORDER, customer: CUST, vars: { ชื่อลูกค้า: 'คุณมะลิ', เลขออร์เดอร์: 'OR-1', วันนัด: '15-11-2569', เวลานัด: '10:00', ส่งมอบ: 'รับ' }, ...over })
+const plan = (over: Partial<Plan>): Plan => ({ key: 'k', kind: 'customer', event: 'shipping', orderId: 'o1', order: ORDER, customer: CUST, vars: { ชื่อลูกค้า: 'คุณมะลิ', เลขออร์เดอร์: 'OR-1', วันนัด: '15-11-2569', เวลานัด: '10:00', ส่งมอบ: 'รับ' }, ...over })
 const outbox = (sb: Any) => sb.inserts.filter((i: Any) => i.table === 'punpang_records' && i.row.collection === 'outbox').map((i: Any) => i.row.data)
 const bells = (sb: Any) => sb.inserts.filter((i: Any) => i.table === 'punpang_records' && i.row.collection === 'bell').map((i: Any) => i.row.data)
 
@@ -67,7 +67,7 @@ Deno.test('Facebook ไม่มีแชท → คิวล้มเหลว 
   assertEquals([ob[0].channel, ob[0].status, ob[0].error], ['facebook', 'failed', 'ลูกค้ายังไม่มีแชท Facebook ที่ผูกไว้'])
   const bs = bells(sb)
   assertEquals(bs.some((b: Any) => b.audience === 'staff' && b.event === 'notify_failed'), true)
-  assertEquals(bs.some((b: Any) => b.audience === 'customer' && b.event === 'pickup_reminder' && b.customerId === 'c1'), true)
+  assertEquals(bs.some((b: Any) => b.audience === 'customer' && b.event === 'shipping' && b.customerId === 'c1'), true)
   assertEquals(sb.inserts.some((i: Any) => i.row.collection === 'orderLinks'), true) // ลิงก์ดูออร์เดอร์
 })
 
@@ -141,13 +141,13 @@ Deno.test('เปิดรับและมีเวลายินยอม �
   assertEquals(outbox(sb).length, 1)
 })
 
-Deno.test('ข้อความที่ไม่ใช่การตลาด (เตือนนัดรับ) ยังส่งได้แม้ลูกค้าไม่มีคีย์ความยินยอม', async () => {
+Deno.test('ข้อความที่ไม่ใช่การตลาด (ออกจัดส่ง) ยังส่งได้แม้ลูกค้าไม่มีคีย์ความยินยอม', async () => {
   const chat = { id: 'ch1', channel: 'facebook', external_id: CUST.fbPsid, customer_id: 'c1', data: { lastInboundAt: new Date(NOW - 3600e3).toISOString(), messages: [] }, updated_at: '2026-11-14T10:00:00Z' }
   const sb = fakeSb([chat])
   const cust: Any = { ...CUST }
   delete cust.promoOptIn
   await execPlan(ctxOf(sb, { chats: [chat] }), plan({ customer: cust }))
-  assertEquals(outbox(sb).length > 0, true) // เตือนนัดรับมีหลายช่องทาง (Facebook/SMS) ขอแค่ไม่ถูกบล็อก
+  assertEquals(outbox(sb).length > 0, true) // ออกจัดส่งมีหลายช่องทาง (Facebook/SMS) ขอแค่ไม่ถูกบล็อก
 })
 
 Deno.test('ทีม: Telegram ปิดอยู่ → ไม่ส่ง (มีแค่กระดิ่งทีม)', async () => {
@@ -160,7 +160,7 @@ Deno.test('ทีม: Telegram ปิดอยู่ → ไม่ส่ง (ม
 Deno.test('กันส่งซ้ำ: คีย์ที่จองไปแล้วถูกข้าม และไม่ส่งซ้ำ', async () => {
   const sb = fakeSb([])
   const ctx = ctxOf(sb, { rules: [{ ...RULES[0], channels: ['sms'] }] })
-  const p = plan({ key: 'pickup|o1' })
+  const p = plan({ key: 'ship|o1' })
   const first = await runPlans(ctx, [p])
   const second = await runPlans(ctx, [p])
   assertEquals([first.done, first.skipped], [1, 0])

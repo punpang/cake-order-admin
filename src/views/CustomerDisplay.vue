@@ -97,6 +97,9 @@ const THEME = {
 }
 const theme = computed(() => THEME[state.value.status] || THEME.idle)
 const remaining = computed(() => Number(state.value.remaining) || 0)
+// สมาชิก (ปิดบังแล้วจาก POS: ชื่อตัวแรก + เบอร์ 4 ตัวท้าย) · ระดับกับหลอดเลื่อนขั้นมีเฉพาะโหมดใช้จริง · ไม่มีสมาชิกไม่แสดง
+const member = computed(() => state.value.member || null)
+const tier = computed(() => member.value?.tier || null)
 const pricing = computed(() => state.value.pricing || { full: 0, discounts: [], saved: 0, surcharge: 0, vatMode: null, vatRate: 0, vat: 0 })
 const hasDiscount = computed(() => (pricing.value.discounts || []).length > 0)
 // โปรโมชั่นแนะนำให้ลูกค้าซื้อเพิ่ม (มาจาก POS: โปรที่ใกล้ถึง · บันเดิ้ล · ซื้อคู่กัน · ขายดีอันดับ 1)
@@ -193,6 +196,30 @@ watch(
     </header>
 
     <main class="flex min-h-0 flex-1 flex-col p-[clamp(0.4rem,1.2vh,0.9rem)]">
+      <!-- สมาชิก: ให้ลูกค้ารู้ว่าเป็นตัวเขา · จะได้แต้มเท่าไรในบิลนี้ · ระดับและหลอดเลื่อนขั้น (โหมดใช้จริง) -->
+      <section v-if="member" aria-label="ข้อมูลสมาชิก" class="mb-[clamp(0.3rem,1vh,0.6rem)] flex shrink-0 flex-wrap items-center gap-x-[clamp(0.6rem,2vw,1.4rem)] gap-y-[clamp(0.25rem,0.8vh,0.5rem)] rounded-2xl bg-white px-[clamp(0.7rem,2vw,1.2rem)] py-[clamp(0.3rem,1vh,0.6rem)] shadow-sm ring-1 ring-stone-200">
+        <div class="flex min-w-0 items-center gap-2">
+          <AppIcon name="user" :size="18" class="shrink-0 text-brand-700" />
+          <span class="truncate font-semibold text-stone-900 text-[clamp(0.9rem,2.6vh,1.2rem)]">{{ member.name }}</span>
+          <span class="shrink-0 tabular-nums text-stone-600 text-[clamp(0.8rem,2.2vh,1.05rem)]">{{ member.phone }}</span>
+        </div>
+        <template v-if="tier">
+          <span class="shrink-0 rounded-full bg-brand-100 px-3 py-0.5 font-semibold text-brand-800 text-[clamp(0.75rem,2vh,0.95rem)]">
+            {{ tier.levelName }}<template v-if="tier.mult > 1"> · x{{ tier.mult }}</template>
+          </span>
+          <div v-if="tier.nextName" class="flex min-w-0 flex-1 basis-48 items-center gap-2">
+            <div class="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-stone-200" role="progressbar" aria-label="ความคืบหน้าสู่ระดับถัดไป" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="tier.pct">
+              <div class="h-full rounded-full bg-brand-500 transition-[width] duration-500" :style="{ width: tier.pct + '%' }" />
+            </div>
+            <span class="shrink-0 whitespace-nowrap text-stone-700 text-[clamp(0.75rem,2vh,0.95rem)]">อีก <b class="text-stone-900">{{ money(tier.toNext) }}</b> ถึง {{ tier.nextName }}</span>
+          </div>
+          <span v-else class="shrink-0 font-semibold text-stone-700 text-[clamp(0.75rem,2vh,0.95rem)]">ระดับสูงสุด</span>
+        </template>
+        <span v-if="member.points > 0" class="ml-auto shrink-0 rounded-full bg-matcha-soft px-3 py-0.5 font-semibold text-stone-900 text-[clamp(0.75rem,2vh,0.95rem)]">
+          {{ state.status === 'thanks' ? 'ได้รับ' : 'จะได้รับ' }} {{ member.points.toLocaleString() }} แต้ม
+        </span>
+      </section>
+
       <!-- กำลังเลือกสินค้า: รายการ (ซ้าย) · สรุปยอดและโปรโมชั่น (ขวา) -->
       <div v-if="state.status === 'shopping'" class="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-[clamp(0.4rem,1.2vh,0.8rem)] grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <section class="@container flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-md">
