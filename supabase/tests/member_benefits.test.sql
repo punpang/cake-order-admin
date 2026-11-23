@@ -106,5 +106,64 @@ select test.ok('E4 ซื้อเดือนก่อนไม่ถึง 150
 select test.ok('F1 โบนัสไม่เข้าการคำนวณระดับ (ระดับของ mbn_lv ยังเป็น 4 จากยอดซื้อจริง)',
   (public.punpang__member_fold('mbn_lv', now())->>'level')::int = 4);
 
+-- ---------- G) สิทธิวันเกิด ----------
+-- เดือนเกิดของทดสอบ = เดือนปัจจุบัน (เวลาไทย) · เดือนอื่น = เดือนถัดไป
+create function pg_temp.mbn_month_other() returns int language sql as $$
+  select (extract(month from (now() at time zone 'Asia/Bangkok'))::int % 12) + 1
+$$;
+create function pg_temp.mbn_backdate(p_c text, p_days int) returns void language sql as $$
+  update public.punpang_customers
+     set data = jsonb_set(data, '{birth,setAt}', to_jsonb(((now() - make_interval(days => p_days)) at time zone 'utc')::text))
+   where id = p_c
+$$;
+create function pg_temp.mbn_bday_coupons(p_c text) returns int language sql as $$
+  select count(*)::int from public.punpang_records r
+   where r.collection = 'coupons' and r.data->>'customerId' = p_c and r.data->>'source' = 'member_birthday'
+$$;
+
+select pg_temp.mbn_cfg('live', '2026-01-01T00:00:00Z');
+select pg_temp.mbn_cust('mbn_b1');
+select test.ok('G1 ไม่ยินยอมหรือเดือนไม่ถูกต้องบันทึกไม่ได้',
+  (public.punpang_cust_set_birth('mbn_b1', 5, false)->>'ok')::boolean = false
+  and (public.punpang_cust_set_birth('mbn_b1', 13, true)->>'ok')::boolean = false);
+select test.ok('G2 บันทึกเดือนเกิดพร้อมยินยอมได้',
+  (public.punpang_cust_set_birth('mbn_b1', extract(month from (now() at time zone 'Asia/Bangkok'))::int, true)->>'ok')::boolean = true);
+-- เพิ่งกรอก → ยังไม่ใช้สิทธิ (ต้องครบ 30 วัน)
+select pg_temp.mbn_ev('mbn_b1', 'ob1a', pg_temp.mbn_d(2), 600);
+select test.ok('G3 กรอกไม่ถึง 30 วัน ยังไม่มีสิทธิเดือนเกิด', (public.punpang__member_fold('mbn_b1', now())->>'birthOk')::boolean = false);
+select pg_temp.mbn_backdate('mbn_b1', 31);
+select test.ok('G4 ครบ 30 วันแล้ว สิทธิเดือนเกิดเปิด (LV2 เป็น x4)',
+  (public.punpang__member_fold('mbn_b1', now())->>'birthOk')::boolean = true
+  and public.punpang__member_bill_mult(public.punpang__member_fold('mbn_b1', now()), 100, 140, public.punpang__member_cfg()) = 4);
+select test.ok('G5 บิลที่ไม่ถึงเดือนเกิดยังได้ตัวคูณระดับปกติ (x2 ที่ LV2)',
+  public.punpang__member_bill_mult(public.punpang__member_fold('mbn_b1', now()), 100, 140, public.punpang__member_cfg()) >= 2);
+-- แยกคำสั่ง: คำสั่งเดียวกันไม่เห็นการเขียนที่เพิ่งทำ
+select test.ok('G6a เปลี่ยนเดือนเกิดสำเร็จ', (public.punpang_cust_set_birth('mbn_b1', pg_temp.mbn_month_other(), true)->>'ok')::boolean = true);
+select test.ok('G6b เปลี่ยนเดือนเกิดแล้วเริ่มนับ 30 วันใหม่ (ยังไม่มีสิทธิ)',
+  (public.punpang__member_fold('mbn_b1', now())->>'birthOk')::boolean = false);
+
+-- คูปองเดือนเกิด LV4: ซื้อครบ 300 ในเดือนเกิด → 30 บาท (ออกทันทีที่ยอดถึง)
+select pg_temp.mbn_cust('mbn_b2');
+select public.punpang_cust_set_birth('mbn_b2', extract(month from (now() at time zone 'Asia/Bangkok'))::int, true);
+select pg_temp.mbn_backdate('mbn_b2', 31);
+select pg_temp.mbn_ev('mbn_b2', 'ob2a', pg_temp.mbn_d(40), 5000);      -- ถึง LV4 ก่อนเดือนเกิด (ไม่นับในเดือนเกิด)
+select test.ok('G7 ยอดเดือนเกิดยังไม่ถึง 300 ไม่ได้คูปอง', pg_temp.mbn_bday_coupons('mbn_b2') = 0);
+select pg_temp.mbn_ev('mbn_b2', 'ob2b', pg_temp.mbn_d(0), 299);
+select test.ok('G8 ยอดเดือนเกิด 299 ยังไม่ได้คูปอง', pg_temp.mbn_bday_coupons('mbn_b2') = 0);
+select pg_temp.mbn_ev('mbn_b2', 'ob2c', pg_temp.mbn_d(0), 1);
+select test.ok('G9 ยอดเดือนเกิดครบ 300 ได้คูปอง 30 บาท 1 ใบ',
+  pg_temp.mbn_bday_coupons('mbn_b2') = 1 and exists (select 1 from public.punpang_records r
+    where r.collection = 'coupons' and r.data->>'customerId' = 'mbn_b2' and r.data->>'source' = 'member_birthday'
+      and (r.data->>'amount')::numeric = 30 and r.data->>'mode' = 'fixed'));
+select test.ok('G10 เรียกซ้ำในปีเดียวกันไม่ออกซ้ำ', public.punpang__member_birth_coupon('mbn_b2', now()) = 0);
+
+-- ยอดเดือนก่อนหน้าไม่นับเป็นยอดเดือนเกิด
+select pg_temp.mbn_cust('mbn_b3');
+select public.punpang_cust_set_birth('mbn_b3', extract(month from (now() at time zone 'Asia/Bangkok'))::int, true);
+select pg_temp.mbn_backdate('mbn_b3', 31);
+select pg_temp.mbn_ev('mbn_b3', 'ob3a', pg_temp.mbn_d(40), 5000);
+select pg_temp.mbn_ev('mbn_b3', 'ob3b', pg_temp.mbn_d(0), 100);
+select test.ok('G11 ยอดซื้อนอกเดือนเกิดไม่นับ และยอดเดือนเกิดไม่ถึง 300 จึงไม่ได้คูปอง', pg_temp.mbn_bday_coupons('mbn_b3') = 0);
+
 rollback;
 select 'ผ่านทั้งหมด' as member_benefits_tests;
