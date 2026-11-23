@@ -1,7 +1,7 @@
 # บันทึกงาน cake-order-admin
 
 ## ดูก่อน (อ่านแค่ส่วนนี้ = Read offset 1, limit 20)
-- ล่าสุด 2026-11-23 · main = รอบ 2026-11-23 (ดู `git log -1`) · สาขาทำงาน `claude/fix-order-link-token` · production: migration สมาชิก 3 ไฟล์ (Release #21) · customer-auth v75 (Release #22) · migration `20261123100000` + sms-send ผ่าน Release `45115185945` · sms-probe ลบแล้ว (ผู้ใช้ลบเอง) · Cloudflare build ตรวจไม่ได้ (connector ขอสิทธิ์เพิ่ม)
+- ล่าสุด 2026-11-23 · main = `fc042fe` · สาขาทำงาน `claude/fix-order-link-token` · production: migration สมาชิก 3 ไฟล์ (Release #21) · customer-auth v75 (Release #22) · migration `20261123100000` + sms-send ผ่าน Release `45115185945` · sms-probe ลบแล้ว (ผู้ใช้ลบเอง) · Cloudflare build ตรวจไม่ได้ (connector ขอสิทธิ์เพิ่ม)
 - **ไม่ใช้ Vercel แล้ว** (ผู้ใช้แจ้ง 2026-11-23) · ไม่ต้องตรวจ deploy ผ่าน Vercel
 - **รอผู้ใช้:** ร้านเปิดใช้จริงเองตามคู่มือ (ข้ามทดลอง · อัตรา 25/0.10 และระดับ ร้านตั้งเอง · ข้อ 8 ข้อความยาว) · ตัดสิน zen ส่วนที่ยังไม่ merge (ดู 2026-11-23)
 - **ปิดแล้ว:** B13 cron timeout · B12 ดัชนีเบอร์ลูกค้ามีบน production · B6 แผนฟรี ยอมรับความเสี่ยง ไม่ถามซ้ำ
@@ -11,6 +11,20 @@
 - **ขนาด:** บล็อกนี้ ≤ 3 KB · ไฟล์นี้ ≤ 30 KB หรือ ≤ 10 รายการ · เกินให้ย้ายรายการเก่าไป `WORKLOG-archive-YYYY-MM.md`
 - **ป้ายระบบ:** ใส่ในหัวรายการ [ลูกค้า] [LIFF] [ครัว] [POS] [ออร์เดอร์] [SMS] [Release] [DB] [ระบบ] · ค้นงานระบบเดียว: `grep -n '\[ครัว\]' docs/worklog/*.md`
 - **การถามผู้ใช้:** ถามเป็นข้อ ๆ (หน้าต่างคำถาม) ข้อละ 2–4 ตัวเลือก · ตัวเลือกที่ดีที่สุดอยู่ข้อแรกพร้อม "(แนะนำ)" และเหตุผลสั้น ๆ · ถามเฉพาะเรื่องที่ผู้ใช้ต้องตัดสิน
+
+---
+
+## 2026-11-23 · [ระบบ][Release] สรุปส่งต่อแชท: merge/deploy เสร็จ · งานค้างและเจ้าของงาน
+
+**ทำอะไร:** merge zen บางส่วนเข้า main (`fc042fe`) · ลบแถว pickup บน production (ตรวจซ้ำแล้ว) · ผู้ใช้ลบ sms-probe เองใน Dashboard · จดว่าไม่ใช้ Vercel (`274f096` บนสาขา `claude/fix-order-link-token` ยังไม่ ff เข้า main)
+**เหตุผล:** ผู้ใช้สั่ง merge/deploy ทั้งหมดที่ค้าง · เลือก zen เฉพาะส่วนที่ไม่ชนกัน · ผู้ใช้ไม่ใช้ Vercel แล้ว
+**ผล:** Release `45115185945` ผ่าน (migration `20261123100000` + function 8 ตัว + sms-send) · production: กฎแจ้งเตือน 47 ข้อ ไม่มี `pickup_reminder` · `shop` ไม่มี `pickupRemindHours` · `npm test` 100 ไฟล์ผ่าน · build ผ่าน · bundle 884.6 / 886 KB · trigger ตรวจ Release ทำงานแล้วและปิดตัวเอง
+**รอ:** ผู้ใช้ตัดสิน zen ที่ยังไม่ merge · ร้านเปิดใช้ระดับสมาชิกจริงเองตามคู่มือ
+**งานค้าง:**
+- sms-send บน production ยังไม่ได้ทดสอบจริง
+- ตรวจสถานะ Release run ผ่าน GitHub ไม่ได้ (MCP เชื่อมต่อไม่ได้) ใช้ผลจากบันทึก
+- zen ที่ยังไม่ merge: migration `20261122110100_punpang_member_award.sql` (เลขเวอร์ชันชนกับ migration ที่รันแล้ว) · `docs/vat-refund-buyer.md` (ต้องยืนยันถ้อยคำกฎหมาย) · `package.json` และ e2e `memberTier`/`supabaseMock` (ยังไม่ตรวจ)
+- main ยังไม่มี commit `274f096` ถ้าต้องการให้ ff ได้
 
 ---
 
