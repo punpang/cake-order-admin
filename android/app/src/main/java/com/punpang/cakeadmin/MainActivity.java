@@ -19,6 +19,21 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(CustomerDisplayPlugin.class);
         super.onCreate(savedInstanceState);
         keepClearOfStatusBar();
+        hideNavigationBar();
+    }
+
+    // ซ่อนแถบนำทางล่าง (ปุ่มกลับ/หน้าแรก/เมนู) · ปัดขอบล่างขึ้นเพื่อแสดงชั่วคราว แล้วซ่อนเองอัตโนมัติ
+    private void hideNavigationBar() {
+        WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        controller.hide(WindowInsetsCompat.Type.navigationBars());
+    }
+
+    // แถบจะกลับมาเมื่อเปิดป๊อปอัปของระบบ (เช่น ขอสิทธิ์) จึงซ่อนใหม่ทุกครั้งที่หน้าต่างกลับมาโฟกัส
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) hideNavigationBar();
     }
 
     // แถบบนของระบบ (นาฬิกา สัญญาณ) แสดงตามปกติ · เว้นพื้นที่ด้านบนเท่าความสูงของแถบนั้น เนื้อหาแอปจึงไม่ทับ

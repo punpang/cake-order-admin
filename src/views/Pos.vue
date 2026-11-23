@@ -986,10 +986,20 @@ async function sellNow(opts = {}) {
   waitSaved().then((r) => { if (!r.ok) showToast(`บิล ${o.code} ยังไม่ถูกบันทึกขึ้นเซิร์ฟเวอร์ (${r.error}) · ตรวจสอบบิลนี้ก่อนปิดการขาย ดูสถานะที่แถบด้านบน`, 12000, 'error') })
   return o
 }
-const print = () => {
+// กำลังส่งงานพิมพ์: ปุ่มเปลี่ยนเป็น "กำลังพิมพ์…" และกดซ้ำไม่ได้ (กันพิมพ์ซ้ำ) · เสร็จแล้วแจ้งผลด้วยข้อความ
+const printing = ref(false)
+const print = async () => {
   if (!native) return window.print()
-  if (!receipt.value) return
-  printOrderReceipt(receipt.value, { section: 'posReceipt', luckyUrl: receiptLuckyUrl.value }).catch((e) => showToast(`พิมพ์ไม่สำเร็จ: ${e.message || e}`))
+  if (!receipt.value || printing.value) return
+  printing.value = true
+  try {
+    await printOrderReceipt(receipt.value, { section: 'posReceipt', luckyUrl: receiptLuckyUrl.value })
+    showToast('ส่งใบเสร็จไปเครื่องพิมพ์แล้ว', 3000)
+  } catch (e) {
+    showToast(`พิมพ์ไม่สำเร็จ: ${e.message || e}`, 8000, 'error')
+  } finally {
+    printing.value = false
+  }
 }
 
 // ---------- บิลของกะ ----------
@@ -1040,7 +1050,8 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
   <div v-else class="mx-auto max-w-page px-4 pt-3 lg:px-8" :class="tab === 'sell' && shift ? 'flex h-full flex-col overflow-hidden' : 'h-full overflow-y-auto'">
     <!-- หัว -->
-    <div class="head-safe mb-3 flex shrink-0 flex-wrap items-center gap-2">
+    <!-- เว้นขวาให้ปุ่มกระดิ่ง + เมนูที่ลอยมุมขวาบน (แนวนอนก็ต้องเว้น ไม่งั้นทับแท็บ "สรุปกะ") -->
+    <div class="head-safe mb-3 flex shrink-0 flex-wrap items-center gap-2 pr-28">
       <RouterLink to="/admin/orders" class="flex h-10 w-10 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 md:hidden" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
       <h1 class="page-title">POS หน้าร้าน</h1>
       <span v-if="shift" class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 max-sm:hidden">กะเปิด {{ timeOnly(shift.openedAt) }} · {{ ROLES[shift.openedBy] }}</span>
@@ -1655,24 +1666,22 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                   <p class="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700">QR หมดอายุแล้ว สร้าง QR ใหม่ให้ลูกค้าสแกน</p>
                   <button type="button" class="btn-primary h-12 w-full" @click="makeQr(l)">สร้าง QR ใหม่</button>
                 </div>
-                <div v-else class="flex items-center justify-center gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-amber-900 landscape:justify-start">
+                <div v-else class="flex items-center justify-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-amber-900 landscape:justify-start">
                   <span class="relative grid h-3 w-3 place-items-center" aria-hidden="true"><span class="motion-safe:animate-ping absolute inset-0 rounded-full bg-amber-400/70" /><span class="relative h-2.5 w-2.5 rounded-full bg-amber-500" /></span>
-                  <span class="font-semibold">รอลูกค้าโอน</span>
-                  <span class="text-sm">· หมดอายุใน <b class="tabular-nums">{{ qrLeft(l) }}</b></span>
+                  <span class="text-lg font-semibold">รอลูกค้าโอน</span>
+                  <span class="text-base">· หมดอายุใน <b class="text-lg tabular-nums">{{ qrLeft(l) }}</b></span>
                 </div>
                 <p v-if="customerScreen && !expiredLine(l)" class="rounded-xl bg-brand-50 p-2.5 text-sm font-medium text-brand-800">QR แสดงที่จอลูกค้าแล้ว ให้ลูกค้าสแกนที่จอนั้น</p>
-                <p v-if="!expiredLine(l)" class="text-xs text-stone-500">ระบบตรวจการโอนเข้าให้อัตโนมัติ ไม่ต้องกดอะไร</p>
+                <p v-if="!expiredLine(l)" class="text-sm text-stone-600">ระบบตรวจการโอนเข้าให้อัตโนมัติ ไม่ต้องกดอะไร</p>
                 <div v-if="!expiredLine(l) && (l.candidates || []).length > 1" class="space-y-2">
                   <p class="text-sm font-medium text-amber-800">พบหลายรายการที่ตรง เลือกรายการที่ใช่</p>
                   <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-11 w-full items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-4" @click="pickManee(l, c)">
                     <span>{{ timeOnly(c.received_at) }}</span><span class="font-semibold">เลือก</span>
                   </button>
                 </div>
-                <button v-if="!expiredLine(l) && !binding" type="button" class="btn-outline h-auto min-h-11 w-full py-2 whitespace-normal" @click="receiveNow(l)">ลูกค้าโอนแล้วแต่ระบบยังไม่พบ (ตรวจสลิปแล้ว)</button>
-                <div class="grid grid-cols-2 gap-2">
-                  <button v-if="!binding" type="button" class="btn-outline h-11" @click="splitTransfer(l)">แบ่งจ่าย (เปลี่ยนยอด)</button>
-                  <button v-if="!l.detectedAt && !l.confirmed && !binding" type="button" class="btn-outline h-11 text-rose-700" @click="backToMethods(l)">ยกเลิก QR</button>
-                </div>
+                <button v-if="!expiredLine(l) && !binding" type="button" class="btn-primary h-auto min-h-14 w-full py-3 whitespace-normal text-base" @click="receiveNow(l)"><AppIcon name="check" :size="18" /> ลูกค้าโอนแล้วแต่ระบบยังไม่พบ (ตรวจสลิปแล้ว)</button>
+                <button v-if="!binding" type="button" class="btn-outline h-11 w-full" @click="splitTransfer(l)">แบ่งจ่าย (เปลี่ยนยอด)</button>
+                <button v-if="!l.detectedAt && !l.confirmed && !binding" type="button" class="w-full py-2 text-sm font-medium text-rose-700 underline" @click="backToMethods(l)">ยกเลิก QR</button>
               </div>
             </div>
           </template>
@@ -1704,7 +1713,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <template #footer>
         <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
           <div class="flex gap-2">
-            <button class="btn-soft h-11 flex-1 sm:flex-none sm:px-4" @click="print"><AppIcon name="printer" :size="18" /> พิมพ์</button>
+            <button class="btn-soft h-11 flex-1 sm:flex-none sm:px-4" :disabled="printing" :aria-busy="printing" @click="print"><AppIcon name="printer" :size="18" /> {{ printing ? 'กำลังพิมพ์…' : 'พิมพ์' }}</button>
             <button v-if="taxable(receipt)" class="btn-soft h-11 flex-1 sm:flex-none sm:px-4" @click="taxFor = receipt">ใบกำกับภาษีเต็มรูป</button>
           </div>
           <button class="btn-primary h-12 w-full sm:min-w-[8rem] sm:flex-1" @click="receipt = null">ขายต่อ</button>
