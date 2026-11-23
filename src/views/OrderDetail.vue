@@ -26,6 +26,7 @@ import { orderCost } from '../lib/materials'
 import { money, dateTime, toDateStr, pad, num, formatPhone, phoneDigits } from '../lib/format'
 import { PAYMENT_METHODS, ROLES } from '../lib/constants'
 import StatusBadge from '../components/StatusBadge.vue'
+import OrderHistory from '../components/OrderHistory.vue'
 import PayDueBadge from '../components/PayDueBadge.vue'
 import DiscountDetail from '../components/DiscountDetail.vue'
 import ItemCard from '../components/ItemCard.vue'
@@ -522,16 +523,7 @@ async function saveCancel() {
         </section>
 
         <!-- ประวัติ (คอม) -->
-        <section class="card hidden lg:block">
-          <div class="card-title"><AppIcon name="history" class="text-brand-600" /> ประวัติ</div>
-          <ol class="relative space-y-3 border-l-2 border-stone-100 pl-4">
-            <li v-for="(h, i) in order.history.slice().reverse()" :key="i" class="relative">
-              <span class="absolute top-1.5 -left-[21px] h-2.5 w-2.5 rounded-full ring-4 ring-white" :class="i === 0 ? 'bg-brand-500' : 'bg-stone-300'" />
-              <div class="text-sm break-words text-stone-800">{{ h.text }}</div>
-              <div class="text-xs text-stone-400">{{ dateTime(h.at) }} · {{ ROLES[h.by] ?? 'ระบบอัตโนมัติ' }}</div>
-            </li>
-          </ol>
-        </section>
+        <OrderHistory class="hidden lg:block" :history="order.history" />
       </div>
 
       <!-- ขวา -->
@@ -624,8 +616,8 @@ async function saveCancel() {
 
         <!-- การชำระเงิน -->
         <section class="card">
-          <div class="mb-3 flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2 text-[15px] font-semibold text-stone-900"><AppIcon name="wallet" class="text-brand-600" /> การชำระเงิน</div>
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex shrink-0 items-center gap-2 text-[15px] font-semibold whitespace-nowrap text-stone-900"><AppIcon name="wallet" class="text-brand-600" /> การชำระเงิน</div>
             <div class="flex flex-wrap justify-end gap-2">
             <button
               v-if="can('reportPayment') && order.status !== 'draft' && order.status !== 'cancelled' && t.balance > 0"
@@ -709,16 +701,7 @@ async function saveCancel() {
         </section>
 
         <!-- ประวัติ (มือถือ) -->
-        <section class="card lg:hidden">
-          <div class="card-title"><AppIcon name="history" class="text-brand-600" /> ประวัติ</div>
-          <ol class="relative space-y-3 border-l-2 border-stone-100 pl-4">
-            <li v-for="(h, i) in order.history.slice().reverse()" :key="i" class="relative">
-              <span class="absolute top-1.5 -left-[21px] h-2.5 w-2.5 rounded-full ring-4 ring-white" :class="i === 0 ? 'bg-brand-500' : 'bg-stone-300'" />
-              <div class="text-sm break-words text-stone-800">{{ h.text }}</div>
-              <div class="text-xs text-stone-400">{{ dateTime(h.at) }} · {{ ROLES[h.by] ?? 'ระบบอัตโนมัติ' }}</div>
-            </li>
-          </ol>
-        </section>
+        <OrderHistory class="lg:hidden" :history="order.history" />
       </div>
     </div>
 
