@@ -99,10 +99,12 @@ const summary = computed(() => {
 
 <template>
   <div>
-    <div class="head-safe mb-3 min-w-0">
-      <h1 class="page-title">ชำระเงิน</h1>
-      <p class="text-sm text-stone-500">เฉพาะออร์เดอร์ · ไม่รวมบิล POS</p>
-      <router-link v-if="canReport" to="/admin/qr" class="btn-soft mt-2 inline-flex">สร้าง QR ชำระ</router-link>
+    <div class="head-safe mb-3 flex min-w-0 flex-wrap items-end justify-between gap-3">
+      <div class="min-w-0">
+        <h1 class="page-title">ชำระเงิน</h1>
+        <p class="text-sm text-stone-500">เฉพาะออร์เดอร์ · ไม่รวมบิล POS</p>
+      </div>
+      <router-link v-if="canReport" to="/admin/qr" class="btn-soft inline-flex">สร้าง QR ชำระ</router-link>
     </div>
 
     <div class="mb-3 grid grid-cols-3 gap-1 seg-grid md:max-w-xl" role="group" aria-label="กรองการชำระเงิน">
@@ -139,7 +141,7 @@ const summary = computed(() => {
         <div class="font-semibold text-stone-800">{{ q.trim() ? 'ไม่พบออร์เดอร์' : EMPTY[tab] }}</div>
       </div>
 
-      <ul v-else class="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3" aria-label="รายการชำระเงิน">
+      <ul v-else class="grid grid-cols-1 gap-3 lg:grid-cols-3 2xl:grid-cols-4" aria-label="รายการชำระเงิน">
         <li v-for="r in rows" :key="r.o.id" class="card flex min-w-0 flex-col gap-3 p-3.5" :data-order="r.o.code">
           <!-- หัว: เวลานัด · ลูกค้า · สถานะ -->
           <div class="flex items-start gap-3">
@@ -236,7 +238,7 @@ const summary = computed(() => {
       <div v-else-if="!refundRows.length" class="empty py-12">
         <div class="font-semibold text-stone-800">ไม่พบออร์เดอร์ที่คืนเงินได้</div>
       </div>
-      <ul v-else class="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3" aria-label="ออร์เดอร์ที่คืนเงินได้">
+      <ul v-else class="grid grid-cols-1 gap-3 lg:grid-cols-3 2xl:grid-cols-4" aria-label="ออร์เดอร์ที่คืนเงินได้">
         <li v-for="r in refundRows" :key="r.o.id" class="card flex min-w-0 flex-col gap-3 p-3.5" :data-order="r.o.code">
           <div class="flex items-start gap-3">
             <div class="min-w-0 flex-1">
