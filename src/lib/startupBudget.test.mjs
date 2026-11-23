@@ -99,7 +99,8 @@ function bigData() {
 
 let vite
 const load = (p) => vite.ssrLoadModule(p)
-test.before(async () => { vite = await createServer({ root: ROOT, logLevel: 'error', server: { middlewareMode: true, hmr: false }, appType: 'custom' }) })
+// ไม่ให้ Vite สแกน dependency ตอนเริ่ม (ตัวสแกน esbuild ล้มเป็นระยะบน CI) · เทสต์โหลดซอร์สผ่าน ssrLoadModule ไม่ต้องใช้ dependency ที่ prebundle
+test.before(async () => { vite = await createServer({ root: ROOT, logLevel: 'error', server: { middlewareMode: true, hmr: false }, appType: 'custom', optimizeDeps: { noDiscovery: true, include: [] } }) })
 test.after(async () => { await vite?.close() })
 
 test('ออร์เดอร์: โหลดเฉพาะที่ยังไม่ปิด (ไม่ใช่ทั้ง 50,000 แถว)', async () => {
