@@ -5,7 +5,7 @@ import MoneyInput from './MoneyInput.vue'
 import { computed, ref } from 'vue'
 import { db, reportPayment } from '../data/store'
 import { orderTotals } from '../lib/pricing'
-import { shopRefOfCode } from '../lib/promptpay'
+import { holdOrderQr, orderQrPayload } from '../lib/customerDisplayQr'
 import { money } from '../lib/format'
 import BillerQr from './BillerQr.vue'
 
@@ -28,9 +28,13 @@ function make() {
   if (n == null || !Number.isFinite(n) || n <= 0) return (err.value = 'กรอกจำนวนเงินที่มากกว่า 0')
   const balance = orderTotals(props.order).balance
   if (n > balance + 0.004) return (err.value = `ยอดเกินคงค้าง (${money(balance)})`)
-  const r = reportPayment(props.order, { amount: n, method: 'โอนเงิน', notify: false })
+  const r = reportPayment(props.order, { amount: n, method: 'โอนเงิน', notify: false, orderQr: true })
   if (r.error) return (err.value = r.error)
   made.value = { amount: n, ref1: db.shop.merchantCode, ref2: r.qrRef }
+  // QR ค้างบนจอลูกค้า (จอที่ 2) จนกว่าจะชำระ/ยกเลิก/หมดเวลา
+  const payload = orderQrPayload(n, r.qrRef)
+  const dueAt = props.order.payments.find((x) => x.id === r.paymentId)?.dueAt
+  if (payload) holdOrderQr({ orderId: props.order.id, paymentId: r.paymentId, amount: n, payload, dueAt })
 }
 </script>
 

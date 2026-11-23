@@ -1291,6 +1291,7 @@ export function reportPayment(order, p) {
     reportedBy: session.role,
     confirmedBy: null,
     qrRef, // Ref 2 ของ QR งวดนี้ (POS/ORD + รหัสสุ่ม)
+    ...(p.orderQr === true ? { orderQr: true } : {}), // QR จากหน้าออร์เดอร์ → ยืนยันอัตโนมัติจากถุงเงินโดยไม่รอวันนัด
   }
   order.payments.push(pay)
   const due = pay.dueAt

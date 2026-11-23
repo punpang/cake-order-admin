@@ -5,6 +5,7 @@ import AppModal from './AppModal.vue'
 import PrintSectionDevice from './PrintSectionDevice.vue'
 import { can } from '../data/store'
 import { displayCount, showDisplay, hideDisplay } from '../lib/nativeDevices'
+import { setCustomerScreenOff } from '../lib/customerDisplayQr'
 import { SECTION_KEYS, SECTION_LABEL } from '../lib/printConfig'
 
 const emit = defineEmits(['close'])
@@ -24,6 +25,7 @@ async function openDisplay() {
   msg.value = ''
   try {
     await showDisplay()
+    setCustomerScreenOff(false)
     msg.value = 'เปิดจอลูกค้าแล้ว'
   } catch (e) {
     msg.value = errText(e, 'เปิดจอลูกค้าไม่สำเร็จ')
@@ -33,6 +35,7 @@ async function closeDisplay() {
   msg.value = ''
   try {
     await hideDisplay()
+    setCustomerScreenOff(true)
     msg.value = 'ปิดจอลูกค้าแล้ว'
   } catch (e) {
     msg.value = errText(e, 'ปิดจอลูกค้าไม่สำเร็จ')
