@@ -24,6 +24,8 @@ import LightboxHost from './components/LightboxHost.vue'
 import LoadingOverlay from './components/LoadingOverlay.vue'
 import NumPad from './components/NumPad.vue'
 import { attachNumPad } from './lib/numpad'
+import { startCustomerScreen } from './lib/customerDisplayQr'
+let stopCustomerScreen = () => {}
 import StoreLayout from './components/StoreLayout.vue'
 
 const roleOpen = ref(false)
@@ -55,6 +57,8 @@ const showBottom = computed(() => !route.meta.focus)
 // ตามขนาดส่วนที่มองเห็นจริงเมื่อแป้นพิมพ์เปิด ทุกหน้า (ป็อปอัป/แถบล่างไม่ถูกแป้นพิมพ์บัง) · หน้าล็อก (แชท) ซ่อนแถบเมนูล่างระหว่างพิมพ์
 const stopVv = watchViewport()
 onBeforeUnmount(() => stopVv())
+onMounted(() => { startCustomerScreen().then((stop) => { stopCustomerScreen = stop }) })
+onBeforeUnmount(() => stopCustomerScreen())
 // แป้นตัวเลขของแอป (บนอุปกรณ์สัมผัส): ช่องตัวเลขไม่เปิดแป้นพิมพ์ของระบบ เพื่อไม่ให้แถบ ↑ ↓ ✓ ของ iOS ขึ้น
 const stopNumPad = attachNumPad()
 onBeforeUnmount(() => stopNumPad())
