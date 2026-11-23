@@ -25,7 +25,8 @@ const defMethod = defaultRefundMethod(last?.posMethod || last?.method)
 const f = reactive({ reason: '', note: '', notify: true, sms: true, refunds: [] })
 const error = ref('')
 const history = computed(() => allReturnsOf(props.order))
-const more = computed(() => t.value.paidNet > 0) // ยังมียอดให้คืนเพิ่ม (ถ้าไม่เหลือ เหลือแต่รายการให้ยกเลิกการคืน)
+// คืนได้เฉพาะยอดสินค้า/ค่าบริการที่ชำระแล้ว (goodsPaidNet) · เงินพักไม่ปนในการคืนนี้ ให้แก้ที่ "แก้เงินพัก"
+const more = computed(() => t.value.goodsPaidNet > 0) // ยังมียอดให้คืนเพิ่ม (ถ้าไม่เหลือ เหลือแต่รายการให้ยกเลิกการคืน)
 const rcFor = ref(null)
 const invoice = computed(() => invoiceOfOrder(props.order.id))
 
@@ -65,7 +66,8 @@ function save() {
 <template>
   <AppModal :title="`คืนเงิน ${order.code}`" @close="emit('close')">
     <div class="space-y-4">
-      <p class="text-sm text-stone-600">คืนเงินบางส่วนโดยไม่ยกเลิก{{ isPos ? 'บิล' : 'ออร์เดอร์' }} (ไม่ตัดคะแนนที่ได้{{ isPos ? '' : ' · ไม่คืนสต็อก' }}) · ชำระสุทธิตอนนี้ <b class="text-stone-900">{{ money(t.paidNet) }}</b><template v-if="t.returned"> · คืนไปแล้ว {{ money(t.returned) }}</template></p>
+      <p class="text-sm text-stone-600">คืนเงินบางส่วนโดยไม่ยกเลิก{{ isPos ? 'บิล' : 'ออร์เดอร์' }} (ไม่ตัดคะแนนที่ได้{{ isPos ? '' : ' · ไม่คืนสต็อก' }}) · ชำระสุทธิตอนนี้ <b class="text-stone-900">{{ money(t.goodsPaidNet) }}</b><template v-if="t.returned"> · คืนไปแล้ว {{ money(t.returned) }}</template></p>
+      <p v-if="t.hold > 0" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">เงินพัก {{ money(t.hold) }} ไม่รวมในการคืนนี้ · แก้เงินพักได้ที่ "แก้เงินพัก" ในหน้าออร์เดอร์</p>
       <p v-if="invoice" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ออกใบกำกับภาษีไว้แล้ว ({{ invoice.no }}) · การคืนบางส่วนยังไม่ออกใบลดหนี้ให้อัตโนมัติ (ยกเลิกทั้งใบจึงจะออก) กรุณาตรวจกับผู้ทำบัญชี</p>
       <template v-if="more">
       <div v-if="showItems" class="space-y-2">
@@ -86,7 +88,7 @@ function save() {
       <div><label class="label" for="rf-reason">เหตุผล <span class="text-rose-600">*</span></label><input id="rf-reason" v-model="f.reason" class="input" maxlength="120" /></div>
       <div>
         <div class="label">คืนเงินให้ลูกค้า</div>
-        <RefundEditor v-model="f.refunds" :paid="t.paidNet" :can-credit="!!customer && !customer.deleted" :default-method="defMethod" />
+        <RefundEditor v-model="f.refunds" :paid="t.goodsPaidNet" :can-credit="!!customer && !customer.deleted" :default-method="defMethod" />
       </div>
       <div><label class="label" for="rf-note">หมายเหตุ</label><input id="rf-note" v-model="f.note" class="input" maxlength="120" /></div>
       <label v-if="customer" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="f.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่าคืนเงินแล้ว" /> แจ้งลูกค้าว่าคืนเงินแล้ว</label>

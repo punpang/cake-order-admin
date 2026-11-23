@@ -69,6 +69,7 @@ export function buildOrderFromDraft({
     shipPromo: p.shipPromo ?? null,
     promoOn: true,
     ...(p.birthdayDiscount ? { birthdayDiscount: p.birthdayDiscount } : {}), // ส่วนลดเดือนเกิด (ตรวจที่เซิร์ฟเวอร์)
+    ...(p.holdMoney ? { holdMoney: p.holdMoney } : {}), // เงินพัก (ซ่อนเงิน/ดึงเงิน) คิดจากธนบัตรที่เซิร์ฟเวอร์
     vat: p.vat !== undefined ? p.vat : null,
     adjustment: { amount: 0, reason: '' },
     pointsUsed: null, // คะแนนใช้กับออร์เดอร์ทีหลังผ่านเซิร์ฟเวอร์เท่านั้น

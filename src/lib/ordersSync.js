@@ -1,5 +1,6 @@
 import { startSync, selectAll, withVer, casUpdate, fillArray, tsMs, isTransientError } from './tableSync'
 import { orderRowOf, balanceOf } from './orderCreate.js'
+import { cashDraftOf } from './cashService.js'
 import { parseNo } from './docNo'
 import { orderTotals } from './pricing'
 import { STATUS } from './constants'
@@ -157,8 +158,11 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 
 // ข้อมูลที่เซิร์ฟเวอร์ต้องการเพื่อคิดราคาและบันทึกออร์เดอร์ใหม่ (ราคาที่แอปคิดไว้ไม่ถูกส่งเป็นราคาจริง)
 const DELIVERY_KEYS = ['address', 'shippingFee', 'placeName', 'mapUrl', 'detail', 'distanceKm', 'feeManual']
-function draftOf(o) {
-  const d = { customerId: o.customerId || '', fulfillment: o.fulfillment, pickupAt: o.pickupAt, birthday: o.birthday ? { name: o.birthday.name || '', md: o.birthday.md } : null, items: (o.items || []).map((i) => ({ ...i })), adjustment: o.adjustment || null }
+// ส่งให้เซิร์ฟเวอร์คิดใหม่: รายการบริการเกี่ยวกับเงินส่งเป็น cashService (ไม่ส่งเป็นรายการ) · เงินพักเซิร์ฟเวอร์คิดจากธนบัตรเอง
+export function draftOf(o) {
+  const d = { customerId: o.customerId || '', fulfillment: o.fulfillment, pickupAt: o.pickupAt, birthday: o.birthday ? { name: o.birthday.name || '', md: o.birthday.md } : null, items: (o.items || []).filter((i) => i?.kind !== 'service').map((i) => ({ ...i })), adjustment: o.adjustment || null }
+  const cs = cashDraftOf(o)
+  if (cs) d.cashService = cs
   for (const k of DELIVERY_KEYS) if (o[k] !== undefined) d[k] = o[k]
   return d
 }

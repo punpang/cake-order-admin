@@ -201,3 +201,38 @@ Deno.test('ลูกค้าที่ถูกลบแล้ว: ออร์�
   assertStringIncludes(reviews[0]?.reason_message ?? '', 'ไม่พบลูกค้า')
   assertEquals(rows.length, 0)
 })
+
+Deno.test('บริการเกี่ยวกับเงิน: เซิร์ฟเวอร์คิดค่าบริการและเงินพักจากการตั้งค่าและธนบัตร (ยอดที่เครื่องส่งมาถูกทิ้ง)', async () => {
+  reset()
+  const prevShop = cat.shop
+  cat.shop = { ...cat.shop, cashService: { maxNotes: 5, services: { hide: { fee: 50, show: true }, pull: { fee: 40, show: false }, stash: { fee: 30, show: false } } } }
+  try {
+    const numbering = numberingFor(true)
+    const o: any = newOrder(numbering.next('OR'))
+    // เครื่องส่งยอดและราคาปลอมมา: เซิร์ฟเวอร์ต้องคิดเงินพักจาก 1,000 บาท (ธนบัตร) และค่าบริการ 50 บาท (การตั้งค่า)
+    o.holdMoney = { kind: 'hide', notes: { 1000: 1 }, amount: 1 }
+    o.items = [...o.items, { id: 'svc-hide', kind: 'service', serviceKind: 'hide', name: 'ซ่อนเงิน', qty: 1, unitPrice: 1, regularPrice: 1, fullPrice: 1, mods: [], discounts: [], specials: [], bundles: [], noPoints: true }]
+    const r = await pushOrders(appClient('tok-staff', true), { upserts: [o] }, { numbering })
+    assertEquals(r, { ok: true })
+    const row: any = rows.at(-1)
+    assertEquals(row.data.holdMoney.amount, 1000)
+    const svcs = row.data.items.filter((i: any) => i.kind === 'service')
+    assertEquals(svcs.length, 1)
+    assertEquals(svcs[0].unitPrice, 50)
+  } finally {
+    cat.shop = prevShop
+  }
+})
+
+Deno.test('บริการเกี่ยวกับเงิน: รายการ kind service ที่ส่งมาจากเครื่องโดยตรงถูกปฏิเสธ และไม่มีอะไรถูกเขียน', async () => {
+  reset()
+  const numbering = numberingFor(true)
+  const o: any = newOrder(numbering.next('OR'))
+  const res = await handler(new Request('http://fn.fake/functions/v1/order-create', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: 'Bearer tok-staff', [TEST_HEADER]: 'test' },
+    body: JSON.stringify({ id: o.id, code: o.code, asDraft: false, by: 'ทดสอบ', draft: { customerId: o.customerId, fulfillment: o.fulfillment, pickupAt: o.pickupAt, birthday: null, items: [...o.items, { id: 'fake', kind: 'service', unitPrice: 1, qty: 1, name: 'ปลอม' }] } }),
+  }))
+  assertEquals(res.ok, false)
+  assertEquals(rows.length, 0)
+})

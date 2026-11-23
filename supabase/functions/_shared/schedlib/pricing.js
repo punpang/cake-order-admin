@@ -454,6 +454,13 @@ export function orderTotals(order) {
   const reported = r2(order.payments.filter((p) => p.status === 'reported').reduce((s, p) => s + p.amount, 0))
   const returned = r2((order.returns || []).filter((x) => !x.cancelled).reduce((s, x) => s + (Number(x.amount) || 0), 0)) // คืนเงินบางส่วนโดยไม่ยกเลิก
   const refunded = r2((Number(order.cancel?.refundAmount) || 0) + returned)
+  // เงินพัก (ซ่อนเงิน/ดึงเงิน): เป็นของลูกค้า ไม่ใช่รายได้ → ไม่เข้า total/VAT/กำไร · ลูกค้าต้องจ่ายรวมในยอดค้าง
+  const hold = r2(Number(order.holdMoney?.amount) || 0)
+  const payable = r2(total + hold)
+  // เงินพักที่คืนตอนลดเงินพัก (kind = hold) ลดยอดที่ต้องจ่ายไปแล้ว จึงไม่เปิดยอดค้างใหม่
+  const holdReturned = r2((order.returns || []).filter((x) => !x.cancelled && x.kind === 'hold').reduce((s, x) => s + (Number(x.amount) || 0), 0))
+  // ยอดสินค้าที่ชำระสุทธิ = ยอดชำระสุทธิ − เงินพักปัจจุบัน (เงินพักชำระก่อนเสมอ · ไม่ติดลบ)
+  const goodsPaidNet = r2(Math.max(0, paid - returned - hold))
   const paidNet = r2(paid - returned) // เงินที่ยังอยู่กับร้านหลังคืนบางส่วน (เพดานคืนเงินครั้งต่อไป/ตอนยกเลิก)
   // ราคาเต็ม + ส่วนลดทุกแหล่ง (ราคาพิเศษ/บันเดิ้ลรวมตามชื่อ, ปรับราคาที่ติดลบ, คะแนน, คูปอง)
   const full = order.items.reduce((s, i) => s + (i.fullPrice ?? i.unitPrice) * i.qty, 0)
@@ -471,7 +478,7 @@ export function orderTotals(order) {
   const discountTotal = discountLinesAll.reduce((s, l) => s + l.amount, 0) + (full - subtotal - itemDiscounts.reduce((s, l) => s + l.amount, 0))
   const netGoods = itemNets(order).reduce((a, b) => a + b, 0)
   const fullAll = full + shipFee + Math.max(adjustment, 0) + vatAdd // ราคาเต็มรวมค่าส่ง/VAT (ใช้เทียบกับยอดสุทธิในป้ายส่วนลด)
-  return { vat, vatAdd, vatRate: vatMode ? rate : 0, vatMode, beforeVat, fullAll, netGoods, subtotal, shipping, adjustment, pointsDiscount, couponDiscount, total, paid, paidNet, returned, reported, refunded, balance: r2(total - paid), full, itemDiscounts, discountLines: discountLinesAll, discountTotal }
+  return { vat, vatAdd, vatRate: vatMode ? rate : 0, vatMode, beforeVat, fullAll, netGoods, subtotal, shipping, adjustment, pointsDiscount, couponDiscount, total, paid, paidNet, returned, reported, refunded, balance: r2(payable - paid + holdReturned), hold, payable, holdReturned, goodsPaidNet, full, itemDiscounts, discountLines: discountLinesAll, discountTotal }
 }
 
 // แปลงตัวเลือกเป็นข้อความอ่านง่าย (หลายชั้นขึ้นต้นด้วย "ชั้น n")

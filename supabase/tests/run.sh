@@ -209,6 +209,11 @@ npcode=$?
 [ "$npcode" = "0" ] && echo "✓ no_points.test.sql ผ่านทั้งหมด" || echo "✗ no_points.test.sql ล้มเหลว"
 [ "$npcode" = "0" ] || exit "$npcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/hold_money.test.sql
+hmcode=$?
+[ "$hmcode" = "0" ] && echo "✓ hold_money.test.sql ผ่านทั้งหมด" || echo "✗ hold_money.test.sql ล้มเหลว"
+[ "$hmcode" = "0" ] || exit "$hmcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"

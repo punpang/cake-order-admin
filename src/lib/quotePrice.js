@@ -9,6 +9,7 @@ import { cleanDelivery } from './delivery.js'
 import { closureAt } from './shopHours.js'
 import { toDateStr } from './format.js'
 import { birthCakeDiscount } from './birthdayBenefit.js'
+import { cashServiceOf } from './cashService.js'
 
 const TH_MS = 7 * 3600000
 const TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/ // เวลานัดไม่มีโซน (เวลาไทย)
@@ -162,6 +163,9 @@ export function buildQuotePayload({ draft, customerId, catalog, nowMs, checkClos
     items.push(r.item)
   }
   if (!items.length) return fail('ใบเสนอต้องมีรายการสินค้า')
+  // บริการเกี่ยวกับเงิน: ค่าบริการเป็นรายการ (ราคาจากการตั้งค่าร้าน) · เงินพักคิดจากธนบัตรที่นี่ · รายการ kind 'service' จากเครื่องถูกปฏิเสธแล้วด้านบน
+  const cash = cashServiceOf(d.cashService, cat.shop)
+  if (!cash.ok) return fail(cash.error)
 
   const wall = bkkWall(nowMs)
   const dateStr = toDateStr(wall)
@@ -178,7 +182,8 @@ export function buildQuotePayload({ draft, customerId, catalog, nowMs, checkClos
     fulfillment: d.fulfillment,
     ...deliveryFieldsOf(d),
     birthday: cleanBirthday(d.birthday),
-    items: w.items,
+    items: cash.item ? [...w.items, cash.item] : w.items,
+    ...(cash.holdMoney ? { holdMoney: cash.holdMoney } : {}),
     shipPromo: w.shipPromo,
     promoOn: true,
     vat: vatOf(cat.shop),

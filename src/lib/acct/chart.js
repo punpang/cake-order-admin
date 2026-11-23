@@ -18,6 +18,7 @@ export const DEFAULT_ACCOUNTS = [
   A('2300', 'รายได้รับล่วงหน้า / เงินมัดจำลูกค้า', 'liability', { system: true, group: 'current' }),
   A('2310', 'ภาระคะแนนที่คืนให้ลูกค้า', 'liability', { system: true, group: 'current' }),
   A('2320', 'ภาระคูปองคืนเงินของลูกค้า', 'liability', { system: true, group: 'current' }),
+  A('2330', 'เงินพักของลูกค้า (ซ่อนเงิน/ดึงเงิน)', 'liability', { system: true, group: 'current' }),
   A('2350', 'รายได้รับล่วงหน้า (อื่น ๆ)', 'liability', { system: true, group: 'current' }),
   A('2400', 'เงินกู้ / เจ้าหนี้ผ่อนชำระ', 'liability', { system: true, group: 'long' }),
   A('3100', 'ทุน / เงินลงทุนเจ้าของ', 'equity', { system: true }),
@@ -26,6 +27,7 @@ export const DEFAULT_ACCOUNTS = [
   A('4100', 'รายได้ขายเค้กสั่งทำ', 'revenue', { system: true }),
   A('4200', 'รายได้ขายหน้าร้าน / สินค้าสำเร็จ', 'revenue', { system: true }),
   A('4300', 'รายได้ค่าจัดส่ง', 'revenue', { system: true }),
+  A('4400', 'รายได้ค่าบริการเกี่ยวกับเงิน (ซ่อนเงิน/ดึงเงิน/ซ่อนของ)', 'revenue', { system: true }),
   A('4950', 'คืนเงิน/ส่วนลดให้ลูกค้าหลังขาย (หักรายได้)', 'revenue', { system: true, contra: true }),
   A('4800', 'รายได้อื่น (ดอกเบี้ยรับ ฯลฯ)', 'revenue', { quick: true }),
   A('4810', 'กำไรจากการจำหน่ายสินทรัพย์', 'revenue', { system: true }),
@@ -57,4 +59,4 @@ export const KIND_LABEL = { asset: 'สินทรัพย์', liability: '�
 export const normalSide = (kind) => (kind === 'asset' || kind === 'expense' ? 'dr' : 'cr')
 export const accountMap = (accounts) => new Map(accounts.map((a) => [a.id, a]))
 // รหัสบัญชีที่ระบบใช้ดึงอัตโนมัติ
-export const CASH = '1010', BANK = '1020', AR = '1100', INV = '1200', INPUT_VAT = '1250', DEPOSIT = '2300', OUTPUT_VAT = '2200', POINTS_LIAB = '2310', COUPON_LIAB = '2320', AP = '2100'
+export const CASH = '1010', BANK = '1020', AR = '1100', INV = '1200', INPUT_VAT = '1250', DEPOSIT = '2300', OUTPUT_VAT = '2200', POINTS_LIAB = '2310', COUPON_LIAB = '2320', HOLD = '2330', AP = '2100'

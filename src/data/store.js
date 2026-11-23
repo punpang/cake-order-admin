@@ -8,6 +8,8 @@ import { reactive } from 'vue'
 import { BELL_MAX, BELL_STAFF, BELL_CUSTOMER, bellText, visibleToStaff, visibleToCustomer, unreadStaff, unreadCustomer, isReadStaff } from '../lib/bell'
 import { ensureStyleGroup, STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, channelLabel, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
+import { holdErrors, holdCancelRefundOf, canHandOver } from '../lib/holdMoney'
+import { withCashService, cashSettingsOf } from '../lib/cashService'
 import { orderCardMsg, quoteCardMsg, linkCardMsg, payCard, viewCard } from '../lib/chatCards'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { prevStatus } from '../lib/orderFlow'
@@ -1150,6 +1152,14 @@ export function createOrder(payload, asDraft = false) {
   const promo = payload.quoteItems
     ? { items: payload.items, shipPromo: payload.shipPromo || null, on: !!payload.promoOn }
     : (() => { const w = withPromos(payload.items.filter((i) => !i.promoGift).map((i) => priceItem(i))); return { items: w.items, shipPromo: w.shipPromo, on: true } })()
+  // บริการเกี่ยวกับเงิน: จากใบเสนอ (quoteItems) รายการและเงินพักอยู่ในใบเสนอแล้ว จึงไม่คิดซ้ำ
+  let holdMoney = payload.quoteItems ? payload.holdMoney || null : null
+  if (!payload.quoteItems && payload.cashService !== undefined) {
+    const cs = withCashService(promo.items, payload.cashService, db.shop)
+    if (!cs.ok) return { error: cs.error }
+    promo.items = cs.items
+    holdMoney = cs.holdMoney
+  }
   const o = {
     id: uid('o'),
     code: nextCode(),
@@ -1165,6 +1175,7 @@ export function createOrder(payload, asDraft = false) {
     items: promo.items, // จากใบเสนอ = ราคาตามใบเสนอ · ปกติ = ราคา + โปร/ดีล (withPromos)
     shipPromo: promo.shipPromo,
     promoOn: promo.on,
+    ...(holdMoney ? { holdMoney } : {}), // เงินพัก (ซ่อนเงิน/ดึงเงิน) · ไม่ใช่รายได้
     vat: payload.vat !== undefined ? payload.vat : vatNow(), // จากใบเสนอ = VAT ตามใบเสนอ
     adjustment: { amount: 0, reason: '' },
     pointsUsed: null, // { points, amount, entryId }
@@ -1221,10 +1232,15 @@ export async function reviewOrderGate(orderId, note = '') {
 }
 const gateStops = (order, next) => gateBlocks(order, next, gateCache.get(order.id))
 
+const canHandOverOf = (order) => {
+  const t = orderTotals(order)
+  return canHandOver({ fulfillment: order.fulfillment, balance: t.balance, paidNet: t.paidNet, hold: t.hold, total: t.total })
+}
 export function setStatus(order, status, text, opts = {}) {
   if (gateStops(order, status)) return { error: GATE_MESSAGE }
   // ส่งมอบไม่ได้ถ้ายังชำระไม่ครบ
-  if (status === 'delivered' && orderTotals(order).balance > 0) return
+  // จัดส่ง/ส่งมอบ: จัดส่งทุกใบต้องชำระครบ · รับที่ร้านชำระครบ หรือเงินพักครบและมากกว่ายอดสินค้า
+  if (['ready_to_ship', 'shipping', 'delivered'].includes(status) && !canHandOverOf(order)) return
   const isShip = order.fulfillment === 'delivery'
   if (['ready_to_ship', 'shipping'].includes(status) && !isShip) return
   if (isShip && SHIP_FROM[status] && order.status !== SHIP_FROM[status]) return
@@ -1332,6 +1348,9 @@ export function confirmPayment(order, paymentId, data = null) {
   if (!p || p.status !== 'reported') return
   if (['draft', 'cancelled'].includes(order.status)) return { error: 'ออร์เดอร์นี้ยืนยันชำระไม่ได้' }
   if (['awaiting_payment', 'payment_reported'].includes(order.status) && gateStops(order, 'payment_confirmed')) return { error: GATE_MESSAGE }
+  // เงินพักต้องชำระครบในการชำระครั้งแรก
+  const holdAmt = Number(order.holdMoney?.amount) || 0
+  if (holdAmt > 0 && !order.payments.some((x) => x.status === 'confirmed') && round2(data ? Number(data.amount) : p.amount) + 0.004 < round2(holdAmt)) return { error: 'การชำระครั้งแรกต้องครอบคลุมเงินพักทั้งหมด' }
   if (data) {
     // ยอดที่ได้รับจริง: ต้องเป็นจำนวนบวก และไม่เกินยอดคงค้าง (ยอดที่ยืนยันแล้วของออร์เดอร์ไม่นับยอดนี้)
     if (!goodAmount(data.amount)) return { error: 'ยอดเงินไม่ถูกต้อง' }
@@ -1524,6 +1543,34 @@ function creditRefundCoupon(cu, order, amount) {
   return newCoupon(cu, { type: 'discount', mode: 'credit', name: `คูปองคืนเงิน ${order.code}`, amount, balance: amount, holds: {}, minSpend: 0, pct: 0, cap: 0, productId: '', productName: '', source: 'refund', orderId: order.id, expiresAt: null })
 }
 
+// แก้เงินพักของออร์เดอร์ก่อนส่งมอบ · ลดแล้วชำระเกินยอดใหม่ต้องคืนส่วนเกินเงินสด/โอนให้พอดี (บันทึกเป็นการคืนชนิด hold)
+// c = { refunds: [{ method: cash|transfer, amount }], reason, maxNotes } · คืน { ok } | { error }
+export function setHoldMoney(order, hm, c = {}) {
+  if (!order || ['draft', 'cancelled', 'delivered'].includes(order.status)) return { error: 'แก้เงินพักของออร์เดอร์นี้ไม่ได้' }
+  if (!can('editItems')) return { error: 'ไม่มีสิทธิ์แก้เงินพัก' }
+  const bad = holdErrors(hm, { maxNotes: Number(c.maxNotes) || 0 })
+  if (bad) return { error: bad }
+  const reason = String(c.reason || '').trim().slice(0, 200)
+  if (!reason) return { error: 'ระบุเหตุผลการแก้เงินพัก' }
+  const t = orderTotals(order)
+  const payable = round2(t.total + Number(hm.amount))
+  const excess = round2(Math.max(0, t.paidNet - payable))
+  const date = dayOf(now())
+  if (date && db.acct?.closedThrough && date <= db.acct.closedThrough) return { error: `งวดบัญชี (${date}) ปิดแล้ว แก้เงินพักไม่ได้` }
+  if (date && order.vat && db.acct?.vatFilings?.[date.slice(0, 7)]?.filedAt) return { error: 'เดือนภาษีนี้ยื่น ภ.พ.30 แล้ว แก้เงินพักไม่ได้' }
+  const refunds = normalizeRefunds({ refunds: c.refunds || [] }, excess)
+  if (refunds.some((x) => x.method !== 'cash' && x.method !== 'transfer')) return { error: 'คืนเงินพักได้เฉพาะเงินสดหรือโอน' }
+  if (excess > 0 && !refunds.length) return { error: `ต้องคืนเงินส่วนเกิน ${money(excess)}` }
+  if (excess <= 0 && refunds.length) return { error: 'ไม่มียอดส่วนเกินให้คืน' }
+  const err = refundErrors(refunds, { paid: excess, canCredit: false })
+  if (err) return { error: err }
+  if (excess > 0 && round2(refunds.reduce((a, x) => a + x.amount, 0)) !== excess) return { error: `คืนรวมต้องพอดี ${money(excess)}` }
+  order.holdMoney = { kind: hm.kind, notes: { ...hm.notes }, amount: round2(Number(hm.amount)), at: now(), by: session.role }
+  if (excess > 0) (order.returns ||= []).push({ id: uid('rf'), kind: 'hold', at: now(), by: session.role, reason, note: '', refunds, amount: excess })
+  log(order, `แก้เงินพัก ${money(Number(hm.amount))}${excess > 0 ? ` · คืนส่วนเกิน ${money(excess)}` : ''} · ${reason}`)
+  return { ok: true }
+}
+
 // ยกเลิกออร์เดอร์ + คืนเงิน: c = { reason, refunds: [{ method: cash | transfer | credit, amount }], refundNote }
 // (รูปแบบเก่า { refundAmount, refundMethod } ยังใช้ได้) · คืนเป็นคูปองคืนเงิน = ออกคูปองยอดเท่าที่คืน (ไม่หมดอายุ)
 // ตรวจก่อนแก้ข้อมูลทุกอย่าง → คืน { ok } หรือ { error }
@@ -1533,19 +1580,25 @@ export function cancelOrder(order, c) {
   if (!order || order.status === 'cancelled') return { error: 'ออร์เดอร์นี้ยกเลิกแล้ว' }
   // ยกเลิกออร์เดอร์ที่ส่งมอบแล้วคือการย้อนสถานะ (รวมการ void บิลหน้าร้าน) ต้องมีสิทธิ์ย้อนสถานะ
   if (order.status === 'delivered' && !can('revertStatus')) return { error: 'ยกเลิกบิลที่ส่งมอบแล้วต้องมีสิทธิ์ย้อนสถานะ' }
-  const paid = orderTotals(order).paidNet // หักยอดที่คืนบางส่วนไปแล้ว
+  const tt = orderTotals(order)
+  const paid = tt.goodsPaidNet // คืนสินค้าได้ไม่เกินยอดสินค้าที่ชำระ (เงินพักคืนแยกด้านล่าง)
   const refunds = normalizeRefunds(c, paid)
   const cu = findCustomer(order.customerId)
   const err = refundErrors(refunds, { paid, canCredit: !!cu && !cu.deleted })
   if (err) return { error: err }
+  // เงินพักคืนตามสูตร: ไม่เกินเงินพักที่ค้าง และไม่เกินส่วนที่ชำระเกินยอดบิล · ต้องคืนให้พอดี (เงินสด/โอน)
+  const holdR = holdCancelRefundOf({ liability: Math.min(tt.paid, tt.hold), paidNet: tt.paidNet, total: tt.total })
+  const holdRows = normalizeRefunds({ refunds: c.holdRefunds || [] }, holdR)
+  if (holdRows.some((x) => x.method !== 'cash' && x.method !== 'transfer')) return { error: 'คืนเงินพักได้เฉพาะเงินสดหรือโอน' }
+  if (round2(holdRows.reduce((a, x) => a + x.amount, 0)) !== round2(holdR)) return { error: `คืนเงินพักต้องพอดี ${money(holdR)}` }
   const prevSt = order.status
   // ย้อนการยกเลิกได้เฉพาะ: ไม่มีเงินคืนจริง · ไม่เคยใช้คะแนน/คูปอง · ไม่ได้ยกเลิกจากสถานะส่งมอบแล้ว (undoLoyalty ถอนคะแนน/คูปองไปแล้ว)
-  const restorable = !refunds.length && !order.pointsUsed && !order.couponsUsed.length && !order.loyalty && prevSt !== 'delivered'
+  const restorable = !refunds.length && !holdRows.length && !order.pointsUsed && !order.couponsUsed.length && !order.loyalty && prevSt !== 'delivered'
   undoLoyalty(order)
   for (const x of refunds) if (x.method === 'credit') x.couponId = creditRefundCoupon(cu, order, x.amount).id
   const refundAmount = round2(refunds.reduce((n, x) => n + x.amount, 0))
   const summary = refunds.map((x) => `${REFUND_METHODS[x.method]} ${money(x.amount)}`).join(' + ')
-  order.cancel = { reason: c.reason, refunds, refundAmount, refundMethod: refunds.map((x) => REFUND_METHODS[x.method]).join(' + '), refundNote: c.refundNote || '', at: now(), prevStatus: prevSt, restorable }
+  order.cancel = { reason: c.reason, refunds, refundAmount, refundMethod: refunds.map((x) => REFUND_METHODS[x.method]).join(' + '), refundNote: c.refundNote || '', at: now(), prevStatus: prevSt, restorable, holdRefunds: holdRows, holdRefundAmount: holdR }
   setStatus(order, 'cancelled', `ยกเลิก: ${c.reason}${refundAmount ? ` / คืนเงิน ${summary}` : ''}`, { notify: c.notify, sms: c.sms })
   for (const h of cancelHooks) h(order)
   return { ok: true }
@@ -1559,7 +1612,7 @@ export function refundOrder(order, c) {
   if (!can(order.channel === 'pos' ? 'posVoid' : 'refundPartial')) return { error: 'ไม่มีสิทธิ์คืนเงิน' }
   const reason = String(c?.reason || '').trim().slice(0, 200)
   if (!reason) return { error: 'ระบุเหตุผลการคืนเงิน' }
-  const paidNet = orderTotals(order).paidNet
+  const paidNet = orderTotals(order).goodsPaidNet
   if (!(paidNet > 0)) return { error: 'ไม่มียอดที่ชำระแล้วให้คืน' }
   const refunds = normalizeRefunds({ refunds: c?.refunds || [] }, paidNet)
   if (!refunds.length) return { error: 'ระบุยอดคืนอย่างน้อย 1 ช่องทาง' }
@@ -1603,6 +1656,7 @@ export function cancelRefund(order, returnId, c = {}) {
   const r = (order.returns || []).find((x) => x.id === returnId)
   if (!r) return { error: 'ไม่พบรายการคืนเงิน' }
   if (r.cancelled) return { error: 'รายการนี้ยกเลิกไปแล้ว' }
+  if (r.kind === 'hold') return { error: 'การลดเงินพักยกเลิกไม่ได้ ให้แก้เงินพักใหม่แทน' }
   // การคืนที่เกิดจากการแลกสินค้า: ต้องยกเลิกบิลใหม่ของการแลกก่อน มิฉะนั้นบิลใหม่ยังอยู่แต่การคืนถูกย้อน
   const exchanged = r.exchangeTo ? db.orders.find((x) => x.id === r.exchangeTo) : null
   if (exchanged && exchanged.status !== 'cancelled') return { error: `การคืนนี้เป็นส่วนของการแลกสินค้า ยกเลิกบิลใหม่ ${exchanged.code} ก่อน` }
@@ -1736,7 +1790,9 @@ const intIn = (v, lo, hi, fallback) => { const n = Math.round(Number(v)); return
 export function saveShopSettings(d) {
   db.shop.name = (d.name || '').trim() || db.shop.name
   db.shop.slotMinutes = Math.max(5, Number(d.slotMinutes) || 30)
-  db.shop.dailyOrderCap = Math.min(9999, Math.max(0, Math.round(Number(d.dailyOrderCap) || 0)))
+  // บริการเกี่ยวกับเงิน: เก็บฉบับที่ผ่านการทำให้ถูกต้องแล้ว (ค่าผิดรูปแบบ = ไม่เปิดให้บริการ)
+  if (d.cashService !== undefined) db.shop.cashService = cashSettingsOf({ cashService: d.cashService })
+  db.shop.dailyOrderCap =Math.min(9999, Math.max(0, Math.round(Number(d.dailyOrderCap) || 0)))
   db.shop.open = d.open || '09:00'
   db.shop.close = d.close || '20:00'
   db.shop.nearbyHours = Math.max(0, Number(d.nearbyHours) || 0)
@@ -2327,7 +2383,7 @@ export function publicOrderView(o, { owner = false } = {}) {
     birthday: owner && o.birthday ? { ...o.birthday } : null,
     items: o.items.map((i) => ({ id: i.id, name: i.name, qty: i.qty, unitPrice: i.unitPrice, lines: describeSelections(i, db.optionGroups), note: owner ? i.note || '' : '', workPhotos: (i.workPhotos || []).map((p) => ({ id: p.id, image: p.image, at: p.at })) })),
     photoConsent: photoStatusOf(o),
-    total: t.total, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal, vat: t.vat, vatRate: t.vatRate, vatMode: t.vatMode,
+    total: t.total, hold: t.hold, payable: t.payable, paid: t.paid, balance: Math.max(t.balance, 0), discountTotal: t.discountTotal, vat: t.vat, vatRate: t.vatRate, vatMode: t.vatMode,
     refunds: o.status === 'cancelled' ? refundList(o.cancel) : [],
     returns: (o.returns || []).filter((r) => !r.cancelled).map((r) => ({ id: r.id, at: r.at, amount: r.amount, items: r.refunds.map((x) => ({ label: REFUND_METHODS[x.method] || x.method, amount: x.amount, points: x.points ?? null })) })),
     payments: pays, payDue: orderDue(o), unpaidApproved: o.status === 'order_confirmed',
