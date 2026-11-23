@@ -6,6 +6,7 @@ import { computed, reactive, ref } from 'vue'
 import { db, saveShopSettings, saveSlipQrSettings, pickupSlots } from '../../data/store'
 import { customerScale, CUSTOMER_WARN_AT } from '../../lib/customersSync'
 import { toDateStr, money } from '../../lib/format'
+import { CASH_KINDS, CASH_LABEL, cashSettingsOf } from '../../lib/cashService'
 import { deliveryFee } from '../../lib/delivery'
 import { BANKS, bankByCode } from '../../lib/payFields'
 import { clonePayment, validatePayAccount, newPayAccountId } from '../../lib/payAccounts'
@@ -23,7 +24,7 @@ const shopAddrChoices = computed(() => [
 const prepCats = [...new Set(db.retailItems.map((x) => x.category).filter(Boolean))]
 const togglePrep = (c) => { const a = st.prepCategories || []; st.prepCategories = a.includes(c) ? a.filter((x) => x !== c) : [...a, c] }
 const serverScheduled = computed(() => db.scheduled?.server === true)
-const st = reactive({ ...db.shop, prepCategories: [...(db.shop.prepCategories || [])], chatAutoHideHours: db.shop.chatAutoHideHours ?? 24, customerLazy: db.shop.customerLazy === true, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, lineRetentionDays: db.shop.lineRetentionDays ?? 180, merchantCode: db.shop.merchantCode ?? '', billerId: db.shop.billerId ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
+const st = reactive({ ...db.shop, cashService: cashSettingsOf(db.shop), prepCategories: [...(db.shop.prepCategories || [])], chatAutoHideHours: db.shop.chatAutoHideHours ?? 24, customerLazy: db.shop.customerLazy === true, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, lineRetentionDays: db.shop.lineRetentionDays ?? 180, merchantCode: db.shop.merchantCode ?? '', billerId: db.shop.billerId ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
 // ---- วัน-เวลาปิดร้าน ----
 const DOWS = [1, 2, 3, 4, 5, 6, 0] // จันทร์เริ่ม
 const flip = (arr, d) => (arr.includes(d) ? arr.splice(arr.indexOf(d), 1) : arr.push(d))
@@ -83,7 +84,7 @@ function save() {
   error.value = ''
   const sr = saveShopSettings(st)
   if (sr?.error) return (error.value = sr.error)
-  Object.assign(st, db.shop, { vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
+  Object.assign(st, db.shop, { cashService: cashSettingsOf(db.shop), vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
   saved.value = true
   setTimeout(() => (saved.value = false), 1500)
 }
@@ -231,6 +232,17 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
           <div><label class="label">ค่าส่งขั้นต่ำเมื่อเกินระยะฟรี (บาท)</label><MoneyInput v-model.number="st.delivery.minFee" min="0" class="input" /></div>
           <div><label class="label">ปัดขึ้นทีละ (บาท)</label><input v-model.number="st.delivery.roundTo" type="text" v-num min="1" class="input" /></div>
           <p class="col-span-2 text-xs text-stone-500">ตัวอย่าง 8 กม.: {{ exampleFee == null ? 'ตั้งเรตต่อกม. ให้มากกว่า 0' : money(exampleFee) }}</p>
+        </div>
+      </div>
+      <div class="border-t border-stone-100 pt-4">
+        <div class="card-title mb-3"><AppIcon name="wallet" class="text-brand-600" /> บริการเกี่ยวกับเงิน (ซ่อนเงิน/ดึงเงิน/ซ่อนของ)</div>
+        <p class="mb-3 text-xs text-stone-500">ค่าบริการเป็นรายได้ (บัญชี 4400) · เงินพักที่ลูกค้าฝาก/รับคืนไม่ใช่รายได้ · ราคารวม VAT แล้ว</p>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="col-span-2 sm:col-span-1"><label class="label" for="cash-max-notes">จำนวนธนบัตรสูงสุดต่อครั้ง (0 = ไม่จำกัด)</label><input id="cash-max-notes" v-model.number="st.cashService.maxNotes" type="text" v-num min="0" class="input" /></div>
+        </div>
+        <div v-for="k in CASH_KINDS" :key="k" class="mt-3 space-y-2 rounded-xl border border-stone-200 p-3">
+          <AppSwitch v-model="st.cashService.services[k].show" :label="`เปิดให้บริการ${CASH_LABEL[k]}`" class="flex" />
+          <div><label class="label" :for="`cash-fee-${k}`">ค่าบริการ{{ CASH_LABEL[k] }} (บาท)</label><MoneyInput :id="`cash-fee-${k}`" v-model.number="st.cashService.services[k].fee" min="0" class="input" /></div>
         </div>
       </div>
       <div class="border-t border-stone-100 pt-4">

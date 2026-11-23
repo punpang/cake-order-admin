@@ -9,6 +9,7 @@ import { BELL_MAX, BELL_STAFF, BELL_CUSTOMER, bellText, visibleToStaff, visibleT
 import { ensureStyleGroup, STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, channelLabel, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
 import { holdErrors, holdCancelRefundOf, canHandOver } from '../lib/holdMoney'
+import { withCashService, cashSettingsOf } from '../lib/cashService'
 import { orderCardMsg, quoteCardMsg, linkCardMsg, payCard, viewCard } from '../lib/chatCards'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { prevStatus } from '../lib/orderFlow'
@@ -1151,6 +1152,14 @@ export function createOrder(payload, asDraft = false) {
   const promo = payload.quoteItems
     ? { items: payload.items, shipPromo: payload.shipPromo || null, on: !!payload.promoOn }
     : (() => { const w = withPromos(payload.items.filter((i) => !i.promoGift).map((i) => priceItem(i))); return { items: w.items, shipPromo: w.shipPromo, on: true } })()
+  // บริการเกี่ยวกับเงิน: จากใบเสนอ (quoteItems) รายการและเงินพักอยู่ในใบเสนอแล้ว จึงไม่คิดซ้ำ
+  let holdMoney = payload.quoteItems ? payload.holdMoney || null : null
+  if (!payload.quoteItems && payload.cashService !== undefined) {
+    const cs = withCashService(promo.items, payload.cashService, db.shop)
+    if (!cs.ok) return { error: cs.error }
+    promo.items = cs.items
+    holdMoney = cs.holdMoney
+  }
   const o = {
     id: uid('o'),
     code: nextCode(),
@@ -1166,6 +1175,7 @@ export function createOrder(payload, asDraft = false) {
     items: promo.items, // จากใบเสนอ = ราคาตามใบเสนอ · ปกติ = ราคา + โปร/ดีล (withPromos)
     shipPromo: promo.shipPromo,
     promoOn: promo.on,
+    ...(holdMoney ? { holdMoney } : {}), // เงินพัก (ซ่อนเงิน/ดึงเงิน) · ไม่ใช่รายได้
     vat: payload.vat !== undefined ? payload.vat : vatNow(), // จากใบเสนอ = VAT ตามใบเสนอ
     adjustment: { amount: 0, reason: '' },
     pointsUsed: null, // { points, amount, entryId }
@@ -1780,7 +1790,9 @@ const intIn = (v, lo, hi, fallback) => { const n = Math.round(Number(v)); return
 export function saveShopSettings(d) {
   db.shop.name = (d.name || '').trim() || db.shop.name
   db.shop.slotMinutes = Math.max(5, Number(d.slotMinutes) || 30)
-  db.shop.dailyOrderCap = Math.min(9999, Math.max(0, Math.round(Number(d.dailyOrderCap) || 0)))
+  // บริการเกี่ยวกับเงิน: เก็บฉบับที่ผ่านการทำให้ถูกต้องแล้ว (ค่าผิดรูปแบบ = ไม่เปิดให้บริการ)
+  if (d.cashService !== undefined) db.shop.cashService = cashSettingsOf({ cashService: d.cashService })
+  db.shop.dailyOrderCap =Math.min(9999, Math.max(0, Math.round(Number(d.dailyOrderCap) || 0)))
   db.shop.open = d.open || '09:00'
   db.shop.close = d.close || '20:00'
   db.shop.nearbyHours = Math.max(0, Number(d.nearbyHours) || 0)

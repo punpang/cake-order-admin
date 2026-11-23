@@ -21,6 +21,8 @@ import { cleanDelivery } from '../lib/delivery'
 import { dayClosed } from '../lib/shopHours'
 import { parseBirthday, mdLabel } from '../lib/birthday'
 import { OCCASIONS } from '../lib/occasion'
+import { CASH_KINDS, CASH_LABEL, cashSettingsOf, withCashService } from '../lib/cashService'
+import { NOTE_VALUES, holdCountOf } from '../lib/holdMoney'
 import SmsTick from '../components/SmsTick.vue'
 
 // ใช้ได้ 2 แบบ: หน้าเต็ม (/orders/new) หรือแผงในแชท (embedded + draft ของแชทจาก store → สลับไปมาข้อมูลไม่หาย)
@@ -155,7 +157,16 @@ function onSaveItem(item) {
 // โปร/ดีลในออร์เดอร์: พรีวิวสด (สินค้าสำเร็จ + ยอดทั้งบิล) · ตอนบันทึก createOrder คิดซ้ำด้วยกติกาเดียวกัน
 const promoView = computed(() => withPromos(form.items.filter((i) => !i.promoGift).map((i) => priceItem(i))))
 const shownItems = computed(() => promoView.value.items)
-const totals = computed(() => orderTotals({ ...form, items: shownItems.value, shipPromo: promoView.value.shipPromo, payments: [], adjustment: null, cancel: null, vat: vatNow() }))
+const goodsTotals = computed(() => orderTotals({ ...form, items: shownItems.value, shipPromo: promoView.value.shipPromo, payments: [], adjustment: null, cancel: null, vat: vatNow() }))
+// บริการเกี่ยวกับเงิน: รายการค่าบริการ + เงินพัก (เงินพักไม่ใช่รายได้) · ราคาจากการตั้งค่าร้านเท่านั้น (ตรงกับที่เซิร์ฟเวอร์คิด)
+const cashSettings = cashSettingsOf(db.shop)
+const cashKinds = CASH_KINDS.filter((k) => cashSettings.services[k].show)
+const cash = computed(() => withCashService([], form.cashService, db.shop))
+const cashErr = computed(() => (cash.value.ok ? '' : cash.value.error))
+const cashLine = computed(() => (cash.value.ok ? cash.value : { items: [], holdMoney: null }))
+const totals = computed(() => orderTotals({ ...form, items: [...shownItems.value, ...cashLine.value.items], holdMoney: cashLine.value.holdMoney, shipPromo: promoView.value.shipPromo, payments: [], adjustment: null, cancel: null, vat: vatNow() }))
+const cashPick = (kind) => { form.cashService = form.cashService?.kind === kind ? undefined : kind === 'stash' ? { kind } : { kind, notes: {} } }
+const setNote = (v, n) => { form.cashService.notes = { ...form.cashService.notes, [v]: Math.max(0, Math.floor(Number(n) || 0)) } }
 
 function validate(i) {
   // ในแชทข้ามขั้นลูกค้าได้ (ได้เบอร์ทีหลัง) แต่บันทึกต้องผูก + มีเบอร์
@@ -174,6 +185,7 @@ function validate(i) {
     if (bd.error) return bd.error
   }
   if (i === 2 && !form.items.length) return 'เพิ่มสินค้าอย่างน้อย 1 รายการ'
+  if (i === 2 && cashErr.value) return cashErr.value
   return ''
 }
 function next() {
@@ -204,6 +216,11 @@ if (!props.embedded) useLeaveGuard(() => !submitted && !!(form.customerId || for
 async function submit(asDraft) {
   if (submitted || saving.value) return // กดซ้ำ/ดับเบิลคลิก
   if (saveBlock.value) return (error.value = `${saveBlock.value} · ไปขั้นลูกค้าเพื่อค้นหา/สร้างลูกค้า`)
+  if (cashErr.value) {
+    step.value = 2
+    error.value = cashErr.value
+    return
+  }
   // เวลาอาจผ่านไประหว่างกรอก ตรวจซ้ำก่อนบันทึก
   const e = validate(1) || validate(0)
   if (e) {
@@ -470,7 +487,33 @@ async function quote() {
 
       <div v-if="form.items.length" class="card flex items-center justify-between">
         <span class="text-stone-500">ค่าสินค้า</span>
-        <b class="text-lg text-stone-900">{{ money(totals.subtotal) }}</b>
+        <b class="text-lg text-stone-900">{{ money(goodsTotals.subtotal) }}</b>
+      </div>
+
+      <!-- บริการเกี่ยวกับเงิน (ไม่บังคับ) · เงินพักไม่ใช่รายได้ -->
+      <div v-if="cashKinds.length" class="card space-y-3">
+        <div class="card-title"><AppIcon name="wallet" class="text-brand-600" /> บริการเกี่ยวกับเงิน <span class="font-normal text-stone-400">(ไม่บังคับ)</span></div>
+        <div class="flex flex-wrap gap-1.5" role="radiogroup" aria-label="บริการเกี่ยวกับเงิน">
+          <button v-for="k in cashKinds" :key="k" type="button" class="chip" :class="form.cashService?.kind === k ? 'chip-on' : 'chip-off'" role="radio" :aria-checked="form.cashService?.kind === k" @click="cashPick(k)">{{ CASH_LABEL[k] }} · ค่าบริการ {{ money(cashSettings.services[k].fee) }}</button>
+        </div>
+        <template v-if="form.cashService && form.cashService.kind !== 'stash'">
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <div v-for="v in NOTE_VALUES" :key="v" class="rounded-xl border border-stone-200 p-2 text-center">
+              <div class="text-xs text-stone-500">{{ v }} บาท</div>
+              <div class="mt-1 flex items-center justify-between gap-1">
+                <button type="button" class="btn-outline h-8 w-8 px-0" :aria-label="`ลดธนบัตร ${v} บาท`" @click="setNote(v, (form.cashService.notes[v] || 0) - 1)">−</button>
+                <input type="number" min="0" inputmode="numeric" class="input h-8 w-12 px-1 text-center" :value="form.cashService.notes[v] || 0" :aria-label="`จำนวนธนบัตร ${v} บาท`" @input="setNote(v, $event.target.value)" />
+                <button type="button" class="btn-outline h-8 w-8 px-0" :aria-label="`เพิ่มธนบัตร ${v} บาท`" @click="setNote(v, (form.cashService.notes[v] || 0) + 1)">+</button>
+              </div>
+            </div>
+          </div>
+          <p class="text-sm text-stone-600">เงินพัก <b class="text-stone-900">{{ money(cashLine.holdMoney?.amount || 0) }}</b> · {{ holdCountOf(form.cashService.notes) }} ใบ<span v-if="cashSettings.maxNotes"> (สูงสุด {{ cashSettings.maxNotes }} ใบ)</span> · ไม่นับเป็นรายได้</p>
+        </template>
+        <p v-if="form.cashService" class="text-sm text-stone-600">ค่าบริการ{{ CASH_LABEL[form.cashService.kind] }} <b class="text-stone-900">{{ money(cashSettings.services[form.cashService.kind].fee) }}</b> (เข้ารายได้)</p>
+        <div v-if="form.cashService" class="flex items-center justify-between gap-2">
+          <p v-if="cashErr" class="text-sm text-rose-700">{{ cashErr }}</p>
+          <button type="button" class="btn-outline ml-auto h-9 px-3" @click="form.cashService = undefined">ไม่ใช้บริการ</button>
+        </div>
       </div>
     </section>
 
@@ -503,7 +546,8 @@ async function quote() {
           <span class="text-stone-600">ราคาเต็ม → ยอดสุทธิ</span>
           <span><DiscountDetail :full="totals.fullAll" :final="totals.total" :lines="totals.discountLines" /></span>
         </div>
-        <div class="flex justify-between"><span class="text-stone-500">ค่าสินค้า</span><span>{{ money(totals.subtotal) }}</span></div>
+        <div class="flex justify-between"><span class="text-stone-500">ค่าสินค้า</span><span>{{ money(goodsTotals.subtotal) }}</span></div>
+        <div v-if="cashLine.items.length" class="flex justify-between"><span class="text-stone-500">{{ cashLine.items[0].name }}</span><span>{{ money(cashLine.items[0].unitPrice) }}</span></div>
         <div v-if="form.fulfillment === 'delivery'" class="flex justify-between"><span class="text-stone-500">ค่าส่ง</span><span>{{ money(totals.shipping) }}</span></div>
         <div v-if="totals.vatMode === 'exclusive'" class="flex justify-between"><span class="text-stone-500">VAT {{ totals.vatRate }}% (บวกเพิ่ม)</span><span>+{{ money(totals.vat) }}</span></div>
         <div v-else-if="totals.vatMode === 'inclusive'" class="flex justify-between text-xs text-stone-400"><span>รวม VAT {{ totals.vatRate }}% แล้ว</span><span>{{ money(totals.vat) }}</span></div>
@@ -511,6 +555,10 @@ async function quote() {
           <span class="font-semibold">ยอดรวม</span>
           <span class="text-xl font-semibold text-stone-900">{{ money(totals.total) }}</span>
         </div>
+        <template v-if="totals.hold">
+          <div class="flex justify-between text-amber-800"><span>เงินพัก (ไม่ใช่รายได้)</span><span>{{ money(totals.hold) }}</span></div>
+          <div class="flex items-center justify-between font-semibold"><span>ยอดที่ลูกค้าต้องชำระ</span><span>{{ money(totals.payable) }}</span></div>
+        </template>
       </div>
     </section>
 
@@ -578,7 +626,8 @@ async function quote() {
         <div><div class="text-xs text-stone-500">นัดรับ · {{ form.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }}</div><div class="font-semibold text-stone-900">{{ pickupAt ? dateTime(pickupAt) : 'ยังไม่เลือก' }}</div></div>
         <div><div class="text-xs text-stone-500">สินค้า</div><div class="font-semibold text-stone-900">{{ form.items.length }} รายการ</div></div>
         <div class="space-y-2 border-t border-stone-100 pt-2">
-          <div class="flex justify-between"><span class="text-stone-500">ค่าสินค้า</span><span>{{ money(totals.subtotal) }}</span></div>
+          <div class="flex justify-between"><span class="text-stone-500">ค่าสินค้า</span><span>{{ money(goodsTotals.subtotal) }}</span></div>
+          <div v-if="cashLine.items.length" class="flex justify-between"><span class="text-stone-500">{{ cashLine.items[0].name }}</span><span>{{ money(cashLine.items[0].unitPrice) }}</span></div>
           <div v-if="form.fulfillment === 'delivery'" class="flex justify-between"><span class="text-stone-500">ค่าส่ง</span><span>{{ money(totals.shipping) }}</span></div>
           <div class="flex items-center justify-between border-t border-stone-100 pt-2"><span class="font-semibold">ยอดรวม</span><span class="text-xl font-semibold text-stone-900">{{ money(totals.total) }}</span></div>
         </div>

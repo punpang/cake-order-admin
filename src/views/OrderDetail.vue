@@ -13,6 +13,7 @@ import {
   refreshOrderGate, reviewOrderGate,
 } from '../data/store'
 import { orderTotals, shipNetOf } from '../lib/pricing'
+import { holdCancelRefundOf } from '../lib/holdMoney'
 import { couponQuoteOf, couponTermsText } from '../lib/coupons'
 import { QUICK_DUE, quickDue, dueState, remainingText, dueBeforePickup, dueDaysBefore, isHHmm, customerPending } from '../lib/payDue'
 import { channelLabel, NOTIFY_EVENTS } from '../lib/constants'
@@ -40,6 +41,7 @@ import PickupModal from '../components/PickupModal.vue'
 import RefundEditor from '../components/RefundEditor.vue'
 import RefundPartialDialog from '../components/RefundPartialDialog.vue'
 import RefundCancelDialog from '../components/RefundCancelDialog.vue'
+import HoldMoneyDialog from '../components/HoldMoneyDialog.vue'
 import OrderPayModal from '../components/OrderPayModal.vue'
 import PayExtendModal from '../components/PayExtendModal.vue'
 import ChangeBuyerModal from '../components/ChangeBuyerModal.vue'
@@ -326,9 +328,17 @@ const cancelOpen = ref(false)
 const refundOpen = ref(false)
 const rcFor = ref(null) // รายการคืนที่กำลังจะยกเลิก
 const canCancelRefund = computed(() => !!order.value && can(order.value.channel === 'pos' ? 'posVoid' : 'refundPartial') && order.value.status !== 'cancelled')
-const canRefund = computed(() => !!order.value && can(order.value.channel === 'pos' ? 'posVoid' : 'refundPartial') && !['draft', 'cancelled'].includes(order.value.status) && t.value.paidNet > 0)
+const canRefund = computed(() => !!order.value && can(order.value.channel === 'pos' ? 'posVoid' : 'refundPartial') && !['draft', 'cancelled'].includes(order.value.status) && t.value.goodsPaidNet > 0)
+// เงินพัก: แก้ได้จนกว่าจะส่งมอบ/ยกเลิก (ตรงกับ store.setHoldMoney) · เงินพักที่คืนตอนยกเลิก (ตรงกับ store.cancelOrder)
+const holdOpen = ref(false)
+const canEditHold = computed(() => !!order.value && t.value.hold > 0 && can('editItems') && !['draft', 'cancelled', 'delivered'].includes(order.value.status))
+const holdR = computed(() => {
+  if (!order.value) return 0
+  const x = orderTotals(order.value)
+  return holdCancelRefundOf({ liability: Math.min(x.paid, x.hold), paidNet: x.paidNet, total: x.total })
+})
 const returnedNet = computed(() => (t.value.total > 0 ? Math.round(t.value.returned * (1 - t.value.vat / t.value.total) * 100) / 100 : t.value.returned))
-const cxl = reactive({ reason: '', refunds: [], refundNote: '', notify: true, sms: true })
+const cxl = reactive({ reason: '', refunds: [], holdRefunds: [], refundNote: '', notify: true, sms: true })
 const cxlError = ref('')
 const buyerOpen = ref(false)
 const linkOpen = ref(false)
@@ -358,14 +368,15 @@ function saveRevert() {
 function openCancel() {
   // คืนเต็มจำนวนตามช่องทางที่ลูกค้าจ่ายล่าสุดเป็นค่าตั้งต้น (เปลี่ยน/แบ่งช่องทางได้: เงินสด / ธนาคาร / คะแนนสะสม)
   const last = order.value.payments.filter((p) => p.status === 'confirmed').at(-1)
-  Object.assign(cxl, { reason: '', refunds: t.value.paidNet > 0 ? [{ method: defaultRefundMethod(last?.method), amount: t.value.paidNet }] : [], refundNote: '', notify: true, sms: true })
+  // สินค้า/ค่าบริการคืนได้เท่าที่ชำระ (goodsPaidNet) · เงินพักคืนแยกเป็นเงินสด/โอนตามที่ระบบคำนวณ (holdR)
+  Object.assign(cxl, { reason: '', refunds: t.value.goodsPaidNet > 0 ? [{ method: defaultRefundMethod(last?.method), amount: t.value.goodsPaidNet }] : [], holdRefunds: holdR.value > 0 ? [{ method: 'cash', amount: holdR.value }] : [], refundNote: '', notify: true, sms: true })
   cxlError.value = ''
   cancelOpen.value = true
 }
 async function saveCancel() {
   if (!cxl.reason.trim()) return (cxlError.value = 'ใส่เหตุผลการยกเลิก')
   if (!(await askConfirm({ title: 'ยกเลิกออร์เดอร์', message: `ออร์เดอร์ ${order.value.code}\nเหตุผล: ${cxl.reason}`, okText: 'ยกเลิกออร์เดอร์', danger: true }))) return
-  const r = cancelOrder(order.value, { reason: cxl.reason, refunds: cxl.refunds.map((x) => ({ method: x.method, amount: Number(x.amount) })), refundNote: cxl.refundNote, notify: cxl.notify, sms: cxl.sms })
+  const r = cancelOrder(order.value, { reason: cxl.reason, refunds: cxl.refunds.map((x) => ({ method: x.method, amount: Number(x.amount) })), holdRefunds: cxl.holdRefunds.map((x) => ({ method: x.method, amount: Number(x.amount) })), refundNote: cxl.refundNote, notify: cxl.notify, sms: cxl.sms })
   if (r.error) return (cxlError.value = r.error)
   cancelOpen.value = false
 }
@@ -535,6 +546,13 @@ async function saveCancel() {
               <div class="h-full rounded-full bg-emerald-500 transition-all" :style="{ width: paidPct + '%' }" />
             </div>
             <div class="mt-2 grid grid-cols-2 gap-2 text-sm">
+              <div v-if="t.hold > 0" class="col-span-2 flex items-center justify-between gap-2 rounded-xl bg-amber-50/60 p-2.5">
+                <div class="min-w-0">
+                  <div class="text-xs text-amber-800">เงินพักของลูกค้า (ไม่ใช่รายได้)</div>
+                  <div class="font-semibold text-amber-900">{{ money(t.hold) }}</div>
+                </div>
+                <button v-if="canEditHold" type="button" class="btn-outline h-9 shrink-0 px-3" @click="holdOpen = true"><AppIcon name="edit" :size="16" /> แก้เงินพัก</button>
+              </div>
               <div class="rounded-xl bg-emerald-50 p-2.5">
                 <div class="text-xs text-emerald-700">ยืนยันแล้ว</div>
                 <div class="font-semibold text-emerald-800">{{ money(t.paid) }}</div>
@@ -829,7 +847,11 @@ async function saveCancel() {
         <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><textarea v-model="cxl.reason" rows="2" class="input" /></div>
         <div>
           <div class="label">คืนเงินให้ลูกค้า</div>
-          <RefundEditor v-model="cxl.refunds" :paid="t.paidNet":can-credit="!!customer && !customer.deleted" :default-method="defaultRefundMethod(order.payments.filter((p) => p.status === 'confirmed').at(-1)?.method)" />
+          <RefundEditor v-model="cxl.refunds" :paid="t.goodsPaidNet" :can-credit="!!customer && !customer.deleted" :default-method="defaultRefundMethod(order.payments.filter((p) => p.status === 'confirmed').at(-1)?.method)" />
+        </div>
+        <div v-if="holdR > 0">
+          <div class="label">คืนเงินพักของลูกค้า {{ money(holdR) }} (เงินสด/โอนเท่านั้น)</div>
+          <RefundEditor v-model="cxl.holdRefunds" :paid="holdR" :can-credit="false" />
         </div>
         <div><label class="label">หมายเหตุการคืนเงิน</label><input v-model="cxl.refundNote" class="input" /></div>
         <label v-if="customer" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="cxl.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่ายกเลิก" /> แจ้งลูกค้าว่ายกเลิกออร์เดอร์</label>
@@ -844,6 +866,7 @@ async function saveCancel() {
   </div>
 
   <RefundPartialDialog v-if="refundOpen && order" :order="order" @close="refundOpen = false" />
+  <HoldMoneyDialog v-if="holdOpen && order" :order="order" @close="holdOpen = false" />
   <RefundCancelDialog v-if="rcFor && order" :order="order" :entry="rcFor" @close="rcFor = null" />
   <ChangeBuyerModal v-if="buyerOpen && order" :order="order" @close="buyerOpen = false" />
   <OrderLinkModal v-if="linkOpen && order" :order="order" @close="linkOpen = false" />

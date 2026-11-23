@@ -67,3 +67,18 @@ export function cashServiceOf(input, shop) {
   }
   return { ok: true, item, holdMoney }
 }
+
+// รายการในออร์เดอร์ = รายการสินค้า + รายการค่าบริการ (ถ้ามี) · คืน { ok, items, holdMoney } | { ok:false, error }
+export function withCashService(items, input, shop) {
+  const c = cashServiceOf(input, shop)
+  if (!c.ok) return c
+  return { ok: true, items: c.item ? [...items, c.item] : items, holdMoney: c.holdMoney }
+}
+
+// ข้อมูลบริการของออร์เดอร์ที่มีอยู่ → รูปแบบ input ที่ส่งให้เซิร์ฟเวอร์คิดใหม่ (ไม่มีบริการ = undefined)
+// ไม่ส่งรายการ kind 'service' ไปตรงๆ เพราะเซิร์ฟเวอร์ปฏิเสธ (ราคาต้องมาจากการตั้งค่า)
+export function cashDraftOf(order) {
+  const svc = (order?.items || []).find((i) => i?.kind === 'service' && CASH_KINDS.includes(i.serviceKind))
+  if (!svc) return undefined
+  return order.holdMoney?.kind ? { kind: svc.serviceKind, notes: { ...order.holdMoney.notes } } : { kind: svc.serviceKind }
+}
