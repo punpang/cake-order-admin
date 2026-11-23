@@ -46,7 +46,8 @@ export function deliveryFieldsOf(p) {
 export const dealCatalogOf = (retailItems) => (retailItems || []).filter((x) => x.active !== false).map((x) => ({ id: x.id, name: x.name, price: Number(x.price) || 0, stock: x.stock }))
 
 export function priceItemOn(item, cat, dateStr) {
-  return { ...item, ...priceDetail(item, cat.optionGroups || [], cat.retailItems || [], activeLists(cat.priceLists || [], dateStr), cat.bundles || []) }
+  const r = item.kind === 'retail' ? (cat.retailItems || []).find((x) => x.id === item.retailId) : null
+  return { ...item, ...(r?.noPoints ? { noPoints: true } : {}), ...priceDetail(item, cat.optionGroups || [], cat.retailItems || [], activeLists(cat.priceLists || [], dateStr), cat.bundles || []) }
 }
 
 export function giftRowOn(g, cat, dateStr) {

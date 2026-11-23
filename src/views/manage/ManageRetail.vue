@@ -22,7 +22,7 @@ const list = computed(() => {
 const categories = computed(() => [...new Set(db.retailItems.map((x) => x.category).filter(Boolean))])
 
 const open = ref(false)
-const blank = () => ({ id: null, name: '', category: '', price: '', stock: '', active: true, modifierIds: [], images: [], recipe: [], pinned: false, showInPos: true, showOnStore: false, description: '', typeId: null, flavorId: null, sizeId: null })
+const blank = () => ({ id: null, name: '', category: '', price: '', stock: '', active: true, modifierIds: [], images: [], recipe: [], pinned: false, showInPos: true, showOnStore: false, noPoints: false, description: '', typeId: null, flavorId: null, sizeId: null })
 const form = reactive(blank())
 const error = ref('')
 function edit(x) {
@@ -206,6 +206,7 @@ function doAdd() {
           <AppSwitch v-model="form.showInPos" label="แสดงใน POS และตอนสร้างออร์เดอร์/แชท" class="flex" />
           <AppSwitch v-model="form.showOnStore" label="แสดงที่หน้าร้านเว็บ (ลูกค้าเห็น)" class="flex" />
           <AppSwitch v-model="form.pinned" label="ปักหมุดในสินค้าขายดีของหน้าร้านเว็บ" class="flex" />
+          <AppSwitch v-model="form.noPoints" label="ไม่คำนวณแต้ม (ใช้คูปองส่วนลดไม่ได้ทุกแบบ · ไม่นับยอดสมาชิก)" class="flex" />
         </div>
         <AppSwitch v-model="form.active" label="ใช้งาน (ปิด = ไม่แสดงทุกที่)" />
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>

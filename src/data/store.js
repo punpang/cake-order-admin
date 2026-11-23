@@ -644,7 +644,7 @@ export const db = reactive({
 
 // ทุกรายการเริ่มต้นเป็น "ใช้งาน" + สมุดคะแนน / สิทธิ์หมุน
 for (const o of db.optionGroups.find((g) => g.key === 'type')?.options || []) o.images = o.images || []
-for (const r of db.retailItems) Object.assign(r, { modifierIds: r.modifierIds || [], images: r.images || [], recipe: r.recipe || [], pinned: !!r.pinned, showInPos: r.showInPos ?? true, showOnStore: r.showOnStore ?? false, description: r.description || '', typeId: r.typeId || null, flavorId: r.flavorId || null, sizeId: r.sizeId || null })
+for (const r of db.retailItems) Object.assign(r, { modifierIds: r.modifierIds || [], images: r.images || [], recipe: r.recipe || [], pinned: !!r.pinned, showInPos: r.showInPos ?? true, showOnStore: r.showOnStore ?? false, noPoints: !!r.noPoints, description: r.description || '', typeId: r.typeId || null, flavorId: r.flavorId || null, sizeId: r.sizeId || null })
 for (const u of db.users) u.perms = rolePreset(u.role) // ผู้ใช้ตัวอย่างเริ่มด้วยสิทธิ์ตามบทบาท
 for (const c of db.customers) Object.assign(c, { active: true, ledger: [], spins: 0, fbPsid: '', promoOptIn: true, places: [] })
 // ตัวอย่าง: ลูกค้าคนแรกผูก Facebook แล้ว (จำลอง)
@@ -2142,6 +2142,7 @@ export function pointsFor(order, at = new Date(order.createdAt || Date.now()), m
   let base = 0
   let weighted = 0
   order.items.forEach((it, i) => {
+    if (it.noPoints) return // สินค้าไม่คำนวณแต้ม: ไม่นับแต้ม/สิทธิ์หมุน
     const cat = it.kind === 'retail' ? db.retailItems.find((r) => r.id === it.retailId)?.category || '' : 'เค้กสั่งทำ'
     const net = exVat(nets[i])
     base += net
@@ -4251,7 +4252,7 @@ export function voidPosSale(order, reason = 'ยกเลิกบิล', refun
 export const saveRetailItem = (d) =>
   upsert(db.retailItems, 'rt', {
     ...d, modifierIds: [...(d.modifierIds || [])], price: Number(d.price) || 0, stock: d.stock === '' || d.stock == null ? null : Math.max(0, Number(d.stock) || 0),
-    images: [...(d.images || [])], recipe: cleanRecipe(d.recipe), pinned: !!d.pinned, showInPos: d.showInPos !== false, showOnStore: !!d.showOnStore,
+    images: [...(d.images || [])], recipe: cleanRecipe(d.recipe), pinned: !!d.pinned, showInPos: d.showInPos !== false, showOnStore: !!d.showOnStore, noPoints: !!d.noPoints,
     description: String(d.description ?? '').trim().slice(0, 300), typeId: d.typeId || null, flavorId: d.flavorId || null, sizeId: d.sizeId || null,
   })
 // ---------- โปรโมชัน POS (เฉพาะแอดมิน) ----------
