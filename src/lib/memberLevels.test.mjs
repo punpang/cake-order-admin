@@ -14,6 +14,12 @@ const t = (name, fn) => {
 }
 const cfg = (over = {}) => ({ ...structuredClone(DEFAULT_MEMBER_CFG), ...over })
 
+t('บัตร LV4 Active แสดงสิทธิคูปองรายเดือน และไม่เกิน 3 บรรทัด', () => {
+  const lines = tierLines({ enabled: true, levelNo: 4, levelName: 'LV4', mult: 5, status: 'active', activeUntil: '2026-12-31', golden: false, downgradeAt: '2027-12-31' })
+  assert.ok(lines.length <= 3)
+  assert.ok(lines[1].includes('คูปองส่วนลด 10 บาท'))
+  assert.equal(tierLines({ enabled: true, levelNo: 2, levelName: 'LV2', mult: 2, status: 'active', activeUntil: '2026-12-31' }).some((l) => l.includes('คูปอง')), false)
+})
 t('ค่าตั้งต้นตามสเปก: เกณฑ์ 0/500/2500/5000 และตัวคูณ 1/2/3/5 ต่ออายุ 150 (รวม VAT)', () => {
   assert.deepEqual(DEFAULT_MEMBER_CFG.levels.map((l) => [l.min, l.mult]), [[0, 1], [500, 2], [2500, 3], [5000, 5]])
   assert.equal(DEFAULT_MEMBER_CFG.renewGross, 150)

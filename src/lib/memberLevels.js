@@ -57,6 +57,8 @@ export function tierLines(t) {
   else lines.push('สิทธิ์พัก · ซื้อตามเกณฑ์ในวันเดียวเพื่อต่ออายุ')
   if (t.golden) lines.push('ช่วงพิเศษ · ซื้อตามเกณฑ์วันนี้ได้สิทธิ์เต็มทันที')
   else if (t.downgradeAt) lines.push(`รักษาระดับถึง ${fmtDate(t.downgradeAt)}`)
+  // LV4 Active ได้คูปองส่วนลด 10 บาททุกเดือน (ตามสเปก) · แทรกเป็นบรรทัดที่ 2 ให้เห็นก่อนบรรทัดรอง
+  if (t.levelNo === 4 && t.status === 'active') lines.splice(1, 0, 'คูปองส่วนลด 10 บาททุกเดือน (ซื้อเดือนก่อนครบ 150 บาท)')
   return lines.slice(0, 3)
 }
 function fmtDate(s) {
