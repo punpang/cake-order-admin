@@ -1437,12 +1437,12 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
         <aside class="flex min-h-0 flex-col gap-3 overflow-y-auto p-0.5 max-md:max-h-[40dvh]" aria-label="ข้อมูลลูกค้าและรายการชำระ">
           <!-- สรุป: ยอดชำระ · รับแล้ว · คงค้าง/เกิน -->
           <div class="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-stone-200 max-md:p-3" aria-label="สรุปการชำระ">
-            <div class="text-sm font-medium text-stone-700">ยอดชำระ</div>
-            <div class="text-3xl font-bold tabular-nums text-stone-900 max-md:text-2xl">{{ money(total) }}</div>
-            <dl class="mt-3 grid grid-cols-2 gap-2 text-sm max-md:mt-2 max-md:gap-1.5">
-              <div class="rounded-2xl bg-stone-200 px-3 py-2"><dt class="text-stone-700">รับแล้ว</dt><dd class="text-lg font-semibold tabular-nums text-stone-950">{{ money(receivedSum) }}</dd></div>
+            <div class="text-sm font-medium text-stone-700 md:text-lg">ยอดชำระ</div>
+            <div class="text-3xl font-bold tabular-nums text-stone-900 max-md:text-2xl md:text-5xl">{{ money(total) }}</div>
+            <dl class="mt-3 grid grid-cols-2 gap-2 text-sm max-md:mt-2 max-md:gap-1.5 md:text-base">
+              <div class="rounded-2xl bg-stone-200 px-3 py-2"><dt class="text-stone-700">รับแล้ว</dt><dd class="text-lg font-semibold tabular-nums text-stone-950 md:text-2xl">{{ money(receivedSum) }}</dd></div>
               <div class="rounded-2xl px-3 py-2" :class="total - receivedSum < 0 ? 'bg-rose-200 text-rose-950 ring-1 ring-rose-400' : total - receivedSum > 0 ? 'bg-amber-200 text-amber-950 ring-1 ring-amber-400' : 'bg-emerald-200 text-emerald-950 ring-1 ring-emerald-500'">
-                <dt class="opacity-80">{{ total - receivedSum < 0 ? 'เกิน' : 'คงค้าง' }}</dt><dd class="text-lg font-semibold tabular-nums">{{ money(Math.abs(total - receivedSum)) }}</dd>
+                <dt class="opacity-80">{{ total - receivedSum < 0 ? 'เกิน' : 'คงค้าง' }}</dt><dd class="text-lg font-semibold tabular-nums md:text-2xl">{{ money(Math.abs(total - receivedSum)) }}</dd>
               </div>
             </dl>
           </div>
@@ -1456,7 +1456,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-100 text-brand-800" aria-hidden="true"><AppIcon name="user" :size="18" /></span>
             <div class="min-w-0 flex-1"><div class="truncate font-semibold text-stone-800">{{ member.name }}</div><div class="text-xs text-stone-500">{{ member.phone ? formatPhone(member.phone) : '' }}</div></div>
             <button v-if="!memberLocked" type="button" class="shrink-0 rounded-full px-2 py-1 text-xs font-medium text-stone-500 underline" @click="member = null; couponIds = []">เปลี่ยน</button>
-            <div class="grid basis-full grid-cols-2 gap-2 text-sm" aria-label="คะแนนสมาชิก">
+            <div class="grid basis-full grid-cols-2 gap-2 text-sm md:text-base" aria-label="คะแนนสมาชิก">
               <div class="rounded-xl bg-stone-50 px-3 py-2"><div class="text-xs text-stone-500">คะแนนที่มี</div><div class="font-semibold tabular-nums text-stone-900">{{ memberPts.toLocaleString() }} แต้ม</div></div>
               <div class="rounded-xl px-3 py-2" :class="memberSoon ? 'bg-amber-100 text-amber-950' : 'bg-stone-50'"><div class="text-xs" :class="memberSoon ? 'text-amber-900' : 'text-stone-500'">คะแนนที่จะหมดอายุ</div><div class="font-semibold tabular-nums">{{ memberSoon ? `${memberSoon.points.toLocaleString()} แต้ม · ${dateOnly(memberSoon.date)}` : 'ไม่มี' }}</div></div>
             </div>
@@ -1486,7 +1486,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <li v-for="l in listedLines" :key="l.key" class="flex items-center gap-2.5 rounded-2xl bg-white px-3 py-2 ring-1 ring-stone-200">
               <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full" :class="l.confirmed || l.locked || lineOk(l) ? 'bg-emerald-600 text-white' : 'bg-stone-200 text-stone-600'" aria-hidden="true"><AppIcon name="check" :size="14" /></span>
               <div class="min-w-0 flex-1">
-                <div class="text-sm font-semibold text-stone-800">{{ POS_METHODS[l.method] }} <span class="tabular-nums">{{ money(lineAmt(l)) }}</span></div>
+                <div class="text-sm font-semibold text-stone-800 md:text-base">{{ POS_METHODS[l.method] }} <span class="tabular-nums">{{ money(lineAmt(l)) }}</span></div>
                 <div class="text-xs text-stone-500">
                   <template v-if="l.method === 'cash' && !l.locked">รับมา {{ money(Number(l.received) || 0) }} · ทอน {{ money(Math.max(changeOf(l), 0)) }}</template>
                   <template v-else-if="l.locked">บันทึกแล้ว</template>
@@ -1527,7 +1527,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
           <div v-if="remaining > 0 || focusLine" class="grid shrink-0 grid-cols-3 gap-2 rounded-3xl bg-stone-200/60 p-1.5" role="group" aria-label="เลือกวิธีชำระ">
             <button
               v-for="[k, label] in PAY_TABS" :key="k" type="button"
-              class="h-12 rounded-2xl text-lg font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed"
+              class="h-12 rounded-2xl text-lg font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed md:h-16 md:text-2xl"
               :class="focusLine?.method === k ? 'bg-brand-600 text-white shadow-md' : 'text-stone-700 hover:bg-white/70 disabled:opacity-40'"
               :aria-pressed="focusLine?.method === k"
               :disabled="binding || (!!focusLine && focusLine.method !== k && !canSwitch(focusLine))"
@@ -1659,29 +1659,29 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
               <BillerQr v-if="!customerScreen" :amount="lineAmt(l)" :ref1="db.shop.merchantCode || ''" :ref2="l.qrRef" :show-amount="false" />
               <div class="w-full space-y-3 text-center landscape:text-left">
                 <div>
-                  <div class="text-sm text-stone-500">ยอดโอน</div>
-                  <div class="text-4xl font-bold tabular-nums text-stone-900">{{ money(lineAmt(l)) }}</div>
+                  <div class="text-sm text-stone-500 md:text-base">ยอดโอน</div>
+                  <div class="text-4xl font-bold tabular-nums text-stone-900 md:text-6xl">{{ money(lineAmt(l)) }}</div>
                 </div>
                 <div v-if="expiredLine(l)" class="space-y-2">
                   <p class="rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700">QR หมดอายุแล้ว สร้าง QR ใหม่ให้ลูกค้าสแกน</p>
                   <button type="button" class="btn-primary h-12 w-full" @click="makeQr(l)">สร้าง QR ใหม่</button>
                 </div>
-                <div v-else class="flex items-center justify-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-amber-900 landscape:justify-start">
+                <div v-else class="flex items-center justify-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-amber-900 md:py-4 landscape:justify-start">
                   <span class="relative grid h-3 w-3 place-items-center" aria-hidden="true"><span class="motion-safe:animate-ping absolute inset-0 rounded-full bg-amber-400/70" /><span class="relative h-2.5 w-2.5 rounded-full bg-amber-500" /></span>
-                  <span class="text-lg font-semibold">รอลูกค้าโอน</span>
-                  <span class="text-base">· หมดอายุใน <b class="text-lg tabular-nums">{{ qrLeft(l) }}</b></span>
+                  <span class="text-lg font-semibold md:text-2xl">รอลูกค้าโอน</span>
+                  <span class="text-base md:text-xl">· หมดอายุใน <b class="text-lg tabular-nums md:text-3xl">{{ qrLeft(l) }}</b></span>
                 </div>
-                <p v-if="customerScreen && !expiredLine(l)" class="rounded-xl bg-brand-50 p-2.5 text-sm font-medium text-brand-800">QR แสดงที่จอลูกค้าแล้ว ให้ลูกค้าสแกนที่จอนั้น</p>
-                <p v-if="!expiredLine(l)" class="text-sm text-stone-600">ระบบตรวจการโอนเข้าให้อัตโนมัติ ไม่ต้องกดอะไร</p>
+                <p v-if="customerScreen && !expiredLine(l)" class="rounded-xl bg-brand-50 p-2.5 text-sm font-medium text-brand-800 md:p-4 md:text-lg">QR แสดงที่จอลูกค้าแล้ว ให้ลูกค้าสแกนที่จอนั้น</p>
+                <p v-if="!expiredLine(l)" class="text-sm text-stone-600 md:text-lg">ระบบตรวจการโอนเข้าให้อัตโนมัติ ไม่ต้องกดอะไร</p>
                 <div v-if="!expiredLine(l) && (l.candidates || []).length > 1" class="space-y-2">
                   <p class="text-sm font-medium text-amber-800">พบหลายรายการที่ตรง เลือกรายการที่ใช่</p>
                   <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-11 w-full items-center justify-between rounded-xl border border-amber-300 bg-amber-50 px-4" @click="pickManee(l, c)">
                     <span>{{ timeOnly(c.received_at) }}</span><span class="font-semibold">เลือก</span>
                   </button>
                 </div>
-                <button v-if="!expiredLine(l) && !binding" type="button" class="btn-primary h-auto min-h-14 w-full py-3 whitespace-normal text-base" @click="receiveNow(l)"><AppIcon name="check" :size="18" /> ลูกค้าโอนแล้วแต่ระบบยังไม่พบ (ตรวจสลิปแล้ว)</button>
-                <button v-if="!binding" type="button" class="btn-outline h-11 w-full" @click="splitTransfer(l)">แบ่งจ่าย (เปลี่ยนยอด)</button>
-                <button v-if="!l.detectedAt && !l.confirmed && !binding" type="button" class="w-full py-2 text-sm font-medium text-rose-700 underline" @click="backToMethods(l)">ยกเลิก QR</button>
+                <button v-if="!expiredLine(l) && !binding" type="button" class="btn-primary h-auto min-h-14 w-full py-3 whitespace-normal text-base md:min-h-20 md:py-4 md:text-xl" @click="receiveNow(l)"><AppIcon name="check" :size="18" /> ลูกค้าโอนแล้วแต่ระบบยังไม่พบ (ตรวจสลิปแล้ว)</button>
+                <button v-if="!binding" type="button" class="btn-outline h-11 w-full md:h-16 md:text-lg" @click="splitTransfer(l)">แบ่งจ่าย (เปลี่ยนยอด)</button>
+                <button v-if="!l.detectedAt && !l.confirmed && !binding" type="button" class="w-full py-2 text-sm font-medium text-rose-700 underline md:py-3 md:text-lg" @click="backToMethods(l)">ยกเลิก QR</button>
               </div>
             </div>
           </template>
@@ -1691,9 +1691,9 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
       <template #footer>
         <div class="flex w-full gap-2">
-          <button class="btn-outline h-14 flex-1" :disabled="binding" @click="requestClose">ยกเลิก</button>
-          <button v-if="canSavePartial" class="btn-soft h-14 flex-1" :disabled="binding" @click="saveBillPartial">บันทึกบิลค้างไว้</button>
-          <button v-if="canConfirm" class="btn-primary h-14 flex-[2] text-lg" :disabled="binding" @click="confirmPay"><AppIcon name="check" :size="20" /> ยืนยันรับเงิน</button>
+          <button class="btn-outline h-14 flex-1 md:h-16 md:text-xl" :disabled="binding" @click="requestClose">ยกเลิก</button>
+          <button v-if="canSavePartial" class="btn-soft h-14 flex-1 md:h-16 md:text-xl" :disabled="binding" @click="saveBillPartial">บันทึกบิลค้างไว้</button>
+          <button v-if="canConfirm" class="btn-primary h-14 flex-[2] text-lg md:h-16 md:text-2xl" :disabled="binding" @click="confirmPay"><AppIcon name="check" :size="20" /> ยืนยันรับเงิน</button>
         </div>
       </template>
     </AppModal>
