@@ -19,8 +19,9 @@
 **ทำอะไร:** migration `20261123140000_punpang_birthday_card_discount.sql`: ล้างเดือนเกิด · มุมมองสิทธิวันเกิด (LV3 5% เพดาน 25 · LV4 10% เพดาน 50 เฉพาะ Active และครบ 30 วัน) · บัตรลูกค้าและบัตรพนักงานรวมตัวคูณเดือนเกิด · `customer-loyalty` รับ `set_birth` / `clear_birth` · หน้าบัญชี (แท็บแต้ม/คูปอง) มีช่องเดือนเกิดและช่องยินยอมแยก · `src/lib/birthdayBenefit.js` (ส่วนลดเค้ก + ไม่ซ้อนคูปอง) พร้อมเทสต์
 **เหตุผล:** ผู้ใช้อนุมัติข้อ 2–4 · หมวดเค้กเลือกรายหมวดเอง
 **ผล:** `run.sh` ผ่าน (member_benefits G1–G11, H1–H5) · `npm test` 101 ไฟล์ผ่าน · build ผ่าน · งบบันเดิล 885.6/886 KB (ใกล้เพดาน) · `test:deno` ยังไม่รัน (ไม่มี deno ในเครื่องนี้)
-**ยังไม่ทำ:** ที่เก็บรายการหมวดเค้กยังไม่มีหน้าตั้งค่าในแอป · ยังไม่ใช้ส่วนลดเค้กใน POS และในเว็บ (ยังไม่แก้ยอดรวมบิล) · `customer-auth` ยังไม่ส่งค่า birth ใน tier
-**รอ:** ยืนยันวิธีเก็บหมวดเค้ก (ตั้งค่าในแอป หรือ ใส่ค่าใน config) · อนุมัติ merge และ Release (ต้อง deploy customer-loyalty และ customer-auth)
+**เพิ่มแล้ว:** หน้า ManageTiers มีการเลือกหมวดเค้ก (เก็บใน `memberLevels.cakeCategories`)
+**ยังไม่ทำ:** ยังไม่ใช้ส่วนลดเค้กในยอดรวมบิล POS และเว็บ (ต้องเพิ่มฟิลด์ส่วนลดในทุกตัวคำนวณยอด: orderTotals, customer-order, slip.ts, order-create) · `customer-auth` ยังไม่ส่งค่า birth ใน tier
+**รอ:** อนุมัติแนวทางยอดรวมบิลก่อนแก้เส้นทางเงิน · อนุมัติ merge และ Release (ต้อง deploy customer-loyalty และ customer-auth)
 
 ---
 

@@ -2819,6 +2819,7 @@ export function saveMemberLevels(d) {
     mode: d.mode,
     levels: (d.levels || []).map((l) => ({ name: String(l?.name ?? '').trim(), min: l?.min, mult: l?.mult })),
     renewGross: d.renewGross, inactiveDays: d.inactiveDays, goldenDays: d.goldenDays, downgradeDays: d.downgradeDays, bigBill: d.bigBill,
+    cakeCategories: [...new Set((d.cakeCategories || []).map((x) => String(x).trim()).filter(Boolean))].slice(0, 50),
   }
   const errors = memberCfgErrors(c)
   if (errors.length) return { errors }

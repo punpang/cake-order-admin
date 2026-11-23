@@ -20,7 +20,10 @@ const CYCLE = [
 
 const d = reactive(JSON.parse(JSON.stringify(db.memberLevels)))
 const saved = ref(false)
-const cfg = () => ({ mode: d.mode, levels: d.levels, renewGross: d.renewGross, inactiveDays: d.inactiveDays, goldenDays: d.goldenDays, downgradeDays: d.downgradeDays, bigBill: d.bigBill })
+const cfg = () => ({ mode: d.mode, levels: d.levels, renewGross: d.renewGross, inactiveDays: d.inactiveDays, goldenDays: d.goldenDays, downgradeDays: d.downgradeDays, bigBill: d.bigBill, cakeCategories: d.cakeCategories || [] })
+// หมวดสินค้าที่มีในร้าน (เลือกเป็นหมวดเค้กสำหรับส่วนลดเดือนเกิด)
+const shopCats = [...new Set(db.retailItems.map((x) => x.category).filter(Boolean))]
+const toggleCake = (c) => { const a = d.cakeCategories || []; d.cakeCategories = a.includes(c) ? a.filter((x) => x !== c) : [...a, c] }
 const errs = computed(() => memberCfgErrors(cfg()))
 const modeDesc = computed(() => MEMBER_MODES.find((m) => m.v === d.mode)?.d || '')
 
@@ -126,6 +129,15 @@ const sim = computed(() => d.levels.map((l, i) => ({
           <span class="w-14 shrink-0 text-sm text-stone-500">{{ f.u }}</span>
         </div>
         <p v-if="f.n" class="mt-1 text-xs text-stone-500">{{ f.n }}</p>
+      </div>
+    </section>
+
+    <section class="card space-y-3" aria-label="ส่วนลดเดือนเกิด">
+      <div class="font-semibold text-stone-800">ส่วนลดเดือนเกิด (หมวดเค้ก)</div>
+      <p class="text-sm text-stone-500">LV3 ลด 5% (สูงสุด 25 บาท) · LV4 ลด 10% (สูงสุด 50 บาท) เฉพาะสินค้าหมวดที่เลือก · ไม่ซ้อนคูปอง ระบบเลือกส่วนลดที่ได้มากกว่า</p>
+      <p v-if="!shopCats.length" class="text-sm text-stone-500">ยังไม่มีหมวดสินค้า เพิ่มสินค้าในหน้าสินค้าก่อน</p>
+      <div class="flex flex-wrap gap-2">
+        <button v-for="c in shopCats" :key="c" type="button" class="chip h-auto py-1" :class="(d.cakeCategories || []).includes(c) ? 'chip-on' : 'chip-off'" :aria-pressed="(d.cakeCategories || []).includes(c)" @click="toggleCake(c)">{{ c }}</button>
       </div>
     </section>
 
