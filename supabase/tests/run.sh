@@ -189,6 +189,11 @@ mbcode=$?
 [ "$mbcode" = "0" ] && echo "✓ member_benefits.test.sql ผ่านทั้งหมด" || echo "✗ member_benefits.test.sql ล้มเหลว"
 [ "$mbcode" = "0" ] || exit "$mbcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/birthday_pos.test.sql
+bpcode=$?
+[ "$bpcode" = "0" ] && echo "✓ birthday_pos.test.sql ผ่านทั้งหมด" || echo "✗ birthday_pos.test.sql ล้มเหลว"
+[ "$bpcode" = "0" ] || exit "$bpcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/member_staff.test.sql
 msfcode=$?
 [ "$msfcode" = "0" ] && echo "✓ member_staff.test.sql ผ่านทั้งหมด" || echo "✗ member_staff.test.sql ล้มเหลว"

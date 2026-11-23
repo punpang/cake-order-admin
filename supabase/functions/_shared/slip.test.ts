@@ -144,3 +144,12 @@ Deno.test('buildSlipPayment: รูปแบบเดียวกับยอด
   assertEquals(p.extension, null)
   assertEquals([p.bankCode, p.bankName, p.ref, p.refSource], ['004', 'ธนาคารกสิกรไทย', 'A1', 'qr'])
 })
+
+Deno.test('ส่วนลดเดือนเกิดหักจากยอดรวม และไม่ซ้อนคูปอง (ยอดตรงกับแอป)', () => {
+  const o = {
+    items: [{ unitPrice: 500, qty: 2 }], fulfillment: 'pickup', payments: [], couponsUsed: [], pointsUsed: null,
+    adjustment: { amount: 0 }, vat: null, birthdayDiscount: { amount: 50 },
+  }
+  assertEquals(orderTotals(o).total, 950)
+  assertEquals(orderTotals({ ...o, birthdayDiscount: null }).total, 1000)
+})

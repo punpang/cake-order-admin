@@ -80,7 +80,14 @@ Deno.serve(corsWrap(async (req) => {
   if (!catalog) return json({ error: 'อ่านแคตาล็อกไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
 
   const now = Date.now()
-  const built = buildQuotePayload({ draft: body?.draft, customerId: chats[0].customer_id ?? null, catalog, nowMs: now }) as { ok: boolean; error?: string; payload?: any }
+  const qcust = chats[0].customer_id ?? null
+  const br = await fetch(`${SUPABASE_URL}/rest/v1/rpc/punpang_member_birth_for_quote`, {
+    method: 'POST', headers: { ...SERVICE_HEADERS, ...rh, 'content-type': 'application/json' },
+    body: JSON.stringify({ p_customer: qcust }),
+  })
+  if (!br.ok) return json({ error: 'อ่านสิทธิสมาชิกไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
+  const birth = await br.json()
+  const built = buildQuotePayload({ draft: body?.draft, customerId: qcust, catalog, nowMs: now, birth }) as { ok: boolean; error?: string; payload?: any }
   if (!built.ok) return json({ error: built.error }, 422)
 
   const day = ddmmyy(bkkWall(now))

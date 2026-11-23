@@ -136,7 +136,8 @@ export function orderTotals(o: any): { total: number; paid: number; balance: num
   const adjustment = Number(o?.adjustment?.amount) || 0
   const pointsDiscount = Number(o?.pointsUsed?.amount) || 0
   const couponDiscount = (Array.isArray(o?.couponsUsed) ? o.couponsUsed : []).reduce((s: number, c: any) => s + (Number(c.amount) || 0), 0)
-  const gross = subtotal + shipping + adjustment - pointsDiscount - couponDiscount
+  const birthDiscount = Number(o?.birthdayDiscount?.amount) || 0 // ส่วนลดเดือนเกิด (หน้าร้าน) ตรงกับ orderTotals
+  const gross = subtotal + shipping + adjustment - pointsDiscount - couponDiscount - birthDiscount
   const rate = Number(o?.vat?.rate) || 0
   const exclusive = rate > 0 && o?.vat?.mode === 'exclusive'
   const vatAdd = exclusive ? r2((Math.max(gross, 0) * rate) / 100) : 0
