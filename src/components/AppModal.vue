@@ -4,7 +4,7 @@ import { useDialogA11y } from '../lib/dialogA11y'
 import { kb } from '../lib/viewportFit'
 import AppIcon from './AppIcon.vue'
 
-defineProps({ top: { type: Boolean, default: false }, title: { type: String, default: '' }, wide: { type: Boolean, default: false }, wider: { type: Boolean, default: false }, full: { type: Boolean, default: false }, big: { type: Boolean, default: false }, fit: { type: Boolean, default: false } }) // full: เต็มจอ · fit: ไม่มีการเลื่อนทั้งแนวตั้งและแนวนอน (เนื้อหาต้องพอดีกรอบ) // wider: กว้างขึ้นบนจอ lg สำหรับเลย์เอาต์สองคอลัมน์ · top: วางกล่องชิดด้านบนของพื้นที่ที่มองเห็น (ใช้กับ dialog ที่มีแป้นตัวเลขอยู่ล่าง)
+defineProps({ top: { type: Boolean, default: false }, title: { type: String, default: '' }, wide: { type: Boolean, default: false }, wider: { type: Boolean, default: false }, full: { type: Boolean, default: false }, big: { type: Boolean, default: false }, fit: { type: Boolean, default: false }, split: { type: Boolean, default: false } }) // full: เต็มจอ · fit: ไม่มีการเลื่อนทั้งแนวตั้งและแนวนอน (เนื้อหาต้องพอดีกรอบ) // wider: กว้างขึ้นบนจอ lg สำหรับเลย์เอาต์สองคอลัมน์ · top: วางกล่องชิดด้านบนของพื้นที่ที่มองเห็น (ใช้กับ dialog ที่มีแป้นตัวเลขอยู่ล่าง)
 const emit = defineEmits(['close'])
 const box = ref(null)
 const titleId = `dlg-${useId()}`
@@ -35,7 +35,7 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
         @input.capture="dirty = true"
         @change.capture="dirty = true"
         class="flex max-h-full min-h-0 w-full flex-col overflow-hidden bg-cream shadow-2xl outline-none"
-        :class="full ? 'h-full rounded-none sm:h-full sm:max-w-none sm:rounded-none' : big ? 'max-h-[calc(100dvh-2rem)] rounded-[2rem] sm:h-[90dvh] sm:w-[80vw] sm:max-w-none sm:max-h-none' : ['rounded-[2rem]', wider ? 'sm:max-w-2xl lg:max-w-5xl' : wide ? 'sm:max-w-2xl' : 'sm:max-w-md']"
+        :class="full ? 'h-full rounded-none sm:h-full sm:max-w-none sm:rounded-none' : big ? 'max-h-[calc(100dvh-2rem)] rounded-[2rem] sm:h-[90dvh] sm:w-[80vw] sm:max-w-none sm:max-h-none' : ['rounded-[2rem]', split ? 'sm:max-w-md landscape:lg:max-w-5xl' : wider ? 'sm:max-w-2xl lg:max-w-5xl' : wide ? 'sm:max-w-2xl' : 'sm:max-w-md']"
         role="dialog"
         aria-modal="true"
       >
@@ -46,8 +46,13 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
             <AppIcon name="x" :size="20" />
           </button>
         </div>
-        <div data-dialog-body class="min-h-0 flex-1 overscroll-contain px-5 pt-1 pb-5" :class="fit ? 'overflow-hidden' : 'overflow-y-auto'">
-          <slot />
+        <div data-dialog-body class="min-h-0 flex-1 overscroll-contain px-5 pt-1 pb-5" :class="[fit ? 'overflow-hidden' : 'overflow-y-auto', split ? 'landscape:lg:grid landscape:lg:grid-cols-2 landscape:lg:items-start landscape:lg:gap-x-6' : '']">
+          <slot v-if="!split" />
+          <template v-else>
+            <!-- split: แนวตั้ง/มือถือเรียงซ้ายแล้วขวาเหมือนเดิม · แนวนอนแบ่งสองคอลัมน์ -->
+            <div class="min-w-0 space-y-4"><slot name="left" /></div>
+            <div class="min-w-0 space-y-4"><slot name="right" /></div>
+          </template>
         </div>
         <div
           v-if="$slots.footer"

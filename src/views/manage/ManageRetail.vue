@@ -164,12 +164,16 @@ function doAdd() {
       </div>
     </section>
 
-    <AppModal v-if="mOpen" :title="mf.id ? 'แก้ไขกลุ่มตัวเลือก' : 'เพิ่มกลุ่มตัวเลือก'" @close="mOpen = false">
-      <div class="space-y-4">
+    <AppModal v-if="mOpen" split :title="mf.id ? 'แก้ไขกลุ่มตัวเลือก' : 'เพิ่มกลุ่มตัวเลือก'" @close="mOpen = false">
+      <template #left>
         <div><label class="label">ชื่อกลุ่ม <span class="text-rose-600">*</span></label><input v-model="mf.name" class="input" placeholder="เช่น ความหวาน" /></div>
         <div class="grid grid-cols-2 gap-1 seg-grid">
           <button v-for="t in [{ v: 'single', l: 'เลือกได้ 1 อย่าง' }, { v: 'multi', l: 'เลือกได้หลายอย่าง' }]" :key="t.v" type="button" class="h-9 rounded-lg text-sm font-medium" :class="mf.type === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="mf.type = t.v">{{ t.l }}</button>
         </div>
+        <AppSwitch v-model="mf.required" label="จำเป็นต้องเลือก" class="flex" />
+        <AppSwitch v-model="mf.active" label="ใช้งาน" class="flex" />
+      </template>
+      <template #right>
         <div>
           <div class="label">ตัวเลือก + ราคาบวกเพิ่ม (บาท)</div>
           <div class="space-y-2">
@@ -192,18 +196,16 @@ function doAdd() {
           <button type="button" class="btn-soft mt-2 h-9 w-full" @click="mf.options.push({ id: null, name: '', price: '' })"><AppIcon name="plus" :size="16" /> เพิ่มตัวเลือก</button>
           <p class="mt-1 text-xs text-stone-400">กลุ่มที่จำเป็นและเลือกได้ 1 อย่าง จะเลือกตัวแรกไว้ให้อัตโนมัติ</p>
         </div>
-        <AppSwitch v-model="mf.required" label="จำเป็นต้องเลือก" class="flex" />
-        <AppSwitch v-model="mf.active" label="ใช้งาน" class="flex" />
         <p v-if="mError" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ mError }}</p>
-      </div>
+      </template>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="mOpen = false">ยกเลิก</button>
         <button class="btn-primary flex-1 sm:flex-none" @click="saveM">บันทึก</button>
       </template>
     </AppModal>
 
-    <AppModal v-if="open" :title="form.id ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'" @close="open = false">
-      <div class="space-y-4">
+    <AppModal v-if="open" split :title="form.id ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'" @close="open = false">
+      <template #left>
         <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" /></div>
         <div>
           <label class="label">หมวด</label>
@@ -220,6 +222,8 @@ function doAdd() {
           <div class="label">รูปสินค้า (แสดงหน้าร้านเว็บ)</div>
           <ImageUploader v-model="form.images" :max="6" />
         </div>
+      </template>
+      <template #right>
         <details class="rounded-xl bg-stone-50 p-3">
           <summary class="cursor-pointer py-2 text-sm font-medium text-stone-700">ข้อมูลเค้ก (ไม่บังคับ) — ประเภท / เนื้อ / ขนาด</summary>
           <p class="mt-1 text-xs text-stone-400">ใช้แสดงประกอบ แนะนำสินค้า และคิดราคาตัวเลือกตามขนาด · ราคาสินค้าเป็นราคาคงที่ที่กรอกด้านบน</p>
@@ -255,7 +259,7 @@ function doAdd() {
         </div>
         <AppSwitch v-model="form.active" label="ใช้งาน (ปิด = ไม่แสดงทุกที่)" />
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
-      </div>
+      </template>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>
         <button class="btn-primary flex-1 sm:flex-none" @click="save">บันทึก</button>
