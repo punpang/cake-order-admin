@@ -14,7 +14,7 @@ export const SCHEDLIB_FILES = [
   // การ์ดสรุปออร์เดอร์ในแชท (ใช้สร้างการ์ดให้ออร์เดอร์เดิมตอนลูกค้าเปิดแชท)
   'chatCards.js',
   // ประชาสัมพันธ์/โปรโมชั่น: เกณฑ์ความยินยอม (customer-auth) และการตรวจแคมเปญ/การ์ด (campaign, scheduled)
-  'promoConsent.js', 'campaigns.js',
+  'promoConsent.js', 'campaigns.js', 'memberNotify.js',
   // ใบกำกับภาษีเต็มรูปฝั่งลูกค้า (Edge Function tax-invoice ใช้กติกาชุดเดียวกับแอป) · กรอบเวลา เลขผู้เสียภาษี ข้อความตัวเลขเป็นบาท
   'taxInvoice.js', 'acct/taxWindow.js', 'acct/taxid.js', 'acct/thaiBaht.js',
 ]

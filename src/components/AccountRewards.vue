@@ -11,7 +11,7 @@ import CouponBarcode from './CouponBarcode.vue'
 import { askConfirm } from '../lib/confirm'
 import { couponTermsText } from '../lib/coupons'
 import { tierLines } from '../lib/memberLevels'
-import { birthEligibleDate, setBirthRemote, clearBirthRemote } from '../lib/birthdayRemote'
+import { birthEligibleDate, setBirthRemote, clearBirthRemote, setSmsRemote } from '../lib/birthdayRemote'
 import { MONTHS } from '../lib/birthday'
 
 // คะแนน / แลกของ / กาชา / คูปอง ของลูกค้าที่ล็อกอินอยู่ (ย้ายมาจากหน้าลูกค้าจำลองเดิม) ใช้ได้เฉพาะของตัวเอง
@@ -34,6 +34,15 @@ async function saveBirth() {
   birthBusy.value = false
   msg.value = r.error ? r.error : 'บันทึกเดือนเกิดแล้ว สิทธิในเดือนเกิดใช้ได้หลังครบ 30 วัน'
   if (!r.error) birthConsent.value = false
+}
+const smsBusy = ref(false)
+const smsOn = computed(() => me.value?.smsOptIn === true && !!me.value?.smsConsentAt)
+async function toggleSms(v) {
+  if (smsBusy.value) return
+  smsBusy.value = true
+  const r = await setSmsRemote(v)
+  smsBusy.value = false
+  msg.value = r.error ? r.error : v ? 'เปิดรับ SMS แจ้งสิทธิ์สมาชิกแล้ว' : 'ปิดรับ SMS แจ้งสิทธิ์สมาชิกแล้ว'
 }
 async function removeBirth() {
   birthBusy.value = true
@@ -201,6 +210,13 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
           <button type="button" class="btn-primary h-11 px-4" :disabled="!birthMonth || !birthConsent || birthBusy" :class="!birthMonth || !birthConsent ? 'opacity-40' : ''" @click="saveBirth">บันทึกเดือนเกิด</button>
           <button v-if="me.birth?.month" type="button" class="btn-outline h-11 px-4" :disabled="birthBusy" @click="removeBirth">ถอนเดือนเกิด</button>
         </div>
+      </section>
+
+      <section v-if="me && usesServerLoyalty()" class="card mb-4 space-y-2" aria-label="SMS แจ้งสิทธิ์สมาชิก">
+        <label class="flex items-start gap-2 text-sm text-stone-700">
+          <input type="checkbox" class="mt-1 h-4 w-4" :checked="smsOn" :disabled="smsBusy" @change="toggleSms($event.target.checked)" />
+          <span>รับ SMS เมื่อเลื่อนระดับ ได้รับโบนัสคะแนน หรือได้คูปองวันเกิด (แยกจากข่าวโปรโมชัน ปิดได้ทุกเมื่อ)</span>
+        </label>
       </section>
 
       <div class="mb-4 grid grid-cols-4 gap-1 seg-grid">

@@ -189,3 +189,20 @@ Deno.test('ไม่มีบัญชีเว็บและไม่มีแ
   assertEquals(outbox(sb).map((o: Any) => o.channel), ['sms'])
   assertEquals(sb.inserts.some((i: Any) => i.table === 'punpang_chats'), false)
 })
+
+// สิทธิ์สมาชิก: SMS ต้องยินยอมแยก (ไม่ยินยอม → ไม่เข้าคิว · ยินยอมแล้ว → เข้าคิวตามช่องทางของกฎ)
+const TIER_RULE = { event: 'tier_up', channels: ['sms'], template: 'ยินดีด้วยค่ะ {ชื่อลูกค้า} เป็น {ระดับ}', enabled: true }
+const tierPlan = (customer: Any): Plan => plan({ key: 'tier|c1|l1', event: 'tier_up', orderId: null, order: null, customer, vars: { ชื่อลูกค้า: 'คุณมะลิ', ระดับ: 'LV2' } })
+
+Deno.test('สิทธิ์สมาชิก: ลูกค้าไม่ยินยอม SMS → ไม่มีคิว SMS', async () => {
+  const sb = fakeSb([])
+  await execPlan(ctxOf(sb, { rules: [TIER_RULE] }), tierPlan({ ...CUST, smsOptIn: false }))
+  assertEquals(outbox(sb).filter((o: Any) => o.channel === 'sms').length, 0)
+})
+
+Deno.test('สิทธิ์สมาชิก: ยินยอม SMS แล้ว → เข้าคิว SMS (เกตเวย์ยังไม่ตั้งค่าจึงล้มเหลว)', async () => {
+  const sb = fakeSb([])
+  await execPlan(ctxOf(sb, { rules: [TIER_RULE] }), tierPlan({ ...CUST, smsOptIn: true, smsConsentAt: '2026-11-20T00:00:00.000Z' }))
+  const ob = outbox(sb).filter((o: Any) => o.channel === 'sms')
+  assertEquals(ob.map((o: Any) => o.status), ['failed'])
+})

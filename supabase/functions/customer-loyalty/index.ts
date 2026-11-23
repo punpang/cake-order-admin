@@ -1,6 +1,7 @@
 import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { corsWrap } from '../_shared/cors.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { smsConsentPatch } from '../_shared/schedlib/memberNotify.js'
 
 // แลกของ/หมุนกาชาของลูกค้า (โหมด Supabase): ตรวจเซสชันลูกค้าก่อน แล้วเรียก RPC ฝั่งฐานข้อมูลด้วย service role
 // action: redeem { rewardId } · spin { usePoints } · make_coupon { amount } · set_birth { month, consent } · clear_birth (สร้างคูปองลดเป็นบาทจากคะแนน)
@@ -45,6 +46,20 @@ Deno.serve(corsWrap(async (req) => {
   const cid: string = s.customer_id
 
   const action = String(b.action || '')
+  // ยินยอมรับ SMS สิทธิ์สมาชิก (แยกจากโปรโมชัน) · เขียนเฉพาะฟิลด์ smsOptIn/smsConsentAt และกันเขียนทับด้วย updated_at
+  if (action === 'set_sms') {
+    if (typeof b.optIn !== 'boolean') return json({ error: 'ข้อมูลไม่ถูกต้อง', code: 'invalid' }, 400)
+    const before = (await sb.from('punpang_customers').select('id,name,phone,data,updated_at').eq('id', cid).maybeSingle()).data
+    if (!before) return json({ error: 'ไม่พบบัญชี' }, 401)
+    const next = smsConsentPatch(before.data || {}, b.optIn, new Date().toISOString())
+    const u = await sb.from('punpang_customers').update({ data: next }).eq('id', cid).eq('updated_at', before.updated_at).select('id')
+    if (u.error || !u.data?.length) return json({ error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' }, 409)
+    const cu = (await sb.from('punpang_customers').select('id,name,phone,data').eq('id', cid).maybeSingle()).data
+    if (!cu) return json({ error: 'ไม่พบบัญชี' }, 401)
+    const cp = await sb.from('punpang_records').select('id,data').eq('collection', 'coupons').eq('data->>customerId', cid)
+    const coupons = (cp.data || []).map((x: any) => ({ ...(x.data || {}), id: x.id }))
+    return json({ ok: true, customer: { ...(cu.data || {}), id: cu.id, name: cu.name, phone: cu.phone || '' }, coupons, result: { ok: true } })
+  }
   let r
   if (action === 'redeem') r = await sb.rpc('punpang_cust_redeem', { p_customer: cid, p_reward: String(b.rewardId ?? '') })
   else if (action === 'spin') r = await sb.rpc('punpang_cust_spin', { p_customer: cid, p_use_points: b.usePoints === true })

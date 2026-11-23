@@ -10,6 +10,7 @@ import { runPlans, type Ctx } from '../_shared/scheduled/run.ts'
 import { dispatchDueCampaigns } from '../_shared/campaign.ts'
 import { lineRetentionDays, retentionCutoffIso } from '../_shared/linepush.ts'
 import { SMS_GATEWAY_URL } from '../_shared/gwfetch.ts'
+import { planLoyalty, LOYALTY_WINDOW_MS } from '../_shared/schedlib/memberNotify.js'
 
 // deno-lint-ignore no-explicit-any
 type Any = any
@@ -92,6 +93,11 @@ Deno.serve(async (req) => {
     const sentRows = await fetchAll((x, y) => sb.from('punpang_records').select('id').eq('collection', 'notifySent').order('id').range(x, y))
     const sent = new Set<string>(sentRows.map((r) => String(r.id)))
 
+    // สิทธิ์สมาชิก: คูปองวันเกิดที่ระบบออกในช่วงเวลา (รายการอื่นดูจากสมุดคะแนนของลูกค้า) · กันส่งซ้ำด้วยคีย์ notifySent
+    const sinceIso = new Date(nowMs - LOYALTY_WINDOW_MS).toISOString()
+    const cpRows = await fetchAll((x, y) => sb.from('punpang_records').select('id,data').eq('collection', 'coupons').eq('data->>source', 'member_birthday').gte('data->>createdAt', sinceIso).order('id').range(x, y))
+    const loyalty = planLoyalty({ nowMs, customers, coupons: cpRows.map((r) => ({ data: { ...(r.data || {}), id: r.id } })) }).filter((p) => !sent.has(p.key))
+
     const chats = await fetchAll((x, y) => sb.from('punpang_chats').select('id,channel,external_id,customer_id,data').in('channel', ['facebook']).order('id').range(x, y))
     const pg = await sb.from('punpang_fb_pages').select('token').limit(1).maybeSingle()
 
@@ -108,7 +114,7 @@ Deno.serve(async (req) => {
     } catch (e) {
       acctError = String((e as Error)?.message || e).slice(0, 200)
     }
-    const plans = [...planned, ...acctPlans]
+    const plans = [...planned, ...acctPlans, ...loyalty]
     const ctx: Ctx = {
       sb,
       nowMs,
