@@ -370,7 +370,8 @@ async function quote() {
     </section>
 
     <!-- 2 นัดรับ -->
-    <section v-if="step === 1" class="space-y-3">
+    <section v-if="step === 1" class="space-y-3" :class="!embedded && 'lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:space-y-0'">
+      <div class="space-y-3">
       <div class="card">
         <div class="card-title"><AppIcon name="calendar" class="text-brand-600" /> วันเวลานัดรับ</div>
         <div class="grid grid-cols-2 gap-3">
@@ -427,7 +428,9 @@ async function quote() {
           </div>
         </div>
       </div>
+      </div>
 
+      <div class="space-y-3">
       <div class="card">
         <div class="card-title"><AppIcon name="truck" class="text-brand-600" /> การส่งมอบ</div>
         <div class="grid grid-cols-2 gap-2">
@@ -454,13 +457,14 @@ async function quote() {
 
       <div class="card space-y-3">
         <div class="card-title">โอกาสของการสั่ง <span class="font-normal text-stone-400">(ไม่บังคับ · ถามลูกค้าได้)</span></div>
-        <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3" role="radiogroup" aria-label="โอกาสของการสั่ง">
+        <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-2 2xl:grid-cols-3" role="radiogroup" aria-label="โอกาสของการสั่ง">
           <button v-for="o in OCCASIONS" :key="o.key" type="button" class="chip" :class="form.occasionKind === o.key ? 'chip-on' : 'chip-off'" role="radio" :aria-checked="form.occasionKind === o.key" @click="form.occasionKind = form.occasionKind === o.key ? '' : o.key; if (!form.occasionKind) form.occasionConsent = false">{{ o.label }}</button>
         </div>
         <label v-if="form.occasionKind" class="flex items-start gap-2 text-sm text-stone-700">
           <input v-model="form.occasionConsent" type="checkbox" class="mt-1" />
           <span>ลูกค้ายินยอมให้ร้านใช้โอกาสนี้เป็นสถิติรวมไม่ระบุตัวตน เพื่อแนะนำสินค้า (ไม่เก็บเพศ อายุ หรือข้อมูลของผู้รับ)</span>
         </label>
+      </div>
       </div>
     </section>
 
