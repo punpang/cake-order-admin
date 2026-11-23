@@ -69,6 +69,8 @@ watch(() => props.id, (id) => ensureOrderInvoices(id), { immediate: true })
 // ---------- ด่านตรวจออร์เดอร์เสี่ยง: รายการที่ระบบพบว่าผิดต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ ----------
 const gate = ref(null) // สถานะด่านล่าสุดจากฐานข้อมูล (โหลดใหม่ก่อนทำรายการที่เกี่ยวข้อง)
 const gateBlocked = computed(() => order.value?.channel !== 'pos' && !!gate.value?.blocked)
+// มีการกำหนดช่องทางเฉพาะออร์เดอร์นี้ (true/false) จึงเปิดการ์ดค้างไว้ · null = ตามเดิม
+const notifyOverridden = computed(() => Object.values(order.value?.notifyChannels || {}).some((v) => v === true || v === false))
 const gateHeld = computed(() => order.value?.status !== 'cancelled' && !!gate.value?.hold)
 const gateIsPos = computed(() => order.value?.channel === 'pos') // บิลหน้าร้าน: แจ้งให้ตรวจ ไม่กันการขาย
 // ยังไม่ชำระ → ด่านกั้นทั้งการยืนยันชำระและการส่งมอบ · ชำระแล้ว → ด่านกั้นเฉพาะการส่งมอบ
@@ -484,11 +486,16 @@ async function saveCancel() {
         </section>
 
         <!-- ช่องทางแจ้งเตือนของออร์เดอร์นี้ (เหนือกว่าค่าของลูกค้า/ระบบ) -->
-        <section v-if="customer && order.channel !== 'pos'" class="card">
-          <div class="card-title"><AppIcon name="bell" class="text-brand-600" /> ช่องทางแจ้งเตือนออร์เดอร์นี้</div>
+        <details v-if="customer && order.channel !== 'pos'" class="card group" :open="notifyOverridden">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-2 select-none [&::-webkit-details-marker]:hidden">
+            <span class="card-title mb-0"><AppIcon name="bell" class="text-brand-600" /> ช่องทางแจ้งเตือนออร์เดอร์นี้</span>
+            <span class="shrink-0 text-xs font-medium" :class="notifyOverridden ? 'text-brand-700' : 'text-stone-500'">{{ notifyOverridden ? 'กำหนดเองบางช่องทาง' : 'ตามเดิม' }}</span>
+          </summary>
+          <div class="mt-3">
           <p class="mb-2 text-xs text-stone-500">ตามเดิม = ใช้ค่าของลูกค้า/ระบบ · เปิด/ปิด = บังคับเฉพาะออร์เดอร์นี้ ทุกข้อความ</p>
           <NotifyChannelPicker :model="order.notifyChannels" :customer="customer" :readonly="!can('editPickup')" @set="(ch, v) => setOrderNotifyChannel(order, ch, v)" />
-        </section>
+          </div>
+        </details>
 
         <!-- สินค้า -->
         <section class="card">
