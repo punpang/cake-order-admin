@@ -1,6 +1,6 @@
 // กติกาเงินพัก (ฟังก์ชันล้วน): ธนบัตร · ตรวจรายการ · ยอดคืนตอนยกเลิก
 import assert from 'node:assert/strict'
-import { NOTE_VALUES, holdCountOf, holdAmountOf, holdErrors, holdCancelRefundOf } from './holdMoney.js'
+import { NOTE_VALUES, holdCountOf, holdAmountOf, holdErrors, holdCancelRefundOf, canHandOver } from './holdMoney.js'
 
 const cases = [
   ['มูลค่าธนบัตร 20/50/100/500/1000', () => assert.deepEqual(NOTE_VALUES, [20, 50, 100, 500, 1000])],
@@ -27,6 +27,11 @@ const cases = [
     assert.equal(holdCancelRefundOf({ liability: 1000, paidNet: 1000, total: 400 }), 600)
     assert.equal(holdCancelRefundOf({ liability: 1000, paidNet: 300, total: 400 }), 0)
   }],
+  ['จัดส่ง: ยังค้างชำระไม่ได้ แม้เงินพักครบ', () => assert.equal(canHandOver({ fulfillment: 'delivery', balance: 400, paidNet: 1000, hold: 1000, total: 400 }), false)],
+  ['จัดส่ง: ชำระครบ → ได้', () => assert.equal(canHandOver({ fulfillment: 'delivery', balance: 0, paidNet: 1400, hold: 1000, total: 400 }), true)],
+  ['รับที่ร้าน: เงินพักครบและมากกว่ายอดสินค้า → ส่งมอบได้ แม้สินค้าค้าง', () => assert.equal(canHandOver({ fulfillment: 'pickup', balance: 400, paidNet: 1000, hold: 1000, total: 400 }), true)],
+  ['รับที่ร้าน: เงินพักไม่ครบ → ไม่ได้', () => assert.equal(canHandOver({ fulfillment: 'pickup', balance: 400, paidNet: 600, hold: 1000, total: 400 }), false)],
+  ['รับที่ร้าน: เงินพักไม่มากกว่ายอดสินค้า → ต้องชำระครบ', () => assert.equal(canHandOver({ fulfillment: 'pickup', balance: 100, paidNet: 400, hold: 300, total: 400 }), false)],
 ]
 
 let fails = 0

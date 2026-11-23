@@ -37,3 +37,10 @@ export function holdCancelRefundOf({ liability = 0, paidNet = 0, total = 0 }) {
   const v = Math.min(Number(liability) || 0, (Number(paidNet) || 0) - (Number(total) || 0))
   return Math.max(0, Math.round(v * 100) / 100)
 }
+
+// เปลี่ยนเป็นจัดส่ง/ส่งมอบได้หรือไม่ · จัดส่ง: ต้องชำระครบเสมอ · รับที่ร้าน: ชำระครบ หรือ เงินพักชำระครบและมากกว่ายอดสินค้า (ยอดสินค้าค้างเป็นลูกหนี้)
+export function canHandOver({ fulfillment, balance = 0, paidNet = 0, hold = 0, total = 0 }) {
+  if (!(Number(balance) > 0.005)) return true
+  if (fulfillment === 'delivery') return false
+  return Number(hold) > 0 && Number(paidNet) + 0.005 >= Number(hold) && Number(hold) > Number(total)
+}
