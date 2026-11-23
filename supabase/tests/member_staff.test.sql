@@ -7,7 +7,8 @@ begin;
 -- ---------- ตัวช่วย (pg_temp หายเมื่อจบธุรกรรม) ----------
 create function pg_temp.msf_today() returns date language sql stable as $$ select (now() at time zone 'Asia/Bangkok')::date $$;
 create function pg_temp.msf_mode(m text) returns void language sql as $$
-  insert into public.punpang_kv (collection, id, data) values ('config', 'memberLevels', jsonb_build_object('v', jsonb_build_object('mode', m)))
+  insert into public.punpang_kv (collection, id, data) values ('config', 'memberLevels', jsonb_build_object('v',
+    jsonb_build_object('levels', '[{"name":"LV1","min":0,"mult":1},{"name":"LV2","min":1000,"mult":3},{"name":"LV3","min":3000,"mult":5},{"name":"LV4","min":7000,"mult":10}]'::jsonb) || jsonb_build_object('mode', m)))
   on conflict (collection, id) do update set data = excluded.data
 $$;
 create function pg_temp.msf_card(p_c text) returns jsonb language sql as $$

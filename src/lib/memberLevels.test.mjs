@@ -14,6 +14,10 @@ const t = (name, fn) => {
 }
 const cfg = (over = {}) => ({ ...structuredClone(DEFAULT_MEMBER_CFG), ...over })
 
+t('ค่าตั้งต้นตามสเปก: เกณฑ์ 0/500/2500/5000 และตัวคูณ 1/2/3/5 ต่ออายุ 150 (รวม VAT)', () => {
+  assert.deepEqual(DEFAULT_MEMBER_CFG.levels.map((l) => [l.min, l.mult]), [[0, 1], [500, 2], [2500, 3], [5000, 5]])
+  assert.equal(DEFAULT_MEMBER_CFG.renewGross, 150)
+})
 t('ค่าตั้งต้นใช้ได้ (ไม่มีข้อผิดพลาด)', () => {
   assert.deepEqual(memberCfgErrors(DEFAULT_MEMBER_CFG), [])
 })

@@ -9,9 +9,9 @@ export const DEFAULT_MEMBER_CFG = {
   mode: 'off',
   levels: [
     { name: 'LV1', min: 0, mult: 1 },
-    { name: 'LV2', min: 1000, mult: 3 },
-    { name: 'LV3', min: 3000, mult: 5 },
-    { name: 'LV4', min: 7000, mult: 10 },
+    { name: 'LV2', min: 500, mult: 2 },
+    { name: 'LV3', min: 2500, mult: 3 },
+    { name: 'LV4', min: 5000, mult: 5 },
   ],
   renewGross: 150, // ยอดรายวันก่อน VAT ที่ต่ออายุ (ถ้ามี VAT 7% เหลือ 140)
   inactiveDays: 90, // ช่วงใช้งาน (วัน) หลังต่ออายุ

@@ -184,6 +184,11 @@ mlcode=$?
 [ "$mlcode" = "0" ] && echo "✓ member_levels.test.sql ผ่านทั้งหมด" || echo "✗ member_levels.test.sql ล้มเหลว"
 [ "$mlcode" = "0" ] || exit "$mlcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/member_benefits.test.sql
+mbcode=$?
+[ "$mbcode" = "0" ] && echo "✓ member_benefits.test.sql ผ่านทั้งหมด" || echo "✗ member_benefits.test.sql ล้มเหลว"
+[ "$mbcode" = "0" ] || exit "$mbcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/member_staff.test.sql
 msfcode=$?
 [ "$msfcode" = "0" ] && echo "✓ member_staff.test.sql ผ่านทั้งหมด" || echo "✗ member_staff.test.sql ล้มเหลว"
