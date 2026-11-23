@@ -1,3 +1,14 @@
+## 2026-11-23 · [Release][DB][POS][ลูกค้า][SMS] รวมงาน Telegram POS + ตัดเตือนนัดรับ + จอลูกค้าแสดงสมาชิก + zen บางส่วน · Release ผ่านแล้ว
+
+**ทำอะไร:** commit `12fbaf2` (แจ้งทีม Telegram เมื่อ POS ปิดบิล/ยกเลิก/แลกคืนเงิน/ปิดบิลมีส่วนลด · ตัดเตือนนัดรับ · จอลูกค้าแสดงแถบสมาชิก) + แก้ `displayMember` ไม่ให้ขึ้น "ระดับสูงสุด" เมื่อป้ายยังเป็น RPC รุ่นเดิม · migration `20261123100000_punpang_member_card_progress.sql` (ป้ายระดับมี nextName/toNext/pct) · merge zen เฉพาะที่ไม่ชนกัน: `tools/sms-relay/` (README, relay.mjs, relay.test.mjs) · ถอน `memberLevels.store.test.mjs` (ทดสอบ API ของ zen ที่ไม่ตรงกับ main) · ไม่เอา migration `20261122110100_punpang_member_award.sql` (เวอร์ชันชนกับ migration ที่รันแล้ว), `docs/vat-refund-buyer.md` (ถ้อยคำกฎหมายรอยืนยัน), `package.json` และ e2e `memberTier`/`supabaseMock` (ยังไม่ตรวจ)
+**เหตุผล:** ผู้ใช้สั่ง merge deploy ทั้งหมดที่ค้าง · zen ผู้ใช้เลือกเฉพาะส่วนที่ไม่ชนกัน · production `memberLevels` เป็น live อยู่แล้ว → ถ้าเว็บขึ้นก่อน migration จอลูกค้าจะแสดงชื่อระดับโดยไม่มีหลอด จึงให้โค้ดทนกรณีนี้ก่อน
+**ผล:** `npm test` 100 ไฟล์ผ่าน · build ผ่าน · bundle 884.6 / 886 KB · `run.sh` บน Postgres 16 ท้องถิ่นผ่านทั้งชุด · หน้า /display ทดสอบ 7 สถานะ ไม่มีชื่อ/เบอร์เต็ม · Release `45115185945` (main b8600d5): test ✓ · release ✓ (migration `20261123100000` บันทึกแล้ว · 8 function + sms-send deploy สำเร็จ) · pickup: notifyRules 48→47 (ไม่มี pickup_reminder), shop ไม่มี pickupRemindHours · sms-probe ผู้ใช้ลบเองใน Dashboard
+**รอ:** sms-send บน production ยังไม่ได้ทดสอบจริง
+**งานค้าง:** สาขา `claude/zen-gauss-5qbmyh` ยังมีส่วนที่ไม่ merge (ดูด้านบน) รอผู้ใช้ตัดสิน · ทั้งชุดชนไฟล์หลายไฟล์ รวม migration ที่รันบน production แล้ว
+
+---
+
+
 ## 2026-11-22 · [POS][ลูกค้า] ป้ายระดับสมาชิกไม่ค้างตอนสลับลูกค้า (บรรทัดเดียวจาก phase1) · ตัดสินก่อนเปิดใช้จริงครบ · ส่ง patch ให้ผู้ใช้ push
 
 **ทำอะไร:** `Pos.vue` รีเซ็ตป้ายระดับเป็นค่าว่างก่อนโหลดการ์ดของสมาชิกคนใหม่ (บรรทัดเดียวจาก `claude/member-tiers-phase1`) · `docs/loyalty-tiers.md` ปรับสถานะให้ตรง Release #21–#22 · ใช้ค่าที่ร้านจะตั้ง: อัตรา 25/0.10 · ระดับ 0/500/1,500/3,000 · ตัวคูณ ×1/×2/×3/×5 · ขั้นตอนเปิดใช้ 5 ขั้น · คู่มือร้านเขียนใหม่ 4 ขั้น · ย้ายรายการเก่า 1 รายการไป archive (เหลือ 9)
