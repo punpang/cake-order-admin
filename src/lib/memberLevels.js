@@ -19,6 +19,7 @@ export const DEFAULT_MEMBER_CFG = {
   downgradeDays: 365, // ครบรอบนี้โดยไม่ต่ออายุ = ลด 1 ขั้น
   bigBill: 500, // บิลใหญ่ (ก่อน VAT) ที่ปลุกสิทธิ์เต็มได้ทันที
   cakeCategories: [], // หมวดสินค้าที่นับเป็น "เค้ก" สำหรับส่วนลดเดือนเกิด (ร้านเลือกเอง · ว่าง = ยังไม่มีส่วนลด)
+  cakeItemIds: [], // สินค้าที่ร้านเลือกเองนับเป็นเค้ก (เพิ่มจากหมวด)
 }
 
 const isNum = (x) => typeof x === 'number' && Number.isFinite(x)

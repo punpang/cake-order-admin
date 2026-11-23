@@ -62,5 +62,15 @@ select test.ok('BD8 สิทธิเดือนเกิดสำหรับ
 select test.ok('BD9 ลูกค้าไม่มีสิทธิ์/ไม่มีลูกค้า: rate 0', (public.punpang_member_birth_for_quote('bdp_none') ->> 'rate')::int = 0
   and (public.punpang_member_birth_for_quote(null) ->> 'rate')::int = 0);
 
+-- รอบ 3: เลือกสินค้าเอง (นอกหมวด) นับเป็นเค้ก
+insert into public.punpang_items (id, kind, name, price, active, data) values
+  ('bdp_pick', 'retail', 'สินค้าเลือกเอง', 200, true, '{"category":"bdp-ขนมอบ"}');
+update public.punpang_kv set data = jsonb_set(data, '{v,cakeItemIds}', '["bdp_pick"]'::jsonb)
+ where collection = 'config' and id = 'memberLevels';
+select test.ok('BD10 สินค้าที่เลือกเองนับเป็นเค้กแม้หมวดไม่ตรง: 200 × 10% = 20',
+  public.punpang__birth_discount_expected('bdp_c1', '[{"retailId":"bdp_pick","unitPrice":200,"qty":1}]'::jsonb) = 20);
+select test.ok('BD11 สินค้าอื่นนอกหมวดและนอกรายการ ไม่นับ',
+  public.punpang__birth_discount_expected('bdp_c1', '[{"retailId":"bdp_other","unitPrice":70,"qty":1}]'::jsonb) = 0);
+
 rollback;
 select 'ผ่านทั้งหมด' as birthday_pos_tests;

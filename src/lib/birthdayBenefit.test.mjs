@@ -24,5 +24,7 @@ t('ไม่ซ้อนคูปอง: ส่วนลดเดือนเก
 t('ไม่ซ้อนคูปอง: คูปองมากกว่า → ใช้คูปอง', () => assert.equal(pickBirthOrCoupons(9.5, 10), 'coupons'))
 t('เท่ากัน → ใช้คูปองเดิม', () => assert.equal(pickBirthOrCoupons(10, 10), 'coupons'))
 t('ไม่มีคูปอง → ใช้เดือนเกิด', () => assert.equal(pickBirthOrCoupons(9.5, 0), 'birth'))
+t('เลือกสินค้าเองนับเป็นเค้ก แม้หมวดไม่อยู่ในรายการ', () => assert.deepEqual(birthCakeDiscount({ items: [{ id: 'p9', category: 'ขนมอบ', unitPrice: 200, qty: 1 }], cakeCategories: cats, cakeItemIds: ['p9'], birth: lv4 }), { amount: 20, base: 200 }))
+t('สินค้าที่ไม่ได้เลือกทั้งหมวดและรายการ ไม่นับ', () => assert.equal(birthCakeDiscount({ items: [{ id: 'p8', category: 'ขนมอบ', unitPrice: 200, qty: 1 }], cakeCategories: cats, cakeItemIds: ['p9'], birth: lv4 }).amount, 0))
 if (fail) { console.log(`ล้ม ${fail} รายการ`); process.exit(1) }
 console.log('ผ่านทั้งหมด')
