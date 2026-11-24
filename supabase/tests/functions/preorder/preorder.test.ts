@@ -21,7 +21,7 @@ function seed() {
       camp({}),
       camp({ id: 'c_closed', status: 'closed' }),
       camp({ id: 'c_past', order_to: '2001-01-01' }),
-      camp({ id: 'c_parcel', data: { name: 'พัสดุ', dayCap: null, items: [{ retailId: 'pr2', dayCap: null }], deals: [], parcel: { enabled: true } } }),
+      camp({ id: 'c_parcel', data: { name: 'พัสดุ', dayCap: null, items: [{ retailId: 'pr2', dayCap: null }], deals: [], parcel: { enabled: true }, shipping: { shipFrom: '2099-12-22', shipTo: '2099-12-23' } } }),
     ],
     'public.punpang_items': [
       { id: 'pr1', kind: 'retail', name: 'เค้กพร้อมส่ง', price: 100, active: true, data: {} },
@@ -198,5 +198,33 @@ Deno.test('create: โควตาเต็ม (RPC reserve_failed) → 409 พ�
 Deno.test('create: รหัสออร์เดอร์ไม่ใช่ hex 32 ตัว → 400', async () => {
   await seedAuth()
   const r = await call({ action: 'create', token: TOKEN, turnstileToken: GOOD, campaignId: 'c_open', pickupDate: '2099-12-24', fulfillment: 'pickup', lines: [{ retailId: 'pr1', qty: 1 }], orderId: 'bad' })
+  assertEquals(r.status, 400)
+})
+
+Deno.test('campaigns: ส่งช่วงวันจัดส่งเฉพาะแคมเปญที่เปิดส่งพัสดุ', async () => {
+  seed()
+  const j = await (await call({ action: 'campaigns' })).json()
+  assertEquals(j.campaigns.find((c: any) => c.id === 'c_parcel').shipping, { shipFrom: '2099-12-22', shipTo: '2099-12-23' })
+  assertEquals(j.campaigns.find((c: any) => c.id === 'c_open').shipping, null)
+})
+Deno.test('create ส่งพัสดุ: เก็บช่วงวันจัดส่งของแคมเปญไว้ในออเดอร์ (ไม่รับค่าจากผู้ใช้)', async () => {
+  await seedAuth()
+  let captured: any = null
+  ;(globalThis as any).__RPC.punpang_preorder_create = async (args: any) => { captured = args; return { data: { ok: true, already: false, code: 'PRE-241124-000002' }, error: null } }
+  const r = await call({ action: 'create', token: TOKEN, turnstileToken: GOOD, campaignId: 'c_parcel', pickupDate: '2099-12-24', fulfillment: 'delivery', address: '1 ถนนทดสอบ', province: 'เชียงใหม่', shipping: { shipFrom: '2000-01-01', shipTo: '2000-01-02' }, lines: [{ retailId: 'pr2', qty: 1 }], orderId: ORDER })
+  assertEquals(r.status, 200)
+  assertEquals(captured.p_row.data.shipping, { shipFrom: '2099-12-22', shipTo: '2099-12-23' })
+})
+Deno.test('create ส่งพัสดุในแคมเปญที่ยังไม่ระบุวันจัดส่ง → 409', async () => {
+  await seedAuth()
+  const row = (globalThis as any).__DB.t['public.punpang_preorder_campaigns'].find((x: any) => x.id === 'c_parcel')
+  delete row.data.shipping
+  const r = await call({ action: 'create', token: TOKEN, turnstileToken: GOOD, campaignId: 'c_parcel', pickupDate: '2099-12-24', fulfillment: 'delivery', address: '1 ถนนทดสอบ', province: 'เชียงใหม่', lines: [{ retailId: 'pr2', qty: 1 }], orderId: ORDER })
+  assertEquals(r.status, 409)
+  assertEquals((await r.json()).error, 'แคมเปญนี้ยังไม่ระบุวันจัดส่งพัสดุ')
+})
+Deno.test('create ส่งพัสดุโดยไม่กรอกที่อยู่ → 400', async () => {
+  await seedAuth()
+  const r = await call({ action: 'create', token: TOKEN, turnstileToken: GOOD, campaignId: 'c_open', pickupDate: '2099-12-24', fulfillment: 'delivery', lines: [{ retailId: 'pr1', qty: 1 }], orderId: ORDER })
   assertEquals(r.status, 400)
 })

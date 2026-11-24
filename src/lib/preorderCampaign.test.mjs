@@ -113,7 +113,7 @@ t('2B: parcel.enabled ต้องเป็น boolean', () => {
   assert.equal(campaignError(c), 'ค่า parcel.enabled ต้องเป็น true/false')
 })
 t('2B: แคมเปญถูกต้องที่มีขั้นส่วนลดและพัสดุ → ผ่าน', () => {
-  const c = { ...valid(), items: [{ retailId: 'A', dayCap: null }], deals: [spendDeal([{ min: 500, type: 'amount', value: 50 }, { min: 1000, type: 'percent', value: 8 }])], parcel: { enabled: true } }
+  const c = { ...valid(), items: [{ retailId: 'A', dayCap: null }], deals: [spendDeal([{ min: 500, type: 'amount', value: 50 }, { min: 1000, type: 'percent', value: 8 }])], parcel: { enabled: true }, shipFrom: '2026-12-22', shipTo: '2026-12-23' }
   assert.equal(campaignError(c), '')
 })
 t('2B: round-trip แถวฐานข้อมูลเก็บ deals และ parcel', () => {
@@ -127,6 +127,58 @@ t('2B: แถวเก่าที่ไม่มี deals/parcel อ่าน�
   const c = rowToCampaign(r)
   assert.deepEqual(c.deals, [])
   assert.deepEqual(c.parcel, { enabled: false })
+})
+
+// ---- ช่วงวันจัดส่งพัสดุต่อแคมเปญ (ใช้เมื่อเปิดส่งพัสดุเท่านั้น) ----
+const parcelOn = (extra = {}) => ({ ...valid(), parcel: { enabled: true }, shipFrom: '2026-12-22', shipTo: '2026-12-23', ...extra })
+t('shipping: parcel เปิดแต่ไม่มีช่วงวันจัดส่ง → ไม่ผ่าน', () => {
+  assert.equal(campaignError(parcelOn({ shipFrom: '', shipTo: '' })), 'ช่วงวันจัดส่งพัสดุต้องเป็นวันที่ที่ถูกต้อง')
+})
+t('shipping: วันจัดส่งรูปแบบผิดหรือวันที่ไม่มีจริง → ไม่ผ่าน', () => {
+  assert.notEqual(campaignError(parcelOn({ shipFrom: '22/12/2026' })), '')
+  assert.notEqual(campaignError(parcelOn({ shipTo: '2026-02-30' })), '')
+})
+t('shipping: วันเริ่มจัดส่งหลังวันสิ้นสุด → ไม่ผ่าน', () => {
+  assert.equal(campaignError(parcelOn({ shipFrom: '2026-12-25', shipTo: '2026-12-22' })), 'วันเริ่มจัดส่งต้องไม่เกินวันสิ้นสุด')
+})
+t('shipping: วันเริ่มเท่ากับวันสิ้นสุด (วันเดียว) → ผ่าน', () => {
+  assert.equal(campaignError(parcelOn({ shipFrom: '2026-12-23', shipTo: '2026-12-23' })), '')
+})
+t('shipping: parcel ปิด ไม่ต้องมีช่วงวันจัดส่ง → ผ่าน', () => {
+  assert.equal(campaignError({ ...valid(), parcel: { enabled: false }, shipFrom: '', shipTo: '' }), '')
+})
+t('shipping: round-trip เก็บช่วงวันจัดส่งใน data.shipping', () => {
+  const c = parcelOn()
+  const row = campaignToRow(c)
+  assert.deepEqual(row.data.shipping, { shipFrom: '2026-12-22', shipTo: '2026-12-23' })
+  const back = rowToCampaign(row)
+  assert.equal(back.shipFrom, '2026-12-22')
+  assert.equal(back.shipTo, '2026-12-23')
+})
+t('shipping: แถวเก่าไม่มี shipping อ่านได้ค่าว่าง', () => {
+  const r = { id: 'old', status: 'draft', order_from: '2026-12-01', order_to: '2026-12-15', pickup_from: '2026-12-24', pickup_to: '2026-12-26', deposit_percent: 50, pay_due_min: 120, data: { name: 'เก่า', dayCap: null, items: [] } }
+  const c = rowToCampaign(r)
+  assert.equal(c.shipFrom, '')
+  assert.equal(c.shipTo, '')
+})
+t('shipping: blankCampaign มีช่วงวันจัดส่งว่าง', () => {
+  assert.equal(blankCampaign().shipFrom, '')
+  assert.equal(blankCampaign().shipTo, '')
+})
+
+// ---- คำเตือน (ไม่บล็อกการบันทึก): ช่วงจัดส่งอยู่นอกช่วงรับสินค้า ----
+import { shipOutsidePickupWarning } from './preorderCampaign.js'
+t('shipping warning: ช่วงจัดส่งอยู่ในช่วงรับ → ไม่มีคำเตือน', () => {
+  assert.equal(shipOutsidePickupWarning(parcelOn({ shipFrom: '2026-12-24', shipTo: '2026-12-25' })), '')
+})
+t('shipping warning: ช่วงจัดส่งต่างจากช่วงรับ → มีคำเตือนและบันทึกได้ (ไม่ใช่ข้อผิดพลาด)', () => {
+  const c = parcelOn({ shipFrom: '2026-12-20', shipTo: '2026-12-21' })
+  assert.notEqual(shipOutsidePickupWarning(c), '')
+  assert.equal(campaignError(c), '')
+})
+t('shipping warning: parcel ปิดหรือยังไม่กรอกวัน → ไม่มีคำเตือน', () => {
+  assert.equal(shipOutsidePickupWarning({ ...valid(), parcel: { enabled: false } }), '')
+  assert.equal(shipOutsidePickupWarning(parcelOn({ shipFrom: '', shipTo: '' })), '')
 })
 
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')

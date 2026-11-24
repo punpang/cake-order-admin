@@ -31,7 +31,7 @@ export const systemsFor = (mode) => (mode === 'android'
   : ALL_SYSTEMS)
 export const SYSTEMS = systemsFor(APP_MODE)
 // เส้นทางที่เปิดได้ในแอป (โหมดเว็บเปิดทุกเส้นทาง) · หน้าแรกเป็น '' เมื่อผ่าน router (ตัด / ท้ายแล้ว)
-const CUSTOMER_PATHS = ['/menu', '/line', '/legal', '/account', '/o', '/luck', '/s']
+const CUSTOMER_PATHS = ['/menu', '/line', '/legal', '/account', '/o', '/luck', '/s', '/preorder']
 const isCustomerPath = (path) => ['', '/'].includes(path) || CUSTOMER_PATHS.some((p) => path === p || path.startsWith(p + '/'))
 export const allowedInAppMode = (mode, path) => {
   if (mode === 'customer') return isCustomerPath(path)

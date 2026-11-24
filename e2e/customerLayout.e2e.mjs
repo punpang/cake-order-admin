@@ -13,7 +13,7 @@ const WIDTHS = [320, 390, 768, 1024, 1440]
 const TOUCH_MAX = 1024
 const MIN_TAP = 44
 // หน้าลูกค้าที่เปิดได้โดยไม่ต้องล็อกอิน (ตรงกับ src/router.js)
-const PAGES = ['/', '/menu', '/menu/gallery', '/menu/custom', '/account/login', '/account/register', '/account/forgot', '/line', '/legal/privacy', '/legal/terms', '/legal/cookie']
+const PAGES = ['/', '/menu', '/menu/gallery', '/menu/custom', '/account/login', '/account/register', '/account/forgot', '/line', '/legal/privacy', '/legal/terms', '/legal/cookie', '/preorder', '/preorder/orders']
 
 const server = await createServer({ root: ROOT, logLevel: 'error', server: { host: '127.0.0.1', port: 0 } })
 await server.listen()

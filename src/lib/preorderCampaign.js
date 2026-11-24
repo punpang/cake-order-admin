@@ -19,6 +19,7 @@ export function blankCampaign() {
     depositPercent: 50, payDueMin: null,
     dayCap: null, items: [],
     deals: [], parcel: { enabled: false },
+    shipFrom: '', shipTo: '',
   }
 }
 
@@ -58,6 +59,10 @@ export function campaignError(c) {
     if (err) return err
   }
   if (c.parcel !== undefined && typeof c.parcel?.enabled !== 'boolean') return 'ค่า parcel.enabled ต้องเป็น true/false'
+  if (c.parcel?.enabled === true) {
+    if (!isDay(c.shipFrom) || !isDay(c.shipTo)) return 'ช่วงวันจัดส่งพัสดุต้องเป็นวันที่ที่ถูกต้อง'
+    if (c.shipFrom > c.shipTo) return 'วันเริ่มจัดส่งต้องไม่เกินวันสิ้นสุด'
+  }
   for (const it of c.items) {
     if (!it?.retailId) return 'สินค้าในแคมเปญต้องมีรหัส'
     if (seen.has(it.retailId)) return 'สินค้าซ้ำในแคมเปญ'
@@ -65,6 +70,14 @@ export function campaignError(c) {
     if (!capOk(it.dayCap)) return 'เพดานต่อวันของสินค้าต้องว่างหรือเป็นจำนวนเต็ม ≥ 0'
   }
   return ''
+}
+
+// คำเตือนเมื่อช่วงจัดส่งต่างจากช่วงรับสินค้า (ไม่บล็อกการบันทึก) · '' ถ้าไม่มีอะไรให้เตือน
+export function shipOutsidePickupWarning(c) {
+  if (c?.parcel?.enabled !== true || !isDay(c.shipFrom) || !isDay(c.shipTo)) return ''
+  if (!isDay(c.pickupFrom) || !isDay(c.pickupTo)) return ''
+  const inside = c.shipFrom >= c.pickupFrom && c.shipTo <= c.pickupTo
+  return inside ? '' : 'ช่วงวันจัดส่งต่างจากช่วงวันรับสินค้า ตรวจให้แน่ใจว่าตั้งใจ'
 }
 
 // วันรับทั้งหมดในช่วง (รวมปลายทั้งสอง) เรียงจากน้อยไปมาก · [] ถ้าช่วงไม่ถูกต้อง
@@ -107,6 +120,7 @@ export function campaignToRow(c) {
       items: c.items.map((i) => ({ retailId: i.retailId, dayCap: i.dayCap ?? null })),
       deals: (c.deals ?? []).map((d) => ({ kind: d.kind, name: d.name ?? '', tiers: (d.tiers ?? []).map((t) => ({ min: Number(t.min), type: t.type, value: Number(t.value) })) })),
       parcel: { enabled: c.parcel?.enabled === true },
+      shipping: c.parcel?.enabled === true ? { shipFrom: c.shipFrom, shipTo: c.shipTo } : null,
     },
   }
 }
@@ -126,5 +140,7 @@ export function rowToCampaign(r) {
     items: (r.data?.items ?? []).map((i) => ({ retailId: i.retailId, dayCap: i.dayCap ?? null })),
     deals: r.data?.deals ?? [],
     parcel: { enabled: r.data?.parcel?.enabled === true },
+    shipFrom: r.data?.shipping?.shipFrom ?? '',
+    shipTo: r.data?.shipping?.shipTo ?? '',
   }
 }

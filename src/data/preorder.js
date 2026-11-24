@@ -14,6 +14,7 @@ const structOf = (c) => JSON.stringify([
   (c.items || []).map((i) => [i.retailId, i.dayCap ?? null]),
   (c.deals || []).map((d) => [d.kind, d.name, (d.tiers || []).map((t) => [t.min, t.type, t.value])]),
   c.parcel?.enabled === true,
+  c.parcel?.enabled === true ? [c.shipFrom, c.shipTo] : null,
 ])
 
 let seq = 0
