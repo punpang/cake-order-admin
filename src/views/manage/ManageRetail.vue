@@ -208,9 +208,12 @@ function doAdd() {
       <template #left>
         <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" /></div>
         <div>
-          <label class="label">หมวด</label>
-          <input v-model="form.category" class="input" list="retail-cats" placeholder="เช่น เค้กชิ้น, เครื่องดื่ม" />
-          <datalist id="retail-cats"><option v-for="c in categories" :key="c" :value="c" /></datalist>
+          <label class="label" for="retail-cat-new">หมวด</label>
+          <div v-if="categories.length" class="chip-row mb-2" role="group" aria-label="เลือกหมวดที่มีอยู่">
+            <button v-for="c in categories" :key="c" type="button" class="chip" :class="form.category === c ? 'chip-on' : 'chip-off'" :aria-pressed="form.category === c" @click="form.category = c">{{ c }}</button>
+          </div>
+          <input id="retail-cat-new" v-model="form.category" class="input" placeholder="หรือพิมพ์หมวดใหม่ เช่น เค้กชิ้น" />
+          <p class="mt-1 text-xs text-stone-400">กดหมวดที่มีอยู่ หรือพิมพ์ชื่อใหม่ได้เลย</p>
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div><label class="label">ราคา (บาท) <span v-if="!form.openPrice" class="text-rose-600">*</span></label><MoneyInput v-model="form.price" class="input" /></div>
