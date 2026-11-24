@@ -36,6 +36,14 @@ t('ยกเลิกคืน 30 ริบ 40 จากยอดรับ 70: 2
   balanced(cxl)
 })
 
+t('คืนเป็นคะแนนลงหนี้สินคะแนน 2310 แทนเงินออก', () => {
+  const es = preorderEntries({ ...base, status: 'cancelled', refunds: [{ amount: 30, method: 'points' }], cancelledAt: '2026-11-26T00:00:00.000Z' })
+  const cxl = es.find((e) => e.id === 'pre-cxl:po1')
+  assert.equal(cxl.lines.find((l) => l.account === '2310').cr, 30)
+  assert.equal(cxl.lines.some((l) => l.account === '1010' || l.account === '1020'), false)
+  balanced(cxl)
+})
+
 t('คืนสองวิธี (เงินสด 20 โอน 10) ลงคนละบัญชี และคืนเกินยอดที่รับไม่บันทึกรายการ', () => {
   const split = preorderEntries({ ...base, status: 'cancelled', refunds: [{ amount: 20, method: 'cash' }, { amount: 10, method: 'bank' }], cancelledAt: '2026-11-26T00:00:00.000Z' })
   const cxl = split.find((e) => e.id === 'pre-cxl:po1')

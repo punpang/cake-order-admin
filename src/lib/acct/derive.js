@@ -169,7 +169,7 @@ export function orderEntries(o, ctx) {
 
 // ออร์เดอร์สั่งล่วงหน้า (เฟส 3G): มัดจำที่ยืนยันแล้วเข้า 2300 รับล่วงหน้า · ยกเลิกแล้วคืนเงินตามที่ร้านเลือก และส่วนที่เหลือเป็นริบเข้า 4900
 // รายได้รับรู้ตอนส่งมอบยังไม่รวมในรอบนี้ (ต้องตัดสินเรื่อง VAT ของมัดจำก่อน) · ออร์เดอร์ที่หมดเวลาแต่ยังไม่ยกเลิกไม่มีรายการ
-// อินพุต: { id, code, status, payments:[{id, amount, method, status, at}], refunds:[{amount, method: 'cash'|'bank'}], cancelledAt? }
+// อินพุต: { id, code, status, payments:[{id, amount, method, status, at}], refunds:[{amount, method: 'cash'|'bank'|'points'}], cancelledAt? } · คืนเป็นคะแนนลงหนี้สินคะแนน 2310
 export function preorderEntries(o) {
   const out = []
   if (!o || !o.code) return out
@@ -190,7 +190,7 @@ export function preorderEntries(o) {
     if (refundS > paidS) return out
     const forfS = paidS - refundS
     const lines = [dr(DEPOSIT, paidS)]
-    for (const r of refunds) lines.push(cr(r.method === 'bank' ? BANK : CASH, r.s))
+    for (const r of refunds) lines.push(cr(r.method === 'points' ? POINTS_LIAB : r.method === 'bank' ? BANK : CASH, r.s))
     if (forfS > 0) lines.push(cr('4900', forfS))
     out.push(entry(`pre-cxl:${o.id}`, dateOf(o.cancelledAt), `ยกเลิกสั่งล่วงหน้า ${code} คืนเงิน/ริบมัดจำ`, { type: 'preorder-cancel', orderId: o.id }, lines))
   }

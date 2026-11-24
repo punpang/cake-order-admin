@@ -274,4 +274,19 @@ begin
 end $$;
 select test.ok('P27 งานตามเวลาหมดเวลาจ่ายถูกตั้งไว้ (หรือไม่มี pg_cron ในฐานทดสอบ)', test.pp_cron_jobs() = 1);
 
+-- P28 คืนเป็นคะแนน (pointValue 1): ได้ก้อนคะแนนใหม่ 20 ไม่มีวันหมดอายุ ผูกกับออร์เดอร์ ยอดเงินสดคืนแยกต่างหาก
+do $$
+declare r jsonb;
+begin
+  r := public.punpang_preorder_cancel('pp_f', '[{"amount":20,"method":"points"},{"amount":10,"method":"cash"}]'::jsonb);
+  perform test.ok('P28 คืนเป็นคะแนน 20 และเงินสด 10 → มีก้อนคะแนนใหม่ไม่มีวันหมดอายุ ริบ 40',
+    (r->>'refund')::numeric = 30 and (r->>'forfeited')::numeric = 40
+    and (select x->>'delta' from public.punpang_customers c, jsonb_array_elements(c.data->'ledger') x where c.id = 'pp_c2' and x->>'orderId' = 'pp_f' and x->>'expiresAt' is null) = '20');
+end $$;
+
+-- P29 ยอดคืนเป็นคะแนนที่ไม่หาร pointValue ลงตัว → bad_refund และไม่มีการเปลี่ยนแปลง
+select test.ok('P29 ยอดคืนเป็นคะแนนไม่ลงตัวถูกปฏิเสธ และออร์เดอร์ยังไม่ยกเลิก',
+  public.punpang_preorder_cancel('pp_e', '[{"amount":1.5,"method":"points"}]'::jsonb) = '{"error":"bad_refund"}'::jsonb
+  and (select status from public.punpang_preorder_orders where id = 'pp_e') = 'expired');
+
 rollback;

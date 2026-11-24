@@ -143,18 +143,18 @@ begin
 end $$;
 
 -- 6) ยกเลิก: คืนแต้มทั้งหมด · ปล่อยโควตาเฉพาะออร์เดอร์ที่ยังจองอยู่ (ไม่ปล่อยซ้ำกับที่หมดเวลาแล้ว)
--- การคืนเงินเป็นลิสต์ [{amount, method}] method = cash | bank (คืนเป็นคะแนนหรือคูปองยังไม่รองรับ) · ยอดรวมคืนต้องไม่เกินยอดที่รับ ส่วนที่เหลือเป็นริบ
+-- การคืนเงินเป็นลิสต์ [{amount, method}] method = cash | bank | points (points = คืนเป็นคะแนนใหม่ ไม่มีวันหมดอายุ ยอดต้องหาร pointValue ลงตัว) · ยอดรวมคืนต้องไม่เกินยอดที่รับ ส่วนที่เหลือเป็นริบ
 create or replace function public.punpang_preorder_cancel(p_order text, p_refunds jsonb default '[]'::jsonb, p_now timestamptz default now())
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
   cid text; o record; paid numeric; ret jsonb; rel jsonb := null; r jsonb; amt numeric; refund_total numeric := 0;
-  clean jsonb := '[]'::jsonb;
+  clean jsonb := '[]'::jsonb; pv numeric; pts_total int; lg jsonb;
   nowz text := to_char(p_now at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
 begin
   if jsonb_typeof(coalesce(p_refunds, '[]'::jsonb)) <> 'array' then return jsonb_build_object('error', 'bad_refund'); end if;
   for r in select * from jsonb_array_elements(coalesce(p_refunds, '[]'::jsonb)) loop
     amt := (r->>'amount')::numeric;
-    if amt is null or amt <= 0 or amt <> round(amt, 2) or (r->>'method') not in ('cash', 'bank') then
+    if amt is null or amt <= 0 or amt <> round(amt, 2) or (r->>'method') not in ('cash', 'bank', 'points') then
       return jsonb_build_object('error', 'bad_refund');
     end if;
     refund_total := refund_total + amt;
@@ -168,9 +168,27 @@ begin
   if o.status = 'delivered' then return jsonb_build_object('error', 'already_delivered'); end if;
   paid := public.punpang_preorder_paid_total(o.data);
   if refund_total > paid then return jsonb_build_object('error', 'bad_refund'); end if;
+  pv := public.punpang__pts_cfg('pointValue', 1);
+  pts_total := 0;
+  for r in select * from jsonb_array_elements(clean) loop
+    if r->>'method' = 'points' then
+      if pv <= 0 or abs((r->>'amount')::numeric / pv - round((r->>'amount')::numeric / pv)) > 0.000001 then
+        return jsonb_build_object('error', 'bad_refund');
+      end if;
+      pts_total := pts_total + round((r->>'amount')::numeric / pv)::int;
+    end if;
+  end loop;
   ret := public.punpang_preorder_return_points(p_order);
   if o.status in ('awaiting_payment', 'payment_confirmed') then
     rel := public.punpang_preorder_release(o.campaign_id, o.pickup_date, coalesce(o.data->'lines', '[]'::jsonb));
+  end if;
+  if pts_total > 0 then
+    -- ก้อนคะแนนคืน: ไม่มีวันหมดอายุ (expiresAt เป็น null) อ้างอิงออร์เดอร์ เพื่อให้ระบบคะแนนเดิมใช้ได้
+    select data->'ledger' into lg from public.punpang_customers where id = cid;
+    lg := coalesce(lg, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+      'id', public.punpang__pts_newid(), 'at', nowz, 'delta', pts_total, 'remaining', pts_total,
+      'expiresAt', null, 'reason', 'คืนเงินสั่งล่วงหน้า (คืนเป็นคะแนน)', 'orderId', p_order));
+    update public.punpang_customers set data = jsonb_set(data, '{ledger}', lg), updated_at = now() where id = cid;
   end if;
   update public.punpang_preorder_orders
     set status = 'cancelled', updated_at = now(),
