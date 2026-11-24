@@ -70,6 +70,14 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: เตรียมโฟลเดอร์แคช apt ให้เขียนได้
+        run: sudo chown -R "$USER" /var/cache/apt/archives
+      - name: แคชแพ็กเกจ apt (ลดเวลาโหลดซ้ำ mirror ช้า)
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-archives-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: apt-archives-${{ runner.os }}-
       - name: ติดตั้ง Chromium ของ Playwright และฟอนต์ไทย (ให้ความกว้างข้อความใกล้เครื่องพัฒนา)
         run: |
           npx playwright install --with-deps chromium
