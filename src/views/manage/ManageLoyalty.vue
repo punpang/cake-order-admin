@@ -1,9 +1,10 @@
 <script setup>
 import MoneyInput from '../../components/MoneyInput.vue'
-import { computed, defineAsyncComponent, reactive, ref } from 'vue'
+import { computed, defineAsyncComponent, reactive, ref, watch } from 'vue'
 import { db, can, findCustomer, saveReward, savePrize, saveLoyaltySettings, markCouponDelivered, phaseOfCoupon, refundCoupon } from '../../data/store'
 import { chanceTotal } from '../../lib/loyalty'
 import { COUPON_MODES, couponTermsText, validateCouponReward } from '../../lib/coupons'
+import { pointsForPrice } from '../../lib/rewardPoints'
 import { money, dateOnly, toDateStr } from '../../lib/format'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
@@ -46,12 +47,18 @@ const rwOpen = ref(false)
 const blankRw = () => ({ id: null, name: '', kind: 'item', mode: 'fixed', points: 0, amount: '', minSpend: '', pct: '', cap: '', productId: '', validDays: '', active: true })
 const rw = reactive(blankRw())
 const rwError = ref('')
+// ราคาของที่แลก (บาท) ไม่เก็บลงข้อมูล · ใช้คำนวณ "ใช้คะแนน" ให้เท่านั้น
+const rwPrice = ref('')
+watch(rwPrice, (v) => { if (v !== '') rw.points = pointsForPrice(v, db.loyalty.pointValue) })
+// คูปองลดเป็นบาท: ถ้ายังไม่ได้พิมพ์ราคาเอง ให้ใช้ "ลด (บาท)" เป็นราคาของที่แลก
+watch(() => rw.amount, (v) => { if (rw.kind === 'coupon' && rw.mode === 'fixed' && rwPrice.value === '') rwPrice.value = v || '' })
 const activeRetail = computed(() => db.retailItems.filter((x) => x.active !== false))
 // ตัวอย่างเงื่อนไขที่ลูกค้าจะเห็น (ชื่อสินค้าจากรายการที่เลือก)
 const rwPreview = computed(() => ({ ...rw, productName: activeRetail.value.find((x) => x.id === rw.productId)?.name || '' }))
 function editRw(r) {
   Object.assign(rw, blankRw(), r ? { ...r, amount: r.amount ? String(r.amount) : '', minSpend: r.minSpend ? String(r.minSpend) : '', pct: r.pct ? String(r.pct) : '', cap: r.cap ? String(r.cap) : '', validDays: r.validDays ? String(r.validDays) : '' } : {})
   rwError.value = ''
+  rwPrice.value = ''
   rwOpen.value = true
 }
 async function saveRw() {
@@ -269,7 +276,15 @@ function doRefund() {
           <p class="rounded-xl bg-stone-50 p-2.5 text-sm text-stone-700">ลูกค้าจะเห็น: {{ couponTermsText(rwPreview) }}</p>
           <p class="text-xs text-stone-400">ลูกค้าแลกบนเว็บ (บัญชีของฉัน → คะแนน) แล้วนำคูปองมาใช้ที่ POS/ออร์เดอร์ · คะแนนที่แลกแล้วไม่คืน</p>
         </template>
-        <div><label class="label">ใช้คะแนน</label><input v-model.number="rw.points" type="text" v-num min="1" class="input" /></div>
+        <div>
+          <label class="label">ราคาของที่แลก (บาท)</label>
+          <MoneyInput v-model="rwPrice" class="input" placeholder="เช่น 120" />
+        </div>
+        <div>
+          <label class="label">ใช้คะแนน</label>
+          <input v-model.number="rw.points" type="text" v-num min="1" class="input" />
+          <p v-if="rwPrice !== ''" class="mt-1 text-xs text-stone-500">คิดจาก {{ rwPrice }} ÷ {{ db.loyalty.pointValue }} บาท/คะแนน (ปัดขึ้น) · แก้เองได้</p>
+        </div>
         <AppSwitch v-model="rw.active" label="ใช้งาน (แสดงให้ลูกค้าแลก)" class="flex" />
         <p v-if="rwError" class="text-sm text-rose-700">{{ rwError }}</p>
       </div>
