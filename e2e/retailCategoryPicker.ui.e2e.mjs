@@ -44,6 +44,24 @@ t('ฟอร์มสินค้า: กดหมวดที่มีอยู
   } finally { await page.context().close() }
 })
 
+t('ฟอร์มสินค้า: สวิตช์ในกรอบห่างกันไม่เกิน 8px และความสูงแถวอย่างน้อย 44px (ปุ่มสัมผัส)', async () => {
+  const { page, errors } = await openRetail()
+  try {
+    await page.getByRole('button', { name: 'เพิ่มสินค้า' }).first().click()
+    await page.waitForSelector('#retail-cat-new')
+    const r = await page.evaluate(() => {
+      const box = [...document.querySelectorAll('[role="switch"]')].find((b) => b.textContent.includes('แสดงใน POS'))?.parentElement
+      const rows = [...box.querySelectorAll(':scope > [role="switch"]')].map((b) => b.getBoundingClientRect())
+      const gaps = rows.slice(1).map((r2, i) => Math.round(r2.top - rows[i].bottom))
+      return { gaps, heights: rows.map((x) => Math.round(x.height)) }
+    })
+    assert.ok(r.gaps.length >= 5, 'ต้องมีสวิตช์ในกรอบอย่างน้อย 6 แถว')
+    assert.ok(Math.max(...r.gaps) <= 8, `ช่องว่างระหว่างแถวเกิน 8px: ${r.gaps.join(', ')}`)
+    assert.ok(Math.min(...r.heights) >= 44, `แถวสูงต่ำกว่า 44px: ${r.heights.join(', ')}`)
+    assert.deepEqual(errors, [])
+  } finally { await page.context().close() }
+})
+
 let failed = 0
 for (const [name, fn] of cases) {
   try { await fn(); console.log(`✓ ${name}`) } catch (e) { failed++; console.log(`✗ ${name}\n  ${e.message}`) }
