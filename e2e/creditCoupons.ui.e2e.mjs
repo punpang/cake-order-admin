@@ -180,7 +180,7 @@ t('POS: หน้าชำระเงินสแกนคูปองของ
     await page.evaluate(async () => { window.__store = await import('/src/data/store.js') })
     const info = await seedBarcodeCoupons(page)
     assert.ok(info, 'ไม่มีลูกค้าสำหรับทดสอบ')
-    await page.getByRole('button', { name: 'ไม่มี', exact: true }).first().click()
+    await page.getByRole('button', { name: 'ลูกค้าทั่วไป', exact: true }).first().click()
     await page.getByRole('button', { name: /คัพเค้กวานิลลา/ }).first().click()
     await page.getByRole('button', { name: 'ชำระเงิน', exact: true }).first().click()
     await page.getByRole('button', { name: 'สแกนบาร์โค้ดคูปองของลูกค้า' }).click()

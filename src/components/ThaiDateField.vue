@@ -31,7 +31,7 @@ const years = computed(() => {
 </script>
 
 <template>
-  <div class="grid grid-cols-[4.5rem_1fr_6rem] gap-1.5" role="group" :aria-label="label">
+  <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1.2fr)] gap-1.5" role="group" :aria-label="label">
     <select class="input px-2" :value="part.d || ''" :aria-label="`${label} วัน`" @change="set('d', $event.target.value)">
       <option value="">วัน</option>
       <option v-for="d in days" :key="d" :value="d">{{ d }}</option>

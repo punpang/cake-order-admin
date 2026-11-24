@@ -31,7 +31,7 @@ const t = (name, fn) => cases.push([name, fn])
 t('POS 1280×800: ไม่มีแถบเลื่อนแนวนอน และปุ่มชำระเงินอยู่ในจอ', async () => {
   const { page, errors } = await open('/admin/pos')
   try {
-    await page.getByRole('button', { name: 'ไม่มี', exact: true }).first().click()
+    await page.getByRole('button', { name: 'ลูกค้าทั่วไป', exact: true }).first().click()
     await page.getByRole('button', { name: /คัพเค้กวานิลลา/ }).first().click()
     const pay = page.getByRole('button', { name: 'ชำระเงิน', exact: true }).first()
     await pay.waitFor({ state: 'visible' })

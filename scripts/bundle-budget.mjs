@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 
 const DIST = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'assets')
 const PER_FILE_GZIP_KB = 166 // ไฟล์เดียวหลัง gzip (ตัวใหญ่สุดปัจจุบันคือ main ~165 KB · เพิ่มจาก 165 เพราะการล้างคะแนนค้างผ่าน RPC ดู commit)
-const TOTAL_GZIP_KB = 900 // งบรวม 900 KB (ขยายจาก 888 → 895: ฟีเจอร์ POS ผู้ใช้อนุมัติ 2026-11-24 · ขยายเป็น 900: บริการเกี่ยวกับเงิน/เงินพัก ผู้ใช้อนุมัติ 2026-11-23)
+const TOTAL_GZIP_KB = 901 // งบรวม 901 KB (ขยายจาก 888 → 895: ฟีเจอร์ POS ผู้ใช้อนุมัติ 2026-11-24 · ขยายเป็น 900: บริการเกี่ยวกับเงิน/เงินพัก ผู้ใช้อนุมัติ 2026-11-23 · ขยายเป็น 901: ภาพสำรองและหน้าแรกร้าน ผู้ใช้อนุมัติ 2026-11-24)
 
 if (!existsSync(DIST)) { console.log('ไม่พบ dist/assets · รัน npm run build ก่อน'); process.exit(1) }
 const files = readdirSync(DIST).filter((f) => /\.(js|css)$/.test(f))

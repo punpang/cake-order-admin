@@ -2,7 +2,7 @@
 import { safeHref } from '../../lib/safeUrl'
 import { computed, ref } from 'vue'
 import { db } from '../../data/store'
-import { bestSellers, activePromotions, customMenu, approvedReviews, avgRating, promoProducts } from '../../lib/storefront'
+import { bestSellers, activePromotions, customMenu, approvedReviews, avgRating, promoProducts, isSamplePlaceholder } from '../../lib/storefront'
 import { dateOnly, money } from '../../lib/format'
 import { latestCustomPhotos } from '../../lib/cakeSearch'
 import AppIcon from '../../components/AppIcon.vue'
@@ -38,8 +38,8 @@ const morePromos = ref(false)
     <div class="absolute inset-0 -z-10" :class="s.heroImage ? 'bg-linear-to-br from-hero-1/85 via-hero-2/80 to-hero-3/85' : 'bg-linear-to-br from-hero-1 via-hero-2 to-hero-3'"></div>
     <HeroCake class="pointer-events-none absolute -right-4 -bottom-2 -z-0 h-44 w-44 opacity-95 sm:right-10 sm:h-72 sm:w-72" />
     <div class="relative mx-auto max-w-page px-5 py-9 sm:py-20 lg:px-8">
-      <h1 class="max-w-[15rem] text-[2rem] leading-[1.22] sm:max-w-xl sm:text-5xl">{{ s.heroTitle }}</h1>
-      <p class="mt-2.5 max-w-[15rem] text-base leading-snug font-medium sm:max-w-lg sm:text-lg">{{ s.heroText }}</p>
+      <h1 class="text-balance max-w-[15rem] text-[2rem] leading-[1.22] sm:max-w-xl sm:text-5xl">{{ s.heroTitle }}</h1>
+      <p class="text-balance mt-2.5 max-w-[15rem] text-base leading-snug font-medium sm:max-w-lg sm:text-lg">{{ s.heroText }}</p>
       <!-- มือถือ: ปุ่มเรียงลงกันและไม่ทับภาพเค้กด้านขวา · จอกว้างเรียงแถว -->
       <div class="mt-5 flex flex-col items-start gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
         <RouterLink to="/menu" class="inline-flex h-12 w-full max-w-[15rem] items-center justify-center gap-1.5 rounded-full bg-white px-6 font-display text-base text-stone-800 shadow-lg hover:bg-brand-50 sm:w-auto sm:max-w-none">ดูเมนูเค้ก <AppIcon name="next" :size="16" /></RouterLink>
@@ -65,7 +65,7 @@ const morePromos = ref(false)
             <div class="p-2.5 sm:p-3">
               <div class="line-clamp-2 min-h-[2.4em] text-[13px] leading-snug font-semibold text-stone-900 sm:text-base">{{ r.product.name }}</div>
               <StorePrice :price="r.price" :regular="r.regular" />
-              <div v-if="r.promo" class="mt-0.5 line-clamp-1 text-xs text-stone-600">{{ r.promo }}</div>
+              <div v-if="r.promo" class="mt-0.5 line-clamp-1 text-xs text-stone-700">{{ r.promo }}</div>
             </div>
           </RouterLink>
         </li>
@@ -107,7 +107,7 @@ const morePromos = ref(false)
               <div class="aspect-square overflow-hidden"><img :src="g.image" :alt="altOf(g)" loading="lazy" class="h-full w-full object-cover transition group-hover:scale-105" /></div>
               <div class="p-2.5">
                 <div class="line-clamp-1 text-sm font-semibold text-stone-900">{{ g.typeName || 'เค้กสั่งทำ' }}</div>
-                <div class="line-clamp-1 text-xs text-stone-600">{{ g.tagNames.filter((t) => t.groupKey !== 'type').map((t) => t.name).join(' · ') || '—' }}</div>
+                <div class="line-clamp-1 text-xs text-stone-700">{{ g.tagNames.filter((t) => t.groupKey !== 'type').map((t) => t.name).join(' · ') || '—' }}</div>
               </div>
             </RouterLink>
           </li>
@@ -179,7 +179,7 @@ const morePromos = ref(false)
 
     <!-- วิธีสั่ง (timeline) -->
     <section v-if="s.howToOrder.length" class="relative overflow-hidden">
-      <Doodles side="right" class="opacity-70" />
+      <Doodles side="right" class="hidden opacity-70 lg:block" />
       <h2 class="mb-3 text-2xl text-stone-900">วิธีสั่งซื้อ</h2>
       <ol class="relative mx-auto max-w-xl space-y-3.5 pr-6">
         <span class="absolute top-6 bottom-6 left-[5.5rem] w-[3px] rounded bg-stone-800" aria-hidden="true"></span>
@@ -213,7 +213,7 @@ const morePromos = ref(false)
     <!-- ติดต่อ -->
     <section class="card rounded-3xl p-5 shadow-md">
       <h2 class="mb-1.5 text-[22px] text-stone-900">ติดต่อร้าน</h2>
-      <p v-if="s.address" class="mb-3 flex gap-2 text-sm text-stone-700"><AppIcon name="pin" :size="16" class="mt-0.5 text-stone-500" /> {{ s.address }}</p>
+      <p v-if="s.address && !isSamplePlaceholder(s.address)" class="mb-3 flex gap-2 text-sm text-stone-700"><AppIcon name="pin" :size="16" class="mt-0.5 text-stone-500" /> {{ s.address }}</p>
       <div class="flex flex-wrap gap-2">
         <a v-if="safeHref(s.mapUrl)" :href="safeHref(s.mapUrl)" target="_blank" rel="noopener" class="btn-outline"><AppIcon name="pin" :size="16" /> ดูแผนที่</a>
         <StoreOrderButtons />

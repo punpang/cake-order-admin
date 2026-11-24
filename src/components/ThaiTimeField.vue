@@ -22,12 +22,12 @@ const two = (i) => String(i).padStart(2, '0')
 <template>
   <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5" role="group" :aria-label="label">
     <select class="input px-2" :value="part.h" :aria-label="`${label} ชั่วโมง`" @change="set('h', $event.target.value)">
-      <option value="">--</option>
+      <option value="">ชั่วโมง</option>
       <option v-for="i in 24" :key="i" :value="two(i - 1)">{{ two(i - 1) }}</option>
     </select>
     <span class="text-stone-500">:</span>
     <select class="input px-2" :value="part.n" :disabled="part.h === ''" :aria-label="`${label} นาที`" @change="set('n', $event.target.value)">
-      <option v-if="part.h === ''" value="">--</option>
+      <option v-if="part.h === ''" value="">นาที</option>
       <option v-for="i in 60" :key="i" :value="two(i - 1)">{{ two(i - 1) }}</option>
     </select>
   </div>

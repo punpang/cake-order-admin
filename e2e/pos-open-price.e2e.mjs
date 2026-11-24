@@ -25,7 +25,7 @@ async function open() {
     r.openPrice = true
     r.name = 'ของฝากตามราคา'
   })
-  await page.getByRole('button', { name: 'ไม่มี', exact: true }).first().click() // ขายแบบไม่มีสมาชิก
+  await page.getByRole('button', { name: 'ลูกค้าทั่วไป', exact: true }).first().click() // ขายแบบไม่มีสมาชิก
   return { page, errors }
 }
 

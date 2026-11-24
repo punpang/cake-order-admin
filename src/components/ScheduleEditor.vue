@@ -10,17 +10,17 @@ const toggleDay = (d) => (s.value.days = s.value.days.includes(d) ? s.value.days
 
 <template>
   <div class="space-y-3 rounded-xl border border-stone-200 p-3">
-    <div class="grid grid-cols-2 gap-3">
+    <div class="grid gap-3 sm:grid-cols-2">
       <div><div class="label">วันเริ่ม</div><ThaiDateField v-model="s.from" label="วันเริ่ม" /></div>
       <div><div class="label">วันสิ้นสุด</div><ThaiDateField v-model="s.to" label="วันสิ้นสุด" /></div>
     </div>
     <div>
       <div class="label">วันในสัปดาห์ <span class="font-normal text-stone-400">(ไม่เลือก = ทุกวัน)</span></div>
-      <div class="flex flex-wrap gap-1.5">
-        <button v-for="(d, i) in DAYS" :key="i" type="button" class="chip" :class="s.days.includes(i) ? 'chip-on' : 'chip-off'" @click="toggleDay(i)">{{ d }}</button>
+      <div class="grid grid-cols-7 gap-1.5">
+        <button v-for="(d, i) in DAYS" :key="i" type="button" class="chip justify-center px-0" :class="s.days.includes(i) ? 'chip-on' : 'chip-off'" @click="toggleDay(i)">{{ d }}</button>
       </div>
     </div>
-    <div class="grid grid-cols-2 gap-3">
+    <div class="grid gap-3 sm:grid-cols-2">
       <div><div class="label">เวลาเริ่ม</div><ThaiTimeField v-model="s.timeFrom" label="เวลาเริ่ม" /></div>
       <div><div class="label">เวลาสิ้นสุด</div><ThaiTimeField v-model="s.timeTo" label="เวลาสิ้นสุด" /></div>
     </div>
