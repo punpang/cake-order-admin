@@ -200,3 +200,9 @@ Deno.test('create: รหัสออร์เดอร์ไม่ใช่ hex
   const r = await call({ action: 'create', token: TOKEN, turnstileToken: GOOD, campaignId: 'c_open', pickupDate: '2099-12-24', fulfillment: 'pickup', lines: [{ retailId: 'pr1', qty: 1 }], orderId: 'bad' })
   assertEquals(r.status, 400)
 })
+
+Deno.test('create ส่งพัสดุโดยไม่กรอกที่อยู่ → 400', async () => {
+  await seedAuth()
+  const r = await call({ action: 'create', token: TOKEN, turnstileToken: GOOD, campaignId: 'c_open', pickupDate: '2099-12-24', fulfillment: 'delivery', lines: [{ retailId: 'pr1', qty: 1 }], orderId: ORDER })
+  assertEquals(r.status, 400)
+})

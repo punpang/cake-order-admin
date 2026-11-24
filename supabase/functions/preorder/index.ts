@@ -196,10 +196,14 @@ Deno.serve(corsWrap(async (req) => {
     const campaign = { id: c.id, items: (c.data?.items ?? []), deals: c.data?.deals ?? [], parcel: c.data?.parcel ?? { enabled: false } }
     const q: any = priceCampaignOrder({ campaign, catalog, lines, pickupDate: b.pickupDate, fulfillment: b.fulfillment, points: 0, pointValue, nowMs: Date.now() })
     if (!q.ok) return json({ error: q.error, itemId: q.itemId ?? null }, 400)
+    // ส่งพัสดุต้องมีที่อยู่และจังหวัด (เก็บในออร์เดอร์ ไม่ใช้ค่าจากตาราง)
+    const address = String(b.address ?? '').trim().slice(0, 300)
+    const province = String(b.province ?? '').trim().slice(0, 40)
+    if (b.fulfillment === 'delivery' && (!address || !province)) return json({ error: 'กรอกที่อยู่และจังหวัดสำหรับส่งพัสดุ' }, 400)
     const total = Math.round(q.totals.total * 100) / 100
     const deposit = Math.ceil((total * c.deposit_percent) / 100 * 100) / 100
     const payDueAt = new Date(Date.now() + c.pay_due_min * MIN).toISOString()
-    const data = { ...q.order, total, deposit: { percent: c.deposit_percent, amount: deposit }, payDueAt, lines, pickupDate: b.pickupDate }
+    const data = { ...q.order, total, deposit: { percent: c.deposit_percent, amount: deposit }, payDueAt, lines, pickupDate: b.pickupDate, ...(b.fulfillment === 'delivery' ? { address, province } : {}) }
     const rpc = await sb.rpc('punpang_preorder_create', {
       p_row: { id: orderId, customer_id: cid, campaign_id: c.id, pickup_date: b.pickupDate, status: 'awaiting_payment', fulfillment: b.fulfillment, data },
       p_lines: lines.map((l: any) => ({ itemId: l.retailId, qty: l.qty })),

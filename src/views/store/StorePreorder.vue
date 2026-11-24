@@ -28,9 +28,17 @@ const busy = ref(false)
 const captchaEl = ref(null)
 const captchaToken = ref('')
 let captchaId = null
+// ขั้นสั่งออร์เดอร์
+const address = ref('')
+const province = ref('')
+const placing = ref(false)
+const placeError = ref('')
+const placed = ref(null)
+let attemptOrderId = ''
 
 async function mountCaptcha() {
-  if (!turnstileOn() || captchaId !== null) return
+  if (!turnstileOn()) return
+  if (captchaId !== null && captchaEl.value && captchaEl.value.childElementCount) return
   try {
     const ts = await loadTurnstile()
     await nextTick()
@@ -69,6 +77,37 @@ async function verifyCode() {
   if (r.needConsent) { needConsent.value = true; otpError.value = 'ลูกค้าใหม่ต้องยินยอมก่อน (ติ๊กช่องด้านล่างแล้วกดยืนยันอีกครั้ง)'; return }
   if (r.error) { otpError.value = r.error; return }
   verified.value = true
+  await nextTick()
+  captchaId = null
+  mountCaptcha()
+}
+
+function newOrderId() {
+  const b = crypto.getRandomValues(new Uint8Array(16))
+  return [...b].map((x) => x.toString(16).padStart(2, '0')).join('')
+}
+
+// สั่งออร์เดอร์: รหัสออร์เดอร์สร้างครั้งเดียวต่อความพยายาม เพื่อให้กดซ้ำไม่สร้างซ้ำ
+async function placeOrder() {
+  placeError.value = ''
+  if (!captchaToken.value && turnstileOn()) { placeError.value = 'กรุณายืนยันว่าเป็นคนก่อน'; return }
+  if (!attemptOrderId) attemptOrderId = newOrderId()
+  placing.value = true
+  const r = await callPreorder('create', {
+    campaignId: chosen.value.id,
+    pickupDate: pickup.value,
+    fulfillment: fulfillment.value,
+    lines: lines.value,
+    orderId: attemptOrderId,
+    turnstileToken: captchaToken.value,
+    address: address.value,
+    province: province.value,
+  })
+  placing.value = false
+  resetCaptcha()
+  if (r.error) { placeError.value = r.error; return }
+  placed.value = r
+  attemptOrderId = ''
 }
 
 const days = computed(() => {
@@ -193,7 +232,27 @@ onBeforeUnmount(() => { if (captchaId !== null && window.turnstile) { try { wind
         </div>
         <p v-if="otpError" class="text-sm text-rose-700" role="alert">{{ otpError }}</p>
       </div>
-      <p v-if="verified" class="card p-4 text-sm text-emerald-800" data-verified>ยืนยันเบอร์แล้ว ขั้นถัดไปคือการยืนยันสั่งสินค้า</p>
+      <div v-if="verified && !placed" class="card space-y-3 p-4" data-place>
+        <p class="text-sm text-emerald-800">ยืนยันเบอร์แล้ว</p>
+        <div v-if="fulfillment === 'delivery'" class="space-y-3">
+          <div>
+            <label class="label" for="pre-address">ที่อยู่จัดส่ง</label>
+            <textarea id="pre-address" v-model="address" rows="3" maxlength="300" class="input w-full"></textarea>
+          </div>
+          <div>
+            <label class="label" for="pre-province">จังหวัด</label>
+            <input id="pre-province" v-model="province" type="text" maxlength="40" class="input h-11 w-full" />
+          </div>
+        </div>
+        <div v-if="turnstileOn()" ref="captchaEl"></div>
+        <button type="button" class="btn-primary h-11 w-full" :disabled="placing" @click="placeOrder">{{ placing ? 'กำลังสั่ง…' : 'ยืนยันสั่งสินค้า' }}</button>
+        <p v-if="placeError" class="text-sm text-rose-700" role="alert">{{ placeError }}</p>
+      </div>
+      <div v-if="placed" class="card space-y-1 p-4 text-sm" data-placed>
+        <div class="font-medium text-stone-900">สั่งสินค้าสำเร็จ รหัส {{ placed.code }}</div>
+        <div>ยอดรวม {{ placed.total }} บาท · มัดจำ {{ placed.deposit }} บาท</div>
+        <div class="text-xs text-stone-500">ชำระมัดจำภายในเวลาที่กำหนด (การชำระจะเปิดในขั้นถัดไป)</div>
+      </div>
     </div>
   </section>
 </template>
