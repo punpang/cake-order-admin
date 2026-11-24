@@ -97,3 +97,28 @@ Deno.test('ยอดในแจ้งเตือนไม่ตรงกับ
   assertEquals(T()['public.punpang_orders'][0].data.payments[0].receiptVerified, undefined)
   assertEquals(T()['public.punpang_orders'][0].status, 'awaiting_payment')
 })
+
+Deno.test('รหัสสั่งล่วงหน้า PRE: ยอดตรง → เรียกยืนยันคำขอ QR ด้วยรหัส ยอด และรหัสการโอน · ไม่แตะออร์เดอร์ POS', async () => {
+  seed()
+  const PRE = 'PRE202611240001ABCDE'
+  const calls: any[] = []
+  ;(globalThis as any).__RPC = {
+    punpang_preorder_confirm_qr: async (args: any) => { calls.push(args); return { data: { ok: true, status: 'payment_confirmed', paid: 250, order: 'po1' }, error: null } },
+  }
+  const n = note({ text: `รายการ ${PRE} สำเร็จ`, title: 'เงินเข้า 250.00 บาท' })
+  const r = await post(n)
+  assertEquals([r.status, r.body.stored], [200, true])
+  assertEquals(calls, [{ p_qr_ref: PRE, p_amount: 250, p_bank_ref: n.id }])
+  assert(T()['public.tungngern_inbox'].some((x: any) => x.reason === 'สั่งล่วงหน้า: payment_confirmed'))
+  assertEquals(T()['public.punpang_orders'][0].data.payments[0].receiptVerified, undefined)
+})
+
+Deno.test('รหัส PRE ที่ยืนยันไม่ได้ (ยอดไม่ตรง) → บันทึกเหตุผล ไม่เปลี่ยนสถานะ', async () => {
+  seed()
+  ;(globalThis as any).__RPC = {
+    punpang_preorder_confirm_qr: async () => ({ data: { error: 'amount_mismatch' }, error: null }),
+  }
+  const r = await post(note({ text: 'รายการ PRE202611240002ABCDE สำเร็จ', title: 'เงินเข้า 99.00 บาท' }))
+  assertEquals([r.status, r.body.stored], [200, true])
+  assert(T()['public.tungngern_inbox'].some((x: any) => x.reason === 'สั่งล่วงหน้า: amount_mismatch'))
+})

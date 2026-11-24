@@ -23,7 +23,7 @@ export async function verifyGatewaySignature(secret: string, ts: string, body: s
 
 // รหัสธุรกรรมที่ระบบสร้าง/แอปส่งต่อ: ขึ้นต้นด้วย ORD หรือ POS ตามด้วยอักขระ 17 ตัว (ตัวพิมพ์ใหญ่หรือเลข)
 // ต้องไม่ติดกับตัวอักษรอื่นทั้งก่อนและหลัง
-const REF_RE = /(?:^|[^A-Za-z0-9])((?:ORD|POS)[0-9A-Z]{17})(?![0-9A-Za-z])/
+const REF_RE = /(?:^|[^A-Za-z0-9])((?:ORD|POS|PRE)[0-9A-Z]{17})(?![0-9A-Za-z])/
 
 // ดึงรหัสธุรกรรมจากข้อความแจ้งเตือน · คืน null ถ้าไม่พบ
 export function extractTransferRef(text: string): string | null {
@@ -42,5 +42,5 @@ export function extractAmount(title: string, text: string): number | null {
 
 // รูปแบบรหัสที่ยอมรับจาก client (ใช้ซ้ำกับตอนค้นหา เพื่อไม่ให้ส่งค่าแปลกเข้าคำค้น)
 export function isRefShape(ref: string): boolean {
-  return /^(?:ORD|POS)[0-9A-Z]{17}$/.test(ref)
+  return /^(?:ORD|POS|PRE)[0-9A-Z]{17}$/.test(ref)
 }

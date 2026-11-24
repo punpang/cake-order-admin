@@ -55,6 +55,14 @@ Deno.serve(async (req) => {
   // รับซ้ำ (แอปส่งซ้ำ) → ไม่จับคู่ซ้ำ
   if (!(inserted ?? []).length) { await logInbox(true, 'รับซ้ำ ไม่ทำซ้ำ'); return json({ ok: true, stored: true }) }
   // จับคู่งวดชำระด้วยรหัส Ref2 + ยอด → ยืนยันอัตโนมัติ หรือทำเครื่องหมายผ่านการตรวจสอบให้พนักงานยืนยัน
+  // รหัสสั่งล่วงหน้า (PRE): ยืนยันคำขอ QR ของออร์เดอร์สั่งล่วงหน้าด้วยรหัสและยอด (ตรงกับคำขอเท่านั้น) ไม่แตะเส้นทาง ORD/POS
+  if (ref.startsWith('PRE')) {
+    if (amount == null) { await logInbox(true, 'สั่งล่วงหน้า: ไม่พบยอดในแจ้งเตือน'); return json({ ok: true, stored: true }) }
+    const { data: rp, error: rpErr } = await sb.rpc('punpang_preorder_confirm_qr', { p_qr_ref: ref, p_amount: amount, p_bank_ref: id })
+    const reason = rpErr ? 'สั่งล่วงหน้า: เรียกยืนยันไม่สำเร็จ' : rp?.ok ? `สั่งล่วงหน้า: ${rp.status}` : `สั่งล่วงหน้า: ${rp?.error ?? 'ไม่ทราบสาเหตุ'}`
+    await logInbox(true, reason)
+    return json({ ok: true, stored: true })
+  }
   const cfg = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'slipQr').maybeSingle()
   const ac = autoConfirmOf(cfg?.data?.data?.v)
   const res = timeOk
