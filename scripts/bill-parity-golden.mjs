@@ -22,6 +22,9 @@ const synthetic = [
   { name: 'vat-exclusive-7', order: { fulfillment: 'pickup', vat: { rate: 7, mode: 'exclusive' }, items: [item('a5', 100)], payments: [] } },
   { name: 'vat-exclusive-fraction', order: { fulfillment: 'pickup', vat: { rate: 7, mode: 'exclusive' }, items: [item('a6', 33.33, 3)], payments: [] } },
   { name: 'adjust-points-coupon', order: { fulfillment: 'pickup', adjustment: { amount: -50, reason: 'ลดพิเศษ' }, pointsUsed: { points: 30, amount: 30 }, couponsUsed: [{ couponId: 'c1', name: 'คูปอง', amount: 20 }], items: [item('a7', 300)], payments: [] } },
+  // สั่งล่วงหน้า (เฟส 2C): ค่าส่งพัสดุ + แต้มที่ใช้ และส่วนลดตามยอดที่ติดอยู่ในรายการ
+  { name: 'preorder-parcel-points', order: { fulfillment: 'delivery', shippingFee: 90, pointsUsed: { points: 40, amount: 40 }, items: [item('p1', 100, 2)], payments: [] } },
+  { name: 'preorder-spend-discount-line', order: { fulfillment: 'pickup', items: [{ ...item('p2', 100, 6), discounts: [{ kind: 'promo', name: 'ครบ 500 ลด 5%', amount: 5 }] }], payments: [] } },
   { name: 'discount-over-goods', order: { fulfillment: 'pickup', couponsUsed: [{ couponId: 'c2', name: 'เกินยอดสินค้า', amount: 150 }], items: [item('a8', 100)], payments: [] } },
 ]
 
