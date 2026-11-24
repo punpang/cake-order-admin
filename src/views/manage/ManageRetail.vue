@@ -208,9 +208,12 @@ function doAdd() {
       <template #left>
         <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" /></div>
         <div>
-          <label class="label">หมวด</label>
-          <input v-model="form.category" class="input" list="retail-cats" placeholder="เช่น เค้กชิ้น, เครื่องดื่ม" />
-          <datalist id="retail-cats"><option v-for="c in categories" :key="c" :value="c" /></datalist>
+          <label class="label" for="retail-cat-new">หมวด</label>
+          <div v-if="categories.length" class="chip-row mb-2" role="group" aria-label="เลือกหมวดที่มีอยู่">
+            <button v-for="c in categories" :key="c" type="button" class="chip" :class="form.category === c ? 'chip-on' : 'chip-off'" :aria-pressed="form.category === c" @click="form.category = c">{{ c }}</button>
+          </div>
+          <input id="retail-cat-new" v-model="form.category" class="input" placeholder="หรือพิมพ์หมวดใหม่ เช่น เค้กชิ้น" />
+          <p class="mt-1 text-xs text-stone-400">กดหมวดที่มีอยู่ หรือพิมพ์ชื่อใหม่ได้เลย</p>
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div><label class="label">ราคา (บาท) <span v-if="!form.openPrice" class="text-rose-600">*</span></label><MoneyInput v-model="form.price" class="input" /></div>
@@ -242,7 +245,7 @@ function doAdd() {
           <p v-else class="text-sm text-stone-500">ยังไม่มีกลุ่มตัวเลือก (เพิ่มได้ในการ์ด "ตัวเลือกสินค้า")</p>
         </div>
         <RecipeEditor v-model="form.recipe" :pounds="poundsOf" :price="Number(form.price) || 0" />
-        <div class="space-y-3 rounded-xl border border-stone-200 p-3">
+        <div class="space-y-1 rounded-xl border border-stone-200 p-2">
           <AppSwitch v-model="form.showInPos" label="แสดงใน POS และตอนสร้างออร์เดอร์/แชท" class="flex" />
           <AppSwitch v-model="form.showOnStore" label="แสดงที่หน้าร้านเว็บ (ลูกค้าเห็น)" class="flex" />
           <AppSwitch v-model="form.pinned" label="ปักหมุดในสินค้าขายดีของหน้าร้านเว็บ" class="flex" />
@@ -257,7 +260,9 @@ function doAdd() {
           </div>
           <AppSwitch v-model="form.noPoints" label="ไม่คำนวณแต้ม (ใช้คูปองส่วนลดไม่ได้ทุกแบบ · ไม่นับยอดสมาชิก)" class="flex" />
         </div>
-        <AppSwitch v-model="form.active" label="ใช้งาน (ปิด = ไม่แสดงทุกที่)" />
+        <div class="px-2 pt-1">
+          <AppSwitch v-model="form.active" label="ใช้งาน (ปิด = ไม่แสดงทุกที่)" />
+        </div>
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </template>
       <template #footer>
