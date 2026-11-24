@@ -293,7 +293,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
       <label class="label" for="paste-code">วางข้อความ/รหัสที่ลูกค้าคัดลอกมา <span class="font-normal text-stone-400">(สั่งทำ)</span></label>
       <div class="flex gap-2">
         <textarea id="paste-code" v-model="pasteText" rows="2" class="input min-w-0 flex-1 font-mono text-xs" placeholder="#CK1.…" @keydown.ctrl.enter="applyPaste" @keydown.meta.enter="applyPaste"></textarea>
-        <button type="button" class="btn-soft self-start" :disabled="!pasteText.trim()" @click="applyPaste">ใส่ในฟอร์ม</button>
+        <button type="button" class="self-start" :class="pasteText.trim() ? 'btn-primary' : 'btn-outline'" :disabled="!pasteText.trim()" @click="applyPaste">ใส่ในฟอร์ม</button>
       </div>
       <p v-if="pasteMsg.ok" class="mt-1.5 text-sm font-medium text-emerald-700" role="status">{{ pasteMsg.ok }}</p>
       <p v-for="(w, i) in pasteMsg.warn" :key="i" class="mt-1 text-sm text-amber-700">⚠ {{ w }}</p>
@@ -313,12 +313,13 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
           <button v-for="c in cats" :key="c" type="button" class="chip" :class="cat === c ? 'chip-on' : 'chip-off'" @click="cat = c">{{ c }}</button>
         </div>
       </div>
-      <div class="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
+      <div class="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto">
         <button
           v-for="p in shown"
           :key="p.id"
           type="button"
           class="flex items-center gap-3 rounded-xl border p-3 text-left transition active:scale-[0.99]"
+          :aria-pressed="form.retailId === p.id"
           :class="form.retailId === p.id ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-stone-200 hover:border-brand-300'"
           @click="pickProduct(p)"
         >
@@ -327,7 +328,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
             <AppIcon :name="form.retailId === p.id ? 'check' : 'cake'" :size="20" />
           </span>
           <span class="min-w-0 flex-1">
-            <span class="block truncate font-medium text-stone-900">{{ p.name }}</span>
+            <span class="block line-clamp-2 font-medium break-words text-stone-900">{{ p.name }}</span>
             <span class="block truncate text-xs text-stone-500">{{ p.category || '-' }}<template v-if="poundsOf(p)"> · {{ poundsOf(p) }} ปอนด์</template><template v-if="p.stock != null"> · เหลือ {{ p.stock }}</template></span>
           </span>
           <span class="shrink-0 font-semibold text-stone-900">{{ money(p.price) }}</span>
@@ -364,7 +365,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
       </div>
     </div>
     </template>
-    <template #center>
+    <template v-if="form.kind === 'custom'" #center>
     <!-- ชั้นของเค้ก (สั่งทำ) -->
     <template v-if="tierGroups.length">
       <!-- เค้กปกติ / เค้กชั้น -->
@@ -420,7 +421,8 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
           <input v-model.number="form.qty" type="text" v-num min="1" class="h-full w-10 border-0 bg-transparent text-center text-base font-semibold outline-none" aria-label="จำนวน" />
           <button type="button" class="h-full w-10 text-lg text-stone-600" aria-label="เพิ่ม" @click="step(1)">+</button>
         </div>
-        <div class="min-w-0 flex-1 text-right leading-tight">
+        <div v-if="form.kind === 'retail' && !form.retailId" class="min-w-0 flex-1 text-right text-sm font-medium text-stone-500">ยังไม่ได้เลือกสินค้า</div>
+        <div v-else class="min-w-0 flex-1 text-right leading-tight">
           <div class="text-xs text-stone-500">{{ form.qty > 1 ? `${money(unitPrice)} × ${form.qty}` : 'ราคา' }}</div>
           <DiscountDetail :full="detail.fullPrice * (form.qty || 0)" :final="unitPrice * (form.qty || 0)" :lines="discountLines(detail.discounts, form.qty || 0)" size="lg" />
         </div>
