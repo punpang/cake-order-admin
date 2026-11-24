@@ -84,5 +84,50 @@ t('campaignToRow/rowToCampaign: วนกลับได้ค่าเท่า
   assert.deepEqual(back.items.map((i) => i.retailId), ['A', 'B'])
 })
 
+// ---- เฟส 2B: ส่วนลดตามยอด (deals) และการส่งพัสดุ (parcel) ----
+const spendDeal = (tiers) => ({ kind: 'spend_off', name: 'ครบยอดลด', tiers })
+t('2B: blankCampaign มี deals ว่างและ parcel ปิดอยู่', () => {
+  assert.deepEqual(blankCampaign().deals, [])
+  assert.deepEqual(blankCampaign().parcel, { enabled: false })
+})
+t('2B: ขั้นส่วนลดซ้ำยอดเดียวกัน → ไม่ผ่าน', () => {
+  const c = { ...valid(), items: [{ retailId: 'A', dayCap: null }], deals: [spendDeal([{ min: 500, type: 'amount', value: 50 }, { min: 500, type: 'percent', value: 5 }])] }
+  assert.equal(campaignError(c), 'ขั้นส่วนลดซ้ำยอดเดียวกัน')
+})
+t('2B: เปอร์เซ็นต์เกิน 100 → ไม่ผ่าน', () => {
+  const c = { ...valid(), items: [{ retailId: 'A', dayCap: null }], deals: [spendDeal([{ min: 500, type: 'percent', value: 150 }])] }
+  assert.equal(campaignError(c), 'ส่วนลดเปอร์เซ็นต์ต้องไม่เกิน 100')
+})
+t('2B: min หรือ value ไม่ถูกต้อง → ไม่ผ่าน', () => {
+  const a = { ...valid(), items: [{ retailId: 'A', dayCap: null }], deals: [spendDeal([{ min: 0, type: 'amount', value: 50 }])] }
+  const b = { ...valid(), items: [{ retailId: 'A', dayCap: null }], deals: [spendDeal([{ min: 500, type: 'amount', value: 0 }])] }
+  assert.match(campaignError(a), /ขั้นส่วนลดต้องเป็นจำนวนเต็มบาทหรือเปอร์เซ็นต์ที่มากกว่า 0/)
+  assert.match(campaignError(b), /ขั้นส่วนลดต้องเป็นจำนวนเต็มบาทหรือเปอร์เซ็นต์ที่มากกว่า 0/)
+})
+t('2B: ดีลที่ไม่ใช่ spend_off ใช้ในแคมเปญไม่ได้', () => {
+  const c = { ...valid(), items: [{ retailId: 'A', dayCap: null }], deals: [{ kind: 'bogo', name: 'x', tiers: [] }] }
+  assert.equal(campaignError(c), 'ดีลนี้ใช้ในแคมเปญไม่ได้')
+})
+t('2B: parcel.enabled ต้องเป็น boolean', () => {
+  const c = { ...valid(), items: [{ retailId: 'A', dayCap: null }], parcel: { enabled: 'yes' } }
+  assert.equal(campaignError(c), 'ค่า parcel.enabled ต้องเป็น true/false')
+})
+t('2B: แคมเปญถูกต้องที่มีขั้นส่วนลดและพัสดุ → ผ่าน', () => {
+  const c = { ...valid(), items: [{ retailId: 'A', dayCap: null }], deals: [spendDeal([{ min: 500, type: 'amount', value: 50 }, { min: 1000, type: 'percent', value: 8 }])], parcel: { enabled: true } }
+  assert.equal(campaignError(c), '')
+})
+t('2B: round-trip แถวฐานข้อมูลเก็บ deals และ parcel', () => {
+  const c = { ...valid(), items: [{ retailId: 'A', dayCap: null }], deals: [spendDeal([{ min: 500, type: 'amount', value: 50 }])], parcel: { enabled: true } }
+  const back = rowToCampaign(campaignToRow(c))
+  assert.deepEqual(back.deals, c.deals)
+  assert.deepEqual(back.parcel, { enabled: true })
+})
+t('2B: แถวเก่าที่ไม่มี deals/parcel อ่านได้ค่าเริ่มต้น', () => {
+  const r = { id: 'old', status: 'draft', order_from: '2026-12-01', order_to: '2026-12-15', pickup_from: '2026-12-24', pickup_to: '2026-12-26', deposit_percent: 50, pay_due_min: 120, data: { name: 'เก่า', dayCap: null, items: [] } }
+  const c = rowToCampaign(r)
+  assert.deepEqual(c.deals, [])
+  assert.deepEqual(c.parcel, { enabled: false })
+})
+
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')
 process.exit(fail ? 1 : 0)

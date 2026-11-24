@@ -18,8 +18,25 @@ export function blankCampaign() {
     orderFrom: '', orderTo: '', pickupFrom: '', pickupTo: '',
     depositPercent: 50, payDueMin: null,
     dayCap: null, items: [],
+    deals: [], parcel: { enabled: false },
   }
 }
+
+// ดีลที่ใช้ในแคมเปญ: เฉพาะส่วนลดตามยอดแบบขั้นบันได (spend_off) · ขั้นต้องมียอดไม่ซ้ำกัน
+function dealError(d) {
+  if (d?.kind !== 'spend_off') return 'ดีลนี้ใช้ในแคมเปญไม่ได้'
+  const tiers = Array.isArray(d.tiers) ? d.tiers : []
+  const mins = new Set()
+  for (const t of tiers) {
+    const min = Number(t?.min), value = Number(t?.value)
+    if (!Number.isInteger(min) || min < 1 || !(value > 0) || !['amount', 'percent'].includes(t?.type)) return 'ขั้นส่วนลดต้องเป็นจำนวนเต็มบาทหรือเปอร์เซ็นต์ที่มากกว่า 0'
+    if (t.type === 'percent' && value > 100) return 'ส่วนลดเปอร์เซ็นต์ต้องไม่เกิน 100'
+    if (mins.has(min)) return 'ขั้นส่วนลดซ้ำยอดเดียวกัน'
+    mins.add(min)
+  }
+  return ''
+}
+
 
 // ค่าเพดานต้องเป็น null (ไม่จำกัด) หรือจำนวนเต็ม ≥ 0
 const capOk = (v) => v === null || (Number.isInteger(v) && v >= 0)
@@ -36,6 +53,11 @@ export function campaignError(c) {
   if (!capOk(c.dayCap)) return 'โควตารวมต่อวันต้องว่างหรือเป็นจำนวนเต็ม ≥ 0'
   if (!Array.isArray(c.items) || c.items.length === 0) return 'ต้องเลือกสินค้าอย่างน้อย 1 รายการ'
   const seen = new Set()
+  for (const d of c.deals ?? []) {
+    const err = dealError(d)
+    if (err) return err
+  }
+  if (c.parcel !== undefined && typeof c.parcel?.enabled !== 'boolean') return 'ค่า parcel.enabled ต้องเป็น true/false'
   for (const it of c.items) {
     if (!it?.retailId) return 'สินค้าในแคมเปญต้องมีรหัส'
     if (seen.has(it.retailId)) return 'สินค้าซ้ำในแคมเปญ'
@@ -83,6 +105,8 @@ export function campaignToRow(c) {
       name: c.name,
       dayCap: c.dayCap ?? null,
       items: c.items.map((i) => ({ retailId: i.retailId, dayCap: i.dayCap ?? null })),
+      deals: (c.deals ?? []).map((d) => ({ kind: d.kind, name: d.name ?? '', tiers: (d.tiers ?? []).map((t) => ({ min: Number(t.min), type: t.type, value: Number(t.value) })) })),
+      parcel: { enabled: c.parcel?.enabled === true },
     },
   }
 }
@@ -100,5 +124,7 @@ export function rowToCampaign(r) {
     payDueMin: r.pay_due_min,
     dayCap: r.data?.dayCap ?? null,
     items: (r.data?.items ?? []).map((i) => ({ retailId: i.retailId, dayCap: i.dayCap ?? null })),
+    deals: r.data?.deals ?? [],
+    parcel: { enabled: r.data?.parcel?.enabled === true },
   }
 }
