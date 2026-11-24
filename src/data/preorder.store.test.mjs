@@ -62,6 +62,21 @@ try {
     assert.equal(P.setPreorderCampaignStatus(r.campaign.id, 'closed').ok, true)
     assert.equal(P.savePreorderCampaign({ ...r.campaign, dayCap: 9 }).ok, true)
   })
+  t('2B: เปิดส่งพัสดุแต่สินค้าไม่มีน้ำหนัก/ขนาด → บันทึกไม่ได้ · ครบแล้วบันทึกได้', () => {
+    const noDims = P.savePreorderCampaign({ ...base(), parcel: { enabled: true } })
+    assert.match(noDims.error, /ไม่มีน้ำหนักหรือขนาด/)
+    const a = db.retailItems.find((x) => x.id === 'A')
+    Object.assign(a, { weightG: 800, dimsCm: { w: 20, l: 20, h: 10 } })
+    assert.equal(P.savePreorderCampaign({ ...base(), parcel: { enabled: true } }).ok, true)
+  })
+  t('2B: แคมเปญที่เปิดรับแล้ว เปลี่ยนโปรส่วนลดไม่ได้ แต่เปลี่ยนชื่อได้', () => {
+    const r = P.savePreorderCampaign({ ...base(), name: 'โปร', deals: [] })
+    assert.equal(P.setPreorderCampaignStatus(r.campaign.id, 'open').ok, true)
+    const deal = { kind: 'spend_off', name: 'ลด', tiers: [{ min: 500, type: 'amount', value: 50 }] }
+    assert.match(P.savePreorderCampaign({ ...r.campaign, deals: [deal] }).error, /ปิดรับก่อน/)
+    assert.equal(P.savePreorderCampaign({ ...r.campaign, name: 'โปร (ชื่อใหม่)' }).ok, true)
+    assert.equal(P.setPreorderCampaignStatus(r.campaign.id, 'closed').ok, true)
+  })
   t('ผู้ใช้ที่ไม่มีสิทธิ์ บันทึก/เปลี่ยนสถานะไม่ได้ และข้อมูลไม่เปลี่ยน', () => {
     const n = before()
     session.role = 'sales'
