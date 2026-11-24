@@ -1187,7 +1187,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             :title="x.stock != null && x.stock - inCart(x) <= 0 ? 'สต็อกหมด ขายไม่ได้จนกว่าจะเพิ่มสต็อก' : undefined"
             @click="add(x)"
           >
-            <span class="mb-2 block h-16 w-full overflow-hidden rounded-2xl" :class="x.stock != null && x.stock - inCart(x) <= 0 ? 'opacity-50 grayscale' : ''"><CakeImage :src="x.image" :alt="x.name" /></span>
+            <span class="mb-2 block aspect-square w-full overflow-hidden rounded-2xl" :class="x.stock != null && x.stock - inCart(x) <= 0 ? 'opacity-50 grayscale' : ''"><CakeImage :src="x.image" :alt="x.name" /></span>
             <span class="line-clamp-2 text-sm font-medium break-words text-stone-900">{{ x.name }}</span>
             <span v-if="groupsOf(x).length" class="mt-0.5 text-xs text-brand-700">มีตัวเลือก</span>
             <span v-if="pointTag(x)" class="mt-0.5 text-xs font-medium text-amber-700">คะแนน ×{{ pointTag(x).multiplier }}</span>
