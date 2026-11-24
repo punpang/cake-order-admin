@@ -69,7 +69,7 @@ function save() {
     <div class="space-y-4">
       <p class="text-sm text-stone-600">คืนเงินบางส่วนโดยไม่ยกเลิก{{ isPos ? 'บิล' : 'ออร์เดอร์' }} (ไม่ตัดคะแนนที่ได้{{ isPos ? '' : ' · ไม่คืนสต็อก' }}) · ชำระสุทธิตอนนี้ <b class="text-stone-900">{{ money(t.goodsPaidNet) }}</b><template v-if="t.returned"> · คืนไปแล้ว {{ money(t.returned) }}</template></p>
       <p v-if="t.hold > 0" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">เงินพัก {{ money(t.hold) }} ไม่รวมในการคืนนี้ · แก้เงินพักได้ที่ "แก้เงินพัก" ในหน้าออร์เดอร์</p>
-      <p v-if="invoice" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ออกใบกำกับภาษีไว้แล้ว ({{ invoice.no }}) · การคืนบางส่วนยังไม่ออกใบลดหนี้ให้อัตโนมัติ (ยกเลิกทั้งใบจึงจะออก) กรุณาตรวจกับผู้ทำบัญชี</p>
+      <p v-if="invoice" class="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">ระบบจะออกใบลดหนี้อัตโนมัติ อ้างใบกำกับภาษี {{ invoice.no }} · ใบกำกับเดิมยังใช้งานอยู่</p>
       <template v-if="more">
       <div><label class="label" for="rf-reason">เหตุผล <span class="text-rose-600">*</span></label><input id="rf-reason" v-model="f.reason" class="input" maxlength="120" /></div>
       <div v-if="showItems" class="space-y-2">
