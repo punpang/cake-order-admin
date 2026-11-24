@@ -1854,6 +1854,7 @@ export function saveShopSettings(d) {
     db.shop.closures = r.value
   }
   if (d.delivery) db.shop.delivery = cleanDeliveryConfig(d.delivery)
+  if (d.parcel) db.shop.parcel = d.parcel // ตารางค่าส่งพัสดุ: หน้าตั้งค่าเป็นผู้ clean ก่อนส่งเข้ามา
   if (d.payment) {
     const t = (v, n) => String(v ?? '').trim().slice(0, n)
     db.shop.payment = { accounts: payAccountsOf(d.payment), note: t(d.payment.note, 200) }
