@@ -60,13 +60,15 @@ t('shopRefOk: POS/ORD ตามด้วยตัวเลข 3–17 หลั�
 })
 
 t('newQrSuffix: 5 ตัวตามชุดอักษร ไม่มี 0 1 I L O และไม่ซ้ำกันในการสุ่มหลายครั้ง', () => {
+  // สุ่มจาก 31^5 ≈ 28.6 ล้านรูปแบบ · การชนกันบ้าง 1 ครั้งในกลุ่ม 300 เกิดได้ (≈0.16%) จึงยอมให้ชนได้ 1 ครั้ง
+  // ชนกัน 2 ครั้งขึ้นไปมีโอกาสประมาณ 1 ในล้าน (ไม่ทำให้เทสต์ล้มแบบสุ่ม)
   const seen = new Set()
   for (let i = 0; i < 300; i++) {
     const r = newQrSuffix()
     assert.equal(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{5}$/.test(r), true, r)
     seen.add(r)
   }
-  assert.equal(seen.size, 300)
+  assert.ok(seen.size >= 299, `ชนกันเกิน 1 ครั้งใน 300 รายการ: ได้ ${seen.size} ค่า`)
 })
 
 t('qrRefOk: ORD+12 หลัก หรือ POS+เลขสุ่ม 12 หลัก + รหัสสุ่ม 5 ตัว', () => {
