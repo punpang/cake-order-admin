@@ -1,7 +1,6 @@
 // ข้อมูลตัวอย่าง (เก็บในหน่วยความจำ รีเฟรชแล้วหาย)
 // ขั้นต่อไปจะเปลี่ยนฟังก์ชันในไฟล์นี้ให้เรียก Supabase แทน
 import { openPriceOk } from '../lib/openPrice.js'
-import { remainingOf, partialCreditBlock } from '../lib/taxInvoice.js'
 import { settlementOf, overlapsRound, bkkDay, consignTermsError } from '../lib/consignment.js'
 import { RETENTION_CATS, validateRetention } from '../lib/retention'
 import { normalizeDisplayAds } from '../lib/displayAds'
@@ -1582,6 +1581,8 @@ export function setHoldMoney(order, hm, c = {}) {
 export const cancelHooks = []
 // ตัวทำงานหลังคืนเงินบางส่วนสำเร็จ (เช่น บัญชีออกใบลดหนี้บางส่วน) · (order, entry) · ตั้ง entry.creditNoteId ได้
 export const refundHooks = []
+// ตัวตรวจก่อนคืนเงิน (order, amount) → ข้อความผิดพลาด หรือ '' · ลงทะเบียนจากโมดูลอื่น
+export const refundGuards = []
 export function cancelOrder(order, c) {
   if (!order || order.status === 'cancelled') return { error: 'ออร์เดอร์นี้ยกเลิกแล้ว' }
   // ยกเลิกออร์เดอร์ที่ส่งมอบแล้วคือการย้อนสถานะ (รวมการ void บิลหน้าร้าน) ต้องมีสิทธิ์ย้อนสถานะ
@@ -1625,11 +1626,10 @@ export function refundOrder(order, c) {
   const cu = findCustomer(order.customerId)
   const err = refundErrors(refunds, { paid: paidNet, canCredit: !!cu && !cu.deleted })
   if (err) return { error: err }
-  // มีใบกำกับภาษีที่ใช้งานอยู่ → ยอดคืนต้องไม่เกินยอดคงเหลือของใบ (กันลดหนี้เกิน)
-  const activeInv = (db.acct?.taxInvoices || []).find((i) => i.type === 'invoice' && i.orderId === order.id && !i.voidedBy)
-  if (activeInv) {
-    const rem = remainingOf(activeInv, db.acct.taxInvoices)
-    const block = partialCreditBlock(rem.total, round2(refunds.reduce((n, x) => n + x.amount, 0)))
+  // ตัวตรวจก่อนคืนเงิน (เช่น ยอดคืนเกินยอดคงเหลือของใบกำกับ) ลงทะเบียนจากโมดูลอื่น
+  const refundAmount = round2(refunds.reduce((n, x) => n + x.amount, 0))
+  for (const g of refundGuards) {
+    const block = g(order, refundAmount)
     if (block) return { error: block }
   }
   // คืนสินค้ารายชิ้น (เฉพาะบิล POS): ไม่เกินจำนวนที่ซื้อและที่ยังไม่ได้คืน · ยอดคืนเงินตรวจด้านบนแล้ว

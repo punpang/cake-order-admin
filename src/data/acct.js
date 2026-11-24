@@ -3,9 +3,9 @@
 import { supabaseEnabled, getSupabase } from '../lib/supabase'
 import { reactive } from 'vue'
 import { readSessionToken } from '../lib/customerRemote'
-import { MAX_CUSTOMER_REVISIONS, cleanBuyer, buyerError, sellerCheck, customerInvoiceState, buildInvoice, buildCreditNote, buildPartialCreditNote, remainingOf } from '../lib/taxInvoice'
+import { MAX_CUSTOMER_REVISIONS, cleanBuyer, buyerError, sellerCheck, customerInvoiceState, buildInvoice, buildCreditNote, buildPartialCreditNote, remainingOf, partialCreditBlock } from '../lib/taxInvoice'
 import { round2 } from '../lib/posPromo'
-import { db, session, can, ctxOrder, scheduledHooks, cancelHooks, refundHooks, notify, findCustomer, customerSession, myCustomer } from './store'
+import { db, session, can, ctxOrder, scheduledHooks, cancelHooks, refundHooks, refundGuards, notify, findCustomer, customerSession, myCustomer } from './store'
 import { deriveAll } from '../lib/acct/derive'
 import { buildManualEntry } from '../lib/acct/manual'
 import { validateEntry, entryNo, entrySums } from '../lib/acct/journal'
@@ -405,6 +405,13 @@ export function reviseTaxInvoice(invoiceId, buyer) {
 cancelHooks.push((order) => {
   const inv = invoiceOfOrder(order.id)
   if (inv) voidCore(inv.id, `ยกเลิกออร์เดอร์ ${order.code}`, 'system')
+})
+
+// ยอดคืนต้องไม่เกินยอดคงเหลือของใบกำกับที่ใช้งานอยู่ (กันลดหนี้เกิน) · ลงทะเบียนเป็น guard ของ refundOrder ใน store
+refundGuards.push((order, amount) => {
+  const inv = invoiceOfOrder(order.id)
+  if (!inv) return ''
+  return partialCreditBlock(remainingOf(inv, invs()).total, amount)
 })
 
 // คืนเงินบางส่วนของออร์เดอร์ที่มีใบกำกับใช้งานอยู่ → ออกใบลดหนี้บางส่วนอ้างใบเดิม (ใบเดิมไม่ถูกแก้)
