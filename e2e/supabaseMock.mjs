@@ -132,7 +132,11 @@ export function startSupabaseMock(tables = {}, { rpc: rpcOverride = {}, fn: fnOv
     if (p.startsWith('/functions/v1/')) {
       const fn = p.slice('/functions/v1/'.length)
       log.push({ fn, id: body?.id })
-      if (fnOverride[fn]) return send(200, fnOverride[fn](body || {}))
+      if (fnOverride[fn]) {
+        // ตอบสถานะอื่นได้: คืน { __status, body } (เช่น 400 พร้อม needConsent)
+        const out = fnOverride[fn](body || {})
+        return out && out.__status ? send(out.__status, out.body) : send(200, out)
+      }
       // order-create กับออร์เดอร์ที่มีแล้ว = 409 exists (เหมือนของจริง) · อื่น ๆ คืน {}
       if (fn === 'order-create' && (db.punpang_orders || []).some((r) => r.id === body?.id)) return send(409, { error: 'ออร์เดอร์นี้บันทึกแล้ว', code: 'exists' })
       return send(200, {})
