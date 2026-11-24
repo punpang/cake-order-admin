@@ -40,10 +40,24 @@ jobs:
   # หน้าจอจริงในเบราว์เซอร์ (Playwright · โหมดข้อมูลตัวอย่าง ไม่แตะระบบจริง): เส้นทางหลัก POS คูปอง สิทธิ์ ทุกหน้าเปิดได้ จอมือถือ a11y XSS
   # ไม่รวมการเทียบภาพ (visual) เพราะผูกกับฟอนต์/การเรนเดอร์ของเครื่องที่สร้างภาพอ้างอิง · รันเองได้ด้วย npm run test:e2e
   # ไม่รันซ้ำบน main หลัง merge (รันแล้วตอนเปิด PR กับโค้ดที่รวม main แล้ว) → ประหยัดนาที Actions ราว 7 นาทีต่อ PR
+  # แบ่ง e2e เป็น 4 งานรันขนาน (เดิมรันต่อกันงานเดียวราว 12 นาที) · แต่ละกลุ่มครอบคลุมไฟล์ตามรายการ
   e2e:
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ฐานข้อมูลตั้งค่า/คูปอง/ลูกค้า
+            cmd: node e2e/creditCoupons.ui.e2e.mjs && node e2e/settingsCrud.ui.e2e.mjs && node e2e/settingsPages.ui.e2e.mjs && node e2e/settingsRisk.ui.e2e.mjs && node e2e/pointsCoupon.ui.e2e.mjs && node e2e/flows.ui.e2e.mjs && node e2e/roles.e2e.mjs && node e2e/responsive.e2e.mjs
+          - name: หน้าร้าน/POS/พิมพ์
+            cmd: node e2e/customerLayout.e2e.mjs && node e2e/a11y.e2e.mjs && node e2e/xss.e2e.mjs && node e2e/pos-concurrency.e2e.mjs && node e2e/dailyFeatures.ui.e2e.mjs && node e2e/printing.ui.e2e.mjs && node e2e/customerLazy.supabase.e2e.mjs && node e2e/flows.supabase.e2e.mjs
+          - name: สมาชิก/เส้นทาง/POS แนวนอน
+            cmd: node e2e/memberTier.supabase.e2e.mjs && node e2e/memberBirthdayCard.supabase.e2e.mjs && node e2e/routes.smoke.e2e.mjs && node e2e/pos-open-price.e2e.mjs && node e2e/consignRounds.ui.e2e.mjs && node e2e/pos-landscape.e2e.mjs && node e2e/cashService.ui.e2e.mjs
+          - name: ออเดอร์/บัญชี/หน้าร้านใหม่
+            cmd: node e2e/memberTiers.supabase.e2e.mjs && node e2e/dialogLandscape.ui.e2e.mjs && node e2e/orderCreateLayout.supabase.e2e.mjs && node e2e/orderListLayout.supabase.e2e.mjs && node e2e/paymentsLayout.supabase.e2e.mjs && node e2e/accountPolish.ui.e2e.mjs && node e2e/posLayout.ui.e2e.mjs && node e2e/storeHome.ui.e2e.mjs && node e2e/retailCategoryPicker.ui.e2e.mjs
+    name: e2e · ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,12 +65,25 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: แคช Chromium ของ Playwright
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: เตรียมโฟลเดอร์แคช apt ให้เขียนได้
+        run: sudo chown -R "$USER" /var/cache/apt/archives
+      - name: แคชแพ็กเกจ apt (ลดเวลาโหลดซ้ำ mirror ช้า)
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-archives-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: apt-archives-${{ runner.os }}-
       - name: ติดตั้ง Chromium ของ Playwright และฟอนต์ไทย (ให้ความกว้างข้อความใกล้เครื่องพัฒนา)
         run: |
           npx playwright install --with-deps chromium
           sudo apt-get install -y fonts-thai-tlwg
       - name: เทสต์หน้าจอ (e2e ยกเว้นเทียบภาพ)
-        run: npm run test:e2e:ci
+        run: ${{ matrix.cmd }}
 
   deno:
     runs-on: ubuntu-latest
