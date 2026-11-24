@@ -130,6 +130,10 @@ function toggle(c, status) {
           <p class="mt-1 text-xs text-stone-500">ได้ส่วนลดขั้นสูงสุดที่ถึงยอด · ยอดขั้นต่ำต้องไม่ซ้ำกัน · บาทหรือ % ของยอดสินค้า</p>
         </div>
         <AppSwitch v-model="parcelOn" label="ส่งพัสดุไปรษณีย์ (สินค้าทุกชิ้นต้องมีน้ำหนักและขนาด)" class="flex" />
+        <div v-if="parcelOn" class="grid grid-cols-2 gap-3">
+          <div><label class="label" for="pp-sf">เริ่มวันจัดส่งพัสดุ <span class="text-rose-600">*</span></label><input id="pp-sf" v-model="form.shipFrom" type="date" class="input" /></div>
+          <div><label class="label" for="pp-st">สิ้นสุดวันจัดส่งพัสดุ <span class="text-rose-600">*</span></label><input id="pp-st" v-model="form.shipTo" type="date" class="input" /></div>
+        </div>
         <p v-if="ferr" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ ferr }}</p>
       </div>
       <template #footer>

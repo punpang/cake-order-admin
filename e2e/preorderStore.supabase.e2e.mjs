@@ -9,7 +9,7 @@ import { startApp, stepper, at } from './_supabaseApp.mjs'
 const state = { session: false, orders: [] }
 const CAMPAIGN = {
   id: 'pc1', name: 'เค้กคริสต์มาส', orderFrom: '2026-11-01', orderTo: '2026-12-31', pickupFrom: '2026-12-24', pickupTo: '2026-12-26',
-  depositPercent: 50, payDueMin: 120, parcelEnabled: false, deals: [],
+  depositPercent: 50, payDueMin: 120, parcelEnabled: true, shipping: { shipFrom: '2026-12-22', shipTo: '2026-12-23' }, deals: [],
   items: [{ retailId: 'rt1', name: 'คัพเค้กวานิลลา', price: 45, dayCap: null }],
 }
 
@@ -49,6 +49,13 @@ const { step: s, finish } = stepper(p)
     await p.getByRole('button', { name: 'ดูราคา' }).click()
     await p.locator('[data-quote]').waitFor({ timeout: 15000 })
     assert.match(await p.locator('[data-quote]').innerText(), /ยอดรวม 90 บาท/)
+  })
+
+  await s('1b. เลือกส่งพัสดุแล้วเห็นช่วงวันจัดส่งของแคมเปญ (แล้วกลับไปรับที่ร้าน)', async () => {
+    await p.getByLabel('ส่งพัสดุ').check()
+    assert.match(await p.locator('[data-ship]').innerText(), /จัดส่งระหว่าง 2026-12-22 ถึง 2026-12-23/)
+    await p.getByLabel('รับที่ร้าน').check()
+    assert.equal(await p.locator('[data-ship]').count(), 0)
   })
 
   await s('2. ยืนยัน OTP: ลูกค้าใหม่ต้องยินยอมก่อนจึงผ่าน', async () => {

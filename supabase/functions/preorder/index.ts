@@ -81,6 +81,7 @@ Deno.serve(corsWrap(async (req) => {
       depositPercent: c.deposit_percent,
       payDueMin: c.pay_due_min,
       parcelEnabled: c.data?.parcel?.enabled === true,
+      shipping: c.data?.parcel?.enabled === true && c.data?.shipping ? { shipFrom: c.data.shipping.shipFrom, shipTo: c.data.shipping.shipTo } : null,
       deals: (c.data?.deals ?? []).map((d: any) => ({ kind: d.kind, name: d.name, tiers: d.tiers })),
       items: (c.data?.items ?? []).map((i: any) => {
         const p = catalog.retailItems.find((x: any) => x.id === i.retailId)
@@ -200,10 +201,13 @@ Deno.serve(corsWrap(async (req) => {
     const address = String(b.address ?? '').trim().slice(0, 300)
     const province = String(b.province ?? '').trim().slice(0, 40)
     if (b.fulfillment === 'delivery' && (!address || !province)) return json({ error: 'กรอกที่อยู่และจังหวัดสำหรับส่งพัสดุ' }, 400)
+    // ช่วงวันจัดส่งมาจากแคมเปญเท่านั้น (ไม่รับจากผู้ใช้) · แคมเปญที่ยังไม่ระบุต้องไม่รับออร์เดอร์พัสดุ
+    const shipping = c.data?.shipping
+    if (b.fulfillment === 'delivery' && (!shipping?.shipFrom || !shipping?.shipTo)) return json({ error: 'แคมเปญนี้ยังไม่ระบุวันจัดส่งพัสดุ' }, 409)
     const total = Math.round(q.totals.total * 100) / 100
     const deposit = Math.ceil((total * c.deposit_percent) / 100 * 100) / 100
     const payDueAt = new Date(Date.now() + c.pay_due_min * MIN).toISOString()
-    const data = { ...q.order, total, deposit: { percent: c.deposit_percent, amount: deposit }, payDueAt, lines, pickupDate: b.pickupDate, ...(b.fulfillment === 'delivery' ? { address, province } : {}) }
+    const data = { ...q.order, total, deposit: { percent: c.deposit_percent, amount: deposit }, payDueAt, lines, pickupDate: b.pickupDate, ...(b.fulfillment === 'delivery' ? { address, province, shipping: { shipFrom: shipping.shipFrom, shipTo: shipping.shipTo } } : {}) }
     const rpc = await sb.rpc('punpang_preorder_create', {
       p_row: { id: orderId, customer_id: cid, campaign_id: c.id, pickup_date: b.pickupDate, status: 'awaiting_payment', fulfillment: b.fulfillment, data },
       p_lines: lines.map((l: any) => ({ itemId: l.retailId, qty: l.qty })),

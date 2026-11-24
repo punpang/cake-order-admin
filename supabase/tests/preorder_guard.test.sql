@@ -101,4 +101,14 @@ select test.ok('P3 ร่างที่เปิดส่งพัสดุแ�
     values ('pg_p3', 'draft', '2000-01-01', '2099-12-31', '2099-12-24', '2099-12-26', 50, 120,
       '{"name":"p3","dayCap":null,"items":[{"retailId":"gp1","dayCap":null}],"parcel":{"enabled":true}}')$$) = 'OK');
 
+-- S1–S2 (ช่วงวันจัดส่ง): แคมเปญที่เปิดรับแล้วแก้ช่วงวันจัดส่งไม่ได้ · ร่างแก้ได้
+select test.ok('S0 เปิดรับที่เปิดส่งพัสดุพร้อมช่วงวันจัดส่ง → ผ่าน',
+  test.pgd_try($$insert into public.punpang_preorder_campaigns (id, status, order_from, order_to, pickup_from, pickup_to, deposit_percent, pay_due_min, data)
+    values ('pg_s1', 'open', '2000-01-01', '2099-12-31', '2099-12-24', '2099-12-26', 50, 120,
+      '{"name":"s1","dayCap":null,"items":[{"retailId":"gp2","dayCap":null}],"parcel":{"enabled":true},"shipping":{"shipFrom":"2099-12-22","shipTo":"2099-12-23"}}')$$) = 'OK');
+select test.ok('S1 เปิดรับแล้วแก้ช่วงวันจัดส่งไม่ได้ (campaign_locked)',
+  test.pgd_try($$update public.punpang_preorder_campaigns set data = jsonb_set(data, '{shipping}', '{"shipFrom":"2099-12-01","shipTo":"2099-12-02"}') where id = 'pg_s1'$$) like 'ERR:23514:campaign_locked%');
+select test.ok('S2 ร่างแก้ช่วงวันจัดส่งได้',
+  test.pgd_try($$update public.punpang_preorder_campaigns set data = jsonb_set(data, '{shipping}', '{"shipFrom":"2099-12-01","shipTo":"2099-12-02"}') where id = 'pg_p3'$$) = 'OK');
+
 rollback;

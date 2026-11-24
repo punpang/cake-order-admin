@@ -19,6 +19,7 @@ export function blankCampaign() {
     depositPercent: 50, payDueMin: null,
     dayCap: null, items: [],
     deals: [], parcel: { enabled: false },
+    shipFrom: '', shipTo: '',
   }
 }
 
@@ -58,6 +59,10 @@ export function campaignError(c) {
     if (err) return err
   }
   if (c.parcel !== undefined && typeof c.parcel?.enabled !== 'boolean') return 'ค่า parcel.enabled ต้องเป็น true/false'
+  if (c.parcel?.enabled === true) {
+    if (!isDay(c.shipFrom) || !isDay(c.shipTo)) return 'ช่วงวันจัดส่งพัสดุต้องเป็นวันที่ที่ถูกต้อง'
+    if (c.shipFrom > c.shipTo) return 'วันเริ่มจัดส่งต้องไม่เกินวันสิ้นสุด'
+  }
   for (const it of c.items) {
     if (!it?.retailId) return 'สินค้าในแคมเปญต้องมีรหัส'
     if (seen.has(it.retailId)) return 'สินค้าซ้ำในแคมเปญ'
@@ -107,6 +112,7 @@ export function campaignToRow(c) {
       items: c.items.map((i) => ({ retailId: i.retailId, dayCap: i.dayCap ?? null })),
       deals: (c.deals ?? []).map((d) => ({ kind: d.kind, name: d.name ?? '', tiers: (d.tiers ?? []).map((t) => ({ min: Number(t.min), type: t.type, value: Number(t.value) })) })),
       parcel: { enabled: c.parcel?.enabled === true },
+      shipping: c.parcel?.enabled === true ? { shipFrom: c.shipFrom, shipTo: c.shipTo } : null,
     },
   }
 }
@@ -126,5 +132,7 @@ export function rowToCampaign(r) {
     items: (r.data?.items ?? []).map((i) => ({ retailId: i.retailId, dayCap: i.dayCap ?? null })),
     deals: r.data?.deals ?? [],
     parcel: { enabled: r.data?.parcel?.enabled === true },
+    shipFrom: r.data?.shipping?.shipFrom ?? '',
+    shipTo: r.data?.shipping?.shipTo ?? '',
   }
 }

@@ -63,11 +63,19 @@ try {
     assert.equal(P.savePreorderCampaign({ ...r.campaign, dayCap: 9 }).ok, true)
   })
   t('2B: เปิดส่งพัสดุแต่สินค้าไม่มีน้ำหนัก/ขนาด → บันทึกไม่ได้ · ครบแล้วบันทึกได้', () => {
-    const noDims = P.savePreorderCampaign({ ...base(), parcel: { enabled: true } })
+    const noDims = P.savePreorderCampaign({ ...base(), parcel: { enabled: true }, shipFrom: '2026-12-22', shipTo: '2026-12-23' })
     assert.match(noDims.error, /ไม่มีน้ำหนักหรือขนาด/)
     const a = db.retailItems.find((x) => x.id === 'A')
     Object.assign(a, { weightG: 800, dimsCm: { w: 20, l: 20, h: 10 } })
-    assert.equal(P.savePreorderCampaign({ ...base(), parcel: { enabled: true } }).ok, true)
+    assert.equal(P.savePreorderCampaign({ ...base(), parcel: { enabled: true }, shipFrom: '2026-12-22', shipTo: '2026-12-23' }).ok, true)
+  })
+  t('shipping: เปิดส่งพัสดุแล้วไม่ระบุช่วงวันจัดส่ง → บันทึกไม่ได้ · เก็บช่วงวันจัดส่งที่แคมเปญ', () => {
+    const a = db.retailItems.find((x) => x.id === 'A')
+    Object.assign(a, { weightG: 800, dimsCm: { w: 20, l: 20, h: 10 } })
+    assert.match(P.savePreorderCampaign({ ...base(), parcel: { enabled: true } }).error, /ช่วงวันจัดส่งพัสดุ/)
+    const ok = P.savePreorderCampaign({ ...base(), parcel: { enabled: true }, shipFrom: '2026-12-22', shipTo: '2026-12-23' })
+    assert.equal(ok.ok, true)
+    assert.equal(db.preorderCampaigns.find((c) => c.id === ok.campaign.id).shipTo, '2026-12-23')
   })
   t('2B: แคมเปญที่เปิดรับแล้ว เปลี่ยนโปรส่วนลดไม่ได้ แต่เปลี่ยนชื่อได้', () => {
     const r = P.savePreorderCampaign({ ...base(), name: 'โปร', deals: [] })
