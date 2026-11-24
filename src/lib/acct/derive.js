@@ -183,6 +183,15 @@ export function preorderEntries(o) {
     const acc = p.method === 'cash' ? CASH : BANK
     out.push(entry(`pre-dep:${o.id}:${p.id}`, dateOf(p.at), `รับมัดจำสั่งล่วงหน้า ${code}`, { type: 'preorder-deposit', orderId: o.id, paymentId: p.id }, [dr(acc, amtS), cr(DEPOSIT, amtS)]))
   }
+  // รับคืนหลังส่งมอบ: ลดหนี้มัดจำ/ค่าสินค้าที่รับไว้ (2300) และคืนตามวิธี (เงินสด 1010 · โอน 1020 · คะแนน 2310)
+  for (const rt of Array.isArray(o.returns) ? o.returns : []) {
+    const rows = (Array.isArray(rt.refunds) ? rt.refunds : []).map((r) => ({ s: toS(r.amount), method: r.method })).filter((r) => r.s > 0)
+    const totS = rows.reduce((a, r) => a + r.s, 0)
+    if (!(totS > 0)) continue
+    const lines = [dr(DEPOSIT, totS)]
+    for (const r of rows) lines.push(cr(r.method === 'points' ? POINTS_LIAB : r.method === 'bank' ? BANK : CASH, r.s))
+    out.push(entry(`pre-ret:${o.id}:${rt.id}`, dateOf(rt.at), `รับคืนสั่งล่วงหน้า ${code}`, { type: 'preorder-return', orderId: o.id, returnId: rt.id }, lines))
+  }
   if (o.status === 'cancelled' && paidS > 0) {
     // คืนเงินเป็นรายการตามวิธี (เงินสด/โอน) · ยอดคืนรวมต้องไม่เกินยอดที่รับจริง · ส่วนที่เหลือเป็นริบ
     const refunds = (Array.isArray(o.refunds) ? o.refunds : []).map((r) => ({ s: toS(r.amount), method: r.method })).filter((r) => r.s > 0)

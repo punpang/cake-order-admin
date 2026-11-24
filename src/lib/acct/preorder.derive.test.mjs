@@ -68,5 +68,19 @@ t('deriveAll รวมออร์เดอร์สั่งล่วงหน�
 })
 
 await server.close()
+t('รับคืนหลังส่งมอบ: ลดมัดจำ 2300 และคืนตามวิธี (เงินสด/โอน/คะแนน)', () => {
+  const es = preorderEntries({ ...base, status: 'returned', returns: [{ id: 'r1', at: '2026-12-01T00:00:00.000Z', refunds: [{ amount: 40, method: 'cash' }, { amount: 10, method: 'points' }] }] })
+  const ret = es.find((e) => e.id === 'pre-ret:po1:r1')
+  assert.ok(ret)
+  assert.equal(ret.lines.find((l) => l.account === '2300').dr, 50)
+  assert.equal(ret.lines.find((l) => l.account === '2310').cr, 10)
+  balanced(ret)
+})
+
+t('พัสดุตีกลับที่ยังไม่คืนเงิน: ไม่มีรายการบัญชี', () => {
+  const es = preorderEntries({ ...base, status: 'returned', returns: [{ id: 'r2', at: '2026-12-01T00:00:00.000Z', refunds: [] }] })
+  assert.equal(es.some((e) => e.id.startsWith('pre-ret')), false)
+})
+
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')
 process.exitCode = fail ? 1 : 0

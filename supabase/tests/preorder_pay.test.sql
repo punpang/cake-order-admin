@@ -289,4 +289,70 @@ select test.ok('P29 ยอดคืนเป็นคะแนนไม่ลง
   public.punpang_preorder_cancel('pp_e', '[{"amount":1.5,"method":"points"}]'::jsonb) = '{"error":"bad_refund"}'::jsonb
   and (select status from public.punpang_preorder_orders where id = 'pp_e') = 'expired');
 
+-- ออร์เดอร์พัสดุสำหรับเลขพัสดุและการรับคืน: G (ชำระครบ) · H (ชำระยังไม่ครบ) · I (ส่งมอบแล้ว สำหรับทดสอบคืนเกินยอด)
+insert into public.punpang_preorder_orders (id, campaign_id, code, status, pickup_date, customer_id, data) values
+  ('pp_g', 'pp_camp', 'PRE-241124-G00001', 'payment_confirmed', '2099-12-24', 'pp_c2',
+    '{"fulfillment":"delivery","total":100,"deposit":{"percent":50,"amount":50},"lines":[{"itemId":"pp_item","qty":1}],"payments":[{"id":"g1","amount":100,"method":"cash","status":"confirmed","at":"2026-11-24T03:00:00.000Z"}]}'::jsonb),
+  ('pp_h', 'pp_camp', 'PRE-241124-H00001', 'payment_confirmed', '2099-12-24', 'pp_c2',
+    '{"fulfillment":"delivery","total":100,"deposit":{"percent":50,"amount":50},"lines":[{"itemId":"pp_item","qty":1}],"payments":[{"id":"h1","amount":50,"method":"cash","status":"confirmed","at":"2026-11-24T03:00:00.000Z"}]}'::jsonb),
+  ('pp_i', 'pp_camp', 'PRE-241124-I00001', 'delivered', '2099-12-24', 'pp_c2',
+    '{"fulfillment":"delivery","total":100,"deposit":{"percent":50,"amount":50},"lines":[{"itemId":"pp_item","qty":1}],"payments":[{"id":"i1","amount":100,"method":"cash","status":"confirmed","at":"2026-11-24T03:00:00.000Z"}]}'::jsonb);
+
+-- P30 ส่งพัสดุไม่ได้ถ้ายอดยังไม่ครบ · เลขพัสดุผิดรูปแบบ · ไม่มีชื่อขนส่ง
+select test.ok('P30 ส่งพัสดุตรวจยอดครบ เลขพัสดุ และชื่อขนส่ง',
+  public.punpang_preorder_set_shipping('pp_h', 'Kerry', 'TH123456') = '{"error":"balance_due"}'::jsonb
+  and public.punpang_preorder_set_shipping('pp_g', 'Kerry', 'a b') = '{"error":"bad_tracking"}'::jsonb
+  and public.punpang_preorder_set_shipping('pp_g', '', 'TH123456') = '{"error":"bad_carrier"}'::jsonb);
+
+-- P31 บันทึกเลขพัสดุสำเร็จ (ยอดครบ) → สถานะ shipped และแปลงเลขเป็นตัวพิมพ์ใหญ่
+do $$
+declare r jsonb;
+begin
+  r := public.punpang_preorder_set_shipping('pp_g', 'Kerry', 'th-123456');
+  perform test.ok('P31 บันทึกเลขพัสดุ → shipped และเก็บเลขตัวพิมพ์ใหญ่',
+    (r->>'trackingNo') = 'TH-123456'
+    and (select status from public.punpang_preorder_orders where id = 'pp_g') = 'shipped'
+    and (select data->'shipping'->>'trackingNo' from public.punpang_preorder_orders where id = 'pp_g') = 'TH-123456');
+end $$;
+
+-- P32 ลูกค้าขอคืนได้หลังได้รับแล้วเท่านั้น · ยืนยันรับแล้ว · ขอซ้ำเป็น already
+select test.ok('P32 ขอคืนได้หลังได้รับ และขอซ้ำไม่สร้างคำขอใหม่',
+  public.punpang_preorder_request_return('pp_g', 'ไม่ตรงปก') ->> 'error' = 'bad_status'
+  and public.punpang_preorder_mark_delivered('pp_g') ->> 'status' = 'delivered'
+  and public.punpang_preorder_request_return('pp_g', 'ไม่ตรงปก') ->> 'already' = 'false'
+  and public.punpang_preorder_request_return('pp_g', 'ไม่ตรงปก') ->> 'already' = 'true');
+
+-- P33 รับคืน: คืนเงินสด 40 และเป็นคะแนน 10 → returned · ได้ก้อนคะแนนใหม่ไม่มีวันหมดอายุผูกกับออร์เดอร์
+do $$
+declare r jsonb;
+begin
+  r := public.punpang_preorder_record_return('pp_g', 'ลูกค้าคืนสินค้า', '[{"amount":40,"method":"cash"},{"amount":10,"method":"points"}]'::jsonb);
+  perform test.ok('P33 รับคืนและคืนเงิน 50 (เงินสด 40 + คะแนน 10) → returned',
+    (r->>'status') = 'returned' and (r->>'refunded')::numeric = 50 and (r->>'points')::int = 10
+    and (select x->>'delta' from public.punpang_customers c, jsonb_array_elements(c.data->'ledger') x where c.id = 'pp_c2' and x->>'orderId' = 'pp_g' and x->>'expiresAt' is null) = '10');
+end $$;
+
+-- P34 รับคืนซ้ำไม่ได้หลังสถานะเป็น returned · ยกเลิกหลังรับคืนไม่ได้
+select test.ok('P34 รับคืนซ้ำและยกเลิกหลังรับคืนไม่ได้',
+  public.punpang_preorder_record_return('pp_g', 'ซ้ำ', '[]'::jsonb) ->> 'error' = 'bad_status'
+  and public.punpang_preorder_cancel('pp_g', '[]'::jsonb) ->> 'error' = 'already_delivered');
+
+-- P35 คืนเกินยอดที่รับ (100) ไม่ได้ และสถานะไม่เปลี่ยน
+select test.ok('P35 คืนเกินยอดที่รับถูกปฏิเสธ และสถานะยัง delivered',
+  public.punpang_preorder_record_return('pp_i', 'เกิน', '[{"amount":101,"method":"bank"}]'::jsonb) = '{"error":"bad_refund"}'::jsonb
+  and (select status from public.punpang_preorder_orders where id = 'pp_i') = 'delivered');
+
+-- P36 พัสดุตีกลับจากสถานะ shipped: บันทึกการรับคืนโดยยังไม่คืนเงิน (ร้านตัดสินภายหลัง) → returned
+insert into public.punpang_preorder_orders (id, campaign_id, code, status, pickup_date, customer_id, data) values
+  ('pp_k', 'pp_camp', 'PRE-241124-K00001', 'shipped', '2099-12-24', 'pp_c2',
+    '{"fulfillment":"delivery","total":100,"deposit":{"percent":50,"amount":50},"lines":[{"itemId":"pp_item","qty":1}],"payments":[{"id":"k1","amount":100,"method":"cash","status":"confirmed","at":"2026-11-24T03:00:00.000Z"}],"shipping":{"carrier":"Kerry","trackingNo":"TH-000001"}}'::jsonb);
+do $$
+declare r jsonb;
+begin
+  r := public.punpang_preorder_record_return('pp_k', 'ตีกลับ', '[]'::jsonb);
+  perform test.ok('P36 พัสดุตีกลับจาก shipped บันทึกการรับคืนได้โดยไม่คืนเงิน',
+    (r->>'status') = 'returned' and (r->>'refunded')::numeric = 0
+    and (select status from public.punpang_preorder_orders where id = 'pp_k') = 'returned');
+end $$;
+
 rollback;
