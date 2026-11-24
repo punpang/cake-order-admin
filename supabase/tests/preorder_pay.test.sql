@@ -315,6 +315,12 @@ begin
     and (select data->'shipping'->>'trackingNo' from public.punpang_preorder_orders where id = 'pp_g') = 'TH-123456');
 end $$;
 
+-- P31b ค่าไปรษณีย์: ติดลบหรือทศนิยมเกินสองตำแหน่งไม่ผ่าน · ไม่กรอกเก็บเป็น 0 ในออเดอร์ที่ส่งแล้ว
+select test.ok('P31b ค่าไปรษณีย์ผิดรูปแบบถูกปฏิเสธ และค่าเริ่มต้นเก็บเป็น 0',
+  public.punpang_preorder_set_shipping('pp_g', 'Kerry', 'TH-1234567', -1) ->> 'error' = 'bad_postage'
+  and public.punpang_preorder_set_shipping('pp_g', 'Kerry', 'TH-1234567', 1.234) ->> 'error' = 'bad_postage'
+  and (select data->'shipping'->>'postage' from public.punpang_preorder_orders where id = 'pp_g') = '0');
+
 -- P32 ลูกค้าขอคืนได้หลังได้รับแล้วเท่านั้น · ยืนยันรับแล้ว · ขอซ้ำเป็น already
 select test.ok('P32 ขอคืนได้หลังได้รับ และขอซ้ำไม่สร้างคำขอใหม่',
   public.punpang_preorder_request_return('pp_g', 'ไม่ตรงปก') ->> 'error' = 'bad_status'

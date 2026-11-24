@@ -1,7 +1,7 @@
 <script setup>
 // รายการออร์เดอร์สั่งล่วงหน้าสำหรับร้าน: ยืนยันเงินสด · จัดส่ง · รับแล้ว · ตีกลับ · ตัดสินคืนเงินหรือจัดส่งใหม่ · ขยายเวลา
 // ทุกการกระทำเรียก preorder-admin และฐานข้อมูลเป็นผู้ตรวจกฎ (ยอด สถานะ) หน้านี้แค่ส่งข้อมูลที่กรอก
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { preorderAdminCall } from '../../lib/preorderAdminRemote'
 
 const orders = ref([])
@@ -20,8 +20,22 @@ async function load() {
   orders.value = r.orders || []
 }
 
+// สรุปรายการที่โหลดแล้ว: ยอดรับแล้ว/คงค้าง (ไม่นับยกเลิกและหมดเวลา) และจำนวนตามสถานะ
+const summary = computed(() => {
+  const by = {}
+  let paid = 0
+  let due = 0
+  for (const o of orders.value) {
+    by[o.status] = (by[o.status] || 0) + 1
+    if (o.status === 'cancelled' || o.status === 'expired') continue
+    paid += Number(o.paid) || 0
+    due += Math.max(0, (Number(o.total) || 0) - (Number(o.paid) || 0))
+  }
+  return { count: orders.value.length, by, paid: Math.round(paid * 100) / 100, due: Math.round(due * 100) / 100 }
+})
+
 function box(id) {
-  if (!f[id]) f[id] = { amount: '', method: 'cash', carrier: '', tracking: '', reason: '', fee: '', newDue: '' }
+  if (!f[id]) f[id] = { amount: '', method: 'cash', carrier: '', tracking: '', postage: '', reason: '', fee: '', newDue: '' }
   return f[id]
 }
 
@@ -45,6 +59,11 @@ onMounted(load)
   <section class="card mb-4" data-preorder-orders>
     <h2 class="text-base font-semibold text-stone-800">ออร์เดอร์สั่งล่วงหน้า</h2>
     <p v-if="loading" class="mt-2 text-sm text-stone-500">กำลังโหลด…</p>
+    <p v-if="!loading && orders.length" class="mt-2 text-sm text-stone-600" data-preorder-summary>
+      ทั้งหมด {{ summary.count }} ออร์เดอร์ · รับแล้ว {{ summary.paid }} บาท · คงค้าง {{ summary.due }} บาท ·
+      รอชำระ {{ summary.by.awaiting_payment || 0 }} · ส่งแล้ว {{ summary.by.shipped || 0 }} · ได้รับแล้ว {{ summary.by.delivered || 0 }} ·
+      ยกเลิก/หมดเวลา {{ (summary.by.cancelled || 0) + (summary.by.expired || 0) }}
+    </p>
     <p v-if="msg" class="mt-2 text-sm text-stone-700" role="status">{{ msg }}</p>
     <p v-if="!loading && !orders.length" class="mt-2 text-sm text-stone-500">ยังไม่มีออร์เดอร์</p>
     <ul class="mt-3 space-y-3">
@@ -66,7 +85,8 @@ onMounted(load)
         <div v-if="o.status === 'payment_confirmed' && o.fulfillment === 'delivery' && !o.shipping" class="mt-2 flex flex-wrap items-center gap-2">
           <input v-model="box(o.id).carrier" class="input h-9 w-28" placeholder="ขนส่ง" aria-label="ชื่อขนส่ง" />
           <input v-model="box(o.id).tracking" class="input h-9 w-36" placeholder="เลขพัสดุ" aria-label="เลขพัสดุ" />
-          <button type="button" class="btn-primary h-9 px-3" @click="act(o, 'set_shipping', { carrier: box(o.id).carrier, trackingNo: box(o.id).tracking }, 'บันทึกเลขพัสดุแล้ว')">บันทึกการส่ง</button>
+          <input v-model="box(o.id).postage" type="number" min="0" step="0.01" class="input h-9 w-28" placeholder="ค่าไปรษณีย์ (บาท)" aria-label="ค่าไปรษณีย์จริง (บาท)" />
+          <button type="button" class="btn-primary h-9 px-3" @click="act(o, 'set_shipping', { carrier: box(o.id).carrier, trackingNo: box(o.id).tracking, postage: box(o.id).postage === '' ? 0 : Number(box(o.id).postage) }, 'บันทึกเลขพัสดุแล้ว')">บันทึกการส่ง</button>
         </div>
 
         <!-- ได้รับแล้ว / ตีกลับ -->

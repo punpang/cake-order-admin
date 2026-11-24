@@ -136,5 +136,18 @@ t('รับคืนหลังส่งมอบ: กลับรายได
   assert.equal(r.lines.find((l) => l.account === '2300'), undefined)
 })
 
+t('ค่าไปรษณีย์จริงตอนส่งพัสดุ: ต้นทุน 5500 จ่ายเงินสด 1010 ลงวันที่ส่ง และสมดุล', () => {
+  const es = preorderEntries({ ...vatOrder(), status: 'payment_confirmed', shipping: { carrier: 'EMS', trackingNo: 'EE1', shippedAt: '2026-11-26T03:00:00.000Z', postage: 45.5 }, payments: [] })
+  const p = es.find((e) => e.id === 'pre-post:pv')
+  assert.ok(p)
+  assert.equal(p.lines.find((l) => l.account === '5500').dr, 45.5)
+  assert.equal(p.lines.find((l) => l.account === '1010').cr, 45.5)
+  balanced(p)
+})
+t('ไม่กรอกค่าไปรษณีย์ (0) → ไม่มีรายการ', () => {
+  const es = preorderEntries({ ...vatOrder(), status: 'payment_confirmed', shipping: { trackingNo: 'EE1', shippedAt: '2026-11-26T03:00:00.000Z' }, payments: [] })
+  assert.equal(es.some((e) => e.id === 'pre-post:pv'), false)
+})
+
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')
 process.exitCode = fail ? 1 : 0

@@ -69,8 +69,10 @@ Deno.serve(corsWrap(async (req) => {
 
   if (!ORDER_ID_RE.test(orderId)) return json({ error: 'รหัสออร์เดอร์ไม่ถูกต้อง' }, 400)
   const num = (v: unknown) => (typeof v === 'number' ? v : Number(v))
+  // ค่าไปรษณีย์จริงที่ร้านจ่าย (บาท): ไม่กรอก = 0 · ค่าอื่นที่ไม่ใช่ตัวเลข 0–100000 ไม่ผ่าน (ฐานข้อมูลตรวจซ้ำ)
+  const postageOf = (v: unknown) => (v === undefined || v === null || v === '' ? 0 : Number(v))
   const calls: Record<string, () => Promise<{ data: any; error: any }>> = {
-    set_shipping: async () => await sb.rpc('punpang_preorder_set_shipping', { p_order: orderId, p_carrier: String(body.carrier ?? ''), p_tracking: String(body.trackingNo ?? '') }),
+    set_shipping: async () => await sb.rpc('punpang_preorder_set_shipping', { p_order: orderId, p_carrier: String(body.carrier ?? ''), p_tracking: String(body.trackingNo ?? ''), p_postage: postageOf(body.postage) }),
     mark_delivered: async () => await sb.rpc('punpang_preorder_mark_delivered', { p_order: orderId }),
     record_return: async () => await sb.rpc('punpang_preorder_record_return', { p_order: orderId, p_reason: String(body.reason ?? '') }),
     refund_return: async () => await sb.rpc('punpang_preorder_refund_return', { p_order: orderId, p_refunds: Array.isArray(body.refunds) ? body.refunds : [] }),

@@ -221,6 +221,9 @@ export function preorderEntries(o, ctx = {}) {
     const lines = [dr(DEPOSIT, sumNet), dr(AR, unpaid), dr('5410', X, { poolable: POINTS_LIAB }), ...rev, cr(OUTPUT_VAT, restVat), ...cogs]
     out.push(entry(`pre-dlv:${o.id}`, dateOf(o.deliveredAt), `ส่งมอบสั่งล่วงหน้า ${code} รับรู้รายได้`, { type: 'preorder-deliver', orderId: o.id }, lines, restVat > 0 ? tx('output', restBase, restVat) : null))
   }
+  // ---- ค่าไปรษณีย์จริงตอนส่งพัสดุ: ร้านจ่ายเงินสดตอนส่ง → ต้นทุนขนส่ง 5500 (ลงวันที่ส่ง) ----
+  const postS = toS(Number(o.shipping?.postage) || 0)
+  if (postS > 0 && o.shipping?.shippedAt) out.push(entry(`pre-post:${o.id}`, dateOf(o.shipping.shippedAt), `ค่าไปรษณีย์ ${code}`, { type: 'preorder-postage', orderId: o.id }, [dr('5500', postS), cr(CASH, postS)]))
   // ---- รับคืนหลังส่งมอบ: รายได้รับรู้แล้ว จึงกลับรายการ 4950 (ไม่ตัด 2300) · ค่าส่งที่ริบยังเป็นรายได้เดิม ไม่ลงซ้ำ ----
   for (const rt of Array.isArray(o.returns) ? o.returns : []) {
     const afterDelivery = !!o.deliveredAt && (!rt.at || String(rt.at) >= String(o.deliveredAt))

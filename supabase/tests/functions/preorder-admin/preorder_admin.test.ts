@@ -64,7 +64,9 @@ Deno.test('set_shipping ส่งพารามิเตอร์ไปฐา�
   ;(globalThis as any).__RPC.punpang_preorder_set_shipping = async (args: any) => { (globalThis as any).__RPC_CALLS.push(args); return { data: { ok: true, status: 'shipped' }, error: null } }
   const ok = await call({ action: 'set_shipping', orderId: ORDER, carrier: 'Kerry', trackingNo: 'TH-1' })
   assertEquals(ok.status, 200)
-  assertEquals((globalThis as any).__RPC_CALLS[0], { p_order: ORDER, p_carrier: 'Kerry', p_tracking: 'TH-1' })
+  assertEquals((globalThis as any).__RPC_CALLS[0], { p_order: ORDER, p_carrier: 'Kerry', p_tracking: 'TH-1', p_postage: 0 })
+  await call({ action: 'set_shipping', orderId: ORDER, carrier: 'Kerry', trackingNo: 'TH-1', postage: '45.5' })
+  assertEquals((globalThis as any).__RPC_CALLS[1].p_postage, 45.5)
   ;(globalThis as any).__RPC.punpang_preorder_set_shipping = async () => ({ data: { error: 'balance_due' }, error: null })
   assertEquals((await call({ action: 'set_shipping', orderId: ORDER, carrier: 'Kerry', trackingNo: 'TH-1' })).status, 409)
 })
