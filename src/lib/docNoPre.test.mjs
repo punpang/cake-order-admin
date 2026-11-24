@@ -1,6 +1,6 @@
 // ทดสอบเลขที่ PRE- ของสั่งล่วงหน้า · รัน: node src/lib/docNoPre.test.mjs
 import assert from 'node:assert/strict'
-import { DOC_DIGITS, DOC_PREFIXES, formatNo, parseNo } from './docNo.js'
+import { DOC_DIGITS, DOC_PREFIXES, STAFF_PREFIXES, formatNo, parseNo } from './docNo.js'
 
 let fail = 0
 const t = (name, fn) => { try { fn(); console.log(`PASS ${name}`) } catch (e) { fail++; console.log(`FAIL ${name}: ${e.message}`) } }
@@ -19,6 +19,11 @@ t('parseNo: อ่าน PRE- ได้ และโหมดทดสอบ TES
 t('ของเดิมไม่เปลี่ยน: OR ยังเป็น 6 หลัก และ POS ยังเป็น 5 หลัก', () => {
   assert.equal(DOC_DIGITS.OR, 6)
   assert.equal(DOC_DIGITS.POS, 5)
+})
+
+t('พนักงานเบิกล่วงหน้าไม่รวม PRE (เซิร์ฟเวอร์ออกเอง)', () => {
+  assert.ok(!STAFF_PREFIXES.includes('PRE'))
+  assert.ok(STAFF_PREFIXES.includes('OR') && STAFF_PREFIXES.includes('POS'))
 })
 
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')

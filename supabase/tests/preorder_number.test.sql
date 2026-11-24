@@ -23,10 +23,13 @@ begin
   perform test.ok('N2 เซิร์ฟเวอร์ปฏิเสธ prefix XXX', rejected);
 end $$;
 
--- N3 พนักงานที่มีสิทธิ์ขอเลข PRE ล่วงหน้าได้ (แอปเรียกผ่าน prefetch)
-select test.ok('N3 พนักงานขอเลข PRE ได้',
+-- N3 พนักงานขอเลข PRE ไม่ได้ (เลขนี้ออกโดยเซิร์ฟเวอร์เท่านั้น) · ยังขอเลขของพนักงานได้ตามปกติ
+select test.ok('N3a พนักงานขอเลข PRE ไม่ได้ (P0001)',
+  left(test.as_staff('d7000000-0000-4000-8000-0000000000b1',
+    $$select public.punpang_alloc_numbers('PRE', '241124', 2)$$), 10) = 'ERR:P0001:');
+select test.ok('N3b พนักงานขอเลข OR ยังได้',
   test.as_staff('d7000000-0000-4000-8000-0000000000b1',
-    $$select public.punpang_alloc_numbers('PRE', '241124', 2)$$) = 'OK');
+    $$select public.punpang_alloc_numbers('OR', '241124', 2)$$) = 'OK');
 
 -- N4 พนักงานเรียกฝั่งเซิร์ฟเวอร์ไม่ได้ (จำกัดเฉพาะ service_role)
 select test.ok('N4 พนักงานเรียกตัวออกเลขฝั่งเซิร์ฟเวอร์ไม่ได้',
