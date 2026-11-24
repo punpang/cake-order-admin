@@ -179,3 +179,6 @@ export function orderLinks(db, text = '') {
   const s = db.storefront
   return { facebook: s.facebookUrl || '', text }
 }
+
+// ค่าตัวอย่างตั้งต้นที่ยังไม่ได้แก้ในหลังบ้าน (มีคำว่า "(ตัวอย่าง)") ไม่ควรแสดงให้ลูกค้าเห็น
+export const isSamplePlaceholder = (text) => !String(text ?? '').trim() || /\(ตัวอย่าง\)/.test(String(text))

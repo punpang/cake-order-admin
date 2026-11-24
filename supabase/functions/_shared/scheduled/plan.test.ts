@@ -28,10 +28,18 @@ Deno.test('เวลาติดผนังของกรุงเทพอ่
 })
 
 Deno.test('ใกล้เวลาต้องเสร็จ (ทีม): นัด − เวลาผลิต ภายใน 2 ชม.', () => {
-  const soon = run({ orders: [order({ pickupAt: '2026-11-14T21:00' })] }).find((p) => p.key === 'due|o1')
+  const confirmed = { status: 'order_confirmed' }
+  const soon = run({ orders: [order({ ...confirmed, pickupAt: '2026-11-14T21:00' })] }).find((p) => p.key === 'due|o1')
   assertEquals(soon?.kind, 'team')
   assertEquals(soon?.event, 'team_due_soon')
-  assert(!run({ orders: [order({ pickupAt: '2026-11-14T23:00' })] }).some((p) => p.key === 'due|o1')) // เหลือ 3.5 ชม.
+  assert(!run({ orders: [order({ ...confirmed, pickupAt: '2026-11-14T23:00' })] }).some((p) => p.key === 'due|o1')) // เหลือ 3.5 ชม.
+})
+
+Deno.test('ใกล้เวลาต้องเสร็จ: ไม่แจ้งงานที่ยังไม่ยืนยันสั่งซื้อ (ยังไม่ชำระ / แจ้งยอดแล้ว)', () => {
+  for (const status of ['awaiting_payment', 'payment_reported', 'draft']) {
+    const ps = run({ orders: [order({ status, pickupAt: '2026-11-14T21:00' })] })
+    assert(!ps.some((p) => p.key === 'due|o1'), `ไม่ควรแจ้งที่สถานะ ${status}`)
+  }
 })
 
 Deno.test('เตือนชำระ: หลัง payReminderTime และนัดพรุ่งนี้ ยังไม่ชำระ และแจ้งยอดแล้ว', () => {

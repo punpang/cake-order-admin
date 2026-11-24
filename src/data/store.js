@@ -7,6 +7,7 @@ import { normalizeDisplayAds } from '../lib/displayAds'
 import { reactive } from 'vue'
 import { BELL_MAX, BELL_STAFF, BELL_CUSTOMER, bellText, visibleToStaff, visibleToCustomer, unreadStaff, unreadCustomer, isReadStaff } from '../lib/bell'
 import { IS_STAFF_APP } from '../lib/adminSystems'
+import { isDueSoonEligible } from '../lib/dueSoon'
 import { ensureStyleGroup, STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, channelLabel, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
 import { holdErrors, holdCancelRefundOf, canHandOver } from '../lib/holdMoney'
@@ -3275,7 +3276,7 @@ export function runScheduledChecks() {
     for (const p of overduePayments(o, new Date(nowMs))) once(`overdue|${p.id}|${p.dueAt}`, () => notify('team_pay_overdue', { vars: { ...orderVars(o), ชำระก่อน: dueText(p.dueAt) }, orderId: o.id }))
     payReminder(o, new Date(nowMs), once)
     const toDue = dueAt(o).getTime() - nowMs
-    if (toDue <= dueHours * 3600e3) once(`due|${o.id}`, () => notify('team_due_soon', { vars: { ...orderVars(o), ชั่วโมง: String(dueHours) }, orderId: o.id }))
+    if (isDueSoonEligible(o) && toDue <= dueHours * 3600e3) once(`due|${o.id}`, () => notify('team_due_soon', { vars: { ...orderVars(o), ชั่วโมง: String(dueHours) }, orderId: o.id }))
   }
   for (const b of serverRuns ? [] : upcomingBirthdays()) {
     const c = findCustomer(b.customerId)

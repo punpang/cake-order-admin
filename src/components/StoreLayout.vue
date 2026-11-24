@@ -7,10 +7,15 @@ import BellMenu from './BellMenu.vue'
 import CookieBanner from './CookieBanner.vue'
 import ChatFab from './ChatFab.vue'
 import { openCookieSettings } from '../lib/consent'
+import { isSamplePlaceholder } from '../lib/storefront'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { supabaseEnabled } from '../lib/supabase'
 import { publicState } from '../lib/dataStatus'
+
+// ซ่อนหัวข้อ "ติดต่อ" ทั้งก้อนเมื่อไม่มีข้อมูลติดต่อจริง (ที่อยู่ตัวอย่างไม่นับ)
+const hasAddress = computed(() => !!db.storefront.address && !isSamplePlaceholder(db.storefront.address))
+const hasContact = computed(() => hasAddress.value || !!db.storefront.phone || !!safeHref(db.storefront.facebookUrl))
 import { loadPublicNow } from '../lib/staffAuth'
 import { allowedInApp } from '../lib/adminSystems'
 
@@ -84,12 +89,12 @@ const tabs = computed(() => [
         <div class="mb-2 flex items-center gap-2 font-display text-xl"><AppIcon name="cake" :size="18" /> {{ db.shop.name || 'ร้านของคุณ' }}</div>
         <p>{{ db.storefront.about }}</p>
       </div>
-      <div class="space-y-1.5">
+      <div v-if="hasContact" class="space-y-1.5">
         <div class="mb-1 font-display text-lg">ติดต่อ</div>
-        <p v-if="db.storefront.address" class="flex gap-2"><AppIcon name="pin" :size="16" class="mt-0.5 text-cream/70" /> {{ db.storefront.address }}</p>
+        <p v-if="hasAddress" class="flex gap-2"><AppIcon name="pin" :size="16" class="mt-0.5 text-cream/70" /> {{ db.storefront.address }}</p>
         <p v-if="db.storefront.phone" class="flex gap-2"><AppIcon name="phone" :size="16" class="mt-0.5 text-cream/70" /> <a :href="`tel:${db.storefront.phone}`" class="-my-3 py-3 underline">{{ formatPhone(db.storefront.phone) }}</a></p>
-        <p class="flex flex-wrap gap-x-4">
-          <a v-if="safeHref(db.storefront.facebookUrl)" :href="safeHref(db.storefront.facebookUrl)" target="_blank" rel="noopener" class="-my-3 py-3 underline">Facebook</a>
+        <p v-if="safeHref(db.storefront.facebookUrl)" class="flex flex-wrap gap-x-4">
+          <a :href="safeHref(db.storefront.facebookUrl)" target="_blank" rel="noopener" class="-my-3 py-3 underline">Facebook</a>
         </p>
       </div>
       <div class="space-y-1.5">

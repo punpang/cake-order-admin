@@ -15,6 +15,8 @@ export const SCHEDLIB_FILES = [
   'holdMoney.js', 'cashService.js',
   // การ์ดสรุปออร์เดอร์ในแชท (ใช้สร้างการ์ดให้ออร์เดอร์เดิมตอนลูกค้าเปิดแชท)
   'chatCards.js',
+  // แจ้งงานใกล้เวลาต้องเสร็จเฉพาะออร์เดอร์ที่ยืนยันการสั่งซื้อแล้ว
+  'dueSoon.js',
   // ประชาสัมพันธ์/โปรโมชั่น: เกณฑ์ความยินยอม (customer-auth) และการตรวจแคมเปญ/การ์ด (campaign, scheduled)
   'promoConsent.js', 'campaigns.js', 'memberNotify.js',
   // ใบกำกับภาษีเต็มรูปฝั่งลูกค้า (Edge Function tax-invoice ใช้กติกาชุดเดียวกับแอป) · กรอบเวลา เลขผู้เสียภาษี ข้อความตัวเลขเป็นบาท

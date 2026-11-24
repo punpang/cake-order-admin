@@ -25,7 +25,7 @@ try {
     await go('/admin/pos')
     const open = page.getByRole('button', { name: 'เปิดกะ', exact: true })
     if (await open.isVisible().catch(() => false)) { await open.click(); await page.waitForTimeout(800) }
-    await page.getByRole('button', { name: 'ไม่มี', exact: true }).first().click()
+    await page.getByRole('button', { name: 'ลูกค้าทั่วไป', exact: true }).first().click()
     await page.getByRole('button', { name: /คัพเค้กวานิลลา/ }).first().click()
     await page.getByRole('button', { name: 'ชำระเงิน', exact: true }).first().click()
     await page.getByRole('button', { name: 'เงินสด', exact: true }).first().click()

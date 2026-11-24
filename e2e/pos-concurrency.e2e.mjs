@@ -22,7 +22,7 @@ async function open() {
   await page.goto(`${base}/#/admin/pos`, { waitUntil: 'domcontentloaded' })
   await page.waitForFunction(() => !document.body.innerText.includes('กำลังเตรียมข้อมูล'), null, { timeout: 60000 })
   await page.evaluate(async () => { window.__store = await import('/src/data/store.js') })
-  await page.getByRole('button', { name: 'ไม่มี', exact: true }).first().click() // ขายแบบไม่มีสมาชิก (ต้องเลือกก่อนเพิ่มสินค้า)
+  await page.getByRole('button', { name: 'ลูกค้าทั่วไป', exact: true }).first().click() // ขายแบบไม่มีสมาชิก (ต้องเลือกก่อนเพิ่มสินค้า)
   return { page, errors }
 }
 const posCount = (page) => page.evaluate(() => window.__store.db.orders.filter((o) => o.channel === 'pos').length)

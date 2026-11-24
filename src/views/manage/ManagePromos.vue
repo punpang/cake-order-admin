@@ -5,6 +5,7 @@ import { db, savePosDiscount, savePosBundle, savePointPromo, saveDeal, removePro
 import { describeDeal, dealWarnings } from '../../lib/promoDeals'
 import { describeSchedule, promoLive, blankSchedule } from '../../lib/posPromo'
 import { money } from '../../lib/format'
+import { isSamplePlaceholder } from '../../lib/storefront'
 import { askConfirm } from '../../lib/confirm'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
@@ -95,6 +96,7 @@ async function flip(x) {
             <span v-if="x.active === false" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิด</span>
             <span v-else-if="promoLive(x)" class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">ใช้อยู่ตอนนี้</span>
             <span v-else class="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">นอกช่วงเวลา</span>
+            <span v-if="x.active !== false && isSamplePlaceholder(x.name)" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">ชื่อยังเป็นตัวอย่าง · แก้ก่อนใช้จริง</span>
           </span>
           <span class="mt-0.5 block text-sm text-stone-600">{{ summary(x) }}</span>
           <span v-for="w in (tab === 'bundle' ? warnings(x) : tab === 'deal' ? dealWarnings(x, db.retailItems) : [])" :key="w" class="mt-0.5 block text-xs text-amber-700">⚠ {{ w }}</span>
@@ -115,7 +117,7 @@ async function flip(x) {
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div><label class="label">{{ f.type === 'percent' ? 'เปอร์เซ็นต์' : 'บาท' }}</label><MoneyInput v-model="f.value" class="input" /></div>
-            <div><label class="label">ยอดสินค้าขั้นต่ำ (บาท)</label><MoneyInput v-model="f.minSpend" class="input" placeholder="ไม่มี" /></div>
+            <div><label class="label">ยอดสินค้าขั้นต่ำ (บาท)</label><MoneyInput v-model="f.minSpend" class="input" placeholder="ไม่มีขั้นต่ำ" /></div>
           </div>
         </template>
 
@@ -227,8 +229,11 @@ async function flip(x) {
           <div v-if="f.scope === 'items'" class="mt-2 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
             <button v-for="p in items" :key="p.id" type="button" class="chip" :class="f.itemIds.includes(p.id) ? 'chip-on' : 'chip-off'" @click="toggle(f.itemIds, p.id)">{{ p.name }}</button>
           </div>
-          <div v-else-if="f.scope === 'category'" class="mt-2 flex flex-wrap gap-1.5">
-            <button v-for="c in categories" :key="c" type="button" class="chip" :class="f.categories.includes(c) ? 'chip-on' : 'chip-off'" @click="toggle(f.categories, c)">{{ c }}</button>
+          <div v-else-if="f.scope === 'category'" class="mt-2">
+            <div class="label">เลือกหมวดที่ใช้</div>
+            <div class="flex flex-wrap gap-1.5">
+              <button v-for="c in categories" :key="c" type="button" class="chip" :class="f.categories.includes(c) ? 'chip-on' : 'chip-off'" @click="toggle(f.categories, c)">{{ c }}</button>
+            </div>
           </div>
         </div>
 
@@ -237,7 +242,7 @@ async function flip(x) {
         <p v-if="err" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
       </div>
       <template #footer>
-        <button v-if="f.id" class="btn-danger" @click="del(f)">ลบ</button>
+        <button v-if="f.id" class="btn-danger mr-auto" @click="del(f)">ลบ</button>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>
         <button class="btn-primary flex-1 sm:flex-none" @click="save">บันทึก</button>
       </template>
