@@ -5,10 +5,12 @@
 -- ข้อมูลในออร์เดอร์ (data): payments[] {id, amount, method, ref, at} · payDueAt · expiredAt · extensionRequest {status, at} · extensions[] · refund · forfeited · cancelledAt
 -- ข้อผิดพลาดที่ต้องย้อนทั้งธุรกรรม (จองโควตา/ตัดแต้มสำเร็จแล้ว) raise ทันที: quota_full:<รหัส> · points:<รหัส>
 
+-- นับเฉพาะรายการที่ยืนยันแล้ว (รายการ reported คือคำขอ QR ที่ยังไม่จ่าย ไม่นับเป็นยอดชำระ)
 create or replace function public.punpang_preorder_paid_total(p_data jsonb)
 returns numeric language sql immutable set search_path = '' as $$
   select coalesce(sum((x->>'amount')::numeric), 0)
   from jsonb_array_elements(coalesce(p_data->'payments', '[]'::jsonb)) x
+  where x->>'status' = 'confirmed'
 $$;
 
 -- 1) บันทึกการชำระ (เงินสดหน้าร้าน หรือ QR/ถุงเงินที่จับคู่แล้ว) · ref ซ้ำ = เรียกซ้ำ ไม่บันทึกซ้ำ · ยอดรวมต้องไม่เกินยอดบิล
@@ -37,7 +39,7 @@ begin
   update public.punpang_preorder_orders
     set status = st, updated_at = now(),
         data = jsonb_set(o.data, '{payments}', coalesce(o.data->'payments', '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
-          'id', public.punpang__pts_newid(), 'amount', p_amount, 'method', p_method, 'ref', p_ref, 'at', nowz)))
+          'id', public.punpang__pts_newid(), 'amount', p_amount, 'method', p_method, 'ref', p_ref, 'status', 'confirmed', 'at', nowz)))
     where id = p_order;
   return jsonb_build_object('ok', true, 'already', false, 'status', st, 'paid', paid + p_amount);
 end $$;
@@ -169,6 +171,68 @@ begin
     'points', coalesce(ret->>'points', '0'), 'released', rel is not null);
 end $$;
 
+-- 7) คำขอ QR: บันทึกเป็นรายการ reported ที่มี qrRef และยอดที่ขอ · qrRef ต้องขึ้นต้น PRE และไม่ซ้ำกับออร์เดอร์อื่น · ยอดรวมต้องไม่เกินยอดคงค้าง
+create or replace function public.punpang_preorder_request_qr(p_order text, p_amount numeric, p_qr_ref text)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  cid text; o record; total numeric; paid numeric;
+  nowz text := to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
+begin
+  if p_qr_ref is null or p_qr_ref !~ '^PRE[0-9]{12}[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{5}$' then return jsonb_build_object('error', 'bad_ref'); end if;
+  if p_amount is null or p_amount <= 0 or p_amount <> round(p_amount, 2) then return jsonb_build_object('error', 'bad_amount'); end if;
+  select customer_id into cid from public.punpang_preorder_orders where id = p_order;
+  if not found then return jsonb_build_object('error', 'no_order'); end if;
+  perform 1 from public.punpang_customers where id = cid for update;
+  select * into o from public.punpang_preorder_orders where id = p_order for update;
+  if o.status not in ('awaiting_payment', 'payment_confirmed') then return jsonb_build_object('error', 'bad_status'); end if;
+  if exists (select 1 from public.punpang_preorder_orders po, jsonb_array_elements(coalesce(po.data->'payments', '[]'::jsonb)) x where x->>'qrRef' = p_qr_ref) then
+    return jsonb_build_object('error', 'ref_taken');
+  end if;
+  total := coalesce((o.data->>'total')::numeric, 0);
+  paid := public.punpang_preorder_paid_total(o.data);
+  if paid + p_amount > total then return jsonb_build_object('error', 'over_total'); end if;
+  update public.punpang_preorder_orders
+    set updated_at = now(),
+        data = jsonb_set(o.data, '{payments}', coalesce(o.data->'payments', '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+          'id', public.punpang__pts_newid(), 'amount', p_amount, 'method', 'qr', 'qrRef', p_qr_ref, 'status', 'reported', 'at', nowz)))
+    where id = p_order;
+  return jsonb_build_object('ok', true, 'qrRef', p_qr_ref, 'amount', p_amount);
+end $$;
+
+-- 8) ยืนยันคำขอ QR จากการแจ้งเตือนถุงเงิน: หาออร์เดอร์จาก qrRef (ไม่ซ้ำ) · ยอดต้องตรงกับที่ขอ · ยืนยันงวดนั้นและเปลี่ยนสถานะเมื่อครบมัดจำ
+-- ออร์เดอร์ที่ยกเลิกแล้วไม่ยืนยันอัตโนมัติ (คืนสถานะ cancelled ให้ร้านตรวจ) · ออร์เดอร์ที่หมดเวลาแล้วยืนยันได้ แต่สถานะยัง expired ให้ร้านขยายเวลา
+create or replace function public.punpang_preorder_confirm_qr(p_qr_ref text, p_amount numeric, p_bank_ref text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  hit record; cid text; o record; idx int; pay jsonb; nd jsonb; paid numeric; dep numeric; st text; cnt int;
+  nowz text := to_char(now() at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
+begin
+  select count(*) into cnt from public.punpang_preorder_orders po
+    where po.data->'payments' @> jsonb_build_array(jsonb_build_object('qrRef', p_qr_ref));
+  if cnt = 0 then return jsonb_build_object('error', 'not_found'); end if;
+  if cnt > 1 then return jsonb_build_object('error', 'ambiguous'); end if;
+  select id, customer_id into hit from public.punpang_preorder_orders
+    where data->'payments' @> jsonb_build_array(jsonb_build_object('qrRef', p_qr_ref));
+  cid := hit.customer_id;
+  perform 1 from public.punpang_customers where id = cid for update;
+  select * into o from public.punpang_preorder_orders where id = hit.id for update;
+  select (ord - 1)::int into idx from jsonb_array_elements(o.data->'payments') with ordinality as t(x, ord)
+    where x->>'qrRef' = p_qr_ref and x->>'status' = 'reported' limit 1;
+  if idx is null then return jsonb_build_object('error', 'not_reported'); end if;
+  pay := o.data->'payments'->idx;
+  if round((pay->>'amount')::numeric, 2) <> round(p_amount, 2) then return jsonb_build_object('error', 'amount_mismatch'); end if;
+  if o.status = 'cancelled' then return jsonb_build_object('error', 'cancelled'); end if;
+  pay := pay || jsonb_build_object('status', 'confirmed', 'bankRef', p_bank_ref, 'confirmedAt', nowz);
+  nd := jsonb_set(o.data, array['payments', idx::text], pay);
+  update public.punpang_preorder_orders set updated_at = now(), data = nd where id = hit.id;
+  paid := public.punpang_preorder_paid_total(nd);
+  dep := coalesce((o.data->'deposit'->>'amount')::numeric, 0);
+  st := o.status;
+  if o.status = 'awaiting_payment' and paid >= dep then st := 'payment_confirmed'; end if;
+  update public.punpang_preorder_orders set status = st where id = hit.id;
+  return jsonb_build_object('ok', true, 'status', st, 'paid', paid, 'order', hit.id);
+end $$;
+
 revoke all on function public.punpang_preorder_paid_total(jsonb) from public, anon, authenticated;
 revoke all on function public.punpang_preorder_record_payment(text, numeric, text, text) from public, anon, authenticated;
 grant execute on function public.punpang_preorder_record_payment(text, numeric, text, text) to service_role;
@@ -180,6 +244,10 @@ revoke all on function public.punpang_preorder_request_extension(text) from publ
 grant execute on function public.punpang_preorder_request_extension(text) to service_role;
 revoke all on function public.punpang_preorder_extend(text, timestamptz, timestamptz) from public, anon, authenticated;
 grant execute on function public.punpang_preorder_extend(text, timestamptz, timestamptz) to service_role;
+revoke all on function public.punpang_preorder_request_qr(text, numeric, text) from public, anon, authenticated;
+grant execute on function public.punpang_preorder_request_qr(text, numeric, text) to service_role;
+revoke all on function public.punpang_preorder_confirm_qr(text, numeric, text) from public, anon, authenticated;
+grant execute on function public.punpang_preorder_confirm_qr(text, numeric, text) to service_role;
 revoke all on function public.punpang_preorder_cancel(text, numeric, timestamptz) from public, anon, authenticated;
 grant execute on function public.punpang_preorder_cancel(text, numeric, timestamptz) to service_role;
 

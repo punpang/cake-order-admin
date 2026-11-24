@@ -89,7 +89,7 @@ select test.ok('P4 ยอดรวมเกินยอดบิลถูกป�
 -- P5 ออร์เดอร์ที่ยังไม่ถึงกำหนดและยังรอชำระจะไม่หมดเวลา (สร้างแถวเพิ่มเฉพาะขั้นนี้)
 insert into public.punpang_preorder_orders (id, campaign_id, code, status, pickup_date, customer_id, data)
   values ('pp_f', 'pp_camp', 'PRE-241124-F00001', 'awaiting_payment', '2099-12-24', 'pp_c2',
-    '{"payDueAt":"2099-01-01T00:00:00.000Z","lines":[{"itemId":"pp_item","qty":1}],"total":100}'::jsonb);
+    '{"payDueAt":"2099-01-01T00:00:00.000Z","lines":[{"itemId":"pp_item","qty":1}],"total":100,"deposit":{"percent":50,"amount":50}}'::jsonb);
 select test.ok('P5 ยังไม่ถึงกำหนดจ่ายจึงไม่หมดเวลา',
   public.punpang_preorder_expire('pp_f') ->> 'reason' = 'not_due'
   and (select status from public.punpang_preorder_orders where id = 'pp_f') = 'awaiting_payment');
@@ -210,5 +210,57 @@ select test.ok('P18 ชำระให้ออร์เดอร์ที่ย
 -- P19 วิธีชำระที่ไม่รู้จักถูกปฏิเสธ
 select test.ok('P19 วิธีชำระที่ไม่รู้จักถูกปฏิเสธ (bad_method)',
   public.punpang_preorder_record_payment('pp_a', 1, 'card', null) = '{"error":"bad_method"}'::jsonb);
+
+-- P20 คำขอ QR ของออร์เดอร์ F (ยังไม่จ่าย): บันทึกเป็นรายการ reported และยังไม่นับเป็นยอดชำระ
+do $$
+declare r jsonb;
+begin
+  r := public.punpang_preorder_request_qr('pp_f', 30, 'PRE202611240001ABCDE');
+  perform test.ok('P20 คำขอ QR 30 บาท บันทึกเป็น reported และยอดชำระยังเป็น 0',
+    (r->>'ok') = 'true'
+    and public.punpang_preorder_paid_total((select data from public.punpang_preorder_orders where id = 'pp_f')) = 0);
+end $$;
+
+-- P21 qrRef ซ้ำ → ref_taken · รูปแบบผิด → bad_ref · ยอดเกินยอดคงค้าง → over_total
+select test.ok('P21 ตรวจรหัสและยอดคำขอ QR: ซ้ำ ผิดรูปแบบ และเกินยอด',
+  public.punpang_preorder_request_qr('pp_f', 30, 'PRE202611240001ABCDE') = '{"error":"ref_taken"}'::jsonb
+  and public.punpang_preorder_request_qr('pp_f', 30, 'PREabc') = '{"error":"bad_ref"}'::jsonb
+  and public.punpang_preorder_request_qr('pp_f', 101, 'PRE202611240009ABCDE') = '{"error":"over_total"}'::jsonb);
+
+-- P22 ยืนยันด้วยยอดไม่ตรง → amount_mismatch และรายการยังเป็น reported
+select test.ok('P22 ยอดจากถุงเงินไม่ตรงกับคำขอ → ไม่ยืนยัน',
+  public.punpang_preorder_confirm_qr('PRE202611240001ABCDE', 25) = '{"error":"amount_mismatch"}'::jsonb
+  and (select x->>'status' from public.punpang_preorder_orders po, jsonb_array_elements(po.data->'payments') x where po.id = 'pp_f' and x->>'qrRef' = 'PRE202611240001ABCDE') = 'reported');
+
+-- P23 ยอดตรง → ยืนยันงวดนี้ ยอดชำระ 30 และยังรอมัดจำ
+do $$
+declare r jsonb;
+begin
+  r := public.punpang_preorder_confirm_qr('PRE202611240001ABCDE', 30, 'BANKREF1');
+  perform test.ok('P23 ยอดตรง → ยืนยันงวด ยอดชำระ 30 และยังรอมัดจำ',
+    (r->>'status') = 'awaiting_payment' and (r->>'paid')::numeric = 30
+    and (select x->>'bankRef' from public.punpang_preorder_orders po, jsonb_array_elements(po.data->'payments') x where po.id = 'pp_f' and x->>'qrRef' = 'PRE202611240001ABCDE') = 'BANKREF1');
+end $$;
+
+-- P24 คำขอที่สองครบมัดจำ → payment_confirmed · การยืนยันซ้ำไม่มีผล
+do $$
+declare r jsonb;
+begin
+  perform public.punpang_preorder_request_qr('pp_f', 40, 'PRE202611240002ABCDE');
+  r := public.punpang_preorder_confirm_qr('PRE202611240002ABCDE', 40, 'BANKREF2');
+  perform test.ok('P24 ยอดรวมถึงมัดจำ 50 จาก QR → payment_confirmed',
+    (r->>'status') = 'payment_confirmed' and (r->>'paid')::numeric = 70
+    and (select status from public.punpang_preorder_orders where id = 'pp_f') = 'payment_confirmed');
+end $$;
+
+-- P25 รหัสที่ไม่เคยขอ → not_found · รายการที่ยืนยันแล้วยืนยันซ้ำไม่ได้ (not_reported)
+select test.ok('P25 ยืนยันรหัสที่ไม่มีและยืนยันซ้ำ → ไม่มีผล',
+  public.punpang_preorder_confirm_qr('PRE202611240777ABCDE', 10) = '{"error":"not_found"}'::jsonb
+  and public.punpang_preorder_confirm_qr('PRE202611240002ABCDE', 40) = '{"error":"not_reported"}'::jsonb);
+
+-- P26 คำขอ QR ที่ยังไม่ยืนยันไม่นับเป็นยอดชำระ (ยอดยังเป็น 70)
+select test.ok('P26 คำขอ QR ที่ยังค้างไม่นับเป็นยอดชำระ',
+  public.punpang_preorder_request_qr('pp_f', 5, 'PRE202611240003ABCDE') ->> 'ok' = 'true'
+  and public.punpang_preorder_paid_total((select data from public.punpang_preorder_orders where id = 'pp_f')) = 70);
 
 rollback;
