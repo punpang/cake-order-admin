@@ -12,6 +12,7 @@ import AppSwitch from '../../components/AppSwitch.vue'
 import ImageUploader from '../../components/ImageUploader.vue'
 import RecipeEditor from '../../components/RecipeEditor.vue'
 import { allowedBy } from '../../lib/pricing'
+import { parcelDimsError, parcelFieldsOf, parcelFormOf } from '../../lib/parcelShipping'
 
 // สินค้า (POS / สินค้าสำเร็จ): ชื่อ หมวด ราคา สต็อก (เว้นว่าง = ไม่นับสต็อก) · รูป สูตร ปักหมุดขายดี · สวิตช์ "แสดงใน POS" แยกจาก "แสดงที่หน้าร้านเว็บ"
 const q = ref('')
@@ -23,11 +24,11 @@ const list = computed(() => {
 const categories = computed(() => [...new Set(db.retailItems.map((x) => x.category).filter(Boolean))])
 
 const open = ref(false)
-const blank = () => ({ id: null, name: '', category: '', price: '', stock: '', active: true, modifierIds: [], images: [], recipe: [], pinned: false, showInPos: true, showOnStore: false, noPoints: false, openPrice: false, consignment: false, consignorName: '', consignPayout: 'percent', consignPercent: '', consignFixed: '', description: '', typeId: null, flavorId: null, sizeId: null })
+const blank = () => ({ id: null, name: '', category: '', price: '', stock: '', weightG: '', dimW: '', dimL: '', dimH: '', active: true, modifierIds: [], images: [], recipe: [], pinned: false, showInPos: true, showOnStore: false, noPoints: false, openPrice: false, consignment: false, consignorName: '', consignPayout: 'percent', consignPercent: '', consignFixed: '', description: '', typeId: null, flavorId: null, sizeId: null })
 const form = reactive(blank())
 const error = ref('')
 function edit(x) {
-  Object.assign(form, x ? { ...blank(), ...x, price: String(x.price ?? ''), stock: x.stock == null ? '' : String(x.stock), modifierIds: [...(x.modifierIds || [])], images: [...(x.images || [])], recipe: (x.recipe || []).map((l) => ({ ...l })) } : blank())
+  Object.assign(form, x ? { ...blank(), ...x, ...parcelFormOf(x), price: String(x.price ?? ''), stock: x.stock == null ? '' : String(x.stock), modifierIds: [...(x.modifierIds || [])], images: [...(x.images || [])], recipe: (x.recipe || []).map((l) => ({ ...l })) } : blank())
   error.value = ''
   open.value = true
 }
@@ -36,8 +37,11 @@ async function save() {
   if (!form.openPrice && (!(Number(form.price) >= 0) || form.price === '')) return (error.value = 'กรอกราคา')
   const ce = consignTermsError(form)
   if (ce) return (error.value = ce)
+  const pe = parcelDimsError(form)
+  if (pe) return (error.value = pe)
   if (!(await confirmDeactivate(db.retailItems, form, form.name))) return
-  saveRetailItem({ ...form })
+  const { dimW, dimL, dimH, weightG, ...rest } = form // ค่าฟอร์มขนาด/น้ำหนักแปลงเป็นฟิลด์สินค้าที่บันทึกจริง
+  saveRetailItem({ ...rest, ...parcelFieldsOf(form) })
   open.value = false
 }
 
@@ -220,6 +224,16 @@ function doAdd() {
           <div><label class="label">สต็อก</label><input v-model="form.stock" type="text" v-num class="input" placeholder="ไม่นับ" /></div>
         </div>
         <p class="text-xs text-stone-400">สต็อกเว้นว่าง = ไม่นับสต็อก (เช่น เครื่องดื่มชงสด) · ขายใน POS แล้วตัดสต็อกอัตโนมัติ</p>
+        <div>
+          <div class="label">สำหรับส่งพัสดุ (ไม่บังคับ)</div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="col-span-2"><label class="label" for="rt-weight">น้ำหนัก (กรัม)</label><input id="rt-weight" v-model="form.weightG" type="text" v-num class="input" placeholder="เช่น 800" /></div>
+            <div><label class="label" for="rt-dimw">กว้าง (ซม.)</label><input id="rt-dimw" v-model="form.dimW" type="text" v-num class="input" /></div>
+            <div><label class="label" for="rt-diml">ยาว (ซม.)</label><input id="rt-diml" v-model="form.dimL" type="text" v-num class="input" /></div>
+            <div class="col-span-2"><label class="label" for="rt-dimh">สูง (ซม.)</label><input id="rt-dimh" v-model="form.dimH" type="text" v-num class="input" /></div>
+          </div>
+          <p class="mt-1 text-xs text-stone-400">กรอกให้ครบทั้งน้ำหนักและขนาด หรือเว้นว่างทั้งหมด · สินค้าที่ไม่กรอกจะใช้ในแคมเปญส่งพัสดุไม่ได้</p>
+        </div>
         <div><label class="label">คำอธิบาย (แสดงหน้าร้านเว็บ)</label><textarea v-model="form.description" rows="2" maxlength="300" class="input"></textarea></div>
         <div>
           <div class="label">รูปสินค้า (แสดงหน้าร้านเว็บ)</div>
