@@ -10,7 +10,7 @@ Deno.env.set('SUPABASE_SERVICE_ROLE_KEY', 'service')
 await import('../../../functions/preorder/index.ts')
 
 const golden = JSON.parse(readFileSync(new URL('../../../../src/lib/quotePrice.golden.json', import.meta.url), 'utf8'))
-const shopV = { ...golden.catalog.shop, vat: { rate: 7, mode: 'inclusive' }, parcel: { boxG: 100, volDivisor: 5000, rates: [{ upToG: 1000, price: 60 }, { upToG: 2000, price: 90 }] } }
+const shopV = { ...golden.catalog.shop, vat: { rate: 7, mode: 'inclusive' }, parcel: { fee: 10, boxes: [{ name: 'S', dims: { w: 20, l: 20, h: 20 }, boxG: 100, price: 15 }], steps: [1000, 2000], prices: { S: [60, 90] } } }
 
 const camp = (over: any) => ({ id: 'c_open', status: 'open', order_from: '2000-01-01', order_to: '2099-12-31', pickup_from: '2099-12-24', pickup_to: '2099-12-26', deposit_percent: 50, pay_due_min: 120,
   data: { name: 'คริสต์มาส', dayCap: null, items: [{ retailId: 'pr1', dayCap: null }], deals: [], parcel: { enabled: false } }, ...over })
@@ -84,7 +84,7 @@ Deno.test('quote ส่งพัสดุ: ค่าส่งมาจากต�
   const r = await call({ action: 'quote', campaignId: 'c_parcel', pickupDate: '2099-12-24', fulfillment: 'delivery', lines: [{ retailId: 'pr2', qty: 1 }], shippingFee: 0 })
   assertEquals(r.status, 200)
   const j = await r.json()
-  assertEquals(j.shippingFee, 60)
+  assertEquals(j.shippingFee, 85) // ค่าธรรมเนียม 10 + กล่อง S 15 + ขนส่ง 60
   assertEquals(j.parcel.chargeableG, 900)
 })
 Deno.test('quote ส่งพัสดุในแคมเปญที่ไม่เปิดส่งพัสดุ → 400', async () => {

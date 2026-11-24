@@ -13,7 +13,7 @@ const campaign = (over = {}) => ({
 })
 const parcelCat = () => {
   const c = base()
-  c.shop.parcel = { boxG: 100, volDivisor: 5000, rates: [{ upToG: 1000, price: 60 }, { upToG: 2000, price: 90 }] }
+  c.shop.parcel = { fee: 10, boxes: [{ name: 'S', dims: { w: 20, l: 20, h: 20 }, boxG: 100, price: 15 }], steps: [1000, 2000], prices: { S: [60, 90] } }
   for (const r of c.retailItems) if (['rt1', 'rt3'].includes(r.id)) Object.assign(r, { weightG: 800, dimsCm: { w: 20, l: 20, h: 10 } })
   return c
 }
@@ -36,8 +36,9 @@ check('ส่งพัสดุ: ค่าส่งมาจากตารา�
   const c = campaign({ parcel: { enabled: true } })
   const r = priceCampaignOrder({ campaign: c, catalog: parcelCat(), lines: [{ retailId: 'rt1', qty: 1 }], pickupDate: '2099-12-24', fulfillment: 'delivery', nowMs })
   assert.equal(r.ok, true, r.error)
-  assert.equal(r.order.shippingFee, 60)
+  assert.equal(r.order.shippingFee, 85) // ค่าธรรมเนียม 10 + กล่อง 15 + ขนส่ง 60
   assert.equal(r.snapshot.parcel.chargeableG, 900)
+  assert.equal(r.snapshot.parcel.shipping, 60)
 })
 check('ส่งพัสดุแต่แคมเปญไม่เปิดส่งพัสดุ → ปฏิเสธ', () => {
   const r = priceCampaignOrder({ campaign: campaign(), catalog: parcelCat(), lines: [{ retailId: 'rt1', qty: 1 }], pickupDate: '2099-12-24', fulfillment: 'delivery', nowMs })

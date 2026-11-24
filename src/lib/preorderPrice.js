@@ -6,6 +6,14 @@ import { buildQuotePayload } from './quotePrice.js'
 import { orderTotals } from './pricing.js'
 import { parcelFee } from './parcelShipping.js'
 
+const PARCEL_ERR = {
+  overweight: 'น้ำหนักเกินขั้นสูงสุดของตารางค่าส่ง',
+  too_big: 'ขนาดสินค้าเกินกล่องใหญ่สุดที่ร้านตั้งไว้',
+  no_boxes: 'ยังไม่ได้ตั้งกล่องพัสดุ',
+  no_steps: 'ยังไม่ได้ตั้งตารางค่าส่งพัสดุ',
+  no_price: 'ตารางค่าส่งพัสดุไม่ครบ',
+}
+
 const fail = (error, extra = {}) => ({ ok: false, error, ...extra })
 
 // lines = [{retailId, qty}] · campaign = แคมเปญที่ผ่านการตรวจแล้ว (items, deals, parcel)
@@ -29,14 +37,14 @@ export function priceCampaignOrder({ campaign, catalog, lines, pickupDate, fulfi
   const q = buildQuotePayload({ draft, customerId: null, catalog: cat, nowMs, checkClosure: false })
   if (!q.ok) return fail(q.error)
 
-  // ค่าส่ง: คิดจากตารางพัสดุของร้านเท่านั้น (ไม่ใช้ค่าจากผู้ใช้)
+  // ค่าส่ง: คิดจากตารางพัสดุของร้านเท่านั้น (ไม่ใช้ค่าจากผู้ใช้) · ลูกค้าเห็นเป็นบรรทัดเดียว "ค่าส่ง"
   let shippingFee = 0
   let shipDetail = null
   if (fulfillment === 'delivery') {
     const pf = parcelFee(lines, catalog.retailItems || [], catalog.shop?.parcel)
-    if (!pf.ok) return fail(pf.error === 'overweight' ? 'น้ำหนักเกินขั้นสูงสุดของตารางค่าส่ง' : pf.error === 'no_rates' ? 'ยังไม่ได้ตั้งตารางค่าส่งพัสดุ' : 'สินค้าบางรายการไม่มีน้ำหนักหรือขนาด', { itemId: pf.itemId ?? null })
-    shippingFee = pf.fee
-    shipDetail = pf.detail
+    if (!pf.ok) return fail(PARCEL_ERR[pf.error] || 'สินค้าบางรายการไม่มีน้ำหนักหรือขนาด', { itemId: pf.itemId ?? null })
+    shippingFee = pf.total
+    shipDetail = { box: pf.box.name, boxPrice: pf.boxPrice, shipping: pf.shipping, fee: pf.fee, weightG: pf.weightG, chargeableG: pf.chargeableG, step: pf.step, volumeCm3: pf.volumeCm3 }
   }
 
   // แต้ม: จำกัดด้วยยอดสินค้าหลังส่วนลดที่ไม่ใช่ noPoints และไม่เกินแต้มที่ขอ (ตรวจยอดคงเหลือในธุรกรรมฐานข้อมูลอีกครั้ง)
