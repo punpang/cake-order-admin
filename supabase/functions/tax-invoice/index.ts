@@ -7,7 +7,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsWrap } from '../_shared/cors.ts'
 import { createLimiter } from '../_shared/ratelimit.ts'
 import { modeOf, refuseInTest } from '../_shared/mode.ts'
-import { buildCreditNote, buildInvoice, cleanBuyer, customerInvoiceState, customerIssueBlock } from '../_shared/schedlib/taxInvoice.js'
+import { buildCreditNote, buildInvoice, cleanBuyer, customerInvoiceState, customerIssueBlock, remainingOf } from '../_shared/schedlib/taxInvoice.js'
 
 const DAY = 86400000
 const TAX_VIEW_MAX_DAYS = 30 // ลิงก์ดูใบกำกับภาษีหมดอายุเด็ดขาดหลังสร้างกี่วัน (นอกจากหมดอายุแบบไม่ได้เปิดดูตาม linkPolicy)
@@ -125,9 +125,12 @@ Deno.serve(corsWrap(async (req) => {
     const by = `customer:${customerId}`
     const createdAt = new Date().toISOString()
     const id = newId()
-    const inv = buildInvoice({ order, seller, buyer, id, by, rev: cur ? (Number(cur.rev) || 0) + 1 : 0, date: today, createdAt })
+    // มีการคืนเงินบางส่วนแล้ว → ใบใหม่และใบลดหนี้ออกด้วยยอดคงเหลือ (ไม่คืนภาษีซ้ำ)
+    const rem = cur ? remainingOf(cur, invoices) : null
+    const remaining = rem && rem.partial ? rem : null
+    const inv = buildInvoice({ order, seller, buyer, id, by, rev: cur ? (Number(cur.rev) || 0) + 1 : 0, date: today, createdAt, remaining })
     const cnId = cur ? newId() : null
-    const cn = cur && cnId ? buildCreditNote({ inv: cur, id: cnId, date: today, reason: 'ลูกค้าแก้ไขข้อมูลผู้ซื้อ', by, createdAt }) : null
+    const cn = cur && cnId ? buildCreditNote({ inv: cur, id: cnId, date: today, reason: 'ลูกค้าแก้ไขข้อมูลผู้ซื้อ', by, createdAt, remaining }) : null
     // แก้ไข = ใบลดหนี้ + ยกเลิกใบเดิม + ใบใหม่ ในธุรกรรมเดียวที่ฐานข้อมูล (ล็อกออร์เดอร์กันกดซ้ำพร้อมกัน)
     const r = await sb.rpc('punpang_customer_tax_invoice', {
       p_mode: edit ? 'edit' : 'request',

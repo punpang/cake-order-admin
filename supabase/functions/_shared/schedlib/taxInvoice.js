@@ -68,31 +68,69 @@ export function customerIssueBlock(order, invoices, buyer, seller, todayStr, { e
   if (!edit && st.invoice) return 'ออกใบกำกับภาษีของออร์เดอร์นี้แล้ว'
   if (edit && !st.invoice) return 'ยังไม่มีใบกำกับภาษี'
   if (edit && !st.canEdit) return `แก้ไขได้ไม่เกิน ${MAX_CUSTOMER_REVISIONS} ครั้ง กรุณาติดต่อร้าน`
+  if (edit && remainingOf(st.invoice, invoices).total <= 0.004) return 'ยอดคงเหลือเป็นศูนย์ ไม่ต้องแก้ไขใบ'
   if (!(orderTotals(order).vat > 0)) return 'ไม่มี VAT ในออร์เดอร์นี้'
   if (sellerCheck(seller)) return CUSTOMER_SELLER_MSG
   return buyerError(cleanBuyer(buyer))
 }
 
+const r2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100
+// VAT ในยอดที่คืน: ยอดที่ลูกค้าจ่ายรวม VAT แล้วทั้งสองโหมด จึงแยก VAT ออกด้วยสูตรเดียว
+export const vatOfGross = (amount, rate) => r2((Number(amount) * Number(rate)) / (100 + Number(rate)))
+const remainingLine = (total) => ({ name: 'ยอดคงเหลือหลังคืนเงินบางส่วน', qty: 1, unitPrice: total, amount: total })
+
+// ยอดคงเหลือของใบกำกับที่ใช้งานอยู่ = ยอดใบ − ผลรวมใบลดหนี้บางส่วนที่อ้างใบนี้ (total และ vat แยกคำนวณ ไม่ปัดซ้ำ)
+export function remainingOf(inv, invoices) {
+  const cns = (invoices || []).filter((d) => d.type === 'credit' && d.refId === inv.id)
+  const total = r2(Number(inv.total) - cns.reduce((s, d) => s + Number(d.total || 0), 0))
+  const vat = r2(Number(inv.vat) - cns.reduce((s, d) => s + Number(d.vat || 0), 0))
+  return { total, vat, partial: cns.length > 0, lastCreditId: cns.length ? cns[cns.length - 1].id : null }
+}
+
 // ใบกำกับภาษี 1 ใบ (รูปแบบเดียวกับที่บันทึกในตาราง punpang_acct_invoices · เลขที่ฐานข้อมูลใส่ให้หลังบันทึก)
-export function buildInvoice({ order, seller, buyer, id, by, rev = 0, date, createdAt }) {
+// remaining = { total, vat } เมื่อออกใบใหม่หลังมีการคืนเงินบางส่วนแล้ว (ยอดใบใหม่ = ยอดคงเหลือ)
+export function buildInvoice({ order, seller, buyer, id, by, rev = 0, date, createdAt, remaining }) {
   const t = orderTotals(order)
-  const lines = [
+  const lines = remaining ? [remainingLine(r2(remaining.total))] : [
     ...order.items.map((i) => ({ name: i.name, qty: i.qty, unitPrice: i.unitPrice, amount: toB(toS(i.unitPrice) * i.qty) })),
     ...(t.shipping ? [{ name: 'ค่าจัดส่ง', qty: 1, unitPrice: t.shipping, amount: t.shipping }] : []),
   ]
+  const total = remaining ? r2(remaining.total) : t.total
+  const vat = remaining ? r2(remaining.vat) : t.vat
   return {
     id, no: '', type: 'invoice', date, orderId: order.id, orderCode: order.code,
     seller: { name: seller.legalName, taxId: seller.taxId, branch: seller.branch || '00000', address: seller.address },
     buyer: cleanBuyer(buyer), lines,
-    discounts: t.discountLines.map((d) => ({ label: d.label, amount: d.amount })),
-    rate: t.vatRate, mode: t.vatMode, beforeVat: toB(toS(t.total) - toS(t.vat)), vat: t.vat, total: t.total,
-    totalText: bahtText(t.total), copies: 0, by, rev, createdAt,
+    discounts: remaining ? [] : t.discountLines.map((d) => ({ label: d.label, amount: d.amount })),
+    rate: t.vatRate, mode: t.vatMode, beforeVat: remaining ? r2(total - vat) : toB(toS(t.total) - toS(t.vat)), vat, total,
+    totalText: bahtText(total), copies: 0, by, rev, createdAt,
   }
 }
 
-// ใบลดหนี้เต็มจำนวนอ้างใบเดิม (ใช้ตอนลูกค้าแก้ไขข้อมูลผู้ซื้อ) · ใบเดิมไม่ถูกลบ
-export function buildCreditNote({ inv, id, date, reason, by, createdAt }) {
+// ใบลดหนี้เต็มจำนวนอ้างใบเดิม (ใช้ตอนลูกค้าแก้ไขข้อมูลผู้ซื้อ หรือยกเลิกทั้งใบ) · remaining = ยอดคงเหลือเมื่อมีการคืนบางส่วนแล้ว · ใบเดิมไม่ถูกลบ
+export function buildCreditNote({ inv, id, date, reason, by, createdAt, remaining }) {
   const cn = { ...inv }
   delete cn.voidedBy
-  return { ...cn, id, no: '', type: 'credit', date, refNo: inv.no, refId: inv.id, reason: String(reason || '').trim().slice(0, 200), copies: 0, by, createdAt }
+  const net = remaining ? { total: r2(remaining.total), vat: r2(remaining.vat), beforeVat: r2(remaining.total - remaining.vat), lines: [remainingLine(r2(remaining.total))], discounts: [], totalText: bahtText(r2(remaining.total)) } : {}
+  return { ...cn, ...net, id, no: '', type: 'credit', date, refNo: inv.no, refId: inv.id, reason: String(reason || '').trim().slice(0, 200), copies: 0, by, createdAt }
+}
+
+// ใบลดหนี้บางส่วนจากการคืนเงิน 1 ครั้ง · อ้างใบกำกับที่ใช้งานอยู่ · ไม่แตะใบเดิม (ไม่ตั้ง voidedBy)
+export function buildPartialCreditNote({ inv, amount, lines = null, id, date, reason, by, createdAt }) {
+  const total = r2(amount)
+  const vat = vatOfGross(total, inv.rate)
+  return {
+    id, no: '', type: 'credit', date, orderId: inv.orderId, orderCode: inv.orderCode,
+    seller: inv.seller, buyer: inv.buyer,
+    lines: lines || [{ name: 'คืนเงินบางส่วน', qty: 1, unitPrice: total, amount: total }],
+    discounts: [], rate: inv.rate, mode: inv.mode, beforeVat: r2(total - vat), vat, total,
+    totalText: bahtText(total), copies: 0, by, rev: 0, createdAt,
+    refNo: inv.no, refId: inv.id, reason: String(reason || '').trim().slice(0, 200),
+  }
+}
+
+// ตรวจก่อนคืนเงินบางส่วน: ยอดคืนต้องไม่เกินยอดคงเหลือของใบกำกับที่ใช้งานอยู่ · คืน '' เมื่อผ่าน
+export function partialCreditBlock(remainingTotal, amount) {
+  if (!(Number(amount) > 0)) return ''
+  return Number(amount) > r2(remainingTotal) + 0.004 ? 'ยอดคืนเกินยอดคงเหลือของใบกำกับภาษี' : ''
 }
