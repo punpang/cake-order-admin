@@ -224,6 +224,41 @@ pgcode=$?
 [ "$pgcode" = "0" ] && echo "✓ preorder_guard.test.sql ผ่านทั้งหมด" || echo "✗ preorder_guard.test.sql ล้มเหลว"
 [ "$pgcode" = "0" ] || exit "$pgcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_otp.test.sql
+otpcode=$?
+[ "$otpcode" = "0" ] && echo "✓ preorder_otp.test.sql ผ่านทั้งหมด" || echo "✗ preorder_otp.test.sql ล้มเหลว"
+[ "$otpcode" = "0" ] || exit "$otpcode"
+
+"${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_sessions.test.sql
+sescode=$?
+[ "$sescode" = "0" ] && echo "✓ preorder_sessions.test.sql ผ่านทั้งหมด" || echo "✗ preorder_sessions.test.sql ล้มเหลว"
+[ "$sescode" = "0" ] || exit "$sescode"
+
+"${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_points.test.sql
+ptscode=$?
+[ "$ptscode" = "0" ] && echo "✓ preorder_points.test.sql ผ่านทั้งหมด" || echo "✗ preorder_points.test.sql ล้มเหลว"
+[ "$ptscode" = "0" ] || exit "$ptscode"
+
+"${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_create.test.sql
+crcode=$?
+[ "$crcode" = "0" ] && echo "✓ preorder_create.test.sql ผ่านทั้งหมด" || echo "✗ preorder_create.test.sql ล้มเหลว"
+[ "$crcode" = "0" ] || exit "$crcode"
+
+# W-6: สร้างออร์เดอร์สั่งล่วงหน้าพร้อมกันสองเซสชันที่แย่งช่องโควตาเดียวกัน (ช่องเหลือ 1)
+# เซสชันแรกถือล็อกแคมเปญ · เซสชันที่สองต้องถูกกั้นด้วย lock_timeout · ผลสุดท้ายต้องมีออร์เดอร์ 1 รายการและจอง 1
+"${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_create_concurrency.sql
+( psql -X -q -d "$DB" -c "begin; select public.punpang_preorder_create(test.pcc_row('pcc_o1', 'cc1'), '[{\"itemId\":\"gcc\",\"qty\":1}]'::jsonb, 0, 0); select pg_sleep(3); commit;" > /tmp/w6_first.out 2>&1 ) &
+sleep 1
+psql -X -q -d "$DB" -c "set lock_timeout = '500ms'; select public.punpang_preorder_create(test.pcc_row('pcc_o2', 'cc2'), '[{\"itemId\":\"gcc\",\"qty\":1}]'::jsonb, 0, 0);" > /tmp/w6_second.out 2>&1
+wait
+w6_orders=$(psql -X -q -tA -d "$DB" -c "select count(*) from public.punpang_preorder_orders where campaign_id = 'pcc'")
+w6_reserved=$(psql -X -q -tA -d "$DB" -c "select reserved from public.punpang_preorder_slots where campaign_id = 'pcc' and item_id = 'gcc'")
+if grep -q 'lock timeout' /tmp/w6_second.out && [ "$w6_orders" = "1" ] && [ "$w6_reserved" = "1" ]; then
+  echo "✓ W-6: สร้างพร้อมกันไม่เกินโควตา (เซสชันที่สองถูกกั้นด้วยล็อก · ออร์เดอร์ 1 · จอง 1)"
+else
+  echo "✗ W-6: สร้างพร้อมกันเกินโควตา (ออร์เดอร์=$w6_orders จอง=$w6_reserved)"; cat /tmp/w6_second.out | head -5; exit 1
+fi
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_quota.test.sql
 pqcode=$?
 [ "$pqcode" = "0" ] && echo "✓ preorder_quota.test.sql ผ่านทั้งหมด" || echo "✗ preorder_quota.test.sql ล้มเหลว"
