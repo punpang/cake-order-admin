@@ -26,9 +26,13 @@ t('ช่องทางของทุกกฎอยู่ในลำดั�
 
 t('เหตุการณ์ที่เพิ่มมีกฎครบ', () => {
   const have = new Set(NEW_CUSTOMER_RULES.map((r) => r.event))
-  for (const e of ['payment_request_changed', 'payment_request_cancelled', 'payment_cancelled', 'pay_extension_granted', 'pay_extension_denied', 'items_changed', 'adjustment_changed', 'preparing', 'ready_to_ship', 'points_applied', 'points_removed']) {
+  for (const e of ['payment_request_changed', 'payment_request_cancelled', 'payment_cancelled', 'pay_extension_granted', 'pay_extension_denied', 'items_changed', 'adjustment_changed', 'preparing', 'ready_to_ship', 'points_removed']) {
     assert.ok(have.has(e), e)
   }
+})
+
+t('ไม่มีกฎ points_applied แล้ว (ลบการใช้คะแนนลดราคา)', () => {
+  assert.ok(!NEW_CUSTOMER_RULES.some((r) => r.event === 'points_applied'))
 })
 
 if (fail) { console.log(`${fail} failed`); process.exit(1) }
