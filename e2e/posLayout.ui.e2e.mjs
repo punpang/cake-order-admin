@@ -98,7 +98,7 @@ t('[1280] สินค้าในหมวดเดียวกันเรี�
     const chips = page.locator('button.chip')
     await chips.nth(1).click() // หมวดแรกหลัง "ทั้งหมด"
     await page.waitForTimeout(200)
-    const names = await page.locator('button:has-text("฿")').evaluateAll((els) => els.map((e) => e.querySelector('span')?.textContent.trim() || '').filter((n) => n && !n.startsWith('ตะกร้า')))
+    const names = await page.locator('button:has-text("฿")').evaluateAll((els) => els.map((e) => e.querySelector('span.line-clamp-2')?.textContent.trim() || '').filter((n) => n && !n.startsWith('ตะกร้า')))
     assert.ok(names.length >= 2, 'ต้องมีสินค้ามากกว่า 1 รายการในหมวด')
     const sorted = [...names].sort((a, b) => a.localeCompare(b, 'th'))
     assert.deepEqual(names, sorted, 'ชื่อสินค้าต้องเรียงตามตัวอักษร')

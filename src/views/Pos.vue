@@ -34,6 +34,7 @@ import { billerIdOf, promptPayBillerPayload } from '../lib/promptpay'
 import DeviceSettings from '../components/DeviceSettings.vue'
 import { money, dateTime, timeOnly, dateOnly, toDateStr, phoneDigits, formatPhone, phoneValid } from '../lib/format'
 import AppIcon from '../components/AppIcon.vue'
+import CakeImage from '../components/CakeImage.vue'
 import { kb } from '../lib/viewportFit'
 import AppModal from '../components/AppModal.vue'
 import DiscountDetail from '../components/DiscountDetail.vue'
@@ -1186,6 +1187,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             :title="x.stock != null && x.stock - inCart(x) <= 0 ? 'สต็อกหมด ขายไม่ได้จนกว่าจะเพิ่มสต็อก' : undefined"
             @click="add(x)"
           >
+            <span class="mb-2 block h-16 w-full overflow-hidden rounded-2xl" :class="x.stock != null && x.stock - inCart(x) <= 0 ? 'opacity-50 grayscale' : ''"><CakeImage :src="x.image" :alt="x.name" /></span>
             <span class="line-clamp-2 text-sm font-medium break-words text-stone-900">{{ x.name }}</span>
             <span v-if="groupsOf(x).length" class="mt-0.5 text-xs text-brand-700">มีตัวเลือก</span>
             <span v-if="pointTag(x)" class="mt-0.5 text-xs font-medium text-amber-700">คะแนน ×{{ pointTag(x).multiplier }}</span>
