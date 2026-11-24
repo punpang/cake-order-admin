@@ -64,7 +64,8 @@ function save() {
 </script>
 
 <template>
-  <AppModal :title="`คืนเงิน ${order.code}`" @close="emit('close')">
+  <AppModal split :title="`คืนเงิน ${order.code}`" @close="emit('close')">
+    <template #left>
     <div class="space-y-4">
       <p class="text-sm text-stone-600">คืนเงินบางส่วนโดยไม่ยกเลิก{{ isPos ? 'บิล' : 'ออร์เดอร์' }} (ไม่ตัดคะแนนที่ได้{{ isPos ? '' : ' · ไม่คืนสต็อก' }}) · ชำระสุทธิตอนนี้ <b class="text-stone-900">{{ money(t.goodsPaidNet) }}</b><template v-if="t.returned"> · คืนไปแล้ว {{ money(t.returned) }}</template></p>
       <p v-if="t.hold > 0" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">เงินพัก {{ money(t.hold) }} ไม่รวมในการคืนนี้ · แก้เงินพักได้ที่ "แก้เงินพัก" ในหน้าออร์เดอร์</p>
@@ -86,6 +87,12 @@ function save() {
         </div>
         <label v-if="canRestockAny" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="restock" type="checkbox" class="h-4 w-4" aria-label="คืนจำนวนนี้เข้าสต็อก" /> คืนจำนวนนี้เข้าสต็อก</label>
       </div>
+      </template>
+    </div>
+    </template>
+    <template #right>
+    <div class="space-y-4">
+      <template v-if="more">
       <div>
         <div class="label">คืนเงินให้ลูกค้า</div>
         <RefundEditor v-model="f.refunds" :paid="t.goodsPaidNet" :can-credit="!!customer && !customer.deleted" :default-method="defMethod" />
@@ -108,6 +115,7 @@ function save() {
       </div>
       <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
     </div>
+    </template>
     <template #footer>
       <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ปิด</button>
       <button v-if="more" class="btn-primary flex-1 sm:flex-none" :disabled="!f.refunds.length" @click="save">ยืนยันคืนเงิน</button>
