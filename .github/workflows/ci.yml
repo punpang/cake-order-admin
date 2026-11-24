@@ -49,15 +49,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: ฐานข้อมูลตั้งค่า/คูปอง/ลูกค้า
-            cmd: node e2e/creditCoupons.ui.e2e.mjs && node e2e/settingsCrud.ui.e2e.mjs && node e2e/settingsPages.ui.e2e.mjs && node e2e/settingsRisk.ui.e2e.mjs && node e2e/pointsCoupon.ui.e2e.mjs && node e2e/flows.ui.e2e.mjs && node e2e/roles.e2e.mjs && node e2e/responsive.e2e.mjs
-          - name: หน้าร้าน/POS/พิมพ์
-            cmd: node e2e/customerLayout.e2e.mjs && node e2e/a11y.e2e.mjs && node e2e/xss.e2e.mjs && node e2e/pos-concurrency.e2e.mjs && node e2e/dailyFeatures.ui.e2e.mjs && node e2e/printing.ui.e2e.mjs && node e2e/customerLazy.supabase.e2e.mjs && node e2e/flows.supabase.e2e.mjs
-          - name: สมาชิก/เส้นทาง/POS แนวนอน
-            cmd: node e2e/memberTier.supabase.e2e.mjs && node e2e/memberBirthdayCard.supabase.e2e.mjs && node e2e/routes.smoke.e2e.mjs && node e2e/pos-open-price.e2e.mjs && node e2e/consignRounds.ui.e2e.mjs && node e2e/pos-landscape.e2e.mjs && node e2e/cashService.ui.e2e.mjs
-          - name: ออเดอร์/บัญชี/หน้าร้านใหม่
-            cmd: node e2e/memberTiers.supabase.e2e.mjs && node e2e/dialogLandscape.ui.e2e.mjs && node e2e/orderCreateLayout.supabase.e2e.mjs && node e2e/orderListLayout.supabase.e2e.mjs && node e2e/paymentsLayout.supabase.e2e.mjs && node e2e/accountPolish.ui.e2e.mjs && node e2e/posLayout.ui.e2e.mjs && node e2e/posProductImage.ui.e2e.mjs && node e2e/storeHome.ui.e2e.mjs && node e2e/retailCategoryPicker.ui.e2e.mjs && node e2e/orderItemPicker.ui.e2e.mjs && node e2e/rewardPoints.ui.e2e.mjs && node e2e/posReceiptFeedback.ui.e2e.mjs && node e2e/thaiDateField.ui.e2e.mjs
-    name: e2e · ${{ matrix.name }}
+          - shard: 1
+          - shard: 2
+          - shard: 3
+          - shard: 4
+    name: e2e · ส่วนที่ ${{ matrix.shard }}/4
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -83,7 +79,7 @@ jobs:
           npx playwright install --with-deps chromium
           sudo apt-get install -y fonts-thai-tlwg
       - name: เทสต์หน้าจอ (e2e ยกเว้นเทียบภาพ)
-        run: ${{ matrix.cmd }}
+        run: node scripts/run-e2e.mjs --shard ${{ matrix.shard }}/4
 
   deno:
     runs-on: ubuntu-latest
