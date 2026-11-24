@@ -1,7 +1,7 @@
 // เลขที่เอกสาร: PREFIX-ddmmyy-ลำดับ (รันใหม่ทุกวัน, ปี ค.ศ. 2 หลัก, วันที่ตามเวลาเครื่อง/ร้าน)
-//   OR-ddmmyy-xxxxxx (ออร์เดอร์) · POS-ddmmyy-xxxxx · QT-ddmmyy-xxxxx · PAY-ddmmyy-xxxxx
+//   OR-ddmmyy-xxxxxx (ออร์เดอร์) · POS-ddmmyy-xxxxx · QT-ddmmyy-xxxxx · PAY-ddmmyy-xxxxx · PRE-ddmmyy-xxxxxx (สั่งล่วงหน้า)
 // ใช้เฉพาะเลขอ้างอิงภายใน/ลูกค้า — ใบกำกับภาษีและรายการบัญชี ใช้ชุดเลขของฝั่งบัญชี (รันต่อปี ไม่ขาดเลข) ห้ามใช้ตัวนี้
-export const DOC_DIGITS = { OR: 6, POS: 5, QT: 5, PAY: 5 }
+export const DOC_DIGITS = { OR: 6, POS: 5, QT: 5, PAY: 5, PRE: 6 } // PRE = สั่งล่วงหน้า (preorder)
 export const DOC_PREFIXES = Object.keys(DOC_DIGITS)
 const pad2 = (n) => String(n).padStart(2, '0')
 

@@ -237,6 +237,11 @@ else
   echo "✗ W-5: ตัวนับ=$w5_reserved (ควรเป็น 2) ผลเซสชันที่สอง:"; cat /tmp/w5_second.out; exit 1
 fi
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_number.test.sql
+pncode=$?
+[ "$pncode" = "0" ] && echo "✓ preorder_number.test.sql ผ่านทั้งหมด" || echo "✗ preorder_number.test.sql ล้มเหลว"
+[ "$pncode" = "0" ] || exit "$pncode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"
