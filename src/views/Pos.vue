@@ -810,6 +810,10 @@ const receiptLucky = ref(null)
 const receiptLuckyUrl = computed(() => (receipt.value && receiptLucky.value?.orderId === receipt.value.id ? receiptLucky.value.url : ''))
 const taxFor = ref(null) // บิลที่กำลังออกใบกำกับภาษีเต็มรูป
 const taxable = (o) => can('taxInvoice') && o.status !== 'cancelled' && orderTotals(o).vat > 0
+// ใบกำกับของบิลที่กำลังแสดง (มีแล้ว = ปุ่มแสดงว่าออกแล้ว) · สถานะ "พิมพ์แล้ว" ของใบเสร็จนี้ (รีเซ็ตเมื่อเปลี่ยนบิล)
+const receiptInvoice = computed(() => (receipt.value ? invoiceOfOrder(receipt.value.id) : null))
+const receiptPrinted = ref(false)
+watch(receipt, () => { receiptPrinted.value = false })
 // สรุปยอดใบเสร็จ: ยอดสุทธิ รับแล้ว และส่วนต่าง (ค้าง > 0 · เกิน < 0) ใช้แสดงสถานะที่หัวใบเสร็จ
 const receiptInfo = computed(() => {
   if (!receipt.value) return null
@@ -1023,11 +1027,18 @@ async function sellNow(opts = {}) {
 // กำลังส่งงานพิมพ์: ปุ่มเปลี่ยนเป็น "กำลังพิมพ์…" และกดซ้ำไม่ได้ (กันพิมพ์ซ้ำ) · เสร็จแล้วแจ้งผลด้วยข้อความ
 const printing = ref(false)
 const print = async () => {
-  if (!native) return window.print()
+  // บนเว็บ: window.print() จะรอจนปิดหน้าต่างพิมพ์ จากนั้นจึงถือว่าส่งคำสั่งพิมพ์แล้ว (เบราว์เซอร์ไม่บอกผลพิมพ์)
+  if (!native) {
+    window.print()
+    receiptPrinted.value = true
+    showToast('เปิดหน้าต่างพิมพ์แล้ว', 3000)
+    return
+  }
   if (!receipt.value || printing.value) return
   printing.value = true
   try {
     await printOrderReceipt(receipt.value, { section: 'posReceipt', luckyUrl: receiptLuckyUrl.value })
+    receiptPrinted.value = true
     showToast('ส่งใบเสร็จไปเครื่องพิมพ์แล้ว', 3000)
   } catch (e) {
     showToast(`พิมพ์ไม่สำเร็จ: ${e.message || e}`, 8000, 'error')
@@ -1765,10 +1776,10 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
       <template #footer>
         <div class="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
           <div class="flex gap-2">
-            <button class="btn-soft h-11 flex-1 sm:flex-none sm:px-4" :disabled="printing" :aria-busy="printing" @click="print"><AppIcon name="printer" :size="18" /> {{ printing ? 'กำลังพิมพ์…' : 'พิมพ์' }}</button>
-            <button v-if="taxable(receipt)" class="btn-soft h-11 flex-1 sm:flex-none sm:px-4" @click="taxFor = receipt">ใบกำกับภาษีเต็มรูป</button>
+            <button class="btn-soft h-11 flex-1 sm:flex-none sm:px-4" :disabled="printing" :aria-busy="printing" :aria-pressed="receiptPrinted" @click="print"><AppIcon name="printer" :size="18" /> {{ printing ? 'กำลังพิมพ์…' : receiptPrinted ? 'พิมพ์แล้ว ✓' : 'พิมพ์' }}</button>
+            <button v-if="taxable(receipt)" class="btn-soft h-11 flex-1 sm:flex-none sm:px-4" :aria-pressed="!!receiptInvoice" @click="taxFor = receipt">{{ receiptInvoice ? 'ออกใบกำกับแล้ว ✓' : 'ใบกำกับภาษีเต็มรูป' }}</button>
           </div>
-          <button class="btn-primary h-12 w-full sm:min-w-[8rem] sm:flex-1" @click="receipt = null">ขายต่อ</button>
+          <button class="btn-primary h-12 w-full sm:min-w-[8rem] sm:flex-1" @click="showToast('บิลนี้เสร็จแล้ว', 2500); receipt = null">ขายต่อ</button>
         </div>
       </template>
     </AppModal>
