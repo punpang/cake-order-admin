@@ -89,6 +89,18 @@ t('[1280] ไม่แสดงที่อยู่ตัวอย่าง "�
   } finally { await page.close() }
 })
 
+t('[1280] ไม่มีหัวข้อ "ติดต่อ" ว่างเมื่อยังไม่มีข้อมูลติดต่อจริง และแสดงเมื่อมีเบอร์', async () => {
+  const { page, errors } = await openHome(W)
+  try {
+    const footerHasContact = () => page.evaluate(() => [...document.querySelectorAll('footer div, footer p, footer *')].some((e) => e.childElementCount === 0 && e.textContent.trim() === 'ติดต่อ'))
+    assert.equal(await footerHasContact(), false, 'หัวข้อ "ติดต่อ" ว่างยังแสดงอยู่')
+    await page.evaluate(async () => { const S = await import('/src/data/store.js'); S.db.storefront.phone = '0812345678' })
+    await page.waitForTimeout(300)
+    assert.equal(await footerHasContact(), true, 'ต้องแสดงหัวข้อ "ติดต่อ" เมื่อมีเบอร์')
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
 try {
   for (const [name, fn] of cases) {
     try { await fn(); console.log(`PASS ${name}`) } catch (e) { fails++; console.log(`FAIL ${name}: ${e.message}`) }
