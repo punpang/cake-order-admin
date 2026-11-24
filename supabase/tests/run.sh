@@ -214,6 +214,11 @@ hmcode=$?
 [ "$hmcode" = "0" ] && echo "✓ hold_money.test.sql ผ่านทั้งหมด" || echo "✗ hold_money.test.sql ล้มเหลว"
 [ "$hmcode" = "0" ] || exit "$hmcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_core.test.sql
+pccode=$?
+[ "$pccode" = "0" ] && echo "✓ preorder_core.test.sql ผ่านทั้งหมด" || echo "✗ preorder_core.test.sql ล้มเหลว"
+[ "$pccode" = "0" ] || exit "$pccode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
 mcode=$?
 [ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"
