@@ -246,6 +246,8 @@ function doAdd() {
         </div>
         <RecipeEditor v-model="form.recipe" :pounds="poundsOf" :price="Number(form.price) || 0" />
         <div class="space-y-1 rounded-xl border border-stone-200 p-2">
+          <AppSwitch v-model="form.active" label="ใช้งาน (ปิด = ไม่แสดงทุกที่)" class="flex" />
+          <div class="my-1 border-t border-stone-200" role="separator"></div>
           <AppSwitch v-model="form.showInPos" label="แสดงใน POS และตอนสร้างออร์เดอร์/แชท" class="flex" />
           <AppSwitch v-model="form.showOnStore" label="แสดงที่หน้าร้านเว็บ (ลูกค้าเห็น)" class="flex" />
           <AppSwitch v-model="form.pinned" label="ปักหมุดในสินค้าขายดีของหน้าร้านเว็บ" class="flex" />
@@ -259,9 +261,6 @@ function doAdd() {
             <div v-else><label class="label" for="cs-fixed">ค่าคงที่ต่อรอบ (บาท)</label><MoneyInput id="cs-fixed" v-model="form.consignFixed" class="input" /></div>
           </div>
           <AppSwitch v-model="form.noPoints" label="ไม่คำนวณแต้ม (ใช้คูปองส่วนลดไม่ได้ทุกแบบ · ไม่นับยอดสมาชิก)" class="flex" />
-        </div>
-        <div class="px-2 pt-1">
-          <AppSwitch v-model="form.active" label="ใช้งาน (ปิด = ไม่แสดงทุกที่)" />
         </div>
         <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </template>

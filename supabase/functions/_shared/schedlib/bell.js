@@ -88,16 +88,18 @@ export function bellText(event, vars = {}) {
 }
 
 // รายการที่พนักงานคนนี้มองเห็น (ตามสิทธิ์) — ใหม่สุดก่อน
-export function visibleToStaff(items, can) {
+// hideChat = true ในแอปพนักงาน (Android) ซึ่งไม่มีแชท: ซ่อนกระดิ่งที่ใช้สิทธิ์ chat (เว็บส่ง false)
+export function visibleToStaff(items, can, hideChat = false) {
   return items.filter((i) => {
     if (i.audience !== 'staff') return false
     const def = BELL_STAFF[i.event]
+    if (hideChat && def?.perms.includes('chat')) return false
     return !!def && def.perms.some((p) => can(p))
   })
 }
 export const isReadStaff = (item, userId) => (item.readBy || []).includes(userId)
-export function unreadStaff(items, userId, can) {
-  return visibleToStaff(items, can).filter((i) => !isReadStaff(i, userId)).length
+export function unreadStaff(items, userId, can, hideChat = false) {
+  return visibleToStaff(items, can, hideChat).filter((i) => !isReadStaff(i, userId)).length
 }
 export const visibleToCustomer = (items, customerId) => items.filter((i) => i.audience === 'customer' && i.customerId === customerId)
 export const unreadCustomer = (items, customerId) => visibleToCustomer(items, customerId).filter((i) => !i.read).length
