@@ -11,8 +11,8 @@ begin
 end $$;
 
 -- ---------- A) โครงสร้าง ----------
-select mt.ok('A1 ตารางธุรกิจทุกตาราง (28) มีสำเนาเป็นตารางใน punpang_test + ตาราง LINE ว่าง 2 ตาราง (30 ตาราง · ไม่คัดลอกข้อมูล LINE)',
-  (select count(*) from information_schema.tables where table_schema = 'punpang_test' and table_type = 'BASE TABLE') = 30);
+select mt.ok('A1 ตารางธุรกิจทุกตาราง (28) มีสำเนาเป็นตารางใน punpang_test + ตาราง LINE ว่าง 2 ตาราง (31 ตาราง · ไม่คัดลอกข้อมูล LINE)',
+  (select count(*) from information_schema.tables where table_schema = 'punpang_test' and table_type = 'BASE TABLE') = 31);
 select mt.ok('A2 ตารางข้อมูลร่วม (15 · รวมบันทึกข้อผิดพลาด) เป็น view ใน punpang_test',
   (select count(*) from information_schema.views where table_schema = 'punpang_test') = 15);
 select mt.ok('A3 คอลัมน์ของทุกตารางธุรกิจเท่ากับต้นฉบับ',

@@ -224,6 +224,11 @@ pgcode=$?
 [ "$pgcode" = "0" ] && echo "✓ preorder_guard.test.sql ผ่านทั้งหมด" || echo "✗ preorder_guard.test.sql ล้มเหลว"
 [ "$pgcode" = "0" ] || exit "$pgcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_otp.test.sql
+otpcode=$?
+[ "$otpcode" = "0" ] && echo "✓ preorder_otp.test.sql ผ่านทั้งหมด" || echo "✗ preorder_otp.test.sql ล้มเหลว"
+[ "$otpcode" = "0" ] || exit "$otpcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_quota.test.sql
 pqcode=$?
 [ "$pqcode" = "0" ] && echo "✓ preorder_quota.test.sql ผ่านทั้งหมด" || echo "✗ preorder_quota.test.sql ล้มเหลว"
