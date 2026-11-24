@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { db } from '../../data/store'
 import { preorderCampaigns, savePreorderCampaign, setPreorderCampaignStatus } from '../../data/preorder'
-import { blankCampaign, campaignPhase } from '../../lib/preorderCampaign'
+import { blankCampaign, campaignPhase, shipOutsidePickupWarning } from '../../lib/preorderCampaign'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
@@ -22,6 +22,7 @@ const sel = reactive({}) // retailId → { on, cap }
 const msg = ref('')
 const tiers = ref([]) // ขั้นส่วนลดตามยอด (ดีล spend_off เดียวของแคมเปญ) เก็บเป็นข้อความบนหน้าจอ
 const parcelOn = ref(false) // ส่งพัสดุไปรษณีย์ (สินค้าทุกชิ้นต้องมีน้ำหนักและขนาด)
+const shipWarn = computed(() => (form.value ? shipOutsidePickupWarning({ ...form.value, parcel: { enabled: parcelOn.value } }) : ''))
 const addTier = () => tiers.value.push({ min: '', type: 'amount', value: '' })
 
 function openForm(c) {
@@ -133,6 +134,7 @@ function toggle(c, status) {
         <div v-if="parcelOn" class="grid grid-cols-2 gap-3">
           <div><label class="label" for="pp-sf">เริ่มวันจัดส่งพัสดุ <span class="text-rose-600">*</span></label><input id="pp-sf" v-model="form.shipFrom" type="date" class="input" /></div>
           <div><label class="label" for="pp-st">สิ้นสุดวันจัดส่งพัสดุ <span class="text-rose-600">*</span></label><input id="pp-st" v-model="form.shipTo" type="date" class="input" /></div>
+          <p v-if="shipWarn" class="col-span-2 flex items-center gap-2 text-sm text-amber-700" role="status" data-ship-warn><AppIcon name="alert" :size="16" /> {{ shipWarn }}</p>
         </div>
         <p v-if="ferr" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ ferr }}</p>
       </div>

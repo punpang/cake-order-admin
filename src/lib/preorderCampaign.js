@@ -72,6 +72,14 @@ export function campaignError(c) {
   return ''
 }
 
+// คำเตือนเมื่อช่วงจัดส่งต่างจากช่วงรับสินค้า (ไม่บล็อกการบันทึก) · '' ถ้าไม่มีอะไรให้เตือน
+export function shipOutsidePickupWarning(c) {
+  if (c?.parcel?.enabled !== true || !isDay(c.shipFrom) || !isDay(c.shipTo)) return ''
+  if (!isDay(c.pickupFrom) || !isDay(c.pickupTo)) return ''
+  const inside = c.shipFrom >= c.pickupFrom && c.shipTo <= c.pickupTo
+  return inside ? '' : 'ช่วงวันจัดส่งต่างจากช่วงวันรับสินค้า ตรวจให้แน่ใจว่าตั้งใจ'
+}
+
 // วันรับทั้งหมดในช่วง (รวมปลายทั้งสอง) เรียงจากน้อยไปมาก · [] ถ้าช่วงไม่ถูกต้อง
 export function pickupDays(c) {
   if (!isDay(c?.pickupFrom) || !isDay(c?.pickupTo) || c.pickupFrom > c.pickupTo) return []

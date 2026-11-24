@@ -165,6 +165,8 @@ t('shipping: เปิดส่งพัสดุต้องระบุช่�
     await page.getByText('ช่วงวันจัดส่งพัสดุต้องเป็นวันที่ที่ถูกต้อง').waitFor({ state: 'visible' })
     await page.getByLabel('เริ่มวันจัดส่งพัสดุ').fill('2099-12-22')
     await page.getByLabel('สิ้นสุดวันจัดส่งพัสดุ').fill('2099-12-23')
+    // ช่วงจัดส่ง (22–23) อยู่นอกช่วงรับ (24–26) → มีคำเตือน แต่บันทึกได้
+    await page.locator('[data-ship-warn]').waitFor({ state: 'visible' })
     await page.getByRole('button', { name: 'บันทึก' }).click()
     await page.locator('[data-campaign]').filter({ hasText: 'จัดส่งพัสดุ' }).waitFor({ state: 'visible' })
     const sh = await page.evaluate(async () => (await import('/src/data/store.js')).db.preorderCampaigns.find((c) => c.name === 'จัดส่งพัสดุ')?.shipTo)

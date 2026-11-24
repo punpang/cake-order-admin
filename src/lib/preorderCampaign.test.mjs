@@ -166,5 +166,20 @@ t('shipping: blankCampaign มีช่วงวันจัดส่งว่�
   assert.equal(blankCampaign().shipTo, '')
 })
 
+// ---- คำเตือน (ไม่บล็อกการบันทึก): ช่วงจัดส่งอยู่นอกช่วงรับสินค้า ----
+import { shipOutsidePickupWarning } from './preorderCampaign.js'
+t('shipping warning: ช่วงจัดส่งอยู่ในช่วงรับ → ไม่มีคำเตือน', () => {
+  assert.equal(shipOutsidePickupWarning(parcelOn({ shipFrom: '2026-12-24', shipTo: '2026-12-25' })), '')
+})
+t('shipping warning: ช่วงจัดส่งต่างจากช่วงรับ → มีคำเตือนและบันทึกได้ (ไม่ใช่ข้อผิดพลาด)', () => {
+  const c = parcelOn({ shipFrom: '2026-12-20', shipTo: '2026-12-21' })
+  assert.notEqual(shipOutsidePickupWarning(c), '')
+  assert.equal(campaignError(c), '')
+})
+t('shipping warning: parcel ปิดหรือยังไม่กรอกวัน → ไม่มีคำเตือน', () => {
+  assert.equal(shipOutsidePickupWarning({ ...valid(), parcel: { enabled: false } }), '')
+  assert.equal(shipOutsidePickupWarning(parcelOn({ shipFrom: '', shipTo: '' })), '')
+})
+
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')
 process.exit(fail ? 1 : 0)
