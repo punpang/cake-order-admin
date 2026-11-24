@@ -9,6 +9,7 @@ import CouponBarcode from '../../components/CouponBarcode.vue'
 import { describeSelections } from '../../lib/pricing'
 import { isPin } from '../../lib/customerAuth'
 import { forBoughtIds } from '../../lib/storefront'
+import { initialOf } from '../../lib/accountView'
 import CakeImage from '../../components/CakeImage.vue'
 import StorePrice from '../../components/StorePrice.vue'
 import { money, dateOnly, dateTime, formatPhone, phoneValid, phoneDigits, num } from '../../lib/format'
@@ -64,7 +65,7 @@ function switchTab(v) {
   msg.value = ''
   err.value = ''
 }
-const initial = computed(() => (me.value?.name || '?').trim().charAt(0) || '?')
+const initial = computed(() => initialOf(me.value?.name))
 
 // ---------- ข้อมูลส่วนตัว ----------
 const form = reactive({ name: me.value?.name || '', promoOptIn: !!me.value?.promoOptIn })
@@ -194,7 +195,6 @@ function logout() {
       <div class="min-w-0 flex-1">
         <p class="text-xs text-stone-500">สวัสดี</p>
         <h1 class="truncate text-[22px] leading-tight text-stone-900">{{ me.name }}</h1>
-        <p class="mt-0.5 text-sm text-stone-600">{{ formatPhone(me.phone) }}</p>
       </div>
       <button type="button" class="shrink-0 rounded-full bg-brand-50 px-3 py-1.5 text-sm font-semibold whitespace-nowrap text-brand-800 transition hover:bg-brand-100" @click="switchTab('rewards')">
         {{ num(me.points) }} คะแนน

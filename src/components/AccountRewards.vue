@@ -10,6 +10,7 @@ import AppModal from './AppModal.vue'
 import CouponBarcode from './CouponBarcode.vue'
 import { askConfirm } from '../lib/confirm'
 import { couponTermsText } from '../lib/coupons'
+import { isSampleName, pointsShortfall } from '../lib/accountView'
 import { tierLines } from '../lib/memberLevels'
 import { birthEligibleDate, setBirthRemote, clearBirthRemote, setSmsRemote } from '../lib/birthdayRemote'
 import { MONTHS } from '../lib/birthday'
@@ -61,7 +62,7 @@ const tabs = [
 ]
 
 // ---------- แลกของ ----------
-const rewards = computed(() => db.rewards.filter((r) => r.active !== false))
+const rewards = computed(() => db.rewards.filter((r) => r.active !== false && !isSampleName(r.name)))
 const confirmRw = ref(null)
 const msg = ref('')
 async function redeem() {
@@ -176,7 +177,6 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
     <template v-if="me">
       <!-- คะแนน -->
       <section class="mb-4 rounded-[2rem] bg-linear-to-br from-hero-1 via-hero-2 to-hero-3 p-5 text-white shadow-lg">
-        <div class="text-sm">สวัสดี {{ me.name }}</div>
         <div class="mt-2 flex items-end gap-2">
           <span class="font-display text-4xl">{{ num(points) }}</span>
           <span class="pb-1 text-sm">คะแนน</span>
@@ -219,13 +219,15 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
         </label>
       </section>
 
-      <div class="mb-4 grid grid-cols-4 gap-1 seg-grid">
+      <!-- แท็บย่อยของคะแนน: ตัวหนังสือมีเส้นใต้ เพื่อให้ต่างจากแท็บหลักที่เป็นปุ่ม -->
+      <div class="mb-4 flex gap-5 overflow-x-auto border-b border-stone-200 [scrollbar-width:none]" aria-label="เมนูคะแนน">
         <button
           v-for="t in tabs"
           :key="t.v"
           type="button"
-          class="seg-item"
-          :class="tab === t.v ? 'seg-on' : ''"
+          :aria-current="tab === t.v ? 'true' : undefined"
+          class="-mb-px min-h-11 shrink-0 border-b-2 px-1 text-sm font-medium transition"
+          :class="tab === t.v ? 'border-brand-600 text-brand-800' : 'border-transparent text-stone-500 hover:text-stone-800'"
           @click="tab = t.v; msg = ''"
         >{{ t.l }}</button>
       </div>
@@ -250,6 +252,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
           <span class="min-w-0 flex-1">
             <span class="block truncate font-semibold text-stone-900">{{ r.name }}</span>
             <span class="block text-sm text-stone-500">{{ num(r.points) }} คะแนน<template v-if="r.kind === 'coupon'"> · {{ couponTermsText(r) }} ใช้ที่หน้าร้านหรือในออร์เดอร์</template></span>
+            <span v-if="pointsShortfall(points, r.points)" class="block text-xs font-medium text-amber-700">ขาดอีก {{ num(pointsShortfall(points, r.points)) }} คะแนน</span>
           </span>
           <button class="btn-primary h-9 px-4" :disabled="points < r.points" :class="points < r.points ? 'opacity-40' : ''" @click="confirmRw = r">แลก</button>
         </div>
