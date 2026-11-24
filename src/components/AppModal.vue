@@ -36,7 +36,7 @@ onBeforeUnmount(() => document.body.classList.remove('overflow-hidden'))
         @input.capture="dirty = true"
         @change.capture="dirty = true"
         class="flex max-h-full min-h-0 w-full flex-col overflow-hidden bg-cream shadow-2xl outline-none"
-        :class="full ? 'h-full rounded-none sm:h-full sm:max-w-none sm:rounded-none' : big ? 'max-h-[calc(100dvh-2rem)] rounded-[2rem] sm:h-[90dvh] sm:w-[80vw] sm:max-w-none sm:max-h-none' : ['rounded-[2rem]', split ? (slots.center ? 'sm:max-w-md landscape:lg:max-w-6xl' : 'sm:max-w-md landscape:lg:max-w-5xl') : wider ? 'sm:max-w-2xl lg:max-w-5xl' : wide ? 'sm:max-w-2xl' : 'sm:max-w-md']"
+        :class="full ? 'h-full rounded-none sm:h-full sm:max-w-none sm:rounded-none' : big ? 'max-h-[calc(100dvh-2rem)] rounded-[2rem] sm:h-[90dvh] sm:w-[80vw] sm:max-w-none sm:max-h-none' : ['rounded-[2rem]', split ? (slots.center ? 'sm:max-w-md landscape:lg:max-w-6xl' : wide ? 'sm:max-w-2xl landscape:lg:max-w-5xl' : 'sm:max-w-md landscape:lg:max-w-5xl') : wider ? 'sm:max-w-2xl lg:max-w-5xl' : wide ? 'sm:max-w-2xl' : 'sm:max-w-md']"
         role="dialog"
         aria-modal="true"
       >

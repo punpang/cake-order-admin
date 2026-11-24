@@ -342,11 +342,16 @@ onMounted(() => load())
     <RefundPartialDialog v-if="refundFor" :order="refundFor" @close="refundFor = null" @done="load()" />
     <ChangeBuyerModal v-if="buyerFor" :order="buyerFor" @close="buyerFor = null" @done="load()" />
 
-    <AppModal v-if="voidFor" :title="`ยกเลิกบิล ${orderNo(voidFor.code)}`" @close="voidFor = null">
+    <AppModal v-if="voidFor" split :title="`ยกเลิกบิล ${orderNo(voidFor.code)}`" @close="voidFor = null">
+      <template #left>
       <div class="space-y-4">
         <p v-if="invoiceOfOrder(voidFor.id)" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ออร์เดอร์นี้ออกใบกำกับภาษีไว้แล้ว ({{ invoiceOfOrder(voidFor.id).no }}) · เมื่อยกเลิกระบบจะออกใบลดหนี้ให้อัตโนมัติ</p>
         <p class="text-sm text-stone-500">ยกเลิกแล้วจะคืนสต็อก คืนคูปองที่ใช้ และตัดคะแนนที่ได้จากบิลนี้ · ยอดคืนเงินจะกระทบยอดของกะที่ปิดไปแล้ว</p>
         <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><input v-model="vd.reason" class="input" maxlength="120" /></div>
+      </div>
+      </template>
+      <template #right>
+      <div class="space-y-4">
         <div>
           <div class="label">คืนเงินให้ลูกค้า</div>
           <RefundEditor v-model="vd.refunds" :paid="voidPaid" :can-credit="!!voidFor.customerId && !!findCustomer(voidFor.customerId) && !findCustomer(voidFor.customerId).deleted" :default-method="voidDefault" />
@@ -354,6 +359,7 @@ onMounted(() => load())
         <div><label class="label">หมายเหตุการคืนเงิน</label><input v-model="vd.note" class="input" maxlength="120" /></div>
         <p v-if="vd.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ vd.error }}</p>
       </div>
+      </template>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="voidFor = null">ปิด</button>
         <button class="btn-danger flex-1 sm:flex-none" @click="doVoid">ยืนยันยกเลิกบิล</button>

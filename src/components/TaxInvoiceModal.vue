@@ -77,11 +77,9 @@ async function printAs(copy) {
 </script>
 
 <template>
-  <AppModal title="ใบกำกับภาษีเต็มรูป" wide @close="emit('close')">
+  <AppModal title="ใบกำกับภาษีเต็มรูป" split wide @close="emit('close')">
+    <template #left>
     <div class="space-y-3">
-      <div v-if="docs.length" class="flex flex-wrap gap-1.5">
-        <button v-for="d in docs" :key="d.id" type="button" class="chip" :class="shown?.id === d.id ? 'chip-on' : 'chip-off'" @click="viewId = d.id">{{ d.no }}<span v-if="d.voidedBy"> (ยกเลิก)</span></button>
-      </div>
       <template v-if="!current || editing">
         <div class="space-y-3 rounded-2xl border border-stone-200 p-3">
           <div class="text-sm font-semibold text-stone-800">{{ current ? 'แก้ไขข้อมูลผู้ซื้อ (ระบบจะออกใบลดหนี้ใบเดิมและใบใหม่ให้)' : 'ข้อมูลผู้ซื้อ (ใช้ออกใบนี้)' }}</div>
@@ -96,6 +94,20 @@ async function printAs(copy) {
         <p v-if="block" class="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800"><AppIcon name="alert" :size="16" class="mt-0.5 shrink-0" /> {{ block }}</p>
         <p class="text-xs text-stone-500">{{ current ? 'ใบเดิมยังเก็บไว้ในระบบ ใบลดหนี้และใบใหม่ออกให้อัตโนมัติ' : 'ออกแล้วแก้ไขได้จากหน้านี้ · ใบเดิมยังเก็บไว้ทุกครั้ง · ใบเสร็จย่อของระบบยังไม่ใช่ใบกำกับภาษี' }}</p>
       </template>
+      <div v-else class="space-y-3 rounded-2xl border border-stone-200 p-3 text-sm text-stone-700">
+        <div class="text-sm font-semibold text-stone-800">ข้อมูลผู้ซื้อ</div>
+        <div>{{ current?.buyer?.name || '-' }}</div>
+        <div>เลขผู้เสียภาษี {{ current?.buyer?.taxId || '-' }} · สาขา {{ current?.buyer?.branch || '-' }}</div>
+        <div>{{ current?.buyer?.address || '-' }}</div>
+        <p class="text-xs text-stone-500">ใบเดิมยังเก็บไว้ในระบบ ใบลดหนี้และใบใหม่ออกให้อัตโนมัติ</p>
+      </div>
+    </div>
+    </template>
+    <template #right>
+    <div class="space-y-3">
+      <div v-if="docs.length" class="flex flex-wrap gap-1.5">
+        <button v-for="d in docs" :key="d.id" type="button" class="chip" :class="shown?.id === d.id ? 'chip-on' : 'chip-off'" @click="viewId = d.id">{{ d.no }}<span v-if="d.voidedBy"> (ยกเลิก)</span></button>
+      </div>
       <p v-if="shown?.pending" class="flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800"><AppIcon name="alert" :size="16" /> กำลังรับเลขที่จากฐานข้อมูล (รอสักครู่ แล้วเปิดใหม่) · ยังพิมพ์ไม่ได้</p>
       <div v-if="shown" class="overflow-x-auto rounded-2xl border border-stone-200"><TaxInvoiceDoc :invoice="shown" :label="copyLabel" /></div>
       <p v-if="shown" class="text-xs text-stone-500">บนแอปพิมพ์ไปเครื่องพิมพ์ความร้อนที่ตั้งไว้ · บนเว็บพิมพ์ A4 ผ่านกล่องพิมพ์ของเบราว์เซอร์</p>
@@ -106,6 +118,7 @@ async function printAs(copy) {
       </div>
       <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
     </div>
+    </template>
     <template #footer>
       <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ปิด</button>
       <template v-if="shown">
