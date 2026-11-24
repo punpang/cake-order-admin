@@ -10,6 +10,7 @@ import { dateOnly, formatPhone, money, pad, timeOnly, toDateStr } from '../sched
 import { CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS } from '../schedlib/constants.js'
 import { BELL_CUSTOMER, BELL_STAFF, bellText } from '../schedlib/bell.js'
 import { customerTargets, withNewRules, prepareRules } from '../schedlib/notifyPlan.js'
+import { isDueSoonEligible } from '../schedlib/dueSoon.js'
 
 export { CHANNELS, CUSTOMER_CHANNEL_ORDER, NOTIFY_EVENTS, BELL_CUSTOMER, BELL_STAFF, bellText, customerTargets, withNewRules, prepareRules }
 
@@ -254,7 +255,7 @@ export function planScheduled(inp: PlanInput): Plan[] {
     // ทีม: ใกล้เวลาต้องเสร็จ (เหลือไม่เกินชั่วโมงที่ร้านตั้งไว้ ตามเวลาผลิต = นัดลบเวลาเตรียม)
     const lead = Number(o.fulfillment === 'delivery' ? inp.shop?.leadDelivery : inp.shop?.leadPickup) || 0
     const dueMs = instantOf(o.pickupAt) - lead * 60000
-    if (dueMs - inp.nowMs <= dueHours * HOUR) {
+    if (isDueSoonEligible(o) && dueMs - inp.nowMs <= dueHours * HOUR) {
       add(`due|${o.id}`, { kind: 'team', event: 'team_due_soon', orderId: o.id, order: o, customer: null, vars: { ...varsOf(o), ชั่วโมง: String(dueHours) } })
     }
   }
