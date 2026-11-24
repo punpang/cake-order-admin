@@ -56,7 +56,7 @@ jobs:
           - name: สมาชิก/เส้นทาง/POS แนวนอน
             cmd: node e2e/memberTier.supabase.e2e.mjs && node e2e/memberBirthdayCard.supabase.e2e.mjs && node e2e/routes.smoke.e2e.mjs && node e2e/pos-open-price.e2e.mjs && node e2e/consignRounds.ui.e2e.mjs && node e2e/pos-landscape.e2e.mjs && node e2e/cashService.ui.e2e.mjs
           - name: ออเดอร์/บัญชี/หน้าร้านใหม่
-            cmd: node e2e/memberTiers.supabase.e2e.mjs && node e2e/dialogLandscape.ui.e2e.mjs && node e2e/orderCreateLayout.supabase.e2e.mjs && node e2e/orderListLayout.supabase.e2e.mjs && node e2e/paymentsLayout.supabase.e2e.mjs && node e2e/accountPolish.ui.e2e.mjs && node e2e/posLayout.ui.e2e.mjs && node e2e/storeHome.ui.e2e.mjs
+            cmd: node e2e/memberTiers.supabase.e2e.mjs && node e2e/dialogLandscape.ui.e2e.mjs && node e2e/orderCreateLayout.supabase.e2e.mjs && node e2e/orderListLayout.supabase.e2e.mjs && node e2e/paymentsLayout.supabase.e2e.mjs && node e2e/accountPolish.ui.e2e.mjs && node e2e/posLayout.ui.e2e.mjs && node e2e/storeHome.ui.e2e.mjs && node e2e/retailCategoryPicker.ui.e2e.mjs
     name: e2e · ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4
