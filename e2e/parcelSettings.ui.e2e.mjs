@@ -1,6 +1,6 @@
 // ทดสอบช่องน้ำหนัก/ขนาดสินค้าสำหรับค่าส่งพัสดุ (สั่งล่วงหน้า เฟส 2A) และตารางอัตราในหน้าตั้งค่าร้าน
 //   (1) กรอกน้ำหนักอย่างเดียวบันทึกไม่ได้ · (2) น้ำหนัก+ขนาดครบบันทึกเป็นฟิลด์สินค้า · (3) แก้แล้วฟอร์มแสดงค่าเดิม · (4) ไม่กรอกบันทึกได้เป็น null
-//   (5–6) ตารางอัตราค่าส่งในหน้าตั้งค่าร้าน: เพิ่มใน Task 3
+//   (5) ตารางอัตราค่าส่งพัสดุในหน้าตั้งค่าร้าน: เพิ่มขั้น บันทึก ตรวจซ้ำ/ลดราคา
 // รัน: node e2e/parcelSettings.ui.e2e.mjs
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
@@ -76,6 +76,32 @@ t('ไม่กรอกน้ำหนักและขนาดบันท�
     const saved = await itemNamed(page, 'ไม่มีพัสดุ')
     assert.equal(saved.weightG, null)
     assert.equal(saved.dimsCm, null)
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
+t('หน้าตั้งค่าร้าน: มีส่วนค่าส่งพัสดุ · เพิ่มขั้นแล้วบันทึกได้ (เรียงถูก) · ขั้นน้ำหนักซ้ำและราคาลดลงบันทึกไม่ได้ · มีตัวอย่างค่าส่ง', async () => {
+  const { page, errors } = await open('#/admin/settings/shop')
+  try {
+    await page.getByText('ค่าส่งพัสดุไปรษณีย์').first().waitFor({ state: 'visible', timeout: 60000 })
+    assert.ok(await page.getByText(/^ตัวอย่าง: /).count() >= 1)
+    await page.getByRole('button', { name: 'เพิ่มขั้น' }).click()
+    await page.getByRole('button', { name: 'เพิ่มขั้น' }).click()
+    const weights = page.getByLabel('น้ำหนักสูงสุดของขั้น (กรัม)')
+    const prices = page.getByLabel('ราคาของขั้น (บาท)')
+    await weights.nth(0).fill('1000'); await prices.nth(0).fill('60')
+    await weights.nth(1).fill('1000'); await prices.nth(1).fill('70')
+    await page.getByRole('button', { name: 'บันทึก', exact: true }).click()
+    await page.getByText('น้ำหนักของขั้นซ้ำกัน').waitFor({ state: 'visible' })
+    await weights.nth(1).fill('500'); await prices.nth(1).fill('40')
+    await page.getByRole('button', { name: 'บันทึก', exact: true }).click()
+    await page.waitForFunction(async () => (await import('/src/data/store.js')).db.shop.parcel?.rates?.length === 2)
+    const rates = await page.evaluate(async () => (await import('/src/data/store.js')).db.shop.parcel.rates)
+    assert.deepEqual(rates, [{ upToG: 500, price: 40 }, { upToG: 1000, price: 60 }])
+    await weights.nth(1).fill('2000'); await prices.nth(1).fill('30')
+    await page.getByRole('button', { name: 'บันทึก', exact: true }).click()
+    await page.getByText('ราคาต้องไม่ลดลงเมื่อน้ำหนักมากขึ้น').waitFor({ state: 'visible' })
+    assert.deepEqual(await page.evaluate(async () => (await import('/src/data/store.js')).db.shop.parcel.rates.map((r) => r.price)), [40, 60])
     assert.deepEqual(errors, [])
   } finally { await page.close() }
 })
