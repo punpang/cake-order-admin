@@ -6,6 +6,7 @@ import { MIN, hex, sha256Hex, randHex, thaiPhone } from '../_shared/otp.ts'
 import { sendSmsGateway } from '../_shared/sms.ts'
 import { verifyTurnstile } from '../_shared/turnstile.ts'
 import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
+import { reserveOtpAttempt } from '../_shared/authguard.ts'
 
 // สั่งล่วงหน้า (ลูกค้า): ฟังก์ชันสาธารณะ (--no-verify-jwt) · ขั้นนี้มี 2 action: campaigns (ดูแคมเปญที่เปิดรับ) และ quote (คิดราคาให้ดู)
 // ข้อมูลที่ส่งกลับไม่มีตารางอัตราค่าส่ง · ราคาทั้งหมดคิดที่เซิร์ฟเวอร์ · ค่าที่ผู้ใช้ส่งมาเรื่องราคา/ค่าส่ง/แต้มไม่ถูกใช้
@@ -133,13 +134,25 @@ Deno.serve(corsWrap(async (req) => {
     const ph = thaiPhone(b.phone)
     if (!ph) return json({ error: 'กรอกเบอร์โทรให้ถูกต้อง' }, 400)
     const row = (await sb.from('punpang_otps').select('*').eq('phone', ph.local).eq('purpose', 'preorder').eq('used', false).maybeSingle()).data
-    if (!row || new Date(row.expires_at).getTime() <= Date.now()) return json({ error: 'รหัสหมดอายุ กรุณาขอรหัสใหม่' }, 400)
-    if ((row.attempts ?? 0) >= OTP_MAX_TRIES) return json({ error: 'ผิดเกินจำนวนที่กำหนด กรุณาขอรหัสใหม่' }, 429)
-    if ((await sha256Hex(`${row.salt}:${String(b.code || '')}`)) !== row.code_hash) {
-      await sb.from('punpang_otps').update({ attempts: (row.attempts ?? 0) + 1 }).eq('id', row.id)
-      return json({ error: 'รหัสไม่ถูกต้อง' }, 400)
+    if (!row) return json({ error: 'ยังไม่ได้ขอรหัส กรุณาขอรหัสก่อน' }, 400)
+    // จองครั้งที่ตรวจก่อนเทียบรหัส (เขียนแบบมีเงื่อนไข กันการยิงพร้อมกันเดารหัสเกินเพดาน)
+    const gate = await reserveOtpAttempt({
+      read: async () => (await sb.from('punpang_otps').select('attempts,used,expires_at').eq('id', row.id).maybeSingle()).data ?? null,
+      casAttempts: async (expect: number) => {
+        const u = await sb.from('punpang_otps').update({ attempts: expect + 1 }).eq('id', row.id).eq('attempts', expect).eq('used', false).select('id')
+        return !u.error && (u.data || []).length > 0
+      },
+    }, { maxTries: OTP_MAX_TRIES }, row)
+    if (!gate.ok) {
+      if (gate.reason === 'busy') return json({ error: 'มีการตรวจรหัสหลายคำขอพร้อมกัน กรุณารอสักครู่แล้วลองใหม่' }, 429)
+      if (gate.reason === 'expired') return json({ error: 'รหัสหมดอายุ กรุณาขอรหัสใหม่' }, 400)
+      if (gate.reason === 'exhausted') return json({ error: 'กรอกผิดเกินกำหนด กรุณาขอรหัสใหม่' }, 429)
+      return json({ error: 'ยังไม่ได้ขอรหัส กรุณาขอรหัสก่อน' }, 400)
     }
-    await sb.from('punpang_otps').update({ used: true }).eq('id', row.id)
+    if ((await sha256Hex(`${row.salt}:${String(b.code || '')}`)) !== row.code_hash) return json({ error: 'รหัสไม่ถูกต้อง' }, 400)
+    // ใช้รหัสได้ครั้งเดียว: เขียนแบบมีเงื่อนไขว่ายังไม่ถูกใช้
+    const used = await sb.from('punpang_otps').update({ used: true }).eq('id', row.id).eq('used', false).select('id')
+    if (used.error || (used.data || []).length === 0) return json({ error: 'รหัสนี้ถูกใช้แล้ว กรุณาขอรหัสใหม่' }, 400)
     let cust = (await sb.from('punpang_customers').select('id,data').eq('phone', ph.local).maybeSingle()).data
     let customerId: string
     if (cust && !cust.data?.deleted) {
