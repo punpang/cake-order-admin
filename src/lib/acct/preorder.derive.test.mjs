@@ -69,7 +69,7 @@ t('deriveAll รวมออร์เดอร์สั่งล่วงหน�
 
 await server.close()
 t('รับคืนหลังส่งมอบ: ลดมัดจำ 2300 และคืนตามวิธี (เงินสด/โอน/คะแนน)', () => {
-  const es = preorderEntries({ ...base, status: 'returned', returns: [{ id: 'r1', at: '2026-12-01T00:00:00.000Z', refunds: [{ amount: 40, method: 'cash' }, { amount: 10, method: 'points' }] }] })
+  const es = preorderEntries({ ...base, status: 'returned', returns: [{ id: 'r1', at: '2026-12-01T00:00:00.000Z', decision: 'refund', shippingForfeited: 0, refunds: [{ amount: 40, method: 'cash' }, { amount: 10, method: 'points' }] }] })
   const ret = es.find((e) => e.id === 'pre-ret:po1:r1')
   assert.ok(ret)
   assert.equal(ret.lines.find((l) => l.account === '2300').dr, 50)
@@ -78,8 +78,25 @@ t('รับคืนหลังส่งมอบ: ลดมัดจำ 2300 
 })
 
 t('พัสดุตีกลับที่ยังไม่คืนเงิน: ไม่มีรายการบัญชี', () => {
-  const es = preorderEntries({ ...base, status: 'returned', returns: [{ id: 'r2', at: '2026-12-01T00:00:00.000Z', refunds: [] }] })
+  const es = preorderEntries({ ...base, status: 'returned', returns: [{ id: 'r2', at: '2026-12-01T00:00:00.000Z', decision: null, refunds: [] }] })
   assert.equal(es.some((e) => e.id.startsWith('pre-ret')), false)
+})
+
+t('คืนเงินโดยริบค่าส่ง 20: 2300 ลดเท่ากับคืน+ค่าส่ง และค่าส่งเข้า 4900', () => {
+  const es = preorderEntries({ ...base, status: 'returned', returns: [{ id: 'r3', at: '2026-12-01T00:00:00.000Z', decision: 'refund', shippingForfeited: 20, refunds: [{ amount: 80, method: 'bank' }] }] })
+  const ret = es.find((e) => e.id === 'pre-ret:po1:r3')
+  assert.equal(ret.lines.find((l) => l.account === '2300').dr, 100)
+  assert.equal(ret.lines.find((l) => l.account === '1020').cr, 80)
+  assert.equal(ret.lines.find((l) => l.account === '4900').cr, 20)
+  balanced(ret)
+})
+
+t('จัดส่งใหม่: ริบค่าส่งเดิมเข้า 4900 โดยไม่มีการคืนเงิน', () => {
+  const es = preorderEntries({ ...base, status: 'payment_confirmed', returns: [{ id: 'r4', at: '2026-12-01T00:00:00.000Z', decision: 'reship', shippingForfeited: 20 }] })
+  const ret = es.find((e) => e.id === 'pre-ret:po1:r4')
+  assert.equal(ret.lines.find((l) => l.account === '4900').cr, 20)
+  assert.equal(es.some((e) => e.id === 'pre-ret:po1:r4' && e.lines.some((l) => l.account === '1010' || l.account === '1020')), false)
+  balanced(ret)
 })
 
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')

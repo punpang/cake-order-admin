@@ -183,14 +183,22 @@ export function preorderEntries(o) {
     const acc = p.method === 'cash' ? CASH : BANK
     out.push(entry(`pre-dep:${o.id}:${p.id}`, dateOf(p.at), `รับมัดจำสั่งล่วงหน้า ${code}`, { type: 'preorder-deposit', orderId: o.id, paymentId: p.id }, [dr(acc, amtS), cr(DEPOSIT, amtS)]))
   }
-  // รับคืนหลังส่งมอบ: ลดหนี้มัดจำ/ค่าสินค้าที่รับไว้ (2300) และคืนตามวิธี (เงินสด 1010 · โอน 1020 · คะแนน 2310)
+  // รับคืนหลังส่งมอบ: ตัดสิน "คืนเงิน" → ค่าส่งเดิมที่ริบเข้า 4900 และยอดคืนลดหนี้ 2300 ลงวิธีคืน (เงินสด 1010 · โอน 1020 · คะแนน 2310)
+  // ตัดสิน "จัดส่งใหม่" → ค่าส่งเดิมที่ริบเข้า 4900 · ค่าส่งใหม่ชำระเป็นรายการรับปกติ
   for (const rt of Array.isArray(o.returns) ? o.returns : []) {
+    const fee = toS(rt.shippingForfeited)
+    if (rt.decision === 'reship') {
+      if (fee > 0) out.push(entry(`pre-ret:${o.id}:${rt.id}`, dateOf(rt.decidedAt || rt.at), `จัดส่งใหม่ ${code} ริบค่าส่งเดิม`, { type: 'preorder-reship', orderId: o.id, returnId: rt.id }, [dr(DEPOSIT, fee), cr('4900', fee)]))
+      continue
+    }
+    if (rt.decision !== 'refund') continue
     const rows = (Array.isArray(rt.refunds) ? rt.refunds : []).map((r) => ({ s: toS(r.amount), method: r.method })).filter((r) => r.s > 0)
     const totS = rows.reduce((a, r) => a + r.s, 0)
-    if (!(totS > 0)) continue
-    const lines = [dr(DEPOSIT, totS)]
+    if (!(totS > 0) && !(fee > 0)) continue
+    const lines = [dr(DEPOSIT, totS + fee)]
     for (const r of rows) lines.push(cr(r.method === 'points' ? POINTS_LIAB : r.method === 'bank' ? BANK : CASH, r.s))
-    out.push(entry(`pre-ret:${o.id}:${rt.id}`, dateOf(rt.at), `รับคืนสั่งล่วงหน้า ${code}`, { type: 'preorder-return', orderId: o.id, returnId: rt.id }, lines))
+    if (fee > 0) lines.push(cr('4900', fee))
+    out.push(entry(`pre-ret:${o.id}:${rt.id}`, dateOf(rt.decidedAt || rt.at), `รับคืนสั่งล่วงหน้า ${code}`, { type: 'preorder-return', orderId: o.id, returnId: rt.id }, lines))
   }
   if (o.status === 'cancelled' && paidS > 0) {
     // คืนเงินเป็นรายการตามวิธี (เงินสด/โอน) · ยอดคืนรวมต้องไม่เกินยอดที่รับจริง · ส่วนที่เหลือเป็นริบ
