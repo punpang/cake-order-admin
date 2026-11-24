@@ -55,6 +55,25 @@ async function sessionCustomer(sb: any, token: unknown): Promise<string | null> 
   if (!r.data || new Date(r.data.expires_at).getTime() <= Date.now()) return null
   return r.data.customer_id
 }
+// มุมมองออร์เดอร์ของลูกค้า: ไม่ส่งรหัสอ้างอิงการโอน/คำขอ QR ภายใน และไม่ส่งข้อมูลของลูกค้ารายอื่น
+function customerOrderView(o: any) {
+  const d = o.data || {}
+  const pays: any[] = Array.isArray(d.payments) ? d.payments : []
+  const paid = pays.filter((x) => x?.status === 'confirmed').reduce((a, x) => a + (Number(x.amount) || 0), 0)
+  const total = Number(d.total) || 0
+  const rts: any[] = Array.isArray(d.returns) ? d.returns : []
+  const lastRt = rts.length ? rts[rts.length - 1] : null
+  return {
+    id: o.id, code: o.code, status: o.status, campaignId: o.campaign_id, pickupDate: o.pickup_date,
+    total: d.total ?? null, deposit: d.deposit ?? null, payDueAt: d.payDueAt ?? null,
+    paid: Math.round(paid * 100) / 100, balanceDue: Math.max(0, Math.round((total - paid) * 100) / 100),
+    fulfillment: d.fulfillment ?? null,
+    shipping: d.shipping ? { carrier: d.shipping.carrier, trackingNo: d.shipping.trackingNo, shippedAt: d.shipping.shippedAt } : null,
+    extensionStatus: d.extensionRequest?.status ?? null,
+    returnRequestStatus: d.returnRequest?.status ?? null,
+    returnDecision: lastRt ? { decision: lastRt.decision ?? null, refunded: lastRt.total ?? 0, newFee: lastRt.newFee ?? null } : null,
+  }
+}
 const QR_SUFFIX = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 const randDigits = (n: number) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (x) => String(x % 10)).join('')
 const randQrSuffix = (n: number) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (x) => QR_SUFFIX[x % QR_SUFFIX.length]).join('')
@@ -186,7 +205,7 @@ Deno.serve(corsWrap(async (req) => {
     const cid = await sessionCustomer(sb, b.token)
     if (!cid) return json({ error: 'กรุณายืนยันเบอร์ใหม่' }, 401)
     const r = await sb.from('punpang_preorder_orders').select('*').eq('customer_id', cid)
-    return json({ orders: (r.data || []).map((o: any) => ({ id: o.id, code: o.code, status: o.status, campaignId: o.campaign_id, pickupDate: o.pickup_date, total: o.data?.total ?? null, deposit: o.data?.deposit ?? null, payDueAt: o.data?.payDueAt ?? null })) })
+    return json({ orders: (r.data || []).map(customerOrderView) })
   }
 
   // ===== สร้างออร์เดอร์ (จองโควตาและบันทึกในธุรกรรมเดียวในฐานข้อมูล) =====
@@ -274,6 +293,22 @@ Deno.serve(corsWrap(async (req) => {
     const r = await sb.rpc('punpang_preorder_request_extension', { p_order: orderId })
     if (r.error) return json({ error: 'ส่งคำขอไม่สำเร็จ กรุณาลองใหม่' }, 500)
     if (r.data?.error === 'bad_status') return json({ error: 'ขอขยายเวลาได้เฉพาะออร์เดอร์ที่หมดเวลาแล้ว' }, 409)
+    return json({ ok: true, already: r.data?.already === true })
+  }
+  // ลูกค้าขอคืนสินค้าหลังได้รับแล้ว (ร้านเป็นผู้ตัดสินคืนเงินหรือจัดส่งใหม่)
+  if (action === 'return_request') {
+    const cid = await sessionCustomer(sb, b.token)
+    if (!cid) return json({ error: 'กรุณายืนยันเบอร์ใหม่' }, 401)
+    const orderId = String(b.orderId || '')
+    if (!ORDER_ID_RE.test(orderId)) return json({ error: 'รหัสออร์เดอร์ไม่ถูกต้อง' }, 400)
+    const reason = String(b.reason || '').trim().slice(0, 200)
+    if (!reason) return json({ error: 'กรุณาระบุเหตุผลที่ขอคืน' }, 400)
+    const o = await sb.from('punpang_preorder_orders').select('id').eq('id', orderId).eq('customer_id', cid).maybeSingle()
+    if (!o.data) return json({ error: 'ไม่พบออร์เดอร์นี้' }, 404)
+    const r = await sb.rpc('punpang_preorder_request_return', { p_order: orderId, p_reason: reason })
+    if (r.error) return json({ error: 'ส่งคำขอไม่สำเร็จ กรุณาลองใหม่' }, 500)
+    if (r.data?.error === 'bad_status') return json({ error: 'ขอคืนสินค้าได้หลังได้รับพัสดุแล้วเท่านั้น' }, 409)
+    if (r.data?.error === 'bad_reason') return json({ error: 'กรุณาระบุเหตุผลที่ขอคืน' }, 400)
     return json({ ok: true, already: r.data?.already === true })
   }
   return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
