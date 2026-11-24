@@ -7,6 +7,8 @@ import { sendSmsGateway } from '../_shared/sms.ts'
 import { verifyTurnstile } from '../_shared/turnstile.ts'
 import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
 import { reserveOtpAttempt } from '../_shared/authguard.ts'
+import { promptPayBillerPayload } from '../_shared/schedlib/promptpay.js'
+import { publicPaymentOf } from '../_shared/shoppay.ts'
 
 // สั่งล่วงหน้า (ลูกค้า): ฟังก์ชันสาธารณะ (--no-verify-jwt) · ขั้นนี้มี 2 action: campaigns (ดูแคมเปญที่เปิดรับ) และ quote (คิดราคาให้ดู)
 // ข้อมูลที่ส่งกลับไม่มีตารางอัตราค่าส่ง · ราคาทั้งหมดคิดที่เซิร์ฟเวอร์ · ค่าที่ผู้ใช้ส่งมาเรื่องราคา/ค่าส่ง/แต้มไม่ถูกใช้
@@ -52,6 +54,14 @@ async function sessionCustomer(sb: any, token: unknown): Promise<string | null> 
   const r = await sb.from('punpang_preorder_sessions').select('customer_id,expires_at').eq('token_hash', await sha256Hex('presess:' + token)).maybeSingle()
   if (!r.data || new Date(r.data.expires_at).getTime() <= Date.now()) return null
   return r.data.customer_id
+}
+const QR_SUFFIX = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+const randDigits = (n: number) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (x) => String(x % 10)).join('')
+const randQrSuffix = (n: number) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (x) => QR_SUFFIX[x % QR_SUFFIX.length]).join('')
+const QR_ERR: Record<string, string> = {
+  bad_status: 'ออร์เดอร์นี้รับการชำระไม่ได้ในสถานะปัจจุบัน (ถ้าหมดเวลาแล้วให้ขอขยายเวลาก่อน)',
+  over_total: 'ยอดเกินยอดที่ค้างชำระ',
+  bad_amount: 'ยอดไม่ถูกต้อง',
 }
 const clientIpOf = (req: Request) => (req.headers.get('cf-connecting-ip') || (req.headers.get('x-forwarded-for') || '').split(',').pop() || '').trim()
 
@@ -225,5 +235,46 @@ Deno.serve(corsWrap(async (req) => {
     return json({ ok: true, already: rpc.data?.already === true, code: rpc.data?.code, orderId, total, deposit, payDueAt })
   }
 
+  // คำขอ QR ของออร์เดอร์สั่งล่วงหน้า (ลูกค้าเจ้าของออร์เดอร์เท่านั้น): รหัส PRE สร้างที่นี่ · ยอดและสถานะตรวจในฐานข้อมูล
+  if (action === 'qr_request') {
+    const cid = await sessionCustomer(sb, b.token)
+    if (!cid) return json({ error: 'กรุณายืนยันเบอร์ใหม่' }, 401)
+    const orderId = String(b.orderId || '')
+    if (!ORDER_ID_RE.test(orderId)) return json({ error: 'รหัสออร์เดอร์ไม่ถูกต้อง' }, 400)
+    const amount = Number(b.amount)
+    if (!(amount > 0) || Math.round(amount * 100) / 100 !== amount) return json({ error: 'ยอดไม่ถูกต้อง' }, 400)
+    const o = await sb.from('punpang_preorder_orders').select('id,code').eq('id', orderId).eq('customer_id', cid).maybeSingle()
+    if (!o.data) return json({ error: 'ไม่พบออร์เดอร์นี้' }, 404)
+    const ddmmyy = String(o.data.code || '').match(/^PRE-(\d{6})-/)?.[1]
+    if (!ddmmyy) return json({ error: 'รหัสออร์เดอร์ไม่ถูกต้อง' }, 500)
+    const shop = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'shop').maybeSingle()
+    const pay = publicPaymentOf(shop.data?.data?.v)
+    if (!pay.billerId || !pay.merchantCode) return json({ error: 'ร้านยังไม่ได้ตั้งค่าพร้อมเพย์' }, 409)
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const qrRef = 'PRE' + ddmmyy + randDigits(6) + randQrSuffix(5)
+      const r = await sb.rpc('punpang_preorder_request_qr', { p_order: orderId, p_amount: amount, p_qr_ref: qrRef })
+      if (r.error) return json({ error: 'สร้างคำขอ QR ไม่สำเร็จ กรุณาลองใหม่' }, 500)
+      if (r.data?.error === 'ref_taken') continue
+      if (r.data?.error) return json({ error: QR_ERR[r.data.error] ?? 'สร้างคำขอ QR ไม่สำเร็จ' }, 409)
+      // ไฟล์ JS ที่คัดลอกมาให้ชนิดพารามิเตอร์ยอดเป็น null (ค่าเริ่มต้น) จึงระบุชนิดตอนเรียก
+      const payload = (promptPayBillerPayload as (...a: unknown[]) => string | null)(pay.billerId, amount, pay.merchantCode, qrRef)
+      if (!payload) return json({ error: 'สร้าง QR ไม่สำเร็จ' }, 500)
+      return json({ ok: true, qrRef, amount, payload })
+    }
+    return json({ error: 'สร้างคำขอ QR ไม่สำเร็จ กรุณาลองใหม่' }, 500)
+  }
+  // ลูกค้าขอขยายเวลาของออร์เดอร์ที่หมดเวลาแล้ว (ร้านเป็นผู้อนุมัติ)
+  if (action === 'extension_request') {
+    const cid = await sessionCustomer(sb, b.token)
+    if (!cid) return json({ error: 'กรุณายืนยันเบอร์ใหม่' }, 401)
+    const orderId = String(b.orderId || '')
+    if (!ORDER_ID_RE.test(orderId)) return json({ error: 'รหัสออร์เดอร์ไม่ถูกต้อง' }, 400)
+    const o = await sb.from('punpang_preorder_orders').select('id').eq('id', orderId).eq('customer_id', cid).maybeSingle()
+    if (!o.data) return json({ error: 'ไม่พบออร์เดอร์นี้' }, 404)
+    const r = await sb.rpc('punpang_preorder_request_extension', { p_order: orderId })
+    if (r.error) return json({ error: 'ส่งคำขอไม่สำเร็จ กรุณาลองใหม่' }, 500)
+    if (r.data?.error === 'bad_status') return json({ error: 'ขอขยายเวลาได้เฉพาะออร์เดอร์ที่หมดเวลาแล้ว' }, 409)
+    return json({ ok: true, already: r.data?.already === true })
+  }
   return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
 }))
