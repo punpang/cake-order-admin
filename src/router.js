@@ -8,6 +8,8 @@ const StoreHome = () => import('./views/store/StoreHome.vue')
 const StoreMenu = () => import('./views/store/StoreMenu.vue')
 const StoreCakeGallery = () => import('./views/store/StoreCakeGallery.vue')
 const StoreItem = () => import('./views/store/StoreItem.vue')
+const StorePreorder = () => import('./views/store/StorePreorder.vue')
+const StorePreorderOrders = () => import('./views/store/StorePreorderOrders.vue')
 const AccountLogin = () => import('./views/account/AccountLogin.vue')
 const AccountRegister = () => import('./views/account/AccountRegister.vue')
 const AccountForgot = () => import('./views/account/AccountForgot.vue')
@@ -83,6 +85,8 @@ const router = createRouter({
     { path: '/menu/design/:id', component: StoreCakeDesign, props: true, meta: { store: true, pub: true } },
     { path: '/menu/custom', component: StoreItem, props: { kind: 'custom', id: '' }, meta: { store: true, pub: true } },
     { path: '/menu/:kind/:id', component: StoreItem, props: true, meta: { store: true, pub: true } },
+    { path: '/preorder', component: StorePreorder, meta: { store: true, pub: true } },
+    { path: '/preorder/orders', component: StorePreorderOrders, meta: { store: true, pub: true } },
     // ---------- ระบบลูกค้า (จำลอง จนกว่าจะต่อ Supabase) ----------
     { path: '/account/login', component: AccountLogin, meta: { store: true } },
     { path: '/account/register', component: AccountRegister, meta: { store: true } },
