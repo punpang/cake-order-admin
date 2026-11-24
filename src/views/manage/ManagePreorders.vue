@@ -4,6 +4,7 @@ import { db } from '../../data/store'
 import { preorderCampaigns, savePreorderCampaign, setPreorderCampaignStatus } from '../../data/preorder'
 import { blankCampaign, campaignPhase, shipOutsidePickupWarning } from '../../lib/preorderCampaign'
 import ManageShell from '../../components/ManageShell.vue'
+import PreorderOrdersPanel from './PreorderOrdersPanel.vue'
 import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
@@ -66,6 +67,7 @@ function toggle(c, status) {
 
 <template>
   <ManageShell narrow guard :toolbar="false" perm="managePreorder" title="สั่งล่วงหน้า (Preorder)" subtitle="ตั้งแคมเปญ ช่วงรับสั่ง โควตา และมัดจำ">
+    <PreorderOrdersPanel />
     <section class="card mb-4">
       <div class="flex items-center justify-between gap-2">
         <h2 class="text-base font-semibold text-stone-800">แคมเปญ</h2>
