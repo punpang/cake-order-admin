@@ -1,0 +1,119 @@
+<script setup>
+import { computed, reactive, ref } from 'vue'
+import { db } from '../../data/store'
+import { preorderCampaigns, savePreorderCampaign, setPreorderCampaignStatus } from '../../data/preorder'
+import { blankCampaign, campaignPhase } from '../../lib/preorderCampaign'
+import ManageShell from '../../components/ManageShell.vue'
+import AppModal from '../../components/AppModal.vue'
+import AppIcon from '../../components/AppIcon.vue'
+
+// ตั้งและจัดการแคมเปญสั่งล่วงหน้า: รายการแคมเปญ + ฟอร์มสร้าง/แก้ (ตรวจและบันทึกที่ data/preorder.js)
+const PHASE = { draft: 'ร่าง', closed: 'ปิดรับ', upcoming: 'รอเปิดรับ', open: 'เปิดรับสั่ง', ended: 'หมดช่วงรับสั่ง' }
+const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' })
+const list = computed(() => preorderCampaigns().map((c) => ({ c, label: PHASE[campaignPhase(c, today())] })))
+// สินค้าที่เลือกได้: เปิดขาย ไม่กำหนดราคาเอง ไม่มีตัวเลือก (ตรงกับกติกาใน data/preorder.js)
+const sellable = computed(() => db.retailItems.filter((r) => r.active && !r.openPrice && !(r.modifierIds && r.modifierIds.length)))
+
+const form = ref(null)
+const ferr = ref('')
+const hours = ref('') // เวลาจ่ายมัดจำ เป็นชั่วโมงบนหน้าจอ เก็บเป็นนาที
+const sel = reactive({}) // retailId → { on, cap }
+const msg = ref('')
+
+function openForm(c) {
+  ferr.value = ''
+  const base = c ? JSON.parse(JSON.stringify(c)) : blankCampaign()
+  form.value = { ...base, dayCap: base.dayCap ?? '' }
+  hours.value = base.payDueMin ? String(base.payDueMin / 60) : ''
+  for (const k of Object.keys(sel)) delete sel[k]
+  for (const r of sellable.value) sel[r.id] = { on: false, cap: '' }
+  for (const it of base.items || []) sel[it.retailId] = { on: true, cap: it.dayCap ?? '' }
+}
+
+function submit() {
+  ferr.value = ''
+  const f = form.value
+  const items = sellable.value
+    .filter((r) => sel[r.id].on)
+    .map((r) => ({ retailId: r.id, dayCap: sel[r.id].cap === '' ? null : Number(sel[r.id].cap) }))
+  const r = savePreorderCampaign({
+    ...f,
+    depositPercent: Number(f.depositPercent),
+    payDueMin: hours.value === '' ? null : Math.round(Number(hours.value) * 60),
+    dayCap: f.dayCap === '' ? null : Number(f.dayCap),
+    items,
+  })
+  if (r.error) return (ferr.value = r.error)
+  msg.value = 'บันทึกแล้ว'
+  form.value = null
+}
+
+function toggle(c, status) {
+  const r = setPreorderCampaignStatus(c.id, status)
+  if (r.error) msg.value = r.error
+  else msg.value = status === 'open' ? 'เปิดรับสั่งแล้ว' : 'ปิดรับแล้ว'
+}
+</script>
+
+<template>
+  <ManageShell narrow guard :toolbar="false" perm="managePreorder" title="สั่งล่วงหน้า (Preorder)" subtitle="ตั้งแคมเปญ ช่วงรับสั่ง โควตา และมัดจำ">
+    <section class="card mb-4">
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="text-base font-semibold text-stone-800">แคมเปญ</h2>
+        <button class="btn-primary h-9 px-3" @click="openForm(null)">+ สร้างแคมเปญ</button>
+      </div>
+      <p v-if="msg" class="mt-2 text-sm text-stone-600" role="status">{{ msg }}</p>
+      <p v-if="!list.length" class="mt-3 text-sm text-stone-500">ยังไม่มีแคมเปญ</p>
+      <ul class="mt-3 space-y-2">
+        <li v-for="x in list" :key="x.c.id" class="rounded-xl border border-stone-200 p-3" data-campaign>
+          <div class="flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <div class="truncate font-medium text-stone-900">{{ x.c.name }}</div>
+              <div class="text-xs text-stone-500">รับสั่ง {{ x.c.orderFrom }} ถึง {{ x.c.orderTo }} · รับสินค้า {{ x.c.pickupFrom }} ถึง {{ x.c.pickupTo }}</div>
+              <div class="text-xs text-stone-500">มัดจำขั้นต่ำ {{ x.c.depositPercent }}% · จ่ายภายใน {{ x.c.payDueMin ? x.c.payDueMin / 60 : '-' }} ชม.</div>
+            </div>
+            <span class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-700">{{ x.label }}</span>
+          </div>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button class="btn-outline h-9 px-3" @click="openForm(x.c)">แก้ไข</button>
+            <button v-if="x.c.status !== 'open'" class="btn-primary h-9 px-3" @click="toggle(x.c, 'open')">เปิดรับสั่ง</button>
+            <button v-else class="btn-outline h-9 px-3" @click="toggle(x.c, 'closed')">ปิดรับ</button>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <AppModal v-if="form" :title="form.id ? 'แก้ไขแคมเปญ' : 'สร้างแคมเปญ'" wider @close="form = null">
+      <div class="space-y-3">
+        <div><label class="label" for="pp-name">ชื่อแคมเปญ <span class="text-rose-600">*</span></label><input id="pp-name" v-model="form.name" class="input" maxlength="80" /></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="label" for="pp-of">เริ่มรับสั่ง</label><input id="pp-of" v-model="form.orderFrom" type="date" class="input" /></div>
+          <div><label class="label" for="pp-ot">สิ้นสุดรับสั่ง</label><input id="pp-ot" v-model="form.orderTo" type="date" class="input" /></div>
+          <div><label class="label" for="pp-pf">เริ่มวันรับสินค้า</label><input id="pp-pf" v-model="form.pickupFrom" type="date" class="input" /></div>
+          <div><label class="label" for="pp-pt">สิ้นสุดวันรับสินค้า</label><input id="pp-pt" v-model="form.pickupTo" type="date" class="input" /></div>
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div><label class="label" for="pp-dep">มัดจำขั้นต่ำ %</label><input id="pp-dep" v-model="form.depositPercent" type="number" min="1" max="100" class="input" /></div>
+          <div><label class="label" for="pp-due">จ่ายมัดจำภายใน (ชม.) <span class="text-rose-600">*</span></label><input id="pp-due" v-model="hours" type="number" min="0" step="0.5" class="input" /></div>
+          <div><label class="label" for="pp-cap">โควตารวมต่อวัน</label><input id="pp-cap" v-model="form.dayCap" type="number" min="0" class="input" placeholder="ว่าง = ไม่จำกัด" /></div>
+        </div>
+        <div>
+          <div class="label">สินค้าในแคมเปญ (เลือกจากสินค้า POS) <span class="text-rose-600">*</span></div>
+          <p v-if="!sellable.length" class="text-sm text-stone-500">ไม่มีสินค้าที่ใช้ได้</p>
+          <div v-for="r in sellable" :key="r.id" class="flex items-center gap-3 border-b border-stone-100 py-2">
+            <label class="flex min-w-0 flex-1 items-center gap-2 text-sm">
+              <input v-model="sel[r.id].on" type="checkbox" class="h-4 w-4" :aria-label="`เลือก ${r.name}`" />
+              <span class="truncate">{{ r.name }}</span>
+            </label>
+            <input v-if="sel[r.id].on" v-model="sel[r.id].cap" type="number" min="0" class="input h-9 w-24" :aria-label="`เพดานต่อวันของ ${r.name}`" placeholder="ไม่จำกัด" />
+          </div>
+        </div>
+        <p v-if="ferr" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ ferr }}</p>
+      </div>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="form = null">ปิด</button>
+        <button class="btn-primary flex-1 sm:flex-none" @click="submit">บันทึก</button>
+      </template>
+    </AppModal>
+  </ManageShell>
+</template>

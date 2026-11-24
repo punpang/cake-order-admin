@@ -59,6 +59,7 @@ const Accounting = () => import('./views/accounting/Accounting.vue')
 const ManageLegal = () => import('./views/manage/ManageLegal.vue')
 const ManagePrinting = () => import('./views/manage/ManagePrinting.vue')
 const ManageLinks = () => import('./views/manage/ManageLinks.vue')
+const ManagePreorders = () => import('./views/manage/ManagePreorders.vue')
 const ManageRetention = () => import('./views/manage/ManageRetention.vue')
 const ManageGallery = () => import('./views/manage/ManageGallery.vue')
 const ManagePhotoRequests = () => import('./views/manage/ManagePhotoRequests.vue')
@@ -144,6 +145,7 @@ const router = createRouter({
     { path: '/admin/settings/deletion-requests', component: ManageDeletionRequests, meta: { data: ['rec:deletionRequests'] } },
     { path: '/admin/settings/legal', component: ManageLegal, meta: { data: ['rec:consents'] } },
     { path: '/admin/settings/links', component: ManageLinks },
+    { path: '/admin/settings/preorders', component: ManagePreorders, meta: { perms: ['managePreorder'], data: ['preorders'] } },
     { path: '/admin/settings/bot', component: ManageBot },
     { path: '/admin/settings/retention', component: ManageRetention },
     { path: '/admin/settings/errors', component: ManageErrors, meta: { data: ['users'] } },
