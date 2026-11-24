@@ -82,6 +82,19 @@ t('เลือกหมวด: มีหัวข้อบอกว่าเป
   } finally { await page.close() }
 })
 
+t('โปรที่เปิดใช้แต่ชื่อยังเป็นตัวอย่าง: แสดงป้ายเตือน', async () => {
+  const { page, errors } = await openPromos({ width: 1280, height: 900 }, 'sample')
+  try {
+    await page.evaluate(() => window.__store.savePosDiscount({ name: 'โปรทดสอบ (ตัวอย่าง)', type: 'percent', value: 5, scope: 'all', active: true }))
+    const badge = page.locator('text=ชื่อยังเป็นตัวอย่าง').first()
+    await badge.waitFor({ timeout: 5000 })
+    assert.ok(await badge.isVisible(), 'ต้องแสดงป้ายเตือนชื่อตัวอย่าง')
+    await page.evaluate(() => { window.__store.db.posDiscounts.find((x) => x.name.includes('(ตัวอย่าง)')).name = 'โปรทดสอบจริง' })
+    assert.equal(await page.locator('text=ชื่อยังเป็นตัวอย่าง').count(), 0, 'ไม่ควรแสดงป้ายเมื่อชื่อถูกแก้แล้ว')
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
 try {
   for (const [name, fn] of cases) {
     try { await fn(); console.log(`PASS ${name}`) } catch (e) { fails++; console.log(`FAIL ${name}: ${e.message}`) }

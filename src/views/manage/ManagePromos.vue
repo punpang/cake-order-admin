@@ -5,6 +5,7 @@ import { db, savePosDiscount, savePosBundle, savePointPromo, saveDeal, removePro
 import { describeDeal, dealWarnings } from '../../lib/promoDeals'
 import { describeSchedule, promoLive, blankSchedule } from '../../lib/posPromo'
 import { money } from '../../lib/format'
+import { isSamplePlaceholder } from '../../lib/storefront'
 import { askConfirm } from '../../lib/confirm'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
@@ -95,6 +96,7 @@ async function flip(x) {
             <span v-if="x.active === false" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิด</span>
             <span v-else-if="promoLive(x)" class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">ใช้อยู่ตอนนี้</span>
             <span v-else class="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">นอกช่วงเวลา</span>
+            <span v-if="x.active !== false && isSamplePlaceholder(x.name)" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">ชื่อยังเป็นตัวอย่าง · แก้ก่อนใช้จริง</span>
           </span>
           <span class="mt-0.5 block text-sm text-stone-600">{{ summary(x) }}</span>
           <span v-for="w in (tab === 'bundle' ? warnings(x) : tab === 'deal' ? dealWarnings(x, db.retailItems) : [])" :key="w" class="mt-0.5 block text-xs text-amber-700">⚠ {{ w }}</span>
