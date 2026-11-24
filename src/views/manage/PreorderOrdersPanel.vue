@@ -67,13 +67,18 @@ const summary = computed(() => {
   const by = {}
   let paid = 0
   let due = 0
+  let value = 0
+  let postage = 0
   for (const o of orders.value) {
     by[o.status] = (by[o.status] || 0) + 1
+    postage += Number(o.shipping?.postage) || 0
     if (o.status === 'cancelled' || o.status === 'expired') continue
     paid += Number(o.paid) || 0
+    value += Number(o.total) || 0
     due += Math.max(0, (Number(o.total) || 0) - (Number(o.paid) || 0))
   }
-  return { count: orders.value.length, by, paid: Math.round(paid * 100) / 100, due: Math.round(due * 100) / 100 }
+  const r2 = (n) => Math.round(n * 100) / 100
+  return { count: orders.value.length, by, paid: r2(paid), due: r2(due), value: r2(value), postage: r2(postage) }
 })
 
 function box(id) {
@@ -106,6 +111,9 @@ onMounted(load)
       รอชำระ {{ summary.by.awaiting_payment || 0 }} · ส่งแล้ว {{ summary.by.shipped || 0 }} · ได้รับแล้ว {{ summary.by.delivered || 0 }} ·
       ยกเลิก/หมดเวลา {{ (summary.by.cancelled || 0) + (summary.by.expired || 0) }}
     </p>
+    <p v-if="!loading && orders.length" class="mt-1 text-sm text-stone-600" data-preorder-report>
+      ยอดออร์เดอร์ {{ summary.value }} บาท · ค่าไปรษณีย์ที่บันทึกแล้ว {{ summary.postage }} บาท
+    </p>
     <p v-if="msg" class="mt-2 text-sm text-stone-700" role="status">{{ msg }}</p>
     <p v-if="!loading && !orders.length" class="mt-2 text-sm text-stone-500">ยังไม่มีออร์เดอร์</p>
     <div class="mt-3" data-ship-batch-root>
@@ -122,21 +130,17 @@ onMounted(load)
         </label>
         <button type="button" class="btn-outline h-11 px-3" @click="applyPasteToRows">จับคู่เลขกับแถว</button>
         <p v-if="!batch.rows.length" class="text-sm text-stone-500">ไม่มีออร์เดอร์ที่พร้อมส่ง</p>
-        <div v-else class="overflow-x-auto">
-          <table class="min-w-full text-sm">
-            <thead><tr class="text-left text-stone-600"><th class="px-2 py-1">รหัส</th><th class="px-2 py-1">ลูกค้า</th><th class="px-2 py-1">เลขพัสดุ</th><th class="px-2 py-1">ค่าไปรษณีย์</th></tr></thead>
-            <tbody>
-              <tr v-for="(r, i) in batch.rows" :key="r.orderId" class="border-t border-stone-100">
-                <td class="px-2 py-1 font-mono">{{ r.code }}</td>
-                <td class="px-2 py-1">{{ r.customer }}</td>
-                <td class="px-2 py-1">
-                  <input :ref="(el) => { trackRefs[i] = el }" v-model="r.tracking" class="input h-11 w-44" :aria-label="`เลขพัสดุ ${r.code}`" @keydown.enter.prevent="focusNext(i)" />
-                  <div v-if="batch.errors.rowErrors[r.orderId] || batch.results[r.orderId]" class="text-xs text-rose-700">{{ batch.errors.rowErrors[r.orderId] || batch.results[r.orderId] }}</div>
-                </td>
-                <td class="px-2 py-1"><input v-model="r.postage" type="number" min="0" step="0.01" class="input h-11 w-28" :aria-label="`ค่าไปรษณีย์ ${r.code}`" /></td>
-              </tr>
-            </tbody>
-          </table>
+        <div v-else class="space-y-2">
+          <div class="hidden grid-cols-4 gap-2 text-xs text-stone-500 sm:grid"><span>รหัส / ลูกค้า</span><span>เลขพัสดุ</span><span>ค่าไปรษณีย์ (บาท)</span><span></span></div>
+          <div v-for="(r, i) in batch.rows" :key="r.orderId" class="grid grid-cols-1 gap-2 rounded-xl border border-stone-100 p-2 sm:grid-cols-4 sm:items-start">
+            <div class="text-sm"><div class="font-mono">{{ r.code }}</div><div class="text-stone-600">{{ r.customer }}</div></div>
+            <div>
+              <input :ref="(el) => { trackRefs[i] = el }" v-model="r.tracking" class="input h-11 w-full" :aria-label="`เลขพัสดุ ${r.code}`" @keydown.enter.prevent="focusNext(i)" />
+              <div v-if="batch.errors.rowErrors[r.orderId] || batch.results[r.orderId]" class="mt-1 text-xs text-rose-700">{{ batch.errors.rowErrors[r.orderId] || batch.results[r.orderId] }}</div>
+            </div>
+            <input v-model="r.postage" type="number" min="0" step="0.01" class="input h-11 w-full" :aria-label="`ค่าไปรษณีย์ ${r.code}`" placeholder="ค่าไปรษณีย์" />
+            <span></span>
+          </div>
         </div>
         <div class="flex flex-wrap gap-2">
           <button type="button" class="btn-primary h-11 px-4" :disabled="batch.saving || !batch.rows.length" @click="saveBatch">{{ batch.saving ? 'กำลังบันทึก…' : `บันทึก ${batch.rows.length} รายการ` }}</button>
