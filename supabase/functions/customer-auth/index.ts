@@ -7,6 +7,8 @@ import { clientIp } from '../_shared/ratelimit.ts'
 import { promoConsentPatch } from '../_shared/schedlib/promoConsent.js'
 import { publicPaymentOf } from '../_shared/shoppay.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { MIN, OTP, hex, sha256Hex, randHex, thaiPhone } from '../_shared/otp.ts'
+export { thaiPhone }
 
 // ระบบบัญชีลูกค้าฝั่งเซิร์ฟเวอร์: OTP ทาง SMS (เกตเวย์ของร้าน) + PIN 6 หลัก + เซสชัน
 // ตารางทั้งหมด (OTP/PIN/เซสชัน) เปิด RLS ไม่มี policy → เข้าถึงได้เฉพาะ service role ในฟังก์ชันนี้
@@ -14,26 +16,14 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 // การส่ง OTP ใช้ SMS Gateway API v1 เดียวกับ sms-send: POST {SMS_GATEWAY_URL ใน _shared/gwfetch.ts}/v1/sms · Bearer SMS_API_KEY · Idempotency-Key = รหัส OTP (กันส่งซ้ำเมื่อลองใหม่)
 const CORS = { 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
-const MIN = 60000
-// perAllHour: เพดานรวมทั้งระบบต่อชั่วโมง (กันถูกยิงขอ OTP ถึงเบอร์คนอื่นเพื่อเผาโควตา SMS แม้ปลอม IP ได้)
-const OTP = { ttlMs: 5 * MIN, resendMs: MIN, maxTries: 5, verifiedMs: 10 * MIN, perPhoneHour: 5, perIpHour: 20, perAllHour: 120 }
 const PIN = { maxFails: 5, lockMs: 15 * MIN, dailyMax: 10 } // ล็อกนานขึ้นเมื่อผิดซ้ำ (ดู _shared/authguard.ts) · ลองผิดได้ dailyMax ครั้งต่อวัน
 const SESSION_MS = 14 * 24 * 3600 * 1000
 const PBKDF2_ITER = 210000
 const enc = new TextEncoder()
-const hex = (b: ArrayBuffer | Uint8Array) => [...new Uint8Array(b as ArrayBuffer)].map((x) => x.toString(16).padStart(2, '0')).join('')
-const sha256Hex = async (s: string) => hex(await crypto.subtle.digest('SHA-256', enc.encode(s)))
-const randHex = (n = 16) => hex(crypto.getRandomValues(new Uint8Array(n)))
 const safeEq = (a: string, b: string) => { if (a.length !== b.length) return false; let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i); return r === 0 }
 async function pbkdf2(pin: string, saltHex: string) {
   const key = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits'])
   return hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode(saltHex), iterations: PBKDF2_ITER }, key, 256))
-}
-// เบอร์มือถือไทย → { local: 0XXXXXXXXX, e164: +66XXXXXXXXX }
-export function thaiPhone(raw: unknown) {
-  const d = String(raw ?? '').replace(/[\s-]/g, '')
-  const m = /^(?:\+66|66|0)([689]\d{8})$/.exec(d)
-  return m ? { local: `0${m[1]}`, e164: `+66${m[1]}` } : null
 }
 export function weakPin(pin: string, phone = ''): string {
   const p = String(pin ?? '')
