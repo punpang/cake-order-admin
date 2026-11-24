@@ -106,6 +106,42 @@ t('หน้าตั้งค่าร้าน: มีส่วนค่าส
   } finally { await page.close() }
 })
 
+t('ช่องขนาดสินค้าและราคาขั้นรับทศนิยมได้ (ไม่ถูกตัดจุดทิ้ง) · น้ำหนักที่เป็นทศนิยมถูกปฏิเสธ', async () => {
+  const { page, errors } = await open('#/admin/settings/retail')
+  try {
+    await page.getByText('สินค้า (POS / สินค้าสำเร็จ)').first().waitFor({ state: 'visible', timeout: 60000 })
+    await page.getByRole('button', { name: 'เพิ่มสินค้า' }).click()
+    await page.locator('label.label', { hasText: /^ชื่อ/ }).first().locator('xpath=following-sibling::input').fill('ทศนิยมทดสอบ')
+    await field(page, 'ราคา (บาท)').fill('50')
+    await field(page, 'น้ำหนัก (กรัม)').fill('800.5')
+    await field(page, 'กว้าง (ซม.)').fill('12.5')
+    await field(page, 'ยาว (ซม.)').fill('20')
+    await field(page, 'สูง (ซม.)').fill('10')
+    await page.getByRole('button', { name: 'บันทึก', exact: true }).last().click()
+    await page.getByText(/น้ำหนักต้องเป็นจำนวนเต็มกรัม/).waitFor({ state: 'visible' })
+    assert.equal(await itemNamed(page, 'ทศนิยมทดสอบ'), null)
+    await field(page, 'น้ำหนัก (กรัม)').fill('800')
+    await page.getByRole('button', { name: 'บันทึก', exact: true }).last().click()
+    await page.waitForFunction(async () => !!(await import('/src/data/store.js')).db.retailItems.find((x) => x.name === 'ทศนิยมทดสอบ'))
+    assert.deepEqual((await itemNamed(page, 'ทศนิยมทดสอบ')).dimsCm, { w: 12.5, l: 20, h: 10 })
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
+t('ตารางอัตราค่าส่ง: ราคาทศนิยม 32.5 ถูกบันทึกเป็น 32.5 (ไม่ใช่ 325)', async () => {
+  const { page, errors } = await open('#/admin/settings/shop')
+  try {
+    await page.getByText('ค่าส่งพัสดุไปรษณีย์').first().waitFor({ state: 'visible', timeout: 60000 })
+    await page.getByRole('button', { name: 'เพิ่มขั้น' }).click()
+    await page.getByLabel('น้ำหนักสูงสุดของขั้น (กรัม)').first().fill('1000')
+    await page.getByLabel('ราคาของขั้น (บาท)').first().fill('32.5')
+    await page.getByRole('button', { name: 'บันทึก', exact: true }).click()
+    await page.waitForFunction(async () => (await import('/src/data/store.js')).db.shop.parcel?.rates?.length === 1)
+    assert.equal(await page.evaluate(async () => (await import('/src/data/store.js')).db.shop.parcel.rates[0].price), 32.5)
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
 let fails = 0
 for (const [name, fn] of cases) {
   try { await fn(); console.log(`PASS ${name}`) } catch (e) { fails++; console.log(`FAIL ${name}\n  ${String(e?.message || e).split('\n').slice(0, 4).join('\n  ')}`) }

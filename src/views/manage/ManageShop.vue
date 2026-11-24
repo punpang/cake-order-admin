@@ -252,13 +252,13 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         <div class="card-title mb-3"><AppIcon name="truck" class="text-brand-600" /> ค่าส่งพัสดุไปรษณีย์ (ตามน้ำหนัก)</div>
         <p class="mb-3 text-xs text-stone-500">คิดจากน้ำหนักรวมสินค้า+กล่อง เทียบกับน้ำหนักปริมาตร (กว้าง×ยาว×สูง ÷ ตัวหาร) ใช้ค่าที่มากกว่า · สินค้าต้องกรอกน้ำหนักและขนาดก่อน</p>
         <div class="grid grid-cols-2 gap-3">
-          <div><label class="label" for="pc-box">น้ำหนักกล่องเปล่า (กรัม)</label><input id="pc-box" v-model="st.parcel.boxG" type="text" v-num class="input" /></div>
-          <div><label class="label" for="pc-div">ตัวหารน้ำหนักปริมาตร</label><input id="pc-div" v-model="st.parcel.volDivisor" type="text" v-num class="input" /></div>
+          <div><label class="label" for="pc-box">น้ำหนักกล่องเปล่า (กรัม)</label><input id="pc-box" v-model="st.parcel.boxG" type="text" inputmode="decimal" class="input" /></div>
+          <div><label class="label" for="pc-div">ตัวหารน้ำหนักปริมาตร</label><input id="pc-div" v-model="st.parcel.volDivisor" type="text" inputmode="decimal" class="input" /></div>
         </div>
         <div class="mt-3 space-y-2">
           <div v-for="(r, i) in st.parcel.rates" :key="i" class="flex items-center gap-2">
-            <input v-model="r.upToG" type="text" v-num class="input min-w-0 flex-1" aria-label="น้ำหนักสูงสุดของขั้น (กรัม)" placeholder="น้ำหนักสูงสุด (กรัม)" />
-            <input v-model="r.price" type="text" v-num class="input min-w-0 flex-1" aria-label="ราคาของขั้น (บาท)" placeholder="ราคา (บาท)" />
+            <input v-model="r.upToG" type="text" inputmode="numeric" class="input min-w-0 flex-1" aria-label="น้ำหนักสูงสุดของขั้น (กรัม)" placeholder="น้ำหนักสูงสุด (กรัม)" />
+            <input v-model="r.price" type="text" inputmode="decimal" class="input min-w-0 flex-1" aria-label="ราคาของขั้น (บาท)" placeholder="ราคา (บาท)" />
             <button type="button" class="btn-danger h-11 w-11 shrink-0 px-0" aria-label="ลบขั้น" @click="st.parcel.rates.splice(i, 1)"><AppIcon name="trash" :size="16" /></button>
           </div>
           <button type="button" class="btn-soft h-9 px-3 text-sm" @click="st.parcel.rates.push({ upToG: '', price: '' })"><AppIcon name="plus" :size="14" /> เพิ่มขั้น</button>

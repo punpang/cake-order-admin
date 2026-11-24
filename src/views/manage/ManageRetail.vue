@@ -227,10 +227,10 @@ function doAdd() {
         <div>
           <div class="label">สำหรับส่งพัสดุ (ไม่บังคับ)</div>
           <div class="grid grid-cols-2 gap-3">
-            <div class="col-span-2"><label class="label" for="rt-weight">น้ำหนัก (กรัม)</label><input id="rt-weight" v-model="form.weightG" type="text" v-num class="input" placeholder="เช่น 800" /></div>
-            <div><label class="label" for="rt-dimw">กว้าง (ซม.)</label><input id="rt-dimw" v-model="form.dimW" type="text" v-num class="input" /></div>
-            <div><label class="label" for="rt-diml">ยาว (ซม.)</label><input id="rt-diml" v-model="form.dimL" type="text" v-num class="input" /></div>
-            <div class="col-span-2"><label class="label" for="rt-dimh">สูง (ซม.)</label><input id="rt-dimh" v-model="form.dimH" type="text" v-num class="input" /></div>
+            <div class="col-span-2"><label class="label" for="rt-weight">น้ำหนัก (กรัม)</label><input id="rt-weight" v-model="form.weightG" type="text" inputmode="numeric" class="input" placeholder="เช่น 800" /></div>
+            <div><label class="label" for="rt-dimw">กว้าง (ซม.)</label><input id="rt-dimw" v-model="form.dimW" type="text" inputmode="decimal" class="input" /></div>
+            <div><label class="label" for="rt-diml">ยาว (ซม.)</label><input id="rt-diml" v-model="form.dimL" type="text" inputmode="decimal" class="input" /></div>
+            <div class="col-span-2"><label class="label" for="rt-dimh">สูง (ซม.)</label><input id="rt-dimh" v-model="form.dimH" type="text" inputmode="decimal" class="input" /></div>
           </div>
           <p class="mt-1 text-xs text-stone-400">กรอกให้ครบทั้งน้ำหนักและขนาด หรือเว้นว่างทั้งหมด · สินค้าที่ไม่กรอกจะใช้ในแคมเปญส่งพัสดุไม่ได้</p>
         </div>
