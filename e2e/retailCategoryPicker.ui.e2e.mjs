@@ -51,12 +51,16 @@ t('ฟอร์มสินค้า: สวิตช์ในกรอบห่
     await page.waitForSelector('#retail-cat-new')
     const r = await page.evaluate(() => {
       const box = [...document.querySelectorAll('[role="switch"]')].find((b) => b.textContent.includes('แสดงใน POS'))?.parentElement
-      const rows = [...box.querySelectorAll(':scope > [role="switch"]')].map((b) => b.getBoundingClientRect())
+      const sw = [...box.querySelectorAll(':scope > [role="switch"]')]
+      const rows = sw.map((b) => b.getBoundingClientRect())
       const gaps = rows.slice(1).map((r2, i) => Math.round(r2.top - rows[i].bottom))
-      return { gaps, heights: rows.map((x) => Math.round(x.height)) }
+      return { gaps, heights: rows.map((x) => Math.round(x.height)), first: sw[0]?.textContent.trim() }
     })
-    assert.ok(r.gaps.length >= 5, 'ต้องมีสวิตช์ในกรอบอย่างน้อย 6 แถว')
-    assert.ok(Math.max(...r.gaps) <= 8, `ช่องว่างระหว่างแถวเกิน 8px: ${r.gaps.join(', ')}`)
+    assert.equal(r.first, 'ใช้งาน (ปิด = ไม่แสดงทุกที่)', 'สวิตช์ใช้งานต้องอยู่เป็นแถวแรกในกรอบ')
+    assert.ok(r.gaps.length >= 6, 'ต้องมีสวิตช์ในกรอบอย่างน้อย 7 แถว')
+    // คู่แรกคั่นด้วยเส้นแบ่ง จึงอนุญาตช่องว่างมากกว่าคู่อื่น
+    assert.ok(Math.max(...r.gaps.slice(1)) <= 8, `ช่องว่างระหว่างแถวเกิน 8px: ${r.gaps.join(', ')}`)
+    assert.ok(r.gaps[0] <= 24, `ช่องว่างก่อนเส้นแบ่งเกิน 24px: ${r.gaps[0]}`)
     assert.ok(Math.min(...r.heights) >= 44, `แถวสูงต่ำกว่า 44px: ${r.heights.join(', ')}`)
     assert.deepEqual(errors, [])
   } finally { await page.context().close() }
