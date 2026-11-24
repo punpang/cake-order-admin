@@ -69,8 +69,8 @@ function save(choice) {
         <div class="flex items-center justify-between gap-3"><span><b>วิเคราะห์</b> · ช่วยแนะนำแบบเค้กจากการดูของคุณ</span><AppSwitch v-model="pick.analytics" /></div>
       </div>
       <div class="mt-2 flex flex-wrap gap-2 sm:row-span-2 sm:mt-0 sm:justify-end">
-        <button class="btn-primary min-w-0 flex-1 basis-0 border-2! border-choco! bg-choco! px-2 hover:bg-stone-700! max-sm:h-11 sm:h-10 sm:min-w-36 sm:flex-none" @click="save({ analytics: true })">ยอมรับทั้งหมด</button>
-        <button class="btn-outline min-w-0 flex-1 basis-0 border-2! border-stone-800! bg-white! px-2 text-stone-900! max-sm:h-11 sm:h-10 sm:min-w-36 sm:flex-none" title="ใช้เฉพาะคุกกี้ที่จำเป็น" @click="save({ analytics: false })">ปฏิเสธ</button>
+        <button class="btn-primary min-w-0 flex-1 basis-0 border-2! border-choco! bg-choco! px-2 hover:bg-stone-700! h-11 sm:min-w-36 sm:flex-none" @click="save({ analytics: true })">ยอมรับทั้งหมด</button>
+        <button class="btn-outline min-w-0 flex-1 basis-0 border-2! border-stone-800! bg-white! px-2 text-stone-900! h-11 sm:min-w-36 sm:flex-none" title="ใช้เฉพาะคุกกี้ที่จำเป็น" @click="save({ analytics: false })">ปฏิเสธ</button>
         <button v-if="!detail" class="btn-outline border-0! max-sm:h-11" @click="detail = true">ตั้งค่า</button>
         <button v-else class="btn-outline border-0!" @click="save({ ...pick })">บันทึกการเลือก</button>
       </div>
