@@ -42,8 +42,11 @@ const cardInfo = (page, name) => page.evaluate((name) => {
   if (!btn) throw new Error('ไม่พบการ์ด ' + name)
   const img = btn.querySelector('img')
   const fallback = btn.querySelector('[role="img"]')
-  const wrap = img?.closest('span.h-16') || fallback?.closest('span.h-16')
+  const wrap = img?.closest('span.aspect-square') || fallback?.closest('span.aspect-square')
+  const box = wrap ? wrap.getBoundingClientRect() : null
   return {
+    ratio: box ? box.width / box.height : 0,
+    imgBox: img ? (() => { const r = img.getBoundingClientRect(); return { w: r.width, h: r.height } })() : null,
     imgSrc: img?.getAttribute('src') || '',
     hasFallback: !!fallback,
     fallbackLabel: fallback?.getAttribute('aria-label') || '',
@@ -59,11 +62,14 @@ t('สินค้าที่มีรูปแสดงรูปในกา�
     await page.waitForTimeout(300)
     const withImg = await cardInfo(page, names.withImage)
     assert.equal(withImg.imgSrc, PNG, 'การ์ดที่มีรูปต้องแสดงรูปนั้น')
+    assert.ok(Math.abs(withImg.ratio - 1) < 0.02, `กรอบรูปต้องเป็น 1:1 (ได้ ${withImg.ratio.toFixed(3)})`)
+    assert.ok(withImg.imgBox && Math.abs(withImg.imgBox.w - withImg.imgBox.h) < 1, 'รูปต้องเติมเต็มกรอบเป็นจัตุรัส')
     assert.ok(withImg.text.includes(names.withImage), 'ชื่อสินค้ายังต้องอยู่ในการ์ด')
     const noImg = await cardInfo(page, names.noImage)
     assert.equal(noImg.imgSrc, '', 'การ์ดที่ไม่มีรูปต้องไม่มี img')
     assert.equal(noImg.hasFallback, true, 'การ์ดที่ไม่มีรูปต้องแสดงภาพสำรอง')
     assert.equal(noImg.fallbackLabel, names.noImage)
+    assert.ok(Math.abs(noImg.ratio - 1) < 0.02, `ภาพสำรองต้องเป็นกรอบ 1:1 (ได้ ${noImg.ratio.toFixed(3)})`)
     assert.ok(noImg.text.includes('฿'), 'ราคายังต้องอยู่ในการ์ด')
     assert.deepEqual(errors, [])
   } finally { await page.close() }
