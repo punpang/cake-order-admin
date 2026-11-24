@@ -99,5 +99,42 @@ t('จัดส่งใหม่: ริบค่าส่งเดิมเข
   balanced(ret)
 })
 
+
+// ออร์เดอร์มี VAT 7% รวมในราคา: ยอดรวม 107 (สินค้า 100 + ค่าส่ง 7 ผ่าน items/shippingFee) ตามสูตร orderTotals
+const vatOrder = (over = {}) => ({ id: 'pv', code: 'PRE-VAT-1', status: 'payment_confirmed', vat: { rate: 7, mode: 'inclusive' }, items: [{ kind: 'retail', retailId: 'r1', unitPrice: 107, qty: 1 }], payments: [], ...over })
+t('VAT มัดจำ: รับ 53.5 ลงภาษีขายตามสัดส่วนของยอดรวม 107 (ไม่เกินยอด VAT ทั้งออเดอร์)', () => {
+  const es = preorderEntries({ ...vatOrder(), payments: [{ id: 'p1', amount: 53.5, method: 'cash', status: 'confirmed', at: '2026-11-24T03:00:00.000Z' }] })
+  const dep = es.find((e) => e.id === 'pre-dep:pv:p1')
+  assert.ok(dep)
+  assert.equal(dep.lines.find((l) => l.account === '2200').cr, 3.5)
+  assert.equal(dep.lines.find((l) => l.account === '2300').cr, 50)
+  assert.ok(dep.tax && dep.tax[0].kind === 'output')
+  balanced(dep)
+})
+t('ส่งมอบแล้ว: รับรู้รายได้ (ยอดก่อน VAT) หักมัดจำ 2300 ที่รับไว้ และภาษีขายรวมครบ 7 บาท', () => {
+  const o = { ...vatOrder(), status: 'delivered', deliveredAt: '2026-11-26T03:00:00.000Z', payments: [{ id: 'p1', amount: 107, method: 'bank', status: 'confirmed', at: '2026-11-24T03:00:00.000Z' }] }
+  const es = preorderEntries(o)
+  const dlv = es.find((e) => e.id === 'pre-dlv:pv')
+  assert.ok(dlv, 'ต้องมีรายการส่งมอบ')
+  balanced(dlv)
+  const pay = es.find((e) => e.id === 'pre-dep:pv:p1')
+  const vat = (pay.lines.find((l) => l.account === '2200')?.cr || 0) + (dlv.lines.find((l) => l.account === '2200')?.cr || 0)
+  assert.equal(Math.round(vat * 100), 700)
+  assert.equal(Math.round(dlv.lines.find((l) => l.account === '2300').dr * 100), Math.round((107 - 7) * 100))
+})
+t('ส่งมอบแล้วไม่มีรายได้ซ้ำเมื่อส่งใหม่หลังจัดส่งใหม่ (ไม่มีรายการ pre-dlv)', () => {
+  const o = { ...vatOrder(), status: 'delivered', deliveredAt: '2026-11-26T03:00:00.000Z', returns: [{ id: 'rt1', decision: 'reship', shippingForfeited: 0, at: '2026-11-25T00:00:00.000Z' }], payments: [{ id: 'p1', amount: 107, method: 'bank', status: 'confirmed', at: '2026-11-24T03:00:00.000Z' }] }
+  assert.equal(preorderEntries(o).some((e) => e.id === 'pre-dlv:pv'), false)
+})
+t('รับคืนหลังส่งมอบ: กลับรายได้ 4950 และภาษีขาย ไม่ลดมัดจำ 2300 ที่หมดไปแล้ว', () => {
+  const o = { ...vatOrder(), status: 'delivered', deliveredAt: '2026-11-26T03:00:00.000Z', payments: [{ id: 'p1', amount: 107, method: 'bank', status: 'confirmed', at: '2026-11-24T03:00:00.000Z' }], returns: [{ id: 'rt2', decision: 'refund', at: '2026-11-27T03:00:00.000Z', decidedAt: '2026-11-27T03:00:00.000Z', shippingForfeited: 0, refunds: [{ amount: 107, method: 'bank' }] }] }
+  const r = preorderEntries(o).find((e) => e.id === 'pre-ret:pv:rt2')
+  assert.ok(r)
+  balanced(r)
+  assert.equal(r.lines.find((l) => l.account === '4950').dr, 100)
+  assert.equal(r.lines.find((l) => l.account === '2200').dr, 7)
+  assert.equal(r.lines.find((l) => l.account === '2300'), undefined)
+})
+
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')
 process.exitCode = fail ? 1 : 0

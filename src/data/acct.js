@@ -30,11 +30,15 @@ const today = () => toDateStr(new Date())
 // ตัวสร้างรายการอัตโนมัติเพิ่มเติม (ค่าเสื่อม ตัดจำหน่าย ผ่อนชำระ ฯลฯ ลงทะเบียนในรอบถัด ๆ ไป)
 export const extraGenerators = []
 
+// ออร์เดอร์สั่งล่วงหน้าทั้งหมดสำหรับบัญชี (โหลดตอนเปิดหน้าบัญชีผ่าน preorder-admin · accounting) · error = โหลดไม่ได้ ทำให้ยอดบัญชีขาดส่วนนี้
+export const preorderAcct = reactive({ orders: [], error: '' })
+
 const ctx = () => ({
   customerOf: (o) => { const c = findCustomer(o.customerId); return c ? { name: c.tax?.name || c.name, taxId: c.tax?.taxId || '' } : null },
   todayStr: today(),
   orders: db.orders, groups: db.optionGroups, retail: db.retailItems, ingredients: db.ingredients,
   coupons: db.coupons, rewards: db.rewards, pointValue: db.loyalty.pointValue, acct: db.acct, shop: db.shop,
+  preorders: preorderAcct.orders,
 })
 
 // รายการอัตโนมัติ (ทั้งหมด ไม่สนปิดงวด)
