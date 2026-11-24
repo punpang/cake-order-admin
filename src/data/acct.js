@@ -318,7 +318,7 @@ const sellerOk = () => sellerCheck(db.shop.vat)
 export function invoiceBlock(order, buyer = null) {
   if (!order?.vat || !(Number(order.vat.rate) > 0)) return 'ออร์เดอร์นี้ไม่ได้คิด VAT'
   if (order.status === 'cancelled' || order.status === 'draft') return 'ออร์เดอร์นี้ออกใบกำกับภาษีไม่ได้'
-  if (invoiceOfOrder(order.id)) return 'ออกใบกำกับภาษีของออร์เดอร์นี้แล้ว (ยกเลิกด้วยใบลดหนี้ก่อนจึงออกใหม่)'
+  if (invoiceOfOrder(order.id)) return 'ออกใบกำกับภาษีของออร์เดอร์นี้แล้ว (แก้ไขใบเดิมได้จากหน้าใบกำกับภาษี)'
   const t = orderTotals(order)
   if (t.balance > 0.004) return 'ชำระยังไม่ครบ (ออกใบกำกับภาษีเมื่อรับชำระครบ)'
   if (!(t.vat > 0)) return 'ไม่มี VAT ในออร์เดอร์นี้'
@@ -377,6 +377,31 @@ function voidCore(id, reason, by) {
   invs().push(cn)
   inv.voidedBy = cn.id
   return { ok: true, creditNote: cn }
+}
+// แก้ไขข้อมูลผู้ซื้อของใบกำกับที่ออกแล้ว (พนักงาน) → ขั้นเดียว: ออกใบลดหนี้ใบเดิม + ออกใบกำกับใบใหม่ (ใบเดิมยังเก็บไว้)
+// ถ้าออกใบใหม่ไม่สำเร็จ ย้อนการยกเลิกทั้งหมด เพื่อไม่ให้ออร์เดอร์เหลือสถานะไม่มีใบ
+export function reviseTaxInvoice(invoiceId, buyer) {
+  const g = guard('taxInvoice')
+  if (g) return g
+  const inv = invs().find((i) => i.id === invoiceId && i.type === 'invoice')
+  if (!inv) return { error: 'ไม่พบใบกำกับภาษี' }
+  if (inv.voidedBy) return { error: 'ใบนี้ถูกยกเลิกแล้ว' }
+  const order = db.orders.find((o) => o.id === inv.orderId)
+  if (!order) return { error: 'ไม่พบออร์เดอร์' }
+  const b = cleanBuyer(buyer || {})
+  const err = buyerError(b)
+  if (err) return { error: err }
+  const old = inv.buyer || {}
+  if (['name', 'taxId', 'branch', 'address'].every((k) => String(old[k] ?? '') === String(b[k] ?? ''))) return { error: 'ข้อมูลผู้ซื้อไม่มีการเปลี่ยนแปลง' }
+  const v = voidCore(inv.id, 'แก้ไขข้อมูลผู้ซื้อ', session.userId)
+  if (v.error) return v
+  const n = issueCore(order, b, session.userId, inv.rev || 0)
+  if (n.error) {
+    invs().splice(invs().indexOf(v.creditNote), 1)
+    delete inv.voidedBy
+    return n
+  }
+  return { ok: true, creditNote: v.creditNote, invoice: n.invoice }
 }
 // ยกเลิกออร์เดอร์/บิลที่ออกใบกำกับภาษีไว้แล้ว → ออกใบลดหนี้อัตโนมัติ (ระบบเป็นผู้ออก ไม่ตรวจสิทธิ์) · ลงทะเบียนเป็น hook ของ cancelOrder ใน store
 cancelHooks.push((order) => {
