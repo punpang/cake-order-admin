@@ -98,7 +98,8 @@ function save() {
 </script>
 
 <template>
-  <AppModal :title="`แลกสินค้า ${orderNo(order.code)}`" @close="emit('close')">
+  <AppModal split :title="`แลกสินค้า ${orderNo(order.code)}`" @close="emit('close')">
+    <template #left>
     <div class="space-y-5">
       <!-- 1) สินค้าเดิมที่คืน -->
       <section class="space-y-2">
@@ -124,6 +125,10 @@ function save() {
         <RefundEditor v-model="refunds" :paid="orderTotals(order).paidNet" :can-credit="!!customer && !customer.deleted" :default-method="defMethod" />
       </section>
 
+    </div>
+    </template>
+    <template #center>
+    <div class="space-y-5">
       <!-- 3) สินค้าใหม่ -->
       <section class="space-y-2">
         <div class="label">3. สินค้าใหม่</div>
@@ -144,6 +149,10 @@ function save() {
         </div>
       </section>
 
+    </div>
+    </template>
+    <template #right>
+    <div class="space-y-5">
       <!-- สรุป + ชำระ -->
       <section class="space-y-3 rounded-xl bg-stone-50 p-3">
         <div class="flex justify-between text-sm"><span class="text-stone-600">คืนสินค้าเดิม</span><b class="tabular-nums text-stone-900">−{{ money(returnAmount) }}</b></div>
@@ -171,6 +180,7 @@ function save() {
 
       <p v-if="err" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
     </div>
+    </template>
     <template #footer>
       <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ปิด</button>
       <button class="btn-primary flex-1 sm:flex-none" :disabled="saving || !returnPicked.length || !newCart.length || !cashOk || !cardOk" @click="save">ยืนยันแลกสินค้า</button>
