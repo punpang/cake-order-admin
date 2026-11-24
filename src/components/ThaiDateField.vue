@@ -32,26 +32,18 @@ const years = computed(() => {
 
 <template>
   <div class="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.5fr)_minmax(0,1.3fr)] gap-2" role="group" :aria-label="label">
-    <select class="input thai-date-select" :value="part.d || ''" :aria-label="`${label} วัน`" @change="set('d', $event.target.value)">
+    <select class="input pr-8 text-ellipsis" :value="part.d || ''" :aria-label="`${label} วัน`" @change="set('d', $event.target.value)">
       <option value="">วัน</option>
       <option v-for="d in days" :key="d" :value="d">{{ d }}</option>
     </select>
-    <select class="input thai-date-select" :value="part.m || ''" :aria-label="`${label} เดือน`" @change="set('m', $event.target.value)">
+    <select class="input pr-8 text-ellipsis" :value="part.m || ''" :aria-label="`${label} เดือน`" @change="set('m', $event.target.value)">
       <option value="">เดือน</option>
       <option v-for="(m, i) in MONTHS" :key="m" :value="i + 1">{{ m }}</option>
     </select>
-    <select class="input thai-date-select" :value="part.y || ''" :aria-label="`${label} ปี พ.ศ.`" @change="set('y', $event.target.value)">
+    <select class="input pr-8 text-ellipsis" :value="part.y || ''" :aria-label="`${label} ปี พ.ศ.`" @change="set('y', $event.target.value)">
       <option value="">ปี (พ.ศ.)</option>
       <option v-for="y in years" :key="y" :value="y">{{ y + 543 }}</option>
     </select>
   </div>
 </template>
 
-<style scoped>
-/* ลูกศรเลือกไม่ทับตัวอักษร และข้อความยาวถูกตัดด้วย ... แทนการหายไป */
-.thai-date-select {
-  padding-inline: 0.75rem 2rem;
-  text-overflow: ellipsis;
-  background-position: right 0.6rem center;
-}
-</style>
