@@ -1,8 +1,10 @@
 // เลขที่เอกสาร: PREFIX-ddmmyy-ลำดับ (รันใหม่ทุกวัน, ปี ค.ศ. 2 หลัก, วันที่ตามเวลาเครื่อง/ร้าน)
-//   OR-ddmmyy-xxxxxx (ออร์เดอร์) · POS-ddmmyy-xxxxx · QT-ddmmyy-xxxxx · PAY-ddmmyy-xxxxx
+//   OR-ddmmyy-xxxxxx (ออร์เดอร์) · POS-ddmmyy-xxxxx · QT-ddmmyy-xxxxx · PAY-ddmmyy-xxxxx · PRE-ddmmyy-xxxxxx (สั่งล่วงหน้า)
 // ใช้เฉพาะเลขอ้างอิงภายใน/ลูกค้า — ใบกำกับภาษีและรายการบัญชี ใช้ชุดเลขของฝั่งบัญชี (รันต่อปี ไม่ขาดเลข) ห้ามใช้ตัวนี้
-export const DOC_DIGITS = { OR: 6, POS: 5, QT: 5, PAY: 5 }
+export const DOC_DIGITS = { OR: 6, POS: 5, QT: 5, PAY: 5, PRE: 6 } // PRE = สั่งล่วงหน้า (preorder)
 export const DOC_PREFIXES = Object.keys(DOC_DIGITS)
+// เลขที่ที่พนักงานเบิกล่วงหน้าได้ · PRE ออกโดยเซิร์ฟเวอร์เท่านั้น (แคมเปญสั่งล่วงหน้า) จึงไม่อยู่ในรายการนี้
+export const STAFF_PREFIXES = DOC_PREFIXES.filter((p) => p !== 'PRE')
 const pad2 = (n) => String(n).padStart(2, '0')
 
 export const ddmmyy = (d = new Date()) => `${pad2(d.getDate())}${pad2(d.getMonth() + 1)}${pad2(d.getFullYear() % 100)}`
@@ -59,7 +61,7 @@ export function createNumbering({ alloc = null, batch = 20, low = 5, today = () 
   }
 
   // เบิกล่วงหน้าตอนเริ่มระบบ/ข้ามวัน (เรียกได้ซ้ำ)
-  const prefetch = (date = today()) => Promise.all(DOC_PREFIXES.map((p) => refill(p, ddmmyy(date))))
+  const prefetch = (date = today()) => Promise.all(STAFF_PREFIXES.map((p) => refill(p, ddmmyy(date))))
   // ตั้งตัวนับในเครื่องให้ไม่ต่ำกว่าเลขที่เห็นแล้ว (เช่น หลังโหลดออร์เดอร์) · reset = ล้างเลขเดิม (เช่น เลขจากข้อมูลตัวอย่าง)
   function seen(codes, { reset = false } = {}) {
     if (reset) { local.clear(); pools.clear() }

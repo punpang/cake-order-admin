@@ -533,6 +533,8 @@ export const db = reactive({
   luckyTokens: [],
   // consignRounds: [{ id, consignor, from, to, sales, payout, shop, orderIds, terms, createdAt, createdBy, paidAt, paidBy }] สรุปรอบสินค้าฝากขาย
   consignRounds: [],
+  // preorderCampaigns: [{ id, name, status, orderFrom, orderTo, pickupFrom, pickupTo, depositPercent, payDueMin, dayCap, items }] แคมเปญสั่งล่วงหน้า (ดู src/data/preorder.js)
+  preorderCampaigns: [],
   // บอทตอบแชท (ค่าเริ่มต้นปิด): rules = กฎคีย์เวิร์ด · learned = คู่ ถาม→ตอบ ที่เรียนจากพนักงาน (ตัดข้อมูลส่วนบุคคลแล้ว) · stats
   bot: JSON.parse(JSON.stringify(BOT_DEFAULTS)),
   // สลิปในแชท (config slipQr): enabled = ตรวจรูปสลิปในแชท · mode = auto (ผูกอัตโนมัติเมื่อรหัสอ้างอิงตรงกับออร์เดอร์และครบ 4 ข้อ รวมรหัสสุ่ม Ref 2 ที่ตรงกับรายการแจ้งชำระ) | manual (ร้านเลือกออร์เดอร์ผูกเองในแชท)

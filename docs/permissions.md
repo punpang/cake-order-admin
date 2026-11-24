@@ -7,3 +7,4 @@
 - การเห็นรายการออร์เดอร์: `viewAllOrders` / `viewPrepOrders` (ยืนยันชำระ→เตรียมแล้ว) / `viewDeliveryOrders` (จัดส่ง) แทน `VISIBLE` รายบทบาท
 - เส้นทางหลังบ้านตรวจสิทธิ์ (router `meta.perms`) ไม่มีสิทธิ์ → หน้า "ไม่มีสิทธิ์" · หน้าจัดการตรวจใน `ManageShell` (`perm`)
 - สิทธิ์ของระบบบัญชีเตรียมไว้แล้ว: `acctView acctRecord acctClose acctReports acctTax acctAssets taxInvoice acctSettings`
+- สิทธิ์ของระบบสั่งล่วงหน้า: `managePreorder` (ค่าตั้งต้นแอดมิน · หน้าจอใช้สิทธินี้อย่างเดียว · ฐานข้อมูลยอมรับ `manage` เพิ่มด้วย)
