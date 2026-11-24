@@ -1,8 +1,9 @@
 <script setup>
-// สั่งล่วงหน้า (ลูกค้า) · ขั้นที่ 1: เลือกแคมเปญ → เลือกสินค้า วันรับ วิธีรับ → ดูราคา (คิดที่เซิร์ฟเวอร์)
-// ขั้น OTP และการสร้างออร์เดอร์อยู่ในขั้นถัดไป
-import { computed, onMounted, reactive, ref } from 'vue'
+// สั่งล่วงหน้า (ลูกค้า): เลือกแคมเปญ → เลือกสินค้า วันรับ วิธีรับ → ดูราคา → ยืนยันเบอร์ด้วย OTP
+// การสร้างออร์เดอร์อยู่ในขั้นถัดไป · โทเคนเซสชันเก็บโดย callPreorder อัตโนมัติ
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { callPreorder } from '../../lib/preorderRemote'
+import { loadTurnstile, turnstileOn, turnstileSiteKey } from '../../lib/turnstile'
 
 const campaigns = ref([])
 const loading = ref(true)
@@ -13,6 +14,62 @@ const fulfillment = ref('pickup')
 const qty = reactive({})
 const quote = ref(null)
 const quoteError = ref('')
+
+// ขั้นยืนยัน OTP
+const phone = ref('')
+const code = ref('')
+const name = ref('')
+const consent = ref(false)
+const needConsent = ref(false)
+const otpSent = ref(false)
+const verified = ref(false)
+const otpError = ref('')
+const busy = ref(false)
+const captchaEl = ref(null)
+const captchaToken = ref('')
+let captchaId = null
+
+async function mountCaptcha() {
+  if (!turnstileOn() || captchaId !== null) return
+  try {
+    const ts = await loadTurnstile()
+    await nextTick()
+    if (!captchaEl.value) return
+    captchaId = ts.render(captchaEl.value, {
+      sitekey: turnstileSiteKey(),
+      callback: (t) => { captchaToken.value = t },
+      'expired-callback': () => { captchaToken.value = '' },
+      'error-callback': () => { captchaToken.value = '' },
+    })
+  } catch {
+    otpError.value = 'โหลดตัวยืนยันไม่ได้ กรุณารีเฟรชหน้า'
+  }
+}
+function resetCaptcha() {
+  captchaToken.value = ''
+  if (captchaId !== null && window.turnstile) { try { window.turnstile.reset(captchaId) } catch { /* ไม่เป็นไร */ } }
+}
+
+async function sendCode() {
+  otpError.value = ''
+  if (!captchaToken.value && turnstileOn()) { otpError.value = 'กรุณายืนยันว่าเป็นคนก่อน'; return }
+  busy.value = true
+  const r = await callPreorder('otp_request', { phone: phone.value.trim(), turnstileToken: captchaToken.value })
+  busy.value = false
+  resetCaptcha()
+  if (r.error) { otpError.value = r.error; return }
+  otpSent.value = true
+}
+
+async function verifyCode() {
+  otpError.value = ''
+  busy.value = true
+  const r = await callPreorder('otp_verify', { phone: phone.value.trim(), code: code.value.trim(), name: name.value.trim(), consent: consent.value })
+  busy.value = false
+  if (r.needConsent) { needConsent.value = true; otpError.value = 'ลูกค้าใหม่ต้องยินยอมก่อน (ติ๊กช่องด้านล่างแล้วกดยืนยันอีกครั้ง)'; return }
+  if (r.error) { otpError.value = r.error; return }
+  verified.value = true
+}
 
 const days = computed(() => {
   const c = chosen.value
@@ -52,9 +109,11 @@ async function seeQuote() {
   const r = await callPreorder('quote', { campaignId: chosen.value.id, pickupDate: pickup.value, fulfillment: fulfillment.value, lines: lines.value })
   if (r.error) { quoteError.value = r.error; return }
   quote.value = r
+  if (!otpSent.value && !verified.value) mountCaptcha()
 }
 
 onMounted(load)
+onBeforeUnmount(() => { if (captchaId !== null && window.turnstile) { try { window.turnstile.remove(captchaId) } catch { /* ไม่เป็นไร */ } } })
 </script>
 
 <template>
@@ -107,6 +166,34 @@ onMounted(load)
         <div>ยอดรวม {{ quote.total }} บาท</div>
         <div v-if="quote.shippingFee">ค่าส่งพัสดุ {{ quote.shippingFee }} บาท</div>
       </div>
+
+      <div v-if="quote && !verified" class="card space-y-3 p-4" data-otp>
+        <h3 class="text-sm font-semibold text-stone-900">ยืนยันเบอร์โทรเพื่อสั่งสินค้า</h3>
+        <div v-if="!otpSent" class="space-y-3">
+          <div>
+            <label class="label" for="pre-phone">เบอร์โทรศัพท์</label>
+            <input id="pre-phone" v-model="phone" type="tel" inputmode="tel" autocomplete="tel" class="input h-11 w-full" placeholder="08xxxxxxxx" />
+          </div>
+          <div v-if="turnstileOn()" ref="captchaEl"></div>
+          <button type="button" class="btn-primary h-11 w-full" :disabled="busy || !phone" @click="sendCode">{{ busy ? 'กำลังส่ง…' : 'ส่งรหัส OTP' }}</button>
+        </div>
+        <div v-else class="space-y-3">
+          <p class="text-xs text-stone-500">ส่งรหัสไปที่ {{ phone }} แล้ว รหัสใช้ได้ 5 นาที</p>
+          <div>
+            <label class="label" for="pre-code">รหัส OTP 6 หลัก</label>
+            <input id="pre-code" v-model="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="input h-11 w-full" />
+          </div>
+          <div v-if="needConsent">
+            <label class="label" for="pre-name">ชื่อผู้สั่ง</label>
+            <input id="pre-name" v-model="name" type="text" autocomplete="name" maxlength="80" class="input h-11 w-full" />
+            <label class="mt-2 flex items-start gap-2 text-sm"><input v-model="consent" type="checkbox" class="mt-1 h-4 w-4" /> ยินยอมให้ร้านเก็บและใช้ข้อมูลส่วนตัวเพื่อการสั่งสินค้า (นโยบายความเป็นส่วนตัว)</label>
+          </div>
+          <button type="button" class="btn-primary h-11 w-full" :disabled="busy || code.length !== 6" @click="verifyCode">{{ busy ? 'กำลังตรวจ…' : 'ยืนยัน' }}</button>
+          <button type="button" class="btn-outline h-10 w-full text-sm" @click="otpSent = false; code = ''">เปลี่ยนเบอร์ / ส่งรหัสใหม่</button>
+        </div>
+        <p v-if="otpError" class="text-sm text-rose-700" role="alert">{{ otpError }}</p>
+      </div>
+      <p v-if="verified" class="card p-4 text-sm text-emerald-800" data-verified>ยืนยันเบอร์แล้ว ขั้นถัดไปคือการยืนยันสั่งสินค้า</p>
     </div>
   </section>
 </template>
