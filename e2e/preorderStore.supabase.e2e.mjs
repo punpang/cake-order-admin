@@ -60,8 +60,10 @@ const { step: s, finish } = stepper(p)
     // ลูกค้าเห็นค่าส่งเป็นบรรทัดเดียว ไม่เห็นรายละเอียดกล่องหรือน้ำหนัก
     const quoteText = await p.locator('[data-quote]').innerText()
     assert.doesNotMatch(quoteText, /กล่อง|กรัม/)
+    assert.match(await p.locator('[data-full-payment]').innerText(), /ชำระเต็มจำนวนตอนสั่ง/)
     await p.getByLabel('รับที่ร้าน').check()
     assert.equal(await p.locator('[data-ship]').count(), 0)
+    assert.equal(await p.locator('[data-full-payment]').count(), 0)
   })
 
   await s('2. ยืนยัน OTP: ลูกค้าใหม่ต้องยินยอมก่อนจึงผ่าน', async () => {

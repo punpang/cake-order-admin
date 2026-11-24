@@ -198,6 +198,7 @@ onBeforeUnmount(() => { if (captchaId !== null && window.turnstile) { try { wind
           <label v-if="chosen.parcelEnabled" class="flex h-11 items-center gap-2 rounded-xl border border-stone-200 px-3 text-sm"><input v-model="fulfillment" type="radio" value="delivery" /> ส่งพัสดุ</label>
         </div>
       </fieldset>
+      <p v-if="fulfillment === 'delivery'" class="text-sm font-medium text-amber-800" data-full-payment>การจัดส่งต้องชำระเต็มจำนวนตอนสั่ง</p>
       <p v-if="fulfillment === 'delivery' && chosen.shipping" class="text-sm text-stone-600" data-ship>จัดส่งระหว่าง {{ chosen.shipping.shipFrom }} ถึง {{ chosen.shipping.shipTo }}</p>
 
       <button type="button" class="btn-primary h-11 w-full" @click="seeQuote">ดูราคา</button>
