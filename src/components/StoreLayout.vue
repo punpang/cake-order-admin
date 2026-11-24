@@ -7,6 +7,7 @@ import BellMenu from './BellMenu.vue'
 import CookieBanner from './CookieBanner.vue'
 import ChatFab from './ChatFab.vue'
 import { openCookieSettings } from '../lib/consent'
+import { isSamplePlaceholder } from '../lib/storefront'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { supabaseEnabled } from '../lib/supabase'
@@ -86,7 +87,7 @@ const tabs = computed(() => [
       </div>
       <div class="space-y-1.5">
         <div class="mb-1 font-display text-lg">ติดต่อ</div>
-        <p v-if="db.storefront.address" class="flex gap-2"><AppIcon name="pin" :size="16" class="mt-0.5 text-cream/70" /> {{ db.storefront.address }}</p>
+        <p v-if="db.storefront.address && !isSamplePlaceholder(db.storefront.address)" class="flex gap-2"><AppIcon name="pin" :size="16" class="mt-0.5 text-cream/70" /> {{ db.storefront.address }}</p>
         <p v-if="db.storefront.phone" class="flex gap-2"><AppIcon name="phone" :size="16" class="mt-0.5 text-cream/70" /> <a :href="`tel:${db.storefront.phone}`" class="-my-3 py-3 underline">{{ formatPhone(db.storefront.phone) }}</a></p>
         <p class="flex flex-wrap gap-x-4">
           <a v-if="safeHref(db.storefront.facebookUrl)" :href="safeHref(db.storefront.facebookUrl)" target="_blank" rel="noopener" class="-my-3 py-3 underline">Facebook</a>
