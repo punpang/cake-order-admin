@@ -188,6 +188,13 @@ Deno.test('create: สำเร็จ → เลข PRE และยอดเง
   assertEquals(j.total, 200)
   assertEquals(j.deposit, 100)
 })
+Deno.test('create จัดส่ง: มัดจำเท่ายอดรวมเสมอ (ไม่ใช้เปอร์เซ็นต์ของแคมเปญ)', async () => {
+  await seedAuth()
+  const r = await call({ action: 'create', token: TOKEN, turnstileToken: GOOD, campaignId: 'c_parcel', pickupDate: '2099-12-24', fulfillment: 'delivery', address: '1 ถนนทดสอบ', province: 'เชียงใหม่', shipping: { shipFrom: '2099-12-22', shipTo: '2099-12-23' }, lines: [{ retailId: 'pr2', qty: 1 }], orderId: ORDER, deposit: 1 })
+  assertEquals(r.status, 200)
+  const j = await r.json()
+  assertEquals(j.deposit, j.total)
+})
 Deno.test('create: โควตาเต็ม (RPC reserve_failed) → 409 พร้อมรหัสเหตุผล', async () => {
   await seedAuth()
   ;(globalThis as any).__RPC.punpang_preorder_create = async () => ({ data: null, error: { message: 'reserve_failed:item_full' } })

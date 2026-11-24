@@ -22,12 +22,13 @@ function seed() {
   ;(globalThis as any).__RPC = {}
   ;(globalThis as any).__RPC_CALLS = []
   ;(globalThis as any).__DB = {
-    users: { 'tok-mgr': 'u-mgr', 'tok-pre': 'u-pre', 'tok-chat': 'u-chat' },
+    users: { 'tok-mgr': 'u-mgr', 'tok-pre': 'u-pre', 'tok-chat': 'u-chat', 'tok-acct': 'u-acct' },
     t: {
       'public.punpang_staff': [
         { user_id: 'u-mgr', active: true, perms: ['manage'] },
         { user_id: 'u-pre', active: true, perms: ['managePreorder'] },
         { user_id: 'u-chat', active: true, perms: ['chat'] },
+        { user_id: 'u-acct', active: true, perms: ['acctView'] },
       ],
       'public.punpang_preorder_orders': [
         { id: ORDER, code: 'PRE-241124-000009', status: 'payment_confirmed', pickup_date: '2099-12-24', customer_id: 'cA', updated_at: 't2', data: {
@@ -63,7 +64,9 @@ Deno.test('set_shipping ส่งพารามิเตอร์ไปฐา�
   ;(globalThis as any).__RPC.punpang_preorder_set_shipping = async (args: any) => { (globalThis as any).__RPC_CALLS.push(args); return { data: { ok: true, status: 'shipped' }, error: null } }
   const ok = await call({ action: 'set_shipping', orderId: ORDER, carrier: 'Kerry', trackingNo: 'TH-1' })
   assertEquals(ok.status, 200)
-  assertEquals((globalThis as any).__RPC_CALLS[0], { p_order: ORDER, p_carrier: 'Kerry', p_tracking: 'TH-1' })
+  assertEquals((globalThis as any).__RPC_CALLS[0], { p_order: ORDER, p_carrier: 'Kerry', p_tracking: 'TH-1', p_postage: 0 })
+  await call({ action: 'set_shipping', orderId: ORDER, carrier: 'Kerry', trackingNo: 'TH-1', postage: '45.5' })
+  assertEquals((globalThis as any).__RPC_CALLS[1].p_postage, 45.5)
   ;(globalThis as any).__RPC.punpang_preorder_set_shipping = async () => ({ data: { error: 'balance_due' }, error: null })
   assertEquals((await call({ action: 'set_shipping', orderId: ORDER, carrier: 'Kerry', trackingNo: 'TH-1' })).status, 409)
 })
@@ -82,4 +85,24 @@ Deno.test('รหัสออร์เดอร์ไม่ถูกต้อง
   seed()
   assertEquals((await call({ action: 'mark_delivered', orderId: 'bad' }, 'tok-pre')).status, 400)
   assertEquals((await call({ action: 'nope', orderId: ORDER }, 'tok-pre')).status, 400)
+})
+
+Deno.test('accounting: ข้อมูลดิบทุกออเดอร์ (รวมที่ไม่มีคำขอ) ส่งเฉพาะฟิลด์ที่บัญชีใช้ และไม่แสดงชื่อลูกค้า', async () => {
+  seed()
+  const r = await call({ action: 'accounting' }, 'tok-pre')
+  assertEquals(r.status, 200)
+  assertEquals(r.body.orders.length, 2)
+  const o = r.body.orders.find((x: any) => x.id === ORDER)
+  assertEquals(o.code, 'PRE-241124-000009')
+  assertEquals(o.status, 'payment_confirmed')
+  assertEquals(o.total, 100)
+  assertEquals(o.payments.length, 2)
+  assert(!JSON.stringify(r.body).includes('สมชาย'), 'ต้องไม่รั่วชื่อลูกค้า')
+})
+
+Deno.test('accounting: ไม่มีสิทธิ์ → 403 · ผู้ดูบัญชีอ่านได้ แต่การกระทำอื่นไม่ได้', async () => {
+  seed()
+  assertEquals((await call({ action: 'accounting' }, 'tok-chat')).status, 403)
+  assertEquals((await call({ action: 'accounting' }, 'tok-acct')).status, 200)
+  assertEquals((await call({ action: 'cancel', orderId: ORDER, refunds: [] }, 'tok-acct')).status, 403)
 })

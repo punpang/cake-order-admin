@@ -2,7 +2,7 @@ import { corsWrap } from '../_shared/cors.ts'
 import { serviceDb } from '../_shared/db.ts'
 
 // สั่งล่วงหน้า (ฝั่งร้าน): เฉพาะพนักงานที่มีสิทธิ์ managePreorder หรือ manage
-// การกระทำ: list · set_shipping · mark_delivered · record_return · refund_return · reship · record_payment · cancel
+// การกระทำ: list · accounting (ข้อมูลดิบสำหรับบัญชี) · set_shipping · mark_delivered · record_return · refund_return · reship · record_payment · cancel
 // ทุกการกระทำเรียกฟังก์ชันฐานข้อมูลที่ตรวจกฎเอง (ยอด สถานะ ลำดับล็อก) ฟังก์ชันนี้ไม่คำนวณยอดเอง
 const CORS = { 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
@@ -34,12 +34,28 @@ Deno.serve(corsWrap(async (req) => {
   if (!uid) return json({ error: 'ต้องเข้าสู่ระบบพนักงาน' }, 401)
   const st = await sb.from('punpang_staff').select('active,perms').eq('user_id', uid).maybeSingle()
   const perms: string[] = Array.isArray(st.data?.perms) ? st.data.perms : []
-  if (!st.data?.active || !(perms.includes('managePreorder') || perms.includes('manage'))) return json({ error: 'ไม่มีสิทธิ์จัดการสั่งล่วงหน้า' }, 403)
-
   let body: Record<string, any> = {}
   try { body = await req.json() } catch { return json({ error: 'คำขอไม่ถูกต้อง' }, 400) }
+  // บัญชี (accounting) อ่านได้ด้วยสิทธิ์ดูบัญชี · การกระทำอื่นต้องมีสิทธิ์จัดการสั่งล่วงหน้า
+  const manages = perms.includes('managePreorder') || perms.includes('manage')
+  const readsAcct = body.action === 'accounting' && perms.includes('acctView')
+  if (!st.data?.active || !(manages || readsAcct)) return json({ error: 'ไม่มีสิทธิ์จัดการสั่งล่วงหน้า' }, 403)
   const action = String(body.action ?? '')
   const orderId = String(body.orderId ?? '')
+
+  // ข้อมูลดิบทุกออเดอร์สำหรับบัญชี (เฟส 4) · แบ่งหน้าทีละ 1000 แถวจนครบ ไม่จำกัด 200 ล่าสุดแบบรายการ
+  if (action === 'accounting') {
+    const PAGE = 1000
+    const all: any[] = []
+    for (let from = 0; ; from += PAGE) {
+      const r = await sb.from('punpang_preorder_orders').select('id,code,status,created_at,data').order('created_at', { ascending: true }).order('id', { ascending: true }).range(from, from + PAGE - 1)
+      if (r.error) return json({ error: 'โหลดข้อมูลบัญชีไม่สำเร็จ' }, 500)
+      const rows: any[] = r.data || []
+      for (const x of rows) all.push({ ...(x.data || {}), id: x.id, code: x.code, status: x.status, createdAt: x.created_at })
+      if (rows.length < PAGE) break
+    }
+    return json({ orders: all })
+  }
 
   if (action === 'list') {
     const r = await sb.from('punpang_preorder_orders').select('*').order('updated_at', { ascending: false }).limit(200)
@@ -53,8 +69,10 @@ Deno.serve(corsWrap(async (req) => {
 
   if (!ORDER_ID_RE.test(orderId)) return json({ error: 'รหัสออร์เดอร์ไม่ถูกต้อง' }, 400)
   const num = (v: unknown) => (typeof v === 'number' ? v : Number(v))
+  // ค่าไปรษณีย์จริงที่ร้านจ่าย (บาท): ไม่กรอก = 0 · ค่าอื่นที่ไม่ใช่ตัวเลข 0–100000 ไม่ผ่าน (ฐานข้อมูลตรวจซ้ำ)
+  const postageOf = (v: unknown) => (v === undefined || v === null || v === '' ? 0 : Number(v))
   const calls: Record<string, () => Promise<{ data: any; error: any }>> = {
-    set_shipping: async () => await sb.rpc('punpang_preorder_set_shipping', { p_order: orderId, p_carrier: String(body.carrier ?? ''), p_tracking: String(body.trackingNo ?? '') }),
+    set_shipping: async () => await sb.rpc('punpang_preorder_set_shipping', { p_order: orderId, p_carrier: String(body.carrier ?? ''), p_tracking: String(body.trackingNo ?? ''), p_postage: postageOf(body.postage) }),
     mark_delivered: async () => await sb.rpc('punpang_preorder_mark_delivered', { p_order: orderId }),
     record_return: async () => await sb.rpc('punpang_preorder_record_return', { p_order: orderId, p_reason: String(body.reason ?? '') }),
     refund_return: async () => await sb.rpc('punpang_preorder_refund_return', { p_order: orderId, p_refunds: Array.isArray(body.refunds) ? body.refunds : [] }),

@@ -184,6 +184,12 @@ const GROUP_LOADERS = {
       await c.store.ensureOrders({ updatedSince: since })
     }
     await load(closedOf())
+    // ออร์เดอร์สั่งล่วงหน้า (เฟส 4): โหลดทั้งหมดเข้าบัญชี ถ้าโหลดไม่ได้เก็บ error ไว้ให้หน้าบัญชีแจ้ง
+    const { preorderAdminCall } = await import('./preorderAdminRemote')
+    const pa = await preorderAdminCall('accounting')
+    const ac = await import('../data/acct')
+    ac.preorderAcct.orders = pa.error ? [] : (pa.orders || [])
+    ac.preorderAcct.error = pa.error || ''
     const { watch } = await import('vue')
     const stop = watch(closedOf, (v, old) => { if (!v || (old && v < old)) quietly(() => load(v)) })
     return { stop }

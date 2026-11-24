@@ -167,33 +167,84 @@ export function orderEntries(o, ctx) {
   return out
 }
 
-// ออร์เดอร์สั่งล่วงหน้า (เฟส 3G): มัดจำที่ยืนยันแล้วเข้า 2300 รับล่วงหน้า · ยกเลิกแล้วคืนเงินตามที่ร้านเลือก และส่วนที่เหลือเป็นริบเข้า 4900
-// รายได้รับรู้ตอนส่งมอบยังไม่รวมในรอบนี้ (ต้องตัดสินเรื่อง VAT ของมัดจำก่อน) · ออร์เดอร์ที่หมดเวลาแต่ยังไม่ยกเลิกไม่มีรายการ
-// อินพุต: { id, code, status, payments:[{id, amount, method, status, at}], refunds:[{amount, method: 'cash'|'bank'|'points'}], cancelledAt? } · คืนเป็นคะแนนลงหนี้สินคะแนน 2310
-export function preorderEntries(o) {
+// ออร์เดอร์สั่งล่วงหน้า (เฟส 4): ยอดรับเงินเข้า 2300 พร้อม VAT ตามสัดส่วนตอนรับเงิน · ส่งมอบแล้วรับรู้รายได้ (หัก 2300 ที่รับไว้แล้ว) · ยกเลิก/คืนเงิน/ริบตามเดิม
+// อินพุต: { id, code, status, payments:[{id, amount, method, status, at}], items?, shippingFee?, pointsUsed?, vat?, fulfillment?,
+//          deliveredAt?, returns?, refunds?, cancelledAt? } · คืนเป็นคะแนนลงหนี้สินคะแนน 2310
+// หมายเหตุ: ไม่มีข้อมูลสินค้า/VAT (ออร์เดอร์รุ่นเก่าหรือเทสต์) → ยอด VAT = 0 และไม่รับรู้รายได้
+export function preorderEntries(o, ctx = {}) {
   const out = []
   if (!o || !o.code) return out
   const code = o.code
+  const t = orderTotals({ items: o.items || [], fulfillment: o.fulfillment || 'pickup', shippingFee: Number(o.shippingFee) || 0, pointsUsed: o.pointsUsed || null, couponsUsed: [], payments: o.payments || [], returns: [], cancel: null, vat: o.vat, shipPromo: null })
+  const total = Math.max(0, toS(t.total))
+  const vatS = total > 0 ? Math.min(Math.max(0, toS(t.vat)), total) : 0
+  const rate = Number(o.vat?.rate) || 0
+  const tx = (kind, baseS, vatS2) => (vatS2 !== 0 || baseS !== 0 ? [{ kind, base: toB(baseS), vat: toB(vatS2), rate, docNo: code, orderId: o.id }] : [])
+  // ---- รับเงินมัดจำ/งวดชำระ: VAT ตามสัดส่วนของยอดที่รับ (ลงภาษีขายตอนรับเงิน) ----
   let paidS = 0
+  let vatBooked = 0
+  const booked = [] // { amtS, netP, vatP } เฉพาะรายการที่ยังยืนยันอยู่
   for (const p of o.payments || []) {
     if (p.status !== 'confirmed') continue
     const amtS = toS(p.amount)
     if (!(amtS > 0)) continue
     paidS += amtS
+    const vatP = total > 0 ? Math.min(Math.round((amtS * vatS) / total), vatS - vatBooked) : 0
+    vatBooked += vatP
+    const netP = amtS - vatP
+    booked.push({ amtS, netP, vatP })
     const acc = p.method === 'cash' ? CASH : BANK
-    out.push(entry(`pre-dep:${o.id}:${p.id}`, dateOf(p.at), `รับมัดจำสั่งล่วงหน้า ${code}`, { type: 'preorder-deposit', orderId: o.id, paymentId: p.id }, [dr(acc, amtS), cr(DEPOSIT, amtS)]))
+    out.push(entry(`pre-dep:${o.id}:${p.id}`, dateOf(p.at), `รับเงินสั่งล่วงหน้า ${code}`, { type: 'preorder-deposit', orderId: o.id, paymentId: p.id }, [dr(acc, amtS), cr(DEPOSIT, netP), cr(OUTPUT_VAT, vatP)], vatP > 0 ? tx('output', netP, vatP) : null))
   }
-  // รับคืนหลังส่งมอบ: ตัดสิน "คืนเงิน" → ค่าส่งเดิมที่ริบเข้า 4900 และยอดคืนลดหนี้ 2300 ลงวิธีคืน (เงินสด 1010 · โอน 1020 · คะแนน 2310)
-  // ตัดสิน "จัดส่งใหม่" → ค่าส่งเดิมที่ริบเข้า 4900 · ค่าส่งใหม่ชำระเป็นรายการรับปกติ
+  const sumAmt = booked.reduce((a, b) => a + b.amtS, 0)
+  const sumNet = booked.reduce((a, b) => a + b.netP, 0)
+  const sumVat = booked.reduce((a, b) => a + b.vatP, 0)
+  // ---- ส่งมอบ: รับรู้รายได้ครั้งแรกครั้งเดียว (ไม่รับรู้ซ้ำเมื่อส่งใหม่หลังรับคืน) ----
+  const deliveredOnce = o.status === 'delivered' && !!o.deliveredAt && !(o.returns || []).some((r) => r.decision === 'reship')
+  if (deliveredOnce && total > 0) {
+    const X = toS(t.pointsDiscount)
+    const netRev = Math.max(0, total - vatS)
+    const R = netRev + X
+    const weights = [...(o.items || []).map((i) => Math.max(0, toS((Number(i.unitPrice) || 0) * (Number(i.qty) || 0)))), Math.max(0, toS(t.shipping))]
+    const wsum = weights.reduce((a, b) => a + b, 0)
+    const parts = wsum > 0 ? allocate(R, weights) : [R, ...Array(weights.length - 1).fill(0)]
+    const rev = []
+    if (wsum > 0) {
+      ;(o.items || []).forEach((i, k) => rev.push(cr(i.kind === 'service' ? '4400' : '4200', parts[k])))
+      rev.push(cr('4300', parts[weights.length - 1]))
+    } else rev.push(cr('4200', R))
+    const unpaid = Math.max(0, total - sumAmt)
+    const cost = ctx.groups && ctx.retail ? toS(orderCost(o, ctx.groups, ctx.retail, ctx.ingredients)) : 0
+    const cogs = cost > 0 ? [dr('5100', cost), cr(INV, cost)] : []
+    const restBase = Math.max(0, netRev - sumNet)
+    const restVat = vatS - sumVat
+    const lines = [dr(DEPOSIT, sumNet), dr(AR, unpaid), dr('5410', X, { poolable: POINTS_LIAB }), ...rev, cr(OUTPUT_VAT, restVat), ...cogs]
+    out.push(entry(`pre-dlv:${o.id}`, dateOf(o.deliveredAt), `ส่งมอบสั่งล่วงหน้า ${code} รับรู้รายได้`, { type: 'preorder-deliver', orderId: o.id }, lines, restVat > 0 ? tx('output', restBase, restVat) : null))
+  }
+  // ---- ค่าไปรษณีย์จริงตอนส่งพัสดุ: ร้านจ่ายเงินสดตอนส่ง → ต้นทุนขนส่ง 5500 (ลงวันที่ส่ง) ----
+  const postS = toS(Number(o.shipping?.postage) || 0)
+  if (postS > 0 && o.shipping?.shippedAt) out.push(entry(`pre-post:${o.id}`, dateOf(o.shipping.shippedAt), `ค่าไปรษณีย์ ${code}`, { type: 'preorder-postage', orderId: o.id }, [dr('5500', postS), cr(CASH, postS)]))
+  // ---- รับคืนหลังส่งมอบ: รายได้รับรู้แล้ว จึงกลับรายการ 4950 (ไม่ตัด 2300) · ค่าส่งที่ริบยังเป็นรายได้เดิม ไม่ลงซ้ำ ----
   for (const rt of Array.isArray(o.returns) ? o.returns : []) {
+    const afterDelivery = !!o.deliveredAt && (!rt.at || String(rt.at) >= String(o.deliveredAt))
     const fee = toS(rt.shippingForfeited)
     if (rt.decision === 'reship') {
-      if (fee > 0) out.push(entry(`pre-ret:${o.id}:${rt.id}`, dateOf(rt.decidedAt || rt.at), `จัดส่งใหม่ ${code} ริบค่าส่งเดิม`, { type: 'preorder-reship', orderId: o.id, returnId: rt.id }, [dr(DEPOSIT, fee), cr('4900', fee)]))
+      // จัดส่งใหม่: ค่าส่งเดิมถูกริบ (เป็นรายได้ไปแล้วถ้าส่งมอบแล้ว) → ไม่ลงซ้ำ · ค่าส่งใหม่ชำระเป็นรายการรับปกติ
+      if (!afterDelivery && fee > 0) out.push(entry(`pre-ret:${o.id}:${rt.id}`, dateOf(rt.decidedAt || rt.at), `จัดส่งใหม่ ${code} ริบค่าส่งเดิม`, { type: 'preorder-reship', orderId: o.id, returnId: rt.id }, [dr(DEPOSIT, fee), cr('4900', fee)]))
       continue
     }
     if (rt.decision !== 'refund') continue
     const rows = (Array.isArray(rt.refunds) ? rt.refunds : []).map((r) => ({ s: toS(r.amount), method: r.method })).filter((r) => r.s > 0)
     const totS = rows.reduce((a, r) => a + r.s, 0)
+    if (afterDelivery) {
+      if (!(totS > 0)) continue
+      const fv = total > 0 ? Math.round((totS * vatS) / total) : 0
+      const fn = totS - fv
+      const lines = [dr('4950', fn), dr(OUTPUT_VAT, fv)]
+      for (const r of rows) lines.push(cr(r.method === 'points' ? POINTS_LIAB : r.method === 'bank' ? BANK : CASH, r.s))
+      out.push(entry(`pre-ret:${o.id}:${rt.id}`, dateOf(rt.decidedAt || rt.at), `รับคืนสั่งล่วงหน้าหลังส่งมอบ ${code}`, { type: 'preorder-return', orderId: o.id, returnId: rt.id }, lines, fv > 0 ? tx('output', -fn, -fv) : null))
+      continue
+    }
     if (!(totS > 0) && !(fee > 0)) continue
     const lines = [dr(DEPOSIT, totS + fee)]
     for (const r of rows) lines.push(cr(r.method === 'points' ? POINTS_LIAB : r.method === 'bank' ? BANK : CASH, r.s))
@@ -233,7 +284,7 @@ export function deriveAll(ctx, extra = []) {
   const all = []
   for (const o of ctx.orders) all.push(...orderEntries(o, ctx))
   all.push(...rewardEntries(ctx))
-  for (const o of ctx.preorders || []) all.push(...preorderEntries(o))
+  for (const o of ctx.preorders || []) all.push(...preorderEntries(o, ctx))
   for (const g of extra) all.push(...g(ctx))
   all.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1))
   // ภาระคงค้างตามบัญชี (2310 คะแนน · 2320 คูปองคืนเงิน): ส่วนลดที่ใช้ตัดภาระก่อน ส่วนที่เหลือไปค่าใช้จ่าย

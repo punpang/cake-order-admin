@@ -234,7 +234,8 @@ Deno.serve(corsWrap(async (req) => {
     const shipping = c.data?.shipping
     if (b.fulfillment === 'delivery' && (!shipping?.shipFrom || !shipping?.shipTo)) return json({ error: 'แคมเปญนี้ยังไม่ระบุวันจัดส่งพัสดุ' }, 409)
     const total = Math.round(q.totals.total * 100) / 100
-    const deposit = Math.ceil((total * c.deposit_percent) / 100 * 100) / 100
+    // จัดส่งต้องชำระเต็มจำนวนตอนสั่ง · รับที่ร้านใช้มัดจำตามเปอร์เซ็นต์ของแคมเปญ
+    const deposit = b.fulfillment === 'delivery' ? total : Math.ceil((total * c.deposit_percent) / 100 * 100) / 100
     const payDueAt = new Date(Date.now() + c.pay_due_min * MIN).toISOString()
     const data = { ...q.order, total, deposit: { percent: c.deposit_percent, amount: deposit }, payDueAt, lines, pickupDate: b.pickupDate, ...(b.fulfillment === 'delivery' ? { address, province, shipping: { shipFrom: shipping.shipFrom, shipTo: shipping.shipTo } } : {}) }
     const rpc = await sb.rpc('punpang_preorder_create', {
