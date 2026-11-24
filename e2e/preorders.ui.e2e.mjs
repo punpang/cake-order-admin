@@ -99,6 +99,48 @@ t('พนักงานขายเข้าหน้าไม่ได้', as
   } finally { await page.close() }
 })
 
+t('2B: ตั้งขั้นส่วนลดตามยอดแล้วบันทึกได้ · เปิดส่งพัสดุกับสินค้าที่ไม่มีน้ำหนักบันทึกไม่ได้', async () => {
+  const { page, errors } = await open()
+  try {
+    await page.getByRole('button', { name: '+ สร้างแคมเปญ' }).click()
+    await page.getByLabel('ชื่อแคมเปญ').fill('ส่วนลดตามยอด')
+    await page.getByLabel('เริ่มรับสั่ง').fill('2000-01-01')
+    await page.getByLabel('สิ้นสุดรับสั่ง').fill('2099-12-31')
+    await page.getByLabel('เริ่มวันรับสินค้า').fill('2099-12-24')
+    await page.getByLabel('สิ้นสุดวันรับสินค้า').fill('2099-12-26')
+    await page.getByLabel('จ่ายมัดจำภายใน (ชม.)').fill('2')
+    const first = await page.evaluate(async () => (await import('/src/data/store.js')).db.retailItems.find((x) => x.active && !x.openPrice && !(x.modifierIds || []).length)?.name)
+    await page.getByLabel(`เลือก ${first}`).check()
+    await page.getByRole('button', { name: '+ เพิ่มขั้นส่วนลด' }).click()
+    await page.getByLabel('ยอดซื้อขั้นต่ำของขั้นส่วนลด').fill('500')
+    await page.getByLabel('ค่าส่วนลดของขั้น').fill('50')
+    await page.getByRole('button', { name: 'บันทึก' }).click()
+    await page.locator('[data-campaign]').filter({ hasText: 'ส่วนลดตามยอด' }).waitFor({ state: 'visible' })
+    const deals = await page.evaluate(async () => (await import('/src/data/store.js')).db.preorderCampaigns.find((c) => c.name === 'ส่วนลดตามยอด')?.deals)
+    assert.deepEqual(deals?.[0]?.tiers, [{ min: 500, type: 'amount', value: 50 }])
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
+t('2B: เปิดส่งพัสดุกับสินค้าที่ไม่มีน้ำหนักบันทึกไม่ได้', async () => {
+  const { page, errors } = await open()
+  try {
+    await page.getByRole('button', { name: '+ สร้างแคมเปญ' }).click()
+    await page.getByLabel('ชื่อแคมเปญ').fill('พัสดุ')
+    await page.getByLabel('เริ่มรับสั่ง').fill('2000-01-01')
+    await page.getByLabel('สิ้นสุดรับสั่ง').fill('2099-12-31')
+    await page.getByLabel('เริ่มวันรับสินค้า').fill('2099-12-24')
+    await page.getByLabel('สิ้นสุดวันรับสินค้า').fill('2099-12-26')
+    await page.getByLabel('จ่ายมัดจำภายใน (ชม.)').fill('2')
+    const first = await page.evaluate(async () => (await import('/src/data/store.js')).db.retailItems.find((x) => x.active && !x.openPrice && !(x.modifierIds || []).length)?.name)
+    await page.getByLabel(`เลือก ${first}`).check()
+    await page.getByRole('switch', { name: /ส่งพัสดุไปรษณีย์/ }).click()
+    await page.getByRole('button', { name: 'บันทึก' }).click()
+    await page.getByText(/ไม่มีน้ำหนักหรือขนาด/).waitFor({ state: 'visible' })
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
 let fails = 0
 for (const [name, fn] of cases) {
   try { await fn(); console.log(`PASS ${name}`) } catch (e) { fails++; console.log(`FAIL ${name}\n  ${String(e?.message || e).split('\n').slice(0, 4).join('\n  ')}`) }
