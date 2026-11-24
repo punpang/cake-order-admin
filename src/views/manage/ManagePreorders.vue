@@ -25,6 +25,7 @@ const tiers = ref([]) // ขั้นส่วนลดตามยอด (ด�
 const parcelOn = ref(false) // ส่งพัสดุไปรษณีย์ (สินค้าทุกชิ้นต้องมีน้ำหนักและขนาด)
 const shipWarn = computed(() => (form.value ? shipOutsidePickupWarning({ ...form.value, parcel: { enabled: parcelOn.value } }) : ''))
 const addTier = () => tiers.value.push({ min: '', type: 'amount', value: '' })
+const shipTiers = ref([]) // ขั้นส่วนลดค่าส่งตามยอดซื้อ (ฟิลด์ shipOff ของแคมเปญ · ไม่ปนกับโปรสินค้า)
 
 function openForm(c) {
   ferr.value = ''
@@ -32,6 +33,7 @@ function openForm(c) {
   form.value = { ...base, dayCap: base.dayCap ?? '' }
   hours.value = base.payDueMin ? String(base.payDueMin / 60) : ''
   tiers.value = (base.deals?.[0]?.tiers ?? []).map((t) => ({ min: String(t.min), type: t.type, value: String(t.value) }))
+  shipTiers.value = (base.shipOff ?? []).map((t) => ({ min: String(t.min), value: String(t.value) }))
   parcelOn.value = base.parcel?.enabled === true
   for (const k of Object.keys(sel)) delete sel[k]
   for (const r of sellable.value) sel[r.id] = { on: false, cap: '' }
@@ -51,6 +53,7 @@ function submit() {
     dayCap: f.dayCap === '' ? null : Number(f.dayCap),
     items,
     deals: tiers.value.length ? [{ kind: 'spend_off', name: 'ส่วนลดตามยอด', tiers: tiers.value.map((t) => ({ min: Number(t.min), type: t.type, value: Number(t.value) })) }] : [],
+    shipOff: shipTiers.value.map((t) => ({ min: Number(t.min), value: Number(t.value) })),
     parcel: { enabled: parcelOn.value },
   })
   if (r.error) return (ferr.value = r.error)
@@ -131,6 +134,19 @@ function toggle(c, status) {
           </div>
           <button type="button" class="btn-outline mt-2 h-9 px-3 text-sm" @click="addTier">+ เพิ่มขั้นส่วนลด</button>
           <p class="mt-1 text-xs text-stone-500">ได้ส่วนลดขั้นสูงสุดที่ถึงยอด · ยอดขั้นต่ำต้องไม่ซ้ำกัน · บาทหรือ % ของยอดสินค้า</p>
+        </div>
+        <div>
+          <div class="label">ส่วนลดค่าส่งตามยอดซื้อ (ไม่บังคับ · ใช้กับส่งพัสดุ)</div>
+          <div v-for="(t, i) in shipTiers" :key="i" class="mt-2 flex flex-wrap items-center gap-2">
+            <span class="text-sm text-stone-600">ยอดถึง</span>
+            <input v-model="t.min" type="text" inputmode="numeric" class="input h-9 w-24" :aria-label="`ยอดซื้อขั้นที่ ${i + 1} ของส่วนลดค่าส่ง (บาท)`" />
+            <span class="text-sm">บาท ลดค่าส่ง</span>
+            <input v-model="t.value" type="text" inputmode="decimal" class="input h-9 w-24" :aria-label="`ส่วนลดค่าส่งขั้นที่ ${i + 1} (บาท)`" />
+            <span class="text-sm">บาท</span>
+            <button type="button" class="btn-danger h-9 px-2" :aria-label="`ลบขั้นส่วนลดค่าส่ง ${i + 1}`" @click="shipTiers.splice(i, 1)"><AppIcon name="trash" :size="14" /></button>
+          </div>
+          <button type="button" class="btn-outline mt-2 h-9 px-3 text-sm" @click="shipTiers.push({ min: '', value: '' })">+ เพิ่มขั้นส่วนลดค่าส่ง</button>
+          <p class="mt-1 text-xs text-stone-500">ได้ส่วนลดขั้นสูงสุดที่ยอดสินค้าหลังหักส่วนลดทุกประเภทและคะแนน ก่อน VAT ถึง · ไม่สะสม · ลดได้ไม่เกินค่าส่ง</p>
         </div>
         <AppSwitch v-model="parcelOn" label="ส่งพัสดุไปรษณีย์ (สินค้าทุกชิ้นต้องมีน้ำหนักและขนาด)" class="flex" />
         <div v-if="parcelOn" class="grid grid-cols-2 gap-3">
