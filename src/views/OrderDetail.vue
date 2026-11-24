@@ -26,6 +26,7 @@ import { orderCost } from '../lib/materials'
 import { money, dateTime, toDateStr, pad, num, formatPhone, phoneDigits } from '../lib/format'
 import { PAYMENT_METHODS, ROLES } from '../lib/constants'
 import StatusBadge from '../components/StatusBadge.vue'
+import OrderHistory from '../components/OrderHistory.vue'
 import PayDueBadge from '../components/PayDueBadge.vue'
 import DiscountDetail from '../components/DiscountDetail.vue'
 import ItemCard from '../components/ItemCard.vue'
@@ -68,6 +69,8 @@ watch(() => props.id, (id) => ensureOrderInvoices(id), { immediate: true })
 // ---------- ด่านตรวจออร์เดอร์เสี่ยง: รายการที่ระบบพบว่าผิดต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ ----------
 const gate = ref(null) // สถานะด่านล่าสุดจากฐานข้อมูล (โหลดใหม่ก่อนทำรายการที่เกี่ยวข้อง)
 const gateBlocked = computed(() => order.value?.channel !== 'pos' && !!gate.value?.blocked)
+// มีการกำหนดช่องทางเฉพาะออร์เดอร์นี้ (true/false) จึงเปิดการ์ดค้างไว้ · null = ตามเดิม
+const notifyOverridden = computed(() => Object.values(order.value?.notifyChannels || {}).some((v) => v === true || v === false))
 const gateHeld = computed(() => order.value?.status !== 'cancelled' && !!gate.value?.hold)
 const gateIsPos = computed(() => order.value?.channel === 'pos') // บิลหน้าร้าน: แจ้งให้ตรวจ ไม่กันการขาย
 // ยังไม่ชำระ → ด่านกั้นทั้งการยืนยันชำระและการส่งมอบ · ชำระแล้ว → ด่านกั้นเฉพาะการส่งมอบ
@@ -404,28 +407,35 @@ async function saveCancel() {
     </div>
 
     <!-- รายการเสี่ยงจากการตรวจอัตโนมัติ: ออร์เดอร์ตรงต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ · บิลหน้าร้านแค่แจ้งให้ตรวจ -->
-    <div v-if="gateHeld" class="mb-3 rounded-2xl p-3 text-sm" :class="gate.reviewed ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'">
+    <!-- แบนเนอร์สถานะออร์เดอร์: บนจอกว้างวางเคียงกัน · บนมือถือเรียงลงมา · ไม่มีแบนเนอร์ = ไม่กินพื้นที่ -->
+    <div class="mb-3 grid gap-2 empty:hidden lg:grid-cols-2">
+    <div v-if="gateHeld" class="rounded-2xl p-3 text-sm" :class="gate.reviewed ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'">
       <div class="flex flex-wrap items-center gap-2">
         <AppIcon name="alert" :size="16" />
-        <span class="min-w-0 flex-1 font-semibold">{{ gate.reviewed ? 'ผู้จัดการตรวจรายการเสี่ยงแล้ว' : (gateIsPos ? 'มีรายการเสี่ยงในบิลหน้าร้าน · ขายไปแล้ว ระบบไม่ได้กันการขาย' : (gateNeedsPayReview ? 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ' : 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนส่งมอบ')) }}</span>
+        <span class="min-w-0 basis-full font-semibold sm:flex-1 sm:basis-auto">{{ gate.reviewed ? 'ผู้จัดการตรวจรายการเสี่ยงแล้ว' : (gateIsPos ? 'มีรายการเสี่ยงในบิลหน้าร้าน · ขายไปแล้ว ระบบไม่ได้กันการขาย' : (gateNeedsPayReview ? 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ' : 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนส่งมอบ')) }}</span>
         <button v-if="!gate.reviewed && can('manage')" class="btn-primary h-9 px-3" @click="doReviewGate">ผู้จัดการตรวจแล้ว</button>
+        <!-- รายการย่อยพับได้: ปิดอยู่ = อยู่แถวเดียวกับหัวข้อ · เปิด = ขยายเต็มแถว -->
+        <details v-if="gate.flags?.length" class="group text-xs open:basis-full">
+          <summary class="inline-flex h-9 cursor-pointer list-none items-center gap-1 rounded-lg px-2 font-medium underline decoration-dotted underline-offset-4 select-none [&::-webkit-details-marker]:hidden">รายการ {{ gate.flags.length }} ข้อ</summary>
+          <ul class="mt-1 list-disc space-y-0.5 pl-6">
+            <li v-for="(f, i) in gate.flags.slice(0, 8)" :key="i">{{ f.detail }}</li>
+          </ul>
+        </details>
       </div>
-      <ul class="mt-1.5 list-disc space-y-0.5 pl-6 text-xs">
-        <li v-for="(f, i) in gate.flags.slice(0, 8)" :key="i">{{ f.detail }}</li>
-      </ul>
     </div>
 
     <!-- ขออนุมัติยืนยันการสั่งซื้อ (ยังไม่ชำระ) -->
-    <div v-if="order.approval?.status === 'pending' && unpaidStage(order.status)" class="mb-3 flex flex-wrap items-center gap-2 rounded-2xl bg-indigo-50 p-3 text-sm text-indigo-800">
+    <div v-if="order.approval?.status === 'pending' && unpaidStage(order.status)" class="flex flex-wrap items-center gap-2 rounded-2xl bg-indigo-50 p-3 text-sm text-indigo-800">
       <AppIcon name="alert" :size="16" />
-      <span class="min-w-0 flex-1">มีคำขออนุมัติยืนยันการสั่งซื้อ (ยังไม่ชำระ) · คงค้าง {{ money(t.balance) }}<span v-if="order.approval.note"> · {{ order.approval.note }}</span></span>
+      <span class="min-w-0 basis-full sm:flex-1 sm:basis-auto">มีคำขออนุมัติยืนยันการสั่งซื้อ (ยังไม่ชำระ) · คงค้าง {{ money(t.balance) }}<span v-if="order.approval.note"> · {{ order.approval.note }}</span></span>
       <template v-if="can('confirmUnpaid')">
         <button class="btn-primary h-9 px-3" @click="doConfirmUnpaid">อนุมัติ</button>
         <button class="btn-outline h-9 px-3" @click="doRejectUnpaid">ไม่อนุมัติ</button>
       </template>
       <span v-else class="text-xs">รอแอดมินอนุมัติ</span>
     </div>
-    <div v-else-if="order.approval?.status === 'rejected' && unpaidStage(order.status)" class="mb-3 rounded-2xl bg-rose-50 p-3 text-sm text-rose-700">ไม่อนุมัติยืนยันแบบยังไม่ชำระ<span v-if="order.approval.decisionNote"> · {{ order.approval.decisionNote }}</span></div>
+    <div v-else-if="order.approval?.status === 'rejected' && unpaidStage(order.status)" class="rounded-2xl bg-rose-50 p-3 text-sm text-rose-700">ไม่อนุมัติยืนยันแบบยังไม่ชำระ<span v-if="order.approval.decisionNote"> · {{ order.approval.decisionNote }}</span></div>
+    </div>
 
     <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-4 2xl:grid-cols-[minmax(0,1fr)_440px]">
       <!-- ซ้าย -->
@@ -483,11 +493,16 @@ async function saveCancel() {
         </section>
 
         <!-- ช่องทางแจ้งเตือนของออร์เดอร์นี้ (เหนือกว่าค่าของลูกค้า/ระบบ) -->
-        <section v-if="customer && order.channel !== 'pos'" class="card">
-          <div class="card-title"><AppIcon name="bell" class="text-brand-600" /> ช่องทางแจ้งเตือนออร์เดอร์นี้</div>
+        <details v-if="customer && order.channel !== 'pos'" class="card group" :open="notifyOverridden">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-2 select-none [&::-webkit-details-marker]:hidden">
+            <span class="card-title mb-0"><AppIcon name="bell" class="text-brand-600" /> ช่องทางแจ้งเตือนออร์เดอร์นี้</span>
+            <span class="shrink-0 text-xs font-medium" :class="notifyOverridden ? 'text-brand-700' : 'text-stone-500'">{{ notifyOverridden ? 'กำหนดเองบางช่องทาง' : 'ตามเดิม' }}</span>
+          </summary>
+          <div class="mt-3">
           <p class="mb-2 text-xs text-stone-500">ตามเดิม = ใช้ค่าของลูกค้า/ระบบ · เปิด/ปิด = บังคับเฉพาะออร์เดอร์นี้ ทุกข้อความ</p>
           <NotifyChannelPicker :model="order.notifyChannels" :customer="customer" :readonly="!can('editPickup')" @set="(ch, v) => setOrderNotifyChannel(order, ch, v)" />
-        </section>
+          </div>
+        </details>
 
         <!-- สินค้า -->
         <section class="card">
@@ -522,16 +537,7 @@ async function saveCancel() {
         </section>
 
         <!-- ประวัติ (คอม) -->
-        <section class="card hidden lg:block">
-          <div class="card-title"><AppIcon name="history" class="text-brand-600" /> ประวัติ</div>
-          <ol class="relative space-y-3 border-l-2 border-stone-100 pl-4">
-            <li v-for="(h, i) in order.history.slice().reverse()" :key="i" class="relative">
-              <span class="absolute top-1.5 -left-[21px] h-2.5 w-2.5 rounded-full ring-4 ring-white" :class="i === 0 ? 'bg-brand-500' : 'bg-stone-300'" />
-              <div class="text-sm break-words text-stone-800">{{ h.text }}</div>
-              <div class="text-xs text-stone-400">{{ dateTime(h.at) }} · {{ ROLES[h.by] ?? 'ระบบอัตโนมัติ' }}</div>
-            </li>
-          </ol>
-        </section>
+        <OrderHistory class="hidden lg:block" :history="order.history" />
       </div>
 
       <!-- ขวา -->
@@ -624,8 +630,8 @@ async function saveCancel() {
 
         <!-- การชำระเงิน -->
         <section class="card">
-          <div class="mb-3 flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2 text-[15px] font-semibold text-stone-900"><AppIcon name="wallet" class="text-brand-600" /> การชำระเงิน</div>
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex shrink-0 items-center gap-2 text-[15px] font-semibold whitespace-nowrap text-stone-900"><AppIcon name="wallet" class="text-brand-600" /> การชำระเงิน</div>
             <div class="flex flex-wrap justify-end gap-2">
             <button
               v-if="can('reportPayment') && order.status !== 'draft' && order.status !== 'cancelled' && t.balance > 0"
@@ -709,16 +715,7 @@ async function saveCancel() {
         </section>
 
         <!-- ประวัติ (มือถือ) -->
-        <section class="card lg:hidden">
-          <div class="card-title"><AppIcon name="history" class="text-brand-600" /> ประวัติ</div>
-          <ol class="relative space-y-3 border-l-2 border-stone-100 pl-4">
-            <li v-for="(h, i) in order.history.slice().reverse()" :key="i" class="relative">
-              <span class="absolute top-1.5 -left-[21px] h-2.5 w-2.5 rounded-full ring-4 ring-white" :class="i === 0 ? 'bg-brand-500' : 'bg-stone-300'" />
-              <div class="text-sm break-words text-stone-800">{{ h.text }}</div>
-              <div class="text-xs text-stone-400">{{ dateTime(h.at) }} · {{ ROLES[h.by] ?? 'ระบบอัตโนมัติ' }}</div>
-            </li>
-          </ol>
-        </section>
+        <OrderHistory class="lg:hidden" :history="order.history" />
       </div>
     </div>
 

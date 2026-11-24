@@ -48,6 +48,20 @@ try {
     } finally { order.pointsUsed = null }
   })
 
+  t('การ์ดช่องทางแจ้งเตือน: ตามเดิมเมื่อไม่มีการกำหนดเอง และแสดง "กำหนดเองบางช่องทาง" เมื่อมี', async () => {
+    const prev = order.notifyChannels
+    try {
+      order.notifyChannels = {}
+      const plain = await render(order.id)
+      assert.ok(plain.includes('ช่องทางแจ้งเตือนออร์เดอร์นี้'), 'ไม่พบการ์ดช่องทางแจ้งเตือน')
+      assert.ok(plain.includes('>ตามเดิม<'), 'ควรแสดงสถานะตามเดิม')
+      assert.equal(plain.includes('กำหนดเองบางช่องทาง'), false)
+      order.notifyChannels = { sms: false }
+      const custom = await render(order.id)
+      assert.ok(custom.includes('กำหนดเองบางช่องทาง'), 'ควรแสดงสถานะกำหนดเอง')
+    } finally { order.notifyChannels = prev }
+  })
+
   for (const [name, fn] of cases) {
     try { await fn(); console.log(`PASS ${name}`) } catch (e) { fails++; console.log(`FAIL ${name}: ${e.message}`) }
   }
