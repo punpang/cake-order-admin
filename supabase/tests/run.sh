@@ -234,6 +234,11 @@ sescode=$?
 [ "$sescode" = "0" ] && echo "✓ preorder_sessions.test.sql ผ่านทั้งหมด" || echo "✗ preorder_sessions.test.sql ล้มเหลว"
 [ "$sescode" = "0" ] || exit "$sescode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_points.test.sql
+ptscode=$?
+[ "$ptscode" = "0" ] && echo "✓ preorder_points.test.sql ผ่านทั้งหมด" || echo "✗ preorder_points.test.sql ล้มเหลว"
+[ "$ptscode" = "0" ] || exit "$ptscode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_quota.test.sql
 pqcode=$?
 [ "$pqcode" = "0" ] && echo "✓ preorder_quota.test.sql ผ่านทั้งหมด" || echo "✗ preorder_quota.test.sql ล้มเหลว"
