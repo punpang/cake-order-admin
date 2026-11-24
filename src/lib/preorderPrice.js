@@ -5,6 +5,7 @@
 import { buildQuotePayload } from './quotePrice.js'
 import { orderTotals } from './pricing.js'
 import { parcelFee } from './parcelShipping.js'
+import { shipOffDiscount, cleanShipOff } from './shipDiscount.js'
 
 const PARCEL_ERR = {
   overweight: 'น้ำหนักเกินขั้นสูงสุดของตารางค่าส่ง',
@@ -67,6 +68,13 @@ export function priceCampaignOrder({ campaign, catalog, lines, pickupDate, fulfi
     returns: [],
     cancel: null,
   }
+  // ส่วนลดค่าส่งตามขั้นยอด: ฐาน = ยอดสินค้าหลังหักทุกประเภทและคะแนน ก่อนค่าส่งและก่อน VAT (ฐานเดียวกับ orderTotals)
+  let shipDiscount = { tier: null, amount: 0 }
+  if (fulfillment === 'delivery' && shippingFee > 0) {
+    const goodsExVat = orderTotals({ ...order, shippingFee: 0 }).beforeVat
+    shipDiscount = shipOffDiscount({ goodsExVat, shippingFee, tiers: cleanShipOff(campaign.shipOff) })
+    order.shippingFee = shippingFee - shipDiscount.amount
+  }
   const totals = orderTotals(order)
   return {
     ok: true,
@@ -77,7 +85,8 @@ export function priceCampaignOrder({ campaign, catalog, lines, pickupDate, fulfi
       pickupDate,
       campaignId: campaign.id ?? null,
       pointValue: pv,
-      shippingFee,
+      shippingFee: order.shippingFee,
+      shipDiscount,
       parcel: shipDetail,
     },
   }

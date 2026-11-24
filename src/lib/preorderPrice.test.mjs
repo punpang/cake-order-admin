@@ -72,5 +72,31 @@ check('โปรทั้งร้านที่ไม่ใช่ของแ�
   assert.equal(r.totals.total, 480)
 })
 
+check('ส่วนลดค่าส่ง: ยอดสินค้าถึงขั้น → ค่าส่งลดตามขั้น และบันทึกใน snapshot', () => {
+  const c = campaign({ parcel: { enabled: true }, shipOff: [{ min: 60, value: 20 }] })
+  const r = priceCampaignOrder({ campaign: c, catalog: parcelCat(), lines: [{ retailId: 'rt1', qty: 1 }], pickupDate: '2099-12-24', fulfillment: 'delivery', nowMs })
+  assert.equal(r.ok, true, r.error)
+  assert.equal(r.order.shippingFee, 65)
+  assert.deepEqual(r.snapshot.shipDiscount, { tier: 60, amount: 20 })
+})
+check('ส่วนลดค่าส่ง: ยอดสินค้าไม่ถึงขั้น → ค่าส่งเท่าเดิม', () => {
+  const c = campaign({ parcel: { enabled: true }, shipOff: [{ min: 80, value: 20 }] })
+  const r = priceCampaignOrder({ campaign: c, catalog: parcelCat(), lines: [{ retailId: 'rt1', qty: 1 }], pickupDate: '2099-12-24', fulfillment: 'delivery', nowMs })
+  assert.equal(r.order.shippingFee, 85)
+  assert.equal(r.snapshot.shipDiscount.amount, 0)
+})
+check('ส่วนลดค่าส่ง: รับที่ร้านไม่ได้ส่วนลด แม้ยอดถึงขั้น', () => {
+  const c = campaign({ parcel: { enabled: true }, shipOff: [{ min: 60, value: 20 }] })
+  const r = priceCampaignOrder({ campaign: c, catalog: parcelCat(), lines: [{ retailId: 'rt1', qty: 1 }], pickupDate: '2099-12-24', fulfillment: 'pickup', nowMs })
+  assert.equal(r.order.shippingFee, 0)
+  assert.equal(r.snapshot.shipDiscount.amount, 0)
+})
+check('ส่วนลดค่าส่ง: นับยอดหลังหักคะแนน (75 − 10 = 65 < 70 → ไม่ได้ส่วนลด)', () => {
+  const c = campaign({ parcel: { enabled: true }, shipOff: [{ min: 70, value: 20 }] })
+  const r = priceCampaignOrder({ campaign: c, catalog: parcelCat(), lines: [{ retailId: 'rt1', qty: 1 }], pickupDate: '2099-12-24', fulfillment: 'delivery', points: 10, pointValue: 1, nowMs })
+  assert.equal(r.ok, true, r.error)
+  assert.equal(r.snapshot.shipDiscount.amount, 0)
+})
+
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')
 process.exit(fail ? 1 : 0)
