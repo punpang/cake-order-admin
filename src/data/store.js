@@ -6,6 +6,7 @@ import { RETENTION_CATS, validateRetention } from '../lib/retention'
 import { normalizeDisplayAds } from '../lib/displayAds'
 import { reactive } from 'vue'
 import { BELL_MAX, BELL_STAFF, BELL_CUSTOMER, bellText, visibleToStaff, visibleToCustomer, unreadStaff, unreadCustomer, isReadStaff } from '../lib/bell'
+import { IS_STAFF_APP } from '../lib/adminSystems'
 import { ensureStyleGroup, STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, channelLabel, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
 import { holdErrors, holdCancelRefundOf, canHandOver } from '../lib/holdMoney'
@@ -3092,11 +3093,11 @@ function emitChatBell(chat, text) {
 // รายการของผู้ใช้ปัจจุบัน: audience 'staff' = ตามสิทธิ์ของ session · 'customer' = ของลูกค้าที่ล็อกอิน
 export function bellFeed(audience = 'staff') {
   if (audience === 'customer') return visibleToCustomer(db.bell, customerSession.customerId)
-  return visibleToStaff(db.bell, can)
+  return visibleToStaff(db.bell, can, IS_STAFF_APP)
 }
 export const bellIsRead = (item, audience = 'staff') => (audience === 'customer' ? !!item.read : isReadStaff(item, session.userId))
 export function bellUnreadCount(audience = 'staff') {
-  return audience === 'customer' ? unreadCustomer(db.bell, customerSession.customerId) : unreadStaff(db.bell, session.userId, can)
+  return audience === 'customer' ? unreadCustomer(db.bell, customerSession.customerId) : unreadStaff(db.bell, session.userId, can, IS_STAFF_APP)
 }
 export function bellMarkRead(id, audience = 'staff') {
   const i = db.bell.find((x) => x.id === id)
