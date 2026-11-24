@@ -19,10 +19,10 @@ const run = (shop: Any, over: Any = {}) => planScheduled({ nowMs: NOW, shop: { .
 const has = (ps: Any[], key: string) => ps.some((p) => p.key === key)
 
 Deno.test('งานใกล้เวลาต้องเสร็จ (ทีม): ตามชั่วโมงที่ร้านตั้ง (ไม่ตั้ง = 2 ชม.) และข้อความแทนค่าชั่วโมง', () => {
-  const far = order({ pickupAt: '2026-11-14T23:00' }) // ผลิตเหลือ 3.5 ชม.
+  const far = order({ status: 'order_confirmed', pickupAt: '2026-11-14T23:00' }) // ผลิตเหลือ 3.5 ชม.
   assertEquals(has(run({ dueSoonHours: 2 }, { orders: [far] }), 'due|o1'), false)
   assertEquals(has(run({ dueSoonHours: 4 }, { orders: [far] }), 'due|o1'), true)
-  const near = order({ pickupAt: '2026-11-14T21:00' }) // ผลิตเหลือ 1.5 ชม.
+  const near = order({ status: 'order_confirmed', pickupAt: '2026-11-14T21:00' }) // ผลิตเหลือ 1.5 ชม.
   assertEquals(has(run({ dueSoonHours: 1 }, { orders: [near] }), 'due|o1'), false)
   const plan = run({ dueSoonHours: 2 }, { orders: [near] }).find((p) => p.key === 'due|o1')
   assertEquals(plan?.vars?.ชั่วโมง, '2')
