@@ -21,19 +21,25 @@ const ALL_SYSTEMS = [
   { key: 'settings', label: 'ตั้งค่า', icon: 'settings', home: '/admin/settings', perms: ['manage', 'manageUsers'], items: [{ to: '/admin/settings', label: 'ตั้งค่า', icon: 'settings', perms: ['manage', 'manageUsers'] }] },
 ]
 
+// แอปพนักงาน (Android) ไม่มีแชท: ถอดลิงก์และเส้นทางแชทออก ส่วนเว็บไม่เปลี่ยน
 const ANDROID_KEYS = ['orders', 'pos']
-const ANDROID_ORDER_LINKS = ['/admin/orders', '/admin/orders/new', '/admin/payments', '/admin/chat']
-const ANDROID_PATHS = ['/admin/login', '/admin/no-access', '/admin/pos', '/admin/orders', '/admin/payments', '/admin/chat', '/display']
-export const SYSTEMS = APP_MODE === 'android'
+const ANDROID_ORDER_LINKS = ['/admin/orders', '/admin/orders/new', '/admin/payments']
+const ANDROID_PATHS = ['/admin/login', '/admin/no-access', '/admin/pos', '/admin/orders', '/admin/payments', '/display']
+// ระบบหลังบ้านที่แสดงในโหมดนั้น (ฟังก์ชันล้วน ทดสอบได้โดยไม่ต้อง build เป็น APK)
+export const systemsFor = (mode) => (mode === 'android'
   ? ALL_SYSTEMS.filter((s) => ANDROID_KEYS.includes(s.key)).map((s) => (s.key === 'orders' ? { ...s, items: s.items.filter((i) => ANDROID_ORDER_LINKS.includes(i.to)) } : s))
-  : ALL_SYSTEMS
+  : ALL_SYSTEMS)
+export const SYSTEMS = systemsFor(APP_MODE)
 // เส้นทางที่เปิดได้ในแอป (โหมดเว็บเปิดทุกเส้นทาง) · หน้าแรกเป็น '' เมื่อผ่าน router (ตัด / ท้ายแล้ว)
 const CUSTOMER_PATHS = ['/menu', '/line', '/legal', '/account', '/o', '/luck', '/s']
 const isCustomerPath = (path) => ['', '/'].includes(path) || CUSTOMER_PATHS.some((p) => path === p || path.startsWith(p + '/'))
-export const allowedInApp = (path) => {
-  if (APP_MODE === 'customer') return isCustomerPath(path)
-  return APP_MODE !== 'android' || ANDROID_PATHS.some((p) => path === p || path.startsWith(p + '/'))
+export const allowedInAppMode = (mode, path) => {
+  if (mode === 'customer') return isCustomerPath(path)
+  return mode !== 'android' || ANDROID_PATHS.some((p) => path === p || path.startsWith(p + '/'))
 }
+export const allowedInApp = (path) => allowedInAppMode(APP_MODE, path)
+// แอปพนักงาน (Android) ไม่มีแชท: ใช้ซ่อนกระดิ่งแชทใน store
+export const IS_STAFF_APP = APP_MODE === 'android'
 
 // ระบบของเส้นทางนี้ (null = ไม่ใช่หน้าหลังบ้านของระบบใด เช่น no-access)
 export function systemOf(path) {
