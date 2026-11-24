@@ -142,13 +142,24 @@ begin
   return jsonb_build_object('ok', true, 'status', st, 'payDueAt', duez);
 end $$;
 
--- 6) ยกเลิก: คืนแต้มทั้งหมด · ปล่อยโควตาเฉพาะออร์เดอร์ที่ยังจองอยู่ (ไม่ปล่อยซ้ำกับที่หมดเวลาแล้ว) · ยอดคืนต้องไม่เกินยอดที่รับ ที่เหลือคือริบ
-create or replace function public.punpang_preorder_cancel(p_order text, p_refund numeric default 0, p_now timestamptz default now())
+-- 6) ยกเลิก: คืนแต้มทั้งหมด · ปล่อยโควตาเฉพาะออร์เดอร์ที่ยังจองอยู่ (ไม่ปล่อยซ้ำกับที่หมดเวลาแล้ว)
+-- การคืนเงินเป็นลิสต์ [{amount, method}] method = cash | bank (คืนเป็นคะแนนหรือคูปองยังไม่รองรับ) · ยอดรวมคืนต้องไม่เกินยอดที่รับ ส่วนที่เหลือเป็นริบ
+create or replace function public.punpang_preorder_cancel(p_order text, p_refunds jsonb default '[]'::jsonb, p_now timestamptz default now())
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
-  cid text; o record; paid numeric; ret jsonb; rel jsonb := null;
+  cid text; o record; paid numeric; ret jsonb; rel jsonb := null; r jsonb; amt numeric; refund_total numeric := 0;
+  clean jsonb := '[]'::jsonb;
   nowz text := to_char(p_now at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"');
 begin
+  if jsonb_typeof(coalesce(p_refunds, '[]'::jsonb)) <> 'array' then return jsonb_build_object('error', 'bad_refund'); end if;
+  for r in select * from jsonb_array_elements(coalesce(p_refunds, '[]'::jsonb)) loop
+    amt := (r->>'amount')::numeric;
+    if amt is null or amt <= 0 or amt <> round(amt, 2) or (r->>'method') not in ('cash', 'bank') then
+      return jsonb_build_object('error', 'bad_refund');
+    end if;
+    refund_total := refund_total + amt;
+    clean := clean || jsonb_build_array(jsonb_build_object('amount', amt, 'method', r->>'method'));
+  end loop;
   select customer_id into cid from public.punpang_preorder_orders where id = p_order;
   if not found then return jsonb_build_object('error', 'no_order'); end if;
   perform 1 from public.punpang_customers where id = cid for update;
@@ -156,18 +167,16 @@ begin
   if o.status = 'cancelled' then return jsonb_build_object('ok', true, 'already', true); end if;
   if o.status = 'delivered' then return jsonb_build_object('error', 'already_delivered'); end if;
   paid := public.punpang_preorder_paid_total(o.data);
-  if p_refund is null or p_refund < 0 or p_refund > paid or p_refund <> round(p_refund, 2) then
-    return jsonb_build_object('error', 'bad_refund');
-  end if;
+  if refund_total > paid then return jsonb_build_object('error', 'bad_refund'); end if;
   ret := public.punpang_preorder_return_points(p_order);
   if o.status in ('awaiting_payment', 'payment_confirmed') then
     rel := public.punpang_preorder_release(o.campaign_id, o.pickup_date, coalesce(o.data->'lines', '[]'::jsonb));
   end if;
   update public.punpang_preorder_orders
     set status = 'cancelled', updated_at = now(),
-        data = o.data || jsonb_build_object('refund', p_refund, 'forfeited', paid - p_refund, 'cancelledAt', nowz)
+        data = o.data || jsonb_build_object('refunds', clean, 'refund', refund_total, 'forfeited', paid - refund_total, 'cancelledAt', nowz)
     where id = p_order;
-  return jsonb_build_object('ok', true, 'already', false, 'refund', p_refund, 'forfeited', paid - p_refund,
+  return jsonb_build_object('ok', true, 'already', false, 'refund', refund_total, 'forfeited', paid - refund_total,
     'points', coalesce(ret->>'points', '0'), 'released', rel is not null);
 end $$;
 
@@ -248,8 +257,8 @@ revoke all on function public.punpang_preorder_request_qr(text, numeric, text) f
 grant execute on function public.punpang_preorder_request_qr(text, numeric, text) to service_role;
 revoke all on function public.punpang_preorder_confirm_qr(text, numeric, text) from public, anon, authenticated;
 grant execute on function public.punpang_preorder_confirm_qr(text, numeric, text) to service_role;
-revoke all on function public.punpang_preorder_cancel(text, numeric, timestamptz) from public, anon, authenticated;
-grant execute on function public.punpang_preorder_cancel(text, numeric, timestamptz) to service_role;
+revoke all on function public.punpang_preorder_cancel(text, jsonb, timestamptz) from public, anon, authenticated;
+grant execute on function public.punpang_preorder_cancel(text, jsonb, timestamptz) to service_role;
 
 -- ซิงก์สำเนาโหมดทดสอบให้มี RPC ใหม่
 select punpang_test.punpang_test_sync();

@@ -27,7 +27,7 @@ t('มัดจำที่ยืนยันแล้วเข้า 2300 เ�
 })
 
 t('ยกเลิกคืน 30 ริบ 40 จากยอดรับ 70: 2300 ถูกล้าง คืนเงินสด และรับรู้ 4900', () => {
-  const es = preorderEntries({ ...base, status: 'cancelled', refund: 30, cancelledAt: '2026-11-26T00:00:00.000Z' })
+  const es = preorderEntries({ ...base, status: 'cancelled', refunds: [{ amount: 30, method: 'cash' }], cancelledAt: '2026-11-26T00:00:00.000Z' })
   const cxl = es.find((e) => e.id === 'pre-cxl:po1')
   assert.ok(cxl)
   assert.equal(cxl.lines.find((l) => l.account === '2300').dr, 70)
@@ -36,8 +36,13 @@ t('ยกเลิกคืน 30 ริบ 40 จากยอดรับ 70: 2
   balanced(cxl)
 })
 
-t('คืนเกินยอดที่รับไม่บันทึกรายการยกเลิก', () => {
-  const es = preorderEntries({ ...base, status: 'cancelled', refund: 999, cancelledAt: '2026-11-26T00:00:00.000Z' })
+t('คืนสองวิธี (เงินสด 20 โอน 10) ลงคนละบัญชี และคืนเกินยอดที่รับไม่บันทึกรายการ', () => {
+  const split = preorderEntries({ ...base, status: 'cancelled', refunds: [{ amount: 20, method: 'cash' }, { amount: 10, method: 'bank' }], cancelledAt: '2026-11-26T00:00:00.000Z' })
+  const cxl = split.find((e) => e.id === 'pre-cxl:po1')
+  assert.equal(cxl.lines.find((l) => l.account === '1020').cr, 10)
+  assert.equal(cxl.lines.find((l) => l.account === '4900').cr, 40)
+  balanced(cxl)
+  const es = preorderEntries({ ...base, status: 'cancelled', refunds: [{ amount: 999, method: 'cash' }], cancelledAt: '2026-11-26T00:00:00.000Z' })
   assert.equal(es.some((e) => e.id === 'pre-cxl:po1'), false)
 })
 

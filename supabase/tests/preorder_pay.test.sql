@@ -162,14 +162,14 @@ select test.ok('P12 วันที่ขยายในอดีตถูกป
 
 -- P13 คืนเงินเกินยอดที่รับไม่ได้ (รับ 50)
 select test.ok('P13 ยกเลิกคืนเกินยอดที่รับ (50) ถูกปฏิเสธ',
-  public.punpang_preorder_cancel('pp_b', 60) = '{"error":"bad_refund"}'::jsonb
+  public.punpang_preorder_cancel('pp_b', '[{"amount":60,"method":"cash"}]'::jsonb) = '{"error":"bad_refund"}'::jsonb
   and (select status from public.punpang_preorder_orders where id = 'pp_b') = 'payment_confirmed');
 
 -- P14 ยกเลิก B คืน 30 ริบ 20: สถานะยกเลิก ปล่อยโควตา (4 → 3)
 do $$
 declare r jsonb;
 begin
-  r := public.punpang_preorder_cancel('pp_b', 30);
+  r := public.punpang_preorder_cancel('pp_b', '[{"amount":20,"method":"cash"},{"amount":10,"method":"bank"}]'::jsonb);
   perform test.ok('P14 ยกเลิกคืน 30 ริบ 20 และปล่อยโควตา',
     (r->>'refund')::numeric = 30 and (r->>'forfeited')::numeric = 20 and (r->>'released') = 'true'
     and (select status from public.punpang_preorder_orders where id = 'pp_b') = 'cancelled'
@@ -178,7 +178,7 @@ end $$;
 
 -- P15 ยกเลิกซ้ำไม่มีผล
 select test.ok('P15 ยกเลิกซ้ำเป็น already และโควตาไม่ลดซ้ำ',
-  public.punpang_preorder_cancel('pp_b', 0) ->> 'already' = 'true'
+  public.punpang_preorder_cancel('pp_b', '[]'::jsonb) ->> 'already' = 'true'
   and (select reserved from public.punpang_preorder_slots where campaign_id = 'pp_camp' and item_id = 'pp_item' and pickup_date = '2099-12-24') = 3);
 
 -- P16 ออร์เดอร์ D หมดเวลาแล้วยกเลิก: ปล่อยโควตาครั้งเดียวเท่านั้น (ตอนหมดเวลา)
@@ -186,7 +186,7 @@ do $$
 declare r jsonb;
 begin
   perform public.punpang_preorder_expire('pp_d');
-  r := public.punpang_preorder_cancel('pp_d', 0);
+  r := public.punpang_preorder_cancel('pp_d', '[]'::jsonb);
   perform test.ok('P16 ยกเลิกออร์เดอร์ที่หมดเวลาแล้วไม่ปล่อยโควตาซ้ำ',
     (r->>'released') = 'false'
     and (select reserved from public.punpang_preorder_slots where campaign_id = 'pp_camp' and item_id = 'pp_item' and pickup_date = '2099-12-24') = 2);

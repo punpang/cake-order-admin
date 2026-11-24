@@ -169,7 +169,7 @@ export function orderEntries(o, ctx) {
 
 // ออร์เดอร์สั่งล่วงหน้า (เฟส 3G): มัดจำที่ยืนยันแล้วเข้า 2300 รับล่วงหน้า · ยกเลิกแล้วคืนเงินตามที่ร้านเลือก และส่วนที่เหลือเป็นริบเข้า 4900
 // รายได้รับรู้ตอนส่งมอบยังไม่รวมในรอบนี้ (ต้องตัดสินเรื่อง VAT ของมัดจำก่อน) · ออร์เดอร์ที่หมดเวลาแต่ยังไม่ยกเลิกไม่มีรายการ
-// อินพุต: { id, code, status, payments:[{id, amount, method, status, at}], refund, forfeited?, refundMethod?, cancelledAt? }
+// อินพุต: { id, code, status, payments:[{id, amount, method, status, at}], refunds:[{amount, method: 'cash'|'bank'}], cancelledAt? }
 export function preorderEntries(o) {
   const out = []
   if (!o || !o.code) return out
@@ -184,12 +184,13 @@ export function preorderEntries(o) {
     out.push(entry(`pre-dep:${o.id}:${p.id}`, dateOf(p.at), `รับมัดจำสั่งล่วงหน้า ${code}`, { type: 'preorder-deposit', orderId: o.id, paymentId: p.id }, [dr(acc, amtS), cr(DEPOSIT, amtS)]))
   }
   if (o.status === 'cancelled' && paidS > 0) {
-    const refundS = Math.max(0, toS(o.refund))
-    // ยอดคืนต้องไม่เกินยอดที่รับจริง (ตรงกับกติกาในฐานข้อมูล) · ส่วนที่เหลือเป็นริบ
+    // คืนเงินเป็นรายการตามวิธี (เงินสด/โอน) · ยอดคืนรวมต้องไม่เกินยอดที่รับจริง · ส่วนที่เหลือเป็นริบ
+    const refunds = (Array.isArray(o.refunds) ? o.refunds : []).map((r) => ({ s: toS(r.amount), method: r.method })).filter((r) => r.s > 0)
+    const refundS = refunds.reduce((a, r) => a + r.s, 0)
     if (refundS > paidS) return out
     const forfS = paidS - refundS
     const lines = [dr(DEPOSIT, paidS)]
-    if (refundS > 0) lines.push(cr(o.refundMethod === 'bank' ? BANK : CASH, refundS))
+    for (const r of refunds) lines.push(cr(r.method === 'bank' ? BANK : CASH, r.s))
     if (forfS > 0) lines.push(cr('4900', forfS))
     out.push(entry(`pre-cxl:${o.id}`, dateOf(o.cancelledAt), `ยกเลิกสั่งล่วงหน้า ${code} คืนเงิน/ริบมัดจำ`, { type: 'preorder-cancel', orderId: o.id }, lines))
   }
