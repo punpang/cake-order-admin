@@ -8,7 +8,7 @@ import { customerScale, CUSTOMER_WARN_AT } from '../../lib/customersSync'
 import { toDateStr, money } from '../../lib/format'
 import { CASH_KINDS, CASH_LABEL, cashSettingsOf } from '../../lib/cashService'
 import { deliveryFee } from '../../lib/delivery'
-import { DEFAULT_PARCEL, cleanParcelConfig, parcelConfigError, parcelFee, hasParcelDims } from '../../lib/parcelShipping'
+import { DEFAULT_PARCEL, EMS_DOMESTIC, cleanParcelConfig, parcelConfigError, parcelFee, hasParcelDims } from '../../lib/parcelShipping'
 import { BANKS, bankByCode } from '../../lib/payFields'
 import { clonePayment, validatePayAccount, newPayAccountId } from '../../lib/payAccounts'
 import { cleanClosures, describeClosures, DOW_NAMES, MAX_ROWS } from '../../lib/shopHours'
@@ -26,8 +26,30 @@ const prepCats = [...new Set(db.retailItems.map((x) => x.category).filter(Boolea
 const togglePrep = (c) => { const a = st.prepCategories || []; st.prepCategories = a.includes(c) ? a.filter((x) => x !== c) : [...a, c] }
 const serverScheduled = computed(() => db.scheduled?.server === true)
 // สำเนาตารางค่าส่งพัสดุ (รับ undefined ได้ เพราะร้านเดิมยังไม่เคยบันทึก)
-const cloneParcel = (p) => ({ ...DEFAULT_PARCEL, ...(p || {}), rates: (p?.rates || []).map((r) => ({ ...r })) })
-const PARCEL_ERR = { no_rates: 'ยังไม่ได้ตั้งตารางอัตรา', overweight: 'น้ำหนักเกินขั้นสูงสุดของตาราง' }
+// ฉบับร่างในฟอร์ม: ราคาของแต่ละกล่องเรียงตามขั้นน้ำหนัก (แยกจากชื่อกล่อง เพื่อให้แก้ชื่อได้โดยไม่หลุดราคา)
+const cloneParcel = (p) => {
+  const d = { ...DEFAULT_PARCEL, ...(p || {}) }
+  return {
+    fee: d.fee ?? 0,
+    steps: [...(d.steps || [])],
+    boxes: (d.boxes || []).map((b) => ({ name: b.name, dims: { ...b.dims }, boxG: b.boxG, price: b.price, prices: [...(d.prices?.[b.name] || [])] })),
+  }
+}
+// แปลงฉบับร่างเป็นรูปที่ lib ใช้ (ราคาคีย์ด้วยชื่อกล่อง)
+const parcelLibOf = (f) => ({
+  fee: f.fee,
+  steps: f.steps,
+  boxes: f.boxes.map((b) => ({ name: b.name, dims: b.dims, boxG: b.boxG, price: b.price })),
+  prices: Object.fromEntries(f.boxes.map((b) => [String(b.name ?? '').trim(), b.prices])),
+})
+const parcelLib = computed(() => parcelLibOf(st.parcel))
+const addBox = () => st.parcel.boxes.push({ name: '', dims: { w: '', l: '', h: '' }, boxG: '', price: '', prices: st.parcel.steps.map(() => '') })
+const removeBox = (i) => st.parcel.boxes.splice(i, 1)
+const addStep = () => { st.parcel.steps.push(''); st.parcel.boxes.forEach((b) => b.prices.push('')) }
+const removeStep = (j) => { st.parcel.steps.splice(j, 1); st.parcel.boxes.forEach((b) => b.prices.splice(j, 1)) }
+// ค่าตั้งต้นจากตาราง EMS ในประเทศ (ราคาเดียวกันทุกกล่องเพราะ EMS คิดตามน้ำหนัก)
+const useEmsTable = () => { st.parcel.steps = EMS_DOMESTIC.map((r) => r[0]); st.parcel.boxes.forEach((b) => { b.prices = EMS_DOMESTIC.map((r) => r[1]) }) }
+const PARCEL_ERR = { no_boxes: 'ยังไม่ได้ตั้งกล่องพัสดุ', no_steps: 'ยังไม่ได้ตั้งขั้นน้ำหนัก', no_price: 'ตารางราคาไม่ครบ', too_big: 'ปริมาตรสินค้าเกินกล่องใหญ่สุด', overweight: 'น้ำหนักเกินขั้นสูงสุดของตาราง' }
 const st = reactive({ ...db.shop, parcel: cloneParcel(db.shop.parcel), cashService: cashSettingsOf(db.shop), prepCategories: [...(db.shop.prepCategories || [])], chatAutoHideHours: db.shop.chatAutoHideHours ?? 24, customerLazy: db.shop.customerLazy === true, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, lineRetentionDays: db.shop.lineRetentionDays ?? 180, merchantCode: db.shop.merchantCode ?? '', billerId: db.shop.billerId ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
 // ---- วัน-เวลาปิดร้าน ----
 const DOWS = [1, 2, 3, 4, 5, 6, 0] // จันทร์เริ่ม
@@ -41,9 +63,9 @@ const exampleFee = computed(() => deliveryFee(8, st.delivery))
 const sampleFeeText = computed(() => {
   const item = db.retailItems.find((x) => hasParcelDims(x))
   if (!item) return 'ยังไม่มีสินค้าที่กรอกน้ำหนักและขนาด'
-  const r = parcelFee([{ retailId: item.id, qty: 1 }], db.retailItems, cleanParcelConfig(st.parcel))
+  const r = parcelFee([{ retailId: item.id, qty: 1 }], db.retailItems, cleanParcelConfig(parcelLib.value))
   if (!r.ok) return `${item.name}: ${PARCEL_ERR[r.error] || r.error}`
-  return `${item.name} 1 ชิ้น = ${money(r.fee)}`
+  return `${item.name} 1 ชิ้น รวม ค่าส่ง ${money(r.total)} (ธรรมเนียม ${money(r.fee)} + กล่อง ${money(r.boxPrice)} + ขนส่ง ${money(r.shipping)})`
 })
 const error = ref('')
 const saved = ref(false)
@@ -93,10 +115,10 @@ function save() {
   if (v.branch && !validBranch(v.branch)) return (error.value = 'สาขาต้อง 5 หลัก (สำนักงานใหญ่ 00000)')
   { const cr = cleanClosures(st.closures); if (cr.error) return (error.value = cr.error) }
   for (const a of st.payment.accounts) { const e = validatePayAccount(a); if (e) return (error.value = e) }
-  const pe = parcelConfigError(st.parcel)
+  const pe = parcelConfigError(parcelLib.value)
   if (pe) return (error.value = pe)
   error.value = ''
-  const sr = saveShopSettings({ ...st, parcel: cleanParcelConfig(st.parcel) })
+  const sr = saveShopSettings({ ...st, parcel: cleanParcelConfig(parcelLib.value) })
   if (sr?.error) return (error.value = sr.error)
   Object.assign(st, db.shop, { parcel: cloneParcel(db.shop.parcel), cashService: cashSettingsOf(db.shop), vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
   saved.value = true
@@ -249,21 +271,59 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         </div>
       </div>
       <div class="border-t border-stone-100 pt-4">
-        <div class="card-title mb-3"><AppIcon name="truck" class="text-brand-600" /> ค่าส่งพัสดุไปรษณีย์ (ตามน้ำหนัก)</div>
-        <p class="mb-3 text-xs text-stone-500">คิดจากน้ำหนักรวมสินค้า+กล่อง เทียบกับน้ำหนักปริมาตร (กว้าง×ยาว×สูง ÷ ตัวหาร) ใช้ค่าที่มากกว่า · สินค้าต้องกรอกน้ำหนักและขนาดก่อน</p>
+        <div class="card-title mb-3"><AppIcon name="truck" class="text-brand-600" /> ค่าส่งพัสดุไปรษณีย์</div>
+        <p class="mb-3 text-xs text-stone-500">ลูกค้าเห็นเป็นบรรทัดเดียว "ค่าส่ง" = ค่าธรรมเนียมร้าน + ค่ากล่อง + ค่าขนส่งจากตาราง · ระบบเลือกกล่องที่เล็กที่สุดซึ่งปริมาตรรวมของสินค้าใส่ได้ · สินค้าต้องกรอกน้ำหนักและขนาดก่อน</p>
         <div class="grid grid-cols-2 gap-3">
-          <div><label class="label" for="pc-box">น้ำหนักกล่องเปล่า (กรัม)</label><input id="pc-box" v-model="st.parcel.boxG" type="text" inputmode="decimal" class="input" /></div>
-          <div><label class="label" for="pc-div">ตัวหารน้ำหนักปริมาตร</label><input id="pc-div" v-model="st.parcel.volDivisor" type="text" inputmode="decimal" class="input" /></div>
+          <div><label class="label" for="pc-fee">ค่าธรรมเนียมร้าน (บาท/ออเดอร์)</label><input id="pc-fee" v-model="st.parcel.fee" type="text" inputmode="decimal" class="input" /></div>
         </div>
-        <div class="mt-3 space-y-2">
-          <div v-for="(r, i) in st.parcel.rates" :key="i" class="flex items-center gap-2">
-            <input v-model="r.upToG" type="text" inputmode="numeric" class="input min-w-0 flex-1" aria-label="น้ำหนักสูงสุดของขั้น (กรัม)" placeholder="น้ำหนักสูงสุด (กรัม)" />
-            <input v-model="r.price" type="text" inputmode="decimal" class="input min-w-0 flex-1" aria-label="ราคาของขั้น (บาท)" placeholder="ราคา (บาท)" />
-            <button type="button" class="btn-danger h-11 w-11 shrink-0 px-0" aria-label="ลบขั้น" @click="st.parcel.rates.splice(i, 1)"><AppIcon name="trash" :size="16" /></button>
+        <div class="mt-4">
+          <div class="label mb-2">กล่องพัสดุ (ขนาดมาตรฐาน: กว้าง+ยาว+สูง ไม่เกิน 120 ซม. และด้านที่ยาวที่สุดไม่เกิน 60 ซม.)</div>
+          <div v-for="(b, i) in st.parcel.boxes" :key="i" class="mb-3 space-y-2 rounded-xl border border-stone-200 p-3">
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <input v-model="b.name" type="text" class="input" aria-label="ชื่อกล่อง" placeholder="ชื่อกล่อง เช่น S" />
+              <input v-model="b.dims.w" type="text" inputmode="numeric" class="input" aria-label="กว้าง (ซม.)" placeholder="กว้าง (ซม.)" />
+              <input v-model="b.dims.l" type="text" inputmode="numeric" class="input" aria-label="ยาว (ซม.)" placeholder="ยาว (ซม.)" />
+              <input v-model="b.dims.h" type="text" inputmode="numeric" class="input" aria-label="สูง (ซม.)" placeholder="สูง (ซม.)" />
+              <input v-model="b.boxG" type="text" inputmode="numeric" class="input" aria-label="น้ำหนักกล่อง (กรัม)" placeholder="น้ำหนักกล่อง (กรัม)" />
+              <input v-model="b.price" type="text" inputmode="decimal" class="input" aria-label="ราคากล่อง (บาท)" placeholder="ราคากล่อง (บาท)" />
+            </div>
+            <button type="button" class="btn-danger h-9 px-3 text-sm" @click="removeBox(i)"><AppIcon name="trash" :size="14" /> ลบกล่อง</button>
           </div>
-          <button type="button" class="btn-soft h-9 px-3 text-sm" @click="st.parcel.rates.push({ upToG: '', price: '' })"><AppIcon name="plus" :size="14" /> เพิ่มขั้น</button>
+          <button type="button" class="btn-soft h-9 px-3 text-sm" @click="addBox"><AppIcon name="plus" :size="14" /> เพิ่มกล่อง</button>
         </div>
-        <p class="mt-2 text-xs text-stone-500">ตัวอย่าง: {{ sampleFeeText }}</p>
+        <div class="mt-4">
+          <div class="mb-2 flex flex-wrap items-center gap-2">
+            <span class="label">ตารางค่าขนส่ง: น้ำหนักรวมกล่องไม่เกินขั้นนี้ → ราคาตามกล่อง</span>
+            <button type="button" class="btn-soft h-9 px-3 text-sm" @click="useEmsTable">ใช้ตาราง EMS ในประเทศเป็นค่าตั้งต้น</button>
+          </div>
+          <div class="overflow-x-auto rounded-xl border border-stone-200">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr>
+                  <th class="px-2 py-2 text-left font-medium">กล่อง / ไม่เกิน (กรัม)</th>
+                  <th v-for="(s, j) in st.parcel.steps" :key="j" class="px-1 py-1 font-normal">
+                    <div class="flex items-center gap-1">
+                      <input v-model="st.parcel.steps[j]" type="text" inputmode="numeric" class="input h-9 w-24" :aria-label="`น้ำหนักไม่เกิน ขั้นที่ ${j + 1} (กรัม)`" placeholder="กรัม" />
+                      <button type="button" class="btn-danger h-9 w-9 shrink-0 px-0" :aria-label="`ลบขั้นที่ ${j + 1}`" @click="removeStep(j)"><AppIcon name="trash" :size="14" /></button>
+                    </div>
+                  </th>
+                  <th class="px-2 py-1"><button type="button" class="btn-soft h-9 px-3 text-sm" @click="addStep"><AppIcon name="plus" :size="14" /> ขั้น</button></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(b, i) in st.parcel.boxes" :key="i" class="border-t border-stone-100">
+                  <td class="px-2 py-1 font-medium">{{ b.name || `กล่อง ${i + 1}` }}</td>
+                  <td v-for="(s, j) in st.parcel.steps" :key="j" class="px-1 py-1">
+                    <input v-model="b.prices[j]" type="text" inputmode="decimal" class="input h-9 w-24" :aria-label="`ราคา ${b.name || 'กล่อง ' + (i + 1)} ขั้นที่ ${j + 1} (บาท)`" placeholder="บาท" />
+                  </td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-if="!st.parcel.boxes.length || !st.parcel.steps.length" class="mt-1 text-xs text-stone-500">เพิ่มกล่องและขั้นน้ำหนักก่อน จึงจะกรอกราคาได้</p>
+        </div>
+        <p class="mt-3 text-xs text-stone-500">ตัวอย่าง: {{ sampleFeeText }}</p>
       </div>
       <div class="border-t border-stone-100 pt-4">
         <div class="card-title mb-3"><AppIcon name="wallet" class="text-brand-600" /> บริการเกี่ยวกับเงิน (ซ่อนเงิน/ดึงเงิน/ซ่อนของ)</div>

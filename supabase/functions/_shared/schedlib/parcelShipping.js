@@ -1,44 +1,84 @@
-// ค่าส่งพัสดุไปรษณีย์จากน้ำหนัก/ขนาดสินค้า (ฟังก์ชันล้วน · ใช้ทั้งแอปและ Edge Function ผ่าน schedlib)
-// น้ำหนักที่คิด = max(น้ำหนักจริงรวมกล่อง, น้ำหนักปริมาตร) · น้ำหนักปริมาตร = Σ(กว้าง×ยาว×สูง×จำนวน) ÷ ตัวหาร (ซม.³/กก.) ×1000 กรัม
-// ราคา = ขั้นแรกที่น้ำหนักที่คิด ≤ upToG · เกินขั้นสูงสุด = overweight
+// ค่าส่งพัสดุ = ค่าธรรมเนียมร้าน (เหมาต่อออเดอร์) + ค่ากล่อง + ค่าขนส่งจากตาราง กล่อง×ขั้นน้ำหนัก (ฟังก์ชันล้วน · ใช้ทั้งแอปและ Edge Function ผ่าน schedlib)
+// กล่อง: เลือกกล่องที่เล็กที่สุดซึ่งปริมาตรรวมของสินค้าใส่ได้ · น้ำหนักที่คิด = น้ำหนักสินค้ารวม + น้ำหนักกล่องที่เลือก
+// ขั้น: ขั้นแรกที่น้ำหนักที่คิด ≤ steps[i] · ราคาขนส่ง = prices[ชื่อกล่อง][i] · เกินขั้นสูงสุด = overweight
 
-export const DEFAULT_PARCEL = { boxG: 0, volDivisor: 5000, rates: [] }
-export const PARCEL_LIMITS = { weightG: 50000, dimCm: 200, boxG: 50000, rateG: 100000, price: 100000, rows: 30, divMin: 1000, divMax: 20000, qty: 10000 }
+export const PARCEL_LIMITS = {
+  weightG: 50000, dimCm: 200, boxG: 50000, stepG: 100000, price: 100000, qty: 10000,
+  steps: 43, boxes: 20, sumCm: 120, maxSideCm: 60,
+}
+export const DEFAULT_PARCEL = { fee: 0, boxes: [], steps: [], prices: {} }
+// ตาราง EMS ในประเทศ (โปสเตอร์ปี 2023 · [น้ำหนักไม่เกิน กรัม, ราคาบาท]) · ค่าเดียวทุกพื้นที่ ใช้เป็นค่าตั้งต้นให้ร้านแก้ได้
+export const EMS_DOMESTIC = [
+  [20, 32], [100, 37], [250, 42], [500, 52], [1000, 67], [1500, 82], [2000, 97], [2500, 100], [3000, 105], [3500, 110],
+  [4000, 120], [4500, 120], [5000, 120], [5500, 130], [6000, 140], [6500, 150], [7000, 160], [7500, 170], [8000, 180], [8500, 190],
+  [9000, 200], [9500, 210], [10000, 220], [11000, 230], [12000, 240], [13000, 250], [14000, 260], [15000, 270], [16000, 280],
+  [17000, 290], [18000, 300], [19000, 310], [20000, 320], [21000, 330], [22000, 340], [23000, 350], [24000, 360], [25000, 380],
+  [26000, 400], [27000, 420], [28000, 440], [29000, 460], [30000, 480],
+]
 
 const isNum = (v) => (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '')) && Number.isFinite(Number(v))
 const toNum = (v) => (isNum(v) ? Number(v) : NaN)
 const int = (v, lo, hi) => { const n = toNum(v); return Number.isInteger(n) && n >= lo && n <= hi }
 const dim = (v) => { const n = toNum(v); return Number.isFinite(n) && n > 0 && n <= PARCEL_LIMITS.dimCm }
 const blank = (v) => v == null || String(v).trim() === ''
+const money = (v) => isNum(v) && toNum(v) >= 0 && toNum(v) <= PARCEL_LIMITS.price
 
-export function cleanParcelConfig(raw) {
-  const c = raw || {}
-  const boxG = int(c.boxG, 0, PARCEL_LIMITS.boxG) ? toNum(c.boxG) : 0
-  const volDivisor = int(c.volDivisor, PARCEL_LIMITS.divMin, PARCEL_LIMITS.divMax) ? toNum(c.volDivisor) : DEFAULT_PARCEL.volDivisor
-  const valid = (Array.isArray(c.rates) ? c.rates : []).filter((r) => r && int(r.upToG, 1, PARCEL_LIMITS.rateG) && isNum(r.price) && toNum(r.price) >= 0 && toNum(r.price) <= PARCEL_LIMITS.price)
-  const byWeight = new Map()
-  for (const r of valid) byWeight.set(toNum(r.upToG), { upToG: toNum(r.upToG), price: toNum(r.price) })
-  const rates = [...byWeight.values()].sort((a, b) => a.upToG - b.upToG).slice(0, PARCEL_LIMITS.rows)
-  return { boxG, volDivisor, rates }
+// กล่องหนึ่งใบ: ขนาดแต่ละด้านเป็นจำนวนเต็ม 1–60 ซม. และรวมสามด้านไม่เกิน 120 ซม. (ขนาดมาตรฐาน)
+const boxDimOk = (v) => int(v, 1, PARCEL_LIMITS.maxSideCm)
+const boxSizeOk = (d) => !!d && boxDimOk(d.w) && boxDimOk(d.l) && boxDimOk(d.h) && toNum(d.w) + toNum(d.l) + toNum(d.h) <= PARCEL_LIMITS.sumCm
+
+const boxOf = (b) => {
+  if (!b || typeof b.name !== 'string' || b.name.trim() === '' || !boxSizeOk(b.dims)) return null
+  if (!int(b.boxG, 0, PARCEL_LIMITS.boxG) || !money(b.price)) return null
+  const d = { w: toNum(b.dims.w), l: toNum(b.dims.l), h: toNum(b.dims.h) }
+  return { name: b.name.trim(), dims: d, volumeCm3: d.w * d.l * d.h, boxG: toNum(b.boxG), price: toNum(b.price) }
 }
 
-// ข้อความตรวจตั้งค่าก่อนบันทึก ('' = ผ่าน) · ตารางว่างผ่านได้
+// ตั้งค่าที่ผ่านการตรวจแล้ว (เรียงกล่องตามปริมาตร และขั้นตามน้ำหนัก) · ค่าที่ผิดรูปแบบถูกตัดทิ้ง
+export function cleanParcelConfig(raw) {
+  const c = raw || {}
+  const fee = money(c.fee) ? toNum(c.fee) : 0
+  const boxes = (Array.isArray(c.boxes) ? c.boxes : []).map(boxOf).filter(Boolean)
+    .slice(0, PARCEL_LIMITS.boxes).sort((a, b) => a.volumeCm3 - b.volumeCm3)
+  const steps = [...new Set((Array.isArray(c.steps) ? c.steps : []).filter((s) => int(s, 1, PARCEL_LIMITS.stepG)).map(toNum))]
+    .sort((a, b) => a - b).slice(0, PARCEL_LIMITS.steps)
+  const prices = {}
+  for (const b of boxes) prices[b.name] = Array.isArray(c.prices?.[b.name]) ? c.prices[b.name].map((p) => (money(p) ? toNum(p) : null)) : []
+  return { fee, boxes, steps, prices }
+}
+
+// ข้อความตรวจตั้งค่าก่อนบันทึก ('' = ผ่าน) · ตั้งค่าว่างทั้งหมดผ่านได้
 export function parcelConfigError(raw) {
   const c = raw || {}
-  if (c.boxG !== undefined && !int(c.boxG, 0, PARCEL_LIMITS.boxG)) return 'น้ำหนักกล่องต้องเป็นจำนวนเต็มกรัม 0–50000'
-  if (c.volDivisor !== undefined && !int(c.volDivisor, PARCEL_LIMITS.divMin, PARCEL_LIMITS.divMax)) return 'ตัวหารปริมาตรต้องเป็นจำนวนเต็ม 1000–20000'
-  const rows = Array.isArray(c.rates) ? c.rates : []
-  if (rows.length > PARCEL_LIMITS.rows) return 'ตั้งได้ไม่เกิน 30 ขั้น'
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i] || {}
-    if (!int(r.upToG, 1, PARCEL_LIMITS.rateG) || !isNum(r.price) || toNum(r.price) < 0 || toNum(r.price) > PARCEL_LIMITS.price) {
-      return `ขั้นที่ ${i + 1}: กรอกน้ำหนักสูงสุด (กรัม) และราคาให้ครบ`
-    }
+  if (c.fee !== undefined && !money(c.fee)) return 'ค่าธรรมเนียมร้านต้องเป็นตัวเลข 0–100000'
+  const boxes = Array.isArray(c.boxes) ? c.boxes : []
+  if (boxes.length > PARCEL_LIMITS.boxes) return `ตั้งได้ไม่เกิน ${PARCEL_LIMITS.boxes} กล่อง`
+  const names = new Set()
+  for (let i = 0; i < boxes.length; i++) {
+    const b = boxes[i] || {}
+    const at = `กล่องที่ ${i + 1}`
+    if (typeof b.name !== 'string' || b.name.trim() === '') return `${at}: ใส่ชื่อกล่อง`
+    if (names.has(b.name.trim())) return `${at}: ชื่อกล่องซ้ำ`
+    names.add(b.name.trim())
+    const d = b.dims || {}
+    if (![d.w, d.l, d.h].every(boxDimOk)) return `${at}: ขนาดแต่ละด้านต้องเป็นจำนวนเต็ม 1–${PARCEL_LIMITS.maxSideCm} ซม.`
+    if (toNum(d.w) + toNum(d.l) + toNum(d.h) > PARCEL_LIMITS.sumCm) return `${at}: กว้าง+ยาว+สูง ต้องไม่เกิน ${PARCEL_LIMITS.sumCm} ซม.`
+    if (!int(b.boxG, 0, PARCEL_LIMITS.boxG)) return `${at}: น้ำหนักกล่องต้องเป็นจำนวนเต็มกรัม 0–50000`
+    if (!money(b.price)) return `${at}: ราคากล่องต้องเป็นตัวเลข 0–100000`
   }
-  const sorted = rows.map((r) => ({ w: toNum(r.upToG), p: toNum(r.price) })).sort((a, b) => a.w - b.w)
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i].w === sorted[i - 1].w) return 'น้ำหนักของขั้นซ้ำกัน'
-    if (sorted[i].p < sorted[i - 1].p) return 'ราคาต้องไม่ลดลงเมื่อน้ำหนักมากขึ้น'
+  const steps = Array.isArray(c.steps) ? c.steps : []
+  if (steps.length > PARCEL_LIMITS.steps) return `ตั้งได้ไม่เกิน ${PARCEL_LIMITS.steps} ขั้น`
+  for (let i = 0; i < steps.length; i++) {
+    if (!int(steps[i], 1, PARCEL_LIMITS.stepG)) return `ขั้นที่ ${i + 1}: น้ำหนักต้องเป็นจำนวนเต็มกรัม 1–100000`
+    if (i > 0 && toNum(steps[i]) <= toNum(steps[i - 1])) return `ขั้นที่ ${i + 1}: น้ำหนักต้องมากกว่าขั้นก่อนหน้า`
+  }
+  for (const b of boxes) {
+    const row = c.prices?.[b.name?.trim?.()] || []
+    if (row.length !== steps.length) return `${b.name}: กรอกราคาให้ครบทุกขั้น`
+    for (let i = 0; i < row.length; i++) {
+      if (!money(row[i])) return `${b.name} ขั้นที่ ${i + 1}: ราคาต้องเป็นตัวเลข 0–100000`
+      if (i > 0 && toNum(row[i]) < toNum(row[i - 1])) return `${b.name}: ราคาต้องไม่ลดลงเมื่อน้ำหนักมากขึ้น`
+    }
   }
   return ''
 }
@@ -69,8 +109,8 @@ export function hasParcelDims(item) {
   return !!item && int(item.weightG, 1, PARCEL_LIMITS.weightG) && !!item.dimsCm && dim(item.dimsCm.w) && dim(item.dimsCm.l) && dim(item.dimsCm.h)
 }
 
-// น้ำหนักสินค้ารวม (ไม่รวมกล่อง) และน้ำหนักปริมาตร · คืน error ถ้ารายการไม่ถูกต้อง
-export function parcelWeight(lines, retailItems, cfg) {
+// เลือกกล่องจากปริมาตรรวมของสินค้า (กล่องเล็กสุดที่ใส่ได้) · คืน {ok, box, weightG, volumeCm3} หรือ {ok:false, error, itemId?}
+export function parcelBox(lines, retailItems, cfg) {
   if (!Array.isArray(lines) || lines.length === 0) return { ok: false, error: 'empty' }
   const byId = new Map((retailItems || []).map((x) => [x.id, x]))
   const need = new Map()
@@ -82,30 +122,41 @@ export function parcelWeight(lines, retailItems, cfg) {
     need.set(ln.retailId, (need.get(ln.retailId) || 0) + ln.qty)
   }
   const c = cleanParcelConfig(cfg)
-  if (c.rates.length === 0) return { ok: false, error: 'no_rates' }
+  if (c.boxes.length === 0) return { ok: false, error: 'no_boxes' }
   let weightG = 0
-  let volume = 0
+  let volumeCm3 = 0
   for (const [id, qty] of need) {
-    const d = byId.get(id).dimsCm
-    weightG += qty * byId.get(id).weightG
-    volume += qty * d.w * d.l * d.h
+    const it = byId.get(id)
+    weightG += qty * it.weightG
+    volumeCm3 += qty * it.dimsCm.w * it.dimsCm.l * it.dimsCm.h
   }
-  const volumetricG = (volume * 1000) / c.volDivisor
-  return { ok: true, weightG, boxG: c.boxG, volumetricG, config: c }
+  const box = c.boxes.find((b) => volumeCm3 <= b.volumeCm3)
+  if (!box) return { ok: false, error: 'too_big' }
+  return { ok: true, box, weightG, volumeCm3 }
 }
 
-// ค่าส่งพัสดุ: {ok, fee, detail} หรือ {ok:false, error, itemId?}
+// ค่าส่งรวม = ค่าธรรมเนียมร้าน + ค่ากล่อง + ค่าขนส่ง · คืน {ok, fee, boxPrice, shipping, total, box, weightG, chargeableG, step, volumeCm3} หรือ {ok:false, error, itemId?}
 export function parcelFee(lines, retailItems, cfg) {
-  const w = parcelWeight(lines, retailItems, cfg)
-  if (!w.ok) return w
-  const actual = w.weightG + w.boxG
-  // ปัดทศนิยมก่อนปัดขึ้น กันสัญญาณรบกวนของจุดลอยตัว
-  const chargeableG = Math.ceil(Math.round(Math.max(actual, w.volumetricG) * 1000) / 1000)
-  const tier = w.config.rates.find((r) => chargeableG <= r.upToG)
-  if (!tier) return { ok: false, error: 'overweight' }
+  const b = parcelBox(lines, retailItems, cfg)
+  if (!b.ok) return b
+  const c = cleanParcelConfig(cfg)
+  if (c.steps.length === 0) return { ok: false, error: 'no_steps' }
+  const chargeableG = b.weightG + b.box.boxG
+  const idx = c.steps.findIndex((s) => chargeableG <= s)
+  if (idx < 0) return { ok: false, error: 'overweight' }
+  const shipping = c.prices[b.box.name]?.[idx]
+  if (!Number.isFinite(shipping)) return { ok: false, error: 'no_price' }
+  const total = c.fee + b.box.price + shipping
   return {
     ok: true,
-    fee: tier.price,
-    detail: { weightG: w.weightG, boxG: w.boxG, volumetricG: w.volumetricG, chargeableG, tierUpToG: tier.upToG, tierPrice: tier.price },
+    fee: c.fee,
+    boxPrice: b.box.price,
+    shipping,
+    total,
+    box: { name: b.box.name, price: b.box.price, boxG: b.box.boxG },
+    weightG: b.weightG,
+    chargeableG,
+    step: c.steps[idx],
+    volumeCm3: b.volumeCm3,
   }
 }

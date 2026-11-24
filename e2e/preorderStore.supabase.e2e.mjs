@@ -16,7 +16,8 @@ const CAMPAIGN = {
 const preorder = (b) => {
   switch (b.action) {
     case 'campaigns': return { campaigns: [CAMPAIGN] }
-    case 'quote': return { ok: true, total: 90, vat: 0, shippingFee: 0 }
+    // ส่งพัสดุ: ค่าส่งรวม (ค่าธรรมเนียม + กล่อง + ขนส่ง) เป็นบรรทัดเดียว
+    case 'quote': return b.fulfillment === 'delivery' ? { ok: true, total: 175, vat: 0, shippingFee: 85 } : { ok: true, total: 90, vat: 0, shippingFee: 0 }
     case 'otp_request': return { ok: true }
     case 'otp_verify': {
       // ลูกค้าใหม่ต้องยินยอมก่อน (ตามเซิร์ฟเวอร์จริง ตอบ 400 พร้อม needConsent)
@@ -54,6 +55,11 @@ const { step: s, finish } = stepper(p)
   await s('1b. เลือกส่งพัสดุแล้วเห็นช่วงวันจัดส่งของแคมเปญ (แล้วกลับไปรับที่ร้าน)', async () => {
     await p.getByLabel('ส่งพัสดุ').check()
     assert.match(await p.locator('[data-ship]').innerText(), /จัดส่งระหว่าง 2026-12-22 ถึง 2026-12-23/)
+    await p.getByRole('button', { name: 'ดูราคา' }).click()
+    await p.getByText('ค่าส่ง 85 บาท').waitFor({ timeout: 15000 })
+    // ลูกค้าเห็นค่าส่งเป็นบรรทัดเดียว ไม่เห็นรายละเอียดกล่องหรือน้ำหนัก
+    const quoteText = await p.locator('[data-quote]').innerText()
+    assert.doesNotMatch(quoteText, /กล่อง|กรัม/)
     await p.getByLabel('รับที่ร้าน').check()
     assert.equal(await p.locator('[data-ship]').count(), 0)
   })

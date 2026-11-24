@@ -1,6 +1,8 @@
 // แคมเปญสั่งล่วงหน้า (ฟังก์ชันล้วน): ตรวจค่า วันรับ สถานะ และแปลงแถวฐานข้อมูล
 // วันที่เป็นข้อความ 'YYYY-MM-DD' เสมอ · ไม่พึ่งเขตเวลา (คำนวณด้วย UTC)
 
+import { cleanShipOff, shipOffError } from './shipDiscount.js'
+
 export const CAMPAIGN_STATUS = ['draft', 'open', 'closed']
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -19,6 +21,7 @@ export function blankCampaign() {
     depositPercent: 50, payDueMin: null,
     dayCap: null, items: [],
     deals: [], parcel: { enabled: false },
+    shipOff: [],
     shipFrom: '', shipTo: '',
   }
 }
@@ -58,6 +61,8 @@ export function campaignError(c) {
     const err = dealError(d)
     if (err) return err
   }
+  const shipErr = shipOffError(c.shipOff)
+  if (shipErr) return shipErr
   if (c.parcel !== undefined && typeof c.parcel?.enabled !== 'boolean') return 'ค่า parcel.enabled ต้องเป็น true/false'
   if (c.parcel?.enabled === true) {
     if (!isDay(c.shipFrom) || !isDay(c.shipTo)) return 'ช่วงวันจัดส่งพัสดุต้องเป็นวันที่ที่ถูกต้อง'
@@ -119,6 +124,7 @@ export function campaignToRow(c) {
       dayCap: c.dayCap ?? null,
       items: c.items.map((i) => ({ retailId: i.retailId, dayCap: i.dayCap ?? null })),
       deals: (c.deals ?? []).map((d) => ({ kind: d.kind, name: d.name ?? '', tiers: (d.tiers ?? []).map((t) => ({ min: Number(t.min), type: t.type, value: Number(t.value) })) })),
+      shipOff: cleanShipOff(c.shipOff),
       parcel: { enabled: c.parcel?.enabled === true },
       shipping: c.parcel?.enabled === true ? { shipFrom: c.shipFrom, shipTo: c.shipTo } : null,
     },
@@ -139,6 +145,7 @@ export function rowToCampaign(r) {
     dayCap: r.data?.dayCap ?? null,
     items: (r.data?.items ?? []).map((i) => ({ retailId: i.retailId, dayCap: i.dayCap ?? null })),
     deals: r.data?.deals ?? [],
+    shipOff: r.data?.shipOff ?? [],
     parcel: { enabled: r.data?.parcel?.enabled === true },
     shipFrom: r.data?.shipping?.shipFrom ?? '',
     shipTo: r.data?.shipping?.shipTo ?? '',

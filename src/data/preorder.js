@@ -13,6 +13,7 @@ const structOf = (c) => JSON.stringify([
   c.orderFrom, c.orderTo, c.pickupFrom, c.pickupTo, c.depositPercent, c.payDueMin ?? null, c.dayCap ?? null,
   (c.items || []).map((i) => [i.retailId, i.dayCap ?? null]),
   (c.deals || []).map((d) => [d.kind, d.name, (d.tiers || []).map((t) => [t.min, t.type, t.value])]),
+  (c.shipOff || []).map((t) => [t.min, t.value]),
   c.parcel?.enabled === true,
   c.parcel?.enabled === true ? [c.shipFrom, c.shipTo] : null,
 ])

@@ -181,5 +181,19 @@ t('shipping warning: parcel ปิดหรือยังไม่กรอก�
   assert.equal(shipOutsidePickupWarning(parcelOn({ shipFrom: '', shipTo: '' })), '')
 })
 
+t('ขั้นส่วนลดค่าส่ง: บันทึกเป็นแถวและอ่านกลับได้ตรงกัน', () => {
+  const c = { ...valid(), shipOff: [{ min: 300, value: 20 }, { min: 1000, value: 50 }] }
+  assert.deepEqual(rowToCampaign(campaignToRow(c, 'pc1')).shipOff, [{ min: 300, value: 20 }, { min: 1000, value: 50 }])
+})
+t('ขั้นส่วนลดค่าส่ง: แถวเก่าไม่มีฟิลด์ → []', () => {
+  assert.deepEqual(rowToCampaign({ id: 'x', data: {}, status: 'draft' }).shipOff, [])
+})
+t('ขั้นส่วนลดค่าส่ง: ขั้นไม่เรียง → แคมเปญบันทึกไม่ได้', () => {
+  assert.notEqual(campaignError({ ...valid(), shipOff: [{ min: 1000, value: 50 }, { min: 300, value: 20 }] }), '')
+})
+t('ขั้นส่วนลดค่าส่ง: ค่าว่างบันทึกได้', () => {
+  assert.equal(campaignError({ ...valid(), shipOff: [] }), '')
+})
+
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')
 process.exit(fail ? 1 : 0)

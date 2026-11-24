@@ -204,7 +204,7 @@ onBeforeUnmount(() => { if (captchaId !== null && window.turnstile) { try { wind
       <p v-if="quoteError" class="text-sm text-rose-700" role="alert">{{ quoteError }}</p>
       <div v-if="quote" class="card p-4 text-sm" data-quote>
         <div>ยอดรวม {{ quote.total }} บาท</div>
-        <div v-if="quote.shippingFee">ค่าส่งพัสดุ {{ quote.shippingFee }} บาท</div>
+        <div v-if="quote.shippingFee">ค่าส่ง {{ quote.shippingFee }} บาท</div>
       </div>
 
       <div v-if="quote && !verified" class="card space-y-3 p-4" data-otp>

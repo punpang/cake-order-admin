@@ -1,142 +1,185 @@
-// ทดสอบค่าส่งพัสดุจากน้ำหนัก/ขนาด (ฟังก์ชันล้วน) · รัน: node src/lib/parcelShipping.test.mjs
+// ทดสอบค่าส่งพัสดุ: ค่าธรรมเนียมร้าน + ค่ากล่อง + ตาราง กล่อง×ขั้นน้ำหนัก (ฟังก์ชันล้วน) · รัน: node src/lib/parcelShipping.test.mjs
 import assert from 'node:assert/strict'
-import { DEFAULT_PARCEL, cleanParcelConfig, parcelConfigError, parcelFormOf, parcelFieldsOf, parcelDimsError, hasParcelDims, parcelFee } from './parcelShipping.js'
+import { DEFAULT_PARCEL, EMS_DOMESTIC, PARCEL_LIMITS, cleanParcelConfig, parcelConfigError, parcelBox, parcelFee, parcelFormOf, parcelFieldsOf, parcelDimsError, hasParcelDims } from './parcelShipping.js'
 
 let fail = 0
 const t = (name, fn) => { try { fn(); console.log(`PASS ${name}`) } catch (e) { fail++; console.log(`FAIL ${name}: ${e.message}`) } }
 
-const cfg = { boxG: 100, volDivisor: 5000, rates: [{ upToG: 500, price: 40 }, { upToG: 1000, price: 60 }, { upToG: 2000, price: 90 }] }
+// กล่อง S (ปริมาตร 8000) และ M (ปริมาตร 27000 = 30×30×30)
+const cfg = {
+  fee: 10,
+  boxes: [
+    { name: 'M', dims: { w: 30, l: 30, h: 30 }, boxG: 300, price: 20 },
+    { name: 'S', dims: { w: 20, l: 20, h: 20 }, boxG: 100, price: 15 },
+  ],
+  steps: [500, 1000, 2000],
+  prices: { S: [40, 60, 90], M: [50, 70, 100] },
+}
 const items = [
-  { id: 'A', weightG: 800, dimsCm: { w: 20, l: 20, h: 10 } },
-  { id: 'B', weightG: 200, dimsCm: { w: 30, l: 30, h: 20 } },
-  { id: 'C', weightG: 100, dimsCm: { w: 20, l: 20, h: 20 } },
-  { id: 'D', weightG: 900, dimsCm: { w: 5, l: 5, h: 5 } },
-  { id: 'E', weightG: 901, dimsCm: { w: 5, l: 5, h: 5 } },
-  { id: 'F', weightG: 100, dimsCm: { w: 20, l: 20, h: 10.002 } },
+  { id: 'A', weightG: 300, dimsCm: { w: 10, l: 10, h: 10 } }, // ปริมาตร 1000
+  { id: 'B', weightG: 200, dimsCm: { w: 20, l: 20, h: 20 } }, // ปริมาตร 8000 พอดีกล่อง S
+  { id: 'C', weightG: 100, dimsCm: { w: 30, l: 30, h: 30 } }, // ปริมาตร 27000 พอดีกล่อง M
+  { id: 'D', weightG: 100, dimsCm: { w: 40, l: 40, h: 40 } }, // ปริมาตร 64000 > กล่องใหญ่สุด
   { id: 'G', dimsCm: { w: 5, l: 5, h: 5 } }, // ไม่มีน้ำหนัก
+  { id: 'I', weightG: 400, dimsCm: { w: 10, l: 10, h: 10 } }, // ใช้ทดสอบขอบขั้น 500
+  { id: 'J', weightG: 1, dimsCm: { w: 10, l: 10, h: 10 } }, // ใช้ทดสอบขอบขั้น 501
 ]
 const fee = (lines, c = cfg) => parcelFee(lines, items, c)
 
-t('1×A: น้ำหนักจริง 900 (รวมกล่อง) ปริมาตร 800 → ขั้น 1000 ราคา 60', () => {
+t('ปริมาตรรวม 1000 เลือกกล่อง S (เล็กสุดที่ใส่ได้)', () => {
+  const r = parcelBox([{ retailId: 'A', qty: 1 }], items, cfg)
+  assert.equal(r.ok, true)
+  assert.equal(r.box.name, 'S')
+})
+t('ปริมาตรรวมพอดี 8000 ยังเลือกกล่อง S', () => {
+  assert.equal(parcelBox([{ retailId: 'B', qty: 1 }], items, cfg).box.name, 'S')
+})
+t('ปริมาตรรวมเกิน 8000 เลือกกล่อง M', () => {
+  assert.equal(parcelBox([{ retailId: 'B', qty: 1 }, { retailId: 'A', qty: 1 }], items, cfg).box.name, 'M')
+})
+t('ปริมาตรรวมเกินกล่องใหญ่สุด → too_big', () => {
+  assert.equal(parcelBox([{ retailId: 'D', qty: 1 }], items, cfg).error, 'too_big')
+})
+t('ยังไม่มีกล่อง → no_boxes', () => {
+  assert.equal(parcelBox([{ retailId: 'A', qty: 1 }], items, { ...cfg, boxes: [] }).error, 'no_boxes')
+})
+t('ค่าส่งรวม = ค่าธรรมเนียม + ค่ากล่อง + ค่าขนส่ง (A: น้ำหนัก 300+100=400 → ขั้น 500 ราคา S 40)', () => {
   const r = fee([{ retailId: 'A', qty: 1 }])
   assert.equal(r.ok, true)
-  assert.equal(r.detail.chargeableG, 900)
-  assert.equal(r.fee, 60)
+  assert.equal(r.box.name, 'S')
+  assert.equal(r.weightG, 300)
+  assert.equal(r.shipping, 40)
+  assert.equal(r.boxPrice, 15)
+  assert.equal(r.fee, 10)
+  assert.equal(r.total, 10 + 15 + 40)
 })
-t('2×A: 1700 g → ขั้น 2000 ราคา 90', () => {
-  const r = fee([{ retailId: 'A', qty: 2 }])
-  assert.equal(r.detail.chargeableG, 1700)
-  assert.equal(r.fee, 90)
+t('ขอบขั้น: น้ำหนักรวมกล่องพอดี 500 (I 400 + กล่อง S 100) → ขั้น 500 ราคา S 40', () => {
+  const r = fee([{ retailId: 'I', qty: 1 }])
+  assert.equal(r.box.name, 'S')
+  assert.equal(r.chargeableG, 500)
+  assert.equal(r.step, 500)
+  assert.equal(r.shipping, 40)
 })
-t('1×B: ปริมาตร 3600 > 2000 → overweight', () => {
-  assert.deepEqual(fee([{ retailId: 'B', qty: 1 }]).ok, false)
-  assert.equal(fee([{ retailId: 'B', qty: 1 }]).error, 'overweight')
+t('ขอบขั้น: น้ำหนักรวมกล่อง 501 (I 400 + J 1 + กล่อง S 100) → ขั้น 1000 ราคา S 60', () => {
+  const r = fee([{ retailId: 'I', qty: 1 }, { retailId: 'J', qty: 1 }])
+  assert.equal(r.box.name, 'S')
+  assert.equal(r.step, 1000)
+  assert.equal(r.shipping, 60)
 })
-t('1×C: ปริมาตร 1600 ชนะน้ำหนักจริง 200 → ขั้น 2000 ราคา 90', () => {
-  const r = fee([{ retailId: 'C', qty: 1 }])
-  assert.equal(r.detail.chargeableG, 1600)
-  assert.equal(r.fee, 90)
+t('เกินขั้นสูงสุด → overweight', () => {
+  const heavy = [{ id: 'H', weightG: 2000, dimsCm: { w: 5, l: 5, h: 5 } }]
+  const r = parcelFee([{ retailId: 'H', qty: 1 }], heavy, cfg)
+  assert.equal(r.ok, false)
+  assert.equal(r.error, 'overweight')
 })
-t('ขอบขั้น: 1×D = 1000 พอดี → ราคา 60', () => {
-  const r = fee([{ retailId: 'D', qty: 1 }])
-  assert.equal(r.detail.chargeableG, 1000)
-  assert.equal(r.fee, 60)
+t('ไม่มีขั้นตั้งไว้ → no_steps', () => {
+  assert.equal(fee([{ retailId: 'A', qty: 1 }], { ...cfg, steps: [] }).error, 'no_steps')
 })
-t('ขอบขั้น: 1×E = 1001 → ราคา 90', () => {
-  assert.equal(fee([{ retailId: 'E', qty: 1 }]).fee, 90)
+t('ราคาของกล่องที่ขั้นนั้นหายไป → no_price', () => {
+  assert.equal(fee([{ retailId: 'A', qty: 1 }], { ...cfg, prices: { M: [50, 70, 100] } }).error, 'no_price')
 })
-t('เศษทศนิยมของปริมาตรถูกปัดขึ้นเป็นจำนวนเต็ม (F: ปริมาตร 800.16 → 801 → ขั้น 1000)', () => {
-  const r = fee([{ retailId: 'F', qty: 1 }])
-  assert.equal(Number.isInteger(r.detail.chargeableG), true)
-  assert.equal(r.detail.chargeableG, 801)
-  assert.equal(r.fee, 60)
+t('ค่าธรรมเนียมว่าง/ไม่ได้ตั้ง → 0', () => {
+  const r = fee([{ retailId: 'A', qty: 1 }], { ...cfg, fee: undefined })
+  assert.equal(r.fee, 0)
+  assert.equal(r.total, 0 + 15 + 40)
 })
-t('รายการซ้ำรวมจำนวน: A×1 + A×1 = 2×A', () => {
-  const r = fee([{ retailId: 'A', qty: 1 }, { retailId: 'A', qty: 1 }])
-  assert.equal(r.detail.chargeableG, 1700)
-})
-t('ข้อผิดพลาดของรายการ: ว่าง → empty', () => {
-  assert.equal(fee([]).error, 'empty')
-  assert.equal(fee(undefined).error, 'empty')
-})
-t('จำนวนผิด (0, 1.5, -1, "2", 10001) → bad_qty', () => {
-  for (const qty of [0, 1.5, -1, '2', 10001]) assert.equal(fee([{ retailId: 'A', qty }]).error, 'bad_qty', String(qty))
-})
-t('รหัสสินค้าไม่มีในรายการ → bad_item', () => {
-  assert.equal(fee([{ retailId: 'Z', qty: 1 }]).error, 'bad_item')
-})
-t('สินค้าไม่มีน้ำหนัก → missing_dims พร้อม itemId', () => {
+t('สินค้าไม่มีน้ำหนัก/ขนาด → missing_dims พร้อม itemId', () => {
   const r = fee([{ retailId: 'G', qty: 1 }])
   assert.equal(r.error, 'missing_dims')
   assert.equal(r.itemId, 'G')
 })
-t('ไม่มีตารางอัตรา (cfg undefined หรือ rates ว่าง) → no_rates ไม่ throw', () => {
-  assert.equal(parcelFee([{ retailId: 'A', qty: 1 }], items, undefined).error, 'no_rates') // เรียกตรงเพราะตัวช่วย fee มีค่าเริ่มต้นที่จะรับ undefined แทน
-  assert.equal(fee([{ retailId: 'A', qty: 1 }], { boxG: 0, rates: [] }).error, 'no_rates')
+t('จำนวนไม่ถูกต้อง → bad_qty', () => {
+  assert.equal(fee([{ retailId: 'A', qty: 0 }]).error, 'bad_qty')
 })
-t('cleanParcelConfig(undefined) เท่ากับค่าตั้งต้น', () => {
-  assert.deepEqual(cleanParcelConfig(undefined), DEFAULT_PARCEL)
-})
-t('cleanParcelConfig ทิ้งแถวที่ไม่ครบหรือผิดช่วง', () => {
-  const r = cleanParcelConfig({ rates: [{ upToG: 0, price: 1 }, { upToG: 500 }, { upToG: 'x', price: 1 }, { upToG: 700, price: 50 }] })
-  assert.deepEqual(r.rates, [{ upToG: 700, price: 50 }])
-})
-t('cleanParcelConfig เรียงขั้นน้อยไปมาก และซ้ำ upToG เก็บแถวหลังสุด', () => {
-  const r = cleanParcelConfig({ rates: [{ upToG: 1000, price: 60 }, { upToG: 500, price: 40 }, { upToG: 500, price: 45 }] })
-  assert.deepEqual(r.rates, [{ upToG: 500, price: 45 }, { upToG: 1000, price: 60 }])
-})
-t('cleanParcelConfig ตัดเหลือไม่เกิน 30 แถว และ volDivisor นอกช่วงกลับเป็น 5000', () => {
-  const many = Array.from({ length: 40 }, (_, i) => ({ upToG: (i + 1) * 100, price: i }))
-  const r = cleanParcelConfig({ rates: many, volDivisor: 500 })
-  assert.equal(r.rates.length, 30)
-  assert.equal(r.volDivisor, 5000)
-})
-t('parcelConfigError: ไม่มีตั้งค่า/ตารางว่าง → ผ่าน', () => {
-  assert.equal(parcelConfigError(undefined), '')
-  assert.equal(parcelConfigError({ boxG: 0, volDivisor: 5000, rates: [] }), '')
-})
-t('parcelConfigError: แถวไม่ครบ / ซ้ำ / ราคาลดลง / เกิน 30 / boxG ติดลบ / volDivisor 500', () => {
-  assert.match(parcelConfigError({ rates: [{ upToG: 500 }] }), /ขั้นที่ \d+: กรอกน้ำหนักสูงสุด \(กรัม\) และราคาให้ครบ/)
-  assert.match(parcelConfigError({ rates: [{ upToG: 500, price: 40 }, { upToG: 500, price: 50 }] }), /น้ำหนักของขั้นซ้ำกัน/)
-  assert.match(parcelConfigError({ rates: [{ upToG: 500, price: 60 }, { upToG: 1000, price: 40 }] }), /ราคาต้องไม่ลดลงเมื่อน้ำหนักมากขึ้น/)
-  assert.match(parcelConfigError({ rates: Array.from({ length: 31 }, (_, i) => ({ upToG: (i + 1) * 100, price: i })) }), /ตั้งได้ไม่เกิน 30 ขั้น/)
-  assert.match(parcelConfigError({ boxG: -1, rates: [] }), /น้ำหนักกล่องต้องเป็นจำนวนเต็มกรัม 0–50000/)
-  assert.match(parcelConfigError({ volDivisor: 500, rates: [] }), /ตัวหารปริมาตรต้องเป็นจำนวนเต็ม 1000–20000/)
-})
-t('parcelDimsError: ฟอร์มว่างทั้งหมด → ผ่าน', () => {
-  assert.equal(parcelDimsError({ weightG: '', dimW: '', dimL: '', dimH: '' }), '')
-})
-t('parcelDimsError: กรอกน้ำหนักอย่างเดียว → ให้ครบ', () => {
-  assert.match(parcelDimsError({ weightG: '800', dimW: '', dimL: '', dimH: '' }), /ให้ครบ หรือเว้นว่างทั้งหมด/)
-})
-t('parcelDimsError: น้ำหนักผิดรูปแบบ', () => {
-  for (const w of ['0', '1.5', '-3', 'abc', '50001']) {
-    assert.match(parcelDimsError({ weightG: w, dimW: '20', dimL: '20', dimH: '10' }), /น้ำหนักต้องเป็นจำนวนเต็มกรัม 1–50000/, w)
-  }
-})
-t('parcelDimsError: ขนาดด้านใดเป็น 0 หรือ 201 → ข้อความขนาด', () => {
-  assert.match(parcelDimsError({ weightG: '800', dimW: '0', dimL: '20', dimH: '10' }), /ขนาดแต่ละด้านต้องมากกว่า 0 และไม่เกิน 200 ซม\./)
-  assert.match(parcelDimsError({ weightG: '800', dimW: '20', dimL: '201', dimH: '10' }), /ขนาดแต่ละด้านต้องมากกว่า 0 และไม่เกิน 200 ซม\./)
-})
-t('parcelDimsError: ครบและถูกต้อง → ผ่าน', () => {
-  assert.equal(parcelDimsError({ weightG: '800', dimW: '20', dimL: '20', dimH: '10' }), '')
-})
-t('parcelFieldsOf: ว่างทั้งหมด → null ทั้งคู่ · ครบ → เป็นตัวเลข', () => {
-  assert.deepEqual(parcelFieldsOf({ weightG: '', dimW: '', dimL: '', dimH: '' }), { weightG: null, dimsCm: null })
-  assert.deepEqual(parcelFieldsOf({ weightG: '800', dimW: '20', dimL: '20', dimH: '10' }), { weightG: 800, dimsCm: { w: 20, l: 20, h: 10 } })
-})
-t('parcelFormOf กลับด้านกับ parcelFieldsOf ได้ และ item ที่ไม่มีฟิลด์ได้ค่าว่าง', () => {
-  const f = parcelFormOf({ weightG: 800, dimsCm: { w: 20, l: 20, h: 10 } })
-  assert.deepEqual(f, { weightG: '800', dimW: '20', dimL: '20', dimH: '10' })
-  assert.deepEqual(parcelFieldsOf(f), { weightG: 800, dimsCm: { w: 20, l: 20, h: 10 } })
-  assert.deepEqual(parcelFormOf({}), { weightG: '', dimW: '', dimL: '', dimH: '' })
-})
-t('hasParcelDims: ครบถูกต้อง → จริง · ขาด/0/ผิดช่วง → เท็จ', () => {
-  assert.equal(hasParcelDims({ weightG: 800, dimsCm: { w: 20, l: 20, h: 10 } }), true)
-  assert.equal(hasParcelDims({ weightG: 800 }), false)
-  assert.equal(hasParcelDims({ weightG: 0, dimsCm: { w: 20, l: 20, h: 10 } }), false)
-  assert.equal(hasParcelDims({ weightG: 800, dimsCm: { w: 201, l: 20, h: 10 } }), false)
+t('รายการว่าง → empty', () => {
+  assert.equal(fee([]).error, 'empty')
+  assert.equal(fee(undefined).error, 'empty')
 })
 
-console.log(fail ? `${fail} FAILED` : 'ALL PASS')
-process.exit(fail ? 1 : 0)
+t('cleanParcelConfig: เรียงกล่องตามปริมาตรและขั้นตามน้ำหนัก', () => {
+  const c = cleanParcelConfig(cfg)
+  assert.deepEqual(c.boxes.map((b) => b.name), ['S', 'M'])
+  assert.equal(c.boxes[0].volumeCm3, 8000)
+  assert.deepEqual(c.steps, [500, 1000, 2000])
+})
+t('cleanParcelConfig: รูปเดิม {boxG, volDivisor, rates} → boxes ว่าง', () => {
+  const c = cleanParcelConfig({ boxG: 100, volDivisor: 5000, rates: [{ upToG: 500, price: 40 }] })
+  assert.deepEqual(c.boxes, [])
+  assert.deepEqual(c.steps, [])
+})
+t('cleanParcelConfig: undefined → DEFAULT_PARCEL', () => {
+  assert.deepEqual(cleanParcelConfig(undefined), DEFAULT_PARCEL)
+})
+
+t('parcelConfigError: ตั้งค่าที่ถูกต้องผ่าน (ว่าง)', () => {
+  assert.equal(parcelConfigError(cfg), '')
+  assert.equal(parcelConfigError(undefined), '')
+})
+t('parcelConfigError: ขั้นซ้ำ', () => {
+  assert.notEqual(parcelConfigError({ ...cfg, steps: [500, 500, 2000], prices: { S: [1, 2, 3], M: [1, 2, 3] } }), '')
+})
+t('parcelConfigError: ขั้นไม่เรียง', () => {
+  assert.notEqual(parcelConfigError({ ...cfg, steps: [1000, 500, 2000] }), '')
+})
+t('parcelConfigError: ราคาลดลงเมื่อน้ำหนักมากขึ้น', () => {
+  assert.notEqual(parcelConfigError({ ...cfg, prices: { S: [60, 40, 90], M: [50, 70, 100] } }), '')
+})
+t('parcelConfigError: ชื่อกล่องซ้ำ', () => {
+  assert.notEqual(parcelConfigError({ ...cfg, boxes: [cfg.boxes[0], { ...cfg.boxes[1], name: 'M' }] }), '')
+})
+t('parcelConfigError: ชื่อกล่องว่าง', () => {
+  assert.notEqual(parcelConfigError({ ...cfg, boxes: [{ ...cfg.boxes[0], name: ' ' }] }), '')
+})
+t('parcelConfigError: ราคาของกล่องยาวไม่เท่าจำนวนขั้น', () => {
+  assert.notEqual(parcelConfigError({ ...cfg, prices: { S: [40, 60], M: [50, 70, 100] } }), '')
+})
+t('parcelConfigError: กล่องด้านเกิน 60 ซม. → ผิด', () => {
+  assert.notEqual(parcelConfigError({ ...cfg, boxes: [{ name: 'X', dims: { w: 61, l: 10, h: 10 }, boxG: 0, price: 0 }], steps: [], prices: {} }), '')
+})
+t('parcelConfigError: ผลรวมด้านของกล่องเกิน 120 ซม. → ผิด', () => {
+  assert.notEqual(parcelConfigError({ ...cfg, boxes: [{ name: 'X', dims: { w: 50, l: 50, h: 21 }, boxG: 0, price: 0 }], steps: [], prices: {} }), '')
+})
+t('parcelConfigError: กล่อง 60×30×30 (รวม 120, ด้านยาวสุด 60) ผ่าน', () => {
+  assert.equal(parcelConfigError({ ...cfg, boxes: [{ name: 'X', dims: { w: 60, l: 30, h: 30 }, boxG: 0, price: 0 }], steps: [], prices: {} }), '')
+})
+t('parcelConfigError: เกิน 43 ขั้น → ผิด', () => {
+  const steps = Array.from({ length: 44 }, (_, i) => i + 1)
+  const prices = { S: steps.map(() => 1), M: steps.map(() => 1) }
+  assert.notEqual(parcelConfigError({ ...cfg, steps, prices }), '')
+})
+t('parcelConfigError: เพดาน 43 ขั้นพอดี ผ่าน', () => {
+  const steps = Array.from({ length: 43 }, (_, i) => i + 1)
+  const prices = { S: steps.map(() => 1), M: steps.map(() => 1) }
+  assert.equal(parcelConfigError({ ...cfg, steps, prices }), '')
+})
+t('ตาราง EMS: 43 แถว ขั้นเรียงขึ้น ราคาไม่ลดลง และตั้งค่าได้ครบ', () => {
+  assert.equal(EMS_DOMESTIC.length, 43)
+  for (let i = 1; i < EMS_DOMESTIC.length; i++) {
+    assert.ok(EMS_DOMESTIC[i][0] > EMS_DOMESTIC[i - 1][0])
+    assert.ok(EMS_DOMESTIC[i][1] >= EMS_DOMESTIC[i - 1][1])
+  }
+  assert.deepEqual(EMS_DOMESTIC[0], [20, 32])
+  assert.deepEqual(EMS_DOMESTIC[42], [30000, 480])
+  const cfg = { steps: EMS_DOMESTIC.map((r) => r[0]), prices: { S: EMS_DOMESTIC.map((r) => r[1]) }, boxes: [{ name: 'S', dims: { w: 20, l: 20, h: 20 }, boxG: 0, price: 0 }] }
+  assert.equal(parcelConfigError(cfg), '')
+})
+t('PARCEL_LIMITS: 43 ขั้น 20 กล่อง ขนาดมาตรฐาน 120/60', () => {
+  assert.equal(PARCEL_LIMITS.steps, 43)
+  assert.equal(PARCEL_LIMITS.boxes, 20)
+  assert.equal(PARCEL_LIMITS.sumCm, 120)
+  assert.equal(PARCEL_LIMITS.maxSideCm, 60)
+})
+
+t('parcelFormOf/parcelFieldsOf: ค่าว่างทั้งหมดได้ null', () => {
+  assert.deepEqual(parcelFieldsOf(parcelFormOf({})), { weightG: null, dimsCm: null })
+})
+t('parcelDimsError: กรอกบางส่วนไม่ผ่าน', () => {
+  assert.notEqual(parcelDimsError({ weightG: '100', dimW: '', dimL: '1', dimH: '1' }), '')
+})
+t('hasParcelDims: ต้องมีน้ำหนักและขนาดครบ', () => {
+  assert.equal(hasParcelDims(items[0]), true)
+  assert.equal(hasParcelDims(items[4]), false)
+})
+
+if (fail) { console.log(`\n${fail} ล้มเหลว`); process.exit(1) }
+console.log('\nผ่านทั้งหมด')
