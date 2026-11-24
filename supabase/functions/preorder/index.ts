@@ -129,7 +129,7 @@ Deno.serve(corsWrap(async (req) => {
     if (!Array.isArray(b.lines) || b.lines.length === 0 || b.lines.length > 30) return json({ error: 'เลือกสินค้า 1–30 รายการ' }, 400)
     const lines = b.lines.map((l: any) => ({ retailId: String(l?.retailId ?? ''), qty: l?.qty }))
     const { catalog, pointValue } = await catalogOf(sb)
-    const campaign = { id: c.id, items: (c.data?.items ?? []), deals: c.data?.deals ?? [], parcel: c.data?.parcel ?? { enabled: false } }
+    const campaign = { id: c.id, items: (c.data?.items ?? []), deals: c.data?.deals ?? [], shipOff: c.data?.shipOff ?? [], parcel: c.data?.parcel ?? { enabled: false } }
     const q: any = priceCampaignOrder({ campaign, catalog, lines, pickupDate: b.pickupDate, fulfillment: b.fulfillment, points: 0, pointValue, nowMs: Date.now() })
     if (!q.ok) return json({ error: q.error, itemId: q.itemId ?? null }, 400)
     return json({ ok: true, total: q.totals.total, vat: q.totals.vat, shippingFee: q.order.shippingFee, goods: q.totals.beforeVat ?? null, parcel: q.snapshot.parcel ? { chargeableG: q.snapshot.parcel.chargeableG } : null })
@@ -223,7 +223,7 @@ Deno.serve(corsWrap(async (req) => {
     if (!Array.isArray(b.lines) || b.lines.length === 0 || b.lines.length > 30) return json({ error: 'เลือกสินค้า 1–30 รายการ' }, 400)
     const lines = b.lines.map((l: any) => ({ retailId: String(l?.retailId ?? ''), qty: l?.qty }))
     const { catalog, pointValue } = await catalogOf(sb)
-    const campaign = { id: c.id, items: (c.data?.items ?? []), deals: c.data?.deals ?? [], parcel: c.data?.parcel ?? { enabled: false } }
+    const campaign = { id: c.id, items: (c.data?.items ?? []), deals: c.data?.deals ?? [], shipOff: c.data?.shipOff ?? [], parcel: c.data?.parcel ?? { enabled: false } }
     const q: any = priceCampaignOrder({ campaign, catalog, lines, pickupDate: b.pickupDate, fulfillment: b.fulfillment, points: 0, pointValue, nowMs: Date.now() })
     if (!q.ok) return json({ error: q.error, itemId: q.itemId ?? null }, 400)
     // ส่งพัสดุต้องมีที่อยู่และจังหวัด (เก็บในออร์เดอร์ ไม่ใช้ค่าจากตาราง)

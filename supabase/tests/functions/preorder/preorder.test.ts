@@ -21,7 +21,7 @@ function seed() {
       camp({}),
       camp({ id: 'c_closed', status: 'closed' }),
       camp({ id: 'c_past', order_to: '2001-01-01' }),
-      camp({ id: 'c_parcel', data: { name: 'พัสดุ', dayCap: null, items: [{ retailId: 'pr2', dayCap: null }], deals: [], parcel: { enabled: true }, shipping: { shipFrom: '2099-12-22', shipTo: '2099-12-23' } } }),
+      camp({ id: 'c_parcel', data: { name: 'พัสดุ', dayCap: null, items: [{ retailId: 'pr2', dayCap: null }], deals: [], parcel: { enabled: true }, shipOff: [{ min: 60, value: 20 }], shipping: { shipFrom: '2099-12-22', shipTo: '2099-12-23' } } }),
     ],
     'public.punpang_items': [
       { id: 'pr1', kind: 'retail', name: 'เค้กพร้อมส่ง', price: 100, active: true, data: {} },
@@ -84,7 +84,7 @@ Deno.test('quote ส่งพัสดุ: ค่าส่งมาจากต�
   const r = await call({ action: 'quote', campaignId: 'c_parcel', pickupDate: '2099-12-24', fulfillment: 'delivery', lines: [{ retailId: 'pr2', qty: 1 }], shippingFee: 0 })
   assertEquals(r.status, 200)
   const j = await r.json()
-  assertEquals(j.shippingFee, 85) // ค่าธรรมเนียม 10 + กล่อง S 15 + ขนส่ง 60
+  assertEquals(j.shippingFee, 65) // ค่าธรรมเนียม 10 + กล่อง S 15 + ขนส่ง 60 − ส่วนลดค่าส่งขั้น 60 บาท 20
   assertEquals(j.parcel.chargeableG, 900)
 })
 Deno.test('quote ส่งพัสดุในแคมเปญที่ไม่เปิดส่งพัสดุ → 400', async () => {
