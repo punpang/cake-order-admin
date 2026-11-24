@@ -6,6 +6,7 @@ import { blankCampaign, campaignPhase } from '../../lib/preorderCampaign'
 import ManageShell from '../../components/ManageShell.vue'
 import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
+import AppSwitch from '../../components/AppSwitch.vue'
 
 // ตั้งและจัดการแคมเปญสั่งล่วงหน้า: รายการแคมเปญ + ฟอร์มสร้าง/แก้ (ตรวจและบันทึกที่ data/preorder.js)
 const PHASE = { draft: 'ร่าง', closed: 'ปิดรับ', upcoming: 'รอเปิดรับ', open: 'เปิดรับสั่ง', ended: 'หมดช่วงรับสั่ง' }
@@ -19,12 +20,17 @@ const ferr = ref('')
 const hours = ref('') // เวลาจ่ายมัดจำ เป็นชั่วโมงบนหน้าจอ เก็บเป็นนาที
 const sel = reactive({}) // retailId → { on, cap }
 const msg = ref('')
+const tiers = ref([]) // ขั้นส่วนลดตามยอด (ดีล spend_off เดียวของแคมเปญ) เก็บเป็นข้อความบนหน้าจอ
+const parcelOn = ref(false) // ส่งพัสดุไปรษณีย์ (สินค้าทุกชิ้นต้องมีน้ำหนักและขนาด)
+const addTier = () => tiers.value.push({ min: '', type: 'amount', value: '' })
 
 function openForm(c) {
   ferr.value = ''
   const base = c ? JSON.parse(JSON.stringify(c)) : blankCampaign()
   form.value = { ...base, dayCap: base.dayCap ?? '' }
   hours.value = base.payDueMin ? String(base.payDueMin / 60) : ''
+  tiers.value = (base.deals?.[0]?.tiers ?? []).map((t) => ({ min: String(t.min), type: t.type, value: String(t.value) }))
+  parcelOn.value = base.parcel?.enabled === true
   for (const k of Object.keys(sel)) delete sel[k]
   for (const r of sellable.value) sel[r.id] = { on: false, cap: '' }
   for (const it of base.items || []) sel[it.retailId] = { on: true, cap: it.dayCap ?? '' }
@@ -42,6 +48,8 @@ function submit() {
     payDueMin: hours.value === '' ? null : Math.round(Number(hours.value) * 60),
     dayCap: f.dayCap === '' ? null : Number(f.dayCap),
     items,
+    deals: tiers.value.length ? [{ kind: 'spend_off', name: 'ส่วนลดตามยอด', tiers: tiers.value.map((t) => ({ min: Number(t.min), type: t.type, value: Number(t.value) })) }] : [],
+    parcel: { enabled: parcelOn.value },
   })
   if (r.error) return (ferr.value = r.error)
   msg.value = 'บันทึกแล้ว'
@@ -108,6 +116,20 @@ function toggle(c, status) {
             <input v-if="sel[r.id].on" v-model="sel[r.id].cap" type="number" min="0" class="input h-9 w-24" :aria-label="`เพดานต่อวันของ ${r.name}`" placeholder="ไม่จำกัด" />
           </div>
         </div>
+        <div>
+          <div class="label">ส่วนลดตามยอดซื้อ (ไม่บังคับ)</div>
+          <div v-for="(t, i) in tiers" :key="i" class="mt-2 flex flex-wrap items-center gap-2">
+            <span class="text-sm text-stone-600">ครบ</span>
+            <input v-model="t.min" type="text" inputmode="numeric" class="input h-9 w-24" :aria-label="`ยอดซื้อขั้นต่ำของขั้นส่วนลด ${i + 1}`" />
+            <span class="text-sm">ลด</span>
+            <input v-model="t.value" type="text" inputmode="decimal" class="input h-9 w-24" :aria-label="`ค่าส่วนลดของขั้น ${i + 1}`" />
+            <select v-model="t.type" class="input h-9 w-24" :aria-label="`ประเภทส่วนลดของขั้น ${i + 1}`"><option value="amount">บาท</option><option value="percent">%</option></select>
+            <button type="button" class="btn-danger h-9 px-2" :aria-label="`ลบขั้นส่วนลด ${i + 1}`" @click="tiers.splice(i, 1)"><AppIcon name="trash" :size="14" /></button>
+          </div>
+          <button type="button" class="btn-outline mt-2 h-9 px-3 text-sm" @click="addTier">+ เพิ่มขั้นส่วนลด</button>
+          <p class="mt-1 text-xs text-stone-500">ได้ส่วนลดขั้นสูงสุดที่ถึงยอด · ยอดขั้นต่ำต้องไม่ซ้ำกัน · บาทหรือ % ของยอดสินค้า</p>
+        </div>
+        <AppSwitch v-model="parcelOn" label="ส่งพัสดุไปรษณีย์ (สินค้าทุกชิ้นต้องมีน้ำหนักและขนาด)" class="flex" />
         <p v-if="ferr" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ ferr }}</p>
       </div>
       <template #footer>

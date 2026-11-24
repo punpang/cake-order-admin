@@ -2,6 +2,7 @@
 // ไม่ถูก import จาก store.js (กันวนซ้ำและให้ชิ้นนี้อยู่ใน chunk ของหน้าตั้งค่า) · ข้อมูลอยู่ที่ db.preorderCampaigns
 import { db, can } from './store'
 import { campaignError, blankCampaign } from '../lib/preorderCampaign'
+import { hasParcelDims } from '../lib/parcelShipping'
 
 // รายการแคมเปญเรียงจากช่วงรับสั่งล่าสุดก่อน (คัดลอกใหม่ ไม่แก้ตัวจริง)
 export const preorderCampaigns = () =>
@@ -11,6 +12,8 @@ export const preorderCampaigns = () =>
 const structOf = (c) => JSON.stringify([
   c.orderFrom, c.orderTo, c.pickupFrom, c.pickupTo, c.depositPercent, c.payDueMin ?? null, c.dayCap ?? null,
   (c.items || []).map((i) => [i.retailId, i.dayCap ?? null]),
+  (c.deals || []).map((d) => [d.kind, d.name, (d.tiers || []).map((t) => [t.min, t.type, t.value])]),
+  c.parcel?.enabled === true,
 ])
 
 let seq = 0
@@ -24,6 +27,12 @@ const retailOk = (id) => {
 const itemsError = (c) => {
   for (const it of c.items) {
     if (!retailOk(it.retailId)) return `สินค้า ${it.retailId} ใช้ในแคมเปญไม่ได้ (ไม่เปิดขาย / กำหนดราคาเอง / มีตัวเลือก)`
+  }
+  // เปิดส่งพัสดุ: ทุกสินค้าต้องมีน้ำหนักและขนาดครบ (ตรงกับกฎในฐานข้อมูล)
+  if (c.parcel?.enabled) {
+    for (const it of c.items) {
+      if (!hasParcelDims(db.retailItems.find((x) => x.id === it.retailId))) return `สินค้า ${it.retailId} ไม่มีน้ำหนักหรือขนาด (ต้องกรอกในหน้าสินค้าก่อนเปิดส่งพัสดุ)`
+    }
   }
   return ''
 }
