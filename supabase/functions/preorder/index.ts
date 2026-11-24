@@ -2,10 +2,14 @@ import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { corsWrap } from '../_shared/cors.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { priceCampaignOrder } from '../_shared/schedlib/preorderPrice.js'
+import { MIN, hex, sha256Hex, randHex, thaiPhone } from '../_shared/otp.ts'
+import { sendSmsGateway } from '../_shared/sms.ts'
+import { verifyTurnstile } from '../_shared/turnstile.ts'
+import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
 
 // สั่งล่วงหน้า (ลูกค้า): ฟังก์ชันสาธารณะ (--no-verify-jwt) · ขั้นนี้มี 2 action: campaigns (ดูแคมเปญที่เปิดรับ) และ quote (คิดราคาให้ดู)
 // ข้อมูลที่ส่งกลับไม่มีตารางอัตราค่าส่ง · ราคาทั้งหมดคิดที่เซิร์ฟเวอร์ · ค่าที่ผู้ใช้ส่งมาเรื่องราคา/ค่าส่ง/แต้มไม่ถูกใช้
-// ยังไม่มีการสร้างออร์เดอร์ (เฟส 2D ถัดไป) และยังไม่มีการจ่ายเงิน (เฟส 3)
+// การสร้างออร์เดอร์ใช้ได้เฉพาะเซสชันสั่งล่วงหน้าที่ได้จาก OTP (ไม่ใช้แต้มในขั้นนี้) · ยังไม่มีการจ่ายเงิน (เฟส 3)
 const CORS = { 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' }
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
 const isDay = (s: unknown) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)
@@ -33,6 +37,22 @@ async function openCampaign(sb: any, id: string) {
   if (today < c.order_from || today > c.order_to) return null
   return c
 }
+
+
+const OTP_TTL_MS = 5 * MIN
+const OTP_RESEND_MS = MIN
+const OTP_MAX_TRIES = 5
+const SESSION_MS = 14 * 24 * 3600 * 1000
+const ORDER_ID_RE = /^[0-9a-f]{32}$/
+
+// เซสชันสั่งล่วงหน้า: เก็บ hash ของโทเคน ไม่เก็บโทเคนจริง · ไม่เกี่ยวกับเซสชันบัญชีลูกค้าเดิม
+async function sessionCustomer(sb: any, token: unknown): Promise<string | null> {
+  if (typeof token !== 'string' || token.length !== 64) return null
+  const r = await sb.from('punpang_preorder_sessions').select('customer_id,expires_at').eq('token_hash', await sha256Hex('presess:' + token)).maybeSingle()
+  if (!r.data || new Date(r.data.expires_at).getTime() <= Date.now()) return null
+  return r.data.customer_id
+}
+const clientIpOf = (req: Request) => (req.headers.get('cf-connecting-ip') || (req.headers.get('x-forwarded-for') || '').split(',').pop() || '').trim()
 
 Deno.serve(corsWrap(async (req) => {
   const refused = refuseInTest(modeOf(req))
@@ -82,6 +102,106 @@ Deno.serve(corsWrap(async (req) => {
     const q: any = priceCampaignOrder({ campaign, catalog, lines, pickupDate: b.pickupDate, fulfillment: b.fulfillment, points: 0, pointValue, nowMs: Date.now() })
     if (!q.ok) return json({ error: q.error, itemId: q.itemId ?? null }, 400)
     return json({ ok: true, total: q.totals.total, vat: q.totals.vat, shippingFee: q.order.shippingFee, goods: q.totals.beforeVat ?? null, parcel: q.snapshot.parcel ? { chargeableG: q.snapshot.parcel.chargeableG } : null })
+  }
+
+  // ===== ขอรหัส OTP (ต้องผ่าน Turnstile · เพดานรวมกันในฐานข้อมูล · ตอบเหมือนกันทุกเบอร์) =====
+  if (action === 'otp_request') {
+    const ph = thaiPhone(b.phone)
+    if (!ph) return json({ error: 'กรอกเบอร์โทรให้ถูกต้อง' }, 400)
+    const ip = clientIpOf(req)
+    if (!(await verifyTurnstile(String(b.turnstileToken || ''), ip, (Deno.env.get('TURNSTILE_SECRET_KEY') || '').trim()))) return json({ error: 'ยืนยันตัวตนไม่ผ่าน กรุณาลองใหม่' }, 400)
+    const allowed = await sb.rpc('punpang_preorder_otp_allowed', { p_phone_hash: await sha256Hex('preorder-otp-phone:' + ph.local), p_ip_hash: await sha256Hex('preorder-otp-ip:' + ip), p_purpose: 'preorder' })
+    if (allowed.error) return json({ error: 'ระบบขัดข้อง กรุณาลองใหม่' }, 503)
+    if (allowed.data !== true) return json({ error: 'ขอรหัสบ่อยเกินไป กรุณาลองใหม่ภายหลัง' }, 429)
+    const last = await sb.from('punpang_otps').select('sent_at').eq('phone', ph.local).eq('purpose', 'preorder').order('sent_at', { ascending: false }).limit(1).maybeSingle()
+    if (last.data && Date.now() - new Date(last.data.sent_at).getTime() < OTP_RESEND_MS) return json({ error: 'ขอรหัสใหม่ได้ในอีกไม่กี่วินาที' }, 429)
+    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1e6).padStart(6, '0')
+    const salt = randHex(8)
+    const id = randHex(16)
+    await sb.from('punpang_otps').delete().eq('phone', ph.local).eq('purpose', 'preorder').eq('used', false)
+    const ins = await sb.from('punpang_otps').insert({ id, phone: ph.local, purpose: 'preorder', code_hash: await sha256Hex(`${salt}:${code}`), salt, expires_at: new Date(Date.now() + OTP_TTL_MS).toISOString(), ip, customer_id: null })
+    if (ins.error) return json({ error: 'ส่งรหัสไม่สำเร็จ กรุณาลองใหม่' }, 500)
+    const shop = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'shop').maybeSingle()
+    const name = String(shop.data?.data?.v?.name || 'ร้านเค้ก').slice(0, 40)
+    const sent = await sendSmsGateway(ph.local, `รหัส OTP ของ ${name} คือ ${code} (ใช้ได้ 5 นาที ห้ามบอกผู้อื่น)`, id)
+    if (!sent) { await sb.from('punpang_otps').delete().eq('id', id); return json({ error: 'ส่ง SMS ไม่สำเร็จ กรุณาลองใหม่ภายหลัง' }, 502) }
+    return json({ ok: true })
+  }
+
+  // ===== ยืนยัน OTP → เซสชันสั่งล่วงหน้า (สร้าง/ผูกลูกค้าตามเบอร์ · ลูกค้าใหม่ต้องยินยอม) =====
+  if (action === 'otp_verify') {
+    const ph = thaiPhone(b.phone)
+    if (!ph) return json({ error: 'กรอกเบอร์โทรให้ถูกต้อง' }, 400)
+    const row = (await sb.from('punpang_otps').select('*').eq('phone', ph.local).eq('purpose', 'preorder').eq('used', false).maybeSingle()).data
+    if (!row || new Date(row.expires_at).getTime() <= Date.now()) return json({ error: 'รหัสหมดอายุ กรุณาขอรหัสใหม่' }, 400)
+    if ((row.attempts ?? 0) >= OTP_MAX_TRIES) return json({ error: 'ผิดเกินจำนวนที่กำหนด กรุณาขอรหัสใหม่' }, 429)
+    if ((await sha256Hex(`${row.salt}:${String(b.code || '')}`)) !== row.code_hash) {
+      await sb.from('punpang_otps').update({ attempts: (row.attempts ?? 0) + 1 }).eq('id', row.id)
+      return json({ error: 'รหัสไม่ถูกต้อง' }, 400)
+    }
+    await sb.from('punpang_otps').update({ used: true }).eq('id', row.id)
+    let cust = (await sb.from('punpang_customers').select('id,data').eq('phone', ph.local).maybeSingle()).data
+    let customerId: string
+    if (cust && !cust.data?.deleted) {
+      customerId = cust.id
+    } else {
+      if (b.consent !== true) return json({ error: 'ต้องยินยอมก่อนสั่งสินค้า', needConsent: true }, 400)
+      customerId = 'c' + randHex(8)
+      const name = String(b.name ?? '').trim().slice(0, 80) || 'ลูกค้า'
+      const ins = await sb.from('punpang_customers').insert({ id: customerId, name, phone: ph.local, data: { active: true, ledger: [], spins: 0, places: [], promoOptIn: false } })
+      if (ins.error) return json({ error: 'สร้างบัญชีไม่สำเร็จ กรุณาลองใหม่' }, 500)
+      await recordConsents(sb, customerId, ['privacy', 'terms'], 'preorder')
+    }
+    const token = randHex(32)
+    await sb.from('punpang_preorder_sessions').insert({ token_hash: await sha256Hex('presess:' + token), customer_id: customerId, expires_at: new Date(Date.now() + SESSION_MS).toISOString() })
+    return json({ ok: true, token })
+  }
+
+  // ===== ออร์เดอร์ของฉัน (เฉพาะของเซสชันนี้) =====
+  if (action === 'state') {
+    const cid = await sessionCustomer(sb, b.token)
+    if (!cid) return json({ error: 'กรุณายืนยันเบอร์ใหม่' }, 401)
+    const r = await sb.from('punpang_preorder_orders').select('*').eq('customer_id', cid)
+    return json({ orders: (r.data || []).map((o: any) => ({ id: o.id, code: o.code, status: o.status, campaignId: o.campaign_id, pickupDate: o.pickup_date, total: o.data?.total ?? null, deposit: o.data?.deposit ?? null, payDueAt: o.data?.payDueAt ?? null })) })
+  }
+
+  // ===== สร้างออร์เดอร์ (จองโควตาและบันทึกในธุรกรรมเดียวในฐานข้อมูล) =====
+  if (action === 'create') {
+    const ip = clientIpOf(req)
+    if (!(await verifyTurnstile(String(b.turnstileToken || ''), ip, (Deno.env.get('TURNSTILE_SECRET_KEY') || '').trim()))) return json({ error: 'ยืนยันตัวตนไม่ผ่าน กรุณาลองใหม่' }, 400)
+    const cid = await sessionCustomer(sb, b.token)
+    if (!cid) return json({ error: 'กรุณายืนยันเบอร์ใหม่' }, 401)
+    const orderId = String(b.orderId || '')
+    if (!ORDER_ID_RE.test(orderId)) return json({ error: 'รหัสออร์เดอร์ไม่ถูกต้อง' }, 400)
+    const c = await openCampaign(sb, String(b.campaignId || ''))
+    if (!c) return json({ error: 'แคมเปญนี้ไม่เปิดรับสั่งในขณะนี้' }, 409)
+    if (!isDay(b.pickupDate) || b.pickupDate < c.pickup_from || b.pickupDate > c.pickup_to) return json({ error: 'วันรับสินค้าไม่อยู่ในช่วงที่กำหนด' }, 400)
+    if (b.fulfillment !== 'pickup' && b.fulfillment !== 'delivery') return json({ error: 'เลือกรับที่ร้านหรือส่งพัสดุ' }, 400)
+    if (!Array.isArray(b.lines) || b.lines.length === 0 || b.lines.length > 30) return json({ error: 'เลือกสินค้า 1–30 รายการ' }, 400)
+    const lines = b.lines.map((l: any) => ({ retailId: String(l?.retailId ?? ''), qty: l?.qty }))
+    const { catalog, pointValue } = await catalogOf(sb)
+    const campaign = { id: c.id, items: (c.data?.items ?? []), deals: c.data?.deals ?? [], parcel: c.data?.parcel ?? { enabled: false } }
+    const q: any = priceCampaignOrder({ campaign, catalog, lines, pickupDate: b.pickupDate, fulfillment: b.fulfillment, points: 0, pointValue, nowMs: Date.now() })
+    if (!q.ok) return json({ error: q.error, itemId: q.itemId ?? null }, 400)
+    const total = Math.round(q.totals.total * 100) / 100
+    const deposit = Math.ceil((total * c.deposit_percent) / 100 * 100) / 100
+    const payDueAt = new Date(Date.now() + c.pay_due_min * MIN).toISOString()
+    const data = { ...q.order, total, deposit: { percent: c.deposit_percent, amount: deposit }, payDueAt, lines, pickupDate: b.pickupDate }
+    const rpc = await sb.rpc('punpang_preorder_create', {
+      p_row: { id: orderId, customer_id: cid, campaign_id: c.id, pickup_date: b.pickupDate, status: 'awaiting_payment', fulfillment: b.fulfillment, data },
+      p_lines: lines.map((l: any) => ({ itemId: l.retailId, qty: l.qty })),
+      p_points: 0,
+      p_amount: 0,
+    })
+    if (rpc.error) {
+      const m = String(rpc.error.message || '')
+      if (m.startsWith('reserve_failed:')) return json({ error: 'สินค้าหรือวันรับนี้เต็มแล้ว กรุณาเลือกใหม่', code: m.slice(15) }, 409)
+      return json({ error: 'สร้างออร์เดอร์ไม่สำเร็จ กรุณาลองใหม่' }, 500)
+    }
+    if (rpc.data?.error === 'too_many_open') return json({ error: 'มีออร์เดอร์ที่ยังไม่จ่ายครบ 3 รายการแล้ว' }, 409)
+    if (rpc.data?.error === 'no_customer') return json({ error: 'ไม่พบบัญชี' }, 401)
+    if (rpc.data?.error) return json({ error: 'สร้างออร์เดอร์ไม่สำเร็จ กรุณาลองใหม่' }, 500)
+    return json({ ok: true, already: rpc.data?.already === true, code: rpc.data?.code, orderId, total, deposit, payDueAt })
   }
 
   return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
