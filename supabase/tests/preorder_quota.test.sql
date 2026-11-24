@@ -3,6 +3,10 @@
 
 begin;
 
+-- สินค้าในคลังสำหรับแคมเปญทดสอบ (กติกาเปิดรับต้องมีสินค้าจริงที่เปิดขาย)
+insert into public.punpang_items (id, kind, name, price, active) values
+  ('A', 'retail', 'A', 10, true), ('B', 'retail', 'B', 10, true), ('C', 'retail', 'C', 10, true);
+
 insert into public.punpang_preorder_campaigns (id, status, order_from, order_to, pickup_from, pickup_to, deposit_percent, pay_due_min, data)
 values ('pq1', 'open', '2000-01-01', '2099-12-31', '2026-12-24', '2026-12-26', 50, 120,
   '{"name":"ทดสอบโควตา","dayCap":6,"items":[{"retailId":"A","dayCap":2},{"retailId":"B","dayCap":5}]}');
@@ -52,13 +56,17 @@ update public.punpang_preorder_campaigns set status = 'draft' where id = 'pq1';
 select test.ok('Q5c แคมเปญร่าง → closed',
   (public.punpang_preorder_reserve('pq1', '2026-12-24', '[{"itemId":"A","qty":1}]'::jsonb) ->> 'error') = 'closed');
 update public.punpang_preorder_campaigns set status = 'open' where id = 'pq1';
+set session_replication_role = replica; -- ตั้งค่าทดสอบเท่านั้น ข้ามกติกาล็อก (ดู preorder_guard.test.sql)
 update public.punpang_preorder_campaigns set order_from = '2000-01-01', order_to = '2000-01-02' where id = 'pq1';
+set session_replication_role = origin;
 select test.ok('Q5d วันนี้พ้นช่วงรับสั่ง → outside_order_window',
   (public.punpang_preorder_reserve('pq1', '2026-12-24', '[{"itemId":"A","qty":1}]'::jsonb) ->> 'error') = 'outside_order_window');
 select test.ok('Q9 p_enforce_window=false ข้ามการตรวจช่วงรับสั่ง แต่ยังตรวจวันรับและเพดาน',
   (public.punpang_preorder_reserve('pq1', '2026-12-24', '[{"itemId":"B","qty":1}]'::jsonb, false) ->> 'ok') = 'true'
   and (public.punpang_preorder_reserve('pq1', '2026-12-27', '[{"itemId":"B","qty":1}]'::jsonb, false) ->> 'error') = 'bad_date');
+set session_replication_role = replica;
 update public.punpang_preorder_campaigns set order_from = '2000-01-01', order_to = '2099-12-31' where id = 'pq1';
+set session_replication_role = origin;
 
 -- Q6 (Review Focus 3) ปล่อยโควตาเกินที่จองไว้ ตัวนับต้องไม่ติดลบ และจองใหม่ได้หลังปล่อย
 select test.ok('Q6a ปล่อย A×9 (จองไว้ 2) → ตัวนับเป็น 0 ไม่ติดลบ',
@@ -69,8 +77,10 @@ select test.ok('Q6b ปล่อยซ้ำอีกครั้งยังเ
   and (public.punpang_preorder_reserve('pq1', '2026-12-24', '[{"itemId":"A","qty":2}]'::jsonb) ->> 'ok') = 'true');
 
 -- Q8 เพดาน null = ไม่จำกัด (ทั้งรายสินค้าและยอดรวม)
+set session_replication_role = replica;
 update public.punpang_preorder_campaigns
   set data = '{"name":"ไม่จำกัด","dayCap":null,"items":[{"retailId":"C","dayCap":null}]}' where id = 'pq1';
+set session_replication_role = origin;
 select test.ok('Q8 เพดานว่างจองได้ไม่จำกัด',
   (public.punpang_preorder_reserve('pq1', '2026-12-26', '[{"itemId":"C","qty":500}]'::jsonb) ->> 'ok') = 'true');
 

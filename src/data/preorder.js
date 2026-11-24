@@ -7,6 +7,12 @@ import { campaignError, blankCampaign } from '../lib/preorderCampaign'
 export const preorderCampaigns = () =>
   [...db.preorderCampaigns].sort((a, b) => String(b.orderFrom).localeCompare(String(a.orderFrom)))
 
+// ค่าโครงสร้างของแคมเปญ (ไม่รวมชื่อ) ใช้เทียบว่าแก้ของที่ล็อกหรือไม่
+const structOf = (c) => JSON.stringify([
+  c.orderFrom, c.orderTo, c.pickupFrom, c.pickupTo, c.depositPercent, c.payDueMin ?? null, c.dayCap ?? null,
+  (c.items || []).map((i) => [i.retailId, i.dayCap ?? null]),
+])
+
 let seq = 0
 const newId = () => `pc${Date.now().toString(36)}${++seq}`
 
@@ -28,6 +34,11 @@ export function savePreorderCampaign(form) {
   const c = { ...blankCampaign(), ...form }
   c.items = (form.items || []).map((i) => ({ retailId: i.retailId, dayCap: i.dayCap ?? null }))
   if (!c.id) c.id = newId()
+  // แคมเปญที่กำลังเปิดรับ แก้โครงสร้าง (ช่วงวัน มัดจำ เวลาจ่าย สินค้า เพดาน) ไม่ได้ · ฐานข้อมูลบังคับซ้ำ (punpang_preorder_campaign_guard)
+  const prev = db.preorderCampaigns.find((x) => x.id === c.id)
+  if (prev && prev.status === 'open' && structOf(prev) !== structOf(c)) {
+    return { error: 'แก้โครงสร้างแคมเปญที่เปิดรับอยู่ไม่ได้ ให้ปิดรับก่อน (แก้ชื่อได้)' }
+  }
   const err = campaignError(c) || itemsError(c)
   if (err) return { error: err }
   const copy = JSON.parse(JSON.stringify(c))

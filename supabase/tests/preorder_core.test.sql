@@ -13,9 +13,9 @@ insert into public.punpang_staff (user_id, name, role, perms) values
   ('d7000000-0000-4000-8000-000000000002', 'ผู้จัดการทั่วไป', 'admin', '{manage}'),
   ('d7000000-0000-4000-8000-000000000003', 'พนักงานขาย', 'sales', '{createOrder,pos}');
 
--- แคมเปญตัวอย่างโดยระบบ (ไม่ผ่านสิทธิ์พนักงาน)
+-- แคมเปญตัวอย่างโดยระบบ (ไม่ผ่านสิทธิ์พนักงาน) · ร่าง เพราะเปิดรับต้องมีสินค้า (ดู preorder_guard.test.sql)
 insert into public.punpang_preorder_campaigns (id, status, order_from, order_to, pickup_from, pickup_to, deposit_percent, pay_due_min)
-values ('pcseed', 'open', '2026-12-01', '2026-12-15', '2026-12-24', '2026-12-26', 50, 120);
+values ('pcseed', 'draft', '2026-12-01', '2026-12-15', '2026-12-24', '2026-12-26', 50, 120);
 
 -- PC1 ผู้ที่มี managePreorder สร้างแคมเปญได้
 select test.ok('PC1 managePreorder สร้างแคมเปญได้',

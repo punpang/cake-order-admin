@@ -219,13 +219,18 @@ pccode=$?
 [ "$pccode" = "0" ] && echo "✓ preorder_core.test.sql ผ่านทั้งหมด" || echo "✗ preorder_core.test.sql ล้มเหลว"
 [ "$pccode" = "0" ] || exit "$pccode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_guard.test.sql
+pgcode=$?
+[ "$pgcode" = "0" ] && echo "✓ preorder_guard.test.sql ผ่านทั้งหมด" || echo "✗ preorder_guard.test.sql ล้มเหลว"
+[ "$pgcode" = "0" ] || exit "$pgcode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_quota.test.sql
 pqcode=$?
 [ "$pqcode" = "0" ] && echo "✓ preorder_quota.test.sql ผ่านทั้งหมด" || echo "✗ preorder_quota.test.sql ล้มเหลว"
 [ "$pqcode" = "0" ] || exit "$pqcode"
 
 # W-5: จองพร้อมกันสองเซสชัน — เซสชันแรกถือล็อกแคมเปญ เซสชันที่สองต้องหมดเวลา และตัวนับต้องเท่าเพดาน (ไม่เกิน)
-"${PSQL[@]}" -d "$DB" -c "insert into public.punpang_preorder_campaigns (id, status, order_from, order_to, pickup_from, pickup_to, deposit_percent, pay_due_min, data) values ('pqc', 'open', '2000-01-01', '2099-12-31', '2026-12-24', '2026-12-26', 50, 120, '{\"items\":[{\"retailId\":\"A\",\"dayCap\":2}]}')" >/dev/null
+"${PSQL[@]}" -d "$DB" -c "insert into public.punpang_items (id, kind, name, price, active) values ('A', 'retail', 'A', 10, true) on conflict do nothing; insert into public.punpang_preorder_campaigns (id, status, order_from, order_to, pickup_from, pickup_to, deposit_percent, pay_due_min, data) values ('pqc', 'open', '2000-01-01', '2099-12-31', '2026-12-24', '2026-12-26', 50, 120, '{\"items\":[{\"retailId\":\"A\",\"dayCap\":2}]}')" >/dev/null
 ( psql -X -q -d "$DB" -c "select public.punpang_preorder_reserve('pqc', '2026-12-24', '[{\"itemId\":\"A\",\"qty\":2}]'::jsonb); select pg_sleep(3);" > /tmp/w5_first.out 2>&1 ) &
 sleep 1
 psql -X -q -d "$DB" -c "set lock_timeout = '500ms'; select public.punpang_preorder_reserve('pqc', '2026-12-24', '[{\"itemId\":\"A\",\"qty\":2}]'::jsonb);" > /tmp/w5_second.out 2>&1

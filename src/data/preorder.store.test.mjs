@@ -52,6 +52,16 @@ try {
     assert.equal(before(), n)
     assert.equal(db.preorderCampaigns.find((c) => c.id === r.campaign.id).name, 'คริสต์มาส (แก้)')
   })
+  t('แคมเปญที่เปิดรับ: แก้ชื่อได้ แก้โครงสร้าง (เพดาน/วัน/มัดจำ) ไม่ได้', () => {
+    const r = P.savePreorderCampaign(base())
+    assert.equal(P.setPreorderCampaignStatus(r.campaign.id, 'open').ok, true)
+    assert.equal(P.savePreorderCampaign({ ...r.campaign, name: 'เปิดรับ (ชื่อใหม่)' }).ok, true)
+    assert.match(P.savePreorderCampaign({ ...r.campaign, dayCap: 9 }).error, /ปิดรับก่อน/)
+    assert.match(P.savePreorderCampaign({ ...r.campaign, items: [{ retailId: 'B', dayCap: null }] }).error, /ปิดรับก่อน/)
+    assert.equal(db.preorderCampaigns.find((c) => c.id === r.campaign.id).dayCap ?? null, null)
+    assert.equal(P.setPreorderCampaignStatus(r.campaign.id, 'closed').ok, true)
+    assert.equal(P.savePreorderCampaign({ ...r.campaign, dayCap: 9 }).ok, true)
+  })
   t('ผู้ใช้ที่ไม่มีสิทธิ์ บันทึก/เปลี่ยนสถานะไม่ได้ และข้อมูลไม่เปลี่ยน', () => {
     const n = before()
     session.role = 'sales'
