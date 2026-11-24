@@ -1,0 +1,85 @@
+// ทดสอบ preorder-admin (ฝั่งร้านของสั่งล่วงหน้า): เฉพาะพนักงานที่มีสิทธิ์ · รายการแสดงข้อมูลพนักงานโดยไม่ส่งข้อมูลลูกค้าอื่น ·
+// การกระทำเรียกฟังก์ชันฐานข้อมูลถูกต้อง และข้อผิดพลาดของฐานข้อมูลแปลงเป็น 409
+// รัน: deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/_fake/importmap.json supabase/tests/functions/preorder-admin/
+import { assertEquals, assert } from 'jsr:@std/assert@1'
+
+let handler: (r: Request) => Promise<Response> = null as any
+;(Deno as any).serve = (h: any) => { handler = h; return { finished: Promise.resolve(), shutdown: async () => {} } }
+Deno.env.set('SUPABASE_URL', 'http://db.fake')
+Deno.env.set('SUPABASE_ANON_KEY', 'anon')
+Deno.env.set('SUPABASE_SERVICE_ROLE_KEY', 'service')
+await import('../../../functions/preorder-admin/index.ts')
+
+const ORDER = 'e'.repeat(32)
+const call = async (body: unknown, token = 'tok-mgr') => {
+  const r = await handler(new Request('http://x', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+  }))
+  return { status: r.status, body: await r.json() }
+}
+function seed() {
+  ;(globalThis as any).__RPC = {}
+  ;(globalThis as any).__RPC_CALLS = []
+  ;(globalThis as any).__DB = {
+    users: { 'tok-mgr': 'u-mgr', 'tok-pre': 'u-pre', 'tok-chat': 'u-chat' },
+    t: {
+      'public.punpang_staff': [
+        { user_id: 'u-mgr', active: true, perms: ['manage'] },
+        { user_id: 'u-pre', active: true, perms: ['managePreorder'] },
+        { user_id: 'u-chat', active: true, perms: ['chat'] },
+      ],
+      'public.punpang_preorder_orders': [
+        { id: ORDER, code: 'PRE-241124-000009', status: 'payment_confirmed', pickup_date: '2099-12-24', customer_id: 'cA', updated_at: 't2', data: {
+          fulfillment: 'delivery', total: 100, shippingFee: 20,
+          payments: [{ id: 'p1', amount: 80, status: 'confirmed', method: 'cash' }, { id: 'p2', amount: 20, status: 'reported', qrRef: 'PRE241124000002ABCDE' }],
+        } },
+        { id: 'f'.repeat(32), code: 'PRE-241124-000010', status: 'awaiting_payment', pickup_date: '2099-12-24', customer_id: 'cB', updated_at: 't1', data: { total: 50 } },
+      ],
+      'public.punpang_customers': [{ id: 'cA', name: 'สมชาย' }, { id: 'cB', name: 'คนอื่น' }],
+    },
+  }
+}
+
+Deno.test('ไม่มีโทเค็น → 401 · ไม่มีสิทธิ์สั่งล่วงหน้า → 403', async () => {
+  seed()
+  assertEquals((await call({ action: 'list' }, '')).status, 401)
+  assertEquals((await call({ action: 'list' }, 'tok-chat')).status, 403)
+})
+
+Deno.test('list: ผู้มีสิทธิ์ managePreorder เห็นรายการ แสดงยอดที่ชำระและคำขอ QR ที่รอยืนยันของออร์เดอร์', async () => {
+  seed()
+  const r = await call({ action: 'list' }, 'tok-pre')
+  assertEquals(r.status, 200)
+  const o = r.body.orders.find((x: any) => x.id === ORDER)
+  assertEquals(o.paid, 80)
+  assertEquals(o.customerName, 'สมชาย')
+  assertEquals(o.pendingCash.length, 1)
+  assertEquals(o.shippingFee, 20)
+})
+
+Deno.test('set_shipping ส่งพารามิเตอร์ไปฐานข้อมูลและแปลงข้อผิดพลาดเป็น 409', async () => {
+  seed()
+  ;(globalThis as any).__RPC.punpang_preorder_set_shipping = async (args: any) => { (globalThis as any).__RPC_CALLS.push(args); return { data: { ok: true, status: 'shipped' }, error: null } }
+  const ok = await call({ action: 'set_shipping', orderId: ORDER, carrier: 'Kerry', trackingNo: 'TH-1' })
+  assertEquals(ok.status, 200)
+  assertEquals((globalThis as any).__RPC_CALLS[0], { p_order: ORDER, p_carrier: 'Kerry', p_tracking: 'TH-1' })
+  ;(globalThis as any).__RPC.punpang_preorder_set_shipping = async () => ({ data: { error: 'balance_due' }, error: null })
+  assertEquals((await call({ action: 'set_shipping', orderId: ORDER, carrier: 'Kerry', trackingNo: 'TH-1' })).status, 409)
+})
+
+Deno.test('refund_return และ reship ส่งรายการคืนและค่าส่งใหม่ไปฐานข้อมูล', async () => {
+  seed()
+  ;(globalThis as any).__RPC.punpang_preorder_refund_return = async (args: any) => { (globalThis as any).__RPC_CALLS.push(args); return { data: { ok: true }, error: null } }
+  ;(globalThis as any).__RPC.punpang_preorder_reship = async (args: any) => { (globalThis as any).__RPC_CALLS.push(args); return { data: { ok: true }, error: null } }
+  await call({ action: 'refund_return', orderId: ORDER, refunds: [{ amount: 60, method: 'bank' }] })
+  await call({ action: 'reship', orderId: ORDER, newFee: 35 })
+  assertEquals((globalThis as any).__RPC_CALLS[0], { p_order: ORDER, p_refunds: [{ amount: 60, method: 'bank' }] })
+  assertEquals((globalThis as any).__RPC_CALLS[1], { p_order: ORDER, p_new_fee: 35 })
+})
+
+Deno.test('รหัสออร์เดอร์ไม่ถูกต้อง → 400 · คำสั่งไม่รู้จัก → 400', async () => {
+  seed()
+  assertEquals((await call({ action: 'mark_delivered', orderId: 'bad' }, 'tok-pre')).status, 400)
+  assertEquals((await call({ action: 'nope', orderId: ORDER }, 'tok-pre')).status, 400)
+})
