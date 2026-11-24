@@ -1,0 +1,59 @@
+// ทดสอบรายการบัญชีของออร์เดอร์สั่งล่วงหน้า (เฟส 3G): มัดจำรับล่วงหน้า 2300 · ยกเลิกคืนเงิน/ริบ 4900 · สมดุลดุลเสมอ
+// รัน: npm test (ตัวรันเทสต์ฝั่ง Node ใช้ vite โหลดโมดูล)
+import { fileURLToPath } from 'node:url'
+import assert from 'node:assert/strict'
+import { createServer } from 'vite'
+
+const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
+const server = await createServer({ root: ROOT, server: { middlewareMode: true, hmr: false }, appType: 'custom', logLevel: 'error' })
+const { preorderEntries, deriveAll } = await server.ssrLoadModule('/src/lib/acct/derive.js')
+
+let fail = 0
+const t = (name, fn) => { try { fn(); console.log(`PASS ${name}`) } catch (e) { fail++; console.log(`FAIL ${name}: ${e.message}`) } }
+const sumOf = (lines, side) => lines.reduce((a, l) => a + (Number(l[side]) || 0), 0)
+const balanced = (e) => assert.equal(Math.round(sumOf(e.lines, 'dr') * 100), Math.round(sumOf(e.lines, 'cr') * 100), `ไม่สมดุล ${e.id}`)
+const base = { id: 'po1', code: 'PRE-241124-000001', status: 'payment_confirmed', payments: [
+  { id: 'p1', amount: 50, method: 'cash', status: 'confirmed', at: '2026-11-24T03:00:00.000Z' },
+  { id: 'p2', amount: 20, method: 'qr', status: 'confirmed', at: '2026-11-25T03:00:00.000Z' },
+  { id: 'p3', amount: 30, method: 'qr', status: 'reported', at: '2026-11-25T04:00:00.000Z' },
+] }
+
+t('มัดจำที่ยืนยันแล้วเข้า 2300 เฉพาะรายการ confirmed (ไม่รวม reported)', () => {
+  const es = preorderEntries(base)
+  assert.equal(es.length, 2)
+  assert.equal(es[0].lines.find((l) => l.account === '2300').cr, 50)
+  assert.equal(es[1].lines.find((l) => l.account === '1020').dr, 20)
+  es.forEach(balanced)
+})
+
+t('ยกเลิกคืน 30 ริบ 40 จากยอดรับ 70: 2300 ถูกล้าง คืนเงินสด และรับรู้ 4900', () => {
+  const es = preorderEntries({ ...base, status: 'cancelled', refund: 30, cancelledAt: '2026-11-26T00:00:00.000Z' })
+  const cxl = es.find((e) => e.id === 'pre-cxl:po1')
+  assert.ok(cxl)
+  assert.equal(cxl.lines.find((l) => l.account === '2300').dr, 70)
+  assert.equal(cxl.lines.find((l) => l.account === '1010').cr, 30)
+  assert.equal(cxl.lines.find((l) => l.account === '4900').cr, 40)
+  balanced(cxl)
+})
+
+t('คืนเกินยอดที่รับไม่บันทึกรายการยกเลิก', () => {
+  const es = preorderEntries({ ...base, status: 'cancelled', refund: 999, cancelledAt: '2026-11-26T00:00:00.000Z' })
+  assert.equal(es.some((e) => e.id === 'pre-cxl:po1'), false)
+})
+
+t('ออร์เดอร์ที่หมดเวลาแต่ยังไม่ยกเลิก: มีแค่รายการรับมัดจำ ไม่มีรายการคืน/ริบ', () => {
+  const es = preorderEntries({ ...base, status: 'expired' })
+  assert.equal(es.some((e) => e.id.startsWith('pre-cxl')), false)
+  assert.equal(es.length, 2)
+})
+
+t('deriveAll รวมออร์เดอร์สั่งล่วงหน้าเมื่อมี ctx.preorders และไม่กระทบเมื่อไม่มี', () => {
+  const ctx = { orders: [], groups: {}, retail: {}, ingredients: {}, pointValue: 1, preorders: [base] }
+  const all = deriveAll(ctx)
+  assert.ok(all.some((e) => e.id === 'pre-dep:po1:p1'))
+  assert.deepEqual(deriveAll({ orders: [], groups: {}, retail: {}, ingredients: {}, pointValue: 1 }), [])
+})
+
+await server.close()
+console.log(fail ? `${fail} FAILED` : 'ALL PASS')
+process.exitCode = fail ? 1 : 0

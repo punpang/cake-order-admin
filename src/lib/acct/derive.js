@@ -167,6 +167,35 @@ export function orderEntries(o, ctx) {
   return out
 }
 
+// ออร์เดอร์สั่งล่วงหน้า (เฟส 3G): มัดจำที่ยืนยันแล้วเข้า 2300 รับล่วงหน้า · ยกเลิกแล้วคืนเงินตามที่ร้านเลือก และส่วนที่เหลือเป็นริบเข้า 4900
+// รายได้รับรู้ตอนส่งมอบยังไม่รวมในรอบนี้ (ต้องตัดสินเรื่อง VAT ของมัดจำก่อน) · ออร์เดอร์ที่หมดเวลาแต่ยังไม่ยกเลิกไม่มีรายการ
+// อินพุต: { id, code, status, payments:[{id, amount, method, status, at}], refund, forfeited?, refundMethod?, cancelledAt? }
+export function preorderEntries(o) {
+  const out = []
+  if (!o || !o.code) return out
+  const code = o.code
+  let paidS = 0
+  for (const p of o.payments || []) {
+    if (p.status !== 'confirmed') continue
+    const amtS = toS(p.amount)
+    if (!(amtS > 0)) continue
+    paidS += amtS
+    const acc = p.method === 'cash' ? CASH : BANK
+    out.push(entry(`pre-dep:${o.id}:${p.id}`, dateOf(p.at), `รับมัดจำสั่งล่วงหน้า ${code}`, { type: 'preorder-deposit', orderId: o.id, paymentId: p.id }, [dr(acc, amtS), cr(DEPOSIT, amtS)]))
+  }
+  if (o.status === 'cancelled' && paidS > 0) {
+    const refundS = Math.max(0, toS(o.refund))
+    // ยอดคืนต้องไม่เกินยอดที่รับจริง (ตรงกับกติกาในฐานข้อมูล) · ส่วนที่เหลือเป็นริบ
+    if (refundS > paidS) return out
+    const forfS = paidS - refundS
+    const lines = [dr(DEPOSIT, paidS)]
+    if (refundS > 0) lines.push(cr(o.refundMethod === 'bank' ? BANK : CASH, refundS))
+    if (forfS > 0) lines.push(cr('4900', forfS))
+    out.push(entry(`pre-cxl:${o.id}`, dateOf(o.cancelledAt), `ยกเลิกสั่งล่วงหน้า ${code} คืนเงิน/ริบมัดจำ`, { type: 'preorder-cancel', orderId: o.id }, lines))
+  }
+  return out
+}
+
 // ของรางวัลที่มอบแล้ว: ตั้งต้นทุนโดยประมาณจากคะแนนที่แลก
 function rewardEntries(ctx) {
   const out = []
@@ -186,6 +215,7 @@ export function deriveAll(ctx, extra = []) {
   const all = []
   for (const o of ctx.orders) all.push(...orderEntries(o, ctx))
   all.push(...rewardEntries(ctx))
+  for (const o of ctx.preorders || []) all.push(...preorderEntries(o))
   for (const g of extra) all.push(...g(ctx))
   all.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1))
   // ภาระคงค้างตามบัญชี (2310 คะแนน · 2320 คูปองคืนเงิน): ส่วนลดที่ใช้ตัดภาระก่อน ส่วนที่เหลือไปค่าใช้จ่าย

@@ -263,4 +263,15 @@ select test.ok('P26 คำขอ QR ที่ยังค้างไม่น�
   public.punpang_preorder_request_qr('pp_f', 5, 'PRE202611240003ABCDE') ->> 'ok' = 'true'
   and public.punpang_preorder_paid_total((select data from public.punpang_preorder_orders where id = 'pp_f')) = 70);
 
+-- P27 งานตามเวลา (3D): ถ้ามีส่วน pg_cron ต้องมีงาน punpang-preorder-expire เพียงงานเดียว (ถ้าไม่มี pg_cron ในฐานทดสอบ ข้ามการตรวจ)
+-- นับงาน punpang-preorder-expire ผ่าน execute (ฐานทดสอบอาจไม่มีตาราง cron.job)
+create function test.pp_cron_jobs() returns int language plpgsql as $$
+declare n int;
+begin
+  if to_regclass('cron.job') is null then return 1; end if;
+  execute 'select count(*)::int from cron.job where jobname = ''punpang-preorder-expire''' into n;
+  return n;
+end $$;
+select test.ok('P27 งานตามเวลาหมดเวลาจ่ายถูกตั้งไว้ (หรือไม่มี pg_cron ในฐานทดสอบ)', test.pp_cron_jobs() = 1);
+
 rollback;
