@@ -84,4 +84,21 @@ select test.ok('G14a ยังไม่มีการจอง แก้เพ�
 select test.ok('G14b เปิดรับกลับด้วยสินค้าที่ถูกต้องได้',
   test.pgd_try($$update public.punpang_preorder_campaigns set status = 'open' where id = 'pg_g14'$$) = 'OK');
 
+-- P1–P3 (เฟส 2B): เปิดรับที่เปิดส่งพัสดุต้องมีน้ำหนักและขนาดของทุกสินค้าในคลัง
+insert into public.punpang_items (id, kind, name, price, active, data) values
+  ('gp1', 'retail', 'ไม่มีขนาด', 100, true, '{}'),
+  ('gp2', 'retail', 'มีขนาด', 100, true, '{"weightG":800,"dimsCm":{"w":20,"l":20,"h":10}}');
+select test.ok('P1 เปิดรับที่เปิดส่งพัสดุแต่สินค้าไม่มีน้ำหนัก/ขนาด → campaign_parcel_dims',
+  test.pgd_try($$insert into public.punpang_preorder_campaigns (id, status, order_from, order_to, pickup_from, pickup_to, deposit_percent, pay_due_min, data)
+    values ('pg_p1', 'open', '2000-01-01', '2099-12-31', '2099-12-24', '2099-12-26', 50, 120,
+      '{"name":"p1","dayCap":null,"items":[{"retailId":"gp1","dayCap":null}],"parcel":{"enabled":true}}')$$) like 'ERR:23514:campaign_parcel_dims%');
+select test.ok('P2 เปิดรับที่เปิดส่งพัสดุและสินค้ามีน้ำหนัก/ขนาดครบ → ผ่าน',
+  test.pgd_try($$insert into public.punpang_preorder_campaigns (id, status, order_from, order_to, pickup_from, pickup_to, deposit_percent, pay_due_min, data)
+    values ('pg_p2', 'open', '2000-01-01', '2099-12-31', '2099-12-24', '2099-12-26', 50, 120,
+      '{"name":"p2","dayCap":null,"items":[{"retailId":"gp2","dayCap":null}],"parcel":{"enabled":true}}')$$) = 'OK');
+select test.ok('P3 ร่างที่เปิดส่งพัสดุแต่สินค้าไม่ครบ → ผ่าน (กฎใช้ตอนเปิดรับเท่านั้น)',
+  test.pgd_try($$insert into public.punpang_preorder_campaigns (id, status, order_from, order_to, pickup_from, pickup_to, deposit_percent, pay_due_min, data)
+    values ('pg_p3', 'draft', '2000-01-01', '2099-12-31', '2099-12-24', '2099-12-26', 50, 120,
+      '{"name":"p3","dayCap":null,"items":[{"retailId":"gp1","dayCap":null}],"parcel":{"enabled":true}}')$$) = 'OK');
+
 rollback;
