@@ -9,7 +9,7 @@ import { startApp, stepper, at } from './_supabaseApp.mjs'
 const state = { session: false, orders: [] }
 const CAMPAIGN = {
   id: 'pc1', name: 'เค้กคริสต์มาส', orderFrom: '2026-11-01', orderTo: '2026-12-31', pickupFrom: '2026-12-24', pickupTo: '2026-12-26',
-  depositPercent: 50, payDueMin: 120, parcelEnabled: true, shipping: { shipFrom: '2026-12-22', shipTo: '2026-12-23' }, deals: [],
+  depositPercent: 50, payDueMin: 120, payLastDate: '2026-12-30', parcelEnabled: true, shipping: { shipFrom: '2026-12-22', shipTo: '2026-12-23' }, deals: [],
   items: [{ retailId: 'rt1', name: 'คัพเค้กวานิลลา', price: 45, dayCap: null }],
 }
 
@@ -45,6 +45,7 @@ const { step: s, finish } = stepper(p)
   await s('1. เลือกแคมเปญและดูราคาจากเซิร์ฟเวอร์ (ยอดรวม 90 บาท)', async () => {
     await p.goto(`${base}/#/preorder`, { waitUntil: 'domcontentloaded' })
     await p.getByRole('button', { name: 'เลือกแคมเปญนี้' }).waitFor({ timeout: 30000 })
+    assert.match(await p.locator('li', { hasText: 'เค้กคริสต์มาส' }).innerText(), /วันชำระสุดท้าย\s+30 ธันวาคม 2569/)
     await p.getByRole('button', { name: 'เลือกแคมเปญนี้' }).click()
     await p.getByLabel('จำนวน คัพเค้กวานิลลา').fill('2')
     await p.getByRole('button', { name: 'ดูราคา' }).click()

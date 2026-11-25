@@ -375,4 +375,25 @@ begin
     (public.punpang_preorder_set_shipping('pp_k', 'Kerry', 'TH-000002') ->> 'status') = 'shipped');
 end $$;
 
+-- P38 แคมเปญตั้งวันชำระสุดท้าย: วันขยายเกินสิ้นวันนั้น (เวลาไทย) ถูกปฏิเสธ และไม่จองโควตา
+insert into public.punpang_customers (id, name, data) values ('pp_c3', 'ลูกค้าจ่าย 3', '{}'::jsonb);
+-- แคมเปญเปิดรับแล้ว แก้ข้อมูลผ่านตัวป้องกันไม่ได้ จึงข้ามทริกเกอร์เฉพาะคำสั่งนี้ (ยกเลิกเมื่อ rollback)
+set local session_replication_role = replica;
+update public.punpang_preorder_campaigns set data = data || '{"payLastDate":"2099-06-30"}'::jsonb where id = 'pp_camp';
+set local session_replication_role = origin;
+do $$
+declare r jsonb;
+begin
+  r := public.punpang_preorder_create(test.pp_row('pp_q', 'pp_c3', '2000-01-01T00:00:00Z'), '[{"itemId":"pp_item","qty":1}]'::jsonb, 0, 0);
+  if (r->>'ok') is distinct from 'true' then raise exception 'setup Q: %', r; end if;
+  update public.punpang_preorder_orders set status = 'expired' where id = 'pp_q';
+end $$;
+select test.ok('P38 วันขยายเกินสิ้นวันชำระสุดท้าย ถูกปฏิเสธด้วย past_last และสถานะยังหมดเวลา',
+  public.punpang_preorder_extend('pp_q', '2099-07-01T00:00:00Z'::timestamptz) = '{"error":"past_last"}'::jsonb
+  and (select status from public.punpang_preorder_orders where id = 'pp_q') = 'expired');
+
+-- P39 วันขยายภายใน 23:59:59 ของวันชำระสุดท้าย (เวลาไทย) สำเร็จ
+select test.ok('P39 วันขยายถึง 23:59:59 เวลาไทยของวันชำระสุดท้ายผ่าน',
+  (public.punpang_preorder_extend('pp_q', '2099-06-30T16:59:59.000Z'::timestamptz) ->> 'ok') = 'true');
+
 rollback;
