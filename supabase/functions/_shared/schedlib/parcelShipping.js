@@ -109,7 +109,16 @@ export function hasParcelDims(item) {
   return !!item && int(item.weightG, 1, PARCEL_LIMITS.weightG) && !!item.dimsCm && dim(item.dimsCm.w) && dim(item.dimsCm.l) && dim(item.dimsCm.h)
 }
 
-// เลือกกล่องจากปริมาตรรวมของสินค้า (กล่องเล็กสุดที่ใส่ได้) · คืน {ok, box, weightG, volumeCm3} หรือ {ok:false, error, itemId?}
+// สินค้าหนึ่งชิ้นพอดีกล่องหรือไม่: เรียงด้านจากมากไปน้อยแล้วเทียบทีละด้าน (ยอมให้หมุน)
+const sidesOf = (d) => [d.w, d.l, d.h].sort((a, b) => b - a)
+const fitsBox = (item, box) => {
+  const a = sidesOf(item.dimsCm)
+  const b = sidesOf(box.dims)
+  return a[0] <= b[0] && a[1] <= b[1] && a[2] <= b[2]
+}
+
+// เลือกกล่องเล็กสุดที่ทุกชิ้นพอดีทีละชิ้น และปริมาตรรวมไม่เกินกล่อง · คืน {ok, box, weightG, volumeCm3} หรือ {ok:false, error, itemId?}
+// error: item_no_fit = มีชิ้นที่ไม่พอดีกล่องใดเลย (มี itemId) · too_big = แต่ละชิ้นพอดี แต่ปริมาตรรวมเกินกล่องใหญ่สุด
 export function parcelBox(lines, retailItems, cfg) {
   if (!Array.isArray(lines) || lines.length === 0) return { ok: false, error: 'empty' }
   const byId = new Map((retailItems || []).map((x) => [x.id, x]))
@@ -130,8 +139,12 @@ export function parcelBox(lines, retailItems, cfg) {
     weightG += qty * it.weightG
     volumeCm3 += qty * it.dimsCm.w * it.dimsCm.l * it.dimsCm.h
   }
-  const box = c.boxes.find((b) => volumeCm3 <= b.volumeCm3)
-  if (!box) return { ok: false, error: 'too_big' }
+  const ids = [...need.keys()]
+  const box = c.boxes.find((b) => volumeCm3 <= b.volumeCm3 && ids.every((id) => fitsBox(byId.get(id), b)))
+  if (!box) {
+    const bad = ids.find((id) => !c.boxes.some((b) => fitsBox(byId.get(id), b)))
+    return bad ? { ok: false, error: 'item_no_fit', itemId: bad } : { ok: false, error: 'too_big' }
+  }
   return { ok: true, box, weightG, volumeCm3 }
 }
 

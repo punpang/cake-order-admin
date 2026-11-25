@@ -20,6 +20,7 @@ export function payDueAtOf(nowMs, payDueMin, payLastDate) {
 const PARCEL_ERR = {
   overweight: 'น้ำหนักเกินขั้นสูงสุดของตารางค่าส่ง',
   too_big: 'ขนาดสินค้าเกินกล่องใหญ่สุดที่ร้านตั้งไว้',
+  item_no_fit: 'สินค้าบางชิ้นใหญ่เกินกล่องที่ร้านตั้งไว้',
   no_boxes: 'ยังไม่ได้ตั้งกล่องพัสดุ',
   no_steps: 'ยังไม่ได้ตั้งตารางค่าส่งพัสดุ',
   no_price: 'ตารางค่าส่งพัสดุไม่ครบ',

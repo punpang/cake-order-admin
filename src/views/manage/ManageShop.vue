@@ -49,7 +49,7 @@ const addStep = () => { st.parcel.steps.push(''); st.parcel.boxes.forEach((b) =>
 const removeStep = (j) => { st.parcel.steps.splice(j, 1); st.parcel.boxes.forEach((b) => b.prices.splice(j, 1)) }
 // ค่าตั้งต้นจากตาราง EMS ในประเทศ (ราคาเดียวกันทุกกล่องเพราะ EMS คิดตามน้ำหนัก)
 const useEmsTable = () => { st.parcel.steps = EMS_DOMESTIC.map((r) => r[0]); st.parcel.boxes.forEach((b) => { b.prices = EMS_DOMESTIC.map((r) => r[1]) }) }
-const PARCEL_ERR = { no_boxes: 'ยังไม่ได้ตั้งกล่องพัสดุ', no_steps: 'ยังไม่ได้ตั้งขั้นน้ำหนัก', no_price: 'ตารางราคาไม่ครบ', too_big: 'ปริมาตรสินค้าเกินกล่องใหญ่สุด', overweight: 'น้ำหนักเกินขั้นสูงสุดของตาราง' }
+const PARCEL_ERR = { no_boxes: 'ยังไม่ได้ตั้งกล่องพัสดุ', no_steps: 'ยังไม่ได้ตั้งขั้นน้ำหนัก', no_price: 'ตารางราคาไม่ครบ', too_big: 'ปริมาตรสินค้าเกินกล่องใหญ่สุด', item_no_fit: 'มีสินค้าที่ไม่พอดีกับกล่องใดเลย', overweight: 'น้ำหนักเกินขั้นสูงสุดของตาราง' }
 const st = reactive({ ...db.shop, parcel: cloneParcel(db.shop.parcel), cashService: cashSettingsOf(db.shop), prepCategories: [...(db.shop.prepCategories || [])], chatAutoHideHours: db.shop.chatAutoHideHours ?? 24, customerLazy: db.shop.customerLazy === true, dueSoonHours: db.shop.dueSoonHours ?? 2, pointsExpireDays: db.shop.pointsExpireDays ?? 30, installmentAlertDays: db.shop.installmentAlertDays ?? 1, lineRetentionDays: db.shop.lineRetentionDays ?? 180, merchantCode: db.shop.merchantCode ?? '', billerId: db.shop.billerId ?? '', vat: { ...db.shop.vat }, payDueRule: { ...db.shop.payDueRule }, delivery: { ...db.shop.delivery }, payment: clonePayment(db.shop.payment), closures: JSON.parse(JSON.stringify(db.shop.closures)) })
 // ---- วัน-เวลาปิดร้าน ----
 const DOWS = [1, 2, 3, 4, 5, 6, 0] // จันทร์เริ่ม
