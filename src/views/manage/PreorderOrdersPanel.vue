@@ -206,7 +206,7 @@ onMounted(load)
         <div class="mt-3 flex flex-col gap-2" data-actions>
         <!-- ยืนยันเงินสด -->
         <div v-if="blocksOf(o).includes('cash')" data-action="cash" class="flex flex-wrap items-center gap-2" :class="blockClass(o, 'cash')">
-          <input v-model="box(o.id).amount" type="number" min="0" step="0.01" class="input h-11 w-28" aria-label="ยอดเงินสด" placeholder="ยอดเงินสด" />
+          <input v-model="box(o.id).amount" type="number" min="0" step="0.01" class="input h-11 w-36" aria-label="ยอดเงินสด" placeholder="ยอดเงินสด" />
           <button type="button" class="btn-outline h-11 px-3" @click="act(o, 'record_payment', { amount: Number(box(o.id).amount), method: 'cash' }, 'บันทึกเงินสดแล้ว')">รับเงินสด</button>
         </div>
 
@@ -218,7 +218,7 @@ onMounted(load)
         <div v-if="isShip(o)" data-action="ship" class="flex flex-wrap items-center gap-2" :class="blockClass(o, 'ship')">
           <input v-model="box(o.id).carrier" class="input h-11 w-28" placeholder="ขนส่ง" aria-label="ชื่อขนส่ง" />
           <input v-model="box(o.id).tracking" class="input h-11 w-36" placeholder="เลขพัสดุ" aria-label="เลขพัสดุ" />
-          <input v-model="box(o.id).postage" type="number" min="0" step="0.01" class="input h-11 w-28" placeholder="ค่าไปรษณีย์ (บาท)" aria-label="ค่าไปรษณีย์จริง (บาท)" />
+          <input v-model="box(o.id).postage" type="number" min="0" step="0.01" class="input h-11 w-36" placeholder="ค่าไปรษณีย์ (บาท)" aria-label="ค่าไปรษณีย์จริง (บาท)" />
           <button type="button" class="btn-primary h-11 px-3" @click="act(o, 'set_shipping', { carrier: box(o.id).carrier, trackingNo: box(o.id).tracking, postage: box(o.id).postage === '' ? 0 : Number(box(o.id).postage) }, 'บันทึกเลขพัสดุแล้ว')">บันทึกการส่ง</button>
         </div>
 
@@ -236,7 +236,7 @@ onMounted(load)
         <!-- ตัดสิน: คืนเงิน (ริบค่าส่ง) หรือจัดส่งใหม่ (ริบค่าส่งเดิม) -->
         <div v-if="o.status === 'returned' && lastDecidable(o)" data-action="refund" class="space-y-2" :class="blockClass(o, 'refund')">
           <div class="flex flex-wrap items-center gap-2">
-            <input v-model="box(o.id).amount" type="number" min="0" step="0.01" class="input h-11 w-28" aria-label="ยอดคืนเงิน" placeholder="ยอดคืนเงิน" />
+            <input v-model="box(o.id).amount" type="number" min="0" step="0.01" class="input h-11 w-36" aria-label="ยอดคืนเงิน" placeholder="ยอดคืนเงิน" />
             <select v-model="box(o.id).method" class="input h-11 w-28" aria-label="วิธีคืนเงิน">
               <option value="cash">เงินสด</option>
               <option value="bank">โอนบัญชี</option>
@@ -245,7 +245,7 @@ onMounted(load)
             <button type="button" class="btn-primary h-11 px-3" @click="act(o, 'refund_return', { refunds: [{ amount: Number(box(o.id).amount), method: box(o.id).method }] }, 'คืนเงินแล้ว (ค่าส่งเดิมถูกริบ)')">คืนเงิน</button>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <input v-model="box(o.id).fee" type="number" min="0" step="0.01" class="input h-11 w-28" aria-label="ค่าส่งใหม่" placeholder="ค่าส่งใหม่" />
+            <input v-model="box(o.id).fee" type="number" min="0" step="0.01" class="input h-11 w-36" aria-label="ค่าส่งใหม่" placeholder="ค่าส่งใหม่" />
             <button type="button" class="btn-outline h-11 px-3" @click="act(o, 'reship', { newFee: Number(box(o.id).fee) }, 'ตั้งจัดส่งใหม่แล้ว ลูกค้าต้องชำระค่าส่งใหม่')">จัดส่งใหม่</button>
           </div>
         </div>
