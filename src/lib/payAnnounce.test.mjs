@@ -1,6 +1,6 @@
-// ทดสอบเสียงประกาศการรับชำระอัตโนมัติ (POS Android เท่านั้น) · รัน: node src/lib/payAnnounce.test.mjs
+// ทดสอบเสียงประกาศการรับชำระอัตโนมัติ (POS Android เท่านั้น) · อ่านตัวเลขเป็นคำไทย · รัน: node src/lib/payAnnounce.test.mjs
 import assert from 'node:assert/strict'
-import { payAnnounceText, isAndroidUa, announcePaid } from './payAnnounce.js'
+import { payAnnounceText, thaiBahtWords, isAndroidUa, announcePaid } from './payAnnounce.js'
 
 let fail = 0
 const t = (name, fn) => { try { fn(); console.log(`PASS ${name}`) } catch (e) { fail++; console.log(`FAIL ${name}: ${e.message}`) } }
@@ -21,16 +21,35 @@ const fakeSynth = () => {
   }
 }
 
-t('ข้อความยอดจำนวนเต็มไม่มีทศนิยม', () => {
-  assert.equal(payAnnounceText(1250), 'รับชำระแล้ว 1250 บาท')
+t('อ่านตัวเลข 1234 เป็นคำไทย', () => {
+  assert.equal(thaiBahtWords(1234), 'หนึ่งพันสองร้อยสามสิบสี่บาท')
 })
 
-t('ข้อความยอดที่มีสตางค์แสดงสองตำแหน่ง', () => {
-  assert.equal(payAnnounceText(1250.5), 'รับชำระแล้ว 1250.50 บาท')
+t('ข้อความยอดเต็มมีคำนำหน้า รับชำระแล้ว', () => {
+  assert.equal(payAnnounceText(1234), 'รับชำระแล้ว หนึ่งพันสองร้อยสามสิบสี่บาท')
+})
+
+t('ยอดลงท้ายด้วย 1 อ่านว่า เอ็ด และ 2 หลักอ่านว่า ยี่สิบ', () => {
+  assert.equal(thaiBahtWords(21), 'ยี่สิบเอ็ดบาท')
+  assert.equal(thaiBahtWords(101), 'หนึ่งร้อยเอ็ดบาท')
+  assert.equal(thaiBahtWords(12), 'สิบสองบาท')
+})
+
+t('ยอดหลักล้านอ่านว่าล้าน', () => {
+  assert.equal(thaiBahtWords(1000000), 'หนึ่งล้านบาท')
+  assert.equal(thaiBahtWords(1200000), 'หนึ่งล้านสองแสนบาท')
+})
+
+t('ยอดมีสตางค์อ่านเป็นสตางค์ต่อท้าย', () => {
+  assert.equal(thaiBahtWords(1250.5), 'หนึ่งพันสองร้อยห้าสิบบาทห้าสิบสตางค์')
+})
+
+t('ยอดต่ำกว่า 1 บาทอ่านเฉพาะสตางค์', () => {
+  assert.equal(payAnnounceText(0.5), 'รับชำระแล้ว ห้าสิบสตางค์')
 })
 
 t('ปัดสตางค์เกินสองตำแหน่งให้ถูกต้อง', () => {
-  assert.equal(payAnnounceText(99.999), 'รับชำระแล้ว 100 บาท')
+  assert.equal(payAnnounceText(99.999), 'รับชำระแล้ว หนึ่งร้อยบาท')
 })
 
 t('ยอดศูนย์หรือติดลบไม่ประกาศ', () => {
@@ -53,22 +72,22 @@ t('ตรวจว่าเป็น Android จาก user agent', () => {
 
 t('Android พูดข้อความภาษาไทย lang th-TH', () => {
   const s = fakeSynth()
-  const ok = announcePaid(1250, { ua: ANDROID, synth: s, Utterance: s.Utterance })
+  const ok = announcePaid(1234, { ua: ANDROID, synth: s, Utterance: s.Utterance })
   assert.equal(ok, true)
   assert.equal(s.spoken.length, 1)
-  assert.equal(s.spoken[0].text, 'รับชำระแล้ว 1250 บาท')
+  assert.equal(s.spoken[0].text, 'รับชำระแล้ว หนึ่งพันสองร้อยสามสิบสี่บาท')
   assert.equal(s.spoken[0].lang, 'th-TH')
   assert.equal(s.cancelled, 1)
 })
 
 t('ไม่ใช่ Android ไม่พูด', () => {
   const s = fakeSynth()
-  assert.equal(announcePaid(1250, { ua: WINDOWS, synth: s }), false)
+  assert.equal(announcePaid(1234, { ua: WINDOWS, synth: s }), false)
   assert.equal(s.spoken.length, 0)
 })
 
 t('ไม่มี speechSynthesis ไม่พูดและไม่ error', () => {
-  assert.equal(announcePaid(1250, { ua: ANDROID, synth: undefined }), false)
+  assert.equal(announcePaid(1234, { ua: ANDROID, synth: undefined }), false)
 })
 
 t('ยอดไม่ถูกต้องไม่พูดแม้เป็น Android', () => {
