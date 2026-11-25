@@ -25,6 +25,22 @@ const tiers = ref([]) // ขั้นส่วนลดตามยอด (ด�
 const parcelOn = ref(false) // ส่งพัสดุไปรษณีย์ (สินค้าทุกชิ้นต้องมีน้ำหนักและขนาด)
 const shipWarn = computed(() => (form.value ? shipOutsidePickupWarning({ ...form.value, parcel: { enabled: parcelOn.value } }) : ''))
 const addTier = () => tiers.value.push({ min: '', type: 'amount', value: '' })
+// ค้นหาและเลือกสินค้าเป็นจำนวนมาก: กรองจากชื่อ เลือกทั้งหมดที่แสดง ล้างที่เลือก (ใช้ได้เมื่อมีสินค้าเป็นร้อยรายการ)
+const productQuery = ref('')
+const visibleProducts = computed(() => {
+  const q = productQuery.value.trim().toLowerCase()
+  return q ? sellable.value.filter((r) => String(r.name).toLowerCase().includes(q)) : sellable.value
+})
+const selectedCount = computed(() => sellable.value.filter((r) => sel[r.id]?.on).length)
+const selectedList = computed(() => sellable.value.filter((r) => sel[r.id]?.on))
+const nameCount = computed(() => {
+  const m = {}
+  for (const r of sellable.value) m[r.name] = (m[r.name] || 0) + 1
+  return m
+})
+function selectAllVisible() { for (const r of visibleProducts.value) if (sel[r.id]) sel[r.id].on = true }
+function clearSelected() { for (const r of sellable.value) if (sel[r.id]) sel[r.id].on = false }
+function unselect(id) { if (sel[id]) sel[id].on = false }
 const shipTiers = ref([]) // ขั้นส่วนลดค่าส่งตามยอดซื้อ (ฟิลด์ shipOff ของแคมเปญ · ไม่ปนกับโปรสินค้า)
 
 function openForm(c) {
@@ -112,15 +128,34 @@ function toggle(c, status) {
           <div><label class="label" for="pp-cap">โควตารวมต่อวัน</label><input id="pp-cap" v-model="form.dayCap" type="number" min="0" class="input" placeholder="ว่าง = ไม่จำกัด" /></div>
         </div>
         <div>
-          <div class="label">สินค้าในแคมเปญ (เลือกจากสินค้า POS) <span class="text-rose-600">*</span></div>
-          <p v-if="!sellable.length" class="text-sm text-stone-500">ไม่มีสินค้าที่ใช้ได้</p>
-          <div v-for="r in sellable" :key="r.id" class="flex items-center gap-3 border-b border-stone-100 py-2">
-            <label class="flex min-w-0 flex-1 items-center gap-2 text-sm">
-              <input v-model="sel[r.id].on" type="checkbox" class="h-4 w-4" :aria-label="`เลือก ${r.name}`" />
-              <span class="truncate">{{ r.name }}</span>
-            </label>
-            <input v-if="sel[r.id].on" v-model="sel[r.id].cap" type="number" min="0" class="input h-9 w-24" :aria-label="`เพดานต่อวันของ ${r.name}`" placeholder="ไม่จำกัด" />
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="label">สินค้าในแคมเปญ (เลือกจากสินค้า POS) <span class="text-rose-600">*</span></div>
+            <div class="text-sm text-stone-600" data-product-count>เลือกแล้ว {{ selectedCount }} จาก {{ sellable.length }}</div>
           </div>
+          <p v-if="!sellable.length" class="text-sm text-stone-500">ไม่มีสินค้าที่ใช้ได้</p>
+          <template v-else>
+            <input v-model="productQuery" type="search" class="input mt-2 w-full" placeholder="ค้นหาชื่อสินค้า" aria-label="ค้นหาสินค้าในแคมเปญ" />
+            <div class="mt-2 flex flex-wrap gap-2">
+              <button type="button" class="btn-outline h-9 px-3 text-sm" :disabled="!visibleProducts.length" @click="selectAllVisible">เลือกทั้งหมดที่แสดง ({{ visibleProducts.length }})</button>
+              <button type="button" class="btn-outline h-9 px-3 text-sm" :disabled="!selectedCount" @click="clearSelected">ล้างที่เลือก</button>
+            </div>
+            <div v-if="selectedList.length" class="mt-2 flex flex-wrap gap-2" data-product-chips>
+              <button v-for="r in selectedList" :key="'chip-' + r.id" type="button" class="inline-flex h-8 items-center gap-1 rounded-full bg-brand-50 px-3 text-sm text-brand-700" :aria-label="`เอาออก ${r.name}`" @click="unselect(r.id)">
+                {{ r.name }}<span aria-hidden="true">×</span>
+              </button>
+            </div>
+            <div class="mt-2 grid max-h-[40vh] grid-cols-1 gap-x-4 overflow-y-auto overscroll-contain rounded-xl border border-stone-200 px-3 sm:grid-cols-2 landscape:max-h-[55vh]" data-product-list>
+              <p v-if="!visibleProducts.length" class="col-span-full py-3 text-sm text-stone-500">ไม่พบสินค้าที่ตรงกับคำค้น</p>
+              <div v-for="r in visibleProducts" :key="r.id" class="grid min-w-0 grid-cols-[1fr_auto] items-center gap-2 border-b border-stone-100 py-2">
+                <label class="flex min-h-11 min-w-0 cursor-pointer items-center gap-3 text-sm">
+                  <input v-model="sel[r.id].on" type="checkbox" class="h-5 w-5 shrink-0" :aria-label="`เลือก ${r.name}`" />
+                  <span class="min-w-0 truncate">{{ r.name }}<span v-if="nameCount[r.name] > 1" class="ml-1 text-xs text-stone-400">#{{ r.id }}</span></span>
+                </label>
+                <input v-if="sel[r.id].on" v-model="sel[r.id].cap" type="number" min="0" class="input h-9 w-24" :aria-label="`เพดานต่อวันของ ${r.name}`" placeholder="ไม่จำกัด" />
+                <span v-else></span>
+              </div>
+            </div>
+          </template>
         </div>
         <div>
           <div class="label">ส่วนลดตามยอดซื้อ (ไม่บังคับ)</div>
