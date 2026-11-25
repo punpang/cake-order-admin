@@ -41,6 +41,9 @@ code=$?
 "${PSQL[@]}" -d "$DB" -f supabase/tests/birth_discount_guard.test.sql
 code2=$?
 [ "$code2" = "0" ] && echo "✓ birth_discount_guard.test.sql ผ่านทั้งหมด" || { echo "✗ birth_discount_guard.test.sql ล้มเหลว"; exit 1; }
+"${PSQL[@]}" -d "$DB" -f supabase/tests/coupon_entry_guard.test.sql
+code3=$?
+[ "$code3" = "0" ] && echo "✓ coupon_entry_guard.test.sql ผ่านทั้งหมด" || { echo "✗ coupon_entry_guard.test.sql ล้มเหลว"; exit 1; }
 [ "$code" = "0" ] || exit "$code"
 
 "${PSQL[@]}" -d "$DB" -f supabase/tests/shifts_guard.test.sql
