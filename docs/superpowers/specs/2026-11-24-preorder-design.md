@@ -74,7 +74,7 @@
 - ตัดสินเองโดยไม่ถาม: ไม่มีช่วงเวลารับย่อยภายในวัน (มีแค่วัน) · หน้า preorder ใช้โครงหน้าร้านเดิม
 
 ## 8. สถาปัตยกรรมโดยย่อ
-- **ฐานข้อมูล:** `punpang_preorder_campaigns` · `punpang_preorder_orders` (data jsonb: รายการ วันรับ ยอด payments[] ขยายเวลา ธงโควตา) · `punpang_preorder_slots` (แคมเปญ × วันรับ × สินค้า → จำนวนที่จอง) · RPC `punpang_preorder_reserve/release` ล็อกแถวแบบ atomic · RLS/guard · จัดประเภทตารางใน `punpang_test_sync`
+- **ฐานข้อมูล:** `punpang_preorder_campaigns` · `punpang_preorder_orders` (data jsonb: รายการ วันรับ ยอด payments[] ขยายเวลา ธงโควตา) · `punpang_preorder_slots` (แคมเปญ × วันรับ × สินค้า → จำนวนที่จอง) · RPC `punpang_preorder_reserve/release` ล็อกแถวแบบ atomic · RLS/guard
 - **Edge Function `preorder`:** สาธารณะ แต่ก่อนจองต้องยืนยันเบอร์ด้วย OTP (ใช้กลไก OTP/SMS ของ `customer-auth` + `sms-send`) แล้วสร้าง/ผูกลูกค้าอัตโนมัติ และออกเซสชันหรือลิงก์ออร์เดอร์ · actions: campaigns / otp_request / otp_verify / quote / create / pay / qr_request / read_slip / extend / state · ตรวจราคา/โควตา/ช่วงรับสั่ง/มัดจำที่เซิร์ฟเวอร์ · rate limit ต่อเบอร์/IP + Turnstile
 - **ถุงเงินอัตโนมัติ:** ขยาย `_shared/notifyconfirm.ts` ให้จับคู่ qrRef `PRE...` กับการชำระของ preorder; ยืนยันอัตโนมัติเมื่อยอด ≥ มัดจำหรือตรงงวด
 - **งานตามเวลา:** ขยาย `scheduled` (`_shared/scheduled/plan.ts`) ปล่อยโควตาเมื่อเลยกำหนด · เตือนก่อนครบกำหนด
@@ -98,3 +98,44 @@
 
 ## 12. ยังไม่ตัดสิน (ฝากผู้สร้าง/ถามผู้ใช้ภายหลัง)
 ไม่มีประเด็นที่ต้องถามผู้ใช้อีก (หัวข้อ 6.1 ตัดสินแล้ว · ใบกำกับภาษี นโยบายยกเลิก/มัดจำ เวลากำหนดจ่าย ตัดสินครบแล้วในหัวข้อ 6) รายละเอียด UI ฝากผู้สร้างตัดสินตามแบบหน้าเดิมของโปรเจกต์
+
+## 13. สถานะการสร้าง (ตรวจจากโค้ดบน main เมื่อ 2026-11-25)
+ตรวจด้วยการค้นหาโค้ด (`grep`) เท่านั้น ยังไม่ได้รันทดสอบแต่ละข้อ · "มี" = พบโค้ดที่ทำงานนั้น · "ไม่พบ" = ค้นแล้วไม่พบ · "ไม่แน่ใจ" = พบเพียงบางส่วน
+
+**เฟส 1 (ฐานและโควตา)**
+| รายการ | สถานะ | หลักฐาน |
+|---|---|---|
+| ตาราง campaigns / orders / slots | มี | มิเกรชัน `20261127100000` และ `20261127110000` |
+| RPC จอง/ปล่อยโควตาแบบ atomic | มี | `punpang_preorder_reserve/release` (+ `_round`) |
+| หน้าตั้งแคมเปญ | มี | `src/views/manage/ManagePreorders.vue`, เส้นทาง `/admin/preorders` |
+| เทสต์ DB / lib | มี | `supabase/tests/run.sh` (`preorder_*`), `src/lib/preorder*.test.mjs` |
+| จัดประเภทตารางใน `punpang_test_sync` | ตัดออก | schema `punpang_test` ถูกลบแล้ว (ตกลงกับผู้ใช้ 2026-11-25) |
+
+**เฟส 2 (ลูกค้าสั่งเอง)**
+| รายการ | สถานะ | หลักฐาน |
+|---|---|---|
+| ฟิลด์น้ำหนัก/ขนาดสินค้า | มี | `src/views/manage/ManageRetail.vue` |
+| ตั้งค่าค่าส่งพัสดุ | มี | `src/data/shopParcel.store*`, `src/lib/parcelShipping.js` |
+| โปรของแคมเปญ (deals) | มี | `src/lib/preorderCampaign.js` |
+| ฟังก์ชันคิดราคา | มี | `src/lib/preorderPrice.js`, `_shared/schedlib/preorderPrice.js` |
+| Edge Function `preorder` | มี | actions: campaigns, quote, create, otp_*, qr_request, state, extension_request, return_request |
+| หน้าลูกค้า | มี | `StorePreorder.vue`, `StorePreorderOrders.vue` |
+
+**เฟส 3 (ชำระและเวลา)**
+| รายการ | สถานะ | หลักฐาน |
+|---|---|---|
+| QR/ถุงเงินอัตโนมัติ | มี | `tungngern-receiver` เรียก `punpang_preorder_confirm_qr` |
+| เงินสดหน้าร้าน | มี | RPC `punpang_preorder_record_payment` เรียกจาก `preorder-admin` |
+| ขยายเวลา | มี | RPC `punpang_preorder_extend` เรียกจาก `preorder-admin` |
+| ปล่อยโควตาตามเวลา | มี แต่ต่างจากสเปก | pg_cron `punpang-preorder-expire` (มิเกรชัน `20261127210000`) ไม่ได้ผ่านฟังก์ชัน `scheduled` ตามสเปก |
+| คืนแต้มเมื่อหมดเวลาหรือยกเลิก | ไม่แน่ใจ | มีใน RPC SQL (`punpang_preorder_return_points`) แต่ไม่พบการเรียกจาก Edge Function |
+
+**เฟส 4 (บัญชี ใบกำกับ รายงาน แจ้งเตือน)**
+| รายการ | สถานะ | หลักฐาน |
+|---|---|---|
+| บัญชี (derive) | มี | `src/lib/acct/derive.js`, `preorder.derive.test.mjs` |
+| รายงานและพิมพ์ | มี | `src/lib/preorderReports.js`, `PreorderReportsPanel.vue` |
+| แจ้งเตือน | มี | `supabase/functions/_shared/preorderNotify.ts`, `preorder-notify` |
+| ได้แต้มตอนส่งมอบ | ไม่พบ | ค้นคำว่า earn/award ในมิเกรชัน preorder แล้วไม่พบ |
+| audit ค่าส่งและแต้มของ preorder | ไม่พบ | `orderAudit.js` ไม่อ้างถึง preorder |
+| ใบกำกับภาษีเต็มรูปของ preorder | ไม่พบ | `supabase/functions/tax-invoice` ไม่อ้างถึง preorder |
