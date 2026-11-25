@@ -244,6 +244,11 @@ ncode=$?
 [ "$ncode" = "0" ] && echo "✓ preorder_notify.test.sql ผ่านทั้งหมด" || echo "✗ preorder_notify.test.sql ล้มเหลว"
 [ "$ncode" = "0" ] || exit "$ncode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_rounds.test.sql
+rocode=$?
+[ "$rocode" = "0" ] && echo "✓ preorder_rounds.test.sql ผ่านทั้งหมด" || echo "✗ preorder_rounds.test.sql ล้มเหลว"
+[ "$rocode" = "0" ] || exit "$rocode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_create.test.sql
 crcode=$?
 [ "$crcode" = "0" ] && echo "✓ preorder_create.test.sql ผ่านทั้งหมด" || echo "✗ preorder_create.test.sql ล้มเหลว"

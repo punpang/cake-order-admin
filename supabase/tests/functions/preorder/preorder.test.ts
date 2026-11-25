@@ -250,3 +250,36 @@ Deno.test('create ส่งพัสดุโดยไม่กรอกที�
   const r = await call({ action: 'create', token: TOKEN, turnstileToken: GOOD, campaignId: 'c_open', pickupDate: '2099-12-24', fulfillment: 'delivery', lines: [{ retailId: 'pr1', qty: 1 }], orderId: ORDER })
   assertEquals(r.status, 400)
 })
+
+// โหมดรอบเวลา: ต้องเลือกรอบในแคมเปญ · ส่งรอบเข้า RPC ที่จองรอบและสร้างออเดอร์ในธุรกรรมเดียว · รอบเต็มแสดงข้อความเลือกรอบอื่น
+const SLOT_DATA = { name: 'รอบ', dayCap: null, items: [{ retailId: 'pr1', dayCap: null }], deals: [], parcel: { enabled: false }, pickupMode: 'slot', rounds: [{ time: '10:00', cap: 2 }, { time: '13:00', cap: 1 }] }
+Deno.test('create โหมดรอบ: ไม่ส่งรอบ → 400', async () => {
+  await seedAuth()
+  ;(globalThis as any).__DB.t['public.punpang_preorder_campaigns'].push(camp({ id: 'c_slot', data: SLOT_DATA }))
+  const r = await call({ action: 'create', token: TOKEN, turnstileToken: GOOD, campaignId: 'c_slot', pickupDate: '2099-12-24', fulfillment: 'pickup', lines: [{ retailId: 'pr1', qty: 1 }], orderId: ORDER })
+  assertEquals(r.status, 400)
+})
+Deno.test('create โหมดรอบ: รอบไม่มีในแคมเปญ → 400', async () => {
+  await seedAuth()
+  ;(globalThis as any).__DB.t['public.punpang_preorder_campaigns'].push(camp({ id: 'c_slot2', data: SLOT_DATA }))
+  const r = await call({ action: 'create', token: TOKEN, turnstileToken: GOOD, campaignId: 'c_slot2', pickupDate: '2099-12-24', fulfillment: 'pickup', pickupRound: '11:00', lines: [{ retailId: 'pr1', qty: 1 }], orderId: ORDER })
+  assertEquals(r.status, 400)
+})
+Deno.test('create โหมดรอบ: รอบถูกต้อง → ส่งรอบเข้า create_round และบันทึกรอบในออเดอร์', async () => {
+  await seedAuth()
+  ;(globalThis as any).__DB.t['public.punpang_preorder_campaigns'].push(camp({ id: 'c_slot3', data: SLOT_DATA }))
+  const seen: any[] = []
+  ;(globalThis as any).__RPC.punpang_preorder_create_round = async (args: any) => { seen.push(args); return { data: { ok: true, already: false, code: 'PRE-241124-000009' }, error: null } }
+  const r = await call({ action: 'create', token: TOKEN, turnstileToken: GOOD, campaignId: 'c_slot3', pickupDate: '2099-12-24', fulfillment: 'pickup', pickupRound: '13:00', lines: [{ retailId: 'pr1', qty: 1 }], orderId: ORDER })
+  assertEquals(r.status, 200)
+  assertEquals(seen[0].p_round, '13:00')
+  assertEquals(seen[0].p_row.data.pickupRound, '13:00')
+})
+Deno.test('create โหมดรอบ: รอบเต็ม → 409 ข้อความเลือกรอบอื่น', async () => {
+  await seedAuth()
+  ;(globalThis as any).__DB.t['public.punpang_preorder_campaigns'].push(camp({ id: 'c_slot4', data: SLOT_DATA }))
+  ;(globalThis as any).__RPC.punpang_preorder_create_round = async () => ({ data: { error: 'round_full' }, error: null })
+  const r = await call({ action: 'create', token: TOKEN, turnstileToken: GOOD, campaignId: 'c_slot4', pickupDate: '2099-12-24', fulfillment: 'pickup', pickupRound: '13:00', lines: [{ retailId: 'pr1', qty: 1 }], orderId: ORDER })
+  assertEquals(r.status, 409)
+  assertEquals((await r.json()).error, 'รอบเวลานี้เต็มแล้ว กรุณาเลือกรอบอื่น')
+})

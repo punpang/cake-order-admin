@@ -19,7 +19,7 @@ function staffView(o: any, names: Record<string, string>) {
   const reported = pays.filter((x) => x?.status === 'reported').map((x) => ({ id: x.id, amount: x.amount, qrRef: x.qrRef }))
   return {
     id: o.id, code: o.code, status: o.status, pickupDate: o.pickup_date, customerName: names[o.customer_id] ?? '',
-    fulfillment: d.fulfillment ?? null, total: d.total ?? null, deposit: d.deposit ?? null, payDueAt: d.payDueAt ?? null,
+    fulfillment: d.fulfillment ?? null, pickupRound: d.pickupRound ?? null, readyAt: d.readyAt ?? null, total: d.total ?? null, deposit: d.deposit ?? null, payDueAt: d.payDueAt ?? null,
     shippingFee: d.shippingFee ?? 0, paid: Math.round(paid * 100) / 100,
     pendingCash: reported,
     shipping: d.shipping ?? null, returns: d.returns ?? [], returnRequest: d.returnRequest ?? null,
@@ -45,6 +45,22 @@ Deno.serve(corsWrap(async (req) => {
   if (!st.data?.active || !(manages || readsAcct)) return json({ error: 'ไม่มีสิทธิ์จัดการสั่งล่วงหน้า' }, 403)
   const action = String(body.action ?? '')
   const orderId = String(body.orderId ?? '')
+
+  // ทำเครื่องหมายเตรียมเสร็จ (แคมเปญโหมดรอบเท่านั้น) · บันทึกเวลาและแจ้งลูกค้าว่ารับได้ตั้งแต่รอบที่เลือก
+  if (action === 'mark_ready') {
+    if (!ORDER_ID_RE.test(orderId)) return json({ error: 'รหัสออร์เดอร์ไม่ถูกต้อง' }, 400)
+    const o = (await sb.from('punpang_preorder_orders').select('id,campaign_id,status,data').eq('id', orderId).maybeSingle()).data
+    if (!o) return json({ error: 'ไม่พบออร์เดอร์นี้' }, 404)
+    if (['cancelled', 'expired', 'delivered', 'returned'].includes(o.status)) return json({ error: 'ออร์เดอร์นี้ปิดแล้ว' }, 409)
+    const cmp = (await sb.from('punpang_preorder_campaigns').select('data').eq('id', o.campaign_id).maybeSingle()).data
+    if (!cmp || cmp.data?.pickupMode !== 'slot') return json({ error: 'ทำเครื่องหมายเตรียมเสร็จได้เฉพาะแคมเปญแบบเลือกรอบเวลา' }, 409)
+    if (!o.data?.pickupRound) return json({ error: 'ออร์เดอร์นี้ไม่มีรอบเวลา' }, 409)
+    const readyAt = new Date().toISOString()
+    const up = await sb.from('punpang_preorder_orders').update({ data: { ...(o.data || {}), readyAt } }).eq('id', orderId)
+    if (up.error) return json({ error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' }, 500)
+    await notifyOrderEvent(sb, orderId, 'ready')
+    return json({ ok: true, result: { readyAt } })
+  }
 
   // ออร์เดอร์สั่งล่วงหน้าที่ยังไม่ปิดของลูกค้าคนหนึ่ง (แชท) · กรองที่เซิร์ฟเวอร์ตาม customerId (รหัสลูกค้าเป็น text) เท่านั้น
   if (action === 'customerOrders') {

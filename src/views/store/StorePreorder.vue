@@ -10,6 +10,9 @@ const fmtDay = (s) => new Date(`${s}T00:00:00+07:00`).toLocaleDateString('th-TH'
 const loading = ref(true)
 const error = ref('')
 const chosen = ref(null)
+// รอบเวลาที่เลือก (แคมเปญโหมดรอบ): รับได้ตั้งแต่เวลานั้นถึงสิ้นวัน
+const roundPick = ref('')
+const isSlot = computed(() => chosen.value?.pickupMode === 'slot')
 const pickup = ref('')
 const fulfillment = ref('pickup')
 const qty = reactive({})
@@ -97,6 +100,7 @@ async function placeOrder() {
   const r = await callPreorder('create', {
     campaignId: chosen.value.id,
     pickupDate: pickup.value,
+    pickupRound: isSlot.value ? roundPick.value : undefined,
     fulfillment: fulfillment.value,
     lines: lines.value,
     orderId: attemptOrderId,
@@ -143,6 +147,7 @@ function choose(c) {
   quote.value = null
   quoteError.value = ''
   pickup.value = c.pickupFrom
+  roundPick.value = c.pickupMode === 'slot' && c.rounds?.length ? c.rounds[0].time : ''
   fulfillment.value = 'pickup'
   for (const k of Object.keys(qty)) delete qty[k]
 }
@@ -229,6 +234,16 @@ onBeforeUnmount(() => { if (captchaId !== null && window.turnstile) { try { wind
             <option v-for="d in days" :key="d" :value="d">{{ d }}</option>
           </select>
         </div>
+        <fieldset v-if="isSlot" data-round-picker>
+          <legend class="label">รอบเวลารับสินค้า</legend>
+          <div class="grid gap-2">
+            <label v-for="r in chosen.rounds" :key="r.time" class="flex min-h-12 cursor-pointer items-center gap-3 rounded-2xl border-2 border-stone-200 bg-white px-4 has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50">
+              <input v-model="roundPick" type="radio" :value="r.time" class="h-5 w-5 accent-brand-600" />
+              <span class="font-medium text-stone-900">รับได้ตั้งแต่ {{ r.time }} ถึงสิ้นวัน</span>
+            </label>
+          </div>
+          <p class="mt-2 text-xs text-stone-500">รอบที่เต็มแล้วจะเลือกไม่ได้ ระบบจะแจ้งเมื่อส่งคำสั่งซื้อ</p>
+        </fieldset>
         <fieldset>
           <legend class="label">วิธีรับ</legend>
           <div class="grid gap-2" :class="chosen.parcelEnabled ? 'grid-cols-2' : 'grid-cols-1'">

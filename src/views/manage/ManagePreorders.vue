@@ -48,10 +48,14 @@ function clearSelected() { for (const r of sellable.value) if (sel[r.id]) sel[r.
 function unselect(id) { if (sel[id]) sel[id].on = false }
 const shipTiers = ref([]) // ขั้นส่วนลดค่าส่งตามยอดซื้อ (ฟิลด์ shipOff ของแคมเปญ · ไม่ปนกับโปรสินค้า)
 
+// รอบเวลา (โหมดเลือกรอบ): เวลากับจำนวนออร์เดอร์ต่อรอบ (ค่าที่กรอกยังเป็นข้อความ แปลงตอนบันทึก)
+const roundsIn = ref([])
+
 function openForm(c) {
   ferr.value = ''
   const base = c ? JSON.parse(JSON.stringify(c)) : blankCampaign()
   form.value = { ...base, dayCap: base.dayCap ?? '' }
+  roundsIn.value = (base.rounds ?? []).map((r) => ({ time: r.time, cap: String(r.cap) }))
   hours.value = base.payDueMin ? String(base.payDueMin / 60) : ''
   tiers.value = (base.deals?.[0]?.tiers ?? []).map((t) => ({ min: String(t.min), type: t.type, value: String(t.value) }))
   shipTiers.value = (base.shipOff ?? []).map((t) => ({ min: String(t.min), value: String(t.value) }))
@@ -76,6 +80,8 @@ function submit() {
     deals: tiers.value.length ? [{ kind: 'spend_off', name: 'ส่วนลดตามยอด', tiers: tiers.value.map((t) => ({ min: Number(t.min), type: t.type, value: Number(t.value) })) }] : [],
     shipOff: shipTiers.value.map((t) => ({ min: Number(t.min), value: Number(t.value) })),
     parcel: { enabled: parcelOn.value },
+    pickupMode: f.pickupMode === 'slot' ? 'slot' : 'day',
+    rounds: f.pickupMode === 'slot' ? roundsIn.value.map((r) => ({ time: String(r.time ?? '').trim(), cap: r.cap === '' ? '' : Number(r.cap) })) : [],
   })
   if (r.error) return (ferr.value = r.error)
   msg.value = 'บันทึกแล้ว'
@@ -138,6 +144,22 @@ function toggle(c, status) {
           <div><label class="label" for="pp-pf">เริ่มวันรับสินค้า</label><input id="pp-pf" v-model="form.pickupFrom" type="date" class="input" /></div>
           <div><label class="label" for="pp-pt">สิ้นสุดวันรับสินค้า</label><input id="pp-pt" v-model="form.pickupTo" type="date" class="input" /></div>
         </div>
+        <fieldset class="space-y-2" :disabled="form.status === 'open'">
+          <legend class="label">โหมดรับสินค้า</legend>
+          <div class="flex flex-wrap gap-4 text-sm">
+            <label class="inline-flex items-center gap-2"><input v-model="form.pickupMode" type="radio" value="day" class="h-5 w-5" /> รับได้ทั้งวัน</label>
+            <label class="inline-flex items-center gap-2"><input v-model="form.pickupMode" type="radio" value="slot" class="h-5 w-5" /> เลือกรอบเวลา</label>
+          </div>
+          <div v-if="form.pickupMode === 'slot'" class="space-y-2" data-rounds-editor>
+            <div v-for="(r, i) in roundsIn" :key="i" class="flex flex-wrap items-center gap-2">
+              <input v-model="r.time" type="time" class="input w-32" aria-label="เวลารอบ" />
+              <input v-model="r.cap" type="number" min="1" class="input w-28" aria-label="จำนวนออร์เดอร์ต่อรอบ" placeholder="จำนวน" />
+              <button type="button" class="btn-outline h-11 px-3" aria-label="ลบรอบนี้" @click="roundsIn.splice(i, 1)">ลบ</button>
+            </div>
+            <button type="button" class="btn-outline h-11 px-3" :disabled="roundsIn.length >= 12" @click="roundsIn.push({ time: '', cap: '' })">+ เพิ่มรอบ</button>
+            <p class="text-xs text-stone-500">ลูกค้าเลือกรอบได้ รับได้ตั้งแต่เวลาที่เลือกถึงสิ้นวัน ตั้งได้สูงสุด 12 รอบ</p>
+          </div>
+        </fieldset>
         <div class="grid grid-cols-3 gap-3">
           <div><label class="label" for="pp-dep">มัดจำขั้นต่ำ %</label><input id="pp-dep" v-model="form.depositPercent" type="number" min="1" max="100" class="input" /></div>
           <div><label class="label" for="pp-due">จ่ายมัดจำภายใน (ชม.) <span class="text-rose-600">*</span></label><input id="pp-due" v-model="hours" type="number" min="0" step="0.5" class="input" /></div>
