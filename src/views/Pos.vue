@@ -50,6 +50,7 @@ import BillerQr from '../components/BillerQr.vue'
 import { listTransfersOfRef } from '../lib/maneeRemote'
 import { labelsFresh, LABEL_REFRESH_EVERY_S, PAID_FLASH_MS } from '../lib/payFresh'
 import { watchRefs, reservedOf, isWatched, canBindLine, adoptPatch, notDismissed } from '../lib/qrWatch'
+import { announcePaid } from '../lib/payAnnounce'
 import { adsForDisplay } from '../lib/displayAds'
 
 // POS หน้าร้าน: เปิดกะ → ขาย (ตะกร้า สมาชิก คูปอง ส่วนลด + โปรโมชัน/บันเดิ้ลอัตโนมัติ) → ชำระ (เงินสด/โอน/บัตร + ทอน) → ใบเสร็จ · บิล · ปิดกะ
@@ -777,6 +778,9 @@ let seenPaid = []
 watch(() => payLines.value.filter((l) => l.confirmed).map((l) => l.key), (keys) => {
   const fresh = payLines.value.filter((l) => l.confirmed && !seenPaid.includes(l.key))
   seenPaid = keys
+  // รับอัตโนมัติ (ตัวจับเวลาฝั่งเครื่องหรือเซิร์ฟเวอร์ผ่าน Realtime) → ประกาศเสียงบน POS Android · รับด้วยมือไม่ประกาศ
+  const auto = fresh.filter((l) => l.acceptedBy === 'auto')
+  if (auto.length) announcePaid(lineAmt(auto[auto.length - 1]))
   if (!fresh.length || !payOpen.value) return
   paidFlash.value = { until: Date.now() + PAID_FLASH_MS, amount: lineAmt(fresh[fresh.length - 1]) }
   clearTimeout(paidFlashTimer)

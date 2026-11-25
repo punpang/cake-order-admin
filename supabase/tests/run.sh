@@ -220,6 +220,10 @@ hmcode=$?
 [ "$hmcode" = "0" ] && echo "✓ hold_money.test.sql ผ่านทั้งหมด" || echo "✗ hold_money.test.sql ล้มเหลว"
 [ "$hmcode" = "0" ] || exit "$hmcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/staff_read_guard.test.sql
+srgcode=$?
+[ "$srgcode" = "0" ] && echo "✓ staff_read_guard.test.sql ผ่านทั้งหมด" || echo "✗ staff_read_guard.test.sql ล้มเหลว"
+[ "$srgcode" = "0" ] || exit "$srgcode"
 "${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_core.test.sql
 pccode=$?
 [ "$pccode" = "0" ] && echo "✓ preorder_core.test.sql ผ่านทั้งหมด" || echo "✗ preorder_core.test.sql ล้มเหลว"
