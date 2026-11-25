@@ -38,6 +38,9 @@ echo "✓ migration ทุกไฟล์ผ่าน ($(ls supabase/migrations/
 "${PSQL[@]}" -d "$DB" -f supabase/tests/security.test.sql
 code=$?
 [ "$code" = "0" ] && echo "✓ security.test.sql ผ่านทั้งหมด" || echo "✗ security.test.sql ล้มเหลว"
+"${PSQL[@]}" -d "$DB" -f supabase/tests/birth_discount_guard.test.sql
+code2=$?
+[ "$code2" = "0" ] && echo "✓ birth_discount_guard.test.sql ผ่านทั้งหมด" || { echo "✗ birth_discount_guard.test.sql ล้มเหลว"; exit 1; }
 [ "$code" = "0" ] || exit "$code"
 
 "${PSQL[@]}" -d "$DB" -f supabase/tests/shifts_guard.test.sql
