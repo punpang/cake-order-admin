@@ -34,8 +34,12 @@ jobs:
         run: |
           [ -n "$DB_URL" ] || { echo "ไม่พบ SUPABASE_DB_URL ใน environment backup"; exit 1; }
           [ -n "$PASSPHRASE" ] || { echo "ไม่พบ BACKUP_PASSPHRASE ใน environment backup"; exit 1; }
-          case "$DB_URL" in
-            *@db.*.supabase.co*) echo "SUPABASE_DB_URL เป็นแบบ Direct connection (IPv6) ซึ่ง GitHub เชื่อมต่อไม่ได้ ให้ใช้ Session pooler (*.pooler.supabase.com)"; exit 1 ;;
+          # ตรวจเฉพาะส่วนโฮสต์ (หลัง @ สุดท้าย จนถึง : / ?) เพื่อไม่ให้รหัสผ่านทำให้ตรวจผิด
+          after="${DB_URL##*@}"
+          host="${after%%[:/?]*}"
+          echo "โฮสต์ของ SUPABASE_DB_URL: $host"
+          case "$host" in
+            db.*.supabase.co) echo "เป็นแบบ Direct connection (IPv6) ซึ่ง GitHub เชื่อมต่อไม่ได้ ให้ใช้ Session pooler (*.pooler.supabase.com)"; exit 1 ;;
           esac
 
       - name: ติดตั้ง pg_dump 17 จาก PGDG
