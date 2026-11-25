@@ -15,5 +15,6 @@ export function safeHref(v) {
 // ลิงก์ต่อจากการเข้าสู่ระบบ/สมัคร/ลืม PIN (?next=) · รับเฉพาะพาธภายในเว็บ (ขึ้นต้นด้วย / ไม่ใช่ // หรือ /\) · คืน '' เมื่อใช้ไม่ได้
 export function safeNext(v) {
   const s = String(v ?? '')
+  if (/[\u0000-\u0020\u007f]/.test(s)) return '' // อักขระควบคุมและช่องว่าง: เบราว์เซอร์อาจตัดออกแล้วกลายเป็น // (ลิงก์ไปเว็บอื่น)
   return s.startsWith('/') && !s.startsWith('//') && !s.startsWith('/\\') ? s : ''
 }
