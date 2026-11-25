@@ -1,6 +1,6 @@
 <script setup>
 // สั่งล่วงหน้า: ออร์เดอร์ของฉัน (เห็นเฉพาะออร์เดอร์ของเซสชันสั่งล่วงหน้าที่ยืนยันแล้ว)
-// แสดงเลขพัสดุ ยอดคงค้าง (ชำระส่วนต่างด้วย QR) และการขอคืนสินค้าหลังได้รับแล้ว · ร้านเป็นผู้ตัดสินคืนเงินหรือจัดส่งใหม่
+// แสดงเลขพัสดุ ยอดคงค้าง (ชำระส่วนต่างด้วย QR) และผลการตัดสินของร้าน · ลูกค้าไม่มีปุ่มขอคืนในหน้านี้
 import { onMounted, ref } from 'vue'
 import { callPreorder, readPreorderToken } from '../../lib/preorderRemote'
 
@@ -10,7 +10,6 @@ const error = ref('')
 const needLogin = ref(false)
 const msg = ref('')
 const qrOf = ref({}) // orderId → { payload, dataUrl, amount }
-const reasonOf = ref({}) // orderId → เหตุผลที่ขอคืน
 
 const STATUS = {
   awaiting_payment: 'รอชำระมัดจำ',
@@ -45,15 +44,6 @@ async function payBalance(o) {
     dataUrl = await (QR.default || QR).toDataURL(r.payload, { margin: 1, width: 240, errorCorrectionLevel: 'M' })
   } catch { dataUrl = '' }
   qrOf.value = { ...qrOf.value, [o.id]: { payload: r.payload, dataUrl, amount: r.amount } }
-}
-
-async function requestReturn(o) {
-  msg.value = ''
-  const reason = (reasonOf.value[o.id] || '').trim()
-  const r = await callPreorder('return_request', { orderId: o.id, reason })
-  if (r.error) { msg.value = r.error; return }
-  msg.value = 'ส่งคำขอคืนสินค้าแล้ว ร้านจะติดต่อกลับ'
-  await load()
 }
 
 onMounted(load)
@@ -93,12 +83,6 @@ onMounted(load)
           </div>
         </div>
 
-        <div v-if="o.status === 'delivered' && !o.returnRequestStatus" class="mt-2 space-y-2" data-return>
-          <label class="label" :for="'rs-' + o.id">เหตุผลที่ขอคืนสินค้า</label>
-          <textarea :id="'rs-' + o.id" v-model="reasonOf[o.id]" rows="2" maxlength="200" class="input w-full"></textarea>
-          <button type="button" class="btn-outline h-11 w-full" @click="requestReturn(o)">ขอคืนสินค้า</button>
-        </div>
-        <div v-else-if="o.returnRequestStatus === 'pending'" class="mt-2 text-stone-600">รอร้านตรวจสอบคำขอคืนสินค้า</div>
         <div v-if="o.returnDecision?.decision" class="mt-2 text-stone-700">{{ DECISION[o.returnDecision.decision] }}</div>
       </li>
     </ul>
