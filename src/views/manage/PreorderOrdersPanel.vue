@@ -164,6 +164,10 @@ onMounted(load)
         </div>
 
         <!-- เลขพัสดุ -->
+        <div v-if="o.pickupRound" class="mt-2 flex flex-wrap items-center gap-2">
+          <button v-if="o.pickupRound && !o.readyAt && !['cancelled', 'expired', 'delivered', 'returned'].includes(o.status)" type="button" class="btn-outline h-9 px-3" @click="act(o, 'mark_ready', {}, 'บันทึกว่าเตรียมเสร็จแล้ว')">เตรียมเสร็จ (รอบ {{ o.pickupRound }})</button>
+          <span v-if="o.readyAt" class="text-xs text-emerald-700">เตรียมเสร็จแล้ว</span>
+        </div>
         <div v-if="o.status === 'payment_confirmed' && o.fulfillment === 'delivery' && !o.shipping" class="mt-2 flex flex-wrap items-center gap-2">
           <input v-model="box(o.id).carrier" class="input h-9 w-28" placeholder="ขนส่ง" aria-label="ชื่อขนส่ง" />
           <input v-model="box(o.id).tracking" class="input h-9 w-36" placeholder="เลขพัสดุ" aria-label="เลขพัสดุ" />
@@ -202,8 +206,6 @@ onMounted(load)
         <!-- ขยายเวลา -->
         <div v-if="o.status === 'expired'" class="mt-2 flex flex-wrap items-center gap-2">
           <input v-model="box(o.id).newDue" type="datetime-local" class="input h-9 w-48" aria-label="เวลากำหนดชำระใหม่" />
-          <button v-if="o.pickupRound && !o.readyAt && !['cancelled', 'expired', 'delivered', 'returned'].includes(o.status)" type="button" class="btn-outline h-9 px-3" @click="act(o, 'mark_ready', {}, 'บันทึกว่าเตรียมเสร็จแล้ว')">เตรียมเสร็จ (รอบ {{ o.pickupRound }})</button>
-          <span v-if="o.readyAt" class="text-xs text-emerald-700">เตรียมเสร็จแล้ว</span>
           <button type="button" class="btn-outline h-9 px-3" @click="act(o, 'extend', { newDue: new Date(box(o.id).newDue).toISOString() }, 'อนุมัติขยายเวลาแล้ว')">อนุมัติขยายเวลา</button>
         </div>
       </li>
