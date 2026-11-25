@@ -9,6 +9,7 @@ import { consentNeededFor, recordConsents } from '../_shared/consent.ts'
 import { reserveOtpAttempt } from '../_shared/authguard.ts'
 import { promptPayBillerPayload } from '../_shared/schedlib/promptpay.js'
 import { publicPaymentOf } from '../_shared/shoppay.ts'
+import { notifyOrderEvent } from '../_shared/preorderNotify.ts'
 
 // สั่งล่วงหน้า (ลูกค้า): ฟังก์ชันสาธารณะ (--no-verify-jwt) · ขั้นนี้มี 2 action: campaigns (ดูแคมเปญที่เปิดรับ) และ quote (คิดราคาให้ดู)
 // ข้อมูลที่ส่งกลับไม่มีตารางอัตราค่าส่ง · ราคาทั้งหมดคิดที่เซิร์ฟเวอร์ · ค่าที่ผู้ใช้ส่งมาเรื่องราคา/ค่าส่ง/แต้มไม่ถูกใช้
@@ -255,6 +256,7 @@ Deno.serve(corsWrap(async (req) => {
     if (rpc.data?.error === 'too_many_open') return json({ error: 'มีออร์เดอร์ที่ยังไม่จ่ายครบ 3 รายการแล้ว' }, 409)
     if (rpc.data?.error === 'no_customer') return json({ error: 'ไม่พบบัญชี' }, 401)
     if (rpc.data?.error) return json({ error: 'สร้างออร์เดอร์ไม่สำเร็จ กรุณาลองใหม่' }, 500)
+    if (rpc.data?.already !== true) await notifyOrderEvent(sb, orderId, 'placed')
     return json({ ok: true, already: rpc.data?.already === true, code: rpc.data?.code, orderId, total, deposit, payDueAt })
   }
 
@@ -297,6 +299,7 @@ Deno.serve(corsWrap(async (req) => {
     const r = await sb.rpc('punpang_preorder_request_extension', { p_order: orderId })
     if (r.error) return json({ error: 'ส่งคำขอไม่สำเร็จ กรุณาลองใหม่' }, 500)
     if (r.data?.error === 'bad_status') return json({ error: 'ขอขยายเวลาได้เฉพาะออร์เดอร์ที่หมดเวลาแล้ว' }, 409)
+    if (r.data?.already !== true) await notifyOrderEvent(sb, orderId, 'extend_requested')
     return json({ ok: true, already: r.data?.already === true })
   }
   // ลูกค้าขอคืนสินค้าหลังได้รับแล้ว (ร้านเป็นผู้ตัดสินคืนเงินหรือจัดส่งใหม่)

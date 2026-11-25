@@ -1,8 +1,7 @@
 import { corsWrap } from '../_shared/cors.ts'
 import { serviceDb } from '../_shared/db.ts'
 import { prepSheet, pickupList, shipQueue, dueList, campaignSummary, exceptionList } from '../_shared/schedlib/preorderReports.js'
-import { notifyText } from '../_shared/schedlib/preorderNotify.js'
-import { notifyCustomer } from '../_shared/preorderNotify.ts'
+import { notifyOrderEvent } from '../_shared/preorderNotify.ts'
 
 // สั่งล่วงหน้า (ฝั่งร้าน): เฉพาะพนักงานที่มีสิทธิ์ managePreorder หรือ manage
 // การกระทำ: list · accounting (ข้อมูลดิบสำหรับบัญชี) · set_shipping · mark_delivered · record_return · refund_return · reship · record_payment · cancel
@@ -126,31 +125,19 @@ Deno.serve(corsWrap(async (req) => {
   if (r.error) return json({ error: 'ทำรายการไม่สำเร็จ กรุณาลองใหม่' }, 500)
   if (r.data?.error) return json({ error: r.data.error === 'past_last' ? 'ขยายเวลาเกินวันชำระสุดท้ายของแคมเปญไม่ได้' : r.data.error }, 409)
   // แจ้งลูกค้าหลังทำรายการสำเร็จเท่านั้น · ส่งไม่สำเร็จไม่กระทบผลลัพธ์
-  const NOTIFY: Record<string, string> = { set_shipping: 'shipped', mark_delivered: 'delivered', extend: 'extended', cancel: 'cancelled' }
+  // แจ้งลูกค้าหลังทำรายการสำเร็จเท่านั้น · ส่งไม่สำเร็จไม่กระทบผลลัพธ์
+  const sumRefunds = () => (Array.isArray(body.refunds) ? body.refunds.reduce((a: number, x: any) => a + (Number(x?.amount) || 0), 0) : 0)
+  const NOTIFY: Record<string, { event: string; key: () => string; refund?: () => number }> = {
+    set_shipping: { event: 'shipped', key: () => '' },
+    mark_delivered: { event: 'delivered', key: () => '' },
+    extend: { event: 'extended', key: () => String(r.data?.payDueAt ?? '') },
+    cancel: { event: 'cancelled', key: () => '', refund: sumRefunds },
+    record_payment: { event: 'paid', key: () => String(r.data?.paymentId ?? Date.now()) },
+    refund_return: { event: 'refunded', key: () => String(Date.now()), refund: sumRefunds },
+  }
   if (NOTIFY[action]) {
-    const refund = action === 'cancel' && Array.isArray(body.refunds) ? body.refunds.reduce((a: number, x: any) => a + (Number(x?.amount) || 0), 0) : 0
-    await notifyOrder(sb, orderId, NOTIFY[action], { refund, key: String(r.data?.payDueAt ?? '') })
+    const n = NOTIFY[action]
+    await notifyOrderEvent(sb, orderId, n.event, { refund: n.refund ? n.refund() : 0, key: n.key() })
   }
   return json({ ok: true, result: r.data })
 }))
-
-// แจ้งลูกค้าหนึ่งเหตุการณ์ของออเดอร์ · ใช้ข้อความกลาง (schedlib) และตัวส่งกันซ้ำ · ข้อผิดพลาดถูกกลืนเพื่อไม่กระทบการทำรายการ
-// ลิงก์ไปหน้า "ออร์เดอร์ของฉัน" จาก PUBLIC_SITE_URL (ถ้าไม่ตั้ง ลิงก์เป็นค่าว่าง)
-async function notifyOrder(sb: any, orderId: string, event: string, extra: { refund: number; key: string }) {
-  try {
-    const o = (await sb.from('punpang_preorder_orders').select('id,code,customer_id,data').eq('id', orderId).maybeSingle()).data
-    if (!o) return
-    const cust = o.customer_id ? (await sb.from('punpang_customers').select('phone').eq('id', o.customer_id).maybeSingle()).data : null
-    const d = o.data || {}
-    const site = (Deno.env.get('PUBLIC_SITE_URL') || '').replace(/\/$/, '')
-    const text = notifyText(event, {
-      code: o.code, due: Math.max(0, (Number(d.total) || 0) - (Number(d.paid) || 0)), paid: Number(d.paid) || 0,
-      refund: extra.refund, payDueAt: event === 'extended' ? extra.key : d.payDueAt, carrier: d.shipping?.carrier, tracking: d.shipping?.trackingNo,
-      fulfillment: d.fulfillment,
-    })
-    const key = event === 'extended' && extra.key ? `${event}:${extra.key}` : event
-    await notifyCustomer(sb, { orderId, customerId: o.customer_id ?? null, phoneLocal: cust?.phone ?? null, event: key, text, link: site ? `${site}/#/preorder/orders` : '' })
-  } catch {
-    // ข้ามการแจ้งเตือนเมื่อเกิดข้อผิดพลาด (ไม่กระทบการทำรายการ)
-  }
-}
