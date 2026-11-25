@@ -122,6 +122,24 @@ t('2B: ตั้งขั้นส่วนลดตามยอดแล้ว�
   } finally { await page.close() }
 })
 
+t('เลือกสินค้าจำนวนมาก: ค้นหาแล้วเหลือรายการที่ตรง · เลือกทั้งหมดที่แสดงนับถูก · เอาออกจากชิปได้', async () => {
+  const { page, errors } = await open()
+  try {
+    await page.getByRole('button', { name: '+ สร้างแคมเปญ' }).click()
+    const names = await page.evaluate(async () => (await import('/src/data/store.js')).db.retailItems.filter((x) => x.active && !x.openPrice && !(x.modifierIds || []).length).slice(0, 3).map((x) => x.name))
+    await page.getByLabel('ค้นหาสินค้าในแคมเปญ').fill(names[0])
+    const visible = await page.locator('[data-product-list] label').count()
+    assert.ok(visible >= 1 && visible <= 3, `ค้นหาแล้วควรเหลือไม่กี่รายการ ได้ ${visible}`)
+    await page.getByRole('button', { name: /เลือกทั้งหมดที่แสดง/ }).click()
+    assert.match(await page.locator('[data-product-count]').innerText(), /เลือกแล้ว \d+ จาก/)
+    const chips = await page.locator('[data-product-chips] button').count()
+    assert.ok(chips >= 1)
+    await page.locator('[data-product-chips] button').first().click()
+    assert.ok((await page.locator('[data-product-chips] button').count()) === chips - 1)
+    assert.deepEqual(errors, [])
+  } finally { await page.close() }
+})
+
 t('ตั้งขั้นส่วนลดค่าส่งตามยอดซื้อแล้วบันทึกได้ · ขั้นยอดซ้ำบันทึกไม่ได้', async () => {
   const { page, errors } = await open()
   try {
