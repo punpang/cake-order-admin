@@ -85,6 +85,6 @@ Deno.serve(corsWrap(async (req) => {
   if (!fn) return json({ error: 'ไม่รู้จักคำสั่ง' }, 400)
   const r = await fn()
   if (r.error) return json({ error: 'ทำรายการไม่สำเร็จ กรุณาลองใหม่' }, 500)
-  if (r.data?.error) return json({ error: r.data.error }, 409)
+  if (r.data?.error) return json({ error: r.data.error === 'past_last' ? 'ขยายเวลาเกินวันชำระสุดท้ายของแคมเปญไม่ได้' : r.data.error }, 409)
   return json({ ok: true, result: r.data })
 }))

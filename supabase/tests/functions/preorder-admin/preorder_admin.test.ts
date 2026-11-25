@@ -71,6 +71,19 @@ Deno.test('set_shipping ส่งพารามิเตอร์ไปฐา�
   assertEquals((await call({ action: 'set_shipping', orderId: ORDER, carrier: 'Kerry', trackingNo: 'TH-1' })).status, 409)
 })
 
+Deno.test('extend ส่งวันใหม่ไปฐานข้อมูล และแปลง past_last เป็นข้อความไทย 409', async () => {
+  seed()
+  const newDue = '2099-06-30T16:59:59.000Z'
+  ;(globalThis as any).__RPC.punpang_preorder_extend = async (args: any) => { (globalThis as any).__RPC_CALLS.push(args); return { data: { ok: true, status: 'awaiting_payment' }, error: null } }
+  const ok = await call({ action: 'extend', orderId: ORDER, newDue })
+  assertEquals(ok.status, 200)
+  assertEquals((globalThis as any).__RPC_CALLS[0], { p_order: ORDER, p_new_due: newDue })
+  ;(globalThis as any).__RPC.punpang_preorder_extend = async () => ({ data: { error: 'past_last' }, error: null })
+  const bad = await call({ action: 'extend', orderId: ORDER, newDue: '2099-07-01T00:00:00.000Z' })
+  assertEquals(bad.status, 409)
+  assertEquals(bad.body.error, 'ขยายเวลาเกินวันชำระสุดท้ายของแคมเปญไม่ได้')
+})
+
 Deno.test('refund_return และ reship ส่งรายการคืนและค่าส่งใหม่ไปฐานข้อมูล', async () => {
   seed()
   ;(globalThis as any).__RPC.punpang_preorder_refund_return = async (args: any) => { (globalThis as any).__RPC_CALLS.push(args); return { data: { ok: true }, error: null } }
