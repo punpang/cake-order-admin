@@ -19,7 +19,7 @@ function staffView(o: any, names: Record<string, string>) {
   const reported = pays.filter((x) => x?.status === 'reported').map((x) => ({ id: x.id, amount: x.amount, qrRef: x.qrRef }))
   return {
     id: o.id, code: o.code, status: o.status, pickupDate: o.pickup_date, customerName: names[o.customer_id] ?? '',
-    fulfillment: d.fulfillment ?? null, total: d.total ?? null, deposit: d.deposit ?? null, payDueAt: d.payDueAt ?? null,
+    fulfillment: d.fulfillment ?? null, pickupRound: d.pickupRound ?? null, readyAt: d.readyAt ?? null, total: d.total ?? null, deposit: d.deposit ?? null, payDueAt: d.payDueAt ?? null,
     shippingFee: d.shippingFee ?? 0, paid: Math.round(paid * 100) / 100,
     pendingCash: reported,
     shipping: d.shipping ?? null, returns: d.returns ?? [], returnRequest: d.returnRequest ?? null,

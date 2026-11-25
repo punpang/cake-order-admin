@@ -186,3 +186,13 @@ Deno.test('customerOrders: คืนเฉพาะออร์เดอร์�
   assertEquals(r.body.data[0].due, 70)
   assertEquals(Object.keys(r.body.data[0]).sort(), ['code', 'due', 'id', 'payDueAt', 'pickupDate', 'status'])
 })
+
+Deno.test('list: แสดงรอบเวลาและเวลาเตรียมเสร็จของออเดอร์', async () => {
+  seed()
+  const rid = '7'.repeat(32)
+  ;(globalThis as any).__DB.t['public.punpang_preorder_orders'].push({ id: rid, code: 'PRE-R-7', status: 'payment_confirmed', pickup_date: '2099-12-24', customer_id: 'cA', updated_at: 't7', data: { total: 100, paid: 100, pickupRound: '13:00', readyAt: '2099-12-24T06:00:00Z' } })
+  const r = await call({ action: 'list' })
+  const o = r.body.orders.find((x: any) => x.id === rid)
+  assertEquals(o.pickupRound, '13:00')
+  assertEquals(o.readyAt, '2099-12-24T06:00:00Z')
+})
