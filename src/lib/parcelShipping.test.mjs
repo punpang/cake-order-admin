@@ -37,8 +37,13 @@ t('ปริมาตรรวมพอดี 8000 ยังเลือกก�
 t('ปริมาตรรวมเกิน 8000 เลือกกล่อง M', () => {
   assert.equal(parcelBox([{ retailId: 'B', qty: 1 }, { retailId: 'A', qty: 1 }], items, cfg).box.name, 'M')
 })
-t('ปริมาตรรวมเกินกล่องใหญ่สุด → too_big', () => {
-  assert.equal(parcelBox([{ retailId: 'D', qty: 1 }], items, cfg).error, 'too_big')
+t('ชิ้นเดียวใหญ่กว่าทุกกล่อง → item_no_fit พร้อมรหัสชิ้น', () => {
+  const r = parcelBox([{ retailId: 'D', qty: 1 }], items, cfg)
+  assert.equal(r.error, 'item_no_fit')
+  assert.equal(r.itemId, 'D')
+})
+t('หลายชิ้นแต่ละชิ้นพอดี แต่ปริมาตรรวมเกินกล่องใหญ่สุด → too_big', () => {
+  assert.equal(parcelBox([{ retailId: 'B', qty: 1 }, { retailId: 'C', qty: 1 }], items, cfg).error, 'too_big')
 })
 t('ยังไม่มีกล่อง → no_boxes', () => {
   assert.equal(parcelBox([{ retailId: 'A', qty: 1 }], items, { ...cfg, boxes: [] }).error, 'no_boxes')
@@ -179,6 +184,37 @@ t('parcelDimsError: กรอกบางส่วนไม่ผ่าน', () 
 t('hasParcelDims: ต้องมีน้ำหนักและขนาดครบ', () => {
   assert.equal(hasParcelDims(items[0]), true)
   assert.equal(hasParcelDims(items[4]), false)
+})
+
+
+// ตรวจการพอดีรายด้าน: กล่อง P 40×5×5 (ปริมาตร 1000) กล่อง Q 30×30×30 · X แบน 20×20×2 ปริมาตร 800 แต่ด้านยาว 20 ใส่ด้านกว้าง 5 ไม่ได้
+const cfgFit = {
+  fee: 0,
+  boxes: [
+    { name: 'P', dims: { w: 40, l: 5, h: 5 }, boxG: 0, price: 10 },
+    { name: 'Q', dims: { w: 30, l: 30, h: 30 }, boxG: 0, price: 20 },
+  ],
+  steps: [1000],
+  prices: { P: [10], Q: [20] },
+}
+const itemsFit = [
+  { id: 'X', weightG: 10, dimsCm: { w: 20, l: 20, h: 2 } },
+  { id: 'R', weightG: 10, dimsCm: { w: 5, l: 40, h: 5 } }, // หมุนแล้วพอดีกล่อง P
+  { id: 'Z', weightG: 10, dimsCm: { w: 70, l: 1, h: 1 } }, // ด้านยาว 70 เกินทุกกล่อง
+]
+t('สินค้าปริมาตรผ่านแต่ด้านไม่พอดี → ข้ามกล่องเล็กไปใช้กล่องใหญ่ (Q)', () => {
+  assert.equal(parcelBox([{ retailId: 'X', qty: 1 }], itemsFit, cfgFit).box.name, 'Q')
+})
+t('สินค้าที่หมุนแล้วพอดีกล่องเล็ก → ใช้กล่อง P ได้', () => {
+  assert.equal(parcelBox([{ retailId: 'R', qty: 1 }], itemsFit, cfgFit).box.name, 'P')
+})
+t('ชิ้นที่ด้านยาวเกินทุกกล่อง → item_no_fit (ชิ้น Z)', () => {
+  const r = parcelBox([{ retailId: 'Z', qty: 1 }], itemsFit, cfgFit)
+  assert.equal(r.error, 'item_no_fit')
+  assert.equal(r.itemId, 'Z')
+})
+t('ค่าส่งรวมตามกล่องที่ตรวจด้านแล้ว (X → Q: ค่ากล่อง 20 + ขนส่ง 20)', () => {
+  assert.equal(parcelFee([{ retailId: 'X', qty: 1 }], itemsFit, cfgFit).total, 40)
 })
 
 if (fail) { console.log(`\n${fail} ล้มเหลว`); process.exit(1) }
