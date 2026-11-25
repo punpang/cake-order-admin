@@ -9,7 +9,7 @@ const day = (s) => (s ? new Date(`${s}T00:00:00+07:00`).toLocaleDateString('th-T
 const time = (s) => (s ? new Date(s).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }) : '')
 
 const T = {
-  placed: (c) => `ขอขอบพระคุณที่ใช้บริการ ทางร้านได้รับคำสั่งซื้อ ${c.code} แล้ว กรุณาชำระมัดจำ ${money(c.due)} บาท ภายใน ${time(c.payDueAt)} ที่ ${'{LINK}'} ขอบพระคุณค่ะ`,
+  placed: (c) => `ขอขอบพระคุณที่ใช้บริการ ทางร้านได้รับคำสั่งซื้อ ${c.code} แล้ว ${c.fulfillment === 'delivery' ? `กรุณาชำระเต็มจำนวน ${money(c.due)} บาท` : `กรุณาชำระมัดจำ ${money(c.due)} บาท`} ภายใน ${time(c.payDueAt)} ที่ ${'{LINK}'} ขอบพระคุณค่ะ`,
   paid: (c) => `ทางร้านได้รับการชำระเงินสำหรับคำสั่งซื้อ ${c.code} เรียบร้อยแล้ว ยอดชำระรวม ${money(c.paid)} บาท ขอบพระคุณค่ะ`,
   reminder1h: (c) => `ขอแจ้งเตือนว่าคำสั่งซื้อ ${c.code} ยังมียอดค้างชำระ ${money(c.due)} บาท กรุณาชำระภายใน ${time(c.payDueAt)} ${'{LINK}'} ขอบพระคุณค่ะ`,
   extend_requested: (c) => `ทางร้านได้รับคำขอเลื่อนเวลาชำระของคำสั่งซื้อ ${c.code} แล้วค่ะ จะแจ้งผลให้ทราบโดยเร็วที่สุด ${'{LINK}'}`,
@@ -23,7 +23,8 @@ const T = {
   refunded: (c) => `ทางร้านได้ดำเนินการคืนเงิน ${money(c.refund)} บาท สำหรับคำสั่งซื้อ ${c.code} เรียบร้อยแล้วค่ะ ขอบพระคุณค่ะ`,
 }
 
-// ข้อความของเหตุการณ์หนึ่ง · ctx = { code, due, paid, refund, payDueAt, carrier, tracking, campaign }
+// ข้อความของเหตุการณ์หนึ่ง · ctx = { code, due, paid, refund, payDueAt, carrier, tracking, campaign, fulfillment }
+// ออเดอร์จัดส่ง (fulfillment = 'delivery') ต้องชำระเต็มจำนวนตอนสั่ง ข้อความสั่งเสร็จจึงใช้คำว่า "ชำระเต็มจำนวน"
 export function notifyText(event, ctx = {}) {
   const f = T[event]
   if (!f) throw new Error('unknown_event')
