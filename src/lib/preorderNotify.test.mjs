@@ -7,7 +7,7 @@ const t = (name, fn) => { try { fn(); console.log(`PASS ${name}`) } catch (e) { 
 
 const ctx = { code: 'PRE-241125-000001', due: 50, paid: 100, refund: 30, payDueAt: '2099-12-01T10:00:00Z', carrier: 'Kerry', tracking: 'TH123', campaign: 'เค้กคริสต์มาส', pickupRound: '13:00' }
 
-t('มีครบ 13 เหตุการณ์ (12 เดิม + ready สำหรับโหมดรอบ)', () => assert.equal(EVENTS.length, 13))
+t('มีครบ 14 เหตุการณ์ (12 เดิม + ready + แจ้งยอดก่อนวันรับ)', () => assert.equal(EVENTS.length, 14))
 
 t('ทุกเหตุการณ์สร้างข้อความได้ ไม่มี undefined/NaN และผ่านการตรวจความยาว SMS', () => {
   for (const e of EVENTS) {
@@ -28,6 +28,12 @@ t('ข้อความไม่มีลิงก์ที่มีรหั�
 t('ยอดเงินแสดงเป็นบาทตามข้อมูล', () => {
   assert.match(notifyText('balance_due', ctx), /50 บาท/)
   assert.match(notifyText('refunded', ctx), /30 บาท/)
+})
+
+t('ข้อความก่อนวันรับบอกว่าชำระตอนรับที่ร้านได้', () => {
+  const m = notifyText('pickup_reminder', { ...ctx, pickupDate: '25 พ.ย.', due: 50 })
+  assert.match(m, /ชำระตอนรับที่ร้านได้/)
+  assert.match(m, /50 บาท/)
 })
 
 t('ข้อความเตรียมเสร็จแสดงเวลารอบ', () => {
