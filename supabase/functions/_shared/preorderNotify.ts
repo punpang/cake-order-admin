@@ -70,14 +70,14 @@ export async function notifyCustomer(sb: any, input: NotifyInput, deps: NotifyDe
   }
 }
 
-// แจ้งลูกค้าหนึ่งเหตุการณ์ของออเดอร์ (ค้นข้อมูลออเดอร์และเบอร์ลูกค้าเอง) · ข้อความกลางจาก schedlib · ไม่โยนข้อผิดพลาดออกไป
+// แจ้งลูกค้าหนึ่งเหตุการณ์ของออเดอร์ (ค้นข้อมูลออเดอร์และเบอร์ลูกค้าเอง) · ข้อความกลางจาก schedlib · ไม่โยนข้อผิดพลาดออกไป · คืนผลการส่ง
 // ลิงก์ไปหน้า "ออร์เดอร์ของฉัน" จาก PUBLIC_SITE_URL (ถ้าไม่ตั้ง ลิงก์เป็นค่าว่าง)
 import { notifyText } from './schedlib/preorderNotify.js'
 
-export async function notifyOrderEvent(sb: any, orderId: string, event: string, extra: { refund?: number; key?: string } = {}, deps: NotifyDeps = defaultDeps): Promise<void> {
+export async function notifyOrderEvent(sb: any, orderId: string, event: string, extra: { refund?: number; key?: string } = {}, deps: NotifyDeps = defaultDeps): Promise<NotifyResult> {
   try {
     const o = (await sb.from('punpang_preorder_orders').select('id,code,customer_id,pickup_date,data').eq('id', orderId).maybeSingle()).data
-    if (!o) return
+    if (!o) return 'skipped'
     const cust = o.customer_id ? (await sb.from('punpang_customers').select('phone').eq('id', o.customer_id).maybeSingle()).data : null
     const d = o.data || {}
     const site = (Deno.env.get('PUBLIC_SITE_URL') || '').replace(/\/$/, '')
@@ -87,8 +87,9 @@ export async function notifyOrderEvent(sb: any, orderId: string, event: string, 
       carrier: d.shipping?.carrier, tracking: d.shipping?.trackingNo, fulfillment: d.fulfillment, pickupRound: d.pickupRound, pickupDate: o.pickup_date,
     })
     const key = extra.key ? `${event}:${extra.key}` : event
-    await notifyCustomer(sb, { orderId, customerId: o.customer_id ?? null, phoneLocal: cust?.phone ?? null, event: key, text, link: site ? `${site}/#/preorder/orders` : '' }, deps)
+    return await notifyCustomer(sb, { orderId, customerId: o.customer_id ?? null, phoneLocal: cust?.phone ?? null, event: key, text, link: site ? `${site}/#/preorder/orders` : '' }, deps)
   } catch {
     // ข้ามการแจ้งเตือนเมื่อเกิดข้อผิดพลาด (ไม่กระทบการทำรายการ)
+    return 'failed'
   }
 }
