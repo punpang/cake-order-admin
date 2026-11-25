@@ -5,6 +5,7 @@ import { preorderCampaigns, savePreorderCampaign, setPreorderCampaignStatus } fr
 import { blankCampaign, campaignPhase, shipOutsidePickupWarning } from '../../lib/preorderCampaign'
 import ManageShell from '../../components/ManageShell.vue'
 import PreorderOrdersPanel from './PreorderOrdersPanel.vue'
+import PreorderReportsPanel from './PreorderReportsPanel.vue'
 import AppModal from '../../components/AppModal.vue'
 import AppIcon from '../../components/AppIcon.vue'
 import AppSwitch from '../../components/AppSwitch.vue'
@@ -90,11 +91,13 @@ function toggle(c, status) {
 
 <template>
   <ManageShell narrow guard :toolbar="false" perm="managePreorder" title="สั่งล่วงหน้า (Preorder)" subtitle="ตั้งแคมเปญ ช่วงรับสั่ง โควตา และมัดจำ">
-    <div role="tablist" aria-label="ส่วนของสั่งล่วงหน้า" class="grid grid-cols-2 gap-1 rounded-2xl bg-stone-100 p-1">
+    <div role="tablist" aria-label="ส่วนของสั่งล่วงหน้า" class="grid grid-cols-3 gap-1 rounded-2xl bg-stone-100 p-1">
       <button type="button" role="tab" :aria-selected="tab === 'campaigns'" class="h-11 rounded-xl text-sm font-medium transition-colors" :class="tab === 'campaigns' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600'" @click="tab = 'campaigns'">แคมเปญ</button>
       <button type="button" role="tab" :aria-selected="tab === 'orders'" class="h-11 rounded-xl text-sm font-medium transition-colors" :class="tab === 'orders' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600'" @click="tab = 'orders'">ออร์เดอร์</button>
+      <button type="button" role="tab" :aria-selected="tab === 'reports'" class="h-11 rounded-xl text-sm font-medium transition-colors" :class="tab === 'reports' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600'" @click="tab = 'reports'">รายงาน</button>
     </div>
     <PreorderOrdersPanel v-if="tab === 'orders'" class="mt-4" />
+    <PreorderReportsPanel v-if="tab === 'reports'" class="mt-4" />
     <section v-if="tab === 'campaigns'" class="mt-4 mb-4">
       <div class="flex items-center justify-between gap-2">
         <h2 class="text-base font-semibold text-stone-900">แคมเปญ</h2>
