@@ -134,26 +134,6 @@ t('หน้าการเก็บข้อมูลอัตโนมัต�
   } finally { await page.close() }
 })
 
-t('หน้าโหมดทดสอบ: เปิดหน้าได้โดยไม่มีข้อผิดพลาด · ยังไม่เชื่อมฐานข้อมูลจริงจะเปิดโหมดทดสอบไม่ได้ · เลขเอกสารในโหมดทดสอบมีคำนำหน้า TEST-', async () => {
-  const { page, errors } = await openPage('/admin/settings/test')
-  try {
-    const r = await page.evaluate(async () => {
-      const TM = await import('/src/lib/testMode.js')
-      TM.writeTestMode(true)
-      const onWhenDisconnected = TM.testModeOn(false)
-      const withPrefix = TM.docCode('ABC-1', true)
-      const withoutPrefix = TM.docCode('ABC-1', false)
-      TM.writeTestMode(false)
-      return { onWhenDisconnected, withPrefix, withoutPrefix, text: document.body.innerText }
-    })
-    assert.equal(r.onWhenDisconnected, false)
-    assert.equal(r.withPrefix, 'TEST-ABC-1')
-    assert.equal(r.withoutPrefix, 'ABC-1')
-    assert.match(r.text, /โหมดทดสอบ/)
-    assert.deepEqual(errors, [])
-  } finally { await page.close() }
-})
-
 t('หน้าคิวรอตรวจออร์เดอร์: เปิดหน้าได้โดยไม่มีข้อผิดพลาด · แสดงหัวข้อคิว', async () => {
   const { page, errors } = await openPage('/admin/settings/sync-review')
   try {

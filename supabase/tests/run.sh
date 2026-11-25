@@ -224,10 +224,6 @@ hmcode=$?
 srgcode=$?
 [ "$srgcode" = "0" ] && echo "✓ staff_read_guard.test.sql ผ่านทั้งหมด" || echo "✗ staff_read_guard.test.sql ล้มเหลว"
 [ "$srgcode" = "0" ] || exit "$srgcode"
-"${PSQL[@]}" -d "$DB" -f supabase/tests/test_schema_api.test.sql
-tsacode=$?
-[ "$tsacode" = "0" ] && echo "✓ test_schema_api.test.sql ผ่านทั้งหมด" || echo "✗ test_schema_api.test.sql ล้มเหลว"
-[ "$tsacode" = "0" ] || exit "$tsacode"
 "${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_core.test.sql
 pccode=$?
 [ "$pccode" = "0" ] && echo "✓ preorder_core.test.sql ผ่านทั้งหมด" || echo "✗ preorder_core.test.sql ล้มเหลว"
@@ -311,7 +307,3 @@ pncode=$?
 [ "$pncode" = "0" ] && echo "✓ preorder_number.test.sql ผ่านทั้งหมด" || echo "✗ preorder_number.test.sql ล้มเหลว"
 [ "$pncode" = "0" ] || exit "$pncode"
 
-"${PSQL[@]}" -d "$DB" -f supabase/tests/mirror.test.sql
-mcode=$?
-[ "$mcode" = "0" ] && echo "✓ mirror.test.sql ผ่านทั้งหมด" || echo "✗ mirror.test.sql ล้มเหลว"
-exit "$mcode"

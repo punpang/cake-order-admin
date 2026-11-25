@@ -187,8 +187,4 @@ select test.ok('SEC2: anon และ authenticated เรียกตัวช�
   and not has_function_privilege('authenticated', 'public.punpang__can_hand_over(jsonb,text)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.punpang_guard_hold_money()', 'EXECUTE')
   and not has_function_privilege('authenticated', 'public.punpang_guard_hold_money()', 'EXECUTE'));
-select test.ok('SEC3: โหมดทดสอบ (punpang_test) มีตัวช่วยและด่านเงินพักด้วย',
-  to_regprocedure('punpang_test.punpang__can_hand_over(jsonb,text)') is not null
-  and to_regprocedure('punpang_test.punpang_guard_hold_money()') is not null);
-
 rollback;

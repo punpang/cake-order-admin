@@ -1,9 +1,8 @@
 // ฟังการเปลี่ยนแปลงของตารางด้วย Realtime (postgres_changes) · RLS ของฐานข้อมูลกำหนดว่าพนักงานเห็นแถวไหนได้
 // คืน { stop, isLive } · ไม่มีการเชื่อมต่อ = isLive false (ผู้เรียกต้องโพลล์สำรองเอง)
-import { testModeOn } from './testMode.js'
 let seq = 0
 export function startTableWatch(client, { table, event = '*', filter = '' }, onChange) {
-  if (!client?.channel || !table || testModeOn()) return { stop() {}, isLive: () => false }
+  if (!client?.channel || !table) return { stop() {}, isLive: () => false }
   let live = false
   let stopped = false
   const cfg = { event, schema: 'public', table }
