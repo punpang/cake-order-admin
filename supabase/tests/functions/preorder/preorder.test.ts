@@ -195,6 +195,21 @@ Deno.test('create จัดส่ง: มัดจำเท่ายอดรว
   const j = await r.json()
   assertEquals(j.deposit, j.total)
 })
+Deno.test('create: วันชำระสุดท้ายผ่านไปแล้ว → 409 และไม่สร้างออร์เดอร์', async () => {
+  await seedAuth()
+  ;(globalThis as any).__DB.t['public.punpang_preorder_campaigns'].push(camp({ id: 'c_late', data: { name: 'เก่า', dayCap: null, items: [{ retailId: 'pr1', dayCap: null }], deals: [], parcel: { enabled: false }, payLastDate: '2000-01-02' } }))
+  const r = await call({ action: 'create', token: TOKEN, turnstileToken: GOOD, campaignId: 'c_late', pickupDate: '2099-12-24', fulfillment: 'pickup', lines: [{ retailId: 'pr1', qty: 1 }], orderId: ORDER })
+  assertEquals(r.status, 409)
+  assertEquals((await r.json()).error, 'วันชำระสุดท้ายของแคมเปญนี้ผ่านไปแล้ว')
+})
+Deno.test('create: วันชำระสุดท้ายเร็วกว่าเวลาจ่ายภายใน → กำหนดชำระเป็นสิ้นวันนั้นตามเวลาไทย', async () => {
+  await seedAuth()
+  const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10)
+  ;(globalThis as any).__DB.t['public.punpang_preorder_campaigns'].push(camp({ id: 'c_today', pay_due_min: 60 * 48, data: { name: 'วันนี้', dayCap: null, items: [{ retailId: 'pr1', dayCap: null }], deals: [], parcel: { enabled: false }, payLastDate: today } }))
+  const r = await call({ action: 'create', token: TOKEN, turnstileToken: GOOD, campaignId: 'c_today', pickupDate: '2099-12-24', fulfillment: 'pickup', lines: [{ retailId: 'pr1', qty: 1 }], orderId: ORDER })
+  assertEquals(r.status, 200)
+  assertEquals((await r.json()).payDueAt, new Date(`${today}T23:59:59.999+07:00`).toISOString())
+})
 Deno.test('create: โควตาเต็ม (RPC reserve_failed) → 409 พร้อมรหัสเหตุผล', async () => {
   await seedAuth()
   ;(globalThis as any).__RPC.punpang_preorder_create = async () => ({ data: null, error: { message: 'reserve_failed:item_full' } })

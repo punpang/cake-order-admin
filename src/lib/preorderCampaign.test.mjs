@@ -195,5 +195,14 @@ t('ขั้นส่วนลดค่าส่ง: ค่าว่างบั
   assert.equal(campaignError({ ...valid(), shipOff: [] }), '')
 })
 
+t('วันชำระสุดท้าย: ว่างผ่าน · วันที่ถูกต้องผ่าน · ก่อนวันเริ่มรับสั่งไม่ผ่าน · บันทึกและอ่านกลับได้', () => {
+  assert.equal(campaignError({ ...valid(), payLastDate: '' }), '')
+  assert.equal(campaignError({ ...valid(), payLastDate: '2099-12-20' }), '')
+  assert.notEqual(campaignError({ ...valid(), orderFrom: '2099-01-10', payLastDate: '2099-01-05' }), '')
+  assert.notEqual(campaignError({ ...valid(), payLastDate: 'abc' }), '')
+  assert.equal(rowToCampaign(campaignToRow({ ...valid(), payLastDate: '2099-12-20' }, 'pc1')).payLastDate, '2099-12-20')
+  assert.equal(rowToCampaign({ id: 'x', data: {}, status: 'draft' }).payLastDate, '')
+})
+
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')
 process.exit(fail ? 1 : 0)

@@ -7,6 +7,16 @@ import { orderTotals } from './pricing.js'
 import { parcelFee } from './parcelShipping.js'
 import { shipOffDiscount, cleanShipOff } from './shipDiscount.js'
 
+// กำหนดชำระมัดจำของออร์เดอร์: เร็วกว่าระหว่าง (เวลาสั่ง + จ่ายภายใน N นาที) กับ (สิ้นวันชำระสุดท้ายตามเวลาไทย)
+// payLastDate ว่าง = ใช้เฉพาะเวลาจ่ายภายใน · คืนเป็น ISO string
+export function payDueAtOf(nowMs, payDueMin, payLastDate) {
+  const byMin = nowMs + Number(payDueMin) * 60000
+  if (!payLastDate) return new Date(byMin).toISOString()
+  const endBkk = Date.parse(`${payLastDate}T23:59:59.999+07:00`)
+  if (!Number.isFinite(endBkk)) return new Date(byMin).toISOString()
+  return new Date(Math.min(byMin, endBkk)).toISOString()
+}
+
 const PARCEL_ERR = {
   overweight: 'น้ำหนักเกินขั้นสูงสุดของตารางค่าส่ง',
   too_big: 'ขนาดสินค้าเกินกล่องใหญ่สุดที่ร้านตั้งไว้',

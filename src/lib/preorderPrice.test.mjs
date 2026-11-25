@@ -98,5 +98,16 @@ check('ส่วนลดค่าส่ง: นับยอดหลังห�
   assert.equal(r.snapshot.shipDiscount.amount, 0)
 })
 
+import { payDueAtOf } from './preorderPrice.js'
+const T0 = Date.parse('2099-12-01T02:00:00Z')
+check('กำหนดชำระ: ไม่มีวันสุดท้าย → ใช้เวลาจ่ายภายในอย่างเดียว', () => {
+  assert.equal(payDueAtOf(T0, 120, ''), new Date(T0 + 120 * 60000).toISOString())
+})
+check('กำหนดชำระ: วันสุดท้ายเร็วกว่า → ใช้สิ้นวันสุดท้ายตามเวลาไทย', () => {
+  assert.equal(payDueAtOf(T0, 60 * 24 * 10, '2099-12-03'), '2099-12-03T16:59:59.999Z')
+})
+check('กำหนดชำระ: เวลาจ่ายภายในเร็วกว่า → ใช้เวลาจ่ายภายใน', () => {
+  assert.equal(payDueAtOf(T0, 60, '2099-12-31'), new Date(T0 + 60 * 60000).toISOString())
+})
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')
 process.exit(fail ? 1 : 0)

@@ -113,6 +113,7 @@ function toggle(c, status) {
             <div><dt class="text-xs text-stone-500">รับสินค้า</dt><dd class="text-stone-800">{{ x.c.pickupFrom }} ถึง {{ x.c.pickupTo }}</dd></div>
             <div><dt class="text-xs text-stone-500">มัดจำขั้นต่ำ</dt><dd class="text-stone-800">{{ x.c.depositPercent }}%</dd></div>
             <div><dt class="text-xs text-stone-500">จ่ายภายใน</dt><dd class="text-stone-800">{{ x.c.payDueMin ? x.c.payDueMin / 60 : '-' }} ชม.</dd></div>
+            <div v-if="x.c.payLastDate"><dt class="text-xs text-stone-500">ชำระสุดท้าย</dt><dd class="text-stone-800">{{ x.c.payLastDate }}</dd></div>
           </dl>
           <div class="mt-4 flex gap-2">
             <button v-if="x.c.status !== 'open'" class="btn-primary h-11 flex-1" @click="toggle(x.c, 'open')">เปิดรับสั่ง</button>
@@ -138,6 +139,11 @@ function toggle(c, status) {
           <div><label class="label" for="pp-dep">มัดจำขั้นต่ำ %</label><input id="pp-dep" v-model="form.depositPercent" type="number" min="1" max="100" class="input" /></div>
           <div><label class="label" for="pp-due">จ่ายมัดจำภายใน (ชม.) <span class="text-rose-600">*</span></label><input id="pp-due" v-model="hours" type="number" min="0" step="0.5" class="input" /></div>
           <div><label class="label" for="pp-cap">โควตารวมต่อวัน</label><input id="pp-cap" v-model="form.dayCap" type="number" min="0" class="input" placeholder="ว่าง = ไม่จำกัด" /></div>
+        </div>
+        <div>
+          <label class="label" for="pp-last">วันชำระมัดจำสุดท้าย (ไม่บังคับ)</label>
+          <input id="pp-last" v-model="form.payLastDate" type="date" class="input" />
+          <p class="mt-1 text-xs text-stone-500">ถ้าตั้งไว้ ลูกค้าต้องชำระภายในวันนั้น แม้เวลาจ่ายภายในยังไม่หมด (ใช้ตามที่เร็วกว่า)</p>
         </div>
         <h3 class="pt-2 text-sm font-semibold text-stone-900">สินค้า</h3>
         <div>
