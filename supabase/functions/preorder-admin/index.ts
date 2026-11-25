@@ -1,6 +1,7 @@
 import { corsWrap } from '../_shared/cors.ts'
 import { serviceDb } from '../_shared/db.ts'
 import { prepSheet, pickupList, shipQueue, dueList, campaignSummary, exceptionList } from '../_shared/schedlib/preorderReports.js'
+import { notifyOrderEvent } from '../_shared/preorderNotify.ts'
 
 // สั่งล่วงหน้า (ฝั่งร้าน): เฉพาะพนักงานที่มีสิทธิ์ managePreorder หรือ manage
 // การกระทำ: list · accounting (ข้อมูลดิบสำหรับบัญชี) · set_shipping · mark_delivered · record_return · refund_return · reship · record_payment · cancel
@@ -123,5 +124,20 @@ Deno.serve(corsWrap(async (req) => {
   const r = await fn()
   if (r.error) return json({ error: 'ทำรายการไม่สำเร็จ กรุณาลองใหม่' }, 500)
   if (r.data?.error) return json({ error: r.data.error === 'past_last' ? 'ขยายเวลาเกินวันชำระสุดท้ายของแคมเปญไม่ได้' : r.data.error }, 409)
+  // แจ้งลูกค้าหลังทำรายการสำเร็จเท่านั้น · ส่งไม่สำเร็จไม่กระทบผลลัพธ์
+  // แจ้งลูกค้าหลังทำรายการสำเร็จเท่านั้น · ส่งไม่สำเร็จไม่กระทบผลลัพธ์
+  const sumRefunds = () => (Array.isArray(body.refunds) ? body.refunds.reduce((a: number, x: any) => a + (Number(x?.amount) || 0), 0) : 0)
+  const NOTIFY: Record<string, { event: string; key: () => string; refund?: () => number }> = {
+    set_shipping: { event: 'shipped', key: () => '' },
+    mark_delivered: { event: 'delivered', key: () => '' },
+    extend: { event: 'extended', key: () => String(r.data?.payDueAt ?? '') },
+    cancel: { event: 'cancelled', key: () => '', refund: sumRefunds },
+    record_payment: { event: 'paid', key: () => String(r.data?.paymentId ?? Date.now()) },
+    refund_return: { event: 'refunded', key: () => String(Date.now()), refund: sumRefunds },
+  }
+  if (NOTIFY[action]) {
+    const n = NOTIFY[action]
+    await notifyOrderEvent(sb, orderId, n.event, { refund: n.refund ? n.refund() : 0, key: n.key() })
+  }
   return json({ ok: true, result: r.data })
 }))
