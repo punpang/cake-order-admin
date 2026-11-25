@@ -1,5 +1,6 @@
 import { corsWrap } from '../_shared/cors.ts'
 import { serviceDb } from '../_shared/db.ts'
+import { prepSheet, pickupList, shipQueue, dueList, campaignSummary, exceptionList } from '../_shared/schedlib/preorderReports.js'
 
 // สั่งล่วงหน้า (ฝั่งร้าน): เฉพาะพนักงานที่มีสิทธิ์ managePreorder หรือ manage
 // การกระทำ: list · accounting (ข้อมูลดิบสำหรับบัญชี) · set_shipping · mark_delivered · record_return · refund_return · reship · record_payment · cancel
@@ -55,6 +56,42 @@ Deno.serve(corsWrap(async (req) => {
       if (rows.length < PAGE) break
     }
     return json({ orders: all })
+  }
+
+  // รายงานสั่งล่วงหน้า: คำนวณจากออเดอร์ทั้งหมดที่เซิร์ฟเวอร์อ่านเอง (ฟังก์ชันชุดเดียวกับแอป) · ไม่รับยอดจากหน้าจอ
+  if (action === 'reports') {
+    const REPORTS = ['prep', 'pickup', 'ship', 'due', 'campaign', 'exceptions']
+    const report = String(body.report ?? '')
+    if (!REPORTS.includes(report)) return json({ error: 'ไม่รู้จักรายงาน' }, 400)
+    const PAGE = 1000
+    const raw: any[] = []
+    for (let from = 0; ; from += PAGE) {
+      const r = await sb.from('punpang_preorder_orders').select('id,code,status,campaign_id,pickup_date,customer_id,data').order('created_at', { ascending: true }).order('id', { ascending: true }).range(from, from + PAGE - 1)
+      if (r.error) return json({ error: 'โหลดรายงานไม่สำเร็จ' }, 500)
+      const rows: any[] = r.data || []
+      raw.push(...rows)
+      if (rows.length < PAGE) break
+    }
+    const cids = [...new Set(raw.map((x) => x.customer_id).filter(Boolean))]
+    const cust = cids.length ? await sb.from('punpang_customers').select('id,name').in('id', cids) : { data: [] }
+    const names: Record<string, string> = {}
+    for (const c of (cust.data || []) as any[]) names[c.id] = c.name ?? ''
+    const retailIds = [...new Set(raw.flatMap((x) => (Array.isArray(x.data?.lines) ? x.data.lines : []).map((l: any) => String(l?.retailId ?? ''))).filter(Boolean))]
+    const items = retailIds.length ? await sb.from('punpang_items').select('id,name').in('id', retailIds) : { data: [] }
+    const itemName: Record<string, string> = {}
+    for (const it of (items.data || []) as any[]) itemName[it.id] = it.name ?? ''
+    const orders = raw.map((x) => {
+      const d = x.data || {}
+      const pays: any[] = Array.isArray(d.payments) ? d.payments : []
+      const paid = Math.round(pays.filter((p) => p?.status === 'confirmed').reduce((a, p) => a + (Number(p.amount) || 0), 0) * 100) / 100
+      return { id: x.id, code: x.code, status: x.status, campaignId: x.campaign_id, pickupDate: x.pickup_date, customerName: names[x.customer_id] ?? '', fulfillment: d.fulfillment ?? null, total: d.total ?? 0, paid, shippingFee: d.shippingFee ?? 0, shipping: d.shipping ?? null, payDueAt: d.payDueAt ?? null, lines: Array.isArray(d.lines) ? d.lines : [], returnRequest: d.returnRequest ?? null }
+    })
+    if (report === 'prep') return json({ ok: true, data: prepSheet(orders, { names: itemName, campaignId: body.campaignId || undefined, from: body.from || undefined, to: body.to || undefined }) })
+    if (report === 'pickup') return json({ ok: true, data: pickupList(orders, { date: String(body.date ?? '') }) })
+    if (report === 'ship') return json({ ok: true, data: shipQueue(orders) })
+    if (report === 'due') return json({ ok: true, data: dueList(orders, { nowMs: Date.now() }) })
+    if (report === 'campaign') return json({ ok: true, data: campaignSummary(orders, { campaignId: String(body.campaignId ?? '') }) })
+    return json({ ok: true, data: exceptionList(orders) })
   }
 
   if (action === 'list') {
