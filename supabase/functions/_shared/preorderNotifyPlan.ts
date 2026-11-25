@@ -4,7 +4,7 @@
 export const REMIND_WINDOW_MS = 60 * 60e3 // เตือนเมื่อเหลือไม่เกิน 1 ชั่วโมง
 export const EXPIRED_LOOKBACK_MS = 24 * 60 * 60e3 // แจ้งหมดเวลาย้อนหลังไม่เกิน 24 ชั่วโมง
 
-export type PlanOrder = { id: string; status: string; payDueAt?: string | null; total?: number; paid?: number }
+export type PlanOrder = { id: string; status: string; payDueAt?: string | null; total?: number; paid?: number; fulfillment?: string | null; pickupDate?: string | null }
 
 const dueOf = (o: PlanOrder) => Math.max(0, (Number(o.total) || 0) - (Number(o.paid) || 0))
 
@@ -28,4 +28,25 @@ export function planExpired(orders: PlanOrder[], nowMs: number): string[] {
       return Number.isFinite(t) && t <= nowMs && t >= nowMs - EXPIRED_LOOKBACK_MS
     })
     .map((o) => o.id)
+}
+
+// เวลาไทยของตอนนี้เป็นวันที่ YYYY-MM-DD และชั่วโมง/นาที
+export function bangkokNow(nowMs: number): { date: string; hour: number; minute: number } {
+  const d = new Date(nowMs + 7 * 3600e3)
+  return { date: d.toISOString().slice(0, 10), hour: d.getUTCHours(), minute: d.getUTCMinutes() }
+}
+
+// ออเดอร์รับที่ร้านที่ยังค้างยอด และวันรับเป็นพรุ่งนี้ (เวลาไทย) · ออเดอร์จัดส่งไม่รวม (ต้องชำระเต็มก่อนจัดส่งอยู่แล้ว)
+export function planPickupReminders(orders: PlanOrder[], nowMs: number): string[] {
+  const tomorrow = new Date(Date.parse(`${bangkokNow(nowMs).date}T00:00:00Z`) + 86400e3).toISOString().slice(0, 10)
+  return orders
+    .filter((o) => o.fulfillment === 'pickup' && o.pickupDate === tomorrow)
+    .filter((o) => (o.status === 'awaiting_payment' || o.status === 'payment_confirmed') && dueOf(o) > 0)
+    .map((o) => o.id)
+}
+
+// ส่งแจ้งเตือนก่อนวันรับเฉพาะช่วง 09:00–09:04 น. (เวลาไทย) เพื่อให้ได้รอบเดียวต่อวัน
+export function inPickupReminderWindow(nowMs: number): boolean {
+  const b = bangkokNow(nowMs)
+  return b.hour === 9 && b.minute < 5
 }
