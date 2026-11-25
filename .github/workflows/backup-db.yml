@@ -1,0 +1,66 @@
+name: Backup DB (รายวัน · เข้ารหัส)
+
+# ทำงานทุกวัน 02:00 น. เวลาไทย (19:00 UTC) และรันเองได้จาก Actions → Run workflow
+# ใช้ environment backup (ไม่มีผู้อนุมัติ) ซึ่งมี secret SUPABASE_DB_URL และ BACKUP_PASSPHRASE
+# ไฟล์สำรองถูกเข้ารหัสด้วย AES256 และเก็บเป็น artifact 30 วัน
+# ต้องใช้ pg_dump 17 ให้ตรงกับ Postgres 17 ของ production
+
+on:
+  schedule:
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-db
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: backup
+    env:
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      PGSSLMODE: require
+    steps:
+      - name: ตรวจว่ามี secret ครบ
+        run: |
+          [ -n "$DB_URL" ] || { echo "ไม่พบ SUPABASE_DB_URL ใน environment backup"; exit 1; }
+          [ -n "$PASSPHRASE" ] || { echo "ไม่พบ BACKUP_PASSPHRASE ใน environment backup"; exit 1; }
+
+      - name: ติดตั้ง pg_dump 17 จาก PGDG
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: สำรองและเข้ารหัส
+        run: |
+          d=$(date -u +%Y%m%d-%H%M)
+          mkdir -p backup
+          pg_dump "$DB_URL" -Fc --no-owner --no-privileges -f "backup/db-$d.dump"
+          printf '%s' "$PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 -o "backup/db-$d.dump.gpg" "backup/db-$d.dump"
+          rm -f "backup/db-$d.dump"
+          ls -lh backup/
+
+      - name: ตรวจไฟล์สำรองไม่ว่างเปล่า
+        run: |
+          f=$(ls backup/*.gpg)
+          s=$(stat -c %s "$f")
+          [ "$s" -gt 1024 ] || { echo "ไฟล์สำรองเล็กผิดปกติ: $s ไบต์"; exit 1; }
+
+      - name: อัปโหลดไฟล์สำรอง
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: backup/*.gpg
+          retention-days: 30
+          if-no-files-found: error
