@@ -23,8 +23,8 @@ const app = await startApp({
       { id: 'cust2', name: 'สมหญิง', phone: '0898765432', data: {} },
     ],
     punpang_chats: [
-      { id: 'chat1', channel: 'line', external_id: 'L1', customer_id: 'cust1', data: { messages: [], name: 'สมชาย', updatedAt: at(0) }, updated_at: at(0) },
-      { id: 'chat2', channel: 'line', external_id: 'L2', customer_id: 'cust2', data: { messages: [], name: 'สมหญิง', updatedAt: at(1) }, updated_at: at(1) },
+      { id: 'chat1', channel: 'web', external_id: 'L1', customer_id: 'cust1', data: { messages: [], name: 'สมชาย', updatedAt: at(0) }, updated_at: at(0) },
+      { id: 'chat2', channel: 'web', external_id: 'L2', customer_id: 'cust2', data: { messages: [], name: 'สมหญิง', updatedAt: at(1) }, updated_at: at(1) },
     ],
   },
   rpc: {},
