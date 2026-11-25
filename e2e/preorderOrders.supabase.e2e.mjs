@@ -56,14 +56,14 @@ await s('3. ยังไม่ได้รับพัสดุ จึงไม�
   assert.equal(await p.locator('[data-return]').count(), 0)
 })
 
-await s('4. ได้รับพัสดุแล้วขอคืนพร้อมเหตุผล และแสดงสถานะรอร้านตรวจ', async () => {
+await s('4. ได้รับพัสดุแล้วไม่มีปุ่มขอคืนและไม่มีข้อความว่าขอคืนได้', async () => {
   state.status = 'delivered'
   await p.reload({ waitUntil: 'domcontentloaded' })
-  await p.locator('[data-return]').waitFor({ timeout: 15000 })
-  await p.locator('[data-return] textarea').fill('ไม่ตรงปก')
-  await p.getByRole('button', { name: 'ขอคืนสินค้า' }).click()
-  await p.getByText('รอร้านตรวจสอบคำขอคืนสินค้า').waitFor({ timeout: 15000 })
-  assert.equal(state.returnCalls[0].reason, 'ไม่ตรงปก')
+  await p.locator('[data-order]').first().waitFor({ timeout: 15000 })
+  assert.equal(await p.locator('[data-return]').count(), 0)
+  assert.equal(await p.getByRole('button', { name: 'ขอคืนสินค้า' }).count(), 0)
+  assert.doesNotMatch(await p.locator('body').innerText(), /ขอคืน|รอร้านตรวจสอบคำขอคืน/)
+  assert.equal(state.returnCalls.length, 0)
 })
 
 const bad = finish()
