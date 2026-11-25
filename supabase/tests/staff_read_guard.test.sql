@@ -27,14 +27,18 @@ insert into auth.users (id, email) values
   ('ac0c0de0-0000-4000-8000-000000000003', 'sg-chat@example.test'),
   ('ac0c0de0-0000-4000-8000-000000000004', 'sg-ord@example.test'),
   ('ac0c0de0-0000-4000-8000-000000000005', 'sg-acct@example.test'),
-  ('ac0c0de0-0000-4000-8000-000000000006', 'sg-create@example.test')
+  ('ac0c0de0-0000-4000-8000-000000000006', 'sg-create@example.test'),
+  ('ac0c0de0-0000-4000-8000-000000000007', 'sg-pay@example.test'),
+  ('ac0c0de0-0000-4000-8000-000000000008', 'sg-pick@example.test')
 on conflict do nothing;
 insert into public.punpang_staff (user_id, name, role, perms) values
   ('ac0c0de0-0000-4000-8000-000000000002', 'SgPos', 'sales', '{pos}'),
   ('ac0c0de0-0000-4000-8000-000000000003', 'SgChat', 'sales', '{chat}'),
   ('ac0c0de0-0000-4000-8000-000000000004', 'SgOrd', 'sales', '{viewAllOrders}'),
   ('ac0c0de0-0000-4000-8000-000000000005', 'SgAcct', 'sales', '{acctReports}'),
-  ('ac0c0de0-0000-4000-8000-000000000006', 'SgCreate', 'sales', '{createOrder}');
+  ('ac0c0de0-0000-4000-8000-000000000006', 'SgCreate', 'sales', '{createOrder}'),
+  ('ac0c0de0-0000-4000-8000-000000000007', 'SgPay', 'sales', '{reportPayment}'),
+  ('ac0c0de0-0000-4000-8000-000000000008', 'SgPick', 'sales', '{deliverPickup}');
 
 -- ข้อมูลทดสอบ: ออร์เดอร์ 1 รายการ และรายการบัญชี 1 รายการ (ลงวันที่ 2026-11-01)
 insert into public.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values
@@ -71,6 +75,12 @@ select test.ok('N2: พนักงาน chat ขอเลขเอกสาร
 -- N3: พนักงาน createOrder ขอได้
 select test.ok('N3: พนักงาน createOrder ขอเลขเอกสารได้',
   test.as_staff('ac0c0de0-0000-4000-8000-000000000006', $q$ select public.punpang_alloc_numbers('OR', '261125', 1) $q$) = 'OK');
+-- N5: พนักงานที่มี reportPayment ขอเลข PAY ได้ (สิทธิ์นี้ออกเลข PAY)
+select test.ok('N5: พนักงาน reportPayment ขอเลข PAY ได้',
+  test.as_staff('ac0c0de0-0000-4000-8000-000000000007', $q$ select public.punpang_alloc_numbers('PAY', '261125', 1) $q$) = 'OK');
+-- N6: พนักงานที่มีเฉพาะ deliverPickup ขอเลขไม่ได้ (ไม่ออกเลขเอกสาร)
+select test.ok('N6: พนักงาน deliverPickup ขอเลขไม่ได้',
+  test.as_staff('ac0c0de0-0000-4000-8000-000000000008', $q$ select public.punpang_alloc_numbers('OR', '261125', 1) $q$) like 'ERR:42501:%');
 -- N4: พนักงาน pos ขอได้
 select test.ok('N4: พนักงาน pos ขอเลขเอกสารได้',
   test.as_staff('ac0c0de0-0000-4000-8000-000000000002', $q$ select public.punpang_alloc_numbers('POS', '261125', 1) $q$) = 'OK');
