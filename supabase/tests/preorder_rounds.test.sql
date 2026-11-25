@@ -34,4 +34,22 @@ exception when check_violation then
   raise notice 'PASS: R9 เวลารอบรูปแบบผิดถูกฐานข้อมูลปฏิเสธ';
 end $$;
 
+insert into public.punpang_customers (id, name, data) values ('pp_rc1', 'ลูกค้ารอบ', '{}'::jsonb);
+-- สร้างออเดอร์พร้อมจองรอบ: สำเร็จจองรอบ · รอบเต็มไม่สร้างออเดอร์และไม่จองรอบ · ความล้มเหลวอื่นคืนการจองรอบ
+do $$
+declare d jsonb; t numeric; r jsonb;
+begin
+  d := jsonb_build_object('items', jsonb_build_array(jsonb_build_object('unitPrice', 100, 'qty', 1)), 'payments', '[]'::jsonb,
+    'deposit', jsonb_build_object('percent', 50, 'amount', 50), 'payDueAt', '2099-12-01T00:00:00Z');
+  t := round(public.punpang__bill_total(d || jsonb_build_object('fulfillment', 'pickup')), 2);
+  d := d || jsonb_build_object('total', t, 'lines', jsonb_build_array(jsonb_build_object('retailId', 'pp_rd_item', 'qty', 1)));
+  r := public.punpang_preorder_create_round(jsonb_build_object('id', 'rd_o1', 'customer_id', 'pp_rc1', 'campaign_id', 'pp_rd', 'pickup_date', '2099-12-25', 'status', 'awaiting_payment', 'fulfillment', 'pickup', 'data', d),
+    '[{"itemId":"pp_rd_item","qty":1}]'::jsonb, 0, 0, '13:00');
+  if (r->>'ok') is distinct from 'true' then raise exception 'R10 สร้างออเดอร์พร้อมรอบไม่ผ่าน: %', r; end if;
+  if (select reserved from public.punpang_preorder_round_slots where campaign_id = 'pp_rd' and pickup_date = '2099-12-25' and round_time = '13:00') <> 1 then
+    raise exception 'R10 จองรอบไม่ตรง';
+  end if;
+  raise notice 'PASS: R10 สร้างออเดอร์พร้อมรอบ 13:00 และจองรอบสำเร็จ';
+end $$;
+
 rollback;
