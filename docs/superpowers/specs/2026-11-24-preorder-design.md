@@ -34,7 +34,7 @@
 - ถุงเงิน: QR Biller สร้างในเบราว์เซอร์ (`promptpay.js`); Ref2 ฝั่งออนไลน์ `ORD`+12 หลัก + suffix 5 ตัว, POS ใช้ `POS`+...; ตัวรับ `tungngern-receiver` จับคู่ด้วย `ref`+`amount` ใน `_shared/notifyconfirm.ts` (`applyNotifyPayment`) ซึ่งหา order ที่ `payments[].qrRef` ตรงกัน
 - โปรโมชั่นราคาเดิม: `posDiscounts/posBundles/posDeals` (`src/lib/posPromo.js`, `ManagePromos.vue`) มี `schedule` แต่**ไม่มีฟิลด์ผูกแคมเปญ** · `db.bundles` เดิมเป็นส่วนลดตัวเลือกเค้กสั่งทำ ไม่เกี่ยวกับ retailItems
 - ตัวตรวจราคา `order-audit` + `punpang_orders_review_gate` ติดธง high ถ้าราคาไม่ตรงแคตาล็อก (ไม่เกี่ยวกับ preorder ถ้าใช้ตารางแยก แต่ต้องมีตัวตรวจของตัวเอง)
-- ระบบมีกติกาเฉพาะที่ต้องตามเมื่อเพิ่มตารางใหม่: `punpang_test_sync` ต้องจัดประเภทตาราง (ไม่งั้นโหมดทดสอบล้ม), สำเนา schedlib ต้องซิงก์ด้วย `scripts/sync-schedlib.mjs` (มีเทสต์บังคับ), งบ bundle รวม 904 KB (หน้าใหม่ต้อง lazy-load), CI รัน `test:fn` / `test:db` / e2e (`e2e/_routes.mjs`)
+- ระบบมีกติกาเฉพาะที่ต้องตามเมื่อเพิ่มตารางใหม่: สำเนา schedlib ต้องซิงก์ด้วย `scripts/sync-schedlib.mjs` (มีเทสต์บังคับ), งบ bundle รวม 904 KB (หน้าใหม่ต้อง lazy-load), CI รัน `test:fn` / `test:db` / e2e (`e2e/_routes.mjs`)
 - การสั่งซื้อต้องมีเบอร์ลูกค้า (`chatOrderBlock`) และยินยอม PDPA (`_shared/consent.ts`); มี rate limit (`_shared/ratelimit.ts`), Turnstile (`src/lib/turnstile.js`), โหมดทดสอบ (`refuseInTest`)
 
 ## 5. แนวทางที่พิจารณา
@@ -94,7 +94,7 @@
 โควตา race · OTP abuse/จองเล่น (OTP + rate limit + Turnstile + เพดานรอบ OTP ต่อวัน) · ค่า SMS ต่อลูกค้าใหม่ · งบ bundle · บัญชีไม่ตรงถ้า derive ผิด · ลำดับ deploy migration → ฟังก์ชัน → เว็บ
 
 ## 11. การตรวจสอบเมื่อสร้าง
-เทสต์ SQL (โควตา atomic, RLS, test-mode sync) · Deno เทสต์ฟังก์ชัน · node เทสต์ lib/store (ราคา โควตา มัดจำ derive) · e2e ลูกค้าสั่ง→จ่าย→ร้านเห็นในรายงาน · `npm test` + `npm run build` + bundle budget · ทดสอบบนโหมดทดสอบก่อนเปิดจริง
+เทสต์ SQL (โควตา atomic, RLS) · Deno เทสต์ฟังก์ชัน · node เทสต์ lib/store (ราคา โควตา มัดจำ derive) · e2e ลูกค้าสั่ง→จ่าย→ร้านเห็นในรายงาน · `npm test` + `npm run build` + bundle budget
 
 ## 12. ยังไม่ตัดสิน (ฝากผู้สร้าง/ถามผู้ใช้ภายหลัง)
 ไม่มีประเด็นที่ต้องถามผู้ใช้อีก (หัวข้อ 6.1 ตัดสินแล้ว · ใบกำกับภาษี นโยบายยกเลิก/มัดจำ เวลากำหนดจ่าย ตัดสินครบแล้วในหัวข้อ 6) รายละเอียด UI ฝากผู้สร้างตัดสินตามแบบหน้าเดิมของโปรเจกต์
