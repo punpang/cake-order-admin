@@ -49,9 +49,9 @@ watch([report, () => f.campaignId, () => f.from, () => f.to, () => f.date], load
   <section class="space-y-4">
     <div class="flex flex-wrap items-center justify-between gap-2 print:hidden">
       <div role="group" aria-label="เลือกรายงาน" class="flex flex-wrap gap-2">
-        <button v-for="r in REPORTS" :key="r.key" type="button" class="chip h-9 px-3 text-sm" :class="report === r.key ? 'chip-on' : 'chip-off'" :aria-pressed="report === r.key" @click="report = r.key">{{ r.label }}</button>
+        <button v-for="r in REPORTS" :key="r.key" type="button" class="chip h-11 px-3 text-sm" :class="report === r.key ? 'chip-on' : 'chip-off'" :aria-pressed="report === r.key" @click="report = r.key">{{ r.label }}</button>
       </div>
-      <button type="button" class="btn-outline h-9 px-3 text-sm" @click="printReport">พิมพ์</button>
+      <button type="button" class="btn-outline h-11 px-3 text-sm" @click="printReport">พิมพ์</button>
     </div>
 
     <div class="grid gap-3 sm:grid-cols-3 print:hidden">
