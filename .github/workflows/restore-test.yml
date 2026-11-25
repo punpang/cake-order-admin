@@ -1,0 +1,108 @@
+name: Restore test (ทดสอบกู้คืนไฟล์สำรอง)
+
+# รันเองเท่านั้น: Actions → Restore test → Run workflow
+# ดาวน์โหลดไฟล์สำรองล่าสุดที่สำเร็จ (หรือระบุ run_id ของ Backup DB) → ถอดรหัสด้วย BACKUP_PASSPHRASE
+# → กู้คืนลงฐานข้อมูล Postgres 17 ชั่วคราวที่สร้างในงานนี้เอง (ไม่แตะ production)
+# → เทียบจำนวนแถวของตารางหลักกับ production แบบอ่านอย่างเดียว
+# ใช้ environment backup (secret SUPABASE_DB_URL และ BACKUP_PASSPHRASE) เหมือนงานสำรอง
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'run id ของ Backup DB ที่จะทดสอบ (เว้นว่าง = รอบล่าสุดที่สำเร็จ)'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: restore-test
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: backup
+    services:
+      pg:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: restore-test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      INPUT_RUN_ID: ${{ github.event.inputs.run_id }}
+      GH_TOKEN: ${{ github.token }}
+      LOCAL_URL: postgresql://postgres:restore-test-only@localhost:5432/postgres
+    steps:
+      - name: ตรวจว่ามี secret ครบ
+        run: |
+          [ -n "$DB_URL" ] || { echo "ไม่พบ SUPABASE_DB_URL ใน environment backup"; exit 1; }
+          [ -n "$PASSPHRASE" ] || { echo "ไม่พบ BACKUP_PASSPHRASE ใน environment backup"; exit 1; }
+          [ -z "$INPUT_RUN_ID" ] || [[ "$INPUT_RUN_ID" =~ ^[0-9]+$ ]] || { echo "run_id ต้องเป็นตัวเลข"; exit 1; }
+
+      - name: ติดตั้ง client 17 จาก PGDG
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          /usr/lib/postgresql/17/bin/pg_restore --version
+
+      - name: หาและดาวน์โหลดไฟล์สำรอง
+        run: |
+          id="$INPUT_RUN_ID"
+          if [ -z "$id" ]; then
+            id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow backup-db.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          fi
+          [ -n "$id" ] && [ "$id" != "null" ] || { echo "ไม่พบรอบ Backup DB ที่สำเร็จ"; exit 1; }
+          echo "ใช้ไฟล์สำรองจาก Backup DB run $id"
+          gh run download "$id" --repo "$GITHUB_REPOSITORY" -n "db-backup-$id" -D backup
+          ls -l backup/
+
+      - name: ถอดรหัส
+        run: |
+          f=$(ls backup/*.gpg | head -n 1)
+          printf '%s' "$PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 --decrypt -o restore.dump "$f"
+          s=$(stat -c %s restore.dump)
+          [ "$s" -gt 1024 ] || { echo "ไฟล์ที่ถอดรหัสเล็กผิดปกติ: $s ไบต์"; exit 1; }
+          echo "ถอดรหัสสำเร็จ ขนาด $s ไบต์"
+
+      - name: กู้คืนลงฐานข้อมูลชั่วคราว
+        run: |
+          /usr/lib/postgresql/17/bin/pg_restore --list restore.dump | wc -l | xargs echo "จำนวนรายการในไฟล์สำรอง:"
+          /usr/lib/postgresql/17/bin/psql "$LOCAL_URL" -X -q -c 'create database restore_check'
+          # ฐานข้อมูลชั่วคราวไม่มี role/extension ของ Supabase จึงยอมให้มี error บางรายการ แล้วตรวจผลลัพธ์จริงในขั้นถัดไป
+          /usr/lib/postgresql/17/bin/pg_restore --no-owner --no-privileges -d "postgresql://postgres:restore-test-only@localhost:5432/restore_check" restore.dump 2> restore.err || true
+          echo "จำนวนบรรทัด error ตอนกู้คืน: $(wc -l < restore.err)"
+          head -n 15 restore.err || true
+
+      - name: เทียบกับ production (อ่านอย่างเดียว)
+        run: |
+          RC="postgresql://postgres:restore-test-only@localhost:5432/restore_check"
+          p=/usr/lib/postgresql/17/bin/psql
+          tables=$($p "$RC" -X -tA -c "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'")
+          echo "ตารางใน public ที่กู้คืนได้: $tables"
+          [ "$tables" -gt 0 ] || { echo "กู้คืนไม่ได้: ไม่พบตารางใน public"; exit 1; }
+          fail=0
+          for t in punpang_orders punpang_customers punpang_items punpang_records punpang_kv punpang_staff; do
+            r=$($p "$RC" -X -tA -c "select count(*) from public.$t" 2>/dev/null || echo "N/A")
+            l=$(PGSSLMODE=require $p "$DB_URL" -X -tA -c "select count(*) from public.$t" 2>/dev/null || echo "N/A")
+            echo "$t: กู้คืน=$r production=$l"
+            [ "$r" != "N/A" ] || fail=1
+          done
+          [ "$fail" = "0" ] || { echo "บางตารางหลักกู้คืนไม่สำเร็จ"; exit 1; }
+          echo "ผ่าน: กู้คืนได้ และตารางหลักอ่านได้ (ตัวเลข production อาจมากกว่า เพราะข้อมูลเพิ่มขึ้นหลังสำรอง)"
