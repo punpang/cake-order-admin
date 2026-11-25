@@ -3,7 +3,10 @@ name: Backup DB (รายวัน · เข้ารหัส)
 # ทำงานทุกวัน 02:00 น. เวลาไทย (19:00 UTC) และรันเองได้จาก Actions → Run workflow
 # ใช้ environment backup (ไม่มีผู้อนุมัติ) ซึ่งมี secret SUPABASE_DB_URL และ BACKUP_PASSPHRASE
 # ไฟล์สำรองถูกเข้ารหัสด้วย AES256 และเก็บเป็น artifact 30 วัน
-# ต้องใช้ pg_dump 17 ให้ตรงกับ Postgres 17 ของ production
+# ต้องใช้ pg_dump 17 ให้ตรงกับ Postgres 17 ของ production (เรียก /usr/lib/postgresql/17/bin/pg_dump ตรงๆ
+# เพราะ runner มี pg_dump 18 ติดตั้งอยู่ และไฟล์จาก 18 กู้คืนด้วย pg_restore 17 ไม่ได้)
+# SUPABASE_DB_URL ต้องเป็น Session pooler (*.pooler.supabase.com) เพราะ runner ของ GitHub ใช้ IPv4
+# ส่วน Direct connection (db.<โปรเจกต์>.supabase.co) ใช้ IPv6 เท่านั้นและเชื่อมต่อไม่ได้
 
 on:
   schedule:
@@ -31,6 +34,9 @@ jobs:
         run: |
           [ -n "$DB_URL" ] || { echo "ไม่พบ SUPABASE_DB_URL ใน environment backup"; exit 1; }
           [ -n "$PASSPHRASE" ] || { echo "ไม่พบ BACKUP_PASSPHRASE ใน environment backup"; exit 1; }
+          case "$DB_URL" in
+            *@db.*.supabase.co*) echo "SUPABASE_DB_URL เป็นแบบ Direct connection (IPv6) ซึ่ง GitHub เชื่อมต่อไม่ได้ ให้ใช้ Session pooler (*.pooler.supabase.com)"; exit 1 ;;
+          esac
 
       - name: ติดตั้ง pg_dump 17 จาก PGDG
         run: |
@@ -39,13 +45,13 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
+          /usr/lib/postgresql/17/bin/pg_dump --version
 
       - name: สำรองและเข้ารหัส
         run: |
           d=$(date -u +%Y%m%d-%H%M)
           mkdir -p backup
-          pg_dump "$DB_URL" -Fc --no-owner --no-privileges -f "backup/db-$d.dump"
+          /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" -Fc --no-owner --no-privileges -f "backup/db-$d.dump"
           printf '%s' "$PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
             --symmetric --cipher-algo AES256 -o "backup/db-$d.dump.gpg" "backup/db-$d.dump"
           rm -f "backup/db-$d.dump"
