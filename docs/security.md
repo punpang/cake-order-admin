@@ -35,6 +35,7 @@
 - **Worker `punpang-files`:** deploy สำเร็จ 16 พ.ย. (run `43909161121`) ตรงกับ HEAD
 - **บัค #7, #9, click_pairs:** ใช้งานบน production แล้ว · anon เรียก `punpang__items_money`, `punpang_customers_touch`, `punpang_guard_status`, `punpang_click_pairs()` ไม่ได้ · `punpang_customers_guard` มีโค้ดแก้แล้ว
 - **ยืนยันชำระอัตโนมัติ:** production `slipQr.autoConfirm` = `{enabled: true, days: 3}` · ทางรูปสลิปถูกกั้นด้วย `IMAGE_AUTO_CONFIRM = false` (`783bfbf`) · ทางแจ้งเตือนถุงเงินทำงานตามที่ออกแบบ
+- **ลบโหมดทดสอบ (2026-11-25):** ปิด API ของ `punpang_test` แล้ว (`20261127330000`) · ลบแอปและเทสต์ที่เกี่ยวข้องแล้วที่ main (PR #183) · migration ลบ schema (`20261127340000`) ยังไม่ปล่อย production
 - **Regression โหมดทดสอบ (`20261117130000`):** สิทธิ์ที่โหมดทดสอบใช้มีอยู่แล้วบน production (authenticated เรียก `punpang_test.punpang_has_perm`, `punpang_rec_can`, `punpang_acct_can` ได้) จึงยังไม่กระทบ แต่ยังไม่ทราบว่ารันแบบไหน
 - **ผลรันซ้ำ 2026-11-17:** `npm test` 45 ไฟล์ผ่าน · `supabase/tests/run.sh` (Postgres 16) ผ่านทั้ง 5 ชุด, migration 99 ไฟล์, 218 PASS, 0 FAIL · Deno ไม่ได้รัน
 - **ยังตรวจไม่ได้จากรีโป:** เว็บ (Cloudflare Pages), APK Android (รวม `allowBackup`), Leaked Password Protection (ตั้งค่าใน Dashboard)
