@@ -71,8 +71,8 @@ select mt.ok('B4 ค่าเริ่มต้นและ CHECK ในโห�
 -- ---------- C) สิทธิ์การเข้าถึง ----------
 select mt.ok('C1 anon เข้า schema punpang_test ไม่ได้',
   not has_schema_privilege('anon', 'punpang_test', 'USAGE'));
-select mt.ok('C2 authenticated เข้า schema punpang_test ได้',
-  has_schema_privilege('authenticated', 'punpang_test', 'USAGE'));
+select mt.ok('C2 authenticated เข้า schema punpang_test ไม่ได้ (ปิดจาก API แล้ว)',
+  not has_schema_privilege('authenticated', 'punpang_test', 'USAGE'));
 select mt.ok('C3 anon เรียกลุ้นของโหมดทดสอบไม่ได้',
   not has_function_privilege('anon', 'punpang_test.punpang_lucky_spin(text,text,text)', 'EXECUTE'));
 select mt.ok('C4 service_role เรียกลุ้นของโหมดทดสอบได้',
@@ -123,9 +123,8 @@ declare live_counters_before bigint;
 begin
   select count(*) into live_counters_before from public.punpang_counters;
   perform set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', true);
-  execute 'set local role authenticated';
+  -- ทดสอบตรรกะของฟังก์ชันในสำเนา (ไม่สลับบทบาท: การเข้าถึงทาง API ปิดแล้ว ทดสอบใน test_schema_api.test.sql)
   perform punpang_test.punpang_alloc_numbers('OR', '261116', 2);
-  execute 'reset role';
   perform mt.ok('F2 ตัวนับของโหมดทดสอบเพิ่มในสำเนา และตัวนับจริงไม่เปลี่ยน',
     (select count(*) from public.punpang_counters) = live_counters_before
     and (select count(*) from punpang_test.punpang_counters where prefix = 'OR' and day = '261116') = 1);
@@ -181,9 +180,8 @@ begin
   select count(*) into live_before from public.punpang_records;
   select count(*) into live_orders_before from public.punpang_orders;
   perform set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-4000-8000-000000000001', true);
-  execute 'set local role authenticated';
+  -- ทดสอบตรรกะการล้างสำเนา (ไม่สลับบทบาท: การเข้าถึงทาง API ปิดแล้ว ทดสอบใน test_schema_api.test.sql)
   perform punpang_test.punpang_reset_test_data();
-  execute 'reset role';
   perform mt.ok('H1 ล้างข้อมูลทดสอบ: ไม่มีบันทึกทั่วไปค้าง และข้อมูลจริงไม่เปลี่ยน',
     (select count(*) from punpang_test.punpang_records) = 0 and (select count(*) from public.punpang_records) = live_before);
   perform mt.ok('H2 หลังล้างใส่ชุดตัวอย่าง: มีลูกค้า ออร์เดอร์ ตัวนับ ทุกเลขขึ้นต้น TEST- และออร์เดอร์จริงไม่เปลี่ยน',

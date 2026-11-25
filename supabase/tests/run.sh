@@ -224,6 +224,10 @@ hmcode=$?
 srgcode=$?
 [ "$srgcode" = "0" ] && echo "✓ staff_read_guard.test.sql ผ่านทั้งหมด" || echo "✗ staff_read_guard.test.sql ล้มเหลว"
 [ "$srgcode" = "0" ] || exit "$srgcode"
+"${PSQL[@]}" -d "$DB" -f supabase/tests/test_schema_api.test.sql
+tsacode=$?
+[ "$tsacode" = "0" ] && echo "✓ test_schema_api.test.sql ผ่านทั้งหมด" || echo "✗ test_schema_api.test.sql ล้มเหลว"
+[ "$tsacode" = "0" ] || exit "$tsacode"
 "${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_core.test.sql
 pccode=$?
 [ "$pccode" = "0" ] && echo "✓ preorder_core.test.sql ผ่านทั้งหมด" || echo "✗ preorder_core.test.sql ล้มเหลว"
