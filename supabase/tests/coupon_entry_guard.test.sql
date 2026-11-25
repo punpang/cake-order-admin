@@ -14,6 +14,9 @@ insert into public.punpang_staff (user_id, name, role, perms) values
   ('ce000000-0000-4000-8000-000000000002', 'พนักงานทดสอบคูปอง', 'sales', '{pos,createOrder}')
 on conflict do nothing;
 
+insert into public.punpang_customers (id, name, phone, note, data, created_at, updated_at) values
+  ('go_c1', 'ทดสอบ go', '0899990022', '', '{"ledger":[],"spins":0}'::jsonb, now(), now());
+
 insert into public.punpang_records (collection, id, data) values
   ('coupons', 'go_fixed', '{"type":"discount","status":"used","orderId":"go_o1","customerId":"go_c1","name":"ลด 50","amount":50,"minSpend":0}');
 
