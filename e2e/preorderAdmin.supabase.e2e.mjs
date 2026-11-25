@@ -29,6 +29,8 @@ await step('1. แสดงรายการออร์เดอร์สั�
 
   await step('2. รับเงินสดเพิ่มแล้วยอดที่ชำระเปลี่ยน', async () => {
     const row = page.locator('[data-order-code="PRE-241124-000009"]')
+    // ออร์เดอร์จัดส่งที่ชำระแล้วขึ้นปุ่มบันทึกการส่งก่อน รับเงินสดอยู่ใต้ "ตัวเลือกเพิ่มเติม"
+    await row.getByRole('button', { name: 'ตัวเลือกเพิ่มเติม' }).click()
     await row.getByLabel('ยอดเงินสด').fill('20')
     await row.getByRole('button', { name: 'รับเงินสด' }).click()
     await page.getByText('บันทึกเงินสดแล้ว').waitFor({ timeout: 15000 })
