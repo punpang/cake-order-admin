@@ -84,6 +84,33 @@ Deno.test('extend ส่งวันใหม่ไปฐานข้อมู�
   assertEquals(bad.body.error, 'ขยายเวลาเกินวันชำระสุดท้ายของแคมเปญไม่ได้')
 })
 
+Deno.test('reports: ไม่มีสิทธิ์ 403 · รายงานไม่รู้จัก 400', async () => {
+  seed()
+  assertEquals((await call({ action: 'reports', report: 'prep' }, 'tok-chat')).status, 403)
+  assertEquals((await call({ action: 'reports', report: 'nope' })).status, 400)
+})
+
+Deno.test('reports prep: รวมจำนวนสินค้าต่อวันรับ และไม่นับออร์เดอร์ที่ยกเลิก', async () => {
+  seed()
+  const rows = (globalThis as any).__DB.t['public.punpang_preorder_orders']
+  rows.push({ id: 'a'.repeat(32), code: 'PRE-241124-000021', status: 'payment_confirmed', pickup_date: '2099-12-25', customer_id: 'cA', updated_at: 't3', data: { fulfillment: 'pickup', total: 100, lines: [{ retailId: 'rt1', qty: 2 }], payments: [{ id: 'p9', amount: 100, status: 'confirmed' }] } })
+  rows.push({ id: 'b'.repeat(32), code: 'PRE-241124-000022', status: 'cancelled', pickup_date: '2099-12-25', customer_id: 'cA', updated_at: 't4', data: { fulfillment: 'pickup', total: 100, lines: [{ retailId: 'rt1', qty: 9 }] } })
+  const r = await call({ action: 'reports', report: 'prep' })
+  assertEquals(r.status, 200)
+  const day = r.body.data.find((d: any) => d.pickupDate === '2099-12-25')
+  assertEquals(day.items, [{ retailId: 'rt1', name: 'rt1', qty: 2 }])
+  assertEquals(day.orderCount, 1)
+  assertEquals(day.paidCount, 1)
+})
+
+Deno.test('reports exceptions: แสดงออร์เดอร์ยกเลิกพร้อมเหตุผล', async () => {
+  seed()
+  ;(globalThis as any).__DB.t['public.punpang_preorder_orders'].push({ id: 'c'.repeat(32), code: 'PRE-241124-000023', status: 'cancelled', pickup_date: '2099-12-26', customer_id: 'cB', updated_at: 't5', data: {} })
+  const r = await call({ action: 'reports', report: 'exceptions' })
+  assertEquals(r.status, 200)
+  assert(r.body.data.some((x: any) => x.code === 'PRE-241124-000023' && x.reason === 'ยกเลิกแล้ว'))
+})
+
 Deno.test('refund_return และ reship ส่งรายการคืนและค่าส่งใหม่ไปฐานข้อมูล', async () => {
   seed()
   ;(globalThis as any).__RPC.punpang_preorder_refund_return = async (args: any) => { (globalThis as any).__RPC_CALLS.push(args); return { data: { ok: true }, error: null } }
