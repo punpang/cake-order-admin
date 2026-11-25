@@ -24,6 +24,7 @@ const { step, finish } = stepper(page)
 
 await step('1. วางเลขพัสดุสองรายการแล้วบันทึกทั้งชุด (ส่งครบทั้งสองออร์เดอร์ ค่าไปรษณีย์ถูกส่งไป)', async () => {
   await go('/admin/settings/preorders')
+  await page.getByRole('tab', { name: 'ออร์เดอร์' }).click()
   await page.getByRole('button', { name: 'กรอกการส่งทั้งชุด' }).waitFor({ timeout: 30000 })
   await page.getByRole('button', { name: 'กรอกการส่งทั้งชุด' }).click()
   await page.getByLabel('ชื่อขนส่งทั้งชุด').fill('Kerry')
@@ -41,6 +42,7 @@ await step('2. เลขซ้ำในชุดเดียวกันบั�
   log.length = 0
   state.orders = [ready('c'.repeat(32), 'PRE-241124-000013', 'ทดสอบ'), ready('d'.repeat(32), 'PRE-241124-000014', 'ทดสอบ2')]
   await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.getByRole('tab', { name: 'ออร์เดอร์' }).click()
   await page.locator('[data-order-code="PRE-241124-000013"]').waitFor({ timeout: 60000 })
   await page.getByRole('button', { name: 'กรอกการส่งทั้งชุด' }).waitFor({ timeout: 30000 })
   await page.getByRole('button', { name: 'กรอกการส่งทั้งชุด' }).click()
