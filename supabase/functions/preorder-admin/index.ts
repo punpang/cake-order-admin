@@ -2,6 +2,7 @@ import { corsWrap } from '../_shared/cors.ts'
 import { serviceDb } from '../_shared/db.ts'
 import { prepSheet, pickupList, shipQueue, dueList, campaignSummary, exceptionList } from '../_shared/schedlib/preorderReports.js'
 import { notifyOrderEvent } from '../_shared/preorderNotify.ts'
+import { openPreorders } from '../_shared/schedlib/preorderCustomerOrders.js'
 
 // สั่งล่วงหน้า (ฝั่งร้าน): เฉพาะพนักงานที่มีสิทธิ์ managePreorder หรือ manage
 // การกระทำ: list · accounting (ข้อมูลดิบสำหรับบัญชี) · set_shipping · mark_delivered · record_return · refund_return · reship · record_payment · cancel
@@ -59,6 +60,20 @@ Deno.serve(corsWrap(async (req) => {
     if (up.error) return json({ error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' }, 500)
     await notifyOrderEvent(sb, orderId, 'ready')
     return json({ ok: true, result: { readyAt } })
+  }
+
+  // ออร์เดอร์สั่งล่วงหน้าที่ยังไม่ปิดของลูกค้าคนหนึ่ง (แชท) · กรองที่เซิร์ฟเวอร์ตาม customerId (รหัสลูกค้าเป็น text) เท่านั้น
+  if (action === 'customerOrders') {
+    const cid = String(body.customerId ?? '')
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(cid)) return json({ error: 'ลูกค้าไม่ถูกต้อง' }, 400)
+    const r = await sb.from('punpang_preorder_orders').select('id,code,status,pickup_date,data').eq('customer_id', cid).limit(200)
+    if (r.error) return json({ error: 'โหลดออร์เดอร์ไม่สำเร็จ' }, 500)
+    const rows = ((r.data || []) as any[]).map((x) => {
+      const pays: any[] = Array.isArray(x.data?.payments) ? x.data.payments : []
+      const paid = Math.round(pays.filter((p) => p?.status === 'confirmed').reduce((a, p) => a + (Number(p.amount) || 0), 0) * 100) / 100
+      return { id: x.id, code: x.code, status: x.status, pickupDate: x.pickup_date, total: x.data?.total, paid, payDueAt: x.data?.payDueAt ?? null }
+    })
+    return json({ ok: true, data: openPreorders(rows) })
   }
 
   // ข้อมูลดิบทุกออเดอร์สำหรับบัญชี (เฟส 4) · แบ่งหน้าทีละ 1000 แถวจนครบ ไม่จำกัด 200 ล่าสุดแบบรายการ
