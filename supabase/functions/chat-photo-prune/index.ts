@@ -1,4 +1,3 @@
-import { modeOf, refuseInTest } from '../_shared/mode.ts'
 // ลบรูปที่ลูกค้าแนบในแชทเมื่อครบ 90 วัน · ลำดับ: ถอดลิงก์ในแชท → ลบไฟล์ใน R2 → ลบทะเบียน
 // ถ้าขั้นใดไม่สำเร็จ ทะเบียนยังอยู่ รอบถัดไปจะลองใหม่ (ทำซ้ำได้ปลอดภัย)
 // เรียกทุกวันจาก pg_cron ด้วยคีย์ x-cron-key (คีย์เดียวกับฟังก์ชัน scheduled)
@@ -18,8 +17,6 @@ function sameKey(a: string, b: string): boolean {
 }
 
 Deno.serve(async (req) => {
-  const refused = refuseInTest(modeOf(req))
-  if (refused) return refused // โหมดทดสอบไม่ทำงานฟังก์ชันนี้ (ข้อมูลลูกค้า/งานตามเวลา/เว็บฮุกเป็นของจริงเท่านั้น)
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const key = (Deno.env.get('SCHEDULED_KEY') || '').trim()
   if (!key || !sameKey(key, req.headers.get('x-cron-key') || '')) return json({ error: 'forbidden' }, 403)

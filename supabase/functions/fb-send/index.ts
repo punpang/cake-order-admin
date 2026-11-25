@@ -1,5 +1,4 @@
 import { corsWrap } from '../_shared/cors.ts'
-import { modeOf, recipientAllowed } from '../_shared/mode.ts'
 import { filesEnv, svcSign } from '../_shared/filesvc.ts'
 import { consentNeededFor } from '../_shared/consent.ts'
 import { serviceDb } from '../_shared/db.ts'
@@ -12,7 +11,7 @@ const WINDOW_MS = 24 * 3600e3
 Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
-  const sb = serviceDb(req) // สคีมาตามโหมดของคำขอ
+  const sb = serviceDb()
   const jwt = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
   const u = jwt ? await sb.auth.getUser(jwt) : null
   const uid = u?.data?.user?.id
@@ -24,11 +23,6 @@ Deno.serve(corsWrap(async (req) => {
   const psid = String(body.psid ?? '')
   const msg = String(body.text ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').trim()
   if (!/^\d{5,30}$/.test(psid)) return json({ error: 'ผู้รับไม่ถูกต้อง' }, 400)
-  if (modeOf(req) === 'test') {
-    // โหมดทดสอบ: ส่งได้เฉพาะผู้รับในรายชื่อทดสอบเท่านั้น (กันส่งถึงลูกค้าจริง)
-    const rec = await sb.from('punpang_records').select('data').eq('collection', 'testRecipients').eq('id', 'list').maybeSingle()
-    if (!recipientAllowed(rec.data?.data?.items, 'facebook', psid)) return json({ error: 'ผู้รับนี้ไม่อยู่ในรายชื่อทดสอบ (โหมดทดสอบส่งได้เฉพาะรายชื่อที่กำหนด)' }, 403)
-  }
   const clean = (v: unknown, n: number) => String(v ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').replace(/\s+/g, ' ').trim().slice(0, n)
   const cd = body.card && typeof body.card === 'object' ? body.card : null
   const kind = cd ? String(cd.kind ?? '') : ''

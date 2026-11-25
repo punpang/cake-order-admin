@@ -1,4 +1,3 @@
-import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { corsWrap } from '../_shared/cors.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { smsConsentPatch } from '../_shared/schedlib/memberNotify.js'
@@ -29,8 +28,6 @@ const MSG: Record<string, string> = {
 }
 
 Deno.serve(corsWrap(async (req) => {
-  const refused = refuseInTest(modeOf(req))
-  if (refused) return refused // โหมดทดสอบไม่ทำงานฟังก์ชันนี้ (ข้อมูลลูกค้า/งานตามเวลา/เว็บฮุกเป็นของจริงเท่านั้น)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   let b: Record<string, any> = {}

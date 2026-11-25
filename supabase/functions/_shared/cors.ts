@@ -10,7 +10,7 @@ export const ALLOWED_ORIGINS = [
   'http://localhost:4173', // ทดสอบในเครื่อง (vite preview)
 ] as const
 const ALLOWED = new Set<string>(ALLOWED_ORIGINS)
-const ALLOW_HEADERS = 'authorization, x-client-info, apikey, content-type, x-region, x-supabase-api-version, x-punpang-mode'
+const ALLOW_HEADERS = 'authorization, x-client-info, apikey, content-type, x-region, x-supabase-api-version'
 
 export function allowedOrigin(origin: string | null): string | null {
   return origin && ALLOWED.has(origin) ? origin : null

@@ -2,7 +2,6 @@
 // ตั้งค่า secret ใน Supabase: LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN (ส่วน AI ใช้ ANTHROPIC_API_KEY, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID เหมือน Facebook)
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { parseLineEvents, replyBody, verifyLineSignature, type LineEvent } from '../_shared/line.ts'
-import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { answerLine, FALLBACK_TEXT, GREETING_TEXT } from './bot.ts'
 
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'Content-Type': 'application/json' } })
@@ -11,8 +10,6 @@ const CALL_MS = 5000 // เวลาสูงสุดของการเร�
 type Ctx = { sb: any; token: string; aiKey: string; waiToken: string; waiAccountId: string }
 
 Deno.serve(async (req) => {
-  const refused = refuseInTest(modeOf(req))
-  if (refused) return refused // โหมดทดสอบไม่ทำงานฟังก์ชันนี้ (เว็บฮุกเป็นของจริงเท่านั้น)
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const secret = Deno.env.get('LINE_CHANNEL_SECRET') || ''
   const token = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN') || ''

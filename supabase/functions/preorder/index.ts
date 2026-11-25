@@ -1,4 +1,3 @@
-import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { corsWrap } from '../_shared/cors.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { priceCampaignOrder, payDueAtOf } from '../_shared/schedlib/preorderPrice.js'
@@ -87,8 +86,6 @@ const QR_ERR: Record<string, string> = {
 const clientIpOf = (req: Request) => (req.headers.get('cf-connecting-ip') || (req.headers.get('x-forwarded-for') || '').split(',').pop() || '').trim()
 
 Deno.serve(corsWrap(async (req) => {
-  const refused = refuseInTest(modeOf(req))
-  if (refused) return refused
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   let b: Record<string, any> = {}

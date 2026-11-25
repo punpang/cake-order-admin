@@ -31,11 +31,10 @@ const note = (over: Record<string, unknown> = {}) => ({
   event: 'notification.forwarded', id: crypto.randomUUID(), app: 'com.ktb.tungngern', app_name: 'ถุงเงิน',
   title: 'เงินเข้า 250.00 บาท', text: `รายการ ${REF} สำเร็จ`, received_at: Date.now(), ...over,
 })
-async function post(payload: unknown, opt: { ts?: number; secret?: string; sig?: string; test?: boolean } = {}) {
+async function post(payload: unknown, opt: { ts?: number; secret?: string; sig?: string } = {}) {
   const body = JSON.stringify(payload)
   const ts = String(opt.ts ?? Math.floor(Date.now() / 1000))
   const headers: Record<string, string> = { 'X-Gateway-Timestamp': ts, 'X-Gateway-Signature': opt.sig ?? await sign(ts, body, opt.secret) }
-  if (opt.test) headers['x-punpang-mode'] = 'test'
   const r = await handler(new Request('http://fn.fake', { method: 'POST', headers, body }))
   return { status: r.status, body: await r.json() }
 }
@@ -56,12 +55,6 @@ Deno.test('ลายเซ็นผิด / ไม่มีลายเซ็น
 Deno.test('ลายเซ็นถูกแต่เวลาเก่าเกิน 5 นาที (ส่งซ้ำของเก่า) → 401', async () => {
   seed()
   assertEquals((await post(note(), { ts: Math.floor(Date.now() / 1000) - 301 })).status, 401)
-  untouched()
-})
-
-Deno.test('โหมดทดสอบ → 409 ไม่ทำงาน', async () => {
-  seed()
-  assertEquals((await post(note(), { test: true })).status, 409)
   untouched()
 })
 

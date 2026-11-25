@@ -1,5 +1,4 @@
 import { corsWrap } from '../_shared/cors.ts'
-import { modeOf, refuseInTest, restProfileHeaders } from '../_shared/mode.ts'
 import { pickFollowedLineUser, pushPayload } from '../_shared/linepush.ts'
 
 // Edge Function: ส่งข้อความ LINE ถึงลูกค้าที่ผูก LINE แล้ว (ช่องทางเสริม · SMS ยังเป็นช่องทางหลัก)
@@ -17,7 +16,7 @@ const ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
 
-async function activeStaff(req: Request, mode: string): Promise<boolean> {
+async function activeStaff(req: Request): Promise<boolean> {
   const m = /^Bearer (.+)$/.exec(req.headers.get('authorization') || '')
   if (!m) return false
   const u = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: ANON, Authorization: `Bearer ${m[1]}` } })
@@ -25,7 +24,7 @@ async function activeStaff(req: Request, mode: string): Promise<boolean> {
   const user = await u.json().catch(() => null)
   if (!user?.id) return false
   const r = await fetch(`${SUPABASE_URL}/rest/v1/punpang_staff?user_id=eq.${encodeURIComponent(user.id)}&select=active`, {
-    headers: { ...SERVICE_HEADERS, ...restProfileHeaders(mode as any) },
+    headers: { ...SERVICE_HEADERS },
   })
   const rows = r.ok ? await r.json() : []
   return rows[0]?.active === true
@@ -33,15 +32,11 @@ async function activeStaff(req: Request, mode: string): Promise<boolean> {
 
 Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok')
-  // โหมดทดสอบห้ามส่ง LINE ถึงลูกค้าจริง (LINE ไม่มีรายชื่อผู้รับทดสอบ) · ตอบก่อนอ่านข้อมูลหรือเรียก LINE
-  const refused = refuseInTest(modeOf(req))
-  if (refused) return refused
   if (req.method !== 'POST') return json({ error: 'ไม่รองรับคำขอนี้' }, 405)
   if (!SUPABASE_URL || !ANON || !SERVICE) return json({ error: 'เซิร์ฟเวอร์ยังตั้งค่าไม่ครบ' }, 500)
   if (!LINE_TOKEN) return json({ error: 'ยังไม่ได้ตั้งค่า LINE' }, 500)
 
-  const mode = modeOf(req)
-  if (!(await activeStaff(req, mode))) return json({ error: 'ต้องเข้าสู่ระบบพนักงาน' }, 401)
+  if (!(await activeStaff(req))) return json({ error: 'ต้องเข้าสู่ระบบพนักงาน' }, 401)
 
   let body: any
   try { body = await req.json() } catch { return json({ error: 'ข้อมูลไม่ถูกต้อง' }, 400) }
@@ -51,7 +46,7 @@ Deno.serve(corsWrap(async (req) => {
   if (!payload.ok) return json({ error: payload.error }, 422)
 
   const lr = await fetch(`${SUPABASE_URL}/rest/v1/punpang_line_users?customer_id=eq.${encodeURIComponent(customerId)}&select=line_user_id,followed,updated_at&order=updated_at.desc&limit=5`, {
-    headers: { ...SERVICE_HEADERS, ...restProfileHeaders(mode as any) },
+    headers: { ...SERVICE_HEADERS },
   })
   if (!lr.ok) return json({ error: 'อ่านข้อมูลการผูก LINE ไม่สำเร็จ' }, 502)
   const to = pickFollowedLineUser(await lr.json())

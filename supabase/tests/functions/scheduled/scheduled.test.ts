@@ -12,10 +12,9 @@ Deno.env.set('SCHEDULED_KEY', 'k'.repeat(24))
 await import('../../../functions/scheduled/index.ts')
 
 const KEY = 'k'.repeat(24)
-const call = async (opts: { key?: string | null; method?: string; test?: boolean } = {}) => {
+const call = async (opts: { key?: string | null; method?: string } = {}) => {
   const headers: Record<string, string> = {}
   if (opts.key !== null) headers['x-cron-key'] = opts.key ?? KEY
-  if (opts.test) headers['x-punpang-mode'] = 'test'
   const r = await handler(new Request('http://x', { method: opts.method ?? 'POST', headers }))
   return { status: r.status, body: await r.json() }
 }
@@ -41,11 +40,6 @@ Deno.test('ไม่มีคีย์ cron → 403', async () => {
 Deno.test('คีย์ cron ผิด → 403', async () => {
   seed(true)
   assertEquals((await call({ key: 'x'.repeat(24) })).status, 403)
-})
-
-Deno.test('โหมดทดสอบ → 409 ไม่ทำงานงานตามเวลา', async () => {
-  seed(true)
-  assertEquals((await call({ test: true })).status, 409)
 })
 
 Deno.test('โหมดแอปพนักงาน (ยังไม่เปิด server) → ข้ามงาน ไม่ส่งอะไร', async () => {

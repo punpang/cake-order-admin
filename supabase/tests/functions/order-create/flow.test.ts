@@ -8,8 +8,6 @@ import { pushOrders as pushOrdersJs } from '../../../../src/lib/ordersSync.js'
 // ชนิดของ pushOrders อนุมานจากค่าเริ่มต้นในไฟล์ JS (numbering = null) จึงใช้แบบไม่ตรวจชนิด
 const pushOrders = pushOrdersJs as any
 import { createNumbering } from '../../../../src/lib/docNo.js'
-const TEST_HEADER = 'x-punpang-mode'
-const docCode = (code: string, on: boolean) => (on && code ? 'TEST-' + code : code)
 
 // ---------- ดึง handler ของ order-create ----------
 let handler: (r: Request) => Promise<Response> = null as any
@@ -78,10 +76,9 @@ await import('../../../functions/order-create/index.ts')
 
 // ---------- ฝั่งแอป ----------
 // ไคลเอนต์ supabase จำลองเท่าที่ pushOrders ใช้กับออร์เดอร์ใหม่ (functions.invoke)
-// โหมดทดสอบใส่หัวเดียวกับที่ src/lib/supabase.js ใส่ (global.headers[TEST_HEADER] = 'test')
 // ช่องคิวรอตรวจของผู้จัดการ (punpang_sync_review): ออร์เดอร์ใหม่ที่ระบบปฏิเสธถาวรเข้าคิวที่นี่
 let reviews: any[] = []
-const appClient = (token: string | null, test: boolean) => ({
+const appClient = (token: string | null) => ({
   from: (table: string) => ({
     insert: async (row: any) => {
       if (table !== 'punpang_sync_review') throw new Error(`ไม่มีตาราง ${table} ในชุดทดสอบนี้`)
@@ -93,15 +90,12 @@ const appClient = (token: string | null, test: boolean) => ({
     invoke: async (name: string, { body }: { body: unknown }) => {
       const headers: Record<string, string> = { 'content-type': 'application/json' }
       if (token) headers.authorization = `Bearer ${token}`
-      if (test) headers[TEST_HEADER] = 'test'
       const res = await handler(new Request(`http://fn.fake/functions/v1/${name}`, { method: 'POST', headers, body: JSON.stringify(body) }))
       if (res.ok) return { data: await res.json(), error: null }
       return { data: null, error: { message: 'Edge Function returned a non-2xx status code', context: res } }
     },
   },
 })
-// ตัวออกเลขแบบเดียวกับแอป (src/data/store.js: decorate = docCode(code, testModeOn()))
-const numberingFor = (test: boolean) => createNumbering({ decorate: (code: string) => docCode(code, test) })
 let seq = 0
 // ออร์เดอร์ใหม่หน้าตาแบบที่แอปสร้าง (รายการจากเคสอ้างอิงที่มีราคาแน่นอน)
 const newOrder = (code: string) => ({
@@ -114,52 +108,23 @@ const realNow = Date.now
 Date.now = () => (golden as any).nowMs
 addEventListener('unload', () => { Date.now = realNow })
 
-Deno.test('โหมดทดสอบ: เลขที่แอปออก (TEST-OR-…) บันทึกผ่าน และเขียนลงสคีมาทดสอบเท่านั้น', async () => {
+Deno.test('เลข OR-… บันทึกผ่าน และเขียนลงสคีมาจริง', async () => {
   reset()
-  const numbering = numberingFor(true)
-  const o = newOrder(numbering.next('OR'))
-  assert(o.code.startsWith('TEST-OR-'), o.code)
-  const r = await pushOrders(appClient('tok-staff', true), { upserts: [o] }, { numbering })
-  assertEquals(r, { ok: true })
-  assertEquals(rows.length, 1)
-  assertEquals([rows[0].schema, rows[0].code], ['punpang_test', o.code])
-  assertEquals(reads, [{ table: 'punpang_customers', schema: 'punpang_test' }])
-  // แคตาล็อกในโหมดทดสอบอ่านจากสำเนาทดสอบเท่านั้น (ไม่แตะแคตาล็อกจริง)
-  assert(catalogReads.length > 0 && catalogReads.every((c) => c.schema === 'punpang_test'), JSON.stringify(catalogReads))
-})
-
-Deno.test('โหมดจริง: เลข OR-… บันทึกผ่าน และเขียนลงสคีมาจริง', async () => {
-  reset()
-  const numbering = numberingFor(false)
+  const numbering = createNumbering()
   const o = newOrder(numbering.next('OR'))
   assert(/^OR-\d{6}-\d{6}$/.test(o.code), o.code)
-  const r = await pushOrders(appClient('tok-staff', false), { upserts: [o] }, { numbering })
+  const r = await pushOrders(appClient('tok-staff'), { upserts: [o] }, { numbering })
   assertEquals(r, { ok: true })
   assertEquals([rows[0].schema, rows[0].code], ['public', o.code])
   assert(catalogReads.length > 0 && catalogReads.every((c) => c.schema === 'public'), JSON.stringify(catalogReads))
 })
 
-Deno.test('ข้ามโหมด: เลขทดสอบส่งเข้าโหมดจริง และเลขจริงส่งเข้าโหมดทดสอบ → ถูกปฏิเสธ ไม่มีอะไรถูกเขียน', async () => {
-  reset()
-  const testCode = newOrder(numberingFor(true).next('OR'))
-  const r1: any = await pushOrders(appClient('tok-staff', false), { upserts: [testCode] })
-  assertEquals(r1.error, undefined) // การปฏิเสธถาวรไม่คืน error (ไม่บล็อกชุด) · ออร์เดอร์ใหม่ที่ถูกปฏิเสธเข้าคิวผู้จัดการ
-  assertEquals(r1.queued?.length, 1)
-  assertStringIncludes(reviews[0]?.reason_message ?? '', 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง')
-  const liveCode = newOrder(numberingFor(false).next('OR'))
-  const r2: any = await pushOrders(appClient('tok-staff', true), { upserts: [liveCode] })
-  assertEquals(r2.error, undefined)
-  assertEquals(r2.queued?.length, 1)
-  assertStringIncludes(reviews[1]?.reason_message ?? '', 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง')
-  assertEquals(rows.length, 0)
-})
-
 Deno.test('ราคา: ราคาที่เครื่องส่งมาถูกทิ้ง เซิร์ฟเวอร์คิดใหม่จากแคตาล็อก และแอปรับค่าที่บันทึกจริงกลับมา', async () => {
   reset()
-  const numbering = numberingFor(true)
+  const numbering = createNumbering()
   const o: any = newOrder(numbering.next('OR'))
   for (const it of o.items) { it.price = 1; it.total = 1; it.net = 1 }
-  const r = await pushOrders(appClient('tok-staff', true), { upserts: [o] }, { numbering })
+  const r = await pushOrders(appClient('tok-staff'), { upserts: [o] }, { numbering })
   assertEquals(r, { ok: true })
   assertEquals(rows[0].data.items, ref.payload.items)
   assertEquals(o.items, ref.payload.items)
@@ -167,36 +132,36 @@ Deno.test('ราคา: ราคาที่เครื่องส่งม�
 
 Deno.test('สิทธิ์: ไม่ได้ล็อกอิน หรือบทบาทไม่มีสิทธิ์สร้างออร์เดอร์ → ถูกปฏิเสธ ไม่มีอะไรถูกเขียน', async () => {
   reset()
-  const numbering = numberingFor(true)
-  const r1: any = await pushOrders(appClient(null, true), { upserts: [newOrder(numbering.next('OR'))] })
+  const numbering = createNumbering()
+  const r1: any = await pushOrders(appClient(null), { upserts: [newOrder(numbering.next('OR'))] })
   assertStringIncludes(r1.error, 'ต้องเข้าสู่ระบบพนักงาน')
-  const r2: any = await pushOrders(appClient('tok-chat', true), { upserts: [newOrder(numbering.next('OR'))] })
+  const r2: any = await pushOrders(appClient('tok-chat'), { upserts: [newOrder(numbering.next('OR'))] })
   assertEquals(r2.error, undefined)
   assertEquals(r2.queued?.length, 1)
   assertStringIncludes(reviews.at(-1)?.reason_message ?? '', 'บทบาทนี้สร้างออร์เดอร์ไม่ได้')
   assertEquals(rows.length, 0)
 })
 
-Deno.test('เลขซ้ำในโหมดทดสอบ: แอปออกเลขใหม่ (ยังมี TEST-) แล้วบันทึกผ่าน', async () => {
+Deno.test('เลขซ้ำ: แอปออกเลขใหม่แล้วบันทึกผ่าน', async () => {
   reset()
-  const numbering = numberingFor(true)
+  const numbering = createNumbering()
   const o = newOrder(numbering.next('OR'))
   const taken = o.code
-  rows.push({ schema: 'punpang_test', id: 'o_other', code: taken })
+  rows.push({ schema: 'public', id: 'o_other', code: taken })
   const recoded: string[] = []
-  const r = await pushOrders(appClient('tok-staff', true), { upserts: [o] }, { numbering, onRecode: (_o: unknown, c: string) => recoded.push(c) })
+  const r = await pushOrders(appClient('tok-staff'), { upserts: [o] }, { numbering, onRecode: (_o: unknown, c: string) => recoded.push(c) })
   assertEquals(r, { ok: true })
   assertEquals(recoded.length, 1)
-  assert(recoded[0].startsWith('TEST-OR-') && recoded[0] !== taken, recoded[0])
+  assert(recoded[0].startsWith('OR-') && recoded[0] !== taken, recoded[0])
   assertEquals(rows.at(-1)?.code, recoded[0])
 })
 
 Deno.test('ลูกค้าที่ถูกลบแล้ว: ออร์เดอร์ถูกปฏิเสธ (ไม่พบลูกค้า) และไม่มีอะไรถูกเขียน', async () => {
   reset()
-  const numbering = numberingFor(false)
+  const numbering = createNumbering()
   const o = newOrder(numbering.next('OR'))
   deletedCustomers.add(o.customerId)
-  const r: any = await pushOrders(appClient('tok-staff', false), { upserts: [o] }, { numbering })
+  const r: any = await pushOrders(appClient('tok-staff'), { upserts: [o] }, { numbering })
   assertEquals(r.error, undefined)
   assertEquals(r.queued?.length, 1)
   assertStringIncludes(reviews[0]?.reason_message ?? '', 'ไม่พบลูกค้า')
@@ -208,12 +173,12 @@ Deno.test('บริการเกี่ยวกับเงิน: เซิ�
   const prevShop = cat.shop
   cat.shop = { ...cat.shop, cashService: { maxNotes: 5, services: { hide: { fee: 50, show: true }, pull: { fee: 40, show: false }, stash: { fee: 30, show: false } } } }
   try {
-    const numbering = numberingFor(true)
+    const numbering = createNumbering()
     const o: any = newOrder(numbering.next('OR'))
     // เครื่องส่งยอดและราคาปลอมมา: เซิร์ฟเวอร์ต้องคิดเงินพักจาก 1,000 บาท (ธนบัตร) และค่าบริการ 50 บาท (การตั้งค่า)
     o.holdMoney = { kind: 'hide', notes: { 1000: 1 }, amount: 1 }
     o.items = [...o.items, { id: 'svc-hide', kind: 'service', serviceKind: 'hide', name: 'ซ่อนเงิน', qty: 1, unitPrice: 1, regularPrice: 1, fullPrice: 1, mods: [], discounts: [], specials: [], bundles: [], noPoints: true }]
-    const r = await pushOrders(appClient('tok-staff', true), { upserts: [o] }, { numbering })
+    const r = await pushOrders(appClient('tok-staff'), { upserts: [o] }, { numbering })
     assertEquals(r, { ok: true })
     const row: any = rows.at(-1)
     assertEquals(row.data.holdMoney.amount, 1000)
@@ -227,11 +192,11 @@ Deno.test('บริการเกี่ยวกับเงิน: เซิ�
 
 Deno.test('บริการเกี่ยวกับเงิน: รายการ kind service ที่ส่งมาจากเครื่องโดยตรงถูกปฏิเสธ และไม่มีอะไรถูกเขียน', async () => {
   reset()
-  const numbering = numberingFor(true)
+  const numbering = createNumbering()
   const o: any = newOrder(numbering.next('OR'))
   const res = await handler(new Request('http://fn.fake/functions/v1/order-create', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: 'Bearer tok-staff', [TEST_HEADER]: 'test' },
+    headers: { 'content-type': 'application/json', authorization: 'Bearer tok-staff' },
     body: JSON.stringify({ id: o.id, code: o.code, asDraft: false, by: 'ทดสอบ', draft: { customerId: o.customerId, fulfillment: o.fulfillment, pickupAt: o.pickupAt, birthday: null, items: [...o.items, { id: 'fake', kind: 'service', unitPrice: 1, qty: 1, name: 'ปลอม' }] } }),
   }))
   assertEquals(res.ok, false)

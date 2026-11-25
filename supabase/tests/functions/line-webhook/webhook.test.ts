@@ -16,10 +16,9 @@ await import('../../../functions/line-webhook/index.ts')
 
 const U = 'U' + 'b'.repeat(32)
 const body = (events: unknown[]) => JSON.stringify({ destination: 'Dxxx', events })
-const send = async (raw: string, sig: string | null, test = false) => {
+const send = async (raw: string, sig: string | null) => {
   const h: Record<string, string> = { 'Content-Type': 'application/json' }
   if (sig !== null) h['x-line-signature'] = sig
-  if (test) h['x-punpang-mode'] = 'test'
   const r = await handler(new Request('http://x', { method: 'POST', headers: h, body: raw }))
   return { status: r.status, body: await r.json() }
 }
@@ -36,12 +35,6 @@ Deno.test('ลายเซ็นไม่ถูกต้อง → 401 ไม่
 Deno.test('ไม่มีลายเซ็น → 401', async () => {
   seed()
   assertEquals((await send(body([]), null)).status, 401)
-})
-
-Deno.test('โหมดทดสอบ → 409 ไม่รับเว็บฮุกจริง', async () => {
-  seed()
-  const raw = body([])
-  assertEquals((await send(raw, await signed(raw), true)).status, 409)
 })
 
 Deno.test('ใช้ POST เท่านั้น → 405', async () => {

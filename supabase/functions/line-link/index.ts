@@ -1,4 +1,3 @@
-import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { corsWrap } from '../_shared/cors.ts'
 import { lineUserIdOk, liffTokenOk, parseLinkRequest } from '../_shared/lineliff.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
@@ -37,8 +36,6 @@ async function manageLink(session: unknown, action: 'status' | 'unlink'): Promis
 }
 
 Deno.serve(corsWrap(async (req) => {
-  const refused = refuseInTest(modeOf(req))
-  if (refused) return refused // โหมดทดสอบไม่เชื่อมบัญชี LINE จริง
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   let body: unknown = null
   try { body = await req.json() } catch { return json({ error: 'คำขอไม่ถูกต้อง' }, 400) }

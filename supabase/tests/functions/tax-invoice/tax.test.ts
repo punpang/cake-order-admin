@@ -35,9 +35,8 @@ async function seed({ orderStatus = 'delivered', sessionOk = true }: { orderStat
     'public.punpang_customers': [{ id: CUST, data: {} }],
   } }
 }
-const call = async (body: unknown, method = 'POST', test = false) => {
+const call = async (body: unknown, method = 'POST') => {
   const h: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (test) h['x-punpang-mode'] = 'test'
   const r = await handler(new Request('http://x', { method, headers: h, body: method === 'GET' ? undefined : typeof body === 'string' ? body : JSON.stringify(body) }))
   return { status: r.status, body: await r.json() }
 }
@@ -45,11 +44,6 @@ const call = async (body: unknown, method = 'POST', test = false) => {
 Deno.test('ใช้ POST เท่านั้น → 405', async () => {
   await seed()
   assertEquals((await call({ action: 'state' }, 'GET')).status, 405)
-})
-
-Deno.test('โหมดทดสอบ → 409 ไม่ออกใบ', async () => {
-  await seed()
-  assertEquals((await call({ action: 'state' }, 'POST', true)).status, 409)
 })
 
 Deno.test('คำขอ JSON เสีย → 400', async () => {

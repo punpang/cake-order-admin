@@ -6,7 +6,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsWrap } from '../_shared/cors.ts'
 import { createLimiter } from '../_shared/ratelimit.ts'
-import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { buildCreditNote, buildInvoice, cleanBuyer, customerInvoiceState, customerIssueBlock, remainingOf } from '../_shared/schedlib/taxInvoice.js'
 
 const DAY = 86400000
@@ -75,8 +74,6 @@ async function rememberTax(sb: any, customerId: string, buyer: Record<string, st
 
 Deno.serve(corsWrap(async (req) => {
   if (req.method !== 'POST') return json({ error: 'ใช้เมธอด POST' }, 405)
-  const refused = refuseInTest(modeOf(req))
-  if (refused) return refused
   try {
     const b = (await req.json().catch(() => null)) as Record<string, any> | null
     if (!b) return json({ error: 'คำขอไม่ถูกต้อง' }, 400)

@@ -12,7 +12,7 @@ const BUDGET_MS = 40_000
 Deno.serve(corsWrap(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
-  const sb = serviceDb(req) // สคีมาตามโหมดของคำขอ (ทดสอบ/จริง)
+  const sb = serviceDb()
   const jwt = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '')
   const u = jwt ? await sb.auth.getUser(jwt) : null
   const uid = u?.data?.user?.id
