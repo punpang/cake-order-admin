@@ -10,6 +10,7 @@ import { reserveOtpAttempt } from '../_shared/authguard.ts'
 import { promptPayBillerPayload } from '../_shared/schedlib/promptpay.js'
 import { publicPaymentOf } from '../_shared/shoppay.ts'
 import { notifyOrderEvent } from '../_shared/preorderNotify.ts'
+import { pickupMode, roundOf } from '../_shared/schedlib/preorderRounds.js'
 
 // สั่งล่วงหน้า (ลูกค้า): ฟังก์ชันสาธารณะ (--no-verify-jwt) · ขั้นนี้มี 2 action: campaigns (ดูแคมเปญที่เปิดรับ) และ quote (คิดราคาให้ดู)
 // ข้อมูลที่ส่งกลับไม่มีตารางอัตราค่าส่ง · ราคาทั้งหมดคิดที่เซิร์ฟเวอร์ · ค่าที่ผู้ใช้ส่งมาเรื่องราคา/ค่าส่ง/แต้มไม่ถูกใช้
@@ -111,6 +112,8 @@ Deno.serve(corsWrap(async (req) => {
       depositPercent: c.deposit_percent,
       payDueMin: c.pay_due_min,
       payLastDate: c.data?.payLastDate || null,
+      pickupMode: pickupMode(c),
+      rounds: pickupMode(c) === 'slot' && Array.isArray(c.data?.rounds) ? c.data.rounds.map((r: any) => ({ time: r.time, cap: r.cap })) : [],
       parcelEnabled: c.data?.parcel?.enabled === true,
       shipping: c.data?.parcel?.enabled === true && c.data?.shipping ? { shipFrom: c.data.shipping.shipFrom, shipTo: c.data.shipping.shipTo } : null,
       deals: (c.data?.deals ?? []).map((d: any) => ({ kind: d.kind, name: d.name, tiers: d.tiers })),
@@ -242,18 +245,23 @@ Deno.serve(corsWrap(async (req) => {
     const payDueAt = payDueAtOf(Date.now(), c.pay_due_min, c.data?.payLastDate)
     if (new Date(payDueAt).getTime() <= Date.now()) return json({ error: 'วันชำระสุดท้ายของแคมเปญนี้ผ่านไปแล้ว' }, 409)
     const data = { ...q.order, total, deposit: { percent: c.deposit_percent, amount: deposit }, payDueAt, lines, pickupDate: b.pickupDate, ...(b.fulfillment === 'delivery' ? { address, province, shipping: { shipFrom: shipping.shipFrom, shipTo: shipping.shipTo } } : {}) }
-    const rpc = await sb.rpc('punpang_preorder_create', {
-      p_row: { id: orderId, customer_id: cid, campaign_id: c.id, pickup_date: b.pickupDate, status: 'awaiting_payment', fulfillment: b.fulfillment, data },
-      p_lines: lines.map((l: any) => ({ itemId: l.retailId, qty: l.qty })),
-      p_points: 0,
-      p_amount: 0,
-    })
+    // โหมดรอบ: ต้องเลือกรอบที่มีในแคมเปญ · จองรอบและสร้างออเดอร์ในธุรกรรมเดียว (ฐานข้อมูลคืนการจองรอบเองเมื่อสร้างไม่สำเร็จ)
+    const isSlot = pickupMode(c) === 'slot'
+    const round = String(b.pickupRound ?? '')
+    if (isSlot && !roundOf(c, round)) return json({ error: 'กรุณาเลือกรอบเวลารับสินค้า' }, 400)
+    if (isSlot) data.pickupRound = round
+    const rpcArgs = { p_row: { id: orderId, customer_id: cid, campaign_id: c.id, pickup_date: b.pickupDate, status: 'awaiting_payment', fulfillment: b.fulfillment, data }, p_lines: lines.map((l: any) => ({ itemId: l.retailId, qty: l.qty })), p_points: 0, p_amount: 0 }
+    const rpc = isSlot
+      ? await sb.rpc('punpang_preorder_create_round', { ...rpcArgs, p_round: round })
+      : await sb.rpc('punpang_preorder_create', rpcArgs)
     if (rpc.error) {
       const m = String(rpc.error.message || '')
       if (m.startsWith('reserve_failed:')) return json({ error: 'สินค้าหรือวันรับนี้เต็มแล้ว กรุณาเลือกใหม่', code: m.slice(15) }, 409)
       return json({ error: 'สร้างออร์เดอร์ไม่สำเร็จ กรุณาลองใหม่' }, 500)
     }
     if (rpc.data?.error === 'too_many_open') return json({ error: 'มีออร์เดอร์ที่ยังไม่จ่ายครบ 3 รายการแล้ว' }, 409)
+    if (rpc.data?.error === 'round_full') return json({ error: 'รอบเวลานี้เต็มแล้ว กรุณาเลือกรอบอื่น' }, 409)
+    if (rpc.data?.error === 'round_full_or_bad') return json({ error: 'เลือกรอบเวลาไม่ได้ กรุณาลองใหม่' }, 409)
     if (rpc.data?.error === 'no_customer') return json({ error: 'ไม่พบบัญชี' }, 401)
     if (rpc.data?.error) return json({ error: 'สร้างออร์เดอร์ไม่สำเร็จ กรุณาลองใหม่' }, 500)
     if (rpc.data?.already !== true) await notifyOrderEvent(sb, orderId, 'placed')

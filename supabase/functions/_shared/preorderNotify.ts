@@ -84,7 +84,7 @@ export async function notifyOrderEvent(sb: any, orderId: string, event: string, 
     const text = notifyText(event, {
       code: o.code, due: Math.max(0, (Number(d.total) || 0) - (Number(d.paid) || 0)), paid: Number(d.paid) || 0,
       refund: extra.refund ?? 0, payDueAt: event === 'extended' ? extra.key : d.payDueAt,
-      carrier: d.shipping?.carrier, tracking: d.shipping?.trackingNo, fulfillment: d.fulfillment,
+      carrier: d.shipping?.carrier, tracking: d.shipping?.trackingNo, fulfillment: d.fulfillment, pickupRound: d.pickupRound,
     })
     const key = extra.key ? `${event}:${extra.key}` : event
     await notifyCustomer(sb, { orderId, customerId: o.customer_id ?? null, phoneLocal: cust?.phone ?? null, event: key, text, link: site ? `${site}/#/preorder/orders` : '' }, deps)

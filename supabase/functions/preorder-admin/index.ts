@@ -45,6 +45,22 @@ Deno.serve(corsWrap(async (req) => {
   const action = String(body.action ?? '')
   const orderId = String(body.orderId ?? '')
 
+  // ทำเครื่องหมายเตรียมเสร็จ (แคมเปญโหมดรอบเท่านั้น) · บันทึกเวลาและแจ้งลูกค้าว่ารับได้ตั้งแต่รอบที่เลือก
+  if (action === 'mark_ready') {
+    if (!ORDER_ID_RE.test(orderId)) return json({ error: 'รหัสออร์เดอร์ไม่ถูกต้อง' }, 400)
+    const o = (await sb.from('punpang_preorder_orders').select('id,campaign_id,status,data').eq('id', orderId).maybeSingle()).data
+    if (!o) return json({ error: 'ไม่พบออร์เดอร์นี้' }, 404)
+    if (['cancelled', 'expired', 'delivered', 'returned'].includes(o.status)) return json({ error: 'ออร์เดอร์นี้ปิดแล้ว' }, 409)
+    const cmp = (await sb.from('punpang_preorder_campaigns').select('data').eq('id', o.campaign_id).maybeSingle()).data
+    if (!cmp || cmp.data?.pickupMode !== 'slot') return json({ error: 'ทำเครื่องหมายเตรียมเสร็จได้เฉพาะแคมเปญแบบเลือกรอบเวลา' }, 409)
+    if (!o.data?.pickupRound) return json({ error: 'ออร์เดอร์นี้ไม่มีรอบเวลา' }, 409)
+    const readyAt = new Date().toISOString()
+    const up = await sb.from('punpang_preorder_orders').update({ data: { ...(o.data || {}), readyAt } }).eq('id', orderId)
+    if (up.error) return json({ error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' }, 500)
+    await notifyOrderEvent(sb, orderId, 'ready')
+    return json({ ok: true, result: { readyAt } })
+  }
+
   // ข้อมูลดิบทุกออเดอร์สำหรับบัญชี (เฟส 4) · แบ่งหน้าทีละ 1000 แถวจนครบ ไม่จำกัด 200 ล่าสุดแบบรายการ
   if (action === 'accounting') {
     const PAGE = 1000

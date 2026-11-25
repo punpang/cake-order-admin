@@ -146,3 +146,21 @@ Deno.test('accounting: ไม่มีสิทธิ์ → 403 · ผู้ด
   assertEquals((await call({ action: 'accounting' }, 'tok-acct')).status, 200)
   assertEquals((await call({ action: 'cancel', orderId: ORDER, refunds: [] }, 'tok-acct')).status, 403)
 })
+
+Deno.test('mark_ready: แคมเปญโหมดรอบ → บันทึกเวลาเตรียมเสร็จ · แคมเปญโหมดวัน → 409', async () => {
+  seed()
+  const T = (globalThis as any).__DB.t
+  T['public.punpang_preorder_campaigns'] = [
+    { id: 'cR', status: 'open', data: { pickupMode: 'slot', rounds: [{ time: '10:00', cap: 2 }] } },
+    { id: 'cD', status: 'open', data: { pickupMode: 'day' } },
+  ]
+  const rid = '9'.repeat(32)
+  T['public.punpang_preorder_orders'].push({ id: rid, code: 'PRE-R-1', status: 'payment_confirmed', campaign_id: 'cR', pickup_date: '2099-12-24', customer_id: 'cA', updated_at: 't9', data: { total: 100, paid: 100, pickupRound: '10:00' } })
+  const did = '8'.repeat(32)
+  T['public.punpang_preorder_orders'].push({ id: did, code: 'PRE-D-1', status: 'payment_confirmed', campaign_id: 'cD', pickup_date: '2099-12-24', customer_id: 'cA', updated_at: 't8', data: { total: 100, paid: 100 } })
+  const ok = await call({ action: 'mark_ready', orderId: rid })
+  assertEquals(ok.status, 200)
+  const saved = T['public.punpang_preorder_orders'].find((x: any) => x.id === rid)
+  assert(typeof saved.data.readyAt === 'string')
+  assertEquals((await call({ action: 'mark_ready', orderId: did })).status, 409)
+})

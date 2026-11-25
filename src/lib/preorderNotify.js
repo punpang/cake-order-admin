@@ -2,7 +2,7 @@
 // ไม่มีรหัสออร์เดอร์ที่เปิดข้อมูลได้เอง ลิงก์ใช้ {LINK} ให้ระบบแทนที่ตอนส่ง (หน้า "ออร์เดอร์ของฉัน" ต้องยืนยัน OTP)
 // ข้อความ SMS ไม่เกิน 300 ตัวอักษร
 
-export const EVENTS = ['placed', 'paid', 'reminder1h', 'extend_requested', 'extended', 'cancelled', 'expired', 'shipped', 'delivered', 'balance_due', 'return_requested', 'refunded']
+export const EVENTS = ['placed', 'paid', 'reminder1h', 'extend_requested', 'extended', 'cancelled', 'expired', 'shipped', 'delivered', 'balance_due', 'return_requested', 'refunded', 'ready']
 export const SMS_MAX = 300
 const money = (n) => (Number(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 const day = (s) => (s ? new Date(`${s}T00:00:00+07:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Bangkok' }) : '')
@@ -20,6 +20,7 @@ const T = {
   delivered: (c) => `คำสั่งซื้อ ${c.code} ได้จัดส่งถึงปลายทางเรียบร้อยแล้วค่ะ ขอบพระคุณที่ไว้วางใจใช้บริการค่ะ`,
   balance_due: (c) => `คำสั่งซื้อ ${c.code} มียอดคงเหลือ ${money(c.due)} บาท กรุณาชำระก่อนการจัดส่ง ${'{LINK}'} ขอบพระคุณค่ะ`,
   return_requested: (c) => `ทางร้านได้รับคำขอคืนสินค้าของคำสั่งซื้อ ${c.code} แล้วค่ะ ทีมงานจะตรวจสอบและแจ้งผลให้ทราบค่ะ`,
+  ready: (c) => `คำสั่งซื้อ ${c.code} เตรียมเสร็จแล้วค่ะ รับได้ตั้งแต่ ${c.pickupRound || '-'} ถึงสิ้นวันค่ะ ขอบพระคุณค่ะ`,
   refunded: (c) => `ทางร้านได้ดำเนินการคืนเงิน ${money(c.refund)} บาท สำหรับคำสั่งซื้อ ${c.code} เรียบร้อยแล้วค่ะ ขอบพระคุณค่ะ`,
 }
 
