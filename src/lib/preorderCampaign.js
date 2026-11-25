@@ -18,7 +18,7 @@ export function blankCampaign() {
   return {
     id: '', name: '', status: 'draft',
     orderFrom: '', orderTo: '', pickupFrom: '', pickupTo: '',
-    depositPercent: 50, payDueMin: null,
+    depositPercent: 50, payDueMin: null, payLastDate: '',
     dayCap: null, items: [],
     deals: [], parcel: { enabled: false },
     shipOff: [],
@@ -54,6 +54,8 @@ export function campaignError(c) {
   if (c.pickupFrom > c.pickupTo) return 'วันเริ่มรับสินค้าต้องไม่เกินวันสิ้นสุด'
   if (!Number.isInteger(c.depositPercent) || c.depositPercent < 1 || c.depositPercent > 100) return 'มัดจำขั้นต่ำต้องเป็นจำนวนเต็ม 1–100 %'
   if (!Number.isInteger(c.payDueMin) || c.payDueMin <= 0) return 'ต้องกำหนดเวลาจ่ายมัดจำ (นาที) ทุกแคมเปญ'
+  // วันชำระสุดท้าย (ไม่บังคับ): ต้องเป็นวันที่ถูกต้องและไม่ก่อนวันเริ่มรับสั่ง
+  if (c.payLastDate && (!isDay(c.payLastDate) || c.payLastDate < c.orderFrom)) return 'วันชำระสุดท้ายต้องเป็นวันที่ถูกต้อง และไม่ก่อนวันเริ่มรับสั่ง'
   if (!capOk(c.dayCap)) return 'โควตารวมต่อวันต้องว่างหรือเป็นจำนวนเต็ม ≥ 0'
   if (!Array.isArray(c.items) || c.items.length === 0) return 'ต้องเลือกสินค้าอย่างน้อย 1 รายการ'
   const seen = new Set()
@@ -125,6 +127,7 @@ export function campaignToRow(c) {
       items: c.items.map((i) => ({ retailId: i.retailId, dayCap: i.dayCap ?? null })),
       deals: (c.deals ?? []).map((d) => ({ kind: d.kind, name: d.name ?? '', tiers: (d.tiers ?? []).map((t) => ({ min: Number(t.min), type: t.type, value: Number(t.value) })) })),
       shipOff: cleanShipOff(c.shipOff),
+      payLastDate: c.payLastDate || null,
       parcel: { enabled: c.parcel?.enabled === true },
       shipping: c.parcel?.enabled === true ? { shipFrom: c.shipFrom, shipTo: c.shipTo } : null,
     },
@@ -142,6 +145,7 @@ export function rowToCampaign(r) {
     pickupTo: r.pickup_to,
     depositPercent: r.deposit_percent,
     payDueMin: r.pay_due_min,
+    payLastDate: r.data?.payLastDate ?? '',
     dayCap: r.data?.dayCap ?? null,
     items: (r.data?.items ?? []).map((i) => ({ retailId: i.retailId, dayCap: i.dayCap ?? null })),
     deals: r.data?.deals ?? [],

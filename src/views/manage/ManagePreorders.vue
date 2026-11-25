@@ -21,6 +21,10 @@ const ferr = ref('')
 const hours = ref('') // เวลาจ่ายมัดจำ เป็นชั่วโมงบนหน้าจอ เก็บเป็นนาที
 const sel = reactive({}) // retailId → { on, cap }
 const msg = ref('')
+const tab = ref('campaigns') // แท็บ: แคมเปญ (ค่าเริ่มต้น) · ออร์เดอร์
+// สีป้ายสถานะแคมเปญ (ข้อความเดิมจาก PHASE)
+const BADGE = { 'เปิดรับสั่ง': 'bg-emerald-100 text-emerald-800', 'ร่าง': 'bg-stone-100 text-stone-700', 'รอเปิดรับ': 'bg-amber-100 text-amber-800', 'ปิดรับ': 'bg-stone-200 text-stone-700', 'หมดช่วงรับสั่ง': 'bg-stone-200 text-stone-600' }
+const badge = (label) => BADGE[label] || 'bg-stone-100 text-stone-700'
 const tiers = ref([]) // ขั้นส่วนลดตามยอด (ดีล spend_off เดียวของแคมเปญ) เก็บเป็นข้อความบนหน้าจอ
 const parcelOn = ref(false) // ส่งพัสดุไปรษณีย์ (สินค้าทุกชิ้นต้องมีน้ำหนักและขนาด)
 const shipWarn = computed(() => (form.value ? shipOutsidePickupWarning({ ...form.value, parcel: { enabled: parcelOn.value } }) : ''))
@@ -86,28 +90,35 @@ function toggle(c, status) {
 
 <template>
   <ManageShell narrow guard :toolbar="false" perm="managePreorder" title="สั่งล่วงหน้า (Preorder)" subtitle="ตั้งแคมเปญ ช่วงรับสั่ง โควตา และมัดจำ">
-    <PreorderOrdersPanel />
-    <section class="card mb-4">
+    <div role="tablist" aria-label="ส่วนของสั่งล่วงหน้า" class="grid grid-cols-2 gap-1 rounded-2xl bg-stone-100 p-1">
+      <button type="button" role="tab" :aria-selected="tab === 'campaigns'" class="h-11 rounded-xl text-sm font-medium transition-colors" :class="tab === 'campaigns' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600'" @click="tab = 'campaigns'">แคมเปญ</button>
+      <button type="button" role="tab" :aria-selected="tab === 'orders'" class="h-11 rounded-xl text-sm font-medium transition-colors" :class="tab === 'orders' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600'" @click="tab = 'orders'">ออร์เดอร์</button>
+    </div>
+    <PreorderOrdersPanel v-if="tab === 'orders'" class="mt-4" />
+    <section v-if="tab === 'campaigns'" class="mt-4 mb-4">
       <div class="flex items-center justify-between gap-2">
-        <h2 class="text-base font-semibold text-stone-800">แคมเปญ</h2>
-        <button class="btn-primary h-9 px-3" @click="openForm(null)">+ สร้างแคมเปญ</button>
+        <h2 class="text-base font-semibold text-stone-900">แคมเปญ</h2>
+        <button class="btn-primary h-11 px-4" @click="openForm(null)">+ สร้างแคมเปญ</button>
       </div>
       <p v-if="msg" class="mt-2 text-sm text-stone-600" role="status">{{ msg }}</p>
-      <p v-if="!list.length" class="mt-3 text-sm text-stone-500">ยังไม่มีแคมเปญ</p>
-      <ul class="mt-3 space-y-2">
-        <li v-for="x in list" :key="x.c.id" class="rounded-xl border border-stone-200 p-3" data-campaign>
-          <div class="flex items-center justify-between gap-2">
-            <div class="min-w-0">
-              <div class="truncate font-medium text-stone-900">{{ x.c.name }}</div>
-              <div class="text-xs text-stone-500">รับสั่ง {{ x.c.orderFrom }} ถึง {{ x.c.orderTo }} · รับสินค้า {{ x.c.pickupFrom }} ถึง {{ x.c.pickupTo }}</div>
-              <div class="text-xs text-stone-500">มัดจำขั้นต่ำ {{ x.c.depositPercent }}% · จ่ายภายใน {{ x.c.payDueMin ? x.c.payDueMin / 60 : '-' }} ชม.</div>
-            </div>
-            <span class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-700">{{ x.label }}</span>
+      <div v-if="!list.length" class="mt-4 rounded-2xl border border-dashed border-stone-300 p-6 text-center text-sm text-stone-500">ยังไม่มีแคมเปญ กดสร้างแคมเปญเพื่อเริ่มรับสั่งล่วงหน้า</div>
+      <ul class="mt-4 space-y-3">
+        <li v-for="x in list" :key="x.c.id" class="rounded-2xl border border-stone-200 bg-white p-4" data-campaign>
+          <div class="flex items-start justify-between gap-3">
+            <h3 class="min-w-0 truncate text-base font-semibold text-stone-900">{{ x.c.name }}</h3>
+            <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium" :class="badge(x.label)">{{ x.label }}</span>
           </div>
-          <div class="mt-2 flex flex-wrap gap-2">
-            <button class="btn-outline h-9 px-3" @click="openForm(x.c)">แก้ไข</button>
-            <button v-if="x.c.status !== 'open'" class="btn-primary h-9 px-3" @click="toggle(x.c, 'open')">เปิดรับสั่ง</button>
-            <button v-else class="btn-outline h-9 px-3" @click="toggle(x.c, 'closed')">ปิดรับ</button>
+          <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            <div><dt class="text-xs text-stone-500">รับสั่ง</dt><dd class="text-stone-800">{{ x.c.orderFrom }} ถึง {{ x.c.orderTo }}</dd></div>
+            <div><dt class="text-xs text-stone-500">รับสินค้า</dt><dd class="text-stone-800">{{ x.c.pickupFrom }} ถึง {{ x.c.pickupTo }}</dd></div>
+            <div><dt class="text-xs text-stone-500">มัดจำขั้นต่ำ</dt><dd class="text-stone-800">{{ x.c.depositPercent }}%</dd></div>
+            <div><dt class="text-xs text-stone-500">จ่ายภายใน</dt><dd class="text-stone-800">{{ x.c.payDueMin ? x.c.payDueMin / 60 : '-' }} ชม.</dd></div>
+            <div v-if="x.c.payLastDate"><dt class="text-xs text-stone-500">ชำระสุดท้าย</dt><dd class="text-stone-800">{{ x.c.payLastDate }}</dd></div>
+          </dl>
+          <div class="mt-4 flex gap-2">
+            <button v-if="x.c.status !== 'open'" class="btn-primary h-11 flex-1" @click="toggle(x.c, 'open')">เปิดรับสั่ง</button>
+            <button v-else class="btn-outline h-11 flex-1" @click="toggle(x.c, 'closed')">ปิดรับ</button>
+            <button class="btn-outline h-11 px-4" @click="openForm(x.c)">แก้ไข</button>
           </div>
         </li>
       </ul>
@@ -115,7 +126,9 @@ function toggle(c, status) {
 
     <AppModal v-if="form" :title="form.id ? 'แก้ไขแคมเปญ' : 'สร้างแคมเปญ'" wider @close="form = null">
       <div class="space-y-3">
+        <h3 class="text-sm font-semibold text-stone-900">ข้อมูลทั่วไป</h3>
         <div><label class="label" for="pp-name">ชื่อแคมเปญ <span class="text-rose-600">*</span></label><input id="pp-name" v-model="form.name" class="input" maxlength="80" /></div>
+        <h3 class="pt-2 text-sm font-semibold text-stone-900">วันและมัดจำ</h3>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="label" for="pp-of">เริ่มรับสั่ง</label><input id="pp-of" v-model="form.orderFrom" type="date" class="input" /></div>
           <div><label class="label" for="pp-ot">สิ้นสุดรับสั่ง</label><input id="pp-ot" v-model="form.orderTo" type="date" class="input" /></div>
@@ -127,6 +140,12 @@ function toggle(c, status) {
           <div><label class="label" for="pp-due">จ่ายมัดจำภายใน (ชม.) <span class="text-rose-600">*</span></label><input id="pp-due" v-model="hours" type="number" min="0" step="0.5" class="input" /></div>
           <div><label class="label" for="pp-cap">โควตารวมต่อวัน</label><input id="pp-cap" v-model="form.dayCap" type="number" min="0" class="input" placeholder="ว่าง = ไม่จำกัด" /></div>
         </div>
+        <div>
+          <label class="label" for="pp-last">วันชำระมัดจำสุดท้าย (ไม่บังคับ)</label>
+          <input id="pp-last" v-model="form.payLastDate" type="date" class="input" />
+          <p class="mt-1 text-xs text-stone-500">ถ้าตั้งไว้ ลูกค้าต้องชำระภายในวันนั้น แม้เวลาจ่ายภายในยังไม่หมด (ใช้ตามที่เร็วกว่า)</p>
+        </div>
+        <h3 class="pt-2 text-sm font-semibold text-stone-900">สินค้า</h3>
         <div>
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="label">สินค้าในแคมเปญ (เลือกจากสินค้า POS) <span class="text-rose-600">*</span></div>
@@ -157,6 +176,7 @@ function toggle(c, status) {
             </div>
           </template>
         </div>
+        <h3 class="pt-2 text-sm font-semibold text-stone-900">ส่วนลด</h3>
         <div>
           <div class="label">ส่วนลดตามยอดซื้อ (ไม่บังคับ)</div>
           <div v-for="(t, i) in tiers" :key="i" class="mt-2 flex flex-wrap items-center gap-2">
@@ -183,6 +203,7 @@ function toggle(c, status) {
           <button type="button" class="btn-outline mt-2 h-9 px-3 text-sm" @click="shipTiers.push({ min: '', value: '' })">+ เพิ่มขั้นส่วนลดค่าส่ง</button>
           <p class="mt-1 text-xs text-stone-500">ได้ส่วนลดขั้นสูงสุดที่ยอดสินค้าหลังหักส่วนลดทุกประเภทและคะแนน ก่อน VAT ถึง · ไม่สะสม · ลดได้ไม่เกินค่าส่ง</p>
         </div>
+        <h3 class="pt-2 text-sm font-semibold text-stone-900">การจัดส่งพัสดุ</h3>
         <AppSwitch v-model="parcelOn" label="ส่งพัสดุไปรษณีย์ (สินค้าทุกชิ้นต้องมีน้ำหนักและขนาด)" class="flex" />
         <div v-if="parcelOn" class="grid grid-cols-2 gap-3">
           <div><label class="label" for="pp-sf">เริ่มวันจัดส่งพัสดุ <span class="text-rose-600">*</span></label><input id="pp-sf" v-model="form.shipFrom" type="date" class="input" /></div>

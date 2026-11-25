@@ -22,6 +22,7 @@ const { step, finish } = stepper(page)
 
 await step('1. แสดงรายการออร์เดอร์สั่งล่วงหน้าและยอดที่ชำระ', async () => {
     await go('/admin/settings/preorders')
+    await page.getByRole('tab', { name: 'ออร์เดอร์' }).click()
     await page.locator('[data-order-code="PRE-241124-000009"]').waitFor({ timeout: 30000 })
     assert.match(await page.locator('[data-order-code="PRE-241124-000009"]').innerText(), /ชำระแล้ว 50/)
   })

@@ -1,7 +1,7 @@
 import { modeOf, refuseInTest } from '../_shared/mode.ts'
 import { corsWrap } from '../_shared/cors.ts'
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { priceCampaignOrder } from '../_shared/schedlib/preorderPrice.js'
+import { priceCampaignOrder, payDueAtOf } from '../_shared/schedlib/preorderPrice.js'
 import { MIN, hex, sha256Hex, randHex, thaiPhone } from '../_shared/otp.ts'
 import { sendSmsGateway } from '../_shared/sms.ts'
 import { verifyTurnstile } from '../_shared/turnstile.ts'
@@ -109,6 +109,7 @@ Deno.serve(corsWrap(async (req) => {
       pickupTo: c.pickup_to,
       depositPercent: c.deposit_percent,
       payDueMin: c.pay_due_min,
+      payLastDate: c.data?.payLastDate || null,
       parcelEnabled: c.data?.parcel?.enabled === true,
       shipping: c.data?.parcel?.enabled === true && c.data?.shipping ? { shipFrom: c.data.shipping.shipFrom, shipTo: c.data.shipping.shipTo } : null,
       deals: (c.data?.deals ?? []).map((d: any) => ({ kind: d.kind, name: d.name, tiers: d.tiers })),
@@ -236,7 +237,9 @@ Deno.serve(corsWrap(async (req) => {
     const total = Math.round(q.totals.total * 100) / 100
     // จัดส่งต้องชำระเต็มจำนวนตอนสั่ง · รับที่ร้านใช้มัดจำตามเปอร์เซ็นต์ของแคมเปญ
     const deposit = b.fulfillment === 'delivery' ? total : Math.ceil((total * c.deposit_percent) / 100 * 100) / 100
-    const payDueAt = new Date(Date.now() + c.pay_due_min * MIN).toISOString()
+    // กำหนดชำระ = เร็วกว่าระหว่างเวลาจ่ายภายในและสิ้นวันชำระสุดท้ายตามเวลาไทย · ถ้าผ่านไปแล้วไม่รับสั่ง
+    const payDueAt = payDueAtOf(Date.now(), c.pay_due_min, c.data?.payLastDate)
+    if (new Date(payDueAt).getTime() <= Date.now()) return json({ error: 'วันชำระสุดท้ายของแคมเปญนี้ผ่านไปแล้ว' }, 409)
     const data = { ...q.order, total, deposit: { percent: c.deposit_percent, amount: deposit }, payDueAt, lines, pickupDate: b.pickupDate, ...(b.fulfillment === 'delivery' ? { address, province, shipping: { shipFrom: shipping.shipFrom, shipTo: shipping.shipTo } } : {}) }
     const rpc = await sb.rpc('punpang_preorder_create', {
       p_row: { id: orderId, customer_id: cid, campaign_id: c.id, pickup_date: b.pickupDate, status: 'awaiting_payment', fulfillment: b.fulfillment, data },

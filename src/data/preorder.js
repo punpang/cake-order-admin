@@ -10,7 +10,7 @@ export const preorderCampaigns = () =>
 
 // ค่าโครงสร้างของแคมเปญ (ไม่รวมชื่อ) ใช้เทียบว่าแก้ของที่ล็อกหรือไม่
 const structOf = (c) => JSON.stringify([
-  c.orderFrom, c.orderTo, c.pickupFrom, c.pickupTo, c.depositPercent, c.payDueMin ?? null, c.dayCap ?? null,
+  c.orderFrom, c.orderTo, c.pickupFrom, c.pickupTo, c.depositPercent, c.payDueMin ?? null, c.payLastDate || null, c.dayCap ?? null,
   (c.items || []).map((i) => [i.retailId, i.dayCap ?? null]),
   (c.deals || []).map((d) => [d.kind, d.name, (d.tiers || []).map((t) => [t.min, t.type, t.value])]),
   (c.shipOff || []).map((t) => [t.min, t.value]),
