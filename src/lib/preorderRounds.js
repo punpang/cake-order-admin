@@ -15,8 +15,8 @@ export function cleanRounds(input) {
     const time = typeof r?.time === 'string' ? r.time.trim() : ''
     if (!TIME_RE.test(time)) return { ok: false, error: 'เวลารอบต้องเป็นรูปแบบ HH:MM' }
     if (seen.has(time)) return { ok: false, error: `เวลารอบ ${time} ซ้ำ` }
-    const cap = Number(r?.cap)
-    if (!Number.isInteger(cap) || cap < 1) return { ok: false, error: `จำนวนออร์เดอร์ของรอบ ${time} ต้องเป็นจำนวนเต็มอย่างน้อย 1` }
+    const cap = r?.cap
+    if (typeof cap !== 'number' || !Number.isInteger(cap) || cap < 1) return { ok: false, error: `จำนวนออร์เดอร์ของรอบ ${time} ต้องเป็นจำนวนเต็มอย่างน้อย 1` }
     seen.add(time)
     rounds.push({ time, cap })
   }
