@@ -16,6 +16,7 @@ const structOf = (c) => JSON.stringify([
   (c.shipOff || []).map((t) => [t.min, t.value]),
   c.parcel?.enabled === true,
   c.parcel?.enabled === true ? [c.shipFrom, c.shipTo] : null,
+  c.pickupMode === 'slot' ? (c.rounds || []).map((r) => [r.time, r.cap]) : 'day',
 ])
 
 let seq = 0

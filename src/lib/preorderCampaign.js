@@ -2,6 +2,7 @@
 // วันที่เป็นข้อความ 'YYYY-MM-DD' เสมอ · ไม่พึ่งเขตเวลา (คำนวณด้วย UTC)
 
 import { cleanShipOff, shipOffError } from './shipDiscount.js'
+import { cleanRounds } from './preorderRounds.js'
 
 export const CAMPAIGN_STATUS = ['draft', 'open', 'closed']
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -23,6 +24,7 @@ export function blankCampaign() {
     deals: [], parcel: { enabled: false },
     shipOff: [],
     shipFrom: '', shipTo: '',
+    pickupMode: 'day', rounds: [],
   }
 }
 
@@ -47,6 +49,8 @@ const capOk = (v) => v === null || (Number.isInteger(v) && v >= 0)
 
 // '' เมื่อผ่าน หรือข้อความที่บอกเหตุผลที่ไม่ผ่าน
 export function campaignError(c) {
+  if (c?.pickupMode !== undefined && c.pickupMode !== 'day' && c.pickupMode !== 'slot') return 'โหมดวันรับไม่ถูกต้อง'
+  if (c?.pickupMode === 'slot') { const rr = cleanRounds(c.rounds); if (!rr.ok) return rr.error }
   if (!String(c?.name ?? '').trim()) return 'ต้องระบุชื่อแคมเปญ'
   if (!isDay(c.orderFrom) || !isDay(c.orderTo)) return 'ช่วงรับสั่งต้องเป็นวันที่ที่ถูกต้อง'
   if (c.orderFrom > c.orderTo) return 'วันเริ่มรับสั่งต้องไม่เกินวันสิ้นสุด'
@@ -130,6 +134,8 @@ export function campaignToRow(c) {
       payLastDate: c.payLastDate || null,
       parcel: { enabled: c.parcel?.enabled === true },
       shipping: c.parcel?.enabled === true ? { shipFrom: c.shipFrom, shipTo: c.shipTo } : null,
+      pickupMode: c.pickupMode === 'slot' ? 'slot' : 'day',
+      rounds: c.pickupMode === 'slot' ? (cleanRounds(c.rounds).rounds ?? []) : [],
     },
   }
 }
@@ -153,5 +159,7 @@ export function rowToCampaign(r) {
     parcel: { enabled: r.data?.parcel?.enabled === true },
     shipFrom: r.data?.shipping?.shipFrom ?? '',
     shipTo: r.data?.shipping?.shipTo ?? '',
+    pickupMode: r.data?.pickupMode === 'slot' ? 'slot' : 'day',
+    rounds: Array.isArray(r.data?.rounds) ? r.data.rounds : [],
   }
 }

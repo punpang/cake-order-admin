@@ -204,5 +204,25 @@ t('วันชำระสุดท้าย: ว่างผ่าน · ว�
   assert.equal(rowToCampaign({ id: 'x', data: {}, status: 'draft' }).payLastDate, '')
 })
 
+// โหมดรอบเวลา (แผนโหมดวันรับและรอบเวลา Task 4): โหมดไม่ถูกต้อง/รอบไม่ผ่านกติกา → ไม่ผ่าน · รอบถูกต้อง → บันทึกและอ่านกลับได้
+{
+  const base = { id: 'c1', name: 'ทดสอบ', status: 'draft', orderFrom: '2099-01-01', orderTo: '2099-02-01', pickupFrom: '2099-02-10', pickupTo: '2099-02-12', depositPercent: 50, payDueMin: 60, dayCap: null, items: [{ retailId: 'r1', dayCap: null }], deals: [], parcel: { enabled: false }, shipOff: [] }
+  const t = (name, fn) => { try { fn(); console.log(`PASS ${name}`) } catch (e) { console.log(`FAIL ${name}: ${e.message}`); fail++ } }
+  t('โหมดวันไม่ต้องมีรอบ', () => { if (campaignError({ ...base, pickupMode: 'day', rounds: [] })) throw new Error('ควรผ่าน') })
+  t('โหมดรอบที่ไม่มีรอบ ไม่ผ่าน', () => { if (!campaignError({ ...base, pickupMode: 'slot', rounds: [] })) throw new Error('ควรไม่ผ่าน') })
+  t('โหมดรอบที่รอบถูกต้อง ผ่าน', () => { if (campaignError({ ...base, pickupMode: 'slot', rounds: [{ time: '10:00', cap: 3 }] })) throw new Error('ควรผ่าน') })
+  t('โหมดไม่รู้จัก ไม่ผ่าน', () => { if (!campaignError({ ...base, pickupMode: 'xyz' })) throw new Error('ควรไม่ผ่าน') })
+  t('แถวฐานข้อมูลเก็บโหมดและรอบ และอ่านกลับได้', () => {
+    const row = campaignToRow({ ...base, pickupMode: 'slot', rounds: [{ time: '13:00', cap: 2 }, { time: '10:00', cap: 1 }] })
+    if (row.data.pickupMode !== 'slot' || row.data.rounds[0].time !== '10:00') throw new Error('แถวไม่ถูกต้อง')
+    const back = rowToCampaign({ ...row, id: 'c1' })
+    if (back.pickupMode !== 'slot' || back.rounds.length !== 2) throw new Error('อ่านกลับไม่ถูกต้อง')
+  })
+  t('แคมเปญเดิมที่ไม่มีโหมดอ่านเป็นโหมดวัน', () => {
+    if (rowToCampaign({ id: 'x', data: {}, status: 'draft' }).pickupMode !== 'day') throw new Error('ควรเป็นโหมดวัน')
+  })
+}
+
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')
 process.exit(fail ? 1 : 0)
+
