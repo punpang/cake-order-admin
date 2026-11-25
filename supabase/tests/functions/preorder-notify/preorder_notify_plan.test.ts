@@ -50,10 +50,31 @@ Deno.test('แจ้งก่อนวันรับ: เฉพาะรับ�
   ]
   assertEquals(planPickupReminders(list, nowMs), ['tomorrow'])
 })
-Deno.test('หน้าต่างส่ง 09:00–09:04 น. เวลาไทยเท่านั้น', () => {
-  assertEquals(inPickupReminderWindow(Date.parse('2099-06-01T02:00:00Z')), true)
-  assertEquals(inPickupReminderWindow(Date.parse('2099-06-01T02:04:59Z')), true)
-  assertEquals(inPickupReminderWindow(Date.parse('2099-06-01T02:05:00Z')), false)
-  assertEquals(inPickupReminderWindow(Date.parse('2099-06-01T01:59:00Z')), false)
+Deno.test('หน้าต่างส่งแจ้งก่อนวันรับ 09:00–19:59 น. เวลาไทย', () => {
+  assertEquals(inPickupReminderWindow(Date.parse('2099-06-01T02:00:00Z')), true) // 09:00
+  assertEquals(inPickupReminderWindow(Date.parse('2099-06-01T02:05:00Z')), true) // 09:05 ยังส่งได้ (ลองใหม่เมื่อล้มเหลว)
+  assertEquals(inPickupReminderWindow(Date.parse('2099-06-01T11:59:59Z')), true) // 18:59
+  assertEquals(inPickupReminderWindow(Date.parse('2099-06-01T12:00:00Z')), true) // 19:00
+  assertEquals(inPickupReminderWindow(Date.parse('2099-06-01T12:59:59Z')), true) // 19:59
+  assertEquals(inPickupReminderWindow(Date.parse('2099-06-01T13:00:00Z')), false) // 20:00 ปิด
+  assertEquals(inPickupReminderWindow(Date.parse('2099-06-01T01:59:00Z')), false) // 08:59 ปิด
   assertEquals(bangkokNow(Date.parse('2099-06-01T02:00:00Z')).hour, 9)
+})
+
+import { runWithCap, SEND_CAP_PER_RUN } from '../../../functions/_shared/preorderNotifyPlan.ts'
+Deno.test('จำกัดการส่งต่อรอบ: ไม่เกินเพดาน และรายการที่ข้าม (เคยส่งแล้ว) ไม่กินโควตา', async () => {
+  assertEquals(SEND_CAP_PER_RUN, 50)
+  const ids = Array.from({ length: 80 }, (_, i) => `o${i}`)
+  const seen: string[] = []
+  const r = await runWithCap(ids, 50, async (id) => { seen.push(id); return 'sent' })
+  assertEquals(r.attempts, 50)
+  assertEquals(r.sent, 50)
+  assertEquals(seen.length, 50)
+})
+Deno.test('รายการที่ล้มเหลวกินโควตา และรายการที่ข้ามไม่กินโควตา', async () => {
+  const ids = [...Array.from({ length: 10 }, (_, i) => `s${i}`), ...Array.from({ length: 60 }, (_, i) => `f${i}`)]
+  const r = await runWithCap(ids, 50, async (id) => (id.startsWith('s') ? 'skipped' : 'failed'))
+  assertEquals(r.attempts, 60) // 10 ข้าม + 50 ล้มเหลว
+  assertEquals(r.used, 50)
+  assertEquals(r.sent, 0)
 })

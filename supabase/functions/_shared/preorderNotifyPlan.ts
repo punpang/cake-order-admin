@@ -45,8 +45,27 @@ export function planPickupReminders(orders: PlanOrder[], nowMs: number): string[
     .map((o) => o.id)
 }
 
-// ส่งแจ้งเตือนก่อนวันรับเฉพาะช่วง 09:00–09:04 น. (เวลาไทย) เพื่อให้ได้รอบเดียวต่อวัน
+// ส่งแจ้งเตือนก่อนวันรับได้ช่วง 09:00–19:59 น. (เวลาไทย) · ล้มเหลวจะลองใหม่ในรอบ 5 นาทีถัดไปจนกว่าจะหมดช่วง
 export function inPickupReminderWindow(nowMs: number): boolean {
   const b = bangkokNow(nowMs)
-  return b.hour === 9 && b.minute < 5
+  return b.hour >= 9 && b.hour < 20
+}
+
+// เพดานการส่งต่อรอบ (รอบละ 5 นาที) กันเกตเวย์ SMS รับไม่ทัน
+export const SEND_CAP_PER_RUN = 50
+
+// ทำรายการตามลำดับจนครบเพดาน · 'skipped' (เคยส่งแล้วหรือไม่มีช่องทาง) ไม่กินโควตา · 'sent' และ 'failed' กินโควตา
+export async function runWithCap<T>(items: T[], cap: number, attempt: (item: T) => Promise<'sent' | 'skipped' | 'failed'>): Promise<{ sent: number; attempts: number; used: number }> {
+  let sent = 0
+  let used = 0
+  let attempts = 0
+  for (const item of items) {
+    if (used >= cap) break
+    attempts++
+    const r = await attempt(item)
+    if (r === 'skipped') continue
+    used++
+    if (r === 'sent') sent++
+  }
+  return { sent, attempts, used }
 }

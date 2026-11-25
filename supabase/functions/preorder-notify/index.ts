@@ -3,7 +3,7 @@ import { modeOf, refuseInTest } from '../_shared/mode.ts'
 // การกันซ้ำอยู่ในฐานข้อมูล (ส่งครั้งเดียวต่อออเดอร์+เหตุการณ์) · ทำซ้ำได้ปลอดภัย
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { notifyOrderEvent } from '../_shared/preorderNotify.ts'
-import { planReminders, planExpired, planPickupReminders, inPickupReminderWindow } from '../_shared/preorderNotifyPlan.ts'
+import { planReminders, planExpired, planPickupReminders, inPickupReminderWindow, runWithCap, SEND_CAP_PER_RUN } from '../_shared/preorderNotifyPlan.ts'
 
 const LIMIT = 500
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } })
@@ -33,19 +33,19 @@ Deno.serve(async (req) => {
   const expired = await db.from('punpang_preorder_orders').select('id,status,data').eq('status', 'expired').gte('updated_at', since).limit(LIMIT)
   if (waiting.error || expired.error) return json({ error: 'load_failed' }, 500)
 
-  const reminderIds = new Set(planReminders((waiting.data || []).map(shape), nowMs))
+  const reminderIds = [...new Set(planReminders((waiting.data || []).map(shape), nowMs))]
   const expiredIds = planExpired((expired.data || []).map(shape), nowMs)
-  for (const id of reminderIds) await notifyOrderEvent(db, id, 'reminder1h')
-  for (const id of expiredIds) await notifyOrderEvent(db, id, 'expired')
-  // แจ้งยอดคงเหลือก่อนวันรับ 1 วัน (รับที่ร้านเท่านั้น) · ส่งเฉพาะช่วง 09:00 น. เวลาไทย และกันซ้ำต่อวันรับด้วยการจองสิทธิ์
+  // เพดานรวมต่อรอบ: เตือนก่อนหมดเวลาก่อน แล้วหมดเวลา แล้วแจ้งก่อนวันรับ · รายการที่เกินเพดานจะถูกส่งรอบถัดไป
+  const r1 = await runWithCap(reminderIds, SEND_CAP_PER_RUN, (id) => notifyOrderEvent(db, id, 'reminder1h'))
+  const r2 = await runWithCap(expiredIds, SEND_CAP_PER_RUN - r1.used, (id) => notifyOrderEvent(db, id, 'expired'))
+  // แจ้งยอดคงเหลือก่อนวันรับ (รับที่ร้านเท่านั้น) · ส่งได้ช่วง 09:00–19:59 เวลาไทย · กันซ้ำต่อวันรับด้วยการจองสิทธิ์
   let pickupSent = 0
   if (inPickupReminderWindow(nowMs)) {
     const rows = (waiting.data || []).map(shape)
-    for (const id of planPickupReminders(rows, nowMs)) {
-      const row = rows.find((r) => r.id === id)
-      await notifyOrderEvent(db, id, 'pickup_reminder', { key: row?.pickupDate ?? '' })
-      pickupSent++
-    }
+    const items = planPickupReminders(rows, nowMs).map((id) => ({ id, key: rows.find((r: { id: string; pickupDate: string | null }) => r.id === id)?.pickupDate ?? '' }))
+    const left = SEND_CAP_PER_RUN - r1.used - r2.used
+    const r3 = await runWithCap(items, left, (it) => notifyOrderEvent(db, it.id, 'pickup_reminder', { key: it.key }))
+    pickupSent = r3.sent
   }
-  return json({ ok: true, reminders: reminderIds.size, expired: expiredIds.length, pickupReminders: pickupSent })
+  return json({ ok: true, reminders: r1.sent, expired: r2.sent, pickupReminders: pickupSent })
 })
