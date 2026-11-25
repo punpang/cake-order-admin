@@ -239,6 +239,11 @@ ptscode=$?
 [ "$ptscode" = "0" ] && echo "✓ preorder_points.test.sql ผ่านทั้งหมด" || echo "✗ preorder_points.test.sql ล้มเหลว"
 [ "$ptscode" = "0" ] || exit "$ptscode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_notify.test.sql
+ncode=$?
+[ "$ncode" = "0" ] && echo "✓ preorder_notify.test.sql ผ่านทั้งหมด" || echo "✗ preorder_notify.test.sql ล้มเหลว"
+[ "$ncode" = "0" ] || exit "$ncode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_create.test.sql
 crcode=$?
 [ "$crcode" = "0" ] && echo "✓ preorder_create.test.sql ผ่านทั้งหมด" || echo "✗ preorder_create.test.sql ล้มเหลว"
