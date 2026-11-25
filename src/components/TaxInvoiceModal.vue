@@ -44,7 +44,7 @@ function doVoid() {
   if (r.error) return (error.value = r.error)
   voiding.value = false
   reason.value = ''
-  viewId.value = r.creditNote.id
+  viewId.value = r.creditNote?.id || ''
 }
 // แก้ไข: เติมฟอร์มจากข้อมูลผู้ซื้อของใบปัจจุบัน (ไม่ต้องกรอกใหม่) · บันทึก = ระบบออกใบลดหนี้ใบเดิม + ออกใบใหม่ให้เอง
 function startEdit() {

@@ -184,6 +184,12 @@ const GROUP_LOADERS = {
       await c.store.ensureOrders({ updatedSince: since })
     }
     await load(closedOf())
+    // ออร์เดอร์สั่งล่วงหน้า (เฟส 4): โหลดทั้งหมดเข้าบัญชี ถ้าโหลดไม่ได้เก็บ error ไว้ให้หน้าบัญชีแจ้ง
+    const { preorderAdminCall } = await import('./preorderAdminRemote')
+    const pa = await preorderAdminCall('accounting')
+    const ac = await import('../data/acct')
+    ac.preorderAcct.orders = pa.error ? [] : (pa.orders || [])
+    ac.preorderAcct.error = pa.error || ''
     const { watch } = await import('vue')
     const stop = watch(closedOf, (v, old) => { if (!v || (old && v < old)) quietly(() => load(v)) })
     return { stop }
@@ -192,6 +198,12 @@ const GROUP_LOADERS = {
     if (!['pos', 'viewAllOrders', 'manage'].some(c.has)) return null
     const m = await import('./shiftsSync')
     return m.startShiftsSync({ client: c.client, db: c.store.db, canWrite: c.has('pos'), onError: c.onError })
+  },
+  // แคมเปญสั่งล่วงหน้า: โหลดเมื่อเปิดหน้าตั้งค่า (ensureData) · เขียนได้ด้วยสิทธิ์ managePreorder หรือ manage
+  preorders: async (c) => {
+    if (!['managePreorder', 'manage'].some(c.has)) return null
+    const m = await import('./preorderSync')
+    return m.startPreorderSync({ client: c.client, db: c.store.db, canWrite: ['managePreorder', 'manage'].some(c.has), onError: c.onError })
   },
   chats: async (c) => {
     if (!c.has('chat')) return null
@@ -404,6 +416,7 @@ async function startData(staff) {
   store.session.role = staff.role
   if (!has('manageUsers')) users.selfOnly(db, staff)
   if (!['pos', 'viewAllOrders', 'manage'].some(has)) db.shifts.splice(0)
+  if (!['managePreorder', 'manage'].some(has)) db.preorderCampaigns.splice(0)
   // ข้อมูลปฏิบัติการรายแถว (รีวิว/คูปอง/คำขอ/แจ้งเตือน/ลิงก์ ฯลฯ): อ่าน/เขียนตามสิทธิ์ · อ่านไม่ได้ = ล้างข้อมูลตัวอย่าง
   const rec = await import('./recordsSync')
   const recNames = new Set(Object.keys(rec.RECORD_SPECS))

@@ -17,6 +17,7 @@ import { suggestCustomers, phonesInChat } from '../lib/chatLink'
 import { buildChatIndex, chatMatchesQuery, remoteSearchKeys } from '../lib/chatSearch'
 import { chatRemote } from '../lib/chatSync'
 import { kb } from '../lib/viewportFit'
+import { preorderAdminCall } from '../lib/preorderAdminRemote'
 
 // ศูนย์รวมแชท Facebook (ข้อความเข้าจาก webhook / ส่งผ่าน API)
 // คอม: รายการแชท | เธรด | แผงออร์เดอร์ (เปิดได้) · มือถือ/แท็บเล็ต: ทีละหน้า (รายการ → เธรด → ออร์เดอร์ เต็มจอ)
@@ -139,6 +140,25 @@ const openOrders = computed(() =>
 // ร่างออร์เดอร์เก็บต่อแชทใน store (สลับไปมาแล้วไม่หาย)
 const orderOpen = ref(false)
 const detailsOpen = ref(false)
+
+// ออร์เดอร์สั่งล่วงหน้าที่ยังไม่ปิดของลูกค้าคนที่กำลังคุย · โหลดเมื่อเปิดแผงลูกค้าเท่านั้น · เฉพาะผู้มีสิทธิ์จัดการสั่งล่วงหน้า
+const canPre = computed(() => can('managePreorder') || can('manage'))
+const preList = ref([])
+const preLoading = ref(false)
+const preErr = ref('')
+async function loadPre() {
+  preList.value = []
+  preErr.value = ''
+  if (!detailsOpen.value || !customer.value || !canPre.value) return
+  preLoading.value = true
+  const r = await preorderAdminCall('customerOrders', { customerId: customer.value.id })
+  preLoading.value = false
+  if (r.error) { preErr.value = r.error; return }
+  preList.value = Array.isArray(r.data) ? r.data : []
+}
+watch([detailsOpen, () => customer.value?.id], loadPre)
+const preDue = (iso) => (iso ? new Date(iso).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }) : '-')
+const money = (n) => Number(n || 0).toLocaleString('th-TH', { maximumFractionDigits: 2 })
 const isWide = () => window.matchMedia('(min-width: 1024px)').matches
 function openPanel() {
   orderOpen.value = true
@@ -416,6 +436,22 @@ function doCreate() {
               <span class="min-w-0">
                 <span class="block font-medium text-stone-900">{{ orderNo(o.code) }}</span>
                 <span class="block truncate text-xs text-stone-500">{{ o.items[0]?.name }}</span>
+              </span>
+              <AppIcon name="next" class="text-stone-300" />
+            </RouterLink>
+          </div>
+        </div>
+
+        <div v-if="canPre && customer" data-chat-preorders>
+          <h3 class="mb-1.5 text-sm font-semibold text-stone-800">สั่งล่วงหน้า</h3>
+          <p v-if="preLoading" class="rounded-xl bg-white p-3 text-sm text-stone-500 ring-1 ring-stone-200">กำลังโหลด…</p>
+          <p v-else-if="preErr" role="alert" class="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{{ preErr }}</p>
+          <p v-else-if="!preList.length" class="rounded-xl bg-white p-3 text-sm text-stone-500 ring-1 ring-stone-200">ไม่มีออร์เดอร์สั่งล่วงหน้าที่ยังไม่ปิด</p>
+          <div v-else class="space-y-2">
+            <RouterLink v-for="p in preList" :key="p.id" to="/admin/preorders" class="flex items-center justify-between gap-2 rounded-xl border border-stone-200 bg-white p-3 hover:border-brand-300" data-chat-preorder>
+              <span class="min-w-0">
+                <span class="block font-medium text-stone-900">{{ p.code }}</span>
+                <span class="block truncate text-xs text-stone-500">รับ {{ p.pickupDate || '-' }} · ค้าง {{ money(p.due) }} บาท · กำหนด {{ preDue(p.payDueAt) }}</span>
               </span>
               <AppIcon name="next" class="text-stone-300" />
             </RouterLink>

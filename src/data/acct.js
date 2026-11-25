@@ -3,8 +3,9 @@
 import { supabaseEnabled, getSupabase } from '../lib/supabase'
 import { reactive } from 'vue'
 import { readSessionToken } from '../lib/customerRemote'
-import { MAX_CUSTOMER_REVISIONS, cleanBuyer, buyerError, sellerCheck, customerInvoiceState } from '../lib/taxInvoice'
-import { db, session, can, ctxOrder, scheduledHooks, cancelHooks, notify, findCustomer, customerSession, myCustomer } from './store'
+import { MAX_CUSTOMER_REVISIONS, cleanBuyer, buyerError, sellerCheck, customerInvoiceState, buildInvoice, buildCreditNote, buildPartialCreditNote, remainingOf, partialCreditBlock } from '../lib/taxInvoice'
+import { round2 } from '../lib/posPromo'
+import { db, session, can, ctxOrder, scheduledHooks, cancelHooks, refundHooks, refundGuards, notify, findCustomer, customerSession, myCustomer } from './store'
 import { deriveAll } from '../lib/acct/derive'
 import { buildManualEntry } from '../lib/acct/manual'
 import { validateEntry, entryNo, entrySums } from '../lib/acct/journal'
@@ -29,11 +30,15 @@ const today = () => toDateStr(new Date())
 // ตัวสร้างรายการอัตโนมัติเพิ่มเติม (ค่าเสื่อม ตัดจำหน่าย ผ่อนชำระ ฯลฯ ลงทะเบียนในรอบถัด ๆ ไป)
 export const extraGenerators = []
 
+// ออร์เดอร์สั่งล่วงหน้าทั้งหมดสำหรับบัญชี (โหลดตอนเปิดหน้าบัญชีผ่าน preorder-admin · accounting) · error = โหลดไม่ได้ ทำให้ยอดบัญชีขาดส่วนนี้
+export const preorderAcct = reactive({ orders: [], error: '' })
+
 const ctx = () => ({
   customerOf: (o) => { const c = findCustomer(o.customerId); return c ? { name: c.tax?.name || c.name, taxId: c.tax?.taxId || '' } : null },
   todayStr: today(),
   orders: db.orders, groups: db.optionGroups, retail: db.retailItems, ingredients: db.ingredients,
   coupons: db.coupons, rewards: db.rewards, pointValue: db.loyalty.pointValue, acct: db.acct, shop: db.shop,
+  preorders: preorderAcct.orders,
 })
 
 // รายการอัตโนมัติ (ทั้งหมด ไม่สนปิดงวด)
@@ -338,22 +343,14 @@ export function issueTaxInvoice(orderId, buyer = null) {
   if (!order) return { error: 'ไม่พบออร์เดอร์' }
   return issueCore(order, buyer ? cleanBuyer(buyer) : buyerOf(order), session.userId)
 }
-function issueCore(order, b, by, rev = 0) {
+// remaining = { total, vat } เมื่อมีการคืนเงินบางส่วนแล้ว → ใบใหม่ออกด้วยยอดคงเหลือ
+function issueCore(order, b, by, rev = 0, remaining = null) {
   const err = invoiceBlock(order, b)
   if (err) return { error: err }
-  const t = orderTotals(order)
-  const v = db.shop.vat
   const date = today()
-  const lines = [
-    ...order.items.map((i) => ({ name: i.name, qty: i.qty, unitPrice: i.unitPrice, amount: toB(toS(i.unitPrice) * i.qty) })),
-    ...(t.shipping ? [{ name: 'ค่าจัดส่ง', qty: 1, unitPrice: t.shipping, amount: t.shipping }] : []),
-  ]
   const inv = {
-    id: aid('ti'), no: nextDocNo('INV', date), type: 'invoice', date, orderId: order.id, orderCode: order.code,
-    seller: { name: v.legalName, taxId: v.taxId, branch: v.branch || '00000', address: v.address },
-    buyer: b, lines, discounts: t.discountLines.map((d) => ({ label: d.label, amount: d.amount })),
-    rate: t.vatRate, mode: t.vatMode, beforeVat: toB(toS(t.total) - toS(t.vat)), vat: t.vat, total: t.total,
-    totalText: bahtText(t.total), copies: 0, by, rev, createdAt: new Date().toISOString(),
+    ...buildInvoice({ order, seller: db.shop.vat, buyer: b, id: aid('ti'), by, rev, date, createdAt: new Date().toISOString(), remaining }),
+    no: nextDocNo('INV', date),
     ...(supabaseEnabled ? { pending: true } : {}), // รอเลขที่จากฐานข้อมูล (ห้ามพิมพ์จนกว่าจะได้เลข)
   }
   invs().push(inv)
@@ -371,9 +368,12 @@ function voidCore(id, reason, by) {
   if (inv.voidedBy) return { error: 'ยกเลิกแล้ว' }
   if (!String(reason || '').trim()) return { error: 'ระบุเหตุผล' }
   const date = today()
-  const cn = { ...inv, id: aid('ti'), no: nextDocNo('CN', date), type: 'credit', date, refNo: inv.no, refId: inv.id, reason: String(reason).trim().slice(0, 200), copies: 0, by, createdAt: new Date().toISOString(), voidedBy: undefined, pending: supabaseEnabled ? true : undefined }
-  delete cn.voidedBy
-  if (!supabaseEnabled) delete cn.pending
+  const rem = remainingOf(inv, invs())
+  // คืนเงินบางส่วนจนหมดยอดแล้ว → ไม่ออกใบลดหนี้ว่าง ๆ แค่ปิดใบเดิม
+  if (rem.total <= 0.004) { inv.voidedBy = rem.lastCreditId; return { ok: true, creditNote: null } }
+  // มีการคืนบางส่วนแล้ว → ใบลดหนี้เต็มใบนี้ออกเฉพาะยอดคงเหลือ (กันภาษีถูกคืนซ้ำ)
+  const cn = { ...buildCreditNote({ inv, id: aid('ti'), date, reason: String(reason), by, createdAt: new Date().toISOString(), remaining: rem.partial ? rem : null }), no: nextDocNo('CN', date) }
+  if (supabaseEnabled) cn.pending = true
   invs().push(cn)
   inv.voidedBy = cn.id
   return { ok: true, creditNote: cn }
@@ -393,9 +393,11 @@ export function reviseTaxInvoice(invoiceId, buyer) {
   if (err) return { error: err }
   const old = inv.buyer || {}
   if (['name', 'taxId', 'branch', 'address'].every((k) => String(old[k] ?? '') === String(b[k] ?? ''))) return { error: 'ข้อมูลผู้ซื้อไม่มีการเปลี่ยนแปลง' }
+  const rem = remainingOf(inv, invs())
+  if (rem.total <= 0.004) return { error: 'ยอดคงเหลือเป็นศูนย์ ไม่ต้องออกใบใหม่' }
   const v = voidCore(inv.id, 'แก้ไขข้อมูลผู้ซื้อ', session.userId)
   if (v.error) return v
-  const n = issueCore(order, b, session.userId, inv.rev || 0)
+  const n = issueCore(order, b, session.userId, inv.rev || 0, rem.partial ? rem : null)
   if (n.error) {
     invs().splice(invs().indexOf(v.creditNote), 1)
     delete inv.voidedBy
@@ -407,6 +409,28 @@ export function reviseTaxInvoice(invoiceId, buyer) {
 cancelHooks.push((order) => {
   const inv = invoiceOfOrder(order.id)
   if (inv) voidCore(inv.id, `ยกเลิกออร์เดอร์ ${order.code}`, 'system')
+})
+
+// ยอดคืนต้องไม่เกินยอดคงเหลือของใบกำกับที่ใช้งานอยู่ (กันลดหนี้เกิน) · ลงทะเบียนเป็น guard ของ refundOrder ใน store
+refundGuards.push((order, amount) => {
+  const inv = invoiceOfOrder(order.id)
+  if (!inv) return ''
+  return partialCreditBlock(remainingOf(inv, invs()).total, amount)
+})
+
+// คืนเงินบางส่วนของออร์เดอร์ที่มีใบกำกับใช้งานอยู่ → ออกใบลดหนี้บางส่วนอ้างใบเดิม (ใบเดิมไม่ถูกแก้)
+// ไม่สร้างรายการบัญชีใหม่: การคืนลงบัญชีอยู่แล้วจาก order.returns
+refundHooks.push((order, entry) => {
+  const inv = invoiceOfOrder(order.id)
+  if (!inv || !(entry.amount > 0)) return
+  const itemLines = (entry.items || []).map((x) => ({ name: x.name, qty: x.qty, unitPrice: round2(x.amount / x.qty), amount: x.amount }))
+  const itemsSum = round2(itemLines.reduce((n, x) => n + x.amount, 0))
+  const lines = itemLines.length && Math.abs(itemsSum - entry.amount) < 0.005 ? itemLines : null
+  const date = today()
+  const cn = { ...buildPartialCreditNote({ inv, amount: entry.amount, lines, id: aid('ti'), date, reason: entry.reason, by: session.userId, createdAt: new Date().toISOString() }), no: nextDocNo('CN', date) }
+  if (supabaseEnabled) cn.pending = true
+  invs().push(cn)
+  entry.creditNoteId = cn.id
 })
 
 // ---------- ลูกค้าขอ/แก้ใบกำกับภาษีเอง (ต้องล็อกอิน · เห็น/ทำได้เฉพาะออร์เดอร์ของตัวเอง) ----------
@@ -513,9 +537,11 @@ export function editMyTaxInvoice(orderId, buyer, remember = true) {
   const err = buyerError(b)
   if (err) return { error: err }
   const rev = (st.invoice.rev || 0) + 1
+  const rem = remainingOf(st.invoice, invs())
+  if (rem.total <= 0.004) return { error: 'ยอดคงเหลือเป็นศูนย์ ไม่ต้องแก้ไขใบ' }
   const v = voidCore(st.invoice.id, 'ลูกค้าแก้ไขข้อมูลผู้ซื้อ', `customer:${customerSession.customerId}`)
   if (v.error) return v
-  const r = issueCore(o, b, `customer:${customerSession.customerId}`, rev)
+  const r = issueCore(o, b, `customer:${customerSession.customerId}`, rev, rem.partial ? rem : null)
   if (r.ok && remember) myCustomer().tax = b
   return r
 }

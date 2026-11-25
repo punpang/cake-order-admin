@@ -15,6 +15,7 @@ const ALL_SYSTEMS = [
       { to: '/admin/production', label: 'ตารางผลิต', icon: 'cake', perms: ['viewMaterials'], exact: true },
     ],
   },
+  { key: 'preorder', label: 'สั่งล่วงหน้า', icon: 'calendar', home: '/admin/preorders', perms: ['managePreorder'], items: [{ to: '/admin/preorders', label: 'สั่งล่วงหน้า', icon: 'calendar', perms: ['managePreorder'] }] },
   { key: 'pos', label: 'POS', icon: 'pos', home: '/admin/pos', perms: ['pos'], items: [{ to: '/admin/pos', label: 'POS', icon: 'pos', perms: ['pos'] }] },
   { key: 'manee', label: 'ถุงเงิน', icon: 'wallet', home: '/admin/manee-test', perms: ['pos'], items: [{ to: '/admin/manee-test', label: 'ถุงเงิน', icon: 'wallet', perms: ['pos'], exact: true, mobile: true }] },
   { key: 'accounting', label: 'บัญชี', icon: 'wallet', home: '/admin/accounting', perms: ['acctView'], items: [{ to: '/admin/accounting', label: 'บัญชี', icon: 'wallet', perms: ['acctView'] }] },
@@ -31,7 +32,7 @@ export const systemsFor = (mode) => (mode === 'android'
   : ALL_SYSTEMS)
 export const SYSTEMS = systemsFor(APP_MODE)
 // เส้นทางที่เปิดได้ในแอป (โหมดเว็บเปิดทุกเส้นทาง) · หน้าแรกเป็น '' เมื่อผ่าน router (ตัด / ท้ายแล้ว)
-const CUSTOMER_PATHS = ['/menu', '/line', '/legal', '/account', '/o', '/luck', '/s']
+const CUSTOMER_PATHS = ['/menu', '/line', '/legal', '/account', '/o', '/luck', '/s', '/preorder']
 const isCustomerPath = (path) => ['', '/'].includes(path) || CUSTOMER_PATHS.some((p) => path === p || path.startsWith(p + '/'))
 export const allowedInAppMode = (mode, path) => {
   if (mode === 'customer') return isCustomerPath(path)
@@ -48,6 +49,7 @@ export function systemOf(path) {
   if (p === '/admin/no-access') return null
   if (p === '/admin/pos' || p.startsWith('/admin/pos/')) return 'pos'
   if (p === '/admin/manee-test' || p.startsWith('/admin/manee-test/')) return 'manee'
+  if (p === '/admin/preorders' || p.startsWith('/admin/preorders/')) return 'preorder'
   if (p === '/admin/accounting' || p.startsWith('/admin/accounting/')) return 'accounting'
   if (p === '/admin/settings' || p.startsWith('/admin/settings/')) return 'settings'
   return 'orders'

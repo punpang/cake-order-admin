@@ -10,7 +10,7 @@ export const SCHEDLIB_FILES = [
   'constants.js', 'format.js', 'pricing.js', 'payDue.js', 'loyalty.js', 'birthday.js', 'notifyPlan.js', 'bell.js', 'orderLink.js',
   'acct/plan.js', 'acct/period.js', 'acct/money.js', 'slipChecks.js', 'promptpay.js',
   // ราคาใบเสนอ (ฝั่งเซิร์ฟเวอร์ quote-create ใช้ตรรกะชุดเดียวกับแอป) และส่วนประกอบที่ใช้
-  'posPromo.js', 'delivery.js', 'shopHours.js', 'docNo.js', 'quotePrice.js', 'birthdayBenefit.js', 'orderCreate.js', 'posAudit.js', 'orderAudit.js', 'catalogHistory.js',
+  'posPromo.js', 'delivery.js', 'parcelShipping.js', 'shipDiscount.js', 'shopHours.js', 'docNo.js', 'quotePrice.js', 'birthdayBenefit.js', 'orderCreate.js', 'posAudit.js', 'orderAudit.js', 'catalogHistory.js',
   // บริการเกี่ยวกับเงิน (ซ่อนเงิน/ดึงเงิน/ซ่อนของ) และกติกาธนบัตรเงินพัก: ใช้คิดในใบเสนอ/ออร์เดอร์ที่เซิร์ฟเวอร์
   'holdMoney.js', 'cashService.js',
   // การ์ดสรุปออร์เดอร์ในแชท (ใช้สร้างการ์ดให้ออร์เดอร์เดิมตอนลูกค้าเปิดแชท)
@@ -21,6 +21,8 @@ export const SCHEDLIB_FILES = [
   'promoConsent.js', 'campaigns.js', 'memberNotify.js',
   // ใบกำกับภาษีเต็มรูปฝั่งลูกค้า (Edge Function tax-invoice ใช้กติกาชุดเดียวกับแอป) · กรอบเวลา เลขผู้เสียภาษี ข้อความตัวเลขเป็นบาท
   'taxInvoice.js', 'acct/taxWindow.js', 'acct/taxid.js', 'acct/thaiBaht.js',
+  // ราคาออร์เดอร์สั่งล่วงหน้า (Edge Function preorder ใช้ชุดเดียวกับแอป)
+  'preorderPrice.js', 'preorderReports.js', 'preorderNotify.js', 'preorderRounds.js', 'preorderCustomerOrders.js',
 ]
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')

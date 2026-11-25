@@ -533,6 +533,8 @@ export const db = reactive({
   luckyTokens: [],
   // consignRounds: [{ id, consignor, from, to, sales, payout, shop, orderIds, terms, createdAt, createdBy, paidAt, paidBy }] สรุปรอบสินค้าฝากขาย
   consignRounds: [],
+  // preorderCampaigns: [{ id, name, status, orderFrom, orderTo, pickupFrom, pickupTo, depositPercent, payDueMin, dayCap, items }] แคมเปญสั่งล่วงหน้า (ดู src/data/preorder.js)
+  preorderCampaigns: [],
   // บอทตอบแชท (ค่าเริ่มต้นปิด): rules = กฎคีย์เวิร์ด · learned = คู่ ถาม→ตอบ ที่เรียนจากพนักงาน (ตัดข้อมูลส่วนบุคคลแล้ว) · stats
   bot: JSON.parse(JSON.stringify(BOT_DEFAULTS)),
   // สลิปในแชท (config slipQr): enabled = ตรวจรูปสลิปในแชท · mode = auto (ผูกอัตโนมัติเมื่อรหัสอ้างอิงตรงกับออร์เดอร์และครบ 4 ข้อ รวมรหัสสุ่ม Ref 2 ที่ตรงกับรายการแจ้งชำระ) | manual (ร้านเลือกออร์เดอร์ผูกเองในแชท)
@@ -1579,6 +1581,10 @@ export function setHoldMoney(order, hm, c = {}) {
 // ตรวจก่อนแก้ข้อมูลทุกอย่าง → คืน { ok } หรือ { error }
 // ตัวทำงานหลังยกเลิกออร์เดอร์ (เช่น บัญชีออกใบลดหนี้) ลงทะเบียนจากโมดูลอื่น — store ไม่ import โมดูลเหล่านั้น
 export const cancelHooks = []
+// ตัวทำงานหลังคืนเงินบางส่วนสำเร็จ (เช่น บัญชีออกใบลดหนี้บางส่วน) · (order, entry) · ตั้ง entry.creditNoteId ได้
+export const refundHooks = []
+// ตัวตรวจก่อนคืนเงิน (order, amount) → ข้อความผิดพลาด หรือ '' · ลงทะเบียนจากโมดูลอื่น
+export const refundGuards = []
 export function cancelOrder(order, c) {
   if (!order || order.status === 'cancelled') return { error: 'ออร์เดอร์นี้ยกเลิกแล้ว' }
   // ยกเลิกออร์เดอร์ที่ส่งมอบแล้วคือการย้อนสถานะ (รวมการ void บิลหน้าร้าน) ต้องมีสิทธิ์ย้อนสถานะ
@@ -1622,6 +1628,12 @@ export function refundOrder(order, c) {
   const cu = findCustomer(order.customerId)
   const err = refundErrors(refunds, { paid: paidNet, canCredit: !!cu && !cu.deleted })
   if (err) return { error: err }
+  // ตัวตรวจก่อนคืนเงิน (เช่น ยอดคืนเกินยอดคงเหลือของใบกำกับ) ลงทะเบียนจากโมดูลอื่น
+  const refundAmount = round2(refunds.reduce((n, x) => n + x.amount, 0))
+  for (const g of refundGuards) {
+    const block = g(order, refundAmount)
+    if (block) return { error: block }
+  }
   // คืนสินค้ารายชิ้น (เฉพาะบิล POS): ไม่เกินจำนวนที่ซื้อและที่ยังไม่ได้คืน · ยอดคืนเงินตรวจด้านบนแล้ว
   const itemRows = []
   for (const line of Array.isArray(c?.items) ? c.items : []) {
@@ -1647,6 +1659,7 @@ export function refundOrder(order, c) {
   const summary = refunds.map((x) => `${REFUND_METHODS[x.method]} ${money(x.amount)}`).join(' + ')
   const itemsText = itemRows.length ? ` · คืนสินค้า ${itemRows.map((x) => `${x.name} ×${x.qty}`).join(', ')}` : ''
   log(order, `คืนเงินบางส่วน ${summary}${itemsText} · ${reason}`)
+  for (const h of refundHooks) h(order, entry)
   notifyOrder('order_refunded', order, { requested: amount, skip: c?.notify === false, noSms: c?.sms === false })
   return { ok: true, entry }
 }
@@ -1659,6 +1672,7 @@ export function cancelRefund(order, returnId, c = {}) {
   const r = (order.returns || []).find((x) => x.id === returnId)
   if (!r) return { error: 'ไม่พบรายการคืนเงิน' }
   if (r.cancelled) return { error: 'รายการนี้ยกเลิกไปแล้ว' }
+  if (r.creditNoteId) return { error: 'การคืนนี้ออกใบลดหนี้ไปแล้ว ยกเลิกการคืนไม่ได้' }
   if (r.kind === 'hold') return { error: 'การลดเงินพักยกเลิกไม่ได้ ให้แก้เงินพักใหม่แทน' }
   // การคืนที่เกิดจากการแลกสินค้า: ต้องยกเลิกบิลใหม่ของการแลกก่อน มิฉะนั้นบิลใหม่ยังอยู่แต่การคืนถูกย้อน
   const exchanged = r.exchangeTo ? db.orders.find((x) => x.id === r.exchangeTo) : null
@@ -1840,6 +1854,7 @@ export function saveShopSettings(d) {
     db.shop.closures = r.value
   }
   if (d.delivery) db.shop.delivery = cleanDeliveryConfig(d.delivery)
+  if (d.parcel) db.shop.parcel = d.parcel // ตารางค่าส่งพัสดุ: หน้าตั้งค่าเป็นผู้ clean ก่อนส่งเข้ามา
   if (d.payment) {
     const t = (v, n) => String(v ?? '').trim().slice(0, n)
     db.shop.payment = { accounts: payAccountsOf(d.payment), note: t(d.payment.note, 200) }

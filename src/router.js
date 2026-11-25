@@ -8,6 +8,8 @@ const StoreHome = () => import('./views/store/StoreHome.vue')
 const StoreMenu = () => import('./views/store/StoreMenu.vue')
 const StoreCakeGallery = () => import('./views/store/StoreCakeGallery.vue')
 const StoreItem = () => import('./views/store/StoreItem.vue')
+const StorePreorder = () => import('./views/store/StorePreorder.vue')
+const StorePreorderOrders = () => import('./views/store/StorePreorderOrders.vue')
 const AccountLogin = () => import('./views/account/AccountLogin.vue')
 const AccountRegister = () => import('./views/account/AccountRegister.vue')
 const AccountForgot = () => import('./views/account/AccountForgot.vue')
@@ -59,6 +61,7 @@ const Accounting = () => import('./views/accounting/Accounting.vue')
 const ManageLegal = () => import('./views/manage/ManageLegal.vue')
 const ManagePrinting = () => import('./views/manage/ManagePrinting.vue')
 const ManageLinks = () => import('./views/manage/ManageLinks.vue')
+const ManagePreorders = () => import('./views/manage/ManagePreorders.vue')
 const ManageRetention = () => import('./views/manage/ManageRetention.vue')
 const ManageGallery = () => import('./views/manage/ManageGallery.vue')
 const ManagePhotoRequests = () => import('./views/manage/ManagePhotoRequests.vue')
@@ -82,6 +85,8 @@ const router = createRouter({
     { path: '/menu/design/:id', component: StoreCakeDesign, props: true, meta: { store: true, pub: true } },
     { path: '/menu/custom', component: StoreItem, props: { kind: 'custom', id: '' }, meta: { store: true, pub: true } },
     { path: '/menu/:kind/:id', component: StoreItem, props: true, meta: { store: true, pub: true } },
+    { path: '/preorder', component: StorePreorder, meta: { store: true, pub: true } },
+    { path: '/preorder/orders', component: StorePreorderOrders, meta: { store: true, pub: true } },
     // ---------- ระบบลูกค้า (จำลอง จนกว่าจะต่อ Supabase) ----------
     { path: '/account/login', component: AccountLogin, meta: { store: true } },
     { path: '/account/register', component: AccountRegister, meta: { store: true } },
@@ -103,6 +108,7 @@ const router = createRouter({
     { path: '/admin/no-access', component: NoAccess },
     { path: '/admin/accounting', component: Accounting, meta: { perms: ['acctView'], data: ['ordersAcct'] } },
     { path: '/admin/orders', component: OrderList, meta: { perms: ['viewAllOrders', 'viewPrepOrders', 'viewDeliveryOrders'] } },
+    { path: '/admin/preorders', component: ManagePreorders, meta: { perms: ['managePreorder'], data: ['preorders'] } },
     { path: '/admin/orders/new', component: OrderCreate, meta: { focus: true, perms: ['createOrder'], data: ['chats'] } },
     { path: '/admin/orders/:id', component: OrderDetail, props: true, meta: { focus: true, data: ['chats'] } },
     { path: '/admin/payments', component: Payments, meta: { perms: ['reportPayment', 'confirmPayment'] } },
@@ -144,6 +150,7 @@ const router = createRouter({
     { path: '/admin/settings/deletion-requests', component: ManageDeletionRequests, meta: { data: ['rec:deletionRequests'] } },
     { path: '/admin/settings/legal', component: ManageLegal, meta: { data: ['rec:consents'] } },
     { path: '/admin/settings/links', component: ManageLinks },
+    { path: '/admin/settings/preorders', redirect: '/admin/preorders' },
     { path: '/admin/settings/bot', component: ManageBot },
     { path: '/admin/settings/retention', component: ManageRetention },
     { path: '/admin/settings/errors', component: ManageErrors, meta: { data: ['users'] } },

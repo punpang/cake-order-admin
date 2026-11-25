@@ -75,7 +75,8 @@ export function newQrSuffix() {
   return out
 }
 // Ref 2 = ORD + 12 หลักตามเลขออร์เดอร์ (ORD+ddmmyy+xxxxxx) หรือ POS + เลขสุ่ม 12 หลัก (newPosQrRef ใน store.js · ไม่ใช่เลขที่บิล) แล้วต่อด้วยรหัสสุ่ม 5 ตัว
-export const qrRefOk = (v) => /^(?:ORD\d{12}|POS\d{12})[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{5}$/.test(String(v ?? ''))
+// PRE = คำขอ QR ของออร์เดอร์สั่งล่วงหน้า: PRE + ddmmyy + เลข 6 หลัก (12 หลัก) + รหัสสุ่ม 5 ตัว
+export const qrRefOk = (v) => /^(?:ORD\d{12}|POS\d{12}|PRE\d{12})[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{5}$/.test(String(v ?? ''))
 
 // รหัสร้านค้า (Ref 1): ตัวอักษร A–Z และตัวเลข 1–20 ตัว (ตัดช่องว่างและขีด · ตัวพิมพ์เล็กเป็นพิมพ์ใหญ่) · ขึ้นต้นด้วย POS/ORD = ไม่ใช่รหัสร้านค้า · ไม่ตรงรูปแบบ = ''
 export const shopCodeOf = (s) => {

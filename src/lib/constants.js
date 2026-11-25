@@ -56,6 +56,7 @@ export const PERMISSIONS = {
   manageUsers: ['admin'], // แก้สิทธิ์/ผู้ใช้
   // ระบบบัญชี
   acctView: ['admin'], acctRecord: ['admin'], acctClose: ['admin'], acctReports: ['admin'], acctTax: ['admin'], acctAssets: ['admin'], taxInvoice: ['admin'], acctSettings: ['admin'],
+  managePreorder: ['admin'], // ตั้งและจัดการสั่งล่วงหน้า (แคมเปญ โควตา)
 }
 
 // PERMISSIONS ข้างบน = ค่าตั้งต้นของแต่ละบทบาท · สิทธิ์จริงของผู้ใช้เก็บเป็นรายการที่ติ๊ก (user.perms)
@@ -105,6 +106,7 @@ export const PERM_GROUPS = [
     { key: 'viewProfit', label: 'ดูต้นทุน / กำไร' },
     { key: 'manage', label: 'หน้าจัดการ (สินค้า ราคา ตั้งค่าร้าน ฯลฯ)' },
     { key: 'manageUsers', label: 'จัดการผู้ใช้และสิทธิ์', hint: 'ต้องมีอย่างน้อย 1 คนที่ใช้งานอยู่เสมอ' },
+    { key: 'managePreorder', label: 'ตั้งและจัดการสั่งล่วงหน้า (แคมเปญ โควตา)' },
   ] },
   { title: 'บัญชี / ภาษี', items: [
     { key: 'acctView', label: 'เข้าระบบบัญชี / ดูรายการและรายงาน' },
