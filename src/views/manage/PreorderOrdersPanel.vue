@@ -12,6 +12,19 @@ const f = reactive({}) // orderId → ค่าที่กรอกของแ
 
 const STATUS = { awaiting_payment: 'รอชำระมัดจำ', payment_confirmed: 'ชำระมัดจำแล้ว', shipped: 'ส่งแล้ว', delivered: 'ได้รับแล้ว', returned: 'ตีกลับ/รับคืน', expired: 'หมดเวลา', cancelled: 'ยกเลิก' }
 const METHOD = { cash: 'เงินสด', bank: 'โอนบัญชี', points: 'คะแนน' }
+// ตัวกรองตามสถานะ: แต่ละกลุ่มรวมสถานะที่ต้องจัดการแบบเดียวกัน
+const FILTERS = [
+  { key: 'all', label: 'ทั้งหมด', match: () => true },
+  { key: 'awaiting', label: 'รอชำระมัดจำ', match: (o) => o.status === 'awaiting_payment' },
+  { key: 'paid', label: 'ชำระมัดจำแล้ว', match: (o) => o.status === 'payment_confirmed' },
+  { key: 'shipped', label: 'ส่งแล้ว', match: (o) => o.status === 'shipped' },
+  { key: 'delivered', label: 'ได้รับแล้ว', match: (o) => o.status === 'delivered' },
+  { key: 'returned', label: 'ตีกลับ/รับคืน', match: (o) => o.status === 'returned' },
+  { key: 'ended', label: 'ยกเลิกหรือหมดเวลา', match: (o) => o.status === 'cancelled' || o.status === 'expired' },
+]
+const filter = ref('all')
+const countOf = (key) => orders.value.filter(FILTERS.find((x) => x.key === key).match).length
+const shown = computed(() => orders.value.filter(FILTERS.find((x) => x.key === filter.value).match))
 
 async function load() {
   loading.value = true
@@ -115,7 +128,11 @@ onMounted(load)
       ยอดออร์เดอร์ {{ summary.value }} บาท · ค่าไปรษณีย์ที่บันทึกแล้ว {{ summary.postage }} บาท
     </p>
     <p v-if="msg" class="mt-2 text-sm text-stone-700" role="status">{{ msg }}</p>
+    <div v-if="orders.length" role="group" aria-label="กรองตามสถานะ" class="mt-3 flex flex-wrap gap-2" data-order-filter>
+      <button v-for="g in FILTERS" :key="g.key" type="button" class="chip h-11 px-3 text-sm" :class="filter === g.key ? 'chip-on' : 'chip-off'" :aria-pressed="filter === g.key" @click="filter = g.key">{{ g.label }} {{ countOf(g.key) }}</button>
+    </div>
     <p v-if="!loading && !orders.length" class="mt-2 text-sm text-stone-500">ยังไม่มีออร์เดอร์</p>
+    <p v-if="!loading && orders.length && !shown.length" class="mt-3 text-sm text-stone-500">ไม่มีออร์เดอร์ในสถานะนี้</p>
     <div class="mt-3" data-ship-batch-root>
       <button v-if="!batch.open" type="button" class="btn-primary h-11 px-4" @click="openBatch">กรอกการส่งทั้งชุด</button>
       <div v-else class="space-y-3 rounded-xl border border-stone-200 p-3">
@@ -131,8 +148,8 @@ onMounted(load)
         <button type="button" class="btn-outline h-11 px-3" @click="applyPasteToRows">จับคู่เลขกับแถว</button>
         <p v-if="!batch.rows.length" class="text-sm text-stone-500">ไม่มีออร์เดอร์ที่พร้อมส่ง</p>
         <div v-else class="space-y-2">
-          <div class="hidden grid-cols-4 gap-2 text-xs text-stone-500 sm:grid"><span>รหัส / ลูกค้า</span><span>เลขพัสดุ</span><span>ค่าไปรษณีย์ (บาท)</span><span></span></div>
-          <div v-for="(r, i) in batch.rows" :key="r.orderId" class="grid grid-cols-1 gap-2 rounded-xl border border-stone-100 p-2 sm:grid-cols-4 sm:items-start">
+          <div class="hidden grid-cols-4 gap-2 text-xs text-stone-500 md:grid"><span>รหัส / ลูกค้า</span><span>เลขพัสดุ</span><span>ค่าไปรษณีย์ (บาท)</span><span></span></div>
+          <div v-for="(r, i) in batch.rows" :key="r.orderId" class="grid grid-cols-1 gap-2 rounded-xl border border-stone-100 p-2 md:grid-cols-4 md:items-start">
             <div class="text-sm"><div class="font-mono">{{ r.code }}</div><div class="text-stone-600">{{ r.customer }}</div></div>
             <div>
               <input :ref="(el) => { trackRefs[i] = el }" v-model="r.tracking" class="input h-11 w-full" :aria-label="`เลขพัสดุ ${r.code}`" @keydown.enter.prevent="focusNext(i)" />
@@ -149,7 +166,7 @@ onMounted(load)
       </div>
     </div>
     <ul class="mt-3 space-y-3">
-      <li v-for="o in orders" :key="o.id" class="rounded-xl border border-stone-200 p-3 text-sm" :data-order-code="o.code">
+      <li v-for="o in shown" :key="o.id" class="rounded-xl border border-stone-200 p-3 text-sm" :data-order-code="o.code">
         <div class="flex items-center justify-between gap-2">
           <span class="font-medium">{{ o.code }} · {{ o.customerName }}</span>
           <span class="rounded-full bg-stone-100 px-2 py-0.5 text-xs">{{ STATUS[o.status] || o.status }}</span>
@@ -159,54 +176,54 @@ onMounted(load)
 
         <!-- ยืนยันเงินสด -->
         <div v-if="['awaiting_payment', 'payment_confirmed', 'expired'].includes(o.status)" class="mt-2 flex flex-wrap items-center gap-2">
-          <input v-model="box(o.id).amount" type="number" min="0" step="0.01" class="input h-9 w-28" aria-label="ยอดเงินสด" />
-          <button type="button" class="btn-outline h-9 px-3" @click="act(o, 'record_payment', { amount: Number(box(o.id).amount), method: 'cash' }, 'บันทึกเงินสดแล้ว')">รับเงินสด</button>
+          <input v-model="box(o.id).amount" type="number" min="0" step="0.01" class="input h-11 w-28" aria-label="ยอดเงินสด" placeholder="ยอดเงินสด" />
+          <button type="button" class="btn-outline h-11 px-3" @click="act(o, 'record_payment', { amount: Number(box(o.id).amount), method: 'cash' }, 'บันทึกเงินสดแล้ว')">รับเงินสด</button>
         </div>
 
         <!-- เลขพัสดุ -->
         <div v-if="o.pickupRound" class="mt-2 flex flex-wrap items-center gap-2">
-          <button v-if="o.pickupRound && !o.readyAt && !['cancelled', 'expired', 'delivered', 'returned'].includes(o.status)" type="button" class="btn-outline h-9 px-3" @click="act(o, 'mark_ready', {}, 'บันทึกว่าเตรียมเสร็จแล้ว')">เตรียมเสร็จ (รอบ {{ o.pickupRound }})</button>
+          <button v-if="o.pickupRound && !o.readyAt && !['cancelled', 'expired', 'delivered', 'returned'].includes(o.status)" type="button" class="btn-outline h-11 px-3" @click="act(o, 'mark_ready', {}, 'บันทึกว่าเตรียมเสร็จแล้ว')">เตรียมเสร็จ (รอบ {{ o.pickupRound }})</button>
           <span v-if="o.readyAt" class="text-xs text-emerald-700">เตรียมเสร็จแล้ว</span>
         </div>
         <div v-if="o.status === 'payment_confirmed' && o.fulfillment === 'delivery' && !o.shipping" class="mt-2 flex flex-wrap items-center gap-2">
-          <input v-model="box(o.id).carrier" class="input h-9 w-28" placeholder="ขนส่ง" aria-label="ชื่อขนส่ง" />
-          <input v-model="box(o.id).tracking" class="input h-9 w-36" placeholder="เลขพัสดุ" aria-label="เลขพัสดุ" />
-          <input v-model="box(o.id).postage" type="number" min="0" step="0.01" class="input h-9 w-28" placeholder="ค่าไปรษณีย์ (บาท)" aria-label="ค่าไปรษณีย์จริง (บาท)" />
-          <button type="button" class="btn-primary h-9 px-3" @click="act(o, 'set_shipping', { carrier: box(o.id).carrier, trackingNo: box(o.id).tracking, postage: box(o.id).postage === '' ? 0 : Number(box(o.id).postage) }, 'บันทึกเลขพัสดุแล้ว')">บันทึกการส่ง</button>
+          <input v-model="box(o.id).carrier" class="input h-11 w-28" placeholder="ขนส่ง" aria-label="ชื่อขนส่ง" />
+          <input v-model="box(o.id).tracking" class="input h-11 w-36" placeholder="เลขพัสดุ" aria-label="เลขพัสดุ" />
+          <input v-model="box(o.id).postage" type="number" min="0" step="0.01" class="input h-11 w-28" placeholder="ค่าไปรษณีย์ (บาท)" aria-label="ค่าไปรษณีย์จริง (บาท)" />
+          <button type="button" class="btn-primary h-11 px-3" @click="act(o, 'set_shipping', { carrier: box(o.id).carrier, trackingNo: box(o.id).tracking, postage: box(o.id).postage === '' ? 0 : Number(box(o.id).postage) }, 'บันทึกเลขพัสดุแล้ว')">บันทึกการส่ง</button>
         </div>
 
         <!-- ได้รับแล้ว / ตีกลับ -->
         <div v-if="o.status === 'shipped'" class="mt-2 flex flex-wrap items-center gap-2">
-          <button type="button" class="btn-outline h-9 px-3" @click="act(o, 'mark_delivered', {}, 'ยืนยันรับแล้ว')">ยืนยันรับแล้ว</button>
-          <input v-model="box(o.id).reason" class="input h-9 w-44" placeholder="เหตุผลตีกลับ" aria-label="เหตุผลตีกลับ" />
-          <button type="button" class="btn-outline h-9 px-3" @click="act(o, 'record_return', { reason: box(o.id).reason }, 'บันทึกการตีกลับแล้ว')">บันทึกตีกลับ</button>
+          <button type="button" class="btn-outline h-11 px-3" @click="act(o, 'mark_delivered', {}, 'ยืนยันรับแล้ว')">ยืนยันรับแล้ว</button>
+          <input v-model="box(o.id).reason" class="input h-11 w-44" placeholder="เหตุผลตีกลับ" aria-label="เหตุผลตีกลับ" />
+          <button type="button" class="btn-outline h-11 px-3" @click="act(o, 'record_return', { reason: box(o.id).reason }, 'บันทึกการตีกลับแล้ว')">บันทึกตีกลับ</button>
         </div>
         <div v-if="o.status === 'delivered'" class="mt-2 flex flex-wrap items-center gap-2">
-          <input v-model="box(o.id).reason" class="input h-9 w-44" placeholder="เหตุผลรับคืน" aria-label="เหตุผลรับคืน" />
-          <button type="button" class="btn-outline h-9 px-3" @click="act(o, 'record_return', { reason: box(o.id).reason }, 'บันทึกการรับคืนแล้ว')">บันทึกรับคืน</button>
+          <input v-model="box(o.id).reason" class="input h-11 w-44" placeholder="เหตุผลรับคืน" aria-label="เหตุผลรับคืน" />
+          <button type="button" class="btn-outline h-11 px-3" @click="act(o, 'record_return', { reason: box(o.id).reason }, 'บันทึกการรับคืนแล้ว')">บันทึกรับคืน</button>
         </div>
 
         <!-- ตัดสิน: คืนเงิน (ริบค่าส่ง) หรือจัดส่งใหม่ (ริบค่าส่งเดิม) -->
         <div v-if="o.status === 'returned' && lastDecidable(o)" class="mt-2 space-y-2">
           <div class="flex flex-wrap items-center gap-2">
-            <input v-model="box(o.id).amount" type="number" min="0" step="0.01" class="input h-9 w-28" aria-label="ยอดคืนเงิน" />
-            <select v-model="box(o.id).method" class="input h-9 w-28" aria-label="วิธีคืนเงิน">
+            <input v-model="box(o.id).amount" type="number" min="0" step="0.01" class="input h-11 w-28" aria-label="ยอดคืนเงิน" placeholder="ยอดคืนเงิน" />
+            <select v-model="box(o.id).method" class="input h-11 w-28" aria-label="วิธีคืนเงิน">
               <option value="cash">เงินสด</option>
               <option value="bank">โอนบัญชี</option>
               <option value="points">คะแนน</option>
             </select>
-            <button type="button" class="btn-primary h-9 px-3" @click="act(o, 'refund_return', { refunds: [{ amount: Number(box(o.id).amount), method: box(o.id).method }] }, 'คืนเงินแล้ว (ค่าส่งเดิมถูกริบ)')">คืนเงิน</button>
+            <button type="button" class="btn-primary h-11 px-3" @click="act(o, 'refund_return', { refunds: [{ amount: Number(box(o.id).amount), method: box(o.id).method }] }, 'คืนเงินแล้ว (ค่าส่งเดิมถูกริบ)')">คืนเงิน</button>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <input v-model="box(o.id).fee" type="number" min="0" step="0.01" class="input h-9 w-28" aria-label="ค่าส่งใหม่" />
-            <button type="button" class="btn-outline h-9 px-3" @click="act(o, 'reship', { newFee: Number(box(o.id).fee) }, 'ตั้งจัดส่งใหม่แล้ว ลูกค้าต้องชำระค่าส่งใหม่')">จัดส่งใหม่</button>
+            <input v-model="box(o.id).fee" type="number" min="0" step="0.01" class="input h-11 w-28" aria-label="ค่าส่งใหม่" placeholder="ค่าส่งใหม่" />
+            <button type="button" class="btn-outline h-11 px-3" @click="act(o, 'reship', { newFee: Number(box(o.id).fee) }, 'ตั้งจัดส่งใหม่แล้ว ลูกค้าต้องชำระค่าส่งใหม่')">จัดส่งใหม่</button>
           </div>
         </div>
 
         <!-- ขยายเวลา -->
         <div v-if="o.status === 'expired'" class="mt-2 flex flex-wrap items-center gap-2">
-          <input v-model="box(o.id).newDue" type="datetime-local" class="input h-9 w-48" aria-label="เวลากำหนดชำระใหม่" />
-          <button type="button" class="btn-outline h-9 px-3" @click="act(o, 'extend', { newDue: new Date(box(o.id).newDue).toISOString() }, 'อนุมัติขยายเวลาแล้ว')">อนุมัติขยายเวลา</button>
+          <input v-model="box(o.id).newDue" type="datetime-local" class="input h-11 w-48" aria-label="เวลากำหนดชำระใหม่" />
+          <button type="button" class="btn-outline h-11 px-3" @click="act(o, 'extend', { newDue: new Date(box(o.id).newDue).toISOString() }, 'อนุมัติขยายเวลาแล้ว')">อนุมัติขยายเวลา</button>
         </div>
       </li>
     </ul>
