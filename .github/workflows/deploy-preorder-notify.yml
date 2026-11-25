@@ -1,0 +1,36 @@
+name: Deploy preorder-notify
+
+# รันเองเท่านั้น: GitHub → Actions → Deploy preorder-notify → Run workflow
+# ฟังก์ชันนี้ถูกเรียกจาก pg_cron ทุก 5 นาทีด้วยคีย์ x-cron-key จึงปิด JWT ตรวจสอบ (เหมือน scheduled)
+# ต้องมี secret SCHEDULED_KEY ใน Supabase แล้ว · ขั้นเทสต์ต้องผ่านก่อนจึงจะ deploy
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: เทสต์โมดูลที่ใช้ร่วมกัน (_shared)
+        run: deno test --no-prompt --no-lock --node-modules-dir=none supabase/functions/_shared/
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: รันจาก main เท่านั้น
+        run: '[ "$GITHUB_REF" = "refs/heads/main" ] || { echo "รันได้เฉพาะจาก main"; exit 1; }'
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # --no-verify-jwt: pg_cron เรียกโดยไม่มี JWT (ตรวจด้วยคีย์ x-cron-key ในฟังก์ชัน)
+      # --yes: ไม่มี TTY ใน Actions จึงต้องยืนยันล่วงหน้า
+      - name: Deploy preorder-notify
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions deploy preorder-notify --project-ref itleduijrckxdbhhuooi --no-verify-jwt --yes
