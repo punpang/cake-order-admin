@@ -10,7 +10,7 @@ export const STATIC = [
   '/admin/settings/links', '/admin/settings/preorders', '/admin/settings/loyalty', '/admin/settings/lucky', '/admin/settings/options',
   '/admin/settings/photo-requests', '/admin/settings/pricing', '/admin/settings/products', '/admin/settings/profit',
   '/admin/settings/printing', '/admin/settings/promos', '/admin/settings/retail', '/admin/settings/retention', '/admin/settings/shop',
-  '/admin/settings/sms', '/admin/settings/storefront', '/admin/settings/sync-review', '/admin/settings/test', '/admin/settings/users',
+  '/admin/settings/sms', '/admin/settings/storefront', '/admin/settings/sync-review', '/admin/settings/users',
   '/display', '/legal/privacy', '/legal/terms', '/legal/cookie', '/line', '/member', '/menu', '/menu/custom', '/menu/gallery',
   '/manage', '/pos', '/chat', '/orders',
 ]

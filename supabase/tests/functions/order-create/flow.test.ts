@@ -8,7 +8,8 @@ import { pushOrders as pushOrdersJs } from '../../../../src/lib/ordersSync.js'
 // ชนิดของ pushOrders อนุมานจากค่าเริ่มต้นในไฟล์ JS (numbering = null) จึงใช้แบบไม่ตรวจชนิด
 const pushOrders = pushOrdersJs as any
 import { createNumbering } from '../../../../src/lib/docNo.js'
-import { docCode, TEST_HEADER } from '../../../../src/lib/testMode.js'
+const TEST_HEADER = 'x-punpang-mode'
+const docCode = (code: string, on: boolean) => (on && code ? 'TEST-' + code : code)
 
 // ---------- ดึง handler ของ order-create ----------
 let handler: (r: Request) => Promise<Response> = null as any

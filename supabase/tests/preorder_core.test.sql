@@ -72,10 +72,4 @@ select test.ok('PC6c สร้างออร์เดอร์ preorder โด�
     insert into public.punpang_preorder_orders (id, campaign_id, code, status, pickup_date)
     values ('po_x', 'pcseed', 'PRE-241124-000001', 'awaiting_payment', '2026-12-24')$$), 10) = 'ERR:42501:');
 
--- PC7 ตารางทั้งสามมีในสำเนาโหมดทดสอบด้วย (ซิงก์จากแพตช์ iso list)
-select test.ok('PC7 ตารางทั้งสามถูกสร้างในสำเนา punpang_test',
-  (select count(*) from information_schema.tables
-    where table_schema = 'punpang_test'
-      and table_name in ('punpang_preorder_campaigns', 'punpang_preorder_orders', 'punpang_preorder_slots')) = 3);
-
 rollback;

@@ -6,9 +6,6 @@ import { quietly } from './lib/loading'
 import { paymentCounts } from './lib/paymentsQueue'
 import { focusMain } from './lib/a11yNav'
 import { supabaseEnabled } from './lib/supabase'
-import { testModeOn, writeTestMode } from './lib/testMode'
-const testOn = testModeOn(supabaseEnabled)
-function leaveTestMode() { writeTestMode(false); location.reload() }
 import { staffState, staffSignOut } from './lib/staffAuth'
 import { kb, watchViewport } from './lib/viewportFit'
 import { ROLES } from './lib/constants'
@@ -82,10 +79,6 @@ onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('poin
 </script>
 
 <template>
-  <div v-if="testOn" role="status" class="sticky top-0 z-50 flex flex-wrap items-center justify-center gap-2 bg-amber-500 px-3 py-1.5 text-center text-sm font-medium text-white">
-    <span>โหมดทดสอบ · ข้อมูลแยกจากของจริง · ตั้งค่าร้านใช้ร่วมกันและแก้ไม่ได้</span>
-    <button type="button" class="rounded-full bg-white/20 px-3 py-0.5 hover:bg-white/30" @click="leaveTestMode">ออกจากโหมดทดสอบ</button>
-  </div>
   <button type="button" class="skip-link" @click="focusMain()">ข้ามไปเนื้อหาหลัก</button>
   <LightboxHost />
   <LoadingOverlay v-if="!$route.meta.display" />

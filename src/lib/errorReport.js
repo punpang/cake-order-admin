@@ -46,12 +46,12 @@ export function installErrorReporting(app) {
   installed = true
   let ctx = null
   const ready = (async () => {
-    const [{ supabaseEnabled, getSupabase, isTestMode }, { staffState }] = await Promise.all([import('./supabase.js'), import('./staffAuth.js')])
+    const [{ supabaseEnabled, getSupabase }, { staffState }] = await Promise.all([import('./supabase.js'), import('./staffAuth.js')])
     if (!supabaseEnabled) return
-    ctx = { client: await getSupabase(), staffState, isTestMode }
+    ctx = { client: await getSupabase(), staffState }
   })().catch(() => {})
   const report = makeReporter({
-    enabled: () => !!(ctx && ctx.client && ctx.staffState.staff && !ctx.isTestMode()),
+    enabled: () => !!(ctx && ctx.client && ctx.staffState.staff),
     send: async (p) => { await ready; const r = await ctx.client.rpc('punpang_log_error', p); if (r.error) throw r.error },
     url: () => location.hash || location.pathname,
     ua: () => navigator.userAgent,

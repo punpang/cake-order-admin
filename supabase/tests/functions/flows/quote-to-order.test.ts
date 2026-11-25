@@ -6,7 +6,7 @@ import golden from '../../../../src/lib/quotePrice.golden.json' with { type: 'js
 import { createQuoteRemote } from '../../../../src/lib/quoteRemote.js'
 import { pushOrders as pushOrdersJs } from '../../../../src/lib/ordersSync.js'
 import { createNumbering } from '../../../../src/lib/docNo.js'
-import { docCode } from '../../../../src/lib/testMode.js'
+const docCode = (code: string, on: boolean) => (on && code ? 'TEST-' + code : code)
 import { appClient, installFakeRest, loadHandler, seedCatalog } from '../_fake/rest.ts'
 // ช่องคิวรอตรวจของผู้จัดการ (punpang_sync_review): ออร์เดอร์ใหม่ที่ระบบปฏิเสธถาวรเข้าคิวที่นี่
 const reviews: any[] = []

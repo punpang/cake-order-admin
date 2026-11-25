@@ -59,10 +59,6 @@ select test.ok('POB7: ผู้ใช้ทั่วไปและ anon เร�
 select test.ok('POB7: ด่านติดกับตารางออร์เดอร์แล้ว',
   exists (select 1 from pg_trigger where tgname = 'punpang_orders_payment_over_bill' and tgrelid = 'public.punpang_orders'::regclass and not tgisinternal));
 
--- POB8: โหมดทดสอบข้ามด่านนี้ (ข้อมูลจำลองสร้างตามสถานะสุดท้ายได้) · ตารางจริง (public) ยังถูกบังคับ
-select test.ok('POB8: โหมดทดสอบสร้างออร์เดอร์ที่ยอดยืนยันเกินยอดบิลได้ (ตามข้อมูลจำลอง)',
-  test.pob_try($q$ insert into punpang_test.punpang_orders (id, code, customer_id, status, fulfillment, channel, data) values ('pob_test', 'OR-POB-8', 'c1', 'payment_confirmed', 'pickup', 'pos', '{"items":[{"id":"x1","unitPrice":1000,"qty":1}],"payments":[{"id":"p1","status":"confirmed","amount":1001}]}') $q$) = 'OK');
-
 rollback;
 
 select 'ผ่านทั้งหมด' as payment_over_bill_tests;
