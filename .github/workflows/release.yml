@@ -88,8 +88,6 @@ jobs:
       - name: ตรวจ migration และฐานข้อมูลก่อนรัน
         if: ${{ github.event.inputs.db_migrations != '' }}
         run: |
-          s=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from information_schema.schemata where schema_name = 'punpang_test'")
-          [ "$s" = "1" ] || { echo "ไม่พบสคีมา punpang_test บน production"; exit 1; }
           for f in $DB_MIGRATIONS; do
             [ -f "supabase/migrations/$f" ] || { echo "ไม่พบไฟล์ supabase/migrations/$f ในรีโป (รันจาก main แล้วหรือยัง)"; exit 1; }
             v="${f%%_*}"
@@ -103,6 +101,12 @@ jobs:
           args=""
           for f in $DB_MIGRATIONS; do args="$args -f supabase/migrations/$f"; done
           psql "$SUPABASE_DB_URL" -X -q -v ON_ERROR_STOP=1 -1 $args
+
+      - name: ตรวจผลหลังรัน migration ลบสคีมา punpang_test
+        if: ${{ contains(github.event.inputs.db_migrations, 'punpang_test_schema_drop') }}
+        run: |
+          s=$(psql "$SUPABASE_DB_URL" -X -tA -c "select count(*) from information_schema.schemata where schema_name = 'punpang_test'")
+          [ "$s" = "0" ] || { echo "ยังพบสคีมา punpang_test หลังรัน migration"; exit 1; }
 
       - name: บันทึกประวัติ migration
         if: ${{ github.event.inputs.db_migrations != '' }}
