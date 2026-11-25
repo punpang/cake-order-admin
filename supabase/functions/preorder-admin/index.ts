@@ -46,10 +46,10 @@ Deno.serve(corsWrap(async (req) => {
   const action = String(body.action ?? '')
   const orderId = String(body.orderId ?? '')
 
-  // ออร์เดอร์สั่งล่วงหน้าที่ยังไม่ปิดของลูกค้าคนหนึ่ง (แชท) · กรองที่เซิร์ฟเวอร์ตาม customerId เท่านั้น
+  // ออร์เดอร์สั่งล่วงหน้าที่ยังไม่ปิดของลูกค้าคนหนึ่ง (แชท) · กรองที่เซิร์ฟเวอร์ตาม customerId (รหัสลูกค้าเป็น text) เท่านั้น
   if (action === 'customerOrders') {
     const cid = String(body.customerId ?? '')
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cid)) return json({ error: 'ลูกค้าไม่ถูกต้อง' }, 400)
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(cid)) return json({ error: 'ลูกค้าไม่ถูกต้อง' }, 400)
     const r = await sb.from('punpang_preorder_orders').select('id,code,status,pickup_date,data').eq('customer_id', cid).limit(200)
     if (r.error) return json({ error: 'โหลดออร์เดอร์ไม่สำเร็จ' }, 500)
     const rows = ((r.data || []) as any[]).map((x) => {

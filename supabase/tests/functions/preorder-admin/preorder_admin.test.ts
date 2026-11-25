@@ -152,7 +152,8 @@ const CUST_B = '22222222-2222-4222-8222-222222222222'
 Deno.test('customerOrders: ไม่มีสิทธิ์ 403 · รหัสลูกค้าไม่ถูกต้อง 400', async () => {
   seed()
   assertEquals((await call({ action: 'customerOrders', customerId: CUST_A }, 'tok-chat')).status, 403)
-  assertEquals((await call({ action: 'customerOrders', customerId: 'abc' })).status, 400)
+  assertEquals((await call({ action: 'customerOrders', customerId: 'bad id!' })).status, 400)
+  assertEquals((await call({ action: 'customerOrders', customerId: 'x'.repeat(65) })).status, 400)
 })
 
 Deno.test('customerOrders: คืนเฉพาะออร์เดอร์ของลูกค้าที่ขอ และไม่คืนออร์เดอร์ที่ยกเลิก', async () => {
