@@ -46,7 +46,7 @@ jobs:
       - name: เทสต์ customer-auth ทั้งฟังก์ชัน
         run: deno test -A --no-lock --node-modules-dir=none --import-map=supabase/tests/functions/customer-auth/importmap.json supabase/tests/functions/customer-auth/
       - name: เทสต์ Edge Function ทุกโฟลเดอร์
-        run: deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/_fake/importmap.json supabase/tests/functions/order-create/ supabase/tests/functions/preorder/ supabase/tests/functions/preorder-admin/ supabase/tests/functions/flows/ supabase/tests/functions/messaging/ supabase/tests/functions/guard/ supabase/tests/functions/sms-send/ supabase/tests/functions/order-link/ supabase/tests/functions/tungngern-receiver/ supabase/tests/functions/loyalty/ supabase/tests/functions/lucky/ supabase/tests/functions/tungngern-list/ supabase/tests/functions/chat-photo-prune/ supabase/tests/functions/line-link/ supabase/tests/functions/campaign/ supabase/tests/functions/scheduled/ supabase/tests/functions/order-audit/ supabase/tests/functions/tax-invoice/ supabase/tests/functions/line-webhook/ supabase/tests/functions/push-send/ supabase/tests/functions/customer-order/ supabase/tests/functions/fb-connect/ supabase/tests/functions/fb-webhook/
+        run: deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/_fake/importmap.json supabase/tests/functions/order-create/ supabase/tests/functions/preorder/ supabase/tests/functions/preorder-admin/ supabase/tests/functions/preorder-notify/ supabase/tests/functions/flows/ supabase/tests/functions/messaging/ supabase/tests/functions/guard/ supabase/tests/functions/sms-send/ supabase/tests/functions/order-link/ supabase/tests/functions/tungngern-receiver/ supabase/tests/functions/loyalty/ supabase/tests/functions/lucky/ supabase/tests/functions/tungngern-list/ supabase/tests/functions/chat-photo-prune/ supabase/tests/functions/line-link/ supabase/tests/functions/campaign/ supabase/tests/functions/scheduled/ supabase/tests/functions/order-audit/ supabase/tests/functions/tax-invoice/ supabase/tests/functions/line-webhook/ supabase/tests/functions/push-send/ supabase/tests/functions/customer-order/ supabase/tests/functions/fb-connect/ supabase/tests/functions/fb-webhook/
       - name: ตรวจชนิดข้อมูลของ Edge Function ที่จะ deploy
         run: deno check --no-lock --node-modules-dir=none supabase/functions/*/index.ts
 
@@ -60,13 +60,14 @@ jobs:
       DB_MIGRATIONS: ${{ github.event.inputs.db_migrations }}
       FUNCTIONS: ${{ github.event.inputs.functions }}
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       PGSSLMODE: require
     steps:
       - name: รันจาก main เท่านั้น
         run: '[ "$GITHUB_REF" = "refs/heads/main" ] || { echo "รันได้เฉพาะจาก main"; exit 1; }'
 
       - name: ตรวจการยืนยันและรายการที่จะรัน
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           if [ "$CONFIRM" != "RUN" ]; then echo "ยังไม่ได้พิมพ์ RUN เพื่อยืนยัน จึงไม่รัน"; exit 1; fi
           if [ -z "$DB_MIGRATIONS" ] && [ -z "$FUNCTIONS" ]; then echo "ไม่มีรายการให้รัน (ต้องระบุ db_migrations หรือ functions)"; exit 1; fi
@@ -125,11 +126,13 @@ jobs:
 
       - name: deploy Edge Function
         if: ${{ github.event.inputs.functions != '' }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           for fn in $FUNCTIONS; do
             case "$fn" in
               campaign|fb-send|line-push|order-create|quote-create|sms-send|telegram-send|preorder-admin) flag="" ;;
-              chat-photo-prune|customer-auth|customer-loyalty|customer-order|preorder|fb-connect|fb-webhook|line-link|line-webhook|lucky-spin|order-audit|order-link|push-send|scheduled|tax-invoice|tungngern-list|tungngern-receiver) flag="--no-verify-jwt" ;;
+              chat-photo-prune|customer-auth|customer-loyalty|customer-order|preorder|preorder-notify|fb-connect|fb-webhook|line-link|line-webhook|lucky-spin|order-audit|order-link|push-send|scheduled|tax-invoice|tungngern-list|tungngern-receiver) flag="--no-verify-jwt" ;;
               *) echo "ไม่รู้จักฟังก์ชัน $fn (ยังไม่มีในรายการ deploy)"; exit 1 ;;
             esac
             echo "deploy $fn"
