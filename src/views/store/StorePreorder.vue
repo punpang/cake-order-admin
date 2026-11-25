@@ -6,6 +6,7 @@ import { callPreorder } from '../../lib/preorderRemote'
 import { loadTurnstile, turnstileOn, turnstileSiteKey } from '../../lib/turnstile'
 
 const campaigns = ref([])
+const fmtDay = (s) => new Date(`${s}T00:00:00+07:00`).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' })
 const loading = ref(true)
 const error = ref('')
 const chosen = ref(null)
@@ -183,6 +184,7 @@ onBeforeUnmount(() => { if (captchaId !== null && window.turnstile) { try { wind
         <dl class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-stone-600">
           <dt class="text-stone-500">รับสินค้า</dt><dd>{{ c.pickupFrom }} ถึง {{ c.pickupTo }}</dd>
           <dt class="text-stone-500">มัดจำขั้นต่ำ</dt><dd>{{ c.depositPercent }}%</dd>
+          <template v-if="c.payLastDate"><dt class="text-stone-500">วันชำระสุดท้าย</dt><dd>{{ fmtDay(c.payLastDate) }}</dd></template>
         </dl>
         <button type="button" class="btn-primary mt-4 h-12 w-full" @click="choose(c)">เลือกแคมเปญนี้</button>
       </li>
