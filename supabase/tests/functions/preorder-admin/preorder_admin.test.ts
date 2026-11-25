@@ -146,3 +146,24 @@ Deno.test('accounting: ไม่มีสิทธิ์ → 403 · ผู้ด
   assertEquals((await call({ action: 'accounting' }, 'tok-acct')).status, 200)
   assertEquals((await call({ action: 'cancel', orderId: ORDER, refunds: [] }, 'tok-acct')).status, 403)
 })
+
+const CUST_A = '11111111-1111-4111-8111-111111111111'
+const CUST_B = '22222222-2222-4222-8222-222222222222'
+Deno.test('customerOrders: ไม่มีสิทธิ์ 403 · รหัสลูกค้าไม่ถูกต้อง 400', async () => {
+  seed()
+  assertEquals((await call({ action: 'customerOrders', customerId: CUST_A }, 'tok-chat')).status, 403)
+  assertEquals((await call({ action: 'customerOrders', customerId: 'abc' })).status, 400)
+})
+
+Deno.test('customerOrders: คืนเฉพาะออร์เดอร์ของลูกค้าที่ขอ และไม่คืนออร์เดอร์ที่ยกเลิก', async () => {
+  seed()
+  const rows = (globalThis as any).__DB.t['public.punpang_preorder_orders']
+  rows.push({ id: 'a'.repeat(32), code: 'PRE-A-1', status: 'awaiting_payment', pickup_date: '2099-12-24', customer_id: CUST_A, updated_at: 't9', data: { total: 100, payDueAt: '2099-12-01T10:00:00Z', payments: [{ id: 'p', amount: 30, status: 'confirmed' }] } })
+  rows.push({ id: 'b'.repeat(32), code: 'PRE-A-2', status: 'cancelled', pickup_date: '2099-12-24', customer_id: CUST_A, updated_at: 't8', data: { total: 50 } })
+  rows.push({ id: 'c'.repeat(32), code: 'PRE-B-1', status: 'awaiting_payment', pickup_date: '2099-12-24', customer_id: CUST_B, updated_at: 't7', data: { total: 70 } })
+  const r = await call({ action: 'customerOrders', customerId: CUST_A })
+  assertEquals(r.status, 200)
+  assertEquals(r.body.data.map((x: any) => x.code), ['PRE-A-1'])
+  assertEquals(r.body.data[0].due, 70)
+  assertEquals(Object.keys(r.body.data[0]).sort(), ['code', 'due', 'id', 'payDueAt', 'pickupDate', 'status'])
+})
