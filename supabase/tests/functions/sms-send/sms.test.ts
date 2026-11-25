@@ -34,15 +34,14 @@ function seed(t: Record<string, any[]> = {}) {
   Object.assign(fake.t, t)
 }
 let k = 0
-const send = async (token: string, body: Record<string, unknown>, test = false) => {
+const send = async (token: string, body: Record<string, unknown>) => {
   const headers: Record<string, string> = { authorization: `Bearer ${token}`, 'content-type': 'application/json' }
-  if (test) headers['x-punpang-mode'] = 'test'
   const r = await sms(new Request('http://fn.fake', { method: 'POST', headers, body: JSON.stringify({ text: 'แจ้งเตือน', idempotencyKey: `idem-key-${++k}`, ...body }) }))
   return { status: r.status, body: await r.json() }
 }
 const recipients = (items: unknown[]) => [{ collection: 'testRecipients', id: 'list', data: { items } }]
 
-Deno.test('โหมดจริง: เบอร์ลูกค้าในระบบ → ส่งผ่านเกตเวย์ 1 ครั้ง พร้อมคีย์กันส่งซ้ำ และบันทึกประวัติ', async () => {
+Deno.test('เบอร์ลูกค้าในระบบ → ส่งผ่านเกตเวย์ 1 ครั้ง พร้อมคีย์กันส่งซ้ำ และบันทึกประวัติ', async () => {
   seed()
   const r = await send('tok-staff', { number: '081-234-5678' })
   assertEquals(r.status, 200)
@@ -51,7 +50,7 @@ Deno.test('โหมดจริง: เบอร์ลูกค้าในร�
   assertEquals(fake.t['public.punpang_sms_log']?.[0]?.to_tail, '5678') // ไม่เก็บเบอร์เต็ม
 })
 
-Deno.test('โหมดจริง: เบอร์ที่ไม่ใช่ลูกค้า หรือลูกค้าที่ถูกลบ → 403 ไม่ถึงเกตเวย์', async () => {
+Deno.test('เบอร์ที่ไม่ใช่ลูกค้า หรือลูกค้าที่ถูกลบ → 403 ไม่ถึงเกตเวย์', async () => {
   seed()
   const a = await send('tok-staff', { number: '0811111111' })
   assertEquals(a.status, 403)
@@ -61,32 +60,12 @@ Deno.test('โหมดจริง: เบอร์ที่ไม่ใช่�
   assertEquals(sent, [])
 })
 
-Deno.test('โหมดจริง: ส่งทดสอบถึงเบอร์ใดก็ได้เฉพาะผู้จัดการ (kind=test) · พนักงานทั่วไปใช้ไม่ได้', async () => {
+Deno.test('ส่งทดสอบถึงเบอร์ใดก็ได้เฉพาะผู้จัดการ (kind=test) · พนักงานทั่วไปใช้ไม่ได้', async () => {
   seed()
   assertEquals((await send('tok-staff', { number: '0811111111', kind: 'test' })).status, 403)
   assertEquals(sent, [])
   assertEquals((await send('tok-mgr', { number: '0811111111', kind: 'test' })).status, 200)
   assertEquals(sent.map((s) => s.to), ['0811111111'])
-})
-
-Deno.test('โหมดทดสอบ: ส่งได้เฉพาะเบอร์ในรายชื่อทดสอบ · ลูกค้าจริงที่ไม่อยู่ในรายชื่อถูกปฏิเสธ · ประวัติลงสคีมาทดสอบ', async () => {
-  seed({ 'punpang_test.punpang_records': recipients([{ channel: 'sms', to: '0822222222' }, { channel: 'facebook', to: CUST }]) })
-  const real = await send('tok-staff', { number: CUST }, true)
-  assertEquals(real.status, 403)
-  assertStringIncludes(real.body.error, 'รายชื่อทดสอบ')
-  assertEquals(sent, [])
-  const ok = await send('tok-staff', { number: '082-222-2222' }, true)
-  assertEquals(ok.status, 200)
-  assertEquals(sent.map((s) => s.to), ['0822222222'])
-  assertEquals(fake.t['punpang_test.punpang_sms_log']?.length, 1)
-  assertEquals(fake.t['public.punpang_sms_log'], undefined)
-})
-
-Deno.test('โหมดทดสอบ: ผู้จัดการส่ง kind=test ก็ยังต้องอยู่ในรายชื่อทดสอบ', async () => {
-  seed({ 'punpang_test.punpang_records': recipients([{ channel: 'sms', to: '0822222222' }]) })
-  const r = await send('tok-mgr', { number: '0811111111', kind: 'test' }, true)
-  assertEquals(r.status, 403)
-  assertEquals(sent, [])
 })
 
 Deno.test('จำกัดอัตรา: ส่งครบ 60 ฉบับในชั่วโมงนี้ → 429 ไม่ถึงเกตเวย์', async () => {

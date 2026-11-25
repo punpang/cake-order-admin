@@ -81,12 +81,6 @@ Deno.test('ข้อผิดพลาดของฐานข้อมูล �
   assert(!JSON.stringify(r.body).includes('secret_table'))
 })
 
-Deno.test('โหมดทดสอบ → ถูกปฏิเสธ (409) ไม่เรียกฐานข้อมูล', async () => {
-  await seed()
-  const r = await call({ action: 'redeem', rewardId: 'r1', session: TOKEN }, { 'x-punpang-mode': 'test' })
-  assertEquals(r.status, 409)
-})
-
 Deno.test('สร้างคูปองจากคะแนน: ส่ง p_customer จากเซสชันและมูลค่าเป็นตัวเลข', async () => {
   await seed()
   const calls: any[] = []

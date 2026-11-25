@@ -43,9 +43,8 @@ async function seed() {
   } }
 }
 let ipn = 0
-const call = async (body: unknown, method = 'POST', test = false) => {
+const call = async (body: unknown, method = 'POST') => {
   const h: Record<string, string> = { 'Content-Type': 'application/json', 'cf-connecting-ip': `10.2.0.${++ipn}` }
-  if (test) h['x-punpang-mode'] = 'test'
   const r = await handler(new Request('http://x', { method, headers: h, body: method === 'POST' ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined }))
   return { status: r.status, body: await r.json() }
 }
@@ -54,11 +53,6 @@ const orderOf = (id: string) => (globalThis as any).__DB.t['public.punpang_order
 Deno.test('ใช้ POST เท่านั้น → 405', async () => {
   await seed()
   assertEquals((await call({}, 'GET')).status, 405)
-})
-
-Deno.test('โหมดทดสอบ → 409 ไม่แตะข้อมูลลูกค้า', async () => {
-  await seed()
-  assertEquals((await call({ action: 'extend', token: TOKEN }, 'POST', true)).status, 409)
 })
 
 Deno.test('คำขอ JSON เสีย → 400', async () => {

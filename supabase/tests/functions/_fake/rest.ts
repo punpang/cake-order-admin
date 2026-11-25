@@ -151,7 +151,7 @@ export async function loadHandler(path: string): Promise<(r: Request) => Promise
 }
 
 // ไคลเอนต์ supabase ฝั่งแอป (เฉพาะ functions.invoke) ที่ส่งเข้า handler ตรง · โหมดทดสอบใส่หัวแบบเดียวกับ src/lib/supabase.js
-export function appClient(handlers: Record<string, (r: Request) => Promise<Response>>, token: string | null, test: boolean) {
+export function appClient(handlers: Record<string, (r: Request) => Promise<Response>>, token: string | null) {
   return {
     functions: {
       invoke: async (name: string, { body }: { body: unknown }) => {
@@ -159,7 +159,6 @@ export function appClient(handlers: Record<string, (r: Request) => Promise<Respo
         if (!h) throw new Error(`ไม่มี handler ของ ${name}`)
         const headers: Record<string, string> = { 'content-type': 'application/json' }
         if (token) headers.authorization = `Bearer ${token}`
-        if (test) headers['x-punpang-mode'] = 'test'
         const res = await h(new Request(`http://fn.fake/functions/v1/${name}`, { method: 'POST', headers, body: JSON.stringify(body) }))
         if (res.ok) return { data: await res.json(), error: null }
         return { data: null, error: { message: 'Edge Function returned a non-2xx status code', context: res } }

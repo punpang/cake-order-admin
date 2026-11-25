@@ -47,7 +47,7 @@ Deno.serve(corsWrap(async (req) => {
   const token = String(body.token ?? '')
   const refresh = body.refresh === true // รีเฟรชเงียบของหน้าที่เปิดค้างไว้ (ไม่นับเป็นการเปิดดูใหม่)
   if (!/^[A-Za-z0-9_-]{32}$/.test(token)) return fail(ip)
-  const sb = serviceDb(req) // สคีมาตามโหมดของคำขอ
+  const sb = serviceDb()
   const hash = await sha256Hex(`orderlink:${token}`)
   const lr = await sb.from('punpang_records').select('id,data').eq('collection', 'orderLinks').eq('data->>tokenHash', hash).maybeSingle()
   if (lr.error || !lr.data) return fail(ip)

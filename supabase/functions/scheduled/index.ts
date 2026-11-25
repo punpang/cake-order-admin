@@ -1,4 +1,3 @@
-import { modeOf, refuseInTest } from '../_shared/mode.ts'
 // Edge Function scheduled: ส่งเตือนตามเวลาแทนแอปพนักงาน (เรียกทุก 15 นาทีจาก pg_cron ด้วยคีย์ x-cron-key)
 // ทำงานจริงเฉพาะเมื่อ punpang_kv (config/scheduled) มี {"server": true} · ค่าเริ่มต้น = แอปพนักงานยังทำเอง (ไม่มีการส่งซ้ำ)
 // เนื้อหา: เตือนชำระ · วันเกิด · คะแนนใกล้หมดอายุ (ลูกค้า) · ใกล้เวลาต้องเสร็จ · เกินกำหนดชำระ (ทีม) · ค่าใช้จ่ายประจำที่ยังไม่บันทึก · งวดผ่อนชำระใกล้/เลยกำหนด (ทีม)
@@ -60,8 +59,6 @@ async function acctPlansOf(sb: Any, nowMs: number, installmentDays: number): Pro
 }
 
 Deno.serve(async (req) => {
-  const refused = refuseInTest(modeOf(req))
-  if (refused) return refused // โหมดทดสอบไม่ทำงานฟังก์ชันนี้ (ข้อมูลลูกค้า/งานตามเวลา/เว็บฮุกเป็นของจริงเท่านั้น)
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const key = (Deno.env.get('SCHEDULED_KEY') || '').trim()
   if (!key || !sameKey(key, req.headers.get('x-cron-key') || '')) return json({ error: 'forbidden' }, 403)

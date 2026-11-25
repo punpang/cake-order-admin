@@ -35,12 +35,6 @@ Deno.test('ใช้ GET/POST เท่านั้น → PUT ได้ 405', a
   assertEquals(r.status, 405)
 })
 
-Deno.test('โหมดทดสอบ → 409 ไม่เชื่อมเพจจริง', async () => {
-  seed()
-  const r = await handler(new Request('http://x', { method: 'POST', headers: { 'x-punpang-mode': 'test' }, body: '{}' }))
-  assertEquals(r.status, 409)
-})
-
 Deno.test('ไม่มีโทเค็นพนักงาน → 401', async () => {
   seed()
   assertEquals((await post({ action: 'status' }, null)).status, 401)

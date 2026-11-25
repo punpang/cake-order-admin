@@ -1,4 +1,3 @@
-import { modeOf, refuseInTest } from '../_shared/mode.ts'
 // แจ้งลูกค้าสั่งล่วงหน้า: เตือนก่อนหมดเวลา 1 ชม. และแจ้งหมดเวลา · เรียกทุก 5 นาทีจาก pg_cron ด้วยคีย์ x-cron-key
 // การกันซ้ำอยู่ในฐานข้อมูล (ส่งครั้งเดียวต่อออเดอร์+เหตุการณ์) · ทำซ้ำได้ปลอดภัย
 import { createClient } from 'npm:@supabase/supabase-js@2'
@@ -20,8 +19,6 @@ function sameKey(a: string, b: string): boolean {
 const shape = (r: any) => ({ id: r.id, status: r.status, payDueAt: r.data?.payDueAt ?? null, total: Number(r.data?.total) || 0, paid: Number(r.data?.paid) || 0, fulfillment: r.data?.fulfillment ?? null, pickupDate: r.pickup_date ?? null })
 
 Deno.serve(async (req) => {
-  const refused = refuseInTest(modeOf(req))
-  if (refused) return refused
   if (req.method !== 'POST') return json({ error: 'method' }, 405)
   const key = (Deno.env.get('SCHEDULED_KEY') || '').trim()
   if (!key || !sameKey(key, req.headers.get('x-cron-key') || '')) return json({ error: 'forbidden' }, 403)

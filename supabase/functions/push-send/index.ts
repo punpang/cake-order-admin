@@ -1,4 +1,3 @@
-import { modeOf, refuseInTest } from '../_shared/mode.ts'
 // แจ้งเตือนระบบไปยังอุปกรณ์ Android (FCM HTTP v1) · เรียกจากทริกเกอร์ของฐานข้อมูล จึงไม่ตรวจ JWT (ดูไฟล์ deploy)
 // 1) recordId = กระดิ่งฝั่งพนักงาน → แจ้งพนักงานที่มีสิทธิ์ (ประเภทที่อนุญาต อายุไม่เกิน 10 นาที)
 // 2) chatId = พนักงานตอบกลับในแชทเว็บ/แอป → แจ้งเฉพาะอุปกรณ์ของลูกค้านั้น ที่เซสชันยังไม่หมดอายุ (ข้อความทั่วไป ไม่แสดงเนื้อหา)
@@ -136,8 +135,6 @@ async function customerReply(db: Db, chatId: string): Promise<Response> {
 }
 
 Deno.serve(async (req) => {
-  const refused = refuseInTest(modeOf(req))
-  if (refused) return refused // โหมดทดสอบไม่ทำงานฟังก์ชันนี้ (ข้อมูลลูกค้า/งานตามเวลา/เว็บฮุกเป็นของจริงเท่านั้น)
   if (req.method !== 'POST') return json(405, { error: 'method' })
   // เฉพาะทริกเกอร์ของฐานข้อมูลที่แนบคีย์ (x-push-key) เท่านั้นที่ส่งแจ้งเตือนได้ · ไม่ตั้ง PUSH_SEND_KEY = ปิดทั้งหมด
   const auth = checkPushKey(Deno.env.get('PUSH_SEND_KEY') || '', req.headers.get('x-push-key'))

@@ -7,7 +7,6 @@ import { corsWrap } from '../_shared/cors.ts'
 import { buildOrderFromDraft, orderRowOf, hasPerm, orderCodeOk, ORDER_ID_RE } from '../_shared/schedlib/orderCreate.js'
 import { loadCatalog } from '../_shared/catalog.ts'
 import { capFull, countOnDay, dayOfPickup, shopCap } from '../_shared/ordercap.ts'
-import { modeOf, restProfileHeaders } from '../_shared/mode.ts'
 
 const env = (k: string) => Deno.env.get(k) ?? ''
 const SUPABASE_URL = env('SUPABASE_URL')
@@ -32,19 +31,18 @@ async function staffOf(token: string): Promise<{ id: string; perms: string[] } |
   return { id: s.user_id, perms: Array.isArray(s.perms) ? s.perms : [] }
 }
 
-async function rest(path: string, rh: Record<string, string> = {}): Promise<any[] | null> {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { ...SERVICE_HEADERS, ...rh } })
+async function rest(path: string): Promise<any[] | null> {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { ...SERVICE_HEADERS } })
   if (!r.ok) return null
   const rows = await r.json()
   return Array.isArray(rows) ? rows : null
 }
 
 // ตรรกะเดียวกับ trigger punpang_orders_insert_guard (ผ่านฟังก์ชันเจ้าของ punpang__quote_check)
-// rh = หัวเลือกสคีมาตามโหมด: โหมดทดสอบต้องเรียกตัวใน punpang_test (อ่านใบเสนอทดสอบ) ไม่ใช่ตัวใน public
 // สิทธิเดือนเกิดของลูกค้า (ฟังก์ชันเจ้าของ · null = อ่านไม่สำเร็จ)
-async function birthForQuote(customerId: string | null, rh: Record<string, string>): Promise<Record<string, unknown> | null> {
+async function birthForQuote(customerId: string | null): Promise<Record<string, unknown> | null> {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/punpang_member_birth_for_quote`, {
-    method: 'POST', headers: { ...SERVICE_HEADERS, ...rh, 'content-type': 'application/json' },
+    method: 'POST', headers: { ...SERVICE_HEADERS, 'content-type': 'application/json' },
     body: JSON.stringify({ p_customer: customerId || null }),
   })
   if (!r.ok) return null
@@ -52,10 +50,10 @@ async function birthForQuote(customerId: string | null, rh: Record<string, strin
   return d && typeof d === 'object' ? d : null
 }
 
-async function quoteCheck(order: any, quoteId: string, rh: Record<string, string>): Promise<string> {
+async function quoteCheck(order: any, quoteId: string): Promise<string> {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/punpang__quote_check`, {
     method: 'POST',
-    headers: { ...SERVICE_HEADERS, ...rh, 'content-type': 'application/json' },
+    headers: { ...SERVICE_HEADERS, 'content-type': 'application/json' },
     body: JSON.stringify({
       p_quote: quoteId, p_order: order.id, p_customer: order.customerId ?? null,
       p_items: order.items, p_vat: order.vat ?? null, p_shipping: Number(order.shippingFee) || 0,
@@ -84,14 +82,12 @@ Deno.serve(corsWrap(async (req) => {
   const who = m ? await staffOf(m[1]) : null
   if (!who) return json({ error: 'ต้องเข้าสู่ระบบพนักงาน' }, 401)
   if (!hasPerm(who.perms, 'createOrder')) return json({ error: 'บทบาทนี้สร้างออร์เดอร์ไม่ได้' }, 403)
-  const mode = modeOf(req)
-  const rh = restProfileHeaders(mode) // โหมดทดสอบ: เขียนในสำเนาข้อมูลทดสอบเท่านั้น
 
   let body: any
   try { body = await req.json() } catch { return json({ error: 'ข้อมูลไม่ถูกต้อง' }, 400) }
   const id = typeof body?.id === 'string' ? body.id : ''
   const code = typeof body?.code === 'string' ? body.code : ''
-  if (!ORDER_ID_RE.test(id) || !orderCodeOk(code, mode === 'test')) return json({ error: 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง' }, 422)
+  if (!ORDER_ID_RE.test(id) || !orderCodeOk(code)) return json({ error: 'รหัสหรือเลขออร์เดอร์ไม่ถูกต้อง' }, 422)
   const chatId = typeof body?.chatId === 'string' && body.chatId ? body.chatId : null
   if (chatId && !ID_RE.test(chatId)) return json({ error: 'ไม่พบแชท' }, 404)
   const quoteId = typeof body?.quoteId === 'string' && body.quoteId ? body.quoteId : null
@@ -99,7 +95,7 @@ Deno.serve(corsWrap(async (req) => {
 
   const nowMs = Date.now()
   const common = {
-    id, code, nowMs, perms: who.perms, asDraft: body?.asDraft === true, chatId, test: mode === 'test',
+    id, code, nowMs, perms: who.perms, asDraft: body?.asDraft === true, chatId,
     by: typeof body?.by === 'string' ? body.by : '',
     occasionKind: typeof body?.occasionKind === 'string' ? body.occasionKind : '',
     occasionConsent: body?.occasionConsent === true,
@@ -108,7 +104,7 @@ Deno.serve(corsWrap(async (req) => {
   let built: any
   if (quoteId) {
     // ออร์เดอร์จากใบเสนอ: ใช้ราคาที่เซิร์ฟเวอร์คิดไว้ตอนส่งใบเสนอ ไม่รับรายการจากเครื่อง
-    const qs = await rest(`punpang_quotes?id=eq.${encodeURIComponent(quoteId)}&select=id,chat_id,customer_id,status,order_id,data`, rh)
+    const qs = await rest(`punpang_quotes?id=eq.${encodeURIComponent(quoteId)}&select=id,chat_id,customer_id,status,order_id,data`)
     if (!qs) return json({ error: 'อ่านใบเสนอไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
     const q = qs[0]
     if (!q) return json({ error: 'ไม่พบใบเสนอ' }, 422)
@@ -116,7 +112,7 @@ Deno.serve(corsWrap(async (req) => {
     if (q.order_id && q.order_id !== id) return json({ error: 'ใบเสนอนี้ถูกแปลงเป็นออร์เดอร์แล้ว' }, 409)
     built = buildOrderFromDraft({ ...common, quotePayload: q.data?.payload ?? null, customerId: q.customer_id ?? null, quoteId })
     if (built.ok) {
-      const qc = await quoteCheck(built.order, quoteId, rh)
+      const qc = await quoteCheck(built.order, quoteId)
       if (qc !== 'ok') {
         const [status, msg] = QUOTE_ERR[qc] ?? [502, 'ตรวจใบเสนอไม่สำเร็จ ลองใหม่อีกครั้ง']
         return json({ error: msg, code: qc }, status)
@@ -127,12 +123,12 @@ Deno.serve(corsWrap(async (req) => {
     const customerId = typeof body?.draft?.customerId === 'string' ? body.draft.customerId : ''
     if (!ID_RE.test(customerId)) return json({ error: 'ต้องเลือกลูกค้า' }, 422)
     // punpang_customers ไม่มีคอลัมน์ deleted (ค่าลบลูกค้าอยู่ใน data) → ขอ data->deleted เป็นค่า JSON
-    const cs = await rest(`punpang_customers?id=eq.${encodeURIComponent(customerId)}&select=id,deleted:data->deleted`, rh)
+    const cs = await rest(`punpang_customers?id=eq.${encodeURIComponent(customerId)}&select=id,deleted:data->deleted`)
     if (!cs) return json({ error: 'อ่านข้อมูลลูกค้าไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
     if (!cs.length || cs[0].deleted) return json({ error: 'ไม่พบลูกค้า' }, 422)
-    const catalog = await loadCatalog(SUPABASE_URL, { ...SERVICE_HEADERS, ...rh }) // โหมดทดสอบ: ราคาจากสำเนาทดสอบ
+    const catalog = await loadCatalog(SUPABASE_URL, { ...SERVICE_HEADERS })
     if (!catalog) return json({ error: 'อ่านแคตาล็อกไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
-    const birth = await birthForQuote(customerId, rh)
+    const birth = await birthForQuote(customerId)
     if (!birth) return json({ error: 'อ่านสิทธิสมาชิกไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
     built = buildOrderFromDraft({ ...common, draft: body.draft, customerId, catalog, birth })
   }
@@ -145,7 +141,7 @@ Deno.serve(corsWrap(async (req) => {
   // จำกัดออเดอร์ต่อวันตามการตั้งค่าร้าน (เฉพาะออเดอร์ใหม่ที่ไม่ใช่ร่างและไม่ใช่ POS)
   if (built.ok && !common.asDraft && built.order.channel !== 'pos') {
     const day = dayOfPickup(built.order.pickupAt)
-    const hdrs = { ...SERVICE_HEADERS, ...rh }
+    const hdrs = { ...SERVICE_HEADERS }
     if (day) {
       const cap = await shopCap(SUPABASE_URL, hdrs)
       if (cap === null) return json({ error: 'อ่านการตั้งค่าร้านไม่สำเร็จ ลองใหม่อีกครั้ง' }, 502)
@@ -163,7 +159,7 @@ Deno.serve(corsWrap(async (req) => {
     // ออร์เดอร์จากใบเสนอ: แทรกออร์เดอร์และผูกใบเสนอในธุรกรรมเดียว (ฟังก์ชันล็อกแถวใบเสนอ = จองใบเสนอ กันการแปลงซ้ำ)
     const rr = await fetch(`${SUPABASE_URL}/rest/v1/rpc/punpang_quote_order_create`, {
       method: 'POST',
-      headers: { ...SERVICE_HEADERS, ...rh, 'content-type': 'application/json' },
+      headers: { ...SERVICE_HEADERS, 'content-type': 'application/json' },
       body: JSON.stringify({ p_quote: quoteId, p_row: row }),
     })
     if (rr.ok) {
@@ -177,7 +173,7 @@ Deno.serve(corsWrap(async (req) => {
   } else {
     ins = await fetch(`${SUPABASE_URL}/rest/v1/punpang_orders`, {
       method: 'POST',
-      headers: { ...SERVICE_HEADERS, ...rh, 'content-type': 'application/json', Prefer: 'return=representation' },
+      headers: { ...SERVICE_HEADERS, 'content-type': 'application/json', Prefer: 'return=representation' },
       body: JSON.stringify([row]),
     })
     if (ins.ok) {

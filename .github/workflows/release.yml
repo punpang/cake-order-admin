@@ -46,7 +46,7 @@ jobs:
       - name: เทสต์ customer-auth ทั้งฟังก์ชัน
         run: deno test -A --no-lock --node-modules-dir=none --import-map=supabase/tests/functions/customer-auth/importmap.json supabase/tests/functions/customer-auth/
       - name: เทสต์ Edge Function ทุกโฟลเดอร์
-        run: deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/_fake/importmap.json supabase/tests/functions/order-create/ supabase/tests/functions/preorder/ supabase/tests/functions/preorder-admin/ supabase/tests/functions/flows/ supabase/tests/functions/messaging/ supabase/tests/functions/guard/ supabase/tests/functions/sms-send/ supabase/tests/functions/order-link/ supabase/tests/functions/tungngern-receiver/ supabase/tests/functions/loyalty/ supabase/tests/functions/lucky/ supabase/tests/functions/tungngern-list/ supabase/tests/functions/chat-photo-prune/ supabase/tests/functions/line-link/ supabase/tests/functions/campaign/ supabase/tests/functions/scheduled/ supabase/tests/functions/order-audit/ supabase/tests/functions/tax-invoice/ supabase/tests/functions/line-webhook/ supabase/tests/functions/push-send/ supabase/tests/functions/bot-test/ supabase/tests/functions/customer-order/ supabase/tests/functions/fb-connect/ supabase/tests/functions/fb-webhook/
+        run: deno test -A --no-lock --node-modules-dir=none --unstable-sloppy-imports --import-map=supabase/tests/functions/_fake/importmap.json supabase/tests/functions/order-create/ supabase/tests/functions/preorder/ supabase/tests/functions/preorder-admin/ supabase/tests/functions/flows/ supabase/tests/functions/messaging/ supabase/tests/functions/guard/ supabase/tests/functions/sms-send/ supabase/tests/functions/order-link/ supabase/tests/functions/tungngern-receiver/ supabase/tests/functions/loyalty/ supabase/tests/functions/lucky/ supabase/tests/functions/tungngern-list/ supabase/tests/functions/chat-photo-prune/ supabase/tests/functions/line-link/ supabase/tests/functions/campaign/ supabase/tests/functions/scheduled/ supabase/tests/functions/order-audit/ supabase/tests/functions/tax-invoice/ supabase/tests/functions/line-webhook/ supabase/tests/functions/push-send/ supabase/tests/functions/customer-order/ supabase/tests/functions/fb-connect/ supabase/tests/functions/fb-webhook/
       - name: ตรวจชนิดข้อมูลของ Edge Function ที่จะ deploy
         run: deno check --no-lock --node-modules-dir=none supabase/functions/*/index.ts
 
@@ -124,7 +124,7 @@ jobs:
         run: |
           for fn in $FUNCTIONS; do
             case "$fn" in
-              bot-test|campaign|fb-send|line-push|order-create|quote-create|sms-send|telegram-send|preorder-admin) flag="" ;;
+              campaign|fb-send|line-push|order-create|quote-create|sms-send|telegram-send|preorder-admin) flag="" ;;
               chat-photo-prune|customer-auth|customer-loyalty|customer-order|preorder|fb-connect|fb-webhook|line-link|line-webhook|lucky-spin|order-audit|order-link|push-send|scheduled|tax-invoice|tungngern-list|tungngern-receiver) flag="--no-verify-jwt" ;;
               *) echo "ไม่รู้จักฟังก์ชัน $fn (ยังไม่มีในรายการ deploy)"; exit 1 ;;
             esac
