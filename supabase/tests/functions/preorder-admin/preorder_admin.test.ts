@@ -196,3 +196,15 @@ Deno.test('list: แสดงรอบเวลาและเวลาเตร
   assertEquals(o.pickupRound, '13:00')
   assertEquals(o.readyAt, '2099-12-24T06:00:00Z')
 })
+
+Deno.test('mark_delivered: ส่งมอบแล้วให้แต้มต่อ · ให้แต้มล้มเหลว → 500 เพื่อให้ลองใหม่ได้', async () => {
+  seed()
+  ;(globalThis as any).__RPC.punpang_preorder_mark_delivered = async (args: any) => { (globalThis as any).__RPC_CALLS.push(['mark', args]); return { data: { ok: true }, error: null } }
+  ;(globalThis as any).__RPC.punpang_preorder_award_delivery = async (args: any) => { (globalThis as any).__RPC_CALLS.push(['award', args]); return { data: { ok: true, points: 5, spins: 1 }, error: null } }
+  const r = await call({ action: 'mark_delivered', orderId: ORDER }, 'tok-pre')
+  assertEquals(r.status, 200)
+  assertEquals((globalThis as any).__RPC_CALLS.map((c: any) => c[0]), ['mark', 'award'])
+  ;(globalThis as any).__RPC.punpang_preorder_award_delivery = async () => ({ data: null, error: { message: 'x' } })
+  const r2 = await call({ action: 'mark_delivered', orderId: ORDER }, 'tok-pre')
+  assertEquals(r2.status, 500)
+})
