@@ -56,6 +56,11 @@ rlcode=$?
 [ "$rlcode" = "0" ] && echo "✓ rate_limit.test.sql ผ่านทั้งหมด" || echo "✗ rate_limit.test.sql ล้มเหลว"
 [ "$rlcode" = "0" ] || exit "$rlcode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/revoke_unused_definers.test.sql
+rucode=$?
+[ "$rucode" = "0" ] && echo "✓ revoke_unused_definers.test.sql ผ่านทั้งหมด" || echo "✗ revoke_unused_definers.test.sql ล้มเหลว"
+[ "$rucode" = "0" ] || exit "$rucode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/coupon_modes.test.sql
 ccode=$?
 [ "$ccode" = "0" ] && echo "✓ coupon_modes.test.sql ผ่านทั้งหมด" || echo "✗ coupon_modes.test.sql ล้มเหลว"
