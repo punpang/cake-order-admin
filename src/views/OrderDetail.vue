@@ -176,8 +176,8 @@ function printReceipt() {
   printOrderReceipt(order.value, { section: 'orderReceipt' }).catch((e) => showToast(`พิมพ์ใบเสร็จไม่สำเร็จ: ${e.message || e}`))
 }
 const PAY_BADGE = {
-  reported: { t: 'รอลูกค้าชำระ', cls: 'bg-sky-100 text-sky-800' },
-  confirmed: { t: 'ยืนยันแล้ว', cls: 'bg-emerald-100 text-emerald-800' },
+  reported: { t: 'รอลูกค้าชำระ', cls: 'bg-info-100 text-info-800' },
+  confirmed: { t: 'ยืนยันแล้ว', cls: 'bg-success-100 text-success-800' },
   cancelled: { t: 'ยกเลิกแล้ว', cls: 'bg-stone-100 text-stone-500' },
 }
 
@@ -400,7 +400,7 @@ async function saveCancel() {
       </RouterLink>
       <h1 class="page-title min-w-0 flex-1 truncate">{{ orderNo(order.code) }}</h1>
       <div class="flex flex-wrap items-center gap-1.5 max-sm:w-full max-sm:pl-12">
-        <span v-if="customerPending(order).length" class="inline-flex shrink-0 items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-sky-700">ลูกค้าแจ้งโอน รอตรวจสลิป</span>
+        <span v-if="customerPending(order).length" class="inline-flex shrink-0 items-center gap-1 rounded-full bg-info-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-info-700">ลูกค้าแจ้งโอน รอตรวจสลิป</span>
         <PayDueBadge :order="order" />
         <StatusBadge :status="order.status" />
       </div>
@@ -409,7 +409,7 @@ async function saveCancel() {
     <!-- รายการเสี่ยงจากการตรวจอัตโนมัติ: ออร์เดอร์ตรงต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ · บิลหน้าร้านแค่แจ้งให้ตรวจ -->
     <!-- แบนเนอร์สถานะออร์เดอร์: บนจอกว้างวางเคียงกัน · บนมือถือเรียงลงมา · ไม่มีแบนเนอร์ = ไม่กินพื้นที่ -->
     <div class="mb-3 grid gap-2 empty:hidden lg:grid-cols-2">
-    <div v-if="gateHeld" class="rounded-2xl p-3 text-sm" :class="gate.reviewed ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'">
+    <div v-if="gateHeld" class="rounded-2xl p-3 text-sm" :class="gate.reviewed ? 'bg-success-50 text-success-800' : 'bg-warning-50 text-warning-800'">
       <div class="flex flex-wrap items-center gap-2">
         <AppIcon name="alert" :size="16" />
         <span class="min-w-0 basis-full font-semibold sm:flex-1 sm:basis-auto">{{ gate.reviewed ? 'ผู้จัดการตรวจรายการเสี่ยงแล้ว' : (gateIsPos ? 'มีรายการเสี่ยงในบิลหน้าร้าน · ขายไปแล้ว ระบบไม่ได้กันการขาย' : (gateNeedsPayReview ? 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนยืนยันชำระหรือส่งมอบ' : 'มีรายการเสี่ยง · ต้องให้ผู้จัดการตรวจก่อนส่งมอบ')) }}</span>
@@ -434,7 +434,7 @@ async function saveCancel() {
       </template>
       <span v-else class="text-xs">รอแอดมินอนุมัติ</span>
     </div>
-    <div v-else-if="order.approval?.status === 'rejected' && unpaidStage(order.status)" class="rounded-2xl bg-rose-50 p-3 text-sm text-rose-700">ไม่อนุมัติยืนยันแบบยังไม่ชำระ<span v-if="order.approval.decisionNote"> · {{ order.approval.decisionNote }}</span></div>
+    <div v-else-if="order.approval?.status === 'rejected' && unpaidStage(order.status)" class="rounded-2xl bg-danger-50 p-3 text-sm text-danger-700">ไม่อนุมัติยืนยันแบบยังไม่ชำระ<span v-if="order.approval.decisionNote"> · {{ order.approval.decisionNote }}</span></div>
     </div>
 
     <div class="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-4 2xl:grid-cols-[minmax(0,1fr)_440px]">
@@ -522,17 +522,17 @@ async function saveCancel() {
         </section>
 
         <!-- ยกเลิก -->
-        <section v-if="order.cancel" class="card border-rose-200 bg-rose-50/70">
-          <div class="card-title text-rose-700"><AppIcon name="x" /> ยกเลิกแล้ว</div>
+        <section v-if="order.cancel" class="card border-danger-200 bg-danger-50/70">
+          <div class="card-title text-danger-700"><AppIcon name="x" /> ยกเลิกแล้ว</div>
           <dl class="space-y-1.5 text-sm">
-            <div class="flex gap-3"><dt class="w-20 shrink-0 text-rose-600">เหตุผล</dt><dd class="min-w-0 break-words">{{ order.cancel.reason }}</dd></div>
-            <div class="flex gap-3"><dt class="w-20 shrink-0 text-rose-600">คืนเงิน</dt>
+            <div class="flex gap-3"><dt class="w-20 shrink-0 text-danger-700">เหตุผล</dt><dd class="min-w-0 break-words">{{ order.cancel.reason }}</dd></div>
+            <div class="flex gap-3"><dt class="w-20 shrink-0 text-danger-700">คืนเงิน</dt>
               <dd class="min-w-0">
                 <template v-if="refundList(order.cancel).length"><div v-for="(x, i) in refundList(order.cancel)" :key="i">{{ x.label }} {{ money(x.amount) }}<template v-if="x.points != null"> ({{ x.points }} คะแนน)</template></div></template>
                 <template v-else>ไม่คืนเงิน</template>
               </dd>
             </div>
-            <div v-if="order.cancel.refundNote" class="flex gap-3"><dt class="w-20 shrink-0 text-rose-600">หมายเหตุ</dt><dd class="min-w-0 break-words">{{ order.cancel.refundNote }}</dd></div>
+            <div v-if="order.cancel.refundNote" class="flex gap-3"><dt class="w-20 shrink-0 text-danger-700">หมายเหตุ</dt><dd class="min-w-0 break-words">{{ order.cancel.refundNote }}</dd></div>
           </dl>
         </section>
 
@@ -552,33 +552,33 @@ async function saveCancel() {
               <div class="h-full rounded-full bg-emerald-500 transition-all" :style="{ width: paidPct + '%' }" />
             </div>
             <div class="mt-2 grid grid-cols-2 gap-2 text-sm">
-              <div v-if="t.hold > 0" class="col-span-2 flex items-center justify-between gap-2 rounded-xl bg-amber-50/60 p-2.5">
+              <div v-if="t.hold > 0" class="col-span-2 flex items-center justify-between gap-2 rounded-xl bg-warning-50/60 p-2.5">
                 <div class="min-w-0">
-                  <div class="text-xs text-amber-800">เงินพักของลูกค้า (ไม่ใช่รายได้)</div>
-                  <div class="font-semibold text-amber-900">{{ money(t.hold) }}</div>
+                  <div class="text-xs text-warning-800">เงินพักของลูกค้า (ไม่ใช่รายได้)</div>
+                  <div class="font-semibold text-warning-800">{{ money(t.hold) }}</div>
                 </div>
                 <button v-if="canEditHold" type="button" class="btn-outline h-9 shrink-0 px-3" @click="holdOpen = true"><AppIcon name="edit" :size="16" /> แก้เงินพัก</button>
               </div>
-              <div class="rounded-xl bg-emerald-50 p-2.5">
-                <div class="text-xs text-emerald-700">ยืนยันแล้ว</div>
-                <div class="font-semibold text-emerald-800">{{ money(t.paid) }}</div>
+              <div class="rounded-xl bg-success-50 p-2.5">
+                <div class="text-xs text-success-700">ยืนยันแล้ว</div>
+                <div class="font-semibold text-success-800">{{ money(t.paid) }}</div>
               </div>
-              <div v-if="t.balance < 0" class="rounded-xl bg-rose-50 p-2.5">
-                <div class="text-xs text-rose-700">ชำระเกิน</div>
-                <div class="font-semibold text-rose-700">{{ money(-t.balance) }}</div>
+              <div v-if="t.balance < 0" class="rounded-xl bg-danger-50 p-2.5">
+                <div class="text-xs text-danger-700">ชำระเกิน</div>
+                <div class="font-semibold text-danger-700">{{ money(-t.balance) }}</div>
               </div>
-              <div v-else class="rounded-xl p-2.5" :class="t.balance > 0 ? 'bg-amber-50' : 'bg-stone-50'">
-                <div class="text-xs" :class="t.balance > 0 ? 'text-amber-700' : 'text-stone-500'">คงค้าง</div>
-                <div class="font-semibold" :class="t.balance > 0 ? 'text-amber-800' : 'text-stone-700'">{{ money(t.balance) }}</div>
+              <div v-else class="rounded-xl p-2.5" :class="t.balance > 0 ? 'bg-warning-50' : 'bg-stone-50'">
+                <div class="text-xs" :class="t.balance > 0 ? 'text-warning-700' : 'text-stone-500'">คงค้าง</div>
+                <div class="font-semibold" :class="t.balance > 0 ? 'text-warning-800' : 'text-stone-700'">{{ money(t.balance) }}</div>
               </div>
             </div>
-            <div v-if="t.returned" class="mt-2 rounded-xl bg-rose-50 p-2.5 text-sm text-rose-700">คืนเงินแล้ว −{{ money(t.returned) }} · ชำระสุทธิ {{ money(t.paidNet) }}</div>
-            <div v-if="t.reported" class="mt-2 rounded-xl bg-sky-50 p-2.5 text-sm text-sky-800">แจ้งยอดแล้ว รอลูกค้าชำระ {{ money(t.reported) }}</div>
+            <div v-if="t.returned" class="mt-2 rounded-xl bg-danger-50 p-2.5 text-sm text-danger-700">คืนเงินแล้ว −{{ money(t.returned) }} · ชำระสุทธิ {{ money(t.paidNet) }}</div>
+            <div v-if="t.reported" class="mt-2 rounded-xl bg-info-50 p-2.5 text-sm text-info-800">แจ้งยอดแล้ว รอลูกค้าชำระ {{ money(t.reported) }}</div>
             <button v-if="can('reportPayment') && t.balance > 0 && order.status !== 'draft'" type="button" class="btn-soft mt-2 w-full" @click="qrOpen = true"><AppIcon name="wallet" :size="16" /> สร้าง QR ชำระ</button>
           </template>
 
           <dl class="mt-3 space-y-1.5 border-t border-stone-100 pt-3 text-sm">
-            <div v-if="t.discountTotal" class="flex items-start justify-between gap-2 rounded-xl bg-emerald-50/60 p-2.5">
+            <div v-if="t.discountTotal" class="flex items-start justify-between gap-2 rounded-xl bg-success-50/60 p-2.5">
               <dt class="text-stone-600">ราคาเต็ม → ยอดสุทธิ</dt>
               <dd><DiscountDetail :full="t.fullAll" :final="t.total" :lines="t.discountLines" /></dd>
             </div>
@@ -588,16 +588,16 @@ async function saveCancel() {
               <dt class="min-w-0 text-stone-500">ปรับราคา <span class="break-words text-stone-400">({{ order.adjustment.reason }})</span></dt>
               <dd class="shrink-0">{{ money(t.adjustment) }}</dd>
             </div>
-            <div v-if="t.pointsDiscount" class="flex justify-between gap-2"><dt class="text-stone-500">ใช้ {{ order.pointsUsed.points }} คะแนน</dt><dd class="text-rose-700">−{{ money(t.pointsDiscount) }}</dd></div>
-            <div v-for="u in order.couponsUsed" :key="u.couponId" class="flex justify-between gap-2"><dt class="min-w-0 break-words text-stone-500">คูปอง {{ u.name }}</dt><dd class="shrink-0 text-rose-700">−{{ money(u.amount) }}</dd></div>
+            <div v-if="t.pointsDiscount" class="flex justify-between gap-2"><dt class="text-stone-500">ใช้ {{ order.pointsUsed.points }} คะแนน</dt><dd class="text-danger-700">−{{ money(t.pointsDiscount) }}</dd></div>
+            <div v-for="u in order.couponsUsed" :key="u.couponId" class="flex justify-between gap-2"><dt class="min-w-0 break-words text-stone-500">คูปอง {{ u.name }}</dt><dd class="shrink-0 text-danger-700">−{{ money(u.amount) }}</dd></div>
             <div v-if="t.vatMode === 'exclusive'" class="flex justify-between gap-2"><dt class="text-stone-500">VAT {{ t.vatRate }}% (บวกเพิ่ม)</dt><dd>+{{ money(t.vat) }}</dd></div>
             <div v-else-if="t.vatMode === 'inclusive'" class="flex justify-between gap-2 text-xs text-stone-400"><dt>รวม VAT {{ t.vatRate }}% แล้ว (ก่อน VAT {{ money(t.beforeVat) }})</dt><dd>{{ money(t.vat) }}</dd></div>
           </dl>
           <dl v-if="can('viewProfit')" class="mt-3 space-y-1.5 border-t border-stone-100 pt-3 text-sm">
             <div class="flex justify-between gap-2"><dt class="text-stone-500">ต้นทุนวัตถุดิบ</dt><dd>{{ money(matCost) }}</dd></div>
             <div v-if="shipCost > 0" class="flex justify-between gap-2"><dt class="text-stone-500">ค่าส่งที่จ่ายคนส่ง (เท่ากับค่าส่งที่เก็บ)</dt><dd>{{ money(shipCost) }}</dd></div>
-            <div v-if="t.returned" class="flex justify-between gap-2"><dt class="text-stone-500">คืนเงินบางส่วน (ก่อน VAT)</dt><dd class="text-rose-700">−{{ money(returnedNet) }}</dd></div>
-            <div class="flex justify-between gap-2 font-semibold"><dt>กำไร <span v-if="t.vatMode" class="text-xs font-normal text-stone-400">(ก่อน VAT)</span></dt><dd :class="t.beforeVat - cost - returnedNet >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ money(t.beforeVat - cost - returnedNet) }}</dd></div>
+            <div v-if="t.returned" class="flex justify-between gap-2"><dt class="text-stone-500">คืนเงินบางส่วน (ก่อน VAT)</dt><dd class="text-danger-700">−{{ money(returnedNet) }}</dd></div>
+            <div class="flex justify-between gap-2 font-semibold"><dt>กำไร <span v-if="t.vatMode" class="text-xs font-normal text-stone-400">(ก่อน VAT)</span></dt><dd :class="t.beforeVat - cost - returnedNet >= 0 ? 'text-success-700' : 'text-danger-700'">{{ money(t.beforeVat - cost - returnedNet) }}</dd></div>
           </dl>
           <button v-if="can('adjustPrice') && !closed" class="btn-soft mt-3 w-full" @click="openAdj"><AppIcon name="tag" :size="16" /> ปรับราคา / ส่วนลด</button>
         </section>
@@ -606,16 +606,16 @@ async function saveCancel() {
         <section v-if="customer" class="card">
           <div class="card-title"><AppIcon name="tag" class="text-brand-600" /> คะแนน / คูปอง</div>
           <div class="text-sm text-stone-600">คะแนนของลูกค้า <b class="text-stone-900">{{ num(points) }}</b> คะแนน</div>
-          <div v-if="order.loyalty" class="mt-1 text-sm text-emerald-700">ได้จากออร์เดอร์นี้ {{ order.loyalty.points }} คะแนน<span v-if="order.loyalty.spins"> + หมุน {{ order.loyalty.spins }} ครั้ง</span></div>
+          <div v-if="order.loyalty" class="mt-1 text-sm text-success-700">ได้จากออร์เดอร์นี้ {{ order.loyalty.points }} คะแนน<span v-if="order.loyalty.spins"> + หมุน {{ order.loyalty.spins }} ครั้ง</span></div>
 
           <div v-if="order.pointsUsed" class="mt-3 flex items-center justify-between gap-2 rounded-xl bg-brand-50 p-2.5 text-sm">
             <span>ใช้ {{ order.pointsUsed.points }} คะแนน (−{{ money(order.pointsUsed.amount) }})</span>
-            <button v-if="canLoyalty" class="text-rose-700 underline" @click="doRemovePoints">ยกเลิก</button>
+            <button v-if="canLoyalty" class="text-danger-700 underline" @click="doRemovePoints">ยกเลิก</button>
           </div>
 
           <div v-for="u in order.couponsUsed" :key="u.couponId" class="mt-2 flex items-center justify-between gap-2 rounded-xl bg-brand-50 p-2.5 text-sm">
             <span class="min-w-0 break-words">คูปอง {{ u.name }} (−{{ money(u.amount) }})</span>
-            <button v-if="canLoyalty" class="shrink-0 text-rose-700 underline" @click="doRemoveCoupon(u)">ยกเลิก</button>
+            <button v-if="canLoyalty" class="shrink-0 text-danger-700 underline" @click="doRemoveCoupon(u)">ยกเลิก</button>
           </div>
           <div v-if="canLoyalty && coupons.length" class="mt-3">
             <div class="label">คูปองส่วนลดที่ใช้ได้</div>
@@ -623,7 +623,7 @@ async function saveCancel() {
               <button v-for="c in coupons" :key="c.id" type="button" class="chip chip-off h-auto max-w-full py-1.5 text-left whitespace-normal" :class="couponQuoteOf(c, order).ok ? '' : 'opacity-50'" :disabled="!couponQuoteOf(c, order).ok" @click="doApplyCoupon(c)">
                 <AppIcon name="plus" :size="14" /> {{ c.name }} · {{ couponTermsText(c) }}
               </button>
-              <p v-for="c in coupons.filter((x) => !couponQuoteOf(x, order).ok)" :key="'n' + c.id" class="w-full text-xs text-amber-700">{{ c.name }}: {{ couponQuoteOf(c, order).reason }}</p>
+              <p v-for="c in coupons.filter((x) => !couponQuoteOf(x, order).ok)" :key="'n' + c.id" class="w-full text-xs text-warning-700">{{ c.name }}: {{ couponQuoteOf(c, order).reason }}</p>
             </div>
           </div>
         </section>
@@ -658,11 +658,11 @@ async function saveCancel() {
               </div>
               <div v-if="p.code" class="text-xs text-stone-500">เลขที่ {{ p.code }}</div>
               <div v-if="p.status === 'confirmed' && p.requested != null && p.requested !== p.amount" class="text-xs text-stone-500">แจ้งไป {{ money(p.requested) }} · ได้รับจริง {{ money(p.amount) }}</div>
-              <div v-if="p.customerSubmitted && p.status === 'reported'" class="mt-1 inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-700">ลูกค้าแจ้งโอนเอง · รอตรวจสลิป{{ p.source === 'customer' ? '' : ' (ตามที่ร้านแจ้ง)' }}</div>
-              <div v-if="dueState(p) !== 'none'" class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="dueState(p) === 'overdue' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'">
+              <div v-if="p.customerSubmitted && p.status === 'reported'" class="mt-1 inline-flex items-center rounded-full bg-info-50 px-2 py-0.5 text-xs font-semibold text-info-700">ลูกค้าแจ้งโอนเอง · รอตรวจสลิป{{ p.source === 'customer' ? '' : ' (ตามที่ร้านแจ้ง)' }}</div>
+              <div v-if="dueState(p) !== 'none'" class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="dueState(p) === 'overdue' ? 'bg-danger-50 text-danger-700' : 'bg-warning-50 text-warning-700'">
                 <AppIcon name="alert" :size="12" /> ชำระก่อน {{ dateTime(p.dueAt) }} · {{ remainingText(p) }}
               </div>
-              <div v-if="p.extension?.status === 'pending' && p.status === 'reported'" class="mt-2 rounded-lg bg-amber-50 p-2.5 text-sm text-amber-800">
+              <div v-if="p.extension?.status === 'pending' && p.status === 'reported'" class="mt-2 rounded-lg bg-warning-50 p-2.5 text-sm text-warning-800">
                 ลูกค้าขอขยายเวลา<span v-if="p.extension.note"> · {{ p.extension.note }}</span>
                 <div v-if="can('reportPayment')" class="mt-2 flex gap-2">
                   <button class="btn-primary h-9 flex-1 px-3" @click="openExt(p)">ขยายเวลา</button>
@@ -686,8 +686,8 @@ async function saveCancel() {
           </ul>
           <div v-if="order.returns?.length" class="mt-3 space-y-2" aria-label="รายการคืนเงิน">
             <div class="text-xs font-semibold text-stone-500">คืนเงินแล้ว</div>
-            <div v-for="r in order.returns" :key="r.id" class="rounded-xl border p-3 text-sm" :class="r.cancelled ? 'border-stone-200 bg-stone-50' : 'border-rose-200 bg-rose-50/60'" data-return>
-              <div class="flex items-center justify-between gap-2"><span class="font-semibold" :class="r.cancelled ? 'text-stone-400 line-through' : 'text-rose-700'">−{{ money(r.amount) }}</span><span class="text-xs text-stone-500">{{ dateTime(r.at) }} · {{ ROLES[r.by] }}</span></div>
+            <div v-for="r in order.returns" :key="r.id" class="rounded-xl border p-3 text-sm" :class="r.cancelled ? 'border-stone-200 bg-stone-50' : 'border-danger-200 bg-danger-50/60'" data-return>
+              <div class="flex items-center justify-between gap-2"><span class="font-semibold" :class="r.cancelled ? 'text-stone-400 line-through' : 'text-danger-700'">−{{ money(r.amount) }}</span><span class="text-xs text-stone-500">{{ dateTime(r.at) }} · {{ ROLES[r.by] }}</span></div>
               <div v-for="(x, i) in refundList({ refunds: r.refunds })" :key="i" class="text-stone-700">{{ x.label }} {{ money(x.amount) }}<template v-if="x.points != null"> ({{ x.points }} คะแนน)</template></div>
               <div class="break-words text-stone-600">เหตุผล: {{ r.reason }}<template v-if="r.note"> · {{ r.note }}</template></div>
               <div v-if="r.cancelled" class="mt-1 break-words text-xs text-stone-500"><span class="rounded-full bg-stone-200 px-2 py-0.5 font-semibold text-stone-600">ยกเลิกแล้ว</span> {{ dateTime(r.cancelled.at) }} · {{ ROLES[r.cancelled.by] }} · {{ r.cancelled.reason }}</div>
@@ -705,7 +705,7 @@ async function saveCancel() {
           <ul v-show="msgOpen" id="order-messages" class="mt-3 space-y-2">
             <li v-for="m in messages" :key="m.id" class="rounded-xl bg-stone-50 p-2.5">
               <div class="flex flex-wrap items-center gap-1.5 text-xs">
-                <span class="rounded-full px-2 py-0.5 font-semibold" :class="m.channel ? 'bg-brand-50 text-brand-800' : 'bg-rose-50 text-rose-700'">{{ m.channel ? channelLabel(m.channel) : 'ไม่มีช่องทาง' }}</span>
+                <span class="rounded-full px-2 py-0.5 font-semibold" :class="m.channel ? 'bg-brand-50 text-brand-800' : 'bg-danger-50 text-danger-700'">{{ m.channel ? channelLabel(m.channel) : 'ไม่มีช่องทาง' }}</span>
                 <span class="text-stone-600">{{ NOTIFY_EVENTS[m.event]?.label }}</span>
                 <span class="ml-auto text-stone-400">{{ dateTime(m.at) }}</span>
               </div>
@@ -721,7 +721,7 @@ async function saveCancel() {
 
     <!-- ปุ่มเปลี่ยนสถานะ: มือถือติดล่าง / คอมอยู่ท้ายหน้า -->
     <div v-if="hasActions" class="action-bar">
-      <p v-if="shipAction === 'deliver' && t.balance > 0" class="mx-auto mb-2 flex max-w-page items-center gap-1.5 text-sm font-medium text-amber-700">
+      <p v-if="shipAction === 'deliver' && t.balance > 0" class="mx-auto mb-2 flex max-w-page items-center gap-1.5 text-sm font-medium text-warning-700">
         <AppIcon name="alert" :size="16" /> ยังค้างชำระ {{ money(t.balance) }} ส่งมอบไม่ได้
       </p>
       <div class="mx-auto flex max-w-page flex-wrap gap-2 lg:px-4">
@@ -775,7 +775,7 @@ async function saveCancel() {
 
     <AppModal v-if="rv.open" title="ย้อนสถานะ" @close="rv.open = false">
       <div class="space-y-3 text-sm">
-        <p class="rounded-xl bg-amber-50 p-3 text-amber-800">จะย้อนจาก <b>{{ STATUS[order.status]?.label }}</b> → <b>{{ STATUS[revTo]?.label }}</b></p>
+        <p class="rounded-xl bg-warning-50 p-3 text-warning-800">จะย้อนจาก <b>{{ STATUS[order.status]?.label }}</b> → <b>{{ STATUS[revTo]?.label }}</b></p>
         <ul class="list-disc space-y-1 pl-5 text-xs text-stone-600">
           <li v-if="order.status === 'delivered'">ถอนคะแนน/สิทธิ์หมุนที่ให้ตอนส่งมอบ และกลับรายการรับรู้รายได้ในบัญชี</li>
           <li v-if="order.status === 'payment_confirmed'">ยกเลิกยอดที่ยืนยันล่าสุด</li>
@@ -783,8 +783,8 @@ async function saveCancel() {
           <li v-if="order.status === 'cancelled'">ยกเลิกการยกเลิก (เฉพาะที่ไม่มีเงินคืน/ไม่ใช้คะแนน-คูปอง)</li>
           <li>ไม่ส่งข้อความถึงลูกค้า · บันทึกประวัติพร้อมเหตุผล</li>
         </ul>
-        <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><input v-model="rv.reason" class="input" maxlength="200" aria-label="เหตุผลย้อนสถานะ" /></div>
-        <p v-if="rv.error" class="text-rose-700" role="alert">{{ rv.error }}</p>
+        <div><label class="label">เหตุผล <span class="text-danger-700">*</span></label><input v-model="rv.reason" class="input" maxlength="200" aria-label="เหตุผลย้อนสถานะ" /></div>
+        <p v-if="rv.error" class="text-danger-700" role="alert">{{ rv.error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="rv.open = false">ไม่ย้อน</button>
@@ -797,7 +797,7 @@ async function saveCancel() {
       <DeliveryFields :form="dv" :customer-id="order.customerId" />
       <label v-if="customer" class="mt-3 flex items-center gap-2 text-sm text-stone-700"><input v-model="dvNotify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่าแก้ข้อมูลจัดส่ง" /> แจ้งลูกค้าว่าแก้ข้อมูลจัดส่ง</label>
       <SmsTick v-if="customer" v-model="dvSms" :customer="customer" :order="order" :show="dvNotify" />
-      <p v-if="dvError" class="mt-3 text-sm text-rose-700">{{ dvError }}</p>
+      <p v-if="dvError" class="mt-3 text-sm text-danger-700">{{ dvError }}</p>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="dvOpen = false">ยกเลิก</button>
         <button class="btn-primary flex-1 sm:flex-none" @click="saveDelivery">บันทึก</button>
@@ -824,12 +824,12 @@ async function saveCancel() {
           <label class="label">จำนวนเงิน (บาท)</label>
           <MoneyInput v-model.number="adj.amount" class="input text-lg font-semibold" />
         </div>
-        <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><input v-model="adj.reason" class="input" /></div>
+        <div><label class="label">เหตุผล <span class="text-danger-700">*</span></label><input v-model="adj.reason" class="input" /></div>
         <div v-if="customer" class="space-y-2 rounded-xl border border-stone-200 bg-white p-3">
           <label class="flex items-center gap-2 text-sm text-stone-700"><input v-model="adj.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าว่ามีการปรับราคา</label>
           <SmsTick v-model="adj.sms" :customer="customer" :order="order" :show="adj.notify" />
         </div>
-        <p v-if="adjError" class="text-sm text-rose-700">{{ adjError }}</p>
+        <p v-if="adjError" class="text-sm text-danger-700">{{ adjError }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="adjOpen = false">ยกเลิก</button>
@@ -840,8 +840,8 @@ async function saveCancel() {
     <!-- modal ยกเลิก -->
     <AppModal v-if="cancelOpen" title="ยกเลิกออร์เดอร์" @close="cancelOpen = false">
       <div class="space-y-4">
-        <p v-if="invoiceOfOrder(order.id)" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ออร์เดอร์นี้ออกใบกำกับภาษีไว้แล้ว ({{ invoiceOfOrder(order.id).no }}) · เมื่อยกเลิกระบบจะออกใบลดหนี้ให้อัตโนมัติ</p>
-        <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><textarea v-model="cxl.reason" rows="2" class="input" /></div>
+        <p v-if="invoiceOfOrder(order.id)" class="rounded-xl bg-warning-50 p-3 text-sm text-warning-800">ออร์เดอร์นี้ออกใบกำกับภาษีไว้แล้ว ({{ invoiceOfOrder(order.id).no }}) · เมื่อยกเลิกระบบจะออกใบลดหนี้ให้อัตโนมัติ</p>
+        <div><label class="label">เหตุผล <span class="text-danger-700">*</span></label><textarea v-model="cxl.reason" rows="2" class="input" /></div>
         <div>
           <div class="label">คืนเงินให้ลูกค้า</div>
           <RefundEditor v-model="cxl.refunds" :paid="t.goodsPaidNet" :can-credit="!!customer && !customer.deleted" :default-method="defaultRefundMethod(order.payments.filter((p) => p.status === 'confirmed').at(-1)?.method)" />
@@ -853,11 +853,11 @@ async function saveCancel() {
         <div><label class="label">หมายเหตุการคืนเงิน</label><input v-model="cxl.refundNote" class="input" /></div>
         <label v-if="customer" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="cxl.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่ายกเลิก" /> แจ้งลูกค้าว่ายกเลิกออร์เดอร์</label>
         <SmsTick v-if="customer" v-model="cxl.sms" :customer="customer" :order="order" :show="cxl.notify" />
-        <p v-if="cxlError" class="text-sm text-rose-700">{{ cxlError }}</p>
+        <p v-if="cxlError" class="text-sm text-danger-700">{{ cxlError }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="cancelOpen = false">ปิด</button>
-        <button class="btn flex-1 bg-rose-600 text-white hover:bg-rose-700 sm:flex-none" @click="saveCancel">ยืนยันยกเลิก</button>
+        <button class="btn flex-1 bg-brand-600 text-white hover:bg-danger-700 sm:flex-none" @click="saveCancel">ยืนยันยกเลิก</button>
       </template>
     </AppModal>
   </div>
@@ -882,7 +882,7 @@ async function saveCancel() {
   <PickupModal v-if="pickupOpen && order" :order="order" @close="pickupOpen = false" />
   <AppModal v-if="bdOpen" title="วันเกิด" @close="bdOpen = false">
     <BirthdayFields v-model="bd" />
-    <p v-if="bdError" class="mt-3 text-sm text-rose-700">{{ bdError }}</p>
+    <p v-if="bdError" class="mt-3 text-sm text-danger-700">{{ bdError }}</p>
     <template #footer>
       <button v-if="order.birthday" class="btn-danger flex-1 sm:mr-auto sm:flex-none" @click="setBirthday(order, null); bdOpen = false">ลบ</button>
       <button class="btn-outline flex-1 sm:flex-none" @click="bdOpen = false">ยกเลิก</button>

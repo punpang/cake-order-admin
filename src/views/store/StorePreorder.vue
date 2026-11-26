@@ -176,7 +176,7 @@ onBeforeUnmount(() => { if (captchaId !== null && window.turnstile) { try { wind
     </header>
 
     <p v-if="loading" class="mt-8 text-sm text-stone-500">กำลังโหลดแคมเปญ…</p>
-    <p v-else-if="error" class="mt-8 text-sm text-rose-700" role="alert">{{ error }}</p>
+    <p v-else-if="error" class="mt-8 text-sm text-danger-700" role="alert">{{ error }}</p>
     <div v-else-if="!campaigns.length" class="mt-8 rounded-2xl border border-dashed border-stone-300 p-6 text-center">
       <p class="font-medium text-stone-800">ตอนนี้ยังไม่มีแคมเปญเปิดรับสั่ง</p>
       <p class="mt-1 text-sm text-stone-500">กลับมาดูใหม่เมื่อร้านเปิดรับสั่งล่วงหน้า</p>
@@ -257,17 +257,17 @@ onBeforeUnmount(() => { if (captchaId !== null && window.turnstile) { try { wind
             </label>
           </div>
         </fieldset>
-        <p v-if="fulfillment === 'delivery'" class="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900" data-full-payment>การจัดส่งต้องชำระเต็มจำนวนตอนสั่ง</p>
+        <p v-if="fulfillment === 'delivery'" class="rounded-xl bg-warning-50 px-3 py-2 text-sm text-warning-800" data-full-payment>การจัดส่งต้องชำระเต็มจำนวนตอนสั่ง</p>
         <p v-if="fulfillment === 'delivery' && chosen.shipping" class="text-sm text-stone-600" data-ship>จัดส่งระหว่าง {{ chosen.shipping.shipFrom }} ถึง {{ chosen.shipping.shipTo }}</p>
       </section>
 
       <button type="button" class="btn-primary h-12 w-full" @click="seeQuote">ดูราคา</button>
-      <p v-if="quoteError" class="text-sm text-rose-700" role="alert">{{ quoteError }}</p>
+      <p v-if="quoteError" class="text-sm text-danger-700" role="alert">{{ quoteError }}</p>
 
       <!-- ยอดรวมที่เซิร์ฟเวอร์คิด -->
       <div v-if="quote" class="rounded-2xl bg-stone-900 p-4 text-white" data-quote>
-        <div class="text-sm text-stone-300">ยอดรวม {{ quote.total }} บาท</div>
-        <div v-if="quote.shippingFee" class="mt-1 text-sm text-stone-300">ค่าส่ง {{ quote.shippingFee }} บาท</div>
+        <div class="text-sm text-stone-500">ยอดรวม {{ quote.total }} บาท</div>
+        <div v-if="quote.shippingFee" class="mt-1 text-sm text-stone-500">ค่าส่ง {{ quote.shippingFee }} บาท</div>
         <div v-if="quote.deposit" class="mt-2 text-xs text-stone-400">มัดจำ {{ quote.deposit }} บาท ชำระตอนสั่ง</div>
       </div>
 
@@ -296,12 +296,12 @@ onBeforeUnmount(() => { if (captchaId !== null && window.turnstile) { try { wind
           <button type="button" class="btn-primary h-12 w-full" :disabled="busy || code.length !== 6" @click="verifyCode">{{ busy ? 'กำลังตรวจ…' : 'ยืนยัน' }}</button>
           <button type="button" class="btn-outline h-11 w-full text-sm" @click="otpSent = false; code = ''">เปลี่ยนเบอร์ หรือส่งรหัสใหม่</button>
         </div>
-        <p v-if="otpError" class="text-sm text-rose-700" role="alert">{{ otpError }}</p>
+        <p v-if="otpError" class="text-sm text-danger-700" role="alert">{{ otpError }}</p>
       </div>
 
       <!-- ขั้น 4: ยืนยันการสั่ง -->
       <div v-if="verified && !placed" class="space-y-3 rounded-2xl border border-stone-200 bg-white p-4" data-place>
-        <p class="text-sm font-medium text-emerald-800">ยืนยันเบอร์แล้ว</p>
+        <p class="text-sm font-medium text-success-800">ยืนยันเบอร์แล้ว</p>
         <div v-if="fulfillment === 'delivery'" class="space-y-3">
           <div>
             <label class="label" for="pre-address">ที่อยู่จัดส่ง</label>
@@ -314,14 +314,14 @@ onBeforeUnmount(() => { if (captchaId !== null && window.turnstile) { try { wind
         </div>
         <div v-if="turnstileOn()" ref="captchaEl"></div>
         <button type="button" class="btn-primary h-12 w-full" :disabled="placing" @click="placeOrder">{{ placing ? 'กำลังสั่ง…' : 'ยืนยันสั่งสินค้า' }}</button>
-        <p v-if="placeError" class="text-sm text-rose-700" role="alert">{{ placeError }}</p>
+        <p v-if="placeError" class="text-sm text-danger-700" role="alert">{{ placeError }}</p>
       </div>
 
       <!-- สำเร็จ -->
-      <div v-if="placed" class="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4" data-placed>
-        <div class="text-base font-semibold text-emerald-900">สั่งสินค้าสำเร็จ รหัส {{ placed.code }}</div>
-        <div class="text-sm text-emerald-900">ยอดรวม {{ placed.total }} บาท · มัดจำ {{ placed.deposit }} บาท</div>
-        <div class="text-xs text-emerald-800">ชำระมัดจำภายในเวลาที่กำหนด ดูสถานะได้ที่ออร์เดอร์ของฉัน</div>
+      <div v-if="placed" class="space-y-2 rounded-2xl border border-success-200 bg-success-50 p-4" data-placed>
+        <div class="text-base font-semibold text-success-800">สั่งสินค้าสำเร็จ รหัส {{ placed.code }}</div>
+        <div class="text-sm text-success-800">ยอดรวม {{ placed.total }} บาท · มัดจำ {{ placed.deposit }} บาท</div>
+        <div class="text-xs text-success-800">ชำระมัดจำภายในเวลาที่กำหนด ดูสถานะได้ที่ออร์เดอร์ของฉัน</div>
       </div>
     </div>
   </section>

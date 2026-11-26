@@ -31,7 +31,7 @@ const cf = computed(() => reportCashFlow(from.value, to.value))
 const eq = computed(() => reportEquity(from.value, to.value))
 const printer = ref(null)
 const pct = (c, b) => { const v = pctChange(c, b); return v == null ? '-' : `${v > 0 ? '+' : ''}${v}%` }
-const cls = (c, b, good = 'up') => { const v = pctChange(c, b); if (v == null || v === 0) return 'text-stone-400'; return (v > 0) === (good === 'up') ? 'text-emerald-700' : 'text-rose-700' }
+const cls = (c, b, good = 'up') => { const v = pctChange(c, b); if (v == null || v === 0) return 'text-stone-400'; return (v > 0) === (good === 'up') ? 'text-success-700' : 'text-danger-700' }
 const barMax = computed(() => Math.max(1, ...cmp.value.totals.revenue.map(Math.abs), ...cmp.value.totals.netProfit.map(Math.abs)))
 const notesAssets = computed(() => assets().map((a) => ({ a, accum: Math.round((a.cost - (assetSchedule(a).filter((r) => r.date <= asOf.value).at(-1)?.book ?? a.cost)) * 100) / 100 })))
 const bsFy = computed(() => fiscalStartOf(asOf.value))
@@ -84,7 +84,7 @@ const titleOf = computed(() => ({ summary: indiv.value ? 'สรุปราย�
       <!-- สรุป -->
       <section v-if="kind === 'summary'" class="card text-sm" aria-label="สรุปรายงาน">
         <div class="card-title">{{ titleOf }} <span class="text-xs font-normal text-stone-400">{{ dateOnly(sm.from) }} – {{ dateOnly(sm.to) }}</span></div>
-        <div class="grid grid-cols-2 gap-2 pb-2"><div class="rounded-xl bg-stone-50 p-2"><div class="text-xs text-stone-500">{{ indiv ? 'รายรับ' : 'รายได้' }}</div><b>{{ money(sm.pl.revenueTotal) }}</b></div><div class="rounded-xl p-2" :class="sm.pl.netProfit < 0 ? 'bg-rose-50' : 'bg-emerald-50'"><div class="text-xs text-stone-500">{{ indiv ? 'รายรับ − รายจ่าย' : 'กำไร (ขาดทุน) สุทธิ' }}</div><b>{{ money(sm.pl.netProfit) }}</b></div></div>
+        <div class="grid grid-cols-2 gap-2 pb-2"><div class="rounded-xl bg-stone-50 p-2"><div class="text-xs text-stone-500">{{ indiv ? 'รายรับ' : 'รายได้' }}</div><b>{{ money(sm.pl.revenueTotal) }}</b></div><div class="rounded-xl p-2" :class="sm.pl.netProfit < 0 ? 'bg-danger-50' : 'bg-success-50'"><div class="text-xs text-stone-500">{{ indiv ? 'รายรับ − รายจ่าย' : 'กำไร (ขาดทุน) สุทธิ' }}</div><b>{{ money(sm.pl.netProfit) }}</b></div></div>
         <div class="font-semibold text-stone-800">{{ indiv ? 'รายรับ' : 'รายได้' }}ตามหมวด</div>
         <div v-for="r in sm.pl.revenue" :key="r.account.id" class="flex justify-between py-0.5 pl-3"><span>{{ r.account.name }}</span><span>{{ money(r.amount) }}</span></div>
         <div class="mt-2 font-semibold text-stone-800">ต้นทุนและ{{ indiv ? 'รายจ่าย' : 'ค่าใช้จ่าย' }}ตามหมวด</div>
@@ -133,7 +133,7 @@ const titleOf = computed(() => ({ summary: indiv.value ? 'สรุปราย�
         <div class="flex justify-between py-0.5 pl-3"><span>กำไร (ขาดทุน) ปีบัญชีนี้</span><span>{{ money(bs.profitYear) }}</span></div>
         <div class="flex justify-between border-t border-stone-100 py-1 font-semibold"><span>รวมส่วนของเจ้าของ</span><span>{{ money(bs.equity) }}</span></div>
         <div class="flex justify-between border-t border-stone-200 py-1 font-semibold"><span>รวมหนี้สินและส่วนของเจ้าของ</span><span aria-label="รวมหนี้สินและส่วนของเจ้าของ">{{ money(bs.liabilitiesEquity) }}</span></div>
-        <p class="mt-1 text-xs" :class="bs.balanced ? 'text-emerald-700' : 'text-rose-700'">{{ bs.balanced ? 'งบดุลสมดุล (สินทรัพย์ = หนี้สิน + ส่วนของเจ้าของ)' : 'งบดุลไม่สมดุล!' }}</p>
+        <p class="mt-1 text-xs" :class="bs.balanced ? 'text-success-700' : 'text-danger-700'">{{ bs.balanced ? 'งบดุลสมดุล (สินทรัพย์ = หนี้สิน + ส่วนของเจ้าของ)' : 'งบดุลไม่สมดุล!' }}</p>
       </section>
 
       <!-- กระแสเงินสด -->
@@ -151,7 +151,7 @@ const titleOf = computed(() => ({ summary: indiv.value ? 'สรุปราย�
         <div class="mt-1 flex justify-between border-t border-stone-200 py-1 font-semibold"><span>เงินสดและธนาคารเพิ่มขึ้น (ลดลง) สุทธิ</span><span>{{ money(cf.netChange) }}</span></div>
         <div class="flex justify-between py-0.5"><span>ยอดต้นงวด</span><span>{{ money(cf.opening) }}</span></div>
         <div class="flex justify-between py-0.5 font-semibold"><span>ยอดปลายงวด</span><span aria-label="เงินสดปลายงวด">{{ money(cf.closing) }}</span></div>
-        <p class="mt-1 text-xs" :class="cf.diff === 0 ? 'text-emerald-700' : 'text-rose-700'">{{ cf.diff === 0 ? 'กระทบยอดตรงกับเงินสด+ธนาคารตามบัญชี' : `ผลต่าง ${money(cf.diff)} — ตรวจรายการ` }}</p>
+        <p class="mt-1 text-xs" :class="cf.diff === 0 ? 'text-success-700' : 'text-danger-700'">{{ cf.diff === 0 ? 'กระทบยอดตรงกับเงินสด+ธนาคารตามบัญชี' : `ผลต่าง ${money(cf.diff)} — ตรวจรายการ` }}</p>
       </section>
 
       <!-- ส่วนของเจ้าของ -->

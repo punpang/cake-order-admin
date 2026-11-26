@@ -45,7 +45,7 @@ watch(() => route.path, () => { if (confirmState.open) closeConfirm(false) })
     <div class="flex h-full items-center justify-center p-6" @click.self="closeConfirm(false)">
       <div class="max-h-full w-full max-w-sm overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl" ref="box" data-dialog role="alertdialog" aria-modal="true" :aria-labelledby="titleId" :aria-describedby="confirmState.message ? 'confirm-desc' : undefined">
         <div class="flex items-start gap-3">
-          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" :class="confirmState.danger ? 'bg-rose-50 text-rose-700' : 'bg-brand-50 text-brand-600'">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" :class="confirmState.danger ? 'bg-danger-50 text-danger-700' : 'bg-brand-50 text-brand-600'">
             <AppIcon name="alert" :size="20" />
           </span>
           <div class="min-w-0 flex-1">
@@ -56,7 +56,7 @@ watch(() => route.path, () => { if (confirmState.open) closeConfirm(false) })
         <label v-if="confirmState.checkbox" class="mt-4 flex items-start gap-2 rounded-xl bg-stone-50 p-3 text-sm text-stone-700"><input v-model="confirmState.checked" type="checkbox" class="mt-0.5 h-4 w-4" :aria-label="confirmState.checkbox.label" /><span>{{ confirmState.checkbox.label }}<span v-if="confirmState.checkbox.hint" class="block text-xs text-stone-500">{{ confirmState.checkbox.hint }}</span></span></label>
         <label v-if="confirmState.checkbox2 && (!confirmState.checkbox || confirmState.checked)" class="mt-2 flex items-start gap-2 rounded-xl bg-stone-50 p-3 text-sm text-stone-700" data-sms-tick><input v-model="confirmState.checked2" type="checkbox" class="mt-0.5 h-4 w-4" :aria-label="confirmState.checkbox2.label" /><span>{{ confirmState.checkbox2.label }}<span v-if="confirmState.checkbox2.hint" class="block text-xs text-stone-500">{{ confirmState.checkbox2.hint }}</span></span></label>
         <div v-if="confirmState.reason" class="mt-4">
-          <label class="label" for="confirm-reason">{{ confirmState.reason.label }} <span class="text-rose-600">*</span></label>
+          <label class="label" for="confirm-reason">{{ confirmState.reason.label }} <span class="text-danger-700">*</span></label>
           <input id="confirm-reason" v-model="confirmState.reasonValue" class="input" maxlength="200" :aria-label="confirmState.reason.label" autocomplete="off" />
         </div>
         <div class="mt-5 flex gap-2">

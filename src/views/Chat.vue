@@ -243,7 +243,7 @@ function doCreate() {
         <div class="head-safe flex items-center justify-between gap-2 px-4 pt-3.5 pb-2.5">
           <h1 class="page-title">แชท</h1>
           <div class="flex min-w-0 items-center gap-1.5">
-            <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium" :class="fbOn ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'" :title="fbOn ? `Facebook ${db.integrations.facebook.accountName}` : 'ยังไม่ได้เชื่อม Facebook'">
+            <span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium" :class="fbOn ? 'bg-success-50 text-success-700' : 'bg-stone-100 text-stone-500'" :title="fbOn ? `Facebook ${db.integrations.facebook.accountName}` : 'ยังไม่ได้เชื่อม Facebook'">
               <span class="h-1.5 w-1.5 rounded-full" :class="fbOn ? 'bg-emerald-500' : 'bg-stone-300'" />Facebook
             </span>
           </div>
@@ -270,7 +270,7 @@ function doCreate() {
 
         <ul class="min-h-0 flex-1 divide-y divide-stone-100 overflow-y-auto overscroll-contain border-t border-stone-100">
           <li v-if="!list.length" class="flex flex-col items-center gap-2 px-6 py-12 text-center">
-            <AppIcon name="chat" :size="32" class="text-stone-300" />
+            <AppIcon name="chat" :size="32" class="text-stone-500" />
             <template v-if="q.trim()">
               <p class="text-sm font-medium text-stone-700">ไม่พบแชทที่ตรงกับ “{{ q.trim() }}”</p>
               <p class="text-xs text-stone-500">ลองค้นด้วยชื่อ เบอร์ หรือเลขออร์เดอร์</p>
@@ -296,7 +296,7 @@ function doCreate() {
                 <span class="flex items-baseline gap-2">
                   <span class="flex min-w-0 flex-1 items-center gap-1.5">
                     <span class="truncate text-[15px]" :class="c.unreadStaff ? 'font-semibold text-stone-900' : 'font-medium text-stone-800'">{{ nameOf(c) }}</span>
-                    <span v-if="!c.customerId" class="shrink-0 rounded bg-amber-50 px-1.5 text-xs leading-5 font-medium text-amber-700">ยังไม่ผูก</span>
+                    <span v-if="!c.customerId" class="shrink-0 rounded bg-warning-50 px-1.5 text-xs leading-5 font-medium text-warning-700">ยังไม่ผูก</span>
                     <span v-if="badgeOf(c)" class="shrink-0 rounded px-1.5 text-xs leading-5 font-medium" :class="badgeOf(c).cls">{{ badgeOf(c).label }}<template v-if="badgeOf(c).more"> +{{ badgeOf(c).more }}</template></span>
                     <span v-if="c.pinnedAt" class="shrink-0 rounded bg-stone-100 px-1.5 text-xs leading-5 font-medium text-stone-600">ปักหมุด</span>
                     <span v-if="hiddenOf(c)" class="shrink-0 rounded bg-stone-200 px-1.5 text-xs leading-5 font-medium text-stone-700">ซ่อนอยู่</span>
@@ -342,9 +342,9 @@ function doCreate() {
                 <AppIcon name="next" :size="14" class="shrink-0 text-stone-400" />
               </span>
               <span class="mt-0.5 flex min-w-0 items-center gap-x-2 gap-y-1 text-xs text-stone-500" :class="kb.open ? 'flex-nowrap overflow-hidden' : 'flex-wrap'">
-                <span v-if="!customer" class="shrink-0 font-medium text-amber-700">ยังไม่ผูกลูกค้า</span>
+                <span v-if="!customer" class="shrink-0 font-medium text-warning-700">ยังไม่ผูกลูกค้า</span>
                 <span v-else-if="customer.phone && !kb.open" class="shrink-0 tabular-nums">{{ formatPhone(customer.phone) }}</span>
-                <span v-if="fbLeft !== null" class="shrink-0 rounded-full px-2 py-px font-medium" :class="fbLeft > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'">{{ fbLeft > 0 ? `ตอบได้อีก ${Math.ceil(fbLeft / 3600e3)} ชม.` : 'เกิน 24 ชม.' }}</span>
+                <span v-if="fbLeft !== null" class="shrink-0 rounded-full px-2 py-px font-medium" :class="fbLeft > 0 ? 'bg-success-50 text-success-700' : 'bg-danger-50 text-danger-700'">{{ fbLeft > 0 ? `ตอบได้อีก ${Math.ceil(fbLeft / 3600e3)} ชม.` : 'เกิน 24 ชม.' }}</span>
                 <span v-if="openOrders.length && !kb.open" class="shrink-0 font-medium text-stone-600">ออร์เดอร์เปิด {{ openOrders.length }}</span>
               </span>
             </span>
@@ -363,16 +363,16 @@ function doCreate() {
             <span v-if="hasDraft(current.id) && !orderOpen" class="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-400 ring-2 ring-white" aria-hidden="true" />
           </button>
         </header>
-        <div v-if="suggestions.length && !kb.open" class="flex flex-wrap items-center gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        <div v-if="suggestions.length && !kb.open" class="flex flex-wrap items-center gap-2 border-b border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-800">
           <span class="font-medium">ลูกค้าที่น่าจะใช่:</span>
-          <button v-for="x in suggestions" :key="x.customer.id" type="button" class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium hover:bg-amber-100" @click="doLink(x.customer)">
-            {{ x.customer.name }}<span class="text-amber-700"> · {{ x.why === 'phone' ? 'เบอร์ตรงกับที่พิมพ์ในแชท' : 'ชื่อคล้ายโปรไฟล์' }}</span> <span class="font-semibold text-brand-700">ผูก</span>
+          <button v-for="x in suggestions" :key="x.customer.id" type="button" class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium hover:bg-warning-100" @click="doLink(x.customer)">
+            {{ x.customer.name }}<span class="text-warning-700"> · {{ x.why === 'phone' ? 'เบอร์ตรงกับที่พิมพ์ในแชท' : 'ชื่อคล้ายโปรไฟล์' }}</span> <span class="font-semibold text-brand-700">ผูก</span>
           </button>
         </div>
         <ChatThread :key="current.id" :chat="current" class="min-h-0 flex-1" @link="openLink" @open-panel="openPanel" @edit-draft="openPanel" />
       </section>
       <section v-else class="hidden flex-col items-center justify-center gap-2 rounded-2xl border border-stone-200 bg-white px-6 text-center md:flex">
-        <AppIcon name="chat" :size="36" class="text-stone-300" />
+        <AppIcon name="chat" :size="36" class="text-stone-500" />
         <p class="text-sm font-medium text-stone-700">เลือกแชททางซ้ายเพื่อเริ่มตอบ</p>
         <p v-if="counts.unread" class="text-xs font-medium text-brand-700">มีแชทที่ยังไม่อ่าน {{ counts.unread }} แชท</p>
       </section>
@@ -414,7 +414,7 @@ function doCreate() {
           <dl class="mt-3 space-y-2 text-sm">
             <div class="flex justify-between gap-3">
               <dt class="text-stone-500">ลูกค้า</dt>
-              <dd class="text-right font-medium" :class="customer ? 'text-stone-900' : 'text-amber-700'">{{ customer ? 'ผูกแล้ว' : 'ยังไม่ผูก' }}</dd>
+              <dd class="text-right font-medium" :class="customer ? 'text-stone-900' : 'text-warning-700'">{{ customer ? 'ผูกแล้ว' : 'ยังไม่ผูก' }}</dd>
             </div>
             <div class="flex justify-between gap-3">
               <dt class="text-stone-500">เบอร์โทร</dt>
@@ -422,7 +422,7 @@ function doCreate() {
             </div>
             <div v-if="current.channel === 'facebook' || current.channel === 'instagram'" class="flex justify-between gap-3">
               <dt class="text-stone-500">ตอบได้</dt>
-              <dd class="text-right" :class="fbLeft > 0 ? 'text-stone-900' : 'font-medium text-rose-700'">{{ fbLeft > 0 ? `อีก ${Math.ceil(fbLeft / 3600e3)} ชม.` : 'เกิน 24 ชม. แล้ว' }}</dd>
+              <dd class="text-right" :class="fbLeft > 0 ? 'text-stone-900' : 'font-medium text-danger-700'">{{ fbLeft > 0 ? `อีก ${Math.ceil(fbLeft / 3600e3)} ชม.` : 'เกิน 24 ชม. แล้ว' }}</dd>
             </div>
           </dl>
           <button type="button" class="btn-outline mt-3 w-full" @click="linkFromDetails">{{ customer ? 'เปลี่ยนลูกค้า' : 'ผูกกับลูกค้า' }}</button>
@@ -437,7 +437,7 @@ function doCreate() {
                 <span class="block font-medium text-stone-900">{{ orderNo(o.code) }}</span>
                 <span class="block truncate text-xs text-stone-500">{{ o.items[0]?.name }}</span>
               </span>
-              <AppIcon name="next" class="text-stone-300" />
+              <AppIcon name="next" class="text-stone-500" />
             </RouterLink>
           </div>
         </div>
@@ -445,7 +445,7 @@ function doCreate() {
         <div v-if="canPre && customer" data-chat-preorders>
           <h3 class="mb-1.5 text-sm font-semibold text-stone-800">สั่งล่วงหน้า</h3>
           <p v-if="preLoading" class="rounded-xl bg-white p-3 text-sm text-stone-500 ring-1 ring-stone-200">กำลังโหลด…</p>
-          <p v-else-if="preErr" role="alert" class="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{{ preErr }}</p>
+          <p v-else-if="preErr" role="alert" class="rounded-xl bg-danger-50 p-3 text-sm text-danger-800">{{ preErr }}</p>
           <p v-else-if="!preList.length" class="rounded-xl bg-white p-3 text-sm text-stone-500 ring-1 ring-stone-200">ไม่มีออร์เดอร์สั่งล่วงหน้าที่ยังไม่ปิด</p>
           <div v-else class="space-y-2">
             <RouterLink v-for="p in preList" :key="p.id" to="/admin/preorders" class="flex items-center justify-between gap-2 rounded-xl border border-stone-200 bg-white p-3 hover:border-brand-300" data-chat-preorder>
@@ -453,7 +453,7 @@ function doCreate() {
                 <span class="block font-medium text-stone-900">{{ p.code }}</span>
                 <span class="block truncate text-xs text-stone-500">รับ {{ p.pickupDate || '-' }} · ค้าง {{ money(p.due) }} บาท · กำหนด {{ preDue(p.payDueAt) }}</span>
               </span>
-              <AppIcon name="next" class="text-stone-300" />
+              <AppIcon name="next" class="text-stone-500" />
             </RouterLink>
           </div>
         </div>
@@ -471,7 +471,7 @@ function doCreate() {
         <div class="text-sm font-semibold text-stone-800">สร้างลูกค้าใหม่</div>
         <input v-model="newName" class="input" placeholder="ชื่อ" />
         <PhoneInput v-model="newPhone" />
-        <p v-if="linkError" class="text-sm text-rose-700" role="alert">{{ linkError }}</p>
+        <p v-if="linkError" class="text-sm text-danger-700" role="alert">{{ linkError }}</p>
         <button type="button" class="btn-soft w-full" @click="doCreate"><AppIcon name="plus" :size="16" /> สร้างและผูก</button>
         <p class="text-xs text-stone-500">ยังไม่มีเบอร์? ปิดไว้ก่อนได้ ลงออร์เดอร์/ส่งใบเสนอในแชทได้ แต่บันทึกออร์เดอร์ต้องมีเบอร์</p>
       </div>

@@ -295,16 +295,16 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
         <textarea id="paste-code" v-model="pasteText" rows="2" class="input min-w-0 flex-1 font-mono text-xs" placeholder="#CK1.…" @keydown.ctrl.enter="applyPaste" @keydown.meta.enter="applyPaste"></textarea>
         <button type="button" class="self-start" :class="pasteText.trim() ? 'btn-primary' : 'btn-outline'" :disabled="!pasteText.trim()" @click="applyPaste">ใส่ในฟอร์ม</button>
       </div>
-      <p v-if="pasteMsg.ok" class="mt-1.5 text-sm font-medium text-emerald-700" role="status">{{ pasteMsg.ok }}</p>
-      <p v-for="(w, i) in pasteMsg.warn" :key="i" class="mt-1 text-sm text-amber-700">⚠ {{ w }}</p>
-      <p v-if="pasteMsg.error" class="mt-1.5 text-sm text-rose-700" role="alert">{{ pasteMsg.error }}</p>
+      <p v-if="pasteMsg.ok" class="mt-1.5 text-sm font-medium text-success-700" role="status">{{ pasteMsg.ok }}</p>
+      <p v-for="(w, i) in pasteMsg.warn" :key="i" class="mt-1 text-sm text-warning-700">⚠ {{ w }}</p>
+      <p v-if="pasteMsg.error" class="mt-1.5 text-sm text-danger-700" role="alert">{{ pasteMsg.error }}</p>
     </div>
 
     <!-- สินค้าสำเร็จ (สินค้า POS) -->
     <div v-if="form.kind === 'retail'" class="mb-3 rounded-2xl border bg-white p-3.5" :class="errors.product ? 'border-rose-300 ring-4 ring-rose-50' : 'border-stone-200/70'">
       <div class="mb-2.5 flex items-baseline gap-2">
         <span class="text-sm font-semibold text-stone-800">เลือกสินค้า</span>
-        <span class="text-xs font-medium text-rose-700">จำเป็น</span>
+        <span class="text-xs font-medium text-danger-700">จำเป็น</span>
       </div>
       <div class="mb-2.5 flex flex-wrap gap-2">
         <input v-model="q" type="search" class="input h-10 min-w-0 flex-1 basis-40" placeholder="ค้นหาสินค้า" />
@@ -335,7 +335,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
         </button>
       </div>
       <p v-if="!shown.length" class="py-4 text-center text-sm text-stone-500">ไม่พบสินค้า</p>
-      <p v-if="errors.product" class="mt-2 text-sm text-rose-700">{{ errors.product }}</p>
+      <p v-if="errors.product" class="mt-2 text-sm text-danger-700">{{ errors.product }}</p>
     </div>
 
     <!-- รูป + หมายเหตุ -->
@@ -354,7 +354,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
           <input type="file" accept="image/*" multiple class="hidden" @change="onImages" />
         </label>
       </div>
-      <p v-if="imgError" class="mt-1 text-xs text-rose-700">{{ imgError }}</p>
+      <p v-if="imgError" class="mt-1 text-xs text-danger-700">{{ imgError }}</p>
       <div class="mt-4">
         <div class="label">หมายเหตุ</div>
         <textarea v-model="form.note" rows="2" class="input" placeholder="รายละเอียดเพิ่มเติม" />
@@ -403,12 +403,12 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
     <OptionPicker compact v-model="form.selections" :scopes="scopesFor(form.tiers[0])" :bundles="form.kind === 'custom' ? db.bundles : []" :context="form.tiers[0]?.selections || {}" :groups="wholeGroups" :all-groups="groups" :errors="errors" :active="active" :allow="form.kind === 'custom' ? allowFor(form.tiers[0]) : null" :size-ids="allSizeIds" :type-opt="form.kind === 'custom' ? typeOptOf(form.tiers[0]) : readyTypeOpt" />
     <BundleHint v-if="form.kind === 'custom'" scope="whole" :bundles="db.bundles" :groups="groups" :tier-sels="form.tiers[0]?.selections || null" :whole-sels="form.selections" :size-ids="allSizeIds" :type-id="typeOptOf(form.tiers[0])?.id || null" :style-id="styleIdOf(form.tiers[0])" :allow="allowFor(form.tiers[0])" />
 
-    <div v-if="healthText()" class="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3.5">
-      <label class="flex items-start gap-2 text-sm text-amber-900">
+    <div v-if="healthText()" class="mt-3 rounded-2xl border border-warning-200 bg-warning-50 p-3.5">
+      <label class="flex items-start gap-2 text-sm text-warning-800">
         <input v-model="healthOk" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0" />
         <span>ลูกค้ายินยอมโดยชัดแจ้งให้ร้านเก็บและใช้ข้อมูลแพ้อาหารนี้ เพื่อทำสินค้าเท่านั้น (ข้อมูลสุขภาพตาม PDPA) — ถามลูกค้าในแชทก่อนติ๊ก</span>
       </label>
-      <p v-if="errors.health" class="mt-1.5 text-sm text-rose-700" role="alert">{{ errors.health }}</p>
+      <p v-if="errors.health" class="mt-1.5 text-sm text-danger-700" role="alert">{{ errors.health }}</p>
     </div>
 
     </template>
@@ -430,7 +430,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
           <AppIcon name="check" :size="18" /> บันทึกสินค้า
         </button>
       </div>
-      <p v-if="errors.qty || Object.keys(errors).length" class="w-full text-sm text-rose-700">กรอกข้อมูลที่จำเป็นให้ครบ</p>
+      <p v-if="errors.qty || Object.keys(errors).length" class="w-full text-sm text-danger-700">กรอกข้อมูลที่จำเป็นให้ครบ</p>
     </template>
   </AppModal>
 </template>

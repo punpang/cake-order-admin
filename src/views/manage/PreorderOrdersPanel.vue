@@ -187,7 +187,7 @@ onMounted(load)
           <label class="text-sm">ค่าไปรษณีย์ <input v-model="batch.postageAll" type="number" min="0" step="0.01" class="input h-11 w-28" aria-label="ค่าไปรษณีย์ที่จะใส่ทุกแถว (บาท)" /></label>
           <button type="button" class="btn-outline h-11 px-3" @click="fillPostageAll">ใส่ค่านี้ทุกแถว</button>
         </div>
-        <p v-if="batch.errors.carrierError" class="text-sm text-rose-700" role="alert">{{ batch.errors.carrierError }}</p>
+        <p v-if="batch.errors.carrierError" class="text-sm text-danger-700" role="alert">{{ batch.errors.carrierError }}</p>
         <label class="block text-sm">วางเลขพัสดุ (หนึ่งบรรทัดต่อหนึ่งออร์เดอร์ เรียงตามแถว)
           <textarea v-model="batch.paste" rows="3" class="input mt-1 w-full" aria-label="วางเลขพัสดุทั้งชุด"></textarea>
         </label>
@@ -199,7 +199,7 @@ onMounted(load)
             <div class="text-sm"><div class="font-mono">{{ r.code }}</div><div class="text-stone-600">{{ r.customer }}</div></div>
             <div>
               <input :ref="(el) => { trackRefs[i] = el }" v-model="r.tracking" class="input h-11 w-full" :aria-label="`เลขพัสดุ ${r.code}`" @keydown.enter.prevent="focusNext(i)" />
-              <div v-if="batch.errors.rowErrors[r.orderId] || batch.results[r.orderId]" class="mt-1 text-xs text-rose-700">{{ batch.errors.rowErrors[r.orderId] || batch.results[r.orderId] }}</div>
+              <div v-if="batch.errors.rowErrors[r.orderId] || batch.results[r.orderId]" class="mt-1 text-xs text-danger-700">{{ batch.errors.rowErrors[r.orderId] || batch.results[r.orderId] }}</div>
             </div>
             <input v-model="r.postage" type="number" min="0" step="0.01" class="input h-11 w-full" :aria-label="`ค่าไปรษณีย์ ${r.code}`" placeholder="ค่าไปรษณีย์" />
             <span></span>
@@ -230,7 +230,7 @@ onMounted(load)
         <!-- เลขพัสดุ -->
         <div v-if="o.pickupRound" class="flex flex-wrap items-center gap-2" :class="orderOf(o, 'ready')">
           <button v-if="isReady(o)" type="button" data-action="ready" class="btn-outline h-11 px-3" :class="{ hidden: hiddenFor(o, 'ready') }" @click="act(o, 'mark_ready', {}, 'บันทึกว่าเตรียมเสร็จแล้ว')">เตรียมเสร็จ (รอบ {{ o.pickupRound }})</button>
-          <span v-if="o.readyAt" class="text-xs text-emerald-700">เตรียมเสร็จแล้ว</span>
+          <span v-if="o.readyAt" class="text-xs text-success-700">เตรียมเสร็จแล้ว</span>
         </div>
         <div v-if="isShip(o)" data-action="ship" class="flex flex-wrap items-center gap-2" :class="blockClass(o, 'ship')">
           <input v-model="box(o.id).carrier" class="input h-11 w-28" placeholder="ขนส่ง" aria-label="ชื่อขนส่ง" />

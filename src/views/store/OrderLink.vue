@@ -80,13 +80,13 @@ function refresh() {
   <div class="mx-auto max-w-xl px-4 py-6">
     <div v-if="!res" class="flex flex-col items-center gap-3 py-16 text-stone-500"><span class="brand-ring lg" aria-hidden="true"></span>กำลังโหลด…</div>
     <div v-else-if="res.netError" class="card py-12 text-center" role="alert">
-      <AppIcon name="alert" :size="28" class="mx-auto text-stone-300" />
+      <AppIcon name="alert" :size="28" class="mx-auto text-stone-500" />
       <p class="mt-3 font-medium text-stone-700">เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ในขณะนี้</p>
       <p class="mt-1 text-sm text-stone-500">ลิงก์ของคุณยังไม่ได้ตรวจสอบ ตรวจอินเทอร์เน็ตแล้วลองใหม่</p>
       <button type="button" class="btn-primary mt-4 h-11 px-6" @click="load(false)">ลองใหม่</button>
     </div>
     <div v-else-if="res.error" class="card py-12 text-center">
-      <AppIcon name="alert" :size="28" class="mx-auto text-stone-300" />
+      <AppIcon name="alert" :size="28" class="mx-auto text-stone-500" />
       <p class="mt-3 font-medium text-stone-700">{{ res.error || LINK_ERROR }}</p>
       <p class="mt-1 text-sm text-stone-500">ขอลิงก์ใหม่ได้จากร้าน</p>
     </div>

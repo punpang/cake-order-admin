@@ -331,13 +331,13 @@ function clearAll() {
     <!-- เตือนวันเกิด -->
     <button
       v-if="birthdays.length"
-      class="mb-4 flex w-full items-center gap-3 rounded-2xl border border-rose-100 bg-rose-50/60 px-3.5 py-3 text-left transition hover:bg-rose-50 active:scale-[0.99]"
+      class="mb-4 flex w-full items-center gap-3 rounded-2xl border border-danger-100 bg-danger-50/60 px-3.5 py-3 text-left transition hover:bg-danger-50 active:scale-[0.99]"
       @click="bdOpen = true"
     >
-      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-rose-700"><AppIcon name="cake" :size="18" /></span>
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-danger-700"><AppIcon name="cake" :size="18" /></span>
       <span class="min-w-0 flex-1">
-        <span class="block text-sm font-semibold text-rose-900">วันเกิดใกล้ถึง {{ birthdays.length }} คน</span>
-        <span class="block truncate text-xs text-rose-700">{{ birthdays.map((b) => b.name || findCustomer(b.customerId)?.name).join(', ') }}</span>
+        <span class="block text-sm font-semibold text-danger-800">วันเกิดใกล้ถึง {{ birthdays.length }} คน</span>
+        <span class="block truncate text-xs text-danger-700">{{ birthdays.map((b) => b.name || findCustomer(b.customerId)?.name).join(', ') }}</span>
       </span>
       <AppIcon name="next" class="text-rose-300" />
     </button>
@@ -373,13 +373,13 @@ function clearAll() {
             <span class="shrink-0">{{ o.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }}</span><span aria-hidden="true">·</span>
             <span class="truncate">{{ o.items[0]?.name }}<template v-if="o.items.length > 1"> +{{ o.items.length - 1 }}</template></span>
           </span>
-          <span class="flex shrink-0 flex-wrap items-center justify-end gap-1"><StatusBadge :status="o.status" /><PayDueBadge :order="o" short /><span v-if="customerPending(o).length" class="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-sky-700">รอตรวจสลิป</span></span>
+          <span class="flex shrink-0 flex-wrap items-center justify-end gap-1"><StatusBadge :status="o.status" /><PayDueBadge :order="o" short /><span v-if="customerPending(o).length" class="rounded-full bg-info-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-info-700">รอตรวจสลิป</span></span>
           <span class="text-right font-semibold text-stone-900 tabular-nums">{{ money(t.total) }}</span>
           <span class="text-right text-xs font-medium">
             <template v-if="o.status === 'cancelled'"><span class="text-stone-500">ยกเลิกแล้ว</span></template>
             <template v-else>
-              <span v-if="t.balance > 0" class="text-amber-700">ค้าง {{ money(t.balance) }}</span>
-              <span v-else-if="t.balance < 0" class="text-rose-700">ชำระเกิน {{ money(-t.balance) }}</span>
+              <span v-if="t.balance > 0" class="text-warning-700">ค้าง {{ money(t.balance) }}</span>
+              <span v-else-if="t.balance < 0" class="text-danger-700">ชำระเกิน {{ money(-t.balance) }}</span>
               <span v-else class="text-brand-700">ชำระครบ</span>
             </template>
           </span>
@@ -403,7 +403,7 @@ function clearAll() {
             <div class="min-w-0 flex-1">
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0 truncate font-semibold text-stone-900">{{ c?.name }}</div>
-                <span class="flex shrink-0 flex-col items-end gap-1"><StatusBadge :status="o.status" /><PayDueBadge :order="o" short /><span v-if="customerPending(o).length" class="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-sky-700">รอตรวจสลิป</span></span>
+                <span class="flex shrink-0 flex-col items-end gap-1"><StatusBadge :status="o.status" /><PayDueBadge :order="o" short /><span v-if="customerPending(o).length" class="rounded-full bg-info-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-info-700">รอตรวจสลิป</span></span>
               </div>
               <div class="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm text-stone-500">
                 <AppIcon :name="o.fulfillment === 'delivery' ? 'truck' : 'store'" :size="14" class="shrink-0" />
@@ -423,8 +423,8 @@ function clearAll() {
             <span class="shrink-0 text-right text-sm leading-tight">
               <b class="block font-semibold text-stone-900 tabular-nums">{{ money(t.total) }}</b>
               <template v-if="o.status !== 'cancelled'">
-                <span v-if="t.balance > 0" class="text-xs font-medium text-amber-700">ค้าง {{ money(t.balance) }}</span>
-                <span v-else-if="t.balance < 0" class="text-xs font-medium text-rose-700">ชำระเกิน {{ money(-t.balance) }}</span>
+                <span v-if="t.balance > 0" class="text-xs font-medium text-warning-700">ค้าง {{ money(t.balance) }}</span>
+                <span v-else-if="t.balance < 0" class="text-xs font-medium text-danger-700">ชำระเกิน {{ money(-t.balance) }}</span>
                 <span v-else class="text-xs font-medium text-brand-700">ชำระครบ</span>
               </template>
               <span class="block text-xs text-stone-400">{{ orderNo(o.code) }}</span>

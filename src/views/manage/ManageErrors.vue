@@ -39,10 +39,10 @@ onMounted(load)
     <div class="mb-3 flex flex-wrap items-center gap-2">
       <p class="mr-auto text-sm text-stone-600" aria-live="polite">{{ busy ? 'กำลังโหลด…' : `${rows.length} รายการ · เกิดรวม ${total.toLocaleString()} ครั้ง` }}</p>
       <button type="button" class="btn-outline h-11 px-4" :disabled="busy" @click="load">โหลดใหม่</button>
-      <button v-if="rows.length" type="button" class="btn-outline h-11 px-4 text-rose-700" :disabled="busy" @click="clearAll">ล้างทั้งหมด</button>
+      <button v-if="rows.length" type="button" class="btn-outline h-11 px-4 text-danger-700" :disabled="busy" @click="clearAll">ล้างทั้งหมด</button>
     </div>
-    <p v-if="err" class="mb-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-800" role="alert">{{ err }}</p>
-    <p v-if="msg" class="mb-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800" role="status">{{ msg }}</p>
+    <p v-if="err" class="mb-3 rounded-xl bg-danger-50 p-3 text-sm text-danger-800" role="alert">{{ err }}</p>
+    <p v-if="msg" class="mb-3 rounded-xl bg-success-50 p-3 text-sm text-success-800" role="status">{{ msg }}</p>
     <p v-if="!busy && !err && !rows.length" class="card py-10 text-center text-stone-500">ยังไม่มีข้อผิดพลาด 🎉</p>
 
     <ul class="space-y-3">
@@ -50,7 +50,7 @@ onMounted(load)
         <button type="button" class="w-full text-left" :aria-expanded="open === r.id" @click="open = open === r.id ? null : r.id">
           <span class="flex items-start gap-2">
             <span class="min-w-0 flex-1 break-words font-medium text-stone-900">{{ r.message }}</span>
-            <span class="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">{{ r.n }} ครั้ง</span>
+            <span class="shrink-0 rounded-full bg-warning-50 px-2 py-0.5 text-xs font-semibold text-warning-800">{{ r.n }} ครั้ง</span>
           </span>
           <span class="mt-1 block text-xs text-stone-500">ล่าสุด {{ dateTime(r.last_at) }} · {{ staffName(r.staff_id) }} · {{ r.url || '-' }}</span>
         </button>

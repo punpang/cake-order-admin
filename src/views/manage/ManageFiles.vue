@@ -118,7 +118,7 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
 
 <template>
   <ManageShell title="พื้นที่รูป & การลบรูป" subtitle="ลบอัตโนมัติ: สลิป/รูปอ้างอิง หลังออเดอร์ปิดตามจำนวนวัน · รูปงานลบได้ (เข้าถังขยะก่อน กู้คืนได้)" :toolbar="false">
-    <div v-if="!filesEnabled()" class="card text-sm text-amber-800">ยังไม่ได้ตั้งค่า VITE_FILES_URL จึงจัดการพื้นที่รูปไม่ได้</div>
+    <div v-if="!filesEnabled()" class="card text-sm text-warning-800">ยังไม่ได้ตั้งค่า VITE_FILES_URL จึงจัดการพื้นที่รูปไม่ได้</div>
     <div v-else class="space-y-3">
       <!-- ตั้งค่า: พับไว้ได้ ค่าเริ่มต้นซ่อน -->
       <details class="card group">
@@ -168,8 +168,8 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
         </details>
       </section>
 
-      <p v-if="msg" class="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{{ msg }}</p>
-      <p v-if="err" class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{{ err }}</p>
+      <p v-if="msg" class="rounded-xl bg-success-50 p-3 text-sm text-success-800">{{ msg }}</p>
+      <p v-if="err" class="rounded-xl bg-danger-50 p-3 text-sm text-danger-700">{{ err }}</p>
 
       <section v-if="items.length" class="card space-y-2">
         <div class="flex flex-wrap items-center gap-1.5 text-sm">
@@ -186,7 +186,7 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
           </template>
           <button v-else type="button" class="btn-danger h-8 px-3 text-xs" :disabled="busy || !pickedKeys.length" @click="removeSelected">ย้ายที่เลือกไปถังขยะ</button>
         </div>
-        <p v-if="preview" class="rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">ตัวอย่าง: จะลบ {{ preview.wouldDelete.length }} ไฟล์ · ข้าม {{ preview.refused.length }} ไฟล์<span v-if="preview.refused.length"> ({{ preview.refused[0].reason }})</span></p>
+        <p v-if="preview" class="rounded-xl bg-warning-50 p-2.5 text-xs text-warning-800">ตัวอย่าง: จะลบ {{ preview.wouldDelete.length }} ไฟล์ · ข้าม {{ preview.refused.length }} ไฟล์<span v-if="preview.refused.length"> ({{ preview.refused[0].reason }})</span></p>
         <ul class="divide-y divide-stone-100">
           <li v-for="it in items" :key="it.key" class="flex items-center gap-2.5 py-1.5 text-sm">
             <input type="checkbox" class="h-4 w-4 shrink-0" :checked="picked.has(it.key)" :disabled="!deletable(it)" :aria-label="`เลือก ${it.key}`" @change="toggle(it.key)" />
@@ -196,7 +196,7 @@ onMounted(() => { if (filesEnabled()) run(loadRetention) })
               <div class="truncate font-medium text-stone-900">{{ it.type === 'public' ? it.key : (it.code || it.orderId) + ' · ' + (it.type === 'slip' ? 'สลิป' : it.type === 'ref' ? 'รูปอ้างอิง' : 'รูปงาน') }}</div>
               <div class="truncate text-xs text-stone-500">{{ it.status || 'ไม่พบออร์เดอร์' }} · {{ fmtSize(it.size) }}<span v-if="it.uploaded"> · {{ dateTime(it.uploaded) }}</span></div>
             </div>
-            <span v-if="it.referenced" class="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-700">ยังถูกใช้งาน</span>
+            <span v-if="it.referenced" class="shrink-0 rounded-full bg-info-50 px-2 py-0.5 text-xs text-info-700">ยังถูกใช้งาน</span>
             <span v-else-if="!it.deletable" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-600">ลบไม่ได้</span>
           </li>
         </ul>

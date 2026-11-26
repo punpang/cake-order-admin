@@ -20,7 +20,7 @@ const expAccts = computed(() => activeAccounts().filter((a) => a.kind === 'expen
 const revAccts = computed(() => activeAccounts().filter((a) => a.kind === 'revenue' && !a.system))
 const buyAccts = computed(() => activeAccounts().filter((a) => ['asset', 'expense'].includes(a.kind) && !['1010', '1020', '2400', '1590'].includes(a.id) && !a.contra))
 const err = ref('')
-const STATE = { posted: ['บันทึกแล้ว', 'bg-emerald-50 text-emerald-700'], skipped: ['ข้ามเดือนนี้', 'bg-stone-100 text-stone-600'], missing: ['ยังไม่บันทึก', 'bg-rose-50 text-rose-700'], due: ['ถึงกำหนดแล้ว', 'bg-amber-50 text-amber-700'], upcoming: ['ยังไม่ถึงกำหนด', 'bg-stone-100 text-stone-500'], inactive: ['ปิดใช้งาน', 'bg-stone-100 text-stone-400'] }
+const STATE = { posted: ['บันทึกแล้ว', 'bg-success-50 text-success-700'], skipped: ['ข้ามเดือนนี้', 'bg-stone-100 text-stone-600'], missing: ['ยังไม่บันทึก', 'bg-danger-50 text-danger-700'], due: ['ถึงกำหนดแล้ว', 'bg-warning-50 text-warning-700'], upcoming: ['ยังไม่ถึงกำหนด', 'bg-stone-100 text-stone-500'], inactive: ['ปิดใช้งาน', 'bg-stone-100 text-stone-400'] }
 const rows = computed(() => recurringStatus(ym.value, today))
 
 // ----- ค่าประจำ -----
@@ -67,7 +67,7 @@ const SET = [['cash', 'เงินสด'], ['bank', 'ธนาคาร/โอ
 <template>
   <div class="space-y-3">
     <div class="flex gap-2 overflow-x-auto"><button v-for="x in [{ v: 'rec', l: 'ค่าใช้จ่ายประจำ' }, { v: 'def', l: 'รายได้/ค่าใช้จ่ายล่วงหน้า' }, { v: 'inst', l: 'ผ่อนชำระ' }]" :key="x.v" class="chip whitespace-nowrap" :class="sub === x.v ? 'chip-on' : 'chip-off'" @click="sub = x.v; err = ''">{{ x.l }}</button></div>
-    <p v-if="err" class="flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-700" role="alert"><AppIcon name="alert" :size="16" /> {{ err }}</p>
+    <p v-if="err" class="flex items-center gap-2 rounded-xl bg-danger-50 p-3 text-sm text-danger-700" role="alert"><AppIcon name="alert" :size="16" /> {{ err }}</p>
 
     <template v-if="sub === 'rec'">
       <div class="flex items-center justify-between gap-2">
@@ -92,7 +92,7 @@ const SET = [['cash', 'เงินสด'], ['bank', 'ธนาคาร/โอ
                 <button class="btn-outline h-9 px-3" @click="skip.open = true; skip.id = r.t.id; err = ''">ข้ามเดือนนี้</button>
               </template>
               <button class="btn-soft h-9 px-3" @click="rEdit(r.t)">แก้ไข</button>
-              <button class="btn-outline h-9 px-3 text-rose-700" @click="rDel(r.t)">ลบ</button>
+              <button class="btn-outline h-9 px-3 text-danger-700" @click="rDel(r.t)">ลบ</button>
             </div>
           </li>
         </ul>
@@ -111,7 +111,7 @@ const SET = [['cash', 'เงินสด'], ['bank', 'ธนาคาร/โอ
             </button>
             <div v-if="dShow === d.id" class="mt-2 space-y-1 rounded-xl bg-stone-50 p-2 text-xs">
               <div v-for="r in deferralRows(d)" :key="r.no" class="flex justify-between" :class="r.posted ? 'text-stone-700' : 'text-stone-400'"><span>งวด {{ r.no }} · {{ monthLabel(r.ym) }}</span><span>{{ money(r.amount) }} {{ r.posted ? '✓' : '' }}</span></div>
-              <button v-if="canRec" class="mt-1 text-rose-700 underline" @click="dDel(d)">ลบ (ได้เฉพาะที่ยังไม่เริ่มตัด)</button>
+              <button v-if="canRec" class="mt-1 text-danger-700 underline" @click="dDel(d)">ลบ (ได้เฉพาะที่ยังไม่เริ่มตัด)</button>
             </div>
           </li>
         </ul>
@@ -133,7 +133,7 @@ const SET = [['cash', 'เงินสด'], ['bank', 'ธนาคาร/โอ
               <div v-for="r in installmentRows(x)" :key="r.no" class="grid grid-cols-[2rem_1fr_1fr_1fr_1fr] gap-1" :class="r.paid ? 'text-stone-700' : 'text-stone-500'"><span>{{ r.no }}</span><span>{{ dateOnly(r.due) }}{{ r.paid ? ' ✓' : '' }}</span><span class="text-right">{{ r.principal.toLocaleString() }}</span><span class="text-right">{{ r.interest.toLocaleString() }}</span><span class="text-right">{{ r.balance.toLocaleString() }}</span></div>
               <div v-if="canRec" class="flex flex-wrap gap-2 pt-1">
                 <button v-if="paidSum(x) < x.n" class="btn-primary h-9 px-3" @click="Object.assign(pay, { open: true, id: x.id, date: today }); err = ''">จ่ายงวดถัดไป</button>
-                <button class="btn-outline h-9 px-3 text-rose-700" @click="iDel(x)">ลบ (ยังไม่ชำระ)</button>
+                <button class="btn-outline h-9 px-3 text-danger-700" @click="iDel(x)">ลบ (ยังไม่ชำระ)</button>
               </div>
             </div>
           </li>
@@ -155,18 +155,18 @@ const SET = [['cash', 'เงินสด'], ['bank', 'ธนาคาร/โอ
         <div><label class="label">คู่ค้า</label><input v-model="rf.payee" class="input" maxlength="100" aria-label="คู่ค้า" /></div>
         <AppSwitch v-if="rf.kind === 'fixed'" v-model="rf.autoPost" label="ลงบัญชีอัตโนมัติเมื่อถึงกำหนด" />
         <AppSwitch v-model="rf.active" label="ใช้งาน" />
-        <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
+        <p v-if="err" class="text-sm text-danger-700" role="alert">{{ err }}</p>
       </div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="rOpen = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="rSave">บันทึก</button></template>
     </AppModal>
     <AppModal v-if="post.open" :title="`บันทึก ${post.t?.name}`" @close="post.open = false">
       <div><label class="label">ยอดเดือน {{ monthLabel(ym) }} (ประมาณ {{ money(post.t?.estimate) }})</label><MoneyInput v-model="post.amount" class="input" aria-label="ยอดเดือนนี้" /></div>
-      <p v-if="err" class="mt-2 text-sm text-rose-700" role="alert">{{ err }}</p>
+      <p v-if="err" class="mt-2 text-sm text-danger-700" role="alert">{{ err }}</p>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="post.open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="rPostVar">บันทึก</button></template>
     </AppModal>
     <AppModal v-if="skip.open" title="ข้ามเดือนนี้" @close="skip.open = false">
       <div><label class="label">เหตุผล</label><input v-model="skip.reason" class="input" maxlength="200" aria-label="เหตุผลข้ามเดือน" /></div>
-      <p v-if="err" class="mt-2 text-sm text-rose-700" role="alert">{{ err }}</p>
+      <p v-if="err" class="mt-2 text-sm text-danger-700" role="alert">{{ err }}</p>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="skip.open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="rSkip">ยืนยัน</button></template>
     </AppModal>
     <AppModal v-if="dOpen" title="เพิ่มรายการล่วงหน้า" @close="dOpen = false">
@@ -177,7 +177,7 @@ const SET = [['cash', 'เงินสด'], ['bank', 'ธนาคาร/โอ
         <div class="grid grid-cols-2 gap-3"><div><label class="label">เริ่มตัดเดือน</label><input v-model="df.startMonth" type="month" class="input" aria-label="เริ่มตัดเดือน" /></div><div><label class="label">วันที่{{ df.kind === 'unearned' ? 'รับ' : 'จ่าย' }}เงิน</label><input v-model="df.payDate" type="date" class="input" aria-label="วันที่รับจ่ายล่วงหน้า" /></div></div>
         <div><label class="label">{{ df.kind === 'unearned' ? 'บัญชีรายได้ที่จะรับรู้' : 'บัญชีค่าใช้จ่ายที่จะตัด' }}</label><select v-model="df.account" class="input" aria-label="บัญชีปลายทางล่วงหน้า"><option value="" disabled>เลือกบัญชี</option><option v-for="a in (df.kind === 'unearned' ? revAccts : expAccts)" :key="a.id" :value="a.id">{{ a.id }} {{ a.name }}</option></select></div>
         <div><label class="label">{{ df.kind === 'unearned' ? 'รับเงินทาง' : 'จ่ายโดย' }}</label><select v-model="df.method" class="input" aria-label="วิธีรับจ่ายล่วงหน้า"><option v-for="s in SET.filter((x) => df.kind === 'prepaid' || x[0] !== 'payable')" :key="s[0]" :value="s[0]">{{ s[1] }}</option></select></div>
-        <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
+        <p v-if="err" class="text-sm text-danger-700" role="alert">{{ err }}</p>
       </div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="dOpen = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="dSave">บันทึก</button></template>
     </AppModal>
@@ -190,12 +190,12 @@ const SET = [['cash', 'เงินสด'], ['bank', 'ธนาคาร/โอ
         <div class="grid grid-cols-2 gap-3"><div><label class="label">วันที่เริ่ม/รับเงิน</label><input v-model="inf.startDate" type="date" class="input" aria-label="วันที่เริ่มผ่อน" /></div><div><label class="label">ครบงวดแรก</label><input v-model="inf.firstDue" type="date" class="input" aria-label="ครบงวดแรก" /></div></div>
         <div v-if="inf.kind === 'loan'"><label class="label">รับเงินเข้า</label><select v-model="inf.receive" class="input" aria-label="รับเงินกู้เข้า"><option value="bank">ธนาคาร</option><option value="cash">เงินสด</option></select></div>
         <div v-else><label class="label">บัญชีที่ซื้อมา (สินทรัพย์/ค่าใช้จ่าย)</label><select v-model="inf.account" class="input" aria-label="บัญชีซื้อผ่อน"><option value="" disabled>เลือกบัญชี</option><option v-for="a in buyAccts" :key="a.id" :value="a.id">{{ a.id }} {{ a.name }}</option></select><p class="mt-1 text-xs text-stone-500">ถ้าเลือก 1500 สินทรัพย์ถาวร ให้ลงทะเบียนสินทรัพย์ในแท็บ "สินทรัพย์" แบบไม่บันทึกการซื้อด้วย</p></div>
-        <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
+        <p v-if="err" class="text-sm text-danger-700" role="alert">{{ err }}</p>
       </div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="iOpen = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="iSave">บันทึก</button></template>
     </AppModal>
     <AppModal v-if="pay.open" title="จ่ายงวดถัดไป" @close="pay.open = false">
-      <div class="space-y-3"><div><label class="label">วันที่จ่าย</label><input v-model="pay.date" type="date" class="input" aria-label="วันที่จ่ายงวด" /></div><div><label class="label">จ่ายโดย</label><select v-model="pay.method" class="input" aria-label="จ่ายงวดโดย"><option value="bank">ธนาคาร</option><option value="cash">เงินสด</option></select></div><p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p></div>
+      <div class="space-y-3"><div><label class="label">วันที่จ่าย</label><input v-model="pay.date" type="date" class="input" aria-label="วันที่จ่ายงวด" /></div><div><label class="label">จ่ายโดย</label><select v-model="pay.method" class="input" aria-label="จ่ายงวดโดย"><option value="bank">ธนาคาร</option><option value="cash">เงินสด</option></select></div><p v-if="err" class="text-sm text-danger-700" role="alert">{{ err }}</p></div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="pay.open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="iPay">ยืนยันจ่าย</button></template>
     </AppModal>
   </div>

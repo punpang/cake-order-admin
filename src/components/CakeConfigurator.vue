@@ -210,7 +210,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
       <p v-else class="mt-1 text-center text-xs text-stone-500">ราคาเบื้องต้น ร้านจะยืนยันราคาสุดท้ายในใบเสนอ</p>
     </div>
     <div v-if="out" class="space-y-3 rounded-3xl bg-white p-4 shadow-md">
-      <p v-if="copied" class="text-sm text-emerald-700">คัดลอกแล้ว วางในแชทได้เลย</p>
+      <p v-if="copied" class="text-sm text-success-700">คัดลอกแล้ว วางในแชทได้เลย</p>
       <div v-if="showText">
         <label class="label" for="cfg-text">ข้อความที่คัดลอก</label>
         <textarea id="cfg-text" :value="out.text" readonly rows="5" class="input font-mono text-xs" @focus="$event.target.select()"></textarea>

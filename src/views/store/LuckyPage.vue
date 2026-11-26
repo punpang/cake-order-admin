@@ -25,9 +25,9 @@ const session = ref(readSessionToken())
 const loggedIn = computed(() => !!session.value)
 const KIND = { discount: 'คูปองส่วนลด', reward: 'ของรางวัล · รับที่ร้าน', points: 'คะแนนสะสม' }
 const STATE = {
-  ready: { t: 'เปิดลุ้น', c: 'bg-emerald-100 text-emerald-800' },
+  ready: { t: 'เปิดลุ้น', c: 'bg-success-100 text-success-800' },
   done: { t: 'ลุ้นครบแล้ว', c: 'bg-stone-100 text-stone-700' },
-  closed: { t: 'ปิดแล้ว', c: 'bg-rose-100 text-rose-700' },
+  closed: { t: 'ปิดแล้ว', c: 'bg-danger-100 text-danger-700' },
 }
 
 const projects = computed(() => data.value?.projects || [])
@@ -116,7 +116,7 @@ onMounted(load)
 
     <section v-if="phase === 'loading'" class="card text-center text-stone-600">กำลังโหลด...</section>
 
-    <section v-else-if="phase === 'error'" class="card text-center text-rose-700" role="alert">{{ err }}</section>
+    <section v-else-if="phase === 'error'" class="card text-center text-danger-700" role="alert">{{ err }}</section>
 
     <template v-else>
       <section class="card text-center text-sm text-stone-700">
@@ -124,7 +124,7 @@ onMounted(load)
         <template v-else>บิลนี้ยังไม่มีสิทธิ์ลุ้นในขณะนี้</template>
       </section>
 
-      <section v-if="notice" class="rounded-xl bg-amber-50 p-3 text-center text-sm text-amber-800" role="status">{{ notice }}</section>
+      <section v-if="notice" class="rounded-xl bg-warning-50 p-3 text-center text-sm text-warning-800" role="status">{{ notice }}</section>
 
       <section v-if="!loggedIn && totalRemaining > 0" class="card space-y-3 text-center">
         <p class="font-semibold text-stone-900">ลุ้นได้เฉพาะสมาชิก</p>

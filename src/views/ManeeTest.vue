@@ -90,7 +90,7 @@ onBeforeUnmount(() => clearInterval(timer))
 
 <template>
   <ManageShell narrow :toolbar="false" title="ทดสอบรับยอดถุงเงิน" subtitle="แอปที่ส่งเข้ามา · รายการรับยอดล่าสุด · รีเฟรชทุก 5 วินาที">
-    <p v-if="err" class="rounded-2xl bg-rose-50 p-3 text-sm text-rose-700" role="alert">{{ err }}</p>
+    <p v-if="err" class="rounded-2xl bg-danger-50 p-3 text-sm text-danger-700" role="alert">{{ err }}</p>
     <p v-else class="text-sm text-stone-600">
       {{ count ? `รับยอดแล้ว ${count} รายการล่าสุด` : 'ยังไม่มีรายการรับยอดเข้ามา' }}
       <span v-if="loadedAt" class="text-xs text-stone-400"> · ตรวจล่าสุด {{ loadedAt }}</span>
@@ -108,7 +108,7 @@ onBeforeUnmount(() => clearInterval(timer))
       <input v-model="newName" type="text" maxlength="100" placeholder="ชื่อแอป เช่น ถุงเงิน" class="input h-11 flex-1" />
       <button type="submit" class="btn-primary h-11" :disabled="!newName.trim()">เพิ่ม</button>
     </form>
-    <p v-if="nameErr" class="mt-2 text-sm text-rose-700" role="alert">{{ nameErr }}</p>
+    <p v-if="nameErr" class="mt-2 text-sm text-danger-700" role="alert">{{ nameErr }}</p>
 
     <h2 class="mt-5 text-sm font-semibold text-stone-800">แอปที่ส่งเข้ามา</h2>
     <p v-if="!byApp.length" class="mt-2 text-sm text-stone-500">ยังไม่มีคำขอเข้ามา</p>
@@ -140,7 +140,7 @@ onBeforeUnmount(() => clearInterval(timer))
             <span class="block truncate text-xs text-stone-500">{{ masked(r.text) }}</span>
           </span>
           <span class="shrink-0 text-right">
-            <span class="block rounded-full px-2 py-0.5 text-xs" :class="r.stored ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-600'">{{ r.stored ? 'บันทึกแล้ว' : 'ไม่บันทึก' }}</span>
+            <span class="block rounded-full px-2 py-0.5 text-xs" :class="r.stored ? 'bg-success-50 text-success-700' : 'bg-stone-100 text-stone-600'">{{ r.stored ? 'บันทึกแล้ว' : 'ไม่บันทึก' }}</span>
             <span class="mt-1 block text-xs text-stone-400">{{ dateTime(r.received_at) }}</span>
           </span>
         </button>

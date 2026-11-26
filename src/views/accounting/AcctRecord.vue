@@ -95,7 +95,7 @@ function saveJ() {
     <div class="flex gap-2">
       <button v-for="x in [{ v: 'all', l: 'ทั้งหมด' }, { v: 'expense', l: 'ค่าใช้จ่าย' }, { v: 'income', l: 'รายได้' }, { v: 'journal', l: 'ขั้นสูง' }]" :key="x.v" class="chip" :class="filter === x.v ? 'chip-on' : 'chip-off'" @click="filter = x.v">{{ x.l }}</button>
     </div>
-    <p v-if="msg" class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700" role="alert">{{ msg }}</p>
+    <p v-if="msg" class="rounded-xl bg-danger-50 p-3 text-sm text-danger-700" role="alert">{{ msg }}</p>
     <p v-if="!rows.length" class="card py-8 text-center text-sm text-stone-500">ยังไม่มีรายการที่บันทึกเอง · รายได้จากออร์เดอร์/POS ดึงอัตโนมัติ ดูที่สมุดรายวัน</p>
     <ul class="space-y-2">
       <li v-for="e in rows" :key="e.id" class="card text-sm" :class="e.reversedBy ? 'opacity-60' : ''">
@@ -104,9 +104,9 @@ function saveJ() {
             <div class="font-medium break-words text-stone-900">{{ e.memo || e.source.payee || '(ไม่มีคำอธิบาย)' }}</div>
             <div class="text-xs text-stone-500">{{ e.no }} · {{ dateOnly(e.date) }} · {{ e.source.kind === 'income' ? 'รายได้' : e.source.kind === 'expense' ? 'ค่าใช้จ่าย' : e.source.settles ? 'ชำระหนี้' : 'ขั้นสูง' }}<template v-if="e.source.vat"> · VAT {{ money(e.source.vat) }}</template><template v-if="e.reversedBy"> · กลับรายการแล้ว</template></div>
           </div>
-          <b class="shrink-0" :class="e.source.kind === 'income' ? 'text-emerald-700' : 'text-stone-900'">{{ money(e.source.total || total(e)) }}</b>
+          <b class="shrink-0" :class="e.source.kind === 'income' ? 'text-success-700' : 'text-stone-900'">{{ money(e.source.total || total(e)) }}</b>
         </div>
-        <div v-if="e.source.settle === 'payable' || e.source.settle === 'receivable'" class="mt-1 text-xs" :class="e.settledBy ? 'text-emerald-700' : 'text-amber-700'">{{ e.settledBy ? 'ชำระแล้ว' : e.source.settle === 'payable' ? 'ค้างจ่าย' : 'ค้างรับ' }}</div>
+        <div v-if="e.source.settle === 'payable' || e.source.settle === 'receivable'" class="mt-1 text-xs" :class="e.settledBy ? 'text-success-700' : 'text-warning-700'">{{ e.settledBy ? 'ชำระแล้ว' : e.source.settle === 'payable' ? 'ค้างจ่าย' : 'ค้างรับ' }}</div>
         <div v-if="can('acctRecord')" class="mt-2 flex flex-wrap gap-2">
           <button v-if="isEditable(e)" class="btn-outline h-8 px-3 text-xs" @click="openEdit(e)">แก้ไข</button>
           <button v-if="!locked(e.date) && !e.reversedBy && !e.source.reverses" class="btn-danger h-8 px-3 text-xs" @click="del(e)">ลบ</button>
@@ -152,7 +152,7 @@ function saveJ() {
           <div class="mb-1 font-semibold text-stone-700">รายการบัญชีที่จะลง</div>
           <div v-for="(l, i) in preview.entry.lines" :key="i" class="flex justify-between"><span>{{ l.dr ? 'เดบิต' : 'เครดิต' }} {{ l.account }}</span><span>{{ money(l.dr || l.cr) }}</span></div>
         </div>
-        <p v-if="error" class="text-sm text-rose-700" role="alert">{{ error }}</p>
+        <p v-if="error" class="text-sm text-danger-700" role="alert">{{ error }}</p>
       </div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="save">บันทึก</button></template>
     </AppModal>
@@ -161,7 +161,7 @@ function saveJ() {
       <div class="space-y-3"><div class="rounded-xl bg-stone-50 p-3 text-sm">{{ settleFor.no }} · {{ money(settleFor.source.total) }}</div>
         <div><label class="label">วันที่</label><input v-model="sf.date" type="date" class="input" /></div>
         <div class="flex gap-2"><button class="chip" :class="sf.method === 'cash' ? 'chip-on' : 'chip-off'" @click="sf.method = 'cash'">เงินสด</button><button class="chip" :class="sf.method === 'bank' ? 'chip-on' : 'chip-off'" @click="sf.method = 'bank'">ธนาคาร</button></div>
-        <p v-if="sf.error" class="text-sm text-rose-700">{{ sf.error }}</p></div>
+        <p v-if="sf.error" class="text-sm text-danger-700">{{ sf.error }}</p></div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="settleFor = null">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="doSettle">ยืนยัน</button></template>
     </AppModal>
 
@@ -174,8 +174,8 @@ function saveJ() {
           <MoneyInput v-model="l.cr" class="input px-2" placeholder="เครดิต" :aria-label="`เครดิตบรรทัด ${i + 1}`" />
         </div>
         <button class="text-sm text-brand-700 underline" @click="j.lines.push({ account: '', dr: '', cr: '' })">+ เพิ่มบรรทัด</button>
-        <div class="flex justify-between rounded-xl p-3 text-sm" :class="jDr === jCr && jDr > 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'"><span>เดบิต {{ money(jDr) }}</span><span>เครดิต {{ money(jCr) }}</span></div>
-        <p v-if="j.error" class="text-sm text-rose-700" role="alert">{{ j.error }}</p>
+        <div class="flex justify-between rounded-xl p-3 text-sm" :class="jDr === jCr && jDr > 0 ? 'bg-success-50 text-success-800' : 'bg-warning-50 text-warning-800'"><span>เดบิต {{ money(jDr) }}</span><span>เครดิต {{ money(jCr) }}</span></div>
+        <p v-if="j.error" class="text-sm text-danger-700" role="alert">{{ j.error }}</p>
       </div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="jOpen = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="saveJ">บันทึก</button></template>
     </AppModal>

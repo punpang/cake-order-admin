@@ -108,7 +108,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="space-y-3 rounded-2xl border border-stone-200 bg-white p-3">
-    <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
+    <p v-if="err" class="text-sm text-danger-700" role="alert">{{ err }}</p>
 
     <template v-if="state === 'idle' || state === 'cancelled'">
       <p v-if="state === 'cancelled'" class="text-center text-sm font-semibold text-stone-600">ยกเลิก QR แล้ว</p>
@@ -116,19 +116,19 @@ onBeforeUnmount(() => {
     </template>
 
     <template v-else-if="state === 'confirmed'">
-      <p class="text-center font-semibold text-emerald-700">รับชำระแล้ว</p>
+      <p class="text-center font-semibold text-success-700">รับชำระแล้ว</p>
     </template>
 
     <template v-else>
-      <div v-if="state === 'detected'" class="animate-pulse rounded-xl bg-emerald-600 p-3 text-center text-lg font-bold text-white">ลูกค้าชำระแล้ว · ผ่านการตรวจสอบแล้ว · {{ money(qr.amount) }}</div>
+      <div v-if="state === 'detected'" class="animate-pulse rounded-xl bg-success-700 p-3 text-center text-lg font-bold text-white">ลูกค้าชำระแล้ว · ผ่านการตรวจสอบแล้ว · {{ money(qr.amount) }}</div>
       <BillerQr v-else :amount="qr.amount" :ref1="qr.ref1" :ref2="qr.ref2" />
-      <p class="text-center text-sm" :class="state === 'expired' ? 'font-semibold text-rose-700' : 'text-stone-600'">
+      <p class="text-center text-sm" :class="state === 'expired' ? 'font-semibold text-danger-700' : 'text-stone-600'">
         <template v-if="state === 'expired'">QR หมดอายุแล้ว ต้องสร้างใหม่</template>
         <template v-else-if="state === 'detected'">ผ่านการตรวจสอบแล้ว · รอพนักงานกดยืนยัน</template>
         <template v-else>สถานะ: รอลูกค้าชำระ · หมดอายุใน {{ left }}</template>
       </p>
       <div v-if="state === 'waiting' && candidates.length > 1" class="space-y-1.5">
-        <p class="text-xs text-amber-700">พบรายการที่ตรงหลายรายการ เลือกรายการที่ใช่</p>
+        <p class="text-xs text-warning-700">พบรายการที่ตรงหลายรายการ เลือกรายการที่ใช่</p>
         <button v-for="c in candidates" :key="c.id" type="button" class="btn-outline w-full justify-between" @click="accept('staff', c)">
           <span>{{ dateTime(c.received_at) }}</span><span>เลือก</span>
         </button>

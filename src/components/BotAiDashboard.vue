@@ -38,7 +38,7 @@ const usedPct = computed(() => {
 })
 const fmtDay = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 const fmtTime = (iso) => new Date(iso).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-const statusClass = { ok: 'bg-emerald-100 text-emerald-700', handoff: 'bg-amber-100 text-amber-700', error: 'bg-rose-100 text-rose-700', limit: 'bg-stone-200 text-stone-600' }
+const statusClass = { ok: 'bg-success-100 text-success-700', handoff: 'bg-warning-100 text-warning-700', error: 'bg-danger-100 text-danger-700', limit: 'bg-stone-200 text-stone-600' }
 const today = computed(() => thaiDay(new Date().toISOString()))
 const weekFrom = computed(() => (stats.value ? stats.value.byDay[0].day : shiftDay(today.value, -6)))
 </script>
@@ -49,7 +49,7 @@ const weekFrom = computed(() => (stats.value ? stats.value.byDay[0].day : shiftD
       <h4 class="font-semibold text-stone-900">สถิติการใช้งานบอท AI</h4>
       <button type="button" class="btn-outline h-8 px-3 text-xs" :disabled="loading" @click="load">{{ loading ? 'กำลังโหลด…' : 'รีเฟรช' }}</button>
     </div>
-    <p v-if="err" class="text-sm text-amber-700">{{ err }}</p>
+    <p v-if="err" class="text-sm text-warning-700">{{ err }}</p>
 
     <template v-if="stats">
       <!-- วันนี้ -->
@@ -66,9 +66,9 @@ const weekFrom = computed(() => (stats.value ? stats.value.byDay[0].day : shiftD
           <div class="h-full rounded-full bg-violet-500" :style="{ width: usedPct + '%' }" />
         </div>
         <div class="grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4">
-          <div class="rounded-lg bg-white p-2"><div class="text-stone-500">{{ AI_STATUS_TH.ok }}</div><div class="text-base font-semibold text-emerald-700">{{ stats.today.ok }}</div></div>
-          <div class="rounded-lg bg-white p-2"><div class="text-stone-500">{{ AI_STATUS_TH.handoff }}</div><div class="text-base font-semibold text-amber-700">{{ stats.today.handoff }}</div></div>
-          <div class="rounded-lg bg-white p-2"><div class="text-stone-500">{{ AI_STATUS_TH.error }}</div><div class="text-base font-semibold text-rose-700">{{ stats.today.error }}</div></div>
+          <div class="rounded-lg bg-white p-2"><div class="text-stone-500">{{ AI_STATUS_TH.ok }}</div><div class="text-base font-semibold text-success-700">{{ stats.today.ok }}</div></div>
+          <div class="rounded-lg bg-white p-2"><div class="text-stone-500">{{ AI_STATUS_TH.handoff }}</div><div class="text-base font-semibold text-warning-700">{{ stats.today.handoff }}</div></div>
+          <div class="rounded-lg bg-white p-2"><div class="text-stone-500">{{ AI_STATUS_TH.error }}</div><div class="text-base font-semibold text-danger-700">{{ stats.today.error }}</div></div>
           <div class="rounded-lg bg-white p-2"><div class="text-stone-500">{{ AI_STATUS_TH.limit }}</div><div class="text-base font-semibold text-stone-600">{{ stats.today.limit }}</div></div>
         </div>
       </div>

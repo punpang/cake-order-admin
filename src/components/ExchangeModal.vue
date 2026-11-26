@@ -157,7 +157,7 @@ function save() {
       <section class="space-y-3 rounded-xl bg-stone-50 p-3">
         <div class="flex justify-between text-sm"><span class="text-stone-600">คืนสินค้าเดิม</span><b class="tabular-nums text-stone-900">−{{ money(returnAmount) }}</b></div>
         <div class="flex justify-between text-sm"><span class="text-stone-600">สินค้าใหม่ ({{ newCount }} ชิ้น)</span><b class="tabular-nums text-stone-900">{{ money(newTotal) }}</b></div>
-        <div v-if="returnAmount && newTotal" class="flex justify-between border-t border-stone-200 pt-2 text-sm font-semibold" :class="diff > 0 ? 'text-stone-900' : diff < 0 ? 'text-emerald-700' : 'text-stone-900'">
+        <div v-if="returnAmount && newTotal" class="flex justify-between border-t border-stone-200 pt-2 text-sm font-semibold" :class="diff > 0 ? 'text-stone-900' : diff < 0 ? 'text-success-700' : 'text-stone-900'">
           <span>{{ diff > 0 ? 'ลูกค้าจ่ายเพิ่ม' : diff < 0 ? 'คืนให้ลูกค้าเพิ่ม' : 'ยอดเท่ากัน' }}</span><span class="tabular-nums">{{ money(Math.abs(diff)) }}</span>
         </div>
         <div v-if="newTotal > 0" class="space-y-2 border-t border-stone-200 pt-3">
@@ -168,17 +168,17 @@ function save() {
           </div>
           <div v-if="method === 'cash'" class="space-y-1">
             <MoneyInput v-model="received" class="input" placeholder="รับเงินมา (บาท)" aria-label="รับเงินมา" />
-            <p class="text-xs" :class="cashOk ? 'text-stone-500' : 'text-rose-700'">{{ cashOk ? `ทอน ${money(Math.max(change, 0))}` : 'รับเงินมายังไม่พอ' }}</p>
+            <p class="text-xs" :class="cashOk ? 'text-stone-500' : 'text-danger-700'">{{ cashOk ? `ทอน ${money(Math.max(change, 0))}` : 'รับเงินมายังไม่พอ' }}</p>
           </div>
           <div v-if="method === 'card'" class="space-y-2">
             <button v-if="!cardConfirmed" type="button" class="btn-primary h-11 w-full" @click="cardConfirmed = true">รับชำระด้วยบัตรแล้ว</button>
-            <div v-else class="flex items-center justify-center gap-2 rounded-xl bg-emerald-50 p-3 font-semibold text-emerald-800">รับชำระด้วยบัตรแล้ว</div>
+            <div v-else class="flex items-center justify-center gap-2 rounded-xl bg-success-50 p-3 font-semibold text-success-800">รับชำระด้วยบัตรแล้ว</div>
           </div>
           <p class="text-xs text-stone-500">โอนเงินต้องใช้ QR ในหน้าชำระปกติ จึงแลกด้วยการโอนที่นี่ไม่ได้</p>
         </div>
       </section>
 
-      <p v-if="err" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
+      <p v-if="err" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
     </div>
     </template>
     <template #footer>

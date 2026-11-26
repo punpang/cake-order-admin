@@ -68,10 +68,10 @@ function save() {
     <template #left>
     <div class="space-y-4">
       <p class="text-sm text-stone-600">คืนเงินบางส่วนโดยไม่ยกเลิก{{ isPos ? 'บิล' : 'ออร์เดอร์' }} (ไม่ตัดคะแนนที่ได้{{ isPos ? '' : ' · ไม่คืนสต็อก' }}) · ชำระสุทธิตอนนี้ <b class="text-stone-900">{{ money(t.goodsPaidNet) }}</b><template v-if="t.returned"> · คืนไปแล้ว {{ money(t.returned) }}</template></p>
-      <p v-if="t.hold > 0" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">เงินพัก {{ money(t.hold) }} ไม่รวมในการคืนนี้ · แก้เงินพักได้ที่ "แก้เงินพัก" ในหน้าออร์เดอร์</p>
-      <p v-if="invoice" class="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">ระบบจะออกใบลดหนี้อัตโนมัติ อ้างใบกำกับภาษี {{ invoice.no }} · ใบกำกับเดิมยังใช้งานอยู่</p>
+      <p v-if="t.hold > 0" class="rounded-xl bg-warning-50 p-3 text-sm text-warning-800">เงินพัก {{ money(t.hold) }} ไม่รวมในการคืนนี้ · แก้เงินพักได้ที่ "แก้เงินพัก" ในหน้าออร์เดอร์</p>
+      <p v-if="invoice" class="rounded-xl bg-success-50 p-3 text-sm text-success-800">ระบบจะออกใบลดหนี้อัตโนมัติ อ้างใบกำกับภาษี {{ invoice.no }} · ใบกำกับเดิมยังใช้งานอยู่</p>
       <template v-if="more">
-      <div><label class="label" for="rf-reason">เหตุผล <span class="text-rose-600">*</span></label><input id="rf-reason" v-model="f.reason" class="input" maxlength="120" /></div>
+      <div><label class="label" for="rf-reason">เหตุผล <span class="text-danger-700">*</span></label><input id="rf-reason" v-model="f.reason" class="input" maxlength="120" /></div>
       <div v-if="showItems" class="space-y-2">
         <div class="label">สินค้าที่คืน (ไม่บังคับ)</div>
         <div v-for="l in lines" :key="l.it.id" class="flex items-center justify-between gap-3 rounded-xl border border-stone-200 p-2.5">
@@ -104,8 +104,8 @@ function save() {
       <p v-else class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">ไม่เหลือยอดให้คืนเพิ่ม · ยกเลิกการคืนรายการด้านล่างได้</p>
       <div v-if="history.length" class="space-y-2" aria-label="รายการคืนก่อนหน้า">
         <div class="text-xs font-semibold text-stone-500">รายการคืนก่อนหน้า</div>
-        <div v-for="r in history" :key="r.id" class="rounded-xl border p-3 text-sm" :class="r.cancelled ? 'border-stone-200 bg-stone-50' : 'border-rose-200 bg-rose-50/60'" data-return>
-          <div class="flex items-center justify-between gap-2"><span class="font-semibold" :class="r.cancelled ? 'text-stone-400 line-through' : 'text-rose-700'">−{{ money(r.amount) }}</span><span class="text-xs text-stone-500">{{ dateTime(r.at) }}</span></div>
+        <div v-for="r in history" :key="r.id" class="rounded-xl border p-3 text-sm" :class="r.cancelled ? 'border-stone-200 bg-stone-50' : 'border-danger-200 bg-danger-50/60'" data-return>
+          <div class="flex items-center justify-between gap-2"><span class="font-semibold" :class="r.cancelled ? 'text-stone-400 line-through' : 'text-danger-700'">−{{ money(r.amount) }}</span><span class="text-xs text-stone-500">{{ dateTime(r.at) }}</span></div>
           <div v-for="(x, i) in refundList({ refunds: r.refunds })" :key="i" class="text-stone-700">{{ x.label }} {{ money(x.amount) }}<template v-if="x.points != null"> ({{ x.points }} คะแนน)</template></div>
           <div v-for="(x, i) in (r.items || [])" :key="'it' + i" class="text-stone-700">คืนสินค้า {{ x.name }} ×{{ x.qty }}<template v-if="x.restock"> · เข้าสต็อก {{ x.restock }}</template></div>
           <div class="break-words text-stone-600">เหตุผล: {{ r.reason }}</div>
@@ -113,7 +113,7 @@ function save() {
           <button v-else-if="order.status !== 'cancelled'" type="button" class="btn-outline mt-2 h-9 px-3" @click="rcFor = r"><AppIcon name="x" :size="16" /> ยกเลิกการคืน</button>
         </div>
       </div>
-      <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+      <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
     </div>
     </template>
     <template #footer>

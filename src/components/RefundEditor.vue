@@ -45,10 +45,10 @@ const full = () => (rows.value = props.paid > 0 ? [{ method: props.defaultMethod
       <p v-if="x.method === 'credit' && Number(x.amount) > 0" class="text-xs text-stone-500">ออกเป็นคูปองยอด {{ money(Number(x.amount)) }} ไม่มีวันหมดอายุ ใช้ได้หลายครั้งจนหมดยอด</p>
     </div>
     <button v-if="free.length && paid" type="button" class="btn-soft h-9 w-full" @click="add"><AppIcon name="plus" :size="16" /> เพิ่มช่องทาง</button>
-    <div v-if="paid" class="flex justify-between text-sm" :class="left < 0 ? 'text-rose-700' : 'text-stone-500'">
+    <div v-if="paid" class="flex justify-between text-sm" :class="left < 0 ? 'text-danger-700' : 'text-stone-500'">
       <span>รวมคืน {{ money(sum) }}</span><span>{{ left >= 0 ? `ไม่คืน ${money(left)}` : `เกิน ${money(-left)}` }}</span>
     </div>
-    <p v-if="err" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
+    <p v-if="err" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
     <p v-if="!canCredit && paid" class="text-xs text-stone-400">คืนเป็นคูปองได้เมื่อออร์เดอร์ผูกกับลูกค้า</p>
   </div>
 </template>
