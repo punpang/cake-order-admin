@@ -2,6 +2,8 @@
 import { ref } from 'vue'
 import AppIcon from './AppIcon.vue'
 import { resizeImage, imageErrorMessage } from '../lib/imageResize'
+import { parseRef } from '../lib/storage'
+import SecureImg from './SecureImg.vue'
 
 // เลือกรูป: ย่อ (ด้านยาว ≤1000px, ≤2MB) แล้วถือเป็น dataURL ชั่วคราว · ตอนบันทึกจะอัปโหลดขึ้น Supabase Storage (storage.js)
 const model = defineModel({ type: Array, default: () => [] })
@@ -38,7 +40,8 @@ const move = (i, d) => {
   <div>
     <div class="flex flex-wrap gap-2">
       <div v-for="(src, i) in model" :key="i" class="relative">
-        <img :src="src" alt="" class="h-20 w-20 rounded-xl border border-stone-200 object-cover" />
+        <SecureImg v-if="parseRef(src)" :src="src" imgClass="h-20 w-20 rounded-xl border border-stone-200 object-cover" />
+        <img v-else :src="src" alt="" class="h-20 w-20 rounded-xl border border-stone-200 object-cover" />
         <button type="button" class="absolute -top-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-stone-900 text-white shadow" aria-label="ลบรูป" @click="remove(i)">
           <AppIcon name="x" :size="14" />
         </button>
