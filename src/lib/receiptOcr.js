@@ -42,7 +42,7 @@ function vatOf(lines) {
 
 // ปีที่เป็นไปได้ของเลขปี: ค.ศ. 4 หลัก · พ.ศ. 4 หลัก (>2400) · ปี 2 หลักถือเป็น พ.ศ. ก่อน (เช่น 69 = 2569) แล้วค่อยลองเป็น ค.ศ.
 // เลือกเฉพาะปีที่อยู่ในช่วง ±2 ปีจากวันนี้ ถ้าเลือกไม่ได้ (หรือได้มากกว่าหนึ่ง) คืน null
-const YEAR_WINDOW = 2
+const YEAR_WINDOW = 1
 export function dateOf(text, today = new Date()) {
   const m = String(text).match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4}|\d{2})\b/)
   if (!m) return null
