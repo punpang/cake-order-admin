@@ -45,7 +45,7 @@ select test.ok('L6 ลูกค้าที่ไม่มีอยู่ถู�
 
 -- ผู้ที่ไม่มีสิทธิ์ย้ายไม่ได้
 select test.ok('L7 ผู้ไม่มีสิทธิ์ย้ายคะแนนไม่ได้ (42501)',
-  test.rpc_as('99999999-9999-9999-9999-999999999999', $q$ select public.punpang_legacy_migrate('lg_2', 5) $q$) like 'ERR:42501:%');
+  (test.rpc_as('99999999-9999-9999-9999-999999999999', $q$ select public.punpang_legacy_migrate('lg_2', 5) $q$)->>'exception') = '42501');
 
 select test.ok('L8 ลูกค้า lg_2 ยังไม่ถูกย้าย (ไม่มีแต้ม)',
   (select coalesce(sum((e->>'delta')::int), 0) from public.punpang_customers c, jsonb_array_elements(c.data->'ledger') e where c.id = 'lg_2') = 0);
