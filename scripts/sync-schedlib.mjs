@@ -23,6 +23,8 @@ export const SCHEDLIB_FILES = [
   'taxInvoice.js', 'acct/taxWindow.js', 'acct/taxid.js', 'acct/thaiBaht.js',
   // ราคาออร์เดอร์สั่งล่วงหน้า (Edge Function preorder ใช้ชุดเดียวกับแอป)
   'preorderPrice.js', 'preorderAudit.js', 'preorderReports.js', 'preorderNotify.js', 'preorderRounds.js', 'preorderCustomerOrders.js',
+  // ใบกำกับภาษีเต็มรูปของสั่งล่วงหน้า (action issue_invoice ใน preorder-admin)
+  'preorderInvoice.js',
 ]
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
