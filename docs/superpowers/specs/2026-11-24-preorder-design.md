@@ -115,7 +115,7 @@
 | รายการ | สถานะ | หลักฐาน |
 |---|---|---|
 | ฟิลด์น้ำหนัก/ขนาดสินค้า | มี | `src/views/manage/ManageRetail.vue` |
-| ตั้งค่าค่าส่งพัสดุ | มี | `src/data/shopParcel.store*`, `src/lib/parcelShipping.js` |
+| ตั้งค่าค่าส่งพัสดุ | มี | `src/data/store.js` (`saveShopSettings`), `src/views/manage/ManageShop.vue`, `src/lib/parcelShipping.js` |
 | โปรของแคมเปญ (deals) | มี | `src/lib/preorderCampaign.js` |
 | ฟังก์ชันคิดราคา | มี | `src/lib/preorderPrice.js`, `_shared/schedlib/preorderPrice.js` |
 | Edge Function `preorder` | มี | actions: campaigns, quote, create, otp_*, qr_request, state, extension_request, return_request |
@@ -127,8 +127,8 @@
 | QR/ถุงเงินอัตโนมัติ | มี | `tungngern-receiver` เรียก `punpang_preorder_confirm_qr` |
 | เงินสดหน้าร้าน | มี | RPC `punpang_preorder_record_payment` เรียกจาก `preorder-admin` |
 | ขยายเวลา | มี | RPC `punpang_preorder_extend` เรียกจาก `preorder-admin` |
-| ปล่อยโควตาตามเวลา | มี แต่ต่างจากสเปก | pg_cron `punpang-preorder-expire` (มิเกรชัน `20261127210000`) ไม่ได้ผ่านฟังก์ชัน `scheduled` ตามสเปก |
-| คืนแต้มเมื่อหมดเวลาหรือยกเลิก | ไม่แน่ใจ | มีใน RPC SQL (`punpang_preorder_return_points`) แต่ไม่พบการเรียกจาก Edge Function |
+| ปล่อยโควตาตามเวลา | มี (ใช้ pg_cron โดยตรง ไม่ผ่านฟังก์ชัน `scheduled`) | pg_cron `punpang-preorder-expire` ทุก 5 นาที เรียก `punpang_preorder_expire_due` (มิเกรชัน `20261127210000`) · ตั้งงานไว้แล้วบน production แต่ยังไม่พบประวัติการรันตอน 2026-11-26 01:19 UTC ต้องตรวจซ้ำ |
+| คืนแต้มเมื่อหมดเวลาหรือยกเลิก | มี | `punpang_preorder_return_points` ถูกเรียกจาก `punpang_preorder_expire`, `punpang_preorder_cancel` และ `punpang_preorder_refund_return` (ทำใน SQL ไม่ได้เรียกจาก Edge Function โดยตรง) |
 
 **เฟส 4 (บัญชี ใบกำกับ รายงาน แจ้งเตือน)**
 | รายการ | สถานะ | หลักฐาน |
