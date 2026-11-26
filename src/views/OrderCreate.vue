@@ -357,9 +357,9 @@ async function quote() {
       </template>
 
       <div v-else class="space-y-3" @keydown.esc.stop="showNew = false; error = ''">
-        <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="newCus.name" class="input" /></div>
+        <div><label class="label">ชื่อ <span class="text-danger-700">*</span></label><input v-model="newCus.name" class="input" /></div>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div><label class="label">เบอร์โทร <span class="text-rose-600">*</span></label><PhoneInput v-model="newCus.phone" /></div>
+          <div><label class="label">เบอร์โทร <span class="text-danger-700">*</span></label><PhoneInput v-model="newCus.phone" /></div>
         </div>
         <div><label class="label">หมายเหตุ</label><input v-model="newCus.note" class="input" /></div>
         <div class="flex justify-end gap-2 pt-1">
@@ -477,7 +477,7 @@ async function quote() {
           <button class="btn-danger h-9 px-3" @click="removeItem(i)"><AppIcon name="trash" :size="16" /> ลบ</button>
         </template>
       </ItemCard>
-      <ul v-if="promoView.hints.length" class="space-y-1 rounded-2xl bg-info-50 p-3 text-sm text-sky-900" aria-label="โปรที่ใกล้ถึง">
+      <ul v-if="promoView.hints.length" class="space-y-1 rounded-2xl bg-info-50 p-3 text-sm text-info-800" aria-label="โปรที่ใกล้ถึง">
         <li v-for="h in promoView.hints" :key="h.text">💡 {{ h.text }}</li>
       </ul>
 

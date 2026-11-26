@@ -170,7 +170,7 @@ function doAdd() {
 
     <AppModal v-if="mOpen" split :title="mf.id ? 'แก้ไขกลุ่มตัวเลือก' : 'เพิ่มกลุ่มตัวเลือก'" @close="mOpen = false">
       <template #left>
-        <div><label class="label">ชื่อกลุ่ม <span class="text-rose-600">*</span></label><input v-model="mf.name" class="input" placeholder="เช่น ความหวาน" /></div>
+        <div><label class="label">ชื่อกลุ่ม <span class="text-danger-700">*</span></label><input v-model="mf.name" class="input" placeholder="เช่น ความหวาน" /></div>
         <div class="grid grid-cols-2 gap-1 seg-grid">
           <button v-for="t in [{ v: 'single', l: 'เลือกได้ 1 อย่าง' }, { v: 'multi', l: 'เลือกได้หลายอย่าง' }]" :key="t.v" type="button" class="h-9 rounded-lg text-sm font-medium" :class="mf.type === t.v ? 'bg-white text-brand-800 shadow-sm' : 'text-stone-600'" @click="mf.type = t.v">{{ t.l }}</button>
         </div>
@@ -210,7 +210,7 @@ function doAdd() {
 
     <AppModal v-if="open" split :title="form.id ? 'แก้ไขสินค้า' : 'เพิ่มสินค้า'" @close="open = false">
       <template #left>
-        <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" /></div>
+        <div><label class="label">ชื่อ <span class="text-danger-700">*</span></label><input v-model="form.name" class="input" /></div>
         <div>
           <label class="label" for="retail-cat-new">หมวด</label>
           <div v-if="categories.length" class="chip-row mb-2" role="group" aria-label="เลือกหมวดที่มีอยู่">
@@ -220,7 +220,7 @@ function doAdd() {
           <p class="mt-1 text-xs text-stone-400">กดหมวดที่มีอยู่ หรือพิมพ์ชื่อใหม่ได้เลย</p>
         </div>
         <div class="grid grid-cols-2 gap-4">
-          <div><label class="label">ราคา (บาท) <span v-if="!form.openPrice" class="text-rose-600">*</span></label><MoneyInput v-model="form.price" class="input" /></div>
+          <div><label class="label">ราคา (บาท) <span v-if="!form.openPrice" class="text-danger-700">*</span></label><MoneyInput v-model="form.price" class="input" /></div>
           <div><label class="label">สต็อก</label><input v-model="form.stock" type="text" v-num class="input" placeholder="ไม่นับ" /></div>
         </div>
         <p class="text-xs text-stone-400">สต็อกเว้นว่าง = ไม่นับสต็อก (เช่น เครื่องดื่มชงสด) · ขายใน POS แล้วตัดสต็อกอัตโนมัติ</p>
@@ -268,7 +268,7 @@ function doAdd() {
           <AppSwitch v-model="form.openPrice" label="ไม่กำหนดราคา (ผู้ขายกรอกราคาตอนขายที่ POS · ไม่ขายผ่านเว็บ)" class="flex" />
           <AppSwitch v-model="form.consignment" label="สินค้าฝากขาย (ของผู้อื่นวางขายให้ร้าน)" class="flex" />
           <div v-if="form.consignment" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <div><label class="label" for="cs-name">ชื่อผู้ฝากขาย <span class="text-rose-600">*</span></label><input id="cs-name" v-model="form.consignorName" class="input" maxlength="120" /></div>
+            <div><label class="label" for="cs-name">ชื่อผู้ฝากขาย <span class="text-danger-700">*</span></label><input id="cs-name" v-model="form.consignorName" class="input" maxlength="120" /></div>
             <div><label class="label" for="cs-payout">วิธีจ่ายผู้ฝากขาย</label>
               <select id="cs-payout" v-model="form.consignPayout" class="input"><option v-for="p in CONSIGN_PAYOUTS" :key="p.v" :value="p.v">{{ p.l }}</option></select></div>
             <div v-if="form.consignPayout !== 'fixed'"><label class="label" for="cs-pct">ส่วนแบ่งผู้ฝากขาย (%)</label><MoneyInput id="cs-pct" v-model="form.consignPercent" class="input" /></div>

@@ -120,7 +120,7 @@ onBeforeUnmount(() => {
     </template>
 
     <template v-else>
-      <div v-if="state === 'detected'" class="animate-pulse rounded-xl bg-emerald-600 p-3 text-center text-lg font-bold text-white">ลูกค้าชำระแล้ว · ผ่านการตรวจสอบแล้ว · {{ money(qr.amount) }}</div>
+      <div v-if="state === 'detected'" class="animate-pulse rounded-xl bg-success-700 p-3 text-center text-lg font-bold text-white">ลูกค้าชำระแล้ว · ผ่านการตรวจสอบแล้ว · {{ money(qr.amount) }}</div>
       <BillerQr v-else :amount="qr.amount" :ref1="qr.ref1" :ref2="qr.ref2" />
       <p class="text-center text-sm" :class="state === 'expired' ? 'font-semibold text-danger-700' : 'text-stone-600'">
         <template v-if="state === 'expired'">QR หมดอายุแล้ว ต้องสร้างใหม่</template>

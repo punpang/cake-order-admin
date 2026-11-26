@@ -76,9 +76,9 @@ async function save() {
 
     <AppModal v-if="open" :title="form.id ? 'แก้ไขวัตถุดิบ' : 'เพิ่มวัตถุดิบ'" @close="open = false">
       <div class="space-y-4">
-        <div><label class="label">ชื่อวัตถุดิบ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" /></div>
+        <div><label class="label">ชื่อวัตถุดิบ <span class="text-danger-700">*</span></label><input v-model="form.name" class="input" /></div>
         <div>
-          <label class="label">หน่วย <span class="text-rose-600">*</span></label>
+          <label class="label">หน่วย <span class="text-danger-700">*</span></label>
           <input v-model="form.unit" class="input" list="unit-list" />
           <datalist id="unit-list"><option v-for="u in UNITS" :key="u" :value="u" /></datalist>
         </div>

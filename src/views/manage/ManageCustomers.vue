@@ -161,8 +161,8 @@ async function save() {
     search-placeholder="ค้นหา ชื่อ / เบอร์"
     @add="edit(null)"
   >
-    <p v-if="customerScale.lazy" class="mb-3 rounded-xl bg-info-50 p-3 text-sm text-sky-900">แสดงเฉพาะลูกค้าที่โหลดไว้ในเครื่อง (ลูกค้าทั้งหมด {{ customerScale.count?.toLocaleString() ?? '–' }} ราย) · พิมพ์ชื่อหรือเบอร์ในช่องค้นหาเพื่อดึงลูกค้าคนอื่น</p>
-    <p v-else-if="customerScale.count >= CUSTOMER_WARN_AT && can('manage')" class="mb-3 rounded-xl bg-warning-50 p-3 text-sm text-amber-900">ลูกค้าในระบบ {{ customerScale.count.toLocaleString() }} ราย ใกล้เกณฑ์ที่ควรเปิด "โหลดข้อมูลลูกค้าเฉพาะที่ใช้" (ตั้งค่าร้าน) · ควรทดสอบกับข้อมูลจำนวนมากก่อนเปิด</p>
+    <p v-if="customerScale.lazy" class="mb-3 rounded-xl bg-info-50 p-3 text-sm text-info-800">แสดงเฉพาะลูกค้าที่โหลดไว้ในเครื่อง (ลูกค้าทั้งหมด {{ customerScale.count?.toLocaleString() ?? '–' }} ราย) · พิมพ์ชื่อหรือเบอร์ในช่องค้นหาเพื่อดึงลูกค้าคนอื่น</p>
+    <p v-else-if="customerScale.count >= CUSTOMER_WARN_AT && can('manage')" class="mb-3 rounded-xl bg-warning-50 p-3 text-sm text-warning-800">ลูกค้าในระบบ {{ customerScale.count.toLocaleString() }} ราย ใกล้เกณฑ์ที่ควรเปิด "โหลดข้อมูลลูกค้าเฉพาะที่ใช้" (ตั้งค่าร้าน) · ควรทดสอบกับข้อมูลจำนวนมากก่อนเปิด</p>
     <p v-if="!list.length" class="card py-10 text-center text-stone-500">ไม่พบลูกค้า</p>
 
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -193,9 +193,9 @@ async function save() {
 
     <AppModal v-if="open" :title="form.id ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้า'" wider @close="open = false">
       <div class="space-y-4 dlg-cols">
-        <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" /></div>
+        <div><label class="label">ชื่อ <span class="text-danger-700">*</span></label><input v-model="form.name" class="input" /></div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div><label class="label">เบอร์โทร <span class="text-rose-600">*</span></label><PhoneInput v-model="form.phone" /></div>
+          <div><label class="label">เบอร์โทร <span class="text-danger-700">*</span></label><PhoneInput v-model="form.phone" /></div>
         </div>
         <div><label class="label">หมายเหตุ</label><textarea v-model="form.note" rows="2" class="input" /></div>
         <details class="rounded-2xl border border-stone-200 p-3" :open="!!form.tax.taxId">
@@ -305,7 +305,7 @@ async function save() {
         </div>
         <p class="text-sm text-stone-500">คงเหลือ {{ balance }} คะแนน</p>
         <div><label class="label">จำนวนคะแนน</label><input v-model="adj.amount" type="text" inputmode="numeric" class="input text-lg font-semibold" aria-label="จำนวนคะแนน" /></div>
-        <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><input v-model="adj.reason" class="input" maxlength="120" aria-label="เหตุผลปรับคะแนน" /></div>
+        <div><label class="label">เหตุผล <span class="text-danger-700">*</span></label><input v-model="adj.reason" class="input" maxlength="120" aria-label="เหตุผลปรับคะแนน" /></div>
         <p v-if="adj.error" class="text-sm text-danger-700" role="alert">{{ adj.error }}</p>
       </div>
       <template #footer>
@@ -316,7 +316,7 @@ async function save() {
     <AppModal v-if="pl.open" :title="pl.id ? 'แก้สถานที่' : 'เพิ่มสถานที่'" @close="pl.open = false">
       <div class="space-y-3">
         <div><label class="label">ชื่อสถานที่</label><input v-model="pl.placeName" class="input" maxlength="80" /></div>
-        <div><label class="label">ที่อยู่ <span class="text-rose-600">*</span></label><textarea v-model="pl.address" rows="2" class="input" maxlength="300" /></div>
+        <div><label class="label">ที่อยู่ <span class="text-danger-700">*</span></label><textarea v-model="pl.address" rows="2" class="input" maxlength="300" /></div>
         <div><label class="label">url แผนที่ (https)</label><input v-model="pl.mapUrl" type="url" class="input" /></div>
         <div><label class="label">รายละเอียด</label><textarea v-model="pl.detail" rows="2" class="input" maxlength="300" /></div>
         <div class="max-w-[10rem]"><label class="label">ระยะทาง (กม.)</label><MoneyInput v-model.number="pl.distanceKm" min="0" class="input" /></div>

@@ -257,7 +257,7 @@ onBeforeUnmount(() => { if (captchaId !== null && window.turnstile) { try { wind
             </label>
           </div>
         </fieldset>
-        <p v-if="fulfillment === 'delivery'" class="rounded-xl bg-warning-50 px-3 py-2 text-sm text-amber-900" data-full-payment>การจัดส่งต้องชำระเต็มจำนวนตอนสั่ง</p>
+        <p v-if="fulfillment === 'delivery'" class="rounded-xl bg-warning-50 px-3 py-2 text-sm text-warning-800" data-full-payment>การจัดส่งต้องชำระเต็มจำนวนตอนสั่ง</p>
         <p v-if="fulfillment === 'delivery' && chosen.shipping" class="text-sm text-stone-600" data-ship>จัดส่งระหว่าง {{ chosen.shipping.shipFrom }} ถึง {{ chosen.shipping.shipTo }}</p>
       </section>
 
@@ -319,8 +319,8 @@ onBeforeUnmount(() => { if (captchaId !== null && window.turnstile) { try { wind
 
       <!-- สำเร็จ -->
       <div v-if="placed" class="space-y-2 rounded-2xl border border-success-200 bg-success-50 p-4" data-placed>
-        <div class="text-base font-semibold text-emerald-900">สั่งสินค้าสำเร็จ รหัส {{ placed.code }}</div>
-        <div class="text-sm text-emerald-900">ยอดรวม {{ placed.total }} บาท · มัดจำ {{ placed.deposit }} บาท</div>
+        <div class="text-base font-semibold text-success-800">สั่งสินค้าสำเร็จ รหัส {{ placed.code }}</div>
+        <div class="text-sm text-success-800">ยอดรวม {{ placed.total }} บาท · มัดจำ {{ placed.deposit }} บาท</div>
         <div class="text-xs text-success-800">ชำระมัดจำภายในเวลาที่กำหนด ดูสถานะได้ที่ออร์เดอร์ของฉัน</div>
       </div>
     </div>

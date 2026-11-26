@@ -34,7 +34,7 @@ async function sendReview() {
     <AppModal v-if="rv.order" :title="`รีวิว ${rv.order.code}`" @close="rv.order = null">
       <div class="space-y-3">
         <div class="flex gap-1" role="radiogroup" aria-label="คะแนน">
-          <button v-for="n in 5" :key="n" type="button" role="radio" :aria-checked="rv.rating === n" class="text-3xl leading-none" :class="n <= rv.rating ? 'text-amber-500' : 'text-stone-500'" :aria-label="`${n} ดาว`" @click="rv.rating = n">★</button>
+          <button v-for="n in 5" :key="n" type="button" role="radio" :aria-checked="rv.rating === n" class="text-3xl leading-none" :class="n <= rv.rating ? 'text-warning-700' : 'text-stone-500'" :aria-label="`${n} ดาว`" @click="rv.rating = n">★</button>
         </div>
         <textarea v-model="rv.text" rows="4" maxlength="500" class="input" placeholder="เล่าให้ฟังหน่อยว่าเป็นอย่างไรบ้าง"></textarea>
         <p class="text-xs text-stone-500">จะแสดงบนหน้าร้านหลังร้านตรวจสอบ โดยใช้ชื่อต้นของคุณเท่านั้น</p>

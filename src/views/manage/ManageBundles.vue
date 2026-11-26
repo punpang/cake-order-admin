@@ -131,15 +131,15 @@ async function link(b) {
           <p v-if="r.over.length" class="mt-2 text-xs font-medium text-danger-700" data-over-warning>ลดเกินราคาปกติ: {{ r.over[0] }}{{ r.over.length > 1 ? ' (และอีก ' + (r.over.length - 1) + ' รายการ)' : '' }} · หน้าร้านจะลดได้ไม่เกินราคาตัวเลือก ควรปรับส่วนลดในหน้าแก้ไข</p>
         </RouterLink>
         <div v-if="r.drift.length" class="mx-3 mb-3 rounded-xl border border-warning-200 bg-warning-50 p-3" :data-drift="r.b.id">
-          <p class="text-xs font-semibold text-amber-900">ราคาปกติเปลี่ยนแล้ว · ส่วนลดไม่ตรงกับเปอร์เซ็นต์ที่ตั้งไว้</p>
-          <ul class="mt-1 space-y-0.5 text-xs text-amber-900">
+          <p class="text-xs font-semibold text-warning-800">ราคาปกติเปลี่ยนแล้ว · ส่วนลดไม่ตรงกับเปอร์เซ็นต์ที่ตั้งไว้</p>
+          <ul class="mt-1 space-y-0.5 text-xs text-warning-800">
             <li v-for="d in r.drift.slice(0, 4)" :key="d.key">{{ d.label }} ({{ d.pct }}%): {{ bahtText(d.current) }} → {{ bahtText(d.target) }}</li>
           </ul>
-          <p v-if="r.drift.length > 4" class="mt-0.5 text-xs text-amber-900">และอีก {{ r.drift.length - 4 }} ช่อง</p>
+          <p v-if="r.drift.length > 4" class="mt-0.5 text-xs text-warning-800">และอีก {{ r.drift.length - 4 }} ช่อง</p>
           <button type="button" class="btn-primary mt-2 h-9 px-3 text-sm" :data-adjust="r.b.id" @click="adjust(r.b)">ปรับตามราคาใหม่</button>
         </div>
         <div v-if="r.links.length" class="mx-3 mb-3 flex flex-wrap items-center gap-2 rounded-xl bg-info-50 p-3" :data-link="r.b.id">
-          <p class="min-w-0 flex-1 text-xs text-sky-900">ยังไม่ได้ตั้งตามเปอร์เซ็นต์ · ตอนนี้ตรงกับ {{ linkText(r.links) }}</p>
+          <p class="min-w-0 flex-1 text-xs text-info-800">ยังไม่ได้ตั้งตามเปอร์เซ็นต์ · ตอนนี้ตรงกับ {{ linkText(r.links) }}</p>
           <button type="button" class="btn-soft h-9 px-3 text-sm" :data-link-btn="r.b.id" @click="link(r.b)">ตั้งตามเปอร์เซ็นต์นี้</button>
         </div>
         <div class="flex items-center gap-1 border-t border-stone-100 px-2 py-1.5">

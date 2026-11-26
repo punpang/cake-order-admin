@@ -71,7 +71,7 @@ function save() {
       <p v-if="t.hold > 0" class="rounded-xl bg-warning-50 p-3 text-sm text-warning-800">เงินพัก {{ money(t.hold) }} ไม่รวมในการคืนนี้ · แก้เงินพักได้ที่ "แก้เงินพัก" ในหน้าออร์เดอร์</p>
       <p v-if="invoice" class="rounded-xl bg-success-50 p-3 text-sm text-success-800">ระบบจะออกใบลดหนี้อัตโนมัติ อ้างใบกำกับภาษี {{ invoice.no }} · ใบกำกับเดิมยังใช้งานอยู่</p>
       <template v-if="more">
-      <div><label class="label" for="rf-reason">เหตุผล <span class="text-rose-600">*</span></label><input id="rf-reason" v-model="f.reason" class="input" maxlength="120" /></div>
+      <div><label class="label" for="rf-reason">เหตุผล <span class="text-danger-700">*</span></label><input id="rf-reason" v-model="f.reason" class="input" maxlength="120" /></div>
       <div v-if="showItems" class="space-y-2">
         <div class="label">สินค้าที่คืน (ไม่บังคับ)</div>
         <div v-for="l in lines" :key="l.it.id" class="flex items-center justify-between gap-3 rounded-xl border border-stone-200 p-2.5">

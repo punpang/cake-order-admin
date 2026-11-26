@@ -259,7 +259,7 @@ async function act(r) {
                   <span class="truncate font-semibold text-stone-900">{{ r.c?.name || 'ไม่ระบุชื่อ' }}</span>
                   <span class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-600">{{ r.o.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }}</span>
                 </div>
-                <span v-if="r.late" class="shrink-0 rounded-full bg-rose-600 px-2.5 py-1 text-xs font-semibold text-white">เลย {{ lateText(r) }}</span>
+                <span v-if="r.late" class="shrink-0 rounded-full bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white">เลย {{ lateText(r) }}</span>
               </RouterLink>
 
               <ul class="space-y-3 px-4 py-3 text-sm">
@@ -268,10 +268,10 @@ async function act(r) {
                   <div v-for="line in summaryOf(it).lines" :key="line.tier + line.text" class="break-words text-stone-700">
                     <span v-if="line.tier" class="text-stone-400">{{ line.tier }}:</span> {{ line.text }}
                   </div>
-                  <div v-for="t in summaryOf(it).texts" :key="t.label" class="rounded-lg bg-warning-50 px-2 py-1 text-xs break-words text-amber-900">
+                  <div v-for="t in summaryOf(it).texts" :key="t.label" class="rounded-lg bg-warning-50 px-2 py-1 text-xs break-words text-warning-800">
                     <span class="font-semibold">{{ t.label }}:</span> {{ t.value }}
                   </div>
-                  <div v-if="it.note" class="rounded-lg bg-warning-50 px-2 py-1 text-xs break-words text-amber-900">
+                  <div v-if="it.note" class="rounded-lg bg-warning-50 px-2 py-1 text-xs break-words text-warning-800">
                     <span class="font-semibold">หมายเหตุ:</span> {{ it.note }}
                   </div>
                   <details v-if="details(it).length" class="text-xs">
@@ -293,7 +293,7 @@ async function act(r) {
                   v-if="actionOf(r.o)"
                   type="button"
                   class="no-print flex h-12 w-full items-center justify-center rounded-2xl text-base font-semibold text-white transition active:scale-[0.99]"
-                  :class="actionOf(r.o).to === 'prepared' ? 'bg-emerald-600 hover:bg-success-700' : 'bg-brand-600 hover:bg-brand-700'"
+                  :class="actionOf(r.o).to === 'prepared' ? 'bg-success-700 hover:bg-success-700' : 'bg-brand-600 hover:bg-brand-700'"
                   @click="act(r)"
                 >{{ actionOf(r.o).label }}</button>
               </div>

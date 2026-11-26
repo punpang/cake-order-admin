@@ -121,8 +121,8 @@ async function save() {
 
     <AppModal v-if="open" :title="form.id ? 'แก้ไขผู้ใช้' : 'เพิ่มผู้ใช้'" wider @close="open = false">
       <div class="space-y-4 dlg-cols">
-        <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" /></div>
-        <div><label class="label">อีเมล <span class="text-rose-600">*</span></label><input v-model="form.email" type="email" inputmode="email" autocomplete="off" class="input" /></div>
+        <div><label class="label">ชื่อ <span class="text-danger-700">*</span></label><input v-model="form.name" class="input" /></div>
+        <div><label class="label">อีเมล <span class="text-danger-700">*</span></label><input v-model="form.email" type="email" inputmode="email" autocomplete="off" class="input" /></div>
         <div>
           <div class="label">บทบาท</div>
           <div class="grid grid-cols-2 gap-2">

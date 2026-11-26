@@ -544,9 +544,9 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
                     <div class="font-semibold leading-snug text-stone-800">{{ slipChip(m.slipCheck).title }}</div>
                     <div v-if="slipChip(m.slipCheck).sub" class="mt-0.5 text-stone-500">{{ slipChip(m.slipCheck).sub }}</div>
                   </div>
-                  <button v-if="canBindSlip(m)" type="button" class="-mt-1 -mr-1 ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-rose-600 hover:bg-danger-50" aria-label="ยกเลิกสลิป" title="ยกเลิกสลิป" data-slip-cancel @click="doCancelSlip(m)"><AppIcon name="x" :size="18" /></button>
+                  <button v-if="canBindSlip(m)" type="button" class="-mt-1 -mr-1 ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-danger-700 hover:bg-danger-50" aria-label="ยกเลิกสลิป" title="ยกเลิกสลิป" data-slip-cancel @click="doCancelSlip(m)"><AppIcon name="x" :size="18" /></button>
                 </div>
-                <div v-if="m.slipCheck.ocrAmount != null" class="mt-2.5 grid grid-cols-2 gap-2 rounded-xl bg-info-50 px-3 py-2 text-sky-900">
+                <div v-if="m.slipCheck.ocrAmount != null" class="mt-2.5 grid grid-cols-2 gap-2 rounded-xl bg-info-50 px-3 py-2 text-info-800">
                   <div>
                     <div class="text-xs font-medium text-info-700">ยอดตามสลิป</div>
                     <div class="text-sm font-semibold">{{ money(m.slipCheck.ocrAmount) }}</div>
@@ -701,8 +701,8 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
         <span v-if="picBusy" class="shrink-0 text-xs text-stone-500" role="status">กำลังเตรียมรูป…</span>
       </div>
 
-      <p v-if="!canType" class="m-3 flex items-start gap-2 rounded-xl bg-warning-50 px-3 py-2.5 text-sm text-amber-900">
-        <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0 text-amber-600" />
+      <p v-if="!canType" class="m-3 flex items-start gap-2 rounded-xl bg-warning-50 px-3 py-2.5 text-sm text-warning-800">
+        <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0 text-warning-700" />
         <span>เกิน 24 ชม. หลังลูกค้าทักล่าสุด Facebook ไม่ให้ตอบข้อความทั่วไป (การ์ดออร์เดอร์/ยอดชำระยังส่งได้) รอให้ลูกค้าทักกลับ</span>
       </p>
       <form v-else class="flex items-end gap-2 px-3" :class="kb.open ? 'py-2' : 'py-2.5'" @submit.prevent="send">

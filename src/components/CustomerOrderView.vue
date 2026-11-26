@@ -332,7 +332,7 @@ const beforeDiscount = computed(() => {
               <dd class="break-words text-stone-800">{{ d.value }}</dd>
             </template>
           </dl>
-          <div v-if="it.note" class="mt-2 rounded-xl bg-warning-50 px-3 py-2 text-xs break-words text-amber-900">หมายเหตุ: {{ it.note }}</div>
+          <div v-if="it.note" class="mt-2 rounded-xl bg-warning-50 px-3 py-2 text-xs break-words text-warning-800">หมายเหตุ: {{ it.note }}</div>
         </li>
       </ul>
     </section>
@@ -366,7 +366,7 @@ const beforeDiscount = computed(() => {
     <section class="card">
       <div v-if="o.discountTotal || (o.delivery && o.delivery.shippingFee)" class="space-y-1.5 text-stone-500">
         <div v-if="o.discountTotal" class="flex justify-between"><span>ราคาก่อนลด</span><span>{{ money(beforeDiscount) }}</span></div>
-        <div v-if="o.discountTotal" class="flex justify-between"><span>ส่วนลดรวม</span><span class="text-rose-600">-{{ money(o.discountTotal) }}</span></div>
+        <div v-if="o.discountTotal" class="flex justify-between"><span>ส่วนลดรวม</span><span class="text-danger-700">-{{ money(o.discountTotal) }}</span></div>
         <div v-if="o.delivery && o.delivery.shippingFee" class="flex justify-between"><span>ค่าจัดส่ง</span><span>{{ money(o.delivery.shippingFee) }}</span></div>
       </div>
       <div class="flex items-baseline justify-between gap-3" :class="{ 'mt-2 border-t border-dashed border-stone-200 pt-2': o.discountTotal || (o.delivery && o.delivery.shippingFee) }">
@@ -446,7 +446,7 @@ const beforeDiscount = computed(() => {
           <p v-else class="rounded-xl bg-warning-50 p-3 text-warning-800">ร้านยังไม่ได้ตั้งช่องทางรับชำระ กรุณาสอบถามร้าน</p>
 
           <div>
-            <div class="label">สลิปการโอน <span class="text-rose-600">*</span></div>
+            <div class="label">สลิปการโอน <span class="text-danger-700">*</span></div>
             <label class="flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-stone-200 p-3 text-stone-500 hover:border-brand-300">
               <img v-if="f.slip" :src="f.slip" alt="สลิป" class="h-14 w-14 rounded-lg object-cover" />
               <AppIcon v-else name="image" :size="22" />
@@ -455,7 +455,7 @@ const beforeDiscount = computed(() => {
             </label>
           </div>
           <div class="space-y-2 rounded-2xl border border-stone-200 p-3">
-            <div class="text-xs text-stone-500">รายละเอียดการโอน (ให้ตรงกับสลิป) <span class="text-rose-600">*</span></div>
+            <div class="text-xs text-stone-500">รายละเอียดการโอน (ให้ตรงกับสลิป) <span class="text-danger-700">*</span></div>
             <div class="grid grid-cols-2 gap-2">
               <div><div class="label">วันที่โอน</div><ThaiDateField v-model="f.txnDate" :max="thaiNow().date" label="วันที่โอน" /></div>
               <div><label class="label" for="pay-time">เวลาที่โอน</label><input id="pay-time" v-model="f.txnTime" type="time" class="input" /></div>

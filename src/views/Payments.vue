@@ -115,15 +115,15 @@ const summary = computed(() => {
 
     <!-- สรุปยอดของแท็บ: ตอบคำถามแรกของคนหน้าร้านได้ทันที (ต้องรับเงินเท่าไร · กี่รายการ · เกินกำหนดกี่รายการ) -->
     <section v-if="summary && rows.length" class="mb-3 grid grid-cols-3 divide-x divide-stone-200/80 overflow-hidden rounded-2xl border shadow-sm md:max-w-xl" :class="tab === 'review' ? 'border-info-200 bg-info-50' : 'border-warning-200 bg-warning-50'" aria-label="สรุปยอด">
-      <div class="col-span-3 min-w-0 px-4 pt-3 sm:col-span-1 sm:pb-3" :class="tab === 'review' ? 'text-sky-900' : 'text-amber-900'">
+      <div class="col-span-3 min-w-0 px-4 pt-3 sm:col-span-1 sm:pb-3" :class="tab === 'review' ? 'text-info-800' : 'text-warning-800'">
         <div class="text-xs font-medium opacity-80">{{ tab === 'review' ? 'ยอดที่แจ้งรอตรวจ' : 'ยอดค้างรับทั้งหมด' }}{{ q.trim() ? ' (ตามที่ค้นหา)' : '' }}</div>
         <div class="mt-0.5 text-2xl leading-tight font-semibold tabular-nums">{{ money(summary.amount) }}</div>
       </div>
-      <div class="px-4 py-3" :class="tab === 'review' ? 'text-sky-900' : 'text-amber-900'">
+      <div class="px-4 py-3" :class="tab === 'review' ? 'text-info-800' : 'text-warning-800'">
         <div class="text-xs font-medium opacity-80">{{ tab === 'review' ? 'งวดที่รอตรวจ' : 'ออร์เดอร์' }}</div>
         <div class="mt-0.5 text-lg leading-tight font-semibold tabular-nums">{{ summary.count.toLocaleString('th-TH') }}</div>
       </div>
-      <div class="px-4 py-3" :class="summary.overdue ? 'text-danger-700' : tab === 'review' ? 'text-sky-900' : 'text-amber-900'">
+      <div class="px-4 py-3" :class="summary.overdue ? 'text-danger-700' : tab === 'review' ? 'text-info-800' : 'text-warning-800'">
         <div class="text-xs font-medium opacity-80">เกินกำหนด</div>
         <div class="mt-0.5 text-lg leading-tight font-semibold tabular-nums">{{ tab === 'review' ? '—' : summary.overdue.toLocaleString('th-TH') }}</div>
       </div>
@@ -188,7 +188,7 @@ const summary = computed(() => {
           <!-- งวดที่แจ้งไว้ (รอตรวจ/รอรับเงิน): การกระทำหลักของแท็บรอตรวจ -->
           <div v-for="x in reported(r.o)" :key="x.p.id" class="rounded-2xl border border-info-200 bg-info-50/60 p-3" :aria-label="`งวด ${x.n} ${r.o.code}`">
             <div class="flex gap-3">
-              <div class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white text-sky-500">
+              <div class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white text-info-700">
                 <SecureImg v-if="x.p.slip" :src="x.p.slip" alt="สลิป" img-class="h-full w-full object-cover" />
                 <AppIcon v-else name="image" :size="22" />
               </div>
@@ -200,7 +200,7 @@ const summary = computed(() => {
               </div>
             </div>
 
-            <div v-if="x.p.extension?.status === 'pending'" class="mt-3 rounded-xl bg-warning-50 p-2.5 text-sm text-amber-900">
+            <div v-if="x.p.extension?.status === 'pending'" class="mt-3 rounded-xl bg-warning-50 p-2.5 text-sm text-warning-800">
               <div>ลูกค้าขอขยายเวลา<span v-if="x.p.extension.note"> · {{ x.p.extension.note }}</span></div>
               <div v-if="canReport" class="mt-2 grid grid-cols-2 gap-2">
                 <button type="button" class="btn-primary h-11 px-3" @click="ext = { order: r.o, payment: x.p }">ขยายเวลา</button>

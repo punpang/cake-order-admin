@@ -131,7 +131,7 @@ async function save() {
           </p>
         </div>
       </div>
-      <div class="mt-3 flex items-start gap-2 rounded-xl bg-success-50 px-3 py-2 text-xs text-emerald-900">
+      <div class="mt-3 flex items-start gap-2 rounded-xl bg-success-50 px-3 py-2 text-xs text-success-800">
         <AppIcon name="shield" :size="16" class="mt-0.5 shrink-0" />
         <span>ออร์เดอร์ ลูกค้า การชำระเงิน รายการขาย และข้อความแชท <b>ไม่อยู่ในรายการนี้</b> และจะไม่ถูกลบจากหน้านี้</span>
       </div>

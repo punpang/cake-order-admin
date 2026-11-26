@@ -236,7 +236,7 @@ async function saveO() {
     <!-- modal กลุ่ม -->
     <AppModal v-if="gOpen" title="ตั้งค่ากลุ่ม" @close="gOpen = false">
       <div class="space-y-4">
-        <div><label class="label">ชื่อกลุ่ม <span class="text-rose-600">*</span></label><input v-model="g.name" class="input" /></div>
+        <div><label class="label">ชื่อกลุ่ม <span class="text-danger-700">*</span></label><input v-model="g.name" class="input" /></div>
         <p v-if="isSize" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">กลุ่มขนาด: เลือกได้ 1 ขนาดต่อชั้น · จำเป็น · ใช้กับสั่งทำ (เค้กสำเร็จกำหนดขนาดในหน้าสินค้า)</p>
         <div v-if="g.type !== 'text' && !isSize">
           <div class="label">รูปแบบ</div>
@@ -273,7 +273,7 @@ async function saveO() {
     <!-- modal ตัวเลือก -->
     <AppModal v-if="oOpen" :title="o.id ? 'แก้ไขตัวเลือก' : 'เพิ่มตัวเลือก'" wider @close="oOpen = false">
       <div class="space-y-4 dlg-cols">
-        <div><label class="label">ชื่อตัวเลือก <span class="text-rose-600">*</span></label><input v-model="o.name" class="input" /></div>
+        <div><label class="label">ชื่อตัวเลือก <span class="text-danger-700">*</span></label><input v-model="o.name" class="input" /></div>
 
         <div v-if="isFlavor">
           <div class="label">รูปแบบราคา</div>

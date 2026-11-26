@@ -347,7 +347,7 @@ onMounted(() => load())
       <div class="space-y-4">
         <p v-if="invoiceOfOrder(voidFor.id)" class="rounded-xl bg-warning-50 p-3 text-sm text-warning-800">ออร์เดอร์นี้ออกใบกำกับภาษีไว้แล้ว ({{ invoiceOfOrder(voidFor.id).no }}) · เมื่อยกเลิกระบบจะออกใบลดหนี้ให้อัตโนมัติ</p>
         <p class="text-sm text-stone-500">ยกเลิกแล้วจะคืนสต็อก คืนคูปองที่ใช้ และตัดคะแนนที่ได้จากบิลนี้ · ยอดคืนเงินจะกระทบยอดของกะที่ปิดไปแล้ว</p>
-        <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><input v-model="vd.reason" class="input" maxlength="120" /></div>
+        <div><label class="label">เหตุผล <span class="text-danger-700">*</span></label><input v-model="vd.reason" class="input" maxlength="120" /></div>
       </div>
       </template>
       <template #right>

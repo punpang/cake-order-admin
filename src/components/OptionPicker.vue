@@ -120,7 +120,7 @@ const isOn = (g, o) =>
           :data-locked="isLocked(g, o) || null"
           @click="g.type === 'multi' ? toggle(g.id, o.id) : pick(g.id, o.id, g.required)"
         >
-          <span v-if="tagOf(g, o)" class="pointer-events-none max-w-full rounded-full px-2 py-0.5 text-xs leading-tight font-bold shadow-sm" :class="tagOf(g, o).state === 'done' ? 'bg-success-700 text-white' : 'bg-amber-600 text-white'">{{ tagText(tagOf(g, o)) }}</span>
+          <span v-if="tagOf(g, o)" class="pointer-events-none max-w-full rounded-full px-2 py-0.5 text-xs leading-tight font-bold shadow-sm" :class="tagOf(g, o).state === 'done' ? 'bg-success-700 text-white' : 'bg-warning-700 text-white'">{{ tagText(tagOf(g, o)) }}</span>
           <span class="inline-flex min-w-0 items-center gap-1.5">
             <AppIcon v-if="isOn(g, o)" name="check" :size="14" class="text-brand-600" />
             <span class="min-w-0 break-words">{{ o.name }}</span>

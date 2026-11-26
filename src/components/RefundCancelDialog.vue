@@ -33,7 +33,7 @@ function save() {
         <div class="break-words text-stone-600">เหตุผลเดิม: {{ entry.reason }}</div>
       </div>
       <p class="text-sm text-stone-600">ยกเลิกแล้วยอดคืนนี้จะไม่นับ (ชำระสุทธิกลับขึ้น) และบัญชีบันทึกรายการกลับ · ถ้าคืนเป็นคะแนนจะหักคะแนนคืน (ทำไม่ได้ถ้าลูกค้าใช้คะแนนนั้นไปแล้ว)</p>
-      <div><label class="label" for="rc-reason">เหตุผลที่ยกเลิกการคืน <span class="text-rose-600">*</span></label><input id="rc-reason" v-model="f.reason" class="input" maxlength="120" /></div>
+      <div><label class="label" for="rc-reason">เหตุผลที่ยกเลิกการคืน <span class="text-danger-700">*</span></label><input id="rc-reason" v-model="f.reason" class="input" maxlength="120" /></div>
       <label v-if="hasCustomer" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="f.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่ายกเลิกการคืนเงิน" /> แจ้งลูกค้าว่ายกเลิกการคืนเงิน</label>
       <SmsTick v-if="hasCustomer" v-model="f.sms" :customer="findCustomer(order.customerId)" :order="order" :show="f.notify" />
       <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>

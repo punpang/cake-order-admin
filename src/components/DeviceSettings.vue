@@ -65,7 +65,7 @@ onMounted(refresh)
         <RouterLink v-if="can('manage')" to="/admin/settings/storefront?tab=display" class="inline-flex min-h-10 items-center text-sm text-brand-700 underline" @click="emit('close')">ตั้งค่าสื่อโฆษณาบนจอลูกค้า (รูป/วิดีโอตอนว่าง)</RouterLink>
       </section>
 
-      <p v-if="msg" class="rounded-xl bg-warning-50 p-3 text-sm text-amber-900" role="status">{{ msg }}</p>
+      <p v-if="msg" class="rounded-xl bg-warning-50 p-3 text-sm text-warning-800" role="status">{{ msg }}</p>
     </div>
   </AppModal>
 </template>

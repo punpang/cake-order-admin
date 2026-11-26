@@ -336,7 +336,7 @@ function clearAll() {
     >
       <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-danger-700"><AppIcon name="cake" :size="18" /></span>
       <span class="min-w-0 flex-1">
-        <span class="block text-sm font-semibold text-rose-900">วันเกิดใกล้ถึง {{ birthdays.length }} คน</span>
+        <span class="block text-sm font-semibold text-danger-800">วันเกิดใกล้ถึง {{ birthdays.length }} คน</span>
         <span class="block truncate text-xs text-danger-700">{{ birthdays.map((b) => b.name || findCustomer(b.customerId)?.name).join(', ') }}</span>
       </span>
       <AppIcon name="next" class="text-rose-300" />

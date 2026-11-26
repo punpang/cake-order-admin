@@ -81,7 +81,7 @@ function save() {
       </div>
 
       <div>
-        <label class="label" for="hm-reason">เหตุผล <span class="text-rose-600">*</span></label>
+        <label class="label" for="hm-reason">เหตุผล <span class="text-danger-700">*</span></label>
         <input id="hm-reason" v-model="f.reason" class="input" maxlength="200" />
       </div>
       <p v-if="bad" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ bad }}</p>

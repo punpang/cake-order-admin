@@ -68,7 +68,7 @@ async function submit() {
 
       <form v-else class="space-y-4" @submit.prevent="submit">
         <p v-if="known" class="rounded-xl bg-brand-50 p-3 text-sm text-brand-800">พบข้อมูลลูกค้าของเบอร์นี้ในร้านแล้ว บัญชีจะผูกกับข้อมูลเดิม</p>
-        <div v-else><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="name" class="input" maxlength="100" autocomplete="name" /></div>
+        <div v-else><label class="label">ชื่อ <span class="text-danger-700">*</span></label><input v-model="name" class="input" maxlength="100" autocomplete="name" /></div>
         <div><label class="label">ตั้ง PIN 6 หลัก</label><PinInput v-model="pin" autocomplete="new-password" /></div>
         <div><label class="label">ยืนยัน PIN</label><PinInput v-model="pin2" autocomplete="new-password" /></div>
         <p class="text-xs text-stone-500">ห้ามใช้ PIN ที่เดาง่าย เช่น 111111, 123456 หรือเลขท้ายเบอร์โทร</p>

@@ -363,7 +363,7 @@ function doCreate() {
             <span v-if="hasDraft(current.id) && !orderOpen" class="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-400 ring-2 ring-white" aria-hidden="true" />
           </button>
         </header>
-        <div v-if="suggestions.length && !kb.open" class="flex flex-wrap items-center gap-2 border-b border-warning-200 bg-warning-50 px-3 py-2 text-sm text-amber-900">
+        <div v-if="suggestions.length && !kb.open" class="flex flex-wrap items-center gap-2 border-b border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-800">
           <span class="font-medium">ลูกค้าที่น่าจะใช่:</span>
           <button v-for="x in suggestions" :key="x.customer.id" type="button" class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium hover:bg-warning-100" @click="doLink(x.customer)">
             {{ x.customer.name }}<span class="text-warning-700"> · {{ x.why === 'phone' ? 'เบอร์ตรงกับที่พิมพ์ในแชท' : 'ชื่อคล้ายโปรไฟล์' }}</span> <span class="font-semibold text-brand-700">ผูก</span>

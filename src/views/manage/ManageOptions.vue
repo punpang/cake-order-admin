@@ -101,7 +101,7 @@ function save() {
 
     <AppModal v-if="open" title="เพิ่มกลุ่มตัวเลือก" @close="open = false">
       <div class="space-y-4">
-        <div><label class="label">ชื่อกลุ่ม <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" placeholder="เช่น ลายครีม" /></div>
+        <div><label class="label">ชื่อกลุ่ม <span class="text-danger-700">*</span></label><input v-model="form.name" class="input" placeholder="เช่น ลายครีม" /></div>
         <div>
           <div class="label">รูปแบบ</div>
           <div class="grid gap-2">

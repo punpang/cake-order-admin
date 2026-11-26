@@ -134,7 +134,7 @@ function refresh() {
       <section class="card order-3 space-y-3 rounded-2xl md:col-span-2 xl:col-span-3">
         <h2 class="text-sm font-semibold text-stone-700">งานค้างที่ต้องตรวจ</h2>
         <ul class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
-          <li v-for="r in pendingRows" :key="r.key" class="rounded-xl p-3" :class="r.n > 0 ? 'bg-warning-50 text-amber-900' : 'bg-stone-50 text-stone-500'">
+          <li v-for="r in pendingRows" :key="r.key" class="rounded-xl p-3" :class="r.n > 0 ? 'bg-warning-50 text-warning-800' : 'bg-stone-50 text-stone-500'">
             <div class="text-xs">{{ r.label }}</div>
             <div class="text-2xl font-semibold">{{ r.n }}</div>
           </li>

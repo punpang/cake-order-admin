@@ -404,7 +404,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
     <BundleHint v-if="form.kind === 'custom'" scope="whole" :bundles="db.bundles" :groups="groups" :tier-sels="form.tiers[0]?.selections || null" :whole-sels="form.selections" :size-ids="allSizeIds" :type-id="typeOptOf(form.tiers[0])?.id || null" :style-id="styleIdOf(form.tiers[0])" :allow="allowFor(form.tiers[0])" />
 
     <div v-if="healthText()" class="mt-3 rounded-2xl border border-warning-200 bg-warning-50 p-3.5">
-      <label class="flex items-start gap-2 text-sm text-amber-900">
+      <label class="flex items-start gap-2 text-sm text-warning-800">
         <input v-model="healthOk" type="checkbox" class="mt-0.5 h-4 w-4 shrink-0" />
         <span>ลูกค้ายินยอมโดยชัดแจ้งให้ร้านเก็บและใช้ข้อมูลแพ้อาหารนี้ เพื่อทำสินค้าเท่านั้น (ข้อมูลสุขภาพตาม PDPA) — ถามลูกค้าในแชทก่อนติ๊ก</span>
       </label>

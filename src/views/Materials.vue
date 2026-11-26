@@ -131,7 +131,7 @@ function setFrom(v) {
 
     <div class="kitchen-print-area">
       <h2 class="mb-2 hidden text-base font-semibold text-stone-900 print:block">{{ tab === 'prep' ? 'รายการเตรียม' : 'วัตถุดิบรวม' }} · {{ rangeText }}</h2>
-      <section v-if="noRecipe.length" class="no-print mb-3 overflow-hidden rounded-2xl bg-warning-50 text-sm text-amber-900 ring-1 ring-amber-200">
+      <section v-if="noRecipe.length" class="no-print mb-3 overflow-hidden rounded-2xl bg-warning-50 text-sm text-warning-800 ring-1 ring-amber-200">
         <button type="button" class="flex min-h-11 w-full items-center gap-2 px-4 py-3 text-left font-semibold" :aria-expanded="showMissing" aria-controls="missing-list" @click="showMissing = !showMissing">
           <span class="min-w-0 flex-1">ยังไม่มีสูตร {{ noRecipe.length }} รายการ · วัตถุดิบไม่ถูกนับ</span>
           <span class="shrink-0 text-xs font-medium underline">{{ showMissing ? 'ซ่อน' : 'ดูรายการ' }}</span>

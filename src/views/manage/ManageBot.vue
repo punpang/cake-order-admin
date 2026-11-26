@@ -209,9 +209,9 @@ const tab = ref('settings')
 
     <AppModal v-if="rule" :title="rule.id ? 'แก้กฎ' : 'เพิ่มกฎ'" @close="rule = null">
       <div class="space-y-3">
-        <div><label class="label">ชื่อกฎ <span class="text-rose-600">*</span></label><input v-model="rule.name" class="input" maxlength="60" /></div>
-        <div><label class="label">คีย์เวิร์ด (คั่นด้วย ,) <span class="text-rose-600">*</span></label><input v-model="rule.keywords" class="input" placeholder="จอดรถ, ที่จอด" /></div>
-        <div><label class="label">คำตอบ <span class="text-rose-600">*</span></label><textarea v-model="rule.reply" rows="3" class="input" maxlength="500" /></div>
+        <div><label class="label">ชื่อกฎ <span class="text-danger-700">*</span></label><input v-model="rule.name" class="input" maxlength="60" /></div>
+        <div><label class="label">คีย์เวิร์ด (คั่นด้วย ,) <span class="text-danger-700">*</span></label><input v-model="rule.keywords" class="input" placeholder="จอดรถ, ที่จอด" /></div>
+        <div><label class="label">คำตอบ <span class="text-danger-700">*</span></label><textarea v-model="rule.reply" rows="3" class="input" maxlength="500" /></div>
         <AppSwitch v-model="rule.active" label="เปิดใช้งาน" />
         <p v-if="rerr" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ rerr }}</p>
       </div>

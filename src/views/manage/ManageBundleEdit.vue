@@ -302,7 +302,7 @@ async function save() {
               <button v-else-if="creatable(s)" type="button" class="btn-primary h-9 shrink-0 px-3 text-sm" data-sub-create @click="createSuggestion(s)">สร้างชุดนี้</button>
             </div>
             <p v-for="(c, j) in s.rec.conflicts" :key="`c${j}`" class="mt-2 rounded-lg bg-danger-50 p-2 text-xs text-danger-800">{{ c }}</p>
-            <p v-for="(w, j) in s.rec.warnings" :key="`w${j}`" class="mt-2 rounded-lg bg-warning-50 p-2 text-xs text-amber-900">{{ w }}</p>
+            <p v-for="(w, j) in s.rec.warnings" :key="`w${j}`" class="mt-2 rounded-lg bg-warning-50 p-2 text-xs text-warning-800">{{ w }}</p>
             <details v-if="s.rec.reasons.length" class="mt-2">
               <summary class="cursor-pointer text-xs text-stone-500">เหตุผลของราคานี้</summary>
               <ul class="mt-1 list-disc space-y-0.5 pl-5 text-xs text-stone-600">
@@ -376,7 +376,7 @@ async function save() {
             <li v-for="(r, i) in advice.reasons" :key="`r${i}`">{{ r }}</li>
           </ul>
           <p v-for="(c, i) in advice.conflicts" :key="`c${i}`" class="mt-2 rounded-lg bg-danger-50 p-2 text-xs text-danger-800">{{ c }}</p>
-          <p v-for="(w, i) in advice.warnings" :key="`w${i}`" class="mt-2 rounded-lg bg-warning-50 p-2 text-xs text-amber-900">{{ w }}</p>
+          <p v-for="(w, i) in advice.warnings" :key="`w${i}`" class="mt-2 rounded-lg bg-warning-50 p-2 text-xs text-warning-800">{{ w }}</p>
           <p v-if="hasTypeOverride" class="mt-2 text-xs text-stone-500">มีราคาแยกประเภทที่ตั้งไว้ ค่าเหล่านั้นยังใช้อยู่ · ใส่ราคาแนะนำจะเปลี่ยนเฉพาะ "ทุกประเภท"</p>
         </div>
         <div class="flex flex-wrap gap-2" role="group" aria-label="เลือกประเภทที่จะตั้งส่วนลด">
@@ -392,7 +392,7 @@ async function save() {
           >{{ s.label }}<span v-if="scopeFilled(s.key)" class="text-xs" aria-hidden="true">●</span></button>
         </div>
         <p class="mt-2 text-xs text-stone-500" data-scope-hint>{{ scopeHint }}</p>
-        <p v-if="linkedPct" class="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-info-50 p-2.5 text-xs text-sky-900" data-link-status>
+        <p v-if="linkedPct" class="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-info-50 p-2.5 text-xs text-info-800" data-link-status>
           <span class="min-w-0 flex-1">ตั้งตาม <b>{{ linkedPct }}%</b> ของราคาปกติ · ราคาตัวเลือกเปลี่ยนเมื่อไหร่ หน้ารายการจะแจ้งให้ปรับ</span>
           <button type="button" class="underline underline-offset-2" data-unlink-scope @click="unlinkScope">เลิกตั้งตามเปอร์เซ็นต์</button>
         </p>
@@ -458,8 +458,8 @@ async function save() {
         <p v-for="(e, i) in check.errors" :key="`e${i}`" class="flex items-start gap-2 rounded-xl bg-danger-50 p-3 text-sm text-danger-800">
           <AppIcon name="alert" :size="16" class="mt-0.5 shrink-0" /><span class="min-w-0">{{ e }}</span>
         </p>
-        <p v-for="(w, i) in check.warnings" :key="`w${i}`" class="rounded-xl bg-warning-50 p-3 text-sm text-amber-900">{{ w }}</p>
-        <p v-for="(n, i) in check.info" :key="`i${i}`" class="rounded-xl bg-info-50 p-3 text-sm text-sky-900">{{ n }}</p>
+        <p v-for="(w, i) in check.warnings" :key="`w${i}`" class="rounded-xl bg-warning-50 p-3 text-sm text-warning-800">{{ w }}</p>
+        <p v-for="(n, i) in check.info" :key="`i${i}`" class="rounded-xl bg-info-50 p-3 text-sm text-info-800">{{ n }}</p>
       </section>
 
       <!-- 5 รูปแบบตกแต่ง (ไม่บังคับ) -->

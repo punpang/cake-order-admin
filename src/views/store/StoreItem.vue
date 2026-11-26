@@ -133,7 +133,7 @@ watch(() => [props.kind, props.id], () => (cur.value = 0))
             <div role="group" aria-label="เลือกประเภทเค้ก" class="rounded-2xl border border-stone-200/70 bg-white p-3.5">
               <div class="mb-2.5 flex flex-wrap items-baseline gap-x-2">
                 <span class="text-sm font-semibold text-stone-800">เลือกประเภทเค้ก</span>
-                <span class="text-xs font-medium text-rose-600">จำเป็น</span>
+                <span class="text-xs font-medium text-danger-700">จำเป็น</span>
               </div>
               <div class="flex flex-wrap gap-2">
                 <button
