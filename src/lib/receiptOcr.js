@@ -91,11 +91,12 @@ function invoiceNoOf(lines) {
 const NOT_PAYEE = /ใบเสร็จ|ใบกำกับ|receipt|invoice|tax|โทร|tel|สาขา|วันที่|date|เลขที่|vat|รวม|total/i
 function payeeOf(lines) {
   for (const l of lines.slice(0, 5)) {
-    const s = l.replace(/^[^ก-๙A-Za-z0-9]+/, '').trim()
+    const raw = l.trim()
+    const letters = (raw.match(/[ก-๙A-Za-z]/g) || []).length
+    const nonSpace = raw.replace(/\s/g, '').length
+    const symbols = nonSpace - (raw.match(/[ก-๙A-Za-z0-9]/g) || []).length
+    const s = raw.replace(/^[^ก-๙A-Za-z0-9]+/, '').trim()
     if (s.length < 2 || s.length > 80) continue
-    const letters = (s.match(/[ก-๙A-Za-z]/g) || []).length
-    const nonSpace = s.replace(/\s/g, '').length
-    const symbols = nonSpace - (s.match(/[ก-๙A-Za-z0-9]/g) || []).length
     if (letters < 6 || symbols > nonSpace * 0.3 || NOT_PAYEE.test(s)) continue
     return s
   }
