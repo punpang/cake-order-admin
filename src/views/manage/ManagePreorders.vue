@@ -136,7 +136,7 @@ function toggle(c, status) {
     <AppModal v-if="form" :title="form.id ? 'แก้ไขแคมเปญ' : 'สร้างแคมเปญ'" wider @close="form = null">
       <div class="space-y-3">
         <h3 class="text-sm font-semibold text-stone-900">ข้อมูลทั่วไป</h3>
-        <div><label class="label" for="pp-name">ชื่อแคมเปญ <span class="text-rose-600">*</span></label><input id="pp-name" v-model="form.name" class="input" maxlength="80" /></div>
+        <div><label class="label" for="pp-name">ชื่อแคมเปญ <span class="text-danger-700">*</span></label><input id="pp-name" v-model="form.name" class="input" maxlength="80" /></div>
         <h3 class="border-t border-stone-200 pt-4 text-sm font-semibold text-stone-900">วันและมัดจำ</h3>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div><label class="label" for="pp-of">เริ่มรับสั่ง</label><input id="pp-of" v-model="form.orderFrom" type="date" class="input" /></div>
@@ -162,7 +162,7 @@ function toggle(c, status) {
         </fieldset>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div><label class="label" for="pp-dep">มัดจำขั้นต่ำ %</label><input id="pp-dep" v-model="form.depositPercent" type="number" min="1" max="100" class="input" /></div>
-          <div><label class="label" for="pp-due">จ่ายมัดจำภายใน (ชม.) <span class="text-rose-600">*</span></label><input id="pp-due" v-model="hours" type="number" min="0" step="0.5" class="input" /></div>
+          <div><label class="label" for="pp-due">จ่ายมัดจำภายใน (ชม.) <span class="text-danger-700">*</span></label><input id="pp-due" v-model="hours" type="number" min="0" step="0.5" class="input" /></div>
           <div><label class="label" for="pp-cap">โควตารวมต่อวัน</label><input id="pp-cap" v-model="form.dayCap" type="number" min="0" class="input" placeholder="ว่าง = ไม่จำกัด" /></div>
         </div>
         <div>
@@ -173,7 +173,7 @@ function toggle(c, status) {
         <h3 class="border-t border-stone-200 pt-4 text-sm font-semibold text-stone-900">สินค้า</h3>
         <div>
           <div class="flex flex-wrap items-center justify-between gap-2">
-            <div class="label">สินค้าในแคมเปญ (เลือกจากสินค้า POS) <span class="text-rose-600">*</span></div>
+            <div class="label">สินค้าในแคมเปญ (เลือกจากสินค้า POS) <span class="text-danger-700">*</span></div>
             <div class="text-sm text-stone-600" data-product-count>เลือกแล้ว {{ selectedCount }} จาก {{ sellable.length }}</div>
           </div>
           <p v-if="!sellable.length" class="text-sm text-stone-500">ไม่มีสินค้าที่ใช้ได้</p>
@@ -231,8 +231,8 @@ function toggle(c, status) {
         <h3 class="border-t border-stone-200 pt-4 text-sm font-semibold text-stone-900">การจัดส่งพัสดุ</h3>
         <AppSwitch v-model="parcelOn" label="ส่งพัสดุไปรษณีย์ (สินค้าทุกชิ้นต้องมีน้ำหนักและขนาด)" class="flex" />
         <div v-if="parcelOn" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div><label class="label" for="pp-sf">เริ่มวันจัดส่งพัสดุ <span class="text-rose-600">*</span></label><input id="pp-sf" v-model="form.shipFrom" type="date" class="input" /></div>
-          <div><label class="label" for="pp-st">สิ้นสุดวันจัดส่งพัสดุ <span class="text-rose-600">*</span></label><input id="pp-st" v-model="form.shipTo" type="date" class="input" /></div>
+          <div><label class="label" for="pp-sf">เริ่มวันจัดส่งพัสดุ <span class="text-danger-700">*</span></label><input id="pp-sf" v-model="form.shipFrom" type="date" class="input" /></div>
+          <div><label class="label" for="pp-st">สิ้นสุดวันจัดส่งพัสดุ <span class="text-danger-700">*</span></label><input id="pp-st" v-model="form.shipTo" type="date" class="input" /></div>
           <p v-if="shipWarn" class="col-span-2 flex items-center gap-2 text-sm text-warning-700" role="status" data-ship-warn><AppIcon name="alert" :size="16" /> {{ shipWarn }}</p>
         </div>
         <p v-if="ferr" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ ferr }}</p>

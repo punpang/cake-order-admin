@@ -177,12 +177,12 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
             </div>
           </div>
           <div>
-            <label class="label" for="cp-title">หัวข้อ <span class="text-rose-600">*</span></label>
+            <label class="label" for="cp-title">หัวข้อ <span class="text-danger-700">*</span></label>
             <input id="cp-title" v-model="form.title" class="input" :maxlength="CAMPAIGN_LIMITS.title" placeholder="เช่น ลด 10% ทุกเค้กวันศุกร์นี้" />
             <p class="mt-1 text-right text-xs text-stone-400">{{ form.title.length }}/{{ CAMPAIGN_LIMITS.title }}</p>
           </div>
           <div>
-            <label class="label" for="cp-body">ข้อความ <span class="text-rose-600">*</span></label>
+            <label class="label" for="cp-body">ข้อความ <span class="text-danger-700">*</span></label>
             <textarea id="cp-body" v-model="form.body" class="input min-h-32" :maxlength="CAMPAIGN_LIMITS.body" />
             <p class="mt-1 text-xs text-stone-400">ระบบต่อท้ายบรรทัดวิธีปิดรับข่าวสารให้อัตโนมัติ · {{ form.body.length }}/{{ CAMPAIGN_LIMITS.body }}</p>
           </div>
@@ -193,7 +193,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
               <label class="btn-soft h-10 cursor-pointer px-3 text-sm">{{ imgBusy ? 'กำลังอัปโหลด...' : form.image ? 'เปลี่ยนรูป' : 'เลือกรูป' }}
                 <input type="file" accept="image/*" class="sr-only" :disabled="imgBusy" @change="onPickImage" />
               </label>
-              <button v-if="form.image" type="button" class="text-sm text-rose-600" @click="form.image = ''">ลบรูป</button>
+              <button v-if="form.image" type="button" class="text-sm text-danger-700" @click="form.image = ''">ลบรูป</button>
             </div>
           </div>
           <div>

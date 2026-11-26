@@ -84,7 +84,7 @@ watch([report, () => f.campaignId, () => f.from, () => f.to, () => f.date], load
             <span>{{ it.name }}</span><span class="font-semibold">{{ it.qty }}</span>
           </li>
         </ul>
-        <div v-if="d.exceptions.length" class="mt-3 rounded-xl bg-warning-50 p-3 text-sm text-amber-900">
+        <div v-if="d.exceptions.length" class="mt-3 rounded-xl bg-warning-50 p-3 text-sm text-warning-800">
           <p class="font-medium">ต้องตรวจสอบ</p>
           <p v-for="x in d.exceptions" :key="x.code">{{ x.code }}: {{ x.reason }}</p>
         </div>
