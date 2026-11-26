@@ -45,8 +45,10 @@ async function onScanReceipt(e) {
   scan.pct = 0
   scan.msg = 'กำลังอ่านรูป…'
   try {
+    // อ่าน OCR ด้วยรูปความละเอียดสูง (ไม่เก็บ) · เก็บเป็นหลักฐานไม่เกิน 512 KB
+    const ocrImg = await resizeImage(file, { maxSide: 2500, maxBytes: 4 * 1024 * 1024 })
     const img = await resizeImage(file, { maxBytes: 512 * 1024 })
-    const text = await readReceiptText(img.dataUrl, (m) => { scan.pct = Math.round((m.progress || 0) * 100) })
+    const text = await readReceiptText(ocrImg.dataUrl, (m) => { scan.pct = Math.round((m.progress || 0) * 100) })
     const parsed = parseReceipt(text)
     Object.assign(f, receiptFill(f, parsed, { vatRate: f.vatRate || db.shop.vat?.rate || 7 }))
     if (f.attachments.length < 5) f.attachments.push(img.dataUrl)
