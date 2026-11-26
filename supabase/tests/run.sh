@@ -61,6 +61,11 @@ rucode=$?
 [ "$rucode" = "0" ] && echo "✓ revoke_unused_definers.test.sql ผ่านทั้งหมด" || echo "✗ revoke_unused_definers.test.sql ล้มเหลว"
 [ "$rucode" = "0" ] || exit "$rucode"
 
+"${PSQL[@]}" -d "$DB" -f supabase/tests/definer_search_path.test.sql
+dscode=$?
+[ "$dscode" = "0" ] && echo "✓ definer_search_path.test.sql ผ่านทั้งหมด" || echo "✗ definer_search_path.test.sql ล้มเหลว"
+[ "$dscode" = "0" ] || exit "$dscode"
+
 "${PSQL[@]}" -d "$DB" -f supabase/tests/coupon_modes.test.sql
 ccode=$?
 [ "$ccode" = "0" ] && echo "✓ coupon_modes.test.sql ผ่านทั้งหมด" || echo "✗ coupon_modes.test.sql ล้มเหลว"
