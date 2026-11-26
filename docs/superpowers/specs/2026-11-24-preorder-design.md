@@ -115,7 +115,7 @@
 | รายการ | สถานะ | หลักฐาน |
 |---|---|---|
 | ฟิลด์น้ำหนัก/ขนาดสินค้า | มี | `src/views/manage/ManageRetail.vue` |
-| ตั้งค่าค่าส่งพัสดุ | มี | `src/data/store.js` (`saveShopSettings`), `src/views/manage/ManageShop.vue`, `src/lib/parcelShipping.js` |
+| ตั้งค่าค่าส่งพัสดุ | มี | `src/data/shopParcel.store*`, `src/lib/parcelShipping.js` |
 | โปรของแคมเปญ (deals) | มี | `src/lib/preorderCampaign.js` |
 | ฟังก์ชันคิดราคา | มี | `src/lib/preorderPrice.js`, `_shared/schedlib/preorderPrice.js` |
 | Edge Function `preorder` | มี | actions: campaigns, quote, create, otp_*, qr_request, state, extension_request, return_request |
