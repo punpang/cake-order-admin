@@ -82,6 +82,28 @@ t('ใบเสนอมีค่าบริการซ่อนเงิน�
   assert.equal(o.total, 300 + 50) // สินค้า 75×4 + ค่าบริการ 50 (ไม่รวมเงินพัก)
   assert.equal(o.payable, 1350)
 })
+t('ต่อรายการเค้ก: ใบเสนอคิดค่าบริการแยกชิ้นและรวมเงินพักเป็นก้อนเดียว (ชิ้นที่ไม่เลือกไม่มีค่าบริการ)', () => {
+  const base = retailDraft().items[0]
+  const a = { ...base, id: 'a1', cashService: { kind: 'hide', notes: { 1000: 1 } } }
+  const b = { ...base, id: 'b2', cashService: { kind: 'hide', notes: { 100: 2 } } }
+  const c = { ...base, id: 'c3' }
+  const r = buildQuotePayload({ draft: retailDraft({ items: [a, b, c] }), customerId: 'c1', catalog: { ...golden.catalog, shop: { ...golden.catalog.shop, ...hideShop() } }, nowMs: golden.nowMs })
+  assert.equal(r.ok, true, r.error)
+  const svcs = r.payload.items.filter((i) => i.kind === 'service')
+  assert.deepEqual(svcs.map((i) => [i.forItem, i.unitPrice]), [['a1', 50], ['b2', 50]])
+  assert.deepEqual(r.payload.holdMoney, { kind: 'hide', notes: { 1000: 1, 100: 2 }, amount: 1200 })
+  assert.equal(r.payload.items.find((i) => i.id === 'a1').cashService.kind, 'hide')
+})
+t('ต่อรายการเค้ก: ซ่อนเงินกับดึงเงินในใบเสนอเดียวกัน → ไม่ผ่าน', () => {
+  const base = retailDraft().items[0]
+  const r = buildQuotePayload({ draft: retailDraft({ items: [{ ...base, id: 'a1', cashService: { kind: 'hide', notes: { 100: 1 } } }, { ...base, id: 'b2', cashService: { kind: 'pull', notes: { 100: 1 } } }] }), customerId: 'c1', catalog: { ...golden.catalog, shop: { ...golden.catalog.shop, ...hideShop({ services: { ...shop.cashService.services, pull: { fee: 40, show: true } } }) } }, nowMs: golden.nowMs })
+  assert.equal(r.ok, false)
+})
+t('ระดับออร์เดอร์ (d.cashService) ร่วมกับบริการต่อรายการไม่ได้', () => {
+  const base = retailDraft().items[0]
+  const r = buildQuotePayload({ draft: retailDraft({ items: [{ ...base, id: 'a1', cashService: { kind: 'hide', notes: { 100: 1 } } }], cashService: { kind: 'hide', notes: { 100: 1 } } }), customerId: 'c1', catalog: { ...golden.catalog, shop: { ...golden.catalog.shop, ...hideShop() } }, nowMs: golden.nowMs })
+  assert.equal(r.ok, false)
+})
 t('รายการ kind service ที่ส่งมาในสินค้าถูกปฏิเสธ (ราคาต้องมาจากการตั้งค่า)', () => {
   const draft = retailDraft({ items: [{ id: 'fake', kind: 'service', unitPrice: 1, qty: 1 }] })
   assert.equal(buildQuotePayload({ draft, customerId: 'c1', catalog, nowMs: golden.nowMs }).ok, false)

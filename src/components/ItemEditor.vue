@@ -14,6 +14,8 @@ import BundleHint from './BundleHint.vue'
 import DiscountDetail from './DiscountDetail.vue'
 import SecureImg from './SecureImg.vue'
 import SmsTick from './SmsTick.vue'
+import CashServicePicker from './CashServicePicker.vue'
+import { cashServiceOf } from '../lib/cashService'
 
 const props = defineProps({
   item: { type: Object, default: null },
@@ -21,6 +23,7 @@ const props = defineProps({
   defaults: { type: Object, default: null }, // ค่าเริ่มต้นของรายการใหม่ (เช่น ข้อความบนเค้กจากแชท) { [groupId]: value }
   customer: { type: Object, default: null }, // มีลูกค้า = แสดงกล่องติ๊ก "แจ้งลูกค้า" (ใช้ที่หน้ารายละเอียดออร์เดอร์)
   order: { type: Object, default: null },
+  customerFacing: { type: Boolean, default: false }, // ใบเสนอในแชท: บริการเกี่ยวกับเงินที่แสดงให้ลูกค้าเห็นเท่านั้น
 })
 const emit = defineEmits(['save', 'close'])
 const notifyCust = ref(true)
@@ -210,6 +213,8 @@ async function onImages(e) {
 function save() {
   const err = {}
   if (form.kind === 'retail' && !form.retailId) err.product = 'เลือกสินค้า'
+  // บริการเกี่ยวกับเงินของรายการ (เฉพาะสั่งออร์เดอร์ใหม่ ไม่ใช่แก้ออร์เดอร์เดิม)
+  if (!props.order && form.cashService && !cashServiceOf(form.cashService, db.shop, { customerFacing: props.customerFacing }).ok) err.cash = 'บริการเกี่ยวกับเงินไม่ถูกต้อง'
   const empty = (v) => v == null || v === ''
   const allowW = allowFor(form.tiers[0])
   for (const g of wholeGroups.value) {
@@ -402,6 +407,8 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
     <div v-if="form.kind === 'custom' && wholeGroups.length" class="mb-2 text-sm font-semibold text-stone-500">ตัวเลือกเพิ่มเติม</div>
     <OptionPicker compact v-model="form.selections" :scopes="scopesFor(form.tiers[0])" :bundles="form.kind === 'custom' ? db.bundles : []" :context="form.tiers[0]?.selections || {}" :groups="wholeGroups" :all-groups="groups" :errors="errors" :active="active" :allow="form.kind === 'custom' ? allowFor(form.tiers[0]) : null" :size-ids="allSizeIds" :type-opt="form.kind === 'custom' ? typeOptOf(form.tiers[0]) : readyTypeOpt" />
     <BundleHint v-if="form.kind === 'custom'" scope="whole" :bundles="db.bundles" :groups="groups" :tier-sels="form.tiers[0]?.selections || null" :whole-sels="form.selections" :size-ids="allSizeIds" :type-id="typeOptOf(form.tiers[0])?.id || null" :style-id="styleIdOf(form.tiers[0])" :allow="allowFor(form.tiers[0])" />
+
+    <CashServicePicker v-if="!props.order" v-model="form.cashService" :customer-facing="props.customerFacing" class="mt-3" />
 
     <div v-if="healthText()" class="mt-3 rounded-2xl border border-warning-200 bg-warning-50 p-3.5">
       <label class="flex items-start gap-2 text-sm text-warning-800">

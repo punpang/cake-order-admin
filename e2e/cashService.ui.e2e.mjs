@@ -67,7 +67,7 @@ t('ออร์เดอร์ซ่อนเงิน: แสดงรายก
       if (!tpl) return { error: 'ไม่มีออร์เดอร์ตัวอย่าง' }
       S.saveShopSettings({ ...JSON.parse(JSON.stringify(S.db.shop)), cashService: { maxNotes: 5, services: { hide: { fee: 50, show: true }, pull: { fee: 40, show: false }, stash: { fee: 30, show: false } } } })
       const d = JSON.parse(JSON.stringify(tpl))
-      const r = S.createOrder({ customerId: d.customerId, pickupAt: '2030-03-10T10:00', fulfillment: 'pickup', items: d.items, vat: d.vat, promoOn: false, quoteItems: false, shipPromo: null, birthday: null, cashService: { kind: 'hide', notes: { 1000: 1 } } }, false)
+      const r = S.createOrder({ customerId: d.customerId, pickupAt: '2030-03-10T10:00', fulfillment: 'pickup', items: d.items.map((it, idx) => (idx === 0 ? { ...it, cashService: { kind: 'hide', notes: { 1000: 1 } } } : it)), vat: d.vat, promoOn: false, quoteItems: false, shipPromo: null, birthday: null }, false)
       if (r.error) return { error: r.error }
       return { id: r.id, hold: r.holdMoney?.amount, svc: r.items.find((i) => i.kind === 'service')?.unitPrice }
     })
@@ -97,7 +97,7 @@ t('ลูกค้าเห็นเงินพักและยอดที�
       if (!tpl) return { error: 'ไม่มีออร์เดอร์ตัวอย่าง' }
       S.saveShopSettings({ ...JSON.parse(JSON.stringify(S.db.shop)), cashService: { maxNotes: 5, services: { hide: { fee: 50, show: true, customer: true }, pull: { fee: 40, show: false }, stash: { fee: 30, show: false } } } })
       const d = JSON.parse(JSON.stringify(tpl))
-      const r = S.createOrder({ customerId: d.customerId, pickupAt: '2030-04-10T10:00', fulfillment: 'pickup', items: d.items, vat: d.vat, promoOn: false, quoteItems: false, shipPromo: null, birthday: null, cashService: { kind: 'hide', notes: { 500: 2 } } }, false)
+      const r = S.createOrder({ customerId: d.customerId, pickupAt: '2030-04-10T10:00', fulfillment: 'pickup', items: d.items.map((it, idx) => (idx === 0 ? { ...it, cashService: { kind: 'hide', notes: { 500: 2 } } } : it)), vat: d.vat, promoOn: false, quoteItems: false, shipPromo: null, birthday: null }, false)
       if (r.error) return { error: r.error }
       const l = S.createOrderLink(r)
       return l.error ? { error: l.error } : { token: l.token }

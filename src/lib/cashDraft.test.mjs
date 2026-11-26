@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
-import { cashDraftOf, withCashService } from './cashService.js'
+import { cashDraftOf, cashServicesOf } from './cashService.js'
 
 // ordersSync.js ใช้ import แบบไม่มีนามสกุล จึงโหลดผ่าน Vite SSR (เหมือนเทสต์ ordersSync อื่น ๆ)
 const ROOT = fileURLToPath(new URL('../..', import.meta.url))
@@ -28,33 +28,58 @@ t('cashDraftOf: ออร์เดอร์ไม่มีบริการ = u
   assert.equal(cashDraftOf({ items: [good], holdMoney: null }), undefined)
   assert.equal(cashDraftOf(null), undefined)
 })
-t('withCashService → คิดใหม่จากการตั้งค่า (ราคา/เงินพักเท่าเดิม) และต่อท้ายรายการสินค้า', () => {
-  const r = withCashService([good], { kind: 'hide', notes: { 1000: 1, 100: 2 } }, shop)
+t('cashServicesOf: ค่าบริการต่อรายการเค้ก (forItem) และเงินพักรวมเป็นก้อนเดียวต่อออร์เดอร์', () => {
+  const a = { ...good, id: 'a1', name: 'เค้ก A', cashService: { kind: 'hide', notes: { 1000: 1, 100: 2 } } }
+  const b = { ...good, id: 'b2', name: 'เค้ก B', cashService: { kind: 'hide', notes: { 100: 2 } } }
+  const r = cashServicesOf([a, b, { ...good, id: 'c3' }], shop)
+  assert.equal(r.ok, true, r.error)
+  assert.deepEqual(r.items.map((i) => [i.forItem, i.kind, i.unitPrice]), [['a1', 'service', 50], ['b2', 'service', 50]])
+  assert.equal(new Set(r.items.map((i) => i.id)).size, 2)
+  assert.deepEqual(r.holdMoney, { kind: 'hide', notes: { 1000: 1, 100: 4 }, amount: 1400 })
+})
+t('cashServicesOf: ชิ้นที่ไม่เลือกบริการไม่มีค่าบริการและไม่มีเงินพัก', () => {
+  const r = cashServicesOf([good], shop)
+  assert.deepEqual(r, { ok: true, items: [], holdMoney: null })
+})
+t('cashServicesOf: ซ่อนของ (ไม่มีธนบัตร) ได้ค่าบริการอย่างเดียว', () => {
+  const r = cashServicesOf([{ ...good, id: 's1', cashService: { kind: 'stash' } }], shop)
   assert.equal(r.ok, true)
-  assert.equal(r.items.length, 2)
-  assert.equal(r.items[1].kind, 'service')
-  assert.equal(r.items[1].unitPrice, 50)
-  assert.equal(r.holdMoney.amount, 1200)
+  assert.equal(r.items[0].serviceKind, 'stash')
+  assert.equal(r.holdMoney, null)
 })
-t('withCashService: ไม่มีบริการ → รายการเดิม ไม่มีเงินพัก', () => {
-  const r = withCashService([good], undefined, shop)
-  assert.deepEqual(r, { ok: true, items: [good], holdMoney: null })
+t('cashServicesOf: ซ่อนเงินกับดึงเงินในออร์เดอร์เดียวกัน → ไม่ผ่าน', () => {
+  const r = cashServicesOf([
+    { ...good, id: 'a', name: 'A', cashService: { kind: 'hide', notes: { 100: 1 } } },
+    { ...good, id: 'b', name: 'B', cashService: { kind: 'pull', notes: { 100: 1 } } },
+  ], shop)
+  assert.equal(r.ok, false)
+  assert.match(r.error, /คนละออเดอร์/)
 })
-t('withCashService: บริการที่ปิดอยู่ → ไม่ผ่าน', () => {
-  const r = withCashService([good], { kind: 'pull', notes: { 100: 1 } }, { cashService: { services: { pull: { fee: 40, show: false } } } })
+t('cashServicesOf: เพดานธนบัตรใช้กับยอดรวมทั้งออร์เดอร์ (maxNotes = 5)', () => {
+  const r = cashServicesOf([
+    { ...good, id: 'a', name: 'A', cashService: { kind: 'hide', notes: { 100: 3 } } },
+    { ...good, id: 'b', name: 'B', cashService: { kind: 'hide', notes: { 100: 3 } } },
+  ], shop)
   assert.equal(r.ok, false)
 })
-t('ไป-กลับ: ออร์เดอร์ → input → คิดใหม่ได้เงินพักและค่าบริการเดิม', () => {
-  const o = { items: [good, svcHide], holdMoney: { kind: 'hide', notes: { 1000: 1, 100: 2 }, amount: 1200 } }
-  const r = withCashService(o.items.filter((i) => i.kind !== 'service'), cashDraftOf(o), shop)
-  assert.equal(r.holdMoney.amount, o.holdMoney.amount)
-  assert.equal(r.items.find((i) => i.kind === 'service').unitPrice, svcHide.unitPrice)
+t('cashServicesOf: บริการที่ปิดอยู่ในชิ้นใดชิ้นหนึ่ง → ไม่ผ่านพร้อมชื่อชิ้น', () => {
+  const r = cashServicesOf([{ ...good, name: 'เค้กX', cashService: { kind: 'pull', notes: { 100: 1 } } }], { cashService: { services: { pull: { fee: 40, show: false } } } })
+  assert.equal(r.ok, false)
+  assert.match(r.error, /^เค้กX:/)
 })
 t('draftOf: ไม่ส่งรายการบริการเป็นรายการ แต่ส่ง cashService แทน', () => {
   const o = { customerId: 'c1', fulfillment: 'pickup', pickupAt: '2026-11-30T10:00', items: [good, svcHide], adjustment: null, holdMoney: { kind: 'hide', notes: { 100: 2 }, amount: 200 } }
   const d = draftOf(o)
   assert.deepEqual(d.items.map((i) => i.id), ['b1'])
   assert.deepEqual(d.cashService, { kind: 'hide', notes: { 100: 2 } })
+})
+t('draftOf: บริการต่อรายการ → ส่ง cashService ในแต่ละรายการ (ไม่ส่งระดับออร์เดอร์)', () => {
+  const cake = { ...good, id: 'a1', cashService: { kind: 'hide', notes: { 100: 2 } } }
+  const svc = { ...svcHide, id: 'svc-hide-a1', forItem: 'a1' }
+  const d = draftOf({ customerId: 'c1', fulfillment: 'pickup', pickupAt: '2026-11-30T10:00', items: [cake, svc], adjustment: null, holdMoney: { kind: 'hide', notes: { 100: 2 }, amount: 200 } })
+  assert.deepEqual(d.items.map((i) => i.id), ['a1'])
+  assert.deepEqual(d.items[0].cashService, { kind: 'hide', notes: { 100: 2 } })
+  assert.equal('cashService' in d, false)
 })
 t('draftOf: ออร์เดอร์ปกติไม่มี cashService', () => {
   const d = draftOf({ customerId: 'c1', fulfillment: 'pickup', pickupAt: '2026-11-30T10:00', items: [good], adjustment: null })
