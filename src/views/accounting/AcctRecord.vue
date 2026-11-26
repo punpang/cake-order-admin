@@ -4,6 +4,9 @@ import { computed, reactive, ref } from 'vue'
 import { db, can } from '../../data/store'
 import { saveManual, saveJournal, deleteManual, reverseEntry, settleEntry, activeAccounts, locked } from '../../data/acct'
 import { buildManualEntry, SETTLE } from '../../lib/acct/manual'
+import { parseReceipt, receiptFill } from '../../lib/receiptOcr'
+import { readReceiptText } from '../../lib/receiptOcrRunner'
+import { resizeImage, imageErrorMessage } from '../../lib/imageResize'
 import { entrySums } from '../../lib/acct/journal'
 import { askConfirm } from '../../lib/confirm'
 import { toDateStr, money, dateOnly } from '../../lib/format'
@@ -29,7 +32,31 @@ function openNew(kind) {
   Object.assign(f, blank(kind))
   editId.value = null
   error.value = ''
+  scan.msg = ''
   open.value = true
+}
+// ถ่ายรูปใบเสร็จ → อ่านในเบราว์เซอร์ → เติมเฉพาะช่องที่ว่าง → ผู้ใช้ตรวจและกดบันทึกเอง (ไม่บันทึกอัตโนมัติ)
+const scan = reactive({ busy: false, pct: 0, msg: '' })
+async function onScanReceipt(e) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file) return
+  scan.busy = true
+  scan.pct = 0
+  scan.msg = 'กำลังอ่านรูป…'
+  try {
+    const img = await resizeImage(file)
+    const text = await readReceiptText(img.dataUrl, (m) => { scan.pct = Math.round((m.progress || 0) * 100) })
+    const parsed = parseReceipt(text)
+    Object.assign(f, receiptFill(f, parsed, { vatRate: f.vatRate || db.shop.vat?.rate || 7 }))
+    if (f.attachments.length < 5) f.attachments.push(img.dataUrl)
+    const found = ['date', 'total', 'payee', 'taxId', 'taxInvoiceNo', 'vat'].filter((k) => parsed[k] != null).length
+    scan.msg = found ? `อ่านได้ ${found} รายการ · ตรวจค่าก่อนบันทึก` : 'อ่านรูปไม่ได้ กรุณากรอกเอง (รูปยังแนบอยู่)'
+  } catch (err) {
+    scan.msg = err?.code ? imageErrorMessage(err) : 'อ่านรูปไม่ได้ กรุณากรอกเอง'
+  } finally {
+    scan.busy = false
+  }
 }
 function openEdit(e) {
   const s = e.source
@@ -120,6 +147,11 @@ function saveJ() {
       <div class="space-y-3">
         <div class="grid grid-cols-2 gap-1 seg-grid">
           <button v-for="k in [{ v: 'expense', t: 'ค่าใช้จ่าย' }, { v: 'income', t: 'รายได้' }]" :key="k.v" type="button" class="h-10 rounded-xl text-sm font-semibold" :class="f.kind === k.v ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-500'" :disabled="!!editId" @click="setKind(k.v)">{{ k.t }}</button>
+        </div>
+        <div v-if="f.kind === 'expense' && !editId" class="rounded-xl border border-dashed border-stone-300 p-3">
+          <label class="btn-outline w-full cursor-pointer" :class="{ 'pointer-events-none opacity-60': scan.busy }"><input type="file" accept="image/*" capture="environment" class="sr-only" :disabled="scan.busy" aria-label="ถ่ายรูปใบเสร็จ" @change="onScanReceipt" />ถ่ายรูปใบเสร็จ</label>
+          <p v-if="scan.busy" class="mt-2 text-sm text-stone-600" role="status">กำลังอ่านรูป… {{ scan.pct }}%</p>
+          <p v-else-if="scan.msg" class="mt-2 text-sm text-stone-600" role="status">{{ scan.msg }}</p>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="label">วันที่</label><input v-model="f.date" type="date" class="input" aria-label="วันที่รายการ" /></div>
