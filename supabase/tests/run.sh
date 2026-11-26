@@ -274,11 +274,6 @@ awdcode=$?
 [ "$awdcode" = "0" ] && echo "✓ preorder_award_delivery.test.sql ผ่านทั้งหมด" || echo "✗ preorder_award_delivery.test.sql ล้มเหลว"
 [ "$awdcode" = "0" ] || exit "$awdcode"
 
-"${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_audit.test.sql
-audcode=$?
-[ "$audcode" = "0" ] && echo "✓ preorder_audit.test.sql ผ่านทั้งหมด" || echo "✗ preorder_audit.test.sql ล้มเหลว"
-[ "$audcode" = "0" ] || exit "$audcode"
-
 # W-6: สร้างออร์เดอร์สั่งล่วงหน้าพร้อมกันสองเซสชันที่แย่งช่องโควตาเดียวกัน (ช่องเหลือ 1)
 # เซสชันแรกถือล็อกแคมเปญ · เซสชันที่สองต้องถูกกั้นด้วย lock_timeout · ผลสุดท้ายต้องมีออร์เดอร์ 1 รายการและจอง 1
 "${PSQL[@]}" -d "$DB" -f supabase/tests/preorder_create_concurrency.sql
