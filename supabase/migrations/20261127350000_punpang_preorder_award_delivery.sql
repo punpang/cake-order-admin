@@ -78,7 +78,7 @@ begin
 
   update public.punpang_preorder_orders
      set data = jsonb_set(o.data, '{loyalty}', jsonb_build_object(
-           'points', pts, 'bonus', 0, 'spins', spins, 'base', base_r,
+           'points', pts, 'bonus', 0, 'spins', spins, 'base', base_r, 'mult', cap_mult,
            'lotId', case when pts > 0 then lot_id else null end)),
          updated_at = now()
    where id = p_order;

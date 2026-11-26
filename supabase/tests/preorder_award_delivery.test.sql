@@ -38,6 +38,10 @@ select test.ok('A1b ลงสมุดแต้มของลูกค้าแ
   (select count(*) from jsonb_array_elements((select data->'ledger' from public.punpang_customers where id = 'ad1')) x where x->>'orderId' = 'ad_o1' and (x->>'delta')::int = 5) = 1
   and (select (data->'loyalty'->>'spins')::int from public.punpang_preorder_orders where id = 'ad_o1') = 1);
 
+-- A1c เก็บตัวคูณที่ใช้คิดแต้มไว้ในออร์เดอร์ (ลูกค้าไม่ใช่สมาชิก = 1) เพื่อให้การตรวจย้อนหลังทำได้
+select test.ok('A1c บันทึกตัวคูณที่ใช้คิดแต้มไว้ในออร์เดอร์ (mult)',
+  (select (data->'loyalty'->>'mult')::numeric from public.punpang_preorder_orders where id = 'ad_o1') = 1);
+
 -- A2
 select test.ok('A2 เรียกซ้ำไม่ให้แต้มซ้ำ (ยังมีรายการเดียว)',
   (select public.punpang_preorder_award_delivery('ad_o1') ->> 'already') = 'true'
