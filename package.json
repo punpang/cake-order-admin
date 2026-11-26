@@ -35,6 +35,8 @@
   "devDependencies": {
     "@capacitor/cli": "^7.6.10",
     "@tailwindcss/vite": "^4.1.0",
+    "@tesseract.js-data/eng": "1.0.0",
+    "@tesseract.js-data/tha": "1.0.0",
     "@vitejs/plugin-vue": "^6.0.0",
     "axe-core": "4.14.1",
     "jsbarcode": "^3.11.6",

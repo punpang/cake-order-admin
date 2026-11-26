@@ -104,3 +104,26 @@ export function parseReceipt(text) {
     taxInvoiceNo: invoiceNoOf(lines),
   }
 }
+
+const empty = (v) => v === undefined || v === null || String(v).trim() === '' || Number(v) === 0
+
+// ค่าที่ควรเติมลงฟอร์มค่าใช้จ่าย · ไม่เขียนทับช่องที่ผู้ใช้กรอกแล้ว · ไม่เติมค่าที่ไม่แน่ใจ
+// VAT: ตั้งเป็น "รวม VAT แล้ว" เฉพาะเมื่อ VAT ที่อ่านได้ตรงกับยอด×อัตรา/(100+อัตรา) ไม่เกิน 1 บาท และผู้ใช้ยังไม่ได้เลือก VAT
+// คืน patch (object) ที่จะนำไปรวมกับฟอร์ม · ว่างถ้าไม่มีอะไรควรเติม
+export function receiptFill(form, parsed, { vatRate = 7 } = {}) {
+  const patch = {}
+  if (parsed?.date) patch.date = parsed.date
+  if (empty(form?.amount) && parsed?.total != null) patch.amount = String(parsed.total)
+  if (empty(form?.payee) && parsed?.payee) patch.payee = parsed.payee
+  if (empty(form?.taxInvoiceNo) && parsed?.taxInvoiceNo) patch.taxInvoiceNo = parsed.taxInvoiceNo
+  if (empty(form?.payeeTaxId) && parsed?.taxId) patch.payeeTaxId = parsed.taxId
+  const rate = Number(vatRate) || 7
+  if ((form?.vatMode || 'none') === 'none' && parsed?.total != null && parsed?.vat != null) {
+    const expected = (parsed.total * rate) / (100 + rate)
+    if (Math.abs(expected - parsed.vat) <= 1) {
+      patch.vatMode = 'included'
+      patch.vatRate = rate
+    }
+  }
+  return patch
+}

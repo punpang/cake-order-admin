@@ -1,7 +1,7 @@
 // ทดสอบการอ่านข้อความใบเสร็จ: ยอดรวม VAT วันที่ เลขผู้เสียภาษี ชื่อร้าน เลขใบกำกับ · ค่าที่หาไม่พบต้องเป็น null ไม่ใช่เดา
 // รัน: node src/lib/receiptOcr.test.mjs
 import assert from 'node:assert/strict'
-import { parseReceipt, dateOf, validTaxId } from './receiptOcr.js'
+import { parseReceipt, dateOf, validTaxId, receiptFill } from './receiptOcr.js'
 
 let fail = 0
 const t = (name, fn) => { try { fn(); console.log('ok -', name) } catch (e) { fail++; console.log('FAIL -', name, e.message) } }
@@ -59,6 +59,30 @@ t('วันที่ ค.ศ. ปี 2 หลักแปลงเป็นป�
 t('validTaxId: ความยาวไม่ใช่ 13 หลักไม่ผ่าน', () => {
   assert.equal(validTaxId('12345'), false)
   assert.equal(validTaxId(GOOD_TAX), true)
+})
+
+const FULL = { date: '2026-11-25', total: 300, vat: 19.63, payee: 'ร้านกาแฟตัวอย่าง', taxId: GOOD_TAX, taxInvoiceNo: 'INV-2026-0042' }
+const BLANK_FORM = { date: '2026-11-26', amount: '', vatMode: 'none', payee: '', taxInvoiceNo: '', payeeTaxId: '' }
+
+t('receiptFill: เติมทุกช่องที่ว่าง และตั้ง VAT รวมแล้วเมื่อ VAT ตรงกับยอด', () => {
+  assert.deepEqual(receiptFill(BLANK_FORM, FULL, { vatRate: 7 }), {
+    date: '2026-11-25', amount: '300', payee: 'ร้านกาแฟตัวอย่าง', taxInvoiceNo: 'INV-2026-0042', payeeTaxId: GOOD_TAX, vatMode: 'included', vatRate: 7,
+  })
+})
+t('receiptFill: ไม่เขียนทับช่องที่ผู้ใช้กรอกแล้ว', () => {
+  const p = receiptFill({ ...BLANK_FORM, amount: '250', payee: 'ร้านเดิม', taxInvoiceNo: 'X-1', payeeTaxId: '1234567890123', vatMode: 'excluded' }, FULL)
+  assert.equal(p.amount, undefined)
+  assert.equal(p.payee, undefined)
+  assert.equal(p.taxInvoiceNo, undefined)
+  assert.equal(p.payeeTaxId, undefined)
+  assert.equal(p.vatMode, undefined)
+})
+t('receiptFill: VAT ไม่ตรงกับยอด×อัตรา ไม่ตั้ง vatMode', () => {
+  const p = receiptFill(BLANK_FORM, { ...FULL, vat: 50 }, { vatRate: 7 })
+  assert.equal(p.vatMode, undefined)
+})
+t('receiptFill: อ่านอะไรไม่ได้เลย คืน patch ว่าง', () => {
+  assert.deepEqual(receiptFill(BLANK_FORM, { date: null, total: null, vat: null, payee: null, taxId: null, taxInvoiceNo: null }), {})
 })
 
 console.log(fail ? `ล้มเหลว ${fail} รายการ` : 'ผ่านทั้งหมด')
