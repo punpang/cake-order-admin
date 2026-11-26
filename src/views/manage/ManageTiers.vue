@@ -4,6 +4,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { db, saveMemberLevels } from '../../data/store'
 import { MEMBER_MODES, levelCost, memberCfgErrors } from '../../lib/memberLevels'
 import { pointsPerBaht } from '../../lib/loyalty'
+import { groupPickItems, selectedPickCount } from '../../lib/productPick'
 import { reportRemote } from '../../lib/memberRemote'
 import { askConfirm } from '../../lib/confirm'
 import { money } from '../../lib/format'
@@ -28,6 +29,10 @@ const toggleCake = (c) => { const a = d.cakeCategories || []; d.cakeCategories =
 // สินค้าที่เลือกเอง (นับเพิ่มจากหมวด)
 const retailPick = db.retailItems.filter((x) => x.id)
 const togglePick = (id) => { const a = d.cakeItemIds || []; d.cakeItemIds = a.includes(id) ? a.filter((x) => x !== id) : [...a, id] }
+const pickQuery = ref('')
+const pickGroups = computed(() => groupPickItems(retailPick, { query: pickQuery.value, selected: d.cakeItemIds || [] }))
+const pickSelected = computed(() => selectedPickCount(d.cakeItemIds || []))
+const clearPick = () => { d.cakeItemIds = [] }
 const errs = computed(() => memberCfgErrors(cfg()))
 const modeDesc = computed(() => MEMBER_MODES.find((m) => m.v === d.mode)?.d || '')
 
@@ -144,13 +149,28 @@ const sim = computed(() => d.levels.map((l, i) => ({
       <div class="flex flex-wrap gap-2">
         <button v-for="c in shopCats" :key="c" type="button" class="chip h-auto py-1" :class="(d.cakeCategories || []).includes(c) ? 'chip-on' : 'chip-off'" :aria-pressed="(d.cakeCategories || []).includes(c)" @click="toggleCake(c)">{{ c }}</button>
       </div>
-      <div class="text-sm font-medium text-stone-700">หรือเลือกเฉพาะสินค้า</div>
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-sm font-medium text-stone-700">หรือเลือกเฉพาะสินค้า</div>
+        <div class="flex items-center gap-2 text-sm text-stone-600">
+          <span>เลือกแล้ว {{ pickSelected }} รายการ</span>
+          <button v-if="pickSelected" type="button" class="btn-outline h-8 px-2" @click="clearPick">ล้าง</button>
+        </div>
+      </div>
+      <input v-model="pickQuery" type="search" class="input" placeholder="ค้นหาชื่อสินค้า" aria-label="ค้นหาสินค้า" />
       <p v-if="!retailPick.length" class="text-sm text-stone-500">ยังไม่มีสินค้าหน้าร้าน</p>
-      <label v-for="p in retailPick" :key="p.id" class="flex items-center gap-2 text-sm text-stone-700">
-        <input type="checkbox" class="h-4 w-4" :checked="(d.cakeItemIds || []).includes(p.id)" @change="togglePick(p.id)" />
-        <span class="min-w-0 flex-1 truncate">{{ p.name }}</span>
-        <span class="text-xs text-stone-500">{{ p.category || 'ไม่มีหมวด' }}</span>
-      </label>
+      <p v-else-if="!pickGroups.length" class="text-sm text-stone-500">ไม่พบสินค้าที่ตรงกับ "{{ pickQuery }}"</p>
+      <div v-else class="max-h-96 space-y-3 overflow-y-auto pr-1">
+        <div v-for="g in pickGroups" :key="g.category">
+          <div class="sticky top-0 flex items-center justify-between bg-white py-1 text-xs font-semibold text-stone-500">
+            <span>{{ g.category }}</span>
+            <span>{{ g.selectedCount }}/{{ g.items.length }}</span>
+          </div>
+          <label v-for="p in g.items" :key="p.id" class="flex min-h-11 items-center gap-3 rounded-lg px-1 text-sm text-stone-700 hover:bg-stone-50">
+            <input type="checkbox" class="h-5 w-5 shrink-0" :checked="(d.cakeItemIds || []).includes(p.id)" @change="togglePick(p.id)" />
+            <span class="min-w-0 flex-1 break-words">{{ p.name }}</span>
+          </label>
+        </div>
+      </div>
     </section>
 
     <p v-if="errs.length" class="rounded-xl bg-red-50 p-3 text-sm text-red-700" role="alert">
