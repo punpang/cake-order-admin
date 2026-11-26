@@ -2,7 +2,7 @@
 import MoneyInput from '../../components/MoneyInput.vue'
 import { computed, defineAsyncComponent, reactive, ref, watch } from 'vue'
 import { db, can, findCustomer, saveReward, savePrize, saveLoyaltySettings, markCouponDelivered, phaseOfCoupon, refundCoupon } from '../../data/store'
-import { chanceTotal } from '../../lib/loyalty'
+import { chanceTotal, pointsPerBaht, pointValueOfPointsPerBaht } from '../../lib/loyalty'
 import { COUPON_MODES, couponTermsText, validateCouponReward } from '../../lib/coupons'
 import { pointsForPrice } from '../../lib/rewardPoints'
 import { money, dateOnly, toDateStr } from '../../lib/format'
@@ -34,7 +34,6 @@ function saveSettings() {
 }
 const FIELDS = [
   { k: 'earnPer', l: 'ทุกกี่บาท ได้ 1 คะแนน (ตอนส่งมอบ · ยอดก่อน VAT)', u: 'บาท' },
-  { k: 'pointValue', l: 'มูลค่า 1 คะแนน (ตอนแปลงเป็นคูปอง)', u: 'บาท' },
   { k: 'pointExpireDays', l: 'คะแนนหมดอายุหลังได้รับ', u: 'วัน' },
   { k: 'couponExpireDays', l: 'คูปองหมดอายุหลังได้รับ', u: 'วัน' },
   { k: 'spinPer', l: 'ทุกกี่บาท ได้สิทธิ์หมุน 1 ครั้ง (ตอนส่งมอบ · ยอดก่อน VAT)', u: 'บาท' },
@@ -142,6 +141,13 @@ function doRefund() {
 
     <!-- ตั้งค่า -->
     <section v-if="tab === 'settings'" class="card space-y-4">
+      <div>
+        <label class="label" for="loyalty-points-per-baht">1 บาท = กี่คะแนน (ตอนแปลงเป็นคูปอง)</label>
+        <div class="flex items-center gap-2">
+          <MoneyInput id="loyalty-points-per-baht" :model-value="pointsPerBaht(st.pointValue)" min="0" class="input" @update:model-value="(v) => { st.pointValue = pointValueOfPointsPerBaht(v) ?? st.pointValue }" />
+          <span class="w-14 shrink-0 text-sm text-stone-500">แต้ม</span>
+        </div>
+      </div>
       <div v-for="f in FIELDS" :key="f.k">
         <label class="label">{{ f.l }}</label>
         <div class="flex items-center gap-2">

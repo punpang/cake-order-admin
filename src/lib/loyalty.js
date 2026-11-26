@@ -100,3 +100,16 @@ export function pickPrize(prizes, rand = Math.random()) {
 
 export const chanceTotal = (prizes) =>
   Math.round(prizes.filter((p) => p.active !== false).reduce((s, p) => s + (Number(p.chance) || 0), 0) * 100) / 100
+
+// การแสดงผลอัตราแลกคูปอง: เก็บ pointValue (บาทต่อ 1 แต้ม) แต่แสดงเป็น "1 บาท = X แต้ม" ให้เข้าใจง่าย
+// pointsPerBaht(0.1) = 10 · pointValueOfPointsPerBaht(10) = 0.1 (กลับไปกลับมาได้)
+export function pointsPerBaht(pointValue) {
+  const pv = Number(pointValue)
+  if (!(pv > 0)) return 0
+  return Math.round((1 / pv) * 1000) / 1000
+}
+export function pointValueOfPointsPerBaht(pointsPerBahtValue) {
+  const n = Number(pointsPerBahtValue)
+  if (!(n > 0)) return null
+  return Math.round((1 / n) * 1e6) / 1e6
+}

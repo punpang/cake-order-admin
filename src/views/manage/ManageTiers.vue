@@ -3,6 +3,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { db, saveMemberLevels } from '../../data/store'
 import { MEMBER_MODES, levelCost, memberCfgErrors } from '../../lib/memberLevels'
+import { pointsPerBaht } from '../../lib/loyalty'
 import { reportRemote } from '../../lib/memberRemote'
 import { askConfirm } from '../../lib/confirm'
 import { money } from '../../lib/format'
@@ -223,7 +224,7 @@ const sim = computed(() => d.levels.map((l, i) => ({
           <span class="text-right text-stone-600">แต้มเพิ่ม {{ s.extraPoints.toFixed(1) }}<br />ส่วนเพิ่ม {{ s.costPct.toFixed(2) }}% · สูตรเต็ม {{ s.fullCostPct.toFixed(2) }}%</span>
         </li>
       </ul>
-      <p class="text-xs text-stone-500">คิดจากตั้งค่าคะแนน (ทุกกี่บาทได้ 1 แต้ม {{ db.loyalty.earnPer }} บาท · มูลค่า 1 แต้ม {{ db.loyalty.pointValue }} บาท) และอัตราแลกคืนด้านบน</p>
+      <p class="text-xs text-stone-500">คิดจากตั้งค่าคะแนน (ทุกกี่บาทได้ 1 แต้ม {{ db.loyalty.earnPer }} บาท · 1 บาท = {{ pointsPerBaht(db.loyalty.pointValue) }} แต้ม) และอัตราแลกคืนด้านบน</p>
     </section>
   </div>
 </template>
