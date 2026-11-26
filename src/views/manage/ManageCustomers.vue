@@ -87,10 +87,11 @@ const adj = reactive({ open: false, sign: 1, amount: '', reason: '', error: '' }
 const leg = reactive({ open: false, old: '', error: '', done: '' })
 const legTop = computed(() => topLevelOf(db.memberLevels?.levels))
 const legPreview = computed(() => (legTop.value ? legacyPointsOf(leg.old, legTop.value.mult) : null))
+const intFmt = (n) => Number(n || 0).toLocaleString('th-TH', { maximumFractionDigits: 0 })
 function openLegacy() { Object.assign(leg, { open: true, old: '', error: '', done: '' }) }
 async function saveLegacy() {
   if (legPreview.value == null) return (leg.error = 'ใส่แต้มเดิมเป็นจำนวนเต็มบวก')
-  if (!(await askConfirm({ title: 'ย้ายคะแนนจากระบบเดิม', message: `${form.name}: แต้มเดิม ${leg.old} → ${legPreview.value} แต้ม และได้ระดับ ${legTop.value.name} (ย้ายได้ครั้งเดียว)`, okText: 'ย้าย' }))) return
+  if (!(await askConfirm({ title: 'ย้ายคะแนนจากระบบเดิม', message: `${form.name}: แต้มเดิม ${intFmt(leg.old)} → ${intFmt(legPreview.value)} แต้ม และได้ระดับ ${legTop.value.name} (ย้ายได้ครั้งเดียว)`, okText: 'ย้าย' }))) return
   const r = await legacyMigrateRemote(form.id, Number(leg.old))
   if (r.error) return (leg.error = r.error)
   leg.open = false
@@ -315,7 +316,7 @@ async function save() {
       <div class="space-y-3">
         <p class="text-sm text-stone-600">แต้มที่ได้ = แต้มเดิม × 2 × {{ legTop?.mult ?? '–' }} · ได้ระดับ {{ legTop?.name ?? '–' }} · ย้ายได้ครั้งเดียวต่อลูกค้า</p>
         <div><label class="label">แต้มเดิม (จากระบบเก่า)</label><input v-model="leg.old" type="text" inputmode="numeric" class="input text-lg font-semibold" aria-label="แต้มเดิม" /></div>
-        <p v-if="legPreview != null" class="text-sm text-stone-700">จะได้ <b>{{ legPreview }}</b> แต้ม และยอดสะสมตั้งที่ {{ legacySpendOf(legTop?.min) }} บาท</p>
+        <p v-if="legPreview != null" class="text-sm text-stone-700">จะได้ <b>{{ intFmt(legPreview) }}</b> แต้ม และยอดสะสมตั้งที่ {{ intFmt(legacySpendOf(legTop?.min)) }} บาท</p>
         <p v-if="leg.error" class="text-sm text-danger-700" role="alert">{{ leg.error }}</p>
       </div>
       <template #footer>
