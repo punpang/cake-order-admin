@@ -142,7 +142,14 @@ Deno.serve(corsWrap(async (req) => {
   const postageOf = (v: unknown) => (v === undefined || v === null || v === '' ? 0 : Number(v))
   const calls: Record<string, () => Promise<{ data: any; error: any }>> = {
     set_shipping: async () => await sb.rpc('punpang_preorder_set_shipping', { p_order: orderId, p_carrier: String(body.carrier ?? ''), p_tracking: String(body.trackingNo ?? ''), p_postage: postageOf(body.postage) }),
-    mark_delivered: async () => await sb.rpc('punpang_preorder_mark_delivered', { p_order: orderId }),
+    // ส่งมอบแล้วให้แต้ม · เรียกซ้ำได้: ออร์เดอร์ที่ให้แต้มแล้วจะตอบ already (ไม่ให้ซ้ำ) และถ้าให้แต้มล้มเหลวจะลองใหม่ได้
+    mark_delivered: async () => {
+      const m = await sb.rpc('punpang_preorder_mark_delivered', { p_order: orderId })
+      if (m.error || m.data?.error) return m
+      const a = await sb.rpc('punpang_preorder_award_delivery', { p_order: orderId })
+      if (a.error || a.data?.error) return { data: null, error: a.error ?? { message: a.data.error } }
+      return { data: { ...m.data, points: a.data?.points ?? 0, spins: a.data?.spins ?? 0 }, error: null }
+    },
     record_return: async () => await sb.rpc('punpang_preorder_record_return', { p_order: orderId, p_reason: String(body.reason ?? '') }),
     refund_return: async () => await sb.rpc('punpang_preorder_refund_return', { p_order: orderId, p_refunds: Array.isArray(body.refunds) ? body.refunds : [] }),
     reship: async () => await sb.rpc('punpang_preorder_reship', { p_order: orderId, p_new_fee: num(body.newFee) }),
