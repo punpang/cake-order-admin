@@ -559,3 +559,11 @@ html.has-sticky-photo {
   .dlg-cols { column-count: 2; column-gap: 1.5rem; }
   .dlg-cols > * { break-inside: avoid; }
 }
+
+/* ปรับให้พอดีกับจอแนวนอนที่สูงน้อย (มือถือแนวนอน): แถบบันทึกย่อให้เหลือบรรทัดเดียว */
+@media (max-height: 500px) {
+  .save-bar { padding: 0.5rem; }
+  .save-bar-msg { display: none; }
+}
+/* ตารางที่เลื่อนแนวนอนได้: เงาขอบขวาให้เห็นว่ามีคอลัมน์ซ่อนอยู่ */
+.table-scroll-edge { box-shadow: inset -14px 0 12px -12px rgb(0 0 0 / 0.18); }

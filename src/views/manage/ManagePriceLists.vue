@@ -95,7 +95,7 @@ async function save() {
     <section class="card mb-4">
       <div class="mb-1 text-[15px] font-semibold text-stone-900">ตารางราคาเค้ก</div>
       <p class="mb-3 text-xs text-stone-500">ราคาเค้ก = ราคาประเภท + ราคาขนาดของประเภทนั้น + เนื้อเค้ก · เค้กชั้นคิดทีละชั้นแล้วรวม · เค้กสำเร็จคิดจากประเภท/เนื้อ/ขนาดที่กำหนดในหน้าสินค้า · ช่องจาง = ประเภทนี้ไม่มีขนาดนั้น</p>
-      <div class="-mx-4 overflow-x-auto px-4">
+      <div class="-mx-4 overflow-x-auto px-4 table-scroll-edge">
         <table class="w-full min-w-max text-sm">
           <thead>
             <tr class="text-left text-xs text-stone-500">
@@ -172,7 +172,7 @@ async function save() {
         <AppSwitch v-model="form.active" label="ใช้งาน" class="flex" />
         <div>
           <div class="label">ตารางราคาพิเศษ (บาท)</div>
-          <div class="-mx-5 overflow-x-auto px-5">
+          <div class="-mx-5 overflow-x-auto px-5 table-scroll-edge">
             <table class="w-full min-w-max text-sm">
               <thead>
                 <tr class="text-left text-xs text-stone-500">

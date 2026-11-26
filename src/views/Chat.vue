@@ -250,7 +250,7 @@ function doCreate() {
         </div>
         <p v-if="!fbOn" class="px-4 pb-2 text-xs text-stone-500">
           ยังไม่ได้เชื่อม Facebook
-          <RouterLink v-if="can('manage')" to="/admin/settings/integrations" class="font-medium text-brand-700 underline">ไปเชื่อม</RouterLink>
+          <RouterLink v-if="can('manage')" to="/admin/settings/integrations" class="inline-flex min-h-10 items-center font-medium text-brand-700 underline">ไปเชื่อม</RouterLink>
         </p>
 
         <div class="px-3 pb-2">

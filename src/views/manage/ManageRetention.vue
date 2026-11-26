@@ -215,11 +215,11 @@ async function save() {
     </ul>
 
     <!-- แถบบันทึก -->
-    <div class="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-10 mt-4 rounded-2xl lg:bottom-3 border border-stone-200 bg-white/95 p-3 shadow-lg backdrop-blur">
+    <div class="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-10 mt-4 rounded-2xl lg:bottom-3 border border-stone-200 bg-white/95 p-3 shadow-lg backdrop-blur save-bar">
       <p v-if="err" class="mb-2 text-sm font-medium text-danger-700" role="alert">{{ err }}</p>
       <p v-else-if="msg" class="mb-2 text-sm font-medium text-success-700" role="status">{{ msg }}</p>
       <div class="flex flex-wrap items-center justify-end gap-2">
-        <p v-if="dirty || !msg" class="w-full text-sm sm:w-auto sm:flex-1" :class="dirty ? 'font-medium text-warning-700' : 'text-stone-500'">{{ dirty ? 'มีการแก้ไขที่ยังไม่บันทึก' : 'ไม่มีการแก้ไข' }}</p>
+        <p v-if="dirty || !msg" class="w-full text-sm sm:w-auto sm:flex-1 save-bar-msg" :class="dirty ? 'font-medium text-warning-700' : 'text-stone-500'">{{ dirty ? 'มีการแก้ไขที่ยังไม่บันทึก' : 'ไม่มีการแก้ไข' }}</p>
         <button v-if="!isDefault" type="button" class="btn-outline h-10 px-3" @click="useDefaults">ใช้ค่าเริ่มต้น</button>
         <button v-if="dirty" type="button" class="btn-outline h-10 px-3" @click="reset">ยกเลิกการแก้ไข</button>
         <button type="button" class="btn-primary h-10" :disabled="!dirty || saving" @click="save">บันทึก</button>
