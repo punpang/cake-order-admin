@@ -46,7 +46,7 @@ async function submit() {
     <div class="card mt-5">
       <form v-if="step === 1" class="space-y-4" @submit.prevent="toOtp">
         <div><label class="label">เบอร์โทรที่สมัครไว้</label><PhoneInput v-model="phone" /></div>
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
         <button class="btn-primary w-full">ขอรหัสยืนยัน (OTP)</button>
         <p class="text-center text-sm"><RouterLink :to="{ path: '/account/login', query: next ? { next } : {} }" class="inline-flex min-h-11 items-center text-stone-500 underline">กลับไปเข้าสู่ระบบ</RouterLink></p>
       </form>
@@ -54,7 +54,7 @@ async function submit() {
       <form v-else class="space-y-4" @submit.prevent="submit">
         <div><label class="label">PIN ใหม่ 6 หลัก</label><PinInput v-model="pin" autocomplete="new-password" /></div>
         <div><label class="label">ยืนยัน PIN ใหม่</label><PinInput v-model="pin2" autocomplete="new-password" /></div>
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
         <button class="btn-primary w-full" :disabled="busy">{{ busy ? 'กำลังบันทึก…' : 'ตั้ง PIN ใหม่' }}</button>
       </form>
     </div>

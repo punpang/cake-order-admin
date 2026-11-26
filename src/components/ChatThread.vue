@@ -54,19 +54,19 @@ function sendState(m) {
 const failed = (m) => mine(m) && (props.chat.channel === 'facebook' || props.chat.channel === 'instagram') && m.delivery === 'failed'
 // ผลตรวจสลิป QR ในรูปที่ลูกค้าส่ง (สถานะจาก _shared/slipjob.ts) · ยอดรอพนักงานตรวจ (ยกเว้นยืนยันอัตโนมัติ)
 const SLIP_CHIP = {
-  matched: ['สลิปจับคู่กับออร์เดอร์แล้ว · รอตรวจยอด', 'bg-emerald-50 text-emerald-700'],
-  merged: ['สลิปรวมกับรายการที่ยืนยันแล้ว · เก็บไว้ที่รายการเดิม', 'bg-emerald-50 text-emerald-700'],
-  auto_confirmed: ['สลิปยืนยันชำระอัตโนมัติแล้ว · ยังไม่ได้ตรวจกับธนาคาร', 'bg-emerald-50 text-emerald-700'],
-  duplicate: ['สลิปนี้เคยส่งแล้ว · ไม่แนบซ้ำ', 'bg-rose-50 text-rose-700'],
-  no_order: ['สลิป QR · ยังไม่มีออร์เดอร์ในแชท (เลือกออร์เดอร์แล้วรับชำระได้)', 'bg-amber-50 text-amber-700'],
-  received: ['สลิป QR · รับชำระจากสลิปแล้ว', 'bg-emerald-50 text-emerald-700'],
-  order_missing: ['สลิป QR · ไม่พบออร์เดอร์ที่คุยล่าสุด', 'bg-amber-50 text-amber-700'],
-  order_inactive: ['สลิป QR · ออร์เดอร์เป็นร่างหรือถูกยกเลิก', 'bg-amber-50 text-amber-700'],
-  order_paid: ['สลิป QR · ออร์เดอร์ชำระครบแล้ว', 'bg-amber-50 text-amber-700'],
-  pending_exists: ['สลิป QR · มียอดรอตรวจของออร์เดอร์นี้อยู่แล้ว', 'bg-amber-50 text-amber-700'],
-  upload_failed: ['สลิป QR · บันทึกไฟล์ไม่สำเร็จ ให้ลูกค้าส่งใหม่', 'bg-rose-50 text-rose-700'],
-  busy: ['สลิป QR · ออร์เดอร์กำลังถูกแก้ไข ให้ลูกค้าส่งใหม่', 'bg-amber-50 text-amber-700'],
-  manual: ['สลิป QR · รอร้านรับชำระ', 'bg-sky-50 text-sky-700'],
+  matched: ['สลิปจับคู่กับออร์เดอร์แล้ว · รอตรวจยอด', 'bg-success-50 text-success-700'],
+  merged: ['สลิปรวมกับรายการที่ยืนยันแล้ว · เก็บไว้ที่รายการเดิม', 'bg-success-50 text-success-700'],
+  auto_confirmed: ['สลิปยืนยันชำระอัตโนมัติแล้ว · ยังไม่ได้ตรวจกับธนาคาร', 'bg-success-50 text-success-700'],
+  duplicate: ['สลิปนี้เคยส่งแล้ว · ไม่แนบซ้ำ', 'bg-danger-50 text-danger-700'],
+  no_order: ['สลิป QR · ยังไม่มีออร์เดอร์ในแชท (เลือกออร์เดอร์แล้วรับชำระได้)', 'bg-warning-50 text-warning-700'],
+  received: ['สลิป QR · รับชำระจากสลิปแล้ว', 'bg-success-50 text-success-700'],
+  order_missing: ['สลิป QR · ไม่พบออร์เดอร์ที่คุยล่าสุด', 'bg-warning-50 text-warning-700'],
+  order_inactive: ['สลิป QR · ออร์เดอร์เป็นร่างหรือถูกยกเลิก', 'bg-warning-50 text-warning-700'],
+  order_paid: ['สลิป QR · ออร์เดอร์ชำระครบแล้ว', 'bg-warning-50 text-warning-700'],
+  pending_exists: ['สลิป QR · มียอดรอตรวจของออร์เดอร์นี้อยู่แล้ว', 'bg-warning-50 text-warning-700'],
+  upload_failed: ['สลิป QR · บันทึกไฟล์ไม่สำเร็จ ให้ลูกค้าส่งใหม่', 'bg-danger-50 text-danger-700'],
+  busy: ['สลิป QR · ออร์เดอร์กำลังถูกแก้ไข ให้ลูกค้าส่งใหม่', 'bg-warning-50 text-warning-700'],
+  manual: ['สลิป QR · รอร้านรับชำระ', 'bg-info-50 text-info-700'],
   cancelled: ['สลิป QR · ยกเลิกแล้ว', 'bg-stone-100 text-stone-600'],
 }
 // หัวข้อ + จุดสีของการ์ดสลิป: สีจากโทนของสถานะ (เขียว = สำเร็จ · แดง = ผิดพลาด/ซ้ำ · เหลือง = ต้องดูเอง · เทา = ไม่รู้สถานะ)
@@ -362,9 +362,9 @@ const card = (m) => {
 }
 // ใบเสนอ
 const QUOTE_STATUS = {
-  pending: { t: 'รอลูกค้ายืนยัน', cls: 'bg-amber-50 text-amber-700' },
-  accepted: { t: 'ยืนยันแล้ว', cls: 'bg-emerald-50 text-emerald-700' },
-  revise: { t: 'ลูกค้าขอแก้', cls: 'bg-rose-50 text-rose-700' },
+  pending: { t: 'รอลูกค้ายืนยัน', cls: 'bg-warning-50 text-warning-700' },
+  accepted: { t: 'ยืนยันแล้ว', cls: 'bg-success-50 text-success-700' },
+  revise: { t: 'ลูกค้าขอแก้', cls: 'bg-danger-50 text-danger-700' },
   need_phone: { t: 'ลูกค้ายืนยัน · รอเบอร์โทร', cls: 'bg-orange-50 text-orange-700' },
   customer_ok: { t: 'ลูกค้ากดยืนยัน · รอสร้างออร์เดอร์', cls: 'bg-orange-50 text-orange-700' },
   converting: { t: 'กำลังสร้างออร์เดอร์', cls: 'bg-orange-50 text-orange-700' },
@@ -478,7 +478,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
     <div class="relative min-h-0 flex-1 bg-stone-50">
       <div ref="box" class="absolute inset-0 overflow-y-auto overscroll-contain px-3 lg:px-6" :class="kb.open ? 'pt-2 pb-2' : 'pt-4 pb-3'" @scroll="onScroll">
         <div v-if="!chat.messages.length" class="flex h-full flex-col items-center justify-center gap-2 text-sm text-stone-400">
-          <AppIcon name="chat" :size="32" class="text-stone-300" />
+          <AppIcon name="chat" :size="32" class="text-stone-500" />
           ยังไม่มีข้อความในแชทนี้
         </div>
         <template v-for="(m, i) in chat.messages" :key="m.id">
@@ -497,7 +497,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
               <div class="mt-0.5 text-xs text-stone-500">{{ card(m).o.fulfillment === 'delivery' ? 'จัดส่ง' : 'รับที่ร้าน' }} · {{ dateTime(card(m).o.pickupAt) }}<template v-if="card(m).o.placeName"> · {{ card(m).o.placeName }}</template></div>
               <div class="mt-2 flex items-end justify-between gap-2 border-t border-stone-100 pt-2">
                 <span class="text-xs text-stone-500">ยอดรวม <b class="block text-base text-stone-900">{{ money(card(m).t.total) }}</b></span>
-                <span class="text-right text-xs" :class="card(m).t.balance > 0 ? 'text-amber-700' : 'text-brand-700'">{{ card(m).t.balance > 0 ? `ค้าง ${money(card(m).t.balance)}` : 'ชำระครบ' }}</span>
+                <span class="text-right text-xs" :class="card(m).t.balance > 0 ? 'text-warning-700' : 'text-brand-700'">{{ card(m).t.balance > 0 ? `ค้าง ${money(card(m).t.balance)}` : 'ชำระครบ' }}</span>
               </div>
               <RouterLink :to="`/admin/orders/${card(m).o.id}`" class="btn-soft mt-2.5 h-9 w-full text-sm">เปิดออร์เดอร์</RouterLink>
             </div>
@@ -524,7 +524,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
               <template v-else-if="['need_phone', 'customer_ok', 'converting'].includes(quoteView(m).q.status)">
                 <p v-if="block" class="mt-2 text-xs text-orange-700">{{ block }} · <button type="button" class="font-medium underline" @click="emit('link')">ผูก/สร้างลูกค้า</button></p>
                 <button type="button" class="btn-primary mt-2.5 h-9 w-full text-sm" :disabled="!!block" @click="convert(quoteView(m).q)">สร้างออร์เดอร์</button>
-                <p v-if="convertError" class="mt-1 text-xs text-rose-700" role="alert">{{ convertError }}</p>
+                <p v-if="convertError" class="mt-1 text-xs text-danger-700" role="alert">{{ convertError }}</p>
               </template>
               <button v-else-if="['pending', 'revise'].includes(quoteView(m).q.status)" type="button" class="btn-outline mt-2.5 h-9 w-full text-sm" @click="emit('edit-draft')">แก้ร่างแล้วส่งใหม่</button>
             </div>
@@ -544,27 +544,27 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
                     <div class="font-semibold leading-snug text-stone-800">{{ slipChip(m.slipCheck).title }}</div>
                     <div v-if="slipChip(m.slipCheck).sub" class="mt-0.5 text-stone-500">{{ slipChip(m.slipCheck).sub }}</div>
                   </div>
-                  <button v-if="canBindSlip(m)" type="button" class="-mt-1 -mr-1 ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-rose-600 hover:bg-rose-50" aria-label="ยกเลิกสลิป" title="ยกเลิกสลิป" data-slip-cancel @click="doCancelSlip(m)"><AppIcon name="x" :size="18" /></button>
+                  <button v-if="canBindSlip(m)" type="button" class="-mt-1 -mr-1 ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-danger-700 hover:bg-danger-50" aria-label="ยกเลิกสลิป" title="ยกเลิกสลิป" data-slip-cancel @click="doCancelSlip(m)"><AppIcon name="x" :size="18" /></button>
                 </div>
-                <div v-if="m.slipCheck.ocrAmount != null" class="mt-2.5 grid grid-cols-2 gap-2 rounded-xl bg-sky-50 px-3 py-2 text-sky-900">
+                <div v-if="m.slipCheck.ocrAmount != null" class="mt-2.5 grid grid-cols-2 gap-2 rounded-xl bg-info-50 px-3 py-2 text-info-800">
                   <div>
-                    <div class="text-xs font-medium text-sky-700">ยอดตามสลิป</div>
+                    <div class="text-xs font-medium text-info-700">ยอดตามสลิป</div>
                     <div class="text-sm font-semibold">{{ money(m.slipCheck.ocrAmount) }}</div>
                   </div>
                   <div>
-                    <div class="text-xs font-medium text-sky-700">วัน-เวลาโอน</div>
+                    <div class="text-xs font-medium text-info-700">วัน-เวลาโอน</div>
                     <div class="text-sm font-semibold">{{ m.slipCheck.ocrPaidAt ? dateTime(m.slipCheck.ocrPaidAt) : '-' }}</div>
                   </div>
                   <div v-if="m.slipCheck.ocrReceiverAccount" class="col-span-2">
-                    <div class="text-xs font-medium text-sky-700">เลขที่บัญชีผู้รับ</div>
+                    <div class="text-xs font-medium text-info-700">เลขที่บัญชีผู้รับ</div>
                     <div class="text-sm font-semibold break-words">{{ m.slipCheck.ocrReceiverAccount }}</div>
-                    <div v-if="slipAcctState(m.slipCheck.ocrReceiverAccount) === 'match'" class="mt-0.5 text-xs font-semibold text-emerald-700">✓ ตรงกับบัญชีของร้าน</div>
-                    <div v-else-if="slipAcctState(m.slipCheck.ocrReceiverAccount) === 'mismatch'" class="mt-0.5 text-xs font-semibold text-amber-700">⚠ ไม่ตรงกับบัญชีของร้าน</div>
+                    <div v-if="slipAcctState(m.slipCheck.ocrReceiverAccount) === 'match'" class="mt-0.5 text-xs font-semibold text-success-700">✓ ตรงกับบัญชีของร้าน</div>
+                    <div v-else-if="slipAcctState(m.slipCheck.ocrReceiverAccount) === 'mismatch'" class="mt-0.5 text-xs font-semibold text-warning-700">⚠ ไม่ตรงกับบัญชีของร้าน</div>
                   </div>
-                  <div class="col-span-2 text-xs text-sky-700">{{ m.slipCheck.autoConfirmed ? 'อ่านจากภาพ · ยืนยันอัตโนมัติแล้ว ยังไม่ได้ตรวจกับธนาคาร' : 'อ่านจากภาพ · ตรวจกับธนาคารก่อนยืนยัน' }}</div>
+                  <div class="col-span-2 text-xs text-info-700">{{ m.slipCheck.autoConfirmed ? 'อ่านจากภาพ · ยืนยันอัตโนมัติแล้ว ยังไม่ได้ตรวจกับธนาคาร' : 'อ่านจากภาพ · ตรวจกับธนาคารก่อนยืนยัน' }}</div>
                 </div>
                 <ul v-if="slipCheckList(m).length" class="mt-2.5 space-y-1 rounded-xl bg-white p-2.5 text-xs" aria-label="เครื่องหมายตรวจสลิป">
-                  <li v-for="(c, k) in slipCheckList(m)" :key="k" class="flex items-start gap-1.5" :class="c.ok === true ? 'text-emerald-700' : c.ok === false ? 'text-rose-700' : 'text-stone-500'"><span aria-hidden="true" class="font-bold">{{ c.ok === true ? '✓' : c.ok === false ? '✗' : '–' }}</span><span>{{ c.text }}</span></li>
+                  <li v-for="(c, k) in slipCheckList(m)" :key="k" class="flex items-start gap-1.5" :class="c.ok === true ? 'text-success-700' : c.ok === false ? 'text-danger-700' : 'text-stone-500'"><span aria-hidden="true" class="font-bold">{{ c.ok === true ? '✓' : c.ok === false ? '✗' : '–' }}</span><span>{{ c.text }}</span></li>
                 </ul>
                 <!-- โหมดแมนนวล: ผูกกับออร์เดอร์ที่แนะนำ หรือเลือกออร์เดอร์อื่นของลูกค้า (ในหน้าแชท ไม่เปลี่ยนหน้า) -->
                 <div v-if="canBindSlip(m)" class="mt-2.5 flex gap-2">
@@ -575,16 +575,16 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
               <!-- คำตอบของปุ่มถาม -->
               <div v-if="m.answerFor" class="mt-1 flex flex-wrap items-center gap-1 text-xs">
                 <span class="rounded-full bg-brand-50 px-2 py-0.5 font-medium text-brand-800">ตอบ: {{ ASK_FIELDS[m.answerFor]?.label }}</span>
-                <span v-if="m.filled?.done?.length" class="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">กรอกแล้ว: {{ m.filled.done.map((d) => d.label).join(', ') }}</span>
-                <span v-else class="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">อ่านค่าไม่ได้ กรอกเอง</span>
+                <span v-if="m.filled?.done?.length" class="rounded-full bg-success-50 px-2 py-0.5 text-success-700">กรอกแล้ว: {{ m.filled.done.map((d) => d.label).join(', ') }}</span>
+                <span v-else class="rounded-full bg-warning-50 px-2 py-0.5 text-warning-700">อ่านค่าไม่ได้ กรอกเอง</span>
               </div>
               <!-- รหัสเค้กสั่งทำจากหน้าเว็บ → เพิ่มลงร่าง -->
               <div v-if="hasCode(m)" class="mt-1 space-y-1">
                 <button type="button" class="inline-flex items-center gap-1 rounded-full border border-brand-300 bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-800 hover:bg-brand-100" @click="addCode(m)"><AppIcon name="cake" :size="13" /> เพิ่มเค้กนี้ลงร่างออร์เดอร์</button>
                 <template v-if="codeResult[m.id]">
-                  <p v-if="codeResult[m.id].added.length" class="text-xs font-medium text-emerald-700" role="status">เพิ่มแล้ว: {{ codeResult[m.id].added.join(', ') }}</p>
-                  <p v-for="(w, k) in codeResult[m.id].warnings" :key="'w' + k" class="text-xs text-amber-700">⚠ {{ w }}</p>
-                  <p v-for="(er, k) in codeResult[m.id].errors" :key="'e' + k" class="text-xs text-rose-700" role="alert">{{ er }}</p>
+                  <p v-if="codeResult[m.id].added.length" class="text-xs font-medium text-success-700" role="status">เพิ่มแล้ว: {{ codeResult[m.id].added.join(', ') }}</p>
+                  <p v-for="(w, k) in codeResult[m.id].warnings" :key="'w' + k" class="text-xs text-warning-700">⚠ {{ w }}</p>
+                  <p v-for="(er, k) in codeResult[m.id].errors" :key="'e' + k" class="text-xs text-danger-700" role="alert">{{ er }}</p>
                 </template>
               </div>
               <!-- ข้อมูลที่จับได้ → กดกรอก -->
@@ -595,7 +595,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
               </div>
               <!-- เวลา/สถานะ: เฉพาะข้อความสุดท้ายของกลุ่ม · ปุ่มตอบกลับทุกข้อความ (บนคอมแสดงเมื่อเอาเมาส์ชี้) -->
               <div class="flex min-h-4 items-center gap-2 px-1 text-xs leading-4 text-stone-500" :class="mine(m) ? 'justify-end' : ''">
-                <span v-if="isTail(i)" :class="failed(m) ? 'font-medium text-rose-700' : ''" :title="dateTime(m.at)">{{ timeOnly(m.at) }}<template v-if="m.from === 'staff'"> · {{ sendState(m) }}<template v-if="m.by === 'ระบบ'"> · อัตโนมัติ</template><template v-if="m.id === custReadId"> · ลูกค้าอ่านแล้ว</template></template><template v-if="m.ask"> · ถาม{{ ASK_FIELDS[m.ask]?.label.replace('ขอ', '') }}</template></span>
+                <span v-if="isTail(i)" :class="failed(m) ? 'font-medium text-danger-700' : ''" :title="dateTime(m.at)">{{ timeOnly(m.at) }}<template v-if="m.from === 'staff'"> · {{ sendState(m) }}<template v-if="m.by === 'ระบบ'"> · อัตโนมัติ</template><template v-if="m.id === custReadId"> · ลูกค้าอ่านแล้ว</template></template><template v-if="m.ask"> · ถาม{{ ASK_FIELDS[m.ask]?.label.replace('ขอ', '') }}</template></span>
                 <button v-if="canType" type="button" class="tap font-medium text-stone-600 hover:text-brand-700 focus-visible:opacity-100 sm:opacity-0 sm:group-hover:opacity-100" :aria-label="`ตอบกลับ: ${snippet(m)}`" @click="startReply(m)">ตอบกลับ</button>
               </div>
             </div>
@@ -612,12 +612,12 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
     </div>
 
     <!-- แจ้งผลการกรอก -->
-    <div v-if="notice" class="flex flex-wrap items-center gap-2 border-t border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">
+    <div v-if="notice" class="flex flex-wrap items-center gap-2 border-t border-success-200 bg-success-50 px-3 py-2 text-sm text-success-800" role="status">
       <AppIcon name="check" :size="16" />
       <span class="min-w-0 flex-1">กรอกลงร่างแล้ว: {{ notice.done.map((d) => `${d.label} ${d.value}`).join(' · ') }}</span>
       <button v-if="notice.suggest" type="button" class="btn-soft h-8 px-2.5 text-xs" @click="linkSuggest">ผูกกับ {{ suggestName }}</button>
       <button type="button" class="btn-outline h-8 px-2.5 text-xs" @click="emit('open-panel'); notice = null">เปิดแผงออร์เดอร์</button>
-      <button type="button" class="text-emerald-700" aria-label="ปิด" @click="notice = null"><AppIcon name="x" :size="16" /></button>
+      <button type="button" class="text-success-700" aria-label="ปิด" @click="notice = null"><AppIcon name="x" :size="16" /></button>
     </div>
 
     <!-- ส่วนล่าง: ร่างบอท · แนะนำสินค้า · เครื่องมือ · ช่องพิมพ์ -->
@@ -667,15 +667,15 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
         </ul>
         <div class="mt-2 flex flex-wrap items-center gap-2">
           <button type="button" class="btn-outline h-8 px-3 text-xs" @click="sendRec">ส่งข้อความแนะนำ</button>
-          <span v-if="recNote" class="text-xs text-emerald-700" role="status">{{ recNote }}</span>
+          <span v-if="recNote" class="text-xs text-success-700" role="status">{{ recNote }}</span>
         </div>
       </div>
 
       <!-- เครื่องมือ: ถามลูกค้า · สรุปออร์เดอร์ · ข้อความสำเร็จรูป · บอท (คอมแสดงเสมอ · มือถือกดปุ่ม + เพื่อเปิด) -->
       <div v-if="canType && !kb.open" class="items-center gap-1.5 px-3 pt-2.5 [scrollbar-width:none]" :class="toolsOpen ? 'flex overflow-x-auto lg:flex-wrap lg:overflow-visible' : 'hidden lg:flex lg:flex-wrap'">
-        <span v-if="chat.pendingAsk" class="inline-flex h-8 items-center gap-1 rounded-full bg-amber-50 py-0 pr-1 pl-3 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
+        <span v-if="chat.pendingAsk" class="inline-flex h-8 items-center gap-1 rounded-full bg-warning-50 py-0 pr-1 pl-3 text-xs font-medium text-warning-800 ring-1 ring-warning-200">
           รอลูกค้าตอบ: {{ ASK_FIELDS[chat.pendingAsk.field]?.label }}
-          <button type="button" class="flex h-6 w-6 items-center justify-center rounded-full hover:bg-amber-100" aria-label="ยกเลิกคำถาม" @click="cancelAsk(chat.id)"><AppIcon name="x" :size="12" /></button>
+          <button type="button" class="flex h-6 w-6 items-center justify-center rounded-full hover:bg-warning-100" aria-label="ยกเลิกคำถาม" @click="cancelAsk(chat.id)"><AppIcon name="x" :size="12" /></button>
         </span>
         <span class="hidden text-xs font-medium text-stone-500 lg:inline">ถาม:</span>
         <button v-for="(f, k) in ASK_FIELDS" :key="k" type="button" class="chip chip-off h-8 px-3 text-xs whitespace-nowrap" @click="ask(k)">{{ f.label }}</button>
@@ -701,8 +701,8 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
         <span v-if="picBusy" class="shrink-0 text-xs text-stone-500" role="status">กำลังเตรียมรูป…</span>
       </div>
 
-      <p v-if="!canType" class="m-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
-        <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0 text-amber-600" />
+      <p v-if="!canType" class="m-3 flex items-start gap-2 rounded-xl bg-warning-50 px-3 py-2.5 text-sm text-warning-800">
+        <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0 text-warning-700" />
         <span>เกิน 24 ชม. หลังลูกค้าทักล่าสุด Facebook ไม่ให้ตอบข้อความทั่วไป (การ์ดออร์เดอร์/ยอดชำระยังส่งได้) รอให้ลูกค้าทักกลับ</span>
       </p>
       <form v-else class="flex items-end gap-2 px-3" :class="kb.open ? 'py-2' : 'py-2.5'" @submit.prevent="send">
@@ -723,7 +723,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
       <div class="space-y-2">
         <button v-for="o in custOrders" :key="o.id" type="button" class="block w-full rounded-xl border border-stone-200 bg-white p-3 text-left hover:bg-stone-50" data-summary-pick @click="sendSummary(o)">
           <span class="flex items-baseline justify-between gap-2"><span class="font-medium text-stone-900">{{ orderNo(o.code) }}</span><span class="text-xs text-stone-500">{{ STATUS[o.status]?.label || o.status }}</span></span>
-          <span class="mt-0.5 flex items-baseline justify-between gap-2 text-sm text-stone-600"><span>นัด {{ dateTime(o.pickupAt) }}</span><span>{{ money(orderTotals(o).total) }}<span v-if="orderTotals(o).balance > 0.004" class="text-amber-700"> · ค้าง {{ money(orderTotals(o).balance) }}</span></span></span>
+          <span class="mt-0.5 flex items-baseline justify-between gap-2 text-sm text-stone-600"><span>นัด {{ dateTime(o.pickupAt) }}</span><span>{{ money(orderTotals(o).total) }}<span v-if="orderTotals(o).balance > 0.004" class="text-warning-700"> · ค้าง {{ money(orderTotals(o).balance) }}</span></span></span>
         </button>
       </div>
     </AppModal>
@@ -745,7 +745,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
             <span class="block truncate text-xs text-stone-500">{{ c.text }}</span>
           </button>
           <button type="button" class="flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-lg text-stone-400 hover:bg-stone-100" aria-label="แก้ไข" @click="cannedEdit = { ...c }"><AppIcon name="edit" :size="16" /></button>
-          <button type="button" class="flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-lg text-stone-400 hover:bg-rose-50 hover:text-rose-700" aria-label="ลบ" @click="removeCanned(c.id)"><AppIcon name="trash" :size="16" /></button>
+          <button type="button" class="flex h-9 w-9 shrink-0 items-center justify-center self-center rounded-lg text-stone-400 hover:bg-danger-50 hover:text-danger-700" aria-label="ลบ" @click="removeCanned(c.id)"><AppIcon name="trash" :size="16" /></button>
         </div>
         <button type="button" class="btn-soft w-full" @click="cannedEdit = { id: null, title: '', text: '' }"><AppIcon name="plus" :size="16" /> เพิ่มข้อความ</button>
       </div>
@@ -755,7 +755,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
     <AppModal v-if="slipPick" title="รับชำระจากสลิป" @close="slipPick = null">
       <div class="space-y-2">
         <p class="text-sm text-stone-600">เลือกออร์เดอร์ที่สลิปนี้ชำระ · ยอดที่รับได้ = คงค้างหักยอดที่ลูกค้าแจ้งรอตรวจ</p>
-        <p v-if="!chat.customerId" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">แชทนี้ยังไม่ผูกลูกค้า · ผูกลูกค้ากับแชทก่อน เพื่อดูออร์เดอร์อื่นของลูกค้าคนนั้น</p>
+        <p v-if="!chat.customerId" class="rounded-xl bg-warning-50 p-3 text-sm text-warning-800">แชทนี้ยังไม่ผูกลูกค้า · ผูกลูกค้ากับแชทก่อน เพื่อดูออร์เดอร์อื่นของลูกค้าคนนั้น</p>
         <p v-else-if="!slipPickList.length" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">ลูกค้าคนนี้ไม่มีออร์เดอร์ที่ยังไม่ปิด</p>
         <button v-for="r in slipPickList" :key="r.order.id" type="button" class="block w-full rounded-xl border border-stone-200 bg-white p-3 text-left hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-50" :disabled="!(r.room > 0)" data-slip-pick-order @click="openSlipBind(slipPick, r.order)">
           <span class="flex items-baseline justify-between gap-2"><span class="font-medium text-stone-900">{{ orderNo(r.order.code) }}</span><span class="text-xs text-stone-500">{{ STATUS[r.order.status]?.label || r.order.status }}</span></span>

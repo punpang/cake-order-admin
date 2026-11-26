@@ -139,10 +139,10 @@ const morePromos = ref(false)
     <!-- รีวิว -->
     <section v-if="reviews.length">
       <h2 class="mb-1 text-2xl text-stone-900">เสียงจากลูกค้า</h2>
-      <p class="mb-3 text-sm text-stone-600"><span class="text-amber-500">★</span> {{ rating.toFixed(1) }} จาก {{ db.reviews.filter((r) => r.status === 'approved').length }} รีวิว</p>
+      <p class="mb-3 text-sm text-stone-600"><span class="text-warning-700">★</span> {{ rating.toFixed(1) }} จาก {{ db.reviews.filter((r) => r.status === 'approved').length }} รีวิว</p>
       <div class="grid gap-3 md:grid-cols-3">
         <figure v-for="(r, i) in reviews" :key="r.id" class="card shadow-md" :class="i >= MOBILE_FIRST && !moreReviews ? 'max-md:hidden' : ''">
-          <div class="text-amber-500" :aria-label="`${r.rating} ดาว`">{{ stars(r.rating) }}</div>
+          <div class="text-warning-700" :aria-label="`${r.rating} ดาว`">{{ stars(r.rating) }}</div>
           <blockquote class="mt-1 text-sm break-words text-stone-700">{{ r.text }}</blockquote>
           <figcaption class="mt-2 text-xs text-stone-600">— {{ r.name }}</figcaption>
         </figure>

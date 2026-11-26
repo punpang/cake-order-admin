@@ -316,14 +316,14 @@ async function quote() {
         </div>
         <button class="btn-outline h-9 px-3" @click="form.customerId = null">เปลี่ยน</button>
       </div>
-      <div v-if="customer && !phoneValid(customer.phone)" class="mt-3 rounded-xl bg-amber-50 p-3">
-        <div class="mb-2 text-sm font-medium text-amber-800">ลูกค้ายังไม่มีเบอร์โทร (บังคับก่อนบันทึกออร์เดอร์)</div>
+      <div v-if="customer && !phoneValid(customer.phone)" class="mt-3 rounded-xl bg-warning-50 p-3">
+        <div class="mb-2 text-sm font-medium text-warning-800">ลูกค้ายังไม่มีเบอร์โทร (บังคับก่อนบันทึกออร์เดอร์)</div>
         <div class="flex gap-2">
           <PhoneInput v-model="addPhone" class="min-w-0 flex-1 bg-white" />
           <button type="button" class="btn-primary shrink-0" @click="savePhone">บันทึกเบอร์</button>
         </div>
       </div>
-      <p v-if="embedded && !customer" class="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">แชทนี้ยังไม่ได้ผูกบัญชีลูกค้า ค้นหาลูกค้าเดิมหรือสร้างใหม่ (ข้ามไปก่อนได้ แต่ต้องผูกและมีเบอร์ก่อนบันทึก)</p>
+      <p v-if="embedded && !customer" class="mb-3 rounded-xl bg-warning-50 p-3 text-sm text-warning-800">แชทนี้ยังไม่ได้ผูกบัญชีลูกค้า ค้นหาลูกค้าเดิมหรือสร้างใหม่ (ข้ามไปก่อนได้ แต่ต้องผูกและมีเบอร์ก่อนบันทึก)</p>
       <div v-if="embedded && !customer && (form.contactPhone || form.contactName)" class="mb-3 rounded-xl border border-brand-200 bg-brand-50 p-3 text-sm">
         <div class="text-brand-900">ได้จากแชท: <b>{{ form.contactName || '-' }}</b> · {{ form.contactPhone ? formatPhone(form.contactPhone) : 'ยังไม่มีเบอร์' }}</div>
         <div class="mt-2 flex flex-wrap gap-2">
@@ -349,7 +349,7 @@ async function quote() {
               <span class="block truncate font-medium text-stone-900">{{ c.name }}</span>
               <span class="block truncate text-sm text-stone-500">{{ c.phone ? formatPhone(c.phone) : '-' }}</span>
             </span>
-            <AppIcon name="next" class="text-stone-300" />
+            <AppIcon name="next" class="text-stone-500" />
           </button>
           <p v-if="!matches.length" class="rounded-xl bg-stone-50 p-3 text-center text-sm text-stone-500">ไม่พบลูกค้า</p>
         </div>
@@ -357,9 +357,9 @@ async function quote() {
       </template>
 
       <div v-else class="space-y-3" @keydown.esc.stop="showNew = false; error = ''">
-        <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="newCus.name" class="input" /></div>
+        <div><label class="label">ชื่อ <span class="text-danger-700">*</span></label><input v-model="newCus.name" class="input" /></div>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div><label class="label">เบอร์โทร <span class="text-rose-600">*</span></label><PhoneInput v-model="newCus.phone" /></div>
+          <div><label class="label">เบอร์โทร <span class="text-danger-700">*</span></label><PhoneInput v-model="newCus.phone" /></div>
         </div>
         <div><label class="label">หมายเหตุ</label><input v-model="newCus.note" class="input" /></div>
         <div class="flex justify-end gap-2 pt-1">
@@ -379,14 +379,14 @@ async function quote() {
         </div>
         <div class="mt-3">
           <div class="label">เวลา <span class="font-normal text-stone-400">(ทุก {{ db.shop.slotMinutes }} นาที)</span></div>
-          <p v-if="dayClosure" class="flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-sm font-medium text-rose-700" role="alert"><AppIcon name="alert" :size="16" /> ร้านปิด: {{ dayClosure.reason }} · เลือกวันอื่น (แชท/สั่งวัน-เวลาอื่นได้ปกติ)</p>
+          <p v-if="dayClosure" class="flex items-center gap-2 rounded-xl bg-danger-50 p-3 text-sm font-medium text-danger-700" role="alert"><AppIcon name="alert" :size="16" /> ร้านปิด: {{ dayClosure.reason }} · เลือกวันอื่น (แชท/สั่งวัน-เวลาอื่นได้ปกติ)</p>
           <p v-else-if="!slotInfo.length" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-500">ไม่มีเวลาว่างในวันนี้ เลือกวันอื่น</p>
           <div v-else class="grid grid-cols-4 gap-1.5 sm:grid-cols-6">
             <button
               v-for="s in slotInfo"
               :key="s.t"
               type="button"
-              class="h-10 rounded-xl border text-sm font-medium transition disabled:cursor-not-allowed disabled:border-stone-100 disabled:bg-stone-50 disabled:text-stone-300 disabled:line-through"
+              class="h-10 rounded-xl border text-sm font-medium transition disabled:cursor-not-allowed disabled:border-stone-100 disabled:bg-stone-50 disabled:text-stone-500 disabled:line-through"
               :class="form.time === s.t ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : 'border-stone-200 text-stone-700 hover:border-brand-300'"
               :disabled="s.closed"
               :title="s.closed ? `ร้านปิด: ${s.reason}` : ''"
@@ -394,12 +394,12 @@ async function quote() {
               @click="form.time = s.t"
             >{{ s.t }}</button>
           </div>
-          <p v-if="!dayClosure && slotInfo.some((s) => s.closed)" class="mt-1.5 text-xs text-rose-700">ช่องที่ขีดฆ่าร้านปิด: {{ [...new Set(slotInfo.filter((s) => s.closed).map((s) => s.reason))].join(', ') }}</p>
+          <p v-if="!dayClosure && slotInfo.some((s) => s.closed)" class="mt-1.5 text-xs text-danger-700">ช่องที่ขีดฆ่าร้านปิด: {{ [...new Set(slotInfo.filter((s) => s.closed).map((s) => s.reason))].join(', ') }}</p>
         </div>
         <div
           v-if="pickupAt"
           class="mt-3 flex items-start gap-2.5 rounded-xl p-3 text-sm"
-          :class="load.day ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'"
+          :class="load.day ? 'bg-warning-50 text-warning-800' : 'bg-success-50 text-success-800'"
         >
           <AppIcon :name="load.day ? 'alert' : 'check'" :size="18" class="mt-0.5" />
           <span>วันนั้นมีแล้ว <b>{{ load.day }}</b> ออร์เดอร์ · ช่วง {{ form.time.slice(0, 2) }}:00 น. มี <b>{{ load.hour }}</b> ออร์เดอร์ · ภายใน ±1 ชม. มี <b>{{ load.near }}</b> ออร์เดอร์</span>
@@ -477,7 +477,7 @@ async function quote() {
           <button class="btn-danger h-9 px-3" @click="removeItem(i)"><AppIcon name="trash" :size="16" /> ลบ</button>
         </template>
       </ItemCard>
-      <ul v-if="promoView.hints.length" class="space-y-1 rounded-2xl bg-sky-50 p-3 text-sm text-sky-900" aria-label="โปรที่ใกล้ถึง">
+      <ul v-if="promoView.hints.length" class="space-y-1 rounded-2xl bg-info-50 p-3 text-sm text-info-800" aria-label="โปรที่ใกล้ถึง">
         <li v-for="h in promoView.hints" :key="h.text">💡 {{ h.text }}</li>
       </ul>
 
@@ -519,7 +519,7 @@ async function quote() {
         </template>
         <p v-if="form.cashService" class="text-sm text-stone-600">ค่าบริการ{{ CASH_LABEL[form.cashService.kind] }} <b class="text-stone-900">{{ money(cashSettings.services[form.cashService.kind].fee) }}</b> (เข้ารายได้)</p>
         <div v-if="form.cashService" class="flex items-center justify-between gap-2">
-          <p v-if="cashErr" class="text-sm text-rose-700">{{ cashErr }}</p>
+          <p v-if="cashErr" class="text-sm text-danger-700">{{ cashErr }}</p>
           <button type="button" class="btn-outline ml-auto h-9 px-3" @click="form.cashService = undefined">ไม่ใช้บริการ</button>
         </div>
       </div>
@@ -553,7 +553,7 @@ async function quote() {
       </div>
       <div class="space-y-3">
       <div class="card space-y-2 text-sm">
-        <div v-if="totals.discountTotal" class="flex items-start justify-between gap-2 rounded-xl bg-emerald-50/60 p-2.5">
+        <div v-if="totals.discountTotal" class="flex items-start justify-between gap-2 rounded-xl bg-success-50/60 p-2.5">
           <span class="text-stone-600">ราคาเต็ม → ยอดสุทธิ</span>
           <span><DiscountDetail :full="totals.fullAll" :final="totals.total" :lines="totals.discountLines" /></span>
         </div>
@@ -567,7 +567,7 @@ async function quote() {
           <span class="text-xl font-semibold text-stone-900">{{ money(totals.total) }}</span>
         </div>
         <template v-if="totals.hold">
-          <div class="flex justify-between text-amber-800"><span>เงินพัก (ไม่ใช่รายได้)</span><span>{{ money(totals.hold) }}</span></div>
+          <div class="flex justify-between text-warning-800"><span>เงินพัก (ไม่ใช่รายได้)</span><span>{{ money(totals.hold) }}</span></div>
           <div class="flex items-center justify-between font-semibold"><span>ยอดที่ลูกค้าต้องชำระ</span><span>{{ money(totals.payable) }}</span></div>
         </template>
       </div>
@@ -575,7 +575,7 @@ async function quote() {
     </section>
 
     <!-- error -->
-    <div v-if="error" class="mt-3 flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
+    <div v-if="error" class="mt-3 flex items-center gap-2 rounded-xl bg-danger-50 p-3 text-sm text-danger-700">
       <AppIcon name="alert" :size="18" /> {{ error }}
     </div>
 
@@ -588,7 +588,7 @@ async function quote() {
         </template>
         <template v-else>
           <template v-if="embedded && fromChat">
-            <p v-if="saveBlock" class="w-full text-xs text-amber-700">
+            <p v-if="saveBlock" class="w-full text-xs text-warning-700">
               บันทึกไม่ได้: {{ saveBlock }} · <button type="button" class="font-medium underline" @click="step = 0; error = ''">ไปขั้นลูกค้า</button> (ส่งใบเสนอได้ก่อน)
             </p>
             <label class="flex w-full items-center gap-2 text-sm text-stone-700"><input v-model="notifyCustomer" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้า" /> แจ้งลูกค้าเมื่อบันทึก·รอชำระ</label>

@@ -15,7 +15,7 @@ const OPTS = [[null, 'ตามเดิม'], [true, 'เปิด'], [false, '
       <span class="text-sm text-stone-700">{{ r.label }}<span v-if="r.hint" class="block text-xs text-stone-500">{{ r.hint }}</span></span>
       <div class="inline-flex overflow-hidden rounded-lg border border-stone-200 text-xs" role="group" :aria-label="`ช่องทาง ${r.label}`">
         <button v-for="[val, txt] in OPTS" :key="txt" type="button" :disabled="readonly" :data-ch="r.k" :data-val="String(val)"
-          class="px-3 py-1.5 transition-colors" :class="r.v === val ? (val === false ? 'bg-rose-600 text-white' : val === true ? 'bg-emerald-600 text-white' : 'bg-stone-700 text-white') : 'bg-white text-stone-600 hover:bg-stone-50'"
+          class="px-3 py-1.5 transition-colors" :class="r.v === val ? (val === false ? 'bg-brand-600 text-white' : val === true ? 'bg-success-700 text-white' : 'bg-stone-700 text-white') : 'bg-white text-stone-600 hover:bg-stone-50'"
           :aria-pressed="r.v === val" @click="emit('set', r.k, val)">{{ txt }}</button>
       </div>
     </div>

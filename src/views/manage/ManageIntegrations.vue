@@ -168,7 +168,7 @@ async function disconnect(k) {
 
 <template>
   <ManageShell narrow title="การเชื่อมต่อ & แจ้งเตือน" subtitle="ตั้งค่าช่องทางและดูคิวข้อความ" :toolbar="false">
-    <p class="mb-4 flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+    <p class="mb-4 flex items-start gap-2 rounded-xl bg-warning-50 p-3 text-sm text-warning-800">
       <AppIcon name="alert" :size="16" class="mt-0.5 shrink-0" />
       ยังไม่ได้ต่อเซิร์ฟเวอร์ ข้อความทั้งหมดถูกบันทึกลง แท็บ "คิวข้อความ"เพื่อดูว่าจะส่งอะไรถึงใคร · ต่อจริงทีหลังพร้อม Supabase (token เก็บที่เซิร์ฟเวอร์ ไม่กรอกในหน้านี้)
     </p>
@@ -183,7 +183,7 @@ async function disconnect(k) {
           <AppSwitch v-model="db.integrations[k].enabled" :aria-label="`เปิดใช้ช่องทาง ${c.label}`" />
         </div>
         <div class="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
-          <span v-if="db.integrations[k].status === 'connected'" class="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">เชื่อมแล้ว · {{ db.integrations[k].accountName }}</span>
+          <span v-if="db.integrations[k].status === 'connected'" class="rounded-full bg-success-50 px-2 py-0.5 font-semibold text-success-700">เชื่อมแล้ว · {{ db.integrations[k].accountName }}</span>
           <span v-else class="rounded-full bg-stone-100 px-2 py-0.5 text-stone-600">{{ CONNECTABLE.includes(k) ? 'ยังไม่เชื่อม' : 'ยังไม่เชื่อมต่อ (รอต่อเซิร์ฟเวอร์)' }}</span>
           <span class="rounded-full bg-brand-50 px-2 py-0.5 text-brand-800">{{ c.audience === 'team' ? 'แจ้งทีมภายใน' : 'ส่งลูกค้า' }}</span>
         </div>
@@ -205,8 +205,8 @@ async function disconnect(k) {
         <template v-else-if="SIMPLE.includes(k)">
           <div class="mt-3 space-y-2">
             <button type="button" class="btn-soft h-9 px-3 text-sm" @click="runTest(k)">ส่งข้อความทดสอบ</button>
-            <p v-if="testRes.key === k && testRes.text" class="rounded-lg bg-emerald-50 p-2 text-xs text-emerald-800">{{ testRes.text }}</p>
-            <p v-if="testRes.key === k && testRes.error" class="text-xs text-rose-700">{{ testRes.error }}</p>
+            <p v-if="testRes.key === k && testRes.text" class="rounded-lg bg-success-50 p-2 text-xs text-success-800">{{ testRes.text }}</p>
+            <p v-if="testRes.key === k && testRes.error" class="text-xs text-danger-700">{{ testRes.error }}</p>
           </div>
         </template>
       </section>
@@ -224,7 +224,7 @@ async function disconnect(k) {
               <div class="flex flex-wrap items-center gap-1.5">
                 <span class="font-medium text-stone-900">{{ NOTIFY_EVENTS[r.event].label }}</span>
                 <span v-if="NOTIFY_EVENTS[r.event].scheduled" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ตามเวลา</span>
-                <span v-if="NOTIFY_EVENTS[r.event].marketing" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">เฉพาะคนรับข่าว</span>
+                <span v-if="NOTIFY_EVENTS[r.event].marketing" class="rounded-full bg-warning-50 px-2 py-0.5 text-xs text-warning-700">เฉพาะคนรับข่าว</span>
               </div>
               <div class="mt-0.5 truncate text-xs text-stone-500">{{ r.template }}</div>
             </div>
@@ -267,11 +267,11 @@ async function disconnect(k) {
       <ul class="space-y-2">
         <li v-for="m in outbox" :key="m.id" class="rounded-xl border border-stone-200 p-3">
           <div class="flex flex-wrap items-center gap-1.5 text-xs">
-            <span class="rounded-full px-2 py-0.5 font-semibold" :class="m.channel ? 'bg-brand-50 text-brand-800' : 'bg-rose-50 text-rose-700'">{{ m.channel ? channelLabel(m.channel) : 'ไม่มีช่องทาง' }}</span>
+            <span class="rounded-full px-2 py-0.5 font-semibold" :class="m.channel ? 'bg-brand-50 text-brand-800' : 'bg-danger-50 text-danger-700'">{{ m.channel ? channelLabel(m.channel) : 'ไม่มีช่องทาง' }}</span>
             <span class="text-stone-600">{{ NOTIFY_EVENTS[m.event]?.label || EXTRA_EVENT[m.event] }}</span>
-            <span v-if="m.status === 'sent'" class="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">ส่งแล้ว</span>
-            <span v-else-if="m.status === 'sending'" class="rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-700">กำลังส่ง</span>
-            <span v-else-if="m.status === 'failed'" class="rounded-full bg-rose-50 px-2 py-0.5 font-semibold text-rose-700" :title="m.error">ส่งไม่สำเร็จ</span>
+            <span v-if="m.status === 'sent'" class="rounded-full bg-success-50 px-2 py-0.5 font-semibold text-success-700">ส่งแล้ว</span>
+            <span v-else-if="m.status === 'sending'" class="rounded-full bg-warning-50 px-2 py-0.5 font-semibold text-warning-700">กำลังส่ง</span>
+            <span v-else-if="m.status === 'failed'" class="rounded-full bg-danger-50 px-2 py-0.5 font-semibold text-danger-700" :title="m.error">ส่งไม่สำเร็จ</span>
             <span class="ml-auto text-stone-400">{{ dateTime(m.at) }}</span>
           </div>
           <div class="mt-1 text-xs text-stone-500">
@@ -311,7 +311,7 @@ async function disconnect(k) {
 
     <!-- modal เชื่อมบัญชี -->
     <AppModal v-if="conn.key" :title="'เชื่อม Facebook Page'" @close="closeConnect">
-      <p v-if="conn.error && conn.key === 'facebook'" class="mb-3 flex items-center gap-2 rounded-xl bg-rose-50 p-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ conn.error }}</p>
+      <p v-if="conn.error && conn.key === 'facebook'" class="mb-3 flex items-center gap-2 rounded-xl bg-danger-50 p-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ conn.error }}</p>
       <!-- Facebook -->
       <template v-if="conn.key === 'facebook'">
         <div v-if="conn.stage === 'start' || conn.stage === 'login'" class="space-y-3 text-sm text-stone-600">
@@ -329,11 +329,11 @@ async function disconnect(k) {
       </template>
       <!-- ขั้นตอนเชื่อม -->
       <ul v-if="conn.stage === 'steps' || conn.stage === 'done'" class="space-y-2">
-        <li v-for="(t, i) in connSteps" :key="t" class="flex items-center gap-2 text-sm" :class="i < conn.done ? 'text-emerald-700' : 'text-stone-400'">
+        <li v-for="(t, i) in connSteps" :key="t" class="flex items-center gap-2 text-sm" :class="i < conn.done ? 'text-success-700' : 'text-stone-400'">
           <AppIcon :name="i < conn.done ? 'check' : 'clock'" :size="16" /> {{ t }}
         </li>
       </ul>
-      <p v-if="conn.stage === 'done'" class="mt-3 rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-700">เชื่อมแล้ว · {{ db.integrations[conn.key].accountName }}</p>
+      <p v-if="conn.stage === 'done'" class="mt-3 rounded-xl bg-success-50 p-3 text-sm font-semibold text-success-700">เชื่อมแล้ว · {{ db.integrations[conn.key].accountName }}</p>
       <template #footer>
         <button v-if="conn.stage === 'done'" class="btn-primary flex-1 sm:flex-none" @click="closeConnect">เสร็จ</button>
         <template v-else>

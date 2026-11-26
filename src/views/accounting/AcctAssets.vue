@@ -32,14 +32,14 @@ const totals = computed(() => assets().filter((a) => !a.disposal).reduce((t, a) 
 <template>
   <div class="space-y-3">
     <div class="grid grid-cols-2 gap-3"><div class="card"><div class="text-xs text-stone-500">ราคาทุนรวม (ที่ยังใช้งาน)</div><div class="mt-1 text-lg font-semibold">{{ money(totals.cost) }}</div></div><div class="card"><div class="text-xs text-stone-500">มูลค่าตามบัญชี</div><div class="mt-1 text-lg font-semibold">{{ money(totals.book) }}</div></div></div>
-    <p v-if="err" class="flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-700" role="alert"><AppIcon name="alert" :size="16" /> {{ err }}</p>
+    <p v-if="err" class="flex items-center gap-2 rounded-xl bg-danger-50 p-3 text-sm text-danger-700" role="alert"><AppIcon name="alert" :size="16" /> {{ err }}</p>
     <section class="card text-sm" aria-label="ทะเบียนสินทรัพย์">
       <div class="mb-2 flex items-center justify-between"><div class="card-title mb-0">ทะเบียนสินทรัพย์ ({{ assets().length }})</div><button v-if="canA" class="btn-soft h-9 px-3" @click="add"><AppIcon name="plus" :size="16" /> เพิ่ม</button></div>
       <p v-if="!assets().length" class="py-6 text-center text-stone-400">ยังไม่มีสินทรัพย์ · ราคาต่ำกว่า 500 บาทให้บันทึกเป็นค่าใช้จ่าย</p>
       <ul class="divide-y divide-stone-100">
         <li v-for="a in assets()" :key="a.id" class="py-2.5">
           <button class="flex w-full items-start justify-between gap-2 text-left" :aria-expanded="showId === a.id" @click="showId = showId === a.id ? '' : a.id">
-            <span class="min-w-0"><span class="block font-medium text-stone-800">{{ a.code }} · {{ a.name }} <span v-if="a.disposal" class="text-xs text-amber-700">จำหน่ายแล้ว</span></span><span class="block text-xs text-stone-500">{{ catLabel(a.category) }} · {{ a.method === 'sl' ? 'เส้นตรง' : `ยอดลดลง ${a.rate}%` }} · {{ a.lifeYears }} ปี · เริ่มใช้ {{ dateOnly(a.startDate) }}</span></span>
+            <span class="min-w-0"><span class="block font-medium text-stone-800">{{ a.code }} · {{ a.name }} <span v-if="a.disposal" class="text-xs text-warning-700">จำหน่ายแล้ว</span></span><span class="block text-xs text-stone-500">{{ catLabel(a.category) }} · {{ a.method === 'sl' ? 'เส้นตรง' : `ยอดลดลง ${a.rate}%` }} · {{ a.lifeYears }} ปี · เริ่มใช้ {{ dateOnly(a.startDate) }}</span></span>
             <span class="shrink-0 text-right"><b class="block">{{ money(a.cost) }}</b><span class="text-xs text-stone-500">คงเหลือ {{ money(a.disposal ? 0 : book(a)) }}</span></span>
           </button>
           <div v-if="showId === a.id" class="mt-2 space-y-2 rounded-xl bg-stone-50 p-2 text-xs">
@@ -52,7 +52,7 @@ const totals = computed(() => assets().filter((a) => !a.disposal).reduce((t, a) 
             <div v-if="canA" class="flex flex-wrap gap-2 pt-1">
               <button class="btn-soft h-9 px-3" @click="edit(a)">แก้ไข</button>
               <button v-if="!a.disposal" class="btn-outline h-9 px-3" @click="Object.assign(disp, { open: true, id: a.id, date: today, proceeds: '' }); err = ''">จำหน่าย/ขาย</button>
-              <button class="btn-outline h-9 px-3 text-rose-700" @click="del(a)">ลบ</button>
+              <button class="btn-outline h-9 px-3 text-danger-700" @click="del(a)">ลบ</button>
             </div>
           </div>
         </li>
@@ -70,7 +70,7 @@ const totals = computed(() => assets().filter((a) => !a.disposal).reduce((t, a) 
         <div class="grid grid-cols-2 gap-3"><div><label class="label">วันที่ซื้อ</label><input v-model="f.buyDate" type="date" class="input" aria-label="วันที่ซื้อสินทรัพย์" /></div><div><label class="label">วันที่เริ่มใช้</label><input v-model="f.startDate" type="date" class="input" aria-label="วันที่เริ่มใช้สินทรัพย์" /></div></div>
         <div v-if="!f.id"><label class="label">การซื้อ</label><select v-model="f.acquire" class="input" aria-label="วิธีซื้อสินทรัพย์"><option value="bank">จ่ายธนาคาร/โอน</option><option value="cash">จ่ายเงินสด</option><option value="payable">ค้างจ่าย (เจ้าหนี้)</option><option value="none">ไม่บันทึกการซื้อ (ยกมา/ซื้อผ่อนไว้แล้ว)</option></select></div>
         <div><label class="label">หมายเหตุ</label><input v-model="f.note" class="input" maxlength="300" aria-label="หมายเหตุสินทรัพย์" /></div>
-        <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
+        <p v-if="err" class="text-sm text-danger-700" role="alert">{{ err }}</p>
       </div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="save">บันทึก</button></template>
     </AppModal>
@@ -79,7 +79,7 @@ const totals = computed(() => assets().filter((a) => !a.disposal).reduce((t, a) 
         <div><label class="label">วันที่จำหน่าย</label><input v-model="disp.date" type="date" class="input" aria-label="วันที่จำหน่าย" /></div>
         <div><label class="label">ยอดที่ขายได้ (0 = ทิ้ง/ตัดจำหน่าย)</label><MoneyInput v-model="disp.proceeds" class="input" aria-label="ยอดขายสินทรัพย์" /></div>
         <div><label class="label">รับเงินทาง</label><select v-model="disp.method" class="input" aria-label="รับเงินขายสินทรัพย์"><option value="cash">เงินสด</option><option value="bank">ธนาคาร</option></select></div>
-        <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
+        <p v-if="err" class="text-sm text-danger-700" role="alert">{{ err }}</p>
       </div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="disp.open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="dispose">ยืนยันจำหน่าย</button></template>
     </AppModal>

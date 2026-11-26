@@ -151,23 +151,23 @@ async function savePay() {
 <template>
 <AppModal wider :title="PAY_TITLE[payMode]" @close="emit('close')">
   <div class="space-y-4 dlg-cols">
-    <div v-if="payMode === 'confirm'" class="rounded-xl bg-sky-50 p-3 text-sm text-sky-800">
+    <div v-if="payMode === 'confirm'" class="rounded-xl bg-info-50 p-3 text-sm text-info-800">
       ยอดที่แจ้งไป <b>{{ money(payTarget.requested ?? payTarget.amount) }}</b> · ใส่ยอดที่ได้รับจริง
     </div>
-    <div v-else-if="payMode === 'slip'" class="rounded-xl bg-sky-50 p-3 text-sm text-sky-800">
+    <div v-else-if="payMode === 'slip'" class="rounded-xl bg-info-50 p-3 text-sm text-info-800">
       สลิปจากแชท · คงค้าง <b>{{ money(t.balance) }}</b> · รับได้สูงสุด <b>{{ money(slipMax) }}</b><span v-if="slipOwn > 0"> (หักยอดที่ลูกค้าแจ้งรอตรวจ {{ money(slipOwn) }})</span>
     </div>
     <ul v-if="payMode === 'slip' && slipChecks.length" class="space-y-1 rounded-xl border border-stone-200 bg-white p-3 text-sm" aria-label="ผลตรวจสลิปกับออร์เดอร์">
-      <li v-for="(c, k) in slipChecks" :key="k" class="flex items-start gap-2" :class="c.ok ? 'text-emerald-700' : 'text-rose-700'"><span aria-hidden="true" class="font-bold">{{ c.ok ? '✓' : '✗' }}</span><span>{{ c.text }}</span></li>
+      <li v-for="(c, k) in slipChecks" :key="k" class="flex items-start gap-2" :class="c.ok ? 'text-success-700' : 'text-danger-700'"><span aria-hidden="true" class="font-bold">{{ c.ok ? '✓' : '✗' }}</span><span>{{ c.text }}</span></li>
     </ul>
-    <div v-else class="rounded-xl p-3 text-sm" :class="payMode === 'direct' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'">
+    <div v-else class="rounded-xl p-3 text-sm" :class="payMode === 'direct' ? 'bg-success-50 text-success-800' : 'bg-warning-50 text-warning-800'">
       <template v-if="payMode === 'direct'">ลูกค้าชำระแล้ว ไม่ต้องแจ้งยอด/กำหนดชำระ · </template>คงค้าง <b>{{ money(t.balance) }}</b><span v-if="t.reported"> · แจ้งยอดแล้ว {{ money(t.reported) }}</span>
     </div>
     <div v-if="payMode === 'confirm' && (payTarget.ref || payTarget.bankName)" class="rounded-xl border border-stone-200 bg-white p-3 text-sm text-stone-700">
       <div class="text-xs text-stone-500">ข้อมูลรายการที่ลูกค้าแจ้ง (ตรวจกับสลิป)</div>
       <div>วันเวลาโอน <b class="text-stone-900">{{ payTarget.paidAt ? dateTime(payTarget.paidAt) : '-' }}</b></div>
       <div>ธนาคาร <b class="text-stone-900">{{ payTarget.bankName || payTarget.bankCode || '-' }}</b></div>
-      <div>เลขอ้างอิง <b class="break-all text-stone-900">{{ payTarget.ref || '-' }}</b><span v-if="payTarget.refSource === 'qr'" class="ml-1 text-xs text-emerald-700">(อ่านจาก QR)</span></div>
+      <div>เลขอ้างอิง <b class="break-all text-stone-900">{{ payTarget.ref || '-' }}</b><span v-if="payTarget.refSource === 'qr'" class="ml-1 text-xs text-success-700">(อ่านจาก QR)</span></div>
     </div>
     <div>
       <label class="label" for="pay-amount">{{ payMode === 'slip' ? 'ยอดตามสลิป' : payMode === 'confirm' || payMode === 'direct' ? 'ยอดที่ได้รับจริง' : 'ยอดที่แจ้งลูกค้า' }}</label>
@@ -217,7 +217,7 @@ async function savePay() {
           <button type="button" class="chip" :class="daysCustom.disabled ? 'chip-off cursor-not-allowed opacity-40' : dueSel === 'dc' ? 'chip-on' : 'chip-off'" :disabled="daysCustom.disabled" @click="pickDue('dc', daysCustom.dueAt)">ตั้ง</button>
         </span>
       </div>
-      <p v-for="(r, i) in dueReasons" :key="i" class="mb-1 text-xs text-rose-700">{{ r }}</p>
+      <p v-for="(r, i) in dueReasons" :key="i" class="mb-1 text-xs text-danger-700">{{ r }}</p>
       <input v-model="pay.dueAt" type="datetime-local" class="input" aria-label="กำหนดชำระ" @input="dueSel = ''" />
     </div>
     <div>
@@ -248,7 +248,7 @@ async function savePay() {
       </label>
     </div>
     <div><label class="label">หมายเหตุ</label><input v-model="pay.note" class="input" /></div>
-    <p v-if="payError" class="text-sm text-rose-700">{{ payError }}</p>
+    <p v-if="payError" class="text-sm text-danger-700">{{ payError }}</p>
   </div>
   <template #footer>
     <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ยกเลิก</button>

@@ -282,7 +282,7 @@ async function save() {
             v-for="(s, i) in subs"
             :key="i"
             class="rounded-xl border p-3"
-            :class="s.existing ? 'border-stone-200 bg-stone-50' : creatable(s) ? 'border-emerald-200 bg-emerald-50/50' : 'border-rose-200 bg-rose-50/40'"
+            :class="s.existing ? 'border-stone-200 bg-stone-50' : creatable(s) ? 'border-success-200 bg-success-50/50' : 'border-danger-200 bg-danger-50/40'"
             data-sub-item
           >
             <div class="flex flex-wrap items-start gap-2">
@@ -295,14 +295,14 @@ async function save() {
                 <div v-if="s.existing" class="mt-0.5 text-xs text-stone-600" data-sub-status>
                   มีอยู่แล้ว{{ s.existing.active === false ? ' (ปิดอยู่)' : '' }} · {{ s.current ? `ตอนนี้ลดสูงสุด ${s.current}%` : 'ตอนนี้ยังไม่ลด' }}
                 </div>
-                <div v-else-if="creatable(s)" class="mt-0.5 text-xs text-emerald-800">ยังไม่มีชุดนี้ · สร้างได้</div>
-                <div v-else class="mt-0.5 text-xs text-rose-700" data-sub-blocked>ยังไม่มีชุดนี้ · สร้างไม่ได้ตอนนี้ ({{ s.rec.conflicts.length ? 'ดูข้อขัดแย้งด้านล่าง' : 'ยังไม่มีส่วนลดที่สมดุล' }})</div>
+                <div v-else-if="creatable(s)" class="mt-0.5 text-xs text-success-800">ยังไม่มีชุดนี้ · สร้างได้</div>
+                <div v-else class="mt-0.5 text-xs text-danger-700" data-sub-blocked>ยังไม่มีชุดนี้ · สร้างไม่ได้ตอนนี้ ({{ s.rec.conflicts.length ? 'ดูข้อขัดแย้งด้านล่าง' : 'ยังไม่มีส่วนลดที่สมดุล' }})</div>
               </div>
               <RouterLink v-if="s.existing" :to="`/admin/settings/bundles/${s.existing.id}`" class="btn-outline h-9 shrink-0 px-3 text-sm" data-sub-edit>แก้ชุดเดิม</RouterLink>
               <button v-else-if="creatable(s)" type="button" class="btn-primary h-9 shrink-0 px-3 text-sm" data-sub-create @click="createSuggestion(s)">สร้างชุดนี้</button>
             </div>
-            <p v-for="(c, j) in s.rec.conflicts" :key="`c${j}`" class="mt-2 rounded-lg bg-rose-50 p-2 text-xs text-rose-800">{{ c }}</p>
-            <p v-for="(w, j) in s.rec.warnings" :key="`w${j}`" class="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">{{ w }}</p>
+            <p v-for="(c, j) in s.rec.conflicts" :key="`c${j}`" class="mt-2 rounded-lg bg-danger-50 p-2 text-xs text-danger-800">{{ c }}</p>
+            <p v-for="(w, j) in s.rec.warnings" :key="`w${j}`" class="mt-2 rounded-lg bg-warning-50 p-2 text-xs text-warning-800">{{ w }}</p>
             <details v-if="s.rec.reasons.length" class="mt-2">
               <summary class="cursor-pointer text-xs text-stone-500">เหตุผลของราคานี้</summary>
               <ul class="mt-1 list-disc space-y-0.5 pl-5 text-xs text-stone-600">
@@ -363,7 +363,7 @@ async function save() {
         </div>
 
         <!-- ราคาที่แนะนำ: วิเคราะห์จากบันเดิ้ลอื่นและราคาตัวเลือก พร้อมเหตุผล -->
-        <div v-if="advice" class="mb-4 rounded-2xl border p-3" :class="advice.status === 'conflict' ? 'border-rose-200 bg-rose-50/50' : 'border-emerald-200 bg-emerald-50/50'" data-price-advice>
+        <div v-if="advice" class="mb-4 rounded-2xl border p-3" :class="advice.status === 'conflict' ? 'border-danger-200 bg-danger-50/50' : 'border-success-200 bg-success-50/50'" data-price-advice>
           <div class="flex flex-wrap items-center gap-2">
             <div class="min-w-0 flex-1">
               <div class="text-xs text-stone-500">ราคาที่แนะนำ · ลดน้อยที่สุดที่ยังจูงใจ</div>
@@ -375,8 +375,8 @@ async function save() {
           <ul class="mt-2 list-disc space-y-0.5 pl-5 text-xs text-stone-600" data-advice-reasons>
             <li v-for="(r, i) in advice.reasons" :key="`r${i}`">{{ r }}</li>
           </ul>
-          <p v-for="(c, i) in advice.conflicts" :key="`c${i}`" class="mt-2 rounded-lg bg-rose-50 p-2 text-xs text-rose-800">{{ c }}</p>
-          <p v-for="(w, i) in advice.warnings" :key="`w${i}`" class="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">{{ w }}</p>
+          <p v-for="(c, i) in advice.conflicts" :key="`c${i}`" class="mt-2 rounded-lg bg-danger-50 p-2 text-xs text-danger-800">{{ c }}</p>
+          <p v-for="(w, i) in advice.warnings" :key="`w${i}`" class="mt-2 rounded-lg bg-warning-50 p-2 text-xs text-warning-800">{{ w }}</p>
           <p v-if="hasTypeOverride" class="mt-2 text-xs text-stone-500">มีราคาแยกประเภทที่ตั้งไว้ ค่าเหล่านั้นยังใช้อยู่ · ใส่ราคาแนะนำจะเปลี่ยนเฉพาะ "ทุกประเภท"</p>
         </div>
         <div class="flex flex-wrap gap-2" role="group" aria-label="เลือกประเภทที่จะตั้งส่วนลด">
@@ -392,7 +392,7 @@ async function save() {
           >{{ s.label }}<span v-if="scopeFilled(s.key)" class="text-xs" aria-hidden="true">●</span></button>
         </div>
         <p class="mt-2 text-xs text-stone-500" data-scope-hint>{{ scopeHint }}</p>
-        <p v-if="linkedPct" class="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-sky-50 p-2.5 text-xs text-sky-900" data-link-status>
+        <p v-if="linkedPct" class="mt-2 flex flex-wrap items-center gap-2 rounded-xl bg-info-50 p-2.5 text-xs text-info-800" data-link-status>
           <span class="min-w-0 flex-1">ตั้งตาม <b>{{ linkedPct }}%</b> ของราคาปกติ · ราคาตัวเลือกเปลี่ยนเมื่อไหร่ หน้ารายการจะแจ้งให้ปรับ</span>
           <button type="button" class="underline underline-offset-2" data-unlink-scope @click="unlinkScope">เลิกตั้งตามเปอร์เซ็นต์</button>
         </p>
@@ -424,7 +424,7 @@ async function save() {
               v-for="r in rows"
               :key="r.id"
               class="rounded-xl border p-2"
-              :class="r.over ? 'border-rose-300 bg-rose-50/60' : 'border-stone-200'"
+              :class="r.over ? 'border-danger-200 bg-danger-50/60' : 'border-stone-200'"
               :data-size-row="r.id"
             >
               <div class="grid grid-cols-[4.25rem_minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
@@ -439,9 +439,9 @@ async function save() {
                   :aria-invalid="r.over"
                   :data-disc="`${scope}:${r.id}`"
                 />
-                <span class="text-right text-sm font-semibold" :class="r.over ? 'text-rose-700' : 'text-emerald-700'" data-left>{{ hasItems ? qty(r.left) : '—' }}</span>
+                <span class="text-right text-sm font-semibold" :class="r.over ? 'text-danger-700' : 'text-success-700'" data-left>{{ hasItems ? qty(r.left) : '—' }}</span>
               </div>
-              <p v-if="r.over" class="mt-1 text-xs font-medium text-rose-700">ลดเกินราคาปกติ ({{ bahtText(r.reg) }})</p>
+              <p v-if="r.over" class="mt-1 text-xs font-medium text-danger-700">ลดเกินราคาปกติ ({{ bahtText(r.reg) }})</p>
             </li>
           </ul>
         </div>
@@ -455,11 +455,11 @@ async function save() {
         aria-live="polite"
         data-bundle-checks
       >
-        <p v-for="(e, i) in check.errors" :key="`e${i}`" class="flex items-start gap-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">
+        <p v-for="(e, i) in check.errors" :key="`e${i}`" class="flex items-start gap-2 rounded-xl bg-danger-50 p-3 text-sm text-danger-800">
           <AppIcon name="alert" :size="16" class="mt-0.5 shrink-0" /><span class="min-w-0">{{ e }}</span>
         </p>
-        <p v-for="(w, i) in check.warnings" :key="`w${i}`" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{{ w }}</p>
-        <p v-for="(n, i) in check.info" :key="`i${i}`" class="rounded-xl bg-sky-50 p-3 text-sm text-sky-900">{{ n }}</p>
+        <p v-for="(w, i) in check.warnings" :key="`w${i}`" class="rounded-xl bg-warning-50 p-3 text-sm text-warning-800">{{ w }}</p>
+        <p v-for="(n, i) in check.info" :key="`i${i}`" class="rounded-xl bg-info-50 p-3 text-sm text-info-800">{{ n }}</p>
       </section>
 
       <!-- 5 รูปแบบตกแต่ง (ไม่บังคับ) -->
@@ -503,7 +503,7 @@ async function save() {
 
       <!-- แถบบันทึก (ติดล่าง เหนือเมนูล่างบนมือถือ) -->
       <div class="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-10 flex items-center gap-2 rounded-2xl border border-stone-200 bg-white/95 p-3 shadow-lg backdrop-blur lg:bottom-3">
-        <p class="min-w-0 flex-1 truncate text-sm" :class="blocked ? 'font-medium text-rose-700' : 'text-stone-600'" data-save-status>
+        <p class="min-w-0 flex-1 truncate text-sm" :class="blocked ? 'font-medium text-danger-700' : 'text-stone-600'" data-save-status>
           {{ blocked ? 'ยังบันทึกไม่ได้ · ดูข้อที่ต้องแก้ด้านบน' : hasItems ? `ชุดนี้: ${finalName}` : 'ยังไม่ได้เลือกตัวเลือก' }}
         </p>
         <button type="button" class="btn-outline h-11 shrink-0 px-4" data-cancel @click="cancel">ยกเลิก</button>

@@ -133,7 +133,7 @@ async function save() {
         </template>
       </template>
       <div class="mt-3 flex items-center justify-end gap-3">
-        <span v-if="tableMsg" class="text-sm" :class="tableMsg === 'บันทึกแล้ว' ? 'text-emerald-700' : 'text-rose-700'">{{ tableMsg }}</span>
+        <span v-if="tableMsg" class="text-sm" :class="tableMsg === 'บันทึกแล้ว' ? 'text-success-700' : 'text-danger-700'">{{ tableMsg }}</span>
         <button class="btn-primary" @click="saveTable">บันทึกตาราง</button>
       </div>
     </section>
@@ -153,7 +153,7 @@ async function save() {
         <span class="min-w-0 flex-1">
           <span class="flex items-center gap-2">
             <span class="truncate font-semibold text-stone-900">{{ l.name }}</span>
-            <span v-if="nowIds.includes(l.id)" class="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">ใช้อยู่ตอนนี้</span>
+            <span v-if="nowIds.includes(l.id)" class="shrink-0 rounded-full bg-success-50 px-2 py-0.5 text-xs font-medium text-success-700">ใช้อยู่ตอนนี้</span>
             <span v-else-if="l.active === false" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
           </span>
           <span class="block text-sm text-stone-500">{{ period(l) }}</span>
@@ -163,7 +163,7 @@ async function save() {
 
     <AppModal v-if="open" :title="form.id ? 'แก้ไขราคาพิเศษ' : 'เพิ่มราคาพิเศษ'" wider @close="open = false">
       <div class="space-y-4 dlg-cols">
-        <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" placeholder="เช่น ราคาสมาชิก, โปรวันแม่" /></div>
+        <div><label class="label">ชื่อ <span class="text-danger-700">*</span></label><input v-model="form.name" class="input" placeholder="เช่น ราคาสมาชิก, โปรวันแม่" /></div>
         <AppSwitch v-model="form.scheduled" label="กำหนดช่วงเวลา (นับจากวันที่สร้างออร์เดอร์)" class="flex" />
         <div v-if="form.scheduled" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div><label class="label">วันเริ่ม</label><ThaiDateField v-model="form.from" label="วันเริ่ม" /></div>
@@ -212,7 +212,7 @@ async function save() {
           <p class="mt-1 text-xs text-stone-400">เว้นว่าง = ใช้ราคาปกติ (ตัวเลขจาง)</p>
         </div>
         <p class="text-xs text-stone-400">ถ้ามีหลายแบบใช้งานพร้อมกัน จะใช้ราคาที่ต่ำสุด (แยกทีละช่อง)</p>
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>

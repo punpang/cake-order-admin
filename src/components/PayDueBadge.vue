@@ -10,7 +10,7 @@ const d = computed(() => props.due || (props.order ? orderDue(props.order) : nul
 </script>
 
 <template>
-  <span v-if="d" class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap" :class="d.state === 'overdue' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'">
+  <span v-if="d" class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap" :class="d.state === 'overdue' ? 'bg-danger-100 text-danger-700' : 'bg-warning-100 text-warning-800'">
     <AppIcon name="alert" :size="12" />
     <template v-if="d.state === 'overdue'">เกินกำหนดชำระ</template>
     <template v-else>ชำระก่อน {{ short ? d.text.replace('เหลือ ', '') : dateTime(d.dueAt) }}</template>

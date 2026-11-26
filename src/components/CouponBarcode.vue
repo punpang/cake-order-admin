@@ -48,7 +48,7 @@ const pathD = computed(() => {
       <path :d="pathD" fill="#000" />
       <text :x="width / 2" :y="MARGIN + HEIGHT + TEXT_GAP + FONT" text-anchor="middle" :font-size="FONT" fill="#000" font-family="monospace">{{ value }}</text>
     </svg>
-    <p v-if="failed" class="text-xs text-rose-700" role="alert">แสดงบาร์โค้ดไม่ได้ กรุณาลองใหม่</p>
+    <p v-if="failed" class="text-xs text-danger-700" role="alert">แสดงบาร์โค้ดไม่ได้ กรุณาลองใหม่</p>
     <p class="text-xs text-stone-500">{{ caption }}</p>
   </div>
 </template>

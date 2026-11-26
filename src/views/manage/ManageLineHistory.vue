@@ -55,7 +55,7 @@ onMounted(loadUsers)
 <template>
   <ManageShell narrow guard :toolbar="false" title="ประวัติ LINE" subtitle="ดูอย่างเดียว · บอทตอบอัตโนมัติ ไม่มีการตอบโดยพนักงาน">
     <p v-if="!supabaseEnabled" class="card text-sm text-stone-600">ยังไม่ได้เชื่อมฐานข้อมูล จึงยังไม่มีประวัติให้แสดง</p>
-    <p v-if="err" class="text-sm text-rose-700">{{ err }}</p>
+    <p v-if="err" class="text-sm text-danger-700">{{ err }}</p>
     <div v-if="supabaseEnabled" class="grid gap-3 md:grid-cols-[18rem_1fr]">
       <div class="card space-y-2">
         <h2 class="font-semibold text-stone-900">ผู้ใช้ LINE</h2>

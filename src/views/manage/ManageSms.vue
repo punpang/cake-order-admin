@@ -11,7 +11,7 @@ import AppIcon from '../../components/AppIcon.vue'
 const MAX_TEXT = 350
 // DELIVERED มีเฉพาะในรายการข้อความ (GET /v1/messages) · งานเดี่ยว (GET /v1/sms/{id}) ใช้ SENT + delivered_at แทน
 const STATUS_TH = { QUEUED: 'รอส่ง', SENDING: 'กำลังส่ง', SENT: 'ส่งแล้ว', DELIVERED: 'ถึงผู้รับแล้ว', FAILED: 'ไม่สำเร็จ' }
-const STATUS_CLS = { QUEUED: 'text-stone-500', SENDING: 'text-sky-700', SENT: 'text-emerald-700', DELIVERED: 'text-emerald-700', FAILED: 'text-rose-700' }
+const STATUS_CLS = { QUEUED: 'text-stone-500', SENDING: 'text-info-700', SENT: 'text-success-700', DELIVERED: 'text-success-700', FAILED: 'text-danger-700' }
 // last_error ของงานที่ไม่สำเร็จและจะไม่ลองส่งซ้ำแล้ว (ตามเอกสารเกตเวย์) · ค่าอื่นแสดงตามที่เกตเวย์ส่งมา
 const LAST_ERROR_TH = {
   partial_send: 'บางฉบับถึงระบบวิทยุแล้ว จึงไม่ลองส่งซ้ำ',
@@ -177,10 +177,10 @@ onMounted(() => {
 
 <template>
   <ManageShell narrow guard :toolbar="false" title="SMS Gateway" subtitle="สถานะเกตเวย์ · ส่งทดสอบ · ตรวจสถานะงาน · รายการข้อความ">
-    <p v-if="!canManage" class="rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">เฉพาะผู้มีสิทธิ์จัดการการเชื่อมต่อ</p>
+    <p v-if="!canManage" class="rounded-2xl bg-warning-50 p-3 text-sm text-warning-800">เฉพาะผู้มีสิทธิ์จัดการการเชื่อมต่อ</p>
 
     <template v-else>
-      <div class="mb-3 flex gap-2 rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">
+      <div class="mb-3 flex gap-2 rounded-2xl bg-warning-50 p-3 text-sm text-warning-800">
         <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0" />
         <p>SMS ส่งผ่านแอปบนโทรศัพท์ (ต้องมีรีเลย์/Tunnel ที่เข้าถึง LAN ได้) · "รับงานแล้ว" ยังไม่ได้แปลว่าถึงผู้รับ · ข้อความสูงสุด {{ MAX_TEXT }} ตัวอักษร (5 ฉบับ) · ถ้าฉบับใดล้มเหลว เกตเวย์อาจส่งข้อความทั้งชุดซ้ำ</p>
       </div>
@@ -195,12 +195,12 @@ onMounted(() => {
           <dt class="text-stone-500">ฝั่งเซิร์ฟเวอร์</dt>
           <dd>
             <span v-if="sms.configured === null">…</span>
-            <span v-else-if="sms.configured" class="font-medium text-emerald-700">ตั้งค่า secret ครบ</span>
-            <span v-else class="font-medium text-rose-700">ยังไม่พร้อม</span>
+            <span v-else-if="sms.configured" class="font-medium text-success-700">ตั้งค่า secret ครบ</span>
+            <span v-else class="font-medium text-danger-700">ยังไม่พร้อม</span>
           </dd>
           <dt class="text-stone-500">การทำงานของแอป</dt>
           <dd>
-            <span v-if="sms.gateway" :class="sms.gateway.running ? 'text-emerald-700' : 'text-rose-700'">{{ sms.gateway.running ? 'กำลังทำงาน' : 'หยุดอยู่' }}</span>
+            <span v-if="sms.gateway" :class="sms.gateway.running ? 'text-success-700' : 'text-danger-700'">{{ sms.gateway.running ? 'กำลังทำงาน' : 'หยุดอยู่' }}</span>
             <span v-else class="text-stone-400">-</span>
           </dd>
           <dt class="text-stone-500">ปลายทางที่บันทึกไว้</dt>
@@ -211,10 +211,10 @@ onMounted(() => {
         <div v-if="counts" class="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
           <div class="rounded-xl bg-stone-50 p-2"><div class="text-base font-semibold">{{ counts.queued ?? 0 }}</div>รอส่ง</div>
           <div class="rounded-xl bg-stone-50 p-2"><div class="text-base font-semibold">{{ counts.sending ?? 0 }}</div>กำลังส่ง</div>
-          <div class="rounded-xl bg-emerald-50 p-2"><div class="text-base font-semibold text-emerald-700">{{ counts.sent ?? 0 }}</div>ส่งแล้ว</div>
-          <div class="rounded-xl bg-rose-50 p-2"><div class="text-base font-semibold text-rose-700">{{ counts.failed ?? 0 }}</div>ไม่สำเร็จ</div>
+          <div class="rounded-xl bg-success-50 p-2"><div class="text-base font-semibold text-success-700">{{ counts.sent ?? 0 }}</div>ส่งแล้ว</div>
+          <div class="rounded-xl bg-danger-50 p-2"><div class="text-base font-semibold text-danger-700">{{ counts.failed ?? 0 }}</div>ไม่สำเร็จ</div>
         </div>
-        <p v-if="sms.statusErr" class="mt-2 text-xs text-rose-700">{{ sms.statusErr }}</p>
+        <p v-if="sms.statusErr" class="mt-2 text-xs text-danger-700">{{ sms.statusErr }}</p>
         <p v-else-if="sms.configured === false" class="mt-2 text-xs text-stone-500">ตั้ง secret ที่ Supabase: <code>SMS_API_KEY</code> (สิทธิ์ส่งและลบ)</p>
         <RouterLink to="/admin/settings/integrations" class="mt-1 inline-block py-2.5 text-sm text-brand-700 underline">ไปหน้าการเชื่อมต่อ</RouterLink>
         <p v-if="!hasGateway" class="mt-1 text-xs text-stone-400">ยังไม่ได้บันทึกการเชื่อมในระบบ (ตั้งที่หน้าการเชื่อมต่อ)</p>
@@ -230,7 +230,7 @@ onMounted(() => {
           </div>
           <div>
             <label class="label">ข้อความ ({{ textLen }}/{{ MAX_TEXT }})</label>
-            <textarea v-model="test.text" rows="3" class="input" :class="textLen > MAX_TEXT ? 'border-rose-400' : ''" @input="resetKey"></textarea>
+            <textarea v-model="test.text" rows="3" class="input" :class="textLen > MAX_TEXT ? 'border-danger-700' : ''" @input="resetKey"></textarea>
           </div>
           <div>
             <label class="label">ซิม</label>
@@ -241,7 +241,7 @@ onMounted(() => {
             </select>
           </div>
           <button type="button" class="btn-primary h-10" :disabled="test.busy" @click="sendTest">{{ test.busy ? 'กำลังส่ง…' : 'ส่งทดสอบ' }}</button>
-          <p v-if="test.msg" class="text-sm" :class="test.ok ? 'text-emerald-700' : 'text-rose-700'">{{ test.msg }}</p>
+          <p v-if="test.msg" class="text-sm" :class="test.ok ? 'text-success-700' : 'text-danger-700'">{{ test.msg }}</p>
           <p v-if="test.id" class="text-xs text-stone-500">รหัสงาน <span class="font-mono">{{ test.id }}</span> · คีย์ <span class="font-mono">{{ test.key }}</span></p>
         </div>
       </section>
@@ -253,7 +253,7 @@ onMounted(() => {
           <input v-model="look.id" class="input flex-1 font-mono text-sm" maxlength="64" placeholder="รหัสงาน" />
           <button type="button" class="btn-primary h-10 px-4" :disabled="look.busy" @click="lookupStatus">{{ look.busy ? '…' : 'ตรวจ' }}</button>
         </div>
-        <p v-if="look.msg" class="mt-2 text-sm" :class="look.ok ? 'text-emerald-700' : 'text-rose-700'">{{ look.msg }}</p>
+        <p v-if="look.msg" class="mt-2 text-sm" :class="look.ok ? 'text-success-700' : 'text-danger-700'">{{ look.msg }}</p>
         <dl v-if="look.data" class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
           <template v-for="[k, v] in lookupFields" :key="k">
             <dt class="text-stone-500">{{ k }}</dt>
@@ -270,13 +270,13 @@ onMounted(() => {
             <button v-for="(label, d) in DIRECTIONS" :key="d" type="button" class="h-8 rounded-full px-3 text-xs pointer-coarse:h-10 pointer-coarse:text-sm" :class="list.direction === d ? 'bg-brand-600 text-white' : 'bg-stone-100 text-stone-600'" @click="setDirection(d)">{{ label }}</button>
           </div>
         </div>
-        <p v-if="list.err" class="mt-2 text-sm text-rose-700">{{ list.err }}</p>
+        <p v-if="list.err" class="mt-2 text-sm text-danger-700">{{ list.err }}</p>
         <p v-else-if="!list.items.length && !list.busy" class="mt-2 text-sm text-stone-500">ยังไม่มีรายการ</p>
         <ul v-else class="mt-2 divide-y divide-stone-100 text-sm">
           <li v-for="m in list.items" :key="m.kind + m.id" class="py-2">
             <div class="flex items-center justify-between gap-2">
               <span class="truncate">{{ m.kind === 'in' ? 'รับจาก' : 'ส่งถึง' }} <span class="font-mono">{{ m.peer }}</span></span>
-              <span class="shrink-0 text-xs" :class="m.kind === 'in' ? 'text-sky-700' : STATUS_CLS[m.status] || 'text-stone-500'">
+              <span class="shrink-0 text-xs" :class="m.kind === 'in' ? 'text-info-700' : STATUS_CLS[m.status] || 'text-stone-500'">
                 {{ m.kind === 'in' ? 'ขาเข้า' : STATUS_TH[m.status] || m.status || '-' }}
               </span>
             </div>

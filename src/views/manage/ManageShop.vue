@@ -168,7 +168,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
       <div>
         <div class="label">โหลดข้อมูลลูกค้าเฉพาะที่ใช้ <span class="font-normal text-stone-400">(สำหรับร้านที่มีลูกค้าจำนวนมาก · มีผลเมื่อเข้าสู่ระบบใหม่)</span></div>
         <p class="mb-2 text-xs text-stone-500">ลูกค้าในระบบ {{ customerScale.count ?? '–' }} ราย · แนะนำเปิดเมื่อเกิน {{ CUSTOMER_WARN_AT.toLocaleString() }} ราย หลังทดสอบกับข้อมูลจำนวนมากแล้ว · ปิดอยู่ = โหลดลูกค้าทั้งหมดเหมือนเดิม</p>
-        <p v-if="!serverScheduled" class="mb-2 text-xs text-amber-700">เปิดได้เมื่อให้เซิร์ฟเวอร์ส่งเตือนตามเวลาแล้วเท่านั้น (รอบเตือนวันเกิดในแอปต้องเห็นลูกค้าทุกคน) · ติดต่อผู้ดูแลระบบ</p>
+        <p v-if="!serverScheduled" class="mb-2 text-xs text-warning-700">เปิดได้เมื่อให้เซิร์ฟเวอร์ส่งเตือนตามเวลาแล้วเท่านั้น (รอบเตือนวันเกิดในแอปต้องเห็นลูกค้าทุกคน) · ติดต่อผู้ดูแลระบบ</p>
         <AppSwitch v-model="st.customerLazy" label="เปิดโหมดโหลดเฉพาะที่ใช้" class="flex" />
       </div>
       <div>
@@ -254,7 +254,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
             <button type="button" class="btn-outline h-9 px-3 text-sm" @click="addPayAccount('bank')">+ บัญชีธนาคาร</button>
             <button type="button" class="btn-outline h-9 px-3 text-sm" @click="addPayAccount('promptpay')">+ พร้อมเพย์</button>
           </div>
-          <p v-if="!st.payment.accounts.length" class="text-xs text-amber-700">ยังไม่มีช่องทางรับชำระ ลูกค้าจะเห็นข้อความให้สอบถามร้าน</p>
+          <p v-if="!st.payment.accounts.length" class="text-xs text-warning-700">ยังไม่มีช่องทางรับชำระ ลูกค้าจะเห็นข้อความให้สอบถามร้าน</p>
           <div><label class="label">หมายเหตุให้ลูกค้า</label><input v-model="st.payment.note" class="input" maxlength="200" /></div>
           <p class="text-xs text-stone-500">ลูกค้าจะเห็นเฉพาะบัญชีที่เปิดแสดง · QR พร้อมเพย์สร้างจากพร้อมเพย์ตัวแรกที่เปิดแสดง ตามยอดที่ลูกค้าเลือก</p>
         </div>
@@ -361,12 +361,12 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
             <div><label class="label">สาขา (5 หลัก · สำนักงานใหญ่ 00000)</label><input v-model="st.vat.branch" inputmode="numeric" maxlength="5" class="input" aria-label="สาขาร้าน" /></div>
             <div class="sm:col-span-2"><label class="label">ที่อยู่ผู้ประกอบการ (แสดงบนใบกำกับภาษี)</label><TaxAddressField v-model="st.vat.address" label="ที่อยู่ผู้ประกอบการ" :suggestions="shopAddrChoices" /></div>
           </div>
-          <p class="mt-2 text-xs text-amber-700">ใบเสร็จย่อของระบบนี้ไม่ใช่ใบกำกับภาษี · ออกใบกำกับภาษีเต็มรูปได้ที่หน้ารายละเอียดออร์เดอร์ (ต้องกรอกชื่อ ที่อยู่ เลขผู้เสียภาษีและสาขาของร้านให้ครบ) · ควรให้นักบัญชีตรวจก่อนใช้จริง</p>
+          <p class="mt-2 text-xs text-warning-700">ใบเสร็จย่อของระบบนี้ไม่ใช่ใบกำกับภาษี · ออกใบกำกับภาษีเต็มรูปได้ที่หน้ารายละเอียดออร์เดอร์ (ต้องกรอกชื่อ ที่อยู่ เลขผู้เสียภาษีและสาขาของร้านให้ครบ) · ควรให้นักบัญชีตรวจก่อนใช้จริง</p>
         </template>
       </div>
       <!-- แถบบันทึกติดขอบล่าง: หน้านี้ยาว ไม่ต้องเลื่อนถึงท้ายเพื่อบันทึก -->
       <div class="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-10 rounded-2xl border border-stone-200 bg-white/95 p-2 shadow-lg backdrop-blur lg:bottom-3">
-        <p v-if="error" class="mb-2 px-1 text-sm font-medium text-rose-700" role="alert">{{ error }}</p>
+        <p v-if="error" class="mb-2 px-1 text-sm font-medium text-danger-700" role="alert">{{ error }}</p>
         <button class="btn-primary w-full" @click="save"><AppIcon name="check" :size="18" /> {{ saved ? 'บันทึกแล้ว' : 'บันทึก' }}</button>
       </div>
       <p class="text-xs text-stone-500">ตัวอย่างพรุ่งนี้: {{ pickupSlots(tomorrow).join(', ') }}</p>
@@ -402,7 +402,7 @@ const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); retu
         <AppSwitch v-model="sq.ocr.claude" label="3) Claude (ระบบเดิม) · อ่านยอดและวัน-เวลา" class="flex" />
         <p class="text-xs text-stone-500">ระบบอ่าน QR ก่อนทุกครั้ง ถ้าเป็นสลิปจึงส่งต่อตามลำดับ 2 → 3 เฉพาะตัวที่เปิดไว้และตั้งค่าที่เซิร์ฟเวอร์ครบ ถ้าตัวแรกอ่านไม่ได้จะลองตัวถัดไป · ส่งเฉพาะรูปสลิปไปยังผู้ให้บริการที่เปิดไว้</p>
       </div>
-      <p v-if="slipErr" class="text-sm text-rose-700">{{ slipErr }}</p>
+      <p v-if="slipErr" class="text-sm text-danger-700">{{ slipErr }}</p>
       <button class="btn-outline w-full" @click="saveSlip"><AppIcon name="check" :size="18" /> {{ slipSaved ? 'บันทึกแล้ว' : 'บันทึกการตั้งค่าสลิป' }}</button>
     </section>
   </ManageShell>

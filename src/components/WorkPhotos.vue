@@ -63,24 +63,24 @@ const prodName = computed(() => db.retailItems.find((r) => r.id === props.item.r
 <template>
   <section v-if="show" class="mt-2 rounded-2xl border border-stone-200 bg-white p-3 text-sm" :aria-label="`รูปงานเสร็จ ${item.name}`">
     <div class="mb-1.5 flex items-center gap-1.5 font-semibold text-stone-800"><AppIcon name="image" :size="15" class="text-brand-600" /> รูปงานเสร็จ <span class="text-xs font-normal text-stone-400">· {{ item.name }}</span></div>
-    <p v-if="status === 'requested'" class="mb-2 rounded-xl bg-amber-50 p-2.5 text-xs text-amber-800">ลูกค้าขอไม่ให้ใช้รูปเผยแพร่ (รอตรวจสอบที่หน้า "คำขอไม่เผยแพร่รูป") · รูปถูกซ่อนจากเว็บชั่วคราว อัปโหลด/เผยแพร่เพิ่มไม่ได้</p>
-    <p v-else-if="status === 'revoked'" class="mb-2 rounded-xl bg-rose-50 p-2.5 text-xs text-rose-700">ลูกค้าไม่อนุญาตให้ใช้รูปในออร์เดอร์นี้ (ลบรูปแล้ว) อัปโหลดรูปใหม่ไม่ได้ <button v-if="can('manage')" class="ml-1 underline" @click="allowPhotosAgain(order.id)">อนุญาตให้ใช้รูปได้อีก (ลูกค้าแจ้งเปลี่ยนใจ)</button></p>
+    <p v-if="status === 'requested'" class="mb-2 rounded-xl bg-warning-50 p-2.5 text-xs text-warning-800">ลูกค้าขอไม่ให้ใช้รูปเผยแพร่ (รอตรวจสอบที่หน้า "คำขอไม่เผยแพร่รูป") · รูปถูกซ่อนจากเว็บชั่วคราว อัปโหลด/เผยแพร่เพิ่มไม่ได้</p>
+    <p v-else-if="status === 'revoked'" class="mb-2 rounded-xl bg-danger-50 p-2.5 text-xs text-danger-700">ลูกค้าไม่อนุญาตให้ใช้รูปในออร์เดอร์นี้ (ลบรูปแล้ว) อัปโหลดรูปใหม่ไม่ได้ <button v-if="can('manage')" class="ml-1 underline" @click="allowPhotosAgain(order.id)">อนุญาตให้ใช้รูปได้อีก (ลูกค้าแจ้งเปลี่ยนใจ)</button></p>
     <div v-if="photos.length" class="grid grid-cols-2 gap-2 sm:grid-cols-3">
       <div v-for="p in photos" :key="p.id" class="overflow-hidden rounded-xl border border-stone-200">
         <SecureImg :src="p.image" alt="รูปงานเสร็จ" link class="aspect-square w-full object-cover" img-class="aspect-square w-full object-cover" />
         <div class="space-y-1 p-2">
           <label v-if="can('manage') && status === 'ok'" class="flex items-center gap-1.5 text-xs text-stone-700"><input type="checkbox" class="h-4 w-4" :checked="p.publish" :aria-label="`ใช้เป็นรูปตัวอย่างบนเว็บ`" @change="togglePublish(p)" /> ใช้เป็นรูปตัวอย่างบนเว็บ</label>
-          <p v-else-if="p.publish" class="text-xs text-emerald-700">เผยแพร่บนเว็บ{{ status === 'requested' ? ' (ซ่อนชั่วคราว)' : '' }}</p>
-          <button v-if="can('workPhoto')" type="button" class="text-xs text-rose-700 underline lg:py-1.5" @click="del(p)">ลบรูป</button>
+          <p v-else-if="p.publish" class="text-xs text-success-700">เผยแพร่บนเว็บ{{ status === 'requested' ? ' (ซ่อนชั่วคราว)' : '' }}</p>
+          <button v-if="can('workPhoto')" type="button" class="text-xs text-danger-700 underline lg:py-1.5" @click="del(p)">ลบรูป</button>
         </div>
       </div>
     </div>
     <div v-if="canEdit" class="mt-2 space-y-2">
       <ImageUploader v-model="staged" :max="10" label="เลือกรูปงานเสร็จ" />
-      <p v-if="err" class="text-xs text-rose-700" role="alert">{{ err }}</p>
+      <p v-if="err" class="text-xs text-danger-700" role="alert">{{ err }}</p>
       <button v-if="staged.length" type="button" class="btn-primary w-full" @click="save">บันทึก {{ staged.length }} รูป · ส่งให้ลูกค้าดู</button>
     </div>
-    <p v-else-if="err" class="mt-1 text-xs text-rose-700" role="alert">{{ err }}</p>
+    <p v-else-if="err" class="mt-1 text-xs text-danger-700" role="alert">{{ err }}</p>
 
     <AppModal v-if="pub.open" :title="isRetail ? 'ใช้เป็นรูปสินค้าบนเว็บ' : 'ใช้เป็นรูปตัวอย่างบนเว็บ (ติดแท็ก)'" @close="pub.open = false">
       <div class="space-y-3">
@@ -91,7 +91,7 @@ const prodName = computed(() => db.retailItems.find((r) => r.id === props.item.r
           <div v-for="g in groups" :key="g.id"><div class="mb-1 text-xs font-semibold text-stone-600">{{ g.name }}</div><div class="flex flex-wrap gap-1.5"><button v-for="o in g.options.filter((x) => x.active !== false)" :key="o.id" type="button" class="chip" :class="pub.tags.includes(o.id) ? 'chip-on' : 'chip-off'" :aria-pressed="pub.tags.includes(o.id)" @click="toggleTag(o.id)">{{ o.name }}</button></div></div>
           <div><label class="label">คำอธิบายรูป (ไม่บังคับ)</label><input v-model="pub.caption" class="input" maxlength="120" aria-label="คำอธิบายรูปเผยแพร่" /></div>
         </template>
-        <p v-if="pub.error" class="text-sm text-rose-700" role="alert">{{ pub.error }}</p>
+        <p v-if="pub.error" class="text-sm text-danger-700" role="alert">{{ pub.error }}</p>
       </div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="pub.open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="doPublish">เผยแพร่บนเว็บ</button></template>
     </AppModal>

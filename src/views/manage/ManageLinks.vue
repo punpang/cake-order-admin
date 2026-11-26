@@ -67,8 +67,8 @@ const shownOrderLinks = computed(() => orderLinks.value.slice().reverse().slice(
         <textarea v-model="pol.allow" rows="4" class="input font-mono text-xs" />
         <p class="mt-1 text-xs text-stone-400">ตรงชื่อโฮสต์เป๊ะเท่านั้น (ซับโดเมนต้องใส่แยก)</p>
       </div>
-      <p v-if="err" class="text-sm text-rose-700">{{ err }}</p>
-      <p v-if="msg" class="text-sm text-emerald-700">{{ msg }}</p>
+      <p v-if="err" class="text-sm text-danger-700">{{ err }}</p>
+      <p v-if="msg" class="text-sm text-success-700">{{ msg }}</p>
       <button class="btn-primary" @click="saveSettings">บันทึกนโยบาย</button>
     </section>
 
@@ -90,7 +90,7 @@ const shownOrderLinks = computed(() => orderLinks.value.slice().reverse().slice(
           <div class="mt-1.5 flex gap-2">
             <button class="btn-outline h-8 px-3 text-xs" @click="copy(l)">{{ copied === l.id ? 'คัดลอกแล้ว' : 'คัดลอกลิงก์' }}</button>
             <button class="btn-outline h-8 px-3 text-xs" @click="openForm(l)">แก้ไข</button>
-            <button class="btn-outline h-8 px-3 text-xs text-rose-700" @click="del(l)">ลบ</button>
+            <button class="btn-outline h-8 px-3 text-xs text-danger-700" @click="del(l)">ลบ</button>
           </div>
         </li>
       </ul>
@@ -111,12 +111,12 @@ const shownOrderLinks = computed(() => orderLinks.value.slice().reverse().slice(
 
     <AppModal v-if="form" :title="form.id ? 'แก้ลิงก์ย่อ' : 'สร้างลิงก์ย่อ'" @close="form = null">
       <div class="space-y-3">
-        <div><label class="label">ปลายทาง <span class="text-rose-600">*</span></label><input v-model="form.target" class="input" placeholder="/menu หรือ https://lin.ee/xxxx" maxlength="2000" /></div>
+        <div><label class="label">ปลายทาง <span class="text-danger-700">*</span></label><input v-model="form.target" class="input" placeholder="/menu หรือ https://lin.ee/xxxx" maxlength="2000" /></div>
         <div><label class="label">รหัสลิงก์ (เว้นว่าง = สุ่ม)</label><input v-model="form.code" class="input font-mono" maxlength="10" placeholder="เช่น promo" /></div>
         <div><label class="label">หมายเหตุ</label><input v-model="form.note" class="input" maxlength="120" /></div>
         <div><label class="label">หมดอายุ (เว้นว่าง = ไม่หมด)</label><ThaiDateField v-model="form.expiresAt" label="วันหมดอายุ" /></div>
         <AppSwitch v-model="form.active" label="เปิดใช้งาน" />
-        <p v-if="ferr" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ ferr }}</p>
+        <p v-if="ferr" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ ferr }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="form = null">ปิด</button>

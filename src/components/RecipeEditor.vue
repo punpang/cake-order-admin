@@ -38,7 +38,7 @@ async function remove(i) {
               <option value="" disabled>เลือกวัตถุดิบ</option>
               <option v-for="m in choices" :key="m.id" :value="m.id">{{ m.name }}{{ m.active === false ? ' (ปิดใช้งาน)' : '' }}</option>
             </select>
-            <button type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-stone-400 hover:bg-rose-50 hover:text-rose-700" aria-label="ลบบรรทัด" @click="remove(i)">
+            <button type="button" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-stone-400 hover:bg-danger-50 hover:text-danger-700" aria-label="ลบบรรทัด" @click="remove(i)">
               <AppIcon name="trash" :size="18" />
             </button>
           </div>
@@ -63,7 +63,7 @@ async function remove(i) {
       <div v-if="recipe.length" class="mt-2 rounded-xl bg-stone-50 p-2.5 text-sm text-stone-700">
         ต้นทุน {{ money(cost.perPound) }}/ปอนด์ + {{ money(cost.perPiece) }}/ชิ้น
         <template v-if="pounds"> = <b>{{ money(total) }}</b> ({{ pounds }} ปอนด์)</template>
-        <template v-if="pounds && price != null"> · กำไร <b :class="price - total >= 0 ? 'text-emerald-700' : 'text-rose-700'">{{ money(price - total) }}</b></template>
+        <template v-if="pounds && price != null"> · กำไร <b :class="price - total >= 0 ? 'text-success-700' : 'text-danger-700'">{{ money(price - total) }}</b></template>
       </div>
     </template>
   </div>

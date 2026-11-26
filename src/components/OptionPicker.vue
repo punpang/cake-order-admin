@@ -90,11 +90,11 @@ const isOn = (g, o) =>
       v-for="g in groups.filter((x) => (x.key !== 'style' || x.options.some((o) => o.active !== false)) && (!allow || allow(x, null)))"
       :key="g.id"
       class="rounded-2xl border bg-white"
-      :class="[compact ? 'p-2.5' : 'p-3.5', errors[g.id] ? 'border-rose-300 ring-4 ring-rose-50' : 'border-stone-200/70']"
+      :class="[compact ? 'p-2.5' : 'p-3.5', errors[g.id] ? 'border-danger-200 ring-4 ring-danger-50' : 'border-stone-200/70']"
     >
       <div class="flex flex-wrap items-baseline gap-x-2" :class="compact ? 'mb-1.5' : 'mb-2.5'">
         <span class="text-sm font-semibold text-stone-800">{{ g.name }}</span>
-        <span v-if="g.required" class="text-xs font-medium text-rose-700">จำเป็น</span>
+        <span v-if="g.required" class="text-xs font-medium text-danger-700">จำเป็น</span>
         <span v-else-if="g.type === 'multi'" class="text-xs text-stone-400">เลือกได้หลายอย่าง</span>
       </div>
       <p v-if="invalid.includes(g.id)" class="mb-2.5 rounded-xl bg-red-50 p-2.5 text-sm font-medium text-red-700" role="alert">{{ g.name }}ที่เลือกไว้ไม่เข้ากับตัวเลือกที่เลือกอยู่ กรุณาเลือกใหม่</p>
@@ -112,7 +112,7 @@ const isOn = (g, o) =>
           :key="o.id"
           type="button"
           class="relative inline-flex max-w-full gap-1.5 rounded-xl border text-left transition active:scale-[0.98]"
-          :class="[compact ? 'min-h-9 px-2.5 py-1 text-[0.8125rem]' : 'min-h-11 px-3 py-2 text-sm', isOn(g, o) ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : (tagOf(g, o) ? (tagOf(g, o).state === 'partner' ? 'border-amber-500 bg-amber-50 text-stone-800 ring-2 ring-amber-300 motion-safe:animate-pulse' : 'border-dashed border-amber-500 bg-amber-50/40 text-stone-800') : 'border-stone-200 bg-white text-stone-700 hover:border-brand-300'), tagOf(g, o) ? 'flex-col items-start' : 'items-center']"
+          :class="[compact ? 'min-h-9 px-2.5 py-1 text-[0.8125rem]' : 'min-h-11 px-3 py-2 text-sm', isOn(g, o) ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : (tagOf(g, o) ? (tagOf(g, o).state === 'partner' ? 'border-warning-700 bg-warning-50 text-stone-800 ring-2 ring-warning-200 motion-safe:animate-pulse' : 'border-dashed border-warning-700 bg-warning-50/40 text-stone-800') : 'border-stone-200 bg-white text-stone-700 hover:border-brand-300'), tagOf(g, o) ? 'flex-col items-start' : 'items-center']"
           :title="tagOf(g, o) ? `${tagOf(g, o).single ? 'ลดเพิ่ม' : 'บันเดิ้ล'}: ${tagOf(g, o).names.join(', ')}` : null"
           :data-bundle-tag="tagOf(g, o)?.state || null"
           :disabled="isLocked(g, o)"
@@ -120,17 +120,17 @@ const isOn = (g, o) =>
           :data-locked="isLocked(g, o) || null"
           @click="g.type === 'multi' ? toggle(g.id, o.id) : pick(g.id, o.id, g.required)"
         >
-          <span v-if="tagOf(g, o)" class="pointer-events-none max-w-full rounded-full px-2 py-0.5 text-xs leading-tight font-bold shadow-sm" :class="tagOf(g, o).state === 'done' ? 'bg-emerald-700 text-white' : 'bg-amber-600 text-white'">{{ tagText(tagOf(g, o)) }}</span>
+          <span v-if="tagOf(g, o)" class="pointer-events-none max-w-full rounded-full px-2 py-0.5 text-xs leading-tight font-bold shadow-sm" :class="tagOf(g, o).state === 'done' ? 'bg-success-700 text-white' : 'bg-warning-700 text-white'">{{ tagText(tagOf(g, o)) }}</span>
           <span class="inline-flex min-w-0 items-center gap-1.5">
             <AppIcon v-if="isOn(g, o)" name="check" :size="14" class="text-brand-600" />
             <span class="min-w-0 break-words">{{ o.name }}</span>
             <span v-if="regularText(g, o)" class="text-xs whitespace-nowrap text-stone-400 line-through">{{ regularText(g, o) }}</span>
-            <span v-if="priceText(g, o)" class="text-xs whitespace-nowrap" :class="regularText(g, o) ? 'font-medium text-rose-700' : 'text-stone-500'">{{ priceText(g, o) }}</span>
+            <span v-if="priceText(g, o)" class="text-xs whitespace-nowrap" :class="regularText(g, o) ? 'font-medium text-danger-700' : 'text-stone-500'">{{ priceText(g, o) }}</span>
             <span v-if="isLocked(g, o)" class="rounded-full bg-brand-600 px-1.5 py-0.5 text-xs font-bold text-white">บังคับ</span>
           </span>
         </button>
       </div>
-      <p v-if="errors[g.id]" class="mt-2 text-sm text-rose-700">{{ errors[g.id] }}</p>
+      <p v-if="errors[g.id]" class="mt-2 text-sm text-danger-700">{{ errors[g.id] }}</p>
     </div>
   </div>
 </template>

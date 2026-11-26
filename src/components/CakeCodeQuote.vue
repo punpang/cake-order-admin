@@ -51,7 +51,7 @@ function addToOrder() {
       <button type="button" class="btn-soft self-start" :disabled="!text.trim()" @click="evaluate">ประเมิน</button>
     </div>
 
-    <p v-if="result?.error" class="text-sm text-rose-700" role="alert">{{ result.error }}</p>
+    <p v-if="result?.error" class="text-sm text-danger-700" role="alert">{{ result.error }}</p>
 
     <template v-else-if="result?.item">
       <div class="rounded-xl bg-stone-50 p-3">
@@ -72,8 +72,8 @@ function addToOrder() {
         <p v-if="result.item.note" class="mt-2 text-sm text-stone-600">หมายเหตุ: {{ result.item.note }}</p>
       </div>
 
-      <p v-for="(w, i) in result.warnings" :key="i" class="text-sm text-amber-700">⚠ {{ w.text }}</p>
-      <p v-if="result.extra" class="text-sm text-amber-700">⚠ พบมากกว่า 1 รหัส ประเมินเฉพาะรหัสแรก</p>
+      <p v-for="(w, i) in result.warnings" :key="i" class="text-sm text-warning-700">⚠ {{ w.text }}</p>
+      <p v-if="result.extra" class="text-sm text-warning-700">⚠ พบมากกว่า 1 รหัส ประเมินเฉพาะรหัสแรก</p>
 
       <div class="flex flex-wrap justify-end gap-2">
         <button type="button" class="btn-outline" @click="clear">ล้าง</button>

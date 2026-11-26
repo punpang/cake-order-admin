@@ -54,10 +54,10 @@ function csv() {
 
 <template>
   <div class="space-y-3">
-    <p class="rounded-xl bg-amber-50 p-3 text-xs text-amber-800">ตัวช่วยคำนวณ ไม่ยื่นแทน — อัตราภาษี เพดาน และเงื่อนไขเป็นค่าตั้งต้นที่แก้ได้ต่อปีภาษี ตรวจกับนักบัญชี/กรมสรรพากรก่อนยื่นจริง ({{ juristic ? 'นิติบุคคล: ภ.ง.ด.50 / 51' : 'บุคคลธรรมดา 40(8): ภ.ง.ด.90 / 94' }} — เปลี่ยนประเภทที่แท็บ ปิดงวด/ตั้งค่า)</p>
+    <p class="rounded-xl bg-warning-50 p-3 text-xs text-warning-800">ตัวช่วยคำนวณ ไม่ยื่นแทน — อัตราภาษี เพดาน และเงื่อนไขเป็นค่าตั้งต้นที่แก้ได้ต่อปีภาษี ตรวจกับนักบัญชี/กรมสรรพากรก่อนยื่นจริง ({{ juristic ? 'นิติบุคคล: ภ.ง.ด.50 / 51' : 'บุคคลธรรมดา 40(8): ภ.ง.ด.90 / 94' }} — เปลี่ยนประเภทที่แท็บ ปิดงวด/ตั้งค่า)</p>
     <div class="grid grid-cols-2 gap-2"><div><label class="label">ปีบัญชี (ค.ศ.)</label><input v-model="year" type="number" class="input h-10" aria-label="ปีภาษี" @change="load(); tick++" /></div><div class="self-end text-sm text-stone-600">{{ dateOnly(r.fy.from) }} – {{ dateOnly(r.fy.to) }}</div></div>
-    <p v-if="err" class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700" role="alert">{{ err }}</p>
-    <p v-if="msg" class="text-sm text-emerald-700" role="status">{{ msg }}</p>
+    <p v-if="err" class="rounded-xl bg-danger-50 p-3 text-sm text-danger-700" role="alert">{{ err }}</p>
+    <p v-if="msg" class="text-sm text-success-700" role="status">{{ msg }}</p>
     <div v-if="locked" class="rounded-xl bg-indigo-50 p-3 text-sm text-indigo-800"><AppIcon name="lock" :size="14" class="mr-1 inline" /> ยื่นแล้ว {{ dateOnly(r.filing.filedAt) }}<template v-if="r.filing.ref"> · {{ r.filing.ref }}</template> · ล็อกการแก้ไข</div>
 
     <div class="flex gap-2"><button class="btn-soft" @click="csv"><AppIcon name="list" :size="16" /> CSV</button><button class="btn-soft" @click="printer?.print()"><AppIcon name="printer" :size="16" /> พิมพ์ A4</button><button v-if="can('acctSettings')" class="btn-soft" @click="openTable">ตารางอัตรา</button></div>
@@ -67,14 +67,14 @@ function csv() {
       <section v-if="juristic" class="card text-sm" aria-label="ภาษีเงินได้นิติบุคคล">
         <div class="card-title">ภาษีเงินได้นิติบุคคล {{ r.fy.label }}</div>
         <div class="flex justify-between py-0.5"><span>กำไร (ขาดทุน) สุทธิทางบัญชี</span><b>{{ money(r.calc.accountingProfit) }}</b></div>
-        <div v-for="(a, i) in r.adjustments" :key="i" class="flex justify-between gap-2 py-0.5 pl-3 text-xs" :class="a.amount >= 0 ? 'text-stone-700' : 'text-emerald-700'"><span class="min-w-0 break-words">{{ a.label }}<button v-if="!a.auto && !locked && canTax" class="ml-1 text-rose-700 underline print:hidden" @click="delAdj(i - r.adjustments.filter((x) => x.auto).length)">ลบ</button></span><span class="shrink-0">{{ money(a.amount) }}</span></div>
+        <div v-for="(a, i) in r.adjustments" :key="i" class="flex justify-between gap-2 py-0.5 pl-3 text-xs" :class="a.amount >= 0 ? 'text-stone-700' : 'text-success-700'"><span class="min-w-0 break-words">{{ a.label }}<button v-if="!a.auto && !locked && canTax" class="ml-1 text-danger-700 underline print:hidden" @click="delAdj(i - r.adjustments.filter((x) => x.auto).length)">ลบ</button></span><span class="shrink-0">{{ money(a.amount) }}</span></div>
         <div class="flex justify-between border-t border-stone-100 py-0.5"><span>กำไรทางภาษีก่อนหักขาดทุนสะสม</span><span>{{ money(r.calc.profitBeforeLoss) }}</span></div>
         <div class="flex justify-between py-0.5"><span>หัก ขาดทุนสะสมยกมา (ไม่เกิน {{ r.table.lossYears }} ปี)</span><span>{{ money(r.calc.lossUsed) }}</span></div>
         <div class="flex justify-between border-t border-stone-100 py-0.5 font-semibold"><span>กำไรสุทธิทางภาษี</span><span aria-label="กำไรสุทธิทางภาษี">{{ money(r.calc.taxableProfit) }}</span></div>
         <div class="flex justify-between py-0.5"><span>อัตรา: {{ r.calc.sme ? 'SME ขั้นบันได' : `${r.table.corporateRate}%` }} <span class="text-xs text-stone-400">(ทุนชำระ {{ money(r.capital) }} · รายได้ {{ money(r.revenue) }})</span></span><b aria-label="ภาษีเงินได้">{{ money(r.calc.tax) }}</b></div>
         <div class="flex justify-between py-0.5"><span>หัก ภาษีที่ชำระครึ่งปี (ภ.ง.ด.51)</span><span>{{ money(r.calc.prepaid) }}</span></div>
         <div class="flex justify-between py-0.5"><span>หัก ภาษีหัก ณ ที่จ่ายที่ถูกหัก</span><span>{{ money(r.calc.wht) }}</span></div>
-        <div class="flex justify-between border-t border-stone-200 py-1 text-base font-bold" :class="r.calc.refund ? 'text-emerald-700' : ''"><span>{{ r.calc.refund ? 'ภาษีที่ชำระเกิน (ขอคืน/เครดิต)' : 'ภาษีที่ต้องชำระ' }}</span><span aria-label="ภาษีที่ต้องชำระ">{{ money(r.calc.refund || r.calc.payable) }}</span></div>
+        <div class="flex justify-between border-t border-stone-200 py-1 text-base font-bold" :class="r.calc.refund ? 'text-success-700' : ''"><span>{{ r.calc.refund ? 'ภาษีที่ชำระเกิน (ขอคืน/เครดิต)' : 'ภาษีที่ต้องชำระ' }}</span><span aria-label="ภาษีที่ต้องชำระ">{{ money(r.calc.refund || r.calc.payable) }}</span></div>
         <p v-if="r.calc.lossCarryNew" class="text-xs text-stone-500">ขาดทุนทางภาษีปีนี้ยกไป {{ money(r.calc.lossCarryNew) }}</p>
         <div class="mt-3 rounded-xl bg-stone-50 p-2" aria-label="ภ.ง.ด.51"><div class="font-semibold text-stone-800">ภ.ง.ด.51 (ประมาณการครึ่งปี)</div>
           <div class="flex justify-between py-0.5"><span>กำไรครึ่งปีแรก</span><span>{{ money(r.halfProfit) }}</span></div>
@@ -94,11 +94,11 @@ function csv() {
         <div class="flex justify-between py-0.5 font-semibold"><span>ภาษีที่ต้องเสีย {{ r.calc.minApplied ? '(ใช้ภาษีขั้นต่ำ)' : '' }}</span><span aria-label="ภาษีที่ต้องเสีย">{{ money(r.calc.tax) }}</span></div>
         <div class="flex justify-between py-0.5"><span>หัก ภาษีที่ชำระครึ่งปี (ภ.ง.ด.94)</span><span>{{ money(r.calc.prepaid) }}</span></div>
         <div class="flex justify-between py-0.5"><span>หัก ภาษีหัก ณ ที่จ่าย</span><span>{{ money(r.calc.wht) }}</span></div>
-        <div class="flex justify-between border-t border-stone-200 py-1 text-base font-bold" :class="r.calc.refund ? 'text-emerald-700' : ''"><span>{{ r.calc.refund ? 'ภาษีที่ชำระเกิน (ขอคืน)' : 'ภาษีที่ต้องชำระ' }}</span><span aria-label="ภาษีที่ต้องชำระ">{{ money(r.calc.refund || r.calc.payable) }}</span></div>
+        <div class="flex justify-between border-t border-stone-200 py-1 text-base font-bold" :class="r.calc.refund ? 'text-success-700' : ''"><span>{{ r.calc.refund ? 'ภาษีที่ชำระเกิน (ขอคืน)' : 'ภาษีที่ต้องชำระ' }}</span><span aria-label="ภาษีที่ต้องชำระ">{{ money(r.calc.refund || r.calc.payable) }}</span></div>
         <div class="mt-3 rounded-xl bg-stone-50 p-2" aria-label="เทียบวิธีหักค่าใช้จ่าย"><div class="font-semibold text-stone-800">เทียบวิธีหักค่าใช้จ่าย</div>
           <div class="flex justify-between py-0.5"><span>ตามจริง (ค่าใช้จ่ายจากบัญชี {{ money(r.actualExpense) }})</span><span>ภาษี {{ money(r.compare.actual.tax) }}</span></div>
           <div class="flex justify-between py-0.5"><span>เหมา {{ r.table.lumpPct }}%</span><span>ภาษี {{ money(r.compare.lump.tax) }}</span></div>
-          <p class="text-xs text-emerald-700">เสียภาษีน้อยกว่า: {{ r.compare.better === 'lump' ? 'หักเหมา' : 'หักตามจริง' }}</p></div>
+          <p class="text-xs text-success-700">เสียภาษีน้อยกว่า: {{ r.compare.better === 'lump' ? 'หักเหมา' : 'หักตามจริง' }}</p></div>
         <div class="mt-2 rounded-xl bg-stone-50 p-2" aria-label="ภ.ง.ด.94"><div class="font-semibold text-stone-800">ภ.ง.ด.94 (ตัวช่วยประมาณการ)</div>
           <p class="text-xs text-stone-500">ปรับรายได้/ค่าใช้จ่ายครึ่งปีแรกเป็นทั้งปี คำนวณภาษีทั้งปี ชำระครึ่งหนึ่ง — วิธีนี้เป็นการประมาณ ตรวจกับนักบัญชี</p>
           <div class="flex justify-between py-0.5"><span>ภาษีทั้งปีโดยประมาณ / ชำระครึ่งหนึ่ง</span><span>{{ money(r.pnd94.annualEstimate.tax) }} / {{ money(r.pnd94.halfTax) }}</span></div></div>
@@ -152,7 +152,7 @@ function csv() {
             <div v-for="(b, i) in tbl.t[g[0]]" :key="i" class="mt-1 grid grid-cols-2 gap-2"><MoneyInput v-if="b.upTo !== null" v-model="b.upTo" class="input h-9" :aria-label="`${g[0]} ขั้นที่ ${i + 1} ถึง`" /><div v-else class="flex h-9 items-center text-stone-500">ส่วนที่เกิน</div><MoneyInput v-model="b.rate" class="input h-9" :aria-label="`${g[0]} ขั้นที่ ${i + 1} อัตรา %`" /></div>
           </div>
           <div class="grid grid-cols-2 gap-2"><div v-for="k in [['corporateRate', 'อัตรานิติบุคคลทั่วไป %'], ['smeMaxCapital', 'SME ทุนไม่เกิน'], ['smeMaxRevenue', 'SME รายได้ไม่เกิน'], ['minTaxPct', 'ภาษีขั้นต่ำ %'], ['minTaxThreshold', 'ขั้นต่ำเมื่อเงินได้เกิน'], ['lumpPct', 'หักเหมา %'], ['entertainmentPct', 'เพดานค่ารับรอง %'], ['entertainmentMax', 'เพดานค่ารับรองสูงสุด']]" :key="k[0]"><label class="label">{{ k[1] }}</label><MoneyInput v-model="tbl.t[k[0]]" class="input h-9" :aria-label="k[1]" /></div></div>
-          <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
+          <p v-if="err" class="text-sm text-danger-700" role="alert">{{ err }}</p>
         </div>
         <div class="flex shrink-0 gap-2 border-t border-stone-100 px-5 py-3"><button class="btn-outline flex-1" @click="tbl.open = false; err = ''">ยกเลิก</button><button class="btn-primary flex-1" @click="saveTable">บันทึกตาราง</button></div>
       </div>

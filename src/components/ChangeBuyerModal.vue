@@ -58,9 +58,9 @@ async function confirm() {
           <span class="min-w-0"><span class="block truncate font-semibold text-brand-900">{{ picked.name }}</span><span class="block text-xs text-brand-800">{{ formatPhone(picked.phone) }}</span></span>
           <button type="button" class="text-xs text-stone-500 underline" @click="picked = null">เปลี่ยนคน</button>
         </div>
-        <p v-if="pv?.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ pv.error }}</p>
+        <p v-if="pv?.error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ pv.error }}</p>
         <template v-else-if="pv">
-          <div v-if="pv.removedAmount" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
+          <div v-if="pv.removedAmount" class="rounded-xl bg-warning-50 p-3 text-sm text-warning-800">
             <b>ส่วนลดที่ใช้ในออร์เดอร์นี้จะถูกนำออก</b> และคืนให้ผู้ซื้อเดิม:
             <ul class="mt-1 list-disc pl-5">
               <li v-if="pv.removedPoints">คะแนน {{ pv.removedPoints }} คะแนน</li>
@@ -71,7 +71,7 @@ async function confirm() {
           <div v-if="pv.transfer" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-700">ส่งมอบแล้ว: โอนคะแนนที่ได้จากออร์เดอร์นี้ <b>{{ pv.transfer.points }}</b> คะแนน<template v-if="pv.transfer.spins"> + สิทธิ์หมุน {{ pv.transfer.spins }} ครั้ง</template> ไปให้ผู้ซื้อใหม่ (ผู้ซื้อเดิมถูกหักเท่าที่เหลืออยู่)</div>
           <div><label class="label">เหตุผล (ไม่บังคับ)</label><input v-model="reason" class="input" maxlength="120" placeholder="เช่น สั่งแทนบริษัท" /></div>
         </template>
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </template>
     </div>
     <template #footer>

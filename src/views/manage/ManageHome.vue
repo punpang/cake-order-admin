@@ -61,10 +61,10 @@ const todo = computed(() => items.value.filter((x) => x.badge))
       <input v-model="q" type="search" class="input bg-white pl-10" placeholder="ค้นหาการตั้งค่า เช่น พร้อมเพย์ บอท สิทธิ์" />
     </label>
 
-    <section v-if="todo.length && !q.trim()" class="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-3" aria-label="งานที่รอตรวจ">
-      <h2 class="mb-2 flex items-center gap-1.5 text-sm font-semibold text-amber-900"><AppIcon name="alert" :size="16" /> รอให้ตรวจ</h2>
+    <section v-if="todo.length && !q.trim()" class="mb-5 rounded-2xl border border-warning-200 bg-warning-50 p-3" aria-label="งานที่รอตรวจ">
+      <h2 class="mb-2 flex items-center gap-1.5 text-sm font-semibold text-warning-800"><AppIcon name="alert" :size="16" /> รอให้ตรวจ</h2>
       <div class="flex flex-wrap gap-2">
-        <RouterLink v-for="it in todo" :key="it.to" :to="it.to" class="inline-flex min-h-9 items-center gap-2 rounded-full bg-white px-3 text-sm font-medium text-stone-800 shadow-sm ring-1 ring-amber-200 hover:bg-amber-100">
+        <RouterLink v-for="it in todo" :key="it.to" :to="it.to" class="inline-flex min-h-9 items-center gap-2 rounded-full bg-white px-3 text-sm font-medium text-stone-800 shadow-sm ring-1 ring-warning-200 hover:bg-warning-100">
           {{ it.title }} <span class="rounded-full bg-brand-600 px-1.5 text-xs font-semibold text-white">{{ it.badge }}</span>
         </RouterLink>
       </div>
@@ -89,7 +89,7 @@ const todo = computed(() => items.value.filter((x) => x.badge))
             </span>
             <span class="line-clamp-2 block text-sm text-stone-600">{{ it.desc }}</span>
           </span>
-          <AppIcon name="next" class="shrink-0 text-stone-300" />
+          <AppIcon name="next" class="shrink-0 text-stone-500" />
         </RouterLink>
       </div>
     </section>

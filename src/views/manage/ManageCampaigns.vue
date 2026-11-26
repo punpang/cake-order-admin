@@ -12,7 +12,7 @@ import { dateTime } from '../../lib/format'
 // ประชาสัมพันธ์/โปรโมชั่น: ส่งเป็นการ์ดในแชทเว็บ/แอปของลูกค้าที่กดเปิดรับข่าวสารเอง (และมีบัญชีเว็บ) + แจ้งเตือน push
 // ผู้รับถูกคำนวณที่เซิร์ฟเวอร์ทุกครั้งที่ส่ง · ส่งซ้ำไม่ได้ · ยังไม่ถึงเวลาหรือยังไม่ส่งยกเลิกได้
 const STATUS = { draft: 'ฉบับร่าง', scheduled: 'ตั้งเวลาไว้', sending: 'กำลังส่ง', sent: 'ส่งแล้ว', cancelled: 'ยกเลิก' }
-const STATUS_CLS = { draft: 'bg-stone-100 text-stone-700', scheduled: 'bg-amber-50 text-amber-800', sending: 'bg-brand-50 text-brand-800', sent: 'bg-emerald-50 text-emerald-800', cancelled: 'bg-rose-50 text-rose-700' }
+const STATUS_CLS = { draft: 'bg-stone-100 text-stone-700', scheduled: 'bg-warning-50 text-warning-800', sending: 'bg-brand-50 text-brand-800', sent: 'bg-success-50 text-success-800', cancelled: 'bg-danger-50 text-danger-700' }
 const blank = () => ({ id: '', type: 'promo', title: '', body: '', image: '', url: '', when: 'now', scheduledLocal: '' })
 
 const items = ref([])
@@ -132,7 +132,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 
 <template>
   <ManageShell title="ประชาสัมพันธ์ & โปรโมชั่น" subtitle="ส่งเข้าแชทเว็บ/แอปของลูกค้า พร้อมแจ้งเตือน" :toolbar="false" add-label="สร้างประชาสัมพันธ์" @add="openNew">
-    <p v-if="!supabaseEnabled" class="card mb-4 p-4 text-sm text-rose-700">หน้านี้ต้องเชื่อมต่อฐานข้อมูลออนไลน์ก่อน จึงจะส่งข้อความถึงลูกค้าได้</p>
+    <p v-if="!supabaseEnabled" class="card mb-4 p-4 text-sm text-danger-700">หน้านี้ต้องเชื่อมต่อฐานข้อมูลออนไลน์ก่อน จึงจะส่งข้อความถึงลูกค้าได้</p>
 
     <div class="card mb-4 flex flex-wrap items-center justify-between gap-3 p-4">
       <div>
@@ -177,12 +177,12 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
             </div>
           </div>
           <div>
-            <label class="label" for="cp-title">หัวข้อ <span class="text-rose-600">*</span></label>
+            <label class="label" for="cp-title">หัวข้อ <span class="text-danger-700">*</span></label>
             <input id="cp-title" v-model="form.title" class="input" :maxlength="CAMPAIGN_LIMITS.title" placeholder="เช่น ลด 10% ทุกเค้กวันศุกร์นี้" />
             <p class="mt-1 text-right text-xs text-stone-400">{{ form.title.length }}/{{ CAMPAIGN_LIMITS.title }}</p>
           </div>
           <div>
-            <label class="label" for="cp-body">ข้อความ <span class="text-rose-600">*</span></label>
+            <label class="label" for="cp-body">ข้อความ <span class="text-danger-700">*</span></label>
             <textarea id="cp-body" v-model="form.body" class="input min-h-32" :maxlength="CAMPAIGN_LIMITS.body" />
             <p class="mt-1 text-xs text-stone-400">ระบบต่อท้ายบรรทัดวิธีปิดรับข่าวสารให้อัตโนมัติ · {{ form.body.length }}/{{ CAMPAIGN_LIMITS.body }}</p>
           </div>
@@ -193,7 +193,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
               <label class="btn-soft h-10 cursor-pointer px-3 text-sm">{{ imgBusy ? 'กำลังอัปโหลด...' : form.image ? 'เปลี่ยนรูป' : 'เลือกรูป' }}
                 <input type="file" accept="image/*" class="sr-only" :disabled="imgBusy" @change="onPickImage" />
               </label>
-              <button v-if="form.image" type="button" class="text-sm text-rose-600" @click="form.image = ''">ลบรูป</button>
+              <button v-if="form.image" type="button" class="text-sm text-danger-700" @click="form.image = ''">ลบรูป</button>
             </div>
           </div>
           <div>

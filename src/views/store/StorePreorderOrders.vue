@@ -57,7 +57,7 @@ onMounted(load)
       <p>กรุณายืนยันเบอร์ก่อนดูออร์เดอร์ของคุณ</p>
       <router-link to="/preorder" class="btn-primary mt-3 inline-flex h-11 items-center px-4">ไปยืนยันเบอร์</router-link>
     </div>
-    <p v-else-if="error" class="mt-4 text-sm text-rose-700" role="alert">{{ error }}</p>
+    <p v-else-if="error" class="mt-4 text-sm text-danger-700" role="alert">{{ error }}</p>
     <p v-else-if="!orders.length" class="mt-4 text-sm text-stone-500">ยังไม่มีออร์เดอร์สั่งล่วงหน้า</p>
     <p v-if="msg" class="mt-3 text-sm text-stone-700" role="status">{{ msg }}</p>
     <ul v-if="!loading && !needLogin && orders.length" class="mt-4 space-y-3">

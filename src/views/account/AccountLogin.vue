@@ -42,7 +42,7 @@ async function submit() {
     <form class="card mt-5 space-y-4" @submit.prevent="submit">
       <div><label class="label">เบอร์โทร</label><PhoneInput v-model="phone" /></div>
       <div><label class="label">PIN 6 หลัก</label><PinInput v-model="pin" /></div>
-      <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+      <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       <button class="btn-primary w-full" :disabled="busy">{{ busy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ' }}</button>
       <RouterLink :to="{ path: '/account/forgot', query: next ? { next } : {} }" class="mx-auto block w-fit py-3 text-center text-sm text-stone-600 underline">ลืม PIN?</RouterLink>
     </form>

@@ -36,7 +36,7 @@ const onZip = (e) => { p.zip = e.target.value.replace(/\D/g, '').slice(0, 5); up
         <select v-model="p.prov" class="input" aria-label="ที่อยู่: จังหวัด" @change="upd"><option value="">จังหวัด</option><option v-for="x in PROVINCES" :key="x" :value="x">{{ x }}</option></select>
         <input :value="p.zip" class="input" inputmode="numeric" maxlength="5" placeholder="รหัสไปรษณีย์" aria-label="ที่อยู่: รหัสไปรษณีย์" @input="onZip" />
       </div>
-      <p v-if="warn" class="text-xs text-amber-700" role="note">{{ warn }}</p>
+      <p v-if="warn" class="text-xs text-warning-700" role="note">{{ warn }}</p>
       <p v-if="modelValue" class="rounded-lg bg-stone-50 p-2 text-xs text-stone-600" aria-label="ตัวอย่างที่อยู่ที่จะแสดงบนใบ">{{ modelValue }}</p>
       <button type="button" class="text-xs text-brand-700 underline" @click="mode = 'text'">พิมพ์ที่อยู่เอง</button>
     </template>

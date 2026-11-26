@@ -59,12 +59,12 @@ function save() {
     @add="add"
   >
     <RouterLink to="/admin/settings/bundles" class="card mb-4 flex items-center gap-3 p-3 transition hover:border-brand-300" data-bundle-link>
-      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700"><AppIcon name="tag" :size="20" /></span>
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-warning-50 text-warning-700"><AppIcon name="tag" :size="20" /></span>
       <span class="min-w-0 flex-1">
         <span class="block font-semibold text-stone-900">บันเดิ้ล (ชุดลดราคา)</span>
         <span class="block text-sm text-stone-500">{{ bundleCount }} ชุดที่ใช้งาน · ลดราคาเมื่อลูกค้าเลือกตัวเลือกครบชุด</span>
       </span>
-      <AppIcon name="next" class="shrink-0 text-stone-300" />
+      <AppIcon name="next" class="shrink-0 text-stone-500" />
     </RouterLink>
 
     <p v-if="!list.length" class="card py-10 text-center text-stone-500">ไม่พบกลุ่มตัวเลือก</p>
@@ -77,14 +77,14 @@ function save() {
             <div class="flex flex-wrap items-center gap-2">
               <span class="font-semibold text-stone-900">{{ g.name }}</span>
               <span v-if="MAIN_KEYS.includes(g.key)" class="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-800">หลัก {{ MAIN_KEYS.indexOf(g.key) + 1 }}</span>
-              <span v-if="g.required" class="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">จำเป็น</span>
+              <span v-if="g.required" class="rounded-full bg-danger-50 px-2 py-0.5 text-xs font-medium text-danger-700">จำเป็น</span>
               <span v-if="g.active === false" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
             </div>
             <div class="mt-0.5 text-sm text-stone-500">
               {{ GROUP_TYPES[g.type] }} · {{ g.appliesTo.map((a) => APPLIES_TO[a]).join(', ') }}
             </div>
           </div>
-          <AppIcon name="next" class="mt-1 text-stone-300" />
+          <AppIcon name="next" class="mt-1 text-stone-500" />
         </div>
         <div v-if="g.type !== 'text'" class="mt-3 flex flex-wrap gap-1.5">
           <span v-for="o in activeOptions(g).slice(0, 6)" :key="o.id" class="rounded-lg bg-stone-50 px-2 py-1 text-xs text-stone-600">{{ o.name }}</span>
@@ -101,7 +101,7 @@ function save() {
 
     <AppModal v-if="open" title="เพิ่มกลุ่มตัวเลือก" @close="open = false">
       <div class="space-y-4">
-        <div><label class="label">ชื่อกลุ่ม <span class="text-rose-600">*</span></label><input v-model="form.name" class="input" placeholder="เช่น ลายครีม" /></div>
+        <div><label class="label">ชื่อกลุ่ม <span class="text-danger-700">*</span></label><input v-model="form.name" class="input" placeholder="เช่น ลายครีม" /></div>
         <div>
           <div class="label">รูปแบบ</div>
           <div class="grid gap-2">
@@ -125,7 +125,7 @@ function save() {
         </div>
         <div v-if="form.type === 'text'"><label class="label">ข้อความตัวอย่างในช่อง</label><input v-model="form.placeholder" class="input" /></div>
         <AppSwitch v-model="form.required" label="จำเป็นต้องเลือก/กรอก" />
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>

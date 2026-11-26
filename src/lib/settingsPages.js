@@ -3,9 +3,9 @@
 export const SETTINGS_GROUPS = [
   { key: 'overview', title: 'ภาพรวม & รายงาน', tone: 'bg-brand-100 text-brand-700' },
   { key: 'catalog', title: 'สินค้า & ราคา', tone: 'bg-orange-100 text-orange-800' },
-  { key: 'customers', title: 'ลูกค้า & สมาชิก', tone: 'bg-amber-100 text-amber-800' },
+  { key: 'customers', title: 'ลูกค้า & สมาชิก', tone: 'bg-warning-100 text-warning-800' },
   { key: 'shop', title: 'ร้าน & หน้าเว็บ', tone: 'bg-matcha-soft text-stone-800' },
-  { key: 'channels', title: 'แชท & การแจ้งเตือน', tone: 'bg-sky-100 text-sky-800' },
+  { key: 'channels', title: 'แชท & การแจ้งเตือน', tone: 'bg-info-100 text-info-800' },
   { key: 'privacy', title: 'ข้อมูล & ความเป็นส่วนตัว', tone: 'bg-violet-100 text-violet-800' },
   { key: 'team', title: 'ทีมงาน', tone: 'bg-stone-200 text-stone-800' },
 ]

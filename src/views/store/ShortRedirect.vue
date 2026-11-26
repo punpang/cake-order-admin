@@ -31,7 +31,7 @@ onMounted(async () => {
 <template>
   <div class="mx-auto max-w-md px-4 py-16 text-center">
     <template v-if="error">
-      <AppIcon name="alert" :size="28" class="mx-auto text-stone-300" />
+      <AppIcon name="alert" :size="28" class="mx-auto text-stone-500" />
       <p class="mt-3 font-medium text-stone-700">{{ error }}</p>
       <RouterLink to="/" class="mt-3 inline-block text-sm text-brand-700 underline">กลับหน้าแรก</RouterLink>
     </template>

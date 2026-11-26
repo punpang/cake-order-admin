@@ -196,7 +196,7 @@ function save() {
               <input :id="'ppc-' + pi" v-model.number="p.prizePct" type="number" min="0.01" max="100" step="0.01" class="input h-11" />
             </div>
           </div>
-          <div class="rounded-xl p-3 text-sm" :class="budgetOf(p).over ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-800'" role="status">
+          <div class="rounded-xl p-3 text-sm" :class="budgetOf(p).over ? 'bg-danger-50 text-danger-800' : 'bg-success-50 text-success-800'" role="status">
             <div>เพดานรางวัลต่อ 1 รอบ = {{ budgetOf(p).per }} × {{ budgetOf(p).roundDraws }} × {{ budgetOf(p).prizePct }}% = <b>{{ money(budgetOf(p).ceiling) }}</b></div>
             <div>รางวัลในรอบมากสุดตอนนี้ = <b>{{ money(budgetOf(p).worst) }}</b> · {{ budgetOf(p).over ? 'เกินเพดาน บันทึกไม่ได้' : 'ไม่เกินเพดาน' }}</div>
           </div>
@@ -266,7 +266,7 @@ function save() {
         </div>
       </section>
 
-      <p v-if="msg" class="rounded-xl p-3 text-sm" :class="ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'" role="status">{{ msg }}</p>
+      <p v-if="msg" class="rounded-xl p-3 text-sm" :class="ok ? 'bg-success-50 text-success-800' : 'bg-danger-50 text-danger-700'" role="status">{{ msg }}</p>
       <button type="button" class="btn-primary h-12 w-full" @click="save">บันทึกการตั้งค่า</button>
       <p class="text-center text-xs text-stone-500">รางวัลที่ได้เข้าเมนู "คูปอง" ของบัญชีสมาชิก ใช้ที่ร้านด้วยวิธีเดียวกับคูปองทั่วไป</p>
     </div>

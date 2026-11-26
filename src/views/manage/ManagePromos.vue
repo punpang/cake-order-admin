@@ -94,12 +94,12 @@ async function flip(x) {
           <span class="flex flex-wrap items-center gap-1.5">
             <span class="font-medium text-stone-900">{{ x.name }}</span>
             <span v-if="x.active === false" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิด</span>
-            <span v-else-if="promoLive(x)" class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">ใช้อยู่ตอนนี้</span>
-            <span v-else class="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">นอกช่วงเวลา</span>
-            <span v-if="x.active !== false && isSamplePlaceholder(x.name)" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">ชื่อยังเป็นตัวอย่าง · แก้ก่อนใช้จริง</span>
+            <span v-else-if="promoLive(x)" class="rounded-full bg-success-50 px-2 py-0.5 text-xs text-success-700">ใช้อยู่ตอนนี้</span>
+            <span v-else class="rounded-full bg-warning-50 px-2 py-0.5 text-xs text-warning-700">นอกช่วงเวลา</span>
+            <span v-if="x.active !== false && isSamplePlaceholder(x.name)" class="rounded-full bg-warning-50 px-2 py-0.5 text-xs text-warning-700">ชื่อยังเป็นตัวอย่าง · แก้ก่อนใช้จริง</span>
           </span>
           <span class="mt-0.5 block text-sm text-stone-600">{{ summary(x) }}</span>
-          <span v-for="w in (tab === 'bundle' ? warnings(x) : tab === 'deal' ? dealWarnings(x, db.retailItems) : [])" :key="w" class="mt-0.5 block text-xs text-amber-700">⚠ {{ w }}</span>
+          <span v-for="w in (tab === 'bundle' ? warnings(x) : tab === 'deal' ? dealWarnings(x, db.retailItems) : [])" :key="w" class="mt-0.5 block text-xs text-warning-700">⚠ {{ w }}</span>
           <span class="block text-xs text-stone-400">{{ describeSchedule(x.schedule) }}</span>
         </button>
         <AppSwitch :model-value="x.active !== false" aria-label="เปิด/ปิด" @update:model-value="flip(x)" />
@@ -108,7 +108,7 @@ async function flip(x) {
 
     <AppModal v-if="open" wider :title="`${f.id ? 'แก้ไข' : 'เพิ่ม'}${tab === 'discount' ? 'ส่วนลด' : tab === 'bundle' ? 'บันเดิ้ล' : tab === 'deal' ? 'ดีล' : 'โปรคะแนนพิเศษ'}`" @close="open = false">
       <div class="space-y-4 dlg-cols">
-        <div><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="f.name" class="input" maxlength="80" /></div>
+        <div><label class="label">ชื่อ <span class="text-danger-700">*</span></label><input v-model="f.name" class="input" maxlength="80" /></div>
 
         <!-- ส่วนลด -->
         <template v-if="tab === 'discount'">
@@ -140,7 +140,7 @@ async function flip(x) {
           <div>
             <label class="label">ราคาชุด (บาท)</label>
             <MoneyInput v-model="f.price" class="input" />
-            <p class="mt-1 text-xs" :class="saving > 0 ? 'text-emerald-700' : 'text-stone-400'">ราคาปกติรวม {{ money(regular) }}<template v-if="saving > 0"> · ประหยัด {{ money(saving) }}</template></p>
+            <p class="mt-1 text-xs" :class="saving > 0 ? 'text-success-700' : 'text-stone-400'">ราคาปกติรวม {{ money(regular) }}<template v-if="saving > 0"> · ประหยัด {{ money(saving) }}</template></p>
           </div>
         </template>
 
@@ -239,7 +239,7 @@ async function flip(x) {
 
         <div><div class="label">ช่วงเวลา</div><ScheduleEditor v-model="f.schedule" /></div>
         <AppSwitch v-model="f.active" label="เปิดใช้งาน" class="flex" />
-        <p v-if="err" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
+        <p v-if="err" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
       </div>
       <template #footer>
         <button v-if="f.id" class="btn-danger mr-auto" @click="del(f)">ลบ</button>

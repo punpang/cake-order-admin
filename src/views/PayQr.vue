@@ -22,7 +22,7 @@ const found = computed(() => (shopRefOk(refUp.value) ? db.orders.find((o) => sho
         <label class="label" for="pq-ref">รหัสอ้างอิงร้านค้า (POS / ORD)</label>
         <input id="pq-ref" v-model="refText" type="text" class="input" placeholder="เช่น ORD131126000741" />
       </div>
-      <p v-if="refUp && !found" class="text-xs text-rose-700">ไม่พบออร์เดอร์ที่มีรหัสอ้างอิงนี้ (รูปแบบ POS/ORD ตามด้วยตัวเลข ไม่มีขีด)</p>
+      <p v-if="refUp && !found" class="text-xs text-danger-700">ไม่พบออร์เดอร์ที่มีรหัสอ้างอิงนี้ (รูปแบบ POS/ORD ตามด้วยตัวเลข ไม่มีขีด)</p>
       <QrPaymentPanel v-if="found" :key="found.id" :order="found" />
     </section>
   </div>

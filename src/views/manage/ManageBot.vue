@@ -62,7 +62,7 @@ const tab = ref('settings')
 
 <template>
   <ManageShell narrow guard :toolbar="false" title="บอทตอบแชท" subtitle="ตอบตามกฎคำสำคัญ + เรียนรู้จากที่พนักงานตอบ">
-    <div class="mb-3 flex gap-2 rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">
+    <div class="mb-3 flex gap-2 rounded-2xl bg-warning-50 p-3 text-sm text-warning-800">
       <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0" />
       <div class="min-w-0">
         <p>บอทจะไม่ตอบเรื่องเงิน การคืนเงิน และการร้องเรียน (ส่งต่อพนักงานเสมอ) และบอกสถานะออร์เดอร์ได้เฉพาะลูกค้าที่ผูกแชทกับบัญชีแล้ว</p>
@@ -106,9 +106,9 @@ const tab = ref('settings')
             <button type="button" class="min-h-10 rounded-lg py-2 text-sm font-medium" :class="st.ai.dataMode === 'full' ? 'bg-white text-brand-700 shadow-sm' : 'text-stone-600'" @click="st.ai.dataMode = 'full'">100%</button>
           </div>
           <p v-if="st.ai.dataMode !== 'full'" class="mt-1.5 text-xs text-stone-500">ส่งเฉพาะข้อความปัจจุบันของลูกค้า พร้อมชื่อร้าน เวลาทำการ คำถามที่พบบ่อย และสินค้าพร้อมราคา · ไม่ส่งข้อมูลออร์เดอร์ ประวัติแชท หรือข้อมูลลูกค้า</p>
-          <p v-else class="mt-1.5 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">ตอบได้ทุกเรื่องที่ลูกค้าถาม · เมื่อลูกค้าถามเรื่องออร์เดอร์ ระบบส่งรายการออร์เดอร์ที่ใช้งานอยู่ของลูกค้าคนนั้นให้ AI (รหัส สถานะ วันนัด ยอดค้าง · ไม่ส่งชื่อ เบอร์ หรือที่อยู่) และคำตอบเรื่องออร์เดอร์จะเป็นร่างให้พนักงานกดส่งเสมอ · ระบบสั่ง AI ว่าห้ามเก็บและห้ามนำไปฝึกโมเดล แต่การเก็บหรือไม่เก็บจริงขึ้นอยู่กับนโยบายของผู้ให้บริการ AI</p>
+          <p v-else class="mt-1.5 rounded-lg bg-warning-50 p-2 text-xs text-warning-800">ตอบได้ทุกเรื่องที่ลูกค้าถาม · เมื่อลูกค้าถามเรื่องออร์เดอร์ ระบบส่งรายการออร์เดอร์ที่ใช้งานอยู่ของลูกค้าคนนั้นให้ AI (รหัส สถานะ วันนัด ยอดค้าง · ไม่ส่งชื่อ เบอร์ หรือที่อยู่) และคำตอบเรื่องออร์เดอร์จะเป็นร่างให้พนักงานกดส่งเสมอ · ระบบสั่ง AI ว่าห้ามเก็บและห้ามนำไปฝึกโมเดล แต่การเก็บหรือไม่เก็บจริงขึ้นอยู่กับนโยบายของผู้ให้บริการ AI</p>
         </div>
-        <p class="text-xs text-amber-700">{{ aiKeyHint }}</p>
+        <p class="text-xs text-warning-700">{{ aiKeyHint }}</p>
         <div class="rounded-lg border border-violet-200 bg-white p-2.5 text-xs text-stone-600">ลำดับผู้ตอบ: <b>1. Workers AI</b> → <b>2. Claude</b> · ถ้า Workers AI เต็มเพดานวันนี้ ระบบส่งต่อให้ Claude อัตโนมัติ</div>
         <div class="grid gap-2 sm:grid-cols-2">
           <div class="space-y-2 rounded-lg border border-stone-200 bg-white p-2.5">
@@ -151,16 +151,16 @@ const tab = ref('settings')
         <textarea v-model="st.handoff.text" rows="2" class="input" maxlength="300" aria-label="ข้อความตอนส่งต่อพนักงาน" />
         <div class="mt-2"><AppSwitch v-model="st.handoff.notifyTelegram" label="แจ้งทีมทาง Telegram เมื่อส่งต่อ" /></div>
       </div>
-      <p v-if="err" class="text-sm text-rose-700">{{ err }}</p>
-      <p v-if="msg" class="text-sm text-emerald-700">{{ msg }}</p>
+      <p v-if="err" class="text-sm text-danger-700">{{ err }}</p>
+      <p v-if="msg" class="text-sm text-success-700">{{ msg }}</p>
       <button class="btn-primary" @click="save">บันทึกตั้งค่า</button>
     </section>
 
     <section v-show="tab === 'test'" class="card mb-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
       <div><div class="text-xl font-bold text-stone-900">{{ db.bot.stats.suggested }}</div><div class="text-xs text-stone-500">ร่างที่เสนอ</div></div>
-      <div><div class="text-xl font-bold text-emerald-700">{{ db.bot.stats.answered }}</div><div class="text-xs text-stone-500">ตอบแล้ว</div></div>
+      <div><div class="text-xl font-bold text-success-700">{{ db.bot.stats.answered }}</div><div class="text-xs text-stone-500">ตอบแล้ว</div></div>
       <div><div class="text-xl font-bold text-violet-700">{{ db.bot.stats.handoff }}</div><div class="text-xs text-stone-500">ส่งต่อพนักงาน</div></div>
-      <div><div class="text-xl font-bold text-amber-700">{{ db.bot.stats.staffEdited }}</div><div class="text-xs text-stone-500">พนักงานแก้ร่าง</div></div>
+      <div><div class="text-xl font-bold text-warning-700">{{ db.bot.stats.staffEdited }}</div><div class="text-xs text-stone-500">พนักงานแก้ร่าง</div></div>
     </section>
 
     <section v-show="tab === 'test'" class="card mb-4">
@@ -170,8 +170,8 @@ const tab = ref('settings')
         <select v-model="test.customerId" class="input" aria-label="ผูกกับลูกค้า (ทดสอบ)"><option value="">แชทที่ยังไม่ผูกลูกค้า</option><option v-for="c in customers" :key="c.id" :value="c.id">แชทผูกกับ {{ c.name }}</option></select>
         <button class="btn-outline h-10" @click="runTest">ทดสอบ</button>
       </div>
-      <div v-if="test.res" class="mt-3 rounded-xl border p-3 text-sm" :class="test.res.handoff ? 'border-violet-200 bg-violet-50' : 'border-emerald-200 bg-emerald-50'">
-        <div class="mb-1 text-xs font-semibold" :class="test.res.handoff ? 'text-violet-700' : 'text-emerald-700'">{{ test.res.handoff ? 'ส่งต่อพนักงาน' : 'บอทจะตอบ' }} · {{ SRC[test.res.source] || test.res.source }}<template v-if="test.res.confidence"> · {{ Math.round(test.res.confidence * 100) }}%</template></div>
+      <div v-if="test.res" class="mt-3 rounded-xl border p-3 text-sm" :class="test.res.handoff ? 'border-violet-200 bg-violet-50' : 'border-success-200 bg-success-50'">
+        <div class="mb-1 text-xs font-semibold" :class="test.res.handoff ? 'text-violet-700' : 'text-success-700'">{{ test.res.handoff ? 'ส่งต่อพนักงาน' : 'บอทจะตอบ' }} · {{ SRC[test.res.source] || test.res.source }}<template v-if="test.res.confidence"> · {{ Math.round(test.res.confidence * 100) }}%</template></div>
         <p class="whitespace-pre-line text-stone-800">{{ test.res.reply }}</p>
         <p class="mt-1 text-xs text-stone-500">เหตุผล: {{ test.res.reason }}</p>
       </div>
@@ -187,7 +187,7 @@ const tab = ref('settings')
         <li v-for="r in db.bot.rules" :key="r.id" class="py-2.5 text-sm" :class="r.active === false ? 'opacity-60' : ''">
           <div class="flex flex-wrap items-center gap-2"><b class="text-stone-900">{{ r.name }}</b><span class="chip chip-off">{{ r.keywords.join(' · ') }}</span><span class="ml-auto text-xs text-stone-400">ใช้ {{ r.hits || 0 }} ครั้ง</span></div>
           <p class="mt-0.5 text-xs text-stone-500">{{ r.reply }}</p>
-          <div class="mt-1.5 flex gap-2"><button class="btn-outline h-8 px-3 text-xs" @click="openRule(r)">แก้ไข</button><button class="btn-outline h-8 px-3 text-xs text-rose-700" @click="delRule(r)">ลบ</button></div>
+          <div class="mt-1.5 flex gap-2"><button class="btn-outline h-8 px-3 text-xs" @click="openRule(r)">แก้ไข</button><button class="btn-outline h-8 px-3 text-xs text-danger-700" @click="delRule(r)">ลบ</button></div>
         </li>
       </ul>
     </section>
@@ -202,18 +202,18 @@ const tab = ref('settings')
           <p class="text-stone-900">{{ l.q }}</p>
           <div class="mt-1 text-xs text-stone-400">ตอบ</div>
           <p class="whitespace-pre-line text-stone-700">{{ l.a }}</p>
-          <div class="mt-1.5 flex gap-2"><button class="btn-soft h-8 px-3 text-xs" @click="promote(l)">ยืนยันเป็นกฎ</button><button class="btn-outline h-8 px-3 text-xs text-rose-700" @click="delLearned(l)">ลบ</button></div>
+          <div class="mt-1.5 flex gap-2"><button class="btn-soft h-8 px-3 text-xs" @click="promote(l)">ยืนยันเป็นกฎ</button><button class="btn-outline h-8 px-3 text-xs text-danger-700" @click="delLearned(l)">ลบ</button></div>
         </li>
       </ul>
     </section>
 
     <AppModal v-if="rule" :title="rule.id ? 'แก้กฎ' : 'เพิ่มกฎ'" @close="rule = null">
       <div class="space-y-3">
-        <div><label class="label">ชื่อกฎ <span class="text-rose-600">*</span></label><input v-model="rule.name" class="input" maxlength="60" /></div>
-        <div><label class="label">คีย์เวิร์ด (คั่นด้วย ,) <span class="text-rose-600">*</span></label><input v-model="rule.keywords" class="input" placeholder="จอดรถ, ที่จอด" /></div>
-        <div><label class="label">คำตอบ <span class="text-rose-600">*</span></label><textarea v-model="rule.reply" rows="3" class="input" maxlength="500" /></div>
+        <div><label class="label">ชื่อกฎ <span class="text-danger-700">*</span></label><input v-model="rule.name" class="input" maxlength="60" /></div>
+        <div><label class="label">คีย์เวิร์ด (คั่นด้วย ,) <span class="text-danger-700">*</span></label><input v-model="rule.keywords" class="input" placeholder="จอดรถ, ที่จอด" /></div>
+        <div><label class="label">คำตอบ <span class="text-danger-700">*</span></label><textarea v-model="rule.reply" rows="3" class="input" maxlength="500" /></div>
         <AppSwitch v-model="rule.active" label="เปิดใช้งาน" />
-        <p v-if="rerr" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ rerr }}</p>
+        <p v-if="rerr" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ rerr }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="rule = null">ปิด</button>

@@ -18,8 +18,8 @@ const FILTERS = [
   { v: 'closed', l: 'ปิดแล้ว' },
 ]
 const STATUS = {
-  open: ['รอตรวจ', 'bg-amber-50 text-amber-700'],
-  resent: ['ส่งซ้ำแล้ว', 'bg-emerald-50 text-emerald-700'],
+  open: ['รอตรวจ', 'bg-warning-50 text-warning-700'],
+  resent: ['ส่งซ้ำแล้ว', 'bg-success-50 text-success-700'],
   closed: ['ปิดแล้ว', 'bg-stone-100 text-stone-600'],
 }
 const filter = ref('open')
@@ -129,8 +129,8 @@ async function doClose() {
       <button v-for="f in FILTERS" :key="f.v" type="button" class="chip min-h-11" :class="filter === f.v ? 'chip-on' : 'chip-off'" :aria-pressed="filter === f.v" @click="filter = f.v">{{ f.l }}</button>
     </div>
     <p class="mb-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-600">ออร์เดอร์เหล่านี้ระบบไม่รับ จึงเก็บไว้ที่นี่ก่อนเอาออกจากเครื่องพนักงาน · ตรวจก่อนส่งซ้ำหรือปิดพร้อมเหตุผล</p>
-    <p v-if="msg" class="mb-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800" role="status">{{ msg }}</p>
-    <p v-if="err" class="mb-3 flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-700" role="alert"><AppIcon name="alert" :size="16" /> {{ err }}</p>
+    <p v-if="msg" class="mb-3 rounded-xl bg-success-50 p-3 text-sm text-success-800" role="status">{{ msg }}</p>
+    <p v-if="err" class="mb-3 flex items-center gap-2 rounded-xl bg-danger-50 p-3 text-sm text-danger-700" role="alert"><AppIcon name="alert" :size="16" /> {{ err }}</p>
     <p v-if="!loading && !rows.length && !err" class="card py-10 text-center text-stone-500">ไม่มีรายการ</p>
 
     <div class="grid gap-3 lg:grid-cols-2 lg:items-start">
@@ -140,7 +140,7 @@ async function doClose() {
           <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium" :class="STATUS[r.status][1]">{{ STATUS[r.status][0] }}</span>
         </div>
         <p class="text-xs text-stone-500">{{ channelName(r.channel) }} · ลูกค้า {{ customerOf(r) }} · เข้าคิว {{ ageText(r.created_at) }} · โดย {{ staffName(r.created_by) }}</p>
-        <div class="rounded-xl bg-rose-50 p-2.5 text-sm text-rose-800">
+        <div class="rounded-xl bg-danger-50 p-2.5 text-sm text-danger-800">
           <p class="font-medium">{{ reasonOf(r).label }}</p>
           <p v-if="reasonOf(r).detail" class="mt-0.5 break-words text-xs">{{ reasonOf(r).detail }}</p>
         </div>
@@ -154,7 +154,7 @@ async function doClose() {
         </ul>
         <ul v-if="extrasOf(r).coupons.length || extrasOf(r).adjustment" class="space-y-1 rounded-xl bg-stone-50 p-2.5 text-sm text-stone-700">
           <li v-for="(u, i) in extrasOf(r).coupons" :key="'c' + i" class="flex justify-between gap-2">
-            <span>คูปอง {{ u.name }}</span><b class="text-rose-700">−{{ money(u.amount) }}</b>
+            <span>คูปอง {{ u.name }}</span><b class="text-danger-700">−{{ money(u.amount) }}</b>
           </li>
           <li v-if="extrasOf(r).adjustment" class="flex justify-between gap-2">
             <span>ปรับราคาเอง</span><b>{{ money(extrasOf(r).adjustment) }}</b>
@@ -165,8 +165,8 @@ async function doClose() {
           <p class="flex justify-between gap-2"><span class="text-stone-500">ชำระแล้ว</span><b>{{ money(sumOf(r).paid) }}</b></p>
           <p class="text-right text-sm font-semibold" :class="balanceOf(r).tone">{{ balanceOf(r).text }}</p>
         </div>
-        <p v-if="blockersOf(r).length && r.status === 'open'" class="rounded-xl bg-amber-50 p-2.5 text-sm text-amber-800">ส่งซ้ำจากคิวไม่ได้: {{ blockersOf(r).join(' · ') }} · ให้ปิดพร้อมเหตุผลแล้วบันทึกใหม่</p>
-        <p v-if="r.edited_payload && r.status === 'open'" class="text-xs text-amber-700">แก้การชำระไว้แล้ว ยังไม่ส่ง</p>
+        <p v-if="blockersOf(r).length && r.status === 'open'" class="rounded-xl bg-warning-50 p-2.5 text-sm text-warning-800">ส่งซ้ำจากคิวไม่ได้: {{ blockersOf(r).join(' · ') }} · ให้ปิดพร้อมเหตุผลแล้วบันทึกใหม่</p>
+        <p v-if="r.edited_payload && r.status === 'open'" class="text-xs text-warning-700">แก้การชำระไว้แล้ว ยังไม่ส่ง</p>
 
         <template v-if="r.status === 'open'">
           <p v-if="r.channel !== 'pos'" class="text-xs text-stone-500">ช่องทางนี้ส่งซ้ำจากหน้านี้ไม่ได้ · ปิดพร้อมเหตุผลแล้วสร้างใหม่ในระบบ</p>
@@ -196,7 +196,7 @@ async function doClose() {
             <span class="min-w-0 flex-1 text-sm text-stone-700" :class="edit.off[i] ? 'text-stone-400 line-through' : ''">{{ p.posMethod || 'ชำระ' }}</span>
             <input v-model.number="p.amount" :disabled="!!edit.off[i]" type="number" inputmode="decimal" min="0" step="any" class="input w-32 text-right" :aria-label="`ยอดรายการที่ ${i + 1}`" />
             <span class="text-sm text-stone-500">฿</span>
-            <button type="button" class="btn-outline h-11 px-3" :class="edit.off[i] ? 'text-emerald-700' : 'text-rose-700'" :aria-pressed="!!edit.off[i]" @click="edit.off[i] = !edit.off[i]">{{ edit.off[i] ? 'เลิกทำ' : 'ขีดฆ่า' }}</button>
+            <button type="button" class="btn-outline h-11 px-3" :class="edit.off[i] ? 'text-success-700' : 'text-danger-700'" :aria-pressed="!!edit.off[i]" @click="edit.off[i] = !edit.off[i]">{{ edit.off[i] ? 'เลิกทำ' : 'ขีดฆ่า' }}</button>
           </div>
           <label v-if="p.posMethod === 'card' && !edit.off[i]" class="flex min-h-11 items-center gap-2 text-sm text-stone-700">
             <input v-model="p.cardConfirmed" type="checkbox" class="h-5 w-5" /> ตรวจสลิปบัตรแล้ว ยืนยันว่ารับเงินบัตรจริง
@@ -207,7 +207,7 @@ async function doClose() {
           <p class="flex justify-between gap-2"><span class="text-stone-500">ชำระแล้ว (หลังแก้)</span><b>{{ money(editSummary.paid) }}</b></p>
           <p class="text-right font-semibold" :class="editBalance?.tone">{{ editBalance?.text }}</p>
         </div>
-        <p v-if="edit.error" class="flex items-center gap-2 text-sm text-rose-700" role="alert"><AppIcon name="alert" :size="16" /> {{ edit.error }}</p>
+        <p v-if="edit.error" class="flex items-center gap-2 text-sm text-danger-700" role="alert"><AppIcon name="alert" :size="16" /> {{ edit.error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="edit.row = null">ยกเลิก</button>
@@ -217,10 +217,10 @@ async function doClose() {
 
     <AppModal v-if="shut.row" title="ปิดรายการพร้อมเหตุผล" @close="shut.row = null">
       <div class="space-y-3">
-        <p class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ระบบจะไม่บันทึกออร์เดอร์นี้ ถ้ามีการรับเงินไว้แล้ว ต้องจัดการเงินนั้นเอง (คืนเงิน หรือบันทึกในบัญชี)</p>
+        <p class="rounded-xl bg-warning-50 p-3 text-sm text-warning-800">ระบบจะไม่บันทึกออร์เดอร์นี้ ถ้ามีการรับเงินไว้แล้ว ต้องจัดการเงินนั้นเอง (คืนเงิน หรือบันทึกในบัญชี)</p>
         <p class="text-sm text-stone-600">คูปองที่จองไว้กับออร์เดอร์นี้จะถูกคืนให้ลูกค้าใช้ได้อีก</p>
         <textarea v-model="shut.note" rows="3" maxlength="300" class="input" placeholder="เหตุผล เช่น ลูกค้ายกเลิกและโอนคืนแล้ว"></textarea>
-        <p v-if="shut.error" class="flex items-center gap-2 text-sm text-rose-700" role="alert"><AppIcon name="alert" :size="16" /> {{ shut.error }}</p>
+        <p v-if="shut.error" class="flex items-center gap-2 text-sm text-danger-700" role="alert"><AppIcon name="alert" :size="16" /> {{ shut.error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="shut.row = null">ยกเลิก</button>

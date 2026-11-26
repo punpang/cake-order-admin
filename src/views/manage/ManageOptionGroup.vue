@@ -182,7 +182,7 @@ async function saveO() {
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
             <span class="font-semibold text-stone-900">{{ group.name }}</span>
-            <span v-if="group.required" class="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">จำเป็น</span>
+            <span v-if="group.required" class="rounded-full bg-danger-50 px-2 py-0.5 text-xs font-medium text-danger-700">จำเป็น</span>
             <span v-if="group.active === false" class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
           </div>
           <div class="text-sm text-stone-500">{{ GROUP_TYPES[group.type] }} · {{ group.appliesTo.map((a) => APPLIES_TO[a]).join(', ') }}</div>
@@ -219,7 +219,7 @@ async function saveO() {
               <span class="flex items-center gap-2">
                 <span class="truncate font-medium text-stone-900">{{ opt.name }}</span>
                 <span v-if="opt.active === false" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
-                <span v-if="!isMain && opt.types?.length" class="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">บางประเภท</span>
+                <span v-if="!isMain && opt.types?.length" class="shrink-0 rounded-full bg-warning-50 px-2 py-0.5 text-xs text-warning-700">บางประเภท</span>
               </span>
             </span>
             <span class="shrink-0 text-sm font-semibold" :class="isSize || isType || opt.price || hasPrice(opt) ? 'text-stone-900' : 'text-stone-400'">{{ priceText(opt) }}</span>
@@ -236,7 +236,7 @@ async function saveO() {
     <!-- modal กลุ่ม -->
     <AppModal v-if="gOpen" title="ตั้งค่ากลุ่ม" @close="gOpen = false">
       <div class="space-y-4">
-        <div><label class="label">ชื่อกลุ่ม <span class="text-rose-600">*</span></label><input v-model="g.name" class="input" /></div>
+        <div><label class="label">ชื่อกลุ่ม <span class="text-danger-700">*</span></label><input v-model="g.name" class="input" /></div>
         <p v-if="isSize" class="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">กลุ่มขนาด: เลือกได้ 1 ขนาดต่อชั้น · จำเป็น · ใช้กับสั่งทำ (เค้กสำเร็จกำหนดขนาดในหน้าสินค้า)</p>
         <div v-if="g.type !== 'text' && !isSize">
           <div class="label">รูปแบบ</div>
@@ -262,7 +262,7 @@ async function saveO() {
         <AppSwitch v-model="g.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" class="flex" />
         <AppSwitch v-if="g.appliesTo.includes('custom') && !isSize" v-model="g.perTier" label="เลือกแยกแต่ละชั้น (เค้กสั่งทำ)" class="flex" />
         <AppSwitch v-if="g.type !== 'text' && !isSize && group.key !== 'flavor'" v-model="g.prepList" label="แสดงในรายการเตรียม (นับเป็นชุด แยกตามขนาด)" class="flex" />
-        <p v-if="gError" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ gError }}</p>
+        <p v-if="gError" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ gError }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="gOpen = false">ยกเลิก</button>
@@ -273,7 +273,7 @@ async function saveO() {
     <!-- modal ตัวเลือก -->
     <AppModal v-if="oOpen" :title="o.id ? 'แก้ไขตัวเลือก' : 'เพิ่มตัวเลือก'" wider @close="oOpen = false">
       <div class="space-y-4 dlg-cols">
-        <div><label class="label">ชื่อตัวเลือก <span class="text-rose-600">*</span></label><input v-model="o.name" class="input" /></div>
+        <div><label class="label">ชื่อตัวเลือก <span class="text-danger-700">*</span></label><input v-model="o.name" class="input" /></div>
 
         <div v-if="isFlavor">
           <div class="label">รูปแบบราคา</div>
@@ -416,7 +416,7 @@ async function saveO() {
         </div>
         <RecipeEditor v-model="o.recipe" />
         <AppSwitch v-model="o.active" label="ใช้งาน (แสดงตอนสร้างออร์เดอร์)" class="flex" />
-        <p v-if="oError" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ oError }}</p>
+        <p v-if="oError" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ oError }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="oOpen = false">ยกเลิก</button>

@@ -31,7 +31,7 @@ const comp = computed(() => ({ overview: AcctOverview, record: AcctRecord, journ
     </div>
   </div>
   <div v-else class="pb-6">
-    <p v-if="preorderAcct.error" class="mb-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert" data-preorder-acct-error>ยอดสั่งล่วงหน้าโหลดไม่สำเร็จ ยอดบัญชีอาจขาดส่วนนี้ · {{ preorderAcct.error }}</p>
+    <p v-if="preorderAcct.error" class="mb-3 rounded-xl border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-800" role="alert" data-preorder-acct-error>ยอดสั่งล่วงหน้าโหลดไม่สำเร็จ ยอดบัญชีอาจขาดส่วนนี้ · {{ preorderAcct.error }}</p>
     <div class="head-safe mb-3 flex items-center gap-2">
       <RouterLink to="/admin/orders" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-stone-700 shadow-sm hover:bg-brand-50" aria-label="กลับ"><AppIcon name="back" :size="20" /></RouterLink>
       <div class="min-w-0 flex-1"><h1 class="page-title truncate">บัญชี</h1><p class="truncate text-sm text-stone-500">ฐานสิทธิ · ลงบัญชีคู่ · รายได้ดึงจากออร์เดอร์/POS อัตโนมัติ</p></div>

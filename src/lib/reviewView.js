@@ -52,9 +52,9 @@ export const activePays = (list, off) => list.filter((_, i) => !off[i])
 // ข้อความและสีของส่วนต่างยอด (เกิน = แดง · ขาด = เหลือง · ครบ = เขียว)
 export function balanceText(s) {
   if (!s) return null
-  if (s.state === 'over') return { tone: 'text-rose-700', text: `เกินยอดบิล ${money(Math.abs(s.diff))}` }
-  if (s.state === 'short') return { tone: 'text-amber-700', text: `ขาดอีก ${money(Math.abs(s.diff))}` }
-  return { tone: 'text-emerald-700', text: 'ชำระครบพอดี' }
+  if (s.state === 'over') return { tone: 'text-danger-700', text: `เกินยอดบิล ${money(Math.abs(s.diff))}` }
+  if (s.state === 'short') return { tone: 'text-warning-700', text: `ขาดอีก ${money(Math.abs(s.diff))}` }
+  return { tone: 'text-success-700', text: 'ชำระครบพอดี' }
 }
 
 // รายการสินค้าแบบสั้น: ชื่อ ×จำนวน สูงสุด 3 รายการ

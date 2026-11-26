@@ -72,7 +72,7 @@ function save() {
       <div class="space-y-1.5 rounded-xl bg-stone-50 p-3 text-sm">
         <div class="flex justify-between"><span class="text-stone-600">ชำระแล้ว (สุทธิ)</span><b>{{ money(t.paidNet) }}</b></div>
         <div class="flex justify-between"><span class="text-stone-600">ต้องชำระใหม่ (สินค้า+ค่าบริการ+เงินพัก)</span><b>{{ money(newPayable) }}</b></div>
-        <div v-if="excess > 0" class="flex justify-between text-rose-700"><span>ต้องคืนส่วนเกิน</span><b>{{ money(excess) }}</b></div>
+        <div v-if="excess > 0" class="flex justify-between text-danger-700"><span>ต้องคืนส่วนเกิน</span><b>{{ money(excess) }}</b></div>
       </div>
 
       <div v-if="excess > 0">
@@ -81,11 +81,11 @@ function save() {
       </div>
 
       <div>
-        <label class="label" for="hm-reason">เหตุผล <span class="text-rose-600">*</span></label>
+        <label class="label" for="hm-reason">เหตุผล <span class="text-danger-700">*</span></label>
         <input id="hm-reason" v-model="f.reason" class="input" maxlength="200" />
       </div>
-      <p v-if="bad" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ bad }}</p>
-      <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+      <p v-if="bad" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ bad }}</p>
+      <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
     </div>
     <template #footer>
       <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ยกเลิก</button>

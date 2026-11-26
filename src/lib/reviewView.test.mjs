@@ -58,9 +58,9 @@ test('billSummary: ส่วนลดคูปองลดยอดบิล แ
 })
 
 test('balanceText: ข้อความและสีตามส่วนต่าง', () => {
-  assert.deepEqual(balanceText({ state: 'over', diff: 40 }), { tone: 'text-rose-700', text: 'เกินยอดบิล 40.00 ฿' })
-  assert.deepEqual(balanceText({ state: 'short', diff: -30 }), { tone: 'text-amber-700', text: 'ขาดอีก 30.00 ฿' })
-  assert.deepEqual(balanceText({ state: 'ok', diff: 0 }), { tone: 'text-emerald-700', text: 'ชำระครบพอดี' })
+  assert.deepEqual(balanceText({ state: 'over', diff: 40 }), { tone: 'text-danger-700', text: 'เกินยอดบิล 40.00 ฿' })
+  assert.deepEqual(balanceText({ state: 'short', diff: -30 }), { tone: 'text-warning-700', text: 'ขาดอีก 30.00 ฿' })
+  assert.deepEqual(balanceText({ state: 'ok', diff: 0 }), { tone: 'text-success-700', text: 'ชำระครบพอดี' })
   assert.equal(balanceText(null), null)
 })
 

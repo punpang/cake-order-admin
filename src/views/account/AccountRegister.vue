@@ -59,7 +59,7 @@ async function submit() {
     <div class="card mt-5">
       <form v-if="step === 1" class="space-y-4" @submit.prevent="toOtp">
         <div><label class="label">เบอร์โทร</label><PhoneInput v-model="phone" /></div>
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
         <button class="btn-primary w-full">ขอรหัสยืนยัน (OTP)</button>
         <p class="text-center text-sm text-stone-500">มีบัญชีแล้ว? <RouterLink :to="{ path: '/account/login', query: next ? { next } : {} }" class="inline-flex min-h-11 items-center text-brand-700 underline">เข้าสู่ระบบ</RouterLink></p>
       </form>
@@ -68,7 +68,7 @@ async function submit() {
 
       <form v-else class="space-y-4" @submit.prevent="submit">
         <p v-if="known" class="rounded-xl bg-brand-50 p-3 text-sm text-brand-800">พบข้อมูลลูกค้าของเบอร์นี้ในร้านแล้ว บัญชีจะผูกกับข้อมูลเดิม</p>
-        <div v-else><label class="label">ชื่อ <span class="text-rose-600">*</span></label><input v-model="name" class="input" maxlength="100" autocomplete="name" /></div>
+        <div v-else><label class="label">ชื่อ <span class="text-danger-700">*</span></label><input v-model="name" class="input" maxlength="100" autocomplete="name" /></div>
         <div><label class="label">ตั้ง PIN 6 หลัก</label><PinInput v-model="pin" autocomplete="new-password" /></div>
         <div><label class="label">ยืนยัน PIN</label><PinInput v-model="pin2" autocomplete="new-password" /></div>
         <p class="text-xs text-stone-500">ห้ามใช้ PIN ที่เดาง่าย เช่น 111111, 123456 หรือเลขท้ายเบอร์โทร</p>
@@ -76,7 +76,7 @@ async function submit() {
           <input v-model="agree" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" />
           <span>ฉันได้อ่านและยอมรับ <RouterLink to="/legal/privacy" target="_blank" class="text-brand-700 underline">นโยบายความเป็นส่วนตัว (PDPA)</RouterLink> และ <RouterLink to="/legal/terms" target="_blank" class="text-brand-700 underline">เงื่อนไขการใช้งาน</RouterLink> (รวมกติกาคะแนนสะสม)</span>
         </label>
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
         <button class="btn-primary w-full" :disabled="busy">{{ busy ? 'กำลังสมัคร…' : 'สมัครสมาชิก' }}</button>
       </form>
     </div>

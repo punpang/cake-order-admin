@@ -131,12 +131,12 @@ function setFrom(v) {
 
     <div class="kitchen-print-area">
       <h2 class="mb-2 hidden text-base font-semibold text-stone-900 print:block">{{ tab === 'prep' ? 'รายการเตรียม' : 'วัตถุดิบรวม' }} · {{ rangeText }}</h2>
-      <section v-if="noRecipe.length" class="no-print mb-3 overflow-hidden rounded-2xl bg-amber-50 text-sm text-amber-900 ring-1 ring-amber-200">
+      <section v-if="noRecipe.length" class="no-print mb-3 overflow-hidden rounded-2xl bg-warning-50 text-sm text-warning-800 ring-1 ring-warning-200">
         <button type="button" class="flex min-h-11 w-full items-center gap-2 px-4 py-3 text-left font-semibold" :aria-expanded="showMissing" aria-controls="missing-list" @click="showMissing = !showMissing">
           <span class="min-w-0 flex-1">ยังไม่มีสูตร {{ noRecipe.length }} รายการ · วัตถุดิบไม่ถูกนับ</span>
           <span class="shrink-0 text-xs font-medium underline">{{ showMissing ? 'ซ่อน' : 'ดูรายการ' }}</span>
         </button>
-        <div v-show="showMissing" id="missing-list" class="border-t border-amber-200 px-4 py-2 text-xs break-words">{{ noRecipe.slice(0, 10).join(', ') }}<span v-if="noRecipe.length > 10"> และอีก {{ noRecipe.length - 10 }} รายการ</span></div>
+        <div v-show="showMissing" id="missing-list" class="border-t border-warning-200 px-4 py-2 text-xs break-words">{{ noRecipe.slice(0, 10).join(', ') }}<span v-if="noRecipe.length > 10"> และอีก {{ noRecipe.length - 10 }} รายการ</span></div>
       </section>
 
       <template v-if="tab === 'prep'">
@@ -178,7 +178,7 @@ function setFrom(v) {
           <div v-for="row in rows" :key="row.id" class="flex items-center gap-3 px-4 py-3">
             <span class="min-w-0 flex-1">
               <span class="block truncate font-medium text-stone-900">{{ row.name }}</span>
-              <span class="block text-xs" :class="row.short > 0 ? 'font-semibold text-rose-700' : 'text-stone-500'">{{ row.stock == null ? 'ยังไม่ได้นับคงเหลือ' : row.short > 0 ? `ต้องซื้อเพิ่ม ${qty(row.short)} ${row.unit}` : `พอ · คงเหลือ ${qty(row.stock)} ${row.unit}` }}</span>
+              <span class="block text-xs" :class="row.short > 0 ? 'font-semibold text-danger-700' : 'text-stone-500'">{{ row.stock == null ? 'ยังไม่ได้นับคงเหลือ' : row.short > 0 ? `ต้องซื้อเพิ่ม ${qty(row.short)} ${row.unit}` : `พอ · คงเหลือ ${qty(row.stock)} ${row.unit}` }}</span>
             </span>
             <span class="shrink-0 font-semibold text-stone-900">{{ qty(row.amount) }}</span>
             <span class="w-10 shrink-0 text-sm text-stone-500">{{ row.unit }}</span>

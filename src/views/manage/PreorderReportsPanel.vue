@@ -70,7 +70,7 @@ watch([report, () => f.campaignId, () => f.from, () => f.to, () => f.date], load
     </div>
 
     <p v-if="loading" class="text-sm text-stone-500">กำลังโหลด…</p>
-    <p v-else-if="error" role="alert" class="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{{ error }}</p>
+    <p v-else-if="error" role="alert" class="rounded-xl bg-danger-50 p-3 text-sm text-danger-800">{{ error }}</p>
     <p v-else-if="current.needsCampaign && !f.campaignId" class="rounded-xl border border-dashed border-stone-300 p-4 text-sm text-stone-600">เลือกแคมเปญก่อนดูสรุป</p>
 
     <!-- ใบจัดเตรียม: สินค้า × จำนวน ต่อวันรับ -->
@@ -84,7 +84,7 @@ watch([report, () => f.campaignId, () => f.from, () => f.to, () => f.date], load
             <span>{{ it.name }}</span><span class="font-semibold">{{ it.qty }}</span>
           </li>
         </ul>
-        <div v-if="d.exceptions.length" class="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+        <div v-if="d.exceptions.length" class="mt-3 rounded-xl bg-warning-50 p-3 text-sm text-warning-800">
           <p class="font-medium">ต้องตรวจสอบ</p>
           <p v-for="x in d.exceptions" :key="x.code">{{ x.code }}: {{ x.reason }}</p>
         </div>
@@ -105,7 +105,7 @@ watch([report, () => f.campaignId, () => f.from, () => f.to, () => f.date], load
       <li v-if="!data.length" class="p-4 text-sm text-stone-500">ไม่มีออร์เดอร์ที่รอส่ง</li>
       <li v-for="o in data" :key="o.code" class="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
         <span><strong>{{ o.code }}</strong> · {{ o.customerName || 'ไม่ระบุชื่อ' }}</span>
-        <span :class="o.paidFull ? 'text-emerald-700' : 'text-rose-700'">{{ o.paidFull ? 'ชำระครบแล้ว' : 'ยังไม่ครบ ค้าง ' + baht(o.due) }}</span>
+        <span :class="o.paidFull ? 'text-success-700' : 'text-danger-700'">{{ o.paidFull ? 'ชำระครบแล้ว' : 'ยังไม่ครบ ค้าง ' + baht(o.due) }}</span>
       </li>
     </ul>
 
@@ -115,7 +115,7 @@ watch([report, () => f.campaignId, () => f.from, () => f.to, () => f.date], load
       <li v-for="o in data" :key="o.code" class="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
         <span><strong>{{ o.code }}</strong> · {{ o.customerName || 'ไม่ระบุชื่อ' }}</span>
         <span>
-          <span v-if="o.overdue" class="mr-2 rounded-full bg-rose-100 px-2 py-0.5 text-xs text-rose-800">เกินเวลา</span>
+          <span v-if="o.overdue" class="mr-2 rounded-full bg-danger-100 px-2 py-0.5 text-xs text-danger-800">เกินเวลา</span>
           ค้าง {{ baht(o.due) }} · กำหนด {{ dt(o.payDueAt) }}
         </span>
       </li>
