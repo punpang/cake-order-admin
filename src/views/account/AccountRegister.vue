@@ -59,7 +59,7 @@ async function submit() {
     <div class="card mt-5">
       <form v-if="step === 1" class="space-y-4" @submit.prevent="toOtp">
         <div><label class="label">เบอร์โทร</label><PhoneInput v-model="phone" /></div>
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
         <button class="btn-primary w-full">ขอรหัสยืนยัน (OTP)</button>
         <p class="text-center text-sm text-stone-500">มีบัญชีแล้ว? <RouterLink :to="{ path: '/account/login', query: next ? { next } : {} }" class="inline-flex min-h-11 items-center text-brand-700 underline">เข้าสู่ระบบ</RouterLink></p>
       </form>
@@ -76,7 +76,7 @@ async function submit() {
           <input v-model="agree" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" />
           <span>ฉันได้อ่านและยอมรับ <RouterLink to="/legal/privacy" target="_blank" class="text-brand-700 underline">นโยบายความเป็นส่วนตัว (PDPA)</RouterLink> และ <RouterLink to="/legal/terms" target="_blank" class="text-brand-700 underline">เงื่อนไขการใช้งาน</RouterLink> (รวมกติกาคะแนนสะสม)</span>
         </label>
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
         <button class="btn-primary w-full" :disabled="busy">{{ busy ? 'กำลังสมัคร…' : 'สมัครสมาชิก' }}</button>
       </form>
     </div>

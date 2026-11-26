@@ -27,8 +27,8 @@ function save() {
 <template>
   <AppModal title="ยกเลิกการคืนเงิน" @close="emit('close')">
     <div class="space-y-4">
-      <div class="rounded-xl border border-rose-200 bg-rose-50/60 p-3 text-sm">
-        <div class="font-semibold text-rose-700">−{{ money(entry.amount) }} <span class="text-xs font-normal text-stone-500">{{ dateTime(entry.at) }}</span></div>
+      <div class="rounded-xl border border-danger-200 bg-danger-50/60 p-3 text-sm">
+        <div class="font-semibold text-danger-700">−{{ money(entry.amount) }} <span class="text-xs font-normal text-stone-500">{{ dateTime(entry.at) }}</span></div>
         <div v-for="(x, i) in rows" :key="i" class="text-stone-700">{{ x.label }} {{ money(x.amount) }}<template v-if="x.points != null"> ({{ x.points }} คะแนน)</template></div>
         <div class="break-words text-stone-600">เหตุผลเดิม: {{ entry.reason }}</div>
       </div>
@@ -36,7 +36,7 @@ function save() {
       <div><label class="label" for="rc-reason">เหตุผลที่ยกเลิกการคืน <span class="text-rose-600">*</span></label><input id="rc-reason" v-model="f.reason" class="input" maxlength="120" /></div>
       <label v-if="hasCustomer" class="flex items-center gap-2 text-sm text-stone-700"><input v-model="f.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าว่ายกเลิกการคืนเงิน" /> แจ้งลูกค้าว่ายกเลิกการคืนเงิน</label>
       <SmsTick v-if="hasCustomer" v-model="f.sms" :customer="findCustomer(order.customerId)" :order="order" :show="f.notify" />
-      <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+      <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
     </div>
     <template #footer>
       <button class="btn-outline flex-1 sm:flex-none" @click="emit('close')">ปิด</button>

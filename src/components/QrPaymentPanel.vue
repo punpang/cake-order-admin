@@ -47,7 +47,7 @@ function make() {
       </div>
       <button type="button" class="btn-primary" @click="make">สร้าง QR</button>
     </div>
-    <p v-if="err" class="text-xs text-rose-700" role="alert">{{ err }}</p>
+    <p v-if="err" class="text-xs text-danger-700" role="alert">{{ err }}</p>
     <BillerQr v-if="made" :amount="made.amount" :ref1="made.ref1" :ref2="made.ref2" />
   </div>
 </template>

@@ -67,7 +67,7 @@ const contactMissing = computed(() => ['controller', 'address', 'email', 'phone'
 
 <template>
   <ManageShell narrow guard title="PDPA / คุกกี้ / เงื่อนไข" subtitle="ข้อความที่ลูกค้าต้องยินยอม" :toolbar="false">
-    <div class="mb-3 flex gap-2 rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">
+    <div class="mb-3 flex gap-2 rounded-2xl bg-warning-50 p-3 text-sm text-warning-800">
       <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0" />
       <p>ข้อความเขียนตามระบบที่ใช้งานจริง (Supabase, Facebook, SMS, Telegram, ขนส่ง) · กรอกชื่อผู้ควบคุมข้อมูล ที่อยู่ อีเมล เบอร์ ให้ครบก่อนเปิดให้ลูกค้าใช้ · เมื่อเพิ่มบริการใหม่ (เช่น Facebook จริง ระบบวิเคราะห์) ต้องแก้ข้อความให้ตรง · แนะนำให้ที่ปรึกษากฎหมายตรวจทาน</p>
     </div>
@@ -79,7 +79,7 @@ const contactMissing = computed(() => ['controller', 'address', 'email', 'phone'
     <!-- ผู้ควบคุมข้อมูล -->
     <section v-if="tab === 'contact'" class="card space-y-3">
       <div class="card-title">ผู้ควบคุมข้อมูลส่วนบุคคล + ระยะเก็บข้อมูล</div>
-      <p v-if="contactMissing" class="text-sm text-amber-700">ยังไม่ได้กรอก {{ contactMissing }} ช่อง (ข้อความที่ลูกค้าเห็นจะแสดง "-" แทน)</p>
+      <p v-if="contactMissing" class="text-sm text-warning-700">ยังไม่ได้กรอก {{ contactMissing }} ช่อง (ข้อความที่ลูกค้าเห็นจะแสดง "-" แทน)</p>
       <div><label class="label">ชื่อผู้ควบคุมข้อมูล (บุคคล/นิติบุคคล)</label><input v-model="c.controller" class="input" maxlength="120" /></div>
       <div><label class="label">ที่อยู่</label><textarea v-model="c.address" rows="2" class="input" maxlength="250"></textarea></div>
       <div><label class="label">อีเมลรับเรื่องสิทธิ์ข้อมูลส่วนบุคคล</label><input v-model="c.email" class="input" inputmode="email" maxlength="120" /></div>
@@ -92,7 +92,7 @@ const contactMissing = computed(() => ['controller', 'address', 'email', 'phone'
       <p class="text-xs text-stone-400">ระยะเก็บเป็นตัวเลขตัวอย่าง กรุณายืนยันกับนักบัญชี/ที่ปรึกษากฎหมาย (ระยะเก็บบัญชีตามกฎหมายขึ้นกับประเภทกิจการ)</p>
       <div class="flex items-center gap-3">
         <button class="btn-primary" @click="saveContact">บันทึก</button>
-        <span v-if="csaved" class="flex items-center gap-1 text-sm text-emerald-700"><AppIcon name="check" :size="16" /> บันทึกแล้ว</span>
+        <span v-if="csaved" class="flex items-center gap-1 text-sm text-success-700"><AppIcon name="check" :size="16" /> บันทึกแล้ว</span>
       </div>
     </section>
 
@@ -121,10 +121,10 @@ const contactMissing = computed(() => ['controller', 'address', 'email', 'phone'
           <summary class="cursor-pointer py-2.5 font-medium">ตัวแปรที่ใช้ได้</summary>
           <ul class="mt-2 space-y-0.5"><li v-for="(d, k) in LEGAL_VARS" :key="k"><code>{{ tag(k) }}</code> · {{ d }}</li></ul>
         </details>
-        <p v-if="missing.length" class="text-sm text-amber-700">ตัวแปรที่ยังไม่มีค่า: {{ missingText }} → ไปกรอกที่แท็บ "ผู้ควบคุมข้อมูล"</p>
+        <p v-if="missing.length" class="text-sm text-warning-700">ตัวแปรที่ยังไม่มีค่า: {{ missingText }} → ไปกรอกที่แท็บ "ผู้ควบคุมข้อมูล"</p>
         <AppSwitch v-model="form.bump" :label="tab === 'cookie' ? 'ขึ้นเวอร์ชันใหม่ (ถามคุกกี้ผู้เข้าชมใหม่)' : 'ขึ้นเวอร์ชันใหม่ (ลูกค้าต้องกดยอมรับอีกครั้ง)'" />
         <p v-if="msg" class="rounded-xl bg-brand-50 p-2.5 text-sm text-brand-800">{{ msg }}</p>
-        <p v-if="err" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
+        <p v-if="err" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
         <div class="flex flex-wrap gap-2">
           <button class="btn-primary flex-1 sm:flex-none" :disabled="!dirty" @click="save">บันทึก</button>
           <button class="btn-outline" @click="reset">คืนค่าฉบับมาตรฐาน</button>

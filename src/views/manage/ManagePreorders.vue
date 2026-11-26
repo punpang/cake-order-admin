@@ -24,7 +24,7 @@ const sel = reactive({}) // retailId → { on, cap }
 const msg = ref('')
 const tab = ref('campaigns') // แท็บ: แคมเปญ (ค่าเริ่มต้น) · ออร์เดอร์
 // สีป้ายสถานะแคมเปญ (ข้อความเดิมจาก PHASE)
-const BADGE = { 'เปิดรับสั่ง': 'bg-emerald-100 text-emerald-800', 'ร่าง': 'bg-stone-100 text-stone-700', 'รอเปิดรับ': 'bg-amber-100 text-amber-800', 'ปิดรับ': 'bg-stone-200 text-stone-700', 'หมดช่วงรับสั่ง': 'bg-stone-200 text-stone-600' }
+const BADGE = { 'เปิดรับสั่ง': 'bg-success-100 text-success-800', 'ร่าง': 'bg-stone-100 text-stone-700', 'รอเปิดรับ': 'bg-warning-100 text-warning-800', 'ปิดรับ': 'bg-stone-200 text-stone-700', 'หมดช่วงรับสั่ง': 'bg-stone-200 text-stone-600' }
 const badge = (label) => BADGE[label] || 'bg-stone-100 text-stone-700'
 const tiers = ref([]) // ขั้นส่วนลดตามยอด (ดีล spend_off เดียวของแคมเปญ) เก็บเป็นข้อความบนหน้าจอ
 const parcelOn = ref(false) // ส่งพัสดุไปรษณีย์ (สินค้าทุกชิ้นต้องมีน้ำหนักและขนาด)
@@ -233,9 +233,9 @@ function toggle(c, status) {
         <div v-if="parcelOn" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div><label class="label" for="pp-sf">เริ่มวันจัดส่งพัสดุ <span class="text-rose-600">*</span></label><input id="pp-sf" v-model="form.shipFrom" type="date" class="input" /></div>
           <div><label class="label" for="pp-st">สิ้นสุดวันจัดส่งพัสดุ <span class="text-rose-600">*</span></label><input id="pp-st" v-model="form.shipTo" type="date" class="input" /></div>
-          <p v-if="shipWarn" class="col-span-2 flex items-center gap-2 text-sm text-amber-700" role="status" data-ship-warn><AppIcon name="alert" :size="16" /> {{ shipWarn }}</p>
+          <p v-if="shipWarn" class="col-span-2 flex items-center gap-2 text-sm text-warning-700" role="status" data-ship-warn><AppIcon name="alert" :size="16" /> {{ shipWarn }}</p>
         </div>
-        <p v-if="ferr" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ ferr }}</p>
+        <p v-if="ferr" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ ferr }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="form = null">ปิด</button>

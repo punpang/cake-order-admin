@@ -91,7 +91,7 @@ async function printAs(copy) {
           <div><label class="label">ที่อยู่ตามใบกำกับ</label><TaxAddressField v-model="buyer.address" label="ที่อยู่ผู้ซื้อ" :suggestions="addrChoices" /></div>
           <label v-if="findCustomer(order.customerId)" class="flex items-center gap-2 text-sm text-stone-600"><input v-model="buyer.save" type="checkbox" class="h-4 w-4" /> บันทึกข้อมูลนี้ไว้กับลูกค้า</label>
         </div>
-        <p v-if="block" class="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800"><AppIcon name="alert" :size="16" class="mt-0.5 shrink-0" /> {{ block }}</p>
+        <p v-if="block" class="flex items-start gap-2 rounded-xl bg-warning-50 p-3 text-sm text-warning-800"><AppIcon name="alert" :size="16" class="mt-0.5 shrink-0" /> {{ block }}</p>
         <p class="text-xs text-stone-500">{{ current ? 'ใบเดิมยังเก็บไว้ในระบบ ใบลดหนี้และใบใหม่ออกให้อัตโนมัติ' : 'ออกแล้วแก้ไขได้จากหน้านี้ · ใบเดิมยังเก็บไว้ทุกครั้ง · ใบเสร็จย่อของระบบยังไม่ใช่ใบกำกับภาษี' }}</p>
       </template>
       <div v-else class="space-y-3 rounded-2xl border border-stone-200 p-3 text-sm text-stone-700">
@@ -108,15 +108,15 @@ async function printAs(copy) {
       <div v-if="docs.length" class="flex flex-wrap gap-1.5">
         <button v-for="d in docs" :key="d.id" type="button" class="chip" :class="shown?.id === d.id ? 'chip-on' : 'chip-off'" @click="viewId = d.id">{{ d.no }}<span v-if="d.voidedBy"> (ยกเลิก)</span></button>
       </div>
-      <p v-if="shown?.pending" class="flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-800"><AppIcon name="alert" :size="16" /> กำลังรับเลขที่จากฐานข้อมูล (รอสักครู่ แล้วเปิดใหม่) · ยังพิมพ์ไม่ได้</p>
+      <p v-if="shown?.pending" class="flex items-center gap-2 rounded-xl bg-warning-50 p-3 text-sm text-warning-800"><AppIcon name="alert" :size="16" /> กำลังรับเลขที่จากฐานข้อมูล (รอสักครู่ แล้วเปิดใหม่) · ยังพิมพ์ไม่ได้</p>
       <div v-if="shown" class="overflow-x-auto rounded-2xl border border-stone-200"><TaxInvoiceDoc :invoice="shown" :label="copyLabel" /></div>
       <p v-if="shown" class="text-xs text-stone-500">บนแอปพิมพ์ไปเครื่องพิมพ์ความร้อนที่ตั้งไว้ · บนเว็บพิมพ์ A4 ผ่านกล่องพิมพ์ของเบราว์เซอร์</p>
-      <div v-if="voiding" class="space-y-2 rounded-2xl border border-rose-200 bg-rose-50 p-3">
+      <div v-if="voiding" class="space-y-2 rounded-2xl border border-danger-200 bg-danger-50 p-3">
         <label class="label">เหตุผลที่ยกเลิก (ออกใบลดหนี้เต็มจำนวน)</label>
         <input v-model="reason" class="input" maxlength="200" aria-label="เหตุผลยกเลิกใบกำกับ" />
         <div class="flex gap-2"><button class="btn-outline flex-1" @click="voiding = false">ไม่ยกเลิก</button><button class="btn-primary flex-1" @click="doVoid">ออกใบลดหนี้</button></div>
       </div>
-      <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+      <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
     </div>
     </template>
     <template #footer>
@@ -125,7 +125,7 @@ async function printAs(copy) {
         <button class="btn-soft flex-1 sm:flex-none" :disabled="!!shown.pending" @click="printAs(false)"><AppIcon name="printer" :size="16" /> พิมพ์</button>
         <button class="btn-soft flex-1 sm:flex-none" :disabled="!!shown.pending" @click="printAs(true)">พิมพ์สำเนา</button>
         <button v-if="current && shown.id === current.id && can('taxInvoice') && !voiding && !editing" class="btn-outline flex-1 sm:flex-none" @click="startEdit">แก้ไข</button>
-        <button v-if="current && shown.id === current.id && can('taxInvoice') && !voiding && !editing" class="btn-outline flex-1 text-rose-700 sm:flex-none" @click="voiding = true">ยกเลิกใบ</button>
+        <button v-if="current && shown.id === current.id && can('taxInvoice') && !voiding && !editing" class="btn-outline flex-1 text-danger-700 sm:flex-none" @click="voiding = true">ยกเลิกใบ</button>
       </template>
       <button v-if="current && editing" class="btn-outline flex-1 sm:flex-none" @click="editing = false">ไม่แก้ไข</button>
       <button v-if="current && editing" class="btn-primary flex-1 sm:flex-none" @click="saveRevise">บันทึกการแก้ไข</button>

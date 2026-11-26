@@ -67,8 +67,8 @@ const itemLimit = ref(24) // รูปเยอะ: แสดงทีละ 24
         </div>
         <div><label class="label">คำอธิบายรูป (ไม่บังคับ)</label><input v-model="caption" class="input" maxlength="120" aria-label="คำอธิบายรูป" /></div>
         <ImageUploader v-model="queue" :max="20" label="เลือกรูป (หลายรูปได้)" />
-        <p v-if="err" class="text-sm text-rose-700" role="alert">{{ err }}</p>
-        <p v-if="msg" class="text-sm text-emerald-700" role="status">{{ msg }}</p>
+        <p v-if="err" class="text-sm text-danger-700" role="alert">{{ err }}</p>
+        <p v-if="msg" class="text-sm text-success-700" role="status">{{ msg }}</p>
         <button type="button" class="btn-primary w-full" @click="saveQueue">บันทึก {{ queue.length || '' }} รูปเข้าคลัง</button>
       </section>
 
@@ -90,7 +90,7 @@ const itemLimit = ref(24) // รูปเยอะ: แสดงทีละ 24
       <section v-show="tab === 'coverage'" class="card text-sm" aria-label="ความครอบคลุมของรูป">
         <div class="card-title">ความครอบคลุมของรูป</div>
         <div v-if="cov.popular.length" class="mb-3"><div class="mb-1 font-semibold text-stone-800">แบบที่ลูกค้าสั่งจริงแต่ยังไม่มีรูปตรง</div><ul class="space-y-0.5"><li v-for="p in cov.popular" :key="p.label" class="flex justify-between"><span>{{ p.label }}</span><span class="text-stone-500">สั่งแล้ว {{ p.count }}</span></li></ul></div>
-        <div v-for="r in cov.groups" :key="r.group.id" class="mb-2"><div class="font-semibold text-stone-800">{{ r.group.name }} <span class="text-xs font-normal" :class="r.missing.length ? 'text-amber-700' : 'text-emerald-700'">{{ r.missing.length ? `ยังไม่มีรูป ${r.missing.length}` : 'มีรูปครบ' }}</span></div><div v-if="r.missing.length" class="mt-0.5 flex flex-wrap gap-1"><span v-for="o in r.missing" :key="o.id" class="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-800">{{ o.name }}</span></div></div>
+        <div v-for="r in cov.groups" :key="r.group.id" class="mb-2"><div class="font-semibold text-stone-800">{{ r.group.name }} <span class="text-xs font-normal" :class="r.missing.length ? 'text-warning-700' : 'text-success-700'">{{ r.missing.length ? `ยังไม่มีรูป ${r.missing.length}` : 'มีรูปครบ' }}</span></div><div v-if="r.missing.length" class="mt-0.5 flex flex-wrap gap-1"><span v-for="o in r.missing" :key="o.id" class="rounded-full bg-warning-50 px-2 py-0.5 text-xs text-warning-800">{{ o.name }}</span></div></div>
         <p class="text-xs text-stone-400">ตัวเลือกที่ไม่มีรูป ลูกค้าจะเห็นรูปใกล้เคียงพร้อมข้อความกำกับ</p>
       </section>
     </div>
@@ -101,7 +101,7 @@ const itemLimit = ref(24) // รูปเยอะ: แสดงทีละ 24
         <div v-for="g in groups" :key="g.id"><div class="mb-1 text-xs font-semibold text-stone-600">{{ g.name }}</div><div class="flex flex-wrap gap-1.5"><button v-for="o in g.options.filter((x) => x.active !== false)" :key="o.id" type="button" class="chip" :class="ed.tags.includes(o.id) ? 'chip-on' : 'chip-off'" @click="toggle(ed.tags, o.id)">{{ o.name }}</button></div></div>
         <div><label class="label">คำอธิบาย</label><input v-model="ed.caption" class="input" maxlength="120" aria-label="คำอธิบายรูปที่แก้ไข" /></div>
         <AppSwitch v-model="ed.active" label="แสดงที่หน้าเว็บ" />
-        <p v-if="ed.error" class="text-sm text-rose-700" role="alert">{{ ed.error }}</p>
+        <p v-if="ed.error" class="text-sm text-danger-700" role="alert">{{ ed.error }}</p>
       </div>
       <template #footer>
         <button class="btn-danger flex-1 sm:flex-none" @click="del"><AppIcon name="trash" :size="16" /> ลบ</button>

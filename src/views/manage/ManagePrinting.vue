@@ -45,7 +45,7 @@ function webTest(s) {
 
 <template>
   <ManageShell narrow guard title="การพิมพ์" subtitle="เครื่องพิมพ์และกระดาษแยกตามส่วน" :toolbar="false">
-    <div class="mb-3 flex gap-2 rounded-2xl bg-sky-50 p-3 text-sm text-sky-900">
+    <div class="mb-3 flex gap-2 rounded-2xl bg-info-50 p-3 text-sm text-sky-900">
       <AppIcon name="printer" :size="18" class="mt-0.5 shrink-0" />
       <p>{{ native ? 'ตอนนี้เป็นแอป: เครื่องพิมพ์และความกว้างกระดาษที่ตั้งด้านล่างเก็บในเครื่องนี้' : 'ตอนนี้เป็นเว็บ: ความกว้างสลิปที่ตั้งด้านล่างเก็บในเบราว์เซอร์ของเครื่องนี้ · เลือกเครื่องพิมพ์ในกล่องพิมพ์ทุกครั้ง' }} จำนวนชุดเป็นค่าของร้านทุกเครื่อง</p>
     </div>

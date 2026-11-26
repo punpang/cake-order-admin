@@ -249,7 +249,7 @@ onMounted(() => load())
         </div>
         <div>
           <div class="text-xs text-stone-500">ยกเลิก</div>
-          <div class="text-lg font-semibold tabular-nums" :class="cancelledCount ? 'text-rose-700' : 'text-stone-900'">{{ cancelledCount }}</div>
+          <div class="text-lg font-semibold tabular-nums" :class="cancelledCount ? 'text-danger-700' : 'text-stone-900'">{{ cancelledCount }}</div>
         </div>
       </div>
       <div class="mt-4 border-t border-stone-100 pt-3">
@@ -274,7 +274,7 @@ onMounted(() => load())
 
       <div v-if="loading" class="card py-10 text-center text-sm text-stone-500">กำลังโหลดบิล…</div>
 
-      <div v-else-if="error" class="card flex items-start gap-2 border-rose-200 bg-rose-50 text-sm text-rose-700">
+      <div v-else-if="error" class="card flex items-start gap-2 border-danger-200 bg-danger-50 text-sm text-danger-700">
         <AppIcon name="alert" :size="18" class="mt-0.5 shrink-0" />
         <span>โหลดบิลไม่สำเร็จ: {{ error }}</span>
       </div>
@@ -304,11 +304,11 @@ onMounted(() => load())
                 <span class="font-semibold text-stone-900">{{ orderNo(o.code) }}</span>
                 <span
                   v-if="o.status === 'cancelled'"
-                  class="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700"
+                  class="rounded-full bg-danger-100 px-2 py-0.5 text-xs font-medium text-danger-700"
                 >ยกเลิกแล้ว</span>
                 <span
                   v-else
-                  class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
+                  class="rounded-full bg-success-50 px-2 py-0.5 text-xs font-medium text-success-700"
                 >{{ payLabel(o) }}</span>
               </div>
               <div class="meta mt-1 text-xs text-stone-500">{{ dateTime(o.createdAt) }}</div>
@@ -345,7 +345,7 @@ onMounted(() => load())
     <AppModal v-if="voidFor" split :title="`ยกเลิกบิล ${orderNo(voidFor.code)}`" @close="voidFor = null">
       <template #left>
       <div class="space-y-4">
-        <p v-if="invoiceOfOrder(voidFor.id)" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ออร์เดอร์นี้ออกใบกำกับภาษีไว้แล้ว ({{ invoiceOfOrder(voidFor.id).no }}) · เมื่อยกเลิกระบบจะออกใบลดหนี้ให้อัตโนมัติ</p>
+        <p v-if="invoiceOfOrder(voidFor.id)" class="rounded-xl bg-warning-50 p-3 text-sm text-warning-800">ออร์เดอร์นี้ออกใบกำกับภาษีไว้แล้ว ({{ invoiceOfOrder(voidFor.id).no }}) · เมื่อยกเลิกระบบจะออกใบลดหนี้ให้อัตโนมัติ</p>
         <p class="text-sm text-stone-500">ยกเลิกแล้วจะคืนสต็อก คืนคูปองที่ใช้ และตัดคะแนนที่ได้จากบิลนี้ · ยอดคืนเงินจะกระทบยอดของกะที่ปิดไปแล้ว</p>
         <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><input v-model="vd.reason" class="input" maxlength="120" /></div>
       </div>
@@ -357,7 +357,7 @@ onMounted(() => load())
           <RefundEditor v-model="vd.refunds" :paid="voidPaid" :can-credit="!!voidFor.customerId && !!findCustomer(voidFor.customerId) && !findCustomer(voidFor.customerId).deleted" :default-method="voidDefault" />
         </div>
         <div><label class="label">หมายเหตุการคืนเงิน</label><input v-model="vd.note" class="input" maxlength="120" /></div>
-        <p v-if="vd.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ vd.error }}</p>
+        <p v-if="vd.error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ vd.error }}</p>
       </div>
       </template>
       <template #footer>

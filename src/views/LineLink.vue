@@ -68,7 +68,7 @@ async function submit() {
       <p class="text-sm text-stone-600">เข้าสู่ระบบด้วยเบอร์และ PIN เพื่อเชื่อมกับบัญชี LINE นี้ (ทำครั้งเดียว)</p>
       <div><label class="label">เบอร์โทร</label><PhoneInput v-model="phone" /></div>
       <div><label class="label">PIN 6 หลัก</label><PinInput v-model="pin" /></div>
-      <p v-if="error" class="text-sm text-rose-700" role="alert">{{ error }}</p>
+      <p v-if="error" class="text-sm text-danger-700" role="alert">{{ error }}</p>
       <button class="btn-primary w-full" :disabled="busy">{{ busy ? 'กำลังเชื่อมบัญชี…' : 'เข้าสู่ระบบและเชื่อมบัญชี' }}</button>
       <!-- ลูกค้าใหม่หรือลืม PIN ไปต่อได้จากหน้านี้ · สมัคร/ตั้ง PIN ใหม่เสร็จแล้วกลับมาที่นี่ทันที -->
       <div class="flex items-center justify-between">
@@ -78,14 +78,14 @@ async function submit() {
     </form>
 
     <div v-else-if="phase === 'done'" class="card mt-5 space-y-3 text-center">
-      <p class="font-semibold text-emerald-800">เชื่อมบัญชี LINE แล้วค่ะ</p>
+      <p class="font-semibold text-success-800">เชื่อมบัญชี LINE แล้วค่ะ</p>
       <button v-if="inClient" class="btn-primary block w-full" @click="closeLineWindow">กลับไปแชท LINE</button>
       <RouterLink to="/account" :class="inClient ? 'btn-outline' : 'btn-primary'" class="block w-full">ดูคะแนนและบัญชี</RouterLink>
       <RouterLink to="/menu" class="btn-outline block w-full">สั่งเค้ก</RouterLink>
     </div>
 
     <div v-else class="card mt-5 space-y-3 text-center">
-      <p class="text-rose-700" role="alert">{{ error }}</p>
+      <p class="text-danger-700" role="alert">{{ error }}</p>
       <button class="btn-outline w-full" @click="$router.go(0)">ลองใหม่</button>
     </div>
   </div>

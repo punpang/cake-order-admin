@@ -82,7 +82,7 @@ function addReview() {
   if (!r) return (rv.error = 'กรอกชื่อและข้อความรีวิว')
   Object.assign(rv, { name: '', rating: 5, text: '', error: '' })
 }
-const STATUS = { pending: ['รออนุมัติ', 'bg-amber-50 text-amber-700'], approved: ['แสดงอยู่', 'bg-emerald-50 text-emerald-700'], rejected: ['ไม่แสดง', 'bg-stone-100 text-stone-500'] }
+const STATUS = { pending: ['รออนุมัติ', 'bg-warning-50 text-warning-700'], approved: ['แสดงอยู่', 'bg-success-50 text-success-700'], rejected: ['ไม่แสดง', 'bg-stone-100 text-stone-500'] }
 const reviews = computed(() => [...db.reviews].sort((a, b) => b.createdAt.localeCompare(a.createdAt)))
 async function del(r) {
   if (await askConfirm({ title: 'ลบรีวิว', message: `ลบรีวิวของ ${r.name}`, okText: 'ลบ', danger: true })) removeReview(r.id)
@@ -219,7 +219,7 @@ async function del(r) {
 
       <div class="mt-4 flex items-center gap-3">
         <button class="btn-primary flex-1 sm:flex-none" @click="save">บันทึก</button>
-        <span v-if="saved" class="flex items-center gap-1 text-sm text-emerald-700"><AppIcon name="check" :size="16" /> บันทึกแล้ว</span>
+        <span v-if="saved" class="flex items-center gap-1 text-sm text-success-700"><AppIcon name="check" :size="16" /> บันทึกแล้ว</span>
         <RouterLink to="/" class="ml-auto text-sm text-brand-700 underline" target="_blank">ดูหน้าร้าน</RouterLink>
       </div>
     </template>
@@ -230,9 +230,9 @@ async function del(r) {
         <div class="card-title">เพิ่มรีวิว (แอดมินกรอก)</div>
         <p class="text-xs text-stone-500">ใส่เฉพาะรีวิวจริงที่ลูกค้าให้ไว้ (เช่น จาก Facebook) และควรได้รับอนุญาตจากลูกค้า</p>
         <input v-model="rv.name" class="input" maxlength="60" placeholder="ชื่อที่แสดง เช่น คุณมะลิ" />
-        <div class="flex gap-1" role="radiogroup" aria-label="คะแนน"><button v-for="n in 5" :key="n" type="button" role="radio" :aria-checked="rv.rating === n" class="text-3xl leading-none" :class="n <= rv.rating ? 'text-amber-500' : 'text-stone-300'" :aria-label="`${n} ดาว`" @click="rv.rating = n">★</button></div>
+        <div class="flex gap-1" role="radiogroup" aria-label="คะแนน"><button v-for="n in 5" :key="n" type="button" role="radio" :aria-checked="rv.rating === n" class="text-3xl leading-none" :class="n <= rv.rating ? 'text-amber-500' : 'text-stone-500'" :aria-label="`${n} ดาว`" @click="rv.rating = n">★</button></div>
         <textarea v-model="rv.text" rows="3" maxlength="500" class="input" placeholder="ข้อความรีวิว"></textarea>
-        <p v-if="rv.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ rv.error }}</p>
+        <p v-if="rv.error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ rv.error }}</p>
         <button class="btn-primary w-full" @click="addReview">เพิ่มรีวิว</button>
       </section>
 

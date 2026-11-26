@@ -114,7 +114,7 @@ const summary = computed(() => {
     </div>
 
     <!-- สรุปยอดของแท็บ: ตอบคำถามแรกของคนหน้าร้านได้ทันที (ต้องรับเงินเท่าไร · กี่รายการ · เกินกำหนดกี่รายการ) -->
-    <section v-if="summary && rows.length" class="mb-3 grid grid-cols-3 divide-x divide-stone-200/80 overflow-hidden rounded-2xl border shadow-sm md:max-w-xl" :class="tab === 'review' ? 'border-sky-200 bg-sky-50' : 'border-amber-200 bg-amber-50'" aria-label="สรุปยอด">
+    <section v-if="summary && rows.length" class="mb-3 grid grid-cols-3 divide-x divide-stone-200/80 overflow-hidden rounded-2xl border shadow-sm md:max-w-xl" :class="tab === 'review' ? 'border-info-200 bg-info-50' : 'border-warning-200 bg-warning-50'" aria-label="สรุปยอด">
       <div class="col-span-3 min-w-0 px-4 pt-3 sm:col-span-1 sm:pb-3" :class="tab === 'review' ? 'text-sky-900' : 'text-amber-900'">
         <div class="text-xs font-medium opacity-80">{{ tab === 'review' ? 'ยอดที่แจ้งรอตรวจ' : 'ยอดค้างรับทั้งหมด' }}{{ q.trim() ? ' (ตามที่ค้นหา)' : '' }}</div>
         <div class="mt-0.5 text-2xl leading-tight font-semibold tabular-nums">{{ money(summary.amount) }}</div>
@@ -123,7 +123,7 @@ const summary = computed(() => {
         <div class="text-xs font-medium opacity-80">{{ tab === 'review' ? 'งวดที่รอตรวจ' : 'ออร์เดอร์' }}</div>
         <div class="mt-0.5 text-lg leading-tight font-semibold tabular-nums">{{ summary.count.toLocaleString('th-TH') }}</div>
       </div>
-      <div class="px-4 py-3" :class="summary.overdue ? 'text-rose-700' : tab === 'review' ? 'text-sky-900' : 'text-amber-900'">
+      <div class="px-4 py-3" :class="summary.overdue ? 'text-danger-700' : tab === 'review' ? 'text-sky-900' : 'text-amber-900'">
         <div class="text-xs font-medium opacity-80">เกินกำหนด</div>
         <div class="mt-0.5 text-lg leading-tight font-semibold tabular-nums">{{ tab === 'review' ? '—' : summary.overdue.toLocaleString('th-TH') }}</div>
       </div>
@@ -145,7 +145,7 @@ const summary = computed(() => {
         <li v-for="r in rows" :key="r.o.id" class="card flex min-w-0 flex-col gap-3 p-3.5" :data-order="r.o.code">
           <!-- หัว: เวลานัด · ลูกค้า · สถานะ -->
           <div class="flex items-start gap-3">
-            <div class="flex w-14 shrink-0 flex-col items-center rounded-xl py-2" :class="r.due?.state === 'overdue' ? 'bg-rose-50 text-rose-700' : 'bg-brand-50 text-brand-800'">
+            <div class="flex w-14 shrink-0 flex-col items-center rounded-xl py-2" :class="r.due?.state === 'overdue' ? 'bg-danger-50 text-danger-700' : 'bg-brand-50 text-brand-800'">
               <span class="text-base leading-none font-semibold tabular-nums">{{ r.o.pickupAt.slice(11, 16) }}</span>
               <span class="mt-1 text-xs leading-none">{{ dayShort(r.o) }}</span>
             </div>
@@ -162,7 +162,7 @@ const summary = computed(() => {
               <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <StatusBadge :status="r.o.status" />
                 <PayDueBadge :due="r.due" short />
-                <span v-if="r.pending.length" class="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-sky-700">ลูกค้าแจ้งโอน</span>
+                <span v-if="r.pending.length" class="inline-flex items-center rounded-full bg-info-50 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-info-700">ลูกค้าแจ้งโอน</span>
               </div>
             </div>
           </div>
@@ -172,35 +172,35 @@ const summary = computed(() => {
             <div class="flex items-end justify-between gap-3">
               <div class="min-w-0">
                 <div class="text-xs text-stone-500">คงค้าง</div>
-                <div class="text-xl leading-tight font-semibold tabular-nums" :class="r.t.balance > 0 ? 'text-amber-800' : 'text-stone-500'">{{ r.t.balance > 0 ? money(r.t.balance) : 'ไม่มียอดค้าง' }}</div>
+                <div class="text-xl leading-tight font-semibold tabular-nums" :class="r.t.balance > 0 ? 'text-warning-800' : 'text-stone-500'">{{ r.t.balance > 0 ? money(r.t.balance) : 'ไม่มียอดค้าง' }}</div>
               </div>
               <div class="shrink-0 text-right text-xs leading-relaxed text-stone-500">
                 <div>ยอดรวม <b class="font-semibold text-stone-700 tabular-nums">{{ money(r.t.total) }}</b></div>
-                <div>ชำระแล้ว <b class="font-semibold text-emerald-700 tabular-nums">{{ money(r.t.paidNet) }}</b></div>
+                <div>ชำระแล้ว <b class="font-semibold text-success-700 tabular-nums">{{ money(r.t.paidNet) }}</b></div>
               </div>
             </div>
             <div class="mt-2.5 h-1.5 overflow-hidden rounded-full bg-stone-200" role="progressbar" :aria-valuenow="paidPct(r.t)" aria-valuemin="0" aria-valuemax="100" aria-label="ชำระแล้ว">
               <div class="h-full rounded-full bg-emerald-500 transition-all" :style="{ width: paidPct(r.t) + '%' }" />
             </div>
-            <p v-if="r.t.returned" class="mt-2 text-xs text-rose-700">คืนเงินแล้ว −{{ money(r.t.returned) }}</p>
+            <p v-if="r.t.returned" class="mt-2 text-xs text-danger-700">คืนเงินแล้ว −{{ money(r.t.returned) }}</p>
           </div>
 
           <!-- งวดที่แจ้งไว้ (รอตรวจ/รอรับเงิน): การกระทำหลักของแท็บรอตรวจ -->
-          <div v-for="x in reported(r.o)" :key="x.p.id" class="rounded-2xl border border-sky-200 bg-sky-50/60 p-3" :aria-label="`งวด ${x.n} ${r.o.code}`">
+          <div v-for="x in reported(r.o)" :key="x.p.id" class="rounded-2xl border border-info-200 bg-info-50/60 p-3" :aria-label="`งวด ${x.n} ${r.o.code}`">
             <div class="flex gap-3">
               <div class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white text-sky-500">
                 <SecureImg v-if="x.p.slip" :src="x.p.slip" alt="สลิป" img-class="h-full w-full object-cover" />
                 <AppIcon v-else name="image" :size="22" />
               </div>
               <div class="min-w-0 flex-1">
-                <div class="text-xs font-medium text-sky-700">งวด {{ x.n }} · {{ x.p.receiptVerified ? 'ลูกค้าชำระแล้ว · ผ่านการตรวจสอบแล้ว (แจ้งเตือนถุงเงิน)' : x.p.customerSubmitted ? 'ลูกค้าแจ้งโอนแล้ว' : 'แจ้งยอดไว้ รอรับเงิน' }}</div>
+                <div class="text-xs font-medium text-info-700">งวด {{ x.n }} · {{ x.p.receiptVerified ? 'ลูกค้าชำระแล้ว · ผ่านการตรวจสอบแล้ว (แจ้งเตือนถุงเงิน)' : x.p.customerSubmitted ? 'ลูกค้าแจ้งโอนแล้ว' : 'แจ้งยอดไว้ รอรับเงิน' }}</div>
                 <div class="text-lg leading-tight font-semibold text-stone-900 tabular-nums">{{ money(x.p.requested ?? x.p.amount) }}</div>
                 <div class="truncate text-xs text-stone-600">{{ x.p.method }}<template v-if="x.p.paidAt"> · {{ dateTime(x.p.paidAt) }}</template></div>
                 <p v-if="x.p.note" class="mt-0.5 truncate text-xs text-stone-500">{{ x.p.note }}</p>
               </div>
             </div>
 
-            <div v-if="x.p.extension?.status === 'pending'" class="mt-3 rounded-xl bg-amber-50 p-2.5 text-sm text-amber-900">
+            <div v-if="x.p.extension?.status === 'pending'" class="mt-3 rounded-xl bg-warning-50 p-2.5 text-sm text-amber-900">
               <div>ลูกค้าขอขยายเวลา<span v-if="x.p.extension.note"> · {{ x.p.extension.note }}</span></div>
               <div v-if="canReport" class="mt-2 grid grid-cols-2 gap-2">
                 <button type="button" class="btn-primary h-11 px-3" @click="ext = { order: r.o, payment: x.p }">ขยายเวลา</button>
@@ -252,9 +252,9 @@ const summary = computed(() => {
               เปิด<AppIcon name="next" :size="14" />
             </RouterLink>
           </div>
-          <div class="rounded-2xl bg-emerald-50 p-3">
-            <div class="text-xs text-emerald-700">ชำระแล้ว (สุทธิ · คืนได้)</div>
-            <div class="text-xl leading-tight font-semibold text-emerald-800 tabular-nums">{{ money(r.t.paidNet) }}</div>
+          <div class="rounded-2xl bg-success-50 p-3">
+            <div class="text-xs text-success-700">ชำระแล้ว (สุทธิ · คืนได้)</div>
+            <div class="text-xl leading-tight font-semibold text-success-800 tabular-nums">{{ money(r.t.paidNet) }}</div>
             <div class="mt-1 text-xs text-stone-600">ยอดรวม {{ money(r.t.total) }}<template v-if="r.t.returned"> · คืนแล้ว −{{ money(r.t.returned) }}</template></div>
           </div>
           <button v-if="canRefund" type="button" class="btn-primary mt-auto h-11 w-full" @click="refund = r.o"><AppIcon name="wallet" :size="16" /> คืนเงิน</button>

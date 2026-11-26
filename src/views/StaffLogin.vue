@@ -71,7 +71,7 @@ async function submit() {
         <input v-model="password" type="password" class="input mt-1" autocomplete="current-password" required />
       </label>
       <div v-if="captchaOn" ref="captchaEl" class="flex justify-center"></div>
-      <p v-if="error" class="text-sm text-rose-700" role="alert">{{ error }}</p>
+      <p v-if="error" class="text-sm text-danger-700" role="alert">{{ error }}</p>
       <button type="submit" class="btn-primary w-full" :disabled="busy">{{ busy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ' }}</button>
     </form>
   </div>

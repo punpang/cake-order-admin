@@ -21,9 +21,9 @@ const list = computed(() => {
 
 const ROLE_CLS = {
   admin: 'bg-brand-50 text-brand-700',
-  sales: 'bg-sky-50 text-sky-700',
+  sales: 'bg-info-50 text-info-700',
   baker: 'bg-orange-50 text-orange-700',
-  driver: 'bg-emerald-50 text-emerald-700',
+  driver: 'bg-success-50 text-success-700',
 }
 
 const open = ref(false)
@@ -113,8 +113,8 @@ async function save() {
       <ul class="divide-y divide-stone-100 text-xs">
         <li v-for="l in log" :key="l.id" class="py-2">
           <b class="text-stone-800">{{ userName(l.userId) }}</b> · {{ l.isNew ? 'เพิ่มผู้ใช้' : 'แก้สิทธิ์' }} โดย {{ userName(l.by) }}
-          <span v-if="l.added.length" class="block text-emerald-700">+ {{ l.added.map((k) => labelOf[k] || k).join(', ') }}</span>
-          <span v-if="l.removed.length" class="block text-rose-700">− {{ l.removed.map((k) => labelOf[k] || k).join(', ') }}</span>
+          <span v-if="l.added.length" class="block text-success-700">+ {{ l.added.map((k) => labelOf[k] || k).join(', ') }}</span>
+          <span v-if="l.removed.length" class="block text-danger-700">− {{ l.removed.map((k) => labelOf[k] || k).join(', ') }}</span>
         </li>
       </ul>
     </section>
@@ -162,7 +162,7 @@ async function save() {
         </div>
         <AppSwitch v-model="form.active" label="ใช้งาน" />
         <p class="rounded-xl bg-stone-50 p-3 text-xs text-stone-500">ยังไม่ได้ต่อ Supabase: ข้อมูลผู้ใช้เก็บไว้ชั่วคราว และยังไม่มีการล็อกอินจริง</p>
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>

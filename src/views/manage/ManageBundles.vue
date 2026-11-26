@@ -76,7 +76,7 @@ async function link(b) {
     @add="router.push('/admin/settings/bundles/new')"
   >
     <section class="card mb-4 flex items-start gap-3 p-4">
-      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700"><AppIcon name="tag" :size="20" /></span>
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-warning-50 text-warning-700"><AppIcon name="tag" :size="20" /></span>
       <p class="min-w-0 text-sm text-stone-600">
         <b class="text-stone-900">บันเดิ้ล = ชุดลดราคา</b> · ลูกค้าเลือกตัวเลือกในชุดให้ครบ ก็ได้ส่วนลดตามขนาดเค้ก
         แตะการ์ดเพื่อดูราคาปกติและราคาหลังลดของแต่ละขนาด
@@ -84,7 +84,7 @@ async function link(b) {
     </section>
 
     <div v-if="!db.bundles.length" class="card flex flex-col items-center gap-3 py-10 text-center">
-      <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-700"><AppIcon name="tag" :size="26" /></span>
+      <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-warning-50 text-warning-700"><AppIcon name="tag" :size="26" /></span>
       <h2 class="font-semibold text-stone-900">ยังไม่มีบันเดิ้ล</h2>
       <p class="max-w-sm text-sm text-stone-500">เช่น "ไส้ครีมชีส + ท็อปปิ้งบลูเบอร์รี" ลดให้เมื่อลูกค้าเลือกทั้งสองอย่างพร้อมกัน</p>
       <RouterLink to="/admin/settings/bundles/new" class="btn-primary">สร้างบันเดิ้ลแรก</RouterLink>
@@ -103,7 +103,7 @@ async function link(b) {
           <div class="flex flex-wrap items-start gap-2">
             <h2 class="min-w-0 flex-1 text-base font-semibold break-words text-stone-900">{{ r.b.name }}</h2>
             <span v-if="r.b.active === false" class="shrink-0 rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-600">ปิดอยู่</span>
-            <span v-else class="shrink-0 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">ใช้งาน</span>
+            <span v-else class="shrink-0 rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-medium text-success-800">ใช้งาน</span>
           </div>
           <p class="mt-1 text-xs text-stone-500">{{ r.s.scope }}</p>
           <ul class="mt-2.5 flex flex-wrap gap-1.5" aria-label="ตัวเลือกในชุด">
@@ -111,7 +111,7 @@ async function link(b) {
               v-for="i in r.s.items"
               :key="i.key"
               class="rounded-lg px-2 py-1 text-xs break-words"
-              :class="i.off ? 'bg-rose-50 text-rose-700' : 'bg-stone-50 text-stone-700'"
+              :class="i.off ? 'bg-danger-50 text-danger-700' : 'bg-stone-50 text-stone-700'"
             >
               <span v-if="i.group" class="text-stone-500">{{ i.group }}: </span>{{ i.name }}<span v-if="i.off"> (ปิดอยู่)</span>
             </li>
@@ -119,18 +119,18 @@ async function link(b) {
           <dl class="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
             <div v-for="z in r.s.sizes" :key="z.id" class="rounded-lg bg-stone-50 px-2.5 py-1.5">
               <dt class="text-xs text-stone-500">{{ z.name }}</dt>
-              <dd class="text-sm font-semibold" :class="z.amount > 0 ? 'text-emerald-700' : 'text-stone-400'">
+              <dd class="text-sm font-semibold" :class="z.amount > 0 ? 'text-success-700' : 'text-stone-400'">
                 {{ z.amount > 0 ? `ลด ${bahtText(z.amount)}` : 'ยังไม่ตั้ง' }}
               </dd>
-              <dd v-if="z.hasOverride" class="text-xs text-amber-800">มีราคาแยกประเภท</dd>
+              <dd v-if="z.hasOverride" class="text-xs text-warning-800">มีราคาแยกประเภท</dd>
             </div>
           </dl>
-          <p v-if="!r.s.hasDiscount" class="mt-2 text-xs font-medium text-amber-800">ยังไม่มีส่วนลด · ชุดนี้จะยังไม่ทำงาน</p>
-          <p v-if="r.s.hasOff" class="mt-2 text-xs font-medium text-rose-700">มีตัวเลือกในชุดที่ปิดอยู่ · ลูกค้าเลือกไม่ได้</p>
-          <p v-if="r.dup" class="mt-2 text-xs font-medium text-rose-700" data-dup-warning>ตัวเลือกซ้ำกับ "{{ r.dup.name }}"{{ r.dup.active === false ? ' (ปิดอยู่)' : '' }} · ควรแก้หรือลบชุดใดชุดหนึ่ง</p>
-          <p v-if="r.over.length" class="mt-2 text-xs font-medium text-rose-700" data-over-warning>ลดเกินราคาปกติ: {{ r.over[0] }}{{ r.over.length > 1 ? ' (และอีก ' + (r.over.length - 1) + ' รายการ)' : '' }} · หน้าร้านจะลดได้ไม่เกินราคาตัวเลือก ควรปรับส่วนลดในหน้าแก้ไข</p>
+          <p v-if="!r.s.hasDiscount" class="mt-2 text-xs font-medium text-warning-800">ยังไม่มีส่วนลด · ชุดนี้จะยังไม่ทำงาน</p>
+          <p v-if="r.s.hasOff" class="mt-2 text-xs font-medium text-danger-700">มีตัวเลือกในชุดที่ปิดอยู่ · ลูกค้าเลือกไม่ได้</p>
+          <p v-if="r.dup" class="mt-2 text-xs font-medium text-danger-700" data-dup-warning>ตัวเลือกซ้ำกับ "{{ r.dup.name }}"{{ r.dup.active === false ? ' (ปิดอยู่)' : '' }} · ควรแก้หรือลบชุดใดชุดหนึ่ง</p>
+          <p v-if="r.over.length" class="mt-2 text-xs font-medium text-danger-700" data-over-warning>ลดเกินราคาปกติ: {{ r.over[0] }}{{ r.over.length > 1 ? ' (และอีก ' + (r.over.length - 1) + ' รายการ)' : '' }} · หน้าร้านจะลดได้ไม่เกินราคาตัวเลือก ควรปรับส่วนลดในหน้าแก้ไข</p>
         </RouterLink>
-        <div v-if="r.drift.length" class="mx-3 mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3" :data-drift="r.b.id">
+        <div v-if="r.drift.length" class="mx-3 mb-3 rounded-xl border border-warning-200 bg-warning-50 p-3" :data-drift="r.b.id">
           <p class="text-xs font-semibold text-amber-900">ราคาปกติเปลี่ยนแล้ว · ส่วนลดไม่ตรงกับเปอร์เซ็นต์ที่ตั้งไว้</p>
           <ul class="mt-1 space-y-0.5 text-xs text-amber-900">
             <li v-for="d in r.drift.slice(0, 4)" :key="d.key">{{ d.label }} ({{ d.pct }}%): {{ bahtText(d.current) }} → {{ bahtText(d.target) }}</li>
@@ -138,7 +138,7 @@ async function link(b) {
           <p v-if="r.drift.length > 4" class="mt-0.5 text-xs text-amber-900">และอีก {{ r.drift.length - 4 }} ช่อง</p>
           <button type="button" class="btn-primary mt-2 h-9 px-3 text-sm" :data-adjust="r.b.id" @click="adjust(r.b)">ปรับตามราคาใหม่</button>
         </div>
-        <div v-if="r.links.length" class="mx-3 mb-3 flex flex-wrap items-center gap-2 rounded-xl bg-sky-50 p-3" :data-link="r.b.id">
+        <div v-if="r.links.length" class="mx-3 mb-3 flex flex-wrap items-center gap-2 rounded-xl bg-info-50 p-3" :data-link="r.b.id">
           <p class="min-w-0 flex-1 text-xs text-sky-900">ยังไม่ได้ตั้งตามเปอร์เซ็นต์ · ตอนนี้ตรงกับ {{ linkText(r.links) }}</p>
           <button type="button" class="btn-soft h-9 px-3 text-sm" :data-link-btn="r.b.id" @click="link(r.b)">ตั้งตามเปอร์เซ็นต์นี้</button>
         </div>

@@ -165,9 +165,9 @@ const couponState = (c) => {
   if (ph === 'delivered') return { t: 'รับแล้ว', cls: 'bg-stone-100 text-stone-500' }
   if (ph === 'lapsed') return { t: 'หมดเวลา (ถือว่าใช้แล้ว)', cls: 'bg-stone-100 text-stone-500' }
   if (ph === 'refunded') return { t: 'ร้านคืนคะแนนแล้ว', cls: 'bg-stone-100 text-stone-500' }
-  if (ph === 'expired') return { t: 'หมดอายุ', cls: 'bg-rose-50 text-rose-700' }
+  if (ph === 'expired') return { t: 'หมดอายุ', cls: 'bg-danger-50 text-danger-700' }
   if (ph === 'active') return { t: `แสดงที่ร้านอยู่ ${left(c)}`, cls: 'bg-brand-50 text-brand-800' }
-  return c.type === 'reward' ? { t: 'รอรับที่ร้าน', cls: 'bg-amber-50 text-amber-700' } : { t: 'ใช้ได้', cls: 'bg-emerald-50 text-emerald-700' }
+  return c.type === 'reward' ? { t: 'รอรับที่ร้าน', cls: 'bg-warning-50 text-warning-700' } : { t: 'ใช้ได้', cls: 'bg-success-50 text-success-700' }
 }
 const history = computed(() => (me.value?.ledger || []).slice().reverse())
 </script>
@@ -243,7 +243,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
             <button v-for="v in [10, 20, 50, 100]" :key="v" type="button" class="btn-outline h-9 px-3" :class="Number(couponAmt) === v ? 'ring-2 ring-brand-400' : ''" @click="couponAmt = v">{{ v }} บาท</button>
             <input v-model.number="couponAmt" type="number" :min="POINTS_COUPON.min" :step="POINTS_COUPON.step" inputmode="numeric" class="input h-9 w-28" aria-label="มูลค่าคูปอง (บาท)" />
           </div>
-          <p class="text-sm" :class="amtQuote.ok ? 'text-stone-600' : 'text-rose-700'" aria-live="polite">{{ amtQuote.ok ? `ใช้ ${num(amtQuote.points)} คะแนน` : POINTS_COUPON_MSG[amtQuote.reason] }}</p>
+          <p class="text-sm" :class="amtQuote.ok ? 'text-stone-600' : 'text-danger-700'" aria-live="polite">{{ amtQuote.ok ? `ใช้ ${num(amtQuote.points)} คะแนน` : POINTS_COUPON_MSG[amtQuote.reason] }}</p>
           <button type="button" class="btn-primary h-11 w-full" :disabled="!amtQuote.ok" :class="!amtQuote.ok ? 'opacity-40' : ''" @click="makeCoupon">สร้างคูปอง {{ money(Number(couponAmt) || 0) }}</button>
         </div>
         <p v-if="!rewards.length" class="card py-10 text-center text-stone-500">ยังไม่มีของให้แลก</p>
@@ -252,7 +252,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
           <span class="min-w-0 flex-1">
             <span class="block truncate font-semibold text-stone-900">{{ r.name }}</span>
             <span class="block text-sm text-stone-500">{{ num(r.points) }} คะแนน<template v-if="r.kind === 'coupon'"> · {{ couponTermsText(r) }} ใช้ที่หน้าร้านหรือในออร์เดอร์</template></span>
-            <span v-if="pointsShortfall(points, r.points)" class="block text-xs font-medium text-amber-700">ขาดอีก {{ num(pointsShortfall(points, r.points)) }} คะแนน</span>
+            <span v-if="pointsShortfall(points, r.points)" class="block text-xs font-medium text-warning-700">ขาดอีก {{ num(pointsShortfall(points, r.points)) }} คะแนน</span>
           </span>
           <button class="btn-primary h-9 px-4" :disabled="points < r.points" :class="points < r.points ? 'opacity-40' : ''" @click="confirmRw = r">แลก</button>
         </div>
@@ -293,8 +293,8 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
       <div v-else-if="tab === 'coupons'" class="space-y-2.5">
         <p v-if="!coupons.length" class="card py-10 text-center text-stone-500">ยังไม่มีคูปอง</p>
         <p v-else class="rounded-xl bg-stone-50 p-3 text-xs text-stone-600" role="note">จะใช้คูปอง/รับของที่ร้าน ให้กด "ใช้ที่ร้านตอนนี้" เมื่ออยู่ที่ร้านแล้ว พนักงานจึงจะเห็นบนเครื่อง POS ({{ db.loyalty.activationMin || 15 }} นาที) · ครบเวลาถือว่าใช้ไปแล้ว ใช้ซ้ำและยกเลิกไม่ได้</p>
-        <p v-if="useErr" class="text-sm text-rose-700" role="alert">{{ useErr }}</p>
-        <p v-if="useMsg" class="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800" role="status">{{ useMsg }}</p>
+        <p v-if="useErr" class="text-sm text-danger-700" role="alert">{{ useErr }}</p>
+        <p v-if="useMsg" class="rounded-xl bg-success-50 p-3 text-sm text-success-800" role="status">{{ useMsg }}</p>
         <template v-for="c in coupons" :key="c.id">
         <div class="card flex items-center gap-3">
           <span class="min-w-0 flex-1">
@@ -318,7 +318,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
             <span class="block truncate text-sm text-stone-900">{{ h.reason }}</span>
             <span class="block text-xs text-stone-400">{{ dateTime(h.at) }}<template v-if="h.delta > 0 && h.expiresAt"> · หมดอายุ {{ dateOnly(h.expiresAt) }}</template></span>
           </span>
-          <span class="shrink-0 font-semibold" :class="h.delta > 0 ? 'text-emerald-700' : 'text-rose-700'">{{ h.delta > 0 ? '+' : '' }}{{ h.delta }}</span>
+          <span class="shrink-0 font-semibold" :class="h.delta > 0 ? 'text-success-700' : 'text-danger-700'">{{ h.delta > 0 ? '+' : '' }}{{ h.delta }}</span>
         </div>
       </div>
     </template>

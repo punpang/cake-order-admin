@@ -104,7 +104,7 @@ const prizeDesc = (p) =>
 const q = ref('')
 const showAll = ref(false)
 // คูปอง/ของรางวัลของลูกค้าทั้งหมด: มอบ (หลังบ้าน ไม่ต้องรอลูกค้ากดแสดง) · คืนคะแนนตามที่ไม่ได้ใช้จริง
-const PHASE = { pending: ['ยังไม่ใช้', 'bg-amber-50 text-amber-700'], active: ['แสดงที่ร้านอยู่', 'bg-brand-50 text-brand-800'], lapsed: ['หมดเวลาแสดง (ถือว่าใช้แล้ว)', 'bg-stone-100 text-stone-600'], expired: ['หมดอายุ', 'bg-rose-50 text-rose-700'], delivered: ['มอบแล้ว', 'bg-stone-100 text-stone-500'], used: ['ใช้แล้ว', 'bg-stone-100 text-stone-500'], refunded: ['คืนคะแนนแล้ว', 'bg-emerald-50 text-emerald-700'] }
+const PHASE = { pending: ['ยังไม่ใช้', 'bg-warning-50 text-warning-700'], active: ['แสดงที่ร้านอยู่', 'bg-brand-50 text-brand-800'], lapsed: ['หมดเวลาแสดง (ถือว่าใช้แล้ว)', 'bg-stone-100 text-stone-600'], expired: ['หมดอายุ', 'bg-danger-50 text-danger-700'], delivered: ['มอบแล้ว', 'bg-stone-100 text-stone-500'], used: ['ใช้แล้ว', 'bg-stone-100 text-stone-500'], refunded: ['คืนคะแนนแล้ว', 'bg-success-50 text-success-700'] }
 const phaseOf = (c) => phaseOfCoupon(c)
 const DONE = ['delivered', 'used', 'refunded']
 const rewardCoupons = computed(() => {
@@ -182,7 +182,7 @@ function doRefund() {
     <template v-else-if="tab === 'gacha'">
       <div class="mb-3 flex flex-wrap items-center gap-3">
         <button class="btn-primary" @click="editGp(null)"><AppIcon name="plus" /> เพิ่มรางวัล</button>
-        <span class="rounded-full px-3 py-1 text-sm font-medium" :class="total === 100 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'">
+        <span class="rounded-full px-3 py-1 text-sm font-medium" :class="total === 100 ? 'bg-success-50 text-success-700' : 'bg-danger-50 text-danger-700'">
           รวม {{ total }}% {{ total === 100 ? '' : '(ต้องเท่ากับ 100% จึงหมุนได้)' }}
         </span>
       </div>
@@ -209,7 +209,7 @@ function doRefund() {
         <input v-model="q" class="input min-w-0 flex-1" placeholder="ค้นหาชื่อลูกค้า / ของ" />
         <AppSwitch v-model="showAll" label="แสดงที่มอบแล้ว/หมดอายุ" class="shrink-0 px-1" />
       </div>
-      <p v-if="rf.ok" class="mb-2 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800" role="status">{{ rf.ok }}</p>
+      <p v-if="rf.ok" class="mb-2 rounded-xl bg-success-50 p-3 text-sm text-success-800" role="status">{{ rf.ok }}</p>
       <p v-if="!rewardCoupons.length" class="card py-10 text-center text-stone-500">ไม่มีรายการ</p>
       <div class="space-y-2.5">
         <div v-for="c in rewardCoupons" :key="c.id" class="card space-y-2 p-3.5">
@@ -237,7 +237,7 @@ function doRefund() {
         <p class="text-stone-600"><b>{{ rf.c.name }}</b> ของ {{ findCustomer(rf.c.customerId)?.name }} · คืน {{ rf.c.points || (db.rewards.find((r) => r.id === rf.c.rewardId)?.points ?? 0) }} คะแนน แล้วคูปองจะใช้ไม่ได้อีก</p>
         <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><input v-model="rf.reason" class="input" maxlength="200" aria-label="เหตุผลคืนคะแนน" /></div>
         <label class="flex items-center gap-2"><input v-model="rf.notify" type="checkbox" class="h-4 w-4" aria-label="แจ้งลูกค้าคืนคะแนน" /> แจ้งลูกค้า</label>
-        <p v-if="rf.error" class="text-rose-700" role="alert">{{ rf.error }}</p>
+        <p v-if="rf.error" class="text-danger-700" role="alert">{{ rf.error }}</p>
       </div>
       <template #footer><button class="btn-outline flex-1 sm:flex-none" @click="rf.open = false">ยกเลิก</button><button class="btn-primary flex-1 sm:flex-none" @click="doRefund">คืนคะแนน</button></template>
     </AppModal>
@@ -286,7 +286,7 @@ function doRefund() {
           <p v-if="rwPrice !== ''" class="mt-1 text-xs text-stone-500">คิดจาก {{ rwPrice }} ÷ {{ db.loyalty.pointValue }} บาท/คะแนน (ปัดขึ้น) · แก้เองได้</p>
         </div>
         <AppSwitch v-model="rw.active" label="ใช้งาน (แสดงให้ลูกค้าแลก)" class="flex" />
-        <p v-if="rwError" class="text-sm text-rose-700">{{ rwError }}</p>
+        <p v-if="rwError" class="text-sm text-danger-700">{{ rwError }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="rwOpen = false">ยกเลิก</button>
@@ -317,7 +317,7 @@ function doRefund() {
         </div>
         <div><label class="label">โอกาส (%)</label><MoneyInput v-model.number="gp.chance" min="0" max="100" class="input" /></div>
         <AppSwitch v-model="gp.active" label="ใช้งาน" class="flex" />
-        <p v-if="gpError" class="text-sm text-rose-700">{{ gpError }}</p>
+        <p v-if="gpError" class="text-sm text-danger-700">{{ gpError }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="gpOpen = false">ยกเลิก</button>

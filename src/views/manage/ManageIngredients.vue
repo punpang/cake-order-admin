@@ -68,7 +68,7 @@ async function save() {
         </span>
         <span class="shrink-0 text-right text-sm leading-tight">
           <span class="block text-stone-500">{{ m.unit }}</span>
-          <span class="block text-xs" :class="m.packSize > 0 ? 'text-stone-400' : 'text-amber-700'">{{ costText(m) }}</span>
+          <span class="block text-xs" :class="m.packSize > 0 ? 'text-stone-400' : 'text-warning-700'">{{ costText(m) }}</span>
           <span class="block text-xs" :class="m.stock == null ? 'text-stone-400' : 'text-stone-600'">{{ stockText(m) }}</span>
         </span>
       </button>
@@ -95,7 +95,7 @@ async function save() {
           <input v-model="form.stock" type="number" min="0" step="any" inputmode="decimal" class="input" />
         </div>
         <AppSwitch v-model="form.active" label="ใช้งาน (เลือกใส่สูตรได้)" />
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>

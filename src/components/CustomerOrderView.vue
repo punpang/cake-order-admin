@@ -209,7 +209,7 @@ async function askExtension(p) {
 }
 const overdue = computed(() => o.value.payments.filter((p) => p.status === 'reported' && p.due === 'overdue'))
 const submitted = computed(() => o.value.payments.filter((p) => p.status === 'reported' && p.submitted))
-const PAY_LABEL = (p) => (p.status === 'confirmed' ? ['ชำระแล้ว', 'bg-emerald-100 text-emerald-800'] : p.submitted ? ['รอร้านตรวจสอบสลิป', 'bg-sky-100 text-sky-800'] : p.due === 'overdue' ? ['เกินกำหนด', 'bg-rose-100 text-rose-700'] : ['รอชำระ', 'bg-amber-100 text-amber-800'])
+const PAY_LABEL = (p) => (p.status === 'confirmed' ? ['ชำระแล้ว', 'bg-success-100 text-success-800'] : p.submitted ? ['รอร้านตรวจสอบสลิป', 'bg-info-100 text-info-800'] : p.due === 'overdue' ? ['เกินกำหนด', 'bg-danger-100 text-danger-700'] : ['รอชำระ', 'bg-warning-100 text-warning-800'])
 // ---------- รูปงานเสร็จ + ขอไม่ให้ใช้รูปเผยแพร่ ----------
 const photos = computed(() => o.value.items.flatMap((i) => (i.workPhotos || []).map((p) => ({ ...p, name: i.name }))))
 const pc = reactive({ open: false, note: '', agree: false, error: '', ok: '', busy: false })
@@ -257,7 +257,7 @@ const beforeDiscount = computed(() => {
 
 <template>
   <div class="space-y-3 text-sm" :class="payBar ? 'pb-16 md:pb-0' : ''">
-    <p v-if="staleNote" class="rounded-xl bg-amber-50 p-3 text-amber-800" role="status">ทำรายการสำเร็จแล้ว แต่ยังโหลดข้อมูลล่าสุดจากเซิร์ฟเวอร์ไม่ได้ ข้อมูลบนจออาจยังไม่อัปเดต <button type="button" class="ml-1 underline" @click="reload">โหลดหน้าใหม่</button></p>
+    <p v-if="staleNote" class="rounded-xl bg-warning-50 p-3 text-warning-800" role="status">ทำรายการสำเร็จแล้ว แต่ยังโหลดข้อมูลล่าสุดจากเซิร์ฟเวอร์ไม่ได้ ข้อมูลบนจออาจยังไม่อัปเดต <button type="button" class="ml-1 underline" @click="reload">โหลดหน้าใหม่</button></p>
     <!-- สรุป + ขั้นตอน -->
     <section class="card">
       <!-- ป้ายสถานะอยู่แถวบน เลขออร์เดอร์ได้ความกว้างเต็มการ์ด → ไม่ถูกตัดขึ้นบรรทัดใหม่บนมือถือ -->
@@ -275,11 +275,11 @@ const beforeDiscount = computed(() => {
           <span class="text-xs leading-tight" :class="i === step ? 'font-semibold text-stone-900' : 'text-stone-600'">{{ label }}</span>
         </li>
       </ol>
-      <p v-else class="mt-3 rounded-xl bg-rose-50 p-3 text-rose-700">ออร์เดอร์นี้ถูกยกเลิกแล้ว · หากมีข้อสงสัยติดต่อร้านได้เลย</p>
+      <p v-else class="mt-3 rounded-xl bg-danger-50 p-3 text-danger-700">ออร์เดอร์นี้ถูกยกเลิกแล้ว · หากมีข้อสงสัยติดต่อร้านได้เลย</p>
     </section>
 
     <!-- แจ้งสถานะสำคัญ -->
-    <section v-if="overdue.length" class="rounded-3xl border-2 border-rose-200 bg-rose-50 p-4 text-rose-800" role="alert">
+    <section v-if="overdue.length" class="rounded-3xl border-2 border-danger-200 bg-danger-50 p-4 text-danger-800" role="alert">
       <div class="flex items-center gap-2 font-semibold"><AppIcon name="alert" :size="18" /> เกินกำหนดชำระ</div>
       <p class="mt-1">ยอด {{ money(overdue[0].amount) }} ต้องชำระก่อน {{ dateTime(overdue[0].dueAt) }} · ตอนนี้แจ้งชำระเองไม่ได้ หากต้องการเวลาเพิ่มกดขอขยายเวลา</p>
       <template v-for="p in overdue" :key="p.id">
@@ -290,12 +290,12 @@ const beforeDiscount = computed(() => {
           <button class="btn-primary w-full" :disabled="extBusy" @click="askExtension(p)">{{ extBusy ? 'กำลังส่งคำขอ…' : 'ขอขยายเวลาชำระ' }}</button>
         </div>
       </template>
-      <p v-if="extMsg" class="mt-2 text-sm text-rose-700">{{ extMsg }}</p>
+      <p v-if="extMsg" class="mt-2 text-sm text-danger-700">{{ extMsg }}</p>
     </section>
-    <section v-if="submitted.length" class="rounded-3xl border-2 border-sky-200 bg-sky-50 p-4 text-sky-800">ส่งสลิป {{ money(submitted.reduce((s, p) => s + p.amount, 0)) }} แล้ว · รอร้านตรวจสอบและยืนยัน</section>
+    <section v-if="submitted.length" class="rounded-3xl border-2 border-info-200 bg-info-50 p-4 text-info-800">ส่งสลิป {{ money(submitted.reduce((s, p) => s + p.amount, 0)) }} แล้ว · รอร้านตรวจสอบและยืนยัน</section>
     <section v-if="o.payments.some((p) => p.status === 'confirmed')" class="rounded-3xl border-2 border-stone-200 bg-stone-50 p-4 text-sm text-stone-700" aria-label="หลังชำระเงิน">หลังชำระเงินแล้ว ร้านสงวนสิทธิ์ตรวจสอบรายละเอียดรายการสั่งซื้อ และลูกค้าได้ศึกษาข้อตกลง PDPA และอื่น ๆ แล้ว</section>
     <section v-if="o.unpaidApproved" class="rounded-3xl border-2 border-indigo-200 bg-indigo-50 p-4 text-indigo-800">ร้านยืนยันการสั่งซื้อแล้ว · ชำระยอดคงค้างได้ตอนรับสินค้า</section>
-    <p v-if="f.ok" class="rounded-3xl bg-emerald-50 p-3 text-emerald-800" role="status">{{ f.ok }}</p>
+    <p v-if="f.ok" class="rounded-3xl bg-success-50 p-3 text-success-800" role="status">{{ f.ok }}</p>
 
     <!-- นัดรับ/ส่ง -->
     <section class="card flex items-start gap-3">
@@ -332,7 +332,7 @@ const beforeDiscount = computed(() => {
               <dd class="break-words text-stone-800">{{ d.value }}</dd>
             </template>
           </dl>
-          <div v-if="it.note" class="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs break-words text-amber-900">หมายเหตุ: {{ it.note }}</div>
+          <div v-if="it.note" class="mt-2 rounded-xl bg-warning-50 px-3 py-2 text-xs break-words text-amber-900">หมายเหตุ: {{ it.note }}</div>
         </li>
       </ul>
     </section>
@@ -347,18 +347,18 @@ const beforeDiscount = computed(() => {
       <div class="rounded-xl bg-stone-50 p-3 text-xs text-stone-600" role="note" aria-label="การนำรูปไปใช้">
         <b class="text-stone-800">การนำรูปงานไปใช้:</b> ร้านอาจนำรูปงานนี้ไปใช้เป็นรูปตัวอย่างบนเว็บไซต์และโซเชียลของร้าน (ทุกช่องทาง) หากไม่ต้องการ แจ้งได้ ร้านจะตรวจสอบและลบรูปออกจากทุกที่ รวมถึงรูปในออร์เดอร์นี้
       </div>
-      <p v-if="o.photoConsent === 'requested'" class="rounded-xl bg-amber-50 p-3 text-amber-800" role="status">ส่งคำขอไม่ให้ใช้รูปแล้ว รอร้านตรวจสอบ · ระหว่างนี้รูปจะไม่แสดงบนเว็บร้าน <button type="button" class="ml-1 underline" :disabled="pc.busy" @click="cancelOptOut">{{ pc.busy ? 'กำลังยกเลิก…' : 'ยกเลิกคำขอ' }}</button></p>
+      <p v-if="o.photoConsent === 'requested'" class="rounded-xl bg-warning-50 p-3 text-warning-800" role="status">ส่งคำขอไม่ให้ใช้รูปแล้ว รอร้านตรวจสอบ · ระหว่างนี้รูปจะไม่แสดงบนเว็บร้าน <button type="button" class="ml-1 underline" :disabled="pc.busy" @click="cancelOptOut">{{ pc.busy ? 'กำลังยกเลิก…' : 'ยกเลิกคำขอ' }}</button></p>
       <template v-else-if="o.photoConsent !== 'revoked' && photos.length">
         <button v-if="!pc.open" type="button" class="btn-outline w-full" @click="pc.open = true; pc.error = ''; pc.ok = ''">ไม่อนุญาตให้ใช้รูปเผยแพร่</button>
         <div v-else class="space-y-2 rounded-xl border border-stone-200 p-3">
           <label class="label" for="pc-note">หมายเหตุถึงร้าน (ไม่บังคับ)</label>
           <textarea id="pc-note" v-model="pc.note" rows="2" maxlength="300" class="input" aria-label="หมายเหตุขอไม่เผยแพร่รูป"></textarea>
           <label class="flex items-start gap-2 py-1.5 text-stone-700"><input v-model="pc.agree" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-brand-600" aria-label="ยืนยันไม่ให้ใช้รูป" /> ยืนยันไม่ให้ร้านนำรูปงานของออร์เดอร์นี้ไปเผยแพร่ในทุกช่องทาง และให้ลบรูปทิ้ง (ร้านจะตรวจสอบก่อนลบ)</label>
-          <p v-if="pc.error" class="text-rose-700" role="alert">{{ pc.error }}</p>
+          <p v-if="pc.error" class="text-danger-700" role="alert">{{ pc.error }}</p>
           <div class="flex gap-2"><button type="button" class="btn-outline flex-1" @click="pc.open = false">ยกเลิก</button><button type="button" class="btn-primary flex-1" :disabled="pc.busy" @click="askOptOut">{{ pc.busy ? 'กำลังส่ง…' : 'ส่งคำขอ' }}</button></div>
         </div>
       </template>
-      <p v-if="pc.ok" class="text-emerald-700" role="status">{{ pc.ok }}</p>
+      <p v-if="pc.ok" class="text-success-700" role="status">{{ pc.ok }}</p>
       <div v-if="big" class="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/80 p-4" role="dialog" aria-modal="true" aria-label="รูปงาน" @click="big = ''"><img :src="big" alt="รูปงานขยาย" class="max-h-full max-w-full rounded-2xl" /></div>
     </section>
 
@@ -374,15 +374,15 @@ const beforeDiscount = computed(() => {
       </div>
       <div v-if="o.vatMode" class="mt-0.5 flex justify-between text-xs text-stone-500"><span>{{ o.vatMode === 'exclusive' ? `รวม VAT ${o.vatRate}% (บวกเพิ่ม)` : `รวม VAT ${o.vatRate}% แล้ว` }}</span><span>{{ money(o.vat) }}</span></div>
       <div v-if="o.refunds?.length || o.returns?.length" class="mt-3 space-y-1.5 border-t border-stone-100 pt-3">
-        <div v-for="(r, i) in o.refunds" :key="'rf' + i" class="flex justify-between gap-3 text-xs text-rose-700"><span class="min-w-0 break-words">คืนเงิน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span class="shrink-0">{{ money(r.amount) }}</span></div>
-        <template v-for="rt in o.returns || []" :key="rt.id"><div v-for="(r, i) in rt.items" :key="rt.id + i" class="flex justify-between gap-3 text-xs text-rose-700"><span class="min-w-0 break-words">คืนเงินบางส่วน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span class="shrink-0">{{ money(r.amount) }}</span></div></template>
+        <div v-for="(r, i) in o.refunds" :key="'rf' + i" class="flex justify-between gap-3 text-xs text-danger-700"><span class="min-w-0 break-words">คืนเงิน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span class="shrink-0">{{ money(r.amount) }}</span></div>
+        <template v-for="rt in o.returns || []" :key="rt.id"><div v-for="(r, i) in rt.items" :key="rt.id + i" class="flex justify-between gap-3 text-xs text-danger-700"><span class="min-w-0 break-words">คืนเงินบางส่วน · {{ r.label }}<template v-if="r.points != null"> ({{ r.points }} คะแนน)</template></span><span class="shrink-0">{{ money(r.amount) }}</span></div></template>
       </div>
       <div class="mt-3 flex justify-between border-t border-stone-100 pt-3 text-stone-600"><span>ชำระแล้ว</span><span>{{ money(o.paid) }}</span></div>
       <template v-if="!cancelled && o.hold > 0">
-        <div class="mt-2 flex justify-between gap-3 text-amber-800"><span>เงินพัก (ไม่ใช่รายได้ของร้าน)</span><span>{{ money(o.hold) }}</span></div>
+        <div class="mt-2 flex justify-between gap-3 text-warning-800"><span>เงินพัก (ไม่ใช่รายได้ของร้าน)</span><span>{{ money(o.hold) }}</span></div>
         <div class="mt-1 flex justify-between gap-3 font-semibold text-stone-800"><span>ยอดที่ต้องชำระ (รวมเงินพัก)</span><span>{{ money(o.payable) }}</span></div>
       </template>
-      <div v-if="!cancelled" class="mt-3 flex items-center justify-between gap-3 rounded-2xl px-4 py-3" :class="o.balance > 0 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'">
+      <div v-if="!cancelled" class="mt-3 flex items-center justify-between gap-3 rounded-2xl px-4 py-3" :class="o.balance > 0 ? 'bg-warning-50 text-warning-800' : 'bg-success-50 text-success-800'">
         <span class="font-semibold">คงค้าง</span><b class="text-lg">{{ money(o.balance) }}</b>
       </div>
     </section>
@@ -414,7 +414,7 @@ const beforeDiscount = computed(() => {
             </div>
             <MoneyInput v-if="f.mode === 'custom'" v-model="f.custom" class="input mt-2" placeholder="ยอดที่โอน (บาท)" aria-label="ยอดที่โอน" />
             <p v-if="f.mode === 'custom' && minimum > 0" class="mt-1 text-xs text-stone-500">ขั้นต่ำ {{ money(minimum) }}</p>
-            <p v-if="f.mode === 'custom' && Number(f.custom) > room" class="mt-1 text-xs text-rose-700">เกินคงค้าง (ไม่เกิน {{ money(room) }})</p>
+            <p v-if="f.mode === 'custom' && Number(f.custom) > room" class="mt-1 text-xs text-danger-700">เกินคงค้าง (ไม่เกิน {{ money(room) }})</p>
           </div>
 
           <div v-if="hasInfo" class="rounded-2xl border border-stone-200 bg-white p-3">
@@ -422,12 +422,12 @@ const beforeDiscount = computed(() => {
               <div class="text-xs text-stone-500">QR นี้สำหรับออร์เดอร์</div>
               <div class="text-base font-semibold text-stone-900">{{ orderNo(o.code) }}</div>
               <img v-if="qr" :src="qr" alt="QR พร้อมเพย์" class="mx-auto h-48 w-48" />
-              <div v-if="consentNeed.length" class="space-y-2 rounded-xl bg-amber-50 p-3 text-sm text-stone-700" role="group" aria-label="ยินยอมก่อนชำระ">
+              <div v-if="consentNeed.length" class="space-y-2 rounded-xl bg-warning-50 p-3 text-sm text-stone-700" role="group" aria-label="ยินยอมก่อนชำระ">
                 <p class="font-semibold">ก่อนชำระเงิน กรุณายินยอมตามข้อต่อไปนี้</p>
                 <label v-for="k in consentNeed" :key="k" class="flex items-start gap-2"><input v-model="consentOk[k]" type="checkbox" class="mt-0.5 h-4 w-4" :data-consent="k" /><span>{{ LEGAL_KINDS[k]?.label || k }}</span></label>
               </div>
               <button v-else type="button" class="btn-soft mx-auto mt-2" :disabled="qrReq.busy || !(amount > 0) || belowMinimum || (consentNeed.length > 0 && !consentAll)" @click="makeQr">{{ qrReq.busy ? 'กำลังสร้าง QR…' : 'สร้าง QR สำหรับยอดนี้' }}</button>
-              <p v-if="qrReq.error" class="mt-1 text-xs text-rose-700" role="alert">{{ qrReq.error }}</p>
+              <p v-if="qrReq.error" class="mt-1 text-xs text-danger-700" role="alert">{{ qrReq.error }}</p>
             </div>
             <p v-if="amount > 0" class="text-center text-base font-semibold text-stone-900">{{ money(amount) }}</p>
             <div class="mt-3 space-y-2 text-left">
@@ -443,7 +443,7 @@ const beforeDiscount = computed(() => {
               <div v-if="info.note" class="pt-1 text-xs text-stone-500">{{ info.note }}</div>
             </div>
           </div>
-          <p v-else class="rounded-xl bg-amber-50 p-3 text-amber-800">ร้านยังไม่ได้ตั้งช่องทางรับชำระ กรุณาสอบถามร้าน</p>
+          <p v-else class="rounded-xl bg-warning-50 p-3 text-warning-800">ร้านยังไม่ได้ตั้งช่องทางรับชำระ กรุณาสอบถามร้าน</p>
 
           <div>
             <div class="label">สลิปการโอน <span class="text-rose-600">*</span></div>
@@ -470,9 +470,9 @@ const beforeDiscount = computed(() => {
             <p v-if="f.qrNote" class="text-xs text-stone-500" role="status">{{ f.qrNote }}</p>
           </div>
           <div><label class="label">หมายเหตุ <span class="font-normal text-stone-500">(ไม่บังคับ · ใส่เลขออร์เดอร์ {{ orderNo(o.code) }} เพื่อให้ร้านตรวจได้ง่าย)</span></label><input v-model="f.note" class="input" maxlength="200" :placeholder="o.code" /></div>
-          <p v-if="f.error" class="text-rose-700" role="alert">{{ f.error }}</p>
+          <p v-if="f.error" class="text-danger-700" role="alert">{{ f.error }}</p>
           <!-- ยินยอมก่อนชำระ: แสดงเฉพาะเมื่อร้านขอ · ต้องติ๊กทุกข้อจึงส่งได้ -->
-          <div v-if="consentNeed.length" class="space-y-2 rounded-xl bg-amber-50 p-3 text-sm text-stone-700" role="group" aria-label="ยินยอมก่อนชำระ">
+          <div v-if="consentNeed.length" class="space-y-2 rounded-xl bg-warning-50 p-3 text-sm text-stone-700" role="group" aria-label="ยินยอมก่อนชำระ">
             <p class="font-semibold">ก่อนชำระเงิน กรุณายินยอมตามข้อต่อไปนี้</p>
             <label v-for="k in consentNeed" :key="k" class="flex items-start gap-2"><input v-model="consentOk[k]" type="checkbox" class="mt-0.5 h-4 w-4" :data-consent="k" /><span>{{ LEGAL_KINDS[k]?.label || k }}</span></label>
           </div>

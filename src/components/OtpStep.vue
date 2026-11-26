@@ -73,13 +73,13 @@ onUnmounted(() => clearInterval(timer))
         <label class="label" for="otp-code">รหัส OTP</label>
         <input id="otp-code" :value="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="••••••" class="input text-center tracking-[0.5em]" @input="onCode" @keyup.enter="submit" />
       </div>
-      <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+      <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       <div class="flex flex-wrap gap-2">
         <button type="button" class="btn-primary flex-1" :disabled="code.length !== 6 || busy" @click="submit">{{ busy ? 'กำลังตรวจสอบ…' : 'ยืนยัน' }}</button>
         <button type="button" class="btn-outline" :disabled="wait > 0 || busy" @click="send">{{ wait > 0 ? `ขอใหม่ได้ใน ${wait} วิ` : 'ขอรหัสใหม่' }}</button>
       </div>
     </template>
-    <p v-else-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+    <p v-else-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
 
     <button type="button" class="text-sm text-stone-500 underline" @click="emit('cancel')">ย้อนกลับ</button>
   </div>

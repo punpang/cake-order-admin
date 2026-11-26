@@ -111,12 +111,12 @@ function doAdd() {
         <div><label class="label" for="cs-from">จากวันที่</label><input id="cs-from" v-model="settle.from" type="date" class="input" /></div>
         <div><label class="label" for="cs-to">ถึงวันที่</label><input id="cs-to" v-model="settle.to" type="date" class="input" /></div>
       </div>
-      <p v-if="settle.error" class="text-sm text-rose-700">{{ settle.error }}</p>
+      <p v-if="settle.error" class="text-sm text-danger-700">{{ settle.error }}</p>
       <button type="button" class="btn-primary h-10" :disabled="!can('manage')" @click="doSettle">สรุปรอบ</button>
       <ul class="divide-y divide-stone-100" aria-label="รอบที่สรุปแล้ว">
         <li v-for="r in consignRounds" :key="r.id" class="flex flex-wrap items-center gap-2 py-2 text-sm">
           <span class="min-w-0 flex-1">{{ r.consignor }} · {{ r.from }} ถึง {{ r.to }} · ยอดขาย {{ money(r.sales) }} · จ่าย {{ money(r.payout) }} · ร้านได้ {{ money(r.shop) }}</span>
-          <span v-if="r.paidAt" class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">จ่ายแล้ว {{ r.paidAt.slice(0, 10) }} (ล็อก)</span>
+          <span v-if="r.paidAt" class="rounded-full bg-success-50 px-2 py-0.5 text-xs text-success-700">จ่ายแล้ว {{ r.paidAt.slice(0, 10) }} (ล็อก)</span>
           <button v-else type="button" class="btn-outline h-8" :disabled="!can('manage')" @click="paid(r)">ยืนยันจ่ายแล้ว</button>
         </li>
       </ul>
@@ -129,7 +129,7 @@ function doAdd() {
           <span class="min-w-0 flex-1">
             <span class="flex flex-wrap items-center gap-1.5">
               <span class="truncate font-medium text-stone-900">{{ x.name }}</span>
-              <span v-if="x.pinned" class="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700">ปักหมุด</span>
+              <span v-if="x.pinned" class="shrink-0 rounded-full bg-warning-50 px-1.5 py-0.5 text-xs text-warning-700">ปักหมุด</span>
               <span v-if="x.showInPos === false" class="shrink-0 rounded-full bg-stone-100 px-1.5 py-0.5 text-xs text-stone-500">ซ่อนใน POS</span>
               <span v-if="x.showOnStore" class="shrink-0 rounded-full bg-brand-50 px-1.5 py-0.5 text-xs text-brand-700">หน้าร้านเว็บ</span>
             </span>
@@ -155,7 +155,7 @@ function doAdd() {
             <span class="flex flex-wrap items-center gap-1.5">
               <span class="font-medium text-stone-900">{{ m.name }}</span>
               <span class="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{{ m.type === 'multi' ? 'หลายอย่าง' : 'เลือก 1' }}</span>
-              <span v-if="m.required" class="rounded-full bg-rose-50 px-2 py-0.5 text-xs text-rose-700">จำเป็น</span>
+              <span v-if="m.required" class="rounded-full bg-danger-50 px-2 py-0.5 text-xs text-danger-700">จำเป็น</span>
               <span class="text-xs text-stone-400">ใช้ {{ usedBy(m.id) }} สินค้า</span>
             </span>
             <span class="mt-0.5 block truncate text-xs text-stone-500">{{ m.options.map((o) => o.name + (o.price ? ` +${o.price}` : '')).join(' · ') }}</span>
@@ -200,7 +200,7 @@ function doAdd() {
           <button type="button" class="btn-soft mt-2 h-9 w-full" @click="mf.options.push({ id: null, name: '', price: '' })"><AppIcon name="plus" :size="16" /> เพิ่มตัวเลือก</button>
           <p class="mt-1 text-xs text-stone-400">กลุ่มที่จำเป็นและเลือกได้ 1 อย่าง จะเลือกตัวแรกไว้ให้อัตโนมัติ</p>
         </div>
-        <p v-if="mError" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ mError }}</p>
+        <p v-if="mError" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ mError }}</p>
       </template>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="mOpen = false">ยกเลิก</button>
@@ -276,7 +276,7 @@ function doAdd() {
           </div>
           <AppSwitch v-model="form.noPoints" label="ไม่คำนวณแต้ม (ใช้คูปองส่วนลดไม่ได้ทุกแบบ · ไม่นับยอดสมาชิก)" class="flex" />
         </div>
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </template>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>

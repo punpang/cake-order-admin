@@ -21,9 +21,9 @@ const parts = (s) => s.split(/(【[^】]+】)/).filter(Boolean)
     <template v-for="(b, i) in blocks" :key="i">
       <component :is="`h${level === 2 ? 2 : 3}`" v-if="b.t === 'h'" class="pt-3 text-base font-semibold text-stone-900">{{ b.s }}</component>
       <ul v-else-if="b.t === 'ul'" class="list-disc space-y-1 pl-5">
-        <li v-for="(it, j) in b.items" :key="j"><template v-for="(p, k) in parts(it)" :key="k"><mark v-if="p.startsWith('【')" class="rounded bg-amber-100 px-1">{{ p }}</mark><template v-else>{{ p }}</template></template></li>
+        <li v-for="(it, j) in b.items" :key="j"><template v-for="(p, k) in parts(it)" :key="k"><mark v-if="p.startsWith('【')" class="rounded bg-warning-100 px-1">{{ p }}</mark><template v-else>{{ p }}</template></template></li>
       </ul>
-      <p v-else class="break-words"><template v-for="(p, k) in parts(b.s)" :key="k"><mark v-if="p.startsWith('【')" class="rounded bg-amber-100 px-1">{{ p }}</mark><template v-else>{{ p }}</template></template></p>
+      <p v-else class="break-words"><template v-for="(p, k) in parts(b.s)" :key="k"><mark v-if="p.startsWith('【')" class="rounded bg-warning-100 px-1">{{ p }}</mark><template v-else>{{ p }}</template></template></p>
     </template>
   </div>
 </template>

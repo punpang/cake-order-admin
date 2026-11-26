@@ -354,7 +354,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="shrink-0 border-t border-stone-200 bg-white">
-      <p v-if="err" class="mx-3 mt-2 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">{{ err }}</p>
+      <p v-if="err" class="mx-3 mt-2 rounded-xl bg-danger-50 px-3 py-2 text-sm text-danger-800" role="alert">{{ err }}</p>
       <div v-if="replyTo" class="mx-3 mt-2 flex items-center gap-2 rounded-xl bg-stone-100 py-1.5 pr-1 pl-3 text-xs text-stone-700">
         <span class="min-w-0 flex-1 truncate"><b class="font-medium">ตอบกลับ{{ replyTo.from === 'customer' ? 'ข้อความของคุณ' : 'ร้าน' }}:</b> {{ snippetOf(replyTo) }}</span>
         <button type="button" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-stone-500 hover:bg-white" aria-label="ยกเลิกการตอบกลับ" @click="cancelReply"><AppIcon name="x" :size="14" /></button>

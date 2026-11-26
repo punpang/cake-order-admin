@@ -213,7 +213,7 @@ function logout() {
       <p v-if="memberView === 'phone'" class="text-center text-2xl font-semibold tracking-wide text-stone-900">{{ formatPhone(me.phone) }}</p>
       <div v-else class="space-y-2">
         <CouponBarcode v-if="me.scanCode" :value="me.scanCode" label="บาร์โค้ดสมาชิก" />
-        <p v-else-if="scanErr" class="text-sm text-rose-700" role="alert">{{ scanErr }}</p>
+        <p v-else-if="scanErr" class="text-sm text-danger-700" role="alert">{{ scanErr }}</p>
         <p v-else class="text-sm text-stone-500">กำลังเตรียมบาร์โค้ด…</p>
       </div>
     </section>
@@ -230,15 +230,15 @@ function logout() {
         @click="switchTab(t.v)"
       >{{ t.l }}</button>
     </nav>
-    <p v-if="msg" role="status" class="flex items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800"><AppIcon name="check" :size="16" /> {{ msg }}</p>
+    <p v-if="msg" role="status" class="flex items-center gap-2 rounded-2xl bg-success-50 px-4 py-3 text-sm text-success-800"><AppIcon name="check" :size="16" /> {{ msg }}</p>
 
     <!-- ข้อมูล -->
     <div v-if="tab === 'profile'" class="space-y-4 md:grid md:grid-cols-2 md:items-start md:gap-4 md:space-y-0">
       <section v-if="lineInfo" class="card space-y-3" aria-labelledby="acct-line">
         <h2 id="acct-line" class="card-title">LINE</h2>
         <p class="text-sm text-stone-600">{{ lineInfo.linked ? `เชื่อมกับ LINE แล้ว${lineInfo.displayName ? ` (${lineInfo.displayName})` : ''}` : 'ยังไม่ได้เชื่อมกับ LINE' }}</p>
-        <p v-if="lineErr" role="alert" class="text-sm text-rose-700">{{ lineErr }}</p>
-        <p v-if="lineMsg" role="status" class="text-sm text-emerald-800">{{ lineMsg }}</p>
+        <p v-if="lineErr" role="alert" class="text-sm text-danger-700">{{ lineErr }}</p>
+        <p v-if="lineMsg" role="status" class="text-sm text-success-800">{{ lineMsg }}</p>
         <button v-if="lineInfo.linked" type="button" class="btn-outline w-full" :disabled="lineBusy" @click="unlinkLine">{{ lineBusy ? 'กำลังยกเลิก…' : 'ยกเลิกการเชื่อม LINE' }}</button>
       </section>
       <form class="card space-y-5" aria-labelledby="acct-personal" @submit.prevent="saveProfile">
@@ -262,7 +262,7 @@ function logout() {
           </div>
           <AppSwitch v-model="form.promoOptIn" aria-label="รับข่าวสารและโปรโมชัน" />
         </div>
-        <p v-if="err" role="alert" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
+        <p v-if="err" role="alert" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ err }}</p>
         <button class="btn-primary w-full" :disabled="savingProfile || !profileDirty">
           {{ savingProfile ? 'กำลังบันทึก…' : profileDirty ? 'บันทึกการเปลี่ยนแปลง' : 'บันทึก' }}
         </button>
@@ -278,7 +278,7 @@ function logout() {
             </div>
             <button v-if="hasTax && !taxOpen" type="button" class="btn-outline h-9 shrink-0 px-4 text-sm" @click="taxOpen = true">แก้ไข</button>
           </div>
-          <p v-if="taxMsg && !taxOpen" role="status" class="text-sm text-emerald-700">{{ taxMsg }}</p>
+          <p v-if="taxMsg && !taxOpen" role="status" class="text-sm text-success-700">{{ taxMsg }}</p>
 
           <button v-if="!hasTax && !taxOpen" type="button" class="btn-soft w-full" @click="taxOpen = true">+ เพิ่มข้อมูลใบกำกับภาษี</button>
 
@@ -308,7 +308,7 @@ function logout() {
               <span class="label">ที่อยู่ตามใบกำกับ</span>
               <TaxAddressField v-model="tax.address" label="ที่อยู่ใบกำกับของฉัน" :suggestions="myAddressChoices()" />
             </div>
-            <p v-if="taxErr" role="alert" class="text-sm text-rose-700">{{ taxErr }}</p>
+            <p v-if="taxErr" role="alert" class="text-sm text-danger-700">{{ taxErr }}</p>
             <div class="grid grid-cols-2 gap-2">
               <button type="button" class="btn-outline" @click="cancelTax">ยกเลิก</button>
               <button type="submit" class="btn-primary">บันทึก</button>
@@ -352,7 +352,7 @@ function logout() {
           <span class="block text-xs text-stone-500">{{ o.channel === 'pos' ? dateTime(o.createdAt) : `นัดรับ ${dateTime(o.pickupAt)}` }}</span>
           <span class="block truncate text-xs text-stone-500">{{ o.items[0]?.name }}<template v-if="o.items.length > 1"> +{{ o.items.length - 1 }}</template></span>
         </span>
-        <span class="shrink-0 text-right"><StatusBadge :status="o.status" /><span class="mt-1 block"><PayDueBadge :due="o.payDue" short /></span><span class="mt-1 block text-sm font-semibold text-stone-900">{{ money(o.total) }}</span><span v-if="o.balance > 0 && o.status !== 'cancelled'" class="block text-xs text-amber-700">ค้าง {{ money(o.balance) }}</span></span>
+        <span class="shrink-0 text-right"><StatusBadge :status="o.status" /><span class="mt-1 block"><PayDueBadge :due="o.payDue" short /></span><span class="mt-1 block text-sm font-semibold text-stone-900">{{ money(o.total) }}</span><span v-if="o.balance > 0 && o.status !== 'cancelled'" class="block text-xs text-warning-700">ค้าง {{ money(o.balance) }}</span></span>
       </RouterLink>
     </div>
 
@@ -372,12 +372,12 @@ function logout() {
         </button>
       </section>
 
-      <section class="card space-y-3 border border-rose-100" aria-labelledby="acct-delete">
+      <section class="card space-y-3 border border-danger-100" aria-labelledby="acct-delete">
         <h2 id="acct-delete" class="card-title flex items-center gap-2"><AppIcon name="shield" :size="16" /> ขอลบข้อมูลของฉัน</h2>
         <p class="text-sm text-stone-600">เมื่อร้านอนุมัติ ร้านจะลบชื่อ เบอร์โทร และ Facebook ที่ผูกไว้ บัญชีและ PIN แชท คะแนน/คูปอง รีวิว และรายละเอียดส่วนตัวในออร์เดอร์ (ที่อยู่ วันเกิด รูปอ้างอิง สลิป ข้อความบนเค้ก)</p>
         <p class="text-sm text-stone-600">ร้านจะเก็บ <b>ออร์เดอร์และการชำระเงินแบบไม่ระบุตัวตน</b> เพื่อเป็นหลักฐานทางบัญชี · ลบได้เมื่อไม่มีออร์เดอร์ที่ยังไม่จบหรือยอดค้างชำระ</p>
-        <div v-if="delReq?.status === 'pending'" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">ส่งคำขอเมื่อ {{ dateTime(delReq.createdAt) }} · รอร้านตรวจสอบ</div>
-        <div v-else-if="delReq?.status === 'rejected'" class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">คำขอก่อนหน้าไม่ได้รับอนุมัติ: {{ delReq.reason }}</div>
+        <div v-if="delReq?.status === 'pending'" class="rounded-xl bg-warning-50 p-3 text-sm text-warning-800">ส่งคำขอเมื่อ {{ dateTime(delReq.createdAt) }} · รอร้านตรวจสอบ</div>
+        <div v-else-if="delReq?.status === 'rejected'" class="rounded-xl bg-danger-50 p-3 text-sm text-danger-700">คำขอก่อนหน้าไม่ได้รับอนุมัติ: {{ delReq.reason }}</div>
         <button v-if="delReq?.status !== 'pending'" class="btn-danger w-full" @click="start('delete')">ขอลบข้อมูลของฉัน</button>
       </section>
     </div>
@@ -394,7 +394,7 @@ function logout() {
   <AppModal v-if="flow" :title="{ pin: 'เปลี่ยน PIN', phone: 'เปลี่ยนเบอร์โทร', delete: 'ขอลบข้อมูล' }[flow]" @close="close">
     <div v-if="flow === 'phone' && step === 1" class="space-y-4">
       <div><label class="label">เบอร์ใหม่</label><PhoneInput v-model="f.phone" /></div>
-      <p v-if="f.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
+      <p v-if="f.error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
       <button class="btn-primary w-full" @click="newPhoneNext">ขอรหัสยืนยัน (OTP)</button>
     </div>
 
@@ -403,20 +403,20 @@ function logout() {
     <div v-else-if="flow === 'pin'" class="space-y-4">
       <div><label class="label">PIN ใหม่ 6 หลัก</label><PinInput v-model="f.pin" autocomplete="new-password" /></div>
       <div><label class="label">ยืนยัน PIN ใหม่</label><PinInput v-model="f.pin2" autocomplete="new-password" /></div>
-      <p v-if="f.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
+      <p v-if="f.error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
       <button class="btn-primary w-full" @click="finishPin">เปลี่ยน PIN</button>
     </div>
 
     <div v-else-if="flow === 'phone'" class="space-y-4">
       <p class="text-sm text-stone-600">ยืนยันแล้ว เปลี่ยนเบอร์เป็น <b>{{ formatPhone(f.phone) }}</b></p>
-      <p v-if="f.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
+      <p v-if="f.error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
       <button class="btn-primary w-full" @click="finishPhone">ยืนยันการเปลี่ยนเบอร์</button>
     </div>
 
     <div v-else class="space-y-4">
       <p class="text-sm text-stone-600">ส่งคำขอให้ร้านตรวจสอบ ระหว่างนี้บัญชียังใช้งานได้ตามปกติ</p>
       <div><label class="label">หมายเหตุถึงร้าน (ไม่บังคับ)</label><textarea v-model="f.note" rows="3" maxlength="300" class="input"></textarea></div>
-      <p v-if="f.error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
+      <p v-if="f.error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ f.error }}</p>
       <button class="btn-danger w-full" @click="finishDelete">ส่งคำขอลบข้อมูล</button>
     </div>
   </AppModal>

@@ -12,7 +12,7 @@ import { dateTime } from '../../lib/format'
 // ประชาสัมพันธ์/โปรโมชั่น: ส่งเป็นการ์ดในแชทเว็บ/แอปของลูกค้าที่กดเปิดรับข่าวสารเอง (และมีบัญชีเว็บ) + แจ้งเตือน push
 // ผู้รับถูกคำนวณที่เซิร์ฟเวอร์ทุกครั้งที่ส่ง · ส่งซ้ำไม่ได้ · ยังไม่ถึงเวลาหรือยังไม่ส่งยกเลิกได้
 const STATUS = { draft: 'ฉบับร่าง', scheduled: 'ตั้งเวลาไว้', sending: 'กำลังส่ง', sent: 'ส่งแล้ว', cancelled: 'ยกเลิก' }
-const STATUS_CLS = { draft: 'bg-stone-100 text-stone-700', scheduled: 'bg-amber-50 text-amber-800', sending: 'bg-brand-50 text-brand-800', sent: 'bg-emerald-50 text-emerald-800', cancelled: 'bg-rose-50 text-rose-700' }
+const STATUS_CLS = { draft: 'bg-stone-100 text-stone-700', scheduled: 'bg-warning-50 text-warning-800', sending: 'bg-brand-50 text-brand-800', sent: 'bg-success-50 text-success-800', cancelled: 'bg-danger-50 text-danger-700' }
 const blank = () => ({ id: '', type: 'promo', title: '', body: '', image: '', url: '', when: 'now', scheduledLocal: '' })
 
 const items = ref([])
@@ -132,7 +132,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 
 <template>
   <ManageShell title="ประชาสัมพันธ์ & โปรโมชั่น" subtitle="ส่งเข้าแชทเว็บ/แอปของลูกค้า พร้อมแจ้งเตือน" :toolbar="false" add-label="สร้างประชาสัมพันธ์" @add="openNew">
-    <p v-if="!supabaseEnabled" class="card mb-4 p-4 text-sm text-rose-700">หน้านี้ต้องเชื่อมต่อฐานข้อมูลออนไลน์ก่อน จึงจะส่งข้อความถึงลูกค้าได้</p>
+    <p v-if="!supabaseEnabled" class="card mb-4 p-4 text-sm text-danger-700">หน้านี้ต้องเชื่อมต่อฐานข้อมูลออนไลน์ก่อน จึงจะส่งข้อความถึงลูกค้าได้</p>
 
     <div class="card mb-4 flex flex-wrap items-center justify-between gap-3 p-4">
       <div>

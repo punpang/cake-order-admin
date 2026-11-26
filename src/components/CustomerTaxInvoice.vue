@@ -55,15 +55,15 @@ async function submit() {
 <template>
   <section v-if="(st || docs.length || loadErr) && !(cancelled && !docs.length)" class="card space-y-3" aria-label="ใบกำกับภาษี">
     <div class="card-title"><AppIcon name="list" :size="16" /> ใบกำกับภาษีเต็มรูป</div>
-    <p v-if="loadErr" class="rounded-xl bg-rose-50 p-3 text-sm text-rose-700" role="alert">{{ loadErr }}</p>
+    <p v-if="loadErr" class="rounded-xl bg-danger-50 p-3 text-sm text-danger-700" role="alert">{{ loadErr }}</p>
     <template v-if="doc && !editing">
-      <div class="rounded-xl bg-emerald-50 p-3 text-emerald-800">ออกใบแล้ว <b>{{ doc.no }}</b> · {{ dateOnly(doc.date) }}<div class="text-xs">ผู้ซื้อ {{ doc.buyer.name }}</div></div>
+      <div class="rounded-xl bg-success-50 p-3 text-success-800">ออกใบแล้ว <b>{{ doc.no }}</b> · {{ dateOnly(doc.date) }}<div class="text-xs">ผู้ซื้อ {{ doc.buyer.name }}</div></div>
       <div class="flex flex-wrap gap-2">
         <button class="btn-primary" aria-label="ดาวน์โหลดใบกำกับภาษี PDF" @click="download(doc)"><AppIcon name="printer" :size="16" /> ดาวน์โหลด PDF</button>
         <button v-if="st && st.eligible && st.canEdit" class="btn-outline" @click="startEdit">แก้ไขข้อมูล</button>
       </div>
       <p class="text-xs text-stone-500">กด "ดาวน์โหลด PDF" แล้วเลือก "บันทึกเป็น PDF" ในหน้าพิมพ์</p>
-      <p v-if="readonly" class="text-xs text-amber-700" role="note">ในใบมีเลขผู้เสียภาษีและที่อยู่ผู้ซื้อ — ใครมีลิงก์นี้ดาวน์โหลดได้ อย่าส่งต่อลิงก์ · ขอ/แก้ใบกำกับภาษีต้องเข้าสู่ระบบ</p>
+      <p v-if="readonly" class="text-xs text-warning-700" role="note">ในใบมีเลขผู้เสียภาษีและที่อยู่ผู้ซื้อ — ใครมีลิงก์นี้ดาวน์โหลดได้ อย่าส่งต่อลิงก์ · ขอ/แก้ใบกำกับภาษีต้องเข้าสู่ระบบ</p>
       <template v-else-if="st">
         <p v-if="st.eligible" class="text-xs text-stone-500">แก้ไขได้ภายใน {{ dateOnly(st.deadline) }} · เหลืออีก {{ st.revisionsLeft }}/{{ MAX_CUSTOMER_REVISIONS }} ครั้ง (แก้แล้วระบบออกใบลดหนี้ใบเดิมและออกใบใหม่ให้)</p>
         <p v-else class="text-xs text-stone-500">{{ st.reason }}</p>
@@ -76,7 +76,7 @@ async function submit() {
       <div class="grid grid-cols-3 gap-3"><div class="col-span-2"><label class="label">เลขประจำตัวผู้เสียภาษี 13 หลัก</label><input v-model="f.taxId" inputmode="numeric" maxlength="13" class="input" aria-label="เลขผู้เสียภาษี" /></div><div><label class="label">สาขา (5 หลัก)</label><input v-model="f.branch" inputmode="numeric" maxlength="5" class="input" aria-label="สาขา" /></div></div>
       <div><label class="label">ที่อยู่ตามใบกำกับ</label><TaxAddressField v-model="f.address" label="ที่อยู่ใบกำกับ" :suggestions="myAddressChoices(orderId)" /></div>
       <label class="flex items-center gap-2 text-stone-600"><input v-model="f.remember" type="checkbox" class="h-4 w-4" /> จดจำข้อมูลนี้ไว้ใช้ครั้งหน้า (เก็บได้ชุดเดียว ทับของเดิม)</label>
-      <p v-if="err" class="text-rose-700" role="alert">{{ err }}</p>
+      <p v-if="err" class="text-danger-700" role="alert">{{ err }}</p>
       <div class="flex gap-2"><button v-if="editing" class="btn-outline flex-1" @click="editing = false">ยกเลิก</button><button class="btn-primary flex-1" :disabled="busy" @click="submit">{{ busy ? 'กำลังส่ง…' : editing ? 'บันทึกการแก้ไข' : 'ขอใบกำกับภาษี' }}</button></div>
     </template>
     <p v-else-if="st && !others.length" class="text-stone-500">{{ st.reason }}</p>

@@ -110,6 +110,6 @@ onMounted(refresh)
     <AppSwitch v-if="isReceipt" v-model="autoOn" label="พิมพ์อัตโนมัติหลังรับเงิน" />
 
     <button type="button" class="btn-primary h-12 w-full" :disabled="busy || !effective" @click="testPrint">พิมพ์ใบทดสอบ</button>
-    <p v-if="msg" class="rounded-xl bg-amber-50 p-3 text-sm text-amber-900" role="status">{{ msg }}</p>
+    <p v-if="msg" class="rounded-xl bg-warning-50 p-3 text-sm text-amber-900" role="status">{{ msg }}</p>
   </div>
 </template>

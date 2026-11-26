@@ -237,7 +237,7 @@ async function act(r) {
           <span class="text-base font-semibold text-stone-900">{{ dayLabel(s.day) }}</span>
         </h2>
         <section class="mb-4">
-          <div v-if="s.late" class="mb-2 flex items-center gap-2 px-1 text-sm font-semibold text-rose-700">
+          <div v-if="s.late" class="mb-2 flex items-center gap-2 px-1 text-sm font-semibold text-danger-700">
             <AppIcon name="alert" :size="16" /> เลยเวลาแล้ว
             <span class="ml-auto text-xs font-medium">{{ s.rows.length }} ออร์เดอร์</span>
           </div>
@@ -251,7 +251,7 @@ async function act(r) {
             <article v-for="r in s.rows" :key="r.o.id" class="card overflow-hidden border-l-4 p-0 transition" :class="toneOf(r.o)">
               <!-- หัวการ์ดบรรทัดเดียว: เวลาเสร็จ · ชื่อ · รับที่ร้าน/จัดส่ง · ป้ายเลยเวลา -->
               <RouterLink :to="`/admin/orders/${r.o.id}`" class="flex items-center gap-3 px-4 pt-3 focus-visible:ring-4 focus-visible:ring-brand-200 focus-visible:outline-none">
-                <div class="flex w-16 shrink-0 flex-col items-center rounded-xl py-1.5" :class="r.late ? 'bg-rose-50 text-rose-700' : 'bg-stone-100 text-stone-800'">
+                <div class="flex w-16 shrink-0 flex-col items-center rounded-xl py-1.5" :class="r.late ? 'bg-danger-50 text-danger-700' : 'bg-stone-100 text-stone-800'">
                   <span class="text-[11px] leading-none font-medium">เสร็จ</span>
                   <span class="text-lg leading-tight font-bold tabular-nums">{{ hm(r.due) }}</span>
                 </div>
@@ -268,10 +268,10 @@ async function act(r) {
                   <div v-for="line in summaryOf(it).lines" :key="line.tier + line.text" class="break-words text-stone-700">
                     <span v-if="line.tier" class="text-stone-400">{{ line.tier }}:</span> {{ line.text }}
                   </div>
-                  <div v-for="t in summaryOf(it).texts" :key="t.label" class="rounded-lg bg-amber-50 px-2 py-1 text-xs break-words text-amber-900">
+                  <div v-for="t in summaryOf(it).texts" :key="t.label" class="rounded-lg bg-warning-50 px-2 py-1 text-xs break-words text-amber-900">
                     <span class="font-semibold">{{ t.label }}:</span> {{ t.value }}
                   </div>
-                  <div v-if="it.note" class="rounded-lg bg-amber-50 px-2 py-1 text-xs break-words text-amber-900">
+                  <div v-if="it.note" class="rounded-lg bg-warning-50 px-2 py-1 text-xs break-words text-amber-900">
                     <span class="font-semibold">หมายเหตุ:</span> {{ it.note }}
                   </div>
                   <details v-if="details(it).length" class="text-xs">
@@ -293,7 +293,7 @@ async function act(r) {
                   v-if="actionOf(r.o)"
                   type="button"
                   class="no-print flex h-12 w-full items-center justify-center rounded-2xl text-base font-semibold text-white transition active:scale-[0.99]"
-                  :class="actionOf(r.o).to === 'prepared' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-brand-600 hover:bg-brand-700'"
+                  :class="actionOf(r.o).to === 'prepared' ? 'bg-emerald-600 hover:bg-success-700' : 'bg-brand-600 hover:bg-brand-700'"
                   @click="act(r)"
                 >{{ actionOf(r.o).label }}</button>
               </div>

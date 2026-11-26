@@ -30,7 +30,7 @@ watch(payload, async (p) => {
 
 <template>
   <div class="text-center">
-    <p v-if="!biller" class="text-left text-xs text-amber-700">ยังไม่ได้ตั้ง Biller ID ของร้าน (ตั้งค่าร้าน › ช่องทางรับชำระ) จึงสร้าง QR ไม่ได้</p>
+    <p v-if="!biller" class="text-left text-xs text-warning-700">ยังไม่ได้ตั้ง Biller ID ของร้าน (ตั้งค่าร้าน › ช่องทางรับชำระ) จึงสร้าง QR ไม่ได้</p>
     <template v-else-if="payload">
       <img v-if="qr" :src="qr" alt="QR พร้อมเพย์ (Biller)" class="mx-auto h-48 w-48 sm:h-56 sm:w-56" />
       <p v-else class="flex items-center justify-center gap-2 py-8 text-stone-400">กำลังสร้าง QR…</p>
@@ -38,6 +38,6 @@ watch(payload, async (p) => {
       <p class="text-xs text-stone-500">รหัสร้านค้า {{ ref1 }}</p>
       <p class="text-xs text-stone-500">รหัสอ้างอิง {{ ref2 }}</p>
     </template>
-    <p v-else class="text-left text-xs text-rose-700">ข้อมูล QR ไม่ครบ (ยอด รหัสร้านค้า หรือรหัสอ้างอิง)</p>
+    <p v-else class="text-left text-xs text-danger-700">ข้อมูล QR ไม่ครบ (ยอด รหัสร้านค้า หรือรหัสอ้างอิง)</p>
   </div>
 </template>

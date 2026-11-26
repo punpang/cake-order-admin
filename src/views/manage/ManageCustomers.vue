@@ -161,8 +161,8 @@ async function save() {
     search-placeholder="ค้นหา ชื่อ / เบอร์"
     @add="edit(null)"
   >
-    <p v-if="customerScale.lazy" class="mb-3 rounded-xl bg-sky-50 p-3 text-sm text-sky-900">แสดงเฉพาะลูกค้าที่โหลดไว้ในเครื่อง (ลูกค้าทั้งหมด {{ customerScale.count?.toLocaleString() ?? '–' }} ราย) · พิมพ์ชื่อหรือเบอร์ในช่องค้นหาเพื่อดึงลูกค้าคนอื่น</p>
-    <p v-else-if="customerScale.count >= CUSTOMER_WARN_AT && can('manage')" class="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">ลูกค้าในระบบ {{ customerScale.count.toLocaleString() }} ราย ใกล้เกณฑ์ที่ควรเปิด "โหลดข้อมูลลูกค้าเฉพาะที่ใช้" (ตั้งค่าร้าน) · ควรทดสอบกับข้อมูลจำนวนมากก่อนเปิด</p>
+    <p v-if="customerScale.lazy" class="mb-3 rounded-xl bg-info-50 p-3 text-sm text-sky-900">แสดงเฉพาะลูกค้าที่โหลดไว้ในเครื่อง (ลูกค้าทั้งหมด {{ customerScale.count?.toLocaleString() ?? '–' }} ราย) · พิมพ์ชื่อหรือเบอร์ในช่องค้นหาเพื่อดึงลูกค้าคนอื่น</p>
+    <p v-else-if="customerScale.count >= CUSTOMER_WARN_AT && can('manage')" class="mb-3 rounded-xl bg-warning-50 p-3 text-sm text-amber-900">ลูกค้าในระบบ {{ customerScale.count.toLocaleString() }} ราย ใกล้เกณฑ์ที่ควรเปิด "โหลดข้อมูลลูกค้าเฉพาะที่ใช้" (ตั้งค่าร้าน) · ควรทดสอบกับข้อมูลจำนวนมากก่อนเปิด</p>
     <p v-if="!list.length" class="card py-10 text-center text-stone-500">ไม่พบลูกค้า</p>
 
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -179,7 +179,7 @@ async function save() {
             <span class="truncate font-semibold text-stone-900">{{ c.name }}</span>
             <span v-if="c.active === false" class="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">ปิดใช้งาน</span>
           </span>
-          <span class="block truncate text-sm text-stone-500"><template v-if="c.phone">{{ formatPhone(c.phone) }}</template><span v-else class="rounded bg-amber-50 px-1 text-xs text-amber-700">ไม่มีเบอร์</span></span>
+          <span class="block truncate text-sm text-stone-500"><template v-if="c.phone">{{ formatPhone(c.phone) }}</template><span v-else class="rounded bg-warning-50 px-1 text-xs text-warning-700">ไม่มีเบอร์</span></span>
           <span v-if="c.note" class="block truncate text-sm text-stone-400">{{ c.note }}</span>
         </span>
         <span class="shrink-0 rounded-lg bg-stone-50 px-2 py-1 text-xs text-stone-500">{{ customerOrderCount(c.id) }} ออร์เดอร์</span>
@@ -188,7 +188,7 @@ async function save() {
     <!-- โหมดโหลดเฉพาะที่ใช้: ดึงลูกค้าทีละหน้าจากเซิร์ฟเวอร์ (เรียงตามชื่อ) -->
     <div v-if="customerScale.lazy && !pageDone" class="mt-4 text-center">
       <button type="button" class="btn-outline h-11 px-5" :disabled="pageBusy" @click="nextPage">{{ pageBusy ? 'กำลังโหลด…' : 'โหลดลูกค้าเพิ่ม (เรียงตามชื่อ)' }}</button>
-      <p v-if="pageErr" class="mt-2 text-sm text-rose-700" role="alert">{{ pageErr }}</p>
+      <p v-if="pageErr" class="mt-2 text-sm text-danger-700" role="alert">{{ pageErr }}</p>
     </div>
 
     <AppModal v-if="open" :title="form.id ? 'แก้ไขลูกค้า' : 'เพิ่มลูกค้า'" wider @close="open = false">
@@ -212,8 +212,8 @@ async function save() {
         <div>
           <div class="label">ช่องทางแจ้งเตือน</div>
           <div class="flex flex-wrap gap-1.5 text-xs">
-            <span class="rounded-full px-2 py-0.5" :class="form.fbPsid ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'">Facebook: {{ form.fbPsid ? 'ผูกแล้ว' : 'ยังไม่ผูก' }}</span>
-            <span class="rounded-full px-2 py-0.5" :class="form.phone ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-500'">SMS: {{ form.phone ? 'มีเบอร์' : 'ไม่มีเบอร์' }}</span>
+            <span class="rounded-full px-2 py-0.5" :class="form.fbPsid ? 'bg-success-50 text-success-700' : 'bg-stone-100 text-stone-500'">Facebook: {{ form.fbPsid ? 'ผูกแล้ว' : 'ยังไม่ผูก' }}</span>
+            <span class="rounded-full px-2 py-0.5" :class="form.phone ? 'bg-success-50 text-success-700' : 'bg-stone-100 text-stone-500'">SMS: {{ form.phone ? 'มีเบอร์' : 'ไม่มีเบอร์' }}</span>
           </div>
           <p class="mt-1 text-xs text-stone-400">ผูก Facebook ได้ในหน้าแชท (เมื่อลูกค้าทักมาทาง Facebook)</p>
         </div>
@@ -224,7 +224,7 @@ async function save() {
             <input v-model="pinNew" inputmode="numeric" maxlength="6" class="input" placeholder="PIN ใหม่ 6 หลัก" aria-label="PIN ใหม่ของลูกค้า" />
             <button type="button" class="btn-soft h-11 shrink-0" :disabled="pinBusy" @click="resetCustomerPin">{{ pinBusy ? 'กำลังตั้ง…' : 'ตั้ง PIN' }}</button>
           </div>
-          <p v-if="pinMsg" class="mt-2 text-sm" :class="pinMsg === 'ตั้ง PIN ใหม่แล้ว' ? 'text-emerald-700' : 'text-rose-700'" role="status">{{ pinMsg }}</p>
+          <p v-if="pinMsg" class="mt-2 text-sm" :class="pinMsg === 'ตั้ง PIN ใหม่แล้ว' ? 'text-success-700' : 'text-danger-700'" role="status">{{ pinMsg }}</p>
         </div>
         <div v-if="form.id && live" class="rounded-xl border border-stone-200/70 p-3">
           <div class="flex items-center justify-between gap-2">
@@ -234,12 +234,12 @@ async function save() {
               <button v-if="can('adjustPoints')" type="button" class="btn-soft h-9" @click="openAdj">ปรับคะแนน</button>
             </div>
           </div>
-          <p v-if="conv.error" class="mt-2 text-sm text-rose-700" role="alert">{{ conv.error }}</p>
-          <p v-if="conv.msg" class="mt-2 text-sm text-emerald-700" role="status">{{ conv.msg }}</p>
+          <p v-if="conv.error" class="mt-2 text-sm text-danger-700" role="alert">{{ conv.error }}</p>
+          <p v-if="conv.msg" class="mt-2 text-sm text-success-700" role="status">{{ conv.msg }}</p>
           <ul v-if="ledger.length" class="mt-2 divide-y divide-stone-100 text-xs">
             <li v-for="e in ledger" :key="e.id" class="flex items-start justify-between gap-2 py-1.5">
-              <span class="min-w-0 break-words text-stone-600">{{ e.reason }}<span v-if="e.adjust" class="ml-1 rounded-full bg-amber-50 px-1.5 text-xs text-amber-700">ปรับเอง · {{ e.by === 'admin' ? 'แอดมิน' : e.by }}</span><span class="block text-stone-400">{{ dateTime(e.at) }}</span></span>
-              <b class="shrink-0" :class="e.delta > 0 ? 'text-emerald-700' : 'text-rose-700'">{{ e.delta > 0 ? '+' : '' }}{{ e.delta }}</b>
+              <span class="min-w-0 break-words text-stone-600">{{ e.reason }}<span v-if="e.adjust" class="ml-1 rounded-full bg-warning-50 px-1.5 text-xs text-warning-700">ปรับเอง · {{ e.by === 'admin' ? 'แอดมิน' : e.by }}</span><span class="block text-stone-400">{{ dateTime(e.at) }}</span></span>
+              <b class="shrink-0" :class="e.delta > 0 ? 'text-success-700' : 'text-danger-700'">{{ e.delta > 0 ? '+' : '' }}{{ e.delta }}</b>
             </li>
           </ul>
         </div>
@@ -255,7 +255,7 @@ async function save() {
               </span>
               <button v-if="i > 0" type="button" class="text-xs text-brand-700 underline" :aria-label="`ตั้ง ${p.name || p.address} เป็นแรก`" @click="placeFirst(form.id, p.id)">ขึ้นแรก</button>
               <button type="button" class="text-xs text-brand-700 underline" @click="editPlace(p)">แก้</button>
-              <button type="button" class="text-xs text-rose-700 underline lg:py-1.5" @click="delPlace(p)">ลบ</button>
+              <button type="button" class="text-xs text-danger-700 underline lg:py-1.5" @click="delPlace(p)">ลบ</button>
             </li>
           </ul>
         </div>
@@ -274,7 +274,7 @@ async function save() {
           <div v-if="history.birthdays.length">
             <div class="label">วันเกิดที่เคยสั่ง</div>
             <div class="flex flex-wrap gap-2">
-              <span v-for="b in history.birthdays" :key="b.name + b.md" class="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">{{ b.name || 'ไม่ระบุชื่อ' }} · {{ mdLabel(b.md) }}</span>
+              <span v-for="b in history.birthdays" :key="b.name + b.md" class="rounded-full bg-danger-50 px-2.5 py-1 text-xs font-medium text-danger-700">{{ b.name || 'ไม่ระบุชื่อ' }} · {{ mdLabel(b.md) }}</span>
             </div>
           </div>
           <div>
@@ -291,7 +291,7 @@ async function save() {
             </div>
           </div>
         </div>
-        <p v-if="error" class="flex items-center gap-2 text-sm text-rose-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
+        <p v-if="error" class="flex items-center gap-2 text-sm text-danger-700"><AppIcon name="alert" :size="16" /> {{ error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>
@@ -306,7 +306,7 @@ async function save() {
         <p class="text-sm text-stone-500">คงเหลือ {{ balance }} คะแนน</p>
         <div><label class="label">จำนวนคะแนน</label><input v-model="adj.amount" type="text" inputmode="numeric" class="input text-lg font-semibold" aria-label="จำนวนคะแนน" /></div>
         <div><label class="label">เหตุผล <span class="text-rose-600">*</span></label><input v-model="adj.reason" class="input" maxlength="120" aria-label="เหตุผลปรับคะแนน" /></div>
-        <p v-if="adj.error" class="text-sm text-rose-700" role="alert">{{ adj.error }}</p>
+        <p v-if="adj.error" class="text-sm text-danger-700" role="alert">{{ adj.error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="adj.open = false">ยกเลิก</button>
@@ -320,7 +320,7 @@ async function save() {
         <div><label class="label">url แผนที่ (https)</label><input v-model="pl.mapUrl" type="url" class="input" /></div>
         <div><label class="label">รายละเอียด</label><textarea v-model="pl.detail" rows="2" class="input" maxlength="300" /></div>
         <div class="max-w-[10rem]"><label class="label">ระยะทาง (กม.)</label><MoneyInput v-model.number="pl.distanceKm" min="0" class="input" /></div>
-        <p v-if="pl.error" class="text-sm text-rose-700">{{ pl.error }}</p>
+        <p v-if="pl.error" class="text-sm text-danger-700">{{ pl.error }}</p>
       </div>
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="pl.open = false">ยกเลิก</button>
