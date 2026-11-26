@@ -161,8 +161,11 @@ const DELIVERY_KEYS = ['address', 'shippingFee', 'placeName', 'mapUrl', 'detail'
 // ส่งให้เซิร์ฟเวอร์คิดใหม่: รายการบริการเกี่ยวกับเงินส่งเป็น cashService (ไม่ส่งเป็นรายการ) · เงินพักเซิร์ฟเวอร์คิดจากธนบัตรเอง
 export function draftOf(o) {
   const d = { customerId: o.customerId || '', fulfillment: o.fulfillment, pickupAt: o.pickupAt, birthday: o.birthday ? { name: o.birthday.name || '', md: o.birthday.md } : null, items: (o.items || []).filter((i) => i?.kind !== 'service').map((i) => ({ ...i })), adjustment: o.adjustment || null }
-  const cs = cashDraftOf(o)
-  if (cs) d.cashService = cs
+  // บริการต่อรายการเค้ก: อยู่ในรายการแล้ว · ออร์เดอร์เก่า (บริการระดับออร์เดอร์) ส่งเป็น cashService ของออร์เดอร์
+  if (!d.items.some((i) => i.cashService)) {
+    const cs = cashDraftOf(o)
+    if (cs) d.cashService = cs
+  }
   for (const k of DELIVERY_KEYS) if (o[k] !== undefined) d[k] = o[k]
   return d
 }

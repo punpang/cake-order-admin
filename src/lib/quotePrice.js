@@ -9,7 +9,7 @@ import { cleanDelivery } from './delivery.js'
 import { closureAt } from './shopHours.js'
 import { toDateStr } from './format.js'
 import { birthCakeDiscount } from './birthdayBenefit.js'
-import { cashServiceOf } from './cashService.js'
+import { cashServiceOf, cashServicesOf } from './cashService.js'
 
 const TH_MS = 7 * 3600000
 const TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/ // เวลานัดไม่มีโซน (เวลาไทย)
@@ -104,7 +104,7 @@ const cleanBirthday = (b) => (isObj(b) && typeof b.md === 'string' && MD_RE.test
 
 // รายการหนึ่งรายการ → ค่าที่ปลอดภัยและราคาจากแคตาล็อก (สินค้าหน้าร้าน: ราคา/ขนาด/ประเภท/ชื่อจากสินค้าในระบบ ไม่ใช่จากเครื่อง)
 // ฟิลด์นำเข้าของรายการสินค้า (ตรงกับที่แอปส่ง) · อย่างอื่นไม่รับ
-const ITEM_INPUT_KEYS = new Set(['id', 'images', 'kind', 'name', 'note', 'promoGift', 'qty', 'retailId', 'retailPrice', 'selections', 'sizeId', 'tiers', 'typeId'])
+const ITEM_INPUT_KEYS = new Set(['id', 'images', 'kind', 'name', 'note', 'promoGift', 'qty', 'retailId', 'retailPrice', 'selections', 'sizeId', 'tiers', 'typeId', 'cashService'])
 function cleanItem(raw, cat) {
   if (!isObj(raw)) return { error: 'รายการสินค้าไม่ถูกต้อง' }
   const id = idStr(raw.id)
@@ -125,6 +125,10 @@ function cleanItem(raw, cat) {
   if (raw.typeId !== undefined) out.typeId = idOrNull(raw.typeId)
   if (raw.retailId !== undefined) out.retailId = idOrNull(raw.retailId)
   if (raw.retailPrice !== undefined) out.retailPrice = numOr0(raw.retailPrice)
+  // บริการเกี่ยวกับเงินของรายการ: เก็บเฉพาะ kind/notes (ราคาและเงินพักคิดใหม่ที่เซิร์ฟเวอร์)
+  if (raw.cashService === undefined || raw.cashService === null) delete out.cashService
+  else if (isObj(raw.cashService)) out.cashService = { kind: raw.cashService.kind, ...(raw.cashService.notes !== undefined ? { notes: raw.cashService.notes } : {}) }
+  else return { error: 'บริการเกี่ยวกับเงินไม่ถูกต้อง' }
   if (raw.kind === 'retail') {
     const rid = idStr(raw.retailId)
     const r = rid ? (cat.retailItems || []).find((x) => x.id === rid) : null
@@ -165,8 +169,15 @@ export function buildQuotePayload({ draft, customerId, catalog, nowMs, checkClos
   }
   if (!items.length) return fail('ใบเสนอต้องมีรายการสินค้า')
   // บริการเกี่ยวกับเงิน: ค่าบริการเป็นรายการ (ราคาจากการตั้งค่าร้าน) · เงินพักคิดจากธนบัตรที่นี่ · รายการ kind 'service' จากเครื่องถูกปฏิเสธแล้วด้านบน
-  const cash = cashServiceOf(d.cashService, cat.shop, { customerFacing })
+  // ต่อรายการเค้ก (cashService ในรายการ) · ออร์เดอร์เก่าที่บริการระดับออร์เดอร์ (d.cashService) ยังใช้ได้เมื่อไม่มีบริการในรายการ
+  let cash = cashServicesOf(items, cat.shop, { customerFacing })
   if (!cash.ok) return fail(cash.error)
+  if (d.cashService !== undefined && d.cashService !== null) {
+    if (cash.items.length) return fail('ใช้บริการได้ทางเดียว (ต่อรายการหรือระดับออร์เดอร์)')
+    const legacy = cashServiceOf(d.cashService, cat.shop, { customerFacing })
+    if (!legacy.ok) return fail(legacy.error)
+    cash = { ok: true, items: legacy.item ? [legacy.item] : [], holdMoney: legacy.holdMoney }
+  }
 
   const wall = bkkWall(nowMs)
   const dateStr = toDateStr(wall)
@@ -183,7 +194,7 @@ export function buildQuotePayload({ draft, customerId, catalog, nowMs, checkClos
     fulfillment: d.fulfillment,
     ...deliveryFieldsOf(d),
     birthday: cleanBirthday(d.birthday),
-    items: cash.item ? [...w.items, cash.item] : w.items,
+    items: [...w.items, ...cash.items],
     ...(cash.holdMoney ? { holdMoney: cash.holdMoney } : {}),
     shipPromo: w.shipPromo,
     promoOn: true,

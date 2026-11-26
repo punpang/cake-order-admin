@@ -11,7 +11,7 @@ import { isDueSoonEligible } from '../lib/dueSoon'
 import { ensureStyleGroup, STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, channelLabel, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
 import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
 import { holdErrors, holdCancelRefundOf, canHandOver } from '../lib/holdMoney'
-import { withCashService, cashSettingsOf } from '../lib/cashService'
+import { cashServicesOf, cashSettingsOf } from '../lib/cashService'
 import { orderCardMsg, quoteCardMsg, linkCardMsg, payCard, viewCard } from '../lib/chatCards'
 import { applyPosPromos, pointMultiplier, round2, blankSchedule } from '../lib/posPromo'
 import { prevStatus } from '../lib/orderFlow'
@@ -1155,12 +1155,12 @@ export function createOrder(payload, asDraft = false) {
   const promo = payload.quoteItems
     ? { items: payload.items, shipPromo: payload.shipPromo || null, on: !!payload.promoOn }
     : (() => { const w = withPromos(payload.items.filter((i) => !i.promoGift).map((i) => priceItem(i))); return { items: w.items, shipPromo: w.shipPromo, on: true } })()
-  // บริการเกี่ยวกับเงิน: จากใบเสนอ (quoteItems) รายการและเงินพักอยู่ในใบเสนอแล้ว จึงไม่คิดซ้ำ
+  // บริการเกี่ยวกับเงินต่อรายการเค้ก: จากใบเสนอ (quoteItems) รายการและเงินพักอยู่ในใบเสนอแล้ว จึงไม่คิดซ้ำ
   let holdMoney = payload.quoteItems ? payload.holdMoney || null : null
-  if (!payload.quoteItems && payload.cashService !== undefined) {
-    const cs = withCashService(promo.items, payload.cashService, db.shop)
+  if (!payload.quoteItems) {
+    const cs = cashServicesOf(promo.items, db.shop)
     if (!cs.ok) return { error: cs.error }
-    promo.items = cs.items
+    promo.items = [...promo.items, ...cs.items]
     holdMoney = cs.holdMoney
   }
   const o = {

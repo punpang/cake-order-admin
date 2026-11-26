@@ -72,11 +72,27 @@ export function cashServiceOf(input, shop, { customerFacing = false } = {}) {
   return { ok: true, item, holdMoney }
 }
 
-// รายการในออร์เดอร์ = รายการสินค้า + รายการค่าบริการ (ถ้ามี) · คืน { ok, items, holdMoney } | { ok:false, error }
-export function withCashService(items, input, shop) {
-  const c = cashServiceOf(input, shop)
-  if (!c.ok) return c
-  return { ok: true, items: c.item ? [...items, c.item] : items, holdMoney: c.holdMoney }
+// บริการต่อรายการเค้ก: รายการที่มี cashService (input) จะได้ค่าบริการเป็นรายการของตัวเอง (forItem = id ของรายการเค้ก)
+// เงินพักรวมเป็นก้อนเดียวต่อออร์เดอร์ (ธนบัตรของทุกชิ้นรวมกัน) · ซ่อนเงินกับดึงเงินในออร์เดอร์เดียวกันไม่ได้
+// คืน { ok, items: [รายการค่าบริการ], holdMoney } | { ok:false, error }
+export function cashServicesOf(items, shop, { customerFacing = false } = {}) {
+  const services = []
+  const holds = []
+  for (const it of items || []) {
+    if (!isObj(it) || it.cashService === undefined || it.cashService === null) continue
+    const c = cashServiceOf(it.cashService, shop, { customerFacing })
+    if (!c.ok) return fail(`${it.name || 'สินค้า'}: ${c.error}`)
+    if (c.item) services.push({ ...c.item, id: `svc-${c.item.serviceKind}-${it.id}`, forItem: String(it.id) })
+    if (c.holdMoney) holds.push(c.holdMoney)
+  }
+  if (holds.some((h) => h.kind !== holds[0].kind)) return fail('ซ่อนเงินและดึงเงินต้องอยู่คนละออเดอร์')
+  if (!holds.length) return { ok: true, items: services, holdMoney: null }
+  const notes = {}
+  for (const h of holds) for (const v of NOTE_VALUES) notes[v] = (notes[v] || 0) + (Number(h.notes[v]) || 0)
+  const amount = holdAmountOf(notes)
+  const bad = holdErrors({ kind: holds[0].kind, notes, amount }, { maxNotes: cashSettingsOf(shop).maxNotes })
+  if (bad) return fail(bad)
+  return { ok: true, items: services, holdMoney: { kind: holds[0].kind, notes: Object.fromEntries(Object.entries(notes).filter(([, n]) => n > 0)), amount } }
 }
 
 // ข้อมูลบริการของออร์เดอร์ที่มีอยู่ → รูปแบบ input ที่ส่งให้เซิร์ฟเวอร์คิดใหม่ (ไม่มีบริการ = undefined)
