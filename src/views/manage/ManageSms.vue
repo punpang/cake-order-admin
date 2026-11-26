@@ -230,7 +230,7 @@ onMounted(() => {
           </div>
           <div>
             <label class="label">ข้อความ ({{ textLen }}/{{ MAX_TEXT }})</label>
-            <textarea v-model="test.text" rows="3" class="input" :class="textLen > MAX_TEXT ? 'border-rose-400' : ''" @input="resetKey"></textarea>
+            <textarea v-model="test.text" rows="3" class="input" :class="textLen > MAX_TEXT ? 'border-danger-700' : ''" @input="resetKey"></textarea>
           </div>
           <div>
             <label class="label">ซิม</label>

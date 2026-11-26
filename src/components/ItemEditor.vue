@@ -301,7 +301,7 @@ const scopesFor = (t) => ({ tier: { typeId: typeOptOf(t)?.id || null, styleId: s
     </div>
 
     <!-- สินค้าสำเร็จ (สินค้า POS) -->
-    <div v-if="form.kind === 'retail'" class="mb-3 rounded-2xl border bg-white p-3.5" :class="errors.product ? 'border-rose-300 ring-4 ring-rose-50' : 'border-stone-200/70'">
+    <div v-if="form.kind === 'retail'" class="mb-3 rounded-2xl border bg-white p-3.5" :class="errors.product ? 'border-danger-200 ring-4 ring-danger-50' : 'border-stone-200/70'">
       <div class="mb-2.5 flex items-baseline gap-2">
         <span class="text-sm font-semibold text-stone-800">เลือกสินค้า</span>
         <span class="text-xs font-medium text-danger-700">จำเป็น</span>

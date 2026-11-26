@@ -90,7 +90,7 @@ const isOn = (g, o) =>
       v-for="g in groups.filter((x) => (x.key !== 'style' || x.options.some((o) => o.active !== false)) && (!allow || allow(x, null)))"
       :key="g.id"
       class="rounded-2xl border bg-white"
-      :class="[compact ? 'p-2.5' : 'p-3.5', errors[g.id] ? 'border-rose-300 ring-4 ring-rose-50' : 'border-stone-200/70']"
+      :class="[compact ? 'p-2.5' : 'p-3.5', errors[g.id] ? 'border-danger-200 ring-4 ring-danger-50' : 'border-stone-200/70']"
     >
       <div class="flex flex-wrap items-baseline gap-x-2" :class="compact ? 'mb-1.5' : 'mb-2.5'">
         <span class="text-sm font-semibold text-stone-800">{{ g.name }}</span>
@@ -112,7 +112,7 @@ const isOn = (g, o) =>
           :key="o.id"
           type="button"
           class="relative inline-flex max-w-full gap-1.5 rounded-xl border text-left transition active:scale-[0.98]"
-          :class="[compact ? 'min-h-9 px-2.5 py-1 text-[0.8125rem]' : 'min-h-11 px-3 py-2 text-sm', isOn(g, o) ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : (tagOf(g, o) ? (tagOf(g, o).state === 'partner' ? 'border-amber-500 bg-warning-50 text-stone-800 ring-2 ring-amber-300 motion-safe:animate-pulse' : 'border-dashed border-amber-500 bg-warning-50/40 text-stone-800') : 'border-stone-200 bg-white text-stone-700 hover:border-brand-300'), tagOf(g, o) ? 'flex-col items-start' : 'items-center']"
+          :class="[compact ? 'min-h-9 px-2.5 py-1 text-[0.8125rem]' : 'min-h-11 px-3 py-2 text-sm', isOn(g, o) ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500' : (tagOf(g, o) ? (tagOf(g, o).state === 'partner' ? 'border-warning-700 bg-warning-50 text-stone-800 ring-2 ring-warning-200 motion-safe:animate-pulse' : 'border-dashed border-warning-700 bg-warning-50/40 text-stone-800') : 'border-stone-200 bg-white text-stone-700 hover:border-brand-300'), tagOf(g, o) ? 'flex-col items-start' : 'items-center']"
           :title="tagOf(g, o) ? `${tagOf(g, o).single ? 'ลดเพิ่ม' : 'บันเดิ้ล'}: ${tagOf(g, o).names.join(', ')}` : null"
           :data-bundle-tag="tagOf(g, o)?.state || null"
           :disabled="isLocked(g, o)"

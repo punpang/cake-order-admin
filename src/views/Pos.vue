@@ -1135,7 +1135,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
 
     <!-- ขาย -->
     <div v-else-if="tab === 'sell'" class="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px]" :class="editBill ? 'grid-rows-[auto_minmax(0,1fr)]' : 'grid-rows-[minmax(0,1fr)]'">
-      <div v-if="editBill" class="col-span-full flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-amber-300 bg-warning-50 p-3 text-sm text-warning-800" role="status">
+      <div v-if="editBill" class="col-span-full flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800" role="status">
         <span>กำลังแก้รายการบิลค้าง <b>{{ orderNo(editBill.code) }}</b> · รับไปแล้ว {{ money(orderTotals(editBill).paidNet) }} · ยอดรวมหลังแก้ต้องไม่ต่ำกว่านี้</span>
         <span v-if="editBill.couponsUsed?.length" class="flex flex-wrap items-center gap-1.5">
           <span class="text-xs text-warning-800">คูปองในบิล (แตะเพื่อเอาออก):</span>
@@ -1257,13 +1257,13 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             </li>
           </ul>
           <details v-if="promoInfo.hints.length" open class="group"><summary class="mb-1.5 cursor-pointer list-none text-xs font-semibold text-info-800">โปรที่ใกล้ถึง · {{ promoInfo.hints.length }} รายการ (แตะเพื่อซ่อน/แสดง)</summary><ul class="space-y-1.5" aria-label="โปรที่ใกล้ถึง">
-            <li v-for="h in promoInfo.hints" :key="h.text" class="rounded-xl border-l-4 border-sky-500 bg-info-100 px-3 py-2 text-sm font-medium text-info-800">💡 {{ h.text }}</li>
+            <li v-for="h in promoInfo.hints" :key="h.text" class="rounded-xl border-l-4 border-info-700 bg-info-100 px-3 py-2 text-sm font-medium text-info-800">💡 {{ h.text }}</li>
           </ul></details>
 
           <!-- แนะนำขายต่อ -->
           <div v-if="bundleSug.length || pairSug.length" class="space-y-2" aria-label="แนะนำขายต่อ">
             <div class="text-xs font-bold uppercase tracking-wide text-warning-800">แนะนำขายต่อ</div>
-            <div v-for="s in bundleSug" :key="s.bundle.id" class="rounded-2xl border-2 border-amber-400 bg-warning-100 p-3 text-sm">
+            <div v-for="s in bundleSug" :key="s.bundle.id" class="rounded-2xl border-2 border-warning-700 bg-warning-100 p-3 text-sm">
               <div class="font-semibold text-stone-900">ชุด {{ s.bundle.name }} · {{ money(s.bundle.price) }} <s class="text-xs font-normal text-stone-400">ราคาเต็ม {{ money(s.setRegular) }}</s></div>
               <div class="text-xs text-stone-600">เพิ่ม {{ s.missing.map((m) => `${m.name} ×${m.qty}`).join(', ') }} ได้ราคาชุด · ประหยัด <b class="text-danger-700">{{ money(s.saving) }}</b></div>
               <button type="button" class="btn-soft mt-1.5 h-8 px-3 text-xs" @click="addMissing(s)"><AppIcon name="plus" :size="14" /> เพิ่มให้ครบชุด</button>
@@ -1513,7 +1513,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <div class="text-3xl font-bold tabular-nums text-stone-900 max-md:text-2xl md:text-5xl">{{ money(total) }}</div>
             <dl class="mt-3 grid grid-cols-2 gap-2 text-sm max-md:mt-2 max-md:gap-1.5 md:text-base">
               <div class="rounded-2xl bg-stone-200 px-3 py-2"><dt class="text-stone-700">รับแล้ว</dt><dd class="text-lg font-semibold tabular-nums text-stone-950 md:text-2xl">{{ money(receivedSum) }}</dd></div>
-              <div class="rounded-2xl px-3 py-2" :class="total - receivedSum < 0 ? 'bg-danger-200 text-danger-800 ring-1 ring-rose-400' : total - receivedSum > 0 ? 'bg-warning-200 text-warning-800 ring-1 ring-amber-400' : 'bg-success-200 text-success-800 ring-1 ring-emerald-500'">
+              <div class="rounded-2xl px-3 py-2" :class="total - receivedSum < 0 ? 'bg-danger-200 text-danger-800 ring-1 ring-danger-700' : total - receivedSum > 0 ? 'bg-warning-200 text-warning-800 ring-1 ring-warning-700' : 'bg-success-200 text-success-800 ring-1 ring-success-700'">
                 <dt class="opacity-80">{{ total - receivedSum < 0 ? 'เกิน' : 'คงค้าง' }}</dt><dd class="text-lg font-semibold tabular-nums md:text-2xl">{{ money(Math.abs(total - receivedSum)) }}</dd>
               </div>
             </dl>
@@ -1577,7 +1577,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
             <button type="button" class="font-medium text-stone-700 underline" @click="searchLate(l)">ค้นการโอนของ QR นี้</button>
             <div v-if="(l.candidates || []).length" class="space-y-2">
               <p class="font-medium text-warning-800">พบการโอนเข้า QR เดิม เลือกรายการที่ใช่</p>
-              <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-10 w-full items-center justify-between rounded-xl border border-amber-300 bg-warning-50 px-3 text-sm" @click="pickManee(l, c)">
+              <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-10 w-full items-center justify-between rounded-xl border border-warning-200 bg-warning-50 px-3 text-sm" @click="pickManee(l, c)">
                 <span>{{ timeOnly(c.received_at) }}</span><span class="font-semibold">{{ money(c.amount) }} · เลือก</span>
               </button>
             </div>
@@ -1645,7 +1645,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                     <MoneyInput :id="'cash-rec-' + l.key" v-model="l.received" data-numpad="dec" :disabled="!!l.locked || !!l.confirmed" class="input h-14 text-4xl font-bold max-md:h-12 max-md:text-3xl" />
                   </div>
                 </div>
-                <div class="flex items-center justify-between rounded-3xl px-4 py-3 max-md:py-2" :class="changeOf(l) >= 0 ? 'bg-success-700 text-white' : 'bg-warning-200 text-warning-800 ring-1 ring-amber-400'">
+                <div class="flex items-center justify-between rounded-3xl px-4 py-3 max-md:py-2" :class="changeOf(l) >= 0 ? 'bg-success-700 text-white' : 'bg-warning-200 text-warning-800 ring-1 ring-warning-700'">
                   <span class="text-base font-semibold">{{ changeOf(l) >= 0 ? 'เงินทอน' : 'ยังขาด' }}</span>
                   <span class="text-3xl font-bold tabular-nums">{{ money(Math.abs(changeOf(l))) }}</span>
                 </div>
@@ -1748,7 +1748,7 @@ const closedShifts = computed(() => db.shifts.filter((s) => s.closedAt).slice(0,
                 <p v-if="!expiredLine(l)" class="text-sm text-stone-600 md:text-lg">ระบบตรวจการโอนเข้าให้อัตโนมัติ ไม่ต้องกดอะไร</p>
                 <div v-if="!expiredLine(l) && (l.candidates || []).length > 1" class="space-y-2">
                   <p class="text-sm font-medium text-warning-800">พบหลายรายการที่ตรง เลือกรายการที่ใช่</p>
-                  <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-11 w-full items-center justify-between rounded-xl border border-amber-300 bg-warning-50 px-4" @click="pickManee(l, c)">
+                  <button v-for="c in l.candidates" :key="c.id" type="button" class="flex h-11 w-full items-center justify-between rounded-xl border border-warning-200 bg-warning-50 px-4" @click="pickManee(l, c)">
                     <span>{{ timeOnly(c.received_at) }}</span><span class="font-semibold">เลือก</span>
                   </button>
                 </div>
