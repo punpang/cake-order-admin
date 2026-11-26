@@ -3,6 +3,8 @@ import { serviceDb } from '../_shared/db.ts'
 import { prepSheet, pickupList, shipQueue, dueList, campaignSummary, exceptionList } from '../_shared/schedlib/preorderReports.js'
 import { notifyOrderEvent } from '../_shared/preorderNotify.ts'
 import { openPreorders } from '../_shared/schedlib/preorderCustomerOrders.js'
+import { preorderInvoiceBlock } from '../_shared/schedlib/preorderInvoice.js'
+import { buildInvoice, cleanBuyer } from '../_shared/schedlib/taxInvoice.js'
 
 // สั่งล่วงหน้า (ฝั่งร้าน): เฉพาะพนักงานที่มีสิทธิ์ managePreorder หรือ manage
 // การกระทำ: list · accounting (ข้อมูลดิบสำหรับบัญชี) · set_shipping · mark_delivered · record_return · refund_return · reship · record_payment · cancel
@@ -60,6 +62,34 @@ Deno.serve(corsWrap(async (req) => {
     if (up.error) return json({ error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' }, 500)
     await notifyOrderEvent(sb, orderId, 'ready')
     return json({ ok: true, result: { readyAt } })
+  }
+
+  // ออกใบกำกับภาษีเต็มรูปของออร์เดอร์ที่ส่งมอบและชำระครบแล้ว (เฟส 4) · กติกาตรวจที่เซิร์ฟเวอร์ · ผู้ออกคือพนักงาน (by = staff:<user>)
+  if (action === 'issue_invoice') {
+    if (!ORDER_ID_RE.test(orderId)) return json({ error: 'รหัสออร์เดอร์ไม่ถูกต้อง' }, 400)
+    const o = (await sb.from('punpang_preorder_orders').select('id,code,status,data').eq('id', orderId).maybeSingle()).data
+    if (!o) return json({ error: 'ไม่พบออร์เดอร์นี้' }, 404)
+    const d = o.data || {}
+    const order = { ...d, id: o.id, code: o.code, status: o.status, items: Array.isArray(d.items) ? d.items : [], payments: Array.isArray(d.payments) ? d.payments : [] }
+    const ir = await sb.from('punpang_acct_invoices').select('id,no,data').eq('order_id', orderId)
+    if (ir.error) return json({ error: 'โหลดใบกำกับไม่สำเร็จ' }, 500)
+    const invoices = ((ir.data || []) as any[]).map((x) => ({ ...(x.data || {}), id: x.id, no: x.no }))
+    const shop = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'shop').maybeSingle()
+    const seller = shop.data?.data?.v?.vat ?? {}
+    const buyer = cleanBuyer(body.buyer)
+    const block = preorderInvoiceBlock(order, invoices, buyer, seller)
+    if (block) return json({ error: block }, 409)
+    const today = new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10)
+    const id = `pi${Date.now().toString(36)}${Array.from(crypto.getRandomValues(new Uint8Array(6)), (x) => x.toString(16).padStart(2, '0')).join('')}`
+    const inv = buildInvoice({ order, seller, buyer, id, by: `staff:${uid}`, rev: 0, date: today, createdAt: new Date().toISOString(), remaining: null })
+    const r = await sb.rpc('punpang_preorder_issue_invoice', { p_order: orderId, p_date: today, p_inv_id: id, p_inv_data: inv })
+    if (r.error) {
+      if (r.error.code === 'P0001') return json({ error: r.error.message }, 409)
+      return json({ error: 'บันทึกใบกำกับภาษีไม่สำเร็จ กรุณาลองใหม่' }, 500)
+    }
+    const no = String((r.data as { no?: unknown } | null)?.no ?? '')
+    if (!no) return json({ error: 'บันทึกใบกำกับภาษีไม่สำเร็จ กรุณาลองใหม่' }, 500)
+    return json({ ok: true, result: { no } })
   }
 
   // ออร์เดอร์สั่งล่วงหน้าที่ยังไม่ปิดของลูกค้าคนหนึ่ง (แชท) · กรองที่เซิร์ฟเวอร์ตาม customerId (รหัสลูกค้าเป็น text) เท่านั้น
