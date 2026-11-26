@@ -1,4 +1,18 @@
 -- ทดสอบ RPC ออกใบกำกับภาษีของสั่งล่วงหน้า (migration 20261126370000) · รันโดย supabase/tests/run.sh · ทำในธุรกรรมแล้ว rollback
+begin;
+
+insert into public.punpang_preorder_campaigns (id, status, order_from, order_to, pickup_from, pickup_to, deposit_percent, pay_due_min, data)
+  values ('ii_camp', 'closed', '2000-01-01', '2099-12-31', '2099-12-24', '2099-12-26', 50, 120, '{"name":"ใบกำกับ","dayCap":null,"items":[]}');
+
+insert into public.punpang_preorder_orders (id, campaign_id, code, status, pickup_date, data) values
+  ('ii_o1', 'ii_camp', 'PRE-II-0001', 'delivered', '2099-12-24', '{"items":[{"retailId":"A","unitPrice":250,"qty":2}]}'::jsonb),
+  ('ii_o2', 'ii_camp', 'PRE-II-0002', 'paid', '2099-12-24', '{"items":[{"retailId":"A","unitPrice":250,"qty":2}]}'::jsonb),
+  ('ii_o3', 'ii_camp', 'PRE-II-0003', 'delivered', '2099-12-24', '{"items":[{"retailId":"A","unitPrice":250,"qty":2}]}'::jsonb);
+
+-- ใบเดิมของ ii_o3 ถูกยกเลิกแล้ว (มี voidedBy) จึงไม่นับ
+insert into public.punpang_acct_invoices (id, kind, order_id, doc_date, no, year, seq, data)
+  values ('ii_old', 'invoice', 'ii_o3', '2099-12-24', '', 0, 0, '{"type":"invoice","voidedBy":"ii_cn"}'::jsonb);
+
 -- ตัวช่วย: เรียกแล้วคืน 'OK' หรือ 'ERR:<sqlstate>' (ไม่ให้ธุรกรรมล้ม)
 create function pg_temp.try_issue(o text, id text) returns text language plpgsql as $$
 begin
