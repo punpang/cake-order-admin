@@ -4,6 +4,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { shippableOrders, splitPaste, applyPaste, postageValue, validateBatch } from '../../lib/preorderShipBatch'
 import { preorderAdminCall } from '../../lib/preorderAdminRemote'
+import { buildIssuePayload, EMPTY_ISSUE_FORM } from '../../lib/preorderIssueForm'
 
 const orders = ref([])
 const loading = ref(true)
@@ -97,6 +98,22 @@ const summary = computed(() => {
 function box(id) {
   if (!f[id]) f[id] = { amount: '', method: 'cash', carrier: '', tracking: '', postage: '', reason: '', fee: '', newDue: '' }
   return f[id]
+}
+
+// ฟอร์มผู้ซื้อของใบกำกับภาษี (แยกคีย์จากฟอร์มอื่นของออร์เดอร์เดียวกัน)
+function invoiceBox(id) {
+  const k = `inv:${id}`
+  if (!f[k]) f[k] = { ...EMPTY_ISSUE_FORM }
+  return f[k]
+}
+async function issueInvoice(o) {
+  msg.value = ''
+  const built = buildIssuePayload(o.id, invoiceBox(o.id))
+  if (built.error) { msg.value = `${o.code}: ${built.error}`; return }
+  const r = await preorderAdminCall('issue_invoice', built.payload)
+  if (r.error) { msg.value = `${o.code}: ${r.error}`; return }
+  msg.value = `${o.code}: ออกใบกำกับภาษีเลขที่ ${r.result?.no || ''} แล้ว`
+  await load()
 }
 
 async function act(o, action, payload, okText) {
@@ -231,6 +248,18 @@ onMounted(load)
         <div v-if="o.status === 'delivered'" data-action="received" class="flex flex-wrap items-center gap-2" :class="blockClass(o, 'received')">
           <input v-model="box(o.id).reason" class="input h-11 w-44" placeholder="เหตุผลรับคืน" aria-label="เหตุผลรับคืน" />
           <button type="button" class="btn-outline h-11 px-3" @click="act(o, 'record_return', { reason: box(o.id).reason }, 'บันทึกการรับคืนแล้ว')">บันทึกรับคืน</button>
+        </div>
+
+        <!-- ใบกำกับภาษีเต็มรูป: ออกได้หลังส่งมอบ · แสดงเสมอ ไม่ซ่อนใต้ตัวเลือกเพิ่มเติม -->
+        <div v-if="o.status === 'delivered'" data-action="invoice" class="space-y-2 rounded-lg bg-stone-50 p-2">
+          <div class="text-sm font-medium text-stone-700">ใบกำกับภาษีเต็มรูป</div>
+          <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
+            <input v-model="invoiceBox(o.id).name" class="input h-11" placeholder="ชื่อผู้ซื้อ" aria-label="ชื่อผู้ซื้อ" />
+            <input v-model="invoiceBox(o.id).taxId" inputmode="numeric" maxlength="17" class="input h-11" placeholder="เลขประจำตัวผู้เสียภาษี 13 หลัก" aria-label="เลขประจำตัวผู้เสียภาษีผู้ซื้อ" />
+            <input v-model="invoiceBox(o.id).branch" inputmode="numeric" maxlength="5" class="input h-11" placeholder="สาขา (00000 = สำนักงานใหญ่)" aria-label="รหัสสาขาผู้ซื้อ" />
+            <input v-model="invoiceBox(o.id).address" class="input h-11 md:col-span-2" placeholder="ที่อยู่ผู้ซื้อ" aria-label="ที่อยู่ผู้ซื้อ" />
+          </div>
+          <button type="button" class="btn-primary h-11 px-3" @click="issueInvoice(o)">ออกใบกำกับภาษี</button>
         </div>
 
         <!-- ตัดสิน: คืนเงิน (ริบค่าส่ง) หรือจัดส่งใหม่ (ริบค่าส่งเดิม) -->
