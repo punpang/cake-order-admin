@@ -14,7 +14,7 @@ function lastAmount(line) {
 // ยอดรวม: เลือกคำที่แม่นกว่าก่อน (ยอดสุทธิ/รวมทั้งสิ้น) แล้วจึงใช้คำทั่วไป
 const TOTAL_KEYS = [
   /ยอดสุทธิ|รวมทั้งสิ้น|ยอดชำระ|ยอดที่ต้องชำระ|grand\s*total|total\s*amount/i,
-  /รวม|total/i,
+  /รวม|total|ยอด/i,
 ]
 const NOT_TOTAL = /จำนวน|ก่อน|vat|ส่วนลด|ภาษี|ทอน|รับ/i
 function totalOf(lines) {
@@ -28,31 +28,38 @@ function totalOf(lines) {
   return null
 }
 
-// VAT: บรรทัดที่มี VAT หรือภาษีมูลค่าเพิ่ม (ไม่ใช่ยอดก่อน VAT / ภาษีที่คำนวณจากยอดรวม)
+// VAT: บรรทัดที่มี VAT และมีจำนวนเงินทศนิยม 2 ตำแหน่ง (ไม่เอาเลขผู้เสียภาษี/ไม่เอายอดก่อน VAT)
 function vatOf(lines) {
   for (const l of lines) {
-    if (!/vat|ภาษีมูลค่าเพิ่ม/i.test(l) || /ไม่รวม|ก่อน|ฐาน|excl/i.test(l)) continue
-    const v = lastAmount(l)
-    if (v != null) return v
+    if (!/vat|ภาษีมูลค่าเพิ่ม/i.test(l) || /ไม่รวม|ก่อน|ฐาน|excl|included|tax|#|เลขประจำตัว/i.test(l)) continue
+    const hits = l.match(/\d{1,3}(?:,\d{3})*\.\d{2}/g)
+    if (!hits) continue
+    const v = Number(hits[hits.length - 1].replace(/,/g, ''))
+    if (Number.isFinite(v) && v > 0) return Math.round(v * 100) / 100
   }
   return null
 }
 
-// วันที่ dd/mm/yy(yy) หรือ dd-mm-yy(yy) · ปี พ.ศ. (>2400) แปลงเป็น ค.ศ. · คืน YYYY-MM-DD หรือ null
-// หมายเหตุ: รองรับเฉพาะรูปแบบตัวเลข (ไม่รองรับชื่อเดือนภาษาไทย)
-export function dateOf(text) {
+// ปีที่เป็นไปได้ของเลขปี: ค.ศ. 4 หลัก · พ.ศ. 4 หลัก (>2400) · ปี 2 หลักถือเป็น พ.ศ. ก่อน (เช่น 69 = 2569) แล้วค่อยลองเป็น ค.ศ.
+// เลือกเฉพาะปีที่อยู่ในช่วง ±2 ปีจากวันนี้ ถ้าเลือกไม่ได้ (หรือได้มากกว่าหนึ่ง) คืน null
+const YEAR_WINDOW = 2
+export function dateOf(text, today = new Date()) {
   const m = String(text).match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4}|\d{2})\b/)
   if (!m) return null
   const d = Number(m[1])
   const mo = Number(m[2])
-  let y = Number(m[3])
-  if (y < 100) y += 2000
-  if (y > 2400) y -= 543
+  const raw = Number(m[3])
   if (mo < 1 || mo > 12 || d < 1 || d > 31) return null
-  const iso = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-  const dt = new Date(`${iso}T00:00:00Z`)
-  if (Number.isNaN(dt.getTime()) || dt.getUTCDate() !== d) return null
-  return iso
+  const cands = raw > 2400 ? [raw - 543] : raw < 100 ? [raw + 1957, raw + 2000] : [raw]
+  const nowY = today.getUTCFullYear()
+  const ok = []
+  for (const y of cands) {
+    if (Math.abs(y - nowY) > YEAR_WINDOW) continue
+    const iso = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    const dt = new Date(`${iso}T00:00:00Z`)
+    if (!Number.isNaN(dt.getTime()) && dt.getUTCDate() === d) ok.push(iso)
+  }
+  return ok.length === 1 ? ok[0] : null
 }
 
 // เลขผู้เสียภาษี 13 หลัก ต้องผ่านการตรวจหลักสุดท้าย (checksum) เพื่อกันการอ่านเลขอื่นผิดเป็นเลขภาษี
@@ -64,7 +71,7 @@ export function validTaxId(id) {
 }
 
 function taxIdOf(text) {
-  const m = text.match(/(?:เลขประจำตัวผู้เสียภาษี|เลขผู้เสียภาษี|tax\s*id)[^\d]{0,20}((?:\d[\s-]?){12}\d)/i)
+  const m = text.match(/(?:เลขประจำตัวผู้เสียภาษี|เลขผู้เสียภาษี|tax\s*id|tax\s*#)[^\d]{0,20}((?:\d[\s-]?){12}\d)/i)
   if (!m) return null
   const id = m[1].replace(/\D/g, '')
   return validTaxId(id) ? id : null
@@ -80,23 +87,27 @@ function invoiceNoOf(lines) {
   return null
 }
 
-// ชื่อร้าน: บรรทัดแรกที่มีตัวอักษร ไม่ใช่หัวข้อเอกสาร/ที่อยู่/เบอร์โทร (ผู้ใช้แก้ได้)
+// ชื่อร้าน: บรรทัดแรกที่ส่วนใหญ่เป็นตัวอักษร (ไม่ใช่สัญลักษณ์เพี้ยนจาก OCR) และไม่ใช่หัวข้อเอกสาร/เบอร์โทร (ผู้ใช้แก้ได้)
 const NOT_PAYEE = /ใบเสร็จ|ใบกำกับ|receipt|invoice|tax|โทร|tel|สาขา|วันที่|date|เลขที่|vat|รวม|total/i
 function payeeOf(lines) {
   for (const l of lines.slice(0, 5)) {
-    const s = l.trim()
+    const s = l.replace(/^[^ก-๙A-Za-z0-9]+/, '').trim()
     if (s.length < 2 || s.length > 80) continue
-    if (!/[ก-๙A-Za-z]/.test(s) || NOT_PAYEE.test(s)) continue
+    const letters = (s.match(/[ก-๙A-Za-z]/g) || []).length
+    const nonSpace = s.replace(/\s/g, '').length
+    const symbols = nonSpace - (s.match(/[ก-๙A-Za-z0-9]/g) || []).length
+    if (letters < 6 || symbols > nonSpace * 0.3 || NOT_PAYEE.test(s)) continue
     return s
   }
   return null
 }
 
 // คืน { date, total, vat, payee, taxId, taxInvoiceNo } · ทุกช่องเป็น null ถ้าไม่พบ
-export function parseReceipt(text) {
+// today ใช้ตรวจช่วงปีของวันที่ (ค่าเริ่มต้น = วันนี้)
+export function parseReceipt(text, today = new Date()) {
   const lines = String(text || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
   return {
-    date: dateOf(text || ''),
+    date: dateOf(text || '', today),
     total: totalOf(lines),
     vat: vatOf(lines),
     payee: payeeOf(lines),

@@ -9,6 +9,8 @@ const t = (name, fn) => { try { fn(); console.log('ok -', name) } catch (e) { fa
 // เลขผู้เสียภาษี 0105536000011 ผ่าน checksum (ตัวอย่างทดสอบ) · 0105536000012 ไม่ผ่าน
 const GOOD_TAX = '0105536000011'
 const BAD_TAX = '0105536000012'
+// วันที่อ้างอิงคงที่ เพื่อให้เทสต์ไม่เปลี่ยนตามเวลาจริง
+const TODAY = new Date('2026-11-26T00:00:00Z')
 
 const SAMPLE = `ร้านกาแฟตัวอย่าง
 สาขาสยาม
@@ -27,7 +29,7 @@ t('อ่าน VAT จากบรรทัด VAT (ไม่ใช่ยอด
   assert.equal(parseReceipt(SAMPLE).vat, 19.63)
 })
 t('วันที่ พ.ศ. แปลงเป็น ค.ศ. YYYY-MM-DD', () => {
-  assert.equal(parseReceipt(SAMPLE).date, '2026-11-25')
+  assert.equal(parseReceipt(SAMPLE, TODAY).date, '2026-11-25')
 })
 t('เลขผู้เสียภาษีที่มีช่องว่างและผ่าน checksum', () => {
   assert.equal(parseReceipt(SAMPLE).taxId, GOOD_TAX)
@@ -51,10 +53,32 @@ t('ข้อความว่างคืน null ทั้งหมด', () =>
   assert.deepEqual(parseReceipt(''), { date: null, total: null, vat: null, payee: null, taxId: null, taxInvoiceNo: null })
 })
 t('วันที่ไม่ถูกต้อง (วันที่ 31 เดือนกุมภาพันธ์) คืน null', () => {
-  assert.equal(dateOf('31/02/2026'), null)
+  assert.equal(dateOf('31/02/2026', TODAY), null)
 })
 t('วันที่ ค.ศ. ปี 2 หลักแปลงเป็นปี 20xx', () => {
-  assert.equal(dateOf('05-03-26'), '2026-03-05')
+  assert.equal(dateOf('05-03-26', TODAY), '2026-03-05')
+})
+t('ปี 2 หลักเป็น พ.ศ. (69 = 2569 = 2026) ไม่ใช่ 2069', () => {
+  assert.equal(dateOf('08/11/69', TODAY), '2026-11-08')
+})
+t('ปี 2 หลัก 68 (พ.ศ. 2568 = 2025) อยู่ในช่วงที่ยอมรับ', () => {
+  assert.equal(dateOf('08/11/68', TODAY), '2025-11-08')
+})
+t('ปีนอกช่วง ±2 ปี (เช่น 2612 / 2069) คืน null ไม่เติมปีเพี้ยน', () => {
+  assert.equal(dateOf('08/11/2612', TODAY), null)
+  assert.equal(dateOf('08/11/2069', TODAY), null)
+})
+t('บรรทัด VAT Included ที่มีเลขผู้เสียภาษี ไม่ถูกอ่านเป็นยอด VAT', () => {
+  assert.equal(parseReceipt('TAX#0107542000011 (VAT Included)', TODAY).vat, null)
+})
+t('ยอดสุทธิที่ OCR อ่านคำเพี้ยนเป็น ยอดหฐิ ยังได้ยอด 42', () => {
+  assert.equal(parseReceipt('ยอดหฐิ 1 ซิน 42.00', TODAY).total, 42)
+})
+t('ชื่อร้านที่เป็นสัญลักษณ์เพี้ยนจาก OCR ไม่ถูกใช้', () => {
+  assert.equal(parseReceipt('. \\ A ง   \'    ง - y  a         ว', TODAY).payee, null)
+})
+t('TAX# เป็นเลขผู้เสียภาษีที่ผ่าน checksum ได้', () => {
+  assert.equal(parseReceipt('TAX#0105536000011 (VAT Included)', TODAY).taxId, GOOD_TAX)
 })
 t('validTaxId: ความยาวไม่ใช่ 13 หลักไม่ผ่าน', () => {
   assert.equal(validTaxId('12345'), false)
