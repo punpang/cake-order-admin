@@ -2091,6 +2091,23 @@ export async function adjustPointsRemote(customerId, delta, reason) {
   return { ok: true, balance: r.balance }
 }
 
+// ย้ายคะแนนจากระบบเดิม (ทีละคน) ผ่านเซิร์ฟเวอร์ · แต้ม = แต้มเดิม × 2 × ตัวคูณสูงสุด · ยอดสะสมเท่ากับเกณฑ์สูงสุด + 1 (ได้ระดับสูงสุด)
+const LEGACY_ERR = {
+  already_migrated: 'ลูกค้านี้ย้ายคะแนนไปแล้ว',
+  no_config: 'ยังไม่ได้ตั้งค่าระดับสมาชิก (ต้องเปิดโหมดระดับก่อน)',
+  no_customer: 'ไม่พบลูกค้านี้',
+  invalid: 'ใส่แต้มเดิมเป็นจำนวนเต็มบวก',
+}
+export async function legacyMigrateRemote(customerId, oldPoints) {
+  if (!pointsHook.call) return { error: 'ย้ายคะแนนได้เมื่อเชื่อมฐานข้อมูลเท่านั้น' }
+  if (!can('adjustPoints')) return { error: 'เฉพาะแอดมิน' }
+  const n = Number(oldPoints)
+  if (!Number.isInteger(n) || n < 1 || n > 1000000) return { error: LEGACY_ERR.invalid }
+  const r = await pointsHook.call('punpang_legacy_migrate', { p_customer: customerId, p_old_points: n }, { customer: customerId })
+  if (r.error) return { error: LEGACY_ERR[r.error] || r.error }
+  return { ok: true, points: r.points, level: r.level }
+}
+
 export function removePoints(order) {
   const c = findCustomer(order.customerId)
   if (!c || !order.pointsUsed) return

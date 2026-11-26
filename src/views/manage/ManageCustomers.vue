@@ -6,9 +6,10 @@ import { computed, reactive, ref, watch } from 'vue'
 import { customerScale, CUSTOMER_WARN_AT, CUSTOMER_PAGE } from '../../lib/customersSync'
 import { resolveMemberScan } from '../../lib/scan'
 import NotifyChannelPicker from '../../components/NotifyChannelPicker.vue'
-import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, ensureOrders, ensureOrderCounts, orderCounts, loadMoreCustomers, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, convertPointsRemote, can, adminResetCustomerPin, remoteCustomerSearch } from '../../data/store'
+import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, ensureOrders, ensureOrderCounts, orderCounts, loadMoreCustomers, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, convertPointsRemote, can, adminResetCustomerPin, remoteCustomerSearch, legacyMigrateRemote } from '../../data/store'
 import { isPin } from '../../lib/customerAuth'
 import { askConfirm } from '../../lib/confirm'
+import { topLevelOf, legacyPointsOf, legacySpendOf } from '../../lib/legacyMigrate'
 import { orderTotals } from '../../lib/pricing'
 import { STATUS } from '../../lib/constants'
 import { money, dateTime, formatPhone, phoneDigits, phoneValid } from '../../lib/format'
@@ -83,6 +84,17 @@ const live = computed(() => (form.id ? findCustomer(form.id) : null))
 const balance = computed(() => (live.value ? customerPoints(live.value) : 0))
 const ledger = computed(() => (live.value?.ledger || []).filter((e) => !e.refunded || e.delta < 0).slice(-8).reverse())
 const adj = reactive({ open: false, sign: 1, amount: '', reason: '', error: '' })
+const leg = reactive({ open: false, old: '', error: '', done: '' })
+const legTop = computed(() => topLevelOf(db.memberLevels?.levels))
+const legPreview = computed(() => (legTop.value ? legacyPointsOf(leg.old, legTop.value.mult) : null))
+function openLegacy() { Object.assign(leg, { open: true, old: '', error: '', done: '' }) }
+async function saveLegacy() {
+  if (legPreview.value == null) return (leg.error = 'ใส่แต้มเดิมเป็นจำนวนเต็มบวก')
+  if (!(await askConfirm({ title: 'ย้ายคะแนนจากระบบเดิม', message: `${form.name}: แต้มเดิม ${leg.old} → ${legPreview.value} แต้ม และได้ระดับ ${legTop.value.name} (ย้ายได้ครั้งเดียว)`, okText: 'ย้าย' }))) return
+  const r = await legacyMigrateRemote(form.id, Number(leg.old))
+  if (r.error) return (leg.error = r.error)
+  leg.open = false
+}
 function openAdj() {
   Object.assign(adj, { open: true, sign: 1, amount: '', reason: '', error: '' })
 }
@@ -232,6 +244,7 @@ async function save() {
             <div class="flex flex-wrap justify-end gap-2">
               <button v-if="can('adjustPoints') && balance > 0" type="button" class="btn-soft h-9" @click="convertPoints">แปลงเป็นคูปอง</button>
               <button v-if="can('adjustPoints')" type="button" class="btn-soft h-9" @click="openAdj">ปรับคะแนน</button>
+              <button v-if="can('adjustPoints')" type="button" class="btn-soft h-9" @click="openLegacy">ย้ายจากระบบเดิม</button>
             </div>
           </div>
           <p v-if="conv.error" class="mt-2 text-sm text-danger-700" role="alert">{{ conv.error }}</p>
@@ -296,6 +309,18 @@ async function save() {
       <template #footer>
         <button class="btn-outline flex-1 sm:flex-none" @click="open = false">ยกเลิก</button>
         <button class="btn-primary flex-1 sm:flex-none" @click="save">บันทึก</button>
+      </template>
+    </AppModal>
+    <AppModal v-if="leg.open" title="ย้ายคะแนนจากระบบเดิม" @close="leg.open = false">
+      <div class="space-y-3">
+        <p class="text-sm text-stone-600">แต้มที่ได้ = แต้มเดิม × 2 × {{ legTop?.mult ?? '–' }} · ได้ระดับ {{ legTop?.name ?? '–' }} · ย้ายได้ครั้งเดียวต่อลูกค้า</p>
+        <div><label class="label">แต้มเดิม (จากระบบเก่า)</label><input v-model="leg.old" type="text" inputmode="numeric" class="input text-lg font-semibold" aria-label="แต้มเดิม" /></div>
+        <p v-if="legPreview != null" class="text-sm text-stone-700">จะได้ <b>{{ legPreview }}</b> แต้ม และยอดสะสมตั้งที่ {{ legacySpendOf(legTop?.min) }} บาท</p>
+        <p v-if="leg.error" class="text-sm text-danger-700" role="alert">{{ leg.error }}</p>
+      </div>
+      <template #footer>
+        <button class="btn-outline flex-1 sm:flex-none" @click="leg.open = false">ยกเลิก</button>
+        <button class="btn-primary flex-1 sm:flex-none" :disabled="legPreview == null" @click="saveLegacy">ย้ายคะแนน</button>
       </template>
     </AppModal>
     <AppModal v-if="adj.open" title="ปรับคะแนนลูกค้า" @close="adj.open = false">
