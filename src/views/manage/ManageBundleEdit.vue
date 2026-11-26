@@ -424,7 +424,7 @@ async function save() {
               v-for="r in rows"
               :key="r.id"
               class="rounded-xl border p-2"
-              :class="r.over ? 'border-rose-300 bg-danger-50/60' : 'border-stone-200'"
+              :class="r.over ? 'border-danger-200 bg-danger-50/60' : 'border-stone-200'"
               :data-size-row="r.id"
             >
               <div class="grid grid-cols-[4.25rem_minmax(0,1fr)_minmax(0,1.15fr)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">

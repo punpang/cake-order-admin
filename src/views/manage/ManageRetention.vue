@@ -143,7 +143,7 @@ async function save() {
         v-for="c in RETENTION_CATS"
         :key="c.key"
         class="card flex flex-col gap-3 transition"
-        :class="[form[c.key].enabled ? 'border-brand-200' : 'bg-stone-50/60', changed(c.key) ? 'ring-2 ring-amber-200' : '']"
+        :class="[form[c.key].enabled ? 'border-brand-200' : 'bg-stone-50/60', changed(c.key) ? 'ring-2 ring-warning-200' : '']"
       >
         <div class="flex items-start gap-3">
           <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" :class="form[c.key].enabled ? 'bg-brand-50 text-brand-600' : 'bg-stone-100 text-stone-400'"><AppIcon :name="c.icon" :size="20" /></span>
@@ -175,7 +175,7 @@ async function save() {
               :max="RETENTION_MAX_DAYS"
               step="1"
               class="input h-10 w-24 bg-white text-center"
-              :class="errors[c.key] ? 'border-rose-400 focus:border-rose-400 focus:ring-rose-100' : ''"
+              :class="errors[c.key] ? 'border-danger-700 focus:border-danger-700 focus:ring-danger-100' : ''"
               :aria-invalid="!!errors[c.key]"
               :aria-describedby="`rh-${c.key}`"
               @input="onDays(c.key)"

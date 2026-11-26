@@ -673,7 +673,7 @@ const replyPreview = computed(() => (replyTo.value ? snippet(replyTo.value) : ''
 
       <!-- เครื่องมือ: ถามลูกค้า · สรุปออร์เดอร์ · ข้อความสำเร็จรูป · บอท (คอมแสดงเสมอ · มือถือกดปุ่ม + เพื่อเปิด) -->
       <div v-if="canType && !kb.open" class="items-center gap-1.5 px-3 pt-2.5 [scrollbar-width:none]" :class="toolsOpen ? 'flex overflow-x-auto lg:flex-wrap lg:overflow-visible' : 'hidden lg:flex lg:flex-wrap'">
-        <span v-if="chat.pendingAsk" class="inline-flex h-8 items-center gap-1 rounded-full bg-warning-50 py-0 pr-1 pl-3 text-xs font-medium text-warning-800 ring-1 ring-amber-200">
+        <span v-if="chat.pendingAsk" class="inline-flex h-8 items-center gap-1 rounded-full bg-warning-50 py-0 pr-1 pl-3 text-xs font-medium text-warning-800 ring-1 ring-warning-200">
           รอลูกค้าตอบ: {{ ASK_FIELDS[chat.pendingAsk.field]?.label }}
           <button type="button" class="flex h-6 w-6 items-center justify-center rounded-full hover:bg-warning-100" aria-label="ยกเลิกคำถาม" @click="cancelAsk(chat.id)"><AppIcon name="x" :size="12" /></button>
         </span>
