@@ -19,8 +19,8 @@ insert into public.punpang_kv (collection, id, data) values ('config', 'memberLe
 on conflict (collection, id) do update set data = excluded.data;
 
 insert into public.punpang_customers (id, name, phone, data) values
-  ('lg_1', 'ลูกค้าย้าย 1', '0810000001', '{"ledger":[]}'::jsonb),
-  ('lg_2', 'ลูกค้าย้าย 2', '0810000002', '{"ledger":[]}'::jsonb);
+  ('lg_1', 'ลูกค้าย้าย 1', '0899100001', '{"ledger":[]}'::jsonb),
+  ('lg_2', 'ลูกค้าย้าย 2', '0899100002', '{"ledger":[]}'::jsonb);
 
 -- แอดมิน (มีสิทธิ์ปรับคะแนน) ย้ายแต้ม 10 → 100 แต้ม และได้ระดับสูงสุด
 select test.ok('L1 ย้ายสำเร็จ: 10 แต้มเดิม ได้ 100 แต้ม',
