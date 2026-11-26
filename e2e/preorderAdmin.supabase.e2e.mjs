@@ -44,6 +44,7 @@ await step('1. แสดงรายการออร์เดอร์สั�
     await row.getByLabel('เลขพัสดุ').fill('TH-123456')
     await row.getByRole('button', { name: 'บันทึกการส่ง' }).click()
     await page.getByText('บันทึกเลขพัสดุแล้ว').waitFor({ timeout: 15000 })
+    await row.getByText('TH-123456').first().waitFor({ timeout: 15000 })
     assert.match(await row.innerText(), /TH-123456/)
     assert.equal(log.find((b) => b.action === 'set_shipping').trackingNo, 'TH-123456')
   })
