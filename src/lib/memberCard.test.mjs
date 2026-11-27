@@ -71,5 +71,14 @@ t('การ์ด: ส่งความคืบหน้าและชื่
   assert.equal(v.progress.nextName, 'LV3')
 })
 
+t('การ์ด: ส่งตัวคูณของระดับถัดไปถึงหน้าจอ และไม่มีค่าเมื่อไม่ได้ส่งมา', () => {
+  const v = memberCardView({ phone: '0864735562', points: 10 }, { enabled: true, levelName: 'LV2', mult: 2, levelNo: 2, status: 'active', cum: 1200, nextMin: 2500, nextName: 'LV3', nextMult: 3, downgradeAt: '2027-11-27' }, NOW)
+  assert.equal(v.progress.nextMult, 3)
+  const w = memberCardView({ phone: '0864735562', points: 10 }, { enabled: true, levelName: 'LV4', mult: 5, levelNo: 4, status: 'active', cum: 5200, nextMin: null, nextName: null, nextMult: null, downgradeAt: '2027-11-27' }, NOW)
+  assert.equal(w.progress.nextMult, null)
+  const x = memberCardView({ phone: '0864735562', points: 10 }, { enabled: true, levelName: 'LV2', mult: 2, levelNo: 2, status: 'active', cum: 1200, nextMin: 2500, nextName: 'LV3', downgradeAt: '2027-11-27' }, NOW)
+  assert.equal(x.progress.nextMult, null)
+})
+
 console.log(fail ? `ล้มเหลว ${fail} รายการ` : 'ผ่านทั้งหมด')
 process.exit(fail ? 1 : 0)
