@@ -158,17 +158,17 @@ Deno.test('update_profile: ถูกแก้ชนทุกรอบ → 409 �
   assertEquals(r.status, 409); assert(orig.name !== 'ไม่ควรถูกบันทึก')
 })
 
-Deno.test('tier: โหมดใช้จริงส่งระดับ → แนบเฉพาะฟิลด์ที่อนุญาต (ไม่มี cum) และส่ง p_customer ของลูกค้าที่เข้าสู่ระบบ', async () => {
+Deno.test('tier: โหมดใช้จริงส่งระดับ → แนบเฉพาะฟิลด์ที่อนุญาต (ยอดสะสมและเกณฑ์ระดับถัดไป) และส่ง p_customer ของลูกค้าที่เข้าสู่ระบบ', async () => {
   await seed(0, null)
   let arg: any = null
   D().hooks['rpc:punpang_member_card'] = async (a: any) => {
     arg = a
-    return { data: { enabled: true, levelNo: 2, levelName: 'LV2', mult: 3, status: 'active', golden: false, renewAt: '2026-11-14', activeUntil: '2027-02-12', downgradeAt: '2027-11-14', cum: 1000 }, error: null }
+    return { data: { enabled: true, levelNo: 2, levelName: 'LV2', mult: 3, status: 'active', golden: false, renewAt: '2026-11-14', activeUntil: '2027-02-12', downgradeAt: '2027-11-14', cum: 1000, nextMin: 2500, nextName: 'LV3', nextMult: 5, secret: 'x' }, error: null }
   }
   const r = await call(good)
   assertEquals(r.status, 200)
   assertEquals(arg, { p_customer: 'c1' })
-  assertEquals(r.body.tier, { enabled: true, levelNo: 2, levelName: 'LV2', mult: 3, status: 'active', golden: false, renewAt: '2026-11-14', activeUntil: '2027-02-12', downgradeAt: '2027-11-14' })
+  assertEquals(r.body.tier, { enabled: true, levelNo: 2, levelName: 'LV2', mult: 3, status: 'active', golden: false, renewAt: '2026-11-14', activeUntil: '2027-02-12', downgradeAt: '2027-11-14', cum: 1000, nextMin: 2500, nextName: 'LV3', nextMult: 5 })
 })
 
 Deno.test('tier: ปิดระดับ / ฟังก์ชันตอบ error / โยนข้อผิดพลาด → เข้าสู่ระบบได้ และ tier = { enabled: false }', async () => {
