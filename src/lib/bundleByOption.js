@@ -1,7 +1,7 @@
 // หน้าบันเดิ้ลแบบเลือกตัวเลือกหนึ่งตัว: หาชุดทั้งหมดที่มีตัวเลือกนั้น บอกว่าชุดไหนจะถูกข้ามเมื่อไร และตั้งส่วนลดต่อขนาด
 // ลำดับการใช้ชุดตามโค้ดจริงใน pricing.js (bundleWinners): จำนวนตัวเลือกมากก่อน แล้วส่วนลดรวมมากก่อน และชุดที่ใช้ตัวเลือกซ้ำจะถูกข้าม
 // ใช้ bundleAmount / regularTotal เดิม เพื่อให้ตัวเลขตรงกับที่ลูกค้าจ่าย · ไม่เปลี่ยนสูตรราคาและรูปแบบข้อมูล
-import { bundleAmount, forType } from './pricing.js'
+import { bundleAmount, forType, calcUnitPrice } from './pricing.js'
 import { regularTotal, makeDraft, autoBundleName, findItemOption } from './bundleEditor.js'
 
 const keyOf = (x) => `${x.groupId}:${x.optionId}`
@@ -96,6 +96,26 @@ export function setDiscountAt(b, typeId, sizeId, amount) {
     next.typeDiscount[typeId] = row
   }
   return next
+}
+
+// ราคาเค้กเต็มของประเภท + เนื้อ + ขนาด ที่มีตัวเลือกในชุดนี้ ตามเครื่องคิดราคาจริง (calcUnitPrice)
+// before = ก่อนใช้บันเดิ้ลนี้ · after = หลังใช้บันเดิ้ลนี้ (ไม่รวมชุดอื่น)
+export function cakePriceFor(b, groups, { typeId = null, flavorId = null, sizeId = null } = {}) {
+  const byKey = (key) => groups.find((g) => g.key === key)
+  const sel = {}
+  if (byKey('type') && typeId) sel[byKey('type').id] = typeId
+  if (byKey('size') && sizeId) sel[byKey('size').id] = sizeId
+  if (byKey('flavor') && flavorId) sel[byKey('flavor').id] = flavorId
+  for (const x of b.items || []) {
+    const g = groups.find((y) => y.id === x.groupId)
+    if (!g) continue
+    sel[g.id] = g.type === 'multi' ? [...(sel[g.id] || []), x.optionId] : x.optionId
+  }
+  const item = { kind: 'custom', qty: 1, selections: sel, tiers: [{ selections: sel }] }
+  return {
+    before: calcUnitPrice(item, groups, [], [], null, null, []),
+    after: calcUnitPrice(item, groups, [], [], null, null, [b]),
+  }
 }
 
 // ร่างชุดใหม่จากตัวเลือกที่เลือก (ข้ามกลุ่มรองได้) ชื่ออัตโนมัติ ยังไม่มีส่วนลด

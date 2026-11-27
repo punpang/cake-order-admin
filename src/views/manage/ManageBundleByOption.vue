@@ -4,7 +4,7 @@ import { db, saveBundle } from '../../data/store'
 import { showToast } from '../../lib/toast'
 import { checkBundle, findItemOption, findDuplicate, bahtText } from '../../lib/bundleEditor'
 import { MAIN_KEYS } from '../../lib/constants'
-import { bundlesWithOption, usageOf, discountRows, setDiscountAt, createBundleDraft } from '../../lib/bundleByOption'
+import { bundlesWithOption, usageOf, discountRows, setDiscountAt, createBundleDraft, applicableTypes, cakePriceFor } from '../../lib/bundleByOption'
 import ManageShell from '../../components/ManageShell.vue'
 
 // เลือกตัวเลือกรองหนึ่งตัว แล้วเห็นทุกชุดที่มีตัวเลือกนั้น ว่าชุดไหนใช้ได้หรือถูกข้ามเมื่อไร และตั้งส่วนลดต่อประเภทและขนาด
@@ -20,6 +20,21 @@ const curGroup = computed(() => itemGroups.value.find((g) => g.id === groupId.va
 const groupOptions = computed(() => (curGroup.value?.options || []).filter((o) => o.active !== false))
 const curOption = computed(() => groupOptions.value.find((o) => o.id === optionId.value) || groupOptions.value[0] || null)
 watch(curGroup, () => { optionId.value = null })
+
+// ตัวเลือกเค้กที่ใช้คำนวณราคาเต็ม (ประเภท + เนื้อ + ขนาด) ต่อชุด · ค่าเริ่มต้นคือตัวแรกที่ใช้ได้
+const flavors = computed(() => (db.optionGroups.find((x) => x.key === 'flavor')?.options || []).filter((x) => x.active !== false))
+const cakePick = ref({})
+function cakeOf(b) {
+  const d = cakePick.value[b.id] || {}
+  const applicable = applicableTypes(b, db.optionGroups, types.value)
+  return {
+    typeId: d.typeId ?? applicable[0] ?? null,
+    flavorId: d.flavorId ?? flavors.value[0]?.id ?? null,
+    sizeId: d.sizeId ?? curSize.value?.id ?? sizes.value[0]?.id ?? null,
+  }
+}
+const setCake = (bid, key, v) => { cakePick.value = { ...cakePick.value, [bid]: { ...(cakePick.value[bid] || {}), [key]: v } } }
+const curSize = computed(() => sizes.value[0] || null)
 
 // คีย์ของช่องในแถว: ประเภทว่าง = ทุกประเภท
 const cellKey = (typeId, sizeId) => `${typeId ?? ''}|${sizeId}`
@@ -138,6 +153,23 @@ function createNew() {
           <p class="text-xs" :class="statusText(r.usage).cls" :data-status="r.usage.status">
             {{ statusText(r.usage).text }}<span v-if="r.usage.conflicts.length">: {{ r.usage.conflicts.map((c) => c.name).join(', ') }}</span>
           </p>
+          <div class="space-y-2 rounded-xl bg-stone-50 p-2" :data-cake="r.b.id">
+            <p class="text-xs font-medium text-stone-600">ราคาเค้กเต็มของตัวเลือกนี้</p>
+            <div class="flex flex-wrap gap-2">
+              <select class="input h-9 w-auto text-sm" :value="cakeOf(r.b).typeId" :aria-label="`ประเภท ${r.b.name}`" @change="setCake(r.b.id, 'typeId', $event.target.value)">
+                <option v-for="t in types.filter((x) => applicableTypes(r.b, db.optionGroups, types).includes(x.id))" :key="t.id" :value="t.id">{{ t.name }}</option>
+              </select>
+              <select class="input h-9 w-auto text-sm" :value="cakeOf(r.b).flavorId" :aria-label="`เนื้อเค้ก ${r.b.name}`" @change="setCake(r.b.id, 'flavorId', $event.target.value)">
+                <option v-for="f in flavors" :key="f.id" :value="f.id">{{ f.name }}</option>
+              </select>
+              <select class="input h-9 w-auto text-sm" :value="cakeOf(r.b).sizeId" :aria-label="`ขนาด ${r.b.name}`" @change="setCake(r.b.id, 'sizeId', $event.target.value)">
+                <option v-for="z in sizes" :key="z.id" :value="z.id">{{ z.name }}</option>
+              </select>
+            </div>
+            <p class="text-sm text-stone-700" data-cake-price>
+              ราคาเต็ม {{ bahtText(cakePriceFor(r.b, db.optionGroups, cakeOf(r.b)).before) }} → หลังบันเดิ้ลนี้ {{ bahtText(cakePriceFor(r.b, db.optionGroups, cakeOf(r.b)).after) }}
+            </p>
+          </div>
           <div v-for="row in r.rows" :key="cellKey(row.typeId, row.sizeId)" class="flex items-center justify-between gap-2 text-sm">
             <span class="text-stone-600">{{ row.typeName ? `${row.typeName} · ` : '' }}{{ row.sizeName }} · ราคาปกติ {{ bahtText(row.regular) }}</span>
             <input type="number" inputmode="numeric" min="0" class="input h-9 w-24 text-right" :value="edits[r.b.id]?.[cellKey(row.typeId, row.sizeId)] ?? row.amount" :data-row="`${r.b.id}|${cellKey(row.typeId, row.sizeId)}`" :aria-label="`ส่วนลด ${r.b.name} ${row.typeName} ${row.sizeName}`" @input="setEdit(r.b.id, cellKey(row.typeId, row.sizeId), $event.target.value)" />
