@@ -37,6 +37,7 @@ const ManagePromos = () => import('./views/manage/ManagePromos.vue')
 const ManageOptions = () => import('./views/manage/ManageOptions.vue')
 const ManageOptionGroup = () => import('./views/manage/ManageOptionGroup.vue')
 const ManageBundles = () => import('./views/manage/ManageBundles.vue')
+const ManageBundleByOption = () => import('./views/manage/ManageBundleByOption.vue')
 const ManageBundleEdit = () => import('./views/manage/ManageBundleEdit.vue')
 const ManageUsers = () => import('./views/manage/ManageUsers.vue')
 const ManageIngredients = () => import('./views/manage/ManageIngredients.vue')
@@ -128,6 +129,7 @@ const router = createRouter({
     { path: '/admin/settings/options', component: ManageOptions },
     { path: '/admin/settings/options/:id', component: ManageOptionGroup, props: true },
     { path: '/admin/settings/bundles', component: ManageBundles },
+    { path: '/admin/settings/bundles/by-option', component: ManageBundleByOption },
     { path: '/admin/settings/bundles/:id', component: ManageBundleEdit, props: true },
     { path: '/admin/settings/users', component: ManageUsers, meta: { data: ['users'] } },
     { path: '/admin/settings/ingredients', component: ManageIngredients },
