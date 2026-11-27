@@ -38,6 +38,10 @@ t('เลือกตัวเลือกแล้วเห็นชุดท�
   })
   await page.getByRole('button', { name: pick.name, exact: true }).click()
   assert.equal(await page.locator('[data-bundle]').count(), pick.expected)
+  if (pick.expected > 0) {
+    const price = page.locator('[data-cake-price]').first()
+    assert.ok(/ราคาเต็ม .+ → หลังบันเดิ้ลนี้ .+/.test(await price.innerText()), 'ต้องแสดงราคาเค้กเต็มก่อนและหลังบันเดิ้ล')
+  }
   // หน้านี้ไม่มีการค้นหาและสวิตช์กรอง จึงต้องไม่แสดงแถบเครื่องมือที่กดไม่ได้
   assert.equal(await page.getByPlaceholder('ค้นหา').count(), 0)
   assert.equal(await page.getByText('แสดงที่ปิดใช้งาน').count(), 0)

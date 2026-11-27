@@ -1,6 +1,6 @@
 // ทดสอบหน้าบันเดิ้ลแบบเลือกตัวเลือกหนึ่งตัว · รัน: node src/lib/bundleByOption.test.mjs
 import assert from 'node:assert/strict'
-import { bundlesWithOption, conflictsOf, usageOf, discountRows, setSizeDiscount, setDiscountAt, applicableTypes, createBundleDraft } from './bundleByOption.js'
+import { bundlesWithOption, conflictsOf, usageOf, discountRows, setSizeDiscount, setDiscountAt, applicableTypes, createBundleDraft, cakePriceFor } from './bundleByOption.js'
 
 let fail = 0
 const t = (name, fn) => {
@@ -103,6 +103,19 @@ t('createBundleDraft: ชื่ออัตโนมัติและราย�
   assert.equal(d.name, 'เชอร์รี่ + คิทแคท + โอริโอ้')
   assert.equal(d.id, null)
   assert.equal(d.items.length, 3)
+})
+
+// ราคาเค้กเต็มตามเครื่องคิดราคาจริง: ประเภท + เนื้อ + ขนาด + ตัวเลือกในชุด → ก่อนและหลังบันเดิ้ล
+const cakeGroups = [
+  { id: 'g_type', key: 'type', name: 'ประเภท', type: 'single', options: [{ id: 'tA', name: 'เค้กครีม', active: true, sizePrices: { s1: 0 } }] },
+  { id: 'g_size', key: 'size', name: 'ขนาด', type: 'single', options: [{ id: 's1', name: '1 ปอนด์', active: true, pounds: 1 }] },
+  { id: 'g_flavor', key: 'flavor', name: 'เนื้อเค้ก', type: 'single', options: [{ id: 'fl1', name: 'วานิลลา', active: true, priceType: 'size', sizePrices: { s1: 20 } }] },
+  { id: G, key: 'topping', name: 'ท็อปปิ้ง', type: 'multi', options: [opt('cherry', 'เชอร์รี่'), opt('kit', 'คิทแคท')] },
+]
+t('cakePriceFor: ราคาเค้กเต็มก่อนและหลังบันเดิ้ลตามเครื่องคิดราคาจริง', () => {
+  const cb = { id: 'cb', name: 'x', items: [{ groupId: G, optionId: 'cherry' }, { groupId: G, optionId: 'kit' }], discount: { s1: 30 }, types: [], typeDiscount: {}, styleDiscount: {}, styleMode: {}, active: true }
+  const r = cakePriceFor(cb, cakeGroups, { typeId: 'tA', flavorId: 'fl1', sizeId: 's1' })
+  assert.deepEqual(r, { before: 120, after: 90 })
 })
 
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')
