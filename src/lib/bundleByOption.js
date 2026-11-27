@@ -1,8 +1,8 @@
 // หน้าบันเดิ้ลแบบเลือกตัวเลือกหนึ่งตัว: หาชุดทั้งหมดที่มีตัวเลือกนั้น บอกว่าชุดไหนจะถูกข้ามเมื่อไร และตั้งส่วนลดต่อขนาด
 // ลำดับการใช้ชุดตามโค้ดจริงใน pricing.js (bundleWinners): จำนวนตัวเลือกมากก่อน แล้วส่วนลดรวมมากก่อน และชุดที่ใช้ตัวเลือกซ้ำจะถูกข้าม
 // ใช้ bundleAmount / regularTotal เดิม เพื่อให้ตัวเลขตรงกับที่ลูกค้าจ่าย · ไม่เปลี่ยนสูตรราคาและรูปแบบข้อมูล
-import { bundleAmount } from './pricing.js'
-import { regularTotal, makeDraft, autoBundleName } from './bundleEditor.js'
+import { bundleAmount, forType } from './pricing.js'
+import { regularTotal, makeDraft, autoBundleName, findItemOption } from './bundleEditor.js'
 
 const keyOf = (x) => `${x.groupId}:${x.optionId}`
 const sizeIdsOf = (sizes) => (sizes || []).map((s) => s.id)
@@ -45,22 +45,56 @@ export function usageOf(b, bundles, sizes) {
   return conflicts.length ? { status: 'skipped', conflicts } : { status: 'ok', conflicts: [] }
 }
 
-// แถวต่อขนาด: ราคาปกติรวมตามราคาตัวเลือกจริง และส่วนลดของช่องทุกชนิด
-export function discountRows(b, groups, sizes) {
-  return (sizes || []).map((s) => ({
-    sizeId: s.id,
-    sizeName: s.name,
-    regular: regularTotal(b.items || [], groups, null, s.id),
-    amount: bundleAmount(b, null, [s.id], null) || 0,
-  }))
+// ประเภทที่ชุดนี้ใช้ได้จริง: ประเภทที่ชุดเลือกไว้ (ว่าง = ทุกประเภทที่เปิดใช้) และทุกตัวเลือกในชุดใช้ได้กับประเภทนั้น · ไม่มีเลย = [] (ใช้ราคาทุกประเภท)
+export function applicableTypes(b, groups, types) {
+  const active = (types || []).filter((t) => t.active !== false).map((t) => t.id)
+  const base = b.types?.length ? b.types.filter((id) => active.includes(id)) : active
+  const opts = (b.items || []).map((x) => findItemOption(groups, x)).filter(Boolean)
+  return base.filter((t) => opts.every((o) => forType(o, t)))
 }
 
-// ตั้งส่วนลดของขนาดหนึ่งในช่องทุกชนิด (คืนชุดใหม่ ไม่แก้ต้นฉบับ · ค่าว่างลบค่า)
+// แถวต่อประเภทและขนาด: ราคาปกติรวมตามราคาตัวเลือกของประเภทนั้น และส่วนลดที่มีผลจริงของประเภทนั้น
+// ไม่มีประเภทที่ใช้ได้ = แถวเดียวของ "ทุกประเภท" (typeId null) เพื่อให้ยังเห็นค่าที่ตั้งไว้
+export function discountRows(b, groups, sizes, types = []) {
+  const typeName = (id) => (types || []).find((t) => t.id === id)?.name || ''
+  const applicable = applicableTypes(b, groups, types)
+  const scopes = applicable.length ? applicable : [null]
+  const rows = []
+  for (const t of scopes) {
+    for (const s of sizes || []) {
+      rows.push({
+        typeId: t,
+        typeName: typeName(t),
+        sizeId: s.id,
+        sizeName: s.name,
+        regular: regularTotal(b.items || [], groups, t, s.id),
+        amount: bundleAmount(b, t, [s.id], null) || 0,
+      })
+    }
+  }
+  return rows
+}
+
+// ตั้งส่วนลดของขนาดหนึ่งในช่องทุกประเภท (คืนชุดใหม่ ไม่แก้ต้นฉบับ · ค่าว่างลบค่า)
 export function setSizeDiscount(b, sizeId, amount) {
+  return setDiscountAt(b, null, sizeId, amount)
+}
+
+// ตั้งส่วนลดของขนาดหนึ่งในประเภทหนึ่ง (typeId null = ช่องทุกประเภท) · คืนชุดใหม่ ไม่แก้ต้นฉบับ · ค่าว่างลบค่า
+export function setDiscountAt(b, typeId, sizeId, amount) {
   const next = JSON.parse(JSON.stringify(b))
-  next.discount = { ...(next.discount || {}) }
-  if (amount == null || amount === '') delete next.discount[sizeId]
-  else next.discount[sizeId] = Number(amount)
+  const val = amount == null || amount === '' ? null : Number(amount)
+  if (typeId == null) {
+    next.discount = { ...(next.discount || {}) }
+    if (val == null) delete next.discount[sizeId]
+    else next.discount[sizeId] = val
+  } else {
+    next.typeDiscount = { ...(next.typeDiscount || {}) }
+    const row = { ...(next.typeDiscount[typeId] || {}) }
+    if (val == null) delete row[sizeId]
+    else row[sizeId] = val
+    next.typeDiscount[typeId] = row
+  }
   return next
 }
 

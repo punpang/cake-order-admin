@@ -4,15 +4,15 @@ import { db, saveBundle } from '../../data/store'
 import { showToast } from '../../lib/toast'
 import { checkBundle, findItemOption, findDuplicate, bahtText } from '../../lib/bundleEditor'
 import { MAIN_KEYS } from '../../lib/constants'
-import { bundlesWithOption, usageOf, discountRows, setSizeDiscount, createBundleDraft } from '../../lib/bundleByOption'
+import { bundlesWithOption, usageOf, discountRows, setDiscountAt, createBundleDraft } from '../../lib/bundleByOption'
 import ManageShell from '../../components/ManageShell.vue'
 
-// เลือกตัวเลือกรองหนึ่งตัว แล้วเห็นทุกชุดที่มีตัวเลือกนั้น ว่าชุดไหนใช้ได้หรือถูกข้ามเมื่อไร และตั้งส่วนลดต่อขนาด
+// เลือกตัวเลือกรองหนึ่งตัว แล้วเห็นทุกชุดที่มีตัวเลือกนั้น ว่าชุดไหนใช้ได้หรือถูกข้ามเมื่อไร และตั้งส่วนลดต่อประเภทและขนาด
 const itemGroups = computed(() => db.optionGroups.filter((g) => !MAIN_KEYS.includes(g.key) && g.type !== 'text' && g.active !== false))
 const sizes = computed(() => (db.optionGroups.find((x) => x.key === 'size')?.options || []).filter((x) => x.active !== false))
-const types = computed(() => db.optionGroups.find((x) => x.key === 'type')?.options || [])
+const types = computed(() => (db.optionGroups.find((x) => x.key === 'type')?.options || []).filter((x) => x.active !== false))
 const styles = computed(() => (db.optionGroups.find((x) => x.key === 'style')?.options || []).filter((x) => x.active !== false))
-const ctx = computed(() => ({ groups: db.optionGroups, sizes: sizes.value, types: types.value, styles: styles.value }))
+const ctx = computed(() => ({ groups: db.optionGroups, sizes: sizes.value, types: db.optionGroups.find((x) => x.key === 'type')?.options || [], styles: styles.value }))
 
 const groupId = ref(null)
 const optionId = ref(null)
@@ -21,22 +21,30 @@ const groupOptions = computed(() => (curGroup.value?.options || []).filter((o) =
 const curOption = computed(() => groupOptions.value.find((o) => o.id === optionId.value) || groupOptions.value[0] || null)
 watch(curGroup, () => { optionId.value = null })
 
-// ชุดที่มีตัวเลือกนี้ พร้อมสถานะและแถวต่อขนาด
+// คีย์ของช่องในแถว: ประเภทว่าง = ทุกประเภท
+const cellKey = (typeId, sizeId) => `${typeId ?? ''}|${sizeId}`
+const parseKey = (k) => {
+  const i = k.indexOf('|')
+  const t = k.slice(0, i)
+  return { typeId: t === '' ? null : t, sizeId: k.slice(i + 1) }
+}
+
+// ชุดที่มีตัวเลือกนี้ พร้อมสถานะและแถวต่อประเภทและขนาด
 const linked = computed(() => {
   if (!curGroup.value || !curOption.value) return []
   const x = { groupId: curGroup.value.id, optionId: curOption.value.id }
   return bundlesWithOption(db.bundles, x, sizes.value).map((b) => ({
     b,
     usage: usageOf(b, db.bundles, sizes.value),
-    rows: discountRows(b, db.optionGroups, sizes.value),
+    rows: discountRows(b, db.optionGroups, sizes.value, types.value),
     items: (b.items || []).map((i) => findItemOption(db.optionGroups, i)?.name || 'ตัวเลือกที่ถูกลบแล้ว'),
   }))
 })
 
-// การแก้ไขส่วนลดที่ยังไม่บันทึก: edits[bundleId][sizeId] = ข้อความที่พิมพ์ ('' = ลบ)
+// การแก้ไขส่วนลดที่ยังไม่บันทึก: edits[bundleId][cellKey] = ข้อความที่พิมพ์ ('' = ลบ)
 const edits = ref({})
-const setEdit = (bid, sid, v) => {
-  edits.value = { ...edits.value, [bid]: { ...(edits.value[bid] || {}), [sid]: v } }
+const setEdit = (bid, key, v) => {
+  edits.value = { ...edits.value, [bid]: { ...(edits.value[bid] || {}), [key]: v } }
 }
 const pendingCount = computed(() => Object.values(edits.value).reduce((n, m) => n + Object.keys(m).length, 0))
 const statusText = (u) => ({
@@ -53,8 +61,10 @@ function saveEdits() {
     const original = db.bundles.find((b) => b.id === bid)
     if (!original) continue
     let draft = original
-    for (const [sid, raw] of Object.entries(m)) {
-      draft = setSizeDiscount(draft, sid, String(raw ?? '').trim() === '' ? null : raw)
+    for (const [key, raw] of Object.entries(m)) {
+      const { typeId, sizeId } = parseKey(key)
+      const val = String(raw ?? '').trim() === '' ? null : raw
+      draft = setDiscountAt(draft, typeId, sizeId, val)
     }
     const r = checkBundle(draft, { ...ctx.value, bundles: db.bundles, original })
     if (r.errors.length) {
@@ -83,12 +93,13 @@ const draftItems = computed(() => {
   const base = { groupId: curGroup.value.id, optionId: curOption.value.id }
   return isPicked(base) ? picked.value : [base, ...picked.value]
 })
-const draftRows = computed(() => discountRows(createBundleDraft(draftItems.value, db.optionGroups), db.optionGroups, sizes.value))
+const draftRows = computed(() => discountRows(createBundleDraft(draftItems.value, db.optionGroups), db.optionGroups, sizes.value, types.value))
 function createNew() {
-  const d = createBundleDraft(draftItems.value, db.optionGroups)
-  for (const s of sizes.value) {
-    const v = newDiscount.value[s.id]
-    if (v !== undefined && String(v).trim() !== '') d.discount[s.id] = Number(v)
+  let d = createBundleDraft(draftItems.value, db.optionGroups)
+  for (const [key, v] of Object.entries(newDiscount.value)) {
+    if (String(v).trim() === '') continue
+    const { typeId, sizeId } = parseKey(key)
+    d = setDiscountAt(d, typeId, sizeId, v)
   }
   const dup = findDuplicate(d.items, db.bundles)
   if (dup) { showToast(`ซ้ำกับบันเดิ้ล "${dup.name}" แก้ชุดเดิมแทน`, 6000, 'error'); return }
@@ -127,9 +138,9 @@ function createNew() {
           <p class="text-xs" :class="statusText(r.usage).cls" :data-status="r.usage.status">
             {{ statusText(r.usage).text }}<span v-if="r.usage.conflicts.length">: {{ r.usage.conflicts.map((c) => c.name).join(', ') }}</span>
           </p>
-          <div v-for="row in r.rows" :key="row.sizeId" class="flex items-center justify-between gap-2 text-sm">
-            <span class="text-stone-600">{{ row.sizeName }} · ราคาปกติ {{ bahtText(row.regular) }}</span>
-            <input type="number" inputmode="numeric" min="0" class="input h-9 w-24 text-right" :value="edits[r.b.id]?.[row.sizeId] ?? row.amount" :aria-label="`ส่วนลด ${r.b.name} ${row.sizeName}`" @input="setEdit(r.b.id, row.sizeId, $event.target.value)" />
+          <div v-for="row in r.rows" :key="cellKey(row.typeId, row.sizeId)" class="flex items-center justify-between gap-2 text-sm">
+            <span class="text-stone-600">{{ row.typeName ? `${row.typeName} · ` : '' }}{{ row.sizeName }} · ราคาปกติ {{ bahtText(row.regular) }}</span>
+            <input type="number" inputmode="numeric" min="0" class="input h-9 w-24 text-right" :value="edits[r.b.id]?.[cellKey(row.typeId, row.sizeId)] ?? row.amount" :data-row="`${r.b.id}|${cellKey(row.typeId, row.sizeId)}`" :aria-label="`ส่วนลด ${r.b.name} ${row.typeName} ${row.sizeName}`" @input="setEdit(r.b.id, cellKey(row.typeId, row.sizeId), $event.target.value)" />
           </div>
         </div>
       </section>
@@ -147,9 +158,9 @@ function createNew() {
           </div>
         </div>
         <div v-if="draftItems.length >= 2" class="space-y-2">
-          <div v-for="row in draftRows" :key="row.sizeId" class="flex items-center justify-between gap-2 text-sm">
-            <span class="text-stone-600">{{ row.sizeName }} · ราคาปกติ {{ bahtText(row.regular) }}</span>
-            <input type="number" inputmode="numeric" min="0" class="input h-9 w-24 text-right" :value="newDiscount[row.sizeId] ?? ''" :aria-label="`ส่วนลดชุดใหม่ ${row.sizeName}`" @input="newDiscount = { ...newDiscount, [row.sizeId]: $event.target.value }" />
+          <div v-for="row in draftRows" :key="cellKey(row.typeId, row.sizeId)" class="flex items-center justify-between gap-2 text-sm">
+            <span class="text-stone-600">{{ row.typeName ? `${row.typeName} · ` : '' }}{{ row.sizeName }} · ราคาปกติ {{ bahtText(row.regular) }}</span>
+            <input type="number" inputmode="numeric" min="0" class="input h-9 w-24 text-right" :value="newDiscount[cellKey(row.typeId, row.sizeId)] ?? ''" :aria-label="`ส่วนลดชุดใหม่ ${row.typeName} ${row.sizeName}`" @input="newDiscount = { ...newDiscount, [cellKey(row.typeId, row.sizeId)]: $event.target.value }" />
           </div>
           <button type="button" class="btn-primary h-10 px-4 text-sm" data-create @click="createNew">สร้างชุด</button>
         </div>
