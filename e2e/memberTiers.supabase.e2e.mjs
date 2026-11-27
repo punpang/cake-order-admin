@@ -89,7 +89,7 @@ try {
     state.mode = 'live'
     state.card = LIVE_CARD
     const p = await openCustomerRewards()
-    await p.getByText('LV2 · แต้มคูณ 3 เท่า', { exact: true }).waitFor({ timeout: 15000 })
+    await p.getByLabel('ระดับสมาชิก', { exact: true }).getByText('LV2 · แต้มคูณ 3 เท่า', { exact: true }).waitFor({ timeout: 15000 })
     assert.ok((await p.getByLabel('ระดับสมาชิก', { exact: true }).innerText()).includes('ใช้สิทธิ์ถึง'), 'ต้องมีบรรทัดวันใช้สิทธิ์')
     await p.context().close()
   })

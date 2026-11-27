@@ -197,23 +197,25 @@ t('POS: หน้าชำระเงินสแกนคูปองของ
   } finally { await page.close() }
 })
 
-t('บัญชีลูกค้า: ส่วนสมาชิกสลับระหว่างบอกเบอร์กับบาร์โค้ด และบาร์โค้ดใช้รหัสสมาชิกที่สร้างให้', async () => {
+t('บัญชีลูกค้า: การ์ดสมาชิกพลิกไปแสดงบาร์โค้ด และบาร์โค้ดใช้รหัสสมาชิกที่สร้างให้', async () => {
   const { page, errors } = await openPage('/admin/settings/customers')
   try {
     await page.evaluate(async () => { window.__store = await import('/src/data/store.js') })
     const info = await seedBarcodeCoupons(page)
     assert.ok(info, 'ไม่มีลูกค้าสำหรับทดสอบ')
     await page.evaluate(() => { window.location.hash = '#/account' })
-    await page.getByRole('button', { name: 'แสดงบาร์โค้ด', exact: true }).waitFor({ state: 'visible', timeout: 15000 })
-    await page.getByRole('button', { name: 'แสดงบาร์โค้ด', exact: true }).click()
+    const card = page.getByRole('button', { name: 'การ์ดสมาชิก แตะเพื่อพลิก', exact: true })
+    await card.waitFor({ state: 'visible', timeout: 15000 })
+    assert.equal(await card.getAttribute('aria-pressed'), 'false')
+    await card.click()
+    assert.equal(await card.getAttribute('aria-pressed'), 'true')
     // รอจนวาดบาร์โค้ดเสร็จ (ไลบรารีโหลดแบบ async · svg มองเห็นได้ก่อนวาดเสร็จ จึงรอ data-scan แทน)
     await page.waitForFunction(() => !!document.querySelector('svg[aria-label="บาร์โค้ดสมาชิก"]')?.getAttribute('data-scan'), null, { timeout: 15000 })
     const code = await page.evaluate(() => window.__store.myCustomer().scanCode)
     assert.match(code, /^[0-9a-f]{32}$/, 'รหัสสมาชิกที่สร้างไม่ถูกรูปแบบ')
     assert.equal(await page.locator(`svg[data-scan="${code}"]`).count(), 1)
-    await page.getByRole('button', { name: 'บอกเบอร์', exact: true }).click()
-    await page.locator('svg[aria-label="บาร์โค้ดสมาชิก"]').waitFor({ state: 'detached', timeout: 5000 })
-    assert.equal(await page.locator('svg[aria-label="บาร์โค้ดสมาชิก"]').count(), 0)
+    await card.click()
+    assert.equal(await card.getAttribute('aria-pressed'), 'false')
     assert.deepEqual(errors, [])
   } finally { await page.close() }
 })

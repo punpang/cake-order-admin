@@ -220,12 +220,13 @@ select test.ok('D9 โอนผู้ซื้อ s1 ไป B2: A1 เหลื�
   (public.punpang__member_fold('mlv_a1', now())->>'cum')::numeric = 1100
   and (public.punpang__member_fold('mlv_b2', now())->>'cum')::numeric = 100
   and (public.punpang__member_fold('mlv_b2', now())->>'level')::int = 1);
-select test.ok('D10 บัตรระดับ (โหมดใช้จริง) ของ A1: ระดับ 2 ตัวคูณ 3 Active และไม่มีคีย์ยอดสะสม',
+select test.ok('D10 บัตรระดับ (โหมดใช้จริง) ของ A1: ระดับ 2 ตัวคูณ 3 Active และมีคีย์ยอดสะสม cum กับ nextMin',
   (public.punpang_member_card('mlv_a1')->>'enabled')::boolean
   and (public.punpang_member_card('mlv_a1')->>'levelNo')::int = 2
   and (public.punpang_member_card('mlv_a1')->>'mult')::numeric = 3
   and public.punpang_member_card('mlv_a1')->>'status' = 'active'
-  and not (public.punpang_member_card('mlv_a1') ? 'cum'));
+  and (public.punpang_member_card('mlv_a1') ? 'cum')
+  and (public.punpang_member_card('mlv_a1') ? 'nextMin'));
 select test.ok('D10b บัตรระดับไม่มีค่าที่ต้องซื้อเพิ่ม (toNext) เพื่อไม่ให้คำนวณยอดสะสมย้อนกลับ',
   not (public.punpang_member_card('mlv_a1') ? 'toNext'));
 update public.punpang_customers set data = data || '{"deleted": true}'::jsonb where id = 'mlv_b2';
