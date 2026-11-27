@@ -126,7 +126,7 @@ async function saveAll() {
 
 <template>
   <ManageShell title="ตารางราคาคู่" subtitle="ตั้งราคาชุดคู่ต่อกลุ่ม · ช่องว่าง = ยังไม่ตั้ง" back="/admin/settings/bundles" :guard="pendingCount > 0">
-    <div class="space-y-4 pb-28">
+    <div class="space-y-4 pb-4">
       <p v-if="!pickGroups.length" class="card p-4 text-sm text-stone-500">ยังไม่มีกลุ่มตัวเลือกที่ใช้ทำชุดคู่</p>
 
       <div class="flex flex-wrap gap-2" data-group-picker>
@@ -173,12 +173,11 @@ async function saveAll() {
         </div>
         <p v-if="!rows.length" class="p-4 text-sm text-stone-500">ไม่มีคู่ให้ตั้ง (ต้องมีตัวเลือกที่เปิดใช้งานอย่างน้อย 2 ตัวในกลุ่ม)</p>
       </div>
-    </div>
 
-    <div class="fixed inset-x-0 bottom-0 z-20 border-t border-stone-200 bg-white/95 p-3 backdrop-blur">
-      <div class="mx-auto flex max-w-3xl items-center justify-between gap-3">
-        <p class="text-sm text-stone-600">{{ pendingCount ? `ยังไม่บันทึก ${pendingCount} ช่อง` : 'ไม่มีการแก้ไขที่ค้างอยู่' }}</p>
-        <button type="button" class="btn-primary h-11 px-4" :disabled="!pendingCount" data-save-grid @click="saveAll">บันทึกทั้งหมด</button>
+      <!-- แถบบันทึก (ติดล่าง เหนือเมนูล่างบนมือถือ เหมือนหน้าแก้ไขชุด) -->
+      <div class="sticky bottom-[calc(env(safe-area-inset-bottom)+5.25rem)] z-10 flex items-center gap-2 rounded-2xl border border-stone-200 bg-white/95 p-3 shadow-lg backdrop-blur lg:bottom-3">
+        <p class="min-w-0 flex-1 truncate text-sm" :class="pendingCount ? 'text-stone-700' : 'text-stone-500'">{{ pendingCount ? `ยังไม่บันทึก ${pendingCount} ช่อง` : 'ไม่มีการแก้ไขที่ค้างอยู่' }}</p>
+        <button type="button" class="btn-primary h-11 shrink-0 px-4" :disabled="!pendingCount" data-save-grid @click="saveAll">บันทึกทั้งหมด</button>
       </div>
     </div>
   </ManageShell>
