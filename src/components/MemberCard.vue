@@ -50,7 +50,7 @@ function flip() {
             <div v-if="view.levelName" class="mt-2 space-y-2">
               <div>
                 <div class="flex justify-between text-[11px] opacity-80">
-                  <span>ยอดสะสม {{ money(view.progress.cum) }}</span>
+                  <span>อีกกี่บาทจะเลื่อนขั้น</span>
                   <span v-if="view.progress.top">ระดับสูงสุดแล้ว</span>
                   <span v-else>เหลือ {{ money(view.progress.remaining) }} ได้เลื่อนเป็น {{ view.progress.nextName }}</span>
                 </div>
