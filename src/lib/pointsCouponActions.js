@@ -1,6 +1,6 @@
 // การกระทำของการสร้างคูปองจากคะแนน (แยกจาก store เพื่อไม่ให้ไฟล์หลักใหญ่ขึ้น): โหมดเซิร์ฟเวอร์ + โหมดจำลอง
 // กติกาตรวจที่ pointsCoupon.js · กติกาเดียวกับ punpang_cust_make_coupon ฝั่งเซิร์ฟเวอร์
-import { db } from '../data/store'
+import { db, refreshCustomerBundle } from '../data/store'
 import { takePoints, addDays, pointBalance } from './loyalty'
 import { toDateStr } from './format'
 import { callLoyalty, readSessionToken, injectBundle } from './customerRemote'
@@ -11,6 +11,7 @@ export async function makeCouponRemote(amount) {
   const r = await callLoyalty('make_coupon', { session: readSessionToken(), amount: Number(amount) })
   if (r.error) return { error: r.error }
   injectBundle(db, r)
+  await refreshCustomerBundle() // ดึงข้อมูลล่าสุดจากเซิร์ฟเวอร์ ให้คะแนนบนหน้าตรงกับยอดจริง
   return { ok: true, coupon: r.result?.coupon || null, points: Number(r.result?.coupon?.points) || 0, balance: Number(r.result?.balance) }
 }
 
