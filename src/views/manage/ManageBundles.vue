@@ -82,6 +82,7 @@ async function link(b) {
         แตะการ์ดเพื่อดูราคาปกติและราคาหลังลดของแต่ละขนาด
       </p>
     </section>
+    <RouterLink to="/admin/settings/bundles/grid" class="btn-outline mb-4 flex w-full justify-center" data-grid-link>ตารางราคาคู่ (ตั้งหลายคู่พร้อมกัน)</RouterLink>
 
     <div v-if="!db.bundles.length" class="card flex flex-col items-center gap-3 py-10 text-center">
       <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-warning-50 text-warning-700"><AppIcon name="tag" :size="26" /></span>
