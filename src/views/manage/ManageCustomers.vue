@@ -245,7 +245,6 @@ async function save() {
             <div class="flex flex-wrap justify-end gap-2">
               <button v-if="can('adjustPoints') && balance > 0" type="button" class="btn-soft h-9" @click="convertPoints">แปลงเป็นคูปอง</button>
               <button v-if="can('adjustPoints')" type="button" class="btn-soft h-9" @click="openAdj">ปรับคะแนน</button>
-              <button v-if="can('adjustPoints')" type="button" class="btn-soft h-9" @click="openLegacy">ย้ายจากระบบเดิม</button>
             </div>
           </div>
           <p v-if="conv.error" class="mt-2 text-sm text-danger-700" role="alert">{{ conv.error }}</p>
