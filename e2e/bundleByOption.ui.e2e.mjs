@@ -138,6 +138,7 @@ t('ราคาปกติของการ์ดคิดตามประ�
   const text = await card.innerText()
   assert.ok(text.includes(`${setup.names[0]} · `) && text.includes('ราคาปกติ 140'), 'ต้องแสดงราคาปกติ 140 ในประเภทที่ตัวเลือกใช้ได้')
   assert.ok(!text.includes('ราคาปกติ 230'), 'ต้องไม่แสดงราคาทุกประเภทที่ไม่ตรงกับลูกค้า')
+  assert.ok(text.includes('หลังหักส่วนลด 110'), 'ต้องแสดงราคาหลังหักส่วนลด 140 - 30 = 110')
   assert.deepEqual(errors, [])
   await page.close()
 })
