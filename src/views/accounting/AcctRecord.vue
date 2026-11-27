@@ -8,6 +8,9 @@ import { parseReceipt, receiptFill } from '../../lib/receiptOcr'
 import { readReceiptText } from '../../lib/receiptOcrRunner'
 import { resizeImage, imageErrorMessage } from '../../lib/imageResize'
 import { entrySums } from '../../lib/acct/journal'
+import { resolveReceiptRefs } from '../../lib/acct/receiptRefs'
+import { filesEnabled, uploadPrivateImage } from '../../lib/storage'
+import { supabaseEnabled, getSupabase } from '../../lib/supabase'
 import { askConfirm } from '../../lib/confirm'
 import { toDateStr, money, dateOnly } from '../../lib/format'
 import AppModal from '../../components/AppModal.vue'
@@ -45,8 +48,10 @@ async function onScanReceipt(e) {
   scan.pct = 0
   scan.msg = 'กำลังอ่านรูป…'
   try {
-    const img = await resizeImage(file)
-    const text = await readReceiptText(img.dataUrl, (m) => { scan.pct = Math.round((m.progress || 0) * 100) })
+    // อ่าน OCR ด้วยรูปความละเอียดสูง (ไม่เก็บ) · เก็บเป็นหลักฐานไม่เกิน 512 KB
+    const ocrImg = await resizeImage(file, { maxSide: 2500, maxBytes: 4 * 1024 * 1024 })
+    const img = await resizeImage(file, { maxBytes: 512 * 1024 })
+    const text = await readReceiptText(ocrImg.dataUrl, (m) => { scan.pct = Math.round((m.progress || 0) * 100) })
     const parsed = parseReceipt(text)
     Object.assign(f, receiptFill(f, parsed, { vatRate: f.vatRate || db.shop.vat?.rate || 7 }))
     if (f.attachments.length < 5) f.attachments.push(img.dataUrl)
@@ -70,10 +75,28 @@ function setKind(k) {
   f.account = ''
   f.settle = 'cash'
 }
-function save() {
-  const r = saveManual({ ...f, amount: Number(f.amount) }, editId.value)
-  if (r.error) return (error.value = r.error)
-  open.value = false
+// รูปแนบที่ยังเป็นข้อมูลในเครื่อง → อัปโหลดไป R2 ก่อนบันทึก (โหมดข้อมูลตัวอย่างไม่อัปโหลด) · อัปโหลดไม่สำเร็จ = ไม่บันทึกรายการ
+const uploading = ref(false)
+async function save() {
+  if (uploading.value) return
+  uploading.value = true
+  error.value = ''
+  try {
+    let attachments = f.attachments
+    if (supabaseEnabled && filesEnabled() && f.attachments.some((a) => String(a).startsWith('data:'))) {
+      const c = await getSupabase()
+      if (!c) throw new Error('no-client')
+      const prefix = 'acct/' + String(f.date || '').slice(0, 7)
+      attachments = await resolveReceiptRefs(f.attachments, (src) => uploadPrivateImage(c, src, prefix))
+    }
+    const r = saveManual({ ...f, amount: Number(f.amount), attachments }, editId.value)
+    if (r.error) return (error.value = r.error)
+    open.value = false
+  } catch {
+    error.value = 'อัปโหลดรูปไม่สำเร็จ ยังไม่ได้บันทึกรายการ กรุณาลองใหม่'
+  } finally {
+    uploading.value = false
+  }
 }
 const isEditable = (e) => (e.source?.kind === 'income' || e.source?.kind === 'expense') && !locked(e.date) && !e.reversedBy
 async function del(e) {
