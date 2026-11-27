@@ -311,7 +311,22 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
         <p v-if="useErr" class="text-sm text-danger-700" role="alert">{{ useErr }}</p>
         <p v-if="useMsg" class="rounded-xl bg-success-50 p-3 text-sm text-success-800" role="status">{{ useMsg }}</p>
         <template v-for="c in coupons" :key="c.id">
-        <div class="card flex items-center gap-3">
+        <!-- คูปองที่แสดงที่ร้านอยู่: ตั๋วใบเดียว (ข้อมูลบนอ่าน · ขอบฉีก · บาร์โค้ดล่าง) -->
+        <div v-if="phase(c) === 'active'" class="card overflow-hidden p-0">
+          <div class="flex items-start gap-3 bg-brand-50 p-4">
+            <span class="min-w-0 flex-1">
+              <span class="block font-semibold break-words text-stone-900">{{ c.name }}</span>
+              <span class="block text-xs text-stone-500">
+                {{ c.type === 'reward' ? 'ของรางวัล' : couponTermsText(c) }} · {{ c.source === 'gacha' ? 'จากกาชา' : c.source === 'lucky' ? 'จากลุ้นโชค' : c.source === 'refund' ? 'คืนเงิน' : c.source === 'convert' ? 'แปลงคะแนน' : c.source === 'points_coupon' ? 'สร้างเองจากคะแนน' : 'แลกคะแนน' }}
+                <template v-if="c.expiresAt"> · หมดอายุ {{ dateOnly(c.expiresAt) }}</template>
+              </span>
+            </span>
+            <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium" :class="couponState(c).cls">{{ couponState(c).t }}</span>
+          </div>
+          <div class="ticket-tear" aria-hidden="true"></div>
+          <div class="p-3"><CouponBarcode :value="c.id" /></div>
+        </div>
+        <div v-else class="card flex items-center gap-3">
           <span class="min-w-0 flex-1">
             <span class="block font-semibold break-words text-stone-900">{{ c.name }}</span>
             <span class="block text-xs text-stone-500">
@@ -321,7 +336,6 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
           </span>
           <span class="flex shrink-0 flex-col items-end gap-1.5"><span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="couponState(c).cls">{{ couponState(c).t }}</span><button v-if="phase(c) === 'pending'" type="button" class="btn-primary h-8 px-3 text-xs" @click="useAtStore(c)">ใช้ที่ร้านตอนนี้</button></span>
         </div>
-        <CouponBarcode v-if="phase(c) === 'active'" :value="c.id" />
         </template>
       </div>
 
@@ -373,4 +387,15 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
   .redeem-burst, .redeem-burst::after, .redeem-msg { animation: none; }
   .redeem-burst::after { display: none; }
 }
+</style>
+
+<style scoped>
+/* ขอบฉีกของตั๋วคูปอง: เส้นประพร้อมรอยบากสองข้าง (ตัดจากพื้นหลังการ์ด ไม่ใช้สีเพิ่ม) */
+.ticket-tear { position: relative; border-top: 2px dashed var(--color-stone-200, #e7e5e4); margin: 0 14px; }
+.ticket-tear::before,
+.ticket-tear::after {
+  content: ''; position: absolute; top: -9px; width: 16px; height: 16px; border-radius: 9999px; background: var(--color-white, #fff);
+}
+.ticket-tear::before { left: -22px; }
+.ticket-tear::after { right: -22px; }
 </style>
