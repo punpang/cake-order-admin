@@ -1,7 +1,7 @@
 // ทดสอบการ์ดสมาชิกฝั่งลูกค้า: หลอดวันหมดสิทธิ · ค่าที่แสดงด้านหน้า
 // รัน: node src/lib/memberCard.test.mjs
 import assert from 'node:assert/strict'
-import { validityPct, memberCardView, VALIDITY_WINDOW_DAYS } from './memberCard.js'
+import { validityPct, memberCardView, progressToNext, VALIDITY_WINDOW_DAYS } from './memberCard.js'
 
 let fail = 0
 const t = (name, fn) => { try { fn(); console.log('ok -', name) } catch (e) { fail++; console.log('FAIL -', name, e.message) } }
@@ -42,6 +42,33 @@ t('การ์ด: ไม่มีระดับ ไม่แสดงชื�
   assert.equal(v.line, '')
   assert.equal(v.validPct, 0)
   assert.equal(v.points, 0)
+})
+
+
+t('ยอดสะสม: กลางทาง คำนวณเปอร์เซ็นต์และยอดที่ขาดแบบปัดขึ้น', () => {
+  const p = progressToNext({ enabled: true, cum: 2500, nextMin: 5000, levelName: 'LV3' })
+  assert.equal(p.top, false)
+  assert.equal(p.pct, 50)
+  assert.equal(p.remaining, 2500)
+})
+t('ยอดสะสม: เกินเกณฑ์แล้วเต็มหลอดและเหลือ 0', () => {
+  const p = progressToNext({ enabled: true, cum: 5200, nextMin: 5000 })
+  assert.equal(p.pct, 100)
+  assert.equal(p.remaining, 0)
+})
+t('ยอดสะสม: ระดับสูงสุด (nextMin เป็น null) แสดงว่าสูงสุดแล้ว', () => {
+  const p = progressToNext({ enabled: true, cum: 5057, nextMin: null })
+  assert.equal(p.top, true)
+  assert.equal(p.remaining, 0)
+})
+t('ยอดสะสม: ทศนิยมปัดขึ้นเป็นบาท', () => {
+  assert.equal(progressToNext({ enabled: true, cum: 499.2, nextMin: 500 }).remaining, 1)
+})
+t('การ์ด: ส่งความคืบหน้าและชื่อระดับถัดไปถึงหน้าจอ', () => {
+  const v = memberCardView({ phone: '0864735562', points: 10 }, { enabled: true, levelName: 'LV2', mult: 2, levelNo: 2, status: 'active', cum: 1200, nextMin: 2500, nextName: 'LV3', downgradeAt: '2027-11-27' }, NOW)
+  assert.equal(v.progress.pct, 48)
+  assert.equal(v.progress.remaining, 1300)
+  assert.equal(v.progress.nextName, 'LV3')
 })
 
 console.log(fail ? `ล้มเหลว ${fail} รายการ` : 'ผ่านทั้งหมด')
