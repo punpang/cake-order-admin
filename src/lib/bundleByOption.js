@@ -69,9 +69,12 @@ export function discountRows(b, groups, sizes, types = []) {
         sizeName: s.name,
         regular: regularTotal(b.items || [], groups, t, s.id),
         amount: bundleAmount(b, t, [s.id], null) || 0,
+        // ราคาหลังหักส่วนลดที่ลูกค้าได้จริง: ส่วนลดไม่เกินราคาปกติ (ตรงกับ bundleAmountCapped)
+        after: 0,
       })
     }
   }
+  for (const r of rows) r.after = Math.max(0, r.regular - Math.min(r.amount, r.regular))
   return rows
 }
 
