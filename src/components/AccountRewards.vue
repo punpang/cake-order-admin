@@ -65,6 +65,16 @@ const tabs = [
 const rewards = computed(() => db.rewards.filter((r) => r.active !== false && !isSampleName(r.name)))
 const confirmRw = ref(null)
 const msg = ref('')
+// อนิเมชันตอนแลกสำเร็จ: เล่นเฉพาะตอนสำเร็จ · key เปลี่ยนทุกครั้งเพื่อให้เล่นซ้ำได้
+const celebrate = ref(null)
+let celebrateTimer = null
+function playCelebrate() {
+  clearTimeout(celebrateTimer)
+  celebrate.value = { key: Date.now() }
+  celebrateTimer = setTimeout(() => { celebrate.value = null }, 1200)
+}
+onBeforeUnmount(() => clearTimeout(celebrateTimer))
+
 async function redeem() {
   const id = confirmRw.value.id
   confirmRw.value = null
@@ -72,10 +82,12 @@ async function redeem() {
     // บัญชีบนเซิร์ฟเวอร์: แลกทำที่ฐานข้อมูล (กันแลกซ้ำจากสองเครื่อง) แล้วรีเฟรชคะแนน/คูปอง
     const r = await redeemRewardRemote(id)
     msg.value = r.error ? r.error : `แลก ${r.coupon?.name || 'ของรางวัล'} แล้ว รับได้ที่ร้าน (ดูในแท็บคูปอง)`
+    if (!r.error) playCelebrate()
     return
   }
   const cp = redeemReward(me.value, id)
   msg.value = cp ? `แลก ${cp.name} แล้ว รับได้ที่ร้าน (ดูในแท็บคูปอง)` : 'คะแนนไม่พอ'
+  if (cp) playCelebrate()
 }
 
 // ---------- สร้างคูปองจากคะแนน (ลูกค้าเลือกมูลค่าเอง ขั้นต่ำ 10 บาท ทวีคูณ 10) ----------
@@ -232,7 +244,10 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
         >{{ t.l }}</button>
       </div>
 
-      <p v-if="msg" class="mb-3 rounded-xl bg-brand-50 p-3 text-sm text-brand-800">{{ msg }}</p>
+      <div v-if="celebrate" :key="celebrate.key" class="redeem-burst mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-brand-500 text-white" aria-hidden="true">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+      </div>
+      <p v-if="msg" class="mb-3 rounded-xl bg-brand-50 p-3 text-sm text-brand-800" :class="celebrate ? 'redeem-msg' : ''">{{ msg }}</p>
 
       <!-- แลกของ -->
       <div v-if="tab === 'rewards'" class="space-y-2.5">
@@ -332,3 +347,30 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
     </AppModal>
   </div>
 </template>
+
+<style scoped>
+/* อนิเมชันตอนแลกสำเร็จ: ไอคอนเด้งขึ้น + วงแหวนกระจาย + ข้อความค่อยปรากฏ · ปิดเมื่อผู้ใช้ตั้ง reduce motion */
+.redeem-burst { position: relative; animation: redeem-pop 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.redeem-burst::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 9999px;
+  border: 3px solid #d6486a; opacity: 0; animation: redeem-ring 0.9s ease-out 0.1s both;
+}
+.redeem-msg { animation: redeem-fade 0.5s ease-out 0.25s both; }
+@keyframes redeem-pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes redeem-ring {
+  0% { transform: scale(0.8); opacity: 0.9; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+@keyframes redeem-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .redeem-burst, .redeem-burst::after, .redeem-msg { animation: none; }
+  .redeem-burst::after { display: none; }
+}
+</style>
