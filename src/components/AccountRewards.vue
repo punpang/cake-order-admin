@@ -85,7 +85,7 @@ async function makeCoupon() {
   if (!amtQuote.value.ok) return
   const amt = Number(couponAmt.value)
   const r = usesServerLoyalty() ? await makeCouponRemote(amt) : makePointsCouponLocal(me.value, amt)
-  msg.value = r.error ? (POINTS_COUPON_MSG[r.error] || r.error) : `สร้างคูปอง ${money(amt)} แล้ว ใช้ได้ภายใน ${POINTS_COUPON.days} วัน (ดูในแท็บคูปอง)`
+  msg.value = r.error ? (POINTS_COUPON_MSG[r.error] || r.error) : `สร้างคูปอง ${money(amt)} แล้ว ใช้ ${num(r.points)} คะแนน เหลือ ${num(r.balance)} คะแนน · ใช้ได้ภายใน ${POINTS_COUPON.days} วัน`
 }
 
 // ---------- กาชา ----------

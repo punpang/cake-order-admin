@@ -47,7 +47,7 @@ export function injectBundle(db, b) {
   for (const c of b.consents || []) put(db.consents, c)
   for (const c of b.reviews || []) put(db.reviews, c)
   for (const c of b.deletionRequests || []) put(db.deletionRequests, c)
-  db.memberCard = b.tier?.enabled === true ? b.tier : null // ระดับสมาชิก (เซิร์ฟเวอร์เปิดให้เฉพาะโหมดใช้จริง)
+  if ('tier' in b) db.memberCard = b.tier?.enabled === true ? b.tier : null // ระดับสมาชิก (เซิร์ฟเวอร์เปิดให้เฉพาะโหมดใช้จริง) · ตอบกลับที่ไม่มี tier ไม่ล้างการ์ดเดิม
   return b.customer.id
 }
 // ออกจากระบบ: ล้างข้อมูลของลูกค้ารายนั้นออกจากหน่วยความจำ (เครื่องใช้ร่วมกัน)
