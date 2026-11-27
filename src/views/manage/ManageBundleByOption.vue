@@ -102,7 +102,7 @@ function createNew() {
 </script>
 
 <template>
-  <ManageShell title="บันเดิ้ลตามตัวเลือก" subtitle="เลือกตัวเลือกหนึ่งตัวแล้วดูทุกชุดที่มีตัวเลือกนั้น" back="/admin/settings/bundles" :guard="pendingCount > 0">
+  <ManageShell title="บันเดิ้ลตามตัวเลือก" subtitle="เลือกตัวเลือกหนึ่งตัวแล้วดูทุกชุดที่มีตัวเลือกนั้น" back="/admin/settings/bundles" :toolbar="false" :guard="pendingCount > 0">
     <div class="space-y-4 pb-28">
       <p v-if="!itemGroups.length" class="card p-4 text-sm text-stone-500">ยังไม่มีกลุ่มตัวเลือกรองที่ใช้ทำชุด</p>
 
