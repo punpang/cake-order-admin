@@ -39,6 +39,6 @@ export function memberCardView(me, tier, today = new Date()) {
     levelName: hasTier ? tier.levelName : null,
     line: hasTier ? (tierLines(tier)[0] || '') : '',
     validPct: hasTier ? validityPct(tier, today) : 0,
-    progress: { ...progress, nextName: tier?.nextName || null },
+    progress: { ...progress, nextName: tier?.nextName || null, nextMult: Number(tier?.nextMult) > 0 ? Number(tier.nextMult) : null },
   }
 }
