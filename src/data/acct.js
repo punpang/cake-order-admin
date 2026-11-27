@@ -108,18 +108,35 @@ export function saveJournal({ date, memo, lines }, id = null) {
   const clean = (lines || []).map((l) => ({ account: l.account, ...(Number(l.dr) > 0 ? { dr: toB(toS(l.dr)) } : { cr: toB(toS(l.cr || 0)) }) })).filter((l) => (l.dr || l.cr))
   return commit({ date, memo: String(memo || '').trim().slice(0, 200), lines: clean, source: { type: 'manual', kind: 'journal' } }, id, 'JV')
 }
-function commit(entry, id, prefix) {
+// ตรวจกติกาของรายการก่อนบันทึก (ไม่แก้ข้อมูล) · คืนข้อความ error หรือ null
+function entryError(entry, id) {
   const err = validateEntry(entry, A().accounts)
-  if (err) return { error: err }
-  if (entry.tax?.length && vatFiled(entry.date.slice(0, 7))) return { error: `เดือนภาษี ${entry.date.slice(0, 7)} ยื่น ภ.พ.30 แล้ว ลงรายการที่มีภาษีในเดือนนั้นไม่ได้ (ยกเลิกการยื่นก่อน หรือลงเดือนถัดไป)` }
-  if (locked(entry.date)) return { error: `งวดถึง ${A().closedThrough} ปิดแล้ว ลงรายการในวันนั้นไม่ได้ (ใช้วันที่หลังปิดงวด หรือกลับรายการ)` }
+  if (err) return err
+  if (entry.tax?.length && vatFiled(entry.date.slice(0, 7))) return `เดือนภาษี ${entry.date.slice(0, 7)} ยื่น ภ.พ.30 แล้ว ลงรายการที่มีภาษีในเดือนนั้นไม่ได้ (ยกเลิกการยื่นก่อน หรือลงเดือนถัดไป)`
+  if (locked(entry.date)) return `งวดถึง ${A().closedThrough} ปิดแล้ว ลงรายการในวันนั้นไม่ได้ (ใช้วันที่หลังปิดงวด หรือกลับรายการ)`
   if (id) {
     const cur = A().entries.find((e) => e.id === id)
-    if (!cur) return { error: 'ไม่พบรายการ' }
-    if (locked(cur.date)) return { error: 'รายการอยู่ในงวดที่ปิดแล้ว แก้ไม่ได้ (กลับรายการแทน)' }
-    if (LINKED.includes(cur.source?.kind)) return { error: 'รายการนี้สร้างจากหน้าสินทรัพย์/ล่วงหน้า/ผ่อนชำระ แก้ที่หน้านั้น (หรือกลับรายการ)' }
-    if (cur.reversedBy || cur.source?.reverses) return { error: 'รายการที่กลับรายการแล้ว/เป็นรายการกลับ แก้ไม่ได้' }
-    if (cur.tax?.length && vatFiled(cur.date.slice(0, 7))) return { error: `เดือนภาษี ${cur.date.slice(0, 7)} ยื่น ภ.พ.30 แล้ว แก้ไม่ได้` }
+    if (!cur) return 'ไม่พบรายการ'
+    if (locked(cur.date)) return 'รายการอยู่ในงวดที่ปิดแล้ว แก้ไม่ได้ (กลับรายการแทน)'
+    if (LINKED.includes(cur.source?.kind)) return 'รายการนี้สร้างจากหน้าสินทรัพย์/ล่วงหน้า/ผ่อนชำระ แก้ที่หน้านั้น (หรือกลับรายการ)'
+    if (cur.reversedBy || cur.source?.reverses) return 'รายการที่กลับรายการแล้ว/เป็นรายการกลับ แก้ไม่ได้'
+    if (cur.tax?.length && vatFiled(cur.date.slice(0, 7))) return `เดือนภาษี ${cur.date.slice(0, 7)} ยื่น ภ.พ.30 แล้ว แก้ไม่ได้`
+  }
+  return null
+}
+// ตรวจฟอร์มค่าใช้จ่ายก่อนอัปโหลดรูป (ไม่เขียนข้อมูล) · คืนข้อความ error หรือ null
+export function precheckManual(form, id = null) {
+  const g = guard()
+  if (g) return g.error
+  const r = buildManualEntry(form)
+  if (r.error) return r.error
+  return entryError(r.entry, id)
+}
+function commit(entry, id, prefix) {
+  const err = entryError(entry, id)
+  if (err) return { error: err }
+  if (id) {
+    const cur = A().entries.find((e) => e.id === id)
     if (entry.tax?.length) cur.tax = entry.tax
     else delete cur.tax
     Object.assign(cur, { date: entry.date, memo: entry.memo, lines: entry.lines, source: entry.source, updatedAt: new Date().toISOString(), updatedBy: session.userId })

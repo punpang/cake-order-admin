@@ -2,13 +2,13 @@
 import MoneyInput from '../../components/MoneyInput.vue'
 import { computed, reactive, ref } from 'vue'
 import { db, can } from '../../data/store'
-import { saveManual, saveJournal, deleteManual, reverseEntry, settleEntry, activeAccounts, locked } from '../../data/acct'
+import { saveManual, precheckManual, saveJournal, deleteManual, reverseEntry, settleEntry, activeAccounts, locked } from '../../data/acct'
 import { buildManualEntry, SETTLE } from '../../lib/acct/manual'
 import { parseReceipt, receiptFill } from '../../lib/receiptOcr'
 import { readReceiptText } from '../../lib/receiptOcrRunner'
 import { resizeImage, imageErrorMessage } from '../../lib/imageResize'
 import { entrySums } from '../../lib/acct/journal'
-import { resolveReceiptRefs } from '../../lib/acct/receiptRefs'
+import { saveWithReceipts } from '../../lib/acct/receiptRefs'
 import { filesEnabled, uploadPrivateImage } from '../../lib/storage'
 import { supabaseEnabled, getSupabase } from '../../lib/supabase'
 import { askConfirm } from '../../lib/confirm'
@@ -82,14 +82,20 @@ async function save() {
   uploading.value = true
   error.value = ''
   try {
-    let attachments = f.attachments
+    let uploader = (src) => src
     if (supabaseEnabled && filesEnabled() && f.attachments.some((a) => String(a).startsWith('data:'))) {
       const c = await getSupabase()
       if (!c) throw new Error('no-client')
       const prefix = 'acct/' + String(f.date || '').slice(0, 7)
-      attachments = await resolveReceiptRefs(f.attachments, (src) => uploadPrivateImage(c, src, prefix))
+      uploader = (src) => uploadPrivateImage(c, src, prefix)
     }
-    const r = saveManual({ ...f, amount: Number(f.amount), attachments }, editId.value)
+    const form = { ...f, amount: Number(f.amount) }
+    const r = await saveWithReceipts({
+      form,
+      precheck: (x) => precheckManual(x, editId.value),
+      uploader,
+      save: (x) => saveManual(x, editId.value),
+    })
     if (r.error) return (error.value = r.error)
     open.value = false
   } catch {
