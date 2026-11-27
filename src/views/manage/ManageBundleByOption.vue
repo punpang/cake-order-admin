@@ -139,7 +139,7 @@ function createNew() {
             {{ statusText(r.usage).text }}<span v-if="r.usage.conflicts.length">: {{ r.usage.conflicts.map((c) => c.name).join(', ') }}</span>
           </p>
           <div v-for="row in r.rows" :key="cellKey(row.typeId, row.sizeId)" class="flex items-center justify-between gap-2 text-sm">
-            <span class="text-stone-600">{{ row.typeName ? `${row.typeName} · ` : '' }}{{ row.sizeName }} · ราคาปกติ {{ bahtText(row.regular) }}</span>
+            <span class="text-stone-600">{{ row.typeName ? `${row.typeName} · ` : '' }}{{ row.sizeName }} · ราคาปกติ {{ bahtText(row.regular) }} · หลังหักส่วนลด {{ bahtText(row.after) }}</span>
             <input type="number" inputmode="numeric" min="0" class="input h-9 w-24 text-right" :value="edits[r.b.id]?.[cellKey(row.typeId, row.sizeId)] ?? row.amount" :data-row="`${r.b.id}|${cellKey(row.typeId, row.sizeId)}`" :aria-label="`ส่วนลด ${r.b.name} ${row.typeName} ${row.sizeName}`" @input="setEdit(r.b.id, cellKey(row.typeId, row.sizeId), $event.target.value)" />
           </div>
         </div>
@@ -159,7 +159,7 @@ function createNew() {
         </div>
         <div v-if="draftItems.length >= 2" class="space-y-2">
           <div v-for="row in draftRows" :key="cellKey(row.typeId, row.sizeId)" class="flex items-center justify-between gap-2 text-sm">
-            <span class="text-stone-600">{{ row.typeName ? `${row.typeName} · ` : '' }}{{ row.sizeName }} · ราคาปกติ {{ bahtText(row.regular) }}</span>
+            <span class="text-stone-600">{{ row.typeName ? `${row.typeName} · ` : '' }}{{ row.sizeName }} · ราคาปกติ {{ bahtText(row.regular) }} · หลังหักส่วนลด {{ bahtText(row.after) }}</span>
             <input type="number" inputmode="numeric" min="0" class="input h-9 w-24 text-right" :value="newDiscount[cellKey(row.typeId, row.sizeId)] ?? ''" :aria-label="`ส่วนลดชุดใหม่ ${row.typeName} ${row.sizeName}`" @input="newDiscount = { ...newDiscount, [cellKey(row.typeId, row.sizeId)]: $event.target.value }" />
           </div>
           <button type="button" class="btn-primary h-10 px-4 text-sm" data-create @click="createNew">สร้างชุด</button>
