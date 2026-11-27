@@ -25,7 +25,7 @@ function flip() {
 
 <template>
   <div class="member-card-wrap">
-    <button type="button" class="member-card" :aria-pressed="flipped" :aria-label="flipped ? 'แสดงด้านหน้าการ์ดสมาชิก' : 'พลิกการ์ดเพื่อแสดงบาร์โค้ดสมาชิก'" @click="flip">
+    <button type="button" class="member-card" :aria-pressed="flipped" aria-label="การ์ดสมาชิก แตะเพื่อพลิก" @click="flip">
       <div class="member-card-inner" :class="{ 'is-flipped': flipped }">
         <!-- ด้านหน้า -->
         <div class="member-face member-front">
