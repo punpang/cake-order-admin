@@ -47,6 +47,7 @@ import { ordersOnDay, capState, capFullMsg, capDayKey } from '../lib/orderCap'
 import { dailySummaryVars } from '../lib/dailySummary'
 import { marketingAllowed, promoConsentPatch } from '../lib/promoConsent'
 import { uploadChatImage } from '../lib/chatImage'
+import { telHash } from '../lib/legacyPoints'
 import { billerIdOf, newQrSuffix, promptPayBillerPayload, qrRefOk, shopRefOfCode } from '../lib/promptpay'
 import { gateOf, gateBlocks, GATE_MESSAGE } from '../lib/orderGate'
 import { orderNo } from '../lib/format'
@@ -2106,6 +2107,15 @@ export async function legacyMigrateRemote(customerId, oldPoints) {
   const r = await pointsHook.call('punpang_legacy_migrate', { p_customer: customerId, p_old_points: n }, { customer: customerId })
   if (r.error) return { error: LEGACY_ERR[r.error] || r.error }
   return { ok: true, points: r.points, level: r.level }
+}
+// ค้นหาคะแนนเก่าด้วยเบอร์ (ค้นหาอย่างเดียว ไม่ย้าย) · คืน { points } หรือ null
+export async function legacyLookupRemote(tel) {
+  if (!pointsHook.call || !can('adjustPoints')) return null
+  const h = await telHash(tel)
+  if (!h) return null
+  const r = await pointsHook.call('punpang_legacy_lookup', { p_tel_hash: h })
+  const n = Number(r?.points)
+  return !r?.error && Number.isFinite(n) && n > 0 ? { points: Math.floor(n) } : null
 }
 
 export function removePoints(order) {
