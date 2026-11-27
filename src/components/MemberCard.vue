@@ -3,7 +3,7 @@
 import { computed, ref } from 'vue'
 import CouponBarcode from './CouponBarcode.vue'
 import { memberCardView } from '../lib/memberCard'
-import { num } from '../lib/format'
+import { num, money } from '../lib/format'
 
 const props = defineProps({
   me: { type: Object, required: true },
@@ -47,11 +47,23 @@ function flip() {
             <div class="flex items-end justify-between gap-2">
               <span class="text-lg font-semibold tracking-wide">{{ view.phone }}</span>
             </div>
-            <div v-if="view.levelName" class="mt-2">
-              <div class="h-1.5 w-full overflow-hidden rounded-full bg-white/25" role="progressbar" :aria-valuenow="view.validPct" aria-valuemin="0" aria-valuemax="100" aria-label="วันที่เหลือของสิทธิระดับ">
-                <div class="h-full rounded-full bg-white" :style="{ width: view.validPct + '%' }" />
+            <div v-if="view.levelName" class="mt-2 space-y-2">
+              <div>
+                <div class="flex justify-between text-[11px] opacity-80">
+                  <span>ยอดสะสม {{ money(view.progress.cum) }}</span>
+                  <span v-if="view.progress.top">ระดับสูงสุดแล้ว</span>
+                  <span v-else>เหลือ {{ money(view.progress.remaining) }} ได้เลื่อนเป็น {{ view.progress.nextName }}</span>
+                </div>
+                <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/25" role="progressbar" :aria-valuenow="view.progress.pct" aria-valuemin="0" aria-valuemax="100" aria-label="ความคืบหน้ายอดสะสมไประดับถัดไป">
+                  <div class="h-full rounded-full bg-white" :style="{ width: view.progress.pct + '%' }" />
+                </div>
               </div>
-              <div class="mt-1 text-[11px] opacity-80">{{ view.line }}</div>
+              <div>
+                <div class="text-[11px] opacity-80">{{ view.line }}</div>
+                <div class="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/20" role="progressbar" :aria-valuenow="view.validPct" aria-valuemin="0" aria-valuemax="100" aria-label="วันที่เหลือของสิทธิระดับ">
+                  <div class="h-full rounded-full bg-white/80" :style="{ width: view.validPct + '%' }" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -73,17 +85,17 @@ function flip() {
 .member-card-wrap { width: 100%; perspective: 1200px; }
 .member-card {
   display: block; width: 100%; border: 0; padding: 0; background: transparent; cursor: pointer;
-  aspect-ratio: 1.586 / 1; border-radius: 20px;
+  border-radius: 20px; min-height: 13.5rem;
 }
 .member-card:focus-visible { outline: 3px solid #c2413f; outline-offset: 3px; }
 .member-card-inner {
-  position: relative; width: 100%; height: 100%;
+  display: grid; width: 100%; height: 100%;
   transition: transform 0.6s; transform-style: preserve-3d;
 }
 .member-card-inner.is-flipped { transform: rotateY(180deg); }
 .member-face {
-  position: absolute; inset: 0; border-radius: 20px; padding: 18px 20px;
-  display: flex; flex-direction: column; justify-content: space-between;
+  grid-area: 1 / 1; border-radius: 20px; padding: 18px 20px;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 14px;
   backface-visibility: hidden; -webkit-backface-visibility: hidden; text-align: left;
   box-shadow: 0 10px 30px rgba(120, 30, 30, 0.25);
 }
