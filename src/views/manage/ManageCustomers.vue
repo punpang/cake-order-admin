@@ -6,7 +6,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { customerScale, CUSTOMER_WARN_AT, CUSTOMER_PAGE } from '../../lib/customersSync'
 import { resolveMemberScan } from '../../lib/scan'
 import NotifyChannelPicker from '../../components/NotifyChannelPicker.vue'
-import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, ensureOrders, ensureOrderCounts, orderCounts, loadMoreCustomers, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, convertPointsRemote, can, adminResetCustomerPin, remoteCustomerSearch, legacyMigrateRemote, legacyLookupRemote } from '../../data/store'
+import { db, saveCustomer, setCustomerNotifyChannel, customerOrderCount, ensureOrders, ensureOrderCounts, orderCounts, loadMoreCustomers, birthdayList, savePlace, removePlace, placeFirst, findCustomer, customerPoints, adjustPointsRemote, convertPointsRemote, can, adminResetCustomerPin, remoteCustomerSearch, legacyMigrateRemote } from '../../data/store'
 import { isPin } from '../../lib/customerAuth'
 import { askConfirm } from '../../lib/confirm'
 import { topLevelOf, legacyPointsOf, legacySpendOf } from '../../lib/legacyMigrate'
@@ -95,19 +95,6 @@ async function saveLegacy() {
   const r = await legacyMigrateRemote(form.id, Number(leg.old))
   if (r.error) return (leg.error = r.error)
   leg.open = false
-  legFound.value = null
-}
-// ลูกค้าที่เบอร์ตรงกับคะแนนเก่า: แสดงกล่องแจ้งให้พนักงานกดย้ายเอง (ไม่ย้ายอัตโนมัติ)
-const legFound = ref(null)
-watch(() => [form.id, form.phone], async ([id, phone]) => {
-  legFound.value = null
-  if (!id || !phone) return
-  const r = await legacyLookupRemote(phone)
-  if (r && form.id === id) legFound.value = r
-}, { immediate: false })
-function openLegacyFound() {
-  openLegacy()
-  leg.old = String(legFound.value?.points ?? '')
 }
 function openAdj() {
   Object.assign(adj, { open: true, sign: 1, amount: '', reason: '', error: '' })
@@ -252,17 +239,12 @@ async function save() {
           </div>
           <p v-if="pinMsg" class="mt-2 text-sm" :class="pinMsg === 'ตั้ง PIN ใหม่แล้ว' ? 'text-success-700' : 'text-danger-700'" role="status">{{ pinMsg }}</p>
         </div>
-        <div v-if="legFound && can('adjustPoints')" class="rounded-xl border border-brand-200 bg-brand-50/50 p-3 text-sm">
-          <p class="text-stone-700">พบคะแนนเดิมของลูกค้าเบอร์นี้ <b>{{ intFmt(legFound.points) }}</b> แต้ม (ยังไม่ได้ย้าย)</p>
-          <button type="button" class="btn-primary mt-2 h-9" @click="openLegacyFound">ย้ายคะแนนเดิม</button>
-        </div>
         <div v-if="form.id && live" class="rounded-xl border border-stone-200/70 p-3">
           <div class="flex items-center justify-between gap-2">
             <div><div class="text-xs text-stone-500">คะแนนคงเหลือ</div><div class="text-xl font-semibold text-stone-900" aria-label="คะแนนคงเหลือ">{{ balance }}</div></div>
             <div class="flex flex-wrap justify-end gap-2">
               <button v-if="can('adjustPoints') && balance > 0" type="button" class="btn-soft h-9" @click="convertPoints">แปลงเป็นคูปอง</button>
               <button v-if="can('adjustPoints')" type="button" class="btn-soft h-9" @click="openAdj">ปรับคะแนน</button>
-              <button v-if="can('adjustPoints')" type="button" class="btn-soft h-9" @click="openLegacy">ย้ายจากระบบเดิม</button>
             </div>
           </div>
           <p v-if="conv.error" class="mt-2 text-sm text-danger-700" role="alert">{{ conv.error }}</p>
