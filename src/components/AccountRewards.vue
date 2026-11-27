@@ -244,8 +244,11 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
         >{{ t.l }}</button>
       </div>
 
-      <div v-if="celebrate" :key="celebrate.key" class="redeem-burst mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-brand-500 text-white" aria-hidden="true">
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+      <!-- อนิเมชันแลกสำเร็จ: ชั้นทับกลางจอ ให้เห็นแม้หน้าจอเลื่อนอยู่ตำแหน่งอื่น · ไม่รับการแตะ -->
+      <div v-if="celebrate" :key="celebrate.key" class="redeem-overlay pointer-events-none fixed inset-0 z-50 flex items-center justify-center" aria-hidden="true">
+        <div class="redeem-burst flex h-20 w-20 items-center justify-center rounded-full bg-brand-500 text-white shadow-lg">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+        </div>
       </div>
       <p v-if="msg" class="mb-3 rounded-xl bg-brand-50 p-3 text-sm text-brand-800" :class="celebrate ? 'redeem-msg' : ''">{{ msg }}</p>
 
@@ -364,7 +367,9 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
 
 <style scoped>
 /* อนิเมชันตอนแลกสำเร็จ: ไอคอนเด้งขึ้น + วงแหวนกระจาย + ข้อความค่อยปรากฏ · ปิดเมื่อผู้ใช้ตั้ง reduce motion */
+.redeem-overlay { background: rgb(255 255 255 / 0.5); animation: redeem-fade-in 0.2s ease-out both; }
 .redeem-burst { position: relative; animation: redeem-pop 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+@keyframes redeem-fade-in { from { opacity: 0; } to { opacity: 1; } }
 .redeem-burst::after {
   content: ''; position: absolute; inset: -6px; border-radius: 9999px;
   border: 3px solid #d6486a; opacity: 0; animation: redeem-ring 0.9s ease-out 0.1s both;
@@ -384,7 +389,7 @@ const history = computed(() => (me.value?.ledger || []).slice().reverse())
   to { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .redeem-burst, .redeem-burst::after, .redeem-msg { animation: none; }
+  .redeem-overlay, .redeem-burst, .redeem-burst::after, .redeem-msg { animation: none; }
   .redeem-burst::after { display: none; }
 }
 </style>
