@@ -23,6 +23,16 @@ try {
     injectBundle(db, { customer: { id: 'c1', name: 'a' }, tier: { enabled: true, levelName: 'LV3' } })
     assert.equal(db.memberCard.levelName, 'LV3')
   })
+  t('ตอบกลับที่มีอัตราแลกของร้าน ตั้งมูลค่าต่อคะแนนตามฐานข้อมูล', () => {
+    const db = { ...fresh(), loyalty: { pointValue: 1 } }
+    injectBundle(db, { customer: { id: 'c1', name: 'a' }, loyalty: { pointValue: 0.1 } })
+    assert.equal(db.loyalty.pointValue, 0.1)
+  })
+  t('ตอบกลับที่ไม่มีอัตราแลก (เช่น สร้างคูปอง) ไม่เปลี่ยนมูลค่าต่อคะแนนเดิม', () => {
+    const db = { ...fresh(), loyalty: { pointValue: 0.1 } }
+    injectBundle(db, { customer: { id: 'c1', name: 'a' }, loyalty: null })
+    assert.equal(db.loyalty.pointValue, 0.1)
+  })
   t('ตอบกลับที่มี tier ปิด (enabled false) ล้างการ์ด', () => {
     const db = fresh()
     injectBundle(db, { customer: { id: 'c1', name: 'a' }, tier: { enabled: false } })

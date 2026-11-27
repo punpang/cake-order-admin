@@ -47,6 +47,7 @@ export function injectBundle(db, b) {
   for (const c of b.consents || []) put(db.consents, c)
   for (const c of b.reviews || []) put(db.reviews, c)
   for (const c of b.deletionRequests || []) put(db.deletionRequests, c)
+  if (Number(b.loyalty?.pointValue) > 0) db.loyalty.pointValue = Number(b.loyalty.pointValue) // อัตราแลกของร้าน (ตรงกับฐานข้อมูล)
   if ('tier' in b) db.memberCard = b.tier?.enabled === true ? b.tier : null // ระดับสมาชิก (เซิร์ฟเวอร์เปิดให้เฉพาะโหมดใช้จริง) · ตอบกลับที่ไม่มี tier ไม่ล้างการ์ดเดิม
   return b.customer.id
 }
