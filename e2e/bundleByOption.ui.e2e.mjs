@@ -66,12 +66,13 @@ t('สร้างชุดข้ามตัวเลือกหลายต�
   assert.ok(plan, 'ต้องมีกลุ่มตัวเลือก 3 ตัวที่ยังไม่มีชุดอยู่')
   await page.getByRole('button', { name: plan.base, exact: true }).click()
   for (const name of plan.others) await page.getByRole('checkbox', { name, exact: true }).check()
-  await page.getByRole('spinbutton', { name: /ส่วนลดชุดใหม่/ }).first().fill('55')
+  for (const el of await page.getByRole('spinbutton', { name: /ส่วนลดชุดใหม่/ }).all()) await el.fill('55')
   await page.getByRole('button', { name: 'สร้างชุด' }).click()
   await page.waitForFunction((n) => window.__store.db.bundles.length === n + 1, plan.n, { timeout: 10000 })
   const made = await page.evaluate(() => window.__store.db.bundles.at(-1))
   assert.equal(made.items.length, 3)
-  assert.equal(Number(made.discount[plan.sizeId]), 55)
+  const stored = [made.discount?.[plan.sizeId], ...Object.values(made.typeDiscount || {}).map((r) => r?.[plan.sizeId])].filter((v) => v != null)
+  assert.ok(stored.length > 0 && stored.every((v) => Number(v) === 55), 'ส่วนลดต้องถูกบันทึกเป็น 55 ในทุกช่องที่กรอก')
   assert.deepEqual(errors, [])
   await page.close()
 })
@@ -90,11 +91,49 @@ t('แก้ส่วนลดของชุดเดิมในหน้า�
   assert.ok(target, 'ต้องมีชุดตัวเลือกท็อปปิ้งอย่างน้อยหนึ่งชุด')
   await page.getByRole('button', { name: target.name, exact: true }).click()
   const card = page.locator(`[data-bundle="${target.id}"]`)
-  await card.locator('input[type=number]').first().fill('12')
+  const first = card.locator('input[type=number]').first()
+  const row = (await first.getAttribute('data-row')).split('|')
+  const [, typeId, sizeId] = row
+  await first.fill('12')
   await page.getByRole('button', { name: 'บันทึกส่วนลด' }).click()
   await page.waitForFunction((id) => window.__store.db.bundles.find((x) => x.id === id)?.discount && true, target.id, { timeout: 10000 })
-  const amt = await page.evaluate((args) => window.__store.db.bundles.find((x) => x.id === args.id).discount[args.sizeId], target)
+  const amt = await page.evaluate((a) => {
+    const b = window.__store.db.bundles.find((x) => x.id === a.id)
+    return a.typeId ? b.typeDiscount?.[a.typeId]?.[a.sizeId] : b.discount?.[a.sizeId]
+  }, { id: target.id, typeId: typeId || null, sizeId })
   assert.equal(Number(amt), 12)
+  assert.deepEqual(errors, [])
+  await page.close()
+})
+
+
+t('ราคาปกติของการ์ดคิดตามประเภทที่ตัวเลือกใช้ได้ (ไม่ใช้ราคาทุกประเภท)', async () => {
+  const { page, errors } = await open({ width: 1280, height: 800 })
+  await page.getByRole('button', { name: 'On top / ท็อปปิ้ง' }).click()
+  const setup = await page.evaluate(async () => {
+    const S = window.__store
+    const sizeId = S.db.optionGroups.find((x) => x.key === 'size').options.find((o) => o.active !== false).id
+    const types = S.db.optionGroups.find((x) => x.key === 'type').options.filter((o) => o.active !== false)
+    if (types.length < 2) return null
+    const g = S.db.optionGroups.find((x) => x.id === 'g_topping')
+    const opts = g.options.filter((o) => o.active !== false)
+    if (opts.length < 2) return null
+    const [ta, tb] = types
+    // ตัวเลือก A: 150 ทุกประเภท แต่ 60 ในประเภท ta/tb และใช้ได้เฉพาะสองประเภทนี้ · ตัวเลือก B: 80 ทุกประเภท
+    Object.assign(opts[0], { priceType: 'size', types: [ta.id, tb.id], sizePrices: { [sizeId]: 150 }, typePrices: { [ta.id]: { [sizeId]: 60 }, [tb.id]: { [sizeId]: 60 } } })
+    Object.assign(opts[1], { priceType: 'size', types: [], sizePrices: { [sizeId]: 80 } })
+    const key = [opts[0], opts[1]].map((o) => `g_topping:${o.id}`).sort().join('|')
+    S.db.bundles.splice(0, S.db.bundles.length, ...S.db.bundles.filter((b) => (b.items || []).map((i) => `${i.groupId}:${i.optionId}`).sort().join('|') !== key))
+    S.saveBundle({ name: 'ทดสอบประเภท', items: [opts[0], opts[1]].map((o) => ({ groupId: 'g_topping', optionId: o.id })), discount: { [sizeId]: 30 }, types: [], typeDiscount: {}, styleDiscount: {}, styleMode: {}, active: true, pct: null, typePct: {} })
+    return { name: opts[0].name, names: [ta.name, tb.name] }
+  })
+  assert.ok(setup, 'ต้องมีประเภทอย่างน้อย 2 และตัวเลือกท็อปปิ้งอย่างน้อย 2')
+  await page.getByRole('button', { name: setup.name, exact: true }).click()
+  const card = page.locator('[data-bundle]', { hasText: 'ทดสอบประเภท' })
+  await card.waitFor({ timeout: 5000 })
+  const text = await card.innerText()
+  assert.ok(text.includes(`${setup.names[0]} · `) && text.includes('ราคาปกติ 140'), 'ต้องแสดงราคาปกติ 140 ในประเภทที่ตัวเลือกใช้ได้')
+  assert.ok(!text.includes('ราคาปกติ 230'), 'ต้องไม่แสดงราคาทุกประเภทที่ไม่ตรงกับลูกค้า')
   assert.deepEqual(errors, [])
   await page.close()
 })

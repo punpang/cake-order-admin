@@ -1,6 +1,6 @@
 // ทดสอบหน้าบันเดิ้ลแบบเลือกตัวเลือกหนึ่งตัว · รัน: node src/lib/bundleByOption.test.mjs
 import assert from 'node:assert/strict'
-import { bundlesWithOption, conflictsOf, usageOf, discountRows, setSizeDiscount, createBundleDraft } from './bundleByOption.js'
+import { bundlesWithOption, conflictsOf, usageOf, discountRows, setSizeDiscount, setDiscountAt, applicableTypes, createBundleDraft } from './bundleByOption.js'
 
 let fail = 0
 const t = (name, fn) => {
@@ -51,9 +51,38 @@ t('usageOf: ชุดที่ปิดอยู่หรือไม่มี�
   assert.equal(usageOf(b2, all, sizes).status, 'skipped')
 })
 
-t('discountRows: ราคาปกติรวมตามตัวเลือกจริง และส่วนลดของแต่ละขนาด', () => {
-  const rows = discountRows(b1, groups, sizes)
-  assert.deepEqual(rows, [{ sizeId: 's1', sizeName: '1 ปอนด์', regular: 100, amount: 100 }])
+t('discountRows: ประเภทว่าง = ราคาทุกประเภท และส่วนลดของแต่ละขนาด', () => {
+  const rows = discountRows(b1, groups, sizes, [])
+  assert.deepEqual(rows, [{ typeId: null, typeName: '', sizeId: 's1', sizeName: '1 ปอนด์', regular: 100, amount: 100 }])
+})
+
+// กรณีจากภาพ: ผลไม้รวม ราคา 150 ทุกประเภท แต่ 60 ในสองประเภทที่ตัวเลือกนี้ใช้ได้ → ราคาปกติของชุดต้องเป็น 140 ไม่ใช่ 230
+const TA = { id: 'tA', name: 'เค้กครีมนมสด', active: true }
+const TB = { id: 'tB', name: 'เค้กหน้านิ่ม', active: true }
+const TC = { id: 'tC', name: 'เค้กอื่น', active: true }
+const typeGroups = [{ id: G, name: 'กลาง', key: 'flavor', active: true, options: [
+  { id: 'fruit', name: 'ผลไม้รวม', active: true, priceType: 'size', types: ['tA', 'tB'], sizePrices: { s1: 150 }, typePrices: { tA: { s1: 60 }, tB: { s1: 60 } } },
+  { id: 'jam', name: 'แยม', active: true, priceType: 'size', types: [], sizePrices: { s1: 80 } },
+] }]
+const fruitJam = mk('fj', [{ groupId: G, optionId: 'fruit' }, { groupId: G, optionId: 'jam' }], 0)
+const allTypes = [TA, TB, TC]
+
+t('applicableTypes: ชุดใช้ได้เฉพาะประเภทที่ทุกตัวเลือกในชุดใช้ได้', () => {
+  assert.deepEqual(applicableTypes(fruitJam, typeGroups, allTypes), ['tA', 'tB'])
+  assert.deepEqual(applicableTypes({ ...fruitJam, types: ['tC'] }, typeGroups, allTypes), [])
+})
+
+t('discountRows: แยกแถวต่อประเภท ราคาปกติ 140 ในสองประเภท (ไม่ใช่ 230)', () => {
+  const rows = discountRows({ ...fruitJam, discount: { s1: 30 } }, typeGroups, [{ id: 's1', name: '1 ปอนด์' }], allTypes)
+  assert.deepEqual(rows.map((r) => [r.typeId, r.regular, r.amount]), [['tA', 140, 30], ['tB', 140, 30]])
+  assert.equal(rows[0].typeName, 'เค้กครีมนมสด')
+})
+
+t('setDiscountAt: แถวประเภทเขียนลง typeDiscount ของประเภทนั้น ไม่แตะค่าทุกประเภท', () => {
+  const r = setDiscountAt({ ...fruitJam, discount: { s1: 30 } }, 'tA', 's1', 45)
+  assert.deepEqual(r.typeDiscount, { tA: { s1: 45 } })
+  assert.equal(r.discount.s1, 30)
+  assert.equal(setDiscountAt(r, 'tA', 's1', null).typeDiscount.tA.s1, undefined)
 })
 
 t('setSizeDiscount: คืนชุดใหม่ ไม่แก้ต้นฉบับ และว่างคือลบค่า', () => {
@@ -61,6 +90,7 @@ t('setSizeDiscount: คืนชุดใหม่ ไม่แก้ต้น�
   assert.equal(r.discount.s1, 70)
   assert.equal(b1.discount.s1, 100)
   assert.equal(setSizeDiscount(b1, 's1', null).discount.s1, undefined)
+  assert.equal(setSizeDiscount(b1, 's1', 70).discount.s1, 70)
 })
 
 t('createBundleDraft: ชื่ออัตโนมัติและรายการตัวเลือกข้ามกลุ่มรองได้', () => {
