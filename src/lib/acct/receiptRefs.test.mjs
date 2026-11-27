@@ -1,7 +1,7 @@
 // ทดสอบการแปลงรูปแนบของรายการบัญชีเป็นอ้างอิง R2: รูป data: ถูกอัปโหลด · รูปอ้างอิงเดิมไม่ถูกอัปโหลดซ้ำ · error ต้องโยนต่อ
 // รัน: node src/lib/acct/receiptRefs.test.mjs
 import assert from 'node:assert/strict'
-import { resolveReceiptRefs } from './receiptRefs.js'
+import { resolveReceiptRefs, saveWithReceipts } from './receiptRefs.js'
 
 let fail = 0
 const t = async (name, fn) => {
@@ -42,6 +42,34 @@ await t('ถ้าอัปโหลดล้มเหลว error ถูกโ�
 await t('ไม่มีรูปแนบ คืนอาร์เรย์ว่าง', async () => {
   assert.deepEqual(await resolveReceiptRefs([], fakeUploader().fn), [])
   assert.deepEqual(await resolveReceiptRefs(undefined, fakeUploader().fn), [])
+})
+
+await t('ตรวจไม่ผ่าน: ไม่อัปโหลดรูปและไม่บันทึก', async () => {
+  const u = fakeUploader()
+  let saved = false
+  const r = await saveWithReceipts({
+    form: { amount: 0, attachments: ['data:image/jpeg;base64,AAA'] },
+    precheck: () => 'จำนวนเงินไม่ถูกต้อง',
+    uploader: u.fn,
+    save: async () => { saved = true; return { ok: true } },
+  })
+  assert.deepEqual(r, { error: 'จำนวนเงินไม่ถูกต้อง' })
+  assert.equal(u.calls.length, 0)
+  assert.equal(saved, false)
+})
+
+await t('ตรวจผ่าน: อัปโหลดรูปแล้วบันทึกด้วยอ้างอิง', async () => {
+  const u = fakeUploader()
+  let got = null
+  const r = await saveWithReceipts({
+    form: { amount: 42, attachments: ['data:image/jpeg;base64,AAA', 'r2://private/acct/old.jpg'] },
+    precheck: () => null,
+    uploader: u.fn,
+    save: async (f) => { got = f; return { ok: true } },
+  })
+  assert.deepEqual(r, { ok: true })
+  assert.equal(u.calls.length, 1)
+  assert.deepEqual(got.attachments, ['r2://private/acct/2026-11/1.jpg', 'r2://private/acct/old.jpg'])
 })
 
 console.log(fail ? `ล้มเหลว ${fail} รายการ` : 'ผ่านทั้งหมด')
