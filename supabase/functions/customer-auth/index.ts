@@ -105,11 +105,14 @@ Deno.serve(corsWrap(async (req) => {
       if (!t.error && t.data && typeof t.data === 'object') {
         const d = t.data as Record<string, unknown>
         if (d.enabled === true) {
-          tier = { enabled: true, levelNo: d.levelNo, levelName: d.levelName, mult: d.mult, status: d.status, golden: d.golden, renewAt: d.renewAt, activeUntil: d.activeUntil, downgradeAt: d.downgradeAt, ...(d.birth ? { birth: d.birth } : {}) }
+          tier = { enabled: true, levelNo: d.levelNo, levelName: d.levelName, mult: d.mult, status: d.status, golden: d.golden, renewAt: d.renewAt, activeUntil: d.activeUntil, downgradeAt: d.downgradeAt, cum: d.cum, nextMin: d.nextMin, nextName: d.nextName, nextMult: d.nextMult, ...(d.birth ? { birth: d.birth } : {}) }
         }
       }
     } catch (_e) { /* ระดับเป็นส่วนเสริม */ }
-    return { customer, orders, coupons: (cp.data || []).map(rec), consents: (cs.data || []).map(rec), reviews: (rv.data || []).map(rec), deletionRequests: (dr.data || []).map(rec), tier, shop: { payment: publicPaymentOf(sh.data?.data?.v) } }
+    // อัตราแลกคะแนนของร้าน (มูลค่าต่อ 1 คะแนน) ให้หน้าลูกค้าคำนวณคะแนนที่ใช้ตรงกับฐานข้อมูล
+    const lc = await sb.from('punpang_kv').select('data').eq('collection', 'config').eq('id', 'loyalty').maybeSingle()
+    const pv = Number(lc.data?.data?.v?.pointValue)
+    return { customer, orders, coupons: (cp.data || []).map(rec), consents: (cs.data || []).map(rec), reviews: (rv.data || []).map(rec), deletionRequests: (dr.data || []).map(rec), tier, loyalty: pv > 0 ? { pointValue: pv } : null, shop: { payment: publicPaymentOf(sh.data?.data?.v) } }
   }
   async function newSession(customerId: string) {
     const token = randHex(32)
