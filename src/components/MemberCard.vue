@@ -50,9 +50,9 @@ function flip() {
             <div v-if="view.levelName" class="mt-2 space-y-2">
               <div>
                 <div class="flex justify-between text-[11px] opacity-80">
-                  <span>อีกเท่าไหร่จะเลื่อนขั้น</span>
+                  <span>ระดับถัดไปอีก</span>
                   <span v-if="view.progress.top">ระดับสูงสุดแล้ว</span>
-                  <span v-else>เหลือ {{ money(view.progress.remaining) }} ได้เลื่อนเป็น {{ view.progress.nextName }}</span>
+                  <span v-else>{{ money(view.progress.remaining) }} · {{ view.progress.nextName }}</span>
                 </div>
                 <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/25" role="progressbar" :aria-valuenow="view.progress.pct" aria-valuemin="0" aria-valuemax="100" aria-label="ความคืบหน้ายอดสะสมไประดับถัดไป">
                   <div class="h-full rounded-full bg-white" :style="{ width: view.progress.pct + '%' }" />
