@@ -72,6 +72,51 @@ t('กรอกช่องว่างแล้วบันทึก → สร
   await page.close()
 })
 
+
+t('ราคาแนะนำ: ช่องว่างของคู่ที่ราคารวมเท่ากับคู่ที่ตั้งส่วนลดไว้ → กด "รับ" แล้วค่าลงช่อง (เดสก์ท็อป)', async () => {
+  const { page, errors } = await openGrid({ width: 1280, height: 800 })
+  await page.getByRole('button', { name: 'On top / ท็อปปิ้ง' }).click()
+  // เตรียมข้อมูลจำลองในหน่วยความจำ: ตัวเลือก 4 ตัวราคาเท่ากัน, ชุด [1,2] และ [3,4] ลด 30 · คู่ [1,3] ยังว่าง
+  const setup = await page.evaluate(async () => {
+    const S = window.__store
+    const sizeId = S.db.optionGroups.find((x) => x.key === 'size').options.find((o) => o.active !== false).id
+    const g = S.db.optionGroups.find((x) => x.id === 'g_topping')
+    const o = g.options.filter((x) => x.active !== false).slice(0, 4)
+    if (o.length < 4) return null
+    for (const x of o) { x.priceType = 'size'; x.sizePrices = { ...(x.sizePrices || {}), [sizeId]: 20 } }
+    const item = (x) => ({ groupId: 'g_topping', optionId: x.id })
+    const key = (items) => items.map((i) => `${i.groupId}:${i.optionId}`).sort().join('|')
+    // ลบชุดเดิมของคู่ [1,3] ถ้ามี เพื่อให้ช่องนั้นว่าง
+    const target = [item(o[0]), item(o[2])]
+    S.db.bundles.splice(0, S.db.bundles.length, ...S.db.bundles.filter((b) => key(b.items || []) !== key(target)))
+    for (const pair of [[o[0], o[1]], [o[2], o[3]]]) {
+      S.saveBundle({ name: 'ทดสอบ', items: pair.map(item), discount: { [sizeId]: 30 }, types: [], typeDiscount: {}, styleDiscount: {}, styleMode: {}, active: true, pct: null, typePct: {} })
+    }
+    return { sizeId, pk: key(target) }
+  })
+  assert.ok(setup, 'ต้องมีตัวเลือกท็อปปิ้งอย่างน้อย 4 ตัว')
+  const row = page.locator(`[data-pair="${setup.pk}"]`)
+  await row.getByRole('button', { name: /รับ 30 ฿/ }).waitFor({ timeout: 5000 })
+  await row.getByRole('button', { name: /รับ 30 ฿/ }).click()
+  assert.equal(await row.locator('input[type=number]').inputValue(), '30')
+  assert.equal(await page.getByRole('button', { name: 'บันทึกทั้งหมด' }).isEnabled(), true)
+  assert.deepEqual(errors, [])
+  await page.close()
+})
+
+for (const vp of [{ width: 1024, height: 768 }, { width: 900, height: 800 }]) {
+  t(`หน้าจอแคบ ${vp.width}px: ตารางไม่ล้นแนวนอน และปุ่มบันทึกอยู่ในจอแนวนอน`, async () => {
+    const { page, errors } = await openGrid(vp)
+    await page.getByRole('button', { name: 'On top / ท็อปปิ้ง' }).click()
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    assert.ok(overflow <= 0, `หน้าล้นแนวนอน ${overflow}px`)
+    const bar = await page.getByRole('button', { name: 'บันทึกทั้งหมด' }).boundingBox()
+    assert.ok(bar && bar.x >= 0 && bar.x + bar.width <= vp.width + 1, 'ปุ่มบันทึกอยู่นอกจอแนวนอน')
+    assert.deepEqual(errors, [])
+    await page.close()
+  })
+}
+
 let ok = 0
 for (const [name, fn] of cases) {
   try {
