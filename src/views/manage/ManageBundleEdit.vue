@@ -34,6 +34,8 @@ const scope = ref('all') // 'all' = ทุกประเภท · อย่า�
 const itemQ = ref('')
 const fillAmount = ref('')
 const fillPct = ref('')
+// ชื่อยังเป็นชื่ออัตโนมัติจนกว่าจะพิมพ์เอง · เปลี่ยนตัวเลือกแล้วชื่ออัตโนมัติจะตามใหม่
+const nameEdited = ref(false)
 
 // โหลดชุดที่จะแก้ (หรือชุดต้นแบบตอนทำสำเนา ?from=id)
 function load() {
@@ -46,6 +48,7 @@ function load() {
   scope.value = 'all'
   fillAmount.value = ''
   fillPct.value = ''
+  nameEdited.value = false
 }
 watch(() => [props.id, route.query.from], load, { immediate: true })
 
@@ -114,6 +117,8 @@ function toggleItem(g, o) {
   const i = draft.items.findIndex((x) => x.groupId === g.id && x.optionId === o.id)
   if (i >= 0) draft.items.splice(i, 1)
   else draft.items.push({ groupId: g.id, optionId: o.id })
+  // ยังไม่ได้พิมพ์ชื่อเอง → ล้างชื่อเดิมให้ใช้ชื่ออัตโนมัติของตัวเลือกใหม่
+  if (!nameEdited.value) draft.name = ''
 }
 // ตัวเลือกที่ปิดอยู่แสดงเฉพาะที่ถูกเลือกไว้แล้ว (จะได้เอาออกได้)
 const visibleGroups = computed(() => {
@@ -324,7 +329,7 @@ async function save() {
             <p class="text-sm text-stone-500">เว้นว่างได้ ระบบจะใช้ชื่อจากตัวเลือกให้</p>
           </div>
         </div>
-        <input v-model="draft.name" type="text" maxlength="120" class="input" :placeholder="autoName || 'เช่น สตรอว์เบอร์รี + บลูเบอร์รี'" data-bundle-name />
+        <input :value="draft.name" type="text" maxlength="120" class="input" :placeholder="autoName || 'เช่น สตรอว์เบอร์รี + บลูเบอร์รี'" data-bundle-name @input="(e) => { draft.name = e.target.value; nameEdited = true }" />
         <p class="mt-1.5 text-xs text-stone-500">ลูกค้าจะเห็นว่า: {{ finalName || '—' }}</p>
       </section>
 
