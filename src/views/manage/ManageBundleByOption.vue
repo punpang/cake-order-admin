@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { db, saveBundle } from '../../data/store'
+import { db, saveBundle, activeListsAt } from '../../data/store'
 import { showToast } from '../../lib/toast'
 import { checkBundle, findItemOption, findDuplicate, bahtText } from '../../lib/bundleEditor'
 import { MAIN_KEYS } from '../../lib/constants'
@@ -24,6 +24,7 @@ watch(curGroup, () => { optionId.value = null })
 // ตัวเลือกเค้กที่ใช้คำนวณราคาเต็ม (ประเภท + เนื้อ + ขนาด) ต่อชุด · ค่าเริ่มต้นคือตัวแรกที่ใช้ได้
 const flavors = computed(() => (db.optionGroups.find((x) => x.key === 'flavor')?.options || []).filter((x) => x.active !== false))
 const cakePick = ref({})
+const activeLists = computed(() => activeListsAt())
 function cakeOf(b) {
   const d = cakePick.value[b.id] || {}
   const applicable = applicableTypes(b, db.optionGroups, types.value)
@@ -167,7 +168,7 @@ function createNew() {
               </select>
             </div>
             <p class="text-sm text-stone-700" data-cake-price>
-              ราคาเต็ม {{ bahtText(cakePriceFor(r.b, db.optionGroups, cakeOf(r.b)).before) }} → หลังบันเดิ้ลนี้ {{ bahtText(cakePriceFor(r.b, db.optionGroups, cakeOf(r.b)).after) }}
+              ราคาเต็ม {{ bahtText(cakePriceFor(r.b, db.optionGroups, cakeOf(r.b), activeLists).before) }} → หลังบันเดิ้ลนี้ {{ bahtText(cakePriceFor(r.b, db.optionGroups, cakeOf(r.b), activeLists).after) }}
             </p>
           </div>
           <div v-for="row in r.rows" :key="cellKey(row.typeId, row.sizeId)" class="flex items-center justify-between gap-2 text-sm">

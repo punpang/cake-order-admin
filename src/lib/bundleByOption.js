@@ -102,8 +102,9 @@ export function setDiscountAt(b, typeId, sizeId, amount) {
 }
 
 // ราคาเค้กเต็มของประเภท + เนื้อ + ขนาด ที่มีตัวเลือกในชุดนี้ ตามเครื่องคิดราคาจริง (calcUnitPrice)
+// active = รายการราคาพิเศษที่ใช้งานอยู่ ณ วันนี้ (เช่น activeListsAt) เพื่อให้ราคาขนาด/ประเภทตรงกับหน้าลูกค้า
 // before = ก่อนใช้บันเดิ้ลนี้ · after = หลังใช้บันเดิ้ลนี้ (ไม่รวมชุดอื่น)
-export function cakePriceFor(b, groups, { typeId = null, flavorId = null, sizeId = null } = {}) {
+export function cakePriceFor(b, groups, { typeId = null, flavorId = null, sizeId = null } = {}, active = []) {
   const byKey = (key) => groups.find((g) => g.key === key)
   const sel = {}
   if (byKey('type') && typeId) sel[byKey('type').id] = typeId
@@ -116,8 +117,8 @@ export function cakePriceFor(b, groups, { typeId = null, flavorId = null, sizeId
   }
   const item = { kind: 'custom', qty: 1, selections: sel, tiers: [{ selections: sel }] }
   return {
-    before: calcUnitPrice(item, groups, [], [], null, null, []),
-    after: calcUnitPrice(item, groups, [], [], null, null, [b]),
+    before: calcUnitPrice(item, groups, [], active, null, null, []),
+    after: calcUnitPrice(item, groups, [], active, null, null, [b]),
   }
 }
 
