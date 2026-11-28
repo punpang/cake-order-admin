@@ -53,7 +53,7 @@ t('usageOf: ชุดที่ปิดอยู่หรือไม่มี�
 
 t('discountRows: ประเภทว่าง = ราคาทุกประเภท และส่วนลดของแต่ละขนาด', () => {
   const rows = discountRows(b1, groups, sizes, [])
-  assert.deepEqual(rows, [{ typeId: null, typeName: '', sizeId: 's1', sizeName: '1 ปอนด์', regular: 100, amount: 100, after: 0 }])
+  assert.deepEqual(rows, [{ typeId: null, typeName: '', sizeId: 's1', sizeName: '1 ปอนด์', regular: 100, amount: 100, after: 0, set: true }])
 })
 
 // กรณีจากภาพ: ผลไม้รวม ราคา 150 ทุกประเภท แต่ 60 ในสองประเภทที่ตัวเลือกนี้ใช้ได้ → ราคาปกติของชุดต้องเป็น 140 ไม่ใช่ 230
@@ -81,6 +81,14 @@ t('discountRows: แยกแถวต่อประเภท ราคาป�
 t('discountRows: ส่วนลดเกินราคาปกติ ราคาหลังหักเป็น 0 ไม่ติดลบ', () => {
   const rows = discountRows({ ...fruitJam, discount: { s1: 999 } }, typeGroups, [{ id: 's1', name: '1 ปอนด์' }], allTypes)
   assert.equal(rows[0].after, 0)
+})
+
+t('discountRows: set บอกว่าช่องเคยตั้งส่วนลดแล้วหรือยัง', () => {
+  const unset = discountRows({ ...fruitJam, discount: {} }, typeGroups, [{ id: 's1', name: '1 ปอนด์' }], allTypes)
+  assert.equal(unset[0].set, false)
+  const set = discountRows({ ...fruitJam, discount: { s1: 30 } }, typeGroups, [{ id: 's1', name: '1 ปอนด์' }], allTypes)
+  assert.equal(set[0].set, true)
+  assert.equal(set[0].after, 110)
 })
 
 t('setDiscountAt: แถวประเภทเขียนลง typeDiscount ของประเภทนั้น ไม่แตะค่าทุกประเภท', () => {
