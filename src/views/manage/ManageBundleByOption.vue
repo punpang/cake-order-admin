@@ -53,7 +53,8 @@ const linked = computed(() => {
     b,
     usage: usageOf(b, db.bundles, sizes.value),
     rows: discountRows(b, db.optionGroups, sizes.value, types.value),
-    items: (b.items || []).map((i) => findItemOption(db.optionGroups, i)?.name || 'ตัวเลือกที่ถูกลบแล้ว'),
+    // ชื่อตัวเลือกพร้อมชื่อกลุ่ม เช่น "ขอบบนเค้ก · คิทแคท" (ตัวเลือกที่ถูกลบแสดงข้อความแทน)
+    items: (b.items || []).map((i) => [db.optionGroups.find((g) => g.id === i.groupId)?.name, findItemOption(db.optionGroups, i)?.name].filter(Boolean).join(' · ') || 'ตัวเลือกที่ถูกลบแล้ว'),
   }))
 })
 
