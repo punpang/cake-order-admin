@@ -29,7 +29,7 @@ export function allowedBy(groups, selections) {
 // รายการที่ไม่มี tiers (หรือเค้กสำเร็จ) ถือเป็น 1 ชั้นที่ใช้ item.selections
 export const tiersOf = (item) => (item.kind === 'custom' && item.tiers?.length ? item.tiers : [{ selections: item.selections || {} }])
 export const isTierGroup = (g, item) => item.kind === 'custom' && !!g.perTier
-const idsOf = (sel) => (sel == null ? [] : Array.isArray(sel) ? sel : [sel])
+export const idsOf = (sel) => (sel == null ? [] : Array.isArray(sel) ? sel : [sel])
 import { MAIN_KEYS as MAIN } from './constants.js'
 
 // ---------- ราคาเค้กหลัก: ประเภท (คงที่) + เนื้อเค้ก (คงที่) + ราคาขนาดของประเภท ----------
@@ -142,6 +142,9 @@ export function forcedOf(groups, sels, allow = null) {
 // ปรับ selections ตามที่รูปทรงบังคับ: เอาตัวที่เคยถูกบังคับ (prev) แต่ไม่ถูกบังคับแล้วออก แล้วเติมตัวที่ถูกบังคับ · คืน Set ใหม่
 // ตัวเลือกนี้ถูกเลือกอยู่ในกลุ่มหรือไม่ (รองรับทั้งรหัสเดี่ยวของออร์เดอร์เดิม และรายการของการเลือกหลายตัวในกลุ่มเดียว)
 export const hasPick = (sels, gid, oid) => idsOf(sels?.[gid]).includes(oid)
+// กลุ่มเลือกได้ 1 อย่าง: เลือก oid เพิ่มได้ก็ต่อเมื่อมีบันเดิ้ลที่เปิดใช้งาน ซึ่งทุกตัวอยู่ในกลุ่มนี้ และมีทั้ง oid กับตัวที่เลือกอยู่ทั้งหมด
+export const singleBundleExtends = (bundles, groupId, curIds, oid) =>
+  (bundles || []).some((b) => b.active !== false && b.items.length > 1 && b.items.every((x) => x.groupId === groupId) && [...curIds, oid].every((id) => b.items.some((x) => x.optionId === id)))
 export function syncForced(groups, sels, prev, allow = null) {
   const next = forcedOf(groups, sels, allow)
   const split = (k) => { const i = k.indexOf(':'); return [k.slice(0, i), k.slice(i + 1)] }
