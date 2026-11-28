@@ -4,6 +4,7 @@ import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import { db, findGroup, saveGroup, saveOption, saveBundle, moveItem, moveItemTo } from '../../data/store'
 import { styleRowsOf, applyStyleRow } from '../../lib/bundleByOption'
+import { showToast } from '../../lib/toast'
 import { GROUP_TYPES, APPLIES_TO, MAIN_KEYS } from '../../lib/constants'
 import { money } from '../../lib/format'
 import ManageShell from '../../components/ManageShell.vue'
@@ -113,9 +114,16 @@ function editOption(opt) {
 // ตั้งจากหน้านี้ได้เลย ไม่ต้องไปหน้าบันเดิ้ล · บันทึกพร้อมตัวเลือก · ราคาขาย ส่วนลด = ราคาปกติ − ราคาขาย
 const styleRows = ref([])
 const styleTouched = new Set()
+const styleQ = ref('')
+// ค้นหาเฉพาะการแสดงผล · ตอนบันทึกใช้ styleRows ทั้งหมดเสมอ
+const shownStyleRows = computed(() => {
+  const s = styleQ.value.trim().toLowerCase()
+  return s ? styleRows.value.filter((r) => `${r.name} ${r.groupLabel}`.toLowerCase().includes(s)) : styleRows.value
+})
 function loadStyleRows(styleId) {
   styleRows.value = styleId ? styleRowsOf(db.bundles, styleId, db.optionGroups, sizeOpts.value) : []
   styleTouched.clear()
+  styleQ.value = ''
 }
 function setStyleMode(r, m) {
   r.mode = m
@@ -182,7 +190,15 @@ async function saveO() {
     for (const lg of allowGroups.value) if (data.allow[lg.id] && !data.allow[lg.id].length) return (oError.value = `เลือก${lg.name}อย่างน้อย 1 อย่าง`)
   }
   if (!(await confirmDeactivate(group.value.options, o, o.name))) return
-  if (isStyle.value && o.id) applyStyleEdits(o.id)
+  if (isStyle.value && o.id) {
+    // รูปแบบตกแต่งที่มีอยู่แล้ว: บันทึกแล้วอยู่หน้าเดิมต่อ (ตั้งราคาหลายชุดได้ในรอบเดียว)
+    applyStyleEdits(o.id)
+    saveOption(group.value.id, data)
+    const fresh = group.value.options.find((x) => x.id === o.id)
+    if (fresh) editOption(fresh)
+    showToast(`บันทึก "${o.name}" แล้ว`)
+    return
+  }
   saveOption(group.value.id, data)
   oOpen.value = false
 }
@@ -441,7 +457,9 @@ async function saveO() {
         <div v-if="isStyle && o.id" class="space-y-2" data-style-price>
           <div class="label">ราคาแยกตามบันเดิ้ล <span class="text-xs font-normal text-stone-500">(ไม่บังคับ)</span></div>
           <p v-if="!styleRows.length" class="text-xs text-stone-400">ยังไม่มีบันเดิ้ล · สร้างได้ที่ <RouterLink to="/admin/settings/bundles" class="text-brand-700 underline">บันเดิ้ล</RouterLink></p>
-          <div v-for="r in styleRows" :key="r.id" class="rounded-xl border border-stone-200 p-3" :data-style-row="r.id">
+          <input v-if="styleRows.length > 5" v-model="styleQ" type="search" class="input h-10" placeholder="ค้นหาชื่อบันเดิ้ลหรือตัวเลือก" data-style-search />
+          <p v-if="styleRows.length && !shownStyleRows.length" class="text-xs text-stone-400">ไม่พบบันเดิ้ลที่ตรงกับคำค้น</p>
+          <div v-for="r in shownStyleRows" :key="r.id" class="rounded-xl border border-stone-200 p-3" :data-style-row="r.id">
             <div class="flex flex-wrap items-center gap-2">
               <span class="min-w-0 flex-1 basis-full break-words sm:basis-0">
                 <span class="block font-medium text-stone-800">{{ r.name }}<span v-if="!r.active" class="ml-1 text-xs text-stone-400">(ปิด)</span></span>
