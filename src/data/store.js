@@ -9,7 +9,7 @@ import { BELL_MAX, BELL_STAFF, BELL_CUSTOMER, bellText, visibleToStaff, visibleT
 import { IS_STAFF_APP } from '../lib/adminSystems'
 import { isDueSoonEligible } from '../lib/dueSoon'
 import { ensureStyleGroup, STATUS, PERMISSIONS, ALL_PERMS, rolePreset, CHANNELS, CUSTOMER_CHANNEL_ORDER, channelLabel, NOTIFY_EVENTS, POS_METHODS } from '../lib/constants'
-import { activeLists, priceDetail, orderTotals, itemNets, describeSelections } from '../lib/pricing'
+import { activeLists, priceDetail, orderTotals, itemNets, describeSelections, styleModeToSave } from '../lib/pricing'
 import { holdErrors, holdCancelRefundOf, canHandOver } from '../lib/holdMoney'
 import { cashServicesOf, cashSettingsOf } from '../lib/cashService'
 import { orderCardMsg, quoteCardMsg, linkCardMsg, payCard, viewCard } from '../lib/chatCards'
@@ -1072,7 +1072,7 @@ export function saveOption(groupId, d) {
 
 // บันเดิ้ล (ตัวเลือกรอง ในกลุ่มเดียวกันหรือข้ามกลุ่ม ลดราคาตามขนาด)
 export const saveBundle = (d) =>
-  upsert(db.bundles, 'b', { ...d, items: d.items.map((x) => ({ groupId: x.groupId, optionId: x.optionId })), discount: cleanSpecial(d.discount), types: [...(d.types || [])], typeDiscount: cleanTable(d.typeDiscount), styleDiscount: cleanTable(d.styleDiscount), styleMode: Object.fromEntries(Object.entries(d.styleMode || {}).filter(([, v]) => v === 'own')) })
+  upsert(db.bundles, 'b', { ...d, items: d.items.map((x) => ({ groupId: x.groupId, optionId: x.optionId })), discount: cleanSpecial(d.discount), types: [...(d.types || [])], typeDiscount: cleanTable(d.typeDiscount), styleDiscount: cleanTable(d.styleDiscount), styleMode: styleModeToSave(d.styleMode) })
 
 // จัดลำดับ: สลับกับตัวข้างเคียง (dir = -1 ขึ้น / 1 ลง)
 export function moveItem(list, index, dir) {

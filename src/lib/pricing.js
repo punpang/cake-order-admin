@@ -195,6 +195,8 @@ export const isOwnStyle = (b, styleId) => {
   if (m) return m === 'own'
   return Object.values(b.styleDiscount?.[styleId] || {}).some((v) => num(v) != null)
 }
+// เก็บโหมดของทุกรูปแบบ (own = ราคาประจำตัว, central = ใช้ส่วนลดด้านบน) ไม่ให้หายตอนบันทึก มิฉะนั้นรูปแบบที่ใช้ส่วนลดด้านบนจะถูกนับเป็นราคาประจำตัวเมื่อมีค่าเหลืออยู่
+export const styleModeToSave = (sm) => Object.fromEntries(Object.entries(sm || {}).filter(([, v]) => v === 'own' || v === 'central'))
 // ส่วนลดต่อขนาด: ราคาประจำตัวของรูปแบบ (ช่องว่าง = 0) · ไม่งั้นราคากลาง: ตามประเภท (typeDiscount) > ทุกประเภท (discount)
 export const bundleAmount = (b, typeId, sizeIds, styleId = null) =>
   sizeIds.reduce((s, sid) => s + (isOwnStyle(b, styleId) ? num(b.styleDiscount?.[styleId]?.[sid]) ?? 0 : num(b.typeDiscount?.[typeId]?.[sid]) ?? (Number(b.discount?.[sid]) || 0)), 0)
