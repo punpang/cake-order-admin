@@ -116,17 +116,18 @@ const styleRows = ref([])
 const styleTouched = new Set()
 const styleQ = ref('')
 // ค้นหาเฉพาะการแสดงผล · ตอนบันทึกใช้ styleRows ทั้งหมดเสมอ
+// ชุดที่ลูกค้าใช้กับรูปแบบนี้ได้จริง: ทุกตัวเลือกในชุดต้องอยู่ในหัวข้อที่รูปแบบนี้เปิดไว้ (ไม่จำกัด = ทุกหัวข้อ)
+const usableWithStyle = (b) => !o.groups?.length || (b?.items || []).every((x) => o.groups.includes(x.groupId))
+const usableBundles = computed(() => db.bundles.filter(usableWithStyle))
+const suggestOf = (r) => styleSuggestion(db.bundles.find((x) => x.id === r.id), o.id, usableBundles.value, db.optionGroups, sizeOpts.value)
 const shownStyleRows = computed(() => {
   const s = styleQ.value.trim().toLowerCase()
-  return s ? styleRows.value.filter((r) => `${r.name} ${r.groupLabel}`.toLowerCase().includes(s)) : styleRows.value
+  return styleRows.value.filter(
+    (r) => usableWithStyle(db.bundles.find((x) => x.id === r.id)) && (!s || `${r.name} ${r.groupLabel}`.toLowerCase().includes(s)),
+  )
 })
 function loadStyleRows(styleId) {
-  styleRows.value = styleId
-    ? styleRowsOf(db.bundles, styleId, db.optionGroups, sizeOpts.value).map((r) => ({
-      ...r,
-      suggest: styleSuggestion(db.bundles.find((x) => x.id === r.id), styleId, db.bundles, db.optionGroups, sizeOpts.value),
-    }))
-    : []
+  styleRows.value = styleId ? styleRowsOf(db.bundles, styleId, db.optionGroups, sizeOpts.value) : []
   styleTouched.clear()
   styleQ.value = ''
 }
@@ -140,7 +141,7 @@ function setStyleSale(r, sid, v) {
 }
 // เติมราคาแนะนำลงช่องขายของชุดนั้น · ยังไม่บันทึก
 function applyStyleSuggest(r) {
-  for (const [sid, price] of Object.entries(r.suggest.sizes)) r.sales[sid] = String(price)
+  for (const [sid, price] of Object.entries(suggestOf(r).sizes)) r.sales[sid] = String(price)
   styleTouched.add(r.id)
 }
 // บันทึกเฉพาะบันเดิ้ลที่แก้ไขในหน้านี้ (ชุดที่ไม่ได้แตะคงค่าเดิม)
@@ -148,7 +149,7 @@ function applyStyleEdits(styleId) {
   for (const r of styleRows.value) {
     if (!styleTouched.has(r.id)) continue
     const b = db.bundles.find((x) => x.id === r.id)
-    if (b) saveBundle(applyStyleRow(b, styleId, r.mode, r.sales, db.optionGroups, sizeOpts.value))
+    if (b && usableWithStyle(b)) saveBundle(applyStyleRow(b, styleId, r.mode, r.sales, db.optionGroups, sizeOpts.value))
   }
 }
 
@@ -468,7 +469,7 @@ async function saveO() {
           <div class="label">ราคาแยกตามบันเดิ้ล <span class="text-xs font-normal text-stone-500">(ไม่บังคับ)</span></div>
           <p v-if="!styleRows.length" class="text-xs text-stone-400">ยังไม่มีบันเดิ้ล · สร้างได้ที่ <RouterLink to="/admin/settings/bundles" class="text-brand-700 underline">บันเดิ้ล</RouterLink></p>
           <input v-if="styleRows.length > 5" v-model="styleQ" type="search" class="input h-10" placeholder="ค้นหาชื่อบันเดิ้ลหรือตัวเลือก" data-style-search />
-          <p v-if="styleRows.length && !shownStyleRows.length" class="text-xs text-stone-400">ไม่พบบันเดิ้ลที่ตรงกับคำค้น</p>
+          <p v-if="styleRows.length && !shownStyleRows.length" class="text-xs text-stone-400">ไม่มีบันเดิ้ลที่ใช้กับรูปแบบนี้ได้ หรือไม่ตรงกับคำค้น · เปิดหัวข้อของชุดในด้านบนเพื่อให้แสดง</p>
           <div v-for="r in shownStyleRows" :key="r.id" class="rounded-xl border border-stone-200 p-3" :data-style-row="r.id">
             <div class="flex flex-wrap items-center gap-2">
               <span class="min-w-0 flex-1 basis-full break-words sm:basis-0">
@@ -494,8 +495,8 @@ async function saveO() {
                 <MoneyInput :model-value="r.sales[sz.id]" class="input mt-1 h-10 px-2" :data-style-sale="`${r.id}:${sz.id}`" :placeholder="String(r.regular[sz.id])" @update:model-value="(v) => setStyleSale(r, sz.id, v)" />
               </label>
             </div>
-            <div v-if="r.mode === 'own' && Object.keys(r.suggest.sizes).length" class="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-info-50 p-2 text-xs text-info-800">
-              <span class="min-w-0 flex-1">แนะนำจาก {{ r.suggest.count }} ชุดที่มีตัวเลือกเท่ากัน · ยังไม่บันทึกจนกว่าจะกดบันทึก</span>
+            <div v-if="r.mode === 'own' && Object.keys(suggestOf(r).sizes).length" class="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-info-50 p-2 text-xs text-info-800">
+              <span class="min-w-0 flex-1">แนะนำจาก {{ suggestOf(r).count }} ชุดที่มีตัวเลือกเท่ากัน · ยังไม่บันทึกจนกว่าจะกดบันทึก</span>
               <button type="button" class="btn-soft h-9 px-3 text-sm" :data-style-suggest="r.id" @click="applyStyleSuggest(r)">ใช้ราคาแนะนำ</button>
             </div>
           </div>
