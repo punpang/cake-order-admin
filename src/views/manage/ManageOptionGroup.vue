@@ -2,7 +2,8 @@
 import MoneyInput from '../../components/MoneyInput.vue'
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
-import { db, findGroup, saveGroup, saveOption, moveItem, moveItemTo } from '../../data/store'
+import { db, findGroup, saveGroup, saveOption, saveBundle, moveItem, moveItemTo } from '../../data/store'
+import { styleRowsOf, applyStyleRow } from '../../lib/bundleByOption'
 import { GROUP_TYPES, APPLIES_TO, MAIN_KEYS } from '../../lib/constants'
 import { money } from '../../lib/format'
 import ManageShell from '../../components/ManageShell.vue'
@@ -105,6 +106,32 @@ function editOption(opt) {
   oError.value = ''
   oOpen.value = true
   if (isFlavor.value) o.priceType = o.priceType === 'size' && opt ? 'size' : 'fixed' // หัวข้อหลักแบบบวกเพิ่ม: ไม่มีค่า = คงที่
+  if (isStyle.value) loadStyleRows(opt?.id)
+}
+
+// ---------- ราคาแยกตามบันเดิ้ล (เฉพาะรูปแบบตกแต่ง) ----------
+// ตั้งจากหน้านี้ได้เลย ไม่ต้องไปหน้าบันเดิ้ล · บันทึกพร้อมตัวเลือก · ราคาขาย ส่วนลด = ราคาปกติ − ราคาขาย
+const styleRows = ref([])
+const styleTouched = new Set()
+function loadStyleRows(styleId) {
+  styleRows.value = styleId ? styleRowsOf(db.bundles, styleId, db.optionGroups, sizeOpts.value) : []
+  styleTouched.clear()
+}
+function setStyleMode(r, m) {
+  r.mode = m
+  styleTouched.add(r.id)
+}
+function setStyleSale(r, sid, v) {
+  r.sales[sid] = v
+  styleTouched.add(r.id)
+}
+// บันทึกเฉพาะบันเดิ้ลที่แก้ไขในหน้านี้ (ชุดที่ไม่ได้แตะคงค่าเดิม)
+function applyStyleEdits(styleId) {
+  for (const r of styleRows.value) {
+    if (!styleTouched.has(r.id)) continue
+    const b = db.bundles.find((x) => x.id === r.id)
+    if (b) saveBundle(applyStyleRow(b, styleId, r.mode, r.sales, db.optionGroups, sizeOpts.value))
+  }
 }
 
 // รูปทรง: บังคับเลือกตัวเลือกในหัวข้ออื่น (ติ๊กให้อัตโนมัติ + ล็อก)
@@ -155,6 +182,7 @@ async function saveO() {
     for (const lg of allowGroups.value) if (data.allow[lg.id] && !data.allow[lg.id].length) return (oError.value = `เลือก${lg.name}อย่างน้อย 1 อย่าง`)
   }
   if (!(await confirmDeactivate(group.value.options, o, o.name))) return
+  if (isStyle.value && o.id) applyStyleEdits(o.id)
   saveOption(group.value.id, data)
   oOpen.value = false
 }
@@ -409,6 +437,34 @@ async function saveO() {
             <button v-for="x in subGroups" :key="x.id" type="button" class="chip" :class="groupOn(x.id) ? 'chip-on' : 'chip-off'" :aria-pressed="groupOn(x.id)" data-style-group @click="toggleGroup(x.id)">{{ x.name }}</button>
           </div>
           <p class="mt-1 text-xs text-stone-400">หัวข้อที่ไม่เลือกจะซ่อนตอนสั่ง และล้างค่าที่เลือกไว้ · เลือกครบทุกหัวข้อ = ไม่จำกัด</p>
+        </div>
+        <div v-if="isStyle && o.id" class="space-y-2" data-style-price>
+          <div class="label">ราคาแยกตามบันเดิ้ล <span class="text-xs font-normal text-stone-500">(ไม่บังคับ)</span></div>
+          <p v-if="!styleRows.length" class="text-xs text-stone-400">ยังไม่มีบันเดิ้ล · สร้างได้ที่ <RouterLink to="/admin/settings/bundles" class="text-brand-700 underline">บันเดิ้ล</RouterLink></p>
+          <div v-for="r in styleRows" :key="r.id" class="rounded-xl border border-stone-200 p-3" :data-style-row="r.id">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="min-w-0 flex-1 truncate font-medium text-stone-800">{{ r.name }}<span v-if="!r.active" class="ml-1 text-xs text-stone-400">(ปิด)</span></span>
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  v-for="m in [{ v: 'central', l: 'ใช้ส่วนลดด้านบน' }, { v: 'own', l: 'ราคาของรูปแบบนี้' }]"
+                  :key="m.v"
+                  type="button"
+                  class="chip"
+                  :class="r.mode === m.v ? 'chip-on' : 'chip-off'"
+                  :aria-pressed="r.mode === m.v"
+                  :data-style-mode="`${r.id}:${m.v}`"
+                  @click="setStyleMode(r, m.v)"
+                >{{ m.l }}</button>
+              </div>
+            </div>
+            <div v-if="r.mode === 'own'" class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <label v-for="sz in sizeOpts" :key="sz.id" class="text-xs text-stone-500">
+                {{ sz.name }} · ราคาขาย (ปกติ {{ money(r.regular[sz.id]) }})
+                <MoneyInput :model-value="r.sales[sz.id]" class="input mt-1 h-10 px-2" :data-style-sale="`${r.id}:${sz.id}`" :placeholder="String(r.regular[sz.id])" @update:model-value="(v) => setStyleSale(r, sz.id, v)" />
+              </label>
+            </div>
+          </div>
+          <p v-if="styleRows.length" class="text-xs text-stone-400">ปกติใช้ส่วนลดด้านบนของบันเดิ้ล · "ราคาของรูปแบบนี้" กรอกราคาขายแยกขนาด (ช่องว่าง = ไม่ลดในขนาดนั้น)</p>
         </div>
         <div v-if="isShape && forceGroups.length">
           <div class="label">บังคับเลือกเมื่อเลือกรูปทรงนี้</div>
