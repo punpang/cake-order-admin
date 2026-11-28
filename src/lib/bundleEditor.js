@@ -1,6 +1,6 @@
 // หน้าบันเดิ้ล (ชุดลดราคาตัวเลือก): ราคาปกติรวม ราคาหลังลด และตรวจข้อมูลก่อนบันทึก
 // ใช้ฟังก์ชันคิดราคาเดียวกับหน้าขาย (optionPrice / bundleAmount ใน pricing.js) เพื่อให้ตัวเลขในหน้านี้ตรงกับที่ลูกค้าจ่าย
-import { optionPrice, bundleAmount, isOwnStyle, isFixed } from './pricing.js'
+import { optionPrice, bundleAmount, isOwnStyle, isFixed, sizePoundsOf } from './pricing.js'
 import { qty } from './format.js'
 
 const EPS = 1e-9
@@ -35,7 +35,7 @@ export function regularTotal(items, groups, typeId, sizeId) {
   if (!sizeId) return 0
   return (items || []).reduce((s, x) => {
     const o = findItemOption(groups, x)
-    return s + (o ? optionPrice(o, typeId, [sizeId]) : 0)
+    return s + (o ? optionPrice(o, typeId, [sizeId], sizePoundsOf(groups)) : 0)
   }, 0)
 }
 
