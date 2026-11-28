@@ -136,7 +136,13 @@ export function styleRowsOf(bundles, styleId, groups, sizes) {
       regular[sz.id] = reg
       sales[sz.id] = disc == null || disc === '' ? '' : String(Math.max(0, reg - (Number(disc) || 0)))
     }
-    return { id: b.id, name: b.name, active: b.active !== false, mode: isOwnStyle(b, styleId) ? 'own' : 'central', regular, sales }
+    // ป้ายประเภทตัวเลือกรอง: "กลางเค้ก: ผลไม้รวม · ขอบข้างเค้ก: ..." (ให้รู้ว่าตัวเลือกไหนอยู่กลุ่มไหน)
+    const parts = (b.items || []).map((x) => {
+      const g = (groups || []).find((y) => y.id === x.groupId)
+      const o = g?.options?.find((y) => y.id === x.optionId)
+      return `${g?.name || ''}: ${o?.name || 'ตัวเลือกที่ถูกลบแล้ว'}`
+    })
+    return { id: b.id, name: b.name, groupLabel: parts.join(' · '), active: b.active !== false, mode: isOwnStyle(b, styleId) ? 'own' : 'central', regular, sales }
   })
 }
 
