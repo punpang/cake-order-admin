@@ -55,6 +55,8 @@ watch(() => [props.id, route.query.from], load, { immediate: true })
 const autoName = computed(() => autoBundleName(draft.items, db.optionGroups))
 const finalName = computed(() => draft.name.trim() || autoName.value)
 const hasItems = computed(() => draft.items.length > 0)
+// ป้ายตัวเลือกพร้อมชื่อกลุ่ม เช่น "กลางเค้ก: ผลไม้รวม"
+const itemLabel = (x) => `${db.optionGroups.find((g) => g.id === x.groupId)?.name || ''}: ${findItemOption(db.optionGroups, x)?.name || 'ตัวเลือกที่ถูกลบแล้ว'}`
 const selectedText = computed(() => draft.items.map((x) => findItemOption(db.optionGroups, x)?.name || 'ตัวเลือกที่ถูกลบแล้ว').join(' + '))
 // ชุดที่บันทึกไว้ (ไว้เช็กว่าแก้ตัวเลือกจนซ้ำกับชุดอื่นหรือไม่) · ชุดใหม่ = ไม่มี
 const original = computed(() => (isNew.value ? null : db.bundles.find((b) => b.id === props.id) || null))
@@ -294,6 +296,7 @@ async function save() {
             <div class="flex flex-wrap items-start gap-2">
               <div class="min-w-0 flex-1">
                 <div class="font-semibold break-words text-stone-900">{{ s.name }}</div>
+                <div class="text-xs break-words text-stone-500" data-sub-groups>{{ s.items.map(itemLabel).join(' · ') }}</div>
                 <div class="text-sm text-stone-700">
                   แนะนำ <b>ลด {{ s.rec.pct }}%</b> ทุกขนาด
                   <span v-if="s.rec.sample" class="text-stone-500">· {{ s.rec.sample.size }} {{ bahtText(s.rec.sample.regular) }} → เหลือ {{ bahtText(s.rec.sample.net) }}</span>
