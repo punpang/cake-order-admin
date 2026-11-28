@@ -31,10 +31,18 @@ const rows = computed(() =>
   })),
 )
 const activeCount = computed(() => db.bundles.filter((b) => b.active !== false).length)
+// ตัวกรอง: สถานะ (ทั้งหมด/ใช้งาน/ปิดอยู่/ยังไม่มีส่วนลด/มีปัญหา) และหัวข้อตัวเลือกที่ชุดใช้
+const status = ref('all')
+const groupF = ref('')
+const hasWarn = (r) => !!(r.dup || r.over.length || r.drift.length || r.s.hasOff)
+const groupNames = computed(() => [...new Set(rows.value.flatMap((r) => r.s.items.map((i) => i.group)).filter(Boolean))])
 const list = computed(() => {
   const s = q.value.trim().toLowerCase()
+  const st = status.value
   return rows.value
-    .filter((r) => inactive.value || r.b.active !== false)
+    .filter((r) => inactive.value || st === 'off' || r.b.active !== false)
+    .filter((r) => st === 'all' || (st === 'on' ? r.b.active !== false : st === 'off' ? r.b.active === false : st === 'nodiscount' ? !r.s.hasDiscount : hasWarn(r)))
+    .filter((r) => !groupF.value || r.s.items.some((i) => i.group === groupF.value))
     .filter((r) => !s || `${r.b.name} ${r.s.items.map((i) => `${i.group} ${i.name}`).join(' ')}`.toLowerCase().includes(s))
 })
 const move = (b, dir) => moveItem(db.bundles, db.bundles.indexOf(b), dir)
@@ -86,6 +94,32 @@ async function link(b) {
       </p>
     </section>
     <RouterLink to="/admin/settings/bundles/by-option" class="btn-outline mb-4 flex w-full justify-center" data-by-option-link>ดูบันเดิ้ลตามตัวเลือกรอง</RouterLink>
+
+    <div class="mb-3 flex flex-wrap gap-1.5" data-bundle-filters>
+      <button
+        v-for="f in [{ v: 'all', l: 'ทั้งหมด' }, { v: 'on', l: 'ใช้งาน' }, { v: 'off', l: 'ปิดอยู่' }, { v: 'nodiscount', l: 'ยังไม่มีส่วนลด' }, { v: 'warn', l: 'มีปัญหา' }]"
+        :key="f.v"
+        type="button"
+        class="chip"
+        :class="status === f.v ? 'chip-on' : 'chip-off'"
+        :aria-pressed="status === f.v"
+        :data-status-filter="f.v"
+        @click="status = f.v"
+      >{{ f.l }}</button>
+    </div>
+    <div v-if="groupNames.length" class="mb-4 flex flex-wrap gap-1.5" data-group-filters>
+      <button type="button" class="chip" :class="!groupF ? 'chip-on' : 'chip-off'" :aria-pressed="!groupF" @click="groupF = ''">ทุกหัวข้อ</button>
+      <button
+        v-for="g in groupNames"
+        :key="g"
+        type="button"
+        class="chip"
+        :class="groupF === g ? 'chip-on' : 'chip-off'"
+        :aria-pressed="groupF === g"
+        :data-group-filter="g"
+        @click="groupF = groupF === g ? '' : g"
+      >{{ g }}</button>
+    </div>
 
     <div v-if="!db.bundles.length" class="card flex flex-col items-center gap-3 py-10 text-center">
       <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-warning-50 text-warning-700"><AppIcon name="tag" :size="26" /></span>
