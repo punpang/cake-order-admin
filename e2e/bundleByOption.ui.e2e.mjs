@@ -98,7 +98,10 @@ t('แก้ส่วนลดของชุดเดิมในหน้า�
   const first = card.locator('input[type=number]').first()
   const row = (await first.getAttribute('data-row')).split('|')
   const [, typeId, sizeId] = row
-  await first.fill('12')
+  // ช่องนี้กรอก "ราคาขาย" → ส่วนลด = ราคาปกติ − ราคาขาย จึงอ่านราคาปกติของแถวนี้แล้วกรอกให้ได้ส่วนลด 12
+  const rowText = await first.locator('xpath=..').innerText()
+  const regular = Number(rowText.match(/ราคาปกติ ([\d,.]+)/)[1].replace(/,/g, ''))
+  await first.fill(String(regular - 12))
   await page.getByRole('button', { name: 'บันทึกส่วนลด' }).click()
   await page.waitForFunction((id) => window.__store.db.bundles.find((x) => x.id === id)?.discount && true, target.id, { timeout: 10000 })
   const amt = await page.evaluate((a) => {

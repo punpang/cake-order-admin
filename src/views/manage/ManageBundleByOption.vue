@@ -77,10 +77,22 @@ function saveEdits() {
     const original = db.bundles.find((b) => b.id === bid)
     if (!original) continue
     let draft = original
+    const rows = discountRows(original, db.optionGroups, sizes.value, types.value)
     for (const [key, raw] of Object.entries(m)) {
       const { typeId, sizeId } = parseKey(key)
-      const val = String(raw ?? '').trim() === '' ? null : raw
-      draft = setDiscountAt(draft, typeId, sizeId, val)
+      const text = String(raw ?? '').trim()
+      if (text === '') {
+        draft = setDiscountAt(draft, typeId, sizeId, null)
+        continue
+      }
+      // ผู้ใช้กรอกราคาขาย → ส่วนลด = ราคาปกติ − ราคาขาย (ไม่ติดลบ และราคาขายต้องไม่สูงกว่าราคาปกติ)
+      const regular = rows.find((x) => cellKey(x.typeId, x.sizeId) === key)?.regular ?? 0
+      const price = Number(text)
+      if (!(price >= 0) || price > regular) {
+        showToast(`${original.name}: ราคาขายต้องอยู่ระหว่าง 0 ถึงราคาปกติ ${bahtText(regular)}`, 8000, 'error')
+        return
+      }
+      draft = setDiscountAt(draft, typeId, sizeId, regular - price)
     }
     const r = checkBundle(draft, { ...ctx.value, bundles: db.bundles, original })
     if (r.errors.length) {
@@ -173,7 +185,7 @@ function createNew() {
           </div>
           <div v-for="row in r.rows" :key="cellKey(row.typeId, row.sizeId)" class="flex items-center justify-between gap-2 text-sm">
             <span class="text-stone-600">{{ row.typeName ? `${row.typeName} · ` : '' }}{{ row.sizeName }} · ราคาปกติ {{ bahtText(row.regular) }} · หลังหักส่วนลด {{ bahtText(row.after) }}</span>
-            <input type="number" inputmode="numeric" min="0" class="input h-9 w-24 text-right" :value="edits[r.b.id]?.[cellKey(row.typeId, row.sizeId)] ?? row.amount" :data-row="`${r.b.id}|${cellKey(row.typeId, row.sizeId)}`" :aria-label="`ส่วนลด ${r.b.name} ${row.typeName} ${row.sizeName}`" @input="setEdit(r.b.id, cellKey(row.typeId, row.sizeId), $event.target.value)" />
+            <input type="number" inputmode="numeric" min="0" class="input h-9 w-24 text-right" :value="edits[r.b.id]?.[cellKey(row.typeId, row.sizeId)] ?? row.after" :data-row="`${r.b.id}|${cellKey(row.typeId, row.sizeId)}`" :aria-label="`ราคาขาย ${r.b.name} ${row.typeName} ${row.sizeName}`" @input="setEdit(r.b.id, cellKey(row.typeId, row.sizeId), $event.target.value)" />
           </div>
         </div>
       </section>
