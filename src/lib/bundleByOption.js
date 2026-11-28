@@ -146,6 +146,34 @@ export function styleRowsOf(bundles, styleId, groups, sizes) {
   })
 }
 
+// ราคาขายแนะนำของรูปแบบนี้ ต่อขนาด: เทียบกับชุดที่มีจำนวนตัวเลือกเท่ากัน และตั้ง "ราคาของรูปแบบนี้" ไว้แล้ว
+// เทียบเป็นสัดส่วนราคาขาย/ราคาปกติของชุดนั้น (ชุดราคาปกติต่างกันเทียบราคาดิบไม่ได้) แล้วใช้ค่ากลาง คิดกลับจากราคาปกติของชุดนี้
+// คืน { sizes: { [sizeId]: บาท }, count } · ไม่มีชุดเทียบเคียงในขนาดนั้น = ไม่มีค่าของขนาดนั้น
+const medianOf = (xs) => {
+  const s = [...xs].sort((p, q) => p - q)
+  const m = Math.floor(s.length / 2)
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2
+}
+export function styleSuggestion(b, styleId, bundles, groups, sizes) {
+  const n = new Set((b.items || []).map(keyOf)).size
+  const peers = (bundles || []).filter(
+    (o) => o.id !== b.id && o.active !== false && new Set((o.items || []).map(keyOf)).size === n && isOwnStyle(o, styleId),
+  )
+  const out = {}
+  for (const sz of sizes || []) {
+    const ratios = []
+    for (const o of peers) {
+      const reg = regularTotal(o.items || [], groups, null, sz.id)
+      const disc = o.styleDiscount?.[styleId]?.[sz.id]
+      if (reg > 0 && disc != null && disc !== '') ratios.push(Math.max(0, reg - (Number(disc) || 0)) / reg)
+    }
+    if (!ratios.length) continue
+    const reg = regularTotal(b.items || [], groups, null, sz.id)
+    if (reg > 0) out[sz.id] = Math.max(0, Math.round(medianOf(ratios) * reg))
+  }
+  return { sizes: out, count: peers.length }
+}
+
 // คืนชุดใหม่ (ไม่แก้ต้นฉบับ): ตั้งโหมดของรูปแบบนี้ และถ้าเป็น "ราคาของรูปแบบนี้" ส่วนลดต่อขนาด = ราคาปกติ − ราคาขาย
 // ช่องขายว่าง = ลบค่าของขนาดนั้น · ขายเกินราคาปกติ = ส่วนลด 0
 export function applyStyleRow(b, styleId, mode, sales, groups, sizes) {
