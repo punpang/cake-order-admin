@@ -7,6 +7,7 @@ import { showToast } from '../../lib/toast'
 import { applyIntendedPct, bahtText, bundleSummary, checkBundle, driftRows, findDuplicate, linkSuggestions, overDiscounts, withLinks } from '../../lib/bundleEditor'
 import ManageShell from '../../components/ManageShell.vue'
 import AppIcon from '../../components/AppIcon.vue'
+import AppSwitch from '../../components/AppSwitch.vue'
 
 // หน้ารายการบันเดิ้ล (ชุดลดราคาตัวเลือก): ดูว่าแต่ละชุดลดเท่าไหร่ในแต่ละขนาด แตะการ์ดเพื่อแก้ไข
 const router = useRouter()
@@ -37,6 +38,8 @@ const list = computed(() => {
     .filter((r) => !s || `${r.b.name} ${r.s.items.map((i) => `${i.group} ${i.name}`).join(' ')}`.toLowerCase().includes(s))
 })
 const move = (b, dir) => moveItem(db.bundles, db.bundles.indexOf(b), dir)
+// เปิด/ปิดใช้งานชุดจากหน้ารายการ (บันทึกทันที ไม่ลบชุด)
+const setActive = (b, on) => { saveBundle({ ...b, active: on }); showToast(on ? `เปิดใช้งาน "${b.name}" แล้ว` : `ปิดใช้งาน "${b.name}" แล้ว`) }
 const copy = (b) => router.push({ path: '/admin/settings/bundles/new', query: { from: b.id } })
 const linkText = (links) => links.map((l) => `${l.scopeName || 'ทุกประเภท'} ${l.pct}%`).join(' · ')
 // ปรับช่องที่ตั้งเป็นเปอร์เซ็นต์ให้ตรงกับราคาปกติตอนนี้ · ตรวจก่อน แล้วถามยืนยันพร้อมรายการที่จะเปลี่ยน
@@ -144,6 +147,7 @@ async function link(b) {
           <button type="button" class="btn-soft h-9 px-3 text-sm" :data-link-btn="r.b.id" @click="link(r.b)">ตั้งตามเปอร์เซ็นต์นี้</button>
         </div>
         <div class="flex items-center gap-1 border-t border-stone-100 px-2 py-1.5">
+          <AppSwitch :model-value="r.b.active !== false" :aria-label="`เปิดใช้งาน ${r.b.name}`" :data-toggle-active="r.b.id" class="px-2" @update:model-value="setActive(r.b, $event)" />
           <button type="button" class="btn-soft h-9 px-3 text-sm" :data-copy="r.b.id" @click="copy(r.b)">ทำสำเนา</button>
           <span class="flex-1" />
           <button
