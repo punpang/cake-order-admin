@@ -1,7 +1,7 @@
 <script setup>
 import { money, num } from '../lib/format'
 import { MAIN_KEYS } from '../lib/constants'
-import { typePrice, typeSizePrice, flavorPrice, stylePrice, shapePrice, isSizePriced, optionPrice, isFixed, isPerPound, sizePoundsOf, forType, bundleTags } from '../lib/pricing'
+import { typePrice, typeSizePrice, flavorPrice, stylePrice, shapePrice, isSizePriced, optionPrice, isFixed, isPerPound, sizePoundsOf, forType, bundleTags, hasPick } from '../lib/pricing'
 import { db } from '../data/store'
 import { computed } from 'vue'
 import AppIcon from './AppIcon.vue'
@@ -87,7 +87,7 @@ const tagText = (t) =>
   t.state === 'done' ? `✓ ลดแล้ว -${num(t.amount)}฿` : t.setTotal != null ? `เลือกเพิ่ม → ครบชุดรวม ${num(t.setTotal)}฿` : `เลือกเพิ่ม → -${num(t.amount)}฿`
 const isLocked = (g, o) => !!props.locked?.has(`${g.id}:${o.id}`)
 const isOn = (g, o) =>
-  g.type === 'multi' ? (selections.value[g.id] || []).includes(o.id) : selections.value[g.id] === o.id
+  g.type === 'multi' ? (selections.value[g.id] || []).includes(o.id) : hasPick(selections.value, g.id, o.id)
 </script>
 
 <template>

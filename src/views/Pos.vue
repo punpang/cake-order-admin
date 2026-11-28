@@ -14,7 +14,7 @@ import {
 import { activeSecondsLeft, expiringSoon, pointBalance, conversionPlan } from '../lib/loyalty'
 import { staffCardRemote, quoteRemote } from '../lib/memberRemote'
 import { displayMember } from '../lib/displayMember'
-import { orderTotals, discountLines } from '../lib/pricing'
+import { orderTotals, discountLines, hasPick } from '../lib/pricing'
 import { pointPromoFor } from '../lib/posPromo'
 import { coBought, rankSellers, suggestBundles } from '../lib/posRec'
 import { POS_METHODS, ROLES } from '../lib/constants'
@@ -170,7 +170,7 @@ function pickMod(g, o) {
   if (g.type === 'multi') s[g.id] = s[g.id].includes(o.id) ? s[g.id].filter((v) => v !== o.id) : [...s[g.id], o.id]
   else s[g.id] = s[g.id] === o.id && !g.required ? null : o.id
 }
-const isPicked = (g, o) => (g.type === 'multi' ? modFor.value.sel[g.id].includes(o.id) : modFor.value.sel[g.id] === o.id)
+const isPicked = (g, o) => (g.type === 'multi' ? modFor.value.sel[g.id].includes(o.id) : hasPick(modFor.value.sel, g.id, o.id))
 const modSel = computed(() =>
   modFor.value ? Object.entries(modFor.value.sel).flatMap(([gid, v]) => (Array.isArray(v) ? v : v ? [v] : []).map((oid) => ({ groupId: gid, optionId: oid }))) : [],
 )
