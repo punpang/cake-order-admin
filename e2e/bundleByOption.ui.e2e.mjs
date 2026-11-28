@@ -102,6 +102,7 @@ t('แก้ส่วนลดของชุดเดิมในหน้า�
   const rowText = await first.locator('xpath=..').innerText()
   const regular = Number(rowText.match(/ราคาปกติ ([\d,.]+)/)[1].replace(/,/g, ''))
   await first.fill(String(regular - 12))
+  const priceTyped = String(regular - 12)
   await page.getByRole('button', { name: 'บันทึกส่วนลด' }).click()
   await page.waitForFunction((id) => window.__store.db.bundles.find((x) => x.id === id)?.discount && true, target.id, { timeout: 10000 })
   const amt = await page.evaluate((a) => {
@@ -109,6 +110,9 @@ t('แก้ส่วนลดของชุดเดิมในหน้า�
     return a.typeId ? b.typeDiscount?.[a.typeId]?.[a.sizeId] : b.discount?.[a.sizeId]
   }, { id: target.id, typeId: typeId || null, sizeId })
   assert.equal(Number(amt), 12)
+  // หลังบันทึก ช่องต้องแสดงราคาขายที่กรอก (ไม่เด้งกลับเป็นราคาปกติ)
+  await page.waitForTimeout(500)
+  assert.equal(await card.locator('input[type=number]').first().inputValue(), priceTyped)
   assert.deepEqual(errors, [])
   await page.close()
 })

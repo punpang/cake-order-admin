@@ -69,6 +69,8 @@ export function discountRows(b, groups, sizes, types = []) {
         sizeName: s.name,
         regular: regularTotal(b.items || [], groups, t, s.id),
         amount: bundleAmount(b, t, [s.id], null) || 0,
+        // มีการตั้งส่วนลดให้ช่องนี้แล้วหรือยัง ทั้งของประเภทนี้เอง หรือรับจากค่าทุกประเภท (ใช้เลือกค่าเริ่มต้นของช่องราคาขาย)
+        set: [t ? b.typeDiscount?.[t]?.[s.id] : null, b.discount?.[s.id]].some((v) => v != null && v !== ''),
         // ราคาหลังหักส่วนลดที่ลูกค้าได้จริง: ส่วนลดไม่เกินราคาปกติ (ตรงกับ bundleAmountCapped)
         after: 0,
       })
