@@ -24,8 +24,9 @@ async function openItemModal(width = 1280, height = 800) {
   await page.getByRole('button', { name: /คุณมะลิ/ }).first().click()
   await page.getByRole('button', { name: 'ถัดไป' }).first().click()
   await page.waitForTimeout(400)
-  // นัดรับต้องเป็นวันในอนาคตและเวลาที่ร้านเปิด: ตั้งวันที่ 28 และเวลา 10:00
-  await page.locator('select[aria-label="วันที่ วัน"]').selectOption('28')
+  // นัดรับต้องเป็นวันในอนาคตและเวลาที่ร้านเปิด: เลือกวันสุดท้ายของเดือน (ไม่ผูกกับวันที่รันเทสต์) และเวลา 10:00
+  const daySel = page.locator('select[aria-label="วันที่ วัน"]')
+  await daySel.selectOption(await daySel.locator('option').last().getAttribute('value'))
   await page.getByRole('button', { name: '10:00', exact: true }).first().click()
   await page.getByRole('button', { name: 'ถัดไป' }).first().click()
   await page.waitForTimeout(400)
