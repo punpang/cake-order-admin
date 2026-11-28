@@ -1,7 +1,7 @@
 <script setup>
 import { money, num } from '../lib/format'
 import { MAIN_KEYS } from '../lib/constants'
-import { typePrice, typeSizePrice, flavorPrice, stylePrice, shapePrice, isSizePriced, optionPrice, isFixed, isPerPound, sizePoundsOf, forType, bundleTags } from '../lib/pricing'
+import { typePrice, typeSizePrice, flavorPrice, stylePrice, shapePrice, isSizePriced, optionPrice, isFixed, isPerPound, sizePoundsOf, forType, bundleTags, hasPick, singleBundleExtends, idsOf } from '../lib/pricing'
 import { db } from '../data/store'
 import { computed } from 'vue'
 import AppIcon from './AppIcon.vue'
@@ -75,9 +75,13 @@ function toggle(groupId, optionId) {
 }
 
 function pick(groupId, optionId, required) {
-  // กดซ้ำเพื่อยกเลิกได้ ถ้าไม่บังคับ
-  if (selections.value[groupId] === optionId && !required) delete selections.value[groupId]
-  else selections.value[groupId] = optionId
+  const cur = idsOf(selections.value[groupId])
+  if (cur.includes(optionId)) {
+    const rest = cur.filter((x) => x !== optionId)
+    if (!required) { if (rest.length) selections.value[groupId] = rest.length === 1 ? rest[0] : rest; else delete selections.value[groupId] }
+    return
+  }
+  selections.value[groupId] = cur.length && singleBundleExtends(props.bundles, groupId, cur, optionId) ? [...cur, optionId] : optionId
 }
 
 const tags = computed(() => bundleTags(props.bundles, props.allGroups || props.groups, { ...props.context, ...selections.value }, { typeId: props.typeOpt?.id || null, sizeIds: props.sizeIds, allow: props.allow, scopes: props.scopes }))
@@ -87,7 +91,7 @@ const tagText = (t) =>
   t.state === 'done' ? `✓ ลดแล้ว -${num(t.amount)}฿` : t.setTotal != null ? `เลือกเพิ่ม → ครบชุดรวม ${num(t.setTotal)}฿` : `เลือกเพิ่ม → -${num(t.amount)}฿`
 const isLocked = (g, o) => !!props.locked?.has(`${g.id}:${o.id}`)
 const isOn = (g, o) =>
-  g.type === 'multi' ? (selections.value[g.id] || []).includes(o.id) : selections.value[g.id] === o.id
+  g.type === 'multi' ? (selections.value[g.id] || []).includes(o.id) : hasPick(selections.value, g.id, o.id)
 </script>
 
 <template>
