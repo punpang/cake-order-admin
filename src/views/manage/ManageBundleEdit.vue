@@ -215,7 +215,8 @@ async function save() {
   if (!(await confirmDeactivate(db.bundles, data, data.name))) return
   saveBundle(data)
   showToast(`บันทึก "${data.name}" แล้ว`)
-  router.push(LIST)
+  // ชุดที่มีอยู่แล้ว: อยู่หน้าเดิมต่อ (ไม่ปิดหน้า) · ชุดใหม่: กลับหน้ารายการเพื่อไม่ให้สร้างซ้ำจากฟอร์มเดิม
+  if (isNew.value) router.push(LIST)
 }
 </script>
 
