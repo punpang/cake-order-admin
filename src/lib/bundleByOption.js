@@ -1,7 +1,7 @@
 // หน้าบันเดิ้ลแบบเลือกตัวเลือกหนึ่งตัว: หาชุดทั้งหมดที่มีตัวเลือกนั้น บอกว่าชุดไหนจะถูกข้ามเมื่อไร และตั้งส่วนลดต่อขนาด
 // ลำดับการใช้ชุดตามโค้ดจริงใน pricing.js (bundleWinners): จำนวนตัวเลือกมากก่อน แล้วส่วนลดรวมมากก่อน และชุดที่ใช้ตัวเลือกซ้ำจะถูกข้าม
 // ใช้ bundleAmount / regularTotal เดิม เพื่อให้ตัวเลขตรงกับที่ลูกค้าจ่าย · ไม่เปลี่ยนสูตรราคาและรูปแบบข้อมูล
-import { bundleAmount, forType, calcUnitPrice } from './pricing.js'
+import { bundleAmount, forType, calcUnitPrice, isOwnStyle } from './pricing.js'
 import { regularTotal, makeDraft, autoBundleName, findItemOption } from './bundleEditor.js'
 
 const keyOf = (x) => `${x.groupId}:${x.optionId}`
@@ -122,6 +122,42 @@ export function cakePriceFor(b, groups, { typeId = null, flavorId = null, sizeId
     before: calcUnitPrice(item, groups, [], active, null, null, []),
     after: calcUnitPrice(item, groups, [], active, null, null, [b]),
   }
+}
+
+// ---------- ราคาแยกตามรูปแบบตกแต่ง (ตั้งจากหน้าตัวเลือกรูปแบบ) ----------
+// แถวของทุกชุดสำหรับรูปแบบนี้: โหมด + ราคาปกติ/ราคาขายต่อขนาด · ราคาขายว่าง = ยังไม่ตั้งราคาของรูปแบบนี้
+export function styleRowsOf(bundles, styleId, groups, sizes) {
+  return (bundles || []).map((b) => {
+    const regular = {}
+    const sales = {}
+    for (const sz of sizes || []) {
+      const reg = regularTotal(b.items || [], groups, null, sz.id)
+      const disc = b.styleDiscount?.[styleId]?.[sz.id]
+      regular[sz.id] = reg
+      sales[sz.id] = disc == null || disc === '' ? '' : String(Math.max(0, reg - (Number(disc) || 0)))
+    }
+    return { id: b.id, name: b.name, active: b.active !== false, mode: isOwnStyle(b, styleId) ? 'own' : 'central', regular, sales }
+  })
+}
+
+// คืนชุดใหม่ (ไม่แก้ต้นฉบับ): ตั้งโหมดของรูปแบบนี้ และถ้าเป็น "ราคาของรูปแบบนี้" ส่วนลดต่อขนาด = ราคาปกติ − ราคาขาย
+// ช่องขายว่าง = ลบค่าของขนาดนั้น · ขายเกินราคาปกติ = ส่วนลด 0
+export function applyStyleRow(b, styleId, mode, sales, groups, sizes) {
+  const next = JSON.parse(JSON.stringify(b))
+  next.styleMode = { ...(next.styleMode || {}), [styleId]: mode === 'own' ? 'own' : 'central' }
+  if (mode !== 'own') return next
+  const row = { ...(next.styleDiscount?.[styleId] || {}) }
+  for (const sz of sizes || []) {
+    const v = sales?.[sz.id]
+    if (v == null || v === '') {
+      delete row[sz.id]
+      continue
+    }
+    const reg = regularTotal(next.items || [], groups, null, sz.id)
+    row[sz.id] = Math.max(0, reg - (Number(v) || 0))
+  }
+  next.styleDiscount = { ...(next.styleDiscount || {}), [styleId]: row }
+  return next
 }
 
 // ร่างชุดใหม่จากตัวเลือกที่เลือก (ข้ามกลุ่มรองได้) ชื่ออัตโนมัติ ยังไม่มีส่วนลด

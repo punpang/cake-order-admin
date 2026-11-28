@@ -1,6 +1,6 @@
 // ทดสอบหน้าบันเดิ้ลแบบเลือกตัวเลือกหนึ่งตัว · รัน: node src/lib/bundleByOption.test.mjs
 import assert from 'node:assert/strict'
-import { bundlesWithOption, conflictsOf, usageOf, discountRows, setSizeDiscount, setDiscountAt, applicableTypes, createBundleDraft, cakePriceFor } from './bundleByOption.js'
+import { bundlesWithOption, conflictsOf, usageOf, discountRows, setSizeDiscount, setDiscountAt, applicableTypes, createBundleDraft, cakePriceFor, styleRowsOf, applyStyleRow } from './bundleByOption.js'
 
 let fail = 0
 const t = (name, fn) => {
@@ -131,6 +131,47 @@ t('cakePriceFor: ใช้ราคาพิเศษของขนาด/ป�
   const special = [{ active: true, typeSizes: { tA: { s1: 60 } } }]
   const r = cakePriceFor(cb, cakeGroups, { typeId: 'tA', flavorId: 'fl1', sizeId: 's1' }, special)
   assert.deepEqual(r, { before: 180, after: 150 })
+})
+
+// ราคาแยกตามรูปแบบตกแต่ง: b1 ราคาปกติ 100 ต่อขนาด (ตัวเลือก 2 ชิ้น ชิ้นละ 50)
+const sz = [{ id: 's1', name: '1 ปอนด์' }]
+t('styleRowsOf: แสดงโหมดและราคาขาย = ราคาปกติ − ส่วนลดของรูปแบบ', () => {
+  const b = { ...b1, styleMode: { st1: 'own' }, styleDiscount: { st1: { s1: 30 } } }
+  const [row] = styleRowsOf([b], 'st1', groups, sz)
+  assert.equal(row.mode, 'own')
+  assert.equal(row.regular.s1, 100)
+  assert.equal(row.sales.s1, '70')
+})
+
+t('styleRowsOf: ไม่ตั้งรูปแบบ = ใช้ส่วนลดด้านบน และราคาขายว่าง', () => {
+  const [row] = styleRowsOf([{ ...b1, styleMode: {}, styleDiscount: {} }], 'st1', groups, sz)
+  assert.equal(row.mode, 'central')
+  assert.equal(row.sales.s1, '')
+})
+
+t('applyStyleRow: ราคาขาย 80 → ส่วนลดของรูปแบบ 20 และไม่แก้ชุดต้นฉบับ', () => {
+  const r = applyStyleRow(b1, 'st1', 'own', { s1: '80' }, groups, sz)
+  assert.equal(r.styleMode.st1, 'own')
+  assert.equal(r.styleDiscount.st1.s1, 20)
+  assert.equal(b1.styleDiscount?.st1, undefined)
+})
+
+t('applyStyleRow: ขายเกินราคาปกติ = ส่วนลด 0 · ช่องว่าง = ลบค่า', () => {
+  assert.equal(applyStyleRow(b1, 'st1', 'own', { s1: '150' }, groups, sz).styleDiscount.st1.s1, 0)
+  const set = applyStyleRow(b1, 'st1', 'own', { s1: '80' }, groups, sz)
+  assert.equal(applyStyleRow(set, 'st1', 'own', { s1: '' }, groups, sz).styleDiscount.st1.s1, undefined)
+})
+
+t('applyStyleRow: โหมดใช้ส่วนลดด้านบนไม่แตะค่าขายที่เก็บไว้', () => {
+  const set = { ...b1, styleMode: { st1: 'own' }, styleDiscount: { st1: { s1: 30 } } }
+  const r = applyStyleRow(set, 'st1', 'central', { s1: '' }, groups, sz)
+  assert.equal(r.styleMode.st1, 'central')
+  assert.equal(r.styleDiscount.st1.s1, 30)
+})
+
+t('applyStyleRow → styleRowsOf: บันทึกแล้วอ่านกลับได้ราคาขายเดิม', () => {
+  const r = applyStyleRow(b1, 'st1', 'own', { s1: '65' }, groups, sz)
+  assert.equal(styleRowsOf([r], 'st1', groups, sz)[0].sales.s1, '65')
 })
 
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')
