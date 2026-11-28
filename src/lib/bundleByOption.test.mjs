@@ -143,6 +143,11 @@ t('styleRowsOf: แสดงโหมดและราคาขาย = รา�
   assert.equal(row.sales.s1, '70')
 })
 
+t('styleRowsOf: ป้ายบอกประเภทตัวเลือกรองของแต่ละชิ้นในชุด', () => {
+  const [row] = styleRowsOf([b1], 'st1', groups, sz)
+  assert.equal(row.groupLabel, 'ขอบบน: คิทแคท · ขอบบน: เชอร์รี่')
+})
+
 t('styleRowsOf: ไม่ตั้งรูปแบบ = ใช้ส่วนลดด้านบน และราคาขายว่าง', () => {
   const [row] = styleRowsOf([{ ...b1, styleMode: {}, styleDiscount: {} }], 'st1', groups, sz)
   assert.equal(row.mode, 'central')

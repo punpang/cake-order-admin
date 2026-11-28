@@ -443,7 +443,10 @@ async function saveO() {
           <p v-if="!styleRows.length" class="text-xs text-stone-400">ยังไม่มีบันเดิ้ล · สร้างได้ที่ <RouterLink to="/admin/settings/bundles" class="text-brand-700 underline">บันเดิ้ล</RouterLink></p>
           <div v-for="r in styleRows" :key="r.id" class="rounded-xl border border-stone-200 p-3" :data-style-row="r.id">
             <div class="flex flex-wrap items-center gap-2">
-              <span class="min-w-0 flex-1 basis-full break-words font-medium text-stone-800 sm:basis-0">{{ r.name }}<span v-if="!r.active" class="ml-1 text-xs text-stone-400">(ปิด)</span></span>
+              <span class="min-w-0 flex-1 basis-full break-words sm:basis-0">
+                <span class="block font-medium text-stone-800">{{ r.name }}<span v-if="!r.active" class="ml-1 text-xs text-stone-400">(ปิด)</span></span>
+                <span class="mt-0.5 block text-xs text-stone-500" data-style-group-label>{{ r.groupLabel }}</span>
+              </span>
               <div class="flex flex-wrap gap-1.5">
                 <button
                   v-for="m in [{ v: 'central', l: 'ใช้ส่วนลดด้านบน' }, { v: 'own', l: 'ราคาของรูปแบบนี้' }]"
