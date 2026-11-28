@@ -3,7 +3,7 @@ import MoneyInput from '../../components/MoneyInput.vue'
 import { confirmDeactivate } from '../../lib/confirm'
 import { computed, reactive, ref } from 'vue'
 import { db, findGroup, saveGroup, saveOption, saveBundle, moveItem, moveItemTo } from '../../data/store'
-import { styleRowsOf, applyStyleRow } from '../../lib/bundleByOption'
+import { styleRowsOf, applyStyleRow, styleSuggestion } from '../../lib/bundleByOption'
 import { showToast } from '../../lib/toast'
 import { GROUP_TYPES, APPLIES_TO, MAIN_KEYS } from '../../lib/constants'
 import { money } from '../../lib/format'
@@ -121,7 +121,12 @@ const shownStyleRows = computed(() => {
   return s ? styleRows.value.filter((r) => `${r.name} ${r.groupLabel}`.toLowerCase().includes(s)) : styleRows.value
 })
 function loadStyleRows(styleId) {
-  styleRows.value = styleId ? styleRowsOf(db.bundles, styleId, db.optionGroups, sizeOpts.value) : []
+  styleRows.value = styleId
+    ? styleRowsOf(db.bundles, styleId, db.optionGroups, sizeOpts.value).map((r) => ({
+      ...r,
+      suggest: styleSuggestion(db.bundles.find((x) => x.id === r.id), styleId, db.bundles, db.optionGroups, sizeOpts.value),
+    }))
+    : []
   styleTouched.clear()
   styleQ.value = ''
 }
@@ -131,6 +136,11 @@ function setStyleMode(r, m) {
 }
 function setStyleSale(r, sid, v) {
   r.sales[sid] = v
+  styleTouched.add(r.id)
+}
+// เติมราคาแนะนำลงช่องขายของชุดนั้น · ยังไม่บันทึก
+function applyStyleSuggest(r) {
+  for (const [sid, price] of Object.entries(r.suggest.sizes)) r.sales[sid] = String(price)
   styleTouched.add(r.id)
 }
 // บันทึกเฉพาะบันเดิ้ลที่แก้ไขในหน้านี้ (ชุดที่ไม่ได้แตะคงค่าเดิม)
@@ -483,6 +493,10 @@ async function saveO() {
                 {{ sz.name }} · ราคาขาย (ปกติ {{ money(r.regular[sz.id]) }})
                 <MoneyInput :model-value="r.sales[sz.id]" class="input mt-1 h-10 px-2" :data-style-sale="`${r.id}:${sz.id}`" :placeholder="String(r.regular[sz.id])" @update:model-value="(v) => setStyleSale(r, sz.id, v)" />
               </label>
+            </div>
+            <div v-if="r.mode === 'own' && Object.keys(r.suggest.sizes).length" class="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-info-50 p-2 text-xs text-info-800">
+              <span class="min-w-0 flex-1">แนะนำจาก {{ r.suggest.count }} ชุดที่มีตัวเลือกเท่ากัน · ยังไม่บันทึกจนกว่าจะกดบันทึก</span>
+              <button type="button" class="btn-soft h-9 px-3 text-sm" :data-style-suggest="r.id" @click="applyStyleSuggest(r)">ใช้ราคาแนะนำ</button>
             </div>
           </div>
           <p v-if="styleRows.length" class="text-xs text-stone-400">ปกติใช้ส่วนลดด้านบนของบันเดิ้ล · "ราคาของรูปแบบนี้" กรอกราคาขายแยกขนาด (ช่องว่าง = ไม่ลดในขนาดนั้น)</p>

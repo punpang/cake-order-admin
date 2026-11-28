@@ -1,6 +1,6 @@
 // ทดสอบหน้าบันเดิ้ลแบบเลือกตัวเลือกหนึ่งตัว · รัน: node src/lib/bundleByOption.test.mjs
 import assert from 'node:assert/strict'
-import { bundlesWithOption, conflictsOf, usageOf, discountRows, setSizeDiscount, setDiscountAt, applicableTypes, createBundleDraft, cakePriceFor, styleRowsOf, applyStyleRow } from './bundleByOption.js'
+import { bundlesWithOption, conflictsOf, usageOf, discountRows, setSizeDiscount, setDiscountAt, applicableTypes, createBundleDraft, cakePriceFor, styleRowsOf, applyStyleRow, styleSuggestion } from './bundleByOption.js'
 
 let fail = 0
 const t = (name, fn) => {
@@ -177,6 +177,21 @@ t('applyStyleRow: โหมดใช้ส่วนลดด้านบนไ�
 t('applyStyleRow → styleRowsOf: บันทึกแล้วอ่านกลับได้ราคาขายเดิม', () => {
   const r = applyStyleRow(b1, 'st1', 'own', { s1: '65' }, groups, sz)
   assert.equal(styleRowsOf([r], 'st1', groups, sz)[0].sales.s1, '65')
+})
+
+// ราคาขายแนะนำ: เทียบชุดที่มีจำนวนตัวเลือกเท่ากันและตั้งราคาของรูปแบบนี้ไว้แล้ว
+const ownPeer = (id, items, styleDisc) => ({ ...mk(id, items, 0), discount: {}, styleMode: { st1: 'own' }, styleDiscount: { st1: { s1: styleDisc } } })
+const target = mk('tgt', [B, A], 0)
+t('styleSuggestion: ค่ากลางของสัดส่วนชุดเทียบเคียง คิดกลับจากราคาปกติของชุดนี้', () => {
+  const p1 = ownPeer('p1', [B, A], 30) // ขาย 70 ของ 100 = 0.7
+  const p2 = ownPeer('p2', [B, A], 50) // ขาย 50 ของ 100 = 0.5 → ค่ากลาง 0.6 → 60
+  const p3 = ownPeer('p3', [B, A, D], 10) // จำนวนตัวเลือกไม่เท่า ไม่นับ
+  const p4 = mk('p4', [B, A], 0) // ไม่ได้ตั้งราคาของรูปแบบนี้ ไม่นับ
+  assert.deepEqual(styleSuggestion(target, 'st1', [target, p1, p2, p3, p4], groups, sz), { sizes: { s1: 60 }, count: 2 })
+})
+
+t('styleSuggestion: ไม่มีชุดเทียบเคียง = ไม่แนะนำ', () => {
+  assert.deepEqual(styleSuggestion(target, 'st1', [target], groups, sz), { sizes: {}, count: 0 })
 })
 
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')
