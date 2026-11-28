@@ -118,5 +118,12 @@ t('cakePriceFor: ราคาเค้กเต็มก่อนและหล
   assert.deepEqual(r, { before: 120, after: 90 })
 })
 
+t('cakePriceFor: ใช้ราคาพิเศษของขนาด/ประเภทเมื่อส่งรายการพิเศษที่ใช้งานอยู่', () => {
+  const cb = { id: 'cb2', name: 'x', items: [{ groupId: G, optionId: 'cherry' }, { groupId: G, optionId: 'kit' }], discount: { s1: 30 }, types: [], typeDiscount: {}, styleDiscount: {}, styleMode: {}, active: true }
+  const special = [{ active: true, typeSizes: { tA: { s1: 60 } } }]
+  const r = cakePriceFor(cb, cakeGroups, { typeId: 'tA', flavorId: 'fl1', sizeId: 's1' }, special)
+  assert.deepEqual(r, { before: 180, after: 150 })
+})
+
 console.log(fail ? `${fail} FAILED` : 'ALL PASS')
 process.exit(fail ? 1 : 0)
