@@ -166,8 +166,13 @@ export function syncForced(groups, sels, prev, allow = null) {
 const num = (v) => (v == null || v === '' ? null : Number(v))
 export const forType = (x, typeId) => !x?.types?.length || (!!typeId && x.types.includes(typeId))
 export const isFixed = (o) => o?.priceType === 'fixed'
-export function optionPrice(o, typeId, sizeIds) {
+// คงที่ × ขนาด: ราคาต่อปอนด์ (pricePerPound) คูณจำนวนปอนด์ของขนาดนั้น ไม่แยกตามประเภท
+export const isPerPound = (o) => o?.priceType === 'perPound'
+// จำนวนปอนด์ของแต่ละขนาด จากกลุ่มขนาด (ไม่มี = 1 ปอนด์)
+export const sizePoundsOf = (groups) => Object.fromEntries((groups || []).find((g) => g.key === 'size')?.options?.map((o) => [o.id, Number(o.pounds) || 1]) || [])
+export function optionPrice(o, typeId, sizeIds, pounds = null) {
   if (!o) return 0
+  if (isPerPound(o)) return (Number(o.pricePerPound) || 0) * sizeIds.reduce((s, sid) => s + (pounds?.[sid] ?? 1), 0)
   if (isFixed(o)) return num(o.typePrice?.[typeId]) ?? (Number(o.price) || 0)
   return sizeIds.reduce((s, sid) => s + (num(o.typePrices?.[typeId]?.[sid]) ?? (Number(o.sizePrices?.[sid]) || 0)), 0)
 }
@@ -190,7 +195,7 @@ export const bundleAmount = (b, typeId, sizeIds, styleId = null) =>
   sizeIds.reduce((s, sid) => s + (isOwnStyle(b, styleId) ? num(b.styleDiscount?.[styleId]?.[sid]) ?? 0 : num(b.typeDiscount?.[typeId]?.[sid]) ?? (Number(b.discount?.[sid]) || 0)), 0)
 // ราคาตัวเลือกทั้งชุด ณ ประเภท/ขนาดที่คิดราคา (เหมือนราคาตัวเลือกในตะกร้า)
 const itemsPriceOf = (b, groups, typeId, sizeIds) =>
-  (b.items || []).reduce((s, x) => s + optionPrice(groups.find((g) => g.id === x.groupId)?.options?.find((o) => o.id === x.optionId), typeId, sizeIds), 0)
+  (b.items || []).reduce((s, x) => s + optionPrice(groups.find((g) => g.id === x.groupId)?.options?.find((o) => o.id === x.optionId), typeId, sizeIds, sizePoundsOf(groups)), 0)
 // ส่วนลดที่ลูกค้าได้จริง = ส่วนลดที่ตั้งไว้ แต่ไม่เกินราคาตัวเลือกในชุด
 // ส่วนลดเป็นบาทคงที่ ถ้าราคาตัวเลือกลดลงหลังตั้งส่วนลด ไม่กันไว้ราคาเค้กจะต่ำกว่าฐานหรือติดลบ (หน้าแก้ไข/รายการเตือนชุดนั้นด้วย overDiscounts)
 export const bundleAmountCapped = (b, groups, typeId, sizeIds, styleId = null) =>
@@ -228,7 +233,7 @@ export function bundleDiscount(bundles, picked, sizeIds, usedBundles = null, typ
 
 // ยอดรวมของชุด = ราคาตัวเลือกทั้งชุด − ส่วนลด (บอกลูกค้าตอนชุดครบแทนชุดเดิมที่ลดเท่ากัน จึงไม่มีส่วนลดเพิ่ม)
 export const setTotalOf = (b, groups, typeId, sizeIds, amount) => {
-  const price = b.items.reduce((s, x) => s + optionPrice(groups.find((g) => g.id === x.groupId)?.options?.find((o) => o.id === x.optionId), typeId, sizeIds), 0)
+  const price = b.items.reduce((s, x) => s + optionPrice(groups.find((g) => g.id === x.groupId)?.options?.find((o) => o.id === x.optionId), typeId, sizeIds, sizePoundsOf(groups)), 0)
   return Math.max(0, Math.round((price - amount) * 100) / 100)
 }
 
@@ -375,7 +380,8 @@ export function calcUnitPrice(item, groups, products, active = [], used = null, 
   // ตัวเลือกที่เลือก (ตัดตัวที่ประเภทใช้ไม่ได้)
   const pick = (gs, sels, typeId) =>
     gs.flatMap((g) => idsOf(sels?.[g.id]).map((id) => ({ g, id, o: g.options.find((x) => x.id === id) }))).filter((x) => x.o && forType(x.o, typeId))
-  const priceOf = (list, typeId, sids) => list.reduce((s, x) => s + optionPrice(x.o, typeId, sids), 0)
+  const poundsMap = sizePoundsOf(groups)
+  const priceOf = (list, typeId, sids) => list.reduce((s, x) => s + optionPrice(x.o, typeId, sids, poundsMap), 0)
   const keys = (list) => new Set(list.map(({ g, id }) => `${g.id}:${id}`))
   const okWhole = groupOkFor(groups, item, tiers[0])
   const wholePicked = pick(wholeG.filter(okWhole), item.selections, wholeType)

@@ -45,6 +45,7 @@ const priceText = (o) => {
   if (isSize.value) return `${o.pounds} ปอนด์`
   if (isType.value) return `${money(o.price || 0)} + ตามขนาด`
   if (isFlavor.value) return o.priceType === 'size' ? 'ตามขนาด' : o.price ? `+${money(o.price)}` : 'ไม่บวกเพิ่ม'
+  if (o.priceType === 'perPound') return `${money(o.pricePerPound || 0)}/ปอนด์`
   if (!hasPrice(o)) return 'ไม่บวกเพิ่ม'
   return o.priceType === 'fixed' ? `+${money(o.price || 0)}` : 'ตามขนาด'
 }
@@ -317,7 +318,7 @@ async function saveO() {
             <div class="label">รูปแบบราคา</div>
             <div class="grid grid-cols-2 gap-2">
               <button
-                v-for="pt in [{ v: 'size', l: 'ตามขนาด' }, { v: 'fixed', l: 'คงที่' }]"
+                v-for="pt in [{ v: 'size', l: 'ตามขนาด' }, { v: 'fixed', l: 'คงที่' }, { v: 'perPound', l: 'คงที่ × ขนาด' }]"
                 :key="pt.v"
                 type="button"
                 class="flex h-11 items-center justify-center rounded-xl border text-sm font-medium"
@@ -333,7 +334,12 @@ async function saveO() {
             </div>
             <p class="mt-1 text-xs text-stone-400">{{ o.types.length ? `ใช้ได้เฉพาะ ${o.types.map(typeName).join(', ')}` : 'ไม่เลือก = ใช้ได้ทุกประเภท' }}</p>
           </div>
-          <div>
+          <div v-if="o.priceType === 'perPound'">
+            <div class="label">ราคาต่อปอนด์ (บาท)</div>
+            <MoneyInput v-model="o.pricePerPound" min="0" class="input h-10 w-32" placeholder="0" />
+            <p class="mt-1 text-xs text-stone-400">คิดราคา = ราคาต่อปอนด์ × จำนวนปอนด์ของขนาดที่เลือก (เช่น 50 ฿/ปอนด์ × 3 ปอนด์ = 150 ฿)</p>
+          </div>
+          <div v-else>
             <div class="label">ราคา (บาท)</div>
             <div class="-mx-5 overflow-x-auto px-5">
               <table class="w-full min-w-max text-sm">

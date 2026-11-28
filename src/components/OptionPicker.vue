@@ -1,7 +1,8 @@
 <script setup>
 import { money, num } from '../lib/format'
 import { MAIN_KEYS } from '../lib/constants'
-import { typePrice, typeSizePrice, flavorPrice, stylePrice, shapePrice, isSizePriced, optionPrice, isFixed, forType, bundleTags } from '../lib/pricing'
+import { typePrice, typeSizePrice, flavorPrice, stylePrice, shapePrice, isSizePriced, optionPrice, isFixed, isPerPound, sizePoundsOf, forType, bundleTags } from '../lib/pricing'
+import { db } from '../data/store'
 import { computed } from 'vue'
 import AppIcon from './AppIcon.vue'
 
@@ -44,6 +45,11 @@ function priceText(g, o) {
   const tid = props.typeOpt?.id
   if (isFixed(o)) {
     const v = optionPrice(o, tid, [])
+    return v ? `+${money(v)}` : ''
+  }
+  if (isPerPound(o)) {
+    if (!props.sizeIds.length) return `${money(o.pricePerPound || 0)}/ปอนด์`
+    const v = optionPrice(o, tid, props.sizeIds, sizePoundsOf(db.optionGroups))
     return v ? `+${money(v)}` : ''
   }
   const any = [o.sizePrices, ...Object.values(o.typePrices || {})].some((m) => Object.values(m || {}).some((v) => Number(v)))
