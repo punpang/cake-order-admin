@@ -127,7 +127,14 @@ function createNew() {
   for (const [key, v] of Object.entries(newDiscount.value)) {
     if (String(v).trim() === '') continue
     const { typeId, sizeId } = parseKey(key)
-    d = setDiscountAt(d, typeId, sizeId, v)
+    // ช่องนี้กรอก "ราคาขาย" → ส่วนลด = ราคาปกติ − ราคาขาย (ไม่ติดลบ และราคาขายต้องไม่สูงกว่าราคาปกติ)
+    const regular = draftRows.value.find((x) => cellKey(x.typeId, x.sizeId) === key)?.regular ?? 0
+    const price = Number(v)
+    if (!(price >= 0) || price > regular) {
+      showToast(`ราคาขายต้องอยู่ระหว่าง 0 ถึงราคาปกติ ${bahtText(regular)}`, 6000, 'error')
+      return
+    }
+    d = setDiscountAt(d, typeId, sizeId, regular - price)
   }
   const dup = findDuplicate(d.items, db.bundles)
   if (dup) { showToast(`ซ้ำกับบันเดิ้ล "${dup.name}" แก้ชุดเดิมแทน`, 6000, 'error'); return }
@@ -205,7 +212,7 @@ function createNew() {
         <div v-if="draftItems.length >= 2" class="space-y-2">
           <div v-for="row in draftRows" :key="cellKey(row.typeId, row.sizeId)" class="flex items-center justify-between gap-2 text-sm">
             <span class="text-stone-600">{{ row.typeName ? `${row.typeName} · ` : '' }}{{ row.sizeName }} · ราคาปกติ {{ bahtText(row.regular) }} · หลังหักส่วนลด {{ bahtText(row.after) }}</span>
-            <input type="number" inputmode="numeric" min="0" class="input h-9 w-24 text-right" :value="newDiscount[cellKey(row.typeId, row.sizeId)] ?? ''" :aria-label="`ส่วนลดชุดใหม่ ${row.typeName} ${row.sizeName}`" @input="newDiscount = { ...newDiscount, [cellKey(row.typeId, row.sizeId)]: $event.target.value }" />
+            <input type="number" inputmode="numeric" min="0" class="input h-9 w-24 text-right" :value="newDiscount[cellKey(row.typeId, row.sizeId)] ?? row.regular" :aria-label="`ราคาขายชุดใหม่ ${row.typeName} ${row.sizeName}`" @input="newDiscount = { ...newDiscount, [cellKey(row.typeId, row.sizeId)]: $event.target.value }" />
           </div>
           <button type="button" class="btn-primary h-10 px-4 text-sm" data-create @click="createNew">สร้างชุด</button>
         </div>

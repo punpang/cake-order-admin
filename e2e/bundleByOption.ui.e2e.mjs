@@ -70,7 +70,11 @@ t('สร้างชุดข้ามตัวเลือกหลายต�
   assert.ok(plan, 'ต้องมีกลุ่มตัวเลือก 3 ตัวที่ยังไม่มีชุดอยู่')
   await page.getByRole('button', { name: plan.base, exact: true }).click()
   for (const name of plan.others) await page.getByRole('checkbox', { name, exact: true }).check()
-  for (const el of await page.getByRole('spinbutton', { name: /ส่วนลดชุดใหม่/ }).all()) await el.fill('55')
+  // ช่องสร้างชุดกรอกเป็นราคาขาย → กรอกให้ได้ส่วนลด 55 (ราคาขาย = ราคาปกติ − 55)
+  for (const el of await page.getByRole('spinbutton', { name: /ราคาขายชุดใหม่/ }).all()) {
+    const regular = Number((await el.locator('xpath=..').innerText()).match(/ราคาปกติ ([\d,.]+)/)[1].replace(/,/g, ''))
+    await el.fill(String(regular - 55))
+  }
   await page.getByRole('button', { name: 'สร้างชุด' }).click()
   await page.waitForFunction((n) => window.__store.db.bundles.length === n + 1, plan.n, { timeout: 10000 })
   const made = await page.evaluate(() => window.__store.db.bundles.at(-1))
